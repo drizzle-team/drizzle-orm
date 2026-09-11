@@ -3,17 +3,18 @@
 import { SQL } from 'bun';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { MySqlDatabase } from '~/mysql-core/db.ts';
+import { MySqlAsyncDatabase } from '~/mysql-core/async/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
+import { bunSqlMySqlCodecs } from './codecs.ts';
 import type { BunMySqlQueryResultHKT } from './session.ts';
 import { BunMySqlSession } from './session.ts';
 
 export class BunMySqlDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
-> extends MySqlDatabase<BunMySqlQueryResultHKT, TRelations> {
+> extends MySqlAsyncDatabase<BunMySqlQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'BunMySqlDatabase';
 }
 
@@ -25,8 +26,10 @@ function construct<
 ): BunMySqlDatabase<TRelations> & {
 	$client: SQL;
 } {
+	client.options.bigint = true;
 	const dialect = new MySqlDialect({
 		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs ?? bunSqlMySqlCodecs,
 	});
 	let logger;
 	if (config.logger === true) {

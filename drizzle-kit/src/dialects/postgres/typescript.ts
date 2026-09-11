@@ -7,6 +7,7 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable, trimChar } from '../../utils';
+import { withCasing } from '../pull-utils';
 import { escapeForTsLiteral, inspect } from '../utils';
 import type {
 	CheckConstraint,
@@ -20,7 +21,7 @@ import type {
 	ViewColumn,
 } from './ddl';
 import { tableFromDDL } from './ddl';
-import { defaultNameForIdentitySequence, defaults, typeFor } from './grammar';
+import { defaultNameForIdentitySequence, defaultNameForPK, defaults, typeFor } from './grammar';
 
 // TODO: omit defaults opclass... improvement
 const imports = [
@@ -82,24 +83,6 @@ const objToStatement2 = (json: { [s: string]: unknown }) => {
 };
 
 const relations = new Set<string>();
-
-const escapeColumnKey = (value: string) => {
-	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
-		return `"${value}"`;
-	}
-	return value;
-};
-
-const withCasing = (value: string, casing: Casing) => {
-	if (casing === 'preserve') {
-		return escapeColumnKey(value);
-	}
-	if (casing === 'camel') {
-		return escapeColumnKey(toCamelCase(value));
-	}
-
-	assertUnreachable(casing);
-};
 
 const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing: Casing; withMode?: boolean }) => {
 	if (casing === 'preserve') {
@@ -377,10 +360,15 @@ export const ddlToTypeScript = (
 			return it.columns.length > 1 || isSelf(it);
 		});
 
+		const hasPkCallback = Boolean(
+			table.pk
+				&& (table.pk.columns.length > 1
+					|| (table.pk.columns.length === 1 && table.pk.name !== defaultNameForPK(table.name))),
+		);
 		const hasCallback = table.indexes.length > 0
 			|| filteredFKs.length > 0
 			|| table.policies.length > 0
-			|| (table.pk && table.pk.columns.length > 1)
+			|| hasPkCallback
 			|| table.uniques.length > 0
 			|| table.checks.length > 0;
 
@@ -388,7 +376,9 @@ export const ddlToTypeScript = (
 			statement += ', ';
 			statement += '(table) => [\n';
 			// TODO: or pk has non-default name
-			statement += table.pk && table.pk.columns.length > 1 ? createTablePK(table.pk, casing) : '';
+			statement += hasPkCallback
+				? createTablePK(table.pk!, casing)
+				: '';
 			statement += createTableFKs(filteredFKs, schemas, casing);
 			statement += createTableIndexes(table.name, table.indexes, casing);
 			statement += createTableUniques(table.uniques, casing);
@@ -577,6 +567,7 @@ const createTableColumns = (
 		const comma = (dbName && opts) ? ', ' : '';
 
 		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name
+				&& primaryKey.name === defaultNameForPK(it.table)
 			? primaryKey
 			: null;
 
@@ -600,7 +591,6 @@ const createTableColumns = (
 		// Provide just this in column function
 
 		const fks = fkByColumnName[it.name];
-		// Andrii: I switched it off until we will get a custom naem setting in references
 		if (fks) {
 			const fksStatement = fks
 				.map((it) => {

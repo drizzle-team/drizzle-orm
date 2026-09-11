@@ -1,6 +1,6 @@
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnyMySqlTable } from 'drizzle-orm/mysql-core';
-import type { MysqlCredentials } from 'src/cli/validations/mysql';
+import type { MysqlCredentials } from '../cli/validations/mysql';
 
 export const startStudioServer = async (
 	imports: Record<string, unknown>,
@@ -16,6 +16,7 @@ export const startStudioServer = async (
 	const { MySqlTable, getTableConfig } = await import('drizzle-orm/mysql-core');
 	const { Relations } = await import('drizzle-orm/_relations');
 	const { drizzleForMySQL, prepareServer } = await import('../cli/commands/studio');
+	const { humanLog } = await import('../cli/views');
 
 	const mysqlSchema: Record<string, Record<string, AnyMySqlTable>> = {};
 	const relations: Record<string, Relations> = {};
@@ -46,7 +47,7 @@ export const startStudioServer = async (
 			if (err) {
 				console.error(err);
 			} else {
-				console.log(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
+				humanLog(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
 			}
 		},
 	});

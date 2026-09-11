@@ -15,30 +15,28 @@ export abstract class PgBasePreparedQuery implements PreparedQuery {
 		protected query: Query,
 	) {}
 
-	// TODO: remove after rewriting all dialects - bound to core interface
-	mapResult(_: unknown, __?: boolean): unknown {
-		throw new Error('Method not implemented.');
-	}
-
 	getQuery(): Query {
 		return this.query;
 	}
 
 	abstract execute(placeholderValues?: Record<string, unknown>): unknown;
-
-	/** @internal */
-	protected abstract queryWithCache(
-		queryString: string,
-		params: any[],
-		query: unknown,
-	): unknown;
 }
 
-export interface PgTransactionConfig {
-	isolationLevel?: 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable';
-	accessMode?: 'read only' | 'read write';
-	deferrable?: boolean;
-}
+export type PgTransactionConfig =
+	| {
+		isolationLevel?: 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable' | undefined;
+		accessMode?: 'read only' | 'read write' | undefined;
+		deferrable?: boolean | undefined;
+		/** `snapshot` cannot be used with `isolationLevel: 'read uncommitted' | 'read committed'`  */
+		snapshot?: undefined;
+	}
+	| {
+		/** `snapshot` cannot be used with `isolationLevel: 'read uncommitted' | 'read committed'`  */
+		isolationLevel?: 'repeatable read' | 'serializable' | undefined;
+		accessMode?: 'read only' | 'read write' | undefined;
+		deferrable?: boolean | undefined;
+		snapshot?: string | undefined;
+	};
 
 export abstract class PgSession {
 	static readonly [entityKind]: string = 'PgSession';
@@ -55,6 +53,8 @@ export abstract class PgSession {
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
+		/** Usef for driver-side mapping if supported by driver & compatible */
+		driverShape?: unknown,
 	): PgBasePreparedQuery;
 
 	abstract execute(query: SQL): unknown;

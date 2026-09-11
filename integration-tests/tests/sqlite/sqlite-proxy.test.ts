@@ -20,6 +20,8 @@ const skip = [
 	// Uses async versions
 	'sync transaction rollback',
 	'sync nested transaction rollback',
+	// Has no object mode querying; codecs are user-provided
+	'all types ~codecs~',
 ];
 cacheTests(test, skip);
 tests(test, skip);
@@ -43,7 +45,7 @@ test('migrator', async ({ db, serverSimulator }) => {
 	await db.run(sql`drop table if exists users12`);
 	await db.run(sql`drop table if exists __drizzle_migrations`);
 
-	await migrate(db as SqliteRemoteDatabase<never, typeof relations>, async (queries) => {
+	await migrate(db as SqliteRemoteDatabase<typeof relations>, async (queries) => {
 		try {
 			serverSimulator.migrations(queries);
 		} catch (e) {
@@ -72,7 +74,7 @@ test('migrator : migrate with custom table', async ({ db, serverSimulator }) => 
 	await db.run(sql`drop table if exists users12`);
 	await db.run(sql`drop table if exists ${sql.identifier(customTable)}`);
 
-	await migrate(db as SqliteRemoteDatabase<never, typeof relations>, async (queries) => {
+	await migrate(db as SqliteRemoteDatabase<typeof relations>, async (queries) => {
 		try {
 			serverSimulator.migrations(queries);
 		} catch (e) {
@@ -102,7 +104,7 @@ test('migrator : --init', async ({ db, serverSimulator }) => {
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	const migratorRes = await migrate(db as SqliteRemoteDatabase<never, typeof relations>, async (queries) => {
+	const migratorRes = await migrate(db as SqliteRemoteDatabase<typeof relations>, async (queries) => {
 		try {
 			serverSimulator.migrations(queries);
 		} catch (e) {
@@ -140,7 +142,7 @@ test('migrator : --init - local migrations error', async ({ db, serverSimulator 
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	const migratorRes = await migrate(db as SqliteRemoteDatabase<never, typeof relations>, async (queries) => {
+	const migratorRes = await migrate(db as SqliteRemoteDatabase<typeof relations>, async (queries) => {
 		try {
 			serverSimulator.migrations(queries);
 		} catch (e) {
@@ -178,7 +180,7 @@ test('migrator : --init - db migrations error', async ({ db, serverSimulator }) 
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	await migrate(db as SqliteRemoteDatabase<never, typeof relations>, async (queries) => {
+	await migrate(db as SqliteRemoteDatabase<typeof relations>, async (queries) => {
 		try {
 			serverSimulator.migrations(queries);
 		} catch (e) {
@@ -190,7 +192,7 @@ test('migrator : --init - db migrations error', async ({ db, serverSimulator }) 
 		migrationsTable,
 	});
 
-	const migratorRes = await migrate(db as SqliteRemoteDatabase<never, typeof relations>, async (queries) => {
+	const migratorRes = await migrate(db as SqliteRemoteDatabase<typeof relations>, async (queries) => {
 		try {
 			serverSimulator.migrations(queries);
 		} catch (e) {
@@ -257,7 +259,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 		`ALTER TABLE "migration_users" ADD COLUMN "age" integer;`,
 	);
 
-	await migrate(db as SqliteRemoteDatabase<never, typeof relations>, async (queries) => {
+	await migrate(db as SqliteRemoteDatabase<typeof relations>, async (queries) => {
 		try {
 			serverSimulator.migrations(queries);
 		} catch (e) {
@@ -276,7 +278,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 		`${migrationDir}/20240202020202_second/migration.sql`,
 		`CREATE TABLE "migration_users2" (\n"id" integer PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n,"age" integer\n);`,
 	);
-	await migrate(db as SqliteRemoteDatabase<never, typeof relations>, async (queries) => {
+	await migrate(db as SqliteRemoteDatabase<typeof relations>, async (queries) => {
 		try {
 			serverSimulator.migrations(queries);
 		} catch (e) {

@@ -29,6 +29,9 @@ export class MySqlDouble<T extends ColumnBaseConfig<'number double' | 'number ud
 {
 	static override readonly [entityKind]: string = 'MySqlDouble';
 
+	/** @internal */
+	override readonly codec = 'double';
+
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
 	readonly unsigned: boolean | undefined = this.config.unsigned;

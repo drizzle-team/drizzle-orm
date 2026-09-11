@@ -2,21 +2,23 @@ import chalk from 'chalk';
 import { writeFileSync } from 'fs';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
-import { createDDL, interimToDDL, mysqlToRelationsPull } from 'src/dialects/mysql/ddl';
-import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
-import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
-import { prepareEntityFilter } from 'src/dialects/pull-utils';
-import { ddlDiff } from 'src/dialects/singlestore/diff';
-import { toJsonSnapshot } from 'src/dialects/singlestore/snapshot';
-import { mockResolver } from 'src/utils/mocks';
+import { createDDL, interimToDDL, mysqlToRelationsPull } from '../../dialects/mysql/ddl';
+import { fromDatabaseForDrizzle } from '../../dialects/mysql/introspect';
+import { ddlToTypeScript } from '../../dialects/mysql/typescript';
+import { prepareEntityFilter } from '../../dialects/pull-utils';
+import { ddlDiff } from '../../dialects/singlestore/diff';
+import { toJsonSnapshot } from '../../dialects/singlestore/snapshot';
+import { mockResolver } from '../../utils/mocks';
 import { prepareOutFolder } from '../../utils/utils-node';
 import type { connectToSingleStore } from '../connections';
+import { outputFormat } from '../context';
+import { CommandOutputCliError } from '../errors';
 import type { EntitiesFilterConfig } from '../validations/common';
 import type { Casing } from '../validations/common';
 import type { SingleStoreCredentials } from '../validations/singlestore';
-import { IntrospectProgress } from '../views';
+import { humanLog, IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
-import { relationsToTypeScript } from './pull-common';
+import { relationsToTypeScript, summarizeSchemaMappingErrors } from './pull-common';
 
 export const handle = async (
 	casing: Casing,
@@ -35,15 +37,27 @@ export const handle = async (
 		db = await connectToSingleStore(credentials);
 	}
 
+	const text = outputFormat() === 'text';
 	const filter = prepareEntityFilter('singlestore', filters, []);
 
-	const progress = new IntrospectProgress();
-	const task = fromDatabaseForDrizzle(db.db, db.database, filter, (stage, count, status) => {
-		progress.update(stage, count, status);
-	}, migrations);
-	const res = await renderWithTask(progress, task);
+	let res: Awaited<ReturnType<typeof fromDatabaseForDrizzle>>;
+	if (text) {
+		const progress = new IntrospectProgress();
+		const task = fromDatabaseForDrizzle(db.db, db.database, filter, (stage, count, status) => {
+			progress.update(stage, count, status);
+		}, migrations);
+		res = await renderWithTask(progress, task);
+	} else {
+		res = await fromDatabaseForDrizzle(db.db, db.database, filter, () => {}, migrations);
+	}
 
-	const { ddl } = interimToDDL(res);
+	const { ddl, errors } = interimToDDL(res);
+
+	if (errors.length > 0) {
+		throw new CommandOutputCliError('pull', 'Failed to map the introspected schema', {
+			errors: summarizeSchemaMappingErrors(errors),
+		});
+	}
 
 	const ts = ddlToTypeScript(ddl, res.viewColumns, casing, 'singlestore');
 	const relations = relationsToTypeScript(mysqlToRelationsPull(ddl), casing);
@@ -53,8 +67,10 @@ export const handle = async (
 
 	const relationsFile = join(out, 'relations.ts');
 	writeFileSync(relationsFile, relations.file);
-	console.log();
+	humanLog();
 
+	let snapshotPath: string;
+	let migrationPath: string | undefined;
 	const { snapshots } = prepareOutFolder(out);
 
 	if (snapshots.length === 0) {
@@ -67,7 +83,7 @@ export const handle = async (
 			'push',
 		);
 
-		writeResult({
+		({ snapshotPath, migrationPath } = writeResult({
 			snapshot: toJsonSnapshot(ddl, [], []),
 			sqlStatements,
 			renames: [],
@@ -75,33 +91,45 @@ export const handle = async (
 			breakpoints,
 			type: 'introspect',
 			snapshots,
-		});
+		}));
 	} else {
+		snapshotPath = snapshots[snapshots.length - 1];
+		if (text) {
+			render(
+				`[${
+					chalk.blue(
+						'i',
+					)
+				}] No SQL generated, you already have migrations in project`,
+			);
+		}
+	}
+
+	if (text) {
 		render(
 			`[${
-				chalk.blue(
-					'i',
+				chalk.green(
+					'✓',
 				)
-			}] No SQL generated, you already have migrations in project`,
+			}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		);
+		render(
+			`[${
+				chalk.green(
+					'✓',
+				)
+			}] Your relations file is ready ➜ ${
+				chalk.bold.underline.blue(
+					relationsFile,
+				)
+			} 🚀`,
 		);
 	}
 
-	render(
-		`[${
-			chalk.green(
-				'✓',
-			)
-		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
-	);
-	render(
-		`[${
-			chalk.green(
-				'✓',
-			)
-		}] Your relations file is ready ➜ ${
-			chalk.bold.underline.blue(
-				relationsFile,
-			)
-		} 🚀`,
-	);
+	return {
+		schemaPath: schemaFile,
+		relationsPath: relationsFile,
+		snapshotPath,
+		...(migrationPath ? { migrationPath } : {}),
+	};
 };

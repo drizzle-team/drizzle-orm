@@ -3,6 +3,8 @@ import { toCamelCase } from 'drizzle-orm/casing';
 import '../../@types/utils';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
+import { withCasing } from '../pull-utils';
+import { escapeForSqlTemplate } from '../utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -14,7 +16,7 @@ import type {
 	View,
 	ViewColumn,
 } from './ddl';
-import { typeFor } from './grammar';
+import { nameForPk, typeFor } from './grammar';
 
 export const imports = ['integer', 'real', 'text', 'numeric', 'blob', 'customType'] as const;
 export type Import = typeof imports[number];
@@ -36,24 +38,6 @@ const objToStatement2 = (json: any) => {
 };
 
 const relations = new Set<string>();
-
-const escapeColumnKey = (value: string) => {
-	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
-		return `"${value}"`;
-	}
-	return value;
-};
-
-const withCasing = (value: string, casing?: Casing) => {
-	if (casing === 'preserve') {
-		return escapeColumnKey(value);
-	}
-	if (casing === 'camel') {
-		return escapeColumnKey(value.camelCase());
-	}
-
-	return value;
-};
 
 const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing: Casing; withMode?: boolean }) => {
 	if (casing === 'preserve') {
@@ -82,7 +66,7 @@ export const ddlToTypeScript = (
 	const columnTypes = new Set<string>([]);
 	for (const it of schema.entities.list()) {
 		if (it.entityType === 'indexes') imports.add(it.isUnique ? 'uniqueIndex' : 'index');
-		if (it.entityType === 'pks' && it.columns.length > 1) imports.add('primaryKey');
+		if (it.entityType === 'pks') imports.add('primaryKey');
 		if (it.entityType === 'uniques') imports.add('unique');
 		if (it.entityType === 'checks') imports.add('check');
 		if (it.entityType === 'columns') columnTypes.add(it.type);
@@ -122,17 +106,22 @@ export const ddlToTypeScript = (
 			return it.columns.length > 1;
 		});
 
+		const hasPkCallback = Boolean(
+			pk
+				&& (pk.columns.length > 1
+					|| (pk.columns.length === 1 && pk.name !== nameForPk(table.name))),
+		);
 		if (
 			indexes.length > 0
 			|| filteredFKs.length > 0
-			|| pk && pk.columns.length > 1
+			|| hasPkCallback
 			|| uniqies.length > 0
 			|| checks.length > 0
 		) {
 			statement += ',\n(table) => [';
 			statement += createTableIndexes(table.name, indexes, casing);
 			statement += createTableFKs(Object.values(filteredFKs), casing);
-			statement += pk && pk.columns.length > 1 ? createTablePK(pk, casing) : '';
+			statement += hasPkCallback ? createTablePK(pk!, casing) : '';
 			statement += createTableUniques(uniqies, casing);
 			statement += createTableChecks(checks, casing);
 			statement += ']';
@@ -147,7 +136,7 @@ export const ddlToTypeScript = (
 		const columns = viewColumns[view.name] || [];
 		statement += createViewColumns(view, columns, casing);
 		statement += '})';
-		statement += `.as(sql\`${view.definition?.replaceAll('`', '\\`')}\`);`;
+		statement += `.as(sql\`${view.definition ? escapeForSqlTemplate(view.definition) : view.definition}\`);`;
 
 		return statement;
 	});
@@ -200,7 +189,7 @@ const mapColumnDefault = (it: NonNullable<Column['default']>) => {
 		&& it.startsWith('(')
 		&& it.endsWith(')')
 	) {
-		return `sql\`${it}\``;
+		return `sql\`${escapeForSqlTemplate(it)}\``;
 	}
 	// If default value is NULL as string it will come back from db as "'NULL'" and not just "NULL"
 	if (it === 'NULL') {
@@ -267,7 +256,8 @@ const createTableColumns = (
 ): string => {
 	let statement = '';
 	for (const it of columns) {
-		const isPrimary = pk && pk.columns.length === 1 && pk.columns[0] === it.name && pk.table === it.table;
+		const isPrimary = pk && pk.columns.length === 1 && pk.columns[0] === it.name && pk.table === it.table
+			&& pk.name === nameForPk(it.table);
 
 		statement += '\t';
 		statement += column(it.type, it.name, it.default, casing);
@@ -342,10 +332,13 @@ const createTableIndexes = (
 		statement += `${escapedIndexName})`;
 		statement += `.on(${
 			it.columns
-				.map((it) => `table.${withCasing(it.value, casing)}`)
+				.map((it) =>
+					it.isExpression ? `sql\`${escapeForSqlTemplate(it.value)}\`` : `table.${withCasing(it.value, casing)}`
+				)
 				.join(', ')
-		}),`;
-		statement += `\n`;
+		})`;
+		statement += it.where ? `.where(sql\`${escapeForSqlTemplate(it.where)}\`)` : '';
+		statement += `,\n`;
 	}
 
 	return statement;
@@ -380,7 +373,7 @@ const createTableChecks = (
 	checks.forEach((it) => {
 		statement += 'check(';
 		statement += `"${it.name}", `;
-		statement += `sql\`${it.value}\`)`;
+		statement += `sql\`${escapeForSqlTemplate(it.value)}\`)`;
 		statement += `,\n`;
 	});
 

@@ -1,7 +1,9 @@
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
+import type { MySqlDateColumnBaseConfig } from './date.common.ts';
 import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common.ts';
 
 export class MySqlDateTimeBuilder extends MySqlDateColumnBaseBuilder<{
@@ -28,11 +30,14 @@ export class MySqlDateTimeBuilder extends MySqlDateColumnBaseBuilder<{
 export class MySqlDateTime<T extends ColumnBaseConfig<'object date'>> extends MySqlDateBaseColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlDateTime';
 
+	/** @internal */
+	override readonly codec = 'datetime';
+
 	readonly fsp: number | undefined;
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlDateTimeBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & MySqlDateColumnBaseConfig & MySqlDatetimeConfig,
 	) {
 		super(table, config);
 		this.fsp = config.fsp;
@@ -46,11 +51,6 @@ export class MySqlDateTime<T extends ColumnBaseConfig<'object date'>> extends My
 	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString().replace('T', ' ').replace('Z', '');
-	};
-
-	override mapFromDriverValue = (value: string | Date): Date => {
-		if (typeof value === 'string') return new Date(value.replace(' ', 'T') + 'Z');
-		return value;
 	};
 }
 
@@ -78,11 +78,14 @@ export class MySqlDateTimeStringBuilder extends MySqlDateColumnBaseBuilder<{
 export class MySqlDateTimeString<T extends ColumnBaseConfig<'string datetime'>> extends MySqlDateBaseColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlDateTimeString';
 
+	/** @internal */
+	override readonly codec = 'datetime:string';
+
 	readonly fsp: number | undefined;
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlDateTimeStringBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & MySqlDateColumnBaseConfig & MySqlDatetimeConfig,
 	) {
 		super(table, config);
 		this.fsp = config.fsp;
@@ -92,11 +95,6 @@ export class MySqlDateTimeString<T extends ColumnBaseConfig<'string datetime'>> 
 		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
 		return `datetime${precision}`;
 	}
-
-	override mapFromDriverValue = (value: Date | string): string => {
-		if (typeof value === 'string') return value;
-		return value.toISOString().slice(0, -5).replace('T', ' ');
-	};
 
 	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;

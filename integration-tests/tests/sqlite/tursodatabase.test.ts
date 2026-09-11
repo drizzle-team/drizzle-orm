@@ -1,9 +1,12 @@
-import { sql } from 'drizzle-orm';
-import { SQLiteCloudDatabase } from 'drizzle-orm/sqlite-cloud';
+import { Database } from '@tursodatabase/database';
+import { sql, TransactionRollbackError } from 'drizzle-orm';
 import { getTableConfig, int, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import type { TursoDatabaseDatabase } from 'drizzle-orm/tursodatabase';
+import { drizzle } from 'drizzle-orm/tursodatabase/database';
 import { migrate } from 'drizzle-orm/tursodatabase/migrator';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { expect } from 'vitest';
 import { tursoDatabaseTest as test } from './instrumentation';
 import relations from './relations';
@@ -26,7 +29,7 @@ test('migrator', async ({ db }) => {
 	await db.run(sql`drop table if exists users12`);
 	await db.run(sql`drop table if exists __drizzle_migrations`);
 
-	await migrate(db as TursoDatabaseDatabase<never, typeof relations>, { migrationsFolder: './drizzle2/sqlite' });
+	await migrate(db as TursoDatabaseDatabase<typeof relations>, { migrationsFolder: './drizzle2/sqlite' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
 	const result = await db.select().from(usersMigratorTable).all();
@@ -48,7 +51,7 @@ test('migrator : --init', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	const migratorRes = await migrate(db as TursoDatabaseDatabase<never, typeof relations>, {
+	const migratorRes = await migrate(db as TursoDatabaseDatabase<typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite',
 
 		migrationsTable,
@@ -77,7 +80,7 @@ test('migrator : --init - local migrations error', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	const migratorRes = await migrate(db as TursoDatabaseDatabase<never, typeof relations>, {
+	const migratorRes = await migrate(db as TursoDatabaseDatabase<typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite-init',
 
 		migrationsTable,
@@ -106,12 +109,12 @@ test('migrator : --init - db migrations error', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	await migrate(db as TursoDatabaseDatabase<never, typeof relations>, {
+	await migrate(db as TursoDatabaseDatabase<typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite',
 		migrationsTable,
 	});
 
-	const migratorRes = await migrate(db as TursoDatabaseDatabase<never, typeof relations>, {
+	const migratorRes = await migrate(db as TursoDatabaseDatabase<typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite-init',
 
 		migrationsTable,
@@ -169,7 +172,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 		`ALTER TABLE "migration_users" ADD COLUMN "age" integer;`,
 	);
 
-	await migrate(db as TursoDatabaseDatabase<never, typeof relations>, { migrationsFolder: migrationDir });
+	await migrate(db as TursoDatabaseDatabase<typeof relations>, { migrationsFolder: migrationDir });
 	const res1 = await db.insert(users).values({ name: 'John', email: '', age: 30 }).returning();
 
 	// second migration was not applied yet
@@ -181,7 +184,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 		`${migrationDir}/20240202020202_second/migration.sql`,
 		`CREATE TABLE "migration_users2" (\n"id" integer PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n,"age" integer\n);`,
 	);
-	await migrate(db as TursoDatabaseDatabase<never, typeof relations>, { migrationsFolder: migrationDir });
+	await migrate(db as TursoDatabaseDatabase<typeof relations>, { migrationsFolder: migrationDir });
 
 	const res2 = await db.insert(users2).values({ name: 'John', email: '', age: 30 }).returning();
 
@@ -192,61 +195,119 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	rmSync(migrationDir, { recursive: true });
 });
 
-const skip = [
-	// Subquery in WHERE clause is not supported
-	'RQB v2 simple find many - with relation',
-	'RQB v2 transaction find many - with relation',
-	'RQB v2 simple find first - with relation',
-	'RQB v2 transaction find first - with relation',
-	'RQB v2 simple find many - with text pks',
+const assertLockBehavior = async (behavior: 'deferred' | 'immediate' | 'exclusive' | undefined) => {
+	const dir = mkdtempSync(join(tmpdir(), `drzl-turso-${behavior ?? 'default'}-`));
+	const clientA = new Database(join(dir, 'db.sqlite'));
+	const clientB = new Database(join(dir, 'db.sqlite'));
+	const expectBlocked = behavior !== undefined && behavior !== 'deferred';
 
+	try {
+		const db = drizzle({ client: clientA });
+
+		await db.run(sql`create table behavior_lock (id integer primary key, v integer not null)`);
+		await db.run(sql`insert into behavior_lock (id, v) values (1, 0)`);
+
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+
+		const txn = db.transaction(async (tx) => {
+			await gate;
+			await tx.run(sql`update behavior_lock set v = v + 1 where id = 1`);
+		}, behavior ? { behavior } : undefined);
+
+		await new Promise((resolve) => setTimeout(resolve, 50));
+
+		let blocked = false;
+		try {
+			await (await clientB.prepare('update behavior_lock set v = v + 100 where id = 1')).run();
+		} catch (e) {
+			blocked = /locked/i.test((e as Error).message);
+		}
+
+		release();
+		await txn;
+
+		expect(blocked).toBe(expectBlocked);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+};
+
+test('transaction mode: deferred', async () => {
+	await assertLockBehavior('deferred');
+});
+
+test('transaction mode: immediate', async () => {
+	await assertLockBehavior('immediate');
+});
+
+test('transaction mode: exclusive', async () => {
+	await assertLockBehavior('exclusive');
+});
+
+test('transaction mode: default', async () => {
+	await assertLockBehavior(undefined);
+});
+
+test('transaction modes - concurrent', async () => {
+	const dir = mkdtempSync(join(tmpdir(), 'drzl-turso-concurrent-'));
+	const clientA = new Database(join(dir, 'db.sqlite'));
+	const clientB = new Database(join(dir, 'db.sqlite'));
+
+	try {
+		const dbA = drizzle({ client: clientA });
+		const dbB = drizzle({ client: clientB });
+
+		await dbA.run(sql`PRAGMA journal_mode = 'mvcc'`);
+		await dbA.run(sql`create table concurrent_rows (id integer primary key, v integer not null)`);
+		await dbA.run(sql`insert into concurrent_rows (id, v) values (1, 0), (2, 0)`);
+		await dbB.run(sql`PRAGMA journal_mode = 'mvcc'`);
+
+		let releaseA!: () => void;
+		let releaseB!: () => void;
+		const aWrote = new Promise<void>((resolve) => {
+			releaseA = resolve;
+		});
+		const bWrote = new Promise<void>((resolve) => {
+			releaseB = resolve;
+		});
+
+		const txnA = dbA.transaction(async (tx) => {
+			await tx.run(sql`update concurrent_rows set v = v + 1 where id = 1`);
+			releaseA();
+			await bWrote;
+		}, { behavior: 'concurrent' });
+
+		const txnB = dbB.transaction(async (tx) => {
+			await tx.run(sql`update concurrent_rows set v = v + 1 where id = 2`);
+			releaseB();
+			await aWrote;
+		}, { behavior: 'concurrent' });
+
+		await Promise.all([txnA, txnB]);
+
+		const rows = await dbA.all(sql`select id, v from concurrent_rows order by id`);
+		expect(rows).toEqual([{ id: 1, v: 1 }, { id: 2, v: 1 }]);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+const skip = [
+	'transaction mode: concurrent is rejected',
 	// Uses async versions
 	'sync transaction rollback',
 	'sync nested transaction rollback',
 
-	'$count',
-	'$count embedded',
-	'$count embedded reuse',
-	'$count embedded with filters',
-	'select from a many subquery',
-	'select from a one subquery',
-	// CROSS JOIN is not supported
-	'cross join',
-	'sql.Aliased in cte',
-	// ORDER BY is not supported for compound SELECTs yet
-	'set operations (union) from query builder with subquery',
-	'set operations (union) as function',
-	'set operations (union all) from query builder',
-	'set operations (intersect) from query builder',
-	'set operations (except) as function',
-	'set operations (mixed all) as function with subquery',
 	// ORDER BY clause is not supported in DELETE
 	'delete with limit and order by',
-	// SAVEPOINT not supported yet
-	'nested transaction',
-	'nested transaction rollback',
-	// WITH clause is not supported in DELETE
-	'with ... delete',
-	// WITH clause is not supported
-	'with ... insert',
-	// WITH clause is not supported in UPDATE
-	'with ... update',
-	// IN (...subquery) in WHERE clause is not supported
-	'with ... select',
-	// EXISTS in WHERE clause is not supported
-	'select with exists',
-	// RETURNING currently not implemented for DELETE statements.
-	'delete with returning partial',
-	'delete with returning all fields',
-	'delete returning sql',
-	// FROM clause is not supported in UPDATE
-	'update ... from',
-	'update ... from with alias',
-	'update ... from with join',
 	// ORDER BY is not supported in UPDATE
 	'update with limit and order by',
-	// TBD
-	'join on aliased sql from with clause',
-	'join view as subquery',
+
+	// Raw query field names differ
+	'insert via db.get',
+	'insert via db.get w/ query builder',
 ];
 tests(test, skip);

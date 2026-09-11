@@ -11,6 +11,7 @@ import {
 	defineRelations,
 	eq,
 	exists,
+	getColumns,
 	getTableColumns,
 	gt,
 	gte,
@@ -28,7 +29,6 @@ import { drizzle, type DrizzleSqliteDODatabase } from 'drizzle-orm/durable-sqlit
 import { migrate } from 'drizzle-orm/durable-sqlite/migrator';
 import {
 	alias,
-	type BaseSQLiteDatabase,
 	blob,
 	except,
 	getViewConfig,
@@ -37,6 +37,7 @@ import {
 	intersect,
 	numeric,
 	primaryKey,
+	type SQLiteAsyncDatabase,
 	sqliteTable,
 	sqliteTableCreator,
 	sqliteView,
@@ -44,8 +45,22 @@ import {
 	union,
 	unionAll,
 } from 'drizzle-orm/sqlite-core';
-import { expect } from 'vitest';
+// Can't use 'vitest' due to it having setTimeout in code, thus breaking workers
+import { expect } from 'chai';
 import { type Equal, Expect } from '~/utils';
+import {
+	allTypesData,
+	allTypesInput,
+	allTypesTable,
+	allTypesUnionCases,
+	boundsData,
+	boundsTable,
+	createAllTypes,
+	createBounds,
+	dropAllTypes,
+	dropBounds,
+} from '../all-types.data';
+import { normalizeDataWithDbCodecs } from '../utils';
 import migrations from './drizzle/migrations';
 
 export const usersTable = sqliteTable('users', {
@@ -145,7 +160,13 @@ export const rqbPost = sqliteTable('post_rqb_test', {
 	}).notNull(),
 });
 
-export const relations = defineRelations({ rqbUser, rqbPost }, (r) => ({
+export const relations = defineRelations({ rqbUser, rqbPost, allTypesTable }, (r) => ({
+	allTypesTable: {
+		self: r.many.allTypesTable({
+			from: r.allTypesTable.id,
+			to: r.allTypesTable.id,
+		}),
+	},
 	rqbUser: {
 		posts: r.many.rqbPost(),
 	},
@@ -157,7 +178,7 @@ export const relations = defineRelations({ rqbUser, rqbPost }, (r) => ({
 	},
 }));
 
-async function setupSetOperationTest(db: BaseSQLiteDatabase<any, any, any, typeof relations>) {
+async function setupSetOperationTest(db: SQLiteAsyncDatabase<any, any, typeof relations>) {
 	await db.run(sql`drop table if exists users2`);
 	await db.run(sql`drop table if exists cities`);
 	await db.run(sql`
@@ -193,7 +214,7 @@ async function setupSetOperationTest(db: BaseSQLiteDatabase<any, any, any, typeo
 	]);
 }
 
-async function setupAggregateFunctionsTest(db: BaseSQLiteDatabase<any, any, any, typeof relations>) {
+async function setupAggregateFunctionsTest(db: SQLiteAsyncDatabase<any, any, typeof relations>) {
 	await db.run(sql`drop table if exists "aggregate_table"`);
 	await db.run(
 		sql`
@@ -221,7 +242,7 @@ async function setupAggregateFunctionsTest(db: BaseSQLiteDatabase<any, any, any,
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 export class MyDurableObject extends DurableObject {
 	storage: DurableObjectStorage;
-	db: DrizzleSqliteDODatabase<any, typeof relations>;
+	db: DrizzleSqliteDODatabase<typeof relations>;
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
 		this.storage = ctx.storage;
@@ -3527,6 +3548,63 @@ export class MyDurableObject extends DurableObject {
 		}
 	}
 
+	async allTypes(): Promise<void> {
+		await this.db.run(sql.raw(dropAllTypes('all_types_cdcs')));
+		await this.db.run(sql.raw(createAllTypes('all_types_cdcs')));
+
+		try {
+			await this.db.insert(allTypesTable).values(allTypesInput);
+
+			const rawRes = await this.db.select().from(allTypesTable);
+			expect(rawRes).deep.equal([allTypesData]);
+
+			for (const { query, expected } of allTypesUnionCases(this.db as any, allTypesTable)) {
+				expect(await query).to.have.deep.members(expected);
+			}
+		} finally {
+			await this.db.run(sql.raw(dropAllTypes('all_types_cdcs')));
+		}
+
+		await this.db.run(sql.raw(dropBounds()));
+		await this.db.run(sql.raw(createBounds()));
+
+		try {
+			await this.db.insert(boundsTable).values(boundsData);
+			expect(await this.db.select().from(boundsTable).orderBy(boundsTable.id)).deep.equal(boundsData);
+		} finally {
+			await this.db.run(sql.raw(dropBounds()));
+		}
+	}
+
+	async allTypesCodecs(): Promise<void> {
+		await this.db.run(sql.raw(dropAllTypes('all_types_cdcs')));
+		await this.db.run(sql.raw(createAllTypes('all_types_cdcs')));
+
+		try {
+			await this.db.insert(allTypesTable).values(allTypesInput);
+
+			const columns = getColumns(allTypesTable);
+			const db = this.db;
+
+			const queryRaw = await db.all<Record<string, unknown>>(
+				db.select(
+					Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
+				).from(allTypesTable).getSQL(),
+			);
+			expect(normalizeDataWithDbCodecs({ db, columns, data: queryRaw, mode: 'query' })[0]).deep.equal(allTypesData);
+
+			const rqbRaw = await db.all<Record<string, unknown> & { self: string }>(
+				db.query.allTypesTable.findFirst({ with: { self: true } }).getSQL(),
+			);
+			const { self: relationRaw, ...rootRaw } = rqbRaw[0]!;
+
+			expect(normalizeDataWithDbCodecs({ db, columns, data: relationRaw, mode: 'json' })[0]).deep.equal(allTypesData);
+			expect(normalizeDataWithDbCodecs({ db, columns, data: [rootRaw], mode: 'query' })[0]).deep.equal(allTypesData);
+		} finally {
+			await this.db.run(sql.raw(dropAllTypes('all_types_cdcs')));
+		}
+	}
+
 	async testRqbV2SimpleFindFirstNoRows() {
 		const db = this.db;
 		await this.beforeEach();
@@ -3935,7 +4013,7 @@ export class MyDurableObject extends DurableObject {
 
 			const result = query.execute({
 				filter: 2,
-			});
+			}).sync();
 
 			expect(result).deep.equal({
 				id: 2,
@@ -4226,58 +4304,29 @@ export default {
 			// 	throw new Error('Insert undefined error');
 			// });
 
-			await stub.testRqbV2SimpleFindFirstMultipleRows().catch(() => {
-				throw new Error('RQBv2 SimpleFindFirstMultipleRows error');
-			});
-			await stub.testRqbV2SimpleFindFirstNoRows().catch(() => {
-				throw new Error('RQBv2 SimpleFindFirstNoRows error');
-			});
-			await stub.testRqbV2SimpleFindFirstPlaceholders().catch(() => {
-				throw new Error('RQBv2 SimpleFindFirstPlaceholders error');
-			});
-			await stub.testRqbV2SimpleFindFirstWithRelation().catch(() => {
-				throw new Error('RQBv2 SimpleFindFirstWithRelation error');
-			});
-			await stub.testRqbV2SimpleFindManyMultipleRows().catch(() => {
-				throw new Error('RQBv2 SimpleFindManyMultipleRows error');
-			});
-			await stub.testRqbV2SimpleFindManyNoRows().catch(() => {
-				throw new Error('RQBv2 SimpleFindManyNoRows error');
-			});
-			await stub.testRqbV2SimpleFindManyPlaceholders().catch(() => {
-				throw new Error('RQBv2 SimpleFindManyPlaceholders error');
-			});
-			await stub.testRqbV2SimpleFindManyWithRelation().catch(() => {
-				throw new Error('RQBv2 SimpleFindManyWithRelation error');
-			});
-			await stub.testRqbV2TransactionFindFirstMultipleRows().catch(() => {
-				throw new Error('RQBv2 TransactionFindFirstMultipleRows error');
-			});
-			await stub.testRqbV2TransactionFindFirstNoRows().catch(() => {
-				throw new Error('RQBv2 TransactionFindFirstNoRows error');
-			});
-			await stub.testRqbV2TransactionFindFirstPlaceholders().catch(() => {
-				throw new Error('RQBv2 TransactionFindFirstPlaceholders error');
-			});
-			await stub.testRqbV2TransactionFindFirstWithRelation().catch(() => {
-				throw new Error('RQBv2 TransactionFindFirstWithRelation error');
-			});
-			await stub.testRqbV2TransactionFindManyMultipleRows().catch(() => {
-				throw new Error('RQBv2 TransactionFindManyMultipleRows error');
-			});
-			await stub.testRqbV2TransactionFindManyNoRows().catch(() => {
-				throw new Error('RQBv2 TransactionFindManyNoRows error');
-			});
-			await stub.testRqbV2TransactionFindManyPlaceholders().catch(() => {
-				throw new Error('RQBv2 TransactionFindManyPlaceholders error');
-			});
-			await stub.testRqbV2TransactionFindManyWithRelation().catch(() => {
-				throw new Error('RQBv2 TransactionFindManyWithRelation error');
-			});
+			await stub.allTypes();
+			await stub.allTypesCodecs();
+
+			await stub.testRqbV2SimpleFindFirstMultipleRows();
+			await stub.testRqbV2SimpleFindFirstNoRows();
+			await stub.testRqbV2SimpleFindFirstPlaceholders();
+			await stub.testRqbV2SimpleFindFirstWithRelation();
+			await stub.testRqbV2SimpleFindManyMultipleRows();
+			await stub.testRqbV2SimpleFindManyNoRows();
+			await stub.testRqbV2SimpleFindManyPlaceholders();
+			await stub.testRqbV2SimpleFindManyWithRelation();
+			await stub.testRqbV2TransactionFindFirstMultipleRows();
+			await stub.testRqbV2TransactionFindFirstNoRows();
+			await stub.testRqbV2TransactionFindFirstPlaceholders();
+			await stub.testRqbV2TransactionFindFirstWithRelation();
+			await stub.testRqbV2TransactionFindManyMultipleRows();
+			await stub.testRqbV2TransactionFindManyNoRows();
+			await stub.testRqbV2TransactionFindManyPlaceholders();
+			await stub.testRqbV2TransactionFindManyWithRelation();
 
 			return new Response('OK');
 		} catch (error: any) {
-			return new Response(error.message, {
+			return new Response(`${error?.message ?? error}\n\n${error?.stack ?? ''}`, {
 				status: 500,
 			});
 		}

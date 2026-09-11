@@ -29,6 +29,7 @@ export interface SingleStoreUpdateConfig {
 	table: SingleStoreTable;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export type SingleStoreUpdateSetSource<
@@ -221,7 +222,6 @@ export class SingleStoreUpdateBase<
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildUpdateQuery(this.config);
 	}
@@ -231,14 +231,14 @@ export class SingleStoreUpdateBase<
 	}
 
 	prepare(): SingleStoreUpdatePrepare<this> {
+		const { returning: fields } = this.config;
+
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
-			this.config.returning,
-			undefined,
-			undefined,
-			undefined,
+			fields ? 'arrays' : 'raw',
+			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 			{
-				type: 'delete',
+				type: 'update',
 				tables: extractUsedTable(this.config.table),
 			},
 		) as SingleStoreUpdatePrepare<this>;
@@ -256,6 +256,12 @@ export class SingleStoreUpdateBase<
 	};
 
 	iterator = this.createIterator();
+
+	/** @internal */
+	withoutSelectionCastCodecs() {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
+	}
 
 	$dynamic(): SingleStoreUpdateDynamic<this> {
 		return this as any;

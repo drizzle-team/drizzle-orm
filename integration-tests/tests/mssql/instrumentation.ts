@@ -1,46 +1,37 @@
 import { randomUUID } from 'crypto';
-import Docker from 'dockerode';
 import { defineRelations } from 'drizzle-orm';
 import type { NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { drizzle } from 'drizzle-orm/node-mssql';
-import getPort from 'get-port';
+import type {
+	AnyRelationsBuilderConfig,
+	ExtractTablesFromSchema,
+	ExtractTablesWithRelations,
+	RelationsBuilder,
+} from 'drizzle-orm/relations';
 import mssql from 'mssql';
 import { test as base } from 'vitest';
-import * as schema from './mssql.schema';
+import relations from './mssql.relations';
 
-export async function createDockerDB(): Promise<{ close: () => Promise<void>; url: string }> {
-	const docker = new Docker();
-	const port = await getPort({ port: 1433 });
-	const image = 'mcr.microsoft.com/azure-sql-edge';
+type MsSqlSchema = Record<string, unknown>;
 
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
+export const _push = async (
+	query: (sql: string) => Promise<any[]>,
+	schema: any,
+	log?: 'statements',
+) => {
+	const { diff } = await import('../../../drizzle-kit/tests/mssql/mocks' as string);
 
-	const mssqlContainer = await docker.createContainer({
-		Image: image,
-		Env: ['ACCEPT_EULA=1', 'MSSQL_SA_PASSWORD=drizzle123PASSWORD!'],
-		name: `drizzle-integration-tests-${randomUUID()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'1433/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
+	const res = await diff({}, schema, []);
 
-	await mssqlContainer.start();
-
-	const close = async () => {
-		await mssqlContainer.remove();
-	};
-
-	return {
-		url: `mssql://SA:drizzle123PASSWORD!@localhost:${port}?encrypt=true&trustServerCertificate=true`,
-		close,
-	};
-}
+	for (const s of res.sqlStatements) {
+		if (log === 'statements') console.log(s);
+		await query(s).catch((e) => {
+			console.error(s);
+			console.error(e);
+			throw e;
+		});
+	}
+};
 
 export function parseMssqlUrl(urlString: string) {
 	const url = new URL(urlString);
@@ -58,8 +49,13 @@ export function parseMssqlUrl(urlString: string) {
 }
 
 export const createClient = async () => {
-	const envurl = process.env['MSSQL_CONNECTION_STRING'];
-	const { url, close } = envurl ? { url: envurl, close: () => Promise.resolve() } : await createDockerDB();
+	const url = process.env['MSSQL_CONNECTION_STRING'];
+	if (!url) {
+		throw new Error(
+			'MSSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mssql` and export the connection string (e.g. `mssql://SA:drizzle123PASSWORD!@127.0.0.1:1433?encrypt=true&trustServerCertificate=true`) before running tests.',
+		);
+	}
+	const close = () => Promise.resolve();
 	const params = parseMssqlUrl(url);
 
 	const url2 = `Server=localhost,${params.port};User Id=SA;Password=drizzle123PASSWORD!;TrustServerCertificate=True;`;
@@ -69,17 +65,27 @@ export const createClient = async () => {
 	await client.query('select 1');
 	await client.query(`create database ${id}`);
 	await client.query(`use ${id}`);
-	const db = drizzle({ client, schema, relations: defineRelations(schema) });
+	const db = drizzle({ client, relations });
 	return { client, close, url, url2, db };
 };
 
 export const test = base.extend<
 	{
-		connection: { client: mssql.ConnectionPool; url: string; url2: string; db: NodeMsSqlDatabase<typeof schema> };
+		connection: { client: mssql.ConnectionPool; url: string; url2: string; db: NodeMsSqlDatabase<typeof relations> };
 		client: mssql.ConnectionPool;
 		url: string;
 		url2: string;
-		db: NodeMsSqlDatabase<typeof schema>;
+		db: NodeMsSqlDatabase<typeof relations>;
+		query: (sql: string) => Promise<any[]>;
+		push: (schema: any, params?: { log: 'statements' }) => Promise<void>;
+		createDB: {
+			<S extends MsSqlSchema>(schema: S): NodeMsSqlDatabase<ReturnType<typeof defineRelations<S>>>;
+			<S extends MsSqlSchema, TConfig extends AnyRelationsBuilderConfig>(
+				schema: S,
+				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
+				useJitMappers?: boolean,
+			): NodeMsSqlDatabase<ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
+		};
 	}
 >({
 	connection: [
@@ -118,4 +124,34 @@ export const test = base.extend<
 		},
 		{ scope: 'file' },
 	],
+	query: [
+		async ({ connection }, use) => {
+			await use(async (sql: string) => (await connection.client.query(sql)).recordset ?? []);
+		},
+		{ scope: 'test' },
+	],
+	push: [
+		async ({ query }, use) => {
+			await use((schema, params) => _push(query, schema, params?.log));
+		},
+		{ scope: 'test' },
+	],
+	createDB: [
+		async ({ connection }, use) => {
+			const createDB = <S extends MsSqlSchema>(
+				schema: S,
+				cb?: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => AnyRelationsBuilderConfig,
+				useJitMappers?: boolean,
+			) => {
+				const relations = cb ? defineRelations(schema, cb as any) : defineRelations(schema);
+
+				return drizzle({ client: connection.client, relations, jit: useJitMappers });
+			};
+
+			await use(createDB as any);
+		},
+		{ scope: 'test' },
+	],
 });
+
+export type Test = typeof test;

@@ -1,7 +1,7 @@
-import { mysqlCommutativity } from 'src/dialects/mysql/commutativity';
-import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
-import { sqliteCommutativity } from 'src/dialects/sqlite/commutativity';
-import type { Dialect } from 'src/utils/schemaValidator';
+import { mysqlCommutativity } from '../dialects/mysql/commutativity';
+import { postgresCommutativity } from '../dialects/postgres/commutativity';
+import { sqliteCommutativity } from '../dialects/sqlite/commutativity';
+import type { Dialect } from '../utils/schemaValidator';
 
 export const commutativityDialects = {
 	postgresql: postgresCommutativity,

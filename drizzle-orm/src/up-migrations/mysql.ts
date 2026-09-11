@@ -1,5 +1,5 @@
 import type { MigrationMeta } from '~/migrator.ts';
-import type { MySqlSession } from '~/mysql-core/session.ts';
+import type { MySqlAsyncSession } from '~/mysql-core/async/session.ts';
 import { sql } from '~/sql/sql.ts';
 import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
 
@@ -11,7 +11,7 @@ const upgradeFunctions: Record<
 	number,
 	(
 		migrationsTable: string,
-		session: MySqlSession,
+		session: MySqlAsyncSession,
 		localMigrations: MigrationMeta[],
 	) => Promise<void>
 > = {
@@ -109,7 +109,7 @@ const upgradeFunctions: Record<
  */
 export async function upgradeIfNeeded(
 	migrationsTable: string,
-	session: MySqlSession,
+	session: MySqlAsyncSession,
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {
 	// Check if the table exists at all

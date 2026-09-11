@@ -1,6 +1,5 @@
 import { SQL as BunSQL } from 'bun';
-import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'bun:test';
-import type Docker from 'dockerode';
+import { afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, test } from 'bun:test';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import {
 	and,
@@ -49,6 +48,7 @@ import {
 	bytea,
 	char,
 	cidr,
+	customType,
 	date,
 	doublePrecision,
 	except,
@@ -97,10 +97,17 @@ import {
 } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
 import { PgQueryResultHKT } from 'drizzle-orm/pg-core/session';
+import { allTypesData, makeAllTypes } from '~/pg/all-types';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { normalizeDataWithDbCodecs } from '~/pg/utils';
 import { Expect } from '~/utils';
+import { assertAllTypesBounds } from '../pg/all-types';
 import { relations } from '../pg/relations';
+import {
+	assertMalformedSnapshotRejected,
+	assertSnapshotIdNotInjectable,
+	assertSnapshotIsolatesTransaction,
+} from '../pg/snapshot';
 
 export const usersTable = pgTable('users', {
 	id: serial('id' as string).primaryKey(),
@@ -218,154 +225,17 @@ const jsonTestTable = pgTable('jsontest', {
 
 const en = pgEnum('en', ['enVal1', 'enVal2']);
 
-const allTypesTable = pgTable('all_types', {
-	serial: serial('serial'),
-	bigserial53: bigserial('bigserial53', {
-		mode: 'number',
-	}),
-	bigserial64: bigserial('bigserial64', {
-		mode: 'bigint',
-	}),
-	int: integer('int'),
-	bigint53: bigint('bigint53', {
-		mode: 'number',
-	}),
-	bigint64: bigint('bigint64', {
-		mode: 'bigint',
-	}),
-	bool: boolean('bool'),
-	char: char('char'),
-	cidr: cidr('cidr'),
-	date: date('date', {
-		mode: 'date',
-	}),
-	dateStr: date('date_str', {
-		mode: 'string',
-	}),
-	double: doublePrecision('double'),
-	enum: en('enum'),
-	inet: inet('inet'),
-	interval: interval('interval'),
-	json: json('json'),
-	jsonb: jsonb('jsonb'),
-	line: line('line', {
-		mode: 'abc',
-	}),
-	lineTuple: line('line_tuple', {
-		mode: 'tuple',
-	}),
-	macaddr: macaddr('macaddr'),
-	macaddr8: macaddr8('macaddr8'),
-	numeric: numeric('numeric'),
-	numericNum: numeric('numeric_num', {
-		mode: 'number',
-	}),
-	numericBig: numeric('numeric_big', {
-		mode: 'bigint',
-	}),
-	point: point('point', {
-		mode: 'xy',
-	}),
-	pointTuple: point('point_tuple', {
-		mode: 'tuple',
-	}),
-	real: real('real'),
-	smallint: smallint('smallint'),
-	smallserial: smallserial('smallserial'),
-	text: text('text'),
-	time: time('time'),
-	timestamp: timestamp('timestamp', {
-		mode: 'date',
-	}),
-	timestampTz: timestamp('timestamp_tz', {
-		mode: 'date',
-		withTimezone: true,
-	}),
-	timestampStr: timestamp('timestamp_str', {
-		mode: 'string',
-	}),
-	timestampTzStr: timestamp('timestamp_tz_str', {
-		mode: 'string',
-		withTimezone: true,
-	}),
-	uuid: uuid('uuid'),
-	varchar: varchar('varchar'),
-	arrint: integer('arrint').array(),
-	arrbigint53: bigint('arrbigint53', {
-		mode: 'number',
-	}).array(),
-	arrbigint64: bigint('arrbigint64', {
-		mode: 'bigint',
-	}).array(),
-	arrbool: boolean('arrbool').array(),
-	arrchar: char('arrchar').array(),
-	arrcidr: cidr('arrcidr').array(),
-	arrdate: date('arrdate', {
-		mode: 'date',
-	}).array(),
-	arrdateStr: date('arrdate_str', {
-		mode: 'string',
-	}).array(),
-	arrdouble: doublePrecision('arrdouble').array(),
-	arrenum: en('arrenum').array(),
-	arrinet: inet('arrinet').array(),
-	arrinterval: interval('arrinterval').array(),
-	arrjson: json('arrjson').array(),
-	arrjsonb: jsonb('arrjsonb').array(),
-	arrline: line('arrline', {
-		mode: 'abc',
-	}).array(),
-	arrlineTuple: line('arrline_tuple', {
-		mode: 'tuple',
-	}).array(),
-	arrmacaddr: macaddr('arrmacaddr').array(),
-	arrmacaddr8: macaddr8('arrmacaddr8').array(),
-	arrnumeric: numeric('arrnumeric').array(),
-	arrnumericNum: numeric('arrnumeric_num', {
-		mode: 'number',
-	}).array(),
-	arrnumericBig: numeric('arrnumeric_big', {
-		mode: 'bigint',
-	}).array(),
-	arrpoint: point('arrpoint', {
-		mode: 'xy',
-	}).array(),
-	arrpointTuple: point('arrpoint_tuple', {
-		mode: 'tuple',
-	}).array(),
-	arrreal: real('arrreal').array(),
-	arrsmallint: smallint('arrsmallint').array(),
-	arrtext: text('arrtext').array(),
-	arrtime: time('arrtime').array(),
-	arrtimestamp: timestamp('arrtimestamp', {
-		mode: 'date',
-	}).array(),
-	arrtimestampTz: timestamp('arrtimestamp_tz', {
-		mode: 'date',
-		withTimezone: true,
-	}).array(),
-	arrtimestampStr: timestamp('arrtimestamp_str', {
-		mode: 'string',
-	}).array(),
-	arrtimestampTzStr: timestamp('arrtimestamp_tz_str', {
-		mode: 'string',
-		withTimezone: true,
-	}).array(),
-	arruuid: uuid('arruuid').array(),
-	arrvarchar: varchar('arrvarchar').array(),
-});
-
-// oxlint-disable-next-line no-unassigned-vars
-let pgContainer: Docker.Container | undefined; // oxlint-disable-line no-unassigned-vars
-
-afterAll(async () => {
-	await pgContainer?.stop().catch(console.error);
-});
+const { allTypesTable } = makeAllTypes('all_types', 'en');
 
 let db: BunSQLDatabase<typeof relations>;
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING']!;
+	const connectionString = process.env['PG_CONNECTION_STRING'];
+	if (!connectionString) {
+		throw new Error(
+			'PG_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up postgres` and export the connection string before running tests.',
+		);
+	}
 	const connClient = new BunSQL(connectionString, { max: 1 });
 	await connClient.unsafe(`select 1`);
 
@@ -727,6 +597,53 @@ test('$default function', async () => {
 	}]);
 });
 
+test('db.execute modes', async () => {
+	const users = pgTable('users_execute_modes_1', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${users}`);
+	await db.execute(sql`create table ${users} (id integer primary key, name text not null)`);
+
+	await db.insert(users).values([
+		{
+			id: 1,
+			name: 'First',
+		},
+		{
+			id: 2,
+			name: 'Second',
+		},
+	]);
+
+	const rObj = await db.execute<{ id: number; name: string }>(
+		sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+		'objects',
+	);
+	const rArr = await db.execute<[number, string]>(
+		sql`select ${users.id}, ${users.name} from ${users} order by ${users.id}`,
+		'arrays',
+	);
+
+	Expect<Equal<{ id: number; name: string }[], typeof rObj>>;
+	Expect<Equal<[number, string][], typeof rArr>>;
+
+	expect(rObj).toEqual([
+		{
+			id: 1,
+			name: 'First',
+		},
+		{
+			id: 2,
+			name: 'Second',
+		},
+	]);
+	expect(rArr).toEqual([[1, 'First'], [2, 'Second']]);
+
+	await db.execute(sql`drop table ${users}`);
+});
+
 test('select distinct', async () => {
 	const usersDistinctTable = pgTable('users_distinct', {
 		id: integer('id').notNull(),
@@ -936,6 +853,88 @@ test('insert with overridden default values', async () => {
 	expect(result).toEqual([
 		{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt },
 	]);
+});
+
+test('insert with explicit column list', async () => {
+	const table = pgTable('column_selection', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+		note: text('note'),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(
+		sql`create table ${table} (id serial primary key, name text not null, verified boolean not null default false, note text)`,
+	);
+
+	await db.insert(table, 'name').values([{ name: 'John' }, { name: 'Jane' }]);
+	await db.insert(table, 'name', 'note').values({ name: 'Jack' });
+	await db.insert(table, 'note', 'name').values({ name: 'Jill', note: 'hi' });
+
+	const result = await db.select().from(table).orderBy(table.id);
+	expect(result).toEqual([
+		{ id: 1, name: 'John', verified: false, note: null },
+		{ id: 2, name: 'Jane', verified: false, note: null },
+		{ id: 3, name: 'Jack', verified: false, note: null },
+		{ id: 4, name: 'Jill', verified: false, note: 'hi' },
+	]);
+
+	await db.execute(sql`drop table ${table}`);
+});
+
+test('insert with explicit column list - select', async () => {
+	const src = pgTable('column_selection_select_src', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+	const dst = pgTable('column_selection_select_dst', {
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		verified: boolean('verified').notNull().default(false),
+	});
+
+	await db.execute(sql`drop table if exists ${src}`);
+	await db.execute(sql`drop table if exists ${dst}`);
+	await db.execute(sql`create table ${src} (id integer primary key, name text not null)`);
+	await db.execute(
+		sql`create table ${dst} (id serial primary key, name text not null, verified boolean not null default false)`,
+	);
+
+	await db.insert(src).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+	await db.insert(dst, 'name').select(db.select({ name: src.name }).from(src).orderBy(src.id));
+
+	const result = await db.select().from(dst).orderBy(dst.id);
+	expect(result).toEqual([
+		{ id: 1, name: 'John', verified: false },
+		{ id: 2, name: 'Jane', verified: false },
+	]);
+
+	await db.execute(sql`drop table ${src}`);
+	await db.execute(sql`drop table ${dst}`);
+});
+
+test('insert with explicit column list - on conflict', async () => {
+	const table = pgTable('column_selection_conflict', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+		note: text('note'),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(sql`create table ${table} (id integer primary key, name text not null, note text)`);
+
+	await db.insert(table, 'id', 'name').values({ id: 1, name: 'John' });
+	await db
+		.insert(table, 'id', 'name')
+		.values({ id: 1, name: 'Jane' })
+		.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' } });
+
+	const result = await db.select().from(table);
+	expect(result).toEqual([{ id: 1, name: 'Updated', note: null }]);
+
+	await db.execute(sql`drop table ${table}`);
 });
 
 test('insert many', async () => {
@@ -2465,8 +2464,8 @@ test('select from enum', async () => {
 	await db.execute(sql`drop type ${sql.identifier(categoryEnum.enumName)}`);
 });
 
-// https://github.com/drizzle-team/drizzle-orm/issues/4311s
-test.skip('all date and time columns', async () => {
+// https://github.com/drizzle-team/drizzle-orm/issues/4311
+test('all date and time columns', async () => {
 	const table = pgTable('all_columns', {
 		id: serial('id').primaryKey(),
 		dateString: date('date_string', { mode: 'string' }).notNull(),
@@ -3718,6 +3717,46 @@ test('test $onUpdateFn and $onUpdate works updating', async () => {
 	}
 });
 
+test('$onUpdateFn called only when needed', async () => {
+	let counter = 0;
+	const table = pgTable('on_update_call_test', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+		inc: integer('inc').$onUpdateFn(() => counter++),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(sql`create table ${table} (
+		id integer primary key,
+		name text not null,
+		inc integer
+	)`);
+
+	let res = await db.insert(table).values({ id: 1, name: 'First', inc: 0 }).returning();
+	expect(counter).toStrictEqual(0);
+	expect(res).toStrictEqual([{ id: 1, name: 'First', inc: 0 }]);
+
+	res = await db.update(table).set({ name: 'Second', inc: null }).returning();
+	expect(counter).toStrictEqual(0);
+	expect(res).toStrictEqual([{ id: 1, name: 'Second', inc: null }]);
+
+	res = await db.update(table).set({ name: 'Third', inc: 10 }).returning();
+	expect(counter).toStrictEqual(0);
+	expect(res).toStrictEqual([{ id: 1, name: 'Third', inc: 10 }]);
+
+	res = await db.update(table).set({ name: 'Fourth' }).returning();
+	expect(counter).toStrictEqual(1);
+	expect(res).toStrictEqual([{ id: 1, name: 'Fourth', inc: 0 }]);
+
+	res = await db.update(table).set({ name: 'Fifth' }).returning();
+	expect(counter).toStrictEqual(2);
+	expect(res).toStrictEqual([{ id: 1, name: 'Fifth', inc: 1 }]);
+
+	res = await db.insert(table).values({ id: 2, name: 'Second' }).returning();
+	expect(counter).toStrictEqual(3);
+	expect(res).toStrictEqual([{ id: 2, name: 'Second', inc: 2 }]);
+});
+
 test('test if method with sql operators', async () => {
 	const users = pgTable('users', {
 		id: serial('id').primaryKey(),
@@ -4787,19 +4826,20 @@ test('insert into ... select with keys in different order', async () => {
 		)
 	`);
 
-	expect(
-		() =>
-			db
-				.insert(users1)
-				.select(
-					db
-						.select({
-							name: users2.name,
-							id: users2.id,
-						})
-						.from(users2),
-				),
-	).toThrowError();
+	await db.insert(users2).values({ id: 1, name: 'First' });
+	const res = await db.insert(users1).select(
+		db
+			.select({
+				name: users2.name,
+				id: users2.id,
+			})
+			.from(users2),
+	).returning();
+
+	expect(res).toStrictEqual([{
+		id: 1,
+		name: 'First',
+	}]);
 });
 
 test('policy', () => {
@@ -5938,344 +5978,110 @@ test('RQB v2 transaction find many - placeholders', async () => {
 });
 
 test('all types', async () => {
-	await db.execute(sql`CREATE TYPE "public"."en" AS ENUM('enVal1', 'enVal2');`);
+	// Same fixture and data as the other suites' `all types` (see ~/pg/all-types.ts). The DDL is the schema
+	// drizzle-kit emits for that table - this suite has no push fixture to build it from the definition.
+	await db.execute(sql`CREATE TYPE "en" AS ENUM('enVal1', 'enVal2');`);
 	await db.execute(sql`
-				CREATE TABLE "all_types" (
-					"serial" serial NOT NULL,
-					"bigserial53" bigserial NOT NULL,
-					"bigserial64" bigserial,
-					"int" integer,
-					"bigint53" bigint,
-					"bigint64" bigint,
-					"bool" boolean,
-					"char" char,
-					"cidr" "cidr",
-					"date" date,
-					"date_str" date,
-					"double" double precision,
-					"enum" "en",
-					"inet" "inet",
-					"interval" interval,
-					"json" json,
-					"jsonb" jsonb,
-					"line" "line",
-					"line_tuple" "line",
-					"macaddr" "macaddr",
-					"macaddr8" "macaddr8",
-					"numeric" numeric,
-					"numeric_num" numeric,
-					"numeric_big" numeric,
-					"point" "point",
-					"point_tuple" "point",
-					"real" real,
-					"smallint" smallint,
-					"smallserial" "smallserial" NOT NULL,
-					"text" text,
-					"time" time,
-					"timestamp" timestamp,
-					"timestamp_tz" timestamp with time zone,
-					"timestamp_str" timestamp,
-					"timestamp_tz_str" timestamp with time zone,
-					"uuid" uuid,
-					"varchar" varchar,
-					"arrint" integer[],
-					"arrbigint53" bigint[],
-					"arrbigint64" bigint[],
-					"arrbool" boolean[],
-					"arrchar" char[],
-					"arrcidr" "cidr"[],
-					"arrdate" date[],
-					"arrdate_str" date[],
-					"arrdouble" double precision[],
-					"arrenum" "en"[],
-					"arrinet" "inet"[],
-					"arrinterval" interval[],
-					"arrjson" json[],
-					"arrjsonb" jsonb[],
-					"arrline" "line"[],
-					"arrline_tuple" "line"[],
-					"arrmacaddr" "macaddr"[],
-					"arrmacaddr8" "macaddr8"[],
-					"arrnumeric" numeric[],
-					"arrnumeric_num" numeric[],
-					"arrnumeric_big" numeric[],
-					"arrpoint" "point"[],
-					"arrpoint_tuple" "point"[],
-					"arrreal" real[],
-					"arrsmallint" smallint[],
-					"arrtext" text[],
-					"arrtime" time[],
-					"arrtimestamp" timestamp[],
-					"arrtimestamp_tz" timestamp with time zone[],
-					"arrtimestamp_str" timestamp[],
-					"arrtimestamp_tz_str" timestamp with time zone[],
-					"arruuid" uuid[],
-					"arrvarchar" varchar[]
-				);
-			`);
+		CREATE TABLE "all_types" (
+			"serial" serial,
+			"bigserial" bigserial,
+			"bigserialnum" bigserial,
+			"int" integer NOT NULL,
+			"bigint" bigint NOT NULL,
+			"bigintnum" bigint NOT NULL,
+			"bigintstr" bigint NOT NULL,
+			"bool" boolean NOT NULL,
+			"bytea" bytea NOT NULL,
+			"char" char NOT NULL,
+			"cidr" cidr NOT NULL,
+			"date" date NOT NULL,
+			"datestr" date NOT NULL,
+			"double" double precision NOT NULL,
+			"enum" "en" NOT NULL,
+			"inet" inet NOT NULL,
+			"interval" interval NOT NULL,
+			"json" json NOT NULL,
+			"jsonb" jsonb NOT NULL,
+			"json1" json NOT NULL,
+			"json2" json,
+			"jsonb1" jsonb NOT NULL,
+			"jsonb2" jsonb,
+			"json3" json NOT NULL,
+			"jsonb3" jsonb NOT NULL,
+			"line" line NOT NULL,
+			"linetuple" line NOT NULL,
+			"macaddr" macaddr NOT NULL,
+			"macaddr8" macaddr8 NOT NULL,
+			"numeric" numeric NOT NULL,
+			"numericnum" numeric NOT NULL,
+			"numericbig" numeric NOT NULL,
+			"point" point NOT NULL,
+			"pointtuple" point NOT NULL,
+			"real" real NOT NULL,
+			"smallint" smallint NOT NULL,
+			"smallserial" smallserial,
+			"text" text NOT NULL,
+			"time" time NOT NULL,
+			"timestamp" timestamp NOT NULL,
+			"timestampTz" timestamp with time zone NOT NULL,
+			"timestampstr" timestamp NOT NULL,
+			"timestampTzstr" timestamp with time zone NOT NULL,
+			"uuid" uuid NOT NULL,
+			"varchar" varchar NOT NULL,
+			"arrint" integer[] NOT NULL,
+			"arrbigint" bigint[] NOT NULL,
+			"arrbigintnum" bigint[] NOT NULL,
+			"arrbigintstr" bigint[] NOT NULL,
+			"arrbool" boolean[] NOT NULL,
+			"arrbytea" bytea[] NOT NULL,
+			"mtxbytea" bytea[][] NOT NULL,
+			"arrchar" char[] NOT NULL,
+			"arrcidr" cidr[] NOT NULL,
+			"arrdate" date[] NOT NULL,
+			"arrdatestr" date[] NOT NULL,
+			"arrdouble" double precision[] NOT NULL,
+			"arrenum" "en"[] NOT NULL,
+			"arrinet" inet[] NOT NULL,
+			"arrinterval" interval[] NOT NULL,
+			"arrjson" json[] NOT NULL,
+			"arrjsonb" jsonb[] NOT NULL,
+			"arrjson1" json[] NOT NULL,
+			"arrjsonb1" jsonb[] NOT NULL,
+			"arrjson2" json[] NOT NULL,
+			"arrjsonb2" jsonb[] NOT NULL,
+			"arrjson3" json[] NOT NULL,
+			"arrjsonb3" jsonb[] NOT NULL,
+			"arrline" line[] NOT NULL,
+			"arrlinetuple" line[] NOT NULL,
+			"arrmacaddr" macaddr[] NOT NULL,
+			"arrmacaddr8" macaddr8[] NOT NULL,
+			"arrnumeric" numeric[] NOT NULL,
+			"arrnumericnum" numeric[] NOT NULL,
+			"arrnumericbig" numeric[] NOT NULL,
+			"arrpoint" point[] NOT NULL,
+			"arrpointtuple" point[] NOT NULL,
+			"arrreal" real[] NOT NULL,
+			"arrsmallint" smallint[] NOT NULL,
+			"arrtext" text[] NOT NULL,
+			"arrtime" time[] NOT NULL,
+			"arrtimestamp" timestamp[] NOT NULL,
+			"arrtimestampTz" timestamp with time zone[] NOT NULL,
+			"arrtimestampstr" timestamp[] NOT NULL,
+			"arrtimestampTzstr" timestamp with time zone[] NOT NULL,
+			"arruuid" uuid[] NOT NULL,
+			"arrvarchar" varchar[] NOT NULL
+		);
+	`);
 
-	await db.insert(allTypesTable).values({
-		serial: 1,
-		smallserial: 15,
-		bigint53: 9007199254740991,
-		bigint64: 5044565289845416380n,
-		bigserial53: 9007199254740991,
-		bigserial64: 5044565289845416380n,
-		bool: true,
-		char: 'c',
-		cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
-		inet: '192.168.0.1/24',
-		macaddr: '08:00:2b:01:02:03',
-		macaddr8: '08:00:2b:01:02:03:04:05',
-		date: new Date(1741743161623),
-		dateStr: new Date(1741743161623).toISOString(),
-		double: 15.35325689124218,
-		enum: 'enVal1',
-		int: 621,
-		interval: '2 months ago',
-		json: {
-			str: 'strval',
-			arr: ['str', 10],
-		},
-		jsonb: {
-			str: 'strvalb',
-			arr: ['strb', 11],
-		},
-		line: {
-			a: 1,
-			b: 2,
-			c: 3,
-		},
-		lineTuple: [1, 2, 3],
-		numeric: '475452353476',
-		numericNum: 9007199254740991,
-		numericBig: 5044565289845416380n,
-		point: {
-			x: 24.5,
-			y: 49.6,
-		},
-		pointTuple: [57.2, 94.3],
-		real: 1.048596,
-		smallint: 10,
-		text: 'TEXT STRING',
-		time: '13:59:28',
-		timestamp: new Date(1741743161623),
-		timestampTz: new Date(1741743161623),
-		timestampStr: new Date(1741743161623).toISOString(),
-		timestampTzStr: new Date(1741743161623).toISOString(),
-		uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
-		varchar: 'C4-',
-		arrbigint53: [9007199254740991],
-		arrbigint64: [5044565289845416380n],
-		arrbool: [true],
-		arrchar: ['c'],
-		arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
-		arrinet: ['192.168.0.1/24'],
-		arrmacaddr: ['08:00:2b:01:02:03'],
-		arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
-		arrdate: [new Date(1741743161623)],
-		arrdateStr: [new Date(1741743161623).toISOString()],
-		arrdouble: [15.35325689124218],
-		arrenum: ['enVal1'],
-		arrint: [621],
-		arrinterval: ['2 months ago'],
-		arrjson: [{
-			str: 'strval',
-			arr: ['str', 10],
-		}],
-		arrjsonb: [{
-			str: 'strvalb',
-			arr: ['strb', 11],
-		}],
-		arrline: [{
-			a: 1,
-			b: 2,
-			c: 3,
-		}],
-		arrlineTuple: [[1, 2, 3]],
-		arrnumeric: ['475452353476'],
-		arrnumericNum: [9007199254740991],
-		arrnumericBig: [5044565289845416380n],
-		arrpoint: [{
-			x: 24.5,
-			y: 49.6,
-		}],
-		arrpointTuple: [[57.2, 94.3]],
-		arrreal: [1.048596],
-		arrsmallint: [10],
-		arrtext: ['TEXT STRING'],
-		arrtime: ['13:59:28'],
-		arrtimestamp: [new Date(1741743161623)],
-		arrtimestampTz: [new Date(1741743161623)],
-		arrtimestampStr: [new Date(1741743161623).toISOString()],
-		arrtimestampTzStr: [new Date(1741743161623).toISOString()],
-		arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
-		arrvarchar: ['C4-'],
-	});
+	// Driver can't handle numbers in json fields
+	const { json2: _json2, jsonb2: _jsonb2, ...bunAllTypesData } = allTypesData;
+	const { json2: _c1, jsonb2: _c2, ...bunAllTypesColumns } = getTableColumns(allTypesTable);
 
-	const rawRes = await db.select().from(allTypesTable);
+	await db.insert(allTypesTable).values(bunAllTypesData as typeof allTypesData);
 
-	type ExpectedType = {
-		serial: number;
-		bigserial53: number;
-		bigserial64: bigint;
-		int: number | null;
-		bigint53: number | null;
-		bigint64: bigint | null;
-		bool: boolean | null;
-		char: string | null;
-		cidr: string | null;
-		date: Date | null;
-		dateStr: string | null;
-		double: number | null;
-		enum: 'enVal1' | 'enVal2' | null;
-		inet: string | null;
-		interval: string | null;
-		json: unknown;
-		jsonb: unknown;
-		line: {
-			a: number;
-			b: number;
-			c: number;
-		} | null;
-		lineTuple: [number, number, number] | null;
-		macaddr: string | null;
-		macaddr8: string | null;
-		numeric: string | null;
-		numericNum: number | null;
-		numericBig: bigint | null;
-		point: {
-			x: number;
-			y: number;
-		} | null;
-		pointTuple: [number, number] | null;
-		real: number | null;
-		smallint: number | null;
-		smallserial: number;
-		text: string | null;
-		time: string | null;
-		timestamp: Date | null;
-		timestampTz: Date | null;
-		timestampStr: string | null;
-		timestampTzStr: string | null;
-		uuid: string | null;
-		varchar: string | null;
-		arrint: number[] | null;
-		arrbigint53: number[] | null;
-		arrbigint64: bigint[] | null;
-		arrbool: boolean[] | null;
-		arrchar: string[] | null;
-		arrcidr: string[] | null;
-		arrdate: Date[] | null;
-		arrdateStr: string[] | null;
-		arrdouble: number[] | null;
-		arrenum: ('enVal1' | 'enVal2')[] | null;
-		arrinet: string[] | null;
-		arrinterval: string[] | null;
-		arrjson: unknown[] | null;
-		arrjsonb: unknown[] | null;
-		arrline: {
-			a: number;
-			b: number;
-			c: number;
-		}[] | null;
-		arrlineTuple: [number, number, number][] | null;
-		arrmacaddr: string[] | null;
-		arrmacaddr8: string[] | null;
-		arrnumeric: string[] | null;
-		arrnumericNum: number[] | null;
-		arrnumericBig: bigint[] | null;
-		arrpoint: { x: number; y: number }[] | null;
-		arrpointTuple: [number, number][] | null;
-		arrreal: number[] | null;
-		arrsmallint: number[] | null;
-		arrtext: string[] | null;
-		arrtime: string[] | null;
-		arrtimestamp: Date[] | null;
-		arrtimestampTz: Date[] | null;
-		arrtimestampStr: string[] | null;
-		arrtimestampTzStr: string[] | null;
-		arruuid: string[] | null;
-		arrvarchar: string[] | null;
-	}[];
+	const rawRes = await db.select(bunAllTypesColumns).from(allTypesTable);
 
-	const expectedRes: ExpectedType = [
-		{
-			serial: 1,
-			bigserial53: 9007199254740991,
-			bigserial64: 5044565289845416380n,
-			int: 621,
-			bigint53: 9007199254740991,
-			bigint64: 5044565289845416380n,
-			bool: true,
-			char: 'c',
-			cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
-			date: new Date('2025-03-12T00:00:00.000Z'),
-			dateStr: '2025-03-12',
-			double: 15.35325689124218,
-			enum: 'enVal1',
-			inet: '192.168.0.1/24',
-			interval: '-2 mons',
-			json: { str: 'strval', arr: ['str', 10] },
-			jsonb: { arr: ['strb', 11], str: 'strvalb' },
-			line: { a: 1, b: 2, c: 3 },
-			lineTuple: [1, 2, 3],
-			macaddr: '08:00:2b:01:02:03',
-			macaddr8: '08:00:2b:01:02:03:04:05',
-			numeric: '475452353476',
-			numericNum: 9007199254740991,
-			numericBig: 5044565289845416380n,
-			point: { x: 24.5, y: 49.6 },
-			pointTuple: [57.2, 94.3],
-			real: 1.048596,
-			smallint: 10,
-			smallserial: 15,
-			text: 'TEXT STRING',
-			time: '13:59:28',
-			timestamp: new Date('2025-03-12T01:32:41.623Z'),
-			timestampTz: new Date('2025-03-12T01:32:41.623Z'),
-			timestampStr: '2025-03-12 01:32:41.623',
-			timestampTzStr: '2025-03-12 01:32:41.623+00',
-			uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
-			varchar: 'C4-',
-			arrint: [621],
-			arrbigint53: [9007199254740991],
-			arrbigint64: [5044565289845416380n],
-			arrbool: [true],
-			arrchar: ['c'],
-			arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
-			arrdate: [new Date('2025-03-12T00:00:00.000Z')],
-			arrdateStr: ['2025-03-12'],
-			arrdouble: [15.35325689124218],
-			arrenum: ['enVal1'],
-			arrinet: ['192.168.0.1/24'],
-			arrinterval: ['-2 mons'],
-			arrjson: [{ str: 'strval', arr: ['str', 10] }],
-			arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
-			arrline: [{ a: 1, b: 2, c: 3 }],
-			arrlineTuple: [[1, 2, 3]],
-			arrmacaddr: ['08:00:2b:01:02:03'],
-			arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
-			arrnumeric: ['475452353476'],
-			arrnumericNum: [9007199254740991],
-			arrnumericBig: [5044565289845416380n],
-			arrpoint: [{ x: 24.5, y: 49.6 }],
-			arrpointTuple: [[57.2, 94.3]],
-			arrreal: [1.048596],
-			arrsmallint: [10],
-			arrtext: ['TEXT STRING'],
-			arrtime: ['13:59:28'],
-			arrtimestamp: [new Date('2025-03-12T01:32:41.623Z')],
-			arrtimestampTz: [new Date('2025-03-12T01:32:41.623Z')],
-			arrtimestampStr: ['2025-03-12 01:32:41.623'],
-			arrtimestampTzStr: ['2025-03-12 01:32:41.623+00'],
-			arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
-			arrvarchar: ['C4-'],
-		},
-	];
-
-	Expect<Equal<typeof rawRes, ExpectedType>>;
-	expect(rawRes).toStrictEqual(expectedRes);
+	expect(rawRes).toStrictEqual([bunAllTypesData]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5287
@@ -6368,159 +6174,159 @@ test('raw jsons', async () => {
 test('all types ~codecs~', async () => {
 	const en = pgEnum('en_48', ['enVal1', 'enVal2']);
 	const allTypesTable = pgTable('all_types', {
-		serial: serial('serial'),
+		serial: serial('serial').notNull(),
 		bigserial: bigserial('bigserial', {
 			mode: 'bigint',
-		}),
+		}).notNull(),
 		bigserialnum: bigserial('bigserialnum', {
 			mode: 'number',
-		}),
-		int: integer('int'),
+		}).notNull(),
+		int: integer('int').notNull(),
 		bigint: bigint('bigint', {
 			mode: 'bigint',
-		}),
+		}).notNull(),
 		bigintnum: bigint('bigintnum', {
 			mode: 'number',
-		}),
+		}).notNull(),
 		bigintstr: bigint('bigintstr', {
 			mode: 'string',
-		}),
-		bool: boolean('bool'),
-		bytea: bytea('bytea'),
-		char: char('char'),
-		cidr: cidr('cidr'),
+		}).notNull(),
+		bool: boolean('bool').notNull(),
+		bytea: bytea('bytea').notNull(),
+		char: char('char').notNull(),
+		cidr: cidr('cidr').notNull(),
 		date: date('date', {
 			mode: 'date',
-		}),
+		}).notNull(),
 		datestr: date('datestr', {
 			mode: 'string',
-		}),
-		double: doublePrecision('double'),
-		enum: en('enum'),
-		inet: inet('inet'),
-		interval: interval('interval'),
-		json: json('json'),
-		jsonb: jsonb('jsonb'),
-		json1: json('json1'),
-		jsonb1: jsonb('jsonb1'),
+		}).notNull(),
+		double: doublePrecision('double').notNull(),
+		enum: en('enum').notNull(),
+		inet: inet('inet').notNull(),
+		interval: interval('interval').notNull(),
+		json: json('json').notNull(),
+		jsonb: jsonb('jsonb').notNull(),
+		json1: json('json1').notNull(),
+		jsonb1: jsonb('jsonb1').notNull(),
 		// Scenarios aren't supported by driver
 		// json2: json('json2'),
 		// jsonb2: jsonb('jsonb2'),
-		json3: json('json3'),
-		jsonb3: jsonb('jsonb3'),
+		json3: json('json3').notNull(),
+		jsonb3: jsonb('jsonb3').notNull(),
 		line: line('line', {
 			mode: 'abc',
-		}),
+		}).notNull(),
 		linetuple: line('linetuple', {
 			mode: 'tuple',
-		}),
-		macaddr: macaddr('macaddr'),
-		macaddr8: macaddr8('macaddr8'),
-		numeric: numeric('numeric'),
+		}).notNull(),
+		macaddr: macaddr('macaddr').notNull(),
+		macaddr8: macaddr8('macaddr8').notNull(),
+		numeric: numeric('numeric').notNull(),
 		numericnum: numeric('numericnum', {
 			mode: 'number',
-		}),
+		}).notNull(),
 		numericbig: numeric('numericbig', {
 			mode: 'bigint',
-		}),
+		}).notNull(),
 		point: point('point', {
 			mode: 'xy',
-		}),
+		}).notNull(),
 		pointtuple: point('pointtuple', {
 			mode: 'tuple',
-		}),
-		real: real('real'),
-		smallint: smallint('smallint'),
-		smallserial: smallserial('smallserial'),
-		text: text('text'),
-		time: time('time'),
+		}).notNull(),
+		real: real('real').notNull(),
+		smallint: smallint('smallint').notNull(),
+		smallserial: smallserial('smallserial').notNull(),
+		text: text('text').notNull(),
+		time: time('time').notNull(),
 		timestamp: timestamp('timestamp', {
 			mode: 'date',
-		}),
+		}).notNull(),
 		timestampTz: timestamp('timestampTz', {
 			mode: 'date',
 			withTimezone: true,
-		}),
+		}).notNull(),
 		timestampstr: timestamp('timestampstr', {
 			mode: 'string',
-		}),
+		}).notNull(),
 		timestampTzstr: timestamp('timestampTzstr', {
 			mode: 'string',
 			withTimezone: true,
-		}),
-		uuid: uuid('uuid'),
-		varchar: varchar('varchar'),
-		arrint: integer('arrint').array(),
+		}).notNull(),
+		uuid: uuid('uuid').notNull(),
+		varchar: varchar('varchar').notNull(),
+		arrint: integer('arrint').array().notNull(),
 		arrbigint: bigint('arrbigint', {
 			mode: 'bigint',
-		}).array(),
+		}).array().notNull(),
 		arrbigintnum: bigint('arrbigintnum', {
 			mode: 'number',
-		}).array(),
+		}).array().notNull(),
 		arrbigintstr: bigint('arrbigintstr', {
 			mode: 'string',
-		}).array(),
-		arrbool: boolean('arrbool').array(),
-		arrbytea: bytea('arrbytea').array(),
-		mtxbytea: bytea('mtxbytea').array('[][]'),
-		arrchar: char('arrchar').array(),
-		arrcidr: cidr('arrcidr').array(),
+		}).array().notNull(),
+		arrbool: boolean('arrbool').array().notNull(),
+		arrbytea: bytea('arrbytea').array().notNull(),
+		mtxbytea: bytea('mtxbytea').array('[][]').notNull(),
+		arrchar: char('arrchar').array().notNull(),
+		arrcidr: cidr('arrcidr').array().notNull(),
 		arrdate: date('arrdate', {
 			mode: 'date',
-		}).array(),
+		}).array().notNull(),
 		arrdatestr: date('arrdatestr', {
 			mode: 'string',
-		}).array(),
-		arrdouble: doublePrecision('arrdouble').array(),
-		arrenum: en('arrenum').array(),
-		arrinet: inet('arrinet').array(),
-		arrinterval: interval('arrinterval').array(),
-		arrjson: json('arrjson').array(),
-		arrjsonb: jsonb('arrjsonb').array(),
-		arrjson1: json('arrjson1').array(),
-		arrjsonb1: jsonb('arrjsonb1').array(),
-		arrjson2: json('arrjson2').array(),
-		arrjsonb2: jsonb('arrjsonb2').array(),
-		arrjson3: json('arrjson3').array(),
-		arrjsonb3: jsonb('arrjsonb3').array(),
+		}).array().notNull(),
+		arrdouble: doublePrecision('arrdouble').array().notNull(),
+		arrenum: en('arrenum').array().notNull(),
+		arrinet: inet('arrinet').array().notNull(),
+		arrinterval: interval('arrinterval').array().notNull(),
+		arrjson: json('arrjson').array().notNull(),
+		arrjsonb: jsonb('arrjsonb').array().notNull(),
+		arrjson1: json('arrjson1').array().notNull(),
+		arrjsonb1: jsonb('arrjsonb1').array().notNull(),
+		arrjson2: json('arrjson2').array().notNull(),
+		arrjsonb2: jsonb('arrjsonb2').array().notNull(),
+		arrjson3: json('arrjson3').array().notNull(),
+		arrjsonb3: jsonb('arrjsonb3').array().notNull(),
 		arrline: line('arrline', {
 			mode: 'abc',
-		}).array(),
+		}).array().notNull(),
 		arrlinetuple: line('arrlinetuple', {
 			mode: 'tuple',
-		}).array(),
-		arrmacaddr: macaddr('arrmacaddr').array(),
-		arrmacaddr8: macaddr8('arrmacaddr8').array(),
-		arrnumeric: numeric('arrnumeric').array(),
-		arrnumericnum: numeric('arrnumericnum', { mode: 'number' }).array(),
-		arrnumericbig: numeric('arrnumericbig', { mode: 'bigint' }).array(),
+		}).array().notNull(),
+		arrmacaddr: macaddr('arrmacaddr').array().notNull(),
+		arrmacaddr8: macaddr8('arrmacaddr8').array().notNull(),
+		arrnumeric: numeric('arrnumeric').array().notNull(),
+		arrnumericnum: numeric('arrnumericnum', { mode: 'number' }).array().notNull(),
+		arrnumericbig: numeric('arrnumericbig', { mode: 'bigint' }).array().notNull(),
 		arrpoint: point('arrpoint', {
 			mode: 'xy',
-		}).array(),
+		}).array().notNull(),
 		arrpointtuple: point('arrpointtuple', {
 			mode: 'tuple',
-		}).array(),
-		arrreal: real('arrreal').array(),
+		}).array().notNull(),
+		arrreal: real('arrreal').array().notNull(),
 		// mtxreal: real('mtxreal').array('[][]'), // MULTIDIMENSIONAL ARRAYS NOT SUPPORTED YET BY DRIVER
-		arrsmallint: smallint('arrsmallint').array(),
-		arrtext: text('arrtext').array(),
-		arrtime: time('arrtime').array(),
+		arrsmallint: smallint('arrsmallint').array().notNull(),
+		arrtext: text('arrtext').array().notNull(),
+		arrtime: time('arrtime').array().notNull(),
 		arrtimestamp: timestamp('arrtimestamp', {
 			mode: 'date',
-		}).array(),
+		}).array().notNull(),
 		arrtimestampTz: timestamp('arrtimestampTz', {
 			mode: 'date',
 			withTimezone: true,
-		}).array(),
+		}).array().notNull(),
 		arrtimestampstr: timestamp('arrtimestampstr', {
 			mode: 'string',
-		}).array(),
+		}).array().notNull(),
 		arrtimestampTzstr: timestamp('arrtimestampTzstr', {
 			mode: 'string',
 			withTimezone: true,
-		}).array(),
-		arruuid: uuid('arruuid').array(),
-		arrvarchar: varchar('arrvarchar').array(),
+		}).array().notNull(),
+		arruuid: uuid('arruuid').array().notNull(),
+		arrvarchar: varchar('arrvarchar').array().notNull(),
 	});
 
 	const db = drizzle(process.env['PG_CONNECTION_STRING']!, {
@@ -6633,20 +6439,20 @@ test('all types ~codecs~', async () => {
 		serial: number;
 		bigserial: bigint;
 		bigserialnum: number;
-		int: number | null;
-		bigint: bigint | null;
-		bigintnum: number | null;
-		bigintstr: string | null;
-		bool: boolean | null;
-		bytea: Buffer | null;
-		char: string | null;
-		cidr: string | null;
-		date: Date | null;
-		datestr: string | null;
-		double: number | null;
-		enum: 'enVal1' | 'enVal2' | null;
-		inet: string | null;
-		interval: string | null;
+		int: number;
+		bigint: bigint;
+		bigintnum: number;
+		bigintstr: string;
+		bool: boolean;
+		bytea: Buffer;
+		char: string;
+		cidr: string;
+		date: Date;
+		datestr: string;
+		double: number;
+		enum: 'enVal1' | 'enVal2';
+		inet: string;
+		interval: string;
 		json: unknown;
 		jsonb: unknown;
 		json1: unknown;
@@ -6655,68 +6461,68 @@ test('all types ~codecs~', async () => {
 		// jsonb2: unknown;
 		json3: unknown;
 		jsonb3: unknown;
-		line: { a: number; b: number; c: number } | null;
-		linetuple: [number, number, number] | null;
-		macaddr: string | null;
-		macaddr8: string | null;
-		numeric: string | null;
-		numericnum: number | null;
-		numericbig: bigint | null;
-		point: { x: number; y: number } | null;
-		pointtuple: [number, number] | null;
-		real: number | null;
-		smallint: number | null;
+		line: { a: number; b: number; c: number };
+		linetuple: [number, number, number];
+		macaddr: string;
+		macaddr8: string;
+		numeric: string;
+		numericnum: number;
+		numericbig: bigint;
+		point: { x: number; y: number };
+		pointtuple: [number, number];
+		real: number;
+		smallint: number;
 		smallserial: number;
-		text: string | null;
-		time: string | null;
-		timestamp: Date | null;
-		timestampTz: Date | null;
-		timestampstr: string | null;
-		timestampTzstr: string | null;
-		uuid: string | null;
-		varchar: string | null;
-		arrint: number[] | null;
-		arrbigint: bigint[] | null;
-		arrbigintnum: number[] | null;
-		arrbigintstr: string[] | null;
-		arrbool: boolean[] | null;
-		arrbytea: (Buffer)[] | null;
-		mtxbytea: (Buffer)[][] | null;
-		arrchar: string[] | null;
-		arrcidr: string[] | null;
-		arrdate: Date[] | null;
-		arrdatestr: string[] | null;
-		arrdouble: number[] | null;
-		arrenum: ('enVal1' | 'enVal2')[] | null;
-		arrinet: string[] | null;
-		arrinterval: string[] | null;
-		arrjson: unknown[] | null;
-		arrjsonb: unknown[] | null;
-		arrjson1: unknown[] | null;
-		arrjsonb1: unknown[] | null;
-		arrjson2: unknown[] | null;
-		arrjsonb2: unknown[] | null;
-		arrjson3: unknown[] | null;
-		arrjsonb3: unknown[] | null;
-		arrline: { a: number; b: number; c: number }[] | null;
-		arrlinetuple: [number, number, number][] | null;
-		arrmacaddr: string[] | null;
-		arrmacaddr8: string[] | null;
-		arrnumeric: string[] | null;
-		arrnumericnum: number[] | null;
-		arrnumericbig: bigint[] | null;
-		arrpoint: { x: number; y: number }[] | null;
-		arrpointtuple: [number, number][] | null;
-		arrreal: number[] | null;
-		arrsmallint: number[] | null;
-		arrtext: string[] | null;
-		arrtime: string[] | null;
-		arrtimestamp: Date[] | null;
-		arrtimestampTz: Date[] | null;
-		arrtimestampstr: string[] | null;
-		arrtimestampTzstr: string[] | null;
-		arruuid: string[] | null;
-		arrvarchar: string[] | null;
+		text: string;
+		time: string;
+		timestamp: Date;
+		timestampTz: Date;
+		timestampstr: string;
+		timestampTzstr: string;
+		uuid: string;
+		varchar: string;
+		arrint: number[];
+		arrbigint: bigint[];
+		arrbigintnum: number[];
+		arrbigintstr: string[];
+		arrbool: boolean[];
+		arrbytea: (Buffer)[];
+		mtxbytea: (Buffer)[][];
+		arrchar: string[];
+		arrcidr: string[];
+		arrdate: Date[];
+		arrdatestr: string[];
+		arrdouble: number[];
+		arrenum: ('enVal1' | 'enVal2')[];
+		arrinet: string[];
+		arrinterval: string[];
+		arrjson: unknown[];
+		arrjsonb: unknown[];
+		arrjson1: unknown[];
+		arrjsonb1: unknown[];
+		arrjson2: unknown[];
+		arrjsonb2: unknown[];
+		arrjson3: unknown[];
+		arrjsonb3: unknown[];
+		arrline: { a: number; b: number; c: number }[];
+		arrlinetuple: [number, number, number][];
+		arrmacaddr: string[];
+		arrmacaddr8: string[];
+		arrnumeric: string[];
+		arrnumericnum: number[];
+		arrnumericbig: bigint[];
+		arrpoint: { x: number; y: number }[];
+		arrpointtuple: [number, number][];
+		arrreal: number[];
+		arrsmallint: number[];
+		arrtext: string[];
+		arrtime: string[];
+		arrtimestamp: Date[];
+		arrtimestampTz: Date[];
+		arrtimestampstr: string[];
+		arrtimestampTzstr: string[];
+		arruuid: string[];
+		arrvarchar: string[];
 	};
 
 	const testData: ExpectedType = {
@@ -6847,6 +6653,678 @@ test('all types ~codecs~', async () => {
 	expect(queryRes).toStrictEqual(testData);
 	expect(relationRes).toStrictEqual(testData);
 	expect(rootRes).toStrictEqual(testData);
+
+	// ---- numbers ----
+	expect(
+		await unionAll(
+			db.select({
+				'int ∪ int': allTypesTable.int.as('int ∪ int'),
+				'int ∪ smallint': allTypesTable.int.as('int ∪ smallint'),
+				'int ∪ double': allTypesTable.int.as('int ∪ double'),
+				'int ∪ real': allTypesTable.int.as('int ∪ real'),
+				'int ∪ smallserial': allTypesTable.int.as('int ∪ smallserial'),
+				'int ∪ serial': allTypesTable.int.as('int ∪ serial'),
+				'int ∪ bigserialnum': allTypesTable.int.as('int ∪ bigserialnum'),
+				'int ∪ bigintnum': allTypesTable.int.as('int ∪ bigintnum'),
+				'int ∪ numericnum': allTypesTable.int.as('int ∪ numericnum'),
+				'smallint ∪ int': allTypesTable.smallint.as('smallint ∪ int'),
+				'smallint ∪ smallint': allTypesTable.smallint.as('smallint ∪ smallint'),
+				'smallint ∪ double': allTypesTable.smallint.as('smallint ∪ double'),
+				'smallint ∪ real': allTypesTable.smallint.as('smallint ∪ real'),
+				'smallint ∪ smallserial': allTypesTable.smallint.as('smallint ∪ smallserial'),
+				'smallint ∪ serial': allTypesTable.smallint.as('smallint ∪ serial'),
+				'smallint ∪ bigserialnum': allTypesTable.smallint.as('smallint ∪ bigserialnum'),
+				'smallint ∪ bigintnum': allTypesTable.smallint.as('smallint ∪ bigintnum'),
+				'smallint ∪ numericnum': allTypesTable.smallint.as('smallint ∪ numericnum'),
+				'double ∪ int': allTypesTable.double.as('double ∪ int'),
+				'double ∪ smallint': allTypesTable.double.as('double ∪ smallint'),
+				'double ∪ double': allTypesTable.double.as('double ∪ double'),
+				'double ∪ real': allTypesTable.double.as('double ∪ real'),
+				'double ∪ smallserial': allTypesTable.double.as('double ∪ smallserial'),
+				'double ∪ serial': allTypesTable.double.as('double ∪ serial'),
+				'double ∪ bigserialnum': allTypesTable.double.as('double ∪ bigserialnum'),
+				'double ∪ bigintnum': allTypesTable.double.as('double ∪ bigintnum'),
+				'double ∪ numericnum': allTypesTable.double.as('double ∪ numericnum'),
+				'real ∪ int': allTypesTable.real.as('real ∪ int'),
+				'real ∪ smallint': allTypesTable.real.as('real ∪ smallint'),
+				'real ∪ double': allTypesTable.real.as('real ∪ double'),
+				'real ∪ real': allTypesTable.real.as('real ∪ real'),
+				'real ∪ smallserial': allTypesTable.real.as('real ∪ smallserial'),
+				'real ∪ serial': allTypesTable.real.as('real ∪ serial'),
+				'smallserial ∪ int': allTypesTable.smallserial.as('smallserial ∪ int'),
+				'smallserial ∪ smallint': allTypesTable.smallserial.as('smallserial ∪ smallint'),
+				'smallserial ∪ double': allTypesTable.smallserial.as('smallserial ∪ double'),
+				'smallserial ∪ real': allTypesTable.smallserial.as('smallserial ∪ real'),
+				'smallserial ∪ smallserial': allTypesTable.smallserial.as('smallserial ∪ smallserial'),
+				'smallserial ∪ serial': allTypesTable.smallserial.as('smallserial ∪ serial'),
+				'smallserial ∪ bigserialnum': allTypesTable.smallserial.as('smallserial ∪ bigserialnum'),
+				'smallserial ∪ bigintnum': allTypesTable.smallserial.as('smallserial ∪ bigintnum'),
+				'smallserial ∪ numericnum': allTypesTable.smallserial.as('smallserial ∪ numericnum'),
+				'serial ∪ int': allTypesTable.serial.as('serial ∪ int'),
+				'serial ∪ smallint': allTypesTable.serial.as('serial ∪ smallint'),
+				'serial ∪ double': allTypesTable.serial.as('serial ∪ double'),
+				'serial ∪ real': allTypesTable.serial.as('serial ∪ real'),
+				'serial ∪ smallserial': allTypesTable.serial.as('serial ∪ smallserial'),
+				'serial ∪ serial': allTypesTable.serial.as('serial ∪ serial'),
+				'serial ∪ bigserialnum': allTypesTable.serial.as('serial ∪ bigserialnum'),
+				'serial ∪ bigintnum': allTypesTable.serial.as('serial ∪ bigintnum'),
+				'serial ∪ numericnum': allTypesTable.serial.as('serial ∪ numericnum'),
+				'bigserialnum ∪ int': allTypesTable.bigserialnum.as('bigserialnum ∪ int'),
+				'bigserialnum ∪ smallint': allTypesTable.bigserialnum.as('bigserialnum ∪ smallint'),
+				'bigserialnum ∪ double': allTypesTable.bigserialnum.as('bigserialnum ∪ double'),
+				'bigserialnum ∪ smallserial': allTypesTable.bigserialnum.as('bigserialnum ∪ smallserial'),
+				'bigserialnum ∪ serial': allTypesTable.bigserialnum.as('bigserialnum ∪ serial'),
+				'bigserialnum ∪ bigserialnum': allTypesTable.bigserialnum.as('bigserialnum ∪ bigserialnum'),
+				'bigserialnum ∪ bigintnum': allTypesTable.bigserialnum.as('bigserialnum ∪ bigintnum'),
+				'bigserialnum ∪ numericnum': allTypesTable.bigserialnum.as('bigserialnum ∪ numericnum'),
+				'bigintnum ∪ int': allTypesTable.bigintnum.as('bigintnum ∪ int'),
+				'bigintnum ∪ smallint': allTypesTable.bigintnum.as('bigintnum ∪ smallint'),
+				'bigintnum ∪ double': allTypesTable.bigintnum.as('bigintnum ∪ double'),
+				'bigintnum ∪ smallserial': allTypesTable.bigintnum.as('bigintnum ∪ smallserial'),
+				'bigintnum ∪ serial': allTypesTable.bigintnum.as('bigintnum ∪ serial'),
+				'bigintnum ∪ bigserialnum': allTypesTable.bigintnum.as('bigintnum ∪ bigserialnum'),
+				'bigintnum ∪ bigintnum': allTypesTable.bigintnum.as('bigintnum ∪ bigintnum'),
+				'bigintnum ∪ numericnum': allTypesTable.bigintnum.as('bigintnum ∪ numericnum'),
+				'numericnum ∪ int': allTypesTable.numericnum.as('numericnum ∪ int'),
+				'numericnum ∪ smallint': allTypesTable.numericnum.as('numericnum ∪ smallint'),
+				'numericnum ∪ double': allTypesTable.numericnum.as('numericnum ∪ double'),
+				'numericnum ∪ smallserial': allTypesTable.numericnum.as('numericnum ∪ smallserial'),
+				'numericnum ∪ serial': allTypesTable.numericnum.as('numericnum ∪ serial'),
+				'numericnum ∪ bigserialnum': allTypesTable.numericnum.as('numericnum ∪ bigserialnum'),
+				'numericnum ∪ bigintnum': allTypesTable.numericnum.as('numericnum ∪ bigintnum'),
+				'numericnum ∪ numericnum': allTypesTable.numericnum.as('numericnum ∪ numericnum'),
+			}).from(allTypesTable),
+			db.select({
+				'int ∪ int': allTypesTable.int.as('int ∪ int'),
+				'int ∪ smallint': allTypesTable.smallint.as('int ∪ smallint'),
+				'int ∪ double': allTypesTable.double.as('int ∪ double'),
+				'int ∪ real': allTypesTable.real.as('int ∪ real'),
+				'int ∪ smallserial': allTypesTable.smallserial.as('int ∪ smallserial'),
+				'int ∪ serial': allTypesTable.serial.as('int ∪ serial'),
+				'int ∪ bigserialnum': allTypesTable.bigserialnum.as('int ∪ bigserialnum'),
+				'int ∪ bigintnum': allTypesTable.bigintnum.as('int ∪ bigintnum'),
+				'int ∪ numericnum': allTypesTable.numericnum.as('int ∪ numericnum'),
+				'smallint ∪ int': allTypesTable.int.as('smallint ∪ int'),
+				'smallint ∪ smallint': allTypesTable.smallint.as('smallint ∪ smallint'),
+				'smallint ∪ double': allTypesTable.double.as('smallint ∪ double'),
+				'smallint ∪ real': allTypesTable.real.as('smallint ∪ real'),
+				'smallint ∪ smallserial': allTypesTable.smallserial.as('smallint ∪ smallserial'),
+				'smallint ∪ serial': allTypesTable.serial.as('smallint ∪ serial'),
+				'smallint ∪ bigserialnum': allTypesTable.bigserialnum.as('smallint ∪ bigserialnum'),
+				'smallint ∪ bigintnum': allTypesTable.bigintnum.as('smallint ∪ bigintnum'),
+				'smallint ∪ numericnum': allTypesTable.numericnum.as('smallint ∪ numericnum'),
+				'double ∪ int': allTypesTable.int.as('double ∪ int'),
+				'double ∪ smallint': allTypesTable.smallint.as('double ∪ smallint'),
+				'double ∪ double': allTypesTable.double.as('double ∪ double'),
+				'double ∪ real': allTypesTable.real.as('double ∪ real'),
+				'double ∪ smallserial': allTypesTable.smallserial.as('double ∪ smallserial'),
+				'double ∪ serial': allTypesTable.serial.as('double ∪ serial'),
+				'double ∪ bigserialnum': allTypesTable.bigserialnum.as('double ∪ bigserialnum'),
+				'double ∪ bigintnum': allTypesTable.bigintnum.as('double ∪ bigintnum'),
+				'double ∪ numericnum': allTypesTable.numericnum.as('double ∪ numericnum'),
+				'real ∪ int': allTypesTable.int.as('real ∪ int'),
+				'real ∪ smallint': allTypesTable.smallint.as('real ∪ smallint'),
+				'real ∪ double': allTypesTable.double.as('real ∪ double'),
+				'real ∪ real': allTypesTable.real.as('real ∪ real'),
+				'real ∪ smallserial': allTypesTable.smallserial.as('real ∪ smallserial'),
+				'real ∪ serial': allTypesTable.serial.as('real ∪ serial'),
+				'smallserial ∪ int': allTypesTable.int.as('smallserial ∪ int'),
+				'smallserial ∪ smallint': allTypesTable.smallint.as('smallserial ∪ smallint'),
+				'smallserial ∪ double': allTypesTable.double.as('smallserial ∪ double'),
+				'smallserial ∪ real': allTypesTable.real.as('smallserial ∪ real'),
+				'smallserial ∪ smallserial': allTypesTable.smallserial.as('smallserial ∪ smallserial'),
+				'smallserial ∪ serial': allTypesTable.serial.as('smallserial ∪ serial'),
+				'smallserial ∪ bigserialnum': allTypesTable.bigserialnum.as('smallserial ∪ bigserialnum'),
+				'smallserial ∪ bigintnum': allTypesTable.bigintnum.as('smallserial ∪ bigintnum'),
+				'smallserial ∪ numericnum': allTypesTable.numericnum.as('smallserial ∪ numericnum'),
+				'serial ∪ int': allTypesTable.int.as('serial ∪ int'),
+				'serial ∪ smallint': allTypesTable.smallint.as('serial ∪ smallint'),
+				'serial ∪ double': allTypesTable.double.as('serial ∪ double'),
+				'serial ∪ real': allTypesTable.real.as('serial ∪ real'),
+				'serial ∪ smallserial': allTypesTable.smallserial.as('serial ∪ smallserial'),
+				'serial ∪ serial': allTypesTable.serial.as('serial ∪ serial'),
+				'serial ∪ bigserialnum': allTypesTable.bigserialnum.as('serial ∪ bigserialnum'),
+				'serial ∪ bigintnum': allTypesTable.bigintnum.as('serial ∪ bigintnum'),
+				'serial ∪ numericnum': allTypesTable.numericnum.as('serial ∪ numericnum'),
+				'bigserialnum ∪ int': allTypesTable.int.as('bigserialnum ∪ int'),
+				'bigserialnum ∪ smallint': allTypesTable.smallint.as('bigserialnum ∪ smallint'),
+				'bigserialnum ∪ double': allTypesTable.double.as('bigserialnum ∪ double'),
+				'bigserialnum ∪ smallserial': allTypesTable.smallserial.as('bigserialnum ∪ smallserial'),
+				'bigserialnum ∪ serial': allTypesTable.serial.as('bigserialnum ∪ serial'),
+				'bigserialnum ∪ bigserialnum': allTypesTable.bigserialnum.as('bigserialnum ∪ bigserialnum'),
+				'bigserialnum ∪ bigintnum': allTypesTable.bigintnum.as('bigserialnum ∪ bigintnum'),
+				'bigserialnum ∪ numericnum': allTypesTable.numericnum.as('bigserialnum ∪ numericnum'),
+				'bigintnum ∪ int': allTypesTable.int.as('bigintnum ∪ int'),
+				'bigintnum ∪ smallint': allTypesTable.smallint.as('bigintnum ∪ smallint'),
+				'bigintnum ∪ double': allTypesTable.double.as('bigintnum ∪ double'),
+				'bigintnum ∪ smallserial': allTypesTable.smallserial.as('bigintnum ∪ smallserial'),
+				'bigintnum ∪ serial': allTypesTable.serial.as('bigintnum ∪ serial'),
+				'bigintnum ∪ bigserialnum': allTypesTable.bigserialnum.as('bigintnum ∪ bigserialnum'),
+				'bigintnum ∪ bigintnum': allTypesTable.bigintnum.as('bigintnum ∪ bigintnum'),
+				'bigintnum ∪ numericnum': allTypesTable.numericnum.as('bigintnum ∪ numericnum'),
+				'numericnum ∪ int': allTypesTable.int.as('numericnum ∪ int'),
+				'numericnum ∪ smallint': allTypesTable.smallint.as('numericnum ∪ smallint'),
+				'numericnum ∪ double': allTypesTable.double.as('numericnum ∪ double'),
+				'numericnum ∪ smallserial': allTypesTable.smallserial.as('numericnum ∪ smallserial'),
+				'numericnum ∪ serial': allTypesTable.serial.as('numericnum ∪ serial'),
+				'numericnum ∪ bigserialnum': allTypesTable.bigserialnum.as('numericnum ∪ bigserialnum'),
+				'numericnum ∪ bigintnum': allTypesTable.bigintnum.as('numericnum ∪ bigintnum'),
+				'numericnum ∪ numericnum': allTypesTable.numericnum.as('numericnum ∪ numericnum'),
+			}).from(allTypesTable),
+		),
+	).toEqual(expect.arrayContaining([
+		{
+			'int ∪ int': 621,
+			'int ∪ smallint': 621,
+			'int ∪ double': 621,
+			'int ∪ real': 621,
+			'int ∪ smallserial': 621,
+			'int ∪ serial': 621,
+			'int ∪ bigserialnum': 621,
+			'int ∪ bigintnum': 621,
+			'int ∪ numericnum': 621,
+			'smallint ∪ int': 10,
+			'smallint ∪ smallint': 10,
+			'smallint ∪ double': 10,
+			'smallint ∪ real': 10,
+			'smallint ∪ smallserial': 10,
+			'smallint ∪ serial': 10,
+			'smallint ∪ bigserialnum': 10,
+			'smallint ∪ bigintnum': 10,
+			'smallint ∪ numericnum': 10,
+			'double ∪ int': 15.35325689124218,
+			'double ∪ smallint': 15.35325689124218,
+			'double ∪ double': 15.35325689124218,
+			'double ∪ real': 15.35325689124218,
+			'double ∪ smallserial': 15.35325689124218,
+			'double ∪ serial': 15.35325689124218,
+			'double ∪ bigserialnum': 15.35325689124218,
+			'double ∪ bigintnum': 15.35325689124218,
+			'double ∪ numericnum': 15.35325689124218,
+			'real ∪ int': 1.048596,
+			'real ∪ smallint': 1.048596,
+			'real ∪ double': 1.0485960245132446,
+			'real ∪ real': 1.048596,
+			'real ∪ smallserial': 1.048596,
+			'real ∪ serial': 1.048596,
+			'smallserial ∪ int': 15,
+			'smallserial ∪ smallint': 15,
+			'smallserial ∪ double': 15,
+			'smallserial ∪ real': 15,
+			'smallserial ∪ smallserial': 15,
+			'smallserial ∪ serial': 15,
+			'smallserial ∪ bigserialnum': 15,
+			'smallserial ∪ bigintnum': 15,
+			'smallserial ∪ numericnum': 15,
+			'serial ∪ int': 1,
+			'serial ∪ smallint': 1,
+			'serial ∪ double': 1,
+			'serial ∪ real': 1,
+			'serial ∪ smallserial': 1,
+			'serial ∪ serial': 1,
+			'serial ∪ bigserialnum': 1,
+			'serial ∪ bigintnum': 1,
+			'serial ∪ numericnum': 1,
+			'bigserialnum ∪ int': 9007199254740991,
+			'bigserialnum ∪ smallint': 9007199254740991,
+			'bigserialnum ∪ double': 9007199254740991,
+			'bigserialnum ∪ smallserial': 9007199254740991,
+			'bigserialnum ∪ serial': 9007199254740991,
+			'bigserialnum ∪ bigserialnum': 9007199254740991,
+			'bigserialnum ∪ bigintnum': 9007199254740991,
+			'bigserialnum ∪ numericnum': 9007199254740991,
+			'bigintnum ∪ int': 9007199254740991,
+			'bigintnum ∪ smallint': 9007199254740991,
+			'bigintnum ∪ double': 9007199254740991,
+			'bigintnum ∪ smallserial': 9007199254740991,
+			'bigintnum ∪ serial': 9007199254740991,
+			'bigintnum ∪ bigserialnum': 9007199254740991,
+			'bigintnum ∪ bigintnum': 9007199254740991,
+			'bigintnum ∪ numericnum': 9007199254740991,
+			'numericnum ∪ int': 9007199254740991,
+			'numericnum ∪ smallint': 9007199254740991,
+			'numericnum ∪ double': 9007199254740991,
+			'numericnum ∪ smallserial': 9007199254740991,
+			'numericnum ∪ serial': 9007199254740991,
+			'numericnum ∪ bigserialnum': 9007199254740991,
+			'numericnum ∪ bigintnum': 9007199254740991,
+			'numericnum ∪ numericnum': 9007199254740991,
+		},
+		{
+			'int ∪ int': 621,
+			'int ∪ smallint': 10,
+			'int ∪ double': 15.35325689124218,
+			'int ∪ real': 1.048596,
+			'int ∪ smallserial': 15,
+			'int ∪ serial': 1,
+			'int ∪ bigserialnum': 9007199254740991,
+			'int ∪ bigintnum': 9007199254740991,
+			'int ∪ numericnum': 9007199254740991,
+			'smallint ∪ int': 621,
+			'smallint ∪ smallint': 10,
+			'smallint ∪ double': 15.35325689124218,
+			'smallint ∪ real': 1.048596,
+			'smallint ∪ smallserial': 15,
+			'smallint ∪ serial': 1,
+			'smallint ∪ bigserialnum': 9007199254740991,
+			'smallint ∪ bigintnum': 9007199254740991,
+			'smallint ∪ numericnum': 9007199254740991,
+			'double ∪ int': 621,
+			'double ∪ smallint': 10,
+			'double ∪ double': 15.35325689124218,
+			'double ∪ real': 1.0485960245132446,
+			'double ∪ smallserial': 15,
+			'double ∪ serial': 1,
+			'double ∪ bigserialnum': 9007199254740991,
+			'double ∪ bigintnum': 9007199254740991,
+			'double ∪ numericnum': 9007199254740991,
+			'real ∪ int': 621,
+			'real ∪ smallint': 10,
+			'real ∪ double': 15.35325689124218,
+			'real ∪ real': 1.048596,
+			'real ∪ smallserial': 15,
+			'real ∪ serial': 1,
+			'smallserial ∪ int': 621,
+			'smallserial ∪ smallint': 10,
+			'smallserial ∪ double': 15.35325689124218,
+			'smallserial ∪ real': 1.048596,
+			'smallserial ∪ smallserial': 15,
+			'smallserial ∪ serial': 1,
+			'smallserial ∪ bigserialnum': 9007199254740991,
+			'smallserial ∪ bigintnum': 9007199254740991,
+			'smallserial ∪ numericnum': 9007199254740991,
+			'serial ∪ int': 621,
+			'serial ∪ smallint': 10,
+			'serial ∪ double': 15.35325689124218,
+			'serial ∪ real': 1.048596,
+			'serial ∪ smallserial': 15,
+			'serial ∪ serial': 1,
+			'serial ∪ bigserialnum': 9007199254740991,
+			'serial ∪ bigintnum': 9007199254740991,
+			'serial ∪ numericnum': 9007199254740991,
+			'bigserialnum ∪ int': 621,
+			'bigserialnum ∪ smallint': 10,
+			'bigserialnum ∪ double': 15.35325689124218,
+			'bigserialnum ∪ smallserial': 15,
+			'bigserialnum ∪ serial': 1,
+			'bigserialnum ∪ bigserialnum': 9007199254740991,
+			'bigserialnum ∪ bigintnum': 9007199254740991,
+			'bigserialnum ∪ numericnum': 9007199254740991,
+			'bigintnum ∪ int': 621,
+			'bigintnum ∪ smallint': 10,
+			'bigintnum ∪ double': 15.35325689124218,
+			'bigintnum ∪ smallserial': 15,
+			'bigintnum ∪ serial': 1,
+			'bigintnum ∪ bigserialnum': 9007199254740991,
+			'bigintnum ∪ bigintnum': 9007199254740991,
+			'bigintnum ∪ numericnum': 9007199254740991,
+			'numericnum ∪ int': 621,
+			'numericnum ∪ smallint': 10,
+			'numericnum ∪ double': 15.35325689124218,
+			'numericnum ∪ smallserial': 15,
+			'numericnum ∪ serial': 1,
+			'numericnum ∪ bigserialnum': 9007199254740991,
+			'numericnum ∪ bigintnum': 9007199254740991,
+			'numericnum ∪ numericnum': 9007199254740991,
+		},
+	]));
+
+	// ---- bigint ----
+	expect(
+		await unionAll(
+			db.select({
+				'bigint ∪ bigint': allTypesTable.bigint.as('bigint ∪ bigint'),
+				'bigint ∪ bigserial': allTypesTable.bigint.as('bigint ∪ bigserial'),
+				'bigint ∪ numericbig': allTypesTable.bigint.as('bigint ∪ numericbig'),
+				'bigserial ∪ bigint': allTypesTable.bigserial.as('bigserial ∪ bigint'),
+				'bigserial ∪ bigserial': allTypesTable.bigserial.as('bigserial ∪ bigserial'),
+				'bigserial ∪ numericbig': allTypesTable.bigserial.as('bigserial ∪ numericbig'),
+				'numericbig ∪ bigint': allTypesTable.numericbig.as('numericbig ∪ bigint'),
+				'numericbig ∪ bigserial': allTypesTable.numericbig.as('numericbig ∪ bigserial'),
+				'numericbig ∪ numericbig': allTypesTable.numericbig.as('numericbig ∪ numericbig'),
+			}).from(allTypesTable),
+			db.select({
+				'bigint ∪ bigint': allTypesTable.bigint.as('bigint ∪ bigint'),
+				'bigint ∪ bigserial': allTypesTable.bigserial.as('bigint ∪ bigserial'),
+				'bigint ∪ numericbig': allTypesTable.numericbig.as('bigint ∪ numericbig'),
+				'bigserial ∪ bigint': allTypesTable.bigint.as('bigserial ∪ bigint'),
+				'bigserial ∪ bigserial': allTypesTable.bigserial.as('bigserial ∪ bigserial'),
+				'bigserial ∪ numericbig': allTypesTable.numericbig.as('bigserial ∪ numericbig'),
+				'numericbig ∪ bigint': allTypesTable.bigint.as('numericbig ∪ bigint'),
+				'numericbig ∪ bigserial': allTypesTable.bigserial.as('numericbig ∪ bigserial'),
+				'numericbig ∪ numericbig': allTypesTable.numericbig.as('numericbig ∪ numericbig'),
+			}).from(allTypesTable),
+		),
+	).toEqual(expect.arrayContaining([
+		{
+			'bigint ∪ bigint': 5044565289845416380n,
+			'bigint ∪ bigserial': 5044565289845416380n,
+			'bigint ∪ numericbig': 5044565289845416380n,
+			'bigserial ∪ bigint': 5044565289845416380n,
+			'bigserial ∪ bigserial': 5044565289845416380n,
+			'bigserial ∪ numericbig': 5044565289845416380n,
+			'numericbig ∪ bigint': 5044565289845416380n,
+			'numericbig ∪ bigserial': 5044565289845416380n,
+			'numericbig ∪ numericbig': 5044565289845416380n,
+		},
+		{
+			'bigint ∪ bigint': 5044565289845416380n,
+			'bigint ∪ bigserial': 5044565289845416380n,
+			'bigint ∪ numericbig': 5044565289845416380n,
+			'bigserial ∪ bigint': 5044565289845416380n,
+			'bigserial ∪ bigserial': 5044565289845416380n,
+			'bigserial ∪ numericbig': 5044565289845416380n,
+			'numericbig ∪ bigint': 5044565289845416380n,
+			'numericbig ∪ bigserial': 5044565289845416380n,
+			'numericbig ∪ numericbig': 5044565289845416380n,
+		},
+	]));
+
+	// ---- text ----
+	expect(
+		await unionAll(
+			db.select({
+				'varchar ∪ varchar': allTypesTable.varchar.as('varchar ∪ varchar'),
+				'varchar ∪ text': allTypesTable.varchar.as('varchar ∪ text'),
+				'text ∪ varchar': allTypesTable.text.as('text ∪ varchar'),
+				'text ∪ text': allTypesTable.text.as('text ∪ text'),
+			}).from(allTypesTable),
+			db.select({
+				'varchar ∪ varchar': allTypesTable.varchar.as('varchar ∪ varchar'),
+				'varchar ∪ text': allTypesTable.text.as('varchar ∪ text'),
+				'text ∪ varchar': allTypesTable.varchar.as('text ∪ varchar'),
+				'text ∪ text': allTypesTable.text.as('text ∪ text'),
+			}).from(allTypesTable),
+		),
+	).toEqual(expect.arrayContaining([
+		{
+			'varchar ∪ varchar': 'C4-',
+			'varchar ∪ text': 'C4-',
+			'text ∪ varchar': 'TEXT STRING',
+			'text ∪ text': 'TEXT STRING',
+		},
+		{
+			'varchar ∪ varchar': 'C4-',
+			'varchar ∪ text': 'TEXT STRING',
+			'text ∪ varchar': 'C4-',
+			'text ∪ text': 'TEXT STRING',
+		},
+	]));
+
+	// ---- numstr ----
+	expect(
+		await unionAll(
+			db.select({
+				'bigintstr ∪ bigintstr': allTypesTable.bigintstr.as('bigintstr ∪ bigintstr'),
+				'bigintstr ∪ numeric': allTypesTable.bigintstr.as('bigintstr ∪ numeric'),
+				'numeric ∪ bigintstr': allTypesTable.numeric.as('numeric ∪ bigintstr'),
+				'numeric ∪ numeric': allTypesTable.numeric.as('numeric ∪ numeric'),
+			}).from(allTypesTable),
+			db.select({
+				'bigintstr ∪ bigintstr': allTypesTable.bigintstr.as('bigintstr ∪ bigintstr'),
+				'bigintstr ∪ numeric': allTypesTable.numeric.as('bigintstr ∪ numeric'),
+				'numeric ∪ bigintstr': allTypesTable.bigintstr.as('numeric ∪ bigintstr'),
+				'numeric ∪ numeric': allTypesTable.numeric.as('numeric ∪ numeric'),
+			}).from(allTypesTable),
+		),
+	).toEqual(expect.arrayContaining([
+		{
+			'bigintstr ∪ bigintstr': '5044565289845416380',
+			'bigintstr ∪ numeric': '5044565289845416380',
+			'numeric ∪ bigintstr': '5044565289845416380',
+			'numeric ∪ numeric': '5044565289845416380',
+		},
+		{
+			'bigintstr ∪ bigintstr': '5044565289845416380',
+			'bigintstr ∪ numeric': '5044565289845416380',
+			'numeric ∪ bigintstr': '5044565289845416380',
+			'numeric ∪ numeric': '5044565289845416380',
+		},
+	]));
+
+	// ---- date ----
+	expect(
+		await unionAll(
+			db.select({
+				'date ∪ date': allTypesTable.date.as('date ∪ date'),
+				'date ∪ timestamp': allTypesTable.date.as('date ∪ timestamp'),
+				'date ∪ timestampTz': allTypesTable.date.as('date ∪ timestampTz'),
+				'timestamp ∪ date': allTypesTable.timestamp.as('timestamp ∪ date'),
+				'timestamp ∪ timestamp': allTypesTable.timestamp.as('timestamp ∪ timestamp'),
+				'timestamp ∪ timestampTz': allTypesTable.timestamp.as('timestamp ∪ timestampTz'),
+				'timestampTz ∪ date': allTypesTable.timestampTz.as('timestampTz ∪ date'),
+				'timestampTz ∪ timestamp': allTypesTable.timestampTz.as('timestampTz ∪ timestamp'),
+				'timestampTz ∪ timestampTz': allTypesTable.timestampTz.as('timestampTz ∪ timestampTz'),
+			}).from(allTypesTable),
+			db.select({
+				'date ∪ date': allTypesTable.date.as('date ∪ date'),
+				'date ∪ timestamp': allTypesTable.timestamp.as('date ∪ timestamp'),
+				'date ∪ timestampTz': allTypesTable.timestampTz.as('date ∪ timestampTz'),
+				'timestamp ∪ date': allTypesTable.date.as('timestamp ∪ date'),
+				'timestamp ∪ timestamp': allTypesTable.timestamp.as('timestamp ∪ timestamp'),
+				'timestamp ∪ timestampTz': allTypesTable.timestampTz.as('timestamp ∪ timestampTz'),
+				'timestampTz ∪ date': allTypesTable.date.as('timestampTz ∪ date'),
+				'timestampTz ∪ timestamp': allTypesTable.timestamp.as('timestampTz ∪ timestamp'),
+				'timestampTz ∪ timestampTz': allTypesTable.timestampTz.as('timestampTz ∪ timestampTz'),
+			}).from(allTypesTable),
+		),
+	).toEqual(expect.arrayContaining([
+		{
+			'date ∪ date': new Date('2025-03-12'),
+			'date ∪ timestamp': new Date('2025-03-12'),
+			'date ∪ timestampTz': new Date('2025-03-12'),
+			'timestamp ∪ date': new Date('2025-03-12 01:32:41.623'),
+			'timestamp ∪ timestamp': new Date('2025-03-12 01:32:41.623'),
+			'timestamp ∪ timestampTz': new Date('2025-03-12 01:32:41.623'),
+			'timestampTz ∪ date': new Date('2025-03-12 01:32:41.623+00'),
+			'timestampTz ∪ timestamp': new Date('2025-03-12 01:32:41.623+00'),
+			'timestampTz ∪ timestampTz': new Date('2025-03-12 01:32:41.623+00'),
+		},
+		{
+			'date ∪ date': new Date('2025-03-12'),
+			'date ∪ timestamp': new Date('2025-03-12 01:32:41.623'),
+			'date ∪ timestampTz': new Date('2025-03-12 01:32:41.623+00'),
+			'timestamp ∪ date': new Date('2025-03-12'),
+			'timestamp ∪ timestamp': new Date('2025-03-12 01:32:41.623'),
+			'timestamp ∪ timestampTz': new Date('2025-03-12 01:32:41.623+00'),
+			'timestampTz ∪ date': new Date('2025-03-12'),
+			'timestampTz ∪ timestamp': new Date('2025-03-12 01:32:41.623'),
+			'timestampTz ∪ timestampTz': new Date('2025-03-12 01:32:41.623+00'),
+		},
+	]));
+
+	// ---- json ----
+	expect(
+		await unionAll(
+			db.select({
+				'json ∪ json': allTypesTable.json.as('json ∪ json'),
+				'json ∪ json1': allTypesTable.json.as('json ∪ json1'),
+				'json ∪ json3': allTypesTable.json.as('json ∪ json3'),
+				'json1 ∪ json': allTypesTable.json1.as('json1 ∪ json'),
+				'json1 ∪ json1': allTypesTable.json1.as('json1 ∪ json1'),
+				'json1 ∪ json3': allTypesTable.json1.as('json1 ∪ json3'),
+				'json3 ∪ json': allTypesTable.json3.as('json3 ∪ json'),
+				'json3 ∪ json1': allTypesTable.json3.as('json3 ∪ json1'),
+				'json3 ∪ json3': allTypesTable.json3.as('json3 ∪ json3'),
+			}).from(allTypesTable),
+			db.select({
+				'json ∪ json': allTypesTable.json.as('json ∪ json'),
+				'json ∪ json1': allTypesTable.json1.as('json ∪ json1'),
+				'json ∪ json3': allTypesTable.json3.as('json ∪ json3'),
+				'json1 ∪ json': allTypesTable.json.as('json1 ∪ json'),
+				'json1 ∪ json1': allTypesTable.json1.as('json1 ∪ json1'),
+				'json1 ∪ json3': allTypesTable.json3.as('json1 ∪ json3'),
+				'json3 ∪ json': allTypesTable.json.as('json3 ∪ json'),
+				'json3 ∪ json1': allTypesTable.json1.as('json3 ∪ json1'),
+				'json3 ∪ json3': allTypesTable.json3.as('json3 ∪ json3'),
+			}).from(allTypesTable),
+		),
+	).toEqual(expect.arrayContaining([
+		{
+			'json ∪ json': { str: 'strval', arr: ['str', 10] },
+			'json ∪ json1': { str: 'strval', arr: ['str', 10] },
+			'json ∪ json3': { str: 'strval', arr: ['str', 10] },
+			'json1 ∪ json': [{ key: 'value', num: 7 }, 'v', '11', 5],
+			'json1 ∪ json1': [{ key: 'value', num: 7 }, 'v', '11', 5],
+			'json1 ∪ json3': [{ key: 'value', num: 7 }, 'v', '11', 5],
+			'json3 ∪ json': '5',
+			'json3 ∪ json1': '5',
+			'json3 ∪ json3': '5',
+		},
+		{
+			'json ∪ json': { str: 'strval', arr: ['str', 10] },
+			'json ∪ json1': [{ key: 'value', num: 7 }, 'v', '11', 5],
+			'json ∪ json3': '5',
+			'json1 ∪ json': { str: 'strval', arr: ['str', 10] },
+			'json1 ∪ json1': [{ key: 'value', num: 7 }, 'v', '11', 5],
+			'json1 ∪ json3': '5',
+			'json3 ∪ json': { str: 'strval', arr: ['str', 10] },
+			'json3 ∪ json1': [{ key: 'value', num: 7 }, 'v', '11', 5],
+			'json3 ∪ json3': '5',
+		},
+	]));
+
+	// ---- jsonb ----
+	expect(
+		await unionAll(
+			db.select({
+				'jsonb ∪ jsonb': allTypesTable.jsonb.as('jsonb ∪ jsonb'),
+				'jsonb ∪ jsonb1': allTypesTable.jsonb.as('jsonb ∪ jsonb1'),
+				'jsonb ∪ jsonb3': allTypesTable.jsonb.as('jsonb ∪ jsonb3'),
+				'jsonb1 ∪ jsonb': allTypesTable.jsonb1.as('jsonb1 ∪ jsonb'),
+				'jsonb1 ∪ jsonb1': allTypesTable.jsonb1.as('jsonb1 ∪ jsonb1'),
+				'jsonb1 ∪ jsonb3': allTypesTable.jsonb1.as('jsonb1 ∪ jsonb3'),
+				'jsonb3 ∪ jsonb': allTypesTable.jsonb3.as('jsonb3 ∪ jsonb'),
+				'jsonb3 ∪ jsonb1': allTypesTable.jsonb3.as('jsonb3 ∪ jsonb1'),
+				'jsonb3 ∪ jsonb3': allTypesTable.jsonb3.as('jsonb3 ∪ jsonb3'),
+			}).from(allTypesTable),
+			db.select({
+				'jsonb ∪ jsonb': allTypesTable.jsonb.as('jsonb ∪ jsonb'),
+				'jsonb ∪ jsonb1': allTypesTable.jsonb1.as('jsonb ∪ jsonb1'),
+				'jsonb ∪ jsonb3': allTypesTable.jsonb3.as('jsonb ∪ jsonb3'),
+				'jsonb1 ∪ jsonb': allTypesTable.jsonb.as('jsonb1 ∪ jsonb'),
+				'jsonb1 ∪ jsonb1': allTypesTable.jsonb1.as('jsonb1 ∪ jsonb1'),
+				'jsonb1 ∪ jsonb3': allTypesTable.jsonb3.as('jsonb1 ∪ jsonb3'),
+				'jsonb3 ∪ jsonb': allTypesTable.jsonb.as('jsonb3 ∪ jsonb'),
+				'jsonb3 ∪ jsonb1': allTypesTable.jsonb1.as('jsonb3 ∪ jsonb1'),
+				'jsonb3 ∪ jsonb3': allTypesTable.jsonb3.as('jsonb3 ∪ jsonb3'),
+			}).from(allTypesTable),
+		),
+	).toEqual(expect.arrayContaining([
+		{
+			'jsonb ∪ jsonb': { arr: ['strb', 11], str: 'strvalb' },
+			'jsonb ∪ jsonb1': { arr: ['strb', 11], str: 'strvalb' },
+			'jsonb ∪ jsonb3': { arr: ['strb', 11], str: 'strvalb' },
+			'jsonb1 ∪ jsonb': [{ key: 'value', num: 8 }, 'x', '10', 3],
+			'jsonb1 ∪ jsonb1': [{ key: 'value', num: 8 }, 'x', '10', 3],
+			'jsonb1 ∪ jsonb3': [{ key: 'value', num: 8 }, 'x', '10', 3],
+			'jsonb3 ∪ jsonb': '7',
+			'jsonb3 ∪ jsonb1': '7',
+			'jsonb3 ∪ jsonb3': '7',
+		},
+		{
+			'jsonb ∪ jsonb': { arr: ['strb', 11], str: 'strvalb' },
+			'jsonb ∪ jsonb1': [{ key: 'value', num: 8 }, 'x', '10', 3],
+			'jsonb ∪ jsonb3': '7',
+			'jsonb1 ∪ jsonb': { arr: ['strb', 11], str: 'strvalb' },
+			'jsonb1 ∪ jsonb1': [{ key: 'value', num: 8 }, 'x', '10', 3],
+			'jsonb1 ∪ jsonb3': '7',
+			'jsonb3 ∪ jsonb': { arr: ['strb', 11], str: 'strvalb' },
+			'jsonb3 ∪ jsonb1': [{ key: 'value', num: 8 }, 'x', '10', 3],
+			'jsonb3 ∪ jsonb3': '7',
+		},
+	]));
+
+	// ---- self-only ----
+	expect(
+		await unionAll(
+			db.select({
+				'char ∪ char': allTypesTable.char.as('char ∪ char'),
+				'cidr ∪ cidr': allTypesTable.cidr.as('cidr ∪ cidr'),
+				'inet ∪ inet': allTypesTable.inet.as('inet ∪ inet'),
+				'macaddr ∪ macaddr': allTypesTable.macaddr.as('macaddr ∪ macaddr'),
+				'macaddr8 ∪ macaddr8': allTypesTable.macaddr8.as('macaddr8 ∪ macaddr8'),
+				'uuid ∪ uuid': allTypesTable.uuid.as('uuid ∪ uuid'),
+				'interval ∪ interval': allTypesTable.interval.as('interval ∪ interval'),
+				'time ∪ time': allTypesTable.time.as('time ∪ time'),
+				'datestr ∪ datestr': allTypesTable.datestr.as('datestr ∪ datestr'),
+				'timestampstr ∪ timestampstr': allTypesTable.timestampstr.as('timestampstr ∪ timestampstr'),
+				'timestampTzstr ∪ timestampTzstr': allTypesTable.timestampTzstr.as('timestampTzstr ∪ timestampTzstr'),
+				'bool ∪ bool': allTypesTable.bool.as('bool ∪ bool'),
+				'bytea ∪ bytea': allTypesTable.bytea.as('bytea ∪ bytea'),
+				'enum ∪ enum': allTypesTable.enum.as('enum ∪ enum'),
+				'line ∪ line': allTypesTable.line.as('line ∪ line'),
+				'linetuple ∪ linetuple': allTypesTable.linetuple.as('linetuple ∪ linetuple'),
+				'point ∪ point': allTypesTable.point.as('point ∪ point'),
+				'pointtuple ∪ pointtuple': allTypesTable.pointtuple.as('pointtuple ∪ pointtuple'),
+			}).from(allTypesTable),
+			db.select({
+				'char ∪ char': allTypesTable.char.as('char ∪ char'),
+				'cidr ∪ cidr': allTypesTable.cidr.as('cidr ∪ cidr'),
+				'inet ∪ inet': allTypesTable.inet.as('inet ∪ inet'),
+				'macaddr ∪ macaddr': allTypesTable.macaddr.as('macaddr ∪ macaddr'),
+				'macaddr8 ∪ macaddr8': allTypesTable.macaddr8.as('macaddr8 ∪ macaddr8'),
+				'uuid ∪ uuid': allTypesTable.uuid.as('uuid ∪ uuid'),
+				'interval ∪ interval': allTypesTable.interval.as('interval ∪ interval'),
+				'time ∪ time': allTypesTable.time.as('time ∪ time'),
+				'datestr ∪ datestr': allTypesTable.datestr.as('datestr ∪ datestr'),
+				'timestampstr ∪ timestampstr': allTypesTable.timestampstr.as('timestampstr ∪ timestampstr'),
+				'timestampTzstr ∪ timestampTzstr': allTypesTable.timestampTzstr.as('timestampTzstr ∪ timestampTzstr'),
+				'bool ∪ bool': allTypesTable.bool.as('bool ∪ bool'),
+				'bytea ∪ bytea': allTypesTable.bytea.as('bytea ∪ bytea'),
+				'enum ∪ enum': allTypesTable.enum.as('enum ∪ enum'),
+				'line ∪ line': allTypesTable.line.as('line ∪ line'),
+				'linetuple ∪ linetuple': allTypesTable.linetuple.as('linetuple ∪ linetuple'),
+				'point ∪ point': allTypesTable.point.as('point ∪ point'),
+				'pointtuple ∪ pointtuple': allTypesTable.pointtuple.as('pointtuple ∪ pointtuple'),
+			}).from(allTypesTable),
+		),
+	).toEqual(expect.arrayContaining([
+		{
+			'char ∪ char': 'c',
+			'cidr ∪ cidr': '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+			'inet ∪ inet': '192.168.0.1/24',
+			'macaddr ∪ macaddr': '08:00:2b:01:02:03',
+			'macaddr8 ∪ macaddr8': '08:00:2b:01:02:03:04:05',
+			'uuid ∪ uuid': 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+			'interval ∪ interval': '-2 mons',
+			'time ∪ time': '13:59:28',
+			'datestr ∪ datestr': '2025-03-12',
+			'timestampstr ∪ timestampstr': '2025-03-12 01:32:41.623',
+			'timestampTzstr ∪ timestampTzstr': '2025-03-12 01:32:41.623+00',
+			'bool ∪ bool': true,
+			'bytea ∪ bytea': Buffer.from('BYTES'),
+			'enum ∪ enum': 'enVal1',
+			'line ∪ line': { a: 1, b: 2, c: 3 },
+			'linetuple ∪ linetuple': [1, 2, 3],
+			'point ∪ point': { x: 24.5, y: 49.6 },
+			'pointtuple ∪ pointtuple': [24.5, 49.6],
+		},
+		{
+			'char ∪ char': 'c',
+			'cidr ∪ cidr': '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+			'inet ∪ inet': '192.168.0.1/24',
+			'macaddr ∪ macaddr': '08:00:2b:01:02:03',
+			'macaddr8 ∪ macaddr8': '08:00:2b:01:02:03:04:05',
+			'uuid ∪ uuid': 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+			'interval ∪ interval': '-2 mons',
+			'time ∪ time': '13:59:28',
+			'datestr ∪ datestr': '2025-03-12',
+			'timestampstr ∪ timestampstr': '2025-03-12 01:32:41.623',
+			'timestampTzstr ∪ timestampTzstr': '2025-03-12 01:32:41.623+00',
+			'bool ∪ bool': true,
+			'bytea ∪ bytea': Buffer.from('BYTES'),
+			'enum ∪ enum': 'enVal1',
+			'line ∪ line': { a: 1, b: 2, c: 3 },
+			'linetuple ∪ linetuple': [1, 2, 3],
+			'point ∪ point': { x: 24.5, y: 49.6 },
+			'pointtuple ∪ pointtuple': [24.5, 49.6],
+		},
+	]));
+
+	await assertAllTypesBounds(db);
+
+	await db.$client.close();
 });
 
 test('Query error wrapping', async () => {
@@ -6854,4 +7332,1371 @@ test('Query error wrapping', async () => {
 	// expect(...).rejects is broken
 	await (db.insert(usersTable).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]).catch((e) => err = e));
 	expect(err).toBeInstanceOf(DrizzleQueryError);
+});
+
+test('Column as decoder applies codecs', async () => {
+	let customCast = false;
+	let customMap = false;
+
+	const codecBypass = customType<{
+		data: Date;
+		driverData: string;
+		jsonData: string;
+	}>({
+		codec: 'timestamptz',
+		dataType: () => 'timestamptz(3)',
+		forJsonSelect: (identifier, sql, arrayDimensions) => {
+			customCast = true;
+			return sql`${identifier}::text${arrayDimensions ? sql.raw('[]'.repeat(arrayDimensions)) : undefined}`;
+		},
+		fromJson: (v) => {
+			customMap = true;
+			return new Date(v);
+		},
+		toDriver: (v) => v.toISOString(),
+	});
+
+	const users = pgTable('users_823', (t) => ({
+		id: t.integer().primaryKey(),
+		name: t.text().notNull(),
+		createdAt: t.timestamp('created_at').notNull(),
+		createdAtStr: t.timestamp('created_at_str', { mode: 'string' }).notNull(),
+		arrCreatedAt: t.timestamp('arr_created_at').notNull().array(),
+		arrCreatedAtStr: t.timestamp('arr_created_at_str', { mode: 'string' }).notNull().array(),
+		cus: codecBypass('custom').notNull(),
+		arrCus: codecBypass('arr_custom').notNull().array(),
+	}));
+
+	const usersView = pgView('users_823_v').as((qb) =>
+		qb.select({
+			...getColumns(users),
+			max: max(users.createdAt).as('max'),
+			maxStr: max(users.createdAtStr).as('max_str'),
+			arrMax: max(users.arrCreatedAt).as('arr_max'),
+			arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
+			sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+			sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+			sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+				.as('sq_tag'),
+		}).from(users).groupBy(users.id)
+	);
+
+	const db = drizzle({
+		connection: process.env['PG_CONNECTION_STRING']!,
+		relations: defineRelations({ users, usersView }, (r) => ({
+			users: {
+				self: r.one.users({
+					from: r.users.id,
+					to: r.users.id,
+				}),
+			},
+			usersView: {
+				self: r.one.usersView({
+					from: r.usersView.id,
+					to: r.usersView.id,
+				}),
+			},
+		})),
+	});
+
+	await db.execute(sql`CREATE TABLE ${users} (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL,
+		created_at TIMESTAMP NOT NULL,
+		created_at_str TIMESTAMP NOT NULL,
+		arr_created_at TIMESTAMP[] NOT NULL,
+		arr_created_at_str TIMESTAMP[] NOT NULL,
+		custom TIMESTAMPTZ NOT NULL,
+		arr_custom TIMESTAMPTZ[] NOT NULL
+	)`);
+
+	await db.execute(
+		sql`CREATE VIEW ${usersView} AS SELECT *, max(${users.createdAt}) as max, max(${users.createdAtStr}) as max_str, max(${users.arrCreatedAt}) as arr_max, max(${users.arrCreatedAtStr}) as arr_max_str, (select ${users.createdAt} from ${users}) as sq, (select ${users.createdAt} from ${users}) as sq_aliased, (select ${users.id} from ${users}) as sq_tag FROM ${users} GROUP BY ${users.id}`,
+	);
+
+	const exDateStr = '1970-01-16 16:45:46.351';
+	const exDate = new Date(exDateStr);
+
+	await db.insert(users).values({
+		id: 1,
+		name: 'First',
+		createdAt: exDate,
+		createdAtStr: exDateStr,
+		arrCreatedAt: [exDate],
+		arrCreatedAtStr: [exDateStr],
+		cus: exDate,
+		arrCus: [exDate],
+	});
+
+	const res = await db.select({
+		...getColumns(users),
+		max: max(users.createdAt).as('max'),
+		maxStr: max(users.createdAtStr).as('max_str'),
+		arrMax: max(users.arrCreatedAt).as('arr_max'),
+		arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
+		sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+		sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+		sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+			.as('sq_tag'),
+	}).from(users).groupBy(users.id);
+
+	const viewRes = await db.select().from(usersView);
+
+	const nested = await db.query.users.findFirst({
+		with: {
+			self: {
+				extras: {
+					max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+					maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+					arrMax: () => sql`select max(${users.arrCreatedAt}) from ${users}`.mapWith(users.arrCreatedAt),
+					arrMaxStr: () => sql`select max(${users.arrCreatedAtStr}) from ${users}`.mapWith(users.arrCreatedAtStr),
+				},
+			},
+		},
+		extras: {
+			max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+			maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+			arrMax: () => sql`select max(${users.arrCreatedAt}) from ${users}`.mapWith(users.arrCreatedAt),
+			arrMaxStr: () => sql`select max(${users.arrCreatedAtStr}) from ${users}`.mapWith(users.arrCreatedAtStr),
+		},
+	});
+
+	const viewNested = await db.query.usersView.findFirst({
+		with: {
+			self: true,
+		},
+	});
+
+	expect(res).toStrictEqual([
+		{
+			id: 1,
+			name: 'First',
+			createdAt: exDate,
+			createdAtStr: exDateStr,
+			arrCreatedAt: [exDate],
+			arrCreatedAtStr: [exDateStr],
+			max: exDate,
+			maxStr: exDateStr,
+			arrMax: [exDate],
+			arrMaxStr: [exDateStr],
+			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
+			cus: exDate,
+			arrCus: [exDate],
+		},
+	]);
+	expect(viewRes).toStrictEqual([
+		{
+			id: 1,
+			name: 'First',
+			createdAt: exDate,
+			createdAtStr: exDateStr,
+			arrCreatedAt: [exDate],
+			arrCreatedAtStr: [exDateStr],
+			max: exDate,
+			maxStr: exDateStr,
+			arrMax: [exDate],
+			arrMaxStr: [exDateStr],
+			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
+			cus: exDate,
+			arrCus: [exDate],
+		},
+	]);
+
+	expect(customCast).toBeTruthy();
+	expect(customMap).toBeTruthy();
+
+	expect(nested).toStrictEqual(
+		{
+			id: 1,
+			name: 'First',
+			createdAt: exDate,
+			createdAtStr: exDateStr,
+			arrCreatedAt: [exDate],
+			arrCreatedAtStr: [exDateStr],
+			max: exDate,
+			maxStr: exDateStr,
+			arrMax: [exDate],
+			arrMaxStr: [exDateStr],
+			cus: exDate,
+			arrCus: [exDate],
+			self: {
+				id: 1,
+				name: 'First',
+				createdAt: exDate,
+				createdAtStr: exDateStr,
+				arrCreatedAt: [exDate],
+				arrCreatedAtStr: [exDateStr],
+				max: exDate,
+				maxStr: exDateStr,
+				arrMax: [exDate],
+				arrMaxStr: [exDateStr],
+				cus: exDate,
+				arrCus: [exDate],
+			},
+		},
+	);
+
+	type ViewRow = typeof usersView.$inferSelect;
+	type ViewNestedRow = {
+		[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+	};
+
+	expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
+	expect(viewNested).toStrictEqual(
+		{
+			id: 1,
+			name: 'First',
+			createdAt: exDate,
+			createdAtStr: exDateStr,
+			arrCreatedAt: [exDate],
+			arrCreatedAtStr: [exDateStr],
+			max: exDate,
+			maxStr: exDateStr,
+			arrMax: [exDate],
+			arrMaxStr: [exDateStr],
+			cus: exDate,
+			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
+			arrCus: [exDate],
+			self: {
+				id: 1,
+				name: 'First',
+				createdAt: exDate,
+				createdAtStr: exDateStr,
+				arrCreatedAt: [exDate],
+				arrCreatedAtStr: [exDateStr],
+				max: exDate,
+				maxStr: exDateStr,
+				arrMax: [exDate],
+				arrMaxStr: [exDateStr],
+				cus: exDate,
+				sq: exDate,
+				sqAliased: exDate,
+				sqTag: 'tag-1',
+				arrCus: [exDate],
+			},
+		},
+	);
+
+	await db.$client.close();
+});
+
+test('Column as decoder applies codecs - Jit mappers', async () => {
+	let customCast = false;
+	let customMap = false;
+
+	const codecBypass = customType<{
+		data: Date;
+		driverData: string;
+		jsonData: string;
+	}>({
+		codec: 'timestamptz',
+		dataType: () => 'timestamptz(3)',
+		forJsonSelect: (identifier, sql, arrayDimensions) => {
+			customCast = true;
+			return sql`${identifier}::text${arrayDimensions ? sql.raw('[]'.repeat(arrayDimensions)) : undefined}`;
+		},
+		fromJson: (v) => {
+			customMap = true;
+			return new Date(v);
+		},
+		toDriver: (v) => v.toISOString(),
+	});
+
+	const users = pgTable('users_823', (t) => ({
+		id: t.integer().primaryKey(),
+		name: t.text().notNull(),
+		createdAt: t.timestamp('created_at').notNull(),
+		createdAtStr: t.timestamp('created_at_str', { mode: 'string' }).notNull(),
+		arrCreatedAt: t.timestamp('arr_created_at').notNull().array(),
+		arrCreatedAtStr: t.timestamp('arr_created_at_str', { mode: 'string' }).notNull().array(),
+		cus: codecBypass('custom').notNull(),
+		arrCus: codecBypass('arr_custom').notNull().array(),
+	}));
+
+	const usersView = pgView('users_823_v').as((qb) =>
+		qb.select({
+			...getColumns(users),
+			max: max(users.createdAt).as('max'),
+			maxStr: max(users.createdAtStr).as('max_str'),
+			arrMax: max(users.arrCreatedAt).as('arr_max'),
+			arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
+			sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+			sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+			sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+				.as('sq_tag'),
+		}).from(users).groupBy(users.id)
+	);
+
+	const db = drizzle({
+		connection: process.env['PG_CONNECTION_STRING']!,
+		relations: defineRelations({ users, usersView }, (r) => ({
+			users: {
+				self: r.one.users({
+					from: r.users.id,
+					to: r.users.id,
+				}),
+			},
+			usersView: {
+				self: r.one.usersView({
+					from: r.usersView.id,
+					to: r.usersView.id,
+				}),
+			},
+		})),
+		jit: true,
+	});
+
+	await db.execute(sql`CREATE TABLE ${users} (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL,
+		created_at TIMESTAMP NOT NULL,
+		created_at_str TIMESTAMP NOT NULL,
+		arr_created_at TIMESTAMP[] NOT NULL,
+		arr_created_at_str TIMESTAMP[] NOT NULL,
+		custom TIMESTAMPTZ NOT NULL,
+		arr_custom TIMESTAMPTZ[] NOT NULL
+	)`);
+
+	await db.execute(
+		sql`CREATE VIEW ${usersView} AS SELECT *, max(${users.createdAt}) as max, max(${users.createdAtStr}) as max_str, max(${users.arrCreatedAt}) as arr_max, max(${users.arrCreatedAtStr}) as arr_max_str, (select ${users.createdAt} from ${users}) as sq, (select ${users.createdAt} from ${users}) as sq_aliased, (select ${users.id} from ${users}) as sq_tag FROM ${users} GROUP BY ${users.id}`,
+	);
+
+	const exDateStr = '1970-01-16 16:45:46.351';
+	const exDate = new Date(exDateStr);
+
+	await db.insert(users).values({
+		id: 1,
+		name: 'First',
+		createdAt: exDate,
+		createdAtStr: exDateStr,
+		arrCreatedAt: [exDate],
+		arrCreatedAtStr: [exDateStr],
+		cus: exDate,
+		arrCus: [exDate],
+	});
+
+	const res = await db.select({
+		...getColumns(users),
+		max: max(users.createdAt).as('max'),
+		maxStr: max(users.createdAtStr).as('max_str'),
+		arrMax: max(users.arrCreatedAt).as('arr_max'),
+		arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
+		sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+		sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+		sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+			.as('sq_tag'),
+	}).from(users).groupBy(users.id);
+
+	const viewRes = await db.select().from(usersView);
+
+	const nested = await db.query.users.findFirst({
+		with: {
+			self: {
+				extras: {
+					max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+					maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+					arrMax: () => sql`select max(${users.arrCreatedAt}) from ${users}`.mapWith(users.arrCreatedAt),
+					arrMaxStr: () => sql`select max(${users.arrCreatedAtStr}) from ${users}`.mapWith(users.arrCreatedAtStr),
+				},
+			},
+		},
+		extras: {
+			max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+			maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+			arrMax: () => sql`select max(${users.arrCreatedAt}) from ${users}`.mapWith(users.arrCreatedAt),
+			arrMaxStr: () => sql`select max(${users.arrCreatedAtStr}) from ${users}`.mapWith(users.arrCreatedAtStr),
+		},
+	});
+
+	const viewNested = await db.query.usersView.findFirst({
+		with: {
+			self: true,
+		},
+	});
+
+	expect(res).toStrictEqual([
+		{
+			id: 1,
+			name: 'First',
+			createdAt: exDate,
+			createdAtStr: exDateStr,
+			arrCreatedAt: [exDate],
+			arrCreatedAtStr: [exDateStr],
+			max: exDate,
+			maxStr: exDateStr,
+			arrMax: [exDate],
+			arrMaxStr: [exDateStr],
+			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
+			cus: exDate,
+			arrCus: [exDate],
+		},
+	]);
+	expect(viewRes).toStrictEqual([
+		{
+			id: 1,
+			name: 'First',
+			createdAt: exDate,
+			createdAtStr: exDateStr,
+			arrCreatedAt: [exDate],
+			arrCreatedAtStr: [exDateStr],
+			max: exDate,
+			maxStr: exDateStr,
+			arrMax: [exDate],
+			arrMaxStr: [exDateStr],
+			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
+			cus: exDate,
+			arrCus: [exDate],
+		},
+	]);
+
+	expect(customCast).toBeTruthy();
+	expect(customMap).toBeTruthy();
+
+	expect(nested).toStrictEqual(
+		{
+			id: 1,
+			name: 'First',
+			createdAt: exDate,
+			createdAtStr: exDateStr,
+			arrCreatedAt: [exDate],
+			arrCreatedAtStr: [exDateStr],
+			max: exDate,
+			maxStr: exDateStr,
+			arrMax: [exDate],
+			arrMaxStr: [exDateStr],
+			cus: exDate,
+			arrCus: [exDate],
+			self: {
+				id: 1,
+				name: 'First',
+				createdAt: exDate,
+				createdAtStr: exDateStr,
+				arrCreatedAt: [exDate],
+				arrCreatedAtStr: [exDateStr],
+				max: exDate,
+				maxStr: exDateStr,
+				arrMax: [exDate],
+				arrMaxStr: [exDateStr],
+				cus: exDate,
+				arrCus: [exDate],
+			},
+		},
+	);
+
+	type ViewRow = typeof usersView.$inferSelect;
+	type ViewNestedRow = {
+		[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+	};
+
+	expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
+	expect(viewNested).toStrictEqual(
+		{
+			id: 1,
+			name: 'First',
+			createdAt: exDate,
+			createdAtStr: exDateStr,
+			arrCreatedAt: [exDate],
+			arrCreatedAtStr: [exDateStr],
+			max: exDate,
+			maxStr: exDateStr,
+			arrMax: [exDate],
+			arrMaxStr: [exDateStr],
+			cus: exDate,
+			sq: exDate,
+			sqAliased: exDate,
+			sqTag: 'tag-1',
+			arrCus: [exDate],
+			self: {
+				id: 1,
+				name: 'First',
+				createdAt: exDate,
+				createdAtStr: exDateStr,
+				arrCreatedAt: [exDate],
+				arrCreatedAtStr: [exDateStr],
+				max: exDate,
+				maxStr: exDateStr,
+				arrMax: [exDate],
+				arrMaxStr: [exDateStr],
+				cus: exDate,
+				sq: exDate,
+				sqAliased: exDate,
+				sqTag: 'tag-1',
+				arrCus: [exDate],
+			},
+		},
+	);
+
+	await db.$client.close();
+});
+
+test("No nullification on non-joined table's all-null object", async () => {
+	const users = pgTable('nullify1_users', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		bio: t.text('bio'),
+		city: t.text('city'),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify1_users`);
+	await db.execute(sql`CREATE TABLE nullify1_users (id SERIAL PRIMARY KEY, name TEXT NOT NULL, bio TEXT, city TEXT)`);
+
+	await db.insert(users).values({ name: 'John' });
+
+	const res = await db.select({ id: users.id, meta: { bio: users.bio, city: users.city } }).from(users);
+
+	expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
+
+	await db.execute(sql`DROP TABLE nullify1_users`);
+});
+
+test('Cross-table group never nullified', async () => {
+	const cities = pgTable('nullify2_cities', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+	}));
+	const users = pgTable('nullify2_users', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		bio: t.text('bio'),
+		cityId: t.integer('city_id'),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify2_users`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify2_cities`);
+	await db.execute(sql`CREATE TABLE nullify2_cities (id SERIAL PRIMARY KEY, name TEXT NOT NULL)`);
+	await db.execute(
+		sql`CREATE TABLE nullify2_users (id SERIAL PRIMARY KEY, name TEXT NOT NULL, bio TEXT, city_id INTEGER)`,
+	);
+
+	await db.insert(cities).values([{ name: 'Paris' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+	const res = await db
+		.select({ id: users.id, g: { user: users.name, cityId: cities.id, cityName: cities.name } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+		{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+	]);
+
+	const onlyJoinedSideNotNull = await db
+		.select({ id: users.id, g: { bio: users.bio, cityId: cities.id } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(onlyJoinedSideNotNull).toEqual([
+		{ id: 1, g: { bio: null, cityId: 1 } },
+		{ id: 2, g: { bio: null, cityId: null } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify2_users`);
+	await db.execute(sql`DROP TABLE nullify2_cities`);
+});
+
+test('SQL field groups are never nullified', async () => {
+	const cities = pgTable('nullify3_cities', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+	}));
+	const users = pgTable('nullify3_users', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.integer('city_id'),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify3_users`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify3_cities`);
+	await db.execute(sql`CREATE TABLE nullify3_cities (id SERIAL PRIMARY KEY, name TEXT NOT NULL)`);
+	await db.execute(sql`CREATE TABLE nullify3_users (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INTEGER)`);
+
+	await db.insert(cities).values([{ name: 'Paris' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+	const res = await db
+		.select({
+			id: users.id,
+			calc: { user: sql<string>`upper(${users.name})`, city: sql<string | null>`upper(${cities.name})` },
+		})
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+		{ id: 2, calc: { user: 'JANE', city: null } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify3_users`);
+	await db.execute(sql`DROP TABLE nullify3_cities`);
+});
+
+test('Nullify all-null group from from nullable join', async () => {
+	const cities = pgTable('nullify4_cities', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		state: t.text('state'),
+		zip: t.text('zip'),
+	}));
+	const users = pgTable('nullify4_users', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.integer('city_id'),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify4_users`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify4_cities`);
+	await db.execute(
+		sql`CREATE TABLE nullify4_cities (id SERIAL PRIMARY KEY, name TEXT NOT NULL, state TEXT, zip TEXT)`,
+	);
+	await db.execute(sql`CREATE TABLE nullify4_users (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INTEGER)`);
+
+	await db.insert(cities).values([
+		{ name: 'Paris', state: 'IDF', zip: '75' },
+		{ name: 'London' },
+	]);
+	await db.insert(users).values([
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 2 },
+		{ name: 'Jack' },
+	]);
+
+	const res = await db
+		.select({ name: users.name, c: { state: cities.state, zip: cities.zip } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ name: 'John', c: { state: 'IDF', zip: '75' } },
+		{ name: 'Jane', c: null },
+		{ name: 'Jack', c: null },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify4_users`);
+	await db.execute(sql`DROP TABLE nullify4_cities`);
+});
+
+test("Don't disregard added SQL field during join nullification", async () => {
+	const cities = pgTable('nullify5_cities', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		state: t.text('state'),
+	}));
+	const users = pgTable('nullify5_users', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.integer('city_id'),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify5_users`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify5_cities`);
+	await db.execute(sql`CREATE TABLE nullify5_cities (id SERIAL PRIMARY KEY, name TEXT NOT NULL, state TEXT)`);
+	await db.execute(sql`CREATE TABLE nullify5_users (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INTEGER)`);
+
+	await db.insert(cities).values([{ name: 'Paris', state: 'IDF' }, { name: 'London' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }]);
+
+	const res = await db
+		.select({ name: users.name, c: { state: cities.state, cityUpper: sql<string>`upper(${cities.name})` } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+		{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify5_users`);
+	await db.execute(sql`DROP TABLE nullify5_cities`);
+});
+test("No nullification on non-joined table's all-null object - jit", async () => {
+	const users = pgTable('nullify1_users_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		bio: t.text('bio'),
+		city: t.text('city'),
+	}));
+
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, { jit: true });
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify1_users_jit`);
+	await db.execute(
+		sql`CREATE TABLE nullify1_users_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, bio TEXT, city TEXT)`,
+	);
+
+	await db.insert(users).values({ name: 'John' });
+
+	const res = await db.select({ id: users.id, meta: { bio: users.bio, city: users.city } }).from(users);
+
+	expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
+
+	await db.execute(sql`DROP TABLE nullify1_users_jit`);
+
+	await db.$client.close();
+});
+
+test('Cross-table group never nullified - jit', async () => {
+	const cities = pgTable('nullify2_cities_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+	}));
+	const users = pgTable('nullify2_users_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		bio: t.text('bio'),
+		cityId: t.integer('city_id'),
+	}));
+
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, { jit: true });
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify2_users_jit`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify2_cities_jit`);
+	await db.execute(sql`CREATE TABLE nullify2_cities_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL)`);
+	await db.execute(
+		sql`CREATE TABLE nullify2_users_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, bio TEXT, city_id INTEGER)`,
+	);
+
+	await db.insert(cities).values([{ name: 'Paris' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+	const res = await db
+		.select({ id: users.id, g: { user: users.name, cityId: cities.id, cityName: cities.name } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+		{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+	]);
+
+	const onlyJoinedSideNotNull = await db
+		.select({ id: users.id, g: { bio: users.bio, cityId: cities.id } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(onlyJoinedSideNotNull).toEqual([
+		{ id: 1, g: { bio: null, cityId: 1 } },
+		{ id: 2, g: { bio: null, cityId: null } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify2_users_jit`);
+	await db.execute(sql`DROP TABLE nullify2_cities_jit`);
+
+	await db.$client.close();
+});
+
+test('SQL field groups are never nullified - jit', async () => {
+	const cities = pgTable('nullify3_cities_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+	}));
+	const users = pgTable('nullify3_users_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.integer('city_id'),
+	}));
+
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, { jit: true });
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify3_users_jit`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify3_cities_jit`);
+	await db.execute(sql`CREATE TABLE nullify3_cities_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL)`);
+	await db.execute(sql`CREATE TABLE nullify3_users_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INTEGER)`);
+
+	await db.insert(cities).values([{ name: 'Paris' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+	const res = await db
+		.select({
+			id: users.id,
+			calc: { user: sql<string>`upper(${users.name})`, city: sql<string | null>`upper(${cities.name})` },
+		})
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+		{ id: 2, calc: { user: 'JANE', city: null } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify3_users_jit`);
+	await db.execute(sql`DROP TABLE nullify3_cities_jit`);
+
+	await db.$client.close();
+});
+
+test('Nullify all-null group from from nullable join - jit', async () => {
+	const cities = pgTable('nullify4_cities_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		state: t.text('state'),
+		zip: t.text('zip'),
+	}));
+	const users = pgTable('nullify4_users_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.integer('city_id'),
+	}));
+
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, { jit: true });
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify4_users_jit`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify4_cities_jit`);
+	await db.execute(
+		sql`CREATE TABLE nullify4_cities_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, state TEXT, zip TEXT)`,
+	);
+	await db.execute(sql`CREATE TABLE nullify4_users_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INTEGER)`);
+
+	await db.insert(cities).values([
+		{ name: 'Paris', state: 'IDF', zip: '75' },
+		{ name: 'London' },
+	]);
+	await db.insert(users).values([
+		{ name: 'John', cityId: 1 },
+		{ name: 'Jane', cityId: 2 },
+		{ name: 'Jack' },
+	]);
+
+	const res = await db
+		.select({ name: users.name, c: { state: cities.state, zip: cities.zip } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ name: 'John', c: { state: 'IDF', zip: '75' } },
+		{ name: 'Jane', c: null },
+		{ name: 'Jack', c: null },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify4_users_jit`);
+	await db.execute(sql`DROP TABLE nullify4_cities_jit`);
+
+	await db.$client.close();
+});
+
+test("Don't disregard added SQL field during join nullification - jit", async () => {
+	const cities = pgTable('nullify5_cities_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		state: t.text('state'),
+	}));
+	const users = pgTable('nullify5_users_jit', (t) => ({
+		id: t.serial('id').primaryKey(),
+		name: t.text('name').notNull(),
+		cityId: t.integer('city_id'),
+	}));
+
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, { jit: true });
+
+	await db.execute(sql`DROP TABLE IF EXISTS nullify5_users_jit`);
+	await db.execute(sql`DROP TABLE IF EXISTS nullify5_cities_jit`);
+	await db.execute(sql`CREATE TABLE nullify5_cities_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, state TEXT)`);
+	await db.execute(sql`CREATE TABLE nullify5_users_jit (id SERIAL PRIMARY KEY, name TEXT NOT NULL, city_id INTEGER)`);
+
+	await db.insert(cities).values([{ name: 'Paris', state: 'IDF' }, { name: 'London' }]);
+	await db.insert(users).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }]);
+
+	const res = await db
+		.select({ name: users.name, c: { state: cities.state, cityUpper: sql<string>`upper(${cities.name})` } })
+		.from(users)
+		.leftJoin(cities, eq(users.cityId, cities.id))
+		.orderBy(users.id);
+
+	expect(res).toEqual([
+		{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+		{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
+	]);
+
+	await db.execute(sql`DROP TABLE nullify5_users_jit`);
+	await db.execute(sql`DROP TABLE nullify5_cities_jit`);
+
+	await db.$client.close();
+});
+
+const dnStaff = pgTable('dn_staff', (t) => ({ userId: t.integer('user_id').primaryKey() }));
+const dnPeople = pgTable('dn_people', (t) => ({
+	id: t.integer('id').primaryKey(),
+	name: t.text('name').notNull(),
+	nick: t.text('nick'),
+}));
+const dnTicket = pgTable('dn_ticket', (t) => ({
+	id: t.integer('id').primaryKey(),
+	staffId: t.integer('staff_id'),
+}));
+const dnVStaff = pgTable('dn_vstaff', (t) => ({
+	id: t.integer('id').primaryKey(),
+	deptId: t.integer('dept_id'),
+}));
+const dnDept = pgTable('dn_dept', (t) => ({
+	id: t.integer('id').primaryKey(),
+	name: t.text('name').notNull(),
+}));
+const dnEmp = pgTable('dn_emp', (t) => ({
+	id: t.integer('id').primaryKey(),
+	staffId: t.integer('staff_id'),
+}));
+const dnStaffView = pgView('dn_staff_view').as((qb) =>
+	qb
+		.select({
+			staffId: dnVStaff.id.as('staff_id'),
+			dept: { id: dnDept.id.as('dept_id'), name: dnDept.name.as('dept_name') },
+		})
+		.from(dnVStaff)
+		.leftJoin(dnDept, eq(dnVStaff.deptId, dnDept.id))
+);
+
+async function setupDeepTables(db: PgAsyncDatabase<any, any>) {
+	await db.execute(sql`DROP VIEW IF EXISTS ${dnStaffView}`);
+	for (const t of [dnStaff, dnPeople, dnTicket, dnVStaff, dnDept, dnEmp]) {
+		await db.execute(sql`DROP TABLE IF EXISTS ${t}`);
+	}
+	await db.execute(sql`CREATE TABLE ${dnStaff} (user_id INTEGER PRIMARY KEY)`);
+	await db.execute(sql`CREATE TABLE ${dnPeople} (id INTEGER PRIMARY KEY, name TEXT NOT NULL, nick TEXT)`);
+	await db.execute(sql`CREATE TABLE ${dnTicket} (id INTEGER PRIMARY KEY, staff_id INTEGER)`);
+	await db.execute(sql`CREATE TABLE ${dnVStaff} (id INTEGER PRIMARY KEY, dept_id INTEGER)`);
+	await db.execute(sql`CREATE TABLE ${dnDept} (id INTEGER PRIMARY KEY, name TEXT NOT NULL)`);
+	await db.execute(sql`CREATE TABLE ${dnEmp} (id INTEGER PRIMARY KEY, staff_id INTEGER)`);
+	await db.execute(sql`CREATE VIEW ${dnStaffView} AS ${getViewConfig(dnStaffView).query}`);
+}
+
+async function runDeepNullification(db: PgAsyncDatabase<any, any>) {
+	await db.insert(dnStaff).values([{ userId: 1 }, { userId: 2 }]);
+	await db.insert(dnPeople).values([{ id: 1, name: 'Ann', nick: null }, { id: 2, name: 'Bob', nick: 'b' }]);
+	await db.insert(dnTicket).values([{ id: 1, staffId: 1 }, { id: 2, staffId: 2 }, { id: 3, staffId: 3 }]);
+	await db.insert(dnVStaff).values([{ id: 1, deptId: 1 }, { id: 2, deptId: 1 }]);
+	await db.insert(dnDept).values([{ id: 1, name: 'Eng' }]);
+	await db.insert(dnEmp).values([{ id: 1, staffId: 1 }, { id: 2, staffId: 2 }, { id: 3, staffId: 3 }]);
+
+	const crew = db.select().from(dnStaff).leftJoin(dnPeople, eq(dnStaff.userId, dnPeople.id)).as('crew');
+
+	const sqJoin = await db
+		.select()
+		.from(dnTicket)
+		.leftJoin(crew, eq(crew.dn_staff.userId, dnTicket.staffId))
+		.orderBy(dnTicket.id);
+	expect(sqJoin).toEqual([
+		{
+			dn_ticket: { id: 1, staffId: 1 },
+			crew: { dn_staff: { userId: 1 }, dn_people: { id: 1, name: 'Ann', nick: null } },
+		},
+		{
+			dn_ticket: { id: 2, staffId: 2 },
+			crew: { dn_staff: { userId: 2 }, dn_people: { id: 2, name: 'Bob', nick: 'b' } },
+		},
+		{ dn_ticket: { id: 3, staffId: 3 }, crew: null },
+	]);
+
+	const viewJoin = await db
+		.select()
+		.from(dnEmp)
+		.leftJoin(dnStaffView, eq(dnStaffView.staffId, dnEmp.staffId))
+		.orderBy(dnEmp.id);
+	expect(viewJoin).toEqual([
+		{ dn_emp: { id: 1, staffId: 1 }, dn_staff_view: { staffId: 1, dept: { id: 1, name: 'Eng' } } },
+		{ dn_emp: { id: 2, staffId: 2 }, dn_staff_view: { staffId: 2, dept: { id: 1, name: 'Eng' } } },
+		{ dn_emp: { id: 3, staffId: 3 }, dn_staff_view: null },
+	]);
+
+	const crewInner = db.select().from(dnStaff).innerJoin(dnPeople, eq(dnStaff.userId, dnPeople.id)).as('crew_inner');
+	const innerFold = await db
+		.select({
+			ticketId: dnTicket.id,
+			person: { id: crewInner.dn_people.id, name: crewInner.dn_people.name, nick: crewInner.dn_people.nick },
+		})
+		.from(dnTicket)
+		.leftJoin(crewInner, eq(crewInner.dn_staff.userId, dnTicket.staffId))
+		.orderBy(dnTicket.id);
+	expect(innerFold).toEqual([
+		{ ticketId: 1, person: { id: 1, name: 'Ann', nick: null } },
+		{ ticketId: 2, person: { id: 2, name: 'Bob', nick: 'b' } },
+		{ ticketId: 3, person: null },
+	]);
+}
+
+test('Mappers: deep nullification', async () => {
+	await setupDeepTables(db);
+	await runDeepNullification(db);
+});
+
+test('Mappers: deep nullification - jit', async () => {
+	const jitDb = drizzle(process.env['PG_CONNECTION_STRING']!, { jit: true });
+	await setupDeepTables(jitDb);
+	await runDeepNullification(jitDb);
+});
+
+describe('transaction config', () => {
+	test('transaction with options (set isolationLevel)', async () => {
+		const users = pgTable('users_tx_cfg_iso_bun', {
+			id: serial('id').primaryKey(),
+			balance: integer('balance').notNull(),
+		});
+		const products = pgTable('products_tx_cfg_iso_bun', {
+			id: serial('id').primaryKey(),
+			price: integer('price').notNull(),
+			stock: integer('stock').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists users_tx_cfg_iso_bun, products_tx_cfg_iso_bun`);
+		await db.execute(
+			sql`create table users_tx_cfg_iso_bun (id serial not null primary key, balance integer not null)`,
+		);
+		await db.execute(
+			sql`create table products_tx_cfg_iso_bun (id serial not null primary key, price integer not null, stock integer not null)`,
+		);
+
+		const [user] = await db.insert(users).values({ balance: 100 }).returning();
+		const [product] = await db.insert(products).values({ price: 10, stock: 10 }).returning();
+
+		await db.transaction(async (tx) => {
+			const [row] = await tx.execute(sql`show transaction_isolation`, 'objects');
+			expect(row!['transaction_isolation']).toBe('serializable');
+
+			await tx.update(users).set({ balance: user!.balance - product!.price }).where(eq(users.id, user!.id));
+			await tx.update(products).set({ stock: product!.stock - 1 }).where(eq(products.id, product!.id));
+		}, { isolationLevel: 'serializable' });
+
+		expect(await db.select().from(users)).toEqual([{ id: 1, balance: 90 }]);
+
+		await db.transaction(async (tx) => {
+			const [row] = await tx.execute(sql`show transaction_isolation`, 'objects');
+			expect(row!['transaction_isolation']).toBe('repeatable read');
+		}, { isolationLevel: 'repeatable read' });
+
+		await db.execute(sql`drop table users_tx_cfg_iso_bun, products_tx_cfg_iso_bun`);
+	});
+
+	test('transaction with options (accessMode read only)', async () => {
+		const users = pgTable('users_tx_cfg_ro_bun', {
+			id: serial('id').primaryKey(),
+			balance: integer('balance').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists users_tx_cfg_ro_bun`);
+		await db.execute(sql`create table users_tx_cfg_ro_bun (id serial not null primary key, balance integer not null)`);
+		await db.insert(users).values({ balance: 100 });
+
+		let failure: any;
+		try {
+			await db.transaction(async (tx) => {
+				await tx.insert(users).values({ balance: 200 });
+			}, { accessMode: 'read only' });
+		} catch (e) {
+			failure = e;
+		}
+		expect(String(failure?.cause?.message ?? failure?.message)).toContain('read-only transaction');
+
+		const read = await db.transaction(async (tx) => {
+			const [row] = await tx.execute(sql`show transaction_read_only`, 'objects');
+			expect(row!['transaction_read_only']).toBe('on');
+			return tx.select().from(users);
+		}, { accessMode: 'read only' });
+		expect(read).toEqual([{ id: 1, balance: 100 }]);
+
+		await db.transaction(async (tx) => {
+			const [row] = await tx.execute(sql`show transaction_read_only`, 'objects');
+			expect(row!['transaction_read_only']).toBe('off');
+		}, { accessMode: 'read write' });
+
+		await db.execute(sql`drop table users_tx_cfg_ro_bun`);
+	});
+
+	test('transaction with options (deferrable)', async () => {
+		const users = pgTable('users_tx_cfg_deferrable_bun', {
+			id: serial('id').primaryKey(),
+			balance: integer('balance').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists users_tx_cfg_deferrable_bun`);
+		await db.execute(
+			sql`create table users_tx_cfg_deferrable_bun (id serial not null primary key, balance integer not null)`,
+		);
+		await db.insert(users).values({ balance: 100 });
+
+		await db.transaction(async (tx) => {
+			const [row] = await tx.execute(sql`show transaction_deferrable`, 'objects');
+			expect(row!['transaction_deferrable']).toBe('on');
+		}, {
+			isolationLevel: 'serializable',
+			accessMode: 'read only',
+			deferrable: true,
+		});
+
+		await db.transaction(async (tx) => {
+			const [row] = await tx.execute(sql`show transaction_deferrable`, 'objects');
+			expect(row!['transaction_deferrable']).toBe('off');
+		}, {
+			isolationLevel: 'serializable',
+			accessMode: 'read only',
+			deferrable: false,
+		});
+
+		await db.execute(sql`drop table users_tx_cfg_deferrable_bun`);
+	});
+
+	test('transaction with an empty options object', async () => {
+		const users = pgTable('users_tx_cfg_empty_bun', {
+			id: serial('id').primaryKey(),
+			balance: integer('balance').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists users_tx_cfg_empty_bun`);
+		await db.execute(
+			sql`create table users_tx_cfg_empty_bun (id serial not null primary key, balance integer not null)`,
+		);
+		await db.insert(users).values({ balance: 100 });
+
+		const read = await db.transaction(async (tx) => tx.select().from(users), {});
+		expect(read).toEqual([{ id: 1, balance: 100 }]);
+
+		await db.execute(sql`drop table users_tx_cfg_empty_bun`);
+	});
+});
+
+describe('transaction snapshot', () => {
+	test('isolates the transaction', async () => {
+		const peerClient = new BunSQL(process.env['PG_CONNECTION_STRING']!, { max: 1 });
+		const peer = { query: (sql: string) => peerClient.unsafe(sql) };
+		try {
+			await assertSnapshotIsolatesTransaction(db, peer, expect, 'bunsql');
+		} finally {
+			await peerClient.end();
+		}
+	});
+
+	test('rejects a malformed id', async () => {
+		await assertMalformedSnapshotRejected(db, expect);
+	});
+
+	test('does not let the id inject SQL', async () => {
+		await assertSnapshotIdNotInjectable(db, expect, 'bunsql');
+	});
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5451
+test('issue #5451', async () => {
+	try {
+		const users = pgTable('users', {
+			id: serial().primaryKey(),
+			name: text().notNull(),
+		});
+		const posts = pgTable('posts', {
+			id: serial().primaryKey(),
+			userId: integer('user_id').notNull(),
+			dateCreated: timestamp('date_created', { withTimezone: true }).defaultNow(),
+		});
+
+		await db.execute(sql`drop table if exists ${posts}`);
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
+		await db.execute(
+			sql`create table ${posts} (id serial primary key, user_id integer not null references users(id), date_created timestamptz default now())`,
+		);
+
+		await db.execute(sql`INSERT INTO ${users}(name) VALUES ('Alex'), ('Andrew')`);
+		await db.execute(sql`INSERT INTO ${posts}(user_id) VALUES (1), (2)`);
+
+		// Example 1: Core Query Builder count
+		const [userCount] = await db.select({ count: count() }).from(users);
+
+		// Example 2: Core Query Builder select
+		const postsList = await db.select({
+			id: posts.id,
+			userId: posts.userId,
+		}).from(posts);
+
+		expect(userCount).toStrictEqual({ count: 2 });
+		expect(postsList).toStrictEqual(
+			[
+				{
+					id: 1,
+					userId: 1,
+				},
+				{
+					id: 2,
+					userId: 2,
+				},
+			],
+		);
+	} finally {
+		await clear(db);
+	}
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5062
+test('Issue #5062', async () => {
+	const workTable = pgTable('work', {
+		workno: text('workno').unique().notNull(),
+		name: text('name').notNull(),
+		updatedAt: timestamp('updated_at', { precision: 3, mode: 'date' })
+			.notNull(),
+	});
+	const workTable2 = pgTable('work2', {
+		workno: text('workno').unique().notNull(),
+		name: text('name').notNull(),
+		updatedAt: timestamp('updated_at', { precision: 3, mode: 'string' })
+			.notNull(),
+	});
+
+	const db = drizzle({
+		connection: process.env['PG_CONNECTION_STRING']!,
+		relations: defineRelations({ workTable, workTable2 }),
+	});
+
+	await db.execute(sql`CREATE TABLE work (
+    workno text NOT NULL UNIQUE,
+    name text NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);`);
+	await db.execute(sql`CREATE TABLE work2 (
+    workno text NOT NULL UNIQUE,
+    name text NOT NULL,
+    updated_at timestamp(3) without time zone NOT NULL
+);`);
+
+	const date = '2026-07-01T11:38:42.236Z';
+	await db.insert(workTable).values({ workno: '1', name: '1', updatedAt: new Date(date) });
+	await db.insert(workTable2).values({ workno: '1', name: '1', updatedAt: date });
+
+	const result = await db.query.workTable.findMany();
+	const result2 = await db.query.workTable2.findMany();
+
+	expect(result).toStrictEqual(
+		[
+			{
+				name: '1',
+				updatedAt: new Date(date),
+				workno: '1',
+			},
+		],
+	);
+	expect(result2).toStrictEqual([
+		{
+			name: '1',
+			updatedAt: '2026-07-01 11:38:42.236',
+			workno: '1',
+		},
+	]);
+
+	await db.$client.close();
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5090
+test('Issue #5090', async () => {
+	const table = pgTable('table', {
+		id: integer(),
+		updatedAt: timestamp('updated_at', { mode: 'string', withTimezone: true })
+			.notNull(),
+	});
+
+	const db = drizzle({
+		connection: process.env['PG_CONNECTION_STRING']!,
+	});
+
+	await db.execute(sql`CREATE TABLE "table" (id integer, updated_at timestamp with time zone);`);
+
+	const date = '2025-12-31 04:17:26.222644+00';
+	await db.execute(sql`INSERT INTO ${table} VALUES (1, ${date})`);
+
+	const result = await db.select().from(table);
+
+	expect(result).toStrictEqual(
+		[
+			{
+				id: 1,
+				updatedAt: '2025-12-31 04:17:26.222644+00',
+			},
+		],
+	);
+
+	await db.$client.close();
+});
+
+test('Default value priority', async () => {
+	const exTbl = pgTable('no_default_override', (t) => ({
+		id: t.integer('id').primaryKey(),
+		defSql: t.integer('def_sql').default(sql`1`),
+		defNum: t.integer('def_num').default(1),
+		defFn: t.integer('def_fn').$defaultFn(() => 1),
+		defUpdFn: t.integer('def_upd_fn').$onUpdateFn(() => 1),
+		defMix1: t.integer('def_mix1').default(1).$defaultFn(() => 2).$onUpdateFn(() => 3),
+		defMix2: t.integer('def_mix2').$defaultFn(() => 2).$onUpdateFn(() => 3),
+		defMix3: t.integer('def_mix3').default(1).$defaultFn(() => 2),
+		defMix4: t.integer('def_mix4').default(sql`1`).$onUpdateFn(() => 3),
+	}));
+
+	await db.execute(sql`DROP TABLE IF EXISTS no_default_override`);
+	await db.execute(sql`CREATE TABLE no_default_override (
+		id integer primary key,
+		def_sql integer default 1,
+		def_num integer default 1,
+		def_fn integer,
+		def_upd_fn integer,
+		def_mix1 integer default 1,
+		def_mix2 integer,
+		def_mix3 integer default 1,
+		def_mix4 integer default 1
+	)`);
+
+	await db.insert(exTbl).values({ id: 1 });
+
+	const res = await db.select().from(exTbl);
+
+	expect(res).toStrictEqual([{
+		id: 1,
+		defSql: 1,
+		defNum: 1,
+		defFn: 1,
+		defUpdFn: 1,
+		defMix1: 2,
+		defMix2: 2,
+		defMix3: 2,
+		defMix4: 1,
+	}]);
+
+	await db.execute(sql`DROP TABLE no_default_override`);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2279
+test('Issue No2279', async () => {
+	const corrupt_jsonb_demo = pgTable('corrupt_jsonb_demo', {
+		id: serial('id').primaryKey(),
+		data: jsonb('data').$type<{ [key: string]: any }>().notNull(),
+	});
+
+	await db.execute(sql`CREATE TABLE corrupt_jsonb_demo (id serial primary key, data jsonb not null)`);
+
+	await db.execute(sql`INSERT INTO corrupt_jsonb_demo (data) VALUES ('{"a": 1}');`);
+
+	const [res] = await db.select().from(corrupt_jsonb_demo);
+	await db
+		.update(corrupt_jsonb_demo)
+		.set({
+			data: res?.data,
+		})
+		.where(eq(corrupt_jsonb_demo.id, res!.id));
+
+	const res2 = await db.select().from(corrupt_jsonb_demo);
+
+	expect(res2).toStrictEqual([{ id: 1, data: { a: 1 } }]);
 });

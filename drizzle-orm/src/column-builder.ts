@@ -22,7 +22,6 @@ export type ColumnDataArrayConstraint =
 	| 'vector'
 	| 'int64vector'
 	| 'halfvector'
-	| 'basecolumn'
 	| 'point'
 	| 'geometry'
 	| 'line';
@@ -340,7 +339,11 @@ export abstract class ColumnBuilder<
 	/**
 	 * Alias for {@link $defaultFn}.
 	 */
-	$default = this.$defaultFn;
+	$default(
+		fn: () => (this['_'] extends { $type: infer U } ? U : this['_']['data']) | SQL,
+	): HasRuntimeDefault<HasDefault<this>> {
+		return this.$defaultFn(fn);
+	}
 
 	/**
 	 * Adds a dynamic update value to the column.
@@ -360,7 +363,11 @@ export abstract class ColumnBuilder<
 	/**
 	 * Alias for {@link $onUpdateFn}.
 	 */
-	$onUpdate = this.$onUpdateFn;
+	$onUpdate(
+		fn: () => (this['_'] extends { $type: infer U } ? U : this['_']['data']) | SQL,
+	): HasDefault<this> {
+		return this.$onUpdateFn(fn);
+	}
 
 	/**
 	 * Adds a `primary key` clause to the column definition. This implicitly makes the column `not null`.
@@ -401,7 +408,7 @@ export type BuildColumn<
 		: TDialect extends 'mssql' ? MsSqlColumn<TBuiltConfig, {}>
 		: TDialect extends 'sqlite' ? SQLiteColumn<TBuiltConfig, {}>
 		: TDialect extends 'singlestore' ? SingleStoreColumn<TBuiltConfig, {}>
-		: TDialect extends 'cockroach' ? CockroachColumn<TBuiltConfig, {}>
+		// : TDialect extends 'cockroach' ? CockroachColumn<TBuiltConfig, {}>
 		: TDialect extends 'common' ? Column<TBuiltConfig, {}>
 		: never;
 
@@ -456,5 +463,8 @@ export type ChangeColumnTableName<
 		: TDialect extends 'singlestore' ? SingleStoreColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'mssql' ? MsSqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
-		: TDialect extends 'cockroach' ? CockroachColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'cockroach' ? CockroachColumn<
+				TColumn['_']['dataType'],
+				Omit<TColumn['_'], 'tableName'> & { tableName: TAlias; insertType: unknown }
+			>
 		: never;

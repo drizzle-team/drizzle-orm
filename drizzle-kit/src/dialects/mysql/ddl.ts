@@ -1,4 +1,4 @@
-import type { SchemaForPull } from 'src/cli/commands/pull-common';
+import type { SchemaForPull } from '../../cli/commands/pull-common';
 import { create } from '../dialect';
 import { nameForUnique } from './grammar';
 
@@ -134,7 +134,7 @@ export type SchemaError = {
 	column: string;
 };
 
-export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: SchemaError[] } => {
+export const interimToDDL = (interim: InterimSchema, mode?: 'pull'): { ddl: MysqlDDL; errors: SchemaError[] } => {
 	const errors = [] as SchemaError[];
 	const ddl = createDDL();
 	const resrtictedUniqueFor = [
@@ -189,7 +189,11 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 	}
 
 	for (const column of interim.columns.filter((it) => it.isUnique)) {
-		if (resrtictedUniqueFor.some((rc) => column.type.startsWith(rc))) {
+		// interim runs on generate, push, pull
+		// when user has unique on specific columns that drizzle does not support - an error
+		// comes up without ability to pull the schema
+		// skip this error on pull to be able to introspect
+		if (mode !== 'pull' && resrtictedUniqueFor.some((rc) => column.type.startsWith(rc))) {
 			errors.push({ type: 'column_unsupported_unique', columns: [column.name], table: column.table });
 		}
 
@@ -259,13 +263,9 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 
 	// TODO: add to other dialects, though potentially we should check on push
 	for (const it of ddl.entities.list()) {
-		let err = false;
-
 		if (!ddl.entities.validate(it)) {
-			console.log('invalid entity:', it);
-			err = true;
+			throw new Error(`Invalid entity: ${JSON.stringify(it)}`);
 		}
-		if (err) throw new Error();
 	}
 
 	return { ddl, errors };

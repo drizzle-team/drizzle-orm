@@ -14,6 +14,10 @@ export function uniqueKeyName(table: MySqlTable, columns: string[]) {
 export class UniqueConstraintBuilder<TName extends string | undefined = undefined> {
 	static readonly [entityKind]: string = 'MySqlUniqueConstraintBuilder';
 
+	declare _: {
+		brand: 'MySqlUniqueConstraintBuilder';
+	};
+
 	/** @internal */
 	columns: MySqlColumn[];
 	/** @internal */

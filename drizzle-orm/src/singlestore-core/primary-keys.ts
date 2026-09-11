@@ -25,6 +25,10 @@ export function primaryKey(...config: any) {
 export class PrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'SingleStorePrimaryKeyBuilder';
 
+	declare _: {
+		brand: 'SingleStorePrimaryKeyBuilder';
+	};
+
 	/** @internal */
 	columns: SingleStoreColumn[];
 

@@ -4,11 +4,12 @@ import type { Cache } from '~/cache/core/index.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { MySqlDatabase } from '~/mysql-core/db.ts';
+import { MySqlAsyncDatabase } from '~/mysql-core/async/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
+import { mysql2Codecs } from './codecs.ts';
 import type { MySql2Client, MySql2QueryResultHKT } from './session.ts';
 import { MySql2Session } from './session.ts';
 
@@ -17,11 +18,11 @@ export interface MySqlDriverOptions {
 	cache?: Cache;
 	useJitMappers?: boolean;
 }
-export { MySqlDatabase } from '~/mysql-core/db.ts';
+export { MySqlAsyncDatabase as MySqlDatabase } from '~/mysql-core/async/db.ts';
 
 export class MySql2Database<
 	TRelations extends AnyRelations = EmptyRelations,
-> extends MySqlDatabase<MySql2QueryResultHKT, TRelations> {
+> extends MySqlAsyncDatabase<MySql2QueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'MySql2Database';
 }
 function construct<
@@ -35,6 +36,7 @@ function construct<
 } {
 	const dialect = new MySqlDialect({
 		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs ?? mysql2Codecs,
 	});
 	let logger;
 	if (config.logger === true) {
@@ -105,19 +107,18 @@ export function drizzle<
 		return construct(instance, params[1]) as any;
 	}
 
-	const { connection, client, ...DrizzleMySqlConfig } = params[0] as
+	const { connection, client, ...config } = params[0] as
 		& { connection?: PoolOptions | string; client?: TClient }
 		& DrizzleMySqlConfig<TRelations>;
 
-	if (client) return construct(client, DrizzleMySqlConfig) as any;
+	if (client) return construct(client, config) as any;
 
 	const instance = typeof connection === 'string'
 		? createPool({
 			uri: connection,
-			supportBigNumbers: true,
 		})
 		: createPool(connection!);
-	const db = construct(instance, DrizzleMySqlConfig);
+	const db = construct(instance, config);
 
 	return db as any;
 }
@@ -130,6 +131,6 @@ export namespace drizzle {
 	): MySql2Database<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
-		return construct({} as any, config) as any;
+		return construct({ config: {} } as any, config) as any;
 	}
 }

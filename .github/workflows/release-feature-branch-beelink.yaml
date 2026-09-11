@@ -19,9 +19,15 @@ on:
         required: true
       LIBSQL_REMOTE_TOKEN:
         required: true
+      TURSODATABASE_REMOTE_URL:
+        required: true
+      TURSODATABASE_REMOTE_TOKEN:
+        required: true
       SQLITE_CLOUD_CONNECTION_STRING:
         required: true
       SQLITE_MANY_CLOUD_CONNECTION_STRING:
+        required: true
+      NETLIFY_DB_URL:
         required: true
 
 concurrency:
@@ -109,8 +115,12 @@ jobs:
           - shard: int:mysql
             dbs: [mysql]
           - shard: int:postgres
-            dbs: [postgres]
+            dbs: [postgres, postgres-http-gateway]
+          - shard: int:neon
+            dbs: []
           - shard: int:sqlite
+            dbs: []
+          - shard: int:turso-serverless
             dbs: []
           - shard: int:other
             dbs: [mysql, mssql, cockroach, postgres, postgres-postgis, postgres-vector]
@@ -118,9 +128,10 @@ jobs:
             dbs: []
           - shard: int:cockroach
             dbs: [cockroach]
-          #  TODO:
-          # - shard: int:bun
-          #   dbs: [postgres, mysql]
+          - shard: int:cockroach-rqb
+            dbs: [cockroach]
+          - shard: int:bun
+            dbs: [postgres, postgres-vector, postgres-postgis, mysql]
           - shard: int:mssql
             dbs: [mssql]
           - shard: orm
@@ -157,6 +168,7 @@ jobs:
           for db in ${{ join(matrix.dbs, ' ') }}; do
             case "$db" in
               postgres)            compose_files+=("-f" "compose/postgres.yml") ;;
+              postgres-http-gateway) compose_files+=("-f" "compose/postgres-http-gateway.yml") ;;
               postgres-postgis)    compose_files+=("-f" "compose/postgres-postgis.yml") ;;
               postgres-vector)     compose_files+=("-f" "compose/postgres-vector.yml") ;;
               mysql)               compose_files+=("-f" "compose/mysql.yml") ;;
@@ -204,6 +216,7 @@ jobs:
       - name: Run tests
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
+          PG_HTTP_GATEWAY_URL: http://localhost:8080/query
           PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
           PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
           POSTGIS_URL: postgres://postgres:postgres@localhost:54322/drizzle
@@ -216,11 +229,14 @@ jobs:
           LIBSQL_URL: file:local.db
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
+          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
+          TURSODATABASE_REMOTE_TOKEN: ${{ secrets.TURSODATABASE_REMOTE_TOKEN }}
           COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
           MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true
           TEST_CONFIG_PATH_PREFIX: ./tests/cli/
           SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
           SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
+          NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
         working-directory: integration-tests
         shell: bash
         run: |
@@ -231,7 +247,12 @@ jobs:
           case ${{ matrix.shard }} in
             int:postgres)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/
+                pnpm --stream test:postgres
+              fi
+            ;;
+            int:neon)
+              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
+                pnpm --stream test:neon
               fi
             ;;
             int:mysql)
@@ -247,10 +268,15 @@ jobs:
                 pnpm --stream test:planetscale
               fi
             ;;
-            int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
+            int:cockroach) pnpm --stream test:cockroach ;;
+            int:cockroach-rqb) pnpm --stream test:cockroach-rqb ;;
             int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
-            int:sqlite) pnpm --stream vitest --reporter=verbose --silent=false run tests/sqlite ;;
-            
+            int:sqlite) pnpm --stream test:sqlite ;;
+            int:turso-serverless) 
+              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
+                pnpm --stream vitest --reporter=verbose --silent=false --test-timeout=200000 --hook-timeout=200000 run tests/sqlite/tursodatabase-serverless.test.ts 
+              fi
+            ;;
             kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
             kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
             kit:cockroach)
@@ -320,7 +346,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        package: [node10, node16-cjs, node16-esm, bundler]
+        package: [node16-cjs, node16-esm, bundler]
     steps:
       - name: Setup PATH
         run: |
@@ -368,7 +394,7 @@ jobs:
     
       # >= 11.5.1 for trusted publishing
       - name: Update NPM
-        run: npm install -g npm@latest
+        run: npm install -g npm@11 # npm 12.0.0 ships without sigstore in its bundled tree and breaks `npm publish`
       
       # Restore packages from local filesystem
       - name: Restore packages locally

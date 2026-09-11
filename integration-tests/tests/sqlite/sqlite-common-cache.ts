@@ -120,6 +120,52 @@ export function tests(test: Test, exclude: string[] = []) {
 			expect(spyInvalidate).toHaveBeenCalledTimes(1);
 		});
 
+		test('write + query all methods & verify data intergrity', async ({ caches }) => {
+			const { explicit: db } = caches;
+
+			// @ts-expect-error
+			using spyPut = vi.spyOn(db.$cache, 'put');
+			// @ts-expect-error
+			using spyGet = vi.spyOn(db.$cache, 'get');
+			// @ts-expect-error
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+			await db.insert(usersTable).values({ name: 'John' });
+
+			expect(spyPut).toHaveBeenCalledTimes(0);
+			expect(spyGet).toHaveBeenCalledTimes(0);
+			expect(spyInvalidate).toHaveBeenCalledTimes(1);
+
+			spyPut.mockClear();
+			spyGet.mockClear();
+			spyInvalidate.mockClear();
+
+			const qRaw = db.select().from(usersTable).prepare();
+			const qCache = db.select().from(usersTable).$withCache({ config: { ex: 120 } }).prepare();
+
+			const [_all, _get, _run, _values] = [
+				await qRaw.all(),
+				await qRaw.get(),
+				await qRaw.run(),
+				await qRaw.values(),
+			];
+			const [all, get, run, values] = [
+				await qCache.all(),
+				await qCache.get(),
+				await qCache.run(),
+				await qCache.values(),
+			];
+
+			expect(spyPut).toHaveBeenCalledTimes(4);
+			expect(spyGet).toHaveBeenCalledTimes(4);
+			expect(spyInvalidate).toHaveBeenCalledTimes(0);
+
+			expect(all).toStrictEqual(_all);
+			expect(get).toStrictEqual(_get);
+			expect(run).toStrictEqual(_run);
+			expect(values).toStrictEqual(_values);
+		});
+
 		test('default global config + enable cache on select + disable invalidate: get, put', async ({ caches }) => {
 			const { explicit: db } = caches;
 

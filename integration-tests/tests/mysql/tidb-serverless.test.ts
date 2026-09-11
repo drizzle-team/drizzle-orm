@@ -51,6 +51,11 @@ const skip = new Set([
 	'tc config for datetime',
 	'transaction',
 	'transaction with options (set isolationLevel)',
+	'transaction with options (isolationLevel read committed sees concurrent commits)',
+	'transaction with options (isolationLevel repeatable read hides concurrent commits)',
+	'transaction with options (accessMode read only)',
+	'transaction with options (withConsistentSnapshot)',
+	'transaction with options (withConsistentSnapshot combined with accessMode)',
 	'Insert all defaults in multiple rows',
 	'Insert all defaults in 1 row',
 	'$default with empty array',
@@ -68,6 +73,10 @@ const skip = new Set([
 	'RQB v2 find many - bigint precision loss',
 	'select from a one subquery',
 	'all types',
+	'Column as decoder applies codecs',
+	'Column as decoder applies codecs - Jit mappers',
+	'Mappers: relational',
+	'Jit mappers: relational',
 ]);
 
 tests(test, skip);

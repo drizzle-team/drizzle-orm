@@ -7,7 +7,7 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, type Assume } from '~/utils.ts';
+import { applyMixins, type Assume, resolveNullableObjectPaths } from '~/utils.ts';
 import { type Join, PgUpdateBase, type PgUpdateHKTBase } from '../query-builders/update.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { PgViewBase } from '../view-base.ts';
@@ -102,22 +102,29 @@ export class PgAsyncUpdateBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgAsyncUpdatePrepare<this> {
-		const { session, config, dialect, joinsNotNullableMap, cacheConfig } = this;
+		const { session, config, dialect, joinsNotNullableMap } = this;
 		const { returning: fields } = config;
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const query = dialect.sqlToQuery(this.getSQL());
-			const mapper = fields
-				? this.dialect.mapperGenerators.rows(fields, joinsNotNullableMap)
+			const nullableObjectPaths = fields ? resolveNullableObjectPaths(fields, joinsNotNullableMap) : undefined;
+			const shape = fields
+				? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, nullableObjectPaths)
 				: undefined;
+			if (shape) this.withoutSelectionCastCodecs();
+
+			const query = dialect.sqlToQuery(this.getSQL());
+			const mapper = shape || !fields
+				? undefined
+				: this.dialect.mapperGenerators.rows(fields, nullableObjectPaths);
 
 			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 				query,
-				fields ? 'arrays' : 'raw',
+				shape ? 'objects' : fields ? 'arrays' : 'raw',
 				name ?? generateName,
 				mapper,
 				{ type: 'update', tables: [...extractUsedTable(this.config.table)] },
-				cacheConfig,
+				undefined,
+				shape,
 			);
 
 			return preparedQuery;

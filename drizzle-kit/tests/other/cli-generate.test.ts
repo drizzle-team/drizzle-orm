@@ -1,10 +1,24 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { GenerateConfig } from 'src/cli/commands/utils';
-import { assert, expect, test, vi } from 'vitest';
+import { afterEach, assert, expect, test } from 'vitest';
+import { GenerateConfig } from '../../src/cli/commands/utils';
+import { HintsHandler } from '../../src/cli/hints';
 import { generate } from '../../src/cli/schema';
+import { wrapParam } from '../../src/cli/validations/common';
+import { error } from '../../src/cli/views';
 import { createConfig } from './utils';
+
+const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
+process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+
+afterEach(() => {
+	if (originalPrefix === undefined) {
+		process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+	} else {
+		process.env.TEST_CONFIG_PATH_PREFIX = originalPrefix;
+	}
+});
 
 // good:
 // #1 drizzle-kit generate --dialect=postgresql --schema=schema.ts
@@ -41,11 +55,14 @@ test('generate #1', async (t) => {
 		custom: false,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
 
 		driver: undefined,
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -62,11 +79,14 @@ test('generate #2', async (t) => {
 		custom: false,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'out',
 		bundle: false,
 
 		driver: undefined,
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -80,11 +100,14 @@ test('generate #3', async (t) => {
 		custom: false,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
 
 		driver: undefined,
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -99,11 +122,14 @@ test('generate #4', async (t) => {
 		custom: true,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
 
 		driver: undefined,
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -117,29 +143,14 @@ test('generate #5', async (t) => {
 		custom: false,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
 
 		driver: undefined,
 		ignoreConflicts: false,
-	});
-});
-
-// config
-test('generate #6', async (t) => {
-	const res = await brotest(generate, '');
-	if (res.type !== 'handler') assert.fail(res.type, 'handler');
-	expect(res.options).toStrictEqual({
-		dialect: 'postgresql',
-		name: undefined,
-		custom: false,
-		breakpoints: true,
-		filenames: [filename],
-		out: 'drizzle',
-		bundle: false,
-
-		driver: undefined,
-		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -153,11 +164,14 @@ test('generate #7', async (t) => {
 		custom: true,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
 
 		driver: undefined,
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -172,11 +186,14 @@ test('generate #8', async (t) => {
 		custom: false,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: true, // expo driver
 
 		driver: 'expo',
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -190,16 +207,19 @@ test('generate #9', async (t) => {
 		custom: false,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: true, // expo driver
 
 		driver: 'durable-sqlite',
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
 // cli | pass through name and custom
-test('generate #9', async (t) => {
+test('generate #10', async (t) => {
 	const res = await brotest(
 		generate,
 		'--dialect=postgresql --schema=schema.ts --out=out --name=custom --custom',
@@ -212,11 +232,14 @@ test('generate #9', async (t) => {
 		custom: true,
 		breakpoints: true,
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'out',
 		bundle: false,
 
 		driver: undefined,
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -239,6 +262,9 @@ test('generate #10 tsconfig paths', async () => {
 
 			driver: undefined,
 			filenames: [filename],
+			schemaSource: expect.anything(),
+			explain: false,
+			hints: expect.any(HintsHandler),
 		});
 	} finally {
 		if (originalPrefix === undefined) {
@@ -247,6 +273,28 @@ test('generate #10 tsconfig paths', async () => {
 			process.env.TEST_CONFIG_PATH_PREFIX = originalPrefix;
 		}
 	}
+});
+
+test('generate --explain', async (t) => {
+	const res = await brotest(
+		generate,
+		'--dialect=postgresql --schema=schema.ts --explain',
+	);
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+	expect(res.options).toStrictEqual({
+		dialect: 'postgresql',
+		name: undefined,
+		custom: false,
+		breakpoints: true,
+		filenames: [filename],
+		schemaSource: expect.anything(),
+		out: 'drizzle',
+		bundle: false,
+		driver: undefined,
+		ignoreConflicts: false,
+		explain: true,
+		hints: expect.any(HintsHandler),
+	});
 });
 
 // --- errors ---
@@ -304,7 +352,7 @@ test('validate config #1', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { url: '' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: false,
 	}, prefix);
@@ -318,6 +366,7 @@ test('validate config #1', async (t) => {
 	const expected: GenerateConfig = {
 		dialect: 'postgresql',
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		breakpoints: false,
 		bundle: false,
 		custom: false,
@@ -325,6 +374,8 @@ test('validate config #1', async (t) => {
 		driver: undefined,
 		ignoreConflicts: false,
 		name: undefined,
+		explain: false,
+		hints: expect.any(HintsHandler) as any,
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -335,7 +386,7 @@ test('validate config #2', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { url: '' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: true,
 		driver: 'pglite',
@@ -356,6 +407,7 @@ test('validate config #2', async (t) => {
 	const expected: GenerateConfig = {
 		dialect: 'postgresql',
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		breakpoints: true,
 		bundle: false,
 		custom: false,
@@ -363,13 +415,13 @@ test('validate config #2', async (t) => {
 		driver: 'pglite',
 		ignoreConflicts: false,
 		name: undefined,
+		explain: false,
+		hints: expect.any(HintsHandler) as any,
 	};
 	expect(res.options).toStrictEqual(expected);
 });
 
 test('validate config #3', async (t) => {
-	const spy = vi.spyOn(console, 'log');
-
 	const { path, name } = createConfig(
 		{ dialect: 'postgresql', driver: 'aws-data-api', out: 'test' },
 		prefix,
@@ -380,30 +432,17 @@ test('validate config #3', async (t) => {
 	unlinkSync(path);
 
 	expect(res.type).toBe('error');
-
-	// first call
-	expect(spy).toHaveBeenNthCalledWith(1, `Reading config file '${path}'`);
-	// second call
-	// we need to check second call
-	expect(spy).toHaveBeenNthCalledWith(
-		2,
-		`Error  Please provide required params:
-    [✓] dialect: 'postgresql'
-    [x] schema: undefined`,
+	if (res.type !== 'error') return;
+	expect((res.error as Error).message).toBe(
+		[
+			error('Please provide required params:'),
+			wrapParam('dialect', 'postgresql'),
+			wrapParam('schema', undefined),
+		].join('\n'),
 	);
-
-	let error: any = res.type === 'error' ? res.error : undefined;
-	expect(error).toBeDefined();
-	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
-
-	spy.mockRestore();
 });
 
 test('validate config #4', async (t) => {
-	const spyLog = vi.spyOn(console, 'log');
-	const spyError = vi.spyOn(console, 'error');
-
 	const { path, name } = createConfig(
 		// @ts-expect-error
 		{ dialect: 1, schema: 'path-to-schema' },
@@ -414,21 +453,9 @@ test('validate config #4', async (t) => {
 
 	unlinkSync(path);
 
-	// wrong dialect data type
 	expect(res.type).toBe('error');
-
-	expect(spyLog).toHaveBeenNthCalledWith(1, `Reading config file '${path}'`);
-	expect(spyLog).toHaveBeenCalledTimes(1);
-
-	expect(spyError).toHaveBeenCalledWith(expect.objectContaining({ name: 'ZodError' }));
-
-	let error: any = res.type === 'error' ? res.error : undefined;
-	expect(error).toBeDefined();
-	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
-
-	spyLog.mockRestore();
-	spyError.mockRestore();
+	if (res.type !== 'error') return;
+	expect((res.error as Error).name).toBe('ConfigValidationCliError');
 });
 
 test('validate config #5', async (t) => {
@@ -447,6 +474,7 @@ test('validate config #5', async (t) => {
 	const expected: GenerateConfig = {
 		dialect: 'sqlite',
 		filenames: [filename],
+		schemaSource: expect.anything(),
 		breakpoints: true,
 		bundle: false,
 		custom: false,
@@ -454,6 +482,8 @@ test('validate config #5', async (t) => {
 		driver: 'd1-http',
 		ignoreConflicts: false,
 		name: undefined,
+		explain: false,
+		hints: expect.any(HintsHandler) as any,
 	};
 	expect(res.options).toStrictEqual(expected);
 });

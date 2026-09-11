@@ -1,9 +1,23 @@
 import { test as brotest } from '@drizzle-team/brocli';
 import { unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { assert, expect, test, vi } from 'vitest';
+import { afterEach, assert, expect, test } from 'vitest';
+import { HintsHandler } from '../../src/cli/hints';
 import { push } from '../../src/cli/schema';
+import { wrapParam } from '../../src/cli/validations/common';
+import { error } from '../../src/cli/views';
 import { createConfig } from './utils';
+
+const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
+process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+
+afterEach(() => {
+	if (originalPrefix === undefined) {
+		process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+	} else {
+		process.env.TEST_CONFIG_PATH_PREFIX = originalPrefix;
+	}
+});
 
 // good:
 // #1 drizzle-kit push
@@ -40,6 +54,7 @@ test('push #1', async (t) => {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
 		},
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -67,6 +82,7 @@ test('push #2', async (t) => {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
 		},
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -96,6 +112,7 @@ test('push #3', async (t) => {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
 		},
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -126,6 +143,7 @@ test('push #4', async (t) => {
 			schema: 'drizzle',
 			table: '__drizzle_migrations',
 		},
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -160,6 +178,7 @@ test('push #5', async (t) => {
 			schema: 'custom',
 			table: 'custom',
 		},
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -177,7 +196,7 @@ test('validate config #1', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { url: 'test_url' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: false,
 		driver: 'pglite',
@@ -227,6 +246,7 @@ test('validate config #1', async (t) => {
 			table: '__drizzle_migrations',
 		},
 		filenames: [filename],
+		hints: expect.any(HintsHandler) as any,
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -237,7 +257,7 @@ test('validate config #2', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { database: 'db', host: 'host' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		// schemaFilter: ['public'],
 		// extensionsFilters: ["postgis"],
 		breakpoints: false,
@@ -287,6 +307,7 @@ test('validate config #2', async (t) => {
 			table: '__drizzle_migrations',
 		},
 		filenames: [filename],
+		hints: expect.any(HintsHandler) as any,
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -297,7 +318,7 @@ test('validate config #3', async (t) => {
 		schema: 'schema.ts',
 		dbCredentials: { accountId: '1', databaseId: '2', token: '3' },
 		introspect: { casing: 'preserve' },
-		strict: true,
+		// strict: true, // removed. strict by def for now
 		schemaFilter: ['public'],
 		breakpoints: false,
 		entities: {
@@ -342,6 +363,7 @@ test('validate config #3', async (t) => {
 			table: 'test_table',
 		},
 		filenames: [filename],
+		hints: expect.any(HintsHandler) as any,
 	};
 	expect(res.options).toStrictEqual(expected);
 });
@@ -380,13 +402,12 @@ test('validate config #4', async (t) => {
 			table: '__drizzle_migrations',
 		},
 		filenames: [filename],
+		hints: expect.any(HintsHandler) as any,
 	};
 	expect(res.options).toStrictEqual(expected);
 });
 
 test('validate config #5', async (t) => {
-	const spy = vi.spyOn(console, 'log');
-
 	const { path, name } = createConfig({
 		dialect: 'mysql',
 		// schema: 'schema.ts',
@@ -400,26 +421,17 @@ test('validate config #5', async (t) => {
 	unlinkSync(path);
 
 	expect(res.type).toBe('error');
-
-	expect(spy).toHaveBeenNthCalledWith(1, `Reading config file '${path}'`);
-	expect(spy).toHaveBeenNthCalledWith(
-		2,
-		`Error  Please provide required params:
-    [✓] dialect: 'mysql'
-    [x] schema: undefined`,
+	if (res.type !== 'error') return;
+	expect((res.error as Error).message).toBe(
+		[
+			error('Please provide required params:'),
+			wrapParam('dialect', 'mysql'),
+			wrapParam('schema', undefined),
+		].join('\n'),
 	);
-
-	let error: any = res.type === 'error' ? res.error : undefined;
-	expect(error).toBeDefined();
-	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
-
-	spy.mockRestore();
 });
 
 test('validate config #6', async (t) => {
-	const spy = vi.spyOn(console, 'log');
-
 	const { path, name } = createConfig({
 		dialect: 'postgresql',
 		schema: 'schema.ts',
@@ -433,21 +445,38 @@ test('validate config #6', async (t) => {
 	unlinkSync(path);
 
 	expect(res.type).toBe('error');
+	if (res.type !== 'error') return;
+	expect((res.error as Error).message).toContain('PostgreSQL');
+});
 
-	expect(spy).toHaveBeenNthCalledWith(1, `Reading config file '${path}'`);
-	expect(spy).toHaveBeenNthCalledWith(
-		2,
-		`Reading schema files:\n${join(process.cwd(), prefix, 'schema.ts')}\n`,
+// https://github.com/drizzle-team/drizzle-orm/issues/3626
+test('Issue No3626. Validate schemaFilter option', async () => {
+	const res = await brotest(
+		push,
+		`--dialect=postgresql --schema=schema.ts --schemaFilter=test --tablesFilter=testingTable --url=test`,
 	);
-	expect(spy).toHaveBeenNthCalledWith(
-		3,
-		'Error  Either connection "url" or "host", "database" are required for PostgreSQL database connection',
-	);
 
-	let error: any = res.type === 'error' ? res.error : undefined;
-	expect(error).toBeDefined();
-	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
-
-	spy.mockRestore();
+	console.log('res', res);
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+	expect(res.options).toStrictEqual({
+		credentials: {
+			url: 'test',
+		},
+		dialect: 'postgresql',
+		explain: false,
+		filenames: [filename],
+		filters: {
+			entities: undefined,
+			extensions: undefined,
+			schemas: 'test', // works
+			tables: 'testingTable', // works
+		},
+		force: false,
+		hints: expect.any(HintsHandler) as any,
+		migrations: {
+			schema: 'drizzle',
+			table: '__drizzle_migrations',
+		},
+		verbose: false,
+	});
 });

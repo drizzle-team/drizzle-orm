@@ -8,8 +8,7 @@ import type {
 import { QueryPromise } from '~/query-promise.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, type Assume, orderSelectedFields } from '~/utils.ts';
-import type { PgColumn } from '../columns/index.ts';
+import { applyMixins, type Assume, resolveNullableObjectPaths } from '~/utils.ts';
 import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
@@ -102,26 +101,31 @@ export class PgAsyncSelectBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgAsyncSelectPrepare<this> {
-		const { session, config, dialect, joinsNotNullableMap, cacheConfig, usedTables } = this;
-		const { fields } = config;
+		const { session, dialect, cacheConfig, usedTables, config, joinsNotNullableMap } = this;
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const query = this.config._tagged ? dialect._sqlToQuery(this.getSQL()) : dialect.sqlToQuery(this.getSQL());
-			const fieldsList = orderSelectedFields<PgColumn>(
-				fields,
-				undefined,
-				this.dialect.codecs,
-			);
+			const fieldsList = this._resolveSelection();
+			const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, joinsNotNullableMap);
 
-			const mapper = this.dialect.mapperGenerators.rows(fieldsList, joinsNotNullableMap);
+			const shape = config.shape ??= dialect.shapeGenerator?.(
+				{ type: 'plain', fields: fieldsList },
+				nullableObjectPaths,
+			);
+			if (shape) this.withoutSelectionCastCodecs();
+
+			const query = config.tagged ? dialect._sqlToQuery(this.getSQL()) : dialect.sqlToQuery(this.getSQL());
+			const mapper = shape
+				? undefined
+				: (config.mapper ??= dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths));
 
 			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 				query,
-				'arrays',
+				shape ? 'objects' : 'arrays',
 				name ?? generateName,
 				mapper,
 				{ type: 'select', tables: [...usedTables] },
 				cacheConfig,
+				shape,
 			);
 
 			return preparedQuery;

@@ -1,4 +1,4 @@
-import { integer, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
+import { integer, pgTable, primaryKey, text, unique, uuid } from 'drizzle-orm/pg-core';
 import { expect } from 'vitest';
 import { reset, seed } from '../../../src/index.ts';
 import { pgliteTest as test } from '../instrumentation.ts';
@@ -164,4 +164,44 @@ test('composite unique includes a fk column', async ({ db, push }) => {
 
 	expect(composite.length).toBe(1000);
 });
+test('a composite primary key is generated as the unique key it is', async ({ db, push }) => {
+	// the primary key of a junction table is usually just its two foreign keys, so the pairs it generates have to be
+	// distinct even though neither column is unique on its own
+	const users = pgTable('cpk_users', { id: integer().primaryKey(), name: text() });
+	const groups = pgTable('cpk_groups', { id: integer().primaryKey(), name: text() });
+	const usersToGroups = pgTable('cpk_users_to_groups', {
+		userId: integer('user_id').notNull().references(() => users.id),
+		groupId: integer('group_id').notNull().references(() => groups.id),
+	}, (table) => [primaryKey({ columns: [table.userId, table.groupId] })]);
+
+	const schema = { users, groups, usersToGroups };
+	await push(schema);
+	await seed(db, schema, { count: 5 }).refine(() => ({
+		usersToGroups: { count: 20 },
+	}));
+
+	const rows = await db.select().from(usersToGroups);
+
+	expect(rows.length).toBe(20);
+	expect(new Set(rows.map((row) => `${row.userId}-${row.groupId}`)).size).toBe(20);
+});
+
+test('a composite primary key sharing a column with a unique constraint is left to the constraint', async ({ db, push }) => {
+	// two multi column keys over a shared column cannot both be generated, and the primary key is the one that gives way
+	const overlapping = pgTable('cpk_overlapping', {
+		a: integer().notNull(),
+		b: integer().notNull(),
+		c: text().notNull(),
+	}, (table) => [primaryKey({ columns: [table.a, table.b] }), unique('cpk_overlapping_uq').on(table.b, table.c)]);
+
+	const schema = { overlapping };
+	await push(schema);
+	await seed(db, schema, { count: 5 });
+
+	const rows = await db.select().from(overlapping);
+
+	expect(rows.length).toBe(5);
+	expect(new Set(rows.map((row) => `${row.b}-${row.c}`)).size).toBe(5);
+});
+
 // TODO add test with composite foreign key

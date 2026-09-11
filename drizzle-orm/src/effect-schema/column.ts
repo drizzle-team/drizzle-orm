@@ -25,7 +25,7 @@ export const jsonSchema = S.Union([
 	S.Array(S.Any),
 ]) satisfies Schema<Json>;
 
-export const bufferSchema = S.instanceOf(Buffer) satisfies Schema<Buffer>;
+export const bufferSchema = (typeof Buffer === 'undefined' ? S.Unknown : S.instanceOf(Buffer)) as Schema<Buffer>;
 
 export function columnToSchema(
 	column: Column,
@@ -304,21 +304,6 @@ function arrayColumnToSchema(
 			return length
 				? schema.check(S.isLengthBetween(length, length))
 				: schema;
-		}
-		case 'basecolumn': {
-			// CockroachDB/GEL style: has a separate baseColumn
-			const baseColumn = (<{ baseColumn?: Column }> column).baseColumn;
-			if (baseColumn) {
-				const baseSchema = columnToSchema(baseColumn);
-				// For CockroachDB style, column.length is the array size
-				const length = column.length;
-				const schema = S.Array(baseSchema);
-				if (length) {
-					return schema.check(S.isLengthBetween(length, length));
-				}
-				return schema;
-			}
-			return S.Array(S.Any);
 		}
 		default: {
 			return S.Array(S.Any);

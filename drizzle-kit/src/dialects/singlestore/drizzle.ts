@@ -2,7 +2,7 @@ import { is, SQL } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
 import type { AnySingleStoreColumn, AnySingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { getTableConfig, SingleStoreDialect, SingleStoreTable, uniqueKeyName } from 'drizzle-orm/singlestore-core';
-import { escapeSingleQuotes } from 'src/utils';
+import { escapeSingleQuotes } from '../../utils';
 import { loadModule } from '../../utils/utils-node';
 import { sqlToStr } from '../drizzle';
 import type { Column, InterimSchema } from '../mysql/ddl';

@@ -37,6 +37,7 @@ test('imports-issues', () => {
 			'@hono/*',
 			'crypto',
 			'hanji',
+			'hanji/utils',
 			'chalk',
 			'dotenv/config',
 			'camelcase',
@@ -58,30 +59,6 @@ test('imports-issues', () => {
 
 	assert.equal(issues.length, 0);
 });
-
-// test('imports-issues2', () => {
-// 	const issues = analyzeImports({
-// 		basePath: '.',
-// 		localPaths: ['src'],
-// 		whiteList: [
-// 			'zod',
-// 			// 'hanji',
-// 			// 'chalk',
-// 			// '@ewoudenberg/difflib',
-// 		],
-// 		entry: 'src/utils/studio.ts',
-// 		logger: true,
-// 		ignoreTypes: true,
-// 	}).issues;
-
-// 	console.log();
-// 	for (const issue of issues) {
-// 		console.log(chalk.red(issue.imports.map((it) => it.name).join('\n')));
-// 		console.log(issue.accessChains.map((it) => chainToString(it)).join('\n'));
-// 	}
-
-// 	assert.equal(issues.length, 0);
-// });
 
 test('check imports api-postgres', () => {
 	const issues = analyzeImports({

@@ -13,6 +13,10 @@ export function primaryKey<
 export class PrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'MsSqlPrimaryKeyBuilder';
 
+	declare _: {
+		brand: 'MsSqlPrimaryKeyBuilder';
+	};
+
 	/** @internal */
 	columns: MsSqlColumn[];
 

@@ -33,16 +33,12 @@ export class SingleStoreMediumInt<T extends ColumnBaseConfig<'number int24' | 'n
 {
 	static override readonly [entityKind]: string = 'SingleStoreMediumInt';
 
+	/** @internal */
+	override readonly codec = 'mediumint';
+
 	getSQLType(): string {
 		return `mediumint${this.config.unsigned ? ' unsigned' : ''}`;
 	}
-
-	override mapFromDriverValue = (value: number | string): number => {
-		if (typeof value === 'string') {
-			return Number(value);
-		}
-		return value;
-	};
 }
 
 export function mediumint<TUnsigned extends boolean | undefined>(

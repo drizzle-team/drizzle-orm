@@ -2,7 +2,7 @@ import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { MySqlPreparedQueryConfig, MySqlSession } from '~/mysql-core/session.ts';
+import type { MySqlSession } from '~/mysql-core/session.ts';
 import type { SubqueryWithSelection } from '~/mysql-core/subquery.ts';
 import { MySqlTable } from '~/mysql-core/table.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -15,22 +15,21 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
-import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, Placeholder, Query, SqlCommenterInput } from '~/sql/sql.ts';
-import { SQL, sql, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, CommentInput, Placeholder, Query } from '~/sql/sql.ts';
+import { SQL, sql } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import type { ValueOrArray } from '~/utils.ts';
-import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields } from '~/utils.ts';
+import { getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import type { IndexBuilder } from '../indexes.ts';
 import type { UniqueConstraintBuilder } from '../unique-constraint.ts';
 import { convertIndexToString, extractUsedTable, toArray } from '../utils.ts';
 import { MySqlViewBase } from '../view-base.ts';
 import type {
-	AnyMySqlSelect,
-	CreateMySqlSelectFromBuilderMode,
+	AnyMySqlSelectQueryBuilder,
 	GetMySqlSetOperators,
 	LockConfig,
 	LockStrength,
@@ -40,9 +39,9 @@ import type {
 	MySqlJoinType,
 	MySqlSelectConfig,
 	MySqlSelectDynamic,
-	MySqlSelectHKT,
 	MySqlSelectHKTBase,
-	MySqlSelectPrepare,
+	MySqlSelectKind,
+	MySqlSelectQueryBuilderHKT,
 	MySqlSelectWithout,
 	MySqlSetOperatorExcludedMethods,
 	MySqlSetOperatorWithResult,
@@ -61,9 +60,26 @@ export type IndexConfig = {
 	ignoreIndex?: IndexForHint | IndexForHint[];
 };
 
+export interface MySqlSelectBuilderConstructor {
+	new(
+		config: {
+			table: MySqlSelectConfig['table'];
+			fields: MySqlSelectConfig['fields'];
+			isPartialSelect: boolean;
+			session: MySqlSession | undefined;
+			dialect: MySqlDialect;
+			withList: Subquery[];
+			distinct: boolean | undefined;
+			useIndex?: string[];
+			forceIndex?: string[];
+			ignoreIndex?: string[];
+		},
+	): AnyMySqlSelectQueryBuilder;
+}
+
 export class MySqlSelectBuilder<
 	TSelection extends SelectedFields | undefined,
-	TBuilderMode extends 'db' | 'qb' = 'db',
+	THKT extends MySqlSelectHKTBase = MySqlSelectQueryBuilderHKT,
 > {
 	static readonly [entityKind]: string = 'MySqlSelectBuilder';
 
@@ -81,6 +97,7 @@ export class MySqlSelectBuilder<
 			withList?: Subquery[];
 			distinct?: boolean;
 		},
+		private builder: MySqlSelectBuilderConstructor = MySqlSelectBase as unknown as MySqlSelectBuilderConstructor,
 	) {
 		this.fields = config.fields;
 		this.session = config.session;
@@ -95,11 +112,14 @@ export class MySqlSelectBuilder<
 		source: TFrom,
 		onIndex?: TFrom extends MySqlTable ? IndexConfig
 			: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
-	): CreateMySqlSelectFromBuilderMode<
-		TBuilderMode,
+	): MySqlSelectKind<
+		THKT,
 		GetSelectTableName<TFrom>,
 		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
-		TSelection extends undefined ? 'single' : 'partial'
+		TSelection extends undefined ? 'single' : 'partial',
+		GetSelectTableName<TFrom> extends string ? Record<GetSelectTableName<TFrom>, 'not-null'> : {},
+		false,
+		never
 	> {
 		const isPartialSelect = !!this.fields;
 
@@ -136,7 +156,7 @@ export class MySqlSelectBuilder<
 			}
 		}
 
-		return new MySqlSelectBase(
+		return new this.builder(
 			{
 				table: source,
 				fields,
@@ -153,7 +173,22 @@ export class MySqlSelectBuilder<
 	}
 }
 
-export abstract class MySqlSelectQueryBuilderBase<
+export type MySqlSelect<
+	TTableName extends string | undefined = string | undefined,
+	TSelection extends ColumnsSelection = Record<string, any>,
+	TSelectMode extends SelectMode = SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
+> = MySqlSelectBase<
+	MySqlSelectQueryBuilderHKT,
+	TTableName,
+	TSelection,
+	TSelectMode,
+	TNullabilityMap,
+	true,
+	never
+>;
+
+export class MySqlSelectBase<
 	THKT extends MySqlSelectHKTBase,
 	TTableName extends string | undefined,
 	TSelection extends ColumnsSelection,
@@ -272,6 +307,9 @@ export abstract class MySqlSelectQueryBuilderBase<
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
+
+			this.config.fieldsFlat = undefined;
+			this.config.mapper = undefined;
 
 			if (!this.isPartialSelect) {
 				// If this is the first join and this is not a partial select and we're not selecting from raw SQL, "move" the fields from the main table to the nested object
@@ -396,6 +434,17 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *
 	 * @param table the subquery to join.
 	 * @param on the `on` clause.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select every city and, for each, the users that live in it
+	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
+	 *
+	 * const rows: { cities: City; sq: { userId: number } | null }[] = await db.select()
+	 *   .from(cities)
+	 *   .leftJoinLateral(sq, sql`true`)
+	 * ```
 	 */
 	leftJoinLateral = this.createJoin('left', true);
 
@@ -490,6 +539,17 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *
 	 * @param table the subquery to join.
 	 * @param on the `on` clause.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select only the cities that have users, along with those users
+	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
+	 *
+	 * const rows: { cities: City; sq: { userId: number } }[] = await db.select()
+	 *   .from(cities)
+	 *   .innerJoinLateral(sq, sql`true`)
+	 * ```
 	 */
 	innerJoinLateral = this.createJoin('inner', true);
 
@@ -542,6 +602,17 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join-lateral}
 	 *
 	 * @param table the query to join.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Pair each city with every row its correlated subquery produces; cities with none are dropped
+	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
+	 *
+	 * const rows: { cities: City; sq: { userId: number } }[] = await db.select()
+	 *   .from(cities)
+	 *   .crossJoinLateral(sq)
+	 * ```
 	 */
 	crossJoinLateral = this.createJoin('cross', true);
 
@@ -1031,13 +1102,13 @@ export abstract class MySqlSelectQueryBuilderBase<
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
-	comment(comment: SqlCommenterInput): MySqlSelectWithout<this, TDynamic, 'comment'> {
+	comment(comment: CommentInput): MySqlSelectWithout<this, TDynamic, 'comment'> {
 		this.config.comment = sql.comment(comment);
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
+		this.config.fieldsFlat ??= orderSelectedFields<MySqlColumn>(this.config.fields, undefined, this.dialect.codecs);
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
@@ -1053,7 +1124,9 @@ export abstract class MySqlSelectQueryBuilderBase<
 		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
 
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias, false, [...new Set(usedTables)]),
+			new Subquery(this.withoutSelectionCastCodecs().getSQL(), this.config.fields, alias, false, [
+				...new Set(usedTables),
+			]),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -1068,6 +1141,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	/** @internal */
 	override withoutSelectionCastCodecs(): this {
+		this.config.ignoreSelectionCastCodecs = true;
 		return this;
 	}
 
@@ -1085,96 +1159,12 @@ export abstract class MySqlSelectQueryBuilderBase<
 	}
 }
 
-export interface MySqlSelectBase<
-	TTableName extends string | undefined,
-	TSelection extends ColumnsSelection,
-	TSelectMode extends SelectMode,
-	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
-		: {},
-	TDynamic extends boolean = false,
-	TExcludedMethods extends string = never,
-	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
-	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
-> extends
-	MySqlSelectQueryBuilderBase<
-		MySqlSelectHKT,
-		TTableName,
-		TSelection,
-		TSelectMode,
-		TNullabilityMap,
-		TDynamic,
-		TExcludedMethods,
-		TResult,
-		TSelectedFields
-	>,
-	QueryPromise<TResult>
-{}
-
-export class MySqlSelectBase<
-	TTableName extends string | undefined,
-	TSelection,
-	TSelectMode extends SelectMode,
-	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
-		: {},
-	TDynamic extends boolean = false,
-	TExcludedMethods extends string = never,
-	TResult = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
-	TSelectedFields = BuildSubquerySelection<TSelection, TNullabilityMap>,
-> extends MySqlSelectQueryBuilderBase<
-	MySqlSelectHKT,
-	TTableName,
-	TSelection,
-	TSelectMode,
-	TNullabilityMap,
-	TDynamic,
-	TExcludedMethods,
-	TResult,
-	TSelectedFields
-> {
-	static override readonly [entityKind]: string = 'MySqlSelect';
-
-	prepare(): MySqlSelectPrepare<this> {
-		if (!this.session) {
-			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
-		}
-
-		const query = this.dialect.sqlToQuery(this.getSQL());
-		// Important to build query before acquiring fields list because build mutates fields
-		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields);
-		const mapper = this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap);
-
-		const preparedQuery = this.session.prepareQuery<
-			MySqlPreparedQueryConfig & { execute: TResult[] }
-		>(query, 'arrays', mapper, {
-			type: 'select',
-			tables: [...this.usedTables],
-		}, this.cacheConfig);
-
-		return preparedQuery as MySqlSelectPrepare<this>;
-	}
-
-	execute = ((placeholderValues) => {
-		return this.prepare().execute(placeholderValues);
-	}) as ReturnType<this['prepare']>['execute'];
-
-	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
-		const self = this;
-		return async function*(placeholderValues) {
-			yield* self.prepare().iterator(placeholderValues);
-		};
-	};
-
-	iterator = this.createIterator();
-}
-
-applyMixins(MySqlSelectBase, [QueryPromise]);
-
 function createSetOperator(type: SetOperator, isAll: boolean): MySqlCreateSetOperatorFn {
 	return (leftSelect, rightSelect, ...restSelects) => {
 		const setOperators = [rightSelect, ...restSelects].map((select) => ({
 			type,
 			isAll,
-			rightSelect: select as AnyMySqlSelect,
+			rightSelect: select as AnyMySqlSelectQueryBuilder,
 		}));
 
 		for (const setOperator of setOperators) {
@@ -1185,7 +1175,7 @@ function createSetOperator(type: SetOperator, isAll: boolean): MySqlCreateSetOpe
 			}
 		}
 
-		return (leftSelect as AnyMySqlSelect).addSetOperators(setOperators) as any;
+		return (leftSelect as AnyMySqlSelectQueryBuilder).addSetOperators(setOperators) as any;
 	};
 }
 

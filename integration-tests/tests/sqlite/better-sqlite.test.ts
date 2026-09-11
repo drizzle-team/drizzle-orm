@@ -13,7 +13,7 @@ test('migrator', async ({ db }) => {
 	db.run(sql`drop table if exists users12`);
 	db.run(sql`drop table if exists __drizzle_migrations`);
 
-	migrate(db as BetterSQLite3Database<never, typeof relations>, { migrationsFolder: './drizzle2/sqlite' });
+	migrate(db as BetterSQLite3Database<typeof relations>, { migrationsFolder: './drizzle2/sqlite' });
 
 	db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).run();
 	const result = db.select().from(usersMigratorTable).all();
@@ -36,7 +36,7 @@ test('migrator : --init', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	const migratorRes = migrate(db as BetterSQLite3Database<never, typeof relations>, {
+	const migratorRes = migrate(db as BetterSQLite3Database<typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite',
 
 		migrationsTable,
@@ -67,7 +67,7 @@ test('migrator : --init - local migrations error', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	const migratorRes = migrate(db as BetterSQLite3Database<never, typeof relations>, {
+	const migratorRes = migrate(db as BetterSQLite3Database<typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite-init',
 
 		migrationsTable,
@@ -98,12 +98,12 @@ test('migrator : --init - db migrations error', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersMigratorTable}`);
 	await db.run(sql`drop table if exists ${sql.identifier('another_users')}`);
 
-	migrate(db as BetterSQLite3Database<never, typeof relations>, {
+	migrate(db as BetterSQLite3Database<typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite',
 		migrationsTable,
 	});
 
-	const migratorRes = migrate(db as BetterSQLite3Database<never, typeof relations>, {
+	const migratorRes = migrate(db as BetterSQLite3Database<typeof relations>, {
 		migrationsFolder: './drizzle2/sqlite-init',
 
 		migrationsTable,

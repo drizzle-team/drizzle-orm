@@ -1,3 +1,4 @@
+import type { PGlite } from '@electric-sql/pglite';
 import type { ConnectionOptions } from 'tls';
 import type { Driver } from './cli/validations/common';
 import type { Dialect } from './utils/schemaValidator';
@@ -53,7 +54,7 @@ type Verify<T, U extends T> = U;
  *
  * ---
  *
- * `migrations` - param let’s use specify custom table and schema(PostgreSQL only) for migrations.
+ * `migrations` - param let’s you specify a custom table and schema(PostgreSQL only) for migrations.
  * By default, all information about executed migrations will be stored in the database inside
  * the `__drizzle_migrations` table, and for PostgreSQL, inside the drizzle schema.
  * However, you can configure where to store those records.
@@ -116,7 +117,6 @@ export type Config =
 		schemaFilter?: string | string[];
 		schema?: string | string[];
 		verbose?: boolean;
-		strict?: boolean;
 		migrations?: {
 			table?: string;
 			schema?: string;
@@ -178,6 +178,11 @@ export type Config =
 			dbCredentials: {
 				url: string;
 			};
+		}
+		| {
+			dialect: Verify<Dialect, 'postgresql'>;
+			driver: Verify<Driver, 'pglite'>;
+			client: PGlite;
 		}
 		| {
 			dialect: Verify<Dialect, 'mysql'>;
@@ -316,7 +321,7 @@ export type Config =
  *
  * ---
  *
- * `migrations` - param let’s use specify custom table and schema(PostgreSQL only) for migrations.
+ * `migrations` - param let’s you specify a custom table and schema(PostgreSQL only) for migrations.
  * By default, all information about executed migrations will be stored in the database inside
  * the `__drizzle_migrations` table, and for PostgreSQL, inside the drizzle schema.
  * However, you can configure where to store those records.

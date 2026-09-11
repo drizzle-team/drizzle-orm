@@ -2698,3 +2698,108 @@ test('Issue No5585. Alter unique constraint', async () => {
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5879
+test('issue #5879', async () => {
+	const to = {
+		table: pgTable(
+			'table',
+			{ col1: integer(), col2: integer(), col3: integer() },
+			(t) => [
+				unique('prices_unique')
+					.on(t.col1, t.col2, t.col3)
+					.nullsNotDistinct(),
+			],
+		),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, to, []);
+	const { sqlStatements: pst1 } = await push({ db, to: to });
+	const { sqlStatements: pst2 } = await push({ db, to: to });
+
+	const expectedSt1 = [`CREATE TABLE "table" (
+\t"col1" integer,
+\t"col2" integer,
+\t"col3" integer,
+\tCONSTRAINT \"prices_unique\" UNIQUE NULLS NOT DISTINCT(\"col1\",\"col2\",\"col3\")
+);\n`];
+
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+	expect(pst2).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5955
+test('issue #5955', async () => {
+	const from = {
+		table: pgTable(
+			'customer_category_assignment',
+			{
+				id: uuid('id').defaultRandom().primaryKey(),
+				createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+				customerId: integer('customer_id').notNull(),
+				categoryId: integer('category_id').notNull(),
+			},
+		),
+	};
+
+	const to = {
+		table: pgTable(
+			'customer_category_assignment',
+			{
+				id: uuid('id').defaultRandom().primaryKey(),
+				createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+				customerId: integer('customer_id').notNull(),
+				categoryId: integer('category_id').notNull(),
+			},
+			(table) => [
+				unique('uq_customer_category_assignment').on(table.customerId, table.categoryId),
+			],
+		),
+	};
+
+	const { sqlStatements: pst1 } = await push({ db, to: from });
+
+	await db.query(
+		`INSERT INTO customer_category_assignment (customer_id, category_id) VALUES (1,1), (1,2), (2,2), (2,3), (3,3)`,
+	);
+	const { sqlStatements: pst2, hints } = await push({ db, to: to });
+
+	expect(pst1).toStrictEqual([`CREATE TABLE "customer_category_assignment" (
+\t"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+\t"created_at\" timestamp with time zone DEFAULT now() NOT NULL,
+\t"customer_id\" integer NOT NULL,
+\t"category_id\" integer NOT NULL
+);\n`]);
+	expect(pst2).toStrictEqual([
+		'ALTER TABLE "customer_category_assignment" ADD CONSTRAINT "uq_customer_category_assignment" UNIQUE("customer_id","category_id");',
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6193
+// https://github.com/drizzle-team/drizzle-orm/issues/6078
+test('Issue No6193. order in composite pks', async () => {
+	const to = {
+		table: pgTable('table', {
+			service: text('service').notNull(),
+			day: text('day').notNull(),
+			count: integer('count').notNull().default(0),
+			updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+		}, (t) => [primaryKey({ columns: [t.service, t.day] })]),
+	};
+
+	const { sqlStatements: st1 } = await diff({}, to, []);
+	const { sqlStatements: pst1 } = await push({ db, to: to });
+
+	const st0 = [
+		`CREATE TABLE \"table\" (
+\t\"service\" text,
+\t\"day\" text,
+\t\"count\" integer DEFAULT 0 NOT NULL,
+\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL,
+\tCONSTRAINT \"table_pkey\" PRIMARY KEY(\"service\",\"day\")
+);\n`,
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});

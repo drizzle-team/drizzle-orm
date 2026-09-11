@@ -5,6 +5,7 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
+	desc,
 	DrizzleQueryError,
 	eq,
 	exists,
@@ -15,11 +16,14 @@ import {
 	inArray,
 	isNull,
 	lt,
+	makeDefaultQueryMapper,
+	makeDefaultRqbMapper,
+	makeJitQueryMapper,
+	makeJitRqbMapper,
 	max,
 	min,
 	Name,
 	notInArray,
-	placeholder,
 	sql,
 	sum,
 	sumDistinct,
@@ -27,7 +31,6 @@ import {
 } from 'drizzle-orm';
 import {
 	alias,
-	type BaseSQLiteDatabase,
 	blob,
 	customType,
 	except,
@@ -40,8 +43,8 @@ import {
 	intersect,
 	numeric,
 	primaryKey,
-	real,
-	SQLiteSyncDialect,
+	type SQLiteAsyncDatabase,
+	SQLiteDialect,
 	sqliteTable,
 	sqliteTableCreator,
 	sqliteView,
@@ -54,46 +57,22 @@ import {
 import { describe, expect, expectTypeOf } from 'vitest';
 import type { Equal } from '~/utils';
 import { Expect } from '~/utils';
+import type { AllTypes } from './all-types';
+import {
+	allTypesData,
+	allTypesInput,
+	allTypesRelations,
+	allTypesTable as allTypesCodecsTable,
+	assertAllTypesBounds,
+	assertAllTypesUnions,
+	dropAllTypes,
+	makeAllTypes,
+} from './all-types';
 import { Test } from './instrumentation';
 import { clear, init, rqbPost, rqbUser } from './schema';
+import { normalizeDataWithDbCodecs } from './utils';
 
-const allTypesTable = sqliteTable('all_types', {
-	int: integer('int', {
-		mode: 'number',
-	}),
-	bool: integer('bool', {
-		mode: 'boolean',
-	}),
-	time: integer('time', {
-		mode: 'timestamp',
-	}),
-	timeMs: integer('time_ms', {
-		mode: 'timestamp_ms',
-	}),
-	bigint: blob('bigint', {
-		mode: 'bigint',
-	}),
-	buffer: blob('buffer', {
-		mode: 'buffer',
-	}),
-	json: blob('json', {
-		mode: 'json',
-	}),
-	numeric: numeric('numeric'),
-	numericNum: numeric('numeric_num', {
-		mode: 'number',
-	}),
-	numericBig: numeric('numeric_big', {
-		mode: 'bigint',
-	}),
-	real: real('real'),
-	text: text('text', {
-		mode: 'text',
-	}),
-	jsonText: text('json_text', {
-		mode: 'json',
-	}),
-});
+const allTypesTable = makeAllTypes('all_types');
 
 export const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
@@ -202,6 +181,100 @@ const aggregateTable = sqliteTable('aggregate_table', {
 	nullOnly: integer('null_only'),
 });
 
+const dnStaff = sqliteTable('dn_staff', (t) => ({ userId: t.integer('user_id').primaryKey() }));
+const dnPeople = sqliteTable('dn_people', (t) => ({
+	id: t.integer('id').primaryKey(),
+	name: t.text('name').notNull(),
+	nick: t.text('nick'),
+}));
+const dnTicket = sqliteTable('dn_ticket', (t) => ({
+	id: t.integer('id').primaryKey(),
+	staffId: t.integer('staff_id'),
+}));
+const dnVStaff = sqliteTable('dn_vstaff', (t) => ({
+	id: t.integer('id').primaryKey(),
+	deptId: t.integer('dept_id'),
+}));
+const dnDept = sqliteTable('dn_dept', (t) => ({
+	id: t.integer('id').primaryKey(),
+	name: t.text('name').notNull(),
+}));
+const dnEmp = sqliteTable('dn_emp', (t) => ({
+	id: t.integer('id').primaryKey(),
+	staffId: t.integer('staff_id'),
+}));
+const dnStaffView = sqliteView('dn_staff_view').as((qb) =>
+	qb
+		.select({
+			staffId: dnVStaff.id.as('staff_id'),
+			dept: { id: dnDept.id.as('dept_id'), name: dnDept.name.as('dept_name') },
+		})
+		.from(dnVStaff)
+		.leftJoin(dnDept, eq(dnVStaff.deptId, dnDept.id))
+);
+
+const dnTables = { dnStaff, dnPeople, dnTicket, dnVStaff, dnDept, dnEmp };
+const dnPushSchema = { ...dnTables, dnStaffView };
+
+async function resetDeepNullification(db: SQLiteAsyncDatabase<'async' | 'sync', any, any>) {
+	await db.run(sql`DROP VIEW IF EXISTS ${dnStaffView}`);
+	for (const t of Object.values(dnTables)) await db.run(sql`DROP TABLE IF EXISTS ${t}`);
+}
+
+async function runDeepNullification(db: SQLiteAsyncDatabase<'async' | 'sync', any, any>) {
+	await db.insert(dnStaff).values([{ userId: 1 }, { userId: 2 }]);
+	await db.insert(dnPeople).values([{ id: 1, name: 'Ann', nick: null }, { id: 2, name: 'Bob', nick: 'b' }]);
+	await db.insert(dnTicket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]); // #3 -> outer miss
+	await db.insert(dnVStaff).values([{ id: 1, deptId: 1 }, { id: 2, deptId: 1 }]);
+	await db.insert(dnDept).values([{ id: 1, name: 'Eng' }]);
+	await db.insert(dnEmp).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]); // #3 -> outer view miss
+
+	const crew = db.select().from(dnStaff).leftJoin(dnPeople, eq(dnStaff.userId, dnPeople.id)).as('crew');
+
+	const sqJoin = await db
+		.select()
+		.from(dnTicket)
+		.leftJoin(crew, eq(crew.dn_staff.userId, dnTicket.staffId))
+		.orderBy(dnTicket.id);
+	expect(sqJoin).toStrictEqual([
+		{
+			dn_ticket: { id: 1, staffId: 1 },
+			crew: { dn_staff: { userId: 1 }, dn_people: { id: 1, name: 'Ann', nick: null } },
+		},
+		{
+			dn_ticket: { id: 2, staffId: 2 },
+			crew: { dn_staff: { userId: 2 }, dn_people: { id: 2, name: 'Bob', nick: 'b' } },
+		},
+		{ dn_ticket: { id: 3, staffId: 3 }, crew: null },
+	]);
+
+	const viewJoin = await db
+		.select()
+		.from(dnEmp)
+		.leftJoin(dnStaffView, eq(dnStaffView.staffId, dnEmp.staffId))
+		.orderBy(dnEmp.id);
+	expect(viewJoin).toStrictEqual([
+		{ dn_emp: { id: 1, staffId: 1 }, dn_staff_view: { staffId: 1, dept: { id: 1, name: 'Eng' } } },
+		{ dn_emp: { id: 2, staffId: 2 }, dn_staff_view: { staffId: 2, dept: { id: 1, name: 'Eng' } } },
+		{ dn_emp: { id: 3, staffId: 3 }, dn_staff_view: null },
+	]);
+
+	const crewInner = db.select().from(dnStaff).innerJoin(dnPeople, eq(dnStaff.userId, dnPeople.id)).as('crew_inner');
+	const innerFold = await db
+		.select({
+			ticketId: dnTicket.id,
+			person: { id: crewInner.dn_people.id, name: crewInner.dn_people.name, nick: crewInner.dn_people.nick },
+		})
+		.from(dnTicket)
+		.leftJoin(crewInner, eq(crewInner.dn_staff.userId, dnTicket.staffId))
+		.orderBy(dnTicket.id);
+	expect(innerFold).toStrictEqual([
+		{ ticketId: 1, person: { id: 1, name: 'Ann', nick: null } },
+		{ ticketId: 2, person: { id: 2, name: 'Bob', nick: 'b' } },
+		{ ticketId: 3, person: null },
+	]);
+}
+
 export function tests(test: Test, exclude: string[] = []) {
 	test.beforeEach(({ task, skip }) => {
 		if (exclude.includes(task.name)) skip();
@@ -296,7 +369,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		});
 
 		async function setupSetOperationTest(
-			db: BaseSQLiteDatabase<any, any, any, any, any>,
+			db: SQLiteAsyncDatabase<any, any, any>,
 		) {
 			await db.run(sql`drop table if exists users2`);
 			await db.run(sql`drop table if exists cities`);
@@ -334,7 +407,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		}
 
 		async function setupAggregateFunctionsTest(
-			db: BaseSQLiteDatabase<any, any, any, any, any>,
+			db: SQLiteAsyncDatabase<any, any, any>,
 		) {
 			await db.run(sql`drop table if exists "aggregate_table"`);
 			await db.run(
@@ -794,6 +867,103 @@ export function tests(test: Test, exclude: string[] = []) {
 				},
 			]);
 		});
+
+		test.concurrent(
+			'insert with explicit column list',
+			async ({ db }) => {
+				const table = sqliteTable('column_selection', {
+					id: integer('id').primaryKey({ autoIncrement: true }),
+					name: text('name').notNull(),
+					verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
+					note: text('note'),
+				});
+
+				await db.run(sql`drop table if exists ${table}`);
+				await db.run(
+					sql`create table ${table} (id integer primary key autoincrement, name text not null, verified integer not null default 0, note text)`,
+				);
+
+				await db
+					.insert(table, 'name')
+					.values([{ name: 'John' }, { name: 'Jane' }])
+					.run();
+				await db.insert(table, 'name', 'note').values({ name: 'Jack' }).run();
+				await db.insert(table, 'note', 'name').values({ name: 'Jill', note: 'hi' }).run();
+
+				const result = await db.select().from(table).orderBy(table.id).all();
+				expect(result).toEqual([
+					{ id: 1, name: 'John', verified: false, note: null },
+					{ id: 2, name: 'Jane', verified: false, note: null },
+					{ id: 3, name: 'Jack', verified: false, note: null },
+					{ id: 4, name: 'Jill', verified: false, note: 'hi' },
+				]);
+
+				await db.run(sql`drop table ${table}`);
+			},
+		);
+
+		test.concurrent(
+			'insert with explicit column list - select',
+			async ({ db }) => {
+				const src = sqliteTable('column_selection_select_src', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+				const dst = sqliteTable('column_selection_select_dst', {
+					id: integer('id').primaryKey({ autoIncrement: true }),
+					name: text('name').notNull(),
+					verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
+				});
+
+				await db.run(sql`drop table if exists ${src}`);
+				await db.run(sql`drop table if exists ${dst}`);
+				await db.run(sql`create table ${src} (id integer primary key, name text not null)`);
+				await db.run(
+					sql`create table ${dst} (id integer primary key autoincrement, name text not null, verified integer not null default 0)`,
+				);
+
+				await db.insert(src).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]).run();
+
+				await db.insert(dst, 'name').select(db.select({ name: src.name }).from(src)).run();
+
+				const result = await db.select().from(dst).orderBy(dst.id).all();
+				expect(result).toEqual([
+					{ id: 1, name: 'John', verified: false },
+					{ id: 2, name: 'Jane', verified: false },
+				]);
+
+				await db.run(sql`drop table ${src}`);
+				await db.run(sql`drop table ${dst}`);
+			},
+		);
+
+		test.concurrent(
+			'insert with explicit column list - on conflict',
+			async ({ db }) => {
+				const table = sqliteTable('column_selection_conflict', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+					note: text('note'),
+				});
+
+				await db.run(sql`drop table if exists ${table}`);
+				await db.run(
+					sql`create table ${table} (id integer primary key, name text not null, note text)`,
+				);
+
+				await db.insert(table, 'id', 'name').values({ id: 1, name: 'John' }).run();
+				await db
+					.insert(table, 'id', 'name')
+					.values({ id: 1, name: 'Jane' })
+					.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' } })
+					.run();
+
+				const result = await db.select().from(table).all();
+				expect(result).toEqual([{ id: 1, name: 'Updated', note: null }]);
+
+				await db.run(sql`drop table ${table}`);
+			},
+		);
 
 		test.concurrent('update with returning all fields', async ({ db }) => {
 			const now = Date.now();
@@ -1284,7 +1454,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
 		test
-			.skipIf(Date.now() < +new Date('2026-05-20'))
+			.skipIf(Date.now() < +new Date('2026-09-12'))
 			.concurrent(
 				'prepared statement with placeholder in .inArray',
 				async ({ db, push }) => {
@@ -2539,6 +2709,73 @@ export function tests(test: Test, exclude: string[] = []) {
 			db.run(sql`drop table ${users}`);
 		});
 
+		const assertTransactionMode = async (
+			db: SQLiteAsyncDatabase<any, any, any>,
+			behavior: 'deferred' | 'immediate' | 'exclusive',
+		) => {
+			const table = sqliteTable(`tx_mode_${behavior}`, {
+				id: integer('id').primaryKey(),
+				v: integer('v').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${table}`);
+			await db.run(sql`create table ${table} (id integer primary key, v integer not null)`);
+
+			try {
+				await db.transaction(async (tx: any) => {
+					await tx.insert(table).values({ id: 1, v: 1 });
+				}, { behavior });
+
+				expect(await db.select().from(table)).toEqual([{ id: 1, v: 1 }]);
+			} finally {
+				await db.run(sql`drop table ${table}`);
+			}
+		};
+
+		// Ensures config's SQL isn't corrupted if present, behaviour isn't actually tested here
+		test.concurrent('transaction mode: deferred', async ({ db }) => {
+			await assertTransactionMode(db, 'deferred');
+		});
+
+		// Ensures config's SQL isn't corrupted if present, behaviour isn't actually tested here
+		test.concurrent('transaction mode: immediate', async ({ db }) => {
+			await assertTransactionMode(db, 'immediate');
+		});
+
+		// Ensures config's SQL isn't corrupted if present, behaviour isn't actually tested here
+		test.concurrent('transaction mode: exclusive', async ({ db }) => {
+			await assertTransactionMode(db, 'exclusive');
+		});
+
+		// Requires Turso database
+		test.concurrent('transaction mode: concurrent is rejected', async ({ db }) => {
+			const table = sqliteTable('tx_mode_concurrent', {
+				id: integer('id').primaryKey(),
+				v: integer('v').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${table}`);
+			await db.run(sql`create table ${table} (id integer primary key, v integer not null)`);
+
+			try {
+				let error: any;
+				try {
+					await db.transaction(async (tx: any) => {
+						await tx.insert(table).values({ id: 1, v: 1 });
+					}, { behavior: 'concurrent' });
+				} catch (e) {
+					error = e;
+				}
+
+				expect(String(error?.cause?.message ?? error?.message)).toContain(
+					'Concurrent transactions are not supported by driver',
+				);
+				expect(await db.select().from(table)).toEqual([]);
+			} finally {
+				await db.run(sql`drop table ${table}`);
+			}
+		});
+
 		test.concurrent('join subquery with join', async ({ db }) => {
 			const internalStaff = sqliteTable('internal_staff', {
 				userId: integer('user_id').notNull(),
@@ -2610,7 +2847,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				sql`create view if not exists ${newYorkers} as ${getViewConfig(newYorkers).query}`,
 			);
 
-			db.insert(users)
+			await db.insert(users)
 				.values([
 					{ name: 'John', cityId: 1 },
 					{ name: 'Jane', cityId: 2 },
@@ -3113,9 +3350,9 @@ export function tests(test: Test, exclude: string[] = []) {
 				name: text('name'),
 			});
 
-			db.run(sql`drop table if exists ${users}`);
+			await db.run(sql`drop table if exists ${users}`);
 
-			db.run(sql`create table ${users} (id integer primary key, name text)`);
+			await db.run(sql`create table ${users} (id integer primary key, name text)`);
 
 			await db.insert(users).values({ id: 1, name: 'John' });
 
@@ -3146,9 +3383,9 @@ export function tests(test: Test, exclude: string[] = []) {
 					name: text('name'),
 				});
 
-				db.run(sql`drop table if exists ${users}`);
+				await db.run(sql`drop table if exists ${users}`);
 
-				db.run(sql`create table ${users} (id integer primary key, name text)`);
+				await db.run(sql`create table ${users} (id integer primary key, name text)`);
 
 				const insertStmt = db
 					.insert(users)
@@ -3191,9 +3428,9 @@ export function tests(test: Test, exclude: string[] = []) {
 					name: text('name'),
 				});
 
-				db.run(sql`drop table if exists ${users}`);
+				await db.run(sql`drop table if exists ${users}`);
 
-				db.run(sql`create table ${users} (id integer primary key, name text)`);
+				await db.run(sql`create table ${users} (id integer primary key, name text)`);
 
 				const insertStmt = db
 					.insert(users)
@@ -3234,9 +3471,9 @@ export function tests(test: Test, exclude: string[] = []) {
 				name: text('name'),
 			});
 
-			db.run(sql`drop table if exists ${users}`);
+			await db.run(sql`drop table if exists ${users}`);
 
-			db.run(sql`create table ${users} (id integer primary key, name text)`);
+			await db.run(sql`create table ${users} (id integer primary key, name text)`);
 
 			const res = await db.select().from(users).where(eq(users.id, 1)).get();
 
@@ -3274,7 +3511,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				]);
 
 				await expect(async () => {
-					db.select({ name: citiesTable.name, id: citiesTable.id })
+					await db.select({ name: citiesTable.name, id: citiesTable.id })
 						.from(citiesTable)
 						.union(
 							db
@@ -3357,7 +3594,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				]);
 
 				await expect(async () => {
-					db.select({ id: citiesTable.id, name: citiesTable.name })
+					await db.select({ id: citiesTable.id, name: citiesTable.name })
 						.from(citiesTable)
 						.unionAll(
 							db
@@ -3442,7 +3679,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				]);
 
 				await expect(async () => {
-					db.select({ name: citiesTable.name, id: citiesTable.id })
+					await db.select({ name: citiesTable.name, id: citiesTable.id })
 						.from(citiesTable)
 						.intersect(
 							db
@@ -3513,7 +3750,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				expect(result).toEqual([{ id: 1, name: 'New York' }]);
 
 				await expect(async () => {
-					db.select()
+					await db.select()
 						.from(citiesTable)
 						.except(
 							db
@@ -3589,7 +3826,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				]);
 
 				await expect(async () => {
-					db.select()
+					await db.select()
 						.from(citiesTable)
 						.except(({ unionAll }) =>
 							unionAll(
@@ -3943,6 +4180,42 @@ export function tests(test: Test, exclude: string[] = []) {
 				expect(updateResp[0]?.updatedAt ?? 0).greaterThan(now);
 			},
 		);
+
+		test.concurrent('$onUpdateFn called only when needed', async ({ db, push }) => {
+			let counter = 0;
+			const table = sqliteTable('on_update_call_test', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				inc: integer('inc').$onUpdateFn(() => counter++),
+			});
+
+			await db.run(sql`DROP TABLE IF EXISTS ${table}`);
+			await push({ table });
+
+			let res = await db.insert(table).values({ id: 1, name: 'First', inc: 0 }).returning();
+			expect(counter).toStrictEqual(0);
+			expect(res).toStrictEqual([{ id: 1, name: 'First', inc: 0 }]);
+
+			res = await db.update(table).set({ name: 'Second', inc: null }).returning();
+			expect(counter).toStrictEqual(0);
+			expect(res).toStrictEqual([{ id: 1, name: 'Second', inc: null }]);
+
+			res = await db.update(table).set({ name: 'Third', inc: 10 }).returning();
+			expect(counter).toStrictEqual(0);
+			expect(res).toStrictEqual([{ id: 1, name: 'Third', inc: 10 }]);
+
+			res = await db.update(table).set({ name: 'Fourth' }).returning();
+			expect(counter).toStrictEqual(1);
+			expect(res).toStrictEqual([{ id: 1, name: 'Fourth', inc: 0 }]);
+
+			res = await db.update(table).set({ name: 'Fifth' }).returning();
+			expect(counter).toStrictEqual(2);
+			expect(res).toStrictEqual([{ id: 1, name: 'Fifth', inc: 1 }]);
+
+			res = await db.insert(table).values({ id: 2, name: 'Second' }).returning();
+			expect(counter).toStrictEqual(3);
+			expect(res).toStrictEqual([{ id: 2, name: 'Second', inc: 2 }]);
+		});
 
 		test.concurrent('$count separate', async ({ db }) => {
 			const countTestTable = sqliteTable('count_test', {
@@ -5260,134 +5533,62 @@ export function tests(test: Test, exclude: string[] = []) {
 			}
 		});
 
-		test.concurrent('all types', async ({ db }) => {
-			await db.run(sql`
-				CREATE TABLE \`all_types\`(
-					\`int\` integer,
-					\`bool\` integer,
-					\`time\` integer,
-					\`time_ms\` integer,
-					\`bigint\` blob,
-					\`buffer\` blob,
-					\`json\` blob,
-					\`numeric\` numeric,
-					\`numeric_num\` numeric,
-					\`numeric_big\` numeric,
-					\`real\` real,
-					\`text\` text,
-					\`json_text\` text
-					);
-			`);
+		test.concurrent('all types', async ({ db, push }) => {
+			await db.run(sql.raw(dropAllTypes('all_types')));
+			await push({ allTypesTable });
 
-			await db.insert(allTypesTable).values({
-				int: 1,
-				bool: true,
-				bigint: 5044565289845416380n,
-				buffer: Buffer.from([
-					0x44,
-					0x65,
-					0x73,
-					0x70,
-					0x61,
-					0x69,
-					0x72,
-					0x20,
-					0x6f,
-					0x20,
-					0x64,
-					0x65,
-					0x73,
-					0x70,
-					0x61,
-					0x69,
-					0x72,
-					0x2e,
-					0x2e,
-					0x2e,
-				]),
-				json: {
-					str: 'strval',
-					arr: ['str', 10],
-				},
-				jsonText: {
-					str: 'strvalb',
-					arr: ['strb', 11],
-				},
-				numeric: '475452353476',
-				numericNum: 9007199254740991,
-				numericBig: 5044565289845416380n,
-				real: 1.048596,
-				text: 'TEXT STRING',
-				time: new Date(1741743161623),
-				timeMs: new Date(1741743161623),
-			});
+			await db.insert(allTypesTable).values(allTypesInput);
 
 			const rawRes = await db.select().from(allTypesTable);
 
-			expect(typeof rawRes[0]?.numericBig).toStrictEqual('bigint');
+			expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+			expect(rawRes).toStrictEqual([allTypesData]);
 
-			type ExpectedType = {
-				int: number | null;
-				bool: boolean | null;
-				time: Date | null;
-				timeMs: Date | null;
-				bigint: bigint | null;
-				buffer: Buffer | null;
-				json: unknown;
-				numeric: string | null;
-				numericNum: number | null;
-				numericBig: bigint | null;
-				real: number | null;
-				text: string | null;
-				jsonText: unknown;
-			}[];
+			await assertAllTypesUnions(db, allTypesTable);
+			await assertAllTypesBounds(db);
+		});
 
-			const expectedRes: ExpectedType = [
-				{
-					int: 1,
-					bool: true,
-					time: new Date('2025-03-12T01:32:41.000Z'),
-					timeMs: new Date('2025-03-12T01:32:41.623Z'),
-					bigint: 5044565289845416380n,
-					buffer: Buffer.from([
-						0x44,
-						0x65,
-						0x73,
-						0x70,
-						0x61,
-						0x69,
-						0x72,
-						0x20,
-						0x6f,
-						0x20,
-						0x64,
-						0x65,
-						0x73,
-						0x70,
-						0x61,
-						0x69,
-						0x72,
-						0x2e,
-						0x2e,
-						0x2e,
-					]),
-					json: { str: 'strval', arr: ['str', 10] },
-					numeric: '475452353476',
-					numericNum: 9007199254740991,
-					numericBig: 5044565289845416380n,
-					real: 1.048596,
-					text: 'TEXT STRING',
-					jsonText: { str: 'strvalb', arr: ['strb', 11] },
-				},
-			];
+		test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
+			const allTypesTable = allTypesCodecsTable;
+			const db = createDB({ allTypesTable }, allTypesRelations);
 
-			expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
-			expect(rawRes).toStrictEqual(expectedRes);
+			await db.run(sql.raw(dropAllTypes('all_types_cdcs')));
+			await push({ allTypesTable });
+
+			await db.insert(allTypesTable).values(allTypesInput);
+
+			const columns = getColumns(allTypesTable);
+
+			const queryRaw = await db.all<Record<string, unknown>>(
+				db.select(
+					Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
+				).from(allTypesTable).getSQL(),
+			);
+			const queryRes = normalizeDataWithDbCodecs({ db, columns, data: queryRaw, mode: 'query' })[0];
+
+			const rqbRaw = await db.all<Record<string, unknown> & { self: string }>(
+				db.query.allTypesTable.findFirst({
+					with: {
+						self: true,
+					},
+				}).getSQL(),
+			);
+			const { self: relationRaw, ...rootRaw } = rqbRaw[0]!;
+
+			const relationRes = normalizeDataWithDbCodecs({ db, columns, data: relationRaw, mode: 'json' })[0]!;
+			const rootRes = normalizeDataWithDbCodecs({ db, columns, data: [rootRaw], mode: 'query' })[0]!;
+
+			expect(queryRes).toStrictEqual(allTypesData);
+			expect(relationRes).toStrictEqual(allTypesData);
+			expect(rootRes).toStrictEqual(allTypesData);
+
+			await assertAllTypesUnions(db as any);
+			await assertAllTypesBounds(db as any);
 		});
 	});
 
 	test.concurrent('sql.identifier escape', async () => {
-		const dialect = new SQLiteSyncDialect();
+		const dialect = new SQLiteDialect();
 		const userInput = 'id" ASC, CAST((SELECT password_hash FROM users LIMIT 1) AS int)--';
 		const query = sql`SELECT * FROM ${sql.identifier('users')} ORDER BY ${sql.identifier(userInput)} ASC`;
 		const str = dialect.sqlToQuery(query);
@@ -5749,18 +5950,67 @@ export function tests(test: Test, exclude: string[] = []) {
 			)
 		`);
 
-			await expect(async () => {
-				db.insert(users1).select(
-					db
-						.select({
-							name: users2.name,
-							id: users2.id,
-						})
-						.from(users2),
-				);
-			}).rejects.toThrowError();
+			await db.insert(users2).values({ id: 1, name: 'First' });
+			const res = await db.insert(users1).select(
+				db
+					.select({
+						name: users2.name,
+						id: users2.id,
+					})
+					.from(users2),
+			).returning();
+
+			expect(res).toStrictEqual([{
+				id: 1,
+				name: 'First',
+			}]);
 		},
 	);
+
+	test.concurrent('insert into ... select with generated column', async ({ db }) => {
+		const users1 = sqliteTable('users1_iswgc', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		});
+		const users2 = sqliteTable('users2_iswgc', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		});
+
+		await db.run(sql`drop table if exists users1_iswgc`);
+		await db.run(sql`drop table if exists users2_iswgc`);
+		await db.run(sql`
+			create table users1_iswgc (
+				id integer primary key autoincrement,
+				name text not null
+			)
+		`);
+		await db.run(sql`
+			create table users2_iswgc (
+				id integer primary key autoincrement,
+				name text not null
+			)
+		`);
+
+		await db.insert(users1).values([
+			{ name: 'Alice' },
+			{ name: 'Bob' },
+			{ name: 'Charlie' },
+		]);
+
+		const result1 = await db.insert(users2).select(db.select({ name: users1.name }).from(users1))
+			.returning();
+
+		expect(result1).toStrictEqual([
+			{ id: 1, name: 'Alice' },
+			{ id: 2, name: 'Bob' },
+			{ id: 3, name: 'Charlie' },
+		]);
+
+		// @ts-expect-error
+		expect(() => db.insert(users2).select(db.select({ name: users1.name, unknown: users1.id }).from(users1)))
+			.toThrowError();
+	});
 
 	test.concurrent('Object keys as column names', async ({ db }) => {
 		// Tests the following:
@@ -6004,7 +6254,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		const query = db.select().from(sub);
 		expect(query.toSQL().sql).toStrictEqual(
-			(<{ dialect: SQLiteSyncDialect }> (<any> db)).dialect.sqlToQuery(
+			(<{ dialect: SQLiteDialect }> (<any> db)).dialect.sqlToQuery(
 				sql`select ${sql.identifier('id')}, ${sql.identifier('name')}, ${sql.identifier('location_id')}, ${
 					sql.identifier(
 						'tag_id',
@@ -6033,11 +6283,2305 @@ export function tests(test: Test, exclude: string[] = []) {
 		});
 	});
 
-	// Sync drivers don't wrap errors - TODO
-	test.skipIf(Date.now() < +new Date('2026-05-20'))('Query error wrapping', async ({ db }) => {
+	test.concurrent('Mappers: - correct mappers enabled', async ({ db, push, createDB }) => {
+		const jitDb = createDB({}, () => ({}), true);
+
+		const dialect: SQLiteDialect = (<any> db).dialect;
+		const jitDialect: SQLiteDialect = (<any> jitDb).dialect;
+
+		expect(dialect.mapperGenerators.relationalRows === makeDefaultRqbMapper).toStrictEqual(true);
+		expect(dialect.mapperGenerators.rows === makeDefaultQueryMapper).toStrictEqual(true);
+		expect(jitDialect.mapperGenerators.relationalRows === makeJitRqbMapper).toStrictEqual(true);
+		expect(jitDialect.mapperGenerators.rows === makeJitQueryMapper).toStrictEqual(true);
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/1603
+	test.concurrent('Nested partial select left join: null first column', async ({ db, push }) => {
+		const orgs = sqliteTable('issue1603_orgs', (t) => ({
+			id: t.integer('id').primaryKey(),
+			name: t.text('name').notNull(),
+		}));
+		const branding = sqliteTable('issue1603_branding', (t) => ({
+			id: t.integer('id').primaryKey(),
+			orgId: t.integer('org_id').references(() => orgs.id),
+			logo: t.text('logo'),
+			panelBackground: t.text('panel_background'),
+		}));
+
+		await db.run(sql`DROP TABLE IF EXISTS ${branding};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${orgs};`);
+		await push({ orgs, branding });
+
+		await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
+		await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
+
+		const withBranding = await db.select({
+			name: orgs.name,
+			branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+		}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
+
+		expect(withBranding).toStrictEqual([{
+			name: 'Acme',
+			branding: { logo: null, panelBackground: '#1a8cff' },
+		}]);
+
+		const withoutBranding = await db.select({
+			name: orgs.name,
+			branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+		}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
+
+		expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
+	});
+
+	test.concurrent('Nested partial select left join: null first column - jit', async ({ createDB, push }) => {
+		const orgs = sqliteTable('issue1603_orgs_jit', (t) => ({
+			id: t.integer('id').primaryKey(),
+			name: t.text('name').notNull(),
+		}));
+		const branding = sqliteTable('issue1603_branding_jit', (t) => ({
+			id: t.integer('id').primaryKey(),
+			orgId: t.integer('org_id').references(() => orgs.id),
+			logo: t.text('logo'),
+			panelBackground: t.text('panel_background'),
+		}));
+
+		const db = createDB({ orgs, branding }, () => ({}), true);
+		await db.run(sql`DROP TABLE IF EXISTS ${branding};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${orgs};`);
+		await push({ orgs, branding });
+
+		await db.insert(orgs).values([{ id: 1, name: 'Acme' }, { id: 2, name: 'NoBranding' }]);
+		await db.insert(branding).values({ id: 1, orgId: 1, logo: null, panelBackground: '#1a8cff' });
+
+		const withBranding = await db.select({
+			name: orgs.name,
+			branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+		}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 1));
+
+		expect(withBranding).toStrictEqual([{
+			name: 'Acme',
+			branding: { logo: null, panelBackground: '#1a8cff' },
+		}]);
+
+		const withoutBranding = await db.select({
+			name: orgs.name,
+			branding: { logo: branding.logo, panelBackground: branding.panelBackground },
+		}).from(orgs).leftJoin(branding, eq(orgs.id, branding.orgId)).where(eq(orgs.id, 2));
+
+		expect(withoutBranding).toStrictEqual([{ name: 'NoBranding', branding: null }]);
+	});
+
+	test('Mappers: deep nullification', async ({ db, push }) => {
+		await resetDeepNullification(db);
+		await push(dnPushSchema);
+		await runDeepNullification(db);
+	});
+
+	test('Mappers: deep nullification - jit', async ({ db, createDB, push }) => {
+		await resetDeepNullification(db);
+		await push(dnPushSchema);
+		await runDeepNullification(createDB(dnTables, () => ({}), true));
+	});
+
+	const mappersDate = new Date('2026-04-02T00:00:00.000Z');
+
+	test.concurrent('Mappers: simple select - no rows', async ({ db, push, createDB }) => {
+		const users = sqliteTable('mappers_users_1', (t) => ({
+			id: t.numeric('id', { mode: 'number' }).primaryKey(),
+			name: t.text('name').notNull(),
+			createdAt: t.integer('created_at', {
+				mode: 'timestamp_ms',
+			}).notNull(),
+			isBanned: t.integer('is_banned', { mode: 'boolean' }),
+		}));
+
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await push({ users });
+
+		const result = await db.select().from(users);
+
+		expect(result).toStrictEqual([]);
+	});
+
+	test.concurrent('Mappers: select - nothing to decode - text', async ({ db, push, createDB }) => {
+		const users = sqliteTable('mappers_users_2', (t) => ({
+			id: t.numeric('id', { mode: 'number' }).primaryKey(),
+			name: t.text('name').notNull(),
+			createdAt: t.integer('created_at', {
+				mode: 'timestamp_ms',
+			}).notNull(),
+			isBanned: t.integer('is_banned', { mode: 'boolean' }),
+		}));
+
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await push({ users });
+
+		await db.insert(users).values([{
+			id: 1,
+			name: 'First',
+			createdAt: mappersDate,
+		}]).returning();
+
+		const selected = await db.select({ name: users.name }).from(users);
+
+		expect(selected).toStrictEqual([{ name: 'First' }]);
+	});
+
+	test.concurrent('Mappers: select - nothing to decode - null', async ({ db, push, createDB }) => {
+		const users = sqliteTable('mappers_users_3', (t) => ({
+			id: t.numeric('id', { mode: 'number' }).primaryKey(),
+			name: t.text('name').notNull(),
+			createdAt: t.integer('created_at', {
+				mode: 'timestamp_ms',
+			}).notNull(),
+			isBanned: t.integer('is_banned', { mode: 'boolean' }),
+		}));
+
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await push({ users });
+
+		await db.insert(users).values([{
+			id: 1,
+			name: 'First',
+			createdAt: mappersDate,
+		}]).returning();
+
+		const selected = await db.select({ isBanned: users.isBanned }).from(users);
+
+		expect(selected).toStrictEqual([{ isBanned: null }]);
+	});
+
+	test.concurrent(
+		'Mappers: insert returning all + select + update returning + delete returning',
+		async ({ db, push, createDB }) => {
+			const users = sqliteTable('mappers_users_4', (t) => ({
+				id: t.numeric('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.integer('created_at', {
+					mode: 'timestamp_ms',
+				}).notNull(),
+				isBanned: t.integer('is_banned', { mode: 'boolean' }),
+			}));
+
+			await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+			await push({ users });
+
+			const inserted = await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]).returning();
+
+			const selected = await db.select().from(users);
+
+			const updated = await db.update(users).set({
+				isBanned: false,
+			}).where(eq(users.id, 2)).returning();
+
+			// Driver bug bypass for `sqlite-cloud` driver
+			const deleted = await db.delete(users).where(sql`true`).returning();
+
+			expect(inserted).toStrictEqual([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+				isBanned: null,
+			}]);
+			expect(selected).toStrictEqual([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+				isBanned: null,
+			}]);
+			expect(updated).toStrictEqual([{
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: false,
+			}]);
+			expect(deleted).toStrictEqual(expect.arrayContaining([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: false,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+				isBanned: null,
+			}]));
+		},
+	);
+
+	test.concurrent('Mappers: select complex selections', async ({ db, push, createDB }) => {
+		const users = sqliteTable('mappers_users_5', (t) => ({
+			id: t.numeric('id', { mode: 'number' }).primaryKey(),
+			name: t.text('name').notNull(),
+			createdAt: t.integer('created_at', {
+				mode: 'timestamp_ms',
+			}).notNull(),
+			isBanned: t.integer('is_banned', { mode: 'boolean' }),
+		}));
+
+		const posts = sqliteTable('mappers_posts_1', (t) => ({
+			id: t.integer('id').primaryKey(),
+			authorId: t.numeric('author_id', { mode: 'number' }).references(() => users.id),
+			content: t.text('content'),
+		}));
+
+		await db.run(sql`DROP TABLE IF EXISTS ${posts};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await push({ users, posts });
+
+		await db.insert(users).values([{
+			id: 1,
+			name: 'First',
+			createdAt: mappersDate,
+		}, {
+			id: 2,
+			name: 'Second',
+			createdAt: mappersDate,
+			isBanned: true,
+		}, {
+			id: 3,
+			name: 'Third',
+			createdAt: mappersDate,
+		}]).returning();
+		await db.insert(posts).values({
+			id: 1,
+			authorId: 1,
+			content: 'p1',
+		});
+
+		const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
+			posts,
+			eq(users.id, posts.authorId),
+		).orderBy(users.id);
+		const selected2 = await db.select({ user: users, post: posts }).from(users).innerJoin(
+			posts,
+			eq(users.id, posts.authorId),
+		).orderBy(users.id);
+		const selected3 = await db.select({
+			userId: users.id,
+			postId: posts.id,
+			name: users.name,
+			isBanned: users.isBanned,
+			content: posts.content,
+			createdAt: users.createdAt,
+		}).from(users).leftJoin(
+			posts,
+			eq(users.id, posts.authorId),
+		).orderBy(users.id);
+		const selected4 = await db.select({
+			userId: users.id,
+			postId: posts.id,
+			name: users.name,
+			isBanned: users.isBanned,
+			content: posts.content,
+			createdAt: users.createdAt,
+		}).from(users).innerJoin(
+			posts,
+			eq(users.id, posts.authorId),
+		).orderBy(users.id);
+
+		expect(selected1).toStrictEqual([{
+			user: {
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			},
+			post: {
+				id: 1,
+				authorId: 1,
+				content: 'p1',
+			},
+		}, {
+			user: {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			},
+			post: null,
+		}, {
+			user: {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+				isBanned: null,
+			},
+			post: null,
+		}]);
+		expect(selected2).toStrictEqual([{
+			user: {
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			},
+			post: {
+				id: 1,
+				authorId: 1,
+				content: 'p1',
+			},
+		}]);
+		expect(selected3).toStrictEqual([
+			{
+				content: 'p1',
+				createdAt: mappersDate,
+				isBanned: null,
+				name: 'First',
+				postId: 1,
+				userId: 1,
+			},
+			{
+				content: null,
+				createdAt: mappersDate,
+				isBanned: true,
+				name: 'Second',
+				postId: null,
+				userId: 2,
+			},
+			{
+				content: null,
+				createdAt: mappersDate,
+				isBanned: null,
+				name: 'Third',
+				postId: null,
+				userId: 3,
+			},
+		]);
+		expect(selected4).toStrictEqual([
+			{
+				content: 'p1',
+				createdAt: mappersDate,
+				isBanned: null,
+				name: 'First',
+				postId: 1,
+				userId: 1,
+			},
+		]);
+	});
+
+	test.concurrent('Mappers: relational', async ({ push, createDB }) => {
+		const users = sqliteTable('mappers_users_6', (t) => ({
+			id: t.numeric('id', { mode: 'number' }).primaryKey(),
+			name: t.text('name').notNull(),
+			createdAt: t.integer('created_at', {
+				mode: 'timestamp_ms',
+			}).notNull(),
+			isBanned: t.integer('is_banned', { mode: 'boolean' }),
+		}));
+
+		const posts = sqliteTable('mappers_posts_2', (t) => ({
+			id: t.integer('id').primaryKey(),
+			authorId: t.numeric('author_id', { mode: 'number' }).references(() => users.id),
+			content: t.text('content'),
+		}));
+
+		const db = createDB(
+			{ users, posts },
+			(r) => ({
+				users: {
+					post: r.one.posts({
+						from: r.users.id,
+						to: r.posts.authorId,
+					}),
+					posts: r.one.posts({
+						from: r.users.id,
+						to: r.posts.authorId,
+					}),
+				},
+				posts: {
+					author: r.one.users({
+						from: r.posts.authorId,
+						to: r.users.id,
+					}),
+					authors: r.many.users({
+						from: r.posts.authorId,
+						to: r.users.id,
+					}),
+				},
+			}),
+			false,
+		);
+
+		await db.run(sql`DROP TABLE IF EXISTS ${posts};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await push({ users, posts });
+
+		const empty1 = await db.query.users.findFirst();
+		const empty2 = await db.query.users.findMany();
+
+		expect(empty1).toStrictEqual(undefined);
+		expect(empty2).toStrictEqual([]);
+
+		await db.insert(users).values([{
+			id: 1,
+			name: 'First',
+			createdAt: mappersDate,
+		}, {
+			id: 2,
+			name: 'Second',
+			createdAt: mappersDate,
+			isBanned: true,
+		}, {
+			id: 3,
+			name: 'Third',
+			createdAt: mappersDate,
+		}]).returning();
+		await db.insert(posts).values({
+			id: 1,
+			authorId: 1,
+			content: 'p1',
+		});
+
+		const simple1 = await db.query.users.findFirst();
+		const simple2 = await db.query.users.findMany();
+
+		expect(simple1).toStrictEqual(
+			{
+				createdAt: mappersDate,
+				id: 1,
+				isBanned: null,
+				name: 'First',
+			},
+		);
+		expect(simple2).toStrictEqual([
+			{
+				createdAt: mappersDate,
+				id: 1,
+				isBanned: null,
+				name: 'First',
+			},
+			{
+				createdAt: mappersDate,
+				id: 2,
+				isBanned: true,
+				name: 'Second',
+			},
+			{
+				createdAt: mappersDate,
+				id: 3,
+				isBanned: null,
+				name: 'Third',
+			},
+		]);
+
+		const extra1 = await db.query.users.findFirst({
+			extras: {
+				sql: sql`SELECT 1`.mapWith(Number),
+				sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+			},
+		});
+		const extra2 = await db.query.users.findMany({
+			extras: {
+				sql: sql`SELECT 1`.mapWith(Number),
+				sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+			},
+		});
+
+		expect(extra1).toStrictEqual(
+			{
+				createdAt: mappersDate,
+				id: 1,
+				isBanned: null,
+				name: 'First',
+				sql: 1,
+				sqlWrapper: 2,
+			},
+		);
+		expect(extra2).toStrictEqual([
+			{
+				createdAt: mappersDate,
+				id: 1,
+				isBanned: null,
+				name: 'First',
+				sql: 1,
+				sqlWrapper: 2,
+			},
+			{
+				createdAt: mappersDate,
+				id: 2,
+				isBanned: true,
+				name: 'Second',
+				sql: 1,
+				sqlWrapper: 2,
+			},
+			{
+				createdAt: mappersDate,
+				id: 3,
+				isBanned: null,
+				name: 'Third',
+				sql: 1,
+				sqlWrapper: 2,
+			},
+		]);
+
+		const nested1 = await db.query.users.findFirst({
+			with: {
+				post: {
+					with: {
+						author: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+							where: {
+								RAW: sql`false`,
+							},
+						},
+						authors: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+							where: {
+								RAW: sql`false`,
+							},
+						},
+					},
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
+				},
+				posts: {
+					with: {
+						author: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+						authors: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+					},
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
+				},
+			},
+			extras: {
+				sql: sql`SELECT 1`.mapWith(Number),
+				sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+			},
+		});
+		const nested2 = await db.query.users.findMany({
+			with: {
+				post: {
+					with: {
+						author: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+							where: {
+								RAW: sql`false`,
+							},
+						},
+						authors: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+							where: {
+								RAW: sql`false`,
+							},
+						},
+					},
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
+				},
+				posts: {
+					with: {
+						author: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+						authors: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+					},
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
+				},
+			},
+			extras: {
+				sql: sql`SELECT 1`.mapWith(Number),
+				sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+			},
+		});
+
+		expect(nested1).toStrictEqual(
+			{
+				createdAt: mappersDate,
+				id: 1,
+				isBanned: null,
+				name: 'First',
+				post: {
+					author: null,
+					authorId: 1,
+					authors: [],
+					content: 'p1',
+					id: 1,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				posts: {
+					author: {
+						createdAt: mappersDate,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					authorId: 1,
+					authors: [
+						{
+							createdAt: mappersDate,
+							id: 1,
+							isBanned: null,
+							name: 'First',
+							sql: 1,
+							sqlWrapper: 2,
+						},
+					],
+					content: 'p1',
+					id: 1,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				sql: 1,
+				sqlWrapper: 2,
+			},
+		);
+		expect(nested2).toStrictEqual([
+			{
+				createdAt: mappersDate,
+				id: 1,
+				isBanned: null,
+				name: 'First',
+				post: {
+					author: null,
+					authorId: 1,
+					authors: [],
+					content: 'p1',
+					id: 1,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				posts: {
+					author: {
+						createdAt: mappersDate,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					authorId: 1,
+					authors: [
+						{
+							createdAt: mappersDate,
+							id: 1,
+							isBanned: null,
+							name: 'First',
+							sql: 1,
+							sqlWrapper: 2,
+						},
+					],
+					content: 'p1',
+					id: 1,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				sql: 1,
+				sqlWrapper: 2,
+			},
+			{
+				createdAt: mappersDate,
+				id: 2,
+				isBanned: true,
+				name: 'Second',
+				post: null,
+				posts: null,
+				sql: 1,
+				sqlWrapper: 2,
+			},
+			{
+				createdAt: mappersDate,
+				id: 3,
+				isBanned: null,
+				name: 'Third',
+				post: null,
+				posts: null,
+				sql: 1,
+				sqlWrapper: 2,
+			},
+		]);
+	});
+
+	test.concurrent('Jit mappers: - simple select - no rows', async ({ push, createDB }) => {
+		const users = sqliteTable('jit_mappers_users_1', (t) => ({
+			id: t.numeric('id', { mode: 'number' }).primaryKey(),
+			name: t.text('name').notNull(),
+			createdAt: t.integer('created_at', {
+				mode: 'timestamp_ms',
+			}).notNull(),
+			isBanned: t.integer('is_banned', { mode: 'boolean' }),
+		}));
+
+		const db = createDB({}, () => ({}), true);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await push({ users });
+
+		const result = await db.select().from(users);
+
+		expect(result).toStrictEqual([]);
+	});
+
+	test.concurrent('Jit mappers: - select - nothing to decode - text', async ({ push, createDB }) => {
+		const users = sqliteTable('jit_mappers_users_2', (t) => ({
+			id: t.numeric('id', { mode: 'number' }).primaryKey(),
+			name: t.text('name').notNull(),
+			createdAt: t.integer('created_at', {
+				mode: 'timestamp_ms',
+			}).notNull(),
+			isBanned: t.integer('is_banned', { mode: 'boolean' }),
+		}));
+
+		const db = createDB({}, () => ({}), true);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await push({ users });
+
+		await db.insert(users).values([{
+			id: 1,
+			name: 'First',
+			createdAt: mappersDate,
+		}]).returning();
+
+		const selected = await db.select({ name: users.name }).from(users);
+
+		expect(selected).toStrictEqual([{ name: 'First' }]);
+	});
+
+	test.concurrent('Jit mappers: - select - nothing to decode - null', async ({ push, createDB }) => {
+		const users = sqliteTable('jit_mappers_users_3', (t) => ({
+			id: t.numeric('id', { mode: 'number' }).primaryKey(),
+			name: t.text('name').notNull(),
+			createdAt: t.integer('created_at', {
+				mode: 'timestamp_ms',
+			}).notNull(),
+			isBanned: t.integer('is_banned', { mode: 'boolean' }),
+		}));
+
+		const db = createDB({}, () => ({}), true);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await push({ users });
+
+		await db.insert(users).values([{
+			id: 1,
+			name: 'First',
+			createdAt: mappersDate,
+		}]).returning();
+
+		const selected = await db.select({ isBanned: users.isBanned }).from(users);
+
+		expect(selected).toStrictEqual([{ isBanned: null }]);
+	});
+
+	test.concurrent(
+		'Jit mappers: - insert returning all + select + update returning + delete returning',
+		async ({ push, createDB }) => {
+			const users = sqliteTable('jit_mappers_users_4', (t) => ({
+				id: t.numeric('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.integer('created_at', {
+					mode: 'timestamp_ms',
+				}).notNull(),
+				isBanned: t.integer('is_banned', { mode: 'boolean' }),
+			}));
+
+			const db = createDB({}, () => ({}), true);
+			await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+			await push({ users });
+
+			const inserted = await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]).returning();
+
+			const selected = await db.select().from(users);
+
+			const updated = await db.update(users).set({
+				isBanned: false,
+			}).where(eq(users.id, 2)).returning();
+
+			// Driver bug bypass for `sqlite-cloud` driver
+			const deleted = await db.delete(users).where(sql`true`).returning();
+
+			expect(inserted).toStrictEqual([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+				isBanned: null,
+			}]);
+			expect(selected).toStrictEqual([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+				isBanned: null,
+			}]);
+			expect(updated).toStrictEqual([{
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: false,
+			}]);
+			expect(deleted).toStrictEqual(expect.arrayContaining([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: false,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+				isBanned: null,
+			}]));
+		},
+	);
+
+	test.concurrent('Jit mappers: - select complex selections', async ({ push, createDB }) => {
+		const users = sqliteTable('jit_mappers_users_5', (t) => ({
+			id: t.numeric('id', { mode: 'number' }).primaryKey(),
+			name: t.text('name').notNull(),
+			createdAt: t.integer('created_at', {
+				mode: 'timestamp_ms',
+			}).notNull(),
+			isBanned: t.integer('is_banned', { mode: 'boolean' }),
+		}));
+
+		const posts = sqliteTable('jit_mappers_posts_1', (t) => ({
+			id: t.integer('id').primaryKey(),
+			authorId: t.numeric('author_id', { mode: 'number' }).references(() => users.id),
+			content: t.text('content'),
+		}));
+
+		const db = createDB({}, () => ({}), true);
+		await db.run(sql`DROP TABLE IF EXISTS ${posts};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await push({ users, posts });
+
+		await db.insert(users).values([{
+			id: 1,
+			name: 'First',
+			createdAt: mappersDate,
+		}, {
+			id: 2,
+			name: 'Second',
+			createdAt: mappersDate,
+			isBanned: true,
+		}, {
+			id: 3,
+			name: 'Third',
+			createdAt: mappersDate,
+		}]).returning();
+		await db.insert(posts).values({
+			id: 1,
+			authorId: 1,
+			content: 'p1',
+		});
+
+		const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
+			posts,
+			eq(users.id, posts.authorId),
+		).orderBy(users.id);
+		const selected2 = await db.select({ user: users, post: posts }).from(users).innerJoin(
+			posts,
+			eq(users.id, posts.authorId),
+		).orderBy(users.id);
+		const selected3 = await db.select({
+			userId: users.id,
+			postId: posts.id,
+			name: users.name,
+			isBanned: users.isBanned,
+			content: posts.content,
+			createdAt: users.createdAt,
+		}).from(users).leftJoin(
+			posts,
+			eq(users.id, posts.authorId),
+		).orderBy(users.id);
+		const selected4 = await db.select({
+			userId: users.id,
+			postId: posts.id,
+			name: users.name,
+			isBanned: users.isBanned,
+			content: posts.content,
+			createdAt: users.createdAt,
+		}).from(users).innerJoin(
+			posts,
+			eq(users.id, posts.authorId),
+		).orderBy(users.id);
+
+		expect(selected1).toStrictEqual([{
+			user: {
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			},
+			post: {
+				id: 1,
+				authorId: 1,
+				content: 'p1',
+			},
+		}, {
+			user: {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			},
+			post: null,
+		}, {
+			user: {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+				isBanned: null,
+			},
+			post: null,
+		}]);
+		expect(selected2).toStrictEqual([{
+			user: {
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			},
+			post: {
+				id: 1,
+				authorId: 1,
+				content: 'p1',
+			},
+		}]);
+		expect(selected3).toStrictEqual([
+			{
+				content: 'p1',
+				createdAt: mappersDate,
+				isBanned: null,
+				name: 'First',
+				postId: 1,
+				userId: 1,
+			},
+			{
+				content: null,
+				createdAt: mappersDate,
+				isBanned: true,
+				name: 'Second',
+				postId: null,
+				userId: 2,
+			},
+			{
+				content: null,
+				createdAt: mappersDate,
+				isBanned: null,
+				name: 'Third',
+				postId: null,
+				userId: 3,
+			},
+		]);
+		expect(selected4).toStrictEqual([
+			{
+				content: 'p1',
+				createdAt: mappersDate,
+				isBanned: null,
+				name: 'First',
+				postId: 1,
+				userId: 1,
+			},
+		]);
+	});
+
+	test.concurrent('Jit mappers: - relational', async ({ push, createDB }) => {
+		const users = sqliteTable('jit_mappers_users_6', (t) => ({
+			id: t.numeric('id', { mode: 'number' }).primaryKey(),
+			name: t.text('name').notNull(),
+			createdAt: t.integer('created_at', {
+				mode: 'timestamp_ms',
+			}).notNull(),
+			isBanned: t.integer('is_banned', { mode: 'boolean' }),
+		}));
+
+		const posts = sqliteTable('jit_mappers_posts_2', (t) => ({
+			id: t.integer('id').primaryKey(),
+			authorId: t.numeric('author_id', { mode: 'number' }).references(() => users.id),
+			content: t.text('content'),
+		}));
+
+		const db = createDB(
+			{ users, posts },
+			(r) => ({
+				users: {
+					post: r.one.posts({
+						from: r.users.id,
+						to: r.posts.authorId,
+					}),
+					posts: r.one.posts({
+						from: r.users.id,
+						to: r.posts.authorId,
+					}),
+				},
+				posts: {
+					author: r.one.users({
+						from: r.posts.authorId,
+						to: r.users.id,
+					}),
+					authors: r.many.users({
+						from: r.posts.authorId,
+						to: r.users.id,
+					}),
+				},
+			}),
+			true,
+		);
+		await db.run(sql`DROP TABLE IF EXISTS ${posts};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await push({ users, posts });
+
+		const empty1 = await db.query.users.findFirst();
+		const empty2 = await db.query.users.findMany();
+
+		expect(empty1).toStrictEqual(undefined);
+		expect(empty2).toStrictEqual([]);
+
+		await db.insert(users).values([{
+			id: 1,
+			name: 'First',
+			createdAt: mappersDate,
+		}, {
+			id: 2,
+			name: 'Second',
+			createdAt: mappersDate,
+			isBanned: true,
+		}, {
+			id: 3,
+			name: 'Third',
+			createdAt: mappersDate,
+		}]).returning();
+		await db.insert(posts).values({
+			id: 1,
+			authorId: 1,
+			content: 'p1',
+		});
+
+		const simple1 = await db.query.users.findFirst();
+		const simple2 = await db.query.users.findMany();
+
+		expect(simple1).toStrictEqual(
+			{
+				createdAt: mappersDate,
+				id: 1,
+				isBanned: null,
+				name: 'First',
+			},
+		);
+		expect(simple2).toStrictEqual([
+			{
+				createdAt: mappersDate,
+				id: 1,
+				isBanned: null,
+				name: 'First',
+			},
+			{
+				createdAt: mappersDate,
+				id: 2,
+				isBanned: true,
+				name: 'Second',
+			},
+			{
+				createdAt: mappersDate,
+				id: 3,
+				isBanned: null,
+				name: 'Third',
+			},
+		]);
+
+		const extra1 = await db.query.users.findFirst({
+			extras: {
+				sql: sql`SELECT 1`.mapWith(Number),
+				sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+			},
+		});
+		const extra2 = await db.query.users.findMany({
+			extras: {
+				sql: sql`SELECT 1`.mapWith(Number),
+				sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+			},
+		});
+
+		expect(extra1).toStrictEqual(
+			{
+				createdAt: mappersDate,
+				id: 1,
+				isBanned: null,
+				name: 'First',
+				sql: 1,
+				sqlWrapper: 2,
+			},
+		);
+		expect(extra2).toStrictEqual([
+			{
+				createdAt: mappersDate,
+				id: 1,
+				isBanned: null,
+				name: 'First',
+				sql: 1,
+				sqlWrapper: 2,
+			},
+			{
+				createdAt: mappersDate,
+				id: 2,
+				isBanned: true,
+				name: 'Second',
+				sql: 1,
+				sqlWrapper: 2,
+			},
+			{
+				createdAt: mappersDate,
+				id: 3,
+				isBanned: null,
+				name: 'Third',
+				sql: 1,
+				sqlWrapper: 2,
+			},
+		]);
+
+		const nested1 = await db.query.users.findFirst({
+			with: {
+				post: {
+					with: {
+						author: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+							where: {
+								RAW: sql`false`,
+							},
+						},
+						authors: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+							where: {
+								RAW: sql`false`,
+							},
+						},
+					},
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
+				},
+				posts: {
+					with: {
+						author: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+						authors: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+					},
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
+				},
+			},
+			extras: {
+				sql: sql`SELECT 1`.mapWith(Number),
+				sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+			},
+		});
+		const nested2 = await db.query.users.findMany({
+			with: {
+				post: {
+					with: {
+						author: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+							where: {
+								RAW: sql`false`,
+							},
+						},
+						authors: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+							where: {
+								RAW: sql`false`,
+							},
+						},
+					},
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
+				},
+				posts: {
+					with: {
+						author: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+						authors: {
+							extras: {
+								sql: sql`SELECT 1`.mapWith(Number),
+								sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+							},
+						},
+					},
+					extras: {
+						sql: sql`SELECT 1`.mapWith(Number),
+						sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+					},
+				},
+			},
+			extras: {
+				sql: sql`SELECT 1`.mapWith(Number),
+				sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+			},
+		});
+
+		expect(nested1).toStrictEqual(
+			{
+				createdAt: mappersDate,
+				id: 1,
+				isBanned: null,
+				name: 'First',
+				post: {
+					author: null,
+					authorId: 1,
+					authors: [],
+					content: 'p1',
+					id: 1,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				posts: {
+					author: {
+						createdAt: mappersDate,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					authorId: 1,
+					authors: [
+						{
+							createdAt: mappersDate,
+							id: 1,
+							isBanned: null,
+							name: 'First',
+							sql: 1,
+							sqlWrapper: 2,
+						},
+					],
+					content: 'p1',
+					id: 1,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				sql: 1,
+				sqlWrapper: 2,
+			},
+		);
+		expect(nested2).toStrictEqual([
+			{
+				createdAt: mappersDate,
+				id: 1,
+				isBanned: null,
+				name: 'First',
+				post: {
+					author: null,
+					authorId: 1,
+					authors: [],
+					content: 'p1',
+					id: 1,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				posts: {
+					author: {
+						createdAt: mappersDate,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					authorId: 1,
+					authors: [
+						{
+							createdAt: mappersDate,
+							id: 1,
+							isBanned: null,
+							name: 'First',
+							sql: 1,
+							sqlWrapper: 2,
+						},
+					],
+					content: 'p1',
+					id: 1,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				sql: 1,
+				sqlWrapper: 2,
+			},
+			{
+				createdAt: mappersDate,
+				id: 2,
+				isBanned: true,
+				name: 'Second',
+				post: null,
+				posts: null,
+				sql: 1,
+				sqlWrapper: 2,
+			},
+			{
+				createdAt: mappersDate,
+				id: 3,
+				isBanned: null,
+				name: 'Third',
+				post: null,
+				posts: null,
+				sql: 1,
+				sqlWrapper: 2,
+			},
+		]);
+	});
+
+	test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
+		let customCast = false;
+		let customMap = false;
+
+		const codecBypass = customType<{
+			data: bigint;
+			driverData: string;
+			driverOutput: bigint;
+			jsonData: string;
+		}>({
+			codec: 'numeric:bigint',
+			dataType: () => 'numeric',
+			forJsonSelect: (identifier, sql) => {
+				customCast = true;
+				return sql`cast(${identifier} as text)`;
+			},
+			fromJson: (v) => {
+				customMap = true;
+				return BigInt(v);
+			},
+			toDriver: (v) => v.toString(),
+		});
+
+		const users = sqliteTable('users_823', {
+			id: integer('id').primaryKey(),
+			name: text('name').notNull(),
+			createdAt: integer('createdAt', { mode: 'timestamp' }).notNull(),
+			num: numeric('num').notNull(),
+			cus: codecBypass('cus').notNull(),
+		});
+
+		const usersView = sqliteView('users_823_v').as((qb) =>
+			qb.select({
+				...getColumns(users),
+				max: max(users.createdAt).as('max'),
+				maxNum: max(users.num).as('maxNum'),
+				sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+				sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+				sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+					.as('sq_tag'),
+			}).from(users).groupBy(users.id)
+		);
+
+		const db = createDB({ users, usersView }, (r) => ({
+			users: {
+				self: r.one.users({
+					from: r.users.id,
+					to: r.users.id,
+				}),
+			},
+			usersView: {
+				self: r.one.usersView({
+					from: r.usersView.id,
+					to: r.usersView.id,
+				}),
+			},
+		}));
+
+		await db.run(sql.raw('drop view if exists users_823_v'));
+		await db.run(sql.raw('drop table if exists users_823'));
+		await push({ users, usersView });
+
+		const createdAt = new Date('2025-03-12T01:32:41.000Z');
+		const big = 5044565289845416380n;
+
+		await db.insert(users).values({
+			id: 1,
+			name: 'First',
+			createdAt,
+			num: '475452353476',
+			cus: big,
+		});
+
+		const res = await db.select({
+			...getColumns(users),
+			max: max(users.createdAt).as('max'),
+			maxNum: max(users.num).as('maxNum'),
+		}).from(users).groupBy(users.id);
+
+		const nested = await db.query.users.findFirst({
+			with: {
+				self: true,
+			},
+		});
+
+		const viewRes = await db.select().from(usersView);
+
+		const viewNested = await db.query.usersView.findFirst({
+			with: {
+				self: true,
+			},
+		});
+
+		const cols = {
+			id: 1,
+			name: 'First',
+			createdAt,
+			num: '475452353476',
+			cus: big,
+		};
+
+		const aggregates = { max: createdAt, maxNum: '475452353476' };
+		const subqueries = { sq: createdAt, sqAliased: createdAt, sqTag: 'tag-1' };
+
+		expect(res).toStrictEqual([{ ...cols, ...aggregates }]);
+		expect(viewRes).toStrictEqual([{ ...cols, ...aggregates, ...subqueries }]);
+
+		expect(customCast).toBeTruthy();
+		expect(customMap).toBeTruthy();
+
+		expect(nested).toStrictEqual({ ...cols, self: cols });
+
+		type ViewRow = typeof usersView.$inferSelect;
+		type ViewNestedRow = {
+			[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+		};
+
+		expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
+		expect(viewNested).toStrictEqual({
+			...cols,
+			...aggregates,
+			...subqueries,
+			self: { ...cols, ...aggregates, ...subqueries },
+		});
+	});
+
+	test.concurrent('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
+		let customCast = false;
+		let customMap = false;
+
+		const codecBypass = customType<{
+			data: bigint;
+			driverData: string;
+			driverOutput: bigint;
+			jsonData: string;
+		}>({
+			codec: 'numeric:bigint',
+			dataType: () => 'numeric',
+			forJsonSelect: (identifier, sql) => {
+				customCast = true;
+				return sql`cast(${identifier} as text)`;
+			},
+			fromJson: (v) => {
+				customMap = true;
+				return BigInt(v);
+			},
+			toDriver: (v) => v.toString(),
+		});
+
+		const users = sqliteTable('users_824', {
+			id: integer('id').primaryKey(),
+			name: text('name').notNull(),
+			createdAt: integer('createdAt', { mode: 'timestamp' }).notNull(),
+			num: numeric('num').notNull(),
+			cus: codecBypass('cus').notNull(),
+		});
+
+		const usersView = sqliteView('users_824_v').as((qb) =>
+			qb.select({
+				...getColumns(users),
+				max: max(users.createdAt).as('max'),
+				maxNum: max(users.num).as('maxNum'),
+				sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+				sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+				sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+					.as('sq_tag'),
+			}).from(users).groupBy(users.id)
+		);
+
+		const db = createDB({ users, usersView }, (r) => ({
+			users: {
+				self: r.one.users({
+					from: r.users.id,
+					to: r.users.id,
+				}),
+			},
+			usersView: {
+				self: r.one.usersView({
+					from: r.usersView.id,
+					to: r.usersView.id,
+				}),
+			},
+		}), true);
+
+		await db.run(sql.raw('drop view if exists users_824_v'));
+		await db.run(sql.raw('drop table if exists users_824'));
+		await push({ users, usersView });
+
+		const createdAt = new Date('2025-03-12T01:32:41.000Z');
+		const big = 5044565289845416380n;
+
+		await db.insert(users).values({
+			id: 1,
+			name: 'First',
+			createdAt,
+			num: '475452353476',
+			cus: big,
+		});
+
+		const res = await db.select({
+			...getColumns(users),
+			max: max(users.createdAt).as('max'),
+			maxNum: max(users.num).as('maxNum'),
+		}).from(users).groupBy(users.id);
+
+		const nested = await db.query.users.findFirst({
+			with: {
+				self: true,
+			},
+		});
+
+		const viewRes = await db.select().from(usersView);
+
+		const viewNested = await db.query.usersView.findFirst({
+			with: {
+				self: true,
+			},
+		});
+
+		const cols = {
+			id: 1,
+			name: 'First',
+			createdAt,
+			num: '475452353476',
+			cus: big,
+		};
+
+		const aggregates = { max: createdAt, maxNum: '475452353476' };
+		const subqueries = { sq: createdAt, sqAliased: createdAt, sqTag: 'tag-1' };
+
+		expect(res).toStrictEqual([{ ...cols, ...aggregates }]);
+		expect(viewRes).toStrictEqual([{ ...cols, ...aggregates, ...subqueries }]);
+
+		expect(customCast).toBeTruthy();
+		expect(customMap).toBeTruthy();
+
+		expect(nested).toStrictEqual({ ...cols, self: cols });
+
+		type ViewRow = typeof usersView.$inferSelect;
+		type ViewNestedRow = {
+			[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+		};
+
+		expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
+		expect(viewNested).toStrictEqual({
+			...cols,
+			...aggregates,
+			...subqueries,
+			self: { ...cols, ...aggregates, ...subqueries },
+		});
+	});
+
+	test('Query error wrapping', async ({ db }) => {
 		await expect(async () =>
 			await db.insert(usersTable).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]).run()
 		)
 			.rejects.toBeInstanceOf(DrizzleQueryError);
+	});
+
+	test.concurrent("No nullification on non-joined table's all-null object", async ({ db, push }) => {
+		const users = sqliteTable('nullify1_users', (t) => ({
+			id: t.integer('id').primaryKey(),
+			name: t.text('name').notNull(),
+			bio: t.text('bio'),
+			city: t.text('city'),
+		}));
+
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await push({ users });
+
+		await db.insert(users).values({ id: 1, name: 'John' });
+
+		const res = await db.select({ id: users.id, meta: { bio: users.bio, city: users.city } }).from(users);
+
+		expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
+	});
+
+	test.concurrent('Cross-table group never nullified', async ({ db, push }) => {
+		const cities = sqliteTable('nullify2_cities', (t) => ({
+			id: t.integer('id').primaryKey(),
+			name: t.text('name').notNull(),
+		}));
+		const users = sqliteTable('nullify2_users', (t) => ({
+			id: t.integer('id').primaryKey(),
+			name: t.text('name').notNull(),
+			bio: t.text('bio'),
+			cityId: t.integer('city_id').references(() => cities.id),
+		}));
+
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${cities};`);
+		await push({ cities, users });
+
+		await db.insert(cities).values([{ id: 1, name: 'Paris' }]);
+		await db.insert(users).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane' }]);
+
+		const res = await db
+			.select({ id: users.id, g: { user: users.name, cityId: cities.id, cityName: cities.name } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+			{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+		]);
+
+		const onlyJoinedSideNotNull = await db
+			.select({ id: users.id, g: { bio: users.bio, cityId: cities.id } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(onlyJoinedSideNotNull).toEqual([
+			{ id: 1, g: { bio: null, cityId: 1 } },
+			{ id: 2, g: { bio: null, cityId: null } },
+		]);
+	});
+
+	test.concurrent('SQL field groups are never nullified', async ({ db, push }) => {
+		const cities = sqliteTable('nullify3_cities', (t) => ({
+			id: t.integer('id').primaryKey(),
+			name: t.text('name').notNull(),
+		}));
+		const users = sqliteTable('nullify3_users', (t) => ({
+			id: t.integer('id').primaryKey(),
+			name: t.text('name').notNull(),
+			cityId: t.integer('city_id').references(() => cities.id),
+		}));
+
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${cities};`);
+		await push({ cities, users });
+
+		await db.insert(cities).values([{ id: 1, name: 'Paris' }]);
+		await db.insert(users).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane' }]);
+
+		const res = await db
+			.select({
+				id: users.id,
+				calc: { user: sql<string>`upper(${users.name})`, city: sql<string | null>`upper(${cities.name})` },
+			})
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+			{ id: 2, calc: { user: 'JANE', city: null } },
+		]);
+	});
+
+	test.concurrent(
+		'Nullify all-null group from from nullable join',
+		async ({ db, push }) => {
+			const cities = sqliteTable('nullify4_cities', (t) => ({
+				id: t.integer('id').primaryKey(),
+				name: t.text('name').notNull(),
+				state: t.text('state'),
+				zip: t.text('zip'),
+			}));
+			const users = sqliteTable('nullify4_users', (t) => ({
+				id: t.integer('id').primaryKey(),
+				name: t.text('name').notNull(),
+				cityId: t.integer('city_id').references(() => cities.id),
+			}));
+
+			await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+			await db.run(sql`DROP TABLE IF EXISTS ${cities};`);
+			await push({ cities, users });
+
+			await db.insert(cities).values([{ id: 1, name: 'Paris', state: 'IDF', zip: '75' }, { id: 2, name: 'London' }]);
+			await db.insert(users).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack' },
+			]);
+
+			const res = await db
+				.select({ name: users.name, c: { state: cities.state, zip: cities.zip } })
+				.from(users)
+				.leftJoin(cities, eq(users.cityId, cities.id))
+				.orderBy(users.id);
+
+			expect(res).toEqual([
+				{ name: 'John', c: { state: 'IDF', zip: '75' } },
+				{ name: 'Jane', c: null },
+				{ name: 'Jack', c: null },
+			]);
+		},
+	);
+
+	test.concurrent("Don't disregard added SQL field during join nullification", async ({ db, push }) => {
+		const cities = sqliteTable('nullify5_cities', (t) => ({
+			id: t.integer('id').primaryKey(),
+			name: t.text('name').notNull(),
+			state: t.text('state'),
+		}));
+		const users = sqliteTable('nullify5_users', (t) => ({
+			id: t.integer('id').primaryKey(),
+			name: t.text('name').notNull(),
+			cityId: t.integer('city_id').references(() => cities.id),
+		}));
+
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${cities};`);
+		await push({ cities, users });
+
+		await db.insert(cities).values([{ id: 1, name: 'Paris', state: 'IDF' }, { id: 2, name: 'London' }]);
+		await db.insert(users).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane', cityId: 2 }]);
+
+		const res = await db
+			.select({ name: users.name, c: { state: cities.state, cityUpper: sql<string>`upper(${cities.name})` } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+			{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
+		]);
+	});
+
+	test.concurrent("No nullification on non-joined table's all-null object - jit", async ({ createDB, push }) => {
+		const users = sqliteTable('nullify1_users_jit', (t) => ({
+			id: t.integer('id').primaryKey(),
+			name: t.text('name').notNull(),
+			bio: t.text('bio'),
+			city: t.text('city'),
+		}));
+
+		const db = createDB({ users }, () => ({}), true);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await push({ users });
+
+		await db.insert(users).values({ id: 1, name: 'John' });
+
+		const res = await db.select({ id: users.id, meta: { bio: users.bio, city: users.city } }).from(users);
+
+		expect(res).toEqual([{ id: 1, meta: { bio: null, city: null } }]);
+	});
+
+	test.concurrent('Cross-table group never nullified - jit', async ({ createDB, push }) => {
+		const cities = sqliteTable('nullify2_cities_jit', (t) => ({
+			id: t.integer('id').primaryKey(),
+			name: t.text('name').notNull(),
+		}));
+		const users = sqliteTable('nullify2_users_jit', (t) => ({
+			id: t.integer('id').primaryKey(),
+			name: t.text('name').notNull(),
+			bio: t.text('bio'),
+			cityId: t.integer('city_id').references(() => cities.id),
+		}));
+
+		const db = createDB({ cities, users }, () => ({}), true);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${cities};`);
+		await push({ cities, users });
+
+		await db.insert(cities).values([{ id: 1, name: 'Paris' }]);
+		await db.insert(users).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane' }]);
+
+		const res = await db
+			.select({ id: users.id, g: { user: users.name, cityId: cities.id, cityName: cities.name } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ id: 1, g: { user: 'John', cityId: 1, cityName: 'Paris' } },
+			{ id: 2, g: { user: 'Jane', cityId: null, cityName: null } },
+		]);
+
+		const onlyJoinedSideNotNull = await db
+			.select({ id: users.id, g: { bio: users.bio, cityId: cities.id } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(onlyJoinedSideNotNull).toEqual([
+			{ id: 1, g: { bio: null, cityId: 1 } },
+			{ id: 2, g: { bio: null, cityId: null } },
+		]);
+	});
+
+	test.concurrent('SQL field groups are never nullified - jit', async ({ createDB, push }) => {
+		const cities = sqliteTable('nullify3_cities_jit', (t) => ({
+			id: t.integer('id').primaryKey(),
+			name: t.text('name').notNull(),
+		}));
+		const users = sqliteTable('nullify3_users_jit', (t) => ({
+			id: t.integer('id').primaryKey(),
+			name: t.text('name').notNull(),
+			cityId: t.integer('city_id').references(() => cities.id),
+		}));
+
+		const db = createDB({ cities, users }, () => ({}), true);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${cities};`);
+		await push({ cities, users });
+
+		await db.insert(cities).values([{ id: 1, name: 'Paris' }]);
+		await db.insert(users).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane' }]);
+
+		const res = await db
+			.select({
+				id: users.id,
+				calc: { user: sql<string>`upper(${users.name})`, city: sql<string | null>`upper(${cities.name})` },
+			})
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ id: 1, calc: { user: 'JOHN', city: 'PARIS' } },
+			{ id: 2, calc: { user: 'JANE', city: null } },
+		]);
+	});
+
+	test.concurrent(
+		'Nullify all-null group from from nullable join - jit',
+		async ({ createDB, push }) => {
+			const cities = sqliteTable('nullify4_cities_jit', (t) => ({
+				id: t.integer('id').primaryKey(),
+				name: t.text('name').notNull(),
+				state: t.text('state'),
+				zip: t.text('zip'),
+			}));
+			const users = sqliteTable('nullify4_users_jit', (t) => ({
+				id: t.integer('id').primaryKey(),
+				name: t.text('name').notNull(),
+				cityId: t.integer('city_id').references(() => cities.id),
+			}));
+
+			const db = createDB({ cities, users }, () => ({}), true);
+			await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+			await db.run(sql`DROP TABLE IF EXISTS ${cities};`);
+			await push({ cities, users });
+
+			await db.insert(cities).values([{ id: 1, name: 'Paris', state: 'IDF', zip: '75' }, { id: 2, name: 'London' }]);
+			await db.insert(users).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+				{ id: 3, name: 'Jack' },
+			]);
+
+			const res = await db
+				.select({ name: users.name, c: { state: cities.state, zip: cities.zip } })
+				.from(users)
+				.leftJoin(cities, eq(users.cityId, cities.id))
+				.orderBy(users.id);
+
+			expect(res).toEqual([
+				{ name: 'John', c: { state: 'IDF', zip: '75' } },
+				{ name: 'Jane', c: null },
+				{ name: 'Jack', c: null },
+			]);
+		},
+	);
+
+	test.concurrent("Don't disregard added SQL field during join nullification - jit", async ({ createDB, push }) => {
+		const cities = sqliteTable('nullify5_cities_jit', (t) => ({
+			id: t.integer('id').primaryKey(),
+			name: t.text('name').notNull(),
+			state: t.text('state'),
+		}));
+		const users = sqliteTable('nullify5_users_jit', (t) => ({
+			id: t.integer('id').primaryKey(),
+			name: t.text('name').notNull(),
+			cityId: t.integer('city_id').references(() => cities.id),
+		}));
+
+		const db = createDB({ cities, users }, () => ({}), true);
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${cities};`);
+		await push({ cities, users });
+
+		await db.insert(cities).values([{ id: 1, name: 'Paris', state: 'IDF' }, { id: 2, name: 'London' }]);
+		await db.insert(users).values([{ id: 1, name: 'John', cityId: 1 }, { id: 2, name: 'Jane', cityId: 2 }]);
+
+		const res = await db
+			.select({ name: users.name, c: { state: cities.state, cityUpper: sql<string>`upper(${cities.name})` } })
+			.from(users)
+			.leftJoin(cities, eq(users.cityId, cities.id))
+			.orderBy(users.id);
+
+		expect(res).toEqual([
+			{ name: 'John', c: { state: 'IDF', cityUpper: 'PARIS' } },
+			{ name: 'Jane', c: { state: null, cityUpper: 'LONDON' } },
+		]);
+	});
+
+	test.concurrent('Default value priority', async ({ db, push }) => {
+		const exTbl = sqliteTable('no_default_override', (t) => ({
+			id: t.integer().primaryKey(),
+			defSql: t.integer().default(sql`1`),
+			defNum: t.integer().default(1),
+			defFn: t.integer().$defaultFn(() => 1),
+			defUpdFn: t.integer().$onUpdateFn(() => 1),
+			defMix1: t.integer().default(1).$defaultFn(() => 2).$onUpdateFn(() => 3),
+			defMix2: t.integer().$defaultFn(() => 2).$onUpdateFn(() => 3),
+			defMix3: t.integer().default(1).$defaultFn(() => 2),
+			defMix4: t.integer().default(sql`1`).$onUpdateFn(() => 3),
+		}));
+
+		await db.run(sql`DROP TABLE IF EXISTS ${exTbl};`);
+		await push({ exTbl });
+
+		await db.insert(exTbl).values({ id: 1 });
+
+		const res = await db.select().from(exTbl).get();
+
+		expect(res).toStrictEqual({
+			id: 1,
+			defSql: 1,
+			defNum: 1,
+			defFn: 1,
+			defUpdFn: 1,
+			defMix1: 2,
+			defMix2: 2,
+			defMix3: 2,
+			defMix4: 1,
+		});
+	});
+
+	test.concurrent('Mappers: deep nullification', async ({ db, push }) => {
+		const users = sqliteTable('mappers_users_dn', (t) => ({
+			id: t.numeric('id', { mode: 'number' }).primaryKey(),
+			name: t.text('name').notNull(),
+			createdAt: t.integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+			isBanned: t.integer('is_banned', { mode: 'boolean' }),
+		}));
+
+		const internalStaff = sqliteTable('internal_staff_qm_dn', (t) => ({
+			userId: t.integer('user_id').notNull().primaryKey(),
+		}));
+
+		const ticket = sqliteTable('ticket_qm_dn', (t) => ({
+			staffId: t.integer('staff_id').notNull(),
+		}));
+
+		await db.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${internalStaff};`);
+		await db.run(sql`DROP TABLE IF EXISTS ${ticket};`);
+		await push({ users, internalStaff, ticket });
+
+		await db.insert(users).values([{
+			id: 1,
+			name: 'First',
+			createdAt: mappersDate,
+		}, {
+			id: 2,
+			name: 'Second',
+			createdAt: mappersDate,
+			isBanned: true,
+		}, {
+			id: 3,
+			name: 'Third',
+			createdAt: mappersDate,
+		}]);
+		await db.insert(internalStaff).values([{ userId: 1 }, { userId: 2 }]);
+		await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]);
+
+		const subq = db
+			.select()
+			.from(internalStaff)
+			.leftJoin(users, eq(internalStaff.userId, users.id))
+			.as('internal_staff');
+		const selected = await db
+			.select()
+			.from(ticket)
+			.leftJoin(subq, eq(subq.internal_staff_qm_dn.userId, ticket.staffId))
+			.orderBy(ticket.staffId);
+
+		expect(selected).toStrictEqual([
+			{
+				internal_staff: {
+					internal_staff_qm_dn: { userId: 1 },
+					mappers_users_dn: {
+						createdAt: mappersDate,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+					},
+				},
+				ticket_qm_dn: { staffId: 1 },
+			},
+			{
+				internal_staff: {
+					internal_staff_qm_dn: { userId: 2 },
+					mappers_users_dn: {
+						createdAt: mappersDate,
+						id: 2,
+						isBanned: true,
+						name: 'Second',
+					},
+				},
+				ticket_qm_dn: { staffId: 2 },
+			},
+			{
+				internal_staff: null,
+				ticket_qm_dn: { staffId: 3 },
+			},
+		]);
+	});
+
+	test.concurrent('Jit mappers: deep nullification', async ({ db: outer, createDB, push }) => {
+		const users = sqliteTable('mappers_users_jdn', (t) => ({
+			id: t.numeric('id', { mode: 'number' }).primaryKey(),
+			name: t.text('name').notNull(),
+			createdAt: t.integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+			isBanned: t.integer('is_banned', { mode: 'boolean' }),
+		}));
+
+		const internalStaff = sqliteTable('internal_staff_qm_jdn', (t) => ({
+			userId: t.integer('user_id').notNull().primaryKey(),
+		}));
+
+		const ticket = sqliteTable('ticket_qm_jdn', (t) => ({
+			staffId: t.integer('staff_id').notNull(),
+		}));
+
+		await outer.run(sql`DROP TABLE IF EXISTS ${users};`);
+		await outer.run(sql`DROP TABLE IF EXISTS ${internalStaff};`);
+		await outer.run(sql`DROP TABLE IF EXISTS ${ticket};`);
+		await push({ users, internalStaff, ticket });
+		const db = createDB({ users, internalStaff, ticket }, () => ({}), true);
+
+		await db.insert(users).values([{
+			id: 1,
+			name: 'First',
+			createdAt: mappersDate,
+		}, {
+			id: 2,
+			name: 'Second',
+			createdAt: mappersDate,
+			isBanned: true,
+		}, {
+			id: 3,
+			name: 'Third',
+			createdAt: mappersDate,
+		}]);
+		await db.insert(internalStaff).values([{ userId: 1 }, { userId: 2 }]);
+		await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]);
+
+		const subq = db
+			.select()
+			.from(internalStaff)
+			.leftJoin(users, eq(internalStaff.userId, users.id))
+			.as('internal_staff');
+		const selected = await db
+			.select()
+			.from(ticket)
+			.leftJoin(subq, eq(subq.internal_staff_qm_jdn.userId, ticket.staffId))
+			.orderBy(ticket.staffId);
+
+		expect(selected).toStrictEqual([
+			{
+				internal_staff: {
+					internal_staff_qm_jdn: { userId: 1 },
+					mappers_users_jdn: {
+						createdAt: mappersDate,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+					},
+				},
+				ticket_qm_jdn: { staffId: 1 },
+			},
+			{
+				internal_staff: {
+					internal_staff_qm_jdn: { userId: 2 },
+					mappers_users_jdn: {
+						createdAt: mappersDate,
+						id: 2,
+						isBanned: true,
+						name: 'Second',
+					},
+				},
+				ticket_qm_jdn: { staffId: 2 },
+			},
+			{
+				internal_staff: null,
+				ticket_qm_jdn: { staffId: 3 },
+			},
+		]);
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/2992
+	test.concurrent('Issue No2992', async ({ createDB }) => {
+		const log = sqliteTable('log', {
+			id: text('id').primaryKey(),
+			message: text('message'),
+			createdAt: integer('created_at')
+				.default(sql`(cast(unixepoch('subsec') * 1000 as integer))`)
+				.notNull(),
+		});
+
+		const db = createDB({ log });
+
+		const query1 = db
+			.select({ id: log.id })
+			.from(log)
+			.orderBy(desc(log.createdAt))
+			.limit(-1)
+			.offset(50);
+
+		const query2 = db.query.log.findMany({ limit: -1, offset: 50 });
+
+		expect(query1.toSQL()).toStrictEqual({
+			params: [-1, 50],
+			sql: 'select "id" from "log" order by "log"."created_at" desc limit ? offset ?',
+		});
+		expect(query2.toSQL()).toStrictEqual({
+			params: [-1, 50],
+			sql:
+				'select "d0"."id" as "id", "d0"."message" as "message", "d0"."created_at" as "createdAt" from "log" as "d0" limit ? offset ?',
+		});
 	});
 }

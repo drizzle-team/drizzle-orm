@@ -5,12 +5,12 @@ import {
 	getTableConfig,
 	getViewConfig,
 	SQLiteBaseInteger,
-	SQLiteSyncDialect,
+	SQLiteDialect,
 	SQLiteTable,
 	SQLiteTimestamp,
 	SQLiteView,
 } from 'drizzle-orm/sqlite-core';
-import { loadModule } from 'src/utils/utils-node';
+import { loadModule } from '../../utils/utils-node';
 import { sqlToStr } from '../drizzle';
 import type {
 	CheckConstraint,
@@ -30,7 +30,7 @@ export const fromDrizzleSchema = (
 	dTables: AnySQLiteTable[],
 	dViews: SQLiteView[],
 ): InterimSchema => {
-	const dialect = new SQLiteSyncDialect();
+	const dialect = new SQLiteDialect();
 	const tableConfigs = dTables.map((it) => ({ table: it, config: getTableConfig(it) }));
 	const tables: Table[] = tableConfigs.map((it) => {
 		return {
@@ -70,7 +70,7 @@ export const fromDrizzleSchema = (
 			const hasUniqueIndex = Boolean(it.config.indexes.find((item) => {
 				const i = item.config;
 				const column = i.columns.length === 1 ? i.columns[0] : null;
-				return column && !is(column, SQL) && column.name === name;
+				return column && !is(column, SQL) && column.name === name && i.unique;
 			}));
 
 			return {
@@ -195,7 +195,11 @@ export const fromDrizzleSchema = (
 	}).flat();
 
 	const views = dViews.sort((a, b) => {
-		// see in "./dialects/postgres/drizzle.ts" for more
+		// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520
+		// When using `prepareFromSchemaFiles` to read schema files, views were returned in an unpredictable order
+		// (not in order that is was declared in schema.ts).
+		// This caused dependent views to appear before their dependencies,
+		// which breaks migration
 		const aConfig = getViewConfig(a);
 		const bConfig = getViewConfig(b);
 
@@ -261,6 +265,22 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	}
 
 	return { tables: Array.from(new Set(tables)), views, relations };
+};
+
+export type PreparedSqliteSchema = Awaited<ReturnType<typeof prepareFromSchemaFiles>>;
+
+// Decouples the schema's origin (compiled `.ts` files vs. a supplied prebuilt schema) from its consumers.
+export interface SchemaSource {
+	load(): Promise<PreparedSqliteSchema>;
+}
+
+export const SchemaSource = {
+	fromFilenames(filenames: string[]): SchemaSource {
+		return { load: () => prepareFromSchemaFiles(filenames) };
+	},
+	fromSchema(schema: PreparedSqliteSchema): SchemaSource {
+		return { load: async () => schema };
+	},
 };
 
 export const defaultFromColumn = (

@@ -10,7 +10,7 @@ import {
 	MsSqlTable,
 	MsSqlView,
 } from 'drizzle-orm/mssql-core';
-import { loadModule } from 'src/utils/utils-node';
+import { loadModule } from '../../utils/utils-node';
 import { sqlToStr } from '../drizzle';
 import type { EntityFilter } from '../pull-utils';
 import type { DefaultConstraint, InterimSchema, MssqlEntities, Schema, SchemaError } from './ddl';
@@ -288,7 +288,11 @@ export const fromDrizzleSchema = (
 	}
 
 	for (
-		// see in "./dialects/postgres/drizzle.ts" for more
+		// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520
+		// When using `prepareFromSchemaFiles` to read schema files, views were returned in an unpredictable order
+		// (not in order that is was declared in schema.ts).
+		// This caused dependent views to appear before their dependencies,
+		// which breaks migration
 		const view of schema.views.sort((a, b) => {
 			const aConfig = getViewConfig(a);
 			const bConfig = getViewConfig(b);
@@ -362,7 +366,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		const it = imports[i];
 
 		const i0: Record<string, unknown> = await loadModule(it);
-		const prepared = fromExport(i0);
+		const prepared = fromExports(i0);
 
 		tables.push(...prepared.tables);
 		schemas.push(...prepared.schemas);
@@ -378,7 +382,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	};
 };
 
-const fromExport = (exports: Record<string, unknown>) => {
+export const fromExports = (exports: Record<string, unknown>) => {
 	const tables: AnyMsSqlTable[] = [];
 	const schemas: MsSqlSchema[] = [];
 	const views: MsSqlView[] = [];

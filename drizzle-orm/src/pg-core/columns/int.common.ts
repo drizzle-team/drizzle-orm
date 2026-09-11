@@ -19,13 +19,13 @@ export abstract class PgIntColumnBuilder<
 	): HasIdentity<this, 'always'> {
 		if (sequence) {
 			const { name, ...options } = sequence;
-			(this.config as any).generatedIdentity = {
+			this.config.generatedIdentity = {
 				type: 'always',
 				sequenceName: name,
 				sequenceOptions: options,
 			} satisfies GeneratedIdentityConfig;
 		} else {
-			(this.config as any).generatedIdentity = {
+			this.config.generatedIdentity = {
 				type: 'always',
 			} satisfies GeneratedIdentityConfig;
 		}
@@ -43,13 +43,13 @@ export abstract class PgIntColumnBuilder<
 	): HasIdentity<this, 'byDefault'> {
 		if (sequence) {
 			const { name, ...options } = sequence;
-			(this.config as any).generatedIdentity = {
+			this.config.generatedIdentity = {
 				type: 'byDefault',
 				sequenceName: name,
 				sequenceOptions: options,
 			} satisfies GeneratedIdentityConfig;
 		} else {
-			(this.config as any).generatedIdentity = {
+			this.config.generatedIdentity = {
 				type: 'byDefault',
 			} satisfies GeneratedIdentityConfig;
 		}

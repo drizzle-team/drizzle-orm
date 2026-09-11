@@ -31,16 +31,12 @@ export class MySqlSmallInt<T extends ColumnBaseConfig<'number int16' | 'number u
 {
 	static override readonly [entityKind]: string = 'MySqlSmallInt';
 
+	/** @internal */
+	override readonly codec = 'smallint';
+
 	getSQLType(): string {
 		return `smallint${this.config.unsigned ? ' unsigned' : ''}`;
 	}
-
-	override mapFromDriverValue = (value: number | string): number => {
-		if (typeof value === 'string') {
-			return Number(value);
-		}
-		return value;
-	};
 }
 
 export function smallint<TUnsigned extends boolean | undefined>(

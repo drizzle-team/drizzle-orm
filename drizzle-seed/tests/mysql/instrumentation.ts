@@ -1,4 +1,4 @@
-import type { MySqlDatabase } from 'drizzle-orm/mysql-core';
+import type { MySqlAsyncDatabase } from 'drizzle-orm/mysql-core';
 import type { AnyMySql2Connection } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
 import { createConnection } from 'mysql2/promise';
@@ -28,7 +28,7 @@ const prepareTest = () => {
 				query: (sql: string, params: any[]) => Promise<any[]>;
 				batch: (statements: string[]) => Promise<void>;
 			};
-			db: MySqlDatabase<any, any>;
+			db: MySqlAsyncDatabase<any, any>;
 			push: (schema: any) => Promise<void>;
 		}
 	>({

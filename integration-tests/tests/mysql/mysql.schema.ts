@@ -17,6 +17,7 @@ import {
 	mediumint,
 	mysqlEnum,
 	primaryKey,
+	QueryBuilder,
 	real,
 	serial,
 	smallint,
@@ -93,7 +94,7 @@ export const usersView = snakeCase.view('rqb_users_view').as((qb) =>
 		...getTableColumns(usersTable),
 		postContent: postsTable.content,
 		createdAt: postsTable.createdAt,
-		counter: sql<string>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
+		counter: sql<string | number>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
 			ne(usersTable.id, 2)
 		})`
 			.mapWith((data) => {
@@ -102,6 +103,19 @@ export const usersView = snakeCase.view('rqb_users_view').as((qb) =>
 	})
 		.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId))
 );
+
+export const usersSubquery = new QueryBuilder().select({
+	...getTableColumns(usersTable),
+	postContent: postsTable.content,
+	createdAt: postsTable.createdAt,
+	counter: sql<string | number>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
+		ne(usersTable.id, 2)
+	})`
+		.mapWith((data) => {
+			return data === '0' || data === 0 ? null : Number(data);
+		}).as('count'),
+})
+	.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId)).as('users_sq');
 
 export const commentsTable = snakeCase.table('comments', {
 	id: serial().primaryKey(),
@@ -177,7 +191,7 @@ export const schemaUsersView = rqbSchema.view('users_sch_view').as((qb) =>
 		...getTableColumns(schemaUsers),
 		postContent: schemaPosts.content,
 		createdAt: schemaPosts.createdAt,
-		counter: sql<string>`(select count(*) from ${schemaUsers} as ${alias(schemaUsers, 'count_source')} where ${
+		counter: sql<string | number>`(select count(*) from ${schemaUsers} as ${alias(schemaUsers, 'count_source')} where ${
 			ne(schemaUsers.id, 2)
 		})`
 			.mapWith((data) => {
@@ -254,6 +268,41 @@ export const allTypesTable = snakeCase.table('all_types', {
 	enum: mysqlEnum(['enV1', 'enV2']),
 });
 
+export type AllTypes = {
+	serial: number;
+	blob: Buffer | null;
+	blobStr: string | null;
+	bigint53: number | null;
+	bigint64: bigint | null;
+	bigintString: string | null;
+	binary: string | null;
+	boolean: boolean | null;
+	char: string | null;
+	date: Date | null;
+	dateStr: string | null;
+	datetime: Date | null;
+	datetimeStr: string | null;
+	decimal: string | null;
+	decimalNum: number | null;
+	decimalBig: bigint | null;
+	double: number | null;
+	float: number | null;
+	int: number | null;
+	json: unknown;
+	medInt: number | null;
+	smallInt: number | null;
+	real: number | null;
+	text: string | null;
+	time: string | null;
+	timestamp: Date | null;
+	timestampStr: string | null;
+	tinyInt: number | null;
+	varbin: string | null;
+	varchar: string | null;
+	year: number | null;
+	enum: 'enV1' | 'enV2' | null;
+};
+
 export const students = snakeCase.table('students', {
 	studentId: serial('student_id').primaryKey().notNull(),
 	name: text().notNull(),
@@ -277,6 +326,7 @@ const customBigInt = customType<{
 	driverOutput: string;
 	jsonData: string;
 }>({
+	codec: 'bigint',
 	dataType: () => 'bigint',
 	fromDriver: BigInt,
 });

@@ -1,16 +1,17 @@
 import type { CheckHandlerResult } from '../../cli/commands/check';
-import { postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
+import { humanLog, postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
 import { assertUnreachable } from '../../utils';
 import type { PostgresDDL } from './ddl';
 import { createDDL, fromEntities, interimToDDL } from './ddl';
-import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
+import { fromDrizzleSchema } from './drizzle';
+import type { PreparedPostgresSchema } from './drizzle';
 import type { PostgresSnapshot } from './snapshot';
 import { drySnapshot, snapshotValidator } from './snapshot';
 import type { JsonStatement } from './statements';
 
 export const prepareSnapshot = async (
 	snapshots: string[],
-	filenames: string[],
+	prepared: PreparedPostgresSchema,
 	checkResult?: CheckHandlerResult,
 ): Promise<{
 	ddlPrev: PostgresDDL;
@@ -44,7 +45,7 @@ export const prepareSnapshot = async (
 	for (const entry of prevSnapshot.ddl) {
 		ddlPrev.entities.push(entry);
 	}
-	const res = await prepareFromSchemaFiles(filenames);
+	const res = prepared;
 
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
 	const { schema, errors, warnings } = fromDrizzleSchema(
@@ -53,18 +54,18 @@ export const prepareSnapshot = async (
 	);
 
 	if (warnings.length > 0) {
-		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
+		humanLog(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
 	}
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
+		humanLog(errors.map((it) => postgresSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
 	const { ddl: ddlCur, errors: errors2 } = interimToDDL(schema);
 
 	if (errors2.length > 0) {
-		console.log(errors2.map((it) => postgresSchemaError(it)).join('\n'));
+		humanLog(errors2.map((it) => postgresSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 

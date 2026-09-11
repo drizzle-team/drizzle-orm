@@ -23,13 +23,14 @@ import {
 	or,
 } from '~/sql/expressions';
 import { sql } from '~/sql/sql.ts';
+import type { InferViewSelectModel } from '~/view.ts';
 
 import type { IRecordSet } from 'mssql';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { type MsSqlSelect, type MsSqlSelectQueryBuilder, QueryBuilder } from '~/mssql-core/index.ts';
 import { db } from './db.ts';
-import { cities, classes, newYorkers, users } from './tables.ts';
+import { cities, classes, newYorkers, newYorkersWithSubquery, users } from './tables.ts';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
@@ -424,6 +425,35 @@ await db.select().from(users);
 }
 
 {
+	const result = await db.select().from(newYorkersWithSubquery);
+	Expect<
+		Equal<
+			{
+				id: number;
+				class: 'A' | 'C';
+				cityCount: number;
+				lastCityId: number;
+			}[],
+			typeof result
+		>
+	>;
+	Expect<Equal<typeof result, typeof newYorkersWithSubquery.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof newYorkersWithSubquery>[]>>;
+}
+
+{
+	const result = await db.select({ cityCount: newYorkersWithSubquery.cityCount }).from(newYorkersWithSubquery);
+	Expect<
+		Equal<
+			{
+				cityCount: number;
+			}[],
+			typeof result
+		>
+	>;
+}
+
+{
 	const query = db.select().from(users).prepare().iterator();
 	for await (const row of query) {
 		Expect<Equal<typeof users.$inferSelect, typeof row>>();
@@ -613,4 +643,107 @@ await db.select().from(users);
 			rowsAffected: number[];
 		}>
 	>;
+}
+
+{
+	const crossJoinFull = await db.select().from(users).crossJoin(city);
+
+	Expect<
+		Equal<
+			{
+				users_table: typeof users.$inferSelect;
+				city: typeof city.$inferSelect;
+			}[],
+			typeof crossJoinFull
+		>
+	>;
+
+	const crossJoinFlat = await db
+		.select({
+			userId: users.id,
+			cityId: city.id,
+			cityName: city.name,
+		})
+		.from(users)
+		.crossJoin(city);
+
+	Expect<
+		Equal<{
+			userId: number;
+			cityId: number;
+			cityName: string;
+		}[], typeof crossJoinFlat>
+	>;
+}
+
+{
+	const crossApplySub = await db.select().from(users).crossApply(
+		db.select().from(cities).as('sub'),
+	);
+
+	Expect<
+		Equal<typeof crossApplySub, {
+			users_table: typeof users.$inferSelect;
+			sub: {
+				id: number;
+				name: string;
+				population: number | null;
+			};
+		}[]>
+	>;
+
+	const outerApplySub = await db.select().from(users).outerApply(
+		db.select().from(cities).as('sub'),
+	);
+
+	Expect<
+		Equal<typeof outerApplySub, {
+			users_table: typeof users.$inferSelect;
+			sub: {
+				id: number;
+				name: string;
+				population: number | null;
+			} | null;
+		}[]>
+	>;
+
+	const sqApply = db.select().from(cities).as('sub');
+
+	const applySelection = await db.select({
+		id: users.id,
+		sId: sqApply.id,
+	}).from(users).outerApply(sqApply);
+
+	Expect<
+		Equal<typeof applySelection, {
+			id: number;
+			sId: number | null;
+		}[]>
+	>;
+
+	const applyRaw = await db.select({
+		users,
+		sqId: sql<number | null>`${sql.identifier('t2')}.${sql.identifier('id')}`.as('sqId'),
+	}).from(users).crossApply(sql`(select * from ${cities}) as ${sql.identifier('t2')}`);
+
+	Expect<
+		Equal<typeof applyRaw, {
+			users: typeof users.$inferSelect;
+			sqId: number | null;
+		}[]>
+	>;
+
+	const applyTable = await db.select().from(users).crossApply(city);
+
+	Expect<
+		Equal<typeof applyTable, {
+			users_table: typeof users.$inferSelect;
+			city: typeof city.$inferSelect;
+		}[]>
+	>;
+
+	// @ts-expect-error
+	await db.select().from(users).crossApply(city, sql`true`);
+	// @ts-expect-error
+	await db.select().from(users).outerApply(city, sql`true`);
 }

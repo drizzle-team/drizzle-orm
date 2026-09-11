@@ -1,6 +1,6 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-
+import { getTableColumns } from '~/index.ts';
 import { alias } from '~/pg-core/alias.ts';
 import { boolean, integer, pgMaterializedView, pgTable, pgView, QueryBuilder, text } from '~/pg-core/index.ts';
 import {
@@ -29,11 +29,20 @@ import {
 	notLike,
 	or,
 } from '~/sql/expressions/index.ts';
-import { type InferSelectViewModel, type SQL, sql } from '~/sql/sql.ts';
+import { type SQL, sql } from '~/sql/sql.ts';
+import type { InferViewSelectModel } from '~/view.ts';
 
 import { PgSelect } from '~/pg-core/query-builders/select.ts';
 import { db } from './db.ts';
-import { cities, classes, newYorkers, newYorkers2, users } from './tables.ts';
+import {
+	cities,
+	classes,
+	newYorkers,
+	newYorkers2,
+	newYorkersWithSubquery,
+	newYorkersWithSubquery2,
+	users,
+} from './tables.ts';
 
 const city = alias(cities, 'city');
 const city1 = alias(cities, 'city1');
@@ -970,6 +979,50 @@ await db
 }
 
 {
+	const result = await db.select().from(newYorkersWithSubquery);
+	Expect<
+		Equal<
+			{
+				id: number;
+				class: 'A' | 'C';
+				cityCount: number;
+				lastCityId: number;
+			}[],
+			typeof result
+		>
+	>;
+	Expect<Equal<typeof result, typeof newYorkersWithSubquery.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof newYorkersWithSubquery>[]>>;
+}
+
+{
+	const result = await db.select({ cityCount: newYorkersWithSubquery.cityCount }).from(newYorkersWithSubquery);
+	Expect<
+		Equal<
+			{
+				cityCount: number;
+			}[],
+			typeof result
+		>
+	>;
+}
+
+{
+	const result = await db.select().from(newYorkersWithSubquery2);
+	Expect<
+		Equal<
+			{
+				id: number;
+				cityCount: number;
+			}[],
+			typeof result
+		>
+	>;
+	Expect<Equal<typeof result, typeof newYorkersWithSubquery2.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof newYorkersWithSubquery2>[]>>;
+}
+
+{
 	db
 		.select()
 		.from(users)
@@ -1212,7 +1265,7 @@ await db
 		}[]>
 	>;
 	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof view>[]>>;
 }
 
 {
@@ -1249,7 +1302,7 @@ await db
 		}[]>
 	>;
 	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof view>[]>>;
 }
 
 {
@@ -1446,4 +1499,111 @@ await db
 	await db.select().from(table1)
 		// @ts-expect-error
 		.crossJoinLateral(view);
+}
+
+// Dialect-agnostic test - do not duplicate
+{
+	const res = await db.select({
+		preNull: sql<number | null>`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, number>>;
+			return String(v);
+		}).as('sq1'),
+		postNull: sql<number>`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, number>>;
+			return String(v);
+		}).nullable().as('sq2'),
+		prePostNull: sql<number | null>`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, number>>;
+			return String(v);
+		}).nullable().as('sq3'),
+		default: sql`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, unknown>>;
+			return String(v);
+		}).as('sq4'),
+		unknown: sql<unknown>`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, unknown>>;
+			return String(v);
+		}).as('sq5'),
+		any: sql<any>`somequery`.mapWith((v) => {
+			Expect<Equal<typeof v, any>>;
+			return String(v);
+		}).as('sq6'),
+	}).from(users);
+
+	Expect<
+		Equal<typeof res, {
+			preNull: string | null;
+			postNull: string | null;
+			prePostNull: string | null;
+			default: string;
+			unknown: string;
+			any: string;
+		}[]>
+	>;
+}
+
+{
+	const tripTable = pgTable('tripTable', {
+		id: integer(),
+	});
+
+	const riderTable = pgTable('riderTable', {
+		id: integer(),
+	});
+
+	const userTable = pgTable('userTable', {
+		id: integer(),
+	});
+
+	const vehicleTable = pgTable('vehicleTable', {
+		id: integer(),
+	});
+
+	const includeRider = true as boolean;
+	const includeRiderUser = true as boolean;
+	const includeVehicle = true as boolean;
+
+	let qb = db
+		.select({
+			...getTableColumns(tripTable),
+			...(includeRider ? { rider: getTableColumns(riderTable) } : {}),
+			...(includeRiderUser ? { riderUser: getTableColumns(userTable) } : {}),
+			...(includeVehicle ? { vehicle: getTableColumns(vehicleTable) } : {}),
+		})
+		.from(tripTable)
+		.$dynamic();
+
+	if (includeRider) {
+		qb = qb.leftJoin(riderTable, eq(tripTable.id, riderTable.id));
+		if (includeRiderUser) {
+			qb = qb.innerJoin(userTable, eq(riderTable.id, userTable.id));
+		}
+	}
+	if (includeVehicle) {
+		qb = qb.leftJoin(vehicleTable, eq(tripTable.id, vehicleTable.id));
+	}
+
+	Expect<
+		Equal<Awaited<typeof qb>, {
+			vehicle?:
+				| {
+					id: number | null;
+				}
+				| null
+				| undefined;
+			riderUser?:
+				| {
+					id: number | null;
+				}
+				| null
+				| undefined;
+			rider?:
+				| {
+					id: number | null;
+				}
+				| null
+				| undefined;
+			id: number | null;
+		}[]>
+	>;
 }

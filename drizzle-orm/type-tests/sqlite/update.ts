@@ -1,11 +1,12 @@
 import type { RunResult } from 'better-sqlite3';
+import type { Changes } from 'bun:sqlite';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { eq } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
 import type { SQLiteUpdate } from '~/sqlite-core/query-builders/update.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
-import { bunDb, db } from './db.ts';
+import { bunDb, d1Db, db } from './db.ts';
 import { cities, users } from './tables.ts';
 
 const updateRun = db.update(users)
@@ -24,7 +25,7 @@ const updateRunBun = bunDb.update(users)
 	})
 	.where(eq(users.id, 1))
 	.run();
-Expect<Equal<void, typeof updateRunBun>>;
+Expect<Equal<Changes, typeof updateRunBun>>;
 
 const updateAll = db.update(users)
 	.set({
@@ -84,7 +85,7 @@ const updateGetReturningAll = db.update(users)
 	.where(eq(users.id, 1))
 	.returning()
 	.get();
-Expect<Equal<typeof users.$inferSelect, typeof updateGetReturningAll>>;
+Expect<Equal<typeof users.$inferSelect | undefined, typeof updateGetReturningAll>>;
 
 const updateGetReturningAllBun = bunDb.update(users)
 	.set({
@@ -94,7 +95,21 @@ const updateGetReturningAllBun = bunDb.update(users)
 	.where(eq(users.id, 1))
 	.returning()
 	.get();
-Expect<Equal<typeof users.$inferSelect, typeof updateGetReturningAllBun>>;
+Expect<Equal<typeof users.$inferSelect | undefined, typeof updateGetReturningAllBun>>;
+
+const updateGetReturningNoWhere = db.update(users).set({ age1: 30 }).returning().get();
+Expect<Equal<typeof users.$inferSelect | undefined, typeof updateGetReturningNoWhere>>;
+
+const updateGetReturningPartial = db.update(users).set({ age1: 30 }).where(eq(users.id, 1)).returning({
+	id: users.id,
+}).get();
+Expect<Equal<{ id: number } | undefined, typeof updateGetReturningPartial>>;
+
+const updateGetReturningPrepared = db.update(users).set({ age1: 30 }).returning().prepare().get();
+Expect<Equal<typeof users.$inferSelect | undefined, typeof updateGetReturningPrepared>>;
+
+const updateGetReturningAsync = await d1Db.update(users).set({ age1: 30 }).where(eq(users.id, 1)).returning().get();
+Expect<Equal<typeof users.$inferSelect | undefined, typeof updateGetReturningAsync>>;
 
 {
 	function dynamic<T extends SQLiteUpdate>(qb: T) {

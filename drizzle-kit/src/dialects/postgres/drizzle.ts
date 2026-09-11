@@ -35,8 +35,8 @@ import {
 	PgView,
 	uniqueKeyName,
 } from 'drizzle-orm/pg-core';
-import { loadModule } from 'src/utils/utils-node';
 import { assertUnreachable } from '../../utils';
+import { loadModule } from '../../utils/utils-node';
 import type { EntityFilter } from '../pull-utils';
 import { getOrNull } from '../utils';
 import type {
@@ -640,23 +640,7 @@ export const fromDrizzleSchema = (
 		});
 	}
 
-	const combinedViews = [...schema.views, ...schema.matViews].sort((a, b) => {
-		// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520
-		// When using `prepareFromSchemaFiles` to read schema files, views were returned in an unpredictable order
-		// (not in order that is was declared in schema.ts).
-		// This caused dependent views to appear before their dependencies,
-		// which breaks migration
-		const aConfig = is(a, PgView) ? getViewConfig(a) : getMaterializedViewConfig(a);
-		const bConfig = is(b, PgView) ? getViewConfig(b) : getMaterializedViewConfig(b);
-
-		// If a's fields include b, a depends on b -> b comes first
-		if (aConfig.query?.queryChunks.includes(b)) return 1;
-
-		// If b's fields include a, b depends on a -> a comes first
-		if (bConfig.query?.queryChunks.includes(a)) return -1;
-
-		return 0;
-	}).map((it) => {
+	const combinedViews = [...schema.views, ...schema.matViews].map((it) => {
 		if (is(it, PgView)) {
 			return {
 				...getViewConfig(it),
@@ -884,4 +868,20 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		policies,
 		relations,
 	};
+};
+
+export type PreparedPostgresSchema = Awaited<ReturnType<typeof prepareFromSchemaFiles>>;
+
+// Decouples the schema's origin (compiled `.ts` files vs. a supplied prebuilt schema) from its consumers.
+export interface SchemaSource {
+	load(): Promise<PreparedPostgresSchema>;
+}
+
+export const SchemaSource = {
+	fromFilenames(filenames: string[]): SchemaSource {
+		return { load: () => prepareFromSchemaFiles(filenames) };
+	},
+	fromSchema(schema: PreparedPostgresSchema): SchemaSource {
+		return { load: async () => schema };
+	},
 };

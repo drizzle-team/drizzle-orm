@@ -4,6 +4,21 @@ import { paramNameFor } from '../../dialects/postgres/typescript';
 import { assertUnreachable } from '../../utils';
 import type { Casing } from '../validations/common';
 
+// interimToDDL mapping errors are schema-shape descriptors ({ type, schema?,
+// table?, name? }) and carry no driver credentials, so they're safe to surface.
+// Bounded to keep the message/meta from ballooning on large schemas.
+type SchemaMappingError = { type: string; schema?: string; table?: string; name?: string; column?: string };
+
+export const summarizeSchemaMappingErrors = (errors: SchemaMappingError[], limit = 5): string => {
+	const describe = (e: SchemaMappingError) => {
+		const target = [e.schema, e.table, e.column ?? e.name].filter(Boolean).join('.');
+		return target ? `${e.type} (${target})` : e.type;
+	};
+	const head = errors.slice(0, limit).map(describe).join('; ');
+	const rest = errors.length > limit ? ` (+${errors.length - limit} more)` : '';
+	return `${head}${rest}`;
+};
+
 const withCasing = (value: string, casing: Casing) => {
 	if (casing === 'preserve') {
 		return value;
@@ -73,6 +88,11 @@ export const relationsToTypeScript = (
 		const fks = Object.values(table.foreignKeys);
 		const tableColumns = table.columns?.map((it) => withCasing(it.name, casing)) ?? [];
 
+		// A table is a junction (many-to-many) only when it has exactly two foreign keys that point
+		// to two *different other* tables. A foreign key that references the table itself
+		// (self-reference) does not make it a junction, and every foreign key must still emit its
+		// own `one` relation — see https://github.com/drizzle-team/drizzle-orm/issues/6197
+		let handledAsJunction = false;
 		if (fks.length === 2) {
 			const [fk1, fk2] = fks;
 			// reference to different tables, means it can be through many-many
@@ -89,7 +109,10 @@ export const relationsToTypeScript = (
 
 			if (
 				toTable1 !== toTable2
+				&& toTable1 !== tableThrough // check for non self ref
+				&& toTable2 !== tableThrough // check for non self ref
 			) {
+				handledAsJunction = true;
 				if (!tableRelations[toTable1]) {
 					tableRelations[toTable1] = [];
 				}
@@ -123,7 +146,9 @@ export const relationsToTypeScript = (
 					columnsThroughTo,
 				});
 			}
-		} else {
+		}
+
+		if (!handledAsJunction) {
 			fks.forEach((fk) => {
 				const tableNameFrom = paramNameFor(fk.table, table.schema);
 				const tableNameTo = paramNameFor(fk.tableTo, fk.schemaTo);
@@ -158,8 +183,8 @@ export const relationsToTypeScript = (
 				// not matter if it's 1 column, 2 columns or more
 				if (
 					table.uniques.find((constraint) =>
-						constraint.columns.length === columnsFrom.length
-						&& constraint.columns.every((col, i) => col === columnsFrom[i])
+						constraint.columns.length === fk.columns.length // need to check without casing (name should be preserved)
+						&& constraint.columns.every((col, i) => col === fk.columns[i]) // need to check without casing (name should be preserved)
 					)
 				) {
 					// the difference between one and one-one is that one-one won't contain from and to
@@ -283,7 +308,10 @@ export const relationsToTypeScript = (
 					})`
 					: `[${
 						relation.columnsThroughFrom!
-							.map((it) => `r.${relation.tableFrom}.${it}.through(${relation.tableThrough}.${it})`)
+							// https://github.com/drizzle-team/drizzle-orm/issues/6100
+							.map((it, index) =>
+								`r.${relation.tableFrom}.${relation.columnsFrom[index]}.through(r.${relation.tableThrough}.${it})`
+							)
 							.join(', ')
 					}]`;
 				const to = relation.columnsThroughTo!.length === 1
@@ -292,7 +320,10 @@ export const relationsToTypeScript = (
 					})`
 					: `[${
 						relation.columnsThroughTo!
-							.map((it) => `r.${relation.tableTo}.${it}.through(${relation.tableThrough}.${it})`)
+							// https://github.com/drizzle-team/drizzle-orm/issues/6100
+							.map((it, index) =>
+								`r.${relation.tableTo}.${relation.columnsTo![index]}.through(r.${relation.tableThrough}.${it})`
+							)
 							.join(', ')
 					}]`;
 
@@ -308,5 +339,6 @@ export const relationsToTypeScript = (
 
 	return {
 		file: importsTs + relationString,
+		tableRelations,
 	};
 };

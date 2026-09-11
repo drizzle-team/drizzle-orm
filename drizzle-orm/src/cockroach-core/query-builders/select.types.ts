@@ -1,7 +1,11 @@
 import type { CockroachColumn } from '~/cockroach-core/columns/index.ts';
 import type { CockroachTable, CockroachTableWithColumns } from '~/cockroach-core/table.ts';
 import type { CockroachViewBase } from '~/cockroach-core/view-base.ts';
-import type { CockroachViewWithSelection } from '~/cockroach-core/view.ts';
+import type {
+	CockroachMaterializedView,
+	CockroachMaterializedViewWithSelection,
+	CockroachViewWithSelection,
+} from '~/cockroach-core/view.ts';
 import type {
 	SelectedFields as SelectedFieldsBase,
 	SelectedFieldsFlat as SelectedFieldsFlatBase,
@@ -20,10 +24,11 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
-import type { ColumnsSelection, Placeholder, SQL, SQLWrapper, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, DrizzleTypeError, Equal, ValidateShape, ValueOrArray } from '~/utils.ts';
+import type { UpdateViewConfig, View } from '~/view.ts';
 import type { CockroachPreparedQuery, PreparedQueryConfig } from '../session.ts';
 import type { CockroachSelectBase, CockroachSelectQueryBuilderBase } from './select.ts';
 
@@ -40,12 +45,22 @@ export type BuildAliasTable<TTable extends CockroachTable | View, TAlias extends
 		UpdateTableConfig<TTable['_'], {
 			name: TAlias;
 			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'cockroach'>;
+			isAlias: true;
 		}>
 	>
+	: TTable extends CockroachMaterializedView ? CockroachMaterializedViewWithSelection<
+			UpdateViewConfig<TTable['_'], {
+				name: TAlias;
+				selectedFields: MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'cockroach'>;
+				isAlias: true;
+			}>
+		>
 	: TTable extends View ? CockroachViewWithSelection<
-			TAlias,
-			TTable['_']['existing'],
-			MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'cockroach'>
+			UpdateViewConfig<TTable['_'], {
+				name: TAlias;
+				selectedFields: MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'cockroach'>;
+				isAlias: true;
+			}>
 		>
 	: never;
 
@@ -54,6 +69,9 @@ export interface CockroachSelectConfig {
 	// Either fields or fieldsFlat must be defined
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
+	setFieldsFlat?: SelectedFieldsOrdered;
+	mapper?: (raw: any) => any;
+	ignoreSelectionCastCodecs?: boolean;
 	where?: SQL;
 	having?: SQL;
 	table: CockroachTable | Subquery | CockroachViewBase | SQL;
@@ -82,6 +100,16 @@ export interface CockroachSelectConfig {
 export type TableLikeHasEmptySelection<T extends CockroachTable | Subquery | CockroachViewBase | SQL> = T extends
 	Subquery ? Equal<T['_']['selectedFields'], {}> extends true ? true : false
 	: false;
+
+export type CheckTableLikeSelection<T extends CockroachTable | Subquery | CockroachViewBase | SQL> =
+	TableLikeHasEmptySelection<T> extends true ?
+			| DrizzleTypeError<
+				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+			>
+			| CockroachTable
+			| CockroachViewBase
+			| SQL
+		: T;
 
 export type CockroachSelectJoin<
 	T extends AnyCockroachSelectQueryBuilder,
@@ -121,10 +149,7 @@ export type CockroachSelectJoinFn<
 	TJoinedTable extends (TIsLateral extends true ? Subquery | SQL : CockroachTable | Subquery | CockroachViewBase | SQL),
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(
-	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
-			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-		>
-		: TJoinedTable,
+	table: CheckTableLikeSelection<TJoinedTable>,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
 ) => CockroachSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
@@ -136,10 +161,7 @@ export type CockroachSelectCrossJoinFn<
 	TJoinedTable extends (TIsLateral extends true ? Subquery | SQL : CockroachTable | Subquery | CockroachViewBase | SQL),
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(
-	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
-			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-		>
-		: TJoinedTable,
+	table: CheckTableLikeSelection<TJoinedTable>,
 ) => CockroachSelectJoin<T, TDynamic, 'cross', TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<CockroachColumn>;

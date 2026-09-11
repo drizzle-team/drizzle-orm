@@ -70,6 +70,9 @@ export class SQLiteIntegerBuilder extends SQLiteBaseIntegerBuilder<{
 
 export class SQLiteInteger<T extends ColumnBaseConfig<'number int53'>> extends SQLiteBaseInteger<T> {
 	static override readonly [entityKind]: string = 'SQLiteInteger';
+
+	/** @internal */
+	override readonly codec = 'integer';
 }
 
 export class SQLiteTimestampBuilder extends SQLiteBaseIntegerBuilder<{
@@ -106,17 +109,10 @@ export class SQLiteTimestamp<T extends ColumnBaseConfig<'object date'>>
 {
 	static override readonly [entityKind]: string = 'SQLiteTimestamp';
 
-	readonly mode: 'timestamp' | 'timestamp_ms' = this.config.mode;
+	/** @internal */
+	override readonly codec: 'integer:timestamp' | 'integer:timestamp_ms' = `integer:${this.config.mode}`;
 
-	override mapFromDriverValue = (value: number | string): Date => {
-		// legacy issue if integer had string date format
-		// old kit generated defaults as quoted strings "<string>"
-		if (typeof value === 'string') return new Date(value.replaceAll('"', ''));
-		if (this.config.mode === 'timestamp') {
-			return new Date(value * 1000);
-		}
-		return new Date(value);
-	};
+	readonly mode: 'timestamp' | 'timestamp_ms' = this.config.mode;
 
 	override mapToDriverValue = (value: Date | number): number => {
 		if (typeof value === 'number') return value;
@@ -151,11 +147,10 @@ export class SQLiteBooleanBuilder extends SQLiteBaseIntegerBuilder<{
 export class SQLiteBoolean<T extends ColumnBaseConfig<'boolean'>> extends SQLiteBaseInteger<T, { mode: 'boolean' }> {
 	static override readonly [entityKind]: string = 'SQLiteBoolean';
 
-	readonly mode: 'boolean' = this.config.mode;
+	/** @internal */
+	override readonly codec = 'integer:boolean';
 
-	override mapFromDriverValue = (value: number): boolean => {
-		return Number(value) === 1;
-	};
+	readonly mode: 'boolean' = this.config.mode;
 
 	override mapToDriverValue = (value: boolean): number => {
 		return value ? 1 : 0;

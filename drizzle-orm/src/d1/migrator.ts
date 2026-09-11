@@ -6,8 +6,8 @@ import { sql } from '~/sql/sql.ts';
 import { upgradeAsyncIfNeeded } from '~/up-migrations/sqlite.ts';
 import type { DrizzleD1Database } from './driver.ts';
 
-export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: DrizzleD1Database<TSchema, TRelations>,
+export async function migrate<TRelations extends AnyRelations>(
+	db: DrizzleD1Database<TRelations>,
 	config: MigrationConfig,
 ): Promise<void | MigratorInitFailResponse> {
 	const migrations = readMigrationFiles(config);

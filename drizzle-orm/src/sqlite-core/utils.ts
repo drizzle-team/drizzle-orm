@@ -1,10 +1,15 @@
 import { is } from '~/entity.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
+import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import type { ViewConfig } from '~/view.ts';
 import type { Check } from './checks.ts';
 import { CheckBuilder } from './checks.ts';
+import type { SQLiteCodecs } from './codecs.ts';
 import type { ForeignKey } from './foreign-keys.ts';
 import { ForeignKeyBuilder } from './foreign-keys.ts';
 import type { Index } from './indexes.ts';
@@ -41,6 +46,8 @@ export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 				primaryKeys.push(builder.build(table));
 			} else if (is(builder, ForeignKeyBuilder)) {
 				foreignKeys.push(builder.build(table));
+			} else {
+				throwUnknownExtraConfigValue(name, builder);
 			}
 		}
 	}
@@ -71,12 +78,13 @@ export function extractUsedTable(table: SQLiteTable | Subquery | SQLiteViewBase 
 
 export type OnConflict = 'rollback' | 'abort' | 'fail' | 'ignore' | 'replace';
 
-export function getViewConfig<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
->(view: SQLiteView<TName, TExisting>) {
+export function getViewConfig<T extends ViewConfig = ViewConfig>(view: SQLiteView<T>) {
 	return {
 		...view[ViewBaseConfig],
 		// ...view[SQLiteViewConfig],
 	};
 }
+
+export type DrizzleSQLiteConfig<TRelations extends AnyRelations> =
+	& DrizzleConfig<TRelations>
+	& { codecs?: SQLiteCodecs | undefined };

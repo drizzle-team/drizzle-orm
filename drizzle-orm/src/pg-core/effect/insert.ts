@@ -89,7 +89,7 @@ export class PgEffectInsertBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgInsertPrepare<this, TEffectHKT> {
-		const { session, config, dialect, cacheConfig } = this;
+		const { session, config, dialect } = this;
 		const { returning: fields } = config;
 
 		const query = dialect.sqlToQuery(this.getSQL());
@@ -103,7 +103,6 @@ export class PgEffectInsertBase<
 			name ?? generateName,
 			mapper,
 			{ type: 'insert', tables: [...extractUsedTable(this.config.table)] },
-			cacheConfig,
 		);
 
 		return preparedQuery;

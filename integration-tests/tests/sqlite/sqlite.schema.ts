@@ -6,13 +6,13 @@ import {
 	integer,
 	numeric,
 	primaryKey,
+	QueryBuilder,
 	real,
 	snakeCase,
 	text,
 } from 'drizzle-orm/sqlite-core';
 
 import { eq, getTableColumns, ne, sql } from 'drizzle-orm';
-import { relations } from 'drizzle-orm/_relations';
 
 export const usersTable = snakeCase.table('users', {
 	id: integer().primaryKey({ autoIncrement: true }),
@@ -20,24 +20,12 @@ export const usersTable = snakeCase.table('users', {
 	verified: integer().notNull().default(0),
 	invitedBy: integer().references((): AnySQLiteColumn => usersTable.id),
 });
-export const usersConfig = relations(usersTable, ({ one, many }) => ({
-	invitee: one(usersTable, {
-		fields: [usersTable.invitedBy],
-		references: [usersTable.id],
-	}),
-	usersToGroups: many(usersToGroupsTable),
-	posts: many(postsTable),
-}));
 
 export const groupsTable = snakeCase.table('groups', {
 	id: integer().primaryKey({ autoIncrement: true }),
 	name: text().notNull(),
 	description: text(),
 });
-export const groupsConfig = relations(groupsTable, ({ many }) => ({
-	usersToGroups: many(usersToGroupsTable),
-}));
-
 export const usersToGroupsTable = snakeCase.table(
 	'users_to_groups',
 	{
@@ -51,16 +39,6 @@ export const usersToGroupsTable = snakeCase.table(
 	},
 	(t) => [primaryKey({ columns: [t.userId, t.groupId] })],
 );
-export const usersToGroupsConfig = relations(usersToGroupsTable, ({ one }) => ({
-	group: one(groupsTable, {
-		fields: [usersToGroupsTable.groupId],
-		references: [groupsTable.id],
-	}),
-	user: one(usersTable, {
-		fields: [usersToGroupsTable.userId],
-		references: [usersTable.id],
-	}),
-}));
 
 export const postsTable = snakeCase.table('posts', {
 	id: integer().primaryKey({ autoIncrement: true }),
@@ -71,20 +49,13 @@ export const postsTable = snakeCase.table('posts', {
 	createdAt: integer({ mode: 'timestamp_ms' })
 		.notNull().default(sql`current_timestamp`),
 });
-export const postsConfig = relations(postsTable, ({ one, many }) => ({
-	author: one(usersTable, {
-		fields: [postsTable.ownerId],
-		references: [usersTable.id],
-	}),
-	comments: many(commentsTable),
-}));
 
 export const usersView = snakeCase.view('users_view').as((qb) =>
 	qb.select({
 		...getTableColumns(usersTable),
 		postContent: postsTable.content,
 		createdAt: postsTable.createdAt,
-		counter: sql<string>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
+		counter: sql<string | number>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
 			ne(usersTable.id, 2)
 		})`
 			.mapWith((data) => {
@@ -93,6 +64,19 @@ export const usersView = snakeCase.view('users_view').as((qb) =>
 	})
 		.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId))
 );
+
+export const usersSubquery = new QueryBuilder().select({
+	...getTableColumns(usersTable),
+	postContent: postsTable.content,
+	createdAt: postsTable.createdAt,
+	counter: sql<string | number>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
+		ne(usersTable.id, 2)
+	})`
+		.mapWith((data) => {
+			return data === '0' || data === 0 ? null : Number(data);
+		}).as('count'),
+})
+	.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId)).as('users_sq');
 
 export const commentsTable = snakeCase.table('comments', {
 	id: integer().primaryKey({ autoIncrement: true }),
@@ -104,17 +88,6 @@ export const commentsTable = snakeCase.table('comments', {
 	createdAt: integer({ mode: 'timestamp_ms' })
 		.notNull().default(sql`current_timestamp`),
 });
-export const commentsConfig = relations(commentsTable, ({ one, many }) => ({
-	post: one(postsTable, {
-		fields: [commentsTable.postId],
-		references: [postsTable.id],
-	}),
-	author: one(usersTable, {
-		fields: [commentsTable.creator],
-		references: [usersTable.id],
-	}),
-	likes: many(commentLikesTable),
-}));
 
 export const commentLikesTable = snakeCase.table('comment_likes', {
 	id: integer().primaryKey({ autoIncrement: true }),
@@ -127,16 +100,6 @@ export const commentLikesTable = snakeCase.table('comment_likes', {
 	createdAt: integer({ mode: 'timestamp_ms' })
 		.notNull().default(sql`current_timestamp`),
 });
-export const commentLikesConfig = relations(commentLikesTable, ({ one }) => ({
-	comment: one(commentsTable, {
-		fields: [commentLikesTable.commentId],
-		references: [commentsTable.id],
-	}),
-	author: one(usersTable, {
-		fields: [commentLikesTable.creator],
-		references: [usersTable.id],
-	}),
-}));
 
 export const allTypesTable = snakeCase.table('all_types', {
 	int: integer({
@@ -176,6 +139,22 @@ export const allTypesTable = snakeCase.table('all_types', {
 	}),
 });
 
+export type AllTypes = {
+	int: number | null;
+	bool: boolean | null;
+	time: Date | null;
+	timeMs: Date | null;
+	bigint: bigint | null;
+	buffer: Buffer | null;
+	json: unknown;
+	numeric: string | null;
+	numericNum: number | null;
+	numericBig: bigint | null;
+	real: number | null;
+	text: string | null;
+	jsonText: unknown;
+};
+
 export const students = snakeCase.table('students', {
 	studentId: integer('student_id').primaryKey().notNull(),
 	name: text().notNull(),
@@ -198,6 +177,7 @@ const customBigInt = customType<{
 	driverData: Buffer;
 	jsonData: string;
 }>({
+	codec: 'blob',
 	dataType: () => 'blob',
 	fromDriver: (value) => {
 		return BigInt(value.toString());
@@ -213,6 +193,7 @@ const customBytes = customType<{
 	driverData: Buffer;
 	jsonData: string;
 }>({
+	codec: 'blob',
 	dataType: () => 'blob',
 	fromJson: (value) => {
 		return Buffer.from(value, 'hex');
@@ -227,6 +208,7 @@ const customTimestamp = customType<{
 	driverData: number;
 	jsonData: number;
 }>({
+	codec: 'integer',
 	dataType: () => 'integer',
 	fromDriver: (value: number) => {
 		return new Date(value);
@@ -240,6 +222,7 @@ const customInt = customType<{
 	data: number;
 	driverData: number;
 }>({
+	codec: 'integer',
 	dataType: () => 'integer',
 });
 

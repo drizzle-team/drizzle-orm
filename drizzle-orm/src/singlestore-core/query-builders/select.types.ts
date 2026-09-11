@@ -18,10 +18,11 @@ import type {
 } from '~/query-builders/select.types.ts';
 import type { SingleStoreColumn } from '~/singlestore-core/columns/index.ts';
 import type { SingleStoreTable, SingleStoreTableWithColumns } from '~/singlestore-core/table.ts';
-import type { ColumnsSelection, Placeholder, SQL, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
+import type { View } from '~/view.ts';
 import type { PreparedQueryHKTBase, PreparedQueryKind, SingleStorePreparedQueryConfig } from '../session.ts';
 /* import type { SingleStoreViewBase } from '../view-base.ts'; */
 /* import type { SingleStoreViewWithSelection } from '../view.ts'; */
@@ -40,6 +41,7 @@ export type BuildAliasTable<TTable extends SingleStoreTable | View, TAlias exten
 		UpdateTableConfig<TTable['_'], {
 			name: TAlias;
 			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'singlestore'>;
+			isAlias: true;
 		}>
 	>
 	/* : TTable extends View ? SingleStoreViewWithSelection<
@@ -53,6 +55,8 @@ export interface SingleStoreSelectConfig {
 	withList?: Subquery[];
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
+	mapper?: (raw: any) => any;
+	ignoreSelectionCastCodecs?: boolean;
 	where?: SQL;
 	having?: SQL;
 	table: SingleStoreTable | Subquery | SQL; // | SingleStoreViewBase
@@ -218,7 +222,6 @@ export type SingleStoreSetOperatorExcludedMethods =
 	| 'where'
 	| 'having'
 	| 'groupBy'
-	| 'session'
 	| 'leftJoin'
 	| 'rightJoin'
 	| 'innerJoin'

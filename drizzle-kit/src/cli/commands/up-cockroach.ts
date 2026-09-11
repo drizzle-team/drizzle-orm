@@ -1,6 +1,10 @@
-export const upCockroachHandler = (_out: string) => {
+import { outputFormat } from '../context';
+
+export const upCockroachHandler = (_out: string): string[] => {
 	// const { snapshots } = prepareOutFolder(out, "cockroach");
 	// const report = validateWithReport(snapshots, "cockroach");
 
-	console.log("Everything's fine 🐶🔥");
+	if (outputFormat() === 'text') console.log("Everything's fine 🐶🔥");
+
+	return [];
 };

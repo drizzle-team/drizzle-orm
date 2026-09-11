@@ -6,8 +6,8 @@ import { type SQL, sql } from '~/sql/sql.ts';
 import { upgradeAsyncIfNeeded } from '~/up-migrations/sqlite.ts';
 import type { SQLiteCloudDatabase } from './driver.ts';
 
-export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: SQLiteCloudDatabase<TSchema, TRelations>,
+export async function migrate<TRelations extends AnyRelations>(
+	db: SQLiteCloudDatabase<TRelations>,
 	config: MigrationConfig,
 ): Promise<void | MigratorInitFailResponse> {
 	const migrations = readMigrationFiles(config);
@@ -35,7 +35,7 @@ export async function migrate<TSchema extends Record<string, unknown>, TRelation
 		await session.run(migrationTableCreate);
 	}
 
-	const dbMigrations = await session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
+	const dbMigrations = await session.objects<{ id: number; hash: string; created_at: string; name: string | null }>(
 		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
 	);
 

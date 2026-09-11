@@ -22,8 +22,8 @@ export namespace migrate {
 		return pgMigrator(db, config);
 	}
 
-	export async function sqlite<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-		db: BunSQLiteDatabase<TSchema, TRelations>,
+	export async function sqlite<TRelations extends AnyRelations>(
+		db: BunSQLiteDatabase<TRelations>,
 		config: MigrationConfig,
 	) {
 		return sqliteMigrator(db, config);

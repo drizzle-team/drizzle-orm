@@ -1,4 +1,4 @@
-import { cockroachSchemaError, cockroachSchemaWarning } from '../../cli/views';
+import { cockroachSchemaError, cockroachSchemaWarning, humanLog } from '../../cli/views';
 import { findLeafSnapshotIds } from '../../utils/utils-node';
 import type { CockroachDDL } from './ddl';
 import { createDDL, interimToDDL } from './ddl';
@@ -38,18 +38,18 @@ export const prepareSnapshot = async (
 	);
 
 	if (warnings.length > 0) {
-		console.log(warnings.map((it) => cockroachSchemaWarning(it)).join('\n\n'));
+		humanLog(warnings.map((it) => cockroachSchemaWarning(it)).join('\n\n'));
 	}
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => cockroachSchemaError(it)).join('\n'));
+		humanLog(errors.map((it) => cockroachSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
 	const { ddl: ddlCur, errors: errors2 } = interimToDDL(schema);
 
 	if (errors2.length > 0) {
-		console.log(errors2.map((it) => cockroachSchemaError(it)).join('\n'));
+		humanLog(errors2.map((it) => cockroachSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 

@@ -2,6 +2,7 @@ import { useEffect, useReducer } from 'react';
 import type { MigrationMeta } from '~/migrator.ts';
 import { formatToMillis } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
+import { migrateAsync } from '~/sqlite-core/async/session.ts';
 import type { OPSQLiteDatabase } from './driver.ts';
 
 interface MigrationConfig {
@@ -41,12 +42,12 @@ async function readMigrationFiles({ migrations }: MigrationConfig): Promise<Migr
 	return migrationQueries;
 }
 
-export async function migrate<TSchema extends Record<string, unknown>, TRelations extends AnyRelations>(
-	db: OPSQLiteDatabase<TSchema, TRelations>,
+export async function migrate<TRelations extends AnyRelations>(
+	db: OPSQLiteDatabase<TRelations>,
 	config: MigrationConfig,
 ) {
 	const migrations = await readMigrationFiles(config);
-	return await db.dialect.migrate(migrations, db);
+	return await migrateAsync(migrations, db);
 }
 
 interface State {
@@ -59,7 +60,7 @@ type Action =
 	| { type: 'migrated'; payload: true }
 	| { type: 'error'; payload: Error };
 
-export const useMigrations = (db: OPSQLiteDatabase<any, any>, migrations: {
+export const useMigrations = (db: OPSQLiteDatabase<any>, migrations: {
 	migrations: Record<string, string>;
 }): State => {
 	const initialState: State = {
