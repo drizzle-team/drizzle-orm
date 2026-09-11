@@ -9,6 +9,9 @@ import { parseDefaultValue } from './grammar';
 // * For consistency with MariaDB, we need to use uppercase for column names in SELECT queries,
 // * because MySQL returns them in uppercase, and MariaDB in the same case as defined (usually lowercase).
 
+// mysql treats both `'` and `\` as escape characters inside string literals
+const literal = (value: string) => `'${value.replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
+
 export const fromDatabaseForDrizzle = async (
 	db: DB,
 	schema: string,
@@ -90,13 +93,15 @@ export const fromDatabase = async (
 			SELECT
 				TABLE_NAME, 
 				TABLE_TYPE,
-				CREATE_TIME
+				DATE_FORMAT(CREATE_TIME, '%Y-%m-%d %H:%i:%s.%f') AS CREATE_TIME
 			FROM INFORMATION_SCHEMA.TABLES
 			WHERE TABLE_SCHEMA = '${schema}'
 				AND CREATE_TIME IS NOT NULL
 				${
 			cursor
-				? `AND (CREATE_TIME > '${cursor.CREATE_TIME}' OR (CREATE_TIME = '${cursor.CREATE_TIME}' AND lower(TABLE_NAME) > '${cursor.TABLE_NAME}'))`
+				? `AND (CREATE_TIME > ${literal(cursor.CREATE_TIME)} OR (CREATE_TIME = ${
+					literal(cursor.CREATE_TIME)
+				} AND lower(TABLE_NAME) > ${literal(cursor.TABLE_NAME.toLowerCase())}))`
 				: ''
 		}
 			ORDER BY CREATE_TIME, lower(TABLE_NAME)
@@ -147,10 +152,14 @@ export const fromDatabase = async (
 			AND INFORMATION_SCHEMA.STATISTICS.INDEX_NAME != 'PRIMARY'
 			${
 		cursor
-			? `AND (TABLE_NAME > '${cursor.TABLE_NAME}' OR (TABLE_NAME = '${cursor.TABLE_NAME}' AND SEQ_IN_INDEX > ${cursor.SEQ_IN_INDEX}))`
+			? `AND (TABLE_NAME > ${literal(cursor.TABLE_NAME)} OR (TABLE_NAME = ${
+				literal(cursor.TABLE_NAME)
+			} AND (INDEX_NAME > ${literal(cursor.INDEX_NAME)} OR (INDEX_NAME = ${
+				literal(cursor.INDEX_NAME)
+			} AND SEQ_IN_INDEX > ${cursor.SEQ_IN_INDEX}))))`
 			: ''
 	}
-		ORDER BY TABLE_NAME, SEQ_IN_INDEX
+		ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX
 		LIMIT ${limit};
 	`, (count) => {
 		progressCallback('indexes', count, 'fetching');
@@ -239,7 +248,9 @@ export const fromDatabase = async (
 				AND TABLE_NAME IN (${tableNamesSQL})
 				${
 				cursor
-					? `AND (TABLE_NAME > '${cursor.TABLE_NAME}' OR (TABLE_NAME = '${cursor.TABLE_NAME}' AND ORDINAL_POSITION > ${cursor.ORDINAL_POSITION}))`
+					? `AND (TABLE_NAME > ${literal(cursor.TABLE_NAME)} OR (TABLE_NAME = ${
+						literal(cursor.TABLE_NAME)
+					} AND ORDINAL_POSITION > ${cursor.ORDINAL_POSITION}))`
 					: ''
 			}
 			ORDER BY TABLE_NAME, ORDINAL_POSITION
@@ -367,7 +378,9 @@ export const fromDatabase = async (
 			AND TABLE_SCHEMA = '${schema}'
 			${
 		cursor
-			? `AND (TABLE_NAME > '${cursor.TABLE_NAME}' OR (TABLE_NAME = '${cursor.TABLE_NAME}' AND ORDINAL_POSITION > ${cursor.ORDINAL_POSITION}))`
+			? `AND (TABLE_NAME > ${literal(cursor.TABLE_NAME)} OR (TABLE_NAME = ${
+				literal(cursor.TABLE_NAME)
+			} AND ORDINAL_POSITION > ${cursor.ORDINAL_POSITION}))`
 			: ''
 	}
 		ORDER BY TABLE_NAME, ORDINAL_POSITION
@@ -441,10 +454,14 @@ export const fromDatabase = async (
 			AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
 			${
 		cursor
-			? `AND (kcu.TABLE_NAME > '${cursor.TABLE_NAME}' OR (kcu.TABLE_NAME = '${cursor.TABLE_NAME}' AND kcu.ORDINAL_POSITION > ${cursor.ORDINAL_POSITION}))`
+			? `AND (kcu.TABLE_NAME > ${literal(cursor.TABLE_NAME)} OR (kcu.TABLE_NAME = ${
+				literal(cursor.TABLE_NAME)
+			} AND (kcu.CONSTRAINT_NAME > ${literal(cursor.CONSTRAINT_NAME)} OR (kcu.CONSTRAINT_NAME = ${
+				literal(cursor.CONSTRAINT_NAME)
+			} AND kcu.ORDINAL_POSITION > ${cursor.ORDINAL_POSITION}))))`
 			: ''
 	}
-		ORDER BY kcu.TABLE_NAME, kcu.ORDINAL_POSITION
+		ORDER BY kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION
 		LIMIT ${limit}
 	`, (count) => {
 		progressCallback('fks', count, 'fetching');
@@ -552,7 +569,7 @@ export const fromDatabase = async (
 				SECURITY_TYPE
 			FROM INFORMATION_SCHEMA.VIEWS
 			WHERE TABLE_SCHEMA = '${schema}'
-				${cursor ? `AND TABLE_NAME > '${cursor.TABLE_NAME}'` : ''}
+				${cursor ? `AND TABLE_NAME > ${literal(cursor.TABLE_NAME)}` : ''}
 			ORDER BY TABLE_NAME
 			LIMIT ${limit}`,
 		(count) => {
