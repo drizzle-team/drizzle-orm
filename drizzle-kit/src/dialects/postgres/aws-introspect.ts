@@ -25,6 +25,7 @@ import {
 	defaultForColumn,
 	isSerialExpression,
 	isSystemNamespace,
+	parseCheckDefinition,
 	parseOnType,
 	parseViewDefinition,
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
@@ -876,7 +877,7 @@ export const fromDatabase = async (
 			schema: schema.name,
 			table: table.name,
 			name: check.name,
-			value: check.definition,
+			value: parseCheckDefinition(check.definition),
 		});
 	}
 
