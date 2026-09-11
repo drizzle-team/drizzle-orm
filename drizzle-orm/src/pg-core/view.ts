@@ -368,6 +368,7 @@ export class ManualMaterializedViewBuilder<
 export class PgView<T extends ViewConfig = ViewConfig> extends PgViewBase<T> {
 	static override readonly [entityKind]: string = 'PgView';
 
+	/** @internal */
 	[PgViewConfig]: {
 		with?: ViewWithConfig;
 	} | undefined;
@@ -404,6 +405,7 @@ export type AnyPgView<TPartial extends Partial<ViewConfig> = {}> = PgView<Update
 export class PgMaterializedView<T extends ViewConfig = ViewConfig> extends PgViewBase<T> {
 	static override readonly [entityKind]: string = 'PgMaterializedView';
 
+	/** @internal */
 	readonly [PgMaterializedViewConfig]: {
 		readonly with?: PgMaterializedViewWithConfig;
 		readonly using?: string;
