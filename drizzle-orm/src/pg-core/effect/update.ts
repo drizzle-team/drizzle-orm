@@ -8,6 +8,7 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { type Assume, resolveNullableObjectPaths } from '~/utils.ts';
+import { createPgReturningOldNewMapper } from '../query-builders/returning.ts';
 import { type Join, PgUpdateBase, type PgUpdateHKTBase } from '../query-builders/update.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { PgViewBase } from '../view-base.ts';
@@ -121,7 +122,12 @@ export class PgEffectUpdateBase<
 		const { returning: fields } = config;
 
 		const query = dialect.sqlToQuery(this.getSQL());
-		const mapper = fields
+		const mapper = config.returningOldNew && fields
+			? createPgReturningOldNewMapper(
+				this.dialect.mapperGenerators.rows(fields, undefined)!,
+				config.returningOldNew,
+			)
+			: fields
 			? this.dialect.mapperGenerators.rows(fields, resolveNullableObjectPaths(fields, joinsNotNullableMap))
 			: undefined;
 

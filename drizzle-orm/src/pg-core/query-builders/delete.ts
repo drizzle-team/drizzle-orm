@@ -10,7 +10,14 @@ import type { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import { type Assume, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/common.ts';
-import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
+import {
+	buildPgReturningOldNewSelection,
+	isPgReturningOldNewConfig,
+	type PgReturningOldNewConfig,
+	type PgReturningOldNewConfigParam,
+	type PgReturningOldNewResult,
+} from './returning.ts';
+import type { SelectedFields, SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export type PgDeleteWithout<
 	T extends AnyPgDelete,
@@ -40,8 +47,9 @@ export type PgDelete<
 export interface PgDeleteConfig {
 	where?: SQL | undefined;
 	table: PgTable;
-	returningFields?: SelectedFieldsFlat;
+	returningFields?: SelectedFieldsFlat | SelectedFields;
 	returning?: SelectedFieldsOrdered;
+	returningOldNew?: PgReturningOldNewConfig;
 	shape?: any;
 	withList?: Subquery[];
 	comment?: SQL;
@@ -77,6 +85,25 @@ export type PgDeleteReturning<
 			T['_']['queryResult'],
 			TSelectedFields,
 			SelectResultFields<TSelectedFields>,
+			TDynamic,
+			T['_']['excludedMethods']
+		>,
+		TDynamic,
+		'returning'
+	>
+	: never;
+
+export type PgDeleteReturningOldNew<
+	T extends AnyPgDelete,
+	TDynamic extends boolean,
+	TConfig extends PgReturningOldNewConfig,
+> = T extends any ? PgDeleteWithout<
+		PgDeleteKind<
+			T['_']['hkt'],
+			T['_']['table'],
+			T['_']['queryResult'],
+			undefined,
+			PgReturningOldNewResult<T['_']['table'], TConfig, false, true>,
 			TDynamic,
 			T['_']['excludedMethods']
 		>,
@@ -232,6 +259,7 @@ export class PgDeleteBase<
 	 * Adds a `returning` clause to the query.
 	 *
 	 * Calling this method will return the specified fields of the deleted rows. If no fields are specified, all fields will be returned.
+	 * On PostgreSQL 18 and later, pass `{ old: true, new: true }` to return both whole-row versions.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/delete#delete-with-return}
 	 *
@@ -246,21 +274,39 @@ export class PgDeleteBase<
 	 * const deletedCarsIdsAndBrands: { id: number, brand: string }[] = await db.delete(cars)
 	 *   .where(eq(cars.color, 'green'))
 	 *   .returning({ id: cars.id, brand: cars.brand });
+	 *
+	 * // PostgreSQL 18+: return the old and new row versions
+	 * const changes = await db.delete(cars)
+	 *   .where(eq(cars.id, 1))
+	 *   .returning({ old: true, new: true });
 	 * ```
 	 */
 	returning(): PgDeleteReturningAll<this, TDynamic>;
+	returning<TConfig extends PgReturningOldNewConfig>(
+		fields: PgReturningOldNewConfigParam<TConfig>,
+	): PgDeleteReturningOldNew<this, TDynamic, TConfig>;
 	returning<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,
 	): PgDeleteReturning<this, TDynamic, TSelectedFields>;
 	returning(
-		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
+		fields: SelectedFieldsFlat | PgReturningOldNewConfig = this.config.table[Table.Symbol.Columns],
 	): PgDeleteReturning<this, TDynamic, any> | PgDeleteReturningAll<this, TDynamic> {
+		if (isPgReturningOldNewConfig(fields)) {
+			const selection = buildPgReturningOldNewSelection(this.config.table, fields, this.dialect.codecs);
+			this.config.returningFields = selection.returningFields;
+			this.config.returning = selection.returning;
+			this.config.returningOldNew = fields;
+			this.config.shape = undefined;
+			return this as any;
+		}
+
 		this.config.returningFields = fields;
 		this.config.returning = orderSelectedFields<PgColumn>(
 			fields,
 			undefined,
 			this.dialect.codecs,
 		);
+		this.config.returningOldNew = undefined;
 		this.config.shape = undefined;
 		return this as any;
 	}

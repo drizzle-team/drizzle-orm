@@ -8,6 +8,7 @@ import { tracer } from '~/tracing.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
 import type { PgInsertHKTBase } from '../query-builders/insert.ts';
 import { PgInsertBase } from '../query-builders/insert.ts';
+import { createPgReturningOldNewMapper } from '../query-builders/returning.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
 
@@ -85,7 +86,12 @@ export class PgAsyncInsertBase<
 			if (shape) this.withoutSelectionCastCodecs();
 
 			const query = dialect.sqlToQuery(this.getSQL());
-			const mapper = shape || !fields
+			const mapper = config.returningOldNew && fields
+				? createPgReturningOldNewMapper(
+					shape ? undefined : this.dialect.mapperGenerators.rows(fields, undefined),
+					config.returningOldNew,
+				)
+				: shape || !fields
 				? undefined
 				: this.dialect.mapperGenerators.rows(fields, undefined);
 

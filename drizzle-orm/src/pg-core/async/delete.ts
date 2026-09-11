@@ -8,6 +8,7 @@ import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
 import { PgDeleteBase, type PgDeleteHKTBase } from '../query-builders/delete.ts';
+import { createPgReturningOldNewMapper } from '../query-builders/returning.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
 
@@ -84,7 +85,12 @@ export class PgAsyncDeleteBase<
 			if (shape) this.withoutSelectionCastCodecs();
 
 			const query = dialect.sqlToQuery(this.getSQL());
-			const mapper = shape || !fields
+			const mapper = config.returningOldNew && fields
+				? createPgReturningOldNewMapper(
+					shape ? undefined : this.dialect.mapperGenerators.rows(fields, undefined),
+					config.returningOldNew,
+				)
+				: shape || !fields
 				? undefined
 				: this.dialect.mapperGenerators.rows(fields, undefined);
 

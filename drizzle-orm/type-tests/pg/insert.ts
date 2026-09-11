@@ -81,6 +81,28 @@ const insertReturningStmt = db
 const insertReturningPrepared = await insertReturningStmt.execute();
 Expect<Equal<typeof users.$inferSelect[], typeof insertReturningPrepared>>;
 
+const insertReturningOldNew = await db
+	.insert(identityColumnsTable)
+	.values({ name: 'Jane' })
+	.returning({ old: true, new: true });
+Expect<
+	Equal<
+		{ old: typeof identityColumnsTable.$inferSelect | null; new: typeof identityColumnsTable.$inferSelect }[],
+		typeof insertReturningOldNew
+	>
+>;
+
+const insertReturningOld = await db
+	.insert(identityColumnsTable)
+	.values({ name: 'Jane' })
+	.returning({ old: true });
+Expect<
+	Equal<
+		{ old: typeof identityColumnsTable.$inferSelect | null }[],
+		typeof insertReturningOld
+	>
+>;
+
 const insertReturningPartial = await db
 	.insert(users)
 	.values({
