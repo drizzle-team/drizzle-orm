@@ -27,8 +27,17 @@ ruleTester.run('enforce update with where (default options)', myRule, {
       .update()
       .set()
       .where()`,
+		'class Repo { #db; touch() { return this.#db.update({}).set({}).where({}); } }',
 	],
 	invalid: [
+		{
+			code: 'class Repo { #db; touch() { return this.#db.update({}).set({}); } }',
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'this.#db' } }],
+		},
+		{
+			code: 'class Repo { #getDb() {} touch() { return this.#getDb().update({}).set({}); } }',
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'this.#getDb(...)' } }],
+		},
 		{
 			code: 'db.update({}).set()',
 			errors: [{ messageId: 'enforceUpdateWithWhere' }],
@@ -116,8 +125,17 @@ ruleTester.run('enforce update with where (string option)', myRule, {
 			code: `const a = this.getDataSource().db.update({}).set()`,
 			options: [{ drizzleObjectName: 'getDataSource' }],
 		},
+		{
+			code: 'class Repo { #database; touch() { return this.#database.update({}).set({}); } }',
+			options: [{ drizzleObjectName: 'db' }],
+		},
 	],
 	invalid: [
+		{
+			code: 'class Repo { #db; touch() { return this.#db.update({}).set({}); } }',
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'this.#db' } }],
+			options: [{ drizzleObjectName: 'db' }],
+		},
 		{
 			code: 'db.update({}).set({})',
 			errors: [{ messageId: 'enforceUpdateWithWhere' }],
