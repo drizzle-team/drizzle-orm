@@ -3,6 +3,7 @@ import { assert, expect, it } from '@effect/vitest';
 import {
 	defineRelations,
 	ExtractTablesFromSchema,
+	inArray,
 	RelationsBuilder,
 	RelationsBuilderConfig,
 	Schema,
@@ -10,7 +11,7 @@ import {
 } from 'drizzle-orm';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { migrate } from 'drizzle-orm/effect-postgres/migrator';
-import { getTableConfig, integer, pgTable, serial, text } from 'drizzle-orm/pg-core';
+import { getTableConfig, integer, pgEnum, pgTable, serial, text } from 'drizzle-orm/pg-core';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
@@ -61,6 +62,29 @@ runCommonEffectPgTests({
 	createDB: createDB as any,
 	usedSchema,
 	addTests: (it) => {
+		it.effect('scalar enums preserve enum SQL semantics', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const state = pgEnum('enum_state', ['pending', 'done']);
+				const items = pgTable('enum_items', { state: state() });
+
+				yield* db.execute(sql`create type enum_state as enum ('pending', 'done')`);
+				yield* db.execute(sql`create table enum_items (state enum_state)`);
+
+				expect(yield* db.insert(items).values([{ state: 'pending' }, { state: null }]).returning())
+					.toEqual([{ state: 'pending' }, { state: null }]);
+
+				const selection = db.select().from(items);
+				expect(yield* selection).toEqual([{ state: 'pending' }, { state: null }]);
+				expect(yield* db.select().from(items).where(inArray(items.state, db.select().from(items))))
+					.toEqual([{ state: 'pending' }]);
+				expect(yield* db.selectDistinct().from(items).orderBy(items.state))
+					.toEqual([{ state: 'pending' }, { state: null }]);
+				expect(yield* db.update(items).set({ state: 'done' }).returning())
+					.toEqual([{ state: 'done' }, { state: 'done' }]);
+				expect(yield* db.delete(items).returning()).toEqual([{ state: 'done' }, { state: 'done' }]);
+			}));
+
 		it.effect('transaction snapshot: isolates the transaction', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
