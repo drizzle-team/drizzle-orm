@@ -9,7 +9,7 @@ import { suggestions } from 'src/cli/commands/push-sqlite';
 import { runWithCliContext } from 'src/cli/context';
 import { HintsHandler } from 'src/cli/hints';
 import { configMigrations } from 'src/cli/validations/common';
-import { EmptyProgressView } from 'src/cli/views';
+import { EmptyProgressView, explain } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
 import { createDDL, fromEntities, interimToDDL, SQLiteDDL, sqliteToRelationsPull } from 'src/dialects/sqlite/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/sqlite/diff';
@@ -100,15 +100,16 @@ export const diffAfterPull = async (
 		client.exec(st);
 	}
 
-	const filePath = `${tmpDir}/${testName}.ts`;
-
+	// introspect to schema
 	const schema = await fromDatabaseForDrizzle(db, () => true, () => {}, {
 		schema: 'drizzle',
 		table: '__drizzle_migrations',
 	});
-	const { ddl: ddl2, errors: err1 } = interimToDDL(schema);
-	const file = ddlToTypeScript(ddl2, 'camel', schema.viewsToColumns, 'sqlite');
+	const { ddl: ddl1, errors: err1 } = interimToDDL(schema);
 
+	// schema
+	const filePath = `${tmpDir}/${testName}.ts`;
+	const file = ddlToTypeScript(ddl1, 'camel', schema.viewsToColumns, 'sqlite');
 	writeFileSync(filePath, file.file);
 	await tsc(file.file).catch((e) => {
 		throw new Error(`tsc error in file ${filePath}`, { cause: e });
@@ -118,7 +119,7 @@ export const diffAfterPull = async (
 	const relationsPath = `${tmpDir}/${testName}-relations.ts`;
 	const schemaAbsolutePath = path.resolve(tmpDir, testName);
 	const relationsForTsc = relationsToTypeScript(
-		sqliteToRelationsPull(ddl2),
+		sqliteToRelationsPull(ddl1),
 		'camel',
 		schemaAbsolutePath,
 	);
@@ -127,30 +128,60 @@ export const diffAfterPull = async (
 		throw new Error(`tsc error in file ${relationsPath}`, { cause: e });
 	});
 
+	// generate snapshot from ts file
 	const res = await prepareFromSchemaFiles([filePath]);
-	const { ddl: ddl1, errors: err2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views));
+	const { ddl: ddl2, errors: err2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views));
 
-	const { sqlStatements, statements } = await ddlDiff(
-		ddl1,
-		ddl2,
-		mockResolver(new Set()),
-		mockResolver(new Set()),
-		'push',
-	);
+	// we need to create copies, since first ddlDiffDry makes preserve entity names logic
+	const ddl1Copy = fromEntities(ddl1.entities.list());
+	const ddl2Copy = fromEntities(ddl2.entities.list());
 
+	const {
+		sqlStatements: pushAfterFileSqlStatements,
+		statements: pushAfterFileStatements,
+		groupedStatements: pushAfterFileGroupedStatements,
+	} = await ddlDiffDry(ddl1, ddl2, 'push');
+
+	if (pushAfterFileSqlStatements.length > 0) {
+		console.log(chalk.bgRed('After push: ') + '\n' + explain('sqlite', pushAfterFileGroupedStatements, []));
+	}
+
+	const {
+		sqlStatements: generateAfterFileSqlStatements,
+		statements: generateAfterFileStatements,
+		groupedStatements: generateAfterFileGroupedStatements,
+	} = await ddlDiffDry(ddl1Copy, ddl2Copy, 'default');
+
+	if (generateAfterFileSqlStatements.length > 0) {
+		console.log(
+			chalk.bgRed('After generate: ') + '\n' + explain('sqlite', generateAfterFileGroupedStatements, []),
+		);
+	}
+
+	let relationsError: Error | null = null;
 	try {
 		await loadModule(path.relative(process.cwd(), relationsPath));
 		rmSync(relationsPath);
 	} catch (error: any) {
-		console.log(`Error while importing relations`);
-		throw error;
+		relationsError = error;
 	}
 
-	if (sqlStatements.length === 0) {
-		rmSync(`tests/sqlite/tmp/${testName}.ts`);
+	if (
+		[...generateAfterFileSqlStatements, ...pushAfterFileSqlStatements].length === 0
+	) {
+		rmSync(filePath);
 	}
 
-	return { sqlStatements, statements, initDDL, ddlAfterPull: ddl1, resultDdl: ddl2 };
+	return {
+		pushSqlStatements: pushAfterFileSqlStatements,
+		pushStatements: pushAfterFileStatements,
+		generateSqlStatements: generateAfterFileSqlStatements,
+		generateStatements: generateAfterFileStatements,
+		initDDL,
+		ddlAfterPull: ddl1,
+		resultDdl: ddl1,
+		relationsError,
+	};
 };
 
 export const push = async (config: {

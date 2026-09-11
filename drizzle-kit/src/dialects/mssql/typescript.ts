@@ -167,26 +167,30 @@ export const ddlToTypeScript = (
 		const columns = ddl.columns.list({ schema: table.schema, table: table.name });
 		const fks = ddl.fks.list({ schema: table.schema, table: table.name });
 
+		const callbackFks: ForeignKey[] = [];
+		const inlineFks: ForeignKey[] = [];
+		for (const fk of fks) {
+			if (
+				!isSelf(fk) && fk.columns.length === 1
+				&& fk.name === defaultNameForFK(fk.table, fk.columns, fk.tableTo, fk.columnsTo)
+			) inlineFks.push(fk);
+			else callbackFks.push(fk);
+		}
+
 		const func = tableSchema ? `${tableSchema}.table` : tableFn;
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
 		statement += createTableColumns(
 			columns,
-			table.pk,
-			fks,
+			table.pk, // pk only needed to verify if we need to add .notNull
+			inlineFks,
 			schemas,
 			ddl.defaults.list({ schema: table.schema, table: table.name }),
 			casing,
 		);
 		statement += '}';
 
-		// more than 2 fields or self reference or cyclic
-		const filteredFKs = table.fks.filter((it) => {
-			return (it.columns.length > 1 || isSelf(it))
-				|| (it.columns.length === 1 && it.name !== defaultNameForFK(it.table, it.columns, it.tableTo, it.columnsTo));
-		});
-
 		const hasCallback = table.indexes.length > 0
-			|| filteredFKs.length > 0
+			|| callbackFks.length > 0
 			|| table.pk
 			|| table.uniques.length > 0
 			|| table.checks.length > 0;
@@ -195,7 +199,7 @@ export const ddlToTypeScript = (
 			statement += ', ';
 			statement += '(table) => [\n';
 			statement += table.pk ? createTablePK(table.pk, casing) : '';
-			statement += createTableFKs(filteredFKs, schemas, casing);
+			statement += createTableFKs(callbackFks, schemas, casing);
 			statement += createTableIndexes(table.name, table.indexes, casing);
 			statement += createTableUniques(table.uniques, casing);
 			statement += createTableChecks(table.checks);
@@ -326,23 +330,14 @@ const createViewColumns = (
 const createTableColumns = (
 	columns: Column[],
 	primaryKey: PrimaryKey | null,
-	fks: ForeignKey[],
+	inlineFks: ForeignKey[],
 	schemas: Record<string, string>,
 	defaults: DefaultConstraint[],
 	casing: Casing,
 ): string => {
 	let statement = '';
 
-	// no self refs and no cyclic
-	const oneColumnsFKs = Object.values(fks)
-		.filter((it) => {
-			return !isSelf(it);
-		})
-		.filter((it) =>
-			it.columns.length === 1 && it.name === defaultNameForFK(it.table, it.columns, it.tableTo, it.columnsTo)
-		);
-
-	const fkByColumnName = oneColumnsFKs.reduce((res, it) => {
+	const fkByColumnName = inlineFks.reduce((res, it) => {
 		const arr = res[it.columns[0]] || [];
 		arr.push(it);
 		res[it.columns[0]] = arr;
@@ -358,6 +353,7 @@ const createTableColumns = (
 			casing,
 			def ? def.default : null,
 		);
+		// pk only needed to verify if we need to add .notNull
 		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name
 			? primaryKey
 			: null;

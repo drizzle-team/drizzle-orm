@@ -15,7 +15,7 @@ import { runWithCliContext } from '../../src/cli/context';
 import { HintsHandler } from '../../src/cli/hints';
 import { configMigrations } from '../../src/cli/validations/common';
 import { mysqlSchemaError as schemaError } from '../../src/cli/views';
-import { EmptyProgressView } from '../../src/cli/views';
+import { EmptyProgressView, explain } from '../../src/cli/views';
 import { hash } from '../../src/dialects/common';
 import { MysqlDDL, MysqlEntity, mysqlToRelationsPull } from '../../src/dialects/mysql/ddl';
 import { createDDL, interimToDDL } from '../../src/dialects/mysql/ddl';
@@ -28,6 +28,7 @@ import { diff as legacyDiff } from '../../src/legacy/mysql-v5/mysqlDiff';
 import { serializeMysql } from '../../src/legacy/mysql-v5/serializer';
 import { DB } from '../../src/utils';
 import { mockResolver } from '../../src/utils/mocks';
+import { loadModule } from '../../src/utils/utils-node';
 import { tsc } from '../utils';
 import 'zx/globals';
 import { relationsToTypeScript } from 'src/cli/commands/pull-common';
@@ -107,7 +108,7 @@ export const diffIntrospect = async (
 	testName: string,
 ) => {
 	const { ddl: initDDL } = drizzleToDDL(initSchema);
-	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL);
+	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL, 'default');
 	for (const st of init) await db.query(st);
 
 	// introspect to schema
@@ -117,16 +118,26 @@ export const diffIntrospect = async (
 	});
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
+	// schema
 	const filePath = `tests/mysql/tmp/${testName}.ts`;
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'mysql');
-	const filePathRelations = `tests/mysql/tmp/${testName}-relations.ts`;
-	// path
-	const relations = relationsToTypeScript(mysqlToRelationsPull(ddl1), 'camel', `./tests/mysql/tmp/${testName}`);
-
 	writeFileSync(filePath, file.file);
-	writeFileSync(filePathRelations, relations.file);
-	await tsc(file.file);
-	await tsc(relations.file);
+	await tsc(file.file).catch((e) => {
+		throw new Error(`tsc error in file ${filePath}`, { cause: e });
+	});
+
+	// relations
+	const relationsPath = `tests/mysql/tmp/${testName}-relations.ts`;
+	const schemaAbsolutePath = path.resolve('tests/mysql/tmp', testName);
+	const relationsForTsc = relationsToTypeScript(
+		mysqlToRelationsPull(ddl1),
+		'camel',
+		schemaAbsolutePath,
+	);
+	writeFileSync(relationsPath, relationsForTsc.file);
+	await tsc(relationsForTsc.file).catch((e) => {
+		throw new Error(`tsc error in file ${relationsPath}`, { cause: e });
+	});
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
@@ -139,30 +150,56 @@ export const diffIntrospect = async (
 	);
 
 	const { ddl: ddl2, errors: e3 } = interimToDDL(interim);
-
 	// TODO: handle errors
-	const renames = new Set<string>();
+
+	// we need to create copies, since first ddlDiffDry makes preserve entity names logic
+	const ddl1Copy = fromEntities(ddl1.entities.list());
+	const ddl2Copy = fromEntities(ddl2.entities.list());
 
 	const {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
-	} = await ddlDiff(
-		ddl1,
-		ddl2,
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		'push',
-	);
+		sqlStatements: pushAfterFileSqlStatements,
+		statements: pushAfterFileStatements,
+		groupedStatements: pushAfterFileGroupedStatements,
+	} = await ddlDiffDry(ddl1, ddl2, 'push');
 
-	rmSync(`tests/mysql/tmp/${testName}.ts`);
-	rmSync(`tests/mysql/tmp/${testName}-relations.ts`);
+	if (pushAfterFileSqlStatements.length > 0) {
+		console.log(chalk.bgRed('After push: ') + '\n' + explain('mysql', pushAfterFileGroupedStatements, []));
+	}
+
+	const {
+		sqlStatements: generateAfterFileSqlStatements,
+		statements: generateAfterFileStatements,
+		groupedStatements: generateAfterFileGroupedStatements,
+	} = await ddlDiffDry(ddl1Copy, ddl2Copy, 'default');
+
+	if (generateAfterFileSqlStatements.length > 0) {
+		console.log(
+			chalk.bgRed('After generate: ') + '\n' + explain('mysql', generateAfterFileGroupedStatements, []),
+		);
+	}
+
+	let relationsError: Error | null = null;
+	try {
+		await loadModule(path.relative(process.cwd(), relationsPath));
+		rmSync(relationsPath);
+	} catch (error: any) {
+		relationsError = error;
+	}
+
+	if (
+		[...generateAfterFileSqlStatements, ...pushAfterFileSqlStatements].length === 0
+	) {
+		rmSync(filePath);
+	}
 
 	return {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
+		pushSqlStatements: pushAfterFileSqlStatements,
+		pushStatements: pushAfterFileStatements,
+		generateSqlStatements: generateAfterFileSqlStatements,
+		generateStatements: generateAfterFileStatements,
 		ddlAfterPull: ddl1,
 		ddlFromPulledTsSchema: ddl2,
+		relationsError,
 	};
 };
 
