@@ -361,6 +361,11 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 
+	// drop identity first: Postgres only allows it on integer types and rejects SET DEFAULT on identity columns
+	if (diff.identity && diff.identity.to === null) {
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP IDENTITY;`);
+	}
+
 	if (diff.type) {
 		const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
 		const textProxy = wasEnum && isEnum ? 'text::' : ''; // using enum1::text::enum2
@@ -451,7 +456,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 				);
 			}
 		} else if (diff.identity.to === null) {
-			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP IDENTITY;`);
+			// dropped above, before the type and default changes
 		} else {
 			const { from, to } = diff.identity;
 
