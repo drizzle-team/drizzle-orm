@@ -132,10 +132,10 @@ export const defaultNameForIndex = (table: string, columns: string[]) => {
 	return `${table}_${columns.join('_')}_idx`;
 };
 
-// ::text, ::varchar(256), ::text::varchar(256)
+// ::text, ::varchar(256), ::text::varchar(256), ::test-test / ::"user-role" (hyphenated, incl. quoted)
 export function trimDefaultValueSuffix(defaultValue: string) {
 	let res = defaultValue.endsWith('[]') ? defaultValue.slice(0, -2) : defaultValue;
-	res = res.replace(/(::[a-zA-Z_][\w\s.]*?(?:\([^()]*\))?(?:\[\])?)+$/g, '');
+	res = res.replace(/(::["a-zA-Z_][\w\s.\-"]*?(?:\([^()]*\))?(?:\[\])?)+$/g, '');
 	return res;
 }
 
@@ -1588,7 +1588,6 @@ export const Custom: SqlType = {
 	},
 	drizzleImport: () => 'customType',
 	defaultFromDrizzle: (value) => {
-		if (!value) return '';
 		return String(value);
 	},
 	defaultArrayFromDrizzle: (value) => {

@@ -1,7 +1,7 @@
 import { is } from 'drizzle-orm';
 import { int, MsSqlColumnBuilder, MsSqlSchema, MsSqlTable, mssqlTable, MsSqlView } from 'drizzle-orm/mssql-core';
 import { configMigrations } from 'src/cli/validations/common';
-import { interimToDDL, MssqlDDL, SchemaError } from 'src/dialects/mssql/ddl';
+import { fromEntities, interimToDDL, MssqlDDL, SchemaError } from 'src/dialects/mssql/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mssql/diff';
 import { defaultFromColumn, fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mssql/drizzle';
 import { mockResolver } from 'src/utils/mocks';
@@ -107,12 +107,13 @@ export const diffIntrospect = async (
 	initSchema: MssqlDBSchema,
 	testName: string,
 	schemas: string[] = [],
+	tables: string[] = [],
 	entities?: EntitiesFilter,
 ) => {
 	const filterConfig: EntitiesFilterConfig = {
 		schemas,
 		entities,
-		tables: [],
+		tables,
 		extensions: [],
 	};
 
@@ -150,18 +151,49 @@ export const diffIntrospect = async (
 	const { schema: schema2, errors: e2 } = fromDrizzleSchema(response, filter);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 
+	if (e1.length > 0 || e2.length > 0 || e3.length > 0) {
+		throw new MockError([...e1, ...e2, ...e3]);
+	}
+
+	// we need to create copies, since first ddlDiffDry makes preserve entity names logic
+	const ddl1Copy = fromEntities(ddl1.entities.list());
+	const ddl2Copy = fromEntities(ddl2.entities.list());
+
 	const {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
+		sqlStatements: pushAfterFileSqlStatements,
+		statements: pushAfterFileStatements,
+		groupedStatements: pushAfterFileGroupedStatements,
 	} = await ddlDiffDry(ddl1, ddl2, 'push');
 
-	rmSync(`tests/mssql/tmp/${testName}.ts`);
+	if (pushAfterFileSqlStatements.length > 0) {
+		console.log(chalk.bgRed('After push: ') + '\n' + explain('mssql', pushAfterFileGroupedStatements, []));
+	}
+
+	const {
+		sqlStatements: generateAfterFileSqlStatements,
+		statements: generateAfterFileStatements,
+		groupedStatements: generateAfterFileGroupedStatements,
+	} = await ddlDiffDry(ddl1Copy, ddl2Copy, 'default');
+
+	if (generateAfterFileSqlStatements.length > 0) {
+		console.log(
+			chalk.bgRed('After generate: ') + '\n' + explain('mssql', generateAfterFileGroupedStatements, []),
+		);
+	}
+
+	if (
+		[...generateAfterFileSqlStatements, ...pushAfterFileSqlStatements].length === 0
+	) {
+		rmSync(`tests/mssql/tmp/${testName}.ts`);
+	}
 
 	return {
 		introspectDDL: ddl1,
 		fromFileDDL: ddl2,
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
+		pushSqlStatements: pushAfterFileSqlStatements,
+		pushStatements: pushAfterFileStatements,
+		generateSqlStatements: generateAfterFileSqlStatements,
+		generateStatements: generateAfterFileStatements,
 	};
 };
 

@@ -10,14 +10,17 @@ test('basic policy', async ({ db }) => {
 		}, () => [cockroachPolicy('test')]),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'basic-policy',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'basic-policy',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test('basic policy with "as"', async ({ db }) => {
@@ -27,14 +30,17 @@ test('basic policy with "as"', async ({ db }) => {
 		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'basic-policy-as',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'basic-policy-as',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test('basic policy with CURRENT_USER role', async ({ db }) => {
@@ -44,14 +50,17 @@ test('basic policy with CURRENT_USER role', async ({ db }) => {
 		}, () => [cockroachPolicy('test', { to: 'current_user' })]),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'basic-policy-with-current-user-role',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'basic-policy-with-current-user-role',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test('basic policy with all fields except "using" and "with"', async ({ db }) => {
@@ -61,14 +70,17 @@ test('basic policy with all fields except "using" and "with"', async ({ db }) =>
 		}, () => [cockroachPolicy('test', { as: 'permissive', for: 'all', to: ['root'] })]),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'basic-policy-all-fields',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'basic-policy-all-fields',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test('basic policy with "using" and "with"', async ({ db }) => {
@@ -78,14 +90,17 @@ test('basic policy with "using" and "with"', async ({ db }) => {
 		}, () => [cockroachPolicy('test', { using: sql`true`, withCheck: sql`true` })]),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'basic-policy-using-withcheck',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'basic-policy-using-withcheck',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test('multiple policies', async ({ db }) => {
@@ -95,14 +110,17 @@ test('multiple policies', async ({ db }) => {
 		}, () => [cockroachPolicy('test', { using: sql`true`, withCheck: sql`true` }), cockroachPolicy('newRls')]),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'multiple-policies',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'multiple-policies',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test('multiple policies with roles', async ({ db }) => {
@@ -121,14 +139,17 @@ test('multiple policies with roles', async ({ db }) => {
 		),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'multiple-policies-with-roles',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'multiple-policies-with-roles',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test('multiple policies with roles from schema', async ({ db }) => {
@@ -148,14 +169,17 @@ test('multiple policies with roles from schema', async ({ db }) => {
 		),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'multiple-policies-with-roles-from-schema',
-		['public'],
-		{ roles: { include: ['user_role'] } },
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'multiple-policies-with-roles-from-schema',
+			['public'],
+			{ roles: { include: ['user_role'] } },
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });

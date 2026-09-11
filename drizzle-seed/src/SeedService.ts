@@ -1,12 +1,12 @@
 /* eslint-disable drizzle-internal/require-entity-kind */
-import type { AnyColumn, AnyTable } from 'drizzle-orm';
+import type { SQLWrapper } from 'drizzle-orm';
 import { entityKind, eq, is, sql } from 'drizzle-orm';
-import type { MySqlTable, MySqlTableWithColumns } from 'drizzle-orm/mysql-core';
+import type { MySqlTable } from 'drizzle-orm/mysql-core';
 import { MySqlAsyncDatabase } from 'drizzle-orm/mysql-core';
 import type { PgTable, PgTableWithColumns } from 'drizzle-orm/pg-core';
-import { getTableConfig as getTableConfigPg, type PgDialect } from 'drizzle-orm/pg-core';
+import type { PgDialect } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
-import type { SQLiteTable, SQLiteTableWithColumns } from 'drizzle-orm/sqlite-core';
+import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core';
 import { generatorsMap } from './generators/GeneratorFuncs.ts';
 import type {
@@ -18,22 +18,25 @@ import type {
 	WeightedRandomGenerator,
 } from './generators/Generators.ts';
 import type {
+	ConnectionType,
 	DbType,
+	GeneratedRow,
 	GeneratedValueType,
 	GeneratePossibleGeneratorsColumnType,
 	GeneratePossibleGeneratorsTableType,
 	RefinementsType,
+	SeedOperation,
 	TableGeneratorsType,
 	TableType,
 } from './types/seedService.ts';
 import type { Prettify, Relation, Table } from './types/tables.ts';
 
-import type { CockroachTable, CockroachTableWithColumns } from 'drizzle-orm/cockroach-core';
+import type { CockroachTable } from 'drizzle-orm/cockroach-core';
 import { CockroachDatabase } from 'drizzle-orm/cockroach-core';
-import type { MsSqlTable, MsSqlTableWithColumns } from 'drizzle-orm/mssql-core';
+import type { MsSqlTable } from 'drizzle-orm/mssql-core';
 import { getTableConfig as getTableConfigMsSql, MsSqlDatabase } from 'drizzle-orm/mssql-core';
-import type { SingleStoreTable, SingleStoreTableWithColumns } from 'drizzle-orm/singlestore-core';
-import { SingleStoreDatabase } from 'drizzle-orm/singlestore-core';
+import type { SingleStoreTable } from 'drizzle-orm/singlestore-core';
+import type { SingleStoreDatabase } from 'drizzle-orm/singlestore-core';
 import { selectGeneratorForCockroachColumn } from './cockroach-core/selectGensForColumn.ts';
 import { latestVersion } from './generators/apiVersion.ts';
 import { selectGeneratorForMssqlColumn } from './mssql-core/selectGensForColumn.ts';
@@ -41,12 +44,16 @@ import { selectGeneratorForMysqlColumn } from './mysql-core/selectGensForColumn.
 import { selectGeneratorForPostgresColumn } from './pg-core/selectGensForColumn.ts';
 import { selectGeneratorForSingleStoreColumn } from './singlestore-core/selectGensForColumn.ts';
 import { selectGeneratorForSqlite } from './sqlite-core/selectGensForColumn.ts';
-import { equalSets, intMax, isPostgresColumnIntLike } from './utils.ts';
+import { equalSets, intMax, isSequenceBackedColumn } from './utils.ts';
+
+/** a statement that has been built but not yet run, so that it can be either executed or rendered */
+type SeedQuery = SQLWrapper & PromiseLike<unknown>;
 
 export class SeedService {
 	static readonly entityKind: string = 'SeedService';
 
 	private defaultCountForTable = 10;
+	private defaultBatchSize = 10000;
 	private postgresPgLiteMaxParametersNumber = 32740;
 	private postgresMaxParametersNumber = 65535;
 	// there is no max parameters number in mysql, so you can increase mysqlMaxParametersNumber if it's needed.
@@ -58,7 +65,7 @@ export class SeedService {
 	private hashFromStringGenerator: GenerateHashFromString | undefined;
 
 	generatePossibleGenerators = (
-		connectionType: 'postgresql' | 'mysql' | 'sqlite' | 'mssql' | 'cockroach' | 'singlestore',
+		connectionType: ConnectionType,
 		tables: Table[],
 		relations: (Relation & { isCyclic: boolean })[],
 		refinements?: RefinementsType,
@@ -121,6 +128,24 @@ export class SeedService {
 						column: rel.refColumns[idx] as string,
 					};
 				}
+			}
+
+			// a composite primary key makes a column tuple distinct exactly like a composite unique constraint does, and a
+			// junction table's primary key is usually just its two foreign keys - without generating it as a key, seeding
+			// one violates it. Only a tuple made entirely of foreign key columns is treated this way: those are filled
+			// from the values of the tables they point at, which distinct combinations can always be drawn from, while an
+			// arbitrary column may have no way of producing unique values at all.
+			for (const compositePrimaryKey of table.compositePrimaryKeys) {
+				if (compositePrimaryKey.length < 2) continue;
+				if (!compositePrimaryKey.every((columnName) => Object.hasOwn(foreignKeyColumns, columnName))) continue;
+				// two keys sharing a column cannot both be generated, so an overlapping primary key gives way
+				if (
+					table.uniqueConstraints.some((constraint) =>
+						constraint.some((columnName) => compositePrimaryKey.includes(columnName))
+					)
+				) continue;
+
+				table.uniqueConstraints = [...table.uniqueConstraints, compositePrimaryKey];
 			}
 
 			// handling refinements (count, with)
@@ -329,7 +354,14 @@ export class SeedService {
 					columnPossibleGenerator.generator = arrayGen;
 				}
 
-				columnPossibleGenerator.generator.isUnique = col.isUnique;
+				// `col.isUnique` only reflects an inline `.unique()` modifier, so a column that is a primary key on its own
+				// has to be marked unique here as well - otherwise one filled from a relation samples the values it
+				// points at with repetition and violates its own primary key. A generator the user picked themselves is
+				// left alone: they are the ones who said what it should do.
+				const isSingleColumnPrimaryKey = col.primary
+					|| table.compositePrimaryKeys.some((primaryKey) => primaryKey.length === 1 && primaryKey[0] === col.name);
+				columnPossibleGenerator.generator.isUnique = col.isUnique
+					|| (isSingleColumnPrimaryKey && columnPossibleGenerator.wasRefined === false);
 
 				// composite unique keys handling
 				let compositeKeyColumnNames = table.uniqueConstraints.filter((colNames) => colNames.includes(col.name));
@@ -656,49 +688,98 @@ export class SeedService {
 		return { filteredTablesGenerators, tablesUniqueNotNullColumn };
 	};
 
-	generateTablesValues = async (
-		relations: (Relation & { isCyclic: boolean })[],
-		tablesGenerators: ReturnType<typeof this.generatePossibleGenerators>,
-		db?: DbType,
-		schema?: { [key: string]: TableType },
-		options?: {
-			count?: number;
-			seed?: number;
-			preserveData?: boolean;
-			preserveCyclicTablesData?: boolean;
-			insertDataInDb?: boolean;
-			updateDataInDb?: boolean;
-			tablesValues?: {
-				tableName: string;
-				rows: {
-					[columnName: string]: GeneratedValueType;
-				}[];
-			}[];
-			tablesUniqueNotNullColumn?: { [tableName: string]: { uniqueNotNullColName: string } };
+	/**
+	 * Produces every write a seed is made of, in the order it has to happen, without performing any of them. Rows come
+	 * out a batch at a time, so a caller that does not hold on to them never has more than one batch of a table in
+	 * memory - which is what makes seeding millions of rows possible whichever sink the operations end up in.
+	 */
+	*planSeed(
+		{ connectionType, tables, relations, refinements, options, maxParametersNumber }: {
+			connectionType: ConnectionType;
+			tables: Table[];
+			relations: (Relation & { isCyclic: boolean })[];
+			refinements?: RefinementsType;
+			options?: { count?: number; seed?: number; version?: number };
+			maxParametersNumber: number;
 		},
-	) => {
+	): Generator<SeedOperation> {
+		const tablesGenerators = this.generatePossibleGenerators(
+			connectionType,
+			tables,
+			relations,
+			refinements,
+			options,
+		);
+
+		// only postgres needs its sequences moved past the values that were written explicitly; mysql and sqlite keep
+		// their auto increment counters in step on their own
+		const sequenceColumns: { [tableName: string]: Set<string> } = {};
+		if (connectionType === 'postgresql') {
+			for (const table of tables) {
+				sequenceColumns[table.name] = new Set(
+					table.columns.filter((column) => isSequenceBackedColumn(column)).map((column) => column.name),
+				);
+			}
+		}
+
+		const tablesValues: { tableName: string; rows: GeneratedRow[] }[] = [];
+
+		yield* this.planTablesValues({
+			relations,
+			tablesGenerators,
+			tablesValues,
+			sequenceColumns,
+			options,
+			maxParametersNumber,
+			preserveCyclicTablesData: relations.some((rel) => rel.isCyclic === true),
+		});
+
+		// tables held together by a cyclic relation cannot be filled in one go: the pass above leaves the cyclic foreign
+		// keys null, and this one fills them in now that both sides exist.
+		const { filteredTablesGenerators, tablesUniqueNotNullColumn } = this.filterCyclicTables(tablesGenerators);
+		if (filteredTablesGenerators.length !== 0) {
+			yield* this.planTablesValues({
+				relations,
+				tablesGenerators: filteredTablesGenerators,
+				tablesValues,
+				sequenceColumns,
+				options,
+				maxParametersNumber,
+				tablesUniqueNotNullColumn,
+			});
+		}
+	}
+
+	private *planTablesValues(
+		{
+			relations,
+			tablesGenerators,
+			tablesValues,
+			sequenceColumns,
+			options,
+			maxParametersNumber,
+			tablesUniqueNotNullColumn,
+			preserveCyclicTablesData,
+		}: {
+			relations: (Relation & { isCyclic: boolean })[];
+			tablesGenerators: Prettify<GeneratePossibleGeneratorsTableType>[];
+			tablesValues: { tableName: string; rows: GeneratedRow[] }[];
+			sequenceColumns: { [tableName: string]: Set<string> };
+			options?: { count?: number; seed?: number };
+			maxParametersNumber: number;
+			tablesUniqueNotNullColumn?: { [tableName: string]: { uniqueNotNullColName: string } };
+			preserveCyclicTablesData?: boolean;
+		},
+	): Generator<SeedOperation> {
 		const customSeed = options?.seed === undefined ? 0 : options.seed;
+		// the second pass over cyclic tables rewrites rows that already exist instead of adding new ones
+		const isUpdatePass = tablesUniqueNotNullColumn !== undefined;
+
 		let tableCount: number | undefined;
 		let columnsGenerators: Prettify<GeneratePossibleGeneratorsColumnType>[];
 		let tableGenerators: Prettify<TableGeneratorsType>;
-
-		let tableValues: {
-			[columnName: string]: GeneratedValueType;
-		}[];
-
-		let tablesValues: {
-			tableName: string;
-			rows: typeof tableValues;
-		}[] = options?.tablesValues === undefined ? [] : options.tablesValues;
-
 		let pRNGSeed: number;
 		let filteredRelations: typeof relations;
-
-		let preserveData: boolean, insertDataInDb: boolean = true, updateDataInDb: boolean = false;
-		if (options?.preserveData !== undefined) preserveData = options.preserveData;
-		if (options?.insertDataInDb !== undefined) insertDataInDb = options.insertDataInDb;
-		if (options?.updateDataInDb !== undefined) updateDataInDb = options.updateDataInDb;
-		if (updateDataInDb === true) insertDataInDb = false;
 
 		// TODO: now I'm generating tablesInOutRelations twice, first time in generatePossibleGenerators and second time here. maybe should generate it once instead.
 		const { tablesInOutRelations } = this.getInfoFromRelations(relations);
@@ -769,12 +850,18 @@ export class SeedService {
 								pRNGSeed,
 							};
 
-							refColumnValues = (await this.generateColumnsValuesByGenerators({
-								tableGenerators: refColumnGenerator,
-								count: tableCount,
-								preserveData: true,
-								insertDataInDb: false,
-							}))!.map((rows) => rows[refColName]);
+							// a self relation draws its values from the very column it points at, so that column is
+							// generated once up front and then sampled
+							refColumnValues = [];
+							for (
+								const batch of this.generateRowBatches({
+									tableGenerators: refColumnGenerator,
+									count: tableCount,
+									batchSize: Math.max(1, tableCount ?? this.defaultCountForTable),
+								})
+							) {
+								for (const row of batch) refColumnValues.push(row[refColName]);
+							}
 
 							hasSelfRelation = true;
 							genObj = tableGenerators[rel.columns[colIdx]!]!.generator!;
@@ -800,6 +887,20 @@ export class SeedService {
 							genObj = tableGenerators[rel.columns[colIdx]!]!.generator!;
 							genObj.updateParams({ columnName: rel.columns[colIdx]!, paramsToUpdate: { values: refColumnValues } });
 
+							// a column that is part of a composite unique key is generated together with the rest of the
+							// key, by walking the combinations of their values - which cannot also honour how many times
+							// each referenced value is meant to repeat
+							if (
+								repeatedValuesCount !== undefined
+								&& genObj.getEntityKind() === 'GenerateCompositeUniqueKey'
+							) {
+								console.warn(
+									`Column '${rel.columns[colIdx]}' of the '${table.tableName}' table is part of a composite`
+										+ ` unique key, so the number of rows per '${rel.refTable}' row asked for in the 'with'`
+										+ ` option cannot be applied to it.`,
+								);
+							}
+
 							genObj.notNull = tableGenerators[rel.columns[colIdx]!]!.notNull;
 							genObj.weightedCountSeed = weightedCountSeed;
 							genObj.maxRepeatedValuesCount = repeatedValuesCount;
@@ -817,34 +918,69 @@ export class SeedService {
 				}
 			}
 
-			preserveData = (
-					options?.preserveData === undefined
-					&& tablesInOutRelations[table.tableName]?.in === 0
-				)
-				? false
-				: true;
-
-			preserveData = preserveData || (options?.preserveCyclicTablesData === true
+			// a table's rows are only kept around while a table that still has to be generated needs them to fill in a
+			// foreign key
+			let preserveData = tablesInOutRelations[table.tableName]?.in !== 0;
+			preserveData = preserveData || (preserveCyclicTablesData === true
 				&& table.columnsPossibleGenerators.some((colGen) => colGen.isCyclic === true));
 
-			tableValues = await this.generateColumnsValuesByGenerators({
-				tableGenerators,
-				db,
-				schema,
-				tableName: table.tableName,
-				count: tableCount,
-				preserveData,
-				insertDataInDb,
-				updateDataInDb,
-				uniqueNotNullColName: options?.tablesUniqueNotNullColumn === undefined
-					? undefined
-					: options?.tablesUniqueNotNullColumn[table.tableName]?.uniqueNotNullColName,
-			});
+			let override = false;
+			let columnsNumber = 0;
+			for (const columnName of Object.keys(tableGenerators)) {
+				columnsNumber += 1;
+				// postgres identity columns
+				override = tableGenerators[columnName]?.generatedIdentityType === 'always' ? true : override;
+				// mssql identity columns
+				override = tableGenerators[columnName]?.identity === true ? true : override;
+			}
+
+			// a statement carries one parameter per column of every row it writes, so how many rows fit in one depends
+			// on how wide the table is
+			const maxBatchSize = Math.max(1, Math.floor(maxParametersNumber / Math.max(1, columnsNumber)));
+			const batchSize = isUpdatePass ? 1 : Math.min(this.defaultBatchSize, maxBatchSize);
+
+			const uniqueNotNullColName = tablesUniqueNotNullColumn?.[table.tableName]?.uniqueNotNullColName;
+			const trackedColumns = isUpdatePass ? undefined : sequenceColumns[table.tableName];
+			const maxSequenceValues = new Map<string, number | bigint>();
+
+			const retainedRows: GeneratedRow[] = [];
+			for (
+				const batch of this.generateRowBatches({
+					tableGenerators,
+					count: tableCount,
+					batchSize,
+					trackedColumns,
+					maxTrackedValues: maxSequenceValues,
+				})
+			) {
+				if (isUpdatePass) {
+					for (const row of batch) {
+						const values = { ...row };
+						delete values[uniqueNotNullColName as string];
+
+						yield {
+							type: 'update',
+							tableName: table.tableName,
+							values,
+							whereColumn: uniqueNotNullColName as string,
+							whereValue: row[uniqueNotNullColName as string],
+						};
+					}
+				} else {
+					yield { type: 'insert', tableName: table.tableName, rows: batch, override };
+				}
+
+				if (preserveData === true) retainedRows.push(...batch);
+			}
+
+			for (const [columnName, value] of maxSequenceValues) {
+				yield { type: 'sequence', tableName: table.tableName, columnName, value };
+			}
 
 			if (preserveData === true) {
 				tablesValues.push({
 					tableName: table.tableName,
-					rows: tableValues,
+					rows: retainedRows,
 				});
 			}
 
@@ -856,384 +992,301 @@ export class SeedService {
 			}
 
 			if (preserveData === false) {
-				tablesValues = tablesValues.filter(
+				// drop the rows of tables nothing is waiting on any more
+				const stillNeeded = tablesValues.filter(
 					(table) =>
 						tablesInOutRelations[table.tableName] !== undefined && tablesInOutRelations[table.tableName]!.in > 0,
 				);
+				tablesValues.length = 0;
+				tablesValues.push(...stillNeeded);
 			}
 		}
+	}
 
-		return tablesValues;
-	};
+	private *generateRowBatches(
+		{ tableGenerators, count, batchSize, trackedColumns, maxTrackedValues }: {
+			tableGenerators: Prettify<TableGeneratorsType>;
+			count?: number;
+			batchSize: number;
+			trackedColumns?: Set<string>;
+			maxTrackedValues?: Map<string, number | bigint>;
+		},
+	): Generator<GeneratedRow[]> {
+		const rowCount = count === undefined ? this.defaultCountForTable : count;
 
-	generateColumnsValuesByGenerators = async ({
-		tableGenerators,
-		db,
-		schema,
-		tableName,
-		count,
-		preserveData = true,
-		insertDataInDb = true,
-		updateDataInDb = false,
-		uniqueNotNullColName,
-		batchSize = 10000,
-	}: {
-		tableGenerators: Prettify<TableGeneratorsType>;
-		db?: DbType;
-		schema?: { [key: string]: TableType };
-		tableName?: string;
-		count?: number;
-		preserveData?: boolean;
-		insertDataInDb?: boolean;
-		updateDataInDb?: boolean;
-		uniqueNotNullColName?: string;
-		batchSize?: number;
-	}) => {
-		if (count === undefined) {
-			count = this.defaultCountForTable;
-		}
-
-		if (updateDataInDb === true) {
-			batchSize = 1;
-		}
-
-		let columnGenerator: (typeof tableGenerators)[string];
-		const columnsGenerators: {
-			[columnName: string]: AbstractGenerator<any>;
-		} = {};
-		let generatedValues: { [columnName: string]: GeneratedValueType }[] = [];
-
-		let columnsNumber = 0;
-		let override = false;
+		const columnsGenerators: { [columnName: string]: AbstractGenerator<any> } = {};
 		for (const columnName of Object.keys(tableGenerators)) {
-			columnsNumber += 1;
-			columnGenerator = tableGenerators[columnName]!;
-			// postgres identity columns
-			override = tableGenerators[columnName]?.generatedIdentityType === 'always' ? true : override;
-			// mssql identity columns
-			override = tableGenerators[columnName]?.identity === true ? true : override;
+			const columnGenerator = tableGenerators[columnName]!;
 
 			columnsGenerators[columnName] = columnGenerator.generator!;
 			columnsGenerators[columnName]!.init({
-				count,
+				count: rowCount,
 				seed: columnGenerator.pRNGSeed,
 			});
-
-			// const arrayGen = columnsGenerators[columnName]!.replaceIfArray({ count, seed: columnGenerator.pRNGSeed });
-			// if (arrayGen !== undefined) {
-			// 	columnsGenerators[columnName] = arrayGen;
-			// }
-
-			// const uniqueGen = columnsGenerators[columnName]!.replaceIfUnique({ count, seed: columnGenerator.pRNGSeed });
-			// if (uniqueGen !== undefined) {
-			// 	columnsGenerators[columnName] = uniqueGen;
-			// }
 		}
 
-		// sequence updates will only be performed for PostgreSQL, since MySQL and SQLite already update their sequences correctly on their own.
-		const columnsToUpdateSeq: Map<
-			string,
-			{
-				schemaName: string | undefined;
-				tableName: string;
-				columnName: string;
-				valueToUpdate?: number | bigint;
-				table: AnyTable<any>;
-				column: AnyColumn<any>;
-			}
-		> = new Map();
-		if (
-			count > 0 && is(db, PgAsyncDatabase) && schema !== undefined && tableName !== undefined
-			&& schema[tableName] !== undefined
-		) {
-			const tableConfig = getTableConfigPg(schema[tableName] as PgTable);
-			for (const column of tableConfig.columns) {
-				// TODO should I filter only primary key columns?
-				// should I filter column by dataType or by column drizzle type?
-				// column.dataType === 'number' || column.dataType === 'bigint'
-				if (isPostgresColumnIntLike(column)) {
-					columnsToUpdateSeq.set(column.name, {
-						schemaName: tableConfig.schema,
-						tableName: tableConfig.name,
-						columnName: column.name,
-						valueToUpdate: undefined,
-						table: schema[tableName],
-						column: (schema[tableName] as PgTableWithColumns<any>)[column.name],
-					});
-				}
-			}
-		}
-
-		let maxParametersNumber: number;
-		if (is(db, PgAsyncDatabase<any>)) {
-			// @ts-ignore
-			maxParametersNumber = db.constructor[entityKind] === 'PgliteDatabase'
-				? this.postgresPgLiteMaxParametersNumber
-				: this.postgresMaxParametersNumber;
-		} else if (is(db, MySqlAsyncDatabase<any, any>)) {
-			maxParametersNumber = this.mysqlMaxParametersNumber;
-		} else if (is(db, SQLiteAsyncDatabase<any, any>)) {
-			maxParametersNumber = this.sqliteMaxParametersNumber;
-		} else {
-			// is(db, MsSqlDatabase<any, any>)
-			maxParametersNumber = this.mssqlMaxParametersNumber;
-		}
-		const maxBatchSize = Math.floor(maxParametersNumber / columnsNumber);
-		batchSize = batchSize > maxBatchSize ? maxBatchSize : batchSize;
-
-		if (
-			(insertDataInDb === true || updateDataInDb === true)
-			&& (db === undefined || schema === undefined || tableName === undefined)
-		) {
-			throw new Error('db or schema or tableName is undefined.');
-		}
-
-		let row: { [columnName: string]: string | Buffer | bigint | number | boolean },
-			generatedValue,
-			i: number;
-
-		for (i = 0; i < count; i++) {
-			row = {};
-			generatedValues.push(row);
+		let batch: GeneratedRow[] = [];
+		for (let i = 0; i < rowCount; i++) {
+			const row: GeneratedRow = {};
 
 			for (const columnName of Object.keys(columnsGenerators)) {
-				generatedValue = columnsGenerators[columnName]!.generate({ i, columnName }) as
-					| string
-					| number
-					| boolean;
-				row[columnName as keyof typeof row] = generatedValue;
+				const generatedValue = columnsGenerators[columnName]!.generate({ i, columnName }) as GeneratedValueType;
+				row[columnName] = generatedValue;
 
-				const colToUpdateSeq = columnsToUpdateSeq.get(columnName);
-				if (columnsToUpdateSeq.size !== 0 && colToUpdateSeq !== undefined) {
-					colToUpdateSeq.valueToUpdate = colToUpdateSeq?.valueToUpdate === undefined
-						? generatedValue as number | bigint
-						: intMax([colToUpdateSeq!.valueToUpdate, generatedValue as number | bigint]);
+				if (trackedColumns?.has(columnName) === true && generatedValue !== null && generatedValue !== undefined) {
+					const currentMax = maxTrackedValues!.get(columnName);
+					maxTrackedValues!.set(
+						columnName,
+						currentMax === undefined
+							? generatedValue as number | bigint
+							: intMax([currentMax, generatedValue as number | bigint]),
+					);
 				}
 			}
 
-			if (
-				(insertDataInDb === true || updateDataInDb === true)
-				&& ((i + 1) % batchSize === 0 || i === count - 1)
-			) {
-				if (preserveData === false) {
-					if (insertDataInDb === true) {
-						await this.insertInDb({
-							generatedValues,
-							db: db as DbType,
-							schema: schema as {
-								[key: string]: TableType;
-							},
-							tableName: tableName as string,
-							override,
-						});
-					} else if (updateDataInDb === true) {
-						await this.updateDb({
-							generatedValues,
-							db: db as DbType,
-							schema: schema as {
-								[key: string]: TableType;
-							},
-							tableName: tableName as string,
-							uniqueNotNullColName: uniqueNotNullColName as string,
-						});
-					}
+			batch.push(row);
 
-					generatedValues = [];
-				} else {
-					const batchCount = Math.floor(i / batchSize);
-
-					if (insertDataInDb === true) {
-						await this.insertInDb({
-							generatedValues: generatedValues.slice(
-								batchSize * batchCount,
-								batchSize * (batchCount + 1),
-							),
-							db: db as DbType,
-							schema: schema as {
-								[key: string]: TableType;
-							},
-							tableName: tableName as string,
-							override,
-						});
-					} else if (updateDataInDb === true) {
-						await this.updateDb({
-							generatedValues: generatedValues.slice(
-								batchSize * batchCount,
-								batchSize * (batchCount + 1),
-							),
-							db: db as DbType,
-							schema: schema as {
-								[key: string]: TableType;
-							},
-							tableName: tableName as string,
-							uniqueNotNullColName: uniqueNotNullColName as string,
-						});
-					}
-				}
+			if (batch.length === batchSize || i === rowCount - 1) {
+				yield batch;
+				batch = [];
 			}
+		}
+	}
 
-			const columnsToUpdateSeqFiltered = [...columnsToUpdateSeq.values()].filter((col) =>
-				col.valueToUpdate !== undefined
-			);
-			if (
-				i === count - 1
-				&& columnsToUpdateSeqFiltered.length !== 0 && db !== undefined
-			) {
-				for (const columnConfig of columnsToUpdateSeq.values()) {
-					if (columnConfig) {
-						await this.updateColumnSequence({ db, columnConfig });
+	/**
+	 * The maximum number of parameters one statement may carry. MsSql's limit is used for the dialects whose own limit
+	 * has never been established - a batch that is smaller than it could be only costs round trips.
+	 */
+	getMaxParametersNumber = (connectionType: ConnectionType, db?: DbType) => {
+		if (connectionType === 'postgresql') {
+			// @ts-ignore
+			return db !== undefined && db.constructor[entityKind] === 'PgliteDatabase'
+				? this.postgresPgLiteMaxParametersNumber
+				: this.postgresMaxParametersNumber;
+		}
+		if (connectionType === 'mysql') return this.mysqlMaxParametersNumber;
+		if (connectionType === 'sqlite') return this.sqliteMaxParametersNumber;
+
+		return this.mssqlMaxParametersNumber;
+	};
+
+	/** Runs a seed by performing every operation of its plan against the database. */
+	runSeed = async (
+		{ connectionType, tables, relations, refinements, options, db, schema }: {
+			connectionType: ConnectionType;
+			tables: Table[];
+			relations: (Relation & { isCyclic: boolean })[];
+			refinements?: RefinementsType;
+			options?: { count?: number; seed?: number; version?: number };
+			db: DbType;
+			schema: { [key: string]: TableType };
+		},
+	) => {
+		const plan = this.planSeed({
+			connectionType,
+			tables,
+			relations,
+			refinements,
+			options,
+			maxParametersNumber: this.getMaxParametersNumber(connectionType, db),
+		});
+
+		for (const operation of plan) {
+			if (operation.type === 'insert') {
+				await this.insertInDb({ ...operation, db, schema });
+			} else if (operation.type === 'update') {
+				await this.updateDb({ ...operation, db, schema });
+			} else {
+				await this.updateColumnSequence({ ...operation, db, schema });
+			}
+		}
+	};
+
+	/**
+	 * Folds a plan into the rows each table ends up holding, applying the second pass over cyclic tables to the rows the
+	 * first one produced rather than to the database.
+	 */
+	collectSeedRows = (plan: Iterable<SeedOperation>, tableNames?: string[]) => {
+		const tablesRows = new Map<string, GeneratedRow[]>();
+		const rowsByKey = new Map<string, Map<string, GeneratedRow[]>>();
+
+		for (const operation of plan) {
+			if (operation.type === 'insert') {
+				const rows = tablesRows.get(operation.tableName);
+				if (rows === undefined) tablesRows.set(operation.tableName, [...operation.rows]);
+				else rows.push(...operation.rows);
+			} else if (operation.type === 'update') {
+				const rows = tablesRows.get(operation.tableName) ?? [];
+
+				let index = rowsByKey.get(operation.tableName);
+				if (index === undefined) {
+					// the update matches on a value, not on identity, exactly like the statement it stands in for
+					index = new Map();
+					for (const row of rows) {
+						const key = this.valueKey(row[operation.whereColumn]);
+						const matching = index.get(key);
+						if (matching === undefined) index.set(key, [row]);
+						else matching.push(row);
 					}
+					rowsByKey.set(operation.tableName, index);
+				}
+
+				for (const row of index.get(this.valueKey(operation.whereValue)) ?? []) {
+					Object.assign(row, operation.values);
 				}
 			}
 		}
 
-		return preserveData === true ? generatedValues : [];
+		// a table nothing was generated for is still part of the result, it is simply empty. Tables that do have rows
+		// keep the order they were generated in, which is an order they can be written back in.
+		for (const tableName of tableNames ?? []) {
+			if (!tablesRows.has(tableName)) tablesRows.set(tableName, []);
+		}
+
+		return tablesRows;
+	};
+
+	private valueKey = (value: GeneratedValueType) => {
+		if (typeof value === 'bigint') return `bigint:${value}`;
+		if (value instanceof Date) return `date:${value.getTime()}`;
+		if (value instanceof Uint8Array) return `bytes:${Buffer.from(value).toString('base64')}`;
+
+		return `${typeof value}:${String(value)}`;
+	};
+
+	/**
+	 * The statements below are built once and then either awaited or rendered, so what `dryRun({ output: 'sql' })`
+	 * prints is by construction the same statement a seed would run.
+	 */
+	buildInsertQuery = (
+		{ rows, db, schema, tableName, override }: {
+			rows: GeneratedRow[];
+			db: DbType;
+			schema: { [key: string]: TableType };
+			tableName: string;
+			override: boolean;
+		},
+	): SeedQuery => {
+		if (is(db, PgAsyncDatabase<any>)) {
+			const query = db.insert((schema as { [key: string]: PgTable })[tableName]!);
+
+			return override === true ? query.overridingSystemValue().values(rows) : query.values(rows);
+		} else if (is(db, MySqlAsyncDatabase<any, any>)) {
+			return db.insert((schema as { [key: string]: MySqlTable })[tableName]!).values(rows);
+		} else if (is(db, SQLiteAsyncDatabase<any, any>)) {
+			return db.insert((schema as { [key: string]: SQLiteTable })[tableName]!).values(rows);
+		} else if (is(db, MsSqlDatabase<any, any>)) {
+			return db.insert((schema as { [key: string]: MsSqlTable })[tableName]!).values(rows);
+		} else if (is(db, CockroachDatabase<any, any>)) {
+			return db.insert((schema as { [key: string]: CockroachTable })[tableName]!).values(rows);
+		}
+
+		return (db as SingleStoreDatabase<any, any>).insert((schema as { [key: string]: SingleStoreTable })[tableName]!)
+			.values(rows);
+	};
+
+	/** MsSql refuses an explicit write to an identity column unless it is told to allow it around the statement. */
+	buildIdentityInsertSql = (
+		{ db, schema, tableName, enabled }: {
+			db: DbType;
+			schema: { [key: string]: TableType };
+			tableName: string;
+			enabled: boolean;
+		},
+	) => {
+		if (!is(db, MsSqlDatabase<any, any>)) return;
+
+		const tableConfig = getTableConfigMsSql(schema[tableName]! as MsSqlTable);
+
+		return `SET IDENTITY_INSERT [${tableConfig.schema ?? 'dbo'}].[${tableConfig.name}] ${enabled ? 'ON' : 'OFF'}`;
+	};
+
+	buildUpdateQuery = (
+		{ values, db, schema, tableName, whereColumn, whereValue }: {
+			values: GeneratedRow;
+			db: DbType;
+			schema: { [key: string]: TableType };
+			tableName: string;
+			whereColumn: string;
+			whereValue: GeneratedValueType;
+		},
+	): SeedQuery => {
+		// every dialect spells this the same way, only the type of the database object differs
+		const table = schema[tableName] as PgTableWithColumns<any>;
+
+		return (db as PgAsyncDatabase<any>).update(table).set(values).where(eq(table[whereColumn], whereValue));
+	};
+
+	buildSequenceSql = (
+		{ db, schema, tableName, columnName, value }: {
+			db: DbType;
+			schema: { [key: string]: TableType };
+			tableName: string;
+			columnName: string;
+			value: number | bigint;
+		},
+	) => {
+		if (!is(db, PgAsyncDatabase)) return;
+
+		const table = schema[tableName] as PgTableWithColumns<any> | undefined;
+		const column = table?.[columnName];
+		if (table === undefined || column === undefined) return;
+
+		const dialect = (<any> db).dialect as PgDialect;
+		const fullTableName = dialect.sqlToQuery(sql`${table}`).sql;
+		const dbColumnName = dialect.sqlToQuery(sql`${column}`).sql.replace(`${fullTableName}.`, '').replaceAll('"', '');
+
+		return `SELECT setval(pg_get_serial_sequence('${fullTableName}', '${dbColumnName}'), ${value.toString()}, true)`;
 	};
 
 	updateColumnSequence = async (
-		{ db, columnConfig: { valueToUpdate, table, column } }: {
+		{ db, schema, tableName, columnName, value }: {
 			db: DbType;
-			columnConfig: {
-				schemaName?: string;
-				tableName: string;
-				columnName: string;
-				valueToUpdate?: number | bigint;
-				table: AnyTable<any>;
-				column: AnyColumn<any>;
-			};
+			schema: { [key: string]: TableType };
+			tableName: string;
+			columnName: string;
+			value: number | bigint;
 		},
 	) => {
-		if (is(db, PgAsyncDatabase)) {
-			// const fullTableName = schemaName ? `"${schemaName}"."${tableName}"` : `"${tableName}"`;
-			const dialect = (<any> db).dialect as PgDialect;
-			// const columnCasing = (<any> dialect).casing as CasingCache;
-			// const columnName = columnCasing.getColumnCasing(column as any);
-			const fullTableName = dialect.sqlToQuery(sql`${table}`).sql;
-			const columnName = dialect.sqlToQuery(sql`${column}`).sql.replace(`${fullTableName}.`, '').replaceAll('"', '');
+		const query = this.buildSequenceSql({ db, schema, tableName, columnName, value });
+		// mysql updates auto_increment or serial columns by itself, and so does sqlite for autoincrement
+		if (query === undefined) return;
 
-			const rawQuery = `SELECT setval(pg_get_serial_sequence('${fullTableName}', '${columnName}'), ${
-				(valueToUpdate ?? 'null').toString()
-			}, true);`;
-			await db.execute(rawQuery);
-		}
-		// mysql updates auto_increment or serial column by itself
-		// sqlite updates autoincrement  column by itself
-		return;
+		await (db as PgAsyncDatabase<any>).execute(query);
 	};
 
-	insertInDb = async ({
-		generatedValues,
-		db,
-		schema,
-		tableName,
-		override,
-	}: {
-		generatedValues: {
-			[columnName: string]: GeneratedValueType;
-		}[];
-		db: DbType;
-		schema: {
-			[key: string]: TableType;
-		};
-		tableName: string;
-		override: boolean;
-	}) => {
-		if (is(db, PgAsyncDatabase<any>)) {
-			const query = db.insert((schema as { [key: string]: PgTable })[tableName]!);
-			if (override === true) {
-				return await query.overridingSystemValue().values(generatedValues);
-			}
-			await query.values(generatedValues);
-		} else if (is(db, MySqlAsyncDatabase<any, any>)) {
-			await db
-				.insert((schema as { [key: string]: MySqlTable })[tableName]!)
-				.values(generatedValues);
-		} else if (is(db, SQLiteAsyncDatabase<any, any>)) {
-			await db
-				.insert((schema as { [key: string]: SQLiteTable })[tableName]!)
-				.values(generatedValues);
-		} else if (is(db, MsSqlDatabase<any, any>)) {
-			let schemaDbName: string | undefined;
-			let tableDbName: string | undefined;
-			if (override === true) {
-				const tableConfig = getTableConfigMsSql(schema[tableName]! as MsSqlTable);
-				schemaDbName = tableConfig.schema ?? 'dbo';
-				tableDbName = tableConfig.name;
-				await db.execute(sql.raw(`SET IDENTITY_INSERT [${schemaDbName}].[${tableDbName}] ON;`));
-			}
+	insertInDb = async (
+		{ rows, db, schema, tableName, override }: {
+			rows: GeneratedRow[];
+			db: DbType;
+			schema: { [key: string]: TableType };
+			tableName: string;
+			override: boolean;
+		},
+	) => {
+		const identityInsertOn = override === true
+			? this.buildIdentityInsertSql({ db, schema, tableName, enabled: true })
+			: undefined;
+		if (identityInsertOn !== undefined) await (db as MsSqlDatabase<any, any>).execute(sql.raw(identityInsertOn));
 
-			await db
-				.insert((schema as { [key: string]: MsSqlTable })[tableName]!)
-				.values(generatedValues);
+		await this.buildInsertQuery({ rows, db, schema, tableName, override });
 
-			if (override === true) {
-				await db.execute(sql.raw(`SET IDENTITY_INSERT [${schemaDbName}].[${tableDbName}] OFF;`));
-			}
-		} else if (is(db, CockroachDatabase<any, any>)) {
-			const query = db
-				.insert((schema as { [key: string]: CockroachTable })[tableName]!)
-				.values(generatedValues);
-			await query;
-		} else if (is(db, SingleStoreDatabase<any, any>)) {
-			const query = db
-				.insert((schema as { [key: string]: SingleStoreTable })[tableName]!)
-				.values(generatedValues);
-			await query;
-		}
+		const identityInsertOff = override === true
+			? this.buildIdentityInsertSql({ db, schema, tableName, enabled: false })
+			: undefined;
+		if (identityInsertOff !== undefined) await (db as MsSqlDatabase<any, any>).execute(sql.raw(identityInsertOff));
 	};
 
-	updateDb = async ({
-		generatedValues,
-		db,
-		schema,
-		tableName,
-		uniqueNotNullColName,
-	}: {
-		generatedValues: {
-			[columnName: string]: GeneratedValueType;
-		}[];
-		db: DbType;
-		schema: {
-			[key: string]: TableType;
-		};
-		tableName: string;
-		uniqueNotNullColName: string;
-	}) => {
-		let values = generatedValues[0]!;
-		const uniqueNotNullColValue = values[uniqueNotNullColName];
-		values = Object.fromEntries(Object.entries(values).filter(([colName]) => colName !== uniqueNotNullColName));
-
-		if (is(db, PgAsyncDatabase<any>)) {
-			const table = (schema as { [key: string]: PgTableWithColumns<any> })[tableName]!;
-			const uniqueNotNullCol = table[uniqueNotNullColName];
-			await db.update(table).set(values).where(
-				eq(uniqueNotNullCol, uniqueNotNullColValue),
-			);
-		} else if (is(db, MySqlAsyncDatabase<any, any>)) {
-			const table = (schema as { [key: string]: MySqlTableWithColumns<any> })[tableName]!;
-			await db.update(table).set(values).where(
-				eq(table[uniqueNotNullColName], uniqueNotNullColValue),
-			);
-		} else if (is(db, SQLiteAsyncDatabase<any, any>)) {
-			const table = (schema as { [key: string]: SQLiteTableWithColumns<any> })[tableName]!;
-			await db.update(table).set(values).where(
-				eq(table[uniqueNotNullColName], uniqueNotNullColValue),
-			);
-		} else if (is(db, MsSqlDatabase<any, any>)) {
-			const table = (schema as { [key: string]: MsSqlTableWithColumns<any> })[tableName]!;
-			await db.update(table).set(values).where(
-				eq(table[uniqueNotNullColName], uniqueNotNullColValue),
-			);
-		} else if (is(db, CockroachDatabase<any, any>)) {
-			const table = (schema as { [key: string]: CockroachTableWithColumns<any> })[tableName]!;
-			await db.update(table).set(values).where(
-				eq(table[uniqueNotNullColName], uniqueNotNullColValue),
-			);
-		} else if (is(db, SingleStoreDatabase<any, any>)) {
-			const table = (schema as { [key: string]: SingleStoreTableWithColumns<any> })[tableName]!;
-			await db.update(table).set(values).where(
-				eq(table[uniqueNotNullColName], uniqueNotNullColValue),
-			);
-		}
+	updateDb = async (
+		{ values, db, schema, tableName, whereColumn, whereValue }: {
+			values: GeneratedRow;
+			db: DbType;
+			schema: { [key: string]: TableType };
+			tableName: string;
+			whereColumn: string;
+			whereValue: GeneratedValueType;
+		},
+	) => {
+		await this.buildUpdateQuery({ values, db, schema, tableName, whereColumn, whereValue });
 	};
 }

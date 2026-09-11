@@ -6,6 +6,7 @@ import {
 	integer,
 	numeric,
 	primaryKey,
+	QueryBuilder,
 	real,
 	snakeCase,
 	text,
@@ -63,6 +64,19 @@ export const usersView = snakeCase.view('users_view').as((qb) =>
 	})
 		.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId))
 );
+
+export const usersSubquery = new QueryBuilder().select({
+	...getTableColumns(usersTable),
+	postContent: postsTable.content,
+	createdAt: postsTable.createdAt,
+	counter: sql<string | number>`(select count(*) from ${usersTable} as ${alias(usersTable, 'count_source')} where ${
+		ne(usersTable.id, 2)
+	})`
+		.mapWith((data) => {
+			return data === '0' || data === 0 ? null : Number(data);
+		}).as('count'),
+})
+	.from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.ownerId)).as('users_sq');
 
 export const commentsTable = snakeCase.table('comments', {
 	id: integer().primaryKey({ autoIncrement: true }),
@@ -125,6 +139,22 @@ export const allTypesTable = snakeCase.table('all_types', {
 	}),
 });
 
+export type AllTypes = {
+	int: number | null;
+	bool: boolean | null;
+	time: Date | null;
+	timeMs: Date | null;
+	bigint: bigint | null;
+	buffer: Buffer | null;
+	json: unknown;
+	numeric: string | null;
+	numericNum: number | null;
+	numericBig: bigint | null;
+	real: number | null;
+	text: string | null;
+	jsonText: unknown;
+};
+
 export const students = snakeCase.table('students', {
 	studentId: integer('student_id').primaryKey().notNull(),
 	name: text().notNull(),
@@ -147,6 +177,7 @@ const customBigInt = customType<{
 	driverData: Buffer;
 	jsonData: string;
 }>({
+	codec: 'blob',
 	dataType: () => 'blob',
 	fromDriver: (value) => {
 		return BigInt(value.toString());
@@ -162,6 +193,7 @@ const customBytes = customType<{
 	driverData: Buffer;
 	jsonData: string;
 }>({
+	codec: 'blob',
 	dataType: () => 'blob',
 	fromJson: (value) => {
 		return Buffer.from(value, 'hex');
@@ -176,6 +208,7 @@ const customTimestamp = customType<{
 	driverData: number;
 	jsonData: number;
 }>({
+	codec: 'integer',
 	dataType: () => 'integer',
 	fromDriver: (value: number) => {
 		return new Date(value);
@@ -189,6 +222,7 @@ const customInt = customType<{
 	data: number;
 	driverData: number;
 }>({
+	codec: 'integer',
 	dataType: () => 'integer',
 });
 

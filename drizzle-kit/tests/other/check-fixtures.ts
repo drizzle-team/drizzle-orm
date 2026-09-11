@@ -62,27 +62,3 @@ export const stageTableConflict = (): string => {
 	writeSnapshot(out, '0002_right', right);
 	return out;
 };
-
-export const stageUnsupported = (): string => {
-	const out = stageOut();
-	writeSnapshot(out, '0000_init', { version: '999', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [] });
-	return out;
-};
-
-export const stageNonLatest = (): string => {
-	const out = stageOut();
-	writeSnapshot(out, '0000_init', { version: '1', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [] });
-	return out;
-};
-
-export const stageMalformed = (): string => {
-	const out = stageOut();
-	writeSnapshot(out, '0000_init', {
-		version: '8',
-		dialect: 'postgres',
-		id: 'p1',
-		prevIds: [ORIGIN],
-		ddl: 'not-an-array',
-	});
-	return out;
-};

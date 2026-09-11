@@ -105,6 +105,7 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 		const nativeTx = this.client.transaction(() => {
 			result = transaction(tx);
 		});
+		if (config.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
 		nativeTx[config.behavior ?? 'deferred']();
 		return result!;
 	}

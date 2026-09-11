@@ -246,14 +246,14 @@ export const push = async (config: {
 		for (const e of err2) {
 			console.error(`err2: ${JSON.stringify(e)}`);
 		}
-		throw new Error();
+		throw new MockError(err2);
 	}
 
 	if (err3.length > 0) {
 		for (const e of err3) {
 			console.error(`err3: ${JSON.stringify(e)}`);
 		}
-		throw new Error();
+		throw new MockError(err3);
 	}
 
 	const renames = new Set(config.renames ?? []);
@@ -393,6 +393,10 @@ export const diffIntrospect = async (
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 	// TODO: handle errors
 
+	// we need to create copies, since first ddlDryDiff makes preserve entity names logic
+	const ddl1Copy = fromEntities(ddl1.entities.list());
+	const ddl2Copy = fromEntities(ddl2.entities.list());
+
 	const {
 		sqlStatements: pushAfterFileSqlStatements,
 		statements: pushAfterFileStatements,
@@ -407,7 +411,7 @@ export const diffIntrospect = async (
 		sqlStatements: generateAfterFileSqlStatements,
 		statements: generateAfterFileStatements,
 		groupedStatements: generateAfterFileGroupedStatements,
-	} = await ddlDiffDry(ddl1, ddl2, 'default');
+	} = await ddlDiffDry(ddl1Copy, ddl2Copy, 'default');
 
 	if (generateAfterFileSqlStatements.length > 0) {
 		console.log(

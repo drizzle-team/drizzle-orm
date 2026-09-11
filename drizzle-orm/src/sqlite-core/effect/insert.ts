@@ -17,26 +17,28 @@ export interface SQLiteEffectInsertHKT<TEffectHKT extends QueryEffectHKTBase = Q
 		Assume<this['table'], SQLiteTable>,
 		this['runResult'],
 		this['returning'],
+		this['mayReturnEmpty'],
 		this['dynamic'],
 		this['excludedMethods'],
 		TEffectHKT
 	>;
 }
 
-export type AnySQLiteEffectInsert = SQLiteEffectInsertBase<any, any, any, any, any, any>;
+export type AnySQLiteEffectInsert = SQLiteEffectInsertBase<any, any, any, any, any, any, any>;
 
 export type SQLiteEffectInsert<
 	TTable extends SQLiteTable = SQLiteTable,
 	TRunResult = unknown,
 	TReturning = any,
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
-> = SQLiteEffectInsertBase<TTable, TRunResult, TReturning, true, never, TEffectHKT>;
+> = SQLiteEffectInsertBase<TTable, TRunResult, TReturning, boolean, true, never, TEffectHKT>;
 
 export type SQLiteEffectInsertBuilder<
 	TTable extends SQLiteTable,
 	TRunResult,
 	TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase,
-> = SQLiteInsertBuilder<TTable, TRunResult, SQLiteEffectInsertHKT<TEffectHKT>>;
+	TColumnList extends string[] | 'all' = 'all',
+> = SQLiteInsertBuilder<TTable, TRunResult, TColumnList, SQLiteEffectInsertHKT<TEffectHKT>>;
 
 export type SQLiteEffectInsertExecute<T extends AnySQLiteEffectInsert> = T['_']['returning'] extends undefined
 	? T['_']['runResult']
@@ -51,7 +53,8 @@ export type SQLiteEffectInsertPrepare<
 		all: T['_']['returning'] extends undefined ? DrizzleTypeError<'.all() cannot be used without .returning()'>
 			: T['_']['returning'][];
 		get: T['_']['returning'] extends undefined ? DrizzleTypeError<'.get() cannot be used without .returning()'>
-			: T['_']['returning'];
+			: T['_']['mayReturnEmpty'] extends false ? T['_']['returning']
+			: T['_']['returning'] | undefined;
 		values: T['_']['returning'] extends undefined ? DrizzleTypeError<'.values() cannot be used without .returning()'>
 			: any[][];
 		execute: SQLiteEffectInsertExecute<T>;
@@ -65,6 +68,8 @@ export interface SQLiteEffectInsertBase<
 	TRunResult,
 	TReturning = undefined,
 	// oxlint-disable-next-line no-unused-vars
+	TMayReturnEmpty extends boolean = false,
+	// oxlint-disable-next-line no-unused-vars
 	TDynamic extends boolean = false,
 	// oxlint-disable-next-line no-unused-vars
 	TExcludedMethods extends string = never,
@@ -75,6 +80,7 @@ export class SQLiteEffectInsertBase<
 	TTable extends SQLiteTable,
 	TRunResult,
 	TReturning = undefined,
+	TMayReturnEmpty extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -85,6 +91,7 @@ export class SQLiteEffectInsertBase<
 	TTable,
 	TRunResult,
 	TReturning,
+	TMayReturnEmpty,
 	TDynamic,
 	TExcludedMethods
 > implements RunnableQuery<TReturning extends undefined ? TRunResult : TReturning[], 'sqlite'>, SQLWrapper {

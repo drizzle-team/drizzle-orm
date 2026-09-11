@@ -112,8 +112,7 @@ export const parseFkAction = (type: string): OnAction => {
 	}
 };
 
-const viewAsStatementRegex =
-	/\bAS\b\s*\(?\s*(WITH[\s\S]+?SELECT[\s\S]*?|SELECT[\s\S]*?)\)?(?=\s+WITH CHECK OPTION\b|\s*;?$)/i;
+const viewAsStatementRegex = /\bAS\b\s*\(?\s*([\s\S]*?SELECT[\s\S]*?)\)?(?=\s+WITH CHECK OPTION\b|\s*;?$)/i;
 export const parseViewSQL = (sql: string | null): string | null => {
 	if (!sql) return ''; // this means that used is_encrypted
 

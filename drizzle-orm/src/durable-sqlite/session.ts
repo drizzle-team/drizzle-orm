@@ -108,8 +108,11 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyn
 				TRelations
 			>,
 		) => T,
-		_config?: SQLiteTransactionConfig,
+		config?: SQLiteTransactionConfig,
 	): T {
+		if (config?.behavior) {
+			throw new Error('Transaction behavior is not supported by driver');
+		}
 		const tx = new SQLiteDOTransaction('sync', this.dialect, this, this.relations, undefined, true);
 		return this.client.transactionSync(() => transaction(tx));
 	}

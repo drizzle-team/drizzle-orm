@@ -6,6 +6,7 @@ import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
+import { tursoDatabaseSyncCodecs } from './codecs.ts';
 import { TursoDatabaseSyncSession } from './session.ts';
 
 export type TursoDatabaseSyncRunResult = Awaited<ReturnType<Database['run']>>;
@@ -26,6 +27,7 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	$client: Database;
 } {
 	const dialect = new SQLiteDialect({
+		codecs: config.codecs ?? tursoDatabaseSyncCodecs,
 		useJitMappers: jitCompatCheck(config.jit),
 	});
 	let logger;

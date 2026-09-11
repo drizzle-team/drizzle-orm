@@ -1,7 +1,6 @@
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyCockroachTable } from '../table.ts';
-import { CockroachColumn } from './common.ts';
+import { CockroachColumn, type CockroachColumnBaseConfig } from './common.ts';
 import { CockroachIntColumnBaseBuilder } from './int.common.ts';
 
 export class CockroachIntegerBuilder extends CockroachIntColumnBaseBuilder<{
@@ -26,19 +25,17 @@ export class CockroachIntegerBuilder extends CockroachIntColumnBaseBuilder<{
 	}
 }
 
-export class CockroachInteger<T extends ColumnBaseConfig<'number int32'>> extends CockroachColumn<T> {
+export class CockroachInteger<T extends CockroachColumnBaseConfig<'number int32'>>
+	extends CockroachColumn<'number int32', T>
+{
 	static override readonly [entityKind]: string = 'CockroachInteger';
+
+	/** @internal */
+	override readonly codec = 'int4';
 
 	getSQLType(): string {
 		return 'int4';
 	}
-
-	override mapFromDriverValue = (value: number | string): number => {
-		if (typeof value === 'string') {
-			return Number.parseInt(value);
-		}
-		return value;
-	};
 }
 
 export function int4(name?: string) {

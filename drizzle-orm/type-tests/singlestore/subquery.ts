@@ -1,5 +1,6 @@
 import { Expect } from 'type-tests/utils.ts';
 import { alias, int, serial, singlestoreTable, text } from '~/singlestore-core/index.ts';
+import type { SingleStoreSelect } from '~/singlestore-core/query-builders/select.types.ts';
 import { and, eq } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
 import type { DrizzleTypeError, Equal } from '~/utils.ts';
@@ -95,3 +96,38 @@ Expect<
 		authorId: number | null;
 	}[], typeof resUnion>
 >;
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4069
+{
+	const dynamicSq = db.select({ id: names.id }).from(names).$dynamic();
+
+	const fromDynamic = await db.select({ count: sql<number>`count(1)` }).from(dynamicSq.as('dynamic_sq'));
+	Expect<Equal<{ count: number }[], typeof fromDynamic>>;
+
+	const joinedDynamic = await db.select({ id: names.id }).from(names).leftJoin(
+		dynamicSq.as('dynamic_sq'),
+		sql`true`,
+	);
+	Expect<Equal<{ id: number }[], typeof joinedDynamic>>;
+
+	const countOfGeneric = async <T extends SingleStoreSelect>(qb: T) =>
+		db.select({ count: sql<number>`count(1)` }).from(qb.as('generic_sq'));
+
+	const joinGeneric = async <T extends SingleStoreSelect>(qb: T) =>
+		db.select({ id: names.id }).from(names).leftJoin(qb.as('generic_sq'), sql`true`);
+
+	const countOfDynamic = await countOfGeneric(dynamicSq);
+	Expect<Equal<{ count: number }[], typeof countOfDynamic>>;
+
+	const joinOfDynamic = await joinGeneric(dynamicSq);
+	Expect<Equal<{ id: number }[], typeof joinOfDynamic>>;
+
+	const scalarDynamic = await db.select({ id: names.id, sub: dynamicSq.as('scalar_sq') }).from(names);
+	Expect<Equal<{ id: number; sub: number }[], typeof scalarDynamic>>;
+
+	const scalarGeneric = async <T extends SingleStoreSelect>(qb: T) =>
+		db.select({ id: names.id, sub: qb.as('scalar_sq') }).from(names);
+
+	const scalarOfDynamic = await scalarGeneric(dynamicSq);
+	Expect<Equal<{ id: number; sub: number }[], typeof scalarOfDynamic>>;
+}

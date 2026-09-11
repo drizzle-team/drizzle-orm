@@ -1,10 +1,12 @@
-import type { OPSQLiteConnection } from '@op-engineering/op-sqlite';
+import type { DB } from '@op-engineering/op-sqlite';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
-import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
+import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
+import { jitCompatCheck } from '~/utils.ts';
+import { opSQLiteCodecs } from './codecs.ts';
 import { type OPSQLiteRunResult, OPSQLiteSession } from './session.ts';
 
 export class OPSQLiteDatabase<TRelations extends AnyRelations = EmptyRelations>
@@ -14,12 +16,13 @@ export class OPSQLiteDatabase<TRelations extends AnyRelations = EmptyRelations>
 }
 
 export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
-	client: OPSQLiteConnection,
-	config: DrizzleConfig<TRelations> = {},
+	client: DB,
+	config: DrizzleSQLiteConfig<TRelations> = {},
 ): OPSQLiteDatabase<TRelations> & {
-	$client: OPSQLiteConnection;
+	$client: DB;
 } {
 	const dialect = new SQLiteDialect({
+		codecs: config.codecs ?? opSQLiteCodecs,
 		useJitMappers: jitCompatCheck(config.jit),
 	});
 	let logger;

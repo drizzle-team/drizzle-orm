@@ -105,4 +105,27 @@ describe.concurrent('parsePgArray', () => {
 			['seven', 'eight', 'nine'],
 		]);
 	});
+
+	it('parses with custom delimiter', ({ expect }) => {
+		expect(
+			parsePgArray('{010100000000000000000014400000000000001840:01010000000000000000001C400000000000002040}', ':'),
+		)
+			.toEqual([
+				'010100000000000000000014400000000000001840',
+				'01010000000000000000001C400000000000002040',
+			]);
+		expect(parsePgArray('{point(1 2):point(3 4)}', ':')).toEqual(['point(1 2)', 'point(3 4)']);
+		expect(parsePgArray('{{a:b}:{c:d}}', ':')).toEqual([['a', 'b'], ['c', 'd']]);
+		expect(parsePgArray('{"a,b":"c,d"}', ':')).toEqual(['a,b', 'c,d']);
+	});
+
+	it('reads the other delimiter as data, either way round', ({ expect }) => {
+		expect(parsePgArray('{a,b:c,d}', ':')).toEqual(['a,b', 'c,d']);
+		expect(parsePgArray('{a:b,c:d}')).toEqual(['a:b', 'c:d']);
+	});
+
+	it('defaults to a comma delimiter', ({ expect }) => {
+		expect(parsePgArray('{a,b}')).toEqual(['a', 'b']);
+		expect(parsePgArray('{a,b}', undefined)).toEqual(['a', 'b']);
+	});
 });

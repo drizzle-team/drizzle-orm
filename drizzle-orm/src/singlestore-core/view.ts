@@ -3,8 +3,9 @@ import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
+import type { SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
+import type { UpdateViewConfig, ViewConfig } from '~/view.ts';
 import type { SingleStoreColumn } from './columns/index.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
@@ -19,7 +20,10 @@ export interface ViewBuilderConfig {
 	withCheckOption?: 'cascaded' | 'local';
 }
 
-export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
+export class ViewBuilderCore<
+	TConfig extends { name: string; columns?: unknown },
+	TSchema extends string | undefined = undefined,
+> {
 	static readonly [entityKind]: string = 'SingleStoreViewBuilder';
 
 	declare readonly _: {
@@ -29,7 +33,7 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 
 	constructor(
 		protected name: TConfig['name'],
-		protected schema: string | undefined,
+		protected schema: TSchema,
 	) {}
 
 	protected config: ViewBuilderConfig = {};
@@ -63,12 +67,23 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 	}
 }
 
-export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {
+export class ViewBuilder<
+	TName extends string = string,
+	TSchema extends string | undefined = undefined,
+> extends ViewBuilderCore<{ name: TName }, TSchema> {
 	static override readonly [entityKind]: string = 'SingleStoreViewBuilder';
 
 	as<TSelectedFields extends SelectedFields>(
 		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
-	): SingleStoreViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'singlestore'>> {
+	): SingleStoreViewWithSelection<
+		{
+			name: TName;
+			schema: TSchema;
+			existing: false;
+			isAlias: false;
+			selectedFields: AddAliasToSelection<TSelectedFields, TName, 'singlestore'>;
+		}
+	> {
 		if (typeof qb === 'function') {
 			qb = qb(new QueryBuilder());
 		}
@@ -86,18 +101,27 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 					name: this.name,
 					schema: this.schema,
 					selectedFields: aliasedSelection,
-					query: qb.getSQL().inlineParams(),
+					query: qb.withoutSelectionCastCodecs().getSQL().inlineParams(),
 				},
 			}),
 			selectionProxy as any,
-		) as SingleStoreViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'singlestore'>>;
+		) as SingleStoreViewWithSelection<
+			{
+				name: TName;
+				schema: TSchema;
+				existing: false;
+				isAlias: false;
+				selectedFields: AddAliasToSelection<TSelectedFields, TName, 'singlestore'>;
+			}
+		>;
 	}
 }
 
 export class ManualViewBuilder<
 	TName extends string = string,
 	TColumns extends Record<string, ColumnBuilderBase> = Record<string, ColumnBuilderBase>,
-> extends ViewBuilderCore<{ name: TName; columns: TColumns }> {
+	TSchema extends string | undefined = undefined,
+> extends ViewBuilderCore<{ name: TName; columns: TColumns }, TSchema> {
 	static override readonly [entityKind]: string = 'SingleStoreManualViewBuilder';
 
 	private columns: Record<string, SingleStoreColumn>;
@@ -105,13 +129,21 @@ export class ManualViewBuilder<
 	constructor(
 		name: TName,
 		columns: TColumns,
-		schema: string | undefined,
+		schema: TSchema,
 	) {
 		super(name, schema);
 		this.columns = getTableColumns(singlestoreTable(name, columns)) as BuildColumns<TName, TColumns, 'singlestore'>;
 	}
 
-	existing(): SingleStoreViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'singlestore'>> {
+	existing(): SingleStoreViewWithSelection<
+		{
+			name: TName;
+			schema: TSchema;
+			existing: true;
+			isAlias: false;
+			selectedFields: BuildColumns<TName, TColumns, 'singlestore'>;
+		}
+	> {
 		return new Proxy(
 			new SingleStoreView({
 				singlestoreConfig: undefined,
@@ -128,10 +160,28 @@ export class ManualViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as SingleStoreViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'singlestore'>>;
+		) as SingleStoreViewWithSelection<
+			{
+				name: TName;
+				schema: TSchema;
+				existing: true;
+				isAlias: false;
+				selectedFields: BuildColumns<TName, TColumns, 'singlestore'>;
+			}
+		>;
 	}
 
-	as(query: SQL): SingleStoreViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'singlestore'>> {
+	as(
+		query: SQL,
+	): SingleStoreViewWithSelection<
+		{
+			name: TName;
+			schema: TSchema;
+			existing: false;
+			isAlias: false;
+			selectedFields: BuildColumns<TName, TColumns, 'singlestore'>;
+		}
+	> {
 		return new Proxy(
 			new SingleStoreView({
 				singlestoreConfig: this.config,
@@ -148,15 +198,19 @@ export class ManualViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as SingleStoreViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'singlestore'>>;
+		) as SingleStoreViewWithSelection<
+			{
+				name: TName;
+				schema: TSchema;
+				existing: false;
+				isAlias: false;
+				selectedFields: BuildColumns<TName, TColumns, 'singlestore'>;
+			}
+		>;
 	}
 }
 
-export class SingleStoreView<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
-	TSelectedFields extends ColumnsSelection = ColumnsSelection,
-> extends SingleStoreViewBase<TName, TExisting, TSelectedFields> {
+export class SingleStoreView<T extends ViewConfig = ViewConfig> extends SingleStoreViewBase<T> {
 	static override readonly [entityKind]: string = 'SingleStoreView';
 
 	declare protected $SingleStoreViewBrand: 'SingleStoreView';
@@ -166,8 +220,8 @@ export class SingleStoreView<
 	constructor({ singlestoreConfig, config }: {
 		singlestoreConfig: ViewBuilderConfig | undefined;
 		config: {
-			name: TName;
-			schema: string | undefined;
+			name: T['name'];
+			schema: T['schema'];
 			selectedFields: SelectedFields;
 			query: SQL | undefined;
 		};
@@ -177,11 +231,16 @@ export class SingleStoreView<
 	}
 }
 
-export type SingleStoreViewWithSelection<
-	TName extends string,
-	TExisting extends boolean,
-	TSelectedFields extends ColumnsSelection,
-> = SingleStoreView<TName, TExisting, TSelectedFields> & TSelectedFields;
+export type SingleStoreViewWithSelection<T extends ViewConfig> = SingleStoreView<T> & T['selectedFields'];
+
+/**
+ * Any SingleStore view with a specified boundary, e.g. `AnySingleStoreView<{ name: 'my_view' }>`.
+ *
+ * To describe any view with any config, use `SingleStoreView` without type arguments.
+ */
+export type AnySingleStoreView<TPartial extends Partial<ViewConfig> = {}> = SingleStoreView<
+	UpdateViewConfig<ViewConfig, TPartial>
+>;
 
 // TODO: needs to be implemented differently compared to MySQL.
 // /** @internal */

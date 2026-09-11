@@ -52,10 +52,7 @@ export type GetTypeboxType<
 type GetBaseTypeboxType<
 	TColumn extends Column,
 	TType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,
-> = TType['type'] extends 'array' ? TType['constraint'] extends 'basecolumn' ? t.TArray<
-			GetTypeboxType<Assume<TColumn['_'], { baseColumn: Column }>['baseColumn']>
-		>
-	: TType['constraint'] extends 'geometry' | 'point' ? t.TTuple<[t.TNumber, t.TNumber]>
+> = TType['type'] extends 'array' ? TType['constraint'] extends 'geometry' | 'point' ? t.TTuple<[t.TNumber, t.TNumber]>
 	: TType['constraint'] extends 'line' ? t.TTuple<[t.TNumber, t.TNumber, t.TNumber]>
 	: TType['constraint'] extends 'vector' | 'halfvector' ? t.TArray<t.TNumber>
 	: TType['constraint'] extends 'int64vector' ? t.TArray<t.TBigInt>

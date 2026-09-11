@@ -10,41 +10,94 @@ import type {
 	QueryResultKind,
 } from '~/mssql-core/session.ts';
 import type { MsSqlTable } from '~/mssql-core/table.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL } from '~/sql/sql.ts';
+import { SQL } from '~/sql/sql.ts';
 import { type InferInsertModel, type InferSelectModel, Table } from '~/table.ts';
-import { orderSelectedFields } from '~/utils.ts';
-import type { MsSqlColumn } from '../columns/common.ts';
+import { type DrizzleTypeError, orderSelectedFields } from '~/utils.ts';
+import type { AnyMsSqlColumn, MsSqlColumn } from '../columns/common.ts';
+import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface MsSqlInsertConfig<TTable extends MsSqlTable = MsSqlTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[];
+	values: Record<string, unknown>[] | TypedQueryBuilder<MsSqlInsertSelection<TTable>> | SQL;
 	output?: SelectedFieldsOrdered;
+	select?: boolean;
+	columnList?: string[];
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export type MsSqlInsertValue<
 	TTable extends MsSqlTable,
+	TColumnsList extends string[] | 'all' = 'all',
 	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > =
 	& {
-		[Key in keyof TModel]: TModel[Key] | SQL | Placeholder;
+		[K in keyof TModel as TColumnsList extends 'all' ? K : Extract<K, TColumnsList[number]>]:
+			| TModel[K]
+			| SQL
+			| Placeholder;
 	}
 	& {};
+
+export type MsSqlInsertSelection<
+	TTable extends MsSqlTable,
+	TColumnsList extends string[] | 'all' = 'all',
+	TModel extends Record<string, unknown> = InferInsertModel<TTable>,
+> =
+	& {
+		[K in keyof TModel as TColumnsList extends 'all' ? K : Extract<K, TColumnsList[number]>]:
+			| AnyMsSqlColumn
+			| SQL
+			| SQL.Aliased
+			| TModel[K];
+	}
+	& {};
+
+export type ValidateInsertSelectionKey<
+	TTable extends MsSqlTable,
+	TSelection extends MsSqlInsertSelection<any>,
+	K extends keyof TSelection,
+> = K extends keyof InferInsertModel<TTable> ? TSelection[K]
+	: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
+
+export type NoUnknownKeysInInsertSelection<
+	TTable extends MsSqlTable,
+	TSelection extends MsSqlInsertSelection<any>,
+	TColumnList extends string[] | 'all' = 'all',
+> = {
+	[K in keyof TSelection]: TColumnList extends string[]
+		? K extends TColumnList[number] ? ValidateInsertSelectionKey<TTable, TSelection, K>
+		: DrizzleTypeError<`Column "${K & string}" is not included in the insert column selection`>
+		: ValidateInsertSelectionKey<TTable, TSelection, K>;
+};
+
+export type NoDuplicateColumns<
+	T extends readonly unknown[],
+	TSeen = never,
+> = T extends readonly [infer Head, ...infer Tail] ? [
+		Head extends TSeen ? DrizzleTypeError<`Duplicate columns are not allowed in insert selection: "${Head & string}"`>
+			: Head,
+		...NoDuplicateColumns<Tail, TSeen | Head>,
+	]
+	: T;
 
 export class MsSqlInsertBuilder<
 	TTable extends MsSqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TOutput extends Record<string, unknown> | undefined = undefined,
+	TColumnList extends string[] | 'all' = 'all',
 > {
 	static readonly [entityKind]: string = 'MsSqlInsertBuilder';
 
 	private config: {
 		output?: SelectedFieldsOrdered;
 		table: TTable;
+		columnList?: string[];
 	};
 
 	protected table: TTable;
@@ -56,36 +109,85 @@ export class MsSqlInsertBuilder<
 		session: MsSqlSession,
 		dialect: MsSqlDialect,
 		output?: SelectedFieldsOrdered,
+		columnList?: string[],
 	) {
 		this.table = table;
 		this.session = session;
 		this.dialect = dialect;
 
-		this.config = { table, output };
+		this.config = { table, output, columnList };
 	}
 
 	values(
-		value: MsSqlInsertValue<TTable>,
+		value: MsSqlInsertValue<TTable, TColumnList>,
 	): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput>;
-	values(values: MsSqlInsertValue<TTable>[]): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput>;
 	values(
-		values: MsSqlInsertValue<TTable> | MsSqlInsertValue<TTable>[],
+		values: MsSqlInsertValue<TTable, TColumnList>[],
+	): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput>;
+	values(
+		values: MsSqlInsertValue<TTable, TColumnList> | MsSqlInsertValue<TTable, TColumnList>[],
 	): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
-		const mappedValues = values.map((entry) => {
-			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[Table.Symbol.Columns];
-			for (const colKey of Object.keys(entry)) {
-				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue as any, cols[colKey]);
-			}
-			return result;
-		});
+		return new MsSqlInsertBase(
+			this.table,
+			values,
+			this.session,
+			this.dialect,
+			this.config.output,
+			this.config.columnList,
+		);
+	}
 
-		return new MsSqlInsertBase(this.table, mappedValues, this.session, this.dialect, this.config.output);
+	select<TSelection extends MsSqlInsertSelection<TTable, TColumnList>>(
+		selectQuery: (
+			qb: QueryBuilder,
+		) => TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection, TColumnList>>,
+	): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput>;
+	select(selectQuery: (qb: QueryBuilder) => SQL): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput>;
+	select(selectQuery: SQL): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput>;
+	select<TSelection extends MsSqlInsertSelection<TTable, TColumnList>>(
+		selectQuery: TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection, TColumnList>>,
+	): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput>;
+	select(
+		selectQuery:
+			| SQL
+			| TypedQueryBuilder<
+				NoUnknownKeysInInsertSelection<TTable, MsSqlInsertSelection<TTable, TColumnList>, TColumnList>
+			>
+			| ((qb: QueryBuilder) =>
+				| TypedQueryBuilder<
+					NoUnknownKeysInInsertSelection<TTable, MsSqlInsertSelection<TTable, TColumnList>, TColumnList>
+				>
+				| SQL),
+	): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput> {
+		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
+		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
+
+		if (!is(select, SQL)) {
+			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
+			const selected = Object.keys(select._.selectedFields);
+
+			for (const col of selected) {
+				if (!insertCols.includes(col)) {
+					throw new Error(
+						`Insert select error: column "${col}" does not exist in table "${this.table[Table.Symbol.Name]}"`,
+					);
+				}
+			}
+		}
+
+		return new MsSqlInsertBase(
+			this.table,
+			select,
+			this.session,
+			this.dialect,
+			this.config.output,
+			this.config.columnList,
+			true,
+		);
 	}
 
 	/**
@@ -113,7 +215,7 @@ export class MsSqlInsertBuilder<
 	output(
 		fields: SelectedFieldsFlat = this.table[Table.Symbol.Columns],
 	) {
-		this.config.output = orderSelectedFields<MsSqlColumn>(fields);
+		this.config.output = orderSelectedFields<MsSqlColumn>(fields, undefined, this.dialect.codecs);
 		return this as any;
 	}
 }
@@ -200,12 +302,13 @@ export class MsSqlInsertBase<
 		private session: MsSqlSession,
 		private dialect: MsSqlDialect,
 		output?: SelectedFieldsOrdered,
+		columnList?: string[],
+		select?: boolean,
 	) {
 		super();
-		this.config = { table, values, output };
+		this.config = { table, values: values as any, output, columnList, select };
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildInsertQuery(this.config);
 	}
@@ -215,9 +318,12 @@ export class MsSqlInsertBase<
 	}
 
 	prepare(): MsSqlInsertPrepare<this> {
+		const fields = this.config.output;
+
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
-			this.config.output,
+			fields ? 'arrays' : 'raw',
+			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 		) as MsSqlInsertPrepare<this>;
 	}
 
@@ -236,7 +342,13 @@ export class MsSqlInsertBase<
 
 	iterator = this.createIterator();
 
-	// $dynamic(): MsSqlInsertDynamic<this> {
-	// 	return this as any;
-	// }
+	/** @internal */
+	withoutSelectionCastCodecs() {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
+	}
+
+	$dynamic(): MsSqlInsertDynamic<this> {
+		return this as any;
+	}
 }

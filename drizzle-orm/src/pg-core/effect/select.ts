@@ -8,7 +8,7 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import type { Assume } from '~/utils.ts';
+import { type Assume, resolveNullableObjectPaths } from '~/utils.ts';
 import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
@@ -110,10 +110,10 @@ export class PgEffectSelectBase<
 	_prepare(name?: string, generateName = false): PgEffectSelectPrepare<this, TEffectHKT> {
 		const { session, cacheConfig, usedTables } = this;
 
-		// Build query before accessing `fieldsFlat` - build mutates it
+		const fieldsList = this._resolveSelection();
 		const query = this.dialect.sqlToQuery(this.getSQL());
-		const fieldsList = this.config.fieldsFlat!;
-		const mapper = this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap);
+		const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap);
+		const mapper = this.dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths);
 
 		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 			query,

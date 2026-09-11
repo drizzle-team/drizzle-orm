@@ -3,6 +3,7 @@ import type {
 	BuildQueryResult,
 	BuildRelationalQueryResult,
 	DBQueryConfig,
+	RelationalRowsMapper,
 	TableRelationalConfig,
 	TablesRelationalConfig,
 } from '~/relations.ts';
@@ -101,6 +102,9 @@ export class RelationalQueryBuilder<
 
 export class SQLiteRelationalQuery<THKT extends SQLiteRelationalQueryHKTBase, TResult> implements SQLWrapper {
 	static readonly [entityKind]: string = 'SQLiteRelationalQueryV2';
+
+	/** @internal */
+	protected mapper?: RelationalRowsMapper;
 
 	declare readonly _: {
 		readonly dialect: 'sqlite';

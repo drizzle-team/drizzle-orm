@@ -6,13 +6,35 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import { MySqlAsyncPreparedQuery, MySqlAsyncSession, MySqlAsyncTransaction } from '~/mysql-core/async/session.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT } from '~/mysql-core/session.ts';
+import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlTransactionConfig } from '~/mysql-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 
 export interface TiDBServerlessSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+}
+
+function tidbBeginOptions(
+	config: MySqlTransactionConfig | undefined,
+): { isolation?: 'READ COMMITTED' | 'REPEATABLE READ' } | undefined {
+	if (!config) return undefined;
+	if (config.accessMode !== undefined) {
+		throw new Error('Access mode transaction config is not supported by driver');
+	}
+	if (config.withConsistentSnapshot !== undefined) {
+		throw new Error('Consistent snapshot transaction config is not supported by driver');
+	}
+	switch (config.isolationLevel) {
+		case undefined:
+			return undefined;
+		case 'read committed':
+			return { isolation: 'READ COMMITTED' };
+		case 'repeatable read':
+			return { isolation: 'REPEATABLE READ' };
+		default:
+			throw new Error(`Isolation level '${config.isolationLevel}' is not supported by driver`);
+	}
 }
 
 export class TiDBServerlessSession<
@@ -87,8 +109,9 @@ export class TiDBServerlessSession<
 
 	override async transaction<T>(
 		transaction: (tx: TiDBServerlessTransaction<TRelations>) => Promise<T>,
+		config?: MySqlTransactionConfig,
 	): Promise<T> {
-		const nativeTx = await this.baseClient.begin();
+		const nativeTx = await this.baseClient.begin(tidbBeginOptions(config));
 		try {
 			const session = new TiDBServerlessSession(
 				this.baseClient,

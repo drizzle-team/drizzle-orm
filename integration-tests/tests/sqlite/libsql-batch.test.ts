@@ -139,11 +139,8 @@ let db: LibSQLDatabase<typeof relationsV2>;
 let client: Client;
 
 beforeAll(async () => {
-	const url = process.env['LIBSQL_URL'];
+	const url = process.env['LIBSQL_URL'] ?? 'file::memory:?cache=shared';
 	const authToken = process.env['LIBSQL_AUTH_TOKEN'];
-	if (!url) {
-		throw new Error('LIBSQL_URL is not set');
-	}
 	client = await retry(async () => {
 		client = createClient({ url, authToken });
 		return client;

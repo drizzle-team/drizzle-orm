@@ -97,6 +97,8 @@ export class BunSQLiteSession<
 		transaction: (db: BunSQLiteTransaction<TRelations>) => T | Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
+		if (config?.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
+
 		return this.client.begin(config?.behavior ?? '', async (client) => {
 			const session = new BunSQLiteSession<SavepointSQL, TRelations>(
 				client,

@@ -17,6 +17,7 @@ import * as Predicate from 'effect/Predicate';
 import * as Redacted from 'effect/Redacted';
 import * as Result from 'effect/Result';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
+import { Client as PgPeerClient } from 'pg';
 import { randomString } from '~/utils';
 import { DB, runCommonEffectPgTests } from './effect-common';
 import { relations } from './relations';
@@ -60,6 +61,49 @@ runCommonEffectPgTests({
 	createDB: createDB as any,
 	usedSchema,
 	addTests: (it) => {
+		it.effect('transaction snapshot: isolates the transaction', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const table = sql.identifier('ef_snapshot');
+
+				const peerClient = new PgPeerClient(Redacted.value(connectionStr));
+				yield* Effect.promise(() => peerClient.connect());
+				const peerQuery = (query: string) => Effect.promise(() => peerClient.query(query).then((r) => r.rows));
+
+				const body = Effect.gen(function*() {
+					yield* db.execute(sql`drop table if exists ${table}`);
+					yield* db.execute(sql`create table ${table} (id integer)`);
+					yield* db.execute(sql`insert into ${table} values (1)`);
+
+					yield* peerQuery('begin isolation level repeatable read');
+					const [{ snapshot }] = yield* peerQuery('select pg_export_snapshot() as snapshot');
+
+					yield* db.execute(sql`insert into ${table} values (2)`);
+
+					yield* db.transaction((tx) =>
+						Effect.gen(function*() {
+							const res = yield* tx.execute<{ id: number }>(sql`select id from ${table} order by id`, 'objects');
+							expect(res).toEqual([{ id: 1 }]);
+						}), { isolationLevel: 'repeatable read', snapshot });
+
+					yield* db.transaction((tx) =>
+						Effect.gen(function*() {
+							const res = yield* tx.execute<{ id: number }>(sql`select id from ${table} order by id`, 'objects');
+							expect(res).toEqual([{ id: 1 }, { id: 2 }]);
+						}), { isolationLevel: 'repeatable read' });
+				});
+
+				const cleanup = Effect.gen(function*() {
+					yield* Effect.promise(() => peerClient.query('commit').catch(() => null));
+					yield* db.execute(sql`drop table ${table}`).pipe(Effect.ignore);
+				});
+
+				yield* body.pipe(
+					Effect.ensuring(cleanup),
+					Effect.ensuring(Effect.promise(() => peerClient.end())),
+				);
+			}));
+
 		it.effect('execute', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
 import { eq, gt, like, not, sql } from 'drizzle-orm';
-import { bigint, int, mysqlTable, primaryKey, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { bigint, mysqlTable, primaryKey, serial, text, varchar } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
 import { rqbPost, rqbUser } from './schema';
@@ -158,6 +158,39 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		expect(result).toStrictEqual([{ customId: 'test' }, { customId: 'ao865jf3mcmkfkk8o5ri495z' }]);
 	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/4302
+	test.skipIf(Date.now() < +new Date('2026-09-12')).concurrent(
+		'insert $returningId: issue #4302',
+		async ({ db, push }) => {
+			const uniqueKeys = ['ao865jf3mcmkfkk8o5ri495z', 'dyqs529eom0iczo2efxzbcut'];
+			let iterator = 0;
+
+			const usersTableDefFn = mysqlTable('users_default_fn_3', {
+				customId: varchar('id', { length: 256 }).$defaultFn(() => {
+					const value = uniqueKeys[iterator]!;
+					iterator++;
+					return value;
+				}),
+				name: text('name').notNull(),
+			}, (t) => [
+				primaryKey({ columns: [t.customId] }),
+			]);
+
+			await push({ usersTableDefFn });
+
+			const result = await db.insert(usersTableDefFn).values([{ name: 'John', customId: 'test' }, { name: 'John1' }])
+				//    ^?
+				.$returningId();
+
+			// TODO
+			// expectTypeOf(result).toEqualTypeOf<{
+			// 	customId: string;
+			// }[]>();
+
+			expect(result).toStrictEqual([{ customId: 'test' }, { customId: 'ao865jf3mcmkfkk8o5ri495z' }]);
+		},
+	);
 
 	test.concurrent('$count separate', async ({ db, push }) => {
 		const countTestTable = createCountTestTable('count_test_1');

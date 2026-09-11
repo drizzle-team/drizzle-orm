@@ -2,6 +2,7 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
+import { withCasing } from '../pull-utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -14,7 +15,7 @@ import type {
 	ViewColumn,
 } from './ddl';
 import { fullTableFromDDL } from './ddl';
-import { typeFor } from './grammar';
+import { defaultNameForFK, typeFor } from './grammar';
 
 const imports = [
 	'bigint',
@@ -80,24 +81,6 @@ const objToStatement2 = (json: { [s: string]: unknown }, mode: 'string' | 'numbe
 	statement += keys.map((it) => `${it}: ${mode === 'string' ? `"${json[it]}"` : json[it]}`).join(', '); // no "" for keys
 	statement += ' }';
 	return statement;
-};
-
-const escapeColumnKey = (value: string) => {
-	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
-		return `"${value}"`;
-	}
-	return value;
-};
-
-const withCasing = (value: string, casing: Casing) => {
-	if (casing === 'preserve') {
-		return escapeColumnKey(value);
-	}
-	if (casing === 'camel') {
-		return escapeColumnKey(toCamelCase(value));
-	}
-
-	assertUnreachable(casing);
 };
 
 const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing: Casing; withMode?: boolean }) => {
@@ -184,26 +167,30 @@ export const ddlToTypeScript = (
 		const columns = ddl.columns.list({ schema: table.schema, table: table.name });
 		const fks = ddl.fks.list({ schema: table.schema, table: table.name });
 
+		const callbackFks: ForeignKey[] = [];
+		const inlineFks: ForeignKey[] = [];
+		for (const fk of fks) {
+			if (
+				!isSelf(fk) && fk.columns.length === 1
+				&& fk.name === defaultNameForFK(fk.table, fk.columns, fk.tableTo, fk.columnsTo)
+			) inlineFks.push(fk);
+			else callbackFks.push(fk);
+		}
+
 		const func = tableSchema ? `${tableSchema}.table` : tableFn;
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
 		statement += createTableColumns(
 			columns,
-			table.pk,
-			fks,
+			table.pk, // pk only needed to verify if we need to add .notNull
+			inlineFks,
 			schemas,
 			ddl.defaults.list({ schema: table.schema, table: table.name }),
 			casing,
 		);
 		statement += '}';
 
-		// more than 2 fields or self reference or cyclic
-		// Andrii: I switched this one off until we will get custom names in .references()
-		const filteredFKs = table.fks.filter((it) => {
-			return it.columns.length > 1 || isSelf(it);
-		});
-
 		const hasCallback = table.indexes.length > 0
-			|| filteredFKs.length > 0
+			|| callbackFks.length > 0
 			|| table.pk
 			|| table.uniques.length > 0
 			|| table.checks.length > 0;
@@ -212,7 +199,7 @@ export const ddlToTypeScript = (
 			statement += ', ';
 			statement += '(table) => [\n';
 			statement += table.pk ? createTablePK(table.pk, casing) : '';
-			statement += createTableFKs(filteredFKs, schemas, casing);
+			statement += createTableFKs(callbackFks, schemas, casing);
 			statement += createTableIndexes(table.name, table.indexes, casing);
 			statement += createTableUniques(table.uniques, casing);
 			statement += createTableChecks(table.checks);
@@ -343,21 +330,14 @@ const createViewColumns = (
 const createTableColumns = (
 	columns: Column[],
 	primaryKey: PrimaryKey | null,
-	fks: ForeignKey[],
+	inlineFks: ForeignKey[],
 	schemas: Record<string, string>,
 	defaults: DefaultConstraint[],
 	casing: Casing,
 ): string => {
 	let statement = '';
 
-	// no self refs and no cyclic
-	const oneColumnsFKs = Object.values(fks)
-		.filter((it) => {
-			return !isSelf(it);
-		})
-		.filter((it) => it.columns.length === 1);
-
-	const fkByColumnName = oneColumnsFKs.reduce((res, it) => {
+	const fkByColumnName = inlineFks.reduce((res, it) => {
 		const arr = res[it.columns[0]] || [];
 		arr.push(it);
 		res[it.columns[0]] = arr;
@@ -373,6 +353,7 @@ const createTableColumns = (
 			casing,
 			def ? def.default : null,
 		);
+		// pk only needed to verify if we need to add .notNull
 		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name
 			? primaryKey
 			: null;
@@ -384,7 +365,6 @@ const createTableColumns = (
 		statement += it.generated ? `.generatedAlwaysAs(sql\`${it.generated.as}\`)` : '';
 
 		const fks = fkByColumnName[it.name];
-		// Andrii: I switched it off until we will get a custom naem setting in references
 		if (fks) {
 			const fksStatement = fks
 				.map((it) => {

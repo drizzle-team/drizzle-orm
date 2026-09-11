@@ -138,6 +138,44 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 }
 
 {
+	const values = { homeCity: 1, serialNotNull: 1, class: 'A', age1: 25, enumCol: 'a' } as const;
+
+	const insertGet = db.insert(users).values(values).returning().get();
+	Expect<Equal<typeof insertGet, Effect.Effect<typeof users.$inferSelect, EffectDrizzleQueryError, never>>>;
+
+	const insertGetDoNothing = db.insert(users).values(values).onConflictDoNothing().returning().get();
+	Expect<
+		Equal<
+			typeof insertGetDoNothing,
+			Effect.Effect<typeof users.$inferSelect | undefined, EffectDrizzleQueryError, never>
+		>
+	>;
+
+	const insertGetDoUpdate = db.insert(users).values(values).onConflictDoUpdate({
+		target: users.id,
+		set: { age1: 2 },
+	}).returning().get();
+	Expect<Equal<typeof insertGetDoUpdate, Effect.Effect<typeof users.$inferSelect, EffectDrizzleQueryError, never>>>;
+
+	const insertGetDoUpdateSetWhere = db.insert(users).values(values).onConflictDoUpdate({
+		target: users.id,
+		set: { age1: 2 },
+		setWhere: eq(users.age1, 1),
+	}).returning().get();
+	Expect<
+		Equal<
+			typeof insertGetDoUpdateSetWhere,
+			Effect.Effect<typeof users.$inferSelect | undefined, EffectDrizzleQueryError, never>
+		>
+	>;
+
+	const updateGet = db.update(users).set({ name: 'updated' }).where(eq(users.id, 1)).returning().get();
+	Expect<
+		Equal<typeof updateGet, Effect.Effect<typeof users.$inferSelect | undefined, EffectDrizzleQueryError, never>>
+	>;
+}
+
+{
 	const updateAll = db.update(users).set({ name: 'updated' });
 	type UpdateAllEffect = AsEffect<typeof updateAll>;
 

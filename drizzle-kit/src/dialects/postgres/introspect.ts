@@ -728,12 +728,12 @@ export const fromDatabase = async (
 		let columnTypeMapped = enumType ? enumType.name : column.type.replaceAll('[]', '');
 
 		columnTypeMapped = columnTypeMapped
-			.replace('character varying', 'varchar')
-			.replace(' without time zone', '')
+			.replace(/\bcharacter varying\b/, 'varchar')
+			.replace(/ without time zone\b/, '')
 			// .replace(' with time zone', '')
 			// .replace("timestamp without time zone", "timestamp")
-			.replace('character', 'char')
-			.replace('geometry(Point', 'geometry(point');
+			.replace(/\bcharacter\b/, 'char')
+			.replace(/\bgeometry\(Point\b/, 'geometry(point');
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
@@ -840,27 +840,34 @@ export const fromDatabase = async (
 	}
 
 	for (const fk of constraintsList.filter((it) => it.type === 'f')) {
-		const table = tablesList.find((it) => Number(it.oid) === Number(fk.tableId))!;
-		const schema = namespaces.find((it) => Number(it.oid) === Number(fk.schemaId))!;
-		const tableTo = tablesList.find((it) => Number(it.oid) === Number(fk.tableToId))!;
+		const table = tablesList.find((it) => Number(it.oid) === Number(fk.tableId));
+		const tableTo = tablesList.find((it) => Number(it.oid) === Number(fk.tableToId));
+
+		if (!table || !tableTo) {
+			// this can happen if:
+			// 1. the foreign key points to a table to which the user does not have access
+			// 2. the foreign key points to a table that is not in the filtered list of tables (e.g., system tables)
+			// in both cases, we cannot resolve the foreign key, so we skip it
+			continue;
+		}
 
 		const columns = fk.columnsOrdinals.map((it) => {
 			const column = columnsList.find((column) =>
-				Number(column.tableId) === Number(fk.tableId) && column.ordinality === it
+				Number(column.tableId) === Number(table.oid) && column.ordinality === it
 			)!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columnsToOrdinals.map((it) => {
 			const column = columnsList.find((column) =>
-				Number(column.tableId) === Number(fk.tableToId) && column.ordinality === it
+				Number(column.tableId) === Number(tableTo.oid) && column.ordinality === it
 			)!;
 			return column.name;
 		});
 
 		fks.push({
 			entityType: 'fks',
-			schema: schema.name,
+			schema: table.schema,
 			table: table.name,
 			name: fk.name,
 			nameExplicit: true,
@@ -949,7 +956,7 @@ export const fromDatabase = async (
           pg_index.indexrelid OPERATOR(pg_catalog.=) pg_class.oid
       ) metadata ON TRUE
       WHERE
-        relkind OPERATOR(pg_catalog.=) 'i'
+        relkind OPERATOR(pg_catalog.=) ANY (ARRAY['i', 'I'])
 		AND ${filterByTableIds ? `metadata."tableId" IN ${filterByTableIds}` : 'false'}
 	  ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
     `).then((rows) => {
@@ -1081,10 +1088,10 @@ export const fromDatabase = async (
 		}
 
 		columnTypeMapped = columnTypeMapped
-			.replace('character varying', 'varchar')
-			.replace(' without time zone', '')
+			.replace(/\bcharacter varying\b/, 'varchar')
+			.replace(/ without time zone\b/, '')
 			// .replace("timestamp without time zone", "timestamp")
-			.replace('character', 'char')
+			.replace(/\bcharacter\b/, 'char')
 			.replace('geometry(Point)', 'geometry(point)');
 
 		columnTypeMapped += '[]'.repeat(it.dimensions);

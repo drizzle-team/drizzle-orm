@@ -12,6 +12,7 @@ import type { Result, SQLiteAsyncSession, SQLiteAsyncTransaction } from '~/sqlit
 import { SQLiteAsyncUpdateBase, type SQLiteAsyncUpdateBuilder } from '~/sqlite-core/async/update.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import {
+	type NoDuplicateColumns,
 	QueryBuilder,
 	SQLiteInsertBuilder,
 	SQLiteSelectBuilder,
@@ -20,7 +21,8 @@ import {
 import type { SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { WithSubquery } from '~/subquery.ts';
-import type { DrizzleTypeError } from '~/utils.ts';
+import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
+import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import { RelationalQueryBuilder } from '../query-builders/query.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
 import type { WithBuilder } from '../subquery.ts';
@@ -129,9 +131,10 @@ export class SQLiteAsyncDatabase<
 				qb = qb(new QueryBuilder(self.dialect));
 			}
 
+			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
 			return new Proxy(
 				new WithSubquery(
-					qb.getSQL(),
+					sql,
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,
@@ -326,16 +329,43 @@ export class SQLiteAsyncDatabase<
 		 * // Insert multiple rows
 		 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 		 *
+		 * // Insert only selected columns
+		 * await db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
+		 *
 		 * // Insert with returning clause
 		 * const insertedCar: Car[] = await db.insert(cars)
 		 *   .values({ brand: 'BMW' })
 		 *   .returning();
 		 * ```
 		 */
+		function insert<
+			TTable extends SQLiteTable,
+			TColumnList extends (keyof InferInsertModel<TTable>)[] = [],
+			TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+		>(
+			into: TTable,
+			...columns: TColumnList extends [] ? []
+				: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+				: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+				: DrizzleTypeError<
+					`Column selection is missing following required columns: ${JoinUnion<
+						`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+						', '
+					>}`
+				>[]
+		): SQLiteAsyncInsertBuilder<TTable, TResultKind, TRunResult, TColumnList extends [] ? 'all' : TColumnList>;
 		function insert<TTable extends SQLiteTable>(
 			into: TTable,
+			...columns: string[]
 		): SQLiteAsyncInsertBuilder<TTable, TResultKind, TRunResult> {
-			return new SQLiteInsertBuilder(into, self.session, self.dialect, queries, SQLiteAsyncInsertBase);
+			return new SQLiteInsertBuilder(
+				into,
+				self.session,
+				self.dialect,
+				queries,
+				columns.length ? columns : undefined,
+				SQLiteAsyncInsertBase,
+			);
 		}
 
 		/**
@@ -507,14 +537,43 @@ export class SQLiteAsyncDatabase<
 	 * // Insert multiple rows
 	 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
 	 *
+	 * // Insert only selected columns
+	 * await db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
+	 *
 	 * // Insert with returning clause
 	 * const insertedCar: Car[] = await db.insert(cars)
 	 *   .values({ brand: 'BMW' })
 	 *   .returning();
 	 * ```
 	 */
-	insert<TTable extends SQLiteTable>(into: TTable): SQLiteAsyncInsertBuilder<TTable, TResultKind, TRunResult> {
-		return new SQLiteInsertBuilder(into, this.session, this.dialect, undefined, SQLiteAsyncInsertBase);
+	insert<
+		TTable extends SQLiteTable,
+		TColumnList extends (keyof InferInsertModel<TTable>)[] = [],
+		TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+	>(
+		into: TTable,
+		...columns: TColumnList extends [] ? []
+			: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+			: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+			: DrizzleTypeError<
+				`Column selection is missing following required columns: ${JoinUnion<
+					`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+					', '
+				>}`
+			>[]
+	): SQLiteAsyncInsertBuilder<TTable, TResultKind, TRunResult, TColumnList extends [] ? 'all' : TColumnList>;
+	insert<TTable extends SQLiteTable>(
+		into: TTable,
+		...columns: string[]
+	): SQLiteAsyncInsertBuilder<TTable, TResultKind, TRunResult> {
+		return new SQLiteInsertBuilder(
+			into,
+			this.session,
+			this.dialect,
+			undefined,
+			columns.length ? columns : undefined,
+			SQLiteAsyncInsertBase,
+		);
 	}
 
 	/**
@@ -602,7 +661,16 @@ export class SQLiteAsyncDatabase<
 	}
 }
 
-export type SQLiteWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
+export type SQLiteWithReplicas<Q> = Q & {
+	$replica: Q;
+	/**
+	 * @deprecated `withReplicas` db now defaults to using primary
+	 *
+	 * Use `db.$replica` to redirect query to replica
+	 */
+	$primary: Q;
+	$replicas: Q[];
+};
 
 export const withReplicas = <
 	TResultKind extends 'sync' | 'async',
@@ -618,38 +686,9 @@ export const withReplicas = <
 	replicas: [Q, ...Q[]],
 	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
 ): SQLiteWithReplicas<Q> => {
-	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args);
-	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
-	const $count: Q['$count'] = (...args: [any]) => getReplica(replicas).$count(...args);
-	const $with: Q['with'] = (...args: []) => getReplica(replicas).with(...args);
-
-	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
-	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const run: Q['run'] = (...args: [any]) => primary.run(...args);
-	const all: Q['all'] = (...args: [any]) => primary.all(...args);
-	const get: Q['get'] = (...args: [any]) => primary.get(...args);
-	const values: Q['values'] = (...args: [any]) => primary.values(...args);
-	const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
-
-	return {
-		...primary,
-		update,
-		insert,
-		delete: $delete,
-		run,
-		all,
-		get,
-		values,
-		transaction,
-		$primary: primary,
-		$replicas: replicas,
-		select,
-		selectDistinct,
-		$count,
-		with: $with,
-		get query() {
-			return getReplica(replicas).query;
-		},
-	};
+	return Object.create(primary, {
+		$replica: { get: () => getReplica(replicas) },
+		$primary: { value: primary },
+		$replicas: { value: replicas },
+	});
 };

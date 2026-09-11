@@ -14,6 +14,7 @@ import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { Update } from '~/utils.ts';
+import type { SingleStoreType } from '../codecs.ts';
 
 export type SingleStoreColumns = Record<string, SingleStoreColumn<any>>;
 
@@ -59,6 +60,9 @@ export abstract class SingleStoreColumn<
 	TRuntimeConfig extends object = {},
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreColumn';
+
+	/** @internal */
+	abstract override readonly codec?: SingleStoreType;
 
 	/** @internal */
 	override readonly table: SingleStoreTable;

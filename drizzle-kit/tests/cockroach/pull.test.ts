@@ -46,10 +46,13 @@ test.concurrent('basic introspect test', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'basic-introspect');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(db, schema, 'basic-introspect');
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('basic identity always test', async ({ dbc: db }) => {
@@ -60,10 +63,13 @@ test.concurrent('basic identity always test', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'basic-identity-always-introspect');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(db, schema, 'basic-identity-always-introspect');
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('basic identity by default test', async ({ dbc: db }) => {
@@ -74,14 +80,17 @@ test.concurrent('basic identity by default test', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'basic-identity-default-introspect',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'basic-identity-default-introspect',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('basic index test', async ({ dbc: db }) => {
@@ -105,13 +114,14 @@ test.concurrent('basic index test', async ({ dbc: db }) => {
 		]),
 	};
 
-	const { sqlStatements } = await diffIntrospect(
+	const { pushSqlStatements: sqlStatements, generateSqlStatements } = await diffIntrospect(
 		db,
 		schema,
 		'basic-index-introspect',
 	);
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test.concurrent('identity always test: few params', async ({ dbc: db }) => {
@@ -124,14 +134,17 @@ test.concurrent('identity always test: few params', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'identity-always-few-params-introspect',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'identity-always-few-params-introspect',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('identity by default test: few params', async ({ dbc: db }) => {
@@ -144,14 +157,17 @@ test.concurrent('identity by default test: few params', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'identity-default-few-params-introspect',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'identity-default-few-params-introspect',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('identity always test: all params', async ({ dbc: db }) => {
@@ -168,14 +184,17 @@ test.concurrent('identity always test: all params', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'identity-always-all-params-introspect',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'identity-always-all-params-introspect',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('identity by default test: all params', async ({ dbc: db }) => {
@@ -192,14 +211,17 @@ test.concurrent('identity by default test: all params', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'identity-default-all-params-introspect',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'identity-default-all-params-introspect',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('generated column: link to another column', async ({ dbc: db }) => {
@@ -213,14 +235,17 @@ test.concurrent('generated column: link to another column', async ({ dbc: db }) 
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'generated-link-column',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'generated-link-column',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect all column types', async ({ dbc: db }) => {
@@ -266,14 +291,17 @@ test.concurrent('introspect all column types', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-all-columns-types',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-all-columns-types',
+		);
 
 	expect(statements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test.concurrent('introspect all column array types', async ({ dbc: db }) => {
@@ -281,51 +309,52 @@ test.concurrent('introspect all column array types', async ({ dbc: db }) => {
 	const schema = {
 		enum_: myEnum,
 		columns: cockroachTable('columns', {
-			bigint: bigint('bigint', { mode: 'number' }).default(100).array(),
+			bigint: bigint('bigint', { mode: 'number' }).array(),
 			bit: bit().array(),
 			varbit: varbit().array(),
 			geometry: geometry().array(),
-			bool: bool('bool').default(true).array(),
-			char: char('char', { length: 3 }).default('abc').array(),
-			date1: date('date1').default('2024-01-01').array(),
-			date2: date('date2').defaultNow().array(),
-			date3: date('date3').default(sql`current_timestamp`).array(),
-			numeric: numeric('numeric', { precision: 3, scale: 1 }).default('99.9').array(),
-			numeric2: numeric('numeric2', { precision: 1, scale: 1 }).default('0.9').array(),
-			numeric3: numeric('numeric3').default('99.9').array(),
-			decimal: decimal('decimal', { precision: 3, scale: 1 }).default('99.9').array(),
-			decimal2: decimal('decimal2', { precision: 1, scale: 1 }).default('0.9').array(),
-			decimal3: decimal('decimal3').default('99.9').array(),
-			enum: myEnum('my_enum').default('a').array(),
-			float: float('float').default(100).array(),
-			doublePrecision: doublePrecision('doublePrecision').default(100).array(),
-			inet: inet('inet').default('127.0.0.1').array(),
-			int4: int4('int4').default(10).array(),
-			interval: interval('interval').default('1 day 01:00:00').array(),
-			real: real('real').default(100).array(),
-			smallint: smallint('smallint').default(10).array(),
-			string: string('string').default('value').array(),
-			text: text('test').default('abc').array(),
-			time1: time('time1').default('00:00:00').array(),
-			timestamp1: timestamp('timestamp1', { withTimezone: true, precision: 6 }).default(new Date()).array(),
-			timestamp2: timestamp('timestamp2', { withTimezone: true, precision: 6 }).defaultNow().array(),
-			timestamp3: timestamp('timestamp3', { withTimezone: true, precision: 6 }).default(
-				sql`timezone('utc'::text, now())`,
-			).array(),
-			uuid1: uuid('uuid1').default('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11').array(),
-			uuid2: uuid('uuid2').defaultRandom().array(),
-			varchar: varchar('varchar', { length: 25 }).default('abc').array(),
+			bool: bool('bool').array(),
+			char: char('char', { length: 3 }).array(),
+			date1: date('date1').array(),
+			date2: date('date2').array(),
+			date3: date('date3').array(),
+			numeric: numeric('numeric', { precision: 3, scale: 1 }).array(),
+			numeric2: numeric('numeric2', { precision: 1, scale: 1 }).array(),
+			numeric3: numeric('numeric3').array(),
+			decimal: decimal('decimal', { precision: 3, scale: 1 }).array(),
+			decimal2: decimal('decimal2', { precision: 1, scale: 1 }).array(),
+			decimal3: decimal('decimal3').array(),
+			enum: myEnum('my_enum').array(),
+			float: float('float').array(),
+			doublePrecision: doublePrecision('doublePrecision').array(),
+			inet: inet('inet').array(),
+			int4: int4('int4').array(),
+			interval: interval('interval').array(),
+			real: real('real').array(),
+			smallint: smallint('smallint').array(),
+			string: string('string').array(),
+			text: text('test').array(),
+			time1: time('time1').array(),
+			timestamp1: timestamp('timestamp1', { withTimezone: true, precision: 6 }).array(),
+			timestamp2: timestamp('timestamp2', { withTimezone: true, precision: 6 }).array(),
+			timestamp3: timestamp('timestamp3', { withTimezone: true, precision: 6 }).array(),
+			uuid1: uuid('uuid1').array(),
+			uuid2: uuid('uuid2').array(),
+			varchar: varchar('varchar', { length: 25 }).array(),
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-all-columns-array-types',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-all-columns-array-types',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect columns with name with non-alphanumeric characters', async ({ dbc: db }) => {
@@ -338,14 +367,17 @@ test.concurrent('introspect columns with name with non-alphanumeric characters',
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-column-with-name-with-non-alphanumeric-characters',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-column-with-name-with-non-alphanumeric-characters',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect enum from different schema', async ({ dbc: db }) => {
@@ -359,15 +391,18 @@ test.concurrent('introspect enum from different schema', async ({ dbc: db }) => 
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-enum-from-different-schema',
-		['public', 'schema2'],
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-enum-from-different-schema',
+			['public', 'schema2'],
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect enum with same names across different schema', async ({ dbc: db }) => {
@@ -384,15 +419,18 @@ test.concurrent('introspect enum with same names across different schema', async
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-enum-with-same-names-across-different-schema',
-		['public', 'schema2'],
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-enum-with-same-names-across-different-schema',
+			['public', 'schema2'],
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect enum with similar name to native type', async ({ dbc: db }) => {
@@ -404,14 +442,17 @@ test.concurrent('introspect enum with similar name to native type', async ({ dbc
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-enum-with-similar-name-to-native-type',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-enum-with-similar-name-to-native-type',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect strings with single quotes', async ({ dbc: db }) => {
@@ -425,14 +466,17 @@ test.concurrent('introspect strings with single quotes', async ({ dbc: db }) => 
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-strings-with-single-quotes',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-strings-with-single-quotes',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect checks', async ({ dbc: db }) => {
@@ -444,14 +488,17 @@ test.concurrent('introspect checks', async ({ dbc: db }) => {
 		}, (table) => [check('some_check', sql`${table.age} > 21`)]),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-checks',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-checks',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect checks from different schemas with same names', async ({ dbc: db }) => {
@@ -468,15 +515,18 @@ test.concurrent('introspect checks from different schemas with same names', asyn
 		}, (table) => [check('some_check', sql`${table.age} < 1`)]),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-checks-diff-schema-same-names',
-		['public', 'schema2'],
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-checks-diff-schema-same-names',
+			['public', 'schema2'],
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect view #1', async ({ dbc: db }) => {
@@ -491,14 +541,17 @@ test.concurrent('introspect view #1', async ({ dbc: db }) => {
 		users,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-view',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-view',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect view #2', async ({ dbc: db }) => {
@@ -515,14 +568,17 @@ test.concurrent('introspect view #2', async ({ dbc: db }) => {
 		users,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-view-2',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-view-2',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect view in other schema', async ({ dbc: db }) => {
@@ -541,15 +597,18 @@ test.concurrent('introspect view in other schema', async ({ dbc: db }) => {
 		newSchema,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-view-in-other-schema',
-		['new_schema', 'public'],
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-view-in-other-schema',
+			['new_schema', 'public'],
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect materialized view in other schema', async ({ db }) => {
@@ -568,15 +627,18 @@ test.concurrent('introspect materialized view in other schema', async ({ db }) =
 		newSchema,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-mat-view-in-other-schema',
-		['new_schema', 'public'],
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-mat-view-in-other-schema',
+			['new_schema', 'public'],
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect materialized view #1', async ({ db }) => {
@@ -591,14 +653,17 @@ test.concurrent('introspect materialized view #1', async ({ db }) => {
 		users,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-materialized-view',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-materialized-view',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect materialized view #2', async ({ db }) => {
@@ -615,14 +680,17 @@ test.concurrent('introspect materialized view #2', async ({ db }) => {
 		users,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-materialized-view-2',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-materialized-view-2',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('basic roles', async ({ dbc: db }) => {
@@ -630,16 +698,19 @@ test.concurrent('basic roles', async ({ dbc: db }) => {
 		usersRole: cockroachRole('user'),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'basic-roles',
-		['public'],
-		{ roles: { include: ['user'] } },
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'basic-roles',
+			['public'],
+			{ roles: { include: ['user'] } },
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('role with properties', async ({ dbc: db }) => {
@@ -647,16 +718,19 @@ test.concurrent('role with properties', async ({ dbc: db }) => {
 		usersRole: cockroachRole('user', { createDb: true, createRole: true }),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'roles-with-properties',
-		['public'],
-		{ roles: { include: ['user'] } },
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'roles-with-properties',
+			['public'],
+			{ roles: { include: ['user'] } },
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('role with a few properties', async ({ dbc: db }) => {
@@ -664,16 +738,19 @@ test.concurrent('role with a few properties', async ({ dbc: db }) => {
 		usersRole: cockroachRole('user', { createRole: true }),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'roles-with-few-properties',
-		['public'],
-		{ roles: { include: ['user'] } },
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'roles-with-few-properties',
+			['public'],
+			{ roles: { include: ['user'] } },
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('case sensitive schema name + identity column', async ({ dbc: db }) => {
@@ -686,15 +763,18 @@ test.concurrent('case sensitive schema name + identity column', async ({ dbc: db
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'case-sensitive-schema-name',
-		['CaseSensitiveSchema'],
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'case-sensitive-schema-name',
+			['CaseSensitiveSchema'],
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect foreign keys', async ({ dbc: db }) => {
@@ -709,10 +789,13 @@ test.concurrent('introspect foreign keys', async ({ dbc: db }) => {
 			userId: int4('user_id').references(() => users.id, { onDelete: 'set null', onUpdate: 'cascade' }),
 		}),
 	};
-	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-foreign-keys');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(db, schema, 'introspect-foreign-keys');
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect table with self reference', async ({ dbc: db }) => {
@@ -722,10 +805,13 @@ test.concurrent('introspect table with self reference', async ({ dbc: db }) => {
 		invited_id: int4().references((): AnyCockroachColumn => users.id),
 	});
 	const schema = { users };
-	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-self-ref');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(db, schema, 'introspect-self-ref');
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5053
@@ -737,13 +823,14 @@ test.concurrent('single quote default', async ({ dbc: db }) => {
 		display_name: text().default('').notNull(),
 	});
 
-	const { sqlStatements } = await diffIntrospect(
+	const { pushSqlStatements: sqlStatements, generateSqlStatements } = await diffIntrospect(
 		db,
 		{ group },
 		'single_quote_default',
 	);
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5193
@@ -969,4 +1056,64 @@ test('pull after migrate with custom migrations table #3', async ({ db }) => {
 			table: 'users',
 		},
 	]);
+});
+
+test('primary key with non default name', async ({ db }) => {
+	await db.query(`
+CREATE TABLE table1 (
+    id int4,
+	CONSTRAINT "primary_key" PRIMARY KEY (id)
+);`);
+	await db.query(`
+CREATE TABLE table2 (
+    id int4 primary key
+);
+`);
+
+	const {
+		pushSqlStatements: sqlStatements,
+		pushStatements: statements,
+		schema2,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, {}, 'primary-key-without-default-name');
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(statements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});
+
+// constraints (pk / fk / unique / check) round-trip with custom and default names
+test('constraints with custom and default names', async ({ db }) => {
+	await db.query(`CREATE TABLE ref (id int4 PRIMARY KEY);`);
+	await db.query(`
+CREATE TABLE t_custom (
+    id int4,
+    ref_id int4,
+    val int4,
+    num int4,
+    CONSTRAINT "custom_pk" PRIMARY KEY (id),
+    CONSTRAINT "custom_fk" FOREIGN KEY (ref_id) REFERENCES ref(id),
+    CONSTRAINT "custom_unique" UNIQUE (val),
+    CONSTRAINT "custom_check" CHECK (num > 0)
+);`);
+	await db.query(`
+CREATE TABLE t_default (
+    id int4 PRIMARY KEY,
+    ref_id int4 REFERENCES ref(id),
+    val int4 UNIQUE,
+    num int4 CHECK (num > 0)
+);`);
+
+	const { pushStatements, pushSqlStatements, generateStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		{},
+		'crdb-constraints-custom-and-default',
+	);
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });

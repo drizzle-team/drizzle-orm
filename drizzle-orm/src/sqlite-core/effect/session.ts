@@ -18,7 +18,6 @@ import {
 	type SQLiteExecuteMethod,
 	SQLitePreparedQuery,
 	SQLiteSession,
-	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { upgradeIfNeeded } from '~/up-migrations/effect-sqlite.ts';
 import { assertUnreachable } from '~/utils.ts';
@@ -268,7 +267,6 @@ export abstract class SQLiteEffectSession<
 		transaction: (
 			tx: SQLiteEffectTransaction<TEffectHKT, TRunResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
-		config?: SQLiteTransactionConfig,
 	): Effect.Effect<A, E | SqlError, R>;
 }
 

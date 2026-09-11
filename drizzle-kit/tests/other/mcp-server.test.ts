@@ -77,7 +77,6 @@ describe('MCP server check tool', () => {
 			expect(result.isError).toBe(false);
 			expect(result.structuredContent).toMatchObject({ status: 'ok' });
 			const textBlock = (result.content as any[]).find((c) => c.type === 'text');
-			expect(textBlock).toBeDefined();
 			const parsed = JSON.parse(textBlock.text);
 			expect(parsed).toMatchObject({ status: 'ok' });
 		} finally {
@@ -116,7 +115,6 @@ describe('MCP server export tool', () => {
 			expect(result.isError).toBe(false);
 			expect(result.structuredContent).toMatchObject({ status: 'ok' });
 			const textBlock = (result.content as any[]).find((c) => c.type === 'text');
-			expect(textBlock).toBeDefined();
 			const parsed = JSON.parse(textBlock.text);
 			expect(parsed).toMatchObject({ status: 'ok' });
 		} finally {
@@ -137,7 +135,6 @@ describe('MCP server up tool', () => {
 			expect(result.isError).toBe(false);
 			expect(result.structuredContent).toMatchObject({ status: 'ok' });
 			const textBlock = (result.content as any[]).find((c) => c.type === 'text');
-			expect(textBlock).toBeDefined();
 			const parsed = JSON.parse(textBlock.text);
 			expect(parsed).toMatchObject({ status: 'ok' });
 			const sc = result.structuredContent as any;

@@ -2,10 +2,11 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable, trimChar } from '../../utils';
+import { withCasing } from '../pull-utils';
 import { inspect } from '../utils';
 import type { CheckConstraint, CockroachDDL, Column, ForeignKey, Index, Policy, PrimaryKey, ViewColumn } from './ddl';
 import { tableFromDDL } from './ddl';
-import { defaults, typeFor } from './grammar';
+import { defaultNameForFK, defaultNameForPK, defaults, typeFor } from './grammar';
 
 // TODO: omit defaults opclass...
 const imports = [
@@ -78,24 +79,6 @@ const objToStatement2 = (json: { [s: string]: unknown }) => {
 // };
 
 const relations = new Set<string>();
-
-const escapeColumnKey = (value: string) => {
-	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
-		return `"${value}"`;
-	}
-	return value;
-};
-
-const withCasing = (value: string, casing: Casing) => {
-	if (casing === 'preserve') {
-		return escapeColumnKey(value);
-	}
-	if (casing === 'camel') {
-		return escapeColumnKey(toCamelCase(value));
-	}
-
-	assertUnreachable(casing);
-};
 
 const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing: Casing; withMode?: boolean }) => {
 	if (casing === 'preserve') {
@@ -355,23 +338,48 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 		let func = tableSchema ? `${tableSchema}.table` : tableFn;
 		func += table.isRlsEnabled ? '.withRLS' : '';
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
-		statement += createTableColumns(columns, table.pk, fks, enumTypes, schemas, casing);
+
+		const callbackFks: ForeignKey[] = [];
+		const inlineFks: ForeignKey[] = [];
+		for (let index = 0; index < fks.length; index++) {
+			const fk = fks[index];
+			if (
+				!isSelf(fk) && fk.columns.length === 1
+				&& fk.name === defaultNameForFK(fk.table, fk.columns, fk.tableTo, fk.columnsTo)
+			) inlineFks.push(fk);
+			else callbackFks.push(fk);
+		}
+
+		const primaryKeyType: 'callback' | 'inline' = table.pk
+				&& (
+					table.pk.columns.length > 1
+					|| (table.pk.columns.length === 1 && table.pk.name !== defaultNameForPK(table.name))
+				)
+			? 'callback'
+			: 'inline';
+
+		statement += createTableColumns(
+			columns,
+			primaryKeyType === 'inline' ? table.pk : null,
+			inlineFks,
+			schemas,
+			casing,
+		);
 		statement += '}';
 
-		// copied from pg
-		const filteredFKs = table.fks.filter((it) => {
-			return it.columns.length > 1 || isSelf(it);
-		});
-
-		const hasCallback = table.indexes.length > 0 || filteredFKs.length > 0 || table.policies.length > 0
-			|| (table.pk && table.pk.columns.length > 1) || table.checks.length > 0;
+		const hasCallback = table.indexes.length > 0
+			|| callbackFks.length > 0
+			|| table.policies.length > 0
+			|| primaryKeyType === 'callback'
+			|| table.checks.length > 0;
 
 		if (hasCallback) {
 			statement += ', ';
 			statement += '(table) => [\n';
-			// TODO: or pk has non-default name
-			statement += table.pk && table.pk.columns.length > 1 ? createTablePK(table.pk, casing) : '';
-			statement += createTableFKs(filteredFKs, schemas, casing);
+			statement += primaryKeyType === 'callback'
+				? createTablePK(table.pk!, casing)
+				: '';
+			statement += createTableFKs(callbackFks, schemas, casing);
 			statement += createTableIndexes(table.name, table.indexes, casing);
 			statement += createTablePolicies(table.policies, casing, rolesNameToTsKey);
 			statement += createTableChecks(table.checks, casing);
@@ -492,21 +500,13 @@ const createViewColumns = (columns: ViewColumn[], enumTypes: Set<string>, casing
 const createTableColumns = (
 	columns: Column[],
 	primaryKey: PrimaryKey | null,
-	fks: ForeignKey[],
-	enumTypes: Set<string>,
+	inlineFks: ForeignKey[],
 	schemas: Record<string, string>,
 	casing: Casing,
 ): string => {
 	let statement = '';
 
-	// no self refs and no cyclic
-	const oneColumnsFKs = Object.values(fks)
-		.filter((it) => {
-			return !isSelf(it);
-		})
-		.filter((it) => it.columns.length === 1);
-
-	const fkByColumnName = oneColumnsFKs.reduce(
+	const fkByColumnName = inlineFks.reduce(
 		(res, it) => {
 			const arr = res[it.columns[0]] || [];
 			arr.push(it);
@@ -531,6 +531,7 @@ const createTableColumns = (
 		const comma = (dbName && opts) ? ', ' : '';
 
 		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name
+				&& primaryKey.name === defaultNameForPK(it.table)
 			? primaryKey
 			: null;
 

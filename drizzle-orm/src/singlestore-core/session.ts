@@ -1,14 +1,14 @@
-import type * as V1 from '~/_relations.ts';
-import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
+import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
-import type { AnyRelations, EmptyRelations, RelationalQueryMapperConfig } from '~/relations.ts';
-import { type Query, type SQL, sql } from '~/sql/sql.ts';
-import type { Assume, Equal } from '~/utils.ts';
+import type { Logger } from '~/logger.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import type { PreparedQuery } from '~/session.ts';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
+import { assertUnreachable, type Assume, type Equal } from '~/utils.ts';
 import { SingleStoreDatabase } from './db.ts';
 import type { SingleStoreDialect } from './dialect.ts';
-import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
 export interface SingleStoreQueryResultHKT {
 	readonly $brand: 'SingleStoreQueryResultHKT';
@@ -35,27 +35,66 @@ export interface SingleStorePreparedQueryHKT {
 	readonly type: unknown;
 }
 
+export type AnySingleStoreMapper = (
+	response: Record<string, unknown>[] | unknown[][] | { insertId: number; affectedRows: number },
+) => any;
+
 export type PreparedQueryKind<
 	TKind extends SingleStorePreparedQueryHKT,
 	TConfig extends SingleStorePreparedQueryConfig,
 	TAssume extends boolean = false,
 > = Equal<TAssume, true> extends true
-	? Assume<(TKind & { readonly config: TConfig })['type'], SingleStorePreparedQuery<TConfig>>
+	? Assume<(TKind & { readonly config: TConfig })['type'], SingleStoreBasePreparedQuery<TConfig>>
 	: (TKind & { readonly config: TConfig })['type'];
 
-export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQueryConfig> {
-	static readonly [entityKind]: string = 'SingleStorePreparedQuery';
+export abstract class SingleStoreBasePreparedQuery<T extends SingleStorePreparedQueryConfig> implements PreparedQuery {
+	static readonly [entityKind]: string = 'SingleStoreBasePreparedQuery';
 
 	constructor(
-		private cache?: Cache,
+		protected query: Query,
+	) {}
+
+	getQuery(): Query {
+		return this.query;
+	}
+
+	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
+
+	abstract iterator(placeholderValues?: Record<string, unknown>): AsyncGenerator<T['iterator']>;
+}
+
+export class SingleStorePreparedQuery<T extends SingleStorePreparedQueryConfig>
+	extends SingleStoreBasePreparedQuery<T>
+{
+	static override readonly [entityKind]: string = 'SingleStorePreparedQuery';
+
+	/** @internal */
+	readonly mapper: {
+		(rows: any[]): any;
+		body?: string;
+	} | undefined;
+
+	private fastPath: boolean;
+
+	constructor(
+		protected executor: (params?: unknown[]) => Promise<any>,
+		protected _iterator: ((params?: unknown[]) => AsyncGenerator<any>) | undefined,
+		query: Query,
+		mapper: AnySingleStoreMapper | undefined,
+		readonly mode: 'arrays' | 'objects' | 'raw',
+		protected logger: Logger,
+		// cache instance
+		private cache: Cache | undefined,
 		// per query related metadata
-		private queryMetadata?: {
+		private queryMetadata: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
 		} | undefined,
 		// config that was passed through $withCache
-		private cacheConfig?: WithCacheConfig,
+		private cacheConfig?: WithCacheConfig | undefined,
 	) {
+		super(query);
+		this.mapper = mapper;
 		// it means that no $withCache options were passed and it should be just enabled
 		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
 			this.cacheConfig = { enabled: true, autoInvalidate: true };
@@ -63,6 +102,9 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 		if (!this.cacheConfig?.enabled) {
 			this.cacheConfig = undefined;
 		}
+
+		this.fastPath = cacheConfig === undefined
+			&& (cache === undefined || is(cache, NoopCache));
 	}
 
 	/** @internal */
@@ -71,73 +113,49 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 		params: any[],
 		query: () => Promise<T>,
 	): Promise<T> {
-		if (this.cache === undefined || is(this.cache, NoopCache) || this.queryMetadata === undefined) {
-			try {
-				return await query();
-			} catch (e) {
+		const cacheStrat = this.cache !== undefined && !is(this.cache, NoopCache)
+			? await strategyFor(queryString, params, this.queryMetadata, this.cacheConfig)
+			: { type: 'skip' as const };
+
+		if (cacheStrat.type === 'skip') {
+			return query().catch((e) => {
 				throw new DrizzleQueryError(queryString, params, e as Error);
-			}
+			});
 		}
 
-		// don't do any mutations, if globally is false
-		if (this.cacheConfig && !this.cacheConfig.enabled) {
-			try {
-				return await query();
-			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
-			}
-		}
+		const cache = this.cache!;
 
 		// For mutate queries, we should query the database, wait for a response, and then perform invalidation
-		if (
-			(
-				this.queryMetadata.type === 'insert' || this.queryMetadata.type === 'update'
-				|| this.queryMetadata.type === 'delete'
-			) && this.queryMetadata.tables.length > 0
-		) {
-			try {
-				const [res] = await Promise.all([
-					query(),
-					this.cache.onMutate({ tables: this.queryMetadata.tables }),
-				]);
-				return res;
-			} catch (e) {
+		if (cacheStrat.type === 'invalidate') {
+			return Promise.all([
+				query(),
+				cache.onMutate({ tables: cacheStrat.tables }),
+			]).then((res) => res[0]).catch((e) => {
 				throw new DrizzleQueryError(queryString, params, e as Error);
-			}
+			});
 		}
 
-		// don't do any reads if globally disabled
-		if (!this.cacheConfig) {
-			try {
-				return await query();
-			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
-			}
-		}
-
-		if (this.queryMetadata.type === 'select') {
-			const fromCache = await this.cache.get(
-				this.cacheConfig.tag ?? await hashQuery(queryString, params),
-				this.queryMetadata.tables,
-				this.cacheConfig.tag !== undefined,
-				this.cacheConfig.autoInvalidate,
+		if (cacheStrat.type === 'try') {
+			const { tables, key, isTag, autoInvalidate, config } = cacheStrat;
+			const fromCache = await cache.get(
+				key,
+				tables,
+				isTag,
+				autoInvalidate,
 			);
-			if (fromCache === undefined) {
-				let result;
-				try {
-					result = await query();
-				} catch (e) {
-					throw new DrizzleQueryError(queryString, params, e as Error);
-				}
 
+			if (fromCache === undefined) {
+				const result = await query().catch((e) => {
+					throw new DrizzleQueryError(queryString, params, e as Error);
+				});
 				// put actual key
-				await this.cache.put(
-					this.cacheConfig.tag ?? await hashQuery(queryString, params),
+				await cache.put(
+					key,
 					result,
 					// make sure we send tables that were used in a query only if user wants to invalidate it on each write
-					this.cacheConfig.autoInvalidate ? this.queryMetadata.tables : [],
-					this.cacheConfig.tag !== undefined,
-					this.cacheConfig.config,
+					autoInvalidate ? tables : [],
+					isTag,
+					config,
 				);
 				// put flag if we should invalidate or not
 				return result;
@@ -145,19 +163,77 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 
 			return fromCache as unknown as T;
 		}
-		try {
-			return await query();
-		} catch (e) {
-			throw new DrizzleQueryError(queryString, params, e as Error);
-		}
+
+		assertUnreachable(cacheStrat);
 	}
 
-	/** @internal */
-	joinsNotNullableMap?: Record<string, boolean>;
+	override async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
+		const { query, logger, executor, mapper, fastPath } = this;
+		const { sql } = query;
+		const params = query.params.length === 0
+			? query.params
+			: fillPlaceholders(query.params, placeholderValues);
+		logger.logQuery(sql, params);
 
-	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
+		const res = fastPath
+			? executor(params).catch((e) => {
+				throw new DrizzleQueryError(sql, params, e as Error);
+			})
+			: this.queryWithCache(sql, params, () => executor(params));
+		if (!mapper) return res;
 
-	abstract iterator(placeholderValues?: Record<string, unknown>): AsyncGenerator<T['iterator']>;
+		return res.then((rows) => mapper(rows));
+	}
+
+	override async *iterator(placeholderValues: Record<string, unknown> = {}): AsyncGenerator<T['iterator']> {
+		const { query, logger, executor, _iterator, mapper, fastPath } = this;
+		const { sql } = query;
+		const params = query.params.length === 0
+			? query.params
+			: fillPlaceholders(query.params, placeholderValues);
+		logger.logQuery(sql, params);
+
+		if (_iterator) {
+			try {
+				if (mapper) {
+					for await (const row of _iterator(params)) {
+						const mapped = mapper([row]);
+						yield Array.isArray(mapped) ? mapped[0] : mapped;
+					}
+
+					return;
+				}
+
+				for await (const row of _iterator(params)) {
+					yield row as Awaited<T['iterator']>;
+				}
+
+				return;
+			} catch (e) {
+				throw new DrizzleQueryError(sql, params, e as Error);
+			}
+		}
+
+		// Fallback for compatibility between drivers
+		const rows = await (fastPath
+			? executor(params).catch((e) => {
+				throw new DrizzleQueryError(sql, params, e as Error);
+			})
+			: this.queryWithCache(sql, params, () => executor(params)));
+
+		if (mapper) {
+			for (const row of rows) {
+				const mapped = mapper([row]);
+				yield Array.isArray(mapped) ? mapped[0] : mapped;
+			}
+
+			return;
+		}
+
+		for (const row of rows) {
+			yield row;
+		}
+	}
 }
 
 export interface SingleStoreTransactionConfig {
@@ -169,9 +245,7 @@ export interface SingleStoreTransactionConfig {
 export abstract class SingleStoreSession<
 	TQueryResult extends SingleStoreQueryResultHKT = SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
 > {
 	static readonly [entityKind]: string = 'SingleStoreSession';
 
@@ -182,10 +256,8 @@ export abstract class SingleStoreSession<
 		TPreparedQueryHKT extends SingleStorePreparedQueryHKT,
 	>(
 		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		customResultMapper?: (rows: unknown[][]) => T['execute'],
-		generatedIds?: Record<string, unknown>[],
-		returningIds?: SelectedFieldsOrdered,
+		mode: 'arrays' | 'objects' | 'raw',
+		mapper?: (rows: any) => any,
 		queryMetadata?: {
 			type: 'select' | 'update' | 'delete' | 'insert';
 			tables: string[];
@@ -193,26 +265,26 @@ export abstract class SingleStoreSession<
 		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<TPreparedQueryHKT, T>;
 
-	abstract prepareRelationalQuery<
-		T extends SingleStorePreparedQueryConfig,
-		TPreparedQueryHKT extends SingleStorePreparedQueryHKT,
-	>(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
-		config: RelationalQueryMapperConfig,
-		generatedIds?: Record<string, unknown>[],
-		returningIds?: SelectedFieldsOrdered,
-	): PreparedQueryKind<TPreparedQueryHKT, T>;
-
 	execute<T>(query: SQL): Promise<T> {
 		return this.prepareQuery<SingleStorePreparedQueryConfig & { execute: T }, PreparedQueryHKTBase>(
 			this.dialect.sqlToQuery(query),
-			undefined,
+			'raw',
 		).execute();
 	}
 
-	abstract all<T = unknown>(query: SQL): Promise<T[]>;
+	arrays<T = unknown>(query: SQL): Promise<T[]> {
+		return this.prepareQuery<SingleStorePreparedQueryConfig & { execute: T[] }, PreparedQueryHKTBase>(
+			this.dialect.sqlToQuery(query),
+			'arrays',
+		).execute();
+	}
+
+	objects<T = unknown>(query: SQL): Promise<T[]> {
+		return this.prepareQuery<SingleStorePreparedQueryConfig & { execute: T[] }, PreparedQueryHKTBase>(
+			this.dialect.sqlToQuery(query),
+			'objects',
+		).execute();
+	}
 
 	async count(sql: SQL): Promise<number> {
 		const res = await this.execute<[[{ count: string }]]>(sql);
@@ -224,7 +296,7 @@ export abstract class SingleStoreSession<
 
 	abstract transaction<T>(
 		transaction: (
-			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TRelations, TSchema>,
+			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TRelations>,
 		) => Promise<T>,
 		config?: SingleStoreTransactionConfig,
 	): Promise<T>;
@@ -250,27 +322,24 @@ export abstract class SingleStoreSession<
 			parts.push(config.accessMode);
 		}
 
-		return parts.length ? sql`start transaction ${sql.raw(parts.join(' '))}` : undefined;
+		return parts.length ? sql`start transaction ${sql.raw(parts.join(', '))}` : undefined;
 	}
 }
 
 export abstract class SingleStoreTransaction<
 	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
-> extends SingleStoreDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TRelations, TSchema> {
+> extends SingleStoreDatabase<TQueryResult, TPreparedQueryHKT, TRelations> {
 	static override readonly [entityKind]: string = 'SingleStoreTransaction';
 
 	constructor(
 		dialect: SingleStoreDialect,
 		session: SingleStoreSession,
 		protected relations: TRelations,
-		protected schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly nestedIndex: number,
 	) {
-		super(dialect, session, relations, schema);
+		super(dialect, session, relations);
 	}
 
 	rollback(): never {
@@ -280,11 +349,11 @@ export abstract class SingleStoreTransaction<
 	/** Nested transactions (aka savepoints) only work with InnoDB engine. */
 	abstract override transaction<T>(
 		transaction: (
-			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TRelations, TSchema>,
+			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TRelations>,
 		) => Promise<T>,
 	): Promise<T>;
 }
 
 export interface PreparedQueryHKTBase extends SingleStorePreparedQueryHKT {
-	type: SingleStorePreparedQuery<Assume<this['config'], SingleStorePreparedQueryConfig>>;
+	type: SingleStoreBasePreparedQuery<Assume<this['config'], SingleStorePreparedQueryConfig>>;
 }

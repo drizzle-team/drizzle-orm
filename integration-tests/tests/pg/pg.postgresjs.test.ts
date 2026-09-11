@@ -1,6 +1,6 @@
 import 'dotenv/config';
-import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
-import { alias } from 'drizzle-orm/pg-core';
+import { defineRelations, DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
+import { alias, pgTable } from 'drizzle-orm/pg-core';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
@@ -12885,7 +12885,9 @@ test('alltypes', async () => {
 	expect(nestedRelationRes).toStrictEqual(rawRes);
 	expect(relationRootRes).toStrictEqual(rawRes);
 
-	const expectedRes = [
+	expectTypeOf(rawRes).toEqualTypeOf<schema.AllTypes[]>();
+
+	const expectedRes: schema.AllTypes[] = [
 		{
 			serial: 1,
 			bigserial53: 9007199254740991,
@@ -13059,4 +13061,809 @@ test('.toSQL()', () => {
 
 	expect(query).toHaveProperty('sql', expect.any(String));
 	expect(query).toHaveProperty('params', expect.any(Array));
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5367
+test('Correct error message on unknown column', async () => {
+	const query = db.query.usersTable.findFirst({
+		columns: {
+			id: true,
+			// @ts-expect-error
+			unknown: true,
+		},
+	});
+
+	expect(async () => await query).rejects.toThrow(
+		new DrizzleError({ message: `Unknown column: "usersTable"."unknown"` }),
+	);
+});
+
+test('Correct error message on unknown relation', async () => {
+	const query = db.query.usersTable.findFirst({
+		with: {
+			posts: true,
+			// @ts-expect-error
+			unknown: true,
+		},
+	});
+
+	expect(async () => await query).rejects.toThrow(
+		new DrizzleError({ message: `Unknown relation "usersTable" -> "unknown"` }),
+	);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5644
+test('Disallow unknown keys in filters', async () => {
+	const query = db.query.usersTable.findFirst({
+		where: {
+			name: 'NAME',
+			// @ts-expect-error
+			unknown: 'value',
+		},
+	});
+
+	expect(async () => await query).rejects.toThrow(
+		new DrizzleError({ message: `Unknown relational filter field: "unknown"` }),
+	);
+});
+
+// Type test
+(() => {
+	type Brand<T> = T & { readonly __brand: 'PROPERTY|OF|JONATHAN|D|RIZZLE' };
+	const brand = <T>(t: T) => t as Brand<T>;
+
+	const brandtypes = pgTable('users', (t) => ({
+		str: t.text().$type<Brand<string>>(),
+		num: t.integer().$type<Brand<number>>(),
+		big: t.bigint({ mode: 'bigint' }).$type<Brand<bigint>>(),
+		bool: t.boolean().$type<Brand<boolean>>(),
+		sym: t.text().$type<Brand<symbol>>(),
+		date: t.date({ mode: 'date' }).$type<Brand<Date>>(),
+		unknown: t.json().$type<Brand<unknown>>(),
+		json: t.json().$type<Brand<{ k: 'v' }>>(),
+	}));
+
+	const rawtypes = pgTable('users', (t) => ({
+		str: t.text(),
+		num: t.integer(),
+		big: t.bigint({ mode: 'bigint' }),
+		bool: t.boolean(),
+		sym: t.text().$type<symbol>(),
+		date: t.date({ mode: 'date' }),
+		unknown: t.json(),
+		json: t.json().$type<{ k: 'v' }>(),
+	}));
+
+	const db = drizzle({
+		relations: defineRelations({ brandtypes, rawtypes }),
+		connection: process.env['PG_CONNECTION_STRING']!,
+	});
+
+	db.query.brandtypes.findFirst({
+		where: {
+			str: brand('str'),
+			num: brand(2),
+			big: brand(2n),
+			bool: brand(true),
+			sym: brand(Symbol('something')),
+			date: { eq: brand(new Date(0)) },
+			unknown: { eq: brand({ k: 'v' } as unknown) },
+			json: { eq: brand({ k: 'v' }) },
+		},
+	});
+
+	db.query.brandtypes.findFirst({
+		where: {
+			str: brand('str'),
+			num: brand(2),
+			big: brand(2n),
+			bool: brand(true),
+			sym: brand(Symbol('something')),
+			// @ts-expect-error
+			date: brand(new Date(0)),
+			// @ts-expect-error
+			unknown: brand({ k: 'v' } as unknown),
+			// @ts-expect-error
+			json: brand({ k: 'v' }),
+		},
+	});
+
+	db.query.rawtypes.findFirst({
+		where: {
+			str: 'str',
+			num: 2,
+			big: 2n,
+			bool: true,
+			sym: Symbol('something'),
+			date: { eq: (new Date(0)) },
+			unknown: { eq: { k: 'v' } as unknown },
+			json: { eq: { k: 'v' } },
+		},
+	});
+
+	db.query.rawtypes.findFirst({
+		where: {
+			str: 'str',
+			num: 2,
+			big: 2n,
+			bool: true,
+			sym: Symbol('something'),
+			// @ts-expect-error
+			date: new Date(0),
+			// @ts-expect-error
+			unknown: { k: 'v' } as unknown,
+			// @ts-expect-error
+			json: { k: 'v' },
+		},
+	});
+
+	db.query.rawtypes.findFirst({
+		where: {
+			str: brand('str'),
+			num: brand(2),
+			big: brand(2n),
+			bool: brand(true),
+			sym: brand(Symbol('something')),
+			date: { eq: brand(new Date(0)) },
+			unknown: { eq: brand({ k: 'v' } as unknown) },
+			json: { eq: brand({ k: 'v' }) },
+		},
+	});
+
+	db.query.rawtypes.findFirst({
+		where: {
+			str: brand('str'),
+			num: brand(2),
+			big: brand(2n),
+			bool: brand(true),
+			sym: brand(Symbol('something')),
+			// @ts-expect-error
+			date: brand(new Date(0)),
+			// @ts-expect-error
+			unknown: brand({ k: 'v' } as unknown),
+			// @ts-expect-error
+			json: brand({ k: 'v' }),
+		},
+	});
+});
+
+test('[Find Many] Get subquery users with posts', async (t) => {
+	const { pgjsDbV2: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1', createdAt: date1 },
+		{ ownerId: 2, content: 'Post2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3', createdAt: date3 },
+	]);
+
+	const usersWithPosts = await db.query.usersSubquery.findMany({
+		with: {
+			posts: true,
+		},
+		orderBy: {
+			id: 'asc',
+		},
+		where: {
+			id: {
+				lt: 3,
+			},
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		counter: number | null;
+		createdAt: Date | null;
+		postContent: string | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
+
+	expect(usersWithPosts).toEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		counter: 3,
+		postContent: 'Post1',
+		createdAt: date1,
+		posts: [],
+	}, {
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		counter: null,
+		postContent: 'Post2',
+		createdAt: date2,
+		posts: [{ id: 2, ownerId: 2, content: 'Post2', createdAt: date2 }],
+	}]);
+});
+
+test('[Find Many] Get subquery users with posts + filter by SQL.Aliased field', async (t) => {
+	const { pgjsDbV2: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1', createdAt: date1 },
+		{ ownerId: 2, content: 'Post2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3', createdAt: date3 },
+	]);
+
+	const usersWithPosts = await db.query.usersSubquery.findMany({
+		columns: {
+			id: true,
+			name: true,
+			verified: true,
+			invitedBy: true,
+			counter: true,
+		},
+		with: {
+			posts: true,
+		},
+		orderBy: {
+			id: 'desc',
+		},
+		where: {
+			counter: {
+				ne: '0',
+			},
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		counter: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
+
+	expect(usersWithPosts).toEqual([{
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		counter: 3,
+		posts: [{ id: 3, ownerId: 3, content: 'Post3', createdAt: date3 }],
+	}, {
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		counter: 3,
+		posts: [],
+	}]);
+});
+
+test('[Find Many] Get subquery users with posts + filter by joined field', async (t) => {
+	const { pgjsDbV2: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1', createdAt: date1 },
+		{ ownerId: 2, content: 'Post2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3', createdAt: date3 },
+	]);
+
+	const usersWithPosts = await db.query.usersSubquery.findMany({
+		with: {
+			posts: true,
+		},
+		orderBy: {
+			id: 'asc',
+		},
+		where: {
+			postContent: 'Post2',
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		createdAt: Date | null;
+		postContent: string | null;
+		counter: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+		}[];
+	}[]>();
+
+	expect(usersWithPosts).toEqual([{
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		counter: null,
+		postContent: 'Post2',
+		createdAt: date2,
+		posts: [{ id: 2, ownerId: 2, content: 'Post2', createdAt: date2 }],
+	}]);
+});
+
+test('[Find Many] Get posts with subquery users with posts', async (t) => {
+	const { pgjsDbV2: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1', createdAt: date1 },
+		{ ownerId: 2, content: 'Post2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3', createdAt: date3 },
+	]);
+
+	const result = await db.query.postsTable.findMany({
+		with: {
+			subqueryAuthor: {
+				with: {
+					posts: true,
+				},
+			},
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	});
+
+	expectTypeOf(result).toEqualTypeOf<{
+		id: number;
+		content: string;
+		ownerId: number | null;
+		createdAt: Date;
+		subqueryAuthor: {
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			createdAt: Date | null;
+			postContent: string | null;
+			counter: number | null;
+			posts: {
+				id: number;
+				content: string;
+				ownerId: number | null;
+				createdAt: Date;
+			}[];
+		};
+	}[]>();
+
+	expect(result).toEqual([
+		{
+			id: 1,
+			ownerId: 1,
+			content: 'Post1',
+			createdAt: date1,
+			subqueryAuthor: null,
+		},
+		{
+			id: 2,
+			ownerId: 2,
+			content: 'Post2',
+			createdAt: date2,
+			subqueryAuthor: {
+				id: 2,
+				name: 'Andrew',
+				verified: false,
+				invitedBy: null,
+				counter: null,
+				postContent: 'Post2',
+				createdAt: date2,
+				posts: [{ id: 2, ownerId: 2, content: 'Post2', createdAt: date2 }],
+			},
+		},
+		{
+			id: 3,
+			ownerId: 3,
+			content: 'Post3',
+			createdAt: date3,
+			subqueryAuthor: {
+				id: 3,
+				name: 'Alex',
+				verified: false,
+				invitedBy: null,
+				counter: 3,
+				postContent: 'Post3',
+				createdAt: date3,
+				posts: [{ id: 3, ownerId: 3, content: 'Post3', createdAt: date3 }],
+			},
+		},
+	]);
+});
+
+test('[Find Many] Get posts with subquery users + filter with posts', async (t) => {
+	const { pgjsDbV2: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1', createdAt: date1 },
+		{ ownerId: 2, content: 'Post2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3', createdAt: date3 },
+	]);
+
+	const result = await db.query.postsTable.findMany({
+		with: {
+			subqueryAuthor: {
+				with: {
+					posts: true,
+				},
+				where: {
+					id: {
+						ne: 2,
+					},
+				},
+			},
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	});
+
+	expectTypeOf(result).toEqualTypeOf<{
+		id: number;
+		content: string;
+		ownerId: number | null;
+		createdAt: Date;
+		subqueryAuthor: {
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			createdAt: Date | null;
+			postContent: string | null;
+			counter: number | null;
+			posts: {
+				id: number;
+				content: string;
+				ownerId: number | null;
+				createdAt: Date;
+			}[];
+		} | null;
+	}[]>();
+
+	expect(result).toEqual([
+		{
+			id: 1,
+			ownerId: 1,
+			content: 'Post1',
+			createdAt: date1,
+			subqueryAuthor: null,
+		},
+		{
+			id: 2,
+			ownerId: 2,
+			content: 'Post2',
+			createdAt: date2,
+			subqueryAuthor: null,
+		},
+		{
+			id: 3,
+			ownerId: 3,
+			content: 'Post3',
+			createdAt: date3,
+			subqueryAuthor: {
+				id: 3,
+				name: 'Alex',
+				verified: false,
+				invitedBy: null,
+				counter: 3,
+				postContent: 'Post3',
+				createdAt: date3,
+				posts: [{ id: 3, ownerId: 3, content: 'Post3', createdAt: date3 }],
+			},
+		},
+	]);
+});
+
+test('[Find Many .through] Get subquery users with filtered groups + where', async (t) => {
+	const { pgjsDbV2: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersSubquery.findMany({
+		with: {
+			groups: {
+				where: {
+					id: {
+						lt: 3,
+					},
+				},
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		createdAt: Date | null;
+		postContent: string | null;
+		counter: number | null;
+		groups: {
+			id: number;
+			name: string;
+			description: string | null;
+		}[];
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	for (const e of response) {
+		e.groups.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	}
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+		createdAt: null,
+		postContent: null,
+		counter: 3,
+		groups: [],
+	}, {
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		createdAt: null,
+		postContent: null,
+		counter: null,
+		groups: [{
+			id: 2,
+			name: 'Group2',
+			description: null,
+		}],
+	}, {
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+		createdAt: null,
+		postContent: null,
+		counter: 3,
+		groups: [{
+			id: 2,
+			name: 'Group2',
+			description: null,
+		}],
+	}]);
+});
+
+test('[Find Many .through] Get groups with filtered subquery users + where', async (t) => {
+	const { pgjsDbV2: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		with: {
+			usersSubquery: {
+				columns: {
+					createdAt: false,
+					postContent: false,
+				},
+				where: { id: { lt: 3 } },
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		description: string | null;
+		usersSubquery: {
+			id: number;
+			name: string;
+			verified: boolean;
+			invitedBy: number | null;
+			counter: number | null;
+		}[];
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	for (const e of response) {
+		e.usersSubquery.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	}
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Group1',
+		description: null,
+		usersSubquery: [],
+	}, {
+		id: 2,
+		name: 'Group2',
+		description: null,
+		usersSubquery: [{
+			id: 2,
+			name: 'Andrew',
+			verified: false,
+			invitedBy: null,
+			counter: null,
+		}],
+	}, {
+		id: 3,
+		name: 'Group3',
+		description: null,
+		usersSubquery: [],
+	}]);
+});
+
+test('[Find Many] Get subquery users with posts with subquery authors', async (t) => {
+	const { pgjsDbV2: db } = t;
+
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const date1 = new Date(0);
+	const date2 = new Date(1000);
+	const date3 = new Date(10000);
+
+	await db.insert(postsTable).values([
+		{ ownerId: 1, content: 'Post1', createdAt: date1 },
+		{ ownerId: 2, content: 'Post2', createdAt: date2 },
+		{ ownerId: 3, content: 'Post3', createdAt: date3 },
+	]);
+
+	const response = await db.query.usersSubquery.findMany({
+		columns: {
+			id: true,
+			name: true,
+		},
+		with: {
+			posts: {
+				with: {
+					subqueryAuthor: {
+						columns: {
+							id: true,
+							counter: true,
+						},
+					},
+				},
+			},
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+			subqueryAuthor: {
+				id: number;
+				counter: number | null;
+			};
+		}[];
+	}[]>();
+
+	expect(response).toEqual([{
+		id: 1,
+		name: 'Dan',
+		posts: [],
+	}, {
+		id: 2,
+		name: 'Andrew',
+		posts: [{
+			id: 2,
+			ownerId: 2,
+			content: 'Post2',
+			createdAt: date2,
+			subqueryAuthor: { id: 2, counter: null },
+		}],
+	}, {
+		id: 3,
+		name: 'Alex',
+		posts: [{
+			id: 3,
+			ownerId: 3,
+			content: 'Post3',
+			createdAt: date3,
+			subqueryAuthor: { id: 3, counter: 3 },
+		}],
+	}]);
 });

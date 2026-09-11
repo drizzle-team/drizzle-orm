@@ -6,8 +6,16 @@ import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
+import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
+import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import type { MySqlDialect } from '../dialect.ts';
-import { MySqlInsertBuilder, MySqlSelectBuilder, MySqlUpdateBuilder, QueryBuilder } from '../query-builders/index.ts';
+import {
+	MySqlInsertBuilder,
+	MySqlSelectBuilder,
+	MySqlUpdateBuilder,
+	type NoDuplicateColumns,
+	QueryBuilder,
+} from '../query-builders/index.ts';
 import { RelationalQueryBuilder } from '../query-builders/query.ts';
 import type { SelectedFields } from '../query-builders/select.types.ts';
 import type {
@@ -437,10 +445,38 @@ export class MySqlAsyncDatabase<
 	 *
 	 * // Insert multiple rows
 	 * await db.insert(cars).values([{ brand: 'BMW' }, { brand: 'Porsche' }]);
+	 *
+	 * // Insert only selected columns
+	 * await db.insert(cars, 'brand', 'productionYear').values([{ brand: 'BMW', productionYear: 1995 }, { brand: 'Porsche', productionYear: 1989 }]);
 	 * ```
 	 */
-	insert<TTable extends MySqlTable>(table: TTable): MySqlInsertBuilder<TTable, TQueryResult, MySqlAsyncInsertHKT> {
-		return new MySqlInsertBuilder(table, this.session, this.dialect, MySqlAsyncInsertBase);
+	insert<
+		TTable extends MySqlTable,
+		TColumnList extends (keyof InferInsertModel<TTable>)[] = [],
+		TRequiredKeys extends string = RequiredInsertKeys<TTable>,
+	>(
+		table: TTable,
+		...columns: TColumnList extends [] ? []
+			: IsNever<TRequiredKeys> extends true ? TColumnList & NoDuplicateColumns<TColumnList>
+			: [TRequiredKeys] extends [TColumnList[number]] ? TColumnList & NoDuplicateColumns<TColumnList>
+			: DrizzleTypeError<
+				`Column selection is missing following required columns: ${JoinUnion<
+					`"${Exclude<TRequiredKeys, TColumnList[number]>}"`,
+					', '
+				>}`
+			>[]
+	): MySqlInsertBuilder<TTable, TQueryResult, TColumnList extends [] ? 'all' : TColumnList, MySqlAsyncInsertHKT>;
+	insert<TTable extends MySqlTable>(
+		table: TTable,
+		...columns: string[]
+	): MySqlInsertBuilder<TTable, TQueryResult, 'all', MySqlAsyncInsertHKT> {
+		return new MySqlInsertBuilder(
+			table,
+			this.session,
+			this.dialect,
+			columns.length ? columns : undefined,
+			MySqlAsyncInsertBase,
+		);
 	}
 
 	/**
@@ -466,14 +502,27 @@ export class MySqlAsyncDatabase<
 		return new MySqlAsyncDeleteBase(table, this.session, this.dialect);
 	}
 
+	execute<TRow extends unknown[] = unknown[]>(
+		query: SQLWrapper | string,
+		mode: 'arrays',
+	): MySqlAsyncRaw<TRow[]>;
+	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode: 'objects',
+	): MySqlAsyncRaw<TRow[]>;
 	execute<T extends { [column: string]: any } = ResultSetHeader>(
 		query: SQLWrapper | string,
-	): MySqlAsyncRaw<MySqlQueryResultKind<TQueryResult, T>> {
+		mode?: 'raw' | undefined,
+	): MySqlAsyncRaw<MySqlQueryResultKind<TQueryResult, T>>;
+	execute(
+		query: SQLWrapper | string,
+		mode?: 'raw' | 'objects' | 'arrays' | undefined,
+	): unknown {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<
-			MySqlPreparedQueryConfig & { execute: MySqlQueryResultKind<TQueryResult, T> }
-		>(builtQuery, 'raw');
+			MySqlPreparedQueryConfig & { execute: unknown }
+		>(builtQuery, mode ?? 'raw');
 		return new MySqlAsyncRaw(prepared, sequel, builtQuery);
 	}
 
@@ -488,7 +537,16 @@ export class MySqlAsyncDatabase<
 	}
 }
 
-export type MySQLWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
+export type MySQLWithReplicas<Q> = Q & {
+	$replica: Q;
+	/**
+	 * @deprecated `withReplicas` db now defaults to using primary
+	 *
+	 * Use `db.$replica` to redirect query to replica
+	 */
+	$primary: Q;
+	$replicas: Q[];
+};
 
 export const withReplicas = <
 	HKT extends MySqlQueryResultHKT,
@@ -499,32 +557,9 @@ export const withReplicas = <
 	replicas: [Q, ...Q[]],
 	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
 ): MySQLWithReplicas<Q> => {
-	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args);
-	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
-	const $count: Q['$count'] = (...args: [any]) => getReplica(replicas).$count(...args);
-	const $with: Q['with'] = (...args: []) => getReplica(replicas).with(...args);
-
-	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = (...args: [any]) => primary.insert(...args);
-	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
-	const transaction: Q['transaction'] = (...args: [any, any]) => primary.transaction(...args);
-
-	return {
-		...primary,
-		update,
-		insert,
-		delete: $delete,
-		execute,
-		transaction,
-		$primary: primary,
-		$replicas: replicas,
-		select,
-		selectDistinct,
-		$count,
-		with: $with,
-		get query() {
-			return getReplica(replicas).query;
-		},
-	};
+	return Object.create(primary, {
+		$replica: { get: () => getReplica(replicas) },
+		$primary: { value: primary },
+		$replicas: { value: replicas },
+	});
 };

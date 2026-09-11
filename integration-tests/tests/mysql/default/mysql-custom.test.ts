@@ -21,6 +21,7 @@ import { toLocalDate } from '~/utils';
 import { mysqlTest as test } from '../instrumentation';
 
 const customSerial = customType<{ data: number; notNull: true; default: true }>({
+	codec: 'serial',
 	dataType() {
 		return 'serial';
 	},
@@ -358,7 +359,8 @@ test('build query', async ({ db }) => {
 		.toSQL();
 
 	expect(query).toEqual({
-		sql: `select \`id\`, \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
+		sql:
+			`select cast(\`id\` as char), \`name\` from \`userstest\` group by \`userstest\`.\`id\`, \`userstest\`.\`name\``,
 		params: [],
 	});
 });
