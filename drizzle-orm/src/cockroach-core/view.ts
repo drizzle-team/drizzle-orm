@@ -376,6 +376,7 @@ export const CockroachMaterializedViewConfig = Symbol.for('drizzle:CockroachMate
 export class CockroachMaterializedView<T extends ViewConfig = ViewConfig> extends CockroachViewBase<T> {
 	static override readonly [entityKind]: string = 'CockroachMaterializedView';
 
+	/** @internal */
 	readonly [CockroachMaterializedViewConfig]: {
 		readonly withNoData?: boolean;
 	} | undefined;
