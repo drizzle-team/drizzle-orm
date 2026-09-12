@@ -86,7 +86,7 @@ export const prepareGenerate = async (opts: GenerateOptionsInput) => {
 		'generate',
 		opts,
 		['name', 'custom', 'ignoreConflicts', 'explain', 'output', 'hints', 'hintsFile'],
-		['driver', 'breakpoints', 'schema', 'out', 'dialect'],
+		['driver', 'breakpoints', 'generateDownMigrations', 'schema', 'out', 'dialect'],
 	);
 	return prepareGenerateConfig(opts as Parameters<typeof prepareGenerateConfig>[0], from);
 };
@@ -328,6 +328,8 @@ export const generateOptions = {
 	out: optionOut,
 	name: string().desc('Migration file name'),
 	breakpoints: optionBreakpoints,
+	generateDownMigrations: boolean()
+		.desc('Emit down.sql rollback files alongside each migration (default: true)'),
 	custom: boolean()
 		.desc('Prepare empty migration file for custom SQL')
 		.default(false),

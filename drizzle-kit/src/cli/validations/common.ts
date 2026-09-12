@@ -134,6 +134,7 @@ export const configCommonSchema = object({
 export type CliConfig = TypeOf<typeof configCommonSchema> & {
 	schema?: string | string[];
 	sql?: boolean;
+	generateDownMigrations?: boolean;
 	migrations?: TypeOf<typeof configMigrations>;
 	tablesFilter?: string | string[];
 	schemaFilter?: string | string[];
@@ -143,6 +144,7 @@ export const configCheck = configCommonSchema;
 
 export const configGenerate = configCommonSchema.extend({
 	schema: union([string(), string().array()]),
+	generateDownMigrations: boolean().optional().default(true),
 });
 
 export const configPush = configCommonSchema.extend({
