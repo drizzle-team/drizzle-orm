@@ -23,6 +23,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 
 	private rawQueryConfig: QueryConfig;
 	private queryConfig: QueryArrayConfig;
+	private rawQueryConfigWithoutTypeOverride: QueryConfig;
 
 	constructor(
 		private client: NodePgClient,
@@ -84,6 +85,16 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 				},
 			},
 		};
+		// Used by execute() when there are no Drizzle fields/custom mapper
+		// (i.e. the raw `db.execute()` escape hatch). Unlike rawQueryConfig,
+		// this must NOT override node-postgres's configured type parsers:
+		// a caller using this path expects plain node-postgres semantics
+		// (e.g. Date objects for timestamp/timestamptz), not the identity
+		// parsers Drizzle relies on internally to decode typed query results.
+		this.rawQueryConfigWithoutTypeOverride = {
+			name,
+			text: queryString,
+		};
 		this.queryConfig = {
 			name,
 			text: queryString,
@@ -136,8 +147,14 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 
 			this.logger.logQuery(this.rawQueryConfig.text, params);
 
-			const { fields, rawQueryConfig: rawQuery, client, queryConfig: query, joinsNotNullableMap, customResultMapper } =
-				this;
+			const {
+				fields,
+				rawQueryConfigWithoutTypeOverride: rawQuery,
+				client,
+				queryConfig: query,
+				joinsNotNullableMap,
+				customResultMapper,
+			} = this;
 			if (!fields && !customResultMapper) {
 				return tracer.startActiveSpan('drizzle.driver.execute', async (span) => {
 					span?.setAttributes({
