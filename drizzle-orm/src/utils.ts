@@ -5,7 +5,7 @@ import { is } from './entity.ts';
 import type { Logger } from './logger.ts';
 import type { SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
-import { Param, SQL, View } from './sql/sql.ts';
+import { Name, Param, SQL, sql, View } from './sql/sql.ts';
 import type { DriverValueDecoder } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
@@ -92,6 +92,40 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 		}
 		return result;
 	}, []) as SelectedFieldsOrdered<TColumn>;
+}
+
+/** @internal */
+export function replaceIdentifierWithField(query: SQL, columnName: string, field: Column): SQL {
+	const newSql = new SQL(
+		query.queryChunks.map((c) => {
+			if (is(c, Name) && (c.value === columnName || (field.name && c.value === field.name))) {
+				return field;
+			}
+			if (is(c, SQL)) {
+				return replaceIdentifierWithField(c, columnName, field);
+			}
+			return c;
+		}),
+	);
+	newSql.decoder = query.decoder;
+	return newSql;
+}
+
+/** @internal */
+export function mapColumnsToIdentifiers(query: SQL, casing: { getColumnCasing(column: Column): string }): SQL {
+	const newSql = new SQL(
+		query.queryChunks.map((c) => {
+			if (is(c, Column)) {
+				return sql.identifier(casing.getColumnCasing(c));
+			}
+			if (is(c, SQL)) {
+				return mapColumnsToIdentifiers(c, casing);
+			}
+			return c;
+		}),
+	);
+	newSql.decoder = query.decoder;
+	return newSql;
 }
 
 export function haveSameKeys(left: Record<string, unknown>, right: Record<string, unknown>) {
