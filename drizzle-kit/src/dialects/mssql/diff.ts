@@ -889,13 +889,7 @@ export const ddlDiff = async (
 		})
 	);
 	alters.filter((it) => it.entityType === 'fks').filter((x) => {
-		if (
-			x.nameExplicit
-			&& ((mode === 'push' && x.nameExplicit.from && !x.nameExplicit.to)
-				|| x.nameExplicit.to && !x.nameExplicit.from)
-		) {
-			delete x.nameExplicit;
-		}
+		if (x.nameExplicit) delete x.nameExplicit;
 
 		return ddl2.fks.hasDiff(x);
 	}).filter(fksIdentityFilter('created')).filter(

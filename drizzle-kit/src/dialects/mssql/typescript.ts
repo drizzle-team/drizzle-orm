@@ -460,11 +460,11 @@ const createTableUniques = (
 ): string => {
 	let statement = '';
 
-	unqs.forEach((it, index) => {
+	unqs.forEach((it) => {
 		statement += '\tunique(';
 		statement += it.nameExplicit ? `"${it.name}")` : ')';
 		statement += `.on(${it.columns.map((it) => `table.${withCasing(it, casing)}`).join(', ')})`;
-		statement += index === unqs.length - 1 ? `\n` : ',\n';
+		statement += ',';
 	});
 
 	return statement;
