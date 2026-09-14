@@ -61,7 +61,7 @@ export class SQLiteRemoteSession<
 			all: (params) => this.client(query.sql, params, 'all').then(({ rows }) => rows),
 			get: (params) => this.client(query.sql, params, 'get').then(({ rows }) => rows),
 			run: (params) => this.client(query.sql, params, 'run'),
-			values: (params) => this.client(query.sql, params, 'all').then(({ rows }) => rows),
+			values: (params) => this.client(query.sql, params, 'values').then(({ rows }) => rows),
 		};
 		return new SQLiteAsyncPreparedQuery(
 			'async',
