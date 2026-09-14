@@ -20,6 +20,8 @@ import {
 	textToDateWithTz,
 } from '~/pg-core/codecs.ts';
 
+const textDecoder = new TextDecoder('utf-8', { ignoreBOM: true });
+
 export const effectPgCodecs = refineGenericPgCodecs({
 	bigint: {
 		normalize: BigInt,
@@ -181,6 +183,7 @@ export const effectPgCodecs = refineGenericPgCodecs({
 	xml: { normalizeParamArray: (v) => makePgArray(v) },
 	bytea: { normalizeParamArray: (v) => makePgArray(v) },
 	enum: {
+		normalize: (value: string | Uint8Array) => typeof value === 'string' ? value : textDecoder.decode(value),
 		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
