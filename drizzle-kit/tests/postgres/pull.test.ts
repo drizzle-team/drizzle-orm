@@ -3574,3 +3574,38 @@ test('Issue No6074', async () => {
 	expect(generateSqlStatements).toStrictEqual([]);
 	expect(ddlAfterPull.roles.list()).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5626
+test('Issue No5626', async () => {
+	await db.query(`CREATE TABLE "table" (
+		checkpoint_ns TEXT NOT NULL DEFAULT ''
+		);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+	} = await diffIntrospect(db, {}, 'issue-5626');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.list()).toStrictEqual([
+		{
+			default: "''",
+			dimensions: 0,
+			entityType: 'columns',
+			generated: null,
+			identity: null,
+			name: 'checkpoint_ns',
+			notNull: true,
+			schema: 'public',
+			table: 'table',
+			type: 'text',
+			typeSchema: null,
+		},
+	]);
+});

@@ -717,7 +717,7 @@ test('generated as string: change generated constraint', async () => {
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				sql`'users\\\\hello'`,
+				sql`'users\\\\hello'`, // only two slashes -> \\
 			),
 		}),
 	};
@@ -725,10 +725,10 @@ test('generated as string: change generated constraint', async () => {
 	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
 		await diffIntrospect(db, schema, 'introspect-generated-with-backslashes');
 
-	expect(statements.length).toBe(0);
-	expect(generateStatements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
-	expect(generateSqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4170
