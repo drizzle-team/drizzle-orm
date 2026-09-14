@@ -315,12 +315,7 @@ const createTableColumns = (
 		statement += it.notNull && !isPK ? '.notNull()' : '';
 
 		statement += it.generated
-			? `.generatedAlwaysAs(sql\`${
-				it.generated.as.replace(
-					/`/g,
-					'\\`',
-				)
-			}\`, { mode: "${it.generated.type}" })`
+			? `.generatedAlwaysAs(sql\`${escapeForSqlTemplate(it.generated.as)}\`, { mode: "${it.generated.type}" })`
 			: '';
 
 		const columnFKs = inlineFks.filter((x) => x.columns[0] === it.name);
