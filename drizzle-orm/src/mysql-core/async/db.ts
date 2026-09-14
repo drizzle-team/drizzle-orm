@@ -131,7 +131,7 @@ export class MySqlAsyncDatabase<
 				qb = qb(new QueryBuilder(this.dialect));
 			}
 
-			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
+			const sql = qb.getSQL();
 			return new Proxy(
 				new WithSubquery(
 					sql,

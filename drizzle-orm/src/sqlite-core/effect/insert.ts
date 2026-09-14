@@ -102,7 +102,7 @@ export class SQLiteEffectInsertBase<
 	/** @internal */
 	_prepare(prepare = false): SQLiteEffectInsertPrepare<this, TEffectHKT> {
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+			this.dialect.sqlToQuery(this.getSQL(true)),
 			'arrays',
 			prepare,
 			this.config.returning ? 'all' : 'run',

@@ -120,7 +120,7 @@ export class PgEffectUpdateBase<
 		const { session, config, dialect, joinsNotNullableMap } = this;
 		const { returning: fields } = config;
 
-		const query = dialect.sqlToQuery(this.getSQL());
+		const query = dialect.sqlToQuery(this.getSQL(true));
 		const mapper = fields
 			? this.dialect.mapperGenerators.rows(fields, resolveNullableObjectPaths(fields, joinsNotNullableMap))
 			: undefined;

@@ -1,8 +1,9 @@
 import { PgClient } from '@effect/sql-pg';
-import { assert, expect, it } from '@effect/vitest';
+import { assert, expect, expectTypeOf, it } from '@effect/vitest';
 import {
 	defineRelations,
 	ExtractTablesFromSchema,
+	getColumns,
 	RelationsBuilder,
 	RelationsBuilderConfig,
 	Schema,
@@ -10,7 +11,8 @@ import {
 } from 'drizzle-orm';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { migrate } from 'drizzle-orm/effect-postgres/migrator';
-import { getTableConfig, integer, pgTable, serial, text } from 'drizzle-orm/pg-core';
+import { getTableConfig, integer, pgEnum, pgTable, serial, text } from 'drizzle-orm/pg-core';
+import { PgEffectSession } from 'drizzle-orm/pg-core/effect/session';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
@@ -19,9 +21,20 @@ import * as Result from 'effect/Result';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { Client as PgPeerClient } from 'pg';
 import { randomString } from '~/utils';
-import { DB, runCommonEffectPgTests } from './effect-common';
+import { AllTypes, allTypesData, assertAllTypesBounds, assertAllTypesUnions, makeAllTypesColumns } from './all-types';
+import { DB, push, runCommonEffectPgTests } from './effect-common';
 import { relations } from './relations';
 import { usersMigratorTable } from './schema';
+import { normalizeDataWithDbCodecs } from './utils';
+
+const makeAllTypesNoMtx = <TTable extends string, TEnum extends string>(tableName: TTable, enumName: TEnum) => {
+	const en = pgEnum(enumName, ['enVal1', 'enVal2']);
+	const { mtxbytea: _, ...columns } = makeAllTypesColumns(en);
+	const allTypesTable = pgTable(tableName, columns);
+	return { en, allTypesTable };
+};
+type AllTypesNoMtx = Omit<AllTypes, 'mtxbytea'>;
+const { mtxbytea: _, ...allTypesDataNoMtx } = allTypesData;
 
 const connectionStr = Redacted.make(
 	process.env['PG_CONNECTION_STRING'] ?? 'postgres://postgres:postgres@localhost:55433/drizzle',
@@ -60,7 +73,94 @@ runCommonEffectPgTests({
 	PgDrizzle: PgDrizzle,
 	createDB: createDB as any,
 	usedSchema,
+	// @effect/sql-pg can't decode multidimensional arrays
+	skipTests: ['all types', 'all types ~codecs~'],
 	addTests: (it) => {
+		it.effect('all types - no multidimensional arrays', () =>
+			Effect.gen(function*() {
+				const { en, allTypesTable } = makeAllTypesNoMtx('all_types_48_ef', 'en_48_ef');
+
+				const db = yield* DB;
+				yield* push(db, { en, allTypesTable });
+
+				yield* db.insert(allTypesTable).values(allTypesDataNoMtx);
+
+				const rawRes = yield* db.select().from(allTypesTable);
+
+				expectTypeOf(rawRes).toEqualTypeOf<AllTypesNoMtx[]>();
+				expect(rawRes).toStrictEqual([allTypesDataNoMtx]);
+			}));
+
+		it.effect('all types ~codecs~ - no multidimensional arrays', () =>
+			Effect.gen(function*() {
+				const { en, allTypesTable } = makeAllTypesNoMtx('all_types_cdc_ef', 'en_48');
+
+				const db = yield* DB;
+				yield* push(db, { en, allTypesTable });
+
+				yield* db.insert(allTypesTable).values(allTypesDataNoMtx);
+				const session = (<any> db).session as PgEffectSession;
+
+				const queryRes = yield* session.objects<AllTypesNoMtx>(
+					db.select().from(allTypesTable).getSQL(true),
+				).pipe(
+					Effect.map((e) =>
+						normalizeDataWithDbCodecs({
+							db,
+							columns: getColumns(allTypesTable),
+							data: e,
+							mode: 'query',
+						})[0]
+					),
+				);
+
+				const relDb = yield* createDB({ allTypesTable }, (r) => ({
+					allTypesTable: {
+						self: r.many.allTypesTable({
+							from: r.allTypesTable.serial,
+							to: r.allTypesTable.serial,
+						}),
+					},
+				}));
+
+				const { relationRes, rootRes } = yield* session.objects<AllTypesNoMtx & { self: AllTypesNoMtx[] }>(
+					relDb.query.allTypesTable.findFirst({
+						with: {
+							self: true,
+						},
+					}).getSQL(),
+				).pipe(Effect.map((e) => {
+					const { self: relationRaw, ...rootRaw } = e[0]!;
+
+					return {
+						relationRes: normalizeDataWithDbCodecs({
+							db,
+							columns: getColumns(allTypesTable),
+							data: relationRaw,
+							mode: 'json',
+						})[0]!,
+						rootRes: normalizeDataWithDbCodecs({
+							db,
+							columns: getColumns(allTypesTable),
+							data: [rootRaw],
+							mode: 'query',
+						})[0]!,
+					};
+				}));
+
+				expect(queryRes).toStrictEqual(allTypesDataNoMtx);
+				expect(relationRes).toStrictEqual(allTypesDataNoMtx);
+				expect(rootRes).toStrictEqual(allTypesDataNoMtx);
+
+				const context = yield* Effect.context<never>();
+				yield* Effect.promise(() =>
+					assertAllTypesUnions(relDb as any, allTypesTable as any, (query) => Effect.runPromiseWith(context)(query))
+				);
+				yield* Effect.promise(() =>
+					assertAllTypesBounds(relDb as any, (query) => Effect.runPromiseWith(context)(query))
+				);
+			}));
+
 		it.effect('transaction snapshot: isolates the transaction', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;

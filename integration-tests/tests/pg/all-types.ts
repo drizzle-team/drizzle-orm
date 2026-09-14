@@ -44,160 +44,161 @@ export const makeAllTypes = <TTable extends string, TEnum extends string>(tableN
 const makeAllTypesTable = <TTable extends string>(
 	tableName: TTable,
 	en: ReturnType<typeof pgEnum<string, ['enVal1', 'enVal2']>>,
-) =>
-	pgTable(tableName, {
-		serial: serial('serial').notNull(),
-		bigserial: bigserial('bigserial', {
-			mode: 'bigint',
-		}).notNull(),
-		bigserialnum: bigserial('bigserialnum', {
-			mode: 'number',
-		}).notNull(),
-		int: integer('int').notNull(),
-		bigint: bigint('bigint', {
-			mode: 'bigint',
-		}).notNull(),
-		bigintnum: bigint('bigintnum', {
-			mode: 'number',
-		}).notNull(),
-		bigintstr: bigint('bigintstr', {
-			mode: 'string',
-		}).notNull(),
-		bool: boolean('bool').notNull(),
-		bytea: bytea('bytea').notNull(),
-		char: char('char').notNull(),
-		cidr: cidr('cidr').notNull(),
-		date: date('date', {
-			mode: 'date',
-		}).notNull(),
-		datestr: date('datestr', {
-			mode: 'string',
-		}).notNull(),
-		double: doublePrecision('double').notNull(),
-		enum: en('enum').notNull(),
-		inet: inet('inet').notNull(),
-		interval: interval('interval').notNull(),
-		json: json('json').notNull(),
-		jsonb: jsonb('jsonb').notNull(),
-		json1: json('json1').notNull(),
-		jsonb1: jsonb('jsonb1').notNull(),
-		json2: json('json2').notNull(),
-		jsonb2: jsonb('jsonb2').notNull(),
-		json3: json('json3').notNull(),
-		jsonb3: jsonb('jsonb3').notNull(),
-		line: line('line', {
-			mode: 'abc',
-		}).notNull(),
-		linetuple: line('linetuple', {
-			mode: 'tuple',
-		}).notNull(),
-		macaddr: macaddr('macaddr').notNull(),
-		macaddr8: macaddr8('macaddr8').notNull(),
-		numeric: numeric('numeric').notNull(),
-		numericnum: numeric('numericnum', {
-			mode: 'number',
-		}).notNull(),
-		numericbig: numeric('numericbig', {
-			mode: 'bigint',
-		}).notNull(),
-		point: point('point', {
-			mode: 'xy',
-		}).notNull(),
-		pointtuple: point('pointtuple', {
-			mode: 'tuple',
-		}).notNull(),
-		real: real('real').notNull(),
-		smallint: smallint('smallint').notNull(),
-		smallserial: smallserial('smallserial').notNull(),
-		text: text('text').notNull(),
-		time: time('time').notNull(),
-		timestamp: timestamp('timestamp', {
-			mode: 'date',
-		}).notNull(),
-		timestampTz: timestamp('timestampTz', {
-			mode: 'date',
-			withTimezone: true,
-		}).notNull(),
-		timestampstr: timestamp('timestampstr', {
-			mode: 'string',
-		}).notNull(),
-		timestampTzstr: timestamp('timestampTzstr', {
-			mode: 'string',
-			withTimezone: true,
-		}).notNull(),
-		uuid: uuid('uuid').notNull(),
-		varchar: varchar('varchar').notNull(),
-		arrint: integer('arrint').array().notNull(),
-		arrbigint: bigint('arrbigint', {
-			mode: 'bigint',
-		}).array().notNull(),
-		arrbigintnum: bigint('arrbigintnum', {
-			mode: 'number',
-		}).array().notNull(),
-		arrbigintstr: bigint('arrbigintstr', {
-			mode: 'string',
-		}).array().notNull(),
-		arrbool: boolean('arrbool').array().notNull(),
-		arrbytea: bytea('arrbytea').array().notNull(),
-		mtxbytea: bytea('mtxbytea').array('[][]').notNull(),
-		arrchar: char('arrchar').array().notNull(),
-		arrcidr: cidr('arrcidr').array().notNull(),
-		arrdate: date('arrdate', {
-			mode: 'date',
-		}).array().notNull(),
-		arrdatestr: date('arrdatestr', {
-			mode: 'string',
-		}).array().notNull(),
-		arrdouble: doublePrecision('arrdouble').array().notNull(),
-		arrenum: en('arrenum').array().notNull(),
-		arrinet: inet('arrinet').array().notNull(),
-		arrinterval: interval('arrinterval').array().notNull(),
-		arrjson: json('arrjson').array().notNull(),
-		arrjsonb: jsonb('arrjsonb').array().notNull(),
-		arrjson1: json('arrjson1').array().notNull(),
-		arrjsonb1: jsonb('arrjsonb1').array().notNull(),
-		arrjson2: json('arrjson2').array().notNull(),
-		arrjsonb2: jsonb('arrjsonb2').array().notNull(),
-		arrjson3: json('arrjson3').array().notNull(),
-		arrjsonb3: jsonb('arrjsonb3').array().notNull(),
-		arrline: line('arrline', {
-			mode: 'abc',
-		}).array().notNull(),
-		arrlinetuple: line('arrlinetuple', {
-			mode: 'tuple',
-		}).array().notNull(),
-		arrmacaddr: macaddr('arrmacaddr').array().notNull(),
-		arrmacaddr8: macaddr8('arrmacaddr8').array().notNull(),
-		arrnumeric: numeric('arrnumeric').array().notNull(),
-		arrnumericnum: numeric('arrnumericnum', { mode: 'number' }).array().notNull(),
-		arrnumericbig: numeric('arrnumericbig', { mode: 'bigint' }).array().notNull(),
-		arrpoint: point('arrpoint', {
-			mode: 'xy',
-		}).array().notNull(),
-		arrpointtuple: point('arrpointtuple', {
-			mode: 'tuple',
-		}).array().notNull(),
-		arrreal: real('arrreal').array().notNull(),
-		arrsmallint: smallint('arrsmallint').array().notNull(),
-		arrtext: text('arrtext').array().notNull(),
-		arrtime: time('arrtime').array().notNull(),
-		arrtimestamp: timestamp('arrtimestamp', {
-			mode: 'date',
-		}).array().notNull(),
-		arrtimestampTz: timestamp('arrtimestampTz', {
-			mode: 'date',
-			withTimezone: true,
-		}).array().notNull(),
-		arrtimestampstr: timestamp('arrtimestampstr', {
-			mode: 'string',
-		}).array().notNull(),
-		arrtimestampTzstr: timestamp('arrtimestampTzstr', {
-			mode: 'string',
-			withTimezone: true,
-		}).array().notNull(),
-		arruuid: uuid('arruuid').array().notNull(),
-		arrvarchar: varchar('arrvarchar').array().notNull(),
-	});
+) => pgTable(tableName, makeAllTypesColumns(en));
+
+export const makeAllTypesColumns = (en: ReturnType<typeof pgEnum<string, ['enVal1', 'enVal2']>>) => ({
+	serial: serial('serial').notNull(),
+	bigserial: bigserial('bigserial', {
+		mode: 'bigint',
+	}).notNull(),
+	bigserialnum: bigserial('bigserialnum', {
+		mode: 'number',
+	}).notNull(),
+	int: integer('int').notNull(),
+	bigint: bigint('bigint', {
+		mode: 'bigint',
+	}).notNull(),
+	bigintnum: bigint('bigintnum', {
+		mode: 'number',
+	}).notNull(),
+	bigintstr: bigint('bigintstr', {
+		mode: 'string',
+	}).notNull(),
+	bool: boolean('bool').notNull(),
+	bytea: bytea('bytea').notNull(),
+	char: char('char').notNull(),
+	cidr: cidr('cidr').notNull(),
+	date: date('date', {
+		mode: 'date',
+	}).notNull(),
+	datestr: date('datestr', {
+		mode: 'string',
+	}).notNull(),
+	double: doublePrecision('double').notNull(),
+	enum: en('enum').notNull(),
+	inet: inet('inet').notNull(),
+	interval: interval('interval').notNull(),
+	json: json('json').notNull(),
+	jsonb: jsonb('jsonb').notNull(),
+	json1: json('json1').notNull(),
+	jsonb1: jsonb('jsonb1').notNull(),
+	json2: json('json2').notNull(),
+	jsonb2: jsonb('jsonb2').notNull(),
+	json3: json('json3').notNull(),
+	jsonb3: jsonb('jsonb3').notNull(),
+	line: line('line', {
+		mode: 'abc',
+	}).notNull(),
+	linetuple: line('linetuple', {
+		mode: 'tuple',
+	}).notNull(),
+	macaddr: macaddr('macaddr').notNull(),
+	macaddr8: macaddr8('macaddr8').notNull(),
+	numeric: numeric('numeric').notNull(),
+	numericnum: numeric('numericnum', {
+		mode: 'number',
+	}).notNull(),
+	numericbig: numeric('numericbig', {
+		mode: 'bigint',
+	}).notNull(),
+	point: point('point', {
+		mode: 'xy',
+	}).notNull(),
+	pointtuple: point('pointtuple', {
+		mode: 'tuple',
+	}).notNull(),
+	real: real('real').notNull(),
+	smallint: smallint('smallint').notNull(),
+	smallserial: smallserial('smallserial').notNull(),
+	text: text('text').notNull(),
+	time: time('time').notNull(),
+	timestamp: timestamp('timestamp', {
+		mode: 'date',
+	}).notNull(),
+	timestampTz: timestamp('timestampTz', {
+		mode: 'date',
+		withTimezone: true,
+	}).notNull(),
+	timestampstr: timestamp('timestampstr', {
+		mode: 'string',
+	}).notNull(),
+	timestampTzstr: timestamp('timestampTzstr', {
+		mode: 'string',
+		withTimezone: true,
+	}).notNull(),
+	uuid: uuid('uuid').notNull(),
+	varchar: varchar('varchar').notNull(),
+	arrint: integer('arrint').array().notNull(),
+	arrbigint: bigint('arrbigint', {
+		mode: 'bigint',
+	}).array().notNull(),
+	arrbigintnum: bigint('arrbigintnum', {
+		mode: 'number',
+	}).array().notNull(),
+	arrbigintstr: bigint('arrbigintstr', {
+		mode: 'string',
+	}).array().notNull(),
+	arrbool: boolean('arrbool').array().notNull(),
+	arrbytea: bytea('arrbytea').array().notNull(),
+	mtxbytea: bytea('mtxbytea').array('[][]').notNull(),
+	arrchar: char('arrchar').array().notNull(),
+	arrcidr: cidr('arrcidr').array().notNull(),
+	arrdate: date('arrdate', {
+		mode: 'date',
+	}).array().notNull(),
+	arrdatestr: date('arrdatestr', {
+		mode: 'string',
+	}).array().notNull(),
+	arrdouble: doublePrecision('arrdouble').array().notNull(),
+	arrenum: en('arrenum').array().notNull(),
+	arrinet: inet('arrinet').array().notNull(),
+	arrinterval: interval('arrinterval').array().notNull(),
+	arrjson: json('arrjson').array().notNull(),
+	arrjsonb: jsonb('arrjsonb').array().notNull(),
+	arrjson1: json('arrjson1').array().notNull(),
+	arrjsonb1: jsonb('arrjsonb1').array().notNull(),
+	arrjson2: json('arrjson2').array().notNull(),
+	arrjsonb2: jsonb('arrjsonb2').array().notNull(),
+	arrjson3: json('arrjson3').array().notNull(),
+	arrjsonb3: jsonb('arrjsonb3').array().notNull(),
+	arrline: line('arrline', {
+		mode: 'abc',
+	}).array().notNull(),
+	arrlinetuple: line('arrlinetuple', {
+		mode: 'tuple',
+	}).array().notNull(),
+	arrmacaddr: macaddr('arrmacaddr').array().notNull(),
+	arrmacaddr8: macaddr8('arrmacaddr8').array().notNull(),
+	arrnumeric: numeric('arrnumeric').array().notNull(),
+	arrnumericnum: numeric('arrnumericnum', { mode: 'number' }).array().notNull(),
+	arrnumericbig: numeric('arrnumericbig', { mode: 'bigint' }).array().notNull(),
+	arrpoint: point('arrpoint', {
+		mode: 'xy',
+	}).array().notNull(),
+	arrpointtuple: point('arrpointtuple', {
+		mode: 'tuple',
+	}).array().notNull(),
+	arrreal: real('arrreal').array().notNull(),
+	arrsmallint: smallint('arrsmallint').array().notNull(),
+	arrtext: text('arrtext').array().notNull(),
+	arrtime: time('arrtime').array().notNull(),
+	arrtimestamp: timestamp('arrtimestamp', {
+		mode: 'date',
+	}).array().notNull(),
+	arrtimestampTz: timestamp('arrtimestampTz', {
+		mode: 'date',
+		withTimezone: true,
+	}).array().notNull(),
+	arrtimestampstr: timestamp('arrtimestampstr', {
+		mode: 'string',
+	}).array().notNull(),
+	arrtimestampTzstr: timestamp('arrtimestampTzstr', {
+		mode: 'string',
+		withTimezone: true,
+	}).array().notNull(),
+	arruuid: uuid('arruuid').array().notNull(),
+	arrvarchar: varchar('arrvarchar').array().notNull(),
+});
 
 export const { en: allTypesEnum, allTypesTable } = makeAllTypes('all_types_48_cdcs', 'en_49');
 

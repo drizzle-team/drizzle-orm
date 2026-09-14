@@ -6207,7 +6207,7 @@ test('all types ~codecs~', async () => {
 	const queryRes = await session.objects<ExpectedType>(
 		db.select(
 			Object.fromEntries(Object.entries(getTableColumns(allTypesCodecsTable)).map(([k, v]) => [k, v.as(v.name)])),
-		).from(allTypesCodecsTable).getSQL(),
+		).from(allTypesCodecsTable).getSQL(true),
 	).then((e) =>
 		normalizeDataWithDbCodecs({
 			db,

@@ -142,13 +142,13 @@ export class PgDialect {
 		returning,
 		withList,
 		comment,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: PgDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
 			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs, table })
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
 			}`
 			: undefined;
 
@@ -200,7 +200,7 @@ export class PgDialect {
 		from,
 		joins,
 		comment,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: PgUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
@@ -222,7 +222,7 @@ export class PgDialect {
 
 		const returningSql = returning
 			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: !from, ignoreCastCodecs: ignoreSelectionCastCodecs, table })
+				this.buildSelection(returning, { isSingleTable: !from, ignoreCastCodecs: !useSelectionCastCodecs, table })
 			}`
 			: undefined;
 
@@ -481,7 +481,7 @@ export class PgDialect {
 		setOperators,
 		setFieldsFlat: setSelection,
 		comment,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: PgSelectConfig): SQL {
 		if (!fieldsFlat) {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
@@ -531,7 +531,7 @@ export class PgDialect {
 
 		const selection = this.buildSelection(fieldsList, {
 			isSingleTable,
-			ignoreCastCodecs: ignoreSelectionCastCodecs || setOperators.length > 0,
+			ignoreCastCodecs: !useSelectionCastCodecs || setOperators.length > 0,
 			table,
 		});
 
@@ -587,7 +587,7 @@ export class PgDialect {
 			}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, setSelection!, ignoreSelectionCastCodecs, setOperators);
+			return this.buildSetOperations(finalQuery, setSelection!, useSelectionCastCodecs, setOperators);
 		}
 
 		return finalQuery;
@@ -596,7 +596,7 @@ export class PgDialect {
 	buildSetOperations(
 		leftSelect: SQL,
 		outputSelection: SelectedFieldsOrdered,
-		ignoreSelectionCastCodecs: boolean | undefined,
+		useSelectionCastCodecs: boolean | undefined,
 		setOperators: PgSelectConfig['setOperators'],
 	): SQL {
 		for (let i = 0; i < setOperators.length; ++i) {
@@ -604,7 +604,7 @@ export class PgDialect {
 			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator });
 		}
 
-		return ignoreSelectionCastCodecs ? leftSelect : sql`select ${
+		return !useSelectionCastCodecs ? leftSelect : sql`select ${
 			this.buildSelection(
 				outputSelection.map((field) => {
 					if (field.fieldType === 'SQL.Aliased') {
@@ -626,7 +626,7 @@ export class PgDialect {
 				}),
 				{
 					isSingleTable: true,
-					ignoreCastCodecs: ignoreSelectionCastCodecs,
+					ignoreCastCodecs: !useSelectionCastCodecs,
 				},
 			)
 		} from (${leftSelect}) ${sql.identifier('drizzle_union')}`;
@@ -640,7 +640,7 @@ export class PgDialect {
 		setOperator: PgSelectConfig['setOperators'][number];
 	}): SQL {
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
-		const rightChunk = sql`(${rightSelect.withoutSelectionCastCodecs().getSQL()})`;
+		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
@@ -690,7 +690,7 @@ export class PgDialect {
 		overridingSystemValue_,
 		comment,
 		columnList,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: PgInsertConfig): SQL {
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 		const colEntries: [string, PgColumn][] = columnList
@@ -780,7 +780,7 @@ export class PgDialect {
 
 		const returningSql = returning
 			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs, table })
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
 			}`
 			: undefined;
 

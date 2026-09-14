@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite-pgvector';
 import { postgis } from '@electric-sql/pglite-postgis';
-import { vector } from '@electric-sql/pglite/vector';
 import { defineRelations, getColumns, Name, sql } from 'drizzle-orm';
 import { getTableConfig, integer, pgTable, serial, text } from 'drizzle-orm/pg-core';
 import { drizzle } from 'drizzle-orm/pglite';

@@ -572,7 +572,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 						Object.fromEntries(
 							Object.entries(getTableColumns(allTypesCodecsTable)).map(([k, v]) => [k, v.as(v.name)]),
 						),
-					).from(allTypesCodecsTable).getSQL(),
+					).from(allTypesCodecsTable).getSQL(true),
 				);
 				const queryRes = normalizeDataWithDbCodecs({
 					db,

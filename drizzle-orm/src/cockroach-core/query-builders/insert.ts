@@ -27,7 +27,7 @@ import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.t
 import type { CockroachUpdateSetSource } from './update.ts';
 
 export interface CockroachInsertConfig<TTable extends CockroachTable = CockroachTable> {
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 	table: TTable;
 	values: Record<string, unknown>[] | TypedQueryBuilder<CockroachInsertSelection<TTable>> | SQL;
 	withList?: Subquery[];
@@ -164,8 +164,6 @@ export class CockroachInsertBuilder<
 				| SQL),
 	): CockroachInsertBase<TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
-		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
-
 		if (!is(select, SQL)) {
 			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
 			const selected = Object.keys(select._.selectedFields);
@@ -457,19 +455,21 @@ export class CockroachInsertBase<
 		return this as any;
 	}
 
-	getSQL(): SQL {
-		return this.dialect.buildInsertQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildInsertQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): CockroachInsertPrepare<this> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { returning: fields } = this.config;
-			const query = this.dialect.sqlToQuery(this.getSQL());
+			const query = this.dialect.sqlToQuery(this.getSQL(true));
 
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {
@@ -508,12 +508,6 @@ export class CockroachInsertBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
-	}
-
-	/** @internal */
-	withoutSelectionCastCodecs(): this {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
 	}
 
 	$dynamic(): CockroachInsertDynamic<this> {

@@ -2,7 +2,7 @@ import { describe, it } from 'vitest';
 import { defineRelations } from '~/relations';
 import { drizzle, singleStoreCodecs } from '~/singlestore';
 import { alias, boolean, camelCase, castToText, int, QueryBuilder, serial, text, union } from '~/singlestore-core';
-import { asc, eq, sql } from '~/sql';
+import { asc, eq, exists, inArray, sql } from '~/sql';
 
 const testSchema = camelCase.schema('test');
 const users = camelCase.table('users', {
@@ -503,6 +503,21 @@ describe('singlestore to camel case', () => {
 			expect(castDb.select().from(outer).toSQL().sql).toEqual(
 				'select cast((select `castValue` from `casts`) as char) `sq` from (select (select `castValue` from `casts`) `sq` from `cast_targets`) `outer`',
 			);
+		});
+
+		it('Queries in operators ignore casts', ({ expect }) => {
+			const inner = () => castDb.select({ cast_value: casts.cast_value }).from(casts);
+
+			expect(castDb.select({ x: casts.cast_value }).from(casts).where(eq(casts.cast_value, inner())).toSQL().sql)
+				.toEqual(
+					'select cast(`castValue` as char) from `casts` where `casts`.`castValue` = (select `castValue` from `casts`)',
+				);
+			expect(castDb.select({ x: casts.cast_value }).from(casts).where(inArray(casts.cast_value, inner())).toSQL().sql)
+				.toEqual(
+					'select cast(`castValue` as char) from `casts` where `casts`.`castValue` in (select `castValue` from `casts`)',
+				);
+			expect(castDb.select({ x: casts.cast_value }).from(casts).where(exists(inner())).toSQL().sql)
+				.toEqual('select cast(`castValue` as char) from `casts` where exists (select `castValue` from `casts`)');
 		});
 
 		it(`Column as decoder applies cast`, ({ expect }) => {

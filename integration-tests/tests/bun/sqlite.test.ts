@@ -921,7 +921,7 @@ test('all types ~codecs~', async () => {
 		const queryRaw = await cdcsDb.all<Record<string, unknown>>(
 			cdcsDb.select(
 				Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
-			).from(allTypesTable).getSQL(),
+			).from(allTypesTable).getSQL(true),
 		);
 		const queryRes = normalizeDataWithDbCodecs({ db: cdcsDb as any, columns, data: queryRaw, mode: 'query' })[0];
 

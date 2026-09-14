@@ -123,7 +123,7 @@ export class SQLiteAsyncInsertBase<
 	/** @internal */
 	_prepare(prepare = false): SQLiteAsyncInsertPrepare<this> {
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+			this.dialect.sqlToQuery(this.getSQL(true)),
 			'arrays',
 			prepare,
 			this.config.returning ? 'all' : 'run',

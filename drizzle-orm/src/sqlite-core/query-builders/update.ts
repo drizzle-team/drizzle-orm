@@ -31,7 +31,7 @@ export interface SQLiteUpdateConfig {
 	joins: SQLiteSelectJoinConfig[];
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 }
 
 export type SQLiteUpdateSetSource<
@@ -448,18 +448,14 @@ export class SQLiteUpdateBase<
 		return this as any;
 	}
 
-	getSQL(): SQL {
-		return this.dialect.buildUpdateQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildUpdateQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
-	}
-
-	/** @internal */
-	withoutSelectionCastCodecs() {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	$dynamic(): SQLiteUpdateDynamic<this> {

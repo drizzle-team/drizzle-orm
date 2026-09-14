@@ -120,13 +120,13 @@ export class SQLiteDialect {
 		withList,
 		limit,
 		orderBy,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: SQLiteDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
 			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs, table })
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
 			}`
 			: undefined;
 
@@ -181,7 +181,7 @@ export class SQLiteDialect {
 		from,
 		limit,
 		orderBy,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: SQLiteUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
@@ -193,7 +193,7 @@ export class SQLiteDialect {
 
 		const returningSql = returning
 			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs, table })
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
 			}`
 			: undefined;
 
@@ -476,7 +476,7 @@ export class SQLiteDialect {
 		offset,
 		distinct,
 		setOperators,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: SQLiteSelectConfig): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<SQLiteColumn>(fields, undefined, this.codecs);
 		for (const f of fieldsList) {
@@ -519,7 +519,7 @@ export class SQLiteDialect {
 		const selection = this.buildSelection(fieldsList, {
 			isSingleTable,
 			table,
-			ignoreCastCodecs: ignoreSelectionCastCodecs || setOperators.length > 0,
+			ignoreCastCodecs: !useSelectionCastCodecs || setOperators.length > 0,
 		});
 
 		const tableSql = this.buildFromTable(table);
@@ -555,7 +555,7 @@ export class SQLiteDialect {
 			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, fieldsList, ignoreSelectionCastCodecs, setOperators);
+			return this.buildSetOperations(finalQuery, fieldsList, useSelectionCastCodecs, setOperators);
 		}
 
 		return finalQuery;
@@ -564,7 +564,7 @@ export class SQLiteDialect {
 	buildSetOperations(
 		leftSelect: SQL,
 		outputSelection: SelectedFieldsOrdered,
-		ignoreSelectionCastCodecs: boolean | undefined,
+		useSelectionCastCodecs: boolean | undefined,
 		setOperators: SQLiteSelectConfig['setOperators'],
 	): SQL {
 		for (let i = 0; i < setOperators.length; ++i) {
@@ -592,7 +592,7 @@ export class SQLiteDialect {
 				: out.codec;
 		}
 
-		return ignoreSelectionCastCodecs ? leftSelect : sql`select ${
+		return !useSelectionCastCodecs ? leftSelect : sql`select ${
 			this.buildSelection(
 				outputSelection.map((field) => {
 					if (field.fieldType === 'SQL.Aliased') {
@@ -614,7 +614,7 @@ export class SQLiteDialect {
 				}),
 				{
 					isSingleTable: true,
-					ignoreCastCodecs: ignoreSelectionCastCodecs,
+					ignoreCastCodecs: !useSelectionCastCodecs,
 				},
 			)
 		} from (${leftSelect}) ${sql.identifier('drizzle_union')}`;
@@ -629,7 +629,7 @@ export class SQLiteDialect {
 	}): SQL {
 		// SQLite doesn't support parenthesis in set operations
 		const leftChunk = sql`${leftSelect.getSQL()} `;
-		const rightChunk = sql`${rightSelect.withoutSelectionCastCodecs().getSQL()}`;
+		const rightChunk = sql`${rightSelect.getSQL()}`;
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
@@ -677,7 +677,7 @@ export class SQLiteDialect {
 		withList,
 		select,
 		columnList,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: SQLiteInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
 		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
@@ -770,7 +770,7 @@ export class SQLiteDialect {
 
 		const returningSql = returning
 			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs, table })
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
 			}`
 			: undefined;
 

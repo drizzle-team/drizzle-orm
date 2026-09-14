@@ -29,7 +29,7 @@ export interface SingleStoreUpdateConfig {
 	table: SingleStoreTable;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 }
 
 export type SingleStoreUpdateSetSource<
@@ -222,19 +222,21 @@ export class SingleStoreUpdateBase<
 		return this as any;
 	}
 
-	getSQL(): SQL {
-		return this.dialect.buildUpdateQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildUpdateQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	prepare(): SingleStoreUpdatePrepare<this> {
 		const { returning: fields } = this.config;
 
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+			this.dialect.sqlToQuery(this.getSQL(true)),
 			fields ? 'arrays' : 'raw',
 			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 			{
@@ -256,12 +258,6 @@ export class SingleStoreUpdateBase<
 	};
 
 	iterator = this.createIterator();
-
-	/** @internal */
-	withoutSelectionCastCodecs() {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
-	}
 
 	$dynamic(): SingleStoreUpdateDynamic<this> {
 		return this as any;

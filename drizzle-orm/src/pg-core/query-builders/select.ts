@@ -1136,13 +1136,15 @@ export class PgSelectBase<
 		return config.setFieldsFlat ?? fieldsFlat;
 	}
 
-	getSQL(): SQL {
+	getSQL(withCastCodecs = false): SQL {
 		this._resolveSelection();
-		return this.dialect.buildSelectQuery(this.config);
+		return this.dialect.buildSelectQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 	as<TAlias extends string>(
 		alias: TAlias,
@@ -1152,7 +1154,7 @@ export class PgSelectBase<
 		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
 
 		return new Proxy(
-			new Subquery(this.withoutSelectionCastCodecs().getSQL(), this.config.fields, alias, false, [
+			new Subquery(this.getSQL(), this.config.fields, alias, false, [
 				...new Set(usedTables),
 			]),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
@@ -1165,12 +1167,6 @@ export class PgSelectBase<
 			this.config.fields,
 			new SelectionProxyHandler({ alias: this.tableName, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as this['_']['selectedFields'];
-	}
-
-	/** @internal */
-	override withoutSelectionCastCodecs(): this {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
 	}
 
 	$dynamic(): PgSelectDynamic<this> {

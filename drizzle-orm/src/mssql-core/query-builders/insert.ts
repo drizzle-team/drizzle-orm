@@ -27,7 +27,7 @@ export interface MsSqlInsertConfig<TTable extends MsSqlTable = MsSqlTable> {
 	output?: SelectedFieldsOrdered;
 	select?: boolean;
 	columnList?: string[];
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 }
 
 export type MsSqlInsertValue<
@@ -164,8 +164,6 @@ export class MsSqlInsertBuilder<
 				| SQL),
 	): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
-		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
-
 		if (!is(select, SQL)) {
 			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
 			const selected = Object.keys(select._.selectedFields);
@@ -309,19 +307,21 @@ export class MsSqlInsertBase<
 		this.config = { table, values: values as any, output, columnList, select };
 	}
 
-	getSQL(): SQL {
-		return this.dialect.buildInsertQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildInsertQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	prepare(): MsSqlInsertPrepare<this> {
 		const fields = this.config.output;
 
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+			this.dialect.sqlToQuery(this.getSQL(true)),
 			fields ? 'arrays' : 'raw',
 			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 		) as MsSqlInsertPrepare<this>;
@@ -341,12 +341,6 @@ export class MsSqlInsertBase<
 	};
 
 	iterator = this.createIterator();
-
-	/** @internal */
-	withoutSelectionCastCodecs() {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
-	}
 
 	$dynamic(): MsSqlInsertDynamic<this> {
 		return this as any;

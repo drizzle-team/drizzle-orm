@@ -131,7 +131,7 @@ export class SingleStoreDatabase<
 
 			return new Proxy(
 				new WithSubquery(
-					('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL(),
+					qb.getSQL(),
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,

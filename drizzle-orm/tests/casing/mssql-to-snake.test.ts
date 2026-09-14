@@ -3,7 +3,7 @@ import { describe, it } from 'vitest';
 import { alias, bit, castToText, int, QueryBuilder, snakeCase, text, union } from '~/mssql-core';
 import { drizzle, nodeMssqlCodecs } from '~/node-mssql';
 import { defineRelations } from '~/relations';
-import { asc, eq, sql } from '~/sql';
+import { asc, eq, exists, inArray, sql } from '~/sql';
 
 const testSchema = snakeCase.schema('test');
 const users = snakeCase.table('users', {
@@ -566,6 +566,23 @@ describe('mssql to snake case', () => {
 			expect(castDb.select().from(outer).toSQL().sql).toEqual(
 				'select cast((select [cast_value] from [casts]) as varchar(max)) [sq] from (select (select [cast_value] from [casts]) [sq] from [cast_targets]) [outer]',
 			);
+		});
+
+		it('Queries in operators ignore casts', ({ expect }) => {
+			const inner = () => castDb.select({ castValue: casts.castValue }).from(casts);
+
+			expect(castDb.select({ x: casts.castValue }).from(casts).where(eq(casts.castValue, inner())).toSQL().sql)
+				.toEqual(
+					'select cast([cast_value] as varchar(max)) from [casts] where [casts].[cast_value] = (select [cast_value] from [casts])',
+				);
+			expect(castDb.select({ x: casts.castValue }).from(casts).where(inArray(casts.castValue, inner())).toSQL().sql)
+				.toEqual(
+					'select cast([cast_value] as varchar(max)) from [casts] where [casts].[cast_value] in (select [cast_value] from [casts])',
+				);
+			expect(castDb.select({ x: casts.castValue }).from(casts).where(exists(inner())).toSQL().sql)
+				.toEqual(
+					'select cast([cast_value] as varchar(max)) from [casts] where exists (select [cast_value] from [casts])',
+				);
 		});
 
 		it(`Column as decoder applies cast`, ({ expect }) => {

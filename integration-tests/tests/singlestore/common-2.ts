@@ -3324,7 +3324,7 @@ export function tests(test: Test) {
 			const queryRes = await session.objects<AllTypes>(
 				db.select(
 					Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
-				).from(allTypesTable).getSQL(),
+				).from(allTypesTable).getSQL(true),
 			).then((e) =>
 				normalizeDataWithDbCodecs({
 					db,

@@ -71,7 +71,7 @@ export interface CockroachSelectConfig {
 	fieldsFlat?: SelectedFieldsOrdered;
 	setFieldsFlat?: SelectedFieldsOrdered;
 	mapper?: (raw: any) => any;
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 	where?: SQL;
 	having?: SQL;
 	table: CockroachTable | Subquery | CockroachViewBase | SQL;

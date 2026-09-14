@@ -2,7 +2,7 @@ import { describe, it } from 'vitest';
 import { drizzle, nodeCockroachCodecs } from '~/cockroach';
 import { alias, boolean, castToText, int4, QueryBuilder, snakeCase, text, union } from '~/cockroach-core';
 import { defineRelations } from '~/relations';
-import { asc, eq, sql } from '~/sql';
+import { asc, eq, exists, inArray, sql } from '~/sql';
 
 const testSchema = snakeCase.schema('test');
 const users = snakeCase.table('users', {
@@ -654,6 +654,21 @@ describe('cockroach to snake case', () => {
 			expect(castDb.select().from(outer).toSQL().sql).toEqual(
 				'select (select "cast_value" from "casts")::text "sq" from (select (select "cast_value" from "casts") "sq" from "cast_targets") "outer"',
 			);
+		});
+
+		it('Queries in operators ignore casts', ({ expect }) => {
+			const inner = () => castDb.select({ castValue: casts.castValue }).from(casts);
+
+			expect(castDb.select({ x: casts.castValue }).from(casts).where(eq(casts.castValue, inner())).toSQL().sql)
+				.toEqual(
+					'select "cast_value"::text from "casts" where "casts"."cast_value" = (select "cast_value" from "casts")',
+				);
+			expect(castDb.select({ x: casts.castValue }).from(casts).where(inArray(casts.castValue, inner())).toSQL().sql)
+				.toEqual(
+					'select "cast_value"::text from "casts" where "casts"."cast_value" in (select "cast_value" from "casts")',
+				);
+			expect(castDb.select({ x: casts.castValue }).from(casts).where(exists(inner())).toSQL().sql)
+				.toEqual('select "cast_value"::text from "casts" where exists (select "cast_value" from "casts")');
 		});
 
 		it(`Column as decoder applies cast`, ({ expect }) => {

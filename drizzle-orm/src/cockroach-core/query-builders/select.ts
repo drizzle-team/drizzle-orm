@@ -1041,20 +1041,22 @@ export abstract class CockroachSelectQueryBuilderBase<
 		return config.setFieldsFlat ?? fieldsFlat;
 	}
 
-	getSQL(): SQL {
+	getSQL(withCastCodecs = false): SQL {
 		this._resolveSelection();
-		return this.dialect.buildSelectQuery(this.config);
+		return this.dialect.buildSelectQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	as<TAlias extends string>(
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
 		return new Proxy(
-			new Subquery(this.withoutSelectionCastCodecs().getSQL(), this.config.fields, alias),
+			new Subquery(this.getSQL(), this.config.fields, alias),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -1065,12 +1067,6 @@ export abstract class CockroachSelectQueryBuilderBase<
 			this.config.fields,
 			new SelectionProxyHandler({ alias: this.tableName, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as this['_']['selectedFields'];
-	}
-
-	/** @internal */
-	override withoutSelectionCastCodecs(): this {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
 	}
 
 	$dynamic(): CockroachSelectDynamic<this> {
@@ -1100,8 +1096,7 @@ export interface CockroachSelectBase<
 		TResult,
 		TSelectedFields
 	>,
-	QueryPromise<TResult>,
-	SQLWrapper
+	QueryPromise<TResult>
 {}
 
 export class CockroachSelectBase<
@@ -1135,7 +1130,7 @@ export class CockroachSelectBase<
 		}
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			// Build query before accessing `fieldsFlat` - build mutates it
-			const query = dialect.sqlToQuery(this.getSQL());
+			const query = dialect.sqlToQuery(this.getSQL(true));
 			const fieldsList = this.config.fieldsFlat!;
 			const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, joinsNotNullableMap);
 
