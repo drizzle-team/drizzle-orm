@@ -305,6 +305,7 @@ export function mysqlToRelationsPull(schema: MysqlDDL): SchemaForPull {
 					}
 				}).filter((item) => item !== undefined),
 			})),
+			primaryKey: rawTable.pk?.columns,
 		};
 	});
 }

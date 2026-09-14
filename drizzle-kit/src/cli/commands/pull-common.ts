@@ -50,6 +50,7 @@ export type SchemaForPull = {
 	uniques: {
 		columns: string[];
 	}[];
+	primaryKey?: string[];
 }[];
 
 function prepareNameFor(name: string, tableColumns: string[]) {
@@ -89,9 +90,14 @@ export const relationsToTypeScript = (
 		const tableColumns = table.columns?.map((it) => withCasing(it.name, casing)) ?? [];
 
 		// A table is a junction (many-to-many) only when it has exactly two foreign keys that point
-		// to two *different other* tables. A foreign key that references the table itself
-		// (self-reference) does not make it a junction, and every foreign key must still emit its
-		// own `one` relation — see https://github.com/drizzle-team/drizzle-orm/issues/6197
+		// to two *different other* tables, AND its own primary key is exactly those two foreign
+		// keys' columns together (the standard shape of a pure join table). Just having two foreign
+		// keys is not enough — a first-class domain entity (its own surrogate PK, its own business
+		// columns) can also reference exactly two other tables, and misclassifying that as a junction
+		// drops its direct relations. See https://github.com/drizzle-team/drizzle-orm/issues/6253
+		// A foreign key that references the table itself (self-reference) does not make it a
+		// junction either, and every foreign key must still emit its own `one` relation — see
+		// https://github.com/drizzle-team/drizzle-orm/issues/6197
 		let handledAsJunction = false;
 		if (fks.length === 2) {
 			const [fk1, fk2] = fks;
@@ -107,10 +113,16 @@ export const relationsToTypeScript = (
 			const columnsThroughFrom = fk1.columns.map((it) => withCasing(it, casing));
 			const columnsThroughTo = fk2.columns.map((it) => withCasing(it, casing));
 
+			const ownFkColumns = new Set([...fk1.columns, ...fk2.columns]);
+			const primaryKeyIsFkColumns = !!table.primaryKey
+				&& table.primaryKey.length === ownFkColumns.size
+				&& table.primaryKey.every((col) => ownFkColumns.has(col));
+
 			if (
 				toTable1 !== toTable2
 				&& toTable1 !== tableThrough // check for non self ref
 				&& toTable2 !== tableThrough // check for non self ref
+				&& primaryKeyIsFkColumns // table's identity IS the two FKs, not a domain entity with its own PK
 			) {
 				handledAsJunction = true;
 				if (!tableRelations[toTable1]) {

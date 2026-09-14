@@ -492,6 +492,7 @@ export function cockroachToRelationsPull(schema: CockroachDDL): SchemaForPull {
 					}
 				}).filter((item) => item !== undefined),
 			})),
+			primaryKey: rawTable.pk?.columns,
 		};
 	});
 }

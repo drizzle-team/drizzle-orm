@@ -44,6 +44,8 @@ import {
 	vector,
 } from 'drizzle-orm/pg-core';
 import fs from 'fs';
+import { relationsToTypeScript } from 'src/cli/commands/pull-common';
+import { interimToDDL, postgresToRelationsPull } from 'src/dialects/postgres/ddl';
 import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { DB } from 'src/utils';
@@ -814,6 +816,81 @@ test('introspect checks from different schemas with same names', async () => {
 	expect(generateStatements).toStrictEqual([]);
 	expect(pushSqlStatements).toStrictEqual([]);
 	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6253
+test('introspect relations: two FKs on a domain entity are not treated as a junction', async () => {
+	await db.query(`CREATE TABLE "account" ("id" uuid PRIMARY KEY);`);
+	await db.query(`CREATE TABLE "category" ("id" uuid PRIMARY KEY);`);
+	await db.query(`CREATE TABLE "transaction_record" (
+		"id" uuid PRIMARY KEY,
+		"account_id" uuid NOT NULL REFERENCES "account"("id"),
+		"category_id" uuid REFERENCES "category"("id"),
+		"amount" numeric NOT NULL,
+		"status" text NOT NULL,
+		"description" text
+	);`);
+
+	const filter = prepareEntityFilter(
+		'postgresql',
+		{ tables: undefined, schemas: undefined, entities: undefined, extensions: undefined },
+		[],
+	);
+	const schema = await fromDatabaseForDrizzle(db, filter, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+	const { ddl } = interimToDDL(schema);
+	const { tableRelations } = relationsToTypeScript(postgresToRelationsPull(ddl), 'camel');
+
+	// transaction_record has its own identity (a surrogate `id` PK) - it's a
+	// domain entity that happens to reference two other tables, not a junction
+	// table. It must keep its own direct `one` relations to both.
+	expect(tableRelations['transactionRecord']).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({ type: 'one', tableTo: 'account' }),
+			expect.objectContaining({ type: 'one', tableTo: 'category' }),
+		]),
+	);
+
+	// account/category must NOT get a many-to-many "through" relation to each
+	// other - only a plain reverse `many` collection back to transactionRecord.
+	expect(tableRelations['account']).toEqual([
+		expect.objectContaining({ type: 'many', tableTo: 'transactionRecord' }),
+	]);
+	expect(tableRelations['category']).toEqual([
+		expect.objectContaining({ type: 'many', tableTo: 'transactionRecord' }),
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6253
+test('introspect relations: a real junction table (composite PK = both FKs) is still detected', async () => {
+	await db.query(`CREATE TABLE "book" ("id" uuid PRIMARY KEY);`);
+	await db.query(`CREATE TABLE "author" ("id" uuid PRIMARY KEY);`);
+	await db.query(`CREATE TABLE "book_author" (
+		"book_id" uuid NOT NULL REFERENCES "book"("id"),
+		"author_id" uuid NOT NULL REFERENCES "author"("id"),
+		PRIMARY KEY ("book_id", "author_id")
+	);`);
+
+	const filter = prepareEntityFilter(
+		'postgresql',
+		{ tables: undefined, schemas: undefined, entities: undefined, extensions: undefined },
+		[],
+	);
+	const schema = await fromDatabaseForDrizzle(db, filter, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+	const { ddl } = interimToDDL(schema);
+	const { tableRelations } = relationsToTypeScript(postgresToRelationsPull(ddl), 'camel');
+
+	expect(tableRelations['book']).toEqual([
+		expect.objectContaining({ type: 'many-through', tableTo: 'author' }),
+	]);
+	expect(tableRelations['author']).toEqual([
+		expect.objectContaining({ type: 'through', tableTo: 'book' }),
+	]);
 });
 
 test('introspect view #1', async () => {
