@@ -49,7 +49,7 @@ export interface SingleStoreDeleteConfig {
 	table: SingleStoreTable;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 }
 
 export type SingleStoreDeletePrepare<T extends AnySingleStoreDeleteBase> = PreparedQueryKind<
@@ -173,19 +173,21 @@ export class SingleStoreDeleteBase<
 		return this as any;
 	}
 
-	getSQL(): SQL {
-		return this.dialect.buildDeleteQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildDeleteQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	prepare(): SingleStoreDeletePrepare<this> {
 		const { returning: fields } = this.config;
 
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+			this.dialect.sqlToQuery(this.getSQL(true)),
 			fields ? 'arrays' : 'raw',
 			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 			{
@@ -207,12 +209,6 @@ export class SingleStoreDeleteBase<
 	};
 
 	iterator = this.createIterator();
-
-	/** @internal */
-	withoutSelectionCastCodecs() {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
-	}
 
 	$dynamic(): SingleStoreDeleteDynamic<this> {
 		return this as any;

@@ -416,7 +416,7 @@ export class MySqlDialect {
 		forceIndex,
 		ignoreIndex,
 		comment,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: MySqlSelectConfig): SQL {
 		if (!fieldsFlat) {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
@@ -461,7 +461,7 @@ export class MySqlDialect {
 
 		const selection = this.buildSelection(fieldsList, {
 			isSingleTable,
-			ignoreCastCodecs: ignoreSelectionCastCodecs || setOperators.length > 0,
+			ignoreCastCodecs: !useSelectionCastCodecs || setOperators.length > 0,
 			table,
 		});
 
@@ -589,7 +589,7 @@ export class MySqlDialect {
 			}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, fieldsList, ignoreSelectionCastCodecs, setOperators);
+			return this.buildSetOperations(finalQuery, fieldsList, useSelectionCastCodecs, setOperators);
 		}
 
 		return finalQuery;
@@ -598,7 +598,7 @@ export class MySqlDialect {
 	buildSetOperations(
 		leftSelect: SQL,
 		leftSelection: SelectedFieldsOrdered,
-		ignoreSelectionCastCodecs: boolean | undefined,
+		useSelectionCastCodecs: boolean | undefined,
 		setOperators: MySqlSelectConfig['setOperators'],
 	): SQL {
 		const outputSelection = leftSelection;
@@ -631,7 +631,7 @@ export class MySqlDialect {
 				: out.codec;
 		}
 
-		return ignoreSelectionCastCodecs ? leftSelect : sql`select ${
+		return !useSelectionCastCodecs ? leftSelect : sql`select ${
 			this.buildSelection(
 				outputSelection.map((field) => {
 					if (field.fieldType === 'SQL.Aliased') {
@@ -653,7 +653,7 @@ export class MySqlDialect {
 				}),
 				{
 					isSingleTable: true,
-					ignoreCastCodecs: ignoreSelectionCastCodecs,
+					ignoreCastCodecs: !useSelectionCastCodecs,
 				},
 			)
 		} from (${leftSelect}) ${sql.identifier('drizzle_union')}`;
@@ -667,7 +667,7 @@ export class MySqlDialect {
 		setOperator: MySqlSelectConfig['setOperators'][number];
 	}): SQL {
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
-		const rightChunk = sql`(${rightSelect.withoutSelectionCastCodecs().getSQL()})`;
+		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {

@@ -7489,7 +7489,9 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 
 			const session = (<any> db).session as CockroachSession;
 
-			const queryRes = await session.objects<AllTypes>(db.select().from(allTypesTable).getSQL()).then((e) =>
+			const queryRes = await session.objects<AllTypes>(db.select().from(allTypesTable).getSQL(true)).then((
+				e,
+			) =>
 				normalizeDataWithDbCodecs({
 					db,
 					columns: getColumns(allTypesTable),

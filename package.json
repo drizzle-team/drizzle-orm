@@ -41,7 +41,7 @@
 		"turbo": "^2.2.3",
 		"typescript": "5.9.3",
 		"vite-tsconfig-paths": "^4.3.2",
-		"vitest": "4.0.13"
+		"vitest": "5.0.0"
 	},
 	"packageManager": "pnpm@10.15.0",
 	"engines": {

@@ -204,13 +204,13 @@ export class SingleStoreDialect {
 		withList,
 		limit,
 		orderBy,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: SingleStoreDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
 			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs, table })
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
 			}`
 			: undefined;
 
@@ -263,7 +263,7 @@ export class SingleStoreDialect {
 		withList,
 		limit,
 		orderBy,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: SingleStoreUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
@@ -271,7 +271,7 @@ export class SingleStoreDialect {
 
 		const returningSql = returning
 			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs, table })
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
 			}`
 			: undefined;
 
@@ -475,7 +475,7 @@ export class SingleStoreDialect {
 		lockingClause,
 		distinct,
 		setOperators,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: SingleStoreSelectConfig): SQL {
 		if (!fieldsFlat) {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
@@ -521,7 +521,7 @@ export class SingleStoreDialect {
 		const selection = this.buildSelection(fieldsList, {
 			isSingleTable,
 			table,
-			ignoreCastCodecs: ignoreSelectionCastCodecs || setOperators.length > 0,
+			ignoreCastCodecs: !useSelectionCastCodecs || setOperators.length > 0,
 		});
 
 		const tableSql = (() => {
@@ -617,7 +617,7 @@ export class SingleStoreDialect {
 			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, fieldsList, ignoreSelectionCastCodecs, setOperators);
+			return this.buildSetOperations(finalQuery, fieldsList, useSelectionCastCodecs, setOperators);
 		}
 
 		return finalQuery;
@@ -626,7 +626,7 @@ export class SingleStoreDialect {
 	buildSetOperations(
 		leftSelect: SQL,
 		outputSelection: SelectedFieldsOrdered,
-		ignoreSelectionCastCodecs: boolean | undefined,
+		useSelectionCastCodecs: boolean | undefined,
 		setOperators: SingleStoreSelectConfig['setOperators'],
 	): SQL {
 		for (let i = 0; i < setOperators.length; ++i) {
@@ -634,7 +634,7 @@ export class SingleStoreDialect {
 			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator });
 		}
 
-		return ignoreSelectionCastCodecs ? leftSelect : sql`select ${
+		return !useSelectionCastCodecs ? leftSelect : sql`select ${
 			this.buildSelection(
 				outputSelection.map((field) => {
 					if (field.fieldType === 'SQL.Aliased') {
@@ -656,7 +656,7 @@ export class SingleStoreDialect {
 				}),
 				{
 					isSingleTable: true,
-					ignoreCastCodecs: ignoreSelectionCastCodecs,
+					ignoreCastCodecs: !useSelectionCastCodecs,
 				},
 			)
 		} from (${leftSelect}) ${sql.identifier('drizzle_union')}`;
@@ -670,7 +670,7 @@ export class SingleStoreDialect {
 		setOperator: SingleStoreSelectConfig['setOperators'][number];
 	}): SQL {
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
-		const rightChunk = sql`(${rightSelect.withoutSelectionCastCodecs().getSQL()})`;
+		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {

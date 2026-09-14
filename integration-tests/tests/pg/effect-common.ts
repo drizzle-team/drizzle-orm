@@ -230,10 +230,10 @@ const failureMessage = (failure: unknown): string => {
 export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): void => {
 	const { testLayer, usedSchema, PgDrizzle, createDB, addTests, skipTests = [] } = opts;
 
-	it.layer(testLayer)('common', (it) => {
+	it.layer(testLayer)('common', (layerIt) => {
 		// Run setup before each test.
-		const _effect = it.effect;
-		const effect: typeof it.effect = Object.assign(
+		const _effect = layerIt.effect;
+		const effect: typeof layerIt.effect = Object.assign(
 			(testName: string, fn: () => Effect.Effect<any, any, any>, timeout?: number) =>
 				_effect(testName, () =>
 					Effect.andThen(
@@ -250,9 +250,11 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 						}),
 						fn(),
 					), timeout),
-			it.effect,
+			layerIt.effect,
 		);
-		Object.assign(it, { effect });
+		const it = new Proxy(layerIt, {
+			get: (target, property, receiver) => property === 'effect' ? effect : Reflect.get(target, property, receiver),
+		});
 
 		it.beforeEach(({ task, skip }) => {
 			if (skipTests.includes(task.name)) skip();
@@ -2509,16 +2511,17 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					yield* db.insert(allTypesTable).values(allTypesData);
 					const session = (<any> db).session as PgEffectSession;
 
-					const queryRes = yield* session.objects<AllTypes>(db.select().from(allTypesTable).getSQL()).pipe(
-						Effect.map((e) =>
-							normalizeDataWithDbCodecs({
-								db,
-								columns: getColumns(allTypesTable),
-								data: e,
-								mode: 'query',
-							})[0]
-						),
-					);
+					const queryRes = yield* session.objects<AllTypes>(db.select().from(allTypesTable).getSQL(true))
+						.pipe(
+							Effect.map((e) =>
+								normalizeDataWithDbCodecs({
+									db,
+									columns: getColumns(allTypesTable),
+									data: e,
+									mode: 'query',
+								})[0]
+							),
+						);
 
 					const relDb = yield* createDB({ allTypesTable }, allTypesRelations);
 

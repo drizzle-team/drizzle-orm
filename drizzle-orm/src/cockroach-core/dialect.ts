@@ -226,13 +226,13 @@ export class CockroachDialect {
 		where,
 		returning,
 		withList,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: CockroachDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
 			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs, table })
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
 			}`
 			: undefined;
 
@@ -281,7 +281,7 @@ export class CockroachDialect {
 		withList,
 		from,
 		joins,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: CockroachUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
@@ -303,7 +303,7 @@ export class CockroachDialect {
 
 		const returningSql = returning
 			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: !from, ignoreCastCodecs: ignoreSelectionCastCodecs, table })
+				this.buildSelection(returning, { isSingleTable: !from, ignoreCastCodecs: !useSelectionCastCodecs, table })
 			}`
 			: undefined;
 
@@ -561,7 +561,7 @@ export class CockroachDialect {
 		distinct,
 		setOperators,
 		setFieldsFlat: setSelection,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: CockroachSelectConfig): SQL {
 		if (!fieldsFlat) {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
@@ -612,7 +612,7 @@ export class CockroachDialect {
 		const selection = this.buildSelection(fieldsList, {
 			isSingleTable,
 			table,
-			ignoreCastCodecs: ignoreSelectionCastCodecs || setOperators.length > 0,
+			ignoreCastCodecs: !useSelectionCastCodecs || setOperators.length > 0,
 		});
 
 		const tableSql = this.buildFromTable(table);
@@ -665,7 +665,7 @@ export class CockroachDialect {
 			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, setSelection!, ignoreSelectionCastCodecs, setOperators);
+			return this.buildSetOperations(finalQuery, setSelection!, useSelectionCastCodecs, setOperators);
 		}
 
 		return finalQuery;
@@ -674,7 +674,7 @@ export class CockroachDialect {
 	buildSetOperations(
 		leftSelect: SQL,
 		outputSelection: SelectedFieldsOrdered,
-		ignoreSelectionCastCodecs: boolean | undefined,
+		useSelectionCastCodecs: boolean | undefined,
 		setOperators: CockroachSelectConfig['setOperators'],
 	): SQL {
 		const lastIdx = setOperators.length - 1;
@@ -683,12 +683,12 @@ export class CockroachDialect {
 		for (let i = 0; i <= lastIdx; ++i) {
 			const setOperator = setOperators[i]!;
 
-			const hoistTail = !ignoreSelectionCastCodecs && i === lastIdx;
+			const hoistTail = useSelectionCastCodecs && i === lastIdx;
 			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator, omitTail: hoistTail });
 			if (hoistTail) tailSql = this.buildSetOperationTail(setOperator);
 		}
 
-		return ignoreSelectionCastCodecs ? leftSelect : sql`select ${
+		return !useSelectionCastCodecs ? leftSelect : sql`select ${
 			this.buildSelection(
 				outputSelection.map((field) => {
 					if (field.fieldType === 'SQL.Aliased') {
@@ -710,7 +710,7 @@ export class CockroachDialect {
 				}),
 				{
 					isSingleTable: true,
-					ignoreCastCodecs: ignoreSelectionCastCodecs,
+					ignoreCastCodecs: !useSelectionCastCodecs,
 				},
 			)
 		} from (${leftSelect}) ${sql.identifier('drizzle_union')}${tailSql}`;
@@ -727,7 +727,7 @@ export class CockroachDialect {
 	}): SQL {
 		const { type, isAll, rightSelect } = setOperator;
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
-		const rightChunk = sql`(${rightSelect.withoutSelectionCastCodecs().getSQL()})`;
+		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
 		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
 		const tailSql = omitTail ? undefined : this.buildSetOperationTail(setOperator);
@@ -784,7 +784,7 @@ export class CockroachDialect {
 		withList,
 		select,
 		columnList,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: CockroachInsertConfig): SQL {
 		const columns: Record<string, CockroachColumn> = table[Table.Symbol.Columns];
 
@@ -872,7 +872,7 @@ export class CockroachDialect {
 
 		const returningSql = returning
 			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: ignoreSelectionCastCodecs, table })
+				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
 			}`
 			: undefined;
 

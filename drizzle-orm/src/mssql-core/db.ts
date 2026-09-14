@@ -117,7 +117,7 @@ export class MsSqlDatabase<
 
 				return new Proxy(
 					new WithSubquery(
-						('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL(),
+						qb.getSQL(),
 						qb.getSelectedFields() as SelectedFields,
 						alias,
 						true,

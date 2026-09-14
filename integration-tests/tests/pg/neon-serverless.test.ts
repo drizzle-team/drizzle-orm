@@ -22,7 +22,7 @@ tests(test, []);
 
 describe('neon-serverless', () => {
 	let db: PgAsyncDatabase<any, any>;
-	test.sequential('_', async ({ db: _db, push }) => {
+	test('_', { concurrent: false }, async ({ db: _db, push }) => {
 		db = _db;
 
 		await db.execute('drop schema if exists public, "mySchema" cascade;');

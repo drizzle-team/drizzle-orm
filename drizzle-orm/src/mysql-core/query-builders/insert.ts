@@ -167,8 +167,6 @@ export class MySqlInsertBuilder<
 				| SQL),
 	): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
-		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
-
 		if (!is(select, SQL)) {
 			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
 			const selected = Object.keys(select._.selectedFields);

@@ -231,10 +231,10 @@ export class MsSqlDialect {
 		return new SQL(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, output, ignoreSelectionCastCodecs }: MsSqlDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, output, useSelectionCastCodecs }: MsSqlDeleteConfig): SQL {
 		const outputSql = output
 			? sql` output ${
-				this.buildSelectionOutput(output, { type: 'DELETED', ignoreCastCodecs: ignoreSelectionCastCodecs })
+				this.buildSelectionOutput(output, { type: 'DELETED', ignoreCastCodecs: !useSelectionCastCodecs })
 			}`
 			: undefined;
 
@@ -289,7 +289,7 @@ export class MsSqlDialect {
 		// );
 	}
 
-	buildUpdateQuery({ table, set, where, output, ignoreSelectionCastCodecs }: MsSqlUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, output, useSelectionCastCodecs }: MsSqlUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const outputSql = sql``;
@@ -301,7 +301,7 @@ export class MsSqlDialect {
 				outputSql.append(
 					this.buildSelectionOutput(output.inserted, {
 						type: 'INSERTED',
-						ignoreCastCodecs: ignoreSelectionCastCodecs,
+						ignoreCastCodecs: !useSelectionCastCodecs,
 					}),
 				);
 			}
@@ -311,7 +311,7 @@ export class MsSqlDialect {
 				outputSql.append(
 					this.buildSelectionOutput(output.deleted, {
 						type: 'DELETED',
-						ignoreCastCodecs: ignoreSelectionCastCodecs,
+						ignoreCastCodecs: !useSelectionCastCodecs,
 					}),
 				);
 			}
@@ -578,7 +578,7 @@ export class MsSqlDialect {
 		offset,
 		distinct,
 		setOperators,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: MsSqlSelectConfig): SQL {
 		if (!fieldsFlat) {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
@@ -626,7 +626,7 @@ export class MsSqlDialect {
 		const selection = this.buildSelection(fieldsList, {
 			isSingleTable,
 			table,
-			ignoreCastCodecs: ignoreSelectionCastCodecs || setOperators.length > 0,
+			ignoreCastCodecs: !useSelectionCastCodecs || setOperators.length > 0,
 		});
 
 		const tableSql = (() => {
@@ -737,7 +737,7 @@ export class MsSqlDialect {
 			sql`${withSql}select${distinctSql}${topSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${offsetSql}${fetchSql}${forSQL}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, fieldsList, ignoreSelectionCastCodecs, setOperators);
+			return this.buildSetOperations(finalQuery, fieldsList, useSelectionCastCodecs, setOperators);
 		}
 
 		return finalQuery;
@@ -746,7 +746,7 @@ export class MsSqlDialect {
 	buildSetOperations(
 		leftSelect: SQL,
 		outputSelection: SelectedFieldsOrdered,
-		ignoreSelectionCastCodecs: boolean | undefined,
+		useSelectionCastCodecs: boolean | undefined,
 		setOperators: MsSqlSelectConfig['setOperators'],
 	): SQL {
 		const lastIdx = setOperators.length - 1;
@@ -755,12 +755,12 @@ export class MsSqlDialect {
 		for (let i = 0; i <= lastIdx; ++i) {
 			const setOperator = setOperators[i]!;
 
-			const hoistTail = !ignoreSelectionCastCodecs && i === lastIdx;
+			const hoistTail = useSelectionCastCodecs && i === lastIdx;
 			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator, omitTail: hoistTail });
 			if (hoistTail) tailSql = this.buildSetOperationTail(setOperator);
 		}
 
-		return ignoreSelectionCastCodecs ? leftSelect : sql`select ${
+		return !useSelectionCastCodecs ? leftSelect : sql`select ${
 			this.buildSelection(
 				outputSelection.map((field) => {
 					if (field.fieldType === 'SQL.Aliased') {
@@ -782,7 +782,7 @@ export class MsSqlDialect {
 				}),
 				{
 					isSingleTable: true,
-					ignoreCastCodecs: ignoreSelectionCastCodecs,
+					ignoreCastCodecs: !useSelectionCastCodecs,
 				},
 			)
 		} from (${leftSelect}) ${sql.identifier('drizzle_union')}${tailSql}`;
@@ -838,7 +838,7 @@ export class MsSqlDialect {
 	}): SQL {
 		const { type, isAll, rightSelect } = setOperator;
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
-		const rightChunk = sql`(${rightSelect.withoutSelectionCastCodecs().getSQL()})`;
+		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
 		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
 		const tailSql = omitTail ? undefined : this.buildSetOperationTail(setOperator);
@@ -847,7 +847,7 @@ export class MsSqlDialect {
 	}
 
 	buildInsertQuery(
-		{ table, values: valuesOrSelect, output, columnList, select, ignoreSelectionCastCodecs }: MsSqlInsertConfig,
+		{ table, values: valuesOrSelect, output, columnList, select, useSelectionCastCodecs }: MsSqlInsertConfig,
 	): SQL {
 		const columns: Record<string, MsSqlColumn> = table[Table.Symbol.Columns];
 		const colEntries: [string, MsSqlColumn][] = select && !is(valuesOrSelect, SQL)
@@ -934,7 +934,7 @@ export class MsSqlDialect {
 
 		const outputSql = output
 			? sql` output ${
-				this.buildSelectionOutput(output, { type: 'INSERTED', ignoreCastCodecs: ignoreSelectionCastCodecs })
+				this.buildSelectionOutput(output, { type: 'INSERTED', ignoreCastCodecs: !useSelectionCastCodecs })
 			}`
 			: undefined;
 
