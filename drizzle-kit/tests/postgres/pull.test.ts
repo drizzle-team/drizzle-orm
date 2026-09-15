@@ -3609,3 +3609,86 @@ test('Issue No5626', async () => {
 		},
 	]);
 });
+
+test(`PlanetScale's Neki internal schema #1`, async () => {
+	await db.query('create schema __neki;'); // internal schema
+	await db.query('create table __neki.users (id int);');
+
+	await db.query('create schema dev;');
+
+	await db.query('create table users (id int);');
+
+	const {
+		generateSqlStatements,
+		generateStatements,
+		pushSqlStatements,
+		pushStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'neki_internal_schema', ['public']);
+
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(ddlAfterPull.schemas.list()).toStrictEqual([]); // public is stripped
+	expect(ddlAfterPull.tables.list()).toStrictEqual([{
+		schema: 'public',
+		name: 'users',
+		entityType: 'tables',
+		isRlsEnabled: false,
+	}]);
+
+	expect(schema2.schemas).toStrictEqual([]); // public is stripped
+	expect(schema2.tables).toStrictEqual([{
+		schema: 'public',
+		name: 'users',
+		entityType: 'tables',
+		isRlsEnabled: false,
+	}]);
+});
+test(`PlanetScale's Neki internal schema #2`, async () => {
+	await db.query('create schema __neki;'); // internal schema
+	await db.query('create table __neki.users (id int);');
+
+	await db.query('create schema dev;');
+
+	await db.query('create table users (id int);');
+
+	const {
+		generateSqlStatements,
+		generateStatements,
+		pushSqlStatements,
+		pushStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'neki_internal_schema-2');
+
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(ddlAfterPull.schemas.list()).toStrictEqual([
+		{
+			entityType: 'schemas',
+			name: 'dev',
+		},
+	]); // public is stripped
+	expect(ddlAfterPull.tables.list()).toStrictEqual([{
+		schema: 'public',
+		name: 'users',
+		entityType: 'tables',
+		isRlsEnabled: false,
+	}]);
+
+	expect(schema2.schemas).toStrictEqual([{
+		entityType: 'schemas',
+		name: 'dev',
+	}]); // public is stripped
+	expect(schema2.tables).toStrictEqual([{
+		schema: 'public',
+		name: 'users',
+		entityType: 'tables',
+		isRlsEnabled: false,
+	}]);
+});
