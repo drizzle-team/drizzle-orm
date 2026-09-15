@@ -45,14 +45,19 @@ export function mapResultRow<TResult>(
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
-						// A nested object from a nullable join must stay intact if ANY selected
-						// column is non-null. The old check only cleared the candidate when a
-						// later column came from a *different* table, so `{ logo: null, color: "#fff" }`
-						// (same table, first field null) was incorrectly turned into `null`.
+						const tableName = getTableName(field.table);
+						// Keep the nested object when:
+						// - any selected column is non-null (#1603: first field null, later field set), or
+						// - selected columns come from more than one table (mixed-table projections
+						//   are typed as an object of individually nullable fields, even if all null).
 						if (value !== null) {
 							nullifyMap[objectName] = false;
 						} else if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = getTableName(field.table);
+							nullifyMap[objectName] = tableName;
+						} else if (
+							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== tableName
+						) {
+							nullifyMap[objectName] = false;
 						}
 					}
 				}

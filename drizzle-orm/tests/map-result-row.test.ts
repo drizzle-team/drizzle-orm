@@ -85,6 +85,31 @@ describe('mapResultRow nested partial select (#1603)', () => {
 		});
 	});
 
+	test('keeps a mixed-table nested object when every selected column is null', () => {
+		const extra = pgTable('org_extra', {
+			tagline: text('tagline'),
+		});
+		const columns = [
+			{ path: ['name'], field: org.name },
+			{ path: ['meta', 'logo'], field: orgBranding.logo },
+			{ path: ['meta', 'tagline'], field: extra.tagline },
+		];
+
+		const result = mapResultRow(
+			columns,
+			['Test org 2', null, null],
+			{ org: true, org_branding: false, org_extra: false },
+		);
+
+		expect(result).toEqual({
+			name: 'Test org 2',
+			meta: {
+				logo: null,
+				tagline: null,
+			},
+		});
+	});
+
 	test('keeps nested nulls when the join itself is not nullable', () => {
 		const columns = [
 			{ path: ['name'], field: org.name },
