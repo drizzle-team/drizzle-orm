@@ -1,6 +1,7 @@
 import {
 	bigint,
 	boolean,
+	customType,
 	date,
 	integer,
 	json,
@@ -345,6 +346,75 @@ test('array #13: not null', async (t) => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = ['CREATE TABLE "table1" (\n\t"values" varchar(20)[] NOT NULL\n);\n'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6071
+test('array #14: customType array default', async (t) => {
+	const varcharArray = customType<{ data: string[] }>({
+		dataType() {
+			return 'varchar[]';
+		},
+	});
+
+	const to = {
+		test: pgTable('table1', {
+			values: varcharArray('values').default(['a', 'b']),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = ['CREATE TABLE "table1" (\n\t"values" varchar[] DEFAULT \'{a,b}\'::varchar[]\n);\n'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6071
+// A customType spells its array-ness out in `dataType()` rather than carrying a
+// `dimensions` property, so this used to serialise as a scalar: the default was
+// written unbraced and unquoted, without any error.
+test('array #15: customType array default is not scalar', async (t) => {
+	const integerArray = customType<{ data: number[] }>({
+		dataType() {
+			return 'integer[]';
+		},
+	});
+
+	const to = {
+		test: pgTable('table1', {
+			values: integerArray('values').default([1, 2]),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = ['CREATE TABLE "table1" (\n\t"values" integer[] DEFAULT \'{1,2}\'::integer[]\n);\n'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6071
+test('array #16: customType scalar is unaffected', async (t) => {
+	const citext = customType<{ data: string }>({
+		dataType() {
+			return 'varchar';
+		},
+	});
+
+	const to = {
+		test: pgTable('table1', {
+			value: citext('value').default('a'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = ['CREATE TABLE "table1" (\n\t"value" varchar DEFAULT \'a\'\n);\n'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
