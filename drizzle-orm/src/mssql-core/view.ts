@@ -203,8 +203,10 @@ export class ManualViewBuilder<
 export class MsSqlView<T extends ViewConfig = ViewConfig> extends MsSqlViewBase<T> {
 	static override readonly [entityKind]: string = 'MsSqlView';
 
+	/** @internal */
 	declare protected $MsSqlViewBrand: 'MsSqlView';
 
+	/** @internal */
 	[MsSqlViewConfig]: ViewBuilderConfig | undefined;
 
 	constructor({ mssqlConfig, config }: {
