@@ -1,4 +1,4 @@
-import { assert, expect, expectTypeOf, it, Vitest } from '@effect/vitest';
+import { assert, expect, expectTypeOf, it, vi, Vitest } from '@effect/vitest';
 import {
 	and,
 	asc,
@@ -63,6 +63,7 @@ import {
 	assertAllTypesUnions,
 	makeAllTypes,
 } from './all-types';
+import { TestCache } from './instrumentation';
 import { relations } from './relations';
 import { rqbPost, rqbUser } from './schema';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -2478,6 +2479,61 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				const ops = yield* Ref.get(cacheOperations);
 				expect(ops.some((o) => o.op === 'mutate')).toBe(true);
 				expect(ops.some((o) => o.op === 'get')).toBe(true);
+			}));
+
+		it.effect('Cache: onMutate runs after the write is committed', () =>
+			Effect.gen(function*() {
+				const baseCache = new TestCache('explicit');
+
+				const db = yield* PgDrizzle.make({ relations }).pipe(
+					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
+					Effect.provide(PgDrizzle.DefaultServices),
+				);
+
+				const users = pgTable('users_cache_mutate_order', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+
+				yield* push(db, { users });
+
+				const context = yield* Effect.context<never>();
+				const run = (query: any) => Effect.runPromiseWith(context)(query);
+				const seen: string[][] = [];
+				using spyInvalidate = vi.spyOn(baseCache, 'onMutate').mockImplementation(async () => {
+					const rows = await run(db.select({ name: users.name }).from(users)) as { name: string }[];
+					seen.push(rows.map((r) => r.name));
+				});
+
+				yield* db.insert(users).values({ id: 1, name: 'John' });
+
+				expect(spyInvalidate).toHaveBeenCalledTimes(1);
+				expect(seen).toStrictEqual([['John']]);
+			}));
+
+		it.effect('Cache: no onMutate on failed write', () =>
+			Effect.gen(function*() {
+				const baseCache = new TestCache('explicit');
+
+				const db = yield* PgDrizzle.make({ relations }).pipe(
+					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
+					Effect.provide(PgDrizzle.DefaultServices),
+				);
+
+				const users = pgTable('users_cache_failed_write', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+
+				yield* push(db, { users });
+				yield* db.insert(users).values({ id: 1, name: 'John' });
+
+				using spyInvalidate = vi.spyOn(baseCache, 'onMutate');
+
+				const res = yield* db.insert(users).values({ id: 1, name: 'Jane' }).pipe(Effect.result);
+
+				assert(Result.isFailure(res));
+				expect(spyInvalidate).toHaveBeenCalledTimes(0);
 			}));
 
 		it.effect('makeWithDefaults - convenience function that includes DefaultServices', () =>
