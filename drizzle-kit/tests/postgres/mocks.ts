@@ -53,7 +53,7 @@ import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 // @ts-ignore
 import { citext } from '@electric-sql/pglite/contrib/citext';
 // @ts-ignore
-import { vector } from '@electric-sql/pglite/vector';
+import { vector } from '@electric-sql/pglite-pgvector';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import pg from 'pg';
 import { introspect } from 'src/cli/commands/pull-postgres';

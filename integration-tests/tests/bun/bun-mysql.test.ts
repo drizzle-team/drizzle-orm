@@ -1504,7 +1504,8 @@ describe('common', () => {
 		const res1 = await db.select().from(users);
 
 		// second migration was not applied yet
-		expect((async () => await db.insert(users2).values({ name: 'John', email: '', age: 30 }))()).rejects.toThrowError();
+		await expect((async () => await db.insert(users2).values({ name: 'John', email: '', age: 30 }))()).rejects
+			.toThrowError();
 
 		// insert migration with earlier timestamp
 		mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
@@ -2874,7 +2875,7 @@ describe('common', () => {
 			sql`create table ${users} (id serial not null primary key, name text)`,
 		);
 
-		expect((async () => {
+		await expect((async () => {
 			await db.insert(users).values({ name: undefined });
 		})()).resolves.toStrictEqual(undefined);
 

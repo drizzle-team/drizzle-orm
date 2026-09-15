@@ -320,7 +320,8 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	const res1 = await db.select().from(users);
 
 	// second migration was not applied yet
-	expect((async () => await db.insert(users2).values({ name: 'John', email: '', age: 30 }))()).rejects.toThrowError();
+	await expect((async () => await db.insert(users2).values({ name: 'John', email: '', age: 30 }))()).rejects
+		.toThrowError();
 
 	// insert migration with earlier timestamp
 	mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });

@@ -288,7 +288,7 @@ describe('pglite extensions', () => {
 		const queryRes = normalizeDataWithDbCodecs({
 			db,
 			columns: getColumns(allTypesTable),
-			data: (await db.execute(db.select().from(allTypesTable))).rows as Record<string, unknown>[],
+			data: (await db.execute(db.select().from(allTypesTable).getSQL(true))).rows as Record<string, unknown>[],
 			mode: 'query',
 		})[0];
 

@@ -12984,7 +12984,7 @@ test('Correct error message on unknown column', async () => {
 		},
 	});
 
-	expect(async () => await query).rejects.toThrow(
+	await expect(async () => await query).rejects.toThrow(
 		new DrizzleError({ message: `Unknown column: "usersTable"."unknown"` }),
 	);
 });
@@ -12998,7 +12998,7 @@ test('Correct error message on unknown relation', async () => {
 		},
 	});
 
-	expect(async () => await query).rejects.toThrow(
+	await expect(async () => await query).rejects.toThrow(
 		new DrizzleError({ message: `Unknown relation "usersTable" -> "unknown"` }),
 	);
 });
@@ -13013,7 +13013,7 @@ test('Disallow unknown keys in filters', async () => {
 		},
 	});
 
-	expect(async () => await query).rejects.toThrow(
+	await expect(async () => await query).rejects.toThrow(
 		new DrizzleError({ message: `Unknown relational filter field: "unknown"` }),
 	);
 });
