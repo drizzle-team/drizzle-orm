@@ -45,12 +45,14 @@ export function mapResultRow<TResult>(
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
-						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
-						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
-						) {
+						// A nested object from a nullable join must stay intact if ANY selected
+						// column is non-null. The old check only cleared the candidate when a
+						// later column came from a *different* table, so `{ logo: null, color: "#fff" }`
+						// (same table, first field null) was incorrectly turned into `null`.
+						if (value !== null) {
 							nullifyMap[objectName] = false;
+						} else if (!(objectName in nullifyMap)) {
+							nullifyMap[objectName] = getTableName(field.table);
 						}
 					}
 				}
