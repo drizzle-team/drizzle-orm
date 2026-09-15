@@ -249,10 +249,37 @@ const HEX = /* @__PURE__ */ (() => {
 	return table;
 })();
 
+const HEX_CODES = /* @__PURE__ */ (() => {
+	const codes = new Uint8Array(512);
+	for (let i = 0; i < 256; i++) {
+		codes[i * 2] = HEX[i]!.charCodeAt(0);
+		codes[i * 2 + 1] = HEX[i]!.charCodeAt(1);
+	}
+	return codes;
+})();
+
 function toHex(bytes: Uint8Array): string {
+	if (bytes.length > 65536) return toHexLarge(bytes);
+
 	let hex = '';
 	for (let i = 0; i < bytes.length; i++) hex += HEX[bytes[i]!];
 	return hex;
+}
+
+function toHexLarge(bytes: Uint8Array): string {
+	const codes = new Uint8Array(bytes.length * 2);
+	for (let i = 0, j = 0; i < bytes.length; i++, j += 2) {
+		const k = bytes[i]! * 2;
+		codes[j] = HEX_CODES[k]!;
+		codes[j + 1] = HEX_CODES[k + 1]!;
+	}
+
+	// Chunked to stay below engine argument count limits of `apply`
+	const parts: string[] = [];
+	for (let offset = 0; offset < codes.length; offset += 16384) {
+		parts.push(String.fromCharCode.apply(null, codes.subarray(offset, offset + 16384) as unknown as number[]));
+	}
+	return parts.join('');
 }
 
 type NodeCreateHash = (algorithm: string) => {
@@ -277,8 +304,61 @@ function getNodeCreateHash(): NodeCreateHash | null {
 
 let encoder: TextEncoder | undefined;
 
+const VIEW_TAGS: Record<string, string> = {
+	// Stays empty - UInt8Array & Buffer params are processed identically by drivers
+	Uint8Array: '',
+	Int8Array: 'i8',
+	Uint8ClampedArray: 'u8c',
+	Int16Array: 'i16',
+	Uint16Array: 'u16',
+	Int32Array: 'i32',
+	Uint32Array: 'u32',
+	Float16Array: 'f16',
+	Float32Array: 'f32',
+	Float64Array: 'f64',
+	BigInt64Array: 'i64',
+	BigUint64Array: 'u64',
+	DataView: 'dv',
+};
+
+export function serializeParam(value: unknown): string {
+	switch (typeof value) {
+		case 'undefined':
+			return 'u';
+		case 'string':
+			return 's' + JSON.stringify(value);
+		case 'number':
+			return 'd' + String(value);
+		case 'bigint':
+			return 'b' + value.toString();
+		case 'boolean':
+			return value ? 't' : 'f';
+		case 'object': {
+			if (value === null) return 'n';
+			if (Array.isArray(value)) return 'a[' + value.map(serializeParam).join(',') + ']';
+			if (ArrayBuffer.isView(value)) {
+				const type = Object.prototype.toString.call(value).slice(8, -1);
+				return 'y' + (VIEW_TAGS[type] ?? type) + ':'
+					+ toHex(new Uint8Array(value.buffer, value.byteOffset, value.byteLength));
+			}
+			if (typeof (value as { toJSON?: unknown }).toJSON === 'function') {
+				return 'J' + serializeParam((value as { toJSON(): unknown }).toJSON());
+			}
+			const keys = Object.keys(value);
+			let out = 'o{';
+			for (let i = 0; i < keys.length; i++) {
+				const key = keys[i]!;
+				out += (i ? ',' : '') + JSON.stringify(key) + ':' + serializeParam((value as any)[key]);
+			}
+			return out + '}';
+		}
+		default:
+			return 'x' + String(value);
+	}
+}
+
 export async function hashQuery(sql: string, params?: any[]) {
-	const dataToHash = `${sql}-${JSON.stringify(params, (_, v) => typeof v === 'bigint' ? `${v}n` : v)}`;
+	const dataToHash = `${sql}-${serializeParam(params)}`;
 
 	const createHash = getNodeCreateHash();
 	if (createHash) return createHash('sha256').update(dataToHash).digest('hex');
