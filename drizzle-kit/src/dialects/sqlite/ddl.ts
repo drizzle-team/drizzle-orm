@@ -324,6 +324,7 @@ export function sqliteToRelationsPull(schema: SQLiteDDL): SchemaForPull {
 					}).filter((item) => item !== undefined),
 				})),
 			],
+			primaryKey: rawTable.pk?.columns,
 		};
 	});
 }
