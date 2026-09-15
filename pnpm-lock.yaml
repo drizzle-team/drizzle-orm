@@ -158,8 +158,11 @@ importers:
         specifier: ^0.48.5
         version: 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)
       '@electric-sql/pglite':
-        specifier: ^0.4.6
-        version: 0.4.6
+        specifier: ^0.5.8
+        version: 0.5.8
+      '@electric-sql/pglite-pgvector':
+        specifier: ^0.0.9
+        version: 0.0.9(@electric-sql/pglite@0.5.8)
       '@hono/node-server':
         specifier: ^1.9.0
         version: 1.19.6(hono@4.10.7)
@@ -300,7 +303,7 @@ importers:
         version: 17.2.1
       orm044:
         specifier: npm:drizzle-orm@0.44.1
-        version: drizzle-orm@0.44.1(fe1f1646a2e780fe8560fe48415f30d2)
+        version: drizzle-orm@0.44.1(5d824a0c5465691b580815f6d7025b79)
       pg:
         specifier: ^8.11.5
         version: 8.16.3
@@ -526,8 +529,11 @@ importers:
         specifier: ^0.16.1
         version: 0.16.4
       '@electric-sql/pglite':
-        specifier: ^0.4.6
-        version: 0.4.6
+        specifier: ^0.5.8
+        version: 0.5.8
+      '@electric-sql/pglite-pgvector':
+        specifier: ^0.0.9
+        version: 0.0.9(@electric-sql/pglite@0.5.8)
       '@types/async-retry':
         specifier: ^1.4.8
         version: 1.4.9
@@ -1859,9 +1865,6 @@ packages:
     resolution: {integrity: sha512-B7XVSVuj+9TEVfIgPSlbWbhKvROENHTp0Ex6A44kTeTqy4FAm31uGsi7fxx7gqN0Mdo5qH1xv5Fu42dHwKZpqg==}
     peerDependencies:
       '@electric-sql/pglite': 0.5.8
-
-  '@electric-sql/pglite@0.4.6':
-    resolution: {integrity: sha512-qmlmfN8UyKCee35qkV0r/MBp+Znl8FjBz7OpoglNvww3GJpw0/DLP0o1ZymvLNmcD5DTLOQdzKPtF8Hd3mdl1w==}
 
   '@electric-sql/pglite@0.5.8':
     resolution: {integrity: sha512-n9tsbUOhwx2epK1V0ZG9Ar4SHWUju04dhmzZXiSBXwBoleOvIfals33NAaWgagQVAL4Rbvx/Ptsu3P+pA09f6Q==}
@@ -10680,8 +10683,6 @@ snapshots:
     dependencies:
       '@electric-sql/pglite': 0.5.8
 
-  '@electric-sql/pglite@0.4.6': {}
-
   '@electric-sql/pglite@0.5.8': {}
 
   '@emnapi/core@1.8.1':
@@ -14439,11 +14440,11 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
-  drizzle-orm@0.44.1(fe1f1646a2e780fe8560fe48415f30d2):
+  drizzle-orm@0.44.1(5d824a0c5465691b580815f6d7025b79):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.940.0
       '@cloudflare/workers-types': 4.20251126.0
-      '@electric-sql/pglite': 0.4.6
+      '@electric-sql/pglite': 0.5.8
       '@libsql/client': 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@libsql/client-wasm': 0.10.0
       '@neondatabase/serverless': 1.0.2

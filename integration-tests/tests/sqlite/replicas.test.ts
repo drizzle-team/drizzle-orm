@@ -524,7 +524,7 @@ describe('[transaction] replicas sqlite', () => {
 			tx.select().from({} as any);
 		};
 
-		expect(db.transaction(txFn1)).rejects.toThrow();
+		await expect(db.transaction(txFn1)).rejects.toThrow();
 
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(0);
@@ -535,14 +535,14 @@ describe('[transaction] replicas sqlite', () => {
 			tx.select().from({} as any);
 		};
 
-		expect(db.transaction(txFn2)).rejects.toThrow();
+		await expect(db.transaction(txFn2)).rejects.toThrow();
 
 		expect(spyPrimary).toHaveBeenCalledTimes(2);
 		expect(spyRead1).toHaveBeenCalledTimes(0);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(spyPrimary).toHaveBeenNthCalledWith(2, txFn2);
 
-		expect(db.transaction(async (tx) => {
+		await expect(db.transaction(async (tx) => {
 			tx.select().from({} as any);
 		})).rejects.toThrow();
 

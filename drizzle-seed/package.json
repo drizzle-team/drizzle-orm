@@ -78,7 +78,8 @@
 	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.16.1",
-		"@electric-sql/pglite": "^0.4.6",
+		"@electric-sql/pglite": "^0.5.8",
+		"@electric-sql/pglite-pgvector": "^0.0.9",
 		"@types/async-retry": "^1.4.8",
 		"@types/better-sqlite3": "^9.6.0",
 		"@types/dockerode": "^3.3.31",

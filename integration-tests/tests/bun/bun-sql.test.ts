@@ -6618,7 +6618,7 @@ test('all types ~codecs~', async () => {
 
 	await db.insert(allTypesTable).values(testData);
 
-	const queryRes = await db.execute<ExpectedType>(db.select().from(allTypesTable)).then((e) =>
+	const queryRes = await db.execute<ExpectedType>(db.select().from(allTypesTable).getSQL(true)).then((e) =>
 		normalizeDataWithDbCodecs({
 			db,
 			columns: getColumns(allTypesTable),

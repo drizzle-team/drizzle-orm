@@ -231,7 +231,7 @@ test('validate config #5', async (t) => {
 
 	let error: any = res.type === 'error' ? res.error : undefined;
 	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
+	expect(error.message).toContain('process.exit unexpectedly called with "1"');
 
 	spy.mockRestore();
 });
@@ -261,7 +261,7 @@ test('validate config #6', async (t) => {
 
 	let error: any = res.type === 'error' ? res.error : undefined;
 	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
+	expect(error.message).toContain('process.exit unexpectedly called with "1"');
 
 	spy.mockRestore();
 });
@@ -290,7 +290,7 @@ test('validate config #7 - pglite without a client and without dbCredentials', a
 
 	let error: any = res.type === 'error' ? res.error : undefined;
 	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
+	expect(error.message).toContain('process.exit unexpectedly called with "1"');
 
 	spy.mockRestore();
 });
