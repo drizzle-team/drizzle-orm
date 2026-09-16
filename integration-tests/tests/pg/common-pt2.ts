@@ -59,6 +59,7 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import { PgliteDatabase } from 'drizzle-orm/pglite';
+import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { describe, expect, expectTypeOf } from 'vitest';
 import {
 	type AllTypes,
@@ -1384,7 +1385,9 @@ export function tests(test: Test) {
 						'insert into "mySchema_15"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
 					params: [
 						'John',
-						is(db, PgliteDatabase) ? ['foo', 'bar'] : JSON.stringify(['foo', 'bar']),
+						is(db, PgliteDatabase) || is(db, PostgresJsDatabase)
+							? ['foo', 'bar']
+							: JSON.stringify(['foo', 'bar']),
 						'John1',
 					],
 				});
@@ -1416,7 +1419,9 @@ export function tests(test: Test) {
 						'insert into "mySchema_16"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
 					params: [
 						'John',
-						is(db, PgliteDatabase) ? ['foo', 'bar'] : JSON.stringify(['foo', 'bar']),
+						is(db, PgliteDatabase) || is(db, PostgresJsDatabase)
+							? ['foo', 'bar']
+							: JSON.stringify(['foo', 'bar']),
 					],
 				});
 			},
@@ -1748,9 +1753,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3171
-		// TODO: review case
-		// Fails in `postgres-js` if not inlined - driver expects stringified jsons
-		test.skipIf(Date.now() < +new Date('2026-09-19')).concurrent(
+		test.concurrent(
 			'proper json and jsonb handling - sql operator',
 			async ({ db, push }) => {
 				const jsonTable = pgTable('json_table_sql_3', {
