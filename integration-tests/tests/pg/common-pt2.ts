@@ -3944,6 +3944,24 @@ export function tests(test: Test) {
 			});
 		});
 
+		test('insert with inline params in sql', async ({ db }) => {
+			const arrays = pgTable('arrays', {
+				id: integer('id').primaryKey(),
+				names: text('names').array().notNull(),
+			});
+
+			const query = db.insert(arrays).values({
+				id: 1,
+				names: ['a', 'b'],
+			});
+
+			const dialect = new PgDialect();
+			expect(dialect.sqlToQuery(query.getSQL().inlineParams())).toStrictEqual({
+				sql: 'insert into "arrays" ("id", "names") values (1, \'{a,b}\')',
+				params: [],
+			});
+		});
+
 		// https://github.com/drizzle-team/drizzle-orm/issues/4578
 		test('arrayContains', async ({ db, push }) => {
 			const myTable = pgTable('my_table', {
