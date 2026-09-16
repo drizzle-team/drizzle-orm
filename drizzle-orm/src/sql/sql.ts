@@ -287,7 +287,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 						continue;
 					}
 
-					if (useCodecs) {
+					if (!inlineParams && useCodecs) {
 						mappedValue = codecs.apply(
 							chunk.encoder,
 							'normalizeParam',
@@ -303,7 +303,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 
 				const escaped = escapeParam(paramStartIndex.value++, mappedValue);
 				strings.push(
-					useCodecs
+					!inlineParams && useCodecs
 						? codecs.apply(chunk.encoder, 'castParam', escaped)
 						: escaped,
 				);
