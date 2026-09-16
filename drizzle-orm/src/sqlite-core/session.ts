@@ -14,7 +14,7 @@ export interface PreparedQueryConfig {
 }
 
 export interface SQLiteTransactionConfig {
-	behavior?: 'deferred' | 'immediate' | 'exclusive';
+	behavior?: 'deferred' | 'immediate' | 'exclusive' | 'concurrent';
 }
 
 export type SQLiteExecuteMethod = 'run' | 'all' | 'get' | 'values';

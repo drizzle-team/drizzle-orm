@@ -7,7 +7,4 @@ export const db = drizzle({ client: pool });
 
 {
 	drizzle({ client: pool });
-	drizzle({ client: pool, schema: {} });
-	drizzle({ client: pool, schema: {} });
-	drizzle({ client: pool });
 }

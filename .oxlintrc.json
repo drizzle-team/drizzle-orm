@@ -13,7 +13,7 @@
 			}
 		],
 		"typescript/no-import-type-side-effects": "error",
-		"import/consistent-type-specifier-style Style": "error",
+		"import/consistent-type-specifier-style": "error",
 		"import/no-cycle": "error",
 		"import/no-self-import": "error",
 		"import/no-empty-named-blocks": "error",
@@ -47,6 +47,7 @@
 		"unicorn/filename-case": "off",
 		"unicorn/no-array-reduce": "off",
 		"unicorn/no-nested-ternary": "off",
+		"unicorn/no-new-array": "off",
 		"unicorn/no-useless-undefined": [
 			"error",
 			{

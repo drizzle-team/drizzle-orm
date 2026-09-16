@@ -61,7 +61,7 @@ export class SQLiteRemoteSession<
 			all: (params) => this.client(query.sql, params, 'all').then(({ rows }) => rows),
 			get: (params) => this.client(query.sql, params, 'get').then(({ rows }) => rows),
 			run: (params) => this.client(query.sql, params, 'run'),
-			values: (params) => this.client(query.sql, params, 'all').then(({ rows }) => rows),
+			values: (params) => this.client(query.sql, params, 'values').then(({ rows }) => rows),
 		};
 		return new SQLiteAsyncPreparedQuery(
 			'async',
@@ -121,6 +121,8 @@ export class SQLiteRemoteSession<
 		transaction: (tx: SQLiteProxyTransaction<TRelations>) => Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
+		if (config?.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
+
 		const tx = new SQLiteProxyTransaction('async', this.dialect, this, this.relations);
 		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {

@@ -8,7 +8,7 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import type { Assume } from '~/utils.ts';
+import { type Assume, resolveNullableObjectPaths } from '~/utils.ts';
 import { MySqlSelectBase, type MySqlSelectBuilder } from '../query-builders/select.ts';
 import type { MySqlSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { MySqlPreparedQueryConfig } from '../session.ts';
@@ -104,9 +104,12 @@ export class MySqlEffectSelectBase<
 	declare readonly session: MySqlEffectSession<TEffectHKT, any, any>;
 
 	prepare(): MySqlEffectSelectPrepare<this, TEffectHKT> {
-		const query = this.dialect.sqlToQuery(this.getSQL());
+		const query = this.dialect.sqlToQuery(this.getSQL(true));
 		const fieldsList = this.config.fieldsFlat!;
-		const mapper = this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap);
+		const mapper = this.dialect.mapperGenerators.rows(
+			fieldsList,
+			resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap),
+		);
 
 		const preparedQuery = this.session.prepareQuery<
 			MySqlPreparedQueryConfig & { execute: any }

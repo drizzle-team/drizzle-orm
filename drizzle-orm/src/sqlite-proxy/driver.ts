@@ -79,6 +79,7 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	}
 
 	const dialect = new SQLiteDialect({
+		codecs: _config.codecs,
 		useJitMappers: jitCompatCheck(_config.jit),
 	});
 

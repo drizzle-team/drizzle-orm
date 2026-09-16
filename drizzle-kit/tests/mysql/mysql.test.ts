@@ -2261,3 +2261,36 @@ test('create table with datetime .onUpdateNow() diff variations', async () => {
 
 	await expect(push({ db, to })).resolves.not.toThrowError();
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3826
+test('Issue No3826. Renaming column and altering contraint on it', async () => {
+	const schemaFrom = {
+		users: mysqlTable('users', {
+			id: int('id').primaryKey().notNull(),
+			phone_number: varchar('old_name', { length: 100 }).notNull(),
+			customer_id: varchar('customer_id', { length: 100 }).unique(),
+			avatar: varchar('avatar', { length: 100 }),
+		}),
+	};
+
+	const schemaTo = {
+		users: mysqlTable('users', {
+			id: int('id').primaryKey().notNull(),
+			phone_number: varchar('new_name', { length: 100 }), // renamed + dropped not null
+			customer_id: varchar('customer_id', { length: 100 }).unique(),
+			avatar: varchar('avatar', { length: 100 }),
+		}),
+	};
+
+	const renames = ['users.old_name->users.new_name'];
+	const { sqlStatements: st1 } = await diff(schemaFrom, schemaTo, renames);
+	await push({ db, to: schemaFrom });
+	const { sqlStatements: pst1 } = await push({ db, to: schemaTo, renames });
+
+	const st0 = [
+		'ALTER TABLE `users` RENAME COLUMN `old_name` TO `new_name`;',
+		'ALTER TABLE `users` MODIFY COLUMN `new_name` varchar(100);',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});

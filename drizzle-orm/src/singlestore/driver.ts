@@ -1,11 +1,5 @@
 import { type Connection as CallbackConnection, createPool, type Pool as CallbackPool, type PoolOptions } from 'mysql2';
 import type { Connection, Pool } from 'mysql2/promise';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
@@ -13,8 +7,10 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SingleStoreDatabase } from '~/singlestore-core/db.ts';
 import { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
-import { type DrizzleConfig, jitCompatCheck } from '~/utils.ts';
+import type { DrizzleSingleStoreConfig } from '~/singlestore-core/utils.ts';
+import { jitCompatCheck } from '~/utils.ts';
 import { npmVersion } from '~/version.ts';
+import { singleStoreCodecs } from './codecs.ts';
 import type {
 	SingleStoreDriverClient,
 	SingleStoreDriverPreparedQueryHKT,
@@ -25,7 +21,6 @@ import { SingleStoreDriverSession } from './session.ts';
 export interface SingleStoreDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
-	useJitMappers?: boolean;
 }
 
 export class SingleStoreDriverDriver {
@@ -39,12 +34,10 @@ export class SingleStoreDriverDriver {
 	}
 
 	createSession(
-		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 		relations: AnyRelations,
-	): SingleStoreDriverSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig> {
-		return new SingleStoreDriverSession(this.client, this.dialect, relations, schema, {
+	): SingleStoreDriverSession<AnyRelations> {
+		return new SingleStoreDriverSession(this.client, this.dialect, relations, {
 			logger: this.options.logger,
-			useJitMappers: this.options.useJitMappers ?? false,
 			cache: this.options.cache,
 		});
 	}
@@ -53,30 +46,28 @@ export class SingleStoreDriverDriver {
 export { SingleStoreDatabase } from '~/singlestore-core/db.ts';
 
 export class SingleStoreDriverDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends SingleStoreDatabase<SingleStoreDriverQueryResultHKT, SingleStoreDriverPreparedQueryHKT, TSchema, TRelations> {
+> extends SingleStoreDatabase<SingleStoreDriverQueryResultHKT, SingleStoreDriverPreparedQueryHKT, TRelations> {
 	static override readonly [entityKind]: string = 'SingleStoreDriverDatabase';
 }
 
 export type SingleStoreDriverDrizzleConfig<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-> =
-	& Omit<DrizzleConfig<TSchema, TRelations>, 'schema'>
-	& ({ schema: TSchema } | { schema?: undefined });
+> = DrizzleSingleStoreConfig<TRelations>;
 
 function construct<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends Pool | Connection | CallbackPool | CallbackConnection = CallbackPool,
 >(
 	client: TClient,
-	config: SingleStoreDriverDrizzleConfig<TSchema, TRelations> = {},
-): SingleStoreDriverDatabase<TSchema, TRelations> & {
+	config: SingleStoreDriverDrizzleConfig<TRelations> = {},
+): SingleStoreDriverDatabase<TRelations> & {
 	$client: AnySingleStoreDriverConnection extends TClient ? CallbackPool : TClient;
 } {
-	const dialect = new SingleStoreDialect();
+	const dialect = new SingleStoreDialect({
+		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs ?? singleStoreCodecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -86,29 +77,13 @@ function construct<
 
 	const clientForInstance = isCallbackClient(client) ? client.promise() : client;
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
-			config.schema,
-			createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
 	const relations = config.relations ?? {} as TRelations;
 	const driver = new SingleStoreDriverDriver(clientForInstance as SingleStoreDriverClient, dialect, {
 		logger,
 		cache: config.cache,
-		useJitMappers: jitCompatCheck(config.jit),
 	});
-	const session = driver.createSession(schema, relations);
-	const db = new SingleStoreDriverDatabase(dialect, session, relations, schema as any) as SingleStoreDriverDatabase<
-		TSchema
-	>;
+	const session = driver.createSession(relations);
+	const db = new SingleStoreDriverDatabase(dialect, session, relations) as SingleStoreDriverDatabase<TRelations>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
@@ -134,7 +109,6 @@ const CONNECTION_ATTRS: PoolOptions['connectAttributes'] = {
 };
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends AnySingleStoreDriverConnection = CallbackPool,
 >(
@@ -142,10 +116,10 @@ export function drizzle<
 		string,
 	] | [
 		string,
-		SingleStoreDriverDrizzleConfig<TSchema, TRelations>,
+		SingleStoreDriverDrizzleConfig<TRelations>,
 	] | [
 		(
-			& SingleStoreDriverDrizzleConfig<TSchema, TRelations>
+			& SingleStoreDriverDrizzleConfig<TRelations>
 			& ({
 				connection: string | PoolOptions;
 			} | {
@@ -153,7 +127,7 @@ export function drizzle<
 			})
 		),
 	]
-): SingleStoreDriverDatabase<TSchema, TRelations> & {
+): SingleStoreDriverDatabase<TRelations> & {
 	$client: AnySingleStoreDriverConnection extends TClient ? CallbackPool : TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -168,7 +142,7 @@ export function drizzle<
 
 	const { connection, client, ...drizzleConfig } = params[0] as
 		& { connection?: PoolOptions | string; client?: TClient }
-		& SingleStoreDriverDrizzleConfig<TSchema, TRelations>;
+		& SingleStoreDriverDrizzleConfig<TRelations>;
 
 	if (client) return construct(client, drizzleConfig) as any;
 
@@ -176,7 +150,6 @@ export function drizzle<
 	opts = typeof connection === 'string'
 		? {
 			uri: connection,
-			supportBigNumbers: true,
 			connectAttributes: CONNECTION_ATTRS,
 		}
 		: {
@@ -194,12 +167,9 @@ export function drizzle<
 }
 
 export namespace drizzle {
-	export function mock<
-		TSchema extends Record<string, unknown> = Record<string, never>,
-		TRelations extends AnyRelations = EmptyRelations,
-	>(
-		config?: SingleStoreDriverDrizzleConfig<TSchema, TRelations>,
-	): SingleStoreDriverDatabase<TSchema, TRelations> & {
+	export function mock<TRelations extends AnyRelations = EmptyRelations>(
+		config?: SingleStoreDriverDrizzleConfig<TRelations>,
+	): SingleStoreDriverDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

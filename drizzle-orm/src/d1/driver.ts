@@ -8,6 +8,7 @@ import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import type { IfNotImported } from '~/utils.ts';
+import { d1Codecs } from './codecs.ts';
 import { type D1RunResult, SQLiteD1Session } from './session.ts';
 
 export type AnyD1Database = IfNotImported<
@@ -26,6 +27,25 @@ export class DrizzleD1Database<TRelations extends AnyRelations = EmptyRelations>
 	/** @internal */
 	declare readonly session: SQLiteD1Session<TRelations>;
 
+	/**
+	 * Executes multiple queries on database in one roundrtip
+	 *
+	 * D1 batch results are keyed by column's db name, thus every query
+	 * must alias columns with duplicate names to prevent data loss
+	 *
+	 * @example
+	 *
+	 * db.batch([
+	 * 	db.select({
+	 * 		userId: users.id.as('user_id'), // aliased to prevent user and post id from collapsing into same field in driver's response
+	 * 		postId: posts.id,
+	 * 		userName: users.name,
+	 * 		postContent: posts.content,
+	 * 		// ...
+	 * 	}).from(users).leftJoin(posts, eq(users.id, posts.id)),
+	 * 	// ...
+	 * ])
+	 */
 	async batch<U extends BatchItem<'sqlite'>, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
 	): Promise<BatchResponse<T>> {
@@ -42,7 +62,9 @@ export function drizzle<
 ): DrizzleD1Database<TRelations> & {
 	$client: TClient;
 } {
-	const dialect = new SQLiteDialect();
+	const dialect = new SQLiteDialect({
+		codecs: config.codecs ?? d1Codecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
