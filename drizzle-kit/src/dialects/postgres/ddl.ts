@@ -254,6 +254,7 @@ export function postgresToRelationsPull(schema: PostgresDDL): SchemaForPull {
 					}).filter((item) => item !== undefined),
 				})),
 			],
+			primaryKey: rawTable.pk?.columns,
 		};
 	});
 }
