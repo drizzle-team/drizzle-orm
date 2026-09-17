@@ -52,7 +52,7 @@ import { drizzle as drizzleNodeSQLite, NodeSQLiteDatabase } from 'drizzle-orm/no
 import { drizzle as drizzleSqlJs } from 'drizzle-orm/sql-js';
 import { drizzle as drizzleSqliteCloud } from 'drizzle-orm/sqlite-cloud';
 import { SQLiteAsyncDatabase, SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
-import { drizzle as drizzleProxy } from 'drizzle-orm/sqlite-proxy';
+import { drizzle as drizzleProxy, type SqliteProxyExecutors } from 'drizzle-orm/sqlite-proxy';
 import { drizzle as drizzleTursoDatabaseSls } from 'drizzle-orm/tursodatabase-serverless';
 import { drizzle as drizzleTursoDatabaseSync } from 'drizzle-orm/tursodatabase-sync';
 import { drizzle as drizzleTursoDatabase } from 'drizzle-orm/tursodatabase/database';
@@ -132,30 +132,23 @@ export class TestCache extends Cache {
 class ServerSimulator {
 	constructor(private db: BetterSqlite3.Database) {}
 
-	async query(sql: string, params: any[], method: string) {
-		if (method === 'run') {
-			try {
-				const result = this.db.prepare(sql).run(params);
-				return { data: result as any };
-			} catch (e: any) {
-				return { error: e.message };
+	async query(sql: string, params: any[], method: 'run' | 'all' | 'get', rowMode: 'array' | 'object' = 'object') {
+		try {
+			const statement = this.db.prepare(sql);
+
+			switch (method) {
+				case 'run': {
+					return { data: statement.run(params) };
+				}
+				case 'all': {
+					return { data: rowMode === 'object' ? statement.all(params) : statement.raw().all(params) };
+				}
+				case 'get': {
+					return { data: rowMode === 'object' ? statement.get(params) : statement.raw().get(params) };
+				}
 			}
-		} else if (method === 'all' || method === 'values') {
-			try {
-				const rows = this.db.prepare(sql).raw().all(params);
-				return { data: rows };
-			} catch (e: any) {
-				return { error: e.message };
-			}
-		} else if (method === 'get') {
-			try {
-				const row = this.db.prepare(sql).raw().get(params);
-				return { data: row };
-			} catch (e: any) {
-				return { error: e.message };
-			}
-		} else {
-			return { error: 'Unknown method value' };
+		} catch (e: any) {
+			return { error: e.message };
 		}
 	}
 
@@ -701,6 +694,30 @@ export type SqliteSchema_ = Record<
 	| unknown
 >;
 
+const proxyExecutors = (serverSimulator: ServerSimulator) => ({
+	all: async (sql: string, params: any[], rowMode?: 'array' | 'object') => {
+		const response: any = await serverSimulator.query(sql, params, 'all', rowMode);
+
+		if (response.error !== undefined) throw new Error(response.error);
+
+		return response.data;
+	},
+	get: async (sql: string, params: any[], rowMode?: 'array' | 'object') => {
+		const response: any = await serverSimulator.query(sql, params, 'get', rowMode);
+
+		if (response.error !== undefined) throw new Error(response.error);
+
+		return response.data;
+	},
+	run: async (sql: string, params: any[]) => {
+		const response: any = await serverSimulator.query(sql, params, 'run');
+
+		if (response.error !== undefined) throw new Error(response.error);
+
+		return response.data;
+	},
+});
+
 const testFor = (
 	vendor:
 		| 'sqlite-cloud'
@@ -811,21 +828,7 @@ const testFor = (
 			async ({ kit }, use) => {
 				if (vendor === 'proxy') {
 					const serverSimulator = new ServerSimulator(kit.client);
-					const proxyHandler = async (sql: string, params: any[], method: any) => {
-						try {
-							const response = await serverSimulator.query(sql, params, method);
-
-							if (response.error !== undefined) {
-								throw response.error;
-							}
-
-							return { rows: response.data };
-						} catch (e: any) {
-							console.error('Error from sqlite proxy server:', e.message);
-							throw e;
-						}
-					};
-					await use(drizzleProxy(proxyHandler, { relations, codecs: betterSQLite3Codecs }));
+					await use(drizzleProxy(proxyExecutors(serverSimulator), { relations, codecs: betterSQLite3Codecs }));
 					return;
 				}
 
@@ -902,21 +905,7 @@ const testFor = (
 
 					if (vendor === 'proxy') {
 						const serverSimulator = new ServerSimulator(kit.client);
-						const proxyHandler = async (sql: string, params: any[], method: any) => {
-							try {
-								const response = await serverSimulator.query(sql, params, method);
-
-								if (response.error !== undefined) {
-									throw response.error;
-								}
-
-								return { rows: response.data };
-							} catch (e: any) {
-								console.error('Error from sqlite proxy server:', e.message);
-								throw e;
-							}
-						};
-						return drizzleProxy(proxyHandler, { relations, jit, codecs: betterSQLite3Codecs });
+						return drizzleProxy(proxyExecutors(serverSimulator), { relations, jit, codecs: betterSQLite3Codecs });
 					}
 					throw new Error();
 				};
@@ -929,26 +918,12 @@ const testFor = (
 			async ({ kit }, use) => {
 				if (vendor === 'proxy') {
 					const serverSimulator = new ServerSimulator(kit.client);
-					const proxyHandler = async (sql: string, params: any[], method: any) => {
-						try {
-							const response = await serverSimulator.query(sql, params, method);
-
-							if (response.error !== undefined) {
-								throw new Error(response.error);
-							}
-
-							return { rows: response.data };
-						} catch (e: any) {
-							console.error('Error from sqlite proxy server:', e.message);
-							throw e;
-						}
-					};
-					const db1 = drizzleProxy(proxyHandler, {
+					const db1 = drizzleProxy(proxyExecutors(serverSimulator), {
 						relations,
 						cache: new TestCache('all'),
 						codecs: betterSQLite3Codecs,
 					});
-					const db2 = drizzleProxy(proxyHandler, {
+					const db2 = drizzleProxy(proxyExecutors(serverSimulator), {
 						relations,
 						cache: new TestCache('explicit'),
 						codecs: betterSQLite3Codecs,

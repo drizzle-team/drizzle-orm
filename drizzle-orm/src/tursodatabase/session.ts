@@ -70,10 +70,6 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 					stmt ??= await this.client.prepare(query.sql);
 					return stmt.run(...params);
 				},
-				values: async (params) => {
-					stmt ??= await this.client.prepare(query.sql);
-					return stmt.raw(true).all(...params);
-				},
 			}
 			: {
 				all: async (params) => {
@@ -93,10 +89,6 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 					return this.client.get(query.sql, ...params);
 				},
 				run: (params) => stmt ? stmt.run(...params) : this.client.run(query.sql, ...params),
-				values: async (params) => {
-					stmt ??= await this.client.prepare(query.sql);
-					return stmt.raw(true).all(...params);
-				},
 			};
 
 		return new SQLiteAsyncPreparedQuery(

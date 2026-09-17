@@ -77,9 +77,6 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 			run: (params) => {
 				return stmt.run(...params as any[]);
 			},
-			values: (params) => {
-				return stmt.values(...params as any[]);
-			},
 		};
 
 		return new SQLiteAsyncPreparedQuery(

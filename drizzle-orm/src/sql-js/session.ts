@@ -87,17 +87,6 @@ export class SQLJsSession<TRelations extends AnyRelations>
 
 				return res;
 			},
-			values: (params) => {
-				const stmt = this.client.prepare(query.sql);
-				stmt.bind(params as BindParams);
-				const rows: unknown[] = [];
-				while (stmt.step()) {
-					rows.push(stmt.get());
-				}
-
-				stmt.free();
-				return rows;
-			},
 		};
 
 		return new SQLiteAsyncPreparedQuery(
