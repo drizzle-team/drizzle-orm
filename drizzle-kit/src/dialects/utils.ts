@@ -1,5 +1,6 @@
 import { type DB, type Simplify, trimChar } from '../utils';
 import type { CockroachDDL } from './cockroach/ddl';
+import { matchesFilters } from './dialect';
 import type { MssqlDDL } from './mssql/ddl';
 import type { MysqlDDL } from './mysql/ddl';
 import type { PostgresDDL } from './postgres/ddl';
@@ -155,10 +156,28 @@ export const preserveEntityNames = <
 	mode: 'push' | 'default',
 ) => {
 	const items = collection1.list().filter((x) => mode === 'push' || !x.nameExplicit);
+
+	// Every entity type this runs over carries a `table`, and the filter below always includes
+	// it, so a candidate can only match an item from the same table. Group the target
+	// collection by table once, then run the full filter against that group instead of scanning
+	// the whole store for every item. Same matches, without the O(items × store) cost, which
+	// dominated `generate`/`check` on large histories (drizzle-team/drizzle-orm#5777).
+	const byTable = new Map<string, Record<string, any>[]>();
+	const candidates = collection2.list({ nameExplicit: false } as any) as Record<string, any>[];
+	for (const candidate of candidates) {
+		if (typeof candidate.table !== 'string') continue;
+		const group = byTable.get(candidate.table);
+		if (group) group.push(candidate);
+		else byTable.set(candidate.table, [candidate]);
+	}
+
 	for (const left of items) {
 		const { entityType: _1, name: _2, nameExplicit: _3, ...filter } = left;
+		const fullFilter = { ...filter, nameExplicit: false };
 
-		const match = collection2.list({ ...filter, nameExplicit: false } as any);
+		const match = typeof left.table === 'string'
+			? (byTable.get(left.table) ?? []).filter((it) => matchesFilters(it, fullFilter as any))
+			: collection2.list(fullFilter as any);
 
 		if (match.length !== 1 || match[0].name === left.name) continue;
 
