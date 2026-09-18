@@ -558,6 +558,32 @@ test('postgres #17', () => {
 	}).toThrowError();
 });
 
+test('postgres #18', () => {
+	expect(
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			host: 'host',
+			database: 'database',
+			target_session_attrs: 'primary',
+		}),
+	).toStrictEqual({
+		host: 'host',
+		database: 'database',
+		target_session_attrs: 'primary',
+	});
+});
+
+test('postgres #19', () => {
+	expect(() =>
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			host: 'host',
+			database: 'database',
+			target_session_attrs: 'nope',
+		})
+	).toThrowError();
+});
+
 test('mysql #1', () => {
 	expect(
 		mysqlCredentials.parse({
