@@ -637,7 +637,7 @@ export class SQLiteAsyncDatabase<
 	values<T extends unknown[] = unknown[]>(query: SQLWrapper | string): DBResult<TResultKind, T[]> {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
-		const prepared = this.session.prepareQuery(builtQuery, 'objects', false, 'values');
+		const prepared = this.session.prepareQuery(builtQuery, 'arrays', false, 'values');
 		if (this.resultKind === 'async') {
 			return new SQLiteAsyncRaw(prepared, sequel, builtQuery) as DBResult<TResultKind, T[]>;
 		}

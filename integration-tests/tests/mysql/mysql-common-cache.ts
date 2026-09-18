@@ -86,6 +86,32 @@ export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 			expect(invalidate).toHaveBeenCalledTimes(1);
 		});
 
+		test('write: onMutate runs after the write is committed', async ({ drizzle }) => {
+			const { db, onMutate } = drizzle.withCacheExplicit;
+
+			const seen: string[][] = [];
+			onMutate.mockImplementationOnce(async () => {
+				const rows = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, 1));
+				seen.push(rows.map((r) => r.name));
+			});
+
+			await db.insert(usersTable).values({ id: 1, name: 'John' });
+
+			expect(onMutate).toHaveBeenCalledTimes(1);
+			expect(seen).toStrictEqual([['John']]);
+		});
+
+		test('failed write: no onMutate', async ({ drizzle }) => {
+			const { db, onMutate } = drizzle.withCacheExplicit;
+
+			await db.insert(usersTable).values({ id: 1, name: 'John' });
+			onMutate.mockClear();
+
+			await expect(db.insert(usersTable).values({ id: 1, name: 'Jane' })).rejects.toThrow();
+
+			expect(onMutate).toHaveBeenCalledTimes(0);
+		});
+
 		test('default global config + enable cache on select + disable invalidate: get, put', async ({ drizzle }) => {
 			const { db, put, get, invalidate } = drizzle.withCacheExplicit;
 
