@@ -1,7 +1,6 @@
-import { toCamelCase } from 'drizzle-orm/casing';
 import { plural, singular } from 'pluralize';
+import { withCasing } from 'src/dialects/pull-utils';
 import { paramNameFor } from '../../dialects/postgres/typescript';
-import { assertUnreachable } from '../../utils';
 import type { Casing } from '../validations/common';
 
 // interimToDDL mapping errors are schema-shape descriptors ({ type, schema?,
@@ -19,17 +18,6 @@ export const summarizeSchemaMappingErrors = (errors: SchemaMappingError[], limit
 	return `${head}${rest}`;
 };
 
-const withCasing = (value: string, casing: Casing) => {
-	if (casing === 'preserve') {
-		return value;
-	}
-	if (casing === 'camel') {
-		return toCamelCase(value);
-	}
-
-	assertUnreachable(casing);
-};
-
 export type SchemaForPull = {
 	schema?: string;
 	foreignKeys: {
@@ -45,7 +33,7 @@ export type SchemaForPull = {
 		name: string;
 		entityType: 'fks';
 	}[];
-	columns?: { name: string }[];
+	columns: { name: string }[];
 	// both unique constraints and unique indexes
 	uniques: {
 		columns: string[];
@@ -88,10 +76,7 @@ export const relationsToTypeScript = (
 		const fks = Object.values(table.foreignKeys);
 		const tableColumns = table.columns?.map((it) => withCasing(it.name, casing)) ?? [];
 
-		// A table is a junction (many-to-many) only when it has exactly two foreign keys that point
-		// to two *different other* tables. A foreign key that references the table itself
-		// (self-reference) does not make it a junction, and every foreign key must still emit its
-		// own `one` relation — see https://github.com/drizzle-team/drizzle-orm/issues/6197
+		// https://github.com/drizzle-team/drizzle-orm/issues/6197
 		let handledAsJunction = false;
 		if (fks.length === 2) {
 			const [fk1, fk2] = fks;
@@ -107,8 +92,18 @@ export const relationsToTypeScript = (
 			const columnsThroughFrom = fk1.columns.map((it) => withCasing(it, casing));
 			const columnsThroughTo = fk2.columns.map((it) => withCasing(it, casing));
 
+			// A table with extra columns can be either a junction table or a domain table
+			// and we can't tell them apart. So we treat it as a junction only when every
+			// column belongs to one of the two foreign keys. If there are other columns,
+			// we generate direct relations instead.
+			// https://github.com/drizzle-team/drizzle-orm/issues/6253
+			const junctionColumns = new Set([...fk1.columns, ...fk2.columns]);
+			const isJunction = (table.columns ?? []).length > 0
+				&& table.columns!.every((c) => junctionColumns.has(c.name));
+
 			if (
-				toTable1 !== toTable2
+				isJunction
+				&& toTable1 !== toTable2
 				&& toTable1 !== tableThrough // check for non self ref
 				&& toTable2 !== tableThrough // check for non self ref
 			) {
