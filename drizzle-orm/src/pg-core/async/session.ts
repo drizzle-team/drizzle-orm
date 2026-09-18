@@ -121,12 +121,11 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 
 		const cache = this.cache!;
 
-		// For mutate queries, we should query the database, wait for a response, and then perform invalidation
 		if (cacheStrat.type === 'invalidate') {
-			return Promise.all([
-				query(),
-				cache.onMutate({ tables: cacheStrat.tables }),
-			]).then((res) => res[0]).catch((e) => {
+			return query().then(async (res) => {
+				await cache.onMutate({ tables: cacheStrat.tables });
+				return res;
+			}).catch((e) => {
 				throw new DrizzleQueryError(queryString, params, e as Error);
 			});
 		}

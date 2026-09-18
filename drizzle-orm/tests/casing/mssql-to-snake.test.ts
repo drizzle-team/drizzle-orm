@@ -3,7 +3,7 @@ import { describe, it } from 'vitest';
 import { alias, bit, castToText, int, QueryBuilder, snakeCase, text, union } from '~/mssql-core';
 import { drizzle, nodeMssqlCodecs } from '~/node-mssql';
 import { defineRelations } from '~/relations';
-import { asc, eq, exists, inArray, sql } from '~/sql';
+import { asc, eq, exists, inArray, Param, sql } from '~/sql';
 
 const testSchema = snakeCase.schema('test');
 const users = snakeCase.table('users', {
@@ -613,6 +613,58 @@ describe('mssql to snake case', () => {
 				'select cast([cast_value] as varchar(max)) from ((select [cast_value] from [casts]) union all (select [cast_value] from [casts])) [drizzle_union] order by 1',
 			);
 			expect(query.toSQL().sql).not.toContain('order by 1  ');
+		});
+	});
+
+	describe('param casts', () => {
+		const paramCodecs = {
+			...nodeMssqlCodecs,
+			int: {
+				...nodeMssqlCodecs.int,
+				castParam: (name: string) => `cast(${name} as int)`,
+				normalizeParam: (value: number) => value * 10,
+			},
+		};
+		const paramDb = drizzle({ client: new mssql.ConnectionPool({ server: '' }), codecs: paramCodecs });
+		const paramValues = snakeCase.table('params', { paramValue: int() });
+
+		it('Param codecs are applied to bound params', ({ expect }) => {
+			expect(paramDb.select().from(paramValues).where(eq(paramValues.paramValue, 1)).toSQL()).toEqual({
+				sql: 'select [param_value] from [params] where [params].[param_value] = cast(@par0 as int)',
+				params: [10],
+			});
+		});
+
+		it(`castParam isn't applied to inlined params`, ({ expect }) => {
+			const query = paramDb.select().from(paramValues).where(eq(paramValues.paramValue, 1).inlineParams()).toSQL();
+
+			expect(query).toEqual({
+				sql: 'select [param_value] from [params] where [params].[param_value] = 1',
+				params: [],
+			});
+			expect(query.sql).not.toContain('cast(');
+		});
+
+		it(`normalizeParam isn't applied to inlined params`, ({ expect }) => {
+			const query = paramDb.select().from(paramValues).where(eq(paramValues.paramValue, 7).inlineParams()).toSQL();
+
+			expect(query).toEqual({
+				sql: 'select [param_value] from [params] where [params].[param_value] = 7',
+				params: [],
+			});
+
+			expect(query.sql).not.toContain('70');
+		});
+
+		it('Placeholder params are still cast when params are inlined', ({ expect }) => {
+			const placeholder = new Param(sql.placeholder('value'), paramValues.paramValue);
+			const query = paramDb
+				.select()
+				.from(paramValues)
+				.where(sql`${paramValues.paramValue} = ${placeholder}`.inlineParams())
+				.toSQL();
+
+			expect(query.sql).toEqual('select [param_value] from [params] where [params].[param_value] = cast(@par0 as int)');
 		});
 	});
 });

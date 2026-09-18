@@ -183,7 +183,7 @@ export abstract class CockroachTransaction<
 	}
 
 	/** @internal */
-	getTransactionConfigSQL(config: CockroachTransactionConfig): SQL {
+	getTransactionConfigChunks(config: CockroachTransactionConfig): string[] {
 		const chunks: string[] = [];
 		if (config.isolationLevel) {
 			chunks.push(`isolation level ${config.isolationLevel}`);
@@ -194,11 +194,19 @@ export abstract class CockroachTransaction<
 		if (typeof config.deferrable === 'boolean') {
 			chunks.push(config.deferrable ? 'deferrable' : 'not deferrable');
 		}
-		return sql.raw(chunks.join(' '));
+		return chunks;
 	}
 
-	setTransaction(config: CockroachTransactionConfig): Promise<void> {
-		return this.session.execute(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
+	/** @internal */
+	getTransactionConfigSQL(config: CockroachTransactionConfig): SQL {
+		return sql.raw(this.getTransactionConfigChunks(config).join(' '));
+	}
+
+	async setTransaction(config: CockroachTransactionConfig): Promise<void> {
+		const chunks = this.getTransactionConfigChunks(config);
+		if (chunks.length) {
+			await this.session.execute<void>(sql.raw(`set transaction ${chunks.join(' ')}`));
+		}
 	}
 
 	abstract override transaction<T>(

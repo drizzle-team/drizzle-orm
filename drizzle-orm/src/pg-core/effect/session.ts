@@ -98,7 +98,6 @@ export class PgEffectPreparedQuery<
 				return yield* query;
 			}
 
-			// For mutate queries, we should query the database, wait for a response, and then perform invalidation
 			if (cacheStrat.type === 'invalidate') {
 				const result = yield* query;
 				yield* cache!.onMutate({ tables: cacheStrat.tables });

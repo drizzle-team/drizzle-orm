@@ -120,6 +120,35 @@ export function tests(test: Test, exclude: string[] = []) {
 			expect(spyInvalidate).toHaveBeenCalledTimes(1);
 		});
 
+		test('write: onMutate runs after the write is committed', async ({ caches }) => {
+			const { explicit: db } = caches;
+
+			const seen: string[][] = [];
+			// @ts-expect-error
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate').mockImplementation(async () => {
+				const rows = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, 1));
+				seen.push(rows.map((r) => r.name));
+			});
+
+			await db.insert(usersTable).values({ id: 1, name: 'John' });
+
+			expect(spyInvalidate).toHaveBeenCalledTimes(1);
+			expect(seen).toStrictEqual([['John']]);
+		});
+
+		test('failed write: no onMutate', async ({ caches }) => {
+			const { explicit: db } = caches;
+
+			await db.insert(usersTable).values({ id: 1, name: 'John' });
+
+			// @ts-expect-error
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+			await expect(db.insert(usersTable).values({ id: 1, name: 'Jane' })).rejects.toThrow();
+
+			expect(spyInvalidate).toHaveBeenCalledTimes(0);
+		});
+
 		test('write + query all methods & verify data intergrity', async ({ caches }) => {
 			const { explicit: db } = caches;
 
