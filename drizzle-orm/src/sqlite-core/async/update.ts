@@ -50,7 +50,7 @@ export type SQLiteAsyncUpdatePrepare<T extends AnySQLiteAsyncUpdate> = SQLiteAsy
 		all: T['_']['returning'] extends undefined ? DrizzleTypeError<'.all() cannot be used without .returning()'>
 			: T['_']['returning'][];
 		get: T['_']['returning'] extends undefined ? DrizzleTypeError<'.get() cannot be used without .returning()'>
-			: T['_']['returning'];
+			: T['_']['returning'] | undefined;
 		values: T['_']['returning'] extends undefined ? DrizzleTypeError<'.values() cannot be used without .returning()'>
 			: any[][];
 		execute: SQLiteAsyncUpdateExecute<T>;
@@ -122,7 +122,7 @@ export class SQLiteAsyncUpdateBase<
 	/** @internal */
 	_prepare(prepare = false): SQLiteAsyncUpdatePrepare<this> {
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+			this.dialect.sqlToQuery(this.getSQL(true)),
 			'arrays',
 			prepare,
 			this.config.returning ? 'all' : 'run',

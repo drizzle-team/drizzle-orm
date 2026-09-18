@@ -20,7 +20,6 @@ import {
 	type MySqlPreparedQueryConfig,
 	type MySqlQueryResultHKT,
 	MySqlSession,
-	type MySqlTransactionConfig,
 } from '../session.ts';
 import { MySqlEffectDatabase } from './db.ts';
 
@@ -100,7 +99,6 @@ export class MySqlEffectPreparedQuery<
 				return yield* query;
 			}
 
-			// For mutate queries, we should query the database, wait for a response, and then perform invalidation
 			if (cacheStrat.type === 'invalidate') {
 				const result = yield* query;
 				yield* cache!.onMutate({ tables: cacheStrat.tables });
@@ -189,7 +187,6 @@ export abstract class MySqlEffectSession<
 		transaction: (
 			tx: MySqlEffectTransaction<TEffectHKT, TQueryResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
-		config?: MySqlTransactionConfig,
 	): Effect.Effect<A, E | SqlError, R>;
 }
 

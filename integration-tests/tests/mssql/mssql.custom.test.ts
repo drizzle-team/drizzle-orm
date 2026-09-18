@@ -406,26 +406,28 @@ test('full join with alias', async () => {
 	await db.execute(sql`drop table if exists ${users}`);
 	await db.execute(sql`create table ${users} (id int primary key, name varchar(50) not null)`);
 
-	const customers = alias(users, 'customer');
+	try {
+		const customers = alias(users, 'customer');
 
-	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
-	const result = await db
-		.select().from(users)
-		.leftJoin(customers, eq(customers.id, 11))
-		.where(eq(users.id, 10));
+		await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+		const result = await db
+			.select().from(users)
+			.leftJoin(customers, eq(customers.id, 11))
+			.where(eq(users.id, 10));
 
-	expect(result).toEqual([{
-		users: {
-			id: 10,
-			name: 'Ivan',
-		},
-		customer: {
-			id: 11,
-			name: 'Hans',
-		},
-	}]);
-
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([{
+			users: {
+				id: 10,
+				name: 'Ivan',
+			},
+			customer: {
+				id: 11,
+				name: 'Hans',
+			},
+		}]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('select from alias', async () => {
@@ -439,28 +441,30 @@ test('select from alias', async () => {
 	await db.execute(sql`drop table if exists ${users}`);
 	await db.execute(sql`create table ${users} (id int primary key, name varchar(50) not null)`);
 
-	const user = alias(users, 'user');
-	const customers = alias(users, 'customer');
+	try {
+		const user = alias(users, 'user');
+		const customers = alias(users, 'customer');
 
-	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
-	const result = await db
-		.select()
-		.from(user)
-		.leftJoin(customers, eq(customers.id, 11))
-		.where(eq(user.id, 10));
+		await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+		const result = await db
+			.select()
+			.from(user)
+			.leftJoin(customers, eq(customers.id, 11))
+			.where(eq(user.id, 10));
 
-	expect(result).toEqual([{
-		user: {
-			id: 10,
-			name: 'Ivan',
-		},
-		customer: {
-			id: 11,
-			name: 'Hans',
-		},
-	}]);
-
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([{
+			user: {
+				id: 10,
+				name: 'Ivan',
+			},
+			customer: {
+				id: 11,
+				name: 'Hans',
+			},
+		}]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('insert with spaces', async () => {
@@ -526,23 +530,25 @@ test('prepared statement with placeholder in .where', async () => {
 });
 
 test('migrator', async () => {
-	await db.execute(sql`drop table if exists cities_migration`);
-	await db.execute(sql`drop table if exists users_migration`);
-	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists [drizzle].[__drizzle_migrations]`);
+	try {
+		await db.execute(sql`drop table if exists cities_migration`);
+		await db.execute(sql`drop table if exists users_migration`);
+		await db.execute(sql`drop table if exists users12`);
+		await db.execute(sql`drop table if exists [drizzle].[__drizzle_migrations]`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/mssql' });
+		await migrate(db, { migrationsFolder: './drizzle2/mssql' });
 
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
-	const result = await db.select().from(usersMigratorTable);
+		const result = await db.select().from(usersMigratorTable);
 
-	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-	await db.execute(sql`drop table cities_migration`);
-	await db.execute(sql`drop table users_migration`);
-	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table [drizzle].[__drizzle_migrations]`);
+		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+	} finally {
+		await db.execute(sql`drop table if exists cities_migration`);
+		await db.execute(sql`drop table if exists users_migration`);
+		await db.execute(sql`drop table if exists users12`);
+		await db.execute(sql`drop table if exists [drizzle].[__drizzle_migrations]`);
+	}
 });
 
 test('insert via db.execute + select via db.execute', async () => {

@@ -33,6 +33,7 @@ export class PgAsyncRaw<TResult> extends PgRaw<TResult> implements RunnableQuery
 		return this.prepared.execute(placeholderValues);
 	}
 
+	/** @internal */
 	override _prepare() {
 		return this.prepared;
 	}

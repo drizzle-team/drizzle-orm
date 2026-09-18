@@ -38,6 +38,7 @@ export class MySqlAsyncRaw<TResult> extends MySqlRaw<TResult> implements Runnabl
 		return this.prepared.execute(placeholderValues);
 	}
 
+	/** @internal */
 	override _prepare() {
 		return this.prepared;
 	}

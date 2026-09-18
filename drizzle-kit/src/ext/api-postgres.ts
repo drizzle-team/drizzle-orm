@@ -1,4 +1,3 @@
-import type { PGlite } from '@electric-sql/pglite';
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
@@ -198,10 +197,7 @@ export const pushSchema = async (
 
 export const startStudioServer = async (
 	imports: Record<string, unknown>,
-	credentials: PostgresCredentials | {
-		driver: 'pglite';
-		client: PGlite;
-	},
+	credentials: PostgresCredentials,
 	options?: {
 		host?: string;
 		port?: number;

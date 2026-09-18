@@ -40,6 +40,7 @@ export class MySqlEffectRaw<TResult, TEffectHKT extends QueryEffectHKTBase = Que
 		return this.prepared.execute(placeholderValues);
 	}
 
+	/** @internal */
 	override _prepare() {
 		return this.prepared;
 	}

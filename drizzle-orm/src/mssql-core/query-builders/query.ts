@@ -1,14 +1,16 @@
-import {
-	type BuildQueryResult,
-	type BuildRelationalQueryResult,
-	type DBQueryConfig,
-	mapRelationalRowFromObj,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
-} from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Query, SQL } from '~/sql/sql.ts';
+import type {
+	BuildQueryResult,
+	BuildRelationalQueryResult,
+	DBQueryConfig,
+	RelationalRowsMapper,
+	TableRelationalConfig,
+	TablesRelationalConfig,
+} from '~/relations.ts';
+import type { RunnableQuery } from '~/runnable-query.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { tracer } from '~/tracing.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { MsSqlDialect } from '../dialect.ts';
 import type { MsSqlSession, PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
@@ -19,118 +21,127 @@ export class RelationalQueryBuilder<
 	TSchema extends TablesRelationalConfig,
 	TFields extends TableRelationalConfig,
 > {
-	static readonly [entityKind]: string = 'MsSqlRelationalQueryBuilder';
+	static readonly [entityKind]: string = 'MsSqlRelationalQueryBuilderV2';
 
 	constructor(
-		private fullSchema: Record<string, unknown>,
 		private schema: TSchema,
-		private tableNamesMap: Record<string, string>,
 		private table: MsSqlTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: MsSqlDialect,
 		private session: MsSqlSession,
 	) {}
 
-	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,
+	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
+		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
 	): MsSqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new MsSqlRelationalQuery(
-			this.fullSchema,
 			this.schema,
-			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? (config as DBQueryConfig<'many', true>) : {},
+			config as DBQueryConfig<'many'> | undefined ?? true,
 			'many',
 		);
 	}
 
-	findFirst<TSelection extends Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
-		config?: KnownKeysOnly<TSelection, Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
-	): MsSqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
+	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields>>(
+		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>,
+	): MsSqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return new MsSqlRelationalQuery(
-			this.fullSchema,
 			this.schema,
-			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? { ...(config as DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
+			config as DBQueryConfig<'one'> | undefined ?? true,
 			'first',
 		);
 	}
 }
 
-export class MsSqlRelationalQuery<
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TResult,
-> extends QueryPromise<TResult> {
-	static override readonly [entityKind]: string = 'MsSqlRelationalQuery';
+export class MsSqlRelationalQuery<TPreparedQueryHKT extends PreparedQueryHKTBase, TResult> extends QueryPromise<TResult>
+	implements RunnableQuery<TResult, 'mssql'>, SQLWrapper
+{
+	static override readonly [entityKind]: string = 'MsSqlRelationalQueryV2';
+
+	/** @internal */
+	protected mapper?: RelationalRowsMapper;
+
+	declare readonly _: {
+		readonly dialect: 'mssql';
+		readonly result: TResult;
+	};
 
 	declare protected $brand: 'MsSqlRelationalQuery';
 
 	constructor(
-		private fullSchema: Record<string, unknown>,
-		private schema: TablesRelationalConfig,
-		private tableNamesMap: Record<string, string>,
-		private table: MsSqlTable,
-		private tableConfig: TableRelationalConfig,
-		private dialect: MsSqlDialect,
-		private session: MsSqlSession,
-		private config: DBQueryConfig<'many', true> | true,
-		private queryMode: 'many' | 'first',
+		protected schema: TablesRelationalConfig,
+		protected table: MsSqlTable,
+		protected tableConfig: TableRelationalConfig,
+		protected dialect: MsSqlDialect,
+		protected session: MsSqlSession,
+		protected config: DBQueryConfig<'many' | 'one'> | true,
+		protected mode: 'many' | 'first',
 	) {
 		super();
 	}
 
-	prepare() {
-		const { query, builtQuery } = this._toSQL();
-		return this.session.prepareQuery(
-			builtQuery,
-			undefined,
-			(rawRows) => {
-				const rows = rawRows.map((row) => mapRelationalRowFromObj(this.schema, this.tableConfig, row, query.selection));
-				if (this.queryMode === 'first') {
-					return rows[0] as TResult;
-				}
-				return rows as TResult;
-			},
-		) as PreparedQueryKind<TPreparedQueryHKT, PreparedQueryConfig & { execute: TResult }, true>;
-	}
-
-	private _getQuery() {
+	protected _getQuery() {
 		return this.dialect.buildRelationalQuery({
-			fullSchema: this.fullSchema,
 			schema: this.schema,
-			tableNamesMap: this.tableNamesMap,
 			table: this.table,
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
-			tableAlias: this.tableConfig.tsName,
+			mode: this.mode,
 		});
 	}
 
-	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
-		const query = this._getQuery();
-
-		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
-
-		return { builtQuery, query };
+	getSQL(): SQL {
+		return this._getQuery().sql;
 	}
 
-	/** @internal */
-	getSQL(): SQL {
-		return this._getQuery().sql as SQL;
+	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
+		const query = this._getQuery();
+
+		const builtQuery = this.dialect.sqlToQuery(query.sql);
+
+		return { query, builtQuery };
 	}
 
 	toSQL(): Query {
 		return this._toSQL().builtQuery;
 	}
 
+	/** @internal */
+	_prepare(): PreparedQueryKind<TPreparedQueryHKT, PreparedQueryConfig & { execute: TResult }, true> {
+		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
+			const { dialect } = this;
+			const isFirst = this.mode === 'first';
+
+			const { query, builtQuery } = this._toSQL();
+
+			return this.session.prepareQuery(
+				builtQuery,
+				'arrays',
+				this.mapper ??= dialect.mapperGenerators.relationalRows({
+					isFirst,
+					// JSON path query returns JSON as string
+					parseJson: true,
+					parseJsonIfString: false,
+					rootJsonMappers: false,
+					selection: query.selection,
+					arrayModeRoot: true,
+				}),
+			) as PreparedQueryKind<TPreparedQueryHKT, PreparedQueryConfig & { execute: TResult }, true>;
+		});
+	}
+
+	prepare(): PreparedQueryKind<TPreparedQueryHKT, PreparedQueryConfig & { execute: TResult }, true> {
+		return this._prepare();
+	}
+
 	override execute(): Promise<TResult> {
-		return this.prepare().execute();
+		return this._prepare().execute();
 	}
 }

@@ -134,7 +134,7 @@ export type SchemaError = {
 	column: string;
 };
 
-export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: SchemaError[] } => {
+export const interimToDDL = (interim: InterimSchema, mode?: 'pull'): { ddl: MysqlDDL; errors: SchemaError[] } => {
 	const errors = [] as SchemaError[];
 	const ddl = createDDL();
 	const resrtictedUniqueFor = [
@@ -189,7 +189,11 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 	}
 
 	for (const column of interim.columns.filter((it) => it.isUnique)) {
-		if (resrtictedUniqueFor.some((rc) => column.type.startsWith(rc))) {
+		// interim runs on generate, push, pull
+		// when user has unique on specific columns that drizzle does not support - an error
+		// comes up without ability to pull the schema
+		// skip this error on pull to be able to introspect
+		if (mode !== 'pull' && resrtictedUniqueFor.some((rc) => column.type.startsWith(rc))) {
 			errors.push({ type: 'column_unsupported_unique', columns: [column.name], table: column.table });
 		}
 

@@ -121,12 +121,11 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 
 		const cache = this.cache!;
 
-		// For mutate queries, we should query the database, wait for a response, and then perform invalidation
 		if (cacheStrat.type === 'invalidate') {
-			return Promise.all([
-				query(),
-				cache.onMutate({ tables: cacheStrat.tables }),
-			]).then((res) => res[0]).catch((e) => {
+			return query().then(async (res) => {
+				await cache.onMutate({ tables: cacheStrat.tables });
+				return res;
+			}).catch((e) => {
 				throw new DrizzleQueryError(queryString, params, e as Error);
 			});
 		}
@@ -180,6 +179,7 @@ export abstract class PgAsyncSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
+		driverShape?: unknown,
 	): PgAsyncPreparedQuery<T>;
 
 	override execute<T>(query: SQL): Promise<T[]> {
@@ -251,7 +251,7 @@ export abstract class PgAsyncTransaction<
 	}
 
 	/** @internal */
-	getTransactionConfigSQL(config: PgTransactionConfig): SQL {
+	getTransactionConfigChunks(config: PgTransactionConfig): string[] {
 		const chunks: string[] = [];
 		if (config.isolationLevel) {
 			chunks.push(`isolation level ${config.isolationLevel}`);
@@ -262,11 +262,28 @@ export abstract class PgAsyncTransaction<
 		if (typeof config.deferrable === 'boolean') {
 			chunks.push(config.deferrable ? 'deferrable' : 'not deferrable');
 		}
-		return sql.raw(chunks.join(' '));
+		return chunks;
 	}
 
-	setTransaction(config: PgTransactionConfig): Promise<unknown> {
-		return this.session.execute<void>(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
+	/** @internal */
+	getTransactionConfigSQL(config: PgTransactionConfig): SQL {
+		return sql.raw(this.getTransactionConfigChunks(config).join(' '));
+	}
+
+	/** @internal */
+	setTransactionSnapshotSQL(snapshot: string): SQL {
+		return sql`set transaction snapshot ${snapshot}`.inlineParams();
+	}
+
+	async setTransaction(config: PgTransactionConfig): Promise<unknown> {
+		const chunks = this.getTransactionConfigChunks(config);
+		if (chunks.length) {
+			await this.session.execute<void>(sql.raw(`set transaction ${chunks.join(' ')}`));
+		}
+		if (typeof config.snapshot === 'string') {
+			return this.session.execute(this.setTransactionSnapshotSQL(config.snapshot));
+		}
+		return undefined;
 	}
 
 	abstract override transaction<T>(

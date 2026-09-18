@@ -17,12 +17,13 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, CommentInput, Placeholder, Query } from '~/sql/sql.ts';
-import { SQL, sql, View } from '~/sql/sql.ts';
+import { SQL, sql } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import type { ValueOrArray } from '~/utils.ts';
 import { getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import type { IndexBuilder } from '../indexes.ts';
 import type { UniqueConstraintBuilder } from '../unique-constraint.ts';
 import { convertIndexToString, extractUsedTable, toArray } from '../utils.ts';
@@ -307,6 +308,9 @@ export class MySqlSelectBase<
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
 
+			this.config.fieldsFlat = undefined;
+			this.config.mapper = undefined;
+
 			if (!this.isPartialSelect) {
 				// If this is the first join and this is not a partial select and we're not selecting from raw SQL, "move" the fields from the main table to the nested object
 				if (Object.keys(this.joinsNotNullableMap).length === 1 && typeof baseTableName === 'string') {
@@ -430,6 +434,17 @@ export class MySqlSelectBase<
 	 *
 	 * @param table the subquery to join.
 	 * @param on the `on` clause.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select every city and, for each, the users that live in it
+	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
+	 *
+	 * const rows: { cities: City; sq: { userId: number } | null }[] = await db.select()
+	 *   .from(cities)
+	 *   .leftJoinLateral(sq, sql`true`)
+	 * ```
 	 */
 	leftJoinLateral = this.createJoin('left', true);
 
@@ -524,6 +539,17 @@ export class MySqlSelectBase<
 	 *
 	 * @param table the subquery to join.
 	 * @param on the `on` clause.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select only the cities that have users, along with those users
+	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
+	 *
+	 * const rows: { cities: City; sq: { userId: number } }[] = await db.select()
+	 *   .from(cities)
+	 *   .innerJoinLateral(sq, sql`true`)
+	 * ```
 	 */
 	innerJoinLateral = this.createJoin('inner', true);
 
@@ -576,6 +602,17 @@ export class MySqlSelectBase<
 	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join-lateral}
 	 *
 	 * @param table the query to join.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Pair each city with every row its correlated subquery produces; cities with none are dropped
+	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
+	 *
+	 * const rows: { cities: City; sq: { userId: number } }[] = await db.select()
+	 *   .from(cities)
+	 *   .crossJoinLateral(sq)
+	 * ```
 	 */
 	crossJoinLateral = this.createJoin('cross', true);
 
@@ -1070,13 +1107,15 @@ export class MySqlSelectBase<
 		return this as any;
 	}
 
-	getSQL(): SQL {
-		this.config.fieldsFlat = orderSelectedFields<MySqlColumn>(this.config.fields, undefined, this.dialect.codecs);
-		return this.dialect.buildSelectQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		this.config.fieldsFlat ??= orderSelectedFields<MySqlColumn>(this.config.fields, undefined, this.dialect.codecs);
+		return this.dialect.buildSelectQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	as<TAlias extends string>(
@@ -1087,7 +1126,7 @@ export class MySqlSelectBase<
 		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
 
 		return new Proxy(
-			new Subquery(this.withoutSelectionCastCodecs().getSQL(), this.config.fields, alias, false, [
+			new Subquery(this.getSQL(), this.config.fields, alias, false, [
 				...new Set(usedTables),
 			]),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
@@ -1100,12 +1139,6 @@ export class MySqlSelectBase<
 			this.config.fields,
 			new SelectionProxyHandler({ alias: this.tableName, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as this['_']['selectedFields'];
-	}
-
-	/** @internal */
-	override withoutSelectionCastCodecs(): this {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
 	}
 
 	$dynamic(): MySqlSelectDynamic<this> {

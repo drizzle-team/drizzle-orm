@@ -22,7 +22,8 @@ import {
 	notLike,
 	or,
 } from '~/sql/expressions/index.ts';
-import { type InferSelectViewModel, param, sql } from '~/sql/sql.ts';
+import { sql } from '~/sql/sql.ts';
+import type { InferViewSelectModel } from '~/view.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
@@ -295,10 +296,10 @@ const allOperators = await db
 		col6: sql<boolean>`true`, // boolean
 		col7: sql<number>`random()`, // number
 		col8: sql`some_funky_func(${users.id})`.mapWith(mapFunkyFuncResult), // { foo: string }
-		col9: sql`greatest(${users.createdAt}, ${param(new Date(), users.createdAt)})`, // unknown
-		col10: sql<Date | boolean>`date_or_false(${users.createdAt}, ${param(new Date(), users.createdAt)})`, // Date | boolean
+		col9: sql`greatest(${users.createdAt}, ${sql.param(new Date(), users.createdAt)})`, // unknown
+		col10: sql<Date | boolean>`date_or_false(${users.createdAt}, ${sql.param(new Date(), users.createdAt)})`, // Date | boolean
 		col11: sql`${users.age1} + ${age}`, // unknown
-		col12: sql`${users.age1} + ${param(age, users.age1)}`, // unknown
+		col12: sql`${users.age1} + ${sql.param(age, users.age1)}`, // unknown
 		col13: sql`lower(${users.class})`, // unknown
 		col14: sql<number>`length(${users.class})`, // number
 		count: sql<number>`count(*)::int`, // number
@@ -593,7 +594,7 @@ await db
 		>
 	>;
 	Expect<Equal<typeof result, typeof newYorkersWithSubquery.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof newYorkersWithSubquery>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof newYorkersWithSubquery>[]>>;
 }
 
 {
@@ -819,7 +820,7 @@ await db
 		}[]>
 	>;
 	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof view>[]>>;
 }
 
 {

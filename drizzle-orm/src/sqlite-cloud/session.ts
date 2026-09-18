@@ -146,6 +146,8 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 			this,
 			this.relations,
 		);
+		if (config?.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
+
 		await tx.run(sql`BEGIN${sql` ${sql.raw(config?.behavior ?? '')}`.if(config?.behavior)} TRANSACTION`);
 
 		try {

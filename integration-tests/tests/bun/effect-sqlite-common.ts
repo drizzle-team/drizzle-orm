@@ -57,6 +57,14 @@ import * as Result from 'effect/Result';
 import * as Scope from 'effect/Scope';
 import { SqlClient } from 'effect/unstable/sql/SqlClient';
 import { SqlError } from 'effect/unstable/sql/SqlError';
+import type { AllTypes } from '../sqlite/all-types';
+import {
+	allTypesData,
+	allTypesInput,
+	assertAllTypesBounds,
+	assertAllTypesUnions,
+	makeAllTypes,
+} from '../sqlite/all-types';
 import relations from '../sqlite/relations';
 import { rqbPost, rqbUser } from '../sqlite/schema';
 
@@ -239,151 +247,23 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 
 		it.effect('all types', () =>
 			Effect.gen(function*() {
-				const allTypesTable = sqliteTable('all_types', {
-					int: integer('int', {
-						mode: 'number',
-					}),
-					bool: integer('bool', {
-						mode: 'boolean',
-					}),
-					time: integer('time', {
-						mode: 'timestamp',
-					}),
-					timeMs: integer('time_ms', {
-						mode: 'timestamp_ms',
-					}),
-					bigint: blob('bigint', {
-						mode: 'bigint',
-					}),
-					buffer: blob('buffer', {
-						mode: 'buffer',
-					}),
-					json: blob('json', {
-						mode: 'json',
-					}),
-					numeric: numeric('numeric'),
-					numericNum: numeric('numeric_num', {
-						mode: 'number',
-					}),
-					numericBig: numeric('numeric_big', {
-						mode: 'bigint',
-					}),
-					real: real('real'),
-					text: text('text', {
-						mode: 'text',
-					}),
-					jsonText: text('json_text', {
-						mode: 'json',
-					}),
-				});
+				const allTypesTable = makeAllTypes('all_types');
 
 				const db = yield* DB;
 				yield* push(db, { allTypesTable });
 
-				yield* db.insert(allTypesTable).values({
-					int: 1,
-					bool: true,
-					bigint: 5044565289845416380n,
-					buffer: Buffer.from([
-						0x44,
-						0x65,
-						0x73,
-						0x70,
-						0x61,
-						0x69,
-						0x72,
-						0x20,
-						0x6f,
-						0x20,
-						0x64,
-						0x65,
-						0x73,
-						0x70,
-						0x61,
-						0x69,
-						0x72,
-						0x2e,
-						0x2e,
-						0x2e,
-					]),
-					json: {
-						str: 'strval',
-						arr: ['str', 10],
-					},
-					jsonText: {
-						str: 'strvalb',
-						arr: ['strb', 11],
-					},
-					numeric: '475452353476',
-					numericNum: 9007199254740991,
-					numericBig: 5044565289845416380n,
-					real: 1.048596,
-					text: 'TEXT STRING',
-					time: new Date(1741743161623),
-					timeMs: new Date(1741743161623),
-				});
+				yield* db.insert(allTypesTable).values(allTypesInput);
 
 				const rawRes = yield* db.select().from(allTypesTable);
 
-				expect(typeof rawRes[0]?.numericBig).toStrictEqual('bigint');
+				expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+				expect(rawRes).toStrictEqual([allTypesData]);
 
-				type ExpectedType = {
-					int: number | null;
-					bool: boolean | null;
-					time: Date | null;
-					timeMs: Date | null;
-					bigint: bigint | null;
-					buffer: Buffer | null;
-					json: unknown;
-					numeric: string | null;
-					numericNum: number | null;
-					numericBig: bigint | null;
-					real: number | null;
-					text: string | null;
-					jsonText: unknown;
-				}[];
+				const context = yield* Effect.context<never>();
+				const run = (query: any) => Effect.runPromiseWith(context)(query);
 
-				const expectedRes: ExpectedType = [
-					{
-						int: 1,
-						bool: true,
-						time: new Date('2025-03-12T01:32:41.000Z'),
-						timeMs: new Date('2025-03-12T01:32:41.623Z'),
-						bigint: 5044565289845416380n,
-						buffer: Buffer.from([
-							0x44,
-							0x65,
-							0x73,
-							0x70,
-							0x61,
-							0x69,
-							0x72,
-							0x20,
-							0x6f,
-							0x20,
-							0x64,
-							0x65,
-							0x73,
-							0x70,
-							0x61,
-							0x69,
-							0x72,
-							0x2e,
-							0x2e,
-							0x2e,
-						]),
-						json: { str: 'strval', arr: ['str', 10] },
-						numeric: '475452353476',
-						numericNum: 9007199254740991,
-						numericBig: 5044565289845416380n,
-						real: 1.048596,
-						text: 'TEXT STRING',
-						jsonText: { str: 'strvalb', arr: ['strb', 11] },
-					},
-				];
-
-				expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
-				expect(rawRes).toStrictEqual(expectedRes);
+				yield* Effect.promise(() => assertAllTypesUnions(db as any, allTypesTable, run));
+				yield* Effect.promise(() => assertAllTypesBounds(db as any, run));
 			}));
 
 		it.effect('RQB v2 simple find first - no rows', () =>
@@ -3883,6 +3763,112 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 						sqlWrapper: 2,
 					},
 				]);
+			}));
+
+		it.effect('insert with explicit column list', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const table = sqliteTable('column_selection', {
+					id: integer('id').primaryKey({ autoIncrement: true }),
+					name: text('name').notNull(),
+					verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
+					note: text('note'),
+				});
+
+				yield* push(db, { table });
+
+				yield* db.insert(table, 'name').values([{ name: 'John' }, { name: 'Jane' }]);
+				yield* db.insert(table, 'name', 'note').values({ name: 'Jack' });
+				yield* db.insert(table, 'note', 'name').values({ name: 'Jill', note: 'hi' });
+
+				const result = yield* db.select().from(table).orderBy(table.id);
+				expect(result).toEqual([
+					{ id: 1, name: 'John', verified: false, note: null },
+					{ id: 2, name: 'Jane', verified: false, note: null },
+					{ id: 3, name: 'Jack', verified: false, note: null },
+					{ id: 4, name: 'Jill', verified: false, note: 'hi' },
+				]);
+			}));
+
+		it.effect('insert with explicit column list - select', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const src = sqliteTable('column_selection_select_src', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+				const dst = sqliteTable('column_selection_select_dst', {
+					id: integer('id').primaryKey({ autoIncrement: true }),
+					name: text('name').notNull(),
+					verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
+				});
+
+				yield* push(db, { src, dst });
+
+				yield* db.insert(src).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+				yield* db.insert(dst, 'name').select(db.select({ name: src.name }).from(src).orderBy(src.id));
+
+				const result = yield* db.select().from(dst).orderBy(dst.id);
+				expect(result).toEqual([
+					{ id: 1, name: 'John', verified: false },
+					{ id: 2, name: 'Jane', verified: false },
+				]);
+			}));
+
+		it.effect('insert with explicit column list - on conflict', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const table = sqliteTable('column_selection_conflict', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+					note: text('note'),
+				});
+
+				yield* push(db, { table });
+
+				yield* db.insert(table, 'id', 'name').values({ id: 1, name: 'John' });
+				yield* db
+					.insert(table, 'id', 'name')
+					.values({ id: 1, name: 'Jane' })
+					.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' } });
+
+				const result = yield* db.select().from(table);
+				expect(result).toEqual([{ id: 1, name: 'Updated', note: null }]);
+			}));
+
+		it.effect('Default value priority', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const exTbl = sqliteTable('no_default_override', (t) => ({
+					id: t.integer().primaryKey(),
+					defSql: t.integer().default(sql`1`),
+					defNum: t.integer().default(1),
+					defFn: t.integer().$defaultFn(() => 1),
+					defUpdFn: t.integer().$onUpdateFn(() => 1),
+					defMix1: t.integer().default(1).$defaultFn(() => 2).$onUpdateFn(() => 3),
+					defMix2: t.integer().$defaultFn(() => 2).$onUpdateFn(() => 3),
+					defMix3: t.integer().default(1).$defaultFn(() => 2),
+					defMix4: t.integer().default(sql`1`).$onUpdateFn(() => 3),
+				}));
+
+				yield* push(db, { exTbl });
+
+				yield* db.insert(exTbl).values({ id: 1 });
+
+				const res = yield* db.select().from(exTbl);
+
+				expect(res).toStrictEqual([{
+					id: 1,
+					defSql: 1,
+					defNum: 1,
+					defFn: 1,
+					defUpdFn: 1,
+					defMix1: 2,
+					defMix2: 2,
+					defMix3: 2,
+					defMix4: 1,
+				}]);
 			}));
 
 		addTests?.(it);

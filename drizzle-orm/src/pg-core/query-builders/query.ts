@@ -3,6 +3,7 @@ import type {
 	BuildQueryResult,
 	BuildRelationalQueryResult,
 	DBQueryConfigWithComment,
+	RelationalRowsMapper,
 	TableRelationalConfig,
 	TablesRelationalConfig,
 } from '~/relations.ts';
@@ -93,6 +94,12 @@ export type PgRelationalQueryKind<
 
 export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> implements SQLWrapper {
 	static readonly [entityKind]: string = 'PgRelationalQueryV2';
+
+	/** @internal */
+	protected mapper?: RelationalRowsMapper;
+
+	/** @internal */
+	protected shape?: any;
 
 	declare readonly _: {
 		readonly dialect: 'pg';

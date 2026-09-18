@@ -1,4 +1,4 @@
-import type { GeneratedColumnConfig, HasGenerated } from '~/column-builder.ts';
+import type { ColumnBuilderRuntimeConfig, GeneratedColumnConfig, HasGenerated } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable, SingleStoreTable } from '~/singlestore-core/table.ts';
@@ -38,9 +38,12 @@ export class SingleStoreDateTimeBuilder extends SingleStoreColumnBuilder<{
 export class SingleStoreDateTime<T extends ColumnBaseConfig<'object date'>> extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreDateTime';
 
+	/** @internal */
+	override readonly codec = 'datetime';
+
 	constructor(
 		table: AnySingleStoreTable<{ name: T['tableName'] }>,
-		config: SingleStoreDateTimeBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & SingleStoreDatetimeConfig,
 	) {
 		super(table, config);
 	}
@@ -52,10 +55,6 @@ export class SingleStoreDateTime<T extends ColumnBaseConfig<'object date'>> exte
 	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString().replace('T', ' ').replace('Z', '');
-	};
-
-	override mapFromDriverValue = (value: string): Date => {
-		return new Date(value.replace(' ', 'T') + 'Z');
 	};
 }
 
@@ -89,9 +88,12 @@ export class SingleStoreDateTimeStringBuilder extends SingleStoreColumnBuilder<{
 export class SingleStoreDateTimeString<T extends ColumnBaseConfig<'string datetime'>> extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreDateTimeString';
 
+	/** @internal */
+	override readonly codec = 'datetime:string';
+
 	constructor(
 		table: AnySingleStoreTable<{ name: T['tableName'] }>,
-		config: SingleStoreDateTimeStringBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & SingleStoreDatetimeConfig,
 	) {
 		super(table, config);
 	}

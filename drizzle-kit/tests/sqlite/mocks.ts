@@ -9,9 +9,9 @@ import { suggestions } from 'src/cli/commands/push-sqlite';
 import { runWithCliContext } from 'src/cli/context';
 import { HintsHandler } from 'src/cli/hints';
 import { configMigrations } from 'src/cli/validations/common';
-import { EmptyProgressView } from 'src/cli/views';
+import { EmptyProgressView, explain } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
-import { createDDL, fromEntities, interimToDDL, SQLiteDDL } from 'src/dialects/sqlite/ddl';
+import { createDDL, fromEntities, interimToDDL, SQLiteDDL, sqliteToRelationsPull } from 'src/dialects/sqlite/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/sqlite/diff';
 import { defaultFromColumn, fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
 import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
@@ -20,11 +20,14 @@ import { SQLiteDB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
 import { tsc } from 'tests/utils';
 import 'zx/globals';
+import { relationsToTypeScript } from 'src/cli/commands/pull-common';
 import { updateToV7 } from 'src/cli/commands/up-sqlite';
 import { serializeSQLite } from 'src/legacy/sqlite-v6/serializer';
 import { diff as legacyDiff } from 'src/legacy/sqlite-v6/sqliteDiff';
+import { loadModule } from 'src/utils/utils-node';
 
-mkdirSync('tests/sqlite/tmp/', { recursive: true });
+const tmpDir = 'tests/sqlite/tmp';
+mkdirSync(tmpDir, { recursive: true });
 
 export type SqliteSchema = Record<string, SQLiteTable | SQLiteView | unknown>;
 export type SqliteSchemaOld = Record<string, SQLiteTableOld | SQLiteViewOld | unknown>;
@@ -97,32 +100,88 @@ export const diffAfterPull = async (
 		client.exec(st);
 	}
 
-	const path = `tests/sqlite/tmp/${testName}.ts`;
-
+	// introspect to schema
 	const schema = await fromDatabaseForDrizzle(db, () => true, () => {}, {
 		schema: 'drizzle',
 		table: '__drizzle_migrations',
 	});
-	const { ddl: ddl2, errors: err1 } = interimToDDL(schema);
-	const file = ddlToTypeScript(ddl2, 'camel', schema.viewsToColumns, 'sqlite');
+	const { ddl: ddl1, errors: err1 } = interimToDDL(schema);
 
-	writeFileSync(path, file.file);
-	await tsc(file.file);
+	// schema
+	const filePath = `${tmpDir}/${testName}.ts`;
+	const file = ddlToTypeScript(ddl1, 'camel', schema.viewsToColumns, 'sqlite');
+	writeFileSync(filePath, file.file);
+	await tsc(file.file).catch((e) => {
+		throw new Error(`tsc error in file ${filePath}`, { cause: e });
+	});
 
-	const res = await prepareFromSchemaFiles([path]);
-	const { ddl: ddl1, errors: err2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views));
-
-	const { sqlStatements, statements } = await ddlDiff(
-		ddl1,
-		ddl2,
-		mockResolver(new Set()),
-		mockResolver(new Set()),
-		'push',
+	// relations
+	const relationsPath = `${tmpDir}/${testName}-relations.ts`;
+	const schemaAbsolutePath = path.resolve(tmpDir, testName);
+	const relationsForTsc = relationsToTypeScript(
+		sqliteToRelationsPull(ddl1),
+		'camel',
+		schemaAbsolutePath,
 	);
+	writeFileSync(relationsPath, relationsForTsc.file);
+	await tsc(relationsForTsc.file).catch((e) => {
+		throw new Error(`tsc error in file ${relationsPath}`, { cause: e });
+	});
 
-	rmSync(path);
+	// generate snapshot from ts file
+	const res = await prepareFromSchemaFiles([filePath]);
+	const { ddl: ddl2, errors: err2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views));
 
-	return { sqlStatements, statements, initDDL, ddlAfterPull: ddl1, resultDdl: ddl2 };
+	// we need to create copies, since first ddlDiffDry makes preserve entity names logic
+	const ddl1Copy = fromEntities(ddl1.entities.list());
+	const ddl2Copy = fromEntities(ddl2.entities.list());
+
+	const {
+		sqlStatements: pushAfterFileSqlStatements,
+		statements: pushAfterFileStatements,
+		groupedStatements: pushAfterFileGroupedStatements,
+	} = await ddlDiffDry(ddl1, ddl2, 'push');
+
+	if (pushAfterFileSqlStatements.length > 0) {
+		console.log(chalk.bgRed('After push: ') + '\n' + explain('sqlite', pushAfterFileGroupedStatements, []));
+	}
+
+	const {
+		sqlStatements: generateAfterFileSqlStatements,
+		statements: generateAfterFileStatements,
+		groupedStatements: generateAfterFileGroupedStatements,
+	} = await ddlDiffDry(ddl1Copy, ddl2Copy, 'default');
+
+	if (generateAfterFileSqlStatements.length > 0) {
+		console.log(
+			chalk.bgRed('After generate: ') + '\n' + explain('sqlite', generateAfterFileGroupedStatements, []),
+		);
+	}
+
+	let relationsError: Error | null = null;
+	try {
+		await loadModule(path.relative(process.cwd(), relationsPath));
+		rmSync(relationsPath);
+	} catch (error: any) {
+		relationsError = error;
+	}
+
+	if (
+		[...generateAfterFileSqlStatements, ...pushAfterFileSqlStatements].length === 0
+	) {
+		rmSync(filePath);
+	}
+
+	return {
+		pushSqlStatements: pushAfterFileSqlStatements,
+		pushStatements: pushAfterFileStatements,
+		generateSqlStatements: generateAfterFileSqlStatements,
+		generateStatements: generateAfterFileStatements,
+		initDDL,
+		ddlAfterPull: ddl1,
+		resultDdl: ddl1,
+		relationsError,
+	};
 };
 
 export const push = async (config: {
