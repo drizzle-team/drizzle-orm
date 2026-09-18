@@ -392,6 +392,37 @@ test('drop identity from a column - all params', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('drop identity from a column - with type change', async () => {
+	const from = {
+		users: pgTable('users', {
+			id: integer('id').generatedByDefaultAsIdentity(),
+		}),
+	};
+
+	const to = {
+		users: pgTable('users', {
+			id: text('id').default('n/a'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		'ALTER TABLE "users" ALTER COLUMN "id" DROP IDENTITY;',
+		'ALTER TABLE "users" ALTER COLUMN "id" SET DATA TYPE text USING "id"::text;',
+		`ALTER TABLE "users" ALTER COLUMN "id" SET DEFAULT 'n/a';`,
+		'ALTER TABLE "users" ALTER COLUMN "id" DROP NOT NULL;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('alter identity from a column - no params', async () => {
 	const from = {
 		users: pgTable('users', {
