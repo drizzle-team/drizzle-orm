@@ -1,7 +1,8 @@
 import { expect, test } from 'vitest';
 
 import { createTableRelationsHelpers, extractTablesRelationalConfig } from '~/_relations.ts';
-import { pgSchema, pgTable } from '~/pg-core/index.ts';
+import { relationsFilterToSQL } from '~/relations.ts';
+import { pgSchema, pgTable, text } from '~/pg-core/index.ts';
 
 test('tables with same name in different schemas', () => {
 	const folder = pgSchema('folder');
@@ -33,4 +34,16 @@ test('tables with same name in different schemas', () => {
 	);
 
 	expect(Object.keys(relationsConfig)).toHaveLength(2);
+});
+
+test('relationsFilterToSQL skips undefined filter and undefined field values', () => {
+	const users = pgTable('users', {
+		name: text('name'),
+	});
+
+	// Undefined filter should return undefined
+	expect(relationsFilterToSQL(users as any, undefined)).toBeUndefined();
+
+	// Filter with undefined properties should skip them
+	expect(relationsFilterToSQL(users as any, { name: undefined } as any)).toBeUndefined();
 });
