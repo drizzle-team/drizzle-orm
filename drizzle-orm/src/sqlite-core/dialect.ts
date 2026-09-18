@@ -95,6 +95,7 @@ export class SQLiteDialect {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
 
+	/** @internal */
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
 
@@ -216,6 +217,7 @@ export class SQLiteDialect {
 	 * `insert ... returning <selection>`
 	 *
 	 * If `isSingleTable` is true, then columns won't be prefixed with table name
+	 * @internal
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
@@ -368,6 +370,7 @@ export class SQLiteDialect {
 		return new SQL(chunks);
 	}
 
+	/** @internal */
 	private buildJoins(
 		joins: SQLiteSelectJoinConfig[] | undefined,
 	): SQL | undefined {
@@ -413,6 +416,7 @@ export class SQLiteDialect {
 		return new SQL(joinsArray);
 	}
 
+	/** @internal */
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
 		return typeof limit === 'object'
 				|| (typeof limit === 'number')
@@ -420,6 +424,7 @@ export class SQLiteDialect {
 			: undefined;
 	}
 
+	/** @internal */
 	private buildOrderBy(
 		orderBy: (SQLiteColumn | SQL | SQL.Aliased)[] | undefined,
 	): SQL | undefined {
@@ -440,6 +445,7 @@ export class SQLiteDialect {
 			: undefined;
 	}
 
+	/** @internal */
 	private buildFromTable(
 		table: SQL | Subquery | SQLiteViewBase | SQLiteTable | undefined,
 	): SQL | Subquery | SQLiteViewBase | SQLiteTable | undefined {
@@ -793,6 +799,7 @@ export class SQLiteDialect {
 		});
 	}
 
+	/** @internal */
 	private buildRqbColumn(
 		table: SchemaEntry,
 		field: unknown,
@@ -890,6 +897,7 @@ export class SQLiteDialect {
 		return output;
 	}
 
+	/** @internal */
 	private getSelectedTableColumns = (
 		table: SchemaEntry,
 		columns: Record<string, boolean | undefined>,
@@ -927,6 +935,7 @@ export class SQLiteDialect {
 		return selectedColumns;
 	};
 
+	/** @internal */
 	private buildColumns = (
 		table: SchemaEntry,
 		selection: BuildRelationalQueryResult['selection'],
