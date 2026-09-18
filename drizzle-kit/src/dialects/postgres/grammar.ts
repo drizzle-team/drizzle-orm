@@ -1934,12 +1934,58 @@ export const wrapRecord = (it: Record<string, string>) => {
 	};
 };
 
+// Index of the `)` matching the `(` at `openIndex`, or -1 when unbalanced.
+// Parentheses inside single-quoted literals and double-quoted identifiers do
+// not count; a doubled quote is an escaped quote and stays inside the literal.
+const matchingParenIndex = (value: string, openIndex: number): number => {
+	let depth = 0;
+	let quote: string | null = null;
+
+	for (let i = openIndex; i < value.length; i++) {
+		const char = value[i];
+
+		if (quote) {
+			if (char === quote) {
+				if (value[i + 1] === quote) i++;
+				else quote = null;
+			}
+			continue;
+		}
+
+		if (char === "'" || char === '"') {
+			quote = char;
+		} else if (char === '(') {
+			depth++;
+		} else if (char === ')') {
+			depth--;
+			if (depth === 0) return i;
+		}
+	}
+
+	return -1;
+};
+
 /*
 	CHECK (((email)::text <> 'test@gmail.com'::text))
 	Where (email) is column in table
+
+	Postgres wraps the expression twice and appends trailing modifiers such as
+	`NOT VALID` or `NO INHERIT`, so neither end is at a fixed offset. Walk to the
+	parenthesis that actually closes `CHECK (` and drop everything after it.
 */
 export const parseCheckDefinition = (value: string): string => {
-	return value.replace(/^CHECK\s*\(\(/, '').replace(/\)\)\s*$/, '');
+	const check = /^CHECK\s*\(/i.exec(value);
+	if (!check) return value;
+
+	const open = check[0].length - 1;
+	const close = matchingParenIndex(value, open);
+	if (close === -1) return value;
+
+	const inner = value.slice(open + 1, close).trim();
+	if (!inner.startsWith('(')) return inner;
+
+	// Strip the pair Postgres itself adds, but only when it wraps the whole thing.
+	return matchingParenIndex(inner, 0) === inner.length - 1 ? inner.slice(1, -1) : inner;
 };
 
 export const parseViewDefinition = (value: string | null | undefined): string | null => {
