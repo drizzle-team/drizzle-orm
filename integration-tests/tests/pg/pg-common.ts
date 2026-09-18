@@ -1701,6 +1701,58 @@ export function tests() {
 			]);
 		});
 
+		test('nested partial left join preserves later non-null fields', async (ctx) => {
+			const { db } = ctx.pg;
+			await db.insert(citiesTable).values({ name: 'Paris' });
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const expected = [
+				{ id: 1, city: { state: null, name: 'Paris' } },
+				{ id: 2, city: null },
+			];
+			for (
+				const city of [
+					{ state: citiesTable.state, name: citiesTable.name },
+					{ name: citiesTable.name, state: citiesTable.state },
+				]
+			) {
+				const result = await db.select({ id: users2Table.id, city })
+					.from(users2Table)
+					.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+					.orderBy(users2Table.id);
+				expect(result).toEqual(expected);
+			}
+		});
+
+		test('nested partial left join preserves falsey fields on a table alias', async (ctx) => {
+			const { db } = ctx.pg;
+			await db.insert(usersTable).values({ name: '' });
+			const joined = alias(usersTable, 'joined_user');
+			const result = await db.select({
+				id: usersTable.id,
+				joined: { jsonb: joined.jsonb, verified: joined.verified, name: joined.name },
+			}).from(usersTable).leftJoin(joined, eq(usersTable.id, joined.id));
+			expect(result).toEqual([{ id: 1, joined: { jsonb: null, verified: false, name: '' } }]);
+		});
+
+		test('nested partial left join keeps selected row identity after a null column', async (ctx) => {
+			const { db } = ctx.pg;
+			await db.insert(citiesTable).values({ name: 'Paris' });
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+			// An all-null projection alone cannot distinguish a matching row from a missing one.
+			// Selecting its non-null identity after the nullable field must retain the matching row.
+			const result = await db.select({
+				id: users2Table.id,
+				city: { state: citiesTable.state, id: citiesTable.id },
+			}).from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+			expect(result).toEqual([
+				{ id: 1, city: { state: null, id: 1 } },
+				{ id: 2, city: null },
+			]);
+		});
+
 		test('left join (all fields)', async (ctx) => {
 			const { db } = ctx.pg;
 
