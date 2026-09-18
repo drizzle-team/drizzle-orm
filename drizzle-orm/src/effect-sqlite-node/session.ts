@@ -73,7 +73,6 @@ export class EffectSQLiteNodeSession<TRelations extends AnyRelations>
 				if (mode === 'objects') return q.withoutTransform.pipe(Effect.map((e) => e[0] ? { ...e[0] } : e[0]));
 				return q.withoutTransform.pipe(Effect.map((e) => e[0]));
 			},
-			values: (params) => this.client.unsafe(query.sql, params).values,
 			run: (params) => this.client.unsafe(query.sql, params).raw,
 		};
 

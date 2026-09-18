@@ -84,14 +84,6 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 					stmt.finalizeSync();
 				}
 			},
-			values: (params) => {
-				const stmt = this.client.prepareSync(query.sql);
-				try {
-					return stmt.executeForRawResultSync(params as any[]).getAllSync();
-				} finally {
-					stmt.finalizeSync();
-				}
-			},
 		};
 
 		return new SQLiteAsyncPreparedQuery(

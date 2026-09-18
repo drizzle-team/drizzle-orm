@@ -153,7 +153,7 @@ test('migrator : --init - db migrations error', async ({ db }) => {
 	expect(!!res?.tableExists).toStrictEqual(true);
 });
 
-test('test $onUpdateFn and $onUpdate works as $default', async ({ db }) => {
+test('test $onUpdateFn and $onUpdate works as $default (libsql-ws)', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersOnUpdate}`);
 
 	await db.run(
@@ -193,7 +193,7 @@ test('test $onUpdateFn and $onUpdate works as $default', async ({ db }) => {
 	}
 });
 
-test('test $onUpdateFn and $onUpdate works updating', async ({ db }) => {
+test('test $onUpdateFn and $onUpdate works updating (libsql-ws)', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersOnUpdate}`);
 
 	await db.run(

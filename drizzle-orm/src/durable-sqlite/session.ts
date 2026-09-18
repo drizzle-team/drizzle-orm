@@ -76,14 +76,6 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyn
 					? this.client.sql.exec(query.sql, ...params)
 					: this.client.sql.exec(query.sql);
 			},
-			values: (params) => {
-				const res = params.length > 0
-					? this.client.sql.exec(query.sql, ...params)
-					: this.client.sql.exec(query.sql);
-
-				// @ts-ignore .raw().toArray() exists
-				return res.raw().toArray();
-			},
 		};
 
 		return new SQLiteAsyncPreparedQuery(

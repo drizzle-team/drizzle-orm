@@ -24,7 +24,8 @@ import { assertUnreachable } from '~/utils.ts';
 import { SQLiteEffectDatabase } from './db.ts';
 
 export type SQLiteEffectQueryExecutors = Record<
-	SQLiteExecuteMethod,
+	// `values` mirrors `all` in array mode, no need to define separate executor
+	Exclude<SQLiteExecuteMethod, 'values'>,
 	(params: unknown[]) => Effect.Effect<any, unknown, unknown>
 >;
 
@@ -119,7 +120,7 @@ export class SQLiteEffectPreparedQuery<
 
 			yield* logger.logQuery(sql, params);
 
-			return yield* this.queryWithCache(sql, params, 'values', Effect.suspend(() => executors.values(params)));
+			return yield* this.queryWithCache(sql, params, 'values', Effect.suspend(() => executors.all(params)));
 		}) as QueryEffectKind<TEffectHKT, T['values']>;
 	}
 

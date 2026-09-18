@@ -613,24 +613,40 @@ export class SQLiteEffectDatabase<
 		return new SQLiteEffectRaw(prepared, sequel, builtQuery);
 	}
 
-	all<T = unknown>(query: SQLWrapper | string): SQLiteEffectRaw<T[], TEffectHKT> {
+	all<TRow extends unknown[] = unknown[]>(
+		query: SQLWrapper | string,
+		mode: 'arrays',
+	): SQLiteEffectRaw<TRow[], TEffectHKT>;
+	all<TRow = unknown>(
+		query: SQLWrapper | string,
+		mode?: 'objects' | undefined,
+	): SQLiteEffectRaw<TRow[], TEffectHKT>;
+	all(query: SQLWrapper | string, mode?: 'arrays' | 'objects' | undefined): unknown {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
-		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: T[] }>(
+		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: unknown }>(
 			builtQuery,
-			'objects',
+			mode ?? 'objects',
 			false,
 			'all',
 		);
 		return new SQLiteEffectRaw(prepared, sequel, builtQuery);
 	}
 
-	get<T = unknown>(query: SQLWrapper | string): SQLiteEffectRaw<T, TEffectHKT> {
+	get<TRow extends unknown[] = unknown[]>(
+		query: SQLWrapper | string,
+		mode: 'arrays',
+	): SQLiteEffectRaw<TRow, TEffectHKT>;
+	get<TRow = unknown>(
+		query: SQLWrapper | string,
+		mode?: 'objects' | undefined,
+	): SQLiteEffectRaw<TRow, TEffectHKT>;
+	get(query: SQLWrapper | string, mode?: 'arrays' | 'objects' | undefined): unknown {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
-		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: T }>(
+		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: unknown }>(
 			builtQuery,
-			'objects',
+			mode ?? 'objects',
 			false,
 			'get',
 		);
@@ -642,7 +658,7 @@ export class SQLiteEffectDatabase<
 		const builtQuery = this.dialect.sqlToQuery(sequel);
 		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: T[] }>(
 			builtQuery,
-			'objects',
+			'arrays',
 			false,
 			'values',
 		);
