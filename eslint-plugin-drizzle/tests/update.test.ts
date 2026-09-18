@@ -27,6 +27,12 @@ ruleTester.run('enforce update with where (default options)', myRule, {
       .update()
       .set()
       .where()`,
+		`class UserRepo {
+			#db;
+			rename() {
+				return this.#db.update({}).set({}).where({});
+			}
+		}`,
 	],
 	invalid: [
 		{
@@ -80,6 +86,15 @@ ruleTester.run('enforce update with where (default options)', myRule, {
 				messageId: 'enforceUpdateWithWhere',
 				data: { drizzleObjName: 'this.getDataSource(...).db' },
 			}],
+		},
+		{
+			code: `class UserRepo {
+				#db;
+				rename() {
+					return this.#db.update({}).set({});
+				}
+			}`,
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'this.#db' } }],
 		},
 	],
 });
@@ -172,6 +187,17 @@ ruleTester.run('enforce update with where (string option)', myRule, {
 				messageId: 'enforceUpdateWithWhere',
 				data: { drizzleObjName: 'this.getDataSource(...).db' },
 			}],
+			options: [{ drizzleObjectName: 'db' }],
+		},
+		{
+			code: `class UserRepo {
+				#db;
+				rename() {
+					return this.#db.update({}).set({});
+				}
+			}`,
+			errors: [{ messageId: 'enforceUpdateWithWhere', data: { drizzleObjName: 'this.#db' } }],
+
 			options: [{ drizzleObjectName: 'db' }],
 		},
 	],

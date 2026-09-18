@@ -17,6 +17,12 @@ ruleTester.run('enforce delete with where (default options)', myRule, {
       .delete()
       .where()`,
 		`this.database.delete({}).where()`,
+		`class UserRepo {
+			#db;
+			clear() {
+				return this.#db.delete({}).where({});
+			}
+		}`,
 	],
 	invalid: [
 		{
@@ -69,6 +75,15 @@ ruleTester.run('enforce delete with where (default options)', myRule, {
 				messageId: 'enforceDeleteWithWhere',
 				data: { drizzleObjName: 'this.getDataSource(...).db' },
 			}],
+		},
+		{
+			code: `class UserRepo {
+				#db;
+				clear() {
+					return this.#db.delete({});
+				}
+			}`,
+			errors: [{ messageId: 'enforceDeleteWithWhere', data: { drizzleObjName: 'this.#db' } }],
 		},
 	],
 });
@@ -162,6 +177,17 @@ ruleTester.run('enforce delete with where (string option)', myRule, {
 				messageId: 'enforceDeleteWithWhere',
 				data: { drizzleObjName: 'this.getDataSource(...).db' },
 			}],
+			options: [{ drizzleObjectName: 'db' }],
+		},
+		{
+			code: `class UserRepo {
+				#db;
+				clear() {
+					return this.#db.delete({});
+				}
+			}`,
+			errors: [{ messageId: 'enforceDeleteWithWhere', data: { drizzleObjName: 'this.#db' } }],
+
 			options: [{ drizzleObjectName: 'db' }],
 		},
 	],
