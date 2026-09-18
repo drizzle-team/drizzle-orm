@@ -1647,3 +1647,38 @@ test('Issue #4790', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6256
+test('#6256: push re-diffs composite FK, expression index and empty text[] default', async () => {
+	const parent = pgTable('parent', {
+		id: text('id').primaryKey(),
+		projectId: text('project_id').notNull(),
+	}, (t) => [unique('parent_id_project_uq').on(t.id, t.projectId)]);
+
+	const child = pgTable('child', {
+		id: text('id').primaryKey(),
+		projectId: text('project_id').notNull(),
+		threadId: text('thread_id'),
+		actorId: text('actor_id').notNull(),
+		scope: text('scope').notNull(),
+		revokedAt: timestamp('revoked_at'),
+		memberType: text('member_type').notNull(),
+		tags: text('tags').array().notNull().default([]),
+	}, (t) => [
+		foreignKey({
+			columns: [t.threadId, t.projectId],
+			foreignColumns: [parent.id, parent.projectId],
+			name: 'child_thread_project_fk',
+		}),
+		uniqueIndex('child_live_actor_idx')
+			.on(t.projectId, t.actorId, t.scope, sql`coalesce(${t.threadId}, '')`)
+			.where(sql`${t.revokedAt} IS NULL AND ${t.memberType} = 'agent'`),
+	]);
+
+	const to = { parent, child };
+
+	await push({ db, to, ignoreSubsequent: true });
+	const { sqlStatements } = await push({ db, to, ignoreSubsequent: true });
+
+	expect(sqlStatements).toStrictEqual([]);
+});

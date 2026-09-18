@@ -2439,7 +2439,7 @@ test('issue No4655. Problem with backslash in check constraint + custom type', a
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5329
-test('introspect policies with schemaFilter', async (t) => {
+test('introspect policies with schemaFilter', async () => {
 	const role = pgRole('owner');
 	const schema1 = {
 		role,
@@ -2470,7 +2470,7 @@ test('introspect policies with schemaFilter', async (t) => {
 	expect(generateStatements).toStrictEqual([]);
 });
 // https://github.com/drizzle-team/drizzle-orm/issues/5329
-test('introspect policies without schemaFilter', async (t) => {
+test('introspect policies without schemaFilter', async () => {
 	const role = pgRole('owner');
 	const schema1 = {
 		role,
