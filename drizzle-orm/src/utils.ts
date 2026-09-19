@@ -47,10 +47,10 @@ export function mapResultRow<TResult>(
 						const objectName = path[0]!;
 						if (!(objectName in nullifyMap)) {
 							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
-						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
-						) {
-							nullifyMap[objectName] = false;
+						} else if (typeof nullifyMap[objectName] === 'string') {
+							if (value !== null || nullifyMap[objectName] !== getTableName(field.table)) {
+								nullifyMap[objectName] = false;
+							}
 						}
 					}
 				}
