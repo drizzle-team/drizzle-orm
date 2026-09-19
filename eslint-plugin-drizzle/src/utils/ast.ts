@@ -13,6 +13,10 @@ export const resolveMemberExpressionPath = (node: TSESTree.MemberExpression) => 
 		if (objectExpression.type === 'MemberExpression') {
 			if (objectExpression.property.type === 'Identifier') {
 				addToFullName(objectExpression.property.name);
+			} else if (objectExpression.property.type === 'PrivateIdentifier') {
+				// `#db` parses with `name` === 'db'; restore the `#` so the reported
+				// suggestion reads `this.#db.delete(...).where(...)`.
+				addToFullName(`#${objectExpression.property.name}`);
 			}
 			objectExpression = objectExpression.object;
 		} else if (objectExpression.type === 'CallExpression' && objectExpression.callee.type === 'Identifier') {
