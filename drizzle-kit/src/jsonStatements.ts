@@ -54,6 +54,7 @@ export interface JsonCreateTableStatement {
 	checkConstraints?: string[];
 	internals?: MySqlKitInternals | SingleStoreKitInternals;
 	isRLSEnabled?: boolean;
+	isForceRLSEnabled?: boolean;
 }
 
 export interface JsonRecreateTableStatement {
@@ -293,6 +294,18 @@ export interface JsonEnableRLSStatement {
 
 export interface JsonDisableRLSStatement {
 	type: 'disable_rls';
+	tableName: string;
+	schema: string;
+}
+
+export interface JsonForceRLSStatement {
+	type: 'force_rls';
+	tableName: string;
+	schema: string;
+}
+
+export interface JsonNoForceRLSStatement {
+	type: 'no_force_rls';
 	tableName: string;
 	schema: string;
 }
@@ -865,6 +878,8 @@ export type JsonStatement =
 	| JsonRenamePolicyStatement
 	| JsonEnableRLSStatement
 	| JsonDisableRLSStatement
+	| JsonForceRLSStatement
+	| JsonNoForceRLSStatement
 	| JsonRenameRoleStatement
 	| JsonCreateRoleStatement
 	| JsonDropRoleStatement
@@ -891,8 +906,17 @@ export const preparePgCreateTableJson = (
 	// TODO: remove?
 	json2: PgSchema,
 ): JsonCreateTableStatement => {
-	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints, policies, isRLSEnabled } =
-		table;
+	const {
+		name,
+		schema,
+		columns,
+		compositePrimaryKeys,
+		uniqueConstraints,
+		checkConstraints,
+		policies,
+		isRLSEnabled,
+		isForceRLSEnabled,
+	} = table;
 	const tableKey = `${schema || 'public'}.${name}`;
 
 	// TODO: @AndriiSherman. We need this, will add test cases
@@ -913,6 +937,7 @@ export const preparePgCreateTableJson = (
 		policies: Object.values(policies),
 		checkConstraints: Object.values(checkConstraints),
 		isRLSEnabled: isRLSEnabled ?? false,
+		isForceRLSEnabled: isForceRLSEnabled ?? false,
 	};
 };
 
