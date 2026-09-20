@@ -24,6 +24,7 @@ import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { SingleStoreColumn } from './columns/common.ts';
+import { SingleStoreCustomColumn } from './columns/custom.ts';
 import type { SingleStoreDeleteConfig } from './query-builders/delete.ts';
 import type { SingleStoreInsertConfig } from './query-builders/insert.ts';
 import type {
@@ -246,6 +247,9 @@ export class SingleStoreDialect {
 			} else if (is(field, Column)) {
 				if (isSingleTable) {
 					chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+				} else if (is(field, SingleStoreCustomColumn)) {
+					// Custom types can define a `selectFromDb` SQL wrapper
+					chunk.push(field.getSelectSQL());
 				} else {
 					chunk.push(field);
 				}

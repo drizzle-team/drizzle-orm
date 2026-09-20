@@ -3,6 +3,7 @@ import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
+import { GelCustomColumn } from '~/gel-core/columns/custom.ts';
 import { GelColumn, GelDecimal, GelJson, GelUUID } from '~/gel-core/columns/index.ts';
 import type {
 	AnyGelSelectQueryBuilder,
@@ -240,7 +241,12 @@ export class GelDialect {
 					// if (isSingleTable) {
 					// 	chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 					// } else {
-					chunk.push(field);
+					if (is(field, GelCustomColumn)) {
+						// Custom types can define a `selectFromDb` SQL wrapper
+						chunk.push(field.getSelectSQL());
+					} else {
+						chunk.push(field);
+					}
 					// }
 				} else if (is(field, Subquery)) {
 					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];

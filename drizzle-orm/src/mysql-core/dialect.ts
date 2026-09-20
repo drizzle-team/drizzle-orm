@@ -24,6 +24,7 @@ import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
+import { MySqlCustomColumn } from './columns/custom.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
 import type {
@@ -245,7 +246,10 @@ export class MySqlDialect {
 					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
 			} else if (is(field, Column)) {
-				if (isSingleTable) {
+				if (is(field, MySqlCustomColumn)) {
+					// Custom types can define a `selectFromDb` SQL wrapper
+					chunk.push(field.getSelectSQL());
+				} else if (isSingleTable) {
 					chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 				} else {
 					chunk.push(field);
