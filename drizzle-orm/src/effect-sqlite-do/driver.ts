@@ -22,8 +22,8 @@ export class EffectSQLiteDoDatabase<TRelations extends AnyRelations = EmptyRelat
 export type EffectDrizzleSQLiteDoConfig<TRelations extends AnyRelations> =
 	& Omit<EffectDrizzleSQLiteConfig<TRelations>, 'jit'>
 	& {
-		/** @deprecated Unused. Provide storage to `SqliteClient.layer({ storage })` instead. */
-		storage?: DurableObjectStorage;
+		/** The storage used by the provided `SqliteClient`, which must be created with `{ storage }` for transactions. */
+		storage: DurableObjectStorage;
 	};
 
 /**
@@ -32,33 +32,26 @@ export type EffectDrizzleSQLiteDoConfig<TRelations extends AnyRelations> =
  * Requires `SqliteClient`, `EffectLogger`, and `EffectCache` services to be provided.
  * Use `DefaultServices` to provide default (no-op) logger and cache implementations.
  * Transactions require `@effect/sql-sqlite-do` >= 4.0.0-rc.116 and a client created with
- * `SqliteClient.layer({ storage })`. A client created with `{ db: storage.sql }` supports
- * queries only: transactions fail with `SqlError`, even if storage is passed to Drizzle.
+ * `SqliteClient.layer({ storage })`. Passing storage only to Drizzle does not enable
+ * transactions on a client created with `{ db: storage.sql }`.
  *
  * @example
  * ```ts
- * import * as SQLiteClient from '@effect/sql-sqlite-do/SqliteClient';
- * import * as Layer from 'effect/Layer';
- *
- * const SqliteLive = SQLiteClient.layer({ storage });
- *
  * // With default services (no logging, no caching)
  * const db = yield* SQLiteDODrizzle.make({ relations }).pipe(
- *   Effect.provide(Layer.merge(SqliteLive, SQLiteDODrizzle.DefaultServices)),
+ *   Effect.provide(SQLiteDODrizzle.DefaultServices),
  * );
  *
  * // With Effect-based logging
  * const db = yield* SQLiteDODrizzle.make({ relations }).pipe(
- *   Effect.provide(Layer.mergeAll(SqliteLive, SQLiteDODrizzle.DefaultServices, EffectLogger.layer)),
+ *   Effect.provide(EffectLogger.layer),
+ *   Effect.provide(SQLiteDODrizzle.DefaultServices),
  * );
  *
  * // With custom Drizzle logger
  * const db = yield* SQLiteDODrizzle.make({ relations }).pipe(
- *   Effect.provide(Layer.mergeAll(
- *     SqliteLive,
- *     SQLiteDODrizzle.DefaultServices,
- *     EffectLogger.layerFromDrizzle(myLogger),
- *   )),
+ *   Effect.provide(EffectLogger.layerFromDrizzle(myLogger)),
+ *   Effect.provide(SQLiteDODrizzle.DefaultServices),
  * );
  * ```
  */
@@ -78,6 +71,7 @@ export const make = Effect.fn('SQLiteDODrizzle.make')(
 		const session = new EffectSQLiteDOSession(client, dialect, relations, {
 			logger,
 			cache,
+			storage: config.storage,
 		});
 		const db = new EffectSQLiteDoDatabase(dialect, session, relations);
 		(<any> db).$client = client;

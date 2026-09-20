@@ -29,8 +29,7 @@ export type EffectSQLiteDoRunResult = unknown;
 export interface EffectSQLiteDOSessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
-	/** @deprecated Unused. Provide storage to `SqliteClient.layer({ storage })` instead. */
-	storage?: DurableObjectStorage;
+	storage: DurableObjectStorage;
 }
 
 export class EffectSQLiteDOSession<TRelations extends AnyRelations>

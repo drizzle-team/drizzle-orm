@@ -359,7 +359,7 @@ export class MyDurableObject extends DurableObject {
 			Layer.merge(SQLiteDrizzle.DefaultServices, SqliteClient.layer({ storage: ctx.storage })),
 		);
 		ctx.blockConcurrencyWhile(async () => {
-			this.db = await this.runtime.runPromise(SQLiteDrizzle.make({ relations }));
+			this.db = await this.runtime.runPromise(SQLiteDrizzle.make({ relations, storage: ctx.storage }));
 		});
 	}
 
