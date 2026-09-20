@@ -156,7 +156,7 @@ importers:
         version: 1.5.0-r.1
       '@effect/sql':
         specifier: ^0.48.5
-        version: 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)
+        version: 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       '@electric-sql/pglite':
         specifier: ^0.5.8
         version: 0.5.8
@@ -361,31 +361,31 @@ importers:
         version: 0.3.2(typescript@5.9.3)
       '@effect/sql-d1':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        version: 4.0.0-rc.115(effect@4.0.0-rc.116)
       '@effect/sql-libsql':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(bufferutil@4.0.8)(effect@4.0.0-rc.115)(utf-8-validate@6.0.3)
+        version: 4.0.0-rc.115(bufferutil@4.0.8)(effect@4.0.0-rc.116)(utf-8-validate@6.0.3)
       '@effect/sql-mysql2':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(@types/node@25.5.0)(effect@4.0.0-rc.115)
+        version: 4.0.0-rc.115(@types/node@25.5.0)(effect@4.0.0-rc.116)
       '@effect/sql-pg':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        version: 4.0.0-rc.115(effect@4.0.0-rc.116)
       '@effect/sql-pglite':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        version: 4.0.0-rc.115(effect@4.0.0-rc.116)
       '@effect/sql-sqlite-bun':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        version: 4.0.0-rc.115(effect@4.0.0-rc.116)
       '@effect/sql-sqlite-do':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.116
+        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
       '@effect/sql-sqlite-node':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        version: 4.0.0-rc.115(effect@4.0.0-rc.116)
       '@effect/sql-sqlite-wasm':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(@effect/wa-sqlite@0.1.2)(effect@4.0.0-rc.115)
+        version: 4.0.0-rc.115(@effect/wa-sqlite@0.1.2)(effect@4.0.0-rc.116)
       '@electric-sql/pglite':
         specifier: ^0.5.8
         version: 0.5.8
@@ -474,8 +474,8 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       effect:
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115
+        specifier: 4.0.0-rc.116
+        version: 4.0.0-rc.116
       expo-sqlite:
         specifier: ^14.0.0
         version: 14.0.6(expo@54.0.25(@babel/core@7.28.5)(@modelcontextprotocol/sdk@1.29.0(zod@3.25.1))(bufferutil@4.0.8)(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))
@@ -644,34 +644,34 @@ importers:
         version: 0.3.2(typescript@5.9.3)
       '@effect/sql-d1':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        version: 4.0.0-rc.115(effect@4.0.0-rc.116)
       '@effect/sql-libsql':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(bufferutil@4.0.8)(effect@4.0.0-rc.115)(utf-8-validate@6.0.3)
+        version: 4.0.0-rc.115(bufferutil@4.0.8)(effect@4.0.0-rc.116)(utf-8-validate@6.0.3)
       '@effect/sql-mysql2':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(@types/node@25.5.0)(effect@4.0.0-rc.115)
+        version: 4.0.0-rc.115(@types/node@25.5.0)(effect@4.0.0-rc.116)
       '@effect/sql-pg':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        version: 4.0.0-rc.115(effect@4.0.0-rc.116)
       '@effect/sql-pglite':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        version: 4.0.0-rc.115(effect@4.0.0-rc.116)
       '@effect/sql-sqlite-bun':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        version: 4.0.0-rc.115(effect@4.0.0-rc.116)
       '@effect/sql-sqlite-do':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.116
+        version: 4.0.0-rc.116(effect@4.0.0-rc.116)
       '@effect/sql-sqlite-node':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        version: 4.0.0-rc.115(effect@4.0.0-rc.116)
       '@effect/sql-sqlite-wasm':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(@effect/wa-sqlite@0.1.2)(effect@4.0.0-rc.115)
+        version: 4.0.0-rc.115(@effect/wa-sqlite@0.1.2)(effect@4.0.0-rc.116)
       '@effect/vitest':
         specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))
+        version: 4.0.0-rc.115(effect@4.0.0-rc.116)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))
       '@electric-sql/pglite':
         specifier: 0.5.8
         version: 0.5.8
@@ -760,8 +760,8 @@ importers:
         specifier: workspace:../drizzle-zod/dist
         version: link:../drizzle-zod/dist
       effect:
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115
+        specifier: 4.0.0-rc.116
+        version: 4.0.0-rc.116
       get-port:
         specifier: ^7.0.0
         version: 7.1.0
@@ -888,7 +888,7 @@ importers:
     dependencies:
       drizzle-beta:
         specifier: npm:drizzle-orm@1.0.0-beta.21
-        version: drizzle-orm@1.0.0-beta.21(d1f3dcffbfc892c911ae17e2a4ab4666)
+        version: drizzle-orm@1.0.0-beta.21(9fe6e82bdf8b779f275173fd239a7e01)
       drizzle-seed:
         specifier: workspace:../drizzle-seed/dist
         version: link:../drizzle-seed/dist
@@ -1824,10 +1824,10 @@ packages:
     peerDependencies:
       effect: ^4.0.0-rc.115
 
-  '@effect/sql-sqlite-do@4.0.0-rc.115':
-    resolution: {integrity: sha512-7lH9h+w4DW2tI+dus4hEac5mSCy1wgiT+uw/VvjR8YhNDemd3zEFY03NkbD81ipfOpnu2QA1YwgM58ExyPlhug==}
+  '@effect/sql-sqlite-do@4.0.0-rc.116':
+    resolution: {integrity: sha512-VYHPcyDtiq6h/vmJD/9c6BFvEi1xqG5c54wlbs15zMjhUybJkGWkhZ5dbs4jCqVhkBNJSYX861oDaXxyH1HELw==}
     peerDependencies:
-      effect: ^4.0.0-rc.115
+      effect: ^4.0.0-rc.116
 
   '@effect/sql-sqlite-node@4.0.0-rc.115':
     resolution: {integrity: sha512-53n3Kbwush7K/8/G1CDz638ClEoMvnUOT5BltCxMZ8TqcxeNoMv+nty08ZdrJ7P6m1q1RIeWlqdy5J9ZDICpbw==}
@@ -5272,8 +5272,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@4.0.0-rc.115:
-    resolution: {integrity: sha512-ogYulZ5ffeOzrJqQrG0XOkDO5lKn2s9KNHhoxJy/6wKUkF0i12dlVXWA9TgsgQ+zV/JzizyG0+XMPepZEQX6vw==}
+  effect@4.0.0-rc.116:
+    resolution: {integrity: sha512-nawqJHSjHV8XIBRZNZ+D7cLZpN3kkSjzy6aiT9ofKENsl7xAMFKEoDa0itN5JFl3GUQ1PIN1T1HNlva5+xyO/A==}
 
   electron-to-chromium@1.5.260:
     resolution: {integrity: sha512-ov8rBoOBhVawpzdre+Cmz4FB+y66Eqrk6Gwqd8NGxuhv99GQ8XqMAr351KEkOt7gukXWDg6gJWEMKgL2RLMPtA==}
@@ -10587,45 +10587,45 @@ snapshots:
       '@duckdb/node-bindings-win32-arm64': 1.5.0-r.1
       '@duckdb/node-bindings-win32-x64': 1.5.0-r.1
 
-  '@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)':
+  '@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)':
     dependencies:
-      '@effect/platform': 0.93.5(effect@4.0.0-rc.115)
-      effect: 4.0.0-rc.115
+      '@effect/platform': 0.93.5(effect@4.0.0-rc.116)
+      effect: 4.0.0-rc.116
       uuid: 11.1.0
 
-  '@effect/platform@0.93.5(effect@4.0.0-rc.115)':
+  '@effect/platform@0.93.5(effect@4.0.0-rc.116)':
     dependencies:
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.116
       find-my-way-ts: 0.1.6
       msgpackr: 1.11.9
       multipasta: 0.2.7
 
-  '@effect/sql-d1@4.0.0-rc.115(effect@4.0.0-rc.115)':
+  '@effect/sql-d1@4.0.0-rc.115(effect@4.0.0-rc.116)':
     dependencies:
       '@cloudflare/workers-types': 5.20260914.1
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.116
 
-  '@effect/sql-libsql@4.0.0-rc.115(bufferutil@4.0.8)(effect@4.0.0-rc.115)(utf-8-validate@6.0.3)':
+  '@effect/sql-libsql@4.0.0-rc.115(bufferutil@4.0.8)(effect@4.0.0-rc.116)(utf-8-validate@6.0.3)':
     dependencies:
       '@libsql/client': 0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.116
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/sql-mysql2@4.0.0-rc.115(@types/node@25.5.0)(effect@4.0.0-rc.115)':
+  '@effect/sql-mysql2@4.0.0-rc.115(@types/node@25.5.0)(effect@4.0.0-rc.116)':
     dependencies:
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.116
       mysql2: 3.24.4(@types/node@25.5.0)
     transitivePeerDependencies:
       - '@types/node'
 
-  '@effect/sql-pg@0.49.7(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)':
+  '@effect/sql-pg@0.49.7(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))(@effect/platform@0.93.5(effect@4.0.0-rc.116))(@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)':
     dependencies:
-      '@effect/experimental': 0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)
-      '@effect/platform': 0.93.5(effect@4.0.0-rc.115)
-      '@effect/sql': 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)
-      effect: 4.0.0-rc.115
+      '@effect/experimental': 0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+      '@effect/platform': 0.93.5(effect@4.0.0-rc.116)
+      '@effect/sql': 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+      effect: 4.0.0-rc.116
       pg: 8.22.0
       pg-connection-string: 2.9.1
       pg-cursor: 2.21.0(pg@8.22.0)
@@ -10635,42 +10635,42 @@ snapshots:
       - pg-native
     optional: true
 
-  '@effect/sql-pg@4.0.0-rc.115(effect@4.0.0-rc.115)':
+  '@effect/sql-pg@4.0.0-rc.115(effect@4.0.0-rc.116)':
     dependencies:
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.116
 
-  '@effect/sql-pglite@4.0.0-rc.115(effect@4.0.0-rc.115)':
+  '@effect/sql-pglite@4.0.0-rc.115(effect@4.0.0-rc.116)':
     dependencies:
       '@electric-sql/pglite': 0.5.8
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.116
 
-  '@effect/sql-sqlite-bun@4.0.0-rc.115(effect@4.0.0-rc.115)':
+  '@effect/sql-sqlite-bun@4.0.0-rc.115(effect@4.0.0-rc.116)':
     dependencies:
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.116
 
-  '@effect/sql-sqlite-do@4.0.0-rc.115(effect@4.0.0-rc.115)':
+  '@effect/sql-sqlite-do@4.0.0-rc.116(effect@4.0.0-rc.116)':
     dependencies:
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.116
 
-  '@effect/sql-sqlite-node@4.0.0-rc.115(effect@4.0.0-rc.115)':
+  '@effect/sql-sqlite-node@4.0.0-rc.115(effect@4.0.0-rc.116)':
     dependencies:
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.116
 
-  '@effect/sql-sqlite-wasm@4.0.0-rc.115(@effect/wa-sqlite@0.1.2)(effect@4.0.0-rc.115)':
+  '@effect/sql-sqlite-wasm@4.0.0-rc.115(@effect/wa-sqlite@0.1.2)(effect@4.0.0-rc.116)':
     dependencies:
       '@effect/wa-sqlite': 0.1.2
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.116
 
-  '@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)':
+  '@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)':
     dependencies:
-      '@effect/experimental': 0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)
-      '@effect/platform': 0.93.5(effect@4.0.0-rc.115)
-      effect: 4.0.0-rc.115
+      '@effect/experimental': 0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+      '@effect/platform': 0.93.5(effect@4.0.0-rc.116)
+      effect: 4.0.0-rc.116
       uuid: 11.1.0
 
-  '@effect/vitest@4.0.0-rc.115(effect@4.0.0-rc.115)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))':
+  '@effect/vitest@4.0.0-rc.115(effect@4.0.0-rc.116)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))':
     dependencies:
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.116
       vitest: 5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
 
   '@effect/wa-sqlite@0.1.2': {}
@@ -14470,15 +14470,15 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
-  drizzle-orm@1.0.0-beta.21(d1f3dcffbfc892c911ae17e2a4ab4666):
+  drizzle-orm@1.0.0-beta.21(9fe6e82bdf8b779f275173fd239a7e01):
     dependencies:
       '@types/mssql': 9.1.8
       mssql: 12.1.1
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.940.0
       '@cloudflare/workers-types': 5.20260914.1
-      '@effect/sql': 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)
-      '@effect/sql-pg': 0.49.7(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)
+      '@effect/sql': 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
+      '@effect/sql-pg': 0.49.7(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))(@effect/platform@0.93.5(effect@4.0.0-rc.116))(@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))(@effect/platform@0.93.5(effect@4.0.0-rc.116))(effect@4.0.0-rc.116))(effect@4.0.0-rc.116)
       '@electric-sql/pglite': 0.5.8
       '@libsql/client': 0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@libsql/client-wasm': 0.10.0
@@ -14528,7 +14528,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@4.0.0-rc.115: {}
+  effect@4.0.0-rc.116: {}
 
   electron-to-chromium@1.5.260: {}
 

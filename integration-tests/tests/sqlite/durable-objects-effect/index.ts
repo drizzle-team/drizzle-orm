@@ -50,7 +50,10 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import { Layer } from 'effect';
 import * as Cause from 'effect/Cause';
+import * as Deferred from 'effect/Deferred';
 import * as Effect from 'effect/Effect';
+import * as Exit from 'effect/Exit';
+import * as Fiber from 'effect/Fiber';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
 import { SqlClient } from 'effect/unstable/sql/SqlClient';
 import {
@@ -353,10 +356,10 @@ export class MyDurableObject extends DurableObject {
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
 		this.runtime = ManagedRuntime.make(
-			Layer.merge(SQLiteDrizzle.DefaultServices, SqliteClient.layer({ db: ctx.storage.sql })),
+			Layer.merge(SQLiteDrizzle.DefaultServices, SqliteClient.layer({ storage: ctx.storage })),
 		);
 		ctx.blockConcurrencyWhile(async () => {
-			this.db = await this.runtime.runPromise(SQLiteDrizzle.make({ relations, storage: ctx.storage }));
+			this.db = await this.runtime.runPromise(SQLiteDrizzle.make({ relations }));
 		});
 	}
 
@@ -3575,6 +3578,106 @@ export class MyDurableObject extends DurableObject {
 		}));
 	}
 
+	transactionAfterSuspension(): Promise<void> {
+		const { db } = this;
+		return this.exec(Effect.gen(function*() {
+			yield* beforeEach(db);
+			const result = yield* db.transaction((tx) =>
+				Effect.gen(function*() {
+					yield* tx.insert(usersTable).values({ id: 1, name: 'before' });
+					yield* Effect.promise(() => Promise.resolve());
+					yield* tx.insert(usersTable).values({ id: 2, name: 'after' });
+					return 'committed';
+				})
+			);
+			expect(result).equal('committed');
+			expect(yield* db.select({ id: usersTable.id }).from(usersTable).orderBy(usersTable.id))
+				.deep.equal([{ id: 1 }, { id: 2 }]);
+		}));
+	}
+
+	transactionRollbackAfterSuspension(): Promise<void> {
+		const { db } = this;
+		return this.exec(Effect.gen(function*() {
+			yield* beforeEach(db);
+			const failure = new Error('rollback after suspension');
+			const error = yield* Effect.flip(db.transaction((tx) =>
+				Effect.gen(function*() {
+					yield* tx.insert(usersTable).values({ id: 1, name: 'before' });
+					yield* Effect.promise(() => Promise.resolve());
+					yield* tx.insert(usersTable).values({ id: 2, name: 'after' });
+					return yield* Effect.fail(failure);
+				})
+			));
+			expect(error).equal(failure);
+			yield* Effect.promise(() => Promise.resolve());
+			expect(yield* db.select().from(usersTable)).deep.equal([]);
+		}));
+	}
+
+	transactionDefectAfterSuspension(): Promise<void> {
+		const { db } = this;
+		return this.exec(Effect.gen(function*() {
+			yield* beforeEach(db);
+			const defect = new Error('transaction defect');
+			const exit = yield* Effect.exit(db.transaction((tx) =>
+				Effect.gen(function*() {
+					yield* tx.insert(usersTable).values({ id: 1, name: 'before' });
+					yield* Effect.promise(() => Promise.resolve());
+					yield* tx.insert(usersTable).values({ id: 2, name: 'after' });
+					return yield* Effect.die(defect);
+				})
+			));
+			expect(exit).deep.equal(Exit.die(defect));
+			expect(yield* db.select().from(usersTable)).deep.equal([]);
+		}));
+	}
+
+	transactionInterruption(): Promise<void> {
+		const { db } = this;
+		return this.exec(Effect.gen(function*() {
+			yield* beforeEach(db);
+			const inserted = yield* Deferred.make<void>();
+			const fiber = yield* db.transaction((tx) =>
+				Effect.gen(function*() {
+					yield* tx.insert(usersTable).values({ id: 1, name: 'interrupted' });
+					yield* Deferred.succeed(inserted, undefined);
+					yield* Effect.never;
+				})
+			).pipe(Effect.forkChild({ startImmediately: true }));
+			yield* Deferred.await(inserted);
+			yield* Fiber.interrupt(fiber);
+			expect(yield* db.select().from(usersTable)).deep.equal([]);
+			yield* db.insert(usersTable).values({ id: 2, name: 'after interruption' });
+			expect(yield* db.select({ id: usersTable.id }).from(usersTable)).deep.equal([{ id: 2 }]);
+		}));
+	}
+
+	nestedTransactionRollbackAfterSuspension(): Promise<void> {
+		const { db } = this;
+		return this.exec(Effect.gen(function*() {
+			yield* beforeEach(db);
+			yield* db.transaction((tx) =>
+				Effect.gen(function*() {
+					yield* tx.insert(usersTable).values({ id: 1, name: 'outer before' });
+					const failure = new Error('nested rollback');
+					const error = yield* Effect.flip(tx.transaction((child) =>
+						Effect.gen(function*() {
+							yield* child.insert(usersTable).values({ id: 2, name: 'inner before' });
+							yield* Effect.promise(() => Promise.resolve());
+							yield* child.insert(usersTable).values({ id: 3, name: 'inner after' });
+							return yield* Effect.fail(failure);
+						})
+					));
+					expect(error).equal(failure);
+					yield* tx.insert(usersTable).values({ id: 4, name: 'outer after' });
+				})
+			);
+			expect(yield* db.select({ id: usersTable.id }).from(usersTable).orderBy(usersTable.id))
+				.deep.equal([{ id: 1 }, { id: 4 }]);
+		}));
+	}
+
 	nestedTransaction(): Promise<void> {
 		const { db } = this;
 		return this.exec(Effect.gen(function*() {
@@ -3867,6 +3970,11 @@ const TESTS = [
 	'prefixedTable',
 	'orderByWithAliasedColumn',
 	'transaction',
+	'transactionAfterSuspension',
+	'transactionRollbackAfterSuspension',
+	'transactionDefectAfterSuspension',
+	'transactionInterruption',
+	'nestedTransactionRollbackAfterSuspension',
 	'nestedTransaction',
 	'joinSubqueryWithJoin',
 	'joinViewAsSubquery',
