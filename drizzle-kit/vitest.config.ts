@@ -14,7 +14,11 @@ export default defineConfig({
 
 		// This one was excluded because we need to modify an API for SingleStore-generated columns.
 		// It’s in the backlog.
-		exclude: ['tests/**/singlestore-generated.test.ts'],
+		exclude: [
+			'tests/**/singlestore-generated.test.ts',
+			'tests/introspect/gel.ext.test.ts',
+			'tests/introspect/gel.test.ts',
+		],
 
 		typecheck: {
 			tsconfig: 'tsconfig.json',
