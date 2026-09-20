@@ -34,7 +34,9 @@ function construct<
 ): MySql2Database<TRelations> & {
 	$client: AnyMySql2Connection extends TClient ? Pool : TClient;
 } {
-	client.config.supportBigNumbers = true;
+	// Some clients (notably `mysql2` pools) don't expose a top-level `config` at runtime,
+	// even though the typings suggest otherwise — see https://github.com/drizzle-team/drizzle-orm/issues/5972
+	if (client.config) client.config.supportBigNumbers = true;
 	const dialect = new MySqlDialect({
 		useJitMappers: jitCompatCheck(config.jit),
 		codecs: mysql2Codecs,
