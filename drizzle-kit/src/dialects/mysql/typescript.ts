@@ -97,7 +97,6 @@ export const ddlToTypeScript = (
 	const imports = new Set<string>([
 		vendor === 'mysql' ? 'mysqlTable' : 'signlestoreTable',
 		vendor === 'mysql' ? 'mysqlSchema' : 'singlestoreSchema',
-		vendor === 'mysql' ? 'AnyMySqlColumn' : 'AnySinsgleStoreColumn',
 	]);
 
 	const viewEntities = viewColumns.map((it) => {
@@ -137,6 +136,14 @@ export const ddlToTypeScript = (
 			) inlineFks.push(fk);
 			else callbackFks.push(fk);
 		}
+		// self() already was filtered above
+		if (inlineFks.some((fk) => isCyclic(fk))) {
+			imports.add(vendor === 'mysql' ? 'type AnyMySqlColumn' : 'type AnySinsgleStoreColumn');
+		}
+
+		const extraConfigType = vendor === 'mysql' ? 'MySqlTableExtraConfigValue' : 'SingleStoreTableExtraConfigValue';
+		const hasCyclicCallbackFk = callbackFks.some((fk) => isCyclic(fk) && !isSelf(fk));
+		if (hasCyclicCallbackFk) imports.add(`type ${extraConfigType}`);
 
 		const primaryKeyType: 'callback' | 'inline' = pk && pk.columns.length > 1 ? 'callback' : 'inline';
 
@@ -158,7 +165,7 @@ export const ddlToTypeScript = (
 
 		if (hasCallbackParams) {
 			statement += ',\n';
-			statement += '(table) => [\n';
+			statement += hasCyclicCallbackFk ? `(table): ${extraConfigType}[] => [\n` : '(table) => [\n';
 			statement += primaryKeyType === 'callback' ? createTablePK(pk!, withCasing) : '';
 			statement += createTableIndexes(indexes, withCasing);
 			statement += createTableFKs(callbackFks, withCasing);

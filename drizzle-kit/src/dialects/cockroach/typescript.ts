@@ -241,8 +241,6 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 
 		if (x.entityType === 'fks') {
 			imports.add('foreignKey');
-
-			if (isCyclic(x) && !isSelf(x)) imports.add('type AnyCockroachColumn');
 		}
 		if (x.entityType === 'pks') imports.add('primaryKey');
 		if (x.entityType === 'checks') imports.add('check');
@@ -349,6 +347,11 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 			) inlineFks.push(fk);
 			else callbackFks.push(fk);
 		}
+		// self() already was filtered above
+		if (inlineFks.some((fk) => isCyclic(fk))) imports.add('type AnyCockroachColumn');
+
+		const hasCyclicCallbackFk = callbackFks.some((fk) => isCyclic(fk) && !isSelf(fk));
+		if (hasCyclicCallbackFk) imports.add('type CockroachTableExtraConfigValue');
 
 		const primaryKeyType: 'callback' | 'inline' = table.pk
 				&& (
@@ -375,7 +378,7 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 
 		if (hasCallback) {
 			statement += ', ';
-			statement += '(table) => [\n';
+			statement += hasCyclicCallbackFk ? '(table): CockroachTableExtraConfigValue[] => [\n' : '(table) => [\n';
 			statement += primaryKeyType === 'callback'
 				? createTablePK(table.pk!, casing)
 				: '';

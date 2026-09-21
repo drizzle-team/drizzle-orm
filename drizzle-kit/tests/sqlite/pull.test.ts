@@ -1308,3 +1308,36 @@ CREATE TABLE "t_default" (
 	expect(pushSqlStatements).toStrictEqual([]);
 	expect(generateSqlStatements).toStrictEqual([]);
 });
+
+test('issue No2993', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`create table child (
+  id text primary key,
+  other_id text not null,
+  constraint child_fkey foreign key (other_id, id)
+    references parent (other_id, child_id)
+);`);
+
+	await db.run(`create table parent (
+  id text primary key,
+  other_id text not null,
+  child_id text unique references child (id),
+  unique (other_id, child_id),
+  constraint test_key foreign key (other_id, id)
+    references parent (other_id, child_id)
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffAfterPull(sqlite, {}, 'issue-2993');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
