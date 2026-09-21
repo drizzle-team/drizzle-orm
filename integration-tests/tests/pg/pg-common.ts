@@ -1701,6 +1701,27 @@ export function tests() {
 			]);
 		});
 
+		test('left join preserves grouped fields when the first column is null', async (ctx) => {
+			const { db } = ctx.pg;
+			const [city] = await db.insert(citiesTable).values({ name: 'Paris' }).returning();
+			await db.insert(users2Table).values([{ name: 'John', cityId: city!.id }, { name: 'Jane' }]);
+			for (
+				const fields of [
+					{ state: citiesTable.state, name: citiesTable.name },
+					{ name: citiesTable.name, state: citiesTable.state },
+				]
+			) {
+				const rows = await db.select({ name: users2Table.name, city: fields })
+					.from(users2Table)
+					.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+					.orderBy(users2Table.id);
+				expect(rows).toEqual([
+					{ name: 'John', city: { state: null, name: 'Paris' } },
+					{ name: 'Jane', city: null },
+				]);
+			}
+		});
+
 		test('left join (all fields)', async (ctx) => {
 			const { db } = ctx.pg;
 
