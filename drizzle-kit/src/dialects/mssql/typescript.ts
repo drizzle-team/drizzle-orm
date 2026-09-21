@@ -124,6 +124,10 @@ export const ddlToTypeScript = (
 ) => {
 	const tableFn = `mssqlTable`;
 
+	for (const fk of ddl.fks.list()) {
+		relations.add(`${fk.table}-${fk.tableTo}`);
+	}
+
 	const schemas = Object.fromEntries(
 		ddl.schemas.list().filter((it) => it.name !== 'dbo').map((it) => {
 			return [it.name, withCasing(it.name, casing)];
@@ -176,6 +180,11 @@ export const ddlToTypeScript = (
 			) inlineFks.push(fk);
 			else callbackFks.push(fk);
 		}
+		// self() already was filtered above
+		if (inlineFks.some((fk) => isCyclic(fk))) imports.add('type AnyMsSqlColumn');
+
+		const hasCyclicCallbackFk = callbackFks.some((fk) => isCyclic(fk) && !isSelf(fk));
+		if (hasCyclicCallbackFk) imports.add('type MsSqlTableExtraConfigValue');
 
 		const func = tableSchema ? `${tableSchema}.table` : tableFn;
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
@@ -197,7 +206,7 @@ export const ddlToTypeScript = (
 
 		if (hasCallback) {
 			statement += ', ';
-			statement += '(table) => [\n';
+			statement += hasCyclicCallbackFk ? '(table): MsSqlTableExtraConfigValue[] => [\n' : '(table) => [\n';
 			statement += table.pk ? createTablePK(table.pk, casing) : '';
 			statement += createTableFKs(callbackFks, schemas, casing);
 			statement += createTableIndexes(table.name, table.indexes, casing);
@@ -274,11 +283,13 @@ import { sql } from "drizzle-orm"\n\n`;
 	return { file, imports: importsTs, decalrations, schemaEntry };
 };
 
-// const isCyclic = (fk: ForeignKey) => {
-// 	const key = `${fk.table}-${fk.tableTo}`;
-// 	const reverse = `${fk.tableTo}-${fk.table}`;
-// 	return relations.has(key) && relations.has(reverse);
-// };
+const relations = new Set<string>();
+
+const isCyclic = (fk: ForeignKey) => {
+	const key = `${fk.table}-${fk.tableTo}`;
+	const reverse = `${fk.tableTo}-${fk.table}`;
+	return relations.has(key) && relations.has(reverse);
+};
 
 const isSelf = (fk: ForeignKey) => {
 	return fk.table === fk.tableTo;
@@ -375,15 +386,16 @@ const createTableColumns = (
 					const paramsStr = objToStatement2(params);
 					const tableSchema = schemas[it.schemaTo || ''];
 					const paramName = paramNameFor(it.tableTo, tableSchema);
+					const typeSuffix = isCyclic(it) ? ': AnyMsSqlColumn' : '';
 					if (paramsStr) {
-						return `.references(() => ${
+						return `.references(()${typeSuffix} => ${
 							withCasing(
 								paramName,
 								casing,
 							)
 						}.${withCasing(it.columnsTo[0], casing)}, ${paramsStr} )`;
 					}
-					return `.references(() => ${
+					return `.references(()${typeSuffix} => ${
 						withCasing(
 							paramName,
 							casing,
@@ -502,8 +514,8 @@ const createTableFKs = (fks: ForeignKey[], schemas: Record<string, string>, casi
 		statement += it.nameExplicit ? `\t\tname: "${it.name}"\n` : '';
 		statement += `\t})`;
 
-		statement += it.onUpdate && it.onUpdate !== 'NO ACTION' ? `.onUpdate("${it.onUpdate}")` : '';
-		statement += it.onDelete && it.onDelete !== 'NO ACTION' ? `.onDelete("${it.onDelete}")` : '';
+		statement += it.onUpdate && it.onUpdate !== 'NO ACTION' ? `.onUpdate("${it.onUpdate.toLowerCase()}")` : '';
+		statement += it.onDelete && it.onDelete !== 'NO ACTION' ? `.onDelete("${it.onDelete.toLowerCase()}")` : '';
 		statement += `,\n`;
 	});
 	return statement;
