@@ -188,7 +188,16 @@ export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return await this.queryWithCache(this.query.sql, params, async () => {
-			return await this.client.executeRawAsync(this.query.sql, params);
+			const result = await this.client.executeRawAsync(this.query.sql, params);
+			// op-sqlite ≥17 returns a `RawQueryResult` object (`{ rawRows, ... }`)
+			// from `executeRawAsync`; pre-17 returned the bare `unknown[][]` directly.
+			// Detect and unwrap so downstream `.map()` callers keep working across
+			// both versions. See drizzle-team/drizzle-orm#5928 +
+			// https://github.com/OP-Engineering/op-sqlite/commit/83e6d260b0dc9b5d0fad42e82dffac431f80a61a.
+			if (result && !Array.isArray(result) && Array.isArray((result as { rawRows?: unknown }).rawRows)) {
+				return (result as { rawRows: unknown[][] }).rawRows;
+			}
+			return result;
 		});
 	}
 
