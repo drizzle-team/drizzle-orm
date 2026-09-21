@@ -28,7 +28,12 @@ export const isDrizzleObj = (
 
 	if (node.object.type === 'Identifier') {
 		return isDrizzleObjName(node.object.name, drizzleObjectName);
-	} else if (node.object.type === 'MemberExpression' && node.object.property.type === 'Identifier') {
+	} else if (
+		node.object.type === 'MemberExpression'
+		&& (node.object.property.type === 'Identifier' || node.object.property.type === 'PrivateIdentifier')
+	) {
+		// A native private field (`this.#db`) parses as a PrivateIdentifier, whose
+		// `name` already omits the `#`, so it matches the same `drizzleObjectName`.
 		return isDrizzleObjName(node.object.property.name, drizzleObjectName);
 	} else if (node.object.type === 'CallExpression') {
 		if (node.object.callee.type === 'Identifier') {
