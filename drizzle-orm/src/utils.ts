@@ -43,12 +43,23 @@ export function mapResultRow<TResult>(
 					const rawValue = row[columnIndex]!;
 					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
 
-					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
+					// Nested objects from nullable joins should only be nullified when *all*
+					// selected columns from that join are null. Previously the first null
+					// column permanently marked the object for nullification, so a later
+					// non-null column from the same table could not save it (#1603).
+					if (joinsNotNullableMap && path.length === 2) {
 						const objectName = path[0]!;
 						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
+							nullifyMap[objectName] = (value === null && is(field, Column))
+								? getTableName(field.table)
+								: false;
 						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
+							typeof nullifyMap[objectName] === 'string'
+							&& (
+								!is(field, Column)
+								|| nullifyMap[objectName] !== getTableName(field.table)
+								|| value !== null
+							)
 						) {
 							nullifyMap[objectName] = false;
 						}
