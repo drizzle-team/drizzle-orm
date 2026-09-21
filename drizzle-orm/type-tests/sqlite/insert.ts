@@ -69,6 +69,9 @@ Expect<Equal<typeof users.$inferSelect | undefined, typeof insertGetReturningAll
 const insertGetConflictReturningAll = db.insert(users).values(newUser).onConflictDoNothing().returning().get();
 Expect<Equal<typeof users.$inferSelect | undefined, typeof insertGetConflictReturningAll>>;
 
+const insertGetConflictReturningAllBun = bunDb.insert(users).values(newUser).onConflictDoNothing().returning().get();
+Expect<Equal<typeof users.$inferSelect | undefined, typeof insertGetConflictReturningAllBun>>;
+
 const insertValuesReturningAll = db.insert(users).values(newUser).returning().values();
 Expect<Equal<any[][], typeof insertValuesReturningAll>>;
 
