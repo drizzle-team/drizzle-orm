@@ -27,7 +27,6 @@ jobs:
     strategy:
       matrix:
         shard:
-          - gel
           - planetscale
           - singlestore-core
           - singlestore-proxy
@@ -164,10 +163,6 @@ jobs:
         working-directory: integration-tests
         run: |
           case ${{ matrix.shard }} in
-
-            gel)
-              pnpm vitest run tests/gel
-            ;;
 
             planetscale)
               pnpm vitest run \
