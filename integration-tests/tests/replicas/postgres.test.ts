@@ -933,3 +933,31 @@ describe('[$count] read replicas postgres', () => {
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 	});
 });
+
+describe('[$with] read replicas postgres', () => {
+	it('$with forwards the declared selection', () => {
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
+
+		const db = withReplicas(primaryDb, [read1, read2], () => read1);
+
+		const spyRead1 = vi.spyOn(read1, '$with');
+
+		const sq = db.$with('sq', {
+			userId: usersTable.id,
+		}).as(sql`select id from ${usersTable}`);
+
+		expect(spyRead1).toHaveBeenCalledWith('sq', { userId: usersTable.id });
+
+		// without the selection reaching the replica, every field of the CTE
+		// comes back undefined
+		expect(sq.userId).toBeDefined();
+
+		const query = db.with(sq).select({ userId: sq.userId }).from(sq);
+
+		expect(query.toSQL().sql).toEqual(
+			'with "sq" as (select id from "users") select "id" from "sq"',
+		);
+	});
+});
