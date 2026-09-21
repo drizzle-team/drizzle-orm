@@ -1,6 +1,7 @@
 import { PGlite, type PGliteOptions } from '@electric-sql/pglite';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
@@ -18,6 +19,7 @@ import { PgliteSession } from './session.ts';
 export interface PgDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class PgliteDriver {
@@ -36,6 +38,7 @@ export class PgliteDriver {
 		return new PgliteSession(this.client, this.dialect, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
+			onError: this.options.onError,
 		});
 	}
 }
@@ -73,7 +76,7 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const driver = new PgliteDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new PgliteDriver(client, dialect, { logger, cache: config.cache, onError: config.onError });
 	const session = driver.createSession(schema);
 	const db = new PgliteDatabase(dialect, session, schema as any) as PgliteDatabase<TSchema>;
 	(<any> db).$client = client;

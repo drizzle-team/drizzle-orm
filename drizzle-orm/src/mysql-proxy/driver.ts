@@ -48,6 +48,6 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new MySqlRemoteSession(callback, dialect, schema, { logger });
+	const session = new MySqlRemoteSession(callback, dialect, schema, { logger, onError: config.onError });
 	return new MySqlRemoteDatabase(dialect, session, schema as any, 'default') as MySqlRemoteDatabase<TSchema>;
 }

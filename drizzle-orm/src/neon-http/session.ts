@@ -3,6 +3,7 @@ import type { BatchItem } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -144,6 +145,7 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 export interface NeonHttpSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class NeonHttpSession<
@@ -169,6 +171,7 @@ export class NeonHttpSession<
 		this.clientQuery = (client as any).query ?? client as any;
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -183,16 +186,18 @@ export class NeonHttpSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
-		return new NeonHttpPreparedQuery(
-			this.client,
-			query,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			isResponseInArrayMode,
-			customResultMapper,
+		return this.attachErrorHandler(
+			new NeonHttpPreparedQuery(
+				this.client,
+				query,
+				this.logger,
+				this.cache,
+				queryMetadata,
+				cacheConfig,
+				fields,
+				isResponseInArrayMode,
+				customResultMapper,
+			),
 		);
 	}
 

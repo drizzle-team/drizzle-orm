@@ -1,5 +1,6 @@
 import type { SQLiteDatabase, SQLiteRunResult, SQLiteStatement } from 'expo-sqlite';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -18,6 +19,7 @@ import { mapResultRow } from '~/utils.ts';
 
 export interface ExpoSQLiteSessionOptions {
 	logger?: Logger;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -38,6 +40,7 @@ export class ExpoSQLiteSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -48,14 +51,16 @@ export class ExpoSQLiteSession<
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): ExpoSQLitePreparedQuery<T> {
 		const stmt = this.client.prepareSync(query.sql);
-		return new ExpoSQLitePreparedQuery(
-			stmt,
-			query,
-			this.logger,
-			fields,
-			executeMethod,
-			isResponseInArrayMode,
-			customResultMapper,
+		return this.attachErrorHandler(
+			new ExpoSQLitePreparedQuery(
+				stmt,
+				query,
+				this.logger,
+				fields,
+				executeMethod,
+				isResponseInArrayMode,
+				customResultMapper,
+			),
 		);
 	}
 

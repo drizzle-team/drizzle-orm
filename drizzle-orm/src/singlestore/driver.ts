@@ -2,6 +2,7 @@ import { type Connection as CallbackConnection, createPool, type Pool as Callbac
 import type { Connection, Pool } from 'mysql2/promise';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import {
@@ -24,6 +25,7 @@ import { SingleStoreDriverSession } from './session.ts';
 export interface SingleStoreDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class SingleStoreDriverDriver {
@@ -42,6 +44,7 @@ export class SingleStoreDriverDriver {
 		return new SingleStoreDriverSession(this.client, this.dialect, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
+			onError: this.options.onError,
 		});
 	}
 }
@@ -93,6 +96,7 @@ function construct<
 	const driver = new SingleStoreDriverDriver(clientForInstance as SingleStoreDriverClient, dialect, {
 		logger,
 		cache: config.cache,
+		onError: config.onError,
 	});
 	const session = driver.createSession(schema);
 	const db = new SingleStoreDriverDatabase(dialect, session, schema as any) as SingleStoreDriverDatabase<TSchema>;

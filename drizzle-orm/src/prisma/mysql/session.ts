@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client/extension';
 
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type {
 	MySqlDialect,
@@ -38,6 +39,7 @@ export class PrismaMySqlPreparedQuery<T> extends MySqlPreparedQuery<MySqlPrepare
 
 export interface PrismaMySqlSessionOptions {
 	logger?: Logger;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class PrismaMySqlSession extends MySqlSession {
@@ -52,6 +54,7 @@ export class PrismaMySqlSession extends MySqlSession {
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.onError = options.onError;
 	}
 
 	override execute<T>(query: SQL): Promise<T> {
@@ -65,7 +68,7 @@ export class PrismaMySqlSession extends MySqlSession {
 	override prepareQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
 		query: Query,
 	): MySqlPreparedQuery<T> {
-		return new PrismaMySqlPreparedQuery(this.prisma, query, this.logger);
+		return this.attachErrorHandler(new PrismaMySqlPreparedQuery(this.prisma, query, this.logger));
 	}
 
 	override transaction<T>(

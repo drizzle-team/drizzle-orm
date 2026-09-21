@@ -1,7 +1,7 @@
 import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
-import { DrizzleError, DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
+import { DrizzleError, type DrizzleQueryError, TransactionRollbackError, wrapSqliteError } from '~/errors.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
@@ -67,6 +67,16 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 		}
 	}
 
+	/** Set by the session; called with the wrapped error before it is thrown. @internal */
+	onError?: (error: DrizzleQueryError) => void;
+
+	/** @internal */
+	protected mapError(queryString: string, params: any[], e: unknown): DrizzleQueryError {
+		const error = wrapSqliteError(queryString, params, e as Error);
+		this.onError?.(error);
+		return error;
+	}
+
 	/** @internal */
 	protected async queryWithCache<T>(
 		queryString: string,
@@ -77,7 +87,7 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw this.mapError(queryString, params, e);
 			}
 		}
 
@@ -86,7 +96,7 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw this.mapError(queryString, params, e);
 			}
 		}
 
@@ -104,7 +114,7 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 				]);
 				return res;
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw this.mapError(queryString, params, e);
 			}
 		}
 
@@ -113,7 +123,7 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw this.mapError(queryString, params, e);
 			}
 		}
 
@@ -129,7 +139,7 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 				try {
 					result = await query();
 				} catch (e) {
-					throw new DrizzleQueryError(queryString, params, e as Error);
+					throw this.mapError(queryString, params, e);
 				}
 
 				// put actual key
@@ -150,7 +160,7 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 		try {
 			return await query();
 		} catch (e) {
-			throw new DrizzleQueryError(queryString, params, e as Error);
+			throw this.mapError(queryString, params, e);
 		}
 	}
 
@@ -217,10 +227,19 @@ export abstract class SQLiteSession<
 > {
 	static readonly [entityKind]: string = 'SQLiteSession';
 
+	/** Set by concrete sessions from the driver config; forwarded to prepared queries. @internal */
+	protected onError?: (error: DrizzleQueryError) => void;
+
 	constructor(
 		/** @internal */
 		readonly dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultKind],
 	) {}
+
+	/** @internal */
+	attachErrorHandler<T extends SQLitePreparedQuery<any>>(query: T): T {
+		query.onError = this.onError;
+		return query;
+	}
 
 	abstract prepareQuery(
 		query: Query,

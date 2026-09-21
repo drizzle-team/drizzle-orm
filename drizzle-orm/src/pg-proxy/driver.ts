@@ -50,7 +50,11 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new PgRemoteSession(callback, dialect, schema, { logger, cache: config.cache });
+	const session = new PgRemoteSession(callback, dialect, schema, {
+		logger,
+		cache: config.cache,
+		onError: config.onError,
+	});
 	const db = new PgRemoteDatabase(dialect, session, schema as any) as PgRemoteDatabase<TSchema>;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {

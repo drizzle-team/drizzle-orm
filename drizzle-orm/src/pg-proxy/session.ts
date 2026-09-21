@@ -1,6 +1,7 @@
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -18,6 +19,7 @@ import type { RemoteCallback } from './driver.ts';
 export interface PgRemoteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class PgRemoteSession<
@@ -38,6 +40,7 @@ export class PgRemoteSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig>(
@@ -52,18 +55,20 @@ export class PgRemoteSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	): PreparedQuery<T> {
-		return new PreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			query.typings,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			isResponseInArrayMode,
-			customResultMapper,
+		return this.attachErrorHandler(
+			new PreparedQuery(
+				this.client,
+				query.sql,
+				query.params,
+				query.typings,
+				this.logger,
+				this.cache,
+				queryMetadata,
+				cacheConfig,
+				fields,
+				isResponseInArrayMode,
+				customResultMapper,
+			),
 		);
 	}
 

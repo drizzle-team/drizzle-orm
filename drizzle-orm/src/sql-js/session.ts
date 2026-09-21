@@ -1,5 +1,6 @@
 import type { BindParams, Database } from 'sql.js';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -17,6 +18,7 @@ import { mapResultRow } from '~/utils.ts';
 
 export interface SQLJsSessionOptions {
 	logger?: Logger;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -37,6 +39,7 @@ export class SQLJsSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -45,7 +48,9 @@ export class SQLJsSession<
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
 	): PreparedQuery<T> {
-		return new PreparedQuery(this.client, query, this.logger, fields, executeMethod, isResponseInArrayMode);
+		return this.attachErrorHandler(
+			new PreparedQuery(this.client, query, this.logger, fields, executeMethod, isResponseInArrayMode),
+		);
 	}
 
 	override transaction<T>(

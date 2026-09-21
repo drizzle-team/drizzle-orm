@@ -1,7 +1,7 @@
 import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
-import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
+import { type DrizzleQueryError, TransactionRollbackError, wrapMySqlError } from '~/errors.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { Assume, Equal } from '~/utils.ts';
@@ -64,6 +64,16 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 		}
 	}
 
+	/** Set by the session; called with the wrapped error before it is thrown. @internal */
+	onError?: (error: DrizzleQueryError) => void;
+
+	/** @internal */
+	protected mapError(queryString: string, params: any[], e: unknown): DrizzleQueryError {
+		const error = wrapMySqlError(queryString, params, e as Error);
+		this.onError?.(error);
+		return error;
+	}
+
 	/** @internal */
 	protected async queryWithCache<T>(
 		queryString: string,
@@ -74,7 +84,7 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw this.mapError(queryString, params, e);
 			}
 		}
 
@@ -83,7 +93,7 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw this.mapError(queryString, params, e);
 			}
 		}
 
@@ -101,7 +111,7 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 				]);
 				return res;
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw this.mapError(queryString, params, e);
 			}
 		}
 
@@ -110,7 +120,7 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw this.mapError(queryString, params, e);
 			}
 		}
 
@@ -126,7 +136,7 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 				try {
 					result = await query();
 				} catch (e) {
-					throw new DrizzleQueryError(queryString, params, e as Error);
+					throw this.mapError(queryString, params, e);
 				}
 
 				// put actual key
@@ -147,7 +157,7 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 		try {
 			return await query();
 		} catch (e) {
-			throw new DrizzleQueryError(queryString, params, e as Error);
+			throw this.mapError(queryString, params, e);
 		}
 	}
 
@@ -173,7 +183,16 @@ export abstract class SingleStoreSession<
 > {
 	static readonly [entityKind]: string = 'SingleStoreSession';
 
+	/** Set by concrete sessions from the driver config; forwarded to prepared queries. @internal */
+	protected onError?: (error: DrizzleQueryError) => void;
+
 	constructor(protected dialect: SingleStoreDialect) {}
+
+	/** @internal */
+	attachErrorHandler<T extends SingleStorePreparedQuery<any>>(query: T): T {
+		query.onError = this.onError;
+		return query;
+	}
 
 	abstract prepareQuery<
 		T extends SingleStorePreparedQueryConfig,

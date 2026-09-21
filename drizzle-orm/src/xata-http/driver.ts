@@ -1,5 +1,6 @@
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
@@ -13,6 +14,7 @@ import { XataHttpSession } from './session.ts';
 export interface XataDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class XataHttpDriver {
@@ -32,6 +34,7 @@ export class XataHttpDriver {
 		return new XataHttpSession(this.client, this.dialect, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
+			onError: this.options.onError,
 		});
 	}
 
@@ -73,7 +76,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const driver = new XataHttpDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new XataHttpDriver(client, dialect, { logger, cache: config.cache, onError: config.onError });
 	const session = driver.createSession(schema);
 
 	const db = new XataHttpDatabase(

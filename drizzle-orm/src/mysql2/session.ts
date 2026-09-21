@@ -14,6 +14,7 @@ import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -198,6 +199,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 export interface MySql2SessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 	mode: Mode;
 }
 
@@ -220,6 +222,7 @@ export class MySql2Session<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 		this.mode = options.mode;
 	}
 
@@ -237,18 +240,20 @@ export class MySql2Session<
 	): PreparedQueryKind<MySql2PreparedQueryHKT, T> {
 		// Add returningId fields
 		// Each driver gets them from response from database
-		return new MySql2PreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			customResultMapper,
-			generatedIds,
-			returningIds,
+		return this.attachErrorHandler(
+			new MySql2PreparedQuery(
+				this.client,
+				query.sql,
+				query.params,
+				this.logger,
+				this.cache,
+				queryMetadata,
+				cacheConfig,
+				fields,
+				customResultMapper,
+				generatedIds,
+				returningIds,
+			),
 		) as PreparedQueryKind<MySql2PreparedQueryHKT, T>;
 	}
 

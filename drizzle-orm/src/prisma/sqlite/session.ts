@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client/extension';
 
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { Query } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
@@ -57,6 +58,7 @@ export class PrismaSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQ
 
 export interface PrismaSQLiteSessionOptions {
 	logger?: Logger;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class PrismaSQLiteSession extends SQLiteSession<'async', unknown, Record<string, never>, Record<string, never>> {
@@ -71,6 +73,7 @@ export class PrismaSQLiteSession extends SQLiteSession<'async', unknown, Record<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.onError = options.onError;
 	}
 
 	override prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -78,7 +81,9 @@ export class PrismaSQLiteSession extends SQLiteSession<'async', unknown, Record<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 	): PrismaSQLitePreparedQuery<T> {
-		return new PrismaSQLitePreparedQuery(this.prisma, query, this.logger, executeMethod);
+		return this.attachErrorHandler(
+			new PrismaSQLitePreparedQuery(this.prisma, query, this.logger, executeMethod),
+		);
 	}
 
 	override transaction<T>(

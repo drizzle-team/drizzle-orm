@@ -1,5 +1,6 @@
 import { type Config, connect, type Connection } from '@tidbcloud/serverless';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
@@ -17,6 +18,7 @@ import { TiDBServerlessSession } from './session.ts';
 export interface TiDBServerlessSDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class TiDBServerlessDatabase<
@@ -52,7 +54,11 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const session = new TiDBServerlessSession(client, dialect, undefined, schema, { logger, cache: config.cache });
+	const session = new TiDBServerlessSession(client, dialect, undefined, schema, {
+		logger,
+		cache: config.cache,
+		onError: config.onError,
+	});
 	const db = new TiDBServerlessDatabase(dialect, session, schema as any, 'default') as TiDBServerlessDatabase<TSchema>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;

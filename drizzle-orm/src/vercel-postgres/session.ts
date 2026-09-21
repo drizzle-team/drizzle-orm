@@ -12,6 +12,7 @@ import type { Cache } from '~/cache/core/cache.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { type PgDialect, PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
@@ -183,6 +184,7 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 export interface VercelPgSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class VercelPgSession<
@@ -203,6 +205,7 @@ export class VercelPgSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -217,18 +220,20 @@ export class VercelPgSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
-		return new VercelPgPreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			name,
-			isResponseInArrayMode,
-			customResultMapper,
+		return this.attachErrorHandler(
+			new VercelPgPreparedQuery(
+				this.client,
+				query.sql,
+				query.params,
+				this.logger,
+				this.cache,
+				queryMetadata,
+				cacheConfig,
+				fields,
+				name,
+				isResponseInArrayMode,
+				customResultMapper,
+			),
 		);
 	}
 

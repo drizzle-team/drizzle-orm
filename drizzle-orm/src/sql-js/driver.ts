@@ -40,6 +40,6 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new SQLJsSession(client, dialect, schema, { logger });
+	const session = new SQLJsSession(client, dialect, schema, { logger, onError: config.onError });
 	return new BaseSQLiteDatabase('sync', dialect, session, schema) as SQLJsDatabase<TSchema>;
 }

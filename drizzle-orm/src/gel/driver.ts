@@ -1,6 +1,7 @@
 import { type Client, type ConnectOptions, createClient } from 'gel';
 import type { Cache } from '~/cache/core/index.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import { GelDatabase } from '~/gel-core/db.ts';
 import { GelDialect } from '~/gel-core/dialect.ts';
 import type { GelQueryResultHKT } from '~/gel-core/session.ts';
@@ -19,6 +20,7 @@ import { GelDbSession } from './session.ts';
 export interface GelDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class GelDriver {
@@ -36,6 +38,7 @@ export class GelDriver {
 		return new GelDbSession(this.client, this.dialect, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
+			onError: this.options.onError,
 		});
 	}
 }
@@ -73,7 +76,7 @@ function construct<
 		};
 	}
 
-	const driver = new GelDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new GelDriver(client, dialect, { logger, cache: config.cache, onError: config.onError });
 	const session = driver.createSession(schema);
 	const db = new GelJsDatabase(dialect, session, schema as any) as GelJsDatabase<TSchema>;
 	(<any> db).$client = client;

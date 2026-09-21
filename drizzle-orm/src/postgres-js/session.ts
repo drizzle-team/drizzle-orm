@@ -2,6 +2,7 @@ import type { Row, RowList, Sql, TransactionSql } from 'postgres';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -102,6 +103,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 export interface PostgresJsSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class PostgresJsSession<
@@ -124,6 +126,7 @@ export class PostgresJsSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -138,17 +141,19 @@ export class PostgresJsSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
-		return new PostgresJsPreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			isResponseInArrayMode,
-			customResultMapper,
+		return this.attachErrorHandler(
+			new PostgresJsPreparedQuery(
+				this.client,
+				query.sql,
+				query.params,
+				this.logger,
+				this.cache,
+				queryMetadata,
+				cacheConfig,
+				fields,
+				isResponseInArrayMode,
+				customResultMapper,
+			),
 		);
 	}
 

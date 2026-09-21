@@ -38,6 +38,16 @@ export abstract class GelPreparedQuery<T extends PreparedQueryConfig> implements
 		}
 	}
 
+	/** Set by the session; called with the wrapped error before it is thrown. @internal */
+	onError?: (error: DrizzleQueryError) => void;
+
+	/** @internal */
+	protected mapError(queryString: string, params: any[], e: unknown): DrizzleQueryError {
+		const error = new DrizzleQueryError(queryString, params, e as Error);
+		this.onError?.(error);
+		return error;
+	}
+
 	/** @internal */
 	protected async queryWithCache<T>(
 		queryString: string,
@@ -48,7 +58,7 @@ export abstract class GelPreparedQuery<T extends PreparedQueryConfig> implements
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw this.mapError(queryString, params, e);
 			}
 		}
 
@@ -57,7 +67,7 @@ export abstract class GelPreparedQuery<T extends PreparedQueryConfig> implements
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw this.mapError(queryString, params, e);
 			}
 		}
 
@@ -75,7 +85,7 @@ export abstract class GelPreparedQuery<T extends PreparedQueryConfig> implements
 				]);
 				return res;
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw this.mapError(queryString, params, e);
 			}
 		}
 
@@ -84,7 +94,7 @@ export abstract class GelPreparedQuery<T extends PreparedQueryConfig> implements
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw this.mapError(queryString, params, e);
 			}
 		}
 
@@ -100,7 +110,7 @@ export abstract class GelPreparedQuery<T extends PreparedQueryConfig> implements
 				try {
 					result = await query();
 				} catch (e) {
-					throw new DrizzleQueryError(queryString, params, e as Error);
+					throw this.mapError(queryString, params, e);
 				}
 
 				// put actual key
@@ -121,7 +131,7 @@ export abstract class GelPreparedQuery<T extends PreparedQueryConfig> implements
 		try {
 			return await query();
 		} catch (e) {
-			throw new DrizzleQueryError(queryString, params, e as Error);
+			throw this.mapError(queryString, params, e);
 		}
 	}
 
@@ -156,7 +166,16 @@ export abstract class GelSession<
 > {
 	static readonly [entityKind]: string = 'GelSession';
 
+	/** Set by concrete sessions from the driver config; forwarded to prepared queries. @internal */
+	protected onError?: (error: DrizzleQueryError) => void;
+
 	constructor(protected dialect: GelDialect) {}
+
+	/** @internal */
+	attachErrorHandler<T extends GelPreparedQuery<any>>(query: T): T {
+		query.onError = this.onError;
+		return query;
+	}
 
 	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,

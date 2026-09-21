@@ -66,7 +66,11 @@ export function drizzle<
 		};
 	}
 
-	const session = new SQLiteD1Session(client as D1Database, dialect, schema, { logger, cache: config.cache });
+	const session = new SQLiteD1Session(client as D1Database, dialect, schema, {
+		logger,
+		cache: config.cache,
+		onError: config.onError,
+	});
 	const db = new DrizzleD1Database('async', dialect, session, schema) as DrizzleD1Database<TSchema>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;

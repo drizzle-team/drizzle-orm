@@ -91,7 +91,11 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new SQLiteRemoteSession(callback, dialect, schema, _batchCallback, { logger, cache });
+	const session = new SQLiteRemoteSession(callback, dialect, schema, _batchCallback, {
+		logger,
+		cache,
+		onError: _config.onError,
+	});
 	const db = new SqliteRemoteDatabase('async', dialect, session, schema) as SqliteRemoteDatabase<TSchema>;
 	(<any> db).$cache = cache;
 	if ((<any> db).$cache) {

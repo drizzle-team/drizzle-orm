@@ -2,6 +2,7 @@ import { type Connection as CallbackConnection, createPool, type Pool as Callbac
 import type { Connection, Pool } from 'mysql2/promise';
 import type { Cache } from '~/cache/core/index.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
@@ -21,6 +22,7 @@ import { MySql2Session } from './session.ts';
 export interface MySqlDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class MySql2Driver {
@@ -41,6 +43,7 @@ export class MySql2Driver {
 			logger: this.options.logger,
 			mode,
 			cache: this.options.cache,
+			onError: this.options.onError,
 		});
 	}
 }
@@ -98,7 +101,11 @@ function construct<
 
 	const mode = config.mode ?? 'default';
 
-	const driver = new MySql2Driver(clientForInstance as MySql2Client, dialect, { logger, cache: config.cache });
+	const driver = new MySql2Driver(clientForInstance as MySql2Client, dialect, {
+		logger,
+		cache: config.cache,
+		onError: config.onError,
+	});
 	const session = driver.createSession(schema, mode);
 	const db = new MySql2Database(dialect, session, schema as any, mode) as MySql2Database<TSchema>;
 	(<any> db).$client = client;

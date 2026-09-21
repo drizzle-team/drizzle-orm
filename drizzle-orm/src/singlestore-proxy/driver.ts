@@ -52,7 +52,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new SingleStoreRemoteSession(callback, dialect, schema, { logger });
+	const session = new SingleStoreRemoteSession(callback, dialect, schema, { logger, onError: config.onError });
 	return new SingleStoreRemoteDatabase(dialect, session, schema as any) as SingleStoreRemoteDatabase<
 		TSchema
 	>;

@@ -3,6 +3,7 @@ import type { Transaction } from 'gel/dist/transaction';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { GelDialect } from '~/gel-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/gel-core/query-builders/select.types.ts';
 import { GelPreparedQuery, GelSession, GelTransaction, type PreparedQueryConfig } from '~/gel-core/session.ts';
@@ -104,6 +105,7 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig> extends GelPrepar
 export interface GelSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class GelDbSession<TFullSchema extends Record<string, unknown>, TSchema extends TablesRelationalConfig>
@@ -123,6 +125,7 @@ export class GelDbSession<TFullSchema extends Record<string, unknown>, TSchema e
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -137,17 +140,19 @@ export class GelDbSession<TFullSchema extends Record<string, unknown>, TSchema e
 		},
 		cacheConfig?: WithCacheConfig,
 	): GelDbPreparedQuery<T> {
-		return new GelDbPreparedQuery(
-			this.client,
-			query.sql,
-			query.params,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			isResponseInArrayMode,
-			customResultMapper,
+		return this.attachErrorHandler(
+			new GelDbPreparedQuery(
+				this.client,
+				query.sql,
+				query.params,
+				this.logger,
+				this.cache,
+				queryMetadata,
+				cacheConfig,
+				fields,
+				isResponseInArrayMode,
+				customResultMapper,
+			),
 		);
 	}
 

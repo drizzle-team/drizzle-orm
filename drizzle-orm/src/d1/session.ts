@@ -4,6 +4,7 @@ import type { BatchItem } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -23,6 +24,7 @@ import { mapResultRow } from '~/utils.ts';
 export interface SQLiteD1SessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -45,6 +47,7 @@ export class SQLiteD1Session<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery(
@@ -60,17 +63,19 @@ export class SQLiteD1Session<
 		cacheConfig?: WithCacheConfig,
 	): D1PreparedQuery {
 		const stmt = this.client.prepare(query.sql);
-		return new D1PreparedQuery(
-			stmt,
-			query,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			executeMethod,
-			isResponseInArrayMode,
-			customResultMapper,
+		return this.attachErrorHandler(
+			new D1PreparedQuery(
+				stmt,
+				query,
+				this.logger,
+				this.cache,
+				queryMetadata,
+				cacheConfig,
+				fields,
+				executeMethod,
+				isResponseInArrayMode,
+				customResultMapper,
+			),
 		);
 	}
 

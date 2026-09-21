@@ -1,6 +1,7 @@
 import type { Config } from '@planetscale/database';
 import { Client } from '@planetscale/database';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
@@ -18,6 +19,7 @@ import { PlanetscaleSession } from './session.ts';
 export interface PlanetscaleSDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (error: DrizzleQueryError) => void;
 }
 
 export class PlanetScaleDatabase<
@@ -73,7 +75,11 @@ const db = drizzle(client);
 		};
 	}
 
-	const session = new PlanetscaleSession(client, dialect, undefined, schema, { logger, cache: config.cache });
+	const session = new PlanetscaleSession(client, dialect, undefined, schema, {
+		logger,
+		cache: config.cache,
+		onError: config.onError,
+	});
 	const db = new PlanetScaleDatabase(dialect, session, schema as any, 'planetscale') as PlanetScaleDatabase<TSchema>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;

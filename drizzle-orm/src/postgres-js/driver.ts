@@ -56,7 +56,11 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const session = new PostgresJsSession(client, dialect, schema, { logger, cache: config.cache });
+	const session = new PostgresJsSession(client, dialect, schema, {
+		logger,
+		cache: config.cache,
+		onError: config.onError,
+	});
 	const db = new PostgresJsDatabase(dialect, session, schema as any) as PostgresJsDatabase<TSchema>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;

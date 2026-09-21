@@ -49,7 +49,11 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const session = new BunSQLSession(client, dialect, schema, { logger, cache: config.cache });
+	const session = new BunSQLSession(client, dialect, schema, {
+		logger,
+		cache: config.cache,
+		onError: config.onError,
+	});
 	const db = new BunSQLDatabase(dialect, session, schema as any) as BunSQLDatabase<TSchema>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
