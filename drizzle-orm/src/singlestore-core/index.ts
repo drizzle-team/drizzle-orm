@@ -1,3 +1,4 @@
+export { MYSQL_ERROR, type MySqlConstraintType, MySqlQueryError } from '../mysql-core/errors.ts';
 export * from './alias.ts';
 export * from './columns/index.ts';
 export * from './db.ts';

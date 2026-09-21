@@ -11,6 +11,8 @@ export class DrizzleError extends Error {
 }
 
 export class DrizzleQueryError extends Error {
+	static readonly [entityKind]: string = 'DrizzleQueryError';
+
 	constructor(
 		public query: string,
 		public params: any[],

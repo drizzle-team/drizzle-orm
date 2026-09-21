@@ -3,6 +3,7 @@ export * from './checks.ts';
 export * from './columns/index.ts';
 export * from './db.ts';
 export * from './dialect.ts';
+export * from './errors.ts';
 export * from './foreign-keys.ts';
 export * from './indexes.ts';
 export * from './policies.ts';
