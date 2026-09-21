@@ -28,12 +28,12 @@ export const isDrizzleObj = (
 
 	if (node.object.type === 'Identifier') {
 		return isDrizzleObjName(node.object.name, drizzleObjectName);
-	} else if (node.object.type === 'MemberExpression' && node.object.property.type === 'Identifier') {
+	} else if (node.object.type === 'MemberExpression' && !node.object.computed) {
 		return isDrizzleObjName(node.object.property.name, drizzleObjectName);
 	} else if (node.object.type === 'CallExpression') {
 		if (node.object.callee.type === 'Identifier') {
 			return isDrizzleObjName(node.object.callee.name, drizzleObjectName);
-		} else if (node.object.callee.type === 'MemberExpression' && node.object.callee.property.type === 'Identifier') {
+		} else if (node.object.callee.type === 'MemberExpression' && !node.object.callee.computed) {
 			return isDrizzleObjName(node.object.callee.property.name, drizzleObjectName);
 		}
 	}

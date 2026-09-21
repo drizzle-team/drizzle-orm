@@ -17,8 +17,17 @@ ruleTester.run('enforce delete with where (default options)', myRule, {
       .delete()
       .where()`,
 		`this.database.delete({}).where()`,
+		'class Repo { #db; clear() { return this.#db.delete({}).where({}); } }',
 	],
 	invalid: [
+		{
+			code: 'class Repo { #db; clear() { return this.#db.delete({}); } }',
+			errors: [{ messageId: 'enforceDeleteWithWhere', data: { drizzleObjName: 'this.#db' } }],
+		},
+		{
+			code: 'class Repo { #getDb() {} clear() { return this.#getDb().delete({}); } }',
+			errors: [{ messageId: 'enforceDeleteWithWhere', data: { drizzleObjName: 'this.#getDb(...)' } }],
+		},
 		{
 			code: 'db.delete({})',
 			errors: [{ messageId: 'enforceDeleteWithWhere', data: { drizzleObjName: 'db' } }],
@@ -106,8 +115,17 @@ ruleTester.run('enforce delete with where (string option)', myRule, {
 			code: `const a = this.getDataSource().db.delete({})`,
 			options: [{ drizzleObjectName: 'getDataSource' }],
 		},
+		{
+			code: 'class Repo { #database; clear() { return this.#database.delete({}); } }',
+			options: [{ drizzleObjectName: 'db' }],
+		},
 	],
 	invalid: [
+		{
+			code: 'class Repo { #db; clear() { return this.#db.delete({}); } }',
+			errors: [{ messageId: 'enforceDeleteWithWhere', data: { drizzleObjName: 'this.#db' } }],
+			options: [{ drizzleObjectName: 'db' }],
+		},
 		{
 			code: 'db.delete({})',
 			errors: [{ messageId: 'enforceDeleteWithWhere', data: { drizzleObjName: 'db' } }],
