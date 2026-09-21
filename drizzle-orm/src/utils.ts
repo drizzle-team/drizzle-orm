@@ -11,7 +11,6 @@ import { Subquery } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
 
-/** @internal */
 export function mapResultRow<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	row: unknown[],
@@ -72,7 +71,6 @@ export function mapResultRow<TResult>(
 	return result as TResult;
 }
 
-/** @internal */
 export function orderSelectedFields<TColumn extends AnyColumn>(
 	fields: Record<string, unknown>,
 	pathPrefix?: string[],
@@ -111,7 +109,6 @@ export function haveSameKeys(left: Record<string, unknown>, right: Record<string
 	return true;
 }
 
-/** @internal */
 export function mapUpdateSet(table: Table, values: Record<string, unknown>): UpdateSet {
 	const entries: [string, UpdateSet[string]][] = Object.entries(values)
 		.filter(([, value]) => value !== undefined)
@@ -177,7 +174,6 @@ export interface DrizzleTypeError<T extends string> {
 
 export type ValueOrArray<T> = T | T[];
 
-/** @internal */
 export function applyMixins(baseClass: any, extendedClasses: any[]) {
 	for (const extendedClass of extendedClasses) {
 		for (const name of Object.getOwnPropertyNames(extendedClass.prototype)) {
@@ -212,7 +208,6 @@ export function getViewSelectedFields<T extends View>(view: T): T['_']['selected
 	return view[ViewBaseConfig].selectedFields;
 }
 
-/** @internal */
 export function getTableLikeName(table: TableLike): string | undefined {
 	return is(table, Subquery)
 		? table._.alias
@@ -252,7 +247,6 @@ export type KnownKeysOnly<T, U> = {
 
 export type IsAny<T> = 0 extends (1 & T) ? true : false;
 
-/** @internal */
 export function getColumnNameAndConfig<
 	TConfig extends Record<string, any> | undefined,
 >(a: string | TConfig | undefined, b: TConfig | undefined) {
