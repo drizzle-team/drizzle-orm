@@ -1,7 +1,7 @@
 import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
-import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
+import { DrizzleQueryError, TransactionRollbackError, wrapQueryError } from '~/errors.ts';
 import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { type Query, type SQL, sql } from '~/sql/index.ts';
@@ -70,7 +70,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw wrapQueryError(queryString, params, e as Error);
 			}
 		}
 
@@ -79,7 +79,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw wrapQueryError(queryString, params, e as Error);
 			}
 		}
 
@@ -97,7 +97,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 				]);
 				return res;
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw wrapQueryError(queryString, params, e as Error);
 			}
 		}
 
@@ -106,7 +106,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 			try {
 				return await query();
 			} catch (e) {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw wrapQueryError(queryString, params, e as Error);
 			}
 		}
 
@@ -122,7 +122,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 				try {
 					result = await query();
 				} catch (e) {
-					throw new DrizzleQueryError(queryString, params, e as Error);
+					throw wrapQueryError(queryString, params, e as Error);
 				}
 				// put actual key
 				await this.cache.put(
@@ -142,7 +142,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 		try {
 			return await query();
 		} catch (e) {
-			throw new DrizzleQueryError(queryString, params, e as Error);
+			throw wrapQueryError(queryString, params, e as Error);
 		}
 	}
 
