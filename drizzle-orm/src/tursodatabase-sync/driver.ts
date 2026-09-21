@@ -1,4 +1,4 @@
-import { Database, type DatabaseOpts } from '@tursodatabase/sync';
+import type { Database, DatabaseOpts } from '@tursodatabase/sync';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -76,7 +76,8 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations, TClien
 	$client: TClient;
 } {
 	if (typeof params[0] === 'string') {
-		const instance = new Database({
+		const { Database: TursoDatabase } = require('@tursodatabase/sync');
+		const instance = new TursoDatabase({
 			path: params[0],
 		});
 
@@ -87,11 +88,12 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations, TClien
 		& { connection?: string | DatabaseOpts; client?: TClient }
 		& DrizzleSQLiteConfig<TRelations>;
 
-	if (client) return construct(client, drizzleConfig) as any;
+	if (client) return construct(client as any, drizzleConfig) as any;
 
+	const { Database: TursoDatabase } = require('@tursodatabase/sync');
 	const instance = typeof connection === 'string'
-		? new Database({ path: connection })
-		: new Database(connection!);
+		? new TursoDatabase({ path: connection })
+		: new TursoDatabase(connection!);
 
 	return construct(instance, drizzleConfig) as any;
 }
