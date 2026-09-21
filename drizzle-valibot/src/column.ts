@@ -58,74 +58,84 @@ import { CONSTANTS } from './constants.ts';
 import { isColumnType, isWithEnum } from './utils.ts';
 import type { Json } from './utils.ts';
 
-export const literalSchema = v.union([v.string(), v.number(), v.boolean(), v.null()]);
-export const jsonSchema: v.GenericSchema<Json> = v.union([
-	literalSchema,
-	v.array(v.any()),
-	v.record(v.string(), v.any()),
-]);
-export const bufferSchema: v.GenericSchema<Buffer> = v.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
+export const createLiteralSchema = (valibot: typeof v = v) =>
+	valibot.union([valibot.string(), valibot.number(), valibot.boolean(), valibot.null()]);
+
+export const createJsonSchema = (valibot: typeof v = v): v.GenericSchema<Json> =>
+	valibot.union([
+		createLiteralSchema(valibot),
+		valibot.array(valibot.any()),
+		valibot.record(valibot.string(), valibot.any()),
+	]);
+
+export const createBufferSchema = (valibot: typeof v = v): v.GenericSchema<Buffer> =>
+	valibot.custom<Buffer>((val) => val instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
+
+export const literalSchema = createLiteralSchema(v);
+export const jsonSchema: v.GenericSchema<Json> = createJsonSchema(v);
+export const bufferSchema: v.GenericSchema<Buffer> = createBufferSchema(v);
 
 export function mapEnumValues(values: string[]) {
 	return Object.fromEntries(values.map((value) => [value, value]));
 }
 
-export function columnToSchema(column: Column): v.GenericSchema {
+export function columnToSchema(column: Column, valibot: typeof v = v): v.GenericSchema {
 	let schema!: v.GenericSchema;
 
 	if (isWithEnum(column)) {
-		schema = column.enumValues.length ? v.enum(mapEnumValues(column.enumValues)) : v.string();
+		schema = column.enumValues.length ? valibot.enum(mapEnumValues(column.enumValues)) : valibot.string();
 	}
 
 	if (!schema) {
 		// Handle specific types
 		if (isColumnType<PgGeometry<any> | PgPointTuple<any>>(column, ['PgGeometry', 'PgPointTuple'])) {
-			schema = v.tuple([v.number(), v.number()]);
+			schema = valibot.tuple([valibot.number(), valibot.number()]);
 		} else if (
 			isColumnType<PgPointObject<any> | PgGeometryObject<any>>(column, ['PgGeometryObject', 'PgPointObject'])
 		) {
-			schema = v.object({ x: v.number(), y: v.number() });
+			schema = valibot.object({ x: valibot.number(), y: valibot.number() });
 		} else if (isColumnType<PgHalfVector<any> | PgVector<any>>(column, ['PgHalfVector', 'PgVector'])) {
-			schema = v.array(v.number());
-			schema = column.dimensions ? v.pipe(schema as v.ArraySchema<any, any>, v.length(column.dimensions)) : schema;
+			schema = valibot.array(valibot.number());
+			schema = column.dimensions
+				? valibot.pipe(schema as v.ArraySchema<any, any>, valibot.length(column.dimensions))
+				: schema;
 		} else if (isColumnType<PgLineTuple<any>>(column, ['PgLine'])) {
-			schema = v.tuple([v.number(), v.number(), v.number()]);
-			v.array(v.array(v.number()));
+			schema = valibot.tuple([valibot.number(), valibot.number(), valibot.number()]);
 		} else if (isColumnType<PgLineABC<any>>(column, ['PgLineABC'])) {
-			schema = v.object({ a: v.number(), b: v.number(), c: v.number() });
+			schema = valibot.object({ a: valibot.number(), b: valibot.number(), c: valibot.number() });
 		} // Handle other types
 		else if (isColumnType<PgArray<any, any>>(column, ['PgArray'])) {
-			schema = v.array(columnToSchema(column.baseColumn));
-			schema = column.size ? v.pipe(schema as v.ArraySchema<any, any>, v.length(column.size)) : schema;
+			schema = valibot.array(columnToSchema(column.baseColumn, valibot));
+			schema = column.size ? valibot.pipe(schema as v.ArraySchema<any, any>, valibot.length(column.size)) : schema;
 		} else if (column.dataType === 'array') {
-			schema = v.array(v.any());
+			schema = valibot.array(valibot.any());
 		} else if (column.dataType === 'number') {
-			schema = numberColumnToSchema(column);
+			schema = numberColumnToSchema(column, valibot);
 		} else if (column.dataType === 'bigint') {
-			schema = bigintColumnToSchema(column);
+			schema = bigintColumnToSchema(column, valibot);
 		} else if (column.dataType === 'boolean') {
-			schema = v.boolean();
+			schema = valibot.boolean();
 		} else if (column.dataType === 'date') {
-			schema = v.date();
+			schema = valibot.date();
 		} else if (column.dataType === 'string') {
-			schema = stringColumnToSchema(column);
+			schema = stringColumnToSchema(column, valibot);
 		} else if (column.dataType === 'json') {
-			schema = jsonSchema;
+			schema = valibot === v ? jsonSchema : createJsonSchema(valibot);
 		} else if (column.dataType === 'custom') {
-			schema = v.any();
+			schema = valibot.any();
 		} else if (column.dataType === 'buffer') {
-			schema = bufferSchema;
+			schema = valibot === v ? bufferSchema : createBufferSchema(valibot);
 		}
 	}
 
 	if (!schema) {
-		schema = v.any();
+		schema = valibot.any();
 	}
 
 	return schema;
 }
 
-function numberColumnToSchema(column: Column): v.GenericSchema {
+function numberColumnToSchema(column: Column, valibot: typeof v = v): v.GenericSchema {
 	let unsigned = column.getSQLType().includes('unsigned');
 	let min!: number;
 	let max!: number;
@@ -225,24 +235,24 @@ function numberColumnToSchema(column: Column): v.GenericSchema {
 		max = Number.MAX_SAFE_INTEGER;
 	}
 
-	const actions: any[] = [v.minValue(min), v.maxValue(max)];
+	const actions: any[] = [valibot.minValue(min), valibot.maxValue(max)];
 	if (integer) {
-		actions.push(v.integer());
+		actions.push(valibot.integer());
 	}
-	return v.pipe(v.number(), ...actions);
+	return valibot.pipe(valibot.number(), ...actions);
 }
 
-function bigintColumnToSchema(column: Column): v.GenericSchema {
+function bigintColumnToSchema(column: Column, valibot: typeof v = v): v.GenericSchema {
 	const unsigned = column.getSQLType().includes('unsigned');
 	const min = unsigned ? 0n : CONSTANTS.INT64_MIN;
 	const max = unsigned ? CONSTANTS.INT64_UNSIGNED_MAX : CONSTANTS.INT64_MAX;
 
-	return v.pipe(v.bigint(), v.minValue(min), v.maxValue(max));
+	return valibot.pipe(valibot.bigint(), valibot.minValue(min), valibot.maxValue(max));
 }
 
-function stringColumnToSchema(column: Column): v.GenericSchema {
+function stringColumnToSchema(column: Column, valibot: typeof v = v): v.GenericSchema {
 	if (isColumnType<PgUUID<ColumnBaseConfig<'string', 'PgUUID'>>>(column, ['PgUUID'])) {
-		return v.pipe(v.string(), v.uuid());
+		return valibot.pipe(valibot.string(), valibot.uuid());
 	}
 
 	let max: number | undefined;
@@ -285,12 +295,12 @@ function stringColumnToSchema(column: Column): v.GenericSchema {
 
 	const actions: any[] = [];
 	if (regex) {
-		actions.push(v.regex(regex));
+		actions.push(valibot.regex(regex));
 	}
 	if (max && fixed) {
-		actions.push(v.length(max));
+		actions.push(valibot.length(max));
 	} else if (max) {
-		actions.push(v.maxLength(max));
+		actions.push(valibot.maxLength(max));
 	}
-	return actions.length > 0 ? v.pipe(v.string(), ...actions) : v.string();
+	return actions.length > 0 ? valibot.pipe(valibot.string(), ...actions) : valibot.string();
 }
