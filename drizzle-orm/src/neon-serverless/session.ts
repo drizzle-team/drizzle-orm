@@ -265,8 +265,8 @@ export class NeonSession<
 			? new NeonSession(await this.client.connect(), this.dialect, this.schema, this.options)
 			: this;
 		const tx = new NeonTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
-		await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
 		try {
+			await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);
 			return result;
