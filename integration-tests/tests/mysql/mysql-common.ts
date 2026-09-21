@@ -103,7 +103,7 @@ const allTypesTable = mysqlTable('all_types', {
 	bigint64: bigint('bigint64', {
 		mode: 'bigint',
 	}),
-	binary: binary('binary'),
+	binary: binary('binary', { mode: 'string' }),
 	boolean: boolean('boolean'),
 	char: char('char'),
 	date: date('date', {
@@ -145,6 +145,7 @@ const allTypesTable = mysqlTable('all_types', {
 	tinyInt: tinyint('tiny_int'),
 	varbin: varbinary('varbin', {
 		length: 16,
+		mode: 'string',
 	}),
 	varchar: varchar('varchar', {
 		length: 255,
