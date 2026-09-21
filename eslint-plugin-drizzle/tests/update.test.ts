@@ -27,6 +27,12 @@ ruleTester.run('enforce update with where (default options)', myRule, {
       .update()
       .set()
       .where()`,
+		'db.update({}).set({}).from(sql).where(eq())',
+		`db
+      .update()
+      .set()
+      .from(sql)
+      .where()`,
 	],
 	invalid: [
 		{
