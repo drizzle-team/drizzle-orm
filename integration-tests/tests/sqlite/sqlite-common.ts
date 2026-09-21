@@ -810,6 +810,50 @@ export function tests() {
 			}]);
 		});
 
+		test('partial join keeps nested object when first column is null but a later one is not', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			const orgBrandingTable = sqliteTable('org_branding', {
+				id: integer('id').primaryKey(),
+				orgId: integer('org_id').references(() => usersTable.id),
+				logo: text('logo'),
+				panelBackground: text('panel_background_colour'),
+			});
+
+			await db.run(sql`drop table if exists ${orgBrandingTable}`);
+			await db.run(sql`
+				create table ${orgBrandingTable} (
+					id integer primary key,
+					org_id integer references ${usersTable}(${sql.identifier(usersTable.id.name)}),
+					logo text,
+					panel_background_colour text
+				)
+			`);
+
+			await db.insert(usersTable).values({ id: 10, name: 'Test org 2' }).run();
+			await db.insert(orgBrandingTable).values({ orgId: 10, logo: null, panelBackground: '#1a8cff' }).run();
+
+			const result = await db
+				.select({
+					name: usersTable.name,
+					branding: {
+						logo: orgBrandingTable.logo,
+						panelBackground: orgBrandingTable.panelBackground,
+					},
+				})
+				.from(usersTable)
+				.leftJoin(orgBrandingTable, eq(usersTable.id, orgBrandingTable.orgId))
+				.where(eq(usersTable.id, 10))
+				.all();
+
+			expect(result).toEqual([{
+				name: 'Test org 2',
+				branding: { logo: null, panelBackground: '#1a8cff' },
+			}]);
+
+			await db.run(sql`drop table ${orgBrandingTable}`);
+		});
+
 		test('full join with alias', async (ctx) => {
 			const { db } = ctx.sqlite;
 
