@@ -65,8 +65,9 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 		private generatedIds?: Record<string, unknown>[],
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
+		onError?: (err: import('~/errors.ts').DrizzleQueryError) => void,
 	) {
-		super(cache, queryMetadata, cacheConfig);
+		super(cache, queryMetadata, cacheConfig, onError);
 		this.rawQuery = {
 			sql: queryString,
 			// rowsAsArray: true,
@@ -199,6 +200,7 @@ export interface MySql2SessionOptions {
 	logger?: Logger;
 	cache?: Cache;
 	mode: Mode;
+	onError?: (err: import('~/errors.ts').DrizzleQueryError) => void;
 }
 
 export class MySql2Session<
@@ -210,6 +212,7 @@ export class MySql2Session<
 	private logger: Logger;
 	private mode: Mode;
 	private cache: Cache;
+	private onError?: (err: import('~/errors.ts').DrizzleQueryError) => void;
 
 	constructor(
 		private client: MySql2Client,
@@ -221,6 +224,7 @@ export class MySql2Session<
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
 		this.mode = options.mode;
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends MySqlPreparedQueryConfig>(
@@ -249,6 +253,7 @@ export class MySql2Session<
 			customResultMapper,
 			generatedIds,
 			returningIds,
+			this.onError,
 		) as PreparedQueryKind<MySql2PreparedQueryHKT, T>;
 	}
 
