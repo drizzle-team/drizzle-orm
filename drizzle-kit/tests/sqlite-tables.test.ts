@@ -635,3 +635,57 @@ test('optional db aliases (camel case)', async () => {
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6251
+test('drop tables respects foreign key dependencies (child name sorts after parent)', async () => {
+	const aaaParent = sqliteTable('aaa_parent', {
+		id: int('id').primaryKey(),
+		code: text('code'),
+	});
+
+	const zzzChild = sqliteTable('zzz_child', {
+		id: int('id').primaryKey(),
+		p: int('p').references(() => aaaParent.id),
+	});
+
+	const from = {
+		aaaParent,
+		zzzChild,
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite(from, {}, []);
+
+	const childDropIndex = sqlStatements.findIndex((it) => it.includes('DROP TABLE `zzz_child`'));
+	const parentDropIndex = sqlStatements.findIndex((it) => it.includes('DROP TABLE `aaa_parent`'));
+
+	expect(childDropIndex).toBeGreaterThanOrEqual(0);
+	expect(parentDropIndex).toBeGreaterThanOrEqual(0);
+	expect(childDropIndex).toBeLessThan(parentDropIndex);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6251
+test('drop tables respects foreign key dependencies (child name sorts before parent)', async () => {
+	const zzzParent = sqliteTable('zzz_parent', {
+		id: int('id').primaryKey(),
+		code: text('code'),
+	});
+
+	const aaaChild = sqliteTable('aaa_child', {
+		id: int('id').primaryKey(),
+		p: int('p').references(() => zzzParent.id),
+	});
+
+	const from = {
+		zzzParent,
+		aaaChild,
+	};
+
+	const { sqlStatements } = await diffTestSchemasSqlite(from, {}, []);
+
+	const childDropIndex = sqlStatements.findIndex((it) => it.includes('DROP TABLE `aaa_child`'));
+	const parentDropIndex = sqlStatements.findIndex((it) => it.includes('DROP TABLE `zzz_parent`'));
+
+	expect(childDropIndex).toBeGreaterThanOrEqual(0);
+	expect(parentDropIndex).toBeGreaterThanOrEqual(0);
+	expect(childDropIndex).toBeLessThan(parentDropIndex);
+});
