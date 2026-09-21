@@ -208,24 +208,42 @@ export abstract class SQLiteDialect {
 					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
 			} else if (is(field, Column)) {
-				const tableName = field.table[Table.Symbol.Name];
-				if (field.columnType === 'SQLiteNumericBigInt') {
+				const fieldSelectSql = (field as any).getSQLSelect?.() as SQL | undefined;
+				if (fieldSelectSql) {
 					if (isSingleTable) {
 						chunk.push(
-							sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+							new SQL(
+								fieldSelectSql.queryChunks.map((c) => {
+									if (is(c, Column)) {
+										return sql.identifier(this.casing.getColumnCasing(c));
+									}
+									return c;
+								}),
+							),
 						);
 					} else {
-						chunk.push(
-							sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
-						);
+						chunk.push(fieldSelectSql);
 					}
 				} else {
-					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+					const tableName = field.table[Table.Symbol.Name];
+					if (field.columnType === 'SQLiteNumericBigInt') {
+						if (isSingleTable) {
+							chunk.push(
+								sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+							);
+						} else {
+							chunk.push(
+								sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+							);
+						}
 					} else {
-						chunk.push(
-							sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`,
-						);
+						if (isSingleTable) {
+							chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+						} else {
+							chunk.push(
+								sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`,
+							);
+						}
 					}
 				}
 			} else if (is(field, Subquery)) {

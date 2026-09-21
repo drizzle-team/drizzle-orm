@@ -244,7 +244,23 @@ export class SingleStoreDialect {
 					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
 			} else if (is(field, Column)) {
-				if (isSingleTable) {
+				const fieldSelectSql = (field as any).getSQLSelect?.() as SQL | undefined;
+				if (fieldSelectSql) {
+					if (isSingleTable) {
+						chunk.push(
+							new SQL(
+								fieldSelectSql.queryChunks.map((c) => {
+									if (is(c, SingleStoreColumn)) {
+										return sql.identifier(this.casing.getColumnCasing(c));
+									}
+									return c;
+								}),
+							),
+						);
+					} else {
+						chunk.push(fieldSelectSql);
+					}
+				} else if (isSingleTable) {
 					chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 				} else {
 					chunk.push(field);
