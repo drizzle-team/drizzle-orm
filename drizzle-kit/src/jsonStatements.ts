@@ -455,6 +455,7 @@ export interface JsonRenameColumnStatement {
 	tableName: string;
 	oldColumnName: string;
 	newColumnName: string;
+	newDataType?: string;
 	schema: string;
 }
 
@@ -1294,6 +1295,7 @@ export const prepareRenameColumns = (
 			tableName: tableName,
 			oldColumnName: it.from.name,
 			newColumnName: it.to.name,
+			newDataType: it.to.sqlType || it.from.sqlType,
 			schema,
 		};
 	});

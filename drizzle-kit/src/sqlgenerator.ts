@@ -1651,9 +1651,14 @@ class MySqlAlterTableRenameColumnConvertor extends Convertor {
 		);
 	}
 
-	convert(statement: JsonRenameColumnStatement) {
-		const { tableName, oldColumnName, newColumnName } = statement;
-		return `ALTER TABLE \`${tableName}\` RENAME COLUMN \`${oldColumnName}\` TO \`${newColumnName}\`;`;
+	convert(statement: JsonRenameColumnStatement, dialect?: Dialect) {
+		const { tableName, oldColumnName, newColumnName, newDataType } = statement;
+		// MariaDB doesn't support RENAME COLUMN syntax, use CHANGE instead
+		// CHANGE is compatible with both MySQL and MariaDB
+		if (newDataType) {
+			return `ALTER TABLE \`${tableName}\` CHANGE \`${oldColumnName}\` \`${newColumnName}\` ${newDataType};`;
+		}
+		return `ALTER TABLE \`${tableName}\` CHANGE \`${oldColumnName}\` \`${newColumnName}\`;`;
 	}
 }
 
