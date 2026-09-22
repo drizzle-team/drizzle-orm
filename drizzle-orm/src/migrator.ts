@@ -41,9 +41,11 @@ export function readMigrationFiles(config: MigrationConfig): MigrationMeta[] {
 		try {
 			const query = fs.readFileSync(`${migrationFolderTo}/${journalEntry.tag}.sql`).toString();
 
-			const result = query.split('--> statement-breakpoint').map((it) => {
-				return it;
-			});
+			const result = isFullyCommentedIntrospectFile(query)
+				? []
+				: query.split('--> statement-breakpoint').map((it) => {
+					return it;
+				});
 
 			migrationQueries.push({
 				sql: result,
@@ -57,4 +59,29 @@ export function readMigrationFiles(config: MigrationConfig): MigrationMeta[] {
 	}
 
 	return migrationQueries;
+}
+
+// `drizzle-kit pull` emits introspect migrations as `-- ...` notes followed by
+// the entire schema wrapped in a single `/* ... */` block. Treat such files as
+// a no-op so they get marked applied without crashing the migrator.
+function isFullyCommentedIntrospectFile(query: string): boolean {
+	let body = query;
+	while (true) {
+		const trimmed = body.replace(/^\s+/, '');
+		if (trimmed.startsWith('--')) {
+			const newlineIdx = trimmed.indexOf('\n');
+			body = newlineIdx === -1 ? '' : trimmed.slice(newlineIdx + 1);
+			continue;
+		}
+		body = trimmed;
+		break;
+	}
+
+	body = body.replace(/\s+$/, '');
+	if (!body.startsWith('/*') || !body.endsWith('*/')) {
+		return false;
+	}
+
+	const inner = body.slice(2, -2);
+	return !inner.includes('*/');
 }
