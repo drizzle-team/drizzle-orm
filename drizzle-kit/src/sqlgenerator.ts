@@ -3769,7 +3769,7 @@ class SQLiteRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string | string[] {
-		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints, cascadeDependents = [] } = statement;
 
 		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
@@ -3777,6 +3777,10 @@ class SQLiteRecreateTableConvertor extends Convertor {
 		const sqlStatements: string[] = [];
 
 		sqlStatements.push(`PRAGMA foreign_keys=OFF;`);
+
+		for (const dep of cascadeDependents) {
+			sqlStatements.push(`CREATE TEMP TABLE \`__bak_${dep}\` AS SELECT * FROM \`${dep}\`;`);
+		}
 
 		// map all possible variants
 		const mappedCheckConstraints: string[] = checkConstraints.map((it) =>
@@ -3821,6 +3825,11 @@ class SQLiteRecreateTableConvertor extends Convertor {
 			}),
 		);
 
+		for (const dep of cascadeDependents) {
+			sqlStatements.push(`INSERT OR REPLACE INTO \`${dep}\` SELECT * FROM \`__bak_${dep}\`;`);
+			sqlStatements.push(`DROP TABLE \`__bak_${dep}\`;`);
+		}
+
 		sqlStatements.push(`PRAGMA foreign_keys=ON;`);
 
 		return sqlStatements;
@@ -3836,12 +3845,16 @@ class LibSQLRecreateTableConvertor extends Convertor {
 	}
 
 	convert(statement: JsonRecreateTableStatement): string[] {
-		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
+		const { tableName, columns, compositePKs, referenceData, checkConstraints, cascadeDependents = [] } = statement;
 
 		const columnNames = columns.map((it) => `"${it.name}"`).join(', ');
 		const newTableName = `__new_${tableName}`;
 
 		const sqlStatements: string[] = [];
+
+		for (const dep of cascadeDependents) {
+			sqlStatements.push(`CREATE TEMP TABLE \`__bak_${dep}\` AS SELECT * FROM \`${dep}\`;`);
+		}
 
 		const mappedCheckConstraints: string[] = checkConstraints.map((it) =>
 			it.replaceAll(`"${tableName}".`, `"${newTableName}".`).replaceAll(`\`${tableName}\`.`, `\`${newTableName}\`.`)
@@ -3886,6 +3899,11 @@ class LibSQLRecreateTableConvertor extends Convertor {
 				type: 'rename_table',
 			}),
 		);
+
+		for (const dep of cascadeDependents) {
+			sqlStatements.push(`INSERT OR REPLACE INTO \`${dep}\` SELECT * FROM \`__bak_${dep}\`;`);
+			sqlStatements.push(`DROP TABLE \`__bak_${dep}\`;`);
+		}
 
 		sqlStatements.push(`PRAGMA foreign_keys=ON;`);
 
