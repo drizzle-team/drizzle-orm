@@ -1856,7 +1856,7 @@ export const connectToSQLite = async (
 				};
 			};
 
-			const drzl = drizzle(remoteCallback);
+			const drzl = drizzle((sql, params, method) => remoteCallback(sql, params, method === 'all' ? 'values' : method));
 			const migrateFn = async (config: MigrationConfig) => {
 				return migrate(
 					drzl,
