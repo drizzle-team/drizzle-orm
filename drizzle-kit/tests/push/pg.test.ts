@@ -265,7 +265,7 @@ const pgSuite: DialectSuite = {
 						asc: false,
 						expression: 'name',
 						isExpression: false,
-						nulls: 'last',
+						nulls: 'first',
 						opclass: undefined,
 					},
 					{
@@ -296,7 +296,7 @@ const pgSuite: DialectSuite = {
 						asc: false,
 						expression: 'name',
 						isExpression: false,
-						nulls: 'last',
+						nulls: 'first',
 						opclass: undefined,
 					},
 					{
@@ -318,10 +318,10 @@ const pgSuite: DialectSuite = {
 		});
 		expect(sqlStatements.length).toBe(2);
 		expect(sqlStatements[0]).toBe(
-			`CREATE INDEX "users_name_id_index" ON "users" USING btree ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE select 1;`,
+			`CREATE INDEX "users_name_id_index" ON "users" USING btree ("name" DESC NULLS FIRST,"id") WITH (fillfactor=70) WHERE select 1;`,
 		);
 		expect(sqlStatements[1]).toBe(
-			`CREATE INDEX "indx1" ON "users" USING hash ("name" DESC NULLS LAST,"name") WITH (fillfactor=70);`,
+			`CREATE INDEX "indx1" ON "users" USING hash ("name" DESC NULLS FIRST,"name") WITH (fillfactor=70);`,
 		);
 	},
 
@@ -623,13 +623,13 @@ const pgSuite: DialectSuite = {
 			'DROP INDEX "changeWith";',
 			'DROP INDEX "removeColumn";',
 			'DROP INDEX "removeExpression";',
-			'CREATE INDEX "newName" ON "users" USING btree ("name" DESC NULLS LAST,name) WITH (fillfactor=70);',
-			'CREATE INDEX "addColumn" ON "users" USING btree ("name" DESC NULLS LAST,"id") WITH (fillfactor=70);',
-			'CREATE INDEX "changeExpression" ON "users" USING btree ("id" DESC NULLS LAST,name desc);',
+			'CREATE INDEX "newName" ON "users" USING btree ("name" DESC NULLS FIRST,name) WITH (fillfactor=70);',
+			'CREATE INDEX "addColumn" ON "users" USING btree ("name" DESC NULLS FIRST,"id") WITH (fillfactor=70);',
+			'CREATE INDEX "changeExpression" ON "users" USING btree ("id" DESC NULLS FIRST,name desc);',
 			'CREATE INDEX "changeUsing" ON "users" USING hash ("name");',
 			'CREATE INDEX "changeWith" ON "users" USING btree ("name") WITH (fillfactor=90);',
 			'CREATE INDEX "removeColumn" ON "users" USING btree ("name");',
-			'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" USING btree ("name" DESC NULLS LAST);',
+			'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" USING btree ("name" DESC NULLS FIRST);',
 		]);
 	},
 
