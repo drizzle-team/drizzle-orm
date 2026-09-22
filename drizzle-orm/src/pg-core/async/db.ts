@@ -1,6 +1,6 @@
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
-import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import type { BasePgAsyncSession, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import {
 	type NoDuplicateColumns,
@@ -34,15 +34,16 @@ import { PgAsyncRefreshMaterializedView } from './refresh-materialized-view.ts';
 import { PgAsyncSelectBase, type PgAsyncSelectBuilder } from './select.ts';
 import { PgAsyncUpdateBase, type PgAsyncUpdateHKT } from './update.ts';
 
-export class PgAsyncDatabase<
+/** Transactionless definition -  branches out into `PostgreSQL` & `DSQL` variants */
+export class BasePgAsyncDatabase<
 	TQueryResult extends PgQueryResultHKT,
 	TRelations extends AnyRelations = EmptyRelations,
 > {
-	static readonly [entityKind]: string = 'PgAsyncDatabase';
+	static readonly [entityKind]: string = 'BasePgAsyncDatabase';
 
 	declare readonly _: {
 		readonly relations: TRelations;
-		readonly session: PgAsyncSession<TQueryResult, TRelations>;
+		readonly session: BasePgAsyncSession;
 	};
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
@@ -58,7 +59,7 @@ export class PgAsyncDatabase<
 		/** @internal */
 		readonly dialect: PgDialect,
 		/** @internal */
-		readonly session: PgAsyncSession<any, any>,
+		readonly session: BasePgAsyncSession,
 		relations: TRelations,
 		parseRqbJson: boolean = false,
 		readonly tagged: boolean = false,
@@ -705,6 +706,30 @@ export class PgAsyncDatabase<
 			PreparedQueryConfig & { execute: unknown }
 		>(builtQuery, mode ?? 'raw', false);
 		return new PgAsyncRaw(prepared, sequel, builtQuery);
+	}
+}
+
+export class PgAsyncDatabase<
+	TQueryResult extends PgQueryResultHKT,
+	TRelations extends AnyRelations = EmptyRelations,
+> extends BasePgAsyncDatabase<TQueryResult, TRelations> {
+	static override readonly [entityKind]: string = 'PgAsyncDatabase';
+
+	declare readonly _: {
+		readonly relations: TRelations;
+		readonly session: PgAsyncSession<TQueryResult, TRelations>;
+	};
+
+	constructor(
+		/** @internal */
+		dialect: PgDialect,
+		/** @internal */
+		override readonly session: PgAsyncSession<TQueryResult, TRelations>,
+		relations: TRelations,
+		parseRqbJson: boolean = false,
+		tagged: boolean = false,
+	) {
+		super(dialect, session, relations, parseRqbJson, tagged);
 	}
 
 	transaction<T>(
