@@ -1,13 +1,14 @@
-import type { PGlite, QueryOptions, Results, Row, Transaction } from '@electric-sql/pglite';
-import { entityKind } from '~/entity.ts';
+import type { ParserOptions, PGlite, QueryOptions, Results, Row, Transaction } from '@electric-sql/pglite';
+import { entityKind, is } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
+import { PgJson, PgJsonb } from '~/pg-core/columns/index.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
+import { type DriverValueEncoder, fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 import { types } from '@electric-sql/pglite';
@@ -15,6 +16,56 @@ import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 
 export type PgliteClient = PGlite;
+export type PgliteSerializerOptions = Record<number, (value: any) => string>;
+
+export interface PgliteQueryOptions {
+	parsers?: ParserOptions;
+	serializers?: PgliteSerializerOptions;
+}
+
+const defaultParsers: ParserOptions = {
+	[types.TIMESTAMP]: (value) => value,
+	[types.TIMESTAMPTZ]: (value) => value,
+	[types.INTERVAL]: (value) => value,
+	[types.DATE]: (value) => value,
+	// numeric[]
+	[1231]: (value) => value,
+	// timestamp[]
+	[1115]: (value) => value,
+	// timestamp with timezone[]
+	[1185]: (value) => value,
+	// interval[]
+	[1187]: (value) => value,
+	// date[]
+	[1182]: (value) => value,
+};
+
+function buildQueryConfig(rowMode: QueryOptions['rowMode'], queryOptions: PgliteQueryOptions = {}): QueryOptions {
+	return {
+		rowMode,
+		parsers: queryOptions.parsers ? { ...defaultParsers, ...queryOptions.parsers } : defaultParsers,
+		...(queryOptions.serializers ? { serializers: queryOptions.serializers } : {}),
+	};
+}
+
+/** @internal */
+export function mapPgliteParam(
+	value: unknown,
+	encoder: DriverValueEncoder<unknown, unknown>,
+	queryOptions: PgliteQueryOptions = {},
+): unknown | SQL {
+	const serializers = queryOptions.serializers;
+
+	if (serializers?.[types.JSON] && is(encoder, PgJson)) {
+		return value;
+	}
+
+	if (serializers?.[types.JSONB] && is(encoder, PgJsonb)) {
+		return value;
+	}
+
+	return encoder.mapToDriverValue(value);
+}
 
 export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPreparedQuery<T> {
 	static override readonly [entityKind]: string = 'PglitePreparedQuery';
@@ -36,51 +87,20 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
+		private queryOptions?: PgliteQueryOptions,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
-		this.rawQueryConfig = {
-			rowMode: 'object',
-			parsers: {
-				[types.TIMESTAMP]: (value) => value,
-				[types.TIMESTAMPTZ]: (value) => value,
-				[types.INTERVAL]: (value) => value,
-				[types.DATE]: (value) => value,
-				// numeric[]
-				[1231]: (value) => value,
-				// timestamp[]
-				[1115]: (value) => value,
-				// timestamp with timezone[]
-				[1185]: (value) => value,
-				// interval[]
-				[1187]: (value) => value,
-				// date[]
-				[1182]: (value) => value,
-			},
-		};
-		this.queryConfig = {
-			rowMode: 'array',
-			parsers: {
-				[types.TIMESTAMP]: (value) => value,
-				[types.TIMESTAMPTZ]: (value) => value,
-				[types.INTERVAL]: (value) => value,
-				[types.DATE]: (value) => value,
-				// numeric[]
-				[1231]: (value) => value,
-				// timestamp[]
-				[1115]: (value) => value,
-				// timestamp with timezone[]
-				[1185]: (value) => value,
-				// interval[]
-				[1187]: (value) => value,
-				// date[]
-				[1182]: (value) => value,
-			},
-		};
+		this.rawQueryConfig = buildQueryConfig('object', queryOptions);
+		this.queryConfig = buildQueryConfig('array', queryOptions);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(
+			this.params,
+			placeholderValues,
+			(value, encoder) => mapPgliteParam(value, encoder, this.queryOptions),
+		);
 
 		this.logger.logQuery(this.queryString, params);
 
@@ -102,7 +122,11 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 	}
 
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
-		const params = fillPlaceholders(this.params, placeholderValues);
+		const params = fillPlaceholders(
+			this.params,
+			placeholderValues,
+			(value, encoder) => mapPgliteParam(value, encoder, this.queryOptions),
+		);
 		this.logger.logQuery(this.queryString, params);
 		return this.queryWithCache(this.queryString, params, async () => {
 			return await this.client.query<any[]>(this.queryString, params, this.rawQueryConfig);
@@ -118,6 +142,7 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 export interface PgliteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	queryOptions?: PgliteQueryOptions;
 }
 
 export class PgliteSession<
@@ -163,6 +188,7 @@ export class PgliteSession<
 			fields,
 			name,
 			isResponseInArrayMode,
+			this.options.queryOptions,
 			customResultMapper,
 		);
 	}
