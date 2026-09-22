@@ -22,7 +22,7 @@ export class EffectSQLiteDoDatabase<TRelations extends AnyRelations = EmptyRelat
 export type EffectDrizzleSQLiteDoConfig<TRelations extends AnyRelations> =
 	& Omit<EffectDrizzleSQLiteConfig<TRelations>, 'jit'>
 	& {
-		/** Required to make transactions functional by bypassing broken implementation from `@effect/sql-sqlite-do` wrapper */
+		/** The storage used by the provided `SqliteClient`, which must be created with `{ storage }` for transactions. */
 		storage: DurableObjectStorage;
 	};
 
@@ -31,6 +31,9 @@ export type EffectDrizzleSQLiteDoConfig<TRelations extends AnyRelations> =
  *
  * Requires `SqliteClient`, `EffectLogger`, and `EffectCache` services to be provided.
  * Use `DefaultServices` to provide default (no-op) logger and cache implementations.
+ * Transactions require `@effect/sql-sqlite-do` >= 4.0.0-rc.116 and a client created with
+ * `SqliteClient.layer({ storage })`. Passing storage only to Drizzle does not enable
+ * transactions on a client created with `{ db: storage.sql }`.
  *
  * @example
  * ```ts
