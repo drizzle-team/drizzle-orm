@@ -1127,6 +1127,7 @@ test('add check constraint to table', async (t) => {
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: ['some_check;"users"."age" > 21'],
+		isStrict: false,
 	});
 
 	expect(sqlStatements!.length).toBe(4);
