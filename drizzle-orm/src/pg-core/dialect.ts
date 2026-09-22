@@ -6,6 +6,7 @@ import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
 	PgColumn,
+	PgCustomColumn,
 	PgDate,
 	PgDateString,
 	PgJson,
@@ -242,7 +243,18 @@ export class PgDialect {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
-					if (isSingleTable) {
+					const customSelect = is(field, PgCustomColumn)
+						? field.getSelectSQL(
+							isSingleTable
+								? sql`${sql.identifier(this.casing.getColumnCasing(field))}`
+								: sql`${field}`,
+						)
+						: undefined;
+
+					if (customSelect) {
+						chunk.push(customSelect);
+						chunk.push(sql` as ${sql.identifier(this.casing.getColumnCasing(field))}`);
+					} else if (isSingleTable) {
 						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 					} else {
 						chunk.push(field);
