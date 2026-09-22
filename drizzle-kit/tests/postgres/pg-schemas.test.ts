@@ -168,5 +168,5 @@ test(`PlanetScale's Neki internal schema`, async () => {
 	};
 
 	const { sqlStatements: pst } = await push({ db, to });
-	expect(pst).toStrictEqual(['CREATE SCHEMA "dev";']); // __neki schema is ignored
+	expect(pst).toStrictEqual(['CREATE SCHEMA "dev";\n']); // __neki schema is ignored
 });
