@@ -4,7 +4,8 @@ import type { TypeOf } from 'zod';
 import { any, boolean, coerce, enum as enum_, literal, object, string, union } from 'zod';
 import { dialect } from '../../utils/schemaValidator';
 import { AmbiguousParamsCliError } from '../errors';
-import { outputs } from './outputs';
+import { humanLog } from '../views';
+import { outputs, withStyle } from './outputs';
 
 export type Commands =
 	| 'introspect'
@@ -221,4 +222,26 @@ export const wrapParam = (
 		return chalk.gray(`        ${name}?: `);
 	}
 	return `    ${cross} ${name}: ${chalk.gray('undefined')}`;
+};
+
+/**
+ * "url" and individual connection params are not merged: "url" wins and the params
+ * are silently dropped. Warn instead of letting it pass unnoticed.
+ */
+export const warnOnUrlConflict = (
+	options: Record<string, unknown>,
+	connectionParams: readonly string[],
+) => {
+	if (options.driver !== undefined || typeof options.url !== 'string') return;
+
+	const provided = connectionParams.filter((param) => options[param] !== undefined);
+	if (provided.length === 0) return;
+
+	const list = `"${provided.join('", "')}"`;
+
+	humanLog(
+		withStyle.fullWarning(
+			`Both "url" and ${list} are provided in database credentials. They are not merged: drizzle-kit will use "url" and ignore the rest, so any of those options has to be set in "url" itself.`,
+		),
+	);
 };

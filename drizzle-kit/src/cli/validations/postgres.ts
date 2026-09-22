@@ -3,9 +3,17 @@ import type { TypeOf } from 'zod';
 import { boolean, coerce, custom, literal, object, string, undefined as zUndefined, union } from 'zod';
 import { ConfigConnectionCliError } from '../errors';
 import { error } from '../views';
-import { wrapParam } from './common';
+import { warnOnUrlConflict, wrapParam } from './common';
 
 export const postgresCredentials = union([
+	// "url" goes first: when it's provided along with individual params, it wins
+	object({
+		driver: zUndefined(),
+		url: string().min(1),
+	}).transform<{ url: string }>((o) => {
+		delete o.driver;
+		return o;
+	}),
 	object({
 		driver: zUndefined(),
 		host: string().min(1),
@@ -26,13 +34,6 @@ export const postgresCredentials = union([
 		return o as Omit<typeof o, 'driver'>;
 	}),
 	object({
-		driver: zUndefined(),
-		url: string().min(1),
-	}).transform<{ url: string }>((o) => {
-		delete o.driver;
-		return o;
-	}),
-	object({
 		driver: literal('aws-data-api'),
 		database: string().min(1),
 		secretArn: string().min(1),
@@ -49,6 +50,9 @@ export const postgresCredentials = union([
 ]);
 
 export type PostgresCredentials = TypeOf<typeof postgresCredentials>;
+
+export const warnOnConflictingCredentials = (options: Record<string, unknown>) =>
+	warnOnUrlConflict(options, ['host', 'port', 'user', 'password', 'database', 'ssl']);
 
 export const printConfigConnectionIssues = (
 	options: Record<string, unknown>,
