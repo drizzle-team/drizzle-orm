@@ -63,6 +63,7 @@ export class PgCustomColumn<T extends ColumnBaseConfig<'custom', 'PgCustomColumn
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	private selectFromDbFn?: (identifier: SQL) => SQL;
 
 	constructor(
 		table: AnyPgTable<{ name: T['tableName'] }>,
@@ -72,10 +73,21 @@ export class PgCustomColumn<T extends ColumnBaseConfig<'custom', 'PgCustomColumn
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.selectFromDbFn = config.customTypeParams.selectFromDb;
 	}
 
 	getSQLType(): string {
 		return this.sqlName;
+	}
+
+	/**
+	 * Returns the SQL that should be used to select this column, allowing custom types to
+	 * wrap the column identifier in arbitrary SQL (e.g. `ST_AsText("col")` for PostGIS).
+	 * Returns `undefined` when the custom type does not define a `selectFromDb` transform.
+	 * @internal
+	 */
+	getSelectSQL(identifier: SQL): SQL | undefined {
+		return typeof this.selectFromDbFn === 'function' ? this.selectFromDbFn(identifier) : undefined;
 	}
 
 	override mapFromDriverValue(value: T['driverParam']): T['data'] {
@@ -195,6 +207,33 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional function that wraps the column in custom SQL whenever it is selected from the
+	 * database. This is useful for data types whose stored representation differs from the one
+	 * you want to read back — for example PostGIS `geometry`, which has to be read through
+	 * `ST_AsText(...)`.
+	 *
+	 * The `identifier` argument is the (table-qualified when needed) column reference as an
+	 * {@link SQL} value. The value produced by the returned SQL is still passed through
+	 * `fromDriver`, so you only need to describe the SQL transform here.
+	 *
+	 * @example
+	 * ```
+	 * const pointType = customType<{ data: Point; driverData: string }>({
+	 * 	dataType() {
+	 * 		return 'geometry(Point,4326)';
+	 * 	},
+	 * 	fromDriver(value: string) {
+	 * 		// parse WKT returned by ST_AsText
+	 * 	},
+	 * 	selectFromDb(identifier) {
+	 * 		return sql`st_astext(${identifier})`;
+	 * 	},
+	 * });
+	 * ```
+	 */
+	selectFromDb?: (identifier: SQL) => SQL;
 }
 
 /**

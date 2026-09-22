@@ -53,7 +53,7 @@ import {
 	type PgViewWithSelection,
 } from '~/pg-core/view.ts';
 import { eq, gt } from '~/sql/expressions/index.ts';
-import { sql } from '~/sql/sql.ts';
+import { type SQL, sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferSelectModel } from '~/table.ts';
 import type { Simplify } from '~/utils.ts';
 import { db } from './db.ts';
@@ -957,6 +957,28 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 	customTextOptional('t');
 	customTextOptional({ length: 10 });
 	customTextOptional();
+}
+
+{
+	// `selectFromDb` lets a custom type wrap the column in custom SQL on select (issue #1083)
+	const point = customType<{ data: { lat: number; lng: number }; driverData: string }>({
+		dataType() {
+			return 'geometry(Point,4326)';
+		},
+
+		fromDriver(value) {
+			Expect<Equal<string, typeof value>>();
+			return { lat: 0, lng: 0 };
+		},
+
+		selectFromDb(identifier) {
+			Expect<Equal<SQL, typeof identifier>>();
+			return sql`st_astext(${identifier})`;
+		},
+	});
+
+	point('coords');
+	point();
 }
 
 {
