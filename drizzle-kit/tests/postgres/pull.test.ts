@@ -252,6 +252,33 @@ test('advanced index test', async () => {
 	]);
 });
 
+test('index on an ARRAY expression + a second expression', async () => {
+	await db.query('CREATE TABLE humans (first_name text, last_name text);');
+	await db.query(
+		'CREATE INDEX humans_name_array_idx ON humans ((ARRAY[lower(first_name), upper(first_name)]), lower(last_name));',
+	);
+
+	const { indexes } = await fromDatabase(db, () => true);
+
+	// the comma inside ARRAY[...] must not split the expression in two
+	expect(indexes[0]?.columns).toStrictEqual([
+		{
+			asc: true,
+			isExpression: true,
+			nullsFirst: false,
+			opclass: null,
+			value: 'ARRAY[lower(first_name), upper(first_name)]',
+		},
+		{
+			asc: true,
+			isExpression: true,
+			nullsFirst: false,
+			opclass: null,
+			value: 'lower(last_name)',
+		},
+	]);
+});
+
 test('identity always test: few params', async () => {
 	const schema = {
 		users: pgTable('users', {
@@ -2144,6 +2171,53 @@ test('functional index', async () => {
 			schema: 'public',
 			table: 'table1',
 			where: '((normalized_address IS NOT NULL) AND (state IS NOT NULL))',
+			with: '',
+		},
+	]);
+});
+
+test('compound indexe', async () => {
+	const peopleTable = pgTable(
+		'people',
+		{
+			id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+			firstName: text('first_name'),
+		},
+		(t) => [
+			index('people_name_array_idx')
+				.on(sql.raw('(ARRAY[lower(first_name), upper(first_name)])')),
+		],
+	);
+
+	const { pushSqlStatements, generateSqlStatements, schema2 } = await diffIntrospect(
+		db,
+		{ peopleTable },
+		'compound_index',
+	);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(schema2.indexes).toStrictEqual([
+		{
+			columns: [
+				{
+					asc: true,
+					isExpression: true,
+					nullsFirst: false,
+					opclass: null,
+					value: 'ARRAY[lower(first_name), upper(first_name)]',
+				},
+			],
+			concurrently: false,
+			entityType: 'indexes',
+			forPK: false,
+			forUnique: false,
+			isUnique: false,
+			method: 'btree',
+			name: 'people_name_array_idx',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'people',
+			where: null,
 			with: '',
 		},
 	]);
