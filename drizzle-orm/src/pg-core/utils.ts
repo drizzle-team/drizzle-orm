@@ -10,6 +10,7 @@ import { type ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
 import { PgPolicy } from './policies.ts';
+import { PgTrigger } from './triggers.ts';
 import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
 import type { PgViewBase } from './view-base.ts';
@@ -26,6 +27,7 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
 	const policies: PgPolicy[] = [];
+	const triggers: PgTrigger[] = [];
 	const enableRLS: boolean = table[PgTable.Symbol.EnableRLS];
 
 	const extraConfigBuilder = table[PgTable.Symbol.ExtraConfigBuilder];
@@ -46,6 +48,8 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 				foreignKeys.push(builder.build(table));
 			} else if (is(builder, PgPolicy)) {
 				policies.push(builder);
+			} else if (is(builder, PgTrigger)) {
+				triggers.push(builder);
 			}
 		}
 	}
@@ -60,6 +64,7 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 		name,
 		schema,
 		policies,
+		triggers,
 		enableRLS,
 	};
 }
