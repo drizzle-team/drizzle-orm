@@ -1,6 +1,6 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
-import { Column } from '~/column.ts';
+import { Column, mapColumnSelection as mapColumnSelectionValue } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
@@ -244,10 +244,14 @@ export class SingleStoreDialect {
 					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
 			} else if (is(field, Column)) {
-				if (isSingleTable) {
-					chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-				} else {
-					chunk.push(field);
+				const columnSql = isSingleTable
+					? sql`${sql.identifier(this.casing.getColumnCasing(field))}`
+					: field.getSQL();
+				const selectionSql = mapColumnSelectionValue(field, columnSql);
+				chunk.push(selectionSql);
+
+				if (selectionSql !== columnSql) {
+					chunk.push(sql` as ${sql.identifier(this.casing.getColumnCasing(field))}`);
 				}
 			} else if (is(field, Subquery)) {
 				const entries = Object.entries(field._.selectedFields) as [
@@ -848,6 +852,11 @@ export class SingleStoreDialect {
 							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
 							: is(field, SQL.Aliased)
 							? field.sql
+							: is(field, SingleStoreColumn)
+							? mapColumnSelectionValue(
+								field,
+								sql`${sql.identifier(this.casing.getColumnCasing(field))}`,
+							)
 							: field
 					),
 					sql`, `,
