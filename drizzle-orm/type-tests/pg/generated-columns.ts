@@ -15,6 +15,14 @@ const users = pgTable(
 		upperName: text('upper_name').generatedAlwaysAs(
 			sql` case when first_name is null then null else upper(first_name) end `,
 		),
+		storedGenerated: text('stored_gen').generatedAlwaysAs(
+			sql`first_name || ' ' || last_name`,
+			{ mode: 'stored' }
+		),
+		virtualGenerated: text('virtual_gen').generatedAlwaysAs(
+			sql`first_name || ' [virtual]'`,
+			{ mode: 'virtual' }
+		),
 	},
 );
 {
@@ -30,6 +38,8 @@ const users = pgTable(
 				email: string;
 				fullName: string;
 				upperName: string | null;
+				storedGenerated: string | null;
+				virtualGenerated: string | null;
 			},
 			User
 		>
@@ -61,6 +71,8 @@ const users = pgTable(
 				email: string;
 				fullName: string;
 				upperName: string | null;
+				storedGenerated: string | null;
+				virtualGenerated: string | null;
 			},
 			User
 		>
@@ -91,6 +103,8 @@ const users = pgTable(
 				email: string;
 				fullName: string;
 				upperName: string | null;
+				storedGenerated: string | null;
+				virtualGenerated: string | null;
 			}[],
 			typeof dbUsers
 		>
@@ -111,6 +125,8 @@ const users = pgTable(
 				email: string;
 				fullName: string;
 				upperName: string | null;
+				storedGenerated: string | null;
+				virtualGenerated: string | null;
 			} | undefined,
 			typeof dbUser
 		>
@@ -131,6 +147,8 @@ const users = pgTable(
 				email: string;
 				fullName: string;
 				upperName: string | null;
+				storedGenerated: string | null;
+				virtualGenerated: string | null;
 			}[],
 			typeof dbUser
 		>
@@ -148,12 +166,52 @@ const users = pgTable(
 }
 
 {
+	// @ts-expect-error - Can't use the storedGenerated because it's a generated column
+	await db.insert(users).values({
+		firstName: 'test',
+		lastName: 'test',
+		email: 'test',
+		storedGenerated: 'test',
+	});
+}
+
+{
+	// @ts-expect-error - Can't use the virtualGenerated because it's a generated column
+	await db.insert(users).values({
+		firstName: 'test',
+		lastName: 'test',
+		email: 'test',
+		virtualGenerated: 'test',
+	});
+}
+
+{
 	await db.update(users).set({
 		firstName: 'test',
 		lastName: 'test',
 		email: 'test',
 		// @ts-expect-error - Can't use the fullName because it's a generated column
 		fullName: 'test',
+	});
+}
+
+{
+	await db.update(users).set({
+		firstName: 'test',
+		lastName: 'test',
+		email: 'test',
+		// @ts-expect-error - Can't use the storedGenerated because it's a generated column
+		storedGenerated: 'test',
+	});
+}
+
+{
+	await db.update(users).set({
+		firstName: 'test',
+		lastName: 'test',
+		email: 'test',
+		// @ts-expect-error - Can't use the virtualGenerated because it's a generated column
+		virtualGenerated: 'test',
 	});
 }
 
