@@ -47,6 +47,10 @@ const optionDriver = string()
 
 const optionCasing = string().enum('camelCase', 'snake_case').desc('Casing for serialization');
 
+const optionOmitSuffixForSchema = string().desc(
+	`Schema name to treat as suffixless; when schema equals this value, the In<Schema> suffix is not appended. Defaults to 'public'.`
+);
+
 export const generate = command({
 	name: 'generate',
 	options: {
@@ -476,6 +480,7 @@ export const pull = command({
 		out: optionOut,
 		breakpoints: optionBreakpoints,
 		casing: string('introspect-casing').enum('camel', 'preserve'),
+		omitSuffixForSchema: optionOmitSuffixForSchema,
 		...optionsFilters,
 		...optionsDatabaseCredentials,
 	},
@@ -502,6 +507,7 @@ export const pull = command({
 				'schemaFilters',
 				'extensionsFilters',
 				'tlsSecurity',
+				'omitSuffixForSchema',
 			],
 		);
 		return preparePullConfig(opts, from);
@@ -567,6 +573,7 @@ export const pull = command({
 					schemasFilter,
 					prefix,
 					entities,
+					config.omitSuffixForSchema
 				);
 			} else if (dialect === 'mysql') {
 				const { introspectMysql } = await import('./commands/introspect');
@@ -619,6 +626,7 @@ export const pull = command({
 					schemasFilter,
 					prefix,
 					entities,
+					config.omitSuffixForSchema
 				);
 			} else {
 				assertUnreachable(dialect);
