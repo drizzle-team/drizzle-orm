@@ -285,7 +285,9 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		this.logger.logQuery(this.query.sql, params);
 		return await this.queryWithCache(this.query.sql, params, async () => {
 			const stmt: InStatement = { sql: this.query.sql, args: params as InArgs };
-			return (this.tx ? this.tx.execute(stmt) : this.client.execute(stmt)).then(({ rows }) => rows) as Promise<
+			return (this.tx ? this.tx.execute(stmt) : this.client.execute(stmt)).then(({ rows }) => {
+				return rows.map((row) => Array.prototype.slice.call(row));
+			}) as Promise<
 				T['values']
 			>;
 		});
