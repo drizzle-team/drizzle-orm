@@ -136,6 +136,40 @@ test('d1-http #7', () => {
 	).toThrowError();
 });
 
+test('d1-http #8 - with baseApiUrl', () => {
+	sqliteCredentials.parse({
+		dialect: 'sqlite',
+		driver: 'd1-http',
+		accountId: 'accountId',
+		databaseId: 'databaseId',
+		token: 'token',
+		baseApiUrl: 'https://custom.api.example.com/v4',
+	});
+});
+
+test('d1-http #9 - without baseApiUrl (optional)', () => {
+	sqliteCredentials.parse({
+		dialect: 'sqlite',
+		driver: 'd1-http',
+		accountId: 'accountId',
+		databaseId: 'databaseId',
+		token: 'token',
+	});
+});
+
+test('d1-http #10 - empty baseApiUrl should fail', () => {
+	expect(() =>
+		sqliteCredentials.parse({
+			dialect: 'sqlite',
+			driver: 'd1-http',
+			accountId: 'accountId',
+			databaseId: 'databaseId',
+			token: 'token',
+			baseApiUrl: '',
+		})
+	).toThrowError();
+});
+
 // omit undefined driver
 test('sqlite #1', () => {
 	expect(
