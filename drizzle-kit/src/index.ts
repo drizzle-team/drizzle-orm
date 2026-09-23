@@ -108,10 +108,12 @@ type SslOptions = {
 export type Config<
 	TDialect extends Dialect = Dialect,
 	TDriver extends DialectDriverMap[TDialect] = DialectDriverMap[TDialect],
-> =
+> = TDialect extends Dialect ? TDriver extends DialectDriverMap[TDialect] ? ConfigVariant<TDialect, TDriver> : never
+	: never;
+
+export type ConfigVariant<TDialect extends Dialect, TDriver extends DialectDriverMap[TDialect]> =
 	& {
 		dialect: TDialect;
-		driver?: Exclude<TDriver, 'default'>;
 		out?: string;
 		breakpoints?: boolean;
 		tablesFilter?: string | string[];
@@ -130,10 +132,8 @@ export type Config<
 			roles?: boolean | { provider?: 'supabase' | 'neon' | string & {}; exclude?: string[]; include?: string[] };
 		};
 	}
-	& DialectCredentials[TDialect][
-		(TDriver extends 'default' ? 'default' : TDriver) extends infer T extends keyof DialectCredentials[TDialect] ? T
-			: keyof DialectCredentials[TDialect]
-	];
+	& (TDriver extends 'default' ? { driver?: undefined } : { driver: TDriver })
+	& (DialectCredentials[TDialect][TDriver & keyof DialectCredentials[TDialect]] | {});
 
 export interface DialectDriverMap extends Record<Dialect, Driver | 'default'> {
 	postgresql: 'default' | 'aws-data-api' | 'pglite';
@@ -174,7 +174,6 @@ export interface DialectCredentials {
 				}
 				| {
 					url: string;
-					database: never;
 				};
 		};
 		'aws-data-api': {
@@ -384,7 +383,7 @@ export interface DialectCredentials {
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#strict
  */
-export function defineConfig<TDialect extends Dialect, TDriver extends DialectDriverMap[TDialect]>(
+export function defineConfig<TDialect extends Dialect, TDriver extends DialectDriverMap[TDialect] = 'default'>(
 	config: Config<TDialect, TDriver>,
 ) {
 	return config;
