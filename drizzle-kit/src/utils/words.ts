@@ -682,7 +682,6 @@ export const heroes = [
 	'imperial_guard',
 	'impossible_man',
 	'inertia',
-	'infant_terrible',
 	'inhumans',
 	'ink',
 	'invaders',
