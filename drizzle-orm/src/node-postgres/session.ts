@@ -3,6 +3,7 @@ import pg from 'pg';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import { TransactionClosedError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
@@ -206,6 +207,7 @@ export class NodePgSession<
 
 	private logger: Logger;
 	private cache: Cache;
+	private closed = false;
 
 	constructor(
 		private client: NodePgClient,
@@ -216,6 +218,11 @@ export class NodePgSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+	}
+
+	/** @internal */
+	close(): void {
+		this.closed = true;
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -230,6 +237,9 @@ export class NodePgSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
+		if (this.closed) {
+			throw new TransactionClosedError();
+		}
 		return new NodePgPreparedQuery(
 			this.client,
 			query.sql,
@@ -252,7 +262,7 @@ export class NodePgSession<
 		const isPool = this.client instanceof Pool || Object.getPrototypeOf(this.client).constructor.name.includes('Pool'); // eslint-disable-line no-instanceof/no-instanceof
 		const session = isPool
 			? new NodePgSession(await (<pg.Pool> this.client).connect(), this.dialect, this.schema, this.options)
-			: this;
+			: new NodePgSession(this.client, this.dialect, this.schema, this.options);
 		const tx = new NodePgTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
 		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
 		try {
@@ -263,6 +273,7 @@ export class NodePgSession<
 			await tx.execute(sql`rollback`);
 			throw error;
 		} finally {
+			session.close();
 			if (isPool) (session.client as PoolClient).release();
 		}
 	}
