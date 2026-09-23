@@ -157,7 +157,6 @@ export type SQLiteInsertOnConflictDoUpdateConfig<T extends AnySQLiteInsert> = {
 	target: IndexColumn | IndexColumn[];
 	/** @deprecated - use either `targetWhere` or `setWhere` */
 	where?: SQL;
-	// TODO: add tests for targetWhere and setWhere
 	targetWhere?: SQL;
 	setWhere?: SQL;
 	set: SQLiteUpdateSetSource<T['_']['table']>;
