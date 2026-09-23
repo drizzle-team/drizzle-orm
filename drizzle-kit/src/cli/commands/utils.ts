@@ -673,7 +673,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		console.log(outputs.studio.noCredentials());
 		process.exit(1);
 	}
-	const { host, port } = params;
+	const { host, port, unsecure } = params;
 	const { dialect, schema, casing } = result.data;
 	const flattened = flattenDatabaseCredentials(config);
 
@@ -689,6 +689,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			schema,
 			host,
 			port,
+			unsecure,
 			credentials,
 			casing,
 		};
@@ -706,6 +707,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			schema,
 			host,
 			port,
+			unsecure,
 			credentials,
 			casing,
 		};
@@ -723,6 +725,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			schema,
 			host,
 			port,
+			unsecure,
 			credentials,
 			casing,
 		};
@@ -740,6 +743,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			schema,
 			host,
 			port,
+			unsecure,
 			credentials,
 			casing,
 		};
@@ -757,6 +761,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			schema,
 			host,
 			port,
+			unsecure,
 			credentials,
 			casing,
 		};

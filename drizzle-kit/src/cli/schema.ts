@@ -655,6 +655,7 @@ export const studio = command({
 		config: optionConfig,
 		port: number().desc('Custom port for drizzle studio [default=4983]'),
 		host: string().desc('Custom host for drizzle studio [default=0.0.0.0]'),
+		unsecure: boolean().desc('Serve drizzle studio over HTTP instead of HTTPS [default=false]'),
 		verbose: boolean()
 			.default(false)
 			.desc('Print all stataments that are executed by Studio'),
@@ -670,6 +671,7 @@ export const studio = command({
 			schema: schemaPath,
 			port,
 			host,
+			unsecure,
 			credentials,
 			casing,
 		} = await prepareStudioConfig(opts);
@@ -762,7 +764,7 @@ export const studio = command({
 				),
 			);
 
-			const { key, cert } = (await certs()) || {};
+			const { key, cert } = (!unsecure && (await certs())) || {};
 			server.start({
 				host,
 				port,
@@ -790,7 +792,9 @@ export const studio = command({
 						console.log(
 							`\nDrizzle Studio is up and running on ${
 								chalk.blue(
-									`https://local.drizzle.studio${queryString ? `?${queryString}` : ''}`,
+									unsecure
+										? `http://localhost:${port}`
+										: `https://local.drizzle.studio${queryString ? `?${queryString}` : ''}`,
 								)
 							}`,
 						);
