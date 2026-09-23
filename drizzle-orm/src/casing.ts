@@ -3,10 +3,16 @@ import { entityKind } from './entity.ts';
 import { Table } from './table.ts';
 import type { Casing } from './utils.ts';
 
+/**
+ * Splits an identifier into words, treating a run of digits as part of the word it follows
+ * (e.g. `M3` and `ID2` are single words) rather than a separate word.
+ */
+const WORD_BOUNDARY = /[\da-z]+|[A-Z]+\d*(?![a-z])|[A-Z][\da-z]+/g;
+
 export function toSnakeCase(input: string) {
 	const words = input
 		.replace(/['\u2019]/g, '')
-		.match(/[\da-z]+|[A-Z]+(?![a-z])|[A-Z][\da-z]+/g) ?? [];
+		.match(WORD_BOUNDARY) ?? [];
 
 	return words.map((word) => word.toLowerCase()).join('_');
 }
@@ -14,7 +20,7 @@ export function toSnakeCase(input: string) {
 export function toCamelCase(input: string) {
 	const words = input
 		.replace(/['\u2019]/g, '')
-		.match(/[\da-z]+|[A-Z]+(?![a-z])|[A-Z][\da-z]+/g) ?? [];
+		.match(WORD_BOUNDARY) ?? [];
 
 	return words.reduce((acc, word, i) => {
 		const formattedWord = i === 0 ? word.toLowerCase() : `${word[0]!.toUpperCase()}${word.slice(1)}`;
