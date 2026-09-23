@@ -1,8 +1,13 @@
-import { mysqlCredentials } from 'src/cli/validations/mysql';
-import { postgresCredentials } from 'src/cli/validations/postgres';
-import { singlestoreCredentials } from 'src/cli/validations/singlestore';
+import { cockroachCredentials, warnOnConflictingCredentials as warnCockroach } from 'src/cli/validations/cockroach';
+import { mssqlCredentials, warnOnConflictingCredentials as warnMssql } from 'src/cli/validations/mssql';
+import { mysqlCredentials, warnOnConflictingCredentials as warnMysql } from 'src/cli/validations/mysql';
+import { postgresCredentials, warnOnConflictingCredentials as warnPostgres } from 'src/cli/validations/postgres';
+import {
+	singlestoreCredentials,
+	warnOnConflictingCredentials as warnSinglestore,
+} from 'src/cli/validations/singlestore';
 import { sqliteCredentials } from 'src/cli/validations/sqlite';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 
 test('turso #1', () => {
 	sqliteCredentials.parse({
@@ -915,4 +920,69 @@ test('singlestore #14', () => {
 			port: '',
 		});
 	}).toThrowError();
+});
+
+const captureWarning = (
+	warn: (options: Record<string, unknown>) => void,
+	options: Record<string, unknown>,
+) => {
+	const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+	warn(options);
+	const output = log.mock.calls.map((call) => call.join(' ')).join('\n');
+	log.mockRestore();
+	// strip chalk colors
+	// oxlint-disable-next-line no-control-regex
+	return output.replace(/\u001B\[\d+m/g, '');
+};
+
+test('postgres url + params #1', () => {
+	const options = { url: 'postgres://u@h/db', host: 'h2', database: 'db2', port: 5433 };
+
+	expect(captureWarning(warnPostgres, options)).toContain('Both "url" and "host", "port", "database" are provided');
+	expect(postgresCredentials.parse(options)).toStrictEqual({ url: 'postgres://u@h/db' });
+});
+
+test('postgres url + params #2', () => {
+	const options = { url: 'postgres://u@h/db', port: 5433, ssl: 'require' };
+
+	expect(captureWarning(warnPostgres, options)).toContain('Both "url" and "port", "ssl" are provided');
+	expect(postgresCredentials.parse(options)).toStrictEqual({ url: 'postgres://u@h/db' });
+});
+
+test('postgres url + params #3', () => {
+	expect(captureWarning(warnPostgres, { url: 'postgres://u@h/db' })).toStrictEqual('');
+	expect(captureWarning(warnPostgres, { host: 'h', database: 'db', port: 5432 })).toStrictEqual('');
+	expect(captureWarning(warnPostgres, { driver: 'pglite', url: './db' })).toStrictEqual('');
+});
+
+test('mysql url + params', () => {
+	const options = { url: 'mysql://u@h/db', host: 'h2', database: 'db2' };
+
+	expect(captureWarning(warnMysql, options)).toContain('Both "url" and "host", "database" are provided');
+	expect(mysqlCredentials.parse(options)).toStrictEqual({ url: 'mysql://u@h/db' });
+	expect(captureWarning(warnMysql, { host: 'h', database: 'db' })).toStrictEqual('');
+});
+
+test('singlestore url + params', () => {
+	const options = { url: 'singlestore://u@h/db', host: 'h2', database: 'db2' };
+
+	expect(captureWarning(warnSinglestore, options)).toContain('Both "url" and "host", "database" are provided');
+	expect(singlestoreCredentials.parse(options)).toStrictEqual({ url: 'singlestore://u@h/db' });
+	expect(captureWarning(warnSinglestore, { host: 'h', database: 'db' })).toStrictEqual('');
+});
+
+test('cockroach url + params', () => {
+	const options = { url: 'postgres://u@h/db', host: 'h2', database: 'db2', ssl: 'require' };
+
+	expect(captureWarning(warnCockroach, options)).toContain('Both "url" and "host", "database", "ssl" are provided');
+	expect(cockroachCredentials.parse(options)).toStrictEqual({ url: 'postgres://u@h/db' });
+	expect(captureWarning(warnCockroach, { host: 'h', database: 'db' })).toStrictEqual('');
+});
+
+test('mssql url + params', () => {
+	const options = { url: 'mssql://u:p@s/db', server: 's2', user: 'u2', password: 'p2' };
+
+	expect(captureWarning(warnMssql, options)).toContain('Both "url" and "server", "user", "password" are provided');
+	expect(mssqlCredentials.parse(options)).toStrictEqual({ url: 'mssql://u:p@s/db' });
+	expect(captureWarning(warnMssql, { server: 's', user: 'u', password: 'p' })).toStrictEqual('');
 });

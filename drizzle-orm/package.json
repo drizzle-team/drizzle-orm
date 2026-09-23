@@ -68,6 +68,8 @@
 		"url": "https://github.com/drizzle-team/drizzle-orm/issues"
 	},
 	"peerDependencies": {
+		"@aws/aurora-dsql-node-postgres-connector": ">=0.1.9",
+		"@aws/aurora-dsql-postgresjs-connector": ">=0.3.0",
 		"@aws-sdk/client-rds-data": ">=3",
 		"@cloudflare/workers-types": ">=4",
 		"@drizzle-team/minipg": ">=0.3.2",
@@ -169,6 +171,12 @@
 		"bun-types": {
 			"optional": true
 		},
+		"@aws/aurora-dsql-node-postgres-connector": {
+			"optional": true
+		},
+		"@aws/aurora-dsql-postgresjs-connector": {
+			"optional": true
+		},
 		"@aws-sdk/client-rds-data": {
 			"optional": true
 		},
@@ -266,6 +274,8 @@
 	"devDependencies": {
 		"@arktype/attest": "^0.46.0",
 		"@aws-sdk/client-rds-data": "^3.914.0",
+		"@aws/aurora-dsql-node-postgres-connector": "^0.1.9",
+		"@aws/aurora-dsql-postgresjs-connector": "^0.3.0",
 		"@cloudflare/workers-types": "^4.20251004.0",
 		"@drizzle-team/minipg": "^0.3.2",
 		"@effect/sql-d1": "4.0.0-rc.115",

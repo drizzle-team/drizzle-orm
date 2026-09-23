@@ -17,7 +17,8 @@
 		"test:planetscale": "vitest run --reporter=verbose --silent=false run tests/mysql/planetscale.test.ts tests/mysql/mysql.planetscale.test.ts",
 		"test:other": "vitest run tests/utils tests/extensions tests/table-extra-config",
 		"test:seeder": "vitest run tests/seeder",
-		"test:imports": "vitest run tests/imports"
+		"test:imports": "vitest run tests/imports",
+		"test:dsql": "vitest --reporter=verbose --silent=false run tests/dsql/"
 	},
 	"keywords": [],
 	"author": "Drizzle Team",
@@ -52,6 +53,8 @@
 	"dependencies": {
 		"@aws-sdk/client-rds-data": "^3.549.0",
 		"@aws-sdk/credential-providers": "^3.549.0",
+		"@aws/aurora-dsql-node-postgres-connector": "^0.1.9",
+		"@aws/aurora-dsql-postgresjs-connector": "^0.3.0",
 		"@drizzle-team/minipg": "^0.3.2",
 		"@effect/sql-d1": "4.0.0-rc.115",
 		"@effect/sql-libsql": "4.0.0-rc.115",
