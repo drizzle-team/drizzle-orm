@@ -245,11 +245,10 @@ export class SingleStoreDialect {
 					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
 			} else if (is(field, Column)) {
-				if (isSingleTable) {
-					chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-				} else if (is(field, SingleStoreCustomColumn)) {
-					// Custom types can define a `selectFromDb` SQL wrapper
+				if (is(field, SingleStoreCustomColumn)) {
 					chunk.push(field.getSelectSQL());
+				} else if (isSingleTable) {
+					chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 				} else {
 					chunk.push(field);
 				}
