@@ -201,12 +201,52 @@ export class SQLiteBoolean<T extends ColumnBaseConfig<'boolean', 'SQLiteBoolean'
 	}
 }
 
+export type SQLiteIntegerBigIntBuilderInitial<TName extends string> = SQLiteIntegerBigIntBuilder<{
+	name: TName;
+	dataType: 'bigint';
+	columnType: 'SQLiteIntegerBigInt';
+	data: bigint;
+	driverParam: string;
+	enumValues: undefined;
+}>;
+
+export class SQLiteIntegerBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'SQLiteIntegerBigInt'>>
+	extends SQLiteBaseIntegerBuilder<T>
+{
+	static override readonly [entityKind]: string = 'SQLiteIntegerBigIntBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'bigint', 'SQLiteIntegerBigInt');
+	}
+
+	/** @internal */
+	override build<TTableName extends string>(
+		table: AnySQLiteTable<{ name: TTableName }>,
+	): SQLiteIntegerBigInt<MakeColumnConfig<T, TTableName>> {
+		return new SQLiteIntegerBigInt<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
+	}
+}
+
+export class SQLiteIntegerBigInt<T extends ColumnBaseConfig<'bigint', 'SQLiteIntegerBigInt'>>
+	extends SQLiteBaseInteger<T>
+{
+	static override readonly [entityKind]: string = 'SQLiteIntegerBigInt';
+
+	override mapFromDriverValue = BigInt;
+
+	override mapToDriverValue = String;
+}
+
 export interface IntegerConfig<
-	TMode extends 'number' | 'timestamp' | 'timestamp_ms' | 'boolean' =
+	TMode extends 'number' | 'timestamp' | 'timestamp_ms' | 'boolean' | 'bigint' =
 		| 'number'
 		| 'timestamp'
 		| 'timestamp_ms'
-		| 'boolean',
+		| 'boolean'
+		| 'bigint',
 > {
 	mode: TMode;
 }
@@ -216,12 +256,14 @@ export function integer<TMode extends IntegerConfig['mode']>(
 	config?: IntegerConfig<TMode>,
 ): Or<Equal<TMode, 'timestamp'>, Equal<TMode, 'timestamp_ms'>> extends true ? SQLiteTimestampBuilderInitial<''>
 	: Equal<TMode, 'boolean'> extends true ? SQLiteBooleanBuilderInitial<''>
+	: Equal<TMode, 'bigint'> extends true ? SQLiteIntegerBigIntBuilderInitial<''>
 	: SQLiteIntegerBuilderInitial<''>;
 export function integer<TName extends string, TMode extends IntegerConfig['mode']>(
 	name: TName,
 	config?: IntegerConfig<TMode>,
 ): Or<Equal<TMode, 'timestamp'>, Equal<TMode, 'timestamp_ms'>> extends true ? SQLiteTimestampBuilderInitial<TName>
 	: Equal<TMode, 'boolean'> extends true ? SQLiteBooleanBuilderInitial<TName>
+	: Equal<TMode, 'bigint'> extends true ? SQLiteIntegerBigIntBuilderInitial<TName>
 	: SQLiteIntegerBuilderInitial<TName>;
 export function integer(a?: string | IntegerConfig, b?: IntegerConfig) {
 	const { name, config } = getColumnNameAndConfig<IntegerConfig | undefined>(a, b);
@@ -230,6 +272,9 @@ export function integer(a?: string | IntegerConfig, b?: IntegerConfig) {
 	}
 	if (config?.mode === 'boolean') {
 		return new SQLiteBooleanBuilder(name, config.mode);
+	}
+	if (config?.mode === 'bigint') {
+		return new SQLiteIntegerBigIntBuilder(name);
 	}
 	return new SQLiteIntegerBuilder(name);
 }
