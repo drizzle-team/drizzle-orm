@@ -225,9 +225,6 @@ importers:
       bun-types:
         specifier: ^0.6.6
         version: 0.6.14
-      camelcase:
-        specifier: ^7.0.1
-        version: 7.0.1
       chalk:
         specifier: ^5.2.0
         version: 5.4.1

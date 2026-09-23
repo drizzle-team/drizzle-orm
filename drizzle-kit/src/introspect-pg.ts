@@ -371,7 +371,6 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 				.filter((type) => {
 					return pgImportsList.has(type);
 				});
-
 			res.pg.push(...columnImports);
 			return res;
 		},

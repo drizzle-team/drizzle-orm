@@ -273,6 +273,7 @@ test('instrospect all column types', async () => {
 			numeric: numeric('numeric', { precision: 3, scale: 1 }).default('99.9'),
 			numeric2: numeric('numeric2', { precision: 1, scale: 1 }).default('99.9'),
 			numeric3: numeric('numeric3').default('99.9'),
+			numeric4withoutname: numeric(),
 			bigint: bigint('bigint', { mode: 'number' }).default(100),
 			boolean: boolean('boolean').default(true),
 			text: text('test').default('abc'),
