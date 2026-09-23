@@ -969,7 +969,6 @@ export const heroes = [
 	'praxagora',
 	'preak',
 	'pretty_boy',
-	'pride',
 	'prima',
 	'princess_powerful',
 	'prism',
