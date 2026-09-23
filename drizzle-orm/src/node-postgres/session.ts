@@ -254,16 +254,21 @@ export class NodePgSession<
 			? new NodePgSession(await (<pg.Pool> this.client).connect(), this.dialect, this.schema, this.options)
 			: this;
 		const tx = new NodePgTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
-		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
+		let dead: Error | undefined;
 		try {
+			await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);
 			return result;
 		} catch (error) {
-			await tx.execute(sql`rollback`);
+			try {
+				await tx.execute(sql`rollback`);
+			} catch (e) {
+				dead = e instanceof Error ? e : new Error(String(e));
+			}
 			throw error;
 		} finally {
-			if (isPool) (session.client as PoolClient).release();
+			if (isPool) (session.client as PoolClient).release(dead);
 		}
 	}
 
