@@ -192,7 +192,7 @@ export const generatePgSnapshot = (
 							: typeof generated.as === 'function'
 							? dialect.sqlToQuery(generated.as() as SQL).sql
 							: (generated.as as any),
-						type: 'stored',
+						type: generated.mode ?? 'stored',
 					}
 					: undefined,
 				identity: identity
@@ -780,7 +780,7 @@ export const generatePgSnapshot = (
 								: typeof generated.as === 'function'
 								? dialect.sqlToQuery(generated.as() as SQL).sql
 								: (generated.as as any),
-							type: 'stored',
+							type: generated.mode ?? 'stored',
 						}
 						: undefined,
 					identity: identity

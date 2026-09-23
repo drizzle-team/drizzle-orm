@@ -413,7 +413,9 @@ class PgCreateTableConvertor extends Convertor {
 			const type = parseType(schemaPrefix, column.type);
 			const generated = column.generated;
 
-			const generatedStatement = generated ? ` GENERATED ALWAYS AS (${generated?.as}) STORED` : '';
+			const generatedStatement = generated
+				? ` GENERATED ALWAYS AS (${generated?.as}) ${generated?.type.toUpperCase()}`
+				: '';
 
 			const unsquashedIdentity = column.identity
 				? PgSquasher.unsquashIdentity(column.identity)
@@ -1793,7 +1795,9 @@ class PgAlterTableAddColumnConvertor extends Convertor {
 			})`
 			: '';
 
-		const generatedStatement = generated ? ` GENERATED ALWAYS AS (${generated?.as}) STORED` : '';
+		const generatedStatement = generated
+			? ` GENERATED ALWAYS AS (${generated?.as}) ${generated?.type.toUpperCase()}`
+			: '';
 
 		return `ALTER TABLE ${tableNameWithSchema} ADD COLUMN "${name}" ${fixedType}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${identityStatement};`;
 	}
