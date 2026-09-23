@@ -29,6 +29,8 @@ export type TableConfig = TableConfigBase<PgColumn>;
 export const InlineForeignKeys = Symbol.for('drizzle:PgInlineForeignKeys');
 /** @internal */
 export const EnableRLS = Symbol.for('drizzle:EnableRLS');
+/** @internal */
+export const UnloggedTable = Symbol.for('drizzle:PgUnlogged');
 
 export class PgTable<T extends TableConfig = TableConfig> extends Table<T> {
 	static override readonly [entityKind]: string = 'PgTable';
@@ -36,14 +38,18 @@ export class PgTable<T extends TableConfig = TableConfig> extends Table<T> {
 	/** @internal */
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {
 		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,
-		EnableRLS: EnableRLS as typeof EnableRLS,
+    EnableRLS: EnableRLS as typeof EnableRLS,
+    Unlogged: UnloggedTable as typeof UnloggedTable,
 	});
 
 	/**@internal */
 	[InlineForeignKeys]: ForeignKey[] = [];
 
 	/** @internal */
-	[EnableRLS]: boolean = false;
+  [EnableRLS]: boolean = false;
+
+  /** @internal */
+  [UnloggedTable]: boolean = false;
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]: ((self: Record<string, PgColumn>) => PgTableExtraConfig) | undefined =
@@ -64,7 +70,11 @@ export type PgTableWithColumns<T extends TableConfig> =
 		enableRLS: () => Omit<
 			PgTableWithColumns<T>,
 			'enableRLS'
-		>;
+      >;
+      unlogged: () => Omit<
+        PgTableWithColumns<T>,
+        'unlogged'
+      >;
 	};
 
 /** @internal */
@@ -132,7 +142,16 @@ export function pgTableWithSchema<
 				columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
 				dialect: 'pg';
 			}>;
-		},
+    },
+    unlogged: () => {
+            table[PgTable.Symbol.Unlogged] = true;
+            return table as PgTableWithColumns<{
+                name: TTableName;
+                schema: TSchemaName;
+                columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
+                dialect: 'pg';
+            }>;
+    },
 	});
 }
 
