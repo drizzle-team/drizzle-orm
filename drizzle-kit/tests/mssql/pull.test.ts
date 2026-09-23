@@ -999,6 +999,7 @@ test('introspect fk is kept when both tables pass tablesFilter', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6025
+// https://github.com/drizzle-team/drizzle-orm/issues/1549
 test('primary key with non default name', async () => {
 	await db.query(`CREATE TABLE table1 (id int CONSTRAINT primary_key PRIMARY KEY);`);
 	await db.query(`CREATE TABLE table2 (id int PRIMARY KEY);`);

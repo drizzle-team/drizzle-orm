@@ -3117,6 +3117,7 @@ test('issue #5413', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6025
+// https://github.com/drizzle-team/drizzle-orm/issues/1549
 test('primary key with non default name', async () => {
 	await db.query(`
 CREATE TABLE table1 (
