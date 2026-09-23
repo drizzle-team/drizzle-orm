@@ -3,6 +3,12 @@ import type { PgEnum } from 'drizzle-orm/pg-core';
 import type { z } from 'zod/v4';
 import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal.ts';
 
+/** Type representing a Zod-compatible library instance */
+export type ZodInstance = typeof z;
+
+/** Mode for handling unknown keys in the schema */
+export type SchemaMode = 'strip' | 'strict' | 'passthrough';
+
 export interface CreateSelectSchema<
 	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
 > {
@@ -56,6 +62,27 @@ export interface CreateUpdateSchema<
 export interface CreateSchemaFactoryOptions<
 	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
 > {
-	zodInstance?: any;
+	/** Custom Zod instance to use for schema generation (useful for custom Zod extensions) */
+	zodInstance?: ZodInstance;
+	/** Enable type coercion for specific types or all types */
 	coerce?: TCoerce;
+	/**
+	 * Mode for handling unknown keys in the schema.
+	 * - 'strip': Remove unknown keys (default for standalone functions)
+	 * - 'strict': Reject unknown keys - prevents mass assignment attacks (default for factory)
+	 * - 'passthrough': Allow unknown keys
+	 */
+	mode?: SchemaMode;
+	/**
+	 * Apply .trim() to string schemas to prevent whitespace bypass attacks.
+	 * When enabled, also trims enum values before validation.
+	 * @default true when using createSchemaFactory
+	 */
+	trim?: boolean;
+	/**
+	 * Default max length for unbounded text columns (prevents DoS via large payloads).
+	 * Set to `false` to disable. Only applies to columns without explicit length.
+	 * @default 65535 when using createSchemaFactory
+	 */
+	defaultTextMaxLength?: number | false;
 }
