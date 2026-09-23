@@ -51,6 +51,10 @@ export function mapResultRow<TResult>(
 							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
 						) {
 							nullifyMap[objectName] = false;
+						} else if (value !== null) {
+							// The initial value for an object may have been null, but subsquent values are not-null
+							// Prevents the entire object being define as null when the join has values
+							nullifyMap[objectName] = false;
 						}
 					}
 				}
