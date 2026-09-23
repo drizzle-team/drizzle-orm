@@ -54,7 +54,7 @@ export type BuildSchema<
 > = v.ObjectSchema<
 	Simplify<
 		{
-			readonly [K in keyof TColumns as ColumnIsGeneratedAlwaysAs<TColumns[K]> extends true ? never : K]:
+			readonly [K in keyof TColumns as ColumnIsGeneratedAlwaysAs<TColumns[K]> extends true ? TType extends 'select' ? K : never : K]:
 				TColumns[K] extends infer TColumn extends Column
 					? IsRefinementDefined<TRefinements, Assume<K, string>> extends true
 						? Assume<HandleRefinement<TType, TRefinements[K & keyof TRefinements], TColumn>, v.GenericSchema>
