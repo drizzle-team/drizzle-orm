@@ -47,6 +47,7 @@ const pgImportsList = new Set([
 	'time',
 	'timestamp',
 	'date',
+	'daterange',
 	'interval',
 	'cidr',
 	'inet',
@@ -977,6 +978,11 @@ const column = (
 	if (lowered === 'date') {
 		let out = `${withCasing(name, casing)}: date(${dbColumnName({ name, casing })})`;
 
+		return out;
+	}
+
+	if (lowered === 'daterange') {
+		let out = `${withCasing(name, casing)}: daterange(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
