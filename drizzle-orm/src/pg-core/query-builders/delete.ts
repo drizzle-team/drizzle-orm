@@ -21,6 +21,7 @@ import { tracer } from '~/tracing.ts';
 import { type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/common.ts';
 import { extractUsedTable } from '../utils.ts';
+import type { PgViewBase } from '../view-base.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export type PgDeleteWithout<
@@ -50,6 +51,7 @@ export type PgDelete<
 export interface PgDeleteConfig {
 	where?: SQL | undefined;
 	table: PgTable;
+	using?: (PgTable | Subquery | PgViewBase | SQL)[];
 	returningFields?: SelectedFieldsFlat;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
@@ -162,6 +164,37 @@ export class PgDeleteBase<
 	) {
 		super();
 		this.config = { table, withList };
+	}
+
+	/**
+	 * Adds a `using` clause to the query.
+	 *
+	 * Use this method to allow columns from table to appear in the `where` and `returning` clause.
+	 *
+	 * @param tables Tables to include in the `using` clause.
+	 *
+	 * @example
+	 * Useful for deleting rows based on joined columns.
+	 *
+	 * ```ts
+	 * await db.delete(users).using(cities)
+	 * 	 .where(
+	 *     and(
+	 *       eq(users.cityId, cities.id),
+	 *       eq(cities.name, 'New York')
+	 *     )
+	 *   )
+	 *   .returning({ cityName: cities.name });
+	 * ```
+	 */
+	using(table: PgTable | Subquery | PgViewBase | SQL): PgDeleteWithout<this, TDynamic, 'using'>;
+	using(tables: (PgTable | Subquery | PgViewBase | SQL)[]): PgDeleteWithout<this, TDynamic, 'using'>;
+	using(
+		tables: (PgTable | Subquery | PgViewBase | SQL) | (PgTable | Subquery | PgViewBase | SQL)[],
+	): PgDeleteWithout<this, TDynamic, 'using'> {
+		tables = Array.isArray(tables) ? tables : [tables];
+		this.config.using = tables;
+		return this as any;
 	}
 
 	/**
