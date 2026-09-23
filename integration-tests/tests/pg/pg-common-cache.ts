@@ -218,6 +218,30 @@ export function tests() {
 			await db.$cache?.invalidate({ tags: ['custom'] });
 		});
 
+		test('custom tag: response cached by another query is not reused', async (ctx) => {
+			const { db } = ctx.cachedPg;
+
+			await db.insert(usersTable).values({ name: 'John' });
+
+			await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).$withCache({
+				tag: 'custom',
+				autoInvalidate: false,
+			});
+
+			// Same tag, different column order: cached responses hold positional rows, so
+			// reusing the entry here would map `id` onto `name` and vice versa.
+			const res = await db.select({ name: usersTable.name, id: usersTable.id }).from(usersTable).$withCache({
+				tag: 'custom',
+				autoInvalidate: false,
+			});
+
+			expect(res).toHaveLength(1);
+			expect(res[0]!.name).toBe('John');
+			expect(typeof res[0]!.id).toBe('number');
+
+			await db.$cache?.invalidate({ tags: ['custom'] });
+		});
+
 		test('global: true + disable cache', async (ctx) => {
 			const { dbGlobalCached: db } = ctx.cachedPg;
 
