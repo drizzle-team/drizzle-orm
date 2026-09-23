@@ -193,7 +193,19 @@ export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
 export const prepareMigrationFolder = (
 	outFolder: string = 'drizzle',
 	dialect: Dialect,
+	options?: {
+		createIfMissing?: boolean;
+	},
 ) => {
+	if (!existsSync(join(outFolder, 'meta'))) {
+		if (options?.createIfMissing === false) {
+			return {
+				snapshots: [],
+				journal: dryJournal(dialect),
+			};
+		}
+	}
+
 	const { snapshots, journal } = prepareOutFolder(outFolder, dialect);
 	const report = validateWithReport(snapshots, dialect);
 	if (report.nonLatest.length > 0) {
