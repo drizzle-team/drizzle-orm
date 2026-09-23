@@ -160,7 +160,10 @@ export class MySqlDialect {
 			columnNames.flatMap((colName, i) => {
 				const col = tableColumns[colName]!;
 
-				const onUpdateFnResult = col.onUpdateFn?.();
+				// Only evaluate the $onUpdate callback when the column is absent from
+				// `set` — calling it eagerly runs its side effects even when an explicit
+				// value is provided and wins via `??` (regression, see #5780).
+				const onUpdateFnResult = set[colName] == null ? col.onUpdateFn?.() : undefined;
 				const value = set[colName]
 					?? (is(onUpdateFnResult, SQL)
 						? onUpdateFnResult
