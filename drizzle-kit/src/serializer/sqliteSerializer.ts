@@ -88,6 +88,8 @@ export const generateSqliteSnapshot = (
 			if (column.default !== undefined) {
 				if (is(column.default, SQL)) {
 					columnToSet.default = sqlToStr(column.default, casing);
+				} else if (typeof column.default === 'boolean') {
+					columnToSet.default = column.default ? 1 : 0;
 				} else {
 					columnToSet.default = typeof column.default === 'string'
 						? `'${escapeSingleQuotes(column.default)}'`
@@ -375,6 +377,8 @@ export const generateSqliteSnapshot = (
 				if (column.default !== undefined) {
 					if (is(column.default, SQL)) {
 						columnToSet.default = sqlToStr(column.default, casing);
+					} else if (typeof column.default === 'boolean') {
+						columnToSet.default = column.default ? 1 : 0;
 					} else {
 						columnToSet.default = typeof column.default === 'string'
 							? `'${column.default}'`
