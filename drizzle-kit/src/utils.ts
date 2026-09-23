@@ -7,6 +7,7 @@ import type { NamedWithSchema } from './cli/commands/migrate';
 import { info } from './cli/views';
 import { assertUnreachable, snapshotVersion } from './global';
 import type { Dialect } from './schemaValidator';
+import { backwardCompatibleFirebirdSchema } from './serializer/firebirdSchema';
 import { backwardCompatibleGelSchema } from './serializer/gelSchema';
 import { backwardCompatibleMysqlSchema } from './serializer/mysqlSchema';
 import { backwardCompatiblePgSchema } from './serializer/pgSchema';
@@ -124,6 +125,8 @@ const validatorForDialect = (dialect: Dialect) => {
 			return { validator: backwardCompatibleMysqlSchema, version: 5 };
 		case 'singlestore':
 			return { validator: backwardCompatibleSingleStoreSchema, version: 1 };
+		case 'firebird':
+			return { validator: backwardCompatibleFirebirdSchema, version: 6 };
 		case 'gel':
 			return { validator: backwardCompatibleGelSchema, version: 1 };
 	}
@@ -138,7 +141,7 @@ export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
 
 	const result = snapshots.reduce(
 		(accum, it) => {
-			const raw = JSON.parse(readFileSync(`./${it}`).toString());
+			const raw = JSON.parse(readFileSync(it).toString());
 
 			accum.rawMap[it] = raw;
 

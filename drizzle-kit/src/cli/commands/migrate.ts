@@ -1,5 +1,7 @@
 import fs from 'fs';
 import {
+	prepareFirebirdDbPushSnapshot,
+	prepareFirebirdMigrationSnapshot,
 	prepareMySqlDbPushSnapshot,
 	prepareMySqlMigrationSnapshot,
 	preparePgDbPushSnapshot,
@@ -16,11 +18,18 @@ import path, { join } from 'path';
 import { SingleStoreSchema, singlestoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
 import { TypeOf } from 'zod';
 import type { CommonSchema } from '../../schemaValidator';
+import {
+	FirebirdSchema,
+	firebirdSchema,
+	squashFirebirdScheme,
+	View as FirebirdView,
+} from '../../serializer/firebirdSchema';
 import { MySqlSchema, mysqlSchema, squashMysqlScheme, ViewSquashed } from '../../serializer/mysqlSchema';
 import { PgSchema, pgSchema, Policy, Role, squashPgScheme, View } from '../../serializer/pgSchema';
 import { SQLiteSchema, sqliteSchema, squashSqliteScheme, View as SQLiteView } from '../../serializer/sqliteSchema';
 import {
 	applyLibSQLSnapshotsDiff,
+	applyFirebirdSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
 	applyPgSnapshotsDiff,
 	applySingleStoreSnapshotsDiff,
@@ -172,6 +181,28 @@ export const mySqlViewsResolver = async (
 export const sqliteViewsResolver = async (
 	input: ResolverInput<SQLiteView & { schema: '' }>,
 ): Promise<ResolverOutputWithMoved<SQLiteView>> => {
+	try {
+		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+			input.created,
+			input.deleted,
+			'view',
+		);
+
+		return {
+			created: created,
+			deleted: deleted,
+			moved: moved,
+			renamed: renamed,
+		};
+	} catch (e) {
+		console.error(e);
+		throw e;
+	}
+};
+
+export const firebirdViewsResolver = async (
+	input: ResolverInput<FirebirdView & { schema: '' }>,
+): Promise<ResolverOutputWithMoved<FirebirdView>> => {
 	try {
 		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
 			input.created,
@@ -857,6 +888,132 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 			prefixMode: config.prefix,
 			driver: config.driver,
 		});
+	} catch (e) {
+		console.error(e);
+	}
+};
+
+export const prepareAndMigrateFirebird = async (config: GenerateConfig) => {
+	const outFolder = config.out;
+	const schemaPath = config.schema;
+	const casing = config.casing;
+
+	try {
+		assertV1OutFolder(outFolder);
+
+		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'firebird');
+		const { prev, cur, custom } = await prepareFirebirdMigrationSnapshot(
+			snapshots,
+			schemaPath,
+			casing,
+		);
+
+		const validatedPrev = firebirdSchema.parse(prev);
+		const validatedCur = firebirdSchema.parse(cur);
+
+		if (config.custom) {
+			writeResult({
+				cur: custom,
+				sqlStatements: [],
+				journal,
+				outFolder,
+				name: config.name,
+				breakpoints: config.breakpoints,
+				type: 'custom',
+				prefixMode: config.prefix,
+			});
+			return;
+		}
+
+		const squashedPrev = squashFirebirdScheme(validatedPrev);
+		const squashedCur = squashFirebirdScheme(validatedCur);
+
+		const { sqlStatements, _meta } = await applyFirebirdSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			firebirdViewsResolver,
+			validatedPrev,
+			validatedCur,
+		);
+
+		writeResult({
+			cur,
+			sqlStatements,
+			journal,
+			_meta,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			prefixMode: config.prefix,
+			driver: config.driver,
+		});
+	} catch (e) {
+		console.error(e);
+	}
+};
+
+export const prepareFirebirdPush = async (
+	schemaPath: string | string[],
+	snapshot: FirebirdSchema,
+	casing: CasingType | undefined,
+) => {
+	const { prev, cur } = await prepareFirebirdDbPushSnapshot(snapshot, schemaPath, casing);
+
+	const validatedPrev = firebirdSchema.parse(prev);
+	const validatedCur = firebirdSchema.parse(cur);
+
+	const squashedPrev = squashFirebirdScheme(validatedPrev, 'push');
+	const squashedCur = squashFirebirdScheme(validatedCur, 'push');
+
+	const { sqlStatements, statements, _meta } = await applyFirebirdSnapshotsDiff(
+		squashedPrev,
+		squashedCur,
+		tablesResolver,
+		columnsResolver,
+		firebirdViewsResolver,
+		validatedPrev,
+		validatedCur,
+		'push',
+	);
+
+	return {
+		sqlStatements,
+		statements,
+		squashedPrev,
+		squashedCur,
+		meta: _meta,
+	};
+};
+
+export const prepareAndExportFirebird = async (config: ExportConfig) => {
+	const schemaPath = config.schema;
+
+	try {
+		const { prev, cur } = await prepareFirebirdMigrationSnapshot(
+			[],
+			schemaPath,
+			undefined,
+		);
+
+		const validatedPrev = firebirdSchema.parse(prev);
+		const validatedCur = firebirdSchema.parse(cur);
+
+		const squashedPrev = squashFirebirdScheme(validatedPrev);
+		const squashedCur = squashFirebirdScheme(validatedCur);
+
+		const { sqlStatements } = await applyFirebirdSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			firebirdViewsResolver,
+			validatedPrev,
+			validatedCur,
+		);
+
+		console.log(sqlStatements.join('\n'));
 	} catch (e) {
 		console.error(e);
 	}

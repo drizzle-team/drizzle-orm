@@ -7,6 +7,7 @@
 		"test:types": "tsc && cd type-tests/join-nodenext && tsc",
 		"test": "pnpm test:vitest",
 		"test:vitest": "vitest run --pass-with-no-tests",
+		"test:firebird": "vitest run --config vitest.config.ts tests/firebird/firebird.test.ts",
 		"test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs",
 		"test:data-api": "sst shell vitest run tests/pg/awsdatapi.test.ts"
 	},
@@ -65,6 +66,7 @@
 		"gel": "^2.0.0",
 		"get-port": "^7.0.0",
 		"mysql2": "^3.14.1",
+		"node-firebird": "^2.0.2",
 		"pg": "^8.11.0",
 		"postgres": "^3.3.5",
 		"prisma": "5.14.0",

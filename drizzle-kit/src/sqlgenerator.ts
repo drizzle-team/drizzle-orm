@@ -85,6 +85,7 @@ import {
 	JsonStatement,
 } from './jsonStatements';
 import { Dialect } from './schemaValidator';
+import { FirebirdSquasher } from './serializer/firebirdSchema';
 import { MySqlSquasher } from './serializer/mysqlSchema';
 import { PgSquasher, policy } from './serializer/pgSchema';
 import { SingleStoreSquasher } from './serializer/singlestoreSchema';
@@ -146,6 +147,26 @@ const parseType = (schemaPrefix: string, type: string) => {
 	return pgNativeTypes.some((it) => type.startsWith(it))
 		? `${withoutArrayDefinition}${arrayDefinition}`
 		: `${schemaPrefix}"${withoutArrayDefinition}"${arrayDefinition}`;
+};
+
+const firebirdName = (name: string) => `"${name.replace(/"/g, '""')}"`;
+
+const firebirdAction = (action?: string) => action ? action.toUpperCase() : '';
+
+const firebirdIdentity = (identity?: string) => {
+	if (!identity) return '';
+	const unsquashedIdentity = FirebirdSquasher.unsquashIdentity(identity);
+	const options = [
+		unsquashedIdentity.increment ? `INCREMENT BY ${unsquashedIdentity.increment}` : undefined,
+		unsquashedIdentity.minValue ? `MINVALUE ${unsquashedIdentity.minValue}` : undefined,
+		unsquashedIdentity.maxValue ? `MAXVALUE ${unsquashedIdentity.maxValue}` : undefined,
+		unsquashedIdentity.startWith ? `START WITH ${unsquashedIdentity.startWith}` : undefined,
+		unsquashedIdentity.cache ? `CACHE ${unsquashedIdentity.cache}` : undefined,
+		unsquashedIdentity.cycle ? 'CYCLE' : undefined,
+	].filter(Boolean).join(' ');
+	return ` GENERATED ${unsquashedIdentity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'} AS IDENTITY${
+		options ? ` (${options})` : ''
+	}`;
 };
 
 abstract class Convertor {
@@ -750,6 +771,77 @@ export class SQLiteCreateTableConvertor extends Convertor {
 	}
 }
 
+export class FirebirdCreateTableConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'sqlite_create_table' && dialect === 'firebird';
+	}
+
+	convert(st: JsonSqliteCreateTableStatement) {
+		const {
+			tableName,
+			columns,
+			compositePKs,
+			uniqueConstraints,
+			checkConstraints,
+		} = st;
+
+		let statement = '';
+		statement += `CREATE TABLE ${firebirdName(tableName)} (\n`;
+		for (let i = 0; i < columns.length; i++) {
+			const column = columns[i];
+
+			const primaryKeyStatement = column.primaryKey ? ' PRIMARY KEY' : '';
+			const notNullStatement = column.notNull && !column.identity ? ' NOT NULL' : '';
+			const defaultStatement = column.default !== undefined ? ` DEFAULT ${column.default}` : '';
+			const identityStatement = firebirdIdentity(column.identity);
+			const generatedStatement = column.generated
+				? ` GENERATED ALWAYS AS ${column.generated.as}`
+				: '';
+
+			statement += '\t';
+			statement += `${
+				firebirdName(column.name)
+			} ${column.type}${identityStatement}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}`;
+
+			statement += i === columns.length - 1 ? '' : ',\n';
+		}
+
+		compositePKs.forEach((it) => {
+			statement += ',\n\t';
+			statement += `PRIMARY KEY(${it.map((it) => firebirdName(it)).join(', ')})`;
+		});
+
+		if (
+			typeof uniqueConstraints !== 'undefined'
+			&& uniqueConstraints.length > 0
+		) {
+			for (const uniqueConstraint of uniqueConstraints) {
+				statement += ',\n';
+				const unsquashedUnique = FirebirdSquasher.unsquashUnique(uniqueConstraint);
+				statement += `\tCONSTRAINT ${firebirdName(unsquashedUnique.name)} UNIQUE(${
+					unsquashedUnique.columns.map((it) => firebirdName(it)).join(',')
+				})`;
+			}
+		}
+
+		if (
+			typeof checkConstraints !== 'undefined'
+			&& checkConstraints.length > 0
+		) {
+			for (const check of checkConstraints) {
+				statement += ',\n';
+				const { value, name } = FirebirdSquasher.unsquashCheck(check);
+				statement += `\tCONSTRAINT ${firebirdName(name)} CHECK(${value})`;
+			}
+		}
+
+		statement += `\n`;
+		statement += `);`;
+		statement += `\n`;
+		return statement;
+	}
+}
+
 class PgCreateViewConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_view' && dialect === 'postgresql';
@@ -824,6 +916,18 @@ class SqliteCreateViewConvertor extends Convertor {
 	}
 }
 
+class FirebirdCreateViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'sqlite_create_view' && dialect === 'firebird';
+	}
+
+	convert(st: JsonCreateSqliteViewStatement) {
+		const { definition, name } = st;
+
+		return `CREATE VIEW ${firebirdName(name)} AS ${definition};`;
+	}
+}
+
 class PgDropViewConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_view' && dialect === 'postgresql';
@@ -859,6 +963,18 @@ class SqliteDropViewConvertor extends Convertor {
 		const { name } = st;
 
 		return `DROP VIEW \`${name}\`;`;
+	}
+}
+
+class FirebirdDropViewConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_view' && dialect === 'firebird';
+	}
+
+	convert(st: JsonDropViewStatement) {
+		const { name } = st;
+
+		return `DROP VIEW ${firebirdName(name)};`;
 	}
 }
 
@@ -1578,6 +1694,17 @@ export class SQLiteDropTableConvertor extends Convertor {
 	}
 }
 
+export class FirebirdDropTableConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_table' && dialect === 'firebird';
+	}
+
+	convert(statement: JsonDropTableStatement) {
+		const { tableName } = statement;
+		return `DROP TABLE ${firebirdName(tableName)};`;
+	}
+}
+
 class PgRenameTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_table' && dialect === 'postgresql';
@@ -1601,6 +1728,17 @@ export class SqliteRenameTableConvertor extends Convertor {
 	convert(statement: JsonRenameTableStatement) {
 		const { tableNameFrom, tableNameTo } = statement;
 		return `ALTER TABLE \`${tableNameFrom}\` RENAME TO \`${tableNameTo}\`;`;
+	}
+}
+
+export class FirebirdRenameTableConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'rename_table' && dialect === 'firebird';
+	}
+
+	convert(statement: JsonRenameTableStatement) {
+		const { tableNameFrom, tableNameTo } = statement;
+		return `ALTER TABLE ${firebirdName(tableNameFrom)} TO ${firebirdName(tableNameTo)};`;
 	}
 }
 
@@ -1683,6 +1821,21 @@ class SQLiteAlterTableRenameColumnConvertor extends Convertor {
 	}
 }
 
+class FirebirdAlterTableRenameColumnConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'alter_table_rename_column' && dialect === 'firebird'
+		);
+	}
+
+	convert(statement: JsonRenameColumnStatement) {
+		const { tableName, oldColumnName, newColumnName } = statement;
+		return `ALTER TABLE ${firebirdName(tableName)} ALTER ${firebirdName(oldColumnName)} TO ${
+			firebirdName(newColumnName)
+		};`;
+	}
+}
+
 class PgAlterTableDropColumnConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
@@ -1731,6 +1884,17 @@ class SQLiteAlterTableDropColumnConvertor extends Convertor {
 	convert(statement: JsonDropColumnStatement) {
 		const { tableName, columnName } = statement;
 		return `ALTER TABLE \`${tableName}\` DROP COLUMN \`${columnName}\`;`;
+	}
+}
+
+class FirebirdAlterTableDropColumnConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_table_drop_column' && dialect === 'firebird';
+	}
+
+	convert(statement: JsonDropColumnStatement) {
+		const { tableName, columnName } = statement;
+		return `ALTER TABLE ${firebirdName(tableName)} DROP ${firebirdName(columnName)};`;
 	}
 }
 
@@ -1889,6 +2053,42 @@ export class SQLiteAlterTableAddColumnConvertor extends Convertor {
 			: '';
 
 		return `ALTER TABLE \`${tableName}\` ADD \`${name}\` ${type}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${referenceStatement};`;
+	}
+}
+
+export class FirebirdAlterTableAddColumnConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'sqlite_alter_table_add_column' && dialect === 'firebird'
+		);
+	}
+
+	convert(statement: JsonSqliteAddColumnStatement, _json2?: SQLiteSchemaSquashed, action?: 'push') {
+		const { tableName, column, referenceData } = statement;
+		const { name, type, notNull, primaryKey, generated, identity } = column;
+
+		const defaultStatement = `${column.default !== undefined ? ` DEFAULT ${column.default}` : ''}`;
+		const notNullStatement = `${notNull && !identity ? ' NOT NULL' : ''}`;
+		const primaryKeyStatement = `${primaryKey ? ' PRIMARY KEY' : ''}`;
+		const referenceAsObject = referenceData
+			? action === 'push'
+				? FirebirdSquasher.unsquashPushFK(referenceData)
+				: FirebirdSquasher.unsquashFK(referenceData)
+			: undefined;
+		const referenceStatement = `${
+			referenceAsObject
+				? ` REFERENCES ${firebirdName(referenceAsObject.tableTo)}(${
+					referenceAsObject.columnsTo.map((it) => firebirdName(it)).join(',')
+				})`
+				: ''
+		}`;
+		const generatedStatement = generated
+			? ` GENERATED ALWAYS AS ${generated.as}`
+			: '';
+
+		return `ALTER TABLE ${firebirdName(tableName)} ADD ${firebirdName(name)} ${type}${
+			firebirdIdentity(identity)
+		}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${referenceStatement};`;
 	}
 }
 
@@ -3423,6 +3623,37 @@ class MySqlCreateForeignKeyConvertor extends Convertor {
 	}
 }
 
+class FirebirdCreateForeignKeyConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_reference' && dialect === 'firebird';
+	}
+
+	convert(statement: JsonCreateReferenceStatement, _json2?: SQLiteSchemaSquashed, action?: 'push'): string {
+		const {
+			name,
+			tableFrom,
+			tableTo,
+			columnsFrom,
+			columnsTo,
+			onDelete,
+			onUpdate,
+		} = action === 'push'
+			? FirebirdSquasher.unsquashPushFK(statement.data)
+			: FirebirdSquasher.unsquashFK(statement.data);
+		const onDeleteStatement = onDelete ? ` ON DELETE ${firebirdAction(onDelete)}` : '';
+		const onUpdateStatement = onUpdate ? ` ON UPDATE ${firebirdAction(onUpdate)}` : '';
+		const fromColumnsString = columnsFrom.map((it) => firebirdName(it)).join(',');
+		const toColumnsString = columnsTo.map((it) => firebirdName(it)).join(',');
+		const constraintStatement = name ? ` ADD CONSTRAINT ${firebirdName(name)}` : ' ADD';
+
+		return `ALTER TABLE ${
+			firebirdName(tableFrom)
+		}${constraintStatement} FOREIGN KEY (${fromColumnsString}) REFERENCES ${
+			firebirdName(tableTo)
+		}(${toColumnsString})${onUpdateStatement}${onDeleteStatement};`;
+	}
+}
+
 class PgAlterForeignKeyConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_reference' && dialect === 'postgresql';
@@ -3492,6 +3723,18 @@ class MySqlDeleteForeignKeyConvertor extends Convertor {
 		const tableFrom = statement.tableName; // delete fk from renamed table case
 		const { name } = MySqlSquasher.unsquashFK(statement.data);
 		return `ALTER TABLE \`${tableFrom}\` DROP FOREIGN KEY \`${name}\`;\n`;
+	}
+}
+
+class FirebirdDeleteForeignKeyConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'delete_reference' && dialect === 'firebird';
+	}
+
+	convert(statement: JsonDeleteReferenceStatement): string {
+		const tableFrom = statement.tableName;
+		const { name } = FirebirdSquasher.unsquashFK(statement.data);
+		return `ALTER TABLE ${firebirdName(tableFrom)} DROP CONSTRAINT ${firebirdName(name)};\n`;
 	}
 }
 
@@ -3628,6 +3871,33 @@ export class CreateSqliteIndexConvertor extends Convertor {
 	}
 }
 
+export class CreateFirebirdIndexConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_index' && dialect === 'firebird';
+	}
+
+	convert(statement: JsonCreateIndexStatement): string {
+		const { name, columns, isUnique, where } = FirebirdSquasher.unsquashIdx(
+			statement.data,
+		);
+		const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
+		const whereStatement = where ? ` WHERE ${where}` : '';
+		const expressionColumns = columns.filter((it) => statement.internal?.indexes?.[name]?.columns[it]?.isExpression);
+		if (expressionColumns.length > 0) {
+			if (columns.length !== 1 || expressionColumns.length !== 1) {
+				throw new Error('Firebird expression indexes support exactly one expression');
+			}
+			return `CREATE ${indexPart} ${firebirdName(name)} ON ${firebirdName(statement.tableName)} COMPUTED BY (${
+				expressionColumns[0]
+			})${whereStatement};`;
+		}
+		const columnsString = columns.map((it) => firebirdName(it)).join(',');
+		return `CREATE ${indexPart} ${firebirdName(name)} ON ${
+			firebirdName(statement.tableName)
+		} (${columnsString})${whereStatement};`;
+	}
+}
+
 class PgDropIndexConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_index' && dialect === 'postgresql';
@@ -3739,6 +4009,17 @@ export class SqliteDropIndexConvertor extends Convertor {
 	}
 }
 
+export class FirebirdDropIndexConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_index' && dialect === 'firebird';
+	}
+
+	convert(statement: JsonDropIndexStatement): string {
+		const { name } = FirebirdSquasher.unsquashIdx(statement.data);
+		return `DROP INDEX ${firebirdName(name)};`;
+	}
+}
+
 class MySqlDropIndexConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_index' && dialect === 'mysql';
@@ -3822,6 +4103,81 @@ class SQLiteRecreateTableConvertor extends Convertor {
 		);
 
 		sqlStatements.push(`PRAGMA foreign_keys=ON;`);
+
+		return sqlStatements;
+	}
+}
+
+class FirebirdRecreateTableConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'recreate_table' && dialect === 'firebird'
+		);
+	}
+
+	convert(statement: JsonRecreateTableStatement): string | string[] {
+		const { tableName, columns, compositePKs, referenceData, checkConstraints } = statement;
+
+		const columnNames = columns.map((it) => firebirdName(it.name)).join(', ');
+		const newTableName = `__new_${tableName}`;
+
+		const sqlStatements: string[] = [];
+
+		const mappedCheckConstraints: string[] = checkConstraints.map((it) =>
+			it.replaceAll(`"${tableName}".`, `"${newTableName}".`).replaceAll(`\`${tableName}\`.`, `"${newTableName}".`)
+				.replaceAll(`${tableName}.`, `${newTableName}.`).replaceAll(`'${tableName}'.`, `"${newTableName}".`)
+		);
+
+		sqlStatements.push(
+			new FirebirdCreateTableConvertor().convert({
+				type: 'sqlite_create_table',
+				tableName: newTableName,
+				columns,
+				referenceData,
+				compositePKs,
+				checkConstraints: mappedCheckConstraints,
+			}),
+		);
+
+		sqlStatements.push(
+			`INSERT INTO ${firebirdName(newTableName)}(${columnNames}) SELECT ${columnNames} FROM ${
+				firebirdName(tableName)
+			};`,
+		);
+
+		sqlStatements.push(
+			new FirebirdDropTableConvertor().convert({
+				type: 'drop_table',
+				tableName: tableName,
+				schema: '',
+			}),
+		);
+
+		sqlStatements.push(
+			new FirebirdRenameTableConvertor().convert({
+				fromSchema: '',
+				tableNameFrom: newTableName,
+				tableNameTo: tableName,
+				toSchema: '',
+				type: 'rename_table',
+			}),
+		);
+
+		for (const reference of referenceData) {
+			const onDeleteStatement = reference.onDelete ? ` ON DELETE ${firebirdAction(reference.onDelete)}` : '';
+			const onUpdateStatement = reference.onUpdate ? ` ON UPDATE ${firebirdAction(reference.onUpdate)}` : '';
+			const fromColumnsString = reference.columnsFrom.map((it) => firebirdName(it)).join(',');
+			const toColumnsString = reference.columnsTo.map((it) => firebirdName(it)).join(',');
+			const constraintStatement = reference.name ? ` ADD CONSTRAINT ${firebirdName(reference.name)}` : ' ADD';
+
+			sqlStatements.push(
+				`ALTER TABLE ${
+					firebirdName(reference.tableFrom)
+				}${constraintStatement} FOREIGN KEY (${fromColumnsString}) REFERENCES ${
+					firebirdName(reference.tableTo)
+				}(${toColumnsString})${onUpdateStatement}${onDeleteStatement};`,
+			);
+		}
 
 		return sqlStatements;
 	}
@@ -3957,6 +4313,8 @@ convertors.push(new SingleStoreCreateTableConvertor());
 convertors.push(new SingleStoreRecreateTableConvertor());
 convertors.push(new SQLiteCreateTableConvertor());
 convertors.push(new SQLiteRecreateTableConvertor());
+convertors.push(new FirebirdCreateTableConvertor());
+convertors.push(new FirebirdRecreateTableConvertor());
 convertors.push(new LibSQLRecreateTableConvertor());
 
 convertors.push(new PgCreateViewConvertor());
@@ -3975,6 +4333,8 @@ convertors.push(new MySqlAlterViewConvertor());
 
 convertors.push(new SqliteCreateViewConvertor());
 convertors.push(new SqliteDropViewConvertor());
+convertors.push(new FirebirdCreateViewConvertor());
+convertors.push(new FirebirdDropViewConvertor());
 
 convertors.push(new CreateTypeEnumConvertor());
 convertors.push(new DropTypeEnumConvertor());
@@ -3993,26 +4353,31 @@ convertors.push(new PgDropTableConvertor());
 convertors.push(new MySQLDropTableConvertor());
 convertors.push(new SingleStoreDropTableConvertor());
 convertors.push(new SQLiteDropTableConvertor());
+convertors.push(new FirebirdDropTableConvertor());
 
 convertors.push(new PgRenameTableConvertor());
 convertors.push(new MySqlRenameTableConvertor());
 convertors.push(new SingleStoreRenameTableConvertor());
 convertors.push(new SqliteRenameTableConvertor());
+convertors.push(new FirebirdRenameTableConvertor());
 
 convertors.push(new PgAlterTableRenameColumnConvertor());
 convertors.push(new MySqlAlterTableRenameColumnConvertor());
 convertors.push(new SingleStoreAlterTableRenameColumnConvertor());
 convertors.push(new SQLiteAlterTableRenameColumnConvertor());
+convertors.push(new FirebirdAlterTableRenameColumnConvertor());
 
 convertors.push(new PgAlterTableDropColumnConvertor());
 convertors.push(new MySqlAlterTableDropColumnConvertor());
 convertors.push(new SingleStoreAlterTableDropColumnConvertor());
 convertors.push(new SQLiteAlterTableDropColumnConvertor());
+convertors.push(new FirebirdAlterTableDropColumnConvertor());
 
 convertors.push(new PgAlterTableAddColumnConvertor());
 convertors.push(new MySqlAlterTableAddColumnConvertor());
 convertors.push(new SingleStoreAlterTableAddColumnConvertor());
 convertors.push(new SQLiteAlterTableAddColumnConvertor());
+convertors.push(new FirebirdAlterTableAddColumnConvertor());
 
 convertors.push(new PgAlterTableAlterColumnSetTypeConvertor());
 
@@ -4034,9 +4399,11 @@ convertors.push(new CreatePgIndexConvertor());
 convertors.push(new CreateMySqlIndexConvertor());
 convertors.push(new CreateSingleStoreIndexConvertor());
 convertors.push(new CreateSqliteIndexConvertor());
+convertors.push(new CreateFirebirdIndexConvertor());
 
 convertors.push(new PgDropIndexConvertor());
 convertors.push(new SqliteDropIndexConvertor());
+convertors.push(new FirebirdDropIndexConvertor());
 convertors.push(new MySqlDropIndexConvertor());
 convertors.push(new SingleStoreDropIndexConvertor());
 
@@ -4087,11 +4454,13 @@ convertors.push(new SingleStoreModifyColumn());
 
 convertors.push(new PgCreateForeignKeyConvertor());
 convertors.push(new MySqlCreateForeignKeyConvertor());
+convertors.push(new FirebirdCreateForeignKeyConvertor());
 
 convertors.push(new PgAlterForeignKeyConvertor());
 
 convertors.push(new PgDeleteForeignKeyConvertor());
 convertors.push(new MySqlDeleteForeignKeyConvertor());
+convertors.push(new FirebirdDeleteForeignKeyConvertor());
 
 convertors.push(new PgCreateSchemaConvertor());
 convertors.push(new PgRenameSchemaConvertor());
