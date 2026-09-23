@@ -1927,3 +1927,105 @@ test('moved schema and alter view', async () => {
 	expect(sqlStatements[0]).toBe(`ALTER VIEW "public"."some_view" SET SCHEMA "my_schema";`);
 	expect(sqlStatements[1]).toBe(`ALTER VIEW "my_schema"."some_view" SET (check_option = cascaded);`);
 });
+
+test('views with dependencies are created in correct order', async () => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey().notNull(),
+		score: integer('score'),
+	});
+
+	const userScoresView = pgView('user_scores').as((qb) =>
+		qb.select({ id: users.id, score: users.score }).from(users)
+	);
+
+	const topScoresView = pgView('top_scores', { id: integer('id'), score: integer('score') }).as(
+		sql`select "id", "score" from "user_scores" where "score" > 100`,
+	);
+
+	const to = {
+		users,
+		topScoresView,
+		userScoresView,
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
+
+	const createViewStatements = statements.filter((s) => s.type === 'create_view');
+	expect(createViewStatements.length).toBe(2);
+
+	const viewNames = createViewStatements.map((s) => s.name);
+	const userScoresIdx = viewNames.indexOf('user_scores');
+	const topScoresIdx = viewNames.indexOf('top_scores');
+	expect(userScoresIdx).toBeLessThan(topScoresIdx);
+
+	const createViewSql = sqlStatements.filter((s) => s.includes('CREATE VIEW'));
+	expect(createViewSql.length).toBe(2);
+	expect(createViewSql[0]).toContain('user_scores');
+	expect(createViewSql[1]).toContain('top_scores');
+});
+
+test('materialized views with dependencies are created in correct order', async () => {
+	const events = pgTable('events', {
+		id: integer('id').primaryKey().notNull(),
+		amount: integer('amount'),
+	});
+
+	const dailyTotalsView = pgMaterializedView('daily_totals').as((qb) =>
+		qb.select({ id: events.id, amount: events.amount }).from(events)
+	);
+
+	const weeklyTotalsView = pgMaterializedView('weekly_totals', { total: integer('total') }).as(
+		sql`select sum("amount") as "total" from "daily_totals"`,
+	);
+
+	const to = {
+		events,
+		weeklyTotalsView,
+		dailyTotalsView,
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
+
+	const createViewStatements = statements.filter((s) => s.type === 'create_view');
+	expect(createViewStatements.length).toBe(2);
+
+	const viewNames = createViewStatements.map((s) => s.name);
+	const dailyIdx = viewNames.indexOf('daily_totals');
+	const weeklyIdx = viewNames.indexOf('weekly_totals');
+	expect(dailyIdx).toBeLessThan(weeklyIdx);
+});
+
+test('three-level view dependency chain is ordered correctly', async () => {
+	const orders = pgTable('orders', {
+		id: integer('id').primaryKey().notNull(),
+		total: integer('total'),
+	});
+
+	const orderStatsView = pgView('order_stats').as((qb) =>
+		qb.select({ id: orders.id, total: orders.total }).from(orders)
+	);
+
+	const highValueView = pgView('high_value_orders', { id: integer('id'), total: integer('total') }).as(
+		sql`select "id", "total" from "order_stats" where "total" > 1000`,
+	);
+
+	const summaryView = pgView('summary_report', { cnt: integer('cnt') }).as(
+		sql`select count(*) as "cnt" from "high_value_orders"`,
+	);
+
+	const to = {
+		orders,
+		summaryView,
+		highValueView,
+		orderStatsView,
+	};
+
+	const { statements } = await diffTestSchemas({}, to, []);
+
+	const createViewStatements = statements.filter((s) => s.type === 'create_view');
+	expect(createViewStatements.length).toBe(3);
+
+	const viewNames = createViewStatements.map((s) => s.name);
+	expect(viewNames.indexOf('order_stats')).toBeLessThan(viewNames.indexOf('high_value_orders'));
+	expect(viewNames.indexOf('high_value_orders')).toBeLessThan(viewNames.indexOf('summary_report'));
+});
