@@ -128,7 +128,7 @@ export abstract class PgColumnBuilder<
 	buildExtraConfigColumn<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): ExtraConfigColumn {
-		return new ExtraConfigColumn(table, this.config);
+		return new ExtraConfigColumn(table, this.config, () => this.build(table).getSQLType());
 	}
 }
 
@@ -158,8 +158,31 @@ export class ExtraConfigColumn<
 > extends PgColumn<T, IndexedExtraConfigType> {
 	static override readonly [entityKind]: string = 'ExtraConfigColumn';
 
+	/**
+	 * Resolves the SQL type of the column this one stands in for.
+	 *
+	 * An `ExtraConfigColumn` is built from the column builder's config rather than from
+	 * the concrete column class, so it inherits no `getSQLType()` implementation of its
+	 * own — the builder supplies a resolver that defers to the real column.
+	 */
+	private readonly resolveSQLType?: () => string;
+
+	constructor(
+		table: PgTable,
+		config: ColumnBuilderRuntimeConfig<T['data'], IndexedExtraConfigType>,
+		resolveSQLType?: () => string,
+	) {
+		super(table, config);
+		this.resolveSQLType = resolveSQLType;
+	}
+
 	override getSQLType(): string {
-		return this.getSQLType();
+		if (!this.resolveSQLType) {
+			throw new Error(
+				`Cannot determine the SQL type of column "${this.name}": it was constructed without a type resolver.`,
+			);
+		}
+		return this.resolveSQLType();
 	}
 
 	indexConfig: IndexedExtraConfigType = {
