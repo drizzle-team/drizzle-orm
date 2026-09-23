@@ -308,17 +308,15 @@ export abstract class SQLiteDialect {
 	}
 
 	private buildOrderBy(
-		orderBy: (SQLiteColumn | SQL | SQL.Aliased)[] | undefined,
+		orderBy: (SQLiteColumn | SQL | SQL.Aliased | undefined)[] | undefined,
 	): SQL | undefined {
 		const orderByList: (SQLiteColumn | SQL | SQL.Aliased)[] = [];
+		const present = orderBy?.filter((item): item is SQLiteColumn | SQL | SQL.Aliased => item !== undefined) ?? [];
 
-		if (orderBy) {
-			for (const [index, orderByValue] of orderBy.entries()) {
-				orderByList.push(orderByValue);
-
-				if (index < orderBy.length - 1) {
-					orderByList.push(sql`, `);
-				}
+		for (const [index, orderByValue] of present.entries()) {
+			orderByList.push(orderByValue);
+			if (index < present.length - 1) {
+				orderByList.push(sql`, `);
 			}
 		}
 
@@ -405,13 +403,13 @@ export abstract class SQLiteDialect {
 		const havingSql = having ? sql` having ${having}` : undefined;
 
 		const groupByList: (SQL | AnyColumn | SQL.Aliased)[] = [];
-		if (groupBy) {
-			for (const [index, groupByValue] of groupBy.entries()) {
-				groupByList.push(groupByValue);
-
-				if (index < groupBy.length - 1) {
-					groupByList.push(sql`, `);
-				}
+		const presentGroupBy = groupBy?.filter(
+			(item): item is SQL | AnyColumn | SQL.Aliased => item !== undefined,
+		) ?? [];
+		for (const [index, groupByValue] of presentGroupBy.entries()) {
+			groupByList.push(groupByValue);
+			if (index < presentGroupBy.length - 1) {
+				groupByList.push(sql`, `);
 			}
 		}
 
@@ -474,6 +472,9 @@ export abstract class SQLiteDialect {
 			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
 			// which is invalid Sql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
 			for (const singleOrderBy of orderBy) {
+				if (singleOrderBy === undefined) {
+					continue;
+				}
 				if (is(singleOrderBy, SQLiteColumn)) {
 					orderByValues.push(sql.identifier(singleOrderBy.name));
 				} else if (is(singleOrderBy, SQL)) {
