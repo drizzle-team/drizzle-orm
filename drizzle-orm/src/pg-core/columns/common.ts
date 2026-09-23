@@ -22,8 +22,8 @@ import type { PgIndexOpClass } from '../indexes.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 import { makePgArray, parsePgArray } from '../utils/array.ts';
 
-export interface ReferenceConfig {
-	ref: () => PgColumn;
+export interface ReferenceConfig<TTarget extends PgColumn = PgColumn> {
+	ref: () => TTarget;
 	actions: {
 		onUpdate?: UpdateDeleteAction;
 		onDelete?: UpdateDeleteAction;
@@ -65,12 +65,12 @@ export abstract class PgColumnBuilder<
 		return new PgArrayBuilder(this.config.name, this as PgColumnBuilder<any, any>, size as any);
 	}
 
-	references(
-		ref: ReferenceConfig['ref'],
-		actions: ReferenceConfig['actions'] = {},
-	): this {
-		this.foreignKeyConfigs.push({ ref, actions });
-		return this;
+	references<TTarget extends PgColumn>(
+		ref: () => TTarget,
+	actions: ReferenceConfig<TTarget>['actions'] = {},
+	): this & { _: { referencedColumn: TTarget } } {
+		this.foreignKeyConfigs.push({ ref, actions } as ReferenceConfig);
+		return this as this & { _: { referencedColumn: TTarget } };
 	}
 
 	unique(
@@ -103,6 +103,7 @@ export abstract class PgColumnBuilder<
 				(ref, actions) => {
 					const builder = new ForeignKeyBuilder(() => {
 						const foreignColumn = ref();
+						(column as PgColumn<any, any, any, any>).references = foreignColumn;
 						return { columns: [column], foreignColumns: [foreignColumn] };
 					});
 					if (actions.onUpdate) {
@@ -137,6 +138,7 @@ export abstract class PgColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = {},
 	TTypeConfig extends object = {},
+	TReferencedColumn = undefined,
 > extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'pg' }> {
 	static override readonly [entityKind]: string = 'PgColumn';
 
@@ -149,6 +151,7 @@ export abstract class PgColumn<
 		}
 		super(table, config);
 	}
+	references!: TReferencedColumn;
 }
 
 export type IndexedExtraConfigType = { order?: 'asc' | 'desc'; nulls?: 'first' | 'last'; opClass?: string };
