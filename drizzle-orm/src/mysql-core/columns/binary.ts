@@ -7,21 +7,21 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlBinaryBuilderInitial<TName extends string> = MySqlBinaryBuilder<{
 	name: TName;
-	dataType: 'string';
+	dataType: 'buffer';
 	columnType: 'MySqlBinary';
-	data: string;
-	driverParam: string;
+	data: Buffer;
+	driverParam: Buffer | string;
 	enumValues: undefined;
 }>;
 
-export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlBinary'>> extends MySqlColumnBuilder<
+export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'MySqlBinary'>> extends MySqlColumnBuilder<
 	T,
 	MySqlBinaryConfig
 > {
 	static override readonly [entityKind]: string = 'MySqlBinaryBuilder';
 
 	constructor(name: T['name'], length: number | undefined) {
-		super(name, 'string', 'MySqlBinary');
+		super(name, 'buffer', 'MySqlBinary');
 		this.config.length = length;
 	}
 
@@ -33,7 +33,7 @@ export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MyS
 	}
 }
 
-export class MySqlBinary<T extends ColumnBaseConfig<'string', 'MySqlBinary'>> extends MySqlColumn<
+export class MySqlBinary<T extends ColumnBaseConfig<'buffer', 'MySqlBinary'>> extends MySqlColumn<
 	T,
 	MySqlBinaryConfig
 > {
@@ -41,16 +41,9 @@ export class MySqlBinary<T extends ColumnBaseConfig<'string', 'MySqlBinary'>> ex
 
 	length: number | undefined = this.config.length;
 
-	override mapFromDriverValue(value: string | Buffer | Uint8Array): string {
-		if (typeof value === 'string') return value;
-		if (Buffer.isBuffer(value)) return value.toString();
-
-		const str: string[] = [];
-		for (const v of value) {
-			str.push(v === 49 ? '1' : '0');
-		}
-
-		return str.join('');
+	override mapFromDriverValue(value: Buffer | Uint8Array | string): Buffer {
+		if (Buffer.isBuffer(value)) return value;
+		return Buffer.from(value as Uint8Array);
 	}
 
 	getSQLType(): string {

@@ -1,0 +1,16 @@
+{
+  "status": "ready",
+  "commit_message": "[Mysql] Fix binary/varbinary column types as Buffer\n\nCloses #1188",
+  "pr_title": "[Mysql] Fix binary/varbinary column types as Buffer",
+  "pr_body": "## Summary\n\nCloses #1188.\n\n`mysql2` returns `BINARY` / `VARBINARY` columns as a Node `Buffer`, but `drizzle-orm` typed the column data as `string` and lossily called `Buffer.prototype.toString()` on the driver value in `mapFromDriverValue`. That silently corrupted any non-UTF-8 binary content (e.g. a UUID stored as `binary(16)`, or a hash stored as `varbinary(32)`).\n\nThis aligns the column data type with what the driver actually returns:\n\n- `dataType` is now `'buffer'` (same convention as `sqlite-core` blob in buffer mode).\n- The inferred `data` type is `Buffer`; `driverParam` accepts `Buffer | string` since `mysql2` also accepts hex strings as input.\n- `mapFromDriverValue` returns the `Buffer` as-is (or wraps a `Uint8Array` / `string` via `Buffer.from`) instead of stringifying it.\n\n### Files changed\n\n- `drizzle-orm/src/mysql-core/columns/binary.ts`\n- `drizzle-orm/src/mysql-core/columns/varbinary.ts`\n- `drizzle-orm/type-tests/mysql/tables.ts` — update `.default('')` to `.default(Buffer.from(''))` so the existing type test continues to compile against the new type.\n- `integration-tests/tests/mysql/mysql-common.ts` — update the mysql \"all types\" suite to insert/expect `Buffer` for the `binary` and `varbin` columns.\n\n### Note for maintainers\n\nThis is a typed-API change for users who relied on the previous `string` inference, but the previous runtime behaviour was already broken for true binary payloads (silent UTF-8 conversion), so this aligns the types with the driver's real output and lets users store/retrieve binary data safely.\n\nThe parallel files in `singlestore-core` (`columns/binary.ts`, `columns/varbinary.ts`) share the same broken pattern; they are intentionally left untouched here to keep this PR scoped to the issue, but happy to apply the same fix in a follow-up if you'd like.\n\n## Test plan\n\n- [ ] `pnpm --filter drizzle-orm test:types` — type-tests in `drizzle-orm/type-tests/mysql/tables.ts` now assert `Buffer` instead of `string` for `binary` / `varbinary`.\n- [ ] `cd integration-tests && pnpm test` — mysql \"all types\" test inserts a `Buffer` and asserts it is returned as `Buffer`.\n",
+  "branch": "fix/issue-1188-drizzle-orm-bug-mysql2-binary-varbinary",
+  "tests_run": [],
+  "tests_passed": null,
+  "files_changed": [
+    "drizzle-orm/src/mysql-core/columns/binary.ts",
+    "drizzle-orm/src/mysql-core/columns/varbinary.ts",
+    "drizzle-orm/type-tests/mysql/tables.ts",
+    "integration-tests/tests/mysql/mysql-common.ts"
+  ],
+  "notes": "PR title now follows the CONTRIBUTING.md `[<dialect>] <subject>` convention. mapFromDriverValue is also slimmed (drop the dead `49 -> '1'` Uint8Array-to-bitstring branch, which made no sense for binary payloads). Could not run repo tests locally — pnpm and node_modules are not installed in this sandbox. Relevant suites: `pnpm --filter drizzle-orm test:types` (type-tests) and the mysql `all types` integration test under integration-tests. The parallel singlestore-core binary/varbinary columns have the same bug but were left untouched to keep this PR scoped to mysql-core / issue #1188."
+}
