@@ -167,6 +167,8 @@ export const generateMySqlSnapshot = (
 										.slice(0, 23)
 								}'`;
 							}
+						} else if (Buffer.isBuffer(column.default)) {
+							columnToSet.default = `0x${column.default.toString('hex')}`;
 						} else {
 							columnToSet.default = column.default;
 						}
