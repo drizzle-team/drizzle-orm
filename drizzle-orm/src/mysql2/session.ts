@@ -146,9 +146,8 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 		placeholderValues: Record<string, unknown> = {},
 	): AsyncGenerator<T['execute'] extends any[] ? T['execute'][number] : T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
-		const conn = ((isPool(this.client) ? await this.client.getConnection() : this.client) as {} as {
-			connection: CallbackConnection;
-		}).connection;
+		const rawClient = isPool(this.client) ? await this.client.getConnection() : this.client;
+		const conn = (rawClient as {} as { connection: CallbackConnection }).connection;
 
 		const { fields, query, rawQuery, joinsNotNullableMap, client, customResultMapper } = this;
 		const hasRowsMapper = Boolean(fields || customResultMapper);
@@ -189,7 +188,9 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 		} finally {
 			stream.off('data', dataListener);
 			if (isPool(client)) {
-				conn.end();
+				// `.end()` on a pooled connection is deprecated in mysql2 (it warns and
+				// delegates to `.release()`); release it directly to avoid the warning.
+				(rawClient as PoolConnection).release();
 			}
 		}
 	}
