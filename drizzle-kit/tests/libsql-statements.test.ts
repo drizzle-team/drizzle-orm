@@ -779,6 +779,45 @@ test('alter column drop generated', async (t) => {
 	);
 });
 
+test('recreate table excludes new columns from INSERT INTO SELECT', async (t) => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			email: text('email').notNull(),
+		}),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: false }),
+			email: text('email').notNull(),
+			referralCode: text('referral_code'),
+		}),
+	};
+
+	const { sqlStatements, statements } = await diffTestSchemasLibSQL(schema1, schema2, []);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0].type).toBe('recreate_table');
+
+	// The INSERT INTO SELECT should only SELECT existing columns, not the new one
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`PRAGMA foreign_keys=OFF;`);
+	expect(sqlStatements[1]).toBe(`CREATE TABLE \`__new_users\` (
+\t\`id\` integer PRIMARY KEY NOT NULL,
+\t\`email\` text NOT NULL,
+\t\`referral_code\` text
+);\n`);
+	expect(sqlStatements[2]).toBe(
+		`INSERT INTO \`__new_users\`("id", "email") SELECT "id", "email" FROM \`users\`;`,
+	);
+	expect(sqlStatements[3]).toBe(`DROP TABLE \`users\`;`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
+	);
+	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
+});
+
 test('recreate table with nested references', async (t) => {
 	let users = sqliteTable('users', {
 		id: int('id').primaryKey({ autoIncrement: true }),
