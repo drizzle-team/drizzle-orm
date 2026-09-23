@@ -139,7 +139,7 @@ export type CacheConfig = {
   /**
    * Unix time at which the key will expire, in seconds (a positive integer).
    */
-  exat?: number;
+  exact?: number;
   /**
    * Unix time at which the key will expire, in milliseconds (a positive integer)
    */
