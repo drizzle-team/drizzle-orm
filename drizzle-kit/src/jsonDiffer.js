@@ -576,8 +576,22 @@ const alternationsInColumn = (column) => {
 
 	const result = altered
 		.filter((it) => {
-			if ('type' in it && it.type.__old.replace(' (', '(') === it.type.__new.replace(' (', '(')) {
-				return false;
+			if ('type' in it) {
+				const oldType = it.type.__old.replace(' (', '(');
+				const newType = it.type.__new.replace(' (', '(');
+				if (oldType === newType) return false;
+
+				// For MySQL enum types, compare values as sets (order-insensitive)
+				if (oldType.startsWith('enum(') && newType.startsWith('enum(')) {
+					const oldValues = oldType.substring(5, oldType.length - 1).split(',').sort();
+					const newValues = newType.substring(5, newType.length - 1).split(',').sort();
+					if (
+						oldValues.length === newValues.length
+						&& oldValues.every((v, i) => v === newValues[i])
+					) {
+						return false;
+					}
+				}
 			}
 			return true;
 		})
