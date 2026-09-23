@@ -70,6 +70,14 @@ test('select bigint', () => {
 	expect(result).toEqual({ bigInt: BigInt(100) });
 });
 
+test('lastInsertRowid access', () => {
+	const insertResult = db.insert(usersTable).values({ name: 'Alice' }).run();
+	
+	expect(insertResult.lastInsertRowid).toBeDefined();
+	expect(typeof insertResult.lastInsertRowid).toBe('number');
+	expect(insertResult.changes).toBe(1);
+});
+
 // test.serial('select partial', (t) => {
 // 	const { db } = t.context;
 
