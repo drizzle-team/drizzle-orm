@@ -298,10 +298,10 @@ test('validate config #7 - pglite without a client and without dbCredentials', a
 test('validate config #8 - a client is only accepted for the pglite driver', async (t) => {
 	const spy = vi.spyOn(console, 'log');
 
-	// @ts-expect-error 'client' is not a valid param without driver: 'pglite'
 	const { path, name } = createConfig({
 		dialect: 'postgresql',
 		schema: 'schema.ts',
+		// @ts-expect-error 'client' is not a valid param without driver: 'pglite'
 		client: {},
 	}, prefix);
 
