@@ -106,7 +106,7 @@ export class SQLiteTextJson<T extends ColumnBaseConfig<'json', 'SQLiteTextJson'>
 	}
 
 	override mapFromDriverValue(value: string): T['data'] {
-		return JSON.parse(value);
+		return value ? JSON.parse(value) : value;
 	}
 
 	override mapToDriverValue(value: T['data']): string {
