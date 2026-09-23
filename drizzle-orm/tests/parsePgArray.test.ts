@@ -96,6 +96,22 @@ describe.concurrent('parsePgArray', () => {
 		expect(output).toEqual(['1', 'two "three", four', '5']);
 	});
 
+	it('parses escaped backslashes inside quotes', ({ expect }) => {
+		// Postgres doubles a backslash in its array output, so the wire value
+		// `{"a\\b","c:\\temp\\x"}` holds the single-backslash strings `a\b` and
+		// `c:\temp\x`. The backslash must survive rather than being stripped.
+		const input = '{"a\\\\b","c:\\\\temp\\\\x"}';
+		const output = table.a.mapFromDriverValue(input);
+		expect(output).toEqual(['a\\b', 'c:\\temp\\x']);
+	});
+
+	it('parses a value containing both an escaped backslash and an escaped quote', ({ expect }) => {
+		// Wire `{"a\\\"b"}` is the string `a\"b` (a backslash then a quote).
+		const input = '{"a\\\\\\"b"}';
+		const output = table.a.mapFromDriverValue(input);
+		expect(output).toEqual(['a\\"b']);
+	});
+
 	it('parses two-dimensional array with strings', ({ expect }) => {
 		const input = '{{"one","two",three},{"four",five,"six"},{seven,eight,"nine"}}';
 		const output = table.b.mapFromDriverValue(input);
