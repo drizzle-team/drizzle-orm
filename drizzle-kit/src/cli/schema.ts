@@ -112,6 +112,22 @@ export const generate = command({
 	},
 });
 
+// hanji's renderWithTask swallows task rejections — it renders the view's
+// 'rejected' state and calls process.exit(1) before the surrounding try/catch
+// in the handler can run. As a result the real error was invisible in non-TTY
+// capture (CI logs, docker logs, redirected stdout) because the progress
+// spinner rewrites stdout. Surface the failure to stderr (which the spinner
+// never touches) and re-throw so the process still exits 1.
+const logMigrateError = (err: unknown) => {
+	const message = err instanceof Error ? err.message : String(err);
+	process.stderr.write(`[migrate] FAILED: ${message}\n`);
+	const cause = err instanceof Error ? err.cause : undefined;
+	if (cause instanceof Error && cause.message) {
+		process.stderr.write(`[migrate] CAUSE: ${cause.message}\n`);
+	}
+	throw err;
+};
+
 export const migrate = command({
 	name: 'migrate',
 	options: {
@@ -155,7 +171,7 @@ export const migrate = command({
 						migrationsFolder: out,
 						migrationsTable: table,
 						migrationsSchema: schema,
-					}),
+					}).catch(logMigrateError),
 				);
 			} else if (dialect === 'mysql') {
 				const { connectToMySQL } = await import('./connections');
@@ -166,7 +182,7 @@ export const migrate = command({
 						migrationsFolder: out,
 						migrationsTable: table,
 						migrationsSchema: schema,
-					}),
+					}).catch(logMigrateError),
 				);
 			} else if (dialect === 'singlestore') {
 				const { connectToSingleStore } = await import('./connections');
@@ -177,7 +193,7 @@ export const migrate = command({
 						migrationsFolder: out,
 						migrationsTable: table,
 						migrationsSchema: schema,
-					}),
+					}).catch(logMigrateError),
 				);
 			} else if (dialect === 'sqlite') {
 				const { connectToSQLite } = await import('./connections');
@@ -188,7 +204,7 @@ export const migrate = command({
 						migrationsFolder: opts.out,
 						migrationsTable: table,
 						migrationsSchema: schema,
-					}),
+					}).catch(logMigrateError),
 				);
 			} else if (dialect === 'turso') {
 				const { connectToLibSQL } = await import('./connections');
@@ -199,7 +215,7 @@ export const migrate = command({
 						migrationsFolder: opts.out,
 						migrationsTable: table,
 						migrationsSchema: schema,
-					}),
+					}).catch(logMigrateError),
 				);
 			} else if (dialect === 'gel') {
 				console.log(
