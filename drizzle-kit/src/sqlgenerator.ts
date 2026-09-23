@@ -143,7 +143,12 @@ const parseType = (schemaPrefix: string, type: string) => {
 	const arrayDefinitionRegex = /\[\d*(?:\[\d*\])*\]/g;
 	const arrayDefinition = (type.match(arrayDefinitionRegex) ?? []).join('');
 	const withoutArrayDefinition = type.replace(arrayDefinitionRegex, '');
-	return pgNativeTypes.some((it) => type.startsWith(it))
+	return pgNativeTypes.some(
+		(it) =>
+			withoutArrayDefinition === it ||
+			withoutArrayDefinition.startsWith(it + '(') ||
+			withoutArrayDefinition.startsWith(it + ' '),
+	)
 		? `${withoutArrayDefinition}${arrayDefinition}`
 		: `${schemaPrefix}"${withoutArrayDefinition}"${arrayDefinition}`;
 };
