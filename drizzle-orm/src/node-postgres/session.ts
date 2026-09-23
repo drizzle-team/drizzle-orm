@@ -42,7 +42,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 		this.rawQueryConfig = {
-			name,
+			...(name === undefined ? {} : { name }),
 			text: queryString,
 			types: {
 				// @ts-ignore
@@ -85,7 +85,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 			},
 		};
 		this.queryConfig = {
-			name,
+			...(name === undefined ? {} : { name }),
 			text: queryString,
 			rowMode: 'array',
 			types: {
