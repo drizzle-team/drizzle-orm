@@ -80,6 +80,18 @@ type Verify<T, U extends T> = U;
  *
  * ---
  *
+ * `extensionsFilters` - parameter allows you to filter out tables created by PostgreSQL extensions.
+ * This parameter accepts an array of extension names. Currently supported extensions:
+ * - 'postgis' - filters out geography_columns, geometry_columns, and spatial_ref_sys tables
+ * - 'pg_stat_statements' - filters out all pg_stat_* tables
+ *
+ * For example, having extensionsFilters: ["postgis", "pg_stat_statements"] will automatically filter out
+ * all extension-related tables from introspect and push operations.
+ *
+ * See https://orm.drizzle.team/kit-docs/config-reference#extensionsfilters
+ *
+ * ---
+ *
  * `schemaFilter` - parameter allows you to define which schema in PostgreSQL should be used for either introspect or push commands.
  * This parameter accepts a single schema as a string or an array of schemas as strings.
  * No glob pattern is supported here. By default, drizzle will use the public schema for both commands,
@@ -112,7 +124,7 @@ export type Config =
 		out?: string;
 		breakpoints?: boolean;
 		tablesFilter?: string | string[];
-		extensionsFilters?: 'postgis'[];
+		extensionsFilters?: ('postgis' | 'pg_stat_statements')[];
 		schemaFilter?: string | string[];
 		schema?: string | string[];
 		verbose?: boolean;
@@ -315,6 +327,18 @@ export type Config =
  * How to define multi-project tables with Drizzle ORM — see https://orm.drizzle.team/docs/goodies#multi-project-schema
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#tablesfilters
+ *
+ * ---
+ *
+ * `extensionsFilters` - parameter allows you to filter out tables created by PostgreSQL extensions.
+ * This parameter accepts an array of extension names. Currently supported extensions:
+ * - 'postgis' - filters out geography_columns, geometry_columns, and spatial_ref_sys tables
+ * - 'pg_stat_statements' - filters out all pg_stat_* tables
+ *
+ * For example, having extensionsFilters: ["postgis", "pg_stat_statements"] will automatically filter out
+ * all extension-related tables from introspect and push operations.
+ *
+ * See https://orm.drizzle.team/kit-docs/config-reference#extensionsfilters
  *
  * ---
  *

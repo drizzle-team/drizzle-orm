@@ -23,7 +23,7 @@ export const pushParams = object({
 	schemaFilter: union([string(), string().array()])
 		.optional()
 		.default(['public']),
-	extensionsFilters: literal('postgis').array().optional(),
+	extensionsFilters: union([literal('postgis'), literal('pg_stat_statements')]).array().optional(),
 	verbose: boolean().optional(),
 	strict: boolean().optional(),
 	entities: object({
@@ -45,7 +45,7 @@ export const pullParams = object({
 	schemaFilter: union([string(), string().array()])
 		.optional()
 		.default(['public']),
-	extensionsFilters: literal('postgis').array().optional(),
+	extensionsFilters: union([literal('postgis'), literal('pg_stat_statements')]).array().optional(),
 	casing,
 	breakpoints: boolean().optional().default(true),
 	migrations: object({
