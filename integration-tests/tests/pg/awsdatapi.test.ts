@@ -9,6 +9,7 @@ import { migrate } from 'drizzle-orm/aws-data-api/pg/migrator';
 import {
 	alias,
 	boolean,
+	customType,
 	date,
 	integer,
 	jsonb,
@@ -85,6 +86,22 @@ const todoToGroupRelations = relations(todoUser, (ctx) => ({
 	}),
 }));
 
+export const prefixedUUid = customType<{ data: string; driverData: string }>({
+	dataType: () => 'uuid',
+	toDriver: (value) => {
+		const [_prefix, id] = value.split('_');
+		return id!;
+	},
+	fromDriver: (value): string => {
+		return `prefix_${value}`;
+	},
+});
+
+const customTypeUser = pgTable('custom_user', {
+	id: prefixedUUid('id').primaryKey(),
+	email: text('email').notNull(),
+});
+
 const schema = {
 	todo,
 	todoRelations,
@@ -92,6 +109,7 @@ const schema = {
 	userRelations,
 	todoUser,
 	todoToGroupRelations,
+	customTypeUser,
 };
 
 let db: AwsDataApiPgDatabase<typeof schema>;
@@ -152,6 +170,15 @@ beforeEach(async () => {
 			create table todo_user (
 				todo_id uuid references todo(id),
 				user_id uuid references "user"(id)
+			)
+		`,
+	);
+
+	await db.execute(
+		sql`
+			create table custom_user (
+				id uuid primary key,
+				email text not null
 			)
 		`,
 	);
@@ -1608,6 +1635,19 @@ test('Typehints mix for findFirst', async () => {
 	});
 
 	expect(res).toStrictEqual({ id: 'd997d46d-5769-4c78-9a35-93acadbe6076', email: 'd' });
+});
+
+test('Typehints work for custom types', async () => {
+	const uuid = 'd997d46d-5769-4c78-9a35-93acadbe6076';
+	const prefixedUUid = `prefix_${uuid}`;
+
+	await db.insert(customTypeUser).values({ id: prefixedUUid, email: 'd' });
+
+	const res = await db.query.customTypeUser.findFirst({
+		where: eq(customTypeUser.id, prefixedUUid),
+	});
+
+	expect(res).toStrictEqual({ id: 'prefix_d997d46d-5769-4c78-9a35-93acadbe6076', email: 'd' });
 });
 
 afterAll(async () => {
