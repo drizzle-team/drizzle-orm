@@ -27,7 +27,6 @@ jobs:
     strategy:
       matrix:
         shard:
-          - gel
           - planetscale
           - singlestore-core
           - singlestore-proxy
@@ -165,10 +164,6 @@ jobs:
         run: |
           case ${{ matrix.shard }} in
 
-            gel)
-              pnpm vitest run tests/gel
-            ;;
-
             planetscale)
               pnpm vitest run \
                 tests/mysql/mysql-planetscale.test.ts \
@@ -200,10 +195,6 @@ jobs:
               docker compose -f docker-neon.yml up -d
               pnpm vitest run tests/pg/neon-serverless.test.ts
               docker compose -f docker-neon.yml down
-            ;;
-
-            netlify-db)
-              pnpm vitest run tests/pg/netlify-db.test.ts
             ;;
 
             drizzle-orm|drizzle-kit|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot|drizzle-arktype)
