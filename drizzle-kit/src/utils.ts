@@ -1,4 +1,3 @@
-import type { RunResult } from 'better-sqlite3';
 import chalk from 'chalk';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -366,6 +365,77 @@ export function escapeSingleQuotes(str: string) {
 }
 
 export function unescapeSingleQuotes(str: string, ignoreFirstAndLastChar: boolean) {
-	const regex = ignoreFirstAndLastChar ? /(?<!^)'(?!$)/g : /'/g;
-	return str.replace(/''/g, "'").replace(regex, "\\'");
+	const regex = ignoreFirstAndLastChar ? /(?<!^)''(?!$)/g : /''/g;
+	const unescaped = str.replace(regex, "'");
+	return formatForSingleQuotedString(unescaped, ignoreFirstAndLastChar);
+}
+
+/**
+ * Formats a string for use in a JS single-quoted string literal.
+ *
+ * This function handles proper escaping of special characters:
+ * - Single quotes are escaped as \'
+ * - Double quotes are left as-is
+ * - Backslashes are escaped as \\
+ * - Common control characters (\b, \f, \n, etc.) are properly escaped
+ * - Null characters (\0) followed by a digit are escaped as \x00
+ * - Other control characters (ASCII < 32) are escaped as \xHH hex representation
+ *
+ * @param value The string to format
+ * @param ignoreFirstAndLastChar If true, the first and last characters of the input string are ignored
+ * @returns A properly formatted JS string literal with single quotes
+ */
+export function formatForSingleQuotedString(value: string, ignoreFirstAndLastChar: boolean): string {
+	const replacements: { [key: string]: string } = {
+		'\\': '\\\\',
+		'\b': '\\b',
+		'\f': '\\f',
+		'\n': '\\n',
+		'\r': '\\r',
+		'\t': '\\t',
+		'\v': '\\v',
+		'\0': '\\0',
+		'\u2028': '\\u2028',
+		'\u2029': '\\u2029',
+	};
+
+	let product = '';
+	const maxIndex = value.length - 1;
+	for (let i = 0; i <= maxIndex; i++) {
+		const c: string = value[i];
+
+		if (ignoreFirstAndLastChar && (i === 0 || i === maxIndex)) {
+			product += c;
+			continue;
+		}
+
+		if (c === "'") {
+			product += "\\'";
+			continue;
+		}
+
+		if (c === '"') {
+			product += '"';
+			continue;
+		}
+
+		if (c === '\0' && i + 1 <= maxIndex && /[0-9]/.test(value[i + 1])) {
+			product += '\\x00';
+			continue;
+		}
+
+		if (replacements[c]) {
+			product += replacements[c];
+			continue;
+		}
+
+		if (c < ' ') {
+			const hexString = c.charCodeAt(0).toString(16);
+			product += '\\x' + ('00' + hexString).substring(hexString.length);
+			continue;
+		}
+
+		product += c;
+	}
+	return product;
 }
