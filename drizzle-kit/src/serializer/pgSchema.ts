@@ -287,6 +287,7 @@ export const view = object({
 	withNoData: boolean().optional(),
 	using: string().optional(),
 	tablespace: string().optional(),
+	dependsOn: array(string()).optional(),
 }).strict();
 
 const tableV4 = object({

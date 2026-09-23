@@ -715,11 +715,12 @@ export const generatePgSnapshot = (
 		let using;
 		let withNoData;
 		let materialized: boolean = false;
+		let dependsOn: string[] | undefined;
 
 		if (is(view, PgView)) {
 			({ name: viewName, schema, query, selectedFields, isExisting, with: withOption } = getViewConfig(view));
 		} else {
-			({ name: viewName, schema, query, selectedFields, isExisting, with: withOption, tablespace, using, withNoData } =
+			({ name: viewName, schema, query, selectedFields, isExisting, with: withOption, tablespace, using, withNoData, dependsOn } =
 				getMaterializedViewConfig(view));
 
 			materialized = true;
@@ -866,6 +867,7 @@ export const generatePgSnapshot = (
 			materialized,
 			tablespace,
 			using,
+			dependsOn,
 		};
 	}
 
