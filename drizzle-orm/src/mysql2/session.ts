@@ -162,13 +162,29 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 
 		stream.on('data', dataListener);
 
+		const ac = new AbortController();
+		const { signal } = ac;
+
+		let dataResolve: ((value: unknown) => void) | undefined;
+
 		try {
-			const onEnd = once(stream, 'end');
-			const onError = once(stream, 'error');
+			const onEnd = once(stream, 'end', { signal });
+			const onError = once(stream, 'error', { signal });
 
 			while (true) {
+				if (dataResolve) {
+					stream.off('data', dataResolve);
+					dataResolve = undefined;
+				}
 				stream.resume();
-				const row = await Promise.race([onEnd, onError, new Promise((resolve) => stream.once('data', resolve))]);
+				const row = await Promise.race([
+					onEnd,
+					onError,
+					new Promise<unknown>((resolve) => {
+						dataResolve = resolve;
+						stream.once('data', resolve);
+					}),
+				]);
 				if (row === undefined || (Array.isArray(row) && row.length === 0)) {
 					break;
 				} else if (row instanceof Error) { // eslint-disable-line no-instanceof/no-instanceof
@@ -187,7 +203,11 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 				}
 			}
 		} finally {
+			ac.abort();
 			stream.off('data', dataListener);
+			if (dataResolve) {
+				stream.off('data', dataResolve);
+			}
 			if (isPool(client)) {
 				conn.end();
 			}
