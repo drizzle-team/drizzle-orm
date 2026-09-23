@@ -862,6 +862,46 @@ test('optional db aliases (camel case)', async () => {
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6]);
 });
 
+test('add table with enum values containing commas', async () => {
+	const to = {
+		users: mysqlTable('users', {
+			plain: mysqlEnum('plain', ['a', 'b', 'c']),
+			withComma: mysqlEnum('with_comma', ['a,b', 'c']),
+		}),
+	};
+
+	const { statements } = await diffTestSchemasMysql({}, to, []);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'create_table',
+		tableName: 'users',
+		schema: undefined,
+		columns: [{
+			autoincrement: false,
+			name: 'plain',
+			notNull: false,
+			primaryKey: false,
+			type: "enum('a','b','c')",
+		}, {
+			autoincrement: false,
+			name: 'with_comma',
+			notNull: false,
+			primaryKey: false,
+			// A comma inside a value must not be treated as a value separator.
+			type: "enum('a,b','c')",
+		}],
+		compositePKs: [],
+		internals: {
+			tables: {},
+			indexes: {},
+		},
+		uniqueConstraints: [],
+		compositePkName: '',
+		checkConstraints: [],
+	});
+});
+
 test('add table with ts enum', async () => {
 	enum Test {
 		value = 'value',
