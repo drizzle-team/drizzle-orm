@@ -1146,6 +1146,26 @@ export function tests(driver?: string) {
 			});
 		});
 
+		test('build query: sql field keeps table qualifiers in correlated subquery', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			const a = mysqlTable('a', { id: int('id').primaryKey(), cId: int('c_id').notNull() });
+			const b = mysqlTable('b', { cId: int('c_id').notNull(), label: varchar('label', { length: 255 }).notNull() });
+
+			const query = db
+				.select({
+					id: a.id,
+					label: sql`select ${b.label} from ${b} where ${b.cId} = ${a.cId} limit 1`,
+				})
+				.from(a)
+				.toSQL();
+
+			expect(query).toEqual({
+				sql: 'select `id`, select `b`.`label` from `b` where `b`.`c_id` = `a`.`c_id` limit 1 from `a`',
+				params: [],
+			});
+		});
+
 		test('Query check: Insert all defaults in 1 row', async (ctx) => {
 			const { db } = ctx.mysql;
 

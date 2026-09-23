@@ -226,7 +226,9 @@ export class MySqlDialect {
 			} else if (is(field, SQL.Aliased) || is(field, SQL)) {
 				const query = is(field, SQL.Aliased) ? field.sql : field;
 
-				if (isSingleTable) {
+				// Drop the table prefix for bare column refs in a single-table select, but keep it
+				// when the expression references another table (e.g. a correlated subquery).
+				if (isSingleTable && query.usedTables.length === 0) {
 					chunk.push(
 						new SQL(
 							query.queryChunks.map((c) => {
