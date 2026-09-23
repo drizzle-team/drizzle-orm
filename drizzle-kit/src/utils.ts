@@ -366,6 +366,10 @@ export function escapeSingleQuotes(str: string) {
 }
 
 export function unescapeSingleQuotes(str: string, ignoreFirstAndLastChar: boolean) {
+	// Handle empty string case: '' from PostgreSQL should become empty string
+	if (ignoreFirstAndLastChar && str === "''") {
+		return '';
+	}
 	const regex = ignoreFirstAndLastChar ? /(?<!^)'(?!$)/g : /'/g;
 	return str.replace(/''/g, "'").replace(regex, "\\'");
 }
