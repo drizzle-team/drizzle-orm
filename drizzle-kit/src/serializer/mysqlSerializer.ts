@@ -917,6 +917,16 @@ export const fromDatabase = async (
 	}
 	for await (const view of views) {
 		const viewName = view['TABLE_NAME'];
+
+		if (!result[viewName]) {
+			console.log(
+				`\n${withStyle.errorWarning(
+				`Warning: Could not read columns for view '${viewName}'. The current database user might lack permissions (e.g. DEFINER access). This view will be omitted.`
+				)}`
+			);
+			continue;
+		}
+
 		const definition = view['VIEW_DEFINITION'];
 
 		const withCheckOption = view['CHECK_OPTION'] === 'NONE' ? undefined : view['CHECK_OPTION'].toLowerCase();
