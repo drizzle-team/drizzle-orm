@@ -865,6 +865,7 @@ Expect<
 		bigintdef: bigint('bigintdef', { mode: 'number' }).default(0),
 		binary: binary('binary'),
 		binary1: binary('binary1', { length: 1 }),
+		binary2: binary('binary2', { length: 16, mode: 'buffer' }),
 		binarydef: binary('binarydef').default(''),
 		boolean: boolean('boolean'),
 		booleandef: boolean('booleandef').default(false),
@@ -939,6 +940,7 @@ Expect<
 		tinyint2: tinyint('tinyint2', { unsigned: true }),
 		tinyintdef: tinyint('tinyintdef').default(0),
 		varbinary: varbinary('varbinary', { length: 1 }),
+		varbinary2: varbinary('varbinary2', { length: 16, mode: 'buffer' }),
 		varbinarydef: varbinary('varbinarydef', { length: 1 }).default(''),
 		varchar: varchar('varchar', { length: 1 }),
 		varchar2: varchar('varchar2', { length: 1, enum: ['a', 'b', 'c'] }),
@@ -965,6 +967,7 @@ Expect<
 		bigintdef: bigint({ mode: 'number' }).default(0),
 		binary: binary(),
 		binrary1: binary({ length: 1 }),
+		binary2: binary({ length: 16, mode: 'buffer' }),
 		binarydef: binary().default(''),
 		boolean: boolean(),
 		booleandef: boolean().default(false),
@@ -1039,6 +1042,7 @@ Expect<
 		tinyint2: tinyint({ unsigned: true }),
 		tinyintdef: tinyint().default(0),
 		varbinary: varbinary({ length: 1 }),
+		varbinary2: varbinary({ length: 16, mode: 'buffer' }),
 		varbinarydef: varbinary({ length: 1 }).default(''),
 		varchar: varchar({ length: 1 }),
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }),
@@ -1078,4 +1082,34 @@ Expect<
 	const res = await db.select({ enum: table.enum }).from(table);
 
 	Expect<Equal<{ enum: Role | null }[], typeof res>>;
+}
+
+{
+	const binaryModes = mysqlTable('binary_modes', {
+		binary: binary('binary', { length: 16 }),
+		binaryString: binary('binary_string', { length: 16, mode: 'string' }),
+		binaryBuffer: binary('binary_buffer', { length: 16, mode: 'buffer' }),
+		varbinary: varbinary('varbinary', { length: 16 }),
+		varbinaryString: varbinary('varbinary_string', { length: 16, mode: 'string' }),
+		varbinaryBuffer: varbinary('varbinary_buffer', { length: 16, mode: 'buffer' }),
+	});
+
+	Expect<
+		Equal<{
+			binary: string | null;
+			binaryString: string | null;
+			binaryBuffer: Buffer | null;
+			varbinary: string | null;
+			varbinaryString: string | null;
+			varbinaryBuffer: Buffer | null;
+		}, InferSelectModel<typeof binaryModes>>
+	>;
+
+	binary({ mode: 'buffer' }).default(Buffer.from('drizzle'));
+	varbinary({ length: 16, mode: 'buffer' }).default(Buffer.from('drizzle'));
+
+	// @ts-expect-error buffer mode columns don't accept string defaults
+	binary({ mode: 'buffer' }).default('drizzle');
+	// @ts-expect-error string mode columns don't accept buffer defaults
+	varbinary({ length: 16 }).default(Buffer.from('drizzle'));
 }
