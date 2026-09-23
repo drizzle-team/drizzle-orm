@@ -505,6 +505,15 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 		})
 		.join('');
 
+	// Reference Supabase's managed `auth.users` via the `authUsers` import instead of an
+	// undeclared local table, but only when the `auth.users` table itself was not introspected
+	// (e.g. the user did not include the `auth` schema in their schema filter).
+	const authUsersEmitted = Object.values(schema.tables).some(
+		(t) => t.schema === 'auth' && t.name === 'users',
+	);
+	const usesSupabaseAuthUsers = !authUsersEmitted
+		&& Object.values(schema.tables).some((t) => Object.values(t.foreignKeys).some(isSupabaseAuthUsersFk));
+
 	const tableStatements = Object.values(schema.tables).map((table) => {
 		const tableSchema = schemas[table.schema];
 		const paramName = paramNameFor(table.name, tableSchema);
@@ -539,7 +548,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			statement += ', ';
 			statement += '(table) => [';
 			statement += createTableIndexes(table.name, Object.values(table.indexes), casing);
-			statement += createTableFKs(Object.values(table.foreignKeys), schemas, casing);
+			statement += createTableFKs(Object.values(table.foreignKeys), schemas, casing, usesSupabaseAuthUsers);
 			statement += createTablePKs(
 				Object.values(table.compositePrimaryKeys),
 				casing,
@@ -608,7 +617,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 			', ',
 		)
 	} } from "drizzle-orm/pg-core"
-import { sql } from "drizzle-orm"\n\n`;
+import { sql } from "drizzle-orm"\n${usesSupabaseAuthUsers ? `import { authUsers } from "drizzle-orm/supabase"\n` : ''}\n`;
 
 	let decalrations = schemaStatements;
 	decalrations += rolesStatements;
@@ -1340,15 +1349,32 @@ const createTableChecks = (
 	return statement;
 };
 
-const createTableFKs = (fks: ForeignKey[], schemas: Record<string, string>, casing: Casing): string => {
+// Supabase manages the `auth.users` table; drizzle-orm ships it as `authUsers` in the
+// `drizzle-orm/supabase` entrypoint, so a FK targeting it must reference that import rather
+// than an (undeclared) local table produced from the un-introspected `auth` schema.
+const isSupabaseAuthUsersFk = (fk: ForeignKey) => fk.schemaTo === 'auth' && fk.tableTo === 'users';
+
+const createTableFKs = (
+	fks: ForeignKey[],
+	schemas: Record<string, string>,
+	casing: Casing,
+	supabaseAuthUsers: boolean,
+): string => {
 	let statement = '';
 
 	fks.forEach((it) => {
 		const tableSchema = schemas[it.schemaTo || ''];
 		const paramName = paramNameFor(it.tableTo, tableSchema);
 
+		// A FK into Supabase's managed `auth.users` must reference the `authUsers` import even when
+		// the local (referencing) table is itself named `users` — check it before the self-FK case,
+		// which only compares table names and would otherwise mis-emit `table` (a bogus self-reference).
 		const isSelf = it.tableTo === it.tableFrom;
-		const tableTo = isSelf ? 'table' : `${withCasing(paramName, casing)}`;
+		const tableTo = supabaseAuthUsers && isSupabaseAuthUsersFk(it)
+			? 'authUsers'
+			: isSelf
+			? 'table'
+			: `${withCasing(paramName, casing)}`;
 		statement += `\n\t`;
 		statement += `foreignKey({\n`;
 		statement += `\t\t\tcolumns: [${it.columnsFrom.map((i) => `table.${withCasing(i, casing)}`).join(', ')}],\n`;
