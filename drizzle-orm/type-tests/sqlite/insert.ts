@@ -60,6 +60,57 @@ Expect<Equal<typeof users.$inferSelect, typeof insertGetReturningAll>>;
 const insertGetReturningAllBun = bunDb.insert(users).values(newUser).returning().get();
 Expect<Equal<typeof users.$inferSelect, typeof insertGetReturningAllBun>>;
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6107
+// A conflict-tolerant insert can affect zero rows at runtime, so .get() must be typed as T | undefined
+const insertGetReturningAllWithConflict = db.insert(users).values(newUser)
+	.onConflictDoNothing()
+	.returning()
+	.get();
+Expect<Equal<typeof users.$inferSelect | undefined, typeof insertGetReturningAllWithConflict>>;
+
+const insertGetReturningAllWithConflictBun = bunDb.insert(users).values(newUser)
+	.onConflictDoNothing()
+	.returning()
+	.get();
+Expect<Equal<typeof users.$inferSelect | undefined, typeof insertGetReturningAllWithConflictBun>>;
+
+const insertGetReturningAllWithConflictUpdate = db.insert(users).values(newUser)
+	.onConflictDoUpdate({
+		target: users.age1,
+		set: { age1: sql`${users.age1} + 1` },
+		setWhere: sql`${users.age1} > 10`,
+	})
+	.returning()
+	.get();
+Expect<Equal<typeof users.$inferSelect | undefined, typeof insertGetReturningAllWithConflictUpdate>>;
+
+const insertGetReturningAllWithConflictUpdateBun = bunDb.insert(users).values(newUser)
+	.onConflictDoUpdate({
+		target: users.age1,
+		set: { age1: sql`${users.age1} + 1` },
+		setWhere: sql`${users.age1} > 10`,
+	})
+	.returning()
+	.get();
+Expect<Equal<typeof users.$inferSelect | undefined, typeof insertGetReturningAllWithConflictUpdateBun>>;
+
+// An unconditional on conflict do update always affects exactly one row, so .get() stays non-optional
+const insertGetReturningAllWithUnconditionalUpdate = db.insert(users).values(newUser)
+	.onConflictDoUpdate({
+		target: users.age1,
+		set: { age1: sql`${users.age1} + 1` },
+	})
+	.returning()
+	.get();
+Expect<Equal<typeof users.$inferSelect, typeof insertGetReturningAllWithUnconditionalUpdate>>;
+
+// .all() element type is unaffected by the conflict clause - the array can simply be empty
+const insertAllReturningAllWithConflict = db.insert(users).values(newUser)
+	.onConflictDoNothing()
+	.returning()
+	.all();
+Expect<Equal<typeof users.$inferSelect[], typeof insertAllReturningAllWithConflict>>;
+
 const insertValuesReturningAll = db.insert(users).values(newUser).returning().values();
 Expect<Equal<any[][], typeof insertValuesReturningAll>>;
 
