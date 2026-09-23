@@ -29,6 +29,7 @@ export class ViewBuilderCore<
 
 	constructor(
 		protected name: TConfig['name'],
+		protected schema?: string,
 	) {}
 
 	protected config: ViewBuilderConfig = {};
@@ -56,7 +57,7 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 				// sqliteConfig: this.config,
 				config: {
 					name: this.name,
-					schema: undefined,
+					schema: this.schema,
 					selectedFields: aliasedSelectedFields,
 					query: qb.getSQL().inlineParams(),
 				},
@@ -79,8 +80,9 @@ export class ManualViewBuilder<
 	constructor(
 		name: TName,
 		columns: TColumns,
+		schema?: string,
 	) {
-		super(name);
+		super(name, schema);
 		this.columns = getTableColumns(sqliteTable(name, columns)) as BuildColumns<TName, TColumns, 'sqlite'>;
 	}
 
@@ -89,7 +91,7 @@ export class ManualViewBuilder<
 			new SQLiteView({
 				config: {
 					name: this.name,
-					schema: undefined,
+					schema: this.schema,
 					selectedFields: this.columns,
 					query: undefined,
 				},
@@ -108,7 +110,7 @@ export class ManualViewBuilder<
 			new SQLiteView({
 				config: {
 					name: this.name,
-					schema: undefined,
+					schema: this.schema,
 					selectedFields: this.columns,
 					query: query.inlineParams(),
 				},
@@ -161,6 +163,29 @@ export function sqliteView(
 		return new ManualViewBuilder(name, selection);
 	}
 	return new ViewBuilder(name);
+}
+
+export function sqliteViewWithSchema<TName extends string>(
+	name: TName,
+	schema: string | undefined,
+): ViewBuilder<TName>;
+export function sqliteViewWithSchema<
+	TName extends string,
+	TColumns extends Record<string, SQLiteColumnBuilderBase>,
+>(
+	name: TName,
+	columns: TColumns,
+	schema: string | undefined,
+): ManualViewBuilder<TName, TColumns>;
+export function sqliteViewWithSchema(
+	name: string,
+	columnsOrSchema?: Record<string, SQLiteColumnBuilderBase> | string,
+	schema?: string,
+): ViewBuilder | ManualViewBuilder {
+	if (typeof columnsOrSchema === 'object') {
+		return new ManualViewBuilder(name, columnsOrSchema, schema);
+	}
+	return new ViewBuilder(name, columnsOrSchema as string | undefined);
 }
 
 export const view = sqliteView;
