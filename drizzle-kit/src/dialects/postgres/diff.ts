@@ -343,6 +343,7 @@ export const ddlDiff = async (
 			where: {
 				name: rename.from.name,
 				schema: rename.from.schema,
+				table: rename.from.table,
 			},
 		});
 
