@@ -125,7 +125,6 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 		});
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this._getQuery().sql as SQL;
 	}

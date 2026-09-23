@@ -125,7 +125,6 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		this.mode = mode;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildRelationalQuery({
 			fullSchema: this.fullSchema,
