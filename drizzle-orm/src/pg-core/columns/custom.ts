@@ -195,6 +195,18 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional cast when selected in a relation (`with: { ... }``).
+	 * This is mostly useful to force int8 (bigint) to be casted as string, instead of
+	 * getting converted to a number and losing precision.
+	 * @example
+	 * For example, when custom type expects to receive a stringified bigint :
+	 * ```
+	 * castInRelation: 'text'
+	 * ```
+	 */
+	castInRelation?: 'text';
 }
 
 /**
