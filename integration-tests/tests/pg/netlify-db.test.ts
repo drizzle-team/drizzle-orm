@@ -1,12 +1,19 @@
+import { neonConfig } from '@neondatabase/serverless';
 import { sql } from 'drizzle-orm';
 import { drizzle, type NetlifyDbDatabase } from 'drizzle-orm/netlify-db';
 import { migrate } from 'drizzle-orm/netlify-db/migrator';
 import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 import { beforeAll, beforeEach, expect, test } from 'vitest';
+import ws from 'ws';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { tests, usersMigratorTable, usersTable } from './pg-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
+
+// WebSocket constructor for Node.js < 22
+if (!neonConfig.webSocketConstructor && typeof WebSocket === 'undefined') {
+	neonConfig.webSocketConstructor = ws;
+}
 
 const ENABLE_LOGGING = false;
 
