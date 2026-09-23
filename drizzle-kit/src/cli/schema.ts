@@ -149,57 +149,52 @@ export const migrate = command({
 				}
 				const { preparePostgresDB } = await import('./connections');
 				const { migrate } = await preparePostgresDB(credentials);
-				await renderWithTask(
-					new MigrateProgress(),
+				await runMigrate(() =>
 					migrate({
 						migrationsFolder: out,
 						migrationsTable: table,
 						migrationsSchema: schema,
-					}),
+					})
 				);
 			} else if (dialect === 'mysql') {
 				const { connectToMySQL } = await import('./connections');
 				const { migrate } = await connectToMySQL(credentials);
-				await renderWithTask(
-					new MigrateProgress(),
+				await runMigrate(() =>
 					migrate({
 						migrationsFolder: out,
 						migrationsTable: table,
 						migrationsSchema: schema,
-					}),
+					})
 				);
 			} else if (dialect === 'singlestore') {
 				const { connectToSingleStore } = await import('./connections');
 				const { migrate } = await connectToSingleStore(credentials);
-				await renderWithTask(
-					new MigrateProgress(),
+				await runMigrate(() =>
 					migrate({
 						migrationsFolder: out,
 						migrationsTable: table,
 						migrationsSchema: schema,
-					}),
+					})
 				);
 			} else if (dialect === 'sqlite') {
 				const { connectToSQLite } = await import('./connections');
 				const { migrate } = await connectToSQLite(credentials);
-				await renderWithTask(
-					new MigrateProgress(),
+				await runMigrate(() =>
 					migrate({
 						migrationsFolder: opts.out,
 						migrationsTable: table,
 						migrationsSchema: schema,
-					}),
+					})
 				);
 			} else if (dialect === 'turso') {
 				const { connectToLibSQL } = await import('./connections');
 				const { migrate } = await connectToLibSQL(credentials);
-				await renderWithTask(
-					new MigrateProgress(),
+				await runMigrate(() =>
 					migrate({
 						migrationsFolder: opts.out,
 						migrationsTable: table,
 						migrationsSchema: schema,
-					}),
+					})
 				);
 			} else if (dialect === 'gel') {
 				console.log(
@@ -219,6 +214,21 @@ export const migrate = command({
 		process.exit(0);
 	},
 });
+
+/**
+ * Run `migrate()` with the spinner-based progress UI when stdout is a TTY, and
+ * without it otherwise. `MigrateProgress` is built on `TaskView`, whose
+ * internal `setInterval` blocks the event loop in non-TTY contexts (Docker
+ * entrypoints, CI, piped output), causing the migrate promise to hang
+ * indefinitely. See #5679.
+ */
+async function runMigrate(migrateFn: () => Promise<unknown>): Promise<void> {
+	if (process.stdout.isTTY === true) {
+		await renderWithTask(new MigrateProgress(), migrateFn());
+		return;
+	}
+	await migrateFn();
+}
 
 const optionsFilters = {
 	tablesFilter: string().desc('Table name filters'),
