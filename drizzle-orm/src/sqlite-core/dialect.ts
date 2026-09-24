@@ -475,7 +475,7 @@ export abstract class SQLiteDialect {
 			// which is invalid Sql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
 			for (const singleOrderBy of orderBy) {
 				if (is(singleOrderBy, SQLiteColumn)) {
-					orderByValues.push(sql.identifier(singleOrderBy.name));
+					orderByValues.push(sql.identifier(this.casing.getColumnCasing(singleOrderBy)));
 				} else if (is(singleOrderBy, SQL)) {
 					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
 						const chunk = singleOrderBy.queryChunks[i];
