@@ -360,7 +360,7 @@ export function tests(test: Test) {
 
 		// Test itself passes, but breaks 'insert via db.execute w/ query builder' tests later on
 		// need to revisit test cleanup
-		test.skipIf(Date.now() < +new Date('2026-09-29'))('Query error wrapping', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-09-26'))('Query error wrapping', async ({ db, push }) => {
 			const table = pgTable('somethingelse_error_wrap_slowpath', (t) => ({
 				id: t.integer().primaryKey(),
 				name: t.text().notNull(),

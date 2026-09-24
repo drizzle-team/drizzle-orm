@@ -163,11 +163,8 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 	}
 }
 
-export abstract class PgAsyncSession<
-	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
-	TRelations extends AnyRelations = EmptyRelations,
-> extends PgSession {
-	static override readonly [entityKind]: string = 'PgAsyncSession';
+export abstract class BasePgAsyncSession extends PgSession {
+	static override readonly [entityKind]: string = 'BasePgAsyncSession';
 
 	abstract override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
@@ -223,6 +220,13 @@ export abstract class PgAsyncSession<
 			return prepared.execute();
 		});
 	}
+}
+
+export abstract class PgAsyncSession<
+	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
+	TRelations extends AnyRelations = EmptyRelations,
+> extends BasePgAsyncSession {
+	static override readonly [entityKind]: string = 'PgAsyncSession';
 
 	abstract transaction<T>(
 		transaction: (tx: PgAsyncTransaction<TQueryResult, TRelations>) => Promise<T>,

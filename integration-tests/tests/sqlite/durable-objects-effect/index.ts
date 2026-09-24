@@ -51,6 +51,7 @@ import {
 import { Layer } from 'effect';
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
+import * as Exit from 'effect/Exit';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
 import { SqlClient } from 'effect/unstable/sql/SqlClient';
 import {
@@ -353,10 +354,10 @@ export class MyDurableObject extends DurableObject {
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
 		this.runtime = ManagedRuntime.make(
-			Layer.merge(SQLiteDrizzle.DefaultServices, SqliteClient.layer({ db: ctx.storage.sql })),
+			Layer.merge(SQLiteDrizzle.DefaultServices, SqliteClient.layer({ storage: ctx.storage })),
 		);
 		ctx.blockConcurrencyWhile(async () => {
-			this.db = await this.runtime.runPromise(SQLiteDrizzle.make({ relations, storage: ctx.storage }));
+			this.db = await this.runtime.runPromise(SQLiteDrizzle.make({ relations }));
 		});
 	}
 
@@ -3607,6 +3608,102 @@ export class MyDurableObject extends DurableObject {
 		}));
 	}
 
+	// https://github.com/drizzle-team/drizzle-orm/issues/6327
+	asyncTransaction(): Promise<void> {
+		const { db } = this;
+		return this.exec(Effect.gen(function*() {
+			const users = sqliteTable('users_async_transactions', {
+				id: integer('id').primaryKey(),
+				balance: integer('balance').notNull(),
+			});
+
+			yield* db.run(sql`drop table if exists ${users}`);
+			yield* db.run(
+				sql`create table users_async_transactions (id integer not null primary key, balance integer not null)`,
+			);
+
+			let resumed = false;
+			yield* db.transaction((tx) =>
+				Effect.gen(function*() {
+					yield* tx.insert(users).values({ balance: 100 });
+					yield* Effect.sleep('10 millis');
+					yield* tx.insert(users).values({ balance: 200 });
+					resumed = true;
+				})
+			);
+
+			const result = yield* db.select().from(users);
+			expect(resumed).equal(true);
+			expect(result).deep.equal([{ id: 1, balance: 100 }, { id: 2, balance: 200 }]);
+
+			yield* db.run(sql`drop table ${users}`);
+		}));
+	}
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/6327
+	asyncTransactionRollback(): Promise<void> {
+		const { db } = this;
+		return this.exec(Effect.gen(function*() {
+			const users = sqliteTable('users_async_transactions_rollback', {
+				id: integer('id').primaryKey(),
+				balance: integer('balance').notNull(),
+			});
+
+			yield* db.run(sql`drop table if exists ${users}`);
+			yield* db.run(
+				sql`create table users_async_transactions_rollback (id integer not null primary key, balance integer not null)`,
+			);
+
+			const exit = yield* Effect.exit(db.transaction((tx) =>
+				Effect.gen(function*() {
+					yield* tx.insert(users).values({ balance: 100 });
+					yield* Effect.sleep('10 millis');
+					yield* tx.insert(users).values({ balance: 200 });
+					return yield* tx.rollback();
+				})
+			));
+			yield* Effect.sleep('20 millis');
+
+			const result = yield* db.select().from(users);
+			expect(Exit.isFailure(exit)).equal(true);
+			expect(result).deep.equal([]);
+
+			yield* db.run(sql`drop table ${users}`);
+		}));
+	}
+
+	nestedTransactionRollback(): Promise<void> {
+		const { db } = this;
+		return this.exec(Effect.gen(function*() {
+			const users = sqliteTable('users_nested_transactions_rollback', {
+				id: integer('id').primaryKey(),
+				balance: integer('balance').notNull(),
+			});
+
+			yield* db.run(sql`drop table if exists ${users}`);
+			yield* db.run(
+				sql`create table users_nested_transactions_rollback (id integer not null primary key, balance integer not null)`,
+			);
+
+			yield* db.transaction((tx) =>
+				Effect.gen(function*() {
+					yield* tx.insert(users).values({ balance: 100 });
+					yield* tx.transaction((tx2) =>
+						Effect.gen(function*() {
+							yield* tx2.update(users).set({ balance: 200 });
+							return yield* tx2.rollback();
+						})
+					).pipe(Effect.ignore);
+				})
+			);
+
+			const result = yield* db.select().from(users);
+			expect(result).deep.equal([{ id: 1, balance: 100 }]);
+
+			yield* db.run(sql`drop table ${users}`);
+		}));
+	}
+
 	testRqbV2TransactionFindFirstNoRows(): Promise<void> {
 		const { db } = this;
 		return this.exec(Effect.gen(function*() {
@@ -3868,6 +3965,9 @@ const TESTS = [
 	'orderByWithAliasedColumn',
 	'transaction',
 	'nestedTransaction',
+	'asyncTransaction',
+	'asyncTransactionRollback',
+	'nestedTransactionRollback',
 	'joinSubqueryWithJoin',
 	'joinViewAsSubquery',
 	'insertWithOnConflictDoNothing',
