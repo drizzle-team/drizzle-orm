@@ -1,5 +1,5 @@
 import type { TypeOf } from 'zod';
-import { literal, object, string, undefined as zUndefined, union } from 'zod';
+import { object, string, undefined as zUndefined, union } from 'zod';
 import { softAssertUnreachable } from '../../utils';
 import { ConfigConnectionCliError, UnsupportedCommandCliError } from '../errors';
 import { error } from '../views';
@@ -16,11 +16,6 @@ export const d1HttpCredentials = object({
 export const sqliteCloudCredentials = object({ url: string().min(1) });
 
 export const sqliteCredentials = union([
-	object({
-		driver: literal('turso'),
-		url: string().min(1),
-		authToken: string().min(1).optional(),
-	}),
 	object({ driver: d1HttpDriver }).and(d1HttpCredentials),
 	object({ driver: sqliteCloudDriver }).and(sqliteCloudCredentials),
 	object({
@@ -31,17 +26,7 @@ export const sqliteCredentials = union([
 	}),
 ]);
 
-export type SqliteCredentials = {
-	driver: 'd1-http';
-	accountId: string;
-	databaseId: string;
-	token: string;
-} | {
-	driver: 'sqlite-cloud';
-	url: string;
-} | {
-	url: string;
-};
+export type SqliteCredentials = TypeOf<typeof sqliteCredentials>;
 
 const _: SqliteCredentials = {} as TypeOf<typeof sqliteCredentials>;
 
