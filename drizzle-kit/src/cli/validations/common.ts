@@ -73,6 +73,7 @@ export const sqliteDriversLiterals = [
 export const postgresqlDriversLiterals = [
 	literal('aws-data-api'),
 	literal('pglite'),
+	literal('dsql'),
 ] as const;
 
 export const casingTypes = ['snake_case', 'camelCase'] as const;
@@ -83,7 +84,7 @@ export const sqliteDriver = union(sqliteDriversLiterals);
 export const postgresDriver = union(postgresqlDriversLiterals);
 export const driver = union([sqliteDriver, postgresDriver]);
 
-export const drivers = ['d1-http', 'expo', 'aws-data-api', 'pglite', 'durable-sqlite', 'sqlite-cloud'] as const;
+export const drivers = ['d1-http', 'expo', 'aws-data-api', 'pglite', 'durable-sqlite', 'sqlite-cloud', 'dsql'] as const;
 
 export type Casing = TypeOf<typeof casing>;
 

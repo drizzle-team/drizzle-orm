@@ -148,6 +148,12 @@ importers:
       '@aws-sdk/client-rds-data':
         specifier: ^3.556.0
         version: 3.940.0
+      '@aws/aurora-dsql-node-postgres-connector':
+        specifier: ^0.1.9
+        version: 0.1.9(pg-connection-string@2.14.0)(pg@8.16.3)
+      '@aws/aurora-dsql-postgresjs-connector':
+        specifier: ^0.3.1
+        version: 0.3.1(postgres@3.4.7)
       '@cloudflare/workers-types':
         specifier: ^4.20230518.0
         version: 4.20251126.0
@@ -1166,6 +1172,11 @@ packages:
 
   '@aws/aurora-dsql-postgresjs-connector@0.3.0':
     resolution: {integrity: sha512-UT7Z5bNZM7FSaH0ndmglrKvniyaclgJxSo0Egj5IJhl6Js+fZd+INV4UdSSktIpoqQuBM6qVid38ZaO7Rw0vbQ==}
+    peerDependencies:
+      postgres: ^3.4.7
+
+  '@aws/aurora-dsql-postgresjs-connector@0.3.1':
+    resolution: {integrity: sha512-TeLYltk+wBfJ8e7KZs1igNYa+/lhNP821Is3v1OgYrT8s4mKOtE4n3QShrMOb2JxE4V8ovdWYf9XldwgBt4LyQ==}
     peerDependencies:
       postgres: ^3.4.7
 
@@ -10006,6 +10017,16 @@ snapshots:
       - aws-crt
 
   '@aws/aurora-dsql-postgresjs-connector@0.3.0(postgres@3.4.7)':
+    dependencies:
+      '@aws-sdk/credential-providers': 3.940.0
+      '@aws-sdk/dsql-signer': 3.1135.0
+      '@aws-sdk/types': 3.974.5
+      async-mutex: 0.5.0
+      postgres: 3.4.7
+    transitivePeerDependencies:
+      - aws-crt
+
+  '@aws/aurora-dsql-postgresjs-connector@0.3.1(postgres@3.4.7)':
     dependencies:
       '@aws-sdk/credential-providers': 3.940.0
       '@aws-sdk/dsql-signer': 3.1135.0

@@ -47,6 +47,40 @@ export const postgresCredentials = union([
 		driver: literal('pglite'),
 		client: custom<PGlite>((client) => typeof client === 'object' && client !== null),
 	}),
+	union([
+		object({
+			driver: literal('dsql'),
+			url: string().min(1),
+		}),
+		object({
+			driver: literal('dsql'),
+			host: string().min(1),
+			port: coerce.number().min(1).optional(),
+			user: string().min(1).optional(),
+			database: string().min(1),
+			ssl: union([
+				literal('require'),
+				literal('allow'),
+				literal('prefer'),
+				literal('verify-full'),
+				boolean(),
+				object({}).passthrough(),
+			]).optional(),
+		}),
+	]).and(object({
+		// specify custom profile
+		profile: string().optional(),
+		// specify custom region
+		region: string().optional(),
+		// specify custom creds
+		customCredentialsProvider: object({
+			accessKeyId: string(),
+			secretAccessKey: string(),
+			sessionToken: string().optional(),
+			credentialScope: string().optional(),
+			accountId: string().optional(),
+		}).optional(),
+	})),
 ]);
 
 export type PostgresCredentials = TypeOf<typeof postgresCredentials>;
