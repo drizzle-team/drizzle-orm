@@ -267,3 +267,21 @@ ruleTester.run('enforce delete with where (array option)', myRule, {
 		},
 	],
 });
+
+ruleTester.run('enforce delete with where (no cross-statement state leak)', myRule, {
+	valid: [
+		// `.where(...)` chained on the delete call itself stays valid even after another statement
+		'const filtered = base.where(x);\nconst a = db.delete({}).where({});',
+	],
+	invalid: [
+		{
+			// a `.where()` on a previous statement must not suppress the report
+			code: 'const filtered = base.where(x);\ndb.delete(users);',
+			errors: [{ messageId: 'enforceDeleteWithWhere', data: { drizzleObjName: 'db' } }],
+		},
+		{
+			code: 'const filtered = base.where(x);\nthis.dataSource.db.delete({});',
+			errors: [{ messageId: 'enforceDeleteWithWhere', data: { drizzleObjName: 'this.dataSource.db' } }],
+		},
+	],
+});
