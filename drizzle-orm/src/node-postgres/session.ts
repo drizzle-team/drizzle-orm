@@ -44,45 +44,6 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		this.rawQueryConfig = {
 			name,
 			text: queryString,
-			types: {
-				// @ts-ignore
-				getTypeParser: (typeId, format) => {
-					if (typeId === types.builtins.TIMESTAMPTZ) {
-						return (val) => val;
-					}
-					if (typeId === types.builtins.TIMESTAMP) {
-						return (val) => val;
-					}
-					if (typeId === types.builtins.DATE) {
-						return (val) => val;
-					}
-					if (typeId === types.builtins.INTERVAL) {
-						return (val) => val;
-					}
-					// numeric[]
-					if (typeId === 1231) {
-						return (val) => val;
-					}
-					// timestamp[]
-					if (typeId === 1115) {
-						return (val) => val;
-					}
-					// timestamp with timezone[]
-					if (typeId === 1185) {
-						return (val) => val;
-					}
-					// interval[]
-					if (typeId === 1187) {
-						return (val) => val;
-					}
-					// date[]
-					if (typeId === 1182) {
-						return (val) => val;
-					}
-					// @ts-ignore
-					return types.getTypeParser(typeId, format);
-				},
-			},
 		};
 		this.queryConfig = {
 			name,
