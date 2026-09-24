@@ -135,6 +135,14 @@ export type ConfigVariant<TDialect extends Dialect, TDriver extends DialectDrive
 	& (TDriver extends 'default' ? { driver?: undefined } : { driver: TDriver })
 	& (DialectCredentials[TDialect][TDriver & keyof DialectCredentials[TDialect]] | {});
 
+type ExclusiveUnion<T, TKeys extends PropertyKey = T extends object ? keyof T : never> = T extends object
+	? { [K in keyof T]: ExclusiveProperty<T[K]> } & { [K in Exclude<TKeys, keyof T>]?: never }
+	: T;
+
+type ExclusiveProperty<T> = true extends IsUnion<Extract<T, object>> ? ExclusiveUnion<T> : T;
+
+type IsUnion<T, TAll = T> = T extends unknown ? ([TAll] extends [T] ? false : true) : never;
+
 export interface DialectDriverMap extends Record<Dialect, Driver | 'default'> {
 	postgresql: 'default' | 'aws-data-api' | 'pglite';
 	mysql: 'default';
@@ -157,7 +165,7 @@ export interface DialectCredentials {
 	};
 	postgresql: {
 		default: {
-			dbCredentials:
+			dbCredentials: ExclusiveUnion<
 				| {
 					host: string;
 					port?: number;
@@ -174,7 +182,8 @@ export interface DialectCredentials {
 				}
 				| {
 					url: string;
-				};
+				}
+			>;
 		};
 		'aws-data-api': {
 			dbCredentials: {
@@ -183,7 +192,7 @@ export interface DialectCredentials {
 				resourceArn: string;
 			};
 		};
-		pglite:
+		pglite: ExclusiveUnion<
 			| {
 				dbCredentials: {
 					url: string;
@@ -191,11 +200,12 @@ export interface DialectCredentials {
 			}
 			| {
 				client: PGlite;
-			};
+			}
+		>;
 	};
 	mysql: {
 		default: {
-			dbCredentials:
+			dbCredentials: ExclusiveUnion<
 				| {
 					host: string;
 					port?: number;
@@ -206,7 +216,8 @@ export interface DialectCredentials {
 				}
 				| {
 					url: string;
-				};
+				}
+			>;
 		};
 	};
 	sqlite: {
@@ -228,7 +239,7 @@ export interface DialectCredentials {
 	};
 	singlestore: {
 		default: {
-			dbCredentials:
+			dbCredentials: ExclusiveUnion<
 				| {
 					host: string;
 					port?: number;
@@ -239,13 +250,14 @@ export interface DialectCredentials {
 				}
 				| {
 					url: string;
-				};
+				}
+			>;
 		};
 	};
 	// TODO update?
 	mssql: {
 		default: {
-			dbCredentials:
+			dbCredentials: ExclusiveUnion<
 				| {
 					port: number;
 					user: string;
@@ -259,12 +271,13 @@ export interface DialectCredentials {
 				}
 				| {
 					url: string;
-				};
+				}
+			>;
 		};
 	};
 	cockroach: {
 		default: {
-			dbCredentials:
+			dbCredentials: ExclusiveUnion<
 				| ({
 					host: string;
 					port?: number;
@@ -281,7 +294,8 @@ export interface DialectCredentials {
 				} & {})
 				| {
 					url: string;
-				};
+				}
+			>;
 		};
 	};
 	duckdb: {
