@@ -802,7 +802,7 @@ export const squashPgScheme = (
 					? PgSquasher.squashPolicyPush(policy)
 					: PgSquasher.squashPolicy(policy);
 			});
-			const squashedChecksContraints = mapValues(
+			const squashedChecksConstraints = mapValues(
 				it[1].checkConstraints,
 				(check) => {
 					return PgSquasher.squashCheck(check);
@@ -820,7 +820,7 @@ export const squashPgScheme = (
 					compositePrimaryKeys: squashedPKs,
 					uniqueConstraints: squashedUniqueConstraints,
 					policies: squashedPolicies,
-					checkConstraints: squashedChecksContraints,
+					checkConstraints: squashedChecksConstraints,
 					isRLSEnabled: it[1].isRLSEnabled ?? false,
 				},
 			];
