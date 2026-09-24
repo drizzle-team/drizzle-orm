@@ -5,6 +5,7 @@ import {
 	getTableConfig,
 	getViewConfig,
 	SQLiteBaseInteger,
+	SQLiteBoolean,
 	SQLiteColumn,
 	SQLiteSyncDialect,
 	SQLiteView,
@@ -67,7 +68,7 @@ export const generateSqliteSnapshot = (
 
 			const columnToSet: Column = {
 				name,
-				type: column.getSQLType(),
+				type: is(column, SQLiteBoolean) ? 'boolean' : column.getSQLType(),
 				primaryKey,
 				notNull,
 				autoincrement: is(column, SQLiteBaseInteger)
@@ -410,9 +411,16 @@ export const generateSqliteSnapshot = (
 	};
 };
 
+// Some SQLite versions echo a parenthesized keyword default (`DEFAULT (FALSE)`)
+// back from PRAGMA table_info as `(FALSE)` instead of `FALSE`.
+const unwrapParens = (value: string): string =>
+	value.startsWith('(') && value.endsWith(')') ? value.slice(1, -1) : value;
+
 function mapSqlToSqliteType(sqlType: string): string {
 	const lowered = sqlType.toLowerCase();
-	if (
+	if (lowered.startsWith('boolean')) {
+		return 'boolean';
+	} else if (
 		[
 			'int',
 			'integer',
@@ -627,9 +635,9 @@ export const fromDatabase = async (
 						columnDefault,
 					)
 				? `(${columnDefault})`
-				: columnDefault === 'false'
+				: /^false$/i.test(unwrapParens(columnDefault))
 				? false
-				: columnDefault === 'true'
+				: /^true$/i.test(unwrapParens(columnDefault))
 				? true
 				: columnDefault.startsWith("'") && columnDefault.endsWith("'")
 				? columnDefault
