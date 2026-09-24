@@ -555,3 +555,53 @@ test('open merge keeps a primary key replaced on one branch', async () => {
 	const { sqlStatements } = await diff(ddl, mergedSchema, []);
 	expect(sqlStatements).toStrictEqual([]);
 });
+
+test('open merge keeps same-named columns nullable in tables without the added pk', async () => {
+	mkdirSync('tests/tmp', { recursive: true });
+	const out = mkdtempSync('tests/tmp/dk-check-handler-');
+
+	// parent (users.id, posts.id)
+	// ├── leaf1    add pk on users.id
+	// └── leaf2    create unrelated tags table
+	const parentSchema = {
+		users: pgTable('users', { id: integer('id') }),
+		posts: pgTable('posts', { id: integer('id') }),
+	};
+
+	const leaf1Schema = {
+		users: pgTable('users', { id: integer('id').primaryKey() }),
+		posts: pgTable('posts', { id: integer('id') }),
+	};
+
+	const leaf2Schema = {
+		users: pgTable('users', { id: integer('id') }),
+		posts: pgTable('posts', { id: integer('id') }),
+		tags: pgTable('tags', { id: integer('id') }),
+	};
+
+	const mergedSchema = {
+		users: pgTable('users', { id: integer('id').primaryKey() }),
+		posts: pgTable('posts', { id: integer('id') }),
+		tags: pgTable('tags', { id: integer('id') }),
+	};
+
+	const parent = makeSnapshot('p1', [ORIGIN], parentSchema);
+	const leaf1 = makeSnapshot('l1', ['p1'], leaf1Schema);
+	const leaf2 = makeSnapshot('l2', ['p1'], leaf2Schema);
+
+	snapshotPath(out, '000_parent', parent);
+	snapshotPath(out, '001_leaf1', leaf1);
+	snapshotPath(out, '002_leaf2', leaf2);
+
+	const result = await checkHandler(out, 'postgresql', false, false);
+	const statements = result.statements as JsonStatement[];
+
+	expect(statements.some((it) => it.type === 'add_pk')).toBe(true);
+
+	const merged = generateLatestSnapshot(result.parentSnapshot as PostgresSnapshot, statements);
+	const ddl = createDDL();
+	ddl.entities.pushAll(merged.ddl);
+
+	const { sqlStatements } = await diff(ddl, mergedSchema, []);
+	expect(sqlStatements).toStrictEqual([]);
+});

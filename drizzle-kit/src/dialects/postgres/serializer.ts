@@ -343,6 +343,8 @@ export function generateLatestSnapshot(
 				for (const columnName of statement.pk.columns) {
 					ddl.columns.update({
 						where: {
+							schema: statement.pk.schema,
+							table: statement.pk.table,
 							name: columnName,
 						},
 						set: { notNull: true },
