@@ -246,9 +246,8 @@ jobs:
           fi
           case ${{ matrix.shard }} in
             int:postgres)
-              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream test:postgres
-              fi
+              # Uses local Postgres; hosted providers are excluded by the test config/script.
+              pnpm --stream test:postgres
             ;;
             int:neon)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
