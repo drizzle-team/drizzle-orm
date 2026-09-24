@@ -1,5 +1,6 @@
+import type { ConnectionOptions } from 'tls';
 import type { TypeOf } from 'zod';
-import { boolean, coerce, literal, object, string, union } from 'zod';
+import { boolean, coerce, custom, literal, object, string, union } from 'zod';
 import { ConfigConnectionCliError } from '../errors';
 import { error } from '../views';
 import { warnOnUrlConflict, wrapParam } from './common';
@@ -22,7 +23,8 @@ export const cockroachCredentials = union([
 			literal('prefer'),
 			literal('verify-full'),
 			boolean(),
-			object({}).passthrough(),
+			// same as object({}).passthrough(), but just for types
+			custom<ConnectionOptions>((ssl) => typeof ssl === 'object' && ssl !== null && !Array.isArray(ssl)),
 		]).optional(),
 	}),
 ]);

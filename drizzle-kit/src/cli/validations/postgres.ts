@@ -1,9 +1,20 @@
 import type { PGlite } from '@electric-sql/pglite';
+import type { ConnectionOptions } from 'tls';
 import type { TypeOf } from 'zod';
 import { boolean, coerce, custom, literal, object, string, undefined as zUndefined, union } from 'zod';
 import { ConfigConnectionCliError } from '../errors';
 import { error } from '../views';
 import { awsDataApiDriver, dsqlDriver, pgliteDriver, warnOnUrlConflict, wrapParam } from './common';
+
+const pgSsl = union([
+	literal('require'),
+	literal('allow'),
+	literal('prefer'),
+	literal('verify-full'),
+	boolean(),
+	// same as object({}).passthrough(), but just for types
+	custom<ConnectionOptions>((ssl) => typeof ssl === 'object' && ssl !== null && !Array.isArray(ssl)),
+]);
 
 export const dsqlCredentials = union([
 	object({
@@ -14,14 +25,7 @@ export const dsqlCredentials = union([
 		port: coerce.number().min(1).optional(),
 		user: string().min(1).optional(),
 		database: string().min(1),
-		ssl: union([
-			literal('require'),
-			literal('allow'),
-			literal('prefer'),
-			literal('verify-full'),
-			boolean(),
-			object({}).passthrough(),
-		]).optional(),
+		ssl: pgSsl.optional(),
 	}),
 ]).and(object({
 	// specify custom profile
@@ -47,14 +51,7 @@ export const pgDefaultCredentials = union([
 		user: string().min(1).optional(),
 		password: string().min(1).optional(),
 		database: string().min(1),
-		ssl: union([
-			literal('require'),
-			literal('allow'),
-			literal('prefer'),
-			literal('verify-full'),
-			boolean(),
-			object({}).passthrough(),
-		]).optional(),
+		ssl: pgSsl.optional(),
 	}),
 ]);
 
