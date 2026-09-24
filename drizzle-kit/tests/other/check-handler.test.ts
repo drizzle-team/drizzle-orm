@@ -1,4 +1,4 @@
-import { integer, pgTable, varchar } from 'drizzle-orm/pg-core';
+import { integer, pgTable, text, uuid, varchar } from 'drizzle-orm/pg-core';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { checkHandler } from 'src/cli/commands/check';
@@ -7,7 +7,7 @@ import { generateLatestSnapshot } from 'src/dialects/postgres/serializer';
 import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { expect, test } from 'vitest';
-import { drizzleToDDL, type PostgresSchema } from '../postgres/mocks';
+import { diff, drizzleToDDL, type PostgresSchema } from '../postgres/mocks';
 
 const ORIGIN = '00000000-0000-0000-0000-000000000000';
 
@@ -496,4 +496,62 @@ test('open merge composes alters and fk across a deep branch and a shallow branc
 	// the deep branch's table and its fk landed
 	expect(ddl.tables.one({ schema: 'public', name: 't2' })).not.toBeNull();
 	expect(ddl.fks.list({ schema: 'public', table: 't2' }).length).toBe(1);
+});
+
+test('open merge keeps a primary key replaced on one branch', async () => {
+	mkdirSync('tests/tmp', { recursive: true });
+	const out = mkdtempSync('tests/tmp/dk-check-handler-');
+
+	// parent (records.legacy_id pk)
+	// ├── leaf1    replace legacy_id with id as the pk
+	// └── leaf2    create unrelated notes table
+	const parentSchema = {
+		records: pgTable('records', {
+			legacyId: text('legacy_id').primaryKey(),
+		}),
+	};
+
+	const leaf1Schema = {
+		records: pgTable('records', {
+			id: uuid('id').primaryKey().defaultRandom(),
+		}),
+	};
+
+	const leaf2Schema = {
+		records: pgTable('records', {
+			legacyId: text('legacy_id').primaryKey(),
+		}),
+		notes: pgTable('notes', {
+			id: text('id').primaryKey(),
+		}),
+	};
+
+	const mergedSchema = {
+		records: pgTable('records', {
+			id: uuid('id').primaryKey().defaultRandom(),
+		}),
+		notes: pgTable('notes', {
+			id: text('id').primaryKey(),
+		}),
+	};
+
+	const parent = makeSnapshot('p1', [ORIGIN], parentSchema);
+	const leaf1 = makeSnapshot('l1', ['p1'], leaf1Schema);
+	const leaf2 = makeSnapshot('l2', ['p1'], leaf2Schema);
+
+	snapshotPath(out, '000_parent', parent);
+	snapshotPath(out, '001_leaf1', leaf1);
+	snapshotPath(out, '002_leaf2', leaf2);
+
+	const result = await checkHandler(out, 'postgresql', false, false);
+	const statements = result.statements as JsonStatement[];
+
+	expect(statements.some((it) => it.type === 'alter_pk' && it.deleted)).toBe(true);
+
+	const merged = generateLatestSnapshot(result.parentSnapshot as PostgresSnapshot, statements);
+	const ddl = createDDL();
+	ddl.entities.pushAll(merged.ddl);
+
+	const { sqlStatements } = await diff(ddl, mergedSchema, []);
+	expect(sqlStatements).toStrictEqual([]);
 });

@@ -355,9 +355,8 @@ export function generateLatestSnapshot(
 				break;
 			case 'alter_pk':
 				ddl.pks.delete(statement.diff.$left);
-				if (!statement.deleted) {
-					ddl.pks.push(statement.pk);
-				}
+				// `deleted` only skips dropping the old pk in SQL, the new pk is still added
+				ddl.pks.push(statement.pk);
 				break;
 
 			case 'create_fk':
