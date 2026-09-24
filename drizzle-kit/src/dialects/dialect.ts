@@ -467,10 +467,15 @@ export function create<const D extends Record<string, Def>>(
 	}
 
 	const internals: Internals = { store, defs, identity, edges, nulls };
-	const ddl: any = { _: internals, key: (t: string, row: Row) => identity[t](row) };
+	return build<InferEntities<D>>(internals);
+}
+
+// Build a DDL from prepared internals — the tail of create(), shared with apply().
+function build<M extends Record<string, Row>>(internals: Internals): DDL<M> {
+	const ddl: any = { _: internals, key: (t: string, row: Row) => internals.identity[t](row) };
 	ddl.entities = makeProcessors(internals); // aggregate view
-	for (const t of Object.keys(defs)) ddl[t] = makeProcessors(internals, t);
-	return ddl as DDL<InferEntities<D>>;
+	for (const t of Object.keys(internals.defs)) ddl[t] = makeProcessors(internals, t);
+	return ddl as DDL<M>;
 }
 
 function _diff(
@@ -569,3 +574,85 @@ export namespace diff {
 }
 
 export const key = (ddl: AnyDDL, type: string, row: Row): string => ddl.key(type, row);
+
+/* ------------------------------------------------------------------ structural delta */
+
+// The semantic diff with the semantics dropped: three ops over the engine's own keyed set,
+// replayable with no idea what any row means. Keyed by the engine's injective identity
+// generators (qual(entityType, ddl.key(...)) — byte-identical to what _diff keys by), so
+// nameless / duplicate-name entities (privileges) never collide.
+export type Delta =
+	| { op: 'create'; row: Row }
+	| { op: 'drop'; key: string }
+	| { op: 'alter'; key: string; set: Row };
+
+const qkeyOf = (ddl: AnyDDL, r: Row): string => qual(r.entityType, ddl.key(r.entityType, r));
+const splitQual = (k: string): [string, string] => {
+	const i = k.indexOf('\0'); // identityKey is JSON and never contains \0 — the invariant qual relies on
+	return [k.slice(0, i), k.slice(i + 1)];
+};
+// Drop the diff meta so a create/apply row is a clean entity. The KEYS ($diffType/$left/
+// $right) must stay literal to be omitted from `rest`; only the (unused) bindings are
+// underscore-named — a lint auto-fix that renames the keys silently stops stripping them.
+const stripMeta = (r: Row): Row => {
+	const { $diffType: _1, $left: _2, $right: _3, ...rest } = r as any;
+	return rest;
+};
+// same predicate hasDiff uses — shared so structural and hasDiff cannot drift.
+const isChangePair = (v: any): v is { from: any; to: any } => !!v && typeof v === 'object' && 'from' in v && 'to' in v;
+
+// diff(a -> b) as a structural delta. A pure projection over _diff's 'all' rows, so it can
+// never drift from the semantic diff and never touches _diff itself.
+export function delta<M extends Record<string, Row>>(a: DDL<M>, b: DDL<M>): Delta[] {
+	const out: Delta[] = [];
+	for (const r of _diff(a, b, undefined, 'all')) {
+		if (r.$diffType === 'create') {
+			out.push({ op: 'create', row: stripMeta(r) });
+		} else if (r.$diffType === 'drop') {
+			out.push({ op: 'drop', key: qkeyOf(a, r) }); // r is the whole old row
+		} else {
+			const set: Row = {};
+			for (const [k, v] of Object.entries(r)) {
+				if (k === '$diffType' || k === '$left' || k === '$right' || k === 'entityType') continue;
+				if (isChangePair(v)) set[k] = v.to;
+			}
+			// The alter key MUST come from $right (the whole new row): the bare alter row only
+			// carries the CHANGED fields, so a nameless entity (privileges keyed by grantor/
+			// grantee/type) cannot regenerate its own key from it. $right always has them.
+			out.push({ op: 'alter', key: qkeyOf(b, (r as any).$right as Row), set });
+		}
+	}
+	return out;
+}
+
+// Apply structural deltas onto a base DDL, returning a NEW DDL (base untouched). A dumb
+// keyed-set replay — raw Map set/delete/assign, deliberately bypassing push/update so NO
+// edge cascade / relocate / rekey / collision-rollback fires: `b` was already materialized,
+// so every dependent change is already its own delta.
+export function apply<M extends Record<string, Row>>(base: DDL<M>, deltas: Delta[]): DDL<M> {
+	const src = base._;
+	const store: Store = new Map();
+	for (const t of Object.keys(src.defs)) store.set(t, new Map());
+	for (const [t, bucket] of src.store) {
+		const nb = store.get(t)!;
+		for (const [k, row] of bucket) nb.set(k, structuredClone(row));
+	}
+	for (const d of deltas) {
+		if (d.op === 'create') {
+			const row = stripMeta(d.row);
+			store.get(row.entityType)!.set(src.identity[row.entityType](row), row); // raw set — no push()/edges
+		} else if (d.op === 'drop') {
+			const [et, ik] = splitQual(d.key);
+			if (!store.get(et)?.delete(ik)) throw new Error(`structural apply: drop targets a missing entity: ${d.key}`);
+		} else {
+			const [et, ik] = splitQual(d.key);
+			const row = store.get(et)?.get(ik);
+			if (!row) throw new Error(`structural apply: alter targets a missing entity: ${d.key}`);
+			Object.assign(row, d.set); // wholesale replace; identity unchanged by construction ⇒ no rekey
+		}
+	}
+	return build<M>({ ...src, store });
+}
+// Canonical form / comparison of ddl states (normalizeDDL) and any persisted fingerprint
+// live in the snapshot layer (scripts/lib/ddl-canonical.ts), NOT here — delta/apply never
+// need them. The engine's structural surface is exactly `delta` + `apply`.

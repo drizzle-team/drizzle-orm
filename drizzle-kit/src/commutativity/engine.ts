@@ -19,6 +19,31 @@ export type ParsedSnapshotInput<TSnapshot extends SnapshotHeader = SnapshotHeade
 	snapshot: TSnapshot;
 };
 
+/**
+ * Facet model (experimental, opt-in via `DRIZZLE_KIT_COMMUTATIVITY=facet`).
+ *
+ * Instead of a hand-maintained `conflicts` table, each statement declares the
+ * nodes it touches in a hierarchical namespace:
+ *  - `owns`     exclusive structural locks — the exact node(s) it creates,
+ *               renames, alters, or drops. Two statements that own the same
+ *               node conflict.
+ *  - `destroys` existence writes — a drop removes a node, which conflicts with
+ *               anything that `needs` it (children and cross-references).
+ *  - `needs`    shared existence reads — ancestor nodes (table, schema) and
+ *               cross-referenced nodes that must still exist. Reads never
+ *               conflict with reads, so two branches both needing the same
+ *               table is fine.
+ *
+ * Keys are opaque strings minted by the dialect; the engine only compares them.
+ */
+export type FacetPaths = {
+	owns: string[];
+	destroys?: string[];
+	needs?: string[];
+};
+
+export type CommutativityModel = 'conflict-list' | 'facet';
+
 function buildPrevToChildren<TNode extends { id: string; prevIds: string[] }>(
 	nodes: Record<string, TNode>,
 ): Record<string, string[]> {
@@ -221,6 +246,19 @@ export abstract class AbstractCommutativity<
 
 	protected getImplicitAncestors(_target: TTarget): TTarget[] {
 		return [];
+	}
+
+	/**
+	 * Which commutativity model to use. Dialects that implement
+	 * {@link buildFacetPaths} override this to return `'facet'`; the rest keep the
+	 * conflict-list model.
+	 */
+	protected getCommutativityModel(): CommutativityModel {
+		return 'conflict-list';
+	}
+
+	protected buildFacetPaths(_statement: TStatement): FacetPaths {
+		throw new Error('Facet commutativity model is not implemented for this dialect');
 	}
 
 	protected abstract getDrySnapshot(): TSnapshot;
@@ -480,6 +518,10 @@ export abstract class AbstractCommutativity<
 		statementHashes: Array<{ hash: string; statement: TStatement }>;
 		conflictFootprints: Array<{ hash: string; statement: TStatement }>;
 	} {
+		if (this.getCommutativityModel() === 'facet') {
+			return this.generateFacetFootprints(statements);
+		}
+
 		const statementHashes: Array<{ hash: string; statement: TStatement }> = [];
 		const conflictFootprints: Array<{ hash: string; statement: TStatement }> = [];
 
@@ -492,6 +534,40 @@ export abstract class AbstractCommutativity<
 
 			for (const conflict of conflicts) {
 				conflictFootprints.push({ hash: conflict, statement });
+			}
+		}
+
+		return { statementHashes, conflictFootprints };
+	}
+
+	/**
+	 * Facet-model footprints. Encodes a read/write lock per node so that
+	 * `findFootprintIntersections` (which matches produced-hashes of one branch
+	 * against conflict-hashes of the other) yields:
+	 *   write vs write  -> conflict   (two statements own the same node)
+	 *   write vs read   -> conflict   (a drop destroys something another needs)
+	 *   read  vs read   -> no conflict (both merely need the node to exist)
+	 * A write contributes `key#w` to both lists; a read contributes `key#r` to
+	 * the produced list and `key#w` to the conflict list, so reads only ever
+	 * match against writes.
+	 */
+	private generateFacetFootprints(statements: TStatement[]): {
+		statementHashes: Array<{ hash: string; statement: TStatement }>;
+		conflictFootprints: Array<{ hash: string; statement: TStatement }>;
+	} {
+		const statementHashes: Array<{ hash: string; statement: TStatement }> = [];
+		const conflictFootprints: Array<{ hash: string; statement: TStatement }> = [];
+
+		for (const statement of statements) {
+			const { owns, destroys = [], needs = [] } = this.buildFacetPaths(statement);
+
+			for (const key of [...owns, ...destroys]) {
+				statementHashes.push({ hash: `${key}#w`, statement });
+				conflictFootprints.push({ hash: `${key}#w`, statement });
+			}
+			for (const key of needs) {
+				statementHashes.push({ hash: `${key}#r`, statement });
+				conflictFootprints.push({ hash: `${key}#w`, statement });
 			}
 		}
 
