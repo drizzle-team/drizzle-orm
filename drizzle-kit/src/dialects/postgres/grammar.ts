@@ -1843,7 +1843,14 @@ export const parseOnType = (type: string): OnAction => {
 };
 
 export const planetscaleNamespaces = ['pscale_extensions', '__neki'];
-export const systemNamespaceNames = ['pg_toast', 'pg_catalog', 'information_schema', ...planetscaleNamespaces];
+export const dsqlNamespaces = ['sys'];
+export const systemNamespaceNames = [
+	'pg_toast',
+	'pg_catalog',
+	'information_schema',
+	...planetscaleNamespaces,
+	...dsqlNamespaces,
+];
 export const isSystemNamespace = (name: string) => {
 	return name.startsWith('pg_toast') || name === 'pg_default' || name === 'pg_global' || name.startsWith('pg_temp_')
 		|| systemNamespaceNames.indexOf(name) >= 0;

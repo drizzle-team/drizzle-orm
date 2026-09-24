@@ -63,30 +63,29 @@ export const assertCollisions = <
 	throw new AmbiguousParamsCliError(command, outputs.common.ambiguousParams(command));
 };
 
-export const sqliteDriversLiterals = [
-	literal('d1-http'),
-	literal('expo'),
-	literal('durable-sqlite'),
-	literal('sqlite-cloud'),
-] as const;
+export const d1HttpDriver = literal('d1-http');
+export const expoDriver = literal('expo');
+export const durableSqliteDriver = literal('durable-sqlite');
+export const sqliteCloudDriver = literal('sqlite-cloud');
+export const sqliteDriver = union([d1HttpDriver, expoDriver, durableSqliteDriver, sqliteCloudDriver]);
 
-export const postgresqlDriversLiterals = [
-	literal('aws-data-api'),
-	literal('pglite'),
-	literal('dsql'),
-] as const;
+export const awsDataApiDriver = literal('aws-data-api');
+export const pgliteDriver = literal('pglite');
+export const dsqlDriver = literal('dsql');
+export const postgresDriver = union([awsDataApiDriver, pgliteDriver, dsqlDriver]);
+
+export const driver = union([sqliteDriver, postgresDriver]);
+
+export const drivers = driver.options.flatMap((u) => u.options.map((l) => l.value)) as [
+	TypeOf<typeof driver>,
+	...TypeOf<typeof driver>[],
+];
+
+export type Driver = (typeof drivers)[number];
 
 export const casingTypes = ['snake_case', 'camelCase'] as const;
 export const casingType = enum_(casingTypes);
 export type CasingType = (typeof casingTypes)[number];
-
-export const sqliteDriver = union(sqliteDriversLiterals);
-export const postgresDriver = union(postgresqlDriversLiterals);
-export const driver = union([sqliteDriver, postgresDriver]);
-
-export const drivers = ['d1-http', 'expo', 'aws-data-api', 'pglite', 'durable-sqlite', 'sqlite-cloud', 'dsql'] as const;
-
-export type Casing = TypeOf<typeof casing>;
 
 export const configMigrations = object({
 	table: string().default('__drizzle_migrations'),
@@ -96,8 +95,7 @@ export const configMigrations = object({
 export const casing = union([literal('camel'), literal('preserve')]).default(
 	'camel',
 );
-
-export type Driver = (typeof drivers)[number];
+export type Casing = TypeOf<typeof casing>;
 
 export const entitiesParams = {
 	tablesFilter: union([string(), string().array()]).optional(),

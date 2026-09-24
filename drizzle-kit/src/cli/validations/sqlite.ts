@@ -3,7 +3,17 @@ import { literal, object, string, undefined as zUndefined, union } from 'zod';
 import { softAssertUnreachable } from '../../utils';
 import { ConfigConnectionCliError, UnsupportedCommandCliError } from '../errors';
 import { error } from '../views';
-import { sqliteDriver, wrapParam } from './common';
+import { d1HttpDriver, sqliteCloudDriver, sqliteDriver, wrapParam } from './common';
+
+export const sqliteDefaultCredentials = object({ url: string().min(1) });
+
+export const d1HttpCredentials = object({
+	accountId: string().min(1),
+	databaseId: string().min(1),
+	token: string().min(1),
+});
+
+export const sqliteCloudCredentials = object({ url: string().min(1) });
 
 export const sqliteCredentials = union([
 	object({
@@ -11,20 +21,11 @@ export const sqliteCredentials = union([
 		url: string().min(1),
 		authToken: string().min(1).optional(),
 	}),
-	object({
-		driver: literal('d1-http'),
-		accountId: string().min(1),
-		databaseId: string().min(1),
-		token: string().min(1),
-	}),
-	object({
-		driver: literal('sqlite-cloud'),
-		url: string().min(1),
-	}),
+	object({ driver: d1HttpDriver }).and(d1HttpCredentials),
+	object({ driver: sqliteCloudDriver }).and(sqliteCloudCredentials),
 	object({
 		driver: zUndefined(),
-		url: string().min(1),
-	}).transform<{ url: string }>((o) => {
+	}).and(sqliteDefaultCredentials).transform((o) => {
 		delete o.driver;
 		return o;
 	}),

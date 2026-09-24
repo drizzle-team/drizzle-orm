@@ -3,19 +3,45 @@ import type { TypeOf } from 'zod';
 import { boolean, coerce, custom, literal, object, string, undefined as zUndefined, union } from 'zod';
 import { ConfigConnectionCliError } from '../errors';
 import { error } from '../views';
-import { warnOnUrlConflict, wrapParam } from './common';
+import { awsDataApiDriver, dsqlDriver, pgliteDriver, warnOnUrlConflict, wrapParam } from './common';
 
-export const postgresCredentials = union([
-	// "url" goes first: when it's provided along with individual params, it wins
+export const dsqlCredentials = union([
 	object({
-		driver: zUndefined(),
 		url: string().min(1),
-	}).transform<{ url: string }>((o) => {
-		delete o.driver;
-		return o;
 	}),
 	object({
-		driver: zUndefined(),
+		host: string().min(1),
+		port: coerce.number().min(1).optional(),
+		user: string().min(1).optional(),
+		database: string().min(1),
+		ssl: union([
+			literal('require'),
+			literal('allow'),
+			literal('prefer'),
+			literal('verify-full'),
+			boolean(),
+			object({}).passthrough(),
+		]).optional(),
+	}),
+]).and(object({
+	// specify custom profile
+	profile: string().optional(),
+	// specify custom region
+	region: string().optional(),
+	// specify custom creds
+	customCredentialsProvider: object({
+		accessKeyId: string(),
+		secretAccessKey: string(),
+		sessionToken: string().optional(),
+		credentialScope: string().optional(),
+		accountId: string().optional(),
+	}).optional(),
+}));
+
+export const pgDefaultCredentials = union([
+	// "url" goes first: when it's provided along with individual params, it wins
+	object({ url: string().min(1) }),
+	object({
 		host: string().min(1),
 		port: coerce.number().min(1).optional(),
 		user: string().min(1).optional(),
@@ -29,58 +55,30 @@ export const postgresCredentials = union([
 			boolean(),
 			object({}).passthrough(),
 		]).optional(),
-	}).transform((o) => {
+	}),
+]);
+
+export const awsDataApiCredentials = object({
+	database: string().min(1),
+	secretArn: string().min(1),
+	resourceArn: string().min(1),
+});
+
+export const pgLiteCredentials = object({ url: string().min(1) });
+export const pgLiteClientCredentials = object({
+	client: custom<PGlite>((client) => typeof client === 'object' && client !== null),
+});
+
+export const postgresCredentials = union([
+	object({
+		driver: zUndefined(),
+	}).and(pgDefaultCredentials).transform((o) => {
 		delete o.driver;
-		return o as Omit<typeof o, 'driver'>;
+		return o;
 	}),
-	object({
-		driver: literal('aws-data-api'),
-		database: string().min(1),
-		secretArn: string().min(1),
-		resourceArn: string().min(1),
-	}),
-	object({
-		driver: literal('pglite'),
-		url: string().min(1),
-	}),
-	object({
-		driver: literal('pglite'),
-		client: custom<PGlite>((client) => typeof client === 'object' && client !== null),
-	}),
-	union([
-		object({
-			driver: literal('dsql'),
-			url: string().min(1),
-		}),
-		object({
-			driver: literal('dsql'),
-			host: string().min(1),
-			port: coerce.number().min(1).optional(),
-			user: string().min(1).optional(),
-			database: string().min(1),
-			ssl: union([
-				literal('require'),
-				literal('allow'),
-				literal('prefer'),
-				literal('verify-full'),
-				boolean(),
-				object({}).passthrough(),
-			]).optional(),
-		}),
-	]).and(object({
-		// specify custom profile
-		profile: string().optional(),
-		// specify custom region
-		region: string().optional(),
-		// specify custom creds
-		customCredentialsProvider: object({
-			accessKeyId: string(),
-			secretAccessKey: string(),
-			sessionToken: string().optional(),
-			credentialScope: string().optional(),
-			accountId: string().optional(),
-		}).optional(),
-	})),
+	object({ driver: awsDataApiDriver }).and(awsDataApiCredentials),
+	object({ driver: pgliteDriver }).and(union([pgLiteCredentials, pgLiteClientCredentials])),
+	object({ driver: dsqlDriver }).and(dsqlCredentials),
 ]);
 
 export type PostgresCredentials = TypeOf<typeof postgresCredentials>;
