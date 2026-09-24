@@ -104,7 +104,7 @@ export const schemaToTypeScript = (
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
-					return col.type;
+					return col.type === 'boolean' ? 'integer' : col.type;
 				})
 				.filter((type) => {
 					return sqliteImportsList.has(type);
@@ -121,7 +121,7 @@ export const schemaToTypeScript = (
 
 		const columnImports = Object.values(it.columns)
 			.map((col) => {
-				return col.type;
+				return col.type === 'boolean' ? 'integer' : col.type;
 			})
 			.filter((type) => {
 				return sqliteImportsList.has(type);
@@ -286,6 +286,16 @@ const column = (
 ) => {
 	let lowered = type;
 	casing = casing!;
+
+	if (lowered === 'boolean') {
+		let out = `${withCasing(name, casing)}: integer(${
+			dbColumnName({ name, casing, withMode: true })
+		}{ mode: 'boolean' })`;
+		out += typeof defaultValue !== 'undefined'
+			? `.default(${mapColumnDefault(defaultValue)})`
+			: '';
+		return out;
+	}
 
 	if (lowered === 'integer') {
 		let out = `${withCasing(name, casing)}: integer(${dbColumnName({ name, casing })})`;
