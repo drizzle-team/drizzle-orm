@@ -80,10 +80,6 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 				stmt.setReturnArrays(false);
 				return stmt.run(...params as SQLInputValue[]);
 			},
-			values: (params) => {
-				stmt.setReturnArrays(true);
-				return stmt.all(...params as SQLInputValue[]);
-			},
 		};
 
 		return new SQLiteAsyncPreparedQuery(

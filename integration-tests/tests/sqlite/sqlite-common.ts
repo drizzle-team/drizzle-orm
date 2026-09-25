@@ -1732,10 +1732,16 @@ export function tests(test: Test, exclude: string[] = []) {
 				sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`,
 			);
 
-			const result = await db.all<{ id: number; name: string }>(
-				sql`select id, name from "users"`,
-			);
+			const query = sql`select id, name from "users"`;
+
+			const result = await db.all<{ id: number; name: string }>(query);
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
+
+			const objects = await db.all<{ id: number; name: string }>(query, 'objects');
+			expect(objects).toEqual([{ id: 1, name: 'John' }]);
+
+			const arrays = await db.all<[number, string]>(query, 'arrays');
+			expect(arrays).toEqual([[1, 'John']]);
 		});
 
 		test.concurrent('insert via db.get', async ({ db }) => {
@@ -1752,10 +1758,16 @@ export function tests(test: Test, exclude: string[] = []) {
 				sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`,
 			);
 
-			const result = await db.get<{ id: number; name: string }>(
-				sql`select ${usersTable.id}, ${usersTable.name} from ${usersTable}`,
-			);
+			const query = sql`select ${usersTable.id}, ${usersTable.name} from ${usersTable}`;
+
+			const result = await db.get<{ id: number; name: string }>(query);
 			expect(result).toEqual({ id: 1, name: 'John' });
+
+			const object = await db.get<{ id: number; name: string }>(query, 'objects');
+			expect(object).toEqual({ id: 1, name: 'John' });
+
+			const array = await db.get<[number, string]>(query, 'arrays');
+			expect(array).toEqual([1, 'John']);
 		});
 
 		test.concurrent('insert via db.get w/ query builder', async ({ db }) => {

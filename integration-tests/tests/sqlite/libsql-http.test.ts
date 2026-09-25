@@ -212,7 +212,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	rmSync(migrationDir, { recursive: true });
 });
 
-test('test $onUpdateFn and $onUpdate works as $default', async ({ db }) => {
+test('test $onUpdateFn and $onUpdate works as $default (libsql-http)', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersOnUpdate}`);
 
 	await db.run(
@@ -252,7 +252,7 @@ test('test $onUpdateFn and $onUpdate works as $default', async ({ db }) => {
 	}
 });
 
-test('test $onUpdateFn and $onUpdate works updating', async ({ db }) => {
+test('test $onUpdateFn and $onUpdate works updating (libsql-http)', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersOnUpdate}`);
 
 	await db.run(

@@ -44,7 +44,8 @@ export class ExecuteResultSync<T> extends QueryPromise<T> {
 }
 
 export type SQLiteQueryExecutors<TType extends 'sync' | 'async'> = Record<
-	SQLiteExecuteMethod,
+	// `values` mirrors `all` in array mode, no need to define separate executor
+	Exclude<SQLiteExecuteMethod, 'values'>,
 	(params: unknown[]) => Result<TType, any>
 >;
 
@@ -245,17 +246,17 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 
 		if (resultKind === 'sync') {
 			try {
-				return (<SQLiteQueryExecutors<'sync'>> executors).values(params);
+				return (<SQLiteQueryExecutors<'sync'>> executors).all(params);
 			} catch (e) {
 				throw new DrizzleQueryError(sql, params, e as Error);
 			}
 		}
 
 		const res = fastPath
-			? (<SQLiteQueryExecutors<'async'>> executors).values(params).catch((e) => {
+			? (<SQLiteQueryExecutors<'async'>> executors).all(params).catch((e) => {
 				throw new DrizzleQueryError(sql, params, e as Error);
 			})
-			: this.queryWithCache(sql, params, 'values', () => (<SQLiteQueryExecutors<'async'>> executors).values(params));
+			: this.queryWithCache(sql, params, 'values', () => (<SQLiteQueryExecutors<'async'>> executors).all(params));
 
 		return res;
 	}
