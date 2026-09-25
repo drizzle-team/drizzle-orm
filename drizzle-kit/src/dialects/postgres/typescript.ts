@@ -251,8 +251,6 @@ export const ddlToTypeScript = (
 
 		if (x.entityType === 'fks') {
 			imports.add('foreignKey');
-
-			if (isCyclic(x) && !isSelf(x)) imports.add('type AnyPgColumn');
 		}
 		if (x.entityType === 'pks') imports.add('primaryKey');
 		if (x.entityType === 'uniques') imports.add('unique');
@@ -356,6 +354,11 @@ export const ddlToTypeScript = (
 			) inlineFks.push(fk);
 			else callbackFks.push(fk);
 		}
+		// self() already was filtered above
+		if (inlineFks.some((fk) => isCyclic(fk))) imports.add('type AnyPgColumn');
+
+		const hasCyclicCallbackFk = callbackFks.some((fk) => isCyclic(fk) && !isSelf(fk));
+		if (hasCyclicCallbackFk) imports.add('type PgTableExtraConfigValue');
 
 		const primaryKeyType: 'callback' | 'inline' = table.pk
 				&& (
@@ -383,7 +386,7 @@ export const ddlToTypeScript = (
 
 		if (hasCallback) {
 			statement += ', ';
-			statement += '(table) => [\n';
+			statement += hasCyclicCallbackFk ? '(table): PgTableExtraConfigValue[] => [\n' : '(table) => [\n';
 			statement += primaryKeyType === 'callback'
 				? createTablePK(table.pk!, casing)
 				: '';

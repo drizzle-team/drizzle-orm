@@ -1122,3 +1122,32 @@ CREATE TABLE t_default (
 	expect(pushSqlStatements).toStrictEqual([]);
 	expect(generateSqlStatements).toStrictEqual([]);
 });
+
+test('issue No2993', async ({ db }) => {
+	await db.query(`create schema drizzle_test;`);
+	await db.query(`create table drizzle_test.child (
+    id uuid primary key,
+    other_id uuid not null
+);`);
+	await db.query(`create table drizzle_test.parent (
+    id uuid primary key,
+    other_id uuid not null,
+    child_id uuid unique references drizzle_test.child (id) on delete restrict,
+    unique (other_id, child_id)
+);`);
+	await db.query(`alter table drizzle_test.child add constraint test_key
+foreign key (other_id, id)
+references drizzle_test.parent (other_id, child_id);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, {}, 'issue-2993');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});

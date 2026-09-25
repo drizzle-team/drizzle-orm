@@ -74,7 +74,6 @@ export const ddlToTypeScript = (
 		if (it.entityType === 'tables') imports.add('sqliteTable');
 		if (it.entityType === 'fks') {
 			imports.add('foreignKey');
-			if (it.columns.length > 1 || isCyclic(it) || isSelf(it)) imports.add('type AnySQLiteColumn');
 		}
 	}
 
@@ -105,6 +104,11 @@ export const ddlToTypeScript = (
 			) inlineFks.push(fk);
 			else callbackFks.push(fk);
 		}
+		// self() already was filtered above
+		if (inlineFks.some((fk) => isCyclic(fk))) imports.add('type AnySQLiteColumn');
+
+		const hasCyclicCallbackFk = callbackFks.some((fk) => isCyclic(fk) && !isSelf(fk));
+		if (hasCyclicCallbackFk) imports.add('type SQLiteTableExtraConfigValue');
 
 		const primaryKeyType: 'callback' | 'inline' = pk
 				&& (
@@ -126,7 +130,7 @@ export const ddlToTypeScript = (
 			|| uniqies.length > 0
 			|| checks.length > 0
 		) {
-			statement += ',\n(table) => [';
+			statement += hasCyclicCallbackFk ? ',\n(table): SQLiteTableExtraConfigValue[] => [' : ',\n(table) => [';
 			statement += createTableIndexes(table.name, indexes, casing);
 			statement += createTableFKs(callbackFks, casing);
 			statement += primaryKeyType === 'callback' ? createTablePK(pk!, casing) : '';

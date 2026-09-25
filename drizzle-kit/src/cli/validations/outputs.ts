@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { sqliteDriversLiterals } from './common';
+import { sqliteDriver } from './common';
 
 export const withStyle = {
 	error: (str: string) => `${chalk.red(`${chalk.white.bgRed(' Invalid input ')} ${str}`)}`,
@@ -73,7 +73,7 @@ export const outputs = {
 	sqlite: {
 		connection: {
 			driver: () => {
-				const listOfDrivers = sqliteDriversLiterals
+				const listOfDrivers = sqliteDriver.options
 					.map((it) => `'${it.value}'`)
 					.join(', ');
 				return withStyle.error(

@@ -1816,7 +1816,7 @@ test('issue #5564', async () => {
 	const users2 = sqliteTable('users', {
 		id: text('id').primaryKey(),
 		email: text('email').notNull(),
-		name: text('name').notNull(), // will change to .notNull() in next push
+		name: text('name').notNull(),
 	}, (t) => [
 		uniqueIndex('users_email_idx').on(t.email),
 	]);

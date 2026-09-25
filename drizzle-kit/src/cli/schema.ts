@@ -392,6 +392,10 @@ export const migrate = command({
 						);
 						process.exit(1);
 					}
+				} else if (driver === 'dsql') {
+					// TODO
+					// author: alex.sherman
+					// Do we need to check version here?
 				} else {
 					assertUnreachable(driver);
 				}
@@ -1000,6 +1004,10 @@ export const studio = command({
 						);
 						process.exit(1);
 					}
+				} else if (driver === 'dsql') {
+					// TODO
+					// author: alex.sherman
+					// Do we need to check version here?
 				} else {
 					assertUnreachable(driver);
 				}

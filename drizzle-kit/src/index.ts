@@ -1,21 +1,20 @@
-import type { PGlite } from '@electric-sql/pglite';
-import type { ConnectionOptions } from 'tls';
-import type { Driver } from './cli/validations/common';
+import type { TypeOf } from 'zod';
+import type { cockroachCredentials } from './cli/validations/cockroach';
+import type { Driver, postgresDriver, sqliteDriver } from './cli/validations/common';
+import type { duckdbCredentials } from './cli/validations/duckdb';
+import type { libSQLCredentials } from './cli/validations/libsql';
+import type { mssqlCredentials } from './cli/validations/mssql';
+import type { mysqlCredentials } from './cli/validations/mysql';
+import type {
+	awsDataApiCredentials,
+	dsqlCredentials,
+	pgDefaultCredentials,
+	pgLiteClientCredentials,
+	pgLiteCredentials,
+} from './cli/validations/postgres';
+import type { singlestoreCredentials } from './cli/validations/singlestore';
+import type { d1HttpCredentials, sqliteCloudCredentials, sqliteDefaultCredentials } from './cli/validations/sqlite';
 import type { Dialect } from './utils/schemaValidator';
-
-// import {SslOptions} from 'mysql2'
-type SslOptions = {
-	pfx?: string;
-	key?: string;
-	passphrase?: string;
-	cert?: string;
-	ca?: string | string[];
-	crl?: string | string[];
-	ciphers?: string;
-	rejectUnauthorized?: boolean;
-};
-
-type Verify<T, U extends T> = U;
 
 /**
  * **You are currently using version 0.21.0+ of drizzle-kit. If you have just upgraded to this version, please make sure to read the changelog to understand what changes have been made and what
@@ -107,9 +106,15 @@ type Verify<T, U extends T> = U;
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#strict
  */
-export type Config =
+export type Config<
+	TDialect extends Dialect = Dialect,
+	TDriver extends DialectDriverMap[TDialect] = DialectDriverMap[TDialect],
+> = TDialect extends Dialect ? TDriver extends DialectDriverMap[TDialect] ? ConfigVariant<TDialect, TDriver> : never
+	: never;
+
+export type ConfigVariant<TDialect extends Dialect, TDriver extends DialectDriverMap[TDialect]> =
 	& {
-		dialect: Dialect;
+		dialect: TDialect;
 		out?: string;
 		breakpoints?: boolean;
 		tablesFilter?: string | string[];
@@ -128,161 +133,54 @@ export type Config =
 			roles?: boolean | { provider?: 'supabase' | 'neon' | string & {}; exclude?: string[]; include?: string[] };
 		};
 	}
-	& (
-		| {
-			dialect: Verify<Dialect, 'turso'>;
-			dbCredentials: {
-				url: string;
-				authToken?: string;
-			};
-		}
-		| {
-			dialect: Verify<Dialect, 'sqlite'>;
-			dbCredentials: {
-				url: string;
-			};
-		}
-		| {
-			dialect: Verify<Dialect, 'postgresql'>;
-			dbCredentials:
-				| ({
-					host: string;
-					port?: number;
-					user?: string;
-					password?: string;
-					database: string;
-					ssl?:
-						| boolean
-						| 'require'
-						| 'allow'
-						| 'prefer'
-						| 'verify-full'
-						| ConnectionOptions;
-				} & {})
-				| {
-					url: string;
-				};
-		}
-		| {
-			dialect: Verify<Dialect, 'postgresql'>;
-			driver: Verify<Driver, 'aws-data-api'>;
-			dbCredentials: {
-				database: string;
-				secretArn: string;
-				resourceArn: string;
-			};
-		}
-		| {
-			dialect: Verify<Dialect, 'postgresql'>;
-			driver: Verify<Driver, 'pglite'>;
-			dbCredentials: {
-				url: string;
-			};
-		}
-		| {
-			dialect: Verify<Dialect, 'postgresql'>;
-			driver: Verify<Driver, 'pglite'>;
-			client: PGlite;
-		}
-		| {
-			dialect: Verify<Dialect, 'mysql'>;
-			dbCredentials:
-				| {
-					host: string;
-					port?: number;
-					user?: string;
-					password?: string;
-					database: string;
-					ssl?: string | SslOptions;
-				}
-				| {
-					url: string;
-				};
-		}
-		| {
-			dialect: Verify<Dialect, 'sqlite'>;
-			driver: Verify<Driver, 'd1-http'>;
-			dbCredentials: {
-				accountId: string;
-				databaseId: string;
-				token: string;
-			};
-		}
-		| {
-			dialect: Verify<Dialect, 'sqlite'>;
-			driver: Verify<Driver, 'expo'>;
-		}
-		| {
-			dialect: Verify<Dialect, 'sqlite'>;
-			driver: Verify<Driver, 'durable-sqlite'>;
-		}
-		| {
-			dialect: Verify<Dialect, 'sqlite'>;
-			driver: Verify<Driver, 'sqlite-cloud'>;
-		}
-		| {}
-		| {
-			dialect: Verify<Dialect, 'singlestore'>;
-			dbCredentials:
-				| {
-					host: string;
-					port?: number;
-					user?: string;
-					password?: string;
-					database: string;
-					ssl?: string | SslOptions;
-				}
-				| {
-					url: string;
-				};
-		}
-		// TODO update?
-		| {
-			dialect: Verify<Dialect, 'mssql'>;
-			dbCredentials:
-				| {
-					port: number;
-					user: string;
-					password: string;
-					database: string;
-					server: string;
-					options?: {
-						encrypt?: boolean;
-						trustServerCertificate?: boolean;
-					};
-				}
-				| {
-					url: string;
-				};
-		}
-		| {
-			dialect: Verify<Dialect, 'cockroach'>;
-			dbCredentials:
-				| ({
-					host: string;
-					port?: number;
-					user?: string;
-					password?: string;
-					database: string;
-					ssl?:
-						| boolean
-						| 'require'
-						| 'allow'
-						| 'prefer'
-						| 'verify-full'
-						| ConnectionOptions;
-				} & {})
-				| {
-					url: string;
-				};
-		}
-		| {
-			dialect: Verify<Dialect, 'duckdb'>;
-			dbCredentials: {
-				url: string;
-			};
-		}
-	);
+	& (TDriver extends 'default' ? { driver?: undefined } : { driver: TDriver })
+	& (DialectCredentials[TDialect][TDriver & keyof DialectCredentials[TDialect]] | {});
+
+type ExclusiveUnion<T, TKeys extends PropertyKey = T extends object ? keyof T : never> = T extends object
+	? { [K in keyof T]: ExclusiveProperty<T[K]> } & { [K in Exclude<TKeys, keyof T>]?: never }
+	: T;
+
+type ExclusiveProperty<T> = true extends IsUnion<Extract<T, object>> ? ExclusiveUnion<T> : T;
+
+type IsUnion<T, TAll = T> = T extends unknown ? ([TAll] extends [T] ? false : true) : never;
+
+export interface DialectDriverMap extends Record<Dialect, Driver | 'default'> {
+	postgresql: 'default' | TypeOf<(typeof postgresDriver)>;
+	mysql: 'default';
+	sqlite: 'default' | TypeOf<(typeof sqliteDriver)>;
+	turso: 'default';
+	singlestore: 'default';
+	mssql: 'default';
+	cockroach: 'default';
+	duckdb: 'default';
+}
+
+export interface DialectCredentials {
+	turso: { default: { dbCredentials: TypeOf<typeof libSQLCredentials> } };
+	postgresql: {
+		default: { dbCredentials: ExclusiveUnion<TypeOf<typeof pgDefaultCredentials>> };
+		'aws-data-api': { dbCredentials: TypeOf<typeof awsDataApiCredentials> };
+		pglite: ExclusiveUnion<
+			| {
+				dbCredentials: TypeOf<typeof pgLiteCredentials>;
+			}
+			| TypeOf<typeof pgLiteClientCredentials>
+		>;
+		dsql: { dbCredentials: TypeOf<typeof dsqlCredentials> };
+	};
+	mysql: { default: { dbCredentials: ExclusiveUnion<TypeOf<typeof mysqlCredentials>> } };
+	sqlite: {
+		default: { dbCredentials: TypeOf<typeof sqliteDefaultCredentials> };
+		'd1-http': { dbCredentials: TypeOf<typeof d1HttpCredentials> };
+		expo: {};
+		'durable-sqlite': {};
+		'sqlite-cloud': { dbCredentials: TypeOf<typeof sqliteCloudCredentials> };
+	};
+	singlestore: { default: { dbCredentials: ExclusiveUnion<TypeOf<typeof singlestoreCredentials>> } };
+	mssql: { default: { dbCredentials: ExclusiveUnion<TypeOf<typeof mssqlCredentials>> } };
+	cockroach: { default: { dbCredentials: ExclusiveUnion<TypeOf<typeof cockroachCredentials>> } };
+	duckdb: { default: { dbCredentials: TypeOf<typeof duckdbCredentials> } };
+}
 
 /**
  * **You are currently using version 0.21.0+ of drizzle-kit. If you have just upgraded to this version, please make sure to read the changelog to understand what changes have been made and what
@@ -374,6 +272,8 @@ export type Config =
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#strict
  */
-export function defineConfig(config: Config) {
+export function defineConfig<TDialect extends Dialect, TDriver extends DialectDriverMap[TDialect] = 'default'>(
+	config: Config<TDialect, TDriver>,
+) {
 	return config;
 }

@@ -339,7 +339,7 @@ export const diffIntrospect = async (
 	db: DB,
 	initSchema: PostgresSchema,
 	testName: string,
-	schemas: string[] = ['public'],
+	schemas: string[] = [],
 	entities?: EntitiesFilter,
 ) => {
 	const { ddl: initDDL } = drizzleToDDL(initSchema);
@@ -439,6 +439,7 @@ export const diffIntrospect = async (
 		ddlAfterPull: ddl1,
 		schema2,
 		relationsError,
+		relationsFile: relationsForTsc.file,
 	};
 };
 

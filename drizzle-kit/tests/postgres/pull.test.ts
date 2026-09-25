@@ -252,6 +252,33 @@ test('advanced index test', async () => {
 	]);
 });
 
+test('index on an ARRAY expression + a second expression', async () => {
+	await db.query('CREATE TABLE humans (first_name text, last_name text);');
+	await db.query(
+		'CREATE INDEX humans_name_array_idx ON humans ((ARRAY[lower(first_name), upper(first_name)]), lower(last_name));',
+	);
+
+	const { indexes } = await fromDatabase(db, () => true);
+
+	// the comma inside ARRAY[...] must not split the expression in two
+	expect(indexes[0]?.columns).toStrictEqual([
+		{
+			asc: true,
+			isExpression: true,
+			nullsFirst: false,
+			opclass: null,
+			value: 'ARRAY[lower(first_name), upper(first_name)]',
+		},
+		{
+			asc: true,
+			isExpression: true,
+			nullsFirst: false,
+			opclass: null,
+			value: 'lower(last_name)',
+		},
+	]);
+});
+
 test('identity always test: few params', async () => {
 	const schema = {
 		users: pgTable('users', {
@@ -899,7 +926,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-09-19'))('introspect view #4', async () => {
+test.skipIf(Date.now() < +new Date('2026-09-26'))('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -928,7 +955,7 @@ test.skipIf(Date.now() < +new Date('2026-09-19'))('introspect view #4', async ()
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-09-19'))('introspect view #5', async () => {
+test.skipIf(Date.now() < +new Date('2026-09-26'))('introspect view #5', async () => {
 	const applications = pgTable('applications', {
 		applicationId: serial('application_id').primaryKey(),
 		studentId: integer('student_id').references(() => students.studentId),
@@ -1820,7 +1847,7 @@ test('introspect view with table filter', async () => {
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(Date.now() < +new Date('2026-09-19'))('introspect sequences with table filter', async () => {
+test.skipIf(Date.now() < +new Date('2026-09-26'))('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
@@ -2149,6 +2176,53 @@ test('functional index', async () => {
 	]);
 });
 
+test('compound indexe', async () => {
+	const peopleTable = pgTable(
+		'people',
+		{
+			id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+			firstName: text('first_name'),
+		},
+		(t) => [
+			index('people_name_array_idx')
+				.on(sql.raw('(ARRAY[lower(first_name), upper(first_name)])')),
+		],
+	);
+
+	const { pushSqlStatements, generateSqlStatements, schema2 } = await diffIntrospect(
+		db,
+		{ peopleTable },
+		'compound_index',
+	);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(schema2.indexes).toStrictEqual([
+		{
+			columns: [
+				{
+					asc: true,
+					isExpression: true,
+					nullsFirst: false,
+					opclass: null,
+					value: 'ARRAY[lower(first_name), upper(first_name)]',
+				},
+			],
+			concurrently: false,
+			entityType: 'indexes',
+			forPK: false,
+			forUnique: false,
+			isUnique: false,
+			method: 'btree',
+			name: 'people_name_array_idx',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'people',
+			where: null,
+			with: '',
+		},
+	]);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/5193
 test('check definition', async () => {
 	const table1 = pgTable(
@@ -2439,7 +2513,7 @@ test('issue No4655. Problem with backslash in check constraint + custom type', a
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5329
-test('introspect policies with schemaFilter', async (t) => {
+test('introspect policies with schemaFilter', async () => {
 	const role = pgRole('owner');
 	const schema1 = {
 		role,
@@ -2470,7 +2544,7 @@ test('introspect policies with schemaFilter', async (t) => {
 	expect(generateStatements).toStrictEqual([]);
 });
 // https://github.com/drizzle-team/drizzle-orm/issues/5329
-test('introspect policies without schemaFilter', async (t) => {
+test('introspect policies without schemaFilter', async () => {
 	const role = pgRole('owner');
 	const schema1 = {
 		role,
@@ -3117,6 +3191,7 @@ test('issue #5413', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6025
+// https://github.com/drizzle-team/drizzle-orm/issues/1549
 test('primary key with non default name', async () => {
 	await db.query(`
 CREATE TABLE table1 (
@@ -3502,7 +3577,7 @@ test('Issue No3446', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6214
 // TODO revise this when "NOT VALID" feature is supported
-test.skipIf(Date.now() < +new Date('2026-09-19'))('Issue No6214', async () => {
+test.skipIf(Date.now() < +new Date('2026-09-26'))('Issue No6214', async () => {
 	await db.query(`CREATE TABLE documents (
   id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   version integer NOT NULL
@@ -3608,4 +3683,87 @@ test('Issue No5626', async () => {
 			typeSchema: null,
 		},
 	]);
+});
+
+test(`PlanetScale's Neki internal schema #1`, async () => {
+	await db.query('create schema __neki;'); // internal schema
+	await db.query('create table __neki.users (id int);');
+
+	await db.query('create schema dev;');
+
+	await db.query('create table users (id int);');
+
+	const {
+		generateSqlStatements,
+		generateStatements,
+		pushSqlStatements,
+		pushStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'neki_internal_schema', ['public']);
+
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(ddlAfterPull.schemas.list()).toStrictEqual([]); // public is stripped
+	expect(ddlAfterPull.tables.list()).toStrictEqual([{
+		schema: 'public',
+		name: 'users',
+		entityType: 'tables',
+		isRlsEnabled: false,
+	}]);
+
+	expect(schema2.schemas).toStrictEqual([]); // public is stripped
+	expect(schema2.tables).toStrictEqual([{
+		schema: 'public',
+		name: 'users',
+		entityType: 'tables',
+		isRlsEnabled: false,
+	}]);
+});
+test(`PlanetScale's Neki internal schema #2`, async () => {
+	await db.query('create schema __neki;'); // internal schema
+	await db.query('create table __neki.users (id int);');
+
+	await db.query('create schema dev;');
+
+	await db.query('create table users (id int);');
+
+	const {
+		generateSqlStatements,
+		generateStatements,
+		pushSqlStatements,
+		pushStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'neki_internal_schema-2');
+
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(ddlAfterPull.schemas.list()).toStrictEqual([
+		{
+			entityType: 'schemas',
+			name: 'dev',
+		},
+	]); // public is stripped
+	expect(ddlAfterPull.tables.list()).toStrictEqual([{
+		schema: 'public',
+		name: 'users',
+		entityType: 'tables',
+		isRlsEnabled: false,
+	}]);
+
+	expect(schema2.schemas).toStrictEqual([{
+		entityType: 'schemas',
+		name: 'dev',
+	}]); // public is stripped
+	expect(schema2.tables).toStrictEqual([{
+		schema: 'public',
+		name: 'users',
+		entityType: 'tables',
+		isRlsEnabled: false,
+	}]);
 });

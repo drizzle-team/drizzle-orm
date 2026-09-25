@@ -25,7 +25,7 @@ importers:
         version: link:drizzle-orm/dist
       drizzle-orm-old:
         specifier: npm:drizzle-orm@^0.27.2
-        version: drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@5.20260914.1)(@libsql/client@0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@9.6.0)(@types/pg@8.15.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@13.0.3)(bun-types@1.4.0)(mysql2@3.24.4(@types/node@25.5.0))(pg@8.22.0)(postgres@3.4.7)(sql.js@1.13.0)(sqlite3@5.1.7)
+        version: drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@5.20260923.1)(@libsql/client@0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@9.6.0)(@types/pg@8.15.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@13.0.3)(bun-types@1.4.0)(mysql2@3.24.4(@types/node@25.5.0))(pg@8.22.0)(postgres@3.4.7)(sql.js@1.13.0)(sqlite3@5.1.7)
       eslint-plugin-drizzle-internal:
         specifier: link:eslint/eslint-plugin-drizzle-internal
         version: link:eslint/eslint-plugin-drizzle-internal
@@ -148,6 +148,12 @@ importers:
       '@aws-sdk/client-rds-data':
         specifier: ^3.556.0
         version: 3.940.0
+      '@aws/aurora-dsql-node-postgres-connector':
+        specifier: ^0.1.9
+        version: 0.1.9(pg-connection-string@2.14.0)(pg@8.16.3)
+      '@aws/aurora-dsql-postgresjs-connector':
+        specifier: ^0.3.1
+        version: 0.3.1(postgres@3.4.7)
       '@cloudflare/workers-types':
         specifier: ^4.20230518.0
         version: 4.20251126.0
@@ -156,7 +162,7 @@ importers:
         version: 1.5.0-r.1
       '@effect/sql':
         specifier: ^0.48.5
-        version: 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)
+        version: 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117))(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117)
       '@electric-sql/pglite':
         specifier: ^0.5.8
         version: 0.5.8
@@ -353,6 +359,12 @@ importers:
       '@aws-sdk/client-rds-data':
         specifier: ^3.914.0
         version: 3.940.0
+      '@aws/aurora-dsql-node-postgres-connector':
+        specifier: ^0.1.9
+        version: 0.1.9(pg-connection-string@2.14.0)(pg@8.16.3)
+      '@aws/aurora-dsql-postgresjs-connector':
+        specifier: ^0.3.0
+        version: 0.3.0(postgres@3.4.7)
       '@cloudflare/workers-types':
         specifier: ^4.20251004.0
         version: 4.20251126.0
@@ -360,32 +372,32 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2(typescript@5.9.3)
       '@effect/sql-d1':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(effect@4.0.0-rc.117)
       '@effect/sql-libsql':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(bufferutil@4.0.8)(effect@4.0.0-rc.115)(utf-8-validate@6.0.3)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(bufferutil@4.0.8)(effect@4.0.0-rc.117)(utf-8-validate@6.0.3)
       '@effect/sql-mysql2':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(@types/node@25.5.0)(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(@types/node@25.5.0)(effect@4.0.0-rc.117)
       '@effect/sql-pg':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(effect@4.0.0-rc.117)
       '@effect/sql-pglite':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(effect@4.0.0-rc.117)
       '@effect/sql-sqlite-bun':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(effect@4.0.0-rc.117)
       '@effect/sql-sqlite-do':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(effect@4.0.0-rc.117)
       '@effect/sql-sqlite-node':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(effect@4.0.0-rc.117)
       '@effect/sql-sqlite-wasm':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(@effect/wa-sqlite@0.1.2)(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(@effect/wa-sqlite@0.1.2)(effect@4.0.0-rc.117)
       '@electric-sql/pglite':
         specifier: ^0.5.8
         version: 0.5.8
@@ -474,8 +486,8 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       effect:
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117
       expo-sqlite:
         specifier: ^14.0.0
         version: 14.0.6(expo@54.0.25(@babel/core@7.28.5)(@modelcontextprotocol/sdk@1.29.0(zod@3.25.1))(bufferutil@4.0.8)(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))
@@ -639,39 +651,45 @@ importers:
       '@aws-sdk/credential-providers':
         specifier: ^3.549.0
         version: 3.940.0
+      '@aws/aurora-dsql-node-postgres-connector':
+        specifier: ^0.1.9
+        version: 0.1.9(pg-connection-string@2.14.0)(pg@8.16.3)
+      '@aws/aurora-dsql-postgresjs-connector':
+        specifier: ^0.3.0
+        version: 0.3.0(postgres@3.4.7)
       '@drizzle-team/minipg':
         specifier: ^0.3.2
         version: 0.3.2(typescript@5.9.3)
       '@effect/sql-d1':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(effect@4.0.0-rc.117)
       '@effect/sql-libsql':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(bufferutil@4.0.8)(effect@4.0.0-rc.115)(utf-8-validate@6.0.3)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(bufferutil@4.0.8)(effect@4.0.0-rc.117)(utf-8-validate@6.0.3)
       '@effect/sql-mysql2':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(@types/node@25.5.0)(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(@types/node@25.5.0)(effect@4.0.0-rc.117)
       '@effect/sql-pg':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(effect@4.0.0-rc.117)
       '@effect/sql-pglite':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(effect@4.0.0-rc.117)
       '@effect/sql-sqlite-bun':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(effect@4.0.0-rc.117)
       '@effect/sql-sqlite-do':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(effect@4.0.0-rc.117)
       '@effect/sql-sqlite-node':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(effect@4.0.0-rc.117)
       '@effect/sql-sqlite-wasm':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(@effect/wa-sqlite@0.1.2)(effect@4.0.0-rc.115)
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(@effect/wa-sqlite@0.1.2)(effect@4.0.0-rc.117)
       '@effect/vitest':
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(effect@4.0.0-rc.117)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))
       '@electric-sql/pglite':
         specifier: 0.5.8
         version: 0.5.8
@@ -760,8 +778,8 @@ importers:
         specifier: workspace:../drizzle-zod/dist
         version: link:../drizzle-zod/dist
       effect:
-        specifier: 4.0.0-rc.115
-        version: 4.0.0-rc.115
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117
       get-port:
         specifier: ^7.0.0
         version: 7.1.0
@@ -888,7 +906,7 @@ importers:
     dependencies:
       drizzle-beta:
         specifier: npm:drizzle-orm@1.0.0-beta.21
-        version: drizzle-orm@1.0.0-beta.21(d1f3dcffbfc892c911ae17e2a4ab4666)
+        version: drizzle-orm@1.0.0-beta.21(5e7d0732b18cb633d164000d12a5f14d)
       drizzle-seed:
         specifier: workspace:../drizzle-seed/dist
         version: link:../drizzle-seed/dist
@@ -990,6 +1008,10 @@ packages:
     resolution: {integrity: sha512-KsGD2FLaX5ngJao1mHxodIVU9VYd1E8810fcYiGwO1PFHDzf5BEkp6D9IdMeQwT8Q6JLYtiiT1Y/o3UCScnGoA==}
     engines: {node: '>=18.0.0'}
 
+  '@aws-sdk/core@3.978.0':
+    resolution: {integrity: sha512-2yX9LUmxPklVjSGTb8dfnWRJSiFQ3TeH2nn7G1mdKHTfnabzF0+gfrS8rYfLWmZrQ8A3mEcxMJjRc51dL5KWaA==}
+    engines: {node: '>=20.0.0'}
+
   '@aws-sdk/credential-provider-cognito-identity@3.940.0':
     resolution: {integrity: sha512-VZMijB+Dc2tISeumWw+Oxn0Oi9f4g4/xJu3kdFIjsac6GDdmBVuBbAG+bvPP73J1j1m1G1BwaYqEZvOlLwgjIA==}
     engines: {node: '>=18.0.0'}
@@ -998,37 +1020,73 @@ packages:
     resolution: {integrity: sha512-/G3l5/wbZYP2XEQiOoIkRJmlv15f1P3MSd1a0gz27lHEMrOJOGq66rF1Ca4OJLzapWt3Fy9BPrZAepoAX11kMw==}
     engines: {node: '>=18.0.0'}
 
+  '@aws-sdk/credential-provider-env@3.972.71':
+    resolution: {integrity: sha512-JN+JHruYZw3GUZB8YGAlDk4wTDPOEAEEdEzj5nS0xodWR4smzHsN7PnK2j6IeOsDIj2aqua5DSbhXl9Gtf90FQ==}
+    engines: {node: '>=20.0.0'}
+
   '@aws-sdk/credential-provider-http@3.940.0':
     resolution: {integrity: sha512-dOrc03DHElNBD6N9Okt4U0zhrG4Wix5QUBSZPr5VN8SvmjD9dkrrxOkkJaMCl/bzrW7kbQEp7LuBdbxArMmOZQ==}
     engines: {node: '>=18.0.0'}
+
+  '@aws-sdk/credential-provider-http@3.972.73':
+    resolution: {integrity: sha512-uyYYnJOnlis8uQzaYGPd7N1JoioCoNpXgnkXYixsWJXHXgXyYi8WXJSDfofxJeWfQIGWLe2Nwyq60Uc7MZdVOg==}
+    engines: {node: '>=20.0.0'}
 
   '@aws-sdk/credential-provider-ini@3.940.0':
     resolution: {integrity: sha512-gn7PJQEzb/cnInNFTOaDoCN/hOKqMejNmLof1W5VW95Qk0TPO52lH8R4RmJPnRrwFMswOWswTOpR1roKNLIrcw==}
     engines: {node: '>=18.0.0'}
 
+  '@aws-sdk/credential-provider-ini@3.973.16':
+    resolution: {integrity: sha512-i++ly+0Uxa+u3ebSSyr0S/3CFhFJDxCXT3+Zj+mW2bXenEx5bKGCdTIKFu39SgXBNhWDjex/8cXUx9MUTMCrTw==}
+    engines: {node: '>=20.0.0'}
+
   '@aws-sdk/credential-provider-login@3.940.0':
     resolution: {integrity: sha512-fOKC3VZkwa9T2l2VFKWRtfHQPQuISqqNl35ZhcXjWKVwRwl/o7THPMkqI4XwgT2noGa7LLYVbWMwnsgSsBqglg==}
     engines: {node: '>=18.0.0'}
+
+  '@aws-sdk/credential-provider-login@3.972.78':
+    resolution: {integrity: sha512-eUtswnXu0+Ii9ieRK+0L7aPFV3Z/dnW2VntJzjBP9xs8s+8p5nBNuymIXtXwZ+5r5+XJP3e32nMkuZ/r0HozEA==}
+    engines: {node: '>=20.0.0'}
 
   '@aws-sdk/credential-provider-node@3.940.0':
     resolution: {integrity: sha512-M8NFAvgvO6xZjiti5kztFiAYmSmSlG3eUfr4ZHSfXYZUA/KUdZU/D6xJyaLnU8cYRWBludb6K9XPKKVwKfqm4g==}
     engines: {node: '>=18.0.0'}
 
+  '@aws-sdk/credential-provider-node@3.972.83':
+    resolution: {integrity: sha512-jdso7ejzfRnatxMUZK4S/U6KbaDPCvfIV4XL+IQAPFDBt5rj5Fq595euqlK8Le4lNCMFR9oUpt+1l0aMgaayOQ==}
+    engines: {node: '>=20.0.0'}
+
   '@aws-sdk/credential-provider-process@3.940.0':
     resolution: {integrity: sha512-pILBzt5/TYCqRsJb7vZlxmRIe0/T+FZPeml417EK75060ajDGnVJjHcuVdLVIeKoTKm9gmJc9l45gon6PbHyUQ==}
     engines: {node: '>=18.0.0'}
+
+  '@aws-sdk/credential-provider-process@3.972.71':
+    resolution: {integrity: sha512-lYmXJa4gvq4xN1lrT5NiP5vIYYKcGWAdj8y+8o6dlcateB5eF3Dn8DtmjjHKfMBrTPAMr2pebIiX/UOj8c1/UA==}
+    engines: {node: '>=20.0.0'}
 
   '@aws-sdk/credential-provider-sso@3.940.0':
     resolution: {integrity: sha512-q6JMHIkBlDCOMnA3RAzf8cGfup+8ukhhb50fNpghMs1SNBGhanmaMbZSgLigBRsPQW7fOk2l8jnzdVLS+BB9Uw==}
     engines: {node: '>=18.0.0'}
 
+  '@aws-sdk/credential-provider-sso@3.973.15':
+    resolution: {integrity: sha512-6Jhcf4v0pSFdjk1EW2kvzuEBKD+UZ2uNcHUIglKKLndD20YhvkL2kdmDOV5/j4mYuWWwe/a1FQ1aomU86/Cg5Q==}
+    engines: {node: '>=20.0.0'}
+
   '@aws-sdk/credential-provider-web-identity@3.940.0':
     resolution: {integrity: sha512-9QLTIkDJHHaYL0nyymO41H8g3ui1yz6Y3GmAN1gYQa6plXisuFBnGAbmKVj7zNvjWaOKdF0dV3dd3AFKEDoJ/w==}
     engines: {node: '>=18.0.0'}
 
+  '@aws-sdk/credential-provider-web-identity@3.972.77':
+    resolution: {integrity: sha512-uylIQSUWpfLuH2LovxEEfwzJGM/SabLOfLMg6YXu/E8jJEKUdpdILCVCQCdFvHyu/7dLJOHPMfrSwduxO56NkQ==}
+    engines: {node: '>=20.0.0'}
+
   '@aws-sdk/credential-providers@3.940.0':
     resolution: {integrity: sha512-1Thn8cboeJSZlsAwqFmwE6Z7i2/qDM9RiyusUp4M6YLSRumeCTsxR/BokxprOqWVH4ZMMB9cDjpewfkw7myUfQ==}
     engines: {node: '>=18.0.0'}
+
+  '@aws-sdk/dsql-signer@3.1135.0':
+    resolution: {integrity: sha512-VrBAH/MjS6mHGXlnzvcwiSabqWOirBKpg1kF92sxnk4OYOi+rm8Xpac00gzJ3a65Rn2Noc5xfWGw9DpMioyiRg==}
+    engines: {node: '>=20.0.0'}
 
   '@aws-sdk/middleware-host-header@3.936.0':
     resolution: {integrity: sha512-tAaObaAnsP1XnLGndfkGWFuzrJYuk9W0b/nLvol66t8FZExIAf/WdkT2NNAWOYxljVs++oHnyHBCxIlaHrzSiw==}
@@ -1050,9 +1108,21 @@ packages:
     resolution: {integrity: sha512-x0mdv6DkjXqXEcQj3URbCltEzW6hoy/1uIL+i8gExP6YKrnhiZ7SzuB4gPls2UOpK5UqLiqXjhRLfBb1C9i4Dw==}
     engines: {node: '>=18.0.0'}
 
+  '@aws-sdk/nested-clients@3.997.45':
+    resolution: {integrity: sha512-mooq9Q+jLa18VoM7HouczmslZU60iiB0aKc/Ztnq/luIL1ud0z4DnYprLR/ZO1gp331S9tJctM1HZr7u6YKBXQ==}
+    engines: {node: '>=20.0.0'}
+
   '@aws-sdk/region-config-resolver@3.936.0':
     resolution: {integrity: sha512-wOKhzzWsshXGduxO4pqSiNyL9oUtk4BEvjWm9aaq6Hmfdoydq6v6t0rAGHWPjFwy9z2haovGRi3C8IxdMB4muw==}
     engines: {node: '>=18.0.0'}
+
+  '@aws-sdk/signature-v4-multi-region@3.996.46':
+    resolution: {integrity: sha512-L+2xZTye/2T96f3lwCws0Zw6GG2JHZW9e8FpVgGBeeExSKyeoZ6CWRpBml/7DNiK/O26jrgPM9F+Ay8VkgzUWQ==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/token-providers@3.1129.0':
+    resolution: {integrity: sha512-Sbl3rpzQdsG4ZK2zh0JWUYyZPKKorJlVOddA2T0DVbKJFrsW8J6wgnslxxUH04+WaBMr4A1HzJZvZX0xUvkniA==}
+    engines: {node: '>=20.0.0'}
 
   '@aws-sdk/token-providers@3.940.0':
     resolution: {integrity: sha512-k5qbRe/ZFjW9oWEdzLIa2twRVIEx7p/9rutofyrRysrtEnYh3HAWCngAnwbgKMoiwa806UzcTRx0TjyEpnKcCg==}
@@ -1061,6 +1131,10 @@ packages:
   '@aws-sdk/types@3.936.0':
     resolution: {integrity: sha512-uz0/VlMd2pP5MepdrHizd+T+OKfyK4r3OA9JI+L/lPKg0YFQosdJNCKisr6o70E3dh8iMpFYxF1UN/4uZsyARg==}
     engines: {node: '>=18.0.0'}
+
+  '@aws-sdk/types@3.974.5':
+    resolution: {integrity: sha512-LkwLL2BLbC6wNNm4JaH9mbEqBMdOZCct6VAYqhdN4U1xrWM+fUJQEfbHwQgDypapOWTRtlk25akb5afM0P8CIQ==}
+    engines: {node: '>=20.0.0'}
 
   '@aws-sdk/util-endpoints@3.936.0':
     resolution: {integrity: sha512-0Zx3Ntdpu+z9Wlm7JKUBOzS9EunwKAb4KdGUQQxDqh5Lc3ta5uBoub+FgmVuzwnmBu9U1Os8UuwVTH0Lgu+P5w==}
@@ -1086,8 +1160,32 @@ packages:
     resolution: {integrity: sha512-YIfkD17GocxdmlUVc3ia52QhcWuRIUJonbF8A2CYfcWNV3HzvAqpcPeC0bYUhkK+8e8YO1ARnLKZQE0TlwzorA==}
     engines: {node: '>=18.0.0'}
 
+  '@aws-sdk/xml-builder@3.972.40':
+    resolution: {integrity: sha512-wlFmCIGUlwF4zx/kncw+bmxTQh1HeSJq4mYV/V5cZUSJadDP3kXvGW8Rn21cimj/7y9ju+47oYWXi97vF7czaA==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws/aurora-dsql-node-postgres-connector@0.1.9':
+    resolution: {integrity: sha512-i8MHzHLdL/1YzsGH6RipLu0U3x8SxCQAtR1VtA7iAhBT4g4yujQ4/qG7HJ5ySAy4XPL/1iNs8m0dLp5LvsqYRw==}
+    peerDependencies:
+      pg: ^8.16.3
+      pg-connection-string: ^2.7.0
+
+  '@aws/aurora-dsql-postgresjs-connector@0.3.0':
+    resolution: {integrity: sha512-UT7Z5bNZM7FSaH0ndmglrKvniyaclgJxSo0Egj5IJhl6Js+fZd+INV4UdSSktIpoqQuBM6qVid38ZaO7Rw0vbQ==}
+    peerDependencies:
+      postgres: ^3.4.7
+
+  '@aws/aurora-dsql-postgresjs-connector@0.3.1':
+    resolution: {integrity: sha512-TeLYltk+wBfJ8e7KZs1igNYa+/lhNP821Is3v1OgYrT8s4mKOtE4n3QShrMOb2JxE4V8ovdWYf9XldwgBt4LyQ==}
+    peerDependencies:
+      postgres: ^3.4.7
+
   '@aws/lambda-invoke-store@0.2.1':
     resolution: {integrity: sha512-sIyFcoPZkTtNu9xFeEoynMef3bPJIAbOfUh+ueYcfhVl6xm2VRtMcMclSxmZCMnHHd4hlYKJeq/aggmBEWynww==}
+    engines: {node: '>=18.0.0'}
+
+  '@aws/lambda-invoke-store@0.3.0':
+    resolution: {integrity: sha512-sl4Bm6yiMNYrZKkqqDFWN0UfnWhlS8ivKxrYl+6t0gCLrqr8y3B2IqZZbFRkfaVVp7C/baApyh71P+LeE1A2sQ==}
     engines: {node: '>=18.0.0'}
 
   '@azure-rest/core-client@2.5.1':
@@ -1664,8 +1762,8 @@ packages:
   '@cloudflare/workers-types@4.20251126.0':
     resolution: {integrity: sha512-DSeI1Q7JYmh5/D/tw5eZCjrKY34v69rwj63hHt60nSQW5QLwWCbj/lLtNz9f2EPa+JCACwpLXHgCXfzJ29x66w==}
 
-  '@cloudflare/workers-types@5.20260914.1':
-    resolution: {integrity: sha512-9xGgkvmG1lw0QdKJmSR5YNXaA221DfefpDCfPLz5PlzdYU0BXzxONQoWakLXTsFIz8xtsNfeUg+mbspIA5P4Xg==}
+  '@cloudflare/workers-types@5.20260923.1':
+    resolution: {integrity: sha512-zuOqyxfhzhN2LlxxcpnAS79aGVm9ku3ZcWKyvVLHyjPV6oHsuHSFidzSHhHE9ho9UTcUxU1IdtpdVuFXluKB+g==}
 
   '@colors/colors@1.5.0':
     resolution: {integrity: sha512-ooWCrlZP11i8GImSjTHYHLkvFDP48nS4+204nGb1RiX/WXYHmJA2III9/e2DWVabCESdW7hBAEzHRqUn9OUVvQ==}
@@ -1786,20 +1884,20 @@ packages:
     peerDependencies:
       effect: ^3.19.8
 
-  '@effect/sql-d1@4.0.0-rc.115':
-    resolution: {integrity: sha512-o2JkGjN02NBMxwDtJbwcC4teyMiOApqN085fdVMid4FUC6ixj/WyKyPpe51QGOMQQTTl2BkXccA/IwDIywGXlA==}
+  '@effect/sql-d1@4.0.0-rc.117':
+    resolution: {integrity: sha512-N+hvdT/g9x0aRBAEHtTbqsM4iRKtdO85G86Z1XlB3r7nnVYWXmNR8/8iHsqV+PFTF6r8cGXnBwxThcX5JCD4QA==}
     peerDependencies:
-      effect: ^4.0.0-rc.115
+      effect: ^4.0.0-rc.117
 
-  '@effect/sql-libsql@4.0.0-rc.115':
-    resolution: {integrity: sha512-Ph0Q5uYq+bWBn9D3MU2i0enELu84OJdi8J0cX/IPy6F85FOVhe0Buy3oQd57WL/oCyt41AHMRKPuUAMNHHLQ2w==}
+  '@effect/sql-libsql@4.0.0-rc.117':
+    resolution: {integrity: sha512-KdrrgJxjK5itz2iFHuH3jFkhxguYvHJFMTpUHBuL+i69a3OdHKqsO8jAA8ch6ToEMGva4+1aELy0lpBdmzTRMA==}
     peerDependencies:
-      effect: ^4.0.0-rc.115
+      effect: ^4.0.0-rc.117
 
-  '@effect/sql-mysql2@4.0.0-rc.115':
-    resolution: {integrity: sha512-Ysc5smXRTxZPN8BwQgCs2YWCHq5KspSKk6I50FBDBmjOszcffyPjfEi/9Kwe9EpTpVgCVPlSTkztIlP0aP3Cfw==}
+  '@effect/sql-mysql2@4.0.0-rc.117':
+    resolution: {integrity: sha512-FmfYsXXcSpAf/0f6QWmwDo/Jotu9pwwZZC+DvdkGacPeTRGlqEqN/1ihSOZZD6REOJBAGlyx4R+92wlRrCuVsg==}
     peerDependencies:
-      effect: ^4.0.0-rc.115
+      effect: ^4.0.0-rc.117
 
   '@effect/sql-pg@0.49.7':
     resolution: {integrity: sha512-7yGHEcSTj3jo7EZxC4cEXUno+/pgbEjjY5WLrx0Nfta07Vu6CTplcSOQ5KA24HwkclBidNwfX7LWghc04kAgUQ==}
@@ -1809,36 +1907,36 @@ packages:
       '@effect/sql': ^0.48.1
       effect: ^3.19.6
 
-  '@effect/sql-pg@4.0.0-rc.115':
-    resolution: {integrity: sha512-TLdzqBvGF/HwAKpWTw/5ih7JqVkkakVSb4aD6amzMaavFfFl4vsqqeKjSBijwuzbOMANNN0HqnEt/9fgjTsFEA==}
+  '@effect/sql-pg@4.0.0-rc.117':
+    resolution: {integrity: sha512-UQwKoulwVUQ5w4/lMonKf02VbMqZTrhgZXEreOWlTNNNVPYjlBZKBJNJmLPKZMHPMlHHltKjoi504uT/N9S2aQ==}
     peerDependencies:
-      effect: ^4.0.0-rc.115
+      effect: ^4.0.0-rc.117
 
-  '@effect/sql-pglite@4.0.0-rc.115':
-    resolution: {integrity: sha512-ybYdGNrks/j2qYe2RHG7NsdeYThGjFKg6S1ziHQXMhmyKyTS35Az+kK1389+o+m/1DOpvMqDqwG80UOYPAV2LQ==}
+  '@effect/sql-pglite@4.0.0-rc.117':
+    resolution: {integrity: sha512-3tuqVBkZrLkt1VqUCVHgrDlUtPJPT6JHCSchvTZ2pwabi9RtzRqXrUogmk5yGMHxs27HboNQ0IZlXkpeDKADng==}
     peerDependencies:
-      effect: ^4.0.0-rc.115
+      effect: ^4.0.0-rc.117
 
-  '@effect/sql-sqlite-bun@4.0.0-rc.115':
-    resolution: {integrity: sha512-CypwmCPAUSOOhopcnSI9ocgpKHfpgOdERpei3GuXZm5cCGP31pk2NUETqNaYhonhr2bWd+6Rc8atctnEbIYKYQ==}
+  '@effect/sql-sqlite-bun@4.0.0-rc.117':
+    resolution: {integrity: sha512-UjgkEmR+s5Rc870sDsDzu/8AA5KQqcBeq5qgH6AFe5OYfv3GCMfoQTkIvnl+Q3M5KaZosYgwwEy9uij/J2HOJw==}
     peerDependencies:
-      effect: ^4.0.0-rc.115
+      effect: ^4.0.0-rc.117
 
-  '@effect/sql-sqlite-do@4.0.0-rc.115':
-    resolution: {integrity: sha512-7lH9h+w4DW2tI+dus4hEac5mSCy1wgiT+uw/VvjR8YhNDemd3zEFY03NkbD81ipfOpnu2QA1YwgM58ExyPlhug==}
+  '@effect/sql-sqlite-do@4.0.0-rc.117':
+    resolution: {integrity: sha512-24oeFQSnqUD77+lCmTEGGMtv2lF1sxaXkJ4/6iPW1JdIhx0ksc2G/w2DxYW+DReVSiSJjE9KUnWV9SJ3s6OmGA==}
     peerDependencies:
-      effect: ^4.0.0-rc.115
+      effect: ^4.0.0-rc.117
 
-  '@effect/sql-sqlite-node@4.0.0-rc.115':
-    resolution: {integrity: sha512-53n3Kbwush7K/8/G1CDz638ClEoMvnUOT5BltCxMZ8TqcxeNoMv+nty08ZdrJ7P6m1q1RIeWlqdy5J9ZDICpbw==}
+  '@effect/sql-sqlite-node@4.0.0-rc.117':
+    resolution: {integrity: sha512-/u0ShTwVKltYZPpulckLV6ZUkMjSr/Kc+bpipX1Ac/OyLtZH6ScOL2AeBTLDiIq5ATnvXABzFSheydzoudBxgQ==}
     peerDependencies:
-      effect: ^4.0.0-rc.115
+      effect: ^4.0.0-rc.117
 
-  '@effect/sql-sqlite-wasm@4.0.0-rc.115':
-    resolution: {integrity: sha512-DI3ftJ1R0QtvbriAjuTyQzAz093IMcvhcJx9TycTY/7J97vnK8KSSag3qUGBKpyk+K07wlxrfpeWEqNx/3EZ/w==}
+  '@effect/sql-sqlite-wasm@4.0.0-rc.117':
+    resolution: {integrity: sha512-kbqNoXaEYZRve/QnLZSyoFXhq/qzprJHC76mZuRMDfSrhpAp0CP26qW1C9vRhIqr2HISSA/c3CAmsybmE5t4/g==}
     peerDependencies:
       '@effect/wa-sqlite': '>=0.1.2 <0.2.0'
-      effect: ^4.0.0-rc.115
+      effect: ^4.0.0-rc.117
 
   '@effect/sql@0.48.5':
     resolution: {integrity: sha512-OhmqA4zaajZc5F4M30W/5UjnjnhW+Z3MIbdTn6KihYOywXG+uSD2RVDhW4HiMWlysD4jv2mapbYSzi+IowYqOg==}
@@ -1847,10 +1945,10 @@ packages:
       '@effect/platform': ^0.93.5
       effect: ^3.19.8
 
-  '@effect/vitest@4.0.0-rc.115':
-    resolution: {integrity: sha512-DJR0hfdr3HNXAkzW8AzfvUz6VmrNFLrKk9tZGDURi33faMyxkc7ZewxELMMZwGpOTGN4mfqYVbX2CXgI+ZJBeQ==}
+  '@effect/vitest@4.0.0-rc.117':
+    resolution: {integrity: sha512-jJg9M7T3OhTcvoD9Zi28S5+0H+axlSHAYjXM8TYeLJy/FVlPe0B/Vc3ZfaqUF0rwkfQ6ziyCdjiBS46+182H1Q==}
     peerDependencies:
-      effect: ^4.0.0-rc.115
+      effect: ^4.0.0-rc.117
       vitest: '>=5.0.0 <6.0.0'
 
   '@effect/wa-sqlite@0.1.2':
@@ -3401,12 +3499,24 @@ packages:
     resolution: {integrity: sha512-6gnIz3h+PEPQGDj8MnRSjDvKBah042jEoPgjFGJ4iJLBE78L4lY/n98x14XyPF4u3lN179Ub/ZKFY5za9GeLQw==}
     engines: {node: '>=18.0.0'}
 
+  '@smithy/core@3.34.1':
+    resolution: {integrity: sha512-dLcOUxz8YCv1RZUMKq6GbyUf95pLbrqh34bPvpCZ1+CByFF31BEAFewZjsGCnVsZTKdThNENfGyAgk2TJqVwSw==}
+    engines: {node: '>=18.0.0'}
+
   '@smithy/credential-provider-imds@4.2.5':
     resolution: {integrity: sha512-BZwotjoZWn9+36nimwm/OLIcVe+KYRwzMjfhd4QT7QxPm9WY0HiOV8t/Wlh+HVUif0SBVV7ksq8//hPaBC/okQ==}
     engines: {node: '>=18.0.0'}
 
+  '@smithy/credential-provider-imds@4.5.2':
+    resolution: {integrity: sha512-A9uSdn72ozbRUSit0eib0TW7nXuNPlaeM0zcGkJ+nE6tFcSDbnmtwoxbTCFBukVQcszDAyvsd7+rTduPTXpygg==}
+    engines: {node: '>=18.0.0'}
+
   '@smithy/fetch-http-handler@5.3.6':
     resolution: {integrity: sha512-3+RG3EA6BBJ/ofZUeTFJA7mHfSYrZtQIrDP9dI8Lf7X6Jbos2jptuLrAAteDiFVrmbEmLSuRG/bUKzfAXk7dhg==}
+    engines: {node: '>=18.0.0'}
+
+  '@smithy/fetch-http-handler@5.8.0':
+    resolution: {integrity: sha512-ycSJu3tFAQ4v04CBB0agqFMVsSQ1iG3yw+SpgxRqKfaURpQD4CZ8Wn0zPMmSnOuTpTh65Vz+EA0rMrw089wvkA==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/hash-node@4.2.5':
@@ -3449,6 +3559,10 @@ packages:
     resolution: {integrity: sha512-UTurh1C4qkVCtqggI36DGbLB2Kv8UlcFdMXDcWMbqVY2uRg0XmT9Pb4Vj6oSQ34eizO1fvR0RnFV4Axw4IrrAg==}
     engines: {node: '>=18.0.0'}
 
+  '@smithy/node-http-handler@4.12.1':
+    resolution: {integrity: sha512-ThMkboGeONWXAelq9FvGsuJC4rOi+qyC4/zhUF58xYpxUg5sQKx2VXZYJmtNjr4dSuBJ1HeJXETQILCz3wOHvw==}
+    engines: {node: '>=18.0.0'}
+
   '@smithy/node-http-handler@4.4.5':
     resolution: {integrity: sha512-CMnzM9R2WqlqXQGtIlsHMEZfXKJVTIrqCNoSd/QpAyp+Dw0a1Vps13l6ma1fH8g7zSPNsA59B/kWgeylFuA/lw==}
     engines: {node: '>=18.0.0'}
@@ -3481,8 +3595,16 @@ packages:
     resolution: {integrity: sha512-xSUfMu1FT7ccfSXkoLl/QRQBi2rOvi3tiBZU2Tdy3I6cgvZ6SEi9QNey+lqps/sJRnogIS+lq+B1gxxbra2a/w==}
     engines: {node: '>=18.0.0'}
 
+  '@smithy/signature-v4@5.7.3':
+    resolution: {integrity: sha512-7ImGm+FkHRLcBaRttIAMZ6bzJZWb2cJGoYjq46F2UjycujWzrL9GEN9h4w7eQyXJYnltrUhxbbieBAIRrdqpow==}
+    engines: {node: '>=18.0.0'}
+
   '@smithy/smithy-client@4.9.8':
     resolution: {integrity: sha512-8xgq3LgKDEFoIrLWBho/oYKyWByw9/corz7vuh1upv7ZBm0ZMjGYBhbn6v643WoIqA9UTcx5A5htEp/YatUwMA==}
+    engines: {node: '>=18.0.0'}
+
+  '@smithy/types@4.18.0':
+    resolution: {integrity: sha512-CgB6HHWer/vrKps24ulRIbpcpb7K4xAU7SkZ7YHzBPlwHsvsrCJFEXK421s+cJzX+ZrqtA/TuU5w1HzI7k9N8A==}
     engines: {node: '>=18.0.0'}
 
   '@smithy/types@4.9.0':
@@ -4242,6 +4364,9 @@ packages:
 
   async-limiter@1.0.1:
     resolution: {integrity: sha512-csOlWGAcRFJaI6m+F2WKdnMKr4HhdhFVBk0H/QbJFMCr+uO2kwohwXQPxw/9OCxp05r5ghVBFSyioixx3gfkNQ==}
+
+  async-mutex@0.5.0:
+    resolution: {integrity: sha512-1A94B18jkJ3DYq284ohPxoXbfTA5HsQ7/Mf4DEhcyLx3Bz27Rh59iScbB6EPiP+B+joue6YCxcMXSbFC1tZKwA==}
 
   async-retry@1.3.3:
     resolution: {integrity: sha512-wfr/jstw9xNi/0teMHrRW7dsz3Lt5ARhYNZ2ewpadnhaIp5mbALhOAP+EAdsC7t4Z6wqsDVv9+W6gm1Dk9mEyw==}
@@ -5272,8 +5397,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@4.0.0-rc.115:
-    resolution: {integrity: sha512-ogYulZ5ffeOzrJqQrG0XOkDO5lKn2s9KNHhoxJy/6wKUkF0i12dlVXWA9TgsgQ+zV/JzizyG0+XMPepZEQX6vw==}
+  effect@4.0.0-rc.117:
+    resolution: {integrity: sha512-UUyi9QiOW4nySFIBM3KnYbNMd9EZliOdKfBcyLD0mPMPheO2fkuXS5y0opjWc9oqzlJxPQICEGm8gGw3kh9j/w==}
 
   electron-to-chromium@1.5.260:
     resolution: {integrity: sha512-ov8rBoOBhVawpzdre+Cmz4FB+y66Eqrk6Gwqd8NGxuhv99GQ8XqMAr351KEkOt7gukXWDg6gJWEMKgL2RLMPtA==}
@@ -9318,7 +9443,7 @@ snapshots:
 
   '@aws-crypto/util@5.2.0':
     dependencies:
-      '@aws-sdk/types': 3.936.0
+      '@aws-sdk/types': 3.974.5
       '@smithy/util-utf8': 2.3.0
       tslib: 2.8.1
 
@@ -9438,7 +9563,7 @@ snapshots:
       '@smithy/node-http-handler': 4.4.5
       '@smithy/protocol-http': 5.3.5
       '@smithy/smithy-client': 4.9.8
-      '@smithy/types': 4.9.0
+      '@smithy/types': 4.18.0
       '@smithy/url-parser': 4.2.5
       '@smithy/util-base64': 4.3.0
       '@smithy/util-body-length-browser': 4.2.0
@@ -9469,6 +9594,17 @@ snapshots:
       '@smithy/util-utf8': 4.2.0
       tslib: 2.8.1
 
+  '@aws-sdk/core@3.978.0':
+    dependencies:
+      '@aws-sdk/types': 3.974.5
+      '@aws-sdk/xml-builder': 3.972.40
+      '@aws/lambda-invoke-store': 0.3.0
+      '@smithy/core': 3.34.1
+      '@smithy/signature-v4': 5.7.3
+      '@smithy/types': 4.18.0
+      bowser: 2.13.0
+      tslib: 2.8.1
+
   '@aws-sdk/credential-provider-cognito-identity@3.940.0':
     dependencies:
       '@aws-sdk/client-cognito-identity': 3.940.0
@@ -9487,6 +9623,14 @@ snapshots:
       '@smithy/types': 4.9.0
       tslib: 2.8.1
 
+  '@aws-sdk/credential-provider-env@3.972.71':
+    dependencies:
+      '@aws-sdk/core': 3.978.0
+      '@aws-sdk/types': 3.974.5
+      '@smithy/core': 3.34.1
+      '@smithy/types': 4.18.0
+      tslib: 2.8.1
+
   '@aws-sdk/credential-provider-http@3.940.0':
     dependencies:
       '@aws-sdk/core': 3.940.0
@@ -9498,6 +9642,16 @@ snapshots:
       '@smithy/smithy-client': 4.9.8
       '@smithy/types': 4.9.0
       '@smithy/util-stream': 4.5.6
+      tslib: 2.8.1
+
+  '@aws-sdk/credential-provider-http@3.972.73':
+    dependencies:
+      '@aws-sdk/core': 3.978.0
+      '@aws-sdk/types': 3.974.5
+      '@smithy/core': 3.34.1
+      '@smithy/fetch-http-handler': 5.8.0
+      '@smithy/node-http-handler': 4.12.1
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@aws-sdk/credential-provider-ini@3.940.0':
@@ -9519,6 +9673,22 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
+  '@aws-sdk/credential-provider-ini@3.973.16':
+    dependencies:
+      '@aws-sdk/core': 3.978.0
+      '@aws-sdk/credential-provider-env': 3.972.71
+      '@aws-sdk/credential-provider-http': 3.972.73
+      '@aws-sdk/credential-provider-login': 3.972.78
+      '@aws-sdk/credential-provider-process': 3.972.71
+      '@aws-sdk/credential-provider-sso': 3.973.15
+      '@aws-sdk/credential-provider-web-identity': 3.972.77
+      '@aws-sdk/nested-clients': 3.997.45
+      '@aws-sdk/types': 3.974.5
+      '@smithy/core': 3.34.1
+      '@smithy/credential-provider-imds': 4.5.2
+      '@smithy/types': 4.18.0
+      tslib: 2.8.1
+
   '@aws-sdk/credential-provider-login@3.940.0':
     dependencies:
       '@aws-sdk/core': 3.940.0
@@ -9531,6 +9701,15 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - aws-crt
+
+  '@aws-sdk/credential-provider-login@3.972.78':
+    dependencies:
+      '@aws-sdk/core': 3.978.0
+      '@aws-sdk/nested-clients': 3.997.45
+      '@aws-sdk/types': 3.974.5
+      '@smithy/core': 3.34.1
+      '@smithy/types': 4.18.0
+      tslib: 2.8.1
 
   '@aws-sdk/credential-provider-node@3.940.0':
     dependencies:
@@ -9549,6 +9728,20 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
+  '@aws-sdk/credential-provider-node@3.972.83':
+    dependencies:
+      '@aws-sdk/credential-provider-env': 3.972.71
+      '@aws-sdk/credential-provider-http': 3.972.73
+      '@aws-sdk/credential-provider-ini': 3.973.16
+      '@aws-sdk/credential-provider-process': 3.972.71
+      '@aws-sdk/credential-provider-sso': 3.973.15
+      '@aws-sdk/credential-provider-web-identity': 3.972.77
+      '@aws-sdk/types': 3.974.5
+      '@smithy/core': 3.34.1
+      '@smithy/credential-provider-imds': 4.5.2
+      '@smithy/types': 4.18.0
+      tslib: 2.8.1
+
   '@aws-sdk/credential-provider-process@3.940.0':
     dependencies:
       '@aws-sdk/core': 3.940.0
@@ -9556,6 +9749,14 @@ snapshots:
       '@smithy/property-provider': 4.2.5
       '@smithy/shared-ini-file-loader': 4.4.0
       '@smithy/types': 4.9.0
+      tslib: 2.8.1
+
+  '@aws-sdk/credential-provider-process@3.972.71':
+    dependencies:
+      '@aws-sdk/core': 3.978.0
+      '@aws-sdk/types': 3.974.5
+      '@smithy/core': 3.34.1
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@aws-sdk/credential-provider-sso@3.940.0':
@@ -9571,6 +9772,16 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
+  '@aws-sdk/credential-provider-sso@3.973.15':
+    dependencies:
+      '@aws-sdk/core': 3.978.0
+      '@aws-sdk/nested-clients': 3.997.45
+      '@aws-sdk/token-providers': 3.1129.0
+      '@aws-sdk/types': 3.974.5
+      '@smithy/core': 3.34.1
+      '@smithy/types': 4.18.0
+      tslib: 2.8.1
+
   '@aws-sdk/credential-provider-web-identity@3.940.0':
     dependencies:
       '@aws-sdk/core': 3.940.0
@@ -9582,6 +9793,15 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - aws-crt
+
+  '@aws-sdk/credential-provider-web-identity@3.972.77':
+    dependencies:
+      '@aws-sdk/core': 3.978.0
+      '@aws-sdk/nested-clients': 3.997.45
+      '@aws-sdk/types': 3.974.5
+      '@smithy/core': 3.34.1
+      '@smithy/types': 4.18.0
+      tslib: 2.8.1
 
   '@aws-sdk/credential-providers@3.940.0':
     dependencies:
@@ -9607,6 +9827,15 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - aws-crt
+
+  '@aws-sdk/dsql-signer@3.1135.0':
+    dependencies:
+      '@aws-sdk/core': 3.978.0
+      '@aws-sdk/credential-provider-node': 3.972.83
+      '@smithy/core': 3.34.1
+      '@smithy/signature-v4': 5.7.3
+      '@smithy/types': 4.18.0
+      tslib: 2.8.1
 
   '@aws-sdk/middleware-host-header@3.936.0':
     dependencies:
@@ -9682,12 +9911,39 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
+  '@aws-sdk/nested-clients@3.997.45':
+    dependencies:
+      '@aws-sdk/core': 3.978.0
+      '@aws-sdk/signature-v4-multi-region': 3.996.46
+      '@aws-sdk/types': 3.974.5
+      '@smithy/core': 3.34.1
+      '@smithy/fetch-http-handler': 5.8.0
+      '@smithy/node-http-handler': 4.12.1
+      '@smithy/types': 4.18.0
+      tslib: 2.8.1
+
   '@aws-sdk/region-config-resolver@3.936.0':
     dependencies:
       '@aws-sdk/types': 3.936.0
       '@smithy/config-resolver': 4.4.3
       '@smithy/node-config-provider': 4.3.5
       '@smithy/types': 4.9.0
+      tslib: 2.8.1
+
+  '@aws-sdk/signature-v4-multi-region@3.996.46':
+    dependencies:
+      '@aws-sdk/types': 3.974.5
+      '@smithy/signature-v4': 5.7.3
+      '@smithy/types': 4.18.0
+      tslib: 2.8.1
+
+  '@aws-sdk/token-providers@3.1129.0':
+    dependencies:
+      '@aws-sdk/core': 3.978.0
+      '@aws-sdk/nested-clients': 3.997.45
+      '@aws-sdk/types': 3.974.5
+      '@smithy/core': 3.34.1
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@aws-sdk/token-providers@3.940.0':
@@ -9697,7 +9953,7 @@ snapshots:
       '@aws-sdk/types': 3.936.0
       '@smithy/property-provider': 4.2.5
       '@smithy/shared-ini-file-loader': 4.4.0
-      '@smithy/types': 4.9.0
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
     transitivePeerDependencies:
       - aws-crt
@@ -9705,6 +9961,11 @@ snapshots:
   '@aws-sdk/types@3.936.0':
     dependencies:
       '@smithy/types': 4.9.0
+      tslib: 2.8.1
+
+  '@aws-sdk/types@3.974.5':
+    dependencies:
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@aws-sdk/util-endpoints@3.936.0':
@@ -9736,11 +9997,48 @@ snapshots:
 
   '@aws-sdk/xml-builder@3.930.0':
     dependencies:
-      '@smithy/types': 4.9.0
+      '@smithy/types': 4.18.0
       fast-xml-parser: 5.2.5
       tslib: 2.8.1
 
+  '@aws-sdk/xml-builder@3.972.40':
+    dependencies:
+      '@smithy/types': 4.18.0
+      tslib: 2.8.1
+
+  '@aws/aurora-dsql-node-postgres-connector@0.1.9(pg-connection-string@2.14.0)(pg@8.16.3)':
+    dependencies:
+      '@aws-sdk/credential-providers': 3.940.0
+      '@aws-sdk/dsql-signer': 3.1135.0
+      '@smithy/types': 4.18.0
+      pg: 8.16.3
+      pg-connection-string: 2.14.0
+    transitivePeerDependencies:
+      - aws-crt
+
+  '@aws/aurora-dsql-postgresjs-connector@0.3.0(postgres@3.4.7)':
+    dependencies:
+      '@aws-sdk/credential-providers': 3.940.0
+      '@aws-sdk/dsql-signer': 3.1135.0
+      '@aws-sdk/types': 3.974.5
+      async-mutex: 0.5.0
+      postgres: 3.4.7
+    transitivePeerDependencies:
+      - aws-crt
+
+  '@aws/aurora-dsql-postgresjs-connector@0.3.1(postgres@3.4.7)':
+    dependencies:
+      '@aws-sdk/credential-providers': 3.940.0
+      '@aws-sdk/dsql-signer': 3.1135.0
+      '@aws-sdk/types': 3.974.5
+      async-mutex: 0.5.0
+      postgres: 3.4.7
+    transitivePeerDependencies:
+      - aws-crt
+
   '@aws/lambda-invoke-store@0.2.1': {}
+
+  '@aws/lambda-invoke-store@0.3.0': {}
 
   '@azure-rest/core-client@2.5.1':
     dependencies:
@@ -10498,7 +10796,7 @@ snapshots:
 
   '@cloudflare/workers-types@4.20251126.0': {}
 
-  '@cloudflare/workers-types@5.20260914.1': {}
+  '@cloudflare/workers-types@5.20260923.1': {}
 
   '@colors/colors@1.5.0':
     optional: true
@@ -10587,45 +10885,45 @@ snapshots:
       '@duckdb/node-bindings-win32-arm64': 1.5.0-r.1
       '@duckdb/node-bindings-win32-x64': 1.5.0-r.1
 
-  '@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)':
+  '@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117)':
     dependencies:
-      '@effect/platform': 0.93.5(effect@4.0.0-rc.115)
-      effect: 4.0.0-rc.115
+      '@effect/platform': 0.93.5(effect@4.0.0-rc.117)
+      effect: 4.0.0-rc.117
       uuid: 11.1.0
 
-  '@effect/platform@0.93.5(effect@4.0.0-rc.115)':
+  '@effect/platform@0.93.5(effect@4.0.0-rc.117)':
     dependencies:
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.117
       find-my-way-ts: 0.1.6
       msgpackr: 1.11.9
       multipasta: 0.2.7
 
-  '@effect/sql-d1@4.0.0-rc.115(effect@4.0.0-rc.115)':
+  '@effect/sql-d1@4.0.0-rc.117(effect@4.0.0-rc.117)':
     dependencies:
-      '@cloudflare/workers-types': 5.20260914.1
-      effect: 4.0.0-rc.115
+      '@cloudflare/workers-types': 5.20260923.1
+      effect: 4.0.0-rc.117
 
-  '@effect/sql-libsql@4.0.0-rc.115(bufferutil@4.0.8)(effect@4.0.0-rc.115)(utf-8-validate@6.0.3)':
+  '@effect/sql-libsql@4.0.0-rc.117(bufferutil@4.0.8)(effect@4.0.0-rc.117)(utf-8-validate@6.0.3)':
     dependencies:
       '@libsql/client': 0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.117
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/sql-mysql2@4.0.0-rc.115(@types/node@25.5.0)(effect@4.0.0-rc.115)':
+  '@effect/sql-mysql2@4.0.0-rc.117(@types/node@25.5.0)(effect@4.0.0-rc.117)':
     dependencies:
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.117
       mysql2: 3.24.4(@types/node@25.5.0)
     transitivePeerDependencies:
       - '@types/node'
 
-  '@effect/sql-pg@0.49.7(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)':
+  '@effect/sql-pg@0.49.7(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117))(@effect/platform@0.93.5(effect@4.0.0-rc.117))(@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117))(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117))(effect@4.0.0-rc.117)':
     dependencies:
-      '@effect/experimental': 0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)
-      '@effect/platform': 0.93.5(effect@4.0.0-rc.115)
-      '@effect/sql': 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)
-      effect: 4.0.0-rc.115
+      '@effect/experimental': 0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117)
+      '@effect/platform': 0.93.5(effect@4.0.0-rc.117)
+      '@effect/sql': 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117))(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117)
+      effect: 4.0.0-rc.117
       pg: 8.22.0
       pg-connection-string: 2.9.1
       pg-cursor: 2.21.0(pg@8.22.0)
@@ -10635,42 +10933,42 @@ snapshots:
       - pg-native
     optional: true
 
-  '@effect/sql-pg@4.0.0-rc.115(effect@4.0.0-rc.115)':
+  '@effect/sql-pg@4.0.0-rc.117(effect@4.0.0-rc.117)':
     dependencies:
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.117
 
-  '@effect/sql-pglite@4.0.0-rc.115(effect@4.0.0-rc.115)':
+  '@effect/sql-pglite@4.0.0-rc.117(effect@4.0.0-rc.117)':
     dependencies:
       '@electric-sql/pglite': 0.5.8
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.117
 
-  '@effect/sql-sqlite-bun@4.0.0-rc.115(effect@4.0.0-rc.115)':
+  '@effect/sql-sqlite-bun@4.0.0-rc.117(effect@4.0.0-rc.117)':
     dependencies:
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.117
 
-  '@effect/sql-sqlite-do@4.0.0-rc.115(effect@4.0.0-rc.115)':
+  '@effect/sql-sqlite-do@4.0.0-rc.117(effect@4.0.0-rc.117)':
     dependencies:
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.117
 
-  '@effect/sql-sqlite-node@4.0.0-rc.115(effect@4.0.0-rc.115)':
+  '@effect/sql-sqlite-node@4.0.0-rc.117(effect@4.0.0-rc.117)':
     dependencies:
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.117
 
-  '@effect/sql-sqlite-wasm@4.0.0-rc.115(@effect/wa-sqlite@0.1.2)(effect@4.0.0-rc.115)':
+  '@effect/sql-sqlite-wasm@4.0.0-rc.117(@effect/wa-sqlite@0.1.2)(effect@4.0.0-rc.117)':
     dependencies:
       '@effect/wa-sqlite': 0.1.2
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.117
 
-  '@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)':
+  '@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117))(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117)':
     dependencies:
-      '@effect/experimental': 0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)
-      '@effect/platform': 0.93.5(effect@4.0.0-rc.115)
-      effect: 4.0.0-rc.115
+      '@effect/experimental': 0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117)
+      '@effect/platform': 0.93.5(effect@4.0.0-rc.117)
+      effect: 4.0.0-rc.117
       uuid: 11.1.0
 
-  '@effect/vitest@4.0.0-rc.115(effect@4.0.0-rc.115)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))':
+  '@effect/vitest@4.0.0-rc.117(effect@4.0.0-rc.117)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))':
     dependencies:
-      effect: 4.0.0-rc.115
+      effect: 4.0.0-rc.117
       vitest: 5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
 
   '@effect/wa-sqlite@0.1.2': {}
@@ -12511,7 +12809,7 @@ snapshots:
 
   '@smithy/abort-controller@4.2.5':
     dependencies:
-      '@smithy/types': 4.9.0
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@smithy/config-resolver@4.4.3':
@@ -12536,6 +12834,11 @@ snapshots:
       '@smithy/uuid': 1.1.0
       tslib: 2.8.1
 
+  '@smithy/core@3.34.1':
+    dependencies:
+      '@smithy/types': 4.18.0
+      tslib: 2.8.1
+
   '@smithy/credential-provider-imds@4.2.5':
     dependencies:
       '@smithy/node-config-provider': 4.3.5
@@ -12544,12 +12847,24 @@ snapshots:
       '@smithy/url-parser': 4.2.5
       tslib: 2.8.1
 
+  '@smithy/credential-provider-imds@4.5.2':
+    dependencies:
+      '@smithy/core': 3.34.1
+      '@smithy/types': 4.18.0
+      tslib: 2.8.1
+
   '@smithy/fetch-http-handler@5.3.6':
     dependencies:
       '@smithy/protocol-http': 5.3.5
       '@smithy/querystring-builder': 4.2.5
       '@smithy/types': 4.9.0
       '@smithy/util-base64': 4.3.0
+      tslib: 2.8.1
+
+  '@smithy/fetch-http-handler@5.8.0':
+    dependencies:
+      '@smithy/core': 3.34.1
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@smithy/hash-node@4.2.5':
@@ -12619,6 +12934,12 @@ snapshots:
       '@smithy/types': 4.9.0
       tslib: 2.8.1
 
+  '@smithy/node-http-handler@4.12.1':
+    dependencies:
+      '@smithy/core': 3.34.1
+      '@smithy/types': 4.18.0
+      tslib: 2.8.1
+
   '@smithy/node-http-handler@4.4.5':
     dependencies:
       '@smithy/abort-controller': 4.2.5
@@ -12639,33 +12960,39 @@ snapshots:
 
   '@smithy/querystring-builder@4.2.5':
     dependencies:
-      '@smithy/types': 4.9.0
+      '@smithy/types': 4.18.0
       '@smithy/util-uri-escape': 4.2.0
       tslib: 2.8.1
 
   '@smithy/querystring-parser@4.2.5':
     dependencies:
-      '@smithy/types': 4.9.0
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@smithy/service-error-classification@4.2.5':
     dependencies:
-      '@smithy/types': 4.9.0
+      '@smithy/types': 4.18.0
 
   '@smithy/shared-ini-file-loader@4.4.0':
     dependencies:
-      '@smithy/types': 4.9.0
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@smithy/signature-v4@5.3.5':
     dependencies:
       '@smithy/is-array-buffer': 4.2.0
       '@smithy/protocol-http': 5.3.5
-      '@smithy/types': 4.9.0
+      '@smithy/types': 4.18.0
       '@smithy/util-hex-encoding': 4.2.0
       '@smithy/util-middleware': 4.2.5
       '@smithy/util-uri-escape': 4.2.0
       '@smithy/util-utf8': 4.2.0
+      tslib: 2.8.1
+
+  '@smithy/signature-v4@5.7.3':
+    dependencies:
+      '@smithy/core': 3.34.1
+      '@smithy/types': 4.18.0
       tslib: 2.8.1
 
   '@smithy/smithy-client@4.9.8':
@@ -12676,6 +13003,10 @@ snapshots:
       '@smithy/protocol-http': 5.3.5
       '@smithy/types': 4.9.0
       '@smithy/util-stream': 4.5.6
+      tslib: 2.8.1
+
+  '@smithy/types@4.18.0':
+    dependencies:
       tslib: 2.8.1
 
   '@smithy/types@4.9.0':
@@ -12758,7 +13089,7 @@ snapshots:
     dependencies:
       '@smithy/fetch-http-handler': 5.3.6
       '@smithy/node-http-handler': 4.4.5
-      '@smithy/types': 4.9.0
+      '@smithy/types': 4.18.0
       '@smithy/util-base64': 4.3.0
       '@smithy/util-buffer-from': 4.2.0
       '@smithy/util-hex-encoding': 4.2.0
@@ -13489,6 +13820,10 @@ snapshots:
       tslib: 2.8.1
 
   async-limiter@1.0.1: {}
+
+  async-mutex@0.5.0:
+    dependencies:
+      tslib: 2.8.1
 
   async-retry@1.3.3:
     dependencies:
@@ -14420,10 +14755,10 @@ snapshots:
     dependencies:
       wordwrap: 1.0.0
 
-  drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@5.20260914.1)(@libsql/client@0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@9.6.0)(@types/pg@8.15.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@13.0.3)(bun-types@1.4.0)(mysql2@3.24.4(@types/node@25.5.0))(pg@8.22.0)(postgres@3.4.7)(sql.js@1.13.0)(sqlite3@5.1.7):
+  drizzle-orm@0.27.2(@aws-sdk/client-rds-data@3.940.0)(@cloudflare/workers-types@5.20260923.1)(@libsql/client@0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3))(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@planetscale/database@1.19.0)(@types/better-sqlite3@9.6.0)(@types/pg@8.15.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(better-sqlite3@13.0.3)(bun-types@1.4.0)(mysql2@3.24.4(@types/node@25.5.0))(pg@8.22.0)(postgres@3.4.7)(sql.js@1.13.0)(sqlite3@5.1.7):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.940.0
-      '@cloudflare/workers-types': 5.20260914.1
+      '@cloudflare/workers-types': 5.20260923.1
       '@libsql/client': 0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@neondatabase/serverless': 1.0.2
       '@opentelemetry/api': 1.9.0
@@ -14470,15 +14805,15 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
-  drizzle-orm@1.0.0-beta.21(d1f3dcffbfc892c911ae17e2a4ab4666):
+  drizzle-orm@1.0.0-beta.21(5e7d0732b18cb633d164000d12a5f14d):
     dependencies:
       '@types/mssql': 9.1.8
       mssql: 12.1.1
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.940.0
-      '@cloudflare/workers-types': 5.20260914.1
-      '@effect/sql': 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)
-      '@effect/sql-pg': 0.49.7(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(@effect/platform@0.93.5(effect@4.0.0-rc.115))(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)
+      '@cloudflare/workers-types': 5.20260923.1
+      '@effect/sql': 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117))(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117)
+      '@effect/sql-pg': 0.49.7(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117))(@effect/platform@0.93.5(effect@4.0.0-rc.117))(@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117))(@effect/platform@0.93.5(effect@4.0.0-rc.117))(effect@4.0.0-rc.117))(effect@4.0.0-rc.117)
       '@electric-sql/pglite': 0.5.8
       '@libsql/client': 0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@libsql/client-wasm': 0.10.0
@@ -14528,7 +14863,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@4.0.0-rc.115: {}
+  effect@4.0.0-rc.117: {}
 
   electron-to-chromium@1.5.260: {}
 
@@ -17222,8 +17557,7 @@ snapshots:
   pg-cloudflare@1.4.0:
     optional: true
 
-  pg-connection-string@2.14.0:
-    optional: true
+  pg-connection-string@2.14.0: {}
 
   pg-connection-string@2.9.1: {}
 
