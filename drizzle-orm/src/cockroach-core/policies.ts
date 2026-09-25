@@ -19,7 +19,7 @@ export interface CockroachPolicyConfig {
 	withCheck?: SQL;
 }
 
-export class CockroachPolicy implements CockroachPolicyConfig {
+export class CockroachPolicy {
 	static readonly [entityKind]: string = 'CockroachPolicy';
 
 	readonly as: CockroachPolicyConfig['as'];

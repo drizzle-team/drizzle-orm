@@ -5,7 +5,7 @@ export interface CockroachRoleConfig {
 	createRole?: boolean;
 }
 
-export class CockroachRole implements CockroachRoleConfig {
+export class CockroachRole {
 	static readonly [entityKind]: string = 'CockroachRole';
 
 	/** @internal */

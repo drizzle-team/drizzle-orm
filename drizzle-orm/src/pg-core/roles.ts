@@ -6,7 +6,7 @@ export interface PgRoleConfig {
 	inherit?: boolean;
 }
 
-export class PgRole implements PgRoleConfig {
+export class PgRole {
 	static readonly [entityKind]: string = 'PgRole';
 
 	/** @internal */
