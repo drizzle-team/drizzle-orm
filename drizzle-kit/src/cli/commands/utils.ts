@@ -106,6 +106,7 @@ export type GenerateConfig<S extends AnySchemaSource = AnySchemaSource> = {
 	schemaSource: S;
 	out: string;
 	breakpoints: boolean;
+	generateDownMigrations: boolean;
 	name?: string;
 	custom: boolean;
 	bundle: boolean;
@@ -128,6 +129,7 @@ export const prepareGenerateConfig = async (
 		schema?: string;
 		out?: string;
 		breakpoints?: boolean;
+		generateDownMigrations?: boolean;
 		custom?: boolean;
 		name?: string;
 		dialect?: Dialect;
@@ -143,7 +145,7 @@ export const prepareGenerateConfig = async (
 	const config = from === 'config' ? await drizzleConfigFromFile(options.config) : options;
 	const hints = await HintsHandler.fromCli(options);
 
-	const { schema, out, breakpoints, dialect, driver } = config;
+	const { schema, out, breakpoints, generateDownMigrations, dialect, driver } = config;
 
 	if (!schema || !dialect) {
 		throw new RequiredParamsCliError(
@@ -167,6 +169,7 @@ export const prepareGenerateConfig = async (
 		name: options.name,
 		custom: options.custom || false,
 		breakpoints: breakpoints ?? true,
+		generateDownMigrations: generateDownMigrations ?? true,
 		filenames: fileNames,
 		schemaSource: SchemaSource.fromFilenames(fileNames),
 		out: out || 'drizzle',
