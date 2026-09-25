@@ -1361,6 +1361,47 @@ test('column with not null was renamed and dropped not null', async () => {
 	expect(sbsqSt).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6360
+test('renaming a column does not drop an alteration on a same-named column in another table', async () => {
+	const from = {
+		a: pgTable('a', {
+			id: text('id').primaryKey(),
+			user_id: text('user_id').notNull(),
+		}),
+		b: pgTable('b', {
+			id: text('id').primaryKey(),
+			user_id: text('user_id').notNull(),
+		}),
+	};
+	const to = {
+		a: pgTable('a', {
+			id: text('id').primaryKey(),
+			org_id: text('org_id').notNull(),
+		}),
+		b: pgTable('b', {
+			id: text('id').primaryKey(),
+			user_id: text('user_id'),
+		}),
+	};
+
+	const renames = ['public.a.user_id->public.a.org_id'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+	const { sqlStatements: sbsqSt } = await push({ db, to });
+
+	const st0: string[] = [
+		'ALTER TABLE "a" RENAME COLUMN "user_id" TO "org_id";',
+		'ALTER TABLE "b" ALTER COLUMN "user_id" DROP NOT NULL;',
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(sbsqSt).toStrictEqual([]);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/2856
 test('alter text to timestamp', async () => {
 	const from = {
