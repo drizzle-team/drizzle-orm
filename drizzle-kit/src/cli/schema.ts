@@ -625,6 +625,8 @@ export const pull = command({
 			}
 		} catch (e) {
 			console.error(e);
+			process.exitCode = 1;
+			return;
 		}
 		process.exit(0);
 	},
