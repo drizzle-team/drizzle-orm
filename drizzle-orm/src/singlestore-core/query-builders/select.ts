@@ -23,7 +23,7 @@ import type {
 import type { SubqueryWithSelection } from '~/singlestore-core/subquery.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { ColumnsSelection, Query } from '~/sql/sql.ts';
-import { SQL } from '~/sql/sql.ts';
+import { SQL, sql } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import {
@@ -111,7 +111,9 @@ export class SingleStoreSelectBuilder<
 			/* } else if (is(source, SingleStoreViewBase)) {
 			fields = source[ViewBaseConfig].selectedFields as SelectedFields; */
 		} else if (is(source, SQL)) {
-			fields = {};
+			// Raw SQL sources aren't modeled, so there are no columns to enumerate:
+			// select all columns from it instead of an empty (and invalid) field list.
+			fields = { '*': sql.raw('*') };
 		} else {
 			fields = getTableColumns<SingleStoreTable>(source);
 		}
