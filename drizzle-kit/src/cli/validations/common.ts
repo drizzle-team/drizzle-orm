@@ -4,7 +4,8 @@ import type { TypeOf } from 'zod';
 import { any, boolean, coerce, enum as enum_, literal, object, string, union } from 'zod';
 import { dialect } from '../../utils/schemaValidator';
 import { AmbiguousParamsCliError } from '../errors';
-import { outputs } from './outputs';
+import { humanLog } from '../views';
+import { outputs, withStyle } from './outputs';
 
 export type Commands =
 	| 'introspect'
@@ -62,29 +63,29 @@ export const assertCollisions = <
 	throw new AmbiguousParamsCliError(command, outputs.common.ambiguousParams(command));
 };
 
-export const sqliteDriversLiterals = [
-	literal('d1-http'),
-	literal('expo'),
-	literal('durable-sqlite'),
-	literal('sqlite-cloud'),
-] as const;
+export const d1HttpDriver = literal('d1-http');
+export const expoDriver = literal('expo');
+export const durableSqliteDriver = literal('durable-sqlite');
+export const sqliteCloudDriver = literal('sqlite-cloud');
+export const sqliteDriver = union([d1HttpDriver, expoDriver, durableSqliteDriver, sqliteCloudDriver]);
 
-export const postgresqlDriversLiterals = [
-	literal('aws-data-api'),
-	literal('pglite'),
-] as const;
+export const awsDataApiDriver = literal('aws-data-api');
+export const pgliteDriver = literal('pglite');
+export const dsqlDriver = literal('dsql');
+export const postgresDriver = union([awsDataApiDriver, pgliteDriver, dsqlDriver]);
+
+export const driver = union([sqliteDriver, postgresDriver]);
+
+export const drivers = driver.options.flatMap((u) => u.options.map((l) => l.value)) as [
+	TypeOf<typeof driver>,
+	...TypeOf<typeof driver>[],
+];
+
+export type Driver = (typeof drivers)[number];
 
 export const casingTypes = ['snake_case', 'camelCase'] as const;
 export const casingType = enum_(casingTypes);
 export type CasingType = (typeof casingTypes)[number];
-
-export const sqliteDriver = union(sqliteDriversLiterals);
-export const postgresDriver = union(postgresqlDriversLiterals);
-export const driver = union([sqliteDriver, postgresDriver]);
-
-export const drivers = ['d1-http', 'expo', 'aws-data-api', 'pglite', 'durable-sqlite', 'sqlite-cloud'] as const;
-
-export type Casing = TypeOf<typeof casing>;
 
 export const configMigrations = object({
 	table: string().default('__drizzle_migrations'),
@@ -94,8 +95,7 @@ export const configMigrations = object({
 export const casing = union([literal('camel'), literal('preserve')]).default(
 	'camel',
 );
-
-export type Driver = (typeof drivers)[number];
+export type Casing = TypeOf<typeof casing>;
 
 export const entitiesParams = {
 	tablesFilter: union([string(), string().array()]).optional(),
@@ -128,6 +128,7 @@ export const configCommonSchema = object({
 	verbose: boolean().optional().default(false),
 	driver: driver.optional(),
 	dbCredentials: any().optional(),
+	client: any().optional(), // PGlite
 }).passthrough();
 
 export type CliConfig = TypeOf<typeof configCommonSchema> & {
@@ -137,12 +138,6 @@ export type CliConfig = TypeOf<typeof configCommonSchema> & {
 	tablesFilter?: string | string[];
 	schemaFilter?: string | string[];
 };
-
-export const configPull = configCommonSchema.extend({
-	casing,
-	migrations: configMigrations,
-	...entitiesParams,
-});
 
 export const configCheck = configCommonSchema;
 
@@ -179,7 +174,6 @@ export const pushParams = object({
 	dialect: dialect,
 	schema: union([string(), string().array()]),
 	verbose: boolean().optional(),
-	strict: boolean().optional(),
 	explain: boolean().optional(),
 	hints: string().optional(),
 	hintsFile: string().optional(),
@@ -227,4 +221,26 @@ export const wrapParam = (
 		return chalk.gray(`        ${name}?: `);
 	}
 	return `    ${cross} ${name}: ${chalk.gray('undefined')}`;
+};
+
+/**
+ * "url" and individual connection params are not merged: "url" wins and the params
+ * are silently dropped. Warn instead of letting it pass unnoticed.
+ */
+export const warnOnUrlConflict = (
+	options: Record<string, unknown>,
+	connectionParams: readonly string[],
+) => {
+	if (options.driver !== undefined || typeof options.url !== 'string') return;
+
+	const provided = connectionParams.filter((param) => options[param] !== undefined);
+	if (provided.length === 0) return;
+
+	const list = `"${provided.join('", "')}"`;
+
+	humanLog(
+		withStyle.fullWarning(
+			`Both "url" and ${list} are provided in database credentials. They are not merged: drizzle-kit will use "url" and ignore the rest, so any of those options has to be set in "url" itself.`,
+		),
+	);
 };

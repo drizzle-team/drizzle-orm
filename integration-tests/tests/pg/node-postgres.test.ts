@@ -7,6 +7,11 @@ import { randomString } from '~/utils';
 import { tests } from './common';
 import { nodePostgresTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
+import {
+	assertMalformedSnapshotRejected,
+	assertSnapshotIdNotInjectable,
+	assertSnapshotIsolatesTransaction,
+} from './snapshot';
 
 tests(test, []);
 
@@ -570,5 +575,19 @@ describe('migrator', () => {
 		expect(res2).toStrictEqual(expected);
 
 		rmSync(migrationDir, { recursive: true });
+	});
+});
+
+describe('transaction snapshot', () => {
+	test('isolates the transaction', async ({ db, peer }) => {
+		await assertSnapshotIsolatesTransaction(db, peer!, expect, 'nodepg');
+	});
+
+	test('rejects a malformed id', async ({ db }) => {
+		await assertMalformedSnapshotRejected(db, expect);
+	});
+
+	test('does not let the id inject SQL', async ({ db }) => {
+		await assertSnapshotIdNotInjectable(db, expect, 'nodepg');
 	});
 });

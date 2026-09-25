@@ -97,7 +97,7 @@ export class PgEffectDeleteBase<
 		const { session, config, dialect } = this;
 		const { returning: fields } = config;
 
-		const query = dialect.sqlToQuery(this.getSQL());
+		const query = dialect.sqlToQuery(this.getSQL(true));
 		const mapper = fields
 			? this.dialect.mapperGenerators.rows(fields, undefined)
 			: undefined;

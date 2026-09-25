@@ -1,20 +1,11 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
+import { bytesFromUtf8 } from '~/sqlite-core/codecs.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
-import { type Equal, getColumnNameAndConfig, textDecoder } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 type BlobMode = 'buffer' | 'json' | 'bigint';
-
-function hexToText(hexString: string) {
-	let result = '';
-	for (let i = 0; i < hexString.length; i += 2) {
-		const hexPair = hexString.slice(i, i + 2);
-		const decimalValue = Number.parseInt(hexPair, 16);
-		result += String.fromCodePoint(decimalValue);
-	}
-	return result;
-}
 
 export class SQLiteBigIntBuilder extends SQLiteColumnBuilder<{
 	dataType: 'bigint int64';
@@ -36,33 +27,15 @@ export class SQLiteBigIntBuilder extends SQLiteColumnBuilder<{
 export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint int64'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteBigInt';
 
+	/** @internal */
+	override readonly codec = 'blob:bigint';
+
 	getSQLType(): string {
 		return 'blob';
 	}
 
-	override mapFromDriverValue = (value: Buffer | Uint8Array | ArrayBuffer | string): bigint => {
-		// For RQBv2
-		if (typeof value === 'string') {
-			return BigInt(hexToText(value));
-		}
-
-		if (typeof Buffer !== 'undefined' && Buffer.from) {
-			const buf = Buffer.isBuffer(value)
-				? value
-				// oxlint-disable-next-line drizzle-internal/no-instanceof
-				: value instanceof ArrayBuffer
-				? Buffer.from(value)
-				: value.buffer
-				? Buffer.from(value.buffer, value.byteOffset, value.byteLength)
-				: Buffer.from(value);
-			return BigInt(buf.toString('utf8'));
-		}
-
-		return BigInt(textDecoder!.decode(value as ArrayBuffer));
-	};
-
 	override mapToDriverValue = (value: bigint): Buffer => {
-		return Buffer.from(value.toString());
+		return bytesFromUtf8(value.toString());
 	};
 }
 
@@ -89,33 +62,15 @@ export class SQLiteBlobJsonBuilder extends SQLiteColumnBuilder<{
 export class SQLiteBlobJson<T extends ColumnBaseConfig<'object json'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteBlobJson';
 
+	/** @internal */
+	override readonly codec = 'blob:json';
+
 	getSQLType(): string {
 		return 'blob';
 	}
 
-	override mapFromDriverValue = (value: Buffer | Uint8Array | ArrayBuffer | string): T['data'] => {
-		// For RQBv2
-		if (typeof value === 'string') {
-			return JSON.parse(hexToText(value));
-		}
-
-		if (typeof Buffer !== 'undefined' && Buffer.from) {
-			const buf = Buffer.isBuffer(value)
-				? value
-				// oxlint-disable-next-line drizzle-internal/no-instanceof
-				: value instanceof ArrayBuffer
-				? Buffer.from(value)
-				: value.buffer
-				? Buffer.from(value.buffer, value.byteOffset, value.byteLength)
-				: Buffer.from(value);
-			return JSON.parse(buf.toString('utf8'));
-		}
-
-		return JSON.parse(textDecoder!.decode(value as ArrayBuffer));
-	};
-
 	override mapToDriverValue = (value: T['data']): Buffer => {
-		return Buffer.from(JSON.stringify(value));
+		return bytesFromUtf8(JSON.stringify(value));
 	};
 }
 
@@ -139,18 +94,8 @@ export class SQLiteBlobBufferBuilder extends SQLiteColumnBuilder<{
 export class SQLiteBlobBuffer<T extends ColumnBaseConfig<'object buffer'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteBlobBuffer';
 
-	override mapFromDriverValue = (value: Buffer | Uint8Array | ArrayBuffer): T['data'] => {
-		if (Buffer.isBuffer(value)) {
-			return value;
-		}
-
-		// For RQBv2
-		if (typeof value === 'string') {
-			return Buffer.from(value, 'hex');
-		}
-
-		return Buffer.from(value as Uint8Array);
-	};
+	/** @internal */
+	override readonly codec = 'blob';
 
 	getSQLType(): string {
 		return 'blob';

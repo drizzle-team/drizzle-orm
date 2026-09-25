@@ -1,9 +1,8 @@
 import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
+import { CockroachColumn, type CockroachColumnBaseConfig, CockroachColumnBuilder } from './common.ts';
 
-export class CockroachBooleanBuilder extends CockroachColumnWithArrayBuilder<{
+export class CockroachBooleanBuilder extends CockroachColumnBuilder<{
 	dataType: 'boolean';
 	data: boolean;
 	driverParam: boolean;
@@ -25,8 +24,11 @@ export class CockroachBooleanBuilder extends CockroachColumnWithArrayBuilder<{
 	}
 }
 
-export class CockroachBoolean<T extends ColumnBaseConfig<'boolean'>> extends CockroachColumn<T> {
+export class CockroachBoolean<T extends CockroachColumnBaseConfig<'boolean'>> extends CockroachColumn<'boolean', T> {
 	static override readonly [entityKind]: string = 'CockroachBoolean';
+
+	/** @internal */
+	override readonly codec = 'bool';
 
 	getSQLType(): string {
 		return 'bool';

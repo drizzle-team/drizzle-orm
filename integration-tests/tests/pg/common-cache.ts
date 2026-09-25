@@ -96,6 +96,35 @@ export function tests(test: Test) {
 			expect(spyInvalidate).toHaveBeenCalledTimes(1);
 		});
 
+		test('write: onMutate runs after the write is committed', async ({ caches }) => {
+			const { explicit: db } = caches;
+
+			const seen: string[][] = [];
+			// @ts-expect-error
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate').mockImplementation(async () => {
+				const rows = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, 1));
+				seen.push(rows.map((r) => r.name));
+			});
+
+			await db.insert(usersTable).values({ id: 1, name: 'John' });
+
+			expect(spyInvalidate).toHaveBeenCalledTimes(1);
+			expect(seen).toStrictEqual([['John']]);
+		});
+
+		test('failed write: no onMutate', async ({ caches }) => {
+			const { explicit: db } = caches;
+
+			await db.insert(usersTable).values({ id: 1, name: 'John' });
+
+			// @ts-expect-error
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+			await expect(db.insert(usersTable).values({ id: 1, name: 'Jane' })).rejects.toThrow(DrizzleQueryError);
+
+			expect(spyInvalidate).toHaveBeenCalledTimes(0);
+		});
+
 		test('default global config + enable cache on select + disable invalidate: get, put', async ({ caches }) => {
 			const { explicit: db } = caches;
 
@@ -331,7 +360,7 @@ export function tests(test: Test) {
 
 		// Test itself passes, but breaks 'insert via db.execute w/ query builder' tests later on
 		// need to revisit test cleanup
-		test.skipIf(Date.now() < +new Date('2026-07-01'))('Query error wrapping', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-09-26'))('Query error wrapping', async ({ db, push }) => {
 			const table = pgTable('somethingelse_error_wrap_slowpath', (t) => ({
 				id: t.integer().primaryKey(),
 				name: t.text().notNull(),

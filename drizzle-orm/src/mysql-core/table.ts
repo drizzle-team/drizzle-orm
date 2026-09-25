@@ -20,7 +20,7 @@ export type MySqlTableExtraConfigValue =
 	| CheckBuilder
 	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
-	| UniqueConstraintBuilder;
+	| UniqueConstraintBuilder<string | undefined>;
 
 export type MySqlTableExtraConfig = Record<
 	string,
@@ -71,7 +71,7 @@ export function mysqlTableWithSchema<
 	extraConfig:
 		| ((
 			self: BuildColumns<TTableName, TColumnsMap, 'mysql'>,
-		) => MySqlTableExtraConfig | MySqlTableExtraConfigValue[])
+		) => MySqlTableExtraConfig | (MySqlTableExtraConfigValue | MySqlTableExtraConfigValue[])[])
 		| undefined,
 	schema: TSchemaName,
 	casing: Casing | undefined,
@@ -81,6 +81,7 @@ export function mysqlTableWithSchema<
 	schema: TSchemaName;
 	columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
 	dialect: 'mysql';
+	isAlias: false;
 }> {
 	const casingFn = getCasingFn(casing);
 	const rawTable = new MySqlTable<{
@@ -88,6 +89,7 @@ export function mysqlTableWithSchema<
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
 		dialect: 'mysql';
+		isAlias: false;
 	}>(name, schema, baseName);
 
 	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getMySqlColumnBuilders()) : columns;
@@ -129,12 +131,13 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 		columns: TColumnsMap,
 		extraConfig?: (
 			self: BuildColumns<TTableName, TColumnsMap, 'mysql'>,
-		) => MySqlTableExtraConfigValue[],
+		) => (MySqlTableExtraConfigValue | MySqlTableExtraConfigValue[])[],
 	): MySqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
 		dialect: 'mysql';
+		isAlias: false;
 	}>;
 
 	<
@@ -143,12 +146,15 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 	>(
 		name: TTableName,
 		columns: (columnTypes: MySqlColumnBuilders) => TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mysql'>) => MySqlTableExtraConfigValue[],
+		extraConfig?: (
+			self: BuildColumns<TTableName, TColumnsMap, 'mysql'>,
+		) => (MySqlTableExtraConfigValue | MySqlTableExtraConfigValue[])[],
 	): MySqlTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
 		dialect: 'mysql';
+		isAlias: false;
 	}>;
 	/**
 	 * @deprecated The third parameter of mysqlTable is changing and will only accept an array instead of an object
@@ -184,6 +190,7 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
 		dialect: 'mysql';
+		isAlias: false;
 	}>;
 
 	/**
@@ -220,6 +227,7 @@ export interface MySqlTableFn<TSchemaName extends string | undefined = undefined
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mysql'>;
 		dialect: 'mysql';
+		isAlias: false;
 	}>;
 }
 

@@ -1,10 +1,13 @@
 import { test as brotest } from '@drizzle-team/brocli';
+import type { PGlite } from '@electric-sql/pglite';
 import { unlinkSync } from 'node:fs';
-import { afterEach, assert, expect, test } from 'vitest';
+import { afterEach, assert, expect, expectTypeOf, test } from 'vitest';
+import { defineConfig, type DialectCredentials, type DialectDriverMap } from '../../src';
 import { CheckConfig } from '../../src/cli/commands/utils';
 import { check } from '../../src/cli/schema';
-import { wrapParam } from '../../src/cli/validations/common';
+import { type Driver, wrapParam } from '../../src/cli/validations/common';
 import { error } from '../../src/cli/views';
+import type { Dialect } from '../../src/utils/schemaValidator';
 import { createConfig } from './utils';
 
 const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
@@ -132,4 +135,96 @@ test('output option rejects an invalid value', async (t) => {
 	const res = await brotest(check, `--dialect=postgresql --out=test --output=bogus`);
 
 	expect(res.type).not.toBe('handler');
+});
+
+test('config types: credentials are optional', () => {
+	defineConfig({ dialect: 'postgresql', schema: 'schema.ts', out: 'drizzle' });
+	defineConfig({ dialect: 'postgresql', driver: 'pglite' });
+	defineConfig({ dialect: 'postgresql', driver: 'aws-data-api', out: 'drizzle' });
+	defineConfig({ dialect: 'sqlite', driver: 'd1-http', schema: 'schema.ts' });
+	defineConfig({ dialect: 'mysql', schema: 'schema.ts' });
+});
+
+test('config types: every credentials variant is accepted', () => {
+	const client = {} as PGlite;
+
+	defineConfig({ dialect: 'postgresql', dbCredentials: { url: 'postgresql://localhost/db' } });
+	defineConfig({
+		dialect: 'postgresql',
+		dbCredentials: { host: 'localhost', database: 'db', ssl: { rejectUnauthorized: false, ca: [Buffer.from('')] } },
+	});
+	defineConfig({
+		dialect: 'postgresql',
+		driver: 'aws-data-api',
+		dbCredentials: { database: 'db', secretArn: 'secret', resourceArn: 'resource' },
+	});
+	defineConfig({ dialect: 'postgresql', driver: 'pglite', dbCredentials: { url: './pglite' } });
+	defineConfig({ dialect: 'postgresql', driver: 'pglite', client });
+	defineConfig({ dialect: 'mysql', dbCredentials: { host: 'localhost', database: 'db', ssl: { ca: 'ca' } } });
+	defineConfig({ dialect: 'sqlite', dbCredentials: { url: 'sqlite.db' } });
+	defineConfig({
+		dialect: 'sqlite',
+		driver: 'd1-http',
+		dbCredentials: { accountId: 'account', databaseId: 'db', token: 'token' },
+	});
+	defineConfig({ dialect: 'turso', dbCredentials: { url: 'libsql://localhost', authToken: 'token' } });
+	defineConfig({
+		dialect: 'mssql',
+		dbCredentials: { server: 'localhost', port: 1433, user: 'sa', password: 'password', database: 'db' },
+	});
+	defineConfig({ dialect: 'cockroach', dbCredentials: { host: 'localhost', database: 'db', ssl: 'require' } });
+});
+
+test('config types: credentials variants can not be mixed', () => {
+	const client = {} as PGlite;
+
+	// @ts-expect-error
+	defineConfig({ dialect: 'postgresql', dbCredentials: { url: 'postgresql://localhost/db', host: 'localhost' } });
+	defineConfig({
+		dialect: 'postgresql',
+		// @ts-expect-error
+		dbCredentials: { url: 'postgresql://localhost/db', host: 'localhost', database: 'db' },
+	});
+	defineConfig({
+		dialect: 'mysql',
+		// @ts-expect-error
+		dbCredentials: { url: 'mysql://localhost/db', host: 'localhost', database: 'db' },
+	});
+	defineConfig({
+		dialect: 'singlestore',
+		// @ts-expect-error
+		dbCredentials: { url: 'mysql://localhost/db', host: 'localhost', database: 'db' },
+	});
+	defineConfig({
+		dialect: 'cockroach',
+		// @ts-expect-error
+		dbCredentials: { url: 'postgresql://localhost/db', host: 'localhost', database: 'db' },
+	});
+	// @ts-expect-error
+	defineConfig({ dialect: 'mssql', dbCredentials: { url: 'mssql://localhost/db', server: 'localhost' } });
+	// @ts-expect-error
+	defineConfig({ dialect: 'postgresql', driver: 'pglite', client, dbCredentials: { url: './pglite' } });
+});
+
+test('config types: credentials must match dialect and driver', () => {
+	const client = {} as PGlite;
+
+	// @ts-expect-error
+	defineConfig({ dialect: 'postgresql', client });
+	// @ts-expect-error
+	defineConfig({ dialect: 'mysql', driver: 'pglite' });
+	// @ts-expect-error
+	defineConfig({ dialect: 'sqlite', driver: 'd1-http', dbCredentials: { url: 'sqlite.db' } });
+	// @ts-expect-error
+	defineConfig({ dialect: 'sqlite', dbCredentials: { url: 'sqlite.db', authToken: 'token' } });
+	// @ts-expect-error
+	defineConfig({ dialect: 'postgresql', dbCredentials: 5 });
+});
+
+test('config types: credentials are defined for every dialect and driver', () => {
+	expectTypeOf<keyof DialectCredentials>().toEqualTypeOf<Dialect>();
+	expectTypeOf<{ [D in Dialect]: keyof DialectCredentials[D] }>().toEqualTypeOf<
+		{ [D in Dialect]: DialectDriverMap[D] }
+	>();
+	expectTypeOf<Exclude<DialectDriverMap[Dialect], 'default'>>().toEqualTypeOf<Driver>();
 });

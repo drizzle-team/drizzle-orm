@@ -76,14 +76,6 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyn
 					? this.client.sql.exec(query.sql, ...params)
 					: this.client.sql.exec(query.sql);
 			},
-			values: (params) => {
-				const res = params.length > 0
-					? this.client.sql.exec(query.sql, ...params)
-					: this.client.sql.exec(query.sql);
-
-				// @ts-ignore .raw().toArray() exists
-				return res.raw().toArray();
-			},
 		};
 
 		return new SQLiteAsyncPreparedQuery(
@@ -108,8 +100,11 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyn
 				TRelations
 			>,
 		) => T,
-		_config?: SQLiteTransactionConfig,
+		config?: SQLiteTransactionConfig,
 	): T {
+		if (config?.behavior) {
+			throw new Error('Transaction behavior is not supported by driver');
+		}
 		const tx = new SQLiteDOTransaction('sync', this.dialect, this, this.relations, undefined, true);
 		return this.client.transactionSync(() => transaction(tx));
 	}

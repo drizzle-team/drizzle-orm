@@ -293,17 +293,6 @@ function arrayColumnToSchema(column: Column, constraint: ColumnDataArrayConstrai
 				)
 				: v.array(v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)));
 		}
-		case 'basecolumn': {
-			// CockroachDB/GEL style: has a separate baseColumn
-			const baseColumn = (<{ baseColumn?: Column }> column).baseColumn;
-			if (baseColumn) {
-				const { length } = column;
-				const schema = v.array(columnToSchema(baseColumn));
-				if (length) return v.pipe(schema, v.length(length));
-				return schema;
-			}
-			return v.array(v.any());
-		}
 		default: {
 			return v.array(v.any());
 		}

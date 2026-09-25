@@ -2,8 +2,8 @@ import type { Literals } from 'effect/Schema';
 import type { LiteralValue } from 'effect/SchemaAST';
 import type { CockroachEnum } from '~/cockroach-core/columns/enum.ts';
 import type { PgEnum } from '~/pg-core/columns/enum.ts';
-import type { View } from '~/sql/sql.ts';
 import type { InferInsertModel, InferSelectModel, Table } from '~/table.ts';
+import type { View } from '~/view.ts';
 import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal.ts';
 
 export interface CreateSelectSchema {

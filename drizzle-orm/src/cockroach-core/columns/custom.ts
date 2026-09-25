@@ -1,10 +1,16 @@
 import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
 import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
-import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
+import { parseCockroachArray } from '../array.ts';
+import { type CockroachColumnType, type CockroachType, resolveCockroachTypeAlias } from '../codecs.ts';
+import {
+	CockroachColumn,
+	type CockroachColumnBaseConfig,
+	CockroachColumnBuilder,
+	type CockroachColumnBuilderRuntimeConfig,
+} from './common.ts';
 
 export type ConvertCustomConfig<T extends Partial<CustomTypeValues>> =
 	& {
@@ -19,15 +25,13 @@ export interface CockroachCustomColumnInnerConfig {
 	customTypeValues: CustomTypeValues;
 }
 
-export class CockroachCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>>
-	extends CockroachColumnWithArrayBuilder<
-		T,
-		{
-			fieldConfig: CustomTypeValues['config'];
-			customTypeParams: CustomTypeParams<any>;
-		}
-	>
-{
+export class CockroachCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>> extends CockroachColumnBuilder<
+	T,
+	{
+		fieldConfig: CustomTypeValues['config'];
+		customTypeParams: CustomTypeParams<any>;
+	}
+> {
 	static override readonly [entityKind]: string = 'CockroachCustomColumnBuilder';
 
 	constructor(
@@ -51,67 +55,60 @@ export class CockroachCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'cus
 	}
 }
 
-export class CockroachCustomColumn<T extends ColumnBaseConfig<'custom'>> extends CockroachColumn<T> {
+export class CockroachCustomColumn<T extends CockroachColumnBaseConfig<'custom'>> extends CockroachColumn<'custom', T> {
 	static override readonly [entityKind]: string = 'CockroachCustomColumn';
 
+	/** @internal */
+	override readonly codec?: CockroachType | undefined;
+
 	private sqlName: string;
-	private mapTo?: (value: T['data']) => T['driverParam'];
-	private mapFrom?: (value: T['driverParam']) => T['data'];
-	private mapJson?: (value: unknown) => T['data'];
-	private forJsonSelect?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
+	readonly mapFromJsonValue?: (value: unknown) => T['data'];
+	readonly jsonSelectIdentifier?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
 
 	constructor(
 		table: CockroachTable<any>,
-		config: CockroachCustomColumnBuilder<T>['config'],
+		config: CockroachColumnBuilderRuntimeConfig<T['data']> & {
+			fieldConfig: CustomTypeValues['config'];
+			customTypeParams: CustomTypeParams<any>;
+		},
 	) {
 		super(table, config);
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
-		this.mapTo = config.customTypeParams.toDriver;
-		this.mapFrom = config.customTypeParams.fromDriver;
-		this.mapJson = config.customTypeParams.fromJson;
-		this.forJsonSelect = config.customTypeParams.forJsonSelect;
+		this.mapToDriverValue = config.customTypeParams.toDriver ?? this.mapToDriverValue;
+		this.mapFromDriverValue = config.customTypeParams.fromDriver ?? this.mapFromDriverValue;
+		this.mapFromJsonValue = config.customTypeParams.fromJson;
+		this.jsonSelectIdentifier = config.customTypeParams.forJsonSelect;
+		const cfgCodec =
+			typeof config.customTypeParams.codec === 'string' || typeof config.customTypeParams.codec === 'undefined'
+				? config.customTypeParams.codec
+				: config.customTypeParams.codec(config.fieldConfig);
+		this.codec = typeof cfgCodec === 'string'
+			? resolveCockroachTypeAlias(cfgCodec) as CockroachType // If it isn't `CockroachType`, codec search will simply resolve to no codec, which is supported behaviour
+			: undefined;
+
+		if (this.dimensions && config.customTypeParams.fromJson) {
+			this.mapFromJsonValue = (value: unknown): unknown => {
+				if (value === null) return value;
+				const arr = typeof value === 'string' ? parseCockroachArray(value) : value as unknown[];
+				return this.mapJsonArrayElements(arr, config.customTypeParams.fromJson!, this.dimensions);
+			};
+		}
+	}
+
+	/** @internal */
+	private mapJsonArrayElements(value: unknown, mapper: (v: unknown) => unknown, depth: number): unknown {
+		if (depth > 0 && Array.isArray(value)) {
+			return value.map((v) => v === null ? null : this.mapJsonArrayElements(v, mapper, depth - 1));
+		}
+		return mapper(value);
 	}
 
 	getSQLType(): string {
 		return this.sqlName;
 	}
-
-	override mapFromDriverValue = (value: T['driverParam']): T['data'] => {
-		return typeof this.mapFrom === 'function' ? this.mapFrom(value) : value as T['data'];
-	};
-
-	mapFromJsonValue(value: unknown): T['data'] {
-		return typeof this.mapJson === 'function' ? this.mapJson(value) : this.mapFromDriverValue(value) as T['data'];
-	}
-
-	jsonSelectIdentifier(identifier: SQL, sql: SQLGenerator, arrayDimensions?: number): SQL {
-		if (typeof this.forJsonSelect === 'function') return this.forJsonSelect(identifier, sql, arrayDimensions);
-
-		const rawType = this.getSQLType().toLowerCase();
-		const parenPos = rawType.indexOf('(');
-		const type = (parenPos + 1) ? rawType.slice(0, parenPos) : rawType;
-
-		switch (type) {
-			case 'geometry':
-			case 'timestamp':
-			case 'decimal':
-			case 'int8': {
-				const arrVal = '[]'.repeat(arrayDimensions ?? 0);
-
-				return sql`${identifier}::text${sql.raw(arrVal).if(arrayDimensions)}`;
-			}
-			default: {
-				return identifier;
-			}
-		}
-	}
-
-	override mapToDriverValue = (value: T['data']): T['driverParam'] => {
-		return typeof this.mapTo === 'function' ? this.mapTo(value) : value as T['data'];
-	};
 }
 
-export type CustomTypeValues = {
+export interface CustomTypeValues {
 	/**
 	 * Required type for custom column, that will infer proper type model
 	 *
@@ -176,7 +173,7 @@ export type CustomTypeValues = {
 	 * });
 	 */
 	default?: boolean;
-};
+}
 
 export interface CustomTypeParams<T extends CustomTypeValues> {
 	/**
@@ -248,6 +245,8 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	fromDriver?: (value: 'driverOutput' extends keyof T ? T['driverOutput'] : T['driverData']) => T['data'];
 
 	/**
+	 * Bypasses JSON codecs if used
+	 *
 	 * Optional mapping function, that is used for transforming data returned by transofmed to JSON in database data to desired format
 	 *
 	 * Used by [relational queries](https://orm.drizzle.team/docs/rqb-v2)
@@ -278,13 +277,15 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	fromJson?: (value: T['jsonData']) => T['data'];
 
 	/**
+	 * Bypasses JSON codecs if used
+	 *
 	 * Optional selection modifier function, that is used for modifying selection of column inside [JSON functions](https://orm.drizzle.team/docs/json-functions)
 	 *
 	 * Additional mapping that could be required for such scenarios can be handled using {@link fromJson} function
 	 *
 	 * Used by [relational queries](https://orm.drizzle.team/docs/rqb-v2)
 	 *
-	 * Following types are being casted to text by default: `bytea`, `geometry`, `timestamp`, `numeric`, `bigint`
+	 * Following types are being casted to text by default: `geometry`, `timestamp`, `timestamptz`, `decimal`, `int8`
 	 * @example
 	 * For example, when using bigint we need to cast field to text to preserve data integrity
 	 * ```
@@ -332,6 +333,16 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	forJsonSelect?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
+
+	/**
+	 * Select which column type codec will be used for this column
+	 */
+	codec?:
+		| CockroachColumnType
+		| undefined
+		| ((
+			config: T['config'] | (Equal<T['configRequired'], true> extends true ? never : undefined),
+		) => CockroachColumnType | undefined);
 }
 
 /**
@@ -349,7 +360,6 @@ export function customType<T extends CustomTypeValues = CustomTypeValues>(
 		): CockroachCustomColumnBuilder<ConvertCustomConfig<T>>;
 	}
 	: {
-		(): CockroachCustomColumnBuilder<ConvertCustomConfig<T>>;
 		<TConfig extends Record<string, any> & T['config']>(
 			fieldConfig?: TConfig,
 		): CockroachCustomColumnBuilder<ConvertCustomConfig<T>>;

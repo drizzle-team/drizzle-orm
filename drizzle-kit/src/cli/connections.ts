@@ -1,5 +1,4 @@
 /// <reference types="@cloudflare/workers-types" />
-import type { PGlite } from '@electric-sql/pglite';
 import type { SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import { DrizzleQueryError, is } from 'drizzle-orm';
 import type { AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
@@ -18,7 +17,7 @@ import type { DB, Proxy, SQLiteDB } from '../utils';
 import { normaliseSQLiteUrl } from '../utils/utils-node';
 import { JSONB } from '../utils/when-json-met-bigint';
 import type { ProxyParams } from './commands/studio';
-import { ConnectionStringDatabaseCliError, DatabaseDriverCliError } from './errors';
+import { ConnectionStringDatabaseCliError, DatabaseDriverCliError, RequiredEitherPackagesCliError } from './errors';
 import { assertPackages, checkPackage, QueryError } from './utils';
 import type { DuckDbCredentials } from './validations/duckdb';
 import type { LibSQLCredentials } from './validations/libsql';
@@ -41,14 +40,13 @@ const normalisePGliteUrl = (it: string) => {
 };
 
 export const preparePostgresDB = async (
-	credentials: PostgresCredentials | {
-		driver: 'pglite';
-		client: PGlite;
-	},
+	credentials: PostgresCredentials,
 ): Promise<
 	DB & {
 		packageName:
 			| '@aws-sdk/client-rds-data'
+			| '@aws/aurora-dsql-node-postgres-connector'
+			| '@aws/aurora-dsql-postgresjs-connector'
 			| 'pglite'
 			| 'pg'
 			| 'postgres'
@@ -68,11 +66,10 @@ export const preparePostgresDB = async (
 			const { RDSDataClient } = await import(
 				'@aws-sdk/client-rds-data'
 			);
-			const { AwsDataApiSession, drizzle } = await import(
+			const { AwsDataApiSession, drizzle, AwsPgDialect } = await import(
 				'drizzle-orm/aws-data-api/pg'
 			);
 			const { migrate } = await import('drizzle-orm/aws-data-api/pg/migrator');
-			const { PgDialect } = await import('drizzle-orm/pg-core');
 
 			const config: AwsDataApiSessionOptions = {
 				database: credentials.database,
@@ -82,7 +79,7 @@ export const preparePostgresDB = async (
 			const rdsClient = new RDSDataClient();
 			const session = new AwsDataApiSession(
 				rdsClient,
-				new PgDialect(),
+				new AwsPgDialect(),
 				{},
 				config,
 				undefined,
@@ -151,6 +148,13 @@ export const preparePostgresDB = async (
 
 		if (driver === 'pglite') {
 			assertPackages('@electric-sql/pglite');
+			if (!('client' in credentials)) {
+				humanLog(
+					withStyle.info(
+						`Drizzle Kit creates a PGlite instance from "url", so no extensions are loaded. If your database uses extensions, provide your own PGlite instance via the 'client' param in the drizzle config.`,
+					),
+				);
+			}
 			const { PGlite, types } = await import('@electric-sql/pglite');
 			const { drizzle } = await import('drizzle-orm/pglite');
 			const { migrate } = await import('drizzle-orm/pglite/migrator');
@@ -213,6 +217,206 @@ export const preparePostgresDB = async (
 				transactionProxy,
 				migrate: migrateFn,
 			};
+		}
+
+		if (driver === 'dsql') {
+			if (await checkPackage('@aws/aurora-dsql-node-postgres-connector')) {
+				humanLog(withStyle.info(`Using '@aws/aurora-dsql-node-postgres-connector' driver for database querying`));
+
+				const { AuroraDSQLPool } = await import('@aws/aurora-dsql-node-postgres-connector');
+				const { drizzle } = await import('drizzle-orm/node-postgres/dsql');
+				const { migrate } = await import('drizzle-orm/node-postgres/dsql/migrator');
+
+				const ssl = 'ssl' in credentials
+					? credentials.ssl === 'prefer'
+							|| credentials.ssl === 'require'
+							|| credentials.ssl === 'allow'
+						? { rejectUnauthorized: false }
+						: credentials.ssl === 'verify-full'
+						? {}
+						: credentials.ssl
+					: {};
+
+				const configPart = {
+					customCredentialsProvider: credentials.customCredentialsProvider,
+					region: credentials.region,
+					max: 1,
+				};
+				const dsqlPool = 'url' in credentials
+					? new AuroraDSQLPool({ connectionString: credentials.url, ...configPart })
+					: new AuroraDSQLPool({ ...credentials, ssl, ...configPart });
+
+				const drzl = drizzle({ client: dsqlPool });
+				const migrateFn = async (config: MigrationConfig) => {
+					return migrate(drzl, config);
+				};
+
+				// pg is required peer dep for the "@aws/aurora-dsql-node-postgres-connector" package
+				const { default: pg } = await import('pg');
+				// Override pg default date parsers
+				const types: { getTypeParser: typeof pg.types.getTypeParser } = {
+					// @ts-ignore
+					getTypeParser: (typeId, format) => {
+						if (typeId === pg.types.builtins.TIMESTAMPTZ) {
+							return (val: any) => val;
+						}
+						if (typeId === pg.types.builtins.TIMESTAMP) {
+							return (val: any) => val;
+						}
+						if (typeId === pg.types.builtins.DATE) {
+							return (val: any) => val;
+						}
+						if (typeId === pg.types.builtins.INTERVAL) {
+							return (val: any) => val;
+						}
+						if (typeId === pg.types.builtins.JSON || typeId === pg.types.builtins.JSONB) {
+							return (val: any) => JSONB.parse(val);
+						}
+						// @ts-ignore
+						return pg.types.getTypeParser(typeId, format);
+					},
+				};
+				const query = async (sql: string, params?: any[]) => {
+					const result = await dsqlPool.query({
+						text: sql,
+						values: params ?? [],
+						types,
+					}).catch((e) => {
+						throw new QueryError(e, sql, params || []);
+					});
+					return result.rows;
+				};
+
+				const proxy: Proxy = async (params) => {
+					const result = await dsqlPool.query({
+						text: params.sql,
+						values: params.params,
+						...(params.mode === 'array' && { rowMode: 'array' }),
+						types,
+					}).catch((e) => {
+						throw new QueryError(e, params.sql, params.params || []);
+					});
+					return result.rows;
+				};
+
+				const transactionProxy: TransactionProxy = async (queries) => {
+					const results: any[] = [];
+					const tx = await dsqlPool.connect();
+					try {
+						await tx.query('BEGIN');
+						for (const query of queries) {
+							const result = await tx.query({
+								text: query.sql,
+								types,
+							});
+							results.push(result.rows);
+						}
+						await tx.query('COMMIT');
+					} catch (error) {
+						await tx.query('ROLLBACK');
+						results.push(error as Error);
+					} finally {
+						tx.release();
+					}
+					return results;
+				};
+
+				return {
+					packageName: '@aws/aurora-dsql-node-postgres-connector',
+					query,
+					proxy,
+					transactionProxy,
+					migrate: migrateFn,
+				};
+			}
+
+			if (await checkPackage('@aws/aurora-dsql-postgresjs-connector')) {
+				humanLog(withStyle.info(`Using '@aws/aurora-dsql-postgresjs-connector' driver for database querying`));
+
+				const { auroraDSQLPostgres } = await import('@aws/aurora-dsql-postgresjs-connector');
+				const { drizzle } = await import('drizzle-orm/postgres-js/dsql');
+				const { migrate } = await import('drizzle-orm/postgres-js/dsql/migrator');
+
+				const ssl = 'ssl' in credentials
+					? credentials.ssl === 'prefer'
+							|| credentials.ssl === 'require'
+							|| credentials.ssl === 'allow'
+						? { rejectUnauthorized: false }
+						: credentials.ssl === 'verify-full'
+						? {}
+						: credentials.ssl
+					: {};
+
+				const configPart = {
+					customCredentialsProvider: credentials.customCredentialsProvider,
+					region: credentials.region,
+					profile: credentials.profile,
+					max: 1,
+				};
+				const dsqlPool = 'url' in credentials
+					? auroraDSQLPostgres(credentials.url, configPart)
+					: auroraDSQLPostgres({ ...credentials, ssl, ...configPart });
+
+				const transparentParser = (val: any) => val;
+
+				// Override postgres.js default date parsers: https://github.com/porsager/postgres/discussions/761
+				for (const type of ['1184', '1082', '1083', '1114']) {
+					dsqlPool.options.parsers[type as any] = transparentParser;
+					dsqlPool.options.serializers[type as any] = transparentParser;
+				}
+				dsqlPool.options.serializers['114'] = transparentParser;
+				dsqlPool.options.serializers['3802'] = transparentParser;
+
+				const drzl = drizzle({ client: dsqlPool });
+				const migrateFn = async (config: MigrationConfig) => {
+					return migrate(drzl, config);
+				};
+
+				const query = async (sql: string, params?: any[]) => {
+					const result = await dsqlPool.unsafe(sql, params ?? []).catch((e) => {
+						throw new QueryError(e, sql, params || []);
+					});
+					return result as any[];
+				};
+
+				const proxy: Proxy = async (params) => {
+					if (params.mode === 'array') {
+						return dsqlPool.unsafe(params.sql, params.params).values().catch((e) => {
+							throw new QueryError(e, params.sql, params.params || []);
+						});
+					}
+					return dsqlPool.unsafe(params.sql, params.params).catch((e) => {
+						throw new QueryError(e, params.sql, params.params || []);
+					});
+				};
+
+				const transactionProxy: TransactionProxy = async (queries) => {
+					const results: any[] = [];
+					try {
+						await dsqlPool.begin(async (sql) => {
+							for (const query of queries) {
+								const result = await sql.unsafe(query.sql);
+								results.push(result);
+							}
+						});
+					} catch (error) {
+						results.push(error as Error);
+					}
+					return results;
+				};
+
+				return {
+					packageName: '@aws/aurora-dsql-postgresjs-connector',
+					query,
+					proxy,
+					transactionProxy,
+					migrate: migrateFn,
+				};
+			}
+
+			throw new RequiredEitherPackagesCliError([
+				'@aws/aurora-dsql-node-postgres-connector, @aws/aurora-dsql-postgresjs-connector',
+			]);
 		}
 
 		assertUnreachable(driver);
@@ -2087,9 +2291,9 @@ export const connectToSQLite = async (
 			return res as T[];
 		};
 		const batch = async (queries: string[]) => {
-			await client.transaction(async () => {
+			await client.transactionAsync(async (tx) => {
 				for (const query of queries) {
-					await client.run(query);
+					await tx.run(query);
 				}
 			})();
 		};
@@ -2107,9 +2311,9 @@ export const connectToSQLite = async (
 		const transactionProxy: TransactionProxy = async (queries) => {
 			const results: (any[] | Error)[] = [];
 			try {
-				const tx = client.transaction(async () => {
+				const tx = client.transactionAsync(async (tx) => {
 					for (const query of queries) {
-						const result = await client.all(query.sql);
+						const result = await tx.all(query.sql);
 						results.push(result);
 					}
 				});
@@ -2167,9 +2371,9 @@ export const connectToSQLite = async (
 		const transactionProxy: TransactionProxy = async (queries) => {
 			const results: (any[] | Error)[] = [];
 			try {
-				const tx = client.transaction(async () => {
+				const tx = client.transactionAsync(async (tx) => {
 					for (const query of queries) {
-						const result = await client.all(query.sql);
+						const result = await tx.all(query.sql);
 						results.push(result);
 					}
 				});
@@ -2560,9 +2764,9 @@ export const connectToTursoRemote = async (
 		const transactionProxy: TransactionProxy = async (queries) => {
 			const results: (any[] | Error)[] = [];
 			try {
-				const tx = client.transaction(async () => {
+				const tx = client.transactionAsync(async (tx) => {
 					for (const query of queries) {
-						const result = await client.all(query.sql);
+						const result = await tx.all(query.sql);
 						results.push(result);
 					}
 				});
@@ -2613,9 +2817,9 @@ export const connectToTursoRemote = async (
 			return res as T[];
 		};
 		const batch = async (queries: string[]) => {
-			await client.transaction(async () => {
+			await client.transactionAsync(async (tx) => {
 				for (const query of queries) {
-					await client.run(query);
+					await tx.run(query);
 				}
 			})();
 		};
@@ -2633,9 +2837,9 @@ export const connectToTursoRemote = async (
 		const transactionProxy: TransactionProxy = async (queries) => {
 			const results: (any[] | Error)[] = [];
 			try {
-				const tx = client.transaction(async () => {
+				const tx = client.transactionAsync(async (tx) => {
 					for (const query of queries) {
-						const result = await client.all(query.sql);
+						const result = await tx.all(query.sql);
 						results.push(result);
 					}
 				});

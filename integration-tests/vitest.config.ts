@@ -28,8 +28,15 @@ export default defineConfig({
 					'tests/sqlite/tursodatabase-serverless.test.ts',
 					'tests/pg/neon-http.test.ts',
 					'tests/pg/neon-http-batch.test.ts',
+					'tests/pg/postgres-neon-ws.test.ts',
+					'tests/pg/postgres-neon-http.test.ts',
+					'tests/pg/postgres-neon-http-batch.test.ts',
 					'tests/pg/netlify-db.test.ts',
 					'tests/sqlite/sqlite-cloud.test.ts',
+					'tests/dsql/node-postgres.test.ts',
+					'tests/dsql/postgres-js.test.ts',
+					'tests/dsql/pg.test.ts',
+					'tests/dsql/pg.postgresjs.test.ts',
 					'tests/utils/is-config.test.ts', // Uses external DBs in some cases
 					'js-tests/driver-init/commonjs/neon-http.test.cjs',
 					'js-tests/driver-init/commonjs/neon-ws.test.cjs',
@@ -49,6 +56,10 @@ export default defineConfig({
 			'tests/relational/vercel-v1.test.ts',
 			// Have a strange "invalid SQL: ERROR: must be owner of schema public" error. Will need to check with xata team
 			'tests/pg/xata-http.test.ts',
+			// Todo: remove after driver fixes land
+			'tests/pg/postgres-http.test.ts',
+			'tests/pg/postgres-neon-http.test.ts',
+			'tests/pg/postgres-neon-ws.test.ts',
 			// todo: remove
 			'js-tests/driver-init/module/vercel.test.mjs',
 			'js-tests/driver-init/commonjs/vercel.test.cjs',

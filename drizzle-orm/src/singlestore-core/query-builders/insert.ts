@@ -1,4 +1,4 @@
-import { entityKind, is } from '~/entity.ts';
+import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
@@ -12,11 +12,11 @@ import type {
 	SingleStoreSession,
 } from '~/singlestore-core/session.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
-import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL, sql } from '~/sql/sql.ts';
+import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferModelFromColumns } from '~/table.ts';
 import { Table } from '~/table.ts';
-import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
+import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnySingleStoreColumn, SingleStoreColumn } from '../columns/common.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
@@ -24,27 +24,43 @@ import type { SingleStoreUpdateSetSource } from './update.ts';
 
 export interface SingleStoreInsertConfig<TTable extends SingleStoreTable = SingleStoreTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[];
+	values: Record<string, unknown>[];
 	ignore: boolean;
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
+	columnList?: string[];
 }
 
 export type AnySingleStoreInsertConfig = SingleStoreInsertConfig<SingleStoreTable>;
 
 export type SingleStoreInsertValue<
 	TTable extends SingleStoreTable,
+	TColumnsList extends string[] | 'all' = 'all',
 	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > =
 	& {
-		[Key in keyof TModel]: TModel[Key] | SQL | Placeholder;
+		[K in keyof TModel as TColumnsList extends 'all' ? K : Extract<K, TColumnsList[number]>]:
+			| TModel[K]
+			| SQL
+			| Placeholder;
 	}
 	& {};
+
+export type NoDuplicateColumns<
+	T extends readonly unknown[],
+	TSeen = never,
+> = T extends readonly [infer Head, ...infer Tail] ? [
+		Head extends TSeen ? DrizzleTypeError<`Duplicate columns are not allowed in insert selection: "${Head & string}"`>
+			: Head,
+		...NoDuplicateColumns<Tail, TSeen | Head>,
+	]
+	: T;
 
 export class SingleStoreInsertBuilder<
 	TTable extends SingleStoreTable,
 	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TColumnList extends string[] | 'all' = 'all',
 > {
 	static readonly [entityKind]: string = 'SingleStoreInsertBuilder';
 
@@ -54,6 +70,7 @@ export class SingleStoreInsertBuilder<
 		private table: TTable,
 		private session: SingleStoreSession,
 		private dialect: SingleStoreDialect,
+		private columnList?: string[],
 	) {}
 
 	ignore(): this {
@@ -61,26 +78,27 @@ export class SingleStoreInsertBuilder<
 		return this;
 	}
 
-	values(value: SingleStoreInsertValue<TTable>): SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
-	values(values: SingleStoreInsertValue<TTable>[]): SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
 	values(
-		values: SingleStoreInsertValue<TTable> | SingleStoreInsertValue<TTable>[],
+		value: SingleStoreInsertValue<TTable, TColumnList>,
+	): SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	values(
+		values: SingleStoreInsertValue<TTable, TColumnList>[],
+	): SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	values(
+		values: SingleStoreInsertValue<TTable, TColumnList> | SingleStoreInsertValue<TTable, TColumnList>[],
 	): SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
-		const mappedValues = values.map((entry) => {
-			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[Table.Symbol.Columns];
-			for (const colKey of Object.keys(entry)) {
-				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue as any, cols[colKey]);
-			}
-			return result;
-		});
-
-		return new SingleStoreInsertBase(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect);
+		return new SingleStoreInsertBase(
+			this.table,
+			values,
+			this.shouldIgnore,
+			this.session,
+			this.dialect,
+			this.columnList,
+		);
 	}
 }
 
@@ -215,9 +233,10 @@ export class SingleStoreInsertBase<
 		ignore: boolean,
 		private session: SingleStoreSession,
 		private dialect: SingleStoreDialect,
+		columnList?: string[],
 	) {
 		super();
-		this.config = { table, values, ignore };
+		this.config = { table, values, ignore, columnList };
 	}
 
 	/**
@@ -262,14 +281,17 @@ export class SingleStoreInsertBase<
 		const returning: SelectedFieldsOrdered = [];
 		for (const [key, value] of Object.entries(this.config.table[Table.Symbol.Columns])) {
 			if (value.primary) {
-				returning.push({ field: value, path: [key] });
+				returning.push({ field: value, fieldType: 'Column', path: [key] });
 			}
 		}
-		this.config.returning = orderSelectedFields<SingleStoreColumn>(this.config.table[Table.Symbol.Columns]);
+		this.config.returning = orderSelectedFields<SingleStoreColumn>(
+			this.config.table[Table.Symbol.Columns],
+			undefined,
+			this.dialect.codecs,
+		);
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildInsertQuery(this.config).sql;
 	}
@@ -282,12 +304,10 @@ export class SingleStoreInsertBase<
 		const { sql, generatedIds } = this.dialect.buildInsertQuery(this.config);
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(sql),
-			undefined,
-			undefined,
-			generatedIds,
-			this.config.returning,
+			'raw',
+			this.dialect.mapperGenerators.$returning(this.config.returning, generatedIds),
 			{
-				type: 'delete',
+				type: 'insert',
 				tables: extractUsedTable(this.config.table),
 			},
 		) as SingleStoreInsertPrepare<this, TReturning>;

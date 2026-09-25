@@ -618,7 +618,6 @@ export const ddlDiff = async (
 			if (
 				!it.type && it.default
 				&& defaultsCommutative(it.default, it.$right.type, it.$right.dimensions, Boolean(it.$right.typeSchema))
-				&& mode === 'push' // TODO check on push only??
 			) {
 				delete it.default;
 			}
@@ -701,13 +700,7 @@ export const ddlDiff = async (
 	const jsonRecreateFKs = alters
 		.filter((it) => it.entityType === 'fks')
 		.filter((x) => {
-			if (
-				x.nameExplicit
-				&& ((mode === 'push' && x.nameExplicit.from && !x.nameExplicit.to)
-					|| (x.nameExplicit.to && !x.nameExplicit.from))
-			) {
-				delete x.nameExplicit;
-			}
+			if (x.nameExplicit) delete x.nameExplicit;
 
 			return ddl2.fks.hasDiff(x);
 		})

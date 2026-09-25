@@ -87,17 +87,6 @@ export class SQLJsSession<TRelations extends AnyRelations>
 
 				return res;
 			},
-			values: (params) => {
-				const stmt = this.client.prepare(query.sql);
-				stmt.bind(params as BindParams);
-				const rows: unknown[] = [];
-				while (stmt.step()) {
-					rows.push(stmt.get());
-				}
-
-				stmt.free();
-				return rows;
-			},
 		};
 
 		return new SQLiteAsyncPreparedQuery(
@@ -118,6 +107,8 @@ export class SQLJsSession<TRelations extends AnyRelations>
 		transaction: (tx: SQLJsTransaction<TRelations>) => T,
 		config: SQLiteTransactionConfig = {},
 	): T {
+		if (config?.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
+
 		const tx = new SQLJsTransaction('sync', this.dialect, this, this.relations);
 		this.run(sql.raw(`begin${config.behavior ? ` ${config.behavior}` : ''}`));
 		try {

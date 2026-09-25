@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { sqliteDriversLiterals } from './common';
+import { sqliteDriver } from './common';
 
 export const withStyle = {
 	error: (str: string) => `${chalk.red(`${chalk.white.bgRed(' Invalid input ')} ${str}`)}`,
@@ -15,6 +15,10 @@ export const outputs = {
 		drivers: (param: string) =>
 			withStyle.error(
 				`"${param}" is not a valid driver. Available drivers: "pg", "mysql2", "better-sqlite", "libsql", "turso". You can read more about drizzle.config: https://orm.drizzle.team/kit-docs/config-reference`,
+			),
+		noClientAndCredentials: () =>
+			withStyle.error(
+				`Please specify a 'client' or 'dbCredentials' param in config. It will help drizzle to know how to query you database. You can read more about drizzle.config: https://orm.drizzle.team/kit-docs/config-reference`,
 			),
 		noCredentials: () =>
 			withStyle.error(
@@ -69,7 +73,7 @@ export const outputs = {
 	sqlite: {
 		connection: {
 			driver: () => {
-				const listOfDrivers = sqliteDriversLiterals
+				const listOfDrivers = sqliteDriver.options
 					.map((it) => `'${it.value}'`)
 					.join(', ');
 				return withStyle.error(

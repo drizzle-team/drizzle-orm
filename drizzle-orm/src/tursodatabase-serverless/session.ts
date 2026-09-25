@@ -1,4 +1,4 @@
-import type { Connection, Statement } from '@tursodatabase/serverless';
+import type { Connection, Statement, Transaction } from '@tursodatabase/serverless';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -33,7 +33,7 @@ export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
 	private cache: Cache;
 
 	constructor(
-		private client: Connection,
+		private client: Connection | Transaction,
 		dialect: SQLiteDialect,
 		private relations: TRelations,
 		private options: TursoDatabaseServerlessSessionOptions,
@@ -70,10 +70,6 @@ export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
 					stmt ??= await this.client.prepare(query.sql);
 					return stmt.run(params);
 				},
-				values: async (params) => {
-					stmt ??= await this.client.prepare(query.sql);
-					return stmt.raw(true).all(params);
-				},
 			}
 			: {
 				all: async (params) => {
@@ -93,10 +89,6 @@ export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
 					return this.client.get(query.sql, ...params);
 				},
 				run: (params) => stmt ? stmt.run(params) : this.client.run(query.sql, ...params),
-				values: async (params) => {
-					stmt ??= await this.client.prepare(query.sql);
-					return stmt.raw(true).all(params);
-				},
 			};
 
 		return new SQLiteAsyncPreparedQuery(
@@ -115,25 +107,30 @@ export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
 
 	override async transaction<T>(
 		transaction: (db: TursoDatabaseServerlessTransaction<TRelations>) => Promise<T>,
-		_config?: SQLiteTransactionConfig,
+		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const session = new TursoDatabaseServerlessSession<TRelations>(
-			this.client,
-			this.dialect,
-			this.relations,
-			this.options,
-		);
-		const tx = new TursoDatabaseServerlessTransaction<TRelations>(
-			'async',
-			this.dialect,
-			session,
-			this.relations,
-		);
+		let clientTx = (this.client as Connection).transactionAsync(async (txClient) => {
+			const session = new TursoDatabaseServerlessSession<TRelations>(
+				txClient,
+				this.dialect,
+				this.relations,
+				this.options,
+			);
+			const tx = new TursoDatabaseServerlessTransaction<TRelations>(
+				'async',
+				this.dialect,
+				session,
+				this.relations,
+			);
 
-		const clientTx = this.client.transaction(async () => await transaction(tx));
+			return await transaction(tx);
+		});
 
-		const result = await clientTx();
-		return result;
+		if (config?.behavior) {
+			clientTx = clientTx[config.behavior];
+		}
+
+		return clientTx();
 	}
 }
 
