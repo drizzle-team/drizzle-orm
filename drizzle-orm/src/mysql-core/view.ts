@@ -210,8 +210,10 @@ export class ManualViewBuilder<
 export class MySqlView<T extends ViewConfig = ViewConfig> extends MySqlViewBase<T> {
 	static override readonly [entityKind]: string = 'MySqlView';
 
+	/** @internal */
 	declare protected $MySqlViewBrand: 'MySqlView';
 
+	/** @internal */
 	[MySqlViewConfig]: ViewBuilderConfig | undefined;
 
 	constructor({ mysqlConfig, config }: {
