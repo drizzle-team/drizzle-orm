@@ -38,6 +38,7 @@ import {
 	relationsOrderToSQL,
 	relationToSQL,
 	type SchemaEntry,
+	validateRelationalQuerySelection,
 } from '~/relations.ts';
 import { and } from '~/sql/index.ts';
 import {
@@ -1200,6 +1201,10 @@ export class CockroachDialect {
 
 				break;
 			}
+		}
+
+		if (extras?.selection.length) {
+			validateRelationalQuerySelection(selection, tableConfig.name, currentPath);
 		}
 
 		if (!selectionArr.length) {

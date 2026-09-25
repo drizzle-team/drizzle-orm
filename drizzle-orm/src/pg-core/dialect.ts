@@ -32,6 +32,7 @@ import {
 	type SchemaEntry,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
+	validateRelationalQuerySelection,
 	type WithContainer,
 } from '~/relations.ts';
 import { and, isSQLWrapper, type SQLWrapper } from '~/sql/index.ts';
@@ -1132,6 +1133,10 @@ export class PgDialect {
 
 				break;
 			}
+		}
+
+		if (extras?.selection.length) {
+			validateRelationalQuerySelection(selection, tableConfig.name, currentPath);
 		}
 
 		if (!selectionArr.length) {
