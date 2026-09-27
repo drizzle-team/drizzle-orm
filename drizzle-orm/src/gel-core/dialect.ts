@@ -235,13 +235,14 @@ export class GelDialect {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
-					// Gel throws an error when more than one similarly named columns exist within context instead of preferring the closest one
-					// thus forcing us to be explicit about column's source
-					// if (isSingleTable) {
-					// 	chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-					// } else {
-					chunk.push(field);
-					// }
+					// Gel requires qualified column references to avoid ambiguous names.
+					const column = sql`${field}`;
+					const transformed = field.getSQLForSelect(column);
+					chunk.push(
+						transformed
+							? sql`${transformed} as ${sql.identifier(this.casing.getColumnCasing(field))}`
+							: column,
+					);
 				} else if (is(field, Subquery)) {
 					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
 
@@ -1349,6 +1350,8 @@ export class GelDialect {
 					selection.map(({ field, tsKey, isJson }) =>
 						isJson
 							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
+							: is(field, Column)
+							? field.getSQLForSelect(sql`${field}`) ?? field
 							: is(field, SQL.Aliased)
 							? field.sql
 							: field

@@ -112,6 +112,11 @@ export abstract class Column<
 
 	abstract getSQLType(): string;
 
+	/** @internal */
+	getSQLForSelect(_column: SQL): SQL | undefined {
+		return undefined;
+	}
+
 	mapFromDriverValue(value: unknown): unknown {
 		return value;
 	}
