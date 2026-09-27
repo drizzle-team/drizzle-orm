@@ -281,6 +281,7 @@ export class PgDeleteBase<
 						alias: getTableName(this.config.table),
 						sqlAliasedBehavior: 'alias',
 						sqlBehavior: 'error',
+						isSelectionField: true,
 					}),
 				)
 				: undefined
