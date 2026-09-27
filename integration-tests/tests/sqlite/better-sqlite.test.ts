@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { migrate, rollback } from 'drizzle-orm/better-sqlite3/migrator';
 import { getTableConfig, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
@@ -184,6 +184,124 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	expect(res2).toStrictEqual(expected);
 
 	rmSync(migrationDir, { recursive: true });
+});
+
+const rollbackMigrationDir = './migrations/bettersqlite3-rollback';
+
+const writeRollbackMigration = (name: string, up: string, down?: string) => {
+	mkdirSync(`${rollbackMigrationDir}/${name}`, { recursive: true });
+	writeFileSync(`${rollbackMigrationDir}/${name}/migration.sql`, up);
+	if (down !== undefined) writeFileSync(`${rollbackMigrationDir}/${name}/down.sql`, down);
+};
+
+const prepareRollbackMigrations = (db: BetterSQLite3Database<any>) => {
+	db.run(sql`drop table if exists \`__drizzle_migrations\`;`);
+	db.run(sql`drop table if exists \`rollback_posts\`;`);
+	db.run(sql`drop table if exists \`rollback_users\`;`);
+
+	if (existsSync(rollbackMigrationDir)) rmSync(rollbackMigrationDir, { recursive: true });
+	mkdirSync(rollbackMigrationDir, { recursive: true });
+};
+
+const appliedMigrations = (db: BetterSQLite3Database<any>) => {
+	return db.all<{ name: string }>(sql`select name from \`__drizzle_migrations\` order by id`)
+		.map((row) => row.name);
+};
+
+const tableExists = (db: BetterSQLite3Database<any>, name: string) => {
+	return db.all(sql`select name from sqlite_master where type = 'table' and name = ${name}`).length === 1;
+};
+
+test('rollback: undoes the last migration and re-applies cleanly', async ({ db }) => {
+	prepareRollbackMigrations(db as BetterSQLite3Database);
+	writeRollbackMigration(
+		'20240101010101_users',
+		'CREATE TABLE `rollback_users` (`id` integer PRIMARY KEY NOT NULL);',
+		'DROP TABLE `rollback_users`;',
+	);
+	writeRollbackMigration(
+		'20240202020202_posts',
+		'CREATE TABLE `rollback_posts` (`id` integer PRIMARY KEY NOT NULL);',
+		'DROP TABLE `rollback_posts`;',
+	);
+
+	migrate(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir });
+	rollback(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir });
+
+	expect(appliedMigrations(db as BetterSQLite3Database)).toStrictEqual(['20240101010101_users']);
+	expect(tableExists(db as BetterSQLite3Database, 'rollback_posts')).toBe(false);
+	expect(tableExists(db as BetterSQLite3Database, 'rollback_users')).toBe(true);
+
+	migrate(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir });
+
+	expect(appliedMigrations(db as BetterSQLite3Database)).toStrictEqual([
+		'20240101010101_users',
+		'20240202020202_posts',
+	]);
+	expect(tableExists(db as BetterSQLite3Database, 'rollback_posts')).toBe(true);
+
+	rmSync(rollbackMigrationDir, { recursive: true });
+});
+
+test('rollback: steps undoes several migrations newest first', async ({ db }) => {
+	prepareRollbackMigrations(db as BetterSQLite3Database);
+	writeRollbackMigration(
+		'20240101010101_users',
+		'CREATE TABLE `rollback_users` (`id` integer PRIMARY KEY NOT NULL);',
+		'DROP TABLE `rollback_users`;',
+	);
+	writeRollbackMigration(
+		'20240202020202_posts',
+		'CREATE TABLE `rollback_posts` (`id` integer PRIMARY KEY NOT NULL);',
+		'DROP TABLE `rollback_posts`;',
+	);
+
+	migrate(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir });
+	rollback(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir }, 2);
+
+	expect(appliedMigrations(db as BetterSQLite3Database)).toStrictEqual([]);
+	expect(tableExists(db as BetterSQLite3Database, 'rollback_posts')).toBe(false);
+	expect(tableExists(db as BetterSQLite3Database, 'rollback_users')).toBe(false);
+
+	rmSync(rollbackMigrationDir, { recursive: true });
+});
+
+test('rollback: rejects a migration without down.sql', async ({ db }) => {
+	prepareRollbackMigrations(db as BetterSQLite3Database);
+	writeRollbackMigration(
+		'20240101010101_users',
+		'CREATE TABLE `rollback_users` (`id` integer PRIMARY KEY NOT NULL);',
+	);
+
+	migrate(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir });
+
+	expect(() => rollback(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir }))
+		.toThrowError(/no down SQL available/);
+
+	expect(appliedMigrations(db as BetterSQLite3Database)).toStrictEqual(['20240101010101_users']);
+	expect(tableExists(db as BetterSQLite3Database, 'rollback_users')).toBe(true);
+
+	rmSync(rollbackMigrationDir, { recursive: true });
+});
+
+test('rollback: a failing down statement leaves the migration applied', async ({ db }) => {
+	prepareRollbackMigrations(db as BetterSQLite3Database);
+	writeRollbackMigration(
+		'20240101010101_users',
+		'CREATE TABLE `rollback_users` (`id` integer PRIMARY KEY NOT NULL);',
+		// The drop succeeds before the bad statement fails, so without the surrounding transaction
+		// the table would be gone while the journal still claimed the migration was applied.
+		'DROP TABLE `rollback_users`;\n--> statement-breakpoint\nSELECT * FROM `rollback_missing`;',
+	);
+
+	migrate(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir });
+
+	expect(() => rollback(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir })).toThrowError();
+
+	expect(appliedMigrations(db as BetterSQLite3Database)).toStrictEqual(['20240101010101_users']);
+	expect(tableExists(db as BetterSQLite3Database, 'rollback_users')).toBe(true);
+
+	rmSync(rollbackMigrationDir, { recursive: true });
 });
 
 const skip = [
