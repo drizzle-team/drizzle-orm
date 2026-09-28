@@ -79,14 +79,30 @@ describe('pglite', () => {
 		await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
 	});
 
-	test('insert via db.execute + select via db.execute', async ({ db }) => {
+	test('insert via db.execute + select via db.execute', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_pglite_1', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
-		const result = await db.execute<{ id: number; name: string }>(sql`select id, name from "users"`);
+		const result = await db.execute<{ id: number; name: string }>(sql`select id, name from ${usersTable}`);
 		expect(Array.prototype.slice.call(result.rows)).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('insert via db.execute + returning', async ({ db }) => {
+	test('insert via db.execute + returning', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_pglite_2', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		const result = await db.execute<{ id: number; name: string }>(
 			sql`insert into ${usersTable} (${new Name(
 				usersTable.name.name,
@@ -95,7 +111,15 @@ describe('pglite', () => {
 		expect(Array.prototype.slice.call(result.rows)).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('insert via db.execute w/ query builder', async ({ db }) => {
+	test('insert via db.execute w/ query builder', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_pglite_3', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		const result = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 			db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 		);

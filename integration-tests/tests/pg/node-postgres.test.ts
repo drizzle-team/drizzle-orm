@@ -426,18 +426,34 @@ describe('migrator', () => {
 
 		await db.execute(sql`drop table if exists ${table}`);
 	});
-	test('insert via db.execute + select via db.execute', async ({ db }) => {
+	test('insert via db.execute + select via db.execute', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_node_postgres_1', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		await db.execute(
 			sql`insert into ${usersTable} (${sql.identifier(usersTable.name.name)}) values (${'John'})`,
 		);
 
 		const result = await db.execute<{ id: number; name: string }>(
-			sql`select id, name from "users"`,
+			sql`select id, name from ${usersTable}`,
 		);
 		expect(result.rows).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('insert via db.execute + returning', async ({ db }) => {
+	test('insert via db.execute + returning', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_node_postgres_2', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		const inserted = await db.execute<{ id: number; name: string }>(
 			sql`insert into ${usersTable} (${
 				sql.identifier(
@@ -448,7 +464,15 @@ describe('migrator', () => {
 		expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('insert via db.execute w/ query builder', async ({ db }) => {
+	test('insert via db.execute w/ query builder', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_node_postgres_3', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		const inserted = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 			db
 				.insert(usersTable)
