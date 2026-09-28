@@ -628,7 +628,9 @@ test('migrator : migrate with custom schema', async () => {
 		await migrate(db, { migrationsFolder: './drizzle2/cockroach', migrationsSchema: customSchema });
 
 		// test if the custom migrations table was created
-		const { rowCount } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
+		const { rowCount } = await db.execute<Record<string, unknown>>(
+			sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`,
+		);
 		expect(rowCount! > 0).toBeTruthy();
 
 		// test if the migrated table are working as expected
@@ -651,7 +653,9 @@ test('migrator : migrate with custom table', async () => {
 		await migrate(db, { migrationsFolder: './drizzle2/cockroach', migrationsTable: customTable });
 
 		// test if the custom migrations table was created
-		const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
+		const { rowCount } = await db.execute<Record<string, unknown>>(
+			sql`select * from "drizzle".${sql.identifier(customTable)};`,
+		);
 		expect(rowCount! > 0).toBeTruthy();
 
 		// test if the migrated table are working as expected
@@ -679,7 +683,7 @@ test('migrator : migrate with custom table and custom schema', async () => {
 		});
 
 		// test if the custom migrations table was created
-		const { rowCount } = await db.execute(
+		const { rowCount } = await db.execute<Record<string, unknown>>(
 			sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`,
 		);
 		expect(rowCount! > 0).toBeTruthy();

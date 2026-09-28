@@ -170,6 +170,10 @@ export class NodePgDsqlTransaction<
 	static override readonly [entityKind]: string = 'NodePgDsqlTransaction';
 }
 
+export type NodePgDsqlRawExecuteResult = QueryResult<Record<string, unknown>> | QueryResult<Record<string, unknown>>[];
+
 export interface NodePgDsqlQueryResultHKT extends PgQueryResultHKT {
-	type: QueryResult<Assume<this['row'], QueryResultRow>>;
+	type: [this['row']] extends [never] ? QueryResult<never>
+		: [this['row']] extends ['unknown'] ? NodePgDsqlRawExecuteResult
+		: QueryResult<Assume<this['row'], QueryResultRow>>;
 }

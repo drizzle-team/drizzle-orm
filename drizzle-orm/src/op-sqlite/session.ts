@@ -70,9 +70,6 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 			run: (params) => {
 				return this.client.execute(query.sql, params as any[]);
 			},
-			values: (params) => {
-				return this.client.executeRaw(query.sql, params as any[]).then(({ rawRows }) => rawRows);
-			},
 		};
 
 		return new SQLiteAsyncPreparedQuery(

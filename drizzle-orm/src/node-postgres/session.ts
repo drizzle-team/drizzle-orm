@@ -172,6 +172,10 @@ export class NodePgTransaction<
 	}
 }
 
+export type NodePgRawExecuteResult = QueryResult<Record<string, unknown>> | QueryResult<Record<string, unknown>>[];
+
 export interface NodePgQueryResultHKT extends PgQueryResultHKT {
-	type: QueryResult<Assume<this['row'], QueryResultRow>>;
+	type: [this['row']] extends [never] ? QueryResult<never>
+		: [this['row']] extends ['unknown'] ? NodePgRawExecuteResult
+		: QueryResult<Assume<this['row'], QueryResultRow>>;
 }

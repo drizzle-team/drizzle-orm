@@ -165,6 +165,10 @@ export class VercelPgTransaction<
 	}
 }
 
+export type VercelPgRawExecuteResult = QueryResult<Record<string, unknown>> | QueryResult<Record<string, unknown>>[];
+
 export interface VercelPgQueryResultHKT extends PgQueryResultHKT {
-	type: QueryResult<Assume<this['row'], QueryResultRow>>;
+	type: [this['row']] extends [never] ? QueryResult<never>
+		: [this['row']] extends ['unknown'] ? VercelPgRawExecuteResult
+		: QueryResult<Assume<this['row'], QueryResultRow>>;
 }

@@ -10,9 +10,11 @@ import {
 	text,
 	timestamp,
 } from 'drizzle-orm/pg-core';
+import type { PostgresJsDsqlDatabase, PostgresJsDsqlRawExecuteResult } from 'drizzle-orm/postgres-js/dsql';
 import { migrate } from 'drizzle-orm/postgres-js/dsql/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { describe, expect } from 'vitest';
+import type { RowList } from 'postgres';
+import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
 import { postgresJsDsqlTest as test } from './instrumentation';
@@ -23,6 +25,48 @@ tests(test, [
 	'set json/jsonb fields with strings and retrieve with the ->> operator',
 	'set json/jsonb fields with strings and retrieve with the -> operator',
 ]);
+
+test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
+	const db = fixtureDb as unknown as PostgresJsDsqlDatabase;
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} ("id" integer primary key, "name" text not null)`);
+	expectTypeOf(created).toEqualTypeOf<RowList<never[]>>();
+	expect([...created]).toStrictEqual([]);
+	// `postgres` types `count` as `number`, DDL responds with `null`
+	expect(created.command).toStrictEqual(expect.any(String));
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<RowList<never[]>>();
+	expect([...inserted]).toStrictEqual([]);
+	expect({ command: inserted.command, count: inserted.count }).toMatchObject({ command: expect.any(String), count: 1 });
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(selected).toEqualTypeOf<RowList<{ id: number; name: string }[]>>();
+	expect([...selected]).toStrictEqual([{ id: 1, name: 'John' }]);
+	expect({ command: selected.command, count: selected.count }).toMatchObject({ count: 1 });
+
+	// Multi-statement
+	const multi = await db.execute(
+		sql`insert into ${table} values (2, 'Jane'); select "id", "name" from ${table} order by "id"`,
+	);
+	expectTypeOf(multi).toEqualTypeOf<PostgresJsDsqlRawExecuteResult>();
+	expect(multi).toHaveLength(2);
+	const [multiInserted, multiSelected] = multi as RowList<Record<string, unknown>[]>[];
+	expect([...multiInserted!]).toStrictEqual([]);
+	expect({ command: multiInserted!.command, count: multiInserted!.count }).toMatchObject({
+		command: expect.any(String),
+		count: 1,
+	});
+	expect([...multiSelected!]).toStrictEqual([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
 
 describe('postgres-js dsql', () => {
 	test('all date and time columns without timezone first case mode string', async ({ db }) => {

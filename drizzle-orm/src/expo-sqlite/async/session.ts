@@ -80,12 +80,6 @@ export class ExpoSQLiteAsyncSession<TRelations extends AnyRelations>
 						lastInsertRowId,
 					})).finally(() => stmt.finalizeAsync())
 				),
-			values: (params) =>
-				this.client.prepareAsync(query.sql).then((stmt) =>
-					stmt.executeForRawResultAsync(params as any[]).then((r) => r.getAllAsync()).finally(() =>
-						stmt.finalizeAsync()
-					)
-				),
 		};
 
 		return new SQLiteAsyncPreparedQuery(

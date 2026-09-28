@@ -5,7 +5,7 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, type PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
@@ -73,7 +73,7 @@ export class PgRemoteSession<
 }
 
 export interface PgRemoteQueryResultHKT extends PgQueryResultHKT {
-	type: Assume<this['row'], {
+	type: [this['row']] extends [never] ? [] : Assume<PgRawRow<this['row']>, {
 		[column: string]: any;
 	}>[];
 }

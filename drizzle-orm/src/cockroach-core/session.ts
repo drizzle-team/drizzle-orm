@@ -223,3 +223,5 @@ export interface CockroachQueryResultHKT {
 export type CockroachQueryResultKind<TKind extends CockroachQueryResultHKT, TRow> = (TKind & {
 	readonly row: TRow;
 })['type'];
+
+export type CockroachRawRow<TRow> = TRow extends 'unknown' ? Record<string, unknown> : TRow;

@@ -76,6 +76,54 @@ runCommonEffectPgTests({
 	// @effect/sql-pg can't decode multidimensional arrays
 	skipTests: ['all types', 'all types ~codecs~'],
 	addTests: (it) => {
+		it.effect('raw db.execute type matches returned data', () =>
+			Effect.gen(function*() {
+				const db = yield* PgDrizzle.make().pipe(Effect.provide(PgDrizzle.DefaultServices));
+				const table = sql.identifier('raw_execute_types');
+
+				yield* db.execute<never>(sql`drop table if exists ${table}`);
+
+				// DDL
+				const created = yield* db.execute<never>(
+					sql`create table ${table} ("id" integer primary key, "name" text not null)`,
+				);
+				expectTypeOf(created).toEqualTypeOf<PgDrizzle.EffectPgQueryResult<never>>();
+				expect(created).toEqual(expect.objectContaining({ command: 'CREATE', rows: [], fields: [] }));
+
+				// `insert` without returning
+				const inserted = yield* db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+				expectTypeOf(inserted).toEqualTypeOf<PgDrizzle.EffectPgQueryResult<never>>();
+				expect(inserted).toEqual(expect.objectContaining({ command: 'INSERT', rowCount: 1, rows: [], fields: [] }));
+
+				// Simple select
+				const selected = yield* db.execute<{ id: number; name: string }>(
+					sql`select "id", "name" from ${table} order by "id"`,
+				);
+				expectTypeOf(selected).toEqualTypeOf<PgDrizzle.EffectPgQueryResult<{ id: number; name: string }>>();
+				expect(selected).toEqual(
+					expect.objectContaining({
+						command: 'SELECT',
+						rowCount: 1,
+						rows: [{ id: 1, name: 'John' }],
+						fields: [expect.objectContaining({ name: 'id' }), expect.objectContaining({ name: 'name' })],
+					}),
+				);
+
+				// Any response
+				const any = yield* db.execute(sql`select "id", "name" from ${table} order by "id"`);
+				expectTypeOf(any).toEqualTypeOf<PgDrizzle.EffectPgQueryResult<Record<string, unknown>>>();
+				expect(any).toEqual(
+					expect.objectContaining({
+						command: 'SELECT',
+						rowCount: 1,
+						rows: [{ id: 1, name: 'John' }],
+						fields: [expect.objectContaining({ name: 'id' }), expect.objectContaining({ name: 'name' })],
+					}),
+				);
+
+				yield* db.execute<never>(sql`drop table ${table}`);
+			}));
+
 		it.effect('all types - no multidimensional arrays', () =>
 			Effect.gen(function*() {
 				const { en, allTypesTable } = makeAllTypesNoMtx('all_types_48_ef', 'en_48_ef');

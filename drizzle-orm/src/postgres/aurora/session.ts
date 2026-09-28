@@ -6,7 +6,7 @@ import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Simplify } from '~/utils.ts';
@@ -111,7 +111,7 @@ export class PostgresAuroraTransaction<
 export type PostgresAuroraQueryResult<T> = Omit<QueryResult<T>, 'metrics' | 'debug'>;
 
 export interface PostgresAuroraQueryResultHKT extends PgQueryResultHKT {
-	type: Simplify<Omit<QueryResult<this['row']>, 'metrics' | 'debug'>>;
+	type: Simplify<Omit<QueryResult<PgRawRow<this['row']>>, 'metrics' | 'debug'>>;
 }
 
 export class PostgresAuroraPreparedQuery<T extends PreparedQueryConfig> extends PgAsyncPreparedQuery<T> {

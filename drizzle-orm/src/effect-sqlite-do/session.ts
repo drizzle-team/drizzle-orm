@@ -23,7 +23,7 @@ export interface EffectSQLiteDoQueryEffectHKT extends QueryEffectHKTBase {
 	readonly context: never;
 }
 
-export type EffectSQLiteDoRunResult = unknown;
+export type EffectSQLiteDoRunResult = [];
 
 export interface EffectSQLiteDOSessionOptions {
 	logger: EffectLoggerShape;
@@ -69,7 +69,6 @@ export class EffectSQLiteDOSession<TRelations extends AnyRelations>
 				if (mode === 'arrays') return q.values.pipe(Effect.map((e) => e[0]));
 				return q.withoutTransform.pipe(Effect.map((e) => e[0]));
 			},
-			values: (params) => this.client.unsafe(query.sql, params).values,
 			run: (params) => this.client.unsafe(query.sql, params).raw,
 		};
 

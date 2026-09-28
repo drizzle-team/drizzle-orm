@@ -78,9 +78,6 @@ export class SQLiteD1Session<TRelations extends AnyRelations>
 			run: (params) => {
 				return stmt.bind(...params).run();
 			},
-			values: (params) => {
-				return stmt.bind(...params).raw();
-			},
 		};
 		return new D1PreparedQuery(
 			stmt,

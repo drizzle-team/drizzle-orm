@@ -149,6 +149,12 @@ export class NodeCockroachTransaction<
 	}
 }
 
+export type NodeCockroachRawExecuteResult = QueryResult<Record<string, unknown>> | QueryResult<
+	Record<string, unknown>
+>[];
+
 export interface NodeCockroachQueryResultHKT extends CockroachQueryResultHKT {
-	type: QueryResult<Assume<this['row'], QueryResultRow>>;
+	type: [this['row']] extends [never] ? QueryResult<never>
+		: [this['row']] extends ['unknown'] ? NodeCockroachRawExecuteResult
+		: QueryResult<Assume<this['row'], QueryResultRow>>;
 }

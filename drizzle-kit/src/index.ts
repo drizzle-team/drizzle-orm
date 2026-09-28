@@ -1,19 +1,20 @@
-import type { PGlite } from '@electric-sql/pglite';
-import type { ConnectionOptions } from 'tls';
-import type { Driver } from './cli/validations/common';
+import type { TypeOf } from 'zod';
+import type { cockroachCredentials } from './cli/validations/cockroach';
+import type { Driver, postgresDriver, sqliteDriver } from './cli/validations/common';
+import type { duckdbCredentials } from './cli/validations/duckdb';
+import type { libSQLCredentials } from './cli/validations/libsql';
+import type { mssqlCredentials } from './cli/validations/mssql';
+import type { mysqlCredentials } from './cli/validations/mysql';
+import type {
+	awsDataApiCredentials,
+	dsqlCredentials,
+	pgDefaultCredentials,
+	pgLiteClientCredentials,
+	pgLiteCredentials,
+} from './cli/validations/postgres';
+import type { singlestoreCredentials } from './cli/validations/singlestore';
+import type { d1HttpCredentials, sqliteCloudCredentials, sqliteDefaultCredentials } from './cli/validations/sqlite';
 import type { Dialect } from './utils/schemaValidator';
-
-// import {SslOptions} from 'mysql2'
-type SslOptions = {
-	pfx?: string;
-	key?: string;
-	passphrase?: string;
-	cert?: string;
-	ca?: string | string[];
-	crl?: string | string[];
-	ciphers?: string;
-	rejectUnauthorized?: boolean;
-};
 
 /**
  * **You are currently using version 0.21.0+ of drizzle-kit. If you have just upgraded to this version, please make sure to read the changelog to understand what changes have been made and what
@@ -144,9 +145,9 @@ type ExclusiveProperty<T> = true extends IsUnion<Extract<T, object>> ? Exclusive
 type IsUnion<T, TAll = T> = T extends unknown ? ([TAll] extends [T] ? false : true) : never;
 
 export interface DialectDriverMap extends Record<Dialect, Driver | 'default'> {
-	postgresql: 'default' | 'aws-data-api' | 'pglite';
+	postgresql: 'default' | TypeOf<(typeof postgresDriver)>;
 	mysql: 'default';
-	sqlite: 'default' | 'd1-http' | 'expo' | 'durable-sqlite' | 'sqlite-cloud';
+	sqlite: 'default' | TypeOf<(typeof sqliteDriver)>;
 	turso: 'default';
 	singlestore: 'default';
 	mssql: 'default';
@@ -155,156 +156,30 @@ export interface DialectDriverMap extends Record<Dialect, Driver | 'default'> {
 }
 
 export interface DialectCredentials {
-	turso: {
-		default: {
-			dbCredentials: {
-				url: string;
-				authToken?: string;
-			};
-		};
-	};
+	turso: { default: { dbCredentials: TypeOf<typeof libSQLCredentials> } };
 	postgresql: {
-		default: {
-			dbCredentials: ExclusiveUnion<
-				| {
-					host: string;
-					port?: number;
-					user?: string;
-					password?: string;
-					database: string;
-					ssl?:
-						| boolean
-						| 'require'
-						| 'allow'
-						| 'prefer'
-						| 'verify-full'
-						| ConnectionOptions;
-				}
-				| {
-					url: string;
-				}
-			>;
-		};
-		'aws-data-api': {
-			dbCredentials: {
-				database: string;
-				secretArn: string;
-				resourceArn: string;
-			};
-		};
+		default: { dbCredentials: ExclusiveUnion<TypeOf<typeof pgDefaultCredentials>> };
+		'aws-data-api': { dbCredentials: TypeOf<typeof awsDataApiCredentials> };
 		pglite: ExclusiveUnion<
 			| {
-				dbCredentials: {
-					url: string;
-				};
+				dbCredentials: TypeOf<typeof pgLiteCredentials>;
 			}
-			| {
-				client: PGlite;
-			}
+			| TypeOf<typeof pgLiteClientCredentials>
 		>;
+		dsql: { dbCredentials: TypeOf<typeof dsqlCredentials> };
 	};
-	mysql: {
-		default: {
-			dbCredentials: ExclusiveUnion<
-				| {
-					host: string;
-					port?: number;
-					user?: string;
-					password?: string;
-					database: string;
-					ssl?: string | SslOptions;
-				}
-				| {
-					url: string;
-				}
-			>;
-		};
-	};
+	mysql: { default: { dbCredentials: ExclusiveUnion<TypeOf<typeof mysqlCredentials>> } };
 	sqlite: {
-		default: {
-			dbCredentials: {
-				url: string;
-			};
-		};
-		'd1-http': {
-			dbCredentials: {
-				accountId: string;
-				databaseId: string;
-				token: string;
-			};
-		};
+		default: { dbCredentials: TypeOf<typeof sqliteDefaultCredentials> };
+		'd1-http': { dbCredentials: TypeOf<typeof d1HttpCredentials> };
 		expo: {};
 		'durable-sqlite': {};
-		'sqlite-cloud': {};
+		'sqlite-cloud': { dbCredentials: TypeOf<typeof sqliteCloudCredentials> };
 	};
-	singlestore: {
-		default: {
-			dbCredentials: ExclusiveUnion<
-				| {
-					host: string;
-					port?: number;
-					user?: string;
-					password?: string;
-					database: string;
-					ssl?: string | SslOptions;
-				}
-				| {
-					url: string;
-				}
-			>;
-		};
-	};
-	// TODO update?
-	mssql: {
-		default: {
-			dbCredentials: ExclusiveUnion<
-				| {
-					port: number;
-					user: string;
-					password: string;
-					database: string;
-					server: string;
-					options?: {
-						encrypt?: boolean;
-						trustServerCertificate?: boolean;
-					};
-				}
-				| {
-					url: string;
-				}
-			>;
-		};
-	};
-	cockroach: {
-		default: {
-			dbCredentials: ExclusiveUnion<
-				| ({
-					host: string;
-					port?: number;
-					user?: string;
-					password?: string;
-					database: string;
-					ssl?:
-						| boolean
-						| 'require'
-						| 'allow'
-						| 'prefer'
-						| 'verify-full'
-						| ConnectionOptions;
-				} & {})
-				| {
-					url: string;
-				}
-			>;
-		};
-	};
-	duckdb: {
-		default: {
-			dbCredentials: {
-				url: string;
-			};
-		};
-	};
+	singlestore: { default: { dbCredentials: ExclusiveUnion<TypeOf<typeof singlestoreCredentials>> } };
+	mssql: { default: { dbCredentials: ExclusiveUnion<TypeOf<typeof mssqlCredentials>> } };
+	cockroach: { default: { dbCredentials: ExclusiveUnion<TypeOf<typeof cockroachCredentials>> } };
+	duckdb: { default: { dbCredentials: TypeOf<typeof duckdbCredentials> } };
 }
 
 /**

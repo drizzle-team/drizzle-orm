@@ -379,6 +379,8 @@ test('insert + db.all + db.get + db.values + db.run', async () => {
 		db.all<typeof usersTable.$inferSelect>(sql`select * from users`),
 		db.values(sql`select * from users`),
 		db.get<typeof usersTable.$inferSelect>(sql`select * from users`),
+		db.all<[number, string, number, number | null]>(sql`select * from users`, 'arrays'),
+		db.get<[number, string, number, number | null]>(sql`select * from users`, 'arrays'),
 	]);
 
 	expectTypeOf(batchResponse).toEqualTypeOf<[
@@ -399,9 +401,11 @@ test('insert + db.all + db.get + db.values + db.run', async () => {
 			verified: number;
 			invitedBy: number | null;
 		},
+		[number, string, number, number | null][],
+		[number, string, number, number | null],
 	]>();
 
-	expect(batchResponse.length).eq(5);
+	expect(batchResponse.length).eq(7);
 
 	expect(batchResponse[0], 'insert').toEqual([{
 		id: 1,
@@ -429,6 +433,12 @@ test('insert + db.all + db.get + db.values + db.run', async () => {
 	expect(batchResponse[4], 'get').toEqual(
 		{ id: 1, name: 'John', verified: 0, invited_by: null },
 	);
+	expect(batchResponse[5]).toEqual([
+		[1, 'John', 0, null],
+		[2, 'Dan', 0, null],
+	]);
+
+	expect(batchResponse[6]).toEqual([1, 'John', 0, null]);
 });
 
 // batch api combined rqb + raw call

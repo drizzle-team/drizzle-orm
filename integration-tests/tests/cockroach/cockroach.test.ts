@@ -1,12 +1,12 @@
 import retry from 'async-retry';
 import { sql } from 'drizzle-orm';
-import type { NodeCockroachDatabase } from 'drizzle-orm/cockroach';
+import type { NodeCockroachDatabase, NodeCockroachRawExecuteResult } from 'drizzle-orm/cockroach';
 import { drizzle } from 'drizzle-orm/cockroach';
 import { cockroachTable, getTableConfig, int4, text, timestamp } from 'drizzle-orm/cockroach-core';
 import { migrate } from 'drizzle-orm/cockroach/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { Client } from 'pg';
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
+import { Client, type QueryResult } from 'pg';
+import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { requireCockroachConnectionString, tests, usersMigratorTable, usersTable } from './common';
@@ -40,6 +40,48 @@ afterAll(async () => {
 	await client?.end();
 });
 
+test('raw db.execute type matches returned data', async () => {
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} ("id" int4 primary key, "name" text not null)`);
+	expectTypeOf(created).toEqualTypeOf<QueryResult<never>>();
+	expect(created).toEqual(expect.objectContaining({ command: 'CREATE', rowCount: null, rows: [] }));
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<QueryResult<never>>();
+	expect(inserted).toEqual(expect.objectContaining({ command: 'INSERT', rowCount: 1, rows: [] }));
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(selected).toEqualTypeOf<QueryResult<{ id: number; name: string }>>();
+	expect(selected).toEqual(expect.objectContaining({
+		command: 'SELECT',
+		rowCount: 1,
+		rows: [{ id: 1, name: 'John' }],
+		fields: [expect.objectContaining({ name: 'id' }), expect.objectContaining({ name: 'name' })],
+	}));
+
+	// Multi-statement
+	const multi = await db.execute(
+		sql`insert into ${table} values (2, 'Jane'); select "id", "name" from ${table} order by "id"`,
+	);
+	expectTypeOf(multi).toEqualTypeOf<NodeCockroachRawExecuteResult>();
+	expect(multi).toEqual([
+		expect.objectContaining({ command: 'INSERT', rowCount: 1, rows: [] }),
+		expect.objectContaining({
+			command: 'SELECT',
+			rowCount: 2,
+			rows: [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }],
+		}),
+	]);
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
+
 test('migrator : default migration strategy', async () => {
 	try {
 		await db.execute(sql`drop table if exists users12`);
@@ -68,7 +110,9 @@ test('migrator : migrate with custom schema', async () => {
 		await migrate(db, { migrationsFolder: './drizzle2/cockroach', migrationsSchema: customSchema });
 
 		// test if the custom migrations table was created
-		const { rowCount } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
+		const { rowCount } = await db.execute<Record<string, unknown>>(
+			sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`,
+		);
 		expect(rowCount && rowCount > 0).toBeTruthy();
 
 		// test if the migrated table are working as expected
@@ -91,7 +135,9 @@ test('migrator : migrate with custom table', async () => {
 		await migrate(db, { migrationsFolder: './drizzle2/cockroach', migrationsTable: customTable });
 
 		// test if the custom migrations table was created
-		const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
+		const { rowCount } = await db.execute<Record<string, unknown>>(
+			sql`select * from "drizzle".${sql.identifier(customTable)};`,
+		);
 		expect(rowCount && rowCount > 0).toBeTruthy();
 
 		// test if the migrated table are working as expected
@@ -119,7 +165,7 @@ test('migrator : migrate with custom table and custom schema', async () => {
 		});
 
 		// test if the custom migrations table was created
-		const { rowCount } = await db.execute(
+		const { rowCount } = await db.execute<Record<string, unknown>>(
 			sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`,
 		);
 		expect(rowCount && rowCount > 0).toBeTruthy();

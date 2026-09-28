@@ -39,7 +39,7 @@ import {
 } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/bun-sql/migrator';
 import { drizzle } from 'drizzle-orm/bun-sql/mysql';
-import type { BunMySqlDatabase } from 'drizzle-orm/bun-sql/mysql';
+import type { BunMySqlDatabase, BunMySqlRawExecuteResult } from 'drizzle-orm/bun-sql/mysql';
 import type { MutationOption } from 'drizzle-orm/cache/core';
 import { Cache } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
@@ -1655,7 +1655,7 @@ describe('common', () => {
 	});
 
 	test('insert via db.execute w/ query builder', async () => {
-		const inserted = await db.execute(
+		const inserted = await db.execute<never>(
 			db.insert(usersTable).values({ name: 'John' }),
 		);
 		expect(inserted['affectedRows']).toStrictEqual(1);
@@ -8851,4 +8851,42 @@ test('Default value priority', async () => {
 	}]);
 
 	await db.execute(sql`DROP TABLE no_default_override`);
+});
+
+describe('raw execute', () => {
+	test('raw db.execute type matches returned data', async () => {
+		const table = sql.identifier('raw_execute_types');
+
+		await db.execute<never>(sql`drop table if exists ${table}`);
+
+		// DDL
+		const created = await db.execute<never>(
+			sql`create table ${table} (\`id\` int primary key, \`name\` text not null)`,
+		);
+		expectTypeOf(created).toEqualTypeOf<[] & Record<string, unknown>>();
+		expect([...created]).toStrictEqual([]);
+		expect(created).toMatchObject({ affectedRows: 0 });
+
+		// `insert` without returning
+		const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+		expectTypeOf(inserted).toEqualTypeOf<[] & Record<string, unknown>>();
+		expect([...inserted]).toStrictEqual([]);
+		expect(inserted).toMatchObject({ affectedRows: 1 });
+
+		// Simple select
+		const selected = await db.execute<{ id: number; name: string }>(sql`select \`id\`, \`name\` from ${table}`);
+		expectTypeOf(selected).toEqualTypeOf<{ id: number; name: string }[] & Record<string, unknown>>();
+		expect([...selected]).toStrictEqual([{ id: 1, name: 'John' }]);
+
+		// Multi-statement
+		const multi = await db.execute(sql`insert into ${table} values (2, 'Jane'); select \`id\`, \`name\` from ${table}`);
+		expectTypeOf(multi).toEqualTypeOf<BunMySqlRawExecuteResult>();
+		expect(multi).toHaveLength(2);
+		const [multiInserted, multiSelected] = multi as (Record<string, unknown>[] & Record<string, unknown>)[];
+		expect([...multiInserted!]).toStrictEqual([]);
+		expect(multiInserted).toMatchObject({ affectedRows: 1 });
+		expect([...multiSelected!]).toStrictEqual([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+		await db.execute<never>(sql`drop table ${table}`);
+	});
 });

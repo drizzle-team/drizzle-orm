@@ -85,8 +85,6 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 					rows[0] ? (mode === 'arrays' ? toArrayRow(rows[0]) : normalizeRow(rows[0])) : undefined
 				),
 			run: (params) => client.execute({ sql: query.sql, args: params as InArgs }),
-			values: (params) =>
-				client.execute({ sql: query.sql, args: params as InArgs }).then(({ rows }) => rows.map(toArrayRow)),
 		};
 
 		return new SQLiteAsyncPreparedQuery(
@@ -131,7 +129,7 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 			const { executeMethod, mapper, mode } = preparedQueries[i]!;
 
 			if (executeMethod === 'run') return result;
-			if (executeMethod === 'values') return result.rows;
+			if (executeMethod === 'values') return result.rows.map(toArrayRow);
 
 			if (executeMethod === 'get') {
 				const value = result.rows[0];
