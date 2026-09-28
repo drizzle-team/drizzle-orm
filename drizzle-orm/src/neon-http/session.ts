@@ -7,7 +7,7 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, type PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { NeonAuthToken } from '~/utils.ts';
@@ -120,5 +120,5 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 export type NeonHttpQueryResult<T> = Omit<FullQueryResults<false>, 'rows'> & { rows: T[] };
 
 export interface NeonHttpQueryResultHKT extends PgQueryResultHKT {
-	type: NeonHttpQueryResult<this['row']>;
+	type: NeonHttpQueryResult<PgRawRow<this['row']>>;
 }

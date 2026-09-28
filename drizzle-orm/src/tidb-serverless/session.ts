@@ -9,6 +9,7 @@ import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlTransactionConfig } from '~/mysql-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
+import type { Simplify } from '~/utils.ts';
 
 export interface TiDBServerlessSessionOptions {
 	logger?: Logger;
@@ -174,6 +175,11 @@ export class TiDBServerlessTransaction<
 	}
 }
 
+export type TiDBServerlessQueryResult<TRow> = Simplify<Omit<FullResult, 'rows'> & { rows: TRow[] | null }>;
+
 export interface TiDBServerlessQueryResultHKT extends MySqlQueryResultHKT {
-	type: FullResult;
+	// `never` - no rows (`insert`, `update` & `delete` without returning), `'unknown'` - any response, otherwise - rows of given shape
+	type: [this['row']] extends [never] ? TiDBServerlessQueryResult<never>
+		: [this['row']] extends ['unknown'] ? FullResult
+		: TiDBServerlessQueryResult<this['row']>;
 }

@@ -1,4 +1,5 @@
 import type { LibsqlClient } from '@effect/sql-libsql/LibsqlClient';
+import type { ResultSet } from '@libsql/client';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/unstable/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
@@ -23,7 +24,7 @@ export interface EffectLibsqlQueryEffectHKT extends QueryEffectHKTBase {
 	readonly context: never;
 }
 
-export type EffectLibsqlRunResult = unknown;
+export type EffectLibsqlRunResult = ResultSet;
 
 export interface EffectLibsqlSessionOptions {
 	logger: EffectLoggerShape;

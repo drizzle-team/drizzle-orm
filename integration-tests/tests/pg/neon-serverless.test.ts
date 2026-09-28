@@ -1,9 +1,11 @@
+import type { QueryResult } from '@neondatabase/serverless';
 import { eq, sql } from 'drizzle-orm';
+import type { NeonDatabase, NeonRawExecuteResult } from 'drizzle-orm/neon-serverless';
 import { migrate } from 'drizzle-orm/neon-serverless/migrator';
 import { getTableConfig, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { describe, expect } from 'vitest';
+import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
 import { neonWsTest as test } from './instrumentation';
@@ -19,6 +21,40 @@ import {
 	thus extra execute statements below
  */
 tests(test, []);
+
+test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
+	const db = fixtureDb as unknown as NeonDatabase;
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} ("id" integer primary key, "name" text not null)`);
+	expectTypeOf(created).toEqualTypeOf<QueryResult<never>>();
+	expect(created).toEqual(expect.objectContaining({ command: expect.any(String), rows: [] }));
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<QueryResult<never>>();
+	expect(inserted).toEqual(expect.objectContaining({ command: expect.any(String), rowCount: 1, rows: [] }));
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(selected).toEqualTypeOf<QueryResult<{ id: number; name: string }>>();
+	expect(selected).toEqual(expect.objectContaining({ rowCount: 1, rows: [{ id: 1, name: 'John' }] }));
+
+	// Multi-statement
+	const multi = await db.execute(
+		sql`insert into ${table} values (2, 'Jane'); select "id", "name" from ${table} order by "id"`,
+	);
+	expectTypeOf(multi).toEqualTypeOf<NeonRawExecuteResult>();
+	expect(multi).toEqual([
+		expect.objectContaining({ rowCount: 1, rows: [] }),
+		expect.objectContaining({ rows: [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }] }),
+	]);
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
 
 describe('neon-serverless', () => {
 	let db: PgAsyncDatabase<any, any>;

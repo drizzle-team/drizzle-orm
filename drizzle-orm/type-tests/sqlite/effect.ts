@@ -1,13 +1,20 @@
 import type { SqliteClient } from '@effect/sql-sqlite-node/SqliteClient';
+import type { ResultSet } from '@libsql/client';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { StatementResultingChanges } from 'node:sqlite';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { EffectDrizzleQueryError, MigratorInitError } from '~/effect-core/errors.ts';
 import { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
+import type { EffectSQLiteD1Database } from '~/effect-d1/index.ts';
+import type { EffectLibsqlDatabase } from '~/effect-libsql/index.ts';
+import type { EffectSQLiteBunDatabase } from '~/effect-sqlite-bun/index.ts';
+import type { EffectSQLiteDoDatabase } from '~/effect-sqlite-do/index.ts';
 import type { EffectSQLiteNodeDatabase } from '~/effect-sqlite-node/index.ts';
 import { make, makeWithDefaults } from '~/effect-sqlite-node/index.ts';
 import { migrate } from '~/effect-sqlite-node/migrator.ts';
+import type { EffectSQLiteWasmDatabase } from '~/effect-sqlite-wasm/index.ts';
 import type { EmptyRelations } from '~/relations.ts';
 import { eq } from '~/sql/expressions/index.ts';
 import { SQLiteEffectDatabase } from '~/sqlite-core/effect/db.ts';
@@ -101,7 +108,7 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 	});
 	type InsertOneEffect = AsEffect<typeof insertOne>;
 
-	Expect<Equal<InsertOneEffect, Effect.Effect<unknown, EffectDrizzleQueryError, never>>>;
+	Expect<Equal<InsertOneEffect, Effect.Effect<StatementResultingChanges, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -179,7 +186,7 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 	const updateAll = db.update(users).set({ name: 'updated' });
 	type UpdateAllEffect = AsEffect<typeof updateAll>;
 
-	Expect<Equal<UpdateAllEffect, Effect.Effect<unknown, EffectDrizzleQueryError, never>>>;
+	Expect<Equal<UpdateAllEffect, Effect.Effect<StatementResultingChanges, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -201,7 +208,7 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 	const deleteAll = db.delete(users);
 	type DeleteAllEffect = AsEffect<typeof deleteAll>;
 
-	Expect<Equal<DeleteAllEffect, Effect.Effect<unknown, EffectDrizzleQueryError, never>>>;
+	Expect<Equal<DeleteAllEffect, Effect.Effect<StatementResultingChanges, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -278,7 +285,7 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 	const executed = prepared.run();
 	type ExecutedEffect = typeof executed;
 
-	Expect<Equal<ExecutedEffect, Effect.Effect<unknown, EffectDrizzleQueryError, never>>>;
+	Expect<Equal<ExecutedEffect, Effect.Effect<StatementResultingChanges, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -374,4 +381,44 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 	Expect<Equal<typeof d2, Expected>>;
 	Expect<Equal<typeof d3, Expected>>;
 	Expect<Equal<typeof d4, Expected>>;
+}
+
+{
+	interface UserInterface {
+		id: number;
+		name: string;
+	}
+
+	const all = db.all<UserInterface>(`select 1 as id, 'a' as name`);
+	type AllEffect = AsEffect<typeof all>;
+
+	Expect<Equal<AllEffect, Effect.Effect<UserInterface[], EffectDrizzleQueryError, never>>>;
+
+	const get = db.get<UserInterface>(`select 1 as id, 'a' as name`, 'objects');
+	type GetEffect = AsEffect<typeof get>;
+
+	Expect<Equal<GetEffect, Effect.Effect<UserInterface, EffectDrizzleQueryError, never>>>;
+}
+
+{
+	type Run<T> = Effect.Effect<T, EffectDrizzleQueryError, never>;
+
+	const node = db.run(`insert into t values (1)`);
+	Expect<Equal<AsEffect<typeof node>, Run<StatementResultingChanges>>>;
+
+	const libsql = ({} as EffectLibsqlDatabase).run(`insert into t values (1)`);
+	Expect<Equal<AsEffect<typeof libsql>, Run<ResultSet>>>;
+
+	const d1 = ({} as EffectSQLiteD1Database).run(`insert into t values (1)`);
+	Expect<Equal<AsEffect<typeof d1>, Run<D1Result>>>;
+
+	// Statements without returned rows respond with an empty array
+	const bun = ({} as EffectSQLiteBunDatabase).run(`insert into t values (1)`);
+	Expect<Equal<AsEffect<typeof bun>, Run<[]>>>;
+
+	const durable = ({} as EffectSQLiteDoDatabase).run(`insert into t values (1)`);
+	Expect<Equal<AsEffect<typeof durable>, Run<[]>>>;
+
+	const wasm = ({} as EffectSQLiteWasmDatabase).run(`insert into t values (1)`);
+	Expect<Equal<AsEffect<typeof wasm>, Run<[]>>>;
 }

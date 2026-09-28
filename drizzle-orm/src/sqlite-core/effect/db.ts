@@ -617,7 +617,7 @@ export class SQLiteEffectDatabase<
 		query: SQLWrapper | string,
 		mode: 'arrays',
 	): SQLiteEffectRaw<TRow[], TEffectHKT>;
-	all<TRow = unknown>(
+	all<TRow extends Record<string, any> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 		mode?: 'objects' | undefined,
 	): SQLiteEffectRaw<TRow[], TEffectHKT>;
@@ -637,7 +637,7 @@ export class SQLiteEffectDatabase<
 		query: SQLWrapper | string,
 		mode: 'arrays',
 	): SQLiteEffectRaw<TRow, TEffectHKT>;
-	get<TRow = unknown>(
+	get<TRow extends Record<string, any> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 		mode?: 'objects' | undefined,
 	): SQLiteEffectRaw<TRow, TEffectHKT>;

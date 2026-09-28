@@ -735,7 +735,7 @@ test('insert via db.execute + select via db.execute', async (ctx) => {
 test('insert via db.execute w/ query builder', async (ctx) => {
 	const { db } = ctx.singlestore;
 
-	const inserted = await db.execute(
+	const inserted = await db.execute<never>(
 		db.insert(usersTable).values({ name: 'John' }),
 	);
 	expect(inserted[0].affectedRows).toBe(1);

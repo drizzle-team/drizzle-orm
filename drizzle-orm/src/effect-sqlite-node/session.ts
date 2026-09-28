@@ -1,6 +1,7 @@
 import type { SqliteClient } from '@effect/sql-sqlite-node/SqliteClient';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { StatementResultingChanges } from 'node:sqlite';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
@@ -23,7 +24,7 @@ export interface EffectSQLiteNodeQueryEffectHKT extends QueryEffectHKTBase {
 	readonly context: never;
 }
 
-export type EffectSQLiteNodeRunResult = unknown;
+export type EffectSQLiteNodeRunResult = StatementResultingChanges;
 
 export interface EffectSQLiteNodeSessionOptions {
 	logger: EffectLoggerShape;

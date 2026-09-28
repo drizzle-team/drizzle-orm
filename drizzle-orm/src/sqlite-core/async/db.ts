@@ -618,7 +618,7 @@ export class SQLiteAsyncDatabase<
 		query: SQLWrapper | string,
 		mode: 'arrays',
 	): DBResult<TResultKind, TRow[]>;
-	all<TRow = unknown>(
+	all<TRow extends Record<string, any> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 		mode?: 'objects' | undefined,
 	): DBResult<TResultKind, TRow[]>;
@@ -639,7 +639,7 @@ export class SQLiteAsyncDatabase<
 		query: SQLWrapper | string,
 		mode: 'arrays',
 	): DBResult<TResultKind, TRow>;
-	get<TRow = unknown>(
+	get<TRow extends Record<string, any> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 		mode?: 'objects' | undefined,
 	): DBResult<TResultKind, TRow>;

@@ -23,7 +23,7 @@ export interface EffectSQLiteWasmQueryEffectHKT extends QueryEffectHKTBase {
 	readonly context: never;
 }
 
-export type EffectSQLiteWasmRunResult = unknown;
+export type EffectSQLiteWasmRunResult = [];
 
 export interface EffectSQLiteWasmSessionOptions {
 	logger: EffectLoggerShape;

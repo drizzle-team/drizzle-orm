@@ -627,7 +627,7 @@ test('insert via db.execute + select via db.execute', async () => {
 });
 
 test('insert via db.execute w/ query builder', async () => {
-	const inserted = await db.execute(
+	const inserted = await db.execute<never>(
 		db.insert(usersTable).values({ name: 'John' }),
 	);
 	expect(inserted[0].affectedRows).toBe(1);

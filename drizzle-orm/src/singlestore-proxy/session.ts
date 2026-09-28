@@ -1,4 +1,4 @@
-import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
+import type { FieldPacket, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import type { Cache } from '~/cache/core/index.ts';
 import { NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -21,7 +21,11 @@ import type { Query } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 import type { RemoteCallback } from './driver.ts';
 
-export type SingleStoreRawQueryResult = [ResultSetHeader, FieldPacket[]];
+export type SingleStoreRawQueryResult = [ResultSetHeader, undefined];
+export type SingleStoreRemoteRawExecuteResult =
+	| SingleStoreRawQueryResult
+	| [RowDataPacket[], FieldPacket[]]
+	| [(ResultSetHeader | RowDataPacket[])[], (FieldPacket[] | undefined)[]];
 
 export interface SingleStoreRemoteSessionOptions {
 	logger?: Logger;
@@ -107,7 +111,9 @@ export class SingleStoreProxyTransaction<TRelations extends AnyRelations>
 }
 
 export interface SingleStoreRemoteQueryResultHKT extends SingleStoreQueryResultHKT {
-	type: SingleStoreRawQueryResult;
+	type: [this['row']] extends [never] ? SingleStoreRawQueryResult
+		: [this['row']] extends ['unknown'] ? SingleStoreRemoteRawExecuteResult
+		: [this['row'][], FieldPacket[]];
 }
 
 export interface SingleStoreRemotePreparedQueryHKT extends SingleStorePreparedQueryHKT {

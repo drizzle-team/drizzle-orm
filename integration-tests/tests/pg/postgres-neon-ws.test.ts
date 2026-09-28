@@ -5,7 +5,7 @@ import { minipgCodecs } from 'drizzle-orm/postgres/codecs';
 import { migrate } from 'drizzle-orm/postgres/migrator';
 import { drizzle as drizzleNeonWs } from 'drizzle-orm/postgres/neon-ws';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { describe, expect } from 'vitest';
+import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import {
 	allTypesData,
@@ -27,6 +27,43 @@ import {
 const skips = ['raw jsons', 'all types ~codecs~'];
 
 tests(test, skips);
+
+test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
+	const db = fixtureDb as unknown as PostgresDatabase;
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} ("id" integer primary key, "name" text not null)`);
+	expectTypeOf(created).toEqualTypeOf<
+		{ rows: never[]; columns: string[]; command: string | null; rowCount: number | null }
+	>();
+	expect(created).toEqual(expect.objectContaining({ rows: [], command: expect.any(String) }));
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<
+		{ rows: never[]; columns: string[]; command: string | null; rowCount: number | null }
+	>();
+	expect(inserted).toEqual(expect.objectContaining({ rows: [], rowCount: 1 }));
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(selected).toEqualTypeOf<
+		{ rows: { id: number; name: string }[]; columns: string[]; command: string | null; rowCount: number | null }
+	>();
+	expect(selected).toEqual(expect.objectContaining({ rows: [{ id: 1, name: 'John' }], columns: ['id', 'name'] }));
+
+	// Any response
+	const any = await db.execute(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(any).toEqualTypeOf<
+		{ rows: Record<string, unknown>[]; columns: string[]; command: string | null; rowCount: number | null }
+	>();
+	expect(any).toEqual(expect.objectContaining({ rows: [{ id: 1, name: 'John' }], columns: ['id', 'name'] }));
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
 
 describe('migrator', () => {
 	test('migrator : default migration strategy', async ({ db }) => {

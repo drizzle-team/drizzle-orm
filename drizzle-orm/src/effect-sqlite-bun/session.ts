@@ -23,7 +23,7 @@ export interface EffectSQLiteBunQueryEffectHKT extends QueryEffectHKTBase {
 	readonly context: never;
 }
 
-export type EffectSQLiteBunRunResult = unknown;
+export type EffectSQLiteBunRunResult = [];
 
 export interface EffectSQLiteBunSessionOptions {
 	logger: EffectLoggerShape;

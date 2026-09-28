@@ -162,6 +162,10 @@ export class PostgresJsDsqlTransaction<
 	}
 }
 
+export type PostgresJsDsqlRawExecuteResult = RowList<Record<string, unknown>[]> | RowList<Record<string, unknown>[]>[];
+
 export interface PostgresJsDsqlQueryResultHKT extends PgQueryResultHKT {
-	type: RowList<Assume<this['row'], Row>[]>;
+	type: [this['row']] extends [never] ? RowList<never[]>
+		: [this['row']] extends ['unknown'] ? PostgresJsDsqlRawExecuteResult
+		: RowList<Assume<this['row'], Row>[]>;
 }

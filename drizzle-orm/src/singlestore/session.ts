@@ -2,7 +2,6 @@ import type { Connection as CallbackConnection } from 'mysql2';
 import type {
 	Connection,
 	FieldPacket,
-	OkPacket,
 	Pool,
 	PoolConnection,
 	ResultSetHeader,
@@ -33,11 +32,11 @@ import type { Assume } from '~/utils.ts';
 
 export type SingleStoreDriverClient = Pool | Connection;
 
-export type SingleStoreRawQueryResult = [ResultSetHeader, FieldPacket[]];
-export type SingleStoreQueryResultType = RowDataPacket[][] | RowDataPacket[] | OkPacket | OkPacket[] | ResultSetHeader;
-export type SingleStoreQueryResult<
-	T = any,
-> = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
+export type SingleStoreRawQueryResult = [ResultSetHeader, undefined];
+export type SingleStoreRawExecuteResult =
+	| SingleStoreRawQueryResult
+	| [RowDataPacket[], FieldPacket[]]
+	| [(ResultSetHeader | RowDataPacket[])[], (FieldPacket[] | undefined)[]];
 
 export interface SingleStoreDriverSessionOptions {
 	logger?: Logger;
@@ -224,7 +223,9 @@ function isPool(client: SingleStoreDriverClient): client is Pool {
 }
 
 export interface SingleStoreDriverQueryResultHKT extends SingleStoreQueryResultHKT {
-	type: SingleStoreRawQueryResult;
+	type: [this['row']] extends [never] ? SingleStoreRawQueryResult
+		: [this['row']] extends ['unknown'] ? SingleStoreRawExecuteResult
+		: [this['row'][], FieldPacket[]];
 }
 
 export interface SingleStoreDriverPreparedQueryHKT extends SingleStorePreparedQueryHKT {

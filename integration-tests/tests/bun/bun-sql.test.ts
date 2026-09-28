@@ -36,7 +36,7 @@ import {
 	TransactionRollbackError,
 } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sql';
-import type { BunSQLDatabase } from 'drizzle-orm/bun-sql/postgres';
+import type { BunSQLDatabase, BunSQLRawExecuteResult } from 'drizzle-orm/bun-sql/postgres';
 import { authenticatedRole, crudPolicy } from 'drizzle-orm/neon';
 import { usersSync } from 'drizzle-orm/neon/neon-auth';
 import type { PgColumn } from 'drizzle-orm/pg-core';
@@ -6627,7 +6627,7 @@ test('all types ~codecs~', async () => {
 		})[0]
 	);
 
-	const { relationRes, rootRes } = await db.execute(db.query.allTypesTable.findFirst({
+	const { relationRes, rootRes } = await db.execute<Record<string, unknown>>(db.query.allTypesTable.findFirst({
 		with: {
 			self: true,
 		},
@@ -8699,4 +8699,43 @@ test('Issue No2279', async () => {
 	const res2 = await db.select().from(corrupt_jsonb_demo);
 
 	expect(res2).toStrictEqual([{ id: 1, data: { a: 1 } }]);
+});
+
+describe('raw execute', () => {
+	test('raw db.execute type matches returned data', async () => {
+		const table = sql.identifier('raw_execute_types');
+
+		await db.execute<never>(sql`drop table if exists ${table}`);
+
+		// DDL
+		const created = await db.execute<never>(
+			sql`create table ${table} ("id" integer primary key, "name" text not null)`,
+		);
+		expectTypeOf(created).toEqualTypeOf<[]>();
+		expect([...created]).toStrictEqual([]);
+
+		// `insert` without returning
+		const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+		expectTypeOf(inserted).toEqualTypeOf<[]>();
+		expect([...inserted]).toStrictEqual([]);
+
+		// Simple select
+		const selected = await db.execute<{ id: number; name: string }>(
+			sql`select "id", "name" from ${table} order by "id"`,
+		);
+		expectTypeOf(selected).toEqualTypeOf<{ id: number; name: string }[]>();
+		expect([...selected]).toStrictEqual([{ id: 1, name: 'John' }]);
+
+		// Multi-statement
+		const multi = await db.execute(
+			sql`insert into ${table} values (2, 'Jane'); select "id", "name" from ${table} order by "id"`,
+		);
+		expectTypeOf(multi).toEqualTypeOf<BunSQLRawExecuteResult>();
+		expect(multi).toHaveLength(2);
+		const [multiInserted, multiSelected] = multi as Record<string, unknown>[][];
+		expect([...multiInserted!]).toStrictEqual([]);
+		expect([...multiSelected!]).toStrictEqual([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+		await db.execute<never>(sql`drop table ${table}`);
+	});
 });
