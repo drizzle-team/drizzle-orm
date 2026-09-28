@@ -4,11 +4,14 @@ import {
 	type CommutativityStatementDefinitions,
 	type CommutativityStatementInfo,
 	type FacetPaths,
+	type ParsedSnapshotInput,
 } from '../../commutativity/engine';
 import type { ConflictTarget } from '../../commutativity/types';
-import { createDDL, type PostgresDDL } from './ddl';
-import { ddlDiffDry } from './diff';
-import { drySnapshot, type PostgresSnapshot } from './snapshot';
+import { copyDDL } from '../dialect';
+import { fromEntities } from './ddl';
+import { ddlDiff } from './diff';
+import { renameResolvers } from './renames';
+import { drySnapshot, type PostgresSnapshot, startingState } from './snapshot';
 import type { JsonStatement } from './statements';
 
 type FootprintTarget = {
@@ -39,6 +42,36 @@ function makeTableTarget(schema: string, tableName: string): FootprintTarget {
 function makeSchemaTarget(schemaName: string): FootprintTarget {
 	return makeTarget(schemaName, '');
 }
+
+// The snapshot's rename deltas are the rename decisions.
+const snapshotStatements = async (
+	snapshots: Map<string, PostgresSnapshot>,
+	snapshot: PostgresSnapshot,
+): Promise<JsonStatement[]> => {
+	// ddlDiff changes both states that it gets, so each one is a separate copy.
+	const from = startingState(snapshots, snapshot.prevIds);
+	const to = snapshot.type === 'diff' ? copyDDL(from) : fromEntities(snapshot.ddl);
+	const resolver = renameResolvers(to, snapshot.type === 'diff' ? snapshot.deltas : []);
+	const { statements } = await ddlDiff(
+		from,
+		to,
+		resolver('schemas'),
+		resolver('enums'),
+		resolver('sequences'),
+		resolver('policies'),
+		resolver('roles'),
+		resolver('tables'),
+		resolver('columns'),
+		resolver('views'),
+		resolver('uniques'),
+		resolver('indexes'),
+		resolver('checks'),
+		resolver('pks'),
+		resolver('fks'),
+		'default',
+	);
+	return statements;
+};
 
 /**
  * Postgres-specific commutativity rules.
@@ -1160,7 +1193,10 @@ class PostgresCommutativity extends AbstractCommutativity<
 			case 'regrant_privilege':
 				return {
 					owns: altered('priv', s.privilege.schema || '', s.privilege.table || ''),
-					needs: s.privilege.table ? underTable(s.privilege.schema || 'public', s.privilege.table) : [],
+					needs: [
+						...(s.privilege.table ? underTable(s.privilege.schema || 'public', s.privilege.table) : []),
+						nref('role', s.privilege.grantee),
+					],
 				};
 
 			default: {
@@ -1174,22 +1210,14 @@ class PostgresCommutativity extends AbstractCommutativity<
 		}
 	}
 
-	protected override getDrySnapshot(): PostgresSnapshot {
-		return drySnapshot;
+	public override async detectNonCommutative(snapshots: string[] | ParsedSnapshotInput[]) {
+		const nodes = this.buildSnapshotGraph(snapshots);
+		const byId = new Map(Object.values(nodes).map((node) => [node.id, node.raw]));
+		return this.detectBranchConflicts(nodes, (id) => snapshotStatements(byId, byId.get(id)!));
 	}
 
-	protected override async diffSnapshots(
-		fromSnapshot: PostgresSnapshot,
-		toSnapshot: PostgresSnapshot,
-	): Promise<{ statements: JsonStatement[] }> {
-		const fromDDL: PostgresDDL = createDDL();
-		const toDDL: PostgresDDL = createDDL();
-
-		fromDDL.entities.pushAll(fromSnapshot.ddl);
-		toDDL.entities.pushAll(toSnapshot.ddl);
-
-		const { statements } = await ddlDiffDry(fromDDL, toDDL, 'default');
-		return { statements };
+	protected override getDrySnapshot(): PostgresSnapshot {
+		return drySnapshot;
 	}
 }
 

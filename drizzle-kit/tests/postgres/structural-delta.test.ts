@@ -22,7 +22,7 @@ import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import { apply, delta } from 'src/dialects/dialect';
 import { createDDL } from 'src/dialects/postgres/ddl';
 import { describe, expect, test } from 'vitest';
-import { drizzleToDDL } from './mocks';
+import { diff, drizzleToDDL } from './mocks';
 
 // A DDL instance (for delta/apply, which read the engine's identity generators) and its
 // materialized rows (for canonical comparison, which is identity-independent over the set).
@@ -237,5 +237,76 @@ describe('canonical form', () => {
 		const a = rowsOf({ users });
 		const b = rowsOf({ users: pgTable('users', { id: integer('id'), email: varchar('email').notNull() }) });
 		expect(normalizeDDL(a)).not.toStrictEqual(normalizeDDL(b));
+	});
+});
+
+describe('ddlDiff deltas', () => {
+	test('renaming a table and a column gives renames, relocates and an index alter', async () => {
+		const users = pgTable('users', { id: integer('id'), name: text('name') }, (t) => [
+			index('users_name_idx').on(t.name),
+		]);
+		const accounts = pgTable('accounts', { id: integer('id'), fullName: text('full_name') }, (t) => [
+			index('users_name_idx').on(t.fullName),
+		]);
+
+		const { deltas } = await diff({ users }, { accounts }, [
+			'public.users->public.accounts',
+			'public.accounts.name->public.accounts.full_name',
+		]);
+
+		expect(deltas.map(({ op, key }: any) => ({ op, key }))).toStrictEqual([
+			{ op: 'rename', key: 'tables\0["public","users"]' },
+			{ op: 'relocate', key: 'columns\0["public","users","id"]' },
+			{ op: 'relocate', key: 'columns\0["public","users","name"]' },
+			{ op: 'relocate', key: 'indexes\0["public","users","users_name_idx"]' },
+			{ op: 'rename', key: 'columns\0["public","accounts","name"]' },
+			{ op: 'alter', key: 'indexes\0["public","accounts","users_name_idx"]' },
+		]);
+		expect(deltas[0]).toMatchObject({ set: { name: 'accounts' } });
+		expect(deltas[4]).toMatchObject({ set: { name: 'full_name' } });
+		expect(deltas[5]).toMatchObject({ set: { columns: [{ value: 'full_name' }] } });
+	});
+});
+
+describe('update change log', () => {
+	test('marks rows reached through a reference as cascades', () => {
+		const ddl = ddlOf({ users });
+		const { log } = ddl.tables.update({ set: { name: 'accounts' }, where: { name: 'users' } });
+		expect(log.map(({ key, isCascade }) => ({ key, isCascade }))).toStrictEqual([
+			{ key: 'tables\0["public","users"]', isCascade: false },
+			{ key: 'columns\0["public","users","id"]', isCascade: true },
+			{ key: 'columns\0["public","users","email"]', isCascade: true },
+		]);
+	});
+
+	test('is empty when the update is rolled back on a conflict', () => {
+		const ddl = ddlOf({ users, accounts: pgTable('accounts', { id: integer('id') }) });
+		const result = ddl.tables.update({ set: { name: 'accounts' }, where: { name: 'users' } });
+		expect(result.status).toBe('CONFLICT');
+		expect(result.log).toStrictEqual([]);
+	});
+});
+
+describe('apply rename and relocate', () => {
+	test('a rename moves only the renamed row', () => {
+		const next = apply(ddlOf({ users }), [
+			{ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } },
+		]);
+		expect(next.tables.list().map((it) => it.name)).toStrictEqual(['accounts']);
+		expect(next.columns.list().map((it) => it.table)).toStrictEqual(['users', 'users']);
+	});
+
+	test('a relocate stores the row under its new key', () => {
+		const next = apply(ddlOf({ users }), [
+			{ op: 'relocate', key: 'columns\0["public","users","id"]', set: { table: 'accounts' } },
+		]);
+		expect(next.columns.one({ table: 'accounts', name: 'id' })).not.toBeNull();
+		expect(next.columns.one({ table: 'users', name: 'id' })).toBeNull();
+		expect(next.columns.list()).toHaveLength(2);
+	});
+
+	test('a rename of a missing entity throws', () => {
+		expect(() => apply(ddlOf({ users }), [{ op: 'rename', key: 'tables\0["public","orders"]', set: { name: 'x' } }]))
+			.toThrow(/missing entity/);
 	});
 });

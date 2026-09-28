@@ -1,186 +1,88 @@
 # How commutativity works
 
-`detectNonCommutative` function accepts an array of snapshots paths from a drizzle folder and a dialect we should use it for. Dialect is a param to dicsus, maybe we will have just different commutative function
+`check`, `generate` and `migrate` call `detectNonCommutative` of the dialect with the paths of every `snapshot.json` in the migrations folder, in folder-name order. It returns a report with the conflicts between branches and the ids of the leaves. A leaf is a snapshot that no other snapshot lists in its `prevIds`.
 
-It outputs an array of conflicts with a full info about each conflict
+Every migration has its own folder, `<out>/<YYYYMMDDHHMMSS>_<name>/`, with `migration.sql` and `snapshot.json`. Every snapshot has an `id` and a `prevIds` array. The first snapshot has the origin id `00000000-0000-0000-0000-000000000000` as its only parent.
 
-Hot this function works:
+Postgres, mysql, sqlite and turso have a branch check. The other dialects have none.
 
-Input we will go through, 3 migrations, where 2 and 3 where creating the same table in different branches, which will cause a conflict
+## Postgres: compare branches statement by statement
 
-First migration
-```json
-{
-  version: "8",
-  dialect: "postgres",
-  id: "p1",
-  prevId: "00000000-0000-0000-0000-000000000000",
-  ddl: [],
-  renames: []
-}
+Postgres snapshots use format 9. The first snapshot is a base snapshot with the full state. Every later snapshot is a diff snapshot with the deltas of its own migration.
+
+Example: `p1` is the base, and two git branches each add one migration on top of it.
+
+```jsonc
+// 20260101120001_init/snapshot.json
+{ "type": "base", "version": "9", "dialect": "postgres", "id": "p1",
+  "prevIds": ["00000000-0000-0000-0000-000000000000"], "ddl": [] }
+
+// 20260101120002_a/snapshot.json (branch a)
+{ "type": "diff", "version": "9", "dialect": "postgres", "id": "a1", "prevIds": ["p1"],
+  "deltas": [
+    { "op": "create", "row": { "schema": "public", "name": "users", "isRlsEnabled": false, "entityType": "tables" } },
+    { "op": "create", "row": { "schema": "public", "table": "users", "name": "email", "type": "varchar", "typeSchema": null,
+      "notNull": false, "dimensions": 0, "default": null, "generated": null, "identity": null, "entityType": "columns" } }
+  ] }
+
+// 20260101120003_b/snapshot.json (branch b): the same two creates, with "id": "b1" and "prevIds": ["p1"]
 ```
 
-Second migration(done in branch1)
-```json
+`PostgresCommutativity.detectNonCommutative` builds the snapshot graph and calls `detectBranchConflicts` in `src/commutativity/engine.ts`:
+
+1. For each pair of leaves X and Y, the branch of X is every snapshot in the history of X that is missing from the history of Y. The branch of Y is the reverse. Here the branch of `a1` is `[a1]`, and the branch of `b1` is `[b1]`.
+2. For each snapshot in a branch, `snapshotStatements` derives the statements with `ddlDiff`. The diff goes from the snapshot's starting state (its parent's state, or the combined state of a merge) to its own state. The snapshot's `rename` deltas are the rename decisions, and `relocate` deltas are not.
+3. Every statement of one branch is compared with every statement of the other. `buildFacetPaths` in `src/dialects/postgres/commutativity.ts` gives each statement the nodes that it owns, destroys and needs. Owning and destroying are writes, and needing is a read. Two statements conflict when one writes a node that the other writes or needs.
+
+Both branches here create `public.users`, so the report has one conflict:
+
+```ts
 {
-  version: "8",
-  dialect: "postgres",
-  id: "a1",
-  prevId: "p1",
-  ddl: [
+  conflicts: [
     {
-      isRlsEnabled: false,
-      name: "users",
-      schema: "public",
-      entityType: "tables"
+      parentId: 'p1', // the fork point: the newest snapshot in both histories
+      parentPath: 'drizzle/20260101120001_init',
+      branchA: {
+        chain: [{ id: 'a1', path: 'drizzle/20260101120002_a' }],
+        statementDescription: 'create_table: users in public schema (20260101120002_a)',
+        target: { kind: 'table', name: 'users', schema: 'public' },
+        action: 'create_table',
+      },
+      branchB: {
+        chain: [{ id: 'b1', path: 'drizzle/20260101120003_b' }],
+        statementDescription: 'create_table: users in public schema (20260101120003_b)',
+        target: { kind: 'table', name: 'users', schema: 'public' },
+        action: 'create_table',
+      },
     },
-    {
-      type: "varchar",
-      options: null,
-      typeSchema: "pg_catalog",
-      notNull: false,
-      dimensions: 0,
-      default: null,
-      generated: null,
-      identity: null,
-      name: "email",
-      schema: "public",
-      table: "users",
-      entityType: "columns"
-    }
   ],
-  renames: []
+  leafNodes: ['a1', 'b1'],
 }
 ```
 
-Third migration(done in branch2)
-```json
-{
-  version: "8",
-  dialect: "postgres",
-  id: "a1",
-  prevId: "p1",
-  ddl: [
-    {
-      isRlsEnabled: false,
-      name: "users",
-      schema: "public",
-      entityType: "tables"
-    },
-    {
-      type: "varchar",
-      options: null,
-      typeSchema: "pg_catalog",
-      notNull: false,
-      dimensions: 0,
-      default: null,
-      generated: null,
-      identity: null,
-      name: "email",
-      schema: "public",
-      table: "users",
-      entityType: "columns"
-    }
-  ],
-  renames: []
-}
-```
+Each branch is compared snapshot by snapshot, so a change that a branch makes and later reverts still counts. When branch a adds column `c` and later drops it, and branch b adds `c` with another type, the report has a conflict. The migrator runs both adds in folder-name order, so a fresh database would fail.
 
+A merge snapshot lists every leaf in `prevIds`, and its own statements come from its combined state. The snapshots that reach a merge through its other parents are ordinary members of a branch.
 
+The facet rules are also the source of the commutativity matrix. `tests/postgres/commutativity-matrix.json` is generated from them, and `tests/postgres/commutativity.matrix-gen.test.ts` fails when the two differ.
 
-1. We are building a snapshots grapgh possible multi-child node in our migration tree
+## mysql, sqlite and turso: compare full states at each fork
 
-`buildSnapshotGraph` accepts all the snapshots as array and transform them to a Map and references between nodes:
+These dialects store the full state in every snapshot: `{ version, dialect, id, prevIds, ddl, renames }`. Their check uses the conflict-list walk, `AbstractCommutativity.detectNonCommutative`:
 
-```ts
-nodes {
-  p1: {
-    id: 'p1',
-    prevId: '00000000-0000-0000-0000-000000000000',
-    path: '...',
-    folderPath: '...',
-    raw: {...} // raw snapshot json
-  },
-  a1: {
-    id: 'a1',
-    prevId: 'p1',
-    path: '...',
-    folderPath: '...',
-    raw: {...} // raw snapshot json
-  },
-  b1: {
-    id: 'b1',
-    prevId: 'p1',
-    path: '...',
-    folderPath: '...',
-    raw: {...} // raw snapshot json
-  }
-}
-```
+1. `buildSnapshotGraph` maps each snapshot id to its node.
+2. `buildPrevToChildren` maps each parent id to the ids of the snapshots that list it in `prevIds`. A parent with more than one child is a fork:
 
-2. Next we need to actually map those nodes to a map of parent id to child ids to find if we have an array of >1 childs for each branch
+   ```ts
+   prevToChildren = {
+     '00000000-0000-0000-0000-000000000000': ['p1'],
+     p1: ['a1', 'b1'], // fork
+   };
+   ```
 
-`prevToChildren` is the exact map logic for it, it will output this:
+3. For each fork, `collectLeaves` finds the leaves below every child. `diffSnapshots` diffs the full state of the fork parent against the full state of each leaf.
+4. The statements of each pair of leaves under different children are compared through the `conflicts` lists in `getStatementDefinitions` of the dialect. The first match becomes a conflict with the same shape as above. `statementDescription` has no folder name here.
 
-```ts
-prevToChildren {
-  '00000000-0000-0000-0000-000000000000': [ 'p1' ],
-  // Conflict!
-  p1: [ 'a1', 'b1' ]
-}
-```
+This walk compares only the net effect of each branch, so a change that a branch later reverts does not count.
 
-3. For each case where a key has >1 childs we need to check collisions
-
-- We need to collect all the leaves for each branch child, so we can find a head and check each of branch node for collisions, if at least one is found - add a conflict with explanation
-
-For our case we have both childs as a head, so we will have 
-```ts
-{ a1: [ 'a1' ], b1: [ 'b1' ] }
-```
-
-4. Conflicts cases are separated into several steps steps
-
-- Firstly we identify same resources changes and same changes, then we identify same resources with different actions(create, drop, etc.)
-- Then we identify conflicts when table drops and anything that is realted to this table was changed
-- The same then will be done foe schemas(for dialects that supports schemas)
-- Finally we will respond with an array of condlicts
-
-Example, 
-```ts
-[
-  {
-    parentId: 'p1',
-    parentPath: '...', // path to parent
-    branchA: {
-      headId: 'a1', // snapshot id
-      path: '...', // path to snapshot json
-      statements: [Array] // raw json statements
-    },
-    branchB: {
-      headId: 'b1',
-      path: '...',
-      statements: [Array] 
-    },
-    reasons: [
-      'Two identical operations on the same resource conflict (e.g., duplicate changes): table:public.users (create) vs table:public.users (create)'
-    ]
-  }
-]
-```
-
-extra cases handled
-```
---- case 1 ---
-P1 - empty
-
-A1 - create.users        B1 - create posts
-A2 - create.posts        B2 - alter posts
-                         B3 - create media
---- case 2 ---
-P1 - users table
-
-A1 - alter.users        B1 - create posts
-A2 - alter.users        B2 - alter posts
-                        B3 - drop users
-```
+When no branches conflict and several leaves are open, `buildReport` adds `commutativeBranches`: the statements of every leaf, diffed from the newest snapshot in the history of all leaves. `generate` replays these statements on that snapshot to get the state that the merge migration starts from.

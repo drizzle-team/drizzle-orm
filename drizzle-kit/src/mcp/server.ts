@@ -201,8 +201,13 @@ export function createDrizzleMcpServer(): McpServer {
 	server.registerTool(
 		'up',
 		{
-			description: 'Upgrade on-disk migration snapshots to the latest format. '
-				+ 'Rewrites meta/*_snapshot.json files in place; idempotent (re-running on already-latest snapshots is a no-op).',
+			description: 'Upgrade the migrations folder to the current layout and snapshot format. '
+				+ 'Moves an old meta/_journal.json folder into one <timestamp>_<name>/ folder per migration with '
+				+ 'migration.sql and snapshot.json, and rewrites every older snapshot.json in place. For postgresql it '
+				+ 'converts the snapshots to format 9: the first one keeps the full schema and every later one keeps only '
+				+ 'the changes of its migration. It rewrites no snapshot.json if any rebuilt schema differs from the old '
+				+ 'snapshot. The move out of meta/ runs before that check. '
+				+ 'Idempotent: re-running on an already-current folder is a no-op.',
 			inputSchema: z.object({
 				config: z.string().optional().describe(
 					'Custom config file path — relative to the drizzle-kit working directory, or absolute.',

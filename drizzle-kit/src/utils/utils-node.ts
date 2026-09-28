@@ -2,9 +2,11 @@ import chalk from 'chalk';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs';
 import { getTsconfig } from 'get-tsconfig';
 import { sync as globSync } from 'glob';
-import { dirname, join, resolve } from 'path';
+import { basename, dirname, join, resolve } from 'path';
 import { parse, pathToFileURL } from 'url';
 import {
+	CheckCliError,
+	type DrizzleCliErrorMeta,
 	MigrationsOutdatedCliError,
 	SchemaFilesNotFoundCliError,
 	UnsupportedSnapshotVersionCliError,
@@ -12,10 +14,14 @@ import {
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
 import { snapshotValidator as mysqlSnapshotValidator } from '../dialects/mysql/snapshot';
-import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
+import {
+	missingBaseMessage,
+	missingParentMessage,
+	snapshotValidator as pgSnapshotValidator,
+} from '../dialects/postgres/snapshot';
 import { snapshotValidator as singlestoreSnapshotValidator } from '../dialects/singlestore/snapshot';
 import { snapshotValidator as sqliteStapshotValidator } from '../dialects/sqlite/snapshot';
-import { assertUnreachable } from '.';
+import { assertUnreachable, originUUID } from '.';
 import type { Journal } from '.';
 import type { Dialect } from './schemaValidator';
 
@@ -108,6 +114,70 @@ export const dryJournal = (dialect: Dialect): Journal => {
 	};
 };
 
+export type SnapshotNode = {
+	path: string;
+	folder: string;
+	id: string;
+	prevIds: string[];
+	dialect: unknown;
+	type: unknown;
+};
+
+// Files that do not parse or have no id are left out.
+export const buildParentIndex = (snapshots: string[]): SnapshotNode[] =>
+	snapshots.flatMap((path) => {
+		let raw: any;
+		try {
+			raw = JSON.parse(readFileSync(path, 'utf8'));
+		} catch {
+			return [];
+		}
+		if (typeof raw?.id !== 'string') return [];
+		if (raw.dialect === 'postgres' && !Array.isArray(raw.prevIds)) return [];
+		const prevIds = Array.isArray(raw.prevIds) ? raw.prevIds : [];
+		return [{ path, folder: basename(dirname(path)), id: raw.id, prevIds, dialect: raw.dialect, type: raw.type }];
+	});
+
+// migrate runs folders in localeCompare order, and drizzle-kit replays them in code unit order.
+const sortsAfter = (folder: string, parent: string) => folder > parent && folder.localeCompare(parent) > 0;
+
+// Only postgres rebuilds a state from its parents. Other dialects store the full state in every snapshot.
+export const assertPostgresHistory = (snapshots: string[], index: SnapshotNode[]) => {
+	const nodes = index.filter((it) => it.dialect === 'postgres');
+	if (nodes.length === 0) return;
+
+	// A file left out of the index would look like a missing parent, so it is reported first.
+	const indexed = new Set(index.map((it) => it.path));
+	const unreadable = snapshots.find((it) => !indexed.has(it));
+	if (unreadable) assertSnapshotStatus(unreadable, 'malformed');
+
+	const byId = new Map(nodes.map((it) => [it.id, it]));
+	const broken = (node: SnapshotNode, message: string, meta: DrizzleCliErrorMeta = {}) =>
+		new CheckCliError('malformed', message, { snapshot: node.path, ...meta });
+
+	if (nodes.every((it) => it.type === 'diff')) {
+		throw broken(nodes[0], missingBaseMessage(nodes[0].folder));
+	}
+	for (const node of nodes) {
+		if (node.type === 'diff' && (node.prevIds[0] ?? originUUID) === originUUID) {
+			throw broken(node, missingBaseMessage(node.folder));
+		}
+		for (const parentId of node.prevIds) {
+			if (parentId === originUUID) continue;
+			const parent = byId.get(parentId);
+			if (!parent) throw broken(node, missingParentMessage(node.folder, parentId), { parentId });
+			if (!sortsAfter(node.folder, parent.folder)) {
+				throw broken(
+					node,
+					`Migration ${node.folder} sorts before its parent ${parent.folder}, so migrate can run it first. `
+						+ `Rename the folders so that ${node.folder} sorts after ${parent.folder}.`,
+					{ parentSnapshot: parent.path },
+				);
+			}
+		}
+	}
+};
+
 export const prepareOutFolder = (out: string) => {
 	if (!existsSync(out)) {
 		mkdirSync(out, { recursive: true });
@@ -119,7 +189,10 @@ export const prepareOutFolder = (out: string) => {
 
 	snapshots.sort();
 
-	return { snapshots };
+	const index = buildParentIndex(snapshots);
+	assertPostgresHistory(snapshots, index);
+
+	return { snapshots, index };
 };
 
 const tsconfigAliasCache = new Map<string, Record<string, string> | undefined>();
@@ -221,7 +294,7 @@ const assertVersion = (
 };
 
 const postgresValidator = (snapshot: object): ValidationResult => {
-	const versionError = assertVersion(snapshot, 8);
+	const versionError = assertVersion(snapshot, 9);
 	if (versionError) return { status: versionError };
 
 	const res = pgSnapshotValidator.parse(snapshot);
@@ -287,6 +360,31 @@ const singlestoreValidator = (snapshot: object): ValidationResult => {
 	return { status: 'valid' };
 };
 
+export const assertSnapshotStatus = (snapshot: string, status: ValidationResult['status']) => {
+	switch (status) {
+		case 'valid':
+			return;
+		case 'unsupported':
+			throw new CheckCliError(
+				'unsupported',
+				`${snapshot} snapshot is of unsupported version, please update drizzle-kit`,
+				{ snapshot },
+			);
+		case 'nonLatest':
+			throw new CheckCliError(
+				'non_latest',
+				`${snapshot} is not of the latest version, please run "drizzle-kit up"`,
+				{ snapshot },
+			);
+		case 'malformed':
+			throw new CheckCliError(
+				'malformed',
+				`${snapshot} data is malformed. Restore the file from git, or fix the JSON in it by hand.`,
+				{ snapshot },
+			);
+	}
+};
+
 export const validatorForDialect = (
 	dialect: Dialect,
 ): (snapshot: object) => ValidationResult => {
@@ -313,15 +411,11 @@ export const validatorForDialect = (
 };
 
 export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
-	// ✅ check if drizzle-kit can handle snapshot version
-	// ✅ check if snapshot is of the last version
-	// ✅ check if id of the snapshot is valid
-	// ✅ collect {} of prev id -> snapshotName[], if there's more than one - tell about collision
 	const validator = validatorForDialect(dialect);
 
 	const result = snapshots.reduce(
 		(accum, it) => {
-			const raw = JSON.parse(readFileSync(`./${it}`).toString());
+			const raw = JSON.parse(readFileSync(it).toString());
 
 			accum.rawMap[it] = raw;
 
@@ -336,29 +430,16 @@ export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
 
 			if (res.status === 'nonLatest') {
 				accum.nonLatest.push(it);
-				return accum;
 			}
-
-			// only if latest version here
-			const idEntry = accum.idsMap[raw['prevId']] ?? {
-				parent: it,
-				snapshots: [],
-			};
-
-			idEntry.snapshots.push(it);
-			accum.idsMap[raw['prevId']] = idEntry;
 			return accum;
 		},
 		{
 			malformed: [],
 			nonLatest: [],
-			idToNameMap: {},
-			idsMap: {},
 			rawMap: {},
 		} as {
 			malformed: string[];
 			nonLatest: string[];
-			idsMap: Record<string, { parent: string; snapshots: string[] }>;
 			rawMap: Record<string, any>;
 		},
 	);

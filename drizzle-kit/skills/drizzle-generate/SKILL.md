@@ -30,7 +30,7 @@ Minimal example:
 
 ```bash
 drizzle-kit generate --output json --config drizzle.config.ts
-# → {"status":"ok","dialect":"postgresql","migration_path":"drizzle/0001_name/migration.sql"}
+# → {"status":"ok","dialect":"postgresql","migration_path":"drizzle/20260427153000_name/migration.sql"}
 ```
 
 The process exits with the code that matches `status` (see Response envelope below). Agents read both stdout (the envelope) and the exit code.
@@ -70,7 +70,7 @@ The SDK does not throw on user-level failures — every outcome flows through th
 
 `'ok'` (write mode) carries `{ status, dialect, migration_path }`; `'ok'` (explain mode) carries `{ status, dialect, statements, hints }`. `'no_changes'`, `'missing_hints'`, and `'error'` are shared across operations. Full envelope shapes, exit-code mapping, and per-code error metadata live in the `drizzle-responses-and-errors` skill's response-envelope section.
 
-`'missing_hints'` (exit 2) means the diff is ambiguous or unsafe — the resolution loop lives in the `drizzle-hints` skill. The most common error codes for `generate` are `config_validation_error`, `config_file_not_found_error`, `schema_files_not_found_error`, `orm_version_error`, `invalid_hints`, `unsupported_schema_change`, `internal_error`.
+`'missing_hints'` (exit 2) means the diff is ambiguous or unsafe — the resolution loop lives in the `drizzle-hints` skill. The most common error codes for `generate` are `config_validation_error`, `config_file_not_found_error`, `schema_files_not_found_error`, `orm_version_error`, `invalid_hints`, `unsupported_schema_change`, `internal_error`. Before it diffs, `generate` checks the migrations folder the same way `check` does, so it can also return `check_error` for a broken folder or for branches that conflict. The `drizzle-migrations` skill explains the migrations folder, merges of branches, and the fixes.
 
 ## Dialect notes
 
@@ -81,7 +81,7 @@ Per-dialect quirks (postgresql, mysql, sqlite, mssql, cockroach, singlestore) �
 ```bash
 # Happy path
 drizzle-kit generate --output json --config drizzle.config.ts
-# → {"status":"ok","dialect":"postgresql","migration_path":"drizzle/0001_init/migration.sql"}
+# → {"status":"ok","dialect":"postgresql","migration_path":"drizzle/20260427153000_init/migration.sql"}
 
 # Idempotent re-run on an up-to-date schema
 drizzle-kit generate --output json --config drizzle.config.ts

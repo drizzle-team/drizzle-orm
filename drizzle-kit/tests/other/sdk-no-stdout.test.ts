@@ -129,7 +129,7 @@ describe('SDK does not invoke process.stdout.write or process.exit', () => {
 		// the latest format on disk even though nothing escapes to stdout/exit.
 		expect((result as { upgraded: string[] }).upgraded.length).toBeGreaterThan(0);
 		const mutated = JSON.parse(readFileSync(join(out, '0000_init', 'snapshot.json'), 'utf8'));
-		expect(mutated.version).toBe('8');
+		expect(mutated.version).toBe('9');
 		expectSilent(stdoutCalls, exitCalls);
 	});
 });

@@ -84,6 +84,9 @@ type Internals = {
 	nulls: Record<string, Row>;
 };
 
+// `key` is the qualified key the row had right before the update.
+export type ChangeLogEntry = { key: string; set: Row; isCascade: boolean; hasKeyChanged: boolean };
+
 type Where<T> = { [K in keyof T]?: T[K] | { CONTAINS: any } } & Record<string, any>;
 type SetOps<T> = { [K in keyof T]?: T[K] | ((item: any) => any) } & Record<string, any>;
 
@@ -95,7 +98,11 @@ type Processors<T extends Row = Row> = {
 	pushAll: (items: Iterable<Row>) => { status: 'OK'; count: number } | { status: 'CONFLICT'; key: string };
 	list: (where?: Where<T>) => T[];
 	one: (where?: Where<T>) => T | null;
-	update: (cfg: { set: SetOps<T>; where?: Where<T> }) => { status: 'OK' | 'CONFLICT'; data: T[] };
+	update: (cfg: { set: SetOps<T>; where?: Where<T> }) => {
+		status: 'OK' | 'CONFLICT';
+		data: T[];
+		log: ChangeLogEntry[];
+	};
 	delete: (where?: Where<T>) => T[];
 	drop: (where?: Where<T>) => T[];
 	validate: (row: unknown) => boolean;
@@ -336,11 +343,15 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 		const snap: [string, Row][] = [];
 		for (const b of store.values()) for (const r of b.values()) snap.push([r.entityType, { ...r }]);
 
+		// the state of every touched row before its first change, in the order of the first change
+		const before = new Map<Row, { key: string; row: Row; isCascade: boolean }>();
+
 		type Seed = { type: string; oldKey: string; oldRow: Row; newRow: Row };
 		const seeds: Seed[] = [];
 		for (const { row, next } of planned) {
 			const oldRow = { ...row };
 			const oldKey = keyOf(oldRow);
+			before.set(row, { key: qual(row.entityType, oldKey), row: oldRow, isCascade: false });
 			Object.assign(row, next);
 			if (keyOf(row) !== oldKey) seeds.push({ type: row.entityType, oldKey, oldRow, newRow: row });
 		}
@@ -356,6 +367,9 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 					if (!patch) continue;
 					const depOld = { ...dep.row };
 					const depOldKey = keyOf(depOld);
+					if (!before.has(dep.row)) {
+						before.set(dep.row, { key: qual(dep.type, depOldKey), row: depOld, isCascade: true });
+					}
 					Object.assign(dep.row, patch);
 					const depNewKey = keyOf(dep.row);
 					if (depNewKey !== depOldKey) {
@@ -380,12 +394,21 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 			if (colliders.length) {
 				for (const b of store.values()) b.clear();
 				for (const [t, r] of snap) bucketOf(t).set(keyOf(r), r);
-				return { status: 'CONFLICT', data: colliders };
+				return { status: 'CONFLICT', data: colliders, log: [] };
 			}
 
 			rekey(); // rows moved keys — rebuild the buckets once.
 		}
-		return { status: 'OK', data: targets };
+
+		const log: ChangeLogEntry[] = [];
+		for (const [row, old] of before) {
+			const set: Row = {};
+			for (const k of Object.keys(row)) if (!isEqual(old.row[k], row[k])) set[k] = row[k];
+			if (!Object.keys(set).length) continue;
+			const hasKeyChanged = qual(row.entityType, keyOf(row)) !== old.key;
+			log.push({ key: old.key, set, isCascade: old.isCascade, hasKeyChanged });
+		}
+		return { status: 'OK', data: targets, log };
 	};
 
 	const del: Processors['delete'] = (where) => {
@@ -577,35 +600,40 @@ export const key = (ddl: AnyDDL, type: string, row: Row): string => ddl.key(type
 
 /* ------------------------------------------------------------------ structural delta */
 
-// The semantic diff with the semantics dropped: three ops over the engine's own keyed set,
-// replayable with no idea what any row means. Keyed by the engine's injective identity
-// generators (qual(entityType, ddl.key(...)) — byte-identical to what _diff keys by), so
-// nameless / duplicate-name entities (privileges) never collide.
+// A key is qual(entityType, identity). `rename` and `relocate` change the key: a rename is a
+// user decision, a relocate follows the rename of the entity that the row references.
 export type Delta =
 	| { op: 'create'; row: Row }
 	| { op: 'drop'; key: string }
-	| { op: 'alter'; key: string; set: Row };
+	| { op: 'alter'; key: string; set: Row }
+	| { op: 'rename'; key: string; set: Row }
+	| { op: 'relocate'; key: string; set: Row };
 
 const qkeyOf = (ddl: AnyDDL, r: Row): string => qual(r.entityType, ddl.key(r.entityType, r));
-const splitQual = (k: string): [string, string] => {
-	const i = k.indexOf('\0'); // identityKey is JSON and never contains \0 — the invariant qual relies on
-	return [k.slice(0, i), k.slice(i + 1)];
+// Returns [entityType, identity].
+export const splitDeltaKey = (key: string): [string, string] => {
+	const idx = key.indexOf('\0'); // the identity is JSON and never contains \0
+	return [key.slice(0, idx), key.slice(idx + 1)];
 };
-// Drop the diff meta so a create/apply row is a clean entity. The KEYS ($diffType/$left/
-// $right) must stay literal to be omitted from `rest`; only the (unused) bindings are
-// underscore-named — a lint auto-fix that renames the keys silently stops stripping them.
+export const findRow = <M extends Record<string, Row>>(ddl: DDL<M>, key: string): Row | undefined => {
+	const [entityType, identity] = splitDeltaKey(key);
+	return ddl._.store.get(entityType)?.get(identity);
+};
+// The keys must stay literal: a rename of a key stops removing that field from `rest`.
 const stripMeta = (r: Row): Row => {
 	const { $diffType: _1, $left: _2, $right: _3, ...rest } = r as any;
 	return rest;
 };
-// same predicate hasDiff uses — shared so structural and hasDiff cannot drift.
 const isChangePair = (v: any): v is { from: any; to: any } => !!v && typeof v === 'object' && 'from' in v && 'to' in v;
 
-// diff(a -> b) as a structural delta. A pure projection over _diff's 'all' rows, so it can
-// never drift from the semantic diff and never touches _diff itself.
-export function delta<M extends Record<string, Row>>(a: DDL<M>, b: DDL<M>): Delta[] {
+// `rows` must be the diff.all(a, b) rows, because drop keys come from `a` and alter keys from `b`.
+export function delta<M extends Record<string, Row>>(
+	a: DDL<M>,
+	b: DDL<M>,
+	rows: Row[] = _diff(a, b, undefined, 'all'),
+): Delta[] {
 	const out: Delta[] = [];
-	for (const r of _diff(a, b, undefined, 'all')) {
+	for (const r of rows) {
 		if (r.$diffType === 'create') {
 			out.push({ op: 'create', row: stripMeta(r) });
 		} else if (r.$diffType === 'drop') {
@@ -616,43 +644,60 @@ export function delta<M extends Record<string, Row>>(a: DDL<M>, b: DDL<M>): Delt
 				if (k === '$diffType' || k === '$left' || k === '$right' || k === 'entityType') continue;
 				if (isChangePair(v)) set[k] = v.to;
 			}
-			// The alter key MUST come from $right (the whole new row): the bare alter row only
-			// carries the CHANGED fields, so a nameless entity (privileges keyed by grantor/
-			// grantee/type) cannot regenerate its own key from it. $right always has them.
+			// The alter row holds only the changed fields, so a nameless entity (privileges)
+			// can build its key only from the whole new row.
 			out.push({ op: 'alter', key: qkeyOf(b, (r as any).$right as Row), set });
 		}
 	}
 	return out;
 }
 
-// Apply structural deltas onto a base DDL, returning a NEW DDL (base untouched). A dumb
-// keyed-set replay — raw Map set/delete/assign, deliberately bypassing push/update so NO
-// edge cascade / relocate / rekey / collision-rollback fires: `b` was already materialized,
-// so every dependent change is already its own delta.
-export function apply<M extends Record<string, Row>>(base: DDL<M>, deltas: Delta[]): DDL<M> {
-	const src = base._;
+export function copyDDL<M extends Record<string, Row>>(ddl: DDL<M>): DDL<M> {
+	const src = ddl._;
 	const store: Store = new Map();
-	for (const t of Object.keys(src.defs)) store.set(t, new Map());
-	for (const [t, bucket] of src.store) {
-		const nb = store.get(t)!;
-		for (const [k, row] of bucket) nb.set(k, structuredClone(row));
-	}
-	for (const d of deltas) {
-		if (d.op === 'create') {
-			const row = stripMeta(d.row);
-			store.get(row.entityType)!.set(src.identity[row.entityType](row), row); // raw set — no push()/edges
-		} else if (d.op === 'drop') {
-			const [et, ik] = splitQual(d.key);
-			if (!store.get(et)?.delete(ik)) throw new Error(`structural apply: drop targets a missing entity: ${d.key}`);
-		} else {
-			const [et, ik] = splitQual(d.key);
-			const row = store.get(et)?.get(ik);
-			if (!row) throw new Error(`structural apply: alter targets a missing entity: ${d.key}`);
-			Object.assign(row, d.set); // wholesale replace; identity unchanged by construction ⇒ no rekey
-		}
+	for (const entityType of Object.keys(src.defs)) store.set(entityType, new Map());
+	for (const [entityType, bucket] of src.store) {
+		const copy = store.get(entityType)!;
+		for (const [identity, row] of bucket) copy.set(identity, structuredClone(row));
 	}
 	return build<M>({ ...src, store });
 }
-// Canonical form / comparison of ddl states (normalizeDDL) and any persisted fingerprint
-// live in the snapshot layer (scripts/lib/ddl-canonical.ts), NOT here — delta/apply never
-// need them. The engine's structural surface is exactly `delta` + `apply`.
+
+export function apply<M extends Record<string, Row>>(base: DDL<M>, deltas: Delta[]): DDL<M> {
+	return applyInPlace(copyDDL(base), deltas);
+}
+
+// Never follows reference edges, because every dependent change is already a delta of its own.
+export function applyInPlace<M extends Record<string, Row>>(ddl: DDL<M>, deltas: Delta[]): DDL<M> {
+	const { store, identity: identityOf } = ddl._;
+	const target = (d: { op: string; key: string }): [Map<string, Row>, string, Row] => {
+		const [entityType, identity] = splitDeltaKey(d.key);
+		const bucket = store.get(entityType);
+		const row = bucket?.get(identity);
+		if (!bucket || !row) {
+			throw new Error(
+				`The ${d.op} delta targets a missing entity: ${
+					d.key.replace('\0', ' ')
+				}. The deltas do not match the state they are applied to. Check that no snapshot is missing from the history.`,
+			);
+		}
+		return [bucket, identity, row];
+	};
+	for (const d of deltas) {
+		if (d.op === 'create') {
+			const row = stripMeta(d.row);
+			store.get(row.entityType)!.set(identityOf[row.entityType](row), row);
+		} else if (d.op === 'drop') {
+			const [bucket, identity] = target(d);
+			bucket.delete(identity);
+		} else if (d.op === 'alter') {
+			Object.assign(target(d)[2], d.set);
+		} else {
+			const [bucket, oldIdentity, row] = target(d);
+			bucket.delete(oldIdentity);
+			Object.assign(row, d.set);
+			bucket.set(identityOf[row.entityType](row), row);
+		}
+	}
+	return ddl;
+}

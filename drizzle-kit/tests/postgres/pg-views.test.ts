@@ -1977,6 +1977,53 @@ test('moved schema and alter view', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('move view to a new schema and change its definition', async () => {
+	const users = pgTable('users', { id: serial() });
+	const schema = pgSchema('my_schema');
+	const from = {
+		users,
+		view: pgView('some_view', { id: integer('id') }).as(sql`SELECT 1 AS "id" FROM "users"`),
+	};
+	const to = {
+		users,
+		schema,
+		view: schema.view('some_view', { id: integer('id') }).as(sql`SELECT 2 AS "id" FROM "users"`),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, ['public.some_view->my_schema.some_view']);
+
+	expect(st).toStrictEqual([
+		'CREATE SCHEMA "my_schema";\n',
+		'ALTER VIEW "some_view" SET SCHEMA "my_schema";',
+		'DROP VIEW "my_schema"."some_view";',
+		'CREATE VIEW "my_schema"."some_view" AS (SELECT 2 AS "id" FROM "users");',
+	]);
+	await push({ db, to: from });
+	for (const statement of st) await db.query(statement);
+});
+
+test('rename view and change its definition', async () => {
+	const users = pgTable('users', { id: serial() });
+	const from = {
+		users,
+		view: pgView('some_view', { id: integer('id') }).as(sql`SELECT 1 AS "id" FROM "users"`),
+	};
+	const to = {
+		users,
+		view: pgView('new_some_view', { id: integer('id') }).as(sql`SELECT 2 AS "id" FROM "users"`),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, ['public.some_view->public.new_some_view']);
+
+	expect(st).toStrictEqual([
+		'ALTER VIEW "some_view" RENAME TO "new_some_view";',
+		'DROP VIEW "new_some_view";',
+		'CREATE VIEW "new_some_view" AS (SELECT 2 AS "id" FROM "users");',
+	]);
+	await push({ db, to: from });
+	for (const statement of st) await db.query(statement);
+});
+
 test('push view with same name', async () => {
 	const table = pgTable('test', {
 		id: serial('id').primaryKey(),

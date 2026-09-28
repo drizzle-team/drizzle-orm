@@ -100,7 +100,7 @@ export const handle = async (
 	let migrationPath: string | undefined;
 	const { snapshots } = prepareOutFolder(out);
 	if (snapshots.length === 0) {
-		const { sqlStatements, renames } = await ddlDiff(
+		const { sqlStatements } = await ddlDiff(
 			createDDL(), // dry ddl
 			ddl2,
 			resolver<Schema>('schema'),
@@ -120,9 +120,8 @@ export const handle = async (
 		);
 
 		({ snapshotPath, migrationPath } = writeResult({
-			snapshot: toJsonSnapshot(ddl2, [originUUID], renames),
+			snapshot: toJsonSnapshot(ddl2, [originUUID]),
 			sqlStatements,
-			renames,
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',

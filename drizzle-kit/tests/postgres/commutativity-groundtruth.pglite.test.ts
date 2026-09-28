@@ -1,28 +1,19 @@
 import { integer, pgTable, varchar } from 'drizzle-orm/pg-core';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
+import { fromJson } from 'src/dialects/postgres/convertor';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
-import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
+import type { PostgresStateSnapshot } from 'src/dialects/postgres/snapshot';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
-import type { DB } from 'src/utils';
+import { type DB, originUUID } from 'src/utils';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { mutations, PAIRS, parent } from './commutativity-fixtures';
+import matrixData from './commutativity-matrix.json';
+import { build } from './commutativity-statements';
 import { diff, drizzleToDDL, prepareTestDatabase } from './mocks';
 
-// ---------------------------------------------------------------------------
-// Ground truth for commutativity, from a real database.
-//
-// Both models — the facet footprints and the structural deltas — are theories
-// about which branches commute. This asks postgres instead.
-//
-// Two branches both author their SQL against the fork, exactly as two developers
-// would. A database then applies both. They commute if and only if BOTH orders
-// succeed AND land on the same schema. Anything else — an error in either order,
-// or two different final schemas — means they do not.
-//
-// That is the definition the facet model is written against ("replaying the
-// reference in the wrong order fails"), so it is the right oracle for it.
-// ---------------------------------------------------------------------------
+// Two branches commute only if postgres applies them in both orders and both
+// orders end at the same schema.
 
 type Outcome = { ok: true; hash: string } | { ok: false; error: string };
 
@@ -79,14 +70,14 @@ beforeAll(async () => {
 
 	parentSql = (await diff({}, parent, [])).sqlStatements;
 
-	const parentSnapshot = {
-		version: '8',
+	const parentSnapshot: PostgresStateSnapshot = {
+		type: 'base',
+		version: '9',
 		dialect: 'postgres',
 		id: 'p',
-		prevIds: [],
+		prevIds: [originUUID],
 		ddl: ddlOf(parent),
-		renames: [],
-	} as unknown as PostgresSnapshot;
+	};
 
 	for (const { a, b, name } of PAIRS) {
 		const [sa, sb] = [await sqlFor(a), await sqlFor(b)];
@@ -149,7 +140,7 @@ describe('facet model vs a real database', () => {
 				+ falsePositive.map((r) => `@@     [fp] ${r.name.padEnd(46)} ${r.why}`).join('\n')
 				+ '\n',
 		);
-		expect(rows.length).toBe(PAIRS.length);
+		expect(falseNegative.map((r) => r.name), 'pairs that the rules call commutative and postgres rejects').toEqual([]);
 	});
 });
 
@@ -179,4 +170,237 @@ describe('the squash false negative, against a real database', () => {
 		console.log(`\n@@ squash case — replaying B then A on postgres: ${error ?? 'SUCCEEDED (no conflict)'}\n`);
 		expect(error, 'postgres must reject adding the same column twice').not.toBeNull();
 	});
+});
+
+// One statement pair per matrix cell. Each cell runs the SQL that the convertor emits
+// for the statements that the matrix is built from. The shared base of a pair holds
+// the objects that either statement needs.
+const sqlOf = (type: string) => fromJson([build(type)]).sqlStatements;
+
+// The postgres diff emits an enum value removal as recreate_enum, so the convertor has no case for this type.
+const handWrittenSql: Record<string, string[]> = {
+	alter_type_drop_value: [`DROP TYPE "s"."e";`, `CREATE TYPE "s"."e" AS ENUM('a');`],
+};
+const cellSql = (type: string) => handWrittenSql[type] ?? sqlOf(type);
+
+const baseObjects = {
+	schema: sqlOf('create_schema'),
+	targetSchema: [`CREATE SCHEMA "s_new";`],
+	table: sqlOf('create_table'),
+	column: sqlOf('add_column'),
+	referencedTable: [`CREATE TABLE "s"."t2" ("c2" varchar PRIMARY KEY);`],
+	index: sqlOf('create_index'),
+	pk: sqlOf('add_pk'),
+	fk: sqlOf('create_fk'),
+	unique: sqlOf('add_unique'),
+	check: sqlOf('add_check'),
+	enum: sqlOf('create_enum'),
+	sequence: sqlOf('create_sequence'),
+	view: sqlOf('create_view'),
+	policy: sqlOf('create_policy'),
+	role: sqlOf('create_role'),
+	privilege: sqlOf('grant_privilege'),
+};
+type BaseObject = keyof typeof baseObjects;
+
+const onTable = ['schema', 'table'] as const;
+const onColumn = [...onTable, 'column'] as const;
+
+const needs: Record<string, readonly BaseObject[]> = {
+	create_table: ['schema'],
+	drop_table: onTable,
+	rename_table: onTable,
+	move_table: [...onTable, 'targetSchema'],
+	add_column: onTable,
+	drop_column: onColumn,
+	alter_column: onColumn,
+	recreate_column: onColumn,
+	rename_column: onColumn,
+	create_index: onColumn,
+	drop_index: [...onColumn, 'index'],
+	rename_index: [...onColumn, 'index'],
+	recreate_index: [...onColumn, 'index'],
+	add_pk: onColumn,
+	drop_pk: [...onColumn, 'pk'],
+	alter_pk: [...onColumn, 'pk'],
+	create_fk: [...onColumn, 'referencedTable'],
+	drop_fk: [...onColumn, 'referencedTable', 'fk'],
+	recreate_fk: [...onColumn, 'referencedTable', 'fk'],
+	add_unique: onColumn,
+	drop_unique: [...onColumn, 'unique'],
+	alter_unique: [...onColumn, 'unique'],
+	add_check: onColumn,
+	drop_check: [...onColumn, 'check'],
+	alter_check: [...onColumn, 'check'],
+	rename_constraint: [...onColumn, 'unique'],
+	create_enum: ['schema'],
+	drop_enum: ['schema', 'enum'],
+	rename_enum: ['schema', 'enum'],
+	alter_enum: ['schema', 'enum'],
+	recreate_enum: ['schema', 'enum'],
+	move_enum: ['schema', 'targetSchema', 'enum'],
+	alter_type_drop_value: ['schema', 'enum'],
+	create_schema: [],
+	drop_schema: ['schema'],
+	rename_schema: ['schema'],
+	create_sequence: ['schema'],
+	drop_sequence: ['schema', 'sequence'],
+	rename_sequence: ['schema', 'sequence'],
+	alter_sequence: ['schema', 'sequence'],
+	move_sequence: ['schema', 'targetSchema', 'sequence'],
+	create_view: ['schema'],
+	drop_view: ['schema', 'view'],
+	rename_view: ['schema', 'view'],
+	alter_view: ['schema', 'view'],
+	move_view: ['schema', 'targetSchema', 'view'],
+	create_policy: onTable,
+	drop_policy: [...onTable, 'policy'],
+	rename_policy: [...onTable, 'policy'],
+	alter_policy: [...onTable, 'policy'],
+	recreate_policy: [...onTable, 'policy'],
+	alter_rls: onTable,
+	create_role: [],
+	drop_role: ['role'],
+	rename_role: ['role'],
+	alter_role: ['role'],
+	grant_privilege: [...onTable, 'role'],
+	revoke_privilege: [...onTable, 'role', 'privilege'],
+	regrant_privilege: [...onTable, 'role', 'privilege'],
+};
+
+// Cells where the rules report a conflict that postgres accepts. Keys are `row x column` in matrix order.
+const sameChangeTwice =
+	'the same change runs twice without an error, and the rules report any two changes of one entity';
+const knownExceptions: Record<string, string> = {
+	'rename_table x drop_index': 'the rules key an index by its table, and the index SQL does not name the table',
+	'rename_table x rename_index': 'the rules key an index by its table, and the index SQL does not name the table',
+	...Object.fromEntries(
+		[
+			'alter_column',
+			'recreate_column',
+			'recreate_index',
+			'alter_pk',
+			'recreate_fk',
+			'alter_unique',
+			'alter_check',
+			'recreate_enum',
+			'alter_type_drop_value',
+			'alter_sequence',
+			'alter_view',
+			'alter_policy',
+			'recreate_policy',
+			'alter_rls',
+			'alter_role',
+			'grant_privilege',
+			'revoke_privilege',
+			'regrant_privilege',
+		].map((type) => [`${type} x ${type}`, sameChangeTwice]),
+	),
+};
+
+// Everything a pair can change, as sorted text. Column order is left out, because
+// two branches that add columns in a different order still hold the same schema.
+const fingerprint = async (): Promise<string> => {
+	const [{ facts }] = await db.query<{ facts: string }>(`
+		WITH ns AS (SELECT oid, nspname FROM pg_namespace WHERE nspname IN ('s', 's_new'))
+		SELECT coalesce(json_agg(fact ORDER BY fact), '[]')::text AS facts FROM (
+			SELECT 'schema ' || nspname FROM ns
+			UNION ALL
+			SELECT format('relation %s.%s kind=%s rls=%s acl=%s options=%s', ns.nspname, c.relname, c.relkind,
+				c.relrowsecurity, c.relacl, c.reloptions)
+			FROM pg_class c JOIN ns ON ns.oid = c.relnamespace
+			UNION ALL
+			SELECT format('column %s.%s.%s %s notnull=%s default=%s', ns.nspname, c.relname, a.attname,
+				format_type(a.atttypid, a.atttypmod), a.attnotnull, pg_get_expr(d.adbin, d.adrelid))
+			FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN ns ON ns.oid = c.relnamespace
+			LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+			WHERE a.attnum > 0 AND NOT a.attisdropped
+			UNION ALL
+			SELECT format('constraint %s.%s %s', ns.nspname, co.conname, pg_get_constraintdef(co.oid))
+			FROM pg_constraint co JOIN ns ON ns.oid = co.connamespace
+			UNION ALL
+			SELECT 'index ' || pg_get_indexdef(i.indexrelid)
+			FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid JOIN ns ON ns.oid = c.relnamespace
+			UNION ALL
+			SELECT format('enum %s.%s %s', ns.nspname, t.typname, string_agg(e.enumlabel, ',' ORDER BY e.enumsortorder))
+			FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid JOIN ns ON ns.oid = t.typnamespace
+			GROUP BY ns.nspname, t.typname
+			UNION ALL
+			SELECT format('view %s.%s %s', ns.nspname, c.relname, pg_get_viewdef(c.oid))
+			FROM pg_class c JOIN ns ON ns.oid = c.relnamespace WHERE c.relkind = 'v'
+			UNION ALL
+			SELECT format('sequence %s.%s %s %s %s %s', ns.nspname, c.relname, sq.seqincrement, sq.seqstart, sq.seqmin, sq.seqmax)
+			FROM pg_sequence sq JOIN pg_class c ON c.oid = sq.seqrelid JOIN ns ON ns.oid = c.relnamespace
+			UNION ALL
+			SELECT format('policy %s.%s.%s %s %s %s %s %s', schemaname, tablename, policyname, permissive, roles, cmd, qual,
+				with_check)
+			FROM pg_policies WHERE schemaname IN ('s', 's_new')
+			UNION ALL
+			SELECT format('role %s createdb=%s', rolname, rolcreatedb) FROM pg_roles WHERE rolname IN ('r', 'r_new')
+		) AS facts(fact)`);
+	return facts;
+};
+
+type Run = { ok: true; schema: string } | { ok: false; error: string };
+
+const run = async (sql: string[]): Promise<Run> => {
+	await clear();
+	try {
+		for (const statement of sql) await db.query(statement);
+	} catch (e) {
+		return { ok: false, error: e instanceof Error ? e.message.split('\n').filter(Boolean).at(-1)! : String(e) };
+	}
+	return { ok: true, schema: await fingerprint() };
+};
+
+const baseFor = (...types: string[]) =>
+	(Object.keys(baseObjects) as BaseObject[])
+		.filter((object) => types.some((type) => needs[type]!.includes(object)))
+		.flatMap((object) => baseObjects[object]);
+
+describe('matrix cells vs a real database', () => {
+	const { types, matrix, impossible } = matrixData;
+
+	test('every matrix statement applies to its own base', async () => {
+		expect(Object.keys(needs).sort()).toEqual([...types].sort());
+		const failed: string[] = [];
+		for (const type of types) {
+			const result = await run([...baseFor(type), ...cellSql(type)]);
+			if (!result.ok) failed.push(`${type}: ${result.error}`);
+		}
+		expect(failed).toEqual([]);
+	});
+
+	test('rules agree with postgres on every possible cell', async () => {
+		const mismatches: Record<string, string> = {};
+		for (let i = 0; i < types.length; i++) {
+			for (let j = i; j < types.length; j++) {
+				if (impossible[i]![j] || impossible[j]![i]) continue;
+				const [a, b] = [types[i]!, types[j]!];
+				const base = baseFor(a, b);
+				const ab = await run([...base, ...cellSql(a), ...cellSql(b)]);
+				const ba = await run([...base, ...cellSql(b), ...cellSql(a)]);
+
+				const why = !ab.ok
+					? `${a} then ${b} fails: ${ab.error}`
+					: !ba.ok
+					? `${b} then ${a} fails: ${ba.error}`
+					: ab.schema !== ba.schema
+					? 'both orders succeed with different schemas'
+					: 'both orders succeed with the same schema';
+				const postgresCommutes = ab.ok && ba.ok && ab.schema === ba.schema;
+				const rulesCommute = !matrix[i]![j] && !matrix[j]![i];
+				if (postgresCommutes !== rulesCommute) {
+					mismatches[`${a} x ${b}`] = `rules say ${rulesCommute ? 'commute' : 'conflict'}, postgres: ${why}`;
+				}
+			}
+		}
+
+		const unexpected = Object.entries(mismatches).filter(([cell]) => !knownExceptions[cell]).map(([cell, why]) =>
+			`${cell}: ${why}`
+		);
+		const stale = Object.keys(knownExceptions).filter((cell) => !mismatches[cell]);
+		expect(unexpected, 'cells where postgres and the rules disagree').toEqual([]);
+		expect(stale, 'known exceptions that postgres and the rules now agree on').toEqual([]);
+	}, 300_000);
 });

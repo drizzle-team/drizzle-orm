@@ -1,5 +1,5 @@
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
-import { drySnapshot, type PostgresSnapshot } from 'src/dialects/postgres/snapshot';
+import { drySnapshot } from 'src/dialects/postgres/snapshot';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { expect, test } from 'vitest';
 
@@ -448,7 +448,7 @@ const REFERENCES_COLUMN = new Set([
 ]);
 
 async function conflicts(a: JsonStatement[], b: JsonStatement[]): Promise<boolean> {
-	return !!(await postgresCommutativity.getReasonsFromStatements(a, b, drySnapshot as PostgresSnapshot));
+	return !!(await postgresCommutativity.getReasonsFromStatements(a, b, drySnapshot));
 }
 
 const A = ns('A');

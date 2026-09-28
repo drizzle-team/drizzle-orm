@@ -2,31 +2,13 @@ import { integer, pgTable, varchar } from 'drizzle-orm/pg-core';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { checkHandler } from 'src/cli/commands/check';
-import { createDDL } from 'src/dialects/postgres/ddl';
-import { generateLatestSnapshot } from 'src/dialects/postgres/serializer';
-import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
-import type { JsonStatement } from 'src/dialects/postgres/statements';
+import type { PostgresStateSnapshot } from 'src/dialects/postgres/snapshot';
 import { expect, test } from 'vitest';
-import { drizzleToDDL, type PostgresSchema } from '../postgres/mocks';
+import { makePgSnapshot as makeSnapshot } from './check-fixtures';
 
 const ORIGIN = '00000000-0000-0000-0000-000000000000';
 
-function makeSnapshot(
-	id: string,
-	prevIds: string[],
-	schema: PostgresSchema,
-): PostgresSnapshot {
-	return {
-		version: '8',
-		dialect: 'postgres',
-		id,
-		prevIds,
-		ddl: drizzleToDDL(schema).ddl.entities.list(),
-		renames: [],
-	};
-}
-
-function snapshotPath(out: string, tag: string, snapshot: PostgresSnapshot) {
+function snapshotPath(out: string, tag: string, snapshot: PostgresStateSnapshot) {
 	const folder = join(out, tag);
 	mkdirSync(folder, { recursive: true });
 	const path = join(folder, 'snapshot.json');
@@ -34,7 +16,7 @@ function snapshotPath(out: string, tag: string, snapshot: PostgresSnapshot) {
 	return path;
 }
 
-test('returns aggregated leaf statements with common parent snapshot for commutative open branches', async () => {
+test('returns every open leaf for commutative open branches', async () => {
 	mkdirSync('tests/tmp', { recursive: true });
 	const out = mkdtempSync('tests/tmp/dk-check-handler-');
 
@@ -72,10 +54,7 @@ test('returns aggregated leaf statements with common parent snapshot for commuta
 
 	const result = await checkHandler(out, 'postgresql', false, false);
 
-	expect(result.parentSnapshot).not.toBeNull();
-	expect((result.parentSnapshot as PostgresSnapshot).id).toBe('p1');
-	expect(result.leafIds).toStrictEqual(['a1', 'b1']);
-	expect(result.statements.length).toBeGreaterThan(0);
+	expect(result).toStrictEqual({ statements: [], parentSnapshot: null, leafIds: ['a1', 'b1'] });
 });
 
 test('returns empty statements when branches are already merged into one leaf', async () => {
@@ -208,6 +187,7 @@ test('ignoreConflicts keeps all open leaf ids for conflicting branches', async (
 	expect(result.statements).toStrictEqual([]);
 	expect(result.parentSnapshot).toBeNull();
 	expect(result.leafIds).toStrictEqual(['a1', 'b1']);
+	expect(result.hasConflicts).toBe(true);
 	expect(result.nonCommutativityMessage).toBeUndefined();
 });
 
@@ -353,7 +333,7 @@ test('reports only active leaf conflict after branch merge and re-split', async 
 	);
 });
 
-test('nested open fork merges all heads at their LCA with de-duplicated statements', async () => {
+test('a nested open fork returns every open leaf', async () => {
 	mkdirSync('tests/tmp', { recursive: true });
 	const out = mkdtempSync('tests/tmp/dk-check-handler-');
 
@@ -362,9 +342,6 @@ test('nested open fork merges all heads at their LCA with de-duplicated statemen
 	// └── b
 	//     ├── bx (leaf)
 	//     └── by (leaf)
-	// All three heads merge in one step based at their lowest common ancestor p.
-	// bx and by both inherit `create table b`, so the per-head diffs overlap; the
-	// merge migration must replay `create table b` exactly once.
 	const t = (...names: string[]) =>
 		Object.fromEntries(
 			['t', ...names].map((name) => [name, pgTable(name, { id: integer('id') })]),
@@ -384,19 +361,10 @@ test('nested open fork merges all heads at their LCA with de-duplicated statemen
 
 	const result = await checkHandler(out, 'postgresql', false, false);
 
-	expect((result.parentSnapshot as PostgresSnapshot)?.id).toBe('p1');
 	expect(result.leafIds).toStrictEqual(['a1', 'bx1', 'by1']);
-
-	const createdTables = result.statements
-		.filter((statement) => (statement as any).type === 'create_table')
-		.map((statement) => (statement as any).table.name)
-		.sort();
-	// `t` already exists at the base p; `b` is inherited by both bx and by but
-	// appears only once after de-duplication.
-	expect(createdTables).toStrictEqual(['a', 'b', 'x', 'y']);
 });
 
-test('open merge composes alters and fk across a deep branch and a shallow branch', async () => {
+test('an open fork with a deep branch returns only the open leaves', async () => {
 	mkdirSync('tests/tmp', { recursive: true });
 	const out = mkdtempSync('tests/tmp/dk-check-handler-');
 
@@ -405,9 +373,7 @@ test('open merge composes alters and fk across a deep branch and a shallow branc
 	// └── leaf2 (create t2)
 	//     └── leaf3              add fk t2.t1_id -> t1.id
 	//         └── leaf4          alter t1.b -> not null
-	// Open heads are leaf1 and leaf4 (leaf2/leaf3 are internal). Their lowest
-	// common ancestor is the parent, so the merge composes one alter from the
-	// shallow head and (create t2 + fk + the other alter) from the deep head.
+	// The open leaves are leaf1 and leaf4. leaf2 and leaf3 have children, so they are not leaves.
 	const parentSchema = {
 		t1: pgTable('t1', {
 			id: integer('id').primaryKey(),
@@ -476,24 +442,5 @@ test('open merge composes alters and fk across a deep branch and a shallow branc
 
 	const result = await checkHandler(out, 'postgresql', false, false);
 
-	// Base is the LCA, and the merge parents are the open heads only — never the
-	// internal leaf2/leaf3.
-	expect((result.parentSnapshot as PostgresSnapshot)?.id).toBe('p1');
 	expect(result.leafIds).toStrictEqual(['l1', 'l4']);
-
-	// Reconstruct the merged snapshot exactly as the serializer does downstream,
-	// then assert it is the union of both heads.
-	const merged = generateLatestSnapshot(
-		result.parentSnapshot as PostgresSnapshot,
-		result.statements as JsonStatement[],
-	);
-	const ddl = createDDL();
-	ddl.entities.pushAll(merged.ddl);
-
-	// both alters landed, each coming from a different head
-	expect(ddl.columns.one({ schema: 'public', table: 't1', name: 'a' })?.notNull).toBe(true);
-	expect(ddl.columns.one({ schema: 'public', table: 't1', name: 'b' })?.notNull).toBe(true);
-	// the deep branch's table and its fk landed
-	expect(ddl.tables.one({ schema: 'public', name: 't2' })).not.toBeNull();
-	expect(ddl.fks.list({ schema: 'public', table: 't2' }).length).toBe(1);
 });

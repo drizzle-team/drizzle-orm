@@ -30,6 +30,8 @@ import {
 	PgView as PgViewOld,
 } from 'orm044/pg-core';
 import { configMigrations } from 'src/cli/validations/common';
+import { normalizeDDL } from 'src/dialects/ddl-canonical';
+import { apply, type Delta } from 'src/dialects/dialect';
 import {
 	createDDL,
 	fromEntities,
@@ -65,13 +67,13 @@ import { hash } from 'src/dialects/common';
 import { defaultToSQL, isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
-import { DB } from 'src/utils';
+import { DB, originUUID } from 'src/utils';
 import 'zx/globals';
 import { relationsToTypeScript } from 'src/cli/commands/pull-common';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
 import { extractPostgresExisting } from 'src/dialects/drizzle';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
-import { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
+import { PostgresStateSnapshot } from 'src/dialects/postgres/snapshot';
 import { upToV8 } from 'src/dialects/postgres/versions';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/pgDiff';
@@ -155,6 +157,25 @@ export const drizzleToDDL = (
 	return { ...interimToDDL(res), existing };
 };
 
+const copyDDL = (ddl: PostgresDDL) => fromEntities(structuredClone(ddl.entities.list()));
+
+// ddlDiff mutates both states, so `parent` must be a copy taken before the call
+const expectDeltasRebuildState = (parent: PostgresDDL, deltas: Delta[], next: PostgresDDL) => {
+	const rebuilt = normalizeDDL(apply(parent, deltas).entities.list());
+	const expected = normalizeDDL(next.entities.list());
+	const rebuiltSet = new Set(rebuilt);
+	const expectedSet = new Set(expected);
+	const missing = expected.find((it) => !rebuiltSet.has(it));
+	const unexpected = rebuilt.find((it) => !expectedSet.has(it));
+	if (missing || unexpected) {
+		throw new Error(
+			`The deltas from ddlDiff do not rebuild the new state.\n`
+				+ `First entity missing from the rebuilt state: ${missing ?? 'none'}\n`
+				+ `First entity that the new state does not have: ${unexpected ?? 'none'}`,
+		);
+	}
+};
+
 // 2 schemas -> 2 ddls -> diff
 export const diff = async (
 	left: PostgresSchema | PostgresDDL,
@@ -174,7 +195,8 @@ export const diff = async (
 
 	const renames = new Set(renamesArr);
 
-	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
+	const parent = copyDDL(ddl1);
+	const { sqlStatements, statements, groupedStatements, deltas } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),
@@ -192,7 +214,8 @@ export const diff = async (
 		mockResolver(renames),
 		'default',
 	);
-	return { sqlStatements, statements, groupedStatements, next: ddl2 };
+	expectDeltasRebuildState(parent, deltas, ddl2);
+	return { sqlStatements, statements, groupedStatements, deltas, next: ddl2 };
 };
 
 // init schema flush to db -> introspect db to ddl -> compare ddl with destination schema
@@ -256,7 +279,8 @@ export const push = async (config: {
 	}
 
 	const renames = new Set(config.renames ?? []);
-	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
+	const parent = copyDDL(ddl1);
+	const { sqlStatements, statements, groupedStatements, deltas } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),
@@ -274,6 +298,7 @@ export const push = async (config: {
 		mockResolver(renames),
 		'push',
 	);
+	expectDeltasRebuildState(parent, deltas, ddl2);
 
 	const hints = await runWithCliContext(
 		{ output: 'text', interactive: true },
@@ -303,7 +328,8 @@ export const push = async (config: {
 			);
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 
-			const { sqlStatements, statements } = await ddlDiff(
+			const parent = copyDDL(ddl1);
+			const { sqlStatements, statements, deltas } = await ddlDiff(
 				ddl1,
 				ddl2,
 				mockResolver(renames),
@@ -321,6 +347,7 @@ export const push = async (config: {
 				mockResolver(renames),
 				'push',
 			);
+			expectDeltasRebuildState(parent, deltas, ddl2);
 			if (sqlStatements.length > 0) {
 				console.error('---- subsequent push is not empty ----');
 				expect(sqlStatements.join('\n')).toBe('');
@@ -883,13 +910,13 @@ export async function conflictsFromSchema(
 	const { ddl: parentDDL } = drizzleToDDL(parent.schema);
 
 	const parentSnapshot = {
-		version: '8',
+		type: 'base',
+		version: '9',
 		dialect: 'postgres',
 		id: parent.id,
-		prevIds: parent.prevId ? [parent.prevId] : [],
+		prevIds: [originUUID],
 		ddl: parentDDL.entities.list(),
-		renames: [],
-	} satisfies PostgresSnapshot;
+	} satisfies PostgresStateSnapshot;
 
 	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
 	const { statements: st2 } = await diff(parent.schema, child2.schema, []);

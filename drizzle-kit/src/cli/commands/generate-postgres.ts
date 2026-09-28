@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+import { copyDDL, type Delta, delta } from '../../dialects/dialect';
 import type {
 	CheckConstraint,
 	Column,
@@ -5,6 +7,7 @@ import type {
 	ForeignKey,
 	Index,
 	Policy,
+	PostgresDDL,
 	PostgresEntities,
 	PrimaryKey,
 	Role,
@@ -17,7 +20,10 @@ import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { SchemaSource } from '../../dialects/postgres/drizzle';
+import { renameResolvers } from '../../dialects/postgres/renames';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
+import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
+import { originUUID } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import { outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
@@ -34,30 +40,40 @@ export const handle = async (
 	const { out: outFolder } = config;
 	const json = outputFormat() === 'json';
 
-	const { snapshots } = prepareOutFolder(outFolder);
+	const { snapshots, index } = prepareOutFolder(outFolder);
 	const prepared = await config.schemaSource.load();
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
+	const { ddlCur, ddlPrev, ddlSqlFrom, prevIds } = await prepareSnapshot(
 		snapshots,
 		prepared,
 		checkResult,
 	);
+	const parentFolders = index.filter((it) => prevIds.includes(it.id)).map((it) => it.folder);
+
+	// `state` is what the snapshot must rebuild to, and `deltas` turn `ddlPrev` into it.
+	const snapshotOf = (state: PostgresDDL, deltas: Delta[]): PostgresSnapshot => {
+		const header = { version: '9', dialect: 'postgres', id: randomUUID() } as const;
+		if (prevIds.length === 0) return { type: 'base', ...header, prevIds: [originUUID], ddl: state.entities.list() };
+		return { type: 'diff', ...header, prevIds, deltas };
+	};
 
 	if (config.custom) {
 		return writeResult({
-			snapshot: custom,
+			snapshot: snapshotOf(ddlPrev, []),
 			sqlStatements: [],
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect: 'postgresql',
 			type: 'custom',
-			renames: [],
 			snapshots,
+			parentFolders,
 		});
 	}
 
-	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
-		ddlPrev,
+	// ddlDiff changes both states. ddlSqlFrom must stay unchanged for the rename decisions below. ddlCur
+	// keeps the changes: auto-named constraints get the names that the SQL leaves in the database.
+	const { sqlStatements, groupedStatements, statements, deltas } = await ddlDiff(
+		copyDDL(ddlSqlFrom),
 		ddlCur,
 		resolver<Schema>('schema', config.hints),
 		resolver<Enum>('enum', config.hints),
@@ -80,15 +96,44 @@ export const handle = async (
 	}
 
 	if (!config.explain) {
+		let ownDeltas = deltas;
+		if (ddlSqlFrom !== ddlPrev) {
+			// With ignored conflicts the SQL starts from the newest leaf, and the deltas start from the
+			// combined state, with the rename decisions of the diff above.
+			const decisions = renameResolvers(ddlSqlFrom, deltas, true);
+			const target = copyDDL(ddlCur);
+			({ deltas: ownDeltas } = await ddlDiff(
+				copyDDL(ddlPrev),
+				target,
+				decisions('schemas'),
+				decisions('enums'),
+				decisions('sequences'),
+				decisions('policies'),
+				decisions('roles'),
+				decisions('tables'),
+				decisions('columns'),
+				decisions('views'),
+				decisions('uniques'),
+				decisions('indexes'),
+				decisions('checks'),
+				decisions('pks'),
+				decisions('fks'),
+				'default',
+			));
+			// That diff gave auto-named constraints in `target` their names from the combined state. The
+			// database of the newest leaf has the names in ddlCur, so drops and creates restore them. A
+			// rename delta would read as a user decision.
+			ownDeltas.push(...delta(target, ddlCur));
+		}
 		return writeResult({
-			snapshot: snapshot,
+			snapshot: snapshotOf(ddlCur, ownDeltas),
 			sqlStatements,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect: 'postgresql',
-			renames,
 			snapshots,
+			parentFolders,
 		});
 	}
 

@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { getCommutativityDialect } from '../../commutativity';
 import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from '../../commutativity/types';
 import type { Dialect } from '../../utils/schemaValidator';
-import { prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
+import { assertSnapshotStatus, prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
 import { CheckCliError } from '../errors';
 import { humanLog } from '../views';
 
@@ -12,6 +12,8 @@ export type CheckHandlerResult = {
 	parentSnapshot: unknown | null;
 	parentId?: string;
 	leafIds?: string[];
+	// True when the branches conflict and the caller ignores the conflicts.
+	hasConflicts?: boolean;
 	nonCommutativityMessage?: string;
 };
 
@@ -145,38 +147,11 @@ export const checkHandler = async (
 
 	// const parsedInputs: ParsedSnapshotInput[] = [];
 	for (const snapshot of snapshots) {
-		let raw: object;
+		let raw: unknown = null;
 		try {
-			const parsed: unknown = JSON.parse(readFileSync(snapshot).toString());
-			if (typeof parsed !== 'object' || parsed === null) {
-				throw new CheckCliError('malformed', `${snapshot} data is malformed`, { snapshot });
-			}
-			raw = parsed;
-		} catch (e) {
-			if (e instanceof CheckCliError) throw e;
-			throw new CheckCliError('malformed', `${snapshot} data is malformed`, { snapshot });
-		}
-
-		const res = validator(raw);
-		switch (res.status) {
-			case 'valid':
-				// parsedInputs.push({ path: snapshot, snapshot: raw });
-				break;
-			case 'unsupported':
-				throw new CheckCliError(
-					'unsupported',
-					`${snapshot} snapshot is of unsupported version, please update drizzle-kit`,
-					{ snapshot },
-				);
-			case 'malformed':
-				throw new CheckCliError('malformed', `${snapshot} data is malformed`, { snapshot });
-			case 'nonLatest':
-				throw new CheckCliError(
-					'non_latest',
-					`${snapshot} is not of the latest version, please run "drizzle-kit up"`,
-					{ snapshot },
-				);
-		}
+			raw = JSON.parse(readFileSync(snapshot).toString());
+		} catch {}
+		assertSnapshotStatus(snapshot, typeof raw === 'object' && raw !== null ? validator(raw).status : 'malformed');
 	}
 
 	const commutativity = getCommutativityDialect(dialect);
@@ -221,11 +196,13 @@ export const checkHandler = async (
 		};
 	}
 
-	if (ignoreConflicts && response.leafNodes.length > 1) {
+	// No commutative branch covers all open leaves, so generate merges the leaves by id.
+	if (response.leafNodes.length > 1) {
 		return {
 			statements: [],
 			parentSnapshot: null,
 			leafIds: [...response.leafNodes].sort((left, right) => left.localeCompare(right)),
+			...(response.conflicts.length > 0 && { hasConflicts: true }),
 		};
 	}
 

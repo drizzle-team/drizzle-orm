@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<title>Commutativity Matrix — Postgres DDL</title>
+<style>
+	:root {
+		--bg: #f4f6f8; --panel: #ffffff; --line: #dfe3e8; --grid: #e9edf1;
+		--ink: #1a2027; --muted: #5b6672; --faint: #97a1ac;
+		--accent: #0f9b8e; --accent-ink: #0b6f66; --accent-soft: rgba(15,155,142,.16);
+		--block: #e05c4b; --block-rgb: 224,92,75; --self: rgba(91,102,114,.20); --hatch: rgba(92,102,116,.55);
+		--band: rgba(20,30,45,.028);
+		--sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+		--mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+		--cell: 15px; --rowlabel: 168px; --colhead: 156px;
+	}
+	@media (prefers-color-scheme: dark) {
+		:root {
+			--bg: #0e1217; --panel: #141a21; --line: #232c36; --grid: #1b232c;
+			--ink: #e6edf3; --muted: #9aa7b4; --faint: #66717d;
+			--accent: #3ad0c0; --accent-ink: #8be7dc; --accent-soft: rgba(58,208,192,.18);
+			--block: #f0785f; --block-rgb: 240,120,95; --self: rgba(154,167,180,.18); --hatch: rgba(150,162,176,.48); --band: rgba(255,255,255,.04);
+		}
+	}
+	:root[data-theme="light"] {
+		--bg: #f4f6f8; --panel: #ffffff; --line: #dfe3e8; --grid: #e9edf1;
+		--ink: #1a2027; --muted: #5b6672; --faint: #97a1ac;
+		--accent: #0f9b8e; --accent-ink: #0b6f66; --accent-soft: rgba(15,155,142,.16);
+		--block: #e05c4b; --block-rgb: 224,92,75; --self: rgba(91,102,114,.20); --hatch: rgba(92,102,116,.55); --band: rgba(20,30,45,.028);
+	}
+	:root[data-theme="dark"] {
+		--bg: #0e1217; --panel: #141a21; --line: #232c36; --grid: #1b232c;
+		--ink: #e6edf3; --muted: #9aa7b4; --faint: #66717d;
+		--accent: #3ad0c0; --accent-ink: #8be7dc; --accent-soft: rgba(58,208,192,.18);
+		--block: #f0785f; --block-rgb: 240,120,95; --self: rgba(154,167,180,.18); --hatch: rgba(150,162,176,.48); --band: rgba(255,255,255,.04);
+	}
+
+	* { box-sizing: border-box; }
+	html, body { margin: 0; }
+	body { background: var(--bg); color: var(--ink); font-family: var(--sans); }
+	.app { min-height: 100vh; padding: 20px clamp(12px, 3vw, 28px) 60px; width: max-content; min-width: 100%; }
+
+	/* no overflow -> grid is not a scroll container, so sticky headers stick to the
+	   page viewport as you scroll the whole page */
+	.grid { position: relative; display: grid; grid-template-columns: var(--rowlabel) repeat(var(--n), var(--cell)); width: max-content; font-family: var(--mono);
+		border: 1px solid var(--line); }
+
+	.corner { position: sticky; top: 0; left: 0; z-index: 6; background: var(--panel); height: var(--colhead); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); display: flex; align-items: flex-end; padding: 8px; color: var(--faint); font-size: 10.5px; }
+	.ch { position: sticky; top: 0; z-index: 4; background: var(--panel); height: var(--colhead); border-bottom: 1px solid var(--line); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; cursor: pointer; }
+	.ch span { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; color: var(--muted); white-space: nowrap; }
+	.rh { position: sticky; left: 0; z-index: 3; background: var(--panel); height: var(--cell); border-right: 1px solid var(--line); display: flex; align-items: center; gap: 7px; padding: 0 8px 0 10px; cursor: pointer; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; }
+	.rh .fam { width: 7px; height: 7px; border-radius: 2px; flex: none; }
+	.rh.band, .ch.band { background-image: linear-gradient(var(--band), var(--band)); }
+	.rh.on, .ch.on { background: var(--accent-soft); color: var(--ink); }
+	.rh.on .lbl, .ch.on span { color: var(--accent-ink); }
+
+	.cell { width: var(--cell); height: var(--cell); border-right: 1px solid var(--grid); border-bottom: 1px solid var(--grid); }
+	/* non-commute conflicts: plain orange (darker where more resources are shared) */
+	.cell.l1 { background-color: rgba(var(--block-rgb), .42); }
+	.cell.l2 { background-color: rgba(var(--block-rgb), .58); }
+	.cell.l3 { background-color: rgba(var(--block-rgb), .76); }
+	.cell.l4 { background-color: rgba(var(--block-rgb), .94); }
+	/* impossible (one creates what the other assumes exists): gray diagonal hatch */
+	.cell.imp { background-image: repeating-linear-gradient(45deg, transparent 0, transparent 2.5px, var(--hatch) 2.5px, var(--hatch) 3.5px); }
+	.cell.self { background: var(--self); }
+
+	.xbar { position: absolute; top: 0; left: 0; pointer-events: none; background: var(--accent-soft); z-index: 2; opacity: 0; will-change: transform; }
+	.xbar.on { opacity: 1; }
+	.xrow { height: var(--cell); }
+	.xcol { width: var(--cell); }
+	.xhit { position: absolute; top: 0; left: 0; width: var(--cell); height: var(--cell); pointer-events: none; z-index: 5; opacity: 0; outline: 2px solid var(--accent); outline-offset: -1px; will-change: transform; }
+	.xhit.on { opacity: 1; }
+
+	.tip { position: fixed; top: 0; left: 0; z-index: 9999; pointer-events: none; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; max-width: 340px; font-size: 12px; box-shadow: 0 14px 38px rgba(0,0,0,.26); opacity: 0; visibility: hidden; transition: opacity .08s; }
+	.tip.show { opacity: 1; visibility: visible; }
+	.tip .pair { font-family: var(--mono); font-size: 12.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+	.tip .verdict { font-family: var(--sans); font-size: 10px; text-transform: uppercase; letter-spacing: .07em; padding: 1px 7px; border-radius: 20px; }
+	.tip .verdict.b { background: var(--block); color: #fff; }
+	.tip .verdict.c { background: var(--accent-soft); color: var(--accent-ink); }
+	.tip .verdict.i { background: var(--self); color: var(--muted); }
+	.tip .why { color: var(--muted); line-height: 1.5; font-size: 12px; }
+	.tip .why + .why { margin-top: 5px; }
+	.tip .why code { color: var(--ink); }
+	.tip .why b { color: var(--ink); font-weight: 600; }
+	@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+	<div class="grid" id="grid"></div>
+</div>
+
+<div class="tip" id="tip"></div>
+
+<script>
+	const DATA = __MATRIX_DATA__;
+	const { types, family, matrix, impossible, reasons } = DATA;
+	const N = types.length;
+	const root = document.documentElement;
+	root.style.setProperty('--n', N);
+
+	const cs = getComputedStyle(root);
+	const CELL = parseFloat(cs.getPropertyValue('--cell'));
+	const RL = parseFloat(cs.getPropertyValue('--rowlabel'));
+	const CH = parseFloat(cs.getPropertyValue('--colhead'));
+
+	const HUES = { table:205, column:150, index:265, pk:330, fk:20, unique:45, check:95, constraint:300, enum:180, sequence:240, view:120, schema:0, policy:285, rls:60, role:170, privilege:15 };
+	const famColor = (f) => `hsl(${HUES[f] ?? 220} 46% 52%)`;
+
+	const reasonOf = (i, j) => reasons[i + ',' + j] || [];
+	const maxReasons = Math.max(1, ...Object.values(reasons).map((r) => r.length));
+
+	const grid = document.getElementById('grid');
+	const tip = document.getElementById('tip');
+	document.body.appendChild(tip); // ensure it's a direct body child so position:fixed is viewport-relative
+
+	const html = [];
+	html.push('<div class="corner"><span>row&nbsp;blocks&nbsp;col&nbsp;→</span></div>');
+	types.forEach((t, j) => html.push(`<div class="ch${band(j) ? ' band' : ''}" data-j="${j}"><span>${t}</span></div>`));
+	types.forEach((t, i) => {
+		html.push(`<div class="rh${band(i) ? ' band' : ''}" data-i="${i}"><span class="fam" style="background:${famColor(family[t])}"></span><span class="lbl">${t}</span></div>`);
+		for (let j = 0; j < N; j++) {
+			let cls = 'cell';
+			if (i === j) cls += ' self';
+			else if (impossible[i][j]) cls += ' imp';
+			else if (matrix[i][j]) cls += ' l' + Math.min(4, Math.max(1, Math.ceil(4 * reasonOf(i, j).length / maxReasons)));
+			html.push(`<div class="${cls}" data-i="${i}" data-j="${j}"></div>`);
+		}
+	});
+	grid.insertAdjacentHTML('beforeend', html.join(''));
+
+	const xrow = ov('xbar xrow'); xrow.style.width = (N * CELL) + 'px';
+	const xcol = ov('xbar xcol'); xcol.style.height = (N * CELL) + 'px';
+	const xhit = ov('xhit');
+	function ov(c) { const d = document.createElement('div'); d.className = c; grid.appendChild(d); return d; }
+
+	function band(k) { let f = null, b = false; for (let x = 0; x <= k; x++) { const cf = family[types[x]]; if (cf !== f) { b = !b; f = cf; } } return b; }
+
+	const rhEls = [...grid.querySelectorAll('.rh')];
+	const chEls = [...grid.querySelectorAll('.ch')];
+
+	let onR = -1, onC = -1;
+	function setHeaders(i, j) {
+		if (onR !== i) { if (onR >= 0) rhEls[onR].classList.remove('on'); if (i >= 0) rhEls[i].classList.add('on'); onR = i; }
+		if (onC !== j) { if (onC >= 0) chEls[onC].classList.remove('on'); if (j >= 0) chEls[j].classList.add('on'); onC = j; }
+	}
+	function place(i, j, hit) {
+		if (i >= 0) { xrow.style.transform = `translate(${RL}px, ${CH + i * CELL}px)`; xrow.classList.add('on'); } else xrow.classList.remove('on');
+		if (j >= 0) { xcol.style.transform = `translate(${RL + j * CELL}px, ${CH}px)`; xcol.classList.add('on'); } else xcol.classList.remove('on');
+		if (hit && i >= 0 && j >= 0) { xhit.style.transform = `translate(${RL + j * CELL}px, ${CH + i * CELL}px)`; xhit.classList.add('on'); } else xhit.classList.remove('on');
+		setHeaders(i, j);
+	}
+
+	let curI = -2, curJ = -2, tipW = 0, tipH = 0, locked = -1;
+	grid.addEventListener('mousemove', (e) => {
+		const el = e.target.closest('.cell, .rh, .ch');
+		if (!el) { if (curI !== -2) { curI = curJ = -2; hideTip(); restore(); } return; }
+		const i = el.dataset.i !== undefined ? +el.dataset.i : -1;
+		const j = el.dataset.j !== undefined ? +el.dataset.j : -1;
+		const isCell = el.classList.contains('cell');
+		if (i !== curI || j !== curJ) {
+			curI = i; curJ = j;
+			place(i, j, isCell);
+			if (isCell) showTip(i, j); else hideTip();
+		}
+		if (isCell) moveTip(e);
+	});
+	grid.addEventListener('mouseleave', () => {
+		curI = curJ = -2;
+		hideTip();
+		restore();
+	});
+	function restore() { if (locked >= 0) place(locked, locked, false); else place(-1, -1, false); }
+	grid.addEventListener('click', (e) => {
+		const el = e.target.closest('.cell, .rh, .ch');
+		if (!el) return;
+		const idx = el.dataset.i !== undefined ? +el.dataset.i : +el.dataset.j;
+		locked = (locked === idx) ? -1 : idx;
+		if (locked >= 0) place(locked, locked, false); else place(-1, -1, false);
+	});
+
+	function showTip(i, j) {
+		const A = types[i], B = types[j];
+		if (i === j) {
+			tip.innerHTML = `<div class="pair"><code>${A}</code><span class="verdict b">self</span></div>`
+				+ `<div class="why">A branch can't apply <b>${A}</b> twice — the same change on both sides is a conflict, not a merge.</div>`;
+		} else if (impossible[i][j]) {
+			tip.innerHTML = `<div class="pair"><code>${A}</code> <span style="color:var(--faint)">×</span> <code>${B}</code><span class="verdict i">impossible</span></div>`
+				+ reasonOf(i, j).map((sentence) => `<div class="why">${sentence}</div>`).join('');
+		} else if (matrix[i][j]) {
+			tip.innerHTML = `<div class="pair"><code>${A}</code> <span style="color:var(--faint)">×</span> <code>${B}</code><span class="verdict b">non-commute</span></div>`
+				+ reasonOf(i, j).map((sentence) => `<div class="why">${sentence}.</div>`).join('');
+		} else {
+			tip.innerHTML = `<div class="pair"><code>${A}</code> <span style="color:var(--faint)">×</span> <code>${B}</code><span class="verdict c">commutes</span></div>`
+				+ `<div class="why"><b>${A}</b> and <b>${B}</b> touch no shared resource — safe to merge in either order.</div>`;
+		}
+		tip.classList.add('show');
+		tipW = tip.offsetWidth; tipH = tip.offsetHeight;
+	}
+	function hideTip() { tip.classList.remove('show'); }
+	function moveTip(e) {
+		const pad = 16;
+		let x = e.clientX + pad, y = e.clientY + pad;
+		if (x + tipW > innerWidth - 8) x = e.clientX - tipW - pad;
+		if (y + tipH > innerHeight - 8) y = e.clientY - tipH - pad;
+		tip.style.left = Math.max(8, x) + 'px';
+		tip.style.top = Math.max(8, y) + 'px';
+	}
+</script>
+</body>
+</html>

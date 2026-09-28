@@ -2,9 +2,9 @@ import { index, integer, pgTable, varchar } from 'drizzle-orm/pg-core';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
-import { drySnapshot, type PostgresSnapshot } from 'src/dialects/postgres/snapshot';
+import { drySnapshot, type PostgresStateSnapshot } from 'src/dialects/postgres/snapshot';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
-import type { DB } from 'src/utils';
+import { type DB, originUUID } from 'src/utils';
 import { beforeAll, describe, expect, test } from 'vitest';
 import { diff, prepareTestDatabase } from './mocks';
 
@@ -97,14 +97,14 @@ beforeAll(async () => {
 	clear = prepared.clear;
 
 	const setup = (await diff({}, fork, [])).sqlStatements;
-	const forkSnapshot = {
-		version: '8',
+	const forkSnapshot: PostgresStateSnapshot = {
+		type: 'base',
+		version: '9',
 		dialect: 'postgres',
 		id: 'p',
-		prevIds: [],
+		prevIds: [originUUID],
 		ddl: [],
-		renames: [],
-	} as unknown as PostgresSnapshot;
+	};
 
 	// Branch A, two ways of expressing the same intent.
 	const asRename = await diff(fork, renamed, [RENAME]); // rename answered  -> rename_column

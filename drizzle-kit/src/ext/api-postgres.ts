@@ -11,6 +11,7 @@ import type {
 	Index,
 	Policy,
 	PostgresEntities,
+	PostgresEntity,
 	PrimaryKey,
 	Role,
 	Schema,
@@ -18,20 +19,35 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../dialects/postgres/ddl';
-import { createDDL, interimToDDL } from '../dialects/postgres/ddl';
-import type { PostgresSnapshot } from '../dialects/postgres/snapshot';
+import { fromEntities, interimToDDL } from '../dialects/postgres/ddl';
+import type { PostgresSnapshot, PostgresSnapshotV8, PostgresStateSnapshot } from '../dialects/postgres/snapshot';
 import { upToV8 } from '../dialects/postgres/versions';
 import { originUUID } from '../utils';
 import type { DB } from '../utils';
+import type { SnapshotNode } from '../utils/utils-node';
+
+// Only the first snapshot of a history is a base. A full state that has parents is a checkpoint.
+const stateSnapshot = (id: string, prevIds: string[], ddl: PostgresEntity[]): PostgresStateSnapshot => {
+	const parents = prevIds.filter((it) => it && it !== originUUID);
+	const isBase = parents.length === 0;
+	return {
+		type: isBase ? 'base' : 'checkpoint',
+		version: '9',
+		dialect: 'postgres',
+		id,
+		prevIds: isBase ? [originUUID] : parents,
+		ddl,
+	};
+};
 
 export const generateDrizzleJson = async (
 	imports: Record<string, unknown>,
-	prevId?: string,
+	prevId?: string | string[],
 	schemaFilters?: string[],
-): Promise<PostgresSnapshot> => {
+): Promise<PostgresStateSnapshot> => {
+	const { randomUUID } = await import('crypto');
 	const { prepareEntityFilter } = await import('src/dialects/pull-utils');
 	const { humanLog, postgresSchemaError, postgresSchemaWarning } = await import('../cli/views');
-	const { toJsonSnapshot } = await import('../dialects/postgres/snapshot');
 	const { fromDrizzleSchema, fromExports } = await import('../dialects/postgres/drizzle');
 	const { extractPostgresExisting } = await import('../dialects/drizzle');
 	const prepared = fromExports(imports);
@@ -63,28 +79,20 @@ export const generateDrizzleJson = async (
 		process.exit(1);
 	}
 
-	return toJsonSnapshot(ddl, prevId ? [prevId] : [originUUID], []);
+	return stateSnapshot(randomUUID(), typeof prevId === 'string' ? [prevId] : prevId ?? [], ddl.entities.list());
 };
 
+// Takes a format 9 base or checkpoint, or a snapshot of an older format.
 export const generateMigration = async (
-	prev: PostgresSnapshot,
-	cur: PostgresSnapshot,
+	prev: PostgresStateSnapshot | Record<string, any>,
+	cur: PostgresStateSnapshot | Record<string, any>,
 ) => {
 	const { resolver } = await import('../cli/prompts');
 	const { ddlDiff } = await import('../dialects/postgres/diff');
-	const from = createDDL();
-	const to = createDDL();
-
-	for (const it of prev.ddl) {
-		from.entities.push(it);
-	}
-	for (const it of cur.ddl) {
-		to.entities.push(it);
-	}
 
 	const { sqlStatements } = await ddlDiff(
-		from,
-		to,
+		fromEntities(up(prev).snapshot.ddl),
+		fromEntities(up(cur).snapshot.ddl),
 		resolver<Schema>('schema'),
 		resolver<Enum>('enum'),
 		resolver<Sequence>('sequence'),
@@ -243,4 +251,60 @@ export const startStudioServer = async (
 	});
 };
 
-export const up = upToV8;
+// Converts one snapshot to a format 9 state snapshot. `drizzle-kit up` converts a whole migrations folder.
+export const up = (it: Record<string, any>): { snapshot: PostgresStateSnapshot; hints: string[] } => {
+	if (it.type === 'diff') {
+		throw new Error(
+			`Snapshot ${it.id} is a diff snapshot, so it holds only the changes of one migration. `
+				+ `Pass a base or checkpoint snapshot, or rebuild the state of ${it.id} with reconstruct first.`,
+		);
+	}
+	if (Number(it.version) === 9) return { snapshot: it as PostgresStateSnapshot, hints: [] };
+	const { snapshot, hints } = Number(it.version) === 8 ? { snapshot: it as PostgresSnapshotV8, hints: [] } : upToV8(it);
+	return { snapshot: stateSnapshot(snapshot.id, snapshot.prevIds, snapshot.ddl), hints };
+};
+
+// `files` maps each migration folder name to the parsed JSON of its snapshot.json.
+// Returns the state of snapshot `id`, or of the only leaf when `id` is not given.
+export const reconstruct = async (files: Record<string, unknown>, id?: string): Promise<PostgresStateSnapshot> => {
+	const { reconstruct: rebuild } = await import('../dialects/postgres/snapshot');
+	const { assertPostgresHistory, assertSnapshotStatus, validatorForDialect } = await import('../utils/utils-node');
+
+	// A merge replays the other branches in folder-name order.
+	const folders = Object.keys(files).sort();
+	const validate = validatorForDialect('postgresql');
+	for (const folder of folders) {
+		const raw = files[folder];
+		assertSnapshotStatus(folder, typeof raw === 'object' && raw !== null ? validate(raw).status : 'malformed');
+	}
+
+	const snapshots = folders.map((folder) => files[folder] as PostgresSnapshot);
+	const nodes: SnapshotNode[] = snapshots.map((it, idx) => ({
+		path: folders[idx],
+		folder: folders[idx],
+		id: it.id,
+		prevIds: it.prevIds,
+		dialect: it.dialect,
+		type: it.type,
+	}));
+	assertPostgresHistory(folders, nodes);
+
+	if (id === undefined) {
+		const parents = new Set(nodes.flatMap((it) => it.prevIds));
+		const leaves = nodes.filter((it) => !parents.has(it.id));
+		if (leaves.length === 0) {
+			throw new Error('The migrations folder has no snapshots. Pass the snapshot files of at least one migration.');
+		}
+		if (leaves.length > 1) {
+			throw new Error(
+				`The migrations folder has ${leaves.length} leaf snapshots: ${leaves.map((it) => it.folder).join(', ')}. `
+					+ 'Pass the id of the snapshot to rebuild, or run generate to merge the leaves.',
+			);
+		}
+		id = leaves[0].id;
+	}
+
+	const history = new Map(snapshots.map((it) => [it.id, it]));
+	const state = rebuild(history, id);
+	return stateSnapshot(id, history.get(id)!.prevIds, state.entities.list());
+};

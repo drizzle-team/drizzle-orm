@@ -2,9 +2,10 @@ import { randomUUID } from 'crypto';
 import type { TypeOf } from 'zod';
 import { any, array as zodArray, boolean, enum as enumType, literal, number, object, record, string } from 'zod';
 import { originUUID } from '../../utils';
+import { applyInPlace, type Delta, findRow, splitDeltaKey } from '../dialect';
 import { array, validator } from '../simpleValidator';
 import type { PostgresDDL, PostgresEntity } from './ddl';
-import { createDDL } from './ddl';
+import { createDDL, fromEntities } from './ddl';
 
 const indexV2 = object({
 	name: string(),
@@ -529,16 +530,35 @@ export type Index = TypeOf<typeof index>;
 export type TableV5 = TypeOf<typeof tableV5>;
 export type Column = TypeOf<typeof column>;
 
-export const toJsonSnapshot = (ddl: PostgresDDL, prevIds: string[], renames: string[]): PostgresSnapshot => {
-	return { dialect: 'postgres', id: randomUUID(), prevIds, version: '8', ddl: ddl.entities.list(), renames };
+export type PostgresSnapshotV8 = {
+	version: '8';
+	dialect: 'postgres';
+	id: string;
+	prevIds: string[];
+	ddl: PostgresEntity[];
+	renames: string[];
 };
 
 const ddl = createDDL();
-export const snapshotValidator = validator({
-	version: ['8'],
+const definitions = ddl._.defs;
+
+const isDelta = (it: any): boolean => {
+	if (it?.op === 'create') return Object.hasOwn(definitions, it.row?.entityType) && ddl.entities.validate(it.row);
+	if (!['drop', 'alter', 'rename', 'relocate'].includes(it?.op)) return false;
+	if (typeof it.key !== 'string' || !it.key.includes('\0')) return false;
+	const [type] = splitDeltaKey(it.key);
+	if (!Object.hasOwn(definitions, type)) return false;
+	if (it.op === 'drop') return true;
+	return typeof it.set === 'object' && it.set !== null
+		&& Object.keys(it.set).every((field) => Object.hasOwn(definitions[type], field));
+};
+
+const stateValidator = validator({
+	type: ['base', 'checkpoint'],
+	version: ['9'],
 	dialect: ['postgres'],
 	id: 'string',
-	prevIds: array<string>((_) => true),
+	prevIds: array<string>((it) => typeof it === 'string'),
 	ddl: array<PostgresEntity>((it) => {
 		const res = ddl.entities.validate(it);
 		if (!res) {
@@ -546,18 +566,139 @@ export const snapshotValidator = validator({
 		}
 		return res;
 	}),
-	renames: array<string>((_) => true),
 });
 
-export type PostgresSnapshot = typeof snapshotValidator.shape;
+const diffValidator = validator({
+	type: ['diff'],
+	version: ['9'],
+	dialect: ['postgres'],
+	id: 'string',
+	prevIds: array<string>((it) => typeof it === 'string'),
+	deltas: array<Delta>(isDelta),
+});
 
-export const drySnapshot = snapshotValidator.strict(
-	{
-		version: '8',
-		dialect: 'postgres',
-		id: originUUID,
-		prevIds: [],
-		ddl: [],
-		renames: [],
-	} satisfies PostgresSnapshot,
-);
+// A base or a checkpoint holds the full state.
+export type PostgresStateSnapshot = typeof stateValidator.shape;
+export type PostgresDiffSnapshot = typeof diffValidator.shape;
+export type PostgresSnapshot = PostgresStateSnapshot | PostgresDiffSnapshot;
+
+export const snapshotValidator = {
+	parse: (it: unknown) => {
+		if ((it as { type?: unknown } | null)?.type !== 'diff') return stateValidator.parse(it);
+		const res = diffValidator.parse(it);
+		// A diff snapshot is rebuilt from its first parent, so it must have one.
+		if (res.data?.prevIds.length === 0) {
+			return {
+				success: false,
+				data: null,
+				errors: ["Field 'prevIds' of a diff snapshot must list at least one parent"],
+			};
+		}
+		return res;
+	},
+};
+
+export const toJsonSnapshot = (ddl: PostgresDDL, prevIds: string[]): PostgresStateSnapshot => {
+	return { type: 'base', version: '9', dialect: 'postgres', id: randomUUID(), prevIds, ddl: ddl.entities.list() };
+};
+
+export const drySnapshot: PostgresStateSnapshot = {
+	type: 'base',
+	version: '9',
+	dialect: 'postgres',
+	id: originUUID,
+	prevIds: [],
+	ddl: [],
+};
+
+// The folder loader and reconstruct report a broken history with the same messages.
+export const missingParentMessage = (snapshot: string, parentId: string) =>
+	`Cannot rebuild snapshot ${snapshot}: snapshot ${parentId} is missing from the migrations folder. `
+	+ `Restore the missing migration folder from git, or delete ${snapshot} and every later migration, then run generate again.`;
+
+export const missingBaseMessage = (snapshot: string) =>
+	`Cannot rebuild snapshot ${snapshot}: its history does not reach a base snapshot. `
+	+ `Restore the first migration folder from git, or delete ${snapshot} and every later migration, then run generate again.`;
+
+// `child` is the snapshot that lists `id` as a parent.
+const lookup = (snapshots: Map<string, PostgresSnapshot>, id: string, child?: string): PostgresSnapshot => {
+	const snapshot = snapshots.get(id);
+	if (snapshot) return snapshot;
+	throw new Error(
+		child
+			? missingParentMessage(child, id)
+			: `Cannot rebuild snapshot ${id}: it is not in the migrations folder. Check the snapshot id, or restore the migration folder from git.`,
+	);
+};
+
+// The walk stops at ids in `known`.
+const historyOf = (
+	snapshots: Map<string, PostgresSnapshot>,
+	ids: string[],
+	child?: string,
+	known = new Set<string>(),
+): Set<string> => {
+	const found = new Set<string>();
+	const stack = ids.map((id) => [id, child] as const);
+	while (stack.length) {
+		const [id, childId] = stack.pop()!;
+		if (id === originUUID || found.has(id) || known.has(id)) continue;
+		found.add(id);
+		for (const parentId of lookup(snapshots, id, childId).prevIds) stack.push([parentId, id]);
+	}
+	return found;
+};
+
+// Adds to the first parent's state the snapshots that reach a merge only through its other parents.
+// In this replay only, a drop, alter, rename or relocate of a missing row is skipped, and a create,
+// rename or relocate onto a taken key overwrites the row there. A base or a checkpoint adds its rows
+// as such creates, because two branches that each started from an empty folder share no ancestor.
+const combineInPlace = (
+	state: PostgresDDL,
+	snapshots: Map<string, PostgresSnapshot>,
+	prevIds: string[],
+	child?: string,
+) => {
+	const [first, ...others] = prevIds;
+	const replayed = historyOf(snapshots, others, child, historyOf(snapshots, [first], child));
+	for (const [id, snapshot] of snapshots) {
+		if (!replayed.has(id)) continue;
+		const deltas: Delta[] = snapshot.type === 'diff'
+			? snapshot.deltas
+			: snapshot.ddl.map((row) => ({ op: 'create', row }));
+		for (const it of deltas) {
+			if (it.op === 'create' || findRow(state, it.key)) applyInPlace(state, [it]);
+		}
+	}
+};
+
+// `snapshots` must iterate in folder-name order, because a merge replays the other branches in that order.
+export const reconstruct = (snapshots: Map<string, PostgresSnapshot>, id: string): PostgresDDL => {
+	const chain: PostgresDiffSnapshot[] = [];
+	let snapshot = lookup(snapshots, id);
+	while (snapshot.type === 'diff') {
+		chain.push(snapshot);
+		const parentId = snapshot.prevIds[0];
+		// A chain longer than the history means the first parents form a cycle.
+		if (!parentId || parentId === originUUID || chain.length > snapshots.size) {
+			throw new Error(missingBaseMessage(snapshot.id));
+		}
+		snapshot = lookup(snapshots, parentId, snapshot.id);
+	}
+	const state = fromEntities(snapshot.ddl);
+	for (let idx = chain.length - 1; idx >= 0; idx--) {
+		const it = chain[idx];
+		if (it.prevIds.length > 1) combineInPlace(state, snapshots, it.prevIds, it.id);
+		applyInPlace(state, it.deltas);
+	}
+	return state;
+};
+
+// The state that the deltas of a snapshot with these parents start from. `snapshots` must iterate in
+// folder-name order, as for reconstruct.
+export const startingState = (snapshots: Map<string, PostgresSnapshot>, prevIds: string[]): PostgresDDL => {
+	if ((prevIds[0] ?? originUUID) === originUUID) return createDDL();
+	const state = reconstruct(snapshots, prevIds[0]);
+	if (prevIds.length > 1) combineInPlace(state, snapshots, prevIds);
+	return state;
+};

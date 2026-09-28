@@ -52,6 +52,15 @@ Cross-reference map:
 
 For a full end-to-end example including `missing_hints` handling, see [SDK.md](./SDK.md).
 
+### Snapshot helpers in `drizzle-kit/api-postgres`
+
+`drizzle-kit/api-postgres` exports helpers for tools that keep postgres snapshots themselves. They return format 9 state snapshots: a base, or a checkpoint when the snapshot has parents. See [Postgres snapshot format 9](#postgres-snapshot-format-9).
+
+- `generateDrizzleJson(imports, prevId?, schemaFilters?)` returns the state of the schema in `imports`. Without `prevId`, or with an empty string, it returns a base snapshot. With `prevId`, it returns a checkpoint whose `prevIds` are the given parents. `prevId` is a string or an array of strings.
+- `generateMigration(prev, cur)` returns the SQL statements that turn `prev` into `cur`. Each argument is a format 9 base or checkpoint, or a snapshot of an older format, which it upgrades in memory. It throws on a diff snapshot, because a diff snapshot holds only the changes of one migration.
+- `up(snapshot)` converts one snapshot of an older format to a format 9 base or checkpoint and returns `{ snapshot, hints }`. To convert a migrations folder, run `drizzle-kit up`.
+- `reconstruct(files, id?)` rebuilds a state from the snapshot files of a folder. `files` maps each migration folder name to the parsed JSON of its `snapshot.json`. It returns the state of snapshot `id`. Without `id`, it returns the state of the only leaf, and it throws when the folder has several leaves. For an old format or a broken history, it throws the same errors as the CLI.
+
 ## Hints
 
 The hint vocabulary — the rename-vs-create disambiguation, `confirm_data_loss` approvals, the `kind` / `reason` catalogs, and the identifier-tuple formats — is output-agnostic and documented in [HINTS.md](./HINTS.md). In JSON mode there are no prompts: callers either supply hints up front, or receive a `status: "missing_hints"` response (exit code 2) and reply with hints via `--hints` / `--hints-file`. The `missing_hints` envelope shape is documented in [`status: "missing_hints"`](#status-missing_hints) below; the `invalid_hints` error path is in [Error codes](#error-codes).
@@ -186,7 +195,7 @@ Structured error responses with `status: "error"` use a `code` field to identify
 |--------|------------|---------------------|--------------|
 | `unsupported_schema_change` | see [unsupported_schema_change variants](#unsupported_schema_change) | `mysql`, `mssql`, `singlestore` | The schema diff would emit a DDL operation that the target dialect cannot execute or rejects (per `meta.kind`) |
 | `invalid_hints` | see [invalid_hints variants](#invalid_hints) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Hints payload could not be loaded, parsed, validated, or applied — see [`invalid_hints`](#invalid_hints) below |
-| `check_error` | see [`check` outcomes](#check) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | `check` found a snapshot-integrity problem (`kind: 'unsupported' \| 'malformed' \| 'non_latest'`, carries `snapshot`) or unreported branch conflicts (`kind: 'conflicts'`, carries `conflicts` + `details`) — see [`check`](#check) below |
+| `check_error` | see [`check` outcomes](#check) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | A command that reads the migrations folder found a snapshot-integrity problem (`kind: 'unsupported' \| 'malformed' \| 'non_latest'`, carries `snapshot`, and for a broken postgres history also `parentId` or `parentSnapshot`) or unreported branch conflicts (`kind: 'conflicts'`, carries `conflicts` + `details`). See [`check`](#check) below. |
 | `database_driver_error` | `database`, `packages`, `note?` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | A command that connects to a live database (`push`, `pull`) cannot select a connection driver: the required driver package is not installed, or the installed driver is incompatible with the target (for example a local-only turso driver used against a remote turso database). This code is emitted by both connecting commands, push, pull; for `pull` it also covers the connect/introspect span and the `--init` migrate span. `database` is the dialect, `packages` lists the drivers that would satisfy the connection, and `note` carries an optional install caveat. The credential-bearing detail (the connection string, SQL, and params) is never spread into the envelope — only `database`, `packages`, and `note?` are surfaced. |
 
 The example payloads in each variant sub-table show only the `error` object; the full response wraps them in `{"status":"error","error":{…}}`.
@@ -365,6 +374,199 @@ Example:
 }
 ```
 
+## Migrations folder and snapshot files
+
+`generate` writes each migration into its own folder under `out`:
+
+```text
+drizzle/
+  20260101120001_init/
+    migration.sql
+    snapshot.json
+  20260101120002_email/
+    migration.sql
+    snapshot.json
+```
+
+The folder name is the UTC time in the form `YYYYMMDDHHMMSS`, an underscore, and the migration name. The drizzle-orm migrator reads only `migration.sql`, and it runs the folders in folder-name order. drizzle-kit reads `snapshot.json` to compute the next migration and to check branches.
+
+Every snapshot has an `id` and a `prevIds` array. `prevIds` lists the ids of the snapshot's parents. The first snapshot in the migrations folder has one parent, the origin id `00000000-0000-0000-0000-000000000000`. A snapshot with more than one parent is a merge snapshot. A leaf is a snapshot that no other snapshot lists as a parent. The migrations folder has several leaves after git branches that each added migrations come together.
+
+Older drizzle-kit versions wrote `meta/_journal.json` and `meta/<n>_snapshot.json`, and each snapshot had a single `prevId`. `generate`, `check` and `migrate` stop on such a folder with `migrations_outdated_error`, and they stop on a snapshot of an older format with `check_error` kind `non_latest`. `drizzle-kit up` converts both. See [`up`](#up).
+
+### Folder order
+
+Each folder name must sort after the names of all its parents, because migrate runs the SQL in folder-name order. `generate` names a new folder after the current time. If the clock is behind the newest parent, `generate` uses the time of that parent plus one second. In a postgres folder, a folder that sorts before one of its parents stops every command with `check_error` kind `malformed`. See [`check` integrity errors](#check-integrity-errors).
+
+### Snapshot formats per dialect
+
+Only postgres uses snapshot format 9. The other dialects store the full schema state in every snapshot.
+
+| dialect | `version` | content |
+| --- | --- | --- |
+| `postgresql` | `"9"` | base, checkpoint and diff snapshots, described below |
+| `mysql` | `"6"` | full state |
+| `sqlite`, `turso` | `"7"` | full state |
+| `mssql` | `"2"` | full state |
+| `singlestore` | `"2"` | full state |
+| `cockroach` | `"1"` | full state |
+
+A full-state snapshot has the shape `{ version, dialect, id, prevIds, ddl, renames }`. `ddl` holds every entity of the schema after the migration. `renames` lists the renames of that migration as `"<old name>-><new name>"` strings.
+
+### Postgres snapshot format 9
+
+```typescript
+type Row = { entityType: string; [field: string]: unknown };
+
+type BaseSnapshot = {
+  type: 'base';
+  version: '9';
+  dialect: 'postgres';
+  id: string;
+  prevIds: ['00000000-0000-0000-0000-000000000000'];
+  ddl: Row[];
+};
+
+type CheckpointSnapshot = {
+  type: 'checkpoint';
+  version: '9';
+  dialect: 'postgres';
+  id: string;
+  prevIds: string[];
+  ddl: Row[];
+};
+
+type DiffSnapshot = {
+  type: 'diff';
+  version: '9';
+  dialect: 'postgres';
+  id: string;
+  prevIds: string[]; // at least one parent
+  deltas: Delta[];
+};
+
+type Delta =
+  | { op: 'create'; row: Row }
+  | { op: 'drop'; key: string }
+  | { op: 'alter'; key: string; set: Partial<Row> }
+  | { op: 'rename'; key: string; set: Partial<Row> }
+  | { op: 'relocate'; key: string; set: Partial<Row> };
+```
+
+- A **base snapshot** holds the full state. It is the first snapshot in the migrations folder. `generate` writes it for the first migration, and `pull` writes it into an empty migrations folder.
+- A **diff snapshot** holds only the deltas of its own migration. `generate` writes one for every later migration. `generate --custom` writes one with `deltas: []`.
+- A **checkpoint** holds a full state in the middle of a history. drizzle-kit reads checkpoints, and reconstruction starts at the nearest one. drizzle-kit never writes a checkpoint into a migrations folder. The [snapshot helpers](#snapshot-helpers-in-drizzle-kitapi-postgres) return checkpoints.
+
+Format 9 snapshots have no `renames` field and store no statements. `generate` on an unchanged schema writes no folder.
+
+Each row in `ddl`, and each `row` of a `create`, is one entity of the schema. `entityType` names its kind. For example, a column:
+
+```json
+{
+  "schema": "public",
+  "table": "users",
+  "name": "email",
+  "type": "varchar",
+  "typeSchema": null,
+  "notNull": false,
+  "dimensions": 0,
+  "default": null,
+  "generated": null,
+  "identity": null,
+  "entityType": "columns"
+}
+```
+
+A key names one row. It is the entity type, a NUL character, and the identity fields of the row as a JSON array. In a JSON file the NUL character is written as `\u0000`, so the key of the column above is `"columns\u0000[\"public\",\"users\",\"email\"]"`.
+
+| entity type | identity fields |
+| --- | --- |
+| `schemas`, `roles` | `name` |
+| `tables`, `enums`, `sequences`, `views` | `schema`, `name` |
+| `columns`, `indexes`, `fks`, `pks`, `uniques`, `checks`, `policies` | `schema`, `table`, `name` |
+| `privileges` | `schema`, `table`, `grantor`, `grantee`, `type` |
+
+The five delta ops:
+
+| `op` | effect on the state |
+| --- | --- |
+| `create` | adds `row` |
+| `drop` | removes the row at `key` |
+| `alter` | assigns the fields in `set` to the row at `key`; the key does not change |
+| `rename` | assigns `set` and stores the row under its new key; the user decided this rename |
+| `relocate` | assigns `set` and stores the row under its new key, because another entity was renamed |
+
+A delta changes only the row that its key names, so a rename that reaches other rows is stored row by row:
+
+- A table rename is one `rename` of the table and one `relocate` for each row that belongs to the table (its columns, indexes, constraints, policies and privileges), each with `set: { "table": "<new name>" }`. A foreign key in another table that references the renamed table keeps its key, so it gets an `alter` of `tableTo`.
+- A column rename is one `rename` of the column and one `alter` for each index or constraint whose column list names it.
+
+To reconstruct the state of a snapshot, drizzle-kit follows the first parents back to the nearest base or checkpoint. From there it applies the deltas of every snapshot on that path of first parents, in order. The deltas of a merge snapshot on the path start from its combined state.
+
+The combined state of a merge snapshot is built in three steps:
+
+1. Copy the state of the first parent.
+2. Take the snapshots in the merge's history that are missing from the first parent's history.
+3. Apply their deltas in folder-name order. In this step only, a `drop`, `alter`, `rename` or `relocate` of a missing key is skipped, and a `create`, `rename` or `relocate` onto a taken key replaces the row there. A base or checkpoint in this set adds its rows as such creates.
+
+`generate` lists every leaf in the `prevIds` of a merge snapshot, and the leaf with the newest folder name comes first. The merge's `migration.sql` holds only the new change, because the other branches' SQL already runs from their own folders.
+
+Example: a base, a column add, a column rename with a `NOT NULL` change, and a merge after two branches. The long rows are cut to `…`.
+
+```jsonc
+// 20260101120001_init/snapshot.json
+{
+  "type": "base",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "d3339e19-89f8-4fe9-a7ee-bee3db901d0d",
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
+  "ddl": [
+    { "schema": "public", "name": "users", "isRlsEnabled": false, "entityType": "tables" },
+    { "schema": "public", "table": "users", "name": "id", "type": "integer", …, "entityType": "columns" }
+  ]
+}
+
+// 20260101120002_email/snapshot.json
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "2b39a1e8-3f89-4842-916d-6998b0ac6304",
+  "prevIds": ["d3339e19-89f8-4fe9-a7ee-bee3db901d0d"],
+  "deltas": [
+    { "op": "create", "row": { "schema": "public", "table": "users", "name": "email", "type": "varchar", …, "entityType": "columns" } }
+  ]
+}
+
+// 20260101120003_rename/snapshot.json
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "d4eab725-04f4-4581-bc0a-8982608fa2b3",
+  "prevIds": ["2b39a1e8-3f89-4842-916d-6998b0ac6304"],
+  "deltas": [
+    { "op": "rename", "key": "columns\u0000[\"public\",\"users\",\"email\"]", "set": { "name": "mail" } },
+    { "op": "alter", "key": "columns\u0000[\"public\",\"users\",\"mail\"]", "set": { "notNull": true } }
+  ]
+}
+
+// 20260101120006_age/snapshot.json, after the branch folders 20260101120004_likes and 20260101120005_posts
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "31c40787-97df-4bc4-b064-bf418893d2f3",
+  "prevIds": ["75e723a1-d6f4-4516-9340-82f9696797fc", "71a65ad8-0ae7-48e8-9fff-ad4343d8a315"],
+  "deltas": [
+    { "op": "create", "row": { "schema": "public", "table": "users", "name": "age", "type": "integer", …, "entityType": "columns" } }
+  ]
+}
+```
+
+Format 8, the postgres format before format 9, stored the full state in every snapshot: `{ version: "8", dialect: "postgres", id, prevIds, ddl, renames }`.
+
 ## `check`
 
 `drizzle-kit check --output json` validates the migrations folder — snapshot integrity plus branch commutativity — and emits one of three envelopes. It never prompts and takes no hints. The `check()` SDK export returns the same envelopes verbatim.
@@ -384,7 +586,7 @@ When every snapshot is valid and the branches commute, `check` emits the `ok` en
 
 ### `check` integrity errors
 
-When a snapshot fails integrity validation, `check` emits an `error` envelope with `code: "check_error"` and a `kind` discriminator, and exits with code `1`. The meta is flattened into `error` — `kind` and `snapshot` are siblings of `code`:
+When a snapshot fails integrity validation, `check` emits an `error` envelope with `code: "check_error"` and a `kind` discriminator, and exits with code `1`. The meta is flattened into `error`, so `kind` and `snapshot` are siblings of `code`:
 
 ```json
 {
@@ -392,18 +594,47 @@ When a snapshot fails integrity validation, `check` emits an `error` envelope wi
   "error": {
     "code": "check_error",
     "kind": "unsupported",
-    "snapshot": "drizzle/meta/0001_snapshot.json"
+    "snapshot": "drizzle/20260101120002_email/snapshot.json"
   }
 }
 ```
 
 `kind` is one of:
 
-- `unsupported` — the snapshot was written by a Drizzle Kit version this binary cannot read.
-- `malformed` — the snapshot could not be parsed.
-- `non_latest` — the snapshot is not at the latest internal version and must be upgraded.
+- `unsupported`: the snapshot was written by a Drizzle Kit version that this binary cannot read.
+- `malformed`: the snapshot cannot be read, or its postgres history is broken. The cases are listed below.
+- `non_latest`: the snapshot is in an older format. Run `drizzle-kit up`.
 
-`snapshot` identifies the offending snapshot.
+`snapshot` is the path of the snapshot file that has the problem.
+
+`generate`, `migrate`, `up` and `pull` read the migrations folder through the same loader, so they return the same `check_error` envelopes. `generate` and `migrate` also run the full `check` first.
+
+In a postgres folder, the loader checks the history before anything else. Each case below stops the command with `kind: "malformed"`. The JSON envelope carries no message. The last column shows the message that `--output text` prints, with the fix:
+
+| case | extra keys | message and fix |
+| --- | --- | --- |
+| A `snapshot.json` is not valid JSON (for example because it still has git conflict markers), has no string `id`, or has no `prevIds` array | none | `<path> data is malformed. Restore the file from git, or fix the JSON in it by hand.` |
+| No snapshot in the history is a base snapshot, because the first migration folder is gone | none | `Cannot rebuild snapshot <folder>: its history does not reach a base snapshot. Restore the first migration folder from git, or delete <folder> and every later migration, then run generate again.` |
+| A parent listed in `prevIds` is not in the folder | `parentId`: the id of the missing parent | `Cannot rebuild snapshot <folder>: snapshot <parentId> is missing from the migrations folder. Restore the missing migration folder from git, or delete <folder> and every later migration, then run generate again.` |
+| A folder name sorts before the name of one of its parents | `parentSnapshot`: the path of the parent's `snapshot.json` | `Migration <folder> sorts before its parent <parent folder>, so migrate can run it first. Rename the folders so that <folder> sorts after <parent folder>.` |
+
+After these checks, `check` validates every snapshot against the format of its dialect. A snapshot that does not match gives `kind: "malformed"` with only the `snapshot` key. The cases without an extra key differ in the file at `snapshot`, so a caller reads that file to tell them apart.
+
+Example of a missing parent:
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "check_error",
+    "kind": "malformed",
+    "snapshot": "drizzle/20260101120003_rename/snapshot.json",
+    "parentId": "2b39a1e8-3f89-4842-916d-6998b0ac6304"
+  }
+}
+```
+
+For the snapshot history, deleting the newest migration folder is safe, and so is deleting a migration folder together with every later one. The next `generate` continues from the snapshot that is then the newest. Deleting a merge folder opens its branches again, and the next `generate` merges them again.
 
 ### `check` conflicts
 
@@ -418,11 +649,23 @@ When the branches do not commute and `--ignore-conflicts` was not passed, `check
     "conflicts": 1,
     "details": [
       {
-        "parentId": "0000_initial",
-        "parentPath": "drizzle/0000_initial.sql",
+        "parentId": "0b6e7a52-4c1d-4f0e-9a37-2f1c8d5e6a10",
+        "parentPath": "drizzle/20260101120001_main",
         "branches": [
-          { "leafId": "0001_a", "leafPath": "drizzle/0001_a.sql", "statementDescription": "create table a" },
-          { "leafId": "0001_b", "leafPath": "drizzle/0001_b.sql", "statementDescription": "create table b" }
+          {
+            "leafId": "8e2f4b19-7a63-4d58-b0c4-5d9e1f3a2c77",
+            "leafPath": "drizzle/20260101120002_a",
+            "statementDescription": "create_table: likes in public schema (20260101120002_a)",
+            "target": { "kind": "table", "name": "likes", "schema": "public" },
+            "action": "create_table"
+          },
+          {
+            "leafId": "c41d9e07-2b85-4f3a-8e6d-a17b0c5f9e24",
+            "leafPath": "drizzle/20260101120005_b",
+            "statementDescription": "create_table: likes in public schema (20260101120005_b)",
+            "target": { "kind": "table", "name": "likes", "schema": "public" },
+            "action": "create_table"
+          }
         ]
       }
     ]
@@ -432,18 +675,22 @@ When the branches do not commute and `--ignore-conflicts` was not passed, `check
 
 Key semantics:
 
-- `conflicts` — the conflict count. `details.length === conflicts`.
-- `details[]` — one entry per conflict.
-  - `parentId` — the common parent migration id.
-  - `parentPath` — the parent migration path, present only when the conflict carries one.
-  - `branches` — always a two-element array (the two diverging branches). Each entry is `{ leafId, leafPath, statementDescription }`, where `leafId` / `leafPath` are the id / path of the last migration in that branch chain (`null` when a chain is empty) and `statementDescription` summarizes the branch.
+- `conflicts`: the conflict count. `details.length === conflicts`.
+- `details[]`: one entry per conflict.
+  - `parentId`: the id of the fork point, the newest snapshot in the history of both leaves. It is the origin id `00000000-0000-0000-0000-000000000000` when the two leaves have no common snapshot.
+  - `parentPath`: the folder of the fork point, present only when the conflict has one.
+  - `branches`: always a two-element array, one entry for each branch. Each entry is `{ leafId, leafPath, statementDescription, target, action }`. `leafId` and `leafPath` are the id and the folder of the last migration in that branch (`null` when the branch is empty). `statementDescription` describes the conflicting statement. `target` is `{ kind, name, schema?, table? }` for the entity that the statement changes, and `action` is the statement type.
+
+For postgres, `check` compares every pair of leaves. A leaf's branch is the set of snapshots in its history that are missing from the other leaf's history. `check` derives the statements of each snapshot in a branch, with the snapshot's `rename` deltas as the rename decisions, and compares every statement of one branch with every statement of the other. A change and its later reversal on the same branch still count, and `statementDescription` ends with the folder that the statement comes from. A merge snapshot adds only the statements of its own deltas. For `mysql`, `sqlite` and `turso`, `check` compares the full state at each fork parent with the full state of each leaf below it. The other dialects have no branch check.
+
+If `check` passes and the folder has several leaves, the next `generate` writes a merge migration. See [Postgres snapshot format 9](#postgres-snapshot-format-9) for what a postgres merge stores. With `--ignore-conflicts`, `generate` writes the merge even though the branches conflict. For postgres, the SQL of that merge is then computed from the state of the newest leaf, so it can repeat changes of the other branches. Review that SQL by hand. The merge snapshot still rebuilds to the schema. If a constraint with a generated name has another name in the newest leaf than in the combined state, the merge snapshot stores a `drop` and a `create` of that constraint, so that the rebuilt state has the name from the newest leaf.
 
 ### `check` exit codes
 
 | outcome | envelope | exit code |
 | --- | --- | --- |
 | valid (snapshots intact, branches commute) | `{ status: "ok", dialect }` | `0` |
-| integrity error (`unsupported` / `malformed` / `non_latest`) | `{ status: "error", error: { code: "check_error", kind, snapshot } }` | `1` |
+| integrity error (`unsupported` / `malformed` / `non_latest`) | `{ status: "error", error: { code: "check_error", kind, snapshot, parentId?, parentSnapshot? } }` | `1` |
 | conflicts (no `--ignore-conflicts`) | `{ status: "error", error: { code: "check_error", kind: "conflicts", conflicts, details } }` | `1` |
 | conflicts with `--ignore-conflicts` | `{ status: "ok", dialect }` | `0` |
 
@@ -453,7 +700,7 @@ Key semantics:
 
 ### `pull` success
 
-On success `pull` emits a paths-manifest `ok` envelope and exits with code `0`:
+On success `pull` emits a paths-manifest `ok` envelope and exits with code `0`. In a folder that already has migrations:
 
 ```json
 {
@@ -461,7 +708,7 @@ On success `pull` emits a paths-manifest `ok` envelope and exits with code `0`:
   "dialect": "postgresql",
   "schemaPath": "drizzle/schema.ts",
   "relationsPath": "drizzle/relations.ts",
-  "snapshotPath": "drizzle/meta/0000_snapshot.json"
+  "snapshotPath": "drizzle/20260427153000_calm_adam_warlock/snapshot.json"
 }
 ```
 
@@ -469,11 +716,11 @@ Keys:
 
 - `dialect` — always present, consistent with every other `status: "ok"` response.
 - `schemaPath` — the written `schema.ts`. Always present.
-- `snapshotPath` — the written snapshot JSON. Always present.
+- `snapshotPath` — the snapshot of the pulled schema. Always present. In an empty folder, `pull` writes a new migration folder, and for postgres its snapshot is a base snapshot. In a folder that already has migrations, `pull` writes no snapshot, and `snapshotPath` is the newest existing `snapshot.json`.
 - `relationsPath?` — the written `relations.ts`. **Optional**: present for `postgresql`, `mysql`, `sqlite`, `turso`, `cockroach`, and `singlestore`; omitted for `mssql` (it does not generate a relations file).
-- `migrationPath?` — **Optional**: present only when `--init` ran the initial migration against the live database and wrote a migration file.
+- `migrationPath?` — **Optional**: the `migration.sql` of the new migration folder. Present when `pull` wrote a new migration folder, which happens when `out` has no migrations yet. Absent when the folder already had migrations. With `--init`, `pull` also records this migration as applied in the migrations table of the database, so that `migrate` does not run it again.
 
-With `--init` having written an initial migration:
+In an empty folder, `pull` writes a new migration folder:
 
 ```json
 {
@@ -481,8 +728,8 @@ With `--init` having written an initial migration:
   "dialect": "postgresql",
   "schemaPath": "drizzle/schema.ts",
   "relationsPath": "drizzle/relations.ts",
-  "snapshotPath": "drizzle/meta/0000_snapshot.json",
-  "migrationPath": "drizzle/0000_init/migration.sql"
+  "snapshotPath": "drizzle/20260427153000_calm_adam_warlock/snapshot.json",
+  "migrationPath": "drizzle/20260427153000_calm_adam_warlock/migration.sql"
 }
 ```
 
@@ -490,7 +737,22 @@ On a connect, introspect, or `--init` migrate failure, `pull` emits a `status: "
 
 ## `up`
 
-`drizzle-kit up --output json` upgrades on-disk migration snapshots to the latest internal format, rewriting `meta/*_snapshot.json` in place. The `up()` SDK export returns the same envelope verbatim.
+`drizzle-kit up --output json` upgrades the migrations folder to the current layout and every snapshot to the current format of its dialect. The `up()` SDK export returns the same envelope verbatim.
+
+`up` works in two steps:
+
+1. For `postgresql`, `mysql`, `sqlite`, `turso` and `singlestore`: if the folder has `meta/_journal.json`, `up` moves every migration into its own `<out>/<tag>/` folder with `migration.sql` and `snapshot.json`, and it deletes the `meta` folder.
+2. `up` rewrites every `snapshot.json` that is older than the current format of its dialect.
+
+For postgres, step 2 converts formats 4 to 8 to format 9:
+
+- A snapshot with no parent becomes a base snapshot with the full state.
+- Every other snapshot becomes a diff snapshot. Its deltas are computed from its parent's state, or from its combined state for a merge. The renames that the old snapshot recorded become the rename decisions, so they become `rename` deltas. Format 8 records them in `renames`, and formats 5 to 7 record them in `_meta`.
+- The diff keeps the parent's name for a constraint with a generated name. If the old file stores another name for that constraint, `up` adds a `drop` and a `create` of the constraint at the end of the deltas, so that the rebuilt state has the name from the old file.
+- A merge keeps all its parents, and the parent with the newest folder name moves to the first place in `prevIds`.
+- Snapshot ids stay the same, and `migration.sql` files do not change.
+
+Before it rewrites any snapshot, `up` rebuilds the state of every converted snapshot from the new files and compares it with the state in the old file. If one state differs, or if a snapshot cannot be converted, `up` rewrites no `snapshot.json`. Step 1 runs before this check, so a folder that had `meta/_journal.json` is already moved to the `<out>/<tag>/` layout when the error comes. `up` writes no backup, because git keeps the old files. A folder that is already in format 9 stays as it is.
 
 ### `up` success
 
@@ -498,11 +760,39 @@ On a connect, introspect, or `--init` migrate failure, `pull` emits a `status: "
 {
   "status": "ok",
   "dialect": "postgresql",
-  "upgraded": ["drizzle/meta/0000_snapshot.json"]
+  "upgraded": [
+    "drizzle/20260101120001_init/snapshot.json",
+    "drizzle/20260101120002_email/snapshot.json"
+  ]
 }
 ```
 
 `upgraded` is the array of rewritten snapshot paths; `[]` means every snapshot was already at the latest format (a no-op).
+
+### `up` errors
+
+A postgres conversion that fails returns `command_output_error` with `command: "up"`, a `kind`, and `snapshot`, the path of the snapshot that failed:
+
+| `kind` | extra keys | when |
+| --- | --- | --- |
+| `malformed` | none | A `snapshot.json` in the folder is not a valid snapshot of its format. Restore it from git and run `up` again. |
+| `invalid_snapshot` | none | The converted snapshot does not pass the format 9 validator. This is a bug in drizzle-kit. Keep the old files and report the issue. |
+| `state_mismatch` | `entity`: the first entity that differs, as `<entity type> <schema>.<table>.<name>` | The rebuilt state of the converted snapshot differs from the state in the old file. This is a bug in drizzle-kit. Keep the old files and report the issue. |
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "command_output_error",
+    "command": "up",
+    "kind": "state_mismatch",
+    "snapshot": "drizzle/20260101120003_rename/snapshot.json",
+    "entity": "pks public.accounts.accounts_pkey"
+  }
+}
+```
+
+`up` reads the folder through the same loader as the other commands, so a broken postgres history stops it with a `check_error` first. See [`check` integrity errors](#check-integrity-errors). The move out of `meta/_journal.json` can also fail. It returns `migration_snapshot_not_found_error` when the journal lists a migration whose `meta/<n>_snapshot.json` is missing, and `migration_sql_files_conflict_error` when the SQL file of a journal entry does not have the name of its tag.
 
 ## `export`
 

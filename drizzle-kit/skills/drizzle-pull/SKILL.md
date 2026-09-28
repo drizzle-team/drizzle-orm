@@ -25,7 +25,7 @@ Flag surface:
 - `--breakpoints` — emit statement-breakpoint markers in any generated migration SQL.
 - `--casing camel|preserve` — how introspected identifiers are cased in the emitted schema (`camel` camel-cases columns; `preserve` keeps the database spelling).
 - `--output json` — switches stdout to one JSON line carrying the envelope and is always non-interactive. Use it for agent / CI / scripted contexts. Under the default `--output text` pull prints human-readable progress and the result.
-- `--init` — also run the initial migration against the live database. This is a destructive write (see the `--init` note below); it adds `migrationPath` to the ok manifest.
+- `--init` — also record the new migration as applied in the migrations table of the live database. This writes to the database (see the `--init` note below).
 
 Minimal example — `drizzle.config.ts` carries the credentials, the CLI invocation is just the verb:
 
@@ -42,7 +42,7 @@ export default defineConfig({
 
 ```bash
 drizzle-kit pull --output json --config drizzle.config.ts
-# → {"status":"ok","dialect":"postgresql","schemaPath":"drizzle/schema.ts","relationsPath":"drizzle/relations.ts","snapshotPath":"drizzle/meta/0000_snapshot.json"}
+# → {"status":"ok","dialect":"postgresql","schemaPath":"drizzle/schema.ts","relationsPath":"drizzle/relations.ts","snapshotPath":"drizzle/20260427153000_calm_adam_warlock/snapshot.json"}
 ```
 
 The process exits with the code that matches `status` (`0` for ok, `1` for error). Agents read both stdout (the envelope) and the exit code.
@@ -63,7 +63,8 @@ if (response.status === 'ok') {
   //   response.schemaPath    — always present
   //   response.snapshotPath  — always present
   //   response.relationsPath — present except mssql (no relations file)
-  //   response.migrationPath — present only when called with init: true
+  //   response.migrationPath — present when pull wrote a new migration folder,
+  //                            because the out folder had no migrations yet
 } else {
   // response.status === 'error'
   // response.error.code identifies the failure, e.g. database_driver_error
@@ -72,24 +73,27 @@ if (response.status === 'ok') {
 }
 ```
 
-`pull` is a real root SDK function. It always runs in JSON mode internally — no `--output json` flag needed at the call site — and returns the same envelope the CLI prints. In SDK form the credential fields are passed flat on the call (`url`, or the broken-out `host` / `port` / `user` / `password` / `database` set); pass `init: true` to also run the initial migration. The status is `ok` or `error` only — there is no `no_changes` branch and no `missing_hints` branch (see Contract below).
+`pull` is a real root SDK function. It always runs in JSON mode internally — no `--output json` flag needed at the call site — and returns the same envelope the CLI prints. In SDK form the credential fields are passed flat on the call (`url`, or the broken-out `host` / `port` / `user` / `password` / `database` set); pass `init: true` to also record the new migration as applied in the database. The status is `ok` or `error` only — there is no `no_changes` branch and no `missing_hints` branch (see Contract below).
 
 ## Response shape
 
 The `'ok'` envelope is a paths-manifest — it names the files pull wrote, not the introspected DDL:
 
 ```jsonc
+// out folder already has migrations
 // postgres / mysql / sqlite / turso / cockroach / singlestore — relationsPath present
-{ "status": "ok", "dialect": "postgresql", "schemaPath": "drizzle/schema.ts", "relationsPath": "drizzle/relations.ts", "snapshotPath": "drizzle/meta/0000_snapshot.json" }
+{ "status": "ok", "dialect": "postgresql", "schemaPath": "drizzle/schema.ts", "relationsPath": "drizzle/relations.ts", "snapshotPath": "drizzle/20260427153000_calm_adam_warlock/snapshot.json" }
 
 // mssql — relationsPath omitted (no relations file is generated)
-{ "status": "ok", "dialect": "mssql", "schemaPath": "drizzle/schema.ts", "snapshotPath": "drizzle/meta/0000_snapshot.json" }
+{ "status": "ok", "dialect": "mssql", "schemaPath": "drizzle/schema.ts", "snapshotPath": "drizzle/20260427153000_calm_adam_warlock/snapshot.json" }
 
-// with init: true — an initial migration was also written, so migrationPath appears
-{ "status": "ok", "dialect": "postgresql", "schemaPath": "drizzle/schema.ts", "relationsPath": "drizzle/relations.ts", "snapshotPath": "drizzle/meta/0000_snapshot.json", "migrationPath": "drizzle/0000_init/migration.sql" }
+// empty out folder — pull wrote a new migration folder, so migrationPath appears
+{ "status": "ok", "dialect": "postgresql", "schemaPath": "drizzle/schema.ts", "relationsPath": "drizzle/relations.ts", "snapshotPath": "drizzle/20260427153000_calm_adam_warlock/snapshot.json", "migrationPath": "drizzle/20260427153000_calm_adam_warlock/migration.sql" }
 ```
 
-So the manifest is `{ schemaPath, snapshotPath, relationsPath?, migrationPath? }`: `schemaPath` and `snapshotPath` are always present; `relationsPath?` is optional and omitted for mssql; `migrationPath?` is optional and present only with `--init`. The envelope carries no inline DDL array.
+So the manifest is `{ schemaPath, snapshotPath, relationsPath?, migrationPath? }`: `schemaPath` and `snapshotPath` are always present; `relationsPath?` is optional and omitted for mssql; `migrationPath?` is optional and present only when pull wrote a new migration folder. The envelope carries no inline DDL array.
+
+When the `out` folder has no migrations yet, pull writes a new migration folder, and `snapshotPath` points to its `snapshot.json`. For postgresql that snapshot is a base snapshot, which holds the full schema, so later `generate` runs continue from it. When the folder already has migrations, pull writes no snapshot, and `snapshotPath` is the newest existing `snapshot.json`.
 
 The `'error'` envelope, when the driver cannot connect or introspection fails:
 
@@ -105,4 +109,4 @@ Pull is ok/error only. It never emits `missing_hints`: it introspects against an
 
 ## --init
 
-`--init` (CLI) / `init: true` (SDK) runs the initial migration against the live database in addition to writing the schema. That is a destructive write — it executes DDL against the connected database, not just disk — and on success it adds `migrationPath` to the ok manifest. The MCP `pull` tool surfaces this `init` escalation as a per-call destructive signal on its result; the `drizzle-responses-and-errors` skill carries the canonical shape of that signal.
+`--init` (CLI) / `init: true` (SDK) records the migration that pull wrote as applied in the migrations table of the live database, so that `migrate` does not run it again. It creates the migrations table when the table does not exist. It does not run the migration SQL, because the database already has that schema. This is a write to the connected database. `--init` fails with `command_output_error` when the database already has applied migrations, or when the `out` folder has more than one migration. The MCP `pull` tool surfaces this `init` escalation as a per-call destructive signal on its result; the `drizzle-responses-and-errors` skill carries the canonical shape of that signal.

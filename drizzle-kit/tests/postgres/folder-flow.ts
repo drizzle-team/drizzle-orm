@@ -1,0 +1,225 @@
+import { PGlite } from '@electric-sql/pglite';
+import { drizzle } from 'drizzle-orm/pglite';
+import { migrate as migrateFolder } from 'drizzle-orm/pglite/migrator';
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { basename, dirname, join } from 'path';
+import { checkHandler } from 'src/cli/commands/check';
+import { handle } from 'src/cli/commands/generate-postgres';
+import { handle as pullHandle } from 'src/cli/commands/pull-postgres';
+import { upPgHandler } from 'src/cli/commands/up-postgres';
+import { preparePostgresDB } from 'src/cli/connections';
+import { runWithCliContext } from 'src/cli/context';
+import { CheckCliError } from 'src/cli/errors';
+import { type Hint, HintsHandler } from 'src/cli/hints';
+import { normalizeDDL } from 'src/dialects/ddl-canonical';
+import type { Delta } from 'src/dialects/dialect';
+import { interimToDDL } from 'src/dialects/postgres/ddl';
+import { fromDrizzleSchema, fromExports, SchemaSource } from 'src/dialects/postgres/drizzle';
+import { type PostgresSnapshot, reconstruct, startingState } from 'src/dialects/postgres/snapshot';
+import { onTestFinished, vi } from 'vitest';
+import { type PostgresSchema, push } from './mocks';
+
+export type CheckResult = { status: 'passed' } | { status: 'conflicts'; folders: string[]; message: string };
+
+export type GenerateOptions = {
+	hints?: Hint[];
+	name?: string;
+	at?: Date;
+	ignoreConflicts?: boolean;
+	custom?: boolean;
+};
+
+// Runs the output quietly: json mode turns off the human log, and hints resolve renames without prompts.
+const quietly = <T>(fn: () => Promise<T>) => runWithCliContext({ output: 'json', interactive: false }, fn);
+
+export const tempDir = (prefix: string) => {
+	const dir = mkdtempSync(join(tmpdir(), prefix));
+	onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+	return dir;
+};
+
+export const columnRow = (table: string, name: string, type = 'integer', notNull = false) => ({
+	entityType: 'columns' as const,
+	schema: 'public',
+	table,
+	name,
+	type,
+	typeSchema: null,
+	notNull,
+	dimensions: 0,
+	default: null,
+	generated: null,
+	identity: null,
+});
+
+export const schemaState = (schema: PostgresSchema) => {
+	const { schema: interim } = fromDrizzleSchema(fromExports(schema), () => true);
+	return normalizeDDL(interimToDDL(interim).ddl.entities.list());
+};
+
+// A branch is a folder that holds only that branch's migration folders, like a git checkout of it.
+export const createFolderFlow = () => {
+	const root = tempDir('dk-folder-flow-');
+	const branches = new Map<string, string>();
+	let clock = Date.UTC(2026, 0, 1, 12, 0, 0);
+
+	const dirOf = (branch: string) => {
+		const dir = branches.get(branch);
+		if (!dir) throw new Error(`Branch "${branch}" does not exist. Create it with branch() first.`);
+		return dir;
+	};
+
+	const branch = (name: string, from?: string) => {
+		const dir = mkdtempSync(join(root, `${name}-`));
+		if (from) cpSync(dirOf(from), dir, { recursive: true });
+		branches.set(name, dir);
+	};
+	branch('main');
+
+	// pull also writes schema.ts and relations.ts next to the migration folders.
+	const folders = (branch: string) =>
+		readdirSync(dirOf(branch), { withFileTypes: true }).filter((it) => it.isDirectory()).map((it) => it.name).sort();
+
+	const snapshot = (branch: string, folder: string): PostgresSnapshot =>
+		JSON.parse(readFileSync(join(dirOf(branch), folder, 'snapshot.json'), 'utf8'));
+
+	const sql = (branch: string, folder: string) => readFileSync(join(dirOf(branch), folder, 'migration.sql'), 'utf8');
+
+	const leaves = (branch: string) => {
+		const snapshots = folders(branch).map((folder) => ({ folder, ...snapshot(branch, folder) }));
+		const parents = new Set(snapshots.flatMap((it) => it.prevIds));
+		return snapshots.filter((it) => !parents.has(it.id)).map((it) => it.folder);
+	};
+
+	const history = (branch: string) =>
+		new Map(folders(branch).map((it) => snapshot(branch, it)).map((it) => [it.id, it]));
+
+	const state = (branch: string, folder: string) =>
+		normalizeDDL(reconstruct(history(branch), snapshot(branch, folder).id).entities.list());
+
+	const combinedState = (branch: string, folder: string) =>
+		normalizeDDL(startingState(history(branch), snapshot(branch, folder).prevIds).entities.list());
+
+	const deltas = (branch: string, folder: string): Delta[] => {
+		const it = snapshot(branch, folder);
+		if (it.type !== 'diff') throw new Error(`${folder} is a ${it.type} snapshot. Pass the folder of a diff snapshot.`);
+		return it.deltas;
+	};
+
+	// Generate and pull name each folder from the current time in seconds.
+	const atTime = async <T>(at: number | undefined, fn: () => Promise<T>) => {
+		const time = at ?? clock + 1000;
+		clock = Math.max(clock, time);
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(time);
+		try {
+			return await quietly(fn);
+		} finally {
+			vi.useRealTimers();
+		}
+	};
+
+	const generate = async (branch: string, schema: PostgresSchema, options: GenerateOptions = {}) => {
+		const out = dirOf(branch);
+		const result = await atTime(options.at?.getTime(), async () => {
+			const checkResult = await checkHandler(out, 'postgresql', options.ignoreConflicts);
+			return handle({
+				dialect: 'postgresql',
+				filenames: [],
+				schemaSource: SchemaSource.fromSchema(fromExports(schema)),
+				out,
+				breakpoints: true,
+				name: options.name ?? branch,
+				custom: options.custom ?? false,
+				bundle: false,
+				ignoreConflicts: options.ignoreConflicts,
+				explain: false,
+				hints: new HintsHandler(options.hints),
+			}, checkResult);
+		});
+		const folder = 'migration_path' in result ? basename(dirname(result.migration_path)) : undefined;
+		return { ...result, folder };
+	};
+
+	const pull = async (branch: string, client: PGlite) => {
+		const db = await preparePostgresDB({ driver: 'pglite', client });
+		const filters = { schemas: undefined, tables: undefined, entities: undefined, extensions: undefined };
+		const migrations = { table: '__drizzle_migrations', schema: 'drizzle' };
+		const credentials = { driver: 'pglite', url: 'memory://' } as const;
+		await atTime(undefined, () => pullHandle('camel', dirOf(branch), true, credentials, filters, migrations, db));
+	};
+
+	const check = async (branch: string): Promise<CheckResult> => {
+		try {
+			await quietly(() => checkHandler(dirOf(branch), 'postgresql'));
+			return { status: 'passed' };
+		} catch (e) {
+			if (!(e instanceof CheckCliError) || e.meta?.kind !== 'conflicts') throw e;
+			const details = e.meta.details as { branches: { leafPath: string | null }[] }[];
+			const folders = details.flatMap((it) => it.branches.flatMap((b) => (b.leafPath ? [basename(b.leafPath)] : [])));
+			return { status: 'conflicts', folders: [...new Set(folders)].sort(), message: e.humanMessage };
+		}
+	};
+
+	const up = (branch: string) => quietly(async () => upPgHandler(dirOf(branch)));
+
+	const merge = (target: string, ...sources: string[]) => {
+		for (const source of sources) {
+			for (const folder of folders(source)) {
+				const dst = join(dirOf(target), folder);
+				if (!existsSync(dst)) cpSync(join(dirOf(source), folder), dst, { recursive: true });
+			}
+		}
+	};
+
+	const seed = (branch: string, from: string) => cpSync(from, dirOf(branch), { recursive: true });
+
+	const deleteFolder = (branch: string, folder: string) => rmSync(join(dirOf(branch), folder), { recursive: true });
+
+	const renameFolder = (branch: string, from: string, to: string) =>
+		renameSync(join(dirOf(branch), from), join(dirOf(branch), to));
+
+	const overwriteSnapshot = (branch: string, folder: string, text: string) =>
+		writeFileSync(join(dirOf(branch), folder, 'snapshot.json'), text);
+
+	// Returns the statements that push still needs after migrate. An empty list means the database matches the schema.
+	// With `order`, it runs the SQL of only these folders in this order instead of the drizzle-orm migrator.
+	const migrate = async (branch: string, schema: PostgresSchema, order?: string[]) => {
+		const client = new PGlite();
+		try {
+			if (!order) await migrateFolder(drizzle({ client }), { migrationsFolder: dirOf(branch) });
+			for (const folder of order ?? []) {
+				for (const statement of sql(branch, folder).split('--> statement-breakpoint')) await client.exec(statement);
+			}
+			const db = { query: async (query: string, params?: any[]) => (await client.query<any>(query, params)).rows };
+			const { sqlStatements } = await push({ db, to: schema });
+			return sqlStatements;
+		} finally {
+			await client.close();
+		}
+	};
+
+	return {
+		branch,
+		folders,
+		snapshot,
+		sql,
+		leaves,
+		state,
+		combinedState,
+		deltas,
+		generate,
+		pull,
+		check,
+		up,
+		merge,
+		seed,
+		deleteFolder,
+		renameFolder,
+		overwriteSnapshot,
+		migrate,
+	};
+};
+
+export type FolderFlow = ReturnType<typeof createFolderFlow>;

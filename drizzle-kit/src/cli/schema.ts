@@ -614,7 +614,7 @@ export const runUp = async (
 	const { out, dialect } = config;
 	let upgraded: string[];
 	if (dialect === 'postgresql') {
-		upgraded = upPgHandler(out);
+		upgraded = await upPgHandler(out);
 	} else if (dialect === 'mysql') {
 		upgraded = upMysqlHandler(out);
 	} else if (dialect === 'sqlite' || dialect === 'turso') {

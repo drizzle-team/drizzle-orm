@@ -1,6 +1,6 @@
 ---
 name: drizzle-migrations
-description: Orient to the drizzle-kit migration workflow — `defineConfig`, `generate` vs `push`, and per-dialect quirks across postgresql, mysql, sqlite, mssql, cockroach, and singlestore. Load whenever drizzle migrations are being set up or modified, `drizzle.config.ts` is being read or edited, the generate-vs-push choice is being made, or any Drizzle schema file has just been edited.
+description: Orient to the drizzle-kit migration workflow — `defineConfig`, `generate` vs `push`, the migrations folder and its snapshots, and per-dialect quirks across postgresql, mysql, sqlite, mssql, cockroach, and singlestore. Load whenever drizzle migrations are being set up or modified, `drizzle.config.ts` is being read or edited, the generate-vs-push choice is being made, any Drizzle schema file has just been edited, migrations from several git branches meet in one migrations folder, a drizzle-kit command reports a broken migrations folder or branch conflicts, or a command asks to run `drizzle-kit up`.
 metadata:
   version: "1.0.0"
 ---
@@ -9,7 +9,7 @@ metadata:
 
 If the `drizzle` skill has not been loaded yet this session, load it first — it carries the staleness check and the MCP-vs-CLI surface-selection rule that govern every drizzle-kit invocation.
 
-Entry-point skill for the drizzle-kit migration workflow. Three responsibilities live here: the `defineConfig` reference, the `generate` vs `push` comparison, and the per-dialect quirks catalog. Invocation details (CLI form, SDK form, response shapes) live in the operation skills.
+Entry-point skill for the drizzle-kit migration workflow. Four responsibilities live here: the `defineConfig` reference, the `generate` vs `push` comparison, the per-dialect quirks catalog, and the guide to the migrations folder (snapshots, branches, errors and `drizzle-kit up`). Invocation details (CLI form, SDK form, response shapes) live in the operation skills.
 
 ## Configuration
 
@@ -57,32 +57,104 @@ The diff engine and dialect surface are shared by `generate` and `push`, so the 
 - `cockroach` — postgres-family; surface largely mirrors `postgresql`. Materialized-view drops are the only `confirm_data_loss/view` trigger. Distributed-schema notes surface in `--explain` mode.
 - `singlestore` — inherits the MySQL handler shape. Same `unsupported_schema_change` variants apply (`drop_pk_dependency`, `fk_target_not_unique`). No `schema` / `enum` / `sequence` / `policy` / `role` / `privilege` kinds.
 
+## The migrations folder
+
+`generate` writes each migration into its own folder under `out`:
+
+```text
+drizzle/
+  20260101120001_init/
+    migration.sql
+    snapshot.json
+  20260101120002_add_email/
+    migration.sql
+    snapshot.json
+```
+
+The folder name starts with the UTC time (`YYYYMMDDHHMMSS`) and ends with the migration name. `migration.sql` is the SQL that the migrator runs. `snapshot.json` is what drizzle-kit reads to compute the next migration and to check branches. The drizzle-orm migrator reads only `migration.sql`, and it runs the folders in folder-name order.
+
+Every snapshot has an `id` and a `prevIds` list with the ids of its parent snapshots. Most snapshots have one parent. A merge snapshot has several.
+
+Do not edit `snapshot.json` files by hand. To change a migration that no database has run yet, delete its folder and run `generate` again.
+
+### Base and diff snapshots (postgresql)
+
+For postgresql, drizzle-kit writes snapshot format 9:
+
+- The first migration gets a **base snapshot**. It holds the full schema.
+- Every later migration gets a **diff snapshot**. It holds only what that migration changed, as a list of deltas. A delta creates, drops, alters, renames or relocates one entity. A relocate is a move that follows another entity's rename, for example a column that moves with its renamed table.
+
+drizzle-kit rebuilds the schema of any migration by starting from the base snapshot and applying the deltas of the later snapshots in order. So each migration's `snapshot.json` is small, and a reviewer can read it next to `migration.sql` to see what changed. It also means that every snapshot needs all the snapshots before it: keep every migration folder, and in particular keep the first one.
+
+`generate --custom` writes a `migration.sql` that holds only a comment, for hand-written SQL, and a diff snapshot with no deltas.
+
+mysql, sqlite, turso, mssql, singlestore and cockroach still write the full schema into every snapshot.
+
+### Branches and merges
+
+When two git branches each add migrations and then come together, the migrations folder has several leaves: the newest migration of each branch. `generate`, `check` and `migrate` first check that the branches do not conflict. For postgresql, the check compares every change on one branch with every change on the other, so a change that a branch makes and later reverts still counts.
+
+- If the branches do not conflict, the next `generate` with a schema change writes a **merge migration**. Its `prevIds` lists the newest migration of every branch. For postgresql, the one with the newest folder name comes first, the merge snapshot holds only the deltas of the new change, and `migration.sql` holds only the new change, because each branch's SQL already runs from that branch's own folders. If the schema has no new change, `generate` writes nothing, and the branches stay open until the next migration. Open branches do not stop `migrate`.
+- If the branches conflict, `check`, `generate` and `migrate` stop with the `check_error` code and `kind: "conflicts"`. The report names the conflicting migrations. If one branch's migrations have not run on any shared database yet, delete that branch's migration folders, take the other branch, and run `generate` again. The new migration then continues from the other branch. Otherwise, pass `--ignore-conflicts` to `generate`. The merge migration is then written anyway. For postgresql, its SQL is computed from the branch with the newest folder name only, so it can repeat changes of the other branch. Review that SQL by hand before it runs anywhere.
+
+### Folder order
+
+A migration folder must sort after the folders of its parents, because the migrator runs the folders in name order. `generate` takes care of this: if the computer clock is behind the newest parent, the new folder gets that parent's time plus one second. Renaming migration folders by hand can break the rule.
+
+### Errors in the migrations folder
+
+For postgresql, every command that reads the migrations folder (`generate`, `check`, `migrate`, `up` and `pull`) checks the history of the folder before it does anything else. Each problem below stops the command with the `check_error` code and `kind: "malformed"`. The `drizzle-responses-and-errors` skill decodes the envelope.
+
+- **A snapshot file cannot be read.** The file is not valid JSON, or it has no `id` or no `prevIds` array. Only `snapshot` is set. This happens, for example, when a git merge left conflict markers in `snapshot.json`. Restore the file from git (keep the version from one of the merged git branches), or fix the JSON by hand.
+- **A parent is missing.** `parentId` is set to the id of the missing parent, and `snapshot` is the migration that needs it. A migration folder in the middle of the history is gone. Restore that folder from git. If it cannot be restored, delete the migration named in `snapshot` and every later migration, then run `generate` again.
+- **The base snapshot is missing.** Only `snapshot` is set. The first migration folder is gone. Restore it from git, or delete the named migration and every later one and run `generate` again.
+- **A folder sorts before its parent.** `parentSnapshot` is set to the parent's `snapshot.json`. Rename the folder named in `snapshot` so that it sorts after the parent folder.
+
+Deleting migrations is safe for the history in these cases:
+
+- The newest migration. The next `generate` redoes it from the migration before it.
+- A migration together with every later migration.
+- A merge migration. Its branches open again, and the next `generate` merges them again.
+
+Only delete a migration that no database has run yet. The migrator does not undo SQL that already ran.
+
+### Upgrading with `drizzle-kit up`
+
+Run `drizzle-kit up` when a command stops with `migrations_outdated_error`, or with `check_error` and `kind: "non_latest"`, or prints "please run drizzle-kit up". This happens with folders that an older drizzle-kit wrote.
+
+`up` changes only the files in the migrations folder:
+
+- If the folder still has `meta/_journal.json` and `meta/<n>_snapshot.json` files, `up` moves every migration into its own folder with `migration.sql` and `snapshot.json`.
+- For postgresql, `up` converts every older snapshot to format 9. The first snapshot becomes a base snapshot, and every later one becomes a diff snapshot. Renames that the old snapshots recorded become rename deltas. If an old snapshot stores another generated name for a constraint than the rebuilt schema has, `up` adds a drop and a create of that constraint to keep the stored name. `up` does not change the SQL of any migration.
+
+For postgresql, `up` rebuilds every schema from the new files and compares it with the old file before it rewrites any snapshot. If one schema differs, `up` rewrites no snapshot and stops with the `command_output_error` code and `kind: "state_mismatch"`, which names the snapshot and the entity. That is a drizzle-kit bug: keep the old files and report it. The move out of `meta/` runs before this check, so a folder that had `meta/_journal.json` already has the new layout at that point. A folder that is already current stays as it is, and `upgraded` is then `[]`. `up` writes no backup, so commit the folder before you run it, then review and commit the result.
+
 ## Collapsing snapshot diffs in code review
 
-Every migration `generate` writes carries a machine-generated `meta/<n>_snapshot.json` alongside the `.sql` — the full schema state, regenerated wholesale on each migration. Reviewers want to read the SQL, not the snapshot churn, so keep these generated files out of code-review noise through `.gitattributes`. This is PR-review hygiene, not a drizzle-kit command.
+For postgresql, only the first snapshot holds the full schema, and each later `snapshot.json` lists only what its migration changed, so reviewers can read it next to `migration.sql`. The other dialects write the full schema into every `snapshot.json`, and those files grow with the schema. To keep them out of code-review noise, mark them in `.gitattributes`. This is code-review hygiene, not a drizzle-kit command.
 
-Target only the snapshot glob `drizzle/**/meta/*_snapshot.json`. It mirrors the configured `out` dir: the default is `drizzle/`, so an `out: 'migrations'` project uses `migrations/**/meta/*_snapshot.json` instead — adjust the leading directory to match `out`. Scope the glob to `*_snapshot.json` only; do not broaden to `meta/*`, because the sibling `meta/_journal.json` is small and human-meaningful and is intentionally not a collapse target.
+Target only the snapshot glob `drizzle/*/snapshot.json`. It mirrors the configured `out` dir: the default is `drizzle/`, so an `out: 'migrations'` project uses `migrations/*/snapshot.json` instead. Adjust the leading directory to match `out`. Do not broaden the glob to the whole folder, because `migration.sql` is what reviewers need to read.
 
 Per platform:
 
 - **GitHub** — mark the snapshots as generated so Linguist collapses them by default (reviewers can still expand):
 
   ```gitattributes
-  drizzle/**/meta/*_snapshot.json linguist-generated=true
+  drizzle/*/snapshot.json linguist-generated=true
   ```
 
-  Linguist auto-detects many generated files by filename and content heuristics, but `*_snapshot.json` is not on that list, so the explicit attribute is required.
+  Linguist detects many generated files by filename and content, but `snapshot.json` is not on that list, so the explicit attribute is required.
 
 - **GitLab** — collapse via the `gitlab-generated` attribute (GA on 16.11+, no feature flag):
 
   ```gitattributes
-  drizzle/**/meta/*_snapshot.json gitlab-generated
+  drizzle/*/snapshot.json gitlab-generated
   ```
 
 - **Bitbucket and Gerrit** — neither has a native generated-file collapse mechanism, and neither honors `linguist-generated` or `gitlab-generated`; there is no path-based auto-collapse in their web review UIs. The closest git-native lever is the `-diff` attribute:
 
   ```gitattributes
-  drizzle/**/meta/*_snapshot.json -diff
+  drizzle/*/snapshot.json -diff
   ```
 
-  Be honest about what `-diff` does: it tells git to treat the path as non-text, so `git diff` prints "Binary files differ" instead of the textual hunk (and renders as a suppressed/binary diff on GitHub and GitLab too). But it does NOT collapse the file in the Bitbucket or Gerrit web review UIs — the snapshot still appears in the changed-files list, just without a readable diff — and it removes a diff that is locally useful, since the snapshot is real JSON. Treat `-diff` as a deliberate tradeoff for those platforms, not a blanket recommendation.
+  The `-diff` attribute tells git to treat the path as non-text, so `git diff` prints "Binary files differ" instead of the textual hunk (and GitHub and GitLab show it as a binary diff too). It does not collapse the file in the Bitbucket or Gerrit web review UIs: the snapshot still appears in the changed-files list, without a readable diff. It also removes a diff that is useful locally, because the snapshot is JSON text. Use `-diff` only when that cost is acceptable on those platforms.

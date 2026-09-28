@@ -1,18 +1,19 @@
 import { integer as pgInteger, pgTable, varchar } from 'drizzle-orm/pg-core';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import type { PostgresSnapshot } from '../../src/dialects/postgres/snapshot';
+import type { PostgresStateSnapshot } from '../../src/dialects/postgres/snapshot';
 import { drizzleToDDL, type PostgresSchema } from '../postgres/mocks';
 
 export const ORIGIN = '00000000-0000-0000-0000-000000000000';
 
-export const makePgSnapshot = (id: string, prevIds: string[], schema: PostgresSchema): PostgresSnapshot => ({
-	version: '8',
+// Readers accept checkpoints, so fixture snapshots hold full states and need no deltas.
+export const makePgSnapshot = (id: string, prevIds: string[], schema: PostgresSchema): PostgresStateSnapshot => ({
+	type: prevIds[0] === ORIGIN ? 'base' : 'checkpoint',
+	version: '9',
 	dialect: 'postgres',
 	id,
 	prevIds,
 	ddl: drizzleToDDL(schema).ddl.entities.list(),
-	renames: [],
 });
 
 export const stageOut = (): string => {
