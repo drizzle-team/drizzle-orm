@@ -26,6 +26,9 @@ export class SingleStoreJsonBuilder extends SingleStoreColumnBuilder<{
 export class SingleStoreJson<T extends ColumnBaseConfig<'object json'>> extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreJson';
 
+	/** @internal */
+	override readonly codec = 'json';
+
 	getSQLType(): string {
 		return 'json';
 	}

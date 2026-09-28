@@ -18,14 +18,14 @@ import {
 	type SQLiteExecuteMethod,
 	SQLitePreparedQuery,
 	SQLiteSession,
-	type SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { upgradeIfNeeded } from '~/up-migrations/effect-sqlite.ts';
 import { assertUnreachable } from '~/utils.ts';
 import { SQLiteEffectDatabase } from './db.ts';
 
 export type SQLiteEffectQueryExecutors = Record<
-	SQLiteExecuteMethod,
+	// `values` mirrors `all` in array mode, no need to define separate executor
+	Exclude<SQLiteExecuteMethod, 'values'>,
 	(params: unknown[]) => Effect.Effect<any, unknown, unknown>
 >;
 
@@ -120,7 +120,7 @@ export class SQLiteEffectPreparedQuery<
 
 			yield* logger.logQuery(sql, params);
 
-			return yield* this.queryWithCache(sql, params, 'values', Effect.suspend(() => executors.values(params)));
+			return yield* this.queryWithCache(sql, params, 'values', Effect.suspend(() => executors.all(params)));
 		}) as QueryEffectKind<TEffectHKT, T['values']>;
 	}
 
@@ -149,7 +149,6 @@ export class SQLiteEffectPreparedQuery<
 				return yield* query;
 			}
 
-			// For mutate queries, we should query the database, wait for a response, and then perform invalidation
 			if (cacheStrat.type === 'invalidate') {
 				const result = yield* query;
 				yield* cache!.onMutate({ tables: cacheStrat.tables });
@@ -268,7 +267,6 @@ export abstract class SQLiteEffectSession<
 		transaction: (
 			tx: SQLiteEffectTransaction<TEffectHKT, TRunResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
-		config?: SQLiteTransactionConfig,
 	): Effect.Effect<A, E | SqlError, R>;
 }
 

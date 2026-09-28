@@ -70,9 +70,6 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 			run: (params) => {
 				return stmt.run(...params as any[]);
 			},
-			values: (params) => {
-				return stmt.raw().all(...params as any[]);
-			},
 		};
 
 		return new SQLiteAsyncPreparedQuery(
@@ -94,8 +91,13 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 		config: SQLiteTransactionConfig = {},
 	): T {
 		const tx = new BetterSQLiteTransaction('sync', this.dialect, this, this.relations);
-		const nativeTx = this.client.transaction(transaction);
-		return nativeTx[config.behavior ?? 'deferred'](tx);
+		let result!: T;
+		const nativeTx = this.client.transaction(() => {
+			result = transaction(tx);
+		});
+		if (config.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
+		nativeTx[config.behavior ?? 'deferred']();
+		return result;
 	}
 }
 

@@ -1,8 +1,10 @@
 import type { QueryResult } from 'pg';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
+import type { CockroachDatabase } from '~/cockroach-core/db.ts';
 import { bool, cockroachTable, int4, QueryBuilder, text } from '~/cockroach-core/index.ts';
 import type { CockroachInsert } from '~/cockroach-core/query-builders/insert.ts';
+import type { CockroachQueryResultHKT } from '~/cockroach-core/session.ts';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 import { identityColumnsTable, users } from './tables.ts';
@@ -298,4 +300,113 @@ Expect<
 	db.insert(identityColumnsTable).values([
 		{ generatedCol: 2 },
 	]);
+}
+
+// Insert with explicit column selection
+{
+	// All required columns listed -> ok
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'arrayCol').values([
+		{ homeCity: 1, class: 'A', age1: 1, enumCol: 'a', arrayCol: [''] },
+	]);
+
+	// Required columns + an extra optional column -> ok
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'arrayCol', 'currentCity').values([
+		{ homeCity: 1, class: 'A', age1: 1, enumCol: 'a', arrayCol: [''], currentCity: 2 },
+	]);
+
+	// Single-object values -> ok
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'arrayCol').values({
+		homeCity: 1,
+		class: 'A',
+		age1: 1,
+		enumCol: 'a',
+		arrayCol: [''],
+	});
+
+	// SQL values in listed columns -> ok
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'arrayCol').values({
+		homeCity: sql`1`,
+		class: 'A',
+		age1: sql`2 + 2`,
+		enumCol: 'a',
+		arrayCol: [''],
+	});
+
+	// The column list is order-independent -> ok
+	db.insert(users, 'arrayCol', 'enumCol', 'age1', 'class', 'homeCity').values([
+		{ homeCity: 1, class: 'A', age1: 1, enumCol: 'a', arrayCol: [''] },
+	]);
+
+	// values() rejects a column that was not part of the selection
+	db
+		.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'arrayCol')
+		// @ts-expect-error currentCity was not included in the column selection
+		.values([{ homeCity: 1, class: 'A', age1: 1, enumCol: 'a', arrayCol: [''], currentCity: 2 }]);
+
+	// values() still requires the listed required columns to be provided
+	db
+		.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'arrayCol')
+		// @ts-expect-error enumCol and arrayCol are missing from values
+		.values([{ homeCity: 1, class: 'A', age1: 1 }]);
+
+	// @ts-expect-error missing required column `arrayCol` from the selection
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol');
+
+	// @ts-expect-error unknown column `nope`
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'arrayCol', 'nope');
+
+	// @ts-expect-error duplicate column `homeCity`
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'arrayCol', 'homeCity');
+
+	// Column selection combined with `.select(...)`
+	const qb = new QueryBuilder();
+
+	// Selection matching the column list -> ok
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'arrayCol').select(
+		qb.select({
+			homeCity: users.homeCity,
+			class: users.class,
+			age1: users.age1,
+			enumCol: users.enumCol,
+			arrayCol: users.arrayCol,
+		}).from(users),
+	);
+
+	// Selection with a key that is not part of the insert column selection
+	db.insert(users, 'homeCity', 'class', 'age1', 'enumCol', 'arrayCol').select(
+		// @ts-expect-error currentCity is not included in the insert column selection
+		qb.select({
+			homeCity: users.homeCity,
+			class: users.class,
+			age1: users.age1,
+			enumCol: users.enumCol,
+			arrayCol: users.arrayCol,
+			currentCity: users.currentCity,
+		}).from(users),
+	);
+
+	// A duplicate in the column list is reported at the `.insert()` call, before `.select()`
+	db
+		// @ts-expect-error duplicate column `class`
+		.insert(users, 'class', 'class', 'homeCity', 'age1', 'enumCol', 'arrayCol')
+		.select(
+			qb.select({
+				class: users.class,
+				homeCity: users.homeCity,
+				age1: users.age1,
+				enumCol: users.enumCol,
+				arrayCol: users.arrayCol,
+			}).from(users),
+		);
+}
+
+{
+	interface HKT1 extends CockroachQueryResultHKT {
+		readonly type: 1;
+	}
+	interface HKT2 extends CockroachQueryResultHKT {
+		readonly type: 2;
+	}
+	const unionDb = {} as CockroachDatabase<HKT1> | CockroachDatabase<HKT2>;
+	await unionDb.insert(users).values({ homeCity: 1, class: 'A', age1: 1, enumCol: 'a', arrayCol: [''] });
 }

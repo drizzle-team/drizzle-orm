@@ -1,6 +1,8 @@
 import { neon, Pool as NeonPool } from '@neondatabase/serverless';
 import { eq, sql } from 'drizzle-orm';
+import type { NeonHttpQueryResult } from 'drizzle-orm/neon-http';
 import { drizzle } from 'drizzle-orm/netlify-db';
+import type { NetlifyDbDatabase } from 'drizzle-orm/netlify-db';
 import { migrate } from 'drizzle-orm/netlify-db/migrator';
 import {
 	bigint,
@@ -42,6 +44,11 @@ import { randomString } from '~/utils';
 import { tests } from './common';
 import { netlifyDbTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
+import {
+	assertMalformedSnapshotRejected,
+	assertSnapshotIdNotInjectable,
+	assertSnapshotIsolatesTransaction,
+} from './snapshot';
 
 const skips = [] as string[];
 
@@ -71,6 +78,35 @@ async function teardownTestTable(database: { execute: (query: any) => Promise<an
 	await database.execute(sql`drop table if exists netlify_db_test_items`);
 }
 
+test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
+	const db = fixtureDb as unknown as NetlifyDbDatabase;
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} ("id" integer primary key, "name" text not null)`);
+	expectTypeOf(created).toEqualTypeOf<NeonHttpQueryResult<never>>();
+	expect(created).toEqual(expect.objectContaining({ rows: [], command: expect.any(String) }));
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<NeonHttpQueryResult<never>>();
+	expect(inserted).toEqual(expect.objectContaining({ rows: [], rowCount: 1 }));
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(selected).toEqualTypeOf<NeonHttpQueryResult<{ id: number; name: string }>>();
+	expect(selected).toEqual(expect.objectContaining({ rows: [{ id: 1, name: 'John' }], rowCount: 1 }));
+
+	// Any response
+	const any = await db.execute(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(any).toEqualTypeOf<NeonHttpQueryResult<Record<string, unknown>>>();
+	expect(any).toEqual(expect.objectContaining({ rows: [{ id: 1, name: 'John' }], rowCount: 1 }));
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
+
 describe('migrator', () => {
 	test.beforeEach(async ({ db }) => {
 		await db.execute(sql`drop schema if exists public cascade`);
@@ -92,27 +128,35 @@ describe('migrator', () => {
 		await db.execute(sql`drop table if exists all_columns, users12, "drizzle"."__drizzle_migrations"`);
 		await migrate(db, { migrationsFolder: './drizzle2/pg' });
 
-		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		try {
+			await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
-		const result = await db.select().from(usersMigratorTable);
+			const result = await db.select().from(usersMigratorTable);
 
-		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-		await db.execute(sql`drop table all_columns, users12, "drizzle"."__drizzle_migrations"`);
+			expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		} finally {
+			await db.execute(sql`drop table if exists all_columns, users12, "drizzle"."__drizzle_migrations"`);
+		}
 	});
 
 	test('migrator : migrate with custom schema', async ({ db }) => {
+		// a leftover migrations table would make migrate() a no-op and users12 would never be created
+		await db.execute(sql`drop schema if exists custom_migrations cascade`);
 		await db.execute(sql`drop table if exists all_columns, users12, "drizzle"."__drizzle_migrations"`);
 		await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsSchema: 'custom_migrations' });
 
-		// test if the custom migrations table was created
-		const { rowCount } = await db.execute(sql`select * from custom_migrations."__drizzle_migrations";`);
-		expect(rowCount && rowCount > 0).toBeTruthy();
-		// test if the migrated table are working as expected
-		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-		const result = await db.select().from(usersMigratorTable);
-		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-		await db.execute(sql`drop table all_columns, users12, custom_migrations."__drizzle_migrations"`);
+		try {
+			// test if the custom migrations table was created
+			const { rowCount } = await db.execute(sql`select * from custom_migrations."__drizzle_migrations";`);
+			expect(rowCount && rowCount > 0).toBeTruthy();
+			// test if the migrated table are working as expected
+			await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+			const result = await db.select().from(usersMigratorTable);
+			expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		} finally {
+			await db.execute(sql`drop table if exists all_columns, users12`);
+			await db.execute(sql`drop schema if exists custom_migrations cascade`);
+		}
 	});
 
 	test('migrator : migrate with custom table', async ({ db }) => {
@@ -120,14 +164,17 @@ describe('migrator', () => {
 		await db.execute(sql`drop table if exists all_columns, users12, "drizzle"."__drizzle_migrations"`);
 		await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable });
 
-		// test if the custom migrations table was created
-		const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
-		expect(rowCount && rowCount > 0).toBeTruthy();
-		// test if the migrated table are working as expected
-		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-		const result = await db.select().from(usersMigratorTable);
-		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-		await db.execute(sql`drop table all_columns, users12, "drizzle".${sql.identifier(customTable)}`);
+		try {
+			// test if the custom migrations table was created
+			const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
+			expect(rowCount && rowCount > 0).toBeTruthy();
+			// test if the migrated table are working as expected
+			await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+			const result = await db.select().from(usersMigratorTable);
+			expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		} finally {
+			await db.execute(sql`drop table if exists all_columns, users12, "drizzle".${sql.identifier(customTable)}`);
+		}
 	});
 
 	test('migrator : migrate with custom table and custom schema', async ({ db }) => {
@@ -139,16 +186,20 @@ describe('migrator', () => {
 			migrationsSchema: 'custom_migrations',
 		});
 
-		// test if the custom migrations table was created
-		const { rowCount } = await db.execute(
-			sql`select * from custom_migrations.${sql.identifier(customTable)};`,
-		);
-		expect(rowCount && rowCount > 0).toBeTruthy();
-		// test if the migrated table are working as expected
-		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-		const result = await db.select().from(usersMigratorTable);
-		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-		await db.execute(sql`drop table all_columns, users12, custom_migrations.${sql.identifier(customTable)}`);
+		try {
+			// test if the custom migrations table was created
+			const { rowCount } = await db.execute(
+				sql`select * from custom_migrations.${sql.identifier(customTable)};`,
+			);
+			expect(rowCount && rowCount > 0).toBeTruthy();
+			// test if the migrated table are working as expected
+			await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+			const result = await db.select().from(usersMigratorTable);
+			expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		} finally {
+			await db.execute(sql`drop table if exists all_columns, users12`);
+			await db.execute(sql`drop schema if exists custom_migrations cascade`);
+		}
 	});
 
 	test('migrator : --init', async ({ db }) => {
@@ -539,18 +590,34 @@ describe('migrator', () => {
 		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('insert via db.execute + select via db.execute', async ({ db }) => {
+	test('insert via db.execute + select via db.execute', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_netlify_db_1', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		await db.execute(
 			sql`insert into ${usersTable} (${sql.identifier(usersTable.name.name)}) values (${'John'})`,
 		);
 
 		const result = await db.execute<{ id: number; name: string }>(
-			sql`select id, name from "users"`,
+			sql`select id, name from ${usersTable}`,
 		);
 		expect(result.rows).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('insert via db.execute + returning', async ({ db }) => {
+	test('insert via db.execute + returning', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_netlify_db_2', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		const inserted = await db.execute<{ id: number; name: string }>(
 			sql`insert into ${usersTable} (${
 				sql.identifier(
@@ -561,7 +628,15 @@ describe('migrator', () => {
 		expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('insert via db.execute w/ query builder', async ({ db }) => {
+	test('insert via db.execute w/ query builder', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_netlify_db_3', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		const inserted = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 			db
 				.insert(usersTable)
@@ -770,5 +845,19 @@ describe('serverless transport selection', () => {
 		expect(names).not.toContain('Inner - rolled back');
 
 		await teardownTestTable(testDb);
+	});
+});
+
+describe('transaction snapshot', () => {
+	test('isolates the transaction', async ({ db, peer }) => {
+		await assertSnapshotIsolatesTransaction(db, peer!, expect, 'netlify');
+	});
+
+	test('rejects a malformed id', async ({ db }) => {
+		await assertMalformedSnapshotRejected(db, expect);
+	});
+
+	test('does not let the id inject SQL', async ({ db }) => {
+		await assertSnapshotIdNotInjectable(db, expect, 'netlify');
 	});
 });

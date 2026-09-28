@@ -129,6 +129,10 @@ export class BunSQLTransaction<
 	}
 }
 
+export type BunSQLRawExecuteResult = Record<string, unknown>[] | Record<string, unknown>[][];
+
 export interface BunSQLQueryResultHKT extends PgQueryResultHKT {
-	type: this['row'][];
+	type: [this['row']] extends [never] ? []
+		: [this['row']] extends ['unknown'] ? BunSQLRawExecuteResult
+		: this['row'][];
 }

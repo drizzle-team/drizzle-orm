@@ -4,8 +4,10 @@ import type { AnyRelations } from '~/relations.ts';
 import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table, TableSchema } from '~/table.ts';
+import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import type { ViewConfig } from '~/view.ts';
 import { type Check, CheckBuilder } from './checks.ts';
 import type { PgCodecs } from './codecs.ts';
 import { type ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
@@ -48,6 +50,8 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 				foreignKeys.push(builder.build(table));
 			} else if (is(builder, PgPolicy)) {
 				policies.push(builder);
+			} else {
+				throwUnknownExtraConfigValue(name, builder);
 			}
 		}
 	}
@@ -81,20 +85,14 @@ export function extractUsedTable(table: PgTable | Subquery | PgViewBase | SQL): 
 	return [];
 }
 
-export function getViewConfig<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
->(view: PgView<TName, TExisting>) {
+export function getViewConfig<T extends ViewConfig = ViewConfig>(view: PgView<T>) {
 	return {
 		...view[ViewBaseConfig],
 		...view[PgViewConfig],
 	};
 }
 
-export function getMaterializedViewConfig<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
->(view: PgMaterializedView<TName, TExisting>) {
+export function getMaterializedViewConfig<T extends ViewConfig = ViewConfig>(view: PgMaterializedView<T>) {
 	return {
 		...view[ViewBaseConfig],
 		...view[PgMaterializedViewConfig],
@@ -102,5 +100,5 @@ export function getMaterializedViewConfig<
 }
 
 export type DrizzlePgConfig<TRelations extends AnyRelations> =
-	& Omit<DrizzleConfig<Record<string, never>, TRelations>, 'schema'>
+	& DrizzleConfig<TRelations>
 	& { codecs?: PgCodecs | undefined };

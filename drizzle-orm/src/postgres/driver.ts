@@ -1,62 +1,8 @@
-import { createPool, type Pool, type PoolConfig } from 'minipg';
-import { entityKind } from '~/entity.ts';
-import { DefaultLogger } from '~/logger.ts';
-import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
-import { PgDialect } from '~/pg-core/dialect.ts';
+import { createPool, type Pool, type PoolConfig } from '@drizzle-team/minipg';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { jitCompatCheck } from '~/utils.ts';
-import { miniPgCodecs } from './codecs.ts';
-import type { PostgresClient, PostgresQueryResultHKT } from './session.ts';
-import { PostgresSession } from './session.ts';
-import { buildShape } from './shape.ts';
-
-export class PostgresDatabase<
-	TRelations extends AnyRelations = EmptyRelations,
-> extends PgAsyncDatabase<PostgresQueryResultHKT, TRelations> {
-	static override readonly [entityKind]: string = 'PostgresDatabase';
-}
-
-function construct<
-	TRelations extends AnyRelations = EmptyRelations,
-	TClient extends PostgresClient = PostgresClient,
->(
-	client: TClient,
-	config: DrizzlePgConfig<TRelations> = {},
-): PostgresDatabase<TRelations> & {
-	$client: PostgresClient extends TClient ? Pool : TClient;
-} {
-	const dialect = new PgDialect({
-		codecs: config.codecs ?? miniPgCodecs,
-		useJitMappers: jitCompatCheck(config.jit),
-		shapeGenerator: buildShape,
-	});
-	let logger;
-	if (config.logger === true) {
-		logger = new DefaultLogger();
-	} else if (config.logger !== false) {
-		logger = config.logger;
-	}
-
-	const relations = config.relations ?? {};
-	const session = new PostgresSession(client, dialect, relations, {
-		logger,
-		cache: config.cache,
-	});
-
-	const db = new PostgresDatabase(
-		dialect,
-		session,
-		relations,
-	) as PostgresDatabase<TRelations>;
-	(<any> db).$client = client;
-	(<any> db).$cache = config.cache;
-	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
-	}
-
-	return db as any;
-}
+import { construct, type PostgresDatabase } from './driver-core.ts';
+import type { PostgresClient } from './session.ts';
 
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
@@ -100,15 +46,9 @@ export function drizzle<
 
 	if (client) return construct(client, config);
 
-	// `temporal` is drizzle's to decide: a column's `mode` already says whether it wants a `Date` or the raw
-	// text, and text is the lossless form (µs, BC eras, `infinity`). Pinning it here - and pinning `:string` in
-	// the shape - is what lets the temporal codecs drop their `typeof value === 'string'` guard.
 	const instance = typeof connection === 'string'
-		? createPool({
-			url: connection,
-			temporal: 'string',
-		})
-		: createPool({ ...connection!, temporal: 'string' });
+		? createPool({ url: connection })
+		: createPool({ ...connection! });
 
 	return construct(instance, config) as any;
 }

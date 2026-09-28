@@ -55,7 +55,7 @@ export type SQLiteEffectUpdatePrepare<
 		all: T['_']['returning'] extends undefined ? DrizzleTypeError<'.all() cannot be used without .returning()'>
 			: T['_']['returning'][];
 		get: T['_']['returning'] extends undefined ? DrizzleTypeError<'.get() cannot be used without .returning()'>
-			: T['_']['returning'];
+			: T['_']['returning'] | undefined;
 		values: T['_']['returning'] extends undefined ? DrizzleTypeError<'.values() cannot be used without .returning()'>
 			: any[][];
 		execute: SQLiteEffectUpdateExecute<T>;
@@ -103,7 +103,7 @@ export class SQLiteEffectUpdateBase<
 	/** @internal */
 	_prepare(prepare = false): SQLiteEffectUpdatePrepare<this, TEffectHKT> {
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+			this.dialect.sqlToQuery(this.getSQL(true)),
 			'arrays',
 			prepare,
 			this.config.returning ? 'all' : 'run',

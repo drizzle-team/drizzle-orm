@@ -1,4 +1,4 @@
-import type { Client, InArgs, InStatement, ResultSet, Transaction } from '@libsql/client';
+import type { Client, InArgs, InStatement, ResultSet, Transaction, TransactionMode } from '@libsql/client';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -25,6 +25,23 @@ export interface LibSQLSessionOptions {
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 export type LibSQLRunResult = ResultSet;
+
+function mapLibSQLTransactionBehavior(
+	behavior: SQLiteTransactionConfig['behavior'],
+): TransactionMode | undefined {
+	switch (behavior) {
+		case undefined:
+			return undefined;
+		case 'deferred':
+			return 'deferred';
+		case 'immediate':
+			return 'write';
+		case 'exclusive':
+			throw new Error('Exclusive transactions are not supported by driver');
+		case 'concurrent':
+			throw new Error('Concurrent transactions are not supported by driver');
+	}
+}
 
 export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncSession<'async', ResultSet, TRelations> {
 	static override readonly [entityKind]: string = 'LibSQLSession';
@@ -68,8 +85,6 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 					rows[0] ? (mode === 'arrays' ? toArrayRow(rows[0]) : normalizeRow(rows[0])) : undefined
 				),
 			run: (params) => client.execute({ sql: query.sql, args: params as InArgs }),
-			values: (params) =>
-				client.execute({ sql: query.sql, args: params as InArgs }).then(({ rows }) => rows.map(toArrayRow)),
 		};
 
 		return new SQLiteAsyncPreparedQuery(
@@ -114,7 +129,7 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 			const { executeMethod, mapper, mode } = preparedQueries[i]!;
 
 			if (executeMethod === 'run') return result;
-			if (executeMethod === 'values') return result.rows;
+			if (executeMethod === 'values') return result.rows.map(toArrayRow);
 
 			if (executeMethod === 'get') {
 				const value = result.rows[0];
@@ -139,10 +154,9 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 
 	override async transaction<T>(
 		transaction: (db: LibSQLTransaction<TRelations>) => T | Promise<T>,
-		_config?: SQLiteTransactionConfig,
+		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		// TODO: support transaction behavior
-		const libsqlTx = await this.client.transaction();
+		const libsqlTx = await this.client.transaction(mapLibSQLTransactionBehavior(config?.behavior));
 		const session = new LibSQLSession<TRelations>(
 			this.client,
 			this.dialect,

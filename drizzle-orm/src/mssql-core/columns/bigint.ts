@@ -1,7 +1,9 @@
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
+import type { MsSqlColumnWithIdentityConfig } from './common.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
 export class MsSqlBigIntBuilder<TMode extends 'number' | 'bigint' | 'string'> extends MsSqlColumnBuilderWithIdentity<{
@@ -39,13 +41,20 @@ export class MsSqlBigInt<T extends ColumnBaseConfig<'bigint int64' | 'number int
 
 	readonly mode: 'number' | 'bigint' | 'string' = this.config.mode;
 
+	/** @internal */
+	override readonly codec: 'bigint' | 'bigint:number' | 'bigint:string';
+
 	getSQLType(): string {
 		return `bigint`;
 	}
 
-	constructor(table: MsSqlTable<any>, config: MsSqlBigIntBuilder<'string' | 'number' | 'bigint'>['config']) {
+	constructor(
+		table: MsSqlTable<any>,
+		config: ColumnBuilderRuntimeConfig<T['data']> & MsSqlColumnWithIdentityConfig & MsSqlBigIntConfig,
+	) {
 		super(table, config);
 		this.mode = config.mode;
+		this.codec = config.mode === 'string' ? 'bigint:string' : config.mode === 'number' ? 'bigint:number' : 'bigint';
 	}
 
 	override mapFromDriverValue = (value: string): T['data'] => {

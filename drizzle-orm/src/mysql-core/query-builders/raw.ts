@@ -28,6 +28,7 @@ export class MySqlRaw<TResult> implements SQLWrapper, PreparedQuery {
 		return this.query;
 	}
 
+	/** @internal */
 	_prepare() {
 		return this.prepared;
 	}

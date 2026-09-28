@@ -468,8 +468,6 @@ test('composite primary key', async () => {
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
-
-	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
@@ -1097,4 +1095,62 @@ test('recreate table and add unique column', async (t) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 	expect(phints).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6308
+test('recreate table and add unique column', async (t) => {
+	const schema1 = {
+		player: sqliteTable('player', {
+			id: text('id').primaryKey(),
+			rd: integer('rd').notNull().default(350),
+		}),
+	};
+
+	const modifiedPlayer = sqliteTable('player', {
+		id: text('id').primaryKey(),
+		rd: real('rd').notNull().default(350),
+	});
+	const schema2 = {
+		player: modifiedPlayer,
+		ratingEvent: sqliteTable('rating_event', {
+			id: text('id').primaryKey(),
+			playerId: text('player_id').notNull().references(() => modifiedPlayer.id),
+		}, (table) => [uniqueIndex('rating_event_player_unique').on(table.playerId)]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: [] });
+
+	const st0: string[] = [
+		`CREATE TABLE \`rating_event\` (
+\t\`id\` text PRIMARY KEY,
+\t\`player_id\` text NOT NULL,
+\tCONSTRAINT \`fk_rating_event_player_id_player_id_fk\` FOREIGN KEY (\`player_id\`) REFERENCES \`player\`(\`id\`)
+);\n`,
+		'PRAGMA foreign_keys=OFF;',
+		`CREATE TABLE \`__new_player\` (
+\t\`id\` text PRIMARY KEY,
+\t\`rd\` real DEFAULT 350 NOT NULL
+);\n`,
+		'INSERT INTO `__new_player`(`id`, `rd`) SELECT `id`, `rd` FROM `player`;',
+		'DROP TABLE `player`;',
+		'ALTER TABLE `__new_player` RENAME TO `player`;',
+		'PRAGMA foreign_keys=ON;',
+		'CREATE UNIQUE INDEX `rating_event_player_unique` ON `rating_event` (`player_id`);',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(phints).toStrictEqual([]);
+
+	await db.run("INSERT INTO player (id) VALUES ('p1')");
+	await db.run("INSERT INTO rating_event (id, player_id) VALUES ('e1', 'p1')");
+
+	const errorMessage = await db.run("INSERT INTO rating_event (id, player_id) VALUES ('e2', 'p1')").catch((err) =>
+		err.message
+	);
+	expect(errorMessage).toStrictEqual(
+		`query error: INSERT INTO rating_event (id, player_id) VALUES ('e2', 'p1')\n\nUNIQUE constraint failed: rating_event.player_id`,
+	);
 });

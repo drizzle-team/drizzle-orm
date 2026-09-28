@@ -15,7 +15,7 @@ export class CockroachCountBuilder extends SQL<number> implements SQLWrapper<num
 	static override readonly [entityKind]: string = 'CockroachCountBuilder';
 
 	protected dialect: CockroachDialect;
-	protected session: CockroachSession<any, any, any>;
+	protected session: CockroachSession<any, any>;
 
 	private static buildCount(
 		source: CockroachTable | CockroachViewBase | SQL | SQLWrapper,
@@ -33,7 +33,7 @@ export class CockroachCountBuilder extends SQL<number> implements SQLWrapper<num
 			source: CockroachTable | CockroachViewBase | SQL | SQLWrapper;
 			filters?: SQL<unknown>;
 			dialect: CockroachDialect;
-			session: CockroachSession<any, any, any>;
+			session: CockroachSession<any, any>;
 		},
 	) {
 		super(CockroachCountBuilder.buildCount(countConfig.source, countConfig.filters, true).queryChunks);
@@ -59,8 +59,8 @@ export class CockroachCountBuilder extends SQL<number> implements SQLWrapper<num
 	execute(placeholderValues?: Record<string, unknown>): Promise<number> {
 		return this.session.prepareQuery(
 			this.build(),
-			undefined,
-			undefined,
+			'arrays',
+			false,
 			(rows) => {
 				const v = rows[0]?.[0];
 				if (typeof v === 'number') return v;

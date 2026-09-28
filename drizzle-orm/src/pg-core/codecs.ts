@@ -994,7 +994,7 @@ export const arrayCompatNormalize = (normalize: NormalizeCodec) => {
 export const arrayCompatNormalizeInput = (normalize: NormalizeCodec, transformToPgArray = false) => {
 	const loop: NormalizeArrayCodec = (value, arrayDimensions): any => {
 		const innerDimensions = arrayDimensions - 1;
-		const out = Array.from({ length: value.length });
+		const out = new Array(value.length);
 		if (arrayDimensions > 1) {
 			for (let i = 0; i < (value as unknown[][]).length; ++i) {
 				out[i] = loop((value as unknown[][])[i]!, innerDimensions);
@@ -1011,11 +1011,16 @@ export const arrayCompatNormalizeInput = (normalize: NormalizeCodec, transformTo
 	return transformToPgArray ? (v: any, d: number) => makePgArray(loop(v, d)) : loop;
 };
 
-/** Parses a raw PG array text representation, then applies a per-item normalizer */
-export const parsePgArrayAndNormalize = (normalize: NormalizeCodec): NormalizeArrayCodec => {
+export const parsePgArrayAndNormalize = (normalize: NormalizeCodec, delim?: string): NormalizeArrayCodec => {
 	const codec = arrayCompatNormalize(normalize);
-	return (value, arrayDimensions) => codec(parsePgArray(value), arrayDimensions);
+	return (value, arrayDimensions) => codec(parsePgArray(value, delim), arrayDimensions);
 };
+
+export const parseGeometryArrayAndNormalize = (normalize: NormalizeCodec): NormalizeArrayCodec =>
+	parsePgArrayAndNormalize(normalize, ':');
+export const makeGeometryArray: NormalizeArrayCodec = (value) => makePgArray(value, ':');
+
+export const makeBoxArray: NormalizeArrayCodec = (value) => makePgArray(value, ';');
 
 export const parseLineTuple = (v: string): [number, number, number] => {
 	const [a, b, c] = v.slice(1, -1).split(',');

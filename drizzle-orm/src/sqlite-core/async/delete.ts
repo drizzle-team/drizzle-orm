@@ -105,7 +105,7 @@ export class SQLiteAsyncDeleteBase<
 	/** @internal */
 	_prepare(prepare = false): SQLiteAsyncDeletePrepare<this> {
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+			this.dialect.sqlToQuery(this.getSQL(true)),
 			'arrays',
 			prepare,
 			this.config.returning ? 'all' : 'run',

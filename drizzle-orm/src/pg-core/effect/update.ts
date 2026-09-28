@@ -7,7 +7,7 @@ import type { JoinNullability } from '~/query-builders/select.types.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import type { Assume } from '~/utils.ts';
+import { type Assume, resolveNullableObjectPaths } from '~/utils.ts';
 import { type Join, PgUpdateBase, type PgUpdateHKTBase } from '../query-builders/update.ts';
 import { extractUsedTable } from '../utils.ts';
 import type { PgViewBase } from '../view-base.ts';
@@ -120,9 +120,9 @@ export class PgEffectUpdateBase<
 		const { session, config, dialect, joinsNotNullableMap } = this;
 		const { returning: fields } = config;
 
-		const query = dialect.sqlToQuery(this.getSQL());
+		const query = dialect.sqlToQuery(this.getSQL(true));
 		const mapper = fields
-			? this.dialect.mapperGenerators.rows(fields, joinsNotNullableMap)
+			? this.dialect.mapperGenerators.rows(fields, resolveNullableObjectPaths(fields, joinsNotNullableMap))
 			: undefined;
 
 		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(

@@ -5,7 +5,7 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { type Query, type SQL, sql } from '~/sql/sql.ts';
+import { type Query, sql } from '~/sql/sql.ts';
 import {
 	SQLiteAsyncPreparedQuery,
 	type SQLiteAsyncPreparedQueryConfig as PreparedQueryConfigBase,
@@ -15,7 +15,7 @@ import {
 } from '~/sqlite-core/async/session.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core/session.ts';
-import type { AsyncBatchRemoteCallback, RemoteCallback, SqliteRemoteResult } from './driver.ts';
+import type { SqliteProxyBatchItem, SqliteProxyExecutors, SqliteRemoteRunResult } from './driver.ts';
 
 export interface SQLiteRemoteSessionOptions {
 	logger?: Logger;
@@ -26,17 +26,16 @@ export type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'r
 
 export class SQLiteRemoteSession<
 	TRelations extends AnyRelations,
-> extends SQLiteAsyncSession<'async', SqliteRemoteResult, TRelations> {
+> extends SQLiteAsyncSession<'async', SqliteRemoteRunResult, TRelations> {
 	static override readonly [entityKind]: string = 'SQLiteRemoteSession';
 
 	private logger: Logger;
 	private cache: Cache;
 
 	constructor(
-		private client: RemoteCallback,
+		private client: SqliteProxyExecutors,
 		dialect: SQLiteDialect,
 		private relations: TRelations,
-		private batchClient?: AsyncBatchRemoteCallback,
 		private options: SQLiteRemoteSessionOptions = {},
 	) {
 		super(dialect, 'async');
@@ -55,13 +54,11 @@ export class SQLiteRemoteSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): SQLiteAsyncPreparedQuery<T & { run: SqliteRemoteResult }> {
-		// TODO: client doesn't support object mode querying - revisit api
+	): SQLiteAsyncPreparedQuery<T & { run: SqliteRemoteRunResult }> {
 		const executors: SQLiteQueryExecutors<'async'> = {
-			all: (params) => this.client(query.sql, params, 'all').then(({ rows }) => rows),
-			get: (params) => this.client(query.sql, params, 'get').then(({ rows }) => rows),
-			run: (params) => this.client(query.sql, params, 'run'),
-			values: (params) => this.client(query.sql, params, 'all').then(({ rows }) => rows),
+			all: (params) => this.client.all(query.sql, params, mode === 'arrays' ? 'array' : 'object'),
+			get: (params) => this.client.get(query.sql, params, mode === 'arrays' ? 'array' : 'object'),
+			run: (params) => this.client.run(query.sql, params),
 		};
 		return new SQLiteAsyncPreparedQuery(
 			'async',
@@ -77,43 +74,37 @@ export class SQLiteRemoteSession<
 		);
 	}
 
-	override objects<T = unknown>(_query: SQL): Promise<T[]> {
-		throw new Error("Proxy driver doesn't support object-mode querying");
-	}
-
-	override object<T = unknown>(_query: SQL): Promise<T> {
-		throw new Error("Proxy driver doesn't support object-mode querying");
-	}
-
 	async batch<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T): Promise<BatchResponse<T>> {
+		if (!this.client.batch) throw new Error('You must provide "batch" handler to proxy executors to use "batch"');
+
 		const preparedQueries: SQLiteAsyncPreparedQuery<any>[] = [];
-		const builtQueries: { sql: string; params: any[]; method: SQLiteExecuteMethod }[] = [];
+		const builtQueries: SqliteProxyBatchItem[] = [];
 
 		for (const query of queries) {
 			const preparedQuery = query._prepare() as SQLiteAsyncPreparedQuery<any>;
 			const builtQuery = preparedQuery.getQuery();
 			preparedQueries.push(preparedQuery);
-			builtQueries.push({ sql: builtQuery.sql, params: builtQuery.params, method: preparedQuery.executeMethod });
+			builtQueries.push({
+				sql: builtQuery.sql,
+				params: builtQuery.params,
+				method: preparedQuery.executeMethod === 'values' ? 'all' : preparedQuery.executeMethod,
+				rowMode: preparedQuery.mode === 'raw' ? undefined : preparedQuery.mode.slice(0, -1),
+			} as SqliteProxyBatchItem);
 		}
 
-		const batchResults = await (this.batchClient as AsyncBatchRemoteCallback)(builtQueries);
+		const batchResults = await (this.client.batch)(builtQueries);
 		return batchResults.map((result, i) => {
 			const { executeMethod, mapper } = preparedQueries[i]!;
 
-			if (executeMethod === 'run') return result;
-			if (executeMethod === 'values') return result.rows;
-
-			const { rows } = result;
 			if (executeMethod === 'get') {
-				if (!rows) return;
-				if (!mapper) return rows;
+				if (!result) return;
+				if (!mapper) return result;
 
-				return mapper([rows])[0];
+				return mapper([result])[0];
 			}
 
-			if (!mapper) return rows;
-
-			return mapper(rows);
+			if (!mapper) return result;
+			return mapper(result);
 		}) as BatchResponse<T>;
 	}
 
@@ -121,6 +112,8 @@ export class SQLiteRemoteSession<
 		transaction: (tx: SQLiteProxyTransaction<TRelations>) => Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
+		if (config?.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
+
 		const tx = new SQLiteProxyTransaction('async', this.dialect, this, this.relations);
 		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
@@ -135,7 +128,7 @@ export class SQLiteRemoteSession<
 }
 
 export class SQLiteProxyTransaction<TRelations extends AnyRelations>
-	extends SQLiteAsyncTransaction<'async', SqliteRemoteResult, TRelations>
+	extends SQLiteAsyncTransaction<'async', SqliteRemoteRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'SQLiteProxyTransaction';
 

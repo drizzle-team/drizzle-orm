@@ -109,15 +109,6 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 					});
 				});
 			},
-			values: (params) => {
-				return new Promise<any>((resolve, reject) => {
-					(params.length ? stmt.bind(...params) : stmt).all((e: Error | null, d: SQLiteCloudRowset) => {
-						if (e) return reject(e);
-
-						return (resolve(d.map((v) => v.getData())));
-					});
-				});
-			},
 		};
 
 		return new SQLiteAsyncPreparedQuery(
@@ -146,6 +137,8 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 			this,
 			this.relations,
 		);
+		if (config?.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
+
 		await tx.run(sql`BEGIN${sql` ${sql.raw(config?.behavior ?? '')}`.if(config?.behavior)} TRANSACTION`);
 
 		try {

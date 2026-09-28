@@ -139,5 +139,7 @@ export class PlanetScaleTransaction<
 }
 
 export interface PlanetscaleQueryResultHKT extends MySqlQueryResultHKT {
-	type: ExecutedQuery;
+	type: [this['row']] extends [never] ? ExecutedQuery<never>
+		: [this['row']] extends ['unknown'] ? ExecutedQuery
+		: ExecutedQuery<this['row']>;
 }

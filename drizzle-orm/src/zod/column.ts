@@ -40,7 +40,7 @@ export function columnToSchema(
 
 	switch (type) {
 		case 'array': {
-			schema = arrayColumnToSchema(column, constraint, z, coerce);
+			schema = arrayColumnToSchema(column, constraint, z);
 			break;
 		}
 		case 'object': {
@@ -259,7 +259,7 @@ function pgArrayColumnToSchema(
 			break;
 		case 'array':
 			// Handle array types like point, line, etc.
-			baseSchema = arrayColumnToSchema(column, baseConstraint as ColumnDataArrayConstraint, z, coerce);
+			baseSchema = arrayColumnToSchema(column, baseConstraint as ColumnDataArrayConstraint, z);
 			break;
 		default:
 			baseSchema = z.any();
@@ -278,7 +278,6 @@ function arrayColumnToSchema(
 	column: Column,
 	constraint: ColumnDataArrayConstraint | undefined,
 	z: typeof zod,
-	coerce: CoerceOptions,
 ): zod.ZodType {
 	switch (constraint) {
 		case 'geometry':
@@ -300,22 +299,6 @@ function arrayColumnToSchema(
 			return length
 				? z.array(z.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX)).length(length)
 				: z.array(z.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX));
-		}
-		case 'basecolumn': {
-			// CockroachDB/GEL style: has a separate baseColumn
-			const baseColumn = (<{ baseColumn?: Column }> column).baseColumn;
-			if (baseColumn) {
-				const baseSchema = columnToSchema(baseColumn, {
-					zodInstance: z,
-					coerce,
-				});
-				// For CockroachDB style, column.length is the array size
-				const length = column.length;
-				const schema: zod.ZodType = z.array(baseSchema);
-				if (length) return (schema as zod.ZodArray<any>).length(length);
-				return schema;
-			}
-			return z.array(z.any());
 		}
 		default: {
 			return z.array(z.any());

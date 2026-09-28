@@ -1,6 +1,7 @@
 import type { SqliteClient } from '@effect/sql-sqlite-node/SqliteClient';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { StatementResultingChanges } from 'node:sqlite';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
@@ -23,7 +24,7 @@ export interface EffectSQLiteNodeQueryEffectHKT extends QueryEffectHKTBase {
 	readonly context: never;
 }
 
-export type EffectSQLiteNodeRunResult = unknown;
+export type EffectSQLiteNodeRunResult = StatementResultingChanges;
 
 export interface EffectSQLiteNodeSessionOptions {
 	logger: EffectLoggerShape;
@@ -61,15 +62,18 @@ export class EffectSQLiteNodeSession<TRelations extends AnyRelations>
 				const q = this.client.unsafe(query.sql, params);
 
 				if (mode === 'arrays') return q.values;
+				// Null-prototype object => object
+				if (mode === 'objects') return q.withoutTransform.pipe(Effect.map((e) => e.map((row) => ({ ...row }))));
 				return q.withoutTransform;
 			},
 			get: (params) => {
 				const q = this.client.unsafe(query.sql, params);
 
 				if (mode === 'arrays') return q.values.pipe(Effect.map((e) => e[0]));
+				// Null-prototype object => object
+				if (mode === 'objects') return q.withoutTransform.pipe(Effect.map((e) => e[0] ? { ...e[0] } : e[0]));
 				return q.withoutTransform.pipe(Effect.map((e) => e[0]));
 			},
-			values: (params) => this.client.unsafe(query.sql, params).values,
 			run: (params) => this.client.unsafe(query.sql, params).raw,
 		};
 

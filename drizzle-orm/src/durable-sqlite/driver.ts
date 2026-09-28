@@ -5,6 +5,7 @@ import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
+import { durableSQLiteCodecs } from './codecs.ts';
 import { type DurableSQLiteRunResult, SQLiteDOSession } from './session.ts';
 
 export class DrizzleSqliteDODatabase<TRelations extends AnyRelations = EmptyRelations>
@@ -25,7 +26,9 @@ export function drizzle<
 ): DrizzleSqliteDODatabase<TRelations> & {
 	$client: TClient;
 } {
-	const dialect = new SQLiteDialect();
+	const dialect = new SQLiteDialect({
+		codecs: config.codecs ?? durableSQLiteCodecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

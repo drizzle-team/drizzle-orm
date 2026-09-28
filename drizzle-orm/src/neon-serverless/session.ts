@@ -116,8 +116,18 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 			undefined,
 			false,
 		);
-		await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
+
 		try {
+			await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
+		} catch (e) {
+			if (this.client instanceof Pool) (session.client as PoolClient).release(); // oxlint-disable-line drizzle-internal/no-instanceof
+			throw e;
+		}
+
+		try {
+			if (typeof config.snapshot === 'string') {
+				await tx.execute(tx.setTransactionSnapshotSQL(config.snapshot));
+			}
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);
 			return result;
@@ -160,6 +170,10 @@ export class NeonTransaction<
 	}
 }
 
+export type NeonRawExecuteResult = QueryResult<Record<string, unknown>> | QueryResult<Record<string, unknown>>[];
+
 export interface NeonQueryResultHKT extends PgQueryResultHKT {
-	type: QueryResult<Assume<this['row'], QueryResultRow>>;
+	type: [this['row']] extends [never] ? QueryResult<never>
+		: [this['row']] extends ['unknown'] ? NeonRawExecuteResult
+		: QueryResult<Assume<this['row'], QueryResultRow>>;
 }

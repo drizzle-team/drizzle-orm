@@ -7,7 +7,7 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, type PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 
@@ -98,5 +98,5 @@ export class XataHttpSession<TRelations extends AnyRelations> extends PgAsyncSes
 }
 
 export interface XataHttpQueryResultHKT extends PgQueryResultHKT {
-	type: SQLQueryResult<this['row']>;
+	type: SQLQueryResult<PgRawRow<this['row']>>;
 }

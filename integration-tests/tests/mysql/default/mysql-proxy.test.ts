@@ -1,8 +1,10 @@
 import { sql } from 'drizzle-orm';
 import { getTableConfig } from 'drizzle-orm/mysql-core';
+import type { MySqlRemoteDatabase, MySqlRemoteRawExecuteResult } from 'drizzle-orm/mysql-proxy';
 import { migrate } from 'drizzle-orm/mysql-proxy/migrator';
+import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
 import { createConnection } from 'mysql2/promise';
-import { describe, expect } from 'vitest';
+import { describe, expect, expectTypeOf } from 'vitest';
 import { proxyTest } from '../instrumentation';
 import { proxyTest as test } from '../instrumentation';
 import { tests } from '../mysql-common';
@@ -14,6 +16,11 @@ const omit = new Set([
 	'transaction rollback',
 	'transaction',
 	'transaction with options (set isolationLevel)',
+	'transaction with options (isolationLevel read committed sees concurrent commits)',
+	'transaction with options (isolationLevel repeatable read hides concurrent commits)',
+	'transaction with options (accessMode read only)',
+	'transaction with options (withConsistentSnapshot)',
+	'transaction with options (withConsistentSnapshot combined with accessMode)',
 	'RQB v2 transaction find first - no rows',
 	'RQB v2 transaction find first - multiple rows',
 	'RQB v2 transaction find first - with relation',
@@ -25,6 +32,41 @@ const omit = new Set([
 ]);
 
 tests(proxyTest, omit);
+
+test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
+	const db = fixtureDb as unknown as MySqlRemoteDatabase;
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} (\`id\` int primary key, \`name\` text not null)`);
+	expectTypeOf(created).toEqualTypeOf<[ResultSetHeader, undefined]>();
+	expect(created).toEqual([expect.objectContaining({ affectedRows: 0 }), undefined]);
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<[ResultSetHeader, undefined]>();
+	expect(inserted).toEqual([expect.objectContaining({ affectedRows: 1 }), undefined]);
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select \`id\`, \`name\` from ${table}`);
+	expectTypeOf(selected).toEqualTypeOf<[{ id: number; name: string }[], FieldPacket[]]>();
+	expect(selected).toEqual([
+		[{ id: 1, name: 'John' }],
+		[expect.objectContaining({ name: 'id' }), expect.objectContaining({ name: 'name' })],
+	]);
+
+	// Multi-statement
+	const multi = await db.execute(sql`insert into ${table} values (2, 'Jane'); select \`id\`, \`name\` from ${table}`);
+	expectTypeOf(multi).toEqualTypeOf<MySqlRemoteRawExecuteResult>();
+	expect(multi).toEqual([
+		[expect.objectContaining({ affectedRows: 1 }), [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]],
+		[undefined, [expect.objectContaining({ name: 'id' }), expect.objectContaining({ name: 'name' })]],
+	]);
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
 
 describe('migrator', () => {
 	test('migrator', async ({ db, simulator }) => {

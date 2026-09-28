@@ -33,9 +33,10 @@ export class QueryBuilder {
 				qb = qb(queryBuilder);
 			}
 
+			const sql = qb.getSQL();
 			return new Proxy(
 				new WithSubquery(
-					qb.getSQL(),
+					sql,
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,

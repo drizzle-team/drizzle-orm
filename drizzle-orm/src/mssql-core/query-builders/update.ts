@@ -28,6 +28,7 @@ export interface MsSqlUpdateConfig {
 		inserted?: SelectedFieldsOrdered;
 		deleted?: SelectedFieldsOrdered;
 	};
+	useSelectionCastCodecs?: boolean;
 }
 
 export type MsSqlUpdateSetSource<TTable extends MsSqlTable> =
@@ -273,41 +274,44 @@ export class MsSqlUpdateBase<
 
 			if (fields.inserted) {
 				output.inserted = typeof fields.inserted === 'boolean'
-					? orderSelectedFields<MsSqlColumn>(columns, ['inserted'])
-					: orderSelectedFields<MsSqlColumn>(fields.inserted, ['inserted']);
+					? orderSelectedFields<MsSqlColumn>(columns, ['inserted'], this.dialect.codecs)
+					: orderSelectedFields<MsSqlColumn>(fields.inserted, ['inserted'], this.dialect.codecs);
 			}
 
 			if (fields.deleted) {
 				output.deleted = typeof fields.deleted === 'boolean'
-					? orderSelectedFields<MsSqlColumn>(columns, ['deleted'])
-					: orderSelectedFields<MsSqlColumn>(fields.deleted, ['deleted']);
+					? orderSelectedFields<MsSqlColumn>(columns, ['deleted'], this.dialect.codecs)
+					: orderSelectedFields<MsSqlColumn>(fields.deleted, ['deleted'], this.dialect.codecs);
 			}
 
 			this.config.output = output;
 		} else {
 			this.config.output = {
-				inserted: orderSelectedFields<MsSqlColumn>(columns),
+				inserted: orderSelectedFields<MsSqlColumn>(columns, undefined, this.dialect.codecs),
 			};
 		}
 
 		return this as any;
 	}
 
-	/** @internal */
-	getSQL(): SQL {
-		return this.dialect.buildUpdateQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildUpdateQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	prepare(): MsSqlUpdatePrepare<this> {
 		const output = [...(this.config.output?.inserted ?? []), ...(this.config.output?.deleted ?? [])];
+		const fields = output.length ? output : undefined;
 
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
-			output.length ? output : undefined,
+			this.dialect.sqlToQuery(this.getSQL(true)),
+			fields ? 'arrays' : 'raw',
+			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 		) as MsSqlUpdatePrepare<this>;
 	}
 

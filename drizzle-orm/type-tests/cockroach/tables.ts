@@ -706,3 +706,15 @@ export const newYorkersWithSubquery2 = cockroachMaterializedView('new_yorkers_wi
 
 	Expect<Equal<{ enum: Role | null }[], typeof schemaRes>>;
 }
+
+{
+	// https://github.com/drizzle-team/drizzle-orm/issues/4294
+	const test = cockroachTable('test', {
+		id: text('id').primaryKey().unique(),
+		parentRef: text('parentRef').$type<string | null>(),
+	});
+
+	type InsertTest = typeof test.$inferInsert;
+
+	Expect<Equal<InsertTest, { id: string; parentRef?: string | null }>>;
+}

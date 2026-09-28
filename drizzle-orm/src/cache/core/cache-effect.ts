@@ -128,7 +128,7 @@ function make(cache: DrizzleCache): EffectCacheShape {
  * This error is thrown when any cache operation (get, put, onMutate) fails.
  * The original error is available in the `cause` property.
  */
-export class EffectCacheError extends Schema.TaggedErrorClass<EffectCacheError>()('EffectCacheError', {
+export class EffectCacheError extends Schema.TaggedError<EffectCacheError>()('EffectCacheError', {
 	cause: Schema.Unknown,
 }) {
 	static readonly [entityKind]: string = 'EffectCacheError';

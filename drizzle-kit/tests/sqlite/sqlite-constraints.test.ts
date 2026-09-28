@@ -7,6 +7,7 @@ import {
 	int,
 	integer,
 	primaryKey,
+	real,
 	snakeCase,
 	sqliteTable,
 	text,
@@ -386,6 +387,117 @@ test('unique #9. rename unique. 3rd without + with name', async () => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6060
+test('unique #8. rename unique. 3rd param with name', async () => {
+	const from = {
+		users: sqliteTable('users', {
+			name: text(),
+		}, (t) => [unique('unique_name').on(t.name)]),
+	};
+	const to = {
+		users: sqliteTable('users', {
+			name: text(),
+		}, (t) => [unique('unique_name2').on(t.name)]),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames: [],
+	});
+
+	const st0 = [
+		'PRAGMA foreign_keys=OFF;',
+		`CREATE TABLE \`__new_users\` (
+	\`name\` text CONSTRAINT \`unique_name2\` UNIQUE
+);\n`,
+		'INSERT INTO `__new_users`(`name`) SELECT `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6060
+test('Issue No6060. Recreate table with unique', async () => {
+	const from = {
+		orders: sqliteTable(
+			'orders',
+			{
+				id: integer('id').primaryKey({ autoIncrement: true }),
+				sku: text('sku').notNull().unique(),
+				batchId: integer('batch_id').notNull().unique(),
+				label: text('label'),
+				createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+			},
+			(t) => [index('orders_sku_idx').on(t.sku)],
+		),
+	};
+
+	const { sqlStatements: st0 } = await diff({}, from, []);
+	const { sqlStatements: pst0 } = await push({
+		db,
+		to: from,
+		renames: [],
+	});
+
+	const st_0 = [
+		`CREATE TABLE \`orders\` (
+\t\`id\` integer PRIMARY KEY AUTOINCREMENT,
+\t\`sku\` text NOT NULL UNIQUE,
+\t\`batch_id\` integer NOT NULL UNIQUE,
+\t\`label\` text,
+\t\`created_at\` integer DEFAULT (unixepoch()) NOT NULL
+);\n`,
+		'CREATE INDEX `orders_sku_idx` ON `orders` (`sku`);',
+	];
+	expect(st0).toStrictEqual(st_0);
+	expect(pst0).toStrictEqual(st_0);
+
+	const to = {
+		orders: sqliteTable(
+			'orders',
+			{
+				id: integer('id').primaryKey({ autoIncrement: true }),
+				sku: text('sku').notNull().unique(),
+				batchId: integer('batch_id').notNull().unique(),
+				label: text('label'),
+				createdAt: integer('created_at', { mode: 'timestamp' }).notNull(), // <- removed default
+			},
+			(t) => [index('orders_sku_idx').on(t.sku)],
+		),
+	};
+	const { sqlStatements: st1 } = await diff(from, to, []);
+	const { sqlStatements: pst1 } = await push({
+		db,
+		to,
+		renames: [],
+	});
+
+	const st_1 = [
+		`PRAGMA foreign_keys=OFF;`,
+		`CREATE TABLE \`__new_orders\` (
+\t\`id\` integer PRIMARY KEY AUTOINCREMENT,
+\t\`sku\` text NOT NULL UNIQUE,
+\t\`batch_id\` integer NOT NULL UNIQUE,
+\t\`label\` text,
+\t\`created_at\` integer NOT NULL
+);\n`,
+		'INSERT INTO `__new_orders`(`id`, `sku`, `batch_id`, `label`, `created_at`) SELECT `id`, `sku`, `batch_id`, `label`, `created_at` FROM `orders`;',
+		'DROP TABLE `orders`;',
+		'ALTER TABLE `__new_orders` RENAME TO `orders`;',
+		'PRAGMA foreign_keys=ON;',
+		'CREATE INDEX `orders_sku_idx` ON `orders` (`sku`);',
+	];
+	expect(st1).toStrictEqual(st_1);
+	expect(pst1).toStrictEqual(st_1);
 });
 
 test('unique multistep #1', async () => {
@@ -2033,4 +2145,90 @@ test('issue No4688. subsequent push with where part of partial index', async () 
 
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6062
+test('Issut No6062', async () => {
+	const events = sqliteTable(
+		'events',
+		{
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			kind: text('kind').notNull(),
+			payload: text('payload'),
+			status: text('status').default('new'),
+		},
+		(t) => [
+			index('events_kind_idx').on(t.kind),
+			// the expression contains a comma
+			index('events_payload_ref_idx').on(t.kind, sql`(json_extract(payload, '$.ref'))`),
+		],
+	);
+
+	const other = sqliteTable(
+		'other',
+		{
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			label: text('label'),
+		},
+		(t) => [index('other_label_idx').on(t.label)],
+	);
+
+	const schema = { other, events };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema }); // subsequent push inside
+	const expectedSt1 = [
+		`CREATE TABLE \`other\` (
+\t\`id\` integer PRIMARY KEY AUTOINCREMENT,
+\t\`label\` text
+);\n`,
+		`CREATE TABLE \`events\` (
+\t\`id\` integer PRIMARY KEY AUTOINCREMENT,
+\t\`kind\` text NOT NULL,
+\t\`payload\` text,
+\t\`status\` text DEFAULT 'new'
+);\n`,
+		'CREATE INDEX `other_label_idx` ON `other` (`label`);',
+		'CREATE INDEX `events_kind_idx` ON `events` (`kind`);',
+		"CREATE INDEX `events_payload_ref_idx` ON `events` (`kind`,(json_extract(payload, '$.ref')));",
+	];
+
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6061
+test('Issue No6061', async () => {
+	await db.run(`CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL);`);
+	await db.run(`CREATE TABLE line_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  amount_cents INTEGER NOT NULL DEFAULT 0,
+  amount REAL GENERATED ALWAYS AS (CAST(amount_cents AS REAL) / 100.0) STORED
+);`);
+	await db.run(`INSERT INTO customers (name) VALUES ('acme');`);
+	await db.run(`INSERT INTO line_items (customer_id, amount_cents) VALUES (1, 1250);`);
+
+	const customers = sqliteTable('customers', {
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		name: text('name').notNull(),
+	});
+
+	const lineItems = sqliteTable('line_items', {
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		customerId: integer('customer_id')
+			.notNull()
+			.references(() => customers.id, { onDelete: 'cascade' }),
+		amountCents: integer('amount_cents').notNull().default(0),
+		amount: real('amount').generatedAlwaysAs(sql`CAST(amount_cents AS REAL) / 100.0`),
+	});
+
+	const schema = { customers, lineItems };
+
+	const { sqlStatements: pst1 } = await push({ db, to: schema }); // subsequent push inside
+
+	expect(pst1).toStrictEqual([
+		'ALTER TABLE `line_items` DROP COLUMN `amount`;',
+		'ALTER TABLE `line_items` ADD `amount` real GENERATED ALWAYS AS (CAST(amount_cents AS REAL) / 100.0) VIRTUAL;',
+	]);
 });

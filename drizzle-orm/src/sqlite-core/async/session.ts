@@ -44,7 +44,8 @@ export class ExecuteResultSync<T> extends QueryPromise<T> {
 }
 
 export type SQLiteQueryExecutors<TType extends 'sync' | 'async'> = Record<
-	SQLiteExecuteMethod,
+	// `values` mirrors `all` in array mode, no need to define separate executor
+	Exclude<SQLiteExecuteMethod, 'values'>,
 	(params: unknown[]) => Result<TType, any>
 >;
 
@@ -105,12 +106,11 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 
 		const cache = this.cache!;
 
-		// For mutate queries, we should query the database, wait for a response, and then perform invalidation
 		if (cacheStrat.type === 'invalidate') {
-			return Promise.all([
-				query(),
-				cache.onMutate({ tables: cacheStrat.tables }),
-			]).then((res) => res[0]).catch((e) => {
+			return query().then(async (res) => {
+				await cache.onMutate({ tables: cacheStrat.tables });
+				return res;
+			}).catch((e) => {
 				throw new DrizzleQueryError(queryString, params, e as Error);
 			});
 		}
@@ -246,17 +246,17 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 
 		if (resultKind === 'sync') {
 			try {
-				return (<SQLiteQueryExecutors<'sync'>> executors).values(params);
+				return (<SQLiteQueryExecutors<'sync'>> executors).all(params);
 			} catch (e) {
 				throw new DrizzleQueryError(sql, params, e as Error);
 			}
 		}
 
 		const res = fastPath
-			? (<SQLiteQueryExecutors<'async'>> executors).values(params).catch((e) => {
+			? (<SQLiteQueryExecutors<'async'>> executors).all(params).catch((e) => {
 				throw new DrizzleQueryError(sql, params, e as Error);
 			})
-			: this.queryWithCache(sql, params, 'values', () => (<SQLiteQueryExecutors<'async'>> executors).values(params));
+			: this.queryWithCache(sql, params, 'values', () => (<SQLiteQueryExecutors<'async'>> executors).all(params));
 
 		return res;
 	}

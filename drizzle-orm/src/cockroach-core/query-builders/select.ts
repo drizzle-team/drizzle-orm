@@ -1,3 +1,4 @@
+import { type CockroachType, resolveUnionType } from '~/cockroach-core/codecs.ts';
 import type { CockroachColumn } from '~/cockroach-core/columns/index.ts';
 import type { CockroachDialect } from '~/cockroach-core/dialect.ts';
 import type { CockroachSession, PreparedQueryConfig } from '~/cockroach-core/session.ts';
@@ -16,27 +17,28 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { SQL, View } from '~/sql/sql.ts';
+import { SQL } from '~/sql/sql.ts';
 import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import {
 	applyMixins,
-	type DrizzleTypeError,
 	getTableColumns,
 	getTableLikeName,
 	haveSameKeys,
 	orderSelectedFields,
+	resolveNullableObjectPaths,
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { View } from '~/view.ts';
 import type {
 	AnyCockroachSelect,
+	CheckTableLikeSelection,
 	CockroachCreateSetOperatorFn,
 	CockroachSelectConfig,
 	CockroachSelectCrossJoinFn,
@@ -53,8 +55,8 @@ import type {
 	LockConfig,
 	LockStrength,
 	SelectedFields,
+	SelectedFieldsOrdered,
 	SetOperatorRightSelect,
-	TableLikeHasEmptySelection,
 } from './select.types.ts';
 
 export class CockroachSelectBuilder<
@@ -98,10 +100,7 @@ export class CockroachSelectBuilder<
 	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM | Postgres from documentation}
 	 */
 	from<TFrom extends CockroachTable | Subquery | CockroachViewBase | SQL>(
-		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
-				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-			>
-			: TFrom,
+		source: CheckTableLikeSelection<TFrom>,
 	): CreateCockroachSelectFromBuilderMode<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
@@ -226,6 +225,10 @@ export abstract class CockroachSelectQueryBuilderBase<
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
 
+			this.config.fieldsFlat = undefined;
+			this.config.setFieldsFlat = undefined;
+			this.config.mapper = undefined;
+
 			if (!this.isPartialSelect) {
 				// If this is the first join and this is not a partial select and we're not selecting from raw SQL, "move" the fields from the main table to the nested object
 				if (Object.keys(this.joinsNotNullableMap).length === 1 && typeof baseTableName === 'string') {
@@ -330,6 +333,17 @@ export abstract class CockroachSelectQueryBuilderBase<
 	 *
 	 * @param table the subquery to join.
 	 * @param on the `on` clause.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select every city and, for each, the users that live in it
+	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
+	 *
+	 * const rows: { cities: City; sq: { userId: number } | null }[] = await db.select()
+	 *   .from(cities)
+	 *   .leftJoinLateral(sq, sql`true`)
+	 * ```
 	 */
 	leftJoinLateral = this.createJoin('left', true);
 
@@ -402,6 +416,17 @@ export abstract class CockroachSelectQueryBuilderBase<
 	 *
 	 * @param table the subquery to join.
 	 * @param on the `on` clause.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select only the cities that have users, along with those users
+	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
+	 *
+	 * const rows: { cities: City; sq: { userId: number } }[] = await db.select()
+	 *   .from(cities)
+	 *   .innerJoinLateral(sq, sql`true`)
+	 * ```
 	 */
 	innerJoinLateral = this.createJoin('inner', true);
 
@@ -472,6 +497,17 @@ export abstract class CockroachSelectQueryBuilderBase<
 	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join-lateral}
 	 *
 	 * @param table the query to join.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Pair each city with every row its correlated subquery produces; cities with none are dropped
+	 * const sq = db.select({ userId: users.id }).from(users).where(eq(users.cityId, cities.id)).as('sq');
+	 *
+	 * const rows: { cities: City; sq: { userId: number } }[] = await db.select()
+	 *   .from(cities)
+	 *   .crossJoinLateral(sq)
+	 * ```
 	 */
 	crossJoinLateral = this.createJoin('cross', true);
 
@@ -958,14 +994,62 @@ export abstract class CockroachSelectQueryBuilderBase<
 		return this as any;
 	}
 
-	/** @internal */
-	getSQL(): SQL {
-		this.config.fieldsFlat = orderSelectedFields<CockroachColumn>(this.config.fields);
-		return this.dialect.buildSelectQuery(this.config);
+	_resolveSelection(): SelectedFieldsOrdered {
+		const { config, dialect } = this;
+		config.fieldsFlat ??= orderSelectedFields<CockroachColumn>(
+			config.fields,
+			undefined,
+			dialect.codecs,
+		);
+
+		const { fieldsFlat, setOperators } = config;
+
+		if (setOperators.length && !config.setFieldsFlat) {
+			const setSelection: SelectedFieldsOrdered = new Array(fieldsFlat.length);
+
+			for (let i = 0; i < setOperators.length; ++i) {
+				const setOperator = setOperators[i];
+				if (!setOperator) {
+					throw new Error('Cannot pass undefined values to any set operator');
+				}
+
+				const rightSelection = orderSelectedFields(setOperator.rightSelect.getSelectedFields());
+				for (let j = 0; j < fieldsFlat.length; ++j) {
+					setSelection[j] = { ...fieldsFlat[j]! };
+					const l = setSelection[j]!;
+					const lPath = l.path.join('.');
+					// Equivalency of selections is a pre-requisite for unions
+					const r = rightSelection.find((e) => e.path.join('.') === lPath)!;
+
+					const lc = (l.codecOverride ?? l.column?.codec) as CockroachType | undefined;
+					const rc = (r.codecOverride ?? r.column?.codec) as CockroachType | undefined;
+
+					l.codecOverride = lc && rc ? resolveUnionType(lc, rc) : lc;
+				}
+			}
+
+			for (let i = 0; i < setSelection.length; ++i) {
+				const out = setSelection[i]!;
+				out.codec = out.codecOverride
+					? dialect.codecs.get(out.column!, 'normalize', out.codecOverride as CockroachType)
+					: out.codec;
+			}
+
+			config.setFieldsFlat = setSelection;
+		}
+
+		return config.setFieldsFlat ?? fieldsFlat;
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	getSQL(withCastCodecs = false): SQL {
+		this._resolveSelection();
+		return this.dialect.buildSelectQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
+	}
+
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	as<TAlias extends string>(
@@ -983,11 +1067,6 @@ export abstract class CockroachSelectQueryBuilderBase<
 			this.config.fields,
 			new SelectionProxyHandler({ alias: this.tableName, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as this['_']['selectedFields'];
-	}
-
-	/** @internal */
-	override withoutSelectionCastCodecs(): this {
-		return this;
 	}
 
 	$dynamic(): CockroachSelectDynamic<this> {
@@ -1017,8 +1096,7 @@ export interface CockroachSelectBase<
 		TResult,
 		TSelectedFields
 	>,
-	QueryPromise<TResult>,
-	SQLWrapper
+	QueryPromise<TResult>
 {}
 
 export class CockroachSelectBase<
@@ -1052,18 +1130,18 @@ export class CockroachSelectBase<
 		}
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			// Build query before accessing `fieldsFlat` - build mutates it
-			const query = dialect.sqlToQuery(this.getSQL());
+			const query = dialect.sqlToQuery(this.getSQL(true));
 			const fieldsList = this.config.fieldsFlat!;
-			const preparedQuery = session.prepareQuery<
+			const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, joinsNotNullableMap);
+
+			return session.prepareQuery<
 				PreparedQueryConfig & { execute: TResult }
 			>(
 				query,
-				fieldsList,
-				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				'arrays',
+				name ?? generateName,
+				this.config.mapper ??= dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths),
 			);
-			preparedQuery.joinsNotNullableMap = joinsNotNullableMap;
-
-			return preparedQuery;
 		});
 	}
 

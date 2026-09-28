@@ -1,14 +1,5 @@
 import type { Connection as CallbackConnection, TypeCast } from 'mysql2';
-import type {
-	Connection,
-	FieldPacket,
-	OkPacket,
-	Pool,
-	PoolConnection,
-	ResultSetHeader,
-	RowDataPacket,
-} from 'mysql2/promise';
-import { once } from 'node:events';
+import type { Connection, FieldPacket, Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -27,11 +18,11 @@ import { sql } from '~/sql/sql.ts';
 import type { Query } from '~/sql/sql.ts';
 export type MySql2Client = Pool | Connection;
 
-export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
-export type MySqlQueryResultType = RowDataPacket[][] | RowDataPacket[] | OkPacket | OkPacket[] | ResultSetHeader;
-export type MySqlQueryResult<
-	T = any,
-> = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
+export type MySqlRawQueryResult = [ResultSetHeader, undefined];
+export type MySql2RawExecuteResult =
+	| MySqlRawQueryResult
+	| [RowDataPacket[], FieldPacket[]]
+	| [(ResultSetHeader | RowDataPacket[])[], (FieldPacket[] | undefined)[]];
 
 export interface MySql2SessionOptions {
 	logger?: Logger;
@@ -102,29 +93,20 @@ export class MySql2Session<
 			}, params);
 			const stream = driverQuery.stream();
 
-			function dataListener() {
-				stream.pause();
-			}
-
-			stream.on('data', dataListener);
-
 			try {
-				const onEnd = once(stream, 'end');
-				const onError = once(stream, 'error');
-				while (true) {
-					stream.resume();
-
-					const row = await Promise.race([onEnd, onError, new Promise((resolve) => stream.once('data', resolve))]);
-					if (row === undefined || (Array.isArray(row) && row.length === 0)) {
-						break;
-					}
-					if (row instanceof Error) { // oxlint-disable-line drizzle-internal/no-instanceof
-						throw row;
-					}
+				for await (const row of stream.iterator({ destroyOnReturn: false })) {
 					yield row;
 				}
 			} finally {
-				stream.off('data', dataListener);
+				if (!stream.readableEnded && !stream.destroyed) {
+					stream.resume();
+					await new Promise<void>((resolve) => {
+						stream.on('end', resolve);
+						stream.on('error', resolve);
+						stream.on('close', resolve);
+					});
+				}
+
 				if (isPool(client)) {
 					conn.end();
 				}
@@ -162,17 +144,17 @@ export class MySql2Session<
 			this.relations,
 			0,
 		);
-		if (config) {
-			const setTransactionConfigSql = this.getSetTransactionSQL(config);
-			if (setTransactionConfigSql) {
-				await tx.execute(setTransactionConfigSql);
-			}
-			const startTransactionSql = this.getStartTransactionSQL(config);
-			await (startTransactionSql ? tx.execute(startTransactionSql) : tx.execute(sql`begin`));
-		} else {
-			await tx.execute(sql`begin`);
-		}
 		try {
+			if (config) {
+				const setTransactionConfigSql = this.getSetTransactionSQL(config);
+				if (setTransactionConfigSql) {
+					await tx.execute(setTransactionConfigSql);
+				}
+				const startTransactionSql = this.getStartTransactionSQL(config);
+				await (startTransactionSql ? tx.execute(startTransactionSql) : tx.execute(sql`begin`));
+			} else {
+				await tx.execute(sql`begin`);
+			}
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);
 			return result;
@@ -222,5 +204,7 @@ function isPool(client: MySql2Client): client is Pool {
 }
 
 export interface MySql2QueryResultHKT extends MySqlQueryResultHKT {
-	type: MySqlRawQueryResult;
+	type: [this['row']] extends [never] ? MySqlRawQueryResult
+		: [this['row']] extends ['unknown'] ? MySql2RawExecuteResult
+		: [this['row'][], FieldPacket[]];
 }

@@ -2,6 +2,7 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
+import { withCasing } from '../pull-utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -14,7 +15,7 @@ import type {
 	ViewColumn,
 } from './ddl';
 import { fullTableFromDDL } from './ddl';
-import { typeFor } from './grammar';
+import { defaultNameForFK, typeFor } from './grammar';
 
 const imports = [
 	'bigint',
@@ -82,24 +83,6 @@ const objToStatement2 = (json: { [s: string]: unknown }, mode: 'string' | 'numbe
 	return statement;
 };
 
-const escapeColumnKey = (value: string) => {
-	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
-		return `"${value}"`;
-	}
-	return value;
-};
-
-const withCasing = (value: string, casing: Casing) => {
-	if (casing === 'preserve') {
-		return escapeColumnKey(value);
-	}
-	if (casing === 'camel') {
-		return escapeColumnKey(toCamelCase(value));
-	}
-
-	assertUnreachable(casing);
-};
-
 const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing: Casing; withMode?: boolean }) => {
 	if (casing === 'preserve') {
 		return '';
@@ -140,6 +123,10 @@ export const ddlToTypeScript = (
 	casing: Casing,
 ) => {
 	const tableFn = `mssqlTable`;
+
+	for (const fk of ddl.fks.list()) {
+		relations.add(`${fk.table}-${fk.tableTo}`);
+	}
 
 	const schemas = Object.fromEntries(
 		ddl.schemas.list().filter((it) => it.name !== 'dbo').map((it) => {
@@ -184,35 +171,44 @@ export const ddlToTypeScript = (
 		const columns = ddl.columns.list({ schema: table.schema, table: table.name });
 		const fks = ddl.fks.list({ schema: table.schema, table: table.name });
 
+		const callbackFks: ForeignKey[] = [];
+		const inlineFks: ForeignKey[] = [];
+		for (const fk of fks) {
+			if (
+				!isSelf(fk) && fk.columns.length === 1
+				&& fk.name === defaultNameForFK(fk.table, fk.columns, fk.tableTo, fk.columnsTo)
+			) inlineFks.push(fk);
+			else callbackFks.push(fk);
+		}
+		// self() already was filtered above
+		if (inlineFks.some((fk) => isCyclic(fk))) imports.add('type AnyMsSqlColumn');
+
+		const hasCyclicCallbackFk = callbackFks.some((fk) => isCyclic(fk) && !isSelf(fk));
+		if (hasCyclicCallbackFk) imports.add('type MsSqlTableExtraConfigValue');
+
 		const func = tableSchema ? `${tableSchema}.table` : tableFn;
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
 		statement += createTableColumns(
 			columns,
-			table.pk,
-			fks,
+			table.pk, // pk only needed to verify if we need to add .notNull
+			inlineFks,
 			schemas,
 			ddl.defaults.list({ schema: table.schema, table: table.name }),
 			casing,
 		);
 		statement += '}';
 
-		// more than 2 fields or self reference or cyclic
-		// Andrii: I switched this one off until we will get custom names in .references()
-		const filteredFKs = table.fks.filter((it) => {
-			return it.columns.length > 1 || isSelf(it);
-		});
-
 		const hasCallback = table.indexes.length > 0
-			|| filteredFKs.length > 0
+			|| callbackFks.length > 0
 			|| table.pk
 			|| table.uniques.length > 0
 			|| table.checks.length > 0;
 
 		if (hasCallback) {
 			statement += ', ';
-			statement += '(table) => [\n';
+			statement += hasCyclicCallbackFk ? '(table): MsSqlTableExtraConfigValue[] => [\n' : '(table) => [\n';
 			statement += table.pk ? createTablePK(table.pk, casing) : '';
-			statement += createTableFKs(filteredFKs, schemas, casing);
+			statement += createTableFKs(callbackFks, schemas, casing);
 			statement += createTableIndexes(table.name, table.indexes, casing);
 			statement += createTableUniques(table.uniques, casing);
 			statement += createTableChecks(table.checks);
@@ -287,11 +283,13 @@ import { sql } from "drizzle-orm"\n\n`;
 	return { file, imports: importsTs, decalrations, schemaEntry };
 };
 
-// const isCyclic = (fk: ForeignKey) => {
-// 	const key = `${fk.table}-${fk.tableTo}`;
-// 	const reverse = `${fk.tableTo}-${fk.table}`;
-// 	return relations.has(key) && relations.has(reverse);
-// };
+const relations = new Set<string>();
+
+const isCyclic = (fk: ForeignKey) => {
+	const key = `${fk.table}-${fk.tableTo}`;
+	const reverse = `${fk.tableTo}-${fk.table}`;
+	return relations.has(key) && relations.has(reverse);
+};
 
 const isSelf = (fk: ForeignKey) => {
 	return fk.table === fk.tableTo;
@@ -343,21 +341,14 @@ const createViewColumns = (
 const createTableColumns = (
 	columns: Column[],
 	primaryKey: PrimaryKey | null,
-	fks: ForeignKey[],
+	inlineFks: ForeignKey[],
 	schemas: Record<string, string>,
 	defaults: DefaultConstraint[],
 	casing: Casing,
 ): string => {
 	let statement = '';
 
-	// no self refs and no cyclic
-	const oneColumnsFKs = Object.values(fks)
-		.filter((it) => {
-			return !isSelf(it);
-		})
-		.filter((it) => it.columns.length === 1);
-
-	const fkByColumnName = oneColumnsFKs.reduce((res, it) => {
+	const fkByColumnName = inlineFks.reduce((res, it) => {
 		const arr = res[it.columns[0]] || [];
 		arr.push(it);
 		res[it.columns[0]] = arr;
@@ -373,6 +364,7 @@ const createTableColumns = (
 			casing,
 			def ? def.default : null,
 		);
+		// pk only needed to verify if we need to add .notNull
 		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name
 			? primaryKey
 			: null;
@@ -384,7 +376,6 @@ const createTableColumns = (
 		statement += it.generated ? `.generatedAlwaysAs(sql\`${it.generated.as}\`)` : '';
 
 		const fks = fkByColumnName[it.name];
-		// Andrii: I switched it off until we will get a custom naem setting in references
 		if (fks) {
 			const fksStatement = fks
 				.map((it) => {
@@ -395,15 +386,16 @@ const createTableColumns = (
 					const paramsStr = objToStatement2(params);
 					const tableSchema = schemas[it.schemaTo || ''];
 					const paramName = paramNameFor(it.tableTo, tableSchema);
+					const typeSuffix = isCyclic(it) ? ': AnyMsSqlColumn' : '';
 					if (paramsStr) {
-						return `.references(() => ${
+						return `.references(()${typeSuffix} => ${
 							withCasing(
 								paramName,
 								casing,
 							)
 						}.${withCasing(it.columnsTo[0], casing)}, ${paramsStr} )`;
 					}
-					return `.references(() => ${
+					return `.references(()${typeSuffix} => ${
 						withCasing(
 							paramName,
 							casing,
@@ -480,11 +472,11 @@ const createTableUniques = (
 ): string => {
 	let statement = '';
 
-	unqs.forEach((it, index) => {
+	unqs.forEach((it) => {
 		statement += '\tunique(';
 		statement += it.nameExplicit ? `"${it.name}")` : ')';
 		statement += `.on(${it.columns.map((it) => `table.${withCasing(it, casing)}`).join(', ')})`;
-		statement += index === unqs.length - 1 ? `\n` : ',\n';
+		statement += ',';
 	});
 
 	return statement;
@@ -522,8 +514,8 @@ const createTableFKs = (fks: ForeignKey[], schemas: Record<string, string>, casi
 		statement += it.nameExplicit ? `\t\tname: "${it.name}"\n` : '';
 		statement += `\t})`;
 
-		statement += it.onUpdate && it.onUpdate !== 'NO ACTION' ? `.onUpdate("${it.onUpdate}")` : '';
-		statement += it.onDelete && it.onDelete !== 'NO ACTION' ? `.onDelete("${it.onDelete}")` : '';
+		statement += it.onUpdate && it.onUpdate !== 'NO ACTION' ? `.onUpdate("${it.onUpdate.toLowerCase()}")` : '';
+		statement += it.onDelete && it.onDelete !== 'NO ACTION' ? `.onDelete("${it.onDelete.toLowerCase()}")` : '';
 		statement += `,\n`;
 	});
 	return statement;

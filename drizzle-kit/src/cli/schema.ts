@@ -159,7 +159,7 @@ export const preparePush = async (opts: PushOptionsInput) => {
 			'database',
 			'ssl',
 			'authToken',
-			'schemaFilters',
+			'schemaFilter',
 			'extensionsFilters',
 			'tablesFilter',
 			'tlsSecurity',
@@ -392,6 +392,10 @@ export const migrate = command({
 						);
 						process.exit(1);
 					}
+				} else if (driver === 'dsql') {
+					// TODO
+					// author: alex.sherman
+					// Do we need to check version here?
 				} else {
 					assertUnreachable(driver);
 				}
@@ -480,7 +484,7 @@ export const migrate = command({
 
 const optionsFilters = {
 	tablesFilter: string().desc('Table name filters'),
-	schemaFilters: string().desc('Schema name filters'),
+	schemaFilter: string().desc('Schema name filter'),
 	extensionsFilters: string().desc(
 		'`Database extensions internal database filters',
 	),
@@ -678,7 +682,7 @@ export const preparePull = async (opts: PullOptionsInput) => {
 			'casing',
 			'breakpoints',
 			'tablesFilter',
-			'schemaFilters',
+			'schemaFilter',
 			'extensionsFilters',
 			'tlsSecurity',
 		],
@@ -1000,6 +1004,10 @@ export const studio = command({
 						);
 						process.exit(1);
 					}
+				} else if (driver === 'dsql') {
+					// TODO
+					// author: alex.sherman
+					// Do we need to check version here?
 				} else {
 					assertUnreachable(driver);
 				}
