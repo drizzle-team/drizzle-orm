@@ -240,9 +240,6 @@ importers:
       dotenv:
         specifier: ^16.0.3
         version: 16.5.0
-      drizzle-kit:
-        specifier: 0.25.0-b1faa33
-        version: 0.25.0-b1faa33
       drizzle-orm:
         specifier: workspace:./drizzle-orm/dist
         version: link:drizzle-orm/dist
@@ -4560,10 +4557,6 @@ packages:
 
   drizzle-kit@0.19.13:
     resolution: {integrity: sha512-Rba5VW1O2JfJlwVBeZ8Zwt2E2us5oZ08PQBDiVSGlug53TOc8hzXjblZFuF+dnll9/RQEHrkzBmJFgqTvn5Rxg==}
-    hasBin: true
-
-  drizzle-kit@0.25.0-b1faa33:
-    resolution: {integrity: sha512-WMRuEgxt1oTc62EPVQhGD+pGs6LiqzT8UqxuI6mKfA5SCeCEIt87nFzzJ5WlwsqbuoSgXBXc5zhsHvqXRD03DA==}
     hasBin: true
 
   drizzle-orm@0.27.2:
@@ -13158,15 +13151,6 @@ snapshots:
       json-diff: 0.9.0
       minimatch: 7.4.6
       zod: 3.25.1
-    transitivePeerDependencies:
-      - supports-color
-
-  drizzle-kit@0.25.0-b1faa33:
-    dependencies:
-      '@drizzle-team/brocli': 0.10.2
-      '@esbuild-kit/esm-loader': 2.6.5
-      esbuild: 0.19.12
-      esbuild-register: 3.6.0(esbuild@0.19.12)
     transitivePeerDependencies:
       - supports-color
 
