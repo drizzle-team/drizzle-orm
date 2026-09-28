@@ -201,23 +201,28 @@ describe('migrator', () => {
 		await db.execute('drop database if exists drizzle2;');
 		await db.execute('create database drizzle2;');
 
-		await db.execute(`use drizzle1`);
-		await migrate(db, { migrationsFolder: './drizzle2/mysql' });
+		// Connection is shared with other tests - switch back to the fixture's database afterwards
+		try {
+			await db.execute(`use drizzle1`);
+			await migrate(db, { migrationsFolder: './drizzle2/mysql' });
 
-		await db.execute(`use drizzle2`);
-		await migrate(db, { migrationsFolder: './drizzle2/mysql' });
+			await db.execute(`use drizzle2`);
+			await migrate(db, { migrationsFolder: './drizzle2/mysql' });
 
-		// drizzle2
-		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-		const result2 = await db.select().from(usersMigratorTable);
+			// drizzle2
+			await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+			const result2 = await db.select().from(usersMigratorTable);
 
-		// drizzle1
-		await db.execute(`use drizzle1`);
-		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-		const result1 = await db.select().from(usersMigratorTable);
+			// drizzle1
+			await db.execute(`use drizzle1`);
+			await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+			const result1 = await db.select().from(usersMigratorTable);
 
-		expect(result1).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-		expect(result2).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+			expect(result1).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+			expect(result2).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		} finally {
+			await db.execute(`use drizzle`);
+		}
 	});
 
 	test('managing multiple databases #2', async ({ db }) => {
