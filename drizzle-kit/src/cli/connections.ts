@@ -4,6 +4,7 @@ import { DrizzleQueryError, is } from 'drizzle-orm';
 import type { AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
+import type { SqliteProxyExecutors } from 'drizzle-orm/sqlite-proxy';
 import type { config } from 'mssql';
 import type { Connection, ConnectionConfig, Query } from 'mysql2';
 import net from 'net';
@@ -1983,15 +1984,13 @@ export const connectToSQLite = async (
 					errors: { code: number; message: string }[];
 				};
 
-			const remoteCallback: Parameters<typeof drizzle>[0] = async (
-				sql,
-				params,
-				method,
-			) => {
+			const remoteRequest = async (
+				sql: string,
+				params: any[],
+				endpoint: 'raw' | 'query',
+			): Promise<any[]> => {
 				const res = await fetch(
-					`https://api.cloudflare.com/client/v4/accounts/${credentials.accountId}/d1/database/${credentials.databaseId}/${
-						method === 'values' ? 'raw' : 'query'
-					}`,
+					`https://api.cloudflare.com/client/v4/accounts/${credentials.accountId}/d1/database/${credentials.databaseId}/${endpoint}`,
 					{
 						method: 'POST',
 						body: JSON.stringify({ sql, params }),
@@ -2015,11 +2014,15 @@ export const connectToSQLite = async (
 				}
 
 				const result = data.result[0].results;
-				const rows = Array.isArray(result) ? result : result.rows;
+				return Array.isArray(result) ? result : result.rows;
+			};
 
-				return {
-					rows,
-				};
+			const executors: SqliteProxyExecutors = {
+				all: (sql: string, params: any[], rowMode?: 'array' | 'object') =>
+					remoteRequest(sql, params, rowMode === 'object' ? 'query' : 'raw'),
+				get: (sql: string, params: any[], rowMode?: 'array' | 'object') =>
+					remoteRequest(sql, params, rowMode === 'object' ? 'query' : 'raw').then((rows) => rows[0]),
+				run: (sql, params) => remoteRequest(sql, params, 'query'),
 			};
 
 			const remoteBatchCallback = async (
@@ -2058,7 +2061,7 @@ export const connectToSQLite = async (
 				};
 			};
 
-			const drzl = drizzle(remoteCallback);
+			const drzl = drizzle(executors);
 			const migrateFn = async (config: MigrationConfig) => {
 				return migrate(
 					drzl,
@@ -2073,11 +2076,10 @@ export const connectToSQLite = async (
 			};
 
 			const query = async <T>(sql: string, params?: any[]) => {
-				const res = await remoteCallback(sql, params || [], 'all');
-				return res.rows as T[];
+				return await executors.all(sql, params || [], 'object') as T[];
 			};
 			const run = async (query: string) => {
-				await remoteCallback(query, [], 'run');
+				await executors.run(query, []);
 			};
 			const batch = async (queries: string[]) => {
 				await remoteBatchCallback(queries.map((sql) => ({ sql })));
@@ -2088,13 +2090,7 @@ export const connectToSQLite = async (
 					params.params || [],
 					'd1-http',
 				);
-				const result = await remoteCallback(
-					params.sql,
-					preparedParams,
-					params.mode === 'array' ? 'values' : 'all',
-				);
-
-				return result.rows;
+				return executors.all(params.sql, preparedParams, params.mode === 'array' ? 'array' : 'object');
 			};
 			const transactionProxy: TransactionProxy = async (queries) => {
 				const result = await remoteBatchCallback(queries);
