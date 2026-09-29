@@ -1045,8 +1045,6 @@ export const ddlDiff = async (
 		}
 	}
 
-	console.log(ddl1.columns.list({ table: 'b' }));
-	console.log(ddl2.columns.list({ table: 'b' }));
 	const jsonAlterColumns = columnAlters.filter((it) => !(it.generated && it.generated.to !== null))
 		.filter((it) => {
 			// if column is of type enum we're about to recreate - we will reset default anyway
