@@ -35,7 +35,7 @@ When `generate` or `push` encounters an ambiguous or destructive change it canno
 
 ## `pull --init` destructive signal
 
-The static `listTools` annotation for `pull` is `destructiveHint: false` and cannot flip per call. When the agent calls `pull` with `init: true`, the tool runs the initial migration against the live database — a destructive write — and signals this per-call on the result rather than on the static annotation. The escalation rides the result `_meta` key:
+The static `listTools` annotation for `pull` is `destructiveHint: false` and cannot flip per call. When the agent calls `pull` with `init: true`, the tool writes to the live database: it creates the migrations table if needed and records the pulled migration as applied, so that `migrate` does not run it again. It does not run the SQL of that migration. The tool signals this write per call on the result rather than on the static annotation. The escalation rides the result `_meta` key:
 
 ```json
 { "_meta": { "com.drizzle.team/pull.destructiveHint": true } }

@@ -52,6 +52,8 @@ export const handle = async (
 	},
 	db?: Awaited<ReturnType<typeof preparePostgresDB>>,
 ) => {
+	const { snapshots } = prepareOutFolder(out);
+
 	if (!db) {
 		const { preparePostgresDB } = await import('../connections');
 		db = await preparePostgresDB(credentials);
@@ -98,7 +100,6 @@ export const handle = async (
 
 	let snapshotPath: string;
 	let migrationPath: string | undefined;
-	const { snapshots } = prepareOutFolder(out);
 	if (snapshots.length === 0) {
 		const { sqlStatements } = await ddlDiff(
 			createDDL(), // dry ddl

@@ -1027,15 +1027,15 @@ export const migrateToFoldersV3 = (out: string) => {
 
 			// Reading SQL files
 			let oldSqlPath = join(out, `${entry.tag}.sql`);
-			const sqlFileFromJournal = join(out, `${entry.tag}.sql`);
-			if (!existsSync(sqlFileFromJournal)) {
+			if (!existsSync(oldSqlPath)) {
 				// We will try to find it by prefix, but this is a sign that something went wrong
 				// with properly using drizzle-kit migrations
-				const sqlFileName = sqlFiles.find((file) => file.startsWith(snapshotPrefix));
-				if (!sqlFileName) continue;
-				if (sqlFileName?.length > 1) {
+				const sqlFileNames = sqlFiles.filter((file) => file.startsWith(`${snapshotPrefix}_`) && file.endsWith('.sql'));
+				if (sqlFileNames.length === 0) continue;
+				if (sqlFileNames.length > 1) {
 					throw new MigrationSqlFilesConflictCliError(snapshotPrefix);
 				}
+				oldSqlPath = join(out, sqlFileNames[0]!);
 			}
 			const oldSql = readFileSync(oldSqlPath);
 

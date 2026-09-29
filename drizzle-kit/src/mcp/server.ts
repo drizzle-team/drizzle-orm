@@ -232,16 +232,16 @@ export function createDrizzleMcpServer(): McpServer {
 		'pull',
 		{
 			description: 'Introspect a live database and write schema.ts/relations.ts/snapshot to the out directory. '
-				+ 'Reads credentials from the drizzle config file only. When "init" is true, runs the initial '
-				+ 'migration against the live database (a destructive operation) and reports destructiveHint:true '
-				+ 'via the result _meta key "com.drizzle.team/pull.destructiveHint".',
+				+ 'Reads credentials from the drizzle config file only. When "init" is true, records the pulled '
+				+ 'migration as applied in the migrations table of the live database, without running its SQL, '
+				+ 'and reports destructiveHint:true via the result _meta key "com.drizzle.team/pull.destructiveHint".',
 			inputSchema: z.object({
 				config: z.string().optional().describe(
 					'Custom config file path — relative to the drizzle-kit working directory, or absolute.',
 				),
 				init: z.boolean().optional().describe(
-					'Create migration metadata for the pulled schema in the database. '
-						+ 'This runs the initial migration against the LIVE database — a destructive operation.',
+					'Record the pulled migration as applied in the migrations table of the LIVE database, '
+						+ 'so that migrate does not run it again. The SQL of the migration is not run.',
 				),
 			}),
 			outputSchema: looseEnvelopeSchema,

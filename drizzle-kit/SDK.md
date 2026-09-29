@@ -127,7 +127,7 @@ const response: PullResponse = await pull({
 
 if (response.status === 'ok') {
   console.log(`Wrote ${response.schemaPath} and ${response.snapshotPath}`);
-  // `relationsPath` is present for every dialect except mssql; `migrationPath` only with `init: true`.
+  // `relationsPath` is present for every dialect except mssql; `migrationPath` only when `out` had no migrations yet.
   if ('relationsPath' in response) {
     console.log(`Relations: ${response.relationsPath}`);
   }
