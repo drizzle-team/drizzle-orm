@@ -10,21 +10,20 @@ export type ConflictTarget = {
 	table?: string;
 };
 
+type ConflictingBranch = {
+	chain: MigrationNode[];
+	statementDescription: string;
+	target: ConflictTarget;
+	action: string;
+	// The migration that holds the conflicting statement. Only the postgres check knows it.
+	source?: MigrationNode;
+};
+
 export type UnifiedBranchConflict = {
 	parentId: string;
 	parentPath?: string;
-	branchA: {
-		chain: MigrationNode[];
-		statementDescription: string;
-		target: ConflictTarget;
-		action: string;
-	};
-	branchB: {
-		chain: MigrationNode[];
-		statementDescription: string;
-		target: ConflictTarget;
-		action: string;
-	};
+	branchA: ConflictingBranch;
+	branchB: ConflictingBranch;
 };
 
 export type NonCommutativityReport = {

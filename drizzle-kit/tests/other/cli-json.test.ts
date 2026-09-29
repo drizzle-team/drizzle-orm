@@ -1245,9 +1245,17 @@ describe('check --output', () => {
 		}
 	});
 
-	test('ignore-conflicts emits an ok envelope despite conflicts', async () => {
+	test('postgresql rejects ignore-conflicts', async () => {
 		const result = await runCheck(stageConflict(), { ignoreConflicts: true });
-		expect(result).toStrictEqual({ status: 'ok', dialect: 'postgresql' });
+		expect(result).toStrictEqual({
+			status: 'error',
+			error: {
+				code: 'unsupported_command_dialect_error',
+				command: 'check',
+				dialect: 'postgresql',
+				option: 'ignore-conflicts',
+			},
+		});
 	});
 });
 

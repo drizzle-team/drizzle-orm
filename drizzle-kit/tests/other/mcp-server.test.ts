@@ -67,6 +67,39 @@ describe('MCP server pull tool — per-call destructive _meta escalation', () =>
 	});
 });
 
+describe('MCP server generate tool with fixConflicts', () => {
+	test('a conflict lists the folders to delete, and fixConflicts:true deletes them with the destructive _meta signal', async () => {
+		const { client } = await connectPair();
+		const out = stageConflict();
+		const schemaPath = resolve(join(out, 'schema.ts'));
+		writeFileSync(
+			schemaPath,
+			[
+				"import { integer, pgTable } from 'drizzle-orm/pg-core';",
+				'',
+				"export const users = pgTable('users', { email: integer('email').notNull() });",
+			].join('\n'),
+		);
+		const config = writeDrizzleConfig(out, schemaPath);
+		const folders = [expect.stringMatching(/0001_left$/), expect.stringMatching(/0002_right$/)];
+		try {
+			const r1 = await client.callTool({ name: 'generate', arguments: { config } });
+			expect((r1._meta ?? {})['com.drizzle.team/generate.destructiveHint']).toBeFalsy();
+			expect(r1.structuredContent).toMatchObject({
+				status: 'error',
+				error: { code: 'check_error', kind: 'conflicts', fix: { migrations: folders, customMigrations: [] } },
+			});
+
+			const r2 = await client.callTool({ name: 'generate', arguments: { config, fixConflicts: true } });
+			expect(r2._meta?.['com.drizzle.team/generate.destructiveHint']).toBe(true);
+			expect(r2.structuredContent).toMatchObject({ status: 'ok', deleted_migrations: folders });
+		} finally {
+			await client.close();
+			rmSync(out, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('MCP server check tool', () => {
 	test('check against stageValid returns isError:false and status:ok in both channels', async () => {
 		const { client } = await connectPair();

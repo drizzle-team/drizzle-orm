@@ -20,14 +20,23 @@ import { type PostgresSnapshot, reconstruct, startingState } from 'src/dialects/
 import { onTestFinished, vi } from 'vitest';
 import { type PostgresSchema, push } from './mocks';
 
-export type CheckResult = { status: 'passed' } | { status: 'conflicts'; folders: string[]; message: string };
+// `fix` lists the folders that generate --fix-conflicts deletes.
+export type CheckResult =
+	| { status: 'passed' }
+	| {
+		status: 'conflicts';
+		folders: string[];
+		message: string;
+		fix: { migrations: string[]; customMigrations: string[] };
+	};
 
 export type GenerateOptions = {
 	hints?: Hint[];
 	name?: string;
 	at?: Date;
-	ignoreConflicts?: boolean;
+	fixConflicts?: boolean;
 	custom?: boolean;
+	explain?: boolean;
 };
 
 // Runs the output quietly: json mode turns off the human log, and hints resolve renames without prompts.
@@ -120,26 +129,25 @@ export const createFolderFlow = () => {
 		}
 	};
 
+	// `deleted` lists the folders that `fixConflicts` deleted.
 	const generate = async (branch: string, schema: PostgresSchema, options: GenerateOptions = {}) => {
-		const out = dirOf(branch);
-		const result = await atTime(options.at?.getTime(), async () => {
-			const checkResult = await checkHandler(out, 'postgresql', options.ignoreConflicts);
-			return handle({
+		const result = await atTime(options.at?.getTime(), () =>
+			handle({
 				dialect: 'postgresql',
 				filenames: [],
 				schemaSource: SchemaSource.fromSchema(fromExports(schema)),
-				out,
+				out: dirOf(branch),
 				breakpoints: true,
 				name: options.name ?? branch,
 				custom: options.custom ?? false,
 				bundle: false,
-				ignoreConflicts: options.ignoreConflicts,
-				explain: false,
+				fixConflicts: options.fixConflicts,
+				explain: options.explain ?? false,
 				hints: new HintsHandler(options.hints),
-			}, checkResult);
-		});
+			}));
 		const folder = 'migration_path' in result ? basename(dirname(result.migration_path)) : undefined;
-		return { ...result, folder };
+		const deleted = 'deleted_migrations' in result ? (result.deleted_migrations ?? []).map((it) => basename(it)) : [];
+		return { ...result, folder, deleted };
 	};
 
 	const pull = async (branch: string, client: PGlite) => {
@@ -158,7 +166,16 @@ export const createFolderFlow = () => {
 			if (!(e instanceof CheckCliError) || e.meta?.kind !== 'conflicts') throw e;
 			const details = e.meta.details as { branches: { leafPath: string | null }[] }[];
 			const folders = details.flatMap((it) => it.branches.flatMap((b) => (b.leafPath ? [basename(b.leafPath)] : [])));
-			return { status: 'conflicts', folders: [...new Set(folders)].sort(), message: e.humanMessage };
+			const fix = e.meta.fix as { migrations: string[]; customMigrations: string[] };
+			return {
+				status: 'conflicts',
+				folders: [...new Set(folders)].sort(),
+				message: e.humanMessage,
+				fix: {
+					migrations: fix.migrations.map((it) => basename(it)),
+					customMigrations: fix.customMigrations.map((it) => basename(it)),
+				},
+			};
 		}
 	};
 

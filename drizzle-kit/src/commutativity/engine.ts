@@ -464,12 +464,14 @@ export abstract class AbstractCommutativity<
 				const [statementX, statementY] = historyX.has(sources.get(found.leftStatement)!)
 					? [found.leftStatement, found.rightStatement]
 					: [found.rightStatement, found.leftStatement];
-				const describeLeafBranch = (branch: string[], leafId: string, statement: TStatement) =>
-					this.branchOf(
+				const describeLeafBranch = (branch: string[], leafId: string, statement: TStatement) => {
+					const sourceId = sources.get(statement)!;
+					return this.branchOf(
 						[...branch.filter((id) => id !== leafId), leafId].map((id) => ({ id, path: nodes[id].folderPath })),
 						statement,
-						basename(nodes[sources.get(statement)!].folderPath),
+						{ id: sourceId, path: nodes[sourceId].folderPath },
 					);
+				};
 				const forkId = forkPointOf(nodes, [x, y]);
 				conflicts.push({
 					parentId: forkId ?? this.getDrySnapshot().id,
@@ -525,15 +527,19 @@ export abstract class AbstractCommutativity<
 		};
 	}
 
-	// `source` names the snapshot that the statement comes from.
-	private branchOf(chain: MigrationNode[], statement: TStatement, source?: string): UnifiedBranchConflict['branchA'] {
+	private branchOf(
+		chain: MigrationNode[],
+		statement: TStatement,
+		source?: MigrationNode,
+	): UnifiedBranchConflict['branchA'] {
 		const info = this.resolveStatement(statement).info;
 		const description = this.describeStatement(statement, info);
 		return {
 			chain,
-			statementDescription: source ? `${description} (${source})` : description,
+			statementDescription: source ? `${description} (${basename(source.path)})` : description,
 			target: this.describeStatementTarget(statement, info),
 			action: info.action,
+			...(source && { source }),
 		};
 	}
 

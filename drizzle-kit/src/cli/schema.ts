@@ -10,7 +10,7 @@ import '../@types/utils';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import { assertUnreachable } from '../utils';
 import { assertV3OutFolder } from '../utils/utils-node';
-import { checkHandler } from './commands/check';
+import { assertConflictOptions, checkHandler } from './commands/check';
 import type { Setup } from './commands/studio';
 import { upCockroachHandler } from './commands/up-cockroach';
 import { upMssqlHandler } from './commands/up-mssql';
@@ -85,7 +85,7 @@ export const prepareGenerate = async (opts: GenerateOptionsInput) => {
 	const from = assertCollisions(
 		'generate',
 		opts,
-		['name', 'custom', 'ignoreConflicts', 'explain', 'output', 'hints', 'hintsFile'],
+		['name', 'custom', 'ignoreConflicts', 'fixConflicts', 'explain', 'output', 'hints', 'hintsFile'],
 		['driver', 'breakpoints', 'schema', 'out', 'dialect'],
 	);
 	return prepareGenerateConfig(opts as Parameters<typeof prepareGenerateConfig>[0], from);
@@ -100,16 +100,21 @@ export const runGenerate = async (
 	assertV3OutFolder(config.out);
 
 	const dialect = config.dialect;
+	assertConflictOptions('generate', dialect, config);
+
+	// Postgres runs check itself, because a conflict can end in generate --fix-conflicts.
+	if (dialect === 'postgresql') {
+		const { handle } = await import('./commands/generate-postgres');
+		return await handle(config as Parameters<typeof handle>[0]);
+	}
+
 	const checkResult = await checkHandler(
 		config.out,
 		dialect,
 		config.ignoreConflicts,
 	);
 
-	if (dialect === 'postgresql') {
-		const { handle } = await import('./commands/generate-postgres');
-		return await handle(config as Parameters<typeof handle>[0], checkResult);
-	} else if (dialect === 'mysql') {
+	if (dialect === 'mysql') {
 		const { handle } = await import('./commands/generate-mysql');
 		return await handle(config, checkResult);
 	} else if (dialect === 'sqlite') {
@@ -314,7 +319,7 @@ const optionDriver = string()
 	.desc('Database driver');
 
 const optionIgnoreConflicts = boolean('ignore-conflicts').desc(
-	'Skip commutativity conflict checks',
+	'Skip commutativity conflict checks (not for postgresql)',
 );
 const optionHints = string().desc('Inline JSON array of hints');
 const optionHintsFile = string('hints-file').desc('Path to a JSON file containing a hints array');
@@ -332,6 +337,9 @@ export const generateOptions = {
 		.desc('Prepare empty migration file for custom SQL')
 		.default(false),
 	ignoreConflicts: optionIgnoreConflicts,
+	fixConflicts: boolean('fix-conflicts').desc(
+		'Delete the conflicting migrations and their children, then generate one new migration (postgresql only)',
+	),
 	explain: boolean()
 		.desc('Print the planned SQL changes (dry run)')
 		.default(false),
@@ -373,6 +381,7 @@ export const migrate = command({
 		assertV3OutFolder(opts.out);
 		const { dialect, schema, table, out, credentials, ignoreConflicts } = opts;
 
+		assertConflictOptions('migrate', dialect, { ignoreConflicts });
 		await checkHandler(out, dialect, ignoreConflicts);
 
 		if (dialect === 'postgresql') {
@@ -573,6 +582,7 @@ export const runCheck = async (
 	await assertOrmCoreVersion();
 	assertV3OutFolder(config.out);
 	const { out, dialect, ignoreConflicts } = config;
+	assertConflictOptions('check', dialect, { ignoreConflicts });
 	await checkHandler(out, dialect, ignoreConflicts);
 	return { status: 'ok' as const, dialect };
 };

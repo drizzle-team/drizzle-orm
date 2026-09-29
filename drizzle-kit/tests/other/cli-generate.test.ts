@@ -61,6 +61,7 @@ test('generate #1', async (t) => {
 
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -85,6 +86,7 @@ test('generate #2', async (t) => {
 
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -106,6 +108,7 @@ test('generate #3', async (t) => {
 
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -128,6 +131,7 @@ test('generate #4', async (t) => {
 
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -149,6 +153,7 @@ test('generate #5', async (t) => {
 
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -170,6 +175,7 @@ test('generate #7', async (t) => {
 
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -192,6 +198,7 @@ test('generate #8', async (t) => {
 
 		driver: 'expo',
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -213,6 +220,7 @@ test('generate #9', async (t) => {
 
 		driver: 'durable-sqlite',
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -238,6 +246,7 @@ test('generate #10', async (t) => {
 
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -254,6 +263,7 @@ test('generate #10 tsconfig paths', async () => {
 		expect(res.options).toStrictEqual({
 			dialect: 'postgresql',
 			ignoreConflicts: false,
+			fixConflicts: false,
 			name: undefined,
 			custom: false,
 			breakpoints: true,
@@ -292,6 +302,7 @@ test('generate --explain', async (t) => {
 		bundle: false,
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: true,
 		hints: expect.any(HintsHandler),
 	});
@@ -373,6 +384,7 @@ test('validate config #1', async (t) => {
 		out: 'drizzle',
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		name: undefined,
 		explain: false,
 		hints: expect.any(HintsHandler) as any,
@@ -414,6 +426,7 @@ test('validate config #2', async (t) => {
 		out: 'test',
 		driver: 'pglite',
 		ignoreConflicts: false,
+		fixConflicts: false,
 		name: undefined,
 		explain: false,
 		hints: expect.any(HintsHandler) as any,
@@ -481,6 +494,7 @@ test('validate config #5', async (t) => {
 		out: 'drizzle',
 		driver: 'd1-http',
 		ignoreConflicts: false,
+		fixConflicts: false,
 		name: undefined,
 		explain: false,
 		hints: expect.any(HintsHandler) as any,

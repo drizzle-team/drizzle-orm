@@ -47,12 +47,14 @@ Both branches here create `public.users`, so the report has one conflict:
         statementDescription: 'create_table: users in public schema (20260101120002_a)',
         target: { kind: 'table', name: 'users', schema: 'public' },
         action: 'create_table',
+        source: { id: 'a1', path: 'drizzle/20260101120002_a' }, // the snapshot that holds the statement
       },
       branchB: {
         chain: [{ id: 'b1', path: 'drizzle/20260101120003_b' }],
         statementDescription: 'create_table: users in public schema (20260101120003_b)',
         target: { kind: 'table', name: 'users', schema: 'public' },
         action: 'create_table',
+        source: { id: 'b1', path: 'drizzle/20260101120003_b' },
       },
     },
   ],
@@ -63,6 +65,8 @@ Both branches here create `public.users`, so the report has one conflict:
 Each branch is compared snapshot by snapshot, so a change that a branch makes and later reverts still counts. When branch a adds column `c` and later drops it, and branch b adds `c` with another type, the report has a conflict. The migrator runs both adds in folder-name order, so a fresh database would fail.
 
 A merge snapshot lists every leaf in `prevIds`, and its own statements come from its combined state. The snapshots that reach a merge through its other parents are ordinary members of a branch.
+
+The report has only the first conflict of each pair of leaves. `planConflictFix` in `src/cli/commands/fix-conflicts.ts` plans what `generate --fix-conflicts` deletes: the `source` of every reported statement with all its children. It checks the rest of the history again and repeats until no conflict is left.
 
 The facet rules are also the source of the commutativity matrix. `tests/postgres/commutativity-matrix.json` is generated from them, and `tests/postgres/commutativity.matrix-gen.test.ts` fails when the two differ.
 

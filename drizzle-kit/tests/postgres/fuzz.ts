@@ -752,10 +752,10 @@ export const replayHistory = async (
 	return models;
 };
 
-type Written = { branch: string; model: Model; hasIgnoredConflicts: boolean; isCustom: boolean };
+type Written = { branch: string; model: Model; isCustom: boolean };
 
 // Runs generate the way a user answers it: rename hints for the decisions, create hints for whatever
-// generate still asks about, and --ignore-conflicts when check reports a conflict.
+// generate still asks about, and --fix-conflicts when check reports a conflict.
 const generateWithHints = async (
 	flow: FolderFlow,
 	branch: string,
@@ -766,11 +766,11 @@ const generateWithHints = async (
 	// The combined state of a merge can differ from the model that the decisions come from.
 	const canDropRenames = isMerge || flow.leaves(branch).length > 1;
 	let hints = renames;
-	let ignoreConflicts = false;
+	let fixConflicts = false;
 	for (let attempt = 0; attempt < 4; attempt++) {
 		try {
-			const result = await flow.generate(branch, schema, { hints, ignoreConflicts });
-			if (result.status !== 'missing_hints') return { folder: result.folder, hasIgnoredConflicts: ignoreConflicts };
+			const result = await flow.generate(branch, schema, { hints, fixConflicts });
+			if (result.status !== 'missing_hints') return result.folder;
 			hints = [
 				...hints,
 				...result.unresolved.map((it) => {
@@ -781,7 +781,7 @@ const generateWithHints = async (
 				}),
 			];
 		} catch (e) {
-			if (e instanceof CheckCliError && e.meta?.kind === 'conflicts' && !ignoreConflicts) ignoreConflicts = true;
+			if (e instanceof CheckCliError && e.meta?.kind === 'conflicts' && !fixConflicts) fixConflicts = true;
 			else if (e instanceof InvalidHintsCliError && canDropRenames) hints = hints.filter((it) => it.type !== 'rename');
 			else throw e;
 		}
@@ -799,20 +799,14 @@ export const runHistory = async (steps: Step[]) => {
 		if (step.type === 'custom') {
 			if (flow.leaves(step.branch).length !== 1) return;
 			const { folder } = await flow.generate(step.branch, toSchema(start), { custom: true });
-			written.set(folder!, { branch: step.branch, model: start, hasIgnoredConflicts: false, isCustom: true });
+			written.set(folder!, { branch: step.branch, model: start, isCustom: true });
 			return;
 		}
 		flow.merge(step.branch, ...sources);
 		const renames = renameDecisions(start, next, step.ops).map(toHint);
 		const isMerge = sources.length > 0;
-		const { folder, hasIgnoredConflicts } = await generateWithHints(
-			flow,
-			step.branch,
-			toSchema(next),
-			renames,
-			isMerge,
-		);
-		if (folder) written.set(folder, { branch: step.branch, model: next, hasIgnoredConflicts, isCustom: false });
+		const folder = await generateWithHints(flow, step.branch, toSchema(next), renames, isMerge);
+		if (folder) written.set(folder, { branch: step.branch, model: next, isCustom: false });
 	});
 	return { flow, branches: [...models.keys()], written };
 };

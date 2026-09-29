@@ -125,6 +125,15 @@ test('with three leaves every pair of branches is compared', async () => {
 		'  │   └─ ⚠ alter_column: email on users table (20260101120004_c)',
 		'  └── 20260101120005_b',
 		'      └─ ⚠ alter_column: email on users table (20260101120005_b)',
+		'',
+		'To fix the conflicts, drizzle-kit can delete 3 migrations and generate one new migration from the rest of the '
+		+ 'history to your schema. It deletes these folders:',
+		'  20260101120002_a',
+		'  20260101120004_c',
+		'  20260101120005_b',
+		'Every database that already ran a deleted migration must be reset. '
+		+ 'The migrator skips a deleted migration without an error.',
+		'To apply this fix, run: drizzle-kit generate --fix-conflicts',
 	]);
 });
 

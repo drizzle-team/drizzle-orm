@@ -18,13 +18,13 @@ The discriminated union (identical for CLI stdout and SDK return value):
 | status            | exit code | shape                                                   |
 | ----------------- | --------- | ------------------------------------------------------- |
 | `'ok'`            | 0         | `{ status, dialect, ... }` (per-operation extras below) |
-| `'no_changes'`    | 0         | `{ status, dialect }`                                   |
+| `'no_changes'`    | 0         | `{ status, dialect }`, plus the fields below after `--fix-conflicts` |
 | `'missing_hints'` | 2         | `{ status, unresolved: MissingHint[] }`                 |
 | `'error'`         | 1         | `{ status, error: { code, ...meta } }`                  |
 
 Per-operation extras on `'ok'`:
 
-- `generate` (write mode) — `{ status, dialect, migration_path }`
+- `generate` (write mode) — `{ status, dialect, migration_path }`. After `--fix-conflicts`, both `ok` and `no_changes` also carry `deleted_migrations` and `deleted_custom_migrations?`, the folders that the fix deleted
 - `push` (write mode) — `{ status, dialect }`
 - `pull` — `{ status, dialect, schemaPath, snapshotPath, relationsPath?, migrationPath? }` (`relationsPath?` omitted for mssql; `migrationPath?` only when pull wrote a new migration folder into an empty `out` folder). `pull` is ok-or-error only — never `missing_hints`, never `no_changes`.
 - `export` — `{ status, dialect, statements, warnings }` (the individual SQL statements plus rendered warnings — there is no joined `sql` field).
@@ -55,7 +55,7 @@ The canonical subset surfacing from `generate` and `push`. `code` is the discrim
 | `schema_files_not_found_error`      | schema glob(s) matched zero files                                                   | `paths`                                                         |
 | `missing_required_params_error`     | a required CLI flag or config field was absent                                      | `params`                                                        |
 | `ambiguous_params_error`            | a flag conflicts with a `defineConfig` field (or two flags collide)                 | `command`, `configOption`                                       |
-| `unsupported_command_dialect_error` | the requested command isn't valid for the chosen dialect                            | `command`, `dialect?`                                           |
+| `unsupported_command_dialect_error` | the requested command or option isn't valid for the chosen dialect                  | `command`, `dialect?`, `option?`                                |
 | `config_connection_error`           | `dbCredentials` shape doesn't match the chosen driver                               | `driver`, `params`, `command?`                                  |
 | `database_driver_error`             | driver-specific connect failure — usually a missing or version-mismatched package; also arises from `pull`'s connect/introspect span and its `--init` migrate span | `database`, `packages`, `note?`                                 |
 | `orm_version_error`                 | `drizzle-orm` is missing, too old, or `drizzle-kit` itself is outdated              | `kind: 'orm_missing'\|'orm_too_old'\|'kit_outdated'`            |
@@ -92,7 +92,7 @@ When fired:
 | `unsupported` | `kind`, `snapshot`       | a snapshot was written by a newer drizzle-kit and cannot be read       |
 | `malformed`   | `kind`, `snapshot`, `parentId?`, `parentSnapshot?` | a snapshot cannot be read, or the postgres history of the folder is broken (cases below) |
 | `non_latest`  | `kind`, `snapshot`       | a snapshot is in an older format; run `drizzle-kit up`                 |
-| `conflicts`   | `kind`, `conflicts`, `details` | branches in the migrations folder do not commute (run without `--ignore-conflicts`) |
+| `conflicts`   | `kind`, `conflicts`, `details`, `fix?` | branches in the migrations folder do not commute |
 
 For the integrity kinds, `snapshot` is the path of the snapshot file that has the problem. `malformed` has these cases:
 
@@ -106,7 +106,7 @@ For the integrity kinds, `snapshot` is the path of the snapshot file that has th
 
 The three cases without an extra key differ in the file at `snapshot`, so read that file to tell them apart. Under `--output text`, the message names the case and the fix. The `drizzle-migrations` skill explains the migrations folder, base and diff snapshots, and these fixes in more detail.
 
-For `conflicts`, `conflicts` is the count and `details` is an array of length `conflicts`. Each entry is `{ parentId, parentPath?, branches }`. `parentId` is the fork point: the newest snapshot that is in the history of both leaves. `parentPath` is its folder. `branches` is always a two-element array, one entry for each branch, and each entry is `{ leafId, leafPath, statementDescription, target, action }`. `leafId` / `leafPath` are the id and folder of that branch's newest migration (`null` when the branch is empty). `statementDescription` describes the conflicting statement; for postgres it ends with the folder of the migration that the statement comes from. `target` is `{ kind, name, schema?, table? }`, the entity that the statement changes, and `action` is the statement type.
+For `conflicts`, `conflicts` is the count and `details` is an array of length `conflicts`. Each entry is `{ parentId, parentPath?, branches }`. `parentId` is the fork point: the newest snapshot that is in the history of both leaves. `parentPath` is its folder. `branches` is always a two-element array, one entry for each branch, and each entry is `{ leafId, leafPath, statementDescription, target, action }`. `leafId` / `leafPath` are the id and folder of that branch's newest migration (`null` when the branch is empty). `statementDescription` describes the conflicting statement; for postgres it ends with the folder of the migration that the statement comes from. `target` is `{ kind, name, schema?, table? }`, the entity that the statement changes, and `action` is the statement type. For postgresql, `fix` is `{ migrations, customMigrations }`: the folders that `generate --fix-conflicts` deletes, and the custom migrations among them.
 
 ## Decoding pattern (CLI + SDK)
 
@@ -159,7 +159,7 @@ Common failure modes and their fixes — keyed by `error.code` / `meta.kind`:
 - `database_driver_error` — driver could not connect. `meta.packages` lists the npm packages required for the driver; install them. `meta.note` may carry a connection-specific hint (e.g. SSL). Beyond `push`, this also fires from `pull`'s connect/introspect span and the `--init` migrate span — the meta is always the redacted `{ database, packages, note? }`; the connection string, SQL, and params are never spread into the envelope.
 - `orm_version_error` — `meta.kind` discriminates: `orm_missing` (install `drizzle-orm`), `orm_too_old` (bump `drizzle-orm`), `kit_outdated` (bump `drizzle-kit` itself).
 - `required_packages_error` — `meta.packages` lists the npm packages to install. Common for dialect drivers (`pg`, `mysql2`, `better-sqlite3`, `@libsql/client`, `mssql`).
-- `unsupported_command_dialect_error` — the command isn't supported for `meta.dialect`. Use a different command or switch dialects.
+- `unsupported_command_dialect_error` — the command isn't supported for `meta.dialect`. Use a different command or switch dialects. With `meta.option`, only that option is unsupported: postgresql rejects `ignore-conflicts` (use `generate --fix-conflicts`), and the other dialects reject `fix-conflicts`.
 - `migrations_outdated_error` — the migrations folder under `meta.out` uses an older snapshot format. Run `drizzle-kit up` to migrate the folder forward.
 - `check_error`: `meta.kind` discriminates. For `non_latest`, run `drizzle-kit up`. For `malformed`, see the case table in Check errors above. For `conflicts`, `meta.details` names the conflicting migrations; the `drizzle-migrations` skill covers how to resolve them.
 - `command_output_error` with `meta.command: 'up'`: `up` converted nothing. `meta.kind` is `malformed` (restore `meta.snapshot` from git and run `up` again), `invalid_snapshot` or `state_mismatch` (a drizzle-kit bug: keep the old files and report it; `state_mismatch` also names the first differing `meta.entity`).

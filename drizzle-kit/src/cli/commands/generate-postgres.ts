@@ -1,5 +1,7 @@
 import { randomUUID } from 'crypto';
-import { copyDDL, type Delta, delta } from '../../dialects/dialect';
+import { render } from 'hanji';
+import { dirname } from 'path';
+import { copyDDL, type Delta } from '../../dialects/dialect';
 import type {
 	CheckConstraint,
 	Column,
@@ -20,33 +22,57 @@ import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { SchemaSource } from '../../dialects/postgres/drizzle';
-import { renameResolvers } from '../../dialects/postgres/renames';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
 import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
 import { originUUID } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
-import { outputFormat } from '../context';
-import { CommandOutputCliError } from '../errors';
+import { isInteractive, outputFormat } from '../context';
+import { CheckCliError, CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
+import { Select } from '../selector-ui';
 import { explain, explainJsonOutput, humanLog, postgresSchemaError, postgresSchemaWarning } from '../views';
-import type { CheckHandlerResult } from './check';
+import { checkSnapshots } from './check';
+import { applyConflictFix, type ConflictFix, describeAppliedFix } from './fix-conflicts';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
-export const handle = async (
-	config: GenerateConfig<SchemaSource>,
-	checkResult?: CheckHandlerResult,
-) => {
+const checkHistory = async (config: GenerateConfig<SchemaSource>, snapshots: string[]) => {
+	try {
+		return { checkResult: await checkSnapshots(snapshots, 'postgresql') };
+	} catch (e) {
+		if (!(e instanceof CheckCliError) || e.meta?.kind !== 'conflicts') throw e;
+		const fix = e.meta.fix as ConflictFix;
+		if (!config.fixConflicts) {
+			if (!isInteractive() || config.explain) throw e;
+			humanLog(e.humanMessage);
+			const { data } = await render(
+				new Select(['No, keep the migrations', 'Yes, delete them and generate a new migration']),
+			);
+			if (data?.index !== 1) {
+				throw new CheckCliError(
+					'conflicts',
+					'The migrations are kept, and the conflicts are not fixed. To fix them later, run: drizzle-kit generate --fix-conflicts',
+					e.meta,
+				);
+			}
+		}
+		const deleted = new Set(fix.migrations);
+		const rest = snapshots.filter((it) => !deleted.has(dirname(it)));
+		return { checkResult: await checkSnapshots(rest, 'postgresql'), fix };
+	}
+};
+
+export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	const { out: outFolder } = config;
 	const json = outputFormat() === 'json';
 
-	const { snapshots, index } = prepareOutFolder(outFolder);
+	const stored = prepareOutFolder(outFolder);
+	const { checkResult, fix } = await checkHistory(config, stored.snapshots);
+	const deleted = new Set(fix?.migrations);
+	const snapshots = stored.snapshots.filter((it) => !deleted.has(dirname(it)));
+	const index = stored.index.filter((it) => !deleted.has(dirname(it.path)));
 	const prepared = await config.schemaSource.load();
-	const { ddlCur, ddlPrev, ddlSqlFrom, prevIds } = await prepareSnapshot(
-		snapshots,
-		prepared,
-		checkResult,
-	);
+	const { ddlCur, ddlPrev, prevIds } = await prepareSnapshot(snapshots, prepared, checkResult);
 	const parentFolders = index.filter((it) => prevIds.includes(it.id)).map((it) => it.folder);
 
 	// `state` is what the snapshot must rebuild to, and `deltas` turn `ddlPrev` into it.
@@ -56,8 +82,23 @@ export const handle = async (
 		return { type: 'diff', ...header, prevIds, deltas };
 	};
 
+	// Deleting waits until generate needs no more hints, so a missing_hints response leaves the folder unchanged.
+	// Explain mode is a dry run and deletes nothing.
+	const withFix = <T extends object>(
+		result: T,
+	): T & { deleted_migrations?: string[]; deleted_custom_migrations?: string[] } => {
+		if (!fix || config.explain) return result;
+		applyConflictFix(fix);
+		humanLog(describeAppliedFix(fix));
+		return {
+			...result,
+			deleted_migrations: fix.migrations,
+			...(fix.customMigrations.length > 0 && { deleted_custom_migrations: fix.customMigrations }),
+		};
+	};
+
 	if (config.custom) {
-		return writeResult({
+		return withFix(writeResult({
 			snapshot: snapshotOf(ddlPrev, []),
 			sqlStatements: [],
 			outFolder,
@@ -67,13 +108,13 @@ export const handle = async (
 			type: 'custom',
 			snapshots,
 			parentFolders,
-		});
+		}));
 	}
 
-	// ddlDiff changes both states. ddlSqlFrom must stay unchanged for the rename decisions below. ddlCur
-	// keeps the changes: auto-named constraints get the names that the SQL leaves in the database.
+	// ddlDiff changes both states. ddlCur keeps the changes: auto-named constraints get the names that the
+	// SQL leaves in the database.
 	const { sqlStatements, groupedStatements, statements, deltas } = await ddlDiff(
-		copyDDL(ddlSqlFrom),
+		copyDDL(ddlPrev),
 		ddlCur,
 		resolver<Schema>('schema', config.hints),
 		resolver<Enum>('enum', config.hints),
@@ -96,37 +137,8 @@ export const handle = async (
 	}
 
 	if (!config.explain) {
-		let ownDeltas = deltas;
-		if (ddlSqlFrom !== ddlPrev) {
-			// With ignored conflicts the SQL starts from the newest leaf, and the deltas start from the
-			// combined state, with the rename decisions of the diff above.
-			const decisions = renameResolvers(ddlSqlFrom, deltas, true);
-			const target = copyDDL(ddlCur);
-			({ deltas: ownDeltas } = await ddlDiff(
-				copyDDL(ddlPrev),
-				target,
-				decisions('schemas'),
-				decisions('enums'),
-				decisions('sequences'),
-				decisions('policies'),
-				decisions('roles'),
-				decisions('tables'),
-				decisions('columns'),
-				decisions('views'),
-				decisions('uniques'),
-				decisions('indexes'),
-				decisions('checks'),
-				decisions('pks'),
-				decisions('fks'),
-				'default',
-			));
-			// That diff gave auto-named constraints in `target` their names from the combined state. The
-			// database of the newest leaf has the names in ddlCur, so drops and creates restore them. A
-			// rename delta would read as a user decision.
-			ownDeltas.push(...delta(target, ddlCur));
-		}
-		return writeResult({
-			snapshot: snapshotOf(ddlCur, ownDeltas),
+		return withFix(writeResult({
+			snapshot: snapshotOf(ddlCur, deltas),
 			sqlStatements,
 			outFolder,
 			name: config.name,
@@ -134,7 +146,7 @@ export const handle = async (
 			dialect: 'postgresql',
 			snapshots,
 			parentFolders,
-		});
+		}));
 	}
 
 	if (json) {

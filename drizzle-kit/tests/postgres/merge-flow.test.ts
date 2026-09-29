@@ -213,22 +213,3 @@ test('two branches that each started from an empty folder merge', async () => {
 	expect(flow.state('main', folder!)).toStrictEqual(schemaState(merged));
 	expect(await flow.migrate('main', merged)).toStrictEqual([]);
 });
-
-test('with ignored conflicts the merge SQL starts from the newest leaf and the merge rebuilds to the schema', async () => {
-	const flow = createFolderFlow();
-	await flow.generate('main', { users: pgTable('users', { email: varchar() }) });
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	await flow.generate('a', { users: pgTable('users', { email: varchar().notNull() }) });
-	await flow.generate('b', { users: pgTable('users', { email: integer() }) });
-	flow.merge('main', 'a', 'b');
-	const resolved = { users: pgTable('users', { email: integer().notNull() }) };
-
-	const { folder } = await flow.generate('main', resolved, { ignoreConflicts: true });
-
-	expect(flow.sql('main', folder!)).toBe('ALTER TABLE "users" ALTER COLUMN "email" SET NOT NULL;');
-	expect(flow.snapshot('main', folder!).prevIds).toStrictEqual(
-		['20260101120003_b', '20260101120002_a'].map((it) => flow.snapshot('main', it).id),
-	);
-	expect(flow.state('main', folder!)).toStrictEqual(schemaState(resolved));
-});

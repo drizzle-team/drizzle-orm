@@ -77,7 +77,9 @@ export function createDrizzleMcpServer(): McpServer {
 		{
 			description: 'Generate a new migration file by diffing the current schema against the latest snapshot. '
 				+ 'If the response has status "missing_hints", re-call with a "hints" array resolving each '
-				+ 'unresolved item (rename or create).',
+				+ 'unresolved item (rename or create). When "fixConflicts" is true, deletes conflicting migration '
+				+ 'folders (a destructive operation) and reports destructiveHint:true via the result _meta key '
+				+ '"com.drizzle.team/generate.destructiveHint".',
 			inputSchema: z.object({
 				config: z.string().optional().describe(
 					'Custom config file path — relative to the drizzle-kit working directory, or absolute.',
@@ -88,9 +90,14 @@ export function createDrizzleMcpServer(): McpServer {
 				),
 				name: z.string().optional().describe('Custom migration name'),
 				custom: z.boolean().optional().describe('Generate a blank custom migration'),
-				ignoreConflicts: z.boolean().optional().describe('Ignore existing snapshot conflicts'),
+				ignoreConflicts: z.boolean().optional().describe('Ignore existing snapshot conflicts (not for postgresql)'),
+				fixConflicts: z.boolean().optional().describe(
+					'Delete the conflicting migrations and their children, then generate one new migration '
+						+ '(postgresql only). The check_error response for conflicts lists the folders in error.fix.',
+				),
 			}),
 			outputSchema: looseEnvelopeSchema,
+			// The static listTools annotation cannot change per call, so fixConflicts:true is signaled in result._meta.
 			annotations: { destructiveHint: false },
 		},
 		async (args) => {
@@ -102,9 +109,15 @@ export function createDrizzleMcpServer(): McpServer {
 						name: args.name as string | undefined,
 						custom: args.custom as boolean | undefined,
 						ignoreConflicts: args.ignoreConflicts as boolean | undefined,
+						fixConflicts: args.fixConflicts as boolean | undefined,
 					})
 				) as unknown as SdkEnvelope;
-				return toToolResult(envelope);
+				const result = toToolResult(envelope);
+				// Derived from the input only, like the pull --init signal, so a failed call still warns the client.
+				if (args.fixConflicts === true) {
+					result._meta = { 'com.drizzle.team/generate.destructiveHint': true };
+				}
+				return result;
 			} catch {
 				return toToolResult(unexpectedErrorEnvelope());
 			}
@@ -153,7 +166,7 @@ export function createDrizzleMcpServer(): McpServer {
 				config: z.string().optional().describe(
 					'Custom config file path — relative to the drizzle-kit working directory, or absolute.',
 				),
-				ignoreConflicts: z.boolean().optional().describe('Skip conflict checks'),
+				ignoreConflicts: z.boolean().optional().describe('Skip conflict checks (not for postgresql)'),
 			}),
 			outputSchema: looseEnvelopeSchema,
 			annotations: { readOnlyHint: true, idempotentHint: true },

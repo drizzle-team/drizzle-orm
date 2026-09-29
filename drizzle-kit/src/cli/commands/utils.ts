@@ -111,6 +111,7 @@ export type GenerateConfig<S extends AnySchemaSource = AnySchemaSource> = {
 	bundle: boolean;
 	driver?: Driver;
 	ignoreConflicts?: boolean;
+	fixConflicts?: boolean;
 	explain: boolean;
 	hints: HintsHandler;
 };
@@ -133,6 +134,7 @@ export const prepareGenerateConfig = async (
 		dialect?: Dialect;
 		driver?: Driver;
 		ignoreConflicts?: boolean;
+		fixConflicts?: boolean;
 		explain?: boolean;
 		// `string` arrives only from the CLI `--hints` flag; the SDK passes a raw `Hint[]`.
 		hints?: string | Hint[];
@@ -173,6 +175,7 @@ export const prepareGenerateConfig = async (
 		bundle: driver === 'expo' || driver === 'durable-sqlite',
 		driver,
 		ignoreConflicts: options.ignoreConflicts !== undefined && options.ignoreConflicts,
+		fixConflicts: options.fixConflicts !== undefined && options.fixConflicts,
 		explain: options.explain ?? false,
 		hints,
 	};

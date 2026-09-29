@@ -9,9 +9,7 @@ const nameOf = (row: { schema?: string; table?: string; name?: string }) =>
 // Applies `deltas` to `state` in place and turns their renames into rename decisions, one set per
 // entity type, so that a column rename never matches an index or a table. A relocate follows the
 // rename of another entity, so it is not a decision.
-// If `canSkipDecisions` is true, a decision whose new name the diff does not create is dropped. This
-// happens when a merge with ignored conflicts starts from a combined state that already has the name.
-export const renameResolvers = (state: PostgresDDL, deltas: Delta[], canSkipDecisions = false) => {
+export const renameResolvers = (state: PostgresDDL, deltas: Delta[]) => {
 	const renames = new Map<string, Set<string>>();
 	for (const delta of deltas) {
 		if (delta.op === 'rename') {
@@ -23,12 +21,6 @@ export const renameResolvers = (state: PostgresDDL, deltas: Delta[], canSkipDeci
 		}
 		applyInPlace(state, [delta]);
 	}
-	return <T extends { name: string; table?: string; schema?: string }>(type: string): Resolver<T> => (input) => {
-		const decisions = [...renames.get(type) ?? []];
-		const created = new Set(input.created.map(nameOf));
-		const accepted = canSkipDecisions
-			? decisions.filter((decision) => created.has(decision.split('->')[1]))
-			: decisions;
-		return mockResolver<T>(new Set(accepted))(input);
-	};
+	return <T extends { name: string; table?: string; schema?: string }>(type: string): Resolver<T> =>
+		mockResolver<T>(renames.get(type) ?? new Set());
 };

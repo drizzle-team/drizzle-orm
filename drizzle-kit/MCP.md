@@ -20,7 +20,7 @@ See your MCP client's documentation for how to register a stdio server. As an ex
 
 | Tool | Parameters | Annotations |
 |------|-----------|-------------|
-| `generate` | `config?`, `hints?`, `name?`, `custom?`, `ignoreConflicts?` | non-destructive |
+| `generate` | `config?`, `hints?`, `name?`, `custom?`, `ignoreConflicts?`, `fixConflicts?` | `destructiveHint: false` (static; see the `fixConflicts` signal below) |
 | `push` | `config?`, `hints?` | destructive |
 | `check` | `config?`, `ignoreConflicts?` | read-only, idempotent |
 | `export` | `config?` | read-only, idempotent |
@@ -42,6 +42,16 @@ The static `listTools` annotation for `pull` is `destructiveHint: false` and can
 ```
 
 The `_meta` key is set whenever `init: true`, derived from the input alone and independent of `isError`, so a failed `init` call still warns the client. A `pull` without `init` (or with `init: false`) carries no such `_meta` key. This is implemented in `src/mcp/server.ts`.
+
+## `generate` with `fixConflicts` destructive signal
+
+The static `listTools` annotation for `generate` is `destructiveHint: false`. When the agent calls `generate` with `fixConflicts: true` on a postgresql project whose branches conflict, the tool deletes migration folders: the migrations that hold the conflicting statements that check reports, and all their children. It then generates one new migration. The `check_error` response for conflicts lists these folders in `error.fix` before anything is deleted. The tool signals the deletion per call on the result `_meta` key:
+
+```json
+{ "_meta": { "com.drizzle.team/generate.destructiveHint": true } }
+```
+
+The `_meta` key is set whenever `fixConflicts: true`, derived from the input alone and independent of `isError`, so a failed call still warns the client. This is implemented in `src/mcp/server.ts`.
 
 ## Explicit `config` parameter
 

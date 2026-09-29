@@ -4,16 +4,15 @@ import { getCommutativityDialect } from '../../commutativity';
 import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from '../../commutativity/types';
 import type { Dialect } from '../../utils/schemaValidator';
 import { assertSnapshotStatus, prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
-import { CheckCliError } from '../errors';
+import { CheckCliError, UnsupportedCommandCliError } from '../errors';
 import { humanLog } from '../views';
+import type { ConflictFix } from './fix-conflicts';
 
 export type CheckHandlerResult = {
 	statements: unknown[];
 	parentSnapshot: unknown | null;
 	parentId?: string;
 	leafIds?: string[];
-	// True when the branches conflict and the caller ignores the conflicts.
-	hasConflicts?: boolean;
 	nonCommutativityMessage?: string;
 };
 
@@ -136,13 +135,43 @@ export const generateReportDirectory = (
 	return lines.join('\n');
 };
 
+export const assertConflictOptions = (
+	command: string,
+	dialect: Dialect,
+	options: { ignoreConflicts?: boolean; fixConflicts?: boolean },
+) => {
+	if (dialect === 'postgresql' && options.ignoreConflicts) {
+		throw new UnsupportedCommandCliError(
+			command,
+			'--ignore-conflicts is not supported for postgresql. '
+				+ 'To delete the conflicting migrations and generate one new migration, run: drizzle-kit generate --fix-conflicts',
+			{ dialect, option: 'ignore-conflicts' },
+		);
+	}
+	if (dialect !== 'postgresql' && options.fixConflicts) {
+		throw new UnsupportedCommandCliError(
+			command,
+			`--fix-conflicts is supported only for postgresql. For ${dialect}, resolve the conflicts by hand, `
+				+ 'or run generate with --ignore-conflicts to write the merge anyway.',
+			{ dialect, option: 'fix-conflicts' },
+		);
+	}
+};
+
 export const checkHandler = async (
 	out: string,
 	dialect: Dialect,
 	ignoreConflicts?: boolean,
 	shouldExitOnConflict = true,
+): Promise<CheckHandlerResult> =>
+	checkSnapshots(prepareOutFolder(out).snapshots, dialect, ignoreConflicts, shouldExitOnConflict);
+
+export const checkSnapshots = async (
+	snapshots: string[],
+	dialect: Dialect,
+	ignoreConflicts?: boolean,
+	shouldExitOnConflict = true,
 ): Promise<CheckHandlerResult> => {
-	const { snapshots } = prepareOutFolder(out);
 	const validator = validatorForDialect(dialect);
 
 	// const parsedInputs: ParsedSnapshotInput[] = [];
@@ -161,9 +190,16 @@ export const checkHandler = async (
 
 	const response = await commutativity.detectNonCommutative(snapshots);
 	if (response.conflicts.length > 0) {
-		const nonCommutativityMessage = generateReportDirectory(response);
+		let nonCommutativityMessage = generateReportDirectory(response);
 		if (!ignoreConflicts) {
 			if (shouldExitOnConflict) {
+				// Postgres resolves conflicts with generate --fix-conflicts, so the error says what that fix deletes.
+				let fix: ConflictFix | undefined;
+				if (dialect === 'postgresql') {
+					const { planConflictFix, describeConflictFix } = await import('./fix-conflicts');
+					fix = await planConflictFix(snapshots);
+					nonCommutativityMessage += `\n${describeConflictFix(fix)}`;
+				}
 				const leafOf = (chain: MigrationNode[]) => chain[chain.length - 1];
 				const details = response.conflicts.map((conflict) => ({
 					parentId: conflict.parentId,
@@ -179,6 +215,7 @@ export const checkHandler = async (
 				throw new CheckCliError('conflicts', nonCommutativityMessage, {
 					conflicts: response.conflicts.length,
 					details,
+					...(fix && { fix }),
 				});
 			}
 			humanLog(nonCommutativityMessage);
@@ -202,7 +239,6 @@ export const checkHandler = async (
 			statements: [],
 			parentSnapshot: null,
 			leafIds: [...response.leafNodes].sort((left, right) => left.localeCompare(right)),
-			...(response.conflicts.length > 0 && { hasConflicts: true }),
 		};
 	}
 

@@ -651,8 +651,9 @@ const historyOf = (
 
 // Adds to the first parent's state the snapshots that reach a merge only through its other parents.
 // In this replay only, a drop, alter, rename or relocate of a missing row is skipped, and a create,
-// rename or relocate onto a taken key overwrites the row there. A base or a checkpoint adds its rows
-// as such creates, because two branches that each started from an empty folder share no ancestor.
+// rename or relocate onto a taken key overwrites the row there. A base adds its rows as such creates,
+// because two branches that each started from an empty folder share no ancestor. A checkpoint holds
+// the state of its own branch, and that state would bring back rows the first parent dropped.
 const combineInPlace = (
 	state: PostgresDDL,
 	snapshots: Map<string, PostgresSnapshot>,
@@ -663,6 +664,13 @@ const combineInPlace = (
 	const replayed = historyOf(snapshots, others, child, historyOf(snapshots, [first], child));
 	for (const [id, snapshot] of snapshots) {
 		if (!replayed.has(id)) continue;
+		if (snapshot.type === 'checkpoint') {
+			throw new Error(
+				`Cannot merge branches: checkpoint ${id} is part of a branch that the merge replays, `
+					+ 'and a checkpoint is supported only in linear history. '
+					+ `Delete ${id} and every later migration of its branch, then run generate again.`,
+			);
+		}
 		const deltas: Delta[] = snapshot.type === 'diff'
 			? snapshot.deltas
 			: snapshot.ddl.map((row) => ({ op: 'create', row }));

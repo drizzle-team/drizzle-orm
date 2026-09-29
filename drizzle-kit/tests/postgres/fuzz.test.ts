@@ -125,9 +125,9 @@ const historyProperty = (runs: number, check: (steps: Step[]) => Promise<void>) 
 test('check derives the statements that generate wrote for each migration', async () => {
 	await historyProperty(40, async (steps) => {
 		const { flow, written } = await runHistory(steps);
-		for (const [folder, { branch, hasIgnoredConflicts, isCustom }] of written) {
-			// With ignored conflicts the SQL starts from the newest leaf and not from the combined state.
-			if (hasIgnoredConflicts || isCustom) continue;
+		for (const [folder, { branch, isCustom }] of written) {
+			// A later generate --fix-conflicts can delete the folder.
+			if (isCustom || !flow.folders(branch).includes(folder)) continue;
 			const snapshots = new Map(flow.folders(branch).map((it) => [it, flow.snapshot(branch, it)]));
 			const byId = new Map([...snapshots.values()].map((it) => [it.id, it]));
 			const history = new Set<string>();
@@ -138,11 +138,6 @@ test('check derives the statements that generate wrote for each migration', asyn
 				stack.push(...byId.get(id)!.prevIds);
 			}
 			const ancestors = [...snapshots].filter(([, it]) => history.has(it.id));
-			// After a merge with ignored conflicts, a later combined state can keep a row of a renamed table.
-			if (
-				snapshots.get(folder)!.prevIds.length > 1
-				&& ancestors.some(([it]) => written.get(it)?.hasIgnoredConflicts)
-			) continue;
 			const inputs = ancestors.map(([it, snapshot]) => ({ path: join(it, 'snapshot.json'), snapshot }));
 			// A copy of the snapshot is a second leaf with the same parents, so check derives the
 			// statements of the snapshot for both leaves.

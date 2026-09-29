@@ -88,6 +88,8 @@ Examples:
 }
 ```
 
+After `generate --fix-conflicts` (postgresql only), the `ok` or `no_changes` envelope also has `deleted_migrations`: the migration folders that the fix deleted. `no_changes` then means that the rest of the history already matched the schema, so the fix wrote no new migration. If some of them were custom migrations, `deleted_custom_migrations` lists those folders too. See [`check` conflicts](#check-conflicts).
+
 `generate --output json --explain` and `push --output json --explain` success (non-empty diff):
 
 ```json
@@ -125,6 +127,8 @@ Current JSON-mode examples:
 ```json
 { "status": "no_changes", "dialect": "sqlite" }
 ```
+
+After `generate --fix-conflicts`, a `no_changes` envelope can also have `deleted_migrations` and `deleted_custom_migrations`. The fix then deleted those folders, and the rest of the history already matched the schema.
 
 ### `status: "missing_hints"`
 
@@ -455,7 +459,7 @@ type Delta =
 
 - A **base snapshot** holds the full state. It is the first snapshot in the migrations folder. `generate` writes it for the first migration, and `pull` writes it into an empty migrations folder.
 - A **diff snapshot** holds only the deltas of its own migration. `generate` writes one for every later migration. `generate --custom` writes one with `deltas: []`.
-- A **checkpoint** holds a full state in the middle of a history. drizzle-kit reads checkpoints, and reconstruction starts at the nearest one. drizzle-kit never writes a checkpoint into a migrations folder. The [snapshot helpers](#snapshot-helpers-in-drizzle-kitapi-postgres) return checkpoints.
+- A **checkpoint** holds a full state in the middle of a history. drizzle-kit reads checkpoints, and reconstruction starts at the nearest one. drizzle-kit never writes a checkpoint into a migrations folder. A checkpoint is supported only in linear history: a merge that would replay a branch with a checkpoint in it stops with an error. The [snapshot helpers](#snapshot-helpers-in-drizzle-kitapi-postgres) return checkpoints.
 
 Format 9 snapshots have no `renames` field and store no statements. `generate` on an unchanged schema writes no folder.
 
@@ -507,7 +511,9 @@ The combined state of a merge snapshot is built in three steps:
 
 1. Copy the state of the first parent.
 2. Take the snapshots in the merge's history that are missing from the first parent's history.
-3. Apply their deltas in folder-name order. In this step only, a `drop`, `alter`, `rename` or `relocate` of a missing key is skipped, and a `create`, `rename` or `relocate` onto a taken key replaces the row there. A base or checkpoint in this set adds its rows as such creates.
+3. Apply their deltas in folder-name order. In this step only, a `drop`, `alter`, `rename` or `relocate` of a missing key is skipped, and a `create`, `rename` or `relocate` onto a taken key replaces the row there. A base in this set adds its rows as such creates. A checkpoint in this set stops the command with an error.
+
+`generate` writes a merge only after the branches pass `check`, so a skipped or replaced delta occurs only in a merge that `drizzle-kit up` converted from format 8.
 
 `generate` lists every leaf in the `prevIds` of a merge snapshot, and the leaf with the newest folder name comes first. The merge's `migration.sql` holds only the new change, because the other branches' SQL already runs from their own folders.
 
@@ -638,7 +644,7 @@ For the snapshot history, deleting the newest migration folder is safe, and so i
 
 ### `check` conflicts
 
-When the branches do not commute and `--ignore-conflicts` was not passed, `check` emits an `error` envelope with `code: "check_error"`, `kind: "conflicts"`, a `conflicts` count, and a `details` array, and exits with code `1`:
+When the branches do not commute, `check` emits an `error` envelope with `code: "check_error"`, `kind: "conflicts"`, a `conflicts` count, a `details` array and, for postgresql, a `fix` object, and exits with code `1`. For the other dialects, `--ignore-conflicts` turns this error into an `ok` envelope:
 
 ```json
 {
@@ -668,7 +674,11 @@ When the branches do not commute and `--ignore-conflicts` was not passed, `check
           }
         ]
       }
-    ]
+    ],
+    "fix": {
+      "migrations": ["drizzle/20260101120002_a", "drizzle/20260101120005_b"],
+      "customMigrations": []
+    }
   }
 }
 ```
@@ -680,10 +690,15 @@ Key semantics:
   - `parentId`: the id of the fork point, the newest snapshot in the history of both leaves. It is the origin id `00000000-0000-0000-0000-000000000000` when the two leaves have no common snapshot.
   - `parentPath`: the folder of the fork point, present only when the conflict has one.
   - `branches`: always a two-element array, one entry for each branch. Each entry is `{ leafId, leafPath, statementDescription, target, action }`. `leafId` and `leafPath` are the id and the folder of the last migration in that branch (`null` when the branch is empty). `statementDescription` describes the conflicting statement. `target` is `{ kind, name, schema?, table? }` for the entity that the statement changes, and `action` is the statement type.
+- `fix`: postgresql only. `migrations` lists the folders that `generate --fix-conflicts` deletes, in folder-name order: the migrations that hold the conflicting statements that check reports, on both branches, and all their children. Check reports one conflict for each pair of branches, so the fix checks the rest again and repeats until no conflict is left. A migration that conflicts only with a deleted migration stays. `customMigrations` lists the custom migrations among them (diff snapshots with `deltas: []`), whose SQL the fix loses.
 
 For postgres, `check` compares every pair of leaves. A leaf's branch is the set of snapshots in its history that are missing from the other leaf's history. `check` derives the statements of each snapshot in a branch, with the snapshot's `rename` deltas as the rename decisions, and compares every statement of one branch with every statement of the other. A change and its later reversal on the same branch still count, and `statementDescription` ends with the folder that the statement comes from. A merge snapshot adds only the statements of its own deltas. For `mysql`, `sqlite` and `turso`, `check` compares the full state at each fork parent with the full state of each leaf below it. The other dialects have no branch check.
 
-If `check` passes and the folder has several leaves, the next `generate` writes a merge migration. See [Postgres snapshot format 9](#postgres-snapshot-format-9) for what a postgres merge stores. With `--ignore-conflicts`, `generate` writes the merge even though the branches conflict. For postgres, the SQL of that merge is then computed from the state of the newest leaf, so it can repeat changes of the other branches. Review that SQL by hand. The merge snapshot still rebuilds to the schema. If a constraint with a generated name has another name in the newest leaf than in the combined state, the merge snapshot stores a `drop` and a `create` of that constraint, so that the rebuilt state has the name from the newest leaf.
+If `check` passes and the folder has several leaves, the next `generate` writes a merge migration. See [Postgres snapshot format 9](#postgres-snapshot-format-9) for what a postgres merge stores.
+
+For postgresql, `generate --fix-conflicts` resolves conflicts. It deletes the folders in `fix.migrations` and generates one migration from the rest of the history to the schema. If the remaining history has several leaves, that migration merges them. The fix deletes nothing while `generate` still returns `missing_hints`, and nothing in explain mode. Every database that ran a deleted migration must be reset, because the migrator skips a deleted migration without an error. In interactive mode, `generate` shows the conflict report and offers the same fix.
+
+For `mysql`, `sqlite` and `turso`, `--ignore-conflicts` makes `generate` write the merge even though the branches conflict. postgresql rejects `--ignore-conflicts`, and the other dialects reject `--fix-conflicts`, with `code: "unsupported_command_dialect_error"` and the meta `{ command, dialect, option }`.
 
 ### `check` exit codes
 
@@ -691,8 +706,9 @@ If `check` passes and the folder has several leaves, the next `generate` writes 
 | --- | --- | --- |
 | valid (snapshots intact, branches commute) | `{ status: "ok", dialect }` | `0` |
 | integrity error (`unsupported` / `malformed` / `non_latest`) | `{ status: "error", error: { code: "check_error", kind, snapshot, parentId?, parentSnapshot? } }` | `1` |
-| conflicts (no `--ignore-conflicts`) | `{ status: "error", error: { code: "check_error", kind: "conflicts", conflicts, details } }` | `1` |
-| conflicts with `--ignore-conflicts` | `{ status: "ok", dialect }` | `0` |
+| conflicts (no `--ignore-conflicts`) | `{ status: "error", error: { code: "check_error", kind: "conflicts", conflicts, details, fix? } }` | `1` |
+| conflicts with `--ignore-conflicts` (not postgresql) | `{ status: "ok", dialect }` | `0` |
+| `--ignore-conflicts` with postgresql | `{ status: "error", error: { code: "unsupported_command_dialect_error", command, dialect, option } }` | `1` |
 
 ## `pull`
 

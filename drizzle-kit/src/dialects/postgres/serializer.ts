@@ -5,7 +5,7 @@ import { interimToDDL } from './ddl';
 import { fromDrizzleSchema } from './drizzle';
 import type { PreparedPostgresSchema } from './drizzle';
 import type { PostgresSnapshot } from './snapshot';
-import { reconstruct, startingState } from './snapshot';
+import { startingState } from './snapshot';
 
 export const prepareSnapshot = async (
 	snapshots: string[],
@@ -14,7 +14,6 @@ export const prepareSnapshot = async (
 ): Promise<{
 	ddlPrev: PostgresDDL;
 	ddlCur: PostgresDDL;
-	ddlSqlFrom: PostgresDDL;
 	prevIds: string[];
 }> => {
 	const { readFileSync } = await import('fs');
@@ -29,8 +28,6 @@ export const prepareSnapshot = async (
 	const leafIds = checkResult?.leafIds ?? [];
 	const prevIds = leafIds.length > 1 ? ids.filter((id) => leafIds.includes(id)).reverse() : ids.slice(-1);
 	const ddlPrev = startingState(history, prevIds);
-	// With ignored conflicts the SQL starts from the newest leaf, so it can repeat other branches' changes.
-	const ddlSqlFrom = checkResult?.hasConflicts ? reconstruct(history, prevIds[0]) : ddlPrev;
 	const res = prepared;
 
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
@@ -55,5 +52,5 @@ export const prepareSnapshot = async (
 		process.exit(1);
 	}
 
-	return { ddlPrev, ddlCur, ddlSqlFrom, prevIds };
+	return { ddlPrev, ddlCur, prevIds };
 };
