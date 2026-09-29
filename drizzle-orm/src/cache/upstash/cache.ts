@@ -1,6 +1,6 @@
 import { Redis } from '@upstash/redis';
 import type { MutationOption } from '~/cache/core/index.ts';
-import { Cache } from '~/cache/core/index.ts';
+import { bigintsToStrings, Cache } from '~/cache/core/index.ts';
 import { entityKind, is } from '~/entity.ts';
 import { OriginalName, Table } from '~/index.ts';
 import type { CacheConfig } from '../core/types.ts';
@@ -165,7 +165,7 @@ export class UpstashCache extends Cache {
 				pipeline.hexpire(UpstashCache.tagsMapKey, key, ttlSeconds, hexOptions);
 			}
 
-			pipeline.hset(UpstashCache.nonAutoInvalidateTablePrefix, { [key]: response });
+			pipeline.hset(UpstashCache.nonAutoInvalidateTablePrefix, { [key]: bigintsToStrings(response) });
 			pipeline.hexpire(UpstashCache.nonAutoInvalidateTablePrefix, key, ttlSeconds, hexOptions);
 			await pipeline.exec();
 			return;
@@ -173,7 +173,7 @@ export class UpstashCache extends Cache {
 
 		const compositeKey = this.getCompositeKey(tables);
 
-		pipeline.hset(compositeKey, { [key]: response }); // Store the result with the tag under the composite key
+		pipeline.hset(compositeKey, { [key]: bigintsToStrings(response) }); // Store the result with the tag under the composite key
 		pipeline.hexpire(compositeKey, key, ttlSeconds, hexOptions); // Set expiration for the composite key
 
 		if (isTag) {
