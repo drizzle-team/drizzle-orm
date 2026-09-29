@@ -271,10 +271,12 @@ export const ddlDiff = async (
 		ddl1.columns.update({
 			set: {
 				name: rename.to.name,
+				table: rename.to.table,
 				schema: rename.to.schema,
 			},
 			where: {
 				name: rename.from.name,
+				table: rename.from.table,
 				schema: rename.from.schema,
 			},
 		});
