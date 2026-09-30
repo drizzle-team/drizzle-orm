@@ -17,8 +17,15 @@ export function mapResultRow<TResult>(
 	row: unknown[],
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): TResult {
-	// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
-	const nullifyMap: Record<string, string | false> = {};
+	// Key -> nested object key, value -> nullification state for the object:
+	//   { kind: 'not-null' }                    — a non-null value was seen for the object
+	//   { kind: 'all-null', tableName }         — every Column field seen so far (all from `tableName`) was null
+	//   { kind: 'mixed-tables', tableName }     — fields span multiple tables; never nullify
+	// Legacy shape note: previously this was `Record<string, string | false>`, where the FIRST
+	// column decided the object's fate — a null first column from a nullable left-joined table
+	// nullified the whole nested object even when later columns from the same table were
+	// non-null (drizzle-team/drizzle-orm#1603).
+	const nullifyMap: Record<string, { kind: 'not-null' } | { kind: 'all-null'; tableName: string } | { kind: 'mixed-tables'; tableName: string }> = {};
 
 	const result = columns.reduce<Record<string, any>>(
 		(result, { path, field }, columnIndex) => {
@@ -45,13 +52,22 @@ export function mapResultRow<TResult>(
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
-						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
-						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
-						) {
-							nullifyMap[objectName] = false;
+						const tableName = getTableName(field.table);
+						const state = nullifyMap[objectName];
+						if (!state) {
+							nullifyMap[objectName] = value === null
+								? { kind: 'all-null', tableName }
+								: { kind: 'not-null' };
+						} else if (state.kind !== 'not-null' && state.tableName !== tableName) {
+							// fields from more than one table: the object is not backed by a single
+							// nullable join row, so nullification no longer applies
+							nullifyMap[objectName] = { kind: 'mixed-tables', tableName };
+						} else if (state.kind === 'all-null' && value !== null) {
+							// a later column from the same table is non-null: the joined row exists,
+							// so the object must NOT be nullified (#1603)
+							nullifyMap[objectName] = { kind: 'not-null' };
 						}
+						// state.kind === 'not-null' stays 'not-null'
 					}
 				}
 			}
@@ -62,8 +78,8 @@ export function mapResultRow<TResult>(
 
 	// Nullify all nested objects from nullifyMap that are nullable
 	if (joinsNotNullableMap && Object.keys(nullifyMap).length > 0) {
-		for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-			if (typeof tableName === 'string' && !joinsNotNullableMap[tableName]) {
+		for (const [objectName, state] of Object.entries(nullifyMap)) {
+			if (state.kind === 'all-null' && !joinsNotNullableMap[state.tableName]) {
 				result[objectName] = null;
 			}
 		}
