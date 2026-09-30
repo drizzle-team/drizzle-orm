@@ -28,6 +28,8 @@ interactive = output === 'text' && !!process.stdin.isTTY
 
 When the CLI is non-interactive and reaches a decision it cannot resolve from your `--hints` / `--hints-file`, it does not prompt. Under `--output json` it returns a `missing_hints` envelope; under `--output text` it prints the missing-decisions report below. The `drizzle-hints` skill covers building the reply that resolves those decisions.
 
+When postgres `generate` finds conflicting branches, an interactive run shows the conflict report and asks whether to apply the fix. Hints cannot answer this question: `--fix-conflicts` answers yes ahead of time, and without it a non-interactive or `--explain` run returns `check_error` with `kind: "conflicts"`.
+
 ## Missing-decisions text report
 
 Under `--output text`, when the CLI is non-interactive (stdin is not a TTY) and at least one decision is still unresolved, it prints a human-readable report to stdout and exits with code 2. `rename_or_create` decisions are listed first (discovery order), then `confirm_data_loss` decisions (discovery order), with a continuous 1-based index across both groups. Each item shows an `Add to --hints:` block with the snippet(s) to supply; `rename_or_create` items show both a `rename` and a `create` snippet joined by `OR`.

@@ -122,23 +122,7 @@ export const checkProperty = async <T>(property: {
 
 export const withoutOne = <T>(items: T[]): T[][] => items.map((_, idx) => items.filter((__, other) => other !== idx));
 
-export type Kind =
-	| 'schemas'
-	| 'roles'
-	| 'enums'
-	| 'sequences'
-	| 'tables'
-	| 'columns'
-	| 'indexes'
-	| 'pks'
-	| 'uniques'
-	| 'fks'
-	| 'checks'
-	| 'policies'
-	| 'views'
-	| 'privileges';
-
-const kinds: Kind[] = [
+const kinds = [
 	'schemas',
 	'roles',
 	'enums',
@@ -153,7 +137,8 @@ const kinds: Kind[] = [
 	'policies',
 	'views',
 	'privileges',
-];
+] as const;
+export type Kind = (typeof kinds)[number];
 const inSchema = new Set<Kind>(['enums', 'sequences', 'tables', 'views']);
 
 // Entities refer to each other by id, so a rename changes one field. Ids start at 1. A null schemaId means
@@ -388,7 +373,8 @@ const identityOf = (model: Model, kind: Kind, entity: Entity): string[] => {
 
 const isSame = (a: string[], b: string[]) => a.length === b.length && a.every((it, idx) => it === b[idx]);
 
-type RenameDecision = { kind: Kind; from: string[]; to: string[] };
+// `oldIdentity` is the identity in `before`, with the old names of the parents.
+type RenameDecision = { kind: Kind; from: string[]; to: string[]; oldIdentity: string[] };
 
 // ddlDiff resolves renames parents first, so the old identity of an entity has the new names of its
 // parents. An entity whose parent was dropped, or renamed without a decision, gets no decision.
@@ -420,7 +406,7 @@ export const renameDecisions = (before: Model, after: Model, ops: Op[]): RenameD
 		if (!prefix) return [];
 		const from = [...prefix, old!.name!];
 		const to = identityOf(after, kind, later!);
-		return isSame(from, to) ? [] : [{ kind, from, to }];
+		return isSame(from, to) ? [] : [{ kind, from, to, oldIdentity: identityOf(before, kind, old!) }];
 	});
 };
 
@@ -760,19 +746,35 @@ const generateWithHints = async (
 	flow: FolderFlow,
 	branch: string,
 	schema: PostgresSchema,
-	renames: Hint[],
+	decisions: RenameDecision[],
 	isMerge: boolean,
 ) => {
 	// The combined state of a merge can differ from the model that the decisions come from.
 	const canDropRenames = isMerge || flow.leaves(branch).length > 1;
-	let hints = renames;
+	let renames = decisions;
+	let creates: Hint[] = [];
 	let fixConflicts = false;
+	// generate rejects a rename hint when the state that it starts from lacks the renamed entity. Only these
+	// renames turn into creates, and any other rejection fails the run. The DDL identity of every renamable
+	// kind has the same shape as identityOf.
+	const withoutMissingRenames = async (error: InvalidHintsCliError) => {
+		const start = await flow.stateBeforeGenerate(branch, schema);
+		const missing = renames.filter(({ kind, oldIdentity }) =>
+			!start.entities.list().some((row) =>
+				row.entityType === kind && start.key(kind, row) === JSON.stringify(oldIdentity)
+			)
+		);
+		const isRejected = (it: RenameDecision) =>
+			toHint(it).kind === error.meta?.kind && JSON.stringify(it.from) === JSON.stringify(error.meta?.from);
+		if (!missing.some(isRejected)) throw error;
+		return renames.filter((it) => !missing.includes(it));
+	};
 	for (let attempt = 0; attempt < 4; attempt++) {
 		try {
-			const result = await flow.generate(branch, schema, { hints, fixConflicts });
+			const result = await flow.generate(branch, schema, { hints: [...renames.map(toHint), ...creates], fixConflicts });
 			if (result.status !== 'missing_hints') return result.folder;
-			hints = [
-				...hints,
+			creates = [
+				...creates,
 				...result.unresolved.map((it) => {
 					if (it.type !== 'rename_or_create') {
 						throw new Error(`generate asks for an unexpected hint: ${JSON.stringify(it)}`);
@@ -782,7 +784,7 @@ const generateWithHints = async (
 			];
 		} catch (e) {
 			if (e instanceof CheckCliError && e.meta?.kind === 'conflicts' && !fixConflicts) fixConflicts = true;
-			else if (e instanceof InvalidHintsCliError && canDropRenames) hints = hints.filter((it) => it.type !== 'rename');
+			else if (e instanceof InvalidHintsCliError && canDropRenames) renames = await withoutMissingRenames(e);
 			else throw e;
 		}
 	}
@@ -803,9 +805,9 @@ export const runHistory = async (steps: Step[]) => {
 			return;
 		}
 		flow.merge(step.branch, ...sources);
-		const renames = renameDecisions(start, next, step.ops).map(toHint);
+		const decisions = renameDecisions(start, next, step.ops);
 		const isMerge = sources.length > 0;
-		const folder = await generateWithHints(flow, step.branch, toSchema(next), renames, isMerge);
+		const folder = await generateWithHints(flow, step.branch, toSchema(next), decisions, isMerge);
 		if (folder) written.set(folder, { branch: step.branch, model: next, isCustom: false });
 	});
 	return { flow, branches: [...models.keys()], written };

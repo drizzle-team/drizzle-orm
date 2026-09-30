@@ -1,30 +1,29 @@
 import chalk from 'chalk';
-import { readFileSync, rmSync } from 'fs';
+import { rmSync } from 'fs';
 import { dirname } from 'path';
 import type { ParsedSnapshotInput } from '../../commutativity/engine';
+import type { NonCommutativityReport } from '../../commutativity/types';
 import { postgresCommutativity } from '../../dialects/postgres/commutativity';
 import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
 
 // Folder paths in folder-name order. A custom migration is a diff snapshot with no deltas.
 export type ConflictFix = { migrations: string[]; customMigrations: string[] };
 
-// Check reports one conflict for each pair of leaves, so the plan removes the migrations that hold the
-// reported statements, with all their children, and checks the rest again until no conflict is left.
-export const planConflictFix = async (snapshots: string[]): Promise<ConflictFix> => {
-	const inputs: ParsedSnapshotInput<PostgresSnapshot>[] = snapshots.map((path) => ({
-		path,
-		snapshot: JSON.parse(readFileSync(path, 'utf8')),
-	}));
+// `report` is the check of all `inputs`. Check reports one conflict for each pair of leaves, so the plan
+// removes the migrations that hold the reported statements, with all their children, and checks the rest
+// again until no conflict is left.
+export const planConflictFix = async (
+	inputs: ParsedSnapshotInput<PostgresSnapshot>[],
+	report: NonCommutativityReport,
+): Promise<ConflictFix> => {
 	const children = new Map<string, string[]>();
 	for (const { snapshot } of inputs) {
 		for (const parentId of snapshot.prevIds) children.set(parentId, [...(children.get(parentId) ?? []), snapshot.id]);
 	}
 
 	const removed = new Set<string>();
-	let remaining = inputs;
-	for (;;) {
-		const { conflicts } = await postgresCommutativity.detectNonCommutative(remaining);
-		if (conflicts.length === 0) break;
+	let { conflicts } = report;
+	while (conflicts.length > 0) {
 		const stack = conflicts.flatMap((it) => [it.branchA.source?.id, it.branchB.source?.id]);
 		if (stack.some((id) => id === undefined || removed.has(id))) {
 			throw new Error('A conflict names no migration that is still in the history.');
@@ -35,7 +34,9 @@ export const planConflictFix = async (snapshots: string[]): Promise<ConflictFix>
 			removed.add(id);
 			stack.push(...(children.get(id) ?? []));
 		}
-		remaining = inputs.filter((it) => !removed.has(it.snapshot.id));
+		({ conflicts } = await postgresCommutativity.detectNonCommutative(
+			inputs.filter((it) => !removed.has(it.snapshot.id)),
+		));
 	}
 
 	const deleted = inputs.filter((it) => removed.has(it.snapshot.id));

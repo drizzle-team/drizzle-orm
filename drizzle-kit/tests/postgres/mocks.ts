@@ -31,7 +31,7 @@ import {
 } from 'orm044/pg-core';
 import { configMigrations } from 'src/cli/validations/common';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
-import { apply, type Delta } from 'src/dialects/dialect';
+import { apply, copyDDL, type Delta } from 'src/dialects/dialect';
 import {
 	createDDL,
 	fromEntities,
@@ -67,13 +67,12 @@ import { hash } from 'src/dialects/common';
 import { defaultToSQL, isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
-import { DB, originUUID } from 'src/utils';
+import { DB } from 'src/utils';
 import 'zx/globals';
 import { relationsToTypeScript } from 'src/cli/commands/pull-common';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
 import { extractPostgresExisting } from 'src/dialects/drizzle';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
-import { PostgresStateSnapshot } from 'src/dialects/postgres/snapshot';
 import { upToV8 } from 'src/dialects/postgres/versions';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/pgDiff';
@@ -157,23 +156,10 @@ export const drizzleToDDL = (
 	return { ...interimToDDL(res), existing };
 };
 
-const copyDDL = (ddl: PostgresDDL) => fromEntities(structuredClone(ddl.entities.list()));
-
 // ddlDiff mutates both states, so `parent` must be a copy taken before the call
 const expectDeltasRebuildState = (parent: PostgresDDL, deltas: Delta[], next: PostgresDDL) => {
-	const rebuilt = normalizeDDL(apply(parent, deltas).entities.list());
-	const expected = normalizeDDL(next.entities.list());
-	const rebuiltSet = new Set(rebuilt);
-	const expectedSet = new Set(expected);
-	const missing = expected.find((it) => !rebuiltSet.has(it));
-	const unexpected = rebuilt.find((it) => !expectedSet.has(it));
-	if (missing || unexpected) {
-		throw new Error(
-			`The deltas from ddlDiff do not rebuild the new state.\n`
-				+ `First entity missing from the rebuilt state: ${missing ?? 'none'}\n`
-				+ `First entity that the new state does not have: ${unexpected ?? 'none'}`,
-		);
-	}
+	expect(normalizeDDL(apply(parent, deltas).entities.list()), 'the deltas from ddlDiff rebuild the new state')
+		.toStrictEqual(normalizeDDL(next.entities.list()));
 };
 
 // 2 schemas -> 2 ddls -> diff
@@ -907,19 +893,8 @@ export async function conflictsFromSchema(
 		child2: SchemaShape;
 	},
 ) {
-	const { ddl: parentDDL } = drizzleToDDL(parent.schema);
-
-	const parentSnapshot = {
-		type: 'base',
-		version: '9',
-		dialect: 'postgres',
-		id: parent.id,
-		prevIds: [originUUID],
-		ddl: parentDDL.entities.list(),
-	} satisfies PostgresStateSnapshot;
-
 	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
 	const { statements: st2 } = await diff(parent.schema, child2.schema, []);
 
-	return await postgresCommutativity.getReasonsFromStatements(st1, st2, parentSnapshot);
+	return await postgresCommutativity.getReasonsFromStatements(st1, st2);
 }

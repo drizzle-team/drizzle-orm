@@ -1,6 +1,6 @@
 # How commutativity works
 
-`check`, `generate` and `migrate` call `detectNonCommutative` of the dialect with the paths of every `snapshot.json` in the migrations folder, in folder-name order. It returns a report with the conflicts between branches and the ids of the leaves. A leaf is a snapshot that no other snapshot lists in its `prevIds`.
+`check`, `generate` and `migrate` call `detectNonCommutative` of the dialect with every `snapshot.json` in the migrations folder, parsed, in folder-name order. It returns a report with the conflicts between branches and the ids of the leaves. A leaf is a snapshot that no other snapshot lists in its `prevIds`.
 
 Every migration has its own folder, `<out>/<YYYYMMDDHHMMSS>_<name>/`, with `migration.sql` and `snapshot.json`. Every snapshot has an `id` and a `prevIds` array. The first snapshot has the origin id `00000000-0000-0000-0000-000000000000` as its only parent.
 
@@ -72,7 +72,7 @@ The facet rules are also the source of the commutativity matrix. `tests/postgres
 
 ## mysql, sqlite and turso: compare full states at each fork
 
-These dialects store the full state in every snapshot: `{ version, dialect, id, prevIds, ddl, renames }`. Their check uses the conflict-list walk, `AbstractCommutativity.detectNonCommutative`:
+These dialects store the full state in every snapshot: `{ version, dialect, id, prevIds, ddl, renames }`. Their check uses the conflict-list walk, `ConflictListCommutativity.detectNonCommutative`:
 
 1. `buildSnapshotGraph` maps each snapshot id to its node.
 2. `buildPrevToChildren` maps each parent id to the ids of the snapshots that list it in `prevIds`. A parent with more than one child is a fork:

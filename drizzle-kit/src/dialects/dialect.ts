@@ -82,10 +82,8 @@ type Internals = {
 	identity: Record<string, IdFn>;
 	edges: Record<string, Edge[]>;
 	nulls: Record<string, Row>;
+	recorded: Delta[] | null;
 };
-
-// `key` is the qualified key the row had right before the update.
-export type ChangeLogEntry = { key: string; set: Row; isCascade: boolean; hasKeyChanged: boolean };
 
 type Where<T> = { [K in keyof T]?: T[K] | { CONTAINS: any } } & Record<string, any>;
 type SetOps<T> = { [K in keyof T]?: T[K] | ((item: any) => any) } & Record<string, any>;
@@ -98,11 +96,7 @@ type Processors<T extends Row = Row> = {
 	pushAll: (items: Iterable<Row>) => { status: 'OK'; count: number } | { status: 'CONFLICT'; key: string };
 	list: (where?: Where<T>) => T[];
 	one: (where?: Where<T>) => T | null;
-	update: (cfg: { set: SetOps<T>; where?: Where<T> }) => {
-		status: 'OK' | 'CONFLICT';
-		data: T[];
-		log: ChangeLogEntry[];
-	};
+	update: (cfg: { set: SetOps<T>; where?: Where<T> }) => { status: 'OK' | 'CONFLICT'; data: T[] };
 	delete: (where?: Where<T>) => T[];
 	drop: (where?: Where<T>) => T[];
 	validate: (row: unknown) => boolean;
@@ -337,13 +331,15 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 	};
 
 	const update: Processors['update'] = ({ set, where }) => {
+		const recorded = ctx.recorded;
 		const targets = list(where);
 		const planned = targets.map((row) => ({ row, next: applySet(row, set) }));
 
 		const snap: [string, Row][] = [];
 		for (const b of store.values()) for (const r of b.values()) snap.push([r.entityType, { ...r }]);
 
-		// the state of every touched row before its first change, in the order of the first change
+		// While recording, `before` holds each touched row as it was before its first change. The recorded deltas
+		// follow the order of these first changes.
 		const before = new Map<Row, { key: string; row: Row; isCascade: boolean }>();
 
 		type Seed = { type: string; oldKey: string; oldRow: Row; newRow: Row };
@@ -351,7 +347,7 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 		for (const { row, next } of planned) {
 			const oldRow = { ...row };
 			const oldKey = keyOf(oldRow);
-			before.set(row, { key: qual(row.entityType, oldKey), row: oldRow, isCascade: false });
+			if (recorded) before.set(row, { key: qual(row.entityType, oldKey), row: oldRow, isCascade: false });
 			Object.assign(row, next);
 			if (keyOf(row) !== oldKey) seeds.push({ type: row.entityType, oldKey, oldRow, newRow: row });
 		}
@@ -367,7 +363,7 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 					if (!patch) continue;
 					const depOld = { ...dep.row };
 					const depOldKey = keyOf(depOld);
-					if (!before.has(dep.row)) {
+					if (recorded && !before.has(dep.row)) {
 						before.set(dep.row, { key: qual(dep.type, depOldKey), row: depOld, isCascade: true });
 					}
 					Object.assign(dep.row, patch);
@@ -394,21 +390,22 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 			if (colliders.length) {
 				for (const b of store.values()) b.clear();
 				for (const [t, r] of snap) bucketOf(t).set(keyOf(r), r);
-				return { status: 'CONFLICT', data: colliders, log: [] };
+				return { status: 'CONFLICT', data: colliders };
 			}
 
 			rekey(); // rows moved keys — rebuild the buckets once.
 		}
 
-		const log: ChangeLogEntry[] = [];
-		for (const [row, old] of before) {
-			const set: Row = {};
-			for (const k of Object.keys(row)) if (!isEqual(old.row[k], row[k])) set[k] = row[k];
-			if (!Object.keys(set).length) continue;
-			const hasKeyChanged = qual(row.entityType, keyOf(row)) !== old.key;
-			log.push({ key: old.key, set, isCascade: old.isCascade, hasKeyChanged });
+		if (recorded) {
+			for (const [row, old] of before) {
+				const set: Row = {};
+				for (const k of Object.keys(row)) if (!isEqual(old.row[k], row[k])) set[k] = row[k];
+				if (!Object.keys(set).length) continue;
+				const hasKeyChanged = qual(row.entityType, keyOf(row)) !== old.key;
+				recorded.push({ op: hasKeyChanged ? (old.isCascade ? 'relocate' : 'rename') : 'alter', key: old.key, set });
+			}
 		}
-		return { status: 'OK', data: targets, log };
+		return { status: 'OK', data: targets };
 	};
 
 	const del: Processors['delete'] = (where) => {
@@ -489,7 +486,7 @@ export function create<const D extends Record<string, Def>>(
 		});
 	}
 
-	const internals: Internals = { store, defs, identity, edges, nulls };
+	const internals: Internals = { store, defs, identity, edges, nulls, recorded: null };
 	return build<InferEntities<D>>(internals);
 }
 
@@ -619,7 +616,7 @@ export const findRow = <M extends Record<string, Row>>(ddl: DDL<M>, key: string)
 	const [entityType, identity] = splitDeltaKey(key);
 	return ddl._.store.get(entityType)?.get(identity);
 };
-// The keys must stay literal: a rename of a key stops removing that field from `rest`.
+// These names must match the meta fields that `_diff` adds to each row.
 const stripMeta = (r: Row): Row => {
 	const { $diffType: _1, $left: _2, $right: _3, ...rest } = r as any;
 	return rest;
@@ -660,7 +657,13 @@ export function copyDDL<M extends Record<string, Row>>(ddl: DDL<M>): DDL<M> {
 		const copy = store.get(entityType)!;
 		for (const [identity, row] of bucket) copy.set(identity, structuredClone(row));
 	}
-	return build<M>({ ...src, store });
+	return build<M>({ ...src, store, recorded: null });
+}
+
+// From now on, every `update` on this DDL adds a delta for each row that it changes, the rows
+// that it relocates included. `push`, `delete` and `drop` add nothing.
+export function recordDeltas<M extends Record<string, Row>>(ddl: DDL<M>): Delta[] {
+	return ddl._.recorded = [];
 }
 
 export function apply<M extends Record<string, Row>>(base: DDL<M>, deltas: Delta[]): DDL<M> {

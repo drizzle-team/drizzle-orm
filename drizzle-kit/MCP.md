@@ -20,9 +20,10 @@ See your MCP client's documentation for how to register a stdio server. As an ex
 
 | Tool | Parameters | Annotations |
 |------|-----------|-------------|
-| `generate` | `config?`, `hints?`, `name?`, `custom?`, `ignoreConflicts?`, `fixConflicts?` | `destructiveHint: false` (static; see the `fixConflicts` signal below) |
+| `generate` | `config?`, `hints?`, `name?`, `custom?`, `ignoreConflicts?` (not for postgresql) | non-destructive |
+| `fix_conflicts` | `config?`, `hints?`, `name?`, `custom?` | destructive (postgresql only; see below) |
 | `push` | `config?`, `hints?` | destructive |
-| `check` | `config?`, `ignoreConflicts?` | read-only, idempotent |
+| `check` | `config?`, `ignoreConflicts?` (not for postgresql) | read-only, idempotent |
 | `export` | `config?` | read-only, idempotent |
 | `up` | `config?` | idempotent (not read-only — rewrites snapshots in place) |
 | `pull` | `config?`, `init?` | `destructiveHint: false` (static — see the `--init` signal below) |
@@ -43,15 +44,11 @@ The static `listTools` annotation for `pull` is `destructiveHint: false` and can
 
 The `_meta` key is set whenever `init: true`, derived from the input alone and independent of `isError`, so a failed `init` call still warns the client. A `pull` without `init` (or with `init: false`) carries no such `_meta` key. This is implemented in `src/mcp/server.ts`.
 
-## `generate` with `fixConflicts` destructive signal
+## `fix_conflicts`
 
-The static `listTools` annotation for `generate` is `destructiveHint: false`. When the agent calls `generate` with `fixConflicts: true` on a postgresql project whose branches conflict, the tool deletes migration folders: the migrations that hold the conflicting statements that check reports, and all their children. It then generates one new migration. The `check_error` response for conflicts lists these folders in `error.fix` before anything is deleted. The tool signals the deletion per call on the result `_meta` key:
+`fix_conflicts` is the MCP form of `drizzle-kit generate --fix-conflicts`, for postgresql only. It deletes the migrations that hold the conflicting statements that check reports, with all their children. It then generates one new migration from the rest of the history to the schema. The `check_error` response of `check` or `generate` lists these folders in `error.fix` before anything is deleted. The tool deletes nothing while it returns `missing_hints`. Every database that ran a deleted migration must be reset, because the migrator skips a deleted migration without an error.
 
-```json
-{ "_meta": { "com.drizzle.team/generate.destructiveHint": true } }
-```
-
-The `_meta` key is set whenever `fixConflicts: true`, derived from the input alone and independent of `isError`, so a failed call still warns the client. This is implemented in `src/mcp/server.ts`.
+The tool is separate from `generate`, so that the static annotation of each tool holds for every call.
 
 ## Explicit `config` parameter
 

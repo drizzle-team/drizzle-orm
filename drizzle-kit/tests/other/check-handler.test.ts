@@ -1,8 +1,9 @@
 import { integer, pgTable, varchar } from 'drizzle-orm/pg-core';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { checkHandler } from 'src/cli/commands/check';
+import { checkHandler, checkSnapshots } from 'src/cli/commands/check';
 import type { PostgresStateSnapshot } from 'src/dialects/postgres/snapshot';
+import { prepareOutFolder } from 'src/utils/utils-node';
 import { expect, test } from 'vitest';
 import { makePgSnapshot as makeSnapshot } from './check-fixtures';
 
@@ -52,9 +53,11 @@ test('returns every open leaf for commutative open branches', async () => {
 	snapshotPath(out, '001_left', left);
 	snapshotPath(out, '002_right', right);
 
-	const result = await checkHandler(out, 'postgresql', false, false);
+	const { report, fix } = await checkSnapshots(prepareOutFolder(out).snapshots, 'postgresql');
 
-	expect(result).toStrictEqual({ statements: [], parentSnapshot: null, leafIds: ['a1', 'b1'] });
+	expect(report.leafNodes).toStrictEqual(['a1', 'b1']);
+	expect(report.conflicts).toStrictEqual([]);
+	expect(fix).toBeUndefined();
 });
 
 test('returns empty statements when branches are already merged into one leaf', async () => {
@@ -320,9 +323,9 @@ test('a nested open fork returns every open leaf', async () => {
 	snapshotPath(out, '003_bx', bx);
 	snapshotPath(out, '004_by', by);
 
-	const result = await checkHandler(out, 'postgresql', false, false);
+	const { report } = await checkSnapshots(prepareOutFolder(out).snapshots, 'postgresql');
 
-	expect(result.leafIds).toStrictEqual(['a1', 'bx1', 'by1']);
+	expect(report.leafNodes).toStrictEqual(['a1', 'bx1', 'by1']);
 });
 
 test('an open fork with a deep branch returns only the open leaves', async () => {
@@ -401,7 +404,7 @@ test('an open fork with a deep branch returns only the open leaves', async () =>
 	snapshotPath(out, '003_leaf3', leaf3);
 	snapshotPath(out, '004_leaf4', leaf4);
 
-	const result = await checkHandler(out, 'postgresql', false, false);
+	const { report } = await checkSnapshots(prepareOutFolder(out).snapshots, 'postgresql');
 
-	expect(result.leafIds).toStrictEqual(['l1', 'l4']);
+	expect(report.leafNodes).toStrictEqual(['l1', 'l4']);
 });

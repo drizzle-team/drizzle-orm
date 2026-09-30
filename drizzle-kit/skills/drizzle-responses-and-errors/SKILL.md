@@ -18,13 +18,13 @@ The discriminated union (identical for CLI stdout and SDK return value):
 | status            | exit code | shape                                                   |
 | ----------------- | --------- | ------------------------------------------------------- |
 | `'ok'`            | 0         | `{ status, dialect, ... }` (per-operation extras below) |
-| `'no_changes'`    | 0         | `{ status, dialect }`, plus the fields below after `--fix-conflicts` |
+| `'no_changes'`    | 0         | `{ status, dialect }`, plus the fields below when `--fix-conflicts` deleted migrations |
 | `'missing_hints'` | 2         | `{ status, unresolved: MissingHint[] }`                 |
 | `'error'`         | 1         | `{ status, error: { code, ...meta } }`                  |
 
 Per-operation extras on `'ok'`:
 
-- `generate` (write mode) — `{ status, dialect, migration_path }`. After `--fix-conflicts`, both `ok` and `no_changes` also carry `deleted_migrations` and `deleted_custom_migrations?`, the folders that the fix deleted
+- `generate` (write mode) — `{ status, dialect, migration_path }`. When `--fix-conflicts` deleted migrations, both `ok` and `no_changes` also carry `deleted_migrations` and `deleted_custom_migrations?`, the folders that the fix deleted. If the folder has no conflict, the fix deletes nothing and neither key is present
 - `push` (write mode) — `{ status, dialect }`
 - `pull` — `{ status, dialect, schemaPath, snapshotPath, relationsPath?, migrationPath? }` (`relationsPath?` omitted for mssql; `migrationPath?` only when pull wrote a new migration folder into an empty `out` folder). `pull` is ok-or-error only — never `missing_hints`, never `no_changes`.
 - `export` — `{ status, dialect, statements, warnings }` (the individual SQL statements plus rendered warnings — there is no joined `sql` field).
@@ -162,7 +162,7 @@ Common failure modes and their fixes — keyed by `error.code` / `meta.kind`:
 - `unsupported_command_dialect_error` — the command isn't supported for `meta.dialect`. Use a different command or switch dialects. With `meta.option`, only that option is unsupported: postgresql rejects `ignore-conflicts` (use `generate --fix-conflicts`), and the other dialects reject `fix-conflicts`.
 - `migrations_outdated_error` — the migrations folder under `meta.out` uses an older snapshot format. Run `drizzle-kit up` to migrate the folder forward.
 - `check_error`: `meta.kind` discriminates. For `non_latest`, run `drizzle-kit up`. For `malformed`, see the case table in Check errors above. For `conflicts`, `meta.details` names the conflicting migrations; the `drizzle-migrations` skill covers how to resolve them.
-- `command_output_error` with `meta.command: 'up'`: `up` converted nothing. `meta.kind` is `malformed` (restore `meta.snapshot` from git and run `up` again), `invalid_snapshot` or `state_mismatch` (a drizzle-kit bug: keep the old files and report it; `state_mismatch` also names the first differing `meta.entity`).
+- `command_output_error` with `meta.command: 'up'`: `up` converted nothing. `meta.kind` is `malformed` (a format 8 snapshot is broken, or a format 9 snapshot is broken while the folder has a snapshot to convert: restore `meta.snapshot` from git and run `up` again; a broken snapshot of format 4 to 7 gives `internal_error` instead), `invalid_snapshot` or `state_mismatch` (a drizzle-kit bug: keep the old files and report it; `state_mismatch` also names the first differing `meta.entity`).
 - `invalid_hints` — discriminated by which keys are present in `meta`: `path` means a file read failed, `issues` means schema validation failed, `kind` + `from` together mean a `rename` hint's `from` tuple did not match any deleted entity. For schema-validation failures, fix the named issues; for a `from` mismatch, correct the tuple (the entity must be one the diff would otherwise delete).
 - `unsupported_schema_change` — refer to the variant table above; each variant has a specific remediation path.
 - `query_error` — the live DB threw on `meta.sql` with `meta.params`. Run the same query manually against the target DB to surface the underlying DBMS error; fix the schema or the data.

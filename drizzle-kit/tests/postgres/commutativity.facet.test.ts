@@ -1,5 +1,4 @@
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
-import { drySnapshot } from 'src/dialects/postgres/snapshot';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { describe, expect, test } from 'vitest';
 
@@ -130,7 +129,7 @@ const S = {
 };
 
 async function conflicts(a: JsonStatement[], b: JsonStatement[]): Promise<boolean> {
-	return !!(await postgresCommutativity.getReasonsFromStatements(a, b, drySnapshot));
+	return !!(await postgresCommutativity.getReasonsFromStatements(a, b));
 }
 
 type Case = { name: string; a: JsonStatement[]; b: JsonStatement[]; expect: 'conflict' | 'commute' };

@@ -1,4 +1,3 @@
-import type { CheckHandlerResult } from '../../cli/commands/check';
 import { humanLog, postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
 import type { PostgresDDL } from './ddl';
 import { interimToDDL } from './ddl';
@@ -10,7 +9,6 @@ import { startingState } from './snapshot';
 export const prepareSnapshot = async (
 	snapshots: string[],
 	prepared: PreparedPostgresSchema,
-	checkResult?: CheckHandlerResult,
 ): Promise<{
 	ddlPrev: PostgresDDL;
 	ddlCur: PostgresDDL;
@@ -24,9 +22,8 @@ export const prepareSnapshot = async (
 	}
 
 	// `snapshots` is in folder-name order, so the first parent is the leaf with the newest folder name.
-	const ids = [...history.keys()];
-	const leafIds = checkResult?.leafIds ?? [];
-	const prevIds = leafIds.length > 1 ? ids.filter((id) => leafIds.includes(id)).reverse() : ids.slice(-1);
+	const parentIds = new Set([...history.values()].flatMap((it) => it.prevIds));
+	const prevIds = [...history.keys()].filter((id) => !parentIds.has(id)).reverse();
 	const ddlPrev = startingState(history, prevIds);
 	const res = prepared;
 

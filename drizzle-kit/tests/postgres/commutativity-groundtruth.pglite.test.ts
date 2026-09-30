@@ -3,14 +3,13 @@ import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
 import { fromJson } from 'src/dialects/postgres/convertor';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
-import type { PostgresStateSnapshot } from 'src/dialects/postgres/snapshot';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
-import { type DB, originUUID } from 'src/utils';
+import type { DB } from 'src/utils';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { mutations, PAIRS, parent } from './commutativity-fixtures';
 import matrixData from './commutativity-matrix.json';
 import { build } from './commutativity-statements';
-import { diff, drizzleToDDL, prepareTestDatabase } from './mocks';
+import { diff, prepareTestDatabase } from './mocks';
 
 // Two branches commute only if postgres applies them in both orders and both
 // orders end at the same schema.
@@ -19,8 +18,6 @@ type Outcome = { ok: true; hash: string } | { ok: false; error: string };
 
 let db: DB;
 let clear: () => Promise<void>;
-
-const ddlOf = (schema: any) => drizzleToDDL(schema).ddl.entities.list();
 
 const introspectHash = async (): Promise<string> => {
 	const filter = prepareEntityFilter('postgresql', {
@@ -70,15 +67,6 @@ beforeAll(async () => {
 
 	parentSql = (await diff({}, parent, [])).sqlStatements;
 
-	const parentSnapshot: PostgresStateSnapshot = {
-		type: 'base',
-		version: '9',
-		dialect: 'postgres',
-		id: 'p',
-		prevIds: [originUUID],
-		ddl: ddlOf(parent),
-	};
-
 	for (const { a, b, name } of PAIRS) {
 		const [sa, sb] = [await sqlFor(a), await sqlFor(b)];
 
@@ -101,7 +89,7 @@ beforeAll(async () => {
 
 		const stA = (await diff(parent, mutations[a], [])).statements;
 		const stB = (await diff(parent, mutations[b], [])).statements;
-		facet.set(name, !!(await postgresCommutativity.getReasonsFromStatements(stA, stB, parentSnapshot)));
+		facet.set(name, !!(await postgresCommutativity.getReasonsFromStatements(stA, stB)));
 	}
 }, 600_000);
 

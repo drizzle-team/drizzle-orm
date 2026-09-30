@@ -101,7 +101,7 @@ When two git branches each add migrations and then come together, the migrations
 
 ### Folder order
 
-A migration folder must sort after the folders of its parents, because the migrator runs the folders in name order. `generate` takes care of this: if the computer clock is behind the newest parent, the new folder gets that parent's time plus one second. Renaming migration folders by hand can break the rule.
+A migration folder must sort after the folders of its parents, because the migrator runs the folders in name order. For postgresql, `generate` takes care of this: if the computer clock is behind the newest parent, the new folder gets that parent's time plus one second. The other dialects always name the folder from the computer clock. Renaming migration folders by hand can break the rule.
 
 ### Errors in the migrations folder
 

@@ -4,7 +4,7 @@ import { deepStrictEqual } from '../../utils/node-assert/deep-strict-equal';
 import { diffStringArrays } from '../../utils/sequence-matcher';
 import { parse } from '../../utils/when-json-met-bigint';
 import type { Resolver } from '../common';
-import { type ChangeLogEntry, type Delta, delta, diff } from '../dialect';
+import { type Delta, delta, diff, recordDeltas } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
 import type {
@@ -82,9 +82,7 @@ export const ddlDiff = async (
 		ddl1Copy.entities.push(entity);
 	}
 
-	// every change to ddl1 must go through `update`, or the deltas miss it
-	const changeLog: ChangeLogEntry[] = [];
-	const addToLog = (res: { log: ChangeLogEntry[] }) => changeLog.push(...res.log);
+	const recorded = recordDeltas(ddl1);
 
 	const schemasDiff = diff(ddl1, ddl2, 'schemas');
 	const { created: createdSchemas, deleted: deletedSchemas, renamedOrMoved: renamedSchemas } = await schemasResolver({
@@ -93,10 +91,10 @@ export const ddlDiff = async (
 	});
 
 	for (const rename of renamedSchemas) {
-		addToLog(ddl1.schemas.update({
+		ddl1.schemas.update({
 			set: { name: rename.to.name },
 			where: { name: rename.from.name },
-		}));
+		});
 	}
 
 	const enumsDiff = diff(ddl1, ddl2, 'enums');
@@ -109,16 +107,16 @@ export const ddlDiff = async (
 	const movedEnums = renamedOrMovedEnums.filter((it) => it.from.schema !== it.to.schema);
 
 	for (const rename of renamedEnums) {
-		addToLog(ddl1.enums.update({
+		ddl1.enums.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
 			where: { name: rename.from.name, schema: rename.from.schema },
-		}));
+		});
 	}
 	for (const move of movedEnums) {
-		addToLog(ddl1.enums.update({
+		ddl1.enums.update({
 			set: { schema: move.to.schema },
 			where: { name: move.from.name, schema: move.from.schema },
-		}));
+		});
 	}
 
 	const sequencesDiff = diff(ddl1, ddl2, 'sequences');
@@ -131,17 +129,17 @@ export const ddlDiff = async (
 	const movedSequences = renamedOrMovedSeqs.filter((it) => it.from.schema !== it.to.schema);
 
 	for (const rename of renamedSequences) {
-		addToLog(ddl1.sequences.update({
+		ddl1.sequences.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
 			where: { name: rename.from.name, schema: rename.from.schema },
-		}));
+		});
 	}
 
 	for (const move of movedSequences) {
-		addToLog(ddl1.sequences.update({
+		ddl1.sequences.update({
 			set: { schema: move.to.schema },
 			where: { name: move.from.name, schema: move.from.schema },
-		}));
+		});
 	}
 
 	const rolesDiff = diff(ddl1, ddl2, 'roles');
@@ -150,10 +148,10 @@ export const ddlDiff = async (
 		deleted: rolesDiff.filter((it) => it.$diffType === 'drop'),
 	});
 	for (const rename of renamedRoles) {
-		addToLog(ddl1.roles.update({
+		ddl1.roles.update({
 			set: { name: rename.to.name },
 			where: { name: rename.from.name },
-		}));
+		});
 	}
 
 	const tablesDiff = diff(ddl1, ddl2, 'tables');
@@ -166,10 +164,10 @@ export const ddlDiff = async (
 	const movedTables = orMovedTables.filter((it) => it.from.schema !== it.to.schema);
 
 	for (const rename of orMovedTables) {
-		addToLog(ddl1.tables.update({
+		ddl1.tables.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
 			where: { name: rename.from.name, schema: rename.from.schema },
-		}));
+		});
 	}
 
 	// after table renames
@@ -196,13 +194,13 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of columnRenames) {
-		addToLog(ddl1.columns.update({
+		ddl1.columns.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
 			// scope by table: two tables can share a column name, and under dialect2 an
 			// unscoped rename would also rename the other column, whose change propagates
 			// through fk/index edges into columnsTo — a spurious constraint recreate.
 			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
-		}));
+		});
 	}
 
 	if (keepGeneratedNames) {
@@ -231,10 +229,10 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of uniqueRenames) {
-		addToLog(ddl1.uniques.update({
+		ddl1.uniques.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
 			where: { name: rename.from.name, schema: rename.from.schema },
-		}));
+		});
 	}
 
 	const diffChecks = diff(ddl1, ddl2, 'checks');
@@ -255,10 +253,10 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of checkRenames) {
-		addToLog(ddl1.checks.update({
+		ddl1.checks.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
 			where: { name: rename.from.name, schema: rename.from.schema },
-		}));
+		});
 	}
 
 	const diffIndexes = diff(ddl1, ddl2, 'indexes');
@@ -279,10 +277,10 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of indexesRenames) {
-		addToLog(ddl1.indexes.update({
+		ddl1.indexes.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
 			where: { name: rename.from.name, schema: rename.from.schema },
-		}));
+		});
 	}
 
 	const diffPKs = diff(ddl1, ddl2, 'pks');
@@ -303,10 +301,10 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of pksRenames) {
-		addToLog(ddl1.pks.update({
+		ddl1.pks.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
 			where: { name: rename.from.name, schema: rename.from.schema },
-		}));
+		});
 	}
 
 	const diffFKs = diff(ddl1, ddl2, 'fks');
@@ -327,10 +325,10 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of fksRenames) {
-		addToLog(ddl1.fks.update({
+		ddl1.fks.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
 			where: { name: rename.from.name, schema: rename.from.schema },
-		}));
+		});
 	}
 
 	const policiesDiff = diff(ddl1, ddl2, 'policies');
@@ -352,10 +350,10 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of policyRenames) {
-		addToLog(ddl1.policies.update({
+		ddl1.policies.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
 			where: { name: rename.from.name, schema: rename.from.schema },
-		}));
+		});
 	}
 
 	const viewsDiff = diff(ddl1, ddl2, 'views');
@@ -369,28 +367,21 @@ export const ddlDiff = async (
 	const movedViews = renamedOrMovedViews.filter((it) => it.from.schema !== it.to.schema);
 
 	for (const rename of renamedViews) {
-		addToLog(ddl1.views.update({
+		ddl1.views.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
 			where: { name: rename.from.name, schema: rename.from.schema },
-		}));
+		});
 	}
 	for (const move of movedViews) {
-		addToLog(ddl1.views.update({
+		ddl1.views.update({
 			set: { schema: move.to.schema },
 			where: { name: move.from.name, schema: move.from.schema },
-		}));
+		});
 	}
 
 	const all = diff.all(ddl1, ddl2);
 	// convert now: the statement code below deletes fields from the alter rows
-	const deltas: Delta[] = [
-		...changeLog.map((it): Delta => ({
-			op: !it.hasKeyChanged ? 'alter' : it.isCascade ? 'relocate' : 'rename',
-			key: it.key,
-			set: it.set,
-		})),
-		...delta(ddl1, ddl2, all),
-	];
+	const deltas: Delta[] = [...recorded, ...delta(ddl1, ddl2, all)];
 	const alters = all.filter((it): it is Extract<typeof it, { $diffType: 'alter' }> => it.$diffType === 'alter');
 
 	const jsonStatements: JsonStatement[] = [];

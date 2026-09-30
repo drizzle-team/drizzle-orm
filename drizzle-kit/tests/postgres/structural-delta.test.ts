@@ -19,7 +19,7 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
-import { apply, delta } from 'src/dialects/dialect';
+import { apply, delta, recordDeltas } from 'src/dialects/dialect';
 import { createDDL } from 'src/dialects/postgres/ddl';
 import { describe, expect, test } from 'vitest';
 import { diff, drizzleToDDL } from './mocks';
@@ -268,22 +268,24 @@ describe('ddlDiff deltas', () => {
 	});
 });
 
-describe('update change log', () => {
-	test('marks rows reached through a reference as cascades', () => {
+describe('recorded update deltas', () => {
+	test('mark rows reached through a reference as relocates', () => {
 		const ddl = ddlOf({ users });
-		const { log } = ddl.tables.update({ set: { name: 'accounts' }, where: { name: 'users' } });
-		expect(log.map(({ key, isCascade }) => ({ key, isCascade }))).toStrictEqual([
-			{ key: 'tables\0["public","users"]', isCascade: false },
-			{ key: 'columns\0["public","users","id"]', isCascade: true },
-			{ key: 'columns\0["public","users","email"]', isCascade: true },
+		const recorded = recordDeltas(ddl);
+		ddl.tables.update({ set: { name: 'accounts' }, where: { name: 'users' } });
+		expect(recorded.map(({ op, key }: any) => ({ op, key }))).toStrictEqual([
+			{ op: 'rename', key: 'tables\0["public","users"]' },
+			{ op: 'relocate', key: 'columns\0["public","users","id"]' },
+			{ op: 'relocate', key: 'columns\0["public","users","email"]' },
 		]);
 	});
 
-	test('is empty when the update is rolled back on a conflict', () => {
+	test('are empty when the update is rolled back on a conflict', () => {
 		const ddl = ddlOf({ users, accounts: pgTable('accounts', { id: integer('id') }) });
+		const recorded = recordDeltas(ddl);
 		const result = ddl.tables.update({ set: { name: 'accounts' }, where: { name: 'users' } });
 		expect(result.status).toBe('CONFLICT');
-		expect(result.log).toStrictEqual([]);
+		expect(recorded).toStrictEqual([]);
 	});
 });
 

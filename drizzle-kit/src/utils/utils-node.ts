@@ -123,7 +123,7 @@ export type SnapshotNode = {
 	type: unknown;
 };
 
-// Files that do not parse or have no id are left out.
+// Leaves out files that do not parse, have no id, or are postgres snapshots without a prevIds array.
 export const buildParentIndex = (snapshots: string[]): SnapshotNode[] =>
 	snapshots.flatMap((path) => {
 		let raw: any;

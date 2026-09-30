@@ -1,12 +1,14 @@
 import chalk from 'chalk';
 import { readFileSync } from 'fs';
 import { getCommutativityDialect } from '../../commutativity';
+import type { ParsedSnapshotInput, SnapshotHeader } from '../../commutativity/engine';
 import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from '../../commutativity/types';
+import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
 import type { Dialect } from '../../utils/schemaValidator';
 import { assertSnapshotStatus, prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
 import { CheckCliError, UnsupportedCommandCliError } from '../errors';
 import { humanLog } from '../views';
-import type { ConflictFix } from './fix-conflicts';
+import { type ConflictFix, describeConflictFix, planConflictFix } from './fix-conflicts';
 
 export type CheckHandlerResult = {
 	statements: unknown[];
@@ -163,67 +165,16 @@ export const checkHandler = async (
 	dialect: Dialect,
 	ignoreConflicts?: boolean,
 	shouldExitOnConflict = true,
-): Promise<CheckHandlerResult> =>
-	checkSnapshots(prepareOutFolder(out).snapshots, dialect, ignoreConflicts, shouldExitOnConflict);
-
-export const checkSnapshots = async (
-	snapshots: string[],
-	dialect: Dialect,
-	ignoreConflicts?: boolean,
-	shouldExitOnConflict = true,
 ): Promise<CheckHandlerResult> => {
-	const validator = validatorForDialect(dialect);
-
-	// const parsedInputs: ParsedSnapshotInput[] = [];
-	for (const snapshot of snapshots) {
-		let raw: unknown = null;
-		try {
-			raw = JSON.parse(readFileSync(snapshot).toString());
-		} catch {}
-		assertSnapshotStatus(snapshot, typeof raw === 'object' && raw !== null ? validator(raw).status : 'malformed');
+	const { report, fix } = await checkSnapshots(prepareOutFolder(out).snapshots, dialect);
+	if (report.conflicts.length > 0 && !ignoreConflicts) {
+		if (shouldExitOnConflict) throw conflictError(report, fix);
+		const nonCommutativityMessage = generateReportDirectory(report);
+		humanLog(nonCommutativityMessage);
+		return emptyResult(nonCommutativityMessage);
 	}
 
-	const commutativity = getCommutativityDialect(dialect);
-	if (!commutativity) {
-		return emptyResult();
-	}
-
-	const response = await commutativity.detectNonCommutative(snapshots);
-	if (response.conflicts.length > 0) {
-		let nonCommutativityMessage = generateReportDirectory(response);
-		if (!ignoreConflicts) {
-			if (shouldExitOnConflict) {
-				// Postgres resolves conflicts with generate --fix-conflicts, so the error says what that fix deletes.
-				let fix: ConflictFix | undefined;
-				if (dialect === 'postgresql') {
-					const { planConflictFix, describeConflictFix } = await import('./fix-conflicts');
-					fix = await planConflictFix(snapshots);
-					nonCommutativityMessage += `\n${describeConflictFix(fix)}`;
-				}
-				const leafOf = (chain: MigrationNode[]) => chain[chain.length - 1];
-				const details = response.conflicts.map((conflict) => ({
-					parentId: conflict.parentId,
-					...(conflict.parentPath !== undefined && { parentPath: conflict.parentPath }),
-					branches: [conflict.branchA, conflict.branchB].map((branch) => ({
-						leafId: leafOf(branch.chain)?.id ?? null,
-						leafPath: leafOf(branch.chain)?.path ?? null,
-						statementDescription: branch.statementDescription,
-						target: branch.target,
-						action: branch.action,
-					})),
-				}));
-				throw new CheckCliError('conflicts', nonCommutativityMessage, {
-					conflicts: response.conflicts.length,
-					details,
-					...(fix && { fix }),
-				});
-			}
-			humanLog(nonCommutativityMessage);
-			return emptyResult(nonCommutativityMessage);
-		}
-	}
-
-	const selectedBranch = selectOpenCommutativeBranch(response);
+	const selectedBranch = selectOpenCommutativeBranch(report);
 	if (selectedBranch) {
 		return {
 			statements: selectedBranch.statements,
@@ -233,14 +184,59 @@ export const checkSnapshots = async (
 		};
 	}
 
-	// No commutative branch covers all open leaves, so generate merges the leaves by id.
-	if (response.leafNodes.length > 1) {
+	if (ignoreConflicts && report.leafNodes.length > 1) {
 		return {
 			statements: [],
 			parentSnapshot: null,
-			leafIds: [...response.leafNodes].sort((left, right) => left.localeCompare(right)),
+			leafIds: [...report.leafNodes].sort((left, right) => left.localeCompare(right)),
 		};
 	}
 
 	return emptyResult();
+};
+
+// `fix` is set only for postgresql, and only when the report has conflicts.
+export type SnapshotCheck = { report: NonCommutativityReport; fix?: ConflictFix };
+
+export const checkSnapshots = async (snapshots: string[], dialect: Dialect): Promise<SnapshotCheck> => {
+	const validator = validatorForDialect(dialect);
+
+	const inputs: ParsedSnapshotInput[] = [];
+	for (const path of snapshots) {
+		let raw: unknown = null;
+		try {
+			raw = JSON.parse(readFileSync(path).toString());
+		} catch {}
+		assertSnapshotStatus(path, typeof raw === 'object' && raw !== null ? validator(raw).status : 'malformed');
+		inputs.push({ path, snapshot: raw as SnapshotHeader });
+	}
+
+	const commutativity = getCommutativityDialect(dialect);
+	if (!commutativity) return { report: { conflicts: [], leafNodes: [] } };
+
+	const report = await commutativity.detectNonCommutative(inputs);
+	if (dialect !== 'postgresql' || report.conflicts.length === 0) return { report };
+	// The validator accepted every input as a postgres snapshot.
+	return { report, fix: await planConflictFix(inputs as ParsedSnapshotInput<PostgresSnapshot>[], report) };
+};
+
+export const conflictError = (report: NonCommutativityReport, fix?: ConflictFix) => {
+	const leafOf = (chain: MigrationNode[]) => chain[chain.length - 1];
+	const details = report.conflicts.map((conflict) => ({
+		parentId: conflict.parentId,
+		...(conflict.parentPath !== undefined && { parentPath: conflict.parentPath }),
+		branches: [conflict.branchA, conflict.branchB].map((branch) => ({
+			leafId: leafOf(branch.chain)?.id ?? null,
+			leafPath: leafOf(branch.chain)?.path ?? null,
+			statementDescription: branch.statementDescription,
+			target: branch.target,
+			action: branch.action,
+		})),
+	}));
+	const message = generateReportDirectory(report) + (fix ? `\n${describeConflictFix(fix)}` : '');
+	return new CheckCliError('conflicts', message, {
+		conflicts: report.conflicts.length,
+		details,
+		...(fix && { fix }),
+	});
 };

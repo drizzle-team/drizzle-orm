@@ -88,7 +88,7 @@ Examples:
 }
 ```
 
-After `generate --fix-conflicts` (postgresql only), the `ok` or `no_changes` envelope also has `deleted_migrations`: the migration folders that the fix deleted. `no_changes` then means that the rest of the history already matched the schema, so the fix wrote no new migration. If some of them were custom migrations, `deleted_custom_migrations` lists those folders too. See [`check` conflicts](#check-conflicts).
+When `generate --fix-conflicts` (postgresql only) deletes migrations, the `ok` or `no_changes` envelope also has `deleted_migrations`: the migration folders that the fix deleted. `no_changes` then means that the rest of the history already matched the schema, so the fix wrote no new migration. If some of them were custom migrations, `deleted_custom_migrations` lists those folders too. If the folder has no conflict, the fix deletes nothing, and the envelope has no `deleted_migrations`. See [`check` conflicts](#check-conflicts).
 
 `generate --output json --explain` and `push --output json --explain` success (non-empty diff):
 
@@ -400,7 +400,7 @@ Older drizzle-kit versions wrote `meta/_journal.json` and `meta/<n>_snapshot.jso
 
 ### Folder order
 
-Each folder name must sort after the names of all its parents, because migrate runs the SQL in folder-name order. `generate` names a new folder after the current time. If the clock is behind the newest parent, `generate` uses the time of that parent plus one second. In a postgres folder, a folder that sorts before one of its parents stops every command with `check_error` kind `malformed`. See [`check` integrity errors](#check-integrity-errors).
+Each folder name must sort after the names of all its parents, because migrate runs the SQL in folder-name order. `generate` names a new folder after the current time. For postgresql, if the clock is behind the newest parent, `generate` uses the time of that parent plus one second. The other dialects always name the folder from the local clock. In a postgres folder, a folder that sorts before one of its parents stops every command with `check_error` kind `malformed`. See [`check` integrity errors](#check-integrity-errors).
 
 ### Snapshot formats per dialect
 
@@ -757,7 +757,7 @@ On a connect, introspect, or `--init` migrate failure, `pull` emits a `status: "
 
 `up` works in two steps:
 
-1. For `postgresql`, `mysql`, `sqlite`, `turso` and `singlestore`: if the folder has `meta/_journal.json`, `up` moves every migration into its own `<out>/<tag>/` folder with `migration.sql` and `snapshot.json`, and it deletes the `meta` folder.
+1. For `postgresql`, `mysql`, `sqlite`, `turso` and `singlestore`: if the folder has `meta/_journal.json`, `up` moves every migration into its own `<out>/<YYYYMMDDHHMMSS>_<name>/` folder with `migration.sql` and `snapshot.json`, and it deletes the `meta` folder. The time is the UTC time of the journal entry, and `<name>` is the tag without its `<NNNN>_` prefix.
 2. `up` rewrites every `snapshot.json` that is older than the current format of its dialect.
 
 For postgres, step 2 converts formats 4 to 8 to format 9:
@@ -769,7 +769,7 @@ For postgres, step 2 converts formats 4 to 8 to format 9:
 - A merge keeps all its parents, and the parent with the newest folder name moves to the first place in `prevIds`.
 - Snapshot ids stay the same, and `migration.sql` files do not change.
 
-Before it rewrites any snapshot, `up` rebuilds the state of every converted snapshot from the new files and compares it with the state in the old file. If one state differs, or if a snapshot cannot be converted, `up` rewrites no `snapshot.json`. Step 1 runs before this check, so a folder that had `meta/_journal.json` is already moved to the `<out>/<tag>/` layout when the error comes. `up` writes no backup, because git keeps the old files. A folder that is already in format 9 stays as it is.
+Before it rewrites any snapshot, `up` rebuilds the state of every converted snapshot from the new files and compares it with the state in the old file. If one state differs, or if a snapshot cannot be converted, `up` rewrites no `snapshot.json`. Step 1 runs before this check, so a folder that had `meta/_journal.json` is already moved to the folder layout of step 1 when the error comes. `up` writes no backup, because git keeps the old files. A folder that is already in format 9 stays as it is.
 
 ### `up` success
 
@@ -792,7 +792,7 @@ A postgres conversion that fails returns `command_output_error` with `command: "
 
 | `kind` | extra keys | when |
 | --- | --- | --- |
-| `malformed` | none | A `snapshot.json` in the folder is not a valid snapshot of its format. Restore it from git and run `up` again. |
+| `malformed` | none | A format 9 `snapshot.json` does not pass the format 9 validator while the folder also has a snapshot to convert, or a format 8 file has no `ddl` or `prevIds` array. Restore it from git and run `up` again. A broken snapshot of format 4 to 7 gives `internal_error` instead. If every snapshot is already format 9, `up` does not validate them and returns `upgraded: []`. |
 | `invalid_snapshot` | none | The converted snapshot does not pass the format 9 validator. This is a bug in drizzle-kit. Keep the old files and report the issue. |
 | `state_mismatch` | `entity`: the first entity that differs, as `<entity type> <schema>.<table>.<name>` | The rebuilt state of the converted snapshot differs from the state in the old file. This is a bug in drizzle-kit. Keep the old files and report the issue. |
 
@@ -809,7 +809,7 @@ A postgres conversion that fails returns `command_output_error` with `command: "
 }
 ```
 
-`up` reads the folder through the same loader as the other commands, so a broken postgres history stops it with a `check_error` first. See [`check` integrity errors](#check-integrity-errors). The move out of `meta/_journal.json` can also fail. It returns `migration_snapshot_not_found_error` when the journal lists a migration whose `meta/<n>_snapshot.json` is missing, and `migration_sql_files_conflict_error` when the SQL file of a journal entry does not have the name of its tag.
+`up` reads the folder through the same loader as the other commands, so a broken postgres history stops it with a `check_error` first. See [`check` integrity errors](#check-integrity-errors). The move out of `meta/_journal.json` can also fail. It returns `migration_snapshot_not_found_error` when the journal lists a migration whose `meta/<n>_snapshot.json` is missing. If `<tag>.sql` is missing, `up` moves the one SQL file whose name starts with the `<NNNN>_` prefix of the tag. It returns `migration_sql_files_conflict_error` (meta `prefix`) when several SQL files have that prefix. If no SQL file has that prefix, `up` skips the migration, and its snapshot is deleted with the `meta/` folder.
 
 ## `export`
 

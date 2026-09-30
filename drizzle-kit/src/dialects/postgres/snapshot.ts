@@ -650,10 +650,11 @@ const historyOf = (
 };
 
 // Adds to the first parent's state the snapshots that reach a merge only through its other parents.
-// In this replay only, a drop, alter, rename or relocate of a missing row is skipped, and a create,
-// rename or relocate onto a taken key overwrites the row there. A base adds its rows as such creates,
-// because two branches that each started from an empty folder share no ancestor. A checkpoint holds
-// the state of its own branch, and that state would bring back rows the first parent dropped.
+// This replay skips a drop, alter, rename or relocate of a missing row, and applyInPlace alone would throw
+// for it. A create, rename or relocate onto a taken key overwrites the row there, as in every applyInPlace
+// call. A base adds its rows as creates, because two branches that each started from an empty folder share
+// no ancestor. A checkpoint holds the state of its own branch, and that state would bring back rows the
+// first parent dropped.
 const combineInPlace = (
 	state: PostgresDDL,
 	snapshots: Map<string, PostgresSnapshot>,

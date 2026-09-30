@@ -1,8 +1,7 @@
 import {
-	AbstractCommutativity,
-	type CommutativityModel,
 	type CommutativityStatementDefinitions,
 	type CommutativityStatementInfo,
+	FacetCommutativity,
 	type FacetPaths,
 	type ParsedSnapshotInput,
 } from '../../commutativity/engine';
@@ -45,7 +44,7 @@ function makeSchemaTarget(schemaName: string): FootprintTarget {
 
 // The snapshot's rename deltas are the rename decisions. Generated names are not kept, so a drop and a create
 // of a constraint in the deltas stay a drop and a create statement, as in the SQL of the migration.
-const snapshotStatements = async (
+export const snapshotStatements = async (
 	snapshots: Map<string, PostgresSnapshot>,
 	snapshot: PostgresSnapshot,
 ): Promise<JsonStatement[]> => {
@@ -78,49 +77,11 @@ const snapshotStatements = async (
 /**
  * Postgres-specific commutativity rules.
  *
- * NOTE: conflict MATCHING now uses {@link PostgresCommutativity.buildFacetPaths}
- * (the facet model). The `conflicts` arrays below are no longer consulted for
- * matching; `getStatementDefinitions()` is retained only because `buildInfo`
- * still feeds the human-readable conflict reporting (describeStatement /
- * describeStatementTarget). The guide below describes the legacy conflict-list
- * model and is kept for reference.
- *
- * How to read this file:
- * - `getStatementDefinitions()` is the main source of truth.
- * - Each statement definition answers two questions:
- *   1. `conflicts`: which other statement types are incompatible with this one.
- *   2. `buildInfo`: which resource footprints this statement occupies.
- * - `buildInfo().primary` is the exact resource touched by the statement.
- * - `buildInfo().ancestors` are explicit parent resources, usually the owning table.
- * - `getImplicitAncestors()` adds the schema-level footprint for every schema-bound
- *   target, so schema operations can conflict with tables, columns, indexes, enums,
- *   views, and sequences inside that schema.
- *
- * Practical guide for fixes:
- * - False positive or missed conflict for same-level objects like column->column,
- *   index->index, table->table, enum->enum:
- *   change the `conflicts` array for the relevant statements in
- *   `getStatementDefinitions()`.
- * - False positive or missed conflict for parent/child relations like
- *   table->column or table->index:
- *   adjust the child's `ancestors` in `buildInfo()` and/or the parent's
- *   `conflicts` array.
- * - False positive or missed conflict for schema->table, schema->column,
- *   schema->index, schema->enum, schema->view, or schema->sequence:
- *   first check `schemaConflictTypes`, because that defines what schema
- *   operations conflict with. If schema ancestry itself is wrong, adjust
- *   `getImplicitAncestors()`.
- * - Wrong human-readable conflict message only:
- *   change `describeStatement()` or `schemaLevelActions`. Those affect reporting,
- *   not matching semantics.
- *
- * Rule of thumb:
- * - If the problem is "these two statement types should or should not conflict",
- *   edit `conflicts`.
- * - If the problem is "this statement is matched at the wrong scope",
- *   edit `primary`, `ancestors`, or `getImplicitAncestors()`.
+ * `buildFacetPaths` decides which statements conflict. `getStatementDefinitions()` feeds only the report:
+ * `buildInfo` gives the target that `describeStatement` and `describeStatementTarget` print. Postgres does
+ * not read the `conflicts` arrays of the definitions.
  */
-class PostgresCommutativity extends AbstractCommutativity<
+class PostgresCommutativity extends FacetCommutativity<
 	JsonStatement,
 	PostgresSnapshot,
 	FootprintTarget
@@ -715,13 +676,6 @@ class PostgresCommutativity extends AbstractCommutativity<
 		};
 	}
 
-	protected override formatFootprintTarget(
-		action: JsonStatement['type'],
-		target: FootprintTarget,
-	): string {
-		return `${action};${target.schema};${target.objectName};${target.columnName}`;
-	}
-
 	protected override describeStatement(
 		statement: JsonStatement,
 		info: StatementInfo,
@@ -824,26 +778,12 @@ class PostgresCommutativity extends AbstractCommutativity<
 		return { kind: 'table', name: info.primary.objectName, schema: info.primary.schema };
 	}
 
-	protected override getImplicitAncestors(target: FootprintTarget): FootprintTarget[] {
-		if (target.schema === '' || (target.objectName === '' && target.columnName === '')) {
-			return [];
-		}
-
-		return [makeSchemaTarget(target.schema)];
-	}
-
 	// ----------------------------------------------------------------------
-	// Facet model — the model Postgres commutativity uses.
-	//
 	// Each statement declares the nodes it structurally owns, the existence it
 	// destroys (drops), and the existence it needs (ancestors + cross-refs).
 	// Node identity here mirrors the DDL's own `schema:table:name:entityType`
 	// key, so children/cross-refs line up with the nodes drops remove.
 	// ----------------------------------------------------------------------
-
-	protected override getCommutativityModel(): CommutativityModel {
-		return 'facet';
-	}
 
 	protected override buildFacetPaths(statement: JsonStatement): FacetPaths {
 		// EXACT (strict) COMMUTATIVITY via three facets per node:

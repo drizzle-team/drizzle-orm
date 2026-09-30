@@ -72,32 +72,31 @@ export function createDrizzleMcpServer(): McpServer {
 		return next;
 	};
 
+	const generateInput = {
+		config: z.string().optional().describe(
+			'Custom config file path — relative to the drizzle-kit working directory, or absolute.',
+		),
+		hints: hintsInput.optional().describe(
+			'Resolutions for missing_hints items. Each entry is an object with a "type" discriminator '
+				+ '("rename" | "create" | "confirm_data_loss") echoing the unresolved item to resolve.',
+		),
+		name: z.string().optional().describe('Custom migration name'),
+		custom: z.boolean().optional().describe('Generate a blank custom migration'),
+	};
+
 	server.registerTool(
 		'generate',
 		{
 			description: 'Generate a new migration file by diffing the current schema against the latest snapshot. '
 				+ 'If the response has status "missing_hints", re-call with a "hints" array resolving each '
-				+ 'unresolved item (rename or create). When "fixConflicts" is true, deletes conflicting migration '
-				+ 'folders (a destructive operation) and reports destructiveHint:true via the result _meta key '
-				+ '"com.drizzle.team/generate.destructiveHint".',
+				+ 'unresolved item (rename or create). For postgresql, the error.fix field of a conflicts error lists '
+				+ 'the migrations that the fix_conflicts tool deletes. When the error says to run '
+				+ '"drizzle-kit generate --fix-conflicts", use the fix_conflicts tool instead.',
 			inputSchema: z.object({
-				config: z.string().optional().describe(
-					'Custom config file path — relative to the drizzle-kit working directory, or absolute.',
-				),
-				hints: hintsInput.optional().describe(
-					'Resolutions for missing_hints items. Each entry is an object with a "type" discriminator '
-						+ '("rename" | "create" | "confirm_data_loss") echoing the unresolved item to resolve.',
-				),
-				name: z.string().optional().describe('Custom migration name'),
-				custom: z.boolean().optional().describe('Generate a blank custom migration'),
+				...generateInput,
 				ignoreConflicts: z.boolean().optional().describe('Ignore existing snapshot conflicts (not for postgresql)'),
-				fixConflicts: z.boolean().optional().describe(
-					'Delete the conflicting migrations and their children, then generate one new migration '
-						+ '(postgresql only). The check_error response for conflicts lists the folders in error.fix.',
-				),
 			}),
 			outputSchema: looseEnvelopeSchema,
-			// The static listTools annotation cannot change per call, so fixConflicts:true is signaled in result._meta.
 			annotations: { destructiveHint: false },
 		},
 		async (args) => {
@@ -109,15 +108,40 @@ export function createDrizzleMcpServer(): McpServer {
 						name: args.name as string | undefined,
 						custom: args.custom as boolean | undefined,
 						ignoreConflicts: args.ignoreConflicts as boolean | undefined,
-						fixConflicts: args.fixConflicts as boolean | undefined,
 					})
 				) as unknown as SdkEnvelope;
-				const result = toToolResult(envelope);
-				// Derived from the input only, like the pull --init signal, so a failed call still warns the client.
-				if (args.fixConflicts === true) {
-					result._meta = { 'com.drizzle.team/generate.destructiveHint': true };
-				}
-				return result;
+				return toToolResult(envelope);
+			} catch {
+				return toToolResult(unexpectedErrorEnvelope());
+			}
+		},
+	);
+
+	server.registerTool(
+		'fix_conflicts',
+		{
+			description: 'For postgresql only. Delete the migrations that check reports as conflicting, with all '
+				+ 'their children, then generate one new migration from the rest of the history to the schema. '
+				+ 'This is a destructive operation. Every database that ran a deleted migration must be reset, '
+				+ 'because the migrator skips a deleted migration without an error. The check_error response for '
+				+ 'conflicts lists the folders to delete in error.fix. If the response has status "missing_hints", '
+				+ 'nothing is deleted yet: re-call with a "hints" array resolving each unresolved item.',
+			inputSchema: z.object(generateInput),
+			outputSchema: looseEnvelopeSchema,
+			annotations: { destructiveHint: true },
+		},
+		async (args) => {
+			try {
+				const envelope = await serialize(() =>
+					generate({
+						config: args.config as string | undefined,
+						hints: args.hints as Hint[] | undefined,
+						name: args.name as string | undefined,
+						custom: args.custom as boolean | undefined,
+						fixConflicts: true,
+					})
+				) as unknown as SdkEnvelope;
+				return toToolResult(envelope);
 			} catch {
 				return toToolResult(unexpectedErrorEnvelope());
 			}
@@ -161,7 +185,9 @@ export function createDrizzleMcpServer(): McpServer {
 		'check',
 		{
 			description: 'Check for migration conflicts in the snapshot history. '
-				+ 'Read-only and idempotent — no changes are written to the database or snapshot.',
+				+ 'Read-only and idempotent — no changes are written to the database or snapshot. '
+				+ 'For postgresql, the error.fix field of a conflicts error lists the migrations that the fix_conflicts '
+				+ 'tool deletes. When the error says to run "drizzle-kit generate --fix-conflicts", use the fix_conflicts tool instead.',
 			inputSchema: z.object({
 				config: z.string().optional().describe(
 					'Custom config file path — relative to the drizzle-kit working directory, or absolute.',

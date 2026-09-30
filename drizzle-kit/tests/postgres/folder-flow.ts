@@ -4,7 +4,7 @@ import { migrate as migrateFolder } from 'drizzle-orm/pglite/migrator';
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { basename, dirname, join } from 'path';
-import { checkHandler } from 'src/cli/commands/check';
+import { checkHandler, checkSnapshots } from 'src/cli/commands/check';
 import { handle } from 'src/cli/commands/generate-postgres';
 import { handle as pullHandle } from 'src/cli/commands/pull-postgres';
 import { upPgHandler } from 'src/cli/commands/up-postgres';
@@ -16,7 +16,9 @@ import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import type { Delta } from 'src/dialects/dialect';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { fromDrizzleSchema, fromExports, SchemaSource } from 'src/dialects/postgres/drizzle';
+import { prepareSnapshot } from 'src/dialects/postgres/serializer';
 import { type PostgresSnapshot, reconstruct, startingState } from 'src/dialects/postgres/snapshot';
+import { prepareOutFolder } from 'src/utils/utils-node';
 import { onTestFinished, vi } from 'vitest';
 import { type PostgresSchema, push } from './mocks';
 
@@ -110,6 +112,17 @@ export const createFolderFlow = () => {
 	const combinedState = (branch: string, folder: string) =>
 		normalizeDDL(startingState(history(branch), snapshot(branch, folder).prevIds).entities.list());
 
+	// It leaves out the migrations that --fix-conflicts deletes, so with conflicts it is the state that
+	// generate --fix-conflicts diffs the schema against.
+	const stateBeforeGenerate = (branch: string, schema: PostgresSchema) =>
+		quietly(async () => {
+			const stored = prepareOutFolder(dirOf(branch));
+			const { fix } = await checkSnapshots(stored.snapshots, 'postgresql');
+			const deleted = new Set(fix?.migrations);
+			const kept = stored.snapshots.filter((it) => !deleted.has(dirname(it)));
+			return (await prepareSnapshot(kept, fromExports(schema))).ddlPrev;
+		});
+
 	const deltas = (branch: string, folder: string): Delta[] => {
 		const it = snapshot(branch, folder);
 		if (it.type !== 'diff') throw new Error(`${folder} is a ${it.type} snapshot. Pass the folder of a diff snapshot.`);
@@ -201,14 +214,10 @@ export const createFolderFlow = () => {
 		writeFileSync(join(dirOf(branch), folder, 'snapshot.json'), text);
 
 	// Returns the statements that push still needs after migrate. An empty list means the database matches the schema.
-	// With `order`, it runs the SQL of only these folders in this order instead of the drizzle-orm migrator.
-	const migrate = async (branch: string, schema: PostgresSchema, order?: string[]) => {
+	const migrate = async (branch: string, schema: PostgresSchema) => {
 		const client = new PGlite();
 		try {
-			if (!order) await migrateFolder(drizzle({ client }), { migrationsFolder: dirOf(branch) });
-			for (const folder of order ?? []) {
-				for (const statement of sql(branch, folder).split('--> statement-breakpoint')) await client.exec(statement);
-			}
+			await migrateFolder(drizzle({ client }), { migrationsFolder: dirOf(branch) });
 			const db = { query: async (query: string, params?: any[]) => (await client.query<any>(query, params)).rows };
 			const { sqlStatements } = await push({ db, to: schema });
 			return sqlStatements;
@@ -223,8 +232,10 @@ export const createFolderFlow = () => {
 		snapshot,
 		sql,
 		leaves,
+		history,
 		state,
 		combinedState,
+		stateBeforeGenerate,
 		deltas,
 		generate,
 		pull,

@@ -10,15 +10,15 @@ import { join } from 'path';
 import { prepareSnapshotFolderName } from 'src/cli/commands/generate-common';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import { apply, applyInPlace, create } from 'src/dialects/dialect';
-import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
+import { snapshotStatements } from 'src/dialects/postgres/commutativity';
 import { fromJson } from 'src/dialects/postgres/convertor';
 import { createDDL, fromEntities, type PostgresDDL } from 'src/dialects/postgres/ddl';
 import { ddlDiff } from 'src/dialects/postgres/diff';
-import type { PostgresSnapshotV8 } from 'src/dialects/postgres/snapshot';
-import type { JsonStatement } from 'src/dialects/postgres/statements';
+import { type PostgresSnapshotV8, reconstruct } from 'src/dialects/postgres/snapshot';
+import { withStateKeyNames } from 'src/dialects/postgres/versions-v9';
 import { BREAKPOINT, originUUID } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
-import { expect, test, vi } from 'vitest';
+import { expect, test } from 'vitest';
 import { createFolderFlow, schemaState, tempDir } from './folder-flow';
 import {
 	applyOps,
@@ -128,34 +128,11 @@ test('check derives the statements that generate wrote for each migration', asyn
 		for (const [folder, { branch, isCustom }] of written) {
 			// A later generate --fix-conflicts can delete the folder.
 			if (isCustom || !flow.folders(branch).includes(folder)) continue;
-			const snapshots = new Map(flow.folders(branch).map((it) => [it, flow.snapshot(branch, it)]));
-			const byId = new Map([...snapshots.values()].map((it) => [it.id, it]));
-			const history = new Set<string>();
-			for (const stack = [snapshots.get(folder)!.id]; stack.length;) {
-				const id = stack.pop()!;
-				if (id === originUUID || history.has(id)) continue;
-				history.add(id);
-				stack.push(...byId.get(id)!.prevIds);
-			}
-			const ancestors = [...snapshots].filter(([, it]) => history.has(it.id));
-			const inputs = ancestors.map(([it, snapshot]) => ({ path: join(it, 'snapshot.json'), snapshot }));
-			// A copy of the snapshot is a second leaf with the same parents, so check derives the
-			// statements of the snapshot for both leaves.
-			const copy = { ...snapshots.get(folder)!, id: randomUUID() };
-			const spy = vi.spyOn(postgresCommutativity, 'getReasonsFromStatements');
-			try {
-				await postgresCommutativity.detectNonCommutative([...inputs, {
-					path: join('copy', 'snapshot.json'),
-					snapshot: copy,
-				}]);
-				const [statements, copyStatements] = spy.mock.calls[0]! as [JsonStatement[], JsonStatement[]];
-				// The order follows the order of rows in the state, and check compares every pair of statements.
-				const sql = flow.sql(branch, folder).split(BREAKPOINT).sort();
-				expect(fromJson(statements).sqlStatements.sort(), `the statements of ${folder}`).toStrictEqual(sql);
-				expect(fromJson(copyStatements).sqlStatements.sort(), `the statements of ${folder}`).toStrictEqual(sql);
-			} finally {
-				spy.mockRestore();
-			}
+			const statements = await snapshotStatements(flow.history(branch), flow.snapshot(branch, folder));
+			// snapshotStatements orders the statements by the rows of the state, not as the SQL file does. Check
+			// compares every pair of statements, so only the set matters.
+			const sql = flow.sql(branch, folder).split(BREAKPOINT).sort();
+			expect(fromJson(statements).sqlStatements.sort(), `the statements of ${folder}`).toStrictEqual(sql);
 		}
 	});
 });
@@ -245,7 +222,10 @@ test('up rebuilds every state of a format 8 folder', async () => {
 		flow.seed('main', dir);
 		await flow.up('main');
 		for (const [folder, original] of originals) {
-			expect(flow.state('main', folder), `the state of ${folder}`).toStrictEqual(normalizeDDL(original.ddl));
+			const state = reconstruct(flow.history('main'), flow.snapshot('main', folder).id);
+			expect(flow.state('main', folder), `the state of ${folder}`).toStrictEqual(
+				normalizeDDL(fromEntities(withStateKeyNames(original.ddl, state)).entities.list()),
+			);
 		}
 	});
 });

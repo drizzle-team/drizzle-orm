@@ -1,7 +1,6 @@
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
-import { drySnapshot } from 'src/dialects/postgres/snapshot';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { expect, test } from 'vitest';
 import { build } from './commutativity-statements';
@@ -173,7 +172,7 @@ const CREATE_OPS = new Set([
 ]);
 
 async function conflict(a: JsonStatement, b: JsonStatement): Promise<boolean> {
-	return !!(await postgresCommutativity.getReasonsFromStatements([a], [b], drySnapshot));
+	return !!(await postgresCommutativity.getReasonsFromStatements([a], [b]));
 }
 
 async function generateMatrix() {

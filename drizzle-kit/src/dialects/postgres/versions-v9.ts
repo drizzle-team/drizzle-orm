@@ -35,8 +35,8 @@ export const withStateKeyNames = (rows: PostgresEntity[], state: PostgresDDL): P
 		return key ? { ...row, name: key.name } : row;
 	});
 
-// This step is not in versions.ts, because the programmatic API imports versions.ts and must not load
-// snapshot.ts. `files` must be in folder-name order.
+// This step is not in versions.ts. The programmatic API imports versions.ts at module load, and it must
+// load snapshot.ts only inside its functions. `files` must be in folder-name order.
 export const upToV9 = async (
 	files: { folder: string; snapshot: PostgresSnapshotV8 | PostgresSnapshot }[],
 ): Promise<PostgresSnapshot[]> => {
@@ -80,7 +80,8 @@ export const upToV9 = async (
 		);
 		// ddlDiff gives a constraint with a generated name the name that it has in the starting state. A
 		// format 5-8 file can store another generated name, for example after a table rename or in a merge.
-		// Drops and creates at the end restore the stored names.
+		// Drops and creates at the end restore the stored names, except for the primary key names that
+		// withStateKeyNames takes from the state.
 		deltas.push(...delta(to, fromEntities(withStateKeyNames(snapshot.ddl, to))));
 		converted.set(snapshot.id, { type: 'diff', ...header, prevIds, deltas });
 	}

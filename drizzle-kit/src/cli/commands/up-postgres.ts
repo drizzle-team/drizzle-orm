@@ -37,7 +37,7 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 			const raw = report.rawMap[path];
 			return { path, folder: basename(dirname(path)), snapshot: Number(raw.version) < 8 ? upToV8(raw).snapshot : raw };
 		});
-		// The loader validates only format 9 files.
+		// validateWithReport checks the shape of format 9 files only, so a format 8 file needs this check.
 		const malformedFile = files.find(({ path, snapshot }) =>
 			report.malformed.includes(path)
 			|| (snapshot.version === '8' && !(Array.isArray(snapshot.ddl) && Array.isArray(snapshot.prevIds)))

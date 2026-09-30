@@ -31,34 +31,24 @@ import { CheckCliError, CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import { explain, explainJsonOutput, humanLog, postgresSchemaError, postgresSchemaWarning } from '../views';
-import { checkSnapshots } from './check';
-import { applyConflictFix, type ConflictFix, describeAppliedFix } from './fix-conflicts';
+import { checkSnapshots, conflictError } from './check';
+import { applyConflictFix, describeAppliedFix } from './fix-conflicts';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
-const checkHistory = async (config: GenerateConfig<SchemaSource>, snapshots: string[]) => {
-	try {
-		return { checkResult: await checkSnapshots(snapshots, 'postgresql') };
-	} catch (e) {
-		if (!(e instanceof CheckCliError) || e.meta?.kind !== 'conflicts') throw e;
-		const fix = e.meta.fix as ConflictFix;
-		if (!config.fixConflicts) {
-			if (!isInteractive() || config.explain) throw e;
-			humanLog(e.humanMessage);
-			const { data } = await render(
-				new Select(['No, keep the migrations', 'Yes, delete them and generate a new migration']),
-			);
-			if (data?.index !== 1) {
-				throw new CheckCliError(
-					'conflicts',
-					'The migrations are kept, and the conflicts are not fixed. To fix them later, run: drizzle-kit generate --fix-conflicts',
-					e.meta,
-				);
-			}
-		}
-		const deleted = new Set(fix.migrations);
-		const rest = snapshots.filter((it) => !deleted.has(dirname(it)));
-		return { checkResult: await checkSnapshots(rest, 'postgresql'), fix };
+// Returns when an interactive user agrees to the fix. In every other case, it throws a CheckCliError of kind conflicts.
+const confirmConflictFix = async (config: GenerateConfig<SchemaSource>, error: CheckCliError) => {
+	if (!isInteractive() || config.explain) throw error;
+	humanLog(error.humanMessage);
+	const { data } = await render(
+		new Select(['No, keep the migrations', 'Yes, delete them and generate a new migration']),
+	);
+	if (data?.index !== 1) {
+		throw new CheckCliError(
+			'conflicts',
+			'The migrations are kept, and the conflicts are not fixed. To fix them later, run: drizzle-kit generate --fix-conflicts',
+			error.meta,
+		);
 	}
 };
 
@@ -67,12 +57,13 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	const json = outputFormat() === 'json';
 
 	const stored = prepareOutFolder(outFolder);
-	const { checkResult, fix } = await checkHistory(config, stored.snapshots);
+	const { report, fix } = await checkSnapshots(stored.snapshots, 'postgresql');
+	if (fix && !config.fixConflicts) await confirmConflictFix(config, conflictError(report, fix));
 	const deleted = new Set(fix?.migrations);
 	const snapshots = stored.snapshots.filter((it) => !deleted.has(dirname(it)));
 	const index = stored.index.filter((it) => !deleted.has(dirname(it.path)));
 	const prepared = await config.schemaSource.load();
-	const { ddlCur, ddlPrev, prevIds } = await prepareSnapshot(snapshots, prepared, checkResult);
+	const { ddlCur, ddlPrev, prevIds } = await prepareSnapshot(snapshots, prepared);
 	const parentFolders = index.filter((it) => prevIds.includes(it.id)).map((it) => it.folder);
 
 	// `state` is what the snapshot must rebuild to, and `deltas` turn `ddlPrev` into it.
@@ -84,31 +75,31 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 
 	// Deleting waits until generate needs no more hints, so a missing_hints response leaves the folder unchanged.
 	// Explain mode is a dry run and deletes nothing.
-	const withFix = <T extends object>(
-		result: T,
-	): T & { deleted_migrations?: string[]; deleted_custom_migrations?: string[] } => {
-		if (!fix || config.explain) return result;
+	const deleteConflictingMigrations = (): { deleted_migrations?: string[]; deleted_custom_migrations?: string[] } => {
+		if (!fix || config.explain) return {};
 		applyConflictFix(fix);
 		humanLog(describeAppliedFix(fix));
 		return {
-			...result,
 			deleted_migrations: fix.migrations,
 			...(fix.customMigrations.length > 0 && { deleted_custom_migrations: fix.customMigrations }),
 		};
 	};
 
 	if (config.custom) {
-		return withFix(writeResult({
-			snapshot: snapshotOf(ddlPrev, []),
-			sqlStatements: [],
-			outFolder,
-			name: config.name,
-			breakpoints: config.breakpoints,
-			dialect: 'postgresql',
-			type: 'custom',
-			snapshots,
-			parentFolders,
-		}));
+		return {
+			...writeResult({
+				snapshot: snapshotOf(ddlPrev, []),
+				sqlStatements: [],
+				outFolder,
+				name: config.name,
+				breakpoints: config.breakpoints,
+				dialect: 'postgresql',
+				type: 'custom',
+				snapshots,
+				parentFolders,
+			}),
+			...deleteConflictingMigrations(),
+		};
 	}
 
 	// ddlDiff changes both states. ddlCur keeps the changes: auto-named constraints get the names that the
@@ -137,16 +128,19 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	}
 
 	if (!config.explain) {
-		return withFix(writeResult({
-			snapshot: snapshotOf(ddlCur, deltas),
-			sqlStatements,
-			outFolder,
-			name: config.name,
-			breakpoints: config.breakpoints,
-			dialect: 'postgresql',
-			snapshots,
-			parentFolders,
-		}));
+		return {
+			...writeResult({
+				snapshot: snapshotOf(ddlCur, deltas),
+				sqlStatements,
+				outFolder,
+				name: config.name,
+				breakpoints: config.breakpoints,
+				dialect: 'postgresql',
+				snapshots,
+				parentFolders,
+			}),
+			...deleteConflictingMigrations(),
+		};
 	}
 
 	if (json) {

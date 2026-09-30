@@ -40,10 +40,18 @@ const connectPair = async () => {
 };
 
 describe('MCP server tool registration', () => {
-	test('listTools returns exactly check, export, generate, pull, push, up', async () => {
+	test('listTools returns exactly check, export, fix_conflicts, generate, pull, push, up', async () => {
 		const { client } = await connectPair();
 		const { tools } = await client.listTools();
-		expect(tools.map((t) => t.name).sort()).toEqual(['check', 'export', 'generate', 'pull', 'push', 'up']);
+		expect(tools.map((t) => t.name).sort()).toEqual([
+			'check',
+			'export',
+			'fix_conflicts',
+			'generate',
+			'pull',
+			'push',
+			'up',
+		]);
 		await client.close();
 	});
 });
@@ -67,9 +75,13 @@ describe('MCP server pull tool — per-call destructive _meta escalation', () =>
 	});
 });
 
-describe('MCP server generate tool with fixConflicts', () => {
-	test('a conflict lists the folders to delete, and fixConflicts:true deletes them with the destructive _meta signal', async () => {
+describe('MCP server fix_conflicts tool', () => {
+	test('generate lists the conflicting folders, and the destructive fix_conflicts tool deletes them', async () => {
 		const { client } = await connectPair();
+		const { tools } = await client.listTools();
+		const annotationsOf = (name: string) => tools.find((t) => t.name === name)?.annotations;
+		expect(annotationsOf('generate')).toMatchObject({ destructiveHint: false });
+		expect(annotationsOf('fix_conflicts')).toMatchObject({ destructiveHint: true });
 		const out = stageConflict();
 		const schemaPath = resolve(join(out, 'schema.ts'));
 		writeFileSync(
@@ -84,14 +96,12 @@ describe('MCP server generate tool with fixConflicts', () => {
 		const folders = [expect.stringMatching(/0001_left$/), expect.stringMatching(/0002_right$/)];
 		try {
 			const r1 = await client.callTool({ name: 'generate', arguments: { config } });
-			expect((r1._meta ?? {})['com.drizzle.team/generate.destructiveHint']).toBeFalsy();
 			expect(r1.structuredContent).toMatchObject({
 				status: 'error',
 				error: { code: 'check_error', kind: 'conflicts', fix: { migrations: folders, customMigrations: [] } },
 			});
 
-			const r2 = await client.callTool({ name: 'generate', arguments: { config, fixConflicts: true } });
-			expect(r2._meta?.['com.drizzle.team/generate.destructiveHint']).toBe(true);
+			const r2 = await client.callTool({ name: 'fix_conflicts', arguments: { config } });
 			expect(r2.structuredContent).toMatchObject({ status: 'ok', deleted_migrations: folders });
 		} finally {
 			await client.close();
