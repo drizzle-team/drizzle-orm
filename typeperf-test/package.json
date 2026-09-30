@@ -4,14 +4,11 @@
 	"description": "Type performance tests for drizzle-orm",
 	"type": "module",
 	"scripts": {
-		"test": "vitest run",
-		"test:update": "vitest run --update",
-		"bench": "tsx benches/pg-columns.bench.ts",
-		"bench:beta": "tsx benches/beta/pg-columns.bench.ts",
+		"bench": "tsx test",
 		"build": "echo skip...",
-		"build:artifact": "pnpm run build",
+		"build:artifact": "echo skip...",
 		"pack": "echo skip...",
-		"pack:artifact": "pnpm run pack",
+		"pack:artifact": "echo skip...",
 		"test:types": "tsc --noEmit"
 	},
 	"keywords": [],
