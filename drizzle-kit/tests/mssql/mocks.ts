@@ -138,11 +138,6 @@ export const diffIntrospect = async (
 	writeFileSync(filePath, file.file);
 	await tsc(file.file);
 
-	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
-	if (typeCheckResult.exitCode !== 0) {
-		throw new Error(typeCheckResult.stderr || typeCheckResult.stdout);
-	}
-
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
 		filePath,
