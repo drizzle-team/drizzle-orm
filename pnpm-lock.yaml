@@ -46,16 +46,16 @@ importers:
         version: 0.23.11
       resolve-tspaths:
         specifier: ^0.8.16
-        version: 0.8.23(typescript@5.9.3)
+        version: 0.8.23(typescript@6.0.3)
       rolldown:
         specifier: 1.2.5
         version: 1.2.5
       tsdown:
         specifier: ^0.22.14
-        version: 0.22.14(tsx@4.20.6)(typescript@5.9.3)(unrun@0.2.32)
+        version: 0.22.14(tsx@4.20.6)(typescript@6.0.3)(unrun@0.2.32)
       tsup:
         specifier: ^8.3.5
-        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@6.0.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.10.5
         version: 4.20.6
@@ -63,11 +63,11 @@ importers:
         specifier: ^2.2.3
         version: 2.6.1
       typescript:
-        specifier: 5.9.3
-        version: 5.9.3
+        specifier: 6.0.3
+        version: 6.0.3
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@5.9.3)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
+        version: 4.3.2(typescript@6.0.3)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
       vitest:
         specifier: 5.0.0
         version: 5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
@@ -105,8 +105,8 @@ importers:
         specifier: ^7.5.4
         version: 7.7.3
       typescript:
-        specifier: 5.9.3
-        version: 5.9.3
+        specifier: 6.0.3
+        version: 6.0.3
       validate-npm-package-name:
         specifier: ^5.0.0
         version: 5.0.1
@@ -309,7 +309,7 @@ importers:
         version: 17.2.1
       orm044:
         specifier: npm:drizzle-orm@0.44.1
-        version: drizzle-orm@0.44.1(5d824a0c5465691b580815f6d7025b79)
+        version: drizzle-orm@0.44.1(401c0b97aaff1bdc6d61dc9c16d36617)
       pg:
         specifier: ^8.11.5
         version: 8.16.3
@@ -329,8 +329,8 @@ importers:
         specifier: ^4.20.6
         version: 4.20.6
       typescript:
-        specifier: 5.9.3
-        version: 5.9.3
+        specifier: 6.0.3
+        version: 6.0.3
       uuid:
         specifier: ^9.0.1
         version: 9.0.1
@@ -355,7 +355,7 @@ importers:
     devDependencies:
       '@arktype/attest':
         specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.3)
+        version: 0.46.0(typescript@6.0.3)
       '@aws-sdk/client-rds-data':
         specifier: ^3.914.0
         version: 3.940.0
@@ -370,7 +370,7 @@ importers:
         version: 4.20251126.0
       '@drizzle-team/minipg':
         specifier: ^0.3.2
-        version: 0.3.2(typescript@5.9.3)
+        version: 0.3.2(typescript@6.0.3)
       '@effect/sql-d1':
         specifier: 4.0.0-rc.117
         version: 4.0.0-rc.117(effect@4.0.0-rc.117)
@@ -472,7 +472,7 @@ importers:
         version: 0.8.0
       '@xata.io/client':
         specifier: ^0.29.3
-        version: 0.29.5(typescript@5.9.3)
+        version: 0.29.5(typescript@6.0.3)
       arktype:
         specifier: ^2.1.10
         version: 2.2.0
@@ -526,7 +526,7 @@ importers:
         version: 1.2.0
       valibot:
         specifier: 1.0.0-beta.7
-        version: 1.0.0-beta.7(typescript@5.9.3)
+        version: 1.0.0-beta.7(typescript@6.0.3)
       zod:
         specifier: ^3.20.2
         version: 3.25.1
@@ -606,12 +606,15 @@ importers:
       tsx:
         specifier: ^4.19.0
         version: 4.20.6
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
       uuid:
         specifier: ^10.0.0
         version: 10.0.0
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@5.9.3)(vite@7.2.4(@types/node@22.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
+        version: 4.3.2(typescript@6.0.3)(vite@7.2.4(@types/node@22.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
       zod:
         specifier: ^4.0.0
         version: 4.3.4
@@ -626,13 +629,13 @@ importers:
         version: 20.19.25
       '@typescript-eslint/parser':
         specifier: ^6.10.0
-        version: 6.21.0(eslint@8.57.1)(typescript@5.9.3)
+        version: 6.21.0(eslint@8.57.1)(typescript@6.0.3)
       '@typescript-eslint/rule-tester':
         specifier: ^6.10.0
-        version: 6.21.0(@eslint/eslintrc@2.1.4)(eslint@8.57.1)(typescript@5.9.3)
+        version: 6.21.0(@eslint/eslintrc@2.1.4)(eslint@8.57.1)(typescript@6.0.3)
       '@typescript-eslint/utils':
         specifier: ^6.10.0
-        version: 6.21.0(eslint@8.57.1)(typescript@5.9.3)
+        version: 6.21.0(eslint@8.57.1)(typescript@6.0.3)
       cpy-cli:
         specifier: ^5.0.0
         version: 5.0.0
@@ -640,8 +643,8 @@ importers:
         specifier: ^8.53.0
         version: 8.57.1
       typescript:
-        specifier: 5.9.3
-        version: 5.9.3
+        specifier: 6.0.3
+        version: 6.0.3
 
   integration-tests:
     dependencies:
@@ -659,7 +662,7 @@ importers:
         version: 0.3.0(postgres@3.4.7)
       '@drizzle-team/minipg':
         specifier: ^0.3.2
-        version: 0.3.2(typescript@5.9.3)
+        version: 0.3.2(typescript@6.0.3)
       '@effect/sql-d1':
         specifier: 4.0.0-rc.117
         version: 4.0.0-rc.117(effect@4.0.0-rc.117)
@@ -743,7 +746,7 @@ importers:
         version: 0.8.0
       '@xata.io/client':
         specifier: ^0.29.3
-        version: 0.29.5(typescript@5.9.3)
+        version: 0.29.5(typescript@6.0.3)
       arktype:
         specifier: ^2.1.10
         version: 2.2.0
@@ -821,7 +824,7 @@ importers:
         version: 0.5.6
       valibot:
         specifier: 1.0.0-beta.7
-        version: 1.0.0-beta.7(typescript@5.9.3)
+        version: 1.0.0-beta.7(typescript@6.0.3)
       ws:
         specifier: ^8.18.2
         version: 8.18.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
@@ -891,13 +894,13 @@ importers:
         version: 5.5.4
       ts-node:
         specifier: ^10.9.2
-        version: 10.9.2(@types/node@25.5.0)(typescript@5.9.3)
+        version: 10.9.2(@types/node@25.5.0)(typescript@6.0.3)
       tsx:
         specifier: ^4.14.0
         version: 4.20.6
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@5.9.3)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
+        version: 4.3.2(typescript@6.0.3)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
       zx:
         specifier: ^8.3.2
         version: 8.8.5
@@ -906,7 +909,7 @@ importers:
     dependencies:
       drizzle-beta:
         specifier: npm:drizzle-orm@1.0.0-beta.21
-        version: drizzle-orm@1.0.0-beta.21(5e7d0732b18cb633d164000d12a5f14d)
+        version: drizzle-orm@1.0.0-beta.21(a9dfe3531116bad8e08e45014ab6a97d)
       drizzle-seed:
         specifier: workspace:../drizzle-seed/dist
         version: link:../drizzle-seed/dist
@@ -922,7 +925,7 @@ importers:
     devDependencies:
       '@ark/attest':
         specifier: ^0.56.0
-        version: 0.56.0(typescript@5.9.3)
+        version: 0.56.0(typescript@6.0.3)
       tsx:
         specifier: ^4.19.0
         version: 4.20.6
@@ -8817,8 +8820,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.9.3:
-    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+  typescript@6.0.3:
+    resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -9379,16 +9382,16 @@ snapshots:
       typescript: 5.6.1-rc
       validate-npm-package-name: 5.0.1
 
-  '@ark/attest@0.56.0(typescript@5.9.3)':
+  '@ark/attest@0.56.0(typescript@6.0.3)':
     dependencies:
       '@ark/fs': 0.56.0
       '@ark/util': 0.56.0
       '@prettier/sync': 0.6.1(prettier@3.6.2)
       '@typescript/analyze-trace': 0.10.1
-      '@typescript/vfs': 1.6.1(typescript@5.9.3)
+      '@typescript/vfs': 1.6.1(typescript@6.0.3)
       arktype: 2.1.28
       prettier: 3.6.2
-      typescript: 5.9.3
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
@@ -9408,16 +9411,16 @@ snapshots:
 
   '@ark/util@0.56.0': {}
 
-  '@arktype/attest@0.46.0(typescript@5.9.3)':
+  '@arktype/attest@0.46.0(typescript@6.0.3)':
     dependencies:
       '@ark/fs': 0.46.0
       '@ark/util': 0.46.0
       '@prettier/sync': 0.5.5(prettier@3.5.3)
       '@typescript/analyze-trace': 0.10.1
-      '@typescript/vfs': 1.6.1(typescript@5.9.3)
+      '@typescript/vfs': 1.6.1(typescript@6.0.3)
       arktype: 2.1.20
       prettier: 3.5.3
-      typescript: 5.9.3
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
@@ -10850,9 +10853,9 @@ snapshots:
 
   '@drizzle-team/brocli@0.12.1': {}
 
-  '@drizzle-team/minipg@0.3.2(typescript@5.9.3)':
+  '@drizzle-team/minipg@0.3.2(typescript@6.0.3)':
     dependencies:
-      typescript: 5.9.3
+      typescript: 6.0.3
 
   '@duckdb/node-api@1.5.0-r.1':
     dependencies:
@@ -13431,24 +13434,24 @@ snapshots:
     dependencies:
       '@types/yargs-parser': 21.0.3
 
-  '@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.9.3)':
+  '@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@6.0.3)':
     dependencies:
       '@typescript-eslint/scope-manager': 6.21.0
       '@typescript-eslint/types': 6.21.0
-      '@typescript-eslint/typescript-estree': 6.21.0(typescript@5.9.3)
+      '@typescript-eslint/typescript-estree': 6.21.0(typescript@6.0.3)
       '@typescript-eslint/visitor-keys': 6.21.0
       debug: 4.4.3
       eslint: 8.57.1
     optionalDependencies:
-      typescript: 5.9.3
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/rule-tester@6.21.0(@eslint/eslintrc@2.1.4)(eslint@8.57.1)(typescript@5.9.3)':
+  '@typescript-eslint/rule-tester@6.21.0(@eslint/eslintrc@2.1.4)(eslint@8.57.1)(typescript@6.0.3)':
     dependencies:
       '@eslint/eslintrc': 2.1.4
-      '@typescript-eslint/typescript-estree': 6.21.0(typescript@5.9.3)
-      '@typescript-eslint/utils': 6.21.0(eslint@8.57.1)(typescript@5.9.3)
+      '@typescript-eslint/typescript-estree': 6.21.0(typescript@6.0.3)
+      '@typescript-eslint/utils': 6.21.0(eslint@8.57.1)(typescript@6.0.3)
       ajv: 6.12.6
       eslint: 8.57.1
       lodash.merge: 4.6.2
@@ -13464,7 +13467,7 @@ snapshots:
 
   '@typescript-eslint/types@6.21.0': {}
 
-  '@typescript-eslint/typescript-estree@6.21.0(typescript@5.9.3)':
+  '@typescript-eslint/typescript-estree@6.21.0(typescript@6.0.3)':
     dependencies:
       '@typescript-eslint/types': 6.21.0
       '@typescript-eslint/visitor-keys': 6.21.0
@@ -13473,20 +13476,20 @@ snapshots:
       is-glob: 4.0.3
       minimatch: 9.0.3
       semver: 7.7.4
-      ts-api-utils: 1.4.3(typescript@5.9.3)
+      ts-api-utils: 1.4.3(typescript@6.0.3)
     optionalDependencies:
-      typescript: 5.9.3
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/utils@6.21.0(eslint@8.57.1)(typescript@5.9.3)':
+  '@typescript-eslint/utils@6.21.0(eslint@8.57.1)(typescript@6.0.3)':
     dependencies:
       '@eslint-community/eslint-utils': 4.9.0(eslint@8.57.1)
       '@types/json-schema': 7.0.15
       '@types/semver': 7.7.1
       '@typescript-eslint/scope-manager': 6.21.0
       '@typescript-eslint/types': 6.21.0
-      '@typescript-eslint/typescript-estree': 6.21.0(typescript@5.9.3)
+      '@typescript-eslint/typescript-estree': 6.21.0(typescript@6.0.3)
       eslint: 8.57.1
       semver: 7.7.3
     transitivePeerDependencies:
@@ -13509,10 +13512,10 @@ snapshots:
       treeify: 1.1.0
       yargs: 16.2.0
 
-  '@typescript/vfs@1.6.1(typescript@5.9.3)':
+  '@typescript/vfs@1.6.1(typescript@6.0.3)':
     dependencies:
       debug: 4.4.3
-      typescript: 5.9.3
+      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
@@ -13560,9 +13563,9 @@ snapshots:
 
   '@vitest/spy@5.0.0': {}
 
-  '@xata.io/client@0.29.5(typescript@5.9.3)':
+  '@xata.io/client@0.29.5(typescript@6.0.3)':
     dependencies:
-      typescript: 5.9.3
+      typescript: 6.0.3
 
   '@xmldom/xmldom@0.8.11': {}
 
@@ -14775,7 +14778,7 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
-  drizzle-orm@0.44.1(5d824a0c5465691b580815f6d7025b79):
+  drizzle-orm@0.44.1(401c0b97aaff1bdc6d61dc9c16d36617):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.940.0
       '@cloudflare/workers-types': 4.20251126.0
@@ -14793,7 +14796,7 @@ snapshots:
       '@types/sql.js': 1.4.9
       '@upstash/redis': 1.35.7
       '@vercel/postgres': 0.8.0
-      '@xata.io/client': 0.29.5(typescript@5.9.3)
+      '@xata.io/client': 0.29.5(typescript@6.0.3)
       better-sqlite3: 13.0.3
       bun-types: 1.4.0
       expo-sqlite: 14.0.6(expo@54.0.25(@babel/core@7.28.5)(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(bufferutil@4.0.8)(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3))
@@ -14805,7 +14808,7 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
-  drizzle-orm@1.0.0-beta.21(5e7d0732b18cb633d164000d12a5f14d):
+  drizzle-orm@1.0.0-beta.21(a9dfe3531116bad8e08e45014ab6a97d):
     dependencies:
       '@types/mssql': 9.1.8
       mssql: 12.1.1
@@ -14832,7 +14835,7 @@ snapshots:
       '@types/sql.js': 1.4.9
       '@upstash/redis': 1.35.7
       '@vercel/postgres': 0.8.0
-      '@xata.io/client': 0.29.5(typescript@5.9.3)
+      '@xata.io/client': 0.29.5(typescript@6.0.3)
       arktype: 2.2.0
       better-sqlite3: 13.0.3
       bun-types: 1.4.0
@@ -14844,7 +14847,7 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7
       typebox: 1.2.0
-      valibot: 1.0.0-beta.7(typescript@5.9.3)
+      valibot: 1.0.0-beta.7(typescript@6.0.3)
       zod: 4.3.4
 
   dts-resolver@3.0.0: {}
@@ -18065,12 +18068,12 @@ snapshots:
 
   resolve-pkg-maps@1.0.0: {}
 
-  resolve-tspaths@0.8.23(typescript@5.9.3):
+  resolve-tspaths@0.8.23(typescript@6.0.3):
     dependencies:
       ansi-colors: 4.1.3
       commander: 12.1.0
       fast-glob: 3.3.2
-      typescript: 5.9.3
+      typescript: 6.0.3
 
   resolve-workspace-root@2.0.0: {}
 
@@ -18109,7 +18112,7 @@ snapshots:
     dependencies:
       glob: 7.2.3
 
-  rolldown-plugin-dts@0.27.14(rolldown@1.2.5)(typescript@5.9.3):
+  rolldown-plugin-dts@0.27.14(rolldown@1.2.5)(typescript@6.0.3):
     dependencies:
       dts-resolver: 3.0.0
       get-tsconfig: 5.0.0-beta.5
@@ -18119,7 +18122,7 @@ snapshots:
       yuku-codegen: 0.8.7
       yuku-parser: 0.8.7
     optionalDependencies:
-      typescript: 5.9.3
+      typescript: 6.0.3
     transitivePeerDependencies:
       - oxc-resolver
 
@@ -18817,9 +18820,9 @@ snapshots:
 
   treeify@1.1.0: {}
 
-  ts-api-utils@1.4.3(typescript@5.9.3):
+  ts-api-utils@1.4.3(typescript@6.0.3):
     dependencies:
-      typescript: 5.9.3
+      typescript: 6.0.3
 
   ts-expose-internals@5.6.3: {}
 
@@ -18830,7 +18833,7 @@ snapshots:
       '@ts-morph/common': 0.26.1
       code-block-writer: 13.0.3
 
-  ts-node@10.9.2(@types/node@25.5.0)(typescript@5.9.3):
+  ts-node@10.9.2(@types/node@25.5.0)(typescript@6.0.3):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       '@tsconfig/node10': 1.0.12
@@ -18844,15 +18847,15 @@ snapshots:
       create-require: 1.1.1
       diff: 4.0.2
       make-error: 1.3.6
-      typescript: 5.9.3
+      typescript: 6.0.3
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
 
-  tsconfck@3.1.6(typescript@5.9.3):
+  tsconfck@3.1.6(typescript@6.0.3):
     optionalDependencies:
-      typescript: 5.9.3
+      typescript: 6.0.3
 
-  tsdown@0.22.14(tsx@4.20.6)(typescript@5.9.3)(unrun@0.2.32):
+  tsdown@0.22.14(tsx@4.20.6)(typescript@6.0.3)(unrun@0.2.32):
     dependencies:
       ansis: 4.3.1
       cac: 7.0.0
@@ -18863,7 +18866,7 @@ snapshots:
       obug: 2.1.4
       picomatch: 4.0.7
       rolldown: 1.2.5
-      rolldown-plugin-dts: 0.27.14(rolldown@1.2.5)(typescript@5.9.3)
+      rolldown-plugin-dts: 0.27.14(rolldown@1.2.5)(typescript@6.0.3)
       tinyexec: 1.3.0
       tinyglobby: 0.2.17
       tree-kill: 1.2.2
@@ -18871,7 +18874,7 @@ snapshots:
       verkit: 0.3.2
     optionalDependencies:
       tsx: 4.20.6
-      typescript: 5.9.3
+      typescript: 6.0.3
       unrun: 0.2.32
     transitivePeerDependencies:
       - '@typescript/native-preview'
@@ -18881,7 +18884,7 @@ snapshots:
 
   tslib@2.8.1: {}
 
-  tsup@8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)(yaml@2.9.0):
+  tsup@8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@6.0.3)(yaml@2.9.0):
     dependencies:
       bundle-require: 5.1.0(esbuild@0.27.0)
       cac: 6.7.14
@@ -18902,7 +18905,7 @@ snapshots:
       tree-kill: 1.2.2
     optionalDependencies:
       postcss: 8.5.6
-      typescript: 5.9.3
+      typescript: 6.0.3
     transitivePeerDependencies:
       - jiti
       - supports-color
@@ -18981,7 +18984,7 @@ snapshots:
 
   typescript@5.6.1-rc: {}
 
-  typescript@5.9.3: {}
+  typescript@6.0.3: {}
 
   ufo@1.6.1: {}
 
@@ -19096,9 +19099,9 @@ snapshots:
 
   v8-compile-cache-lib@3.0.1: {}
 
-  valibot@1.0.0-beta.7(typescript@5.9.3):
+  valibot@1.0.0-beta.7(typescript@6.0.3):
     optionalDependencies:
-      typescript: 5.9.3
+      typescript: 6.0.3
 
   validate-npm-package-name@4.0.0:
     dependencies:
@@ -19110,22 +19113,22 @@ snapshots:
 
   verkit@0.3.2: {}
 
-  vite-tsconfig-paths@4.3.2(typescript@5.9.3)(vite@7.2.4(@types/node@22.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)):
+  vite-tsconfig-paths@4.3.2(typescript@6.0.3)(vite@7.2.4(@types/node@22.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)):
     dependencies:
       debug: 4.4.3
       globrex: 0.1.2
-      tsconfck: 3.1.6(typescript@5.9.3)
+      tsconfck: 3.1.6(typescript@6.0.3)
     optionalDependencies:
       vite: 7.2.4(@types/node@22.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)
     transitivePeerDependencies:
       - supports-color
       - typescript
 
-  vite-tsconfig-paths@4.3.2(typescript@5.9.3)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)):
+  vite-tsconfig-paths@4.3.2(typescript@6.0.3)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)):
     dependencies:
       debug: 4.4.3
       globrex: 0.1.2
-      tsconfck: 3.1.6(typescript@5.9.3)
+      tsconfck: 3.1.6(typescript@6.0.3)
     optionalDependencies:
       vite: 7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)
     transitivePeerDependencies:
