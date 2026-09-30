@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import {
 	boolean,
 	index,
@@ -13,7 +14,7 @@ import {
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
-import { cpSync, readFileSync, writeFileSync } from 'fs';
+import { cpSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { CommandOutputCliError, errorToEnvelope } from 'src/cli/errors';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
@@ -157,20 +158,23 @@ test('check reports the same conflict after up converts a format 8 fork', async 
 	});
 });
 
-test('up keeps a generated constraint name that a format 8 file stores after a table rename', async () => {
+test('up keeps the primary key name that Postgres gave when a format 8 file stores the default name of the renamed table', async () => {
 	const { flow, original } = seedFormat8('format-8-renames');
-	// After the table rename the primary key keeps the name users_pkey in the diff, and this file stores
-	// the new default name.
+	// Postgres keeps users_pkey when users is renamed to accounts. This file stores the default name of the new
+	// table instead, as files do that were converted from drizzle-kit 0.x.
 	const folder = '20260928150358_accounts';
-	const tampered = original.get(folder)!;
-	for (const row of tampered.ddl) if (row.entityType === 'pks') row.name = 'accounts_pkey';
-	flow.overwriteSnapshot('main', folder, JSON.stringify(tampered, null, 2));
+	const edited = original.get(folder)!;
+	for (const row of edited.ddl) if (row.entityType === 'pks') row.name = 'accounts_pkey';
+	flow.overwriteSnapshot('main', folder, JSON.stringify(edited, null, 2));
 
 	await flow.up('main');
 
-	expectOriginalStates(flow, original);
+	const keyNames = (it: string) => (it.includes('"pks"') ? it.replace('"accounts_pkey"', '"users_pkey"') : it);
+	for (const [it, snapshot] of original) {
+		expect(flow.state('main', it)).toStrictEqual(normalizeDDL(snapshot.ddl).map(keyNames));
+	}
 	expect(flow.state('main', folder).filter((it) => it.includes('"pks"')).map((it) => JSON.parse(it).name))
-		.toStrictEqual(['accounts_pkey']);
+		.toStrictEqual(['users_pkey']);
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 });
 
@@ -347,12 +351,11 @@ test('up converts a format 7 journal folder to format 9', async () => {
 	expect(await flow.migrate('main', { status, users: renamedUsers, articles })).toStrictEqual([]);
 });
 
-test('up turns format 7 renames into rename deltas', async () => {
-	const flow = createFolderFlow();
+// The fixture has an empty `_meta`. This copy records the renames of the last migration, old name first.
+// A table in the default schema has no schema part in its key.
+const format7WithRenames = () => {
 	const dir = tempDir('dk-old-snapshots-');
 	cpSync(join(fixtures, 'format-7'), dir, { recursive: true });
-	// The fixture has an empty `_meta`. Here it records the renames of the last migration, old name first.
-	// A table in the default schema has no schema part in its key.
 	const originals = format7Files.map((file) => readFixture('format-7', 'meta', file));
 	originals[2]._meta = {
 		schemas: {},
@@ -360,6 +363,16 @@ test('up turns format 7 renames into rename deltas', async () => {
 		columns: { '"users"."email"': '"users"."contact"' },
 	};
 	writeFileSync(join(dir, 'meta', format7Files[2]), JSON.stringify(originals[2], null, 2));
+	return { dir, originals };
+};
+
+// Postgres keeps the name posts_pkey when the table is renamed, and drizzle-kit 0.31.7 wrote no SQL for the key.
+const withPostgresKeyName = (row: Record<string, any>) =>
+	row.entityType === 'pks' && row.table === 'articles' ? { ...row, name: 'posts_pkey' } : row;
+
+test('up turns format 7 renames into rename deltas', async () => {
+	const flow = createFolderFlow();
+	const { dir, originals } = format7WithRenames();
 	flow.seed('main', dir);
 
 	expect(await flow.up('main')).toHaveLength(3);
@@ -369,5 +382,114 @@ test('up turns format 7 renames into rename deltas', async () => {
 		{ op: 'rename', key: 'tables\0["public","posts"]', set: { name: 'articles' } },
 		{ op: 'rename', key: 'columns\0["public","users","email"]', set: { name: 'contact' } },
 	]));
-	expectConverted(flow, originals, format7States());
+	const [first, second, third] = format7States();
+	expectConverted(flow, originals, [first, second, patchRows(third, withPostgresKeyName)]);
+});
+
+test('after up, a migration that drops the primary key of a table that 0.x renamed runs', async () => {
+	const flow = createFolderFlow();
+	flow.seed('main', format7WithRenames().dir);
+	await flow.up('main');
+	const withoutKey = {
+		status,
+		users: renamedUsers,
+		articles: pgTable('articles', {
+			id: serial(),
+			authorId: integer().notNull().references(() => renamedUsers.id, { onDelete: 'cascade' }),
+			status: status().default('draft').notNull(),
+			createdAt: timestamp().defaultNow(),
+		}),
+	};
+
+	const { folder } = await flow.generate('main', withoutKey);
+
+	expect(flow.sql('main', folder!)).toBe('ALTER TABLE "articles" DROP CONSTRAINT "posts_pkey";');
+	expect(await flow.migrate('main', withoutKey)).toStrictEqual([]);
+});
+
+// A format 7 folder with the first two migrations of the fixture and a third one, as drizzle-kit 0.31.7
+// writes it on a git branch.
+const format7Branch = (
+	tag: string,
+	when: number,
+	tables: Record<string, string>,
+	change: (snapshot: Record<string, any>) => void,
+	sql: string[],
+) => {
+	const dir = tempDir('dk-format-7-branch-');
+	cpSync(join(fixtures, 'format-7'), dir, { recursive: true });
+	rmSync(join(dir, '0002_renames.sql'));
+	const parent = readFixture('format-7', 'meta', '0001_snapshot.json');
+	const snapshot = { ...structuredClone(parent), id: randomUUID(), prevId: parent.id };
+	snapshot._meta = { schemas: {}, columns: {}, tables };
+	change(snapshot);
+	writeFileSync(join(dir, 'meta', '0002_snapshot.json'), JSON.stringify(snapshot, null, 2));
+	writeFileSync(join(dir, `${tag}.sql`), sql.join('--> statement-breakpoint\n'));
+	const journal = readFixture('format-7', 'meta', '_journal.json');
+	journal.entries[2] = { ...journal.entries[2], when, tag };
+	writeFileSync(join(dir, 'meta', '_journal.json'), JSON.stringify(journal, null, 2));
+	return dir;
+};
+
+const authorKey = (name: string, tableFrom: string, tableTo: string) => ({
+	[name]: {
+		name,
+		tableFrom,
+		tableTo,
+		columnsFrom: ['authorId'],
+		columnsTo: ['id'],
+		onDelete: 'cascade',
+		onUpdate: 'no action',
+	},
+});
+
+// After a table rename, drizzle-kit 0.31.7 dropped a foreign key and added it again under a name with the new
+// table name. Both branches do that for the foreign key from posts to users.
+test('check reports the conflict between two 0.x branches that rename the two ends of a foreign key', async () => {
+	const articles = format7Branch(
+		'0002_articles',
+		Date.UTC(2026, 8, 28, 15, 34, 33),
+		{ '"posts"': '"articles"' },
+		(s) => {
+			const posts = s.tables['public.posts'];
+			delete s.tables['public.posts'];
+			s.tables['public.articles'] = {
+				...posts,
+				name: 'articles',
+				foreignKeys: authorKey('articles_authorId_users_id_fk', 'articles', 'users'),
+			};
+		},
+		[
+			'ALTER TABLE "posts" RENAME TO "articles";',
+			'ALTER TABLE "articles" DROP CONSTRAINT "posts_authorId_users_id_fk";',
+			'ALTER TABLE "articles" ADD CONSTRAINT "articles_authorId_users_id_fk" FOREIGN KEY ("authorId") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;',
+		],
+	);
+	const people = format7Branch('0002_people', Date.UTC(2026, 8, 28, 15, 35, 0), { '"users"': '"people"' }, (s) => {
+		const users = s.tables['public.users'];
+		delete s.tables['public.users'];
+		s.tables['public.people'] = { ...users, name: 'people' };
+		s.tables['public.posts'].foreignKeys = authorKey('posts_authorId_people_id_fk', 'posts', 'people');
+	}, [
+		'ALTER TABLE "users" RENAME TO "people";',
+		'ALTER TABLE "posts" DROP CONSTRAINT "posts_authorId_users_id_fk";',
+		'ALTER TABLE "posts" ADD CONSTRAINT "posts_authorId_people_id_fk" FOREIGN KEY ("authorId") REFERENCES "public"."people"("id") ON DELETE cascade ON UPDATE no action;',
+	]);
+	const flow = createFolderFlow();
+	flow.branch('a');
+	flow.branch('b');
+	flow.seed('a', articles);
+	flow.seed('b', people);
+	await flow.up('a');
+	await flow.up('b');
+	flow.merge('a', 'b');
+
+	// The SQL of the people branch drops a foreign key on the posts table, which the articles branch renamed.
+	await expect(flow.migrate('a', {})).rejects.toMatchObject({
+		cause: expect.objectContaining({ message: 'relation "posts" does not exist' }),
+	});
+	expect(await flow.check('a')).toMatchObject({
+		status: 'conflicts',
+		folders: ['20260928153433_articles', '20260928153500_people'],
+	});
 });

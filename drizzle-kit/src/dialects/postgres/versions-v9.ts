@@ -2,8 +2,9 @@ import { originUUID } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
 import { copyDDL, delta } from '../dialect';
-import { fromEntities } from './ddl';
+import { fromEntities, type PostgresDDL, type PostgresEntity } from './ddl';
 import { ddlDiff } from './diff';
+import { defaultNameForPK } from './grammar';
 import { type PostgresSnapshot, type PostgresSnapshotV8, startingState } from './snapshot';
 
 // A format 8 rename string does not say which kind of entity it renames, so every resolver gets all of
@@ -22,6 +23,17 @@ const renamesResolver = (renames: string[]) =>
 	});
 	return mockResolver<T>(new Set(own))(it);
 };
+
+// Postgres names a primary key <table>_pkey when it creates the table and keeps that name when the table is
+// renamed. drizzle-kit 0.x wrote no SQL for the key then, but its files, converted to format 8, name the key after
+// the new table. Such a key keeps the name that `state` has. A composite key from 0.x keeps its stored name,
+// because 0.x dropped it and added it under the new name.
+export const withStateKeyNames = (rows: PostgresEntity[], state: PostgresDDL): PostgresEntity[] =>
+	rows.map((row) => {
+		if (row.entityType !== 'pks' || row.nameExplicit || row.name !== defaultNameForPK(row.table)) return row;
+		const key = state.pks.one({ schema: row.schema, table: row.table });
+		return key ? { ...row, name: key.name } : row;
+	});
 
 // This step is not in versions.ts, because the programmatic API imports versions.ts and must not load
 // snapshot.ts. `files` must be in folder-name order.
@@ -69,7 +81,7 @@ export const upToV9 = async (
 		// ddlDiff gives a constraint with a generated name the name that it has in the starting state. A
 		// format 5-8 file can store another generated name, for example after a table rename or in a merge.
 		// Drops and creates at the end restore the stored names.
-		deltas.push(...delta(to, fromEntities(snapshot.ddl)));
+		deltas.push(...delta(to, fromEntities(withStateKeyNames(snapshot.ddl, to))));
 		converted.set(snapshot.id, { type: 'diff', ...header, prevIds, deltas });
 	}
 	return files.map((it) => converted.get(it.snapshot.id)!);

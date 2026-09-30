@@ -5,7 +5,7 @@ import { normalizeDDL } from '../../dialects/ddl-canonical';
 import { fromEntities } from '../../dialects/postgres/ddl';
 import { type PostgresSnapshot, reconstruct, snapshotValidator } from '../../dialects/postgres/snapshot';
 import { upToV8 } from '../../dialects/postgres/versions';
-import { upToV9 } from '../../dialects/postgres/versions-v9';
+import { upToV9, withStateKeyNames } from '../../dialects/postgres/versions-v9';
 import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
 import { outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
@@ -64,8 +64,9 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 					snapshot: path,
 				});
 			}
-			const expected = normalizeDDL(fromEntities(snapshot.ddl).entities.list());
-			const rebuilt = normalizeDDL(reconstruct(byId, snapshot.id).entities.list());
+			const state = reconstruct(byId, snapshot.id);
+			const expected = normalizeDDL(fromEntities(withStateKeyNames(snapshot.ddl, state)).entities.list());
+			const rebuilt = normalizeDDL(state.entities.list());
 			const expectedSet = new Set(expected);
 			const rebuiltSet = new Set(rebuilt);
 			const differing = expected.find((it) => !rebuiltSet.has(it)) ?? rebuilt.find((it) => !expectedSet.has(it));

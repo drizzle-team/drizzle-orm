@@ -43,7 +43,8 @@ function makeSchemaTarget(schemaName: string): FootprintTarget {
 	return makeTarget(schemaName, '');
 }
 
-// The snapshot's rename deltas are the rename decisions.
+// The snapshot's rename deltas are the rename decisions. Generated names are not kept, so a drop and a create
+// of a constraint in the deltas stay a drop and a create statement, as in the SQL of the migration.
 const snapshotStatements = async (
 	snapshots: Map<string, PostgresSnapshot>,
 	snapshot: PostgresSnapshot,
@@ -69,6 +70,7 @@ const snapshotStatements = async (
 		resolver('pks'),
 		resolver('fks'),
 		'default',
+		false,
 	);
 	return statements;
 };

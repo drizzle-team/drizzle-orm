@@ -31,7 +31,7 @@ Example: `p1` is the base, and two git branches each add one migration on top of
 `PostgresCommutativity.detectNonCommutative` builds the snapshot graph and calls `detectBranchConflicts` in `src/commutativity/engine.ts`:
 
 1. For each pair of leaves X and Y, the branch of X is every snapshot in the history of X that is missing from the history of Y. The branch of Y is the reverse. Here the branch of `a1` is `[a1]`, and the branch of `b1` is `[b1]`.
-2. For each snapshot in a branch, `snapshotStatements` derives the statements with `ddlDiff`. The diff goes from the snapshot's starting state (its parent's state, or the combined state of a merge) to its own state. The snapshot's `rename` deltas are the rename decisions, and `relocate` deltas are not.
+2. For each snapshot in a branch, `snapshotStatements` derives the statements with `ddlDiff`. The diff goes from the snapshot's starting state (its parent's state, or the combined state of a merge) to its own state. The snapshot's `rename` deltas are the rename decisions, and `relocate` deltas are not. The diff keeps no generated names, so a `drop` and a `create` of a constraint in the deltas stay a drop and a create statement, as in the SQL of the migration.
 3. Every statement of one branch is compared with every statement of the other. `buildFacetPaths` in `src/dialects/postgres/commutativity.ts` gives each statement the nodes that it owns, destroys and needs. Owning and destroying are writes, and needing is a read. Two statements conflict when one writes a node that the other writes or needs.
 
 Both branches here create `public.users`, so the report has one conflict:

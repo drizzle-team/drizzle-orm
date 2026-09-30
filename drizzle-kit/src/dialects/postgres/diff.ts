@@ -68,6 +68,8 @@ export const ddlDiff = async (
 	pksResolver: Resolver<PrimaryKey>,
 	fksResolver: Resolver<ForeignKey>,
 	mode: 'default' | 'push',
+	// With false, a constraint whose generated name differs between the states is dropped and created.
+	keepGeneratedNames = true,
 ): Promise<{
 	statements: JsonStatement[];
 	sqlStatements: string[];
@@ -203,10 +205,12 @@ export const ddlDiff = async (
 		}));
 	}
 
-	preserveEntityNames(ddl1.uniques, ddl2.uniques, mode);
-	preserveEntityNames(ddl1.fks, ddl2.fks, mode);
-	preserveEntityNames(ddl1.pks, ddl2.pks, mode);
-	preserveEntityNames(ddl1.indexes, ddl2.indexes, mode);
+	if (keepGeneratedNames) {
+		preserveEntityNames(ddl1.uniques, ddl2.uniques, mode);
+		preserveEntityNames(ddl1.fks, ddl2.fks, mode);
+		preserveEntityNames(ddl1.pks, ddl2.pks, mode);
+		preserveEntityNames(ddl1.indexes, ddl2.indexes, mode);
+	}
 
 	const uniquesDiff = diff(ddl1, ddl2, 'uniques');
 	const groupedUniquesDiff = groupDiffs(uniquesDiff);
