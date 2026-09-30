@@ -28,5 +28,5 @@
 		"typeRoots": ["node_modules/@types", "src/@types"]
 	},
 	"include": ["src", "dev", "tests", "drizzle.config.ts", "test.ts"],
-	"exclude": ["node_modules"]
+	"exclude": ["node_modules", "tests/**/tmp"]
 }

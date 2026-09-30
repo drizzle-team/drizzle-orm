@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeAll, describe, expect, test } from 'vitest';
 
@@ -8,6 +8,14 @@ const binPath = resolve(process.cwd(), 'dist', 'bin.cjs');
 const skipDistTests = process.env.DRIZZLE_KIT_SKIP_DIST_TESTS === '1';
 const missingDist = !existsSync(binPath);
 const skipForMissingDist = !skipDistTests && missingDist;
+
+// Most CI jobs reuse dist from an earlier job, so its file times do not show when it was built.
+// Only source files count: the OS rewrites files such as .DS_Store at any time.
+const builtAt = missingDist ? 0 : statSync(binPath).mtimeMs;
+const isDistOutdated = !process.env.CI && !skipDistTests && !missingDist
+	&& readdirSync(resolve(process.cwd(), 'src'), { recursive: true, withFileTypes: true }).some((it) =>
+		it.isFile() && /\.[jt]s$/.test(it.name) && statSync(resolve(it.parentPath, it.name)).mtimeMs > builtAt
+	);
 
 if (skipForMissingDist && !process.env.CI) {
 	// eslint-disable-next-line no-console
@@ -23,6 +31,12 @@ describe('drizzle-kit mcp stdio smoke', () => {
 		if (skipForMissingDist && process.env.CI) {
 			throw new Error(
 				`stdio-smoke requires a built dist/bin.cjs. Run \`pnpm --filter drizzle-kit build\` first.`,
+			);
+		}
+		if (isDistOutdated) {
+			throw new Error(
+				'dist/bin.cjs is older than the files in src, so this test would run old code. '
+					+ 'Run `pnpm --filter drizzle-kit build` first, or set DRIZZLE_KIT_SKIP_DIST_TESTS=1 to skip this test.',
 			);
 		}
 	});

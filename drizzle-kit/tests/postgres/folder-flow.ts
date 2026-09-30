@@ -9,7 +9,7 @@ import { handle } from 'src/cli/commands/generate-postgres';
 import { handle as pullHandle } from 'src/cli/commands/pull-postgres';
 import { upPgHandler } from 'src/cli/commands/up-postgres';
 import { preparePostgresDB } from 'src/cli/connections';
-import { runWithCliContext } from 'src/cli/context';
+import { type CliContext, runWithCliContext } from 'src/cli/context';
 import { CheckCliError } from 'src/cli/errors';
 import { type Hint, HintsHandler } from 'src/cli/hints';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
@@ -39,6 +39,7 @@ export type GenerateOptions = {
 	fixConflicts?: boolean;
 	custom?: boolean;
 	explain?: boolean;
+	output?: CliContext['output'];
 };
 
 // Runs the output quietly: json mode turns off the human log, and hints resolve renames without prompts.
@@ -130,13 +131,13 @@ export const createFolderFlow = () => {
 	};
 
 	// Generate and pull name each folder from the current time in seconds.
-	const atTime = async <T>(at: number | undefined, fn: () => Promise<T>) => {
+	const atTime = async <T>(at: number | undefined, fn: () => Promise<T>, output: CliContext['output'] = 'json') => {
 		const time = at ?? clock + 1000;
 		clock = Math.max(clock, time);
 		vi.useFakeTimers({ toFake: ['Date'] });
 		vi.setSystemTime(time);
 		try {
-			return await quietly(fn);
+			return await runWithCliContext({ output, interactive: false }, fn);
 		} finally {
 			vi.useRealTimers();
 		}
@@ -157,7 +158,7 @@ export const createFolderFlow = () => {
 				fixConflicts: options.fixConflicts,
 				explain: options.explain ?? false,
 				hints: new HintsHandler(options.hints),
-			}));
+			}), options.output);
 		const folder = 'migration_path' in result ? basename(dirname(result.migration_path)) : undefined;
 		const deleted = 'deleted_migrations' in result ? (result.deleted_migrations ?? []).map((it) => basename(it)) : [];
 		return { ...result, folder, deleted };

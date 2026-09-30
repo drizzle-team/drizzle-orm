@@ -5,7 +5,7 @@ Drizzle Kit commands render their results in one of two output modes, selected w
 - `--output text` (the default) renders human-readable progress and results, including a human-readable report when a command needs decisions you haven't supplied.
 - `--output json` emits the single machine-readable JSON envelope documented in [`./JSON_CONTRACT.md`](./JSON_CONTRACT.md).
 
-Output format, interactivity, and hint resolution are three orthogonal axes. The output mode controls *how* results are rendered; interactivity controls *whether* the CLI may prompt; hints (`--hints` / `--hints-file`) supply decisions ahead of time so the CLI never has to ask.
+Output format, interactivity, and hint resolution are three orthogonal axes. The output mode controls *how* results are rendered; interactivity controls *whether* the CLI may prompt; hints (`--hints` / `--hints-file`) supply rename, create, and data-loss decisions ahead of time so the CLI does not ask about them. Two interactive prompts can still appear: the `push` confirmation for data-loss items that no hint confirmed, which `--force` skips, and the postgres `generate` conflict prompt, which only `--fix-conflicts` answers. [Interactivity](#interactivity) describes both.
 
 ## `--output text | json`
 
@@ -38,7 +38,9 @@ interactive = output === 'text' && !!process.stdin.isTTY
 
 When the CLI is non-interactive and a command reaches a decision it cannot resolve from your `--hints` / `--hints-file`, it does not prompt. Under `--output json` it returns a `missing_hints` envelope; under `--output text` it prints the missing-decisions report below.
 
-When postgres `generate` finds conflicting branches, an interactive run shows the conflict report and asks whether to apply the fix. Hints cannot answer this question: `--fix-conflicts` answers yes ahead of time, and without it a non-interactive or `--explain` run returns `check_error` with `kind: "conflicts"`.
+Before an interactive `push` runs data-loss statements, it asks one yes/no question about the items that no `confirm_data_loss` hint covers. If hints cover every item, `push` does not ask. `--force` skips the question.
+
+When postgres `generate` finds conflicting branches, an interactive run shows the conflict report and asks whether to apply the fix. Hints cannot answer this question: `--fix-conflicts` answers yes ahead of time, and without it a non-interactive or `--explain` run returns `check_error` with `kind: "conflicts"`. With `--fix-conflicts`, an `--explain` run deletes nothing. Under `--output text` it prints the planned statements and the folders that the fix would delete, and under `--output json` it returns them as `statements` and `fix`.
 
 ## Missing-decisions text report
 

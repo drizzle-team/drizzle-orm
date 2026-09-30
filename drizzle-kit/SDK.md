@@ -226,6 +226,15 @@ Notes:
 - A second `missing_hints` response after providing hints means the hint set was incomplete or invalid — see [JSON_CONTRACT.md Error codes](./JSON_CONTRACT.md#error-codes) for `invalid_hints` diagnostics.
 - The same flow applies to `push` — substitute `push` and its inferred `Awaited<ReturnType<typeof push>>` response everywhere.
 
+## Handling migration conflicts
+
+For postgresql, mysql, sqlite and turso, `generate` and `check` return an `error` envelope with `code: 'check_error'` and `kind: 'conflicts'` when two migration branches conflict. The other dialects have no branch check. For postgresql, `error.fix` lists the folders that `fixConflicts` would delete. Two options change this behavior:
+
+- `fixConflicts` (`generate` only, postgresql only) deletes the conflicting migrations and all their children, then generates one new migration. It is the SDK form of `--fix-conflicts`. With `explain: true`, it deletes nothing. If the folder has conflicts, the result has `fix` in place of `deleted_migrations`. Every database that ran a deleted migration must be reset.
+- `ignoreConflicts` (`generate` and `check`) skips the conflict error for mysql, sqlite and turso. `generate` writes the merge migration anyway, and `check` returns `ok`. It is the SDK form of `--ignore-conflicts`.
+
+`fixConflicts` with any dialect except postgresql, or `ignoreConflicts` with postgresql, returns `unsupported_command_dialect_error`. The full rules are in [JSON_CONTRACT.md `check` conflicts](./JSON_CONTRACT.md#check-conflicts).
+
 ## Cross-references
 
 - [JSON_CONTRACT.md Programmatic API](./JSON_CONTRACT.md#programmatic-api) — short SDK pitch in the v1-stable contract doc

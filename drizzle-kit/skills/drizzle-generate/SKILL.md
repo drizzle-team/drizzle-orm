@@ -22,7 +22,7 @@ Flag surface:
 - `--config` — path to `drizzle.config.ts` (default: `drizzle.config.ts` at CWD).
 - `--dialect`, `--schema`, `--out` — override the corresponding `defineConfig` fields.
 - `--output json` — switches stdout to one JSON line carrying the envelope and is always non-interactive. Use it for agent / CI / scripted contexts. Under the default `--output text` the CLI prompts only on a TTY and otherwise prints the missing-decisions report (exit 2).
-- `--explain` — dry-run mode. Returns planned SQL statements and computed hints instead of writing a migration file.
+- `--explain` — dry-run mode. Returns planned SQL statements and computed hints instead of writing a migration file. With `--fix-conflicts`, it deletes nothing, and the result also has `fix`: the folders that the fix would delete. It cannot be used with `--custom`, and `generate` rejects that pair with `unsupported_command_dialect_error`.
 - `--fix-conflicts` — postgresql only. When branches in the migrations folder conflict, deletes the conflicting migrations and their children, then generates one new migration. Over MCP, call the `fix_conflicts` tool instead. The `drizzle-migrations` skill explains when that is safe.
 - `--hints` — inline JSON array of hint resolutions (see the `drizzle-hints` skill).
 - `--hints-file` — same payload as `--hints`, read from a JSON file. Use for long hint sets.
@@ -69,7 +69,7 @@ The SDK does not throw on user-level failures — every outcome flows through th
 
 ## Response shape
 
-`'ok'` (write mode) carries `{ status, dialect, migration_path }`. When `--fix-conflicts` deleted migrations, `'ok'` and `'no_changes'` also carry `deleted_migrations` and `deleted_custom_migrations?`; `'ok'` (explain mode) carries `{ status, dialect, statements, hints }`. `'no_changes'`, `'missing_hints'`, and `'error'` are shared across operations. Full envelope shapes, exit-code mapping, and per-code error metadata live in the `drizzle-responses-and-errors` skill's response-envelope section.
+`'ok'` (write mode) carries `{ status, dialect, migration_path }`. When `--fix-conflicts` deleted migrations, `'ok'` and `'no_changes'` also carry `deleted_migrations` and `deleted_custom_migrations?`; `'ok'` (explain mode) carries `{ status, dialect, statements, hints }`. With `--fix-conflicts` and a conflict in the folder, the explain `'ok'` and `'no_changes'` also carry `fix: { migrations, customMigrations }`, the folders that the fix would delete. `'no_changes'`, `'missing_hints'`, and `'error'` are shared across operations. Full envelope shapes, exit-code mapping, and per-code error metadata live in the `drizzle-responses-and-errors` skill's response-envelope section.
 
 `'missing_hints'` (exit 2) means the diff is ambiguous or unsafe — the resolution loop lives in the `drizzle-hints` skill. The most common error codes for `generate` are `config_validation_error`, `config_file_not_found_error`, `schema_files_not_found_error`, `orm_version_error`, `invalid_hints`, `unsupported_schema_change`, `internal_error`. Before it diffs, `generate` checks the migrations folder the same way `check` does, so it can also return `check_error` for a broken folder or for branches that conflict. The `drizzle-migrations` skill explains the migrations folder, merges of branches, and the fixes.
 

@@ -1,16 +1,20 @@
 import { integer, pgTable, varchar } from 'drizzle-orm/pg-core';
+import { basename } from 'path';
 import { errorToEnvelope } from 'src/cli/errors';
 import { runGenerate } from 'src/cli/schema';
 import { reconstruct } from 'src/dialects/postgres/snapshot';
-import { expect, test } from 'vitest';
+import { expect, onTestFinished, test, vi } from 'vitest';
 import { createFolderFlow, type FolderFlow, schemaState, tempDir } from './folder-flow';
+import type { PostgresSchema } from './mocks';
 
 const tags = pgTable('tags', { id: integer() });
 const users = (score?: number, extra: Record<string, ReturnType<typeof integer>> = {}) =>
 	pgTable('users', { id: integer(), score: score === undefined ? integer() : integer().default(score), ...extra });
 
+const forkPoint = { users: pgTable('users', { id: integer(), note: varchar(), score: integer() }) };
+
 const conflictingFork = async (flow: FolderFlow) => {
-	await flow.generate('main', { users: pgTable('users', { id: integer(), note: varchar(), score: integer() }) });
+	await flow.generate('main', forkPoint);
 	flow.branch('a', 'main');
 	flow.branch('b', 'main');
 	await flow.generate('a', { users: users(1), tags });
@@ -133,14 +137,38 @@ test('--fix-conflicts fixes every conflict between two branches', async () => {
 	expect(await flow.migrate('main', merged)).toStrictEqual([]);
 });
 
-test('--fix-conflicts deletes nothing in explain mode, also with --custom', async () => {
+test('--fix-conflicts in explain mode names the migrations that the fix deletes and deletes nothing', async () => {
 	const flow = createFolderFlow();
 	await conflictingFork(flow);
+	const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+	onTestFinished(() => log.mockRestore());
+	const explainAsText = async (schema: PostgresSchema) => {
+		log.mockClear();
+		await flow.generate('main', schema, { fixConflicts: true, explain: true, output: 'text' });
+		return log.mock.calls.map((call) => String(call[0])).join('\n');
+	};
 
-	await flow.generate('main', resolved, { fixConflicts: true, explain: true });
-	await flow.generate('main', resolved, { fixConflicts: true, explain: true, custom: true });
+	const explained = await flow.generate('main', resolved, { fixConflicts: true, explain: true });
+	const unchanged = await flow.generate('main', forkPoint, { fixConflicts: true, explain: true });
+	const explainedText = await explainAsText(resolved);
+	const unchangedText = await explainAsText(forkPoint);
+	const fix = 'fix' in explained ? explained.fix : undefined;
 
-	expect(flow.folders('main')).toStrictEqual(expect.arrayContaining(['20260101120002_a', '20260101120003_b']));
+	expect(flow.folders('main')).toStrictEqual(['20260101120001_main', '20260101120002_a', '20260101120003_b']);
+	expect(explained.status).toBe('ok');
+	expect(fix?.customMigrations).toStrictEqual([]);
+	expect(unchanged).toMatchObject({ status: 'no_changes', fix });
+	expect(explainedText).toMatch(/It deletes these folders:\n {2}\S+\/20260101120002_a\n {2}\S+\/20260101120003_b\n/);
+	expect(explainedText).toContain('generate one new migration');
+	expect(unchangedText).toContain(
+		'The rest of the history already matches your schema, so the fix writes no new migration.',
+	);
+	expect(unchangedText).not.toContain('generate one new migration');
+
+	const { deleted } = await flow.generate('main', resolved, { fixConflicts: true });
+
+	expect(fix?.migrations.map((it) => basename(it))).toStrictEqual(deleted);
+	expect(deleted).toStrictEqual(['20260101120002_a', '20260101120003_b']);
 });
 
 test('--fix-conflicts deletes nothing while generate still needs rename hints', async () => {

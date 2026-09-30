@@ -18,7 +18,7 @@ The discriminated union (identical for CLI stdout and SDK return value):
 | status            | exit code | shape                                                   |
 | ----------------- | --------- | ------------------------------------------------------- |
 | `'ok'`            | 0         | `{ status, dialect, ... }` (per-operation extras below) |
-| `'no_changes'`    | 0         | `{ status, dialect }`, plus the fields below when `--fix-conflicts` deleted migrations |
+| `'no_changes'`    | 0         | `{ status, dialect }`, plus `deleted_migrations` or `fix` (see below) after `--fix-conflicts` |
 | `'missing_hints'` | 2         | `{ status, unresolved: MissingHint[] }`                 |
 | `'error'`         | 1         | `{ status, error: { code, ...meta } }`                  |
 
@@ -30,6 +30,7 @@ Per-operation extras on `'ok'`:
 - `export` — `{ status, dialect, statements, warnings }` (the individual SQL statements plus rendered warnings — there is no joined `sql` field).
 - `up` — `{ status, dialect, upgraded }` (`upgraded` is the array of rewritten snapshot paths; `[]` means a no-op).
 - `--explain` (either command, non-empty diff) — `{ status, dialect, statements, hints }`
+- `generate --fix-conflicts --explain` deletes nothing. If the folder has conflicts, the explain `ok` and `no_changes` also carry `fix: { migrations, customMigrations }`, the folders that the fix would delete.
 
 `'missing_hints'` carries `unresolved`, an array of items the agent must resolve before retrying. Each item is `{ type: 'rename_or_create', kind, entity }` or `{ type: 'confirm_data_loss', kind, entity, reason, reason_details? }`. The resolution loop lives in the `drizzle-hints` skill.
 
@@ -54,8 +55,8 @@ The canonical subset surfacing from `generate` and `push`. `code` is the discrim
 | `config_file_not_found_error`       | config path did not resolve to a file                                               | `path`                                                          |
 | `schema_files_not_found_error`      | schema glob(s) matched zero files                                                   | `paths`                                                         |
 | `missing_required_params_error`     | a required CLI flag or config field was absent                                      | `params`                                                        |
-| `ambiguous_params_error`            | a flag conflicts with a `defineConfig` field (or two flags collide)                 | `command`, `configOption`                                       |
-| `unsupported_command_dialect_error` | the requested command or option isn't valid for the chosen dialect                  | `command`, `dialect?`, `option?`                                |
+| `ambiguous_params_error`            | a flag conflicts with a `defineConfig` field                                        | `command`, `configOption`                                       |
+| `unsupported_command_dialect_error` | the requested command or option isn't valid for the chosen dialect or with another option | `command`, `dialect?`, `option?`, `conflictsWith?`              |
 | `config_connection_error`           | `dbCredentials` shape doesn't match the chosen driver                               | `driver`, `params`, `command?`                                  |
 | `database_driver_error`             | driver-specific connect failure — usually a missing or version-mismatched package; also arises from `pull`'s connect/introspect span and its `--init` migrate span | `database`, `packages`, `note?`                                 |
 | `orm_version_error`                 | `drizzle-orm` is missing, too old, or `drizzle-kit` itself is outdated              | `kind: 'orm_missing'\|'orm_too_old'\|'kit_outdated'`            |
@@ -159,7 +160,7 @@ Common failure modes and their fixes — keyed by `error.code` / `meta.kind`:
 - `database_driver_error` — driver could not connect. `meta.packages` lists the npm packages required for the driver; install them. `meta.note` may carry a connection-specific hint (e.g. SSL). Beyond `push`, this also fires from `pull`'s connect/introspect span and the `--init` migrate span — the meta is always the redacted `{ database, packages, note? }`; the connection string, SQL, and params are never spread into the envelope.
 - `orm_version_error` — `meta.kind` discriminates: `orm_missing` (install `drizzle-orm`), `orm_too_old` (bump `drizzle-orm`), `kit_outdated` (bump `drizzle-kit` itself).
 - `required_packages_error` — `meta.packages` lists the npm packages to install. Common for dialect drivers (`pg`, `mysql2`, `better-sqlite3`, `@libsql/client`, `mssql`).
-- `unsupported_command_dialect_error` — the command isn't supported for `meta.dialect`. Use a different command or switch dialects. With `meta.option`, only that option is unsupported: postgresql rejects `ignore-conflicts` (use `generate --fix-conflicts`), and the other dialects reject `fix-conflicts`.
+- `unsupported_command_dialect_error` — the command, or one of its options, cannot run here. Without `meta.option`, the command isn't supported for `meta.dialect`: use a different command or switch dialects. With `meta.option` and `meta.dialect`, only that option is unsupported: postgresql rejects `ignore-conflicts` (use `generate --fix-conflicts`), and the other dialects reject `fix-conflicts`. With `meta.conflictsWith`, the two options cannot be used together: `generate` rejects `explain` with `custom`, because a custom migration has no SQL to explain. Run it with only one of them.
 - `migrations_outdated_error` — the migrations folder under `meta.out` uses an older snapshot format. Run `drizzle-kit up` to migrate the folder forward.
 - `check_error`: `meta.kind` discriminates. For `non_latest`, run `drizzle-kit up`. For `malformed`, see the case table in Check errors above. For `conflicts`, `meta.details` names the conflicting migrations; the `drizzle-migrations` skill covers how to resolve them.
 - `command_output_error` with `meta.command: 'up'`: `up` converted nothing. `meta.kind` is `malformed` (a format 8 snapshot is broken, or a format 9 snapshot is broken while the folder has a snapshot to convert: restore `meta.snapshot` from git and run `up` again; a broken snapshot of format 4 to 7 gives `internal_error` instead), `invalid_snapshot` or `state_mismatch` (a drizzle-kit bug: keep the old files and report it; `state_mismatch` also names the first differing `meta.entity`).

@@ -88,7 +88,7 @@ Examples:
 }
 ```
 
-When `generate --fix-conflicts` (postgresql only) deletes migrations, the `ok` or `no_changes` envelope also has `deleted_migrations`: the migration folders that the fix deleted. `no_changes` then means that the rest of the history already matched the schema, so the fix wrote no new migration. If some of them were custom migrations, `deleted_custom_migrations` lists those folders too. If the folder has no conflict, the fix deletes nothing, and the envelope has no `deleted_migrations`. See [`check` conflicts](#check-conflicts).
+When `generate --fix-conflicts` (postgresql only) deletes migrations, the `ok` or `no_changes` envelope also has `deleted_migrations`: the migration folders that the fix deleted. `no_changes` then means that the rest of the history already matched the schema, so the fix wrote no new migration. If some of them were custom migrations, `deleted_custom_migrations` lists those folders too. If the folder has no conflict, the fix deletes nothing, and the envelope has no `deleted_migrations`. With `--explain`, the fix deletes nothing. If the folder has conflicts, the envelope has `fix` in place of `deleted_migrations`. See [`--explain` in JSON mode](#--explain-in-json-mode) and [`check` conflicts](#check-conflicts).
 
 `generate --output json --explain` and `push --output json --explain` success (non-empty diff):
 
@@ -128,7 +128,7 @@ Current JSON-mode examples:
 { "status": "no_changes", "dialect": "sqlite" }
 ```
 
-After `generate --fix-conflicts`, a `no_changes` envelope can also have `deleted_migrations` and `deleted_custom_migrations`. The fix then deleted those folders, and the rest of the history already matched the schema.
+After `generate --fix-conflicts`, a `no_changes` envelope can also have `deleted_migrations` and `deleted_custom_migrations`. The fix then deleted those folders, and the rest of the history already matched the schema. After `generate --fix-conflicts --explain`, it can have `fix`, the folders that the fix would delete.
 
 ### `status: "missing_hints"`
 
@@ -199,6 +199,7 @@ Structured error responses with `status: "error"` use a `code` field to identify
 |--------|------------|---------------------|--------------|
 | `unsupported_schema_change` | see [unsupported_schema_change variants](#unsupported_schema_change) | `mysql`, `mssql`, `singlestore` | The schema diff would emit a DDL operation that the target dialect cannot execute or rejects (per `meta.kind`) |
 | `invalid_hints` | see [invalid_hints variants](#invalid_hints) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Hints payload could not be loaded, parsed, validated, or applied — see [`invalid_hints`](#invalid_hints) below |
+| `unsupported_command_dialect_error` | `command`, `dialect?`, `option?`, `conflictsWith?` | all | The command, or one of its options, cannot run with this dialect or with another option. `option` names the rejected option. `conflictsWith` names the other option when the two cannot be used together, as `generate` does for `--explain` with `--custom`. |
 | `check_error` | see [`check` outcomes](#check) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | A command that reads the migrations folder found a snapshot-integrity problem (`kind: 'unsupported' \| 'malformed' \| 'non_latest'`, carries `snapshot`, and for a broken postgres history also `parentId` or `parentSnapshot`) or unreported branch conflicts (`kind: 'conflicts'`, carries `conflicts` + `details`). See [`check`](#check) below. |
 | `database_driver_error` | `database`, `packages`, `note?` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | A command that connects to a live database (`push`, `pull`) cannot select a connection driver: the required driver package is not installed, or the installed driver is incompatible with the target (for example a local-only turso driver used against a remote turso database). This code is emitted by both connecting commands, push, pull; for `pull` it also covers the connect/introspect span and the `--init` migrate span. `database` is the dialect, `packages` lists the drivers that would satisfy the connection, and `note` carries an optional install caveat. The credential-bearing detail (the connection string, SQL, and params) is never spread into the envelope — only `database`, `packages`, and `note?` are surfaced. |
 
@@ -341,6 +342,10 @@ Examples:
 ```
 
 When the diff is empty, `push --output json --explain` and `generate --output json --explain` return `status: "no_changes"` instead of this payload.
+
+`generate --fix-conflicts --explain` (postgresql only) deletes nothing. The statements are the ones that the new migration would hold after the fix. If the folder has conflicts, the `ok` payload and the `no_changes` envelope also have `fix`, with the same shape as `fix` in the [`check` conflicts](#check-conflicts) error: `migrations` lists the folders that the fix would delete, and `customMigrations` lists the custom migrations among them. If the folder has no conflict, the result has no `fix`.
+
+`generate` rejects `--explain` together with `--custom`, because a custom migration has no SQL to explain. The error has `code: "unsupported_command_dialect_error"` and the meta `{ command: "generate", option: "explain", conflictsWith: "custom" }`, and `generate` writes nothing.
 
 ### `statements`
 
@@ -696,7 +701,7 @@ For postgres, `check` compares every pair of leaves. A leaf's branch is the set 
 
 If `check` passes and the folder has several leaves, the next `generate` writes a merge migration. See [Postgres snapshot format 9](#postgres-snapshot-format-9) for what a postgres merge stores.
 
-For postgresql, `generate --fix-conflicts` resolves conflicts. It deletes the folders in `fix.migrations` and generates one migration from the rest of the history to the schema. If the remaining history has several leaves, that migration merges them. The fix deletes nothing while `generate` still returns `missing_hints`, and nothing in explain mode. Every database that ran a deleted migration must be reset, because the migrator skips a deleted migration without an error. In interactive mode, `generate` shows the conflict report and offers the same fix.
+For postgresql, `generate --fix-conflicts` resolves conflicts. It deletes the folders in `fix.migrations` and generates one migration from the rest of the history to the schema. If the remaining history has several leaves, that migration merges them. The fix deletes nothing while `generate` still returns `missing_hints`. It also deletes nothing in explain mode, where the result lists the folders that it would delete in `fix`. Every database that ran a deleted migration must be reset, because the migrator skips a deleted migration without an error. In interactive mode, `generate` shows the conflict report and offers the same fix.
 
 For `mysql`, `sqlite` and `turso`, `--ignore-conflicts` makes `generate` write the merge even though the branches conflict. postgresql rejects `--ignore-conflicts`, and the other dialects reject `--fix-conflicts`, with `code: "unsupported_command_dialect_error"` and the meta `{ command, dialect, option }`.
 

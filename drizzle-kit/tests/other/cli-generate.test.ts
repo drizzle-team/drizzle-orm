@@ -1,7 +1,9 @@
 import { test as brotest } from '@drizzle-team/brocli';
-import { unlinkSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, assert, expect, test } from 'vitest';
+import { afterEach, assert, expect, onTestFinished, test } from 'vitest';
+import { generate as sdkGenerate } from '../../src/cli-sdk';
 import { GenerateConfig } from '../../src/cli/commands/utils';
 import { HintsHandler } from '../../src/cli/hints';
 import { generate } from '../../src/cli/schema';
@@ -353,6 +355,24 @@ test('err #8', async (t) => {
 		'--config=drizzle.config.ts --dialect=postgresql',
 	);
 	assert.equal(res.type, 'error');
+});
+
+test('generate rejects --explain with --custom and writes nothing', async () => {
+	const out = mkdtempSync(join(tmpdir(), 'dk-generate-explain-custom-'));
+	onTestFinished(() => rmSync(out, { recursive: true, force: true }));
+
+	const result = await sdkGenerate({ dialect: 'postgresql', schema: 'schema.ts', out, explain: true, custom: true });
+
+	expect(result).toStrictEqual({
+		status: 'error',
+		error: {
+			code: 'unsupported_command_dialect_error',
+			command: 'generate',
+			option: 'explain',
+			conflictsWith: 'custom',
+		},
+	});
+	expect(readdirSync(out)).toStrictEqual([]);
 });
 
 // should point to test/cli

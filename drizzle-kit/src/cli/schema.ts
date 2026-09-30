@@ -88,6 +88,14 @@ export const prepareGenerate = async (opts: GenerateOptionsInput) => {
 		['name', 'custom', 'ignoreConflicts', 'fixConflicts', 'explain', 'output', 'hints', 'hintsFile'],
 		['driver', 'breakpoints', 'schema', 'out', 'dialect'],
 	);
+	if (opts.explain && opts.custom) {
+		throw new UnsupportedCommandCliError(
+			'generate',
+			'--explain cannot be used with --custom. --explain prints the planned SQL and writes nothing, '
+				+ 'and --custom writes an empty migration that has no SQL. Run the command with only one of them.',
+			{ option: 'explain', conflictsWith: 'custom' },
+		);
+	}
 	return prepareGenerateConfig(opts as Parameters<typeof prepareGenerateConfig>[0], from);
 };
 

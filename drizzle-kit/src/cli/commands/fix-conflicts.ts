@@ -52,11 +52,14 @@ const folderList = (folders: string[]) => folders.map((it) => `  ${it}`);
 
 const migrations = (count: number) => `${count} migration${count === 1 ? '' : 's'}`;
 
-export const describeConflictFix = (fix: ConflictFix) =>
+export const describeConflictFix = (fix: ConflictFix, hasSchemaChanges = true) =>
 	[
 		'',
-		`To fix the conflicts, drizzle-kit can delete ${migrations(fix.migrations.length)} and generate one new `
-		+ 'migration from the rest of the history to your schema. It deletes these folders:',
+		`To fix the conflicts, drizzle-kit can delete ${migrations(fix.migrations.length)}`
+		+ (hasSchemaChanges
+			? ' and generate one new migration from the rest of the history to your schema.'
+			: '. The rest of the history already matches your schema, so the fix writes no new migration.')
+		+ ' It deletes these folders:',
 		...folderList(fix.migrations),
 		...(fix.customMigrations.length > 0
 			? [

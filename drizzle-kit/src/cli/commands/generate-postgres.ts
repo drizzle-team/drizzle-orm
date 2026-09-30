@@ -32,7 +32,7 @@ import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import { explain, explainJsonOutput, humanLog, postgresSchemaError, postgresSchemaWarning } from '../views';
 import { checkSnapshots, conflictError } from './check';
-import { applyConflictFix, describeAppliedFix } from './fix-conflicts';
+import { applyConflictFix, describeAppliedFix, describeConflictFix } from './fix-conflicts';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
 
@@ -145,15 +145,16 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 
 	if (json) {
 		if (sqlStatements.length === 0) {
-			return { status: 'no_changes' as const, dialect: 'postgresql' };
+			return { status: 'no_changes' as const, dialect: 'postgresql', ...(fix && { fix }) };
 		}
-		return explainJsonOutput('postgresql', statements, []);
+		return { ...explainJsonOutput('postgresql', statements, []), ...(fix && { fix }) };
 	}
 
 	const explainMessage = explain('postgres', groupedStatements, []);
 	if (explainMessage) {
 		humanLog(explainMessage);
 	}
+	if (fix) humanLog(describeConflictFix(fix, sqlStatements.length > 0));
 
 	return { status: 'ok' as const, dialect: 'postgresql' };
 };

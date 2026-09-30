@@ -60,7 +60,7 @@ test('returns every open leaf for commutative open branches', async () => {
 	expect(fix).toBeUndefined();
 });
 
-test('returns empty statements when branches are already merged into one leaf', async () => {
+test('returns one leaf and no conflicts when branches are already merged into one leaf', async () => {
 	mkdirSync('tests/tmp', { recursive: true });
 	const out = mkdtempSync('tests/tmp/dk-check-handler-');
 
@@ -110,11 +110,11 @@ test('returns empty statements when branches are already merged into one leaf', 
 	snapshotPath(out, '002_right', right);
 	snapshotPath(out, '003_merged', merged);
 
-	const result = await checkHandler(out, 'postgresql', false, false);
+	const { report, fix } = await checkSnapshots(prepareOutFolder(out).snapshots, 'postgresql');
 
-	expect(result.statements).toStrictEqual([]);
-	expect(result.parentSnapshot).toBeNull();
-	expect(result.nonCommutativityMessage).toBeUndefined();
+	expect(report.leafNodes).toStrictEqual(['m1']);
+	expect(report.conflicts).toStrictEqual([]);
+	expect(fix).toBeUndefined();
 });
 
 test('returns non-commutativity message and no statements for conflicting branches', async () => {
@@ -205,11 +205,11 @@ test('does not report conflicts when sibling branches converge to the same termi
 	snapshotPath(out, '003_right', right);
 	snapshotPath(out, '004_merged', merged);
 
-	const result = await checkHandler(out, 'postgresql', false, false);
+	const { report, fix } = await checkSnapshots(prepareOutFolder(out).snapshots, 'postgresql');
 
-	expect(result.statements).toStrictEqual([]);
-	expect(result.parentSnapshot).toBeNull();
-	expect(result.nonCommutativityMessage).toBeUndefined();
+	expect(report.leafNodes).toStrictEqual(['m1']);
+	expect(report.conflicts).toStrictEqual([]);
+	expect(fix).toBeUndefined();
 });
 
 test('reports only active leaf conflict after branch merge and re-split', async () => {

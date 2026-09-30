@@ -33,7 +33,7 @@ If `drizzle-kit` is found and runs but the call errors — non-zero exit, stdout
 
 ## Surface selection
 
-drizzle-kit exposes the same migration verbs (`generate`, `push`, `pull`, `up`, `check`, `export`) over three surfaces — CLI, SDK, and an MCP server — that all return the identical JSON envelope and consume the same `hints` array. The procedural skills (`drizzle-hints`, `drizzle-responses-and-errors`) apply unchanged regardless of surface; only the invocation differs. Pick the surface per verb:
+drizzle-kit exposes the same migration verbs (`generate`, `push`, `pull`, `up`, `check`, `export`) over three surfaces — CLI, SDK, and an MCP server — that all return the identical JSON envelope and consume the same `hints` array. The MCP server also has a `fix_conflicts` tool, for postgresql only. On the CLI it is `drizzle-kit generate --fix-conflicts`, and in the SDK it is `generate({ fixConflicts: true })`. The procedural skills (`drizzle-hints`, `drizzle-responses-and-errors`) apply unchanged regardless of surface; only the invocation differs. Pick the surface per verb:
 
 1. If a `mcp__drizzle__<verb>` tool is available in the session, prefer it over shelling out. Its `structuredContent` is the same envelope; resolve a `missing_hints` result with the same `hints` array and re-call the tool.
 2. Otherwise fall back to the CLI: `drizzle-kit <verb> --output json`.
