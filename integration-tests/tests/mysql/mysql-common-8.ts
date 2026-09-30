@@ -1672,7 +1672,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			json4: '5',
 			medint: 560,
 			smallint: 14,
-			time: '04:13:22',
+			time: '04:13:22.120',
 			timestamp: new Date(1741743161623),
 			timestampstr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
 			tinyint: 7,

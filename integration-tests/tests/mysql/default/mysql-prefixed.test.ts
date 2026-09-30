@@ -23,7 +23,7 @@ import {
 } from 'drizzle-orm/mysql-core';
 import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { expect } from 'vitest';
-import { Expect, toLocalDate } from '~/utils';
+import { Expect } from '~/utils';
 import { mysqlTest as test } from '../instrumentation';
 
 const tablePrefix = 'drizzle_tests_';
@@ -828,7 +828,7 @@ test.concurrent('insert + select all possible dates', async ({ db, push }) => {
 	expect(typeof res[0]?.datetimeAsString).toBe('string');
 
 	expect(res).toEqual([{
-		date: toLocalDate(new Date('2022-11-11')),
+		date: new Date('2022-11-11'),
 		dateAsString: '2022-11-11',
 		time: '12:12:12.0',
 		datetime: new Date('2022-11-11'),
