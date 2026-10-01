@@ -1,8 +1,11 @@
-// Ajuste na lógica de renderização de colunas para utilizar o método toSQL()
-// Este é um exemplo simplificado de onde a integração ocorre no motor de renderização do Drizzle
+import { wrapError } from '../errors';
 
-export function renderColumn(column: Column) {
-  // Em vez de usar column.name diretamente, usamos o toSQL()
-  // que agora suporta o wrap customizado.
-  return column.toSQL();
+// Simulando a aplicação do wrapper no fluxo de execução de queries
+// Este é um exemplo de como o wrapError deve ser integrado nos executors de query do ORM
+export async function executeQuery<T>(queryFn: () => Promise<T>, context: string): Promise<T> {
+  try {
+    return await queryFn();
+  } catch (error) {
+    throw wrapError(error, context);
+  }
 }
