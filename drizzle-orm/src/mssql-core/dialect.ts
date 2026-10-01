@@ -27,6 +27,7 @@ import {
 	relationsOrderToSQL,
 	relationToSQL,
 	type SchemaEntry,
+	validateRelationalQuerySelection,
 } from '~/relations.ts';
 import {
 	type DriverValueDecoder,
@@ -1263,6 +1264,10 @@ export class MsSqlDialect {
 
 				break;
 			}
+		}
+
+		if (extras?.selection.length) {
+			validateRelationalQuerySelection(selection, tableConfig.name, currentPath);
 		}
 
 		if (!selectionArr.length) {

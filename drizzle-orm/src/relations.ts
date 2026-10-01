@@ -816,6 +816,25 @@ export interface BuildRelationalQueryResult {
 	sql: SQL;
 }
 
+/** @internal */
+export function validateRelationalQuerySelection(
+	selection: BuildRelationalQueryResult['selection'],
+	tableName: string,
+	errorPath: string,
+) {
+	const keys = new Set<string>();
+	for (const { key } of selection) {
+		if (keys.has(key)) {
+			throw new DrizzleError({
+				message: `Duplicate field "${key}" in relational query for table "${tableName}"${
+					errorPath ? ` ("${errorPath}")` : ''
+				}. Rename the extras field or exclude the conflicting column or relation.`,
+			});
+		}
+		keys.add(key);
+	}
+}
+
 export function mapRelationalRow(
 	rows: Record<string, unknown> | Record<string, unknown>[],
 	isOne: boolean,

@@ -25,6 +25,7 @@ import {
 	relationsOrderToSQL,
 	relationToSQL,
 	type SchemaEntry,
+	validateRelationalQuerySelection,
 } from '~/relations.ts';
 import { and } from '~/sql/expressions/index.ts';
 import { isSQLWrapper, noopEncoder, Param, SQL, sql, StringChunk } from '~/sql/sql.ts';
@@ -1146,6 +1147,10 @@ export class MySqlDialect {
 
 				break;
 			}
+		}
+
+		if (extras?.selection.length) {
+			validateRelationalQuerySelection(selection, tableConfig.name, currentPath);
 		}
 
 		if (!selectionArr.length) {
