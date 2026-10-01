@@ -1701,6 +1701,46 @@ export function tests() {
 			]);
 		});
 
+		test.for(['null first', 'null last'])('left join (nullable partial fields, %s)', async (order, ctx) => {
+			const { db } = ctx.pg;
+			await db.insert(citiesTable).values({ name: 'Paris', state: null });
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const selectedCity = order === 'null first'
+				? { state: citiesTable.state, name: citiesTable.name }
+				: { name: citiesTable.name, state: citiesTable.state };
+			const res = await db.select({ name: users2Table.name, city: selectedCity })
+				.from(users2Table)
+				.leftJoin(citiesTable, eq(users2Table.cityId, citiesTable.id))
+				.orderBy(users2Table.id);
+
+			expect(res).toEqual([
+				{ name: 'John', city: { state: null, name: 'Paris' } },
+				{ name: 'Jane', city: null },
+			]);
+		});
+
+		test('left join (nullable aliased partial fields and mixed tables)', async (ctx) => {
+			const { db } = ctx.pg;
+			await db.insert(citiesTable).values({ name: 'Paris', state: null });
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+			const joinedCity = alias(citiesTable, 'joined_city');
+
+			const res = await db.select({
+				name: users2Table.name,
+				city: { state: joinedCity.state, name: joinedCity.name },
+				mixed: { state: joinedCity.state, cityId: users2Table.cityId, cityName: joinedCity.name },
+			})
+				.from(users2Table)
+				.leftJoin(joinedCity, eq(users2Table.cityId, joinedCity.id))
+				.orderBy(users2Table.id);
+
+			expect(res).toEqual([
+				{ name: 'John', city: { state: null, name: 'Paris' }, mixed: { state: null, cityId: 1, cityName: 'Paris' } },
+				{ name: 'Jane', city: null, mixed: { state: null, cityId: null, cityName: null } },
+			]);
+		});
+
 		test('left join (all fields)', async (ctx) => {
 			const { db } = ctx.pg;
 
