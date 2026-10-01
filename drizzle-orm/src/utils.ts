@@ -17,8 +17,7 @@ export function mapResultRow<TResult>(
 	row: unknown[],
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): TResult {
-	// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
-	const nullifyMap: Record<string, string | false> = {};
+	const nullifyMap: Record<string, { type: 'not-null' } | { type: 'all-null'; tableName: string } | { type: 'mixed-tables' }> = {};
 
 	const result = columns.reduce<Record<string, any>>(
 		(result, { path, field }, columnIndex) => {
@@ -46,11 +45,18 @@ export function mapResultRow<TResult>(
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
 						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
-						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
-						) {
-							nullifyMap[objectName] = false;
+							nullifyMap[objectName] = value === null
+								? { type: 'all-null', tableName: getTableName(field.table) }
+								: { type: 'not-null' };
+						} else {
+							const state = nullifyMap[objectName]!;
+							if (state.type === 'all-null') {
+								if (state.tableName !== getTableName(field.table)) {
+									nullifyMap[objectName] = { type: 'mixed-tables' };
+								} else if (value !== null) {
+									nullifyMap[objectName] = { type: 'not-null' };
+								}
+							}
 						}
 					}
 				}
@@ -62,8 +68,8 @@ export function mapResultRow<TResult>(
 
 	// Nullify all nested objects from nullifyMap that are nullable
 	if (joinsNotNullableMap && Object.keys(nullifyMap).length > 0) {
-		for (const [objectName, tableName] of Object.entries(nullifyMap)) {
-			if (typeof tableName === 'string' && !joinsNotNullableMap[tableName]) {
+		for (const [objectName, state] of Object.entries(nullifyMap)) {
+			if (state.type === 'all-null' && !joinsNotNullableMap[state.tableName]) {
 				result[objectName] = null;
 			}
 		}
