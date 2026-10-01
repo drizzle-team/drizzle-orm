@@ -343,6 +343,8 @@ export function generateLatestSnapshot(
 				for (const columnName of statement.pk.columns) {
 					ddl.columns.update({
 						where: {
+							schema: statement.pk.schema,
+							table: statement.pk.table,
 							name: columnName,
 						},
 						set: { notNull: true },
@@ -355,9 +357,8 @@ export function generateLatestSnapshot(
 				break;
 			case 'alter_pk':
 				ddl.pks.delete(statement.diff.$left);
-				if (!statement.deleted) {
-					ddl.pks.push(statement.pk);
-				}
+				// `deleted` only skips dropping the old pk in SQL, the new pk is still added
+				ddl.pks.push(statement.pk);
 				break;
 
 			case 'create_fk':
