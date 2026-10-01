@@ -1,3 +1,4 @@
+import { client as createHttpClient } from '@drizzle-team/minipg/http';
 import { defineRelations, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { minipgCodecs } from 'drizzle-orm/postgres/codecs';
@@ -13,6 +14,7 @@ import {
 	allTypesTable,
 	assertAllTypesBounds,
 	assertAllTypesUnions,
+	makeAllTypes,
 } from './all-types';
 import { tests } from './common';
 import { postgresHttpTest as test } from './instrumentation';
@@ -31,7 +33,7 @@ const skips = [
 	'transaction with options (accessMode read only)',
 	'transaction with options (deferrable)',
 	'transaction with an empty options object',
-	'raw jsons',
+	// Default client has no codes, uses shapes instead
 	'all types ~codecs~',
 ];
 
@@ -375,8 +377,28 @@ describe('migrator', () => {
 	});
 });
 
+const stringTemporalDb = (database: string) => {
+	const url = new URL(process.env['PG_CONNECTION_STRING']!);
+	url.pathname = `/${database}`;
+	const connectionString = url.toString();
+
+	return drizzleHttp({
+		client: createHttpClient({
+			url: process.env['PG_HTTP_GATEWAY_URL']!,
+			temporal: 'string',
+			fetch: ((input: any, init: any) => {
+				const headers = new Headers(init?.headers);
+				headers.set('Neon-Connection-String', connectionString);
+				return fetch(input, { ...init, headers });
+			}) as any,
+		}),
+	});
+};
+
 describe('driver-specific', () => {
-	test('all date and time columns without timezone first case mode string', async ({ db }) => {
+	test('all date and time columns without timezone first case mode string', async ({ kit }) => {
+		const db = stringTemporalDb(kit.database!);
+
 		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
@@ -408,7 +430,9 @@ describe('driver-specific', () => {
 		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('all date and time columns without timezone second case mode string', async ({ db }) => {
+	test('all date and time columns without timezone second case mode string', async ({ kit }) => {
+		const db = stringTemporalDb(kit.database!);
+
 		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
@@ -436,7 +460,9 @@ describe('driver-specific', () => {
 		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('all date and time columns without timezone third case mode date', async ({ db }) => {
+	test('all date and time columns without timezone third case mode date', async ({ kit }) => {
+		const db = stringTemporalDb(kit.database!);
+
 		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'date', precision: 3 }).notNull(),
@@ -464,7 +490,9 @@ describe('driver-specific', () => {
 		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('test mode string for timestamp with timezone', async ({ db }) => {
+	test('test mode string for timestamp with timezone', async ({ kit }) => {
+		const db = stringTemporalDb(kit.database!);
+
 		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
@@ -497,7 +525,9 @@ describe('driver-specific', () => {
 		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('test mode date for timestamp with timezone', async ({ db }) => {
+	test('test mode date for timestamp with timezone', async ({ kit }) => {
+		const db = stringTemporalDb(kit.database!);
+
 		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
@@ -532,7 +562,9 @@ describe('driver-specific', () => {
 		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('test mode string for timestamp with timezone in UTC timezone', async ({ db }) => {
+	test('test mode string for timestamp with timezone in UTC timezone', async ({ kit }) => {
+		const db = stringTemporalDb(kit.database!);
+
 		const timezone = await db.execute<{ TimeZone: string }>(sql`show timezone`);
 
 		await db.execute(sql`set time zone 'UTC'`);
@@ -616,7 +648,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute w/ query builder', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_1', {
+		const usersTable = pgTable('users_execute_raw_minipg_3', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -651,8 +683,9 @@ describe('driver-specific', () => {
 	});
 
 	test('all types ~codecs~ override', async ({ createDB, push }) => {
+		const { en, allTypesTable } = makeAllTypes('all_types_48_cdcs_ovr', 'en_49_ovr');
 		const base = createDB({ allTypesTable }, allTypesRelations);
-		await push({ en: allTypesEnum, allTypesTable });
+		await push({ en, allTypesTable });
 
 		const relations = defineRelations({ allTypesTable }, allTypesRelations);
 		const db = drizzleHttp({ client: (base as any).$client, relations, codecs: minipgCodecs });
@@ -664,7 +697,7 @@ describe('driver-specific', () => {
 		const nested = await db.query.allTypesTable.findFirst({ with: { self: true } });
 		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
-		await assertAllTypesUnions(db);
+		await assertAllTypesUnions(db, allTypesTable);
 		await assertAllTypesBounds(db);
 	});
 });

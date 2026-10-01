@@ -1,4 +1,4 @@
-import type { QueryResult } from '@drizzle-team/minipg';
+import type { QueryResult, ShapeSpec } from '@drizzle-team/minipg';
 import type { AuroraClient } from '@drizzle-team/minipg/aurora';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -47,17 +47,18 @@ export class PostgresAuroraSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
+		shape?: ShapeSpec,
 	) {
 		const executor = async (params?: unknown[]) => {
 			const q = mode === 'arrays'
-				? this.client.query(query.sql, params ?? [], { mode: 'array' })
-				: this.client.query(query.sql, params ?? [], { mode: 'object' });
+				? this.client.query(query.sql, params ?? [], { mode: 'array', shape })
+				: this.client.query(query.sql, params ?? [], { mode: 'object', shape });
 
 			if (mode === 'raw') return q;
 			return q.then((r) => r.rows);
 		};
 
-		return new PostgresAuroraPreparedQuery<T>(
+		return new PgAsyncPreparedQuery<T>(
 			executor,
 			query,
 			mapper,
@@ -112,8 +113,4 @@ export type PostgresAuroraQueryResult<T> = Omit<QueryResult<T>, 'metrics' | 'deb
 
 export interface PostgresAuroraQueryResultHKT extends PgQueryResultHKT {
 	type: Simplify<Omit<QueryResult<PgRawRow<this['row']>>, 'metrics' | 'debug'>>;
-}
-
-export class PostgresAuroraPreparedQuery<T extends PreparedQueryConfig> extends PgAsyncPreparedQuery<T> {
-	static override readonly [entityKind]: string = 'PostgresAuroraPreparedQuery';
 }

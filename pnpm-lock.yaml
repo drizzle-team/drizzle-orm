@@ -369,8 +369,8 @@ importers:
         specifier: ^4.20251004.0
         version: 4.20251126.0
       '@drizzle-team/minipg':
-        specifier: ^0.3.2
-        version: 0.3.2(typescript@6.0.3)
+        specifier: 0.4.1
+        version: 0.4.1
       '@effect/sql-d1':
         specifier: 4.0.0-rc.117
         version: 4.0.0-rc.117(effect@4.0.0-rc.117)
@@ -661,8 +661,8 @@ importers:
         specifier: ^0.3.0
         version: 0.3.0(postgres@3.4.7)
       '@drizzle-team/minipg':
-        specifier: ^0.3.2
-        version: 0.3.2(typescript@6.0.3)
+        specifier: 0.4.1
+        version: 0.4.1
       '@effect/sql-d1':
         specifier: 4.0.0-rc.117
         version: 4.0.0-rc.117(effect@4.0.0-rc.117)
@@ -1827,11 +1827,9 @@ packages:
   '@drizzle-team/brocli@0.12.1':
     resolution: {integrity: sha512-yHwomvolVafvUXhy5TdiJVkuNCxXn+bKOs2aWiWEQh/5YaV97Oa/abJz3dmx7lxgIUsUlS1Jl4mEfvJPo3YsVw==}
 
-  '@drizzle-team/minipg@0.3.2':
-    resolution: {integrity: sha512-BA/8+kxRq5i5hFU63El3oZinOBg0KxTNSIr3HCIqjKMpxDSUqbFocuPZKHdLzR3JdgPuqalu3lo90xFmMJZvWQ==}
+  '@drizzle-team/minipg@0.4.1':
+    resolution: {integrity: sha512-n2qE50QewlHlrrK1jR40WXBee2sVo0KHE5T0oOn7zxkUtLdxYbwSp5Nd9TctCa5s6NA1kJhUrbDJqk7auUg5XA==}
     engines: {node: '>=18'}
-    peerDependencies:
-      typescript: ^5
 
   '@duckdb/node-api@1.5.0-r.1':
     resolution: {integrity: sha512-VjvjqlCyqUJ22bydG/+9Jj5l0CEvx9QUn1SATBkKFY0+x6n4uHzt0kp/FKwXK9LNduXX6KCKtdF+6v5BcHScfA==}
@@ -10853,9 +10851,7 @@ snapshots:
 
   '@drizzle-team/brocli@0.12.1': {}
 
-  '@drizzle-team/minipg@0.3.2(typescript@6.0.3)':
-    dependencies:
-      typescript: 6.0.3
+  '@drizzle-team/minipg@0.4.1': {}
 
   '@duckdb/node-api@1.5.0-r.1':
     dependencies:
