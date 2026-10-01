@@ -167,7 +167,7 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 *   dataType(config) {
 	 * 	   return typeof config.length !== 'undefined' ? `varchar(${config.length})` : `varchar`;
-	 * 	 }
+	 *   }
 	 * ```
 	 */
 	dataType: (config: T['config'] | (Equal<T['configRequired'], true> extends true ? never : undefined)) => string;
@@ -195,6 +195,24 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional function that transforms the column when selecting from database.
+	 * Useful for custom types that require SQL transformation (e.g., ST_AsText for PostGIS).
+	 *
+	 * @example
+	 * ```typescript
+	 * const pointType = customType<{ data: Point; driverData: string }>({
+	 *   dataType() { return 'geometry(Point,4326)'; },
+	 *   toDriver(value: Point): string { return `SRID=4326;POINT(${value.lng} ${value.lat})`; },
+	 *   fromDriver(value: string) { /* ... */ },
+	 *   selectFromDb(column, decoder) {
+	 *     return sql<Point>`st_astext(${sql.identifier(column)})`.mapWith(decoder).as(column);
+	 *   },
+	 * });
+	 * ```
+	 */
+	selectFromDb?: (column: string, decoder: (value: T['driverData']) => T['data']) => SQL;
 }
 
 /**
