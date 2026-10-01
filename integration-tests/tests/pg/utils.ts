@@ -1,11 +1,12 @@
 import { Column } from 'drizzle-orm';
 import { CodecsCollection } from 'drizzle-orm/codecs';
 import { PgAsyncDatabase, PgDialect } from 'drizzle-orm/pg-core';
+import type { DsqlAsyncDatabase } from 'drizzle-orm/pg-core/async/dsql';
 import { PgEffectDatabase } from 'drizzle-orm/pg-core/effect/db';
 
 export function normalizeDataWithDbCodecs(
 	cfg: {
-		db: PgAsyncDatabase<any, any> | PgEffectDatabase<any, any, any>;
+		db: PgAsyncDatabase<any, any> | DsqlAsyncDatabase<any, any> | PgEffectDatabase<any, any, any>;
 		data: Record<string, unknown>[] | string;
 		columns: Record<string, Column>;
 		mode: 'json' | 'query';

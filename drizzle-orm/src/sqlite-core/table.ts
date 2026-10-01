@@ -70,12 +70,13 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 		columns: TColumnsMap,
 		extraConfig?: (
 			self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>,
-		) => SQLiteTableExtraConfigValue[],
+		) => (SQLiteTableExtraConfigValue | SQLiteTableExtraConfigValue[])[],
 	): SQLiteTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
 		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
 		dialect: 'sqlite';
+		isAlias: false;
 	}>;
 
 	<
@@ -84,12 +85,15 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 	>(
 		name: TTableName,
 		columns: (columnTypes: SQLiteColumnBuilders) => TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>) => SQLiteTableExtraConfigValue[],
+		extraConfig?: (
+			self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>,
+		) => (SQLiteTableExtraConfigValue | SQLiteTableExtraConfigValue[])[],
 	): SQLiteTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
 		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
 		dialect: 'sqlite';
+		isAlias: false;
 	}>;
 	/**
 	 * @deprecated The third parameter of sqliteTable is changing and will only accept an array instead of an object
@@ -125,6 +129,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 		schema: TSchema;
 		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
 		dialect: 'sqlite';
+		isAlias: false;
 	}>;
 
 	/**
@@ -161,6 +166,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 		schema: TSchema;
 		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
 		dialect: 'sqlite';
+		isAlias: false;
 	}>;
 }
 
@@ -175,7 +181,7 @@ export function sqliteTableBase<
 	extraConfig:
 		| ((
 			self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>,
-		) => SQLiteTableExtraConfig | SQLiteTableExtraConfigValue[])
+		) => SQLiteTableExtraConfig | (SQLiteTableExtraConfigValue | SQLiteTableExtraConfigValue[])[])
 		| undefined,
 	schema: TSchema | undefined,
 	casing: Casing | undefined,
@@ -185,6 +191,7 @@ export function sqliteTableBase<
 	schema: TSchema;
 	columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
 	dialect: 'sqlite';
+	isAlias: false;
 }> {
 	const casingFn = getCasingFn(casing);
 	const rawTable = new SQLiteTable<{
@@ -192,6 +199,7 @@ export function sqliteTableBase<
 		schema: TSchema;
 		columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
 		dialect: 'sqlite';
+		isAlias: false;
 	}>(name, schema, baseName);
 
 	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getSQLiteColumnBuilders()) : columns;

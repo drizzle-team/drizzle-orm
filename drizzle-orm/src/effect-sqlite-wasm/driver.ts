@@ -9,6 +9,7 @@ import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteEffectDatabase } from '~/sqlite-core/effect/db.ts';
 import type { EffectDrizzleSQLiteConfig } from '~/sqlite-core/effect/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
+import { effectSQLiteWasmCodecs } from './codecs.ts';
 import {
 	type EffectSQLiteWasmQueryEffectHKT,
 	type EffectSQLiteWasmRunResult,
@@ -57,6 +58,7 @@ export const make = Effect.fn('SQLiteWasmDrizzle.make')(
 		const logger = yield* EffectLogger;
 
 		const dialect = new SQLiteDialect({
+			codecs: config.codecs ?? effectSQLiteWasmCodecs,
 			useJitMappers: jitCompatCheck(config.jit),
 		});
 

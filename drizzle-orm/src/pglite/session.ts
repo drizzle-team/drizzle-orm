@@ -7,7 +7,7 @@ import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession } from '~/pg-core/async/session.ts';
 import { PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
@@ -138,5 +138,5 @@ export class PgliteTransaction<
 }
 
 export interface PgliteQueryResultHKT extends PgQueryResultHKT {
-	type: Results<Assume<this['row'], Row>>;
+	type: Results<Assume<PgRawRow<this['row']>, Row>>;
 }

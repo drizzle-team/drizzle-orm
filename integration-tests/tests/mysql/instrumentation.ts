@@ -216,6 +216,8 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 				query: (sql: string, params: any[]) => Promise<any[]>;
 				batch: (statements: string[]) => Promise<void>;
 			};
+			/** A second independent connection to the same database for transaction tests */
+			peer: { query: (sql: string) => Promise<any[]> } | undefined;
 			// proxyHandler: (sql: string, params: any[], method: any) => Promise<{
 			// 	rows: any;
 			// }>;
@@ -347,6 +349,26 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 				}
 
 				throw new Error('error');
+			},
+			{ scope: 'worker' },
+		],
+		peer: [
+			async ({ client }, use) => {
+				if (vendor !== 'mysql') {
+					await use(undefined);
+					return;
+				}
+
+				const conn = await createConnection({
+					uri: process.env['MYSQL_CONNECTION_STRING']!,
+					supportBigNumbers: true,
+				});
+				await conn.connect();
+				await conn.query('use drizzle;');
+
+				await use({ query: async (sql: string) => (await conn.query(sql))[0] as any[] });
+
+				await conn.end();
 			},
 			{ scope: 'worker' },
 		],

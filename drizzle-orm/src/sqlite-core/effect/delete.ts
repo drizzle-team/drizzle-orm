@@ -88,7 +88,7 @@ export class SQLiteEffectDeleteBase<
 	/** @internal */
 	_prepare(prepare = false): SQLiteEffectDeletePrepare<this, TEffectHKT> {
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+			this.dialect.sqlToQuery(this.getSQL(true)),
 			'arrays',
 			prepare,
 			this.config.returning ? 'all' : 'run',

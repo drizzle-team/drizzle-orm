@@ -15,6 +15,7 @@ import { drizzle as drizzleSingleStore, type SingleStoreDatabase } from 'drizzle
 import type { SingleStoreEnumColumn, SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import type { SingleStoreView } from 'drizzle-orm/singlestore-core/view';
 import { drizzle as drizzleProxy } from 'drizzle-orm/singlestore-proxy';
+import { singleStoreCodecs } from 'drizzle-orm/singlestore/codecs';
 import Keyv from 'keyv';
 import { type Connection, createConnection } from 'mysql2/promise';
 import { test as base } from 'vitest';
@@ -291,20 +292,21 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 			batch: (statements: string[]) => Promise<any>;
 		};
 		client: Connection;
-		db: SingleStoreDatabase<any, any, any, typeof relations>;
+		db: SingleStoreDatabase<any, any, typeof relations>;
 		push: (schema: any) => Promise<void>;
 		createDB: {
 			<S extends SingleStoreSchema_>(
 				schema: S,
-			): SingleStoreDatabase<any, any, any, ReturnType<typeof defineRelations<S>>>;
+			): SingleStoreDatabase<any, any, ReturnType<typeof defineRelations<S>>>;
 			<S extends SingleStoreSchema_, TConfig extends AnyRelationsBuilderConfig>(
 				schema: S,
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
-			): SingleStoreDatabase<any, any, any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
+				useJitMappers?: boolean,
+			): SingleStoreDatabase<any, any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 		};
 		caches: {
-			all: SingleStoreDatabase<any, any, any, typeof relations>;
-			explicit: SingleStoreDatabase<any, any, any, typeof relations>;
+			all: SingleStoreDatabase<any, any, typeof relations>;
+			explicit: SingleStoreDatabase<any, any, typeof relations>;
 		};
 	}>({
 		provider: [
@@ -352,7 +354,7 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 							throw e;
 						}
 					};
-					await use(drizzleProxy(proxyHandler, { relations }));
+					await use(drizzleProxy(proxyHandler, { relations, codecs: singleStoreCodecs }));
 					return;
 				}
 
@@ -381,10 +383,13 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 					cb?: (
 						helpers: RelationsBuilder<ExtractTablesFromSchema<S>>,
 					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
+					useJitMappers?: boolean,
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
-					if (vendor === 'singlestore') return drizzleSingleStore({ client: kit.client, relations });
+					if (vendor === 'singlestore') {
+						return drizzleSingleStore({ client: kit.client, relations, jit: useJitMappers });
+					}
 
 					if (vendor === 'proxy') {
 						const serverSimulator = new ServerSimulator(kit.client);
@@ -402,7 +407,7 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 								throw e;
 							}
 						};
-						return drizzleProxy(proxyHandler, { relations });
+						return drizzleProxy(proxyHandler, { relations, jit: useJitMappers, codecs: singleStoreCodecs });
 					}
 					throw new Error();
 				};
@@ -429,8 +434,12 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 							throw e;
 						}
 					};
-					const db1 = drizzleProxy(proxyHandler, { relations, cache: new TestCache('all') });
-					const db2 = drizzleProxy(proxyHandler, { relations, cache: new TestCache('explicit') });
+					const db1 = drizzleProxy(proxyHandler, { relations, cache: new TestCache('all'), codecs: singleStoreCodecs });
+					const db2 = drizzleProxy(proxyHandler, {
+						relations,
+						cache: new TestCache('explicit'),
+						codecs: singleStoreCodecs,
+					});
 					await use({ all: db1, explicit: db2 });
 					return;
 				}

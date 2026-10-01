@@ -15,6 +15,7 @@ ALL_DIALECTS=(
   mssql
   singlestore
   singlestore-many
+  postgres-http-gateway
 )
 
 _resolve_compose_file() {
@@ -32,6 +33,7 @@ _resolve_compose_file() {
     mssql)            echo "mssql.yml" ;;
     singlestore)      echo "singlestore.yml" ;;
     singlestore-many) echo "singlestore-many.yml" ;;
+    postgres-http-gateway) echo "postgres-http-gateway.yml" ;;
     *)
       echo "Unknown dialect '$1'. Valid dialects: ${ALL_DIALECTS[*]}" >&2
       return 1

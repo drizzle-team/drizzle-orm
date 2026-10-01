@@ -1,3 +1,5 @@
+/// <reference types="@cloudflare/workers-types" />
+
 import type { D1Client } from '@effect/sql-d1/D1Client';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/unstable/sql/SqlError';
@@ -23,7 +25,7 @@ export interface EffectSQLiteD1QueryEffectHKT extends QueryEffectHKTBase {
 	readonly context: never;
 }
 
-export type EffectSQLiteD1RunResult = unknown;
+export type EffectSQLiteD1RunResult = D1Result;
 
 export interface EffectSQLiteD1SessionOptions {
 	logger: EffectLoggerShape;
@@ -69,7 +71,6 @@ export class EffectSQLiteD1Session<TRelations extends AnyRelations>
 				if (mode === 'arrays') return q.values.pipe(Effect.map((e) => e[0]));
 				return q.withoutTransform.pipe(Effect.map((e) => e[0]));
 			},
-			values: (params) => this.client.unsafe(query.sql, params).values,
 			run: (params) => this.client.unsafe(query.sql, params).raw,
 		};
 

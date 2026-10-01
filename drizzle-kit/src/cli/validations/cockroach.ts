@@ -1,10 +1,15 @@
+import type { ConnectionOptions } from 'tls';
 import type { TypeOf } from 'zod';
-import { boolean, coerce, literal, object, string, union } from 'zod';
+import { boolean, coerce, custom, literal, object, string, union } from 'zod';
 import { ConfigConnectionCliError } from '../errors';
 import { error } from '../views';
-import { wrapParam } from './common';
+import { warnOnUrlConflict, wrapParam } from './common';
 
 export const cockroachCredentials = union([
+	// "url" goes first: when it's provided along with individual params, it wins
+	object({
+		url: string().min(1),
+	}),
 	object({
 		host: string().min(1),
 		port: coerce.number().min(1).optional(),
@@ -18,15 +23,16 @@ export const cockroachCredentials = union([
 			literal('prefer'),
 			literal('verify-full'),
 			boolean(),
-			object({}).passthrough(),
+			// same as object({}).passthrough(), but just for types
+			custom<ConnectionOptions>((ssl) => typeof ssl === 'object' && ssl !== null && !Array.isArray(ssl)),
 		]).optional(),
-	}),
-	object({
-		url: string().min(1),
 	}),
 ]);
 
 export type CockroachCredentials = TypeOf<typeof cockroachCredentials>;
+
+export const warnOnConflictingCredentials = (options: Record<string, unknown>) =>
+	warnOnUrlConflict(options, ['host', 'port', 'user', 'password', 'database', 'ssl']);
 
 export const printConfigConnectionIssues = (
 	options: Record<string, unknown>,

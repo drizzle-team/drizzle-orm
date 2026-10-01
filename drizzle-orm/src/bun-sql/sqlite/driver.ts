@@ -8,6 +8,7 @@ import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
+import { bunSqlSQLiteCodecs } from './codecs.ts';
 import type { BunSQLiteRunResult } from './session.ts';
 import { BunSQLiteSession } from './session.ts';
 
@@ -26,6 +27,7 @@ function construct<
 	$client: SQL;
 } {
 	const dialect = new SQLiteDialect({
+		codecs: config.codecs ?? bunSqlSQLiteCodecs,
 		useJitMappers: jitCompatCheck(config.jit),
 	});
 	let logger;

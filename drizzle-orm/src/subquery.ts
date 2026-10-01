@@ -1,5 +1,7 @@
 import { entityKind } from './entity.ts';
 import type { SQL, SQLWrapper } from './sql/sql.ts';
+import { IsAlias, OriginalName, TableColumns, TableSchema } from './table.ts';
+import { TableName } from './table.utils.ts';
 
 export interface Subquery<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -23,6 +25,31 @@ export class Subquery<
 		isWith: boolean;
 		usedTables?: string[];
 	};
+
+	/** @internal */
+	public get [TableName](): string {
+		return this._.alias;
+	}
+
+	/** @internal */
+	public get [TableSchema](): string | undefined {
+		return undefined;
+	}
+
+	/** @internal */
+	public get [OriginalName](): string {
+		return this._.alias;
+	}
+
+	/** @internal */
+	public get [IsAlias](): boolean {
+		return false;
+	}
+
+	/** @internal */
+	public get [TableColumns](): Record<string, unknown> {
+		return this._.selectedFields as Record<string, unknown>;
+	}
 
 	constructor(sql: SQL, fields: TSelectedFields, alias: string, isWith = false, usedTables: string[] = []) {
 		this._ = {

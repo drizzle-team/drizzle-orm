@@ -1,4 +1,5 @@
 import type { PgliteClient } from '@effect/sql-pglite/PgliteClient';
+import type { Results, Row } from '@electric-sql/pglite';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/unstable/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
@@ -9,7 +10,7 @@ import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/pg-core/effect/session.ts';
-import type { PgQueryResultHKT, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
@@ -20,7 +21,7 @@ export interface EffectPgQueryEffectHKT extends QueryEffectHKTBase {
 }
 
 export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
-	type: readonly Assume<this['row'], object>[];
+	type: Results<Assume<PgRawRow<this['row']>, Row>>;
 }
 
 export interface EffectPgSessionOptions {
@@ -78,6 +79,7 @@ export class EffectPgSession<
 		transaction: (
 			tx: EffectPgTransaction<TQueryResult, TRelations>,
 		) => Effect.Effect<A, E, R>,
+		config?: PgTransactionConfig,
 	): Effect.Effect<A, E | SqlError, R> {
 		const { dialect, relations } = this;
 
@@ -87,6 +89,12 @@ export class EffectPgSession<
 				this,
 				relations,
 			);
+
+			if (config) {
+				for (const statement of tx.getTransactionConfigStatements(config)) {
+					yield* this.client.unsafe(statement);
+				}
+			}
 
 			return yield* transaction(tx);
 		}));

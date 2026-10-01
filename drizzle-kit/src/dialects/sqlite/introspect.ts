@@ -23,10 +23,19 @@ import {
 	parseDefault,
 	parseSqliteDdl,
 	parseSqliteFks,
-	parseTableSQL,
+	parseSqliteIndex,
 	parseViewSQL,
 	sqlTypeFrom,
 } from './grammar';
+
+/**
+ * Tells whether a key part of an index ddl is a plain reference to `column`, `\`code\``, `[code]`,
+ * `"code"` and `code` all reference the same column, while `code DESC` or `lower(code)` do not
+ */
+const isColumnRef = (keyPart: string, column: string) => {
+	const unquoted = keyPart.replace(/^(?:\[|`|")/, '').replace(/(?:\]|`|")$/, '');
+	return unquoted.toLowerCase() === column.toLowerCase();
+};
 
 export const fromDatabaseForDrizzle = async (
 	db: DB,
@@ -73,7 +82,7 @@ export const fromDatabase = async (
 		pk: number;
 		hidden: number;
 		sql: string;
-		type: 'table' | 'view';
+		type: 'table' | 'virtual';
 	}>(
 		`SELECT 
 			m.name as "table", 
@@ -84,11 +93,12 @@ export const fromDatabase = async (
 			p.pk as pk,
 			p.hidden as hidden,
 			m.sql,
-			m.type as type
+			l.type as type
 		FROM sqlite_master AS m 
+			JOIN pragma_table_list(m.name) AS l
 			JOIN pragma_table_xinfo(m.name) AS p
 		WHERE 
-			m.type = 'table'
+			(l.type = 'table' OR l.type = 'virtual')
 			and m.tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
@@ -239,11 +249,12 @@ export const fromDatabase = async (
 		name: string;
 	}>(
 		`SELECT * FROM sqlite_master WHERE name != 'sqlite_sequence' 
-    and name != 'sqlite_stat1' 
-    and name != '_litestream_seq' 
-    and name != '_litestream_lock' 
-    and tbl_name != '_cf_KV' 
-    and sql GLOB '*[ *' || CHAR(9) || CHAR(10) || CHAR(13) || ']AUTOINCREMENT[^'']*';`,
+			AND tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
+			AND tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
+			AND tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
+			AND tbl_name NOT LIKE 'sqlite\\_%' ESCAPE '\\'
+			AND tbl_name NOT LIKE 'd1\\_%' ESCAPE '\\'
+			AND sql GLOB '*[ *' || CHAR(9) || CHAR(10) || CHAR(13) || ']AUTOINCREMENT[^'']*';`,
 	).then((tables) => {
 		queryCallback('tablesWithSequences', tables, null);
 		return tables.filter((it) => filter({ type: 'table', schema: false, name: it.name }));
@@ -254,30 +265,36 @@ export const fromDatabase = async (
 
 	const dbIndexes = await db.query<{
 		table: string;
-		sql: string;
 		name: string;
+		sql: string | null; // null for indexes implicitly created by UNIQUE/PRIMARY KEY constraints
 		column: string;
 		isUnique: number;
+		isPartial: number;
 		origin: string; // u=auto c=manual pk
-		seq: string;
 		cid: number;
 	}>(`
-		SELECT 
-			m.tbl_name as "table",
-			m.sql,
-			il.name as "name",
-			ii.name as "column",
-			il.[unique] as "isUnique",
-			il.origin,
-			il.seq,
-			ii.cid
-		FROM sqlite_master AS m,
-			pragma_index_list(m.name) AS il,
-			pragma_index_info(il.name) AS ii
-		WHERE 
-			m.type = 'table' 
-			and m.tbl_name != '_cf_KV'
-		ORDER BY m.name COLLATE NOCASE;
+		SELECT
+			m.tbl_name    AS "table",
+			il.name       AS "name",
+			idx.sql       AS "sql",
+			ii.name       AS "column",
+			il."unique"   AS "isUnique",
+			il."partial"  AS "isPartial",
+			il.origin     AS "origin",
+			ii.cid        AS "cid"
+		FROM sqlite_master AS m
+		JOIN pragma_index_list(m.name)  AS il
+		JOIN pragma_index_info(il.name) AS ii
+		LEFT JOIN sqlite_master AS idx
+			ON idx.type = 'index'
+			AND idx.name = il.name
+		WHERE m.type = 'table'
+			AND m.tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
+			AND m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
+			AND m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
+			AND m.tbl_name NOT LIKE 'sqlite\\_%' ESCAPE '\\'
+			AND m.tbl_name NOT LIKE 'd1\\_%' ESCAPE '\\'
+		ORDER BY m.name COLLATE NOCASE, il.seq, ii.seqno;
 	`).then((indexes) => {
 		queryCallback('indexes', indexes, null);
 		return indexes.filter((it) => filter({ type: 'table', schema: false, name: it.table }));
@@ -294,6 +311,11 @@ export const fromDatabase = async (
 	let viewsCount = 0;
 
 	type DBIndex = typeof dbIndexes[number];
+	type TableIndex = {
+		index: DBIndex;
+		columns: { value: string; isExpression: boolean }[];
+		where: string | null;
+	};
 	// append primaryKeys by table
 
 	const tableToParsedFks = dbTableColumns.reduce((acc, it) => {
@@ -329,30 +351,20 @@ export const fromDatabase = async (
 		return acc;
 	}, {} as Record<string, Record<string, Generated>>);
 
-	const tableToIndexColumns = dbIndexes.reduce(
-		(acc, it) => {
-			const whereIdx = it.sql.toLowerCase().indexOf(' where ');
-			const where = whereIdx < 0 ? null : it.sql.slice(whereIdx + 7);
-			const column = { value: it.column, isExpression: it.cid === -2 };
-			if (it.table in acc) {
-				if (it.name in acc[it.table]) {
-					const idx = acc[it.table][it.name];
-					idx.columns.push(column);
-				} else {
-					const idx = { index: it, columns: [column], where };
-					acc[it.table][it.name] = idx;
-				}
-			} else {
-				const idx = { index: it, columns: [column], where };
-				acc[it.table] = { [it.name]: idx };
-			}
-			return acc;
-		},
-		{} as Record<
-			string,
-			Record<string, { index: DBIndex; columns: { value: string; isExpression: boolean }[]; where: string | null }>
-		>,
-	);
+	const tableToIndexColumns = dbIndexes.reduce((acc, it) => {
+		const indexes = acc[it.table] ??= {};
+		// implicit indexes have no ddl of their own, they have neither expressions nor a predicate
+		const parsed = it.sql ? parseSqliteIndex(it.sql) : { columns: [], where: null };
+		const index = indexes[it.name] ??= { index: it, columns: [], where: it.isPartial ? parsed.where : null };
+
+		// `pragma_index_info` reports NULL as a name of an expression column and reports a plain name for
+		// a column with a `DESC`/`COLLATE` modifier, only the ddl has the key part as it was declared
+		const declared = parsed.columns[index.columns.length] ?? null;
+		const isExpression = it.cid === -2 || (declared !== null && !isColumnRef(declared, it.column));
+		const value = isExpression ? declared ?? '' : it.column;
+		index.columns.push({ value, isExpression });
+		return acc;
+	}, {} as Record<string, Record<string, TableIndex>>);
 
 	const tablesToSQL = dbTableColumns.reduce((acc, it) => {
 		if (it.table in acc) return acc;
@@ -361,8 +373,13 @@ export const fromDatabase = async (
 		return acc;
 	}, {} as Record<string, string>) || {};
 
+	const tableToParsedDdl = Object.entries(tablesToSQL).reduce((acc, [table, sql]) => {
+		acc[table] = parseSqliteDdl(sql);
+		return acc;
+	}, {} as Record<string, ReturnType<typeof parseSqliteDdl>>);
+
 	const tables: SqliteEntities['tables'][] = [
-		...new Set(dbTableColumns.filter((it) => it.type === 'table').map((it) => it.table)),
+		...new Set(dbTableColumns.map((it) => it.table)),
 	].map((it) => ({
 		entityType: 'tables',
 		name: it,
@@ -370,10 +387,9 @@ export const fromDatabase = async (
 
 	const pks: PrimaryKey[] = [];
 	for (const [key, value] of Object.entries(tableToPk)) {
-		const tableSql = tablesToSQL[key];
-		const parsed = parseSqliteDdl(tableSql);
-
 		if (value.length === 1) continue;
+
+		const parsed = tableToParsedDdl[key];
 
 		pks.push({
 			entityType: 'pks',
@@ -385,7 +401,7 @@ export const fromDatabase = async (
 	}
 
 	const columns: InterimColumn[] = [];
-	for (const column of dbTableColumns.filter((it) => it.type === 'table')) {
+	for (const column of dbTableColumns) {
 		columnsCount += 1;
 
 		progressCallback('columns', columnsCount, 'fetching');
@@ -406,6 +422,8 @@ export const fromDatabase = async (
 		const generated = tableToGenerated[column.table]?.[column.name] || null;
 
 		const tableIndexes = Object.values(tableToIndexColumns[column.table] || {});
+		// implicit indexes carry no sql of their own, their constraint is declared in the table ddl
+		const parsedDdl = tableToParsedDdl[column.table];
 
 		const unique = primaryKey
 			? null // if pk, no UNIQUE
@@ -416,9 +434,7 @@ export const fromDatabase = async (
 				return idx.origin === 'u' && idx.isUnique && it.columns.length === 1 && idx.table === column.table
 					&& idx.column === column.name;
 			}).map((it) => {
-				const parsed = parseSqliteDdl(it.index.sql);
-
-				const constraint = parsed.uniques.find((parsedUnique) =>
+				const constraint = parsedDdl.uniques.find((parsedUnique) =>
 					areStringArraysEqual(it.columns.map((indexCol) => indexCol.value), parsedUnique.columns)
 				);
 				if (!constraint) return null;
@@ -434,11 +450,10 @@ export const fromDatabase = async (
 				// we can only safely define PRIMARY KEY column when there is automatically(origin=pk) created unique index on the column(only 1)
 				return idx.origin === 'pk' && idx.isUnique && it.columns.length === 1 && idx.table === column.table
 					&& idx.column === column.name;
-			}).map((it) => {
-				const parsed = parseSqliteDdl(it.index.sql);
-				if (parsed.pk.columns.length > 1) return;
+			}).map(() => {
+				if (parsedDdl.pk.columns.length > 1) return;
 
-				const constraint = areStringArraysEqual(parsed.pk.columns, [name]) ? parsed.pk : null;
+				const constraint = areStringArraysEqual(parsedDdl.pk.columns, [name]) ? parsedDdl.pk : null;
 				if (!constraint) return { name: null };
 
 				return { name: constraint.name };
@@ -469,23 +484,31 @@ export const fromDatabase = async (
 		from: string;
 		to: string;
 		onUpdate: string;
-		sql: string;
 		onDelete: string;
 		seq: number;
 		id: number;
 	}>(
-		`SELECT 
-			m.name as "tableFrom",
-			f.id as "id", 
-			f."table" as "tableTo", 
-			f."from", 
-			f."to",
-			m."sql" as sql,
-		  f."on_update" as "onUpdate", 
-			f."on_delete" as "onDelete", 
-			f.seq as "seq"
-		FROM sqlite_master m, pragma_foreign_key_list(m.name) as f 
-		WHERE m.tbl_name != '_cf_KV';`,
+		`SELECT
+		  m.name        AS "tableFrom",
+		  f.id          AS "id",
+		  f."table"     AS "tableTo",
+		  f."from"      AS "from",
+		  f.seq         AS "seq",
+		  -- implicit FKs have no "to", they reference the target's PK columns in order (pk is 1-based, seq is 0-based)
+		  COALESCE(f."to", (
+		    SELECT ti.name FROM pragma_table_info(f."table") ti WHERE ti.pk = f.seq + 1
+		  ))            AS "to",
+		  f.on_update   AS "onUpdate",
+		  f.on_delete   AS "onDelete"
+		FROM sqlite_master m
+		JOIN pragma_foreign_key_list(m.name) f
+		WHERE m.type = 'table'
+		  AND m.name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
+		  AND m.name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
+		  AND m.name NOT LIKE 'libsql\\_%' ESCAPE '\\'
+		  AND m.name NOT LIKE 'sqlite\\_%' ESCAPE '\\'
+		  AND m.name NOT LIKE 'd1\\_%' ESCAPE '\\'
+		ORDER BY m.name, f.id, f.seq;`,
 	).then((fks) => {
 		queryCallback('fks', fks, null);
 		return fks.filter((it) => filter({ type: 'table', schema: false, name: it.tableFrom }));
@@ -496,6 +519,13 @@ export const fromDatabase = async (
 	type DBFK = typeof dbFKs[number];
 
 	const fksToColumns = dbFKs.reduce((acc, it) => {
+		if (!it.to) {
+			throw Error(
+				`Table ${chalk.underline(it.tableTo)} has no primary key, so the foreign key from ${
+					chalk.underline(`${it.tableFrom}.${it.from}`)
+				} to ${chalk.underline(it.tableTo)} cannot be resolved`,
+			);
+		}
 		const key = `${it.tableFrom}:${it.id}`;
 		if (key in acc) {
 			acc[key].columnsFrom.push(it.from);
@@ -596,9 +626,8 @@ export const fromDatabase = async (
 	const checkConstraints: Record<string, CheckConstraint> = {};
 
 	const checks: CheckConstraint[] = [];
-	for (const [table, sql] of Object.entries(tablesToSQL)) {
-		const res = parseTableSQL(sql);
-		for (const it of res.checks) {
+	for (const table of Object.keys(tablesToSQL)) {
+		for (const it of tableToParsedDdl[table].checks) {
 			const { name, value } = it;
 
 			let checkName = name ? name : `${table}_check_${++checkCounter}`;
@@ -613,18 +642,12 @@ export const fromDatabase = async (
 
 	const uniques: UniqueConstraint[] = [];
 	for (const [table, item] of Object.entries(tableToIndexColumns)) {
-		for (const { columns, index } of Object.values(item).filter((it) => it.index.isUnique)) {
+		// only implicitly created(origin=u) indexes stand for a UNIQUE constraint declared in the table ddl
+		const implicitUniques = Object.values(item).filter((it) => it.index.isUnique && it.index.origin === 'u');
+		for (const { columns } of implicitUniques) {
 			if (columns.length === 1) continue;
-			if (columns.some((it) => it.isExpression)) {
-				throw new Error(`unexpected unique index '${index.name}' with expression value: ${index.sql}`);
-			}
 
-			const origin = index.origin === 'u' || index.origin === 'pk' ? 'auto' : index.origin === 'c' ? 'manual' : null;
-			if (!origin) throw new Error(`Index with unexpected origin: ${index.origin}`);
-
-			const parsed = parseSqliteDdl(index.sql);
-
-			const constraint = parsed.uniques.find((parsedUnique) =>
+			const constraint = tableToParsedDdl[table].uniques.find((parsedUnique) =>
 				areStringArraysEqual(columns.map((it) => it.value), parsedUnique.columns)
 			);
 			if (!constraint) continue;

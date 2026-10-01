@@ -3,11 +3,11 @@ import type {
 	BuildQueryResult,
 	BuildRelationalQueryResult,
 	DBQueryConfigWithComment,
+	RelationalRowsMapper,
 	TableRelationalConfig,
 	TablesRelationalConfig,
 } from '~/relations.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
-import type { KnownKeysOnly } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PgSession } from '../session.ts';
 import type { PgTable } from '../table.ts';
@@ -45,7 +45,8 @@ export class RelationalQueryBuilder<
 	) {}
 
 	findMany<TConfig extends DBQueryConfigWithComment<'many', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfigWithComment<'many', TSchema, TFields>>,
+		config?: DBQueryConfigWithComment<'many', TSchema, TFields> extends TConfig ? TConfig
+			: DBQueryConfigWithComment<'many', TSchema, TFields>,
 	): PgRelationalQueryKind<TBuilderHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new this.builder(
 			this.schema,
@@ -60,7 +61,8 @@ export class RelationalQueryBuilder<
 	}
 
 	findFirst<TConfig extends DBQueryConfigWithComment<'one', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfigWithComment<'one', TSchema, TFields>>,
+		config?: DBQueryConfigWithComment<'one', TSchema, TFields> extends TConfig ? TConfig
+			: DBQueryConfigWithComment<'one', TSchema, TFields>,
 	): PgRelationalQueryKind<TBuilderHKT, BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return new this.builder(
 			this.schema,
@@ -93,6 +95,12 @@ export type PgRelationalQueryKind<
 
 export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> implements SQLWrapper {
 	static readonly [entityKind]: string = 'PgRelationalQueryV2';
+
+	/** @internal */
+	protected mapper?: RelationalRowsMapper;
+
+	/** @internal */
+	protected shape?: any;
 
 	declare readonly _: {
 		readonly dialect: 'pg';

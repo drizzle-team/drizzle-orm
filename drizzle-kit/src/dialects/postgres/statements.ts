@@ -208,6 +208,9 @@ export interface JsonRecreateIndex {
 	type: 'recreate_index';
 	index: Index;
 	diff: DiffEntities['indexes'];
+	// when a column used by the index is being dropped, the index is dropped with it (cascade),
+	// so the recreate must skip the explicit DROP INDEX
+	shouldDrop: boolean;
 }
 
 export interface JsonCreateFK {

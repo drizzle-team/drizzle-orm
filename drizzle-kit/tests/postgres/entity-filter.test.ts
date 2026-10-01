@@ -1,4 +1,3 @@
-import { sql } from 'drizzle-orm';
 import { pgSchema, pgView, serial } from 'drizzle-orm/pg-core';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
@@ -389,6 +388,30 @@ describe('push', () => {
 			expect(pst).toStrictEqual([`DROP SCHEMA "test";\n`]);
 			await _.clear();
 		}
+	});
+
+	test(`PlanetScale's Neki internal schema #1`, async () => {
+		await db.query('create schema __neki;'); // internal schema
+		await db.query('create table __neki.users (id int);');
+		await db.query('create table users (id int);');
+
+		const { sqlStatements: pst } = await push({ db, to: {} });
+		expect(pst).toStrictEqual(['DROP TABLE "users";']);
+	});
+
+	test(`PlanetScale's Neki internal schema #2`, async () => {
+		await db.query('create schema __neki;'); // internal schema
+		await db.query('create table __neki.users (id int);');
+
+		await db.query('create schema dev2;');
+
+		await db.query('create schema dev;');
+		await db.query('create table dev.users (id int);');
+
+		await db.query('create table users (id int);');
+
+		const { sqlStatements: pst } = await push({ db, to: {}, schemas: ['dev2'] });
+		expect(pst).toStrictEqual(['DROP SCHEMA "dev2";\n']);
 	});
 });
 

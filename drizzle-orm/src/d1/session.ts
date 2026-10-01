@@ -78,9 +78,6 @@ export class SQLiteD1Session<TRelations extends AnyRelations>
 			run: (params) => {
 				return stmt.bind(...params).run();
 			},
-			values: (params) => {
-				return stmt.bind(...params).raw();
-			},
 		};
 		return new D1PreparedQuery(
 			stmt,
@@ -142,6 +139,8 @@ export class SQLiteD1Session<TRelations extends AnyRelations>
 		transaction: (tx: D1Transaction<TRelations>) => T | Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
+		if (config?.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
+
 		const tx = new D1Transaction('async', this.dialect, this, this.relations, undefined, true);
 		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {

@@ -28,6 +28,9 @@ export class MsSqlSmallIntBuilder extends MsSqlColumnBuilderWithIdentity<{
 export class MsSqlSmallInt<T extends ColumnBaseConfig<'number int16'>> extends MsSqlColumnWithIdentity<T> {
 	static override readonly [entityKind]: string = 'MsSqlSmallInt';
 
+	/** @internal */
+	override readonly codec = 'smallint';
+
 	getSQLType(): string {
 		return `smallint`;
 	}

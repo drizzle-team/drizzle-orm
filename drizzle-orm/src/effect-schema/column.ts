@@ -305,21 +305,6 @@ function arrayColumnToSchema(
 				? schema.check(S.isLengthBetween(length, length))
 				: schema;
 		}
-		case 'basecolumn': {
-			// CockroachDB/GEL style: has a separate baseColumn
-			const baseColumn = (<{ baseColumn?: Column }> column).baseColumn;
-			if (baseColumn) {
-				const baseSchema = columnToSchema(baseColumn);
-				// For CockroachDB style, column.length is the array size
-				const length = column.length;
-				const schema = S.Array(baseSchema);
-				if (length) {
-					return schema.check(S.isLengthBetween(length, length));
-				}
-				return schema;
-			}
-			return S.Array(S.Any);
-		}
 		default: {
 			return S.Array(S.Any);
 		}

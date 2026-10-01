@@ -7,6 +7,7 @@ import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
+import { libsqlCodecs } from './codecs.ts';
 import { type LibSQLRunResult, LibSQLSession } from './session.ts';
 
 export class LibSQLDatabase<TRelations extends AnyRelations = EmptyRelations>
@@ -32,6 +33,7 @@ export function construct<TRelations extends AnyRelations = EmptyRelations>(
 	$client: Client;
 } {
 	const dialect = new SQLiteDialect({
+		codecs: config.codecs ?? libsqlCodecs,
 		useJitMappers: jitCompatCheck(config.jit),
 	});
 	let logger;

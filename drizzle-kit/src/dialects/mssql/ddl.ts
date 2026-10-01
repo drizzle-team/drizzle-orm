@@ -214,6 +214,14 @@ export type TableFull = {
 	defaults: DefaultConstraint[];
 };
 
+export const fromEntities = (entities: MssqlEntity[]) => {
+	const ddl = createDDL();
+	for (const it of entities) {
+		ddl.entities.push(it);
+	}
+	return ddl;
+};
+
 export const fullTableFromDDL = (table: Table, ddl: MssqlDDL): TableFull => {
 	const filter = { schema: table.schema, table: table.name } as const;
 	const columns = ddl.columns.list(filter);
@@ -297,9 +305,9 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 	}
 
 	for (const index of interim.indexes) {
-		const isConflictNamePerSchema = ddl.indexes.one({ schema: index.schema, name: index.name });
+		const res = ddl.indexes.push(index);
 
-		if (isConflictNamePerSchema) {
+		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'index_duplicate',
 				schema: index.schema,
@@ -307,6 +315,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 				name: index.name,
 			});
 		}
+
 		ddl.indexes.push(index);
 	}
 

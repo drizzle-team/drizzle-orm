@@ -1,8 +1,9 @@
 import { sql } from 'drizzle-orm';
 import { getTableConfig, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import type { PgRemoteDatabase } from 'drizzle-orm/pg-proxy';
 import { migrate } from 'drizzle-orm/pg-proxy/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { expect } from 'vitest';
+import { expect, expectTypeOf } from 'vitest';
 import { tests } from './common';
 import { proxyTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
@@ -16,8 +17,41 @@ const skips = [
 	'RQB v2 transaction find many - multiple rows',
 	'RQB v2 transaction find many - with relation',
 	'RQB v2 transaction find many - placeholders',
+	'transaction with options (set isolationLevel)',
+	'transaction with options (accessMode read only)',
+	'transaction with options (deferrable)',
+	'transaction with an empty options object',
 ];
 tests(test, skips);
+
+test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
+	const db = fixtureDb as unknown as PgRemoteDatabase;
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} ("id" integer primary key, "name" text not null)`);
+	expectTypeOf(created).toEqualTypeOf<[]>();
+	expect(created).toEqual([]);
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<[]>();
+	expect(inserted).toEqual([]);
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(selected).toEqualTypeOf<{ id: number; name: string }[]>();
+	expect(selected).toEqual([{ id: 1, name: 'John' }]);
+
+	// Any response
+	const any = await db.execute(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(any).toEqualTypeOf<Record<string, unknown>[]>();
+	expect(any).toEqual([{ id: 1, name: 'John' }]);
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
 
 test.beforeEach(async ({ db }) => {
 	await db.execute(sql`drop schema if exists public cascade`);

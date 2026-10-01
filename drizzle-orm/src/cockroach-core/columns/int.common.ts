@@ -1,19 +1,17 @@
-import type { ColumnBuilderBaseConfig, ColumnType, GeneratedIdentityConfig, IsIdentity } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { CockroachSequenceOptions } from '../sequence.ts';
-import { CockroachColumnWithArrayBuilder } from './common.ts';
+import type { CockroachColumnBuilderConfig, HasIdentity } from './common.ts';
+import { CockroachColumnBuilder } from './common.ts';
 
 export abstract class CockroachIntColumnBaseBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnType>,
-> extends CockroachColumnWithArrayBuilder<
-	T,
-	{ generatedIdentity: GeneratedIdentityConfig }
-> {
+	out T extends CockroachColumnBuilderConfig = CockroachColumnBuilderConfig,
+	out TRuntimeConfig extends object = object,
+> extends CockroachColumnBuilder<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'CockroachIntColumnBaseBuilder';
 
 	generatedAlwaysAsIdentity(
 		sequence?: CockroachSequenceOptions,
-	): IsIdentity<this, 'always'> {
+	): HasIdentity<this, 'always'> {
 		this.config.generatedIdentity = sequence
 			? {
 				type: 'always',
@@ -26,12 +24,12 @@ export abstract class CockroachIntColumnBaseBuilder<
 		this.config.hasDefault = true;
 		this.config.notNull = true;
 
-		return this as IsIdentity<this, 'always'>;
+		return this as HasIdentity<this, 'always'>;
 	}
 
 	generatedByDefaultAsIdentity(
 		sequence?: CockroachSequenceOptions,
-	): IsIdentity<this, 'byDefault'> {
+	): HasIdentity<this, 'byDefault'> {
 		this.config.generatedIdentity = sequence
 			? {
 				type: 'byDefault',
@@ -44,6 +42,6 @@ export abstract class CockroachIntColumnBaseBuilder<
 		this.config.hasDefault = true;
 		this.config.notNull = true;
 
-		return this as IsIdentity<this, 'byDefault'>;
+		return this as HasIdentity<this, 'byDefault'>;
 	}
 }

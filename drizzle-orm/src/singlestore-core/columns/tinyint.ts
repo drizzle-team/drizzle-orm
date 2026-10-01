@@ -33,16 +33,12 @@ export class SingleStoreTinyInt<T extends ColumnBaseConfig<'number int8' | 'numb
 {
 	static override readonly [entityKind]: string = 'SingleStoreTinyInt';
 
+	/** @internal */
+	override readonly codec = 'tinyint';
+
 	getSQLType(): string {
 		return `tinyint${this.config.unsigned ? ' unsigned' : ''}`;
 	}
-
-	override mapFromDriverValue = (value: number | string): number => {
-		if (typeof value === 'string') {
-			return Number(value);
-		}
-		return value;
-	};
 }
 
 export function tinyint<TUnsigned extends boolean | undefined>(

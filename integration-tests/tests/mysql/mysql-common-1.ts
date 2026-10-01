@@ -17,7 +17,6 @@ import {
 	year,
 } from 'drizzle-orm/mysql-core';
 import { expect } from 'vitest';
-import { toLocalDate } from '~/utils';
 import type { Test } from './instrumentation';
 import { createUserTable } from './schema2';
 
@@ -390,7 +389,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		expect(typeof res[0]?.datetimeAsString).toBe('string');
 
 		expect(res).toEqual([{
-			date: toLocalDate(new Date('2022-11-11')),
+			date: new Date('2022-11-11'),
 			dateAsString: '2022-11-11',
 			time: '12:12:12.0',
 			datetime: new Date('2022-11-11'),
@@ -399,6 +398,92 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			timestamp: new Date('2022-11-11 12:12:12.123'),
 			timestampAsString: '2022-11-11 12:12:12.123',
 		}]);
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/1442
+	// Not concurrent: switches the process timezone, which would leak into parallel tests
+	test('date and time columns keep UTC values regardless of process timezone', async ({ createDB, push }) => {
+		const datesTable = mysqlTable('dates_tz_1', {
+			id: int('id').primaryKey(),
+			date: date('date').notNull(),
+			dateStr: date('date_str', { mode: 'string' }).notNull(),
+			datetime: datetime('datetime', { fsp: 3 }).notNull(),
+			datetimeStr: datetime('datetime_str', { fsp: 3, mode: 'string' }).notNull(),
+			timestamp: timestamp('timestamp', { fsp: 3 }).notNull(),
+			timestampStr: timestamp('timestamp_str', { fsp: 3, mode: 'string' }).notNull(),
+			time: time('time', { fsp: 3 }).notNull(),
+			year: year('year').notNull(),
+		});
+		const db = createDB({
+			schema: { datesTable },
+			cb: (r) => ({ datesTable: { self: r.many.datesTable({ from: r.datesTable.id, to: r.datesTable.id }) } }),
+		});
+
+		await push({ datesTable });
+
+		const startOfDay = new Date('2022-11-11T00:00:00.000Z');
+		const endOfDay = new Date('2022-11-11T23:59:59.999Z');
+		const rows = [{
+			id: 1,
+			date: new Date('2022-11-11'),
+			dateStr: '2022-11-11',
+			datetime: startOfDay,
+			datetimeStr: '2022-11-11 00:00:00.000',
+			timestamp: startOfDay,
+			timestampStr: '2022-11-11 00:00:00.000',
+			time: '00:00:00.000',
+			year: 2022,
+		}, {
+			id: 2,
+			date: new Date('2022-11-11'),
+			dateStr: '2022-11-11',
+			datetime: endOfDay,
+			datetimeStr: '2022-11-11 23:59:59.999',
+			timestamp: endOfDay,
+			timestampStr: '2022-11-11 23:59:59.999',
+			time: '23:59:59.999',
+			year: 2022,
+		}];
+
+		const originalTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		try {
+			for (const tz of ['America/Los_Angeles', 'Pacific/Kiritimati']) {
+				process.env['TZ'] = tz;
+
+				await db.delete(datesTable);
+				await db.insert(datesTable).values(rows.map((row) => ({ ...row, date: row.datetime })));
+
+				const stored = await db.select({
+					id: datesTable.id,
+					date: sql<string>`cast(${datesTable.date} as char)`,
+					datetime: sql<string>`cast(${datesTable.datetime} as char)`,
+					timestamp: sql<string>`cast(${datesTable.timestamp} as char)`,
+				}).from(datesTable).orderBy(datesTable.id);
+				expect(stored, tz).toStrictEqual(
+					rows.map((row) => ({
+						id: row.id,
+						date: row.dateStr,
+						datetime: row.datetimeStr,
+						timestamp: row.timestampStr,
+					})),
+				);
+
+				expect(await db.select().from(datesTable).orderBy(datesTable.id), tz).toStrictEqual(rows);
+				expect(await db.select().from(datesTable).where(eq(datesTable.date, endOfDay)).orderBy(datesTable.id), tz)
+					.toStrictEqual(rows);
+				expect(await db.select().from(datesTable).where(eq(datesTable.datetime, endOfDay)), tz).toStrictEqual([
+					rows[1]!,
+				]);
+				expect(await db.select().from(datesTable).where(eq(datesTable.timestamp, startOfDay)), tz).toStrictEqual([
+					rows[0]!,
+				]);
+
+				expect(await db.query.datesTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } }), tz)
+					.toStrictEqual(rows.map((row) => ({ ...row, self: [row] })));
+			}
+		} finally {
+			process.env['TZ'] = originalTz;
+		}
 	});
 
 	test.concurrent('Mysql enum as ts enum', async ({ db, push }) => {
