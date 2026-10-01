@@ -1457,4 +1457,35 @@ describe('commutativity integration (postgres)', () => {
 		expect(report.conflicts).toStrictEqual([]);
 		expect((report.commutativeBranches ?? []).map((branch) => branch.parentId)).toStrictEqual(['p_enums']);
 	});
+
+	test('fan-in leaves: DDL inherited from sibling parents is not a conflict', async () => {
+		const { tmp } = mkTmp();
+		const tablesDDL = (names: string[]) => {
+			const ddl = createDDL();
+			for (const name of names) {
+				ddl.tables.push({ schema: 'public', isRlsEnabled: false, name } as any);
+			}
+			return ddl.entities.list();
+		};
+
+		const files = [
+			writeTempSnapshot(tmp, '210_m0', makeSnapshot('m0_fanin', [ORIGIN], tablesDDL(['users']))),
+			writeTempSnapshot(tmp, '211_a', makeSnapshot('a_fanin', ['m0_fanin'], tablesDDL(['users', 'ta']))),
+			writeTempSnapshot(tmp, '212_b', makeSnapshot('b_fanin', ['m0_fanin'], tablesDDL(['users', 'tb']))),
+			writeTempSnapshot(
+				tmp,
+				'213_c',
+				makeSnapshot('c_fanin', ['a_fanin', 'b_fanin'], tablesDDL(['users', 'ta', 'tb', 'c_only'])),
+			),
+			writeTempSnapshot(
+				tmp,
+				'214_d',
+				makeSnapshot('d_fanin', ['a_fanin', 'b_fanin'], tablesDDL(['users', 'ta', 'tb', 'd_only'])),
+			),
+		];
+
+		const report = await postgresCommutativity.detectNonCommutative(files);
+		expect(report.conflicts).toStrictEqual([]);
+		expect(new Set(report.leafNodes)).toStrictEqual(new Set(['c_fanin', 'd_fanin']));
+	});
 });
