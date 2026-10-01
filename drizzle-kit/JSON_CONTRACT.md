@@ -88,7 +88,7 @@ Examples:
 }
 ```
 
-When `generate --fix-conflicts` (postgresql only) deletes migrations, the `ok` or `no_changes` envelope also has `deleted_migrations`: the migration folders that the fix deleted. `no_changes` then means that the rest of the history already matched the schema, so the fix wrote no new migration. If some of them were custom migrations, `deleted_custom_migrations` lists those folders too. If the folder has no conflict, the fix deletes nothing, and the envelope has no `deleted_migrations`. With `--explain`, the fix deletes nothing. If the folder has conflicts, the envelope has `fix` in place of `deleted_migrations`. See [`--explain` in JSON mode](#--explain-in-json-mode) and [`check` conflicts](#check-conflicts).
+When `generate --fix-conflicts` (postgresql only) deletes migrations, the `ok` or `no_changes` envelope also has `deleted_migrations`: the migration folders that the fix deleted. `no_changes` then means that the remaining migrations already matched the schema, so the fix wrote no new migration. If some of them were custom migrations, `deleted_custom_migrations` lists those folders too. If the folder has no conflict, the fix deletes nothing, and the envelope has no `deleted_migrations`. With `--explain`, the fix deletes nothing. If the folder has conflicts, the envelope has `fix` in place of `deleted_migrations`. See [`--explain` in JSON mode](#--explain-in-json-mode) and [`check` conflicts](#check-conflicts).
 
 `generate --output json --explain` and `push --output json --explain` success (non-empty diff):
 
@@ -128,7 +128,7 @@ Current JSON-mode examples:
 { "status": "no_changes", "dialect": "sqlite" }
 ```
 
-After `generate --fix-conflicts`, a `no_changes` envelope can also have `deleted_migrations` and `deleted_custom_migrations`. The fix then deleted those folders, and the rest of the history already matched the schema. After `generate --fix-conflicts --explain`, it can have `fix`, the folders that the fix would delete.
+After `generate --fix-conflicts`, a `no_changes` envelope can also have `deleted_migrations` and `deleted_custom_migrations`. The fix then deleted those folders, and the remaining migrations already matched the schema. After `generate --fix-conflicts --explain`, it can have `fix`, the folders that the fix would delete.
 
 ### `status: "missing_hints"`
 
@@ -580,7 +580,7 @@ Format 8, the postgres format before format 9, stored the full state in every sn
 
 ## `check`
 
-`drizzle-kit check --output json` validates the migrations folder — snapshot integrity plus branch commutativity — and emits one of three envelopes. It never prompts and takes no hints. The `check()` SDK export returns the same envelopes verbatim.
+`drizzle-kit check --output json` validates the migrations folder — snapshot integrity plus conflicts between branches — and emits one of three envelopes. It never prompts and takes no hints. The `check()` SDK export returns the same envelopes verbatim.
 
 ### `check` success
 
@@ -701,7 +701,7 @@ For postgres, `check` compares every pair of leaves. A leaf's branch is the set 
 
 If `check` passes and the folder has several leaves, the next `generate` writes a merge migration. See [Postgres snapshot format 9](#postgres-snapshot-format-9) for what a postgres merge stores.
 
-For postgresql, `generate --fix-conflicts` resolves conflicts. It deletes the folders in `fix.migrations` and generates one migration from the rest of the history to the schema. If the remaining history has several leaves, that migration merges them. The fix deletes nothing while `generate` still returns `missing_hints`. It also deletes nothing in explain mode, where the result lists the folders that it would delete in `fix`. Every database that ran a deleted migration must be reset, because the migrator skips a deleted migration without an error. In interactive mode, `generate` shows the conflict report and offers the same fix.
+For postgresql, `generate --fix-conflicts` resolves conflicts. It deletes the folders in `fix.migrations` and generates one new migration from the schema. If the remaining history has several leaves, that migration merges them. The fix deletes nothing while `generate` still returns `missing_hints`. It also deletes nothing in explain mode, where the result lists the folders that it would delete in `fix`. Every database that ran a deleted migration must be reset. In interactive mode, `generate` shows the conflict report and offers the same fix.
 
 For `mysql`, `sqlite` and `turso`, `--ignore-conflicts` makes `generate` write the merge even though the branches conflict. postgresql rejects `--ignore-conflicts`, and the other dialects reject `--fix-conflicts`, with `code: "unsupported_command_dialect_error"` and the meta `{ command, dialect, option }`.
 

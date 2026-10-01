@@ -55,10 +55,11 @@ const migrations = (count: number) => `${count} migration${count === 1 ? '' : 's
 export const describeConflictFix = (fix: ConflictFix, hasSchemaChanges = true) =>
 	[
 		'',
-		`To fix the conflicts, drizzle-kit can delete ${migrations(fix.migrations.length)}`
+		'To fix the conflicts, drizzle-kit can delete the conflicting migration branches, '
+		+ `which is ${migrations(fix.migrations.length)} in total`
 		+ (hasSchemaChanges
-			? ' and generate one new migration from the rest of the history to your schema.'
-			: '. The rest of the history already matches your schema, so the fix writes no new migration.')
+			? ', and generate one new migration from your schema.'
+			: '. The remaining migrations already match your schema, so the fix writes no new migration.')
 		+ ' It deletes these folders:',
 		...folderList(fix.migrations),
 		...(fix.customMigrations.length > 0
@@ -70,9 +71,9 @@ export const describeConflictFix = (fix: ConflictFix, hasSchemaChanges = true) =
 				...folderList(fix.customMigrations),
 			]
 			: []),
-		'Every database that already ran a deleted migration must be reset. '
-		+ 'The migrator skips a deleted migration without an error.',
-		'To apply this fix, run: drizzle-kit generate --fix-conflicts',
+		'Every database that already ran a deleted migration must be reset.',
+		'To apply this fix, run:',
+		'  drizzle-kit generate --fix-conflicts',
 	].join('\n');
 
 export const describeAppliedFix = (fix: ConflictFix) =>

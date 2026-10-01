@@ -46,7 +46,8 @@ const confirmConflictFix = async (config: GenerateConfig<SchemaSource>, error: C
 	if (data?.index !== 1) {
 		throw new CheckCliError(
 			'conflicts',
-			'The migrations are kept, and the conflicts are not fixed. To fix them later, run: drizzle-kit generate --fix-conflicts',
+			'The migrations are kept, and the conflicts are not fixed. To fix them later, run:\n'
+				+ '  drizzle-kit generate --fix-conflicts',
 			error.meta,
 		);
 	}

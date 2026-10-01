@@ -169,7 +169,7 @@ test('conflicting fork fails check and generate', async () => {
 
 	expect(result).toMatchObject({ status: 'conflicts', folders: ['20260101120002_a', '20260101120003_b'] });
 	await expect(flow.generate('main', { users: pgTable('users', { email: integer().notNull() }) })).rejects.toThrow(
-		'Non-commutative migrations detected',
+		'Conflicting migrations detected',
 	);
 	expect(flow.folders('main')).toHaveLength(3);
 

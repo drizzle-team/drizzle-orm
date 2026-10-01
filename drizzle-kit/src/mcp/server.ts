@@ -121,9 +121,9 @@ export function createDrizzleMcpServer(): McpServer {
 		'fix_conflicts',
 		{
 			description: 'For postgresql only. Delete the migrations that check reports as conflicting, with all '
-				+ 'their children, then generate one new migration from the rest of the history to the schema. '
-				+ 'This is a destructive operation. Every database that ran a deleted migration must be reset, '
-				+ 'because the migrator skips a deleted migration without an error. The check_error response for '
+				+ 'their children, then generate one new migration from the schema. '
+				+ 'This is a destructive operation. Every database that ran a deleted migration must be reset. '
+				+ 'The check_error response for '
 				+ 'conflicts lists the folders to delete in error.fix. If the response has status "missing_hints", '
 				+ 'nothing is deleted yet: re-call with a "hints" array resolving each unresolved item.',
 			inputSchema: z.object(generateInput),

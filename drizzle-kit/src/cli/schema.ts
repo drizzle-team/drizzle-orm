@@ -327,7 +327,7 @@ const optionDriver = string()
 	.desc('Database driver');
 
 const optionIgnoreConflicts = boolean('ignore-conflicts').desc(
-	'Skip commutativity conflict checks (not for postgresql)',
+	'Skip the conflict checks (not for postgresql)',
 );
 const optionHints = string().desc('Inline JSON array of hints');
 const optionHintsFile = string('hints-file').desc('Path to a JSON file containing a hints array');

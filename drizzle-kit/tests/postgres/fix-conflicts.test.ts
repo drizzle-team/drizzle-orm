@@ -35,7 +35,7 @@ test('check and generate stop on a conflict and name the migrations that --fix-c
 		fix: { migrations: ['20260101120002_a', '20260101120003_b'], customMigrations: [] },
 	});
 	expect(result.status === 'conflicts' && result.message).toContain(
-		'To apply this fix, run: drizzle-kit generate --fix-conflicts',
+		'To apply this fix, run:\n  drizzle-kit generate --fix-conflicts',
 	);
 	await expect(flow.generate('main', resolved)).rejects.toThrow('drizzle-kit generate --fix-conflicts');
 	expect(flow.folders('main')).toStrictEqual(['20260101120001_main', '20260101120002_a', '20260101120003_b']);
@@ -161,7 +161,7 @@ test('--fix-conflicts in explain mode names the migrations that the fix deletes 
 	expect(explainedText).toMatch(/It deletes these folders:\n {2}\S+\/20260101120002_a\n {2}\S+\/20260101120003_b\n/);
 	expect(explainedText).toContain('generate one new migration');
 	expect(unchangedText).toContain(
-		'The rest of the history already matches your schema, so the fix writes no new migration.',
+		'The remaining migrations already match your schema, so the fix writes no new migration.',
 	);
 	expect(unchangedText).not.toContain('generate one new migration');
 

@@ -151,7 +151,7 @@ test('returns non-commutativity message and no statements for conflicting branch
 
 	expect(result.statements).toStrictEqual([]);
 	expect(result.nonCommutativityMessage).toContain(
-		'Non-commutative migrations detected',
+		'Conflicting migrations detected',
 	);
 });
 

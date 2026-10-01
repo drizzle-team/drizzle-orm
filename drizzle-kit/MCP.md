@@ -46,7 +46,7 @@ The `_meta` key is set whenever `init: true`, derived from the input alone and i
 
 ## `fix_conflicts`
 
-`fix_conflicts` is the MCP form of `drizzle-kit generate --fix-conflicts`, for postgresql only. It deletes the migrations that hold the conflicting statements that check reports, with all their children. It then generates one new migration from the rest of the history to the schema. The `check_error` response of `check` or `generate` lists these folders in `error.fix` before anything is deleted. The tool deletes nothing while it returns `missing_hints`. Every database that ran a deleted migration must be reset, because the migrator skips a deleted migration without an error.
+`fix_conflicts` is the MCP form of `drizzle-kit generate --fix-conflicts`, for postgresql only. It deletes the migrations that hold the conflicting statements that check reports, with all their children. It then generates one new migration from the schema. The `check_error` response of `check` or `generate` lists these folders in `error.fix` before anything is deleted. The tool deletes nothing while it returns `missing_hints`. Every database that ran a deleted migration must be reset.
 
 The tool is separate from `generate`, so that the static annotation of each tool holds for every call.
 

@@ -18,7 +18,7 @@ Output format, interactivity, and hint resolution are three orthogonal axes. The
 
 Connection-layer driver-selection chatter (the `Using '<driver>' driver for database querying` lines a connecting command prints while it picks a database driver) follows the same rule: under `--output json` it is suppressed so stdout stays a single JSON envelope, and under `--output text` it still prints as human progress.
 
-`check` is a no-hint, non-interactive gate, so it never reaches the missing-decisions path. Under `--output text` it keeps its current human output (`Everything's fine 🐶🔥` on success, the colorized conflict tree on non-commutativity); under `--output json` it emits the `ok` / `check_error` envelopes documented in [`./JSON_CONTRACT.md`](./JSON_CONTRACT.md).
+`check` is a no-hint, non-interactive gate, so it never reaches the missing-decisions path. Under `--output text` it keeps its current human output (`Everything's fine 🐶🔥` on success, the colorized conflict tree on conflicts); under `--output json` it emits the `ok` / `check_error` envelopes documented in [`./JSON_CONTRACT.md`](./JSON_CONTRACT.md).
 
 `pull`, `up`, and `export` are likewise non-interactive (none of them ever reaches the missing-decisions path):
 

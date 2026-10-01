@@ -53,7 +53,7 @@ const countLeafs = (conflicts: UnifiedBranchConflict[]): number => {
 const headerBadge = (conflicts: UnifiedBranchConflict[]): string => {
 	const leafCount = countLeafs(conflicts);
 	return (
-		`${chalk.white.bgRed(' Non-commutative migrations detected ')} `
+		`${chalk.white.bgRed(' Conflicting migrations detected ')} `
 		+ `Found ${chalk.bold(String(conflicts.length))} conflict${conflicts.length === 1 ? '' : 's'} `
 		+ `across ${chalk.bold(String(leafCount))} migration${leafCount === 1 ? '' : 's'}`
 	);
@@ -146,7 +146,8 @@ export const assertConflictOptions = (
 		throw new UnsupportedCommandCliError(
 			command,
 			'--ignore-conflicts is not supported for postgresql. '
-				+ 'To delete the conflicting migrations and generate one new migration, run: drizzle-kit generate --fix-conflicts',
+				+ 'To delete the conflicting migrations and generate one new migration, run:\n'
+				+ '  drizzle-kit generate --fix-conflicts',
 			{ dialect, option: 'ignore-conflicts' },
 		);
 	}

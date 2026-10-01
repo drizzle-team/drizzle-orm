@@ -111,7 +111,7 @@ test('with three leaves every pair of branches is compared', async () => {
 	// Each pair is grouped under its own fork point.
 	expect(reportOf(result)).toStrictEqual([
 		'',
-		' Non-commutative migrations detected  Found 2 conflicts across 3 migrations',
+		' Conflicting migrations detected  Found 2 conflicts across 3 migrations',
 		'',
 		'  20260101120001_main',
 		'  ├── 20260101120002_a',
@@ -126,14 +126,14 @@ test('with three leaves every pair of branches is compared', async () => {
 		'  └── 20260101120005_b',
 		'      └─ ⚠ alter_column: email on users table (20260101120005_b)',
 		'',
-		'To fix the conflicts, drizzle-kit can delete 3 migrations and generate one new migration from the rest of the '
-		+ 'history to your schema. It deletes these folders:',
+		'To fix the conflicts, drizzle-kit can delete the conflicting migration branches, which is 3 migrations in '
+		+ 'total, and generate one new migration from your schema. It deletes these folders:',
 		'  20260101120002_a',
 		'  20260101120004_c',
 		'  20260101120005_b',
-		'Every database that already ran a deleted migration must be reset. '
-		+ 'The migrator skips a deleted migration without an error.',
-		'To apply this fix, run: drizzle-kit generate --fix-conflicts',
+		'Every database that already ran a deleted migration must be reset.',
+		'To apply this fix, run:',
+		'  drizzle-kit generate --fix-conflicts',
 	]);
 });
 
