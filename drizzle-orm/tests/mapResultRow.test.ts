@@ -48,3 +48,25 @@ test('mapResultRow - nested partial select returns null on left join only if all
 	const result3 = mapResultRow(columns, [null, null], { [getTableName(table2)]: false });
 	expect(result3).toEqual({ nested: null });
 });
+
+test('mapResultRow - nested object with mixed tables is not nullified', () => {
+	const table1 = new MockTable();
+	table1[Table.Symbol.Name] = 'table1';
+	const table2 = new MockTable();
+	table2[Table.Symbol.Name] = 'table2';
+	
+	const col1 = new MockColumn(table1, 'col1');
+	const col2 = new MockColumn(table2, 'col2');
+
+	const columns = [
+		{ path: ['nested', 'col1'], field: col1 },
+		{ path: ['nested', 'col2'], field: col2 },
+	];
+
+	// Mixed tables, all null. It should not be fully nullified based on original logic, but instead have null fields
+	const result1 = mapResultRow(columns, [null, null], {
+		[getTableName(table1)]: false,
+		[getTableName(table2)]: false
+	});
+	expect(result1).toEqual({ nested: { col1: null, col2: null } });
+});
