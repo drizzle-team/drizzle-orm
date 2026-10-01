@@ -297,9 +297,8 @@ jobs:
             int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore.test.ts ;;
             int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-proxy.test.ts ;;
             int:postgres)
-              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream test:postgres
-              fi
+              # Uses local Postgres; hosted providers are excluded by the test config/script.
+              pnpm --stream test:postgres
             ;;
             int:neon)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
