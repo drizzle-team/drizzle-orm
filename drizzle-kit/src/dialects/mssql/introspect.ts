@@ -49,7 +49,7 @@ export const fromDatabase = async (
 	SELECT s.name as schema_name, s.schema_id as schema_id
 	FROM sys.schemas s
 	JOIN sys.database_principals p ON s.principal_id = p.principal_id
-	WHERE p.type IN ('S', 'U')  -- Only SQL users and Windows users
+	WHERE p.type NOT IN ('R')  -- Exclude database-role schemas, including built-in roles
 	  AND s.name NOT IN ('guest', 'INFORMATION_SCHEMA', 'sys')
 	ORDER BY lower(s.name);
 	`).then((rows) => {
