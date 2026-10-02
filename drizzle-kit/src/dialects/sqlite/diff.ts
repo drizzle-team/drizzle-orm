@@ -268,6 +268,10 @@ export const ddlDiff = async (
 	});
 	const alteredColumnsBecameGenerated = alteredColumns.filter((it) => it.generated?.to?.type === 'stored');
 	const newStoredColumns = columnsToCreate.filter((it) => it.generated && it.generated.type === 'stored');
+	// https://www.sqlite.org/lang_altertable.html:
+	// "The column may not have a default value of CURRENT_TIME, CURRENT_DATE,
+	// CURRENT_TIMESTAMP, or an expression in parentheses."
+	const newColumnsWithNonConstantDefaults = columnsToCreate.filter((it) => isNonConstantDefault(it.default));
 
 	const setOfTablesToRecereate = new Set(
 		[
@@ -278,6 +282,7 @@ export const ddlDiff = async (
 			...indexesDiff.filter((it) => it.isUnique && it.origin === 'auto'), // we can't drop/create auto generated unique indexes;,
 			...alteredColumnsBecameGenerated, // "It is not possible to ALTER TABLE ADD COLUMN a STORED column. https://www.sqlite.org/gencol.html"
 			...newStoredColumns, // "It is not possible to ALTER TABLE ADD COLUMN a STORED column. https://www.sqlite.org/gencol.html"
+			...newColumnsWithNonConstantDefaults, // "The column may not have a default value of CURRENT_TIME, CURRENT_DATE, CURRENT_TIMESTAMP, or an expression in parentheses. https://www.sqlite.org/lang_altertable.html"
 		].map((it) => it.table),
 	);
 
@@ -369,8 +374,16 @@ export const ddlDiff = async (
 			`As SQLite docs mention: "It is not possible to ALTER TABLE ADD COLUMN a STORED column. One can add a VIRTUAL column, however", source: "https://www.sqlite.org/gencol.html"`,
 		);
 	}
+	for (const column of newColumnsWithNonConstantDefaults) {
+		warnings.push(
+			`As SQLite docs mention: "The column may not have a default value of CURRENT_TIME, CURRENT_DATE, CURRENT_TIMESTAMP, or an expression in parentheses", so table "${column.table}" will be recreated to add column "${column.name}", source: "https://www.sqlite.org/lang_altertable.html"`,
+		);
+	}
 
-	const groupedNewColumns = Object.values(createdFilteredColumns.reduce((acc, prev) => {
+	// columns with non-constant defaults are added via table recreation, not ALTER TABLE ADD COLUMN
+	const addableNewColumns = createdFilteredColumns.filter((it) => !newColumnsWithNonConstantDefaults.includes(it));
+
+	const groupedNewColumns = Object.values(addableNewColumns.reduce((acc, prev) => {
 		const entry = prev.table in acc ? acc[prev.table] : { table: prev.table, columns: [] };
 		acc[prev.table] = entry;
 		entry.columns.push(prev);
@@ -437,4 +450,14 @@ export const ddlDiff = async (
 		renames,
 		warnings,
 	};
+};
+
+// https://www.sqlite.org/lang_altertable.html:
+// "The column may not have a default value of CURRENT_TIME, CURRENT_DATE,
+// CURRENT_TIMESTAMP, or an expression in parentheses."
+const isNonConstantDefault = (def: string | null | undefined): boolean => {
+	if (!def) return false;
+	const trimmed = def.trim();
+	if (['CURRENT_TIME', 'CURRENT_DATE', 'CURRENT_TIMESTAMP'].includes(trimmed.toUpperCase())) return true;
+	return trimmed.startsWith('(') && trimmed.endsWith(')');
 };
