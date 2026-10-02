@@ -457,6 +457,12 @@ export abstract class AggregatedField<T = unknown> implements SQLWrapper<T> {
 		readonly data: T;
 	};
 
+	// Reached from `BuildRelationalQueryResult['selection']`, whose element union names
+	// AggregatedField directly. A protected member here makes that class nominal, which
+	// makes the whole recursive selection type non-portable, which propagates out through
+	// the dialects' mapperGenerators. The resulting diagnostic points at the recursive
+	// type rather than at this member, which makes it easy to misread as a compiler limit.
+	/** @internal */
 	protected table: SchemaEntry | undefined;
 
 	onTable(table: SchemaEntry) {

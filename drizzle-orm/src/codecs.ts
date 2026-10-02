@@ -62,7 +62,15 @@ const itemToArrayTypeCodecNameMap = {
 export class CodecsCollection<TTypeSet extends string = string> {
 	static readonly [entityKind]: string = 'CodecsCollection';
 
-	constructor(protected resolveTypes: (type: string) => string, readonly codecs: Codecs<TTypeSet> = noopCodecs) {}
+	// Declared rather than left as a constructor parameter property so the `@internal`
+	// marker lands on the member itself; on a parameter it survives into the emitted
+	// constructor signature as a stray comment.
+	/** @internal */
+	protected resolveTypes: (type: string) => string;
+
+	constructor(resolveTypes: (type: string) => string, readonly codecs: Codecs<TTypeSet> = noopCodecs) {
+		this.resolveTypes = resolveTypes;
+	}
 
 	get<TCodecType extends keyof Codec>(
 		column: Column,

@@ -213,8 +213,10 @@ export class ManualViewBuilder<
 export class SingleStoreView<T extends ViewConfig = ViewConfig> extends SingleStoreViewBase<T> {
 	static override readonly [entityKind]: string = 'SingleStoreView';
 
+	/** @internal */
 	declare protected $SingleStoreViewBrand: 'SingleStoreView';
 
+	/** @internal */
 	[SingleStoreViewConfig]: ViewBuilderConfig | undefined;
 
 	constructor({ singlestoreConfig, config }: {

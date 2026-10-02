@@ -115,6 +115,7 @@ export class MySqlDialect {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
 
+	/** @internal */
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
 
@@ -218,6 +219,7 @@ export class MySqlDialect {
 	 * `select <selection> from`
 	 *
 	 * If `isSingleTable` is true, then columns won't be prefixed with table name
+	 * @internal
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
@@ -370,6 +372,7 @@ export class MySqlDialect {
 		return new SQL(chunks);
 	}
 
+	/** @internal */
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
 		return typeof limit === 'object'
 				|| (typeof limit === 'number' && limit >= 0)
@@ -378,6 +381,7 @@ export class MySqlDialect {
 			: undefined;
 	}
 
+	/** @internal */
 	private buildOrderBy(
 		orderBy: (MySqlColumn | SQL | SQL.Aliased)[] | undefined,
 	): SQL | undefined {
@@ -386,6 +390,7 @@ export class MySqlDialect {
 			: undefined;
 	}
 
+	/** @internal */
 	private buildIndex({
 		indexes,
 		indexFor,
@@ -835,6 +840,7 @@ export class MySqlDialect {
 		});
 	}
 
+	/** @internal */
 	private buildRqbColumn(
 		table: SchemaEntry,
 		field: unknown,
@@ -932,6 +938,7 @@ export class MySqlDialect {
 		return output;
 	}
 
+	/** @internal */
 	private buildColumns = (
 		table: SchemaEntry,
 		selection: BuildRelationalQueryResult['selection'],
