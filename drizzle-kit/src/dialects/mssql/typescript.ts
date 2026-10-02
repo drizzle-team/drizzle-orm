@@ -480,11 +480,11 @@ const createTableUniques = (
 ): string => {
 	let statement = '';
 
-	unqs.forEach((it, index) => {
+	unqs.forEach((it) => {
 		statement += '\tunique(';
 		statement += it.nameExplicit ? `"${it.name}")` : ')';
 		statement += `.on(${it.columns.map((it) => `table.${withCasing(it, casing)}`).join(', ')})`;
-		statement += index === unqs.length - 1 ? `\n` : ',\n';
+		statement += `,\n`;
 	});
 
 	return statement;
@@ -496,10 +496,10 @@ const createTableChecks = (
 	let statement = '';
 
 	checkConstraints.forEach((it) => {
-		statement += 'check(';
+		statement += '\tcheck(';
 		statement += `"${it.name}", `;
 		statement += `sql\`${it.value}\`)`;
-		statement += `,`;
+		statement += `,\n`;
 	});
 
 	return statement;
