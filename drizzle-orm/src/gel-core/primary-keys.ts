@@ -1,6 +1,6 @@
 import { entityKind } from '~/entity.ts';
-import type { AnyGelColumn, GelColumn } from './columns/index.ts';
-import { GelTable } from './table.ts';
+import type { AnyGelColumn, GelColumn } from './columns/common.ts';
+import { GelTable } from './table-common.ts';
 
 export function primaryKey<
 	TTableName extends string,

@@ -1,6 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import type { Column } from './column.ts';
-import type { GelColumn, GelExtraConfigColumn } from './gel-core/index.ts';
+import type { GelColumn, GelExtraConfigColumn } from './gel-core/columns/common.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
 import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
 import type { SingleStoreColumn } from './singlestore-core/index.ts';
