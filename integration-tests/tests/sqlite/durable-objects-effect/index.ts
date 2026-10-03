@@ -53,7 +53,7 @@ import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
 import * as ManagedRuntime from 'effect/ManagedRuntime';
-import { SqlClient } from 'effect/unstable/sql/SqlClient';
+import { SqlClient } from 'effect/sql/SqlClient';
 import {
 	allTypesData,
 	allTypesInput,

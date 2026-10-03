@@ -1,7 +1,7 @@
 import type { PgliteClient } from '@effect/sql-pglite/PgliteClient';
 import type { Results, Row } from '@electric-sql/pglite';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
