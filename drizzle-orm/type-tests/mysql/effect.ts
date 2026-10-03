@@ -1,6 +1,6 @@
 import type { MysqlClient } from '@effect/sql-mysql2/MysqlClient';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
