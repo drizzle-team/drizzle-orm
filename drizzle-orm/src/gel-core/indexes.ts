@@ -1,9 +1,9 @@
 import { SQL } from '~/sql/sql.ts';
 
 import { entityKind, is } from '~/entity.ts';
-import type { GelColumn, GelExtraConfigColumn } from './columns/index.ts';
-import { IndexedColumn } from './columns/index.ts';
-import type { GelTable } from './table.ts';
+import type { GelColumn, GelExtraConfigColumn } from './columns/common.ts';
+import { IndexedColumn } from './columns/common.ts';
+import type { GelTable } from './table-common.ts';
 
 interface IndexConfig {
 	name?: string;
