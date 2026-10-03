@@ -111,7 +111,7 @@ export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 
 export const unwrapColumn = (column: AnyPgColumn) => {
 	// In the new architecture, columns have a dimensions property directly
-	const dimensions = (column as any).dimensions ?? 0;
+	let dimensions = (column as any).dimensions ?? 0;
 	const baseColumn = column;
 
 	const isEnum = is(baseColumn, PgEnumColumn) || is(baseColumn, PgEnumObjectColumn);
@@ -125,6 +125,20 @@ export const unwrapColumn = (column: AnyPgColumn) => {
 
 	/* legacy, for not to patch orm and don't up snapshot */
 	sqlBaseType = sqlBaseType.startsWith('timestamp (') ? sqlBaseType.replace('timestamp (', 'timestamp(') : sqlBaseType;
+
+	// A `customType` has no `dimensions` property, so it spells its array-ness
+	// out in `dataType()` instead, e.g. `varchar[]`. Read the dimension back off
+	// the type name when the column did not carry one, otherwise the column
+	// looks scalar and an array default is handed to the scalar codec: that
+	// throws for the string types and silently writes an unquoted default for
+	// the rest.
+	if (dimensions === 0) {
+		const brackets = sqlBaseType.match(/(?:\[\])+$/)?.[0];
+		if (brackets) {
+			dimensions = brackets.length / 2;
+			sqlBaseType = sqlBaseType.slice(0, -brackets.length);
+		}
+	}
 
 	const { type, options } = splitSqlType(sqlBaseType);
 	const sqlType = dimensions > 0 ? `${sqlBaseType}${'[]'.repeat(dimensions)}` : sqlBaseType;
