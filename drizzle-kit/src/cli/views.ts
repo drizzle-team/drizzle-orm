@@ -58,6 +58,39 @@ export const error = (error: string, greyMsg: string = ''): string => {
 	return `${chalk.bgRed.bold(' Error ')} ${error} ${greyMsg ? chalk.grey(greyMsg) : ''}`.trim();
 };
 
+// Keep stack traces and causes for unexpected CLI failures.
+export const unknownError = (e: unknown): string => {
+	const message = typeof e === 'object' && e !== null && 'message' in e && typeof e.message === 'string'
+		? e.message
+		: String(e);
+
+	let out = error(message);
+
+	const seen = new Set<unknown>();
+	let current: unknown = e;
+	let first = true;
+	while (typeof current === 'object' && current !== null && !seen.has(current)) {
+		seen.add(current);
+
+		const stack = 'stack' in current && typeof current.stack === 'string'
+			? current.stack
+			: 'message' in current && typeof current.message === 'string'
+			? current.message
+			: undefined;
+		if (stack) {
+			out += `\n${chalk.gray(first ? stack : `Caused by: ${stack}`)}`;
+		}
+		first = false;
+
+		current = 'cause' in current ? current.cause : undefined;
+	}
+	if (!first && current !== undefined && current !== null && typeof current !== 'object') {
+		out += `\n${chalk.gray(`Caused by: ${String(current)}`)}`;
+	}
+
+	return out;
+};
+
 export const postgresSchemaWarning = (warning: PostgresSchemaWarning): string => {
 	if (warning.type === 'policy_not_linked') {
 		return withStyle.errorWarning(
