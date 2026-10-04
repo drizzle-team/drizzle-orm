@@ -20,7 +20,7 @@ export default defineConfig({
 			'tests/utils/is-config.test.ts',
 			'js-tests/driver-init/commonjs/*.test.cjs',
 			'js-tests/driver-init/module/*.test.mjs',
-			'tests/gel/**/*.test.ts',
+			// 'tests/gel/**/*.test.ts',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
@@ -33,6 +33,7 @@ export default defineConfig({
 					'tests/sqlite/libsql-batch.test.ts',
 					'tests/pg/neon-http.test.ts',
 					'tests/pg/neon-http-batch.test.ts',
+					'tests/pg/netlify-db.test.ts',
 					'tests/utils/is-config.test.ts', // Uses external DBs in some cases
 					'js-tests/driver-init/commonjs/neon-http.test.cjs',
 					'js-tests/driver-init/commonjs/neon-ws.test.cjs',

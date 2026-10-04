@@ -1,5 +1,6 @@
 import { is } from 'drizzle-orm';
-import { AnySQLiteTable, SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
+import type { AnySQLiteTable } from 'drizzle-orm/sqlite-core';
+import { SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
 import { safeRegister } from '../cli/commands/utils';
 
 export const prepareFromExports = (exports: Record<string, unknown>) => {
@@ -24,18 +25,17 @@ export const prepareFromSqliteImports = async (imports: string[]) => {
 	const tables: AnySQLiteTable[] = [];
 	const views: SQLiteView[] = [];
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const prepared = prepareFromExports(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const prepared = prepareFromExports(i0);
 
-		tables.push(...prepared.tables);
-		views.push(...prepared.views);
-	}
-
-	unregister();
+			tables.push(...prepared.tables);
+			views.push(...prepared.views);
+		}
+	});
 
 	return { tables: Array.from(new Set(tables)), views };
 };

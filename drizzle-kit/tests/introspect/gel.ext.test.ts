@@ -25,7 +25,7 @@ let container: Docker.Container | undefined;
 async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
 	const docker = new Docker();
 	const port = await getPort({ port: 5656 });
-	const image = 'geldata/gel:latest';
+	const image = 'geldata/gel:6';
 
 	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>

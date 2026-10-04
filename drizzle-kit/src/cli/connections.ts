@@ -1,3 +1,5 @@
+/// <reference types="@cloudflare/workers-types" />
+import type { PGlite } from '@electric-sql/pglite';
 import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
 import type { MigrationConfig } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
@@ -24,7 +26,10 @@ import { SingleStoreCredentials } from './validations/singlestore';
 import type { SqliteCredentials } from './validations/sqlite';
 
 export const preparePostgresDB = async (
-	credentials: PostgresCredentials,
+	credentials: PostgresCredentials | {
+		driver: 'pglite';
+		client: PGlite;
+	},
 ): Promise<
 	DB & {
 		packageName:
@@ -123,7 +128,7 @@ export const preparePostgresDB = async (
 			const { drizzle } = await import('drizzle-orm/pglite');
 			const { migrate } = await import('drizzle-orm/pglite/migrator');
 
-			const pglite = new PGlite(normalisePGliteUrl(credentials.url));
+			const pglite = 'client' in credentials ? credentials.client : new PGlite(normalisePGliteUrl(credentials.url));
 			await pglite.waitReady;
 			const drzl = drizzle(pglite);
 			const migrateFn = async (config: MigrationConfig) => {
@@ -886,7 +891,7 @@ const prepareSqliteParams = (params: any[], driver?: string) => {
 				? JSON.stringify(param.value)
 				: (param.value as string);
 
-			if (driver === 'd1-http') {
+			if (driver === 'd1-http' || driver === 'd1') {
 				return value;
 			}
 
@@ -913,6 +918,81 @@ const preparePGliteParams = (params: any[]) => {
 		}
 		return param;
 	});
+};
+
+export type D1Credentials = {
+	driver: 'd1';
+	binding: D1Database;
+};
+
+export const connectToD1 = async (
+	d1: D1Database,
+): Promise<
+	& SQLiteDB
+	& {
+		packageName: 'd1';
+		migrate: (config: MigrationConfig) => Promise<void>;
+		proxy: Proxy;
+		transactionProxy: TransactionProxy;
+	}
+> => {
+	const db: SQLiteDB = {
+		query: async <T>(sql: string, params?: any[]) => {
+			const stmt = d1.prepare(sql);
+			const boundStmt = params && params.length > 0 ? stmt.bind(...params) : stmt;
+			const result = await boundStmt.all<T>();
+			return (result.results ?? []) as T[];
+		},
+		run: async (query: string) => {
+			const stmt = d1.prepare(query);
+			await stmt.run();
+		},
+	};
+
+	const proxy: Proxy = async (params) => {
+		const preparedParams = prepareSqliteParams(params.params || [], 'd1');
+		const stmt = d1.prepare(params.sql);
+		const boundStmt = preparedParams.length > 0 ? stmt.bind(...preparedParams) : stmt;
+
+		try {
+			if (params.mode === 'array') {
+				return await boundStmt.raw();
+			}
+			const result = await boundStmt.all();
+			return result.results ?? [];
+		} catch (error: any) {
+			// D1 doesn't allow certain introspection queries (sqlite_master with pragma functions)
+			// Return empty array for SQLITE_AUTH errors on these system queries
+			if (error?.message?.includes('SQLITE_AUTH') || error?.message?.includes('not authorized')) {
+				return [];
+			}
+			throw error;
+		}
+	};
+
+	const transactionProxy: TransactionProxy = async (queries) => {
+		const results: any[] = [];
+		try {
+			// D1 doesn't support true transactions via binding, use batch instead
+			const statements = queries.map((q) => d1.prepare(q.sql));
+			const batchResults = await d1.batch(statements);
+			for (const result of batchResults) {
+				results.push(result.results ?? []);
+			}
+		} catch (error) {
+			results.push(error as Error);
+		}
+		return results;
+	};
+
+	const { drizzle } = await import('drizzle-orm/d1');
+	const { migrate } = await import('drizzle-orm/d1/migrator');
+	const drzl = drizzle(d1);
+	const migrateFn = async (config: MigrationConfig) => {
+		return migrate(drzl, config);
+	};
+
+	return { ...db, packageName: 'd1', proxy, transactionProxy, migrate: migrateFn };
 };
 
 export const connectToSQLite = async (

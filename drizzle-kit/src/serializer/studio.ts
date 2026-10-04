@@ -1,7 +1,15 @@
+/// <reference types="@cloudflare/workers-types" />
+import type { PGlite } from '@electric-sql/pglite';
 import { serve } from '@hono/node-server';
 import { zValidator } from '@hono/zod-validator';
 import { createHash } from 'crypto';
-import { AnyColumn, AnyTable, is } from 'drizzle-orm';
+import type { AnyColumn, AnyTable } from 'drizzle-orm';
+import { is } from 'drizzle-orm';
+import type { AnyMySqlTable } from 'drizzle-orm/mysql-core';
+import { getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
+import type { AnyPgTable } from 'drizzle-orm/pg-core';
+import { getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core';
+import type { TablesRelationalConfig } from 'drizzle-orm/relations';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -9,22 +17,18 @@ import {
 	normalizeRelation,
 	One,
 	Relations,
-	TablesRelationalConfig,
-} from 'drizzle-orm';
-import { AnyMySqlTable, getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
-import { AnyPgTable, getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core';
-import {
-	AnySingleStoreTable,
-	getTableConfig as singlestoreTableConfig,
-	SingleStoreTable,
-} from 'drizzle-orm/singlestore-core';
-import { AnySQLiteTable, getTableConfig as sqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
+} from 'drizzle-orm/relations';
+import type { AnySingleStoreTable } from 'drizzle-orm/singlestore-core';
+import { getTableConfig as singlestoreTableConfig, SingleStoreTable } from 'drizzle-orm/singlestore-core';
+import type { AnySQLiteTable } from 'drizzle-orm/sqlite-core';
+import { getTableConfig as sqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import fs from 'fs';
 import { Hono } from 'hono';
 import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
-import { LibSQLCredentials } from 'src/cli/validations/libsql';
+import type { CasingType } from 'src/cli/validations/common';
+import type { LibSQLCredentials } from 'src/cli/validations/libsql';
 import { assertUnreachable } from 'src/global';
 import { z } from 'zod';
 import { safeRegister } from '../cli/commands/utils';
@@ -34,6 +38,7 @@ import type { SingleStoreCredentials } from '../cli/validations/singlestore';
 import type { SqliteCredentials } from '../cli/validations/sqlite';
 import type { Proxy, TransactionProxy } from '../utils';
 import { prepareFilenames } from '.';
+import { getColumnCasing } from './utils';
 
 type CustomDefault = {
 	schema: string;
@@ -61,15 +66,17 @@ export type Setup = {
 		| 'mysql2'
 		| '@planetscale/database'
 		| 'd1-http'
+		| 'd1'
 		| '@libsql/client'
 		| 'better-sqlite3';
-	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite';
+	driver?: 'aws-data-api' | 'd1-http' | 'd1' | 'turso' | 'pglite';
 	databaseName?: string; // for planetscale (driver remove database name from connection string)
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
 	customDefaults: CustomDefault[];
 	schema: Record<string, Record<string, AnyTable<any>>>;
 	relations: Record<string, Relations>;
+	casing?: CasingType;
 	schemaFiles?: SchemaFile[];
 };
 
@@ -93,26 +100,26 @@ export const preparePgSchema = async (path: string | string[]) => {
 		content: fs.readFileSync(it, 'utf-8'),
 	}));
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const i0values = Object.entries(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const i0values = Object.entries(i0);
 
-		i0values.forEach(([k, t]) => {
-			if (is(t, PgTable)) {
-				const schema = pgTableConfig(t).schema || 'public';
-				pgSchema[schema] = pgSchema[schema] || {};
-				pgSchema[schema][k] = t;
-			}
+			i0values.forEach(([k, t]) => {
+				if (is(t, PgTable)) {
+					const schema = pgTableConfig(t).schema || 'public';
+					pgSchema[schema] = pgSchema[schema] || {};
+					pgSchema[schema][k] = t;
+				}
 
-			if (is(t, Relations)) {
-				relations[k] = t;
-			}
-		});
-	}
-	unregister();
+				if (is(t, Relations)) {
+					relations[k] = t;
+				}
+			});
+		}
+	});
 
 	return { schema: pgSchema, relations, files };
 };
@@ -131,25 +138,25 @@ export const prepareMySqlSchema = async (path: string | string[]) => {
 		content: fs.readFileSync(it, 'utf-8'),
 	}));
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const i0values = Object.entries(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const i0values = Object.entries(i0);
 
-		i0values.forEach(([k, t]) => {
-			if (is(t, MySqlTable)) {
-				const schema = mysqlTableConfig(t).schema || 'public';
-				mysqlSchema[schema][k] = t;
-			}
+			i0values.forEach(([k, t]) => {
+				if (is(t, MySqlTable)) {
+					const schema = mysqlTableConfig(t).schema || 'public';
+					mysqlSchema[schema][k] = t;
+				}
 
-			if (is(t, Relations)) {
-				relations[k] = t;
-			}
-		});
-	}
-	unregister();
+				if (is(t, Relations)) {
+					relations[k] = t;
+				}
+			});
+		}
+	});
 
 	return { schema: mysqlSchema, relations, files };
 };
@@ -168,32 +175,35 @@ export const prepareSQLiteSchema = async (path: string | string[]) => {
 		content: fs.readFileSync(it, 'utf-8'),
 	}));
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const i0values = Object.entries(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const i0values = Object.entries(i0);
 
-		i0values.forEach(([k, t]) => {
-			if (is(t, SQLiteTable)) {
-				const schema = 'public'; // sqlite does not have schemas
-				sqliteSchema[schema][k] = t;
-			}
+			i0values.forEach(([k, t]) => {
+				if (is(t, SQLiteTable)) {
+					const schema = 'public'; // sqlite does not have schemas
+					sqliteSchema[schema][k] = t;
+				}
 
-			if (is(t, Relations)) {
-				relations[k] = t;
-			}
-		});
-	}
-	unregister();
+				if (is(t, Relations)) {
+					relations[k] = t;
+				}
+			});
+		}
+	});
 
 	return { schema: sqliteSchema, relations, files };
 };
 
 export const prepareSingleStoreSchema = async (path: string | string[]) => {
 	const imports = prepareFilenames(path);
-	const singlestoreSchema: Record<string, Record<string, AnySingleStoreTable>> = {
+	const singlestoreSchema: Record<
+		string,
+		Record<string, AnySingleStoreTable>
+	> = {
 		public: {},
 	};
 	const relations: Record<string, Relations> = {};
@@ -205,30 +215,33 @@ export const prepareSingleStoreSchema = async (path: string | string[]) => {
 		content: fs.readFileSync(it, 'utf-8'),
 	}));
 
-	const { unregister } = await safeRegister();
-	for (let i = 0; i < imports.length; i++) {
-		const it = imports[i];
+	await safeRegister(async () => {
+		for (let i = 0; i < imports.length; i++) {
+			const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
-		const i0values = Object.entries(i0);
+			const i0: Record<string, unknown> = require(`${it}`);
+			const i0values = Object.entries(i0);
 
-		i0values.forEach(([k, t]) => {
-			if (is(t, SingleStoreTable)) {
-				const schema = singlestoreTableConfig(t).schema || 'public';
-				singlestoreSchema[schema][k] = t;
-			}
+			i0values.forEach(([k, t]) => {
+				if (is(t, SingleStoreTable)) {
+					const schema = singlestoreTableConfig(t).schema || 'public';
+					singlestoreSchema[schema][k] = t;
+				}
 
-			if (is(t, Relations)) {
-				relations[k] = t;
-			}
-		});
-	}
-	unregister();
+				if (is(t, Relations)) {
+					relations[k] = t;
+				}
+			});
+		}
+	});
 
 	return { schema: singlestoreSchema, relations, files };
 };
 
-const getCustomDefaults = <T extends AnyTable<{}>>(schema: Record<string, Record<string, T>>): CustomDefault[] => {
+const getCustomDefaults = <T extends AnyTable<{}>>(
+	schema: Record<string, Record<string, T>>,
+	casing?: CasingType,
+): CustomDefault[] => {
 	const customDefaults: CustomDefault[] = [];
 
 	Object.entries(schema).map(([schema, tables]) => {
@@ -244,7 +257,7 @@ const getCustomDefaults = <T extends AnyTable<{}>>(schema: Record<string, Record
 			} else if (is(table, SQLiteTable)) {
 				tableConfig = sqliteTableConfig(table);
 			} else {
-				tableConfig = singlestoreTableConfig(table);
+				tableConfig = singlestoreTableConfig(table as SingleStoreTable);
 			}
 
 			tableConfig.columns.map((column) => {
@@ -252,7 +265,7 @@ const getCustomDefaults = <T extends AnyTable<{}>>(schema: Record<string, Record
 					customDefaults.push({
 						schema,
 						table: tableConfig.name,
-						column: column.name,
+						column: getColumnCasing(column, casing),
 						func: column.defaultFn,
 					});
 				}
@@ -264,14 +277,18 @@ const getCustomDefaults = <T extends AnyTable<{}>>(schema: Record<string, Record
 };
 
 export const drizzleForPostgres = async (
-	credentials: PostgresCredentials,
+	credentials: PostgresCredentials | {
+		driver: 'pglite';
+		client: PGlite;
+	},
 	pgSchema: Record<string, Record<string, AnyPgTable>>,
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
+	casing?: CasingType,
 ): Promise<Setup> => {
 	const { preparePostgresDB } = await import('../cli/connections');
 	const db = await preparePostgresDB(credentials);
-	const customDefaults = getCustomDefaults(pgSchema);
+	const customDefaults = getCustomDefaults(pgSchema, casing);
 
 	let dbUrl: string;
 
@@ -280,7 +297,7 @@ export const drizzleForPostgres = async (
 		if (driver === 'aws-data-api') {
 			dbUrl = `aws-data-api://${credentials.database}/${credentials.secretArn}/${credentials.resourceArn}`;
 		} else if (driver === 'pglite') {
-			dbUrl = credentials.url;
+			dbUrl = 'client' in credentials ? credentials.client.dataDir || 'pglite://custom-client' : credentials.url;
 		} else {
 			assertUnreachable(driver);
 		}
@@ -304,6 +321,7 @@ export const drizzleForPostgres = async (
 		schema: pgSchema,
 		relations,
 		schemaFiles,
+		casing,
 	};
 };
 
@@ -312,11 +330,12 @@ export const drizzleForMySQL = async (
 	mysqlSchema: Record<string, Record<string, AnyMySqlTable>>,
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
+	casing?: CasingType,
 ): Promise<Setup> => {
 	const { connectToMySQL } = await import('../cli/connections');
 	const { proxy, transactionProxy, database, packageName } = await connectToMySQL(credentials);
 
-	const customDefaults = getCustomDefaults(mysqlSchema);
+	const customDefaults = getCustomDefaults(mysqlSchema, casing);
 
 	let dbUrl: string;
 
@@ -340,19 +359,49 @@ export const drizzleForMySQL = async (
 		schema: mysqlSchema,
 		relations,
 		schemaFiles,
+		casing,
 	};
 };
 
+// D1 binding credentials type (mirrors the one in connections.ts)
+type D1BindingCredentials = {
+	driver: 'd1';
+	binding: D1Database;
+};
+
 export const drizzleForSQLite = async (
-	credentials: SqliteCredentials,
+	credentials: SqliteCredentials | D1BindingCredentials,
 	sqliteSchema: Record<string, Record<string, AnySQLiteTable>>,
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
+	casing?: CasingType,
 ): Promise<Setup> => {
-	const { connectToSQLite } = await import('../cli/connections');
+	const customDefaults = getCustomDefaults(sqliteSchema, casing);
 
+	if ('driver' in credentials && credentials.driver === 'd1') {
+		const { connectToD1 } = await import('../cli/connections');
+		const sqliteDB = await connectToD1(credentials.binding);
+
+		const dbUrl = 'd1://binding';
+		const dbHash = createHash('sha256').update(dbUrl).digest('hex');
+
+		return {
+			dbHash,
+			dialect: 'sqlite',
+			driver: 'd1',
+			packageName: 'd1',
+			proxy: sqliteDB.proxy,
+			transactionProxy: sqliteDB.transactionProxy,
+			customDefaults,
+			schema: sqliteSchema,
+			relations,
+			schemaFiles,
+			casing,
+		};
+	}
+
+	const { connectToSQLite } = await import('../cli/connections');
 	const sqliteDB = await connectToSQLite(credentials);
-	const customDefaults = getCustomDefaults(sqliteSchema);
 
 	let dbUrl: string;
 
@@ -380,6 +429,7 @@ export const drizzleForSQLite = async (
 		schema: sqliteSchema,
 		relations,
 		schemaFiles,
+		casing,
 	};
 };
 export const drizzleForLibSQL = async (
@@ -387,11 +437,12 @@ export const drizzleForLibSQL = async (
 	sqliteSchema: Record<string, Record<string, AnySQLiteTable>>,
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
+	casing?: CasingType,
 ): Promise<Setup> => {
 	const { connectToLibSQL } = await import('../cli/connections');
 
 	const sqliteDB = await connectToLibSQL(credentials);
-	const customDefaults = getCustomDefaults(sqliteSchema);
+	const customDefaults = getCustomDefaults(sqliteSchema, casing);
 
 	let dbUrl: string = `turso://${credentials.url}/${credentials.authToken}`;
 
@@ -408,6 +459,7 @@ export const drizzleForLibSQL = async (
 		schema: sqliteSchema,
 		relations,
 		schemaFiles,
+		casing,
 	};
 };
 
@@ -416,11 +468,12 @@ export const drizzleForSingleStore = async (
 	singlestoreSchema: Record<string, Record<string, AnySingleStoreTable>>,
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
+	casing?: CasingType,
 ): Promise<Setup> => {
 	const { connectToSingleStore } = await import('../cli/connections');
 	const { proxy, transactionProxy, database, packageName } = await connectToSingleStore(credentials);
 
-	const customDefaults = getCustomDefaults(singlestoreSchema);
+	const customDefaults = getCustomDefaults(singlestoreSchema, casing);
 
 	let dbUrl: string;
 
@@ -444,6 +497,7 @@ export const drizzleForSingleStore = async (
 		schema: singlestoreSchema,
 		relations,
 		schemaFiles,
+		casing,
 	};
 };
 
@@ -458,10 +512,13 @@ type Relation = {
 	refColumns: string[];
 };
 
-export const extractRelations = (tablesConfig: {
-	tables: TablesRelationalConfig;
-	tableNamesMap: Record<string, string>;
-}): Relation[] => {
+export const extractRelations = (
+	tablesConfig: {
+		tables: TablesRelationalConfig;
+		tableNamesMap: Record<string, string>;
+	},
+	casing?: CasingType,
+): Relation[] => {
 	const relations = Object.values(tablesConfig.tables)
 		.map((it) =>
 			Object.entries(it.relations).map(([name, relation]) => {
@@ -474,8 +531,12 @@ export const extractRelations = (tablesConfig: {
 					const rel = relation;
 					const refTableName = rel.referencedTableName;
 					const refTable = rel.referencedTable;
-					const fields = normalized.fields.map((it) => it.name).flat();
-					const refColumns = normalized.references.map((it) => it.name).flat();
+					const fields = normalized.fields
+						.map((it) => getColumnCasing(it, casing))
+						.flat();
+					const refColumns = normalized.references
+						.map((it) => getColumnCasing(it, casing))
+						.flat();
 
 					let refSchema: string | undefined;
 					if (is(refTable, PgTable)) {
@@ -509,7 +570,7 @@ export const extractRelations = (tablesConfig: {
 						refSchema: refSchema || 'public',
 						refColumns: refColumns,
 					};
-				} catch (error) {
+				} catch {
 					throw new Error(
 						`Invalid relation "${relation.fieldName}" for table "${
 							it.schema ? `${it.schema}.${it.dbName}` : it.dbName
@@ -533,7 +594,13 @@ const proxySchema = z.object({
 		params: z.array(z.any()).optional(),
 		typings: z.string().array().optional(),
 		mode: z.enum(['array', 'object']).default('object'),
-		method: z.union([z.literal('values'), z.literal('get'), z.literal('all'), z.literal('run'), z.literal('execute')]),
+		method: z.union([
+			z.literal('values'),
+			z.literal('get'),
+			z.literal('all'),
+			z.literal('run'),
+			z.literal('execute'),
+		]),
 	}),
 });
 
@@ -542,7 +609,14 @@ const transactionProxySchema = z.object({
 	data: z
 		.object({
 			sql: z.string(),
-			method: z.union([z.literal('values'), z.literal('get'), z.literal('all'), z.literal('run'), z.literal('execute')])
+			method: z
+				.union([
+					z.literal('values'),
+					z.literal('get'),
+					z.literal('all'),
+					z.literal('run'),
+					z.literal('execute'),
+				])
 				.optional(),
 		})
 		.array(),
@@ -561,7 +635,12 @@ const defaultsSchema = z.object({
 		.min(1),
 });
 
-const schema = z.union([init, proxySchema, transactionProxySchema, defaultsSchema]);
+const schema = z.union([
+	init,
+	proxySchema,
+	transactionProxySchema,
+	defaultsSchema,
+]);
 
 const jsonStringify = (data: any) => {
 	return JSON.stringify(data, (_key, value) => {
@@ -579,7 +658,11 @@ const jsonStringify = (data: any) => {
 
 		// Convert Buffer and ArrayBuffer to base64
 		if (
-			(value && typeof value === 'object' && 'type' in value && 'data' in value && value.type === 'Buffer')
+			(value
+				&& typeof value === 'object'
+				&& 'type' in value
+				&& 'data' in value
+				&& value.type === 'Buffer')
 			|| value instanceof ArrayBuffer
 			|| value instanceof Buffer
 		) {
@@ -612,6 +695,7 @@ export const prepareServer = async (
 		schema: drizzleSchema,
 		relations,
 		dbHash,
+		casing,
 		schemaFiles,
 	}: Setup,
 	app?: Hono,
@@ -639,9 +723,11 @@ export const prepareServer = async (
 			Object.entries(drizzleSchema)
 				.map(([schemaName, schema]) => {
 					// have unique keys across schemas
-					const mappedTableEntries = Object.entries(schema).map(([tableName, table]) => {
-						return [`__${schemaName}__.${tableName}`, table];
-					});
+					const mappedTableEntries = Object.entries(schema).map(
+						([tableName, table]) => {
+							return [`__${schemaName}__.${tableName}`, table];
+						},
+					);
 
 					return mappedTableEntries;
 				})
@@ -650,7 +736,10 @@ export const prepareServer = async (
 		...relations,
 	};
 
-	const relationsConfig = extractTablesRelationalConfig(relationalSchema, createTableRelationsHelpers);
+	const relationsConfig = extractTablesRelationalConfig(
+		relationalSchema,
+		createTableRelationsHelpers,
+	);
 
 	app.post('/', zValidator('json', schema), async (c) => {
 		const body = c.req.valid('json');
@@ -667,11 +756,17 @@ export const prepareServer = async (
 			// Attempt to extract relations from the relational config.
 			// An error may occur if the relations are ambiguous or misconfigured.
 			try {
-				relations = extractRelations(relationsConfig);
+				relations = extractRelations(relationsConfig, casing);
 			} catch (error) {
-				console.warn('Failed to extract relations. This is likely due to ambiguous or misconfigured relations.');
-				console.warn('Please check your schema and ensure that all relations are correctly defined.');
-				console.warn('See: https://orm.drizzle.team/docs/relations#disambiguating-relations');
+				console.warn(
+					'Failed to extract relations. This is likely due to ambiguous or misconfigured relations.',
+				);
+				console.warn(
+					'Please check your schema and ensure that all relations are correctly defined.',
+				);
+				console.warn(
+					'See: https://orm.drizzle.team/docs/relations#disambiguating-relations',
+				);
 				console.warn('Error message:', (error as Error).message);
 			}
 
@@ -706,11 +801,17 @@ export const prepareServer = async (
 
 			const result = columns.map((column) => {
 				const found = customDefaults.find((d) => {
-					return d.schema === column.schema && d.table === column.table && d.column === column.column;
+					return (
+						d.schema === column.schema
+						&& d.table === column.table
+						&& d.column === column.column
+					);
 				});
 
 				if (!found) {
-					throw new Error(`Custom default not found for ${column.schema}.${column.table}.${column.column}`);
+					throw new Error(
+						`Custom default not found for ${column.schema}.${column.table}.${column.column}`,
+					);
 				}
 
 				const value = found.func();

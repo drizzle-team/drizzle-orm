@@ -5,7 +5,7 @@ import { schemaToTypeScript } from '../../introspect-sqlite';
 import type { SQLiteSchema } from '../../serializer/sqliteSchema';
 import { fromDatabase } from '../../serializer/sqliteSerializer';
 import type { SQLiteDB } from '../../utils';
-import { Casing } from '../validations/common';
+import type { Casing } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { IntrospectProgress, ProgressView } from '../views';
 
