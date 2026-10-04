@@ -4,7 +4,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
-import { Client } from 'pg';
+import { Client, Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
@@ -17,9 +17,9 @@ let db: NodePgDatabase;
 let client: Client;
 let dbGlobalCached: NodePgDatabase;
 let cachedDb: NodePgDatabase;
+let connectionString: string;
 
 beforeAll(async () => {
-	let connectionString;
 	if (process.env['PG_CONNECTION_STRING']) {
 		connectionString = process.env['PG_CONNECTION_STRING'];
 	} else {
@@ -57,6 +57,79 @@ beforeEach((ctx) => {
 		db: cachedDb,
 		dbGlobalCached,
 	};
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6437
+test('transaction rejects when pooled connection is dropped', async () => {
+	const pool = new Pool({ connectionString });
+	pool.on('error', () => {});
+	const poolDb = drizzle(pool, { logger: ENABLE_LOGGING });
+
+	try {
+		let error: any;
+		try {
+			await poolDb.transaction(async (tx) => {
+				const { rows } = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`);
+				await client.query(`select pg_terminate_backend(${Number(rows[0]!.pid)})`);
+				await new Promise((resolve) => setTimeout(resolve, 200));
+				await tx.execute(sql`select 1`);
+			});
+		} catch (e) {
+			error = e;
+		}
+
+		// Original failure, not the rollback attempted on a dead connection
+		expect(error?.query).toBe('select 1');
+
+		// Broken client was discarded, pool hands out a working one
+		expect(pool.totalCount).toBe(0);
+		const { rows } = await poolDb.execute<{ ok: number }>(sql`select 1 as ok`);
+		expect(rows).toEqual([{ ok: 1 }]);
+	} finally {
+		await pool.end();
+	}
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6023
+// https://github.com/drizzle-team/drizzle-orm/issues/6114
+// https://github.com/drizzle-team/drizzle-orm/issues/6241
+// https://github.com/drizzle-team/drizzle-orm/issues/6341
+// https://github.com/drizzle-team/drizzle-orm/issues/6622
+test('failed begin on transaction does not return client to the pool', async () => {
+	const pool = new Pool({ connectionString, max: 1, query_timeout: 1000 });
+	const poolDb = drizzle(pool, { logger: ENABLE_LOGGING });
+
+	try {
+		await client.query('drop table if exists begin_timeout_probe');
+		await client.query('create table begin_timeout_probe (id text primary key)');
+
+		// `begin` response arrives past its own `query_timeout`, but within the next query's
+		const poolClient = await pool.connect();
+		poolClient.release();
+		const stream = (poolClient as any).connection.stream;
+		const { emit } = stream;
+		const held: any[][] = [];
+		stream.emit = (event: string, ...args: any[]) => {
+			if (event !== 'data') return emit.call(stream, event, ...args);
+			held.push(args);
+			return true;
+		};
+		setTimeout(() => {
+			stream.emit = emit;
+			// discarded client has no query to receive the response, replaying it would throw
+			if ((poolClient as any)._ending) return;
+			for (const args of held) stream.emit('data', ...args);
+		}, 1500);
+
+		await expect(poolDb.transaction(async () => {})).rejects.toThrow('Failed query: begin');
+
+		await pool.query(`insert into begin_timeout_probe (id) values ('1')`);
+		const { rows } = await client.query('select id from begin_timeout_probe');
+		expect(rows).toEqual([{ id: '1' }]);
+	} finally {
+		await pool.end();
+		await client.query('drop table if exists begin_timeout_probe');
+	}
 });
 
 test('migrator : default migration strategy', async () => {

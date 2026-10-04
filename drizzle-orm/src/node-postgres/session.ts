@@ -250,20 +250,47 @@ export class NodePgSession<
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		const isPool = this.client instanceof Pool || Object.getPrototypeOf(this.client).constructor.name.includes('Pool'); // eslint-disable-line no-instanceof/no-instanceof
-		const session = isPool
-			? new NodePgSession(await (<pg.Pool> this.client).connect(), this.dialect, this.schema, this.options)
+		const poolClient = isPool ? await (<pg.Pool> this.client).connect() : undefined;
+		// pg-pool detaches its own `error` listener from checked-out clients, so a connection dropped mid-transaction would crash the process
+		let connectionError: Error | undefined;
+		let rollbackError: Error | undefined;
+		const onConnectionError = (e: Error) => {
+			connectionError = connectionError ?? e;
+		};
+		poolClient?.on('error', onConnectionError);
+		const release = (failure?: Error) => {
+			if (!poolClient) return;
+			// broken client is destroyed by the pool, listener stays to absorb any trailing errors
+			if (!connectionError) poolClient.off('error', onConnectionError);
+			poolClient.release(connectionError ?? rollbackError ?? failure);
+		};
+		const session = poolClient
+			? new NodePgSession(poolClient, this.dialect, this.schema, this.options)
 			: this;
 		const tx = new NodePgTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
-		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
+
+		try {
+			await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
+		} catch (e) {
+			// `begin` may still reach the server after failing on the client, session state is unknown so the client must not be reused
+			release(e as Error);
+			throw e;
+		}
+
 		try {
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);
 			return result;
 		} catch (error) {
-			await tx.execute(sql`rollback`);
+			// nothing to roll back on a dead connection; failed rollback must not mask the original error
+			if (!connectionError) {
+				await tx.execute(sql`rollback`).catch((e) => {
+					rollbackError = e;
+				});
+			}
 			throw error;
 		} finally {
-			if (isPool) (session.client as PoolClient).release();
+			release();
 		}
 	}
 
@@ -295,7 +322,7 @@ export class NodePgTransaction<
 			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}
