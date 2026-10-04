@@ -99,7 +99,7 @@ function generateIdentityParams(column: Column) {
 	const identity = column.identity;
 
 	const tuples = [];
-	if (identity.seed) {
+	if (identity.seed !== undefined) {
 		tuples.push(['seed', identity.seed]);
 	}
 	if (identity.increment) {
