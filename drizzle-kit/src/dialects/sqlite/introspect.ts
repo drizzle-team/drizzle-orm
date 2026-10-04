@@ -466,7 +466,12 @@ export const fromDatabase = async (
 			autoincrement,
 			name,
 			pk: primaryKey,
-			pkName: pkName?.name ?? nameForPk(column.table),
+			// Only an explicitly named PK constraint reaches `nameExplicit` downstream;
+			// falling back to a generated name here would mark every single-column PK
+			// as explicit and move it to a table-level `CONSTRAINT`, which SQLite
+			// rejects for `AUTOINCREMENT` columns (the keyword must directly follow
+			// the inline `PRIMARY KEY`). https://github.com/drizzle-team/drizzle-orm/issues/6433
+			pkName: pkName?.name ?? null,
 			type,
 			notNull,
 			generated,
