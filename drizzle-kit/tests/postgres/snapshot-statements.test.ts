@@ -5,6 +5,8 @@ import {
 	index,
 	integer,
 	pgEnum,
+	pgPolicy,
+	pgRole,
 	pgSchema,
 	pgSequence,
 	pgTable,
@@ -16,13 +18,17 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import { toSnapshotStatements } from 'src/dialects/postgres/convertor';
+import type { PostgresDDL } from 'src/dialects/postgres/ddl';
 import { isSnapshotStatement } from 'src/dialects/postgres/snapshot';
 import { type SnapshotStatement, snapshotStatementSchemas } from 'src/dialects/postgres/snapshot-statements';
 import { describe, expect, test } from 'vitest';
-import { diff, type PostgresSchema } from './mocks';
+import { diff, drizzleToDDL, type PostgresSchema } from './mocks';
 
-// Each case is a real diff that writes statements of the named kinds.
-type Case = { kinds: string[]; from: PostgresSchema; to: PostgresSchema; renames?: string[] };
+// Each case is a real diff that writes statements of the named kinds. A side is a function when it
+// holds entities that a drizzle schema cannot declare. The diff changes its states, so each run
+// builds a new state.
+type Side = PostgresSchema | (() => PostgresDDL);
+type Case = { kinds: string[]; from: Side; to: Side; renames?: string[] };
 
 const archive = pgSchema('archive');
 const users = pgTable('users', { id: integer(), email: varchar() });
@@ -53,6 +59,27 @@ const emails = (name: string, checkOption: 'local' | 'cascaded', schema?: Return
 	(schema ? schema.view(name, { email: varchar() }) : pgView(name, { email: varchar() }))
 		.with({ checkOption })
 		.as(sql`select email from users`);
+
+const guarded = (name: string, command: 'select' | 'all' = 'select', using = sql`true`) => ({
+	users: pgTable('users', { id: integer(), email: varchar() }, () => [
+		pgPolicy(name, { for: command, to: 'public', using }),
+	]),
+});
+// The table `users` with a privilege, or without one when `isGrantable` is not given.
+const granted = (isGrantable?: boolean) => () => {
+	const { ddl } = drizzleToDDL({ users });
+	if (isGrantable !== undefined) {
+		ddl.privileges.push({
+			schema: 'public',
+			table: 'users',
+			grantor: 'postgres',
+			grantee: 'app',
+			type: 'SELECT',
+			isGrantable,
+		});
+	}
+	return ddl;
+};
 
 const cases: Case[] = [
 	{ kinds: ['create_table'], from: {}, to: { users } },
@@ -229,12 +256,35 @@ const cases: Case[] = [
 		from: { users, emails: emails('emails', 'local') },
 		to: { users, emails: emails('emails', 'cascaded') },
 	},
+	{ kinds: ['create_policy', 'alter_rls'], from: { users }, to: guarded('users_read') },
+	{ kinds: ['drop_policy'], from: guarded('users_read'), to: { users } },
+	{
+		kinds: ['rename_policy'],
+		from: guarded('users_read'),
+		to: guarded('users_view'),
+		renames: ['public.users.users_read->public.users.users_view'],
+	},
+	{ kinds: ['alter_policy'], from: guarded('users_read'), to: guarded('users_read', 'select', sql`false`) },
+	{ kinds: ['recreate_policy'], from: guarded('users_read'), to: guarded('users_read', 'all') },
+	{ kinds: ['create_role'], from: {}, to: { app: pgRole('app') } },
+	{ kinds: ['drop_role'], from: { app: pgRole('app') }, to: {} },
+	{
+		kinds: ['rename_role'],
+		from: { app: pgRole('app') },
+		to: { app: pgRole('service') },
+		renames: ['app->service'],
+	},
+	{ kinds: ['alter_role'], from: { app: pgRole('app') }, to: { app: pgRole('app', { createDb: true }) } },
+	{ kinds: ['grant_privilege'], from: granted(), to: granted(false) },
+	{ kinds: ['revoke_privilege'], from: granted(false), to: granted() },
+	{ kinds: ['regrant_privilege'], from: granted(false), to: granted(true) },
 ];
 
 const storedStatements = async () => {
 	const stored: SnapshotStatement[] = [];
 	for (const { kinds, from, to, renames = [] } of cases) {
-		const statements = toSnapshotStatements((await diff(from, to, renames)).statements);
+		const state = (side: Side) => typeof side === 'function' ? side() : side;
+		const statements = toSnapshotStatements((await diff(state(from), state(to), renames)).statements);
 		expect(statements.map((it) => it.type), `the kinds of the case for ${kinds.join(', ')}`).toStrictEqual(
 			expect.arrayContaining(kinds),
 		);

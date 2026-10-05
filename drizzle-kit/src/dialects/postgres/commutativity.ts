@@ -6,7 +6,7 @@ import {
 	type ParsedSnapshotInput,
 } from '../../commutativity/engine';
 import type { ConflictTarget } from '../../commutativity/types';
-import type { Column, Index, IndexColumn, Policy, Privilege } from './ddl';
+import type { Column, Index, IndexColumn, Privilege } from './ddl';
 import { builtinPolicyRoles } from './grammar';
 import { drySnapshot, type PostgresSnapshot } from './snapshot';
 import type { SnapshotStatement } from './snapshot-statements';
@@ -822,7 +822,7 @@ class PostgresCommutativity extends FacetCommutativity<
 			index.isUnique && !index.where && index.columns.every((c) => !c.isExpression)
 				? [uniqueKey(index.schema, index.table, index.columns.map((c) => c.value))]
 				: [];
-		const policyRoles = (policy: Policy) =>
+		const policyRoles = (policy: { roles: string[] }) =>
 			policy.roles.filter((role) => !builtinPolicyRoles.includes(role)).map((role) => nref('role', role));
 
 		// A short name for the statement. The switch narrows it to one statement kind in every case.
@@ -1202,7 +1202,7 @@ class PostgresCommutativity extends FacetCommutativity<
 			case 'grant_privilege':
 			case 'revoke_privilege':
 			case 'regrant_privilege': {
-				const { schema, table, grantee, grantor } = s.privilege;
+				const { schema, table, grantee } = s.privilege;
 				// ALL holds every other privilege type, so it claims each of them.
 				const types = s.privilege.type === 'ALL' ? privilegeTypes : [s.privilege.type];
 				return {
@@ -1211,7 +1211,7 @@ class PostgresCommutativity extends FacetCommutativity<
 						...(table ? underTable(schema || 'public', table) : []),
 						nref('role', grantee),
 						// GRANT names the grantor in GRANTED BY, and REVOKE does not.
-						...(s.type === 'revoke_privilege' ? [] : [nref('role', grantor)]),
+						...(s.type === 'revoke_privilege' ? [] : [nref('role', s.privilege.grantor)]),
 					],
 				};
 			}

@@ -183,6 +183,51 @@ export const snapshotStatementSchemas = {
 			using: change(field('views', 'using')),
 		}).strict(),
 	}),
+
+	create_policy: statement('create_policy', { policy: row('policies') }),
+	drop_policy: statement('drop_policy', { policy: inTable }),
+	rename_policy: statement('rename_policy', { from: inTable, to: inTable }),
+	alter_policy: statement('alter_policy', {
+		policy: object({
+			schema: string(),
+			table: string(),
+			name: string(),
+			roles: field('policies', 'roles'),
+			using: field('policies', 'using'),
+			withCheck: field('policies', 'withCheck'),
+		}).strict(),
+	}),
+	recreate_policy: statement('recreate_policy', { policy: row('policies') }),
+	alter_rls: statement('alter_rls', { schema: string(), name: string(), isRlsEnabled: boolean() }),
+	create_role: statement('create_role', { role: row('roles') }),
+	drop_role: statement('drop_role', { role: named }),
+	rename_role: statement('rename_role', { from: named, to: named }),
+	alter_role: statement('alter_role', {
+		role: named,
+		diff: object({
+			superuser: change(field('roles', 'superuser')),
+			createDb: change(field('roles', 'createDb')),
+			createRole: change(field('roles', 'createRole')),
+			inherit: change(field('roles', 'inherit')),
+			canLogin: change(field('roles', 'canLogin')),
+			replication: change(field('roles', 'replication')),
+			bypassRls: change(field('roles', 'bypassRls')),
+			connLimit: change(field('roles', 'connLimit')),
+			password: change(field('roles', 'password')),
+			validUntil: change(field('roles', 'validUntil')),
+		}).strict(),
+	}),
+	grant_privilege: statement('grant_privilege', { privilege: row('privileges') }),
+	// REVOKE does not name the grantor.
+	revoke_privilege: statement('revoke_privilege', {
+		privilege: object({
+			schema: string(),
+			table: string(),
+			grantee: string(),
+			type: field('privileges', 'type'),
+		}).strict(),
+	}),
+	regrant_privilege: statement('regrant_privilege', { privilege: row('privileges') }),
 };
 
 type Schemas = typeof snapshotStatementSchemas;

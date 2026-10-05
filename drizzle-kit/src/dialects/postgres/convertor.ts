@@ -27,9 +27,6 @@ export const convertor = <TType extends StatementType>(
 	return { type, store, convert };
 };
 
-// For a statement kind that has no stored form of its own yet.
-const asIs = <T extends { type: string }>({ type: _, ...statement }: T) => statement as Omit<T, 'type'>;
-
 const rowFields = Object.fromEntries(
 	Object.entries(createDDL()._.defs).map(([type, def]) => [type, Object.keys(def)]),
 ) as Record<keyof PostgresEntities, string[]>;
@@ -993,7 +990,7 @@ const alterSequenceConvertor = convertor('alter_sequence', ({ sequence }) => ({
 	}${cycle ? ` CYCLE` : ''};`;
 });
 
-const createRoleConvertor = convertor('create_role', asIs, (st) => {
+const createRoleConvertor = convertor('create_role', ({ role }) => ({ role: row('roles', role) }), (st) => {
 	const {
 		name,
 		superuser,
@@ -1022,15 +1019,32 @@ const createRoleConvertor = convertor('create_role', asIs, (st) => {
 	return `CREATE ROLE "${name}"${withClause};`;
 });
 
-const dropRoleConvertor = convertor('drop_role', asIs, (st) => {
+const dropRoleConvertor = convertor('drop_role', ({ role }) => ({ role: { name: role.name } }), (st) => {
 	return `DROP ROLE "${st.role.name}";`;
 });
 
-const renameRoleConvertor = convertor('rename_role', asIs, (st) => {
+const renameRoleConvertor = convertor('rename_role', ({ from, to }) => ({
+	from: { name: from.name },
+	to: { name: to.name },
+}), (st) => {
 	return `ALTER ROLE "${st.from.name}" RENAME TO "${st.to.name}";`;
 });
 
-const alterRoleConvertor = convertor('alter_role', asIs, ({ diff, role }) => {
+const alterRoleConvertor = convertor('alter_role', ({ diff, role }) => ({
+	role: { name: role.name },
+	diff: {
+		superuser: diff.superuser,
+		createDb: diff.createDb,
+		createRole: diff.createRole,
+		inherit: diff.inherit,
+		canLogin: diff.canLogin,
+		replication: diff.replication,
+		bypassRls: diff.bypassRls,
+		connLimit: diff.connLimit,
+		password: diff.password,
+		validUntil: diff.validUntil,
+	},
+}), ({ diff, role }) => {
 	const {
 		name,
 	} = role;
@@ -1098,7 +1112,9 @@ const alterRoleConvertor = convertor('alter_role', asIs, ({ diff, role }) => {
 	// }`};`;
 });
 
-const grantPrivilegeConvertor = convertor('grant_privilege', asIs, (st) => {
+const grantPrivilegeConvertor = convertor('grant_privilege', ({ privilege }) => ({
+	privilege: row('privileges', privilege),
+}), (st) => {
 	const { schema, table } = st.privilege;
 	const privilege = st.privilege;
 
@@ -1107,7 +1123,9 @@ const grantPrivilegeConvertor = convertor('grant_privilege', asIs, (st) => {
 	} TO "${privilege.grantee}"${privilege.isGrantable ? ' WITH GRANT OPTION' : ''} GRANTED BY "${privilege.grantor}";`;
 });
 
-const revokePrivilegeConvertor = convertor('revoke_privilege', asIs, (st) => {
+const revokePrivilegeConvertor = convertor('revoke_privilege', ({ privilege: { schema, table, grantee, type } }) => ({
+	privilege: { schema, table, grantee, type },
+}), (st) => {
 	const { schema, table } = st.privilege;
 	const privilege = st.privilege;
 
@@ -1116,33 +1134,46 @@ const revokePrivilegeConvertor = convertor('revoke_privilege', asIs, (st) => {
 	} FROM "${privilege.grantee}";`;
 });
 
-const regrantPrivilegeConvertor = convertor('regrant_privilege', asIs, (st) => {
+const regrantPrivilegeConvertor = convertor('regrant_privilege', ({ privilege }) => ({
+	privilege: row('privileges', privilege),
+}), (st) => {
 	const privilege = st.privilege;
 	const revokeStatement = revokePrivilegeConvertor.convert({ privilege }) as string;
 	const grantStatement = grantPrivilegeConvertor.convert({ privilege }) as string;
 	return [revokeStatement, grantStatement];
 });
 
-const createPolicyConvertor = convertor('create_policy', asIs, (st) => {
-	const { schema, table } = st.policy;
-	const policy = st.policy;
+const createPolicyConvertor = convertor(
+	'create_policy',
+	({ policy }) => ({ policy: row('policies', policy) }),
+	(st) => {
+		const { schema, table } = st.policy;
+		const policy = st.policy;
 
-	const tableNameWithSchema = schema !== 'public'
-		? `"${schema}"."${table}"`
-		: `"${table}"`;
+		const tableNameWithSchema = schema !== 'public'
+			? `"${schema}"."${table}"`
+			: `"${table}"`;
 
-	const usingPart = policy.using ? ` USING (${policy.using})` : '';
+		const usingPart = policy.using ? ` USING (${policy.using})` : '';
 
-	const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
+		const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
 
-	const policyToPart = policy.roles?.map((v) => builtinPolicyRoles.includes(v) ? v : `"${v}"`).join(', ');
+		const policyToPart = policy.roles?.map((v) => builtinPolicyRoles.includes(v) ? v : `"${v}"`).join(', ');
 
-	return `CREATE POLICY "${policy.name}" ON ${tableNameWithSchema} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${policyToPart}${usingPart}${withCheckPart};`;
-});
+		return `CREATE POLICY "${policy.name}" ON ${tableNameWithSchema} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${policyToPart}${usingPart}${withCheckPart};`;
+	},
+);
 
-const dropPolicyConvertor = convertor('drop_policy', asIs, (st) => dropPolicySql(st.policy));
+const dropPolicyConvertor = convertor(
+	'drop_policy',
+	({ policy }) => ({ policy: inTable(policy) }),
+	(st) => dropPolicySql(st.policy),
+);
 
-const renamePolicyConvertor = convertor('rename_policy', asIs, (st) => {
+const renamePolicyConvertor = convertor('rename_policy', ({ from, to }) => ({
+	from: inTable(from),
+	to: inTable(to),
+}), (st) => {
 	const { from, to } = st;
 
 	const tableNameWithSchema = to.schema !== 'public'
@@ -1152,34 +1183,44 @@ const renamePolicyConvertor = convertor('rename_policy', asIs, (st) => {
 	return `ALTER POLICY "${from.name}" ON ${tableNameWithSchema} RENAME TO "${to.name}";`;
 });
 
-const alterPolicyConvertor = convertor('alter_policy', asIs, (st) => {
-	const { policy } = st;
+const alterPolicyConvertor = convertor(
+	'alter_policy',
+	({ policy: { schema, table, name, roles, using, withCheck } }) => ({
+		policy: { schema, table, name, roles, using, withCheck },
+	}),
+	(st) => {
+		const { policy } = st;
 
-	const tableNameWithSchema = policy.schema !== 'public'
-		? `"${policy.schema}"."${policy.table}"`
-		: `"${policy.table}"`;
+		const tableNameWithSchema = policy.schema !== 'public'
+			? `"${policy.schema}"."${policy.table}"`
+			: `"${policy.table}"`;
 
-	const usingPart = policy.using
-		? ` USING (${policy.using})`
-		: '';
+		const usingPart = policy.using
+			? ` USING (${policy.using})`
+			: '';
 
-	const withCheckPart = policy.withCheck
-		? ` WITH CHECK (${policy.withCheck})`
-		: '';
+		const withCheckPart = policy.withCheck
+			? ` WITH CHECK (${policy.withCheck})`
+			: '';
 
-	const toClause = policy.roles?.map((v) => builtinPolicyRoles.includes(v) ? v : `"${v}"`).join(', ');
+		const toClause = policy.roles?.map((v) => builtinPolicyRoles.includes(v) ? v : `"${v}"`).join(', ');
 
-	return `ALTER POLICY "${policy.name}" ON ${tableNameWithSchema} TO ${toClause}${usingPart}${withCheckPart};`;
-});
+		return `ALTER POLICY "${policy.name}" ON ${tableNameWithSchema} TO ${toClause}${usingPart}${withCheckPart};`;
+	},
+);
 
-const recreatePolicy = convertor('recreate_policy', asIs, (st) => {
+const recreatePolicy = convertor('recreate_policy', ({ policy }) => ({ policy: row('policies', policy) }), (st) => {
 	return [
 		dropPolicyConvertor.convert({ policy: st.policy }) as string,
 		createPolicyConvertor.convert({ policy: st.policy }) as string,
 	];
 });
 
-const toggleRlsConvertor = convertor('alter_rls', asIs, (st) => {
+const toggleRlsConvertor = convertor('alter_rls', ({ schema, name, isRlsEnabled }) => ({
+	schema,
+	name,
+	isRlsEnabled,
+}), (st) => {
 	const { schema, name, isRlsEnabled } = st;
 
 	const tableNameWithSchema = schema !== 'public'

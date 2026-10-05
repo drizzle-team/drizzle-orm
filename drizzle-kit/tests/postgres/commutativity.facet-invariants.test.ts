@@ -339,7 +339,7 @@ function build(type: string, n: NS, opts: { cols?: string[]; enumCol?: boolean }
 
 		case 'create_role':
 		case 'alter_role':
-			return { type, role: { name: n.role } } as any;
+			return { type, role: { name: n.role }, diff: {} } as any;
 		case 'drop_role':
 			return { type, role: { name: n.role } } as any;
 		case 'rename_role':
