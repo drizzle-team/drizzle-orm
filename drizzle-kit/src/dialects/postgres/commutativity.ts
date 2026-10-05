@@ -1003,21 +1003,30 @@ class PostgresCommutativity extends FacetCommutativity<
 					],
 				};
 
-			case 'rename_constraint': // RENAME CONSTRAINT follows a column rename but is cascaded by a column drop -> EXISTENCE refs
-				return {
-					owns: [
-						...endpoint('uq', s.schema, s.table, s.from),
-						...endpoint('ck', s.schema, s.table, s.from),
-						...endpoint('fk', s.schema, s.table, s.from),
-						...endpoint('uq', s.schema, s.table, s.to),
-						...endpoint('ck', s.schema, s.table, s.to),
-						...endpoint('fk', s.schema, s.table, s.to),
-					],
-					needs: [
-						...underTable(s.schema, s.table),
-						...s.columns.map((c) => eref('col', s.schema, s.table, c)),
-					],
-				};
+			case 'rename_constraint': { // RENAME CONSTRAINT follows a column rename but is cascaded by a column drop -> EXISTENCE refs
+				const needs = [
+					...underTable(s.schema, s.table),
+					...s.columns.map((c) => eref('col', s.schema, s.table, c)),
+				];
+				const named = (k: string) => ({
+					owns: [...endpoint(k, s.schema, s.table, s.from), ...endpoint(k, s.schema, s.table, s.to)],
+					needs,
+				});
+				switch (s.entityType) {
+					case 'pks': // a table has one primary key, so the node of the key holds no name
+						return { owns: endpoint('pk', s.schema, s.table), needs };
+					case 'uniques':
+						return named('uq');
+					case 'checks':
+						return named('ck');
+					case 'fks':
+						return named('fk');
+					default: {
+						const unhandled: never = s.entityType;
+						throw new Error(`rename_constraint has the unknown constraint kind '${unhandled}'`);
+					}
+				}
+			}
 
 			// ---- enums (schema-scoped) ----
 			case 'create_enum':

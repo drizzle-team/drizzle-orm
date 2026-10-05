@@ -1,9 +1,27 @@
+import { sql } from 'drizzle-orm';
+import {
+	check,
+	foreignKey,
+	index,
+	integer,
+	pgEnum,
+	pgPolicy,
+	pgRole,
+	pgSchema,
+	pgSequence,
+	pgTable,
+	pgView,
+	primaryKey,
+	unique,
+	varchar,
+} from 'drizzle-orm/pg-core';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { expect, test } from 'vitest';
 import { build } from './commutativity-statements';
+import { diff } from './mocks';
 
 // The committed matrix must match the rules in buildFacetPaths.
 // Rewrite it after a rule change:
@@ -40,7 +58,10 @@ const TYPES = [
 	'add_check',
 	'drop_check',
 	'alter_check',
-	'rename_constraint',
+	'rename_constraint:pks',
+	'rename_constraint:uniques',
+	'rename_constraint:checks',
+	'rename_constraint:fks',
 	'create_enum',
 	'drop_enum',
 	'rename_enum',
@@ -92,7 +113,7 @@ for (const t of TYPES) {
 		? 'unique'
 		: t.includes('check')
 		? 'check'
-		: t === 'rename_constraint'
+		: t.startsWith('rename_constraint')
 		? 'constraint'
 		: (t.includes('enum') || t === 'alter_type_drop_value')
 		? 'enum'
@@ -261,6 +282,114 @@ test('committed matrix matches the rules', async () => {
 		'The commutativity rules changed. Review the matrix diff, then rewrite commutativity-matrix.json with '
 			+ 'UPDATE_MATRIX=1 pnpm vitest run tests/postgres/commutativity.matrix-gen.test.ts',
 	).toEqual(committed);
+});
+
+// A schema with one entity of every kind that the diff can rename or move. `renamed` gives the names
+// after one rename, and `hint` is the rename decision for it.
+type Names = Partial<{
+	schema: string;
+	table: string;
+	postsSchema: string;
+	column: string;
+	index: string;
+	pk: string;
+	unique: string;
+	fk: string;
+	check: string;
+	enum: string;
+	enumSchema: string;
+	sequence: string;
+	sequenceSchema: string;
+	view: string;
+	viewSchema: string;
+	policy: string;
+	role: string;
+}>;
+const schemaWith = (n: Names = {}) => {
+	const archive = pgSchema(n.schema ?? 'archive');
+	const mood = n.enumSchema ? archive.enum(n.enum ?? 'mood', ['a', 'b']) : pgEnum(n.enum ?? 'mood', ['a', 'b']);
+	const role = pgRole(n.role ?? 'r');
+	const users = pgTable(n.table ?? 'users', {
+		id: integer().notNull(),
+		email: varchar(n.column ?? 'email'),
+		n: integer(),
+		m: mood(),
+	}, (t) => [
+		primaryKey({ name: n.pk ?? 'users_pk', columns: [t.id] }),
+		unique(n.unique ?? 'users_email_uq').on(t.email),
+		index(n.index ?? 'users_email_ix').on(t.email),
+		check(n.check ?? 'users_n_ck', sql`${t.n} > 0`),
+		pgPolicy(n.policy ?? 'users_pol', { for: 'select', to: role, using: sql`true` }),
+	]);
+	const postsColumns = { id: integer(), userId: integer('user_id') };
+	const postsConstraints = (t: any) => [
+		foreignKey({ name: n.fk ?? 'posts_user_fk', columns: [t.userId], foreignColumns: [users.id] }),
+	];
+	const posts = n.postsSchema
+		? archive.table('posts', postsColumns, postsConstraints)
+		: pgTable('posts', postsColumns, postsConstraints);
+	const sequence = n.sequenceSchema ? archive.sequence(n.sequence ?? 'seq') : pgSequence(n.sequence ?? 'seq');
+	const view =
+		(n.viewSchema ? archive.view(n.view ?? 'v', { id: integer() }) : pgView(n.view ?? 'v', { id: integer() }))
+			.as(sql`select 1 as id`);
+	return { archive, mood, role, users, posts, sequence, view };
+};
+const RENAMES: Record<string, { renamed: Names; hint: string }> = {
+	schema: { renamed: { schema: 'archive2' }, hint: 'archive->archive2' },
+	table: { renamed: { table: 'people' }, hint: 'public.users->public.people' },
+	'table to schema': { renamed: { postsSchema: 'archive' }, hint: 'public.posts->archive.posts' },
+	column: { renamed: { column: 'mail' }, hint: 'public.users.email->public.users.mail' },
+	index: { renamed: { index: 'users_email_ix2' }, hint: 'public.users.users_email_ix->public.users.users_email_ix2' },
+	'primary key': { renamed: { pk: 'users_pk2' }, hint: 'public.users.users_pk->public.users.users_pk2' },
+	unique: { renamed: { unique: 'users_email_uq2' }, hint: 'public.users.users_email_uq->public.users.users_email_uq2' },
+	'foreign key': { renamed: { fk: 'posts_user_fk2' }, hint: 'public.posts.posts_user_fk->public.posts.posts_user_fk2' },
+	check: { renamed: { check: 'users_n_ck2' }, hint: 'public.users.users_n_ck->public.users.users_n_ck2' },
+	enum: { renamed: { enum: 'mood2' }, hint: 'public.mood->public.mood2' },
+	'enum to schema': { renamed: { enumSchema: 'archive' }, hint: 'public.mood->archive.mood' },
+	sequence: { renamed: { sequence: 'seq2' }, hint: 'public.seq->public.seq2' },
+	'sequence to schema': { renamed: { sequenceSchema: 'archive' }, hint: 'public.seq->archive.seq' },
+	view: { renamed: { view: 'v2' }, hint: 'public.v->public.v2' },
+	'view to schema': { renamed: { viewSchema: 'archive' }, hint: 'public.v->archive.v' },
+	policy: { renamed: { policy: 'users_pol2' }, hint: 'public.users.users_pol->public.users.users_pol2' },
+	role: { renamed: { role: 'r2' }, hint: 'r->r2' },
+};
+
+// The matrix row that stands for a statement. rename_constraint has one row for each constraint kind.
+const rowOf = (statement: JsonStatement) =>
+	statement.type === 'rename_constraint' ? `${statement.type}:${statement.entityType}` : statement.type;
+const isRename = (statement: JsonStatement) =>
+	statement.type.startsWith('rename_') || statement.type.startsWith('move_');
+// The kinds of nodes (`pk`, `col`, ...) that the claims of a statement name.
+const claimKinds = (statement: JsonStatement) => {
+	const { owns = [], destroys = [], needs = [] } = (postgresCommutativity as any).buildFacetPaths(statement);
+	const kinds = (keys: string[]) => [...new Set(keys.map((key) => key.split('|')[1]))].sort();
+	return { writes: kinds([...owns, ...destroys]), reads: kinds(needs) };
+};
+
+test('every rename that the diff writes has a matrix row with claims on the same kinds of nodes', async () => {
+	const seen = new Set<string>();
+	for (const [name, { renamed, hint }] of Object.entries(RENAMES)) {
+		const { statements } = await diff(schemaWith(), schemaWith(renamed), [hint]);
+		const renames = statements.filter(isRename);
+		expect(renames, `the ${name} rename writes no rename statement`).not.toEqual([]);
+		for (const statement of renames) {
+			const row = rowOf(statement);
+			seen.add(row);
+			expect(TYPES, `the ${name} rename writes ${row}, which has no matrix row`).toContain(row);
+			expect(claimKinds(build(row)), `matrix row ${row} and the ${name} rename claim other kinds of nodes`)
+				.toEqual(claimKinds(statement));
+		}
+	}
+	const stale = TYPES.filter((row) => (row.startsWith('rename_') || row.startsWith('move_')) && !seen.has(row));
+	expect(stale, 'matrix rows that no rename of the fixture schema writes').toEqual([]);
+});
+
+test('a constraint rename of an unknown kind throws', async () => {
+	const statement = { ...build('rename_constraint:uniques'), entityType: 'indexes' } as unknown as JsonStatement;
+
+	await expect(postgresCommutativity.getReasonsFromStatements([statement], [])).rejects.toThrow(
+		"rename_constraint has the unknown constraint kind 'indexes'",
+	);
 });
 
 test('visualizer page builds from the committed matrix', () => {

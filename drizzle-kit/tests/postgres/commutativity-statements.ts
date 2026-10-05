@@ -143,8 +143,23 @@ export function build(type: string): JsonStatement {
 				newColumns: [C],
 				oldColumns: [C],
 			} as any;
-		case 'rename_constraint':
-			return { type, schema: S, table: T, from: 'uq', to: 'uq_new', columns: [C] } as any;
+		// One row for each constraint kind, because the SQL is the same and the claims differ.
+		case 'rename_constraint:pks':
+		case 'rename_constraint:uniques':
+		case 'rename_constraint:checks':
+		case 'rename_constraint:fks': {
+			const entityType = type.split(':')[1] as 'pks' | 'uniques' | 'checks' | 'fks';
+			const from = { pks: 't_pkey', uniques: 'uq', checks: 'ck', fks: 'fk' }[entityType];
+			return {
+				type: 'rename_constraint',
+				entityType,
+				schema: S,
+				table: T,
+				from,
+				to: `${from}_new`,
+				columns: [C],
+			} as any;
+		}
 		case 'create_enum':
 			return { type, enum: { schema: S, name: 'e', values: ['a', 'b'] } } as any;
 		case 'drop_enum':

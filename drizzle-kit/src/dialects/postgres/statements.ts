@@ -275,6 +275,7 @@ export interface JsonDropPrimaryKey {
 
 export interface JsonRenameConstraint {
 	type: 'rename_constraint';
+	entityType: 'pks' | 'uniques' | 'checks' | 'fks';
 	schema: string;
 	table: string;
 	from: string;

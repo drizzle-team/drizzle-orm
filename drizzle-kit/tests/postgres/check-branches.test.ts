@@ -1,4 +1,4 @@
-import { index, integer, pgTable, varchar } from 'drizzle-orm/pg-core';
+import { index, integer, pgTable, primaryKey, varchar } from 'drizzle-orm/pg-core';
 import { stripVTControlCharacters } from 'util';
 import { expect, test } from 'vitest';
 import { type CheckResult, createFolderFlow } from './folder-flow';
@@ -48,6 +48,35 @@ test('a column rename on one branch commutes with dropping an index on that colu
 
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	expect(await flow.migrate('main', { users: pgTable('users', { id: integer(), d: varchar() }) })).toStrictEqual([]);
+});
+
+test('a primary key rename on one branch conflicts with a drop of that key on the other', async () => {
+	const flow = createFolderFlow();
+	const withKey = (name: string) => ({
+		users: pgTable('users', { id: integer().notNull() }, (t) => [primaryKey({ name, columns: [t.id] })]),
+	});
+
+	await flow.generate('main', withKey('users_pk'));
+	flow.branch('a', 'main');
+	flow.branch('b', 'main');
+	await flow.generate('a', withKey('users_key'), {
+		hints: [{
+			type: 'rename',
+			kind: 'primary_key',
+			from: ['public', 'users', 'users_pk'],
+			to: ['public', 'users', 'users_key'],
+		}],
+	});
+	await flow.generate('b', { users: pgTable('users', { id: integer().notNull() }) });
+	flow.merge('main', 'a', 'b');
+
+	const result = await flow.check('main');
+
+	expect(result).toMatchObject({ status: 'conflicts', folders: ['20260101120002_a', '20260101120003_b'] });
+	expect(reportOf(result)).toContainEqual(expect.stringContaining('rename_constraint on users table'));
+	await expect(flow.migrate('main', {})).rejects.toThrow(
+		'Failed query: ALTER TABLE "users" DROP CONSTRAINT "users_pk";',
+	);
 });
 
 test('branches that touch unrelated entities pass', async () => {

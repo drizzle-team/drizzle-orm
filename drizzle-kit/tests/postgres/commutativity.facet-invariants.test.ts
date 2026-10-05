@@ -218,7 +218,15 @@ function build(type: string, n: NS, opts: { cols?: string[]; enumCol?: boolean }
 			} as any;
 
 		case 'rename_constraint':
-			return { type, schema: n.schema, table: n.table, from: n.unique, to: n.to, columns: [n.col] } as any;
+			return {
+				type,
+				entityType: 'uniques',
+				schema: n.schema,
+				table: n.table,
+				from: n.unique,
+				to: n.to,
+				columns: [n.col],
+			} as any;
 
 		case 'create_enum':
 			return { type, enum: { schema: n.schema, name: n.enum, values: ['a', 'b'] } } as any;

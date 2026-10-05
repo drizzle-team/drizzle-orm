@@ -89,7 +89,7 @@ const S = {
 	alterCheck: (schema: string, table: string, name: string, cols: string[]) =>
 		({ type: 'alter_check', diff: { schema, table, name }, newColumns: cols, oldColumns: cols }) as any,
 	renameConstraint: (schema: string, table: string, from: string, to: string, cols: string[]) =>
-		({ type: 'rename_constraint', schema, table, from, to, columns: cols }) as any,
+		({ type: 'rename_constraint', entityType: 'uniques', schema, table, from, to, columns: cols }) as any,
 	addPk: (schema: string, table: string, cols: string[]) =>
 		({ type: 'add_pk', pk: { schema, table, name: `${table}_pkey`, nameExplicit: false, columns: cols } }) as any,
 	createFk: (

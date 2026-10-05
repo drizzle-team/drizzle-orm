@@ -552,6 +552,7 @@ export const ddlDiff = async (
 	);
 	const jsonRenamedUniqueConstraints = uniqueRenames.map((it) =>
 		prepareStatement('rename_constraint', {
+			entityType: 'uniques',
 			schema: it.to.schema,
 			table: it.to.table,
 			from: it.from.name,
@@ -570,6 +571,7 @@ export const ddlDiff = async (
 
 	const jsonRenamePrimaryKey = pksRenames.map((it) => {
 		return prepareStatement('rename_constraint', {
+			entityType: 'pks',
 			schema: it.to.schema,
 			table: it.to.table,
 			from: it.from.name,
@@ -607,6 +609,7 @@ export const ddlDiff = async (
 	);
 	const jsonRenamedCheckConstraints = checkRenames.map((it) =>
 		prepareStatement('rename_constraint', {
+			entityType: 'checks',
 			schema: it.to.schema,
 			table: it.to.table,
 			from: it.from.name,
@@ -645,6 +648,7 @@ export const ddlDiff = async (
 
 	const jsonRenameReferences = fksRenames.map((it) =>
 		prepareStatement('rename_constraint', {
+			entityType: 'fks',
 			schema: it.to.schema,
 			table: it.to.table,
 			from: it.from.name,
