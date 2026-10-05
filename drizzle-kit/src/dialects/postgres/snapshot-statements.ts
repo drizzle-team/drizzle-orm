@@ -228,11 +228,9 @@ export const snapshotStatementSchemas = {
 		}).strict(),
 	}),
 	regrant_privilege: statement('regrant_privilege', { privilege: row('privileges') }),
-};
+	// A statement kind without a schema does not compile.
+} satisfies Record<JsonStatement['type'], ZodTypeAny>;
 
 type Schemas = typeof snapshotStatementSchemas;
 
-// A kind without a schema stores the statement as the diff builds it.
-export type SnapshotStatement = {
-	[K in JsonStatement['type']]: K extends keyof Schemas ? TypeOf<Schemas[K]> : Extract<JsonStatement, { type: K }>;
-}[JsonStatement['type']];
+export type SnapshotStatement = TypeOf<Schemas[keyof Schemas]>;

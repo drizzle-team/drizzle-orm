@@ -5,7 +5,6 @@ import { originUUID } from '../../utils';
 import { normalizeDDL } from '../ddl-canonical';
 import { type AnyDDL, apply, applyInPlace, type Delta, findRow, splitDeltaKey } from '../dialect';
 import { array, validator } from '../simpleValidator';
-import { statementTypes } from './convertor';
 import type { PostgresDDL, PostgresEntity } from './ddl';
 import { createDDL, fromEntities } from './ddl';
 import { type SnapshotStatement, snapshotStatementSchemas } from './snapshot-statements';
@@ -579,11 +578,8 @@ const isDelta = (it: any): boolean => {
 
 export const isSnapshotStatement = (it: unknown): it is SnapshotStatement => {
 	const type = (it as { type?: unknown } | null)?.type;
-	if (typeof type !== 'string') return false;
-	if (Object.hasOwn(snapshotStatementSchemas, type)) {
-		return snapshotStatementSchemas[type as keyof typeof snapshotStatementSchemas].safeParse(it).success;
-	}
-	return statementTypes.has(type);
+	return typeof type === 'string' && Object.hasOwn(snapshotStatementSchemas, type)
+		&& snapshotStatementSchemas[type as keyof typeof snapshotStatementSchemas].safeParse(it).success;
 };
 
 // Every snapshot stores the statements of its own migration, in the order of the SQL.

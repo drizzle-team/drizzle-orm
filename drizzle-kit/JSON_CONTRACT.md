@@ -484,7 +484,9 @@ A snapshot with another `type` is malformed. A base snapshot that lists a parent
 
 Format 9 snapshots have no `renames` field. `generate` on an unchanged schema writes no folder.
 
-Every snapshot stores the **statements** of its own migration in `statements`, in the order of the SQL in `migration.sql`. A statement is one schema change with its meaning, for example a column rename or a new index. `type` names its kind, such as `create_table`, `add_column` or `rename_column`. The other fields hold the data of that change, so the statements say what the SQL does without a rebuild of the history. `statements` is required, and a snapshot without it, or with a statement of an unknown `type`, is malformed.
+Every snapshot stores the **statements** of its own migration in `statements`, in the order of the SQL in `migration.sql`. A statement is one schema change with its meaning, for example a column rename or a new index. `type` names its kind, such as `create_table`, `add_column` or `rename_column`. The other fields hold the data of that change, so the statements say what the SQL does without a rebuild of the history.
+
+A stored statement holds the data that its SQL statement needs, and nothing else. So drizzle-kit can rebuild the SQL of a migration from the statements of its snapshot. Every kind has a fixed shape, which [`src/dialects/postgres/snapshot-statements.ts`](./src/dialects/postgres/snapshot-statements.ts) defines. `statements` is required. A snapshot is malformed if it has no `statements`, or if one of its statements has an unknown `type`, a missing field or an unknown field.
 
 - A base snapshot stores the create statements of its state. This applies to the first `generate`, to `pull` and to `up`.
 - A diff snapshot stores the statements of its migration. A merge snapshot stores only the statements of its own change.

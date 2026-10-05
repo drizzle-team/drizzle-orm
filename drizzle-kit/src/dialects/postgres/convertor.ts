@@ -1292,8 +1292,6 @@ const convertors: { [TType in StatementType]: ReturnType<typeof convertor<TType>
 	alter_rls: toggleRlsConvertor,
 };
 
-export const statementTypes = new Set<string>(Object.keys(convertors));
-
 export const toSnapshotStatement = <TType extends StatementType>(
 	statement: Extract<JsonStatement, { type: TType }>,
 ): Extract<SnapshotStatement, { type: TType }> => {

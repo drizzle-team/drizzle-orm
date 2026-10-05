@@ -309,7 +309,7 @@ const changedAt = (statement: unknown, path: string[], change: (object: Record<s
 };
 
 describe('stored statements', () => {
-	test('the cases cover every kind that has a stored form', async () => {
+	test('the cases cover every statement kind', async () => {
 		const covered = new Set((await storedStatements()).map((it) => it.type));
 
 		expect(Object.keys(snapshotStatementSchemas).filter((kind) => !covered.has(kind as never))).toStrictEqual([]);
@@ -322,7 +322,6 @@ describe('stored statements', () => {
 	test('a stored statement with an unknown field at any depth is malformed', async () => {
 		const accepted: string[] = [];
 		for (const statement of await storedStatements()) {
-			if (!Object.hasOwn(snapshotStatementSchemas, statement.type)) continue;
 			for (const { path } of objectsIn(statement)) {
 				const changed = changedAt(statement, path, (object) => {
 					object.unknownField = 1;
@@ -337,7 +336,6 @@ describe('stored statements', () => {
 	test('a stored statement with a missing field at any depth is malformed', async () => {
 		const accepted: string[] = [];
 		for (const statement of await storedStatements()) {
-			if (!Object.hasOwn(snapshotStatementSchemas, statement.type)) continue;
 			for (const { path, object } of objectsIn(statement)) {
 				for (const field of Object.keys(object)) {
 					// A changed property of an altered entity is present only when it changed.
