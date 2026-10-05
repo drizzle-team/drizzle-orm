@@ -1,5 +1,5 @@
 import { sql } from 'orm044';
-import { check, index, integer, pgSchema, pgTable, text, uuid, vector } from 'orm044/pg-core';
+import { check, index, integer, pgSchema, pgTable, text, uniqueIndex, uuid, vector } from 'orm044/pg-core';
 
 export const docs = pgTable(
 	'docs',
@@ -15,6 +15,7 @@ export const docs = pgTable(
 			ef_construction: 64,
 		}),
 		index('docs_rank_idx').on(t.rank).with({ fillfactor: 70 }),
+		index('docs_ranked_idx').on(t.product).where(sql`${t.rank} > 0`),
 		check('docs_product_nonempty', sql`length(${t.product}) > 0`),
 		check('docs_rank_range', sql`${t.rank} >= 0 AND ${t.rank} <= 100`),
 	],
@@ -27,8 +28,10 @@ export const items = app.table(
 	{
 		id: uuid().primaryKey().defaultRandom(),
 		label: text().notNull(),
+		archivedAt: integer(),
 	},
 	(t) => [
 		check('items_label_nonempty', sql`length(${t.label}) > 0`),
+		uniqueIndex('items_label_active').on(t.label).where(sql`${t.archivedAt} IS NULL`),
 	],
 );

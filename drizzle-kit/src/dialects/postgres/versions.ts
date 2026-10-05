@@ -20,11 +20,11 @@ import type {
 import { getOrNull } from '../../dialects/utils';
 
 /**
- * v7 snapshots stored check expressions with table-qualified columns (`"table"."column"`, or
- * `"schema"."table"."column"` outside `public`), while v8 renders checks with bare column names.
- * Strips those qualifiers outside of single-quoted string literals so upgraded checks match the schema.
+ * v7 snapshots stored check expressions and index `where` predicates with table-qualified columns
+ * (`"table"."column"`, or `"schema"."table"."column"`), while v8 renders both with bare column names.
+ * Strips those qualifiers outside of single-quoted string literals so upgraded snapshots match the schema.
  */
-export const unqualifyCheckValue = (value: string, schema: string, table: string): string => {
+export const unqualifyColumnReferences = (value: string, schema: string, table: string): string => {
 	const prefixes = [`"${schema}"."${table}".`, `"${table}".`];
 	let result = '';
 	let inString = false;
@@ -179,7 +179,7 @@ export const upToV8 = (
 				schema,
 				table: table.name,
 				name: check.name,
-				value: unqualifyCheckValue(check.value, schema, table.name),
+				value: unqualifyColumnReferences(check.value, schema, table.name),
 			});
 		}
 
@@ -224,7 +224,7 @@ export const upToV8 = (
 				isUnique: idx.isUnique,
 				method: idx.method,
 				concurrently: idx.concurrently,
-				where: idx.where ?? null,
+				where: typeof idx.where === 'string' ? unqualifyColumnReferences(idx.where, schema, table.name) : null,
 				with: idx.with && Object.keys(idx.with).length > 0
 					? Object.entries(idx.with)
 						.map((it) => `${it[0]}=${it[1]}`)

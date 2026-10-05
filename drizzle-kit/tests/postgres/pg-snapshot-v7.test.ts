@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { fromEntities } from 'src/dialects/postgres/ddl';
-import { unqualifyCheckValue, upToV8 } from 'src/dialects/postgres/versions';
+import { unqualifyColumnReferences, upToV8 } from 'src/dialects/postgres/versions';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diffSnapshotV7, prepareTestDatabase, TestDatabase } from './mocks';
 import * as s01 from './snapshots/schema01';
@@ -44,22 +44,22 @@ test('s03', async (t) => {
 	expect(res.all).toStrictEqual([]);
 });
 
-// Index `.with()` options and checks that reference columns must upgrade to the exact strings `generate` derives
-// from the schema, otherwise the first `generate` after `drizzle-kit up` recreates every such index and check
-test('s05. index with options and checks referencing columns', async (t) => {
+// Index `.with()` options, index `where` predicates and checks that reference columns must upgrade to the exact strings
+// `generate` derives from the schema, otherwise the first `generate` after `drizzle-kit up` recreates every such index and check
+test('s05. index with options, partial indexes and checks referencing columns', async (t) => {
 	const res = await diffSnapshotV7(db, s05new, s05);
 	expect(res.all).toStrictEqual([]);
 });
 
-test('unqualifyCheckValue', () => {
-	expect(unqualifyCheckValue('length("docs"."product") > 0', 'public', 'docs')).toBe('length("product") > 0');
-	expect(unqualifyCheckValue('length("app"."items"."label") > 0', 'app', 'items')).toBe('length("label") > 0');
-	expect(unqualifyCheckValue(`"docs"."status" <> '"docs".x'`, 'public', 'docs')).toBe(`"status" <> '"docs".x'`);
-	expect(unqualifyCheckValue(`"docs"."a" = 'it''s' AND "docs"."b" > 0`, 'public', 'docs')).toBe(
+test('unqualifyColumnReferences', () => {
+	expect(unqualifyColumnReferences('length("docs"."product") > 0', 'public', 'docs')).toBe('length("product") > 0');
+	expect(unqualifyColumnReferences('length("app"."items"."label") > 0', 'app', 'items')).toBe('length("label") > 0');
+	expect(unqualifyColumnReferences(`"docs"."status" <> '"docs".x'`, 'public', 'docs')).toBe(`"status" <> '"docs".x'`);
+	expect(unqualifyColumnReferences(`"docs"."a" = 'it''s' AND "docs"."b" > 0`, 'public', 'docs')).toBe(
 		`"a" = 'it''s' AND "b" > 0`,
 	);
-	expect(unqualifyCheckValue('"other"."col" > 0', 'public', 'docs')).toBe('"other"."col" > 0');
-	expect(unqualifyCheckValue('char_length(name) > 1', 'public', 'docs')).toBe('char_length(name) > 1');
+	expect(unqualifyColumnReferences('"other"."col" > 0', 'public', 'docs')).toBe('"other"."col" > 0');
+	expect(unqualifyColumnReferences('char_length(name) > 1', 'public', 'docs')).toBe('char_length(name) > 1');
 });
 
 // Snapshot was generated on drizzle-kit@0.23.2 version. This already generated v7 snapshot, but still it lacked of "roles", "policies", "checks", "views" in v7
