@@ -94,7 +94,11 @@ function build(type: string, n: NS, opts: { cols?: string[]; enumCol?: boolean }
 		case 'drop_column':
 			return { type, column: column(n) } as any;
 		case 'alter_column':
-			return { type, to: column(n), diff: { schema: n.schema, table: n.table, name: n.col } } as any;
+			return {
+				type,
+				to: column(n),
+				diff: { schema: n.schema, table: n.table, name: n.col, notNull: { from: false, to: true } },
+			} as any;
 		case 'recreate_column':
 			return { type, diff: { schema: n.schema, table: n.table, name: n.col } } as any;
 		case 'rename_column':

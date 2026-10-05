@@ -65,6 +65,21 @@ const policy = {
 };
 const role = { name: 'r', inherit: true };
 
+// `change` is the changed property of the column, as the diff reports it.
+const alterColumn = (from: any, change: Record<string, { from: unknown; to: unknown }>, flags = {}) => {
+	const to = { ...from, ...Object.fromEntries(Object.entries(change).map(([key, value]) => [key, value.to])) };
+	return {
+		type: 'alter_column',
+		to,
+		diff: { schema: from.schema, table: from.table, name: from.name, ...change, $left: from, $right: to },
+		isEnum: false,
+		wasEnum: false,
+		wasSerial: false,
+		toSerial: false,
+		...flags,
+	} as any;
+};
+
 export function build(type: string): JsonStatement {
 	switch (type) {
 		case 'create_table':
@@ -108,11 +123,15 @@ export function build(type: string): JsonStatement {
 		case 'drop_column':
 			return { type, column: col(S, T, C) } as any;
 		case 'alter_column':
-			return {
-				type,
-				to: col(S, T, C),
-				diff: { schema: S, table: T, name: C, notNull: { from: false, to: true } },
-			} as any;
+			return alterColumn(col(S, T, C), { notNull: { from: false, to: true } });
+		case 'alter_column:default':
+			return alterColumn(col(S, T, C), { default: { from: null, to: "'x'" } });
+		case 'alter_column:type':
+			return alterColumn(col(S, T, C), { type: { from: 'varchar', to: 'text' } });
+		case 'alter_column:enum_not_null':
+			return alterColumn(enumCol, { notNull: { from: false, to: true } }, { isEnum: true });
+		case 'alter_column:enum_default':
+			return alterColumn(enumCol, { default: { from: null, to: "'a'" } }, { isEnum: true });
 		case 'recreate_column':
 			return { type, diff: { schema: S, table: T, name: C, $right: col(S, T, C) }, isPK: false } as any;
 		case 'rename_column':
@@ -257,6 +276,11 @@ export function build(type: string): JsonStatement {
 			return {
 				type,
 				privilege: { schema: S, table: T, grantee: 'r', grantor: 'postgres', type: 'SELECT', isGrantable: false },
+			} as any;
+		case 'grant_privilege:insert':
+			return {
+				type: 'grant_privilege',
+				privilege: { schema: S, table: T, grantee: 'r', grantor: 'postgres', type: 'INSERT', isGrantable: false },
 			} as any;
 		default:
 			throw new Error(`no builder for ${type}`);

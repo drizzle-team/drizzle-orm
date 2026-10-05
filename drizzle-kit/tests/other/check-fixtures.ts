@@ -1,4 +1,4 @@
-import { integer as pgInteger, pgTable, varchar } from 'drizzle-orm/pg-core';
+import { integer as pgInteger, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { ddlDiffDry } from '../../src/dialects/postgres/diff';
@@ -50,7 +50,7 @@ export const stageConflict = async (): Promise<string> => {
 	const left = await makePgSnapshot(
 		'a1',
 		['p1'],
-		{ users: pgTable('users', { email: varchar('email').notNull() }) },
+		{ users: pgTable('users', { email: text('email') }) },
 		base,
 	);
 	const right = await makePgSnapshot('b1', ['p1'], { users: pgTable('users', { email: pgInteger('email') }) }, base);

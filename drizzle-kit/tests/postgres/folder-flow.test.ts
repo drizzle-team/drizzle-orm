@@ -161,7 +161,7 @@ test('conflicting fork fails check and generate', async () => {
 	await flow.generate('main', { users: pgTable('users', { email: varchar() }) });
 	flow.branch('a', 'main');
 	flow.branch('b', 'main');
-	await flow.generate('a', { users: pgTable('users', { email: varchar().notNull() }) });
+	await flow.generate('a', { users: pgTable('users', { email: text() }) });
 	await flow.generate('b', { users: pgTable('users', { email: integer() }) });
 	flow.merge('main', 'a', 'b');
 

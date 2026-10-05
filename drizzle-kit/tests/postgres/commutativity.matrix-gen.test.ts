@@ -42,6 +42,10 @@ const TYPES = [
 	'add_column:enum',
 	'drop_column',
 	'alter_column',
+	'alter_column:default',
+	'alter_column:type',
+	'alter_column:enum_not_null',
+	'alter_column:enum_default',
 	'recreate_column',
 	'rename_column',
 	'create_index',
@@ -95,6 +99,7 @@ const TYPES = [
 	'rename_role',
 	'alter_role',
 	'grant_privilege',
+	'grant_privilege:insert',
 	'revoke_privilege',
 	'regrant_privilege',
 ];

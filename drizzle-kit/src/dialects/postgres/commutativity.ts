@@ -7,7 +7,7 @@ import {
 } from '../../commutativity/engine';
 import type { ConflictTarget } from '../../commutativity/types';
 import { copyDDL } from '../dialect';
-import { type Column, fromEntities, type IndexColumn } from './ddl';
+import { type Column, fromEntities, type IndexColumn, type Privilege } from './ddl';
 import { ddlDiff } from './diff';
 import { renameResolvers } from './renames';
 import { drySnapshot, type PostgresSnapshot, startingState } from './snapshot';
@@ -25,6 +25,17 @@ type StatementDefinitions = CommutativityStatementDefinitions<
 	JsonStatement,
 	FootprintTarget
 >;
+
+const privilegeTypes: Privilege['type'][] = [
+	'ALL',
+	'SELECT',
+	'INSERT',
+	'UPDATE',
+	'DELETE',
+	'TRUNCATE',
+	'REFERENCES',
+	'TRIGGER',
+];
 
 function makeTarget(
 	schema: string,
@@ -837,12 +848,30 @@ class PostgresCommutativity extends FacetCommutativity<
 					owns: created('col', s.column.schema, s.column.table, s.column.name),
 					needs: underTable(s.column.schema, s.column.table),
 				};
-			case 'alter_column':
-				// alter keeps the column's name & existence, so name/cascade refs to it commute
+			case 'alter_column': {
+				// The statement keeps the name and the existence of the column, so it only reads the name. It
+				// writes one node for each property that its SQL changes or needs. SET NOT NULL and DROP NOT NULL
+				// run in either order with a change of the type, the default or the generation expression. A change
+				// of the type rewrites the default. An identity needs NOT NULL and no default. A generated column
+				// takes no default.
+				const d = s.diff;
+				const properties = new Set<string>();
+				if (d.notNull) properties.add('notNull');
+				if (d.default) properties.add('default');
+				if (d.type || d.typeSchema || d.dimensions) properties.add('type').add('default');
+				if (d.generated) properties.add('generated').add('default');
+				if (d.identity) properties.add('identity').add('default').add('notNull');
+				const column = [s.to.schema, s.to.table, s.to.name] as const;
 				return {
-					owns: altered('col', s.to.schema, s.to.table, s.to.name),
-					needs: [...underTable(s.to.schema, s.to.table), ...colEnum(s.to)],
+					owns: [...properties].flatMap((property) => altered('colprop', ...column, property)),
+					needs: [
+						...underTable(s.to.schema, s.to.table),
+						nref('col', ...column),
+						// Only SET DATA TYPE and SET DEFAULT name the type of the column in their SQL.
+						...(properties.has('default') ? colEnum(s.to) : []),
+					],
 				};
+			}
 			case 'recreate_column': // DROP + re-ADD the column: destroys & re-establishes it (cascading its
 				// indexes/constraints), so it writes existence like a create/drop, not just `self` like an alter
 				return {
@@ -1138,14 +1167,20 @@ class PostgresCommutativity extends FacetCommutativity<
 			// ---- privileges ----
 			case 'grant_privilege':
 			case 'revoke_privilege':
-			case 'regrant_privilege':
+			case 'regrant_privilege': {
+				const { schema, table, grantee, grantor } = s.privilege;
+				// ALL holds every other privilege type, so it claims each of them.
+				const types = s.privilege.type === 'ALL' ? privilegeTypes : [s.privilege.type];
 				return {
-					owns: altered('priv', s.privilege.schema || '', s.privilege.table || ''),
+					owns: types.flatMap((type) => altered('priv', schema || '', table || '', grantee, type)),
 					needs: [
-						...(s.privilege.table ? underTable(s.privilege.schema || 'public', s.privilege.table) : []),
-						nref('role', s.privilege.grantee),
+						...(table ? underTable(schema || 'public', table) : []),
+						nref('role', grantee),
+						// GRANT names the grantor in GRANTED BY, and REVOKE does not.
+						...(s.type === 'revoke_privilege' ? [] : [nref('role', grantor)]),
 					],
 				};
+			}
 
 			default: {
 				// Exhaustiveness guard: `statement` is `never` here only when every

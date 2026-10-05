@@ -40,7 +40,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 
 		const child1 = {
 			t: pgTable('t', (t) => ({
-				c: t.varchar().notNull(),
+				c: t.text(),
 			})),
 		};
 

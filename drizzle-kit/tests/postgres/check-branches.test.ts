@@ -1,4 +1,4 @@
-import { index, integer, pgEnum, pgTable, primaryKey, varchar } from 'drizzle-orm/pg-core';
+import { index, integer, pgEnum, pgTable, primaryKey, text, varchar } from 'drizzle-orm/pg-core';
 import { stripVTControlCharacters } from 'util';
 import { expect, test } from 'vitest';
 import { type CheckResult, createFolderFlow } from './folder-flow';
@@ -100,6 +100,42 @@ test('a new table with a column of an enum type conflicts with a rename of that 
 	await expect(flow.migrate('main', {})).rejects.toThrow('Failed query: CREATE TABLE "notes"');
 });
 
+test('NOT NULL on one branch and the default of the same column on the other pass', async () => {
+	const flow = createFolderFlow();
+	const merged = { users: pgTable('users', { id: integer(), email: varchar().notNull().default('none') }) };
+
+	await flow.generate('main', { users: pgTable('users', { id: integer(), email: varchar() }) });
+	flow.branch('a', 'main');
+	flow.branch('b', 'main');
+	await flow.generate('a', { users: pgTable('users', { id: integer(), email: varchar().notNull() }) });
+	await flow.generate('b', { users: pgTable('users', { id: integer(), email: varchar().default('none') }) });
+	flow.merge('main', 'a', 'b');
+
+	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
+	expect(await flow.generate('main', merged)).toMatchObject({ status: 'no_changes' });
+	expect(await flow.migrate('main', merged)).toStrictEqual([]);
+});
+
+test('NOT NULL on a column of an enum type passes with a rename of that enum on the other branch', async () => {
+	const flow = createFolderFlow();
+	const mood = pgEnum('mood', ['ok', 'sad']);
+	const feeling = pgEnum('feeling', ['ok', 'sad']);
+	const merged = { feeling, users: pgTable('users', { state: feeling().notNull() }) };
+
+	await flow.generate('main', { mood, users: pgTable('users', { state: mood() }) });
+	flow.branch('a', 'main');
+	flow.branch('b', 'main');
+	await flow.generate('a', { mood, users: pgTable('users', { state: mood().notNull() }) });
+	await flow.generate('b', { feeling, users: pgTable('users', { state: feeling() }) }, {
+		hints: [{ type: 'rename', kind: 'enum', from: ['public', 'mood'], to: ['public', 'feeling'] }],
+	});
+	flow.merge('main', 'a', 'b');
+
+	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
+	expect(await flow.generate('main', merged)).toMatchObject({ status: 'no_changes' });
+	expect(await flow.migrate('main', merged)).toStrictEqual([]);
+});
+
 test('branches that touch unrelated entities pass', async () => {
 	const flow = createFolderFlow();
 	const users = pgTable('users', { id: integer() });
@@ -121,9 +157,9 @@ test('overlapping branches fail and the report names both conflicting snapshots'
 	await flow.generate('main', { users: pgTable('users', { email: varchar() }) });
 	flow.branch('a', 'main');
 	flow.branch('b', 'main');
-	await flow.generate('a', { users: pgTable('users', { email: varchar().notNull() }) });
+	await flow.generate('a', { users: pgTable('users', { email: text() }) });
 	await flow.generate('a', {
-		users: pgTable('users', { email: varchar().notNull() }),
+		users: pgTable('users', { email: text() }),
 		likes: pgTable('likes', { id: integer() }),
 	});
 	await flow.generate('b', { users: pgTable('users', { email: integer() }) });
@@ -149,7 +185,7 @@ test('with three leaves every pair of branches is compared', async () => {
 	await flow.generate('a', { users, likes });
 	await flow.generate('b', { users: pgTable('users', { id: integer(), email: varchar() }) });
 	flow.branch('c', 'b');
-	await flow.generate('c', { users: pgTable('users', { id: integer(), email: varchar().notNull() }) });
+	await flow.generate('c', { users: pgTable('users', { id: integer(), email: text() }) });
 	await flow.generate('b', { users: pgTable('users', { id: integer(), email: integer() }), likes });
 	flow.merge('main', 'a', 'b', 'c');
 

@@ -54,8 +54,14 @@ const S = {
 		({ type: 'drop_column', column: col(schema, table, name) }) as any,
 	renameColumn: (schema: string, table: string, from: string, to: string) =>
 		({ type: 'rename_column', from: col(schema, table, from), to: col(schema, table, to) }) as any,
-	alterColumn: (schema: string, table: string, name: string, extra: Record<string, unknown> = {}) =>
-		({ type: 'alter_column', to: col(schema, table, name, extra), diff: { schema, table, name } }) as any,
+	// `change` holds the changed properties of the column, as the diff reports them.
+	alterColumn: (
+		schema: string,
+		table: string,
+		name: string,
+		extra: Record<string, unknown> = {},
+		change: Record<string, unknown> = { notNull: { from: false, to: true } },
+	) => ({ type: 'alter_column', to: col(schema, table, name, extra), diff: { schema, table, name, ...change } }) as any,
 	recreateColumn: (schema: string, table: string, name: string) =>
 		({ type: 'recreate_column', diff: { schema, table, name } }) as any,
 	createIndex: (schema: string, table: string, name: string, cols: string[]) =>
@@ -129,6 +135,11 @@ const S = {
 	dropSchema: (name: string) => ({ type: 'drop_schema', name }) as any,
 	alterRls: (schema: string, table: string, on: boolean) =>
 		({ type: 'alter_rls', schema, name: table, isRlsEnabled: on }) as any,
+	grant: (schema: string, table: string, grantee: string, type: string) =>
+		({
+			type: 'grant_privilege',
+			privilege: { schema, table, grantee, grantor: 'admin', type, isGrantable: false },
+		}) as any,
 	createPolicy: (schema: string, table: string, name: string) =>
 		({
 			type: 'create_policy',
@@ -287,7 +298,9 @@ const cases: Case[] = [
 	{
 		name: 'recreate_enum ∥ alter_column (changes a column to the enum type) conflict',
 		a: [S.recreateEnum('public', 'user_role')],
-		b: [S.alterColumn('public', 'staff', 'role', { type: 'user_role', typeSchema: 'public' })],
+		b: [S.alterColumn('public', 'staff', 'role', { type: 'user_role', typeSchema: 'public' }, {
+			type: { from: 'varchar', to: 'user_role' },
+		})],
 		expect: 'conflict',
 	},
 	{
@@ -349,6 +362,104 @@ const cases: Case[] = [
 		],
 		b: [S.addColumn('public', 'users', 'd')],
 		expect: 'commute',
+	},
+
+	// alter_column claims each property that its SQL changes or needs
+	{
+		name: 'alter_column c NOT NULL ∥ alter_column c default commute',
+		a: [S.alterColumn('public', 'users', 'c')],
+		b: [S.alterColumn('public', 'users', 'c', {}, { default: { from: null, to: "'x'" } })],
+		expect: 'commute',
+	},
+	{
+		name: 'alter_column c NOT NULL ∥ alter_column c type commute',
+		a: [S.alterColumn('public', 'users', 'c')],
+		b: [S.alterColumn('public', 'users', 'c', { type: 'text' }, { type: { from: 'varchar', to: 'text' } })],
+		expect: 'commute',
+	},
+	{
+		name: 'alter_column c default ∥ alter_column c default conflict',
+		a: [S.alterColumn('public', 'users', 'c', {}, { default: { from: null, to: "'x'" } })],
+		b: [S.alterColumn('public', 'users', 'c', {}, { default: { from: null, to: "'y'" } })],
+		expect: 'conflict',
+	},
+	{
+		name: 'alter_column c type ∥ alter_column c default (the type change rewrites it) conflict',
+		a: [S.alterColumn('public', 'users', 'c', { type: 'integer' }, { type: { from: 'varchar', to: 'integer' } })],
+		b: [S.alterColumn('public', 'users', 'c', {}, { default: { from: null, to: "'5'" } })],
+		expect: 'conflict',
+	},
+	{
+		name: 'alter_column c NOT NULL ∥ alter_column c identity (it needs NOT NULL) conflict',
+		a: [S.alterColumn('public', 'users', 'c', {}, { notNull: { from: true, to: false } })],
+		b: [S.alterColumn('public', 'users', 'c', {}, { identity: { from: null, to: { name: 'c_seq' } } })],
+		expect: 'conflict',
+	},
+	{
+		name: 'alter_column c NOT NULL ∥ rename_column c conflict',
+		a: [S.alterColumn('public', 'users', 'c')],
+		b: [S.renameColumn('public', 'users', 'c', 'd')],
+		expect: 'conflict',
+	},
+	{
+		name: 'alter_column(enum column) NOT NULL ∥ rename_enum commute',
+		a: [S.alterColumn('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' })],
+		b: [S.renameEnum('public', 'user_role', 'staff_role')],
+		expect: 'commute',
+	},
+	{
+		name: 'alter_column(enum column) NOT NULL ∥ move_enum commute',
+		a: [S.alterColumn('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' })],
+		b: [S.moveEnum('user_role', 'public', 'app')],
+		expect: 'commute',
+	},
+	{
+		name: 'alter_column(enum column) default ∥ rename_enum conflict',
+		a: [S.alterColumn('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' }, {
+			default: { from: null, to: "'a'" },
+		})],
+		b: [S.renameEnum('public', 'user_role', 'staff_role')],
+		expect: 'conflict',
+	},
+	{
+		name: 'alter_column(to an enum type) ∥ move_enum conflict',
+		a: [S.alterColumn('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' }, {
+			type: { from: 'varchar', to: 'user_role' },
+		})],
+		b: [S.moveEnum('user_role', 'public', 'app')],
+		expect: 'conflict',
+	},
+
+	// a privilege statement claims its table, its grantee and its privilege type
+	{
+		name: 'grant SELECT ∥ grant INSERT (same table and role) commute',
+		a: [S.grant('public', 'users', 'r', 'SELECT')],
+		b: [S.grant('public', 'users', 'r', 'INSERT')],
+		expect: 'commute',
+	},
+	{
+		name: 'grant SELECT to r ∥ grant SELECT to r2 commute',
+		a: [S.grant('public', 'users', 'r', 'SELECT')],
+		b: [S.grant('public', 'users', 'r2', 'SELECT')],
+		expect: 'commute',
+	},
+	{
+		name: 'grant SELECT ∥ revoke SELECT (same table and role) conflict',
+		a: [S.grant('public', 'users', 'r', 'SELECT')],
+		b: [{ ...S.grant('public', 'users', 'r', 'SELECT'), type: 'revoke_privilege' }],
+		expect: 'conflict',
+	},
+	{
+		name: 'grant ALL ∥ revoke SELECT (ALL holds SELECT) conflict',
+		a: [S.grant('public', 'users', 'r', 'ALL')],
+		b: [{ ...S.grant('public', 'users', 'r', 'SELECT'), type: 'revoke_privilege' }],
+		expect: 'conflict',
+	},
+	{
+		name: 'grant by admin ∥ rename_role admin (GRANTED BY names it) conflict',
+		a: [S.grant('public', 'users', 'r', 'SELECT')],
+		b: [{ type: 'rename_role', from: { name: 'admin' }, to: { name: 'owner' } } as any],
+		expect: 'conflict',
 	},
 
 	// granularity: distinct named children on the same table are independent

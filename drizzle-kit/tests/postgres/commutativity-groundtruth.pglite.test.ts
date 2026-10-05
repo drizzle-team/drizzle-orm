@@ -1,4 +1,5 @@
-import { integer, pgTable, varchar } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { integer, pgEnum, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
 import { fromJson } from 'src/dialects/postgres/convertor';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
@@ -160,6 +161,133 @@ describe('the squash false negative, against a real database', () => {
 	});
 });
 
+// Two branches change one column each. The statements and the SQL come from the real diff.
+describe('changes of one column on two branches vs a real database', () => {
+	const mood = pgEnum('mood', ['ok', 'sad']);
+	const feeling = pgEnum('feeling', ['ok', 'sad']);
+	const t = (column: Record<string, any>, extra: Record<string, unknown> = {}) => ({
+		...extra,
+		t: pgTable('t', column),
+	});
+	const expression = sql`'x'`;
+	const renameMood = ['public.mood->public.feeling'];
+
+	// `rules` and `postgres` say whether the two changes commute.
+	const cases: {
+		name: string;
+		base: Record<string, unknown>;
+		a: Record<string, unknown>;
+		b: Record<string, unknown>;
+		renames?: string[];
+		rules: boolean;
+		postgres: boolean;
+	}[] = [
+		{
+			name: 'NOT NULL and the default',
+			base: t({ c: varchar() }),
+			a: t({ c: varchar().notNull() }),
+			b: t({ c: varchar().default('x') }),
+			rules: true,
+			postgres: true,
+		},
+		{
+			name: 'NOT NULL and the type',
+			base: t({ c: varchar() }),
+			a: t({ c: varchar().notNull() }),
+			b: t({ c: text() }),
+			rules: true,
+			postgres: true,
+		},
+		{
+			name: 'two values of the default',
+			base: t({ c: varchar() }),
+			a: t({ c: varchar().default('x') }),
+			b: t({ c: varchar().default('y') }),
+			rules: false,
+			postgres: false,
+		},
+		{
+			name: 'the default and the type',
+			base: t({ c: varchar() }),
+			a: t({ c: varchar().default('5') }),
+			b: t({ c: integer() }),
+			rules: false,
+			postgres: false,
+		},
+		{
+			name: 'NOT NULL and the identity',
+			base: t({ n: integer().notNull() }),
+			a: t({ n: integer() }),
+			b: t({ n: integer().generatedAlwaysAsIdentity() }),
+			rules: false,
+			postgres: false,
+		},
+		{
+			name: 'the default and the identity',
+			base: t({ n: integer().notNull() }),
+			a: t({ n: integer().notNull().default(1) }),
+			b: t({ n: integer().generatedAlwaysAsIdentity() }),
+			rules: false,
+			postgres: false,
+		},
+		{
+			name: 'the type and the identity',
+			base: t({ n: integer().notNull() }),
+			a: t({ n: text().notNull() }),
+			b: t({ n: integer().generatedAlwaysAsIdentity() }),
+			rules: false,
+			postgres: false,
+		},
+		{
+			name: 'NOT NULL and a dropped generation expression',
+			base: t({ g: varchar().notNull().generatedAlwaysAs(expression) }),
+			a: t({ g: varchar().generatedAlwaysAs(expression) }),
+			b: t({ g: varchar().notNull() }),
+			rules: true,
+			postgres: true,
+		},
+		{
+			name: 'NOT NULL on a column of an enum type and a rename of the enum',
+			base: t({ c: mood() }, { mood }),
+			a: t({ c: mood().notNull() }, { mood }),
+			b: t({ c: feeling() }, { feeling }),
+			renames: renameMood,
+			rules: true,
+			postgres: true,
+		},
+		{
+			name: 'the default of a column of an enum type and a rename of the enum',
+			base: t({ c: mood() }, { mood }),
+			a: t({ c: mood().default('ok') }, { mood }),
+			b: t({ c: feeling() }, { feeling }),
+			renames: renameMood,
+			rules: false,
+			postgres: false,
+		},
+		{
+			name: 'a type change to an enum type and a rename of the enum',
+			base: t({ c: varchar() }, { mood }),
+			a: t({ c: mood() }, { mood }),
+			b: t({ c: varchar() }, { feeling }),
+			renames: renameMood,
+			rules: false,
+			postgres: false,
+		},
+	];
+
+	test.each(cases)('$name', async ({ base, a, b, renames = [], rules, postgres }) => {
+		const baseSql = (await diff({}, base, [])).sqlStatements;
+		const left = await diff(base, a, []);
+		const right = await diff(base, b, renames);
+
+		const ab = await applyBoth(baseSql, left.sqlStatements, right.sqlStatements);
+		const ba = await applyBoth(baseSql, right.sqlStatements, left.sqlStatements);
+		const found = await postgresCommutativity.getReasonsFromStatements(left.statements, right.statements);
+
+		expect({ rules: !found, postgres: ab.ok && ba.ok && ab.hash === ba.hash }).toStrictEqual({ rules, postgres });
+	});
+});
+
 // One statement pair per matrix cell. Each cell runs the SQL that the convertor emits
 // for the statements that the matrix is built from. The shared base of a pair holds
 // the objects that either statement needs.
@@ -199,6 +327,10 @@ const needs: Record<string, readonly BaseObject[]> = {
 	'add_column:enum': [...onTable, 'enum'],
 	drop_column: onColumn,
 	alter_column: onColumn,
+	'alter_column:default': onColumn,
+	'alter_column:type': onColumn,
+	'alter_column:enum_not_null': [...onTable, 'enum', 'enumColumn'],
+	'alter_column:enum_default': [...onTable, 'enum', 'enumColumn'],
 	recreate_column: onColumn,
 	rename_column: onColumn,
 	create_index: onColumn,
@@ -252,6 +384,7 @@ const needs: Record<string, readonly BaseObject[]> = {
 	rename_role: ['role'],
 	alter_role: ['role'],
 	grant_privilege: [...onTable, 'role'],
+	'grant_privilege:insert': [...onTable, 'role'],
 	revoke_privilege: [...onTable, 'role', 'privilege'],
 	regrant_privilege: [...onTable, 'role', 'privilege'],
 };
@@ -260,11 +393,17 @@ const needs: Record<string, readonly BaseObject[]> = {
 const sameChangeTwice =
 	'the same change runs twice without an error, and the rules report any two changes of one entity';
 const knownExceptions: Record<string, string> = {
+	'alter_column:default x alter_column:type':
+		'a type change converts the default, and the rules do not know that the conversion from varchar to text keeps it',
 	'rename_table x drop_index': 'the rules key an index by its table, and the index SQL does not name the table',
 	'rename_table x rename_index': 'the rules key an index by its table, and the index SQL does not name the table',
 	...Object.fromEntries(
 		[
 			'alter_column',
+			'alter_column:default',
+			'alter_column:type',
+			'alter_column:enum_not_null',
+			'alter_column:enum_default',
 			'recreate_column',
 			'recreate_index',
 			'alter_pk',
@@ -280,6 +419,7 @@ const knownExceptions: Record<string, string> = {
 			'alter_rls',
 			'alter_role',
 			'grant_privilege',
+			'grant_privilege:insert',
 			'revoke_privilege',
 			'regrant_privilege',
 		].map((type) => [`${type} x ${type}`, sameChangeTwice]),
@@ -378,9 +518,14 @@ describe('matrix cells vs a real database', () => {
 					: 'both orders succeed with the same schema';
 				const postgresCommutes = ab.ok && ba.ok && ab.schema === ba.schema;
 				const rulesCommute = !matrix[i]![j] && !matrix[j]![i];
-				if (postgresCommutes !== rulesCommute) {
-					mismatches[`${a} x ${b}`] = `rules say ${rulesCommute ? 'commute' : 'conflict'}, postgres: ${why}`;
+				if (postgresCommutes === rulesCommute) continue;
+				// The shared base holds what both statements need. When one statement fails on it without the
+				// other, no real folder has this pair. An example is a drop of an enum that a column of the
+				// other statement uses.
+				if (rulesCommute && !((await run([...base, ...sqlOf(a)])).ok && (await run([...base, ...sqlOf(b)])).ok)) {
+					continue;
 				}
+				mismatches[`${a} x ${b}`] = `rules say ${rulesCommute ? 'commute' : 'conflict'}, postgres: ${why}`;
 			}
 		}
 

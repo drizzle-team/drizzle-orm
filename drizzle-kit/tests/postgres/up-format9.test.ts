@@ -25,7 +25,8 @@ import { ORIGIN, writeSnapshot } from '../other/check-fixtures';
 import { createFolderFlow, type FolderFlow, schemaState, tempDir } from './folder-flow';
 
 // drizzle-kit 1.0.0-rc.4 wrote the format 8 folders. Its check passed on the linear, renames and merge
-// folders, and reported a conflict between the two leaves of the fork folder. drizzle-kit 0.31.7 with
+// folders. It reported a conflict between the two leaves of the fork folder, which set NOT NULL and
+// change the type of one column. This SQL runs in either order. drizzle-kit 0.31.7 with
 // drizzle-orm 0.44.1 wrote the format 7 folder, where the last migration renames the table posts to
 // articles and the column users.email to contact. The format 4 and format 5 folders come from this
 // repository's history, where an example project and the integration tests kept them.
@@ -146,16 +147,17 @@ test('up converts a format 8 merge and lists the newest parent first', async () 
 	expect(await flow.migrate('main', schema)).toStrictEqual([]);
 });
 
-test('check reports the same conflict after up converts a format 8 fork', async () => {
+test('check passes after up converts a format 8 fork that changes two properties of one column', async () => {
 	const { flow, original } = seedFormat8('format-8-fork');
+	const merged = { users: pgTable('users', { email: integer().notNull() }) };
 
 	await flow.up('main');
 
 	expectOriginalStates(flow, original);
-	expect(await flow.check('main')).toMatchObject({
-		status: 'conflicts',
-		folders: ['20260928145239_not_null', '20260928145241_integer'],
-	});
+	expect(flow.leaves('main')).toStrictEqual(['20260928145239_not_null', '20260928145241_integer']);
+	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
+	expect(await flow.generate('main', merged)).toMatchObject({ status: 'no_changes' });
+	expect(await flow.migrate('main', merged)).toStrictEqual([]);
 });
 
 test('up keeps the primary key name that Postgres gave when a format 8 file stores the default name of the renamed table', async () => {

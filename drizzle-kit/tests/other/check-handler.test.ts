@@ -1,4 +1,4 @@
-import { integer, pgTable, varchar } from 'drizzle-orm/pg-core';
+import { integer, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { checkHandler, checkSnapshots } from 'src/cli/commands/check';
@@ -129,7 +129,7 @@ test('returns non-commutativity message and no statements for conflicting branch
 
 	const leftSchema = {
 		users: pgTable('users', {
-			email: varchar('email').notNull(),
+			email: text('email'),
 		}),
 	};
 
