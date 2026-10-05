@@ -1,5 +1,5 @@
 import type { TypeOf, ZodTypeAny } from 'zod';
-import { array, boolean, custom, literal, object, string } from 'zod';
+import { array, boolean, custom, enum as oneOf, literal, object, string } from 'zod';
 import { validateRow } from '../dialect';
 import { createDDL, type PostgresEntities } from './ddl';
 import type { JsonStatement } from './statements';
@@ -31,6 +31,13 @@ const statement = <T extends string, S extends Record<string, ZodTypeAny>>(type:
 
 // The names of an entity that belongs to a table.
 const inTable = object({ schema: string(), table: string(), name: string() }).strict();
+
+// What the claim rules read of an index that is dropped or replaced.
+const indexColumns = array(object({ value: string(), isExpression: boolean() }).strict());
+const uniqueness = { columns: indexColumns, isUnique: boolean(), where: string().nullable() };
+
+// The names of a constraint and its columns.
+const constraint = object({ schema: string(), table: string(), name: string(), columns: array(string()) }).strict();
 
 export const snapshotStatementSchemas = {
 	create_table: statement('create_table', {
@@ -72,6 +79,54 @@ export const snapshotStatementSchemas = {
 		}).strict(),
 	}),
 	recreate_column: statement('recreate_column', { column: row('columns'), isPK: boolean() }),
+
+	create_index: statement('create_index', { index: row('indexes') }),
+	drop_index: statement('drop_index', {
+		index: object({ schema: string(), table: string(), name: string(), ...uniqueness }).strict(),
+	}),
+	rename_index: statement('rename_index', {
+		schema: string(),
+		table: string(),
+		from: string(),
+		to: string(),
+		columns: array(string()),
+	}),
+	recreate_index: statement('recreate_index', {
+		index: row('indexes'),
+		// False when a column of the index is dropped in the same migration, because that drops the index too.
+		shouldDrop: boolean(),
+		old: object(uniqueness).strict(),
+	}),
+	add_pk: statement('add_pk', { pk: row('pks') }),
+	drop_pk: statement('drop_pk', { pk: constraint }),
+	alter_pk: statement('alter_pk', {
+		pk: row('pks'),
+		// True when a column of the old key is dropped in the same migration, because that drops the key too.
+		deleted: boolean(),
+		oldColumns: array(string()),
+	}),
+	create_fk: statement('create_fk', { fk: row('fks') }),
+	drop_fk: statement('drop_fk', { fk: constraint }),
+	recreate_fk: statement('recreate_fk', { fk: row('fks') }),
+	add_unique: statement('add_unique', { unique: row('uniques') }),
+	drop_unique: statement('drop_unique', { unique: constraint }),
+	alter_unique: statement('alter_unique', { from: constraint, to: row('uniques') }),
+	// `columns` are the columns of the table that the expression of the check names.
+	add_check: statement('add_check', { check: row('checks'), columns: array(string()) }),
+	drop_check: statement('drop_check', { check: inTable, columns: array(string()) }),
+	alter_check: statement('alter_check', {
+		check: row('checks'),
+		newColumns: array(string()),
+		oldColumns: array(string()),
+	}),
+	rename_constraint: statement('rename_constraint', {
+		entityType: oneOf(['pks', 'uniques', 'checks', 'fks']),
+		schema: string(),
+		table: string(),
+		from: string(),
+		to: string(),
+		columns: array(string()),
+	}),
 };
 
 type Schemas = typeof snapshotStatementSchemas;

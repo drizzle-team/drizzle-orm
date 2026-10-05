@@ -1,5 +1,17 @@
 import { sql } from 'drizzle-orm';
-import { integer, pgSchema, pgTable, text, varchar } from 'drizzle-orm/pg-core';
+import {
+	check,
+	foreignKey,
+	index,
+	integer,
+	pgSchema,
+	pgTable,
+	primaryKey,
+	text,
+	unique,
+	uniqueIndex,
+	varchar,
+} from 'drizzle-orm/pg-core';
 import { toSnapshotStatements } from 'src/dialects/postgres/convertor';
 import { isSnapshotStatement } from 'src/dialects/postgres/snapshot';
 import { type SnapshotStatement, snapshotStatementSchemas } from 'src/dialects/postgres/snapshot-statements';
@@ -11,6 +23,25 @@ type Case = { kinds: string[]; from: PostgresSchema; to: PostgresSchema; renames
 
 const archive = pgSchema('archive');
 const users = pgTable('users', { id: integer(), email: varchar() });
+
+// The table `users` with other indexes and constraints, and a table that references it.
+const constrained = (extra: (t: any) => any[]) => {
+	const table = pgTable('users', { id: integer().notNull(), email: varchar().notNull() }, extra);
+	return { users: table, posts: pgTable('posts', { userId: integer(), userEmail: varchar() }) };
+};
+const referencing = (onDelete?: 'cascade') => {
+	const table = pgTable('users', { id: integer().primaryKey(), email: varchar() });
+	const posts = pgTable('posts', { userId: integer() }, (t) => [
+		foreignKey({ name: 'posts_user_fk', columns: [t.userId], foreignColumns: [table.id] }).onDelete(
+			onDelete ?? 'no action',
+		),
+	]);
+	return { users: table, posts };
+};
+const unreferenced = {
+	users: pgTable('users', { id: integer().primaryKey(), email: varchar() }),
+	posts: pgTable('posts', { userId: integer() }),
+};
 
 const cases: Case[] = [
 	{ kinds: ['create_table'], from: {}, to: { users } },
@@ -47,6 +78,81 @@ const cases: Case[] = [
 		kinds: ['recreate_column'],
 		from: { users },
 		to: { users: pgTable('users', { id: integer(), email: varchar().generatedAlwaysAs(sql`'x'`) }) },
+	},
+	{
+		kinds: ['create_index'],
+		from: constrained(() => []),
+		to: constrained((t) => [index('users_email_ix').on(t.email)]),
+	},
+	{
+		kinds: ['drop_index'],
+		from: constrained((t) => [index('users_email_ix').on(t.email)]),
+		to: constrained(() => []),
+	},
+	{
+		kinds: ['rename_index'],
+		from: constrained((t) => [index('users_email_ix').on(t.email)]),
+		to: constrained((t) => [index('users_mail_ix').on(t.email)]),
+		renames: ['public.users.users_email_ix->public.users.users_mail_ix'],
+	},
+	{
+		kinds: ['recreate_index'],
+		from: constrained((t) => [index('users_email_ix').on(t.email)]),
+		to: constrained((t) => [uniqueIndex('users_email_ix').on(t.email, t.id)]),
+	},
+	{
+		kinds: ['add_pk'],
+		from: constrained(() => []),
+		to: constrained((t) => [primaryKey({ name: 'users_pk', columns: [t.id] })]),
+	},
+	{
+		kinds: ['drop_pk'],
+		from: constrained((t) => [primaryKey({ name: 'users_pk', columns: [t.id] })]),
+		to: constrained(() => []),
+	},
+	{
+		kinds: ['alter_pk'],
+		from: constrained((t) => [primaryKey({ name: 'users_pk', columns: [t.id] })]),
+		to: constrained((t) => [primaryKey({ name: 'users_pk', columns: [t.id, t.email] })]),
+	},
+	{ kinds: ['create_fk'], from: unreferenced, to: referencing() },
+	{ kinds: ['drop_fk'], from: referencing(), to: unreferenced },
+	{ kinds: ['recreate_fk'], from: referencing(), to: referencing('cascade') },
+	{
+		kinds: ['add_unique'],
+		from: constrained(() => []),
+		to: constrained((t) => [unique('users_email_uq').on(t.email)]),
+	},
+	{
+		kinds: ['drop_unique'],
+		from: constrained((t) => [unique('users_email_uq').on(t.email)]),
+		to: constrained(() => []),
+	},
+	{
+		kinds: ['alter_unique'],
+		from: constrained((t) => [unique('users_email_uq').on(t.email)]),
+		to: constrained((t) => [unique('users_email_uq').on(t.email, t.id)]),
+	},
+	{
+		kinds: ['rename_constraint'],
+		from: constrained((t) => [unique('users_email_uq').on(t.email)]),
+		to: constrained((t) => [unique('users_mail_uq').on(t.email)]),
+		renames: ['public.users.users_email_uq->public.users.users_mail_uq'],
+	},
+	{
+		kinds: ['add_check'],
+		from: constrained(() => []),
+		to: constrained((t) => [check('users_id_ck', sql`${t.id} > 0`)]),
+	},
+	{
+		kinds: ['drop_check'],
+		from: constrained((t) => [check('users_id_ck', sql`${t.id} > 0`)]),
+		to: constrained(() => []),
+	},
+	{
+		kinds: ['alter_check'],
+		from: constrained((t) => [check('users_id_ck', sql`${t.id} > 0`)]),
+		to: constrained((t) => [check('users_id_ck', sql`${t.id} > 1`)]),
 	},
 ];
 

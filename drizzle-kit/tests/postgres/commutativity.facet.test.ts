@@ -88,7 +88,13 @@ const S = {
 	alterUnique: (schema: string, table: string, name: string, cols: string[]) =>
 		({
 			type: 'alter_unique',
-			diff: { schema, table, name, $left: { columns: cols }, $right: { columns: cols } },
+			diff: {
+				schema,
+				table,
+				name,
+				$left: { schema, table, name, columns: cols },
+				$right: { schema, table, name, columns: cols },
+			},
 		}) as any,
 	addCheck: (schema: string, table: string, name: string, cols: string[]) =>
 		({
@@ -103,7 +109,12 @@ const S = {
 			columns: cols,
 		}) as any,
 	alterCheck: (schema: string, table: string, name: string, cols: string[]) =>
-		({ type: 'alter_check', diff: { schema, table, name }, newColumns: cols, oldColumns: cols }) as any,
+		({
+			type: 'alter_check',
+			diff: { schema, table, name, $right: { schema, table, name, value: cols.map((c) => `${c} > 1`).join(' and ') } },
+			newColumns: cols,
+			oldColumns: cols,
+		}) as any,
 	renameConstraint: (schema: string, table: string, from: string, to: string, cols: string[]) =>
 		({ type: 'rename_constraint', entityType: 'uniques', schema, table, from, to, columns: cols }) as any,
 	addPk: (schema: string, table: string, cols: string[]) =>

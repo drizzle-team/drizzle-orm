@@ -40,6 +40,17 @@ const row = <K extends keyof PostgresEntities>(type: K, source: StoredRow<K>): S
 
 const inTable = ({ schema, table, name }: { schema: string; table: string; name: string }) => ({ schema, table, name });
 
+const constraint = (it: { schema: string; table: string; name: string; columns: string[] }) => ({
+	...inTable(it),
+	columns: it.columns,
+});
+
+const uniqueness = ({ columns, isUnique, where }: StoredRow<'indexes'>) => ({
+	columns: columns.map(({ value, isExpression }) => ({ value, isExpression })),
+	isUnique,
+	where,
+});
+
 const createSchemaConvertor = convertor('create_schema', asIs, (st) => {
 	return `CREATE SCHEMA "${st.name}";\n`;
 });
@@ -389,7 +400,11 @@ const recreateColumnConvertor = convertor('recreate_column', ({ diff, isPK }) =>
 	return [drop, add];
 });
 
-const recreateIndexConvertor = convertor('recreate_index', asIs, (st) => {
+const recreateIndexConvertor = convertor('recreate_index', ({ index, diff, shouldDrop }) => ({
+	index: row('indexes', index),
+	shouldDrop,
+	old: uniqueness(diff.$left),
+}), (st) => {
 	// AlterTableAlterColumnSetExpressionConvertor
 	// AlterTableAlterColumnAlterGeneratedConvertor
 
@@ -561,7 +576,7 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 	return statements;
 });
 
-const createIndexConvertor = convertor('create_index', asIs, (st) => {
+const createIndexConvertor = convertor('create_index', ({ index }) => ({ index: row('indexes', index) }), (st) => {
 	const {
 		schema,
 		table,
@@ -603,7 +618,9 @@ const createIndexConvertor = convertor('create_index', asIs, (st) => {
 	return `CREATE ${indexPart}${concur} "${name}" ON ${key}${using} (${value})${withClause}${whereClause};`;
 });
 
-const dropIndexConvertor = convertor('drop_index', asIs, (st) => {
+const dropIndexConvertor = convertor('drop_index', ({ index }) => ({
+	index: { ...inTable(index), ...uniqueness(index) },
+}), (st) => {
 	const { schema } = st.index;
 
 	const key = schema !== 'public'
@@ -613,13 +630,19 @@ const dropIndexConvertor = convertor('drop_index', asIs, (st) => {
 	return `DROP INDEX ${key}"${st.index.name}";`;
 });
 
-const renameIndexConvertor = convertor('rename_index', asIs, (st) => {
+const renameIndexConvertor = convertor('rename_index', ({ schema, table, from, to, columns }) => ({
+	schema,
+	table,
+	from,
+	to,
+	columns,
+}), (st) => {
 	const key = st.schema !== 'public' ? `"${st.schema}"."${st.from}"` : `"${st.from}"`;
 
 	return `ALTER INDEX ${key} RENAME TO "${st.to}";`;
 });
 
-const addPrimaryKeyConvertor = convertor('add_pk', asIs, (st) => {
+const addPrimaryKeyConvertor = convertor('add_pk', ({ pk }) => ({ pk: row('pks', pk) }), (st) => {
 	const { pk } = st;
 	const key = pk.schema !== 'public'
 		? `"${pk.schema}"."${pk.table}"`
@@ -631,7 +654,7 @@ const addPrimaryKeyConvertor = convertor('add_pk', asIs, (st) => {
 	return `ALTER TABLE ${key} ADD CONSTRAINT "${pk.name}" PRIMARY KEY("${pk.columns.join('","')}");`;
 });
 
-const dropPrimaryKeyConvertor = convertor('drop_pk', asIs, (st) => {
+const dropPrimaryKeyConvertor = convertor('drop_pk', ({ pk }) => ({ pk: constraint(pk) }), (st) => {
 	const pk = st.pk;
 	const key = pk.schema !== 'public'
 		? `"${pk.schema}"."${pk.table}"`
@@ -640,22 +663,37 @@ const dropPrimaryKeyConvertor = convertor('drop_pk', asIs, (st) => {
 	return `ALTER TABLE ${key} DROP CONSTRAINT "${pk.name}";`;
 });
 
-const recreatePrimaryKeyConvertor = convertor('alter_pk', asIs, (it) => {
+const recreatePrimaryKeyConvertor = convertor('alter_pk', ({ pk, diff, deleted }) => ({
+	pk: row('pks', pk),
+	deleted: !!deleted,
+	oldColumns: diff.columns?.from ?? pk.columns,
+}), (it) => {
 	const st: string[] = [];
 	if (!it.deleted) st.push(dropPrimaryKeyConvertor.convert({ pk: it.pk }) as string);
 	st.push(addPrimaryKeyConvertor.convert({ pk: it.pk }) as string);
 	return st;
 });
 
-const renameConstraintConvertor = convertor('rename_constraint', asIs, (st) => {
-	const key = st.schema !== 'public'
-		? `"${st.schema}"."${st.table}"`
-		: `"${st.table}"`;
+const renameConstraintConvertor = convertor(
+	'rename_constraint',
+	({ entityType, schema, table, from, to, columns }) => ({
+		entityType,
+		schema,
+		table,
+		from,
+		to,
+		columns,
+	}),
+	(st) => {
+		const key = st.schema !== 'public'
+			? `"${st.schema}"."${st.table}"`
+			: `"${st.table}"`;
 
-	return `ALTER TABLE ${key} RENAME CONSTRAINT "${st.from}" TO "${st.to}";`;
-});
+		return `ALTER TABLE ${key} RENAME CONSTRAINT "${st.from}" TO "${st.to}";`;
+	},
+);
 
-const createForeignKeyConvertor = convertor('create_fk', asIs, (st) => {
+const createForeignKeyConvertor = convertor('create_fk', ({ fk }) => ({ fk: row('fks', fk) }), (st) => {
 	const { schema, table, name, tableTo, columns, columnsTo, onDelete, onUpdate, schemaTo } = st.fk;
 
 	const onDeleteStatement = onDelete && !isDefaultAction(onDelete) ? ` ON DELETE ${onDelete}` : '';
@@ -674,7 +712,7 @@ const createForeignKeyConvertor = convertor('create_fk', asIs, (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
 });
 
-const recreateFKConvertor = convertor('recreate_fk', asIs, (st) => {
+const recreateFKConvertor = convertor('recreate_fk', ({ fk }) => ({ fk: row('fks', fk) }), (st) => {
 	const { fk } = st;
 
 	const key = fk.schema !== 'public'
@@ -704,7 +742,7 @@ const recreateFKConvertor = convertor('recreate_fk', asIs, (st) => {
 	return sql;
 });
 
-const dropForeignKeyConvertor = convertor('drop_fk', asIs, (st) => {
+const dropForeignKeyConvertor = convertor('drop_fk', ({ fk }) => ({ fk: constraint(fk) }), (st) => {
 	const { schema, table, name } = st.fk;
 
 	const tableNameWithSchema = schema !== 'public'
@@ -714,7 +752,10 @@ const dropForeignKeyConvertor = convertor('drop_fk', asIs, (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${name}";`;
 });
 
-const addCheckConvertor = convertor('add_check', asIs, (st) => {
+const addCheckConvertor = convertor('add_check', ({ check, columns }) => ({
+	check: row('checks', check),
+	columns,
+}), (st) => {
 	const { check } = st;
 	const tableNameWithSchema = check.schema !== 'public'
 		? `"${check.schema}"."${check.table}"`
@@ -722,7 +763,10 @@ const addCheckConvertor = convertor('add_check', asIs, (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${check.name}" CHECK (${check.value});`;
 });
 
-const dropCheckConvertor = convertor('drop_check', asIs, (st) => {
+const dropCheckConvertor = convertor('drop_check', ({ check, columns }) => ({
+	check: inTable(check),
+	columns,
+}), (st) => {
 	const { check } = st;
 	const tableNameWithSchema = check.schema !== 'public'
 		? `"${check.schema}"."${check.table}"`
@@ -730,10 +774,12 @@ const dropCheckConvertor = convertor('drop_check', asIs, (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${check.name}";`;
 });
 
-const recreateCheckConvertor = convertor('alter_check', asIs, (st) => {
-	const { diff } = st;
-
-	const check = diff.$right;
+const recreateCheckConvertor = convertor('alter_check', ({ diff, newColumns, oldColumns }) => ({
+	check: row('checks', diff.$right),
+	newColumns,
+	oldColumns,
+}), (st) => {
+	const { check } = st;
 
 	const key = check.schema !== 'public'
 		? `"${check.schema}"."${check.table}"`
@@ -745,7 +791,7 @@ const recreateCheckConvertor = convertor('alter_check', asIs, (st) => {
 	return sql;
 });
 
-const addUniqueConvertor = convertor('add_unique', asIs, (st) => {
+const addUniqueConvertor = convertor('add_unique', ({ unique }) => ({ unique: row('uniques', unique) }), (st) => {
 	const { unique } = st;
 	const tableNameWithSchema = unique.schema !== 'public'
 		? `"${unique.schema}"."${unique.table}"`
@@ -755,7 +801,7 @@ const addUniqueConvertor = convertor('add_unique', asIs, (st) => {
 	}("${unique.columns.join('","')}");`;
 });
 
-const dropUniqueConvertor = convertor('drop_unique', asIs, (st) => {
+const dropUniqueConvertor = convertor('drop_unique', ({ unique }) => ({ unique: constraint(unique) }), (st) => {
 	const { unique } = st;
 	const tableNameWithSchema = unique.schema !== 'public'
 		? `"${unique.schema}"."${unique.table}"`
@@ -763,11 +809,14 @@ const dropUniqueConvertor = convertor('drop_unique', asIs, (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${unique.name}";`;
 });
 
-const alterUniqueConvertor = convertor('alter_unique', asIs, (st) => {
+const alterUniqueConvertor = convertor('alter_unique', ({ diff }) => ({
+	from: constraint(diff.$left),
+	to: row('uniques', diff.$right),
+}), (st) => {
 	const statements: string[] = [];
 
-	statements.push(dropUniqueConvertor.convert({ unique: st.diff.$left }) as string);
-	statements.push(addUniqueConvertor.convert({ unique: st.diff.$right }) as string);
+	statements.push(dropUniqueConvertor.convert({ unique: st.from }) as string);
+	statements.push(addUniqueConvertor.convert({ unique: st.to }) as string);
 
 	return statements;
 });

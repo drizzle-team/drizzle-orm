@@ -258,7 +258,7 @@ class PostgresCommutativity extends FacetCommutativity<
 			recreate_index: {
 				conflicts: ['create_index', 'drop_index', 'rename_index'],
 				buildInfo: (statement) => ({
-					primary: makeTarget(statement.diff.schema, statement.diff.name),
+					primary: makeTarget(statement.index.schema, statement.index.name),
 					ancestors: [makeTableTarget(statement.index.schema, statement.index.table)],
 				}),
 			},
@@ -327,7 +327,7 @@ class PostgresCommutativity extends FacetCommutativity<
 			alter_unique: {
 				conflicts: ['add_unique', 'drop_unique', 'alter_unique'],
 				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.diff.schema, statement.diff.table),
+					primary: makeTableTarget(statement.to.schema, statement.to.table),
 					ancestors: [],
 				}),
 			},
@@ -350,7 +350,7 @@ class PostgresCommutativity extends FacetCommutativity<
 			alter_check: {
 				conflicts: ['add_check', 'drop_check', 'alter_check'],
 				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.diff.schema, statement.diff.table),
+					primary: makeTableTarget(statement.check.schema, statement.check.table),
 					ancestors: [],
 				}),
 			},
@@ -808,13 +808,17 @@ class PostgresCommutativity extends FacetCommutativity<
 			column.typeSchema && column.typeSchema !== 'pg_catalog' && column.type
 				? [nref('enum', column.typeSchema, column.type)]
 				: [];
-		const idxCols = (cols: IndexColumn[], ref: (c: string) => string) =>
+		const idxCols = (cols: Pick<IndexColumn, 'value' | 'isExpression'>[], ref: (c: string) => string) =>
 			cols.filter((c) => !c.isExpression).map((c) => ref(c.value));
 		// A foreign key needs a primary key, a unique constraint or a unique index on the columns that it
 		// references, in any column order.
 		const uniqueKey = (schema: string, table: string, columns: string[]) =>
 			exist('ukey', schema, table, ...[...columns].sort());
-		const indexKey = (index: Index) =>
+		const indexKey = (
+			index: Pick<Index, 'schema' | 'table' | 'isUnique' | 'where'> & {
+				columns: Pick<IndexColumn, 'value' | 'isExpression'>[];
+			},
+		) =>
 			index.isUnique && !index.where && index.columns.every((c) => !c.isExpression)
 				? [uniqueKey(index.schema, index.table, index.columns.map((c) => c.value))]
 				: [];
@@ -918,12 +922,15 @@ class PostgresCommutativity extends FacetCommutativity<
 				};
 			case 'recreate_index':
 				return {
-					owns: created('idx', s.diff.schema, s.diff.name),
+					owns: created('idx', s.index.schema, s.index.name),
 					needs: [
 						...underTable(s.index.schema, s.index.table),
 						...idxCols(s.index.columns, (c) => nref('col', s.index.schema, s.index.table, c)),
 					],
-					provides: [...indexKey(s.diff.$left), ...indexKey(s.index)],
+					provides: [
+						...indexKey({ ...s.old, schema: s.index.schema, table: s.index.table }),
+						...indexKey(s.index),
+					],
 				};
 			case 'rename_index': // rename follows column renames, cascaded by column drops -> EXISTENCE refs
 				return {
@@ -960,9 +967,7 @@ class PostgresCommutativity extends FacetCommutativity<
 						...underTable(s.pk.schema, s.pk.table),
 						...s.pk.columns.map((c) => nref('col', s.pk.schema, s.pk.table, c)),
 					],
-					provides: [s.diff.columns?.from ?? [], s.pk.columns].map((columns) =>
-						uniqueKey(s.pk.schema, s.pk.table, columns)
-					),
+					provides: [s.oldColumns, s.pk.columns].map((columns) => uniqueKey(s.pk.schema, s.pk.table, columns)),
 				};
 
 			// ---- foreign keys ----
@@ -1009,15 +1014,13 @@ class PostgresCommutativity extends FacetCommutativity<
 				};
 			case 'alter_unique': // recreated as DROP $left + ADD $right: name-ref the new cols, existence-ref the old
 				return {
-					owns: altered('uq', s.diff.schema, s.diff.table, s.diff.name),
+					owns: altered('uq', s.to.schema, s.to.table, s.to.name),
 					needs: [
-						...underTable(s.diff.schema, s.diff.table),
-						...s.diff.$right.columns.map((c) => nref('col', s.diff.schema, s.diff.table, c)),
-						...s.diff.$left.columns.map((c) => eref('col', s.diff.schema, s.diff.table, c)),
+						...underTable(s.to.schema, s.to.table),
+						...s.to.columns.map((c) => nref('col', s.to.schema, s.to.table, c)),
+						...s.from.columns.map((c) => eref('col', s.to.schema, s.to.table, c)),
 					],
-					provides: [s.diff.$left, s.diff.$right].map((unique) =>
-						uniqueKey(s.diff.schema, s.diff.table, unique.columns)
-					),
+					provides: [s.from, s.to].map((unique) => uniqueKey(s.to.schema, s.to.table, unique.columns)),
 				};
 
 			// ---- check constraints (columns come from parsing the CHECK expression) ----
@@ -1039,11 +1042,11 @@ class PostgresCommutativity extends FacetCommutativity<
 				};
 			case 'alter_check': // recreated as DROP old + ADD new: name-ref new expr cols, existence-ref old
 				return {
-					owns: altered('ck', s.diff.schema, s.diff.table, s.diff.name),
+					owns: altered('ck', s.check.schema, s.check.table, s.check.name),
 					needs: [
-						...underTable(s.diff.schema, s.diff.table),
-						...s.newColumns.map((c) => nref('col', s.diff.schema, s.diff.table, c)),
-						...s.oldColumns.map((c) => eref('col', s.diff.schema, s.diff.table, c)),
+						...underTable(s.check.schema, s.check.table),
+						...s.newColumns.map((c) => nref('col', s.check.schema, s.check.table, c)),
+						...s.oldColumns.map((c) => eref('col', s.check.schema, s.check.table, c)),
 					],
 				};
 

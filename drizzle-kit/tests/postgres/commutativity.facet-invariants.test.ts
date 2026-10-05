@@ -213,8 +213,8 @@ function build(type: string, n: NS, opts: { cols?: string[]; enumCol?: boolean }
 					schema: n.schema,
 					table: n.table,
 					name: n.unique,
-					$left: { columns: [n.col] },
-					$right: { columns: [n.col] },
+					$left: { schema: n.schema, table: n.table, name: n.unique, columns: [n.col] },
+					$right: { schema: n.schema, table: n.table, name: n.unique, columns: [n.col] },
 				},
 			} as any;
 
@@ -233,7 +233,12 @@ function build(type: string, n: NS, opts: { cols?: string[]; enumCol?: boolean }
 		case 'alter_check':
 			return {
 				type,
-				diff: { schema: n.schema, table: n.table, name: n.check },
+				diff: {
+					schema: n.schema,
+					table: n.table,
+					name: n.check,
+					$right: { schema: n.schema, table: n.table, name: n.check, value: `${n.col} > 1` },
+				},
 				newColumns: [n.col],
 				oldColumns: [n.col],
 			} as any;
