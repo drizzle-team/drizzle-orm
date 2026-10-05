@@ -2936,6 +2936,220 @@ test('non-admin', async () => {
 	expect(fks.length).toBe(1);
 });
 
+const introspectAsAdminAndUser = async (grants: string[] = []) => {
+	await db.query(`CREATE ROLE "user" LOGIN PASSWORD 'password';`);
+	for (const grant of grants) await db.query(grant);
+
+	const { privileges: _p1, ...asAdmin } = await fromDatabase(db);
+	await db.query(`SET ROLE "user";`);
+	const { privileges: _p2, ...asUser } = await fromDatabase(db);
+	await db.query(`RESET ROLE;`);
+
+	return { asAdmin, asUser };
+};
+
+test('non-admin: no usage on schema', async () => {
+	const restricted = pgSchema('restricted');
+	const status = restricted.enum('status', ['active', 'inactive']);
+	const seq = restricted.sequence('seq', { startWith: 10, increment: 2 });
+	const table = restricted.table('table', {
+		id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+		serial: serial('serial'),
+		status: status('status').default('active'),
+		email: text('email').unique(),
+		age: integer('age'),
+	}, (t) => [
+		index('table_age_idx').on(t.age),
+		check('table_age_check', sql`${t.age} > 0`),
+	]);
+	const view = restricted.view('view').as((qb) => qb.select().from(table));
+	const mView = restricted.materializedView('m_view').as((qb) => qb.select().from(table));
+
+	await push({ db, to: { restricted, status, seq, table, view, mView } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser();
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.tables.map((it) => `${it.schema}.${it.name}`)).toStrictEqual(['restricted.table']);
+	expect(asUser.enums.map((it) => it.name)).toStrictEqual(['status']);
+	expect(asUser.sequences.map((it) => it.name)).toStrictEqual(['seq']);
+	expect(asUser.columns.find((it) => it.name === 'id')!.identity).not.toBeNull();
+	expect(asUser.views.map((it) => it.name)).toStrictEqual(['m_view', 'view']);
+});
+
+test('non-admin: usage on schema, no privileges on table', async () => {
+	const restricted = pgSchema('restricted');
+	const table = restricted.table('table', {
+		id: integer('id').primaryKey().generatedByDefaultAsIdentity(),
+		serial: serial('serial'),
+		name: text('name').notNull().default('name'),
+	}, (t) => [uniqueIndex('table_name_idx').on(t.name)]);
+
+	await push({ db, to: { restricted, table } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser([
+		`GRANT USAGE ON SCHEMA "restricted" TO "user";`,
+	]);
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.tables.length).toBe(1);
+	expect(asUser.columns.map((it) => it.name)).toStrictEqual(['id', 'serial', 'name']);
+});
+
+test('non-admin: column-level privileges only', async () => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+		name: text('name'),
+		secret: text('secret'),
+	});
+
+	await push({ db, to: { users } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser([
+		`REVOKE ALL ON TABLE "users" FROM PUBLIC;`,
+		`GRANT SELECT ("id", "name") ON TABLE "users" TO "user";`,
+	]);
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.columns.map((it) => it.name)).toStrictEqual(['id', 'name', 'secret']);
+});
+
+test('non-admin: no access to sequences', async () => {
+	const restricted = pgSchema('restricted');
+	const seq = restricted.sequence('seq', { startWith: 100, minValue: 100, maxValue: 1000, cycle: true, cache: 5 });
+	const publicSeq = pgSequence('public_seq', { increment: 3 });
+	const users = pgTable('users', {
+		id: bigserial('id', { mode: 'number' }).primaryKey(),
+		small: smallserial('small'),
+		identity: bigint('identity', { mode: 'number' }).generatedAlwaysAsIdentity({ startWith: 5, increment: 5 }),
+	});
+
+	await push({ db, to: { restricted, seq, publicSeq, users } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser([
+		`REVOKE ALL ON SEQUENCE "public_seq" FROM PUBLIC;`,
+		`REVOKE ALL ON ALL SEQUENCES IN SCHEMA "public" FROM PUBLIC;`,
+	]);
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.sequences.map((it) => it.name).sort()).toStrictEqual(['public_seq', 'seq']);
+	expect(asUser.columns.find((it) => it.name === 'identity')!.identity).not.toBeNull();
+});
+
+test('non-admin: column type from schema without access', async () => {
+	const restricted = pgSchema('restricted');
+	const mood = restricted.enum('mood', ['sad', 'happy']);
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+		mood: mood('mood').default('happy'),
+		moods: mood('moods').array(),
+	});
+
+	await push({ db, to: { restricted, mood, users } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser();
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.columns.filter((it) => it.typeSchema === 'restricted').map((it) => it.name)).toStrictEqual([
+		'mood',
+		'moods',
+	]);
+});
+
+test('non-admin: views referencing tables without access', async () => {
+	const restricted = pgSchema('restricted');
+	const secret = restricted.table('secret', {
+		id: integer('id').primaryKey(),
+		value: text('value'),
+	});
+	const view = pgView('view').as((qb) => qb.select().from(secret));
+	const mView = pgMaterializedView('m_view').with({ fillfactor: 50 }).as((qb) =>
+		qb.select({ id: secret.id }).from(secret)
+	);
+
+	await push({ db, to: { restricted, secret, view, mView } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser([
+		`REVOKE ALL ON TABLE "view" FROM PUBLIC;`,
+		`REVOKE ALL ON TABLE "m_view" FROM PUBLIC;`,
+	]);
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.views.map((it) => it.name)).toStrictEqual(['m_view', 'view']);
+	expect(asUser.views.every((it) => it.definition)).toBe(true);
+});
+
+test('non-admin: foreign keys between schemas without access', async () => {
+	const restrictedA = pgSchema('restricted_a');
+	const restrictedB = pgSchema('restricted_b');
+	const parent = restrictedA.table('parent', {
+		id: integer('id').primaryKey(),
+		code: text('code').unique(),
+	});
+	const child = restrictedB.table('child', {
+		id: integer('id').primaryKey(),
+		parentId: integer('parent_id').references(() => parent.id, { onDelete: 'cascade' }),
+		parentCode: text('parent_code'),
+	}, (t) => [
+		foreignKey({ columns: [t.parentCode], foreignColumns: [parent.code] }).onUpdate('set null'),
+	]);
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+		childId: integer('child_id').references(() => child.id),
+	});
+
+	await push({ db, to: { restrictedA, restrictedB, parent, child, users } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser([
+		`GRANT USAGE ON SCHEMA "restricted_b" TO "user";`,
+	]);
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.fks.map((it) => `${it.schema}.${it.table} -> ${it.schemaTo}.${it.tableTo}`).sort())
+		.toStrictEqual([
+			'public.users -> restricted_b.child',
+			'restricted_b.child -> restricted_a.parent',
+			'restricted_b.child -> restricted_a.parent',
+		]);
+});
+
+test('non-admin: rls policies on table without access', async () => {
+	const restricted = pgSchema('restricted');
+	const role = pgRole('app_user');
+	const table = restricted.table('table', {
+		id: integer('id').primaryKey(),
+		ownerId: integer('owner_id'),
+	}, () => [
+		pgPolicy('select_own', { as: 'permissive', for: 'select', to: role, using: sql`owner_id = 1` }),
+		pgPolicy('insert_any', { as: 'restrictive', for: 'insert', to: 'public', withCheck: sql`true` }),
+	]).enableRLS();
+
+	await push({ db, to: { restricted, role, table }, entities: { roles: { include: ['app_user'] } } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser();
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.tables[0]!.isRlsEnabled).toBe(true);
+	expect(asUser.policies.map((it) => it.name).sort()).toStrictEqual(['insert_any', 'select_own']);
+});
+
+test('non-admin: public schema without usage', async () => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+		name: text('name'),
+	}, (t) => [index('users_name_idx').on(t.name)]);
+
+	await push({ db, to: { users } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser([
+		`REVOKE ALL ON SCHEMA "public" FROM PUBLIC;`,
+	]);
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.tables.map((it) => it.name)).toStrictEqual(['users']);
+	expect(asUser.indexes.map((it) => it.name).sort()).toStrictEqual(['users_name_idx', 'users_pkey']);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/5869
 test('issue #5869', async () => {
 	await db.query(`DROP TABLE IF EXISTS opclass_repro`);
