@@ -81,6 +81,7 @@ type Internals = {
 	defs: Record<string, Def>;
 	identity: Record<string, IdFn>;
 	edges: Record<string, Edge[]>;
+	specs: Record<string, EdgeSpec[]>;
 	nulls: Record<string, Row>;
 	recorded: Delta[] | null;
 };
@@ -337,17 +338,42 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 
 		const snap: [string, Row][] = [];
 		for (const b of store.values()) for (const r of b.values()) snap.push([r.entityType, { ...r }]);
+		const restore = () => {
+			for (const b of store.values()) b.clear();
+			for (const [t, r] of snap) bucketOf(t).set(keyOf(r), r);
+		};
 
-		// While recording, `before` holds each touched row as it was before its first change. The recorded deltas
-		// follow the order of these first changes.
-		const before = new Map<Row, { key: string; row: Row; isCascade: boolean }>();
+		// While recording, the store changes only through the deltas that are recorded: one keyed delta for
+		// each selected row, and the instructions for each of those rows that changes its key. The reference
+		// edges are not followed, so the state after this call is the state that a replay of the deltas gives.
+		if (recorded) {
+			const keyed: Delta[] = [];
+			const instructions: Delta[] = [];
+			for (const { row, next } of planned) {
+				const changes: Row = {};
+				for (const k of Object.keys(next)) if (!isEqual(row[k], next[k])) changes[k] = next[k];
+				if (!Object.keys(changes).length) continue;
+				const hasKeyChanged = keyOf(next) !== keyOf(row);
+				keyed.push({ op: hasKeyChanged ? 'rename' : 'alter', key: qual(row.entityType, keyOf(row)), set: changes });
+				if (hasKeyChanged) instructions.push(...renameInstructions(ctx, row.entityType, row, changes));
+			}
+			const deltas = [...keyed, ...instructions];
+			try {
+				applyToStore(ctx, deltas);
+			} catch (e) {
+				if (!(e instanceof KeyCollisionError)) throw e;
+				restore();
+				return { status: 'CONFLICT', data: [e.taken] };
+			}
+			recorded.push(...deltas);
+			return { status: 'OK', data: targets };
+		}
 
 		type Seed = { type: string; oldKey: string; oldRow: Row; newRow: Row };
 		const seeds: Seed[] = [];
 		for (const { row, next } of planned) {
 			const oldRow = { ...row };
 			const oldKey = keyOf(oldRow);
-			if (recorded) before.set(row, { key: qual(row.entityType, oldKey), row: oldRow, isCascade: false });
 			Object.assign(row, next);
 			if (keyOf(row) !== oldKey) seeds.push({ type: row.entityType, oldKey, oldRow, newRow: row });
 		}
@@ -363,9 +389,6 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 					if (!patch) continue;
 					const depOld = { ...dep.row };
 					const depOldKey = keyOf(depOld);
-					if (recorded && !before.has(dep.row)) {
-						before.set(dep.row, { key: qual(dep.type, depOldKey), row: depOld, isCascade: true });
-					}
 					Object.assign(dep.row, patch);
 					const depNewKey = keyOf(dep.row);
 					if (depNewKey !== depOldKey) {
@@ -388,23 +411,13 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 				}
 			}
 			if (colliders.length) {
-				for (const b of store.values()) b.clear();
-				for (const [t, r] of snap) bucketOf(t).set(keyOf(r), r);
+				restore();
 				return { status: 'CONFLICT', data: colliders };
 			}
 
 			rekey(); // rows moved keys — rebuild the buckets once.
 		}
 
-		if (recorded) {
-			for (const [row, old] of before) {
-				const set: Row = {};
-				for (const k of Object.keys(row)) if (!isEqual(old.row[k], row[k])) set[k] = row[k];
-				if (!Object.keys(set).length) continue;
-				const hasKeyChanged = qual(row.entityType, keyOf(row)) !== old.key;
-				recorded.push({ op: hasKeyChanged ? (old.isCascade ? 'relocate' : 'rename') : 'alter', key: old.key, set });
-			}
-		}
 		return { status: 'OK', data: targets };
 	};
 
@@ -486,7 +499,7 @@ export function create<const D extends Record<string, Def>>(
 		});
 	}
 
-	const internals: Internals = { store, defs, identity, edges, nulls, recorded: null };
+	const internals: Internals = { store, defs, identity, edges, specs: edgeSpecs, nulls, recorded: null };
 	return build<InferEntities<D>>(internals);
 }
 
@@ -597,14 +610,87 @@ export const key = (ddl: AnyDDL, type: string, row: Row): string => ddl.key(type
 
 /* ------------------------------------------------------------------ structural delta */
 
-// A key is qual(entityType, identity). `rename` and `relocate` change the key: a rename is a
-// user decision, a relocate follows the rename of the entity that the row references.
-export type Delta =
+// A keyed delta names one row by its key, which is qual(entityType, identity). A `rename` changes the key
+// of its row, because the user decided it.
+export type KeyedDelta =
 	| { op: 'create'; row: Row }
 	| { op: 'drop'; key: string }
 	| { op: 'alter'; key: string; set: Row }
-	| { op: 'rename'; key: string; set: Row }
-	| { op: 'relocate'; key: string; set: Row };
+	| { op: 'rename'; key: string; set: Row };
+
+// An instruction follows a rename. It selects the rows of one entity type by the values of their fields,
+// never by key, and writes the new name into them. So it also reaches a row that another branch added or
+// renamed. `update` sets fields. `replace_in_list` replaces a string in a list of strings.
+// `update_list_items` sets fields of the objects in a list that have the values of `match`.
+export type Instruction =
+	| { op: 'update'; type: string; where: Row; set: Row }
+	| { op: 'replace_in_list'; type: string; where: Row; field: string; from: string; to: string }
+	| { op: 'update_list_items'; type: string; where: Row; field: string; match: Row; set: Row };
+
+export type Delta = KeyedDelta | Instruction;
+
+export const isInstruction = (delta: Delta): delta is Instruction => !('key' in delta) && delta.op !== 'create';
+
+// The instructions for a row of `type` that changes its key. `from` is the row before the change, and `set`
+// holds its changed fields. The list has one instruction for every reference rule that points at `type`, and
+// for every rule that points at a type whose keys change as a result. It depends only on the rules, and
+// never on the rows that exist.
+function renameInstructions(ctx: Internals, type: string, from: Row, set: Row): Instruction[] {
+	const out = new Map<string, Instruction>();
+	const add = (it: Instruction) => out.set(JSON.stringify(it), it);
+	// `where` holds the old values of the fields of `type` that select the changed rows.
+	const visit = (type: string, where: Row, set: Row, isDirect: boolean) => {
+		for (const [source, specs] of Object.entries(ctx.specs)) {
+			for (const spec of specs) {
+				if (spec.to !== type) continue;
+				const sourceWhere: Row = {};
+				const sourceSet: Row = {};
+				let list: Instruction | null = null;
+				for (const [targetField, src] of Object.entries(spec.map)) {
+					if (!(targetField in where)) continue;
+					if (typeof src === 'string') {
+						sourceWhere[src] = where[targetField];
+						if (targetField in set) sourceSet[src] = set[targetField];
+					} else if (targetField in set) {
+						const [oldName, newName] = [where[targetField], set[targetField]];
+						list = src.pick
+							? {
+								op: 'update_list_items',
+								type: source,
+								where: sourceWhere,
+								field: src.list,
+								match: { [src.pick]: oldName, ...(src.skipWhen ? { [src.skipWhen]: false } : {}) },
+								set: { [src.pick]: newName },
+							}
+							: {
+								op: 'replace_in_list',
+								type: source,
+								where: sourceWhere,
+								field: src.list,
+								from: oldName,
+								to: newName,
+							};
+					} else if (isDirect) {
+						// Such an instruction would need a condition on what a list holds.
+						throw new Error(`Cannot write instructions for a row of ${type} that changes its key and keeps its name`);
+					}
+				}
+				// No row is at hand here, so `when` may read only the fields that the rule maps.
+				if (spec.when && !spec.when(sourceWhere)) continue;
+				// The list instruction comes first, because the update can change the fields that select its rows.
+				if (list) add(list);
+				if (!Object.keys(sourceSet).length) continue;
+				add({ op: 'update', type: source, where: sourceWhere, set: sourceSet });
+				const identityOf = ctx.identity[source];
+				if (identityOf(sourceWhere) !== identityOf({ ...sourceWhere, ...sourceSet })) {
+					visit(source, sourceWhere, sourceSet, false);
+				}
+			}
+		}
+	};
+	visit(type, from, set, true);
+	return [...out.values()];
+}
 
 const qkeyOf = (ddl: AnyDDL, r: Row): string => qual(r.entityType, ddl.key(r.entityType, r));
 // Returns [entityType, identity].
@@ -660,8 +746,8 @@ export function copyDDL<M extends Record<string, Row>>(ddl: DDL<M>): DDL<M> {
 	return build<M>({ ...src, store, recorded: null });
 }
 
-// From now on, every `update` on this DDL adds a delta for each row that it changes, the rows
-// that it relocates included. `push`, `delete` and `drop` add nothing.
+// From now on, every `update` on this DDL adds a keyed delta for each row that its `where` selects, and the
+// instructions for each of those rows that changes its key. `push`, `delete` and `drop` add nothing.
 export function recordDeltas<M extends Record<string, Row>>(ddl: DDL<M>): Delta[] {
 	return ddl._.recorded = [];
 }
@@ -670,9 +756,26 @@ export function apply<M extends Record<string, Row>>(base: DDL<M>, deltas: Delta
 	return applyInPlace(copyDDL(base), deltas);
 }
 
-// Never follows reference edges, because every dependent change is already a delta of its own.
-export function applyInPlace<M extends Record<string, Row>>(ddl: DDL<M>, deltas: Delta[]): DDL<M> {
-	const { store, identity: identityOf } = ddl._;
+// A rename or an instruction moves a row onto a key that another row holds.
+export class KeyCollisionError extends Error {
+	constructor(op: string, entityType: string, from: string, to: string, readonly taken: Row) {
+		super(
+			`The ${op} delta moves ${entityType} ${from} to ${to}, and another row of ${entityType} already has the key ${to}. `
+				+ 'Two migrations gave one name to two different entities.',
+		);
+	}
+}
+
+const hasFields = (row: Row, where: Row): boolean => {
+	for (const field in where) if (row[field] !== where[field]) return false;
+	return true;
+};
+
+// Runs the deltas in order against the rows that the store has at that moment. It reads no reference rules:
+// an instruction names its entity type, the field values to match and the fields to change. An instruction
+// that matches no row changes nothing. An instruction scans every row of its entity type.
+function applyToStore(ctx: Pick<Internals, 'store' | 'identity'>, deltas: Delta[]) {
+	const { store, identity: identityOf } = ctx;
 	const target = (d: { op: string; key: string }): [Map<string, Row>, string, Row] => {
 		const [entityType, identity] = splitDeltaKey(d.key);
 		const bucket = store.get(entityType);
@@ -686,6 +789,15 @@ export function applyInPlace<M extends Record<string, Row>>(ddl: DDL<M>, deltas:
 		}
 		return [bucket, identity, row];
 	};
+	// `moved` holds rows that are already removed from the bucket, with their old identity.
+	const insertMoved = (op: string, entityType: string, bucket: Map<string, Row>, moved: [string, Row][]) => {
+		for (const [oldIdentity, row] of moved) {
+			const identity = identityOf[entityType](row);
+			const taken = bucket.get(identity);
+			if (taken) throw new KeyCollisionError(op, entityType, oldIdentity, identity, taken);
+			bucket.set(identity, row);
+		}
+	};
 	for (const d of deltas) {
 		if (d.op === 'create') {
 			const row = stripMeta(d.row);
@@ -695,12 +807,33 @@ export function applyInPlace<M extends Record<string, Row>>(ddl: DDL<M>, deltas:
 			bucket.delete(identity);
 		} else if (d.op === 'alter') {
 			Object.assign(target(d)[2], d.set);
-		} else {
+		} else if (d.op === 'rename') {
 			const [bucket, oldIdentity, row] = target(d);
 			bucket.delete(oldIdentity);
 			Object.assign(row, d.set);
-			bucket.set(identityOf[row.entityType](row), row);
+			insertMoved(d.op, row.entityType, bucket, [[oldIdentity, row]]);
+		} else if (d.op === 'update') {
+			const bucket = store.get(d.type)!;
+			const moved: [string, Row][] = [];
+			for (const [identity, row] of bucket) {
+				if (!hasFields(row, d.where)) continue;
+				Object.assign(row, d.set);
+				if (identityOf[d.type](row) !== identity) moved.push([identity, row]);
+			}
+			for (const [identity] of moved) bucket.delete(identity);
+			insertMoved(d.op, d.type, bucket, moved);
+		} else {
+			const change = d.op === 'replace_in_list'
+				? (it: unknown) => (it === d.from ? d.to : it)
+				: (it: Row) => (hasFields(it, d.match) ? { ...it, ...d.set } : it);
+			for (const row of store.get(d.type)!.values()) {
+				if (hasFields(row, d.where)) row[d.field] = (row[d.field] as any[]).map(change);
+			}
 		}
 	}
+}
+
+export function applyInPlace<M extends Record<string, Row>>(ddl: DDL<M>, deltas: Delta[]): DDL<M> {
+	applyToStore(ddl._, deltas);
 	return ddl;
 }

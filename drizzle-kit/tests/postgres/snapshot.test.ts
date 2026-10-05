@@ -137,23 +137,78 @@ describe('reconstruct', () => {
 		expect(rows(reconstruct(history, 'd'))).toStrictEqual(rows(ddlOf('users', ['id'])));
 	});
 
-	test('in the combined state a create or a rename overwrites a taken key', () => {
+	test('in the combined state a create overwrites a taken key, and a rename onto a taken key throws', () => {
+		const created = { op: 'create', row: { ...column('users', 'x'), type: 'text' } } as const;
+		const renamed = { op: 'rename', key: columnKey('users', 'id'), set: { name: 'key' } } as const;
+		const historyWith = (deltas: Delta[]) =>
+			historyOf(
+				base('a', ddlOf('users', ['id'])),
+				diff('b', ['a'], deltas),
+				diff('c', ['a'], [
+					{ op: 'create', row: column('users', 'x') },
+					{ op: 'create', row: { ...column('users', 'key'), notNull: true } },
+				]),
+				diff('d', ['c', 'b'], []),
+			);
+		const expected = ddlOf('users', ['id', 'key', 'x']);
+		expected.columns.update({ set: { type: 'text' }, where: { name: 'x' } });
+		expected.columns.update({ set: { notNull: true }, where: { name: 'key' } });
+
+		expect(rows(startingState(historyWith([created]), ['c', 'b']))).toStrictEqual(rows(expected));
+		expect(() => startingState(historyWith([created, renamed]), ['c', 'b'])).toThrow(
+			'The rename delta moves columns ["public","users","id"] to ["public","users","key"], and another row of '
+				+ 'columns already has the key ["public","users","key"]',
+		);
+	});
+
+	// Branch b renames column x, and branch c renames column z and the key. Each rename has an instruction
+	// for the column list of the key, so the key gets both new column names with either first parent.
+	test('a merge runs the instructions of the other branches on the rows that it has at that moment', () => {
+		const start = ddlOf('t', ['x', 'z']);
+		start.pks.push({ schema: 'public', table: 't', name: 't_pk', nameExplicit: true, columns: ['x', 'z'] });
+		const inT = { schema: 'public', table: 't' };
+		const columnRename = (from: string, to: string): Delta[] => [
+			{ op: 'rename', key: columnKey('t', from), set: { name: to } },
+			{ op: 'replace_in_list', type: 'pks', where: inT, field: 'columns', from, to },
+		];
 		const history = historyOf(
-			base('a', ddlOf('users', ['id'])),
+			base('a', start),
+			diff('b', ['a'], columnRename('x', 'y')),
+			diff('c', ['a'], [
+				...columnRename('z', 'w'),
+				{ op: 'rename', key: 'pks\0["public","t","t_pk"]', set: { name: 't_pk2' } },
+			]),
+		);
+
+		for (const prevIds of [['c', 'b'], ['b', 'c']]) {
+			const state = startingState(history, prevIds);
+			expect(state.pks.list()).toMatchObject([{ name: 't_pk2', columns: ['y', 'w'] }]);
+			expect(state.columns.list().map((it) => it.name).sort()).toStrictEqual(['w', 'y']);
+		}
+	});
+
+	// Branch c drops the table. The instruction of branch b for its columns then matches no row, and the
+	// keyed deltas of branch b for the dropped rows are skipped.
+	test('a merge skips a keyed delta whose key is missing, and an instruction that matches no row', () => {
+		const start = ddlOf('users', ['id']);
+		start.tables.push({ schema: 'public', name: 'posts', isRlsEnabled: false });
+		const history = historyOf(
+			base('a', start),
 			diff('b', ['a'], [
-				{ op: 'create', row: { ...column('users', 'x'), type: 'text' } },
-				{ op: 'rename', key: columnKey('users', 'id'), set: { name: 'key' } },
+				{ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } },
+				{ op: 'update', type: 'columns', where: { schema: 'public', table: 'users' }, set: { table: 'accounts' } },
+				{ op: 'alter', key: columnKey('accounts', 'id'), set: { notNull: true } },
+				{ op: 'drop', key: columnKey('accounts', 'id') },
 			]),
 			diff('c', ['a'], [
-				{ op: 'create', row: column('users', 'x') },
-				{ op: 'create', row: { ...column('users', 'key'), notNull: true } },
+				{ op: 'drop', key: columnKey('users', 'id') },
+				{ op: 'drop', key: 'tables\0["public","users"]' },
 			]),
-			diff('d', ['c', 'b'], []),
 		);
-		const expected = ddlOf('users', ['key', 'x']);
-		expected.columns.update({ set: { type: 'text' }, where: { name: 'x' } });
 
-		expect(rows(reconstruct(history, 'd'))).toStrictEqual(rows(expected));
+		const state = startingState(history, ['c', 'b']);
+		expect(state.tables.list().map((it) => it.name)).toStrictEqual(['posts']);
+		expect(state.columns.list()).toStrictEqual([]);
 	});
 
 	test('two branches that each started from an empty folder merge', () => {
@@ -229,9 +284,7 @@ describe('reconstruct', () => {
 			} else {
 				const renamed = `${table}_${idx}`;
 				deltas.push({ op: 'rename', key: `tables\0${JSON.stringify(['public', table])}`, set: { name: renamed } });
-				for (const it of columns) {
-					deltas.push({ op: 'relocate', key: columnKey(table, it.name), set: { table: renamed } });
-				}
+				deltas.push({ op: 'update', type: 'columns', where: { schema: 'public', table }, set: { table: renamed } });
 				tables.delete(table);
 				tables.set(renamed, columns);
 			}
@@ -360,7 +413,16 @@ describe('snapshotValidator', () => {
 			{ op: 'drop', key: 'columns\0["public","users","id"]' },
 			{ op: 'alter', key: 'columns\0["public","users","id"]', set: { notNull: true } },
 			{ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } },
-			{ op: 'relocate', key: 'columns\0["public","users","id"]', set: { table: 'accounts' } },
+			{ op: 'update', type: 'columns', where: { schema: 'public', table: 'users' }, set: { table: 'accounts' } },
+			{ op: 'replace_in_list', type: 'pks', where: { table: 'users' }, field: 'columns', from: 'id', to: 'key' },
+			{
+				op: 'update_list_items',
+				type: 'indexes',
+				where: {},
+				field: 'columns',
+				match: { value: 'id', isExpression: false },
+				set: { value: 'key' },
+			},
 		];
 
 		expect(valid(base('a', users))).toBe(true);
@@ -380,12 +442,48 @@ describe('snapshotValidator', () => {
 		const withDelta = (it: unknown) => ({ ...diff('b', ['a'], []), deltas: [it] });
 
 		expect(valid(withDelta({ op: 'move', key: 'tables\0["public","users"]', set: {} }))).toBe(false);
+		expect(valid(withDelta({ op: 'relocate', key: 'columns\0["public","users","id"]', set: { table: 'x' } }))).toBe(
+			false,
+		);
 		expect(valid(withDelta({ op: 'drop', key: 42 }))).toBe(false);
 		expect(valid(withDelta({ op: 'drop', key: 'tables["public","users"]' }))).toBe(false);
 		expect(valid(withDelta({ op: 'drop', key: 'widgets\0["public","users"]' }))).toBe(false);
 		expect(valid(withDelta({ op: 'create', row: { entityType: 'tables', schema: 'public' } }))).toBe(false);
 		expect(valid(withDelta({ op: 'alter', key: 'tables\0["public","users"]', set: { color: 'red' } }))).toBe(false);
 		expect(valid(withDelta({ op: 'rename', key: 'tables\0["public","users"]' }))).toBe(false);
+	});
+
+	test('rejects an instruction with an unknown entity type or field', () => {
+		const withDelta = (it: unknown) => ({ ...diff('b', ['a'], []), deltas: [it] });
+
+		const update = { op: 'update', type: 'columns', where: { table: 'users' }, set: { table: 'accounts' } };
+		expect(valid(withDelta(update))).toBe(true);
+		expect(valid(withDelta({ ...update, type: 'rows' }))).toBe(false);
+		expect(valid(withDelta({ ...update, where: { tableName: 'users' } }))).toBe(false);
+		expect(valid(withDelta({ ...update, where: { table: ['users'] } }))).toBe(false);
+		expect(valid(withDelta({ ...update, set: {} }))).toBe(false);
+		expect(valid(withDelta({ ...update, set: { tableName: 'accounts' } }))).toBe(false);
+
+		const replace = { op: 'replace_in_list', type: 'pks', where: {}, field: 'columns', from: 'id', to: 'key' };
+		expect(valid(withDelta(replace))).toBe(true);
+		expect(valid(withDelta({ ...replace, field: 'name' }))).toBe(false);
+		expect(valid(withDelta({ ...replace, field: 'cols' }))).toBe(false);
+		expect(valid(withDelta({ ...replace, to: 1 }))).toBe(false);
+		expect(valid(withDelta({ ...replace, type: 'indexes' }))).toBe(false);
+
+		const items = {
+			op: 'update_list_items',
+			type: 'indexes',
+			where: {},
+			field: 'columns',
+			match: { value: 'id', isExpression: false },
+			set: { value: 'key' },
+		};
+		expect(valid(withDelta(items))).toBe(true);
+		expect(valid(withDelta({ ...items, type: 'pks' }))).toBe(false);
+		expect(valid(withDelta({ ...items, match: { name: 'id' } }))).toBe(false);
+		expect(valid(withDelta({ ...items, set: { name: 'key' } }))).toBe(false);
+		expect(valid(withDelta({ ...items, set: {} }))).toBe(false);
 	});
 
 	test('rejects a snapshot without statements, and a statement of an unknown kind', () => {

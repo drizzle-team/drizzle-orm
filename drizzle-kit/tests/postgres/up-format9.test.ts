@@ -142,6 +142,21 @@ test('up turns format 8 renames into rename deltas', async () => {
 		expect(flow.deltas('main', folder).map((it) => it.op)).not.toContain('create');
 		expect(flow.deltas('main', folder).map((it) => it.op)).not.toContain('drop');
 	}
+	// Each rename is followed by its instructions: nine for a table, and fourteen for a schema.
+	expect(flow.deltas('main', '20260928150358_accounts').map((it) => it.op)).toStrictEqual([
+		'rename',
+		...Array(9).fill('update'),
+	]);
+	expect(flow.deltas('main', '20260928150358_accounts')).toContainEqual({
+		op: 'update',
+		type: 'columns',
+		where: { schema: 'public', table: 'users' },
+		set: { table: 'accounts' },
+	});
+	expect(flow.deltas('main', '20260928150359_core').map((it) => it.op)).toStrictEqual([
+		'rename',
+		...Array(14).fill('update'),
+	]);
 	expectOriginalStates(flow, original);
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	expect(await flow.migrate('main', schema)).toStrictEqual([]);
@@ -322,6 +337,45 @@ test('up refuses a format 8 folder that sorts before its parent, with the error 
 			kind: 'order',
 			snapshot: expect.stringContaining(join('20260928145200_posts', 'snapshot.json')),
 			parentSnapshot: expect.stringContaining(join('20260928145207_init', 'snapshot.json')),
+		},
+	});
+	expect(flow.files('main')).toStrictEqual(before);
+});
+
+// drizzle-kit 1.0.0-rc.4 could merge two branches with --ignore-conflicts. Here branch a renames the schema
+// `old` to `archive`, and branch b adds a schema `archive`. The merge starts from b, its newest leaf, and
+// the rename of branch a then moves `old` onto the name that b took.
+test('up refuses an old merge whose branches gave one name to two entities, and changes no file', async () => {
+	const dir = tempDir('dk-format-8-collision-');
+	const rowsOf = (...schemas: string[]) => schemas.map((name) => ({ entityType: 'schemas', name }));
+	const files = [
+		{ folder: '20260101120001_main', id: 'main', prevIds: [ORIGIN], ddl: rowsOf('old') },
+		{ folder: '20260101120002_a', id: 'a', prevIds: ['main'], ddl: rowsOf('archive'), renames: ['old->archive'] },
+		{ folder: '20260101120003_b', id: 'b', prevIds: ['main'], ddl: rowsOf('old', 'archive') },
+		{ folder: '20260101120004_merge', id: 'merge', prevIds: ['a', 'b'], ddl: rowsOf('archive', 'extra') },
+	];
+	for (const { folder, renames = [], ...it } of files) {
+		writeSnapshot(dir, folder, { version: '8', dialect: 'postgres', ...it, renames });
+	}
+	const flow = createFolderFlow();
+	flow.seed('main', dir);
+	const before = flow.files('main');
+
+	const error = await flow.up('main').catch((e: unknown) => e);
+
+	expect((error as Error).message).toBe(
+		'Cannot convert the migrations folder to snapshot format 9: the merge in migration 20260101120004_merge cannot '
+			+ 'be rebuilt. The rename delta moves schemas ["old"] to ["archive"], and another row of schemas already has '
+			+ 'the key ["archive"]. Two migrations gave one name to two different entities. No file was changed. '
+			+ `Snapshot format 9 does not support a merge of such branches. See ${troubleshooting}`,
+	);
+	expect(errorToEnvelope(error)).toStrictEqual({
+		status: 'error',
+		error: {
+			code: 'command_output_error',
+			command: 'up',
+			kind: 'history',
+			snapshot: expect.stringContaining(join('20260101120004_merge', 'snapshot.json')),
 		},
 	});
 	expect(flow.files('main')).toStrictEqual(before);

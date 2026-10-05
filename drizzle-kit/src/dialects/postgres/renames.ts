@@ -7,7 +7,7 @@ const nameOf = (row: { schema?: string; table?: string; name?: string }) =>
 	[row.schema, row.table, row.name].filter(Boolean).join('.');
 
 // Applies `deltas` to `state` in place and turns their renames into rename decisions, one set per
-// entity type, so that a column rename never matches an index or a table. A relocate follows the
+// entity type, so that a column rename never matches an index or a table. An instruction follows the
 // rename of another entity, so it is not a decision.
 export const renameResolvers = (state: PostgresDDL, deltas: Delta[]) => {
 	const renames = new Map<string, Set<string>>();

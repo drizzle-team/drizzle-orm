@@ -8,6 +8,7 @@ import { foreignKey, integer, pgSchema, pgTable } from 'drizzle-orm/pg-core';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { prepareSnapshotFolderName } from 'src/cli/commands/generate-common';
+import { errorToEnvelope } from 'src/cli/errors';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import { apply, applyInPlace, create } from 'src/dialects/dialect';
 import { createDDL, fromEntities, type PostgresDDL } from 'src/dialects/postgres/ddl';
@@ -209,13 +210,23 @@ const writeFormat8Folder = async (steps: Step[], dir: string) => {
 	return snapshots;
 };
 
-test('up rebuilds every state of a format 8 folder', async () => {
+test('up rebuilds every state of a format 8 folder, or refuses a merge of two entities with one name', async () => {
+	let refusals = 0;
 	await historyProperty(40, async (steps) => {
 		const dir = tempDir('dk-fuzz-format-8-');
 		const originals = await writeFormat8Folder(steps, dir);
 		const flow = createFolderFlow();
 		flow.seed('main', dir);
-		await flow.up('main');
+		const before = flow.files('main');
+		const refusal = await flow.up('main').then(() => null, (e: Error) => e);
+		if (refusal) {
+			// rc.4 could merge branches that gave one name to two entities. up refuses such a folder.
+			expect(refusal.message).toContain('Two migrations gave one name to two different entities.');
+			expect(errorToEnvelope(refusal)).toMatchObject({ error: { command: 'up', kind: 'history' } });
+			expect(flow.files('main')).toStrictEqual(before);
+			refusals += 1;
+			return;
+		}
 		for (const [folder, original] of originals) {
 			const state = reconstruct(flow.history('main'), flow.snapshot('main', folder).id);
 			expect(flow.state('main', folder), `the state of ${folder}`).toStrictEqual(
@@ -223,6 +234,8 @@ test('up rebuilds every state of a format 8 folder', async () => {
 			);
 		}
 	});
+	// Most histories must still convert, or the property checks nothing.
+	expect(refusals).toBeLessThan(10);
 });
 
 test('up keeps a generated constraint name that a format 8 merge got from its newest leaf', async () => {

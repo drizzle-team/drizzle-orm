@@ -36,6 +36,9 @@ test('linear history with a column rename', async () => {
 	const second = flow.snapshot('main', '20260101120002_main');
 	const third = flow.snapshot('main', '20260101120003_main');
 	expect(second.prevIds).toStrictEqual([first.id]);
+	// The rename is followed by one instruction for every reference rule that points at columns.
+	const inUsers = { schema: 'public', table: 'users' };
+	const renamed = { field: 'columns', from: 'email', to: 'contact' };
 	expect(third).toStrictEqual({
 		type: 'diff',
 		version: '9',
@@ -43,7 +46,27 @@ test('linear history with a column rename', async () => {
 		id: third.id,
 		prevIds: [second.id],
 		statements: [expect.objectContaining({ type: 'rename_column' })],
-		deltas: [{ op: 'rename', key: 'columns\0["public","users","email"]', set: { name: 'contact' } }],
+		deltas: [
+			{ op: 'rename', key: 'columns\0["public","users","email"]', set: { name: 'contact' } },
+			{
+				op: 'update_list_items',
+				type: 'indexes',
+				where: inUsers,
+				field: 'columns',
+				match: { value: 'email', isExpression: false },
+				set: { value: 'contact' },
+			},
+			{ op: 'replace_in_list', type: 'pks', where: inUsers, ...renamed },
+			{ op: 'replace_in_list', type: 'uniques', where: inUsers, ...renamed },
+			{ op: 'replace_in_list', type: 'fks', where: inUsers, ...renamed },
+			{
+				op: 'replace_in_list',
+				type: 'fks',
+				where: { schemaTo: 'public', tableTo: 'users' },
+				...renamed,
+				field: 'columnsTo',
+			},
+		],
 		stateHash: expect.stringMatching(/^[0-9a-f]{64}$/),
 	});
 

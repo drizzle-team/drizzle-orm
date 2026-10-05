@@ -12,6 +12,20 @@ Postgres snapshots use format 9. The first snapshot is a base snapshot with the 
 
 The code that rebuilds a state from snapshots is part of the format: a change to it can give another state for an existing folder, with no error. Two guards catch this. `reconstruct` in `src/dialects/postgres/snapshot.ts` compares the rebuilt state with `stateHash` for the snapshot that it was asked for and for the first parent of every merge on the way. `check` rebuilds every leaf once for this comparison, so a wrong rebuild fails in CI. `generate` calls `assertDeltasRebuildState` before it writes a diff snapshot, because the hash cannot catch wrong deltas in the run that computes it. The canonical form behind the hash (`stateHash`) must never change: rows in the order of their keys, fields in the order of their names, both by code unit, and no null fields.
 
+### Renames and instructions
+
+A rename changes other rows too: the columns of a renamed table, or the column list of a key after a column rename. A diff snapshot stores a rename as one keyed `rename` delta, followed by instructions. An instruction selects the rows of one entity type by field values and writes the new name into them:
+
+- `update` sets fields, for example `table` on every column of a renamed table.
+- `replace_in_list` replaces a string in a list of strings, for example a column name in `pks.columns`.
+- `update_list_items` sets fields of the objects in a list that have the values of `match`, for example `value` in `indexes.columns`.
+
+`renameInstructions` in `src/dialects/dialect.ts` derives the instructions from the reference rules (`edges` in `src/dialects/postgres/ddl.ts`) when `ddlDiff` applies a rename decision. It writes one instruction for every rule that points at the renamed entity type, and for every rule that points at a type whose keys change as a result, whether a row matches or not. So a rename of one branch also reaches the rows that another branch adds, and two branches whose SQL commutes rebuild the same combined state with either leaf as the first parent. The `when` function of a rule may read only the fields that the rule maps, because no row is at hand when the instructions are written.
+
+While `ddlDiff` records deltas, `update` changes the starting state only through the deltas that it records. It does not follow the reference edges there, so the state that the diff continues with is the state that a replay gives.
+
+The replay (`applyInPlace`) reads no reference rules. It needs only the rows and the key functions. A rule that is added later does not change how an existing file rebuilds, and a rule that is missing when a file is written stays missing in that file. A `rename` or an `update` that moves a row onto a key that another row holds throws `KeyCollisionError`. `up` turns that into a refusal for an old merge whose branches gave one name to two entities.
+
 Example: `p1` is the base, and two git branches each add one migration on top of it.
 
 ```jsonc

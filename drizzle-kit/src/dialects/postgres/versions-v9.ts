@@ -1,7 +1,7 @@
 import { originUUID } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
-import { apply, copyDDL, type Delta, delta } from '../dialect';
+import { apply, copyDDL, type Delta, delta, KeyCollisionError } from '../dialect';
 import { createDDL, fromEntities, type PostgresDDL, type PostgresEntity } from './ddl';
 import { ddlDiff } from './diff';
 import { defaultNameForPK } from './grammar';
@@ -67,6 +67,13 @@ const statementsOf = async (start: PostgresDDL, deltas: Delta[]): Promise<JsonSt
 	return statements;
 };
 
+// An old merge whose branches gave one name to two different entities. Its combined state cannot be rebuilt.
+export class UnsupportedMergeError extends Error {
+	constructor(readonly folder: string, cause: KeyCollisionError) {
+		super(`the merge in migration ${folder} cannot be rebuilt. ${cause.message}`, { cause });
+	}
+}
+
 // This step is not in versions.ts. The programmatic API imports versions.ts at module load, and it must
 // load snapshot.ts only inside its functions. `files` must be in folder-name order.
 export const upToV9 = async (
@@ -96,7 +103,13 @@ export const upToV9 = async (
 		}
 		// The first parent of a merge is the one with the newest folder name.
 		const prevIds = [...parents].sort((a, b) => (folderOf.get(a)! > folderOf.get(b)! ? -1 : 1));
-		const start = startingState(converted, prevIds);
+		let start: PostgresDDL;
+		try {
+			start = startingState(converted, prevIds);
+		} catch (e) {
+			if (e instanceof KeyCollisionError) throw new UnsupportedMergeError(folderOf.get(snapshot.id)!, e);
+			throw e;
+		}
 		// ddlDiff changes both states that it gets, so neither may share rows with a file.
 		const from = copyDDL(start);
 		const to = fromEntities(structuredClone(snapshot.ddl));

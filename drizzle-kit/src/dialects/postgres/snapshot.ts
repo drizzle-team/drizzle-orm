@@ -545,9 +545,30 @@ export type PostgresSnapshotV8 = {
 const ddl = createDDL();
 const definitions = ddl._.defs;
 
+const isScalar = (it: unknown) => it === null || ['string', 'number', 'boolean'].includes(typeof it);
+// An object whose keys are fields of `def` and whose values are scalars, because the replay compares the
+// values of `where` and `match` with ===, and an instruction only writes names.
+const isFieldMap = (it: any, def: Record<string, unknown> | undefined): boolean =>
+	!!def && typeof it === 'object' && it !== null && !Array.isArray(it)
+	&& Object.entries(it).every(([field, value]) => Object.hasOwn(def, field) && isScalar(value));
+const isFilled = (it: object) => Object.keys(it).length > 0;
+
+const isInstruction = (it: any): boolean => {
+	const def: Record<string, any> | undefined = Object.hasOwn(definitions, it.type) ? definitions[it.type] : undefined;
+	if (!isFieldMap(it.where, def)) return false;
+	if (it.op === 'update') return isFieldMap(it.set, def) && isFilled(it.set);
+	const list = Object.hasOwn(def!, it.field) ? def![it.field] : undefined;
+	if (it.op === 'replace_in_list') {
+		return list === 'string[]' && typeof it.from === 'string' && typeof it.to === 'string';
+	}
+	const item = Array.isArray(list) && typeof list[0] === 'object' && list[0] !== null ? list[0] : undefined;
+	return isFieldMap(it.match, item) && isFieldMap(it.set, item) && isFilled(it.set);
+};
+
 const isDelta = (it: any): boolean => {
 	if (it?.op === 'create') return Object.hasOwn(definitions, it.row?.entityType) && ddl.entities.validate(it.row);
-	if (!['drop', 'alter', 'rename', 'relocate'].includes(it?.op)) return false;
+	if (['update', 'replace_in_list', 'update_list_items'].includes(it?.op)) return isInstruction(it);
+	if (!['drop', 'alter', 'rename'].includes(it?.op)) return false;
 	if (typeof it.key !== 'string' || !it.key.includes('\0')) return false;
 	const [type] = splitDeltaKey(it.key);
 	if (!Object.hasOwn(definitions, type)) return false;
@@ -759,8 +780,10 @@ const historyOf = (
 };
 
 // Adds to the first parent's state the snapshots that reach a merge only through its other parents.
-// This replay skips a drop, alter, rename or relocate of a missing row, and applyInPlace alone would throw
-// for it. A create, rename or relocate onto a taken key overwrites the row there, as in every applyInPlace
+// This replay skips a drop, alter or rename of a missing row, and applyInPlace alone would throw for it. An
+// instruction always runs, and it changes the rows that match at that moment, so a rename of one branch also
+// reaches the rows that another branch added or renamed. A create onto a taken key overwrites the row
+// there. A rename or an instruction that moves a row onto a taken key throws, as in every applyInPlace
 // call. A base adds its rows as creates, because two branches that each started from an empty folder share
 // no ancestor.
 const combineInPlace = (
@@ -777,7 +800,7 @@ const combineInPlace = (
 			? snapshot.deltas
 			: snapshot.ddl.map((row) => ({ op: 'create', row }));
 		for (const it of deltas) {
-			if (it.op === 'create' || findRow(state, it.key)) applyInPlace(state, [it]);
+			if (!('key' in it) || findRow(state, it.key)) applyInPlace(state, [it]);
 		}
 	}
 };

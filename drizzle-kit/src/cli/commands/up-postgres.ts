@@ -9,7 +9,7 @@ import {
 	stateDifference,
 } from '../../dialects/postgres/snapshot';
 import { upToV8 } from '../../dialects/postgres/versions';
-import { upToV9, withStateKeyNames } from '../../dialects/postgres/versions-v9';
+import { UnsupportedMergeError, upToV9, withStateKeyNames } from '../../dialects/postgres/versions-v9';
 import { originUUID } from '../../utils';
 import {
 	assertSnapshotStatus,
@@ -115,6 +115,10 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 			snapshotTexts = (await upToV9(files)).map((it) => JSON.stringify(it, null, 2));
 		} catch (e) {
 			if (e instanceof DrizzleCliError) throw e;
+			if (e instanceof UnsupportedMergeError) {
+				const snapshot = files.find((it) => it.folder === e.folder)!.path;
+				throw historyError(e.message, 'Snapshot format 9 does not support a merge of such branches.', { snapshot });
+			}
 			throw historyError((e as Error).message, reportIssueHint);
 		}
 
