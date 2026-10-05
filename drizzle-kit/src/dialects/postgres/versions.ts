@@ -19,6 +19,33 @@ import type {
 } from '../../dialects/postgres/snapshot';
 import { getOrNull } from '../../dialects/utils';
 
+/**
+ * v7 snapshots stored check expressions with table-qualified columns (`"table"."column"`, or
+ * `"schema"."table"."column"` outside `public`), while v8 renders checks with bare column names.
+ * Strips those qualifiers outside of single-quoted string literals so upgraded checks match the schema.
+ */
+export const unqualifyCheckValue = (value: string, schema: string, table: string): string => {
+	const prefixes = [`"${schema}"."${table}".`, `"${table}".`];
+	let result = '';
+	let inString = false;
+	let i = 0;
+	while (i < value.length) {
+		const char = value.charAt(i);
+		if (char === "'") {
+			inString = !inString;
+		} else if (!inString) {
+			const prefix = prefixes.find((it) => value.startsWith(it, i));
+			if (prefix) {
+				i += prefix.length;
+				continue;
+			}
+		}
+		result += char;
+		i++;
+	}
+	return result;
+};
+
 export const upToV8 = (
 	it: Record<string, any>,
 ): { snapshot: PostgresSnapshot; hints: string[] } => {
@@ -152,7 +179,7 @@ export const upToV8 = (
 				schema,
 				table: table.name,
 				name: check.name,
-				value: check.value,
+				value: unqualifyCheckValue(check.value, schema, table.name),
 			});
 		}
 
@@ -201,7 +228,7 @@ export const upToV8 = (
 				with: idx.with && Object.keys(idx.with).length > 0
 					? Object.entries(idx.with)
 						.map((it) => `${it[0]}=${it[1]}`)
-						.join(',')
+						.join(', ')
 					: '',
 				nameExplicit,
 			});
