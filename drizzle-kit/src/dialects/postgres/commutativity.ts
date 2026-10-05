@@ -104,7 +104,6 @@ class PostgresCommutativity extends FacetCommutativity<
 		'recreate_enum',
 		'rename_enum',
 		'move_enum',
-		'alter_type_drop_value',
 		'create_sequence',
 		'drop_sequence',
 		'alter_sequence',
@@ -154,7 +153,6 @@ class PostgresCommutativity extends FacetCommutativity<
 		'alter_enum',
 		'recreate_enum',
 		'move_enum',
-		'alter_type_drop_value',
 		'create_sequence',
 		'drop_sequence',
 		'rename_sequence',
@@ -419,7 +417,6 @@ class PostgresCommutativity extends FacetCommutativity<
 					'alter_enum',
 					'recreate_enum',
 					'move_enum',
-					'alter_type_drop_value',
 				],
 				buildInfo: (statement) => ({
 					primary: makeTarget(statement.enum.schema, statement.enum.name),
@@ -441,7 +438,6 @@ class PostgresCommutativity extends FacetCommutativity<
 					'alter_enum',
 					'recreate_enum',
 					'move_enum',
-					'alter_type_drop_value',
 				],
 				buildInfo: (statement) => ({
 					primary: makeTarget(statement.to.schema, statement.to.name),
@@ -459,13 +455,6 @@ class PostgresCommutativity extends FacetCommutativity<
 				conflicts: ['create_enum', 'drop_enum', 'rename_enum', 'alter_enum', 'recreate_enum', 'move_enum'],
 				buildInfo: (statement) => ({
 					primary: makeTarget(statement.from.schema || 'public', statement.from.name),
-					ancestors: [],
-				}),
-			},
-			alter_type_drop_value: {
-				conflicts: ['drop_enum', 'alter_enum', 'alter_type_drop_value'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.enum.schema, statement.enum.name),
 					ancestors: [],
 				}),
 			},
@@ -715,7 +704,6 @@ class PostgresCommutativity extends FacetCommutativity<
 		'recreate_enum',
 		'rename_enum',
 		'move_enum',
-		'alter_type_drop_value',
 	]);
 
 	private viewLevelActions = new Set([
@@ -821,7 +809,10 @@ class PostgresCommutativity extends FacetCommutativity<
 		switch (s.type) {
 			// ---- tables ----
 			case 'create_table':
-				return { owns: created('tbl', s.table.schema, s.table.name), needs: [nref('sch', s.table.schema)] };
+				return {
+					owns: created('tbl', s.table.schema, s.table.name),
+					needs: [nref('sch', s.table.schema), ...s.table.columns.flatMap(colEnum)],
+				};
 			case 'drop_table':
 				return { owns: created('tbl', s.table.schema, s.table.name), needs: [nref('sch', s.table.schema)] };
 			case 'rename_table':
@@ -1039,8 +1030,15 @@ class PostgresCommutativity extends FacetCommutativity<
 					needs: [nref('sch', s.schema)],
 				};
 			case 'alter_enum':
-			case 'recreate_enum':
 				return { owns: altered('enum', s.to.schema, s.to.name), needs: [nref('sch', s.to.schema)] };
+			case 'recreate_enum': // DROP TYPE + CREATE TYPE, and an ALTER TABLE for every column of the type
+				return {
+					owns: created('enum', s.to.schema, s.to.name),
+					needs: [
+						nref('sch', s.to.schema),
+						...s.columns.flatMap((c) => [...underTable(c.schema, c.table), nref('col', c.schema, c.table, c.name)]),
+					],
+				};
 			case 'move_enum':
 				return {
 					owns: [
@@ -1049,8 +1047,6 @@ class PostgresCommutativity extends FacetCommutativity<
 					],
 					needs: [nref('sch', s.from.schema || 'public'), nref('sch', s.to.schema || 'public')],
 				};
-			case 'alter_type_drop_value':
-				return { owns: altered('enum', s.enum.schema, s.enum.name), needs: [nref('sch', s.enum.schema)] };
 
 			// ---- sequences (schema-scoped) ----
 			case 'create_sequence':

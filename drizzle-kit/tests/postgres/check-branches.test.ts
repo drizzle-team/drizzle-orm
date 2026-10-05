@@ -1,4 +1,4 @@
-import { index, integer, pgTable, primaryKey, varchar } from 'drizzle-orm/pg-core';
+import { index, integer, pgEnum, pgTable, primaryKey, varchar } from 'drizzle-orm/pg-core';
 import { stripVTControlCharacters } from 'util';
 import { expect, test } from 'vitest';
 import { type CheckResult, createFolderFlow } from './folder-flow';
@@ -77,6 +77,27 @@ test('a primary key rename on one branch conflicts with a drop of that key on th
 	await expect(flow.migrate('main', {})).rejects.toThrow(
 		'Failed query: ALTER TABLE "users" DROP CONSTRAINT "users_pk";',
 	);
+});
+
+test('a new table with a column of an enum type conflicts with a rename of that enum', async () => {
+	const flow = createFolderFlow();
+	const mood = pgEnum('mood', ['ok', 'sad']);
+	const feeling = pgEnum('feeling', ['ok', 'sad']);
+	const users = (type: typeof mood) => pgTable('users', { id: integer(), state: type() });
+
+	await flow.generate('main', { mood, users: users(mood) });
+	flow.branch('a', 'main');
+	flow.branch('b', 'main');
+	await flow.generate('a', { feeling, users: users(feeling) }, {
+		hints: [{ type: 'rename', kind: 'enum', from: ['public', 'mood'], to: ['public', 'feeling'] }],
+	});
+	await flow.generate('b', { mood, users: users(mood), notes: pgTable('notes', { state: mood() }) });
+	flow.merge('main', 'a', 'b');
+
+	const result = await flow.check('main');
+
+	expect(result).toMatchObject({ status: 'conflicts', folders: ['20260101120002_a', '20260101120003_b'] });
+	await expect(flow.migrate('main', {})).rejects.toThrow('Failed query: CREATE TABLE "notes"');
 });
 
 test('branches that touch unrelated entities pass', async () => {

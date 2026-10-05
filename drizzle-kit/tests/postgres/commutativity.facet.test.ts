@@ -54,8 +54,8 @@ const S = {
 		({ type: 'drop_column', column: col(schema, table, name) }) as any,
 	renameColumn: (schema: string, table: string, from: string, to: string) =>
 		({ type: 'rename_column', from: col(schema, table, from), to: col(schema, table, to) }) as any,
-	alterColumn: (schema: string, table: string, name: string) =>
-		({ type: 'alter_column', to: col(schema, table, name), diff: { schema, table, name } }) as any,
+	alterColumn: (schema: string, table: string, name: string, extra: Record<string, unknown> = {}) =>
+		({ type: 'alter_column', to: col(schema, table, name, extra), diff: { schema, table, name } }) as any,
 	recreateColumn: (schema: string, table: string, name: string) =>
 		({ type: 'recreate_column', diff: { schema, table, name } }) as any,
 	createIndex: (schema: string, table: string, name: string, cols: string[]) =>
@@ -116,8 +116,16 @@ const S = {
 				onDelete: null,
 			},
 		}) as any,
+	createTable: (schema: string, name: string, columns: unknown[] = []) =>
+		({ type: 'create_table', table: { schema, name, isRlsEnabled: false, columns } }) as any,
 	dropEnum: (schema: string, name: string) =>
 		({ type: 'drop_enum', enum: { schema, name, values: ['a', 'b'] } }) as any,
+	renameEnum: (schema: string, from: string, to: string) => ({ type: 'rename_enum', schema, from, to }) as any,
+	moveEnum: (name: string, from: string, to: string) =>
+		({ type: 'move_enum', from: { schema: from, name }, to: { schema: to, name } }) as any,
+	// `columns` are the columns of the enum type that the statement converts.
+	recreateEnum: (schema: string, name: string, columns: unknown[] = []) =>
+		({ type: 'recreate_enum', to: { schema, name, values: ['a'] }, columns }) as any,
 	dropSchema: (name: string) => ({ type: 'drop_schema', name }) as any,
 	alterRls: (schema: string, table: string, on: boolean) =>
 		({ type: 'alter_rls', schema, name: table, isRlsEnabled: on }) as any,
@@ -225,6 +233,122 @@ const cases: Case[] = [
 		a: [S.addColumn('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' })],
 		b: [S.dropEnum('public', 'user_role')],
 		expect: 'conflict',
+	},
+
+	// a new table with a column of an enum type names the type in its SQL
+	{
+		name: 'create_table(enum column) ∥ rename_enum (that enum) conflict',
+		a: [
+			S.createTable('public', 'staff', [col('public', 'staff', 'role', { type: 'user_role', typeSchema: 'public' })]),
+		],
+		b: [S.renameEnum('public', 'user_role', 'staff_role')],
+		expect: 'conflict',
+	},
+	{
+		name: 'create_table(enum column) ∥ move_enum (that enum) conflict',
+		a: [
+			S.createTable('public', 'staff', [col('public', 'staff', 'role', { type: 'user_role', typeSchema: 'public' })]),
+		],
+		b: [S.moveEnum('user_role', 'public', 'app')],
+		expect: 'conflict',
+	},
+	{
+		name: 'create_table(enum column) ∥ drop_enum (that enum) conflict',
+		a: [
+			S.createTable('public', 'staff', [col('public', 'staff', 'role', { type: 'user_role', typeSchema: 'public' })]),
+		],
+		b: [S.dropEnum('public', 'user_role')],
+		expect: 'conflict',
+	},
+	{
+		name: 'create_table(enum column) ∥ rename_enum (other enum) commute',
+		a: [
+			S.createTable('public', 'staff', [col('public', 'staff', 'role', { type: 'user_role', typeSchema: 'public' })]),
+		],
+		b: [S.renameEnum('public', 'mood', 'feeling')],
+		expect: 'commute',
+	},
+
+	// recreate_enum drops and creates the type, and it converts every column of that type by name
+	{
+		name: 'recreate_enum ∥ create_table (uses the enum) conflict',
+		a: [S.recreateEnum('public', 'user_role')],
+		b: [
+			S.createTable('public', 'staff', [col('public', 'staff', 'role', { type: 'user_role', typeSchema: 'public' })]),
+		],
+		expect: 'conflict',
+	},
+	{
+		name: 'recreate_enum ∥ add_column (uses the enum) conflict',
+		a: [S.recreateEnum('public', 'user_role')],
+		b: [S.addColumn('public', 'staff', 'role', { type: 'user_role', typeSchema: 'public' })],
+		expect: 'conflict',
+	},
+	{
+		name: 'recreate_enum ∥ alter_column (changes a column to the enum type) conflict',
+		a: [S.recreateEnum('public', 'user_role')],
+		b: [S.alterColumn('public', 'staff', 'role', { type: 'user_role', typeSchema: 'public' })],
+		expect: 'conflict',
+	},
+	{
+		name: 'recreate_enum(converts c) ∥ rename_column c conflict',
+		a: [
+			S.recreateEnum('public', 'user_role', [
+				col('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' }),
+			]),
+		],
+		b: [S.renameColumn('public', 'users', 'role', 'position')],
+		expect: 'conflict',
+	},
+	{
+		name: 'recreate_enum(converts c) ∥ drop_column c conflict',
+		a: [
+			S.recreateEnum('public', 'user_role', [
+				col('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' }),
+			]),
+		],
+		b: [S.dropColumn('public', 'users', 'role')],
+		expect: 'conflict',
+	},
+	{
+		name: 'recreate_enum(converts c) ∥ rename_table (table of c) conflict',
+		a: [
+			S.recreateEnum('public', 'user_role', [
+				col('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' }),
+			]),
+		],
+		b: [S.renameTable('public', 'users', 'people')],
+		expect: 'conflict',
+	},
+	{
+		name: 'recreate_enum(converts c) ∥ move_table (table of c) conflict',
+		a: [
+			S.recreateEnum('public', 'user_role', [
+				col('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' }),
+			]),
+		],
+		b: [S.moveTable('users', 'public', 'app')],
+		expect: 'conflict',
+	},
+	{
+		name: 'recreate_enum(converts c) ∥ drop_table (table of c) conflict',
+		a: [
+			S.recreateEnum('public', 'user_role', [
+				col('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' }),
+			]),
+		],
+		b: [S.dropTable('public', 'users')],
+		expect: 'conflict',
+	},
+	{
+		name: 'recreate_enum(converts c) ∥ add_column d (unrelated) commute',
+		a: [
+			S.recreateEnum('public', 'user_role', [
+				col('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' }),
+			]),
+		],
+		b: [S.addColumn('public', 'users', 'd')],
+		expect: 'commute',
 	},
 
 	// granularity: distinct named children on the same table are independent

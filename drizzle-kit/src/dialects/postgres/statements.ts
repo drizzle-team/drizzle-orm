@@ -118,13 +118,6 @@ export interface JsonRegrantPrivilege {
 	diff: DiffEntities['privileges'];
 }
 
-export interface JsonDropValueFromEnum {
-	type: 'alter_type_drop_value';
-	deletedValues: string[];
-	enum: Enum;
-	columns: Column[];
-}
-
 export interface JsonCreateSequence {
 	type: 'create_sequence';
 	sequence: Sequence;
@@ -452,7 +445,6 @@ export type JsonStatement =
 	| JsonCreateView
 	| JsonDropView
 	| JsonRenameView
-	| JsonDropValueFromEnum
 	| JsonAlterCheck
 	| JsonRecreateIndex;
 

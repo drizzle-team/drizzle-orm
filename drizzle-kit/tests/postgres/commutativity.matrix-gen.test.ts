@@ -34,10 +34,12 @@ const placeholder = '__MATRIX_DATA__';
 
 const TYPES = [
 	'create_table',
+	'create_table:enum',
 	'drop_table',
 	'rename_table',
 	'move_table',
 	'add_column',
+	'add_column:enum',
 	'drop_column',
 	'alter_column',
 	'recreate_column',
@@ -67,8 +69,8 @@ const TYPES = [
 	'rename_enum',
 	'alter_enum',
 	'recreate_enum',
+	'recreate_enum:column',
 	'move_enum',
-	'alter_type_drop_value',
 	'create_schema',
 	'drop_schema',
 	'rename_schema',
@@ -98,8 +100,11 @@ const TYPES = [
 ];
 
 const FAMILY: Record<string, string> = {};
-for (const t of TYPES) {
-	FAMILY[t] = t.includes('table')
+// A row name is a statement type, or a type and a variant after a colon.
+const typeOf = (row: string) => row.split(':')[0];
+for (const row of TYPES) {
+	const t = typeOf(row);
+	FAMILY[row] = t.includes('table')
 		? 'table'
 		: t.includes('column')
 		? 'column'
@@ -113,9 +118,9 @@ for (const t of TYPES) {
 		? 'unique'
 		: t.includes('check')
 		? 'check'
-		: t.startsWith('rename_constraint')
+		: t === 'rename_constraint'
 		? 'constraint'
-		: (t.includes('enum') || t === 'alter_type_drop_value')
+		: t.includes('enum')
 		? 'enum'
 		: t.includes('sequence')
 		? 'sequence'
@@ -204,10 +209,11 @@ async function generateMatrix() {
 	const impossible: number[][] = [];
 	const reasons: Record<string, string[]> = {};
 
-	const creates = (i: number) => (CREATE_OPS.has(TYPES[i]) ? [...sets[i].writes] : []);
+	const isCreate = (i: number) => CREATE_OPS.has(typeOf(TYPES[i]));
+	const creates = (i: number) => (isCreate(i) ? [...sets[i].writes] : []);
 	const assumesExists = (i: number) => {
 		const s = new Set(sets[i].reads);
-		if (!CREATE_OPS.has(TYPES[i])) { for (const k of sets[i].writes) s.add(k); }
+		if (!isCreate(i)) { for (const k of sets[i].writes) s.add(k); }
 		return s;
 	};
 	const impossibleWhy = (i: number, j: number): string | null => {

@@ -77,7 +77,7 @@ function build(type: string, n: NS, opts: { cols?: string[]; enumCol?: boolean }
 	const cols = opts.cols ?? [n.col];
 	switch (type) {
 		case 'create_table':
-			return { type, table: { schema: n.schema, name: n.table, isRlsEnabled: false } } as any;
+			return { type, table: { schema: n.schema, name: n.table, isRlsEnabled: false, columns: [] } } as any;
 		case 'drop_table':
 			return {
 				type,
@@ -237,11 +237,9 @@ function build(type: string, n: NS, opts: { cols?: string[]; enumCol?: boolean }
 		case 'alter_enum':
 			return { type, to: { schema: n.schema, name: n.enum, values: ['a', 'b'] } } as any;
 		case 'recreate_enum':
-			return { type, to: { schema: n.schema, name: n.enum, values: ['a', 'b'] } } as any;
+			return { type, to: { schema: n.schema, name: n.enum, values: ['a', 'b'] }, columns: [] } as any;
 		case 'move_enum':
 			return { type, from: { schema: n.schema, name: n.enum }, to: { schema: n.toSchema, name: n.enum } } as any;
-		case 'alter_type_drop_value':
-			return { type, enum: { schema: n.schema, name: n.enum, values: ['a'] } } as any;
 
 		case 'create_sequence':
 			return { type, sequence: { schema: n.schema, name: n.seq } } as any;
@@ -374,7 +372,6 @@ const TYPES = [
 	'alter_enum',
 	'recreate_enum',
 	'move_enum',
-	'alter_type_drop_value',
 	'create_schema',
 	'drop_schema',
 	'rename_schema',

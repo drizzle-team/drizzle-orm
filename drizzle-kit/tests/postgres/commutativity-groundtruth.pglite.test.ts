@@ -165,12 +165,6 @@ describe('the squash false negative, against a real database', () => {
 // the objects that either statement needs.
 const sqlOf = (type: string) => fromJson([build(type)]).sqlStatements;
 
-// The postgres diff emits an enum value removal as recreate_enum, so the convertor has no case for this type.
-const handWrittenSql: Record<string, string[]> = {
-	alter_type_drop_value: [`DROP TYPE "s"."e";`, `CREATE TYPE "s"."e" AS ENUM('a');`],
-};
-const cellSql = (type: string) => handWrittenSql[type] ?? sqlOf(type);
-
 const baseObjects = {
 	schema: sqlOf('create_schema'),
 	targetSchema: [`CREATE SCHEMA "s_new";`],
@@ -183,6 +177,7 @@ const baseObjects = {
 	unique: sqlOf('add_unique'),
 	check: sqlOf('add_check'),
 	enum: sqlOf('create_enum'),
+	enumColumn: sqlOf('add_column:enum'),
 	sequence: sqlOf('create_sequence'),
 	view: sqlOf('create_view'),
 	policy: sqlOf('create_policy'),
@@ -196,10 +191,12 @@ const onColumn = [...onTable, 'column'] as const;
 
 const needs: Record<string, readonly BaseObject[]> = {
 	create_table: ['schema'],
+	'create_table:enum': ['schema', 'enum'],
 	drop_table: onTable,
 	rename_table: onTable,
 	move_table: [...onTable, 'targetSchema'],
 	add_column: onTable,
+	'add_column:enum': [...onTable, 'enum'],
 	drop_column: onColumn,
 	alter_column: onColumn,
 	recreate_column: onColumn,
@@ -229,8 +226,8 @@ const needs: Record<string, readonly BaseObject[]> = {
 	rename_enum: ['schema', 'enum'],
 	alter_enum: ['schema', 'enum'],
 	recreate_enum: ['schema', 'enum'],
+	'recreate_enum:column': [...onTable, 'enum', 'enumColumn'],
 	move_enum: ['schema', 'targetSchema', 'enum'],
-	alter_type_drop_value: ['schema', 'enum'],
 	create_schema: [],
 	drop_schema: ['schema'],
 	rename_schema: ['schema'],
@@ -275,7 +272,7 @@ const knownExceptions: Record<string, string> = {
 			'alter_unique',
 			'alter_check',
 			'recreate_enum',
-			'alter_type_drop_value',
+			'recreate_enum:column',
 			'alter_sequence',
 			'alter_view',
 			'alter_policy',
@@ -356,7 +353,7 @@ describe('matrix cells vs a real database', () => {
 		expect(Object.keys(needs).sort()).toEqual([...types].sort());
 		const failed: string[] = [];
 		for (const type of types) {
-			const result = await run([...baseFor(type), ...cellSql(type)]);
+			const result = await run([...baseFor(type), ...sqlOf(type)]);
 			if (!result.ok) failed.push(`${type}: ${result.error}`);
 		}
 		expect(failed).toEqual([]);
@@ -369,8 +366,8 @@ describe('matrix cells vs a real database', () => {
 				if (impossible[i]![j] || impossible[j]![i]) continue;
 				const [a, b] = [types[i]!, types[j]!];
 				const base = baseFor(a, b);
-				const ab = await run([...base, ...cellSql(a), ...cellSql(b)]);
-				const ba = await run([...base, ...cellSql(b), ...cellSql(a)]);
+				const ab = await run([...base, ...sqlOf(a), ...sqlOf(b)]);
+				const ba = await run([...base, ...sqlOf(b), ...sqlOf(a)]);
 
 				const why = !ab.ok
 					? `${a} then ${b} fails: ${ab.error}`

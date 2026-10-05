@@ -18,6 +18,8 @@ const col = (schema: string, table: string, name: string) =>
 		generated: null,
 		identity: null,
 	}) as any;
+// A column of the enum type s.e. It has its own name, so that a base can hold it next to the varchar column c1.
+const enumCol = { ...col(S, T, 'ce'), type: 'e', typeSchema: S };
 const idx = (schema: string, table: string, name: string, columns: string[]) =>
 	({
 		schema,
@@ -79,6 +81,20 @@ export function build(type: string): JsonStatement {
 					policies: [],
 				},
 			} as any;
+		case 'create_table:enum':
+			return {
+				type: 'create_table',
+				table: {
+					schema: S,
+					name: T,
+					isRlsEnabled: false,
+					columns: [col(S, T, 'id'), enumCol],
+					pk: null,
+					uniques: [],
+					checks: [],
+					policies: [],
+				},
+			} as any;
 		case 'drop_table':
 			return { type, table: { schema: S, name: T, isRlsEnabled: false, policies: [] }, key: `${S}.${T}` } as any;
 		case 'rename_table':
@@ -87,6 +103,8 @@ export function build(type: string): JsonStatement {
 			return { type, name: T, from: S, to: 's_new' } as any;
 		case 'add_column':
 			return { type, column: col(S, T, C), isPK: false, isCompositePK: false } as any;
+		case 'add_column:enum':
+			return { type: 'add_column', column: enumCol, isPK: false, isCompositePK: false } as any;
 		case 'drop_column':
 			return { type, column: col(S, T, C) } as any;
 		case 'alter_column':
@@ -174,10 +192,15 @@ export function build(type: string): JsonStatement {
 			} as any;
 		case 'recreate_enum':
 			return { type, to: { schema: S, name: 'e', values: ['b', 'a'] }, columns: [] } as any;
+		// The enum has one column of its type, and the statement converts that column.
+		case 'recreate_enum:column':
+			return {
+				type: 'recreate_enum',
+				to: { schema: S, name: 'e', values: ['b', 'a'] },
+				columns: [{ ...enumCol, default: { left: null, right: null } }],
+			} as any;
 		case 'move_enum':
 			return { type, from: { schema: S, name: 'e' }, to: { schema: 's_new', name: 'e' } } as any;
-		case 'alter_type_drop_value':
-			return { type, enum: { schema: S, name: 'e', values: ['a'] } } as any;
 		case 'create_sequence':
 			return { type, sequence: { schema: S, name: 'sq' } } as any;
 		case 'drop_sequence':
