@@ -261,7 +261,7 @@ function build(type: string, n: NS, opts: { cols?: string[]; enumCol?: boolean }
 		case 'rename_enum':
 			return { type, schema: n.schema, from: n.enum, to: n.to } as any;
 		case 'alter_enum':
-			return { type, to: { schema: n.schema, name: n.enum, values: ['a', 'b'] } } as any;
+			return { type, to: { schema: n.schema, name: n.enum, values: ['a', 'b'] }, diff: [] } as any;
 		case 'recreate_enum':
 			return { type, to: { schema: n.schema, name: n.enum, values: ['a', 'b'] }, columns: [] } as any;
 		case 'move_enum':
@@ -285,7 +285,7 @@ function build(type: string, n: NS, opts: { cols?: string[]; enumCol?: boolean }
 		case 'rename_view':
 			return { type, from: { schema: n.schema, name: n.view }, to: { schema: n.schema, name: n.to } } as any;
 		case 'alter_view':
-			return { type, view: { schema: n.schema, name: n.view } } as any;
+			return { type, view: { schema: n.schema, name: n.view }, diff: {} } as any;
 		case 'move_view':
 			return { type, fromSchema: n.schema, toSchema: n.toSchema, view: { schema: n.toSchema, name: n.view } } as any;
 

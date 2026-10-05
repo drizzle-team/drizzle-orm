@@ -40,6 +40,10 @@ const row = <K extends keyof PostgresEntities>(type: K, source: StoredRow<K>): S
 
 const inTable = ({ schema, table, name }: { schema: string; table: string; name: string }) => ({ schema, table, name });
 
+const inSchema = ({ schema, name }: { schema: string; name: string }) => ({ schema, name });
+const movable = ({ schema, name }: { schema: string | null; name: string }) => ({ schema, name });
+const viewName = ({ schema, name, materialized }: StoredRow<'views'>) => ({ schema, name, materialized });
+
 const constraint = (it: { schema: string; table: string; name: string; columns: string[] }) => ({
 	...inTable(it),
 	columns: it.columns,
@@ -51,19 +55,22 @@ const uniqueness = ({ columns, isUnique, where }: StoredRow<'indexes'>) => ({
 	where,
 });
 
-const createSchemaConvertor = convertor('create_schema', asIs, (st) => {
+const createSchemaConvertor = convertor('create_schema', ({ name }) => ({ name }), (st) => {
 	return `CREATE SCHEMA "${st.name}";\n`;
 });
 
-const dropSchemaConvertor = convertor('drop_schema', asIs, (st) => {
+const dropSchemaConvertor = convertor('drop_schema', ({ name }) => ({ name }), (st) => {
 	return `DROP SCHEMA "${st.name}";\n`;
 });
 
-const renameSchemaConvertor = convertor('rename_schema', asIs, (st) => {
+const renameSchemaConvertor = convertor('rename_schema', ({ from, to }) => ({
+	from: { name: from.name },
+	to: { name: to.name },
+}), (st) => {
 	return `ALTER SCHEMA "${st.from.name}" RENAME TO "${st.to.name}";\n`;
 });
 
-const createViewConvertor = convertor('create_view', asIs, (st) => {
+const createViewConvertor = convertor('create_view', ({ view }) => ({ view: row('views', view) }), (st) => {
 	const { definition, name: viewName, schema, with: withOption, materialized, withNoData, tablespace, using } = st.view;
 
 	const name = schema !== 'public' ? `"${schema}"."${viewName}"` : `"${viewName}"`;
@@ -89,26 +96,37 @@ const createViewConvertor = convertor('create_view', asIs, (st) => {
 	return statement;
 });
 
-const dropViewConvertor = convertor('drop_view', asIs, (st) => {
+const dropViewConvertor = convertor('drop_view', ({ view }) => ({ view: viewName(view) }), (st) => {
 	const { name: viewName, schema, materialized } = st.view;
 	const name = schema !== 'public' ? `"${schema}"."${viewName}"` : `"${viewName}"`;
 	return `DROP${materialized ? ' MATERIALIZED' : ''} VIEW ${name};`;
 });
 
-const renameViewConvertor = convertor('rename_view', asIs, (st) => {
-	const materialized = st.from.materialized;
-	const nameFrom = st.from.schema !== 'public' ? `"${st.from.schema}"."${st.from.name}"` : `"${st.from.name}"`;
+const renameViewConvertor = convertor(
+	'rename_view',
+	({ from, to }) => ({ from: viewName(from), to: inSchema(to) }),
+	(st) => {
+		const materialized = st.from.materialized;
+		const nameFrom = st.from.schema !== 'public' ? `"${st.from.schema}"."${st.from.name}"` : `"${st.from.name}"`;
 
-	return `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW ${nameFrom} RENAME TO "${st.to.name}";`;
-});
+		return `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW ${nameFrom} RENAME TO "${st.to.name}";`;
+	},
+);
 
-const moveViewConvertor = convertor('move_view', asIs, (st) => {
+const moveViewConvertor = convertor('move_view', ({ fromSchema, toSchema, view }) => ({
+	fromSchema,
+	toSchema,
+	view: { name: view.name, materialized: view.materialized },
+}), (st) => {
 	const { fromSchema, toSchema, view } = st;
 	const from = fromSchema === 'public' ? `"${view.name}"` : `"${fromSchema}"."${view.name}"`;
 	return `ALTER${view.materialized ? ' MATERIALIZED' : ''} VIEW ${from} SET SCHEMA "${toSchema}";`;
 });
 
-const alterViewConvertor = convertor('alter_view', asIs, (st) => {
+const alterViewConvertor = convertor('alter_view', ({ view, diff }) => ({
+	view: viewName(view),
+	diff: { with: diff.with, tablespace: diff.tablespace, using: diff.using },
+}), (st) => {
 	const diff = st.diff;
 
 	const statements = [] as string[];
@@ -821,7 +839,7 @@ const alterUniqueConvertor = convertor('alter_unique', ({ diff }) => ({
 	return statements;
 });
 
-const createEnumConvertor = convertor('create_enum', asIs, (st) => {
+const createEnumConvertor = convertor('create_enum', (st) => ({ enum: row('enums', st.enum) }), (st) => {
 	const { name, schema, values } = st.enum;
 	const enumNameWithSchema = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
 
@@ -832,30 +850,36 @@ const createEnumConvertor = convertor('create_enum', asIs, (st) => {
 	return `CREATE TYPE ${enumNameWithSchema} AS ENUM${valuesStatement};`;
 });
 
-const dropEnumConvertor = convertor('drop_enum', asIs, (st) => {
+const dropEnumConvertor = convertor('drop_enum', (st) => ({ enum: inSchema(st.enum) }), (st) => {
 	const { name, schema } = st.enum;
 	const enumNameWithSchema = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
 	return `DROP TYPE ${enumNameWithSchema};`;
 });
 
-const renameEnumConvertor = convertor('rename_enum', asIs, (st) => {
+const renameEnumConvertor = convertor('rename_enum', ({ schema, from, to }) => ({ schema, from, to }), (st) => {
 	const from = st.schema !== 'public' ? `"${st.schema}"."${st.from}"` : `"${st.from}"`;
 	return `ALTER TYPE ${from} RENAME TO "${st.to}";`;
 });
 
-const moveEnumConvertor = convertor('move_enum', asIs, (st) => {
+const moveEnumConvertor = convertor('move_enum', ({ from, to }) => ({ from: movable(from), to: movable(to) }), (st) => {
 	const { from, to } = st;
 
 	const enumNameWithSchema = from.schema !== 'public' ? `"${from.schema}"."${from.name}"` : `"${from.name}"`;
 	return `ALTER TYPE ${enumNameWithSchema} SET SCHEMA "${to.schema || 'public'}";`;
 });
 
-const alterEnumConvertor = convertor('alter_enum', asIs, (st) => {
-	const { diff, to: e } = st;
+const alterEnumConvertor = convertor('alter_enum', ({ to, diff }) => ({
+	to: inSchema(to),
+	added: diff.filter((it) => it.type === 'added').map(({ value, beforeValue }) => ({
+		value,
+		beforeValue: beforeValue ?? null,
+	})),
+}), (st) => {
+	const { added, to: e } = st;
 	const key = e.schema !== 'public' ? `"${e.schema}"."${e.name}"` : `"${e.name}"`;
 
 	const statements = [] as string[];
-	for (const d of diff.filter((it) => it.type === 'added')) {
+	for (const d of added) {
 		if (d.beforeValue) {
 			statements.push(`ALTER TYPE ${key} ADD VALUE '${d.value}' BEFORE '${d.beforeValue}';`);
 		} else {
@@ -865,7 +889,18 @@ const alterEnumConvertor = convertor('alter_enum', asIs, (st) => {
 	return statements;
 });
 
-const recreateEnumConvertor = convertor('recreate_enum', asIs, (st) => {
+const recreateEnumConvertor = convertor('recreate_enum', ({ to, columns }) => ({
+	to: row('enums', to),
+	columns: columns.map(({ schema, table, name, type, typeSchema, dimensions, default: { left, right } }) => ({
+		schema,
+		table,
+		name,
+		type,
+		typeSchema,
+		dimensions,
+		default: { left, right },
+	})),
+}), (st) => {
 	const { to, columns } = st;
 	const statements: string[] = [];
 	for (const column of columns) {
@@ -903,7 +938,9 @@ const recreateEnumConvertor = convertor('recreate_enum', asIs, (st) => {
 	return statements;
 });
 
-const createSequenceConvertor = convertor('create_sequence', asIs, (st) => {
+const createSequenceConvertor = convertor('create_sequence', ({ sequence }) => ({
+	sequence: row('sequences', sequence),
+}), (st) => {
 	const { name, schema, minValue, maxValue, incrementBy, startWith, cacheSize, cycle } = st.sequence;
 	const sequenceWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
 
@@ -914,20 +951,26 @@ const createSequenceConvertor = convertor('create_sequence', asIs, (st) => {
 	}${cycle ? ` CYCLE` : ''};`;
 });
 
-const dropSequenceConvertor = convertor('drop_sequence', asIs, (st) => {
+const dropSequenceConvertor = convertor('drop_sequence', ({ sequence }) => ({ sequence: inSchema(sequence) }), (st) => {
 	const { name, schema } = st.sequence;
 	const sequenceWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
 	return `DROP SEQUENCE ${sequenceWithSchema};`;
 });
 
-const renameSequenceConvertor = convertor('rename_sequence', asIs, (st) => {
+const renameSequenceConvertor = convertor('rename_sequence', ({ from, to }) => ({
+	from: inSchema(from),
+	to: inSchema(to),
+}), (st) => {
 	const sequenceWithSchemaFrom = st.from.schema !== 'public'
 		? `"${st.from.schema}"."${st.from.name}"`
 		: `"${st.from.name}"`;
 	return `ALTER SEQUENCE ${sequenceWithSchemaFrom} RENAME TO "${st.to.name}";`;
 });
 
-const moveSequenceConvertor = convertor('move_sequence', asIs, (st) => {
+const moveSequenceConvertor = convertor('move_sequence', ({ from, to }) => ({
+	from: movable(from),
+	to: movable(to),
+}), (st) => {
 	const { from, to } = st;
 	const sequenceWithSchema = from.schema !== 'public'
 		? `"${from.schema}"."${from.name}"`
@@ -936,7 +979,9 @@ const moveSequenceConvertor = convertor('move_sequence', asIs, (st) => {
 	return `ALTER SEQUENCE ${sequenceWithSchema} SET SCHEMA ${seqSchemaTo};`;
 });
 
-const alterSequenceConvertor = convertor('alter_sequence', asIs, (st) => {
+const alterSequenceConvertor = convertor('alter_sequence', ({ sequence }) => ({
+	sequence: row('sequences', sequence),
+}), (st) => {
 	const { schema, name, incrementBy, minValue, maxValue, startWith, cacheSize, cycle } = st.sequence;
 
 	const sequenceWithSchema = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;

@@ -32,6 +32,13 @@ const statement = <T extends string, S extends Record<string, ZodTypeAny>>(type:
 // The names of an entity that belongs to a table.
 const inTable = object({ schema: string(), table: string(), name: string() }).strict();
 
+// The names of an entity that belongs to a schema.
+const inSchema = object({ schema: string(), name: string() }).strict();
+// The diff writes a move with the schema of each side, which is null for the default schema.
+const movable = object({ schema: string().nullable(), name: string() }).strict();
+const named = object({ name: string() }).strict();
+const viewName = object({ schema: string(), name: string(), materialized: boolean() }).strict();
+
 // What the claim rules read of an index that is dropped or replaced.
 const indexColumns = array(object({ value: string(), isExpression: boolean() }).strict());
 const uniqueness = { columns: indexColumns, isUnique: boolean(), where: string().nullable() };
@@ -126,6 +133,55 @@ export const snapshotStatementSchemas = {
 		from: string(),
 		to: string(),
 		columns: array(string()),
+	}),
+
+	create_schema: statement('create_schema', { name: string() }),
+	drop_schema: statement('drop_schema', { name: string() }),
+	rename_schema: statement('rename_schema', { from: named, to: named }),
+	create_enum: statement('create_enum', { enum: row('enums') }),
+	drop_enum: statement('drop_enum', { enum: inSchema }),
+	rename_enum: statement('rename_enum', { schema: string(), from: string(), to: string() }),
+	move_enum: statement('move_enum', { from: movable, to: movable }),
+	alter_enum: statement('alter_enum', {
+		to: inSchema,
+		// The new values. `beforeValue` is the value that the new one goes in front of, or null for the end.
+		added: array(object({ value: string(), beforeValue: string().nullable() }).strict()),
+	}),
+	recreate_enum: statement('recreate_enum', {
+		to: row('enums'),
+		// The columns of the enum type. The statement converts each one to text and back.
+		columns: array(
+			object({
+				schema: string(),
+				table: string(),
+				name: string(),
+				type: field('columns', 'type'),
+				typeSchema: field('columns', 'typeSchema'),
+				dimensions: field('columns', 'dimensions'),
+				default: object({ left: field('columns', 'default'), right: field('columns', 'default') }).strict(),
+			}).strict(),
+		),
+	}),
+	create_sequence: statement('create_sequence', { sequence: row('sequences') }),
+	drop_sequence: statement('drop_sequence', { sequence: inSchema }),
+	rename_sequence: statement('rename_sequence', { from: inSchema, to: inSchema }),
+	move_sequence: statement('move_sequence', { from: movable, to: movable }),
+	alter_sequence: statement('alter_sequence', { sequence: row('sequences') }),
+	create_view: statement('create_view', { view: row('views') }),
+	drop_view: statement('drop_view', { view: viewName }),
+	rename_view: statement('rename_view', { from: viewName, to: inSchema }),
+	move_view: statement('move_view', {
+		fromSchema: string(),
+		toSchema: string(),
+		view: object({ name: string(), materialized: boolean() }).strict(),
+	}),
+	alter_view: statement('alter_view', {
+		view: viewName,
+		diff: object({
+			with: change(field('views', 'with')),
+			tablespace: change(field('views', 'tablespace')),
+			using: change(field('views', 'using')),
+		}).strict(),
 	}),
 };
 

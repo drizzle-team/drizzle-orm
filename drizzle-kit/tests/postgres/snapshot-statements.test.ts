@@ -4,8 +4,11 @@ import {
 	foreignKey,
 	index,
 	integer,
+	pgEnum,
 	pgSchema,
+	pgSequence,
 	pgTable,
+	pgView,
 	primaryKey,
 	text,
 	unique,
@@ -42,6 +45,14 @@ const unreferenced = {
 	users: pgTable('users', { id: integer().primaryKey(), email: varchar() }),
 	posts: pgTable('posts', { userId: integer() }),
 };
+
+const status = pgEnum('status', ['open', 'closed']);
+const tickets = (type: ReturnType<typeof pgEnum>) => pgTable('tickets', { status: type().default('open') });
+const counter = pgSequence('counter', { increment: 1 });
+const emails = (name: string, checkOption: 'local' | 'cascaded', schema?: ReturnType<typeof pgSchema>) =>
+	(schema ? schema.view(name, { email: varchar() }) : pgView(name, { email: varchar() }))
+		.with({ checkOption })
+		.as(sql`select email from users`);
 
 const cases: Case[] = [
 	{ kinds: ['create_table'], from: {}, to: { users } },
@@ -153,6 +164,70 @@ const cases: Case[] = [
 		kinds: ['alter_check'],
 		from: constrained((t) => [check('users_id_ck', sql`${t.id} > 0`)]),
 		to: constrained((t) => [check('users_id_ck', sql`${t.id} > 1`)]),
+	},
+	{ kinds: ['create_schema'], from: {}, to: { archive } },
+	{ kinds: ['drop_schema'], from: { archive }, to: {} },
+	{ kinds: ['rename_schema'], from: { archive }, to: { vault: pgSchema('vault') }, renames: ['archive->vault'] },
+	{ kinds: ['create_enum'], from: {}, to: { status } },
+	{ kinds: ['drop_enum'], from: { status }, to: {} },
+	{
+		kinds: ['rename_enum'],
+		from: { status },
+		to: { state: pgEnum('state', ['open', 'closed']) },
+		renames: ['public.status->public.state'],
+	},
+	{
+		kinds: ['move_enum'],
+		from: { archive, status },
+		to: { archive, status: archive.enum('status', ['open', 'closed']) },
+		renames: ['public.status->archive.status'],
+	},
+	{
+		kinds: ['alter_enum'],
+		from: { status },
+		to: { status: pgEnum('status', ['open', 'pending', 'closed', 'lost']) },
+	},
+	{
+		kinds: ['recreate_enum'],
+		from: { status, tickets: tickets(status) },
+		to: (() => {
+			const status = pgEnum('status', ['open']);
+			return { status, tickets: tickets(status) };
+		})(),
+	},
+	{ kinds: ['create_sequence'], from: {}, to: { counter } },
+	{ kinds: ['drop_sequence'], from: { counter }, to: {} },
+	{
+		kinds: ['rename_sequence'],
+		from: { counter },
+		to: { counter: pgSequence('ticker', { increment: 1 }) },
+		renames: ['public.counter->public.ticker'],
+	},
+	{
+		kinds: ['move_sequence'],
+		from: { archive, counter },
+		to: { archive, counter: archive.sequence('counter', { increment: 1 }) },
+		renames: ['public.counter->archive.counter'],
+	},
+	{ kinds: ['alter_sequence'], from: { counter }, to: { counter: pgSequence('counter', { increment: 2 }) } },
+	{ kinds: ['create_view'], from: { users }, to: { users, emails: emails('emails', 'local') } },
+	{ kinds: ['drop_view'], from: { users, emails: emails('emails', 'local') }, to: { users } },
+	{
+		kinds: ['rename_view'],
+		from: { users, emails: emails('emails', 'local') },
+		to: { users, emails: emails('contacts', 'local') },
+		renames: ['public.emails->public.contacts'],
+	},
+	{
+		kinds: ['move_view'],
+		from: { archive, users, emails: emails('emails', 'local') },
+		to: { archive, users, emails: emails('emails', 'local', archive) },
+		renames: ['public.emails->archive.emails'],
+	},
+	{
+		kinds: ['alter_view'],
+		from: { users, emails: emails('emails', 'local') },
+		to: { users, emails: emails('emails', 'cascaded') },
 	},
 ];
 

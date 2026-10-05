@@ -166,8 +166,12 @@ const S = {
 	moveEnum: (name: string, from: string, to: string) =>
 		({ type: 'move_enum', from: { schema: from, name }, to: { schema: to, name } }) as any,
 	// `columns` are the columns of the enum type that the statement converts.
-	recreateEnum: (schema: string, name: string, columns: unknown[] = []) =>
-		({ type: 'recreate_enum', to: { schema, name, values: ['a'] }, columns }) as any,
+	recreateEnum: (schema: string, name: string, columns: object[] = []) =>
+		({
+			type: 'recreate_enum',
+			to: { schema, name, values: ['a'] },
+			columns: columns.map((it) => ({ ...it, default: { left: null, right: null } })),
+		}) as any,
 	dropSchema: (name: string) => ({ type: 'drop_schema', name }) as any,
 	alterRls: (schema: string, table: string, on: boolean) =>
 		({ type: 'alter_rls', schema, name: table, isRlsEnabled: on }) as any,
