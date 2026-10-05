@@ -881,7 +881,9 @@ export const fromDatabase = async (
 	}
 	progressCallback('fks', fks.length, 'done');
 
-	for (const check of constraintsList.filter((it) => it.type === 'c')) {
+	for (
+		const check of constraintsList.filter((it) => it.type === 'c' && !it.definition.endsWith(' NOT VALID'))
+	) {
 		const table = tablesList.find((it) => Number(it.oid) === Number(check.tableId))!;
 		const schema = namespaces.find((it) => Number(it.oid) === Number(check.schemaId))!;
 
