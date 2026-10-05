@@ -14,11 +14,8 @@ import {
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
 import { snapshotValidator as mysqlSnapshotValidator } from '../dialects/mysql/snapshot';
-import {
-	missingBaseMessage,
-	missingParentMessage,
-	snapshotValidator as pgSnapshotValidator,
-} from '../dialects/postgres/snapshot';
+import { missingBaseMessage, missingParentMessage } from '../dialects/postgres/replay-v9';
+import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
 import { snapshotValidator as singlestoreSnapshotValidator } from '../dialects/singlestore/snapshot';
 import { snapshotValidator as sqliteStapshotValidator } from '../dialects/sqlite/snapshot';
 import { assertUnreachable, originUUID } from '.';

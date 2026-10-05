@@ -1,3 +1,7 @@
+import { applyDeltas, type Delta, type Instruction, KeyCollisionError, splitDeltaKey } from './postgres/replay-v9';
+
+export { type Delta, type Instruction, KeyCollisionError, type KeyedDelta, splitDeltaKey } from './postgres/replay-v9';
+
 export type Row = Record<string, any>;
 
 export type Field =
@@ -359,7 +363,7 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 			}
 			const deltas = [...keyed, ...instructions];
 			try {
-				applyToStore(ctx, deltas);
+				applyDeltas(ctx, deltas);
 			} catch (e) {
 				if (!(e instanceof KeyCollisionError)) throw e;
 				restore();
@@ -610,27 +614,6 @@ export const key = (ddl: AnyDDL, type: string, row: Row): string => ddl.key(type
 
 /* ------------------------------------------------------------------ structural delta */
 
-// A keyed delta names one row by its key, which is qual(entityType, identity). A `rename` changes the key
-// of its row, because the user decided it.
-export type KeyedDelta =
-	| { op: 'create'; row: Row }
-	| { op: 'drop'; key: string }
-	| { op: 'alter'; key: string; set: Row }
-	| { op: 'rename'; key: string; set: Row };
-
-// An instruction follows a rename. It selects the rows of one entity type by the values of their fields,
-// never by key, and writes the new name into them. So it also reaches a row that another branch added or
-// renamed. `update` sets fields. `replace_in_list` replaces a string in a list of strings.
-// `update_list_items` sets fields of the objects in a list that have the values of `match`.
-export type Instruction =
-	| { op: 'update'; type: string; where: Row; set: Row }
-	| { op: 'replace_in_list'; type: string; where: Row; field: string; from: string; to: string }
-	| { op: 'update_list_items'; type: string; where: Row; field: string; match: Row; set: Row };
-
-export type Delta = KeyedDelta | Instruction;
-
-export const isInstruction = (delta: Delta): delta is Instruction => !('key' in delta) && delta.op !== 'create';
-
 // The instructions for a row of `type` that changes its key. `from` is the row before the change, and `set`
 // holds its changed fields. The list has one instruction for every reference rule that points at `type`, and
 // for every rule that points at a type whose keys change as a result. It depends only on the rules, and
@@ -693,11 +676,6 @@ function renameInstructions(ctx: Internals, type: string, from: Row, set: Row): 
 }
 
 const qkeyOf = (ddl: AnyDDL, r: Row): string => qual(r.entityType, ddl.key(r.entityType, r));
-// Returns [entityType, identity].
-export const splitDeltaKey = (key: string): [string, string] => {
-	const idx = key.indexOf('\0'); // the identity is JSON and never contains \0
-	return [key.slice(0, idx), key.slice(idx + 1)];
-};
 export const findRow = <M extends Record<string, Row>>(ddl: DDL<M>, key: string): Row | undefined => {
 	const [entityType, identity] = splitDeltaKey(key);
 	return ddl._.store.get(entityType)?.get(identity);
@@ -756,84 +734,7 @@ export function apply<M extends Record<string, Row>>(base: DDL<M>, deltas: Delta
 	return applyInPlace(copyDDL(base), deltas);
 }
 
-// A rename or an instruction moves a row onto a key that another row holds.
-export class KeyCollisionError extends Error {
-	constructor(op: string, entityType: string, from: string, to: string, readonly taken: Row) {
-		super(
-			`The ${op} delta moves ${entityType} ${from} to ${to}, and another row of ${entityType} already has the key ${to}. `
-				+ 'Two migrations gave one name to two different entities.',
-		);
-	}
-}
-
-const hasFields = (row: Row, where: Row): boolean => {
-	for (const field in where) if (row[field] !== where[field]) return false;
-	return true;
-};
-
-// Runs the deltas in order against the rows that the store has at that moment. It reads no reference rules:
-// an instruction names its entity type, the field values to match and the fields to change. An instruction
-// that matches no row changes nothing. An instruction scans every row of its entity type.
-function applyToStore(ctx: Pick<Internals, 'store' | 'identity'>, deltas: Delta[]) {
-	const { store, identity: identityOf } = ctx;
-	const target = (d: { op: string; key: string }): [Map<string, Row>, string, Row] => {
-		const [entityType, identity] = splitDeltaKey(d.key);
-		const bucket = store.get(entityType);
-		const row = bucket?.get(identity);
-		if (!bucket || !row) {
-			throw new Error(
-				`The ${d.op} delta targets a missing entity: ${
-					d.key.replace('\0', ' ')
-				}. The deltas do not match the state they are applied to. Check that no snapshot is missing from the history.`,
-			);
-		}
-		return [bucket, identity, row];
-	};
-	// `moved` holds rows that are already removed from the bucket, with their old identity.
-	const insertMoved = (op: string, entityType: string, bucket: Map<string, Row>, moved: [string, Row][]) => {
-		for (const [oldIdentity, row] of moved) {
-			const identity = identityOf[entityType](row);
-			const taken = bucket.get(identity);
-			if (taken) throw new KeyCollisionError(op, entityType, oldIdentity, identity, taken);
-			bucket.set(identity, row);
-		}
-	};
-	for (const d of deltas) {
-		if (d.op === 'create') {
-			const row = stripMeta(d.row);
-			store.get(row.entityType)!.set(identityOf[row.entityType](row), row);
-		} else if (d.op === 'drop') {
-			const [bucket, identity] = target(d);
-			bucket.delete(identity);
-		} else if (d.op === 'alter') {
-			Object.assign(target(d)[2], d.set);
-		} else if (d.op === 'rename') {
-			const [bucket, oldIdentity, row] = target(d);
-			bucket.delete(oldIdentity);
-			Object.assign(row, d.set);
-			insertMoved(d.op, row.entityType, bucket, [[oldIdentity, row]]);
-		} else if (d.op === 'update') {
-			const bucket = store.get(d.type)!;
-			const moved: [string, Row][] = [];
-			for (const [identity, row] of bucket) {
-				if (!hasFields(row, d.where)) continue;
-				Object.assign(row, d.set);
-				if (identityOf[d.type](row) !== identity) moved.push([identity, row]);
-			}
-			for (const [identity] of moved) bucket.delete(identity);
-			insertMoved(d.op, d.type, bucket, moved);
-		} else {
-			const change = d.op === 'replace_in_list'
-				? (it: unknown) => (it === d.from ? d.to : it)
-				: (it: Row) => (hasFields(it, d.match) ? { ...it, ...d.set } : it);
-			for (const row of store.get(d.type)!.values()) {
-				if (hasFields(row, d.where)) row[d.field] = (row[d.field] as any[]).map(change);
-			}
-		}
-	}
-}
-
 export function applyInPlace<M extends Record<string, Row>>(ddl: DDL<M>, deltas: Delta[]): DDL<M> {
-	applyToStore(ddl._, deltas);
+	applyDeltas(ddl._, deltas);
 	return ddl;
 }

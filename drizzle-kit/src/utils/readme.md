@@ -24,7 +24,17 @@ A rename changes other rows too: the columns of a renamed table, or the column l
 
 While `ddlDiff` records deltas, `update` changes the starting state only through the deltas that it records. It does not follow the reference edges there, so the state that the diff continues with is the state that a replay gives.
 
-The replay (`applyInPlace`) reads no reference rules. It needs only the rows and the key functions. A rule that is added later does not change how an existing file rebuilds, and a rule that is missing when a file is written stays missing in that file. A `rename` or an `update` that moves a row onto a key that another row holds throws `KeyCollisionError`. `up` turns that into a refusal for an old merge whose branches gave one name to two entities.
+### The replay module
+
+The whole replay of format 9 is in `src/dialects/postgres/replay-v9.ts`: `applyDeltas` runs keyed deltas and instructions, `rebuild` gives the state after a snapshot, and `combineParents` gives the state that a merge starts from. `reconstruct` and `startingState` in `src/dialects/postgres/snapshot.ts` call them with the entity definitions and the state hash check. `ddlDiff` applies the deltas that it records through the same `applyDeltas`.
+
+The module imports no other module, and a test in `tests/postgres/replay-v9.test.ts` fails if it gets an import. It reads no reference rules. It needs only the rows and the key functions, which it gets as data. So a rule that is added later does not change how an existing file rebuilds, and a rule that is missing when a file is written stays missing in that file.
+
+Do not change the behavior of this module. A change can give another state for a folder that already exists. If the replay must change, add a new snapshot format with its own replay module next to this one. `generate` then writes the new format, and `up` rebuilds the folders of format 9 with `replay-v9.ts` before it converts them.
+
+A `rename` or an `update` that moves a row onto a key that another row holds throws `KeyCollisionError`. `up` turns that into a refusal for an old merge whose branches gave one name to two entities.
+
+### How `check` compares two branches
 
 Example: `p1` is the base, and two git branches each add one migration on top of it.
 

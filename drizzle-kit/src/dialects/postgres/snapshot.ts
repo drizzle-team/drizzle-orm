@@ -3,10 +3,11 @@ import type { TypeOf } from 'zod';
 import { any, array as zodArray, boolean, enum as enumType, literal, number, object, record, string } from 'zod';
 import { originUUID } from '../../utils';
 import { normalizeDDL } from '../ddl-canonical';
-import { type AnyDDL, apply, applyInPlace, type Delta, findRow, splitDeltaKey } from '../dialect';
+import { type AnyDDL, apply } from '../dialect';
 import { array, validator } from '../simpleValidator';
 import type { PostgresDDL, PostgresEntity } from './ddl';
 import { createDDL, fromEntities } from './ddl';
+import { combineParents, type Delta, type Rebuild, rebuild, splitDeltaKey } from './replay-v9';
 import { type SnapshotStatement, snapshotStatementSchemas } from './snapshot-statements';
 
 const indexV2 = object({
@@ -726,15 +727,6 @@ export const drySnapshot: PostgresBaseSnapshot = {
 	stateHash: stateHash(createDDL()),
 };
 
-// The folder loader and reconstruct report a broken history with the same messages.
-export const missingParentMessage = (snapshot: string, parentId: string) =>
-	`Cannot rebuild snapshot ${snapshot}: snapshot ${parentId} is missing from the migrations folder. `
-	+ `Restore the missing migration folder from git, or delete ${snapshot} and every later migration, then run generate again.`;
-
-export const missingBaseMessage = (snapshot: string) =>
-	`Cannot rebuild snapshot ${snapshot}: its history does not reach a base snapshot. `
-	+ `Restore the first migration folder from git, or delete ${snapshot} and every later migration, then run generate again.`;
-
 export const stateHashMessage = (snapshot: string) =>
 	`Cannot rebuild snapshot ${snapshot}: the rebuilt state differs from the state that the snapshot recorded. `
 	+ `A snapshot.json in the history of ${snapshot} was edited by hand, or this drizzle-kit version rebuilds the `
@@ -755,93 +747,13 @@ const assertStateHash = (state: PostgresDDL, snapshot: PostgresSnapshot) => {
 	if (snapshot.stateHash !== stateHash(state)) throw new StateHashError(snapshot.id);
 };
 
-// `child` is the snapshot that lists `id` as a parent.
-const lookup = (snapshots: Map<string, PostgresSnapshot>, id: string, child?: string): PostgresSnapshot => {
-	const snapshot = snapshots.get(id);
-	if (snapshot) return snapshot;
-	throw new Error(
-		child
-			? missingParentMessage(child, id)
-			: `Cannot rebuild snapshot ${id}: it is not in the migrations folder. Check the snapshot id, or restore the migration folder from git.`,
-	);
-};
-
-// The walk stops at ids in `known`.
-const historyOf = (
-	snapshots: Map<string, PostgresSnapshot>,
-	ids: string[],
-	child?: string,
-	known = new Set<string>(),
-): Set<string> => {
-	const found = new Set<string>();
-	const stack = ids.map((id) => [id, child] as const);
-	while (stack.length) {
-		const [id, childId] = stack.pop()!;
-		if (id === originUUID || found.has(id) || known.has(id)) continue;
-		found.add(id);
-		for (const parentId of lookup(snapshots, id, childId).prevIds) stack.push([parentId, id]);
-	}
-	return found;
-};
-
-// Adds to the first parent's state the snapshots that reach a merge only through its other parents.
-// This replay skips a drop, alter or rename of a missing row, and applyInPlace alone would throw for it. An
-// instruction always runs, and it changes the rows that match at that moment, so a rename of one branch also
-// reaches the rows that another branch added or renamed. A create onto a taken key overwrites the row
-// there. A rename or an instruction that moves a row onto a taken key throws, as in every applyInPlace
-// call. A base adds its rows as creates, because two branches that each started from an empty folder share
-// no ancestor.
-const combineInPlace = (
-	state: PostgresDDL,
-	snapshots: Map<string, PostgresSnapshot>,
-	prevIds: string[],
-	child?: string,
-) => {
-	const [first, ...others] = prevIds;
-	const replayed = historyOf(snapshots, others, child, historyOf(snapshots, [first], child));
-	for (const [id, snapshot] of snapshots) {
-		if (!replayed.has(id)) continue;
-		const deltas: Delta[] = snapshot.type === 'diff'
-			? snapshot.deltas
-			: snapshot.ddl.map((row) => ({ op: 'create', row }));
-		for (const it of deltas) {
-			if (!('key' in it) || findRow(state, it.key)) applyInPlace(state, [it]);
-		}
-	}
-};
+const how: Rebuild<PostgresDDL, PostgresSnapshot> = { start: fromEntities, verify: assertStateHash };
 
 // `snapshots` must iterate in folder-name order, because a merge replays the other branches in that order.
-export const reconstruct = (snapshots: Map<string, PostgresSnapshot>, id: string): PostgresDDL => {
-	const chain: PostgresDiffSnapshot[] = [];
-	let snapshot = lookup(snapshots, id);
-	while (snapshot.type === 'diff') {
-		chain.push(snapshot);
-		const parentId = snapshot.prevIds[0];
-		// A chain longer than the history means the first parents form a cycle.
-		if (!parentId || parentId === originUUID || chain.length > snapshots.size) {
-			throw new Error(missingBaseMessage(snapshot.id));
-		}
-		snapshot = lookup(snapshots, parentId, snapshot.id);
-	}
-	const state = fromEntities(snapshot.ddl);
-	for (let idx = chain.length - 1; idx >= 0; idx--) {
-		const it = chain[idx];
-		if (it.prevIds.length > 1) {
-			// The merge replay skips deltas that do not fit, so a wrong state of the first parent would stay hidden.
-			assertStateHash(state, chain[idx + 1] ?? snapshot);
-			combineInPlace(state, snapshots, it.prevIds, it.id);
-		}
-		applyInPlace(state, it.deltas);
-	}
-	assertStateHash(state, chain[0] ?? snapshot);
-	return state;
-};
+export const reconstruct = (snapshots: Map<string, PostgresSnapshot>, id: string): PostgresDDL =>
+	rebuild(snapshots, id, how);
 
 // The state that the deltas of a snapshot with these parents start from. `snapshots` must iterate in
 // folder-name order, as for reconstruct.
-export const startingState = (snapshots: Map<string, PostgresSnapshot>, prevIds: string[]): PostgresDDL => {
-	if ((prevIds[0] ?? originUUID) === originUUID) return createDDL();
-	const state = reconstruct(snapshots, prevIds[0]);
-	if (prevIds.length > 1) combineInPlace(state, snapshots, prevIds);
-	return state;
-};
+export const startingState = (snapshots: Map<string, PostgresSnapshot>, prevIds: string[]): PostgresDDL =>
+	combineParents(snapshots, prevIds, how);
