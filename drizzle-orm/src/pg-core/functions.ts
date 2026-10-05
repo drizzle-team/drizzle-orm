@@ -49,10 +49,14 @@ export type PgFunctionReturnType =
 	| PgFunctionSpecialReturn
 	| SQL;
 
-export interface PgFunctionBuilderRuntimeConfig {
-    name: string;
-    args: PgFunctionArgsDefinition;
-    returns: PgFunctionReturnType;
+export interface PgFunctionBuilderRuntimeConfig<
+    TName extends string = string,
+    TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+    TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+> {
+    name: TName;
+    args: TArgs;
+    returns: TReturns;
 
     language: PgFunctionLanguage;
     volatility: PgFunctionVolatility;
@@ -63,21 +67,37 @@ export interface PgFunctionBuilderRuntimeConfig {
     configuration: Map<string, unknown>;
 }
 
-export interface PgFunctionConfig
-	extends PgFunctionBuilderRuntimeConfig {
+export interface PgFunctionConfig<
+    TName extends string = string,
+    TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+    TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+>
+	extends PgFunctionBuilderRuntimeConfig<TName, TArgs, TReturns> {
 	body: SQL;
 }
 
+export interface PgFunctionDefinition<
+	TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+	TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+> {
+	args: TArgs;
+	returns: TReturns;
+}
+
 /* Class */
-export class PgFunctionBuilder {
+export class PgFunctionBuilder<
+    TName extends string = string,
+    TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+    TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+> {
     static readonly [entityKind]: string = 'PgFunctionBuilder';
 
-    protected config: PgFunctionBuilderRuntimeConfig
+    protected config: PgFunctionBuilderRuntimeConfig<TName, TArgs, TReturns>
 
     constructor(
-        name: string,
-        args: PgFunctionArgsDefinition,
-        returns: PgFunctionReturnType,
+        name: TName,
+        args: TArgs,
+        returns: TReturns,
     ) {
         this.config = {
             name: name,
@@ -170,8 +190,8 @@ export class PgFunctionBuilder {
     }
 
     /* Build */
-    as(body: SQL): PgFunction {
-        return new PgFunction({
+    as(body: SQL): PgFunction<TName, TArgs, TReturns> {
+        return new PgFunction<TName, TArgs, TReturns>({
             ...this.config,
             configuration: new Map(this.config.configuration),
             ...(this.config.searchPath
@@ -182,17 +202,28 @@ export class PgFunctionBuilder {
     }
 }
 
-export class PgFunction {
+export class PgFunction<
+    TName extends string = string,
+    TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+    TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+> {
     static readonly [entityKind]: string = 'PgFunction';
 
-    readonly config: PgFunctionConfig
+    readonly config: PgFunctionConfig<TName, TArgs, TReturns>
 
-    constructor(config: PgFunctionConfig) {
+    constructor(config: PgFunctionConfig<TName, TArgs, TReturns>) {
         this.config = config;
     }
 }
 
 /* Factory */
-export function pgFunction(name: string, config: { args: PgFunctionArgsDefinition, returns: PgFunctionReturnType }): PgFunctionBuilder {
-    return new PgFunctionBuilder(name, config.args, config.returns);
+export function pgFunction<
+    TName extends string = string,
+    TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+    TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+> (
+    name: TName, 
+    config: PgFunctionDefinition<TArgs, TReturns>
+): PgFunctionBuilder<TName, TArgs, TReturns> {
+    return new PgFunctionBuilder<TName, TArgs, TReturns>(name, config.args, config.returns);
 }
