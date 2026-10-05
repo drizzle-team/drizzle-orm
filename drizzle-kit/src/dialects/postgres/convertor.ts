@@ -1104,6 +1104,8 @@ const convertors = [
 	toggleRlsConvertor,
 ];
 
+export const statementTypes = new Set<string>(convertors.map((it) => it.type));
+
 export function fromJson(
 	statements: JsonStatement[],
 ) {

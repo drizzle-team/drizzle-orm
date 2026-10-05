@@ -24,6 +24,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgr
 import type { SchemaSource } from '../../dialects/postgres/drizzle';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
 import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
+import type { JsonStatement } from '../../dialects/postgres/statements';
 import { originUUID } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import { isInteractive, outputFormat } from '../context';
@@ -67,11 +68,14 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	const { ddlCur, ddlPrev, prevIds } = await prepareSnapshot(snapshots, prepared);
 	const parentFolders = index.filter((it) => prevIds.includes(it.id)).map((it) => it.folder);
 
-	// `state` is what the snapshot must rebuild to, and `deltas` turn `ddlPrev` into it.
-	const snapshotOf = (state: PostgresDDL, deltas: Delta[]): PostgresSnapshot => {
+	// `state` is what the snapshot must rebuild to, and `deltas` turn `ddlPrev` into it. `statements` are the
+	// statements of the migration, in the order of its SQL.
+	const snapshotOf = (state: PostgresDDL, deltas: Delta[], statements: JsonStatement[]): PostgresSnapshot => {
 		const header = { version: '9', dialect: 'postgres', id: randomUUID() } as const;
-		if (prevIds.length === 0) return { type: 'base', ...header, prevIds: [originUUID], ddl: state.entities.list() };
-		return { type: 'diff', ...header, prevIds, deltas };
+		if (prevIds.length === 0) {
+			return { type: 'base', ...header, prevIds: [originUUID], ddl: state.entities.list(), statements };
+		}
+		return { type: 'diff', ...header, prevIds, deltas, statements };
 	};
 
 	// Deleting waits until generate needs no more hints, so a missing_hints response leaves the folder unchanged.
@@ -89,7 +93,7 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	if (config.custom) {
 		return {
 			...writeResult({
-				snapshot: snapshotOf(ddlPrev, []),
+				snapshot: snapshotOf(ddlPrev, [], []),
 				sqlStatements: [],
 				outFolder,
 				name: config.name,
@@ -131,7 +135,7 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	if (!config.explain) {
 		return {
 			...writeResult({
-				snapshot: snapshotOf(ddlCur, deltas),
+				snapshot: snapshotOf(ddlCur, deltas, statements),
 				sqlStatements,
 				outFolder,
 				name: config.name,

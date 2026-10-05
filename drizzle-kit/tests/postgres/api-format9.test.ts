@@ -119,7 +119,15 @@ test('generateMigration takes an empty previous state in format 7 and in format 
 
 test('generateMigration rejects a diff snapshot', async () => {
 	const parent = await generateDrizzleJson(v1);
-	const diff = { type: 'diff', version: '9', dialect: 'postgres', id: 'd1', prevIds: [parent.id], deltas: [] };
+	const diff = {
+		type: 'diff',
+		version: '9',
+		dialect: 'postgres',
+		id: 'd1',
+		prevIds: [parent.id],
+		deltas: [],
+		statements: [],
+	};
 
 	await expect(generateMigration(parent, diff)).rejects.toThrow(
 		'Snapshot d1 is a diff snapshot, so it holds only the changes of one migration. '
@@ -212,7 +220,15 @@ test('reconstruct reports a missing parent with the same message as the CLI', as
 });
 
 test('reconstruct reports a malformed snapshot, an unknown id and an empty folder', async () => {
-	const base = { type: 'base', version: '9', dialect: 'postgres', id: 'b1', prevIds: [ORIGIN], ddl: [] };
+	const base = {
+		type: 'base',
+		version: '9',
+		dialect: 'postgres',
+		id: 'b1',
+		prevIds: [ORIGIN],
+		ddl: [],
+		statements: [],
+	};
 
 	await expect(reconstruct({ '20260101120000_init': { ...base, ddl: 'broken' } })).rejects.toMatchObject({
 		message: '20260101120000_init data is malformed. Restore the file from git, or fix the JSON in it by hand.',

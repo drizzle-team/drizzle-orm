@@ -6,12 +6,9 @@ import {
 	type ParsedSnapshotInput,
 } from '../../commutativity/engine';
 import type { ConflictTarget } from '../../commutativity/types';
-import { copyDDL } from '../dialect';
-import { type Column, fromEntities, type Index, type IndexColumn, type Policy, type Privilege } from './ddl';
-import { ddlDiff } from './diff';
+import type { Column, Index, IndexColumn, Policy, Privilege } from './ddl';
 import { builtinPolicyRoles } from './grammar';
-import { renameResolvers } from './renames';
-import { drySnapshot, type PostgresSnapshot, startingState } from './snapshot';
+import { drySnapshot, type PostgresSnapshot } from './snapshot';
 import type { JsonStatement } from './statements';
 
 type FootprintTarget = {
@@ -53,38 +50,6 @@ function makeTableTarget(schema: string, tableName: string): FootprintTarget {
 function makeSchemaTarget(schemaName: string): FootprintTarget {
 	return makeTarget(schemaName, '');
 }
-
-// The snapshot's rename deltas are the rename decisions. Generated names are not kept, so a drop and a create
-// of a constraint in the deltas stay a drop and a create statement, as in the SQL of the migration.
-export const snapshotStatements = async (
-	snapshots: Map<string, PostgresSnapshot>,
-	snapshot: PostgresSnapshot,
-): Promise<JsonStatement[]> => {
-	// ddlDiff changes both states that it gets, so each one is a separate copy.
-	const from = startingState(snapshots, snapshot.prevIds);
-	const to = snapshot.type === 'diff' ? copyDDL(from) : fromEntities(snapshot.ddl);
-	const resolver = renameResolvers(to, snapshot.type === 'diff' ? snapshot.deltas : []);
-	const { statements } = await ddlDiff(
-		from,
-		to,
-		resolver('schemas'),
-		resolver('enums'),
-		resolver('sequences'),
-		resolver('policies'),
-		resolver('roles'),
-		resolver('tables'),
-		resolver('columns'),
-		resolver('views'),
-		resolver('uniques'),
-		resolver('indexes'),
-		resolver('checks'),
-		resolver('pks'),
-		resolver('fks'),
-		'default',
-		false,
-	);
-	return statements;
-};
 
 /**
  * Postgres-specific commutativity rules.
@@ -1262,7 +1227,8 @@ class PostgresCommutativity extends FacetCommutativity<
 	public override async detectNonCommutative(snapshots: string[] | ParsedSnapshotInput[]) {
 		const nodes = this.buildSnapshotGraph(snapshots);
 		const byId = new Map(Object.values(nodes).map((node) => [node.id, node.raw]));
-		return this.detectBranchConflicts(nodes, (id) => snapshotStatements(byId, byId.get(id)!));
+		// The conflicts come only from the statements that each snapshot stores. Nothing is diffed here.
+		return this.detectBranchConflicts(nodes, async (id) => byId.get(id)!.statements);
 	}
 
 	protected override getDrySnapshot(): PostgresSnapshot {

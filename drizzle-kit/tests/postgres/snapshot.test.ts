@@ -32,6 +32,7 @@ const base = (id: string, ddl: ReturnType<typeof createDDL>): PostgresBaseSnapsh
 	id,
 	prevIds: [originUUID],
 	ddl: ddl.entities.list(),
+	statements: [],
 });
 
 const diff = (id: string, prevIds: string[], deltas: Delta[]): PostgresSnapshot => ({
@@ -41,6 +42,7 @@ const diff = (id: string, prevIds: string[], deltas: Delta[]): PostgresSnapshot 
 	id,
 	prevIds,
 	deltas,
+	statements: [],
 });
 
 const historyOf = (...snapshots: PostgresSnapshot[]) => new Map(snapshots.map((it) => [it.id, it]));
@@ -182,13 +184,14 @@ describe('reconstruct', () => {
 			]),
 		];
 
-		const first: PostgresSnapshot = {
+		const first: PostgresBaseSnapshot = {
 			type: 'base',
 			version: '9',
 			dialect: 'postgres',
 			id: 's0',
 			prevIds: [originUUID],
 			ddl: state(),
+			statements: [],
 		};
 		expect(first.ddl).toHaveLength(5501);
 		const history = historyOf(first);
@@ -263,6 +266,17 @@ describe('snapshotValidator', () => {
 		expect(valid(withDelta({ op: 'create', row: { entityType: 'tables', schema: 'public' } }))).toBe(false);
 		expect(valid(withDelta({ op: 'alter', key: 'tables\0["public","users"]', set: { color: 'red' } }))).toBe(false);
 		expect(valid(withDelta({ op: 'rename', key: 'tables\0["public","users"]' }))).toBe(false);
+	});
+
+	test('rejects a snapshot without statements, and a statement of an unknown kind', () => {
+		const { statements: _, ...withoutStatements } = base('a', users);
+		const renameTable = { type: 'rename_table', schema: 'public', from: 'users', to: 'accounts' };
+
+		expect(valid(withoutStatements)).toBe(false);
+		expect(valid({ ...diff('b', ['a'], []), statements: undefined })).toBe(false);
+		expect(valid({ ...diff('b', ['a'], []), statements: [renameTable] })).toBe(true);
+		expect(valid({ ...diff('b', ['a'], []), statements: [{ ...renameTable, type: 'paint_table' }] })).toBe(false);
+		expect(valid({ ...diff('b', ['a'], []), statements: ['rename_table'] })).toBe(false);
 	});
 
 	test('rejects a diff with no parent', () => {

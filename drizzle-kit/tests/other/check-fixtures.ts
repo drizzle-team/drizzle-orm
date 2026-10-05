@@ -1,6 +1,7 @@
 import { integer as pgInteger, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { createDDL } from '../../src/dialects/postgres/ddl';
 import { ddlDiffDry } from '../../src/dialects/postgres/diff';
 import type { PostgresSnapshot } from '../../src/dialects/postgres/snapshot';
 import { drizzleToDDL, type PostgresSchema } from '../postgres/mocks';
@@ -16,9 +17,9 @@ export const makePgSnapshot = async (
 ): Promise<PostgresSnapshot> => {
 	const header = { version: '9', dialect: 'postgres', id, prevIds } as const;
 	const { ddl } = drizzleToDDL(schema);
-	if (!from) return { type: 'base', ...header, ddl: ddl.entities.list() };
-	const { deltas } = await ddlDiffDry(drizzleToDDL(from).ddl, ddl, 'default');
-	return { type: 'diff', ...header, deltas };
+	const { deltas, statements } = await ddlDiffDry(from ? drizzleToDDL(from).ddl : createDDL(), ddl, 'default');
+	if (!from) return { type: 'base', ...header, ddl: ddl.entities.list(), statements };
+	return { type: 'diff', ...header, deltas, statements };
 };
 
 export const stageOut = (): string => {

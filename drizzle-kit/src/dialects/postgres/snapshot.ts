@@ -4,8 +4,10 @@ import { any, array as zodArray, boolean, enum as enumType, literal, number, obj
 import { originUUID } from '../../utils';
 import { applyInPlace, type Delta, findRow, splitDeltaKey } from '../dialect';
 import { array, validator } from '../simpleValidator';
+import { statementTypes } from './convertor';
 import type { PostgresDDL, PostgresEntity } from './ddl';
 import { createDDL, fromEntities } from './ddl';
+import type { JsonStatement } from './statements';
 
 const indexV2 = object({
 	name: string(),
@@ -553,6 +555,9 @@ const isDelta = (it: any): boolean => {
 		&& Object.keys(it.set).every((field) => Object.hasOwn(definitions[type], field));
 };
 
+// Every snapshot stores the statements of its own migration, in the order of the SQL.
+const statements = array<JsonStatement>((it) => statementTypes.has((it as { type?: string } | null)?.type ?? ''));
+
 const baseValidator = validator({
 	type: ['base'],
 	version: ['9'],
@@ -566,6 +571,7 @@ const baseValidator = validator({
 		}
 		return res;
 	}),
+	statements,
 });
 
 const diffValidator = validator({
@@ -575,6 +581,7 @@ const diffValidator = validator({
 	id: 'string',
 	prevIds: array<string>((it) => typeof it === 'string'),
 	deltas: array<Delta>(isDelta),
+	statements,
 });
 
 export type PostgresBaseSnapshot = typeof baseValidator.shape;
@@ -614,8 +621,20 @@ export const snapshotValidator = {
 	},
 };
 
-export const toJsonSnapshot = (ddl: PostgresDDL, prevIds: string[]): PostgresBaseSnapshot => {
-	return { type: 'base', version: '9', dialect: 'postgres', id: randomUUID(), prevIds, ddl: ddl.entities.list() };
+export const toJsonSnapshot = (
+	ddl: PostgresDDL,
+	prevIds: string[],
+	statements: JsonStatement[],
+): PostgresBaseSnapshot => {
+	return {
+		type: 'base',
+		version: '9',
+		dialect: 'postgres',
+		id: randomUUID(),
+		prevIds,
+		ddl: ddl.entities.list(),
+		statements,
+	};
 };
 
 export const drySnapshot: PostgresBaseSnapshot = {
@@ -625,6 +644,7 @@ export const drySnapshot: PostgresBaseSnapshot = {
 	id: originUUID,
 	prevIds: [],
 	ddl: [],
+	statements: [],
 };
 
 // The folder loader and reconstruct report a broken history with the same messages.

@@ -37,6 +37,7 @@ test('linear history with a column rename', async () => {
 		dialect: 'postgres',
 		id: third.id,
 		prevIds: [second.id],
+		statements: [expect.objectContaining({ type: 'rename_column' })],
 		deltas: [{ op: 'rename', key: 'columns\0["public","users","email"]', set: { name: 'contact' } }],
 	});
 
@@ -44,6 +45,70 @@ test('linear history with a column rename', async () => {
 	expect(flow.state('main', '20260101120003_main')).toStrictEqual(schemaState(v3));
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	expect(await flow.migrate('main', v3)).toStrictEqual([]);
+});
+
+test('generate stores the statements of each migration, and a custom migration stores none', async () => {
+	const flow = createFolderFlow();
+	const v1 = { users: pgTable('users', { id: integer() }) };
+	const v2 = {
+		users: pgTable('users', { id: integer().notNull(), email: varchar() }, (t) => [
+			index('users_email_idx').on(t.email),
+		]),
+	};
+
+	const first = await flow.generate('main', v1);
+	const second = await flow.generate('main', v2);
+	const custom = await flow.generate('main', v2, { custom: true });
+
+	expect(flow.statements('main', first.folder!)).toMatchObject([
+		{ type: 'create_table', table: { schema: 'public', name: 'users', columns: [{ name: 'id' }] } },
+	]);
+	expect(flow.statements('main', second.folder!)).toMatchObject([
+		{ type: 'add_column', column: { table: 'users', name: 'email' } },
+		{ type: 'alter_column', to: { table: 'users', name: 'id', notNull: true } },
+		{ type: 'create_index', index: { table: 'users', name: 'users_email_idx' } },
+	]);
+	expect(flow.statements('main', custom.folder!)).toStrictEqual([]);
+	// The statements are in the order of the SQL, and they hold everything that the SQL has.
+	expect(flow.statementsSql('main', first.folder!)).toBe(flow.sql('main', first.folder!));
+	expect(flow.statementsSql('main', second.folder!)).toBe(flow.sql('main', second.folder!));
+});
+
+test('check takes its conflicts from the stored statements of the snapshots', async () => {
+	const flow = createFolderFlow();
+	const users = pgTable('users', { id: integer() });
+	await flow.generate('main', { users });
+	flow.branch('a', 'main');
+	flow.branch('b', 'main');
+	await flow.generate('a', { users: pgTable('users', { id: integer(), email: varchar() }) });
+	const { folder } = await flow.generate('b', { users: pgTable('users', { id: integer(), email: text() }) });
+	flow.merge('main', 'a', 'b');
+	expect(await flow.check('main')).toMatchObject({ status: 'conflicts' });
+
+	// The deltas of both branches still add the same column. Check does not rebuild statements from them.
+	flow.overwriteSnapshot('main', folder!, JSON.stringify({ ...flow.snapshot('main', folder!), statements: [] }));
+
+	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
+});
+
+test('check compares two independent first migrations', async () => {
+	const flow = createFolderFlow();
+	flow.branch('a');
+	flow.branch('b');
+	flow.branch('c');
+	await flow.generate('a', { users: pgTable('users', { id: integer() }) });
+	await flow.generate('b', { users: pgTable('users', { id: integer(), email: varchar() }) });
+	await flow.generate('c', { posts: pgTable('posts', { id: integer() }) });
+
+	flow.merge('main', 'a', 'c');
+	expect(flow.folders('main').map((it) => flow.snapshot('main', it).type)).toStrictEqual(['base', 'base']);
+	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
+
+	flow.merge('main', 'b');
+	expect(await flow.check('main')).toMatchObject({
+		status: 'conflicts',
+		folders: ['20260101120001_a', '20260101120002_b'],
+	});
 });
 
 test('linear history writes a base snapshot and then diff snapshots', async () => {
@@ -109,7 +174,6 @@ test('linear history writes a base snapshot and then diff snapshots', async () =
 		expect(snapshots[idx].prevIds).toStrictEqual([snapshots[idx - 1].id]);
 	}
 	for (const it of snapshots) {
-		expect(it).not.toHaveProperty('statements');
 		expect(it).not.toHaveProperty('renames');
 	}
 	expect(snapshots[4]).toMatchObject({ type: 'diff', deltas: [] });
@@ -204,6 +268,7 @@ test('commands ask to run up on format 8 snapshots, and up converts them', async
 		id: 'p1',
 		prevIds: [ORIGIN],
 		ddl: [],
+		statements: [],
 	});
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	const { folder } = await flow.generate('main', v1);
@@ -223,6 +288,7 @@ test('pull into an empty folder writes a base snapshot that generate continues',
 	const [pulled] = flow.folders('main');
 	const base = flow.snapshot('main', pulled);
 	expect(base).toMatchObject({ type: 'base', version: '9', dialect: 'postgres', prevIds: [ORIGIN] });
+	expect(base.statements).toMatchObject([{ type: 'create_table', table: { schema: 'public', name: 'users' } }]);
 	expect(flow.state('main', pulled)).toStrictEqual(schemaState(v1));
 
 	const { folder } = await flow.generate('main', v2);
@@ -234,6 +300,7 @@ test('pull into an empty folder writes a base snapshot that generate continues',
 		dialect: 'postgres',
 		id: flow.snapshot('main', folder!).id,
 		prevIds: [base.id],
+		statements: [expect.objectContaining({ type: 'add_column' })],
 		deltas: [expect.objectContaining({ op: 'create', row: expect.objectContaining({ name: 'email' }) })],
 	});
 	expect(flow.state('main', folder!)).toStrictEqual(schemaState(v2));

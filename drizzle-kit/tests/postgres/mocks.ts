@@ -32,6 +32,7 @@ import {
 import { configMigrations } from 'src/cli/validations/common';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import { apply, copyDDL, type Delta } from 'src/dialects/dialect';
+import { fromJson } from 'src/dialects/postgres/convertor';
 import {
 	createDDL,
 	fromEntities,
@@ -73,6 +74,7 @@ import { relationsToTypeScript } from 'src/cli/commands/pull-common';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
 import { extractPostgresExisting } from 'src/dialects/drizzle';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
+import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { upToV8 } from 'src/dialects/postgres/versions';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/pgDiff';
@@ -162,6 +164,12 @@ const expectDeltasRebuildState = (parent: PostgresDDL, deltas: Delta[], next: Po
 		.toStrictEqual(normalizeDDL(next.entities.list()));
 };
 
+// A snapshot stores the statements as JSON, and the SQL of a migration must be rebuilt from them.
+const expectStatementsRebuildSql = (statements: JsonStatement[], sqlStatements: string[]) => {
+	expect(fromJson(JSON.parse(JSON.stringify(statements))).sqlStatements, 'the stored statements rebuild the SQL')
+		.toStrictEqual(sqlStatements);
+};
+
 // 2 schemas -> 2 ddls -> diff
 export const diff = async (
 	left: PostgresSchema | PostgresDDL,
@@ -201,6 +209,7 @@ export const diff = async (
 		'default',
 	);
 	expectDeltasRebuildState(parent, deltas, ddl2);
+	expectStatementsRebuildSql(statements, sqlStatements);
 	return { sqlStatements, statements, groupedStatements, deltas, next: ddl2 };
 };
 

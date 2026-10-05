@@ -24,10 +24,12 @@ import { CheckCliError } from 'src/cli/errors';
 import { type Hint, HintsHandler } from 'src/cli/hints';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import type { Delta } from 'src/dialects/dialect';
+import { fromJson } from 'src/dialects/postgres/convertor';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { fromDrizzleSchema, fromExports, SchemaSource } from 'src/dialects/postgres/drizzle';
 import { prepareSnapshot } from 'src/dialects/postgres/serializer';
 import { type PostgresSnapshot, reconstruct, startingState } from 'src/dialects/postgres/snapshot';
+import { BREAKPOINT } from 'src/utils';
 import { prepareOutFolder } from 'src/utils/utils-node';
 import { onTestFinished, vi } from 'vitest';
 import { type PostgresSchema, push } from './mocks';
@@ -115,6 +117,12 @@ export const createFolderFlow = () => {
 		JSON.parse(readFileSync(join(dirOf(branch), folder, 'snapshot.json'), 'utf8'));
 
 	const sql = (branch: string, folder: string) => readFileSync(join(dirOf(branch), folder, 'migration.sql'), 'utf8');
+
+	const statements = (branch: string, folder: string) => snapshot(branch, folder).statements;
+
+	// The SQL that the SQL writers give for the stored statements, joined like a migration file.
+	const statementsSql = (branch: string, folder: string) =>
+		fromJson(statements(branch, folder)).sqlStatements.join(BREAKPOINT);
 
 	const leaves = (branch: string) => {
 		const snapshots = folders(branch).map((folder) => ({ folder, ...snapshot(branch, folder) }));
@@ -254,6 +262,8 @@ export const createFolderFlow = () => {
 		files,
 		snapshot,
 		sql,
+		statements,
+		statementsSql,
 		leaves,
 		history,
 		state,

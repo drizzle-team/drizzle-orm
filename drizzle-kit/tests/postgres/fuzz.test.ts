@@ -10,13 +10,11 @@ import { join } from 'path';
 import { prepareSnapshotFolderName } from 'src/cli/commands/generate-common';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import { apply, applyInPlace, create } from 'src/dialects/dialect';
-import { snapshotStatements } from 'src/dialects/postgres/commutativity';
-import { fromJson } from 'src/dialects/postgres/convertor';
 import { createDDL, fromEntities, type PostgresDDL } from 'src/dialects/postgres/ddl';
 import { ddlDiff } from 'src/dialects/postgres/diff';
 import { type PostgresSnapshotV8, reconstruct } from 'src/dialects/postgres/snapshot';
 import { withStateKeyNames } from 'src/dialects/postgres/versions-v9';
-import { BREAKPOINT, originUUID } from 'src/utils';
+import { originUUID } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
 import { expect, test } from 'vitest';
 import { createFolderFlow, schemaState, tempDir } from './folder-flow';
@@ -122,17 +120,14 @@ const historyProperty = (runs: number, check: (steps: Step[]) => Promise<void>) 
 		check,
 	});
 
-test('check derives the statements that generate wrote for each migration', async () => {
+test('the stored statements of each migration rebuild its SQL file', async () => {
 	await historyProperty(40, async (steps) => {
 		const { flow, written } = await runHistory(steps);
 		for (const [folder, { branch, isCustom }] of written) {
 			// A later generate --fix-conflicts can delete the folder.
-			if (isCustom || !flow.folders(branch).includes(folder)) continue;
-			const statements = await snapshotStatements(flow.history(branch), flow.snapshot(branch, folder));
-			// snapshotStatements orders the statements by the rows of the state, not as the SQL file does. Check
-			// compares every pair of statements, so only the set matters.
-			const sql = flow.sql(branch, folder).split(BREAKPOINT).sort();
-			expect(fromJson(statements).sqlStatements.sort(), `the statements of ${folder}`).toStrictEqual(sql);
+			if (!flow.folders(branch).includes(folder)) continue;
+			if (isCustom) expect(flow.statements(branch, folder), `the statements of ${folder}`).toStrictEqual([]);
+			else expect(flow.statementsSql(branch, folder), `the statements of ${folder}`).toBe(flow.sql(branch, folder));
 		}
 	});
 });

@@ -1162,6 +1162,7 @@ describe('check --output', () => {
 			id: 'p1',
 			prevIds: [ORIGIN],
 			ddl: 'not-an-array',
+			statements: [],
 		});
 		const result = await runCheck(out);
 
@@ -1411,6 +1412,7 @@ describe('pull json envelopes', () => {
 				id: tag,
 				prevIds: ['00000000-0000-0000-0000-000000000000'],
 				ddl: [],
+				statements: [],
 			}),
 		);
 		return snapshotPath;

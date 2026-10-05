@@ -5,7 +5,15 @@ import { copyDDL, delta } from '../dialect';
 import { fromEntities, type PostgresDDL, type PostgresEntity } from './ddl';
 import { ddlDiff } from './diff';
 import { defaultNameForPK } from './grammar';
-import { type PostgresSnapshot, type PostgresSnapshotV8, startingState } from './snapshot';
+import { renameResolvers } from './renames';
+import {
+	type PostgresBaseSnapshot,
+	type PostgresDiffSnapshot,
+	type PostgresSnapshot,
+	type PostgresSnapshotV8,
+	startingState,
+} from './snapshot';
+import type { JsonStatement } from './statements';
 
 // A format 8 rename string does not say which kind of entity it renames, so every resolver gets all of
 // them. A resolver keeps only the strings whose old name is among its dropped rows and whose new name
@@ -35,6 +43,39 @@ export const withStateKeyNames = (rows: PostgresEntity[], state: PostgresDDL): P
 		return key ? { ...row, name: key.name } : row;
 	});
 
+// The statements of the migration of `snapshot`, from its starting state and its own state. The rename
+// deltas are the rename decisions. Generated names are not kept, so a drop and a create of a constraint in
+// the deltas stay a drop and a create statement, as in the SQL that drizzle-kit wrote for the migration.
+const statementsOf = async (
+	snapshots: Map<string, PostgresSnapshot>,
+	snapshot: Omit<PostgresBaseSnapshot, 'statements'> | Omit<PostgresDiffSnapshot, 'statements'>,
+): Promise<JsonStatement[]> => {
+	// ddlDiff changes both states that it gets, so each one is a separate copy.
+	const from = startingState(snapshots, snapshot.prevIds);
+	const to = snapshot.type === 'diff' ? copyDDL(from) : fromEntities(structuredClone(snapshot.ddl));
+	const resolver = renameResolvers(to, snapshot.type === 'diff' ? snapshot.deltas : []);
+	const { statements } = await ddlDiff(
+		from,
+		to,
+		resolver('schemas'),
+		resolver('enums'),
+		resolver('sequences'),
+		resolver('policies'),
+		resolver('roles'),
+		resolver('tables'),
+		resolver('columns'),
+		resolver('views'),
+		resolver('uniques'),
+		resolver('indexes'),
+		resolver('checks'),
+		resolver('pks'),
+		resolver('fks'),
+		'default',
+		false,
+	);
+	return statements;
+};
+
 // This step is not in versions.ts. The programmatic API imports versions.ts at module load, and it must
 // load snapshot.ts only inside its functions. `files` must be in folder-name order.
 export const upToV9 = async (
@@ -50,8 +91,13 @@ export const upToV9 = async (
 		const header = { version: '9', dialect: 'postgres', id: snapshot.id } as const;
 		const parents = snapshot.prevIds.filter((id) => id && id !== originUUID);
 		if (parents.length === 0) {
-			const ddl = fromEntities(snapshot.ddl).entities.list();
-			converted.set(snapshot.id, { type: 'base', ...header, prevIds: [originUUID], ddl });
+			const base = {
+				type: 'base' as const,
+				...header,
+				prevIds: [originUUID],
+				ddl: fromEntities(snapshot.ddl).entities.list(),
+			};
+			converted.set(snapshot.id, { ...base, statements: await statementsOf(converted, base) });
 			continue;
 		}
 		// The first parent of a merge is the one with the newest folder name.
@@ -83,7 +129,8 @@ export const upToV9 = async (
 		// Drops and creates at the end restore the stored names, except for the primary key names that
 		// withStateKeyNames takes from the state.
 		deltas.push(...delta(to, fromEntities(withStateKeyNames(snapshot.ddl, to))));
-		converted.set(snapshot.id, { type: 'diff', ...header, prevIds, deltas });
+		const diff = { type: 'diff' as const, ...header, prevIds, deltas };
+		converted.set(snapshot.id, { ...diff, statements: await statementsOf(converted, diff) });
 	}
 	return files.map((it) => converted.get(it.snapshot.id)!);
 };

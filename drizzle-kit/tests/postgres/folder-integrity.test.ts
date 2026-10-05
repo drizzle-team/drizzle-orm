@@ -238,6 +238,7 @@ test('reconstruct stops on a cycle of first parents', () => {
 		id,
 		prevIds: [parent],
 		deltas: [],
+		statements: [],
 	});
 	const history = new Map([diff('a', 'b'), diff('b', 'a')].map((it) => [it.id, it]));
 

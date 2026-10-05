@@ -86,13 +86,15 @@ For postgresql, drizzle-kit writes snapshot format 9:
 
 drizzle-kit rebuilds the schema of any migration by starting from the base snapshot and applying the deltas of the later snapshots in order. So each migration's `snapshot.json` is small, and a reviewer can read it next to `migration.sql` to see what changed. It also means that every snapshot needs all the snapshots before it: keep every migration folder, and in particular keep the first one.
 
-`generate --custom` writes a `migration.sql` that holds only a comment, for hand-written SQL, and a diff snapshot with no deltas.
+Every snapshot also stores the **statements** of its own migration in `statements`, in the order of the SQL. A statement is one schema change with its meaning, for example `{ "type": "rename_column", ... }`. The `check` command compares the stored statements of two branches, so its result for an old migration does not change with a newer drizzle-kit. Do not edit `statements` by hand: a snapshot without the field, or with an unknown statement `type`, is malformed.
+
+`generate --custom` writes a `migration.sql` that holds only a comment, for hand-written SQL, and a diff snapshot with no deltas and no statements. drizzle-kit does not read the SQL of a custom migration, so `check` does not see what it changes.
 
 mysql, sqlite, turso, mssql, singlestore and cockroach still write the full schema into every snapshot.
 
 ### Branches and merges
 
-When two git branches each add migrations and then come together, the migrations folder has several leaves: the newest migration of each branch. `generate`, `check` and `migrate` first check that the branches do not conflict. For postgresql, the check compares every change on one branch with every change on the other, so a change that a branch makes and later reverts still counts.
+When two git branches each add migrations and then come together, the migrations folder has several leaves: the newest migration of each branch. `generate`, `check` and `migrate` first check that the branches do not conflict. For postgresql, the check compares every stored statement of one branch with every stored statement of the other, so a change that a branch makes and later reverts still counts.
 
 - If the branches do not conflict, the next `generate` with a schema change writes a **merge migration**. Its `prevIds` lists the newest migration of every branch. For postgresql, the one with the newest folder name comes first, the merge snapshot holds only the deltas of the new change, and `migration.sql` holds only the new change, because each branch's SQL already runs from that branch's own folders. If the schema has no new change, `generate` writes nothing, and the branches stay open until the next migration. Open branches do not stop `migrate`.
 - If the branches conflict, `check`, `generate` and `migrate` stop with the `check_error` code and `kind: "conflicts"`. The report names the conflicting migrations.
@@ -127,7 +129,7 @@ Run `drizzle-kit up` when a command stops with `migrations_outdated_error`, or w
 `up` changes only the files in the migrations folder:
 
 - If the folder still has `meta/_journal.json` and `meta/<n>_snapshot.json` files, `up` moves every migration into its own folder with `migration.sql` and `snapshot.json`.
-- For postgresql, `up` converts every older snapshot to format 9. The first snapshot becomes a base snapshot, and every later one becomes a diff snapshot. Renames that the old snapshots recorded become rename deltas. If an old snapshot stores another generated name for a constraint than the rebuilt schema has, `up` adds a drop and a create of that constraint to keep the stored name. `up` does not change the SQL of any migration.
+- For postgresql, `up` converts every older snapshot to format 9. The first snapshot becomes a base snapshot, and every later one becomes a diff snapshot. Renames that the old snapshots recorded become rename deltas. `up` also computes the statements of each converted migration and stores them. If an old snapshot stores another generated name for a constraint than the rebuilt schema has, `up` adds a drop and a create of that constraint to keep the stored name. `up` does not change the SQL of any migration.
 
 For postgresql, `up` rebuilds every schema from the new files and compares it with the old file before it rewrites any snapshot. The comparison ignores the name of a primary key that has the Postgres default name `<table>_pkey`: after a table rename, Postgres keeps the old name, and the rebuilt schema keeps it too. If one schema differs, `up` rewrites no snapshot and stops with the `command_output_error` code and `kind: "state_mismatch"`, which names the snapshot and the entity. That is a drizzle-kit bug: keep the old files and report it. `up` moves and writes files only after every check passed, so a failure leaves the folder as it was. A folder that is already current stays as it is, and `upgraded` is then `[]`.
 

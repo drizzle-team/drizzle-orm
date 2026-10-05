@@ -446,6 +446,7 @@ type BaseSnapshot = {
   id: string;
   prevIds: ['00000000-0000-0000-0000-000000000000'];
   ddl: Row[];
+  statements: Statement[];
 };
 
 type DiffSnapshot = {
@@ -455,7 +456,10 @@ type DiffSnapshot = {
   id: string;
   prevIds: string[]; // at least one parent
   deltas: Delta[];
+  statements: Statement[];
 };
+
+type Statement = { type: string; [field: string]: unknown };
 
 type Delta =
   | { op: 'create'; row: Row }
@@ -466,11 +470,20 @@ type Delta =
 ```
 
 - A **base snapshot** holds the full state. It is the first snapshot in the migrations folder. `generate` writes it for the first migration, and `pull` writes it into an empty migrations folder.
-- A **diff snapshot** holds only the deltas of its own migration. `generate` writes one for every later migration. `generate --custom` writes one with `deltas: []`.
+- A **diff snapshot** holds only the deltas of its own migration. `generate` writes one for every later migration. `generate --custom` writes one with `deltas: []` and `statements: []`.
 
 A snapshot with another `type` is malformed. A base snapshot that lists a parent is malformed too.
 
-Format 9 snapshots have no `renames` field and store no statements. `generate` on an unchanged schema writes no folder.
+Format 9 snapshots have no `renames` field. `generate` on an unchanged schema writes no folder.
+
+Every snapshot stores the **statements** of its own migration in `statements`, in the order of the SQL in `migration.sql`. A statement is one schema change with its meaning, for example a column rename or a new index. `type` names its kind, such as `create_table`, `add_column` or `rename_column`. The other fields hold the data of that change, so the statements say what the SQL does without a rebuild of the history. `statements` is required, and a snapshot without it, or with a statement of an unknown `type`, is malformed.
+
+- A base snapshot stores the create statements of its state. This applies to the first `generate`, to `pull` and to `up`.
+- A diff snapshot stores the statements of its migration. A merge snapshot stores only the statements of its own change.
+- The snapshot of a custom migration stores an empty list, so drizzle-kit does not see SQL that was written by hand.
+- `up` computes the statements of every snapshot that it converts.
+
+`check` compares the stored statements of the snapshots of two branches. It takes its conflicts only from them, so its result for an old migration does not change with a newer drizzle-kit.
 
 Each row in `ddl`, and each `row` of a `create`, is one entity of the schema. `entityType` names its kind. For example, a column:
 
@@ -539,6 +552,9 @@ Example: a base, a column add, a column rename with a `NOT NULL` change, and a m
   "ddl": [
     { "schema": "public", "name": "users", "isRlsEnabled": false, "entityType": "tables" },
     { "schema": "public", "table": "users", "name": "id", "type": "integer", …, "entityType": "columns" }
+  ],
+  "statements": [
+    { "type": "create_table", "table": { "schema": "public", "name": "users", "columns": [ … ], … } }
   ]
 }
 
@@ -551,6 +567,9 @@ Example: a base, a column add, a column rename with a `NOT NULL` change, and a m
   "prevIds": ["d3339e19-89f8-4fe9-a7ee-bee3db901d0d"],
   "deltas": [
     { "op": "create", "row": { "schema": "public", "table": "users", "name": "email", "type": "varchar", …, "entityType": "columns" } }
+  ],
+  "statements": [
+    { "type": "add_column", "column": { "schema": "public", "table": "users", "name": "email", "type": "varchar", … }, … }
   ]
 }
 
@@ -564,6 +583,10 @@ Example: a base, a column add, a column rename with a `NOT NULL` change, and a m
   "deltas": [
     { "op": "rename", "key": "columns\u0000[\"public\",\"users\",\"email\"]", "set": { "name": "mail" } },
     { "op": "alter", "key": "columns\u0000[\"public\",\"users\",\"mail\"]", "set": { "notNull": true } }
+  ],
+  "statements": [
+    { "type": "rename_column", "from": { "table": "users", "name": "email", … }, "to": { "table": "users", "name": "mail", … } },
+    { "type": "alter_column", "to": { "table": "users", "name": "mail", "notNull": true, … }, … }
   ]
 }
 
@@ -576,6 +599,9 @@ Example: a base, a column add, a column rename with a `NOT NULL` change, and a m
   "prevIds": ["75e723a1-d6f4-4516-9340-82f9696797fc", "71a65ad8-0ae7-48e8-9fff-ad4343d8a315"],
   "deltas": [
     { "op": "create", "row": { "schema": "public", "table": "users", "name": "age", "type": "integer", …, "entityType": "columns" } }
+  ],
+  "statements": [
+    { "type": "add_column", "column": { "schema": "public", "table": "users", "name": "age", "type": "integer", … }, … }
   ]
 }
 ```
