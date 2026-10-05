@@ -148,7 +148,7 @@ function matches(row: Row, where: Row): boolean {
 
 const unq = (s: string) => (s.endsWith('?') ? s.slice(0, -1) : s);
 
-function validateRow(data: any, def: Def, deep = false): boolean {
+export function validateRow(data: any, def: Def, deep = false): boolean {
 	if (typeof data !== 'object' || data === null) return false;
 	for (const k of new Set([...Object.keys(data), ...Object.keys(def)])) {
 		if (!deep && k === 'entityType') continue;

@@ -8,7 +8,7 @@ import { array, validator } from '../simpleValidator';
 import { statementTypes } from './convertor';
 import type { PostgresDDL, PostgresEntity } from './ddl';
 import { createDDL, fromEntities } from './ddl';
-import type { JsonStatement } from './statements';
+import { type SnapshotStatement, snapshotStatementSchemas } from './snapshot-statements';
 
 const indexV2 = object({
 	name: string(),
@@ -577,8 +577,17 @@ const isDelta = (it: any): boolean => {
 		&& Object.keys(it.set).every((field) => Object.hasOwn(definitions[type], field));
 };
 
+export const isSnapshotStatement = (it: unknown): it is SnapshotStatement => {
+	const type = (it as { type?: unknown } | null)?.type;
+	if (typeof type !== 'string') return false;
+	if (Object.hasOwn(snapshotStatementSchemas, type)) {
+		return snapshotStatementSchemas[type as keyof typeof snapshotStatementSchemas].safeParse(it).success;
+	}
+	return statementTypes.has(type);
+};
+
 // Every snapshot stores the statements of its own migration, in the order of the SQL.
-const statements = array<JsonStatement>((it) => statementTypes.has((it as { type?: string } | null)?.type ?? ''));
+const statements = array<SnapshotStatement>(isSnapshotStatement);
 
 const baseValidator = validator({
 	type: ['base'],
@@ -696,7 +705,7 @@ export const assertDeltasRebuildState = (start: PostgresDDL, deltas: Delta[], ex
 export const toJsonSnapshot = (
 	ddl: PostgresDDL,
 	prevIds: string[],
-	statements: JsonStatement[],
+	statements: SnapshotStatement[],
 ): PostgresBaseSnapshot => {
 	return {
 		type: 'base',

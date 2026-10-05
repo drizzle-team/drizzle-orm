@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { integer, pgEnum, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
-import { fromJson } from 'src/dialects/postgres/convertor';
+import { fromJson, toSnapshotStatements } from 'src/dialects/postgres/convertor';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
@@ -90,7 +90,10 @@ beforeAll(async () => {
 
 		const stA = (await diff(parent, mutations[a], [])).statements;
 		const stB = (await diff(parent, mutations[b], [])).statements;
-		facet.set(name, !!(await postgresCommutativity.getReasonsFromStatements(stA, stB)));
+		facet.set(
+			name,
+			!!(await postgresCommutativity.getReasonsFromStatements(toSnapshotStatements(stA), toSnapshotStatements(stB))),
+		);
 	}
 }, 600_000);
 
@@ -282,7 +285,10 @@ describe('changes of one column on two branches vs a real database', () => {
 
 		const ab = await applyBoth(baseSql, left.sqlStatements, right.sqlStatements);
 		const ba = await applyBoth(baseSql, right.sqlStatements, left.sqlStatements);
-		const found = await postgresCommutativity.getReasonsFromStatements(left.statements, right.statements);
+		const found = await postgresCommutativity.getReasonsFromStatements(
+			toSnapshotStatements(left.statements),
+			toSnapshotStatements(right.statements),
+		);
 
 		expect({ rules: !found, postgres: ab.ok && ba.ok && ab.hash === ba.hash }).toStrictEqual({ rules, postgres });
 	});

@@ -2,12 +2,13 @@ import { originUUID } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
 import { apply, copyDDL, type Delta, delta, KeyCollisionError } from '../dialect';
+import { toSnapshotStatements } from './convertor';
 import { createDDL, fromEntities, type PostgresDDL, type PostgresEntity } from './ddl';
 import { ddlDiff } from './diff';
 import { defaultNameForPK } from './grammar';
 import { renameResolvers } from './renames';
 import { type PostgresSnapshot, type PostgresSnapshotV8, startingState, stateHash } from './snapshot';
-import type { JsonStatement } from './statements';
+import type { SnapshotStatement } from './snapshot-statements';
 
 // A format 8 rename string does not say which kind of entity it renames, so every resolver gets all of
 // them. A resolver keeps only the strings whose old name is among its dropped rows and whose new name
@@ -40,7 +41,7 @@ export const withStateKeyNames = (rows: PostgresEntity[], state: PostgresDDL): P
 // The statements of a migration that starts from the state `start` and applies `deltas`. The rename deltas
 // are the rename decisions. Generated names are not kept, so a drop and a create of a constraint in the
 // deltas stay a drop and a create statement, as in the SQL that drizzle-kit wrote for the migration.
-const statementsOf = async (start: PostgresDDL, deltas: Delta[]): Promise<JsonStatement[]> => {
+const statementsOf = async (start: PostgresDDL, deltas: Delta[]): Promise<SnapshotStatement[]> => {
 	// ddlDiff changes both states that it gets, so each one is a separate copy.
 	const from = copyDDL(start);
 	const to = copyDDL(start);
@@ -64,7 +65,7 @@ const statementsOf = async (start: PostgresDDL, deltas: Delta[]): Promise<JsonSt
 		'default',
 		false,
 	);
-	return statements;
+	return toSnapshotStatements(statements);
 };
 
 // An old merge whose branches gave one name to two different entities. Its combined state cannot be rebuilt.

@@ -1,6 +1,7 @@
 import { integer as pgInteger, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { toSnapshotStatements } from '../../src/dialects/postgres/convertor';
 import { createDDL } from '../../src/dialects/postgres/ddl';
 import { ddlDiffDry } from '../../src/dialects/postgres/diff';
 import { type PostgresSnapshot, stateHash } from '../../src/dialects/postgres/snapshot';
@@ -19,8 +20,9 @@ export const makePgSnapshot = async (
 	const { ddl } = drizzleToDDL(schema);
 	const { deltas, statements } = await ddlDiffDry(from ? drizzleToDDL(from).ddl : createDDL(), ddl, 'default');
 	const hash = stateHash(ddl);
-	if (!from) return { type: 'base', ...header, statements, ddl: ddl.entities.list(), stateHash: hash };
-	return { type: 'diff', ...header, statements, deltas, stateHash: hash };
+	const stored = toSnapshotStatements(statements);
+	if (!from) return { type: 'base', ...header, statements: stored, ddl: ddl.entities.list(), stateHash: hash };
+	return { type: 'diff', ...header, statements: stored, deltas, stateHash: hash };
 };
 
 export const stageOut = (): string => {

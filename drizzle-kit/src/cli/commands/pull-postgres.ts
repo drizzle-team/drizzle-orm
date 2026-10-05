@@ -3,6 +3,7 @@ import { writeFileSync } from 'fs';
 import type { TaskView } from 'hanji';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
+import { toSnapshotStatements } from '../../dialects/postgres/convertor';
 import type {
 	CheckConstraint,
 	Column,
@@ -121,7 +122,7 @@ export const handle = async (
 		);
 
 		({ snapshotPath, migrationPath } = writeResult({
-			snapshot: toJsonSnapshot(ddl2, [originUUID], statements),
+			snapshot: toJsonSnapshot(ddl2, [originUUID], toSnapshotStatements(statements)),
 			sqlStatements,
 			outFolder: out,
 			breakpoints,

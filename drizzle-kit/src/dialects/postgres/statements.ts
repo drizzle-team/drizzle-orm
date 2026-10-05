@@ -326,22 +326,6 @@ export interface JsonRecreateColumn {
 	isPK: boolean;
 }
 
-export interface JsonAlterColumnSetPrimaryKey {
-	type: 'alter_column_set_pk';
-	table: string;
-	schema: string;
-	column: string;
-}
-
-export interface JsonAlterColumnChangeGenerated {
-	type: 'alter_column_change_generated';
-	column: Column;
-}
-export interface JsonAlterColumnChangeIdentity {
-	type: 'alter_column_change_identity';
-	column: Column;
-}
-
 export interface JsonCreateSchema {
 	type: 'create_schema';
 	name: string;

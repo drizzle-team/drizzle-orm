@@ -18,6 +18,7 @@ import {
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
+import { toSnapshotStatement } from 'src/dialects/postgres/convertor';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { expect, test } from 'vitest';
 import { build } from './commutativity-statements';
@@ -188,7 +189,9 @@ const verb = (type: string): string =>
 
 // `provides` are writes that only a read of the same node conflicts with.
 function facetSets(stmt: JsonStatement) {
-	const { owns = [], destroys = [], needs = [], provides = [] } = (postgresCommutativity as any).buildFacetPaths(stmt);
+	const { owns = [], destroys = [], needs = [], provides = [] } = (postgresCommutativity as any).buildFacetPaths(
+		toSnapshotStatement(stmt),
+	);
 	return {
 		writes: new Set<string>([...owns, ...destroys]),
 		reads: new Set<string>(needs),
@@ -217,7 +220,7 @@ const CREATE_OPS = new Set([
 ]);
 
 async function conflict(a: JsonStatement, b: JsonStatement): Promise<boolean> {
-	return !!(await postgresCommutativity.getReasonsFromStatements([a], [b]));
+	return !!(await postgresCommutativity.getReasonsFromStatements([toSnapshotStatement(a)], [toSnapshotStatement(b)]));
 }
 
 async function generateMatrix() {
@@ -389,7 +392,9 @@ const isRename = (statement: JsonStatement) =>
 	statement.type.startsWith('rename_') || statement.type.startsWith('move_');
 // The kinds of nodes (`pk`, `col`, ...) that the claims of a statement name.
 const claimKinds = (statement: JsonStatement) => {
-	const { owns = [], destroys = [], needs = [] } = (postgresCommutativity as any).buildFacetPaths(statement);
+	const { owns = [], destroys = [], needs = [] } = (postgresCommutativity as any).buildFacetPaths(
+		toSnapshotStatement(statement),
+	);
 	const kinds = (keys: string[]) => [...new Set(keys.map((key) => key.split('|')[1]))].sort();
 	return { writes: kinds([...owns, ...destroys]), reads: kinds(needs) };
 };
@@ -415,7 +420,7 @@ test('every rename that the diff writes has a matrix row with claims on the same
 test('a constraint rename of an unknown kind throws', async () => {
 	const statement = { ...build('rename_constraint:uniques'), entityType: 'indexes' } as unknown as JsonStatement;
 
-	await expect(postgresCommutativity.getReasonsFromStatements([statement], [])).rejects.toThrow(
+	await expect(postgresCommutativity.getReasonsFromStatements([toSnapshotStatement(statement)], [])).rejects.toThrow(
 		"rename_constraint has the unknown constraint kind 'indexes'",
 	);
 });

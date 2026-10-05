@@ -9,7 +9,7 @@ import type { ConflictTarget } from '../../commutativity/types';
 import type { Column, Index, IndexColumn, Policy, Privilege } from './ddl';
 import { builtinPolicyRoles } from './grammar';
 import { drySnapshot, type PostgresSnapshot } from './snapshot';
-import type { JsonStatement } from './statements';
+import type { SnapshotStatement } from './snapshot-statements';
 
 type FootprintTarget = {
 	schema: string;
@@ -17,10 +17,10 @@ type FootprintTarget = {
 	columnName: string;
 };
 
-type StatementInfo = CommutativityStatementInfo<JsonStatement, FootprintTarget>;
+type StatementInfo = CommutativityStatementInfo<SnapshotStatement, FootprintTarget>;
 
 type StatementDefinitions = CommutativityStatementDefinitions<
-	JsonStatement,
+	SnapshotStatement,
 	FootprintTarget
 >;
 
@@ -59,7 +59,7 @@ function makeSchemaTarget(schemaName: string): FootprintTarget {
  * not read the `conflicts` arrays of the definitions.
  */
 class PostgresCommutativity extends FacetCommutativity<
-	JsonStatement,
+	SnapshotStatement,
 	PostgresSnapshot,
 	FootprintTarget
 > {
@@ -94,7 +94,7 @@ class PostgresCommutativity extends FacetCommutativity<
 		'alter_role',
 		'rename_role',
 	]);
-	private schemaConflictTypes: JsonStatement['type'][] = [
+	private schemaConflictTypes: SnapshotStatement['type'][] = [
 		'create_schema',
 		'drop_schema',
 		'rename_schema',
@@ -221,8 +221,8 @@ class PostgresCommutativity extends FacetCommutativity<
 			recreate_column: {
 				conflicts: ['add_column', 'drop_column', 'alter_column', 'recreate_column', 'rename_column'],
 				buildInfo: (statement) => ({
-					primary: makeTarget(statement.diff.schema, statement.diff.table, statement.diff.name),
-					ancestors: [makeTableTarget(statement.diff.schema, statement.diff.table)],
+					primary: makeTarget(statement.column.schema, statement.column.table, statement.column.name),
+					ancestors: [makeTableTarget(statement.column.schema, statement.column.table)],
 				}),
 			},
 			rename_column: {
@@ -643,7 +643,7 @@ class PostgresCommutativity extends FacetCommutativity<
 	}
 
 	protected override describeStatement(
-		statement: JsonStatement,
+		statement: SnapshotStatement,
 		info: StatementInfo,
 	): string {
 		if (statement.type === 'create_index' || statement.type === 'drop_index') {
@@ -700,7 +700,7 @@ class PostgresCommutativity extends FacetCommutativity<
 	]);
 
 	protected override describeStatementTarget(
-		statement: JsonStatement,
+		statement: SnapshotStatement,
 		info: StatementInfo,
 	): ConflictTarget {
 		if (
@@ -750,7 +750,7 @@ class PostgresCommutativity extends FacetCommutativity<
 	// key, so children/cross-refs line up with the nodes drops remove.
 	// ----------------------------------------------------------------------
 
-	protected override buildFacetPaths(statement: JsonStatement): FacetPaths {
+	protected override buildFacetPaths(statement: SnapshotStatement): FacetPaths {
 		// EXACT (strict) COMMUTATIVITY via three facets per node:
 		//   s|N  self       — written by EVERY structural op on N. Two ops on the same
 		//                     node collide here (add+drop, two alters, …).
@@ -885,8 +885,8 @@ class PostgresCommutativity extends FacetCommutativity<
 			case 'recreate_column': // DROP + re-ADD the column: destroys & re-establishes it (cascading its
 				// indexes/constraints), so it writes existence like a create/drop, not just `self` like an alter
 				return {
-					owns: created('col', s.diff.schema, s.diff.table, s.diff.name),
-					needs: underTable(s.diff.schema, s.diff.table),
+					owns: created('col', s.column.schema, s.column.table, s.column.name),
+					needs: underTable(s.column.schema, s.column.table),
 				};
 			case 'rename_column':
 				return {
@@ -1215,7 +1215,7 @@ class PostgresCommutativity extends FacetCommutativity<
 
 			default: {
 				// Exhaustiveness guard: `statement` is `never` here only when every
-				// JsonStatement type has an explicit case above. Adding a new statement
+				// SnapshotStatement type has an explicit case above. Adding a new statement
 				// type without handling it here is therefore a compile error — forcing
 				// its footprint to be declared rather than silently defaulted.
 				const unhandled: never = s;

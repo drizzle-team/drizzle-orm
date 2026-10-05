@@ -1,5 +1,6 @@
 import { index, integer, pgTable, varchar } from 'drizzle-orm/pg-core';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
+import { toSnapshotStatements } from 'src/dialects/postgres/convertor';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
@@ -104,7 +105,10 @@ beforeAll(async () => {
 		const B = await diff(fork, other, []);
 
 		const verdict = async (A: { statements: any[] }) =>
-			!!(await postgresCommutativity.getReasonsFromStatements(A.statements, B.statements));
+			!!(await postgresCommutativity.getReasonsFromStatements(
+				toSnapshotStatements(A.statements),
+				toSnapshotStatements(B.statements),
+			));
 
 		const truth = async (A: { sqlStatements: string[] }) => {
 			const ab = await run(setup, A.sqlStatements, B.sqlStatements);

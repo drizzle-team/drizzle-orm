@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { render } from 'hanji';
 import { dirname } from 'path';
 import { copyDDL, type Delta } from '../../dialects/dialect';
+import { toSnapshotStatements } from '../../dialects/postgres/convertor';
 import type {
 	CheckConstraint,
 	Column,
@@ -24,7 +25,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgr
 import type { SchemaSource } from '../../dialects/postgres/drizzle';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
 import { assertDeltasRebuildState, type PostgresSnapshot, stateHash } from '../../dialects/postgres/snapshot';
-import type { JsonStatement } from '../../dialects/postgres/statements';
+import type { SnapshotStatement } from '../../dialects/postgres/snapshot-statements';
 import { originUUID } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import { isInteractive, outputFormat } from '../context';
@@ -70,7 +71,7 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 
 	// `state` is what the snapshot must rebuild to, and `deltas` turn `ddlPrev` into it. `statements` are the
 	// statements of the migration, in the order of its SQL.
-	const snapshotOf = (state: PostgresDDL, deltas: Delta[], statements: JsonStatement[]): PostgresSnapshot => {
+	const snapshotOf = (state: PostgresDDL, deltas: Delta[], statements: SnapshotStatement[]): PostgresSnapshot => {
 		const header = { version: '9', dialect: 'postgres', id: randomUUID() } as const;
 		const hash = stateHash(state);
 		if (prevIds.length === 0) {
@@ -144,7 +145,7 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	if (!config.explain) {
 		return {
 			...writeResult({
-				snapshot: snapshotOf(ddlCur, deltas, statements),
+				snapshot: snapshotOf(ddlCur, deltas, toSnapshotStatements(statements)),
 				sqlStatements,
 				outFolder,
 				name: config.name,

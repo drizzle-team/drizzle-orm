@@ -32,7 +32,7 @@ import {
 import { configMigrations } from 'src/cli/validations/common';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import { apply, copyDDL, type Delta } from 'src/dialects/dialect';
-import { fromJson } from 'src/dialects/postgres/convertor';
+import { fromSnapshotStatements, toSnapshotStatements } from 'src/dialects/postgres/convertor';
 import {
 	createDDL,
 	fromEntities,
@@ -74,6 +74,8 @@ import { relationsToTypeScript } from 'src/cli/commands/pull-common';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
 import { extractPostgresExisting } from 'src/dialects/drizzle';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
+import { isSnapshotStatement } from 'src/dialects/postgres/snapshot';
+import type { SnapshotStatement } from 'src/dialects/postgres/snapshot-statements';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { upToV8 } from 'src/dialects/postgres/versions';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
@@ -164,10 +166,13 @@ const expectDeltasRebuildState = (parent: PostgresDDL, deltas: Delta[], next: Po
 		.toStrictEqual(normalizeDDL(next.entities.list()));
 };
 
-// A snapshot stores the statements as JSON, and the SQL of a migration must be rebuilt from them.
+// A snapshot stores the statements in their stored form, as JSON. Every stored statement must pass the
+// validator of a snapshot, and the SQL of a migration must be rebuilt from the stored statements.
 const expectStatementsRebuildSql = (statements: JsonStatement[], sqlStatements: string[]) => {
-	expect(fromJson(JSON.parse(JSON.stringify(statements))).sqlStatements, 'the stored statements rebuild the SQL')
-		.toStrictEqual(sqlStatements);
+	const stored: SnapshotStatement[] = JSON.parse(JSON.stringify(toSnapshotStatements(statements)));
+	expect(stored.filter((it) => !isSnapshotStatement(it)), 'stored statements that the validator rejects')
+		.toStrictEqual([]);
+	expect(fromSnapshotStatements(stored), 'the stored statements rebuild the SQL').toStrictEqual(sqlStatements);
 };
 
 // 2 schemas -> 2 ddls -> diff
@@ -905,5 +910,5 @@ export async function conflictsFromSchema(
 	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
 	const { statements: st2 } = await diff(parent.schema, child2.schema, []);
 
-	return await postgresCommutativity.getReasonsFromStatements(st1, st2);
+	return await postgresCommutativity.getReasonsFromStatements(toSnapshotStatements(st1), toSnapshotStatements(st2));
 }

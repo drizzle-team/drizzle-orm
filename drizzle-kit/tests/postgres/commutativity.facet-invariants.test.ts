@@ -1,4 +1,5 @@
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
+import { toSnapshotStatements } from 'src/dialects/postgres/convertor';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { expect, test } from 'vitest';
 
@@ -79,12 +80,21 @@ function build(type: string, n: NS, opts: { cols?: string[]; enumCol?: boolean }
 		case 'create_table':
 			return {
 				type,
-				table: { schema: n.schema, name: n.table, isRlsEnabled: false, columns: [], pk: null, uniques: [] },
+				table: {
+					schema: n.schema,
+					name: n.table,
+					isRlsEnabled: false,
+					columns: [],
+					pk: null,
+					uniques: [],
+					checks: [],
+					policies: [],
+				},
 			} as any;
 		case 'drop_table':
 			return {
 				type,
-				table: { schema: n.schema, name: n.table, isRlsEnabled: false },
+				table: { schema: n.schema, name: n.table, isRlsEnabled: false, policies: [] },
 				key: `${n.schema}.${n.table}`,
 			} as any;
 		case 'rename_table':
@@ -100,10 +110,10 @@ function build(type: string, n: NS, opts: { cols?: string[]; enumCol?: boolean }
 			return {
 				type,
 				to: column(n),
-				diff: { schema: n.schema, table: n.table, name: n.col, notNull: { from: false, to: true } },
+				diff: { schema: n.schema, table: n.table, name: n.col, notNull: { from: false, to: true }, $left: column(n) },
 			} as any;
 		case 'recreate_column':
-			return { type, diff: { schema: n.schema, table: n.table, name: n.col } } as any;
+			return { type, diff: { schema: n.schema, table: n.table, name: n.col, $right: column(n) } } as any;
 		case 'rename_column':
 			return { type, from: column(n, n.col), to: column(n, n.to) } as any;
 
@@ -462,8 +472,9 @@ const REFERENCES_COLUMN = new Set([
 	'recreate_fk',
 ]);
 
+// The claim rules read the form of a statement that a snapshot stores.
 async function conflicts(a: JsonStatement[], b: JsonStatement[]): Promise<boolean> {
-	return !!(await postgresCommutativity.getReasonsFromStatements(a, b));
+	return !!(await postgresCommutativity.getReasonsFromStatements(toSnapshotStatements(a), toSnapshotStatements(b)));
 }
 
 const A = ns('A');

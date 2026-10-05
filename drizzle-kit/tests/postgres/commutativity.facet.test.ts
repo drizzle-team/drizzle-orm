@@ -1,4 +1,5 @@
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
+import { toSnapshotStatements } from 'src/dialects/postgres/convertor';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { describe, expect, test } from 'vitest';
 
@@ -47,7 +48,11 @@ const S = {
 	renameTable: (schema: string, from: string, to: string) => ({ type: 'rename_table', schema, from, to }) as any,
 	moveTable: (name: string, from: string, to: string) => ({ type: 'move_table', name, from, to }) as any,
 	dropTable: (schema: string, name: string) =>
-		({ type: 'drop_table', table: { schema, name, isRlsEnabled: false }, key: `${schema}.${name}` }) as any,
+		({
+			type: 'drop_table',
+			table: { schema, name, isRlsEnabled: false, policies: [] },
+			key: `${schema}.${name}`,
+		}) as any,
 	addColumn: (schema: string, table: string, name: string, extra: Record<string, unknown> = {}) =>
 		({ type: 'add_column', column: col(schema, table, name, extra), isPK: false, isCompositePK: false }) as any,
 	dropColumn: (schema: string, table: string, name: string) =>
@@ -61,9 +66,14 @@ const S = {
 		name: string,
 		extra: Record<string, unknown> = {},
 		change: Record<string, unknown> = { notNull: { from: false, to: true } },
-	) => ({ type: 'alter_column', to: col(schema, table, name, extra), diff: { schema, table, name, ...change } }) as any,
+	) =>
+		({
+			type: 'alter_column',
+			to: col(schema, table, name, extra),
+			diff: { schema, table, name, ...change, $left: col(schema, table, name) },
+		}) as any,
 	recreateColumn: (schema: string, table: string, name: string) =>
-		({ type: 'recreate_column', diff: { schema, table, name } }) as any,
+		({ type: 'recreate_column', diff: { schema, table, name, $right: col(schema, table, name) } }) as any,
 	createIndex: (schema: string, table: string, name: string, cols: string[]) =>
 		({ type: 'create_index', index: index(schema, table, name, cols) }) as any,
 	dropIndex: (schema: string, table: string, name: string, cols: string[]) =>
@@ -123,7 +133,10 @@ const S = {
 			},
 		}) as any,
 	createTable: (schema: string, name: string, columns: unknown[] = []) =>
-		({ type: 'create_table', table: { schema, name, isRlsEnabled: false, columns, pk: null, uniques: [] } }) as any,
+		({
+			type: 'create_table',
+			table: { schema, name, isRlsEnabled: false, columns, pk: null, uniques: [], checks: [], policies: [] },
+		}) as any,
 	dropPk: (schema: string, table: string, cols: string[]) =>
 		({ type: 'drop_pk', pk: { schema, table, name: `${table}_pkey`, nameExplicit: false, columns: cols } }) as any,
 	dropUnique: (schema: string, table: string, name: string, cols: string[]) =>
@@ -159,8 +172,9 @@ const S = {
 		}) as any,
 };
 
+// The claim rules read the form of a statement that a snapshot stores.
 async function conflicts(a: JsonStatement[], b: JsonStatement[]): Promise<boolean> {
-	return !!(await postgresCommutativity.getReasonsFromStatements(a, b));
+	return !!(await postgresCommutativity.getReasonsFromStatements(toSnapshotStatements(a), toSnapshotStatements(b)));
 }
 
 type Case = { name: string; a: JsonStatement[]; b: JsonStatement[]; expect: 'conflict' | 'commute' };
