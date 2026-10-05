@@ -553,8 +553,8 @@ const isDelta = (it: any): boolean => {
 		&& Object.keys(it.set).every((field) => Object.hasOwn(definitions[type], field));
 };
 
-const stateValidator = validator({
-	type: ['base', 'checkpoint'],
+const baseValidator = validator({
+	type: ['base'],
 	version: ['9'],
 	dialect: ['postgres'],
 	id: 'string',
@@ -577,14 +577,30 @@ const diffValidator = validator({
 	deltas: array<Delta>(isDelta),
 });
 
-// A base or a checkpoint holds the full state.
-export type PostgresStateSnapshot = typeof stateValidator.shape;
+export type PostgresBaseSnapshot = typeof baseValidator.shape;
 export type PostgresDiffSnapshot = typeof diffValidator.shape;
-export type PostgresSnapshot = PostgresStateSnapshot | PostgresDiffSnapshot;
+export type PostgresSnapshot = PostgresBaseSnapshot | PostgresDiffSnapshot;
+
+// The programmatic API returns a schema state: a full state with an id and parents. It is not a snapshot,
+// and a migrations folder never holds one.
+export type PostgresSchemaState = {
+	version: '9';
+	dialect: 'postgres';
+	id: string;
+	prevIds: string[];
+	ddl: PostgresEntity[];
+};
 
 export const snapshotValidator = {
 	parse: (it: unknown) => {
-		if ((it as { type?: unknown } | null)?.type !== 'diff') return stateValidator.parse(it);
+		if ((it as { type?: unknown } | null)?.type !== 'diff') {
+			const res = baseValidator.parse(it);
+			// A full state in the middle of a history would bring back rows that a merge replay already dropped.
+			if (res.data?.prevIds.some((id) => id !== originUUID)) {
+				return { success: false, data: null, errors: ["Field 'prevIds' of a base snapshot must not list a parent"] };
+			}
+			return res;
+		}
 		const res = diffValidator.parse(it);
 		// A diff snapshot is rebuilt from its first parent, so it must have one.
 		if (res.data?.prevIds.length === 0) {
@@ -598,11 +614,11 @@ export const snapshotValidator = {
 	},
 };
 
-export const toJsonSnapshot = (ddl: PostgresDDL, prevIds: string[]): PostgresStateSnapshot => {
+export const toJsonSnapshot = (ddl: PostgresDDL, prevIds: string[]): PostgresBaseSnapshot => {
 	return { type: 'base', version: '9', dialect: 'postgres', id: randomUUID(), prevIds, ddl: ddl.entities.list() };
 };
 
-export const drySnapshot: PostgresStateSnapshot = {
+export const drySnapshot: PostgresBaseSnapshot = {
 	type: 'base',
 	version: '9',
 	dialect: 'postgres',
@@ -653,8 +669,7 @@ const historyOf = (
 // This replay skips a drop, alter, rename or relocate of a missing row, and applyInPlace alone would throw
 // for it. A create, rename or relocate onto a taken key overwrites the row there, as in every applyInPlace
 // call. A base adds its rows as creates, because two branches that each started from an empty folder share
-// no ancestor. A checkpoint holds the state of its own branch, and that state would bring back rows the
-// first parent dropped.
+// no ancestor.
 const combineInPlace = (
 	state: PostgresDDL,
 	snapshots: Map<string, PostgresSnapshot>,
@@ -665,13 +680,6 @@ const combineInPlace = (
 	const replayed = historyOf(snapshots, others, child, historyOf(snapshots, [first], child));
 	for (const [id, snapshot] of snapshots) {
 		if (!replayed.has(id)) continue;
-		if (snapshot.type === 'checkpoint') {
-			throw new Error(
-				`Cannot merge branches: checkpoint ${id} is part of a branch that the merge replays, `
-					+ 'and a checkpoint is supported only in linear history. '
-					+ `Delete ${id} and every later migration of its branch, then run generate again.`,
-			);
-		}
 		const deltas: Delta[] = snapshot.type === 'diff'
 			? snapshot.deltas
 			: snapshot.ddl.map((row) => ({ op: 'create', row }));

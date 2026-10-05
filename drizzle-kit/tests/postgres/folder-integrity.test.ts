@@ -52,6 +52,29 @@ test('deleting a middle migration stops every command with the missing parent an
 	);
 });
 
+test('a snapshot with the type checkpoint is malformed', async () => {
+	const flow = createFolderFlow();
+	await flow.generate('main', v1);
+	const { folder } = await flow.generate('main', v2);
+	const { id, prevIds } = flow.snapshot('main', folder!);
+	flow.overwriteSnapshot(
+		'main',
+		folder!,
+		JSON.stringify({ type: 'checkpoint', version: '9', dialect: 'postgres', id, prevIds, ddl: [] }),
+	);
+
+	expect(errorToEnvelope(await flow.check('main').catch((e) => e))).toStrictEqual({
+		status: 'error',
+		error: {
+			code: 'check_error',
+			kind: 'malformed',
+			snapshot: expect.stringMatching(/20260101120002_main[/\\]snapshot\.json$/),
+		},
+	});
+	await expect(flow.generate('main', v3)).rejects.toThrow('data is malformed');
+	expect(flow.folders('main')).toStrictEqual(['20260101120001_main', '20260101120002_main']);
+});
+
 test('deleting the first migration stops every command because the base is missing', async () => {
 	const flow = createFolderFlow();
 	await flow.generate('main', v1);

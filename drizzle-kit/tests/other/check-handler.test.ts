@@ -2,14 +2,14 @@ import { integer, pgTable, varchar } from 'drizzle-orm/pg-core';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { checkHandler, checkSnapshots } from 'src/cli/commands/check';
-import type { PostgresStateSnapshot } from 'src/dialects/postgres/snapshot';
+import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import { prepareOutFolder } from 'src/utils/utils-node';
 import { expect, test } from 'vitest';
 import { makePgSnapshot as makeSnapshot } from './check-fixtures';
 
 const ORIGIN = '00000000-0000-0000-0000-000000000000';
 
-function snapshotPath(out: string, tag: string, snapshot: PostgresStateSnapshot) {
+function snapshotPath(out: string, tag: string, snapshot: PostgresSnapshot) {
 	const folder = join(out, tag);
 	mkdirSync(folder, { recursive: true });
 	const path = join(folder, 'snapshot.json');
@@ -45,9 +45,9 @@ test('returns every open leaf for commutative open branches', async () => {
 		}),
 	};
 
-	const parent = makeSnapshot('p1', [ORIGIN], parentSchema);
-	const left = makeSnapshot('a1', ['p1'], leftSchema);
-	const right = makeSnapshot('b1', ['p1'], rightSchema);
+	const parent = await makeSnapshot('p1', [ORIGIN], parentSchema);
+	const left = await makeSnapshot('a1', ['p1'], leftSchema, parentSchema);
+	const right = await makeSnapshot('b1', ['p1'], rightSchema, parentSchema);
 
 	snapshotPath(out, '000_parent', parent);
 	snapshotPath(out, '001_left', left);
@@ -100,10 +100,10 @@ test('returns one leaf and no conflicts when branches are already merged into on
 		}),
 	};
 
-	const parent = makeSnapshot('p1', [ORIGIN], parentSchema);
-	const left = makeSnapshot('a1', ['p1'], leftSchema);
-	const right = makeSnapshot('b1', ['p1'], rightSchema);
-	const merged = makeSnapshot('m1', ['a1', 'b1'], mergedSchema);
+	const parent = await makeSnapshot('p1', [ORIGIN], parentSchema);
+	const left = await makeSnapshot('a1', ['p1'], leftSchema, parentSchema);
+	const right = await makeSnapshot('b1', ['p1'], rightSchema, parentSchema);
+	const merged = await makeSnapshot('m1', ['a1', 'b1'], mergedSchema, mergedSchema);
 
 	snapshotPath(out, '000_parent', parent);
 	snapshotPath(out, '001_left', left);
@@ -139,9 +139,9 @@ test('returns non-commutativity message and no statements for conflicting branch
 		}),
 	};
 
-	const parent = makeSnapshot('p1', [ORIGIN], parentSchema);
-	const left = makeSnapshot('a1', ['p1'], leftSchema);
-	const right = makeSnapshot('b1', ['p1'], rightSchema);
+	const parent = await makeSnapshot('p1', [ORIGIN], parentSchema);
+	const left = await makeSnapshot('a1', ['p1'], leftSchema, parentSchema);
+	const right = await makeSnapshot('b1', ['p1'], rightSchema, parentSchema);
 
 	snapshotPath(out, '000_parent', parent);
 	snapshotPath(out, '001_left', left);
@@ -193,11 +193,11 @@ test('does not report conflicts when sibling branches converge to the same termi
 		}),
 	};
 
-	const root = makeSnapshot('r1', [ORIGIN], rootSchema);
-	const parent = makeSnapshot('p1', ['r1'], parentSchema);
-	const left = makeSnapshot('a1', ['p1'], leftSchema);
-	const right = makeSnapshot('b1', ['p1'], rightSchema);
-	const merged = makeSnapshot('m1', ['a1', 'b1'], mergedSchema);
+	const root = await makeSnapshot('r1', [ORIGIN], rootSchema);
+	const parent = await makeSnapshot('p1', ['r1'], parentSchema, rootSchema);
+	const left = await makeSnapshot('a1', ['p1'], leftSchema, parentSchema);
+	const right = await makeSnapshot('b1', ['p1'], rightSchema, parentSchema);
+	const merged = await makeSnapshot('m1', ['a1', 'b1'], mergedSchema, mergedSchema);
 
 	snapshotPath(out, '000_root', root);
 	snapshotPath(out, '001_parent', parent);
@@ -271,13 +271,13 @@ test('reports only active leaf conflict after branch merge and re-split', async 
 		...splitOneSchema,
 	};
 
-	const root = makeSnapshot('r1', [ORIGIN], rootSchema);
-	const parent = makeSnapshot('p1', ['r1'], parentSchema);
-	const left = makeSnapshot('a1', ['p1'], leftSchema);
-	const right = makeSnapshot('b1', ['p1'], rightSchema);
-	const merged = makeSnapshot('m1', ['a1', 'b1'], mergedSchema);
-	const splitOne = makeSnapshot('s1', ['m1'], splitOneSchema);
-	const splitTwo = makeSnapshot('s2', ['m1'], splitTwoSchema);
+	const root = await makeSnapshot('r1', [ORIGIN], rootSchema);
+	const parent = await makeSnapshot('p1', ['r1'], parentSchema, rootSchema);
+	const left = await makeSnapshot('a1', ['p1'], leftSchema, parentSchema);
+	const right = await makeSnapshot('b1', ['p1'], rightSchema, parentSchema);
+	const merged = await makeSnapshot('m1', ['a1', 'b1'], mergedSchema, mergedSchema);
+	const splitOne = await makeSnapshot('s1', ['m1'], splitOneSchema, mergedSchema);
+	const splitTwo = await makeSnapshot('s2', ['m1'], splitTwoSchema, mergedSchema);
 
 	snapshotPath(out, '000_root', root);
 	snapshotPath(out, '001_parent', parent);
@@ -311,11 +311,11 @@ test('a nested open fork returns every open leaf', async () => {
 			['t', ...names].map((name) => [name, pgTable(name, { id: integer('id') })]),
 		);
 
-	const p = makeSnapshot('p1', [ORIGIN], t());
-	const a = makeSnapshot('a1', ['p1'], t('a'));
-	const b = makeSnapshot('b1', ['p1'], t('b'));
-	const bx = makeSnapshot('bx1', ['b1'], t('b', 'x'));
-	const by = makeSnapshot('by1', ['b1'], t('b', 'y'));
+	const p = await makeSnapshot('p1', [ORIGIN], t());
+	const a = await makeSnapshot('a1', ['p1'], t('a'), t());
+	const b = await makeSnapshot('b1', ['p1'], t('b'), t());
+	const bx = await makeSnapshot('bx1', ['b1'], t('b', 'x'), t('b'));
+	const by = await makeSnapshot('by1', ['b1'], t('b', 'y'), t('b'));
 
 	snapshotPath(out, '000_p', p);
 	snapshotPath(out, '001_a', a);
@@ -392,11 +392,11 @@ test('an open fork with a deep branch returns only the open leaves', async () =>
 		}),
 	};
 
-	const parent = makeSnapshot('p1', [ORIGIN], parentSchema);
-	const leaf1 = makeSnapshot('l1', ['p1'], leaf1Schema);
-	const leaf2 = makeSnapshot('l2', ['p1'], leaf2Schema);
-	const leaf3 = makeSnapshot('l3', ['l2'], leaf3Schema);
-	const leaf4 = makeSnapshot('l4', ['l3'], leaf4Schema);
+	const parent = await makeSnapshot('p1', [ORIGIN], parentSchema);
+	const leaf1 = await makeSnapshot('l1', ['p1'], leaf1Schema, parentSchema);
+	const leaf2 = await makeSnapshot('l2', ['p1'], leaf2Schema, parentSchema);
+	const leaf3 = await makeSnapshot('l3', ['l2'], leaf3Schema, leaf2Schema);
+	const leaf4 = await makeSnapshot('l4', ['l3'], leaf4Schema, leaf3Schema);
 
 	snapshotPath(out, '000_parent', parent);
 	snapshotPath(out, '001_leaf1', leaf1);

@@ -103,7 +103,7 @@ describe('SDK does not invoke process.stdout.write or process.exit', () => {
 	});
 
 	test('check stays silent on an ok run', async () => {
-		const out = stageValid();
+		const out = await stageValid();
 		cleanups.push(() => rmSync(out, { recursive: true, force: true }));
 		const { result, stdoutCalls, exitCalls } = await captureStdoutAndExit(() => check({ dialect: 'postgresql', out }));
 		expect(result.status).toBe('ok');

@@ -20,31 +20,22 @@ import type {
 	View,
 } from '../dialects/postgres/ddl';
 import { fromEntities, interimToDDL } from '../dialects/postgres/ddl';
-import type { PostgresSnapshot, PostgresSnapshotV8, PostgresStateSnapshot } from '../dialects/postgres/snapshot';
+import type { PostgresSchemaState, PostgresSnapshot, PostgresSnapshotV8 } from '../dialects/postgres/snapshot';
 import { upToV8 } from '../dialects/postgres/versions';
 import { originUUID } from '../utils';
 import type { DB } from '../utils';
 import type { SnapshotNode } from '../utils/utils-node';
 
-// Only the first snapshot of a history is a base. A full state that has parents is a checkpoint.
-const stateSnapshot = (id: string, prevIds: string[], ddl: PostgresEntity[]): PostgresStateSnapshot => {
+const schemaState = (id: string, prevIds: string[], ddl: PostgresEntity[]): PostgresSchemaState => {
 	const parents = prevIds.filter((it) => it && it !== originUUID);
-	const isBase = parents.length === 0;
-	return {
-		type: isBase ? 'base' : 'checkpoint',
-		version: '9',
-		dialect: 'postgres',
-		id,
-		prevIds: isBase ? [originUUID] : parents,
-		ddl,
-	};
+	return { version: '9', dialect: 'postgres', id, prevIds: parents.length === 0 ? [originUUID] : parents, ddl };
 };
 
 export const generateDrizzleJson = async (
 	imports: Record<string, unknown>,
 	prevId?: string | string[],
 	schemaFilters?: string[],
-): Promise<PostgresStateSnapshot> => {
+): Promise<PostgresSchemaState> => {
 	const { randomUUID } = await import('crypto');
 	const { prepareEntityFilter } = await import('src/dialects/pull-utils');
 	const { humanLog, postgresSchemaError, postgresSchemaWarning } = await import('../cli/views');
@@ -79,13 +70,14 @@ export const generateDrizzleJson = async (
 		process.exit(1);
 	}
 
-	return stateSnapshot(randomUUID(), typeof prevId === 'string' ? [prevId] : prevId ?? [], ddl.entities.list());
+	return schemaState(randomUUID(), typeof prevId === 'string' ? [prevId] : prevId ?? [], ddl.entities.list());
 };
 
-// Takes a format 9 base or checkpoint, or a snapshot of an older format.
+// Each argument is a schema state, or a full state of an older format. Only the rows of a state are read,
+// so its id and its parents do not have to match the other argument.
 export const generateMigration = async (
-	prev: PostgresStateSnapshot | Record<string, any>,
-	cur: PostgresStateSnapshot | Record<string, any>,
+	prev: PostgresSchemaState | Record<string, any>,
+	cur: PostgresSchemaState | Record<string, any>,
 ) => {
 	const { resolver } = await import('../cli/prompts');
 	const { ddlDiff } = await import('../dialects/postgres/diff');
@@ -251,22 +243,29 @@ export const startStudioServer = async (
 	});
 };
 
-// Converts one snapshot to a format 9 state snapshot. `drizzle-kit up` converts a whole migrations folder.
-export const up = (it: Record<string, any>): { snapshot: PostgresStateSnapshot; hints: string[] } => {
+// Converts one full state of any format to a schema state. `drizzle-kit up` converts a whole migrations folder.
+export const up = (it: Record<string, any>): { snapshot: PostgresSchemaState; hints: string[] } => {
 	if (it.type === 'diff') {
 		throw new Error(
 			`Snapshot ${it.id} is a diff snapshot, so it holds only the changes of one migration. `
-				+ `Pass a base or checkpoint snapshot, or rebuild the state of ${it.id} with reconstruct first.`,
+				+ `Rebuild the state of ${it.id} with reconstruct first, and pass that state.`,
 		);
 	}
-	if (Number(it.version) === 9) return { snapshot: it as PostgresStateSnapshot, hints: [] };
-	const { snapshot, hints } = Number(it.version) === 8 ? { snapshot: it as PostgresSnapshotV8, hints: [] } : upToV8(it);
-	return { snapshot: stateSnapshot(snapshot.id, snapshot.prevIds, snapshot.ddl), hints };
+	const { snapshot, hints } = Number(it.version) >= 8
+		? { snapshot: it as PostgresSchemaState | PostgresSnapshotV8, hints: [] }
+		: upToV8(it);
+	if (!Array.isArray(snapshot.ddl) || !Array.isArray(snapshot.prevIds)) {
+		throw new Error(
+			`State ${it.id} has no \`ddl\` or no \`prevIds\` array. Pass the result of generateDrizzleJson, `
+				+ 'or a full state of an older format.',
+		);
+	}
+	return { snapshot: schemaState(snapshot.id, snapshot.prevIds, snapshot.ddl), hints };
 };
 
 // `files` maps each migration folder name to the parsed JSON of its snapshot.json.
 // Returns the state of snapshot `id`, or of the only leaf when `id` is not given.
-export const reconstruct = async (files: Record<string, unknown>, id?: string): Promise<PostgresStateSnapshot> => {
+export const reconstruct = async (files: Record<string, unknown>, id?: string): Promise<PostgresSchemaState> => {
 	const { reconstruct: rebuild } = await import('../dialects/postgres/snapshot');
 	const { assertPostgresHistory, assertSnapshotStatus, validatorForDialect } = await import('../utils/utils-node');
 
@@ -306,5 +305,5 @@ export const reconstruct = async (files: Record<string, unknown>, id?: string): 
 
 	const history = new Map(snapshots.map((it) => [it.id, it]));
 	const state = rebuild(history, id);
-	return stateSnapshot(id, history.get(id)!.prevIds, state.entities.list());
+	return schemaState(id, history.get(id)!.prevIds, state.entities.list());
 };

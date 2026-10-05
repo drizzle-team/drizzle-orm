@@ -52,14 +52,26 @@ Cross-reference map:
 
 For a full end-to-end example including `missing_hints` handling, see [SDK.md](./SDK.md).
 
-### Snapshot helpers in `drizzle-kit/api-postgres`
+### Schema states in `drizzle-kit/api-postgres`
 
-`drizzle-kit/api-postgres` exports helpers for tools that keep postgres snapshots themselves. They return format 9 state snapshots: a base, or a checkpoint when the snapshot has parents. See [Postgres snapshot format 9](#postgres-snapshot-format-9).
+`drizzle-kit/api-postgres` exports helpers for tools that store the state of a postgres schema themselves. They return a schema state: the full state of a schema, with an id and parents.
 
-- `generateDrizzleJson(imports, prevId?, schemaFilters?)` returns the state of the schema in `imports`. Without `prevId`, or with an empty string, it returns a base snapshot. With `prevId`, it returns a checkpoint whose `prevIds` are the given parents. `prevId` is a string or an array of strings.
-- `generateMigration(prev, cur)` returns the SQL statements that turn `prev` into `cur`. Each argument is a format 9 base or checkpoint, or a snapshot of an older format, which it upgrades in memory. It throws on a diff snapshot, because a diff snapshot holds only the changes of one migration.
-- `up(snapshot)` converts one snapshot of an older format to a format 9 base or checkpoint and returns `{ snapshot, hints }`. To convert a migrations folder, run `drizzle-kit up`.
-- `reconstruct(files, id?)` rebuilds a state from the snapshot files of a folder. `files` maps each migration folder name to the parsed JSON of its `snapshot.json`. It returns the state of snapshot `id`. Without `id`, it returns the state of the only leaf, and it throws when the folder has several leaves. For an old format or a broken history, it throws the same errors as the CLI.
+```typescript
+type SchemaState = {
+  version: '9';
+  dialect: 'postgres';
+  id: string;
+  prevIds: string[];
+  ddl: Row[];
+};
+```
+
+A schema state is not a snapshot. It has no `type` field, and a migrations folder never holds one. It is plain JSON, so a tool can save it with `JSON.stringify` and pass the parsed file back later. `Row` is described in [Postgres snapshot format 9](#postgres-snapshot-format-9).
+
+- `generateDrizzleJson(imports, prevId?, schemaFilters?)` returns the state of the schema in `imports`. `prevId` is a string or an array of strings, and it becomes `prevIds`. Without `prevId`, or with an empty string, `prevIds` holds only the origin id `00000000-0000-0000-0000-000000000000`.
+- `generateMigration(prev, cur)` returns the SQL statements that turn `prev` into `cur`, as an array of strings. Each argument is a schema state, or a full state in format 5, 6, 7 or 8, which it converts in memory. It reads only the rows of each state. It ignores `id`, `prevIds` and `type`, so the two states do not have to name each other. It throws on a diff snapshot, because a diff snapshot holds only the changes of one migration.
+- `up(state)` converts one full state of an older format to a schema state and returns `{ snapshot, hints }`. It needs no other file of the history. To convert a migrations folder, run `drizzle-kit up`.
+- `reconstruct(files, id?)` rebuilds a state from the snapshot files of a folder. `files` maps each migration folder name to the parsed JSON of its `snapshot.json`. It returns the schema state of snapshot `id`. Without `id`, it returns the state of the only leaf, and it throws when the folder has several leaves. For an old format or a broken history, it throws the same errors as the CLI.
 
 ## Hints
 
@@ -413,7 +425,7 @@ Only postgres uses snapshot format 9. The other dialects store the full schema s
 
 | dialect | `version` | content |
 | --- | --- | --- |
-| `postgresql` | `"9"` | base, checkpoint and diff snapshots, described below |
+| `postgresql` | `"9"` | base and diff snapshots, described below |
 | `mysql` | `"6"` | full state |
 | `sqlite`, `turso` | `"7"` | full state |
 | `mssql` | `"2"` | full state |
@@ -436,15 +448,6 @@ type BaseSnapshot = {
   ddl: Row[];
 };
 
-type CheckpointSnapshot = {
-  type: 'checkpoint';
-  version: '9';
-  dialect: 'postgres';
-  id: string;
-  prevIds: string[];
-  ddl: Row[];
-};
-
 type DiffSnapshot = {
   type: 'diff';
   version: '9';
@@ -464,7 +467,8 @@ type Delta =
 
 - A **base snapshot** holds the full state. It is the first snapshot in the migrations folder. `generate` writes it for the first migration, and `pull` writes it into an empty migrations folder.
 - A **diff snapshot** holds only the deltas of its own migration. `generate` writes one for every later migration. `generate --custom` writes one with `deltas: []`.
-- A **checkpoint** holds a full state in the middle of a history. drizzle-kit reads checkpoints, and reconstruction starts at the nearest one. drizzle-kit never writes a checkpoint into a migrations folder. A checkpoint is supported only in linear history: a merge that would replay a branch with a checkpoint in it stops with an error. The [snapshot helpers](#snapshot-helpers-in-drizzle-kitapi-postgres) return checkpoints.
+
+A snapshot with another `type` is malformed. A base snapshot that lists a parent is malformed too.
 
 Format 9 snapshots have no `renames` field and store no statements. `generate` on an unchanged schema writes no folder.
 
@@ -510,13 +514,13 @@ A delta changes only the row that its key names, so a rename that reaches other 
 - A table rename is one `rename` of the table and one `relocate` for each row that belongs to the table (its columns, indexes, constraints, policies and privileges), each with `set: { "table": "<new name>" }`. A foreign key in another table that references the renamed table keeps its key, so it gets an `alter` of `tableTo`.
 - A column rename is one `rename` of the column and one `alter` for each index or constraint whose column list names it.
 
-To reconstruct the state of a snapshot, drizzle-kit follows the first parents back to the nearest base or checkpoint. From there it applies the deltas of every snapshot on that path of first parents, in order. The deltas of a merge snapshot on the path start from its combined state.
+To reconstruct the state of a snapshot, drizzle-kit follows the first parents back to the base snapshot. From there it applies the deltas of every snapshot on that path of first parents, in order. The deltas of a merge snapshot on the path start from its combined state.
 
 The combined state of a merge snapshot is built in three steps:
 
 1. Copy the state of the first parent.
 2. Take the snapshots in the merge's history that are missing from the first parent's history.
-3. Apply their deltas in folder-name order. In this step only, a `drop`, `alter`, `rename` or `relocate` of a missing key is skipped, and a `create`, `rename` or `relocate` onto a taken key replaces the row there. A base in this set adds its rows as such creates. A checkpoint in this set stops the command with an error.
+3. Apply their deltas in folder-name order. In this step only, a `drop`, `alter`, `rename` or `relocate` of a missing key is skipped, and a `create`, `rename` or `relocate` onto a taken key replaces the row there. A base in this set adds its rows as such creates.
 
 `generate` writes a merge only after the branches pass `check`, so a skipped or replaced delta occurs only in a merge that `drizzle-kit up` converted from format 8.
 

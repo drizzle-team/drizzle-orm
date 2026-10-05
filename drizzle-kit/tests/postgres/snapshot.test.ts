@@ -2,8 +2,8 @@ import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import { type Delta, delta } from 'src/dialects/dialect';
 import { createDDL } from 'src/dialects/postgres/ddl';
 import {
+	type PostgresBaseSnapshot,
 	type PostgresSnapshot,
-	type PostgresStateSnapshot,
 	reconstruct,
 	snapshotValidator,
 	startingState,
@@ -25,7 +25,7 @@ const rows = (ddl: ReturnType<typeof createDDL>) => normalizeDDL(ddl.entities.li
 const column = (table: string, name: string) => ddlOf(table, [name]).columns.list()[0];
 const columnKey = (table: string, name: string) => `columns\0${JSON.stringify(['public', table, name])}`;
 
-const base = (id: string, ddl: ReturnType<typeof createDDL>): PostgresStateSnapshot => ({
+const base = (id: string, ddl: ReturnType<typeof createDDL>): PostgresBaseSnapshot => ({
 	type: 'base',
 	version: '9',
 	dialect: 'postgres',
@@ -56,15 +56,6 @@ describe('reconstruct', () => {
 		expect(rows(reconstruct(history, 'b'))).toStrictEqual(rows(s1));
 		expect(rows(reconstruct(history, 'c'))).toStrictEqual(rows(s2));
 		expect(rows(reconstruct(history, 'a'))).toStrictEqual(rows(s0));
-	});
-
-	test('stops at a checkpoint', () => {
-		const s1 = ddlOf('users', ['id']);
-		const s2 = ddlOf('users', ['id', 'email']);
-		const checkpoint: PostgresSnapshot = { ...base('b', s1), type: 'checkpoint', prevIds: ['a'] };
-		const history = historyOf(checkpoint, diff('c', ['b'], delta(s1, s2)));
-
-		expect(rows(reconstruct(history, 'c'))).toStrictEqual(rows(s2));
 	});
 
 	test('a merge replays the other branches on top of its first parent', () => {
@@ -240,8 +231,7 @@ describe('snapshotValidator', () => {
 	const valid = (it: unknown) => snapshotValidator.parse(it).success;
 	const users = ddlOf('users', ['id']);
 
-	test('accepts base, checkpoint and diff snapshots', () => {
-		const checkpoint = { ...base('b', users), type: 'checkpoint', prevIds: ['a'] };
+	test('accepts base and diff snapshots', () => {
 		const deltas: Delta[] = [
 			{ op: 'create', row: users.columns.list()[0] },
 			{ op: 'drop', key: 'columns\0["public","users","id"]' },
@@ -251,8 +241,16 @@ describe('snapshotValidator', () => {
 		];
 
 		expect(valid(base('a', users))).toBe(true);
-		expect(valid(checkpoint)).toBe(true);
 		expect(valid(diff('c', ['b'], deltas))).toBe(true);
+	});
+
+	test('rejects a checkpoint, and a base that has a parent', () => {
+		expect(valid({ ...base('b', users), type: 'checkpoint', prevIds: ['a'] })).toBe(false);
+		expect(snapshotValidator.parse({ ...base('b', users), prevIds: ['a'] })).toStrictEqual({
+			success: false,
+			data: null,
+			errors: ["Field 'prevIds' of a base snapshot must not list a parent"],
+		});
 	});
 
 	test('rejects malformed deltas', () => {

@@ -82,7 +82,7 @@ describe('MCP server fix_conflicts tool', () => {
 		const annotationsOf = (name: string) => tools.find((t) => t.name === name)?.annotations;
 		expect(annotationsOf('generate')).toMatchObject({ destructiveHint: false });
 		expect(annotationsOf('fix_conflicts')).toMatchObject({ destructiveHint: true });
-		const out = stageConflict();
+		const out = await stageConflict();
 		const schemaPath = resolve(join(out, 'schema.ts'));
 		writeFileSync(
 			schemaPath,
@@ -113,7 +113,7 @@ describe('MCP server fix_conflicts tool', () => {
 describe('MCP server check tool', () => {
 	test('check against stageValid returns isError:false and status:ok in both channels', async () => {
 		const { client } = await connectPair();
-		const out = stageValid();
+		const out = await stageValid();
 		const config = writeDrizzleConfig(out);
 		try {
 			const result = await client.callTool({ name: 'check', arguments: { config } });
@@ -130,7 +130,7 @@ describe('MCP server check tool', () => {
 
 	test('check against stageConflict resolves to isError:true and status:error rather than rejecting', async () => {
 		const { client } = await connectPair();
-		const out = stageConflict();
+		const out = await stageConflict();
 		const config = writeDrizzleConfig(out);
 		try {
 			const result = await client.callTool({ name: 'check', arguments: { config } });
@@ -193,7 +193,7 @@ describe('MCP server up tool', () => {
 describe('MCP server generate tool — missing_hints round-trip', () => {
 	test('generate without hints returns isError:true with status:missing_hints and non-empty unresolved[]', async () => {
 		const { client } = await connectPair();
-		const { out, schemaPath } = stageGenerateMissingHints();
+		const { out, schemaPath } = await stageGenerateMissingHints();
 		const config = writeDrizzleConfig(out, schemaPath);
 		try {
 			const result = await client.callTool({ name: 'generate', arguments: { config } });
@@ -210,7 +210,7 @@ describe('MCP server generate tool — missing_hints round-trip', () => {
 
 	test('generate with resolving hints returns isError:false', async () => {
 		const { client } = await connectPair();
-		const { out, schemaPath } = stageGenerateMissingHints();
+		const { out, schemaPath } = await stageGenerateMissingHints();
 		const config = writeDrizzleConfig(out, schemaPath);
 		try {
 			// First call: get unresolved items
@@ -234,7 +234,7 @@ describe('MCP server generate tool — missing_hints round-trip', () => {
 
 	test('generate with a malformed hint returns an invalid_hints envelope, not a protocol error', async () => {
 		const { client } = await connectPair();
-		const { out, schemaPath } = stageGenerateMissingHints();
+		const { out, schemaPath } = await stageGenerateMissingHints();
 		const config = writeDrizzleConfig(out, schemaPath);
 		try {
 			// A hint with an unknown `type` fails hintSchema parsing. The loose tool input schema
@@ -264,7 +264,7 @@ describe('MCP server stdout purity (in-process)', () => {
 		);
 
 		const { client } = await connectPair();
-		const out = stageValid();
+		const out = await stageValid();
 		const config = writeDrizzleConfig(out);
 		try {
 			await client.callTool({ name: 'check', arguments: { config } });

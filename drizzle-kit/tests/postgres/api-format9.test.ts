@@ -1,7 +1,7 @@
-import { integer, pgTable, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { integer, pgTable, varchar } from 'drizzle-orm/pg-core';
 import { readFileSync } from 'fs';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
-import { type PostgresStateSnapshot, snapshotValidator } from 'src/dialects/postgres/snapshot';
+import { type PostgresSchemaState, snapshotValidator } from 'src/dialects/postgres/snapshot';
 import { generateDrizzleJson, generateMigration, reconstruct, up } from 'src/ext/api-postgres';
 import { expect, test } from 'vitest';
 import { ORIGIN } from '../other/check-fixtures';
@@ -14,70 +14,107 @@ const v1 = { users };
 const v2 = { users: pgTable('users', { id: integer(), email: varchar() }) };
 const v3 = { users: pgTable('users', { id: integer(), email: varchar(), age: integer() }) };
 
-const format8 = (snapshot: PostgresStateSnapshot) => ({
+const format8 = (state: PostgresSchemaState) => ({
 	version: '8',
 	dialect: 'postgres',
-	id: snapshot.id,
-	prevIds: snapshot.prevIds,
-	ddl: snapshot.ddl,
+	id: state.id,
+	prevIds: state.prevIds,
+	ddl: state.ddl,
 	renames: [],
 });
+
+const oldSnapshot = (path: string) => JSON.parse(readFileSync(`tests/postgres/old-snapshots/${path}`, 'utf8'));
 
 const folderFiles = (flow: FolderFlow, branch: string) =>
 	Object.fromEntries(flow.folders(branch).map((folder) => [folder, flow.snapshot(branch, folder)]));
 
-test('generateDrizzleJson returns a format 9 base snapshot', async () => {
-	const snapshot = await generateDrizzleJson(v1);
+const addEmail = ['ALTER TABLE "users" ADD COLUMN "email" varchar;'];
+const dropEmail = ['ALTER TABLE "users" DROP COLUMN "email";'];
 
-	expect(snapshotValidator.parse(snapshot).success).toBe(true);
-	expect(snapshot).toMatchObject({ type: 'base', version: '9', dialect: 'postgres', prevIds: [ORIGIN] });
-	expect(snapshot.ddl).toContainEqual(expect.objectContaining({ entityType: 'tables', name: 'users' }));
-	expect(await generateDrizzleJson(v1, '')).toMatchObject({ type: 'base', prevIds: [ORIGIN] });
+test('generateDrizzleJson returns a schema state, which is not a snapshot', async () => {
+	const state = await generateDrizzleJson(v1);
+
+	expect(Object.keys(state).sort()).toStrictEqual(['ddl', 'dialect', 'id', 'prevIds', 'version']);
+	expect(state).toMatchObject({ version: '9', dialect: 'postgres', prevIds: [ORIGIN] });
+	expect(state.ddl).toContainEqual(expect.objectContaining({ entityType: 'tables', name: 'users' }));
+	expect(await generateDrizzleJson(v1, '')).toMatchObject({ prevIds: [ORIGIN] });
+	expect(snapshotValidator.parse(state).success).toBe(false);
 });
 
-test('generateDrizzleJson with a prevId returns a checkpoint, and prevId can be a string or an array', async () => {
+test('generateDrizzleJson with a prevId returns a schema state with that parent', async () => {
 	const parent = await generateDrizzleJson(v1);
 
 	const single = await generateDrizzleJson(v2, parent.id);
 	const several = await generateDrizzleJson(v2, [parent.id, 'other-leaf']);
 
-	expect(snapshotValidator.parse(single).success).toBe(true);
-	expect(snapshotValidator.parse(several).success).toBe(true);
-	expect(single).toMatchObject({ type: 'checkpoint', version: '9', prevIds: [parent.id] });
-	expect(several).toMatchObject({ type: 'checkpoint', version: '9', prevIds: [parent.id, 'other-leaf'] });
-	const expected = ['ALTER TABLE "users" ADD COLUMN "email" varchar;'];
-	expect(await generateMigration(parent, single)).toStrictEqual(expected);
-	expect(await generateMigration(parent, several)).toStrictEqual(expected);
+	expect(single.prevIds).toStrictEqual([parent.id]);
+	expect(several.prevIds).toStrictEqual([parent.id, 'other-leaf']);
+	expect(await generateMigration(parent, single)).toStrictEqual(addEmail);
+	expect(await generateMigration(parent, several)).toStrictEqual(addEmail);
 });
 
-test('generateMigration gives the same SQL for format 8 and format 9 snapshots of the same schemas', async () => {
-	const parent = await generateDrizzleJson(v1);
-	const current = await generateDrizzleJson(v3, parent.id);
-	const expected = [
-		'ALTER TABLE "users" ADD COLUMN "email" varchar;',
-		'ALTER TABLE "users" ADD COLUMN "age" integer;',
-	];
+// Payload saves each state as a JSON file, reads the newest file back as the previous state, and asks for
+// the SQL in both directions.
+test('generateMigration gives the up and the down SQL for a state that was saved as JSON', async () => {
+	const before = JSON.parse(JSON.stringify(await generateDrizzleJson(v1)));
+	const after = await generateDrizzleJson(v2);
 
-	expect(await generateMigration(parent, current)).toStrictEqual(expected);
-	expect(await generateMigration(format8(parent), format8(current))).toStrictEqual(expected);
-	expect(await generateMigration(format8(parent), current)).toStrictEqual(expected);
+	expect(await generateMigration(before, after)).toStrictEqual(addEmail);
+	expect(await generateMigration(after, before)).toStrictEqual(dropEmail);
 });
 
-test('generateMigration upgrades a format 7 snapshot', async () => {
-	const legacy = JSON.parse(readFileSync('tests/postgres/snapshots/snapshot05-0.23.2.json', 'utf8'));
-	const current = await generateDrizzleJson({
-		users: pgTable('users', {
-			id: serial().primaryKey(),
-			name: text().notNull(),
-			email: text().notNull().unique(),
-			password: text().notNull(),
-			avatar: text(),
-			createdAt: timestamp().notNull().defaultNow(),
-			age: integer(),
-		}),
-	});
+test('generateMigration ignores the id, the parents and the type of its arguments', async () => {
+	const before = await generateDrizzleJson(v1);
+	const after = await generateDrizzleJson(v2, 'not-the-id-of-before');
+	const base = { ...before, type: 'base', id: after.id, prevIds: [after.id] };
 
-	expect(await generateMigration(legacy, current)).toStrictEqual(['ALTER TABLE "users" ADD COLUMN "age" integer;']);
+	expect(await generateMigration(base, after)).toStrictEqual(addEmail);
+	expect(await generateMigration(after, base)).toStrictEqual(dropEmail);
+});
+
+test('generateMigration takes format 8 states in either argument position', async () => {
+	const before = await generateDrizzleJson(v1);
+	const after = await generateDrizzleJson(v2);
+
+	expect(await generateMigration(format8(before), format8(after))).toStrictEqual(addEmail);
+	expect(await generateMigration(format8(before), after)).toStrictEqual(addEmail);
+	expect(await generateMigration(after, format8(before))).toStrictEqual(dropEmail);
+});
+
+test('generateMigration converts format 5 and format 7 states in either argument position', async () => {
+	const empty = { version: '8', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [], renames: [] };
+
+	const v5 = oldSnapshot('format-5/meta/0000_snapshot.json');
+	expect(v5.version).toBe('5');
+	expect(await generateMigration(empty, v5)).toContainEqual(expect.stringContaining('CREATE TABLE "users"'));
+	expect(await generateMigration(v5, empty)).toStrictEqual(['DROP TABLE "users";']);
+
+	const v7 = [oldSnapshot('format-7/meta/0000_snapshot.json'), oldSnapshot('format-7/meta/0001_snapshot.json')];
+	expect(v7.map((it) => it.version)).toStrictEqual(['7', '7']);
+	expect(await generateMigration(v7[0], v7[1])).toContainEqual(expect.stringContaining('CREATE TABLE "posts"'));
+	expect(await generateMigration(v7[1], v7[0])).toContainEqual('DROP TABLE "posts";');
+});
+
+test('generateMigration takes an empty previous state in format 7 and in format 8', async () => {
+	const after = await generateDrizzleJson(v1);
+	const createUsers = ['CREATE TABLE "users" (\n\t"id" integer\n);\n'];
+	// Payload starts from this state when it has no saved file. Its parent id is one digit short of the origin id.
+	const payloadDefault = {
+		id: '00000000-0000-0000-0000-000000000000',
+		_meta: { columns: {}, schemas: {}, tables: {} },
+		dialect: 'postgresql',
+		enums: {},
+		prevId: '00000000-0000-0000-0000-00000000000',
+		schemas: {},
+		tables: {},
+		version: '7',
+	};
+	const empty8 = { version: '8', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [], renames: [] };
+
+	expect(await generateMigration(payloadDefault, after)).toStrictEqual(createUsers);
+	expect(await generateMigration(after, payloadDefault)).toStrictEqual(['DROP TABLE "users";']);
+	expect(await generateMigration(empty8, after)).toStrictEqual(createUsers);
+	expect(await generateMigration(after, empty8)).toStrictEqual(['DROP TABLE "users";']);
 });
 
 test('generateMigration rejects a diff snapshot', async () => {
@@ -86,37 +123,28 @@ test('generateMigration rejects a diff snapshot', async () => {
 
 	await expect(generateMigration(parent, diff)).rejects.toThrow(
 		'Snapshot d1 is a diff snapshot, so it holds only the changes of one migration. '
-			+ 'Pass a base or checkpoint snapshot, or rebuild the state of d1 with reconstruct first.',
+			+ 'Rebuild the state of d1 with reconstruct first, and pass that state.',
 	);
 });
 
-test('up returns a format 9 base or checkpoint snapshot', () => {
-	const base = up({ version: '8', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [], renames: ['a->b'] });
-	const checkpoint = up({ version: '8', dialect: 'postgres', id: 'p2', prevIds: ['p1'], ddl: [], renames: [] });
-	const legacy = up(JSON.parse(readFileSync('tests/postgres/snapshots/snapshot05-0.23.2.json', 'utf8')));
+test('up converts one saved state of an older format without a history', () => {
+	const first = up({ version: '8', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [], renames: ['a->b'] });
+	const second = up({ version: '8', dialect: 'postgres', id: 'p2', prevIds: ['p1'], ddl: [], renames: [] });
+	const legacy = up(oldSnapshot('format-7/meta/0001_snapshot.json'));
 
-	expect(base.snapshot).toStrictEqual({
-		type: 'base',
-		version: '9',
-		dialect: 'postgres',
-		id: 'p1',
-		prevIds: [ORIGIN],
-		ddl: [],
+	expect(first).toStrictEqual({
+		snapshot: { version: '9', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [] },
+		hints: [],
 	});
-	expect(checkpoint.snapshot).toStrictEqual({
-		type: 'checkpoint',
-		version: '9',
-		dialect: 'postgres',
-		id: 'p2',
-		prevIds: ['p1'],
-		ddl: [],
-	});
-	expect(snapshotValidator.parse(legacy.snapshot).success).toBe(true);
-	expect(legacy.snapshot).toMatchObject({
-		type: 'base',
-		id: '023db181-c1ae-4a62-a48a-f6a7ef716b9b',
-		prevIds: [ORIGIN],
-	});
+	expect(second.snapshot).toStrictEqual({ version: '9', dialect: 'postgres', id: 'p2', prevIds: ['p1'], ddl: [] });
+	expect(legacy.snapshot).toMatchObject({ version: '9', dialect: 'postgres' });
+	expect(legacy.snapshot.ddl).toContainEqual(expect.objectContaining({ entityType: 'tables', name: 'posts' }));
+});
+
+test('up returns a schema state unchanged', async () => {
+	const state = await generateDrizzleJson(v1);
+
+	expect(up(JSON.parse(JSON.stringify(state)))).toStrictEqual({ snapshot: state, hints: [] });
 });
 
 test('reconstruct rebuilds any snapshot of a linear folder, and the leaf when no id is given', async () => {
@@ -132,8 +160,13 @@ test('reconstruct rebuilds any snapshot of a linear folder, and the leaf when no
 
 	expect(normalizeDDL(leaf.ddl)).toStrictEqual(schemaState(v3));
 	expect(normalizeDDL(second.ddl)).toStrictEqual(schemaState(v2));
-	expect(second).toMatchObject({ type: 'checkpoint', version: '9', id: middle.id, prevIds: middle.prevIds });
-	expect(snapshotValidator.parse(second).success).toBe(true);
+	expect(second).toStrictEqual({
+		version: '9',
+		dialect: 'postgres',
+		id: middle.id,
+		prevIds: middle.prevIds,
+		ddl: second.ddl,
+	});
 	expect(await generateMigration(second, leaf)).toStrictEqual(['ALTER TABLE "users" ADD COLUMN "age" integer;']);
 });
 

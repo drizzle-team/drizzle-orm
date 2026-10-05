@@ -2,7 +2,6 @@ import { integer, pgTable, varchar } from 'drizzle-orm/pg-core';
 import { basename } from 'path';
 import { errorToEnvelope } from 'src/cli/errors';
 import { runGenerate } from 'src/cli/schema';
-import { reconstruct } from 'src/dialects/postgres/snapshot';
 import { expect, onTestFinished, test, vi } from 'vitest';
 import { createFolderFlow, type FolderFlow, schemaState, tempDir } from './folder-flow';
 import type { PostgresSchema } from './mocks';
@@ -190,40 +189,6 @@ test('--fix-conflicts deletes nothing while generate still needs rename hints', 
 	expect(flow.sql('main', folder!)).toContain('ALTER TABLE "users" RENAME COLUMN "score" TO "points";');
 	expect(flow.state('main', folder!)).toStrictEqual(schemaState(renamed));
 	expect(await flow.migrate('main', renamed)).toStrictEqual([]);
-});
-
-// A tool that stores the output of generateDrizzleJson with a prevId can write a checkpoint into a branch.
-test('a merge that would replay a checkpoint stops with an error and writes nothing', async () => {
-	const flow = createFolderFlow();
-	const t = pgTable('t', { id: integer() });
-	const u = pgTable('u', { id: integer() });
-	const withA = pgTable('u', { id: integer(), a: integer() });
-	await flow.generate('main', { t, u });
-	flow.branch('x', 'main');
-	flow.branch('y', 'main');
-	const { folder } = await flow.generate('x', { t, u: withA });
-	const snapshot = flow.snapshot('x', folder!);
-	const history = new Map(flow.folders('x').map((it) => flow.snapshot('x', it)).map((it) => [it.id, it]));
-	flow.overwriteSnapshot(
-		'x',
-		folder!,
-		JSON.stringify({
-			type: 'checkpoint',
-			version: '9',
-			dialect: 'postgres',
-			id: snapshot.id,
-			prevIds: snapshot.prevIds,
-			ddl: reconstruct(history, snapshot.id).entities.list(),
-		}),
-	);
-	await flow.generate('y', { u });
-	flow.merge('main', 'x', 'y');
-
-	await expect(flow.generate('main', { u: withA, tags })).rejects.toThrow(
-		`Cannot merge branches: checkpoint ${snapshot.id} is part of a branch that the merge replays, `
-			+ 'and a checkpoint is supported only in linear history.',
-	);
-	expect(flow.folders('main')).toStrictEqual(['20260101120001_main', '20260101120002_x', '20260101120003_y']);
 });
 
 test('generate rejects --fix-conflicts for sqlite', async () => {
