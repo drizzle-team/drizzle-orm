@@ -55,8 +55,8 @@ import * as Predicate from 'effect/Predicate';
 import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
 import * as Scope from 'effect/Scope';
-import { SqlClient } from 'effect/unstable/sql/SqlClient';
-import { SqlError } from 'effect/unstable/sql/SqlError';
+import { SqlClient } from 'effect/sql/SqlClient';
+import { SqlError } from 'effect/sql/SqlError';
 import type { AllTypes } from '../sqlite/all-types';
 import {
 	allTypesData,
