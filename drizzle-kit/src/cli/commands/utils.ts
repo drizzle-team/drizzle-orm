@@ -1006,57 +1006,51 @@ export const drizzleConfigFromFile = async (
 	return res.data;
 };
 
-export const migrateToFoldersV3 = (out: string) => {
-	// if there is meta folder - and there is a journal - it's version 8
+// One entry of a journal and the migration folder that it moves to. `sqlPath` is not set when the entry
+// has no SQL file.
+export type FoldersV3Move = { tag: string; folder: string; snapshotPath: string; sqlPath?: string };
+
+// Lists the moves from a journal folder (the drizzle-kit 0.x layout) to the folder layout and writes nothing.
+// Returns null when `out` has no journal.
+export const planFoldersV3 = (out: string): FoldersV3Move[] | null => {
 	const metaPath = join(out, 'meta');
 	const journalPath = join(metaPath, '_journal.json');
-	if (existsSync(metaPath) && existsSync(journalPath)) {
-		const journal: Journal = JSON.parse(readFileSync(journalPath).toString());
-		const sqlFiles = readdirSync(out);
-		for (const entry of journal.entries) {
-			const folderName = prepareSnapshotFolderName(entry.when);
-			// Reading Snapshots files
-			const [snapshotPrefix, ...rest] = entry.tag.split('_');
-			const migrationName = rest.join('_');
-			const oldSnapshotPath = join(metaPath, `${snapshotPrefix}_snapshot.json`);
+	if (!existsSync(metaPath) || !existsSync(journalPath)) return null;
 
-			if (!existsSync(oldSnapshotPath)) {
-				// If for some reason this happens we need to throw an error
-				// This can't happen unless there were wrong drizzle-kit migrations usage
-				throw new MigrationSnapshotNotFoundCliError(oldSnapshotPath);
-			}
+	const journal: Journal = JSON.parse(readFileSync(journalPath).toString());
+	const sqlFiles = readdirSync(out);
+	return journal.entries.map((entry) => {
+		const [snapshotPrefix, ...rest] = entry.tag.split('_');
+		const folder = `${prepareSnapshotFolderName(entry.when)}_${rest.join('_')}`;
+		const snapshotPath = join(metaPath, `${snapshotPrefix}_snapshot.json`);
+		// This can't happen unless there were wrong drizzle-kit migrations usage
+		if (!existsSync(snapshotPath)) throw new MigrationSnapshotNotFoundCliError(snapshotPath);
 
-			const oldSnapshot = readFileSync(oldSnapshotPath);
+		const sqlPath = join(out, `${entry.tag}.sql`);
+		if (existsSync(sqlPath)) return { tag: entry.tag, folder, snapshotPath, sqlPath };
+		// We will try to find it by prefix, but this is a sign that something went wrong
+		// with properly using drizzle-kit migrations
+		const sqlFileNames = sqlFiles.filter((file) => file.startsWith(`${snapshotPrefix}_`) && file.endsWith('.sql'));
+		if (sqlFileNames.length > 1) throw new MigrationSqlFilesConflictCliError(snapshotPrefix);
+		return { tag: entry.tag, folder, snapshotPath, ...(sqlFileNames[0] && { sqlPath: join(out, sqlFileNames[0]) }) };
+	});
+};
 
-			// Reading SQL files
-			let oldSqlPath = join(out, `${entry.tag}.sql`);
-			if (!existsSync(oldSqlPath)) {
-				// We will try to find it by prefix, but this is a sign that something went wrong
-				// with properly using drizzle-kit migrations
-				const sqlFileNames = sqlFiles.filter((file) => file.startsWith(`${snapshotPrefix}_`) && file.endsWith('.sql'));
-				if (sqlFileNames.length === 0) continue;
-				if (sqlFileNames.length > 1) {
-					throw new MigrationSqlFilesConflictCliError(snapshotPrefix);
-				}
-				oldSqlPath = join(out, sqlFileNames[0]!);
-			}
-			const oldSql = readFileSync(oldSqlPath);
-
-			mkdirSync(join(out, `${folderName}_${migrationName}`));
-			writeFileSync(
-				join(out, `${folderName}_${migrationName}/snapshot.json`),
-				oldSnapshot,
-			);
-			writeFileSync(
-				join(out, `${folderName}_${migrationName}/migration.sql`),
-				oldSql,
-			);
-
-			unlinkSync(oldSqlPath);
-		}
-
-		rmSync(metaPath, { recursive: true, force: true });
-		return true;
+// An entry without an SQL file is not moved.
+export const applyFoldersV3 = (out: string, moves: FoldersV3Move[]) => {
+	for (const { folder, snapshotPath, sqlPath } of moves) {
+		if (!sqlPath) continue;
+		mkdirSync(join(out, folder));
+		writeFileSync(join(out, folder, 'snapshot.json'), readFileSync(snapshotPath));
+		writeFileSync(join(out, folder, 'migration.sql'), readFileSync(sqlPath));
+		unlinkSync(sqlPath);
 	}
-	return false;
+	rmSync(join(out, 'meta'), { recursive: true, force: true });
+};
+
+export const migrateToFoldersV3 = (out: string) => {
+	const moves = planFoldersV3(out);
+	if (!moves) return false;
+	applyFoldersV3(out, moves);
+	return true;
 };

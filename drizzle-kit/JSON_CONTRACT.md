@@ -212,7 +212,7 @@ Structured error responses with `status: "error"` use a `code` field to identify
 | `unsupported_schema_change` | see [unsupported_schema_change variants](#unsupported_schema_change) | `mysql`, `mssql`, `singlestore` | The schema diff would emit a DDL operation that the target dialect cannot execute or rejects (per `meta.kind`) |
 | `invalid_hints` | see [invalid_hints variants](#invalid_hints) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Hints payload could not be loaded, parsed, validated, or applied — see [`invalid_hints`](#invalid_hints) below |
 | `unsupported_command_dialect_error` | `command`, `dialect?`, `option?`, `conflictsWith?` | all | The command, or one of its options, cannot run with this dialect or with another option. `option` names the rejected option. `conflictsWith` names the other option when the two cannot be used together, as `generate` does for `--explain` with `--custom`. |
-| `check_error` | see [`check` outcomes](#check) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | A command that reads the migrations folder found a snapshot-integrity problem (`kind: 'unsupported' \| 'malformed' \| 'non_latest'`, carries `snapshot`, and for a broken postgres history also `parentId` or `parentSnapshot`) or unreported branch conflicts (`kind: 'conflicts'`, carries `conflicts` + `details`). See [`check`](#check) below. |
+| `check_error` | see [`check` outcomes](#check) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | A command that reads the migrations folder found a snapshot-integrity problem (`kind: 'unsupported' \| 'malformed' \| 'non_latest' \| 'order'`, carries `snapshot`, and for a broken postgres history also `parentId` or `parentSnapshot`) or unreported branch conflicts (`kind: 'conflicts'`, carries `conflicts` + `details`). See [`check`](#check) below. |
 | `database_driver_error` | `database`, `packages`, `note?` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | A command that connects to a live database (`push`, `pull`) cannot select a connection driver: the required driver package is not installed, or the installed driver is incompatible with the target (for example a local-only turso driver used against a remote turso database). This code is emitted by both connecting commands, push, pull; for `pull` it also covers the connect/introspect span and the `--init` migrate span. `database` is the dialect, `packages` lists the drivers that would satisfy the connection, and `note` carries an optional install caveat. The credential-bearing detail (the connection string, SQL, and params) is never spread into the envelope — only `database`, `packages`, and `note?` are surfaced. |
 
 The example payloads in each variant sub-table show only the `error` object; the full response wraps them in `{"status":"error","error":{…}}`.
@@ -417,7 +417,7 @@ Older drizzle-kit versions wrote `meta/_journal.json` and `meta/<n>_snapshot.jso
 
 ### Folder order
 
-Each folder name must sort after the names of all its parents, because migrate runs the SQL in folder-name order. `generate` names a new folder after the current time. For postgresql, if the clock is behind the newest parent, `generate` uses the time of that parent plus one second. The other dialects always name the folder from the local clock. In a postgres folder, a folder that sorts before one of its parents stops every command with `check_error` kind `malformed`. See [`check` integrity errors](#check-integrity-errors).
+Each folder name must sort after the names of all its parents, because migrate runs the SQL in folder-name order. `generate` names a new folder after the current time. For postgresql, if the clock is behind the newest parent, `generate` uses the time of that parent plus one second. The other dialects always name the folder from the local clock. In a postgres folder, a folder that sorts before one of its parents stops every command with `check_error` kind `order`. See [`check` integrity errors](#check-integrity-errors).
 
 ### Snapshot formats per dialect
 
@@ -619,18 +619,24 @@ When a snapshot fails integrity validation, `check` emits an `error` envelope wi
 - `unsupported`: the snapshot was written by a Drizzle Kit version that this binary cannot read.
 - `malformed`: the snapshot cannot be read, or its postgres history is broken. The cases are listed below.
 - `non_latest`: the snapshot is in an older format. Run `drizzle-kit up`.
+- `order`: postgres only. A migration folder sorts before the folder of one of its parents. `parentSnapshot` is the path of the parent's `snapshot.json`.
 
 `snapshot` is the path of the snapshot file that has the problem.
 
-`generate`, `migrate`, `up` and `pull` read the migrations folder through the same loader, so they return the same `check_error` envelopes. `generate` and `migrate` also run the full `check` first.
+`generate`, `migrate` and `pull` read the migrations folder through the same loader, so they return the same `check_error` envelopes. `generate` and `migrate` also run the full `check` first. `up` checks only a folder that it converts. See [`up` errors](#up-errors).
 
-In a postgres folder, the loader checks the history before anything else. Each case below stops the command with `kind: "malformed"`. The JSON envelope carries no message. The last column shows the message that `--output text` prints, with the fix:
+In a postgres folder, the loader checks the history before anything else. The JSON envelope carries no message. The last column shows the message that `--output text` prints, with the fix. Each case below stops the command with `kind: "malformed"`:
 
 | case | extra keys | message and fix |
 | --- | --- | --- |
 | A `snapshot.json` is not valid JSON (for example because it still has git conflict markers), has no string `id`, or has no `prevIds` array | none | `<path> data is malformed. Restore the file from git, or fix the JSON in it by hand.` |
 | No snapshot in the history is a base snapshot, because the first migration folder is gone | none | `Cannot rebuild snapshot <folder>: its history does not reach a base snapshot. Restore the first migration folder from git, or delete <folder> and every later migration, then run generate again.` |
 | A parent listed in `prevIds` is not in the folder | `parentId`: the id of the missing parent | `Cannot rebuild snapshot <folder>: snapshot <parentId> is missing from the migrations folder. Restore the missing migration folder from git, or delete <folder> and every later migration, then run generate again.` |
+
+A wrong folder order stops the command with `kind: "order"`:
+
+| case | extra keys | message and fix |
+| --- | --- | --- |
 | A folder name sorts before the name of one of its parents | `parentSnapshot`: the path of the parent's `snapshot.json` | `Migration <folder> sorts before its parent <parent folder>, so migrate can run it first. Rename the folders so that <folder> sorts after <parent folder>.` |
 
 After these checks, `check` validates every snapshot against the format of its dialect. A snapshot that does not match gives `kind: "malformed"` with only the `snapshot` key. The cases without an extra key differ in the file at `snapshot`, so a caller reads that file to tell them apart.
@@ -714,7 +720,7 @@ For `mysql`, `sqlite` and `turso`, `--ignore-conflicts` makes `generate` write t
 | outcome | envelope | exit code |
 | --- | --- | --- |
 | valid (snapshots intact, branches commute) | `{ status: "ok", dialect }` | `0` |
-| integrity error (`unsupported` / `malformed` / `non_latest`) | `{ status: "error", error: { code: "check_error", kind, snapshot, parentId?, parentSnapshot? } }` | `1` |
+| integrity error (`unsupported` / `malformed` / `non_latest` / `order`) | `{ status: "error", error: { code: "check_error", kind, snapshot, parentId?, parentSnapshot? } }` | `1` |
 | conflicts (no `--ignore-conflicts`) | `{ status: "error", error: { code: "check_error", kind: "conflicts", conflicts, details, fix? } }` | `1` |
 | conflicts with `--ignore-conflicts` (not postgresql) | `{ status: "ok", dialect }` | `0` |
 | `--ignore-conflicts` with postgresql | `{ status: "error", error: { code: "unsupported_command_dialect_error", command, dialect, option } }` | `1` |
@@ -778,7 +784,7 @@ For postgres, step 2 converts formats 4 to 8 to format 9:
 - A merge keeps all its parents, and the parent with the newest folder name moves to the first place in `prevIds`.
 - Snapshot ids stay the same, and `migration.sql` files do not change.
 
-Before it rewrites any snapshot, `up` rebuilds the state of every converted snapshot from the new files and compares it with the state in the old file. If one state differs, or if a snapshot cannot be converted, `up` rewrites no `snapshot.json`. Step 1 runs before this check, so a folder that had `meta/_journal.json` is already moved to the folder layout of step 1 when the error comes. `up` writes no backup, because git keeps the old files. A folder that is already in format 9 stays as it is.
+For postgres, `up` does both steps in memory first. It converts every snapshot, rebuilds the state of every converted snapshot from the new snapshots, and compares it with the state in the old file. Only then it moves and writes files. If one step fails, `up` moves no file and writes no file, so the folder stays as it was. `up` writes no backup, because git keeps the old files. A folder that holds only format 9 snapshots stays as it is. `up` does not validate such a folder, and `check` does.
 
 ### `up` success
 
@@ -797,10 +803,13 @@ Before it rewrites any snapshot, `up` rebuilds the state of every converted snap
 
 ### `up` errors
 
-A postgres conversion that fails returns `command_output_error` with `command: "up"`, a `kind`, and `snapshot`, the path of the snapshot that failed:
+A postgres conversion that fails returns `command_output_error` with `command: "up"` and a `kind`. No file is changed. `snapshot` is the path of the snapshot that failed, where the file is now:
 
 | `kind` | extra keys | when |
 | --- | --- | --- |
+| `history` | `snapshot` and `parentId`: the id of the missing parent | A migration was deleted in the middle of the history: the snapshot at `snapshot` follows a parent that is not in the folder. Restore the missing migration from git. If that is not possible, delete the migration of `snapshot` and every later migration, run `up`, and generate them again. |
+| `history` | `entry`: the tag of the journal entry, and `sql`: the path where `up` expects the SQL file | A journal entry in `meta/_journal.json` has no SQL file. Restore the file from git and run `up` again. |
+| `history` | none | Another step of the conversion failed. The message of `--output text` names the reason. |
 | `malformed` | none | A format 9 `snapshot.json` does not pass the format 9 validator while the folder also has a snapshot to convert, or a format 8 file has no `ddl` or `prevIds` array. Restore it from git and run `up` again. A broken snapshot of format 4 to 7 gives `internal_error` instead. If every snapshot is already format 9, `up` does not validate them and returns `upgraded: []`. |
 | `invalid_snapshot` | none | The converted snapshot does not pass the format 9 validator. This is a bug in drizzle-kit. Keep the old files and report the issue. |
 | `state_mismatch` | `entity`: the first entity that differs, as `<entity type> <schema>.<table>.<name>` | The rebuilt state of the converted snapshot differs from the state in the old file. This is a bug in drizzle-kit. Keep the old files and report the issue. |
@@ -818,7 +827,9 @@ A postgres conversion that fails returns `command_output_error` with `command: "
 }
 ```
 
-`up` reads the folder through the same loader as the other commands, so a broken postgres history stops it with a `check_error` first. See [`check` integrity errors](#check-integrity-errors). The move out of `meta/_journal.json` can also fail. It returns `migration_snapshot_not_found_error` when the journal lists a migration whose `meta/<n>_snapshot.json` is missing. If `<tag>.sql` is missing, `up` moves the one SQL file whose name starts with the `<NNNN>_` prefix of the tag. It returns `migration_sql_files_conflict_error` (meta `prefix`) when several SQL files have that prefix. If no SQL file has that prefix, `up` skips the migration, and its snapshot is deleted with the `meta/` folder.
+In a postgres folder that it converts, `up` also returns `check_error` for a `snapshot.json` that is not valid JSON (`kind: "malformed"`) and for a folder that sorts before one of its parents (`kind: "order"`). See [`check` integrity errors](#check-integrity-errors).
+
+The move out of `meta/_journal.json` can also fail. It returns `migration_snapshot_not_found_error` when the journal lists a migration whose `meta/<n>_snapshot.json` is missing. If `<tag>.sql` is missing, `up` moves the one SQL file whose name starts with the `<NNNN>_` prefix of the tag. It returns `migration_sql_files_conflict_error` (meta `prefix`) when several SQL files have that prefix. If no SQL file has that prefix, postgres returns the `history` error above. The other dialects skip the migration, and its snapshot is deleted with the `meta/` folder.
 
 ## `export`
 

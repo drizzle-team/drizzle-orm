@@ -204,6 +204,115 @@ test('up writes nothing when a format 8 snapshot is malformed', async () => {
 	expect(flow.folders('main').map((it) => flow.snapshot('main', it))).toStrictEqual(before);
 });
 
+const troubleshooting = 'https://orm.drizzle.team/docs/kit-migrations-troubleshooting';
+
+test('up refuses a format 8 folder with a deleted middle migration and changes no file', async () => {
+	const { flow, original } = seedFormat8('format-8-linear');
+	const missing = original.get('20260928145209_posts')!.id;
+	flow.deleteFolder('main', '20260928145209_posts');
+	const before = flow.files('main');
+
+	const error = await flow.up('main').catch((e: unknown) => e);
+
+	expect((error as Error).message).toBe(
+		'Cannot convert the migrations folder to snapshot format 9: a migration was deleted in the middle of the '
+			+ `history. Migration 20260928145210_roles follows the snapshot ${missing}, and no migration in the folder has `
+			+ 'this snapshot. No file was changed. Restore the missing migration from git. If that is not possible, delete '
+			+ '20260928145210_roles and every later migration, run drizzle-kit up, and generate them again. '
+			+ `See ${troubleshooting}`,
+	);
+	expect(errorToEnvelope(error)).toStrictEqual({
+		status: 'error',
+		error: {
+			code: 'command_output_error',
+			command: 'up',
+			kind: 'history',
+			snapshot: expect.stringContaining(join('20260928145210_roles', 'snapshot.json')),
+			parentId: missing,
+		},
+	});
+	expect(flow.files('main')).toStrictEqual(before);
+});
+
+test('up refuses a journal folder with a deleted middle migration before it moves any file', async () => {
+	const flow = createFolderFlow();
+	flow.seed('main', join(fixtures, 'format-7'));
+	const journal = readFixture('format-7', 'meta', '_journal.json');
+	journal.entries.splice(1, 1);
+	flow.overwriteFile('main', join('meta', '_journal.json'), JSON.stringify(journal, null, 2));
+	flow.deleteFolder('main', join('meta', '0001_snapshot.json'));
+	flow.deleteFolder('main', '0001_posts.sql');
+	const missing = readFixture('format-7', 'meta', '0001_snapshot.json').id;
+	const before = flow.files('main');
+
+	const error = await flow.up('main').catch((e: unknown) => e);
+
+	expect((error as Error).message).toContain(
+		`Migration 0002_renames follows the snapshot ${missing}, and no migration in the folder has this snapshot.`,
+	);
+	expect(errorToEnvelope(error)).toMatchObject({ error: { command: 'up', kind: 'history', parentId: missing } });
+	expect(flow.files('main')).toStrictEqual(before);
+});
+
+test('up refuses a journal entry that has no SQL file and changes no file', async () => {
+	const flow = createFolderFlow();
+	flow.seed('main', join(fixtures, 'format-7'));
+	flow.deleteFolder('main', '0001_posts.sql');
+	const before = flow.files('main');
+
+	const error = await flow.up('main').catch((e: unknown) => e);
+
+	expect((error as Error).message).toMatch(
+		/^Cannot convert the migrations folder to snapshot format 9: the journal entry 0001_posts has no SQL file\. drizzle-kit expects it at \S+0001_posts\.sql\. No file was changed\. Restore this file from git, then run drizzle-kit up again\. See /,
+	);
+	expect(errorToEnvelope(error)).toStrictEqual({
+		status: 'error',
+		error: {
+			code: 'command_output_error',
+			command: 'up',
+			kind: 'history',
+			entry: '0001_posts',
+			sql: expect.stringMatching(/0001_posts\.sql$/),
+		},
+	});
+	expect(flow.files('main')).toStrictEqual(before);
+});
+
+test('up refuses a format 8 folder that sorts before its parent, with the error kind order', async () => {
+	const { flow } = seedFormat8('format-8-linear');
+	flow.renameFolder('main', '20260928145209_posts', '20260928145200_posts');
+	const before = flow.files('main');
+
+	const error = await flow.up('main').catch((e: unknown) => e);
+
+	expect((error as Error).message).toBe(
+		'Migration 20260928145200_posts sorts before its parent 20260928145207_init, so migrate can run it first. '
+			+ 'Rename the folders so that 20260928145200_posts sorts after 20260928145207_init.',
+	);
+	expect(errorToEnvelope(error)).toStrictEqual({
+		status: 'error',
+		error: {
+			code: 'check_error',
+			kind: 'order',
+			snapshot: expect.stringContaining(join('20260928145200_posts', 'snapshot.json')),
+			parentSnapshot: expect.stringContaining(join('20260928145207_init', 'snapshot.json')),
+		},
+	});
+	expect(flow.files('main')).toStrictEqual(before);
+});
+
+test('up returns ok for a format 9 folder with a broken history, and check reports it', async () => {
+	const { flow } = seedFormat8('format-8-linear');
+	await flow.up('main');
+	flow.deleteFolder('main', '20260928145209_posts');
+	const before = flow.files('main');
+
+	expect(await flow.up('main')).toStrictEqual([]);
+
+	expect(flow.files('main')).toStrictEqual(before);
+	await expect(flow.check('main')).rejects.toThrow('is missing from the migrations folder');
+});
+
 // Checks that every file of an old linear folder became format 9 with its parent link, and that each
 // snapshot rebuilds to the given state.
 const expectConverted = (

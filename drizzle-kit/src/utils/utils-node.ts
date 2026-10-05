@@ -139,7 +139,17 @@ export const buildParentIndex = (snapshots: string[]): SnapshotNode[] =>
 	});
 
 // migrate runs folders in localeCompare order, and drizzle-kit replays them in code unit order.
-const sortsAfter = (folder: string, parent: string) => folder > parent && folder.localeCompare(parent) > 0;
+export const sortsAfter = (folder: string, parent: string) => folder > parent && folder.localeCompare(parent) > 0;
+
+type FolderFile = { path: string; folder: string };
+
+export const folderOrderError = (node: FolderFile, parent: FolderFile) =>
+	new CheckCliError(
+		'order',
+		`Migration ${node.folder} sorts before its parent ${parent.folder}, so migrate can run it first. `
+			+ `Rename the folders so that ${node.folder} sorts after ${parent.folder}.`,
+		{ snapshot: node.path, parentSnapshot: parent.path },
+	);
 
 // Only postgres rebuilds a state from its parents. Other dialects store the full state in every snapshot.
 export const assertPostgresHistory = (snapshots: string[], index: SnapshotNode[]) => {
@@ -166,29 +176,25 @@ export const assertPostgresHistory = (snapshots: string[], index: SnapshotNode[]
 			if (parentId === originUUID) continue;
 			const parent = byId.get(parentId);
 			if (!parent) throw broken(node, missingParentMessage(node.folder, parentId), { parentId });
-			if (!sortsAfter(node.folder, parent.folder)) {
-				throw broken(
-					node,
-					`Migration ${node.folder} sorts before its parent ${parent.folder}, so migrate can run it first. `
-						+ `Rename the folders so that ${node.folder} sorts after ${parent.folder}.`,
-					{ parentSnapshot: parent.path },
-				);
-			}
+			if (!sortsAfter(node.folder, parent.folder)) throw folderOrderError(node, parent);
 		}
 	}
 };
 
-export const prepareOutFolder = (out: string) => {
+// The snapshot files of the migration folders in `out`, in folder-name order.
+export const listSnapshots = (out: string): string[] => {
 	if (!existsSync(out)) {
 		mkdirSync(out, { recursive: true });
 	}
 
-	const snapshots = readdirSync(out)
+	return readdirSync(out)
 		.map((subdir) => join(out, subdir, 'snapshot.json'))
-		.filter((filePath) => existsSync(filePath));
+		.filter((filePath) => existsSync(filePath))
+		.sort();
+};
 
-	snapshots.sort();
-
+export const prepareOutFolder = (out: string) => {
+	const snapshots = listSnapshots(out);
 	const index = buildParentIndex(snapshots);
 	assertPostgresHistory(snapshots, index);
 

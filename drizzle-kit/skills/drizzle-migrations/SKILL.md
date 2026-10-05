@@ -105,12 +105,12 @@ A migration folder must sort after the folders of its parents, because the migra
 
 ### Errors in the migrations folder
 
-For postgresql, every command that reads the migrations folder (`generate`, `check`, `migrate`, `up` and `pull`) checks the history of the folder before it does anything else. Each problem below stops the command with the `check_error` code and `kind: "malformed"`. The `drizzle-responses-and-errors` skill decodes the envelope.
+For postgresql, `generate`, `check`, `migrate` and `pull` check the history of the migrations folder before they do anything else. `up` checks only a folder that it converts. Each problem below stops the command with the `check_error` code. The `kind` is `"malformed"`, and for a wrong folder order it is `"order"`. The `drizzle-responses-and-errors` skill decodes the envelope.
 
 - **A snapshot file cannot be read.** The file is not valid JSON, or it has no `id` or no `prevIds` array. Only `snapshot` is set. This happens, for example, when a git merge left conflict markers in `snapshot.json`. Restore the file from git (keep the version from one of the merged git branches), or fix the JSON by hand.
 - **A parent is missing.** `parentId` is set to the id of the missing parent, and `snapshot` is the migration that needs it. A migration folder in the middle of the history is gone. Restore that folder from git. If it cannot be restored, delete the migration named in `snapshot` and every later migration, then run `generate` again.
 - **The base snapshot is missing.** Only `snapshot` is set. The first migration folder is gone. Restore it from git, or delete the named migration and every later one and run `generate` again.
-- **A folder sorts before its parent.** `parentSnapshot` is set to the parent's `snapshot.json`. Rename the folder named in `snapshot` so that it sorts after the parent folder.
+- **A folder sorts before its parent.** The `kind` is `"order"`, and `parentSnapshot` is set to the parent's `snapshot.json`. Rename the folder named in `snapshot` so that it sorts after the parent folder.
 
 Deleting migrations is safe for the history in these cases:
 
@@ -129,7 +129,9 @@ Run `drizzle-kit up` when a command stops with `migrations_outdated_error`, or w
 - If the folder still has `meta/_journal.json` and `meta/<n>_snapshot.json` files, `up` moves every migration into its own folder with `migration.sql` and `snapshot.json`.
 - For postgresql, `up` converts every older snapshot to format 9. The first snapshot becomes a base snapshot, and every later one becomes a diff snapshot. Renames that the old snapshots recorded become rename deltas. If an old snapshot stores another generated name for a constraint than the rebuilt schema has, `up` adds a drop and a create of that constraint to keep the stored name. `up` does not change the SQL of any migration.
 
-For postgresql, `up` rebuilds every schema from the new files and compares it with the old file before it rewrites any snapshot. The comparison ignores the name of a primary key that has the Postgres default name `<table>_pkey`: after a table rename, Postgres keeps the old name, and the rebuilt schema keeps it too. If one schema differs, `up` rewrites no snapshot and stops with the `command_output_error` code and `kind: "state_mismatch"`, which names the snapshot and the entity. That is a drizzle-kit bug: keep the old files and report it. The move out of `meta/` runs before this check, so a folder that had `meta/_journal.json` already has the new layout at that point. A folder that is already current stays as it is, and `upgraded` is then `[]`. `up` writes no backup, so commit the folder before you run it, then review and commit the result.
+For postgresql, `up` rebuilds every schema from the new files and compares it with the old file before it rewrites any snapshot. The comparison ignores the name of a primary key that has the Postgres default name `<table>_pkey`: after a table rename, Postgres keeps the old name, and the rebuilt schema keeps it too. If one schema differs, `up` rewrites no snapshot and stops with the `command_output_error` code and `kind: "state_mismatch"`, which names the snapshot and the entity. That is a drizzle-kit bug: keep the old files and report it. `up` moves and writes files only after every check passed, so a failure leaves the folder as it was. A folder that is already current stays as it is, and `upgraded` is then `[]`.
+
+For postgresql, `up` refuses a folder whose history it cannot convert, with the `command_output_error` code and `kind: "history"`. With `parentId`, a migration was deleted in the middle of the history: restore it from git, or delete the migration named in `snapshot` and every later migration, run `up`, and generate them again. With `entry`, that entry of `meta/_journal.json` has no SQL file: restore the file named in `sql`. `up` writes no backup, so commit the folder before you run it, then review and commit the result.
 
 ## Collapsing snapshot diffs in code review
 

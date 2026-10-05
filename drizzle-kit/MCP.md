@@ -28,7 +28,7 @@ See your MCP client's documentation for how to register a stdio server. As an ex
 | `up` | `config?` | idempotent (not read-only — rewrites snapshots in place) |
 | `pull` | `config?`, `init?` | `destructiveHint: false` (static — see the `--init` signal below) |
 
-Each tool returns the same JSON envelope as the CLI `--output json` / SDK contract — see [JSON_CONTRACT.md](./JSON_CONTRACT.md) for the full envelope spec.
+Each tool returns the same JSON envelope as the CLI `--output json` / SDK contract — see [JSON_CONTRACT.md](./JSON_CONTRACT.md) for the full envelope spec. For postgresql, two error kinds tell an agent that the migrations folder itself needs a fix. `check_error` with `kind: "order"` means that a migration folder sorts before its parent. `command_output_error` from `up` with `kind: "history"` means that `up` cannot convert the history of the folder, and that it changed no file.
 
 ## Consent round-trip (`missing_hints`)
 

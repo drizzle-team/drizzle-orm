@@ -48,7 +48,7 @@ The canonical subset surfacing from `generate` and `push`. `code` is the discrim
 | ----------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | `invalid_hints`                     | hints payload could not be loaded, parsed, validated, or matched to the diff        | `source: 'file'\|'inline'`, `path?`, `issues?`, `kind?`, `from?` |
 | `unsupported_schema_change`         | the diff would emit DDL the target dialect cannot execute (see variants below)      | `kind`, plus per-variant keys                                   |
-| `check_error`                       | a command that reads the migrations folder found a snapshot-integrity problem or unreported branch conflicts (see below) | `kind: 'unsupported'\|'malformed'\|'non_latest'\|'conflicts'`, `snapshot?`, `parentId?`, `parentSnapshot?`, `conflicts?`, `details?` |
+| `check_error`                       | a command that reads the migrations folder found a snapshot-integrity problem or unreported branch conflicts (see below) | `kind: 'unsupported'\|'malformed'\|'non_latest'\|'order'\|'conflicts'`, `snapshot?`, `parentId?`, `parentSnapshot?`, `conflicts?`, `details?` |
 | `query_error`                       | runtime SQL against the live DB threw                                               | `sql`, `params`                                                 |
 | `internal_error`                    | uncaught exception escaped the run boundary — likely a bug to report                | `message`                                                       |
 | `config_validation_error`           | `drizzle.config.ts` failed shape validation                                         | `issues?` (zod-style records)                                   |
@@ -62,7 +62,7 @@ The canonical subset surfacing from `generate` and `push`. `code` is the discrim
 | `orm_version_error`                 | `drizzle-orm` is missing, too old, or `drizzle-kit` itself is outdated              | `kind: 'orm_missing'\|'orm_too_old'\|'kit_outdated'`            |
 | `required_packages_error`           | one or more dialect driver packages need installing                                 | `packages`                                                      |
 | `migrations_outdated_error`         | migrations folder format is outdated and needs upgrading                            | `out`                                                           |
-| `command_output_error`              | a command could not produce its result; for `up`, a snapshot could not be converted | `command`, plus per-command keys (for `up`: `kind`, `snapshot`, `entity?`) |
+| `command_output_error`              | a command could not produce its result; for `up`, a snapshot could not be converted | `command`, plus per-command keys (for `up`: `kind`, `snapshot?`, `entity?`, `parentId?`, `entry?`, `sql?`) |
 
 Ordering above is roughly most-likely-first from `generate` / `push`. Other codes can surface (see the live `drizzle-kit` source); the table covers the curated subset relevant to the day-to-day workflow.
 
@@ -86,13 +86,14 @@ When fired:
 
 ## Check errors
 
-`check_error` surfaces from the `check()` SDK export and `drizzle-kit check`, returning the envelope on integrity or conflict failures exactly as the CLI does. `generate` and `migrate` run the same check before they start, and `up` and `pull` read the migrations folder through the same loader, so all of them can return it. It exits with code 1 and carries a `kind` discriminator.
+`check_error` surfaces from the `check()` SDK export and `drizzle-kit check`, returning the envelope on integrity or conflict failures exactly as the CLI does. `generate` and `migrate` run the same check before they start, and `pull` reads the migrations folder through the same loader, so all of them can return it. `up` returns it for a folder that it converts. It exits with code 1 and carries a `kind` discriminator.
 
 | meta.kind     | meta keys                | when fired                                                              |
 | ------------- | ------------------------ | ---------------------------------------------------------------------- |
 | `unsupported` | `kind`, `snapshot`       | a snapshot was written by a newer drizzle-kit and cannot be read       |
-| `malformed`   | `kind`, `snapshot`, `parentId?`, `parentSnapshot?` | a snapshot cannot be read, or the postgres history of the folder is broken (cases below) |
+| `malformed`   | `kind`, `snapshot`, `parentId?` | a snapshot cannot be read, or the postgres history of the folder is broken (cases below) |
 | `non_latest`  | `kind`, `snapshot`       | a snapshot is in an older format; run `drizzle-kit up`                 |
+| `order`       | `kind`, `snapshot`, `parentSnapshot` | postgres only: the folder of `snapshot` sorts before the folder of its parent `parentSnapshot`, so migrate could run it first; rename the folder of `snapshot` so that it sorts after the parent folder |
 | `conflicts`   | `kind`, `conflicts`, `details`, `fix?` | branches in the migrations folder do not commute |
 
 For the integrity kinds, `snapshot` is the path of the snapshot file that has the problem. `malformed` has these cases:
@@ -103,7 +104,6 @@ For the integrity kinds, `snapshot` is the path of the snapshot file that has th
 | none | the file at `snapshot` is valid JSON but does not match the snapshot format of its dialect | restore the file from git |
 | none | postgres only: the history of `snapshot` reaches no base snapshot, because the first migration folder is gone | restore the first migration folder from git, or delete the migration of `snapshot` and every later migration, then run `generate` again |
 | `parentId` | postgres only: the parent with that id is missing from the folder | restore the missing migration folder from git, or delete the migration of `snapshot` and every later migration, then run `generate` again |
-| `parentSnapshot` | postgres only: the folder of `snapshot` sorts before the folder of its parent `parentSnapshot`, so migrate could run it first | rename the folder of `snapshot` so that it sorts after the parent folder |
 
 The three cases without an extra key differ in the file at `snapshot`, so read that file to tell them apart. Under `--output text`, the message names the case and the fix. The `drizzle-migrations` skill explains the migrations folder, base and diff snapshots, and these fixes in more detail.
 
@@ -162,8 +162,8 @@ Common failure modes and their fixes — keyed by `error.code` / `meta.kind`:
 - `required_packages_error` — `meta.packages` lists the npm packages to install. Common for dialect drivers (`pg`, `mysql2`, `better-sqlite3`, `@libsql/client`, `mssql`).
 - `unsupported_command_dialect_error` — the command, or one of its options, cannot run here. Without `meta.option`, the command isn't supported for `meta.dialect`: use a different command or switch dialects. With `meta.option` and `meta.dialect`, only that option is unsupported: postgresql rejects `ignore-conflicts` (use `generate --fix-conflicts`), and the other dialects reject `fix-conflicts`. With `meta.conflictsWith`, the two options cannot be used together: `generate` rejects `explain` with `custom`, because a custom migration has no SQL to explain. Run it with only one of them.
 - `migrations_outdated_error` — the migrations folder under `meta.out` uses an older snapshot format. Run `drizzle-kit up` to migrate the folder forward.
-- `check_error`: `meta.kind` discriminates. For `non_latest`, run `drizzle-kit up`. For `malformed`, see the case table in Check errors above. For `conflicts`, `meta.details` names the conflicting migrations; the `drizzle-migrations` skill covers how to resolve them.
-- `command_output_error` with `meta.command: 'up'`: `up` converted nothing. `meta.kind` is `malformed` (a format 8 snapshot is broken, or a format 9 snapshot is broken while the folder has a snapshot to convert: restore `meta.snapshot` from git and run `up` again; a broken snapshot of format 4 to 7 gives `internal_error` instead), `invalid_snapshot` or `state_mismatch` (a drizzle-kit bug: keep the old files and report it; `state_mismatch` also names the first differing `meta.entity`).
+- `check_error`: `meta.kind` discriminates. For `non_latest`, run `drizzle-kit up`. For `malformed`, see the case table in Check errors above. For `order`, rename the folder of `meta.snapshot` so that it sorts after the folder of `meta.parentSnapshot`. For `conflicts`, `meta.details` names the conflicting migrations; the `drizzle-migrations` skill covers how to resolve them.
+- `command_output_error` with `meta.command: 'up'`: `up` converted nothing and changed no file. `meta.kind` is `history` (the history of the folder cannot be converted: with `meta.parentId`, a migration was deleted in the middle of the history, so restore it from git, or delete the migration of `meta.snapshot` and every later migration, run `up`, and generate them again; with `meta.entry`, that journal entry has no SQL file, so restore the file at `meta.sql`), `malformed` (a format 8 snapshot is broken, or a format 9 snapshot is broken while the folder has a snapshot to convert: restore `meta.snapshot` from git and run `up` again; a broken snapshot of format 4 to 7 gives `internal_error` instead), `invalid_snapshot` or `state_mismatch` (a drizzle-kit bug: keep the old files and report it; `state_mismatch` also names the first differing `meta.entity`).
 - `invalid_hints` — discriminated by which keys are present in `meta`: `path` means a file read failed, `issues` means schema validation failed, `kind` + `from` together mean a `rename` hint's `from` tuple did not match any deleted entity. For schema-validation failures, fix the named issues; for a `from` mismatch, correct the tuple (the entity must be one the diff would otherwise delete).
 - `unsupported_schema_change` — refer to the variant table above; each variant has a specific remediation path.
 - `query_error` — the live DB threw on `meta.sql` with `meta.params`. Run the same query manually against the target DB to surface the underlying DBMS error; fix the schema or the data.

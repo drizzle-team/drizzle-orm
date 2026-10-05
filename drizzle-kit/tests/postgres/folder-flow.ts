@@ -1,9 +1,19 @@
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate as migrateFolder } from 'drizzle-orm/pglite/migrator';
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs';
+import {
+	cpSync,
+	type Dirent,
+	existsSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	renameSync,
+	rmSync,
+	writeFileSync,
+} from 'fs';
 import { tmpdir } from 'os';
-import { basename, dirname, join } from 'path';
+import { basename, dirname, join, relative } from 'path';
 import { checkHandler, checkSnapshots } from 'src/cli/commands/check';
 import { handle } from 'src/cli/commands/generate-postgres';
 import { handle as pullHandle } from 'src/cli/commands/pull-postgres';
@@ -92,6 +102,14 @@ export const createFolderFlow = () => {
 	// pull also writes schema.ts and relations.ts next to the migration folders.
 	const folders = (branch: string) =>
 		readdirSync(dirOf(branch), { withFileTypes: true }).filter((it) => it.isDirectory()).map((it) => it.name).sort();
+
+	// Every file of the branch with its content, so that a test can assert that a command changed nothing.
+	const files = (branch: string) =>
+		(readdirSync(dirOf(branch), { recursive: true, withFileTypes: true }) as Dirent[])
+			.filter((it) => it.isFile())
+			.map((it) => join(it.parentPath, it.name))
+			.sort()
+			.map((path) => [relative(dirOf(branch), path), readFileSync(path, 'utf8')]);
 
 	const snapshot = (branch: string, folder: string): PostgresSnapshot =>
 		JSON.parse(readFileSync(join(dirOf(branch), folder, 'snapshot.json'), 'utf8'));
@@ -206,7 +224,10 @@ export const createFolderFlow = () => {
 
 	const seed = (branch: string, from: string) => cpSync(from, dirOf(branch), { recursive: true });
 
-	const deleteFolder = (branch: string, folder: string) => rmSync(join(dirOf(branch), folder), { recursive: true });
+	// `path` is a migration folder, or one file inside the branch.
+	const deleteFolder = (branch: string, path: string) => rmSync(join(dirOf(branch), path), { recursive: true });
+
+	const overwriteFile = (branch: string, path: string, text: string) => writeFileSync(join(dirOf(branch), path), text);
 
 	const renameFolder = (branch: string, from: string, to: string) =>
 		renameSync(join(dirOf(branch), from), join(dirOf(branch), to));
@@ -230,6 +251,7 @@ export const createFolderFlow = () => {
 	return {
 		branch,
 		folders,
+		files,
 		snapshot,
 		sql,
 		leaves,
@@ -245,6 +267,7 @@ export const createFolderFlow = () => {
 		merge,
 		seed,
 		deleteFolder,
+		overwriteFile,
 		renameFolder,
 		overwriteSnapshot,
 		migrate,

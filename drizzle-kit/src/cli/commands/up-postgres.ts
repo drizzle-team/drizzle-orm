@@ -1,15 +1,22 @@
 import chalk from 'chalk';
-import { writeFileSync } from 'fs';
-import { basename, dirname } from 'path';
+import { readFileSync, writeFileSync } from 'fs';
+import { basename, dirname, join } from 'path';
 import { normalizeDDL } from '../../dialects/ddl-canonical';
 import { fromEntities } from '../../dialects/postgres/ddl';
 import { type PostgresSnapshot, reconstruct, snapshotValidator } from '../../dialects/postgres/snapshot';
 import { upToV8 } from '../../dialects/postgres/versions';
 import { upToV9, withStateKeyNames } from '../../dialects/postgres/versions-v9';
-import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
+import { originUUID } from '../../utils';
+import {
+	assertSnapshotStatus,
+	folderOrderError,
+	listSnapshots,
+	sortsAfter,
+	validateWithReport,
+} from '../../utils/utils-node';
 import { outputFormat } from '../context';
-import { CommandOutputCliError } from '../errors';
-import { migrateToFoldersV3 } from './utils';
+import { CommandOutputCliError, DrizzleCliError } from '../errors';
+import { applyFoldersV3, planFoldersV3 } from './utils';
 
 const entityName = (json: string) => {
 	const row = JSON.parse(json);
@@ -26,17 +33,52 @@ const conversionError = (folder: string, reason: string, next: string, meta: Rec
 		meta,
 	);
 
+const troubleshootingUrl = 'https://orm.drizzle.team/docs/kit-migrations-troubleshooting';
+
+// The history of the folder cannot be converted. `reason` and `fix` are full sentences.
+const historyError = (reason: string, fix: string, meta: Record<string, string> = {}) =>
+	new CommandOutputCliError(
+		'up',
+		`Cannot convert the migrations folder to snapshot format 9: ${reason} No file was changed. ${fix} `
+			+ `See ${troubleshootingUrl}`,
+		{ kind: 'history', ...meta },
+	);
+
+// Nothing is moved or written before every snapshot is converted and checked, so a failure leaves the
+// folder as it was. A journal folder (the drizzle-kit 0.x layout) is read in place and moved last.
 export const upPgHandler = async (out: string): Promise<string[]> => {
-	migrateToFoldersV3(out);
+	const moves = planFoldersV3(out);
+	const withoutSql = moves?.find((it) => !it.sqlPath);
+	if (withoutSql) {
+		const sql = join(out, `${withoutSql.tag}.sql`);
+		throw historyError(
+			`the journal entry ${withoutSql.tag} has no SQL file. drizzle-kit expects it at ${sql}.`,
+			'Restore this file from git, then run drizzle-kit up again.',
+			{ entry: withoutSql.tag, sql },
+		);
+	}
 
-	const { snapshots } = prepareOutFolder(out);
-	const report = validateWithReport(snapshots, 'postgresql');
+	// `path` is where the file is now, and `name` is how the user knows the migration now, so that an error
+	// names things that exist. `folder` is the migration folder after the move.
+	const sources = moves
+		? moves.map((it) => ({ path: it.snapshotPath, folder: it.folder, name: it.tag }))
+		: listSnapshots(out).map((path) => ({ path, folder: basename(dirname(path)), name: basename(dirname(path)) }));
+	for (const { path } of sources) {
+		try {
+			JSON.parse(readFileSync(path, 'utf8'));
+		} catch {
+			assertSnapshotStatus(path, 'malformed');
+		}
+	}
+	const report = validateWithReport(sources.map((it) => it.path), 'postgresql');
 
+	// A folder that holds only format 9 snapshots is not validated here. `check` does that.
+	const converted: { path: string; text: string }[] = [];
 	if (report.nonLatest.length > 0) {
-		const files = snapshots.map((path) => {
-			const raw = report.rawMap[path];
-			return { path, folder: basename(dirname(path)), snapshot: Number(raw.version) < 8 ? upToV8(raw).snapshot : raw };
-		});
+		const files = sources.map((it) => {
+			const raw = report.rawMap[it.path];
+			return { ...it, snapshot: Number(raw.version) < 8 ? upToV8(raw).snapshot : raw };
+		}).sort((a, b) => (a.folder < b.folder ? -1 : 1));
 		// validateWithReport checks the shape of format 9 files only, so a format 8 file needs this check.
 		const malformedFile = files.find(({ path, snapshot }) =>
 			report.malformed.includes(path)
@@ -50,7 +92,32 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 				{ kind: 'malformed', snapshot: malformedFile.path },
 			);
 		}
-		const snapshotTexts = (await upToV9(files)).map((it) => JSON.stringify(it, null, 2));
+
+		const fileOf = new Map(files.map((it) => [it.snapshot.id as string, it]));
+		for (const file of files) {
+			for (const parentId of file.snapshot.prevIds as string[]) {
+				if (!parentId || parentId === originUUID) continue;
+				const parent = fileOf.get(parentId);
+				if (!parent) {
+					throw historyError(
+						`a migration was deleted in the middle of the history. Migration ${file.name} follows the snapshot `
+							+ `${parentId}, and no migration in the folder has this snapshot.`,
+						`Restore the missing migration from git. If that is not possible, delete ${file.name} and every later `
+							+ 'migration, run drizzle-kit up, and generate them again.',
+						{ snapshot: file.path, parentId },
+					);
+				}
+				if (!sortsAfter(file.folder, parent.folder)) throw folderOrderError(file, parent);
+			}
+		}
+
+		let snapshotTexts: string[];
+		try {
+			snapshotTexts = (await upToV9(files)).map((it) => JSON.stringify(it, null, 2));
+		} catch (e) {
+			if (e instanceof DrizzleCliError) throw e;
+			throw historyError((e as Error).message, reportIssueHint);
+		}
 
 		// The files are checked in the form that is written to disk.
 		const written = snapshotTexts.map((it) => JSON.parse(it) as PostgresSnapshot);
@@ -83,16 +150,17 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 					},
 				);
 			}
+			converted.push({ path: join(out, folder, 'snapshot.json'), text: snapshotTexts[idx] });
 		}
+	}
 
-		for (const [idx, { path, snapshot }] of files.entries()) {
-			if (snapshot.version === '9') continue;
-			writeFileSync(path, snapshotTexts[idx]);
-			if (outputFormat() === 'text') console.log(`[${chalk.green('✓')}] ${path}`);
-		}
+	if (moves) applyFoldersV3(out, moves);
+	for (const { path, text } of converted) {
+		writeFileSync(path, text);
+		if (outputFormat() === 'text') console.log(`[${chalk.green('✓')}] ${path}`);
 	}
 
 	if (outputFormat() === 'text') console.log("Everything's fine 🐶🔥");
 
-	return report.nonLatest;
+	return converted.map((it) => it.path);
 };
