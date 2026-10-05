@@ -27,7 +27,7 @@ import { type Hint, HintsHandler } from 'src/cli/hints';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import type { Delta } from 'src/dialects/dialect';
 import { fromSnapshotStatements } from 'src/dialects/postgres/convertor';
-import { interimToDDL } from 'src/dialects/postgres/ddl';
+import { interimToDDL, type PostgresDDL } from 'src/dialects/postgres/ddl';
 import { fromDrizzleSchema, fromExports, SchemaSource } from 'src/dialects/postgres/drizzle';
 import { prepareSnapshot } from 'src/dialects/postgres/serializer';
 import { type PostgresSnapshot, reconstruct, startingState } from 'src/dialects/postgres/snapshot';
@@ -83,6 +83,8 @@ export const schemaState = (schema: PostgresSchema) => {
 	const { schema: interim } = fromDrizzleSchema(fromExports(schema), () => true);
 	return normalizeDDL(interimToDDL(interim).ddl.entities.list());
 };
+
+const isState = (it: PostgresSchema | PostgresDDL): it is PostgresDDL => 'entities' in it && '_' in it;
 
 // A branch is a folder that holds only that branch's migration folders, like a git checkout of it.
 export const createFolderFlow = () => {
@@ -245,14 +247,17 @@ export const createFolderFlow = () => {
 	const overwriteSnapshot = (branch: string, folder: string, text: string) =>
 		writeFileSync(join(dirOf(branch), folder, 'snapshot.json'), text);
 
-	// Returns the statements that push still needs after migrate. An empty list means the database matches the schema.
-	const migrate = async (branch: string, schema: PostgresSchema) => {
+	// Returns the statements that push still needs after migrate. An empty list means the database matches
+	// `schema`, which is a drizzle schema or a state.
+	const migrate = async (branch: string, schema: PostgresSchema | PostgresDDL) => {
 		const client = new PGlite();
 		try {
 			await migrateFolder(drizzle({ client }), { migrationsFolder: dirOf(branch) });
 			const db = { query: async (query: string, params?: any[]) => (await client.query<any>(query, params)).rows };
 			// push compares only the roles that the filter names, and the database has roles of its own.
-			const roles = Object.values(schema).filter((it) => is(it, PgRole)).map((it) => it.name);
+			const roles = isState(schema)
+				? schema.roles.list().map((it) => it.name)
+				: Object.values(schema).filter((it) => is(it, PgRole)).map((it) => it.name);
 			const entities = roles.length > 0 ? { roles: { include: roles } } : undefined;
 			const { sqlStatements } = await push({ db, to: schema, entities });
 			return sqlStatements;

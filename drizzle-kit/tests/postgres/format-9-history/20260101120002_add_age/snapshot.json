@@ -1,0 +1,47 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "f431708b-6b13-4a3c-a6bc-73c652d9d647",
+  "prevIds": [
+    "7408ca61-e977-4e12-a6d5-e452a910b526"
+  ],
+  "statements": [
+    {
+      "type": "add_column",
+      "column": {
+        "schema": "public",
+        "table": "users",
+        "name": "age",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null
+      },
+      "isPK": false,
+      "isCompositePK": false
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "users",
+        "name": "age",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ],
+  "stateHash": "4ea7f0c28c3d473853906b3be76566675920faac7cd6b8964b02c9b0f3ba3db4"
+}

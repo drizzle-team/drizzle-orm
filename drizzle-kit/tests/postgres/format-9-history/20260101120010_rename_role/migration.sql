@@ -1,0 +1,1 @@
+ALTER ROLE "staff" RENAME TO "team";

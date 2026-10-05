@@ -1,0 +1,126 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "5d55233a-0c96-46ff-bcd0-4a80f83571de",
+  "prevIds": [
+    "6bc00ed3-bc26-4c9f-bb4d-3fd473dcb39c"
+  ],
+  "statements": [
+    {
+      "type": "rename_table",
+      "schema": "public",
+      "from": "posts",
+      "to": "articles"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "rename",
+      "key": "tables\u0000[\"public\",\"posts\"]",
+      "set": {
+        "name": "articles"
+      }
+    },
+    {
+      "op": "update",
+      "type": "checks",
+      "where": {
+        "schema": "public",
+        "table": "posts"
+      },
+      "set": {
+        "table": "articles"
+      }
+    },
+    {
+      "op": "update",
+      "type": "policies",
+      "where": {
+        "schema": "public",
+        "table": "posts"
+      },
+      "set": {
+        "table": "articles"
+      }
+    },
+    {
+      "op": "update",
+      "type": "privileges",
+      "where": {
+        "schema": "public",
+        "table": "posts"
+      },
+      "set": {
+        "table": "articles"
+      }
+    },
+    {
+      "op": "update",
+      "type": "columns",
+      "where": {
+        "schema": "public",
+        "table": "posts"
+      },
+      "set": {
+        "table": "articles"
+      }
+    },
+    {
+      "op": "update",
+      "type": "indexes",
+      "where": {
+        "schema": "public",
+        "table": "posts"
+      },
+      "set": {
+        "table": "articles"
+      }
+    },
+    {
+      "op": "update",
+      "type": "pks",
+      "where": {
+        "schema": "public",
+        "table": "posts"
+      },
+      "set": {
+        "table": "articles"
+      }
+    },
+    {
+      "op": "update",
+      "type": "uniques",
+      "where": {
+        "schema": "public",
+        "table": "posts"
+      },
+      "set": {
+        "table": "articles"
+      }
+    },
+    {
+      "op": "update",
+      "type": "fks",
+      "where": {
+        "schema": "public",
+        "table": "posts"
+      },
+      "set": {
+        "table": "articles"
+      }
+    },
+    {
+      "op": "update",
+      "type": "fks",
+      "where": {
+        "schemaTo": "public",
+        "tableTo": "posts"
+      },
+      "set": {
+        "tableTo": "articles"
+      }
+    }
+  ],
+  "stateHash": "8d3ee9ce365202356c39ed5586fe5abd695771e2198800f30e4ea19aafe84bc5"
+}

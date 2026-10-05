@@ -1,0 +1,31 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "97b492d8-d796-4e57-a3ed-3a7d4fe0a8be",
+  "prevIds": [
+    "5d55233a-0c96-46ff-bcd0-4a80f83571de"
+  ],
+  "statements": [
+    {
+      "type": "rename_index",
+      "schema": "public",
+      "table": "users",
+      "from": "users_email_ix",
+      "to": "users_contact_ix",
+      "columns": [
+        "contact"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "rename",
+      "key": "indexes\u0000[\"public\",\"users_email_ix\"]",
+      "set": {
+        "name": "users_contact_ix"
+      }
+    }
+  ],
+  "stateHash": "4f88f516b140cbde99f7c4e446ea167e30dcd198d40bf7d5bdc51ee3b86e3e47"
+}

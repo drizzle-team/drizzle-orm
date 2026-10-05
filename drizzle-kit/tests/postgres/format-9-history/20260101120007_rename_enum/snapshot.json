@@ -1,0 +1,38 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "64f74088-2d23-4263-84ec-2d59ec0dd30f",
+  "prevIds": [
+    "2c5c64b9-a3f9-4893-95f7-88c1b74c3f2c"
+  ],
+  "statements": [
+    {
+      "type": "rename_enum",
+      "schema": "public",
+      "from": "mood",
+      "to": "feeling"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "rename",
+      "key": "enums\u0000[\"public\",\"mood\"]",
+      "set": {
+        "name": "feeling"
+      }
+    },
+    {
+      "op": "update",
+      "type": "columns",
+      "where": {
+        "typeSchema": "public",
+        "type": "mood"
+      },
+      "set": {
+        "type": "feeling"
+      }
+    }
+  ],
+  "stateHash": "7b896ebef98861f26c1292baecca472d3329f067e25697f50918e1668fb52cf2"
+}

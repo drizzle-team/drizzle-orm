@@ -1,0 +1,170 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "2c5c64b9-a3f9-4893-95f7-88c1b74c3f2c",
+  "prevIds": [
+    "5d55233a-0c96-46ff-bcd0-4a80f83571de"
+  ],
+  "statements": [
+    {
+      "type": "rename_schema",
+      "from": {
+        "name": "app"
+      },
+      "to": {
+        "name": "core"
+      }
+    }
+  ],
+  "deltas": [
+    {
+      "op": "rename",
+      "key": "schemas\u0000[\"app\"]",
+      "set": {
+        "name": "core"
+      }
+    },
+    {
+      "op": "update",
+      "type": "tables",
+      "where": {
+        "schema": "app"
+      },
+      "set": {
+        "schema": "core"
+      }
+    },
+    {
+      "op": "update",
+      "type": "checks",
+      "where": {
+        "schema": "app"
+      },
+      "set": {
+        "schema": "core"
+      }
+    },
+    {
+      "op": "update",
+      "type": "policies",
+      "where": {
+        "schema": "app"
+      },
+      "set": {
+        "schema": "core"
+      }
+    },
+    {
+      "op": "update",
+      "type": "privileges",
+      "where": {
+        "schema": "app"
+      },
+      "set": {
+        "schema": "core"
+      }
+    },
+    {
+      "op": "update",
+      "type": "columns",
+      "where": {
+        "schema": "app"
+      },
+      "set": {
+        "schema": "core"
+      }
+    },
+    {
+      "op": "update",
+      "type": "indexes",
+      "where": {
+        "schema": "app"
+      },
+      "set": {
+        "schema": "core"
+      }
+    },
+    {
+      "op": "update",
+      "type": "pks",
+      "where": {
+        "schema": "app"
+      },
+      "set": {
+        "schema": "core"
+      }
+    },
+    {
+      "op": "update",
+      "type": "uniques",
+      "where": {
+        "schema": "app"
+      },
+      "set": {
+        "schema": "core"
+      }
+    },
+    {
+      "op": "update",
+      "type": "fks",
+      "where": {
+        "schema": "app"
+      },
+      "set": {
+        "schema": "core"
+      }
+    },
+    {
+      "op": "update",
+      "type": "fks",
+      "where": {
+        "schemaTo": "app"
+      },
+      "set": {
+        "schemaTo": "core"
+      }
+    },
+    {
+      "op": "update",
+      "type": "enums",
+      "where": {
+        "schema": "app"
+      },
+      "set": {
+        "schema": "core"
+      }
+    },
+    {
+      "op": "update",
+      "type": "columns",
+      "where": {
+        "typeSchema": "app"
+      },
+      "set": {
+        "typeSchema": "core"
+      }
+    },
+    {
+      "op": "update",
+      "type": "sequences",
+      "where": {
+        "schema": "app"
+      },
+      "set": {
+        "schema": "core"
+      }
+    },
+    {
+      "op": "update",
+      "type": "views",
+      "where": {
+        "schema": "app"
+      },
+      "set": {
+        "schema": "core"
+      }
+    }
+  ],
+  "stateHash": "b7a0f0d632a65eba1e94c42e8df676d91f14dfdb7f3c18e1bbe5e09e580253f3"
+}

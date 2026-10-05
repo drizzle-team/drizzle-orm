@@ -1,0 +1,94 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "6bc00ed3-bc26-4c9f-bb4d-3fd473dcb39c",
+  "prevIds": [
+    "f431708b-6b13-4a3c-a6bc-73c652d9d647"
+  ],
+  "statements": [
+    {
+      "type": "rename_column",
+      "from": {
+        "schema": "public",
+        "table": "users",
+        "name": "email"
+      },
+      "to": {
+        "schema": "public",
+        "table": "users",
+        "name": "contact"
+      }
+    }
+  ],
+  "deltas": [
+    {
+      "op": "rename",
+      "key": "columns\u0000[\"public\",\"users\",\"email\"]",
+      "set": {
+        "name": "contact"
+      }
+    },
+    {
+      "op": "update_list_items",
+      "type": "indexes",
+      "where": {
+        "schema": "public",
+        "table": "users"
+      },
+      "field": "columns",
+      "match": {
+        "value": "email",
+        "isExpression": false
+      },
+      "set": {
+        "value": "contact"
+      }
+    },
+    {
+      "op": "replace_in_list",
+      "type": "pks",
+      "where": {
+        "schema": "public",
+        "table": "users"
+      },
+      "field": "columns",
+      "from": "email",
+      "to": "contact"
+    },
+    {
+      "op": "replace_in_list",
+      "type": "uniques",
+      "where": {
+        "schema": "public",
+        "table": "users"
+      },
+      "field": "columns",
+      "from": "email",
+      "to": "contact"
+    },
+    {
+      "op": "replace_in_list",
+      "type": "fks",
+      "where": {
+        "schema": "public",
+        "table": "users"
+      },
+      "field": "columns",
+      "from": "email",
+      "to": "contact"
+    },
+    {
+      "op": "replace_in_list",
+      "type": "fks",
+      "where": {
+        "schemaTo": "public",
+        "tableTo": "users"
+      },
+      "field": "columnsTo",
+      "from": "email",
+      "to": "contact"
+    }
+  ],
+  "stateHash": "46560c73430d55e5297d73ac4ca05ebb18824efa1974ef00540a9971425aabc7"
+}

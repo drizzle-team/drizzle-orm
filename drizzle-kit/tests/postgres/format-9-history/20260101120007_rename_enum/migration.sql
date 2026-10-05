@@ -1,0 +1,1 @@
+ALTER TYPE "mood" RENAME TO "feeling";

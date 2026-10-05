@@ -1,0 +1,32 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "78a95dca-64e3-48cd-9599-e5d66f44f59d",
+  "prevIds": [
+    "97b492d8-d796-4e57-a3ed-3a7d4fe0a8be"
+  ],
+  "statements": [
+    {
+      "type": "rename_constraint",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "articles",
+      "from": "posts_title_uq",
+      "to": "articles_title_uq",
+      "columns": [
+        "title"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "rename",
+      "key": "uniques\u0000[\"public\",\"articles\",\"posts_title_uq\"]",
+      "set": {
+        "name": "articles_title_uq"
+      }
+    }
+  ],
+  "stateHash": "87e20f141c7e8e766872d4556fd97a22af758c1ea7ca46b53817e9a2414a5b1a"
+}

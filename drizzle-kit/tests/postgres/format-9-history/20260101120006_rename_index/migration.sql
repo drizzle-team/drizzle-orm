@@ -1,0 +1,1 @@
+ALTER INDEX "users_email_ix" RENAME TO "users_contact_ix";

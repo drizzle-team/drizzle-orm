@@ -1,0 +1,1 @@
+DROP INDEX "users_contact_ix";
