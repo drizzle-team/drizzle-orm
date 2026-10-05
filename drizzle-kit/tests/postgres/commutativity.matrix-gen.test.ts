@@ -35,6 +35,7 @@ const placeholder = '__MATRIX_DATA__';
 const TYPES = [
 	'create_table',
 	'create_table:enum',
+	'create_table:ix',
 	'drop_table',
 	'rename_table',
 	'move_table',
@@ -54,6 +55,7 @@ const TYPES = [
 	'recreate_index',
 	'add_pk',
 	'drop_pk',
+	'drop_pk:target',
 	'alter_pk',
 	'create_fk',
 	'drop_fk',
@@ -62,6 +64,7 @@ const TYPES = [
 	'drop_unique',
 	'alter_unique',
 	'add_check',
+	'add_check:uq',
 	'drop_check',
 	'alter_check',
 	'rename_constraint:pks',
@@ -89,6 +92,7 @@ const TYPES = [
 	'alter_view',
 	'move_view',
 	'create_policy',
+	'create_policy:role',
 	'drop_policy',
 	'rename_policy',
 	'alter_policy',
@@ -159,7 +163,12 @@ const KINDNAME: Record<string, string> = {
 	seq: 'sequence',
 	view: 'view',
 	role: 'role',
-	priv: 'privileges on',
+	priv: 'privilege on',
+	colprop: 'property of column',
+	ukey: 'unique key on',
+	rel: 'relation name',
+	type: 'type name',
+	con: 'constraint name',
 };
 const pretty = (k: string): string => {
 	const [, kind, path] = k.split('|');
@@ -177,9 +186,14 @@ const verb = (type: string): string =>
 		? 'creates'
 		: 'changes';
 
+// `provides` are writes that only a read of the same node conflicts with.
 function facetSets(stmt: JsonStatement) {
-	const { owns = [], destroys = [], needs = [] } = (postgresCommutativity as any).buildFacetPaths(stmt);
-	return { writes: new Set<string>([...owns, ...destroys]), reads: new Set<string>(needs) };
+	const { owns = [], destroys = [], needs = [], provides = [] } = (postgresCommutativity as any).buildFacetPaths(stmt);
+	return {
+		writes: new Set<string>([...owns, ...destroys]),
+		reads: new Set<string>(needs),
+		provides: new Set<string>(provides),
+	};
 }
 
 // A create cannot share a base with a statement that needs the created node to
@@ -242,13 +256,16 @@ async function generateMatrix() {
 	// One sentence per shared node. A node can appear in several facets, so repeated sentences are removed.
 	const why = (i: number, j: number): string[] => {
 		const A = sets[i], B = sets[j], out: string[] = [], seen = new Set<string>();
-		for (const k of new Set([...A.writes, ...B.writes])) {
+		for (const k of new Set([...A.writes, ...B.writes, ...A.provides, ...B.provides])) {
 			const res = `<code>${pretty(k)}</code>`;
 			const aw = A.writes.has(k), bw = B.writes.has(k), ar = A.reads.has(k), br = B.reads.has(k);
 			let sentence: string | null = null;
 			if (aw && bw) sentence = `<b>${TYPES[i]}</b> and <b>${TYPES[j]}</b> both change ${res}`;
-			else if (aw && br) sentence = `<b>${TYPES[i]}</b> ${verb(TYPES[i])} ${res}, which <b>${TYPES[j]}</b> references`;
-			else if (bw && ar) sentence = `<b>${TYPES[j]}</b> ${verb(TYPES[j])} ${res}, which <b>${TYPES[i]}</b> references`;
+			else if ((aw || A.provides.has(k)) && br) {
+				sentence = `<b>${TYPES[i]}</b> ${verb(TYPES[i])} ${res}, which <b>${TYPES[j]}</b> references`;
+			} else if ((bw || B.provides.has(k)) && ar) {
+				sentence = `<b>${TYPES[j]}</b> ${verb(TYPES[j])} ${res}, which <b>${TYPES[i]}</b> references`;
+			}
 			if (sentence && !seen.has(sentence)) {
 				seen.add(sentence);
 				out.push(sentence);

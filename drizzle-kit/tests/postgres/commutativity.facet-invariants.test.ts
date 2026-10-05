@@ -77,7 +77,10 @@ function build(type: string, n: NS, opts: { cols?: string[]; enumCol?: boolean }
 	const cols = opts.cols ?? [n.col];
 	switch (type) {
 		case 'create_table':
-			return { type, table: { schema: n.schema, name: n.table, isRlsEnabled: false, columns: [] } } as any;
+			return {
+				type,
+				table: { schema: n.schema, name: n.table, isRlsEnabled: false, columns: [], pk: null, uniques: [] },
+			} as any;
 		case 'drop_table':
 			return {
 				type,
@@ -109,7 +112,11 @@ function build(type: string, n: NS, opts: { cols?: string[]; enumCol?: boolean }
 		case 'drop_index':
 			return { type, index: indexObj(n, n.index, cols) } as any;
 		case 'recreate_index':
-			return { type, index: indexObj(n, n.index, cols), diff: { schema: n.schema, name: n.index } } as any;
+			return {
+				type,
+				index: indexObj(n, n.index, cols),
+				diff: { schema: n.schema, name: n.index, $left: indexObj(n, n.index, cols) },
+			} as any;
 		case 'rename_index':
 			return { type, schema: n.schema, table: n.table, from: n.index, to: n.to, columns: [n.col] } as any;
 

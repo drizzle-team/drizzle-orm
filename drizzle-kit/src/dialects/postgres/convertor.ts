@@ -1,5 +1,13 @@
 import { escapeSingleQuotes, type Simplify, wrapWith } from '../../utils';
-import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, isSerialType, mapSerialToInt } from './grammar';
+import {
+	builtinPolicyRoles,
+	defaultNameForPK,
+	defaults,
+	defaultToSQL,
+	isDefaultAction,
+	isSerialType,
+	mapSerialToInt,
+} from './grammar';
 import type { JsonStatement } from './statements';
 
 export const convertor = <
@@ -973,9 +981,7 @@ const createPolicyConvertor = convertor('create_policy', (st) => {
 
 	const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
 
-	const policyToPart = policy.roles?.map((v) =>
-		['current_user', 'current_role', 'session_user', 'public'].includes(v) ? v : `"${v}"`
-	).join(', ');
+	const policyToPart = policy.roles?.map((v) => builtinPolicyRoles.includes(v) ? v : `"${v}"`).join(', ');
 
 	return `CREATE POLICY "${policy.name}" ON ${tableNameWithSchema} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${policyToPart}${usingPart}${withCheckPart};`;
 });
@@ -1015,9 +1021,7 @@ const alterPolicyConvertor = convertor('alter_policy', (st) => {
 		? ` WITH CHECK (${policy.withCheck})`
 		: '';
 
-	const toClause = policy.roles?.map((v) =>
-		['current_user', 'current_role', 'session_user', 'public'].includes(v) ? v : `"${v}"`
-	).join(', ');
+	const toClause = policy.roles?.map((v) => builtinPolicyRoles.includes(v) ? v : `"${v}"`).join(', ');
 
 	return `ALTER POLICY "${policy.name}" ON ${tableNameWithSchema} TO ${toClause}${usingPart}${withCheckPart};`;
 });

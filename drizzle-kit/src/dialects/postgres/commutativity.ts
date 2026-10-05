@@ -7,8 +7,9 @@ import {
 } from '../../commutativity/engine';
 import type { ConflictTarget } from '../../commutativity/types';
 import { copyDDL } from '../dialect';
-import { type Column, fromEntities, type IndexColumn, type Privilege } from './ddl';
+import { type Column, fromEntities, type Index, type IndexColumn, type Policy, type Privilege } from './ddl';
 import { ddlDiff } from './diff';
+import { builtinPolicyRoles } from './grammar';
 import { renameResolvers } from './renames';
 import { drySnapshot, type PostgresSnapshot, startingState } from './snapshot';
 import type { JsonStatement } from './statements';
@@ -802,8 +803,38 @@ class PostgresCommutativity extends FacetCommutativity<
 		const self = (k: string, ...p: string[]) => `s|${k}|${p.join('.')}`;
 		const name = (k: string, ...p: string[]) => `n|${k}|${p.join('.')}`;
 		const exist = (k: string, ...p: string[]) => `e|${k}|${p.join('.')}`;
-		const created = (k: string, ...p: string[]) => [self(k, ...p), name(k, ...p), exist(k, ...p)]; // create/drop
-		const endpoint = (k: string, ...p: string[]) => [self(k, ...p), name(k, ...p)]; // one endpoint of a rename/move
+		// Postgres keeps the names of several kinds of objects in one namespace: relations (tables, views,
+		// sequences and indexes) and types (tables, views and enums) in a schema, and constraints in a table.
+		// Two objects of different kinds cannot take one name there, so each name is also written in its
+		// namespaces. A primary key or a unique constraint is kept by an index with its name.
+		const sharedNames = (k: string, p: string[]): string[] => {
+			switch (k) {
+				case 'tbl':
+				case 'view':
+					return [name('rel', ...p), name('type', ...p)];
+				case 'seq':
+				case 'idx':
+					return [name('rel', ...p)];
+				case 'enum':
+					return [name('type', ...p)];
+				case 'uq':
+					return [name('con', ...p), name('rel', p[0], p[2])];
+				case 'ck':
+				case 'fk':
+					return [name('con', ...p)];
+				default:
+					return [];
+			}
+		};
+		// The node of a primary key holds no name, so its names are written with these.
+		const pkNames = (schema: string, table: string, pk: string) => sharedNames('uq', [schema, table, pk]);
+		const created = (k: string, ...p: string[]) => [
+			self(k, ...p),
+			name(k, ...p),
+			exist(k, ...p),
+			...sharedNames(k, p),
+		]; // create/drop
+		const endpoint = (k: string, ...p: string[]) => [self(k, ...p), name(k, ...p), ...sharedNames(k, p)]; // one endpoint of a rename/move
 		const altered = (k: string, ...p: string[]) => [self(k, ...p)];
 		const nref = (k: string, ...p: string[]) => name(k, ...p); // name reference (broken by rename OR drop)
 		const eref = (k: string, ...p: string[]) => exist(k, ...p); // cascade reference (broken only by drop)
@@ -814,6 +845,16 @@ class PostgresCommutativity extends FacetCommutativity<
 				: [];
 		const idxCols = (cols: IndexColumn[], ref: (c: string) => string) =>
 			cols.filter((c) => !c.isExpression).map((c) => ref(c.value));
+		// A foreign key needs a primary key, a unique constraint or a unique index on the columns that it
+		// references, in any column order.
+		const uniqueKey = (schema: string, table: string, columns: string[]) =>
+			exist('ukey', schema, table, ...[...columns].sort());
+		const indexKey = (index: Index) =>
+			index.isUnique && !index.where && index.columns.every((c) => !c.isExpression)
+				? [uniqueKey(index.schema, index.table, index.columns.map((c) => c.value))]
+				: [];
+		const policyRoles = (policy: Policy) =>
+			policy.roles.filter((role) => !builtinPolicyRoles.includes(role)).map((role) => nref('role', role));
 
 		// A short name for the statement. The switch narrows it to one statement kind in every case.
 		const s = statement;
@@ -821,7 +862,11 @@ class PostgresCommutativity extends FacetCommutativity<
 			// ---- tables ----
 			case 'create_table':
 				return {
-					owns: created('tbl', s.table.schema, s.table.name),
+					owns: [
+						...created('tbl', s.table.schema, s.table.name),
+						...(s.table.pk ? [name('rel', s.table.schema, s.table.pk.name)] : []),
+						...s.table.uniques.map((unique) => name('rel', s.table.schema, unique.name)),
+					],
 					needs: [nref('sch', s.table.schema), ...s.table.columns.flatMap(colEnum)],
 				};
 			case 'drop_table':
@@ -895,6 +940,7 @@ class PostgresCommutativity extends FacetCommutativity<
 						...underTable(s.index.schema, s.index.table),
 						...idxCols(s.index.columns, (c) => nref('col', s.index.schema, s.index.table, c)),
 					],
+					provides: indexKey(s.index),
 				};
 			case 'drop_index': // no columns in SQL, but cascaded by a column drop -> EXISTENCE refs
 				return {
@@ -903,6 +949,7 @@ class PostgresCommutativity extends FacetCommutativity<
 						...underTable(s.index.schema, s.index.table),
 						...idxCols(s.index.columns, (c) => eref('col', s.index.schema, s.index.table, c)),
 					],
+					provides: indexKey(s.index),
 				};
 			case 'recreate_index':
 				return {
@@ -911,6 +958,7 @@ class PostgresCommutativity extends FacetCommutativity<
 						...underTable(s.index.schema, s.index.table),
 						...idxCols(s.index.columns, (c) => nref('col', s.index.schema, s.index.table, c)),
 					],
+					provides: [...indexKey(s.diff.$left), ...indexKey(s.index)],
 				};
 			case 'rename_index': // rename follows column renames, cascaded by column drops -> EXISTENCE refs
 				return {
@@ -924,19 +972,21 @@ class PostgresCommutativity extends FacetCommutativity<
 			// ---- primary keys ----
 			case 'add_pk': // `ADD PRIMARY KEY (c)` hardcodes columns -> NAME refs
 				return {
-					owns: created('pk', s.pk.schema, s.pk.table),
+					owns: [...created('pk', s.pk.schema, s.pk.table), ...pkNames(s.pk.schema, s.pk.table, s.pk.name)],
 					needs: [
 						...underTable(s.pk.schema, s.pk.table),
 						...s.pk.columns.map((c) => nref('col', s.pk.schema, s.pk.table, c)),
 					],
+					provides: [uniqueKey(s.pk.schema, s.pk.table, s.pk.columns)],
 				};
 			case 'drop_pk': // cascaded by column drop -> EXISTENCE refs
 				return {
-					owns: created('pk', s.pk.schema, s.pk.table),
+					owns: [...created('pk', s.pk.schema, s.pk.table), ...pkNames(s.pk.schema, s.pk.table, s.pk.name)],
 					needs: [
 						...underTable(s.pk.schema, s.pk.table),
 						...s.pk.columns.map((c) => eref('col', s.pk.schema, s.pk.table, c)),
 					],
+					provides: [uniqueKey(s.pk.schema, s.pk.table, s.pk.columns)],
 				};
 			case 'alter_pk':
 				return {
@@ -945,6 +995,9 @@ class PostgresCommutativity extends FacetCommutativity<
 						...underTable(s.pk.schema, s.pk.table),
 						...s.pk.columns.map((c) => nref('col', s.pk.schema, s.pk.table, c)),
 					],
+					provides: [s.diff.columns?.from ?? [], s.pk.columns].map((columns) =>
+						uniqueKey(s.pk.schema, s.pk.table, columns)
+					),
 				};
 
 			// ---- foreign keys ----
@@ -958,6 +1011,7 @@ class PostgresCommutativity extends FacetCommutativity<
 						nref('sch', s.fk.schemaTo),
 						...s.fk.columns.map((c) => nref('col', s.fk.schema, s.fk.table, c)),
 						...s.fk.columnsTo.map((c) => nref('col', s.fk.schemaTo, s.fk.tableTo, c)),
+						uniqueKey(s.fk.schemaTo, s.fk.tableTo, s.fk.columnsTo),
 					],
 				};
 			case 'drop_fk':
@@ -977,6 +1031,7 @@ class PostgresCommutativity extends FacetCommutativity<
 						...underTable(s.unique.schema, s.unique.table),
 						...s.unique.columns.map((c) => nref('col', s.unique.schema, s.unique.table, c)),
 					],
+					provides: [uniqueKey(s.unique.schema, s.unique.table, s.unique.columns)],
 				};
 			case 'drop_unique':
 				return {
@@ -985,6 +1040,7 @@ class PostgresCommutativity extends FacetCommutativity<
 						...underTable(s.unique.schema, s.unique.table),
 						...s.unique.columns.map((c) => eref('col', s.unique.schema, s.unique.table, c)),
 					],
+					provides: [uniqueKey(s.unique.schema, s.unique.table, s.unique.columns)],
 				};
 			case 'alter_unique': // recreated as DROP $left + ADD $right: name-ref the new cols, existence-ref the old
 				return {
@@ -994,6 +1050,9 @@ class PostgresCommutativity extends FacetCommutativity<
 						...s.diff.$right.columns.map((c) => nref('col', s.diff.schema, s.diff.table, c)),
 						...s.diff.$left.columns.map((c) => eref('col', s.diff.schema, s.diff.table, c)),
 					],
+					provides: [s.diff.$left, s.diff.$right].map((unique) =>
+						uniqueKey(s.diff.schema, s.diff.table, unique.columns)
+					),
 				};
 
 			// ---- check constraints (columns come from parsing the CHECK expression) ----
@@ -1034,7 +1093,14 @@ class PostgresCommutativity extends FacetCommutativity<
 				});
 				switch (s.entityType) {
 					case 'pks': // a table has one primary key, so the node of the key holds no name
-						return { owns: endpoint('pk', s.schema, s.table), needs };
+						return {
+							owns: [
+								...endpoint('pk', s.schema, s.table),
+								...pkNames(s.schema, s.table, s.from),
+								...pkNames(s.schema, s.table, s.to),
+							],
+							needs,
+						};
 					case 'uniques':
 						return named('uq');
 					case 'checks':
@@ -1125,16 +1191,16 @@ class PostgresCommutativity extends FacetCommutativity<
 				return { owns: [...endpoint('sch', s.from.name), ...endpoint('sch', s.to.name)] };
 
 			// ---- policies (children of the table) ----
-			case 'create_policy':
+			case 'create_policy': // the SQL names the roles of the policy
 				return {
 					owns: created('pol', s.policy.schema, s.policy.table, s.policy.name),
-					needs: underTable(s.policy.schema, s.policy.table),
+					needs: [...underTable(s.policy.schema, s.policy.table), ...policyRoles(s.policy)],
 				};
 			case 'alter_policy':
 			case 'recreate_policy':
 				return {
 					owns: altered('pol', s.policy.schema, s.policy.table, s.policy.name),
-					needs: underTable(s.policy.schema, s.policy.table),
+					needs: [...underTable(s.policy.schema, s.policy.table), ...policyRoles(s.policy)],
 				};
 			case 'drop_policy':
 				return {

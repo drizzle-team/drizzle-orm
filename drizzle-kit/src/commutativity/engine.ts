@@ -31,6 +31,10 @@ export type ParsedSnapshotInput<TSnapshot extends SnapshotHeader = SnapshotHeade
  *               cross-referenced nodes that must still exist. Reads never
  *               conflict with reads, so two branches both needing the same
  *               table is fine.
+ *  - `provides` nodes that the statement adds or removes for other statements
+ *               to need, such as the unique key that a primary key gives to
+ *               foreign keys. It conflicts with a statement that needs the
+ *               node, and not with another statement that provides it.
  *
  * Keys are opaque strings minted by the dialect; the engine only compares them.
  */
@@ -38,6 +42,7 @@ export type FacetPaths = {
 	owns: string[];
 	destroys?: string[];
 	needs?: string[];
+	provides?: string[];
 };
 
 type LeafFootprints<TStatement> = {
@@ -376,14 +381,15 @@ export abstract class FacetCommutativity<
 	 *   read  vs read   -> no conflict (both merely need the node to exist)
 	 * A write contributes `key#w` to both lists; a read contributes `key#r` to
 	 * the produced list and `key#w` to the conflict list, so reads only ever
-	 * match against writes.
+	 * match against writes. A provided node contributes `key#w` to the produced
+	 * list only, so it matches a read and never another write.
 	 */
 	protected override generateLeafFootprints(statements: TStatement[]): LeafFootprints<TStatement> {
 		const statementHashes: Array<{ hash: string; statement: TStatement }> = [];
 		const conflictFootprints: Array<{ hash: string; statement: TStatement }> = [];
 
 		for (const statement of statements) {
-			const { owns, destroys = [], needs = [] } = this.buildFacetPaths(statement);
+			const { owns, destroys = [], needs = [], provides = [] } = this.buildFacetPaths(statement);
 
 			for (const key of [...owns, ...destroys]) {
 				statementHashes.push({ hash: `${key}#w`, statement });
@@ -392,6 +398,9 @@ export abstract class FacetCommutativity<
 			for (const key of needs) {
 				statementHashes.push({ hash: `${key}#r`, statement });
 				conflictFootprints.push({ hash: `${key}#w`, statement });
+			}
+			for (const key of provides) {
+				statementHashes.push({ hash: `${key}#w`, statement });
 			}
 		}
 

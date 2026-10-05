@@ -110,6 +110,21 @@ export function build(type: string): JsonStatement {
 					policies: [],
 				},
 			} as any;
+		// A table with the name of the index `ix`. Postgres keeps both names in one namespace.
+		case 'create_table:ix':
+			return {
+				type: 'create_table',
+				table: {
+					schema: S,
+					name: 'ix',
+					isRlsEnabled: false,
+					columns: [col(S, 'ix', 'id')],
+					pk: null,
+					uniques: [],
+					checks: [],
+					policies: [],
+				},
+			} as any;
 		case 'drop_table':
 			return { type, table: { schema: S, name: T, isRlsEnabled: false, policies: [] }, key: `${S}.${T}` } as any;
 		case 'rename_table':
@@ -141,13 +156,24 @@ export function build(type: string): JsonStatement {
 		case 'drop_index':
 			return { type, index: idx(S, T, 'ix', [C]) } as any;
 		case 'recreate_index':
-			return { type, index: idx(S, T, 'ix', [C]), diff: { schema: S, name: 'ix' }, shouldDrop: true } as any;
+			return {
+				type,
+				index: idx(S, T, 'ix', [C]),
+				diff: { schema: S, name: 'ix', $left: idx(S, T, 'ix', [C]) },
+				shouldDrop: true,
+			} as any;
 		case 'rename_index':
 			return { type, schema: S, table: T, from: 'ix', to: 'ix_new', columns: [C] } as any;
 		case 'add_pk':
 			return { type, pk: { schema: S, table: T, name: 't_pkey', nameExplicit: false, columns: [C] } } as any;
 		case 'drop_pk':
 			return { type, pk: { schema: S, table: T, name: 't_pkey', nameExplicit: false, columns: [C] } } as any;
+		// The primary key that the foreign key `fk` references.
+		case 'drop_pk:target':
+			return {
+				type: 'drop_pk',
+				pk: { schema: S, table: 't2', name: 't2_pkey', nameExplicit: false, columns: ['c2'] },
+			} as any;
 		case 'alter_pk':
 			return {
 				type,
@@ -171,6 +197,9 @@ export function build(type: string): JsonStatement {
 			} as any;
 		case 'add_check':
 			return { type, check: check(`"${C}" <> ''`), columns: [C] } as any;
+		// A check constraint with the name of the unique constraint `uq`. A table has one namespace for both.
+		case 'add_check:uq':
+			return { type: 'add_check', check: { ...check(`"${C}" <> ''`), name: 'uq' }, columns: [C] } as any;
 		case 'drop_check':
 			return { type, check: check(`"${C}" <> ''`), columns: [C] } as any;
 		case 'alter_check':
@@ -252,6 +281,9 @@ export function build(type: string): JsonStatement {
 			return { type, from: { name: S }, to: { name: 's_new' } } as any;
 		case 'create_policy':
 			return { type, policy, diff: {} } as any;
+		// A policy for the role `r`.
+		case 'create_policy:role':
+			return { type: 'create_policy', policy: { ...policy, roles: ['r'] }, diff: {} } as any;
 		case 'alter_policy':
 			return { type, policy: { ...policy, using: 'true' }, diff: {} } as any;
 		case 'recreate_policy':

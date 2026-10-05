@@ -1,4 +1,4 @@
-import { index, integer, pgEnum, pgTable, primaryKey, text, varchar } from 'drizzle-orm/pg-core';
+import { index, integer, pgEnum, pgPolicy, pgRole, pgTable, primaryKey, text, varchar } from 'drizzle-orm/pg-core';
 import { stripVTControlCharacters } from 'util';
 import { expect, test } from 'vitest';
 import { type CheckResult, createFolderFlow } from './folder-flow';
@@ -134,6 +134,65 @@ test('NOT NULL on a column of an enum type passes with a rename of that enum on 
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	expect(await flow.generate('main', merged)).toMatchObject({ status: 'no_changes' });
 	expect(await flow.migrate('main', merged)).toStrictEqual([]);
+});
+
+test('a new policy for a role conflicts with a rename of that role', async () => {
+	const flow = createFolderFlow();
+	const users = (...policies: ReturnType<typeof pgPolicy>[]) => pgTable('users', { id: integer() }, () => policies);
+	const staff = pgRole('staff');
+	const team = pgRole('team');
+
+	await flow.generate('main', { staff, users: users() });
+	flow.branch('a', 'main');
+	flow.branch('b', 'main');
+	await flow.generate('a', { team, users: users() }, {
+		hints: [{ type: 'rename', kind: 'role', from: ['staff'], to: ['team'] }],
+	});
+	await flow.generate('b', { staff, users: users(pgPolicy('staff_reads', { for: 'select', to: staff })) });
+	flow.merge('main', 'a', 'b');
+
+	const result = await flow.check('main');
+
+	expect(result).toMatchObject({ status: 'conflicts', folders: ['20260101120002_a', '20260101120003_b'] });
+	await expect(flow.migrate('main', {})).rejects.toThrow('CREATE POLICY "staff_reads" ON "users"');
+});
+
+test('a new foreign key conflicts with a drop of the primary key that it references', async () => {
+	const flow = createFolderFlow();
+	const users = pgTable('users', { id: integer().primaryKey() });
+	const plainUsers = pgTable('users', { id: integer().notNull() });
+	const posts = pgTable('posts', { userId: integer() });
+
+	await flow.generate('main', { users, posts });
+	flow.branch('a', 'main');
+	flow.branch('b', 'main');
+	await flow.generate('a', { users: plainUsers, posts });
+	await flow.generate('b', { users, posts: pgTable('posts', { userId: integer().references(() => users.id) }) });
+	flow.merge('main', 'a', 'b');
+
+	const result = await flow.check('main');
+
+	expect(result).toMatchObject({ status: 'conflicts', folders: ['20260101120002_a', '20260101120003_b'] });
+	await expect(flow.migrate('main', {})).rejects.toThrow('Failed query: ALTER TABLE "posts" ADD CONSTRAINT');
+});
+
+test('an index and a table that take one name conflict', async () => {
+	const flow = createFolderFlow();
+	const users = pgTable('users', { id: integer(), email: varchar() });
+
+	await flow.generate('main', { users });
+	flow.branch('a', 'main');
+	flow.branch('b', 'main');
+	await flow.generate('a', {
+		users: pgTable('users', { id: integer(), email: varchar() }, (t) => [index('tags').on(t.email)]),
+	});
+	await flow.generate('b', { users, tags: pgTable('tags', { id: integer() }) });
+	flow.merge('main', 'a', 'b');
+
+	const result = await flow.check('main');
+
+	expect(result).toMatchObject({ status: 'conflicts', folders: ['20260101120002_a', '20260101120003_b'] });
+	await expect(flow.migrate('main', {})).rejects.toThrow('Failed query: CREATE TABLE "tags"');
 });
 
 test('branches that touch unrelated entities pass', async () => {

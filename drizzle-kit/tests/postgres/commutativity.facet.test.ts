@@ -123,7 +123,19 @@ const S = {
 			},
 		}) as any,
 	createTable: (schema: string, name: string, columns: unknown[] = []) =>
-		({ type: 'create_table', table: { schema, name, isRlsEnabled: false, columns } }) as any,
+		({ type: 'create_table', table: { schema, name, isRlsEnabled: false, columns, pk: null, uniques: [] } }) as any,
+	dropPk: (schema: string, table: string, cols: string[]) =>
+		({ type: 'drop_pk', pk: { schema, table, name: `${table}_pkey`, nameExplicit: false, columns: cols } }) as any,
+	dropUnique: (schema: string, table: string, name: string, cols: string[]) =>
+		({
+			type: 'drop_unique',
+			unique: { schema, table, name, nameExplicit: true, columns: cols, nullsNotDistinct: false },
+		}) as any,
+	createEnum: (schema: string, name: string) => ({ type: 'create_enum', enum: { schema, name, values: ['a'] } }) as any,
+	createView: (schema: string, name: string) => ({ type: 'create_view', view: { schema, name } }) as any,
+	createSequence: (schema: string, name: string) => ({ type: 'create_sequence', sequence: { schema, name } }) as any,
+	renameRole: (from: string, to: string) => ({ type: 'rename_role', from: { name: from }, to: { name: to } }) as any,
+	dropRole: (name: string) => ({ type: 'drop_role', role: { name } }) as any,
 	dropEnum: (schema: string, name: string) =>
 		({ type: 'drop_enum', enum: { schema, name, values: ['a', 'b'] } }) as any,
 	renameEnum: (schema: string, from: string, to: string) => ({ type: 'rename_enum', schema, from, to }) as any,
@@ -140,10 +152,10 @@ const S = {
 			type: 'grant_privilege',
 			privilege: { schema, table, grantee, grantor: 'admin', type, isGrantable: false },
 		}) as any,
-	createPolicy: (schema: string, table: string, name: string) =>
+	createPolicy: (schema: string, table: string, name: string, roles = ['public'], type = 'create_policy') =>
 		({
-			type: 'create_policy',
-			policy: { schema, table, name, as: 'PERMISSIVE', for: 'ALL', roles: ['public'], using: null, withCheck: null },
+			type,
+			policy: { schema, table, name, as: 'PERMISSIVE', for: 'ALL', roles, using: null, withCheck: null },
 		}) as any,
 };
 
@@ -459,6 +471,138 @@ const cases: Case[] = [
 		name: 'grant by admin ∥ rename_role admin (GRANTED BY names it) conflict',
 		a: [S.grant('public', 'users', 'r', 'SELECT')],
 		b: [{ type: 'rename_role', from: { name: 'admin' }, to: { name: 'owner' } } as any],
+		expect: 'conflict',
+	},
+
+	// a policy names its roles in its SQL, except the built-in role names
+	{
+		name: 'create_policy(to r) ∥ rename_role r conflict',
+		a: [S.createPolicy('public', 'users', 'p', ['r'])],
+		b: [S.renameRole('r', 'r2')],
+		expect: 'conflict',
+	},
+	{
+		name: 'create_policy(to r) ∥ drop_role r conflict',
+		a: [S.createPolicy('public', 'users', 'p', ['r'])],
+		b: [S.dropRole('r')],
+		expect: 'conflict',
+	},
+	{
+		name: 'alter_policy(to r) ∥ rename_role r conflict',
+		a: [S.createPolicy('public', 'users', 'p', ['r'], 'alter_policy')],
+		b: [S.renameRole('r', 'r2')],
+		expect: 'conflict',
+	},
+	{
+		name: 'recreate_policy(to r) ∥ drop_role r conflict',
+		a: [S.createPolicy('public', 'users', 'p', ['r'], 'recreate_policy')],
+		b: [S.dropRole('r')],
+		expect: 'conflict',
+	},
+	{
+		name: 'create_policy(to r) ∥ rename_role of another role commute',
+		a: [S.createPolicy('public', 'users', 'p', ['r'])],
+		b: [S.renameRole('x', 'y')],
+		expect: 'commute',
+	},
+	{
+		name: 'create_policy(to built-in names) ∥ drop_role with such a name commute',
+		a: [S.createPolicy('public', 'users', 'p', ['public', 'current_user', 'current_role', 'session_user'])],
+		b: [S.dropRole('current_user')],
+		expect: 'commute',
+	},
+
+	// a foreign key needs a primary key, a unique constraint or a unique index on the columns that it references
+	{
+		name: 'create_fk ∥ drop_pk (on the referenced columns) conflict',
+		a: [S.createFk('public', 'orders', 'fk', ['uid'], 'public', 'users', ['id'])],
+		b: [S.dropPk('public', 'users', ['id'])],
+		expect: 'conflict',
+	},
+	{
+		name: 'create_fk ∥ drop_unique (on the referenced columns) conflict',
+		a: [S.createFk('public', 'orders', 'fk', ['uid'], 'public', 'users', ['id'])],
+		b: [S.dropUnique('public', 'users', 'users_id_uq', ['id'])],
+		expect: 'conflict',
+	},
+	{
+		name: 'create_fk(two columns) ∥ drop_unique (same columns in another order) conflict',
+		a: [S.createFk('public', 'orders', 'fk', ['a', 'b'], 'public', 'users', ['x', 'y'])],
+		b: [S.dropUnique('public', 'users', 'users_uq', ['y', 'x'])],
+		expect: 'conflict',
+	},
+	{
+		name: 'create_fk ∥ drop of a unique index (on the referenced columns) conflict',
+		a: [S.createFk('public', 'orders', 'fk', ['uid'], 'public', 'users', ['id'])],
+		b: [{ type: 'drop_index', index: { ...index('public', 'users', 'users_id_ux', ['id']), isUnique: true } } as any],
+		expect: 'conflict',
+	},
+	{
+		name: 'create_fk ∥ drop_unique (on other columns) commute',
+		a: [S.createFk('public', 'orders', 'fk', ['uid'], 'public', 'users', ['id'])],
+		b: [S.dropUnique('public', 'users', 'users_email_uq', ['email'])],
+		expect: 'commute',
+	},
+	{
+		name: 'add_pk ∥ add_unique (same columns, both give a key) commute',
+		a: [S.addPk('public', 'users', ['id'])],
+		b: [S.addUnique('public', 'users', 'users_id_uq', ['id'])],
+		expect: 'commute',
+	},
+
+	// postgres keeps some kinds of objects in one namespace
+	{
+		name: 'create_index x ∥ create_table x (relations of one schema) conflict',
+		a: [S.createIndex('public', 'users', 'x', ['name'])],
+		b: [S.createTable('public', 'x')],
+		expect: 'conflict',
+	},
+	{
+		name: 'create_index x ∥ create_table x (other schema) commute',
+		a: [S.createIndex('public', 'users', 'x', ['name'])],
+		b: [S.createTable('app', 'x')],
+		expect: 'commute',
+	},
+	{
+		name: 'create_sequence x ∥ create_view x (relations) conflict',
+		a: [S.createSequence('public', 'x')],
+		b: [S.createView('public', 'x')],
+		expect: 'conflict',
+	},
+	{
+		name: 'create_enum x ∥ create_table x (types) conflict',
+		a: [S.createEnum('public', 'x')],
+		b: [S.createTable('public', 'x')],
+		expect: 'conflict',
+	},
+	{
+		name: 'create_enum x ∥ create_index x (a type and a relation) commute',
+		a: [S.createEnum('public', 'x')],
+		b: [S.createIndex('public', 'users', 'x', ['name'])],
+		expect: 'commute',
+	},
+	{
+		name: 'add_unique u ∥ add_check u (constraints of one table) conflict',
+		a: [S.addUnique('public', 'users', 'u', ['a'])],
+		b: [S.addCheck('public', 'users', 'u', ['b'])],
+		expect: 'conflict',
+	},
+	{
+		name: 'add_check u ∥ add_check u (other table) commute',
+		a: [S.addCheck('public', 'users', 'u', ['a'])],
+		b: [S.addCheck('public', 'orders', 'u', ['b'])],
+		expect: 'commute',
+	},
+	{
+		name: 'add_unique u ∥ add_unique u (other table, but one index name in the schema) conflict',
+		a: [S.addUnique('public', 'users', 'u', ['a'])],
+		b: [S.addUnique('public', 'orders', 'u', ['b'])],
+		expect: 'conflict',
+	},
+	{
+		name: 'add_unique u ∥ create_index u (the constraint has an index with its name) conflict',
+		a: [S.addUnique('public', 'users', 'u', ['a'])],
+		b: [S.createIndex('public', 'orders', 'u', ['b'])],
 		expect: 'conflict',
 	},
 

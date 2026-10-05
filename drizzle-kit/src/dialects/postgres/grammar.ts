@@ -1856,6 +1856,9 @@ export const isSystemNamespace = (name: string) => {
 		|| systemNamespaceNames.indexOf(name) >= 0;
 };
 
+// These names in the role list of a policy are keywords, and not roles that a schema can rename or drop.
+export const builtinPolicyRoles = ['current_user', 'current_role', 'session_user', 'public'];
+
 export const isSystemRole = (name: string) => {
 	return name === 'postgres' || name.startsWith('pg_');
 };
