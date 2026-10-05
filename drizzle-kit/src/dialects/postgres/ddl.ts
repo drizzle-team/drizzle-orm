@@ -171,7 +171,8 @@ export const createDDL = () => {
 			tables: (r) => JSON.stringify([r.schema, r.name]),
 			enums: (r) => JSON.stringify([r.schema, r.name]),
 			columns: (r) => JSON.stringify([r.schema, r.table, r.name]),
-			indexes: (r) => JSON.stringify([r.schema, r.table, r.name]),
+			// Postgres keeps index names unique in a schema, and DROP INDEX and ALTER INDEX do not name the table.
+			indexes: (r) => JSON.stringify([r.schema, r.name]),
 			fks: (r) => JSON.stringify([r.schema, r.table, r.name]),
 			pks: (r) => JSON.stringify([r.schema, r.table, r.name]),
 			uniques: (r) => JSON.stringify([r.schema, r.table, r.name]),
@@ -539,7 +540,6 @@ export const interimToDDL = (
 
 	for (const it of schema.indexes) {
 		const { forPK: _1, forUnique: _2, ...rest } = it;
-		// TODO: check within schema, pk =[schema, table, name], we need only [schema, table]
 		const res = ddl.indexes.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({

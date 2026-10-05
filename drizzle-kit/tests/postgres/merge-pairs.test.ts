@@ -567,6 +567,47 @@ const rows: Row[] = [
 		],
 	},
 
+	{
+		name: 'a table rename against a drop of an index of that table',
+		base: { users: table('users', ['id', 'email'], ix('users_email_ix', 'email')) },
+		branches: [
+			[step({ accounts: table('accounts', ['id', 'email'], ix('users_email_ix', 'email')) }, usersToAccounts)],
+			[step({ users: table('users', ['id', 'email']) })],
+		],
+		merged: { accounts: table('accounts', ['id', 'email']) },
+	},
+	{
+		name: 'a table rename against a rename of an index of that table',
+		base: { users: table('users', ['id', 'email'], ix('users_email_ix', 'email')) },
+		branches: [
+			[step({ accounts: table('accounts', ['id', 'email'], ix('users_email_ix', 'email')) }, usersToAccounts)],
+			[step(
+				{ users: table('users', ['id', 'email'], ix('users_contact_ix', 'email')) },
+				rename('index', 'public.users.users_email_ix', 'public.users.users_contact_ix'),
+			)],
+		],
+		merged: { accounts: table('accounts', ['id', 'email'], ix('users_contact_ix', 'email')) },
+	},
+	{
+		name: 'a table move to another schema against a drop of an index of that table',
+		base: { app, users: table('users', ['id', 'email'], ix('users_email_ix', 'email')) },
+		branches: [
+			[step({ app, users: table('users', ['id', 'email'], ix('users_email_ix', 'email'), app) }, usersToApp)],
+			[step({ app, users: table('users', ['id', 'email']) })],
+		],
+	},
+	{
+		name: 'a table move to another schema against a rename of an index of that table',
+		base: { app, users: table('users', ['id', 'email'], ix('users_email_ix', 'email')) },
+		branches: [
+			[step({ app, users: table('users', ['id', 'email'], ix('users_email_ix', 'email'), app) }, usersToApp)],
+			[step(
+				{ app, users: table('users', ['id', 'email'], ix('users_contact_ix', 'email')) },
+				rename('index', 'public.users.users_email_ix', 'public.users.users_contact_ix'),
+			)],
+		],
+	},
+
 	// ---- primary keys ----
 	{
 		name: 'a primary key rename against a rename of a column of that key',

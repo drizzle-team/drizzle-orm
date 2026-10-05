@@ -405,8 +405,6 @@ const sameChangeTwice =
 const knownExceptions: Record<string, string> = {
 	'alter_column:default x alter_column:type':
 		'a type change converts the default, and the rules do not know that the conversion from varchar to text keeps it',
-	'rename_table x drop_index': 'the rules key an index by its table, and the index SQL does not name the table',
-	'rename_table x rename_index': 'the rules key an index by its table, and the index SQL does not name the table',
 	...Object.fromEntries(
 		[
 			'alter_column',

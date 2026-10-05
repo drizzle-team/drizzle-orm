@@ -524,9 +524,11 @@ A key names one row. It is the entity type, a NUL character, and the identity fi
 | entity type | identity fields |
 | --- | --- |
 | `schemas`, `roles` | `name` |
-| `tables`, `enums`, `sequences`, `views` | `schema`, `name` |
-| `columns`, `indexes`, `fks`, `pks`, `uniques`, `checks`, `policies` | `schema`, `table`, `name` |
+| `tables`, `enums`, `sequences`, `views`, `indexes` | `schema`, `name` |
+| `columns`, `fks`, `pks`, `uniques`, `checks`, `policies` | `schema`, `table`, `name` |
 | `privileges` | `schema`, `table`, `grantor`, `grantee`, `type` |
+
+The key of an index does not hold its table, because postgres keeps index names unique in a schema. So a table rename changes the `table` field of the indexes of that table and leaves their keys unchanged.
 
 A **keyed delta** changes the one row that its key names:
 

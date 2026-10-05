@@ -22,6 +22,8 @@ A rename changes other rows too: the columns of a renamed table, or the column l
 
 `renameInstructions` in `src/dialects/dialect.ts` derives the instructions from the reference rules (`edges` in `src/dialects/postgres/ddl.ts`) when `ddlDiff` applies a rename decision. It writes one instruction for every rule that points at the renamed entity type, and for every rule that points at a type whose keys change as a result, whether a row matches or not. So a rename of one branch also reaches the rows that another branch adds, and two branches whose SQL commutes rebuild the same combined state with either leaf as the first parent. The `when` function of a rule may read only the fields that the rule maps, because no row is at hand when the instructions are written.
 
+The key functions (`identity` in `src/dialects/postgres/ddl.ts`) are part of the format too, because a keyed delta names its row by key. An index is keyed by schema and name, without its table: `DROP INDEX` and `ALTER INDEX` do not name the table, so a table rename on one branch must not hide the index from a keyed delta of another branch.
+
 While `ddlDiff` records deltas, `update` changes the starting state only through the deltas that it records. It does not follow the reference edges there, so the state that the diff continues with is the state that a replay gives.
 
 ### The replay module

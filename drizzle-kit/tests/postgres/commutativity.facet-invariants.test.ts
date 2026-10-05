@@ -535,7 +535,9 @@ test.each(COL_REF_CASES)('drop_column dominates: $t', async ({ t }) => {
 
 // strict commutativity: renaming/moving a table breaks every reference to it,
 // exactly like dropping it — replaying the reference in the wrong order fails.
-test.each(UNDER_TABLE_CASES.filter(({ t }) => t !== 'rename_table' && t !== 'move_table'))(
+// DROP INDEX and ALTER INDEX do not name the table, so a rename of the table does not break them.
+const NAMES_NO_TABLE = new Set(['drop_index', 'rename_index']);
+test.each(UNDER_TABLE_CASES.filter(({ t }) => t !== 'rename_table' && t !== 'move_table' && !NAMES_NO_TABLE.has(t)))(
 	'rename_table conflicts with reference: $t',
 	async ({ t }) => {
 		expect(await conflicts([build('rename_table', A)], [build(t, A)])).toBe(true);

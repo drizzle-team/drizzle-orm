@@ -804,6 +804,10 @@ class PostgresCommutativity extends FacetCommutativity<
 		const nref = (k: string, ...p: string[]) => name(k, ...p); // name reference (broken by rename OR drop)
 		const eref = (k: string, ...p: string[]) => exist(k, ...p); // cascade reference (broken only by drop)
 		const underTable = (schema: string, table: string) => [nref('tbl', schema, table), nref('sch', schema)];
+		// What DROP INDEX and ALTER INDEX read of the table of the index. They name the index by its schema,
+		// so a rename of the table does not break them. A drop of the table drops the index, and a move of
+		// the table to another schema moves the index.
+		const indexHome = (schema: string, table: string) => [eref('tbl', schema, table), nref('sch', schema)];
 		const colEnum = (column: Pick<Column, 'typeSchema' | 'type'>): string[] =>
 			column.typeSchema && column.typeSchema !== 'pg_catalog' && column.type
 				? [nref('enum', column.typeSchema, column.type)]
@@ -845,9 +849,14 @@ class PostgresCommutativity extends FacetCommutativity<
 					owns: [...endpoint('tbl', s.schema, s.from), ...endpoint('tbl', s.schema, s.to)],
 					needs: [nref('sch', s.schema)],
 				};
-			case 'move_table':
+			case 'move_table': // the indexes of the table move with it, so the table stops existing in its schema
 				return {
-					owns: [...endpoint('tbl', s.from, s.name), ...endpoint('tbl', s.to, s.name)],
+					owns: [
+						...endpoint('tbl', s.from, s.name),
+						...endpoint('tbl', s.to, s.name),
+						exist('tbl', s.from, s.name),
+						exist('tbl', s.to, s.name),
+					],
 					needs: [nref('sch', s.from), nref('sch', s.to)],
 				};
 
@@ -911,11 +920,12 @@ class PostgresCommutativity extends FacetCommutativity<
 					],
 					provides: indexKey(s.index),
 				};
-			case 'drop_index': // no columns in SQL, but cascaded by a column drop -> EXISTENCE refs
+			// no table and no columns in SQL, but cascaded by a table drop or a column drop -> EXISTENCE refs
+			case 'drop_index':
 				return {
 					owns: created('idx', s.index.schema, s.index.name),
 					needs: [
-						...underTable(s.index.schema, s.index.table),
+						...indexHome(s.index.schema, s.index.table),
 						...idxCols(s.index.columns, (c) => eref('col', s.index.schema, s.index.table, c)),
 					],
 					provides: indexKey(s.index),
@@ -932,11 +942,12 @@ class PostgresCommutativity extends FacetCommutativity<
 						...indexKey(s.index),
 					],
 				};
-			case 'rename_index': // rename follows column renames, cascaded by column drops -> EXISTENCE refs
+			// rename follows table and column renames, cascaded by table and column drops -> EXISTENCE refs
+			case 'rename_index':
 				return {
 					owns: [...endpoint('idx', s.schema, s.from), ...endpoint('idx', s.schema, s.to)],
 					needs: [
-						...underTable(s.schema, s.table),
+						...indexHome(s.schema, s.table),
 						...s.columns.map((c) => eref('col', s.schema, s.table, c)),
 					],
 				};

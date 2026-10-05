@@ -132,7 +132,7 @@ test('up turns format 8 renames into rename deltas', async () => {
 	// created next to it, so the column's rename string also reaches the index resolver.
 	expect(flow.deltas('main', '20260928150356_contact')).toContainEqual({
 		op: 'drop',
-		key: 'indexes\0["public","users","email"]',
+		key: 'indexes\0["public","email"]',
 	});
 	expect(flow.deltas('main', '20260928150356_contact')).toContainEqual({
 		op: 'create',
