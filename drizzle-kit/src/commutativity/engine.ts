@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'fs';
+import { isDeepStrictEqual } from 'node:util';
 import { basename, dirname } from 'path';
 import type { ConflictTarget, MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from './types';
 
@@ -247,6 +248,17 @@ export abstract class AbstractCommutativity<
 
 	protected abstract generateLeafFootprints(statements: TStatement[]): LeafFootprints<TStatement>;
 
+	// True when the SQL of the statement gives the same result if it runs a second time.
+	protected isRepeatable(_statement: TStatement): boolean {
+		return false;
+	}
+
+	// A claim says which object a statement changes, and not what it changes the object to. Two equal
+	// statements on two branches are one change when the second run changes nothing.
+	private isSameChange(a: TStatement, b: TStatement): boolean {
+		return a.type === b.type && this.isRepeatable(a) && isDeepStrictEqual(a, b);
+	}
+
 	protected resolveStatement(statement: TStatement): {
 		conflicts: TStatement['type'][];
 		info: CommutativityStatementInfo<TStatement, TTarget>;
@@ -315,25 +327,32 @@ export abstract class AbstractCommutativity<
 		branchBHashes: Array<{ hash: string; statement: TStatement }>,
 		branchBConflicts: Array<{ hash: string; statement: TStatement }>,
 	) {
-		const branchAConflictByHash = new Map<string, TStatement>();
-		for (const c of branchAConflicts) branchAConflictByHash.set(c.hash, c.statement);
-
-		const branchBConflictByHash = new Map<string, TStatement>();
-		for (const c of branchBConflicts) branchBConflictByHash.set(c.hash, c.statement);
-
-		for (const a of branchAHashes) {
-			const match = branchBConflictByHash.get(a.hash);
-			if (match) {
-				return { leftStatement: a.statement, rightStatement: match };
+		const byHash = (conflicts: Array<{ hash: string; statement: TStatement }>) => {
+			const map = new Map<string, TStatement[]>();
+			for (const { hash, statement } of conflicts) {
+				const list = map.get(hash);
+				if (list) list.push(statement);
+				else map.set(hash, [statement]);
 			}
-		}
-
-		for (const b of branchBHashes) {
-			const match = branchAConflictByHash.get(b.hash);
-			if (match) {
-				return { leftStatement: b.statement, rightStatement: match };
+			return map;
+		};
+		// Of the statements of the other branch with one hash, the last one is reported.
+		const firstConflict = (
+			hashes: Array<{ hash: string; statement: TStatement }>,
+			conflicts: Map<string, TStatement[]>,
+		) => {
+			for (const { hash, statement } of hashes) {
+				const others = conflicts.get(hash) ?? [];
+				for (let idx = others.length - 1; idx >= 0; idx--) {
+					if (!this.isSameChange(statement, others[idx])) {
+						return { leftStatement: statement, rightStatement: others[idx] };
+					}
+				}
 			}
-		}
+		};
+
+		return firstConflict(branchAHashes, byHash(branchBConflicts))
+			?? firstConflict(branchBHashes, byHash(branchAConflicts));
 	}
 
 	protected buildSnapshotGraph(

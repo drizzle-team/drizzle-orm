@@ -298,6 +298,31 @@ const rows: Row[] = [
 		merged: { t: pgTable('t', { contact: integer(), age: integer().notNull().default(0) }) },
 	},
 	{
+		name: 'NOT NULL on one column in both branches, with a column rename in one branch',
+		base: t(['id', 'email', 'age']),
+		branches: [
+			[step(t(['id', 'contact', 'age!']), emailToContact)],
+			[step(t(['id', 'email', 'age!']))],
+		],
+		merged: t(['id', 'contact', 'age!']),
+	},
+	{
+		name: 'two different defaults for one column, with a column rename in one branch',
+		base: { t: pgTable('t', { email: integer(), age: integer() }) },
+		branches: [
+			[step({ t: pgTable('t', { contact: integer(), age: integer().default(1) }) }, emailToContact)],
+			[step({ t: pgTable('t', { email: integer(), age: integer().default(2) }) })],
+		],
+	},
+	{
+		name: 'the same new column in both branches, with a column rename in one branch',
+		base: t(['id', 'email']),
+		branches: [
+			[step(t(['id', 'contact', 'age']), emailToContact)],
+			[step(t(['id', 'email', 'age']))],
+		],
+	},
+	{
 		name: 'a column rename against NOT NULL on that column',
 		base: t(['id', 'email']),
 		branches: [

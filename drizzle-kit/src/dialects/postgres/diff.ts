@@ -676,7 +676,7 @@ export const ddlDiff = async (
 		}
 		// The order of the roles has no meaning in SQL. After a role rename, the list can have another order
 		// than the schema gives it.
-		if (it.roles && it.roles.from.toSorted().join() === it.roles.to.toSorted().join()) delete it.roles;
+		if (it.roles && [...it.roles.from].sort().join() === [...it.roles.to].sort().join()) delete it.roles;
 		return ddl1.policies.hasDiff(it);
 	});
 

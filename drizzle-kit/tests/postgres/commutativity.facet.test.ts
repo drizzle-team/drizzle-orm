@@ -2,6 +2,7 @@ import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
 import { toSnapshotStatements } from 'src/dialects/postgres/convertor';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { describe, expect, test } from 'vitest';
+import { build } from './commutativity-statements';
 
 // Curated regression scenarios for the facet commutativity model. Each asserts
 // the verdict the model must produce; several encode bugs the facet model fixed
@@ -895,5 +896,26 @@ const cases: Case[] = [
 describe('facet commutativity — curated scenarios (postgres)', () => {
 	test.each(cases)('$name', async ({ a, b, expect: want }) => {
 		expect(await conflicts(a, b)).toBe(want === 'conflict');
+	});
+});
+
+// The same statement on two branches is one change only when its SQL can run a second time.
+describe('the same statement on both branches', () => {
+	const conflictsWithItself = (statement: JsonStatement) => conflicts([statement], [structuredClone(statement)]);
+
+	test('a recreate_index with its DROP INDEX commutes, and one without it conflicts', async () => {
+		expect(await conflictsWithItself(build('recreate_index'))).toBe(false);
+		expect(await conflictsWithItself({ ...build('recreate_index'), shouldDrop: false } as JsonStatement)).toBe(true);
+	});
+
+	test('an alter_pk with its DROP CONSTRAINT commutes, and one without it conflicts', async () => {
+		expect(await conflictsWithItself(build('alter_pk'))).toBe(false);
+		expect(await conflictsWithItself({ ...build('alter_pk'), deleted: true } as JsonStatement)).toBe(true);
+	});
+
+	test('a statement kind whose SQL fails on the second run conflicts', async () => {
+		expect(await conflictsWithItself(build('add_column'))).toBe(true);
+		expect(await conflictsWithItself(build('create_index'))).toBe(true);
+		expect(await conflictsWithItself(build('drop_table'))).toBe(true);
 	});
 });

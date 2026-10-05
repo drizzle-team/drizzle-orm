@@ -750,6 +750,38 @@ class PostgresCommutativity extends FacetCommutativity<
 	// key, so children/cross-refs line up with the nodes drops remove.
 	// ----------------------------------------------------------------------
 
+	protected override isRepeatable(statement: SnapshotStatement): boolean {
+		switch (statement.type) {
+			// ADD and DROP of an identity, DROP EXPRESSION, and the CREATE and DROP of the sequence of a serial
+			// column fail on the second run.
+			case 'alter_column':
+				return !statement.wasSerial && !statement.toSerial && !statement.diff.generated && !statement.diff.identity;
+			// Without the DROP, the second CREATE INDEX fails.
+			case 'recreate_index':
+				return statement.shouldDrop;
+			// Without the DROP, the second ADD PRIMARY KEY fails.
+			case 'alter_pk':
+				return !statement.deleted;
+			case 'recreate_column':
+			case 'recreate_fk':
+			case 'alter_unique':
+			case 'alter_check':
+			case 'recreate_enum':
+			case 'alter_sequence':
+			case 'alter_view':
+			case 'alter_policy':
+			case 'recreate_policy':
+			case 'alter_rls':
+			case 'alter_role':
+			case 'grant_privilege':
+			case 'revoke_privilege':
+			case 'regrant_privilege':
+				return true;
+			default:
+				return false;
+		}
+	}
+
 	protected override buildFacetPaths(statement: SnapshotStatement): FacetPaths {
 		// EXACT (strict) COMMUTATIVITY via three facets per node:
 		//   s|N  self       — written by EVERY structural op on N. Two ops on the same

@@ -511,8 +511,13 @@ test.each(PAIRS)('disjoint commute: $t1 ∥ $t2', async ({ t1, t2 }) => {
 	expect(await conflicts([build(t1, A)], [build(t2, B)])).toBe(false);
 });
 
+// Two equal statements can be one change, so a marker makes the second statement another change of the
+// same object.
 test.each(SELF)('self-conflict: $t ∥ $t', async ({ t }) => {
-	expect(await conflicts([build(t, A)], [build(t, A)])).toBe(true);
+	const [statement] = toSnapshotStatements([build(t, A)]);
+	const other = Object.assign(structuredClone(statement), { marker: true });
+
+	expect(await postgresCommutativity.getReasonsFromStatements([statement], [other])).toBeDefined();
 });
 
 test.each(PAIRS)('symmetric: $t1 ∥ $t2', async ({ t1, t2 }) => {

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { integer, pgEnum, pgTable, text, varchar } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
 import { fromJson, toSnapshotStatements } from 'src/dialects/postgres/convertor';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
@@ -133,6 +133,33 @@ describe('facet model vs a real database', () => {
 				+ '\n',
 		);
 		expect(falseNegative.map((r) => r.name), 'pairs that the rules call commutative and postgres rejects').toEqual([]);
+	});
+});
+
+describe('the same change on two branches, against a real database', () => {
+	const t = (id: any) => ({ t: pgTable('t', { id }) });
+	// Each of these changes of one column fails on the second run, so the rules must report the same change
+	// on two branches as a conflict.
+	const cases = {
+		'an identity is added': [t(integer().notNull()), t(integer().generatedAlwaysAsIdentity())],
+		'an identity is dropped': [t(integer().generatedAlwaysAsIdentity()), t(integer().notNull())],
+		'a generated expression is dropped': [t(integer().generatedAlwaysAs(sql`1`)), t(integer())],
+		'an integer becomes a serial': [t(integer().notNull()), t(serial())],
+		'a serial becomes an integer': [t(serial()), t(integer().notNull())],
+	};
+
+	test.each(Object.entries(cases))('%s: the SQL fails on the second run, and the rules report a conflict', async (
+		_,
+		[from, to],
+	) => {
+		const base = (await diff({}, from, [])).sqlStatements;
+		const { sqlStatements, statements } = await diff(from, to, []);
+		const stored = toSnapshotStatements(statements);
+
+		expect(stored.map((it) => it.type)).toStrictEqual(['alter_column']);
+		expect(await applyBoth(base, sqlStatements, [])).toMatchObject({ ok: true });
+		expect(await applyBoth(base, sqlStatements, sqlStatements)).toMatchObject({ ok: false });
+		expect(await postgresCommutativity.getReasonsFromStatements(stored, structuredClone(stored))).toBeDefined();
 	});
 });
 
@@ -400,38 +427,9 @@ const needs: Record<string, readonly BaseObject[]> = {
 };
 
 // Cells where the rules report a conflict that postgres accepts. Keys are `row x column` in matrix order.
-const sameChangeTwice =
-	'the same change runs twice without an error, and the rules report any two changes of one entity';
 const knownExceptions: Record<string, string> = {
 	'alter_column:default x alter_column:type':
 		'a type change converts the default, and the rules do not know that the conversion from varchar to text keeps it',
-	...Object.fromEntries(
-		[
-			'alter_column',
-			'alter_column:default',
-			'alter_column:type',
-			'alter_column:enum_not_null',
-			'alter_column:enum_default',
-			'recreate_column',
-			'recreate_index',
-			'alter_pk',
-			'recreate_fk',
-			'alter_unique',
-			'alter_check',
-			'recreate_enum',
-			'recreate_enum:column',
-			'alter_sequence',
-			'alter_view',
-			'alter_policy',
-			'recreate_policy',
-			'alter_rls',
-			'alter_role',
-			'grant_privilege',
-			'grant_privilege:insert',
-			'revoke_privilege',
-			'regrant_privilege',
-		].map((type) => [`${type} x ${type}`, sameChangeTwice]),
-	),
 };
 
 // Everything a pair can change, as sorted text. Column order is left out, because
