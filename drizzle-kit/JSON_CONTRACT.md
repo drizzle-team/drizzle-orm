@@ -212,7 +212,7 @@ Structured error responses with `status: "error"` use a `code` field to identify
 | `unsupported_schema_change` | see [unsupported_schema_change variants](#unsupported_schema_change) | `mysql`, `mssql`, `singlestore` | The schema diff would emit a DDL operation that the target dialect cannot execute or rejects (per `meta.kind`) |
 | `invalid_hints` | see [invalid_hints variants](#invalid_hints) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Hints payload could not be loaded, parsed, validated, or applied — see [`invalid_hints`](#invalid_hints) below |
 | `unsupported_command_dialect_error` | `command`, `dialect?`, `option?`, `conflictsWith?` | all | The command, or one of its options, cannot run with this dialect or with another option. `option` names the rejected option. `conflictsWith` names the other option when the two cannot be used together, as `generate` does for `--explain` with `--custom`. |
-| `check_error` | see [`check` outcomes](#check) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | A command that reads the migrations folder found a snapshot-integrity problem (`kind: 'unsupported' \| 'malformed' \| 'non_latest' \| 'order'`, carries `snapshot`, and for a broken postgres history also `parentId` or `parentSnapshot`) or unreported branch conflicts (`kind: 'conflicts'`, carries `conflicts` + `details`). See [`check`](#check) below. |
+| `check_error` | see [`check` outcomes](#check) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | A command that reads the migrations folder found a snapshot-integrity problem (`kind: 'unsupported' \| 'malformed' \| 'non_latest' \| 'order' \| 'state_hash'`, carries `snapshot`, and for a broken postgres history also `parentId` or `parentSnapshot`) or unreported branch conflicts (`kind: 'conflicts'`, carries `conflicts` + `details`). See [`check`](#check) below. |
 | `database_driver_error` | `database`, `packages`, `note?` | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | A command that connects to a live database (`push`, `pull`) cannot select a connection driver: the required driver package is not installed, or the installed driver is incompatible with the target (for example a local-only turso driver used against a remote turso database). This code is emitted by both connecting commands, push, pull; for `pull` it also covers the connect/introspect span and the `--init` migrate span. `database` is the dialect, `packages` lists the drivers that would satisfy the connection, and `note` carries an optional install caveat. The credential-bearing detail (the connection string, SQL, and params) is never spread into the envelope — only `database`, `packages`, and `note?` are surfaced. |
 
 The example payloads in each variant sub-table show only the `error` object; the full response wraps them in `{"status":"error","error":{…}}`.
@@ -445,8 +445,9 @@ type BaseSnapshot = {
   dialect: 'postgres';
   id: string;
   prevIds: ['00000000-0000-0000-0000-000000000000'];
-  ddl: Row[];
   statements: Statement[];
+  ddl: Row[];
+  stateHash: string;
 };
 
 type DiffSnapshot = {
@@ -455,8 +456,9 @@ type DiffSnapshot = {
   dialect: 'postgres';
   id: string;
   prevIds: string[]; // at least one parent
-  deltas: Delta[];
   statements: Statement[];
+  deltas: Delta[];
+  stateHash: string;
 };
 
 type Statement = { type: string; [field: string]: unknown };
@@ -484,6 +486,12 @@ Every snapshot stores the **statements** of its own migration in `statements`, i
 - `up` computes the statements of every snapshot that it converts.
 
 `check` compares the stored statements of the snapshots of two branches. It takes its conflicts only from them, so its result for an old migration does not change with a newer drizzle-kit.
+
+Every snapshot stores the **state hash** of its state in `stateHash`: the SHA-256 hash, in hexadecimal, of the state after the snapshot. `generate`, `pull` and `up` write it, and a snapshot without it is malformed. The hash reads a canonical form of the state: the rows in the order of their keys, the fields of a row in the order of their names, both by code unit, and no field that is `null`. So the hash is the same on every machine, and a new optional field of an entity does not change the hash of an older snapshot.
+
+When a command rebuilds the state of a snapshot, it compares the rebuilt state with the stored hash. It does this for the snapshot that it asked for and for the first parent of every merge on the way, and for no other snapshot of the history. `check` rebuilds every leaf once for this comparison. When the hashes differ, the command stops with `check_error` and `kind: "state_hash"`. See [`check` integrity errors](#check-integrity-errors).
+
+Before `generate` writes a diff snapshot, it also applies the new deltas to the starting state and compares the result with the schema. When they differ, it writes nothing and returns `internal_error`. That is a bug in drizzle-kit.
 
 Each row in `ddl`, and each `row` of a `create`, is one entity of the schema. `entityType` names its kind. For example, a column:
 
@@ -549,13 +557,14 @@ Example: a base, a column add, a column rename with a `NOT NULL` change, and a m
   "dialect": "postgres",
   "id": "d3339e19-89f8-4fe9-a7ee-bee3db901d0d",
   "prevIds": ["00000000-0000-0000-0000-000000000000"],
+  "statements": [
+    { "type": "create_table", "table": { "schema": "public", "name": "users", "columns": [ … ], … } }
+  ],
   "ddl": [
     { "schema": "public", "name": "users", "isRlsEnabled": false, "entityType": "tables" },
     { "schema": "public", "table": "users", "name": "id", "type": "integer", …, "entityType": "columns" }
   ],
-  "statements": [
-    { "type": "create_table", "table": { "schema": "public", "name": "users", "columns": [ … ], … } }
-  ]
+  "stateHash": "6f0c…"
 }
 
 // 20260101120002_email/snapshot.json
@@ -565,12 +574,13 @@ Example: a base, a column add, a column rename with a `NOT NULL` change, and a m
   "dialect": "postgres",
   "id": "2b39a1e8-3f89-4842-916d-6998b0ac6304",
   "prevIds": ["d3339e19-89f8-4fe9-a7ee-bee3db901d0d"],
+  "statements": [
+    { "type": "add_column", "column": { "schema": "public", "table": "users", "name": "email", "type": "varchar", … }, … }
+  ],
   "deltas": [
     { "op": "create", "row": { "schema": "public", "table": "users", "name": "email", "type": "varchar", …, "entityType": "columns" } }
   ],
-  "statements": [
-    { "type": "add_column", "column": { "schema": "public", "table": "users", "name": "email", "type": "varchar", … }, … }
-  ]
+  "stateHash": "…"
 }
 
 // 20260101120003_rename/snapshot.json
@@ -580,14 +590,15 @@ Example: a base, a column add, a column rename with a `NOT NULL` change, and a m
   "dialect": "postgres",
   "id": "d4eab725-04f4-4581-bc0a-8982608fa2b3",
   "prevIds": ["2b39a1e8-3f89-4842-916d-6998b0ac6304"],
+  "statements": [
+    { "type": "rename_column", "from": { "table": "users", "name": "email", … }, "to": { "table": "users", "name": "mail", … } },
+    { "type": "alter_column", "to": { "table": "users", "name": "mail", "notNull": true, … }, … }
+  ],
   "deltas": [
     { "op": "rename", "key": "columns\u0000[\"public\",\"users\",\"email\"]", "set": { "name": "mail" } },
     { "op": "alter", "key": "columns\u0000[\"public\",\"users\",\"mail\"]", "set": { "notNull": true } }
   ],
-  "statements": [
-    { "type": "rename_column", "from": { "table": "users", "name": "email", … }, "to": { "table": "users", "name": "mail", … } },
-    { "type": "alter_column", "to": { "table": "users", "name": "mail", "notNull": true, … }, … }
-  ]
+  "stateHash": "…"
 }
 
 // 20260101120006_age/snapshot.json, after the branch folders 20260101120004_likes and 20260101120005_posts
@@ -597,12 +608,13 @@ Example: a base, a column add, a column rename with a `NOT NULL` change, and a m
   "dialect": "postgres",
   "id": "31c40787-97df-4bc4-b064-bf418893d2f3",
   "prevIds": ["75e723a1-d6f4-4516-9340-82f9696797fc", "71a65ad8-0ae7-48e8-9fff-ad4343d8a315"],
+  "statements": [
+    { "type": "add_column", "column": { "schema": "public", "table": "users", "name": "age", "type": "integer", … }, … }
+  ],
   "deltas": [
     { "op": "create", "row": { "schema": "public", "table": "users", "name": "age", "type": "integer", …, "entityType": "columns" } }
   ],
-  "statements": [
-    { "type": "add_column", "column": { "schema": "public", "table": "users", "name": "age", "type": "integer", … }, … }
-  ]
+  "stateHash": "…"
 }
 ```
 
@@ -646,6 +658,7 @@ When a snapshot fails integrity validation, `check` emits an `error` envelope wi
 - `malformed`: the snapshot cannot be read, or its postgres history is broken. The cases are listed below.
 - `non_latest`: the snapshot is in an older format. Run `drizzle-kit up`.
 - `order`: postgres only. A migration folder sorts before the folder of one of its parents. `parentSnapshot` is the path of the parent's `snapshot.json`.
+- `state_hash`: postgres only. The history of the snapshot rebuilds to another state than the one that the snapshot recorded in `stateHash`. A `snapshot.json` in the history of `snapshot` was edited by hand, or this drizzle-kit version rebuilds the history in another way than the version that wrote it. Restore the migration folders from git. If they are unchanged, use the drizzle-kit version that wrote them and report the issue.
 
 `snapshot` is the path of the snapshot file that has the problem.
 
@@ -746,7 +759,7 @@ For `mysql`, `sqlite` and `turso`, `--ignore-conflicts` makes `generate` write t
 | outcome | envelope | exit code |
 | --- | --- | --- |
 | valid (snapshots intact, branches commute) | `{ status: "ok", dialect }` | `0` |
-| integrity error (`unsupported` / `malformed` / `non_latest` / `order`) | `{ status: "error", error: { code: "check_error", kind, snapshot, parentId?, parentSnapshot? } }` | `1` |
+| integrity error (`unsupported` / `malformed` / `non_latest` / `order` / `state_hash`) | `{ status: "error", error: { code: "check_error", kind, snapshot, parentId?, parentSnapshot? } }` | `1` |
 | conflicts (no `--ignore-conflicts`) | `{ status: "error", error: { code: "check_error", kind: "conflicts", conflicts, details, fix? } }` | `1` |
 | conflicts with `--ignore-conflicts` (not postgresql) | `{ status: "ok", dialect }` | `0` |
 | `--ignore-conflicts` with postgresql | `{ status: "error", error: { code: "unsupported_command_dialect_error", command, dialect, option } }` | `1` |

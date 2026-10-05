@@ -1,9 +1,10 @@
 import chalk from 'chalk';
 import { readFileSync } from 'fs';
+import { basename, dirname } from 'path';
 import { getCommutativityDialect } from '../../commutativity';
 import type { ParsedSnapshotInput, SnapshotHeader } from '../../commutativity/engine';
 import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from '../../commutativity/types';
-import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
+import { type PostgresSnapshot, reconstruct, StateHashError, stateHashMessage } from '../../dialects/postgres/snapshot';
 import type { Dialect } from '../../utils/schemaValidator';
 import { assertSnapshotStatus, prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
 import { CheckCliError, UnsupportedCommandCliError } from '../errors';
@@ -216,9 +217,33 @@ export const checkSnapshots = async (snapshots: string[], dialect: Dialect): Pro
 	if (!commutativity) return { report: { conflicts: [], leafNodes: [] } };
 
 	const report = await commutativity.detectNonCommutative(inputs);
-	if (dialect !== 'postgresql' || report.conflicts.length === 0) return { report };
+	if (dialect !== 'postgresql') return { report };
 	// The validator accepted every input as a postgres snapshot.
-	return { report, fix: await planConflictFix(inputs as ParsedSnapshotInput<PostgresSnapshot>[], report) };
+	const postgresInputs = inputs as ParsedSnapshotInput<PostgresSnapshot>[];
+	assertLeafStates(postgresInputs, report.leafNodes);
+	if (report.conflicts.length === 0) return { report };
+	return { report, fix: await planConflictFix(postgresInputs, report) };
+};
+
+// Rebuilds every leaf once and compares its state with the hash that the snapshot recorded, so a snapshot
+// that was edited by hand stops the command. The conflicts still come only from the stored statements.
+// `inputs` must be in folder-name order.
+const assertLeafStates = (inputs: ParsedSnapshotInput<PostgresSnapshot>[], leafIds: string[]) => {
+	const history = new Map(inputs.map((it) => [it.snapshot.id, it.snapshot]));
+	const pathOf = new Map(inputs.map((it) => [it.snapshot.id, it.path]));
+	for (const leafId of leafIds) {
+		try {
+			reconstruct(history, leafId);
+		} catch (e) {
+			// A merge also checks the state of its first parent, so the snapshot that fails can be an ancestor.
+			const path = pathOf.get(e instanceof StateHashError ? e.snapshotId : leafId)!;
+			const folder = basename(dirname(path));
+			const message = e instanceof StateHashError
+				? stateHashMessage(folder)
+				: `Cannot rebuild snapshot ${folder}: ${(e as Error).message}`;
+			throw new CheckCliError('state_hash', message, { snapshot: path });
+		}
+	}
 };
 
 export const conflictError = (report: NonCommutativityReport, fix?: ConflictFix) => {

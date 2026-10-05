@@ -1,12 +1,15 @@
+import { createHash } from 'crypto';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
-import { type Delta, delta } from 'src/dialects/dialect';
-import { createDDL } from 'src/dialects/postgres/ddl';
+import { applyInPlace, create, type Delta, delta } from 'src/dialects/dialect';
+import { createDDL, fromEntities } from 'src/dialects/postgres/ddl';
 import {
+	assertDeltasRebuildState,
 	type PostgresBaseSnapshot,
 	type PostgresSnapshot,
 	reconstruct,
 	snapshotValidator,
 	startingState,
+	stateHash,
 } from 'src/dialects/postgres/snapshot';
 import { originUUID } from 'src/utils';
 import { describe, expect, test } from 'vitest';
@@ -33,6 +36,7 @@ const base = (id: string, ddl: ReturnType<typeof createDDL>): PostgresBaseSnapsh
 	prevIds: [originUUID],
 	ddl: ddl.entities.list(),
 	statements: [],
+	stateHash: stateHash(ddl),
 });
 
 const diff = (id: string, prevIds: string[], deltas: Delta[]): PostgresSnapshot => ({
@@ -43,9 +47,22 @@ const diff = (id: string, prevIds: string[], deltas: Delta[]): PostgresSnapshot 
 	prevIds,
 	deltas,
 	statements: [],
+	stateHash: '',
 });
 
-const historyOf = (...snapshots: PostgresSnapshot[]) => new Map(snapshots.map((it) => [it.id, it]));
+// Gives every diff snapshot the hash of the state that it rebuilds to, as generate does. The snapshots must
+// come after their parents. A snapshot that does not rebuild keeps its empty hash.
+const historyOf = (...snapshots: PostgresSnapshot[]) => {
+	const history = new Map<string, PostgresSnapshot>();
+	for (const it of snapshots) {
+		history.set(it.id, it);
+		if (it.type !== 'diff') continue;
+		try {
+			history.set(it.id, { ...it, stateHash: stateHash(applyInPlace(startingState(history, it.prevIds), it.deltas)) });
+		} catch {}
+	}
+	return history;
+};
 
 describe('reconstruct', () => {
 	test('replays every diff from the base', () => {
@@ -192,6 +209,7 @@ describe('reconstruct', () => {
 			prevIds: [originUUID],
 			ddl: state(),
 			statements: [],
+			stateHash: stateHash(fromEntities(state())),
 		};
 		expect(first.ddl).toHaveLength(5501);
 		const history = historyOf(first);
@@ -219,6 +237,9 @@ describe('reconstruct', () => {
 			}
 			history.set(`s${idx}`, diff(`s${idx}`, [`s${idx - 1}`], deltas));
 		}
+		// Only the requested snapshot has a hash here. The rebuild compares one hash, and not one for every
+		// snapshot of the history.
+		history.set('s999', { ...history.get('s999')!, stateHash: stateHash(fromEntities(state())) });
 
 		const started = performance.now();
 		const rebuilt = reconstruct(history, 's999');
@@ -227,6 +248,105 @@ describe('reconstruct', () => {
 		expect(normalizeDDL(rebuilt.entities.list())).toStrictEqual(normalizeDDL(state()));
 		console.info(`Rebuilt the last of 1000 snapshots in ${elapsed.toFixed(1)} ms`);
 		expect(elapsed).toBeLessThan(1000);
+	});
+});
+
+describe('stateHash', () => {
+	test('a state rebuilt from other deltas has the same hash, and another state has another hash', () => {
+		const s0 = ddlOf('users', ['id']);
+		const s1 = ddlOf('users', ['id', 'email']);
+		const s2 = ddlOf('users', ['id', 'email', 'age']);
+		const history = historyOf(base('a', s0), diff('b', ['a'], delta(s0, s1)), diff('c', ['b'], delta(s1, s2)));
+
+		expect(stateHash(reconstruct(history, 'c'))).toBe(stateHash(s2));
+		expect(stateHash(fromEntities([...s2.entities.list()].reverse()))).toBe(stateHash(s2));
+		expect(stateHash(s1)).not.toBe(stateHash(s2));
+		expect(stateHash(s2)).toMatch(/^[0-9a-f]{64}$/);
+	});
+
+	test('a field that is null is not part of the hash, so a new optional field keeps old hashes', () => {
+		const identity = { items: (row: Record<string, unknown>) => JSON.stringify([row.name]) };
+		const before = create({ items: { name: 'string', size: 'number' } }, { identity });
+		const after = create({ items: { name: 'string', size: 'number', note: 'string?' } }, { identity });
+		before.items.push({ name: 'a', size: 1 });
+		after.items.push({ name: 'a', size: 1 });
+		const changed = create({ items: { name: 'string', size: 'number', note: 'string?' } }, { identity });
+		changed.items.push({ name: 'a', size: 1, note: 'x' });
+
+		expect(stateHash(after)).toBe(stateHash(before));
+		expect(stateHash(changed)).not.toBe(stateHash(before));
+	});
+
+	// A hash is stored in every snapshot, so the canonical form must never change: rows in the order of
+	// their keys and fields in the order of their names, both by code unit, and no null fields. A locale-aware
+	// order would put "ä" before "B".
+	test('the canonical form of a state is fixed', () => {
+		const identity = { items: (row: Record<string, unknown>) => JSON.stringify([row.name]) };
+		const state = create({ items: { name: 'string', Zeta: 'number', alpha: 'string?' } }, { identity });
+		for (const name of ['a', 'ä', 'B']) state.items.push({ name, Zeta: 1 });
+
+		expect(stateHash(state)).toBe(
+			createHash('sha256')
+				.update('{"Zeta":1,"entityType":"items","name":"B"}\n')
+				.update('{"Zeta":1,"entityType":"items","name":"a"}\n')
+				.update('{"Zeta":1,"entityType":"items","name":"ä"}\n')
+				.digest('hex'),
+		);
+	});
+});
+
+describe('reconstruct with state hashes', () => {
+	const s0 = ddlOf('users', ['id']);
+	const s1 = ddlOf('users', ['id', 'email']);
+	const s2 = ddlOf('users', ['id', 'email', 'age']);
+
+	test('a snapshot that rebuilds to another state than it recorded throws and is named', () => {
+		const history = historyOf(base('a', s0), diff('b', ['a'], delta(s0, s1)), diff('c', ['b'], delta(s1, s2)));
+		history.set('b', { ...history.get('b')!, deltas: [] } as PostgresSnapshot);
+
+		expect(() => reconstruct(history, 'b')).toThrow(
+			'Cannot rebuild snapshot b: the rebuilt state differs from the state that the snapshot recorded.',
+		);
+		expect(() => reconstruct(history, 'c')).toThrow('Cannot rebuild snapshot c: the rebuilt state differs');
+	});
+
+	test('a base snapshot with edited rows throws', () => {
+		const edited = { ...base('a', s0), ddl: s1.entities.list() };
+
+		expect(() => reconstruct(historyOf(edited), 'a')).toThrow('Cannot rebuild snapshot a: the rebuilt state differs');
+	});
+
+	test('a merge checks the state of its first parent before it replays the other branches', () => {
+		const left = ddlOf('users', ['id', 'left']);
+		const right = ddlOf('users', ['id', 'right']);
+		const history = historyOf(
+			base('a', s0),
+			diff('b', ['a'], delta(s0, left)),
+			diff('c', ['a'], delta(s0, right)),
+			diff('d', ['c', 'b'], []),
+		);
+		// With the delta of c removed, the combined state loses the column `right`, and d stores the old hash.
+		history.set('c', { ...history.get('c')!, deltas: [] } as PostgresSnapshot);
+
+		expect(() => reconstruct(history, 'd')).toThrow('Cannot rebuild snapshot c: the rebuilt state differs');
+	});
+});
+
+describe('assertDeltasRebuildState', () => {
+	// generate runs this check before it writes a snapshot. It fails only when the diff returns deltas that
+	// do not match its own result, which is a bug in drizzle-kit. No schema reproduces that, so the test passes
+	// a wrong delta list to the check.
+	test('throws when the deltas do not rebuild the state that the diff used', () => {
+		const from = ddlOf('users', ['id']);
+		const to = ddlOf('users', ['id', 'email', 'age']);
+		const deltas = delta(from, to);
+
+		expect(() => assertDeltasRebuildState(from, deltas, to)).not.toThrow();
+		expect(() => assertDeltasRebuildState(from, deltas.slice(1), to)).toThrow(
+			'The deltas of the new migration do not rebuild the schema: columns public.users.email differs. '
+				+ 'Nothing was written. This is a bug in drizzle-kit.',
+		);
+		expect(rows(from)).toStrictEqual(rows(ddlOf('users', ['id'])));
 	});
 });
 
@@ -273,6 +393,8 @@ describe('snapshotValidator', () => {
 		const renameTable = { type: 'rename_table', schema: 'public', from: 'users', to: 'accounts' };
 
 		expect(valid(withoutStatements)).toBe(false);
+		expect(valid({ ...base('a', users), stateHash: undefined })).toBe(false);
+		expect(valid({ ...diff('b', ['a'], []), stateHash: 42 })).toBe(false);
 		expect(valid({ ...diff('b', ['a'], []), statements: undefined })).toBe(false);
 		expect(valid({ ...diff('b', ['a'], []), statements: [renameTable] })).toBe(true);
 		expect(valid({ ...diff('b', ['a'], []), statements: [{ ...renameTable, type: 'paint_table' }] })).toBe(false);

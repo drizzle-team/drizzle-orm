@@ -1,9 +1,13 @@
 import chalk from 'chalk';
 import { readFileSync, writeFileSync } from 'fs';
 import { basename, dirname, join } from 'path';
-import { normalizeDDL } from '../../dialects/ddl-canonical';
 import { fromEntities } from '../../dialects/postgres/ddl';
-import { type PostgresSnapshot, reconstruct, snapshotValidator } from '../../dialects/postgres/snapshot';
+import {
+	type PostgresSnapshot,
+	reconstruct,
+	snapshotValidator,
+	stateDifference,
+} from '../../dialects/postgres/snapshot';
 import { upToV8 } from '../../dialects/postgres/versions';
 import { upToV9, withStateKeyNames } from '../../dialects/postgres/versions-v9';
 import { originUUID } from '../../utils';
@@ -17,11 +21,6 @@ import {
 import { outputFormat } from '../context';
 import { CommandOutputCliError, DrizzleCliError } from '../errors';
 import { applyFoldersV3, planFoldersV3 } from './utils';
-
-const entityName = (json: string) => {
-	const row = JSON.parse(json);
-	return `${row.entityType} ${[row.schema, row.table, row.name].filter(Boolean).join('.')}`;
-};
 
 const reportIssueHint =
 	'Keep the current snapshot files and report this issue at https://github.com/drizzle-team/drizzle-orm/issues.';
@@ -132,13 +131,8 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 				});
 			}
 			const state = reconstruct(byId, snapshot.id);
-			const expected = normalizeDDL(fromEntities(withStateKeyNames(snapshot.ddl, state)).entities.list());
-			const rebuilt = normalizeDDL(state.entities.list());
-			const expectedSet = new Set(expected);
-			const rebuiltSet = new Set(rebuilt);
-			const differing = expected.find((it) => !rebuiltSet.has(it)) ?? rebuilt.find((it) => !expectedSet.has(it));
-			if (differing) {
-				const entity = entityName(differing);
+			const entity = stateDifference(fromEntities(withStateKeyNames(snapshot.ddl, state)), state);
+			if (entity !== undefined) {
 				throw conversionError(
 					folder,
 					`its rebuilt state differs from the format 8 state at ${entity}`,

@@ -1,8 +1,13 @@
 import { PGlite } from '@electric-sql/pglite';
 import { index, integer, pgTable, text, varchar } from 'drizzle-orm/pg-core';
+import { join } from 'path';
+import { errorToEnvelope } from 'src/cli/errors';
+import { createDDL } from 'src/dialects/postgres/ddl';
+import { reconstruct, stateHash } from 'src/dialects/postgres/snapshot';
 import { expect, onTestFinished, test } from 'vitest';
 import { ORIGIN, writeSnapshot } from '../other/check-fixtures';
 import { columnRow, createFolderFlow, schemaState, tempDir } from './folder-flow';
+import { drizzleToDDL } from './mocks';
 
 test('linear history with a column rename', async () => {
 	const flow = createFolderFlow();
@@ -39,6 +44,7 @@ test('linear history with a column rename', async () => {
 		prevIds: [second.id],
 		statements: [expect.objectContaining({ type: 'rename_column' })],
 		deltas: [{ op: 'rename', key: 'columns\0["public","users","email"]', set: { name: 'contact' } }],
+		stateHash: expect.stringMatching(/^[0-9a-f]{64}$/),
 	});
 
 	expect(flow.leaves('main')).toStrictEqual(['20260101120003_main']);
@@ -89,6 +95,67 @@ test('check takes its conflicts from the stored statements of the snapshots', as
 	flow.overwriteSnapshot('main', folder!, JSON.stringify({ ...flow.snapshot('main', folder!), statements: [] }));
 
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
+});
+
+test('generate stores the hash of the state after each migration', async () => {
+	const flow = createFolderFlow();
+	const v1 = { users: pgTable('users', { id: integer() }) };
+	const v2 = { users: pgTable('users', { id: integer(), email: varchar() }) };
+	const first = await flow.generate('main', v1);
+	const second = await flow.generate('main', v2);
+	const custom = await flow.generate('main', v2, { custom: true });
+
+	const hashOf = (schema: Parameters<typeof drizzleToDDL>[0]) => stateHash(drizzleToDDL(schema).ddl);
+	expect(flow.snapshot('main', first.folder!).stateHash).toBe(hashOf(v1));
+	expect(flow.snapshot('main', second.folder!).stateHash).toBe(hashOf(v2));
+	expect(flow.snapshot('main', custom.folder!).stateHash).toBe(hashOf(v2));
+});
+
+test('a snapshot that was edited by hand stops check and generate, and the error names it', async () => {
+	const flow = createFolderFlow();
+	const v1 = { users: pgTable('users', { id: integer() }) };
+	const v2 = { users: pgTable('users', { id: integer(), email: varchar() }) };
+	const v3 = { users: pgTable('users', { id: integer(), email: varchar(), age: integer() }) };
+	await flow.generate('main', v1);
+	const { folder } = await flow.generate('main', v2);
+	const edited = flow.snapshot('main', folder!);
+	if (edited.type !== 'diff') throw new Error('The second migration must have a diff snapshot.');
+	edited.deltas[0] = { op: 'create', row: columnRow('users', 'mail', 'varchar') };
+	flow.overwriteSnapshot('main', folder!, JSON.stringify(edited, null, 2));
+	const before = flow.files('main');
+
+	const message = `Cannot rebuild snapshot ${folder}: the rebuilt state differs from the state that the snapshot `
+		+ `recorded. A snapshot.json in the history of ${folder} was edited by hand, or this drizzle-kit version `
+		+ 'rebuilds the history in another way than the version that wrote it.';
+	await expect(flow.check('main')).rejects.toThrow(message);
+	await expect(flow.generate('main', v3)).rejects.toThrow(message);
+	expect(errorToEnvelope(await flow.check('main').catch((e) => e))).toStrictEqual({
+		status: 'error',
+		error: {
+			code: 'check_error',
+			kind: 'state_hash',
+			snapshot: expect.stringContaining(join(folder!, 'snapshot.json')),
+		},
+	});
+	expect(flow.files('main')).toStrictEqual(before);
+});
+
+test('an edited snapshot in the middle of a history fails at the leaf that follows it', async () => {
+	const flow = createFolderFlow();
+	const v1 = { users: pgTable('users', { id: integer(), email: varchar() }) };
+	const v2 = { users: pgTable('users', { id: integer(), email: varchar().notNull() }) };
+	const first = await flow.generate('main', v1);
+	const second = await flow.generate('main', v2);
+	const base = flow.snapshot('main', first.folder!);
+	if (base.type !== 'base') throw new Error('The first migration must have a base snapshot.');
+	const rows = base.ddl.map((
+		row,
+	) => (row.entityType === 'columns' && row.name === 'id' ? { ...row, type: 'bigint' } : row));
+	flow.overwriteSnapshot('main', first.folder!, JSON.stringify({ ...base, ddl: rows }, null, 2));
+
+	await expect(flow.check('main')).rejects.toThrow(
+		`Cannot rebuild snapshot ${second.folder}: the rebuilt state differs from the state that the snapshot recorded.`,
+	);
 });
 
 test('check compares two independent first migrations', async () => {
@@ -269,6 +336,7 @@ test('commands ask to run up on format 8 snapshots, and up converts them', async
 		prevIds: [ORIGIN],
 		ddl: [],
 		statements: [],
+		stateHash: stateHash(createDDL()),
 	});
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	const { folder } = await flow.generate('main', v1);
@@ -289,6 +357,7 @@ test('pull into an empty folder writes a base snapshot that generate continues',
 	const base = flow.snapshot('main', pulled);
 	expect(base).toMatchObject({ type: 'base', version: '9', dialect: 'postgres', prevIds: [ORIGIN] });
 	expect(base.statements).toMatchObject([{ type: 'create_table', table: { schema: 'public', name: 'users' } }]);
+	expect(base.stateHash).toBe(stateHash(reconstruct(flow.history('main'), base.id)));
 	expect(flow.state('main', pulled)).toStrictEqual(schemaState(v1));
 
 	const { folder } = await flow.generate('main', v2);
@@ -302,6 +371,7 @@ test('pull into an empty folder writes a base snapshot that generate continues',
 		prevIds: [base.id],
 		statements: [expect.objectContaining({ type: 'add_column' })],
 		deltas: [expect.objectContaining({ op: 'create', row: expect.objectContaining({ name: 'email' }) })],
+		stateHash: expect.stringMatching(/^[0-9a-f]{64}$/),
 	});
 	expect(flow.state('main', folder!)).toStrictEqual(schemaState(v2));
 });

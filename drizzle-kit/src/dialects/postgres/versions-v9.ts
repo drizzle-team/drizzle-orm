@@ -1,18 +1,12 @@
 import { originUUID } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
-import { copyDDL, delta } from '../dialect';
-import { fromEntities, type PostgresDDL, type PostgresEntity } from './ddl';
+import { apply, copyDDL, type Delta, delta } from '../dialect';
+import { createDDL, fromEntities, type PostgresDDL, type PostgresEntity } from './ddl';
 import { ddlDiff } from './diff';
 import { defaultNameForPK } from './grammar';
 import { renameResolvers } from './renames';
-import {
-	type PostgresBaseSnapshot,
-	type PostgresDiffSnapshot,
-	type PostgresSnapshot,
-	type PostgresSnapshotV8,
-	startingState,
-} from './snapshot';
+import { type PostgresSnapshot, type PostgresSnapshotV8, startingState, stateHash } from './snapshot';
 import type { JsonStatement } from './statements';
 
 // A format 8 rename string does not say which kind of entity it renames, so every resolver gets all of
@@ -43,17 +37,14 @@ export const withStateKeyNames = (rows: PostgresEntity[], state: PostgresDDL): P
 		return key ? { ...row, name: key.name } : row;
 	});
 
-// The statements of the migration of `snapshot`, from its starting state and its own state. The rename
-// deltas are the rename decisions. Generated names are not kept, so a drop and a create of a constraint in
-// the deltas stay a drop and a create statement, as in the SQL that drizzle-kit wrote for the migration.
-const statementsOf = async (
-	snapshots: Map<string, PostgresSnapshot>,
-	snapshot: Omit<PostgresBaseSnapshot, 'statements'> | Omit<PostgresDiffSnapshot, 'statements'>,
-): Promise<JsonStatement[]> => {
+// The statements of a migration that starts from the state `start` and applies `deltas`. The rename deltas
+// are the rename decisions. Generated names are not kept, so a drop and a create of a constraint in the
+// deltas stay a drop and a create statement, as in the SQL that drizzle-kit wrote for the migration.
+const statementsOf = async (start: PostgresDDL, deltas: Delta[]): Promise<JsonStatement[]> => {
 	// ddlDiff changes both states that it gets, so each one is a separate copy.
-	const from = startingState(snapshots, snapshot.prevIds);
-	const to = snapshot.type === 'diff' ? copyDDL(from) : fromEntities(structuredClone(snapshot.ddl));
-	const resolver = renameResolvers(to, snapshot.type === 'diff' ? snapshot.deltas : []);
+	const from = copyDDL(start);
+	const to = copyDDL(start);
+	const resolver = renameResolvers(to, deltas);
 	const { statements } = await ddlDiff(
 		from,
 		to,
@@ -91,19 +82,23 @@ export const upToV9 = async (
 		const header = { version: '9', dialect: 'postgres', id: snapshot.id } as const;
 		const parents = snapshot.prevIds.filter((id) => id && id !== originUUID);
 		if (parents.length === 0) {
-			const base = {
-				type: 'base' as const,
+			const state = fromEntities(snapshot.ddl);
+			const creates: Delta[] = state.entities.list().map((row) => ({ op: 'create', row }));
+			converted.set(snapshot.id, {
+				type: 'base',
 				...header,
 				prevIds: [originUUID],
-				ddl: fromEntities(snapshot.ddl).entities.list(),
-			};
-			converted.set(snapshot.id, { ...base, statements: await statementsOf(converted, base) });
+				statements: await statementsOf(createDDL(), creates),
+				ddl: state.entities.list(),
+				stateHash: stateHash(state),
+			});
 			continue;
 		}
 		// The first parent of a merge is the one with the newest folder name.
 		const prevIds = [...parents].sort((a, b) => (folderOf.get(a)! > folderOf.get(b)! ? -1 : 1));
+		const start = startingState(converted, prevIds);
 		// ddlDiff changes both states that it gets, so neither may share rows with a file.
-		const from = copyDDL(startingState(converted, prevIds));
+		const from = copyDDL(start);
 		const to = fromEntities(structuredClone(snapshot.ddl));
 		const resolve = renamesResolver(snapshot.renames ?? []);
 		const { deltas } = await ddlDiff(
@@ -129,8 +124,14 @@ export const upToV9 = async (
 		// Drops and creates at the end restore the stored names, except for the primary key names that
 		// withStateKeyNames takes from the state.
 		deltas.push(...delta(to, fromEntities(withStateKeyNames(snapshot.ddl, to))));
-		const diff = { type: 'diff' as const, ...header, prevIds, deltas };
-		converted.set(snapshot.id, { ...diff, statements: await statementsOf(converted, diff) });
+		converted.set(snapshot.id, {
+			type: 'diff',
+			...header,
+			prevIds,
+			statements: await statementsOf(start, deltas),
+			deltas,
+			stateHash: stateHash(apply(start, deltas)),
+		});
 	}
 	return files.map((it) => converted.get(it.snapshot.id)!);
 };

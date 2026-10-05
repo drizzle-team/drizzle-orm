@@ -18,7 +18,8 @@ import { cpSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { CommandOutputCliError, errorToEnvelope } from 'src/cli/errors';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
-import { type PostgresSnapshotV8, snapshotValidator } from 'src/dialects/postgres/snapshot';
+import { fromEntities } from 'src/dialects/postgres/ddl';
+import { type PostgresSnapshotV8, snapshotValidator, stateHash } from 'src/dialects/postgres/snapshot';
 import { updateUpToV6 } from 'src/dialects/postgres/versions';
 import { expect, test } from 'vitest';
 import { ORIGIN, writeSnapshot } from '../other/check-fixtures';
@@ -92,6 +93,16 @@ test.each(['format-8-linear', 'format-8-renames', 'format-8-merge', 'format-8-fo
 		}
 	},
 );
+
+test('up stores the hash of the state after each converted migration', async () => {
+	const { flow, original } = seedFormat8('format-8-merge');
+
+	await flow.up('main');
+
+	for (const [folder, it] of original) {
+		expect(flow.snapshot('main', folder).stateHash, `the hash of ${folder}`).toBe(stateHash(fromEntities(it.ddl)));
+	}
+});
 
 test('up turns format 8 renames into rename deltas', async () => {
 	const { flow, original } = seedFormat8('format-8-renames');

@@ -88,6 +88,8 @@ drizzle-kit rebuilds the schema of any migration by starting from the base snaps
 
 Every snapshot also stores the **statements** of its own migration in `statements`, in the order of the SQL. A statement is one schema change with its meaning, for example `{ "type": "rename_column", ... }`. The `check` command compares the stored statements of two branches, so its result for an old migration does not change with a newer drizzle-kit. Do not edit `statements` by hand: a snapshot without the field, or with an unknown statement `type`, is malformed.
 
+Every snapshot also stores a **state hash** in `stateHash`: a hash of the full schema after that migration. When a command rebuilds the schema of a migration, it compares the result with this hash. `check` does this for the newest migration of every branch. If someone edited a `snapshot.json` by hand, or the history is rebuilt in another way than when it was written, the command stops with the `check_error` code and `kind: "state_hash"`, and `snapshot` names the migration. Restore the migration folders from git. If they are unchanged, use the drizzle-kit version that wrote them and report the issue.
+
 `generate --custom` writes a `migration.sql` that holds only a comment, for hand-written SQL, and a diff snapshot with no deltas and no statements. drizzle-kit does not read the SQL of a custom migration, so `check` does not see what it changes.
 
 mysql, sqlite, turso, mssql, singlestore and cockroach still write the full schema into every snapshot.

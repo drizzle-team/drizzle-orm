@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { createDDL } from '../../src/dialects/postgres/ddl';
 import { ddlDiffDry } from '../../src/dialects/postgres/diff';
-import type { PostgresSnapshot } from '../../src/dialects/postgres/snapshot';
+import { type PostgresSnapshot, stateHash } from '../../src/dialects/postgres/snapshot';
 import { drizzleToDDL, type PostgresSchema } from '../postgres/mocks';
 
 export const ORIGIN = '00000000-0000-0000-0000-000000000000';
@@ -18,8 +18,9 @@ export const makePgSnapshot = async (
 	const header = { version: '9', dialect: 'postgres', id, prevIds } as const;
 	const { ddl } = drizzleToDDL(schema);
 	const { deltas, statements } = await ddlDiffDry(from ? drizzleToDDL(from).ddl : createDDL(), ddl, 'default');
-	if (!from) return { type: 'base', ...header, ddl: ddl.entities.list(), statements };
-	return { type: 'diff', ...header, deltas, statements };
+	const hash = stateHash(ddl);
+	if (!from) return { type: 'base', ...header, statements, ddl: ddl.entities.list(), stateHash: hash };
+	return { type: 'diff', ...header, statements, deltas, stateHash: hash };
 };
 
 export const stageOut = (): string => {

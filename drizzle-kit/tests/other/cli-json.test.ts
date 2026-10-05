@@ -10,11 +10,13 @@ import { join } from 'path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { check as sdkCheck } from '../../src/cli-sdk';
 import { HintsHandler } from '../../src/cli/hints';
+import { createDDL as createPgDDL } from '../../src/dialects/postgres/ddl';
 import {
 	fromExports as pgFromExports,
 	type PreparedPostgresSchema,
 	SchemaSource as PgSchemaSource,
 } from '../../src/dialects/postgres/drizzle';
+import { stateHash as pgStateHash } from '../../src/dialects/postgres/snapshot';
 import {
 	fromExports as sqliteFromExports,
 	SchemaSource as SqliteSchemaSource,
@@ -1163,6 +1165,7 @@ describe('check --output', () => {
 			prevIds: [ORIGIN],
 			ddl: 'not-an-array',
 			statements: [],
+			stateHash: '',
 		});
 		const result = await runCheck(out);
 
@@ -1413,6 +1416,7 @@ describe('pull json envelopes', () => {
 				prevIds: ['00000000-0000-0000-0000-000000000000'],
 				ddl: [],
 				statements: [],
+				stateHash: pgStateHash(createPgDDL()),
 			}),
 		);
 		return snapshotPath;

@@ -1,8 +1,9 @@
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import type { TypeOf } from 'zod';
 import { any, array as zodArray, boolean, enum as enumType, literal, number, object, record, string } from 'zod';
 import { originUUID } from '../../utils';
-import { applyInPlace, type Delta, findRow, splitDeltaKey } from '../dialect';
+import { normalizeDDL } from '../ddl-canonical';
+import { type AnyDDL, apply, applyInPlace, type Delta, findRow, splitDeltaKey } from '../dialect';
 import { array, validator } from '../simpleValidator';
 import { statementTypes } from './convertor';
 import type { PostgresDDL, PostgresEntity } from './ddl';
@@ -572,6 +573,7 @@ const baseValidator = validator({
 		return res;
 	}),
 	statements,
+	stateHash: 'string',
 });
 
 const diffValidator = validator({
@@ -582,6 +584,7 @@ const diffValidator = validator({
 	prevIds: array<string>((it) => typeof it === 'string'),
 	deltas: array<Delta>(isDelta),
 	statements,
+	stateHash: 'string',
 });
 
 export type PostgresBaseSnapshot = typeof baseValidator.shape;
@@ -621,6 +624,54 @@ export const snapshotValidator = {
 	},
 };
 
+const canonical = (value: unknown): unknown => {
+	if (Array.isArray(value)) return value.map(canonical);
+	if (value === null || typeof value !== 'object') return value;
+	return Object.fromEntries(
+		Object.entries(value)
+			.filter(([, it]) => it !== null && it !== undefined)
+			.sort(([a], [b]) => (a < b ? -1 : 1))
+			.map(([field, it]) => [field, canonical(it)]),
+	);
+};
+
+// The hash of a state, as a snapshot stores it in `stateHash`. It reads the canonical form of the state: the
+// rows in the order of their keys and the fields in the order of their names, both by code unit, with no null
+// fields. A locale-aware order differs between machines. Without the null fields, a new optional field of an
+// entity does not change the hash of a state that was written before that field existed.
+export const stateHash = (state: AnyDDL): string => {
+	const rows = state.entities.list()
+		.map((row) => [`${row.entityType}\0${state.key(row.entityType, row)}`, row] as const)
+		.sort(([a], [b]) => (a < b ? -1 : 1));
+	const hash = createHash('sha256');
+	for (const [, row] of rows) hash.update(`${JSON.stringify(canonical(row))}\n`);
+	return hash.digest('hex');
+};
+
+const entityName = (json: string) => {
+	const row = JSON.parse(json);
+	return `${row.entityType} ${[row.schema, row.table, row.name].filter(Boolean).join('.')}`;
+};
+
+// The first entity that is in only one of the two states, or that differs between them.
+export const stateDifference = (expected: PostgresDDL, rebuilt: PostgresDDL): string | undefined => {
+	const [a, b] = [normalizeDDL(expected.entities.list()), normalizeDDL(rebuilt.entities.list())];
+	const [inA, inB] = [new Set(a), new Set(b)];
+	const differing = a.find((it) => !inB.has(it)) ?? b.find((it) => !inA.has(it));
+	return differing === undefined ? undefined : entityName(differing);
+};
+
+// generate calls this before it writes a snapshot. A hash does not help here, because the same run would
+// compute it from the same wrong data.
+export const assertDeltasRebuildState = (start: PostgresDDL, deltas: Delta[], expected: PostgresDDL) => {
+	const entity = stateDifference(expected, apply(start, deltas));
+	if (entity === undefined) return;
+	throw new Error(
+		`The deltas of the new migration do not rebuild the schema: ${entity} differs. Nothing was written. `
+			+ 'This is a bug in drizzle-kit. Report it at https://github.com/drizzle-team/drizzle-orm/issues.',
+	);
+};
+
 export const toJsonSnapshot = (
 	ddl: PostgresDDL,
 	prevIds: string[],
@@ -632,8 +683,9 @@ export const toJsonSnapshot = (
 		dialect: 'postgres',
 		id: randomUUID(),
 		prevIds,
-		ddl: ddl.entities.list(),
 		statements,
+		ddl: ddl.entities.list(),
+		stateHash: stateHash(ddl),
 	};
 };
 
@@ -643,8 +695,9 @@ export const drySnapshot: PostgresBaseSnapshot = {
 	dialect: 'postgres',
 	id: originUUID,
 	prevIds: [],
-	ddl: [],
 	statements: [],
+	ddl: [],
+	stateHash: stateHash(createDDL()),
 };
 
 // The folder loader and reconstruct report a broken history with the same messages.
@@ -655,6 +708,26 @@ export const missingParentMessage = (snapshot: string, parentId: string) =>
 export const missingBaseMessage = (snapshot: string) =>
 	`Cannot rebuild snapshot ${snapshot}: its history does not reach a base snapshot. `
 	+ `Restore the first migration folder from git, or delete ${snapshot} and every later migration, then run generate again.`;
+
+export const stateHashMessage = (snapshot: string) =>
+	`Cannot rebuild snapshot ${snapshot}: the rebuilt state differs from the state that the snapshot recorded. `
+	+ `A snapshot.json in the history of ${snapshot} was edited by hand, or this drizzle-kit version rebuilds the `
+	+ 'history in another way than the version that wrote it. Restore the migration folders from git. If they are '
+	+ 'unchanged, use the drizzle-kit version that wrote them, and report this issue at '
+	+ 'https://github.com/drizzle-team/drizzle-orm/issues.';
+
+export class StateHashError extends Error {
+	constructor(readonly snapshotId: string) {
+		super(stateHashMessage(snapshotId));
+	}
+}
+
+// The replay code is part of the format. This check turns a rebuild that gives another state than the one
+// that the snapshot recorded into an error. One hash reads the whole state, so only the snapshot that a
+// command asks for and the first parent of each merge are checked, and no other snapshot of the history.
+const assertStateHash = (state: PostgresDDL, snapshot: PostgresSnapshot) => {
+	if (snapshot.stateHash !== stateHash(state)) throw new StateHashError(snapshot.id);
+};
 
 // `child` is the snapshot that lists `id` as a parent.
 const lookup = (snapshots: Map<string, PostgresSnapshot>, id: string, child?: string): PostgresSnapshot => {
@@ -725,9 +798,14 @@ export const reconstruct = (snapshots: Map<string, PostgresSnapshot>, id: string
 	const state = fromEntities(snapshot.ddl);
 	for (let idx = chain.length - 1; idx >= 0; idx--) {
 		const it = chain[idx];
-		if (it.prevIds.length > 1) combineInPlace(state, snapshots, it.prevIds, it.id);
+		if (it.prevIds.length > 1) {
+			// The merge replay skips deltas that do not fit, so a wrong state of the first parent would stay hidden.
+			assertStateHash(state, chain[idx + 1] ?? snapshot);
+			combineInPlace(state, snapshots, it.prevIds, it.id);
+		}
 		applyInPlace(state, it.deltas);
 	}
+	assertStateHash(state, chain[0] ?? snapshot);
 	return state;
 };
 

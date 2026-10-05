@@ -23,7 +23,7 @@ import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { SchemaSource } from '../../dialects/postgres/drizzle';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
-import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
+import { assertDeltasRebuildState, type PostgresSnapshot, stateHash } from '../../dialects/postgres/snapshot';
 import type { JsonStatement } from '../../dialects/postgres/statements';
 import { originUUID } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
@@ -72,10 +72,19 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	// statements of the migration, in the order of its SQL.
 	const snapshotOf = (state: PostgresDDL, deltas: Delta[], statements: JsonStatement[]): PostgresSnapshot => {
 		const header = { version: '9', dialect: 'postgres', id: randomUUID() } as const;
+		const hash = stateHash(state);
 		if (prevIds.length === 0) {
-			return { type: 'base', ...header, prevIds: [originUUID], ddl: state.entities.list(), statements };
+			return {
+				type: 'base',
+				...header,
+				prevIds: [originUUID],
+				statements,
+				ddl: state.entities.list(),
+				stateHash: hash,
+			};
 		}
-		return { type: 'diff', ...header, prevIds, deltas, statements };
+		assertDeltasRebuildState(ddlPrev, deltas, state);
+		return { type: 'diff', ...header, prevIds, statements, deltas, stateHash: hash };
 	};
 
 	// Deleting waits until generate needs no more hints, so a missing_hints response leaves the folder unchanged.

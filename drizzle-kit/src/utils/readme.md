@@ -8,7 +8,9 @@ Postgres, mysql, sqlite and turso have a branch check. The other dialects have n
 
 ## Postgres: compare branches statement by statement
 
-Postgres snapshots use format 9. The first snapshot is a base snapshot with the full state. Every later snapshot is a diff snapshot with the deltas of its own migration. Every snapshot also stores the statements of its migration in `statements`, as `generate`, `pull` or `up` computed them.
+Postgres snapshots use format 9. The first snapshot is a base snapshot with the full state. Every later snapshot is a diff snapshot with the deltas of its own migration. Every snapshot also stores the statements of its migration in `statements`, as `generate`, `pull` or `up` computed them, and the hash of its state in `stateHash`.
+
+The code that rebuilds a state from snapshots is part of the format: a change to it can give another state for an existing folder, with no error. Two guards catch this. `reconstruct` in `src/dialects/postgres/snapshot.ts` compares the rebuilt state with `stateHash` for the snapshot that it was asked for and for the first parent of every merge on the way. `check` rebuilds every leaf once for this comparison, so a wrong rebuild fails in CI. `generate` calls `assertDeltasRebuildState` before it writes a diff snapshot, because the hash cannot catch wrong deltas in the run that computes it. The canonical form behind the hash (`stateHash`) must never change: rows in the order of their keys, fields in the order of their names, both by code unit, and no null fields.
 
 Example: `p1` is the base, and two git branches each add one migration on top of it.
 

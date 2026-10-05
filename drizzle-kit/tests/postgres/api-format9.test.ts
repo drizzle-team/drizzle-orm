@@ -1,7 +1,8 @@
 import { integer, pgTable, varchar } from 'drizzle-orm/pg-core';
 import { readFileSync } from 'fs';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
-import { type PostgresSchemaState, snapshotValidator } from 'src/dialects/postgres/snapshot';
+import { createDDL } from 'src/dialects/postgres/ddl';
+import { type PostgresSchemaState, snapshotValidator, stateHash } from 'src/dialects/postgres/snapshot';
 import { generateDrizzleJson, generateMigration, reconstruct, up } from 'src/ext/api-postgres';
 import { expect, test } from 'vitest';
 import { ORIGIN } from '../other/check-fixtures';
@@ -127,6 +128,7 @@ test('generateMigration rejects a diff snapshot', async () => {
 		prevIds: [parent.id],
 		deltas: [],
 		statements: [],
+		stateHash: '',
 	};
 
 	await expect(generateMigration(parent, diff)).rejects.toThrow(
@@ -228,6 +230,7 @@ test('reconstruct reports a malformed snapshot, an unknown id and an empty folde
 		prevIds: [ORIGIN],
 		ddl: [],
 		statements: [],
+		stateHash: stateHash(createDDL()),
 	};
 
 	await expect(reconstruct({ '20260101120000_init': { ...base, ddl: 'broken' } })).rejects.toMatchObject({

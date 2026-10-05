@@ -202,7 +202,7 @@ export class OrmDriverVersionCliError extends DrizzleCliError {
 
 export class CheckCliError extends DrizzleCliError {
 	constructor(
-		kind: 'unsupported' | 'malformed' | 'non_latest' | 'conflicts' | 'order',
+		kind: 'unsupported' | 'malformed' | 'non_latest' | 'conflicts' | 'order' | 'state_hash',
 		humanMessage: string,
 		meta?: DrizzleCliErrorMeta,
 	) {
