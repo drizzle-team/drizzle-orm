@@ -63,7 +63,14 @@ export const snapshotStatementSchemas = {
 		table: object({ schema: string(), name: string(), policies: array(inTable) }).strict(),
 	}),
 	rename_table: statement('rename_table', { schema: string(), from: string(), to: string() }),
-	move_table: statement('move_table', { name: string(), from: string(), to: string() }),
+	move_table: statement('move_table', {
+		name: string(),
+		from: string(),
+		to: string(),
+		// The indexes that move with the table, also the ones of its primary key and its unique constraints.
+		// Their names leave one schema and enter the other.
+		relations: array(string()),
+	}),
 	add_column: statement('add_column', { column: row('columns'), isPK: boolean(), isCompositePK: boolean() }),
 	drop_column: statement('drop_column', { column: inTable }),
 	rename_column: statement('rename_column', { from: inTable, to: inTable }),
@@ -218,11 +225,12 @@ export const snapshotStatementSchemas = {
 		}).strict(),
 	}),
 	grant_privilege: statement('grant_privilege', { privilege: row('privileges') }),
-	// REVOKE does not name the grantor.
+	// REVOKE does not name the grantor. The claim rule reads it, because the key of a privilege holds it.
 	revoke_privilege: statement('revoke_privilege', {
 		privilege: object({
 			schema: string(),
 			table: string(),
+			grantor: string(),
 			grantee: string(),
 			type: field('privileges', 'type'),
 		}).strict(),

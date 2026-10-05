@@ -470,10 +470,20 @@ interface PolicyNotLinked {
 }
 export type SchemaWarning = PolicyNotLinked;
 
+export class DuplicateEntityError extends Error {
+	constructor(readonly entityType: string, readonly key: string) {
+		super(
+			`The snapshot lists two rows of ${entityType} with the key ${key}. A snapshot must list every entity one time.`,
+		);
+	}
+}
+
 export const fromEntities = (entities: PostgresEntity[]) => {
 	const ddl = createDDL();
 	for (const it of entities) {
-		ddl.entities.push(it);
+		if (ddl.entities.push(it).status === 'CONFLICT') {
+			throw new DuplicateEntityError(it.entityType, ddl.key(it.entityType, it));
+		}
 	}
 
 	return ddl;

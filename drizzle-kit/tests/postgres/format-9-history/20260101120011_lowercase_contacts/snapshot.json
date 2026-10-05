@@ -1,0 +1,12 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "dff244bf-4b4b-4a02-a87a-01756ed6b7f8",
+  "prevIds": [
+    "7392c4ff-eee5-446d-bad4-87dbd9f72ff3"
+  ],
+  "statements": [],
+  "deltas": [],
+  "stateHash": "6623bfe3a7b1b94efbc555c58483458263d5556e04a3f1592712d933a71df076"
+}

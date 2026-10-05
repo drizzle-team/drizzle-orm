@@ -100,7 +100,7 @@ function build(type: string, n: NS, opts: { cols?: string[]; enumCol?: boolean }
 		case 'rename_table':
 			return { type, schema: n.schema, from: n.table, to: n.to } as any;
 		case 'move_table':
-			return { type, name: n.table, from: n.schema, to: n.toSchema } as any;
+			return { type, name: n.table, from: n.schema, to: n.toSchema, relations: [] } as any;
 
 		case 'add_column':
 			return { type, column: column(n, n.col, opts.enumCol), isPK: false, isCompositePK: false } as any;

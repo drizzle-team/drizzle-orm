@@ -22,13 +22,15 @@ A rename changes other rows too: the columns of a renamed table, or the column l
 
 `renameInstructions` in `src/dialects/dialect.ts` derives the instructions from the reference rules (`edges` in `src/dialects/postgres/ddl.ts`) when `ddlDiff` applies a rename decision. It writes one instruction for every rule that points at the renamed entity type, and for every rule that points at a type whose keys change as a result, whether a row matches or not. So a rename of one branch also reaches the rows that another branch adds, and two branches whose SQL commutes rebuild the same combined state with either leaf as the first parent. The `when` function of a rule may read only the fields that the rule maps, because no row is at hand when the instructions are written.
 
+A role rename writes the new name at the old place of the role list of a policy, and `drizzle.ts` sorts that list. So before `ddlDiff` compares the states, it gives the new state the role order of the old state when both lists hold the same roles. Without this, the snapshot would store an `alter` of the whole list, and that delta would overwrite a role rename of another branch in a merge.
+
 The key functions (`identity` in `src/dialects/postgres/ddl.ts`) are part of the format too, because a keyed delta names its row by key. An index is keyed by schema and name, without its table: `DROP INDEX` and `ALTER INDEX` do not name the table, so a table rename on one branch must not hide the index from a keyed delta of another branch.
 
 While `ddlDiff` records deltas, `update` changes the starting state only through the deltas that it records. It does not follow the reference edges there, so the state that the diff continues with is the state that a replay gives.
 
 ### The replay module
 
-The whole replay of format 9 is in `src/dialects/postgres/replay-v9.ts`: `applyDeltas` runs keyed deltas and instructions, `rebuild` gives the state after a snapshot, and `combineParents` gives the state that a merge starts from. `reconstruct` and `startingState` in `src/dialects/postgres/snapshot.ts` call them with the entity definitions and the state hash check. `ddlDiff` applies the deltas that it records through the same `applyDeltas`.
+The whole replay of format 9 is in `src/dialects/postgres/replay-v9.ts`: `applyDeltas` runs keyed deltas and instructions, `reconstruct` gives the state after a snapshot, and `startingState` gives the state that a merge starts from. The functions of the same names in `src/dialects/postgres/snapshot.ts` call them with the entity definitions and the state hash check. `ddlDiff` applies the deltas that it records through the same `applyDeltas`.
 
 The module imports no other module, and a test in `tests/postgres/replay-v9.test.ts` fails if it gets an import. It reads no reference rules. It needs only the rows and the key functions, which it gets as data. So a rule that is added later does not change how an existing file rebuilds, and a rule that is missing when a file is written stays missing in that file.
 

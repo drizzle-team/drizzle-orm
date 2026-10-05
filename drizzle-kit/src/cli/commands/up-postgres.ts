@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { readFileSync, writeFileSync } from 'fs';
 import { basename, dirname, join } from 'path';
-import { fromEntities } from '../../dialects/postgres/ddl';
+import { DuplicateEntityError, fromEntities } from '../../dialects/postgres/ddl';
 import {
 	type PostgresSnapshot,
 	reconstruct,
@@ -118,6 +118,13 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 			if (e instanceof UnsupportedMergeError) {
 				const snapshot = files.find((it) => it.folder === e.folder)!.path;
 				throw historyError(e.message, 'Snapshot format 9 does not support a merge of such branches.', { snapshot });
+			}
+			if (e instanceof DuplicateEntityError) {
+				throw historyError(
+					`a snapshot lists two rows of ${e.entityType} with the key ${e.key}.`,
+					'Postgres does not allow two such entities with one name, so the SQL of this folder cannot run. Give '
+						+ 'them different names in the schema, delete the migrations folder and generate the migrations again.',
+				);
 			}
 			throw historyError((e as Error).message, reportIssueHint);
 		}

@@ -7,7 +7,7 @@ import { type AnyDDL, apply } from '../dialect';
 import { array, validator } from '../simpleValidator';
 import type { PostgresDDL, PostgresEntity } from './ddl';
 import { createDDL, fromEntities } from './ddl';
-import { combineParents, type Delta, type Rebuild, rebuild, splitDeltaKey } from './replay-v9';
+import * as replay from './replay-v9';
 import { type SnapshotStatement, snapshotStatementSchemas } from './snapshot-statements';
 
 const indexV2 = object({
@@ -570,7 +570,7 @@ const isDelta = (it: any): boolean => {
 	if (['update', 'replace_in_list', 'update_list_items'].includes(it?.op)) return isInstruction(it);
 	if (!['drop', 'alter', 'rename'].includes(it?.op)) return false;
 	if (typeof it.key !== 'string' || !it.key.includes('\0')) return false;
-	const [type] = splitDeltaKey(it.key);
+	const [type] = replay.splitDeltaKey(it.key);
 	if (!Object.hasOwn(definitions, type)) return false;
 	if (it.op === 'drop') return true;
 	return typeof it.set === 'object' && it.set !== null
@@ -609,7 +609,7 @@ const diffValidator = validator({
 	dialect: ['postgres'],
 	id: 'string',
 	prevIds: array<string>((it) => typeof it === 'string'),
-	deltas: array<Delta>(isDelta),
+	deltas: array<replay.Delta>(isDelta),
 	statements,
 	stateHash: 'string',
 });
@@ -690,7 +690,7 @@ export const stateDifference = (expected: PostgresDDL, rebuilt: PostgresDDL): st
 
 // generate calls this before it writes a snapshot. A hash does not help here, because the same run would
 // compute it from the same wrong data.
-export const assertDeltasRebuildState = (start: PostgresDDL, deltas: Delta[], expected: PostgresDDL) => {
+export const assertDeltasRebuildState = (start: PostgresDDL, deltas: replay.Delta[], expected: PostgresDDL) => {
 	const entity = stateDifference(expected, apply(start, deltas));
 	if (entity === undefined) return;
 	throw new Error(
@@ -747,13 +747,16 @@ const assertStateHash = (state: PostgresDDL, snapshot: PostgresSnapshot) => {
 	if (snapshot.stateHash !== stateHash(state)) throw new StateHashError(snapshot.id);
 };
 
-const how: Rebuild<PostgresDDL, PostgresSnapshot> = { start: fromEntities, verify: assertStateHash };
+const callbacks: replay.ReplayCallbacks<PostgresDDL, PostgresSnapshot> = {
+	start: fromEntities,
+	verify: assertStateHash,
+};
 
 // `snapshots` must iterate in folder-name order, because a merge replays the other branches in that order.
 export const reconstruct = (snapshots: Map<string, PostgresSnapshot>, id: string): PostgresDDL =>
-	rebuild(snapshots, id, how);
+	replay.reconstruct(snapshots, id, callbacks);
 
 // The state that the deltas of a snapshot with these parents start from. `snapshots` must iterate in
 // folder-name order, as for reconstruct.
 export const startingState = (snapshots: Map<string, PostgresSnapshot>, prevIds: string[]): PostgresDDL =>
-	combineParents(snapshots, prevIds, how);
+	replay.startingState(snapshots, prevIds, callbacks);

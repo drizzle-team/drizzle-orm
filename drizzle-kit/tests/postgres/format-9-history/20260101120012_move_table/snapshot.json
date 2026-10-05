@@ -2,16 +2,20 @@
   "type": "diff",
   "version": "9",
   "dialect": "postgres",
-  "id": "3ce0d6d0-42b6-4edb-82c8-c38fc5f44916",
+  "id": "16e92f5b-8a25-4921-8f11-0b7711a4227b",
   "prevIds": [
-    "90d46f11-2b0f-451d-964f-43d3bb9447c1"
+    "dff244bf-4b4b-4a02-a87a-01756ed6b7f8"
   ],
   "statements": [
     {
       "type": "move_table",
       "name": "users",
       "from": "public",
-      "to": "core"
+      "to": "core",
+      "relations": [
+        "users_contact_ix",
+        "users_pk"
+      ]
     }
   ],
   "deltas": [
@@ -122,5 +126,5 @@
       }
     }
   ],
-  "stateHash": "e2887183dea9ced3655ab1ee4fc28596a4d5c3ba4e3f2c91dd1ad0e91032a535"
+  "stateHash": "adee987635f720c85e639daa3fdfa84fbb253fb75432ff55994e4f146cffb27e"
 }

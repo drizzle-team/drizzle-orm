@@ -49,12 +49,12 @@ const table = (name: string, names: string[], extra?: Extra, schema?: Namespace)
 	schema ? schema.table(name, columns(names), extra) : pgTable(name, columns(names), extra);
 
 const all = (...extras: Extra[]): Extra => (t) => extras.flatMap((it) => it(t));
-const ix = (name: string, column: string): Extra => (t) => [index(name).on(t[column])];
-const pk = (name: string, ...names: string[]): Extra => (t) => [
+const withIndex = (name: string, column: string): Extra => (t) => [index(name).on(t[column])];
+const withPrimaryKey = (name: string, ...names: string[]): Extra => (t) => [
 	primaryKey({ name, columns: names.map((it) => t[it]) as any }),
 ];
-const uq = (name: string, column: string): Extra => (t) => [unique(name).on(t[column])];
-const ck = (name: string, column: string): Extra => (t) => [check(name, sql`${t[column]} > 0`)];
+const withUnique = (name: string, column: string): Extra => (t) => [unique(name).on(t[column])];
+const withCheck = (name: string, column: string): Extra => (t) => [check(name, sql`${t[column]} > 0`)];
 const policy = (name: string, using = sql`true`): Extra => () => [
 	pgPolicy(name, { for: 'select', to: 'public', using }),
 ];
@@ -70,7 +70,7 @@ const usersToApp = rename('table', 'public.users', 'app.users');
 const appToCore = rename('schema', 'app', 'core');
 
 // One table `t`. Most rows change only this table.
-const t = (names: string[], extra?: Extra) => ({ t: table('t', names, extra) });
+const tableT = (names: string[], extra?: Extra) => ({ t: table('t', names, extra) });
 const emailToContact = rename('column', 'public.t.email', 'public.t.contact');
 
 const mood = pgEnum('mood', ['ok', 'sad']);
@@ -95,11 +95,14 @@ const titles = (name: string, schema?: Namespace) =>
 	(schema ? schema.view(name, { title: integer() }) : pgView(name, { title: integer() }))
 		.as(sql`select title from posts`);
 
-// The role and a table `t` with a policy for that role.
-const withRole = (role: ReturnType<typeof pgRole>, names: string[]) => ({
-	role,
-	t: table('t', names, () => [pgPolicy('t_read', { for: 'select', to: role })]),
-});
+// The roles and a table `t` with one policy for all of them.
+const withRoles = (roleNames: string[], names: string[]) => {
+	const roles = roleNames.map((it) => pgRole(it));
+	return {
+		...Object.fromEntries(roles.map((it) => [it.name, it])),
+		t: table('t', names, () => [pgPolicy('t_read', { for: 'select', to: roles })]),
+	};
+};
 
 // A parent table with a primary key, and a child table with a foreign key to that key. Without `fk`,
 // the child has no foreign key.
@@ -116,7 +119,7 @@ const family = (
 ) => {
 	const { parent = 'parent', key = 'id', other = 'name', column = 'parentId', note = 'note' } = names;
 	const fk = names.fk === undefined ? 'child_parent_fk' : names.fk;
-	const parentTable = table(parent, [`${key}!`, other], pk('parent_pk', key), names.schema);
+	const parentTable = table(parent, [`${key}!`, other], withPrimaryKey('parent_pk', key), names.schema);
 	const child = table(
 		'child',
 		[column, note],
@@ -128,7 +131,11 @@ const parentIdToOwnerId = rename('column', 'public.child.parentId', 'public.chil
 
 // A table with a primary key over three columns, and a foreign key that references that key.
 const keyed = (first: string, second: string, third: string) => {
-	const parent = table('parent', [`${first}!`, `${second}!`, `${third}!`], pk('parent_pk', first, second, third));
+	const parent = table(
+		'parent',
+		[`${first}!`, `${second}!`, `${third}!`],
+		withPrimaryKey('parent_pk', first, second, third),
+	);
 	const child = table('child', ['a', 'b', 'c'], (t) => [
 		foreignKey({
 			name: 'child_parent_fk',
@@ -167,9 +174,9 @@ const rows: Row[] = [
 		base: { users, posts },
 		branches: [
 			[step({ accounts, posts }, usersToAccounts)],
-			[step({ users, posts: table('posts', ['id', 'title'], ix('posts_title_ix', 'title')) })],
+			[step({ users, posts: table('posts', ['id', 'title'], withIndex('posts_title_ix', 'title')) })],
 		],
-		merged: { accounts, posts: table('posts', ['id', 'title'], ix('posts_title_ix', 'title')) },
+		merged: { accounts, posts: table('posts', ['id', 'title'], withIndex('posts_title_ix', 'title')) },
 	},
 	{
 		name: 'a table move to another schema against a column rename of another table',
@@ -239,54 +246,54 @@ const rows: Row[] = [
 	},
 	{
 		name: 'a column rename against a new column of the same table',
-		base: t(['id', 'email']),
+		base: tableT(['id', 'email']),
 		branches: [
-			[step(t(['id', 'contact']), emailToContact)],
-			[step(t(['id', 'email', 'age']))],
+			[step(tableT(['id', 'contact']), emailToContact)],
+			[step(tableT(['id', 'email', 'age']))],
 		],
-		merged: t(['id', 'contact', 'age']),
+		merged: tableT(['id', 'contact', 'age']),
 	},
 	{
 		name: 'a column rename against a drop of another column of the same table',
-		base: t(['id', 'email', 'age']),
+		base: tableT(['id', 'email', 'age']),
 		branches: [
-			[step(t(['id', 'contact', 'age']), emailToContact)],
-			[step(t(['id', 'email']))],
+			[step(tableT(['id', 'contact', 'age']), emailToContact)],
+			[step(tableT(['id', 'email']))],
 		],
-		merged: t(['id', 'contact']),
+		merged: tableT(['id', 'contact']),
 	},
 	{
 		name: 'a column rename against NOT NULL on another column of the same table',
-		base: t(['id', 'email', 'age']),
+		base: tableT(['id', 'email', 'age']),
 		branches: [
-			[step(t(['id', 'contact', 'age']), emailToContact)],
-			[step(t(['id', 'email', 'age!']))],
+			[step(tableT(['id', 'contact', 'age']), emailToContact)],
+			[step(tableT(['id', 'email', 'age!']))],
 		],
-		merged: t(['id', 'contact', 'age!']),
+		merged: tableT(['id', 'contact', 'age!']),
 	},
 	{
 		name: 'a chain of two renames of one column in one branch against a new column',
-		base: t(['id', 'email']),
+		base: tableT(['id', 'email']),
 		branches: [
 			[
-				step(t(['id', 'contact']), emailToContact),
-				step(t(['id', 'address']), rename('column', 'public.t.contact', 'public.t.address')),
+				step(tableT(['id', 'contact']), emailToContact),
+				step(tableT(['id', 'address']), rename('column', 'public.t.contact', 'public.t.address')),
 			],
-			[step(t(['id', 'email', 'age']))],
+			[step(tableT(['id', 'email', 'age']))],
 		],
-		merged: t(['id', 'address', 'age']),
+		merged: tableT(['id', 'address', 'age']),
 	},
 	{
 		name: 'a column rename and a rename back to the old name in one branch against a rename of another column',
-		base: t(['id', 'email', 'age']),
+		base: tableT(['id', 'email', 'age']),
 		branches: [
 			[
-				step(t(['id', 'contact', 'age']), emailToContact),
-				step(t(['id', 'email', 'age']), rename('column', 'public.t.contact', 'public.t.email')),
+				step(tableT(['id', 'contact', 'age']), emailToContact),
+				step(tableT(['id', 'email', 'age']), rename('column', 'public.t.contact', 'public.t.email')),
 			],
-			[step(t(['id', 'email', 'years']), rename('column', 'public.t.age', 'public.t.years'))],
+			[step(tableT(['id', 'email', 'years']), rename('column', 'public.t.age', 'public.t.years'))],
 		],
-		merged: t(['id', 'email', 'years']),
+		merged: tableT(['id', 'email', 'years']),
 	},
 	{
 		name: 'a column rename with NOT NULL on another column against a default on that other column',
@@ -299,12 +306,12 @@ const rows: Row[] = [
 	},
 	{
 		name: 'NOT NULL on one column in both branches, with a column rename in one branch',
-		base: t(['id', 'email', 'age']),
+		base: tableT(['id', 'email', 'age']),
 		branches: [
-			[step(t(['id', 'contact', 'age!']), emailToContact)],
-			[step(t(['id', 'email', 'age!']))],
+			[step(tableT(['id', 'contact', 'age!']), emailToContact)],
+			[step(tableT(['id', 'email', 'age!']))],
 		],
-		merged: t(['id', 'contact', 'age!']),
+		merged: tableT(['id', 'contact', 'age!']),
 	},
 	{
 		name: 'two different defaults for one column, with a column rename in one branch',
@@ -316,26 +323,26 @@ const rows: Row[] = [
 	},
 	{
 		name: 'the same new column in both branches, with a column rename in one branch',
-		base: t(['id', 'email']),
+		base: tableT(['id', 'email']),
 		branches: [
-			[step(t(['id', 'contact', 'age']), emailToContact)],
-			[step(t(['id', 'email', 'age']))],
+			[step(tableT(['id', 'contact', 'age']), emailToContact)],
+			[step(tableT(['id', 'email', 'age']))],
 		],
 	},
 	{
 		name: 'a column rename against NOT NULL on that column',
-		base: t(['id', 'email']),
+		base: tableT(['id', 'email']),
 		branches: [
-			[step(t(['id', 'contact']), emailToContact)],
-			[step(t(['id', 'email!']))],
+			[step(tableT(['id', 'contact']), emailToContact)],
+			[step(tableT(['id', 'email!']))],
 		],
 	},
 	{
 		name: 'a column rename against a new column with the new name',
-		base: t(['id', 'email']),
+		base: tableT(['id', 'email']),
 		branches: [
-			[step(t(['id', 'contact']), emailToContact)],
-			[step(t(['id', 'email', 'contact']))],
+			[step(tableT(['id', 'contact']), emailToContact)],
+			[step(tableT(['id', 'email', 'contact']))],
 		],
 	},
 
@@ -531,103 +538,103 @@ const rows: Row[] = [
 	// ---- indexes ----
 	{
 		name: 'an index rename against a rename of a column of that index',
-		base: t(['id', 'email'], ix('t_email_ix', 'email')),
+		base: tableT(['id', 'email'], withIndex('t_email_ix', 'email')),
 		branches: [
 			[step(
-				t(['id', 'email'], ix('t_contact_ix', 'email')),
+				tableT(['id', 'email'], withIndex('t_contact_ix', 'email')),
 				rename('index', 'public.t.t_email_ix', 'public.t.t_contact_ix'),
 			)],
-			[step(t(['id', 'contact'], ix('t_email_ix', 'contact')), emailToContact)],
+			[step(tableT(['id', 'contact'], withIndex('t_email_ix', 'contact')), emailToContact)],
 		],
-		merged: t(['id', 'contact'], ix('t_contact_ix', 'contact')),
+		merged: tableT(['id', 'contact'], withIndex('t_contact_ix', 'contact')),
 	},
 	{
 		name: 'an index rename against a new index on the same table',
-		base: t(['id', 'email'], ix('t_email_ix', 'email')),
+		base: tableT(['id', 'email'], withIndex('t_email_ix', 'email')),
 		branches: [
 			[step(
-				t(['id', 'email'], ix('t_contact_ix', 'email')),
+				tableT(['id', 'email'], withIndex('t_contact_ix', 'email')),
 				rename('index', 'public.t.t_email_ix', 'public.t.t_contact_ix'),
 			)],
-			[step(t(['id', 'email'], all(ix('t_email_ix', 'email'), ix('t_id_ix', 'id'))))],
+			[step(tableT(['id', 'email'], all(withIndex('t_email_ix', 'email'), withIndex('t_id_ix', 'id'))))],
 		],
-		merged: t(['id', 'email'], all(ix('t_contact_ix', 'email'), ix('t_id_ix', 'id'))),
+		merged: tableT(['id', 'email'], all(withIndex('t_contact_ix', 'email'), withIndex('t_id_ix', 'id'))),
 	},
 	{
 		name: 'an index rename against a drop of a column outside that index',
-		base: t(['id', 'email', 'age'], ix('t_email_ix', 'email')),
+		base: tableT(['id', 'email', 'age'], withIndex('t_email_ix', 'email')),
 		branches: [
 			[step(
-				t(['id', 'email', 'age'], ix('t_contact_ix', 'email')),
+				tableT(['id', 'email', 'age'], withIndex('t_contact_ix', 'email')),
 				rename('index', 'public.t.t_email_ix', 'public.t.t_contact_ix'),
 			)],
-			[step(t(['id', 'email'], ix('t_email_ix', 'email')))],
+			[step(tableT(['id', 'email'], withIndex('t_email_ix', 'email')))],
 		],
-		merged: t(['id', 'email'], ix('t_contact_ix', 'email')),
+		merged: tableT(['id', 'email'], withIndex('t_contact_ix', 'email')),
 	},
 	{
 		name: 'a column rename against a new index on another column of the same table',
-		base: t(['id', 'email']),
+		base: tableT(['id', 'email']),
 		branches: [
-			[step(t(['id', 'contact']), emailToContact)],
-			[step(t(['id', 'email'], ix('t_id_ix', 'id')))],
+			[step(tableT(['id', 'contact']), emailToContact)],
+			[step(tableT(['id', 'email'], withIndex('t_id_ix', 'id')))],
 		],
-		merged: t(['id', 'contact'], ix('t_id_ix', 'id')),
+		merged: tableT(['id', 'contact'], withIndex('t_id_ix', 'id')),
 	},
 	{
 		name: 'a column rename against a drop of an index on another column of the same table',
-		base: t(['id', 'email'], ix('t_id_ix', 'id')),
+		base: tableT(['id', 'email'], withIndex('t_id_ix', 'id')),
 		branches: [
-			[step(t(['id', 'contact'], ix('t_id_ix', 'id')), emailToContact)],
-			[step(t(['id', 'email']))],
+			[step(tableT(['id', 'contact'], withIndex('t_id_ix', 'id')), emailToContact)],
+			[step(tableT(['id', 'email']))],
 		],
-		merged: t(['id', 'contact']),
+		merged: tableT(['id', 'contact']),
 	},
 	{
 		name: 'a column rename against a new index on that column',
-		base: t(['id', 'email']),
+		base: tableT(['id', 'email']),
 		branches: [
-			[step(t(['id', 'contact']), emailToContact)],
-			[step(t(['id', 'email'], ix('t_email_ix', 'email')))],
+			[step(tableT(['id', 'contact']), emailToContact)],
+			[step(tableT(['id', 'email'], withIndex('t_email_ix', 'email')))],
 		],
 	},
 
 	{
 		name: 'a table rename against a drop of an index of that table',
-		base: { users: table('users', ['id', 'email'], ix('users_email_ix', 'email')) },
+		base: { users: table('users', ['id', 'email'], withIndex('users_email_ix', 'email')) },
 		branches: [
-			[step({ accounts: table('accounts', ['id', 'email'], ix('users_email_ix', 'email')) }, usersToAccounts)],
+			[step({ accounts: table('accounts', ['id', 'email'], withIndex('users_email_ix', 'email')) }, usersToAccounts)],
 			[step({ users: table('users', ['id', 'email']) })],
 		],
 		merged: { accounts: table('accounts', ['id', 'email']) },
 	},
 	{
 		name: 'a table rename against a rename of an index of that table',
-		base: { users: table('users', ['id', 'email'], ix('users_email_ix', 'email')) },
+		base: { users: table('users', ['id', 'email'], withIndex('users_email_ix', 'email')) },
 		branches: [
-			[step({ accounts: table('accounts', ['id', 'email'], ix('users_email_ix', 'email')) }, usersToAccounts)],
+			[step({ accounts: table('accounts', ['id', 'email'], withIndex('users_email_ix', 'email')) }, usersToAccounts)],
 			[step(
-				{ users: table('users', ['id', 'email'], ix('users_contact_ix', 'email')) },
+				{ users: table('users', ['id', 'email'], withIndex('users_contact_ix', 'email')) },
 				rename('index', 'public.users.users_email_ix', 'public.users.users_contact_ix'),
 			)],
 		],
-		merged: { accounts: table('accounts', ['id', 'email'], ix('users_contact_ix', 'email')) },
+		merged: { accounts: table('accounts', ['id', 'email'], withIndex('users_contact_ix', 'email')) },
 	},
 	{
 		name: 'a table move to another schema against a drop of an index of that table',
-		base: { app, users: table('users', ['id', 'email'], ix('users_email_ix', 'email')) },
+		base: { app, users: table('users', ['id', 'email'], withIndex('users_email_ix', 'email')) },
 		branches: [
-			[step({ app, users: table('users', ['id', 'email'], ix('users_email_ix', 'email'), app) }, usersToApp)],
+			[step({ app, users: table('users', ['id', 'email'], withIndex('users_email_ix', 'email'), app) }, usersToApp)],
 			[step({ app, users: table('users', ['id', 'email']) })],
 		],
 	},
 	{
 		name: 'a table move to another schema against a rename of an index of that table',
-		base: { app, users: table('users', ['id', 'email'], ix('users_email_ix', 'email')) },
+		base: { app, users: table('users', ['id', 'email'], withIndex('users_email_ix', 'email')) },
 		branches: [
-			[step({ app, users: table('users', ['id', 'email'], ix('users_email_ix', 'email'), app) }, usersToApp)],
+			[step({ app, users: table('users', ['id', 'email'], withIndex('users_email_ix', 'email'), app) }, usersToApp)],
 			[step(
-				{ app, users: table('users', ['id', 'email'], ix('users_contact_ix', 'email')) },
+				{ app, users: table('users', ['id', 'email'], withIndex('users_contact_ix', 'email')) },
 				rename('index', 'public.users.users_email_ix', 'public.users.users_contact_ix'),
 			)],
 		],
@@ -636,92 +643,101 @@ const rows: Row[] = [
 	// ---- primary keys ----
 	{
 		name: 'a primary key rename against a rename of a column of that key',
-		base: t(['x!', 'z!'], pk('t_pk', 'x', 'z')),
+		base: tableT(['x!', 'z!'], withPrimaryKey('t_pk', 'x', 'z')),
 		branches: [
-			[step(t(['x!', 'z!'], pk('t_key', 'x', 'z')), rename('primary_key', 'public.t.t_pk', 'public.t.t_key'))],
-			[step(t(['y!', 'z!'], pk('t_pk', 'y', 'z')), rename('column', 'public.t.x', 'public.t.y'))],
+			[step(
+				tableT(['x!', 'z!'], withPrimaryKey('t_key', 'x', 'z')),
+				rename('primary_key', 'public.t.t_pk', 'public.t.t_key'),
+			)],
+			[step(tableT(['y!', 'z!'], withPrimaryKey('t_pk', 'y', 'z')), rename('column', 'public.t.x', 'public.t.y'))],
 		],
-		merged: t(['y!', 'z!'], pk('t_key', 'y', 'z')),
+		merged: tableT(['y!', 'z!'], withPrimaryKey('t_key', 'y', 'z')),
 	},
 	{
 		name: 'a primary key rename against a new column',
-		base: t(['id!', 'email'], pk('t_pk', 'id')),
+		base: tableT(['id!', 'email'], withPrimaryKey('t_pk', 'id')),
 		branches: [
-			[step(t(['id!', 'email'], pk('t_key', 'id')), rename('primary_key', 'public.t.t_pk', 'public.t.t_key'))],
-			[step(t(['id!', 'email', 'age'], pk('t_pk', 'id')))],
+			[step(
+				tableT(['id!', 'email'], withPrimaryKey('t_key', 'id')),
+				rename('primary_key', 'public.t.t_pk', 'public.t.t_key'),
+			)],
+			[step(tableT(['id!', 'email', 'age'], withPrimaryKey('t_pk', 'id')))],
 		],
-		merged: t(['id!', 'email', 'age'], pk('t_key', 'id')),
+		merged: tableT(['id!', 'email', 'age'], withPrimaryKey('t_key', 'id')),
 	},
 	{
 		name: 'a column rename against a new primary key on another column of the same table',
-		base: t(['id!', 'email']),
+		base: tableT(['id!', 'email']),
 		branches: [
-			[step(t(['id!', 'contact']), emailToContact)],
-			[step(t(['id!', 'email'], pk('t_pk', 'id')))],
+			[step(tableT(['id!', 'contact']), emailToContact)],
+			[step(tableT(['id!', 'email'], withPrimaryKey('t_pk', 'id')))],
 		],
-		merged: t(['id!', 'contact'], pk('t_pk', 'id')),
+		merged: tableT(['id!', 'contact'], withPrimaryKey('t_pk', 'id')),
 	},
 
 	// ---- unique constraints ----
 	{
 		name: 'a unique constraint rename against a rename of the column of that constraint',
-		base: t(['id', 'email'], uq('t_email_uq', 'email')),
+		base: tableT(['id', 'email'], withUnique('t_email_uq', 'email')),
 		branches: [
 			[step(
-				t(['id', 'email'], uq('t_contact_uq', 'email')),
+				tableT(['id', 'email'], withUnique('t_contact_uq', 'email')),
 				rename('unique', 'public.t.t_email_uq', 'public.t.t_contact_uq'),
 			)],
-			[step(t(['id', 'contact'], uq('t_email_uq', 'contact')), emailToContact)],
+			[step(tableT(['id', 'contact'], withUnique('t_email_uq', 'contact')), emailToContact)],
 		],
-		merged: t(['id', 'contact'], uq('t_contact_uq', 'contact')),
+		merged: tableT(['id', 'contact'], withUnique('t_contact_uq', 'contact')),
 	},
 	{
 		name: 'a column rename against a new unique constraint on another column of the same table',
-		base: t(['id', 'email']),
+		base: tableT(['id', 'email']),
 		branches: [
-			[step(t(['id', 'contact']), emailToContact)],
-			[step(t(['id', 'email'], uq('t_id_uq', 'id')))],
+			[step(tableT(['id', 'contact']), emailToContact)],
+			[step(tableT(['id', 'email'], withUnique('t_id_uq', 'id')))],
 		],
-		merged: t(['id', 'contact'], uq('t_id_uq', 'id')),
+		merged: tableT(['id', 'contact'], withUnique('t_id_uq', 'id')),
 	},
 	{
 		name: 'a unique constraint rename against a new check constraint',
-		base: t(['id', 'email'], uq('t_email_uq', 'email')),
+		base: tableT(['id', 'email'], withUnique('t_email_uq', 'email')),
 		branches: [
 			[step(
-				t(['id', 'email'], uq('t_contact_uq', 'email')),
+				tableT(['id', 'email'], withUnique('t_contact_uq', 'email')),
 				rename('unique', 'public.t.t_email_uq', 'public.t.t_contact_uq'),
 			)],
-			[step(t(['id', 'email'], all(uq('t_email_uq', 'email'), ck('t_id_ck', 'id'))))],
+			[step(tableT(['id', 'email'], all(withUnique('t_email_uq', 'email'), withCheck('t_id_ck', 'id'))))],
 		],
-		merged: t(['id', 'email'], all(uq('t_contact_uq', 'email'), ck('t_id_ck', 'id'))),
+		merged: tableT(['id', 'email'], all(withUnique('t_contact_uq', 'email'), withCheck('t_id_ck', 'id'))),
 	},
 
 	// ---- check constraints ----
 	{
 		name: 'a check constraint rename against a new column',
-		base: t(['id', 'age'], ck('t_age_ck', 'age')),
+		base: tableT(['id', 'age'], withCheck('t_age_ck', 'age')),
 		branches: [
-			[step(t(['id', 'age'], ck('t_adult_ck', 'age')), rename('check', 'public.t.t_age_ck', 'public.t.t_adult_ck'))],
-			[step(t(['id', 'age', 'email'], ck('t_age_ck', 'age')))],
+			[step(
+				tableT(['id', 'age'], withCheck('t_adult_ck', 'age')),
+				rename('check', 'public.t.t_age_ck', 'public.t.t_adult_ck'),
+			)],
+			[step(tableT(['id', 'age', 'email'], withCheck('t_age_ck', 'age')))],
 		],
-		merged: t(['id', 'age', 'email'], ck('t_adult_ck', 'age')),
+		merged: tableT(['id', 'age', 'email'], withCheck('t_adult_ck', 'age')),
 	},
 	{
 		name: 'a column rename against a new check constraint on another column of the same table',
-		base: t(['id', 'email', 'age']),
+		base: tableT(['id', 'email', 'age']),
 		branches: [
-			[step(t(['id', 'contact', 'age']), emailToContact)],
-			[step(t(['id', 'email', 'age'], ck('t_age_ck', 'age')))],
+			[step(tableT(['id', 'contact', 'age']), emailToContact)],
+			[step(tableT(['id', 'email', 'age'], withCheck('t_age_ck', 'age')))],
 		],
-		merged: t(['id', 'contact', 'age'], ck('t_age_ck', 'age')),
+		merged: tableT(['id', 'contact', 'age'], withCheck('t_age_ck', 'age')),
 	},
 	{
 		name: 'a column rename against a new check constraint on that column',
-		base: t(['id', 'email']),
+		base: tableT(['id', 'email']),
 		branches: [
-			[step(t(['id', 'contact']), emailToContact)],
-			[step(t(['id', 'email'], ck('t_email_ck', 'email')))],
+			[step(tableT(['id', 'contact']), emailToContact)],
+			[step(tableT(['id', 'email'], withCheck('t_email_ck', 'email')))],
 		],
 	},
 
@@ -796,21 +812,21 @@ const rows: Row[] = [
 	// ---- policies ----
 	{
 		name: 'a policy rename against a column rename of the table of that policy',
-		base: t(['id', 'email'], policy('t_read')),
+		base: tableT(['id', 'email'], policy('t_read')),
 		branches: [
-			[step(t(['id', 'email'], policy('t_view')), rename('policy', 'public.t.t_read', 'public.t.t_view'))],
-			[step(t(['id', 'contact'], policy('t_read')), emailToContact)],
+			[step(tableT(['id', 'email'], policy('t_view')), rename('policy', 'public.t.t_read', 'public.t.t_view'))],
+			[step(tableT(['id', 'contact'], policy('t_read')), emailToContact)],
 		],
-		merged: t(['id', 'contact'], policy('t_view')),
+		merged: tableT(['id', 'contact'], policy('t_view')),
 	},
 	{
 		name: 'a policy rename against a new column',
-		base: t(['id', 'email'], policy('t_read')),
+		base: tableT(['id', 'email'], policy('t_read')),
 		branches: [
-			[step(t(['id', 'email'], policy('t_view')), rename('policy', 'public.t.t_read', 'public.t.t_view'))],
-			[step(t(['id', 'email', 'age'], policy('t_read')))],
+			[step(tableT(['id', 'email'], policy('t_view')), rename('policy', 'public.t.t_read', 'public.t.t_view'))],
+			[step(tableT(['id', 'email', 'age'], policy('t_read')))],
 		],
-		merged: t(['id', 'email', 'age'], policy('t_view')),
+		merged: tableT(['id', 'email', 'age'], policy('t_view')),
 	},
 	{
 		name: 'a table rename against a new policy on another table',
@@ -823,19 +839,19 @@ const rows: Row[] = [
 	},
 	{
 		name: 'a policy rename against a new policy on the same table',
-		base: t(['id', 'email'], policy('t_read')),
+		base: tableT(['id', 'email'], policy('t_read')),
 		branches: [
-			[step(t(['id', 'email'], policy('t_view')), rename('policy', 'public.t.t_read', 'public.t.t_view'))],
-			[step(t(['id', 'email'], all(policy('t_read'), policy('t_list'))))],
+			[step(tableT(['id', 'email'], policy('t_view')), rename('policy', 'public.t.t_read', 'public.t.t_view'))],
+			[step(tableT(['id', 'email'], all(policy('t_read'), policy('t_list'))))],
 		],
-		merged: t(['id', 'email'], all(policy('t_view'), policy('t_list'))),
+		merged: tableT(['id', 'email'], all(policy('t_view'), policy('t_list'))),
 	},
 	{
 		name: 'a policy rename against a change of that policy',
-		base: t(['id', 'email'], policy('t_read')),
+		base: tableT(['id', 'email'], policy('t_read')),
 		branches: [
-			[step(t(['id', 'email'], policy('t_view')), rename('policy', 'public.t.t_read', 'public.t.t_view'))],
-			[step(t(['id', 'email'], policy('t_read', sql`false`)))],
+			[step(tableT(['id', 'email'], policy('t_view')), rename('policy', 'public.t.t_read', 'public.t.t_view'))],
+			[step(tableT(['id', 'email'], policy('t_read', sql`false`)))],
 		],
 	},
 	{
@@ -850,12 +866,22 @@ const rows: Row[] = [
 	// ---- roles ----
 	{
 		name: 'a role rename against a new column of a table with a policy for that role',
-		base: withRole(pgRole('staff'), ['id']),
+		base: withRoles(['staff'], ['id']),
 		branches: [
-			[step(withRole(pgRole('team'), ['id']), rename('role', 'staff', 'team'))],
-			[step(withRole(pgRole('staff'), ['id', 'email']))],
+			[step(withRoles(['team'], ['id']), rename('role', 'staff', 'team'))],
+			[step(withRoles(['staff'], ['id', 'email']))],
 		],
-		merged: withRole(pgRole('team'), ['id', 'email']),
+		merged: withRoles(['team'], ['id', 'email']),
+	},
+	{
+		// Each new name sorts at another place of the role list than the old name.
+		name: 'two renames of two roles of one policy',
+		base: withRoles(['auditor', 'staff', 'viewer'], ['id']),
+		branches: [
+			[step(withRoles(['auditor', 'admin', 'viewer'], ['id']), rename('role', 'staff', 'admin'))],
+			[step(withRoles(['zed', 'staff', 'viewer'], ['id']), rename('role', 'auditor', 'zed'))],
+		],
+		merged: withRoles(['zed', 'admin', 'viewer'], ['id']),
 	},
 
 	// ---- three branches ----

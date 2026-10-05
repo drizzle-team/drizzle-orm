@@ -275,6 +275,13 @@ export const ddlDiff = async (
 		indexesDeletes.push(...deleted);
 		indexesRenames.push(...renamedOrMoved);
 	}
+	// The key of an index holds no table. An index that keeps its name on another table is a new index, and
+	// the old one is dropped.
+	for (const it of diff.alters(ddl1, ddl2, 'indexes')) {
+		if (it.$left.table === it.$right.table) continue;
+		indexesDeletes.push(it.$left);
+		indexesCreates.push(it.$right);
+	}
 
 	for (const rename of indexesRenames) {
 		ddl1.indexes.update({
@@ -379,6 +386,18 @@ export const ddlDiff = async (
 		});
 	}
 
+	// The order of the roles of a policy has no meaning in SQL. After a role rename, the old state can list
+	// them in another order than the schema does. The new state then keeps the order of the old state. So
+	// the snapshot stores no change of the whole list, which would overwrite a role rename of another branch.
+	for (const { schema, table, name, roles } of ddl2.policies.list()) {
+		const old = ddl1.policies.one({ schema, table, name });
+		if (!old || old.roles.length !== roles.length) continue;
+		const [before, after] = [[...old.roles].sort(), [...roles].sort()];
+		if (before.every((role, idx) => role === after[idx])) {
+			ddl2.policies.update({ set: { roles: [...old.roles] }, where: { schema, table, name } });
+		}
+	}
+
 	const all = diff.all(ddl1, ddl2);
 	// convert now: the statement code below deletes fields from the alter rows
 	const deltas: Delta[] = [...recorded, ...delta(ddl1, ddl2, all)];
@@ -420,7 +439,7 @@ export const ddlDiff = async (
 	});
 
 	const indexesAlters = alters.filter((it): it is DiffEntities['indexes'] => {
-		if (it.entityType !== 'indexes') return false;
+		if (it.entityType !== 'indexes' || it.$left.table !== it.$right.table) return false;
 
 		delete it.concurrently;
 
@@ -580,13 +599,16 @@ export const ddlDiff = async (
 		});
 	});
 
-	const jsonSetTableSchemas = movedTables.map((it) =>
-		prepareStatement('move_table', {
+	const jsonSetTableSchemas = movedTables.map((it) => {
+		const ofTable = { schema: it.to.schema, table: it.to.name };
+		return prepareStatement('move_table', {
 			name: it.to.name, // rename of table comes first
 			from: it.from.schema,
 			to: it.to.schema,
-		})
-	);
+			relations: [...ddl1.indexes.list(ofTable), ...ddl1.pks.list(ofTable), ...ddl1.uniques.list(ofTable)]
+				.map((relation) => relation.name).sort(),
+		});
+	});
 
 	// columns a check references, found by keeping only expression identifiers that
 	// are real columns of the table (so a keyword/function is never mistaken for one)
@@ -674,9 +696,6 @@ export const ddlDiff = async (
 				delete it.withCheck;
 			}
 		}
-		// The order of the roles has no meaning in SQL. After a role rename, the list can have another order
-		// than the schema gives it.
-		if (it.roles && [...it.roles.from].sort().join() === [...it.roles.to].sort().join()) delete it.roles;
 		return ddl1.policies.hasDiff(it);
 	});
 

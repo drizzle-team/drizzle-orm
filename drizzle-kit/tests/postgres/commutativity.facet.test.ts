@@ -47,7 +47,9 @@ const index = (schema: string, table: string, name: string, columns: string[]) =
 
 const S = {
 	renameTable: (schema: string, from: string, to: string) => ({ type: 'rename_table', schema, from, to }) as any,
-	moveTable: (name: string, from: string, to: string) => ({ type: 'move_table', name, from, to }) as any,
+	// `relations` are the names of the indexes that move with the table.
+	moveTable: (name: string, from: string, to: string, relations: string[] = []) =>
+		({ type: 'move_table', name, from, to, relations }) as any,
 	dropTable: (schema: string, name: string) =>
 		({
 			type: 'drop_table',
@@ -216,6 +218,18 @@ const cases: Case[] = [
 		a: [S.renameTable('public', 'users', 'people')],
 		b: [S.addColumn('public', 'users', 'email')],
 		expect: 'conflict',
+	},
+	{
+		name: 'move_table of a table with an index ∥ create_index with that name in the target schema conflict',
+		a: [S.moveTable('users', 'public', 'archive', ['users_email_ix'])],
+		b: [S.createIndex('archive', 'orders', 'users_email_ix', ['email'])],
+		expect: 'conflict',
+	},
+	{
+		name: 'move_table of a table with an index ∥ create_index with another name in the target schema commute',
+		a: [S.moveTable('users', 'public', 'archive', ['users_email_ix'])],
+		b: [S.createIndex('archive', 'orders', 'orders_email_ix', ['email'])],
+		expect: 'commute',
 	},
 	{
 		name: 'move_table ∥ add_column (references old name) conflict',
@@ -504,6 +518,13 @@ const cases: Case[] = [
 		expect: 'conflict',
 	},
 
+	{
+		name: 'revoke of a privilege that admin granted ∥ rename_role admin (the key of the privilege holds it) conflict',
+		a: [{ ...S.grant('public', 'users', 'r', 'SELECT'), type: 'revoke_privilege' }],
+		b: [{ type: 'rename_role', from: { name: 'admin' }, to: { name: 'owner' } } as any],
+		expect: 'conflict',
+	},
+
 	// a policy names its roles in its SQL, except the built-in role names
 	{
 		name: 'create_policy(to r) ∥ rename_role r conflict',
@@ -560,6 +581,21 @@ const cases: Case[] = [
 		a: [S.createFk('public', 'orders', 'fk', ['a', 'b'], 'public', 'users', ['x', 'y'])],
 		b: [S.dropUnique('public', 'users', 'users_uq', ['y', 'x'])],
 		expect: 'conflict',
+	},
+	{
+		name: 'rename_table with create_fk to the new name ∥ drop of a unique index on the referenced columns conflict',
+		a: [
+			S.renameTable('public', 'users', 'accounts'),
+			S.createFk('public', 'posts', 'posts_user_fk', ['user_id'], 'public', 'accounts', ['id']),
+		],
+		b: [{ type: 'drop_index', index: { ...index('public', 'users', 'users_id_ux', ['id']), isUnique: true } } as any],
+		expect: 'conflict',
+	},
+	{
+		name: 'rename_table ∥ drop of an index that is not unique commute',
+		a: [S.renameTable('public', 'users', 'accounts')],
+		b: [S.dropIndex('public', 'users', 'users_id_ix', ['id'])],
+		expect: 'commute',
 	},
 	{
 		name: 'create_fk ∥ drop of a unique index (on the referenced columns) conflict',

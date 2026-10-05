@@ -24,6 +24,7 @@ import { updateUpToV6 } from 'src/dialects/postgres/versions';
 import { expect, test } from 'vitest';
 import { ORIGIN, writeSnapshot } from '../other/check-fixtures';
 import { createFolderFlow, type FolderFlow, schemaState, tempDir } from './folder-flow';
+import { drizzleToDDL } from './mocks';
 
 // drizzle-kit 1.0.0-rc.4 wrote the format 8 folders. Its check passed on the linear, renames and merge
 // folders. It reported a conflict between the two leaves of the fork folder, which set NOT NULL and
@@ -378,6 +379,35 @@ test('up refuses an old merge whose branches gave one name to two entities, and 
 			snapshot: expect.stringContaining(join('20260101120004_merge', 'snapshot.json')),
 		},
 	});
+	expect(flow.files('main')).toStrictEqual(before);
+});
+
+test('up refuses a format 8 snapshot with one index name on two tables of one schema, and changes no file', async () => {
+	const dir = tempDir('dk-format-8-duplicate-');
+	const { ddl } = drizzleToDDL({
+		a: pgTable('a', { id: integer() }, (t) => [index('a_idx').on(t.id)]),
+		b: pgTable('b', { id: integer() }, (t) => [index('b_idx').on(t.id)]),
+	});
+	const rows = ddl.entities.list().map((it) => (it.entityType === 'indexes' ? { ...it, name: 'a_idx' } : it));
+	writeSnapshot(dir, '20260101120001_main', {
+		version: '8',
+		dialect: 'postgres',
+		id: 'main',
+		prevIds: [ORIGIN],
+		ddl: rows,
+		renames: [],
+	});
+	const flow = createFolderFlow();
+	flow.seed('main', dir);
+	const before = flow.files('main');
+
+	const error = await flow.up('main').catch((e: unknown) => e);
+
+	expect((error as Error).message).toContain(
+		'Cannot convert the migrations folder to snapshot format 9: a snapshot lists two rows of indexes with the key '
+			+ '["public","a_idx"]. No file was changed.',
+	);
+	expect(errorToEnvelope(error)).toMatchObject({ error: { command: 'up', kind: 'history' } });
 	expect(flow.files('main')).toStrictEqual(before);
 });
 

@@ -311,7 +311,12 @@ const renameTableConvertor = convertor('rename_table', ({ schema, from, to }) =>
 	return `ALTER TABLE ${schemaPrefix}"${st.from}" RENAME TO "${st.to}";`;
 });
 
-const moveTableConvertor = convertor('move_table', ({ name, from, to }) => ({ name, from, to }), (st) => {
+const moveTableConvertor = convertor('move_table', ({ name, from, to, relations }) => ({
+	name,
+	from,
+	to,
+	relations,
+}), (st) => {
 	const from = st.from !== 'public' ? `"${st.from}"."${st.name}"` : `"${st.name}"`;
 
 	return `ALTER TABLE ${from} SET SCHEMA "${st.to}";\n`;
@@ -1123,16 +1128,20 @@ const grantPrivilegeConvertor = convertor('grant_privilege', ({ privilege }) => 
 	} TO "${privilege.grantee}"${privilege.isGrantable ? ' WITH GRANT OPTION' : ''} GRANTED BY "${privilege.grantor}";`;
 });
 
-const revokePrivilegeConvertor = convertor('revoke_privilege', ({ privilege: { schema, table, grantee, type } }) => ({
-	privilege: { schema, table, grantee, type },
-}), (st) => {
-	const { schema, table } = st.privilege;
-	const privilege = st.privilege;
+const revokePrivilegeConvertor = convertor(
+	'revoke_privilege',
+	({ privilege: { schema, table, grantor, grantee, type } }) => ({
+		privilege: { schema, table, grantor, grantee, type },
+	}),
+	(st) => {
+		const { schema, table } = st.privilege;
+		const privilege = st.privilege;
 
-	return `REVOKE ${privilege.type} ON ${
-		schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`
-	} FROM "${privilege.grantee}";`;
-});
+		return `REVOKE ${privilege.type} ON ${
+			schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`
+		} FROM "${privilege.grantee}";`;
+	},
+);
 
 const regrantPrivilegeConvertor = convertor('regrant_privilege', ({ privilege }) => ({
 	privilege: row('privileges', privilege),

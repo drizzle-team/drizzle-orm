@@ -2,15 +2,15 @@
   "type": "diff",
   "version": "9",
   "dialect": "postgres",
-  "id": "d89fd25b-f139-4f9a-851f-a7fd459e515e",
+  "id": "02e63b81-bf95-406d-a77b-b89342235e41",
   "prevIds": [
-    "427a6cab-0f34-4c1f-af9c-985c19f8e98d"
+    "16e92f5b-8a25-4921-8f11-0b7711a4227b"
   ],
   "statements": [
     {
       "type": "drop_index",
       "index": {
-        "schema": "public",
+        "schema": "core",
         "table": "users",
         "name": "users_contact_ix",
         "columns": [
@@ -27,8 +27,8 @@
   "deltas": [
     {
       "op": "drop",
-      "key": "indexes\u0000[\"public\",\"users_contact_ix\"]"
+      "key": "indexes\u0000[\"core\",\"users_contact_ix\"]"
     }
   ],
-  "stateHash": "21cecccdc7c787d68a7c01749a2082ab2492b2578932971e49cde43bc3358715"
+  "stateHash": "e2887183dea9ced3655ab1ee4fc28596a4d5c3ba4e3f2c91dd1ad0e91032a535"
 }

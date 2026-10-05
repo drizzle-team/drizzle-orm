@@ -288,6 +288,8 @@ export interface JsonMoveTable {
 	name: string;
 	from: string;
 	to: string;
+	// The names of the indexes of the table, and of its primary key and unique constraints.
+	relations: string[];
 }
 
 export interface JsonDropIndex {

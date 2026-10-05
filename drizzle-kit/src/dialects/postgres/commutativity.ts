@@ -888,6 +888,7 @@ class PostgresCommutativity extends FacetCommutativity<
 						...endpoint('tbl', s.to, s.name),
 						exist('tbl', s.from, s.name),
 						exist('tbl', s.to, s.name),
+						...s.relations.flatMap((relation) => [name('rel', s.from, relation), name('rel', s.to, relation)]),
 					],
 					needs: [nref('sch', s.from), nref('sch', s.to)],
 				};
@@ -953,15 +954,19 @@ class PostgresCommutativity extends FacetCommutativity<
 					provides: indexKey(s.index),
 				};
 			// no table and no columns in SQL, but cascaded by a table drop or a column drop -> EXISTENCE refs
-			case 'drop_index':
+			case 'drop_index': {
+				const key = indexKey(s.index);
 				return {
 					owns: created('idx', s.index.schema, s.index.name),
 					needs: [
-						...indexHome(s.index.schema, s.index.table),
+						// The key of a unique index is written with the name of its table. A rename of the table
+						// would hide the key from a new foreign key of the other branch, so this drop reads the name.
+						...(key.length > 0 ? underTable : indexHome)(s.index.schema, s.index.table),
 						...idxCols(s.index.columns, (c) => eref('col', s.index.schema, s.index.table, c)),
 					],
-					provides: indexKey(s.index),
+					provides: key,
 				};
+			}
 			case 'recreate_index':
 				return {
 					owns: created('idx', s.index.schema, s.index.name),
@@ -1245,7 +1250,7 @@ class PostgresCommutativity extends FacetCommutativity<
 			case 'grant_privilege':
 			case 'revoke_privilege':
 			case 'regrant_privilege': {
-				const { schema, table, grantee } = s.privilege;
+				const { schema, table, grantee, grantor } = s.privilege;
 				// ALL holds every other privilege type, so it claims each of them.
 				const types = s.privilege.type === 'ALL' ? privilegeTypes : [s.privilege.type];
 				return {
@@ -1253,8 +1258,9 @@ class PostgresCommutativity extends FacetCommutativity<
 					needs: [
 						...(table ? underTable(schema || 'public', table) : []),
 						nref('role', grantee),
-						// GRANT names the grantor in GRANTED BY, and REVOKE does not.
-						...(s.type === 'revoke_privilege' ? [] : [nref('role', s.privilege.grantor)]),
+						// GRANT names the grantor in GRANTED BY. REVOKE does not, and it still reads the grantor: the key of
+						// a privilege holds it, so a rename of that role would hide the row from the drop.
+						nref('role', grantor),
 					],
 				};
 			}

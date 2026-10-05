@@ -129,8 +129,8 @@ type Snapshot =
 
 type History<T extends Snapshot> = ReadonlyMap<string, T>;
 
-// What the caller gives for a rebuild. The caller owns the entity definitions and the state hash.
-export type Rebuild<S extends { _: ReplayState }, T extends Snapshot> = {
+// What the caller gives to the replay. The caller owns the entity definitions and the state hash.
+export type ReplayCallbacks<S extends { _: ReplayState }, T extends Snapshot> = {
 	// Makes a state from the rows of a base snapshot.
 	start: (rows: any[]) => S;
 	// Throws when `state` is not the state that `snapshot` recorded.
@@ -140,7 +140,7 @@ export type Rebuild<S extends { _: ReplayState }, T extends Snapshot> = {
 // The first snapshot of a folder lists this id as its only parent.
 const originId = '00000000-0000-0000-0000-000000000000';
 
-// The folder loader and the rebuild report a broken history with the same messages.
+// The folder loader and reconstruct report a broken history with the same messages.
 export const missingParentMessage = (snapshot: string, parentId: string) =>
 	`Cannot rebuild snapshot ${snapshot}: snapshot ${parentId} is missing from the migrations folder. `
 	+ `Restore the missing migration folder from git, or delete ${snapshot} and every later migration, then run generate again.`;
@@ -201,10 +201,10 @@ const replayBranches = (state: ReplayState, snapshots: History<Snapshot>, prevId
 
 // The state after the snapshot `id`. `snapshots` must iterate in folder-name order, because a merge replays
 // the other branches in that order.
-export const rebuild = <S extends { _: ReplayState }, T extends Snapshot>(
+export const reconstruct = <S extends { _: ReplayState }, T extends Snapshot>(
 	snapshots: History<T>,
 	id: string,
-	{ start, verify }: Rebuild<S, T>,
+	{ start, verify }: ReplayCallbacks<S, T>,
 ): S => {
 	const chain: (Snapshot & { type: 'diff' })[] = [];
 	let snapshot: Snapshot = lookup(snapshots, id);
@@ -233,14 +233,14 @@ export const rebuild = <S extends { _: ReplayState }, T extends Snapshot>(
 };
 
 // The state that the deltas of a snapshot with these parents start from. `snapshots` must iterate in
-// folder-name order, as for rebuild.
-export const combineParents = <S extends { _: ReplayState }, T extends Snapshot>(
+// folder-name order, as for reconstruct.
+export const startingState = <S extends { _: ReplayState }, T extends Snapshot>(
 	snapshots: History<T>,
 	prevIds: string[],
-	how: Rebuild<S, T>,
+	callbacks: ReplayCallbacks<S, T>,
 ): S => {
-	if ((prevIds[0] ?? originId) === originId) return how.start([]);
-	const state = rebuild(snapshots, prevIds[0], how);
+	if ((prevIds[0] ?? originId) === originId) return callbacks.start([]);
+	const state = reconstruct(snapshots, prevIds[0], callbacks);
 	if (prevIds.length > 1) replayBranches(state._, snapshots, prevIds);
 	return state;
 };

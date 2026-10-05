@@ -130,7 +130,7 @@ export function build(type: string): JsonStatement {
 		case 'rename_table':
 			return { type, schema: S, from: T, to: 't_new' } as any;
 		case 'move_table':
-			return { type, name: T, from: S, to: 's_new' } as any;
+			return { type, name: T, from: S, to: 's_new', relations: [] } as any;
 		case 'add_column':
 			return { type, column: col(S, T, C), isPK: false, isCompositePK: false } as any;
 		case 'add_column:enum':
