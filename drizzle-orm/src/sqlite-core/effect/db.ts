@@ -636,11 +636,11 @@ export class SQLiteEffectDatabase<
 	get<TRow extends unknown[] = unknown[]>(
 		query: SQLWrapper | string,
 		mode: 'arrays',
-	): SQLiteEffectRaw<TRow, TEffectHKT>;
+	): SQLiteEffectRaw<TRow | undefined, TEffectHKT>;
 	get<TRow extends Record<string, any> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 		mode?: 'objects' | undefined,
-	): SQLiteEffectRaw<TRow, TEffectHKT>;
+	): SQLiteEffectRaw<TRow | undefined, TEffectHKT>;
 	get(query: SQLWrapper | string, mode?: 'arrays' | 'objects' | undefined): unknown {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);

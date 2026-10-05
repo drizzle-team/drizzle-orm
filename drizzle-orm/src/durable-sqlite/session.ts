@@ -67,7 +67,7 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyn
 					? this.client.sql.exec(query.sql, ...params)
 					: this.client.sql.exec(query.sql);
 
-				if (mode === 'objects') return res.one();
+				if (mode === 'objects') return res.next().value;
 
 				return res.raw().next().value;
 			},

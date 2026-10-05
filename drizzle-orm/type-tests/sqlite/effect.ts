@@ -397,7 +397,7 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 	const get = db.get<UserInterface>(`select 1 as id, 'a' as name`, 'objects');
 	type GetEffect = AsEffect<typeof get>;
 
-	Expect<Equal<GetEffect, Effect.Effect<UserInterface, EffectDrizzleQueryError, never>>>;
+	Expect<Equal<GetEffect, Effect.Effect<UserInterface | undefined, EffectDrizzleQueryError, never>>>;
 }
 
 {
