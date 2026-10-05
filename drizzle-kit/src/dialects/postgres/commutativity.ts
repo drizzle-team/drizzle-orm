@@ -7,7 +7,7 @@ import {
 } from '../../commutativity/engine';
 import type { ConflictTarget } from '../../commutativity/types';
 import { copyDDL } from '../dialect';
-import { fromEntities } from './ddl';
+import { type Column, fromEntities, type IndexColumn } from './ddl';
 import { ddlDiff } from './diff';
 import { renameResolvers } from './renames';
 import { drySnapshot, type PostgresSnapshot, startingState } from './snapshot';
@@ -352,7 +352,7 @@ class PostgresCommutativity extends FacetCommutativity<
 			alter_unique: {
 				conflicts: ['add_unique', 'drop_unique', 'alter_unique'],
 				buildInfo: (statement) => ({
-					primary: makeTableTarget((statement as any).diff.schema, (statement as any).diff.table),
+					primary: makeTableTarget(statement.diff.schema, statement.diff.table),
 					ancestors: [],
 				}),
 			},
@@ -608,7 +608,7 @@ class PostgresCommutativity extends FacetCommutativity<
 			alter_rls: {
 				conflicts: ['alter_rls', 'create_policy', 'drop_policy', 'alter_policy', 'recreate_policy'],
 				buildInfo: (statement) => ({
-					primary: makeTableTarget((statement as any).schema, (statement as any).name),
+					primary: makeTableTarget(statement.schema, statement.name),
 					ancestors: [],
 				}),
 			},
@@ -809,15 +809,16 @@ class PostgresCommutativity extends FacetCommutativity<
 		const nref = (k: string, ...p: string[]) => name(k, ...p); // name reference (broken by rename OR drop)
 		const eref = (k: string, ...p: string[]) => exist(k, ...p); // cascade reference (broken only by drop)
 		const underTable = (schema: string, table: string) => [nref('tbl', schema, table), nref('sch', schema)];
-		const colEnum = (column: any): string[] =>
-			column?.typeSchema && column.typeSchema !== 'pg_catalog' && column.type
+		const colEnum = (column: Pick<Column, 'typeSchema' | 'type'>): string[] =>
+			column.typeSchema && column.typeSchema !== 'pg_catalog' && column.type
 				? [nref('enum', column.typeSchema, column.type)]
 				: [];
-		const idxCols = (cols: any[] | undefined, ref: (c: string) => string) =>
-			(cols ?? []).filter((c: any) => !c.isExpression).map((c: any) => ref(c.value));
+		const idxCols = (cols: IndexColumn[], ref: (c: string) => string) =>
+			cols.filter((c) => !c.isExpression).map((c) => ref(c.value));
 
-		const s = statement as any;
-		switch (statement.type) {
+		// A short name for the statement. The switch narrows it to one statement kind in every case.
+		const s = statement;
+		switch (s.type) {
 			// ---- tables ----
 			case 'create_table':
 				return { owns: created('tbl', s.table.schema, s.table.name), needs: [nref('sch', s.table.schema)] };
@@ -896,7 +897,7 @@ class PostgresCommutativity extends FacetCommutativity<
 					owns: [...endpoint('idx', s.schema, s.from), ...endpoint('idx', s.schema, s.to)],
 					needs: [
 						...underTable(s.schema, s.table),
-						...(s.columns ?? []).map((c: string) => eref('col', s.schema, s.table, c)),
+						...s.columns.map((c) => eref('col', s.schema, s.table, c)),
 					],
 				};
 
@@ -906,7 +907,7 @@ class PostgresCommutativity extends FacetCommutativity<
 					owns: created('pk', s.pk.schema, s.pk.table),
 					needs: [
 						...underTable(s.pk.schema, s.pk.table),
-						...(s.pk.columns ?? []).map((c: string) => nref('col', s.pk.schema, s.pk.table, c)),
+						...s.pk.columns.map((c) => nref('col', s.pk.schema, s.pk.table, c)),
 					],
 				};
 			case 'drop_pk': // cascaded by column drop -> EXISTENCE refs
@@ -914,7 +915,7 @@ class PostgresCommutativity extends FacetCommutativity<
 					owns: created('pk', s.pk.schema, s.pk.table),
 					needs: [
 						...underTable(s.pk.schema, s.pk.table),
-						...(s.pk.columns ?? []).map((c: string) => eref('col', s.pk.schema, s.pk.table, c)),
+						...s.pk.columns.map((c) => eref('col', s.pk.schema, s.pk.table, c)),
 					],
 				};
 			case 'alter_pk':
@@ -922,7 +923,7 @@ class PostgresCommutativity extends FacetCommutativity<
 					owns: altered('pk', s.pk.schema, s.pk.table),
 					needs: [
 						...underTable(s.pk.schema, s.pk.table),
-						...(s.pk.columns ?? []).map((c: string) => nref('col', s.pk.schema, s.pk.table, c)),
+						...s.pk.columns.map((c) => nref('col', s.pk.schema, s.pk.table, c)),
 					],
 				};
 
@@ -933,10 +934,10 @@ class PostgresCommutativity extends FacetCommutativity<
 					owns: created('fk', s.fk.schema, s.fk.table, s.fk.name),
 					needs: [
 						...underTable(s.fk.schema, s.fk.table),
-						nref('tbl', s.fk.schemaTo ?? s.fk.schema, s.fk.tableTo),
-						nref('sch', s.fk.schemaTo ?? s.fk.schema),
-						...(s.fk.columns ?? []).map((c: string) => nref('col', s.fk.schema, s.fk.table, c)),
-						...(s.fk.columnsTo ?? []).map((c: string) => nref('col', s.fk.schemaTo ?? s.fk.schema, s.fk.tableTo, c)),
+						nref('tbl', s.fk.schemaTo, s.fk.tableTo),
+						nref('sch', s.fk.schemaTo),
+						...s.fk.columns.map((c) => nref('col', s.fk.schema, s.fk.table, c)),
+						...s.fk.columnsTo.map((c) => nref('col', s.fk.schemaTo, s.fk.tableTo, c)),
 					],
 				};
 			case 'drop_fk':
@@ -944,7 +945,7 @@ class PostgresCommutativity extends FacetCommutativity<
 					owns: created('fk', s.fk.schema, s.fk.table, s.fk.name),
 					needs: [
 						...underTable(s.fk.schema, s.fk.table),
-						...(s.fk.columns ?? []).map((c: string) => eref('col', s.fk.schema, s.fk.table, c)),
+						...s.fk.columns.map((c) => eref('col', s.fk.schema, s.fk.table, c)),
 					],
 				};
 
@@ -954,7 +955,7 @@ class PostgresCommutativity extends FacetCommutativity<
 					owns: created('uq', s.unique.schema, s.unique.table, s.unique.name),
 					needs: [
 						...underTable(s.unique.schema, s.unique.table),
-						...(s.unique.columns ?? []).map((c: string) => nref('col', s.unique.schema, s.unique.table, c)),
+						...s.unique.columns.map((c) => nref('col', s.unique.schema, s.unique.table, c)),
 					],
 				};
 			case 'drop_unique':
@@ -962,7 +963,7 @@ class PostgresCommutativity extends FacetCommutativity<
 					owns: created('uq', s.unique.schema, s.unique.table, s.unique.name),
 					needs: [
 						...underTable(s.unique.schema, s.unique.table),
-						...(s.unique.columns ?? []).map((c: string) => eref('col', s.unique.schema, s.unique.table, c)),
+						...s.unique.columns.map((c) => eref('col', s.unique.schema, s.unique.table, c)),
 					],
 				};
 			case 'alter_unique': // recreated as DROP $left + ADD $right: name-ref the new cols, existence-ref the old
@@ -970,8 +971,8 @@ class PostgresCommutativity extends FacetCommutativity<
 					owns: altered('uq', s.diff.schema, s.diff.table, s.diff.name),
 					needs: [
 						...underTable(s.diff.schema, s.diff.table),
-						...(s.diff.$right?.columns ?? []).map((c: string) => nref('col', s.diff.schema, s.diff.table, c)),
-						...(s.diff.$left?.columns ?? []).map((c: string) => eref('col', s.diff.schema, s.diff.table, c)),
+						...s.diff.$right.columns.map((c) => nref('col', s.diff.schema, s.diff.table, c)),
+						...s.diff.$left.columns.map((c) => eref('col', s.diff.schema, s.diff.table, c)),
 					],
 				};
 
@@ -981,7 +982,7 @@ class PostgresCommutativity extends FacetCommutativity<
 					owns: created('ck', s.check.schema, s.check.table, s.check.name),
 					needs: [
 						...underTable(s.check.schema, s.check.table),
-						...(s.columns ?? []).map((c: string) => nref('col', s.check.schema, s.check.table, c)),
+						...s.columns.map((c) => nref('col', s.check.schema, s.check.table, c)),
 					],
 				};
 			case 'drop_check': // cascaded by a column drop -> EXISTENCE refs
@@ -989,7 +990,7 @@ class PostgresCommutativity extends FacetCommutativity<
 					owns: created('ck', s.check.schema, s.check.table, s.check.name),
 					needs: [
 						...underTable(s.check.schema, s.check.table),
-						...(s.columns ?? []).map((c: string) => eref('col', s.check.schema, s.check.table, c)),
+						...s.columns.map((c) => eref('col', s.check.schema, s.check.table, c)),
 					],
 				};
 			case 'alter_check': // recreated as DROP old + ADD new: name-ref new expr cols, existence-ref old
@@ -997,8 +998,8 @@ class PostgresCommutativity extends FacetCommutativity<
 					owns: altered('ck', s.diff.schema, s.diff.table, s.diff.name),
 					needs: [
 						...underTable(s.diff.schema, s.diff.table),
-						...(s.newColumns ?? []).map((c: string) => nref('col', s.diff.schema, s.diff.table, c)),
-						...(s.oldColumns ?? []).map((c: string) => eref('col', s.diff.schema, s.diff.table, c)),
+						...s.newColumns.map((c) => nref('col', s.diff.schema, s.diff.table, c)),
+						...s.oldColumns.map((c) => eref('col', s.diff.schema, s.diff.table, c)),
 					],
 				};
 
@@ -1014,7 +1015,7 @@ class PostgresCommutativity extends FacetCommutativity<
 					],
 					needs: [
 						...underTable(s.schema, s.table),
-						...(s.columns ?? []).map((c: string) => eref('col', s.schema, s.table, c)),
+						...s.columns.map((c) => eref('col', s.schema, s.table, c)),
 					],
 				};
 
@@ -1146,7 +1147,7 @@ class PostgresCommutativity extends FacetCommutativity<
 				// JsonStatement type has an explicit case above. Adding a new statement
 				// type without handling it here is therefore a compile error — forcing
 				// its footprint to be declared rather than silently defaulted.
-				const unhandled: never = statement;
+				const unhandled: never = s;
 				throw new Error(`buildFacetPaths: unhandled statement type '${(unhandled as { type: string }).type}'`);
 			}
 		}
