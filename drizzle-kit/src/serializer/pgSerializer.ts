@@ -41,8 +41,8 @@ import type {
 	View,
 } from '../serializer/pgSchema';
 import { type DB, escapeSingleQuotes, isPgArrayType } from '../utils';
-import { getColumnCasing, sqlToStr } from './utils';
 import { push_array } from '../utils';
+import { getColumnCasing, sqlToStr } from './utils';
 
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;

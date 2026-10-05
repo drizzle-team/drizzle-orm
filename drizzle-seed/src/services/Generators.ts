@@ -12,8 +12,8 @@ import loremIpsumSentences, { maxStringLength as maxLoremIpsumLength } from '../
 import phonesInfo from '../datasets/phonesInfo.ts';
 import states, { maxStringLength as maxStateLength } from '../datasets/states.ts';
 import streetSuffix, { maxStringLength as maxStreetSuffixLength } from '../datasets/streetSuffix.ts';
-import { fastCartesianProduct, fillTemplate, getWeightedIndices, isObject } from './utils.ts';
 import { push_array } from '../utils.ts';
+import { fastCartesianProduct, fillTemplate, getWeightedIndices, isObject } from './utils.ts';
 
 export abstract class AbstractGenerator<T = {}> {
 	static readonly entityKind: string = 'AbstractGenerator';

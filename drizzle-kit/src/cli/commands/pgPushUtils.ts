@@ -4,8 +4,8 @@ import type { JsonStatement } from '../../jsonStatements';
 import { PgSquasher } from '../../serializer/pgSchema';
 import { fromJson } from '../../sqlgenerator';
 import type { DB } from '../../utils';
-import { Select } from '../selector-ui';
 import { push_array } from '../../utils';
+import { Select } from '../selector-ui';
 
 // export const filterStatements = (statements: JsonStatement[]) => {
 //   return statements.filter((statement) => {

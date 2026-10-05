@@ -5,11 +5,11 @@ import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
 import type { Assume, Equal } from '~/utils.ts';
+import { push_array } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
 import { IsAlias, Table } from '../table.ts';
-import { push_array } from '~/utils.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.

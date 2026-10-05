@@ -42,6 +42,7 @@ import {
 	TablePolicyResolverOutput,
 } from '../../snapshotsDiffer';
 import { assertV1OutFolder, Journal, prepareMigrationFolder } from '../../utils';
+import { push_array } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
 import { CasingType, Driver, Prefix } from '../validations/common';
 import { withStyle } from '../validations/outputs';
@@ -55,7 +56,6 @@ import {
 	schema,
 } from '../views';
 import { ExportConfig, GenerateConfig } from './utils';
-import { push_array } from '../../utils';
 
 export type Named = {
 	name: string;

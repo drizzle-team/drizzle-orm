@@ -375,8 +375,8 @@ export function unescapeSingleQuotes(str: string, ignoreFirstAndLastChar: boolea
  * Please note that there is a same function in `drizzle-orm/src/utils.ts`, `drizzle-seed/src/utils.ts`.
  */
 export function push_array<T>(array: T[], items: T[]): void {
-  // eslint-disable-next-line unicorn/no-for-loop -- for is faster than for of
-  for (let i = 0; i < items.length; i++) {
-    array.push(items[i]!);
-  }
+	// eslint-disable-next-line unicorn/no-for-loop -- for is faster than for of
+	for (let i = 0; i < items.length; i++) {
+		array.push(items[i]!);
+	}
 }

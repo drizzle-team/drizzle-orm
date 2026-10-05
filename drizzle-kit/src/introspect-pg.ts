@@ -24,7 +24,7 @@ import {
 	UniqueConstraint,
 } from './serializer/pgSchema';
 import { indexName } from './serializer/pgSerializer';
-import { unescapeSingleQuotes, push_array } from './utils';
+import { push_array, unescapeSingleQuotes } from './utils';
 
 const pgImportsList = new Set([
 	'pgTable',

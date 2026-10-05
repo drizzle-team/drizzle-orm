@@ -1,6 +1,7 @@
 import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
+import { push_array } from '../utils.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getMySqlColumnBuilders, type MySqlColumnBuilders } from './columns/all.ts';
 import type { MySqlColumn, MySqlColumnBuilder, MySqlColumnBuilderBase } from './columns/common.ts';
@@ -8,7 +9,6 @@ import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
-import { push_array } from '../utils.ts';
 
 export type MySqlTableExtraConfigValue =
 	| AnyIndexBuilder

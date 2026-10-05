@@ -7,6 +7,7 @@ import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByE
 import { assertUnreachable } from '../../global';
 import { type Dialect, dialect } from '../../schemaValidator';
 import { prepareFilenames } from '../../serializer';
+import { push_array } from '../../utils';
 import type { Entities } from '../validations/cli';
 import { pullParams, pushParams } from '../validations/cli';
 import type { Casing, CasingType, CliConfig, Driver, Prefix } from '../validations/common';
@@ -28,7 +29,6 @@ import {
 import type { SqliteCredentials } from '../validations/sqlite';
 import { printConfigConnectionIssues as printIssuesSqlite, sqliteCredentials } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
-import { push_array } from '../../utils';
 import { error } from '../views';
 
 // NextJs default config is target: es5, which esbuild-register can't consume
