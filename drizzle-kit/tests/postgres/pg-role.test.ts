@@ -1,6 +1,6 @@
-import { pgRole } from 'drizzle-orm/pg-core';
+import { integer, pgPolicy, pgRole, pgTable } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, prepareTestDatabase, push, TestDatabase } from '../postgres/mocks';
+import { diff, drizzleToDDL, prepareTestDatabase, push, TestDatabase } from '../postgres/mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
@@ -241,4 +241,45 @@ test('alter inherit in role', async (t) => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+test('a role rename changes no policy and no privilege that names the role', async () => {
+	// The schema does not manage this role, and `public` is a built-in name.
+	const auditor = pgRole('auditor').existing();
+	const schema = (roleName: string) => {
+		const role = pgRole(roleName);
+		const users = pgTable('users', { id: integer() }, () => [
+			pgPolicy('users_read', { for: 'select', to: [role, auditor] }),
+			pgPolicy('users_list', { for: 'select', to: 'public' }),
+		]);
+		return { role, users };
+	};
+	// A drizzle schema cannot declare a privilege, so the state gets its row here.
+	const state = (roleName: string) => {
+		const { ddl } = drizzleToDDL(schema(roleName));
+		ddl.privileges.push({
+			schema: 'public',
+			table: 'users',
+			grantor: 'postgres',
+			grantee: roleName,
+			type: 'SELECT',
+			isGrantable: false,
+		});
+		return ddl;
+	};
+	await db.query('CREATE ROLE "auditor";');
+	for (const it of (await diff({}, schema('staff'), [])).sqlStatements) await db.query(it);
+	await db.query('GRANT SELECT ON "users" TO "staff";');
+
+	// The new name sorts before the other role of the policy, and the old name sorts after it.
+	const { sqlStatements } = await diff(state('staff'), state('admin'), ['staff->admin']);
+
+	expect(sqlStatements).toStrictEqual(['ALTER ROLE "staff" RENAME TO "admin";']);
+
+	for (const it of sqlStatements) await db.query(it);
+	const entities = { roles: { include: ['admin'] } };
+	expect((await push({ db, to: schema('admin'), entities })).sqlStatements).toStrictEqual([]);
+	expect(await db.query(`select has_table_privilege('admin', 'users', 'SELECT') as granted`)).toStrictEqual([
+		{ granted: true },
+	]);
 });

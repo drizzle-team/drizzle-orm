@@ -188,8 +188,16 @@ export const createDDL = () => {
 			sequences: [{ to: 'schemas', map: { name: 'schema' } }],
 			views: [{ to: 'schemas', map: { name: 'schema' } }],
 			checks: [{ to: 'tables', map: { schema: 'schema', name: 'table' } }],
-			policies: [{ to: 'tables', map: { schema: 'schema', name: 'table' } }],
-			privileges: [{ to: 'tables', map: { schema: 'schema', name: 'table' } }],
+			// A role rename follows the rows that name the role. A drop of the role does not drop them.
+			policies: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{ to: 'roles', cascade: false, map: { name: { list: 'roles' } } },
+			],
+			privileges: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{ to: 'roles', cascade: false, map: { name: 'grantee' } },
+				{ to: 'roles', cascade: false, map: { name: 'grantor' } },
+			],
 			columns: [
 				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
 				{

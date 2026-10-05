@@ -1,5 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
-import { index, integer, pgTable, text, varchar } from 'drizzle-orm/pg-core';
+import { index, integer, pgPolicy, pgRole, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 import { join } from 'path';
 import { errorToEnvelope } from 'src/cli/errors';
 import { createDDL } from 'src/dialects/postgres/ddl';
@@ -74,6 +74,29 @@ test('linear history with a column rename', async () => {
 	expect(flow.state('main', '20260101120003_main')).toStrictEqual(schemaState(v3));
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	expect(await flow.migrate('main', v3)).toStrictEqual([]);
+});
+
+test('a role rename writes only the rename, and its snapshot stores an instruction for each field that names a role', async () => {
+	const flow = createFolderFlow();
+	const schema = (role: ReturnType<typeof pgRole>) => ({
+		role,
+		users: pgTable('users', { id: integer() }, () => [pgPolicy('users_read', { for: 'select', to: role })]),
+	});
+	await flow.generate('main', schema(pgRole('staff')));
+
+	const { folder } = await flow.generate('main', schema(pgRole('team')), {
+		hints: [{ type: 'rename', kind: 'role', from: ['staff'], to: ['team'] }],
+	});
+
+	expect(flow.sql('main', folder!)).toBe('ALTER ROLE "staff" RENAME TO "team";');
+	expect(flow.deltas('main', folder!)).toStrictEqual([
+		{ op: 'rename', key: 'roles\0["staff"]', set: { name: 'team' } },
+		{ op: 'replace_in_list', type: 'policies', where: {}, field: 'roles', from: 'staff', to: 'team' },
+		{ op: 'update', type: 'privileges', where: { grantee: 'staff' }, set: { grantee: 'team' } },
+		{ op: 'update', type: 'privileges', where: { grantor: 'staff' }, set: { grantor: 'team' } },
+	]);
+	expect(flow.state('main', folder!)).toStrictEqual(schemaState(schema(pgRole('team'))));
+	expect(await flow.migrate('main', schema(pgRole('team')))).toStrictEqual([]);
 });
 
 test('generate stores the statements of each migration, and a custom migration stores none', async () => {

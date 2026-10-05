@@ -6,6 +6,7 @@ import {
 	integer,
 	pgEnum,
 	pgPolicy,
+	pgRole,
 	pgSchema,
 	pgSequence,
 	pgTable,
@@ -93,6 +94,12 @@ const counterToTicker = rename('sequence', 'public.counter', 'public.ticker');
 const titles = (name: string, schema?: Namespace) =>
 	(schema ? schema.view(name, { title: integer() }) : pgView(name, { title: integer() }))
 		.as(sql`select title from posts`);
+
+// The role and a table `t` with a policy for that role.
+const withRole = (role: ReturnType<typeof pgRole>, names: string[]) => ({
+	role,
+	t: table('t', names, () => [pgPolicy('t_read', { for: 'select', to: role })]),
+});
 
 // A parent table with a primary key, and a child table with a foreign key to that key. Without `fk`,
 // the child has no foreign key.
@@ -772,6 +779,17 @@ const rows: Row[] = [
 			[step({ accounts, posts }, usersToAccounts)],
 			[step({ users: table('users', ['id'], policy('users_read')), posts })],
 		],
+	},
+
+	// ---- roles ----
+	{
+		name: 'a role rename against a new column of a table with a policy for that role',
+		base: withRole(pgRole('staff'), ['id']),
+		branches: [
+			[step(withRole(pgRole('team'), ['id']), rename('role', 'staff', 'team'))],
+			[step(withRole(pgRole('staff'), ['id', 'email']))],
+		],
+		merged: withRole(pgRole('team'), ['id', 'email']),
 	},
 
 	// ---- three branches ----

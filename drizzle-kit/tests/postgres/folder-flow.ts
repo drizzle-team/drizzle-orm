@@ -1,4 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
+import { is } from 'drizzle-orm';
+import { PgRole } from 'drizzle-orm/pg-core';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate as migrateFolder } from 'drizzle-orm/pglite/migrator';
 import {
@@ -249,7 +251,10 @@ export const createFolderFlow = () => {
 		try {
 			await migrateFolder(drizzle({ client }), { migrationsFolder: dirOf(branch) });
 			const db = { query: async (query: string, params?: any[]) => (await client.query<any>(query, params)).rows };
-			const { sqlStatements } = await push({ db, to: schema });
+			// push compares only the roles that the filter names, and the database has roles of its own.
+			const roles = Object.values(schema).filter((it) => is(it, PgRole)).map((it) => it.name);
+			const entities = roles.length > 0 ? { roles: { include: roles } } : undefined;
+			const { sqlStatements } = await push({ db, to: schema, entities });
 			return sqlStatements;
 		} finally {
 			await client.close();
