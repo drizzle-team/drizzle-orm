@@ -2883,7 +2883,7 @@ CREATE INDEX "idx_19612_cnst_full_name_idx" ON "public"."constructor" USING btre
 	expect(pushStatements).toStrictEqual([]);
 });
 
-// when user does not have permissions, introspection should not fail
+// when user does not have permissions, introspection should not fail and should return all entities
 // https://github.com/drizzle-team/drizzle-orm/issues/5568
 test('non-admin', async () => {
 	const schemaNotForNonAdmin = pgSchema('schema_not_for_non_admin');
@@ -2907,8 +2907,18 @@ test('non-admin', async () => {
 	await db.query(`CREATE ROLE "non-admin" LOGIN PASSWORD 'password';`);
 	await db.query(`SET ROLE "non-admin";`);
 
-	const { tables } = await fromDatabase(db);
+	const { schemas, tables, fks } = await fromDatabase(db);
 
+	expect(schemas).toStrictEqual([
+		{
+			entityType: 'schemas',
+			name: 'public',
+		},
+		{
+			entityType: 'schemas',
+			name: 'schema_not_for_non_admin',
+		},
+	]);
 	expect(tables).toStrictEqual([
 		{
 			entityType: 'tables',
@@ -2916,7 +2926,14 @@ test('non-admin', async () => {
 			name: 'users',
 			isRlsEnabled: false,
 		},
+		{
+			entityType: 'tables',
+			schema: 'schema_not_for_non_admin',
+			name: 'table_not_for_non_admin',
+			isRlsEnabled: false,
+		},
 	]);
+	expect(fks.length).toBe(1);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5869
