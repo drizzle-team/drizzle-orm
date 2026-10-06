@@ -1,6 +1,7 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
+import type { Result } from '@effect/sql-pg/PgConnection';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
@@ -9,17 +10,22 @@ import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgEffectPreparedQuery, PgEffectSession, PgEffectTransaction } from '~/pg-core/effect/session.ts';
-import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
+import type { Simplify } from '~/utils.ts';
 
 export interface EffectPgQueryEffectHKT extends QueryEffectHKTBase {
 	readonly error: EffectDrizzleQueryError;
 	readonly context: never;
 }
 
+export type EffectPgQueryResult<TRow> = Simplify<
+	Omit<Result, 'rows'> & { readonly rows: [TRow] extends [never] ? readonly [] : ReadonlyArray<TRow> }
+>;
+
 export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
-	type: unknown;
+	type: EffectPgQueryResult<PgRawRow<this['row']>>;
 }
 
 export interface EffectPgSessionOptions {

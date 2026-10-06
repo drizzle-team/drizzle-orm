@@ -1251,6 +1251,7 @@ test('Issue No6074', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6025
+// https://github.com/drizzle-team/drizzle-orm/issues/1549
 test('primary key with non default name', async () => {
 	const sqlite = new Database(':memory:');
 	const db = dbFrom(sqlite);

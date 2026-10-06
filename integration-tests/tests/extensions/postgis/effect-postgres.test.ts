@@ -161,6 +161,9 @@ it.effect('No wrong codec autoresolution', () =>
 				dataType() {
 					return 'geometry(Polygon, 4326)';
 				},
+				// TODO: Can't decode without cast on rc117, temporary measure
+				// drop when supported in driver
+				codec: 'geometry(polygon)',
 				toDriver(value) {
 					return sql`ST_GeomFromText(
 						'POLYGON(${

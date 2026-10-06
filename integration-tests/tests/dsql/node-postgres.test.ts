@@ -1,14 +1,50 @@
 import { sql } from 'drizzle-orm';
+import type { NodePgDsqlDatabase, NodePgDsqlRawExecuteResult } from 'drizzle-orm/node-postgres/dsql';
 import { migrate } from 'drizzle-orm/node-postgres/dsql/migrator';
 import { boolean, getTableConfig, integer, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { describe, expect } from 'vitest';
+import type { QueryResult } from 'pg';
+import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
 import { nodePgDsqlTest as test } from './instrumentation';
 import { usersMigratorTable } from './schema';
 
 tests(test, []);
+
+test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
+	const db = fixtureDb as unknown as NodePgDsqlDatabase;
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} ("id" integer primary key, "name" text not null)`);
+	expectTypeOf(created).toEqualTypeOf<QueryResult<never>>();
+	expect(created).toEqual(expect.objectContaining({ command: expect.any(String), rows: [] }));
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<QueryResult<never>>();
+	expect(inserted).toEqual(expect.objectContaining({ command: expect.any(String), rowCount: 1, rows: [] }));
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(selected).toEqualTypeOf<QueryResult<{ id: number; name: string }>>();
+	expect(selected).toEqual(expect.objectContaining({ rowCount: 1, rows: [{ id: 1, name: 'John' }] }));
+
+	// Multi-statement
+	const multi = await db.execute(
+		sql`insert into ${table} values (2, 'Jane'); select "id", "name" from ${table} order by "id"`,
+	);
+	expectTypeOf(multi).toEqualTypeOf<NodePgDsqlRawExecuteResult>();
+	expect(multi).toEqual([
+		expect.objectContaining({ rowCount: 1, rows: [] }),
+		expect.objectContaining({ rows: [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }] }),
+	]);
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
 
 describe('driver specific', () => {
 	test('all date and time columns without timezone first case mode string', async ({ db }) => {

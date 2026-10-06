@@ -44,6 +44,11 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalize: parseGeometryTuple,
 		normalizeArray: arrayCompatNormalize(parseGeometryTuple),
 	},
+	'geometry(polygon)': {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalizeParamArray: (v) => makePgArray(v),
+	},
 	interval: {
 		cast: castToText,
 		castArray: castToTextArr,

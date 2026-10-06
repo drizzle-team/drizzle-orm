@@ -158,6 +158,12 @@ export class BunMySqlTransaction<
 	}
 }
 
+export type BunMySqlRawExecuteResult =
+	| (Record<string, unknown>[] & Record<string, unknown>)
+	| (Record<string, unknown>[] & Record<string, unknown>)[];
+
 export interface BunMySqlQueryResultHKT extends MySqlQueryResultHKT {
-	type: Record<string, unknown>[] & Record<string, unknown>;
+	type: [this['row']] extends [never] ? [] & Record<string, unknown>
+		: [this['row']] extends ['unknown'] ? BunMySqlRawExecuteResult
+		: this['row'][] & Record<string, unknown>;
 }

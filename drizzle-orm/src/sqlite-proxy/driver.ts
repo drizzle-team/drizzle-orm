@@ -4,17 +4,15 @@ import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
-import type { SQLiteExecuteMethod } from '~/sqlite-core/session.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { SQLiteRemoteSession } from './session.ts';
 
-export interface SqliteRemoteResult<T = unknown> {
-	rows?: T[];
-}
+/** Type is inferred from return type of user-provided `run`, thus internal expectation stays `any` */
+export type SqliteRemoteRunResult = any;
 
-export class SqliteRemoteDatabase<TRelations extends AnyRelations = EmptyRelations>
-	extends SQLiteAsyncDatabase<'async', SqliteRemoteResult, TRelations>
+export class SqliteRemoteDatabase<TRunResult = unknown, TRelations extends AnyRelations = EmptyRelations>
+	extends SQLiteAsyncDatabase<'async', TRunResult, TRelations>
 {
 	static override readonly [entityKind]: string = 'SqliteRemoteDatabase';
 
@@ -28,65 +26,73 @@ export class SqliteRemoteDatabase<TRelations extends AnyRelations = EmptyRelatio
 	}
 }
 
-export type AsyncRemoteCallback = (
-	sql: string,
-	params: any[],
-	method: SQLiteExecuteMethod,
-) => Promise<{ rows: any[] }>;
+export interface SqliteProxyExecutors<TRunResult = unknown> {
+	get: {
+		(sql: string, params: any[], rowMode?: 'array' | undefined): Promise<any[] | undefined>;
+		(sql: string, params: any[], rowMode: 'object'): Promise<Record<string, any> | undefined>;
+		(
+			sql: string,
+			params: any[],
+			rowMode?: 'array' | 'object' | undefined,
+		): Promise<Record<string, any> | undefined>;
+	};
+	all: {
+		(sql: string, params: any[], rowMode?: 'array' | undefined): Promise<any[][]>;
+		(sql: string, params: any[], rowMode: 'object'): Promise<Record<string, any>[]>;
+		(
+			sql: string,
+			params: any[],
+			rowMode?: 'array' | 'object' | undefined,
+		): Promise<Record<string, any>[]>;
+	};
+	run: {
+		(sql: string, params: any[]): Promise<TRunResult>;
+	};
+	/** Each query's result must mirror result of same query ran via it's respective method's executor */
+	batch?: SQLiteProxyBatchCallback;
+	// TODO: discuss - current implementation may not be suitable for all drivers and there's no way to override it
+	// /** Transaction must handle nested savepoints, commits & rollbacks on error itself
+	//  *
+	//  * `callback` must be provided with executors pinned to transaction client
+	//  */
+	// transaction?: <T>(callback: (txExecutors: SqliteProxyExecutors<TRunResult>) => Promise<T> | T, config?: SQLiteTransactionConfig,) => Promise<T>;
+}
 
-export type AsyncBatchRemoteCallback = (batch: {
+export type SqliteProxyBatchItem = {
 	sql: string;
 	params: any[];
-	method: SQLiteExecuteMethod;
-}[]) => Promise<{ rows: any[] }[]>;
+	method: 'all' | 'get';
+	rowMode: 'array' | 'object';
+} | {
+	sql: string;
+	params: any[];
+	method: 'run';
+	rowMode?: undefined;
+};
 
-export type RemoteCallback = AsyncRemoteCallback;
+export type SQLiteProxyBatchCallback = (batch: SqliteProxyBatchItem[]) => Promise<any[]>;
 
-export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
-	callback: RemoteCallback,
+export function drizzle<TRelations extends AnyRelations = EmptyRelations, TRunResult = unknown>(
+	executors: SqliteProxyExecutors<TRunResult>,
 	config?: DrizzleSQLiteConfig<TRelations>,
-): SqliteRemoteDatabase<TRelations>;
-export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
-	callback: RemoteCallback,
-	batchCallback?: AsyncBatchRemoteCallback,
-	config?: DrizzleSQLiteConfig<TRelations>,
-): SqliteRemoteDatabase<TRelations>;
-export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
-	callback: RemoteCallback,
-	batchCallback?: AsyncBatchRemoteCallback | DrizzleSQLiteConfig<TRelations>,
-	config?: DrizzleSQLiteConfig<TRelations>,
-): SqliteRemoteDatabase<TRelations> {
+): SqliteRemoteDatabase<TRunResult, TRelations> {
 	let logger;
-	let cache;
-	let _batchCallback: AsyncBatchRemoteCallback | undefined;
-	let _config: DrizzleSQLiteConfig<TRelations> = {};
 
-	if (batchCallback) {
-		if (typeof batchCallback === 'function') {
-			_batchCallback = batchCallback as AsyncBatchRemoteCallback;
-			_config = config ?? {};
-		} else {
-			_batchCallback = undefined;
-			_config = batchCallback as DrizzleSQLiteConfig<TRelations>;
-		}
-
-		if (_config.logger === true) {
-			logger = new DefaultLogger();
-		} else if (_config.logger !== false) {
-			logger = _config.logger;
-			cache = _config.cache;
-		}
+	if (config?.logger === true) {
+		logger = new DefaultLogger();
+	} else if (config?.logger !== false) {
+		logger = config?.logger;
 	}
 
 	const dialect = new SQLiteDialect({
-		codecs: _config.codecs,
-		useJitMappers: jitCompatCheck(_config.jit),
+		codecs: config?.codecs,
+		useJitMappers: jitCompatCheck(config?.jit),
 	});
 
-	const relations = _config.relations ?? {} as TRelations;
-	const session = new SQLiteRemoteSession(callback, dialect, relations, _batchCallback, {
+	const relations = config?.relations ?? {} as TRelations;
+	const session = new SQLiteRemoteSession(executors, dialect, relations, {
 		logger,
-		cache,
+		cache: config?.cache,
 	});
 	const db = new SqliteRemoteDatabase(
 		'async',
@@ -94,9 +100,9 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 		session,
 		relations,
 	);
-	(<any> db).$cache = cache;
+	(<any> db).$cache = config?.cache;
 	if ((<any> db).$cache) {
-		(<any> db).$cache['invalidate'] = cache?.onMutate;
+		(<any> db).$cache['invalidate'] = config?.cache?.onMutate;
 	}
 	return db;
 }

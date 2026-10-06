@@ -1,3 +1,4 @@
+import { createPool as createNeonWsPool } from '@drizzle-team/minipg/neon-ws';
 import { defineRelations, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import type { PostgresDatabase } from 'drizzle-orm/postgres';
@@ -5,7 +6,7 @@ import { minipgCodecs } from 'drizzle-orm/postgres/codecs';
 import { migrate } from 'drizzle-orm/postgres/migrator';
 import { drizzle as drizzleNeonWs } from 'drizzle-orm/postgres/neon-ws';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { describe, expect } from 'vitest';
+import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import {
 	allTypesData,
@@ -14,6 +15,7 @@ import {
 	allTypesTable,
 	assertAllTypesBounds,
 	assertAllTypesUnions,
+	makeAllTypes,
 } from './all-types';
 import { tests } from './common';
 import { postgresNeonWsTest as test } from './instrumentation';
@@ -27,6 +29,43 @@ import {
 const skips = ['raw jsons', 'all types ~codecs~'];
 
 tests(test, skips);
+
+test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
+	const db = fixtureDb as unknown as PostgresDatabase;
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} ("id" integer primary key, "name" text not null)`);
+	expectTypeOf(created).toEqualTypeOf<
+		{ rows: never[]; columns: string[]; command: string | null; rowCount: number | null }
+	>();
+	expect(created).toEqual(expect.objectContaining({ rows: [], command: expect.any(String) }));
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<
+		{ rows: never[]; columns: string[]; command: string | null; rowCount: number | null }
+	>();
+	expect(inserted).toEqual(expect.objectContaining({ rows: [], rowCount: 1 }));
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(selected).toEqualTypeOf<
+		{ rows: { id: number; name: string }[]; columns: string[]; command: string | null; rowCount: number | null }
+	>();
+	expect(selected).toEqual(expect.objectContaining({ rows: [{ id: 1, name: 'John' }], columns: ['id', 'name'] }));
+
+	// Any response
+	const any = await db.execute(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(any).toEqualTypeOf<
+		{ rows: Record<string, unknown>[]; columns: string[]; command: string | null; rowCount: number | null }
+	>();
+	expect(any).toEqual(expect.objectContaining({ rows: [{ id: 1, name: 'John' }], columns: ['id', 'name'] }));
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
 
 describe('migrator', () => {
 	test('migrator : default migration strategy', async ({ db }) => {
@@ -288,8 +327,18 @@ describe('migrator', () => {
 	});
 });
 
+const stringTemporalClient = (database: string) => {
+	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
+	url.pathname = `/${database}`;
+	return createNeonWsPool({ url: url.toString(), max: 1, temporal: 'string' });
+};
+
 describe('driver-specific', () => {
-	test('all date and time columns without timezone first case mode string', async ({ db }) => {
+	test('all date and time columns without timezone first case mode string', async ({ kit, onTestFinished }) => {
+		const client = stringTemporalClient(kit.database!);
+		onTestFinished(() => client.end());
+		const db = drizzleNeonWs({ client });
+
 		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
@@ -325,7 +374,11 @@ describe('driver-specific', () => {
 		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('all date and time columns without timezone second case mode string', async ({ db }) => {
+	test('all date and time columns without timezone second case mode string', async ({ kit, onTestFinished }) => {
+		const client = stringTemporalClient(kit.database!);
+		onTestFinished(() => client.end());
+		const db = drizzleNeonWs({ client });
+
 		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', precision: 6 }).notNull(),
@@ -356,7 +409,11 @@ describe('driver-specific', () => {
 		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('all date and time columns without timezone third case mode date', async ({ db }) => {
+	test('all date and time columns without timezone third case mode date', async ({ kit, onTestFinished }) => {
+		const client = stringTemporalClient(kit.database!);
+		onTestFinished(() => client.end());
+		const db = drizzleNeonWs({ client });
+
 		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'date', precision: 3 }).notNull(),
@@ -390,7 +447,11 @@ describe('driver-specific', () => {
 		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('test mode string for timestamp with timezone', async ({ db }) => {
+	test('test mode string for timestamp with timezone', async ({ kit, onTestFinished }) => {
+		const client = stringTemporalClient(kit.database!);
+		onTestFinished(() => client.end());
+		const db = drizzleNeonWs({ client });
+
 		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
@@ -430,7 +491,11 @@ describe('driver-specific', () => {
 		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('test mode date for timestamp with timezone', async ({ db }) => {
+	test('test mode date for timestamp with timezone', async ({ kit, onTestFinished }) => {
+		const client = stringTemporalClient(kit.database!);
+		onTestFinished(() => client.end());
+		const db = drizzleNeonWs({ client });
+
 		const table = pgTable('all_columns', {
 			id: serial('id').primaryKey(),
 			timestamp: timestamp('timestamp_string', { mode: 'date', withTimezone: true, precision: 3 }).notNull(),
@@ -470,7 +535,11 @@ describe('driver-specific', () => {
 		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('test mode string for timestamp with timezone in UTC timezone', async ({ db }) => {
+	test('test mode string for timestamp with timezone in UTC timezone', async ({ kit, onTestFinished }) => {
+		const client = stringTemporalClient(kit.database!);
+		onTestFinished(() => client.end());
+		const db = drizzleNeonWs({ client });
+
 		// get current timezone from db
 		const timezone = await db.execute<{ TimeZone: string }>(sql`show timezone`);
 
@@ -561,7 +630,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute w/ query builder', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_1', {
+		const usersTable = pgTable('users_execute_raw_minipg_3', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -599,8 +668,9 @@ describe('driver-specific', () => {
 	// Validates functionality of base codecs provided to be overriden
 	// this disables driver shape generator and falls back to mappers
 	test('all types ~codecs~ override', async ({ createDB, push }) => {
+		const { en, allTypesTable } = makeAllTypes('all_types_48_cdcs_ovr', 'en_49_ovr');
 		const base = createDB({ allTypesTable }, allTypesRelations);
-		await push({ en: allTypesEnum, allTypesTable });
+		await push({ en, allTypesTable });
 
 		const relations = defineRelations({ allTypesTable }, allTypesRelations);
 		const db = drizzleNeonWs({ client: (base as any).$client, relations, codecs: minipgCodecs });
@@ -612,7 +682,7 @@ describe('driver-specific', () => {
 		const nested = await db.query.allTypesTable.findFirst({ with: { self: true } });
 		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
-		await assertAllTypesUnions(db);
+		await assertAllTypesUnions(db, allTypesTable);
 		await assertAllTypesBounds(db);
 	});
 });

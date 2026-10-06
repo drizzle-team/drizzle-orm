@@ -1,6 +1,6 @@
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
 import { EffectCache, type EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -24,7 +24,8 @@ import { assertUnreachable } from '~/utils.ts';
 import { SQLiteEffectDatabase } from './db.ts';
 
 export type SQLiteEffectQueryExecutors = Record<
-	SQLiteExecuteMethod,
+	// `values` mirrors `all` in array mode, no need to define separate executor
+	Exclude<SQLiteExecuteMethod, 'values'>,
 	(params: unknown[]) => Effect.Effect<any, unknown, unknown>
 >;
 
@@ -119,7 +120,7 @@ export class SQLiteEffectPreparedQuery<
 
 			yield* logger.logQuery(sql, params);
 
-			return yield* this.queryWithCache(sql, params, 'values', Effect.suspend(() => executors.values(params)));
+			return yield* this.queryWithCache(sql, params, 'values', Effect.suspend(() => executors.all(params)));
 		}) as QueryEffectKind<TEffectHKT, T['values']>;
 	}
 

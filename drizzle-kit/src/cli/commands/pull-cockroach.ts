@@ -46,6 +46,7 @@ export const handle = async (
 		schema: string;
 		table: string;
 	},
+	init: boolean,
 	db?: Awaited<ReturnType<typeof prepareCockroach>>,
 ) => {
 	if (!db) {
@@ -114,6 +115,7 @@ export const handle = async (
 			snapshot: toJsonSnapshot(ddl2, [originUUID], renames),
 			sqlStatements,
 			renames,
+			init,
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',

@@ -1,13 +1,5 @@
 import type { Connection as CallbackConnection, TypeCast } from 'mysql2';
-import type {
-	Connection,
-	FieldPacket,
-	OkPacket,
-	Pool,
-	PoolConnection,
-	ResultSetHeader,
-	RowDataPacket,
-} from 'mysql2/promise';
+import type { Connection, FieldPacket, Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -26,11 +18,11 @@ import { sql } from '~/sql/sql.ts';
 import type { Query } from '~/sql/sql.ts';
 export type MySql2Client = Pool | Connection;
 
-export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
-export type MySqlQueryResultType = RowDataPacket[][] | RowDataPacket[] | OkPacket | OkPacket[] | ResultSetHeader;
-export type MySqlQueryResult<
-	T = any,
-> = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
+export type MySqlRawQueryResult = [ResultSetHeader, undefined];
+export type MySql2RawExecuteResult =
+	| MySqlRawQueryResult
+	| [RowDataPacket[], FieldPacket[]]
+	| [(ResultSetHeader | RowDataPacket[])[], (FieldPacket[] | undefined)[]];
 
 export interface MySql2SessionOptions {
 	logger?: Logger;
@@ -212,5 +204,7 @@ function isPool(client: MySql2Client): client is Pool {
 }
 
 export interface MySql2QueryResultHKT extends MySqlQueryResultHKT {
-	type: MySqlRawQueryResult;
+	type: [this['row']] extends [never] ? MySqlRawQueryResult
+		: [this['row']] extends ['unknown'] ? MySql2RawExecuteResult
+		: [this['row'][], FieldPacket[]];
 }

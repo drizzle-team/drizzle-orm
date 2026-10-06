@@ -21,7 +21,6 @@ import { migrate } from 'drizzle-orm/singlestore/migrator';
 import * as mysql2 from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { toLocalDate } from '~/utils';
 import relations from './relations';
 
 type TestSingleStoreDB = SingleStoreDriverDatabase<typeof relations>;
@@ -735,7 +734,7 @@ test('insert via db.execute + select via db.execute', async (ctx) => {
 test('insert via db.execute w/ query builder', async (ctx) => {
 	const { db } = ctx.singlestore;
 
-	const inserted = await db.execute(
+	const inserted = await db.execute<never>(
 		db.insert(usersTable).values({ name: 'John' }),
 	);
 	expect(inserted[0].affectedRows).toBe(1);
@@ -763,7 +762,7 @@ test('insert + select all possible dates', async (ctx) => {
 	expect(res[0]?.datetimeAsString).toBeTypeOf('string');
 
 	expect(res).toEqual([{
-		date: toLocalDate(new Date('2022-11-11')),
+		date: new Date('2022-11-11'),
 		dateAsString: '2022-11-11',
 		time: '12:12:12',
 		datetime: new Date('2022-11-11'),

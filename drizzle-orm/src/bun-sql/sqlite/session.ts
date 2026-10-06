@@ -75,9 +75,6 @@ export class BunSQLiteSession<
 			run: (params) => {
 				return this.client.unsafe(query.sql, params);
 			},
-			values: (params) => {
-				return this.client.unsafe(query.sql, params).values();
-			},
 		};
 		return new SQLiteAsyncPreparedQuery(
 			'async',

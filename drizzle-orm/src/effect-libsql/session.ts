@@ -1,6 +1,7 @@
 import type { LibsqlClient } from '@effect/sql-libsql/LibsqlClient';
+import type { ResultSet } from '@libsql/client';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
@@ -23,7 +24,7 @@ export interface EffectLibsqlQueryEffectHKT extends QueryEffectHKTBase {
 	readonly context: never;
 }
 
-export type EffectLibsqlRunResult = unknown;
+export type EffectLibsqlRunResult = ResultSet;
 
 export interface EffectLibsqlSessionOptions {
 	logger: EffectLoggerShape;
@@ -69,7 +70,6 @@ export class EffectLibsqlSession<TRelations extends AnyRelations>
 				if (mode === 'arrays') return q.values.pipe(Effect.map((e) => e[0]));
 				return q.withoutTransform.pipe(Effect.map((e) => e[0]));
 			},
-			values: (params) => this.client.unsafe(query.sql, params).values,
 			run: (params) => this.client.unsafe(query.sql, params).raw,
 		};
 

@@ -31,7 +31,6 @@ import {
 import { migrate } from 'drizzle-orm/singlestore/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect } from 'vitest';
-import { toLocalDate } from '../utils';
 import type { Test } from './instrumentation';
 
 const usersTable = singlestoreTable('userstest', {
@@ -1114,7 +1113,7 @@ export function tests(test: Test) {
 			expect(typeof res[0]?.datetimeAsString).toBe('string');
 
 			expect(res).toEqual([{
-				date: toLocalDate(new Date('2022-11-11')),
+				date: new Date('2022-11-11'),
 				dateAsString: '2022-11-11',
 				time: '12:12:12',
 				datetime: new Date('2022-11-11'),

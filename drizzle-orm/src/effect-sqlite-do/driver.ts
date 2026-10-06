@@ -1,4 +1,3 @@
-/// <reference types="@cloudflare/workers-types" />
 import { SqliteClient } from '@effect/sql-sqlite-do/SqliteClient';
 import * as Effect from 'effect/Effect';
 import { EffectCache } from '~/cache/core/cache-effect.ts';
@@ -19,12 +18,10 @@ export class EffectSQLiteDoDatabase<TRelations extends AnyRelations = EmptyRelat
 	static override readonly [entityKind]: string = 'EffectSQLiteDoDatabase';
 }
 
-export type EffectDrizzleSQLiteDoConfig<TRelations extends AnyRelations> =
-	& Omit<EffectDrizzleSQLiteConfig<TRelations>, 'jit'>
-	& {
-		/** Required to make transactions functional by bypassing broken implementation from `@effect/sql-sqlite-do` wrapper */
-		storage: DurableObjectStorage;
-	};
+export type EffectDrizzleSQLiteDoConfig<TRelations extends AnyRelations> = Omit<
+	EffectDrizzleSQLiteConfig<TRelations>,
+	'jit'
+>;
 
 /**
  * Creates an EffectSQLiteDoDatabase instance.
@@ -68,7 +65,6 @@ export const make = Effect.fn('SQLiteDODrizzle.make')(
 		const session = new EffectSQLiteDOSession(client, dialect, relations, {
 			logger,
 			cache,
-			storage: config.storage,
 		});
 		const db = new EffectSQLiteDoDatabase(dialect, session, relations);
 		(<any> db).$client = client;

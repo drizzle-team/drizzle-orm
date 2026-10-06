@@ -57,6 +57,7 @@ import {
 import { drizzle, type NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { migrate } from 'drizzle-orm/node-mssql/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
+import type { IResult } from 'mssql';
 import { expect, expectTypeOf } from 'vitest';
 import { type Equal, Expect } from '~/utils';
 import {
@@ -349,6 +350,46 @@ test('table configs: unique in column', async () => {
 	const columnField = tableConfig.columns.find((it) => it.name === 'field');
 	expect(columnField?.uniqueName).toBe('custom_field');
 	expect(columnField?.isUnique).toBeTruthy();
+});
+
+test('raw db.execute type matches returned data', async ({ db }) => {
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(
+		sql`create table ${table} ([id] int primary key, [name] nvarchar(max) not null)`,
+	);
+	expectTypeOf(created).toEqualTypeOf<IResult<never>>();
+	expect(created).toEqual(expect.objectContaining({ recordsets: [], rowsAffected: [] }));
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<IResult<never>>();
+	expect(inserted).toEqual(expect.objectContaining({ recordsets: [], rowsAffected: [1] }));
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select [id], [name] from ${table} order by [id]`);
+	expectTypeOf(selected).toEqualTypeOf<IResult<{ id: number; name: string }>>();
+	expect(selected).toEqual(expect.objectContaining({
+		recordset: [{ id: 1, name: 'John' }],
+		recordsets: [[{ id: 1, name: 'John' }]],
+		rowsAffected: [1],
+	}));
+
+	// Multi-statement
+	const multi = await db.execute(
+		sql`insert into ${table} values (2, 'Jane'); select [id], [name] from ${table} order by [id]`,
+	);
+	expectTypeOf(multi).toEqualTypeOf<IResult<Record<string, unknown>>>();
+	expect(multi).toEqual(expect.objectContaining({
+		recordset: [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }],
+		recordsets: [[{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]],
+		rowsAffected: [1, 2],
+	}));
+
+	await db.execute<never>(sql`drop table ${table}`);
 });
 
 test('select all fields', async ({ db }) => {

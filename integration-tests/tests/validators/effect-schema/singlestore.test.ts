@@ -573,13 +573,13 @@ test('all data types', (t) => {
 		mediumtext2: s.Literals(['a', 'b', 'c']),
 		tinytext1: s.String.check(s.isMaxLength(CONSTANTS.INT8_UNSIGNED_MAX)),
 		tinytext2: s.Literals(['a', 'b', 'c']),
-		vector: s.Array(s.Number).check(s.isLengthBetween(3, 3)),
+		vector: s.Array(s.Number).check(s.isBetweenLength(3, 3)),
 		vector2: s.Array(
 			s.BigInt.check(
 				s.isGreaterThanOrEqualToBigInt(CONSTANTS.INT64_MIN),
 				s.isLessThanOrEqualToBigInt(CONSTANTS.INT64_MAX),
 			),
-		).check(s.isLengthBetween(2, 2)),
+		).check(s.isBetweenLength(2, 2)),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();

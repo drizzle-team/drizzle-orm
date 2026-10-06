@@ -170,6 +170,10 @@ export class NeonTransaction<
 	}
 }
 
+export type NeonRawExecuteResult = QueryResult<Record<string, unknown>> | QueryResult<Record<string, unknown>>[];
+
 export interface NeonQueryResultHKT extends PgQueryResultHKT {
-	type: QueryResult<Assume<this['row'], QueryResultRow>>;
+	type: [this['row']] extends [never] ? QueryResult<never>
+		: [this['row']] extends ['unknown'] ? NeonRawExecuteResult
+		: QueryResult<Assume<this['row'], QueryResultRow>>;
 }

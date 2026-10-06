@@ -17,7 +17,6 @@ import {
 import { migrate } from 'drizzle-orm/mysql2/migrator';
 import { v4 as uuid } from 'uuid';
 import { expect } from 'vitest';
-import { toLocalDate } from '~/utils';
 import { mysqlTest as test } from '../instrumentation';
 
 const customSerial = customType<{ data: number; notNull: true; default: true }>({
@@ -631,7 +630,7 @@ test('insert + select all possible dates', async ({ db }) => {
 	expect(res[0]?.datetimeAsString).toBeTypeOf('string');
 
 	expect(res).toEqual([{
-		date: toLocalDate(new Date('2022-11-11')),
+		date: new Date('2022-11-11'),
 		dateAsString: '2022-11-11',
 		time: '12:12:12',
 		datetime: new Date('2022-11-11'),

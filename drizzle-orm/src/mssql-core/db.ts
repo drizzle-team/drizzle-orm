@@ -25,7 +25,7 @@ import type {
 	PreparedQueryConfig,
 	PreparedQueryHKTBase,
 	QueryResultHKT,
-	QueryResultKind,
+	RawQueryResultKind,
 } from './session.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { MsSqlTable } from './table.ts';
@@ -367,18 +367,65 @@ export class MsSqlDatabase<
 		return new MsSqlDeleteBase(table, this.session, this.dialect);
 	}
 
+	/**
+	 * Executes raw SQL query, responding with rows as arrays of values
+	 *
+	 * @param query - SQL query to execute
+	 * @param mode - `'arrays'`
+	 *
+	 * @example
+	 * ```ts
+	 * // [number, string][]
+	 * const rows = await db.execute<[number, string]>(sql`select ${users.id}, ${users.name} from ${users}`, 'arrays');
+	 * ```
+	 */
 	execute<TRow extends unknown[] = unknown[]>(
 		query: SQLWrapper | string,
 		mode: 'arrays',
 	): Promise<TRow[]>;
-	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+	/**
+	 * Executes raw SQL query, responding with rows as objects
+	 *
+	 * @param query - SQL query to execute
+	 * @param mode - `'objects'`
+	 *
+	 * @example
+	 * ```ts
+	 * // { id: number; name: string }[]
+	 * const rows = await db.execute<{ id: number; name: string }>(sql`select ${users.id}, ${users.name} from ${users}`, 'objects');
+	 * ```
+	 */
+	execute<TRow extends Record<string, any> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 		mode: 'objects',
 	): Promise<TRow[]>;
-	execute<T extends { [column: string]: any } | { [column: string]: any }[]>(
+	/**
+	 * Executes raw SQL query, returning driver's raw response
+	 *
+	 * Row type argument defines the type of the response:
+	 * - `'unknown'` (default) - any response of the driver
+	 * - `never` - response of a statement that returns no rows
+	 * - object shape - response with rows of given shape
+	 *
+	 * @param query - SQL query to execute
+	 * @param mode - `'raw'` (default)
+	 *
+	 * @example
+	 * ```ts
+	 * // Any response of the driver
+	 * const response = await db.execute(sql`select * from ${users}`);
+	 *
+	 * // Response of a statement that returns no rows
+	 * const updated = await db.execute<never>(sql`update ${users} set ${users.name} = ${'John'}`);
+	 *
+	 * // Response with rows of given shape
+	 * const selected = await db.execute<{ id: number; name: string }>(sql`select ${users.id}, ${users.name} from ${users}`);
+	 * ```
+	 */
+	execute<TRow extends Record<string, any> | 'unknown' = 'unknown'>(
 		query: SQLWrapper | string,
 		mode?: 'raw' | undefined,
-	): Promise<QueryResultKind<TQueryResult, T>>;
+	): Promise<RawQueryResultKind<TQueryResult, TRow>>;
 	execute(
 		query: SQLWrapper | string,
 		mode?: 'raw' | 'objects' | 'arrays' | undefined,

@@ -1,4 +1,4 @@
-import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
+import type { FieldPacket, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -16,7 +16,11 @@ import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { RemoteCallback } from './driver.ts';
 
-export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
+export type MySqlRawQueryResult = [ResultSetHeader, undefined];
+export type MySqlRemoteRawExecuteResult =
+	| MySqlRawQueryResult
+	| [RowDataPacket[], FieldPacket[]]
+	| [(ResultSetHeader | RowDataPacket[])[], (FieldPacket[] | undefined)[]];
 
 export interface MySqlRemoteSessionOptions {
 	logger?: Logger;
@@ -89,5 +93,7 @@ export class MySqlRemoteSession<
 }
 
 export interface MySqlRemoteQueryResultHKT extends MySqlQueryResultHKT {
-	type: MySqlRawQueryResult;
+	type: [this['row']] extends [never] ? MySqlRawQueryResult
+		: [this['row']] extends ['unknown'] ? MySqlRemoteRawExecuteResult
+		: [this['row'][], FieldPacket[]];
 }

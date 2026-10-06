@@ -14,6 +14,7 @@ import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlestore/drizzle';
 import { DB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
+import { tsc } from 'tests/utils';
 
 export type SinglestoreSchema = Record<string, SingleStoreTable<any> | SingleStoreSchema>;
 
@@ -64,10 +65,7 @@ export const pullDiff = async (
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'singlestore');
 	writeFileSync(filePath, file.file);
 
-	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
-	if (typeCheckResult.exitCode !== 0) {
-		throw new Error(typeCheckResult.stderr || typeCheckResult.stdout);
-	}
+	await tsc(file.file);
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([filePath]);

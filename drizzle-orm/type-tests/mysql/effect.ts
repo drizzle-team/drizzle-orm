@@ -1,11 +1,12 @@
 import type { MysqlClient } from '@effect/sql-mysql2/MysqlClient';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { EffectDrizzleQueryError, MigratorInitError } from '~/effect-core/errors.ts';
 import { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
-import type { EffectMysql2Database } from '~/effect-mysql2/index.ts';
+import type { EffectMysql2Database, EffectMysql2RawExecuteResult } from '~/effect-mysql2/index.ts';
 import { make, makeWithDefaults } from '~/effect-mysql2/index.ts';
 import { migrate } from '~/effect-mysql2/migrator.ts';
 import { MySqlEffectDatabase } from '~/mysql-core/effect/db.ts';
@@ -101,7 +102,7 @@ declare const db: EffectMysql2Database<Record<string, never>>;
 	});
 	type InsertOneEffect = AsEffect<typeof insertOne>;
 
-	Expect<Equal<InsertOneEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<InsertOneEffect, Effect.Effect<ResultSetHeader, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -159,14 +160,14 @@ declare const db: EffectMysql2Database<Record<string, never>>;
 	const updateAll = db.update(users).set({ text: 'updated' });
 	type UpdateAllEffect = AsEffect<typeof updateAll>;
 
-	Expect<Equal<UpdateAllEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<UpdateAllEffect, Effect.Effect<ResultSetHeader, EffectDrizzleQueryError, never>>>;
 }
 
 {
 	const deleteAll = db.delete(users);
 	type DeleteAllEffect = AsEffect<typeof deleteAll>;
 
-	Expect<Equal<DeleteAllEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
+	Expect<Equal<DeleteAllEffect, Effect.Effect<ResultSetHeader, EffectDrizzleQueryError, never>>>;
 }
 
 {
@@ -289,4 +290,62 @@ declare const db: EffectMysql2Database<Record<string, never>>;
 	Expect<Equal<typeof d2, Expected>>;
 	Expect<Equal<typeof d3, Expected>>;
 	Expect<Equal<typeof d4, Expected>>;
+}
+
+{
+	interface UserInterface {
+		id: number;
+		name: string;
+	}
+
+	const objects = db.execute<UserInterface>(`select 1 as id, 'a' as name`, 'objects');
+	type ObjectsEffect = AsEffect<typeof objects>;
+
+	Expect<Equal<ObjectsEffect, Effect.Effect<UserInterface[], EffectDrizzleQueryError, never>>>;
+}
+
+{
+	const raw = db.execute(`select 1 as id, 'a' as name`);
+	type RawEffect = AsEffect<typeof raw>;
+
+	Expect<Equal<RawEffect, Effect.Effect<EffectMysql2RawExecuteResult, EffectDrizzleQueryError, never>>>;
+	Expect<
+		Equal<
+			EffectMysql2RawExecuteResult,
+			ResultSetHeader | RowDataPacket[] | (ResultSetHeader | RowDataPacket[])[]
+		>
+	>;
+
+	// Statements that never return rows stay narrow
+	const insert = db.insert(users).values({ homeCity: 1, class: 'A', age1: 1, enumCol: 'a' });
+	const update = db.update(users).set({ age1: 2 });
+	const del = db.delete(users);
+
+	Expect<Equal<AsEffect<typeof insert>, Effect.Effect<ResultSetHeader, EffectDrizzleQueryError, never>>>;
+	Expect<Equal<AsEffect<typeof update>, Effect.Effect<ResultSetHeader, EffectDrizzleQueryError, never>>>;
+	Expect<Equal<AsEffect<typeof del>, Effect.Effect<ResultSetHeader, EffectDrizzleQueryError, never>>>;
+}
+
+{
+	interface UserInterface {
+		id: number;
+		name: string;
+	}
+
+	type Raw<T> = Effect.Effect<T, EffectDrizzleQueryError, never>;
+
+	// `never` - statement returns no rows
+	const none = db.execute<never>(`insert into t values (1)`);
+	Expect<Equal<AsEffect<typeof none>, Raw<ResultSetHeader>>>;
+
+	// `'unknown'` - any response (default)
+	const unknownRows = db.execute<'unknown'>(`select 1 as id, 'a' as name`);
+	Expect<Equal<AsEffect<typeof unknownRows>, Raw<EffectMysql2RawExecuteResult>>>;
+
+	// @ts-expect-error - rows must be objects
+	db.execute<number>(`select 1 as id, 'a' as name`);
+
+	// concrete shape - rows of given shape
+	const typed = db.execute<UserInterface>(`select 1 as id, 'a' as name`);
+	Expect<Equal<AsEffect<typeof typed>, Raw<UserInterface[]>>>;
 }

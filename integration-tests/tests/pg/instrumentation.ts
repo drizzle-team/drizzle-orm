@@ -257,7 +257,6 @@ export const prepareHttpClient = async (db: string) => {
 
 	const client = createHttpClient({
 		url: gateway,
-		temporal: 'string',
 		fetch: ((input: any, init: any) => {
 			const headers = new Headers(init?.headers);
 			headers.set('Neon-Connection-String', connectionString);
@@ -304,7 +303,7 @@ export const prepareNeonWsClient = async (db: string) => {
 export const prepareMinipgNeonWsClient = async (db: string) => {
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
-	const client = createMinipgNeonWsPool({ url: url.toString(), max: 1, temporal: 'string' });
+	const client = createMinipgNeonWsPool({ url: url.toString(), max: 1 });
 
 	await resetSchemas(async (sql) => (await client.query(sql)).rows as any[]);
 	await client.query(`SET TIME ZONE 'UTC';`);
@@ -324,7 +323,7 @@ export const prepareMinipgNeonWsClient = async (db: string) => {
 export const prepareMinipgNeonHttpClient = async (db: string) => {
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
-	const client = createMinipgNeonHttpClient({ url: url.toString(), temporal: 'string' });
+	const client = createMinipgNeonHttpClient({ url: url.toString() });
 
 	await resetSchemas(async (sql) => (await client.query(sql, [])).rows as any[]);
 	await client.query(`SET TIME ZONE 'UTC';`, []);
@@ -387,7 +386,7 @@ export const preparePostgres = async (db: string) => {
 	url.pathname = `/${db}`;
 	if (!url) throw new Error();
 
-	const client = createPostgresPool({ url: url.toString(), max: 1, temporal: 'string' });
+	const client = createPostgresPool({ url: url.toString(), max: 1 });
 
 	await client.query('drop schema if exists public, "mySchema" cascade;');
 	await client.query('create schema public');

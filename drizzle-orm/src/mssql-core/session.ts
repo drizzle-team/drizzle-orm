@@ -22,6 +22,11 @@ export type QueryResultKind<TKind extends QueryResultHKT, TRow> = (TKind & {
 	readonly row: TRow;
 })['type'];
 
+export type RawQueryResultKind<TKind extends QueryResultHKT, TRow> = QueryResultKind<
+	TKind,
+	TRow extends 'unknown' ? Record<string, unknown> : TRow
+>;
+
 export interface PreparedQueryConfig {
 	execute: unknown;
 	iterator: unknown;

@@ -1,4 +1,5 @@
 import { cockroachCredentials, warnOnConflictingCredentials as warnCockroach } from 'src/cli/validations/cockroach';
+import { libSQLCredentials } from 'src/cli/validations/libsql';
 import { mssqlCredentials, warnOnConflictingCredentials as warnMssql } from 'src/cli/validations/mssql';
 import { mysqlCredentials, warnOnConflictingCredentials as warnMysql } from 'src/cli/validations/mysql';
 import { postgresCredentials, warnOnConflictingCredentials as warnPostgres } from 'src/cli/validations/postgres';
@@ -10,17 +11,15 @@ import { sqliteCredentials } from 'src/cli/validations/sqlite';
 import { expect, test, vi } from 'vitest';
 
 test('turso #1', () => {
-	sqliteCredentials.parse({
-		dialect: 'sqlite',
-		driver: 'turso',
+	libSQLCredentials.parse({
+		dialect: 'turso',
 		url: 'https://turso.tech',
 	});
 });
 
 test('turso #2', () => {
-	sqliteCredentials.parse({
-		dialect: 'sqlite',
-		driver: 'turso',
+	libSQLCredentials.parse({
+		dialect: 'turso',
 		url: 'https://turso.tech',
 		authToken: 'token',
 	});
@@ -28,9 +27,8 @@ test('turso #2', () => {
 
 test('turso #3', () => {
 	expect(() =>
-		sqliteCredentials.parse({
-			dialect: 'sqlite',
-			driver: 'turso',
+		libSQLCredentials.parse({
+			dialect: 'turso',
 			url: 'https://turso.tech',
 			authToken: '',
 		})
@@ -39,9 +37,8 @@ test('turso #3', () => {
 
 test('turso #4', () => {
 	expect(() => {
-		sqliteCredentials.parse({
-			dialect: 'sqlite',
-			driver: 'turso',
+		libSQLCredentials.parse({
+			dialect: 'turso',
 			url: '',
 			authToken: 'token',
 		});
@@ -50,9 +47,8 @@ test('turso #4', () => {
 
 test('turso #5', () => {
 	expect(() => {
-		sqliteCredentials.parse({
-			dialect: 'sqlite',
-			driver: 'turso',
+		libSQLCredentials.parse({
+			dialect: 'turso',
 			url: '',
 			authToken: '',
 		});

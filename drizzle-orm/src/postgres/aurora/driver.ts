@@ -6,7 +6,8 @@ import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
-import { minipgCodecs } from '../codecs.ts';
+import { minipgShapeCodecs } from '../codecs.ts';
+import { buildShape } from '../shape.ts';
 import type { PostgresAuroraClient, PostgresAuroraQueryResultHKT } from './session.ts';
 import { PostgresAuroraSession } from './session.ts';
 
@@ -33,12 +34,10 @@ function construct<
 ): PostgresAuroraDatabase<TRelations> & {
 	$client: PostgresAuroraClient extends TClient ? AuroraClient : TClient;
 } {
-	// TODO: shape OR dedicated codecs
-	if ((<any> client)?.temporal) (<any> client).temporal = 'string';
-
 	const dialect = new PostgresAuroraDialect({
-		codecs: config.codecs ?? minipgCodecs,
+		codecs: config.codecs ?? minipgShapeCodecs,
 		useJitMappers: jitCompatCheck(config.jit),
+		shapeGenerator: config.codecs ? undefined : buildShape,
 	});
 	let logger;
 	if (config.logger === true) {
@@ -91,7 +90,7 @@ export function drizzle<
 
 	if (client) return construct(client, config);
 
-	const instance = createPool({ ...connection!, temporal: 'string' });
+	const instance = createPool(connection!);
 
 	return construct(instance, config) as any;
 }
