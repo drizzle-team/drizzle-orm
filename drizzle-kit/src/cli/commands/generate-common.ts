@@ -117,10 +117,10 @@ export function writeResult(
 
 	if (generateDownMigrations) {
 		const downPath = join(outFolder, `${tag}/down.sql`);
-		const stamp = upHashStamp(sql);
 		if (type === 'custom') {
-			fs.writeFileSync(downPath, `${stamp}\n${CUSTOM_DOWN_SQL_SCAFFOLD}`);
+			fs.writeFileSync(downPath, CUSTOM_DOWN_SQL_SCAFFOLD);
 		} else if (downSqlStatements && downSqlStatements.length > 0) {
+			const stamp = upHashStamp(sql);
 			const warnings = collectIrreversibleDownWarnings(downStatements ?? []);
 			const banner = formatIrreversibleBanner(warnings);
 			const header = banner ? `${DOWN_SQL_HEADER}\n${banner}` : DOWN_SQL_HEADER;

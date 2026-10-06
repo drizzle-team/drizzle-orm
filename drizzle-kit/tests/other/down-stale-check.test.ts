@@ -43,11 +43,14 @@ test('generated down.sql is stamped with the hash drizzle-orm computes for migra
 	expect(firstLine).toBe(`-- drizzle:up-hash=${sha256(readFileSync(migrationPath).toString())}`);
 });
 
-test('custom migration scaffold is stamped too', async () => {
-	const { migrationPath, downPath } = await generate({}, true);
+// The scaffold is written against a placeholder migration.sql the user is about to replace,
+// so a stamp would flag every custom migration as stale.
+test('custom migration scaffold is not stamped', async () => {
+	const { out, migrationPath, downPath } = await generate({}, true);
+	writeFileSync(migrationPath, 'UPDATE "users" SET "name" = trim("name");');
 
-	const firstLine = readFileSync(downPath, 'utf8').split('\n')[0];
-	expect(firstLine).toBe(`-- drizzle:up-hash=${sha256(readFileSync(migrationPath).toString())}`);
+	expect(readFileSync(downPath, 'utf8')).not.toContain('drizzle:up-hash');
+	expect(await sdkCheck({ dialect: 'postgresql', out })).toStrictEqual({ status: 'ok', dialect: 'postgresql' });
 });
 
 test('check is quiet when migration.sql is unchanged', async () => {

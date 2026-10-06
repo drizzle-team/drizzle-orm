@@ -177,8 +177,7 @@ describe('writeResult — down SQL file generation', () => {
 		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
 		const tag = dirs[0]!;
 		expect(fs.existsSync(path.join(tmpDir, tag, 'down.sql'))).toBe(true);
-		const downContent = readDownBody(tag);
-		expect(downContent).toBe(CUSTOM_DOWN_SQL_SCAFFOLD);
+		expect(fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8')).toBe(CUSTOM_DOWN_SQL_SCAFFOLD);
 	});
 
 	test('emits an irreversible-operation banner when down statements lose data', () => {
