@@ -1,40 +1,39 @@
 import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
-import type { PgColumnBuilderBase } from './columns/common.ts';
+import type { InferSelectModel } from '~/table.ts';
+import type { AnyPgColumnBuilder, ResolvePgColumnConfig } from './columns/common.ts';
 import type { PgTable } from './table.ts';
 
 /* Types */
 export type PgFunctionLanguage =
-    | 'plpgsql'
-    | 'sql'
-    | (string & {});
+	| 'plpgsql'
+	| 'sql'
+	| (string & {});
 export type PgFunctionVolatility = 'volatile' | 'stable' | 'immutable';
 export type PgFunctionSecurity = 'definer' | 'invoker';
 export type PgFunctionNullInput = 'called' | 'strict';
 export type PgFunctionParallel = 'unsafe' | 'restricted' | 'safe';
 
-type PgFunctionArgumentType = PgColumnBuilderBase;
+type PgFunctionArgumentType = AnyPgColumnBuilder;
 
-export type PgFunctionArgsDefinition =
-    Record<string, PgFunctionArgumentType>;
+export type PgFunctionArgsDefinition = Record<string, PgFunctionArgumentType>;
 
 export type PgFunctionScalarReturn =
-    | PgColumnBuilderBase
-    | PgTable;
+	| AnyPgColumnBuilder
+	| PgTable;
 
 export interface PgFunctionTableReturn<
-    TColumns extends Record<string, PgColumnBuilderBase> =
-    Record<string, PgColumnBuilderBase>,
+	TColumns extends Record<string, AnyPgColumnBuilder> = Record<string, AnyPgColumnBuilder>,
 > {
-    kind: 'table';
-    columns: TColumns;
+	kind: 'table';
+	columns: TColumns;
 }
 
 export interface PgFunctionSetOfReturn<
-    TType extends PgFunctionScalarReturn = PgFunctionScalarReturn,
+	TType extends PgFunctionScalarReturn = PgFunctionScalarReturn,
 > {
-    kind: 'setof';
-    type: TType;
+	kind: 'setof';
+	type: TType;
 }
 
 export type PgFunctionSpecialReturnType =
@@ -43,260 +42,233 @@ export type PgFunctionSpecialReturnType =
 	| 'trigger';
 
 export interface PgFunctionSpecialReturn<
-	TType extends PgFunctionSpecialReturnType =
-		PgFunctionSpecialReturnType,
+	TType extends PgFunctionSpecialReturnType = PgFunctionSpecialReturnType,
 > {
 	kind: 'special';
 	type: TType;
 }
 
 export type PgFunctionReturnType =
-    | PgFunctionScalarReturn
-    | PgFunctionTableReturn
-    | PgFunctionSetOfReturn
-    | PgFunctionSpecialReturn
-    | SQL;
+	| PgFunctionScalarReturn
+	| PgFunctionTableReturn
+	| PgFunctionSetOfReturn
+	| PgFunctionSpecialReturn
+	| SQL;
 
 export interface PgFunctionBuilderRuntimeConfig<
-    TName extends string = string,
-    TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
-    TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+	TName extends string = string,
+	TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+	TReturns extends PgFunctionReturnType = PgFunctionReturnType,
 > {
-    name: TName;
-    args: TArgs;
-    returns: TReturns;
+	name: TName;
+	args: TArgs;
+	returns: TReturns;
 
-    language: PgFunctionLanguage;
-    volatility: PgFunctionVolatility;
-    security: PgFunctionSecurity;
-    nullInput: PgFunctionNullInput;
-    parallel: PgFunctionParallel;
-    searchPath?: string[];
-    configuration: Map<string, unknown>;
+	language: PgFunctionLanguage;
+	volatility: PgFunctionVolatility;
+	security: PgFunctionSecurity;
+	nullInput: PgFunctionNullInput;
+	parallel: PgFunctionParallel;
+	searchPath?: string[];
+	configuration: Map<string, unknown>;
 }
 
 export interface PgFunctionConfig<
-    TName extends string = string,
-    TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
-    TReturns extends PgFunctionReturnType = PgFunctionReturnType,
->
-    extends PgFunctionBuilderRuntimeConfig<TName, TArgs, TReturns> {
-    body: SQL;
+	TName extends string = string,
+	TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+	TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+> extends PgFunctionBuilderRuntimeConfig<TName, TArgs, TReturns> {
+	body: SQL;
 }
 
 export interface PgFunctionDefinition<
-    TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
-    TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+	TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+	TReturns extends PgFunctionReturnType = PgFunctionReturnType,
 > {
-    args: TArgs;
-    returns: TReturns;
+	args: TArgs;
+	returns: TReturns;
 }
 
 /* Class */
 export class PgFunctionBuilder<
-    TName extends string = string,
-    TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
-    TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+	TName extends string = string,
+	TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+	TReturns extends PgFunctionReturnType = PgFunctionReturnType,
 > {
-    static readonly [entityKind]: string = 'PgFunctionBuilder';
+	static readonly [entityKind]: string = 'PgFunctionBuilder';
 
-    protected config: PgFunctionBuilderRuntimeConfig<TName, TArgs, TReturns>
+	protected config: PgFunctionBuilderRuntimeConfig<TName, TArgs, TReturns>;
 
-    constructor(
-        name: TName,
-        args: TArgs,
-        returns: TReturns,
-    ) {
-        this.config = {
-            name: name,
-            args: args,
-            returns: returns,
+	constructor(
+		name: TName,
+		args: TArgs,
+		returns: TReturns,
+	) {
+		this.config = {
+			name: name,
+			args: args,
+			returns: returns,
 
-            language: 'plpgsql',
-            volatility: 'volatile',
-            security: 'invoker',
-            nullInput: 'called',
-            parallel: 'unsafe',
-            // searchPath: undefined,
-            configuration: new Map(),
-        };
-    }
+			language: 'plpgsql',
+			volatility: 'volatile',
+			security: 'invoker',
+			nullInput: 'called',
+			parallel: 'unsafe',
+			// searchPath: undefined,
+			configuration: new Map(),
+		};
+	}
 
-    /* Language */
-    language(language: PgFunctionLanguage): this {
-        this.config.language = language;
-        return this;
-    }
+	/* Language */
+	language(language: PgFunctionLanguage): this {
+		this.config.language = language;
+		return this;
+	}
 
-    /* Volatility */
-    volatile(): this {
-        this.config.volatility = 'volatile';
-        return this;
-    }
+	/* Volatility */
+	volatile(): this {
+		this.config.volatility = 'volatile';
+		return this;
+	}
 
-    stable(): this {
-        this.config.volatility = 'stable';
-        return this;
-    }
+	stable(): this {
+		this.config.volatility = 'stable';
+		return this;
+	}
 
-    immutable(): this {
-        this.config.volatility = 'immutable';
-        return this;
-    }
+	immutable(): this {
+		this.config.volatility = 'immutable';
+		return this;
+	}
 
-    /* Security */
-    securityDefiner(): this {
-        this.config.security = 'definer';
-        return this;
-    }
+	/* Security */
+	securityDefiner(): this {
+		this.config.security = 'definer';
+		return this;
+	}
 
-    securityInvoker(): this {
-        this.config.security = 'invoker';
-        return this;
-    }
+	securityInvoker(): this {
+		this.config.security = 'invoker';
+		return this;
+	}
 
-    /* Null input */
-    calledOnNullInput(): this {
-        this.config.nullInput = 'called';
-        return this;
-    }
+	/* Null input */
+	calledOnNullInput(): this {
+		this.config.nullInput = 'called';
+		return this;
+	}
 
-    strict(): this {
-        this.config.nullInput = 'strict';
-        return this;
-    }
+	strict(): this {
+		this.config.nullInput = 'strict';
+		return this;
+	}
 
-    /* Parallel */
-    parallelUnsafe(): this {
-        this.config.parallel = 'unsafe';
-        return this;
-    }
+	/* Parallel */
+	parallelUnsafe(): this {
+		this.config.parallel = 'unsafe';
+		return this;
+	}
 
-    parallelRestricted(): this {
-        this.config.parallel = 'restricted';
-        return this;
-    }
+	parallelRestricted(): this {
+		this.config.parallel = 'restricted';
+		return this;
+	}
 
-    parallelSafe(): this {
-        this.config.parallel = 'safe';
-        return this;
-    }
+	parallelSafe(): this {
+		this.config.parallel = 'safe';
+		return this;
+	}
 
-    /* Search path */
-    searchPath(...searchPath: string[]): this {
-        this.config.searchPath = searchPath;
-        return this;
-    }
+	/* Search path */
+	searchPath(...searchPath: string[]): this {
+		this.config.searchPath = searchPath;
+		return this;
+	}
 
-    /* Configuration */
-    setConfig(
-        name: string,
-        value: unknown
-    ): this {
-        this.config.configuration.set(name, value);
-        return this;
-    }
+	/* Configuration */
+	setConfig(
+		name: string,
+		value: unknown,
+	): this {
+		this.config.configuration.set(name, value);
+		return this;
+	}
 
-    /* Build */
-    as(body: SQL): PgFunction<TName, TArgs, TReturns> {
-        return new PgFunction<TName, TArgs, TReturns>({
-            ...this.config,
-            configuration: new Map(this.config.configuration),
-            ...(this.config.searchPath
-                ? { searchPath: [...this.config.searchPath] }
-                : {}),
-            body,
-        });
-    }
+	/* Build */
+	as(body: SQL): PgFunction<TName, TArgs, TReturns> {
+		return new PgFunction<TName, TArgs, TReturns>({
+			...this.config,
+			configuration: new Map(this.config.configuration),
+			...(this.config.searchPath
+				? { searchPath: [...this.config.searchPath] }
+				: {}),
+			body,
+		});
+	}
 }
 
 export class PgFunction<
-    TName extends string = string,
-    TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
-    TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+	TName extends string = string,
+	TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+	TReturns extends PgFunctionReturnType = PgFunctionReturnType,
 > {
-    static readonly [entityKind]: string = 'PgFunction';
+	static readonly [entityKind]: string = 'PgFunction';
 
-    readonly config: PgFunctionConfig<TName, TArgs, TReturns>
+	readonly config: PgFunctionConfig<TName, TArgs, TReturns>;
 
-    constructor(config: PgFunctionConfig<TName, TArgs, TReturns>) {
-        this.config = config;
-    }
+	constructor(config: PgFunctionConfig<TName, TArgs, TReturns>) {
+		this.config = config;
+	}
 }
 
 /* Infer Helpers */
 type InferPgFunctionColumnBuilder<
-    TBuilder extends PgColumnBuilderBase,
-> = TBuilder['_'] extends { $type: infer TType }
-    ? TType
-    : TBuilder['_']['data'];
+	TBuilder extends AnyPgColumnBuilder,
+> = ResolvePgColumnConfig<TBuilder['_'], ''>['data'];
 
 export type InferFunctionArgs<
-    TFunction extends PgFunction,
-> = TFunction extends PgFunction<any, infer TArgs, any>
-    ? {
-        [K in keyof TArgs]: TArgs[K] extends PgColumnBuilderBase
-        ? InferPgFunctionColumnBuilder<TArgs[K]>
-        : never;
-    }
-    : never;
+	TFunction extends PgFunction,
+> = TFunction extends PgFunction<any, infer TArgs, any> ? {
+		[K in keyof TArgs]: TArgs[K] extends AnyPgColumnBuilder ? InferPgFunctionColumnBuilder<TArgs[K]>
+			: never;
+	}
+	: never;
 
-type InferPgFunctionScalarReturn<T> =
-    T extends PgColumnBuilderBase
-    ? InferPgFunctionColumnBuilder<T>
-    : T extends PgTable
-    ? T['$inferSelect']
-    : never;
+type InferPgFunctionScalarReturn<T> = T extends AnyPgColumnBuilder ? InferPgFunctionColumnBuilder<T>
+	: T extends PgTable ? InferSelectModel<T>
+	: never;
 
 type InferPgFunctionTableColumns<
-    TColumns extends Record<string, PgColumnBuilderBase>,
+	TColumns extends Record<string, AnyPgColumnBuilder>,
 > = {
-        [K in keyof TColumns]: InferPgFunctionColumnBuilder<TColumns[K]>;
-    };
+	[K in keyof TColumns]: InferPgFunctionColumnBuilder<TColumns[K]>;
+};
 
-    type InferPgFunctionReturn<TReturns> =
-	TReturns extends PgColumnBuilderBase
-		? InferPgFunctionColumnBuilder<TReturns>
-
-		: TReturns extends PgTable
-			? TReturns['$inferSelect']
-
-		: TReturns extends PgFunctionSetOfReturn<infer TType>
-			? InferPgFunctionScalarReturn<TType>[]
-
-		: TReturns extends PgFunctionTableReturn<infer TColumns>
-			? InferPgFunctionTableColumns<TColumns>[]
-
-		: TReturns extends PgFunctionSpecialReturn<'void'>
-			? void
-
-		: TReturns extends PgFunctionSpecialReturn<'record'>
-			? unknown
-
-		: TReturns extends PgFunctionSpecialReturn<'trigger'>
-			? unknown
-
-		: TReturns extends SQL<infer T>
-			? T
-
-		: never;
+type InferPgFunctionReturn<TReturns> = TReturns extends AnyPgColumnBuilder ? InferPgFunctionColumnBuilder<TReturns>
+	: TReturns extends PgTable ? InferSelectModel<TReturns>
+	: TReturns extends PgFunctionSetOfReturn<infer TType> ? InferPgFunctionScalarReturn<TType>[]
+	: TReturns extends PgFunctionTableReturn<infer TColumns> ? InferPgFunctionTableColumns<TColumns>[]
+	: TReturns extends PgFunctionSpecialReturn<'void'> ? void
+	: TReturns extends PgFunctionSpecialReturn<'record'> ? unknown
+	: TReturns extends PgFunctionSpecialReturn<'trigger'> ? unknown
+	: TReturns extends SQL<infer T> ? T
+	: never;
 
 export type InferFunctionReturns<
-    TFunction extends PgFunction,
-> = TFunction extends PgFunction<any, any, infer TReturns>
-    ? InferPgFunctionReturn<TReturns>
-    : never;
+	TFunction extends PgFunction,
+> = TFunction extends PgFunction<any, any, infer TReturns> ? InferPgFunctionReturn<TReturns>
+	: never;
 
 /* Factory */
 export function pgFunction<
-    TName extends string = string,
-    TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
-    TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+	TName extends string = string,
+	TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+	TReturns extends PgFunctionReturnType = PgFunctionReturnType,
 >(
-    name: TName,
-    config: PgFunctionDefinition<TArgs, TReturns>
+	name: TName,
+	config: PgFunctionDefinition<TArgs, TReturns>,
 ): PgFunctionBuilder<TName, TArgs, TReturns> {
-    return new PgFunctionBuilder<TName, TArgs, TReturns>(name, config.args, config.returns);
+	return new PgFunctionBuilder<TName, TArgs, TReturns>(name, config.args, config.returns);
 }
 
 /** Helpers */
@@ -312,7 +284,7 @@ export function setOf<
 }
 
 export function tableReturn<
-	TColumns extends Record<string, PgColumnBuilderBase>,
+	TColumns extends Record<string, AnyPgColumnBuilder>,
 >(
 	columns: TColumns,
 ): PgFunctionTableReturn<TColumns> {
