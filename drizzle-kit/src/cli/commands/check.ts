@@ -255,7 +255,7 @@ export const warnStaleDownMigrations = (stale: string[]) => {
 	for (const downPath of stale) {
 		humanLog(
 			withStyle.warning(
-				`${downPath} was generated for a different migration.sql. Review it, then update or remove its "-- drizzle:up-hash=" line`,
+				`${downPath} was generated for a different migration.sql. Line-ending conversion (e.g. git autocrlf) also changes the hash. Review it, then update or remove its "-- drizzle:up-hash=" line`,
 			),
 		);
 	}

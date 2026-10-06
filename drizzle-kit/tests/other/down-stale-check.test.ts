@@ -78,6 +78,7 @@ test('check warns when migration.sql changed after down.sql was generated', asyn
 		const printed = log.mock.calls.map((args) => args.join(' ')).join('\n');
 		expect(printed).toContain(downPath);
 		expect(printed).toContain('drizzle:up-hash');
+		expect(printed).toContain('git autocrlf');
 	} finally {
 		log.mockRestore();
 	}
