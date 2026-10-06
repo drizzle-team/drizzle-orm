@@ -38,7 +38,7 @@ type WriteResultConfigBase = {
 	downStatements?: DownStatement[];
 	outFolder: string;
 	breakpoints: boolean;
-	generateDownMigrations?: boolean;
+	generateDownMigrations: boolean;
 	name?: string;
 	bundle?: boolean;
 	dialect?: string;
@@ -70,7 +70,7 @@ export function writeResult(
 		downStatements,
 		outFolder,
 		breakpoints,
-		generateDownMigrations = true,
+		generateDownMigrations,
 		name,
 		renames,
 		bundle = false,
