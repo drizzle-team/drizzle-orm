@@ -37,6 +37,23 @@ export type MigrationsJournal = {
 	name: string;
 }[];
 
+export interface RollbackOptions {
+	/** Number of most recently applied migrations to roll back. Defaults to 1; mutually exclusive with `to` */
+	steps?: number;
+	/** Roll back every migration applied after this one, leaving it as the latest applied migration */
+	to?: string;
+	/** Resolve and return the plan without executing anything */
+	dryRun?: boolean;
+}
+
+export interface RollbackStep {
+	id: number;
+	name: string;
+	hash: string;
+	/** Statements executed, in order; comment-only chunks of down.sql are dropped */
+	downSql: string[];
+}
+
 /** Only gets returned if migrator failed with `init: true` used by `drizzle-kit pull --init`*/
 export interface MigratorInitFailResponse {
 	exitCode: 'databaseMigrations' | 'localMigrations';
