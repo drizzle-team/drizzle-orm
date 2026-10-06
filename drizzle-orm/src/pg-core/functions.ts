@@ -37,9 +37,17 @@ export interface PgFunctionSetOfReturn<
     type: TType;
 }
 
-export interface PgFunctionSpecialReturn {
-    kind: 'special';
-    type: 'void' | 'record' | 'trigger';
+export type PgFunctionSpecialReturnType =
+	| 'void'
+	| 'record'
+	| 'trigger';
+
+export interface PgFunctionSpecialReturn<
+	TType extends PgFunctionSpecialReturnType =
+		PgFunctionSpecialReturnType,
+> {
+	kind: 'special';
+	type: TType;
 }
 
 export type PgFunctionReturnType =
@@ -246,28 +254,32 @@ type InferPgFunctionTableColumns<
         [K in keyof TColumns]: InferPgFunctionColumnBuilder<TColumns[K]>;
     };
 
-type InferPgFunctionReturn<TReturns> =
-    TReturns extends PgColumnBuilderBase
-    ? InferPgFunctionColumnBuilder<TReturns>
+    type InferPgFunctionReturn<TReturns> =
+	TReturns extends PgColumnBuilderBase
+		? InferPgFunctionColumnBuilder<TReturns>
 
-    : TReturns extends PgTable
-    ? TReturns['$inferSelect']
+		: TReturns extends PgTable
+			? TReturns['$inferSelect']
 
-    : TReturns extends PgFunctionSetOfReturn<infer TType>
-    ? InferPgFunctionScalarReturn<TType>[]
+		: TReturns extends PgFunctionSetOfReturn<infer TType>
+			? InferPgFunctionScalarReturn<TType>[]
 
-    : TReturns extends PgFunctionTableReturn<infer TColumns>
-    ? InferPgFunctionTableColumns<TColumns>[]
+		: TReturns extends PgFunctionTableReturn<infer TColumns>
+			? InferPgFunctionTableColumns<TColumns>[]
 
-    : TReturns extends PgFunctionSpecialReturn
-    ? TReturns['type'] extends 'void'
-    ? void
-    : unknown
+		: TReturns extends PgFunctionSpecialReturn<'void'>
+			? void
 
-    : TReturns extends SQL<infer T>
-    ? T
+		: TReturns extends PgFunctionSpecialReturn<'record'>
+			? unknown
 
-    : never;
+		: TReturns extends PgFunctionSpecialReturn<'trigger'>
+			? unknown
+
+		: TReturns extends SQL<infer T>
+			? T
+
+		: never;
 
 export type InferFunctionReturns<
     TFunction extends PgFunction,
@@ -285,4 +297,48 @@ export function pgFunction<
     config: PgFunctionDefinition<TArgs, TReturns>
 ): PgFunctionBuilder<TName, TArgs, TReturns> {
     return new PgFunctionBuilder<TName, TArgs, TReturns>(name, config.args, config.returns);
+}
+
+/** Helpers */
+export function setOf<
+	TType extends PgFunctionScalarReturn,
+>(
+	type: TType,
+): PgFunctionSetOfReturn<TType> {
+	return {
+		kind: 'setof',
+		type,
+	};
+}
+
+export function tableReturn<
+	TColumns extends Record<string, PgColumnBuilderBase>,
+>(
+	columns: TColumns,
+): PgFunctionTableReturn<TColumns> {
+	return {
+		kind: 'table',
+		columns,
+	};
+}
+
+export function returnsVoid(): PgFunctionSpecialReturn<'void'> {
+	return {
+		kind: 'special',
+		type: 'void',
+	};
+}
+
+export function returnsRecord(): PgFunctionSpecialReturn<'record'> {
+	return {
+		kind: 'special',
+		type: 'record',
+	};
+}
+
+export function returnsTrigger(): PgFunctionSpecialReturn<'trigger'> {
+	return {
+		kind: 'special',
+		type: 'trigger',
+	};
 }
