@@ -1,6 +1,6 @@
-import { DrizzleError } from '~/errors.ts';
+import type { RollbackOptions, RollbackStep } from '~/migrator.ts';
 import { type MigratorInitFailResponse, readMigrationFiles } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import { getMigrationsToRun, journalReadError, type JournalRow, planRollback } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import { upgradeIfNeeded } from '~/up-migrations/pg.ts';
@@ -93,32 +93,25 @@ export interface MigrationConfig {
 export async function rollback<TRelations extends AnyRelations = EmptyRelations>(
 	db: XataHttpDatabase<TRelations>,
 	config: MigrationConfig,
-	steps: number = 1,
-) {
+	options?: RollbackOptions,
+): Promise<RollbackStep[]> {
 	const migrations = readMigrationFiles(config);
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+	const table = sql.identifier(migrationsTable);
 
-	const dbMigrations = await db.session.objects<{ id: number; hash: string; name: string | null }>(
-		sql`select id, hash, name from ${sql.identifier(migrationsTable)} order by id desc limit ${sql.raw(String(steps))}`,
-	);
+	const dbMigrations = await db.session.objects<JournalRow>(sql`select id, hash, created_at, name from ${table}`)
+		.catch((e) => {
+			throw journalReadError(migrationsTable, e);
+		});
 
-	if (dbMigrations.length === 0) return;
+	const plan = planRollback({ localMigrations: migrations, dbMigrations, options });
+	if (options?.dryRun) return plan;
 
-	for (const dbMigration of dbMigrations) {
-		const meta = migrations.find((m) =>
-			m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name)
-		);
-		if (!meta) {
-			throw new DrizzleError({
-				message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found`,
-			});
-		}
-		if (!meta.downSql || meta.downSql.length === 0) {
-			throw new DrizzleError({ message: `Cannot rollback migration ${dbMigration.hash}: no down SQL available.` });
-		}
-		for (const stmt of meta.downSql) {
+	for (const step of plan) {
+		for (const stmt of step.downSql) {
 			await db.session.execute(sql.raw(stmt));
 		}
-		await db.session.execute(sql`delete from ${sql.identifier(migrationsTable)} where id = ${dbMigration.id}`);
+		await db.session.execute(sql`delete from ${table} where id = ${step.id}`);
 	}
+	return plan;
 }

@@ -1,4 +1,4 @@
-import type { MigrationConfig } from '~/migrator.ts';
+import type { MigrationConfig, RollbackOptions } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { migrateSync, rollbackSync } from '~/sqlite-core/async/session.ts';
@@ -15,8 +15,8 @@ export function migrate<TRelations extends AnyRelations = EmptyRelations>(
 export function rollback<TRelations extends AnyRelations = EmptyRelations>(
 	db: SQLJsDatabase<TRelations>,
 	config: MigrationConfig,
-	steps?: number,
+	options?: RollbackOptions,
 ) {
 	const migrations = readMigrationFiles(config);
-	return rollbackSync(migrations, db.session, config, steps);
+	return rollbackSync(migrations, db.session, config, options);
 }

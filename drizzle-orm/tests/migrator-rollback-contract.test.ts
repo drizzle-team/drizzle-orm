@@ -34,7 +34,7 @@ for (const path of migratorFiles) {
 	const migrateOverloads = exportedSignatures(path, 'migrate');
 	if (!migrateOverloads.length) continue;
 
-	test(`${path} exports rollback(...migrate params, steps?)`, () => {
+	test(`${path} exports rollback(...migrate params, options?)`, () => {
 		const rollbackOverloads = exportedSignatures(path, 'rollback');
 		expect(rollbackOverloads.length, `${path}: one rollback() overload per migrate() overload`).toBe(
 			migrateOverloads.length,
@@ -47,8 +47,11 @@ for (const path of migratorFiles) {
 
 			expect(rollbackParams.slice(0, migrateParams.length)).toStrictEqual(migrateParams);
 			expect(rollbackParams.slice(migrateParams.length)).toStrictEqual([
-				{ name: 'steps', optional: true, type: 'number' },
+				{ name: 'options', optional: true, type: 'RollbackOptions' },
 			]);
+			expect(rollbackOverloads[i]!.getReturnType().getText(at, ts.TypeFormatFlags.NoTruncation)).toContain(
+				'RollbackStep[]',
+			);
 		});
 	});
 }

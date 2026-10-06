@@ -121,7 +121,7 @@ test('rollback of several steps undoes migrations newest first', async () => {
 	await migrate(db, { migrationsFolder: folder });
 	batches = [];
 
-	await rollback(db, { migrationsFolder: folder }, 2);
+	await rollback(db, { migrationsFolder: folder }, { steps: 2 });
 
 	expect(batchedSql()).toStrictEqual([[
 		'DROP TABLE "http_posts";',
@@ -157,7 +157,7 @@ test('rollback rejects a migration that has no down.sql without touching the dat
 	await migrate(db, { migrationsFolder: folder });
 	batches = [];
 
-	await expect(rollback(db, { migrationsFolder: folder })).rejects.toThrowError(/no down SQL available/);
+	await expect(rollback(db, { migrationsFolder: folder })).rejects.toThrowError(/has no down SQL/);
 
 	expect(batches).toStrictEqual([]);
 	expect(await journalNames()).toStrictEqual(['20240101010101_users']);

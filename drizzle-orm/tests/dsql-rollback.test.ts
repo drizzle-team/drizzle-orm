@@ -87,7 +87,7 @@ test('rollback with steps walks back newest-first', async () => {
 	writeMigration('20240102000000_b', 'CREATE TABLE "b" ("a_id" integer)', 'DROP TABLE "b"');
 	const migrations = await applyAll();
 
-	await rollback(migrations, db, { migrationsFolder: folder }, 2);
+	await rollback(migrations, db, { migrationsFolder: folder }, { steps: 2 });
 
 	expect(executed.filter((sql) => sql.startsWith('DROP'))).toStrictEqual(['DROP TABLE "b"', 'DROP TABLE "a"']);
 	expect(await journalNames()).toStrictEqual([]);
@@ -100,7 +100,7 @@ test('a missing down.sql anywhere in the range fails before any statement runs',
 	writeMigration('20240102000000_b', 'CREATE TABLE "b" ("id" integer)', 'DROP TABLE "b"');
 	const migrations = await applyAll();
 
-	await expect(rollback(migrations, db, { migrationsFolder: folder }, 2)).rejects.toThrow(/no down SQL available/);
+	await expect(rollback(migrations, db, { migrationsFolder: folder }, { steps: 2 })).rejects.toThrow(/has no down SQL/);
 
 	expect(executed).toHaveLength(1);
 	expect(await tableExists('b')).toBe(true);
@@ -112,7 +112,7 @@ test('a failing down statement leaves earlier steps applied, with the journal ma
 	writeMigration('20240102000000_b', 'CREATE TABLE "b" ("id" integer)', 'DROP TABLE "b"');
 	const migrations = await applyAll();
 
-	await expect(rollback(migrations, db, { migrationsFolder: folder }, 2)).rejects.toThrow();
+	await expect(rollback(migrations, db, { migrationsFolder: folder }, { steps: 2 })).rejects.toThrow();
 
 	expect(await tableExists('b')).toBe(false);
 	expect(await tableExists('a')).toBe(true);

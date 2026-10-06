@@ -9,8 +9,8 @@ import { EffectDrizzleError, EffectDrizzleQueryError, EffectTransactionRollbackE
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-effect.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import type { MigrationConfig, MigrationMeta, RollbackOptions } from '~/migrator.ts';
+import { getMigrationsToRun, journalReadError, type JournalRow, planRollback } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { upgradeIfNeeded } from '~/up-migrations/effect-pg.ts';
@@ -358,51 +358,36 @@ export const rollback = Effect.fn('rollback')(function*<TEffectHKT extends Query
 	migrations: MigrationMeta[],
 	session: PgEffectSession<TEffectHKT>,
 	config: string | MigrationConfig,
-	steps: number = 1,
+	options?: RollbackOptions,
 ) {
 	const migrationsTable = typeof config === 'string'
 		? '__drizzle_migrations'
 		: config.migrationsTable ?? '__drizzle_migrations';
 	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
+	const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
 
-	const dbMigrations = yield* session.objects<{ id: number; hash: string; name: string | null }>(
-		sql`select id, hash, name from ${sql.identifier(migrationsSchema)}.${
-			sql.identifier(migrationsTable)
-		} order by id desc limit ${sql.raw(String(steps))}`,
+	const dbMigrations = yield* session.objects<JournalRow>(sql`select id, hash, created_at, name from ${table}`).pipe(
+		Effect.mapError((e) => {
+			const error = journalReadError(`${migrationsSchema}.${migrationsTable}`, e);
+			return new EffectDrizzleError({ message: error.message, cause: e });
+		}),
 	);
 
-	if (dbMigrations.length === 0) {
-		return;
-	}
+	const plan = yield* Effect.try({
+		try: () => planRollback({ localMigrations: migrations, dbMigrations, options }),
+		catch: (e) => new EffectDrizzleError({ message: (e as Error).message, cause: e }),
+	});
+	if (options?.dryRun || plan.length === 0) return plan;
 
 	yield* session.transaction((tx) =>
 		Effect.gen(function*() {
-			for (const dbMigration of dbMigrations) {
-				const meta = migrations.find((m) =>
-					m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name)
-				);
-				if (!meta) {
-					return yield* new EffectDrizzleError({
-						message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found`,
-						cause: undefined,
-					});
-				}
-				if (!meta.downSql || meta.downSql.length === 0) {
-					return yield* new EffectDrizzleError({
-						message:
-							`Cannot rollback migration ${dbMigration.hash}: no down SQL available. Add a down.sql file alongside the migration.`,
-						cause: undefined,
-					});
-				}
-				for (const stmt of meta.downSql) {
+			for (const step of plan) {
+				for (const stmt of step.downSql) {
 					yield* tx.execute(sql.raw(stmt));
 				}
-				yield* tx.execute(
-					sql`delete from ${sql.identifier(migrationsSchema)}.${
-						sql.identifier(migrationsTable)
-					} where id = ${dbMigration.id}`,
-				);
+				yield* tx.execute(sql`delete from ${table} where id = ${step.id}`);
 			}
 		})
 	);
+	return plan;
 });

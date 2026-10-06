@@ -365,7 +365,7 @@ describe('pglite', () => {
 		);
 
 		await migrate(db, { migrationsFolder: rollbackMigrationDir });
-		await rollback(db, { migrationsFolder: rollbackMigrationDir }, 2);
+		await rollback(db, { migrationsFolder: rollbackMigrationDir }, { steps: 2 });
 
 		expect(await appliedMigrations(db)).toStrictEqual([]);
 		expect(await tableExists(db, 'rollback_posts')).toBe(false);
@@ -381,7 +381,7 @@ describe('pglite', () => {
 		await migrate(db, { migrationsFolder: rollbackMigrationDir });
 
 		await expect(rollback(db, { migrationsFolder: rollbackMigrationDir })).rejects.toThrowError(
-			/no down SQL available/,
+			/has no down SQL/,
 		);
 
 		expect(await appliedMigrations(db)).toStrictEqual(['20240101010101_users']);
@@ -406,6 +406,68 @@ describe('pglite', () => {
 
 		expect(await appliedMigrations(db)).toStrictEqual(['20240101010101_users']);
 		expect(await tableExists(db, 'rollback_users')).toBe(true);
+
+		rmSync(rollbackMigrationDir, { recursive: true });
+	});
+
+	// Postgres accepts a comment-only query as a successful no-op, which would delete the journal row while
+	// leaving the schema migrated.
+	test('rollback: rejects an unedited custom scaffold instead of running it', async ({ db }) => {
+		await prepareRollbackMigrations(db);
+		writeRollbackMigration(
+			'20240101010101_users',
+			`CREATE TABLE "rollback_users" ("id" serial PRIMARY KEY);`,
+			'-- Custom SQL rollback file, put your reverse statements below! --\n',
+		);
+
+		await migrate(db, { migrationsFolder: rollbackMigrationDir });
+
+		await expect(rollback(db, { migrationsFolder: rollbackMigrationDir })).rejects.toThrowError(
+			/has no down SQL/,
+		);
+		expect(await appliedMigrations(db)).toStrictEqual(['20240101010101_users']);
+
+		rmSync(rollbackMigrationDir, { recursive: true });
+	});
+
+	test('rollback: to and dryRun report the plan without touching the database', async ({ db }) => {
+		await prepareRollbackMigrations(db);
+		writeRollbackMigration(
+			'20240101010101_users',
+			`CREATE TABLE "rollback_users" ("id" serial PRIMARY KEY);`,
+			`DROP TABLE "rollback_users";`,
+		);
+		writeRollbackMigration(
+			'20240102010101_posts',
+			`CREATE TABLE "rollback_posts" ("id" serial PRIMARY KEY);`,
+			`DROP TABLE "rollback_posts";`,
+		);
+
+		await migrate(db, { migrationsFolder: rollbackMigrationDir });
+
+		const plan = await rollback(db, { migrationsFolder: rollbackMigrationDir }, {
+			to: '20240101010101_users',
+			dryRun: true,
+		});
+		expect(plan).toMatchObject([{ name: '20240102010101_posts', downSql: ['DROP TABLE "rollback_posts";'] }]);
+		expect(await appliedMigrations(db)).toStrictEqual(['20240101010101_users', '20240102010101_posts']);
+		expect(await tableExists(db, 'rollback_posts')).toBe(true);
+
+		const done = await rollback(db, { migrationsFolder: rollbackMigrationDir }, { to: '20240101010101_users' });
+		expect(done).toStrictEqual(plan);
+		expect(await appliedMigrations(db)).toStrictEqual(['20240101010101_users']);
+		expect(await tableExists(db, 'rollback_posts')).toBe(false);
+
+		rmSync(rollbackMigrationDir, { recursive: true });
+	});
+
+	test('rollback: reports a missing journal instead of a raw SQL error', async ({ db }) => {
+		await prepareRollbackMigrations(db);
+		writeRollbackMigration('20240101010101_users', `SELECT 1;`, `SELECT 1;`);
+
+		await expect(rollback(db, { migrationsFolder: rollbackMigrationDir })).rejects.toThrowError(
+			/Cannot read the migrations journal drizzle.__drizzle_migrations/,
+		);
 
 		rmSync(rollbackMigrationDir, { recursive: true });
 	});

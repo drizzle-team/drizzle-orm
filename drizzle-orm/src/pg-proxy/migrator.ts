@@ -1,7 +1,6 @@
-import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig } from '~/migrator.ts';
+import type { MigrationConfig, RollbackOptions, RollbackStep } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import { getMigrationsToRun, journalReadError, type JournalRow, planRollback } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import { upgradeIfNeeded } from '~/up-migrations/pg-proxy.ts';
@@ -92,47 +91,28 @@ export async function rollback<TRelations extends AnyRelations>(
 	db: PgRemoteDatabase<TRelations>,
 	callback: ProxyMigrator,
 	config: MigrationConfig,
-	steps: number = 1,
-) {
+	options?: RollbackOptions,
+): Promise<RollbackStep[]> {
 	const migrations = readMigrationFiles(config);
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 	const migrationsSchema = config.migrationsSchema ?? 'drizzle';
+	const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
 
-	const dbMigrations = await db.execute<{ id: number; hash: string; created_at: string; name: string | null }>(
-		sql`select id, hash, name from ${sql.identifier(migrationsSchema)}.${
-			sql.identifier(migrationsTable)
-		} order by id desc limit ${sql.raw(String(steps))}`,
-	);
+	const dbMigrations = await db.execute<JournalRow>(sql`select id, hash, created_at, name from ${table}`)
+		.catch((e) => {
+			throw journalReadError(`${migrationsSchema}.${migrationsTable}`, e);
+		});
 
-	if (dbMigrations.length === 0) {
-		return;
-	}
+	const plan = planRollback({ localMigrations: migrations, dbMigrations, options });
+	if (options?.dryRun || plan.length === 0) return plan;
 
 	const queriesToRun: string[] = [];
-	for (const dbMigration of dbMigrations) {
-		const meta = migrations.find((m) =>
-			m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name)
-		);
-		if (!meta) {
-			throw new DrizzleError({
-				message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found`,
-			});
-		}
-		if (!meta.downSql || meta.downSql.length === 0) {
-			throw new DrizzleError({
-				message:
-					`Cannot rollback migration ${dbMigration.hash}: no down SQL available. Add a down.sql file alongside the migration.`,
-			});
-		}
+	for (const step of plan) {
 		queriesToRun.push(
-			...meta.downSql,
-			db.dialect.sqlToQuery(
-				sql`delete from ${sql.identifier(migrationsSchema)}.${
-					sql.identifier(migrationsTable)
-				} where id = ${dbMigration.id}`.inlineParams(),
-			).sql,
+			...step.downSql,
+			db.dialect.sqlToQuery(sql`delete from ${table} where id = ${step.id}`.inlineParams()).sql,
 		);
 	}
-
 	await callback(queriesToRun);
+	return plan;
 }

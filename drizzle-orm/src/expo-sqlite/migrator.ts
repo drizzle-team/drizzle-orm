@@ -1,5 +1,5 @@
 import { useEffect, useReducer } from 'react';
-import type { MigrationMeta } from '~/migrator.ts';
+import type { MigrationMeta, RollbackOptions } from '~/migrator.ts';
 import { formatToMillis } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { migrateSync, rollbackSync } from '~/sqlite-core/async/session.ts';
@@ -63,10 +63,10 @@ export async function rollback<
 >(
 	db: ExpoSQLiteDatabase<TRelations>,
 	config: MigrationConfig,
-	steps: number = 1,
+	options?: RollbackOptions,
 ) {
 	const migrations = await readMigrationFiles(config);
-	return rollbackSync(migrations, db.session, undefined, steps);
+	return rollbackSync(migrations, db.session, undefined, options);
 }
 
 interface State {

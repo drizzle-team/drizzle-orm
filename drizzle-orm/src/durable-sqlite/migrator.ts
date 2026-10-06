@@ -1,6 +1,11 @@
-import { DrizzleError } from '~/errors.ts';
-import type { MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
-import { formatToMillis, getMigrationsToRun } from '~/migrator.utils.ts';
+import type { MigrationMeta, MigratorInitFailResponse, RollbackOptions, RollbackStep } from '~/migrator.ts';
+import {
+	formatToMillis,
+	getMigrationsToRun,
+	journalReadError,
+	type JournalRow,
+	planRollback,
+} from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/index.ts';
 import { upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
@@ -131,44 +136,30 @@ export function migrate<TRelations extends AnyRelations>(
 export function rollback<TRelations extends AnyRelations>(
 	db: DrizzleSqliteDODatabase<TRelations>,
 	config: MigrationConfig,
-	steps: number = 1,
-): void {
+	options?: RollbackOptions,
+): RollbackStep[] {
 	const migrations = readMigrationFiles(config);
+	const migrationsTable = '__drizzle_migrations';
 
-	db.transaction((tx) => {
-		try {
-			const migrationsTable = '__drizzle_migrations';
+	let dbMigrations: JournalRow[];
+	try {
+		dbMigrations = db.values<[number, string, string, string | null]>(
+			sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
+		).map(([id, hash, created_at, name]) => ({ id, hash, created_at, name }));
+	} catch (e) {
+		throw journalReadError(migrationsTable, e);
+	}
 
-			const dbMigrations = db.values<[number, string, string, string | null]>(
-				sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${
-					sql.raw(String(steps))
-				}`,
-			);
+	const plan = planRollback({ localMigrations: migrations, dbMigrations, options });
+	if (options?.dryRun || plan.length === 0) return plan;
 
-			if (dbMigrations.length === 0) return;
-
-			for (const dbMigration of dbMigrations) {
-				const meta = migrations.find((m) =>
-					m.hash
-						? m.hash === dbMigration[1] && (!dbMigration[3] || m.name === dbMigration[3])
-						: m.folderMillis === Number(dbMigration[2])
-				);
-				if (!meta) {
-					throw new DrizzleError({
-						message: `Cannot rollback migration with hash ${dbMigration[1]}: migration file not found`,
-					});
-				}
-				if (!meta.downSql || meta.downSql.length === 0) {
-					throw new DrizzleError({ message: `Cannot rollback migration ${dbMigration[1]}: no down SQL available.` });
-				}
-				for (const stmt of meta.downSql) {
-					db.run(sql.raw(stmt));
-				}
-				db.run(sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE id = ${dbMigration[0]}`);
+	db.transaction(() => {
+		for (const step of plan) {
+			for (const stmt of step.downSql) {
+				db.run(sql.raw(stmt));
 			}
-		} catch (error: any) {
-			tx.rollback();
-			throw error;
+			db.run(sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE id = ${step.id}`);
 		}
 	});
+	return plan;
 }

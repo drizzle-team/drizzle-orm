@@ -1,4 +1,4 @@
-import type { MigrationConfig } from '~/migrator.ts';
+import type { MigrationConfig, RollbackOptions } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import { migrate as coreMigrate, rollback as coreRollback } from '~/pg-core/async/session.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -15,8 +15,8 @@ export async function migrate<TRelations extends AnyRelations>(
 export async function rollback<TRelations extends AnyRelations>(
 	db: NodePgDatabase<TRelations>,
 	config: MigrationConfig,
-	steps?: number,
+	options?: RollbackOptions,
 ) {
 	const migrations = readMigrationFiles(config);
-	return await coreRollback(migrations, db, config, steps);
+	return await coreRollback(migrations, db, config, options);
 }

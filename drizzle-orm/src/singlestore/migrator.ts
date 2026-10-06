@@ -1,4 +1,4 @@
-import type { MigrationConfig } from '~/migrator.ts';
+import type { MigrationConfig, RollbackOptions } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { SingleStoreDriverDatabase } from './driver.ts';
@@ -14,8 +14,8 @@ export async function migrate<TRelations extends AnyRelations>(
 export async function rollback<TRelations extends AnyRelations>(
 	db: SingleStoreDriverDatabase<TRelations>,
 	config: MigrationConfig,
-	steps?: number,
+	options?: RollbackOptions,
 ) {
 	const migrations = readMigrationFiles(config);
-	return await db.dialect.rollback(migrations, db.session, config, steps);
+	return await db.dialect.rollback(migrations, db.session, config, options);
 }

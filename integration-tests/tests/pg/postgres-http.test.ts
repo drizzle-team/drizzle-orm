@@ -353,7 +353,7 @@ describe('migrator', () => {
 		);
 
 		await migrate(httpDb, { migrationsFolder: rollbackMigrationDir });
-		await rollback(httpDb, { migrationsFolder: rollbackMigrationDir }, 2);
+		await rollback(httpDb, { migrationsFolder: rollbackMigrationDir }, { steps: 2 });
 
 		expect(await appliedMigrations(httpDb)).toStrictEqual([]);
 		expect(await tableExists(httpDb, 'http_rollback_posts')).toBe(false);
@@ -370,7 +370,7 @@ describe('migrator', () => {
 		await migrate(httpDb, { migrationsFolder: rollbackMigrationDir });
 
 		await expect(rollback(httpDb, { migrationsFolder: rollbackMigrationDir })).rejects.toThrowError(
-			/no down SQL available/,
+			/has no down SQL/,
 		);
 
 		expect(await appliedMigrations(httpDb)).toStrictEqual(['20240101010101_users']);

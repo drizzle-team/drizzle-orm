@@ -1,10 +1,16 @@
 import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
-import { DrizzleError, DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
+import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
-import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import type {
+	MigrationConfig,
+	MigrationMeta,
+	MigratorInitFailResponse,
+	RollbackOptions,
+	RollbackStep,
+} from '~/migrator.ts';
+import { getMigrationsToRun, journalReadError, type JournalRow, planRollback } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mysql.ts';
@@ -348,47 +354,26 @@ export async function rollback(
 	migrations: MigrationMeta[],
 	db: MySqlAsyncDatabase<MySqlQueryResultHKT, any>,
 	config: Omit<MigrationConfig, 'migrationsSchema'>,
-	steps: number = 1,
-): Promise<void> {
+	options?: RollbackOptions,
+): Promise<RollbackStep[]> {
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+	const table = sql.identifier(migrationsTable);
 
-	const dbMigrations = await db.session.objects<{
-		id: number;
-		hash: string;
-		created_at: string;
-		name: string | null;
-	}>(
-		sql`select id, hash, created_at, name from ${sql.identifier(migrationsTable)} order by id desc limit ${
-			sql.raw(String(steps))
-		}`,
-	);
+	const dbMigrations = await db.session.objects<JournalRow>(sql`select id, hash, created_at, name from ${table}`)
+		.catch((e) => {
+			throw journalReadError(migrationsTable, e);
+		});
 
-	if (dbMigrations.length === 0) {
-		return;
-	}
+	const plan = planRollback({ localMigrations: migrations, dbMigrations, options });
+	if (options?.dryRun || plan.length === 0) return plan;
 
 	await db.transaction(async (tx) => {
-		for (const dbMigration of dbMigrations) {
-			const meta = migrations.find((m) =>
-				m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name)
-			);
-			if (!meta) {
-				throw new DrizzleError({
-					message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found`,
-				});
-			}
-			if (!meta.downSql || meta.downSql.length === 0) {
-				throw new DrizzleError({
-					message:
-						`Cannot rollback migration ${dbMigration.hash}: no down SQL available. Add a down.sql file alongside the migration.`,
-				});
-			}
-			for (const stmt of meta.downSql) {
+		for (const step of plan) {
+			for (const stmt of step.downSql) {
 				await tx.execute(sql.raw(stmt));
 			}
-			await tx.execute(
-				sql`delete from ${sql.identifier(migrationsTable)} where id = ${dbMigration.id}`,
-			);
+			await tx.execute(sql`delete from ${table} where id = ${step.id}`);
 		}
 	});
+	return plan;
 }
