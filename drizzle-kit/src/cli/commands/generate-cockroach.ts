@@ -22,48 +22,29 @@ import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { cockroachSchemaError, cockroachSchemaWarning, explain, explainJsonOutput, humanLog } from '../views';
 import { writeResult } from './generate-common';
-import { captureRenames, cloneDDL, type ResolverFor } from './generate-down-helpers';
+import { diffWithDown, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
-export const ddlDiffWithDown = async (ddlPrev: CockroachDDL, ddlCur: CockroachDDL, resolverFor: ResolverFor) => {
-	const { forward, inverse } = captureRenames(resolverFor);
-	const downFrom = cloneDDL(ddlCur, createDDL);
-	const downTo = cloneDDL(ddlPrev, createDDL);
-	const result = await ddlDiff(
-		ddlPrev,
-		ddlCur,
-		forward<Schema>('schema'),
-		forward<Enum>('enum'),
-		forward<Sequence>('sequence'),
-		forward<Policy>('policy'),
-		forward<CockroachEntities['tables']>('table'),
-		forward<Column>('column'),
-		forward<View>('view'),
-		forward<Index>('index'),
-		forward<CheckConstraint>('check'),
-		forward<PrimaryKey>('primary_key'),
-		forward<ForeignKey>('foreign key'),
+const diff = (from: CockroachDDL, to: CockroachDDL, resolverFor: ResolverFor) =>
+	ddlDiff(
+		from,
+		to,
+		resolverFor<Schema>('schema'),
+		resolverFor<Enum>('enum'),
+		resolverFor<Sequence>('sequence'),
+		resolverFor<Policy>('policy'),
+		resolverFor<CockroachEntities['tables']>('table'),
+		resolverFor<Column>('column'),
+		resolverFor<View>('view'),
+		resolverFor<Index>('index'),
+		resolverFor<CheckConstraint>('check'),
+		resolverFor<PrimaryKey>('primary_key'),
+		resolverFor<ForeignKey>('foreign key'),
 		'default',
 	);
-	const down = () =>
-		ddlDiff(
-			downFrom,
-			downTo,
-			inverse<Schema>('schema'),
-			inverse<Enum>('enum'),
-			inverse<Sequence>('sequence'),
-			inverse<Policy>('policy'),
-			inverse<CockroachEntities['tables']>('table'),
-			inverse<Column>('column'),
-			inverse<View>('view'),
-			inverse<Index>('index'),
-			inverse<CheckConstraint>('check'),
-			inverse<PrimaryKey>('primary_key'),
-			inverse<ForeignKey>('foreign key'),
-			'default',
-		);
-	return { ...result, down };
-};
+
+export const ddlDiffWithDown = (ddlPrev: CockroachDDL, ddlCur: CockroachDDL, resolverFor: ResolverFor) =>
+	diffWithDown(ddlPrev, ddlCur, createDDL, resolverFor, diff);
 
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, filenames } = config;

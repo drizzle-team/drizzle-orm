@@ -27,54 +27,32 @@ import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, postgresSchemaError, postgresSchemaWarning } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
-import { captureRenames, cloneDDL, type ResolverFor } from './generate-down-helpers';
+import { diffWithDown, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
-export const ddlDiffWithDown = async (ddlPrev: PostgresDDL, ddlCur: PostgresDDL, resolverFor: ResolverFor) => {
-	const { forward, inverse } = captureRenames(resolverFor);
-	const downFrom = cloneDDL(ddlCur, createDDL);
-	const downTo = cloneDDL(ddlPrev, createDDL);
-	const result = await ddlDiff(
-		ddlPrev,
-		ddlCur,
-		forward<Schema>('schema'),
-		forward<Enum>('enum'),
-		forward<Sequence>('sequence'),
-		forward<Policy>('policy'),
-		forward<Role>('role'),
-		forward<Privilege>('privilege'),
-		forward<PostgresEntities['tables']>('table'),
-		forward<Column>('column'),
-		forward<View>('view'),
-		forward<UniqueConstraint>('unique'),
-		forward<Index>('index'),
-		forward<CheckConstraint>('check'),
-		forward<PrimaryKey>('primary_key'),
-		forward<ForeignKey>('foreign key'),
+const diff = (from: PostgresDDL, to: PostgresDDL, resolverFor: ResolverFor) =>
+	ddlDiff(
+		from,
+		to,
+		resolverFor<Schema>('schema'),
+		resolverFor<Enum>('enum'),
+		resolverFor<Sequence>('sequence'),
+		resolverFor<Policy>('policy'),
+		resolverFor<Role>('role'),
+		resolverFor<Privilege>('privilege'),
+		resolverFor<PostgresEntities['tables']>('table'),
+		resolverFor<Column>('column'),
+		resolverFor<View>('view'),
+		resolverFor<UniqueConstraint>('unique'),
+		resolverFor<Index>('index'),
+		resolverFor<CheckConstraint>('check'),
+		resolverFor<PrimaryKey>('primary_key'),
+		resolverFor<ForeignKey>('foreign key'),
 		'default',
 	);
-	const down = () =>
-		ddlDiff(
-			downFrom,
-			downTo,
-			inverse<Schema>('schema'),
-			inverse<Enum>('enum'),
-			inverse<Sequence>('sequence'),
-			inverse<Policy>('policy'),
-			inverse<Role>('role'),
-			inverse<Privilege>('privilege'),
-			inverse<PostgresEntities['tables']>('table'),
-			inverse<Column>('column'),
-			inverse<View>('view'),
-			inverse<UniqueConstraint>('unique'),
-			inverse<Index>('index'),
-			inverse<CheckConstraint>('check'),
-			inverse<PrimaryKey>('primary_key'),
-			inverse<ForeignKey>('foreign key'),
-			'default',
-		);
-	return { ...result, down };
-};
+
+export const ddlDiffWithDown = (ddlPrev: PostgresDDL, ddlCur: PostgresDDL, resolverFor: ResolverFor) =>
+	diffWithDown(ddlPrev, ddlCur, createDDL, resolverFor, diff);
 
 export const handle = async (
 	config: GenerateConfig<SchemaSource>,

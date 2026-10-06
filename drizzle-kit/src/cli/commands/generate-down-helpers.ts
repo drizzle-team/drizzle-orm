@@ -94,6 +94,20 @@ export function cloneDDL<E, D extends DDLLike<E>>(ddl: D, create: () => D): D {
 	return copy;
 }
 
+export async function diffWithDown<E, D extends DDLLike<E>, R>(
+	prev: D,
+	cur: D,
+	createDDL: () => D,
+	resolverFor: ResolverFor,
+	run: (from: D, to: D, resolverFor: ResolverFor) => Promise<R>,
+): Promise<R & { down: () => Promise<R> }> {
+	const { forward, inverse } = captureRenames(resolverFor);
+	const downFrom = cloneDDL(cur, createDDL);
+	const downTo = cloneDDL(prev, createDDL);
+	const result = await run(prev, cur, forward);
+	return { ...result, down: () => run(downFrom, downTo, inverse) };
+}
+
 const UP_HASH_PREFIX = '-- drizzle:up-hash=';
 
 /** Same digest drizzle-orm's readMigrationFiles computes over migration.sql. */
