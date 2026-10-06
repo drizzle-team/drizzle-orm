@@ -5,9 +5,9 @@ import type { PgTable } from './table.ts';
 
 /* Types */
 export type PgFunctionLanguage =
-	| 'plpgsql'
-	| 'sql'
-	| (string & {});
+    | 'plpgsql'
+    | 'sql'
+    | (string & {});
 export type PgFunctionVolatility = 'volatile' | 'stable' | 'immutable';
 export type PgFunctionSecurity = 'definer' | 'invoker';
 export type PgFunctionNullInput = 'called' | 'strict';
@@ -16,38 +16,38 @@ export type PgFunctionParallel = 'unsafe' | 'restricted' | 'safe';
 type PgFunctionArgumentType = PgColumnBuilderBase;
 
 export type PgFunctionArgsDefinition =
-	Record<string, PgFunctionArgumentType>;
+    Record<string, PgFunctionArgumentType>;
 
-    export type PgFunctionScalarReturn =
-	| PgColumnBuilderBase
-	| PgTable;
+export type PgFunctionScalarReturn =
+    | PgColumnBuilderBase
+    | PgTable;
 
 export interface PgFunctionTableReturn<
-	TColumns extends Record<string, PgColumnBuilderBase> =
-		Record<string, PgColumnBuilderBase>,
+    TColumns extends Record<string, PgColumnBuilderBase> =
+    Record<string, PgColumnBuilderBase>,
 > {
-	kind: 'table';
-	columns: TColumns;
+    kind: 'table';
+    columns: TColumns;
 }
 
 export interface PgFunctionSetOfReturn<
-	TType extends PgFunctionScalarReturn = PgFunctionScalarReturn,
+    TType extends PgFunctionScalarReturn = PgFunctionScalarReturn,
 > {
-	kind: 'setof';
-	type: TType;
+    kind: 'setof';
+    type: TType;
 }
 
 export interface PgFunctionSpecialReturn {
-	kind: 'special';
-	type: 'void' | 'record' | 'trigger';
+    kind: 'special';
+    type: 'void' | 'record' | 'trigger';
 }
 
 export type PgFunctionReturnType =
-	| PgFunctionScalarReturn
-	| PgFunctionTableReturn
-	| PgFunctionSetOfReturn
-	| PgFunctionSpecialReturn
-	| SQL;
+    | PgFunctionScalarReturn
+    | PgFunctionTableReturn
+    | PgFunctionSetOfReturn
+    | PgFunctionSpecialReturn
+    | SQL;
 
 export interface PgFunctionBuilderRuntimeConfig<
     TName extends string = string,
@@ -72,16 +72,16 @@ export interface PgFunctionConfig<
     TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
     TReturns extends PgFunctionReturnType = PgFunctionReturnType,
 >
-	extends PgFunctionBuilderRuntimeConfig<TName, TArgs, TReturns> {
-	body: SQL;
+    extends PgFunctionBuilderRuntimeConfig<TName, TArgs, TReturns> {
+    body: SQL;
 }
 
 export interface PgFunctionDefinition<
-	TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
-	TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+    TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+    TReturns extends PgFunctionReturnType = PgFunctionReturnType,
 > {
-	args: TArgs;
-	returns: TReturns;
+    args: TArgs;
+    returns: TReturns;
 }
 
 /* Class */
@@ -216,13 +216,72 @@ export class PgFunction<
     }
 }
 
+/* Infer Helpers */
+type InferPgFunctionColumnBuilder<
+    TBuilder extends PgColumnBuilderBase,
+> = TBuilder['_'] extends { $type: infer TType }
+    ? TType
+    : TBuilder['_']['data'];
+
+export type InferFunctionArgs<
+    TFunction extends PgFunction,
+> = TFunction extends PgFunction<any, infer TArgs, any>
+    ? {
+        [K in keyof TArgs]: TArgs[K] extends PgColumnBuilderBase
+        ? InferPgFunctionColumnBuilder<TArgs[K]>
+        : never;
+    }
+    : never;
+
+type InferPgFunctionScalarReturn<T> =
+    T extends PgColumnBuilderBase
+    ? InferPgFunctionColumnBuilder<T>
+    : T extends PgTable
+    ? T['$inferSelect']
+    : never;
+
+type InferPgFunctionTableColumns<
+    TColumns extends Record<string, PgColumnBuilderBase>,
+> = {
+        [K in keyof TColumns]: InferPgFunctionColumnBuilder<TColumns[K]>;
+    };
+
+type InferPgFunctionReturn<TReturns> =
+    TReturns extends PgColumnBuilderBase
+    ? InferPgFunctionColumnBuilder<TReturns>
+
+    : TReturns extends PgTable
+    ? TReturns['$inferSelect']
+
+    : TReturns extends PgFunctionSetOfReturn<infer TType>
+    ? InferPgFunctionScalarReturn<TType>[]
+
+    : TReturns extends PgFunctionTableReturn<infer TColumns>
+    ? InferPgFunctionTableColumns<TColumns>[]
+
+    : TReturns extends PgFunctionSpecialReturn
+    ? TReturns['type'] extends 'void'
+    ? void
+    : unknown
+
+    : TReturns extends SQL<infer T>
+    ? T
+
+    : never;
+
+export type InferFunctionReturns<
+    TFunction extends PgFunction,
+> = TFunction extends PgFunction<any, any, infer TReturns>
+    ? InferPgFunctionReturn<TReturns>
+    : never;
+
 /* Factory */
 export function pgFunction<
     TName extends string = string,
     TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
     TReturns extends PgFunctionReturnType = PgFunctionReturnType,
-> (
-    name: TName, 
+>(
+    name: TName,
     config: PgFunctionDefinition<TArgs, TReturns>
 ): PgFunctionBuilder<TName, TArgs, TReturns> {
     return new PgFunctionBuilder<TName, TArgs, TReturns>(name, config.args, config.returns);
