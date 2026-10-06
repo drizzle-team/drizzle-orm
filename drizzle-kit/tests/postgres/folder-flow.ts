@@ -225,7 +225,7 @@ export const createFolderFlow = () => {
 
 	// What check says about `schema` against the migrations of the branch. The folder must pass check first.
 	const schemaWarnings = (branch: string, schema: PostgresSchema) =>
-		quietly(() => checkSchema(dirOf(branch), SchemaSource.fromSchema(fromExports(schema))));
+		quietly(() => checkSchema(prepareOutFolder(dirOf(branch)), SchemaSource.fromSchema(fromExports(schema))));
 
 	const up = (branch: string) => quietly(async () => upPgHandler(dirOf(branch)));
 

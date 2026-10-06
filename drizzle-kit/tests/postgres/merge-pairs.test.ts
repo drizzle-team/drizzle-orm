@@ -482,6 +482,26 @@ const rows: Row[] = [
 		merged: { app, counter: sequence('counter', 1, app), steps: sequence('steps', 2) },
 	},
 	{
+		name: 'a sequence move with a new name against a change of another sequence',
+		base: { app, counter, steps: sequence('steps') },
+		branches: [
+			[step(
+				{ app, ticker: sequence('ticker', 1, app), steps: sequence('steps') },
+				rename('sequence', 'public.counter', 'app.ticker'),
+			)],
+			[step({ app, counter, steps: sequence('steps', 2) })],
+		],
+		merged: { app, ticker: sequence('ticker', 1, app), steps: sequence('steps', 2) },
+	},
+	{
+		name: 'a sequence move with a new name against a new sequence with its old name in the new schema',
+		base: { app, counter },
+		branches: [
+			[step({ app, ticker: sequence('ticker', 1, app) }, rename('sequence', 'public.counter', 'app.ticker'))],
+			[step({ app, counter, taken: sequence('counter', 1, app) })],
+		],
+	},
+	{
 		name: 'a sequence rename against a new sequence',
 		base: { counter },
 		branches: [

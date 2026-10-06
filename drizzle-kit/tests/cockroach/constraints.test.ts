@@ -1952,3 +1952,63 @@ test('index in other schema', async ({ dbc: db }) => {
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
 });
+
+// The schema validation refuses two foreign keys with the same name in one schema. Two tables of the old
+// state hold the same name only between two renames that swap it.
+test.concurrent('foreign key renames that swap a name between two tables keep the changes of both foreign keys', async ({ dbc: db }) => {
+	const tables = (catsKey: string, dogsKey: string, onDelete: 'no action' | 'cascade') => {
+		const owners = cockroachTable('owners', { id: int4().primaryKey() });
+		const reference = (name: string) => (t: any) => [
+			foreignKey({ name, columns: [t.ownerId], foreignColumns: [owners.id] }).onDelete(onDelete),
+		];
+		return {
+			owners,
+			cats: cockroachTable('cats', { ownerId: int4() }, reference(catsKey)),
+			dogs: cockroachTable('dogs', { ownerId: int4() }, reference(dogsKey)),
+		};
+	};
+	const from = tables('owner_fk', 'keeper_fk', 'no action');
+	const to = tables('keeper_fk', 'owner_fk', 'cascade');
+	const renames = ['public.cats.owner_fk->public.cats.keeper_fk', 'public.dogs.keeper_fk->public.dogs.owner_fk'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER TABLE "cats" RENAME CONSTRAINT "owner_fk" TO "keeper_fk";',
+		'ALTER TABLE "dogs" RENAME CONSTRAINT "keeper_fk" TO "owner_fk";',
+		'ALTER TABLE "cats" DROP CONSTRAINT "keeper_fk", ADD CONSTRAINT "keeper_fk" FOREIGN KEY ("ownerId") REFERENCES "owners"("id") ON DELETE CASCADE;',
+		'ALTER TABLE "dogs" DROP CONSTRAINT "owner_fk", ADD CONSTRAINT "owner_fk" FOREIGN KEY ("ownerId") REFERENCES "owners"("id") ON DELETE CASCADE;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test.concurrent('primary key renames that swap a name between two tables keep the changes of both primary keys', async ({ dbc: db }) => {
+	const tables = (catsKey: string, dogsKey: string, both: boolean) => {
+		const key = (name: string) => (t: any) => [
+			both ? primaryKey({ name, columns: [t.a, t.b] }) : primaryKey({ name, columns: [t.a] }),
+		];
+		return {
+			cats: cockroachTable('cats', { a: int4().notNull(), b: int4().notNull() }, key(catsKey)),
+			dogs: cockroachTable('dogs', { a: int4().notNull(), b: int4().notNull() }, key(dogsKey)),
+		};
+	};
+	const from = tables('first_pk', 'second_pk', false);
+	const to = tables('second_pk', 'first_pk', true);
+	const renames = ['public.cats.first_pk->public.cats.second_pk', 'public.dogs.second_pk->public.dogs.first_pk'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER TABLE "cats" RENAME CONSTRAINT "first_pk" TO "second_pk";',
+		'ALTER TABLE "dogs" RENAME CONSTRAINT "second_pk" TO "first_pk";',
+		'ALTER TABLE "cats" DROP CONSTRAINT "second_pk", ADD CONSTRAINT "second_pk" PRIMARY KEY("a","b");',
+		'ALTER TABLE "dogs" DROP CONSTRAINT "first_pk", ADD CONSTRAINT "first_pk" PRIMARY KEY("a","b");',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});

@@ -205,7 +205,7 @@ export const ddlDiff = async (
 	for (const rename of checkRenames) {
 		ddl1.checks.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
+			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
 		});
 	}
 
@@ -250,7 +250,7 @@ export const ddlDiff = async (
 	for (const rename of pksRenames) {
 		ddl1.pks.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
+			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
 		});
 	}
 
@@ -271,7 +271,7 @@ export const ddlDiff = async (
 	for (const rename of fksRenames) {
 		ddl1.fks.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
+			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
 		});
 	}
 
@@ -296,7 +296,7 @@ export const ddlDiff = async (
 	for (const rename of policyRenames) {
 		ddl1.policies.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
+			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
 		});
 	}
 
@@ -811,24 +811,25 @@ export const ddlDiff = async (
 	jsonStatements.push(...renameSequences);
 	jsonStatements.push(...jsonAlterSequences);
 
-	jsonStatements.push(...jsonDropRoles);
 	jsonStatements.push(...jsonCreateRoles);
 	jsonStatements.push(...jsonAlterRoles);
 
 	jsonStatements.push(...createTables);
 
-	jsonStatements.push(...jsonAlterRlsStatements);
 	jsonStatements.push(...jsonDropViews);
 	jsonStatements.push(...jsonRenameViews);
 	jsonStatements.push(...jsonMoveViews);
 	jsonStatements.push(...jsonRecreateViews);
 
 	jsonStatements.push(...jsonRenameTables);
+	jsonStatements.push(...jsonSetTableSchemas);
+	// A statement about a renamed or moved table names the table by its new name in its new schema, so these
+	// run after the renames and the moves.
+	jsonStatements.push(...jsonAlterRlsStatements);
 	jsonStatements.push(...jsonDropFks);
 
 	jsonStatements.push(...jsonDropPoliciesStatements); // before drop tables
 	jsonStatements.push(...jsonDropTables);
-	jsonStatements.push(...jsonSetTableSchemas);
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
 	jsonStatements.push(...jsonDropCheckConstraints);
@@ -869,6 +870,9 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonRenamePoliciesStatements);
 	jsonStatements.push(...jsonCreatePoliciesStatements);
 	jsonStatements.push(...jsonAlterOrRecreatePoliciesStatements);
+
+	// Cockroach refuses to drop a role that a policy still names.
+	jsonStatements.push(...jsonDropRoles);
 
 	jsonStatements.push(...jsonDropEnums);
 	jsonStatements.push(...dropSequences);

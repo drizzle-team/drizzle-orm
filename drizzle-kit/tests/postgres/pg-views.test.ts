@@ -2002,6 +2002,66 @@ test('move view to a new schema and change its definition', async () => {
 	for (const statement of st) await db.query(statement);
 });
 
+test('a view that moves to another schema with a new name and a new definition writes SQL that runs', async () => {
+	const users = pgTable('users', { id: serial() });
+	const schema = pgSchema('my_schema');
+	const from = {
+		users,
+		schema,
+		view: pgView('some_view', { id: integer('id') }).as(sql`SELECT 1 AS "id" FROM "users"`),
+	};
+	const to = {
+		users,
+		schema,
+		view: schema.view('new_view', { id: integer('id') }).as(sql`SELECT 2 AS "id" FROM "users"`),
+	};
+	const renames = ['public.some_view->my_schema.new_view'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	await db.query('INSERT INTO "users" DEFAULT VALUES;');
+	// push does not compare the definition of a view, so the SQL of generate runs here.
+	for (const statement of st) await db.query(statement);
+
+	expect(st).toStrictEqual([
+		'ALTER VIEW "some_view" RENAME TO "new_view";',
+		'ALTER VIEW "new_view" SET SCHEMA "my_schema";',
+		'DROP VIEW "my_schema"."new_view";',
+		'CREATE VIEW "my_schema"."new_view" AS (SELECT 2 AS "id" FROM "users");',
+	]);
+	expect(await db.query('SELECT "id" FROM "my_schema"."new_view";')).toStrictEqual([{ id: 2 }]);
+	expect((await push({ db, to })).sqlStatements).toStrictEqual([]);
+});
+
+test('a view that moves to another schema and becomes a materialized view writes SQL that runs', async () => {
+	const users = pgTable('users', { id: serial() });
+	const schema = pgSchema('my_schema');
+	const from = {
+		users,
+		schema,
+		view: pgView('some_view', { id: integer('id') }).as(sql`SELECT 1 AS "id" FROM "users"`),
+	};
+	const to = {
+		users,
+		schema,
+		view: schema.materializedView('some_view', { id: integer('id') }).as(sql`SELECT 1 AS "id" FROM "users"`),
+	};
+	const renames = ['public.some_view->my_schema.some_view'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER VIEW "some_view" SET SCHEMA "my_schema";',
+		'DROP VIEW "my_schema"."some_view";',
+		'CREATE MATERIALIZED VIEW "my_schema"."some_view" AS (SELECT 1 AS "id" FROM "users");',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect((await push({ db, to })).sqlStatements).toStrictEqual([]);
+});
+
 test('rename view and change its definition', async () => {
 	const users = pgTable('users', { id: serial() });
 	const from = {

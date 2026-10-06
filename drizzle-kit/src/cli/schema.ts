@@ -9,7 +9,7 @@ import { dialects } from '../utils/schemaValidator';
 import '../@types/utils';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import { assertUnreachable } from '../utils';
-import { assertV3OutFolder, prepareFilenames } from '../utils/utils-node';
+import { assertV3OutFolder, prepareFilenames, prepareOutFolder } from '../utils/utils-node';
 import { assertConflictOptions, checkHandler } from './commands/check';
 import type { CheckWarning } from './commands/generate-postgres';
 import type { Setup } from './commands/studio';
@@ -593,14 +593,15 @@ export const runCheck = async (
 	assertV3OutFolder(config.out);
 	const { out, dialect, schema, ignoreConflicts } = config;
 	assertConflictOptions('check', dialect, { ignoreConflicts });
-	await checkHandler(out, dialect, ignoreConflicts);
+	const stored = prepareOutFolder(out);
+	await checkHandler(out, dialect, ignoreConflicts, true, stored);
 
 	// The folder is valid here. A schema that differs from it is a warning and no error.
 	let warnings: CheckWarning[] = [];
 	if (dialect === 'postgresql' && schema) {
 		const { schemaWarnings } = await import('./commands/generate-postgres');
 		const { SchemaSource } = await import('../dialects/postgres/drizzle');
-		warnings = await schemaWarnings(out, {
+		warnings = await schemaWarnings(stored, {
 			load: async () => SchemaSource.fromFilenames(prepareFilenames(schema)).load(),
 		});
 	}

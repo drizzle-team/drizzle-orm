@@ -167,8 +167,9 @@ export const checkHandler = async (
 	dialect: Dialect,
 	ignoreConflicts?: boolean,
 	shouldExitOnConflict = true,
+	stored = prepareOutFolder(out),
 ): Promise<CheckHandlerResult> => {
-	const { report, fix } = await checkSnapshots(prepareOutFolder(out).snapshots, dialect);
+	const { report, fix } = await checkSnapshots(stored.snapshots, dialect);
 	if (report.conflicts.length > 0 && !ignoreConflicts) {
 		if (shouldExitOnConflict) throw conflictError(report, fix);
 		const nonCommutativityMessage = generateReportDirectory(report);

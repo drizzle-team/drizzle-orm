@@ -182,7 +182,10 @@ export type CheckWarning = { kind: 'schema_changed' | 'merge_needed' | 'not_comp
 // check, so it is valid and its branches do not conflict. The schema equals the migrations when generate
 // would write no SQL. Nothing is written. No failure here may fail check, so a schema that cannot be
 // compared is a warning too.
-export const schemaWarnings = async (out: string, schemaSource: SchemaSource): Promise<CheckWarning[]> => {
+export const schemaWarnings = async (
+	stored: ReturnType<typeof prepareOutFolder>,
+	schemaSource: SchemaSource,
+): Promise<CheckWarning[]> => {
 	const notCompared = (reason: string): CheckWarning[] => [{
 		kind: 'not_compared',
 		message: `The schema was not compared with the migrations, because ${reason}`,
@@ -194,7 +197,6 @@ export const schemaWarnings = async (out: string, schemaSource: SchemaSource): P
 			return notCompared('the schema has errors. Run drizzle-kit generate to see them.');
 		}
 
-		const stored = prepareOutFolder(out);
 		const { ddlPrev, prevIds } = await previousState(stored.snapshots);
 		const { sqlStatements } = await ddlDiffDry(ddlPrev, ddlCur, 'default');
 		if (sqlStatements.length === 0) return [];

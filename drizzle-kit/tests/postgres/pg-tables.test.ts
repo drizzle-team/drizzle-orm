@@ -1765,3 +1765,53 @@ test('a table move into a schema where a dropped table holds the name of its pri
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+const people = pgTable('people', { id: integer() });
+test.each([
+	{
+		name: 'another table keeps',
+		kept: { people },
+		sql: ['ALTER TABLE "users" SET SCHEMA "folder";\n', 'ALTER TABLE "folder"."users" RENAME TO "people";'],
+	},
+	{
+		name: 'a dropped table has',
+		kept: {},
+		sql: [
+			'DROP TABLE "people";',
+			'ALTER TABLE "users" SET SCHEMA "folder";\n',
+			'ALTER TABLE "folder"."users" RENAME TO "people";',
+		],
+	},
+])('a table move with a new name that $name in the old schema writes SQL that runs', async ({ kept, sql }) => {
+	const from = { folder, people, users: pgTable('users', { id: integer() }) };
+	const to = { folder, ...kept, users: folder.table('people', { id: integer() }) };
+	const renames = ['public.users->folder.people'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	expect(st).toStrictEqual(sql);
+	expect(pst).toStrictEqual(sql);
+});
+
+// The table cannot move first here, because the new schema has a table with its old name.
+test('a table move with a new name that another move brings into the old schema writes SQL that runs', async () => {
+	const other = pgSchema('other');
+	const kept = folder.table('users', { id: integer() });
+	const from = { folder, other, kept, users: pgTable('users', { id: integer() }), people: other.table('people', {}) };
+	const to = { folder, other, kept, users: folder.table('people', { id: integer() }), people: pgTable('people', {}) };
+	const renames = ['public.users->folder.people', 'other.people->public.people'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER TABLE "users" RENAME TO "people";',
+		'ALTER TABLE "people" SET SCHEMA "folder";\n',
+		'ALTER TABLE "other"."people" SET SCHEMA "public";\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});

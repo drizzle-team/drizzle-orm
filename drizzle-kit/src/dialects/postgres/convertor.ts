@@ -459,12 +459,14 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 		? `"${column.schema}"."${column.table}"`
 		: `"${column.table}"`;
 
-	const recreateDefault = diff.type && (isEnum || wasEnum) && st.oldDefault;
+	// An enum with the same name in another schema is another type.
+	const hasNewType = !!(diff.type || diff.typeSchema);
+	const recreateDefault = hasNewType && (isEnum || wasEnum) && st.oldDefault;
 	if (recreateDefault) {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 
-	if (diff.type) {
+	if (hasNewType) {
 		const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
 		const textProxy = wasEnum && isEnum ? 'text::' : ''; // using enum1::text::enum2
 		const suffix = isEnum
@@ -473,13 +475,13 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 				'[]'.repeat(column.dimensions)
 			}`;
 
-		const type = diff.typeSchema?.to && diff.typeSchema.to !== 'public'
-			? `"${diff.typeSchema.to}"."${diff.type.to}"`
+		const type = typeSchema
+			? `${typeSchema}"${column.type}"`
 			: isEnum
-			? `"${diff.type.to}"`
+			? `"${column.type}"`
 			: toSerial
-			? mapSerialToInt(diff.type.to)
-			: diff.type.to;
+			? mapSerialToInt(column.type)
+			: column.type;
 
 		if (wasSerial) {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);

@@ -29,6 +29,24 @@ import { defaults, defaultsCommutative, existsInViewDef, isSerialType } from './
 import type { JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
 
+type Named = { schema: string; name: string };
+
+// A rename can take the name that another rename of the list frees. The rename that frees the name comes
+// first. Names that form a cycle have no order that works, so those renames keep their order.
+const freedNamesFirst = <T extends { from: Named; to: Named }>(renames: T[]): T[] => {
+	const sorted: T[] = [];
+	let rest = renames;
+	while (rest.length > 0) {
+		const ready = rest.filter((it) =>
+			!rest.some((other) => other !== it && other.from.schema === it.to.schema && other.from.name === it.to.name)
+		);
+		if (ready.length === 0) break;
+		sorted.push(...ready);
+		rest = rest.filter((it) => !ready.includes(it));
+	}
+	return [...sorted, ...rest];
+};
+
 export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode: 'default' | 'push') => {
 	const mocks = new Set<string>();
 	return ddlDiff(
@@ -125,20 +143,13 @@ export const ddlDiff = async (
 		deleted: sequencesDiff.filter((it) => it.$diffType === 'drop'),
 	});
 
-	const renamedSequences = renamedOrMovedSeqs.filter((it) => it.from.schema === it.to.schema);
+	const renamedSequences = renamedOrMovedSeqs.filter((it) => it.from.name !== it.to.name);
 	const movedSequences = renamedOrMovedSeqs.filter((it) => it.from.schema !== it.to.schema);
 
-	for (const rename of renamedSequences) {
+	for (const it of renamedOrMovedSeqs) {
 		ddl1.sequences.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
-		});
-	}
-
-	for (const move of movedSequences) {
-		ddl1.sequences.update({
-			set: { schema: move.to.schema },
-			where: { name: move.from.name, schema: move.from.schema },
+			set: { name: it.to.name, schema: it.to.schema },
+			where: { name: it.from.name, schema: it.from.schema },
 		});
 	}
 
@@ -162,6 +173,20 @@ export const ddlDiff = async (
 
 	const renamedTables = orMovedTables.filter((it) => it.from.name !== it.to.name);
 	const movedTables = orMovedTables.filter((it) => it.from.schema !== it.to.schema);
+
+	// A table that moves and gets a new name is renamed in its old schema and then moved. The rename fails
+	// when the old schema has a table with the new name at that moment: a table of the old state, or a table
+	// that this migration creates. In that case the moved table moves first and is renamed in its new schema,
+	// if its old name is free there.
+	const holdsTable = (schema: string, name: string) =>
+		ddl1.tables.one({ schema, name }) !== null || createdTables.some((it) => it.schema === schema && it.name === name);
+	const movedBeforeRename = new Set(
+		movedTables.filter((it) =>
+			it.from.name !== it.to.name
+			&& holdsTable(it.from.schema, it.to.name)
+			&& !holdsTable(it.to.schema, it.from.name)
+		),
+	);
 
 	for (const rename of orMovedTables) {
 		ddl1.tables.update({
@@ -370,19 +395,13 @@ export const ddlDiff = async (
 		deleted: viewsDiff.filter((it) => it.$diffType === 'drop'),
 	});
 
-	const renamedViews = renamedOrMovedViews.filter((it) => it.from.schema === it.to.schema);
+	const renamedViews = renamedOrMovedViews.filter((it) => it.from.name !== it.to.name);
 	const movedViews = renamedOrMovedViews.filter((it) => it.from.schema !== it.to.schema);
 
-	for (const rename of renamedViews) {
+	for (const it of renamedOrMovedViews) {
 		ddl1.views.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
-		});
-	}
-	for (const move of movedViews) {
-		ddl1.views.update({
-			set: { schema: move.to.schema },
-			where: { name: move.from.name, schema: move.from.schema },
+			set: { name: it.to.name, schema: it.to.schema },
+			where: { name: it.from.name, schema: it.from.schema },
 		});
 	}
 
@@ -472,9 +491,16 @@ export const ddlDiff = async (
 		const key = oldSchema ? `"${oldSchema.from.name}"."${it.name}"` : `"${it.schema}"."${it.name}"`;
 		return prepareStatement('drop_table', { table: tableFromDDL(it, ddl2), key });
 	});
-	const jsonRenameTables = renamedTables.map((it) =>
+	const jsonRenameTables = renamedTables.filter((it) => !movedBeforeRename.has(it)).map((it) =>
 		prepareStatement('rename_table', {
 			schema: it.from.schema,
+			from: it.from.name,
+			to: it.to.name,
+		})
+	);
+	const jsonRenameMovedTables = renamedTables.filter((it) => movedBeforeRename.has(it)).map((it) =>
+		prepareStatement('rename_table', {
+			schema: it.to.schema,
 			from: it.from.name,
 			to: it.to.name,
 		})
@@ -549,6 +575,12 @@ export const ddlDiff = async (
 			delete it.type;
 		}
 
+		// A snapshot of an older format can store no schema for the enum of a column. So a change of only the
+		// schema of the type counts when both states name a schema.
+		if (!it.type && it.typeSchema && (it.typeSchema.from === null || it.typeSchema.to === null)) {
+			delete it.typeSchema;
+		}
+
 		return ddl2.columns.hasDiff(it);
 	});
 
@@ -569,7 +601,7 @@ export const ddlDiff = async (
 	const jsonDropUniqueConstraints = uniqueDeletes.filter(tablesFilter('deleted')).map((it) =>
 		prepareStatement('drop_unique', { unique: it })
 	);
-	const jsonRenamedUniqueConstraints = uniqueRenames.map((it) =>
+	const jsonRenamedUniqueConstraints = freedNamesFirst(uniqueRenames).map((it) =>
 		prepareStatement('rename_constraint', {
 			entityType: 'uniques',
 			schema: it.to.schema,
@@ -588,7 +620,7 @@ export const ddlDiff = async (
 		prepareStatement('drop_pk', { pk: it })
 	);
 
-	const jsonRenamePrimaryKey = pksRenames.map((it) => {
+	const jsonRenamePrimaryKey = freedNamesFirst(pksRenames).map((it) => {
 		return prepareStatement('rename_constraint', {
 			entityType: 'pks',
 			schema: it.to.schema,
@@ -602,7 +634,7 @@ export const ddlDiff = async (
 	const jsonSetTableSchemas = movedTables.map((it) => {
 		const ofTable = { schema: it.to.schema, table: it.to.name };
 		return prepareStatement('move_table', {
-			name: it.to.name, // rename of table comes first
+			name: movedBeforeRename.has(it) ? it.from.name : it.to.name,
 			from: it.from.schema,
 			to: it.to.schema,
 			relations: [...ddl1.indexes.list(ofTable), ...ddl1.pks.list(ofTable), ...ddl1.uniques.list(ofTable)]
@@ -851,9 +883,8 @@ export const ddlDiff = async (
 			const wasSerial = isSerialType(it.$left.type);
 			const toSerial: boolean = !isSerialType(it.$left.type) && isSerialType(it.$right.type);
 			const isEnum = ddl2.enums.one({ schema: column.typeSchema ?? 'public', name: column.type }) !== null;
-			const wasEnum =
-				(it.type && ddl1.enums.one({ schema: column.typeSchema ?? 'public', name: it.type.from }) !== null)
-					?? false;
+			const wasEnum = !!(it.type || it.typeSchema)
+				&& ddl1.enums.one({ schema: it.$left.typeSchema ?? 'public', name: it.$left.type }) !== null;
 
 			return prepareStatement('alter_column', {
 				diff: it,
@@ -867,8 +898,13 @@ export const ddlDiff = async (
 
 	const createSequences = createdSeqs.map((it) => prepareStatement('create_sequence', { sequence: it }));
 	const dropSequences = deletedSeqs.map((it) => prepareStatement('drop_sequence', { sequence: it }));
-	const moveSequences = movedSequences.map((it) => prepareStatement('move_sequence', it));
-	const renameSequences = renamedSequences.map((it) => prepareStatement('rename_sequence', it));
+	// The move runs first, so a sequence that also gets a new name is renamed in its new schema.
+	const moveSequences = movedSequences.map((it) =>
+		prepareStatement('move_sequence', { from: it.from, to: { ...it.to, name: it.from.name } })
+	);
+	const renameSequences = renamedSequences.map((it) =>
+		prepareStatement('rename_sequence', { from: { ...it.from, schema: it.to.schema }, to: it.to })
+	);
 	const sequencesAlter = alters.filter((it) => it.entityType === 'sequences');
 	const jsonAlterSequences = sequencesAlter.map((it) =>
 		prepareStatement('alter_sequence', { diff: it, sequence: it.$right })
@@ -897,10 +933,18 @@ export const ddlDiff = async (
 
 	const jsonDropViews = deletedViews.map((it) => prepareStatement('drop_view', { view: it, cause: null }));
 
-	const jsonRenameViews = renamedViews.map((it) => prepareStatement('rename_view', it));
+	// The rename runs first, so a view that also moves is renamed in its old schema.
+	const jsonRenameViews = renamedViews.map((it) =>
+		prepareStatement('rename_view', { from: it.from, to: { ...it.to, schema: it.from.schema } })
+	);
 
+	// The view still has its old kind when it moves. A view that changes its kind is dropped and created later.
 	const jsonMoveViews = movedViews.map((it) =>
-		prepareStatement('move_view', { fromSchema: it.from.schema, toSchema: it.to.schema, view: it.to })
+		prepareStatement('move_view', {
+			fromSchema: it.from.schema,
+			toSchema: it.to.schema,
+			view: { ...it.to, materialized: it.from.materialized },
+		})
 	);
 
 	const filteredViewAlters = alters.filter((it): it is DiffEntities['views'] => {
@@ -982,6 +1026,7 @@ export const ddlDiff = async (
 		const fksTo = ddl2.fks.list({ tableTo: it.table, schemaTo: it.schema, columnsTo: { CONTAINS: it.name } });
 		for (const fkFrom of fksFrom) {
 			jsonDropFKs.push({ type: 'drop_fk', fk: fkFrom });
+			jsonCreateFKs.push({ type: 'create_fk', fk: fkFrom });
 		}
 		for (const fkTo of fksTo) {
 			jsonDropFKs.push({ type: 'drop_fk', fk: fkTo });
@@ -1034,6 +1079,7 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonDropTables);
 	jsonStatements.push(...jsonSetTableSchemas);
+	jsonStatements.push(...jsonRenameMovedTables);
 	jsonStatements.push(...jsonDropPoliciesStatements.filter((it) => isMoved(it.policy)));
 	jsonStatements.push(...jsonDropFKs.filter((it) => isMoved(it.fk)));
 	jsonStatements.push(...jsonAlterRlsStatements);

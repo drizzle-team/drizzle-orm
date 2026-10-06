@@ -2826,3 +2826,26 @@ test('a foreign key rename on one table keeps the change of a foreign key with t
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+// A unique constraint and a primary key each own an index, and the name of an index is unique in its schema.
+test.each([
+	{ name: 'a unique constraint', constraint: (name: string) => (t: any) => [unique(name).on(t.id)] },
+	{ name: 'a primary key', constraint: (name: string) => (t: any) => [primaryKey({ name, columns: [t.id] })] },
+])('a rename of $name to a name that another rename frees writes SQL that runs', async ({ constraint }) => {
+	const tables = (first: string, second: string) => ({
+		cats: pgTable('cats', { id: integer().notNull() }, constraint(first)),
+		dogs: pgTable('dogs', { id: integer().notNull() }, constraint(second)),
+	});
+	const renames = ['public.cats.key_a->public.cats.key_b', 'public.dogs.key_b->public.dogs.key_c'];
+
+	const { sqlStatements: st } = await diff(tables('key_a', 'key_b'), tables('key_b', 'key_c'), renames);
+	await push({ db, to: tables('key_a', 'key_b') });
+	const { sqlStatements: pst } = await push({ db, to: tables('key_b', 'key_c'), renames });
+
+	const st0 = [
+		'ALTER TABLE "dogs" RENAME CONSTRAINT "key_b" TO "key_c";',
+		'ALTER TABLE "cats" RENAME CONSTRAINT "key_a" TO "key_b";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});

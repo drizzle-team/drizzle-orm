@@ -506,3 +506,27 @@ test('alter generated constraint', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual([]); // push ignores definition changes
 });
+
+test('a new expression of a generated column keeps the foreign key of the column', async () => {
+	const owners = pgTable('owners', { id: integer().primaryKey() });
+	const cats = (expression: SQL) =>
+		pgTable('cats', {
+			id: integer(),
+			ownerId: integer().generatedAlwaysAs(expression).references(() => owners.id),
+		});
+	const from = { owners, cats: cats(sql`"id" + 1`) };
+	const to = { owners, cats: cats(sql`"id" + 2`) };
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	// push does not compare the expression of a generated column, so the SQL of generate runs here.
+	for (const statement of st) await db.query(statement);
+
+	expect(st).toStrictEqual([
+		'ALTER TABLE "cats" DROP CONSTRAINT "cats_ownerId_owners_id_fkey";',
+		'ALTER TABLE "cats" DROP COLUMN "ownerId";',
+		'ALTER TABLE "cats" ADD COLUMN "ownerId" integer GENERATED ALWAYS AS ("id" + 2) STORED;',
+		'ALTER TABLE "cats" ADD CONSTRAINT "cats_ownerId_owners_id_fkey" FOREIGN KEY ("ownerId") REFERENCES "owners"("id");',
+	]);
+	expect((await push({ db, to })).sqlStatements).toStrictEqual([]);
+});
