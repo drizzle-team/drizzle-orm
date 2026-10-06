@@ -11,7 +11,7 @@ import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, sqliteSchemaError, warning } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
-import { diffWithDown, type ResolverFor } from './generate-down-helpers';
+import { computeDown, diffWithDown, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 const diff = (from: SQLiteDDL, to: SQLiteDDL, resolverFor: ResolverFor, metadata?: SchemaMetadata) =>
@@ -72,9 +72,6 @@ export const handle = async (
 		return config.hints.toResponse();
 	}
 
-	const downDiff = config.generateDownMigrations ? await down() : undefined;
-	const downSqlStatements = downDiff?.sqlStatements;
-
 	if (!json) {
 		for (const w of warnings) {
 			warning(w);
@@ -85,8 +82,7 @@ export const handle = async (
 		return writeResult({
 			snapshot: snapshot,
 			sqlStatements,
-			downSqlStatements,
-			downStatements: downDiff?.groupedStatements,
+			down: config.generateDownMigrations ? await computeDown(down) : undefined,
 			renames,
 			outFolder,
 			name: config.name,
