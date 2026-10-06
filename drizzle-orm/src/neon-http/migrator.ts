@@ -1,8 +1,7 @@
 import type { BatchItem } from '~/batch.ts';
-import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig, MigratorInitFailResponse } from '~/migrator.ts';
+import type { MigrationConfig, MigratorInitFailResponse, RollbackOptions, RollbackStep } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import { getMigrationsToRun, journalReadError, type JournalRow, planRollback } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import { upgradeIfNeeded } from '~/up-migrations/pg.ts';
@@ -94,51 +93,28 @@ export async function migrate<TRelations extends AnyRelations>(
 export async function rollback<TRelations extends AnyRelations>(
 	db: NeonHttpDatabase<TRelations>,
 	config: MigrationConfig,
-	steps: number = 1,
-) {
+	options?: RollbackOptions,
+): Promise<RollbackStep[]> {
 	const migrations = readMigrationFiles(config);
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 	const migrationsSchema = config.migrationsSchema ?? 'drizzle';
+	const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
 
-	const dbMigrations = await db.session.objects<{ id: number; hash: string; created_at: string; name: string | null }>(
-		sql`select id, hash, name from ${sql.identifier(migrationsSchema)}.${
-			sql.identifier(migrationsTable)
-		} order by id desc limit ${sql.raw(String(steps))}`,
-	);
+	const dbMigrations = await db.session.objects<JournalRow>(sql`select id, hash, created_at, name from ${table}`)
+		.catch((e) => {
+			throw journalReadError(`${migrationsSchema}.${migrationsTable}`, e);
+		});
 
-	if (dbMigrations.length === 0) {
-		return;
-	}
+	const plan = planRollback({ localMigrations: migrations, dbMigrations, options });
+	if (options?.dryRun || plan.length === 0) return plan;
 
 	const statements: BatchItem<'pg'>[] = [];
-	for (const dbMigration of dbMigrations) {
-		const meta = migrations.find((m) =>
-			m.hash === dbMigration.hash && (!dbMigration.name || m.name === dbMigration.name)
-		);
-		if (!meta) {
-			throw new DrizzleError({
-				message: `Cannot rollback migration with hash ${dbMigration.hash}: migration file not found`,
-			});
-		}
-		if (!meta.downSql || meta.downSql.length === 0) {
-			throw new DrizzleError({
-				message:
-					`Cannot rollback migration ${dbMigration.hash}: no down SQL available. Add a down.sql file alongside the migration.`,
-			});
-		}
-		for (const stmt of meta.downSql) {
+	for (const step of plan) {
+		for (const stmt of step.downSql) {
 			statements.push(db.execute(sql.raw(stmt)));
 		}
-		statements.push(
-			db.execute(
-				sql`delete from ${sql.identifier(migrationsSchema)}.${
-					sql.identifier(migrationsTable)
-				} where id = ${dbMigration.id}`,
-			),
-		);
+		statements.push(db.execute(sql`delete from ${table} where id = ${step.id}`));
 	}
-
-	if (statements.length) {
-		await db.batch(statements as [BatchItem<'pg'>, ...BatchItem<'pg'>[]]);
-	}
+	await db.batch(statements as [BatchItem<'pg'>, ...BatchItem<'pg'>[]]);
+	return plan;
 }

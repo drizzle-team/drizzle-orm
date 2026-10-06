@@ -4,6 +4,8 @@ import type {
 	MigrationMeta,
 	MigrationsJournal,
 	MigratorInitFailResponse,
+	RollbackOptions,
+	RollbackStep,
 } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -47,23 +49,23 @@ export function migrate<TRelations extends AnyRelations = EmptyRelations>(
 export function rollback<TRelations extends AnyRelations = EmptyRelations>(
 	db: SQLiteBunDatabase<TRelations>,
 	config: MigrationConfig,
-	steps?: number,
-): void;
+	options?: RollbackOptions,
+): RollbackStep[];
 export function rollback<TRelations extends AnyRelations = EmptyRelations>(
 	db: SQLiteBunDatabase<TRelations>,
 	config: MigrationFromJournalConfig | MigrationsJournal,
-	steps?: number,
-): void;
+	options?: RollbackOptions,
+): RollbackStep[];
 export function rollback<TRelations extends AnyRelations = EmptyRelations>(
 	db: SQLiteBunDatabase<TRelations>,
 	config: MigrationConfig | MigrationFromJournalConfig | MigrationsJournal,
-	steps?: number,
-): void {
+	options?: RollbackOptions,
+): RollbackStep[] {
 	if (Array.isArray(config) || 'migrationsJournal' in config) {
 		const { migrations, migrationsTable } = fromJournal(config);
-		return rollbackSync(migrations, db.session, { migrationsTable }, steps);
+		return rollbackSync(migrations, db.session, { migrationsTable }, options);
 	}
 
 	const migrations = readMigrationFiles(config);
-	return rollbackSync(migrations, db.session, config, steps);
+	return rollbackSync(migrations, db.session, config, options);
 }

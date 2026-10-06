@@ -1,5 +1,5 @@
 import { is } from '~/entity.ts';
-import type { MigrationConfig } from '~/migrator.ts';
+import type { MigrationConfig, RollbackOptions } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import { migrate as nodePgMigrate, rollback as nodePgRollback } from '~/node-postgres/migrator.ts';
 import { migrate as coreMigrate, rollback as coreRollback } from '~/pg-core/async/session.ts';
@@ -22,12 +22,12 @@ export async function migrate<TRelations extends AnyRelations>(
 export async function rollback<TRelations extends AnyRelations>(
 	db: NetlifyDbDatabase<TRelations> | NodePgDatabase<TRelations>,
 	config: MigrationConfig,
-	steps?: number,
+	options?: RollbackOptions,
 ) {
 	if (is(db, NodePgDatabase)) {
-		return nodePgRollback(db, config, steps);
+		return nodePgRollback(db, config, options);
 	}
 
 	const migrations = readMigrationFiles(config);
-	return coreRollback(migrations, db, config, steps);
+	return coreRollback(migrations, db, config, options);
 }

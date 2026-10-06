@@ -1,4 +1,4 @@
-import type { MigrationConfig } from '~/migrator.ts';
+import type { MigrationConfig, RollbackOptions } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { migrate as coreMigrate, rollback as coreRollback } from '~/sqlite-core/effect/session.ts';
@@ -15,8 +15,8 @@ export function migrate<TRelations extends AnyRelations>(
 export function rollback<TRelations extends AnyRelations>(
 	db: EffectSQLiteNodeDatabase<TRelations>,
 	config: MigrationConfig,
-	steps?: number,
+	options?: RollbackOptions,
 ) {
 	const migrations = readMigrationFiles(config);
-	return coreRollback(migrations, db.session, config, steps);
+	return coreRollback(migrations, db.session, config, options);
 }

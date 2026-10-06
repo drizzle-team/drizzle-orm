@@ -1,5 +1,5 @@
 import { useEffect, useReducer } from 'react';
-import type { MigrationMeta } from '~/migrator.ts';
+import type { MigrationMeta, RollbackOptions } from '~/migrator.ts';
 import { formatToMillis } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { migrateAsync, rollbackAsync } from '~/sqlite-core/async/session.ts';
@@ -61,10 +61,10 @@ export async function migrate<TRelations extends AnyRelations>(
 export async function rollback<TRelations extends AnyRelations>(
 	db: OPSQLiteDatabase<TRelations>,
 	config: MigrationConfig,
-	steps: number = 1,
+	options?: RollbackOptions,
 ) {
 	const migrations = await readMigrationFiles(config);
-	return await rollbackAsync(migrations, db.session, undefined, steps);
+	return await rollbackAsync(migrations, db.session, undefined, options);
 }
 
 interface State {

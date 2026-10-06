@@ -257,7 +257,7 @@ test('rollback: steps undoes several migrations newest first', async ({ db }) =>
 	);
 
 	migrate(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir });
-	rollback(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir }, 2);
+	rollback(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir }, { steps: 2 });
 
 	expect(appliedMigrations(db as BetterSQLite3Database)).toStrictEqual([]);
 	expect(tableExists(db as BetterSQLite3Database, 'rollback_posts')).toBe(false);
@@ -276,7 +276,7 @@ test('rollback: rejects a migration without down.sql', async ({ db }) => {
 	migrate(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir });
 
 	expect(() => rollback(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir }))
-		.toThrowError(/no down SQL available/);
+		.toThrowError(/has no down SQL/);
 
 	expect(appliedMigrations(db as BetterSQLite3Database)).toStrictEqual(['20240101010101_users']);
 	expect(tableExists(db as BetterSQLite3Database, 'rollback_users')).toBe(true);

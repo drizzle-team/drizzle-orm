@@ -1,7 +1,6 @@
-import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig } from '~/migrator.ts';
+import type { MigrationConfig, RollbackOptions, RollbackStep } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import { getMigrationsToRun, journalReadError, planRollback } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import { upgradeAsyncIfNeeded } from '~/up-migrations/sqlite.ts';
@@ -83,35 +82,27 @@ export async function migrate<TRelations extends AnyRelations>(
 export async function rollback<TRelations extends AnyRelations>(
 	db: LibSQLDatabase<TRelations>,
 	config: MigrationConfig,
-	steps: number = 1,
-) {
+	options?: RollbackOptions,
+): Promise<RollbackStep[]> {
 	const migrations = readMigrationFiles(config);
 	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
 
 	const dbMigrations = await db.values<[number, string, string, string | null]>(
-		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)} ORDER BY id DESC LIMIT ${
-			sql.raw(String(steps))
-		}`,
-	);
+		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
+	).then((rows) => rows.map(([id, hash, created_at, name]) => ({ id, hash, created_at, name })), (e) => {
+		throw journalReadError(migrationsTable, e);
+	});
 
-	if (dbMigrations.length === 0) return;
+	const plan = planRollback({ localMigrations: migrations, dbMigrations, options });
+	if (options?.dryRun || plan.length === 0) return plan;
 
 	const statementToBatch = [];
-	for (const dbMigration of dbMigrations) {
-		const meta = migrations.find((m) => m.hash === dbMigration[1] && (!dbMigration[3] || m.name === dbMigration[3]));
-		if (!meta) {
-			throw new DrizzleError({
-				message: `Cannot rollback migration with hash ${dbMigration[1]}: migration file not found`,
-			});
-		}
-		if (!meta.downSql || meta.downSql.length === 0) {
-			throw new DrizzleError({ message: `Cannot rollback migration ${dbMigration[1]}: no down SQL available.` });
-		}
-		for (const stmt of meta.downSql) {
+	for (const step of plan) {
+		for (const stmt of step.downSql) {
 			statementToBatch.push(db.run(sql.raw(stmt)));
 		}
-		statementToBatch.push(db.run(sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE id = ${dbMigration[0]}`));
+		statementToBatch.push(db.run(sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE id = ${step.id}`));
 	}
-
 	await db.session.migrate(statementToBatch);
+	return plan;
 }
