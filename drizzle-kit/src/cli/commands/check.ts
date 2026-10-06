@@ -235,10 +235,6 @@ export const checkHandler = async (
 	return emptyResult();
 };
 
-/**
- * Paths of down.sql files whose up-hash stamp no longer matches their sibling migration.sql.
- * Unstamped down.sql files (hand-written, or generated before stamping) are skipped.
- */
 export const findStaleDownMigrations = (out: string): string[] => {
 	const { snapshots } = prepareOutFolder(out);
 	const stale: string[] = [];

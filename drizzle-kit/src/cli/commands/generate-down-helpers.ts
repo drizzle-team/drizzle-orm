@@ -7,7 +7,6 @@ export type Renames<T extends Named = Named> = { from: T; to: T }[];
 
 export type ResolverFor = <T extends Named>(kind: RenameCreateHintKind) => Resolver<T>;
 
-/** Schema and table renames from the forward diff, used to translate captured keys back to pre-migration names. */
 export type RenameScope = { schemas?: Renames; tables?: Renames };
 
 function entityKey(e: Named): string {
@@ -16,9 +15,7 @@ function entityKey(e: Named): string {
 	return `${schema}${table}${e.name}`;
 }
 
-// The forward diff resolves schemas, then tables, then everything else, applying each phase's renames
-// before the next, so captured entities carry post-rename schema/table names. The reverse diff walks
-// the same phases backwards, so by the time it resolves e.g. columns their table already has its old name.
+// Forward captures carry post-rename schema/table names, but the reverse diff restores those before resolving dependents.
 function toPreviousNames(e: Named, { schemas = [], tables = [] }: RenameScope): Named {
 	let { schema, table } = e;
 	if (table !== undefined) {
@@ -64,19 +61,11 @@ export function withCapture<T extends Named>(resolver: Resolver<T>, store: Renam
 	};
 }
 
-/**
- * Resolver for the reverse diff (current -> previous) that replays the forward renames backwards.
- * In the reverse diff, forward 'to' names appear in `deleted` and 'from' names in `created`.
- */
 export function makeInverseResolver<T extends Named>(renames: Renames, scope: RenameScope = {}): Resolver<T> {
 	return async (input) => invertRenames(renames, scope, input.created, input.deleted);
 }
 
-/**
- * Wraps a dialect's prompt resolvers so the forward diff records every rename, and hands out
- * matching inverse resolvers for the reverse diff. Inverse resolvers read the captured renames
- * lazily, so they must only be invoked after the forward diff has finished.
- */
+// Inverse resolvers read the captured renames lazily, so the reverse diff must run after the forward one finishes.
 export function captureRenames(resolverFor: ResolverFor): { forward: ResolverFor; inverse: ResolverFor } {
 	const store = new Map<RenameCreateHintKind, Renames>();
 	const renamesOf = (kind: RenameCreateHintKind) => {
@@ -129,13 +118,7 @@ export type DownWarningKind = 'data_loss' | 'may_fail';
 
 export type IrreversibleDownWarning = { sql: string; reason: string; kind: DownWarningKind };
 
-/**
- * The rollback is generated from the reverse schema diff, so it always reproduces the previous
- * *structure*. It cannot reproduce *data*: each type below either recreates an object the forward
- * migration dropped (so the original rows/values are already gone), or drops an object on rollback
- * (destroying rows written since the migration). SQLite implements most alters via table rebuilds
- * that copy data across, which are intentionally not flagged.
- */
+// SQLite implements most alters as table rebuilds that copy rows across, so recreate_table is deliberately absent.
 const DATA_LOSS_DOWN_TYPES: Record<string, string> = {
 	create_table: 'recreates a table the migration dropped; original rows cannot be restored',
 	add_column: 're-adds a column the migration dropped; original values cannot be restored',
@@ -192,10 +175,6 @@ function mayFailReason(jsonStatement: DownStatement['jsonStatement']): string | 
 	return null;
 }
 
-/**
- * Returns one entry per (statement, problem) pair that keeps the rollback from cleanly restoring
- * the prior state. Empty when the rollback is fully reversible.
- */
 export function collectIrreversibleDownWarnings(statements: DownStatement[]): IrreversibleDownWarning[] {
 	const warnings: IrreversibleDownWarning[] = [];
 	for (const { jsonStatement, sqlStatements } of statements) {
@@ -218,7 +197,6 @@ const WARNING_SECTIONS: [DownWarningKind, string][] = [
 	['may_fail', 'These operations may fail on a populated table:'],
 ];
 
-/** Plain-text lines (no comment markers) describing the warnings, grouped by kind. */
 export function describeIrreversibleWarnings(warnings: IrreversibleDownWarning[]): string[] {
 	const lines: string[] = [];
 	for (const [kind, title] of WARNING_SECTIONS) {
@@ -229,7 +207,6 @@ export function describeIrreversibleWarnings(warnings: IrreversibleDownWarning[]
 	return lines;
 }
 
-/** Comment banner for the top of down.sql; empty when there are no warnings. */
 export function formatIrreversibleBanner(warnings: IrreversibleDownWarning[]): string {
 	if (warnings.length === 0) return '';
 	return [
