@@ -1,4 +1,5 @@
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
+import { check, index, integer, primaryKey, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
 import { ddlDiffWithDown } from 'src/cli/commands/generate-sqlite';
 import { mockResolver } from 'src/utils/mocks';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -121,4 +122,86 @@ test('table recreation copies rows back', async () => {
 
 	expect(downStatements.map((it) => it.jsonStatement.type)).toContain('recreate_table');
 	expect(await db.query('SELECT `id`, `name` FROM `users`;')).toStrictEqual([{ id: 1, name: 'ada' }]);
+});
+
+test('alter column type', async () => {
+	await roundTrip(
+		{ users: sqliteTable('users', { id: integer(), score: integer() }) },
+		{ users: sqliteTable('users', { id: integer(), score: real() }) },
+		{ seed: ['INSERT INTO `users` VALUES (1, 2);'] },
+	);
+
+	expect(await db.query('SELECT `id`, `score` FROM `users`;')).toStrictEqual([{ id: 1, score: 2 }]);
+});
+
+test('alter column not null', async () => {
+	await roundTrip(
+		{ users: sqliteTable('users', { id: integer(), name: text().notNull() }) },
+		{ users: sqliteTable('users', { id: integer(), name: text() }) },
+		{ seed: [`INSERT INTO \`users\` VALUES (1, 'ada');`] },
+	);
+});
+
+test('alter column default', async () => {
+	await roundTrip(
+		{ users: sqliteTable('users', { id: integer(), role: text().default('user') }) },
+		{ users: sqliteTable('users', { id: integer(), role: text().default('member') }) },
+		{ seed: [`INSERT INTO \`users\` VALUES (1, 'admin');`] },
+	);
+
+	expect(await db.query('SELECT `role` FROM `users`;')).toStrictEqual([{ role: 'admin' }]);
+});
+
+test('drop table', async () => {
+	const users = sqliteTable('users', { id: integer().primaryKey() });
+	await roundTrip(
+		{ users, posts: sqliteTable('posts', { id: integer(), userId: integer('user_id').references(() => users.id) }) },
+		{ users },
+	);
+});
+
+test('drop index', async () => {
+	await roundTrip(
+		{ users: sqliteTable('users', { id: integer(), name: text() }, (t) => [index('users_name_idx').on(t.name)]) },
+		{ users: sqliteTable('users', { id: integer(), name: text() }) },
+	);
+});
+
+test('drop foreign key', async () => {
+	const users = sqliteTable('users', { id: integer().primaryKey() });
+	await roundTrip(
+		{ users, posts: sqliteTable('posts', { id: integer(), userId: integer('user_id').references(() => users.id) }) },
+		{ users, posts: sqliteTable('posts', { id: integer(), userId: integer('user_id') }) },
+		{ seed: ['INSERT INTO `users` VALUES (1);', 'INSERT INTO `posts` VALUES (1, 1);'] },
+	);
+
+	expect(await db.query('SELECT `user_id` FROM `posts`;')).toStrictEqual([{ user_id: 1 }]);
+});
+
+test('unique constraint and composite index', async () => {
+	await roundTrip(
+		{ users: sqliteTable('users', { id: integer(), email: text(), org: integer() }) },
+		{
+			users: sqliteTable('users', { id: integer(), email: text(), org: integer() }, (t) => [
+				unique('users_email_unique').on(t.email),
+				index('users_org_email_idx').on(t.org, t.email),
+			]),
+		},
+		{ seed: [`INSERT INTO \`users\` VALUES (1, 'a@x', 1);`] },
+	);
+});
+
+test('primary key and check constraint', async () => {
+	await roundTrip(
+		{ users: sqliteTable('users', { org: integer(), id: integer(), age: integer() }) },
+		{
+			users: sqliteTable('users', { org: integer(), id: integer(), age: integer() }, (t) => [
+				primaryKey({ columns: [t.org, t.id] }),
+				check('users_age_check', sql`${t.age} >= 0`),
+			]),
+		},
+		{ seed: ['INSERT INTO `users` VALUES (1, 1, 30);'] },
+	);
+
+	expect(await db.query('SELECT `org`, `id`, `age` FROM `users`;')).toStrictEqual([{ org: 1, id: 1, age: 30 }]);
 });
