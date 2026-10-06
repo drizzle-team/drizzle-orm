@@ -164,6 +164,38 @@ test('rollback rejects a migration that has no down.sql without touching the dat
 	expect(await tableExists('http_users')).toBe(true);
 });
 
+test('dryRun returns the plan without sending anything', async () => {
+	writeMigration(
+		'20240101010101_users',
+		'CREATE TABLE "http_users" ("id" serial PRIMARY KEY);',
+		'DROP TABLE "http_users";',
+	);
+
+	await migrate(db, { migrationsFolder: folder });
+	batches = [];
+
+	const plan = await rollback(db, { migrationsFolder: folder }, { dryRun: true });
+
+	expect(plan).toMatchObject([{ name: '20240101010101_users', downSql: ['DROP TABLE "http_users";'] }]);
+	expect(batches).toStrictEqual([]);
+	expect(await tableExists('http_users')).toBe(true);
+	expect(await journalNames()).toStrictEqual(['20240101010101_users']);
+});
+
+test('down statements keep their file order rather than any sorted order', async () => {
+	writeMigration(
+		'20240101010101_pair',
+		'CREATE TABLE "http_zebra" ("id" serial PRIMARY KEY);\n--> statement-breakpoint\nCREATE TABLE "http_apple" ("id" serial PRIMARY KEY);',
+		'DROP TABLE "http_zebra";\n--> statement-breakpoint\nDROP TABLE "http_apple";',
+	);
+
+	await migrate(db, { migrationsFolder: folder });
+	batches = [];
+	await rollback(db, { migrationsFolder: folder });
+
+	expect(batchedSql()[0]!.slice(0, 2)).toStrictEqual(['DROP TABLE "http_zebra";', 'DROP TABLE "http_apple";']);
+});
+
 test('rollback on an empty journal is a no-op', async () => {
 	writeMigration(
 		'20240101010101_users',

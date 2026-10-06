@@ -310,3 +310,50 @@ const skip = [
 	'nested transaction rollback',
 ];
 tests(test, skip);
+
+test('rollback: to and dryRun report the plan without touching the database', async ({ db }) => {
+	prepareRollbackMigrations(db as BetterSQLite3Database);
+	writeRollbackMigration(
+		'20240101010101_users',
+		'CREATE TABLE `rollback_users` (`id` integer PRIMARY KEY);',
+		'DROP TABLE `rollback_users`;',
+	);
+	writeRollbackMigration(
+		'20240102010101_posts',
+		'CREATE TABLE `rollback_posts` (`id` integer PRIMARY KEY);',
+		'DROP TABLE `rollback_posts`;',
+	);
+
+	migrate(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir });
+
+	const plan = rollback(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir }, {
+		to: '20240101010101_users',
+		dryRun: true,
+	});
+	expect(plan).toMatchObject([{ name: '20240102010101_posts', downSql: ['DROP TABLE `rollback_posts`;'] }]);
+	expect(appliedMigrations(db as BetterSQLite3Database)).toStrictEqual([
+		'20240101010101_users',
+		'20240102010101_posts',
+	]);
+	expect(tableExists(db as BetterSQLite3Database, 'rollback_posts')).toBe(true);
+
+	const done = rollback(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir }, {
+		to: '20240101010101_users',
+	});
+	expect(done).toStrictEqual(plan);
+	expect(appliedMigrations(db as BetterSQLite3Database)).toStrictEqual(['20240101010101_users']);
+	expect(tableExists(db as BetterSQLite3Database, 'rollback_posts')).toBe(false);
+
+	rmSync(rollbackMigrationDir, { recursive: true });
+});
+
+test('rollback: reports a missing journal instead of a raw SQL error', async ({ db }) => {
+	prepareRollbackMigrations(db as BetterSQLite3Database);
+	writeRollbackMigration('20240101010101_users', 'SELECT 1;', 'SELECT 1;');
+
+	expect(() => rollback(db as BetterSQLite3Database, { migrationsFolder: rollbackMigrationDir })).toThrowError(
+		/Cannot read the migrations journal __drizzle_migrations/,
+	);
+
+	rmSync(rollbackMigrationDir, { recursive: true });
+});

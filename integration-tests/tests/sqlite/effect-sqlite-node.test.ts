@@ -9,7 +9,7 @@ import {
 	sql,
 } from 'drizzle-orm';
 import * as SQLiteDrizzle from 'drizzle-orm/effect-sqlite-node';
-import { migrate } from 'drizzle-orm/effect-sqlite-node/migrator';
+import { migrate, rollback } from 'drizzle-orm/effect-sqlite-node/migrator';
 import { getTableConfig, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
@@ -54,6 +54,48 @@ runCommonEffectSQLiteTests({
 	SQLiteDrizzle: SQLiteDrizzle,
 	createDB,
 	addTests: (it) => {
+		it.effect('rollback: undoes migrations newest-first and returns the plan', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const dir = './migrations/effect-sqlite-node-rollback';
+				const config = { migrationsFolder: dir, migrationsTable: '__effect_rollback' };
+				if (existsSync(dir)) rmSync(dir, { recursive: true });
+				for (const [name, table] of [['20240101000000_a', 'effect_rb_a'], ['20240102000000_b', 'effect_rb_b']]) {
+					mkdirSync(`${dir}/${name}`, { recursive: true });
+					writeFileSync(`${dir}/${name}/migration.sql`, `CREATE TABLE \`${table}\` (\`id\` integer);`);
+					writeFileSync(`${dir}/${name}/down.sql`, `DROP TABLE \`${table}\`;`);
+				}
+				yield* migrate(db, config);
+
+				const preview = yield* rollback(db, config, { dryRun: true });
+				expect(preview.map((step) => step.name)).toStrictEqual(['20240102000000_b']);
+
+				const plan = yield* rollback(db, config, { steps: 2 });
+				expect(plan.map((step) => step.name)).toStrictEqual(['20240102000000_b', '20240101000000_a']);
+				const left = yield* db.all<{ name: string }>(
+					sql`select name from sqlite_master where name in ('effect_rb_a', 'effect_rb_b', '__effect_rollback') order by name`,
+				);
+				expect(left.map((row) => row.name)).toStrictEqual(['__effect_rollback']);
+
+				rmSync(dir, { recursive: true });
+			}));
+
+		it.effect('rollback: a missing down.sql is a typed failure, not a defect', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const dir = './migrations/effect-sqlite-node-rollback-missing';
+				const config = { migrationsFolder: dir, migrationsTable: '__effect_rollback_missing' };
+				if (existsSync(dir)) rmSync(dir, { recursive: true });
+				mkdirSync(`${dir}/20240101000000_a`, { recursive: true });
+				writeFileSync(`${dir}/20240101000000_a/migration.sql`, 'CREATE TABLE `effect_rb_missing` (`id` integer);');
+				yield* migrate(db, config);
+
+				const error = yield* Effect.flip(rollback(db, config));
+				expect(error.message).toMatch(/has no down SQL/);
+
+				rmSync(dir, { recursive: true });
+			}));
+
 		it.effect('migrator', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;
