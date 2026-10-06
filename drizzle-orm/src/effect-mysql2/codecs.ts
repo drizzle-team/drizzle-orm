@@ -49,6 +49,9 @@ export const effectMysql2Codecs = refineGenericMySqlCodecs({
 	'timestamp:string': {
 		cast: castToText,
 	},
+	time: {
+		cast: castToText,
+	},
 	binary: {
 		normalize: (value: Buffer) => value.toString(),
 	},

@@ -2627,3 +2627,45 @@ test('same column names in two tables. Check for correct not null creation #4. s
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6360
+test('Issue No6360', async () => {
+	const a1 = mssqlTable('a', {
+		id: int('id').primaryKey(),
+		user_id: int('user_id').notNull(),
+	});
+
+	const b1 = mssqlTable('b', {
+		id: int('id').primaryKey(),
+		user_id: int('user_id').notNull(),
+	});
+
+	const schema1 = { a1, b1 };
+
+	const a2 = mssqlTable('a', {
+		id: int('id').primaryKey(),
+		user_id: int('org_id').notNull(), // new name
+	});
+
+	const b2 = mssqlTable('b', {
+		id: int('id').primaryKey(),
+		user_id: int('user_id'), // dropped not null
+	});
+
+	const schema2 = { a2, b2 };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, [`dbo.a.user_id->dbo.a.org_id`]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.a.user_id->dbo.a.org_id`],
+	});
+
+	const st0 = [
+		`EXEC sp_rename 'a.user_id', [org_id], 'COLUMN';`,
+		`ALTER TABLE [b] ALTER COLUMN [user_id] int;`,
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});

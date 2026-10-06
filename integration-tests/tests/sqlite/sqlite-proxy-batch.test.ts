@@ -518,9 +518,9 @@ test('insert + db.all + db.get + db.values + db.run', async () => {
 		BetterSqlite3.RunResult,
 		RawUser[],
 		unknown[][],
-		RawUser,
+		RawUser | undefined,
 		[number, string, number, number | null][],
-		[number, string, number, number | null],
+		[number, string, number, number | null] | undefined,
 	]>();
 
 	expect(batchResponse.length).eq(7);

@@ -95,7 +95,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import Keyv from 'keyv';
 import { v4 as uuid } from 'uuid';
 import { normalizeDataWithDbCodecs } from '~/mysql/utils';
-import { type Equal, Expect, toLocalDate } from '~/utils';
+import { type Equal, Expect } from '~/utils';
 import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from '../mysql/all-types';
 
 export const rqbUser = mysqlTable('user_rqb_test', {
@@ -169,7 +169,7 @@ const allTypesTable = mysqlTable('all_types', {
 	smallInt: smallint('small_int'),
 	real: real('real'),
 	text: text('text'),
-	time: time('time'),
+	time: time('time', { fsp: 3 }),
 	timestamp: timestamp('timestamp', {
 		mode: 'date',
 	}),
@@ -1700,7 +1700,7 @@ describe('common', () => {
 		expect(typeof res[0]?.datetimeAsString).toStrictEqual('string');
 
 		expect(res).toStrictEqual([{
-			date: toLocalDate(new Date('2022-11-11')),
+			date: new Date('2022-11-11'),
 			dateAsString: '2022-11-11',
 			time: '12:12:12',
 			datetime: new Date('2022-11-11'),
@@ -1711,6 +1711,112 @@ describe('common', () => {
 		}]);
 
 		await db.execute(sql`drop table if exists \`datestable\``);
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/1442
+	test('date and time columns keep UTC values regardless of process timezone', async () => {
+		const datesTable = mysqlTable('dates_tz', {
+			id: int('id').primaryKey(),
+			date: date('date').notNull(),
+			dateStr: date('date_str', { mode: 'string' }).notNull(),
+			datetime: datetime('datetime', { fsp: 3 }).notNull(),
+			datetimeStr: datetime('datetime_str', { fsp: 3, mode: 'string' }).notNull(),
+			timestamp: timestamp('timestamp', { fsp: 3 }).notNull(),
+			timestampStr: timestamp('timestamp_str', { fsp: 3, mode: 'string' }).notNull(),
+			time: time('time', { fsp: 3 }).notNull(),
+			year: year('year').notNull(),
+		});
+		const db = drizzle({
+			client,
+			logger: ENABLE_LOGGING,
+			relations: defineRelations({ datesTable }, (r) => ({
+				datesTable: { self: r.many.datesTable({ from: r.datesTable.id, to: r.datesTable.id }) },
+			})),
+		});
+
+		await db.execute(sql`drop table if exists ${datesTable}`);
+		await db.execute(sql`
+			create table ${datesTable} (
+				\`id\` int primary key,
+				\`date\` date not null,
+				\`date_str\` date not null,
+				\`datetime\` datetime(3) not null,
+				\`datetime_str\` datetime(3) not null,
+				\`timestamp\` timestamp(3) not null,
+				\`timestamp_str\` timestamp(3) not null,
+				\`time\` time(3) not null,
+				\`year\` year not null
+			)
+		`);
+
+		const startOfDay = new Date('2022-11-11T00:00:00.000Z');
+		const endOfDay = new Date('2022-11-11T23:59:59.999Z');
+		const rows = [{
+			id: 1,
+			date: new Date('2022-11-11'),
+			dateStr: '2022-11-11',
+			datetime: startOfDay,
+			datetimeStr: '2022-11-11 00:00:00.000',
+			timestamp: startOfDay,
+			timestampStr: '2022-11-11 00:00:00.000',
+			time: '00:00:00.000',
+			year: 2022,
+		}, {
+			id: 2,
+			date: new Date('2022-11-11'),
+			dateStr: '2022-11-11',
+			datetime: endOfDay,
+			datetimeStr: '2022-11-11 23:59:59.999',
+			timestamp: endOfDay,
+			timestampStr: '2022-11-11 23:59:59.999',
+			time: '23:59:59.999',
+			year: 2022,
+		}];
+
+		const originalTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		try {
+			for (const tz of ['America/Los_Angeles', 'Pacific/Kiritimati']) {
+				process.env['TZ'] = tz;
+
+				await db.delete(datesTable);
+				await db.insert(datesTable).values(rows.map((row) => ({ ...row, date: row.datetime })));
+
+				const stored = await db.select({
+					id: datesTable.id,
+					date: sql<string>`cast(${datesTable.date} as char)`,
+					datetime: sql<string>`cast(${datesTable.datetime} as char)`,
+					timestamp: sql<string>`cast(${datesTable.timestamp} as char)`,
+				}).from(datesTable).orderBy(datesTable.id);
+				expect({ tz, stored }).toStrictEqual({
+					tz,
+					stored: rows.map((row) => ({
+						id: row.id,
+						date: row.dateStr,
+						datetime: row.datetimeStr,
+						timestamp: row.timestampStr,
+					})),
+				});
+
+				expect({ tz, res: await db.select().from(datesTable).orderBy(datesTable.id) }).toStrictEqual({
+					tz,
+					res: rows,
+				});
+				expect({
+					tz,
+					res: await db.select().from(datesTable).where(eq(datesTable.date, endOfDay)).orderBy(datesTable.id),
+				}).toStrictEqual({ tz, res: rows });
+				expect({ tz, res: await db.select().from(datesTable).where(eq(datesTable.datetime, endOfDay)) })
+					.toStrictEqual({ tz, res: [rows[1]!] });
+				expect({ tz, res: await db.select().from(datesTable).where(eq(datesTable.timestamp, startOfDay)) })
+					.toStrictEqual({ tz, res: [rows[0]!] });
+
+				expect({ tz, res: await db.query.datesTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } }) })
+					.toStrictEqual({ tz, res: rows.map((row) => ({ ...row, self: [row] })) });
+			}
+		} finally {
+			process.env['TZ'] = originalTz;
+			await db.execute(sql`drop table if exists ${datesTable}`);
+		}
 	});
 
 	const tableWithEnums = mysqlTable('enums_test_case', {
@@ -5080,7 +5186,7 @@ describe('common', () => {
 					\`small_int\` smallint,
 					\`real\` real,
 					\`text\` text,
-					\`time\` time,
+					\`time\` time(3),
 					\`timestamp\` timestamp,
 					\`timestamp_str\` timestamp,
 					\`tiny_int\` tinyint,
@@ -5117,7 +5223,7 @@ describe('common', () => {
 			},
 			medInt: 560,
 			smallInt: 14,
-			time: '04:13:22',
+			time: '04:13:22.120',
 			timestamp: new Date(1741743161623),
 			timestampStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
 			tinyInt: 7,
@@ -5183,7 +5289,7 @@ describe('common', () => {
 				smallInt: 14,
 				real: 1.048596,
 				text: 'C4-',
-				time: '04:13:22',
+				time: '04:13:22.120',
 				timestamp: new Date('2025-03-12T01:32:42.000Z'),
 				timestampStr: '2025-03-12 01:32:41',
 				tinyInt: 7,
@@ -6184,7 +6290,7 @@ test('all types ~codecs~', async () => {
 		json4: '5',
 		medint: 560,
 		smallint: 14,
-		time: '04:13:22',
+		time: '04:13:22.120',
 		timestamp: new Date(1741743161623),
 		timestampstr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
 		tinyint: 7,

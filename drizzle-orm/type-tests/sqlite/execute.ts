@@ -33,16 +33,16 @@ type UserAlias = {
 
 {
 	const get = db.get(sql`select 1 as id, 'a' as name`);
-	Expect<Equal<typeof get, Record<string, unknown>>>;
+	Expect<Equal<typeof get, Record<string, unknown> | undefined>>;
 
 	const getInterface = db.get<UserInterface>(sql`select 1 as id, 'a' as name`, 'objects');
-	Expect<Equal<typeof getInterface, UserInterface>>;
+	Expect<Equal<typeof getInterface, UserInterface | undefined>>;
 
 	const getAlias = db.get<UserAlias>(sql`select 1 as id, 'a' as name`);
-	Expect<Equal<typeof getAlias, UserAlias>>;
+	Expect<Equal<typeof getAlias, UserAlias | undefined>>;
 
 	const getArrays = db.get<[number, string]>(sql`select 1 as id, 'a' as name`, 'arrays');
-	Expect<Equal<typeof getArrays, [number, string]>>;
+	Expect<Equal<typeof getArrays, [number, string] | undefined>>;
 
 	// @ts-expect-error - objects mode rows must be objects
 	db.get<number>(sql`select 1`);

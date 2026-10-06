@@ -72,8 +72,8 @@ import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
 import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
-import { SqlClient } from 'effect/unstable/sql/SqlClient';
-import { SqlError } from 'effect/unstable/sql/SqlError';
+import { SqlClient } from 'effect/sql/SqlClient';
+import { SqlError } from 'effect/sql/SqlError';
 import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from './all-types';
 import { TestCache } from './instrumentation';
 import relations from './relations';
@@ -295,7 +295,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					smallInt: smallint('small_int'),
 					real: real('real'),
 					text: text('text'),
-					time: time('time'),
+					time: time('time', { fsp: 3 }),
 					timestamp: timestamp('timestamp', {
 						mode: 'date',
 					}),
@@ -351,7 +351,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					},
 					medInt: 560,
 					smallInt: 14,
-					time: '04:13:22',
+					time: '04:13:22.120',
 					timestamp: new Date('2025-03-12T00:00:00.000Z'),
 					timestampStr: new Date('2025-03-12T00:00:00.000Z').toISOString().slice(0, 19).replace('T', ' '),
 					tinyInt: 7,
@@ -435,7 +435,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 						smallInt: 14,
 						real: 1.048596,
 						text: 'C4-',
-						time: '04:13:22',
+						time: '04:13:22.120',
 						timestamp: new Date('2025-03-12T00:00:00.000Z'),
 						timestampStr: '2025-03-12 00:00:00',
 						tinyInt: 7,
@@ -547,7 +547,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					json4: '5',
 					medint: 560,
 					smallint: 14,
-					time: '04:13:22',
+					time: '04:13:22.120',
 					timestamp: new Date(1741743161623),
 					timestampstr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
 					tinyint: 7,
@@ -614,6 +614,90 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 
 				const context = yield* Effect.context<never>();
 				yield* Effect.promise(() => assertAllTypesBounds(db as any, (query) => Effect.runPromiseWith(context)(query)));
+			}));
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/1442
+		it.effect('date and time columns keep UTC values regardless of process timezone', () =>
+			Effect.gen(function*() {
+				const datesTable = mysqlTable('dates_tz_1', {
+					id: int('id').primaryKey(),
+					date: date('date').notNull(),
+					dateStr: date('date_str', { mode: 'string' }).notNull(),
+					datetime: datetime('datetime', { fsp: 3 }).notNull(),
+					datetimeStr: datetime('datetime_str', { fsp: 3, mode: 'string' }).notNull(),
+					timestamp: timestamp('timestamp', { fsp: 3 }).notNull(),
+					timestampStr: timestamp('timestamp_str', { fsp: 3, mode: 'string' }).notNull(),
+					time: time('time', { fsp: 3 }).notNull(),
+					year: year('year').notNull(),
+				});
+				const db = yield* createDB({ datesTable }, (r) => ({
+					datesTable: { self: r.many.datesTable({ from: r.datesTable.id, to: r.datesTable.id }) },
+				}));
+
+				yield* push(db, { datesTable });
+
+				const startOfDay = new Date('2022-11-11T00:00:00.000Z');
+				const endOfDay = new Date('2022-11-11T23:59:59.999Z');
+				const rows = [{
+					id: 1,
+					date: new Date('2022-11-11'),
+					dateStr: '2022-11-11',
+					datetime: startOfDay,
+					datetimeStr: '2022-11-11 00:00:00.000',
+					timestamp: startOfDay,
+					timestampStr: '2022-11-11 00:00:00.000',
+					time: '00:00:00.000',
+					year: 2022,
+				}, {
+					id: 2,
+					date: new Date('2022-11-11'),
+					dateStr: '2022-11-11',
+					datetime: endOfDay,
+					datetimeStr: '2022-11-11 23:59:59.999',
+					timestamp: endOfDay,
+					timestampStr: '2022-11-11 23:59:59.999',
+					time: '23:59:59.999',
+					year: 2022,
+				}];
+
+				const originalTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+				yield* Effect.gen(function*() {
+					for (const tz of ['America/Los_Angeles', 'Pacific/Kiritimati']) {
+						process.env['TZ'] = tz;
+
+						yield* db.delete(datesTable);
+						yield* db.insert(datesTable).values(rows.map((row) => ({ ...row, date: row.datetime })));
+
+						const stored = yield* db.select({
+							id: datesTable.id,
+							date: sql<string>`cast(${datesTable.date} as char)`,
+							datetime: sql<string>`cast(${datesTable.datetime} as char)`,
+							timestamp: sql<string>`cast(${datesTable.timestamp} as char)`,
+						}).from(datesTable).orderBy(datesTable.id);
+						expect(stored, tz).toStrictEqual(
+							rows.map((row) => ({
+								id: row.id,
+								date: row.dateStr,
+								datetime: row.datetimeStr,
+								timestamp: row.timestampStr,
+							})),
+						);
+
+						expect(yield* db.select().from(datesTable).orderBy(datesTable.id), tz).toStrictEqual(rows);
+						expect(yield* db.select().from(datesTable).where(eq(datesTable.date, endOfDay)).orderBy(datesTable.id), tz)
+							.toStrictEqual(rows);
+						expect(yield* db.select().from(datesTable).where(eq(datesTable.datetime, endOfDay)), tz).toStrictEqual([
+							rows[1]!,
+						]);
+						expect(yield* db.select().from(datesTable).where(eq(datesTable.timestamp, startOfDay)), tz)
+							.toStrictEqual([rows[0]!]);
+
+						expect(yield* db.query.datesTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } }), tz)
+							.toStrictEqual(rows.map((row) => ({ ...row, self: [row] })));
+					}
+				}).pipe(Effect.ensuring(Effect.sync(() => {
+					process.env['TZ'] = originalTz;
+				})));
 			}));
 
 		it.effect('RQB v2 simple find first - no rows', () =>

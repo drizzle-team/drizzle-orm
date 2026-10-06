@@ -758,7 +758,7 @@ export const runPull = async (
 			const { handle: introspectPostgres } = await import(
 				'./commands/pull-postgres'
 			);
-			manifest = await introspectPostgres(casing, out, breakpoints, credentials, filters, migrations, db);
+			manifest = await introspectPostgres(casing, out, breakpoints, credentials, filters, migrations, init, db);
 		} catch (e) {
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(
@@ -779,7 +779,7 @@ export const runPull = async (
 			};
 
 			const { handle: introspectMysql } = await import('./commands/pull-mysql');
-			manifest = await introspectMysql(casing, out, breakpoints, credentials, filters, migrations, db);
+			manifest = await introspectMysql(casing, out, breakpoints, credentials, filters, migrations, init, db);
 		} catch (e) {
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(
@@ -800,7 +800,7 @@ export const runPull = async (
 			};
 
 			const { handle } = await import('./commands/pull-sqlite');
-			manifest = await handle(casing, out, breakpoints, credentials, filters, 'sqlite', migrations, db);
+			manifest = await handle(casing, out, breakpoints, credentials, filters, 'sqlite', migrations, init, db);
 		} catch (e) {
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(
@@ -821,7 +821,7 @@ export const runPull = async (
 			};
 
 			const { handle } = await import('./commands/pull-libsql');
-			manifest = await handle(casing, out, breakpoints, credentials, filters, 'libsql', migrations, db);
+			manifest = await handle(casing, out, breakpoints, credentials, filters, 'libsql', migrations, init, db);
 		} catch (e) {
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(
@@ -842,7 +842,7 @@ export const runPull = async (
 			};
 
 			const { handle } = await import('./commands/pull-singlestore');
-			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, db);
+			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, init, db);
 		} catch (e) {
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(
@@ -863,7 +863,7 @@ export const runPull = async (
 			};
 
 			const { handle } = await import('./commands/pull-mssql');
-			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, db);
+			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, init, db);
 		} catch (e) {
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(
@@ -884,7 +884,7 @@ export const runPull = async (
 			};
 
 			const { handle } = await import('./commands/pull-cockroach');
-			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, db);
+			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, init, db);
 		} catch (e) {
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(

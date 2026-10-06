@@ -37,9 +37,6 @@ export function construct<
 ): PostgresDatabase<TRelations> & {
 	$client: PostgresClient extends TClient ? Pool : TClient;
 } {
-	// Provided overridable codec set assumes string temporals, force in config
-	if (config.codecs && (<any> client)?.cfg?.temporal) (<any> client).cfg.temporal = 'string';
-
 	const dialect = new PgDialect({
 		codecs: config.codecs ?? minipgShapeCodecs,
 		useJitMappers: jitCompatCheck(config.jit),

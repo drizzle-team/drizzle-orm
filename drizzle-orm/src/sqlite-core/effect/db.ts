@@ -1,5 +1,5 @@
 import { Effect } from 'effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { MutationOption } from '~/cache/core/cache.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
@@ -636,11 +636,11 @@ export class SQLiteEffectDatabase<
 	get<TRow extends unknown[] = unknown[]>(
 		query: SQLWrapper | string,
 		mode: 'arrays',
-	): SQLiteEffectRaw<TRow, TEffectHKT>;
+	): SQLiteEffectRaw<TRow | undefined, TEffectHKT>;
 	get<TRow extends Record<string, any> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 		mode?: 'objects' | undefined,
-	): SQLiteEffectRaw<TRow, TEffectHKT>;
+	): SQLiteEffectRaw<TRow | undefined, TEffectHKT>;
 	get(query: SQLWrapper | string, mode?: 'arrays' | 'objects' | undefined): unknown {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
