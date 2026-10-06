@@ -29,7 +29,7 @@ import {
 	uuid,
 	varchar,
 } from '~/pg-core/index.ts';
-import { SQL, sql } from '~/sql/sql.ts';
+import { sql } from '~/sql/sql.ts';
 
 import {
 	type InferFunctionArgs,
@@ -44,7 +44,6 @@ import {
 
 import { type Equal, Expect } from 'type-tests/utils.ts';
 
-import { number, string } from 'zod';
 import { pgTable } from '~/pg-core/table.ts';
 
 /** Arguments */
@@ -180,7 +179,7 @@ Expect<Equal<CustomTestFunctionArgs['custom'], { x: number }>>;
 
 const badArgsFunction = pgFunction('bad_args_function', {
 	args: {
-		// @ts-expect-error - arguments must be PgColumnBuilderBase
+		// @ts-expect-error - arguments must be AnyPgColumnBuilder
 		bad: 'nothing',
 	},
 	returns: json(),
@@ -511,7 +510,7 @@ const badReturnsFunction2 = pgFunction('bad_returns_function2', {
 	returns: {},
 }).as(sql`SELECT 1`);
 
-/** Expect generics to persist through builderr modifiers */
+/** Expect generics to persist through builder modifiers */
 
 const chainedFunction = pgFunction('chained_function', {
 	args: {
