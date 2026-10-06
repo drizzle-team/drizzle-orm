@@ -1,7 +1,7 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
 import type { AnyColumn } from '~/column.ts';
-import { Column } from '~/column.ts';
+import { Column, mapColumnSelection } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
@@ -177,7 +177,15 @@ export abstract class SQLiteDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+		{ isSingleTable = false, materializedSources }: {
+			isSingleTable?: boolean;
+			/**
+			 * Aliases of sources (subqueries/CTEs) whose output columns are already materialized.
+			 * `selectFromDb` is not applied to columns referencing them — their values were
+			 * already transformed inside the subquery.
+			 */
+			materializedSources?: Set<string>;
+		} = {},
 	): SQL {
 		const columnsLen = fields.length;
 
@@ -209,24 +217,19 @@ export abstract class SQLiteDialect {
 				}
 			} else if (is(field, Column)) {
 				const tableName = field.table[Table.Symbol.Name];
-				if (field.columnType === 'SQLiteNumericBigInt') {
-					if (isSingleTable) {
-						chunk.push(
-							sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
-						);
-					} else {
-						chunk.push(
-							sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
-						);
-					}
+				const columnSql = isSingleTable
+					? sql`${sql.identifier(this.casing.getColumnCasing(field))}`
+					: sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`;
+				// NumericBigInt values are always read through a text cast — keep the cast as
+				// part of the column read so `selectFromDb` wraps the materialized value.
+				const readSql = field.columnType === 'SQLiteNumericBigInt'
+					? sql`cast(${columnSql} as text)`
+					: columnSql;
+				const selectionSql = materializedSources?.has(tableName) ? readSql : mapColumnSelection(field, readSql);
+				if (selectionSql !== readSql) {
+					chunk.push(sql`${selectionSql} as ${sql.identifier(this.casing.getColumnCasing(field))}`);
 				} else {
-					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-					} else {
-						chunk.push(
-							sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`,
-						);
-					}
+					chunk.push(readSql);
 				}
 			} else if (is(field, Subquery)) {
 				const entries = Object.entries(field._.selectedFields) as [
@@ -394,7 +397,21 @@ export abstract class SQLiteDialect {
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		// Columns read through a subquery/CTE reference its materialized output —
+		// `selectFromDb` was already applied inside it and must not be re-applied here.
+		const materializedSources = new Set<string>();
+		if (is(table, Subquery)) {
+			materializedSources.add(table._.alias);
+		}
+		if (joins) {
+			for (const join of joins) {
+				if (is(join.table, Subquery)) {
+					materializedSources.add(join.table._.alias);
+				}
+			}
+		}
+
+		const selection = this.buildSelection(fieldsList, { isSingleTable, materializedSources });
 
 		const tableSql = this.buildFromTable(table);
 
@@ -839,7 +856,7 @@ export abstract class SQLiteDialect {
 				sql.join(
 					selection.map(({ field }) =>
 						is(field, SQLiteColumn)
-							? sql.identifier(this.casing.getColumnCasing(field))
+							? mapColumnSelection(field, sql`${sql.identifier(this.casing.getColumnCasing(field))}`)
 							: is(field, SQL.Aliased)
 							? field.sql
 							: field
