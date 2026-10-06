@@ -21,6 +21,7 @@ import type { DrizzleTypeError } from '~/utils.ts';
 export interface SQLiteBunSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export type SQLiteBunRunResult = Changes;
@@ -63,7 +64,7 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 		try {
 			stmt = this.client.query(query.sql);
 		} catch (e) {
-			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+			throw new DrizzleQueryError(query.sql, this.options.paramsInErrors ? query.params : undefined, e as Error);
 		}
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {
@@ -90,6 +91,7 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 			undefined,
 			queryMetadata,
 			undefined,
+			this.options.paramsInErrors,
 		);
 	}
 

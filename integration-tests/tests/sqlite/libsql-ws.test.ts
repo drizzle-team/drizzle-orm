@@ -299,6 +299,7 @@ const skip = [
 	'transaction mode: exclusive',
 	// Uses async versions
 	'sync transaction rollback',
+	'Query error params - sync transaction',
 	'sync nested transaction rollback',
 	// DB needs to be built in special way to support this
 	'delete with limit and order by',

@@ -25,6 +25,7 @@ export interface AwsDataApiSessionOptions {
 	database: string;
 	resourceArn: string;
 	secretArn: string;
+	paramsInErrors?: boolean;
 }
 
 interface AwsDataApiQueryBase {
@@ -139,6 +140,7 @@ export class AwsDataApiSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

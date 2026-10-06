@@ -23,6 +23,7 @@ import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core
 export interface SQLiteD1SessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export type D1RunResult = D1Result;
@@ -64,7 +65,7 @@ export class SQLiteD1Session<TRelations extends AnyRelations>
 		try {
 			stmt = this.client.prepare(query.sql);
 		} catch (e) {
-			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+			throw new DrizzleQueryError(query.sql, this.options.paramsInErrors ? query.params : undefined, e as Error);
 		}
 		const executors: SQLiteQueryExecutors<'async'> = {
 			all: (params) => {
@@ -91,6 +92,7 @@ export class SQLiteD1Session<TRelations extends AnyRelations>
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -224,6 +226,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 			tables: string[];
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
+		paramsInErrors: boolean | undefined,
 	) {
 		super(
 			resultKind,
@@ -236,6 +239,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 			cache,
 			queryMetadata,
 			cacheConfig,
+			paramsInErrors,
 		);
 
 		this.stmt = stmt;

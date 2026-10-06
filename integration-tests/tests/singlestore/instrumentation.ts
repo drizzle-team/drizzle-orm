@@ -302,6 +302,7 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 				schema: S,
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 				useJitMappers?: boolean,
+				paramsInErrors?: boolean,
 			): SingleStoreDatabase<any, any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 		};
 		caches: {
@@ -384,11 +385,12 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 						helpers: RelationsBuilder<ExtractTablesFromSchema<S>>,
 					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
 					useJitMappers?: boolean,
+					paramsInErrors?: boolean,
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
 					if (vendor === 'singlestore') {
-						return drizzleSingleStore({ client: kit.client, relations, jit: useJitMappers });
+						return drizzleSingleStore({ client: kit.client, relations, jit: useJitMappers, paramsInErrors });
 					}
 
 					if (vendor === 'proxy') {
@@ -407,7 +409,12 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 								throw e;
 							}
 						};
-						return drizzleProxy(proxyHandler, { relations, jit: useJitMappers, codecs: singleStoreCodecs });
+						return drizzleProxy(proxyHandler, {
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+							codecs: singleStoreCodecs,
+						});
 					}
 					throw new Error();
 				};

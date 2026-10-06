@@ -95,7 +95,17 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 			}).then((it: any) => it.rows);
 		};
 
-		return new PgAsyncPreparedQuery(executor, query, mapper, mode, this.logger, this.cache, queryMetadata, cacheConfig);
+		return new PgAsyncPreparedQuery(
+			executor,
+			query,
+			mapper,
+			mode,
+			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
+			this.options.paramsInErrors,
+		);
 	}
 
 	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(queries: T) {
@@ -222,7 +232,7 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 		private client: PoolClient,
 		dialect: PgDialect,
 		private relations: TRelations,
-		options: NeonHttpSessionOptions = {},
+		private options: NeonHttpSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -264,6 +274,7 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 	override async transaction<T>(

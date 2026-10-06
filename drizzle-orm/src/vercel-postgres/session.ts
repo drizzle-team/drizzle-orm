@@ -25,6 +25,7 @@ export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
 export interface VercelPgSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 const noop = (val: any) => val;
@@ -101,6 +102,7 @@ export class VercelPgSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

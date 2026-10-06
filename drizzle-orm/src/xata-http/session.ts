@@ -24,6 +24,7 @@ export interface QueryResults<ArrayMode extends 'json' | 'array'> {
 export interface XataHttpSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class XataHttpSession<TRelations extends AnyRelations> extends PgAsyncSession<
@@ -85,6 +86,7 @@ export class XataHttpSession<TRelations extends AnyRelations> extends PgAsyncSes
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

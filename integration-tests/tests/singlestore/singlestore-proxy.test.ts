@@ -14,6 +14,7 @@ const exclude = [
 	'transaction',
 	'transaction with options (set isolationLevel)',
 	'migrator',
+	'Query error params - transaction',
 	'RQB v2 transaction find first - no rows',
 	'RQB v2 transaction find first - multiple rows',
 	'RQB v2 transaction find first - with relation',

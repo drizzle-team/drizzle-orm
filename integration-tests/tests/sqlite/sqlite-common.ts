@@ -8036,6 +8036,134 @@ export function tests(test: Test, exclude: string[] = []) {
 			.rejects.toBeInstanceOf(DrizzleQueryError);
 	});
 
+	test('Query error params', async ({ createDB }) => {
+		const queries = [
+			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
+			{
+				query: sql`insert into ${usersTable} (id, name) values (${1}, ${'First'}), (${1}, ${'Second'}) returning id`,
+				params: [1, 'First', 1, 'Second'],
+			},
+		];
+
+		for (const paramsInErrors of [undefined, false, true]) {
+			const db = createDB({}, () => ({}), undefined, paramsInErrors);
+
+			for (const { query, params } of queries) {
+				for (
+					const run of [
+						() => db.get(query),
+						() => db.all(query),
+						() => db.run(query),
+						() => db.values(query),
+					]
+				) {
+					const error = await (async () => run())().catch((e) => e);
+
+					expect(error).toBeInstanceOf(DrizzleQueryError);
+					expect(error.params).toStrictEqual(paramsInErrors ? params : undefined);
+					expect(error.message).toBe(
+						paramsInErrors ? `Failed query: ${error.query}\nparams: ${params}` : `Failed query: ${error.query}`,
+					);
+				}
+			}
+		}
+	});
+
+	test('Query error params - transaction', async ({ createDB }) => {
+		const queries = [
+			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
+			{
+				query: sql`insert into ${usersTable} (id, name) values (${1}, ${'First'}), (${1}, ${'Second'}) returning id`,
+				params: [1, 'First', 1, 'Second'],
+			},
+		];
+
+		for (const paramsInErrors of [undefined, false, true]) {
+			const db = createDB({}, () => ({}), undefined, paramsInErrors);
+
+			for (const { query, params } of queries) {
+				for (
+					const run of [
+						() =>
+							db.transaction(async (tx) => {
+								await tx.get(query);
+							}),
+						() =>
+							db.transaction(async (tx) => {
+								await tx.all(query);
+							}),
+						() =>
+							db.transaction(async (tx) => {
+								await tx.run(query);
+							}),
+						() =>
+							db.transaction(async (tx) => {
+								await tx.values(query);
+							}),
+					]
+				) {
+					const error = await (async () => run())().catch((e) => e);
+
+					expect(error).toBeInstanceOf(DrizzleQueryError);
+					expect(error.params).toStrictEqual(paramsInErrors ? params : undefined);
+					expect(error.message).toBe(
+						paramsInErrors ? `Failed query: ${error.query}\nparams: ${params}` : `Failed query: ${error.query}`,
+					);
+				}
+			}
+		}
+	});
+
+	test('Query error params - sync transaction', async ({ createDB }) => {
+		const queries = [
+			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
+			{
+				query: sql`insert into ${usersTable} (id, name) values (${1}, ${'First'}), (${1}, ${'Second'}) returning id`,
+				params: [1, 'First', 1, 'Second'],
+			},
+		];
+
+		for (const paramsInErrors of [undefined, false, true]) {
+			const db = createDB({}, () => ({}), undefined, paramsInErrors);
+
+			for (const { query, params } of queries) {
+				for (
+					const run of [
+						() =>
+							db.transaction((tx) => {
+								tx.get(query);
+							}),
+						() =>
+							db.transaction((tx) => {
+								tx.all(query);
+							}),
+						() =>
+							db.transaction((tx) => {
+								tx.run(query);
+							}),
+						() =>
+							db.transaction((tx) => {
+								tx.values(query);
+							}),
+					]
+				) {
+					let error: any;
+					try {
+						run();
+					} catch (e) {
+						error = e;
+					}
+
+					expect(error).toBeInstanceOf(DrizzleQueryError);
+					expect(error.params).toStrictEqual(paramsInErrors ? params : undefined);
+					expect(error.message).toBe(
+						paramsInErrors ? `Failed query: ${error.query}\nparams: ${params}` : `Failed query: ${error.query}`,
+					);
+				}
+			}
+		}
+	});
+
 	test.concurrent("No nullification on non-joined table's all-null object", async ({ db, push }) => {
 		const users = sqliteTable('nullify1_users', (t) => ({
 			id: t.integer('id').primaryKey(),

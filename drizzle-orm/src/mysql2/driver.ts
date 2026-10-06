@@ -51,6 +51,7 @@ function construct<
 	const session = new MySql2Session(clientForInstance as MySql2Client, dialect, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new MySql2Database(
 		dialect,

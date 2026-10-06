@@ -39,6 +39,7 @@ export type PostgresHttpBatchRunner = (
 export interface PostgresHttpSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class PostgresHttpSession<
@@ -54,7 +55,7 @@ export class PostgresHttpSession<
 		private runBatch: PostgresHttpBatchRunner,
 		dialect: PgDialect,
 		_relations: TRelations,
-		options: PostgresHttpSessionOptions = {},
+		private options: PostgresHttpSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -100,6 +101,7 @@ export class PostgresHttpSession<
 			queryMetadata,
 			cacheConfig,
 			shape,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -173,7 +175,8 @@ export class PostgresHttpPreparedQuery<T extends PreparedQueryConfig> extends Pg
 		// config that was passed through $withCache
 		cacheConfig: WithCacheConfig | undefined,
 		readonly shape?: ShapeSpec,
+		paramsInErrors?: boolean,
 	) {
-		super(executor, query, mapper, mode, logger, cache, queryMetadata, cacheConfig);
+		super(executor, query, mapper, mode, logger, cache, queryMetadata, cacheConfig, paramsInErrors);
 	}
 }

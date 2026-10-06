@@ -18,6 +18,7 @@ import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface NodeSQLiteSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export type NodeSQLiteRunResult = StatementResultingChanges;
@@ -56,7 +57,7 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 		try {
 			stmt = this.client.prepare(query.sql);
 		} catch (e) {
-			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+			throw new DrizzleQueryError(query.sql, this.options.paramsInErrors ? query.params : undefined, e as Error);
 		}
 
 		const executors: SQLiteQueryExecutors<'sync'> = {
@@ -93,6 +94,7 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 			undefined,
 			queryMetadata,
 			undefined,
+			this.options.paramsInErrors,
 		);
 	}
 

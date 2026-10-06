@@ -31,6 +31,7 @@ export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
 export interface EffectPgSessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
+	paramsInErrors?: boolean;
 }
 
 export class EffectPgSession<
@@ -76,6 +77,7 @@ export class EffectPgSession<
 			this.options.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

@@ -13,6 +13,7 @@ import { type Query, sql } from '~/sql/sql.ts';
 export interface PlanetscaleSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlAsyncSession<
@@ -75,6 +76,7 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlAs
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

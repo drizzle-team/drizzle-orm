@@ -27,6 +27,7 @@ export type MySql2RawExecuteResult =
 export interface MySql2SessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 const typeCast: TypeCast = function(field, next) {
@@ -123,6 +124,7 @@ export class MySql2Session<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

@@ -7913,6 +7913,37 @@ test('Query error wrapping', async ({ db }) => {
 		.rejects.toBeInstanceOf(DrizzleQueryError);
 });
 
+test('Query error params', async ({ createDB }) => {
+	for (const paramsInErrors of [undefined, false, true]) {
+		const db = createDB({}, () => ({}), undefined, paramsInErrors);
+
+		const error = await db.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`)
+			.catch((e) => e);
+
+		expect(error).toBeInstanceOf(DrizzleQueryError);
+		expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+		expect(error.message).toBe(
+			paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+		);
+	}
+});
+
+test('Query error params - transaction', async ({ createDB }) => {
+	for (const paramsInErrors of [undefined, false, true]) {
+		const db = createDB({}, () => ({}), undefined, paramsInErrors);
+
+		const error = await db.transaction(async (tx) => {
+			await tx.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`);
+		}).catch((e) => e);
+
+		expect(error).toBeInstanceOf(DrizzleQueryError);
+		expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+		expect(error.message).toBe(
+			paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+		);
+	}
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/5881
 test('insert into table with generated column', async ({ db }) => {
 	const docs = mssqlTable('docs', {

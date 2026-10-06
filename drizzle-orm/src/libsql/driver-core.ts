@@ -47,6 +47,7 @@ export function construct<TRelations extends AnyRelations = EmptyRelations>(
 	const session = new LibSQLSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	}, undefined);
 	const db = new LibSQLDatabase('async', dialect, session as LibSQLSession<TRelations>, relations);
 	(<any> db).$client = client;

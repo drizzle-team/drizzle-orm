@@ -20,6 +20,7 @@ import type { TursoDatabaseServerlessRunResult } from './driver.ts';
 export interface TursoDatabaseServerlessSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -102,6 +103,7 @@ export class TursoDatabaseServerlessSession<TRelations extends AnyRelations>
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

@@ -18,6 +18,7 @@ export interface NeonHttpSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
 	authToken?: NeonAuthToken;
+	paramsInErrors?: boolean;
 }
 
 export class NeonHttpSession<TRelations extends AnyRelations>
@@ -78,7 +79,17 @@ export class NeonHttpSession<TRelations extends AnyRelations>
 			}).then((it: any) => it.rows);
 		};
 
-		return new PgAsyncPreparedQuery(executor, query, mapper, mode, this.logger, this.cache, queryMetadata, cacheConfig);
+		return new PgAsyncPreparedQuery(
+			executor,
+			query,
+			mapper,
+			mode,
+			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
+			this.options.paramsInErrors,
+		);
 	}
 
 	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(queries: T) {

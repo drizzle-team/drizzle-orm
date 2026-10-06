@@ -20,6 +20,7 @@ import type { TursoDatabaseRunResult } from './driver-core';
 export interface TursoDatabaseSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -102,6 +103,7 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

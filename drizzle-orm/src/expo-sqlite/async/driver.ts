@@ -36,6 +36,7 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	const session = new ExpoSQLiteAsyncSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new ExpoSQLiteAsyncDatabase(
 		'async',

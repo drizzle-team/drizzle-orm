@@ -41,6 +41,7 @@ const typeConfig: CustomTypesConfig = {
 export interface NodePgSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class NodePgSession<
@@ -97,6 +98,7 @@ export class NodePgSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

@@ -650,6 +650,11 @@ export interface DrizzleConfig<TRelationConfigs extends AnyRelations = EmptyRela
 	relations?: TRelationConfigs | undefined;
 	cache?: Cache | undefined;
 	jit?: boolean | undefined;
+	/** Put query params in `DrizzleQueryError` instances
+	 *
+	 * @default false
+	 */
+	paramsInErrors?: boolean | undefined;
 }
 
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
@@ -716,6 +721,13 @@ export function isConfig(data: any): boolean {
 	if ('client' in data) {
 		const type = typeof data['client'];
 		if (type !== 'object' && type !== 'function' && type !== 'undefined') return false;
+
+		return true;
+	}
+
+	if ('paramsInErrors' in data) {
+		const type = typeof data['paramsInErrors'];
+		if (type !== 'boolean' && type !== 'undefined') return false;
 
 		return true;
 	}

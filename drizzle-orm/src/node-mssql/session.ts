@@ -26,6 +26,7 @@ export type MsSqlQueryResult<T extends unknown | unknown[] = any> = IResult<T>;
 
 export interface NodeMsSqlSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export class NodeMsSqlSession<
@@ -103,6 +104,7 @@ export class NodeMsSqlSession<
 			mapper,
 			mode,
 			this.logger,
+			this.options.paramsInErrors,
 		) as PreparedQueryKind<NodeMsSqlPreparedQueryHKT, T>;
 	}
 

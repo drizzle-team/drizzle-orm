@@ -19,6 +19,7 @@ import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core
 export interface ExpoSQLiteAsyncSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export type ExpoSQLiteAsyncRunResult = SQLiteRunResult;
@@ -93,6 +94,7 @@ export class ExpoSQLiteAsyncSession<TRelations extends AnyRelations>
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

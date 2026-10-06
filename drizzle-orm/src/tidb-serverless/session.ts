@@ -14,6 +14,7 @@ import type { Simplify } from '~/utils.ts';
 export interface TiDBServerlessSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 function tidbBeginOptions(
@@ -105,6 +106,7 @@ export class TiDBServerlessSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

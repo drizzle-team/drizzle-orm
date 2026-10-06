@@ -16,6 +16,7 @@ import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface SQLiteDOSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -89,6 +90,7 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyn
 			undefined,
 			queryMetadata,
 			undefined,
+			this.options.paramsInErrors,
 		);
 	}
 

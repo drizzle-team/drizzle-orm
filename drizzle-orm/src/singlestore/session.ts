@@ -41,6 +41,7 @@ export type SingleStoreRawExecuteResult =
 export interface SingleStoreDriverSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 const typeCast: TypeCast = function(field, next) {
@@ -141,6 +142,7 @@ export class SingleStoreDriverSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		) as PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T>;
 	}
 

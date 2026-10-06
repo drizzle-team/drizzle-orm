@@ -17,6 +17,7 @@ import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface SQLJsSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export type SQLJsRunResult = void;
@@ -100,6 +101,7 @@ export class SQLJsSession<TRelations extends AnyRelations>
 			undefined,
 			queryMetadata,
 			undefined,
+			this.options.paramsInErrors,
 		);
 	}
 

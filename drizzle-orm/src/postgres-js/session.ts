@@ -15,6 +15,7 @@ import type { Assume } from '~/utils.ts';
 export interface PostgresJsSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class PostgresJsSession<TSQL extends Sql, TRelations extends AnyRelations>
@@ -73,6 +74,7 @@ export class PostgresJsSession<TSQL extends Sql, TRelations extends AnyRelations
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 	override transaction<T>(

@@ -1478,6 +1478,37 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			.rejects.toBeInstanceOf(DrizzleQueryError);
 	});
 
+	test.concurrent('Query error params', async ({ createDB }) => {
+		for (const paramsInErrors of [undefined, false, true]) {
+			const db = createDB({ paramsInErrors });
+
+			const error = await db.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`)
+				.catch((e) => e);
+
+			expect(error).toBeInstanceOf(DrizzleQueryError);
+			expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+			expect(error.message).toBe(
+				paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+			);
+		}
+	});
+
+	test.concurrent('Query error params - transaction', async ({ createDB }) => {
+		for (const paramsInErrors of [undefined, false, true]) {
+			const db = createDB({ paramsInErrors });
+
+			const error = await db.transaction(async (tx) => {
+				await tx.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`);
+			}).catch((e) => e);
+
+			expect(error).toBeInstanceOf(DrizzleQueryError);
+			expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+			expect(error.message).toBe(
+				paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+			);
+		}
+	});
+
 	test.concurrent('comments', async ({ createDB, push }) => {
 		const ctbl = mysqlTable('comments_test', (t) => ({
 			id: t.int('id').primaryKey(),

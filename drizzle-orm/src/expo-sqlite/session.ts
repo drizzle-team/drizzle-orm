@@ -17,6 +17,7 @@ import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface ExpoSQLiteSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export type ExpoSQLiteRunResult = SQLiteRunResult;
@@ -97,6 +98,7 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 			undefined,
 			queryMetadata,
 			undefined,
+			this.options.paramsInErrors,
 		);
 	}
 

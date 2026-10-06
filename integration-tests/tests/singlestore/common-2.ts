@@ -2757,6 +2757,37 @@ export function tests(test: Test) {
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
 
+		test.concurrent('Query error params', async ({ createDB }) => {
+			for (const paramsInErrors of [undefined, false, true]) {
+				const db = createDB({}, () => ({}), undefined, paramsInErrors);
+
+				const error = await db.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`)
+					.catch((e) => e);
+
+				expect(error).toBeInstanceOf(DrizzleQueryError);
+				expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+				expect(error.message).toBe(
+					paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+				);
+			}
+		});
+
+		test.concurrent('Query error params - transaction', async ({ createDB }) => {
+			for (const paramsInErrors of [undefined, false, true]) {
+				const db = createDB({}, () => ({}), undefined, paramsInErrors);
+
+				const error = await db.transaction(async (tx) => {
+					await tx.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`);
+				}).catch((e) => e);
+
+				expect(error).toBeInstanceOf(DrizzleQueryError);
+				expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+				expect(error.message).toBe(
+					paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+				);
+			}
+		});
+
 		test.concurrent('sql.Aliased in cte', async ({ db, push }) => {
 			const users = singlestoreTable('users_109_sqla', {
 				id: int('id').primaryKey(),

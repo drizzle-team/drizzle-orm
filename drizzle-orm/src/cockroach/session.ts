@@ -42,6 +42,7 @@ const typeConfig: CustomTypesConfig = {
 
 export interface NodeCockroachSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export class NodeCockroachSession<
@@ -88,6 +89,7 @@ export class NodeCockroachSession<
 			mapper,
 			mode,
 			this.logger,
+			this.options.paramsInErrors,
 		);
 	}
 

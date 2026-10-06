@@ -34,6 +34,7 @@ const parsers: ParserOptions = {
 export interface PgliteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSession<PgliteQueryResultHKT, TRelations> {
@@ -80,6 +81,7 @@ export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSessi
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

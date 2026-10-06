@@ -20,6 +20,7 @@ import type { SqliteProxyBatchItem, SqliteProxyExecutors, SqliteRemoteRunResult 
 export interface SQLiteRemoteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -71,6 +72,7 @@ export class SQLiteRemoteSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

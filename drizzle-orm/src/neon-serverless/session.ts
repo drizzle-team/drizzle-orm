@@ -45,6 +45,7 @@ const typeConfig: CustomTypesConfig = {
 export interface NeonSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession<NeonQueryResultHKT, TRelations> {
@@ -99,6 +100,7 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

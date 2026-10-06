@@ -37,6 +37,7 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	const session = new TiDBServerlessSession(client, dialect, undefined, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new TiDBServerlessDatabase(dialect, session, relations);
 	(<any> db).$client = client;
