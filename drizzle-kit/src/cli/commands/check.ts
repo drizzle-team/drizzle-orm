@@ -1,11 +1,14 @@
 import chalk from 'chalk';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
+import { dirname, join } from 'path';
 import { getCommutativityDialect } from '../../commutativity';
 import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from '../../commutativity/types';
 import type { Dialect } from '../../utils/schemaValidator';
 import { prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
 import { CheckCliError } from '../errors';
+import { withStyle } from '../validations/outputs';
 import { humanLog } from '../views';
+import { migrationHash, readUpHashStamp } from './generate-down-helpers';
 
 export type CheckHandlerResult = {
 	statements: unknown[];
@@ -230,4 +233,35 @@ export const checkHandler = async (
 	}
 
 	return emptyResult();
+};
+
+/**
+ * Paths of down.sql files whose up-hash stamp no longer matches their sibling migration.sql.
+ * Unstamped down.sql files (hand-written, or generated before stamping) are skipped.
+ */
+export const findStaleDownMigrations = (out: string): string[] => {
+	const { snapshots } = prepareOutFolder(out);
+	const stale: string[] = [];
+	for (const snapshot of snapshots) {
+		const folder = dirname(snapshot);
+		const downPath = join(folder, 'down.sql');
+		const migrationPath = join(folder, 'migration.sql');
+		if (!existsSync(downPath) || !existsSync(migrationPath)) continue;
+
+		const stamp = readUpHashStamp(readFileSync(downPath).toString());
+		if (stamp === null) continue;
+
+		if (stamp !== migrationHash(readFileSync(migrationPath).toString())) stale.push(downPath);
+	}
+	return stale;
+};
+
+export const warnStaleDownMigrations = (stale: string[]) => {
+	for (const downPath of stale) {
+		humanLog(
+			withStyle.warning(
+				`${downPath} was generated for a different migration.sql. Review it, then update or remove its "-- drizzle:up-hash=" line`,
+			),
+		);
+	}
 };

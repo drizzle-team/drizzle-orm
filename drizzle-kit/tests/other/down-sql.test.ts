@@ -29,6 +29,12 @@ afterEach(() => {
 	fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
+const readDownBody = (tag: string) => {
+	const [stamp, ...body] = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8').split('\n');
+	expect(stamp).toMatch(/^-- drizzle:up-hash=[0-9a-f]{64}$/);
+	return body.join('\n');
+};
+
 describe('writeResult — down SQL file generation', () => {
 	test('writes down.sql file when downSqlStatements are provided', () => {
 		writeResult({
@@ -50,7 +56,7 @@ describe('writeResult — down SQL file generation', () => {
 		expect(fs.existsSync(path.join(tmpDir, tag, 'migration.sql'))).toBe(true);
 		expect(fs.existsSync(path.join(tmpDir, tag, 'down.sql'))).toBe(true);
 
-		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
+		const downContent = readDownBody(tag);
 		expect(downContent).toContain('DROP TABLE users');
 	});
 
@@ -106,7 +112,7 @@ describe('writeResult — down SQL file generation', () => {
 
 		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
 		const tag = dirs[0]!;
-		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
+		const downContent = readDownBody(tag);
 		expect(downContent.startsWith(DOWN_SQL_HEADER)).toBe(true);
 		expect(downContent).toContain('--> statement-breakpoint');
 		// After the header, exactly one breakpoint between two statements
@@ -131,7 +137,7 @@ describe('writeResult — down SQL file generation', () => {
 
 		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
 		const tag = dirs[0]!;
-		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
+		const downContent = readDownBody(tag);
 		expect(downContent).not.toContain('--> statement-breakpoint');
 		expect(downContent).toBe(`${DOWN_SQL_HEADER}\nDROP TABLE b\nDROP TABLE a`);
 	});
@@ -150,7 +156,7 @@ describe('writeResult — down SQL file generation', () => {
 
 		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
 		const tag = dirs[0]!;
-		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
+		const downContent = readDownBody(tag);
 		expect(downContent.startsWith(DOWN_SQL_HEADER)).toBe(true);
 		expect(downContent).toContain('reverses structural (DDL) changes only');
 	});
@@ -170,7 +176,7 @@ describe('writeResult — down SQL file generation', () => {
 		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
 		const tag = dirs[0]!;
 		expect(fs.existsSync(path.join(tmpDir, tag, 'down.sql'))).toBe(true);
-		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
+		const downContent = readDownBody(tag);
 		expect(downContent).toBe(CUSTOM_DOWN_SQL_SCAFFOLD);
 	});
 
@@ -192,7 +198,7 @@ describe('writeResult — down SQL file generation', () => {
 
 		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
 		const tag = dirs[0]!;
-		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
+		const downContent = readDownBody(tag);
 		expect(downContent).toContain('⚠ REVIEW');
 		expect(downContent).toContain('DROP TABLE users — drops a table the migration created');
 		expect(downContent).toContain('re-adds a column the migration dropped');
@@ -221,7 +227,7 @@ describe('writeResult — down SQL file generation', () => {
 
 		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
 		const tag = dirs[0]!;
-		const downContent = fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8');
+		const downContent = readDownBody(tag);
 		expect(downContent).not.toContain('⚠ REVIEW');
 		expect(downContent).toBe(`${DOWN_SQL_HEADER}\nDROP INDEX idx`);
 	});
