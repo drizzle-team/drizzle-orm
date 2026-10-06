@@ -330,6 +330,7 @@ const baseObjects = {
 	schema: sqlOf('create_schema'),
 	targetSchema: [`CREATE SCHEMA "s_new";`],
 	table: sqlOf('create_table'),
+	rls: sqlOf('alter_rls'),
 	column: sqlOf('add_column'),
 	referencedTable: [`CREATE TABLE "s"."t2" ("c2" varchar PRIMARY KEY);`],
 	index: sqlOf('create_index'),
@@ -416,6 +417,7 @@ const needs: Record<string, readonly BaseObject[]> = {
 	alter_policy: [...onTable, 'policy'],
 	recreate_policy: [...onTable, 'policy'],
 	alter_rls: onTable,
+	'alter_rls:disable': [...onTable, 'rls'],
 	create_role: [],
 	drop_role: ['role'],
 	rename_role: ['role'],
@@ -426,10 +428,14 @@ const needs: Record<string, readonly BaseObject[]> = {
 	regrant_privilege: [...onTable, 'role', 'privilege'],
 };
 
+const unenforcedPolicy =
+	'both orders give a policy on a table without row level security, so postgres does not enforce the policy';
 // Cells where the rules report a conflict that postgres accepts. Keys are `row x column` in matrix order.
 const knownExceptions: Record<string, string> = {
 	'alter_column:default x alter_column:type':
 		'a type change converts the default, and the rules do not know that the conversion from varchar to text keeps it',
+	'create_policy x alter_rls:disable': unenforcedPolicy,
+	'create_policy:role x alter_rls:disable': unenforcedPolicy,
 };
 
 // Everything a pair can change, as sorted text. Column order is left out, because

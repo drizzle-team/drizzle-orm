@@ -157,6 +157,28 @@ test('a new policy for a role conflicts with a rename of that role', async () =>
 	await expect(flow.migrate('main', {})).rejects.toThrow('CREATE POLICY "staff_reads" ON "users"');
 });
 
+test('a new policy conflicts with a drop of the last policy of its table, which disables row level security', async () => {
+	const flow = createFolderFlow();
+	const policy = (name: string) => pgPolicy(name, { for: 'select', to: 'public' });
+	const users = (...policies: ReturnType<typeof pgPolicy>[]) => pgTable('users', { id: integer() }, () => policies);
+
+	await flow.generate('main', { users: users(policy('readers')) });
+	flow.branch('a', 'main');
+	flow.branch('b', 'main');
+	await flow.generate('a', { users: users() });
+	await flow.generate('b', { users: users(policy('readers'), policy('writers')) });
+	flow.merge('main', 'a', 'b');
+
+	const result = await flow.check('main');
+
+	expect(result).toMatchObject({ status: 'conflicts', folders: ['20260101120002_a', '20260101120003_b'] });
+	// The SQL of both branches runs in either order. The database then has the new policy on a table without
+	// row level security, so postgres does not enforce the policy.
+	expect(await flow.migrate('main', { users: users(policy('writers')) })).toStrictEqual([
+		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
+	]);
+});
+
 test('a new foreign key conflicts with a drop of the primary key that it references', async () => {
 	const flow = createFolderFlow();
 	const users = pgTable('users', { id: integer().primaryKey() });

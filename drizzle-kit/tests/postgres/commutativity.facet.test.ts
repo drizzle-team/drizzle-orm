@@ -718,9 +718,22 @@ const cases: Case[] = [
 		expect: 'commute',
 	},
 	{
-		name: 'alter_rls ∥ create_policy (same table) commute',
+		name: 'alter_rls that enables ∥ create_policy (same table) commute',
 		a: [S.alterRls('public', 'users', true)],
 		b: [S.createPolicy('public', 'users', 'p1')],
+		expect: 'commute',
+	},
+	// postgres does not enforce a policy on a table without row level security
+	{
+		name: 'alter_rls that disables ∥ create_policy (same table) conflict',
+		a: [S.alterRls('public', 'users', false)],
+		b: [S.createPolicy('public', 'users', 'p1')],
+		expect: 'conflict',
+	},
+	{
+		name: 'alter_rls that disables ∥ create_policy (another table) commute',
+		a: [S.alterRls('public', 'users', false)],
+		b: [S.createPolicy('public', 'orders', 'p1')],
 		expect: 'commute',
 	},
 

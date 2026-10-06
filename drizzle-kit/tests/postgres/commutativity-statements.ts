@@ -294,6 +294,8 @@ export function build(type: string): JsonStatement {
 			return { type, from: { schema: S, table: T, name: 'pol' }, to: { schema: S, table: T, name: 'pol_new' } } as any;
 		case 'alter_rls':
 			return { type, schema: S, name: T, isRlsEnabled: true } as any;
+		case 'alter_rls:disable':
+			return { type: 'alter_rls', schema: S, name: T, isRlsEnabled: false } as any;
 		case 'create_role':
 			return { type, role } as any;
 		case 'alter_role':

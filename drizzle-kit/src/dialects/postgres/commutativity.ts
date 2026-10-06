@@ -789,7 +789,9 @@ class PostgresCommutativity extends FacetCommutativity<
 		//   n|N  name       — written by create/drop/rename/move (anything that changes
 		//                     N's NAME). Read by statements whose SQL hardcodes N's name,
 		//                     so a rename of N breaks them (e.g. `CREATE INDEX … ON (c)`).
-		//   e|N  existence  — written by create/drop ONLY (rename/move preserve existence).
+		//   e|N  existence  — written by create/drop (a rename preserves existence). Two more
+		//                     statements write it: a move of a table to another schema, and
+		//                     a DISABLE of row level security (see `move_table`, `alter_rls`).
 		//                     Read by cascade dependents that FOLLOW a rename but are
 		//                     destroyed by a drop (e.g. an existing index/pk on a column:
 		//                     `DROP INDEX ix` breaks if the column is dropped, not renamed).
@@ -1210,7 +1212,12 @@ class PostgresCommutativity extends FacetCommutativity<
 			case 'create_policy': // the SQL names the roles of the policy
 				return {
 					owns: created('pol', s.policy.schema, s.policy.table, s.policy.name),
-					needs: [...underTable(s.policy.schema, s.policy.table), ...policyRoles(s.policy)],
+					needs: [
+						...underTable(s.policy.schema, s.policy.table),
+						...policyRoles(s.policy),
+						// Postgres does not enforce a policy on a table without row level security.
+						eref('rls', s.policy.schema, s.policy.table),
+					],
 				};
 			case 'alter_policy':
 			case 'recreate_policy':
@@ -1233,8 +1240,14 @@ class PostgresCommutativity extends FacetCommutativity<
 				};
 
 			// ---- RLS toggle (a child aspect of the table) ----
+			// A DISABLE and a new policy of another branch run in either order, and the policy is then not
+			// enforced. So a DISABLE ends the row level security that a new policy reads.
 			case 'alter_rls':
-				return { owns: altered('rls', s.schema, s.name), needs: underTable(s.schema, s.name) };
+				return {
+					owns: altered('rls', s.schema, s.name),
+					destroys: s.isRlsEnabled ? [] : [exist('rls', s.schema, s.name)],
+					needs: underTable(s.schema, s.name),
+				};
 
 			// ---- roles (cluster level) ----
 			case 'create_role':

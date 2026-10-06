@@ -23,7 +23,8 @@ import type { PostgresSchema } from './mocks';
 // migration is the schema after it with the rename decisions that generate needs.
 //
 // A row with `merged` holds branches whose SQL runs in either order. `merged` is the schema that the
-// branches give together. A row without `merged` holds branches whose SQL does not run in either order.
+// branches give together. A row without `merged` holds branches that check must report: their SQL fails in
+// one order, or it leaves a database that neither branch describes.
 //
 // To add a case, add a row. The tests below run every row with each branch as the first parent of the merge.
 type Step = { schema: PostgresSchema; hints: Hint[] };
@@ -845,6 +846,23 @@ const rows: Row[] = [
 			[step(tableT(['id', 'email'], all(policy('t_read'), policy('t_list'))))],
 		],
 		merged: tableT(['id', 'email'], all(policy('t_view'), policy('t_list'))),
+	},
+	{
+		name: 'the first policy of a table in both branches',
+		base: tableT(['id']),
+		branches: [
+			[step(tableT(['id'], policy('t_read')))],
+			[step(tableT(['id'], policy('t_list')))],
+		],
+		merged: tableT(['id'], all(policy('t_read'), policy('t_list'))),
+	},
+	{
+		name: 'a removed row level security flag against the first policy of that table',
+		base: { t: pgTable.withRLS('t', columns(['id'])) },
+		branches: [
+			[step(tableT(['id']))],
+			[step({ t: pgTable.withRLS('t', columns(['id']), policy('t_read')) })],
+		],
 	},
 	{
 		name: 'a policy rename against a change of that policy',

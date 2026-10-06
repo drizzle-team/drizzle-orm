@@ -99,6 +99,7 @@ const TYPES = [
 	'alter_policy',
 	'recreate_policy',
 	'alter_rls',
+	'alter_rls:disable',
 	'create_role',
 	'drop_role',
 	'rename_role',
