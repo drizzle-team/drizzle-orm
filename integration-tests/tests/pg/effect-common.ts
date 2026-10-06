@@ -17,6 +17,7 @@ import {
 } from 'drizzle-orm';
 import { EffectCache, type EffectCacheShape } from 'drizzle-orm/cache/core/cache-effect';
 import { EffectLogger, type EffectLoggerShape, QueryEffectHKTBase } from 'drizzle-orm/effect-core';
+import { type MigrationConfig, readMigrationFiles } from 'drizzle-orm/migrator';
 import {
 	alias,
 	bigint,
@@ -47,6 +48,7 @@ import {
 	RelationsBuilderConfig,
 	Schema,
 } from 'drizzle-orm/relations';
+import * as Cause from 'effect/Cause';
 import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
@@ -55,6 +57,8 @@ import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
 import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
+import { mkdirSync, rmSync, writeFileSync } from 'fs';
+import { randomString } from '~/utils';
 import {
 	type AllTypes,
 	allTypesData,
@@ -209,6 +213,7 @@ export interface RunCommonEffectPgTestsOptions {
 		any
 	>;
 	usedSchema: string;
+	migrate: (db: any, config: MigrationConfig) => Effect.Effect<unknown, unknown, any>;
 	skipTests?: string[];
 	addTests?: (it: Vitest.MethodsNonLive<DB | SqlClient>) => void;
 }
@@ -229,7 +234,7 @@ const failureMessage = (failure: unknown): string => {
 };
 
 export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): void => {
-	const { testLayer, usedSchema, PgDrizzle, createDB, addTests, skipTests = [] } = opts;
+	const { testLayer, usedSchema, PgDrizzle, createDB, migrate, addTests, skipTests = [] } = opts;
 
 	it.layer(testLayer)('common', (layerIt) => {
 		// Run setup before each test.
@@ -5144,6 +5149,145 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					defMix3: 2,
 					defMix4: 1,
 				}]);
+			}));
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/874
+		it.effect('migrator : concurrent migrate calls apply each migration once', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const migrationsSchema = `migrator_concurrent_${randomString()}`;
+				const migrationsFolder = `./migrations/${migrationsSchema}`;
+				const writeMigration = (name: string, query: string) => {
+					mkdirSync(`${migrationsFolder}/${name}`, { recursive: true });
+					writeFileSync(`${migrationsFolder}/${name}/migration.sql`, query);
+				};
+				const migrateConcurrently = () =>
+					Effect.all(
+						Array.from({ length: 3 }, () => migrate(db, { migrationsFolder, migrationsSchema }).pipe(Effect.result)),
+						{ concurrency: 'unbounded' },
+					).pipe(Effect.map((results) => results.filter(Result.isFailure).map((r) => failureMessage(r.failure))));
+
+				yield* Effect.gen(function*() {
+					// fresh database
+					writeMigration(
+						'20240101010101_initial',
+						`CREATE TABLE "${migrationsSchema}"."runs" ("id" serial PRIMARY KEY NOT NULL, "name" text NOT NULL);\n--> statement-breakpoint\nINSERT INTO "${migrationsSchema}"."runs" ("name") VALUES ('initial');`,
+					);
+					expect(yield* migrateConcurrently()).toStrictEqual([]);
+
+					// existing database with a new migration
+					writeMigration(
+						'20240202020202_second',
+						`SELECT pg_sleep(0.2);\n--> statement-breakpoint\nINSERT INTO "${migrationsSchema}"."runs" ("name") VALUES ('second');`,
+					);
+					expect(yield* migrateConcurrently()).toStrictEqual([]);
+
+					const runs = yield* db.execute<{ name: string }>(
+						sql`select "name" from ${sql.identifier(migrationsSchema)}."runs" order by "id"`,
+					);
+					expect(runs.rows).toStrictEqual([{ name: 'initial' }, { name: 'second' }]);
+
+					const history = yield* db.execute<{ name: string }>(
+						sql`select "name" from ${sql.identifier(migrationsSchema)}."__drizzle_migrations" order by "id"`,
+					);
+					expect(history.rows).toStrictEqual([{ name: '20240101010101_initial' }, { name: '20240202020202_second' }]);
+				}).pipe(
+					Effect.ensuring(Effect.gen(function*() {
+						yield* db.execute(sql`drop schema if exists ${sql.identifier(migrationsSchema)} cascade`).pipe(
+							Effect.ignore,
+						);
+						rmSync(migrationsFolder, { recursive: true, force: true });
+					})),
+				);
+			}));
+
+		it.effect('migrator : upgrades a v0 migrations table', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const migrationsSchema = `migrator_upgrade_${randomString()}`;
+				const migrationsFolder = `./migrations/${migrationsSchema}`;
+				const table = sql`${sql.identifier(migrationsSchema)}."__drizzle_migrations"`;
+				const writeMigration = (name: string, query: string) => {
+					mkdirSync(`${migrationsFolder}/${name}`, { recursive: true });
+					writeFileSync(`${migrationsFolder}/${name}/migration.sql`, query);
+				};
+				const tables = () =>
+					db.execute<{ name: string }>(
+						sql`select table_name as "name" from information_schema.tables where table_schema = ${migrationsSchema} order by table_name`,
+					).pipe(Effect.map((result) => result.rows));
+
+				yield* Effect.gen(function*() {
+					writeMigration('20240101010101_initial', 'SELECT 1;');
+					writeMigration(
+						'20240202020202_second',
+						`CREATE TABLE "${migrationsSchema}"."runs" ("id" serial PRIMARY KEY);`,
+					);
+					const [initial] = readMigrationFiles({ migrationsFolder });
+
+					yield* db.execute(sql`create schema ${sql.identifier(migrationsSchema)}`);
+					yield* db.execute(sql`create table ${table} (id serial primary key, hash text not null, created_at bigint)`);
+					yield* db.execute(
+						sql`insert into ${table} (hash, created_at) values (${initial!.hash}, ${
+							initial!.folderMillis
+						}), ('unknown', 0)`,
+					);
+
+					const cause = yield* migrate(db, { migrationsFolder, migrationsSchema }).pipe(Effect.sandbox, Effect.flip);
+					expect(failureMessage(Cause.squash(cause))).toContain(
+						'found 1 migrations (ids: 2) in the database that do not match any local migration',
+					);
+					expect(yield* tables()).toStrictEqual([{ name: '__drizzle_migrations' }]);
+
+					yield* db.execute(sql`delete from ${table} where hash = 'unknown'`);
+					yield* migrate(db, { migrationsFolder, migrationsSchema });
+
+					expect(yield* tables()).toStrictEqual([{ name: '__drizzle_migrations' }, { name: 'runs' }]);
+					const history = yield* db.execute<{ name: string; applied: boolean }>(
+						sql`select "name", "applied_at" is not null as "applied" from ${table} order by "id"`,
+					);
+					expect(history.rows).toStrictEqual([
+						{ name: '20240101010101_initial', applied: false },
+						{ name: '20240202020202_second', applied: true },
+					]);
+				}).pipe(
+					Effect.ensuring(Effect.gen(function*() {
+						yield* db.execute(sql`drop schema if exists ${sql.identifier(migrationsSchema)} cascade`).pipe(
+							Effect.ignore,
+						);
+						rmSync(migrationsFolder, { recursive: true, force: true });
+					})),
+				);
+			}));
+
+		it.effect('migrator : migrate inside a repeatable read transaction', () =>
+			Effect.gen(function*() {
+				const db = yield* DB;
+				const migrationsSchema = `migrator_nested_${randomString()}`;
+				const migrationsFolder = `./migrations/${migrationsSchema}`;
+
+				yield* Effect.gen(function*() {
+					mkdirSync(`${migrationsFolder}/20240101010101_initial`, { recursive: true });
+					writeFileSync(
+						`${migrationsFolder}/20240101010101_initial/migration.sql`,
+						`CREATE TABLE "${migrationsSchema}"."runs" ("level" text);\n--> statement-breakpoint\nINSERT INTO "${migrationsSchema}"."runs" SELECT current_setting('transaction_isolation');`,
+					);
+
+					yield* db.transaction(() => migrate(db, { migrationsFolder, migrationsSchema }), {
+						isolationLevel: 'repeatable read',
+					});
+
+					const runs = yield* db.execute<{ level: string }>(
+						sql`select "level" from ${sql.identifier(migrationsSchema)}."runs"`,
+					);
+					expect(runs.rows).toStrictEqual([{ level: 'repeatable read' }]);
+				}).pipe(
+					Effect.ensuring(Effect.gen(function*() {
+						yield* db.execute(sql`drop schema if exists ${sql.identifier(migrationsSchema)} cascade`).pipe(
+							Effect.ignore,
+						);
+						rmSync(migrationsFolder, { recursive: true, force: true });
+					})),
+				);
 			}));
 
 		addTests?.(it);

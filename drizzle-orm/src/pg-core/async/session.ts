@@ -305,53 +305,60 @@ export async function migrate(
 		: config.migrationsTable ?? '__drizzle_migrations';
 	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
 
-	await db.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+	// Concurrent calls wait on the lock; `read committed` lets a waiting call see what the previous one applied
+	return db.transaction(async (tx) => {
+		await tx.execute(sql`select 1 from pg_advisory_xact_lock(hashtext(${`${migrationsSchema}.${migrationsTable}`}))`);
 
-	// Detect DB version and upgrade table schema if needed
-	const { newDb } = await upgradeIfNeeded(migrationsSchema, migrationsTable, db, migrations);
+		await tx.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
 
-	// Create table with latest schema (version 1) if this is a new database
-	if (newDb) {
-		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
-				hash text NOT NULL,
-				created_at bigint,
-				name text,
-				applied_at timestamp with time zone DEFAULT now()
-			)
-		`;
-		await db.execute(migrationTableCreate);
-	}
+		// Detect DB version and upgrade table schema if needed
+		const { newDb } = await upgradeIfNeeded(migrationsSchema, migrationsTable, tx, migrations);
 
-	const dbMigrations = await db.session.objects<{ id: number; hash: string; created_at: string; name: string }>(
-		sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
-	);
-
-	if (typeof config === 'object' && config.init) {
-		if (dbMigrations.length) {
-			return { exitCode: 'databaseMigrations' as const };
+		// Create table with latest schema (version 1) if this is a new database
+		if (newDb) {
+			const migrationTableCreate = sql`
+				CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
+					id SERIAL PRIMARY KEY,
+					hash text NOT NULL,
+					created_at bigint,
+					name text,
+					applied_at timestamp with time zone DEFAULT now()
+				)
+			`;
+			await tx.execute(migrationTableCreate);
 		}
 
-		if (migrations.length > 1) {
-			return { exitCode: 'localMigrations' as const };
-		}
-
-		const [migration] = migrations;
-
-		if (!migration) return;
-
-		await db.execute(
-			sql`insert into ${sql.identifier(migrationsSchema)}.${
+		const dbMigrations = await tx.session.objects<{ id: number; hash: string; created_at: string; name: string }>(
+			sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${
 				sql.identifier(migrationsTable)
-			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name ?? null})`,
+			}`,
 		);
 
-		return;
-	}
+		if (typeof config === 'object' && config.init) {
+			if (dbMigrations.length) {
+				return { exitCode: 'databaseMigrations' as const };
+			}
 
-	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
-	await db.transaction(async (tx) => {
+			if (migrations.length > 1) {
+				return { exitCode: 'localMigrations' as const };
+			}
+
+			const [migration] = migrations;
+
+			if (!migration) return;
+
+			await tx.execute(
+				sql`insert into ${sql.identifier(migrationsSchema)}.${
+					sql.identifier(migrationsTable)
+				} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${
+					migration.name ?? null
+				})`,
+			);
+
+			return;
+		}
+
+		const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
 		for (const migration of migrationsToRun) {
 			for (const stmt of migration.sql) {
 				await tx.execute(sql.raw(stmt));
@@ -364,5 +371,7 @@ export async function migrate(
 				})`,
 			);
 		}
-	});
+
+		return;
+	}, { isolationLevel: 'read committed' });
 }

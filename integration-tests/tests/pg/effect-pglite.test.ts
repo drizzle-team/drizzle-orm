@@ -66,6 +66,8 @@ runCommonEffectPgTests({
 	PgDrizzle: PgDrizzle,
 	createDB,
 	usedSchema,
+	// PGlite runs on one connection, so for it the concurrent migrate test only checks that concurrent calls succeed
+	migrate,
 	addTests: (it) => {
 		it.effect('raw db.execute type matches returned data', () =>
 			Effect.gen(function*() {

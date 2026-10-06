@@ -19,10 +19,14 @@ import {
 } from 'drizzle-orm';
 import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
+import type { MigrationConfig } from 'drizzle-orm/migrator';
 import { drizzle as drizzleNeonHttp, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { drizzle as drizzleNeonWs } from 'drizzle-orm/neon-serverless';
+import { migrate as migrateNeonWs } from 'drizzle-orm/neon-serverless/migrator';
 import { drizzle as drizzleNetlify, type ServerlessDrizzleClient } from 'drizzle-orm/netlify-db';
+import { migrate as migrateNetlify } from 'drizzle-orm/netlify-db/migrator';
 import { drizzle as drizzleNodePostgres, nodePgCodecs } from 'drizzle-orm/node-postgres';
+import { migrate as migrateNodePostgres } from 'drizzle-orm/node-postgres/migrator';
 import type {
 	PgEnum,
 	PgEnumObject,
@@ -37,10 +41,13 @@ import type {
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
 import { drizzle as drizzleProxy } from 'drizzle-orm/pg-proxy';
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
+import { migrate as migratePglite } from 'drizzle-orm/pglite/migrator';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres';
 import { drizzle as drizzlePostgresjs } from 'drizzle-orm/postgres-js';
+import { migrate as migratePostgresjs } from 'drizzle-orm/postgres-js/migrator';
 import { drizzle as drizzleHttp } from 'drizzle-orm/postgres/http';
 import { drizzle as drizzleMinipgNeonHttp } from 'drizzle-orm/postgres/http/neon';
+import { migrate as migratePostgres } from 'drizzle-orm/postgres/migrator';
 import { drizzle as drizzleMinipgNeonWs } from 'drizzle-orm/postgres/neon-ws';
 import Keyv from 'keyv';
 import { Client as ClientNodePostgres, types as typesNodePostgres } from 'pg';
@@ -485,11 +492,7 @@ export interface SnapshotPeer {
 	close: () => Promise<void>;
 }
 
-const openPeer = async (vendor: Vendor, database: string | undefined): Promise<SnapshotPeer | undefined> => {
-	if (vendor === 'pglite' || database === undefined) return undefined;
-
-	const hosted = vendor === 'neon-serverless' || vendor === 'netlify-db' || vendor === 'minipg-neon-ws'
-		|| vendor === 'minipg-neon-http';
+const databaseUrl = (vendor: Vendor, database: string) => {
 	const url = new URL(
 		process.env[
 			vendor === 'netlify-db'
@@ -500,6 +503,15 @@ const openPeer = async (vendor: Vendor, database: string | undefined): Promise<S
 		]!,
 	);
 	url.pathname = `/${database}`;
+	return url;
+};
+
+const openPeer = async (vendor: Vendor, database: string | undefined): Promise<SnapshotPeer | undefined> => {
+	if (vendor === 'pglite' || database === undefined) return undefined;
+
+	const hosted = vendor === 'neon-serverless' || vendor === 'netlify-db' || vendor === 'minipg-neon-ws'
+		|| vendor === 'minipg-neon-http';
+	const url = databaseUrl(vendor, database);
 
 	if (hosted) {
 		const pool = new NeonPool({ connectionString: url.toString(), max: 1 });
@@ -519,6 +531,65 @@ const openPeer = async (vendor: Vendor, database: string | undefined): Promise<S
 		query: async (sql) => (await client.query(sql)).rows,
 		close: () => client.end(),
 	};
+};
+
+export interface Migrator {
+	migrate: (config: MigrationConfig) => Promise<unknown>;
+	close: () => Promise<void>;
+}
+
+const openMigrator = async (vendor: Vendor, kit: { client: any; database: string | undefined }): Promise<Migrator> => {
+	// PGlite runs on one connection, so for it the concurrent migrate test only checks that concurrent calls succeed
+	if (vendor === 'pglite') {
+		const db = drizzlePglite({ client: kit.client });
+		return { migrate: (config) => migratePglite(db, config), close: async () => {} };
+	}
+
+	const url = databaseUrl(vendor, kit.database!).toString();
+
+	if (vendor === 'node-postgres') {
+		const client = new ClientNodePostgres(url);
+		await client.connect();
+		const db = drizzleNodePostgres({ client });
+		return { migrate: (config) => migrateNodePostgres(db, config), close: () => client.end() };
+	}
+
+	if (vendor === 'postgres') {
+		const client = createPostgresPool({ url, max: 1 });
+		const db = drizzlePostgres({ client });
+		return { migrate: (config) => migratePostgres(db, config), close: () => client.end() };
+	}
+
+	if (vendor === 'minipg-neon-ws') {
+		const client = createMinipgNeonWsPool({ url, max: 1 });
+		const db = drizzleMinipgNeonWs({ client });
+		return { migrate: (config) => migratePostgres(db, config), close: () => client.end() };
+	}
+
+	if (vendor === 'postgresjs') {
+		const client = postgres(url, { max: 1, onnotice: () => {} });
+		const db = drizzlePostgresjs({ client });
+		return { migrate: (config) => migratePostgresjs(db, config), close: () => client.end() };
+	}
+
+	if (vendor === 'neon-serverless') {
+		const client = new NeonPool({ connectionString: url, max: 1 });
+		const db = drizzleNeonWs({ client });
+		return { migrate: (config) => migrateNeonWs(db, config), close: () => client.end() };
+	}
+
+	if (vendor === 'netlify-db') {
+		const client: ServerlessDrizzleClient = {
+			driver: 'serverless',
+			connectionString: url,
+			httpClient: neon(url),
+			pool: new NeonPool({ connectionString: url, max: 1 }),
+		};
+		const db = drizzleNetlify({ client });
+		return { migrate: (config) => migrateNetlify(db, config), close: () => client.pool.end() };
+	}
+
+	throw new Error(`No concurrent migrator for ${vendor}: its migrator does not lock`);
 };
 
 type Vendor =
@@ -792,6 +863,7 @@ const testFor = (vendor: Vendor) => {
 			database: string | undefined;
 		};
 		peer: SnapshotPeer | undefined;
+		openMigrator: () => Promise<Migrator>;
 		client: any;
 		db: PgAsyncDatabase<any, typeof relations>;
 		push: (schema: any, params?: { log: 'statements' }) => Promise<void>;
@@ -855,6 +927,18 @@ const testFor = (vendor: Vendor) => {
 				const peer = await openPeer(vendor, kit.database);
 				await use(peer);
 				await peer?.close();
+			},
+			{ scope: 'test' },
+		],
+		openMigrator: [
+			async ({ kit }, use) => {
+				const migrators: Migrator[] = [];
+				await use(async () => {
+					const migrator = await openMigrator(vendor, kit);
+					migrators.push(migrator);
+					return migrator;
+				});
+				await Promise.all(migrators.map((migrator) => migrator.close()));
 			},
 			{ scope: 'test' },
 		],
