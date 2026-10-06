@@ -8,6 +8,7 @@ import type {
 	RollbackStep,
 } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
+import { splitDownSql } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { migrateSync, rollbackSync } from '~/sqlite-core/async/session.ts';
 import type { SQLiteBunDatabase } from './driver.ts';
@@ -16,7 +17,7 @@ function fromJournal(config: MigrationFromJournalConfig | MigrationsJournal) {
 	const journal = Array.isArray(config) ? config : config.migrationsJournal;
 	const migrations: MigrationMeta[] = journal.map((d) => ({
 		sql: d.sql.split('--> statement-breakpoint'),
-		downSql: d.downSql?.split('--> statement-breakpoint'),
+		downSql: splitDownSql(d.downSql),
 		folderMillis: d.timestamp,
 		hash: '',
 		bps: true,
