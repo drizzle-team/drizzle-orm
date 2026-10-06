@@ -419,6 +419,38 @@ const cases: Case[] = [
 		b: [S.addColumn('public', 'users', 'd')],
 		expect: 'commute',
 	},
+	{
+		name: 'recreate_enum(converts c) ∥ alter_column c (changes the type to another enum) conflict',
+		a: [
+			S.recreateEnum('public', 'user_role', [
+				col('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' }),
+			]),
+		],
+		b: [S.alterColumn('public', 'users', 'role', { type: 'job', typeSchema: 'public' }, {
+			type: { from: 'user_role', to: 'job' },
+		})],
+		expect: 'conflict',
+	},
+	{
+		name: 'recreate_enum(converts c) ∥ alter_column c NOT NULL commute',
+		a: [
+			S.recreateEnum('public', 'user_role', [
+				col('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' }),
+			]),
+		],
+		b: [S.alterColumn('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' })],
+		expect: 'commute',
+	},
+	{
+		name: 'recreate_enum(converts c) ∥ alter_column d (changes the type) commute',
+		a: [
+			S.recreateEnum('public', 'user_role', [
+				col('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' }),
+			]),
+		],
+		b: [S.alterColumn('public', 'users', 'd', { type: 'text' }, { type: { from: 'varchar', to: 'text' } })],
+		expect: 'commute',
+	},
 
 	// alter_column claims each property that its SQL changes or needs
 	{

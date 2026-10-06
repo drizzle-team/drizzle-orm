@@ -538,7 +538,8 @@ export const fromDatabase = async (
 			attnotnull AS "notNull",
 			CASE 
         		WHEN attndims > 0 THEN attndims
-        		WHEN t.typcategory = 'A' THEN 1  -- If it's an array type, default to 1 dimension
+        		-- An array type defaults to 1 dimension. A domain over an array and the vector types of the catalog are in this category too, and their type text has no brackets.
+        		WHEN t.typcategory = 'A' AND pg_catalog.format_type(atttypid, atttypmod) LIKE '%[]' THEN 1
         		ELSE 0
     		END as "dimensions",
 			atttypid as "typeId",

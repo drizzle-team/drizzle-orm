@@ -195,6 +195,8 @@ describe('the squash false negative, against a real database', () => {
 describe('changes of one column on two branches vs a real database', () => {
 	const mood = pgEnum('mood', ['ok', 'sad']);
 	const feeling = pgEnum('feeling', ['ok', 'sad']);
+	// The diff drops an enum and creates it again when a value is removed.
+	const moodWithoutSad = pgEnum('mood', ['ok']);
 	const t = (column: Record<string, any>, extra: Record<string, unknown> = {}) => ({
 		...extra,
 		t: pgTable('t', column),
@@ -300,6 +302,30 @@ describe('changes of one column on two branches vs a real database', () => {
 			a: t({ c: mood() }, { mood }),
 			b: t({ c: varchar() }, { feeling }),
 			renames: renameMood,
+			rules: false,
+			postgres: false,
+		},
+		{
+			name: 'NOT NULL on a column of an enum type and a removed value of the enum',
+			base: t({ c: mood() }, { mood }),
+			a: t({ c: mood().notNull() }, { mood }),
+			b: t({ c: moodWithoutSad() }, { mood: moodWithoutSad }),
+			rules: true,
+			postgres: true,
+		},
+		{
+			name: 'a type change from an enum type to another enum type and a removed value of the first enum',
+			base: t({ c: mood() }, { mood }),
+			a: t({ c: feeling() }, { mood, feeling }),
+			b: t({ c: moodWithoutSad() }, { mood: moodWithoutSad }),
+			rules: false,
+			postgres: false,
+		},
+		{
+			name: 'a type change from an enum type to text and a removed value of the enum',
+			base: t({ c: mood() }, { mood }),
+			a: t({ c: text() }, { mood }),
+			b: t({ c: moodWithoutSad() }, { mood: moodWithoutSad }),
 			rules: false,
 			postgres: false,
 		},

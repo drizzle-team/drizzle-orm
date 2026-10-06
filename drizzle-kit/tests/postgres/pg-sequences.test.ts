@@ -1,4 +1,5 @@
-import { pgSchema, pgSequence } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { index, integer, pgSchema, pgSequence, primaryKey } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -267,6 +268,73 @@ test('a sequence that moves to another schema with a new name and new fields wri
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 	expect((await push({ db, to })).sqlStatements).toStrictEqual([]);
+});
+
+// Tables, views, sequences and indexes of one schema share one namespace. The sequence cannot move first
+// here, so it gets its new name in its old schema.
+const folder = pgSchema('folder');
+const renamedThenMoved = ['ALTER SEQUENCE "s" RENAME TO "s2";', 'ALTER SEQUENCE "s2" SET SCHEMA "folder";'];
+const sameName = {
+	sequence: folder.sequence('s'),
+	table: folder.table('s', { id: integer() }),
+	view: folder.view('s', { id: integer() }).as(sql`SELECT 1 AS "id"`),
+	index: folder.table('cats', { id: integer() }, (t) => [index('s').on(t.id)]),
+	primaryKey: folder.table('cats', { id: integer() }, (t) => [primaryKey({ name: 's', columns: [t.id] })]),
+};
+test.each([
+	{ name: 'a sequence that stays', old: sameName.sequence, kept: sameName.sequence, sql: renamedThenMoved },
+	{
+		name: 'a new sequence',
+		old: undefined,
+		kept: sameName.sequence,
+		sql: [
+			'CREATE SEQUENCE "folder"."s" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1;',
+			...renamedThenMoved,
+		],
+	},
+	{
+		name: 'a dropped sequence',
+		old: sameName.sequence,
+		kept: undefined,
+		sql: [...renamedThenMoved, 'DROP SEQUENCE "folder"."s";'],
+	},
+	{ name: 'a table', old: sameName.table, kept: sameName.table, sql: renamedThenMoved },
+	{ name: 'a view', old: sameName.view, kept: sameName.view, sql: renamedThenMoved },
+	{ name: 'an index', old: sameName.index, kept: sameName.index, sql: renamedThenMoved },
+	{ name: 'a primary key', old: sameName.primaryKey, kept: sameName.primaryKey, sql: renamedThenMoved },
+])(
+	'a sequence move with a new name into a schema where $name has its old name writes SQL that runs',
+	async ({ old, kept, sql }) => {
+		const from = { folder, seq: pgSequence('s'), ...(old ? { old } : {}) };
+		const to = { folder, seq: folder.sequence('s2'), ...(kept ? { kept } : {}) };
+		const renames = ['public.s->folder.s2'];
+
+		const { sqlStatements: st } = await diff(from, to, renames);
+		await push({ db, to: from });
+		const { sqlStatements: pst } = await push({ db, to, renames });
+
+		expect(st).toStrictEqual(sql);
+		expect(pst).toStrictEqual(sql);
+	},
+);
+
+// The table is created after the sequence statements, so the old name of the sequence is still free.
+test('a sequence move with a new name into a schema that gets a table with its old name writes SQL that runs', async () => {
+	const from = { folder, seq: pgSequence('s') };
+	const to = { folder, seq: folder.sequence('s2'), kept: sameName.table };
+	const renames = ['public.s->folder.s2'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER SEQUENCE "s" SET SCHEMA "folder";',
+		'ALTER SEQUENCE "folder"."s" RENAME TO "s2";',
+		'CREATE TABLE "folder"."s" (\n\t"id" integer\n);\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // Add squasher for sequences to make alters work +

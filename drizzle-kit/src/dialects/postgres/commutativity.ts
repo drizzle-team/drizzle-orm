@@ -7,7 +7,7 @@ import {
 } from '../../commutativity/engine';
 import type { ConflictTarget } from '../../commutativity/types';
 import type { Column, Index, IndexColumn, Privilege } from './ddl';
-import { builtinPolicyRoles } from './grammar';
+import { builtinPolicyRoles, isSerialType } from './grammar';
 import { drySnapshot, type PostgresSnapshot } from './snapshot';
 import type { SnapshotStatement } from './snapshot-statements';
 
@@ -753,15 +753,25 @@ class PostgresCommutativity extends FacetCommutativity<
 	protected override isRepeatable(statement: SnapshotStatement): boolean {
 		switch (statement.type) {
 			// ADD and DROP of an identity, DROP EXPRESSION, and the CREATE and DROP of the sequence of a serial
-			// column fail on the second run.
-			case 'alter_column':
-				return !statement.wasSerial && !statement.toSerial && !statement.diff.generated && !statement.diff.identity;
+			// column fail on the second run. A change between two serial types keeps the sequence. The user
+			// writes the conversion between a scalar type and its array type, so nothing says that it runs a
+			// second time.
+			case 'alter_column': {
+				const { dimensions, generated, identity } = statement.diff;
+				const dropsSequence = statement.wasSerial && !isSerialType(statement.to.type);
+				const isArrayConversion = !!dimensions && (dimensions.from === 0 || dimensions.to === 0);
+				return !dropsSequence && !statement.toSerial && !generated && !identity && !isArrayConversion;
+			}
 			// Without the DROP, the second CREATE INDEX fails.
 			case 'recreate_index':
 				return statement.shouldDrop;
 			// Without the DROP, the second ADD PRIMARY KEY fails.
 			case 'alter_pk':
 				return !statement.deleted;
+			// For a column with a foreign key, an index or a unique constraint, the diff stores a drop_fk, a
+			// create_fk, a create_index or an add_unique next to the recreate_column. Those run a second time only
+			// in the migration that also recreates the column, and a statement here does not know its migration.
+			// So the same recreate of such a column on two branches is reported.
 			case 'recreate_column':
 			case 'recreate_fk':
 			case 'alter_unique':
@@ -1146,7 +1156,14 @@ class PostgresCommutativity extends FacetCommutativity<
 				return { owns: altered('enum', s.to.schema, s.to.name), needs: [nref('sch', s.to.schema)] };
 			case 'recreate_enum': // DROP TYPE + CREATE TYPE, and an ALTER TABLE for every column of the type
 				return {
-					owns: created('enum', s.to.schema, s.to.name),
+					owns: [
+						...created('enum', s.to.schema, s.to.name),
+						// The SQL ends with SET DATA TYPE for every column of the type, and that sets the type back when
+						// another branch gave the column another type. A change of the type rewrites the default.
+						...s.columns.flatMap((c) =>
+							['type', 'default'].flatMap((property) => altered('colprop', c.schema, c.table, c.name, property))
+						),
+					],
 					needs: [
 						nref('sch', s.to.schema),
 						...s.columns.flatMap((c) => [...underTable(c.schema, c.table), nref('col', c.schema, c.table, c.name)]),

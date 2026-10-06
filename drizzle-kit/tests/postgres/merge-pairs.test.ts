@@ -1,9 +1,11 @@
-import { sql } from 'drizzle-orm';
+import { type SQL, sql } from 'drizzle-orm';
 import {
+	bigserial,
 	check,
 	foreignKey,
 	index,
 	integer,
+	type PgEnum,
 	pgEnum,
 	pgPolicy,
 	pgRole,
@@ -12,6 +14,7 @@ import {
 	pgTable,
 	pgView,
 	primaryKey,
+	serial,
 	unique,
 } from 'drizzle-orm/pg-core';
 import type { Hint, RenameCreateHintKind } from 'src/cli/hints';
@@ -24,7 +27,8 @@ import type { PostgresSchema } from './mocks';
 //
 // A row with `merged` holds branches whose SQL runs in either order. `merged` is the schema that the
 // branches give together. A row without `merged` holds branches that check must report: their SQL fails in
-// one order, or it leaves a database that neither branch describes.
+// one order, or it leaves a database that neither branch describes. A row that check reports although its SQL
+// runs in either order says so in a comment.
 //
 // To add a case, add a row. The tests below run every row with each branch as the first parent of the merge.
 type Step = { schema: PostgresSchema; hints: Hint[] };
@@ -79,8 +83,9 @@ const feeling = pgEnum('feeling', ['ok', 'sad']);
 const appMood = app.enum('mood', ['ok', 'sad']);
 const appFeeling = app.enum('feeling', ['ok', 'sad']);
 const moodToFeeling = rename('enum', 'public.mood', 'public.feeling');
+const moodWithoutSad = pgEnum('mood', ['ok']);
 // The enum and a table `t` with a column of that enum type.
-const withEnum = (type: typeof mood, column: string, more: string[] = []) => ({
+const withEnum = (type: PgEnum<[string, ...string[]]>, column: string, more: string[] = []) => ({
 	[type.enumName]: type,
 	t: pgTable('t', { id: integer(), state: type(column), ...columns(more) }),
 });
@@ -129,6 +134,15 @@ const family = (
 	return { parent: parentTable, child };
 };
 const parentIdToOwnerId = rename('column', 'public.child.parentId', 'public.child.ownerId');
+
+const generated = (expression: SQL, fk = false) => {
+	const owners = pgTable('owners', { id: integer().primaryKey() });
+	const ownerId = integer().generatedAlwaysAs(expression);
+	return {
+		owners,
+		cats: pgTable('cats', { id: integer(), ownerId: fk ? ownerId.references(() => owners.id) : ownerId }),
+	};
+};
 
 // A table with a primary key over three columns, and a foreign key that references that key.
 const keyed = (first: string, second: string, third: string) => {
@@ -315,6 +329,15 @@ const rows: Row[] = [
 		merged: tableT(['id', 'contact', 'age!']),
 	},
 	{
+		name: 'the same new expression of a generated column in both branches',
+		base: generated(sql`"id" + 1`),
+		branches: [
+			[step(generated(sql`"id" + 2`))],
+			[step(generated(sql`"id" + 2`))],
+		],
+		merged: generated(sql`"id" + 2`),
+	},
+	{
 		name: 'two different defaults for one column, with a column rename in one branch',
 		base: { t: pgTable('t', { email: integer(), age: integer() }) },
 		branches: [
@@ -328,6 +351,36 @@ const rows: Row[] = [
 		branches: [
 			[step(tableT(['id', 'contact', 'age']), emailToContact)],
 			[step(tableT(['id', 'email', 'age']))],
+		],
+	},
+	{
+		// The SQL of these branches runs in either order. check reports them, because each branch drops the
+		// foreign key and creates it again, and the rules compare those statements without the column
+		// recreate between them.
+		name: 'the same new expression of a generated column with a foreign key in both branches',
+		base: generated(sql`"id" + 1`, true),
+		branches: [
+			[step(generated(sql`"id" + 2`, true))],
+			[step(generated(sql`"id" + 2`, true))],
+		],
+	},
+	{
+		name: 'the same change from serial to bigserial in both branches',
+		base: { t: pgTable('t', { id: serial(), name: integer() }) },
+		branches: [
+			[step({ t: pgTable('t', { id: bigserial({ mode: 'number' }), name: integer() }) })],
+			[step({ t: pgTable('t', { id: bigserial({ mode: 'number' }), name: integer() }) })],
+		],
+		merged: { t: pgTable('t', { id: bigserial({ mode: 'number' }), name: integer() }) },
+	},
+	{
+		// The SQL of this change has a plain cast that postgres refuses, so the user writes the conversion.
+		// check cannot know whether that conversion runs a second time.
+		name: 'the same change of a column to an array in both branches',
+		base: tableT(['id', 'age']),
+		branches: [
+			[step({ t: pgTable('t', { id: integer(), age: integer().array() }) })],
+			[step({ t: pgTable('t', { id: integer(), age: integer().array() }) })],
 		],
 	},
 	{
@@ -441,6 +494,32 @@ const rows: Row[] = [
 			[step(withEnum(mood, 'state', ['age']))],
 		],
 		merged: withEnum(feeling, 'state', ['age']),
+	},
+	{
+		name: 'a removed enum value against NOT NULL on a column of that enum type',
+		base: withEnum(mood, 'state'),
+		branches: [
+			[step(withEnum(moodWithoutSad, 'state'))],
+			[step({ mood, t: pgTable('t', { id: integer(), state: mood('state').notNull() }) })],
+		],
+		merged: { mood: moodWithoutSad, t: pgTable('t', { id: integer(), state: moodWithoutSad('state').notNull() }) },
+	},
+	{
+		name: 'a removed enum value against a change of a column of that enum type to another enum',
+		base: withEnum(mood, 'state'),
+		branches: [
+			[step(withEnum(moodWithoutSad, 'state'))],
+			[step({ mood, ...withEnum(feeling, 'state') })],
+		],
+	},
+	{
+		name:
+			'a removed enum value against a change of a column of that enum type to an enum with its name in another schema',
+		base: { app, appMood, ...withEnum(mood, 'state') },
+		branches: [
+			[step({ app, appMood, ...withEnum(moodWithoutSad, 'state') })],
+			[step({ app, publicMood: mood, ...withEnum(appMood, 'state') })],
+		],
 	},
 	{
 		name: 'an enum rename against a new value of that enum',

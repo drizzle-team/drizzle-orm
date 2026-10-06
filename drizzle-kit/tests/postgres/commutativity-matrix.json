@@ -12646,6 +12646,7 @@
 			"<b>recreate_enum</b> changes <code>enum s.e</code>, which <b>alter_column:enum_default</b> references"
 		],
 		"13,43": [
+			"<b>alter_column:enum_default</b> and <b>recreate_enum:column</b> both change <code>property of column s.t.ce.default</code>",
 			"<b>recreate_enum:column</b> changes <code>enum s.e</code>, which <b>alter_column:enum_default</b> references"
 		],
 		"13,44": [
@@ -14015,7 +14016,8 @@
 			"<b>add_column:enum</b> creates <code>column s.t.ce</code>, which <b>recreate_enum:column</b> assumes already exists — so they can't come from a shared base."
 		],
 		"43,13": [
-			"<b>recreate_enum:column</b> changes <code>enum s.e</code>, which <b>alter_column:enum_default</b> references"
+			"<b>recreate_enum:column</b> changes <code>enum s.e</code>, which <b>alter_column:enum_default</b> references",
+			"<b>recreate_enum:column</b> and <b>alter_column:enum_default</b> both change <code>property of column s.t.ce.default</code>"
 		],
 		"43,38": [
 			"<b>create_enum</b> creates <code>enum s.e</code>, which <b>recreate_enum:column</b> assumes already exists — so they can't come from a shared base."

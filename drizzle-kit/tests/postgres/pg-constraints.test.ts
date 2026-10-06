@@ -2849,3 +2849,122 @@ test.each([
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+const named = {
+	'an index': (name: string) => (t: any) => [index(name).on(t.id)],
+	'a primary key': (name: string) => (t: any) => [primaryKey({ name, columns: [t.id] })],
+	'a unique constraint': (name: string) => (t: any) => [unique(name).on(t.id)],
+};
+type Kind = keyof typeof named;
+const renameSql = (kind: Kind, table: string, from: string, to: string) =>
+	kind === 'an index'
+		? `ALTER INDEX "${from}" RENAME TO "${to}";`
+		: `ALTER TABLE "${table}" RENAME CONSTRAINT "${from}" TO "${to}";`;
+
+// The renames of indexes come first in a migration, then the renames of primary keys, then the renames of
+// unique constraints. Here the first rename of each pair needs the name that the second rename frees.
+test.each<{ first: Kind; second: Kind }>([
+	{ first: 'a primary key', second: 'a unique constraint' },
+	{ first: 'an index', second: 'a primary key' },
+	{ first: 'an index', second: 'a unique constraint' },
+])('a rename of $first to a name that the rename of $second frees writes SQL that runs', async ({ first, second }) => {
+	const tables = (a: string, b: string) => ({
+		cats: pgTable('cats', { id: integer().notNull() }, named[first](a)),
+		dogs: pgTable('dogs', { id: integer().notNull() }, named[second](b)),
+	});
+	const renames = ['public.cats.key_a->public.cats.key_b', 'public.dogs.key_b->public.dogs.key_c'];
+
+	const { sqlStatements: st } = await diff(tables('key_a', 'key_b'), tables('key_b', 'key_c'), renames);
+	await push({ db, to: tables('key_a', 'key_b') });
+	const { sqlStatements: pst } = await push({ db, to: tables('key_b', 'key_c'), renames });
+
+	const st0 = [renameSql(second, 'dogs', 'key_b', 'key_c'), renameSql(first, 'cats', 'key_a', 'key_b')];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('a rename of a primary key to a name that the rename of a unique constraint of its table frees writes SQL that runs', async () => {
+	const cats = (key: string, code: string) => ({
+		cats: pgTable('cats', { id: integer().notNull(), code: integer() }, (t) => [
+			primaryKey({ name: key, columns: [t.id] }),
+			unique(code).on(t.code),
+		]),
+	});
+	const renames = ['public.cats.key_a->public.cats.key_b', 'public.cats.key_b->public.cats.key_c'];
+
+	const { sqlStatements: st } = await diff(cats('key_a', 'key_b'), cats('key_b', 'key_c'), renames);
+	await push({ db, to: cats('key_a', 'key_b') });
+	const { sqlStatements: pst } = await push({ db, to: cats('key_b', 'key_c'), renames });
+
+	const st0 = [
+		'ALTER TABLE "cats" RENAME CONSTRAINT "key_b" TO "key_c";',
+		'ALTER TABLE "cats" RENAME CONSTRAINT "key_a" TO "key_b";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('a rename chain from an index over a primary key to a unique constraint writes SQL that runs', async () => {
+	const tables = (a: string, b: string, c: string) => ({
+		cats: pgTable('cats', { id: integer().notNull() }, named['an index'](a)),
+		dogs: pgTable('dogs', { id: integer().notNull() }, named['a primary key'](b)),
+		birds: pgTable('birds', { id: integer().notNull() }, named['a unique constraint'](c)),
+	});
+	const renames = [
+		'public.cats.key_a->public.cats.key_b',
+		'public.dogs.key_b->public.dogs.key_c',
+		'public.birds.key_c->public.birds.key_d',
+	];
+
+	const { sqlStatements: st } = await diff(
+		tables('key_a', 'key_b', 'key_c'),
+		tables('key_b', 'key_c', 'key_d'),
+		renames,
+	);
+	await push({ db, to: tables('key_a', 'key_b', 'key_c') });
+	const { sqlStatements: pst } = await push({ db, to: tables('key_b', 'key_c', 'key_d'), renames });
+
+	const st0 = [
+		'ALTER TABLE "birds" RENAME CONSTRAINT "key_c" TO "key_d";',
+		'ALTER TABLE "dogs" RENAME CONSTRAINT "key_b" TO "key_c";',
+		'ALTER INDEX "key_a" RENAME TO "key_b";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// Each rename already runs after the rename that frees its name, so each rename stays at its place between
+// the other statements.
+test('a rename chain from a unique constraint over a primary key to an index keeps each rename at its place', async () => {
+	const tables = (a: string, b: string, c: string, isNew: boolean) => ({
+		cats: pgTable('cats', { id: integer().notNull() }, named['a unique constraint'](a)),
+		dogs: pgTable('dogs', { id: integer().notNull() }, named['a primary key'](b)),
+		birds: pgTable('birds', { id: integer().notNull() }, named['an index'](c)),
+		fish: pgTable(
+			'fish',
+			{ id: integer().notNull(), ...(isNew ? { code: integer() } : {}) },
+			(t) => (isNew ? [] : [index('fish_idx').on(t.id)]),
+		),
+	});
+	const renames = [
+		'public.cats.key_a->public.cats.key_b',
+		'public.dogs.key_b->public.dogs.key_c',
+		'public.birds.key_c->public.birds.key_d',
+	];
+
+	const from = tables('key_a', 'key_b', 'key_c', false);
+	const to = tables('key_b', 'key_c', 'key_d', true);
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER INDEX "key_c" RENAME TO "key_d";',
+		'DROP INDEX "fish_idx";',
+		'ALTER TABLE "fish" ADD COLUMN "code" integer;',
+		'ALTER TABLE "dogs" RENAME CONSTRAINT "key_b" TO "key_c";',
+		'ALTER TABLE "cats" RENAME CONSTRAINT "key_a" TO "key_b";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});

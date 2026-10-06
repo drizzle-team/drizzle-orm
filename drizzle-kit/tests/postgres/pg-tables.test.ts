@@ -7,11 +7,14 @@ import {
 	geometry,
 	index,
 	integer,
+	pgMaterializedView,
 	pgPolicy,
 	PgSchema,
 	pgSchema,
+	pgSequence,
 	pgTable,
 	pgTableCreator,
+	pgView,
 	primaryKey,
 	serial,
 	snakeCase,
@@ -1814,4 +1817,119 @@ test('a table move with a new name that another move brings into the old schema 
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// Tables, views, sequences and indexes of one schema share one namespace, and a primary key or a unique
+// constraint owns an index with its name.
+const movedThenRenamed = [
+	'ALTER TABLE "users" SET SCHEMA "folder";\n',
+	'ALTER TABLE "folder"."users" RENAME TO "people";',
+];
+const cats = (extra: (t: any) => any[]) => pgTable('cats', { id: integer().notNull() }, extra);
+const sameName = {
+	view: pgView('people', { id: integer() }).as(sql`SELECT 1 AS "id"`),
+	materializedView: pgMaterializedView('people', { id: integer() }).as(sql`SELECT 1 AS "id"`),
+	sequence: pgSequence('people'),
+	index: cats((t) => [index('people').on(t.id)]),
+	primaryKey: cats((t) => [primaryKey({ name: 'people', columns: [t.id] })]),
+	unique: cats((t) => [unique('people').on(t.id)]),
+};
+test.each([
+	{ name: 'a view', old: sameName.view, kept: sameName.view, sql: movedThenRenamed },
+	{
+		name: 'a materialized view',
+		old: sameName.materializedView,
+		kept: sameName.materializedView,
+		sql: movedThenRenamed,
+	},
+	{ name: 'a sequence that stays', old: sameName.sequence, kept: sameName.sequence, sql: movedThenRenamed },
+	{
+		name: 'a new sequence',
+		old: undefined,
+		kept: sameName.sequence,
+		sql: [
+			'CREATE SEQUENCE "public"."people" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1;',
+			...movedThenRenamed,
+		],
+	},
+	{
+		name: 'a dropped sequence',
+		old: sameName.sequence,
+		kept: undefined,
+		sql: [...movedThenRenamed, 'DROP SEQUENCE "public"."people";'],
+	},
+	{ name: 'an index', old: sameName.index, kept: sameName.index, sql: movedThenRenamed },
+	{ name: 'a unique constraint', old: sameName.unique, kept: sameName.unique, sql: movedThenRenamed },
+	{ name: 'a primary key', old: sameName.primaryKey, kept: sameName.primaryKey, sql: movedThenRenamed },
+	{
+		name: 'the primary key of a new table',
+		old: undefined,
+		kept: sameName.primaryKey,
+		sql: ['CREATE TABLE "cats" (\n\t"id" integer,\n\tCONSTRAINT "people" PRIMARY KEY("id")\n);\n', ...movedThenRenamed],
+	},
+])(
+	'a table move with a new name that $name has in the old schema writes SQL that runs',
+	async ({ old, kept, sql }) => {
+		const from = { folder, users: pgTable('users', { id: integer() }), ...(old ? { old } : {}) };
+		const to = { folder, users: folder.table('people', { id: integer() }), ...(kept ? { kept } : {}) };
+		const renames = ['public.users->folder.people'];
+
+		const { sqlStatements: st } = await diff(from, to, renames);
+		await push({ db, to: from });
+		const { sqlStatements: pst } = await push({ db, to, renames });
+
+		expect(st).toStrictEqual(sql);
+		expect(pst).toStrictEqual(sql);
+	},
+);
+
+// A table has the new name in the old schema, so the move runs first. The old name is free in the new
+// schema at the move: the dropped table is gone with its index, and the new view is created later.
+test.each([
+	{
+		name: 'an index of a dropped table',
+		old: folder.table('cats', { id: integer() }, (t) => [index('users').on(t.id)]),
+		kept: undefined,
+		sql: ['DROP TABLE "folder"."cats";', ...movedThenRenamed],
+	},
+	{
+		name: 'a new view',
+		old: undefined,
+		kept: folder.view('users', { id: integer() }).as(sql`SELECT 1 AS "id"`),
+		sql: [...movedThenRenamed, 'CREATE VIEW "folder"."users" AS (SELECT 1 AS "id");'],
+	},
+])(
+	'a table move with a new name into a schema where $name has its old name writes SQL that runs',
+	async ({ old, kept, sql }) => {
+		const from = { folder, people, users: pgTable('users', { id: integer() }), ...(old ? { old } : {}) };
+		const to = { folder, people, users: folder.table('people', { id: integer() }), ...(kept ? { kept } : {}) };
+		const renames = ['public.users->folder.people'];
+
+		const { sqlStatements: st } = await diff(from, to, renames);
+		await push({ db, to: from });
+		const { sqlStatements: pst } = await push({ db, to, renames });
+
+		expect(st).toStrictEqual(sql);
+		expect(pst).toStrictEqual(sql);
+	},
+);
+
+// The view is dropped before the table rename and created again later, so its name is free at the rename.
+test('a table move with a new name that a view with a new definition has in the old schema is renamed first', async () => {
+	const view = (value: number) => pgView('people', { id: integer() }).as(sql.raw(`SELECT ${value} AS "id"`));
+	const from = { folder, view: view(1), users: pgTable('users', { id: integer() }) };
+	const to = { folder, view: view(2), users: folder.table('people', { id: integer() }) };
+
+	const { sqlStatements: st } = await diff(from, to, ['public.users->folder.people']);
+	await push({ db, to: from });
+	// push does not compare the definition of a view, so the SQL of generate runs here.
+	for (const statement of st) await db.query(statement);
+
+	expect(st).toStrictEqual([
+		'DROP VIEW "people";',
+		'ALTER TABLE "users" RENAME TO "people";',
+		'ALTER TABLE "people" SET SCHEMA "folder";\n',
+		'CREATE VIEW "people" AS (SELECT 2 AS "id");',
+	]);
+	expect((await push({ db, to })).sqlStatements).toStrictEqual([]);
 });

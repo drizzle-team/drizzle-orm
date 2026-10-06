@@ -65,6 +65,8 @@ const moveViewConvertor = convertor('move_view', (st) => {
 const recreateViewConvertor = convertor('recreate_view', (st) => {
 	const drop = dropViewConvertor.convert({ view: st.from }) as string;
 	const create = createViewConvertor.convert({ view: st.to }) as string;
+	if (st.part === 'drop') return [drop];
+	if (st.part === 'create') return [create];
 	return [drop, create];
 });
 
@@ -245,24 +247,30 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 
 	const key = column.schema !== 'public' ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
 
+	// An enum with the same name in another schema is another type. A change of only the array dimensions
+	// gets a plain cast. Cockroach has no cast between most scalar types and their array types, so the user
+	// writes that conversion into the USING clause.
+	const hasNewType = !!(diff.type || diff.typeSchema || diff.dimensions);
 	// TODO need to recheck this
-	const recreateDefault = diff.type && (isEnum || wasEnum) && (diff.$left.default);
+	const recreateDefault = hasNewType && (isEnum || wasEnum || diff.dimensions) && (diff.$left.default);
 	if (recreateDefault) {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 
-	if (diff.type) {
+	if (hasNewType) {
 		const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
 		const textProxy = wasEnum && isEnum ? 'text::' : ''; // using enum1::text::enum2
 		const suffix = isEnum
 			? ` USING "${column.name}"::${textProxy}${typeSchema}"${column.type}"${'[]'.repeat(column.dimensions)}`
+			: diff.dimensions
+			? ` USING "${column.name}"::${column.type}${'[]'.repeat(column.dimensions)}`
 			: '';
 
-		const type = diff.typeSchema?.to && diff.typeSchema.to !== 'public'
-			? `"${diff.typeSchema.to}"."${diff.type.to}"`
+		const type = typeSchema
+			? `${typeSchema}"${column.type}"`
 			: isEnum
-			? `"${diff.type.to}"`
-			: diff.type.to;
+			? `"${column.type}"`
+			: column.type;
 
 		statements.push(
 			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${
@@ -387,21 +395,25 @@ const dropIndexConvertor = convertor('drop_index', (st) => {
 	const key = index.schema !== 'public'
 		? `"${index.schema}".`
 		: '';
+	const table = st.isNameShared ? `"${index.table}"@` : '';
 
-	return `DROP INDEX ${key}"${st.index.name}"${cascade};`;
+	return `DROP INDEX ${key}${table}"${st.index.name}"${cascade};`;
 });
 
 const recreateIndexConvertor = convertor('recreate_index', (st) => {
 	const { diff } = st;
-	const drop = dropIndexConvertor.convert({ index: diff.$right }) as string;
+	// The index renames and the index drops run before this statement, so only one table of the schema holds
+	// the name of this index here.
+	const drop = dropIndexConvertor.convert({ index: diff.$right, isNameShared: false }) as string;
 	const create = createIndexConvertor.convert({ index: diff.$right, newTable: false }) as string;
 	return [drop, create];
 });
 
 const renameIndexConvertor = convertor('rename_index', (st) => {
-	const key = st.schema !== 'public' ? `"${st.schema}"."${st.from}"` : `"${st.from}"`;
+	const key = st.schema !== 'public' ? `"${st.schema}".` : '';
+	const table = st.isNameShared ? `"${st.table}"@` : '';
 
-	return `ALTER INDEX ${key} RENAME TO "${st.to}";`;
+	return `ALTER INDEX ${key}${table}"${st.from}" RENAME TO "${st.to}";`;
 });
 
 const addPrimaryKeyConvertor = convertor('add_pk', (st) => {

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, cockroachTable, int4, varchar } from 'drizzle-orm/cockroach-core';
+import { check, cockroachTable, int4, unique, varchar } from 'drizzle-orm/cockroach-core';
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
@@ -218,10 +218,26 @@ test.concurrent('db has checks. Push with same names', async ({ dbc: db }) => {
 	expect(pst).toStrictEqual([]);
 });
 
+test.concurrent('a check rename decision writes a rename statement', async ({ dbc: db }) => {
+	const users = (name: string) => ({
+		users: cockroachTable('users', { age: int4() }, (table) => [check(name, sql`${table.age} > 21`)]),
+	});
+	const renames = ['public.users.some_check_name->public.users.new_check_name'];
+
+	const { sqlStatements: st } = await diff(users('some_check_name'), users('new_check_name'), renames);
+	await push({ db, to: users('some_check_name') });
+	const { sqlStatements: pst } = await push({ db, to: users('new_check_name'), renames });
+
+	const st0 = ['ALTER TABLE "users" RENAME CONSTRAINT "some_check_name" TO "new_check_name";'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	// This push has no rename decision, so it shows whether the database has the new name.
+	expect((await push({ db, to: users('new_check_name') })).sqlStatements).toStrictEqual([]);
+});
+
 // The schema validation refuses two checks with the same name in one schema. Two tables of the old state hold
-// the same name only between two renames that swap it. A check rename writes no SQL on cockroach, so the
-// SQL of this diff cannot run on a server.
-test.concurrent('check renames that swap a name between two tables keep the changes of both checks', async () => {
+// the same name only between two renames that swap it.
+test.concurrent('check renames that swap a name between two tables keep the changes of both checks', async ({ db }) => {
 	const tables = (usersCheck: string, petsCheck: string, minimum: number) => ({
 		users: cockroachTable('users', { age: int4() }, () => [check(usersCheck, sql.raw(`"age" > ${minimum}`))]),
 		pets: cockroachTable('pets', { age: int4() }, () => [check(petsCheck, sql.raw(`"age" > ${minimum}`))]),
@@ -230,17 +246,40 @@ test.concurrent('check renames that swap a name between two tables keep the chan
 		'public.users.age_check->public.users.adult_check',
 		'public.pets.adult_check->public.pets.age_check',
 	];
+	const from = tables('age_check', 'adult_check', 0);
+	const to = tables('adult_check', 'age_check', 5);
 
-	const { sqlStatements: st } = await diff(
-		tables('age_check', 'adult_check', 0),
-		tables('adult_check', 'age_check', 5),
-		renames,
-	);
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	// push does not compare the value of a check, so the SQL of generate runs here.
+	for (const statement of st) await db.query(statement);
 
-	expect(st).toStrictEqual(expect.arrayContaining([
+	expect(st).toStrictEqual([
+		'ALTER TABLE "users" RENAME CONSTRAINT "age_check" TO "adult_check";',
+		'ALTER TABLE "pets" RENAME CONSTRAINT "adult_check" TO "age_check";',
 		'ALTER TABLE "users" DROP CONSTRAINT "adult_check";',
 		'ALTER TABLE "users" ADD CONSTRAINT "adult_check" CHECK ("age" > 5);',
 		'ALTER TABLE "pets" DROP CONSTRAINT "age_check";',
 		'ALTER TABLE "pets" ADD CONSTRAINT "age_check" CHECK ("age" > 5);',
-	]));
+	]);
+	expect((await push({ db, to })).sqlStatements).toStrictEqual([]);
+	await expect(db.query('INSERT INTO "users" VALUES (3);')).rejects.toThrow('age > 5');
+	await expect(db.query('INSERT INTO "pets" VALUES (3);')).rejects.toThrow('age > 5');
+});
+
+// A check shares its names with the indexes of its table.
+test.concurrent('a check rename to the name of a dropped unique constraint writes SQL that runs', async ({ db }) => {
+	const from = {
+		users: cockroachTable('users', { age: int4() }, (t) => [unique('b').on(t.age), check('a', sql`${t.age} > 21`)]),
+	};
+	const to = { users: cockroachTable('users', { age: int4() }, (t) => [check('b', sql`${t.age} > 21`)]) };
+	const renames = ['public.users.a->public.users.b'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = ['DROP INDEX "b" CASCADE;', 'ALTER TABLE "users" RENAME CONSTRAINT "a" TO "b";'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });

@@ -463,3 +463,32 @@ test.concurrent('alter generated constraint', async ({ db }) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual([]); // push ignores definition changes
 });
+
+// Cockroach drops the foreign keys of a column together with the column.
+test.concurrent.for(
+	[
+		{ name: 'keeps the foreign key of the column', onDelete: 'no action', action: '' },
+		{ name: 'creates a changed foreign key of the column', onDelete: 'restrict', action: ' ON DELETE RESTRICT' },
+	] as const,
+)('a new expression of a generated column $name', async ({ onDelete, action }, { db }) => {
+	const owners = cockroachTable('owners', { id: int4().primaryKey() });
+	const cats = (expression: SQL, onDelete: 'no action' | 'restrict') =>
+		cockroachTable('cats', {
+			id: int4(),
+			ownerId: int4().generatedAlwaysAs(expression).references(() => owners.id, { onDelete }),
+		});
+	const from = { owners, cats: cats(sql`"id" + 1`, 'no action') };
+	const to = { owners, cats: cats(sql`"id" + 2`, onDelete) };
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	// push does not compare the expression of a generated column, so the SQL of generate runs here.
+	for (const statement of st) await db.query(statement);
+
+	expect(st).toStrictEqual([
+		'ALTER TABLE "cats" DROP COLUMN "ownerId";',
+		'ALTER TABLE "cats" ADD COLUMN "ownerId" int4 GENERATED ALWAYS AS ("id" + 2) STORED;',
+		`ALTER TABLE "cats" ADD CONSTRAINT "cats_ownerId_owners_id_fkey" FOREIGN KEY ("ownerId") REFERENCES "owners"("id")${action};`,
+	]);
+	expect((await push({ db, to })).sqlStatements).toStrictEqual([]);
+});

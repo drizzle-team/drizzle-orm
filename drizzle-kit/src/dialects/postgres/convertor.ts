@@ -459,9 +459,16 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 		? `"${column.schema}"."${column.table}"`
 		: `"${column.table}"`;
 
-	// An enum with the same name in another schema is another type.
-	const hasNewType = !!(diff.type || diff.typeSchema);
-	const recreateDefault = hasNewType && (isEnum || wasEnum) && st.oldDefault;
+	// Postgres refuses a default and a USING clause for a generated column, so the expression is dropped first.
+	if (diff.generated && diff.generated.to === null) {
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP EXPRESSION;`);
+	}
+
+	// An enum with the same name in another schema is another type. A change of only the array dimensions
+	// gets the plain cast too. Postgres has no cast between most scalar types and their array types, so the
+	// user writes that conversion into the USING clause.
+	const hasNewType = !!(diff.type || diff.typeSchema || diff.dimensions);
+	const recreateDefault = hasNewType && (isEnum || wasEnum || diff.dimensions) && st.oldDefault;
 	if (recreateDefault) {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
@@ -469,9 +476,13 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 	if (hasNewType) {
 		const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
 		const textProxy = wasEnum && isEnum ? 'text::' : ''; // using enum1::text::enum2
+		// A serial type is valid only in a new column, so a column that exists gets the integer type of the
+		// serial type. A column that stays serial keeps its sequence and its default. The sequence also keeps
+		// its own integer type, so its maximum stays the same after a change from serial to bigserial.
+		const isSerial = isSerialType(column.type);
 		const suffix = isEnum
 			? ` USING "${column.name}"::${textProxy}${typeSchema}"${column.type}"${'[]'.repeat(column.dimensions)}`
-			: ` USING "${column.name}"::${toSerial ? mapSerialToInt(column.type) : column.type}${
+			: ` USING "${column.name}"::${isSerial ? mapSerialToInt(column.type) : column.type}${
 				'[]'.repeat(column.dimensions)
 			}`;
 
@@ -479,11 +490,11 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 			? `${typeSchema}"${column.type}"`
 			: isEnum
 			? `"${column.type}"`
-			: toSerial
+			: isSerial
 			? mapSerialToInt(column.type)
 			: column.type;
 
-		if (wasSerial) {
+		if (wasSerial && !isSerial) {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 			const sequenceKey = column.schema !== 'public'
 				? `"${column.schema}"."${column.table}_${column.name}_seq"`
@@ -507,9 +518,9 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 		}
 
 		statements.push(
-			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${
-				'[]'.repeat(column.dimensions)
-			}${suffix};`,
+			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${'[]'.repeat(column.dimensions)}${
+				column.generated ? '' : suffix
+			};`,
 		);
 
 		if (recreateDefault && column.default) {
@@ -527,10 +538,6 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 		} else {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 		}
-	}
-
-	if (diff.generated && diff.generated.to === null) {
-		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP EXPRESSION;`);
 	}
 
 	if (diff.identity) {

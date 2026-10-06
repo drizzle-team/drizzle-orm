@@ -197,6 +197,19 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 		return true;
 	});
 
+	// The queries below run before the statements of the push. So they name a table by the schema and the name
+	// that the table has in the database at that point. A table gets its new name first and moves after that.
+	const schemaRenames = jsonStatements.filter((it) => it.type === 'rename_schema');
+	const tableRenames = jsonStatements.filter((it) => it.type === 'rename_table');
+	const tableMoves = jsonStatements.filter((it) => it.type === 'move_table');
+	const tableInDatabase = (schema: string, name: string) => {
+		const schemaBeforeMove = tableMoves.find((it) => it.to === schema && it.name === name)?.from ?? schema;
+		return {
+			schema: schemaRenames.find((it) => it.to.name === schemaBeforeMove)?.from.name ?? schemaBeforeMove,
+			name: tableRenames.find((it) => it.schema === schemaBeforeMove && it.to === name)?.from ?? name,
+		};
+	};
+
 	for (const statement of filtered) {
 		if (statement.type === 'drop_table') {
 			const entity = [statement.table.schema, statement.table.name] as const;
@@ -233,7 +246,9 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			const id = identifier({ schema: column.schema, name: column.table });
 			const entity = [column.schema, column.table, column.name] as const;
 			if (hints.matchConfirm('column', entity)) continue;
-			const res = await db.query(`select 1 from ${id} limit 1`);
+			const res = await db.query(
+				`select 1 from ${identifier(tableInDatabase(column.schema, column.table))} limit 1`,
+			);
 			if (res.length === 0) continue;
 
 			if (useHints) {
@@ -269,8 +284,9 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			const id = `"${schema}"."${table}"`;
 			const entity = [schema, table, statement.pk.name] as const;
 			if (hints.matchConfirm('primary_key', entity)) continue;
+			const inDatabase = tableInDatabase(schema, table);
 			const res = await db.query(
-				`select 1 from ${id} limit 1`,
+				`select 1 from "${inDatabase.schema}"."${inDatabase.name}" limit 1`,
 			);
 
 			if (res.length > 0) {

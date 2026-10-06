@@ -289,13 +289,16 @@ export interface JsonAlterTableSetNewSchema {
 export interface JsonDropIndex {
 	type: 'drop_index';
 	index: Index;
+	isNameShared: boolean;
 }
 
 export interface JsonRenameIndex {
 	type: 'rename_index';
 	schema: string;
+	table: string;
 	from: string;
 	to: string;
+	isNameShared: boolean;
 }
 
 export interface JsonRenameColumn {
@@ -373,6 +376,8 @@ export interface JsonRecreateView {
 	type: 'recreate_view';
 	from: View;
 	to: View;
+	// Set for the two statements of a recreate that has other statements between its drop and its create.
+	part?: 'drop' | 'create';
 }
 
 export type JsonStatement =

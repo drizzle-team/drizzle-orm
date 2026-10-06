@@ -1,15 +1,18 @@
 import { and, eq, gt, or, sql } from 'drizzle-orm';
 import {
 	camelCase,
+	index,
 	integer,
 	pgMaterializedView,
 	pgSchema,
+	pgSequence,
 	pgTable,
 	pgView,
 	serial,
 	snakeCase,
 	text,
 	timestamp,
+	unique,
 } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
@@ -2061,6 +2064,106 @@ test('a view that moves to another schema and becomes a materialized view writes
 	expect(pst).toStrictEqual(st0);
 	expect((await push({ db, to })).sqlStatements).toStrictEqual([]);
 });
+
+// Tables, views, sequences and indexes of one schema share one namespace. The view cannot get its new name
+// in its old schema here, so it moves first.
+const folder = pgSchema('folder');
+const one = sql`SELECT 1 AS "id"`;
+const movedThenRenamed = ['ALTER VIEW "v" SET SCHEMA "folder";', 'ALTER VIEW "folder"."v" RENAME TO "v2";'];
+const sameName = {
+	view: pgView('v2', { id: integer() }).as(one),
+	materializedView: pgMaterializedView('v2', { id: integer() }).as(one),
+	table: pgTable('v2', { id: integer() }),
+	sequence: pgSequence('v2'),
+	index: pgTable('cats', { id: integer() }, (t) => [index('v2').on(t.id)]),
+	unique: pgTable('cats', { id: integer() }, (t) => [unique('v2').on(t.id)]),
+};
+test.each([
+	{ name: 'a view', old: sameName.view, kept: sameName.view, sql: movedThenRenamed },
+	{
+		name: 'a materialized view',
+		old: sameName.materializedView,
+		kept: sameName.materializedView,
+		sql: movedThenRenamed,
+	},
+	{ name: 'a table that stays', old: sameName.table, kept: sameName.table, sql: movedThenRenamed },
+	{
+		name: 'a new table',
+		old: undefined,
+		kept: sameName.table,
+		sql: ['CREATE TABLE "v2" (\n\t"id" integer\n);\n', ...movedThenRenamed],
+	},
+	{ name: 'a dropped table', old: sameName.table, kept: undefined, sql: [...movedThenRenamed, 'DROP TABLE "v2";'] },
+	{ name: 'a sequence', old: sameName.sequence, kept: sameName.sequence, sql: movedThenRenamed },
+	{ name: 'an index', old: sameName.index, kept: sameName.index, sql: movedThenRenamed },
+	{ name: 'a unique constraint', old: sameName.unique, kept: sameName.unique, sql: movedThenRenamed },
+])(
+	'a view move with a new name out of a schema where $name has its new name writes SQL that runs',
+	async ({ old, kept, sql }) => {
+		const from = { folder, view: pgView('v', { id: integer() }).as(one), ...(old ? { old } : {}) };
+		const to = { folder, view: folder.view('v2', { id: integer() }).as(one), ...(kept ? { kept } : {}) };
+		const renames = ['public.v->folder.v2'];
+
+		const { sqlStatements: st } = await diff(from, to, renames);
+		await push({ db, to: from });
+		const { sqlStatements: pst } = await push({ db, to, renames });
+
+		expect(st).toStrictEqual(sql);
+		expect(pst).toStrictEqual(sql);
+	},
+);
+
+test('a materialized view move with a new name out of a schema where a table has its new name writes SQL that runs', async () => {
+	const from = { folder, view: pgMaterializedView('v', { id: integer() }).as(one), old: sameName.table };
+	const to = { folder, view: folder.materializedView('v2', { id: integer() }).as(one), kept: sameName.table };
+	const renames = ['public.v->folder.v2'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER MATERIALIZED VIEW "v" SET SCHEMA "folder";',
+		'ALTER MATERIALIZED VIEW "folder"."v" RENAME TO "v2";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// The new name of the view is free in its old schema when the rename runs: a dropped view is gone by then,
+// and a new view is created later.
+test.each([
+	{
+		name: 'a dropped view',
+		old: sameName.view,
+		kept: undefined,
+		sql: ['DROP VIEW "v2";', 'ALTER VIEW "v" RENAME TO "v2";', 'ALTER VIEW "v2" SET SCHEMA "folder";'],
+	},
+	{
+		name: 'a new view',
+		old: undefined,
+		kept: sameName.view,
+		sql: [
+			'ALTER VIEW "v" RENAME TO "v2";',
+			'ALTER VIEW "v2" SET SCHEMA "folder";',
+			'CREATE VIEW "v2" AS (SELECT 1 AS "id");',
+		],
+	},
+])(
+	'a view move with a new name out of a schema where $name has its new name is renamed first',
+	async ({ old, kept, sql }) => {
+		const from = { folder, view: pgView('v', { id: integer() }).as(one), ...(old ? { old } : {}) };
+		const to = { folder, view: folder.view('v2', { id: integer() }).as(one), ...(kept ? { kept } : {}) };
+		const renames = ['public.v->folder.v2'];
+
+		const { sqlStatements: st } = await diff(from, to, renames);
+		await push({ db, to: from });
+		const { sqlStatements: pst } = await push({ db, to, renames });
+
+		expect(st).toStrictEqual(sql);
+		expect(pst).toStrictEqual(sql);
+	},
+);
 
 test('rename view and change its definition', async () => {
 	const users = pgTable('users', { id: serial() });

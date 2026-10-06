@@ -17,7 +17,7 @@ import {
 	vector,
 } from 'drizzle-orm/cockroach-core';
 import { expect } from 'vitest';
-import { diff, push, test } from './mocks';
+import { type CockroachDBSchema, diff, push, test } from './mocks';
 
 fs.mkdirSync('./tests/cockroach/migrations', { recursive: true });
 
@@ -1339,4 +1339,80 @@ test('a table rename together with the row level security flag writes SQL that r
 	const st0 = ['ALTER TABLE "users" RENAME TO "people";', 'ALTER TABLE "people" ENABLE ROW LEVEL SECURITY;'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// push asks the database about data loss before it runs its statements. So such a query must name a table by
+// the schema and the name that the table has in the database at that point.
+const other = cockroachSchema('other');
+const usersWithName = { id: int4(), name: text() };
+const tablesWithDroppedColumn: {
+	name: string;
+	from: CockroachDBSchema;
+	to: CockroachDBSchema;
+	renames: string[];
+	table: string;
+	newTable: string;
+	expected: string[];
+}[] = [
+	{
+		name: 'moves to another schema',
+		from: { folder, users: cockroachTable('users', usersWithName) },
+		to: { folder, users: folder.table('users', { id: int4() }) },
+		renames: ['public.users->folder.users'],
+		table: '"users"',
+		newTable: '"folder"."users"',
+		expected: ['ALTER TABLE "users" SET SCHEMA "folder";\n'],
+	},
+	{
+		name: 'gets a new name',
+		from: { users: cockroachTable('users', usersWithName) },
+		to: { users: cockroachTable('people', { id: int4() }) },
+		renames: ['public.users->public.people'],
+		table: '"users"',
+		newTable: '"people"',
+		expected: ['ALTER TABLE "users" RENAME TO "people";'],
+	},
+	{
+		name: 'moves to another schema and gets a new name',
+		from: { folder, users: cockroachTable('users', usersWithName) },
+		to: { folder, users: folder.table('people', { id: int4() }) },
+		renames: ['public.users->folder.people'],
+		table: '"users"',
+		newTable: '"folder"."people"',
+		expected: ['ALTER TABLE "users" RENAME TO "people";', 'ALTER TABLE "people" SET SCHEMA "folder";\n'],
+	},
+	{
+		name: 'gets a new name in a schema that gets a new name',
+		from: { folder, users: folder.table('users', usersWithName) },
+		to: { other, users: other.table('people', { id: int4() }) },
+		renames: ['folder->other', 'other.users->other.people'],
+		table: '"folder"."users"',
+		newTable: '"other"."people"',
+		expected: ['ALTER SCHEMA "folder" RENAME TO "other";\n', 'ALTER TABLE "other"."users" RENAME TO "people";'],
+	},
+];
+
+test.for(tablesWithDroppedColumn)(
+	'push warns about a dropped column of a table with rows that $name',
+	async ({ from, to, renames, table, newTable, expected }, { db }) => {
+		await push({ db, to: from });
+		await db.query(`INSERT INTO ${table} VALUES (1, 'a');`);
+		const { sqlStatements: pst, hints } = await push({ db, to, renames });
+
+		expect(pst).toStrictEqual([...expected, `ALTER TABLE ${newTable} DROP COLUMN "name";`]);
+		expect(hints).toStrictEqual([{ hint: `You're about to delete non-empty name column in ${newTable} table` }]);
+	},
+);
+
+test('push warns about a dropped primary key of a table with rows that moves to another schema', async ({ db }) => {
+	const from = { folder, users: cockroachTable('users', { id: int4().primaryKey() }) };
+	const to = { folder, users: folder.table('users', { id: int4() }) };
+
+	await push({ db, to: from });
+	await db.query('INSERT INTO "users" VALUES (1);');
+	// Cockroach refuses the drop of a primary key without a new primary key, so the statements do not run here.
+	const { hints } = await push({ db, to, renames: ['public.users->folder.users'], explain: true });
+
+	expect(hints).toHaveLength(1);
+	expect(hints[0].hint).toContain('primary key');
 });

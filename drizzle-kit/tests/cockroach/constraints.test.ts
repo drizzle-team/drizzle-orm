@@ -2012,3 +2012,24 @@ test.concurrent('primary key renames that swap a name between two tables keep th
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+// Two tables can hold an index with the same name in the middle of a migration. Cockroach refuses such a
+// name as ambiguous, unless the statement names the table.
+test.concurrent.for([
+	{ name: 'a unique constraint', constraint: (name: string) => (t: any) => [unique(name).on(t.id)] },
+	{ name: 'an index', constraint: (name: string) => (t: any) => [index(name).on(t.id)] },
+])('a rename of $name to a name that another rename frees writes SQL that runs', async ({ constraint }, { db }) => {
+	const tables = (first: string, second: string) => ({
+		cats: cockroachTable('cats', { id: int4() }, constraint(first)),
+		dogs: cockroachTable('dogs', { id: int4() }, constraint(second)),
+	});
+	const renames = ['public.cats.key_a->public.cats.key_b', 'public.dogs.key_b->public.dogs.key_c'];
+
+	const { sqlStatements: st } = await diff(tables('key_a', 'key_b'), tables('key_b', 'key_c'), renames);
+	await push({ db, to: tables('key_a', 'key_b') });
+	const { sqlStatements: pst } = await push({ db, to: tables('key_b', 'key_c'), renames });
+
+	const st0 = ['ALTER INDEX "key_a" RENAME TO "key_b";', 'ALTER INDEX "dogs"@"key_b" RENAME TO "key_c";'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});

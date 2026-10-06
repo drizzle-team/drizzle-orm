@@ -1012,6 +1012,91 @@ test.concurrent('moved schema', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
+const mySchema = cockroachSchema('my_schema');
+const allUsers = sql`SELECT * FROM "users"`;
+
+test.concurrent.for([
+	{
+		name: 'a view',
+		from: cockroachView('some_view', { id: int4('id') }).as(allUsers),
+		to: mySchema.view('new_view', { id: int4('id') }).as(allUsers),
+		alter: 'ALTER VIEW',
+	},
+	{
+		name: 'a materialized view',
+		from: cockroachMaterializedView('some_view', { id: int4('id') }).as(allUsers),
+		to: mySchema.materializedView('new_view', { id: int4('id') }).as(allUsers),
+		alter: 'ALTER MATERIALIZED VIEW',
+	},
+])(
+	'$name that moves to another schema with a new name writes SQL that runs',
+	async ({ from: view, to: moved, alter }, { db }) => {
+		const users = cockroachTable('users', { id: int4() });
+		const from = { users, mySchema, view };
+		const to = { users, mySchema, view: moved };
+		const renames = ['public.some_view->my_schema.new_view'];
+
+		const { sqlStatements: st } = await diff(from, to, renames);
+		await push({ db, to: from });
+		const { sqlStatements: pst } = await push({ db, to, renames });
+
+		const st0 = [`${alter} "some_view" RENAME TO "new_view";`, `${alter} "new_view" SET SCHEMA "my_schema";`];
+		expect(st).toStrictEqual(st0);
+		expect(pst).toStrictEqual(st0);
+	},
+);
+
+test.concurrent.for([
+	{ name: 'the same name', to: 'some_view' },
+	{ name: 'a new name', to: 'new_view' },
+])(
+	'a view that moves to another schema with $name and a new definition writes SQL that runs',
+	async ({ to: name }, { db }) => {
+		const users = cockroachTable('users', { id: int4() });
+		const from = {
+			users,
+			mySchema,
+			view: cockroachView('some_view', { id: int4('id') }).as(sql`SELECT 1 AS "id" FROM "users"`),
+		};
+		const to = {
+			users,
+			mySchema,
+			view: mySchema.view(name, { id: int4('id') }).as(sql`SELECT 2 AS "id" FROM "users"`),
+		};
+
+		const { sqlStatements: st } = await diff(from, to, [`public.some_view->my_schema.${name}`]);
+		await push({ db, to: from });
+		await db.query('INSERT INTO "users" VALUES (0);');
+		// push does not compare the definition of a view, so the SQL of generate runs here.
+		for (const statement of st) await db.query(statement);
+
+		expect(st).toStrictEqual([
+			'DROP VIEW "some_view";',
+			`CREATE VIEW "my_schema"."${name}" AS (SELECT 2 AS "id" FROM "users");`,
+		]);
+		expect(await db.query(`SELECT "id"::int4 FROM "my_schema"."${name}";`)).toStrictEqual([{ id: 2 }]);
+		expect((await push({ db, to })).sqlStatements).toStrictEqual([]);
+	},
+);
+
+test.concurrent('a view that moves to another schema and becomes a materialized view writes SQL that runs', async ({ db }) => {
+	const users = cockroachTable('users', { id: int4() });
+	const from = { users, mySchema, view: cockroachView('some_view', { id: int4('id') }).as(allUsers) };
+	const to = { users, mySchema, view: mySchema.materializedView('some_view', { id: int4('id') }).as(allUsers) };
+	const renames = ['public.some_view->my_schema.some_view'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'DROP VIEW "some_view";',
+		'CREATE MATERIALIZED VIEW "my_schema"."some_view" AS (SELECT * FROM "users");',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test.concurrent('push view with same name', async ({ db }) => {
 	const table = cockroachTable('test', {
 		id: int4('id').primaryKey(),
@@ -1154,4 +1239,95 @@ test.concurrent('create 2 dependent views', async ({ db }) => {
 	const { sqlStatements: pst2 } = await push({ db, to: schema });
 	expect(st2).toStrictEqual([]);
 	expect(pst2).toStrictEqual([]);
+});
+
+// Cockroach refuses to rename or to move a table while a view reads it.
+const folder = cockroachSchema('folder');
+
+test.concurrent.for([
+	{
+		name: 'a view that reads a table that moves to another schema',
+		kind: 'VIEW',
+		users: folder.table('users', { id: int4() }),
+		rename: 'public.users->folder.users',
+		alter: 'ALTER TABLE "users" SET SCHEMA "folder";\n',
+		source: '"folder"."users"',
+	},
+	{
+		name: 'a view that reads a table that gets a new name',
+		kind: 'VIEW',
+		users: cockroachTable('people', { id: int4() }),
+		rename: 'public.users->public.people',
+		alter: 'ALTER TABLE "users" RENAME TO "people";',
+		source: '"people"',
+	},
+	{
+		name: 'a materialized view that reads a table that moves to another schema',
+		kind: 'MATERIALIZED VIEW',
+		users: folder.table('users', { id: int4() }),
+		rename: 'public.users->folder.users',
+		alter: 'ALTER TABLE "users" SET SCHEMA "folder";\n',
+		source: '"folder"."users"',
+	},
+])('$name is dropped before the table statement and created after it', async (
+	{ kind, users, rename, alter, source },
+	{ db },
+) => {
+	const reader = (table: string) => {
+		const query = sql.raw(`SELECT "id" FROM ${table}`);
+		return kind === 'VIEW'
+			? cockroachView('v', { id: int4('id') }).as(query)
+			: cockroachMaterializedView('v', { id: int4('id') }).as(query);
+	};
+	const from = { folder, users: cockroachTable('users', { id: int4() }), view: reader('"users"') };
+	const to = { folder, users, view: reader(source) };
+
+	const { sqlStatements: st } = await diff(from, to, [rename]);
+	await push({ db, to: from });
+	await db.query('INSERT INTO "users" VALUES (7);');
+	const { sqlStatements: pst } = await push({ db, to, renames: [rename] });
+
+	const st0 = [`DROP ${kind} "v";`, alter, `CREATE ${kind} "v" AS (SELECT "id" FROM ${source});`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(await db.query('SELECT "id"::int4 FROM "v";')).toStrictEqual([{ id: 7 }]);
+});
+
+test.concurrent('a view that is created again keeps its place when it does not read the table that moves', async ({ db }) => {
+	const users = cockroachTable('users', { id: int4() });
+	const reader = (id: number) =>
+		cockroachView('v', { id: int4('id') }).as(sql.raw(`SELECT ${id} AS "id" FROM "users"`));
+	const from = { folder, users, pets: cockroachTable('pets', { id: int4() }), view: reader(1) };
+	const to = { folder, users, pets: folder.table('pets', { id: int4() }), view: reader(2) };
+	const renames = ['public.pets->folder.pets'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	// push does not compare the definition of a view, so the SQL of generate runs here.
+	for (const statement of st) await db.query(statement);
+
+	expect(st).toStrictEqual([
+		'DROP VIEW "v";',
+		'CREATE VIEW "v" AS (SELECT 2 AS "id" FROM "users");',
+		'ALTER TABLE "pets" SET SCHEMA "folder";\n',
+	]);
+	expect((await push({ db, to })).sqlStatements).toStrictEqual([]);
+});
+
+// The view reads the table `log` of the schema `people`, and no table with the name `people`.
+test.concurrent('a table rename leaves a view alone that reads a table of a schema with the new table name', async ({ db }) => {
+	const people = cockroachSchema('people');
+	const log = people.table('log', { id: int4() });
+	const view = cockroachView('v', { id: int4() }).as(sql`SELECT "id" FROM "people"."log"`);
+	const from = { people, log, view, users: cockroachTable('users', { id: int4() }) };
+	const to = { people, log, view, users: cockroachTable('people', { id: int4() }) };
+	const renames = ['public.users->public.people'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = ['ALTER TABLE "users" RENAME TO "people";'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
