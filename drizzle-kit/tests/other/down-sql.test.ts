@@ -334,28 +334,37 @@ describe('embeddedMigrations — down SQL bundling', () => {
 		expect(output).not.toContain('down.sql');
 	});
 
-	test('only imports down SQL for entries that have down.sql', () => {
-		// Create two migration folders, only one with down.sql
-		const dir1 = path.join(tmpDir, '20240101120000_no_down');
-		const dir2 = path.join(tmpDir, '20240102120000_has_down');
-		fs.mkdirSync(dir1, { recursive: true });
-		fs.mkdirSync(dir2, { recursive: true });
+	test('keys migrations and downMigrations by the same folder tag', () => {
+		const withoutDown = path.join(tmpDir, '20240101120000_no_down');
+		const withDown = path.join(tmpDir, '20240102120000_has_down');
+		for (const dir of [withoutDown, withDown]) {
+			fs.mkdirSync(dir, { recursive: true });
+			fs.writeFileSync(path.join(dir, 'migration.sql'), 'SELECT 1');
+			fs.writeFileSync(path.join(dir, 'snapshot.json'), '{}');
+		}
+		fs.writeFileSync(path.join(withDown, 'down.sql'), 'SELECT 1');
 
-		fs.writeFileSync(path.join(dir1, 'migration.sql'), 'CREATE TABLE a (id INTEGER)');
-		fs.writeFileSync(path.join(dir1, 'snapshot.json'), '{}');
-		fs.writeFileSync(path.join(dir2, 'migration.sql'), 'CREATE TABLE b (id INTEGER)');
-		fs.writeFileSync(path.join(dir2, 'snapshot.json'), '{}');
-		fs.writeFileSync(path.join(dir2, 'down.sql'), 'DROP TABLE b');
+		const output = embeddedMigrations(
+			[path.join(withoutDown, 'snapshot.json'), path.join(withDown, 'snapshot.json')],
+			'durable-sqlite',
+		);
 
-		const snapshots = [
-			path.join(dir1, 'snapshot.json'),
-			path.join(dir2, 'snapshot.json'),
-		];
-		const output = embeddedMigrations(snapshots);
-
-		expect(output).toContain("import d0001 from './20240102120000_has_down/down.sql'");
-		expect(output).not.toContain("import d0000 from './20240101120000_no_down/down.sql'");
-		expect(output).toContain('downMigrations');
+		expect(output).toBe(
+			"import m0000 from './20240101120000_no_down/migration.sql';\n"
+				+ "import m0001 from './20240102120000_has_down/migration.sql';\n"
+				+ "import d0001 from './20240102120000_has_down/down.sql';\n"
+				+ `
+  export default {
+    migrations: {
+      "20240101120000_no_down": m0000,
+      "20240102120000_has_down": m0001
+    },
+    downMigrations: {
+      "20240102120000_has_down": d0001
+    }
+  }
+  `,
+		);
 	});
 
 	test('adds expo header for expo driver', () => {
