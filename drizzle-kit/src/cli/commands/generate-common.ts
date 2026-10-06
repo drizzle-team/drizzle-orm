@@ -133,7 +133,7 @@ export function writeResult(
 			if (warnings.length > 0) {
 				humanLog(
 					withStyle.warning(
-						`${downPath} cannot fully restore the previous database state:\n${
+						`${downPath} needs review; best-effort checks flagged:\n${
 							describeIrreversibleWarnings(warnings).join('\n')
 						}`,
 					),

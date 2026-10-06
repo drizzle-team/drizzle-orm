@@ -1,3 +1,4 @@
+import { index, integer, pgTable, text } from 'drizzle-orm/pg-core';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -7,7 +8,10 @@ import {
 	embeddedMigrations,
 	writeResult,
 } from 'src/cli/commands/generate-common';
-import type { DownStatement } from 'src/cli/commands/generate-down-helpers';
+import { ddlDiffWithDown } from 'src/cli/commands/generate-postgres';
+import { interimToDDL } from 'src/dialects/postgres/ddl';
+import { fromDrizzleSchema, fromExports } from 'src/dialects/postgres/drizzle';
+import { mockResolver } from 'src/utils/mocks';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 // Minimal snapshot stub accepted by writeResult
@@ -21,6 +25,13 @@ const minimalSnapshot: any = {
 };
 
 let tmpDir: string;
+
+const postgresDown = async (from: Record<string, unknown>, to: Record<string, unknown>) => {
+	const ddl = (s: Record<string, unknown>) => interimToDDL(fromDrizzleSchema(fromExports(s), () => true).schema).ddl;
+	const up = await ddlDiffWithDown(ddl(from), ddl(to), () => mockResolver(new Set()));
+	const { sqlStatements, groupedStatements } = await up.down();
+	return { up: up.sqlStatements, down: { sqlStatements, statements: groupedStatements } };
+};
 
 beforeEach(() => {
 	tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'drizzle-down-sql-test-'));
@@ -187,17 +198,16 @@ describe('writeResult — down SQL file generation', () => {
 		expect(fs.readFileSync(path.join(tmpDir, tag, 'down.sql'), 'utf8')).toBe(CUSTOM_DOWN_SQL_SCAFFOLD);
 	});
 
-	test('emits an irreversible-operation banner when down statements lose data', () => {
+	test('emits a review banner when the rollback recreates dropped objects', async () => {
+		const posts = pgTable('posts', { id: integer() });
+		const { up, down } = await postgresDown(
+			{ users: pgTable('users', { id: integer() }), posts: pgTable('posts', { id: integer(), body: text() }) },
+			{ posts },
+		);
 		writeResult({
 			snapshot: { ...minimalSnapshot },
-			sqlStatements: ['CREATE TABLE users (id INTEGER PRIMARY KEY)', 'ALTER TABLE posts DROP COLUMN body'],
-			down: {
-				sqlStatements: ['DROP TABLE users', 'ALTER TABLE posts ADD COLUMN body text'],
-				statements: [
-					{ jsonStatement: { type: 'drop_table' }, sqlStatements: ['DROP TABLE users'] },
-					{ jsonStatement: { type: 'add_column' }, sqlStatements: ['ALTER TABLE posts ADD COLUMN body text'] },
-				],
-			},
+			sqlStatements: up,
+			down,
 			outFolder: tmpDir,
 			breakpoints: true,
 			generateDownMigrations: true,
@@ -207,38 +217,29 @@ describe('writeResult — down SQL file generation', () => {
 		});
 
 		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
-		const tag = dirs[0]!;
-		const downContent = readDownBody(tag);
-		expect(downContent).toContain('⚠ REVIEW');
-		expect(downContent).toContain('DROP TABLE users — drops a table the migration created');
-		expect(downContent).toContain('re-adds a column the migration dropped');
-		// The header + banner are leading comment lines; the rollback SQL follows.
+		const downContent = readDownBody(dirs[0]!);
 		expect(downContent.startsWith(DOWN_SQL_HEADER)).toBe(true);
 		const lines = downContent.split('\n');
 		const firstSqlLine = lines.findIndex((l) => !l.startsWith('--'));
-		expect(lines.slice(0, firstSqlLine).join('\n')).toContain('⚠ REVIEW');
-		expect(lines[firstSqlLine]!.startsWith('DROP TABLE users')).toBe(true);
+		const banner = lines.slice(0, firstSqlLine).join('\n');
+		expect(banner).toContain('⚠ REVIEW: best-effort checks flagged operations in this rollback.');
+		expect(banner).toContain('recreates a table the migration dropped');
+		expect(banner).toContain('re-adds a column the migration dropped');
+		expect(lines[firstSqlLine]!.startsWith('CREATE TABLE "users"')).toBe(true);
 	});
 
-	test('prints irreversible-operation warnings to the console', () => {
+	test('prints rollback review warnings to the console', async () => {
+		const { up, down } = await postgresDown(
+			{ posts: pgTable('posts', { id: integer(), body: text().notNull() }) },
+			{ posts: pgTable('posts', { id: integer() }) },
+		);
 		const log = vi.spyOn(console, 'log').mockImplementation(() => {});
 		let printed: string;
 		try {
 			writeResult({
 				snapshot: { ...minimalSnapshot },
-				sqlStatements: ['ALTER TABLE posts DROP COLUMN body'],
-				down: {
-					sqlStatements: ['ALTER TABLE posts ADD COLUMN body text NOT NULL'],
-					statements: [
-						{
-							jsonStatement: {
-								type: 'add_column',
-								column: { notNull: true, default: null },
-							} as DownStatement['jsonStatement'],
-							sqlStatements: ['ALTER TABLE posts ADD COLUMN body text NOT NULL'],
-						},
-					],
-				},
+				sqlStatements: up,
+				down,
 				outFolder: tmpDir,
 				breakpoints: true,
 				generateDownMigrations: true,
@@ -251,24 +252,22 @@ describe('writeResult — down SQL file generation', () => {
 			log.mockRestore();
 		}
 
-		expect(printed).toContain('down.sql cannot fully restore the previous database state');
-		expect(printed).toContain('These operations lose data:');
+		expect(printed).toContain('down.sql needs review; best-effort checks flagged:');
+		expect(printed).toContain('These operations cannot bring back data the migration dropped:');
 		expect(printed).toContain('These operations may fail on a populated table:');
-		expect(printed).toContain('ALTER TABLE posts ADD COLUMN body text NOT NULL — re-adds a NOT NULL column');
+		expect(printed).toContain('ALTER TABLE "posts" ADD COLUMN "body" text NOT NULL; — re-adds a NOT NULL column');
 	});
 
-	test('omits the banner when down statements are fully reversible', () => {
+	test('omits the banner when the rollback only undoes creates', async () => {
+		const { up, down } = await postgresDown({}, {
+			users: pgTable('users', { id: integer(), name: text() }, (t) => [index('users_name_idx').on(t.name)]),
+		});
 		writeResult({
 			snapshot: { ...minimalSnapshot },
-			sqlStatements: ['CREATE INDEX idx ON users (id)'],
-			down: {
-				sqlStatements: ['DROP INDEX idx'],
-				statements: [
-					{ jsonStatement: { type: 'drop_index' }, sqlStatements: ['DROP INDEX idx'] },
-				],
-			},
+			sqlStatements: up,
+			down,
 			outFolder: tmpDir,
-			breakpoints: true,
+			breakpoints: false,
 			generateDownMigrations: true,
 			name: 'reversible',
 			renames: [],
@@ -276,10 +275,7 @@ describe('writeResult — down SQL file generation', () => {
 		});
 
 		const dirs = fs.readdirSync(tmpDir).filter((d) => fs.statSync(path.join(tmpDir, d)).isDirectory());
-		const tag = dirs[0]!;
-		const downContent = readDownBody(tag);
-		expect(downContent).not.toContain('⚠ REVIEW');
-		expect(downContent).toBe(`${DOWN_SQL_HEADER}\nDROP INDEX idx`);
+		expect(readDownBody(dirs[0]!)).toBe(`${DOWN_SQL_HEADER}\n${down.sqlStatements.join('\n')}`);
 	});
 
 	test('skips down.sql entirely when generateDownMigrations is false', () => {

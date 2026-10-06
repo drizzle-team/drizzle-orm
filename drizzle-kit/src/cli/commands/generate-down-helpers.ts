@@ -1,5 +1,10 @@
 import { createHash } from 'crypto';
+import type { JsonStatement as CockroachJsonStatement } from '../../dialects/cockroach/statements';
 import type { Resolver } from '../../dialects/common';
+import type { JsonStatement as MssqlJsonStatement } from '../../dialects/mssql/statements';
+import type { JsonStatement as MysqlJsonStatement } from '../../dialects/mysql/statements';
+import type { JsonStatement as PostgresJsonStatement } from '../../dialects/postgres/statements';
+import type { JsonStatement as SqliteJsonStatement } from '../../dialects/sqlite/statements';
 import type { RenameCreateHintKind } from '../hints';
 
 type Named = { name: string; schema?: string; table?: string };
@@ -125,8 +130,14 @@ export function readUpHashStamp(downSql: string): string | null {
 	return firstLine.slice(UP_HASH_PREFIX.length).trim() || null;
 }
 
-/** A single grouped statement from a diff: its typed JSON form and the SQL it produced. */
-export type DownStatement = { jsonStatement: { type: string }; sqlStatements: string[] };
+export type DownJsonStatement =
+	| PostgresJsonStatement
+	| CockroachJsonStatement
+	| MysqlJsonStatement
+	| SqliteJsonStatement
+	| MssqlJsonStatement;
+
+export type DownStatement = { jsonStatement: DownJsonStatement; sqlStatements: string[] };
 
 export type DownResult = { sqlStatements: string[]; statements: DownStatement[] } | { error: unknown };
 
@@ -145,71 +156,184 @@ export type DownWarningKind = 'data_loss' | 'may_fail';
 
 export type IrreversibleDownWarning = { sql: string; reason: string; kind: DownWarningKind };
 
-// SQLite implements most alters as table rebuilds that copy rows across, so recreate_table is deliberately absent.
-const DATA_LOSS_DOWN_TYPES: Record<string, string> = {
-	create_table: 'recreates a table the migration dropped; original rows cannot be restored',
-	add_column: 're-adds a column the migration dropped; original values cannot be restored',
+type StatementType = DownJsonStatement['type'];
+
+// Undoing a create (drop_table, drop_column, drop_schema) is the expected rollback, so only re-creates are flagged.
+const DATA_LOSS_DOWN_TYPES: Partial<Record<StatementType, string>> = {
+	create_table: 'recreates a table the migration dropped; its original rows cannot be restored',
+	add_column: 're-adds a column the migration dropped; its original values cannot be restored',
 	create_schema: 'recreates a schema the migration dropped; its original contents cannot be restored',
-	drop_table: 'drops a table the migration created; rows written since the migration are lost',
-	drop_column: 'drops a column the migration added; data written since the migration is lost',
-	drop_schema: 'drops a schema the migration created; its contents are lost',
 };
 
-type LooseColumn = {
-	type?: string;
-	notNull?: boolean;
+const CONSTRAINT_REASONS = {
+	unique: 're-adds a unique constraint; fails if existing rows contain duplicates',
+	fk: 're-adds a foreign key; fails if existing rows reference missing keys',
+	check: 're-adds a check constraint; fails if existing rows violate it',
+	pk: 're-adds a primary key; fails if existing rows contain duplicates or NULLs',
+} as const;
+
+const SET_NOT_NULL_REASON = 'sets NOT NULL; fails if the column contains NULLs';
+
+const quoteValues = (values: string[]) => values.map((v) => `'${v}'`).join(', ');
+
+const INTEGER_RANKS: Record<string, number> = {
+	tinyint: 1,
+	smallint: 2,
+	int2: 2,
+	mediumint: 3,
+	int: 4,
+	integer: 4,
+	int4: 4,
+	bigint: 5,
+	int8: 5,
+};
+const FLOAT_RANKS: Record<string, number> = { real: 1, float4: 1, double: 2, 'double precision': 2, float8: 2 };
+const BOUNDED_TEXT = new Set(['char', 'character', 'varchar', 'character varying', 'nchar', 'nvarchar']);
+const UNBOUNDED_TEXT = new Set(['text', 'string', 'longtext']);
+
+function parseType(type: string) {
+	const match = /^([a-z][a-z0-9 ]*?)\s*(?:\(([^)]*)\))?((?:\[\])*)$/.exec(type.trim().toLowerCase());
+	if (!match) return null;
+	const args = match[2] === undefined
+		? []
+		: match[2].split(',').map((arg) => arg.trim() === 'max' ? Infinity : Number(arg));
+	if (args.some(Number.isNaN)) return null;
+	return { base: match[1]!, args, array: match[3]! };
+}
+
+// Anything not provably widening counts as narrowing, so an unknown type change is flagged rather than passed.
+function isWideningTypeChange(from: string, to: string): boolean {
+	const a = parseType(from);
+	const b = parseType(to);
+	if (!a || !b || a.array !== b.array) return false;
+	for (const ranks of [INTEGER_RANKS, FLOAT_RANKS]) {
+		if (ranks[a.base] && ranks[b.base]) return !a.args.length && !b.args.length && ranks[b.base]! >= ranks[a.base]!;
+	}
+	if (a.base === b.base && a.args.length > 0 && a.args.length === b.args.length) {
+		if (a.base === 'numeric' || a.base === 'decimal') {
+			const [p1, s1 = 0] = a.args as [number, number?];
+			const [p2, s2 = 0] = b.args as [number, number?];
+			return s2 >= s1 && p2 - s2 >= p1 - s1;
+		}
+		return a.args.length === 1 && b.args[0]! >= a.args[0]!;
+	}
+	return BOUNDED_TEXT.has(a.base) && UNBOUNDED_TEXT.has(b.base) && b.args.length === 0;
+}
+
+type ColumnAlter = { notNull?: { from: boolean; to: boolean }; type?: { from: string; to: string } };
+
+function columnAlterReasons({ notNull, type }: ColumnAlter): string[] {
+	const reasons: string[] = [];
+	if (notNull && !notNull.from && notNull.to) reasons.push(SET_NOT_NULL_REASON);
+	if (type && !isWideningTypeChange(type.from, type.to)) {
+		reasons.push(`changes type ${type.from} to ${type.to}; fails if existing values do not convert`);
+	}
+	return reasons;
+}
+
+type AddedColumn = {
+	notNull: boolean;
+	type: string;
 	default?: unknown;
 	generated?: unknown;
 	identity?: unknown;
 	autoIncrement?: boolean;
+	autoincrement?: boolean | null;
 };
 
-type LooseStatement = {
-	type: string;
-	column?: LooseColumn;
-	defaults?: unknown[];
-	from?: { values?: string[] };
-	to?: { values?: string[] };
-	deletedValues?: string[];
-};
+function isFilledByDatabase(column: AddedColumn, defaults: unknown[] = []): boolean {
+	return (column.default !== null && column.default !== undefined)
+		|| !!column.generated
+		|| !!column.identity
+		|| !!column.autoIncrement
+		|| !!column.autoincrement
+		|| defaults.length > 0
+		|| /serial$/i.test(column.type);
+}
 
-const quoteValues = (values: string[]) => values.map((v) => `'${v}'`).join(', ');
+const tableKey = (table: { schema?: string | null; table?: string; name?: string }) =>
+	`${table.schema ?? ''}.${table.table ?? table.name}`;
 
-function mayFailReason(jsonStatement: DownStatement['jsonStatement']): string | null {
-	const statement = jsonStatement as LooseStatement;
-	if (statement.type === 'add_column' && statement.column) {
-		const { column } = statement;
-		const filledByDatabase = (column.default !== null && column.default !== undefined)
-			|| !!column.generated
-			|| !!column.identity
-			|| !!column.autoIncrement
-			|| (statement.defaults?.length ?? 0) > 0
-			|| /serial$/i.test(column.type ?? '');
-		if (column.notNull && !filledByDatabase) {
-			return 're-adds a NOT NULL column without a default; fails if the table has rows';
+function mayFailReasons(statement: DownJsonStatement, createdTables: Set<string>): string[] {
+	const onExistingTable = (table: { schema?: string | null; table: string }) => !createdTables.has(tableKey(table));
+	switch (statement.type) {
+		case 'add_column': {
+			const defaults = 'defaults' in statement ? statement.defaults : [];
+			const column: AddedColumn = statement.column;
+			return column.notNull && !isFilledByDatabase(column, defaults)
+				? ['re-adds a NOT NULL column without a default; fails if the table has rows']
+				: [];
 		}
-	}
-	if (statement.type === 'recreate_enum' && statement.from?.values && statement.to?.values) {
-		const kept = new Set(statement.to.values);
-		const removed = statement.from.values.filter((v) => !kept.has(v));
-		if (removed.length > 0) {
-			return `removes enum value(s) ${quoteValues(removed)}; fails if any row still uses them`;
+		case 'alter_column':
+		case 'recreate_column':
+			return 'diff' in statement ? columnAlterReasons(statement.diff) : [];
+		case 'alter_add_column_not_null':
+			return [SET_NOT_NULL_REASON];
+		case 'recreate_table': {
+			const fromColumns = new Set(statement.from.columns.map((c) => c.name));
+			const reasons = statement.columnAlters.flatMap(columnAlterReasons);
+			if (statement.to.columns.some((c) => !fromColumns.has(c.name) && c.notNull && !isFilledByDatabase(c))) {
+				reasons.push('re-adds a NOT NULL column without a default; fails if the table has rows');
+			}
+			const added = <T extends { $diffType: string }>(diffs: T[]) => diffs.some((d) => d.$diffType === 'create');
+			if (added(statement.uniquesDiff) || statement.uniquesAlters.length > 0) reasons.push(CONSTRAINT_REASONS.unique);
+			if (added(statement.fksDiff) || statement.fksAlters.length > 0) reasons.push(CONSTRAINT_REASONS.fk);
+			if (added(statement.checkDiffs) || statement.checksAlters.length > 0) reasons.push(CONSTRAINT_REASONS.check);
+			if (added(statement.pksDiff) || statement.pksAlters.length > 0) reasons.push(CONSTRAINT_REASONS.pk);
+			if (statement.indexesDiff.some((i) => i.$diffType === 'create' && i.isUnique)) {
+				reasons.push(CONSTRAINT_REASONS.unique);
+			}
+			return [...new Set(reasons)];
 		}
+		case 'create_index':
+		case 'recreate_index': {
+			const index = 'index' in statement ? statement.index : statement.diff.$right;
+			return index.isUnique && onExistingTable(index) ? [CONSTRAINT_REASONS.unique] : [];
+		}
+		case 'add_unique':
+			return onExistingTable(statement.unique) ? [CONSTRAINT_REASONS.unique] : [];
+		case 'alter_unique':
+			return [CONSTRAINT_REASONS.unique];
+		case 'create_fk':
+		case 'recreate_fk':
+			return onExistingTable(statement.fk) ? [CONSTRAINT_REASONS.fk] : [];
+		case 'add_check':
+		case 'create_check':
+			return onExistingTable(statement.check) ? [CONSTRAINT_REASONS.check] : [];
+		case 'alter_check':
+			return [CONSTRAINT_REASONS.check];
+		case 'add_pk':
+		case 'create_pk':
+			return onExistingTable(statement.pk) ? [CONSTRAINT_REASONS.pk] : [];
+		case 'alter_pk':
+		case 'recreate_pk':
+			return [CONSTRAINT_REASONS.pk];
+		case 'recreate_enum': {
+			const kept = new Set(statement.to.values);
+			const removed = statement.from.values.filter((v) => !kept.has(v));
+			return removed.length > 0
+				? [`removes enum value(s) ${quoteValues(removed)}; fails if any row still uses them`]
+				: [];
+		}
+		case 'alter_type_drop_value':
+			return statement.deletedValues.length > 0
+				? [`removes enum value(s) ${quoteValues(statement.deletedValues)}; fails if any row still uses them`]
+				: [];
+		default:
+			return [];
 	}
-	if (statement.type === 'alter_type_drop_value' && statement.deletedValues?.length) {
-		return `removes enum value(s) ${quoteValues(statement.deletedValues)}; fails if any row still uses them`;
-	}
-	return null;
 }
 
 export function collectIrreversibleDownWarnings(statements: DownStatement[]): IrreversibleDownWarning[] {
+	const createdTables = new Set(
+		statements.flatMap(({ jsonStatement: s }) => s.type === 'create_table' ? [tableKey(s.table)] : []),
+	);
 	const warnings: IrreversibleDownWarning[] = [];
 	for (const { jsonStatement, sqlStatements } of statements) {
 		const problems: [DownWarningKind, string][] = [];
 		const dataLoss = DATA_LOSS_DOWN_TYPES[jsonStatement.type];
 		if (dataLoss) problems.push(['data_loss', dataLoss]);
-		const mayFail = mayFailReason(jsonStatement);
-		if (mayFail) problems.push(['may_fail', mayFail]);
+		for (const reason of mayFailReasons(jsonStatement, createdTables)) problems.push(['may_fail', reason]);
 		for (const [kind, reason] of problems) {
 			for (const sql of sqlStatements) {
 				warnings.push({ sql: sql.replace(/\s+/g, ' ').trim(), reason, kind });
@@ -220,7 +344,7 @@ export function collectIrreversibleDownWarnings(statements: DownStatement[]): Ir
 }
 
 const WARNING_SECTIONS: [DownWarningKind, string][] = [
-	['data_loss', 'These operations lose data:'],
+	['data_loss', 'These operations cannot bring back data the migration dropped:'],
 	['may_fail', 'These operations may fail on a populated table:'],
 ];
 
@@ -237,7 +361,7 @@ export function describeIrreversibleWarnings(warnings: IrreversibleDownWarning[]
 export function formatIrreversibleBanner(warnings: IrreversibleDownWarning[]): string {
 	if (warnings.length === 0) return '';
 	return [
-		'⚠ REVIEW: this rollback cannot fully restore the previous database state.',
+		'⚠ REVIEW: best-effort checks flagged operations in this rollback.',
 		...describeIrreversibleWarnings(warnings),
 	].map((line) => `-- ${line}`).join('\n');
 }
