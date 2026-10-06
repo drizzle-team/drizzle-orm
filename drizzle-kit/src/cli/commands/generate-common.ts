@@ -9,6 +9,7 @@ import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
 import type { SingleStoreSnapshot } from '../../dialects/singlestore/snapshot';
 import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
 import { BREAKPOINT } from '../../utils';
+import { upHashStamp } from '../../utils/utils-node';
 import { prepareMigrationMetadata } from '../../utils/words';
 import { outputFormat } from '../context';
 import type { Driver } from '../validations/common';
@@ -19,7 +20,6 @@ import {
 	describeIrreversibleWarnings,
 	type DownResult,
 	formatIrreversibleBanner,
-	upHashStamp,
 } from './generate-down-helpers';
 
 export const DOWN_SQL_HEADER =
