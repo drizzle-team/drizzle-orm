@@ -308,6 +308,15 @@ test('generate --explain', async (t) => {
 	});
 });
 
+test('generate --generateDownMigrations=false', async () => {
+	const res = await brotest(
+		generate,
+		'--dialect=postgresql --schema=schema.ts --generateDownMigrations=false',
+	);
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+	expect(res.options).toMatchObject({ generateDownMigrations: false });
+});
+
 // --- errors ---
 test('err #1', async (t) => {
 	const res = await brotest(generate, '--schema=src/schema.ts');
@@ -500,4 +509,18 @@ test('validate config #5', async (t) => {
 		hints: expect.any(HintsHandler) as any,
 	};
 	expect(res.options).toStrictEqual(expected);
+});
+
+test('validate config: generateDownMigrations false', async () => {
+	const { path, name } = createConfig({
+		dialect: 'postgresql',
+		schema: 'schema.ts',
+		generateDownMigrations: false,
+	}, prefix);
+
+	const res = await brotest(generate, `--config=${name}`);
+
+	unlinkSync(path);
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+	expect(res.options).toMatchObject({ generateDownMigrations: false });
 });
