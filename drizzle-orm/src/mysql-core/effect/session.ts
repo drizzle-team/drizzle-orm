@@ -301,6 +301,7 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 	);
 });
 
+/** MySQL commits each DDL statement implicitly, so a rollback that fails mid-way leaves its earlier DDL applied */
 export const rollback = Effect.fn('rollback')(function*<TEffectHKT extends QueryEffectHKTBase>(
 	migrations: MigrationMeta[],
 	session: MySqlEffectSession<TEffectHKT>,

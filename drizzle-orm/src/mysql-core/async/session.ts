@@ -350,6 +350,7 @@ export async function migrate(
 	});
 }
 
+/** MySQL commits each DDL statement implicitly, so a rollback that fails mid-way leaves its earlier DDL applied */
 export async function rollback(
 	migrations: MigrationMeta[],
 	db: MySqlAsyncDatabase<MySqlQueryResultHKT, any>,

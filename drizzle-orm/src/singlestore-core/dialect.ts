@@ -173,6 +173,7 @@ export class SingleStoreDialect {
 		});
 	}
 
+	/** SingleStore commits each DDL statement implicitly, so a rollback that fails mid-way leaves its earlier DDL applied */
 	async rollback(
 		migrations: MigrationMeta[],
 		session: SingleStoreSession,
