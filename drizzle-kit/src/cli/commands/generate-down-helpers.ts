@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import type { Resolver } from '../../dialects/common';
 import type { RenameCreateHintKind } from '../hints';
 
@@ -102,6 +103,23 @@ export function cloneDDL<E, D extends DDLLike<E>>(ddl: D, create: () => D): D {
 		copy.entities.push(entity);
 	}
 	return copy;
+}
+
+const UP_HASH_PREFIX = '-- drizzle:up-hash=';
+
+/** Same digest drizzle-orm's readMigrationFiles computes over migration.sql. */
+export function migrationHash(migrationSql: string): string {
+	return createHash('sha256').update(migrationSql).digest('hex');
+}
+
+export function upHashStamp(migrationSql: string): string {
+	return `${UP_HASH_PREFIX}${migrationHash(migrationSql)}`;
+}
+
+export function readUpHashStamp(downSql: string): string | null {
+	const firstLine = downSql.split('\n', 1)[0]!.trim();
+	if (!firstLine.startsWith(UP_HASH_PREFIX)) return null;
+	return firstLine.slice(UP_HASH_PREFIX.length).trim() || null;
 }
 
 /** A single grouped statement from a diff: its typed JSON form and the SQL it produced. */

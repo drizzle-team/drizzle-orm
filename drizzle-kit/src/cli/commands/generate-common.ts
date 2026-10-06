@@ -13,13 +13,19 @@ import { prepareMigrationMetadata } from '../../utils/words';
 import { outputFormat } from '../context';
 import type { Driver } from '../validations/common';
 import { humanLog } from '../views';
-import { collectIrreversibleDownWarnings, type DownStatement, formatIrreversibleBanner } from './generate-down-helpers';
+import {
+	collectIrreversibleDownWarnings,
+	type DownStatement,
+	formatIrreversibleBanner,
+	upHashStamp,
+} from './generate-down-helpers';
 
 export const DOWN_SQL_HEADER =
 	'-- Auto-generated rollback for the migration above, produced from the reverse schema diff.\n'
 	+ '-- It reverses structural (DDL) changes only. Custom or data statements you add to\n'
 	+ '-- migration.sql are NOT reversed automatically — add their inverse here by hand.\n'
-	+ '-- Review before relying on it in production.';
+	+ '-- Review before relying on it in production. The up-hash line lets `drizzle-kit check`\n'
+	+ '-- warn when migration.sql changes after this file was generated.';
 
 export const CUSTOM_DOWN_SQL_SCAFFOLD = '-- Custom SQL rollback file, put your reverse statements below! --';
 
@@ -108,13 +114,14 @@ export function writeResult(
 	const migrationPath = path.join(`${outFolder}/${tag}/migration.sql`);
 
 	if (generateDownMigrations) {
+		const downPath = join(outFolder, `${tag}/down.sql`);
+		const stamp = upHashStamp(sql);
 		if (type === 'custom') {
-			fs.writeFileSync(join(outFolder, `${tag}/down.sql`), CUSTOM_DOWN_SQL_SCAFFOLD);
+			fs.writeFileSync(downPath, `${stamp}\n${CUSTOM_DOWN_SQL_SCAFFOLD}`);
 		} else if (downSqlStatements && downSqlStatements.length > 0) {
 			const banner = formatIrreversibleBanner(collectIrreversibleDownWarnings(downStatements ?? []));
 			const header = banner ? `${DOWN_SQL_HEADER}\n${banner}` : DOWN_SQL_HEADER;
-			const downSql = `${header}\n${downSqlStatements.join(sqlDelimiter)}`;
-			fs.writeFileSync(join(outFolder, `${tag}/down.sql`), downSql);
+			fs.writeFileSync(downPath, `${stamp}\n${header}\n${downSqlStatements.join(sqlDelimiter)}`);
 		}
 	}
 
