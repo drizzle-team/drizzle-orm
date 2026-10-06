@@ -1,4 +1,4 @@
-import { type Column, createDDL, interimToDDL, type SqliteEntities } from '../../dialects/sqlite/ddl';
+import { type Column, createDDL, interimToDDL, type SQLiteDDL, type SqliteEntities } from '../../dialects/sqlite/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/sqlite/drizzle';
 import type { SchemaSource } from '../../dialects/sqlite/drizzle';
@@ -10,8 +10,24 @@ import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, sqliteSchemaError, warning } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
-import { makeInverseResolver, withCapture } from './generate-down-helpers';
+import { captureRenames, cloneDDL, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
+
+export const ddlDiffWithDown = async (ddlPrev: SQLiteDDL, ddlCur: SQLiteDDL, resolverFor: ResolverFor) => {
+	const { forward, inverse } = captureRenames(resolverFor);
+	const downFrom = cloneDDL(ddlCur, createDDL);
+	const downTo = cloneDDL(ddlPrev, createDDL);
+	const result = await ddlDiff(
+		ddlPrev,
+		ddlCur,
+		forward<SqliteEntities['tables']>('table'),
+		forward<Column>('column'),
+		'default',
+	);
+	const down = () =>
+		ddlDiff(downFrom, downTo, inverse<SqliteEntities['tables']>('table'), inverse<Column>('column'), 'default');
+	return { ...result, down };
+};
 
 export const handle = async (
 	config: GenerateConfig<SchemaSource>,
@@ -43,30 +59,17 @@ export const handle = async (
 		});
 	}
 
-	const tableRenames: { from: SqliteEntities['tables']; to: SqliteEntities['tables'] }[] = [];
-	const columnRenames: { from: Column; to: Column }[] = [];
-
-	const { sqlStatements, warnings, renames, groupedStatements, statements } = await ddlDiff(
+	const { sqlStatements, warnings, renames, groupedStatements, statements, down } = await ddlDiffWithDown(
 		ddlPrev,
 		ddlCur,
-		withCapture(resolver<SqliteEntities['tables']>('table', config.hints), tableRenames),
-		withCapture(resolver<Column>('column', config.hints), columnRenames),
-		'default',
+		(kind) => resolver(kind, config.hints),
 	);
 
 	if (config.hints.hasMissingHints()) {
 		return config.hints.toResponse();
 	}
 
-	const downDiff = config.generateDownMigrations
-		? await ddlDiff(
-			ddlCur,
-			ddlPrev,
-			makeInverseResolver(tableRenames),
-			makeInverseResolver(columnRenames),
-			'default',
-		)
-		: undefined;
+	const downDiff = config.generateDownMigrations ? await down() : undefined;
 	const downSqlStatements = downDiff?.sqlStatements;
 
 	if (!json) {

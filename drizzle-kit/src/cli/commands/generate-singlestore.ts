@@ -1,4 +1,4 @@
-import type { Column, Table, View } from '../../dialects/mysql/ddl';
+import type { Column, MysqlDDL, Table, View } from '../../dialects/mysql/ddl';
 import { createDDL, interimToDDL } from '../../dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/singlestore/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/singlestore/drizzle';
@@ -9,8 +9,25 @@ import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, mysqlSchemaError } from '../views';
 import { writeResult } from './generate-common';
-import { makeInverseResolver, withCapture } from './generate-down-helpers';
+import { captureRenames, cloneDDL, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
+
+export const ddlDiffWithDown = async (ddlPrev: MysqlDDL, ddlCur: MysqlDDL, resolverFor: ResolverFor) => {
+	const { forward, inverse } = captureRenames(resolverFor);
+	const downFrom = cloneDDL(ddlCur, createDDL);
+	const downTo = cloneDDL(ddlPrev, createDDL);
+	const result = await ddlDiff(
+		ddlPrev,
+		ddlCur,
+		forward<Table>('table'),
+		forward<Column>('column'),
+		forward<View>('view'),
+		'default',
+	);
+	const down = () =>
+		ddlDiff(downFrom, downTo, inverse<Table>('table'), inverse<Column>('column'), inverse<View>('view'), 'default');
+	return { ...result, down };
+};
 
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, filenames } = config;
@@ -33,33 +50,17 @@ export const handle = async (config: GenerateConfig) => {
 		});
 	}
 
-	const tableRenames: { from: Table; to: Table }[] = [];
-	const columnRenames: { from: Column; to: Column }[] = [];
-	const viewRenames: { from: View; to: View }[] = [];
-
-	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements, statements, down } = await ddlDiffWithDown(
 		ddlPrev,
 		ddlCur,
-		withCapture(resolver<Table>('table', config.hints), tableRenames),
-		withCapture(resolver<Column>('column', config.hints), columnRenames),
-		withCapture(resolver<View>('view', config.hints), viewRenames),
-		'default',
+		(kind) => resolver(kind, config.hints),
 	);
 
 	if (config.hints.hasMissingHints()) {
 		return config.hints.toResponse();
 	}
 
-	const downDiff = config.generateDownMigrations
-		? await ddlDiff(
-			ddlCur,
-			ddlPrev,
-			makeInverseResolver(tableRenames),
-			makeInverseResolver(columnRenames),
-			makeInverseResolver(viewRenames),
-			'default',
-		)
-		: undefined;
+	const downDiff = config.generateDownMigrations ? await down() : undefined;
 	const downSqlStatements = downDiff?.sqlStatements;
 
 	if (!config.explain) {
