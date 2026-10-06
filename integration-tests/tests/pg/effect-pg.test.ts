@@ -73,6 +73,7 @@ runCommonEffectPgTests({
 	PgDrizzle: PgDrizzle,
 	createDB: createDB as any,
 	usedSchema,
+	migrate,
 	// @effect/sql-pg can't decode multidimensional arrays
 	skipTests: ['all types', 'all types ~codecs~'],
 	addTests: (it) => {

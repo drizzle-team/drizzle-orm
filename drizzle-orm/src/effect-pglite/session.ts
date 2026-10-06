@@ -1,6 +1,7 @@
 import type { PgliteClient } from '@effect/sql-pglite/PgliteClient';
 import type { Results, Row } from '@electric-sql/pglite';
 import * as Effect from 'effect/Effect';
+import * as Option from 'effect/Option';
 import type { SqlError } from 'effect/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -98,6 +99,10 @@ export class EffectPgSession<
 
 			return yield* transaction(tx);
 		}));
+	}
+
+	override inTransaction(): Effect.Effect<boolean> {
+		return Effect.map(Effect.serviceOption(this.client.transactionService), Option.isSome);
 	}
 }
 

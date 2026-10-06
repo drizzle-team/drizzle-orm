@@ -198,6 +198,9 @@ export abstract class PgEffectSession<
 		) => Effect.Effect<A, E, R>,
 		config?: PgTransactionConfig,
 	): Effect.Effect<A, E | SqlError, R>;
+
+	/** @internal */
+	abstract inTransaction(): Effect.Effect<boolean>;
 }
 
 export abstract class PgEffectTransaction<
@@ -292,54 +295,66 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 		: config.migrationsTable ?? '__drizzle_migrations';
 	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
 
-	yield* session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+	// A call inside a transaction gets a savepoint, where Postgres rejects a change of isolation level
+	const inTransaction = yield* session.inTransaction();
 
-	const { newDb } = yield* upgradeIfNeeded(migrationsSchema, migrationsTable, session, migrations);
-
-	if (newDb) {
-		const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
-				id SERIAL PRIMARY KEY,
-				hash text NOT NULL,
-				created_at bigint,
-				name text,
-				applied_at timestamp with time zone DEFAULT now()
-			)
-		`;
-
-		yield* session.execute(migrationTableCreate);
-	}
-
-	const dbMigrations = yield* session.objects<{ id: number; hash: string; created_at: string; name: string | null }>(
-		sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`,
-	);
-
-	if (typeof config === 'object' && config.init) {
-		if (dbMigrations.length) {
-			return yield* new MigratorInitError({ exitCode: 'databaseMigrations' });
-		}
-
-		if (migrations.length > 1) {
-			return yield* new MigratorInitError({ exitCode: 'localMigrations' });
-		}
-
-		const [migration] = migrations;
-
-		if (!migration) return;
-
-		yield* session.execute(
-			sql`insert into ${sql.identifier(migrationsSchema)}.${
-				sql.identifier(migrationsTable)
-			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
-		);
-
-		return;
-	}
-
-	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
-
-	yield* session.transaction((tx) =>
+	// Concurrent calls wait on the lock; `read committed` lets a waiting call see what the previous one applied
+	const initFailure = yield* session.transaction((tx) =>
 		Effect.gen(function*() {
+			yield* tx.execute(
+				sql`select 1 from pg_advisory_xact_lock(hashtext(${`${migrationsSchema}.${migrationsTable}`}))`,
+			);
+
+			yield* tx.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+
+			const { newDb } = yield* upgradeIfNeeded(migrationsSchema, migrationsTable, tx.session, migrations);
+
+			if (newDb) {
+				const migrationTableCreate = sql`
+					CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
+						id SERIAL PRIMARY KEY,
+						hash text NOT NULL,
+						created_at bigint,
+						name text,
+						applied_at timestamp with time zone DEFAULT now()
+					)
+				`;
+
+				yield* tx.execute(migrationTableCreate);
+			}
+
+			const dbMigrations = yield* tx.session.objects<
+				{ id: number; hash: string; created_at: string; name: string | null }
+			>(
+				sql`select id, hash, created_at, name from ${sql.identifier(migrationsSchema)}.${
+					sql.identifier(migrationsTable)
+				}`,
+			);
+
+			if (typeof config === 'object' && config.init) {
+				if (dbMigrations.length) {
+					return { exitCode: 'databaseMigrations' as const };
+				}
+
+				if (migrations.length > 1) {
+					return { exitCode: 'localMigrations' as const };
+				}
+
+				const [migration] = migrations;
+
+				if (!migration) return;
+
+				yield* tx.execute(
+					sql`insert into ${sql.identifier(migrationsSchema)}.${
+						sql.identifier(migrationsTable)
+					} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
+				);
+
+				return;
+			}
+
+			const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
+
 			for (const migration of migrationsToRun) {
 				for (const stmt of migration.sql) {
 					yield* tx.execute(sql.raw(stmt));
@@ -350,6 +365,10 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 					} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 				);
 			}
-		})
-	);
+
+			return;
+		}), inTransaction ? undefined : { isolationLevel: 'read committed' });
+
+	// Failing inside the transaction would roll back the migrations table creation
+	if (initFailure) return yield* new MigratorInitError(initFailure);
 });

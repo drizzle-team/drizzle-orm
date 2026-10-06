@@ -44,6 +44,10 @@ import { neonHttpTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
 
 const skips = [
+	// Not locked: an HTTP batch cannot read the migration history inside the transaction that applies migrations
+	'migrator : concurrent migrate calls apply each migration once',
+	// Its migrator upgrades the migrations table on its own, outside the shared pg-core migrate
+	'migrator : upgrades a v0 migrations table',
 	'RQB v2 transaction find first - no rows',
 	'RQB v2 transaction find first - multiple rows',
 	'RQB v2 transaction find first - with relation',
