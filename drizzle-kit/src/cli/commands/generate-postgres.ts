@@ -27,7 +27,7 @@ import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, postgresSchemaError, postgresSchemaWarning } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
-import { diffWithDown, type ResolverFor } from './generate-down-helpers';
+import { computeDown, diffWithDown, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 const diff = (from: PostgresDDL, to: PostgresDDL, resolverFor: ResolverFor) =>
@@ -94,15 +94,11 @@ export const handle = async (
 		return config.hints.toResponse();
 	}
 
-	const downDiff = config.generateDownMigrations ? await down() : undefined;
-	const downSqlStatements = downDiff?.sqlStatements;
-
 	if (!config.explain) {
 		return writeResult({
 			snapshot: snapshot,
 			sqlStatements,
-			downSqlStatements,
-			downStatements: downDiff?.groupedStatements,
+			down: config.generateDownMigrations ? await computeDown(down) : undefined,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,

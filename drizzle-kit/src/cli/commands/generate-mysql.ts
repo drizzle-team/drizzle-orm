@@ -11,7 +11,7 @@ import { withStyle } from '../validations/outputs';
 import { explain, explainJsonOutput, humanLog, mysqlSchemaError } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
-import { diffWithDown, type ResolverFor } from './generate-down-helpers';
+import { computeDown, diffWithDown, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 export const suggestions = (
@@ -153,9 +153,6 @@ export const handle = async (
 		return config.hints.toResponse();
 	}
 
-	const downDiff = config.generateDownMigrations ? await down() : undefined;
-	const downSqlStatements = downDiff?.sqlStatements;
-
 	const { errors } = suggestions(statements, ddlCur);
 	if (errors.length) {
 		throw new CommandOutputCliError('generate', errors.map((err) => withStyle.errorWarning(err)).join('\n\n'), {
@@ -181,8 +178,7 @@ export const handle = async (
 	return writeResult({
 		snapshot,
 		sqlStatements,
-		downSqlStatements,
-		downStatements: downDiff?.groupedStatements,
+		down: config.generateDownMigrations ? await computeDown(down) : undefined,
 		outFolder,
 		name: config.name,
 		breakpoints: config.breakpoints,

@@ -23,7 +23,7 @@ import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
 import { explain, explainJsonOutput, humanLog, mssqlSchemaError } from '../views';
 import { writeResult } from './generate-common';
-import { diffWithDown, type ResolverFor } from './generate-down-helpers';
+import { computeDown, diffWithDown, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 const diff = (from: MssqlDDL, to: MssqlDDL, resolverFor: ResolverFor) =>
@@ -98,12 +98,10 @@ export const handle = async (config: GenerateConfig) => {
 	}
 
 	if (!config.explain) {
-		const downDiff = config.generateDownMigrations ? await down() : undefined;
 		return writeResult({
 			snapshot: snapshot,
 			sqlStatements,
-			downSqlStatements: downDiff?.sqlStatements,
-			downStatements: downDiff?.groupedStatements,
+			down: config.generateDownMigrations ? await computeDown(down) : undefined,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,

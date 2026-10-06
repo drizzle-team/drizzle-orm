@@ -9,7 +9,7 @@ import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, mysqlSchemaError } from '../views';
 import { writeResult } from './generate-common';
-import { diffWithDown, type ResolverFor } from './generate-down-helpers';
+import { computeDown, diffWithDown, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
 const diff = (from: MysqlDDL, to: MysqlDDL, resolverFor: ResolverFor) =>
@@ -56,15 +56,11 @@ export const handle = async (config: GenerateConfig) => {
 		return config.hints.toResponse();
 	}
 
-	const downDiff = config.generateDownMigrations ? await down() : undefined;
-	const downSqlStatements = downDiff?.sqlStatements;
-
 	if (!config.explain) {
 		return writeResult({
 			snapshot,
 			sqlStatements,
-			downSqlStatements,
-			downStatements: downDiff?.groupedStatements,
+			down: config.generateDownMigrations ? await computeDown(down) : undefined,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,

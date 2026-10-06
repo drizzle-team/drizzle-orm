@@ -17,7 +17,7 @@ import { humanLog } from '../views';
 import {
 	collectIrreversibleDownWarnings,
 	describeIrreversibleWarnings,
-	type DownStatement,
+	type DownResult,
 	formatIrreversibleBanner,
 	upHashStamp,
 } from './generate-down-helpers';
@@ -34,8 +34,7 @@ export const CUSTOM_DOWN_SQL_SCAFFOLD = '-- Custom SQL rollback file, put your r
 type WriteResultConfigBase = {
 	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot | CockroachSnapshot | SingleStoreSnapshot;
 	sqlStatements: string[];
-	downSqlStatements?: string[];
-	downStatements?: DownStatement[];
+	down?: DownResult;
 	outFolder: string;
 	breakpoints: boolean;
 	generateDownMigrations: boolean;
@@ -66,8 +65,7 @@ export function writeResult(
 	const {
 		snapshot,
 		sqlStatements,
-		downSqlStatements,
-		downStatements,
+		down,
 		outFolder,
 		breakpoints,
 		generateDownMigrations,
@@ -119,12 +117,19 @@ export function writeResult(
 		const downPath = join(outFolder, `${tag}/down.sql`);
 		if (type === 'custom') {
 			fs.writeFileSync(downPath, CUSTOM_DOWN_SQL_SCAFFOLD);
-		} else if (downSqlStatements && downSqlStatements.length > 0) {
+		} else if (down && 'error' in down) {
+			const reason = down.error instanceof Error ? down.error.message : String(down.error);
+			humanLog(
+				withStyle.warning(
+					`Could not generate a rollback for ${tag}, so no down.sql was written: ${reason}`,
+				),
+			);
+		} else if (down && down.sqlStatements.length > 0) {
 			const stamp = upHashStamp(sql);
-			const warnings = collectIrreversibleDownWarnings(downStatements ?? []);
+			const warnings = collectIrreversibleDownWarnings(down.statements);
 			const banner = formatIrreversibleBanner(warnings);
 			const header = banner ? `${DOWN_SQL_HEADER}\n${banner}` : DOWN_SQL_HEADER;
-			fs.writeFileSync(downPath, `${stamp}\n${header}\n${downSqlStatements.join(sqlDelimiter)}`);
+			fs.writeFileSync(downPath, `${stamp}\n${header}\n${down.sqlStatements.join(sqlDelimiter)}`);
 			if (warnings.length > 0) {
 				humanLog(
 					withStyle.warning(

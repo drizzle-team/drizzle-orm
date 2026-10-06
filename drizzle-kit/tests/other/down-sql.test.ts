@@ -41,7 +41,7 @@ describe('writeResult — down SQL file generation', () => {
 		writeResult({
 			snapshot: { ...minimalSnapshot },
 			sqlStatements: ['CREATE TABLE users (id INTEGER PRIMARY KEY)'],
-			downSqlStatements: ['DROP TABLE users'],
+			down: { sqlStatements: ['DROP TABLE users'], statements: [] },
 			outFolder: tmpDir,
 			breakpoints: true,
 			generateDownMigrations: true,
@@ -86,7 +86,7 @@ describe('writeResult — down SQL file generation', () => {
 		writeResult({
 			snapshot: { ...minimalSnapshot },
 			sqlStatements: ['CREATE TABLE t (id INTEGER)'],
-			downSqlStatements: [],
+			down: { sqlStatements: [], statements: [] },
 			outFolder: tmpDir,
 			breakpoints: true,
 			generateDownMigrations: true,
@@ -106,7 +106,7 @@ describe('writeResult — down SQL file generation', () => {
 		writeResult({
 			snapshot: { ...minimalSnapshot },
 			sqlStatements: ['CREATE TABLE a (id INTEGER)', 'CREATE TABLE b (id INTEGER)'],
-			downSqlStatements: ['DROP TABLE b', 'DROP TABLE a'],
+			down: { sqlStatements: ['DROP TABLE b', 'DROP TABLE a'], statements: [] },
 			outFolder: tmpDir,
 			breakpoints: true,
 			generateDownMigrations: true,
@@ -132,7 +132,7 @@ describe('writeResult — down SQL file generation', () => {
 		writeResult({
 			snapshot: { ...minimalSnapshot },
 			sqlStatements: ['CREATE TABLE a (id INTEGER)', 'CREATE TABLE b (id INTEGER)'],
-			downSqlStatements: ['DROP TABLE b', 'DROP TABLE a'],
+			down: { sqlStatements: ['DROP TABLE b', 'DROP TABLE a'], statements: [] },
 			outFolder: tmpDir,
 			breakpoints: false,
 			generateDownMigrations: true,
@@ -152,7 +152,7 @@ describe('writeResult — down SQL file generation', () => {
 		writeResult({
 			snapshot: { ...minimalSnapshot },
 			sqlStatements: ['CREATE TABLE users (id INTEGER PRIMARY KEY)'],
-			downSqlStatements: ['DROP TABLE users'],
+			down: { sqlStatements: ['DROP TABLE users'], statements: [] },
 			outFolder: tmpDir,
 			breakpoints: true,
 			generateDownMigrations: true,
@@ -191,11 +191,13 @@ describe('writeResult — down SQL file generation', () => {
 		writeResult({
 			snapshot: { ...minimalSnapshot },
 			sqlStatements: ['CREATE TABLE users (id INTEGER PRIMARY KEY)', 'ALTER TABLE posts DROP COLUMN body'],
-			downSqlStatements: ['DROP TABLE users', 'ALTER TABLE posts ADD COLUMN body text'],
-			downStatements: [
-				{ jsonStatement: { type: 'drop_table' }, sqlStatements: ['DROP TABLE users'] },
-				{ jsonStatement: { type: 'add_column' }, sqlStatements: ['ALTER TABLE posts ADD COLUMN body text'] },
-			],
+			down: {
+				sqlStatements: ['DROP TABLE users', 'ALTER TABLE posts ADD COLUMN body text'],
+				statements: [
+					{ jsonStatement: { type: 'drop_table' }, sqlStatements: ['DROP TABLE users'] },
+					{ jsonStatement: { type: 'add_column' }, sqlStatements: ['ALTER TABLE posts ADD COLUMN body text'] },
+				],
+			},
 			outFolder: tmpDir,
 			breakpoints: true,
 			generateDownMigrations: true,
@@ -225,16 +227,18 @@ describe('writeResult — down SQL file generation', () => {
 			writeResult({
 				snapshot: { ...minimalSnapshot },
 				sqlStatements: ['ALTER TABLE posts DROP COLUMN body'],
-				downSqlStatements: ['ALTER TABLE posts ADD COLUMN body text NOT NULL'],
-				downStatements: [
-					{
-						jsonStatement: {
-							type: 'add_column',
-							column: { notNull: true, default: null },
-						} as DownStatement['jsonStatement'],
-						sqlStatements: ['ALTER TABLE posts ADD COLUMN body text NOT NULL'],
-					},
-				],
+				down: {
+					sqlStatements: ['ALTER TABLE posts ADD COLUMN body text NOT NULL'],
+					statements: [
+						{
+							jsonStatement: {
+								type: 'add_column',
+								column: { notNull: true, default: null },
+							} as DownStatement['jsonStatement'],
+							sqlStatements: ['ALTER TABLE posts ADD COLUMN body text NOT NULL'],
+						},
+					],
+				},
 				outFolder: tmpDir,
 				breakpoints: true,
 				generateDownMigrations: true,
@@ -257,10 +261,12 @@ describe('writeResult — down SQL file generation', () => {
 		writeResult({
 			snapshot: { ...minimalSnapshot },
 			sqlStatements: ['CREATE INDEX idx ON users (id)'],
-			downSqlStatements: ['DROP INDEX idx'],
-			downStatements: [
-				{ jsonStatement: { type: 'drop_index' }, sqlStatements: ['DROP INDEX idx'] },
-			],
+			down: {
+				sqlStatements: ['DROP INDEX idx'],
+				statements: [
+					{ jsonStatement: { type: 'drop_index' }, sqlStatements: ['DROP INDEX idx'] },
+				],
+			},
 			outFolder: tmpDir,
 			breakpoints: true,
 			generateDownMigrations: true,
@@ -280,7 +286,7 @@ describe('writeResult — down SQL file generation', () => {
 		writeResult({
 			snapshot: { ...minimalSnapshot },
 			sqlStatements: ['CREATE TABLE users (id INTEGER PRIMARY KEY)'],
-			downSqlStatements: ['DROP TABLE users'],
+			down: { sqlStatements: ['DROP TABLE users'], statements: [] },
 			outFolder: tmpDir,
 			breakpoints: true,
 			generateDownMigrations: false,

@@ -128,6 +128,19 @@ export function readUpHashStamp(downSql: string): string | null {
 /** A single grouped statement from a diff: its typed JSON form and the SQL it produced. */
 export type DownStatement = { jsonStatement: { type: string }; sqlStatements: string[] };
 
+export type DownResult = { sqlStatements: string[]; statements: DownStatement[] } | { error: unknown };
+
+export async function computeDown(
+	down: () => Promise<{ sqlStatements: string[]; groupedStatements: DownStatement[] }>,
+): Promise<DownResult> {
+	try {
+		const { sqlStatements, groupedStatements } = await down();
+		return { sqlStatements, statements: groupedStatements };
+	} catch (error) {
+		return { error };
+	}
+}
+
 export type DownWarningKind = 'data_loss' | 'may_fail';
 
 export type IrreversibleDownWarning = { sql: string; reason: string; kind: DownWarningKind };
