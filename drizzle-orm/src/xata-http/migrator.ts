@@ -90,6 +90,7 @@ export interface MigrationConfig {
 	}
 }
 
+/** Xata HTTP has no transactions, so a rollback that fails mid-way leaves earlier steps applied */
 export async function rollback<TRelations extends AnyRelations = EmptyRelations>(
 	db: XataHttpDatabase<TRelations>,
 	config: MigrationConfig,
