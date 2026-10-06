@@ -23,13 +23,13 @@ import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { SchemaSource } from '../../dialects/postgres/drizzle';
-import { prepareSnapshot } from '../../dialects/postgres/serializer';
+import { prepareSnapshot, previousState } from '../../dialects/postgres/serializer';
 import { assertDeltasRebuildState, type PostgresSnapshot, stateHash } from '../../dialects/postgres/snapshot';
 import type { SnapshotStatement } from '../../dialects/postgres/snapshot-statements';
 import { originUUID } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import { isInteractive, outputFormat } from '../context';
-import { CheckCliError, CommandOutputCliError } from '../errors';
+import { CheckCliError, CommandOutputCliError, SchemaFilesNotFoundCliError } from '../errors';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import { explain, explainJsonOutput, humanLog, postgresSchemaError, postgresSchemaWarning } from '../views';
@@ -172,6 +172,51 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	if (fix) humanLog(describeConflictFix(fix, sqlStatements.length > 0));
 
 	return { status: 'ok' as const, dialect: 'postgresql' };
+};
+
+// What `check` says about a schema that differs from the migrations folder. The folder already passed the
+// check, so it is valid and its branches do not conflict. The schema equals the migrations when generate
+// would write no SQL. Nothing is written, and a schema that cannot be compared is a warning too.
+export const schemaWarnings = async (out: string, schemaSource: SchemaSource): Promise<string[]> => {
+	const notCompared = (reason: string) => [`The schema was not compared with the migrations, because ${reason}`];
+	let prepared: Awaited<ReturnType<SchemaSource['load']>>;
+	try {
+		prepared = await schemaSource.load();
+	} catch (e) {
+		if (e instanceof SchemaFilesNotFoundCliError) {
+			return notCompared(`no schema file matches ${(e.meta!.paths as string[]).join(', ')}.`);
+		}
+		return notCompared(`the schema failed to load: ${(e as Error).message}`);
+	}
+	const { schema, errors } = fromDrizzleSchema(prepared, () => true);
+	const { ddl: ddlCur, errors: ddlErrors } = interimToDDL(schema);
+	if (errors.length > 0 || ddlErrors.length > 0) {
+		return notCompared('the schema has errors. Run drizzle-kit generate to see them.');
+	}
+
+	const stored = prepareOutFolder(out);
+	const { ddlPrev, prevIds } = await previousState(stored.snapshots);
+	const { sqlStatements } = await ddlDiffDry(ddlPrev, ddlCur, 'default');
+	if (sqlStatements.length === 0) return [];
+
+	const leaves = stored.index.filter((it) => prevIds.includes(it.id)).map((it) => it.folder);
+	if (leaves.length === 0) {
+		return [
+			'The schema has changes that no migration holds, because the migrations folder has no migration. '
+			+ 'Run drizzle-kit generate to write the first migration.',
+		];
+	}
+	if (leaves.length === 1) {
+		return [
+			`The schema has changes that no migration holds. The newest migration is ${leaves[0]}. `
+			+ 'Run drizzle-kit generate to write a migration for these changes.',
+		];
+	}
+	return [
+		`The migrations folder has ${leaves.length} branches that are not merged: ${leaves.join(', ')}. `
+		+ 'The schema differs from their combined state, so a merge migration is needed. '
+		+ 'Run drizzle-kit generate to write it.',
+	];
 };
 
 export const handleExport = async (config: ExportConfig) => {

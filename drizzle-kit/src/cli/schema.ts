@@ -9,7 +9,7 @@ import { dialects } from '../utils/schemaValidator';
 import '../@types/utils';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import { assertUnreachable } from '../utils';
-import { assertV3OutFolder } from '../utils/utils-node';
+import { assertV3OutFolder, prepareFilenames } from '../utils/utils-node';
 import { assertConflictOptions, checkHandler } from './commands/check';
 import type { Setup } from './commands/studio';
 import { upCockroachHandler } from './commands/up-cockroach';
@@ -562,6 +562,7 @@ export const checkOptions = {
 	config: optionConfig,
 	dialect: optionDialect,
 	out: optionOut,
+	schema: string().desc('Path to a schema file or folder'),
 	ignoreConflicts: optionIgnoreConflicts,
 	output: optionOutput,
 } as const satisfies Record<string, GenericBuilderInternals>;
@@ -574,7 +575,7 @@ export const prepareCheck = async (opts: CheckOptionsInput) => {
 		'check',
 		opts,
 		['ignoreConflicts', 'output'],
-		['dialect', 'out'],
+		['dialect', 'out', 'schema'],
 	);
 	const config: CheckConfig & { output: 'text' | 'json' } = {
 		...(await prepareCheckParams(opts, from)),
@@ -589,10 +590,20 @@ export const runCheck = async (
 ) => {
 	await assertOrmCoreVersion();
 	assertV3OutFolder(config.out);
-	const { out, dialect, ignoreConflicts } = config;
+	const { out, dialect, schema, ignoreConflicts } = config;
 	assertConflictOptions('check', dialect, { ignoreConflicts });
 	await checkHandler(out, dialect, ignoreConflicts);
-	return { status: 'ok' as const, dialect };
+
+	// The folder is valid here. A schema that differs from it is a warning and no error.
+	let warnings: string[] = [];
+	if (dialect === 'postgresql' && schema) {
+		const { schemaWarnings } = await import('./commands/generate-postgres');
+		const { SchemaSource } = await import('../dialects/postgres/drizzle');
+		warnings = await schemaWarnings(out, {
+			load: async () => SchemaSource.fromFilenames(prepareFilenames(schema)).load(),
+		});
+	}
+	return { status: 'ok' as const, dialect, ...(warnings.length > 0 && { warnings }) };
 };
 
 export const check = command({
@@ -602,6 +613,7 @@ export const check = command({
 	handler: async (cfg) => {
 		const env = await runCheck(cfg);
 		if (outputFormat() === 'json') process.stdout.write(JSON.stringify(env) + '\n');
+		else if (env.warnings) console.log(env.warnings.map((it) => withStyle.fullWarning(it)).join('\n'));
 		else console.log("Everything's fine 🐶🔥");
 		process.exit(statusToExitCode(env.status));
 	},
@@ -619,7 +631,8 @@ export const prepareUp = async (opts: UpOptionsInput) => {
 	const interactive = output === 'text' && !!process.stdin.isTTY;
 	setCliContext({ output, interactive });
 	const from = assertCollisions('up', opts, ['output'], ['dialect', 'out']);
-	const config = { ...(await prepareCheckParams(opts, from)), output };
+	const { out, dialect } = await prepareCheckParams(opts, from);
+	const config = { out, dialect, output };
 	return config;
 };
 

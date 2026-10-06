@@ -65,9 +65,10 @@ export const prepareCheckParams = async (
 		config?: string;
 		dialect?: Dialect;
 		out?: string;
+		schema?: string;
 	},
 	from: 'cli' | 'config',
-): Promise<{ out: string; dialect: Dialect }> => {
+): Promise<{ out: string; dialect: Dialect; schema?: string | string[] }> => {
 	const config = from === 'config'
 		? await drizzleConfigFromFile(options.config as string | undefined)
 		: options;
@@ -77,7 +78,7 @@ export const prepareCheckParams = async (
 			[error('Please provide required params:'), wrapParam('dialect', config.dialect)].join('\n'),
 		);
 	}
-	return { out: config.out || 'drizzle', dialect: config.dialect };
+	return { out: config.out || 'drizzle', dialect: config.dialect, ...(config.schema && { schema: config.schema }) };
 };
 
 export const prepareDropParams = async (
@@ -96,7 +97,12 @@ export const prepareDropParams = async (
 	return { out: config.out || 'drizzle', bundle: config.driver === 'expo' };
 };
 
-export type CheckConfig = { out: string; dialect: Dialect; ignoreConflicts: boolean | undefined };
+export type CheckConfig = {
+	out: string;
+	dialect: Dialect;
+	schema?: string | string[];
+	ignoreConflicts: boolean | undefined;
+};
 
 type AnySchemaSource = { load(): Promise<unknown> };
 

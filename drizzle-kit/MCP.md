@@ -30,6 +30,8 @@ See your MCP client's documentation for how to register a stdio server. As an ex
 
 Each tool returns the same JSON envelope as the CLI `--output json` / SDK contract — see [JSON_CONTRACT.md](./JSON_CONTRACT.md) for the full envelope spec. For postgresql, two error kinds tell an agent that the migrations folder itself needs a fix. `check_error` with `kind: "order"` means that a migration folder sorts before its parent. `command_output_error` from `up` with `kind: "history"` means that `up` cannot convert the history of the folder, and that it changed no file.
 
+For postgresql, an `ok` result of `check` can have `warnings`. The schema of the config then differs from the migrations, and `generate` would write a migration, which is a merge migration when the folder has several leaves. `isError` stays `false`.
+
 ## Consent round-trip (`missing_hints`)
 
 When `generate` or `push` encounters an ambiguous or destructive change it cannot auto-resolve (a rename, a data-loss operation), the tool returns `status: 'missing_hints'` with an `isError: true` result carrying an `unresolved[]` array. The agent inspects each item, picks a resolution, and re-calls the same tool with a `hints[]` array. The tools expose no `force` parameter — every unresolved decision must be acknowledged explicitly. See [SDK.md — Handling `status: 'missing_hints'`](./SDK.md) for the hint vocabulary and round-trip example.

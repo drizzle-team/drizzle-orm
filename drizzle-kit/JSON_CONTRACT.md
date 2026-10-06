@@ -651,7 +651,7 @@ Format 8, the postgres format before format 9, stored the full state in every sn
 
 ## `check`
 
-`drizzle-kit check --output json` validates the migrations folder — snapshot integrity plus conflicts between branches — and emits one of three envelopes. It never prompts and takes no hints. The `check()` SDK export returns the same envelopes verbatim.
+`drizzle-kit check --output json` validates the migrations folder — snapshot integrity plus conflicts between branches — and emits one of three envelopes. For postgresql, it also compares the schema with the migrations and reports a difference as a warning in the `ok` envelope. It never prompts and takes no hints. The `check()` SDK export returns the same envelopes verbatim.
 
 ### `check` success
 
@@ -665,6 +665,24 @@ When every snapshot is valid and the branches commute, `check` emits the `ok` en
 ```
 
 `dialect` is always present, consistent with every other `status: "ok"` response.
+
+For postgresql, `check` also compares the schema with the migrations folder when it has a schema path: the `schema` field of the config file, or the `--schema` option. The schema equals the migrations when `generate` would write no SQL. If they differ, the `ok` envelope has `warnings`, an array of plain strings, and the exit code is still `0`:
+
+```json
+{
+  "status": "ok",
+  "dialect": "postgresql",
+  "warnings": [
+    "The schema has changes that no migration holds. The newest migration is 20260101120002_email. Run drizzle-kit generate to write a migration for these changes."
+  ]
+}
+```
+
+- With one leaf, the warning says that the schema has changes that no migration holds.
+- With several leaves, the warning says that the schema differs from the combined state of the leaves, so a merge migration is needed. This is how a team learns after a git merge that `generate` must run before `migrate`.
+- If the schema cannot be compared, the warning says why: no file matches the schema path, the schema fails to load, or the schema has errors.
+
+`warnings` is absent when there is nothing to report and when `check` has no schema path. The comparison reads the schema files and writes nothing. In text mode, `check` prints the warnings in place of the success line.
 
 ### `check` integrity errors
 
@@ -777,7 +795,7 @@ Key semantics:
 
 For postgres, `check` compares every pair of leaves. A leaf's branch is the set of snapshots in its history that are missing from the other leaf's history. `check` reads the stored `statements` of each snapshot in a branch, and compares every statement of one branch with every statement of the other. A change and its later reversal on the same branch still count, and `statementDescription` ends with the folder that the statement comes from. A merge snapshot adds only the statements of its own change. Two equal statements on two branches are one change, and no conflict, when their SQL gives the same result on a second run: for example `SET NOT NULL` on one column in both branches. Two different changes of one object conflict, and so do two equal statements whose SQL fails on a second run, such as a new column. A `DISABLE ROW LEVEL SECURITY` on one branch also conflicts with a new policy for the same table on the other branch. This SQL runs in either order, but postgres does not enforce a policy on a table without row level security. For `mysql`, `sqlite` and `turso`, `check` compares the full state at each fork parent with the full state of each leaf below it. The other dialects have no branch check.
 
-If `check` passes and the folder has several leaves, the next `generate` writes a merge migration. See [Postgres snapshot format 9](#postgres-snapshot-format-9) for what a postgres merge stores.
+If `check` passes and the folder has several leaves, the next `generate` writes a merge migration, unless the combined state of the leaves already equals the schema. For postgresql, `check` returns a warning when the merge migration is needed. See [Postgres snapshot format 9](#postgres-snapshot-format-9) for what a postgres merge stores.
 
 For postgresql, `generate --fix-conflicts` resolves conflicts. It deletes the folders in `fix.migrations` and generates one new migration from the schema. If the remaining history has several leaves, that migration merges them. The fix deletes nothing while `generate` still returns `missing_hints`. It also deletes nothing in explain mode, where the result lists the folders that it would delete in `fix`. Every database that ran a deleted migration must be reset. In interactive mode, `generate` shows the conflict report and offers the same fix.
 
@@ -788,6 +806,7 @@ For `mysql`, `sqlite` and `turso`, `--ignore-conflicts` makes `generate` write t
 | outcome | envelope | exit code |
 | --- | --- | --- |
 | valid (snapshots intact, branches commute) | `{ status: "ok", dialect }` | `0` |
+| valid, and the schema differs from the migrations (postgresql) | `{ status: "ok", dialect, warnings }` | `0` |
 | integrity error (`unsupported` / `malformed` / `non_latest` / `order` / `state_hash`) | `{ status: "error", error: { code: "check_error", kind, snapshot, parentId?, parentSnapshot? } }` | `1` |
 | conflicts (no `--ignore-conflicts`) | `{ status: "error", error: { code: "check_error", kind: "conflicts", conflicts, details, fix? } }` | `1` |
 | conflicts with `--ignore-conflicts` (not postgresql) | `{ status: "ok", dialect }` | `0` |

@@ -6,14 +6,9 @@ import type { PreparedPostgresSchema } from './drizzle';
 import type { PostgresSnapshot } from './snapshot';
 import { startingState } from './snapshot';
 
-export const prepareSnapshot = async (
-	snapshots: string[],
-	prepared: PreparedPostgresSchema,
-): Promise<{
-	ddlPrev: PostgresDDL;
-	ddlCur: PostgresDDL;
-	prevIds: string[];
-}> => {
+// The state that the next migration starts from: the state of the only leaf, or the combined state of
+// several leaves. `prevIds` are the ids of the leaves.
+export const previousState = async (snapshots: string[]): Promise<{ ddlPrev: PostgresDDL; prevIds: string[] }> => {
 	const { readFileSync } = await import('fs');
 	const history = new Map<string, PostgresSnapshot>();
 	for (const path of snapshots) {
@@ -24,7 +19,18 @@ export const prepareSnapshot = async (
 	// `snapshots` is in folder-name order, so the first parent is the leaf with the newest folder name.
 	const parentIds = new Set([...history.values()].flatMap((it) => it.prevIds));
 	const prevIds = [...history.keys()].filter((id) => !parentIds.has(id)).reverse();
-	const ddlPrev = startingState(history, prevIds);
+	return { ddlPrev: startingState(history, prevIds), prevIds };
+};
+
+export const prepareSnapshot = async (
+	snapshots: string[],
+	prepared: PreparedPostgresSchema,
+): Promise<{
+	ddlPrev: PostgresDDL;
+	ddlCur: PostgresDDL;
+	prevIds: string[];
+}> => {
+	const { ddlPrev, prevIds } = await previousState(snapshots);
 	const res = prepared;
 
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
