@@ -11,30 +11,25 @@ import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, sqliteSchemaError, warning } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
-import { captureRenames, cloneDDL, type ResolverFor } from './generate-down-helpers';
+import { diffWithDown, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
-export const ddlDiffWithDown = async (
+const diff = (from: SQLiteDDL, to: SQLiteDDL, resolverFor: ResolverFor, metadata?: SchemaMetadata) =>
+	ddlDiff(
+		from,
+		to,
+		resolverFor<SqliteEntities['tables']>('table'),
+		resolverFor<Column>('column'),
+		'default',
+		metadata,
+	);
+
+export const ddlDiffWithDown = (
 	ddlPrev: SQLiteDDL,
 	ddlCur: SQLiteDDL,
 	resolverFor: ResolverFor,
 	metadata?: SchemaMetadata,
-) => {
-	const { forward, inverse } = captureRenames(resolverFor);
-	const downFrom = cloneDDL(ddlCur, createDDL);
-	const downTo = cloneDDL(ddlPrev, createDDL);
-	const result = await ddlDiff(
-		ddlPrev,
-		ddlCur,
-		forward<SqliteEntities['tables']>('table'),
-		forward<Column>('column'),
-		'default',
-		metadata,
-	);
-	const down = () =>
-		ddlDiff(downFrom, downTo, inverse<SqliteEntities['tables']>('table'), inverse<Column>('column'), 'default');
-	return { ...result, down };
-};
+) => diffWithDown(ddlPrev, ddlCur, createDDL, resolverFor, diff, metadata);
 
 export const handle = async (
 	config: GenerateConfig<SchemaSource>,

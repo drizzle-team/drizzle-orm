@@ -9,25 +9,21 @@ import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, mysqlSchemaError } from '../views';
 import { writeResult } from './generate-common';
-import { captureRenames, cloneDDL, type ResolverFor } from './generate-down-helpers';
+import { diffWithDown, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 
-export const ddlDiffWithDown = async (ddlPrev: MysqlDDL, ddlCur: MysqlDDL, resolverFor: ResolverFor) => {
-	const { forward, inverse } = captureRenames(resolverFor);
-	const downFrom = cloneDDL(ddlCur, createDDL);
-	const downTo = cloneDDL(ddlPrev, createDDL);
-	const result = await ddlDiff(
-		ddlPrev,
-		ddlCur,
-		forward<Table>('table'),
-		forward<Column>('column'),
-		forward<View>('view'),
+const diff = (from: MysqlDDL, to: MysqlDDL, resolverFor: ResolverFor) =>
+	ddlDiff(
+		from,
+		to,
+		resolverFor<Table>('table'),
+		resolverFor<Column>('column'),
+		resolverFor<View>('view'),
 		'default',
 	);
-	const down = () =>
-		ddlDiff(downFrom, downTo, inverse<Table>('table'), inverse<Column>('column'), inverse<View>('view'), 'default');
-	return { ...result, down };
-};
+
+export const ddlDiffWithDown = (ddlPrev: MysqlDDL, ddlCur: MysqlDDL, resolverFor: ResolverFor) =>
+	diffWithDown(ddlPrev, ddlCur, createDDL, resolverFor, diff);
 
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, filenames } = config;

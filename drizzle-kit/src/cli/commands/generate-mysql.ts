@@ -12,7 +12,7 @@ import { withStyle } from '../validations/outputs';
 import { explain, explainJsonOutput, humanLog, mysqlSchemaError } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
-import { captureRenames, cloneDDL, type ResolverFor } from './generate-down-helpers';
+import { diffWithDown, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 import { dropReferencedPrimaryKeyWarning } from './warnings';
 
@@ -95,28 +95,23 @@ export const suggestions = (
 	return grouped;
 };
 
-export const ddlDiffWithDown = async (
+const diff = (from: MysqlDDL, to: MysqlDDL, resolverFor: ResolverFor, metadata?: SchemaMetadata) =>
+	ddlDiff(
+		from,
+		to,
+		resolverFor<Table>('table'),
+		resolverFor<Column>('column'),
+		resolverFor<View>('view'),
+		'default',
+		metadata,
+	);
+
+export const ddlDiffWithDown = (
 	ddlPrev: MysqlDDL,
 	ddlCur: MysqlDDL,
 	resolverFor: ResolverFor,
 	metadata?: SchemaMetadata,
-) => {
-	const { forward, inverse } = captureRenames(resolverFor);
-	const downFrom = cloneDDL(ddlCur, createDDL);
-	const downTo = cloneDDL(ddlPrev, createDDL);
-	const result = await ddlDiff(
-		ddlPrev,
-		ddlCur,
-		forward<Table>('table'),
-		forward<Column>('column'),
-		forward<View>('view'),
-		'default',
-		metadata,
-	);
-	const down = () =>
-		ddlDiff(downFrom, downTo, inverse<Table>('table'), inverse<Column>('column'), inverse<View>('view'), 'default');
-	return { ...result, down };
-};
+) => diffWithDown(ddlPrev, ddlCur, createDDL, resolverFor, diff, metadata);
 
 export const handle = async (
 	config: GenerateConfig,

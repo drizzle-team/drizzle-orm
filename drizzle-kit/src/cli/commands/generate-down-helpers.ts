@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import type { Resolver } from '../../dialects/common';
+import type { SchemaMetadata } from '../../dialects/utils';
 import type { RenameCreateHintKind } from '../hints';
 
 type Named = { name: string; schema?: string; table?: string };
@@ -92,6 +93,23 @@ export function cloneDDL<E, D extends DDLLike<E>>(ddl: D, create: () => D): D {
 		copy.entities.push(entity);
 	}
 	return copy;
+}
+
+export async function diffWithDown<E, D extends DDLLike<E>, R>(
+	prev: D,
+	cur: D,
+	createDDL: () => D,
+	resolverFor: ResolverFor,
+	run: (from: D, to: D, resolverFor: ResolverFor, metadata?: SchemaMetadata) => Promise<R>,
+	metadata?: SchemaMetadata,
+): Promise<R & { down: () => Promise<R> }> {
+	const { forward, inverse } = captureRenames(resolverFor);
+	const downFrom = cloneDDL(cur, createDDL);
+	const downTo = cloneDDL(prev, createDDL);
+	const result = await run(prev, cur, forward, metadata);
+	// metadata describes the current schema's views, but the down diff recreates the previous snapshot's views,
+	// and snapshots don't store their own metadata, so the down diff falls back to unsorted view creation.
+	return { ...result, down: () => run(downFrom, downTo, inverse) };
 }
 
 const UP_HASH_PREFIX = '-- drizzle:up-hash=';
