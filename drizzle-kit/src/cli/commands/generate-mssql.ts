@@ -5,6 +5,7 @@ import type {
 	Column,
 	ForeignKey,
 	Index,
+	MssqlDDL,
 	MssqlEntities,
 	PrimaryKey,
 	Schema,
@@ -22,7 +23,46 @@ import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
 import { explain, explainJsonOutput, humanLog, mssqlSchemaError } from '../views';
 import { writeResult } from './generate-common';
+import { captureRenames, cloneDDL, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
+
+export const ddlDiffWithDown = async (ddlPrev: MssqlDDL, ddlCur: MssqlDDL, resolverFor: ResolverFor) => {
+	const { forward, inverse } = captureRenames(resolverFor);
+	const downFrom = cloneDDL(ddlCur, createDDL);
+	const downTo = cloneDDL(ddlPrev, createDDL);
+	const result = await ddlDiff(
+		ddlPrev,
+		ddlCur,
+		forward<Schema>('schema'),
+		forward<MssqlEntities['tables']>('table'),
+		forward<Column>('column'),
+		forward<View>('view'),
+		forward<UniqueConstraint>('unique'),
+		forward<Index>('index'),
+		forward<CheckConstraint>('check'),
+		forward<PrimaryKey>('primary_key'),
+		forward<ForeignKey>('foreign key'),
+		forward<DefaultConstraint>('default'),
+		'default',
+	);
+	const down = () =>
+		ddlDiff(
+			downFrom,
+			downTo,
+			inverse<Schema>('schema'),
+			inverse<MssqlEntities['tables']>('table'),
+			inverse<Column>('column'),
+			inverse<View>('view'),
+			inverse<UniqueConstraint>('unique'),
+			inverse<Index>('index'),
+			inverse<CheckConstraint>('check'),
+			inverse<PrimaryKey>('primary_key'),
+			inverse<ForeignKey>('foreign key'),
+			inverse<DefaultConstraint>('default'),
+			'default',
+		);
+	return { ...result, down };
+};
 
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, filenames } = config;
@@ -45,20 +85,10 @@ export const handle = async (config: GenerateConfig) => {
 		});
 	}
 
-	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements, statements, down } = await ddlDiffWithDown(
 		ddlPrev,
 		ddlCur,
-		resolver<Schema>('schema', config.hints, 'dbo'),
-		resolver<MssqlEntities['tables']>('table', config.hints, 'dbo'),
-		resolver<Column>('column', config.hints, 'dbo'),
-		resolver<View>('view', config.hints, 'dbo'),
-		resolver<UniqueConstraint>('unique', config.hints, 'dbo'),
-		resolver<Index>('index', config.hints, 'dbo'),
-		resolver<CheckConstraint>('check', config.hints, 'dbo'),
-		resolver<PrimaryKey>('primary_key', config.hints, 'dbo'),
-		resolver<ForeignKey>('foreign key', config.hints, 'dbo'),
-		resolver<DefaultConstraint>('default', config.hints, 'dbo'),
-		'default',
+		(kind) => resolver(kind, config.hints, 'dbo'),
 	);
 
 	if (config.hints.hasMissingHints()) {
@@ -86,13 +116,17 @@ export const handle = async (config: GenerateConfig) => {
 	}
 
 	if (!config.explain) {
+		const downDiff = config.generateDownMigrations ? await down() : undefined;
 		return writeResult({
 			snapshot: snapshot,
 			sqlStatements,
+			downSqlStatements: downDiff?.sqlStatements,
+			downStatements: downDiff?.groupedStatements,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect: 'mssql',
+			generateDownMigrations: config.generateDownMigrations,
 			renames,
 			snapshots,
 		});
