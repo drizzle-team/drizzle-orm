@@ -231,7 +231,7 @@ export const interimToDDL = (interim: InterimSchema, mode?: 'pull'): { ddl: Mysq
 			);
 		});
 
-		if (conflictColumns.length > 0) {
+		if (mode !== 'pull' && conflictColumns.length > 0) {
 			errors.push({
 				type: 'column_unsupported_unique',
 				columns: conflictColumns.map((it) => it.value),
