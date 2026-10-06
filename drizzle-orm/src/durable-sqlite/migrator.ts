@@ -5,6 +5,7 @@ import {
 	journalReadError,
 	type JournalRow,
 	planRollback,
+	splitDownSql,
 } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/index.ts';
@@ -36,11 +37,7 @@ function readMigrationFiles({ migrations, downMigrations }: MigrationConfig): Mi
 
 			const migrationDate = formatToMillis(key.slice(0, 14));
 
-			let downSql: string[] | undefined;
-			const downQuery = downMigrations?.[key];
-			if (downQuery?.trim()) {
-				downSql = downQuery.trim().split('--> statement-breakpoint').map((it) => it);
-			}
+			const downSql = splitDownSql(downMigrations?.[key]);
 
 			migrationQueries.push({
 				sql: result,

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import fs, { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { formatToMillis } from './migrator.utils.ts';
+import { formatToMillis, splitDownSql } from './migrator.utils.ts';
 
 export interface KitConfig {
 	out: string;
@@ -38,7 +38,7 @@ export type MigrationsJournal = {
 }[];
 
 export interface RollbackOptions {
-	/** Number of most recently applied migrations to roll back. Defaults to 1; mutually exclusive with `to` */
+	/** Number of most recently applied migrations to roll back; more than are applied rolls back all of them. Defaults to 1; mutually exclusive with `to` */
 	steps?: number;
 	/** Roll back every migration applied after this one, leaving it as the latest applied migration */
 	to?: string;
@@ -94,14 +94,8 @@ export function readMigrationFiles(config: MigrationConfig): MigrationMeta[] {
 
 		const millis = formatToMillis(migrationDate);
 
-		let downSql: string[] | undefined;
 		const downPath = join(migrationFolderTo, migration.name, 'down.sql');
-		if (existsSync(downPath)) {
-			const downQuery = fs.readFileSync(downPath).toString().trim();
-			if (downQuery) {
-				downSql = downQuery.split('--> statement-breakpoint').map((it) => it);
-			}
-		}
+		const downSql = existsSync(downPath) ? splitDownSql(fs.readFileSync(downPath).toString()) : undefined;
 
 		migrationQueries.push({
 			sql: result,

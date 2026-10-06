@@ -24,6 +24,11 @@ export function getMigrationsToRun(params: {
 	return localMigrations.filter((lm) => !lm.name || !dbNamesSet.has(lm.name));
 }
 
+export function splitDownSql(raw: string | undefined): string[] | undefined {
+	const trimmed = raw?.trim();
+	return trimmed ? trimmed.split('--> statement-breakpoint') : undefined;
+}
+
 export interface JournalRow {
 	id: number | string;
 	hash: string;

@@ -1,6 +1,6 @@
 import { useEffect, useReducer } from 'react';
 import type { MigrationMeta, RollbackOptions } from '~/migrator.ts';
-import { formatToMillis } from '~/migrator.utils.ts';
+import { formatToMillis, splitDownSql } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { migrateSync, rollbackSync } from '~/sqlite-core/async/session.ts';
 import type { ExpoSQLiteDatabase } from './driver.ts';
@@ -28,11 +28,7 @@ async function readMigrationFiles({ migrations, downMigrations }: MigrationConfi
 
 			const migrationDate = formatToMillis(key.slice(0, 14));
 
-			let downSql: string[] | undefined;
-			const downQuery = downMigrations?.[key];
-			if (downQuery?.trim()) {
-				downSql = downQuery.trim().split('--> statement-breakpoint').map((it) => it);
-			}
+			const downSql = splitDownSql(downMigrations?.[key]);
 
 			migrationQueries.push({
 				sql: result,

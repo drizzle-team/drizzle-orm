@@ -1,5 +1,5 @@
 import type { MigrationMeta, RollbackOptions } from '~/migrator.ts';
-import { formatToMillis } from '~/migrator.utils.ts';
+import { formatToMillis, splitDownSql } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { migrateAsync, rollbackAsync } from '~/sqlite-core/async/session.ts';
 import type { TursoDatabaseDatabase } from './driver-core.ts';
@@ -30,11 +30,7 @@ function readMigrationFiles({ migrations, downMigrations }: MigrationConfig): Mi
 
 			const migrationDate = formatToMillis(key.slice(0, 14));
 
-			let downSql: string[] | undefined;
-			const downQuery = downMigrations?.[key];
-			if (downQuery?.trim()) {
-				downSql = downQuery.trim().split('--> statement-breakpoint').map((it) => it);
-			}
+			const downSql = splitDownSql(downMigrations?.[key]);
 
 			migrationQueries.push({
 				sql: result,
