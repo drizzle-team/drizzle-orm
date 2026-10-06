@@ -125,20 +125,18 @@ export function readUpHashStamp(downSql: string): string | null {
 /** A single grouped statement from a diff: its typed JSON form and the SQL it produced. */
 export type DownStatement = { jsonStatement: { type: string }; sqlStatements: string[] };
 
-export type IrreversibleDownWarning = { sql: string; reason: string };
+export type DownWarningKind = 'data_loss' | 'may_fail';
+
+export type IrreversibleDownWarning = { sql: string; reason: string; kind: DownWarningKind };
 
 /**
- * Down-migration statement types that cannot fully restore the prior database state.
- *
- * The rollback is generated from the reverse schema diff, so it always reproduces the
- * previous *structure*. It cannot reproduce *data*: each type below either recreates an
- * object the forward migration dropped (so the original rows/values are already gone), or
- * drops an object on rollback (destroying rows written since the migration). Only
- * unambiguous, dialect-independent cases are listed here to avoid false positives — note
- * that SQLite implements most alters via table rebuilds that copy data across, which are
- * intentionally not flagged.
+ * The rollback is generated from the reverse schema diff, so it always reproduces the previous
+ * *structure*. It cannot reproduce *data*: each type below either recreates an object the forward
+ * migration dropped (so the original rows/values are already gone), or drops an object on rollback
+ * (destroying rows written since the migration). SQLite implements most alters via table rebuilds
+ * that copy data across, which are intentionally not flagged.
  */
-const IRREVERSIBLE_DOWN_TYPES: Record<string, string> = {
+const DATA_LOSS_DOWN_TYPES: Record<string, string> = {
 	create_table: 'recreates a table the migration dropped; original rows cannot be restored',
 	add_column: 're-adds a column the migration dropped; original values cannot be restored',
 	create_schema: 'recreates a schema the migration dropped; its original contents cannot be restored',
@@ -147,33 +145,95 @@ const IRREVERSIBLE_DOWN_TYPES: Record<string, string> = {
 	drop_schema: 'drops a schema the migration created; its contents are lost',
 };
 
+type LooseColumn = {
+	type?: string;
+	notNull?: boolean;
+	default?: unknown;
+	generated?: unknown;
+	identity?: unknown;
+	autoIncrement?: boolean;
+};
+
+type LooseStatement = {
+	type: string;
+	column?: LooseColumn;
+	defaults?: unknown[];
+	from?: { values?: string[] };
+	to?: { values?: string[] };
+	deletedValues?: string[];
+};
+
+const quoteValues = (values: string[]) => values.map((v) => `'${v}'`).join(', ');
+
+function mayFailReason(jsonStatement: DownStatement['jsonStatement']): string | null {
+	const statement = jsonStatement as LooseStatement;
+	if (statement.type === 'add_column' && statement.column) {
+		const { column } = statement;
+		const filledByDatabase = (column.default !== null && column.default !== undefined)
+			|| !!column.generated
+			|| !!column.identity
+			|| !!column.autoIncrement
+			|| (statement.defaults?.length ?? 0) > 0
+			|| /serial$/i.test(column.type ?? '');
+		if (column.notNull && !filledByDatabase) {
+			return 're-adds a NOT NULL column without a default; fails if the table has rows';
+		}
+	}
+	if (statement.type === 'recreate_enum' && statement.from?.values && statement.to?.values) {
+		const kept = new Set(statement.to.values);
+		const removed = statement.from.values.filter((v) => !kept.has(v));
+		if (removed.length > 0) {
+			return `removes enum value(s) ${quoteValues(removed)}; fails if any row still uses them`;
+		}
+	}
+	if (statement.type === 'alter_type_drop_value' && statement.deletedValues?.length) {
+		return `removes enum value(s) ${quoteValues(statement.deletedValues)}; fails if any row still uses them`;
+	}
+	return null;
+}
+
 /**
- * Inspects the generated rollback statements and returns one entry per statement that
- * cannot fully restore the prior state. Returns an empty array when the rollback is fully
- * reversible (structure and data).
+ * Returns one entry per (statement, problem) pair that keeps the rollback from cleanly restoring
+ * the prior state. Empty when the rollback is fully reversible.
  */
 export function collectIrreversibleDownWarnings(statements: DownStatement[]): IrreversibleDownWarning[] {
 	const warnings: IrreversibleDownWarning[] = [];
 	for (const { jsonStatement, sqlStatements } of statements) {
-		const reason = IRREVERSIBLE_DOWN_TYPES[jsonStatement.type];
-		if (!reason) continue;
-		for (const sql of sqlStatements) {
-			warnings.push({ sql: sql.replace(/\s+/g, ' ').trim(), reason });
+		const problems: [DownWarningKind, string][] = [];
+		const dataLoss = DATA_LOSS_DOWN_TYPES[jsonStatement.type];
+		if (dataLoss) problems.push(['data_loss', dataLoss]);
+		const mayFail = mayFailReason(jsonStatement);
+		if (mayFail) problems.push(['may_fail', mayFail]);
+		for (const [kind, reason] of problems) {
+			for (const sql of sqlStatements) {
+				warnings.push({ sql: sql.replace(/\s+/g, ' ').trim(), reason, kind });
+			}
 		}
 	}
 	return warnings;
 }
 
-/**
- * Renders the irreversible-operation warnings as a comment banner for the top of down.sql.
- * Returns an empty string when there are no warnings.
- */
+const WARNING_SECTIONS: [DownWarningKind, string][] = [
+	['data_loss', 'These operations lose data:'],
+	['may_fail', 'These operations may fail on a populated table:'],
+];
+
+/** Plain-text lines (no comment markers) describing the warnings, grouped by kind. */
+export function describeIrreversibleWarnings(warnings: IrreversibleDownWarning[]): string[] {
+	const lines: string[] = [];
+	for (const [kind, title] of WARNING_SECTIONS) {
+		const ofKind = warnings.filter((w) => w.kind === kind);
+		if (ofKind.length === 0) continue;
+		lines.push(title, ...ofKind.map(({ sql, reason }) => `  • ${sql} — ${reason}`));
+	}
+	return lines;
+}
+
+/** Comment banner for the top of down.sql; empty when there are no warnings. */
 export function formatIrreversibleBanner(warnings: IrreversibleDownWarning[]): string {
 	if (warnings.length === 0) return '';
-	const lines = warnings.map(({ sql, reason }) => `--   • ${sql} — ${reason}`);
 	return [
-		'-- ⚠ REVIEW: this rollback cannot fully restore the previous database state.',
-		'-- The statements below reverse the schema, but the listed operations lose data:',
-		...lines,
-	].join('\n');
+		'⚠ REVIEW: this rollback cannot fully restore the previous database state.',
+		...describeIrreversibleWarnings(warnings),
+	].map((line) => `-- ${line}`).join('\n');
 }

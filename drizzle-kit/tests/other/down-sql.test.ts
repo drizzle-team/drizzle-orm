@@ -7,7 +7,8 @@ import {
 	embeddedMigrations,
 	writeResult,
 } from 'src/cli/commands/generate-common';
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import type { DownStatement } from 'src/cli/commands/generate-down-helpers';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 // Minimal snapshot stub accepted by writeResult
 const minimalSnapshot: any = {
@@ -208,6 +209,40 @@ describe('writeResult — down SQL file generation', () => {
 		const firstSqlLine = lines.findIndex((l) => !l.startsWith('--'));
 		expect(lines.slice(0, firstSqlLine).join('\n')).toContain('⚠ REVIEW');
 		expect(lines[firstSqlLine]!.startsWith('DROP TABLE users')).toBe(true);
+	});
+
+	test('prints irreversible-operation warnings to the console', () => {
+		const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+		let printed: string;
+		try {
+			writeResult({
+				snapshot: { ...minimalSnapshot },
+				sqlStatements: ['ALTER TABLE posts DROP COLUMN body'],
+				downSqlStatements: ['ALTER TABLE posts ADD COLUMN body text NOT NULL'],
+				downStatements: [
+					{
+						jsonStatement: {
+							type: 'add_column',
+							column: { notNull: true, default: null },
+						} as DownStatement['jsonStatement'],
+						sqlStatements: ['ALTER TABLE posts ADD COLUMN body text NOT NULL'],
+					},
+				],
+				outFolder: tmpDir,
+				breakpoints: true,
+				name: 'lossy_console',
+				renames: [],
+				snapshots: [],
+			});
+			printed = log.mock.calls.map((args) => args.join(' ')).join('\n');
+		} finally {
+			log.mockRestore();
+		}
+
+		expect(printed).toContain('down.sql cannot fully restore the previous database state');
+		expect(printed).toContain('These operations lose data:');
+		expect(printed).toContain('These operations may fail on a populated table:');
+		expect(printed).toContain('ALTER TABLE posts ADD COLUMN body text NOT NULL — re-adds a NOT NULL column');
 	});
 
 	test('omits the banner when down statements are fully reversible', () => {

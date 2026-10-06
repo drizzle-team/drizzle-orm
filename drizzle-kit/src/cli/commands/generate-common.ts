@@ -12,9 +12,11 @@ import { BREAKPOINT } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
 import { outputFormat } from '../context';
 import type { Driver } from '../validations/common';
+import { withStyle } from '../validations/outputs';
 import { humanLog } from '../views';
 import {
 	collectIrreversibleDownWarnings,
+	describeIrreversibleWarnings,
 	type DownStatement,
 	formatIrreversibleBanner,
 	upHashStamp,
@@ -119,9 +121,19 @@ export function writeResult(
 		if (type === 'custom') {
 			fs.writeFileSync(downPath, `${stamp}\n${CUSTOM_DOWN_SQL_SCAFFOLD}`);
 		} else if (downSqlStatements && downSqlStatements.length > 0) {
-			const banner = formatIrreversibleBanner(collectIrreversibleDownWarnings(downStatements ?? []));
+			const warnings = collectIrreversibleDownWarnings(downStatements ?? []);
+			const banner = formatIrreversibleBanner(warnings);
 			const header = banner ? `${DOWN_SQL_HEADER}\n${banner}` : DOWN_SQL_HEADER;
 			fs.writeFileSync(downPath, `${stamp}\n${header}\n${downSqlStatements.join(sqlDelimiter)}`);
+			if (warnings.length > 0) {
+				humanLog(
+					withStyle.warning(
+						`${downPath} cannot fully restore the previous database state:\n${
+							describeIrreversibleWarnings(warnings).join('\n')
+						}`,
+					),
+				);
+			}
 		}
 	}
 
