@@ -117,6 +117,15 @@ export type ConfigVariant<TDialect extends Dialect, TDriver extends DialectDrive
 		dialect: TDialect;
 		out?: string;
 		breakpoints?: boolean;
+		/**
+		 * Whether `drizzle-kit generate` should emit a `down.sql` rollback file
+		 * alongside each `migration.sql`. Defaults to `true`.
+		 *
+		 * Set to `false` if you prefer to author rollback SQL entirely by hand —
+		 * useful when you regularly edit `migration.sql` to add data migrations
+		 * or custom DDL that the schema-diff can't mirror automatically.
+		 */
+		generateDownMigrations?: boolean;
 		tablesFilter?: string | string[];
 		extensionsFilters?: 'postgis'[];
 		schemaFilter?: string | string[];
