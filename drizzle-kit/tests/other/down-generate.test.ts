@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { handle as generateCockroach } from 'src/cli/commands/generate-cockroach';
 import * as downHelpers from 'src/cli/commands/generate-down-helpers';
@@ -25,6 +25,7 @@ const actualHelpers = await vi.importActual<typeof downHelpers>('src/cli/command
 const dialects = {
 	postgresql: `import { integer, pgTable } from 'drizzle-orm/pg-core';
 export const users = pgTable('users', { id: integer() });
+export const posts = pgTable('posts', { id: integer() });
 `,
 	sqlite: `import { integer, sqliteTable } from 'drizzle-orm/sqlite-core';
 export const users = sqliteTable('users', { id: integer() });
@@ -105,6 +106,22 @@ const generate = async (
 };
 
 describe.each(Object.keys(dialects) as Dialect[])('%s generate', (dialect) => {
+	test('writes a stamped down.sql next to migration.sql', async () => {
+		const { folder } = await generate(dialect);
+
+		const down = readFileSync(join(folder!, 'down.sql'), 'utf8');
+		expect(down.split('\n')[0]).toMatch(/^-- drizzle:up-hash=[0-9a-f]{64}$/);
+		expect(down).toMatch(/DROP TABLE/i);
+	});
+
+	test('skips down.sql when generateDownMigrations is false', async () => {
+		const { folder } = await generate(dialect, { generateDownMigrations: false });
+
+		expect(existsSync(join(folder!, 'migration.sql'))).toBe(true);
+		expect(existsSync(join(folder!, 'down.sql'))).toBe(false);
+		expect(computeDown).not.toHaveBeenCalled();
+	});
+
 	test('--explain does not compute the reverse diff', async () => {
 		const { out } = await generate(dialect, { explain: true });
 
@@ -135,4 +152,12 @@ describe.each(Object.keys(dialects) as Dialect[])('%s generate', (dialect) => {
 		expect(printed).toContain(`Could not generate a rollback for ${folder!.split(/[\\/]/).at(-1)}`);
 		expect(printed).toContain('reverse diff exploded');
 	});
+});
+
+test('postgresql down.sql uses newlines between statements when breakpoints are off', async () => {
+	const { folder } = await generate('postgresql', { breakpoints: false });
+
+	const down = readFileSync(join(folder!, 'down.sql'), 'utf8');
+	expect(down).not.toContain('--> statement-breakpoint');
+	expect(down.split('\n').slice(-2).sort()).toStrictEqual(['DROP TABLE "posts";', 'DROP TABLE "users";']);
 });
