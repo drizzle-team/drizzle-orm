@@ -1,9 +1,11 @@
 import { cockroachTable, int4, text as crText } from 'drizzle-orm/cockroach-core';
+import { int as msInt, mssqlTable, varchar as msVarchar } from 'drizzle-orm/mssql-core';
 import { int, mysqlTable, varchar } from 'drizzle-orm/mysql-core';
 import { index, integer, pgSchema, pgTable, text } from 'drizzle-orm/pg-core';
 import { int as ssInt, singlestoreTable, varchar as ssVarchar } from 'drizzle-orm/singlestore-core';
 import { integer as sqliteInt, sqliteTable, text as sqliteText } from 'drizzle-orm/sqlite-core';
 import { ddlDiffWithDown as cockroachDiff } from 'src/cli/commands/generate-cockroach';
+import { ddlDiffWithDown as mssqlDiff } from 'src/cli/commands/generate-mssql';
 import { ddlDiffWithDown as mysqlDiff } from 'src/cli/commands/generate-mysql';
 import { ddlDiffWithDown as postgresDiff } from 'src/cli/commands/generate-postgres';
 import { ddlDiffWithDown as singlestoreDiff } from 'src/cli/commands/generate-singlestore';
@@ -11,6 +13,7 @@ import { ddlDiffWithDown as sqliteDiff } from 'src/cli/commands/generate-sqlite'
 import { mockResolver } from 'src/utils/mocks';
 import { describe, expect, test } from 'vitest';
 import { type CockroachDBSchema, drizzleToDDL as cockroachDDL } from '../cockroach/mocks';
+import { drizzleToDDL as mssqlDDL, type MssqlDBSchema } from '../mssql/mocks';
 import { drizzleToDDL as mysqlDDL, type MysqlSchema } from '../mysql/mocks';
 import { drizzleToDDL as postgresDDL, type PostgresSchema } from '../postgres/mocks';
 import { drizzleToDDL as singlestoreDDL, type SinglestoreSchema } from '../singlestore/mocks';
@@ -151,4 +154,25 @@ test('cockroach table and column renamed together are both renamed back', async 
 		'ALTER TABLE "people" RENAME TO "users";',
 		'ALTER TABLE "users" RENAME COLUMN "full_name" TO "name";',
 	]);
+});
+
+describe('mssql down.sql', () => {
+	test('create table is reversed by dropping it', async () => {
+		const to: MssqlDBSchema = { users: mssqlTable('users', { id: msInt() }) };
+		const up = await mssqlDiff(mssqlDDL({}).ddl, mssqlDDL(to).ddl, () => mockResolver(new Set()));
+		expect((await up.down()).sqlStatements).toStrictEqual(['DROP TABLE [users];']);
+	});
+
+	test('table and column renamed together are both renamed back', async () => {
+		const from: MssqlDBSchema = { users: mssqlTable('users', { id: msInt(), name: msVarchar({ length: 10 }) }) };
+		const to: MssqlDBSchema = {
+			users: mssqlTable('people', { id: msInt(), fullName: msVarchar('full_name', { length: 10 }) }),
+		};
+		const set = new Set(['dbo.users->dbo.people', 'dbo.people.name->dbo.people.full_name']);
+		const up = await mssqlDiff(mssqlDDL(from).ddl, mssqlDDL(to).ddl, () => mockResolver(set));
+		expect((await up.down()).sqlStatements).toStrictEqual([
+			"EXEC sp_rename 'people', [users];",
+			"EXEC sp_rename 'users.full_name', [name], 'COLUMN';",
+		]);
+	});
 });
