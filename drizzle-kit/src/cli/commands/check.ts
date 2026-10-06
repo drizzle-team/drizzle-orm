@@ -4,11 +4,10 @@ import { dirname, join } from 'path';
 import { getCommutativityDialect } from '../../commutativity';
 import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from '../../commutativity/types';
 import type { Dialect } from '../../utils/schemaValidator';
-import { prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
+import { migrationHash, prepareOutFolder, readUpHashStamp, validatorForDialect } from '../../utils/utils-node';
 import { CheckCliError } from '../errors';
 import { withStyle } from '../validations/outputs';
 import { humanLog } from '../views';
-import { migrationHash, readUpHashStamp } from './generate-down-helpers';
 
 export type CheckHandlerResult = {
 	statements: unknown[];
