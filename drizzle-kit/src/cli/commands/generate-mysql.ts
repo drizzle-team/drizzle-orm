@@ -3,6 +3,7 @@ import { ddlDiff, ddlDiffDry } from '../../dialects/mysql/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mysql/drizzle';
 import { prepareSnapshot } from '../../dialects/mysql/serializer';
 import type { JsonStatement } from '../../dialects/mysql/statements';
+import type { SchemaMetadata } from '../../dialects/utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import { outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
@@ -11,7 +12,7 @@ import { withStyle } from '../validations/outputs';
 import { explain, explainJsonOutput, humanLog, mysqlSchemaError } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
-import { makeInverseResolver, withCapture } from './generate-down-helpers';
+import { captureRenames, cloneDDL, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
 import { dropReferencedPrimaryKeyWarning } from './warnings';
 
@@ -94,6 +95,29 @@ export const suggestions = (
 	return grouped;
 };
 
+export const ddlDiffWithDown = async (
+	ddlPrev: MysqlDDL,
+	ddlCur: MysqlDDL,
+	resolverFor: ResolverFor,
+	metadata?: SchemaMetadata,
+) => {
+	const { forward, inverse } = captureRenames(resolverFor);
+	const downFrom = cloneDDL(ddlCur, createDDL);
+	const downTo = cloneDDL(ddlPrev, createDDL);
+	const result = await ddlDiff(
+		ddlPrev,
+		ddlCur,
+		forward<Table>('table'),
+		forward<Column>('column'),
+		forward<View>('view'),
+		'default',
+		metadata,
+	);
+	const down = () =>
+		ddlDiff(downFrom, downTo, inverse<Table>('table'), inverse<Column>('column'), inverse<View>('view'), 'default');
+	return { ...result, down };
+};
+
 export const handle = async (
 	config: GenerateConfig,
 	checkResult?: CheckHandlerResult,
@@ -123,17 +147,10 @@ export const handle = async (
 		});
 	}
 
-	const tableRenames: { from: Table; to: Table }[] = [];
-	const columnRenames: { from: Column; to: Column }[] = [];
-	const viewRenames: { from: View; to: View }[] = [];
-
-	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements, statements, down } = await ddlDiffWithDown(
 		ddlPrev,
 		ddlCur,
-		withCapture(resolver<Table>('table', config.hints), tableRenames),
-		withCapture(resolver<Column>('column', config.hints), columnRenames),
-		withCapture(resolver<View>('view', config.hints), viewRenames),
-		'default',
+		(kind) => resolver(kind, config.hints),
 		metadata,
 	);
 
@@ -141,16 +158,7 @@ export const handle = async (
 		return config.hints.toResponse();
 	}
 
-	const downDiff = config.generateDownMigrations
-		? await ddlDiff(
-			ddlCur,
-			ddlPrev,
-			makeInverseResolver(tableRenames),
-			makeInverseResolver(columnRenames),
-			makeInverseResolver(viewRenames),
-			'default',
-		)
-		: undefined;
+	const downDiff = config.generateDownMigrations ? await down() : undefined;
 	const downSqlStatements = downDiff?.sqlStatements;
 
 	const { errors } = suggestions(statements, ddlCur);
