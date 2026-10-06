@@ -11,6 +11,7 @@ import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migr
 import { assertUnreachable } from '../utils';
 import { assertV3OutFolder, prepareFilenames } from '../utils/utils-node';
 import { assertConflictOptions, checkHandler } from './commands/check';
+import type { CheckWarning } from './commands/generate-postgres';
 import type { Setup } from './commands/studio';
 import { upCockroachHandler } from './commands/up-cockroach';
 import { upMssqlHandler } from './commands/up-mssql';
@@ -595,7 +596,7 @@ export const runCheck = async (
 	await checkHandler(out, dialect, ignoreConflicts);
 
 	// The folder is valid here. A schema that differs from it is a warning and no error.
-	let warnings: string[] = [];
+	let warnings: CheckWarning[] = [];
 	if (dialect === 'postgresql' && schema) {
 		const { schemaWarnings } = await import('./commands/generate-postgres');
 		const { SchemaSource } = await import('../dialects/postgres/drizzle');
@@ -613,7 +614,7 @@ export const check = command({
 	handler: async (cfg) => {
 		const env = await runCheck(cfg);
 		if (outputFormat() === 'json') process.stdout.write(JSON.stringify(env) + '\n');
-		else if (env.warnings) console.log(env.warnings.map((it) => withStyle.fullWarning(it)).join('\n'));
+		else if (env.warnings) console.log(env.warnings.map((it) => withStyle.fullWarning(it.message)).join('\n'));
 		else console.log("Everything's fine 🐶🔥");
 		process.exit(statusToExitCode(env.status));
 	},

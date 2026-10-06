@@ -30,7 +30,7 @@ See your MCP client's documentation for how to register a stdio server. As an ex
 
 Each tool returns the same JSON envelope as the CLI `--output json` / SDK contract — see [JSON_CONTRACT.md](./JSON_CONTRACT.md) for the full envelope spec. For postgresql, two error kinds tell an agent that the migrations folder itself needs a fix. `check_error` with `kind: "order"` means that a migration folder sorts before its parent. `command_output_error` from `up` with `kind: "history"` means that `up` cannot convert the history of the folder, and that it changed no file.
 
-For postgresql, an `ok` result of `check` can have `warnings`. The schema of the config then differs from the migrations, and `generate` would write a migration, which is a merge migration when the folder has several leaves. `isError` stays `false`.
+For postgresql, `check` loads the schema of the config and compares it with the migrations, so an `ok` result can have `warnings`, each `{ kind, message }`. With `schema_changed` or `merge_needed`, `generate` would write a migration, which is a merge migration when the folder has several leaves. With `not_compared`, the schema could not be loaded or compared, and `generate` would fail in the same way. `isError` stays `false`.
 
 ## Consent round-trip (`missing_hints`)
 

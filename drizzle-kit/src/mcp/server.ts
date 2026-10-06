@@ -186,8 +186,9 @@ export function createDrizzleMcpServer(): McpServer {
 		{
 			description: 'Check for migration conflicts in the snapshot history. '
 				+ 'Read-only and idempotent — no changes are written to the database or snapshot. '
-				+ 'For postgresql, it also compares the schema of the config with the migrations: an ok result has '
-				+ '"warnings" when the generate tool would write a migration. '
+				+ 'For postgresql, it also loads the schema of the config and compares it with the migrations. An ok '
+				+ 'result can then have "warnings", each with a kind: with "schema_changed" or "merge_needed" the generate '
+				+ 'tool would write a migration, and with "not_compared" the schema could not be loaded or compared. '
 				+ 'For postgresql, the error.fix field of a conflicts error lists the migrations that the fix_conflicts '
 				+ 'tool deletes. When the error says to run "drizzle-kit generate --fix-conflicts", use the fix_conflicts tool instead.',
 			inputSchema: z.object({

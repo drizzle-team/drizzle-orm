@@ -1745,3 +1745,23 @@ test.each([
 	expect(st).toStrictEqual(sql);
 	expect(pst).toStrictEqual(sql);
 });
+
+// The move takes the primary key of the table into the new schema, where the dropped table still has a key
+// of that name. So the table drop must run before the move.
+test('a table move into a schema where a dropped table holds the name of its primary key writes SQL that runs', async () => {
+	const usersInFolder = folder.table('users', { id: integer().primaryKey() });
+	const from = {
+		folder,
+		old: folder.table('users_old', { id: integer() }, (t) => [primaryKey({ name: 'users_pkey', columns: [t.id] })]),
+		users: pgTable('users', { id: integer().primaryKey() }),
+	};
+	const renames = ['public.users->folder.users'];
+
+	const { sqlStatements: st } = await diff(from, { folder, users: usersInFolder }, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: { folder, users: usersInFolder }, renames });
+
+	const st0 = ['DROP TABLE "folder"."users_old";', 'ALTER TABLE "users" SET SCHEMA "folder";\n'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});

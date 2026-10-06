@@ -666,23 +666,32 @@ When every snapshot is valid and the branches commute, `check` emits the `ok` en
 
 `dialect` is always present, consistent with every other `status: "ok"` response.
 
-For postgresql, `check` also compares the schema with the migrations folder when it has a schema path: the `schema` field of the config file, or the `--schema` option. The schema equals the migrations when `generate` would write no SQL. If they differ, the `ok` envelope has `warnings`, an array of plain strings, and the exit code is still `0`:
+For postgresql, `check` also compares the schema with the migrations folder when it has a schema path: the `schema` field of the config file, or the `--schema` option. The schema equals the migrations when `generate` would write no SQL. If they differ, the `ok` envelope has `warnings`, and the exit code is still `0`:
 
 ```json
 {
   "status": "ok",
   "dialect": "postgresql",
   "warnings": [
-    "The schema has changes that no migration holds. The newest migration is 20260101120002_email. Run drizzle-kit generate to write a migration for these changes."
+    {
+      "kind": "schema_changed",
+      "message": "The schema differs from the migrations. The newest migration is 20260101120002_email. Run drizzle-kit generate --explain to see the difference, and drizzle-kit generate to write a migration for it."
+    }
   ]
 }
 ```
 
-- With one leaf, the warning says that the schema has changes that no migration holds.
-- With several leaves, the warning says that the schema differs from the combined state of the leaves, so a merge migration is needed. This is how a team learns after a git merge that `generate` must run before `migrate`.
-- If the schema cannot be compared, the warning says why: no file matches the schema path, the schema fails to load, or the schema has errors.
+Each warning is `{ kind, message }`. `message` is plain text for a person. `kind` is one of:
 
-`warnings` is absent when there is nothing to report and when `check` has no schema path. The comparison reads the schema files and writes nothing. In text mode, `check` prints the warnings in place of the success line.
+| `kind` | meaning | what to do |
+| --- | --- | --- |
+| `schema_changed` | The folder has one leaf or no migration, and the schema differs from its state. `generate` would write a migration. | Run `generate --explain` to see the difference, then `generate`. |
+| `merge_needed` | The folder has several leaves, and the schema differs from their combined state. `generate` would write a merge migration. This is how a team learns after a git merge that `generate` must run before `migrate`. | Run `generate --explain` to see the difference, then `generate`. |
+| `not_compared` | `check` could not compare: no file matches the schema path, the schema fails to load, the schema has errors, or the comparison itself fails. The folder is still valid. | Fix what `message` names. `generate` would fail in the same way. |
+
+The difference can go in either direction. If the schema lacks something that the migrations hold, `generate` writes a migration that drops it, so read the `--explain` output first.
+
+`warnings` is absent when there is nothing to report and when `check` has no schema path. The comparison loads the schema files, as `generate` does, and writes nothing. In text mode, `check` prints the messages in place of the success line.
 
 ### `check` integrity errors
 

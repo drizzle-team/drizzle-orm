@@ -1,7 +1,9 @@
 import { rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { afterAll, expect, onTestFinished, test } from 'vitest';
+import { afterAll, expect, onTestFinished, test, vi } from 'vitest';
 import { check } from '../../src/cli-sdk';
+import { runWithCliContext } from '../../src/cli/context';
+import { check as checkCommand, prepareCheck } from '../../src/cli/schema';
 import { stageConflict, stageOut, stageValid } from './check-fixtures';
 
 // The `pnpm test` script sets TEST_CONFIG_PATH_PREFIX=./tests/cli/ for the whole run. That prefix breaks
@@ -46,10 +48,12 @@ test('check with a schema that differs from the migrations returns ok with a war
 	expect(result).toStrictEqual({
 		status: 'ok',
 		dialect: 'postgresql',
-		warnings: [
-			'The schema has changes that no migration holds. The newest migration is 0000_init. '
-			+ 'Run drizzle-kit generate to write a migration for these changes.',
-		],
+		warnings: [{
+			kind: 'schema_changed',
+			message: 'The schema differs from the migrations. The newest migration is 0000_init. '
+				+ 'Run drizzle-kit generate --explain to see the difference, and drizzle-kit generate to write a '
+				+ 'migration for it.',
+		}],
 	});
 });
 
@@ -62,8 +66,44 @@ test('check returns ok and says that the schema was not compared when no file ma
 	expect(result).toStrictEqual({
 		status: 'ok',
 		dialect: 'postgresql',
-		warnings: [`The schema was not compared with the migrations, because no schema file matches ${schema}.`],
+		warnings: [{
+			kind: 'not_compared',
+			message: `The schema was not compared with the migrations, because no schema file matches ${schema}. `
+				+ 'Correct the schema path in the config file or in the --schema option.',
+		}],
 	});
+});
+
+test('check returns ok and says that the schema was not compared when a schema file throws', async () => {
+	const out = staged(await stageValid());
+	const schema = join(out, 'schema.ts');
+	writeFileSync(schema, "throw new Error('no database url');");
+
+	const result = await check({ dialect: 'postgresql', out, schema });
+
+	expect(result).toMatchObject({
+		status: 'ok',
+		warnings: [{ kind: 'not_compared', message: expect.stringContaining('The error: no database url') }],
+	});
+});
+
+test('check prints the warning in place of the success line in text mode, and the exit code is 0', async () => {
+	const out = staged(await stageValid());
+	const schema = writeSchema(out, "id: integer('id'), email: varchar('email')");
+	const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+	const exit = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
+	onTestFinished(() => {
+		vi.restoreAllMocks();
+	});
+
+	await runWithCliContext({ output: 'text', interactive: false }, async () => {
+		const config = await prepareCheck({ dialect: 'postgresql', out, schema, output: 'text' });
+		await checkCommand.handler!(config as never);
+	});
+
+	expect(log).toHaveBeenCalledTimes(1);
+	expect(log.mock.calls[0][0]).toContain('The schema differs from the migrations.');
+	expect(exit).toHaveBeenCalledWith(0);
 });
 
 test('check reports a conflict as an error and adds no warning', async () => {

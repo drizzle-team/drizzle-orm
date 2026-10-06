@@ -1,4 +1,4 @@
-import { integer, pgPolicy, pgTable, varchar } from 'drizzle-orm/pg-core';
+import { integer, pgPolicy, pgTable, serial, varchar } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { createFolderFlow } from './folder-flow';
 
@@ -22,10 +22,12 @@ test('check warns when the schema has a change that no migration holds, and writ
 
 	const warnings = await flow.schemaWarnings('main', { users: usersWithEmail });
 
-	expect(warnings).toStrictEqual([
-		'The schema has changes that no migration holds. The newest migration is 20260101120001_main. '
-		+ 'Run drizzle-kit generate to write a migration for these changes.',
-	]);
+	expect(warnings).toStrictEqual([{
+		kind: 'schema_changed',
+		message: 'The schema differs from the migrations. The newest migration is 20260101120001_main. '
+			+ 'Run drizzle-kit generate --explain to see the difference, and drizzle-kit generate to write a '
+			+ 'migration for it.',
+	}]);
 	expect(flow.files('main')).toStrictEqual(before);
 
 	await flow.generate('main', { users: usersWithEmail });
@@ -46,11 +48,13 @@ test('check warns that a merge migration is needed when the schema differs from 
 
 	const warnings = await flow.schemaWarnings('main', guarded());
 
-	expect(warnings).toStrictEqual([
-		'The migrations folder has 2 branches that are not merged: 20260101120002_a, 20260101120003_b. '
-		+ 'The schema differs from their combined state, so a merge migration is needed. '
-		+ 'Run drizzle-kit generate to write it.',
-	]);
+	expect(warnings).toStrictEqual([{
+		kind: 'merge_needed',
+		message: 'The migrations folder has 2 branches that are not merged: 20260101120002_a, 20260101120003_b. '
+			+ 'The schema differs from their combined state, so a merge migration is needed. '
+			+ 'Run drizzle-kit generate --explain to see the difference, and drizzle-kit generate to write the '
+			+ 'merge migration.',
+	}]);
 
 	const { folder } = await flow.generate('main', guarded());
 	expect(flow.sql('main', folder!)).toBe('ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;');
@@ -79,16 +83,17 @@ test('check warns about a renamed column and asks for no rename decision', async
 		users: pgTable('users', { id: integer(), contact: varchar() }),
 	});
 
-	expect(warnings).toStrictEqual([expect.stringContaining('The schema has changes that no migration holds.')]);
+	expect(warnings).toMatchObject([{ kind: 'schema_changed' }]);
 });
 
 test('check warns when the folder has no migration and the schema is not empty', async () => {
 	const flow = createFolderFlow();
 
-	expect(await flow.schemaWarnings('main', { users })).toStrictEqual([
-		'The schema has changes that no migration holds, because the migrations folder has no migration. '
-		+ 'Run drizzle-kit generate to write the first migration.',
-	]);
+	expect(await flow.schemaWarnings('main', { users })).toStrictEqual([{
+		kind: 'schema_changed',
+		message: 'The migrations folder has no migration, and the schema is not empty. '
+			+ 'Run drizzle-kit generate to write the first migration.',
+	}]);
 	expect(await flow.schemaWarnings('main', {})).toStrictEqual([]);
 });
 
@@ -101,8 +106,23 @@ test('check says that the schema was not compared when the schema has an error',
 		second: pgTable('duplicate', { id: integer() }),
 	});
 
-	expect(warnings).toStrictEqual([
-		'The schema was not compared with the migrations, because the schema has errors. '
-		+ 'Run drizzle-kit generate to see them.',
-	]);
+	expect(warnings).toStrictEqual([{
+		kind: 'not_compared',
+		message: 'The schema was not compared with the migrations, because the schema has errors. '
+			+ 'Run drizzle-kit generate to see them.',
+	}]);
+});
+
+test('check says that the schema was not compared when the comparison throws', async () => {
+	const flow = createFolderFlow();
+	await flow.generate('main', { users });
+
+	const warnings = await flow.schemaWarnings('main', { users: pgTable('users', { id: serial().default(1) }) });
+
+	expect(warnings).toStrictEqual([{
+		kind: 'not_compared',
+		message: 'The schema was not compared with the migrations, because the comparison failed with an error. '
+			+ 'Run drizzle-kit generate to see whether it fails in the same way. '
+			+ 'The error: Unexpected default for serial type: 1',
+	}]);
 });

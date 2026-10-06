@@ -1024,12 +1024,18 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonAlterViews);
 
 	jsonStatements.push(...jsonRenameTables);
-	// every later statement names a moved table in its new schema
-	jsonStatements.push(...jsonSetTableSchemas);
-	jsonStatements.push(...jsonDropPoliciesStatements); // before drop tables
-	jsonStatements.push(...jsonDropFKs);
+	// A move takes the indexes and constraints of its table into the new schema, where a dropped table can
+	// still hold one of their names. So the table drops run before the moves. A statement about a moved
+	// table names the table in its new schema, so it runs after the moves.
+	const isMoved = (it: { schema: string; table: string }) =>
+		movedTables.some((moved) => moved.to.schema === it.schema && moved.to.name === it.table);
+	jsonStatements.push(...jsonDropPoliciesStatements.filter((it) => !isMoved(it.policy))); // before drop tables
+	jsonStatements.push(...jsonDropFKs.filter((it) => !isMoved(it.fk)));
 
 	jsonStatements.push(...jsonDropTables);
+	jsonStatements.push(...jsonSetTableSchemas);
+	jsonStatements.push(...jsonDropPoliciesStatements.filter((it) => isMoved(it.policy)));
+	jsonStatements.push(...jsonDropFKs.filter((it) => isMoved(it.fk)));
 	jsonStatements.push(...jsonAlterRlsStatements);
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
