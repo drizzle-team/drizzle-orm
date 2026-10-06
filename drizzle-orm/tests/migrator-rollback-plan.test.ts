@@ -96,6 +96,15 @@ describe('matching applied rows to local migrations', () => {
 		]);
 	});
 
+	test('legacy rows with neither name nor hash fall back to the folder timestamp', () => {
+		const bundled = local('20240102000000_b', ['DROP TABLE b'], '');
+		const plan = planRollback({
+			localMigrations: [local(a.name, ['DROP TABLE a'], ''), bundled],
+			dbMigrations: [row(1, null, '', bundled.folderMillis)],
+		});
+		expect(names(plan)).toStrictEqual([bundled.name]);
+	});
+
 	test('bundled migrations generated in the same second resolve by name', () => {
 		const first = local('20240101000000_first', ['DROP TABLE first'], '');
 		const second = local('20240101000000_second', ['DROP TABLE second'], '');
@@ -131,6 +140,14 @@ describe('down SQL validation', () => {
 			dbMigrations: [row(1, a.name)],
 		});
 		expect(plan[0]!.downSql).toStrictEqual(['-- why\nDROP TABLE a;']);
+	});
+
+	test('statements keep their file order', () => {
+		const plan = planRollback({
+			localMigrations: [local(a.name, ['DROP TABLE zebra', 'DROP TABLE apple', 'DROP TABLE mango'])],
+			dbMigrations: [row(1, a.name)],
+		});
+		expect(plan[0]!.downSql).toStrictEqual(['DROP TABLE zebra', 'DROP TABLE apple', 'DROP TABLE mango']);
 	});
 
 	test('every problem in the range is reported before anything is planned', () => {

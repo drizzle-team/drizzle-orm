@@ -93,6 +93,18 @@ test('rollback with steps walks back newest-first', async () => {
 	expect(await journalNames()).toStrictEqual([]);
 });
 
+test('dryRun returns the plan without executing anything', async () => {
+	writeMigration('20240101000000_a', 'CREATE TABLE "a" ("id" integer)', 'DROP TABLE "a"');
+	const migrations = await applyAll();
+
+	const plan = await rollback(migrations, db, { migrationsFolder: folder }, { dryRun: true });
+
+	expect(plan).toMatchObject([{ name: '20240101000000_a', downSql: ['DROP TABLE "a"'] }]);
+	expect(executed).toHaveLength(1);
+	expect(await tableExists('a')).toBe(true);
+	expect(await journalNames()).toStrictEqual(['20240101000000_a']);
+});
+
 // Non-atomic rollback must refuse up front: a missing down.sql discovered mid-way would strand the database
 // between versions with nothing to undo the steps already taken.
 test('a missing down.sql anywhere in the range fails before any statement runs', async () => {
