@@ -144,7 +144,7 @@ export const configCheck = configCommonSchema;
 
 export const configGenerate = configCommonSchema.extend({
 	schema: union([string(), string().array()]),
-	generateDownMigrations: boolean().optional().default(true),
+	generateDownMigrations: boolean().optional(),
 });
 
 export const configPush = configCommonSchema.extend({

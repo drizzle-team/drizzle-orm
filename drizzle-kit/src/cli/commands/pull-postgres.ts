@@ -128,6 +128,7 @@ export const handle = async (
 			renames,
 			outFolder: out,
 			breakpoints,
+			generateDownMigrations: false,
 			init,
 			type: 'introspect',
 			snapshots,
