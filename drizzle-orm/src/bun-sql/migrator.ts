@@ -1,11 +1,11 @@
 import type { MigrationConfig } from '~/migrator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { BunMySqlDatabase } from './mysql/driver.ts';
-import { migrate as mysqlMigrator } from './mysql/migrator.ts';
+import { migrate as mysqlMigrator, rollback as mysqlRollback } from './mysql/migrator.ts';
 import type { BunSQLDatabase } from './postgres/driver.ts';
-import { migrate as pgMigrator } from './postgres/migrator.ts';
+import { migrate as pgMigrator, rollback as pgRollback } from './postgres/migrator.ts';
 import type { BunSQLiteDatabase } from './sqlite/driver.ts';
-import { migrate as sqliteMigrator } from './sqlite/migrator.ts';
+import { migrate as sqliteMigrator, rollback as sqliteRollback } from './sqlite/migrator.ts';
 
 export async function migrate<TRelations extends AnyRelations>(
 	db: BunSQLDatabase<TRelations>,
@@ -34,5 +34,39 @@ export namespace migrate {
 		config: MigrationConfig,
 	) {
 		return mysqlMigrator(db, config);
+	}
+}
+
+export async function rollback<TRelations extends AnyRelations>(
+	db: BunSQLDatabase<TRelations>,
+	config: MigrationConfig,
+	steps?: number,
+) {
+	return pgRollback(db, config, steps);
+}
+
+export namespace rollback {
+	export async function postgres<TRelations extends AnyRelations>(
+		db: BunSQLDatabase<TRelations>,
+		config: MigrationConfig,
+		steps?: number,
+	) {
+		return pgRollback(db, config, steps);
+	}
+
+	export async function sqlite<TRelations extends AnyRelations>(
+		db: BunSQLiteDatabase<TRelations>,
+		config: MigrationConfig,
+		steps?: number,
+	) {
+		return sqliteRollback(db, config, steps);
+	}
+
+	export async function mysql<TRelations extends AnyRelations>(
+		db: BunMySqlDatabase<TRelations>,
+		config: MigrationConfig,
+		steps?: number,
+	) {
+		return mysqlRollback(db, config, steps);
 	}
 }

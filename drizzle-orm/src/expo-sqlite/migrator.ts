@@ -2,14 +2,15 @@ import { useEffect, useReducer } from 'react';
 import type { MigrationMeta } from '~/migrator.ts';
 import { formatToMillis } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import { migrateSync } from '~/sqlite-core/async/session.ts';
+import { migrateSync, rollbackSync } from '~/sqlite-core/async/session.ts';
 import type { ExpoSQLiteDatabase } from './driver.ts';
 
 interface MigrationConfig {
 	migrations: Record<string, string>;
+	downMigrations?: Record<string, string>;
 }
 
-async function readMigrationFiles({ migrations }: MigrationConfig): Promise<MigrationMeta[]> {
+async function readMigrationFiles({ migrations, downMigrations }: MigrationConfig): Promise<MigrationMeta[]> {
 	const migrationQueries: MigrationMeta[] = [];
 
 	const sortedMigrations = Object.keys(migrations).sort();
@@ -27,8 +28,15 @@ async function readMigrationFiles({ migrations }: MigrationConfig): Promise<Migr
 
 			const migrationDate = formatToMillis(key.slice(0, 14));
 
+			let downSql: string[] | undefined;
+			const downQuery = downMigrations?.[key];
+			if (downQuery?.trim()) {
+				downSql = downQuery.trim().split('--> statement-breakpoint').map((it) => it);
+			}
+
 			migrationQueries.push({
 				sql: result,
+				downSql,
 				bps: true,
 				folderMillis: migrationDate,
 				hash: '',
@@ -48,6 +56,17 @@ export async function migrate<TRelations extends AnyRelations = EmptyRelations>(
 ) {
 	const migrations = await readMigrationFiles(config);
 	return migrateSync(migrations, db.session);
+}
+
+export async function rollback<
+	TRelations extends AnyRelations = EmptyRelations,
+>(
+	db: ExpoSQLiteDatabase<TRelations>,
+	config: MigrationConfig,
+	steps: number = 1,
+) {
+	const migrations = await readMigrationFiles(config);
+	return rollbackSync(migrations, db.session, undefined, steps);
 }
 
 interface State {
