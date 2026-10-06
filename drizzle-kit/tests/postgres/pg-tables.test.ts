@@ -7,6 +7,7 @@ import {
 	geometry,
 	index,
 	integer,
+	pgPolicy,
 	PgSchema,
 	pgSchema,
 	pgTable,
@@ -1681,4 +1682,66 @@ test('#6256: push re-diffs composite FK, expression index and empty text[] defau
 	const { sqlStatements } = await push({ db, to, ignoreSubsequent: true });
 
 	expect(sqlStatements).toStrictEqual([]);
+});
+
+// A statement about a table that moves names the table in its new schema, so it must run after the move.
+const folder = pgSchema('folder');
+const moved = (inFolder: boolean, extra: (t: any) => any[] = () => [], withRls = false) => {
+	const columns = { id: integer(), ownerId: integer() };
+	const create = inFolder ? (withRls ? folder.table.withRLS : folder.table) : (withRls ? pgTable.withRLS : pgTable);
+	return (create as typeof pgTable)('users', columns, extra);
+};
+const owners = pgTable('owners', { id: integer().primaryKey() });
+const reader = () => pgPolicy('readers', { for: 'select' });
+const writer = () => pgPolicy('writers', { for: 'insert' });
+const ownerKey = (t: any) => [foreignKey({ name: 'owner_fk', columns: [t.ownerId], foreignColumns: [owners.id] })];
+
+test.each([
+	{
+		name: 'a drop of one of its policies',
+		from: moved(false, () => [reader(), writer()]),
+		to: moved(true, () => [reader()]),
+		sql: ['ALTER TABLE "users" SET SCHEMA "folder";\n', 'DROP POLICY "writers" ON "folder"."users";'],
+	},
+	{
+		name: 'a drop of its last policy',
+		from: moved(false, () => [reader()]),
+		to: moved(true),
+		sql: [
+			'ALTER TABLE "users" SET SCHEMA "folder";\n',
+			'DROP POLICY "readers" ON "folder"."users";',
+			'ALTER TABLE "folder"."users" DISABLE ROW LEVEL SECURITY;',
+		],
+	},
+	{
+		name: 'its first policy',
+		from: moved(false),
+		to: moved(true, () => [reader()]),
+		sql: [
+			'ALTER TABLE "users" SET SCHEMA "folder";\n',
+			'ALTER TABLE "folder"."users" ENABLE ROW LEVEL SECURITY;',
+			'CREATE POLICY "readers" ON "folder"."users" AS PERMISSIVE FOR SELECT TO public;',
+		],
+	},
+	{
+		name: 'the row level security flag',
+		from: moved(false),
+		to: moved(true, undefined, true),
+		sql: ['ALTER TABLE "users" SET SCHEMA "folder";\n', 'ALTER TABLE "folder"."users" ENABLE ROW LEVEL SECURITY;'],
+	},
+	{
+		name: 'a drop of its foreign key',
+		from: moved(false, ownerKey),
+		to: moved(true),
+		sql: ['ALTER TABLE "users" SET SCHEMA "folder";\n', 'ALTER TABLE "folder"."users" DROP CONSTRAINT "owner_fk";'],
+	},
+])('a table move together with $name writes SQL that runs', async ({ from, to, sql }) => {
+	const renames = ['public.users->folder.users'];
+
+	const { sqlStatements: st } = await diff({ folder, owners, users: from }, { folder, owners, users: to }, renames);
+	await push({ db, to: { folder, owners, users: from } });
+	const { sqlStatements: pst } = await push({ db, to: { folder, owners, users: to }, renames });
+
+	expect(st).toStrictEqual(sql);
+	expect(pst).toStrictEqual(sql);
 });

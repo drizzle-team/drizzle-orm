@@ -231,7 +231,7 @@ export const ddlDiff = async (
 	for (const rename of uniqueRenames) {
 		ddl1.uniques.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
+			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
 		});
 	}
 
@@ -255,7 +255,7 @@ export const ddlDiff = async (
 	for (const rename of checkRenames) {
 		ddl1.checks.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
+			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
 		});
 	}
 
@@ -310,7 +310,7 @@ export const ddlDiff = async (
 	for (const rename of pksRenames) {
 		ddl1.pks.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
+			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
 		});
 	}
 
@@ -334,7 +334,7 @@ export const ddlDiff = async (
 	for (const rename of fksRenames) {
 		ddl1.fks.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
+			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
 		});
 	}
 
@@ -359,7 +359,7 @@ export const ddlDiff = async (
 	for (const rename of policyRenames) {
 		ddl1.policies.update({
 			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
+			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
 		});
 	}
 
@@ -1007,7 +1007,6 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonAlterSequences);
 
 	jsonStatements.push(...jsonRenameRoles);
-	jsonStatements.push(...jsonDropRoles);
 	jsonStatements.push(...jsonCreateRoles);
 	jsonStatements.push(...jsonAlterRoles);
 
@@ -1025,12 +1024,13 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonAlterViews);
 
 	jsonStatements.push(...jsonRenameTables);
+	// every later statement names a moved table in its new schema
+	jsonStatements.push(...jsonSetTableSchemas);
 	jsonStatements.push(...jsonDropPoliciesStatements); // before drop tables
 	jsonStatements.push(...jsonDropFKs);
 
 	jsonStatements.push(...jsonDropTables);
 	jsonStatements.push(...jsonAlterRlsStatements);
-	jsonStatements.push(...jsonSetTableSchemas);
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
 	jsonStatements.push(...jsonDropUniqueConstraints);
@@ -1098,6 +1098,9 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonRenamePoliciesStatements);
 	jsonStatements.push(...jsonCreatePoliciesStatements);
 	jsonStatements.push(...jsonAlterOrRecreatePoliciesStatements);
+
+	// postgres refuses to drop a role that a policy or a privilege still names
+	jsonStatements.push(...jsonDropRoles);
 
 	jsonStatements.push(...jsonDropEnums);
 	jsonStatements.push(...dropSequences);
