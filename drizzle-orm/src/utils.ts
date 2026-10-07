@@ -47,10 +47,13 @@ export function mapResultRow<TResult>(
 						const objectName = path[0]!;
 						if (!(objectName in nullifyMap)) {
 							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
-						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
-						) {
-							nullifyMap[objectName] = false;
+						} else if (typeof nullifyMap[objectName] === 'string') {
+							// A nullable joined object is absent only when every selected
+							// column from its table is null. A non-null column proves that
+							// the joined row exists, even when an earlier column was null.
+							if (value !== null || nullifyMap[objectName] !== getTableName(field.table)) {
+								nullifyMap[objectName] = false;
+							}
 						}
 					}
 				}
