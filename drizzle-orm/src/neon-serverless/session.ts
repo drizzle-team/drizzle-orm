@@ -108,8 +108,24 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 		transaction: (tx: NeonTransaction<TRelations>) => Promise<T>,
 		config: PgTransactionConfig = {},
 	): Promise<T> {
-		const session = this.client instanceof Pool // oxlint-disable-line drizzle-internal/no-instanceof
-			? new NeonSession(await this.client.connect(), this.dialect, this.relations, this.options)
+		const poolClient = this.client instanceof Pool // oxlint-disable-line drizzle-internal/no-instanceof
+			? await this.client.connect()
+			: undefined;
+		// pool detaches its own `error` listener from checked-out clients, so a connection dropped mid-transaction would crash the process
+		let connectionError: Error | undefined;
+		let rollbackError: Error | undefined;
+		const onConnectionError = (e: Error) => {
+			connectionError ??= e;
+		};
+		poolClient?.on('error', onConnectionError);
+		const release = () => {
+			if (!poolClient) return;
+			// broken client is destroyed by the pool, listener stays to absorb any trailing errors
+			if (!connectionError) poolClient.off('error', onConnectionError);
+			poolClient.release(connectionError ?? rollbackError);
+		};
+		const session = poolClient
+			? new NeonSession(poolClient, this.dialect, this.relations, this.options)
 			: this;
 		const tx = new NeonTransaction<TRelations>(
 			this.dialect,
@@ -122,7 +138,7 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 		try {
 			await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
 		} catch (e) {
-			if (this.client instanceof Pool) (session.client as PoolClient).release(); // oxlint-disable-line drizzle-internal/no-instanceof
+			release();
 			throw e;
 		}
 
@@ -134,12 +150,15 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 			await tx.execute(sql`commit`);
 			return result;
 		} catch (error) {
-			await tx.execute(sql`rollback`);
+			// nothing to roll back on a dead connection; failed rollback must not mask the original error
+			if (!connectionError) {
+				await tx.execute(sql`rollback`).catch((e) => {
+					rollbackError = e;
+				});
+			}
 			throw error;
 		} finally {
-			if (this.client instanceof Pool) { // oxlint-disable-line drizzle-internal/no-instanceof
-				(session.client as PoolClient).release();
-			}
+			release();
 		}
 	}
 }
@@ -166,7 +185,7 @@ export class NeonTransaction<
 			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (e) {
-			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw e;
 		}
 	}

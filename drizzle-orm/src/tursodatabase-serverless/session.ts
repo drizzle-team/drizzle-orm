@@ -160,7 +160,7 @@ export class TursoDatabaseServerlessTransaction<TRelations extends AnyRelations>
 			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

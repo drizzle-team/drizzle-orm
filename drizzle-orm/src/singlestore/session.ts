@@ -111,12 +111,16 @@ export class SingleStoreDriverSession<
 				rowsAsArray: mode === 'arrays',
 			}, params);
 			const stream = driverQuery.stream();
+			// mysql2 reports a connection lost mid-stream on the connection only, stream would never end
+			const onConnectionError = (err: Error) => stream.destroy(err);
+			conn.on('error', onConnectionError);
 
 			try {
 				for await (const row of stream.iterator({ destroyOnReturn: false })) {
 					yield row;
 				}
 			} finally {
+				conn.off('error', onConnectionError);
 				if (!stream.readableEnded && !stream.destroyed) {
 					stream.resume();
 					await new Promise<void>((resolve) => {
@@ -179,7 +183,7 @@ export class SingleStoreDriverSession<
 			await tx.execute(sql`commit`);
 			return result;
 		} catch (err) {
-			await tx.execute(sql`rollback`);
+			await tx.execute(sql`rollback`).catch(() => {});
 			throw err;
 		} finally {
 			if (isPool(this.client)) {
@@ -214,7 +218,7 @@ export class SingleStoreDriverTransaction<
 			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

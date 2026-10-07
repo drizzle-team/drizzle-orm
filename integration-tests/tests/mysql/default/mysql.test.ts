@@ -363,3 +363,67 @@ describe('driver init', () => {
 		}
 	});
 });
+
+test('iterator rejects when connection is dropped mid-stream', async () => {
+	const admin = await createConnection({ uri: process.env['MYSQL_CONNECTION_STRING'] });
+	const pool = createPool({ uri: process.env['MYSQL_CONNECTION_STRING'], connectionLimit: 1 });
+	const db = drizzle({ client: pool });
+
+	try {
+		const iter = db
+			.select({ id: sql<number>`connection_id()`.as('id') })
+			.from(sql`(select 1 from information_schema.columns a, information_schema.columns b limit 300000) t`)
+			.iterator();
+
+		let rows = 0;
+		let error: any;
+		try {
+			for await (const row of iter) {
+				if (rows++ > 0) continue;
+
+				await admin.query(`kill ${Number(row.id)}`);
+				await new Promise((resolve) => setTimeout(resolve, 200));
+			}
+		} catch (e) {
+			error = e;
+		}
+
+		expect(error?.cause?.code).toBe('PROTOCOL_CONNECTION_LOST');
+		expect(rows).toBeLessThan(300000);
+
+		// Broken connection was discarded, pool hands out a working one
+		expect((await db.execute(sql`select 1 as ${sql.identifier('v')}`))[0]).toEqual([{ v: 1 }]);
+	} finally {
+		await pool.end();
+		await admin.end();
+	}
+});
+
+test('transaction rejects with original error when connection is dropped', async () => {
+	const admin = await createConnection({ uri: process.env['MYSQL_CONNECTION_STRING'] });
+	const pool = createPool({ uri: process.env['MYSQL_CONNECTION_STRING'], connectionLimit: 1 });
+	const db = drizzle({ client: pool });
+
+	try {
+		let error: any;
+		try {
+			await db.transaction(async (tx) => {
+				const [rows] = await tx.execute(sql`select connection_id() as ${sql.identifier('id')}`);
+				await admin.query(`kill ${Number((rows as any)[0].id)}`);
+				await new Promise((resolve) => setTimeout(resolve, 200));
+				await tx.execute(sql`select 1`);
+			});
+		} catch (e) {
+			error = e;
+		}
+
+		// Original failure, not the rollback attempted on a dead connection
+		expect(error?.query).toBe('select 1');
+
+		// Broken connection was discarded, pool hands out a working one
+		expect((await db.execute(sql`select 1 as ${sql.identifier('v')}`))[0]).toEqual([{ v: 1 }]);
+	} finally {
+		await pool.end();
+		await admin.end();
+	}
+});

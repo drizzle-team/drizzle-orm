@@ -148,7 +148,7 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 			await tx.run(sql`COMMIT`);
 			return result;
 		} catch (err) {
-			await tx.run(sql`ROLLBACK`);
+			await tx.run(sql`ROLLBACK`).catch(() => {});
 			throw err;
 		}
 	}
@@ -176,7 +176,7 @@ export class SQLiteCloudTransaction<TRelations extends AnyRelations>
 			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

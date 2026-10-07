@@ -110,8 +110,24 @@ export class VercelPgSession<
 		transaction: (tx: VercelPgTransaction<TRelations>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
-		const session = typeof this.client === 'function' || this.client instanceof VercelPool // oxlint-disable-line drizzle-internal/no-instanceof
-			? new VercelPgSession(await this.client.connect(), this.dialect, this.relations, this.options)
+		const poolClient = typeof this.client === 'function' || this.client instanceof VercelPool // oxlint-disable-line drizzle-internal/no-instanceof
+			? await this.client.connect()
+			: undefined;
+		// pool detaches its own `error` listener from checked-out clients, so a connection dropped mid-transaction would crash the process
+		let connectionError: Error | undefined;
+		let rollbackError: Error | undefined;
+		const onConnectionError = (e: Error) => {
+			connectionError ??= e;
+		};
+		poolClient?.on('error', onConnectionError);
+		const release = () => {
+			if (!poolClient) return;
+			// broken client is destroyed by the pool, listener stays to absorb any trailing errors
+			if (!connectionError) poolClient.off('error', onConnectionError);
+			poolClient.release(connectionError ?? rollbackError);
+		};
+		const session = poolClient
+			? new VercelPgSession(poolClient, this.dialect, this.relations, this.options)
 			: this;
 		const tx = new VercelPgTransaction<TRelations>(
 			this.dialect,
@@ -129,12 +145,15 @@ export class VercelPgSession<
 			await tx.execute(sql`commit`);
 			return result;
 		} catch (error) {
-			await tx.execute(sql`rollback`);
+			// nothing to roll back on a dead connection; failed rollback must not mask the original error
+			if (!connectionError) {
+				await tx.execute(sql`rollback`).catch((e) => {
+					rollbackError = e;
+				});
+			}
 			throw error;
 		} finally {
-			if (typeof this.client === 'function' || this.client instanceof VercelPool) { // oxlint-disable-line drizzle-internal/no-instanceof
-				(session.client as VercelPoolClient).release();
-			}
+			release();
 		}
 	}
 }
@@ -161,7 +180,7 @@ export class VercelPgTransaction<
 			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

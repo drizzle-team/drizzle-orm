@@ -128,7 +128,11 @@ export class BetterSQLiteTransaction<TRelations extends AnyRelations>
 			this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result as T;
 		} catch (err) {
-			this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			try {
+				this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			} catch {
+				// original error takes priority
+			}
 			throw err;
 		}
 	}

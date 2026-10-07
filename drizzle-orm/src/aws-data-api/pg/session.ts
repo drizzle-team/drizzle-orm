@@ -171,7 +171,7 @@ export class AwsDataApiSession<
 			await this.client.send(new CommitTransactionCommand({ ...this.rawQuery, transactionId }));
 			return result;
 		} catch (e) {
-			await this.client.send(new RollbackTransactionCommand({ ...this.rawQuery, transactionId }));
+			await this.client.send(new RollbackTransactionCommand({ ...this.rawQuery, transactionId })).catch(() => {});
 			throw e;
 		}
 	}
@@ -199,7 +199,7 @@ export class AwsDataApiTransaction<
 			await this.session.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (e) {
-			await this.session.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await this.session.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw e;
 		}
 	}

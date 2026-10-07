@@ -453,7 +453,11 @@ export function migrateSync(
 
 		session.run(sql`COMMIT`);
 	} catch (e) {
-		session.run(sql`ROLLBACK`);
+		try {
+			session.run(sql`ROLLBACK`);
+		} catch {
+			// original error takes priority
+		}
 		throw e;
 	}
 }

@@ -132,7 +132,7 @@ export class TiDBServerlessSession<
 			await nativeTx.commit();
 			return result;
 		} catch (err) {
-			await nativeTx.rollback();
+			await nativeTx.rollback().catch(() => {});
 			throw err;
 		}
 	}
@@ -171,7 +171,7 @@ export class TiDBServerlessTransaction<
 			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

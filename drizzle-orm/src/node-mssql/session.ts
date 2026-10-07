@@ -143,7 +143,7 @@ export class NodeMsSqlSession<
 			await mssqlTransaction.commit();
 			return result;
 		} catch (err) {
-			await mssqlTransaction.rollback();
+			await mssqlTransaction.rollback().catch(() => {});
 			throw err;
 		}
 	}
@@ -174,7 +174,7 @@ export class NodeMsSqlTransaction<
 			const result = await transaction(tx);
 			return result;
 		} catch (err) {
-			await tx.execute(sql.raw(`rollback transaction ${savepointName}`));
+			await tx.execute(sql.raw(`rollback transaction ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}
