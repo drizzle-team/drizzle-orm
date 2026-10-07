@@ -16,7 +16,8 @@ import {
 	text,
 	uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
-import { interimToDDL } from 'src/dialects/sqlite/ddl';
+import { createDDL, interimToDDL } from 'src/dialects/sqlite/ddl';
+import { ddlDiffDry } from 'src/dialects/sqlite/diff';
 import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
 import { expect, test } from 'vitest';
 import { dbFrom, diffAfterPull, push } from './mocks';
@@ -1341,4 +1342,44 @@ test('issue No2993', async () => {
 	expect(generateStatements).toStrictEqual([]);
 	expect(pushSqlStatements).toStrictEqual([]);
 	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6433
+test('pull keeps an unnamed single-column PK inline so AUTOINCREMENT DDL stays valid', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run('CREATE TABLE `t`(`id` integer PRIMARY KEY AUTOINCREMENT, `code` text NOT NULL);');
+	// A named PK on a non-integer column keeps its autoindex, so its name round-trips.
+	await db.run('CREATE TABLE `named`(`code` text CONSTRAINT `named_pk` PRIMARY KEY);');
+
+	const schema = await fromDatabaseForDrizzle(db, () => true, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+	const { ddl, errors } = interimToDDL(schema);
+
+	expect(errors.length).toBe(0);
+
+	const pks = ddl.pks.list();
+	// An unnamed inline PK must not be reported as explicitly named...
+	expect(pks.find((it) => it.table === 't')!.nameExplicit).toBe(false);
+	// ... while an explicitly named one keeps its name.
+	const named = pks.find((it) => it.table === 'named')!;
+	expect(named.nameExplicit).toBe(true);
+	expect(named.name).toBe('named_pk');
+
+	// The baseline migration `pull` writes must be valid SQLite: `AUTOINCREMENT`
+	// is only accepted directly after the inline `PRIMARY KEY`.
+	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'push');
+	const baseline = sqlStatements.filter((it) => it.startsWith('CREATE TABLE'));
+	expect(baseline).toHaveLength(2);
+	expect(baseline.find((it) => it.startsWith('CREATE TABLE `t`'))).toContain(
+		'`id` integer PRIMARY KEY AUTOINCREMENT',
+	);
+
+	const fresh = new Database(':memory:');
+	expect(() => fresh.exec(baseline.join('\n'))).not.toThrow();
+	fresh.close();
+	sqlite.close();
 });
