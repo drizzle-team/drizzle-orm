@@ -61,6 +61,7 @@ export function construct<
 	const session = new PostgresHttpSession(client, runBatch, dialect, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 
 	const db = new PostgresHttpDatabase(

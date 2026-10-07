@@ -16,6 +16,7 @@ export type PostgresAuroraClient = AuroraClient;
 export interface PostgresAuroraSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class PostgresAuroraSession<
@@ -67,6 +68,7 @@ export class PostgresAuroraSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

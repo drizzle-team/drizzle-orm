@@ -227,7 +227,7 @@ const en = pgEnum('en', ['enVal1', 'enVal2']);
 
 const { allTypesTable } = makeAllTypes('all_types', 'en');
 
-let db: BunSQLDatabase<typeof relations>;
+let db: BunSQLDatabase<typeof relations> & { $client: BunSQL };
 
 beforeAll(async () => {
 	const connectionString = process.env['PG_CONNECTION_STRING'];
@@ -7332,6 +7332,37 @@ test('Query error wrapping', async () => {
 	// expect(...).rejects is broken
 	await (db.insert(usersTable).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]).catch((e) => err = e));
 	expect(err).toBeInstanceOf(DrizzleQueryError);
+});
+
+test('Query error params', async () => {
+	for (const paramsInErrors of [undefined, false, true]) {
+		const paramsDb = drizzle({ client: db.$client, paramsInErrors });
+
+		const error = await paramsDb.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`)
+			.catch((e) => e);
+
+		expect(error).toBeInstanceOf(DrizzleQueryError);
+		expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+		expect(error.message).toBe(
+			paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+		);
+	}
+});
+
+test('Query error params - transaction', async () => {
+	for (const paramsInErrors of [undefined, false, true]) {
+		const paramsDb = drizzle({ client: db.$client, paramsInErrors });
+
+		const error = await paramsDb.transaction(async (tx) => {
+			await tx.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`);
+		}).catch((e) => e);
+
+		expect(error).toBeInstanceOf(DrizzleQueryError);
+		expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+		expect(error.message).toBe(
+			paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+		);
+	}
 });
 
 test('Column as decoder applies codecs', async () => {

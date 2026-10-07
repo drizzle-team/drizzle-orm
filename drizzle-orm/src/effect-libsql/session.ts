@@ -29,6 +29,7 @@ export type EffectLibsqlRunResult = ResultSet;
 export interface EffectLibsqlSessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
+	paramsInErrors?: boolean;
 }
 
 export class EffectLibsqlSession<TRelations extends AnyRelations>
@@ -83,6 +84,7 @@ export class EffectLibsqlSession<TRelations extends AnyRelations>
 			this.options.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

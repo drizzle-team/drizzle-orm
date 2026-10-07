@@ -93,6 +93,7 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations, TRunRe
 	const session = new SQLiteRemoteSession(executors, dialect, relations, {
 		logger,
 		cache: config?.cache,
+		paramsInErrors: config?.paramsInErrors,
 	});
 	const db = new SqliteRemoteDatabase(
 		'async',

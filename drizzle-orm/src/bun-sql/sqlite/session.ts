@@ -21,6 +21,7 @@ import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core
 export interface BunSQLiteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export type BunSQLiteRunResult = Record<string, unknown>[] & Record<string, unknown>;
@@ -87,6 +88,7 @@ export class BunSQLiteSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

@@ -20,6 +20,7 @@ import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core
 export interface LibSQLSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -98,6 +99,7 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -175,7 +177,7 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 			await libsqlTx.commit();
 			return result;
 		} catch (err) {
-			await libsqlTx.rollback();
+			await libsqlTx.rollback().catch(() => {});
 			throw err;
 		}
 	}
@@ -203,7 +205,7 @@ export class LibSQLTransaction<TRelations extends AnyRelations>
 			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

@@ -30,6 +30,7 @@ export type EffectSQLiteD1RunResult = D1Result;
 export interface EffectSQLiteD1SessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
+	paramsInErrors?: boolean;
 }
 
 export class EffectSQLiteD1Session<TRelations extends AnyRelations>
@@ -84,6 +85,7 @@ export class EffectSQLiteD1Session<TRelations extends AnyRelations>
 			this.options.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

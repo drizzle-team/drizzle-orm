@@ -21,6 +21,7 @@ import { SingleStoreDriverSession } from './session.ts';
 export interface SingleStoreDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class SingleStoreDriverDriver {
@@ -39,6 +40,7 @@ export class SingleStoreDriverDriver {
 		return new SingleStoreDriverSession(this.client, this.dialect, relations, {
 			logger: this.options.logger,
 			cache: this.options.cache,
+			paramsInErrors: this.options.paramsInErrors,
 		});
 	}
 }
@@ -81,6 +83,7 @@ function construct<
 	const driver = new SingleStoreDriverDriver(clientForInstance as SingleStoreDriverClient, dialect, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const session = driver.createSession(relations);
 	const db = new SingleStoreDriverDatabase(dialect, session, relations) as SingleStoreDriverDatabase<TRelations>;

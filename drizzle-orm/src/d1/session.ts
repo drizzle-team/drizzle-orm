@@ -23,6 +23,7 @@ import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core
 export interface SQLiteD1SessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export type D1RunResult = D1Result;
@@ -64,7 +65,7 @@ export class SQLiteD1Session<TRelations extends AnyRelations>
 		try {
 			stmt = this.client.prepare(query.sql);
 		} catch (e) {
-			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+			throw new DrizzleQueryError(query.sql, this.options.paramsInErrors ? query.params : undefined, e as Error);
 		}
 		const executors: SQLiteQueryExecutors<'async'> = {
 			all: (params) => {
@@ -91,6 +92,7 @@ export class SQLiteD1Session<TRelations extends AnyRelations>
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -148,7 +150,7 @@ export class SQLiteD1Session<TRelations extends AnyRelations>
 			await this.run(sql`commit`);
 			return result;
 		} catch (err) {
-			await this.run(sql`rollback`);
+			await this.run(sql`rollback`).catch(() => {});
 			throw err;
 		}
 	}
@@ -177,7 +179,7 @@ export class D1Transaction<TRelations extends AnyRelations>
 			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}
@@ -224,6 +226,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 			tables: string[];
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
+		paramsInErrors: boolean | undefined,
 	) {
 		super(
 			resultKind,
@@ -236,6 +239,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 			cache,
 			queryMetadata,
 			cacheConfig,
+			paramsInErrors,
 		);
 
 		this.stmt = stmt;

@@ -84,6 +84,7 @@ export const test = base.extend<
 				schema: S,
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 				useJitMappers?: boolean,
+				paramsInErrors?: boolean,
 			): NodeMsSqlDatabase<ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 		};
 	}
@@ -142,10 +143,11 @@ export const test = base.extend<
 				schema: S,
 				cb?: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => AnyRelationsBuilderConfig,
 				useJitMappers?: boolean,
+				paramsInErrors?: boolean,
 			) => {
 				const relations = cb ? defineRelations(schema, cb as any) : defineRelations(schema);
 
-				return drizzle({ client: connection.client, relations, jit: useJitMappers });
+				return drizzle({ client: connection.client, relations, jit: useJitMappers, paramsInErrors });
 			};
 
 			await use(createDB as any);

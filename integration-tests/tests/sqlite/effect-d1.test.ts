@@ -55,6 +55,7 @@ runCommonEffectSQLiteTests({
 		// .run() includes time data
 		'Cache: write + query all methods & verify data intergrity',
 		// Transactions are not supported in D1
+		'Query error params - transaction',
 		'RQB v2 transaction find first - no rows',
 		'RQB v2 transaction find first - multiple rows',
 		'RQB v2 transaction find first - with relation',
@@ -65,6 +66,7 @@ runCommonEffectSQLiteTests({
 		'RQB v2 transaction find many - placeholders',
 		'transaction',
 		'transaction rollback',
+		'Query error params - transaction',
 		'nested transaction',
 		'nested transaction rollback',
 

@@ -62,6 +62,7 @@ export const make = Effect.fn('LibsqlDrizzle.make')(
 		const session = new EffectLibsqlSession(client, dialect, relations, {
 			logger,
 			cache,
+			paramsInErrors: config.paramsInErrors,
 		});
 		const db = new EffectLibsqlDatabase(dialect, session, relations);
 		(<any> db).$client = client;

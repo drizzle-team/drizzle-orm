@@ -17,6 +17,7 @@ export type PostgresClient = Pool | Connection;
 export interface PostgresSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class PostgresSession<
@@ -83,6 +84,7 @@ export class PostgresSession<
 			queryMetadata,
 			cacheConfig,
 			shape,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -188,7 +190,8 @@ export class PostgresPreparedQuery<T extends PreparedQueryConfig> extends PgAsyn
 		// config that was passed through $withCache
 		cacheConfig: WithCacheConfig | undefined,
 		readonly shape?: ShapeSpec,
+		paramsInErrors?: boolean,
 	) {
-		super(executor, query, mapper, mode, logger, cache, queryMetadata, cacheConfig);
+		super(executor, query, mapper, mode, logger, cache, queryMetadata, cacheConfig, paramsInErrors);
 	}
 }

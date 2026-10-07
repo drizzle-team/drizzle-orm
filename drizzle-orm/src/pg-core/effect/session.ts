@@ -52,6 +52,7 @@ export class PgEffectPreparedQuery<
 		} | undefined,
 		// config that was passed through $withCache
 		protected cacheConfig: WithCacheConfig | undefined,
+		protected paramsInErrors: boolean | undefined,
 	) {
 		super(query);
 		this.mapper = mapper;
@@ -133,7 +134,13 @@ export class PgEffectPreparedQuery<
 		}).pipe(
 			Effect.provideService(EffectCache, this.cache),
 			Effect.catch((e) => {
-				return Effect.fail(new EffectDrizzleQueryError({ query: queryString, params, cause: Cause.fail(e) }));
+				return Effect.fail(
+					new EffectDrizzleQueryError({
+						query: queryString,
+						params: this.paramsInErrors ? params : undefined,
+						cause: Cause.fail(e),
+					}),
+				);
 			}),
 		);
 	}

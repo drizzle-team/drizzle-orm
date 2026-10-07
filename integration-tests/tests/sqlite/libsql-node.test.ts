@@ -218,6 +218,7 @@ const skip = [
 	'update with limit and order by',
 	// Uses async versions
 	'sync transaction rollback',
+	'Query error params - sync transaction',
 	'sync nested transaction rollback',
 ];
 

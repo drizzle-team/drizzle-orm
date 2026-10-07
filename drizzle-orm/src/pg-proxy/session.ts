@@ -14,6 +14,7 @@ import type { RemoteCallback } from './driver.ts';
 export interface PgRemoteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class PgRemoteSession<
@@ -61,6 +62,7 @@ export class PgRemoteSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

@@ -1,12 +1,14 @@
 import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import type { NodePgDatabase, NodePgRawExecuteResult } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { getTableConfig, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import type { QueryResult } from 'pg';
+import { Pool, type QueryResult } from 'pg';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
+import { assertDroppedConnectionRejectsTransaction } from './connection-drop';
 import { nodePostgresTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
 import {
@@ -659,4 +661,17 @@ describe('transaction snapshot', () => {
 	test('does not let the id inject SQL', async ({ db }) => {
 		await assertSnapshotIdNotInjectable(db, expect, 'nodepg');
 	});
+});
+
+test('transaction rejects when pooled connection is dropped', async ({ kit, peer }) => {
+	const url = new URL(process.env['PG_CONNECTION_STRING']!);
+	url.pathname = `/${kit.database}`;
+	const pool = new Pool({ connectionString: url.toString() });
+	pool.on('error', () => {});
+
+	try {
+		await assertDroppedConnectionRejectsTransaction(drizzle({ client: pool }), peer!, expect);
+	} finally {
+		await pool.end();
+	}
 });

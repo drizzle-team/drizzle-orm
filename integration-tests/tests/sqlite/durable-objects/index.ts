@@ -9,6 +9,7 @@ import {
 	count,
 	countDistinct,
 	defineRelations,
+	DrizzleQueryError,
 	eq,
 	exists,
 	getColumns,
@@ -3576,6 +3577,68 @@ export class MyDurableObject extends DurableObject {
 		}
 	}
 
+	async queryErrorParams(): Promise<void> {
+		this.db.run(sql`drop table if exists params_in_errors`);
+		this.db.run(sql`create table params_in_errors (id integer primary key, name text not null)`);
+
+		const queries = [
+			// Fails on statement preparation
+			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
+			{
+				query: sql`insert into params_in_errors (id, name) values (${1}, ${'First'}), (${1}, ${'Second'}) returning id`,
+				params: [1, 'First', 1, 'Second'],
+			},
+		];
+
+		try {
+			for (const paramsInErrors of [undefined, false, true]) {
+				const db = drizzle(this.storage, { paramsInErrors });
+
+				for (const { query, params } of queries) {
+					for (
+						const run of [
+							() => db.get(query),
+							() => db.all(query),
+							() => db.run(query),
+							() => db.values(query),
+							() =>
+								db.transaction((tx) => {
+									tx.get(query);
+								}),
+							() =>
+								db.transaction((tx) => {
+									tx.all(query);
+								}),
+							() =>
+								db.transaction((tx) => {
+									tx.run(query);
+								}),
+							() =>
+								db.transaction((tx) => {
+									tx.values(query);
+								}),
+						]
+					) {
+						let error: any;
+						try {
+							run();
+						} catch (e) {
+							error = e;
+						}
+
+						expect(error).instanceOf(DrizzleQueryError);
+						expect(error.params).deep.equal(paramsInErrors ? params : undefined);
+						expect(error.message).equal(
+							paramsInErrors ? `Failed query: ${error.query}\nparams: ${params}` : `Failed query: ${error.query}`,
+						);
+					}
+				}
+			}
+		} finally {
+			this.db.run(sql`drop table params_in_errors`);
+		}
+	}
+
 	async allTypesCodecs(): Promise<void> {
 		await this.db.run(sql.raw(dropAllTypes('all_types_cdcs')));
 		await this.db.run(sql.raw(createAllTypes('all_types_cdcs')));
@@ -4306,6 +4369,7 @@ export default {
 
 			await stub.allTypes();
 			await stub.allTypesCodecs();
+			await stub.queryErrorParams();
 
 			await stub.testRqbV2SimpleFindFirstMultipleRows();
 			await stub.testRqbV2SimpleFindFirstNoRows();

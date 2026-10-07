@@ -17,6 +17,7 @@ import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface SQLJsSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export type SQLJsRunResult = void;
@@ -100,6 +101,7 @@ export class SQLJsSession<TRelations extends AnyRelations>
 			undefined,
 			queryMetadata,
 			undefined,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -116,7 +118,11 @@ export class SQLJsSession<TRelations extends AnyRelations>
 			this.run(sql`commit`);
 			return result;
 		} catch (err) {
-			this.run(sql`rollback`);
+			try {
+				this.run(sql`rollback`);
+			} catch {
+				// original error takes priority
+			}
 			throw err;
 		}
 	}
@@ -147,7 +153,11 @@ export class SQLJsTransaction<TRelations extends AnyRelations>
 			tx.run(sql.raw(`release savepoint ${savepointName}`));
 			return result as T;
 		} catch (err) {
-			tx.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			try {
+				tx.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			} catch {
+				// original error takes priority
+			}
 			throw err;
 		}
 	}

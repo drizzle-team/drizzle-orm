@@ -95,7 +95,17 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 			}).then((it: any) => it.rows);
 		};
 
-		return new PgAsyncPreparedQuery(executor, query, mapper, mode, this.logger, this.cache, queryMetadata, cacheConfig);
+		return new PgAsyncPreparedQuery(
+			executor,
+			query,
+			mapper,
+			mode,
+			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
+			this.options.paramsInErrors,
+		);
 	}
 
 	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(queries: T) {
@@ -144,6 +154,18 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 	): Promise<T> {
 		ensureWebSocket();
 		const poolClient = await this.pool.connect();
+		// pool detaches its own `error` listener from checked-out clients, so a connection dropped mid-transaction would crash the process
+		let connectionError: Error | undefined;
+		let rollbackError: Error | undefined;
+		const onConnectionError = (e: Error) => {
+			connectionError ??= e;
+		};
+		poolClient.on('error', onConnectionError);
+		const release = () => {
+			// broken client is destroyed by the pool, listener stays to absorb any trailing errors
+			if (!connectionError) poolClient.off('error', onConnectionError);
+			poolClient.release(connectionError ?? rollbackError);
+		};
 		const dialect = new PgDialect({
 			useJitMappers: this.options.useJitMappers,
 			codecs: this.options.transactionCodecs,
@@ -165,7 +187,7 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 		try {
 			await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
 		} catch (e) {
-			poolClient.release();
+			release();
 			throw e;
 		}
 
@@ -177,10 +199,15 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 			await tx.execute(sql`commit`);
 			return result;
 		} catch (error) {
-			await tx.execute(sql`rollback`);
+			// nothing to roll back on a dead connection; failed rollback must not mask the original error
+			if (!connectionError) {
+				await tx.execute(sql`rollback`).catch((e) => {
+					rollbackError = e;
+				});
+			}
 			throw error;
 		} finally {
-			poolClient.release();
+			release();
 		}
 	}
 }
@@ -222,7 +249,7 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 		private client: PoolClient,
 		dialect: PgDialect,
 		private relations: TRelations,
-		options: NeonHttpSessionOptions = {},
+		private options: NeonHttpSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -264,6 +291,7 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 	override async transaction<T>(
@@ -296,7 +324,7 @@ export class NetlifyDbTransaction<TRelations extends AnyRelations>
 			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (e) {
-			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw e;
 		}
 	}

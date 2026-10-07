@@ -3211,6 +3211,37 @@ export class MyDurableObject extends DurableObject {
 		}));
 	}
 
+	queryErrorParams(): Promise<void> {
+		return this.exec(Effect.gen(function*() {
+			const query = sql`select * from params_in_errors_missing where id = ${'S3CRET'}`;
+
+			for (const paramsInErrors of [undefined, false, true]) {
+				const db = yield* SQLiteDrizzle.make({ paramsInErrors });
+
+				for (
+					const effect of [
+						db.get(query),
+						db.all(query),
+						db.run(query),
+						db.values(query),
+						db.transaction((tx) => tx.get(query)),
+						db.transaction((tx) => tx.all(query)),
+						db.transaction((tx) => tx.run(query)),
+						db.transaction((tx) => tx.values(query)),
+					]
+				) {
+					const error: any = yield* Effect.flip<unknown, unknown, never>(effect);
+
+					expect(error._tag).equal('EffectDrizzleQueryError');
+					expect(error.params).deep.equal(paramsInErrors ? ['S3CRET'] : undefined);
+					expect(error.message).equal(
+						paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+					);
+				}
+			}
+		}));
+	}
+
 	allTypesCodecs(): Promise<void> {
 		const { db } = this;
 		return this.exec(Effect.gen(function*() {
@@ -4008,6 +4039,7 @@ const TESTS = [
 	'deleteWithLimitAndOrderBy',
 	'allTypes',
 	'allTypesCodecs',
+	'queryErrorParams',
 	'testRqbV2SimpleFindFirstNoRows',
 	'testRqbV2SimpleFindFirstMultipleRows',
 	'testRqbV2SimpleFindFirstWithRelation',

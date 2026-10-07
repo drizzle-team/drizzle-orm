@@ -76,6 +76,7 @@ export function drizzle<
 	const session = new SQLiteD1Session(client as D1Database, dialect, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new DrizzleD1Database(
 		'async',

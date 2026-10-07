@@ -11,6 +11,7 @@ import {
 	count,
 	countDistinct,
 	defineRelations,
+	DrizzleQueryError,
 	eq,
 	exists,
 	getColumns,
@@ -8995,4 +8996,35 @@ describe('raw execute', () => {
 
 		await db.execute<never>(sql`drop table ${table}`);
 	});
+});
+
+test('Query error params', async () => {
+	for (const paramsInErrors of [undefined, false, true]) {
+		const paramsDb = drizzle({ client, paramsInErrors });
+
+		const error = await paramsDb.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`)
+			.catch((e) => e);
+
+		expect(error).toBeInstanceOf(DrizzleQueryError);
+		expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+		expect(error.message).toBe(
+			paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+		);
+	}
+});
+
+test('Query error params - transaction', async () => {
+	for (const paramsInErrors of [undefined, false, true]) {
+		const paramsDb = drizzle({ client, paramsInErrors });
+
+		const error = await paramsDb.transaction(async (tx) => {
+			await tx.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`);
+		}).catch((e) => e);
+
+		expect(error).toBeInstanceOf(DrizzleQueryError);
+		expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+		expect(error.message).toBe(
+			paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+		);
+	}
 });

@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'bun:test';
-import { defineRelations, getColumns, getTableColumns, sql } from 'drizzle-orm';
+import { defineRelations, DrizzleQueryError, getColumns, getTableColumns, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { blob, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
@@ -946,4 +946,97 @@ test('all types ~codecs~', async () => {
 	} finally {
 		await cdcsDb.run(sql.raw(dropAllTypes('all_types_cdcs')));
 	}
+});
+
+test('Query error params', async () => {
+	await db.run(sql`drop table if exists params_in_errors`);
+	await db.run(sql`create table params_in_errors (id integer primary key, name text not null)`);
+
+	const queries = [
+		{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
+		{
+			query: sql`insert into params_in_errors (id, name) values (${1}, ${'First'}), (${1}, ${'Second'}) returning id`,
+			params: [1, 'First', 1, 'Second'],
+		},
+	];
+
+	for (const paramsInErrors of [undefined, false, true]) {
+		const paramsDb = drizzle({ client, paramsInErrors });
+
+		for (const { query, params } of queries) {
+			for (
+				const run of [
+					() => paramsDb.get(query),
+					() => paramsDb.all(query),
+					() => paramsDb.run(query),
+					() => paramsDb.values(query),
+				]
+			) {
+				const error = await (async () => run())().catch((e) => e);
+
+				expect(error).toBeInstanceOf(DrizzleQueryError);
+				expect(error.params).toStrictEqual(paramsInErrors ? params : undefined);
+				expect(error.message).toBe(
+					paramsInErrors ? `Failed query: ${error.query}\nparams: ${params}` : `Failed query: ${error.query}`,
+				);
+			}
+		}
+	}
+
+	await db.run(sql`drop table params_in_errors`);
+});
+
+test('Query error params - sync transaction', async () => {
+	await db.run(sql`drop table if exists params_in_errors`);
+	await db.run(sql`create table params_in_errors (id integer primary key, name text not null)`);
+
+	const queries = [
+		{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
+		{
+			query: sql`insert into params_in_errors (id, name) values (${1}, ${'First'}), (${1}, ${'Second'}) returning id`,
+			params: [1, 'First', 1, 'Second'],
+		},
+	];
+
+	for (const paramsInErrors of [undefined, false, true]) {
+		const paramsDb = drizzle({ client, paramsInErrors });
+
+		for (const { query, params } of queries) {
+			for (
+				const run of [
+					() =>
+						paramsDb.transaction((tx) => {
+							tx.get(query);
+						}),
+					() =>
+						paramsDb.transaction((tx) => {
+							tx.all(query);
+						}),
+					() =>
+						paramsDb.transaction((tx) => {
+							tx.run(query);
+						}),
+					() =>
+						paramsDb.transaction((tx) => {
+							tx.values(query);
+						}),
+				]
+			) {
+				let error: any;
+				try {
+					run();
+				} catch (e) {
+					error = e;
+				}
+
+				expect(error).toBeInstanceOf(DrizzleQueryError);
+				expect(error.params).toStrictEqual(paramsInErrors ? params : undefined);
+				expect(error.message).toBe(
+					paramsInErrors ? `Failed query: ${error.query}\nparams: ${params}` : `Failed query: ${error.query}`,
+				);
+			}
+		}
+	}
+
+	await db.run(sql`drop table params_in_errors`);
 });

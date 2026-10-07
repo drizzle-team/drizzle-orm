@@ -4708,6 +4708,40 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				}]);
 			}));
 
+		it.effect('Query error params', () =>
+			Effect.gen(function*() {
+				for (const paramsInErrors of [undefined, false, true]) {
+					const db = yield* MySqlDrizzle.make({ paramsInErrors }).pipe(Effect.provide(MySqlDrizzle.DefaultServices));
+
+					const error: any = yield* db.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`).pipe(
+						Effect.flip,
+					);
+
+					expect(error._tag).toBe('EffectDrizzleQueryError');
+					expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+					expect(error.message).toBe(
+						paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+					);
+				}
+			}));
+
+		it.effect('Query error params - transaction', () =>
+			Effect.gen(function*() {
+				for (const paramsInErrors of [undefined, false, true]) {
+					const db = yield* MySqlDrizzle.make({ paramsInErrors }).pipe(Effect.provide(MySqlDrizzle.DefaultServices));
+
+					const error: any = yield* db.transaction((tx) =>
+						tx.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`)
+					).pipe(Effect.flip);
+
+					expect(error._tag).toBe('EffectDrizzleQueryError');
+					expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+					expect(error.message).toBe(
+						paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+					);
+				}
+			}));
+
 		addTests?.(it);
 	});
 };

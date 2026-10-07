@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
+import { assertDroppedConnectionRejectsTransaction } from './connection-drop';
 import { neonWsTest as test } from './instrumentation';
 import { usersMigratorTable, usersMySchemaTable, usersTable } from './schema';
 import {
@@ -711,4 +712,8 @@ describe('transaction snapshot', () => {
 	test('does not let the id inject SQL', async ({ db }) => {
 		await assertSnapshotIdNotInjectable(db, expect, 'neonws');
 	});
+});
+
+test('transaction rejects when pooled connection is dropped', async ({ db, peer }) => {
+	await assertDroppedConnectionRejectsTransaction(db, peer!, expect);
 });

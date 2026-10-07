@@ -19,6 +19,7 @@ import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core
 export interface ExpoSQLiteAsyncSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export type ExpoSQLiteAsyncRunResult = SQLiteRunResult;
@@ -93,6 +94,7 @@ export class ExpoSQLiteAsyncSession<TRelations extends AnyRelations>
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -109,7 +111,7 @@ export class ExpoSQLiteAsyncSession<TRelations extends AnyRelations>
 			await this.run(sql`commit`);
 			return result;
 		} catch (err) {
-			await this.run(sql`rollback`);
+			await this.run(sql`rollback`).catch(() => {});
 			throw err;
 		}
 	}
@@ -135,7 +137,7 @@ export class ExpoSQLiteAsyncTransaction<
 			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result as T;
 		} catch (err) {
-			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

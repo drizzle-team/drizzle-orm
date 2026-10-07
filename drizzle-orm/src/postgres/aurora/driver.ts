@@ -50,6 +50,7 @@ function construct<
 	const session = new PostgresAuroraSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 
 	const db = new PostgresAuroraDatabase(

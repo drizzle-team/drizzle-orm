@@ -43,6 +43,7 @@ export class CockroachPreparedQuery<T extends PreparedQueryConfig> extends Cockr
 		mapper: ((rows: any[]) => any) | undefined,
 		readonly mode: 'arrays' | 'objects' | 'raw',
 		protected logger: Logger,
+		protected paramsInErrors: boolean | undefined,
 	) {
 		super(query);
 		this.mapper = mapper;
@@ -58,7 +59,7 @@ export class CockroachPreparedQuery<T extends PreparedQueryConfig> extends Cockr
 				: fillPlaceholders(query.params, placeholderValues);
 			logger.logQuery(query.sql, params);
 			const res = executor(params).catch((e) => {
-				throw new DrizzleQueryError(query.sql, params, e as Error);
+				throw new DrizzleQueryError(query.sql, this.paramsInErrors ? params : undefined, e as Error);
 			});
 			if (!mapper) return res;
 
@@ -83,7 +84,7 @@ export class CockroachPreparedQuery<T extends PreparedQueryConfig> extends Cockr
 
 				// return await so tracer captures time accurately
 				return await executor(params).catch((e) => {
-					throw new DrizzleQueryError(query.sql, params, e as Error);
+					throw new DrizzleQueryError(query.sql, this.paramsInErrors ? params : undefined, e as Error);
 				});
 			});
 

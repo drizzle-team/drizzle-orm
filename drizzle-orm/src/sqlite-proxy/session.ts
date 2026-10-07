@@ -20,6 +20,7 @@ import type { SqliteProxyBatchItem, SqliteProxyExecutors, SqliteRemoteRunResult 
 export interface SQLiteRemoteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -71,6 +72,7 @@ export class SQLiteRemoteSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -121,7 +123,7 @@ export class SQLiteRemoteSession<
 			await this.run(sql`commit`);
 			return result;
 		} catch (err) {
-			await this.run(sql`rollback`);
+			await this.run(sql`rollback`).catch(() => {});
 			throw err;
 		}
 	}
@@ -149,7 +151,7 @@ export class SQLiteProxyTransaction<TRelations extends AnyRelations>
 			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

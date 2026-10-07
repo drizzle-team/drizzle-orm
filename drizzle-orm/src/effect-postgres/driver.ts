@@ -62,6 +62,7 @@ export const make = Effect.fn('PgDrizzle.make')(
 		const session = new EffectPgSession(client, dialect, relations, {
 			logger,
 			cache,
+			paramsInErrors: config.paramsInErrors,
 		});
 		const db = new EffectPgDatabase(dialect, session, relations) as EffectPgDatabase<TRelations>;
 		(<any> db).$client = client;
