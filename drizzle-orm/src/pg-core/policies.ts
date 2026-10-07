@@ -23,11 +23,11 @@ export interface PgPolicyConfig {
 export class PgPolicy implements PgPolicyConfig {
 	static readonly [entityKind]: string = 'PgPolicy';
 
-	readonly as: PgPolicyConfig['as'];
-	readonly for: PgPolicyConfig['for'];
-	readonly to: PgPolicyConfig['to'];
-	readonly using: PgPolicyConfig['using'];
-	readonly withCheck: PgPolicyConfig['withCheck'];
+	declare readonly as?: Required<PgPolicyConfig>['as'];
+	declare readonly for?: Required<PgPolicyConfig>['for'];
+	declare readonly to?: Required<PgPolicyConfig>['to'];
+	declare readonly using?: Required<PgPolicyConfig>['using'];
+	declare readonly withCheck?: Required<PgPolicyConfig>['withCheck'];
 
 	/** @internal */
 	_linkedTable?: PgTable;
@@ -37,11 +37,22 @@ export class PgPolicy implements PgPolicyConfig {
 		config?: PgPolicyConfig,
 	) {
 		if (config) {
-			this.as = config.as;
-			this.for = config.for;
-			this.to = config.to;
-			this.using = config.using;
-			this.withCheck = config.withCheck;
+			const { as, for: operation, to, using, withCheck } = config;
+			if (as !== undefined) {
+				this.as = as;
+			}
+			if (operation !== undefined) {
+				this.for = operation;
+			}
+			if (to !== undefined) {
+				this.to = to;
+			}
+			if (using !== undefined) {
+				this.using = using;
+			}
+			if (withCheck !== undefined) {
+				this.withCheck = withCheck;
+			}
 		}
 	}
 

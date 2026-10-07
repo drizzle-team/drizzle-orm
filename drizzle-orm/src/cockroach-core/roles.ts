@@ -11,16 +11,21 @@ export class CockroachRole implements CockroachRoleConfig {
 	/** @internal */
 	_existing?: boolean;
 
-	readonly createDb: CockroachRoleConfig['createDb'];
-	readonly createRole: CockroachRoleConfig['createRole'];
+	declare readonly createDb?: Required<CockroachRoleConfig>['createDb'];
+	declare readonly createRole?: Required<CockroachRoleConfig>['createRole'];
 
 	constructor(
 		readonly name: string,
 		config?: CockroachRoleConfig,
 	) {
 		if (config) {
-			this.createDb = config.createDb;
-			this.createRole = config.createRole;
+			const { createDb, createRole } = config;
+			if (createDb !== undefined) {
+				this.createDb = createDb;
+			}
+			if (createRole !== undefined) {
+				this.createRole = createRole;
+			}
 		}
 	}
 
