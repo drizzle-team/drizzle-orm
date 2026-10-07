@@ -22,11 +22,11 @@ export interface CockroachPolicyConfig {
 export class CockroachPolicy implements CockroachPolicyConfig {
 	static readonly [entityKind]: string = 'CockroachPolicy';
 
-	readonly as: CockroachPolicyConfig['as'];
-	readonly for: CockroachPolicyConfig['for'];
-	readonly to: CockroachPolicyConfig['to'];
-	readonly using: CockroachPolicyConfig['using'];
-	readonly withCheck: CockroachPolicyConfig['withCheck'];
+	declare readonly as?: Required<CockroachPolicyConfig>['as'];
+	declare readonly for?: Required<CockroachPolicyConfig>['for'];
+	declare readonly to?: Required<CockroachPolicyConfig>['to'];
+	declare readonly using?: Required<CockroachPolicyConfig>['using'];
+	declare readonly withCheck?: Required<CockroachPolicyConfig>['withCheck'];
 
 	/** @internal */
 	_linkedTable?: CockroachTable;
@@ -36,11 +36,22 @@ export class CockroachPolicy implements CockroachPolicyConfig {
 		config?: CockroachPolicyConfig,
 	) {
 		if (config) {
-			this.as = config.as;
-			this.for = config.for;
-			this.to = config.to;
-			this.using = config.using;
-			this.withCheck = config.withCheck;
+			const { as, for: operation, to, using, withCheck } = config;
+			if (as !== undefined) {
+				this.as = as;
+			}
+			if (operation !== undefined) {
+				this.for = operation;
+			}
+			if (to !== undefined) {
+				this.to = to;
+			}
+			if (using !== undefined) {
+				this.using = using;
+			}
+			if (withCheck !== undefined) {
+				this.withCheck = withCheck;
+			}
 		}
 	}
 

@@ -1,0 +1,14 @@
+{
+	"compilerOptions": {
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"target": "ESNext",
+		"strict": true,
+		"noEmit": true,
+		"skipLibCheck": false,
+		"exactOptionalPropertyTypes": true,
+		"noUncheckedIndexedAccess": true,
+		"types": ["node"]
+	},
+	"files": ["fixtures/policy-role-exact.ts"]
+}

@@ -12,18 +12,25 @@ export class PgRole implements PgRoleConfig {
 	/** @internal */
 	_existing?: boolean;
 
-	readonly createDb: PgRoleConfig['createDb'];
-	readonly createRole: PgRoleConfig['createRole'];
-	readonly inherit: PgRoleConfig['inherit'];
+	declare readonly createDb?: Required<PgRoleConfig>['createDb'];
+	declare readonly createRole?: Required<PgRoleConfig>['createRole'];
+	declare readonly inherit?: Required<PgRoleConfig>['inherit'];
 
 	constructor(
 		readonly name: string,
 		config?: PgRoleConfig,
 	) {
 		if (config) {
-			this.createDb = config.createDb;
-			this.createRole = config.createRole;
-			this.inherit = config.inherit;
+			const { createDb, createRole, inherit } = config;
+			if (createDb !== undefined) {
+				this.createDb = createDb;
+			}
+			if (createRole !== undefined) {
+				this.createRole = createRole;
+			}
+			if (inherit !== undefined) {
+				this.inherit = inherit;
+			}
 		}
 	}
 
