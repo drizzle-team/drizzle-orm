@@ -1,7 +1,5 @@
 import { is } from '~/entity.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { SQL } from '~/sql/sql.ts';
-import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -19,22 +17,8 @@ import { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { IndexForHint } from './query-builders/select.ts';
 import { MySqlTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
-import type { MySqlViewBase } from './view-base.ts';
 import { MySqlViewConfig } from './view-common.ts';
 import type { MySqlView } from './view.ts';
-
-export function extractUsedTable(table: MySqlTable | Subquery | MySqlViewBase | SQL): string[] {
-	if (is(table, MySqlTable)) {
-		return [`${table[Table.Symbol.BaseName]}`];
-	}
-	if (is(table, Subquery)) {
-		return table._.usedTables ?? [];
-	}
-	if (is(table, SQL)) {
-		return table.usedTables ?? [];
-	}
-	return [];
-}
 
 export function getTableConfig(table: MySqlTable) {
 	const columns = Object.values(table[MySqlTable.Symbol.Columns]);

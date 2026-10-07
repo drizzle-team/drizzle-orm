@@ -21,10 +21,10 @@ import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
+import { collectUsedTables } from '~/used-tables.ts';
 import { getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields, type ValueOrArray } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { View } from '~/view.ts';
-import { extractUsedTable } from '../utils.ts';
 import { SQLiteViewBase } from '../view-base.ts';
 import type {
 	AnySQLiteSelect,
@@ -201,7 +201,7 @@ export class SQLiteSelectBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
-		for (const item of extractUsedTable(table)) this.usedTables.add(item);
+		collectUsedTables(table, this.usedTables);
 	}
 
 	/** @internal */
@@ -222,7 +222,7 @@ export class SQLiteSelectBase<
 			const tableName = getTableLikeName(table);
 
 			// store all tables used in a query
-			for (const item of extractUsedTable(table)) this.usedTables.add(item);
+			collectUsedTables(table, this.usedTables);
 
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
@@ -845,14 +845,12 @@ export class SQLiteSelectBase<
 	as<TAlias extends string>(
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
-		const usedTables: string[] = [];
-		usedTables.push(...extractUsedTable(this.config.table));
-		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
+		const usedTables = new Set<string>();
+		collectUsedTables(this.config.table, usedTables);
+		if (this.config.joins) { for (const it of this.config.joins) collectUsedTables(it.table, usedTables); }
 
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias, false, [
-				...new Set(usedTables),
-			]),
+			new Subquery(this.getSQL(), this.config.fields, alias, false, usedTables),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}

@@ -5,9 +5,9 @@ import type { SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteInsertBuilder, SQLiteInsertHKTBase } from '~/sqlite-core/query-builders/insert.ts';
 import { SQLiteInsertBase } from '~/sqlite-core/query-builders/insert.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { SQLiteAsyncPreparedQuery, SQLiteAsyncPreparedQueryConfig, SQLiteAsyncSession } from './session.ts';
 
 export interface SQLiteAsyncInsertHKT extends SQLiteInsertHKTBase {
@@ -130,7 +130,7 @@ export class SQLiteAsyncInsertBase<
 			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
 			{
 				type: 'insert',
-				tables: extractUsedTable(this.config.table),
+				tables: usedTablesOf(this.config.table),
 			},
 		) as SQLiteAsyncInsertPrepare<this>;
 	}

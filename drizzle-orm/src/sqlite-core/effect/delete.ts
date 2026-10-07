@@ -6,8 +6,8 @@ import type { SQLiteDeleteHKTBase } from '~/sqlite-core/query-builders/delete.ts
 import { SQLiteDeleteBase } from '~/sqlite-core/query-builders/delete.ts';
 import type { PreparedQueryConfig } from '~/sqlite-core/session.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import type { Assume, DrizzleTypeError } from '~/utils.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { SQLiteEffectPreparedQuery, SQLiteEffectSession } from './session.ts';
 
 export interface SQLiteEffectDeleteHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
@@ -95,7 +95,7 @@ export class SQLiteEffectDeleteBase<
 			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
 			{
 				type: 'delete',
-				tables: extractUsedTable(this.config.table),
+				tables: usedTablesOf(this.config.table),
 			},
 		) as SQLiteEffectDeletePrepare<this, TEffectHKT>;
 	}

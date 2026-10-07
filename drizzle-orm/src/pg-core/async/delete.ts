@@ -6,9 +6,9 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
 import { PgDeleteBase, type PgDeleteHKTBase } from '../query-builders/delete.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
 
 export type PgAsyncDelete<
@@ -92,7 +92,7 @@ export class PgAsyncDeleteBase<
 				shape ? 'objects' : fields ? 'arrays' : 'raw',
 				name ?? generateName,
 				mapper,
-				{ type: 'delete', tables: [...extractUsedTable(this.config.table)] },
+				{ type: 'delete', tables: usedTablesOf(this.config.table) },
 				undefined,
 				shape,
 			);

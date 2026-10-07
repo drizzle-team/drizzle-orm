@@ -1,9 +1,7 @@
 import { is } from '~/entity.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { SQL } from '~/sql/sql.ts';
-import { Subquery } from '~/subquery.ts';
-import { Table, TableSchema } from '~/table.ts';
+import { Table } from '~/table.ts';
 import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
@@ -16,7 +14,6 @@ import { IndexBuilder } from './indexes.ts';
 import { PgPolicy } from './policies.ts';
 import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
-import type { PgViewBase } from './view-base.ts';
 import { PgMaterializedViewConfig, PgViewConfig } from './view-common.ts';
 import type { PgMaterializedView, PgView } from './view.ts';
 
@@ -68,21 +65,6 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 		policies,
 		enableRLS,
 	};
-}
-
-export function extractUsedTable(table: PgTable | Subquery | PgViewBase | SQL): string[] {
-	if (is(table, PgTable)) {
-		return [
-			table[TableSchema] ? `${table[TableSchema]}.${table[Table.Symbol.BaseName]}` : table[Table.Symbol.BaseName],
-		];
-	}
-	if (is(table, Subquery)) {
-		return table._.usedTables ?? [];
-	}
-	if (is(table, SQL)) {
-		return table.usedTables ?? [];
-	}
-	return [];
 }
 
 export function getViewConfig<T extends ViewConfig = ViewConfig>(view: PgView<T>) {

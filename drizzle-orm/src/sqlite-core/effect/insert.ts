@@ -6,8 +6,8 @@ import type { SQLiteInsertBuilder, SQLiteInsertHKTBase } from '~/sqlite-core/que
 import { SQLiteInsertBase } from '~/sqlite-core/query-builders/insert.ts';
 import type { PreparedQueryConfig } from '~/sqlite-core/session.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import type { Assume, DrizzleTypeError } from '~/utils.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { SQLiteEffectPreparedQuery, SQLiteEffectSession } from './session.ts';
 
 export interface SQLiteEffectInsertHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
@@ -109,7 +109,7 @@ export class SQLiteEffectInsertBase<
 			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
 			{
 				type: 'insert',
-				tables: extractUsedTable(this.config.table),
+				tables: usedTablesOf(this.config.table),
 			},
 		) as SQLiteEffectInsertPrepare<this, TEffectHKT>;
 	}

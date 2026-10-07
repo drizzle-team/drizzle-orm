@@ -6,9 +6,9 @@ import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import type { Assume } from '~/utils.ts';
 import { PgDeleteBase, type PgDeleteHKTBase } from '../query-builders/delete.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
 
 export type PgEffectDelete<
@@ -107,7 +107,7 @@ export class PgEffectDeleteBase<
 			fields ? 'arrays' : 'raw',
 			name ?? generateName,
 			mapper,
-			{ type: 'delete', tables: [...extractUsedTable(this.config.table)] },
+			{ type: 'delete', tables: usedTablesOf(this.config.table) },
 		);
 
 		return preparedQuery;

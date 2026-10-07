@@ -5,10 +5,10 @@ import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~
 import type { PgTable } from '~/pg-core/table.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import type { Assume } from '~/utils.ts';
 import type { PgInsertHKTBase } from '../query-builders/insert.ts';
 import { PgInsertBase } from '../query-builders/insert.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
 
 export interface PgEffectInsertHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase> extends PgInsertHKTBase {
@@ -102,7 +102,7 @@ export class PgEffectInsertBase<
 			fields ? 'arrays' : 'raw',
 			name ?? generateName,
 			mapper,
-			{ type: 'insert', tables: [...extractUsedTable(this.config.table)] },
+			{ type: 'insert', tables: usedTablesOf(this.config.table) },
 		);
 
 		return preparedQuery;
