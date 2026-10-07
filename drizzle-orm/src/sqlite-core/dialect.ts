@@ -23,6 +23,7 @@ import {
 	type SchemaEntry,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
+	validateRelationalQuerySelection,
 	type WithContainer,
 } from '~/relations.ts';
 import type { Name, Placeholder, SQLWrapper } from '~/sql/index.ts';
@@ -1135,6 +1136,10 @@ export class SQLiteDialect {
 		const selectionArr = [columns, extras?.sql, joins].filter(
 			(e) => e !== undefined,
 		);
+		if (extras?.selection.length) {
+			validateRelationalQuerySelection(selection, tableConfig.name, currentPath);
+		}
+
 		if (!selectionArr.length) {
 			throw new DrizzleError({
 				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,

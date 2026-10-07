@@ -26,6 +26,7 @@ import {
 	relationsOrderToSQL,
 	relationToSQL,
 	type SchemaEntry,
+	validateRelationalQuerySelection,
 } from '~/relations.ts';
 import { and } from '~/sql/expressions/index.ts';
 import type { DriverValueDecoder, Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
@@ -1166,6 +1167,10 @@ export class SingleStoreDialect {
 
 				break;
 			}
+		}
+
+		if (extras?.selection.length) {
+			validateRelationalQuerySelection(selection, tableConfig.name, currentPath);
 		}
 
 		if (!selectionArr.length) {
