@@ -13,6 +13,7 @@ import { tests as cacheTests } from './sqlite-common-cache';
 const skip = [
 	// Uses async versions
 	'sync transaction rollback',
+	'Query error params - sync transaction',
 	'sync nested transaction rollback',
 	// Has no object mode querying; codecs are user-provided
 	'all types ~codecs~',

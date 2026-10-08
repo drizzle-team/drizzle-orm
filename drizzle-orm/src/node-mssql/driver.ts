@@ -14,6 +14,7 @@ import { NodeMsSqlSession } from './session.ts';
 
 export interface MsSqlDriverOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export class NodeMsSqlDriver {
@@ -31,6 +32,7 @@ export class NodeMsSqlDriver {
 	): NodeMsSqlSession<AnyRelations> {
 		return new NodeMsSqlSession(this.client, this.dialect, relations, {
 			logger: this.options.logger,
+			paramsInErrors: this.options.paramsInErrors,
 		});
 	}
 }
@@ -68,6 +70,7 @@ function construct<
 
 	const driver = new NodeMsSqlDriver(client as NodeMsSqlClient, dialect, {
 		logger,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const session = driver.createSession(relations);
 	const db = new MsSqlDatabase(dialect, session, relations) as NodeMsSqlDatabase<TRelations>;

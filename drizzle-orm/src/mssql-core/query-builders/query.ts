@@ -11,7 +11,6 @@ import type {
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import type { KnownKeysOnly } from '~/utils.ts';
 import type { MsSqlDialect } from '../dialect.ts';
 import type { MsSqlSession, PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
 import type { MsSqlTable } from '../table.ts';
@@ -32,7 +31,8 @@ export class RelationalQueryBuilder<
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
+		config?: DBQueryConfig<'many', TSchema, TFields> extends TConfig ? TConfig
+			: DBQueryConfig<'many', TSchema, TFields>,
 	): MsSqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new MsSqlRelationalQuery(
 			this.schema,
@@ -46,7 +46,8 @@ export class RelationalQueryBuilder<
 	}
 
 	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>,
+		config?: DBQueryConfig<'one', TSchema, TFields> extends TConfig ? TConfig
+			: DBQueryConfig<'one', TSchema, TFields>,
 	): MsSqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return new MsSqlRelationalQuery(
 			this.schema,

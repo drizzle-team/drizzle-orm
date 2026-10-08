@@ -15,7 +15,7 @@ export function swapDrizzleVersion(path: string, version: 'beta' | 'current') {
 	);
 }
 
-export function runTsDiagnostics(folder: string, file: string, ormVer: 'beta' | 'current', tsVer: 'latest' | 'next') {
+export function runTsDiagnostics(folder: string, file: string, ormVer: 'beta' | 'current') {
 	const targetPath = `./cases/${folder}/${file}.ts`;
 
 	fs.writeFileSync(
@@ -33,7 +33,7 @@ export function runTsDiagnostics(folder: string, file: string, ormVer: 'beta' | 
 	swapDrizzleVersion(targetPath, ormVer);
 
 	return childProcess.execSync(
-		`pnpm ./node_modules/ts${tsVer}/bin/tsc --diagnostics --incremental false --noEmit true -p ./tmp.tsconfig.json`,
+		`pnpm tsc --diagnostics --incremental false --noEmit true -p ./tmp.tsconfig.json`,
 	);
 }
 
@@ -50,7 +50,7 @@ export type DiagnosticsResult = {
 	data: TSCDiagOutput;
 };
 
-export function bench(folder: string, ormVer: 'beta' | 'current', tsVer: 'latest' | 'next' = 'latest') {
+export function bench(folder: string, ormVer: 'beta' | 'current') {
 	let baseCase: TSCDiagOutput | undefined;
 	const rawCases = [] as DiagnosticsResult[];
 	const errCases: string[] = [];
@@ -61,7 +61,7 @@ export function bench(folder: string, ormVer: 'beta' | 'current', tsVer: 'latest
 
 	for (const name of listTestFiles(folder)) {
 		try {
-			const raw = runTsDiagnostics(folder, name, ormVer, tsVer);
+			const raw = runTsDiagnostics(folder, name, ormVer);
 			const parsed = parseDiagOutput(raw);
 
 			if (name === 'base') {

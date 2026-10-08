@@ -213,7 +213,10 @@ export const createFolderFlow = () => {
 		const filters = { schemas: undefined, tables: undefined, entities: undefined, extensions: undefined };
 		const migrations = { table: '__drizzle_migrations', schema: 'drizzle' };
 		const credentials = { driver: 'pglite', url: 'memory://' } as const;
-		await atTime(undefined, () => pullHandle('camel', dirOf(branch), true, credentials, filters, migrations, db));
+		await atTime(
+			undefined,
+			() => pullHandle('camel', dirOf(branch), true, credentials, filters, migrations, false, db),
+		);
 	};
 
 	const check = async (branch: string): Promise<CheckResult> => {

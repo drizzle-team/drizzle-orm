@@ -66,6 +66,7 @@ export const make = Effect.fn('SQLiteWasmDrizzle.make')(
 		const session = new EffectSQLiteWasmSession(client, dialect, relations, {
 			logger,
 			cache,
+			paramsInErrors: config.paramsInErrors,
 		});
 		const db = new EffectSQLiteWasmDatabase(dialect, session, relations);
 		(<any> db).$client = client;

@@ -1,7 +1,7 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
 import type { Result } from '@effect/sql-pg/PgConnection';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
@@ -31,6 +31,7 @@ export interface EffectPgQueryResultHKT extends PgQueryResultHKT {
 export interface EffectPgSessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
+	paramsInErrors?: boolean;
 }
 
 export class EffectPgSession<
@@ -76,6 +77,7 @@ export class EffectPgSession<
 			this.options.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

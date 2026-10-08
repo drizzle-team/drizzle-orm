@@ -328,7 +328,7 @@ test('alter text type to enum type', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3589
 // After discussion it was decided to postpone this feature
-test.skipIf(Date.now() < +new Date('2026-11-08'))('alter integer type to text type with fk constraints', async () => {
+test.skipIf(Date.now() < +new Date('2026-10-10'))('alter integer type to text type with fk constraints', async () => {
 	const users1 = pgTable('users', {
 		id: serial().primaryKey(),
 	});
@@ -1805,4 +1805,46 @@ test('a change from serial to bigserial in a custom schema changes the integer t
 	const st0 = ['ALTER TABLE "folder"."users" ALTER COLUMN "id" SET DATA TYPE bigint USING "id"::bigint;'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6360
+test('Issue No6360', async () => {
+	const a1 = pgTable('a', {
+		id: text('id').primaryKey(),
+		user_id: text('user_id').notNull(),
+	});
+
+	const b1 = pgTable('b', {
+		id: text('id').primaryKey(),
+		user_id: text('user_id').notNull(),
+	});
+
+	const schema1 = { a1, b1 };
+
+	const a2 = pgTable('a', {
+		id: text('id').primaryKey(),
+		user_id: text('org_id').notNull(), // new name
+	});
+
+	const b2 = pgTable('b', {
+		id: text('id').primaryKey(),
+		user_id: text('user_id'), // dropped not null
+	});
+
+	const schema2 = { a2, b2 };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, [`public.a.user_id->public.a.org_id`]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({
+		db,
+		to: schema2,
+		renames: [`public.a.user_id->public.a.org_id`],
+	});
+
+	const st0 = [
+		`ALTER TABLE "a" RENAME COLUMN "user_id" TO "org_id";`,
+		`ALTER TABLE "b" ALTER COLUMN "user_id" DROP NOT NULL;`,
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
 });

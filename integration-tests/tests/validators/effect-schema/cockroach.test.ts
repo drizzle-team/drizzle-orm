@@ -494,7 +494,7 @@ test('all data types', (t) => {
 			s.isGreaterThanOrEqualToBigInt(CONSTANTS.INT64_MIN),
 			s.isLessThanOrEqualToBigInt(CONSTANTS.INT64_MAX),
 		),
-		bit: s.String.check(s.isPattern(/^[01]*$/), s.isLengthBetween(5, 5)),
+		bit: s.String.check(s.isPattern(/^[01]*$/), s.isBetweenLength(5, 5)),
 		boolean: s.Boolean,
 		char1: s.String.check(s.isMaxLength(10)),
 		char2: s.Literals(['a', 'b', 'c']),
@@ -565,7 +565,7 @@ test('all data types', (t) => {
 		uuid: s.String.check(s.isUUID()),
 		varchar1: s.String.check(s.isMaxLength(10)),
 		varchar2: s.Literals(['a', 'b', 'c']),
-		vector: s.Array(s.Number).check(s.isLengthBetween(3, 3)),
+		vector: s.Array(s.Number).check(s.isBetweenLength(3, 3)),
 		array: s.Array(int4Schema),
 	});
 

@@ -286,18 +286,14 @@ Expect<
 	]);
 
 	// @ts-expect-error
-	db.insert(identityColumnsTable).values([
-		{ alwaysAsIdentity: 2 },
-	]);
+	db.insert(identityColumnsTable).values([{ alwaysAsIdentity: 2 }]);
 
 	db.insert(identityColumnsTable).overridingSystemValue().values([
 		{ alwaysAsIdentity: 2 },
 	]);
 
 	// @ts-expect-error
-	db.insert(identityColumnsTable).values([
-		{ generatedCol: 2 },
-	]);
+	db.insert(identityColumnsTable).values([{ generatedCol: 2 }]);
 }
 
 // Insert with explicit column selection

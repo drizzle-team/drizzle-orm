@@ -1,6 +1,6 @@
 import type { MysqlClient } from '@effect/sql-mysql2/MysqlClient';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -33,6 +33,7 @@ export interface EffectMysql2QueryResultHKT extends MySqlQueryResultHKT {
 export interface EffectMysql2SessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
+	paramsInErrors?: boolean;
 }
 
 export class EffectMysql2Session<
@@ -82,6 +83,7 @@ export class EffectMysql2Session<
 			this.options.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

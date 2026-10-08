@@ -23,7 +23,10 @@ export class Subquery<
 		selectedFields: TSelectedFields;
 		alias: TAlias;
 		isWith: boolean;
-		usedTables?: string[];
+		// Kept as an Iterable (a Set from a select's `.as()`, or a raw SQL's cached string[])
+		// so it can be stored as-is — the parent's `collectUsedTables` dedups when it merges
+		// this in, so no array/Set need be materialised here.
+		usedTables?: Iterable<string>;
 	};
 
 	/** @internal */
@@ -51,7 +54,7 @@ export class Subquery<
 		return this._.selectedFields as Record<string, unknown>;
 	}
 
-	constructor(sql: SQL, fields: TSelectedFields, alias: string, isWith = false, usedTables: string[] = []) {
+	constructor(sql: SQL, fields: TSelectedFields, alias: string, isWith = false, usedTables: Iterable<string> = []) {
 		this._ = {
 			brand: 'Subquery',
 			sql,

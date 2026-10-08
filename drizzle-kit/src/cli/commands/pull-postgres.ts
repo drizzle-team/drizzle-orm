@@ -51,6 +51,7 @@ export const handle = async (
 		table: string;
 		schema: string;
 	},
+	init: boolean,
 	db?: Awaited<ReturnType<typeof preparePostgresDB>>,
 ) => {
 	const { snapshots } = prepareOutFolder(out);
@@ -126,6 +127,7 @@ export const handle = async (
 			sqlStatements,
 			outFolder: out,
 			breakpoints,
+			init,
 			type: 'introspect',
 			snapshots,
 		}));

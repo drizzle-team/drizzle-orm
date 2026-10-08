@@ -1,7 +1,7 @@
 import type { SqliteClient } from '@effect/sql-sqlite-node/SqliteClient';
 import type { ResultSet } from '@libsql/client';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
 import type { StatementResultingChanges } from 'node:sqlite';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
@@ -397,7 +397,7 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 	const get = db.get<UserInterface>(`select 1 as id, 'a' as name`, 'objects');
 	type GetEffect = AsEffect<typeof get>;
 
-	Expect<Equal<GetEffect, Effect.Effect<UserInterface, EffectDrizzleQueryError, never>>>;
+	Expect<Equal<GetEffect, Effect.Effect<UserInterface | undefined, EffectDrizzleQueryError, never>>>;
 }
 
 {

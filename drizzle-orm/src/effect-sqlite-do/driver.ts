@@ -65,6 +65,7 @@ export const make = Effect.fn('SQLiteDODrizzle.make')(
 		const session = new EffectSQLiteDOSession(client, dialect, relations, {
 			logger,
 			cache,
+			paramsInErrors: config.paramsInErrors,
 		});
 		const db = new EffectSQLiteDoDatabase(dialect, session, relations);
 		(<any> db).$client = client;

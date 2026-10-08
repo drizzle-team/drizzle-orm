@@ -2968,3 +2968,28 @@ test('a rename chain from a unique constraint over a primary key to an index kee
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6386
+test('Issue No6368', async () => {
+	const chunks = pgTable(
+		'chunk',
+		{ itemId: text('item_id').notNull(), kind: text().notNull(), text: text().notNull() },
+		(t) => [
+			uniqueIndex('chunk_item_kind_md5_uniq').on(t.itemId, t.kind, sql`md5(${t.text})`),
+		],
+	);
+
+	const { sqlStatements: st1 } = await diff({}, { chunks }, []);
+	const { sqlStatements: pst1 } = await push({ db, to: { chunks } });
+
+	const st0 = [
+		`CREATE TABLE \"chunk\" (
+\t"item_id" text NOT NULL,
+\t"kind" text NOT NULL,
+\t"text" text NOT NULL
+);\n`,
+		'CREATE UNIQUE INDEX "chunk_item_kind_md5_uniq" ON "chunk" ("item_id","kind",md5("text"));',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});

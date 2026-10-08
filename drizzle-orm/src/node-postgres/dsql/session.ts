@@ -77,6 +77,7 @@ export interface NodePgDsqlTransactionConfig extends DsqlTransactionConfig {
 export interface NodePgDsqlSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class NodePgDsqlSession<
@@ -134,6 +135,7 @@ export class NodePgDsqlSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

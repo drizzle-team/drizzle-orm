@@ -71,6 +71,7 @@ function construct<
 		relations,
 		{
 			logger,
+			paramsInErrors: config.paramsInErrors,
 		},
 	);
 	const db = new SQLiteBunDatabase('sync', dialect, session, relations);

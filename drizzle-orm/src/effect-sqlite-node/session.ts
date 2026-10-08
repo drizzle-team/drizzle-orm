@@ -1,6 +1,6 @@
 import type { SqliteClient } from '@effect/sql-sqlite-node/SqliteClient';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
 import type { StatementResultingChanges } from 'node:sqlite';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -29,6 +29,7 @@ export type EffectSQLiteNodeRunResult = StatementResultingChanges;
 export interface EffectSQLiteNodeSessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
+	paramsInErrors?: boolean;
 }
 
 export class EffectSQLiteNodeSession<TRelations extends AnyRelations>
@@ -87,6 +88,7 @@ export class EffectSQLiteNodeSession<TRelations extends AnyRelations>
 			this.options.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

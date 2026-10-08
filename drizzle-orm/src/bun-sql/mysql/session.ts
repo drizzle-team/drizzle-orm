@@ -14,6 +14,7 @@ import type { Query } from '~/sql/sql.ts';
 export interface BunMySqlSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class BunMySqlSession<
@@ -70,6 +71,7 @@ export class BunMySqlSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

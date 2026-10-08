@@ -11,7 +11,6 @@ import type {
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
-import type { KnownKeysOnly } from '~/utils.ts';
 import type { CockroachDialect } from '../dialect.ts';
 import type { CockroachPreparedQuery, CockroachSession, PreparedQueryConfig } from '../session.ts';
 import type { CockroachTable } from '../table.ts';
@@ -31,7 +30,8 @@ export class RelationalQueryBuilder<
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
+		config?: DBQueryConfig<'many', TSchema, TFields> extends TConfig ? TConfig
+			: DBQueryConfig<'many', TSchema, TFields>,
 	): CockroachRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new CockroachRelationalQuery(
 			this.schema,
@@ -45,7 +45,8 @@ export class RelationalQueryBuilder<
 	}
 
 	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>,
+		config?: DBQueryConfig<'one', TSchema, TFields> extends TConfig ? TConfig
+			: DBQueryConfig<'one', TSchema, TFields>,
 	): CockroachRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return new CockroachRelationalQuery(
 			this.schema,

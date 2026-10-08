@@ -1,6 +1,6 @@
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
 import { EffectCache, type EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -50,6 +50,7 @@ export class MySqlEffectPreparedQuery<
 		} | undefined,
 		// config that was passed through $withCache
 		protected cacheConfig: WithCacheConfig | undefined,
+		protected paramsInErrors: boolean | undefined,
 	) {
 		super(query);
 		this.mapper = mapper;
@@ -134,7 +135,13 @@ export class MySqlEffectPreparedQuery<
 		}).pipe(
 			Effect.provideService(EffectCache, this.cache),
 			Effect.catch((e) => {
-				return Effect.fail(new EffectDrizzleQueryError({ query: queryString, params, cause: Cause.fail(e) }));
+				return Effect.fail(
+					new EffectDrizzleQueryError({
+						query: queryString,
+						params: this.paramsInErrors ? params : undefined,
+						cause: Cause.fail(e),
+					}),
+				);
 			}),
 		);
 	}

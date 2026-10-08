@@ -18,163 +18,139 @@ import {
 	parsePointXY,
 	type PgCodecs,
 	refineGenericPgCodecs,
-	textToDate,
-	textToDateWithTz,
 } from '~/pg-core/codecs.ts';
 import { sql } from '~/sql/sql.ts';
 
 const stringifyBigint = (value: bigint) => value.toString();
 
 // For arrays
-const pgTextToBool = (value: string) => value === 't' || value === 'true';
-const pgTextToBuffer = (value: string) => Buffer.from(value.slice(2), 'hex');
 const bufferToPgHex = (value: any) => `\\x${Buffer.from(value).toString('hex')}`;
 
 const jsonStringify = (value: any) => JSON.stringify(value);
-const jsonParse = (value: string) => JSON.parse(value);
 
-/** Unused by driver functional set of codecs provided for extension */
+/** Unused by driver functional set of codecs provided for extension
+ *
+ * Assumes the default type config
+ */
 export const minipgCodecs = refineGenericPgCodecs({
 	smallint: {
-		normalizeArray: parsePgArrayAndNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	int: {
-		normalizeArray: parsePgArrayAndNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	serial: {
-		normalizeArray: parsePgArrayAndNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	smallserial: {
-		normalizeArray: parsePgArrayAndNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	float4: {
-		normalizeArray: parsePgArrayAndNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	float8: {
-		normalizeArray: parsePgArrayAndNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	bigint: {
 		normalize: BigInt,
-		normalizeArray: parsePgArrayAndNormalize(BigInt),
 		normalizeParam: stringifyBigint,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'bigint:number': {
 		normalize: Number,
-		normalizeArray: parsePgArrayAndNormalize(Number),
+		normalizeArray: arrayCompatNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'bigint:string': {
 		normalize: String,
-		normalizeArray: (v) => parsePgArray(v),
+		normalizeArray: arrayCompatNormalize(String),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	bigserial: {
 		normalize: BigInt,
-		normalizeArray: parsePgArrayAndNormalize(BigInt),
 		normalizeParam: stringifyBigint,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'bigserial:number': {
 		normalize: Number,
-		normalizeArray: parsePgArrayAndNormalize(Number),
+		normalizeArray: arrayCompatNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	numeric: {
-		normalizeArray: (v) => parsePgArray(v),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'numeric:number': {
 		normalize: Number,
-		normalizeArray: parsePgArrayAndNormalize(Number),
+		normalizeArray: arrayCompatNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'numeric:bigint': {
 		normalize: BigInt,
-		normalizeArray: parsePgArrayAndNormalize(BigInt),
+		normalizeArray: arrayCompatNormalize(BigInt),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	money: {
-		normalizeArray: (v) => parsePgArray(v),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
-	char: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
-	varchar: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
-	text: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
+	char: { normalizeParamArray: (v) => makePgArray(v) },
+	varchar: { normalizeParamArray: (v) => makePgArray(v) },
+	text: { normalizeParamArray: (v) => makePgArray(v) },
 	xml: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
 	bytea: {
-		normalizeArray: parsePgArrayAndNormalize(pgTextToBuffer),
 		normalizeParamArray: arrayCompatNormalizeInput(bufferToPgHex, true),
 	},
 	date: {
-		normalize: textToDate,
-		normalizeArray: parsePgArrayAndNormalize(textToDate),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'date:string': {
 		cast: castToText,
 		castArray: castToTextArr,
-		normalizeArray: (v) => parsePgArray(v),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
-	time: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
+	time: { normalizeParamArray: (v) => makePgArray(v) },
 	timetz: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
 	timestamp: {
-		normalize: textToDateWithTz,
-		normalizeArray: parsePgArrayAndNormalize(textToDateWithTz),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	timestamptz: {
-		normalize: textToDate,
-		normalizeArray: parsePgArrayAndNormalize(textToDate),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'timestamp:string': {
 		cast: castToText,
 		castArray: castToTextArr,
-		normalizeArray: (v) => parsePgArray(v),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'timestamptz:string': {
 		cast: castToText,
 		castArray: castToTextArr,
-		normalizeArray: (v) => parsePgArray(v),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
-	interval: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
+	interval: { normalizeParamArray: (v) => makePgArray(v) },
 	bool: {
-		normalizeArray: parsePgArrayAndNormalize(pgTextToBool),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	enum: {
 		castArray: castToTextArr,
-		normalizeArray: (v) => parsePgArray(v),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	point: {
 		normalize: parsePointXY,
-		normalizeArray: parsePgArrayAndNormalize(parsePointXY),
+		normalizeArray: arrayCompatNormalize(parsePointXY),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'point:tuple': {
 		normalize: parsePointTuple,
-		normalizeArray: parsePgArrayAndNormalize(parsePointTuple),
+		normalizeArray: arrayCompatNormalize(parsePointTuple),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	line: {
 		normalize: parseLineABC,
-		normalizeArray: parsePgArrayAndNormalize(parseLineABC),
+		normalizeArray: arrayCompatNormalize(parseLineABC),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'line:tuple': {
 		normalize: parseLineTuple,
-		normalizeArray: parsePgArrayAndNormalize(parseLineTuple),
+		normalizeArray: arrayCompatNormalize(parseLineTuple),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	lseg: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
@@ -187,21 +163,18 @@ export const minipgCodecs = refineGenericPgCodecs({
 	macaddr: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
 	macaddr8: {
 		castArray: castToTextArr,
-		normalizeArray: (v) => parsePgArray(v),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	bit: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
 	varbit: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
 	tsvector: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
 	tsquery: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
-	uuid: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
+	uuid: { normalizeParamArray: (v) => makePgArray(v) },
 	json: {
-		normalizeArray: parsePgArrayAndNormalize(jsonParse),
 		normalizeParam: jsonStringify,
 		normalizeParamArray: arrayCompatNormalizeInput(jsonStringify, true),
 	},
 	jsonb: {
-		normalizeArray: parsePgArrayAndNormalize(jsonParse),
 		normalizeParam: jsonStringify,
 		normalizeParamArray: arrayCompatNormalizeInput(jsonStringify, true),
 	},
@@ -217,7 +190,7 @@ export const minipgCodecs = refineGenericPgCodecs({
 	tsmultirange: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
 	tstzmultirange: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
 	datemultirange: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
-	oid: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
+	oid: { normalizeParamArray: (v) => makePgArray(v) },
 	regproc: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
 	regprocedure: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
 	regoper: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },

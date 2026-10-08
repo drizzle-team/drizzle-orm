@@ -53,8 +53,8 @@ import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
 import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
-import { SqlClient } from 'effect/unstable/sql/SqlClient';
-import { SqlError } from 'effect/unstable/sql/SqlError';
+import { SqlClient } from 'effect/sql/SqlClient';
+import { SqlError } from 'effect/sql/SqlError';
 import {
 	type AllTypes,
 	allTypesData,
@@ -5144,6 +5144,40 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					defMix3: 2,
 					defMix4: 1,
 				}]);
+			}));
+
+		it.effect('Query error params', () =>
+			Effect.gen(function*() {
+				for (const paramsInErrors of [undefined, false, true]) {
+					const db = yield* PgDrizzle.make({ paramsInErrors }).pipe(Effect.provide(PgDrizzle.DefaultServices));
+
+					const error: any = yield* db.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`).pipe(
+						Effect.flip,
+					);
+
+					expect(error._tag).toBe('EffectDrizzleQueryError');
+					expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+					expect(error.message).toBe(
+						paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+					);
+				}
+			}));
+
+		it.effect('Query error params - transaction', () =>
+			Effect.gen(function*() {
+				for (const paramsInErrors of [undefined, false, true]) {
+					const db = yield* PgDrizzle.make({ paramsInErrors }).pipe(Effect.provide(PgDrizzle.DefaultServices));
+
+					const error: any = yield* db.transaction((tx) =>
+						tx.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`)
+					).pipe(Effect.flip);
+
+					expect(error._tag).toBe('EffectDrizzleQueryError');
+					expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+					expect(error.message).toBe(
+						paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+					);
+				}
 			}));
 
 		addTests?.(it);

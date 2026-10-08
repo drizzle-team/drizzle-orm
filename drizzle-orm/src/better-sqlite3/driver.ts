@@ -48,6 +48,7 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 		relations,
 		{
 			logger,
+			paramsInErrors: config.paramsInErrors,
 		},
 	);
 	const db = new BetterSQLite3Database('sync', dialect, session, relations);

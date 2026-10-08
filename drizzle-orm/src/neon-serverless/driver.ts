@@ -48,6 +48,7 @@ function construct<
 	const session = new NeonSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new NeonDatabase(dialect, session, relations) as NeonDatabase<TRelations>;
 	(<any> db).$client = client;

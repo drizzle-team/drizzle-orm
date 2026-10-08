@@ -638,11 +638,11 @@ export class SQLiteAsyncDatabase<
 	get<TRow extends unknown[] = unknown[]>(
 		query: SQLWrapper | string,
 		mode: 'arrays',
-	): DBResult<TResultKind, TRow>;
+	): DBResult<TResultKind, TRow | undefined>;
 	get<TRow extends Record<string, any> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 		mode?: 'objects' | undefined,
-	): DBResult<TResultKind, TRow>;
+	): DBResult<TResultKind, TRow | undefined>;
 	get(
 		query: SQLWrapper | string,
 		mode?: 'arrays' | 'objects' | undefined,
