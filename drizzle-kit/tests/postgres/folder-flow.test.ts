@@ -5,7 +5,17 @@ import { errorToEnvelope } from 'src/cli/errors';
 import type { Delta } from 'src/dialects/dialect';
 import { expect, onTestFinished, test } from 'vitest';
 import { ORIGIN, writeSnapshot } from '../other/check-fixtures';
-import { columnRow, createFolderFlow, malformedEnvelope, reconstructFix, schemaState, tempDir } from './folder-flow';
+import {
+	columnRow,
+	createFolderFlow,
+	forkFlow,
+	malformedEnvelope,
+	reconstructFix,
+	rename,
+	schemaState,
+	step,
+	tempDir,
+} from './folder-flow';
 
 test('linear history with a column rename', async () => {
 	const flow = createFolderFlow();
@@ -15,9 +25,7 @@ test('linear history with a column rename', async () => {
 
 	await flow.generate('main', v1);
 	await flow.generate('main', v2);
-	await flow.generate('main', v3, {
-		hints: [{ type: 'rename', kind: 'column', from: ['public', 'users', 'email'], to: ['public', 'users', 'contact'] }],
-	});
+	await flow.generate('main', v3, { hints: [rename('column', 'public.users.email', 'public.users.contact')] });
 	const unchanged = await flow.generate('main', v3);
 
 	expect(unchanged.status).toBe('no_changes');
@@ -58,9 +66,7 @@ test('a role rename writes only the rename, and its snapshot stores one rename d
 	});
 	await flow.generate('main', schema(pgRole('staff')));
 
-	const { folder } = await flow.generate('main', schema(pgRole('team')), {
-		hints: [{ type: 'rename', kind: 'role', from: ['staff'], to: ['team'] }],
-	});
+	const { folder } = await flow.generate('main', schema(pgRole('team')), { hints: [rename('role', 'staff', 'team')] });
 
 	expect(flow.sql('main', folder!)).toBe('ALTER ROLE "staff" RENAME TO "team";');
 	expect(flow.deltas('main', folder!)).toStrictEqual([
@@ -98,34 +104,28 @@ test('generate stores the statements of each migration, and a custom migration s
 });
 
 test('check takes its conflicts from the stored statements of the snapshots', async () => {
-	const flow = createFolderFlow();
-	const users = pgTable('users', { id: integer() });
-	await flow.generate('main', { users });
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	await flow.generate('a', { users: pgTable('users', { id: integer(), email: varchar() }) });
-	const { folder } = await flow.generate('b', { users: pgTable('users', { id: integer(), email: text() }) });
-	flow.merge('main', 'a', 'b');
+	const { flow, folders } = await forkFlow({
+		base: { users: pgTable('users', { id: integer() }) },
+		branches: [
+			[step({ users: pgTable('users', { id: integer(), email: varchar() }) })],
+			[step({ users: pgTable('users', { id: integer(), email: text() }) })],
+		],
+	});
+	const folder = folders[1][0];
 	expect(await flow.check('main')).toMatchObject({ status: 'conflicts' });
 
 	// The deltas of both branches still add the same column. Check does not rebuild statements from them.
-	flow.overwriteSnapshot('main', folder!, JSON.stringify({ ...flow.snapshot('main', folder!), statements: [] }));
+	flow.overwriteSnapshot('main', folder, JSON.stringify({ ...flow.snapshot('main', folder), statements: [] }));
 
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 });
 
 test('no snapshot that generate or up writes has a stateHash field', async () => {
-	const flow = createFolderFlow();
 	const users = pgTable('users', { id: integer() });
 	const likes = pgTable('likes', { id: integer() });
 	const groups = pgTable('groups', { id: integer() });
 	const merged = { users: pgTable('users', { id: integer(), email: varchar() }), likes, groups };
-	await flow.generate('main', { users });
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	await flow.generate('a', { users, likes });
-	await flow.generate('b', { users, groups });
-	flow.merge('main', 'a', 'b');
+	const { flow } = await forkFlow({ base: { users }, branches: [[step({ users, likes })], [step({ users, groups })]] });
 	await flow.generate('main', merged);
 	await flow.generate('main', merged, { custom: true });
 	const converted = createFolderFlow();
@@ -289,64 +289,58 @@ test('after a column drop, an index of that column stays in the state with its o
 });
 
 test('generate names the leaf that does not reconstruct when it is not the first parent', async () => {
-	const flow = createFolderFlow();
 	const users = pgTable('users', { id: integer() });
 	const likes = pgTable('likes', { id: integer() });
 	const groups = pgTable('groups', { id: integer() });
-	await flow.generate('main', { users });
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	const older = await flow.generate('a', { users, likes });
-	const newer = await flow.generate('b', { users, groups });
-	flow.merge('main', 'a', 'b');
-	flow.appendDeltas('main', older.folder!, renameUsersTo('likes'));
-	expect(flow.leaves('main')).toStrictEqual([older.folder, newer.folder]);
+	const { flow, folders: [[older], [newer]] } = await forkFlow({
+		base: { users },
+		branches: [[step({ users, likes })], [step({ users, groups })]],
+	});
+	flow.appendDeltas('main', older, renameUsersTo('likes'));
+	expect(flow.leaves('main')).toStrictEqual([older, newer]);
 	const before = flow.files('main');
 
 	const error = await flow.generate('main', { users, likes, groups, posts: pgTable('posts', { id: integer() }) })
 		.catch((e) => e);
 
-	expect(error.message).toContain(`Cannot reconstruct the state of migration ${older.folder}: `);
-	expect(error.message).toContain(reconstructFix(older.folder!));
-	expect(errorToEnvelope(error)).toStrictEqual(malformedEnvelope(older.folder!));
+	expect(error.message).toContain(`Cannot reconstruct the state of migration ${older}: `);
+	expect(error.message).toContain(reconstructFix(older));
+	expect(errorToEnvelope(error)).toStrictEqual(malformedEnvelope(older));
 	expect(flow.files('main')).toStrictEqual(before);
 });
 
 test('generate --fix-conflicts does not reconstruct a leaf that the fix deletes', async () => {
-	const flow = createFolderFlow();
 	const tags = pgTable('tags', { id: integer() });
-	await flow.generate('main', { users: pgTable('users', { score: integer() }) });
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	const a = await flow.generate('a', { users: pgTable('users', { score: integer().default(1) }), tags });
-	const b = await flow.generate('b', { users: pgTable('users', { score: integer().default(2) }) });
-	flow.merge('main', 'a', 'b');
-	flow.appendDeltas('main', a.folder!, renameUsersTo('tags'));
+	const { flow, folders: [[a], [b]] } = await forkFlow({
+		base: { users: pgTable('users', { score: integer() }) },
+		branches: [
+			[step({ users: pgTable('users', { score: integer().default(1) }), tags })],
+			[step({ users: pgTable('users', { score: integer().default(2) }) })],
+		],
+	});
+	flow.appendDeltas('main', a, renameUsersTo('tags'));
 	const resolved = { users: pgTable('users', { score: integer().default(3) }), tags };
 
 	const { folder, deleted } = await flow.generate('main', resolved, { fixConflicts: true });
 
-	expect(deleted).toStrictEqual([a.folder, b.folder]);
+	expect(deleted).toStrictEqual([a, b]);
 	expect(flow.state('main', folder!)).toStrictEqual(schemaState(resolved));
 });
 
 test('a custom migration on two leaves lists both leaves as parents and stores no deltas and no statements', async () => {
-	const flow = createFolderFlow();
 	const users = pgTable('users', { id: integer() });
 	const likes = pgTable('likes', { id: integer() });
 	const groups = pgTable('groups', { id: integer() });
-	await flow.generate('main', { users });
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	const older = await flow.generate('a', { users, likes });
-	const newer = await flow.generate('b', { users, groups });
-	flow.merge('main', 'a', 'b');
+	const { flow, folders: [[older], [newer]] } = await forkFlow({
+		base: { users },
+		branches: [[step({ users, likes })], [step({ users, groups })]],
+	});
 
 	const { folder } = await flow.generate('main', { users, likes, groups }, { custom: true });
 
 	expect(flow.snapshot('main', folder!)).toMatchObject({
 		type: 'diff',
-		prevIds: [newer.folder!, older.folder!].map((it) => flow.snapshot('main', it).id),
+		prevIds: [newer, older].map((it) => flow.snapshot('main', it).id),
 		deltas: [],
 		statements: [],
 	});
@@ -382,18 +376,13 @@ test('linear history writes a base snapshot and then diff snapshots', async () =
 		{
 			schema: v3,
 			folder: (await flow.generate('main', v3, {
-				hints: [{
-					type: 'rename',
-					kind: 'column',
-					from: ['public', 'users', 'email'],
-					to: ['public', 'users', 'contact'],
-				}],
+				hints: [rename('column', 'public.users.email', 'public.users.contact')],
 			})).folder,
 		},
 		{
 			schema: v4,
 			folder: (await flow.generate('main', v4, {
-				hints: [{ type: 'rename', kind: 'table', from: ['public', 'users'], to: ['public', 'accounts'] }],
+				hints: [rename('table', 'public.users', 'public.accounts')],
 			})).folder,
 		},
 		{ schema: v4, folder: (await flow.generate('main', v4, { custom: true })).folder },
@@ -429,17 +418,13 @@ test('linear history writes a base snapshot and then diff snapshots', async () =
 });
 
 test('commuting fork merges into one leaf that holds only the new change', async () => {
-	const flow = createFolderFlow();
 	const users = pgTable('users', { id: integer() });
 	const likes = pgTable('likes', { id: integer() });
 	const groups = pgTable('groups', { id: integer() });
-
-	await flow.generate('main', { users });
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	await flow.generate('a', { users, likes });
-	await flow.generate('b', { users, groups });
-	flow.merge('main', 'a', 'b');
+	const { flow } = await forkFlow({
+		base: { users },
+		branches: [[step({ users, likes })], [step({ users, groups })]],
+	});
 
 	expect(flow.leaves('main')).toStrictEqual(['20260101120002_a', '20260101120003_b']);
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
@@ -463,14 +448,13 @@ test('commuting fork merges into one leaf that holds only the new change', async
 });
 
 test('conflicting fork fails check and generate', async () => {
-	const flow = createFolderFlow();
-
-	await flow.generate('main', { users: pgTable('users', { email: varchar() }) });
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	await flow.generate('a', { users: pgTable('users', { email: text() }) });
-	await flow.generate('b', { users: pgTable('users', { email: integer() }) });
-	flow.merge('main', 'a', 'b');
+	const { flow } = await forkFlow({
+		base: { users: pgTable('users', { email: varchar() }) },
+		branches: [
+			[step({ users: pgTable('users', { email: text() }) })],
+			[step({ users: pgTable('users', { email: integer() }) })],
+		],
+	});
 
 	const result = await flow.check('main');
 

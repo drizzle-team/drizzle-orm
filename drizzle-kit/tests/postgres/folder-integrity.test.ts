@@ -9,7 +9,7 @@ import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import { prepareOutFolder } from 'src/utils/utils-node';
 import { expect, onTestFinished, test } from 'vitest';
 import { ORIGIN, writeSnapshot } from '../other/check-fixtures';
-import { createFolderFlow, schemaState, tempDir } from './folder-flow';
+import { createFolderFlow, forkFlow, schemaState, step, tempDir } from './folder-flow';
 
 const v1 = { users: pgTable('users', { id: integer() }) };
 const v2 = { users: pgTable('users', { id: integer(), email: varchar() }) };
@@ -228,16 +228,16 @@ test('generate names the folder after its newest parent when the clock is behind
 });
 
 test('a merge folder sorts after its newest parent when the clock is behind', async () => {
-	const flow = createFolderFlow();
 	const users = pgTable('users', { id: integer() });
 	const likes = pgTable('likes', { id: integer() });
 	const groups = pgTable('groups', { id: integer() });
-	await flow.generate('main', { users });
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	await flow.generate('a', { users, likes });
-	await flow.generate('b', { users, groups }, { at: new Date(Date.UTC(2026, 0, 1, 13, 0, 0)) });
-	flow.merge('main', 'a', 'b');
+	const { flow } = await forkFlow({
+		base: { users },
+		branches: [
+			[step({ users, likes })],
+			[{ schema: { users, groups }, at: new Date(Date.UTC(2026, 0, 1, 13, 0, 0)) }],
+		],
+	});
 	const merged = { users: pgTable('users', { id: integer(), email: varchar() }), likes, groups };
 
 	const { folder } = await flow.generate('main', merged, { at: new Date(Date.UTC(2026, 0, 1, 12, 30, 0)) });

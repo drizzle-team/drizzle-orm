@@ -19,11 +19,11 @@ import type { Hint } from 'src/cli/hints';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import type { Delta } from 'src/dialects/dialect';
 import { describe, expect, test } from 'vitest';
-import { createFolderFlow, schemaState } from './folder-flow';
+import { createFolderFlow, forkFlow, rename, schemaState, step } from './folder-flow';
 import type { PostgresSchema } from './mocks';
 
-// `sql` is the whole migration of the rename, and `rename` is the delta that the snapshot stores for it.
-type Scenario = { before: PostgresSchema; after: PostgresSchema; hint: Hint; sql: string; rename: Delta };
+// `sql` is the whole migration of the rename, and `delta` is the delta that the snapshot stores for it.
+type Scenario = { before: PostgresSchema; after: PostgresSchema; hint: Hint; sql: string; delta: Delta };
 
 // Every constraint has an explicit name, because a constraint with a generated name keeps the name that it
 // had before the rename, and the schema then derives another name.
@@ -89,80 +89,65 @@ const scenarios: Record<string, Scenario> = {
 	schema: {
 		before: inSchema(app),
 		after: inSchema(core),
-		hint: { type: 'rename', kind: 'schema', from: ['app'], to: ['core'] },
+		hint: rename('schema', 'app', 'core'),
 		sql: 'ALTER SCHEMA "app" RENAME TO "core";\n',
-		rename: { op: 'rename', key: 'schemas\0["app"]', set: { name: 'core' } },
+		delta: { op: 'rename', key: 'schemas\0["app"]', set: { name: 'core' } },
 	},
 	table: {
 		before: usersTable('users', 'email'),
 		after: usersTable('accounts', 'email'),
-		hint: { type: 'rename', kind: 'table', from: ['public', 'users'], to: ['public', 'accounts'] },
+		hint: rename('table', 'public.users', 'public.accounts'),
 		sql: 'ALTER TABLE "users" RENAME TO "accounts";',
-		rename: { op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } },
+		delta: { op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } },
 	},
 	column: {
 		before: usersTable('users', 'email'),
 		after: usersTable('users', 'contact'),
-		hint: { type: 'rename', kind: 'column', from: ['public', 'users', 'email'], to: ['public', 'users', 'contact'] },
+		hint: rename('column', 'public.users.email', 'public.users.contact'),
 		sql: 'ALTER TABLE "users" RENAME COLUMN "email" TO "contact";',
-		rename: { op: 'rename', key: 'columns\0["public","users","email"]', set: { name: 'contact' } },
+		delta: { op: 'rename', key: 'columns\0["public","users","email"]', set: { name: 'contact' } },
 	},
 	enum: {
 		before: withEnum('mood'),
 		after: withEnum('feeling'),
-		hint: { type: 'rename', kind: 'enum', from: ['public', 'mood'], to: ['public', 'feeling'] },
+		hint: rename('enum', 'public.mood', 'public.feeling'),
 		sql: 'ALTER TYPE "mood" RENAME TO "feeling";',
-		rename: { op: 'rename', key: 'enums\0["public","mood"]', set: { name: 'feeling' } },
+		delta: { op: 'rename', key: 'enums\0["public","mood"]', set: { name: 'feeling' } },
 	},
 	sequence: {
 		before: { counter: pgSequence('counter') },
 		after: { counter: pgSequence('ticket') },
-		hint: { type: 'rename', kind: 'sequence', from: ['public', 'counter'], to: ['public', 'ticket'] },
+		hint: rename('sequence', 'public.counter', 'public.ticket'),
 		sql: 'ALTER SEQUENCE "counter" RENAME TO "ticket";',
-		rename: { op: 'rename', key: 'sequences\0["public","counter"]', set: { name: 'ticket' } },
+		delta: { op: 'rename', key: 'sequences\0["public","counter"]', set: { name: 'ticket' } },
 	},
 	role: {
 		before: usersTable('users', 'email', pgRole('staff')),
 		after: usersTable('users', 'email', pgRole('team')),
-		hint: { type: 'rename', kind: 'role', from: ['staff'], to: ['team'] },
+		hint: rename('role', 'staff', 'team'),
 		sql: 'ALTER ROLE "staff" RENAME TO "team";',
-		rename: { op: 'rename', key: 'roles\0["staff"]', set: { name: 'team' } },
+		delta: { op: 'rename', key: 'roles\0["staff"]', set: { name: 'team' } },
 	},
 	index: {
 		before: withConstraints({}),
 		after: withConstraints({ index: 'users_contact_idx' }),
-		hint: {
-			type: 'rename',
-			kind: 'index',
-			from: ['public', 'users', 'users_email_idx'],
-			to: ['public', 'users', 'users_contact_idx'],
-		},
+		hint: rename('index', 'public.users.users_email_idx', 'public.users.users_contact_idx'),
 		sql: 'ALTER INDEX "users_email_idx" RENAME TO "users_contact_idx";',
-		rename: { op: 'rename', key: 'indexes\0["public","users_email_idx"]', set: { name: 'users_contact_idx' } },
+		delta: { op: 'rename', key: 'indexes\0["public","users_email_idx"]', set: { name: 'users_contact_idx' } },
 	},
 	'primary key': {
 		before: withConstraints({}),
 		after: withConstraints({ pk: 'users_key' }),
-		hint: {
-			type: 'rename',
-			kind: 'primary_key',
-			from: ['public', 'users', 'users_pk'],
-			to: ['public', 'users', 'users_key'],
-		},
+		hint: rename('primary_key', 'public.users.users_pk', 'public.users.users_key'),
 		sql: 'ALTER TABLE "users" RENAME CONSTRAINT "users_pk" TO "users_key";',
-		rename: { op: 'rename', key: 'pks\0["public","users","users_pk"]', set: { name: 'users_key' } },
+		delta: { op: 'rename', key: 'pks\0["public","users","users_pk"]', set: { name: 'users_key' } },
 	},
 	'unique constraint': {
 		before: withConstraints({}),
 		after: withConstraints({ unique: 'users_contact_unique' }),
-		hint: {
-			type: 'rename',
-			kind: 'unique',
-			from: ['public', 'users', 'users_email_unique'],
-			to: ['public', 'users', 'users_contact_unique'],
-		},
+		hint: rename('unique', 'public.users.users_email_unique', 'public.users.users_contact_unique'),
 		sql: 'ALTER TABLE "users" RENAME CONSTRAINT "users_email_unique" TO "users_contact_unique";',
-		rename: {
+		delta: {
 			op: 'rename',
 			key: 'uniques\0["public","users","users_email_unique"]',
 			set: { name: 'users_contact_unique' },
@@ -171,52 +156,37 @@ const scenarios: Record<string, Scenario> = {
 	'foreign key': {
 		before: withConstraints({}),
 		after: withConstraints({ fk: 'posts_user_fk' }),
-		hint: {
-			type: 'rename',
-			kind: 'foreign key',
-			from: ['public', 'posts', 'posts_author_fk'],
-			to: ['public', 'posts', 'posts_user_fk'],
-		},
+		hint: rename('foreign key', 'public.posts.posts_author_fk', 'public.posts.posts_user_fk'),
 		sql: 'ALTER TABLE "posts" RENAME CONSTRAINT "posts_author_fk" TO "posts_user_fk";',
-		rename: { op: 'rename', key: 'fks\0["public","posts","posts_author_fk"]', set: { name: 'posts_user_fk' } },
+		delta: { op: 'rename', key: 'fks\0["public","posts","posts_author_fk"]', set: { name: 'posts_user_fk' } },
 	},
 	'check constraint': {
 		before: withConstraints({}),
 		after: withConstraints({ check: 'users_positive_id' }),
-		hint: {
-			type: 'rename',
-			kind: 'check',
-			from: ['public', 'users', 'users_id_check'],
-			to: ['public', 'users', 'users_positive_id'],
-		},
+		hint: rename('check', 'public.users.users_id_check', 'public.users.users_positive_id'),
 		sql: 'ALTER TABLE "users" RENAME CONSTRAINT "users_id_check" TO "users_positive_id";',
-		rename: { op: 'rename', key: 'checks\0["public","users","users_id_check"]', set: { name: 'users_positive_id' } },
+		delta: { op: 'rename', key: 'checks\0["public","users","users_id_check"]', set: { name: 'users_positive_id' } },
 	},
 	policy: {
 		before: usersTable('users', 'email', pgRole('staff'), 'users_read'),
 		after: usersTable('users', 'email', pgRole('staff'), 'users_select'),
-		hint: {
-			type: 'rename',
-			kind: 'policy',
-			from: ['public', 'users', 'users_read'],
-			to: ['public', 'users', 'users_select'],
-		},
+		hint: rename('policy', 'public.users.users_read', 'public.users.users_select'),
 		sql: 'ALTER POLICY "users_read" ON "users" RENAME TO "users_select";',
-		rename: { op: 'rename', key: 'policies\0["public","users","users_read"]', set: { name: 'users_select' } },
+		delta: { op: 'rename', key: 'policies\0["public","users","users_read"]', set: { name: 'users_select' } },
 	},
 	view: {
 		before: withView('users_view'),
 		after: withView('people'),
-		hint: { type: 'rename', kind: 'view', from: ['public', 'users_view'], to: ['public', 'people'] },
+		hint: rename('view', 'public.users_view', 'public.people'),
 		sql: 'ALTER VIEW "users_view" RENAME TO "people";',
-		rename: { op: 'rename', key: 'views\0["public","users_view"]', set: { name: 'people' } },
+		delta: { op: 'rename', key: 'views\0["public","users_view"]', set: { name: 'people' } },
 	},
 };
 
 // The snapshot stores no delta for an entity that references the renamed entity. Reconstruct changes these
 // entities through the edges.
 describe('a rename is stored as one delta, and the reconstructed state and the database equal the schema', () => {
-	for (const [name, { before, after, hint, sql, rename }] of Object.entries(scenarios)) {
+	for (const [name, { before, after, hint, sql, delta }] of Object.entries(scenarios)) {
 		test(name, async () => {
 			const flow = createFolderFlow();
 			await flow.generate('main', before);
@@ -224,7 +194,7 @@ describe('a rename is stored as one delta, and the reconstructed state and the d
 			const { folder } = await flow.generate('main', after, { hints: [hint] });
 
 			expect(flow.sql('main', folder!)).toBe(sql);
-			expect(flow.deltas('main', folder!)).toStrictEqual([rename]);
+			expect(flow.deltas('main', folder!)).toStrictEqual([delta]);
 			expect(flow.state('main', folder!)).toStrictEqual(schemaState(after));
 			expect(await flow.generate('main', after)).toMatchObject({ status: 'no_changes' });
 			expect(await flow.migrate('main', after)).toStrictEqual([]);
@@ -240,30 +210,18 @@ describe('two branches that each rename one column of one primary key', () => {
 			primaryKey({ name: 'items_pk', columns: [t[first], t[second]] }),
 		]),
 	});
-	const renameOf = (from: string, to: string): Hint => ({
-		type: 'rename',
-		kind: 'column',
-		from: ['public', 'items', from],
-		to: ['public', 'items', to],
-	});
-	const branches = {
-		a: { schema: table('y', 'z'), hint: renameOf('x', 'y') },
-		b: { schema: table('x', 'w'), hint: renameOf('z', 'w') },
-	};
+	const branches = [
+		[step(table('y', 'z'), rename('column', 'public.items.x', 'public.items.y'))],
+		[step(table('x', 'w'), rename('column', 'public.items.z', 'public.items.w'))],
+	];
 	const merged = table('y', 'w');
 
-	for (const [older, newer] of [['a', 'b'], ['b', 'a']] as const) {
+	for (const [first, newer] of [[1, 'b'], [0, 'a']] as const) {
 		test(`the combined state lists both new names when branch ${newer} is the first parent`, async () => {
-			const flow = createFolderFlow();
-			await flow.generate('main', table('x', 'z'));
-			flow.branch('a', 'main');
-			flow.branch('b', 'main');
-			await flow.generate(older, branches[older].schema, { hints: [branches[older].hint] });
-			const first = await flow.generate(newer, branches[newer].schema, { hints: [branches[newer].hint] });
-			flow.merge('main', 'a', 'b');
+			const { flow, folders } = await forkFlow({ base: table('x', 'z'), branches, first });
 
 			expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
-			expect(flow.leaves('main').at(-1)).toBe(first.folder);
+			expect(flow.leaves('main').at(-1)).toBe(folders[first][0]);
 			const combined = await flow.stateBeforeGenerate('main', merged);
 			expect(normalizeDDL(combined.entities.list())).toStrictEqual(schemaState(merged));
 			expect(await flow.generate('main', merged)).toMatchObject({ status: 'no_changes' });

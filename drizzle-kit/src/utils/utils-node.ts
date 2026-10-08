@@ -2,11 +2,10 @@ import chalk from 'chalk';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs';
 import { getTsconfig } from 'get-tsconfig';
 import { sync as globSync } from 'glob';
-import { basename, dirname, join, resolve } from 'path';
+import { dirname, join, resolve } from 'path';
 import { parse, pathToFileURL } from 'url';
 import {
 	CheckCliError,
-	type DrizzleCliErrorMeta,
 	MigrationsOutdatedCliError,
 	SchemaFilesNotFoundCliError,
 	UnsupportedSnapshotVersionCliError,
@@ -14,11 +13,10 @@ import {
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
 import { snapshotValidator as mysqlSnapshotValidator } from '../dialects/mysql/snapshot';
-import { missingBaseMessage, missingParentMessage } from '../dialects/postgres/reconstruct';
 import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
 import { snapshotValidator as singlestoreSnapshotValidator } from '../dialects/singlestore/snapshot';
 import { snapshotValidator as sqliteStapshotValidator } from '../dialects/sqlite/snapshot';
-import { assertUnreachable, originUUID } from '.';
+import { assertUnreachable } from '.';
 import type { Journal } from '.';
 import type { Dialect } from './schemaValidator';
 
@@ -111,84 +109,6 @@ export const dryJournal = (dialect: Dialect): Journal => {
 	};
 };
 
-export type SnapshotNode = {
-	path: string;
-	folder: string;
-	id: string;
-	prevIds: string[];
-	dialect: unknown;
-	type: unknown;
-};
-
-// Leaves out files that do not parse, have no id, or are postgres snapshots without a prevIds array.
-export const buildParentIndex = (snapshots: string[]): SnapshotNode[] =>
-	snapshots.flatMap((path) => {
-		let raw: any;
-		try {
-			raw = JSON.parse(readFileSync(path, 'utf8'));
-		} catch {
-			return [];
-		}
-		if (typeof raw?.id !== 'string') return [];
-		if (raw.dialect === 'postgres' && !Array.isArray(raw.prevIds)) return [];
-		const prevIds = Array.isArray(raw.prevIds) ? raw.prevIds : [];
-		return [{ path, folder: basename(dirname(path)), id: raw.id, prevIds, dialect: raw.dialect, type: raw.type }];
-	});
-
-// migrate runs folders in localeCompare order, and drizzle-kit replays them in code unit order.
-export const sortsAfter = (folder: string, parent: string) => folder > parent && folder.localeCompare(parent) > 0;
-
-type FolderFile = { path: string; folder: string };
-
-export const folderOrderError = (node: FolderFile, parent: FolderFile) =>
-	new CheckCliError(
-		'order',
-		`Migration ${node.folder} sorts before its parent ${parent.folder}, so migrate can run it first. `
-			+ `Rename the folders so that ${node.folder} sorts after ${parent.folder}.`,
-		{ snapshot: node.path, parentSnapshot: parent.path },
-	);
-
-// Only postgres rebuilds a state from its parents. Other dialects store the full state in every snapshot.
-export const assertPostgresHistory = (snapshots: string[], index: SnapshotNode[]) => {
-	const nodes = index.filter((it) => it.dialect === 'postgres');
-	if (nodes.length === 0) return;
-
-	// A file left out of the index would look like a missing parent, so it is reported first.
-	const indexed = new Set(index.map((it) => it.path));
-	const unreadable = snapshots.find((it) => !indexed.has(it));
-	if (unreadable) assertSnapshotStatus(unreadable, 'malformed');
-
-	const byId = new Map(nodes.map((it) => [it.id, it]));
-	const broken = (node: SnapshotNode, message: string, meta: DrizzleCliErrorMeta = {}) =>
-		new CheckCliError('malformed', message, { snapshot: node.path, ...meta });
-
-	if (nodes.every((it) => it.type === 'diff')) {
-		throw broken(nodes[0], missingBaseMessage(nodes[0].folder));
-	}
-	// A snapshot of an older format has no `type`, so its folder still gets the request to run up.
-	const [base, secondBase] = nodes.filter((it) => it.type === 'base');
-	if (secondBase) {
-		throw broken(
-			secondBase,
-			`The migrations folder has two base snapshots, in ${base.folder} and ${secondBase.folder}. `
-				+ 'A folder must have one base snapshot, which is its first migration. Delete one of the two migration '
-				+ 'folders together with every migration that follows it, then run generate again.',
-			{ baseSnapshot: base.path },
-		);
-	}
-	for (const node of nodes) {
-		if (node.type === 'diff' && (node.prevIds[0] ?? originUUID) === originUUID) {
-			throw broken(node, missingBaseMessage(node.folder));
-		}
-		for (const parentId of node.prevIds) {
-			if (parentId === originUUID) continue;
-			const parent = byId.get(parentId);
-			if (!parent) throw broken(node, missingParentMessage(node.folder, parentId), { parentId });
-			if (!sortsAfter(node.folder, parent.folder)) throw folderOrderError(node, parent);
-		}
-	}
-};
-
 // The snapshot files of the migration folders in `out`, in folder-name order.
 export const listSnapshots = (out: string): string[] => {
 	if (!existsSync(out)) {
@@ -201,13 +121,7 @@ export const listSnapshots = (out: string): string[] => {
 		.sort();
 };
 
-export const prepareOutFolder = (out: string) => {
-	const snapshots = listSnapshots(out);
-	const index = buildParentIndex(snapshots);
-	assertPostgresHistory(snapshots, index);
-
-	return { snapshots, index };
-};
+export const prepareOutFolder = (out: string) => ({ snapshots: listSnapshots(out) });
 
 const tsconfigAliasCache = new Map<string, Record<string, string> | undefined>();
 

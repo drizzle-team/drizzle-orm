@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import { getCommutativityDialect } from '../../commutativity';
 import type { ParsedSnapshotInput, SnapshotHeader } from '../../commutativity/engine';
 import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from '../../commutativity/types';
+import { readFolder } from '../../dialects/postgres/folder';
 import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
 import type { Dialect } from '../../utils/schemaValidator';
 import { assertSnapshotStatus, prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
@@ -161,14 +162,28 @@ export const assertConflictOptions = (
 	}
 };
 
+const readSnapshots = (out: string, dialect: Dialect): ParsedSnapshotInput[] => {
+	if (dialect === 'postgresql') return readFolder(out).files;
+
+	const { snapshots } = prepareOutFolder(out);
+	const validator = validatorForDialect(dialect);
+	return snapshots.map((path) => {
+		let raw: unknown = null;
+		try {
+			raw = JSON.parse(readFileSync(path).toString());
+		} catch {}
+		assertSnapshotStatus(path, typeof raw === 'object' && raw !== null ? validator(raw).status : 'malformed');
+		return { path, snapshot: raw as SnapshotHeader };
+	});
+};
+
 export const checkHandler = async (
 	out: string,
 	dialect: Dialect,
 	ignoreConflicts?: boolean,
 	shouldExitOnConflict = true,
-	stored = prepareOutFolder(out),
 ): Promise<CheckHandlerResult> => {
-	const { report, fix } = await checkSnapshots(stored.snapshots, dialect);
+	const { report, fix } = await checkSnapshots(readSnapshots(out, dialect), dialect);
 	if (report.conflicts.length > 0 && !ignoreConflicts) {
 		if (shouldExitOnConflict) throw conflictError(report, fix);
 		const nonCommutativityMessage = generateReportDirectory(report);
@@ -200,19 +215,8 @@ export const checkHandler = async (
 // `fix` is set only for postgresql, and only when the report has conflicts.
 export type SnapshotCheck = { report: NonCommutativityReport; fix?: ConflictFix };
 
-export const checkSnapshots = async (snapshots: string[], dialect: Dialect): Promise<SnapshotCheck> => {
-	const validator = validatorForDialect(dialect);
-
-	const inputs: ParsedSnapshotInput[] = [];
-	for (const path of snapshots) {
-		let raw: unknown = null;
-		try {
-			raw = JSON.parse(readFileSync(path).toString());
-		} catch {}
-		assertSnapshotStatus(path, typeof raw === 'object' && raw !== null ? validator(raw).status : 'malformed');
-		inputs.push({ path, snapshot: raw as SnapshotHeader });
-	}
-
+// `inputs` are the valid snapshots of a migrations folder, in folder-name order.
+export const checkSnapshots = async (inputs: ParsedSnapshotInput[], dialect: Dialect): Promise<SnapshotCheck> => {
 	const commutativity = getCommutativityDialect(dialect);
 	if (!commutativity) return { report: { conflicts: [], leafNodes: [] } };
 

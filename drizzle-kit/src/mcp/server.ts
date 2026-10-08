@@ -247,8 +247,8 @@ export function createDrizzleMcpServer(): McpServer {
 				+ 'Moves an old meta/_journal.json folder into one <timestamp>_<name>/ folder per migration with '
 				+ 'migration.sql and snapshot.json, and rewrites every older snapshot.json in place. For postgresql it '
 				+ 'converts the snapshots to format 9: the first one keeps the full schema and every later one keeps only '
-				+ 'the changes of its migration. It rewrites no snapshot.json if any rebuilt schema differs from the old '
-				+ 'snapshot. The move out of meta/ runs before that check. '
+				+ 'the changes of its migration. For postgresql it converts and checks every snapshot before it moves or '
+				+ 'writes a file, so a failed up changes no file. '
 				+ 'Idempotent: re-running on an already-current folder is a no-op.',
 			inputSchema: z.object({
 				config: z.string().optional().describe(

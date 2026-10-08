@@ -7,9 +7,13 @@ import {
 	columnRow,
 	createFolderFlow,
 	type FolderFlow,
+	forkFlow,
 	malformedEnvelope,
 	reconstructFix,
+	rename,
 	schemaState,
+	type Step,
+	step,
 } from './folder-flow';
 import type { PostgresSchema } from './mocks';
 
@@ -115,14 +119,11 @@ describe('a delta in the history of one leaf', () => {
 describe('a delta that reaches a merge only through another parent', () => {
 	// The leaf of branch a is not the first parent, because its folder name is older.
 	const forked = async () => {
-		const flow = createFolderFlow();
-		await flow.generate('main', { users });
-		flow.branch('a', 'main');
-		flow.branch('b', 'main');
-		const a = await flow.generate('a', { users: usersWithEmail, likes });
-		const b = await flow.generate('b', { users, groups });
-		flow.merge('main', 'a', 'b');
-		return { flow, older: a.folder!, newer: b.folder! };
+		const { flow, folders: [[older], [newer]] } = await forkFlow({
+			base: { users },
+			branches: [[step({ users: usersWithEmail, likes })], [step({ users, groups })]],
+		});
+		return { flow, older, newer };
 	};
 	const merged = { users: usersWithEmail, likes, groups };
 	const combinedState = async (flow: FolderFlow, schema: PostgresSchema) =>
@@ -140,29 +141,29 @@ describe('a delta that reaches a merge only through another parent', () => {
 	// Both branches add the column users.email with another type. check reads the stored statements, so it
 	// passes when the statements of one branch are gone.
 	test('a create of a different entity onto a taken key stops generate, and the error names the migration of that delta', async () => {
-		const flow = createFolderFlow();
-		await flow.generate('main', { users });
-		flow.branch('a', 'main');
-		flow.branch('b', 'main');
-		const a = await flow.generate('a', { users: usersWithEmail });
-		const b = await flow.generate('b', { users: pgTable('users', { id: integer(), email: text() }) });
-		flow.merge('main', 'a', 'b');
-		flow.overwriteSnapshot('main', b.folder!, JSON.stringify({ ...flow.snapshot('main', b.folder!), statements: [] }));
+		const { flow, folders: [[a], [b]] } = await forkFlow({
+			base: { users },
+			branches: [
+				[step({ users: usersWithEmail })],
+				[step({ users: pgTable('users', { id: integer(), email: text() }) })],
+			],
+		});
+		flow.overwriteSnapshot('main', b, JSON.stringify({ ...flow.snapshot('main', b), statements: [] }));
 		const files = flow.files('main');
 
 		expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 		expect(await flow.schemaWarnings('main', { users: usersWithEmail })).toStrictEqual([{
 			kind: 'not_compared',
-			message: expect.stringContaining(`Cannot reconstruct the combined state at migration ${a.folder}: `),
+			message: expect.stringContaining(`Cannot reconstruct the combined state at migration ${a}: `),
 		}]);
 		const error = await flow.generate('main', { users: usersWithEmail }).catch((e) => e);
 
 		expect(error.message).toBe(
-			`Cannot reconstruct the combined state at migration ${a.folder}: The create delta adds columns `
+			`Cannot reconstruct the combined state at migration ${a}: The create delta adds columns `
 				+ '["public","users","email"], and another entity of columns with other values already has this key. '
-				+ `Two migrations gave one name to two different entities. ${reconstructFix(a.folder!)}`,
+				+ `Two migrations gave one name to two different entities. ${reconstructFix(a)}`,
 		);
-		expect(errorToEnvelope(error)).toStrictEqual(malformedEnvelope(a.folder!));
+		expect(errorToEnvelope(error)).toStrictEqual(malformedEnvelope(a));
 		expect(flow.files('main')).toStrictEqual(files);
 	});
 
@@ -203,13 +204,8 @@ describe('one branch stores a delta with no statement, and the other branch rena
 	const [written, reordered] = [{ a: 1, b: 2 }, { b: 2, a: 1 }];
 	const tags = pgTable('tags', { id: integer() });
 	const notes = pgTable('notes', { id: integer() });
-	const branches = {
-		reorder: { schema: { items: items('items', reordered), tags }, hints: [] },
-		rename: {
-			schema: { things: items('things', written) },
-			hints: [{ type: 'rename', kind: 'table', from: ['public', 'items'], to: ['public', 'things'] }] as const,
-		},
-	};
+	const reorderBranch = [step({ items: items('items', reordered), tags })];
+	const renameBranch = [step({ things: items('things', written) }, rename('table', 'public.items', 'public.things'))];
 	const merged = { things: items('things', reordered), tags, notes };
 	const defaultDelta = (table: string) => ({
 		op: 'alter',
@@ -217,29 +213,19 @@ describe('one branch stores a delta with no statement, and the other branch rena
 		set: { default: `'{"b":2,"a":1}'` },
 	});
 
-	const forked = async (older: keyof typeof branches, newer: keyof typeof branches) => {
-		const flow = createFolderFlow();
-		await flow.generate('main', { items: items('items', written) });
-		flow.branch('reorder', 'main');
-		flow.branch('rename', 'main');
-		const folders = {
-			[older]: (await flow.generate(older, branches[older].schema, { hints: [...branches[older].hints] })).folder!,
-			[newer]: (await flow.generate(newer, branches[newer].schema, { hints: [...branches[newer].hints] })).folder!,
-		};
-		flow.merge('main', 'reorder', 'rename');
-		return { flow, folders };
-	};
+	const forked = (older: Step[], newer: Step[]) =>
+		forkFlow({ base: { items: items('items', written) }, branches: [older, newer] });
 
 	test('the branch with the reordered default stores an alter delta and no statement for it', async () => {
-		const { flow, folders } = await forked('reorder', 'rename');
+		const { flow, folders: [[folder]] } = await forked(reorderBranch, renameBranch);
 
-		expect(flow.deltas('main', folders.reorder)).toContainEqual(defaultDelta('items'));
-		expect(flow.statements('main', folders.reorder).map((it) => it.type)).toStrictEqual(['create_table']);
+		expect(flow.deltas('main', folder)).toContainEqual(defaultDelta('items'));
+		expect(flow.statements('main', folder).map((it) => it.type)).toStrictEqual(['create_table']);
 		expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	});
 
 	test('with the rename as the first parent, the change is skipped, and the merge snapshot stores it again', async () => {
-		const { flow } = await forked('reorder', 'rename');
+		const { flow } = await forked(reorderBranch, renameBranch);
 
 		const { folder } = await flow.generate('main', merged);
 
@@ -250,7 +236,7 @@ describe('one branch stores a delta with no statement, and the other branch rena
 	});
 
 	test('with the reordered default as the first parent, the rename reaches the changed column', async () => {
-		const { flow } = await forked('rename', 'reorder');
+		const { flow } = await forked(renameBranch, reorderBranch);
 
 		const { folder } = await flow.generate('main', merged);
 

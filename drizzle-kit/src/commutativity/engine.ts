@@ -181,64 +181,11 @@ function composeMergeStatements<TStatement>(
 	return composed;
 }
 
-export type CommutativityStatementInfo<
-	TStatement extends { type: string },
-	TTarget,
-> = {
-	action: TStatement['type'];
-	primary: TTarget;
-	ancestors: TTarget[];
-};
-
-export type CommutativityStatementTargets<TTarget> = {
-	primary: TTarget;
-	ancestors?: TTarget[];
-};
-
-export type CommutativityStatementDefinition<
-	TAllStatements extends { type: string },
-	TStatement extends TAllStatements,
-	TTarget,
-> = {
-	conflicts: TAllStatements['type'][];
-	buildInfo: (statement: TStatement) => CommutativityStatementTargets<TTarget>;
-};
-
-export type CommutativityStatementDefinitions<
-	TStatement extends { type: string },
-	TTarget,
-> = {
-	[TType in TStatement['type']]: CommutativityStatementDefinition<
-		TStatement,
-		Extract<TStatement, { type: TType }>,
-		TTarget
-	>;
-};
-
 export abstract class AbstractCommutativity<
 	TStatement extends { type: string },
 	TSnapshot extends { id: string; prevIds: string[] },
-	TTarget,
 > {
-	private statementDefinitionsCache?: CommutativityStatementDefinitions<
-		TStatement,
-		TTarget
-	>;
-
-	protected abstract getStatementDefinitions(): CommutativityStatementDefinitions<
-		TStatement,
-		TTarget
-	>;
-
-	protected abstract describeStatement(
-		statement: TStatement,
-		info: CommutativityStatementInfo<TStatement, TTarget>,
-	): string;
-
-	protected abstract describeStatementTarget(
-		statement: TStatement,
-		info: CommutativityStatementInfo<TStatement, TTarget>,
-	): ConflictTarget;
+	protected abstract describe(statement: TStatement): { description: string; target: ConflictTarget };
 
 	protected abstract getDrySnapshot(): TSnapshot;
 
@@ -259,23 +206,6 @@ export abstract class AbstractCommutativity<
 		return a.type === b.type && this.isRepeatable(a) && isDeepStrictEqual(a, b);
 	}
 
-	protected resolveStatement(statement: TStatement): {
-		conflicts: TStatement['type'][];
-		info: CommutativityStatementInfo<TStatement, TTarget>;
-	} {
-		const definition = this.getSpecificStatementDefinition(statement);
-		const built = definition.buildInfo(statement);
-
-		return {
-			conflicts: definition.conflicts,
-			info: {
-				action: statement.type,
-				primary: built.primary,
-				ancestors: built.ancestors ?? [],
-			},
-		};
-	}
-
 	public async getReasonsFromStatements(aStatements: TStatement[], bStatements: TStatement[]) {
 		const branchAFootprints = this.generateLeafFootprints(aStatements);
 		const branchBFootprints = this.generateLeafFootprints(bStatements);
@@ -293,32 +223,14 @@ export abstract class AbstractCommutativity<
 		statement: TStatement,
 		source?: MigrationNode,
 	): UnifiedBranchConflict['branchA'] {
-		const info = this.resolveStatement(statement).info;
-		const description = this.describeStatement(statement, info);
+		const { description, target } = this.describe(statement);
 		return {
 			chain,
 			statementDescription: source ? `${description} (${basename(source.path)})` : description,
-			target: this.describeStatementTarget(statement, info),
-			action: info.action,
+			target,
+			action: statement.type,
 			...(source && { source }),
 		};
-	}
-
-	private getDefinitions() {
-		this.statementDefinitionsCache ??= this.getStatementDefinitions();
-		return this.statementDefinitionsCache;
-	}
-
-	private getSpecificStatementDefinition<TSpecificStatement extends TStatement>(
-		statement: TSpecificStatement,
-	): CommutativityStatementDefinition<TStatement, TSpecificStatement, TTarget> {
-		return this.getDefinitions()[
-			statement.type as TStatement['type']
-		] as unknown as CommutativityStatementDefinition<
-			TStatement,
-			TSpecificStatement,
-			TTarget
-		>;
 	}
 
 	private findFootprintIntersections(
@@ -387,8 +299,7 @@ export abstract class AbstractCommutativity<
 export abstract class FacetCommutativity<
 	TStatement extends { type: string },
 	TSnapshot extends { id: string; prevIds: string[] },
-	TTarget,
-> extends AbstractCommutativity<TStatement, TSnapshot, TTarget> {
+> extends AbstractCommutativity<TStatement, TSnapshot> {
 	protected abstract buildFacetPaths(statement: TStatement): FacetPaths;
 
 	/**
@@ -492,11 +403,65 @@ export abstract class FacetCommutativity<
 	}
 }
 
+export type CommutativityStatementInfo<
+	TStatement extends { type: string },
+	TTarget,
+> = {
+	action: TStatement['type'];
+	primary: TTarget;
+	ancestors: TTarget[];
+};
+
+export type CommutativityStatementTargets<TTarget> = {
+	primary: TTarget;
+	ancestors?: TTarget[];
+};
+
+export type CommutativityStatementDefinition<
+	TAllStatements extends { type: string },
+	TStatement extends TAllStatements,
+	TTarget,
+> = {
+	conflicts: TAllStatements['type'][];
+	buildInfo: (statement: TStatement) => CommutativityStatementTargets<TTarget>;
+};
+
+export type CommutativityStatementDefinitions<
+	TStatement extends { type: string },
+	TTarget,
+> = {
+	[TType in TStatement['type']]: CommutativityStatementDefinition<
+		TStatement,
+		Extract<TStatement, { type: TType }>,
+		TTarget
+	>;
+};
+
 export abstract class ConflictListCommutativity<
 	TStatement extends { type: string },
 	TSnapshot extends { id: string; prevIds: string[] },
 	TTarget,
-> extends AbstractCommutativity<TStatement, TSnapshot, TTarget> {
+> extends AbstractCommutativity<TStatement, TSnapshot> {
+	private statementDefinitionsCache?: CommutativityStatementDefinitions<
+		TStatement,
+		TTarget
+	>;
+
+	protected abstract getStatementDefinitions(): CommutativityStatementDefinitions<
+		TStatement,
+		TTarget
+	>;
+
+	protected abstract describeStatement(
+		statement: TStatement,
+		info: CommutativityStatementInfo<TStatement, TTarget>,
+	): string;
+
+	protected abstract describeStatementTarget(
+		statement: TStatement,
+		info: CommutativityStatementInfo<TStatement, TTarget>,
+	): ConflictTarget;
+
 	protected abstract diffSnapshots(
 		fromSnapshot: TSnapshot,
 		toSnapshot: TSnapshot,
@@ -509,6 +474,48 @@ export abstract class ConflictListCommutativity<
 
 	protected getImplicitAncestors(_target: TTarget): TTarget[] {
 		return [];
+	}
+
+	protected override describe(statement: TStatement) {
+		const { info } = this.resolveStatement(statement);
+		return {
+			description: this.describeStatement(statement, info),
+			target: this.describeStatementTarget(statement, info),
+		};
+	}
+
+	private resolveStatement(statement: TStatement): {
+		conflicts: TStatement['type'][];
+		info: CommutativityStatementInfo<TStatement, TTarget>;
+	} {
+		const definition = this.getSpecificStatementDefinition(statement);
+		const built = definition.buildInfo(statement);
+
+		return {
+			conflicts: definition.conflicts,
+			info: {
+				action: statement.type,
+				primary: built.primary,
+				ancestors: built.ancestors ?? [],
+			},
+		};
+	}
+
+	private getDefinitions() {
+		this.statementDefinitionsCache ??= this.getStatementDefinitions();
+		return this.statementDefinitionsCache;
+	}
+
+	private getSpecificStatementDefinition<TSpecificStatement extends TStatement>(
+		statement: TSpecificStatement,
+	): CommutativityStatementDefinition<TStatement, TSpecificStatement, TTarget> {
+		return this.getDefinitions()[
+			statement.type as TStatement['type']
+		] as unknown as CommutativityStatementDefinition<
+			TStatement,
+			TSpecificStatement,
+			TTarget
+		>;
 	}
 
 	public footprint(statement: TStatement): [string[], string[]] {

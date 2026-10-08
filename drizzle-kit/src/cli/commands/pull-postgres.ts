@@ -21,6 +21,7 @@ import type {
 } from '../../dialects/postgres/ddl';
 import { createDDL, interimToDDL, postgresToRelationsPull } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
+import { assertHistory, readEntries } from '../../dialects/postgres/folder';
 import { fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
 import { toJsonSnapshot } from '../../dialects/postgres/snapshot';
 import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/typescript';
@@ -28,7 +29,6 @@ import type { EntityFilter } from '../../dialects/pull-utils';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
 import { originUUID } from '../../utils';
 import type { DB } from '../../utils';
-import { prepareOutFolder } from '../../utils/utils-node';
 import type { preparePostgresDB } from '../connections';
 import { outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
@@ -54,7 +54,9 @@ export const handle = async (
 	init: boolean,
 	db?: Awaited<ReturnType<typeof preparePostgresDB>>,
 ) => {
-	const { snapshots } = prepareOutFolder(out);
+	const entries = readEntries(out);
+	assertHistory(entries);
+	const snapshots = entries.map((it) => it.path);
 
 	if (!db) {
 		const { preparePostgresDB } = await import('../connections');

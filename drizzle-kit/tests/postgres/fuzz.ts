@@ -22,7 +22,7 @@ import { CheckCliError, InvalidHintsCliError } from 'src/cli/errors';
 import type { Hint } from 'src/cli/hints';
 import { interimToDDL, type PostgresDDL, type Privilege } from 'src/dialects/postgres/ddl';
 import { fromDrizzleSchema, fromExports } from 'src/dialects/postgres/drizzle';
-import { createFolderFlow, type FolderFlow } from './folder-flow';
+import { createFolderFlow, type FolderFlow, rename } from './folder-flow';
 import type { PostgresSchema } from './mocks';
 
 export type Random = {
@@ -428,9 +428,9 @@ const hintKinds = {
 	views: 'view',
 } as const;
 
-// Privileges have no name, so they never get a rename decision.
+// Privileges have no name, so they never get a rename decision. No name of a model has a dot in it.
 const toHint = ({ kind, from, to }: RenameDecision) =>
-	({ type: 'rename', kind: hintKinds[kind as keyof typeof hintKinds], from, to }) as unknown as Hint;
+	rename(hintKinds[kind as keyof typeof hintKinds], from.join('.'), to.join('.'));
 
 // The format that mockResolver and the format 8 `renames` field use.
 export const toRenameString = ({ from, to }: RenameDecision) => `${from.join('.')}->${to.join('.')}`;

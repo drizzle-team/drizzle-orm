@@ -1,28 +1,9 @@
-import {
-	type CommutativityStatementDefinitions,
-	type CommutativityStatementInfo,
-	FacetCommutativity,
-	type FacetPaths,
-	type ParsedSnapshotInput,
-} from '../../commutativity/engine';
+import { FacetCommutativity, type FacetPaths, type ParsedSnapshotInput } from '../../commutativity/engine';
 import type { ConflictTarget } from '../../commutativity/types';
 import type { Column, Index, IndexColumn, Privilege } from './ddl';
 import { builtinPolicyRoles, isSerialType } from './grammar';
 import { drySnapshot, type PostgresSnapshot } from './snapshot';
 import type { SnapshotStatement } from './snapshot-statements';
-
-type FootprintTarget = {
-	schema: string;
-	objectName: string;
-	columnName: string;
-};
-
-type StatementInfo = CommutativityStatementInfo<SnapshotStatement, FootprintTarget>;
-
-type StatementDefinitions = CommutativityStatementDefinitions<
-	SnapshotStatement,
-	FootprintTarget
->;
 
 const privilegeTypes: Privilege['type'][] = [
 	'ALL',
@@ -35,33 +16,132 @@ const privilegeTypes: Privilege['type'][] = [
 	'TRIGGER',
 ];
 
-function makeTarget(
-	schema: string,
-	objectName: string,
-	columnName = '',
-): FootprintTarget {
-	return { schema, objectName, columnName };
-}
+// The target that the report and the JSON output of `check` show for a statement. A constraint, a policy and
+// a privilege show their table. A role and a renamed index also have the kind 'table', with their own name.
+function targetOf(statement: SnapshotStatement): ConflictTarget {
+	const tableOf = (child: { schema: string; table: string }): ConflictTarget => ({
+		kind: 'table',
+		name: child.table,
+		schema: child.schema,
+	});
+	const columnOf = (column: Pick<Column, 'schema' | 'table' | 'name'>): ConflictTarget => ({
+		kind: 'column',
+		name: column.name,
+		table: column.table,
+		schema: column.schema,
+	});
 
-function makeTableTarget(schema: string, tableName: string): FootprintTarget {
-	return makeTarget(schema, tableName);
-}
+	switch (statement.type) {
+		case 'create_table':
+		case 'drop_table':
+			return { kind: 'table', name: statement.table.name, schema: statement.table.schema };
+		case 'rename_table':
+			return { kind: 'table', name: statement.from, schema: statement.schema };
+		case 'move_table':
+			return { kind: 'table', name: statement.name, schema: statement.from };
+		case 'alter_rls':
+			return { kind: 'table', name: statement.name, schema: statement.schema };
 
-function makeSchemaTarget(schemaName: string): FootprintTarget {
-	return makeTarget(schemaName, '');
+		case 'add_column':
+		case 'drop_column':
+		case 'recreate_column':
+			return columnOf(statement.column);
+		case 'alter_column':
+			return columnOf(statement.to);
+		case 'rename_column':
+			return columnOf(statement.from);
+
+		case 'create_index':
+		case 'drop_index':
+		case 'recreate_index':
+			return { kind: 'index', name: statement.index.name, table: statement.index.table };
+		case 'rename_index':
+			return { kind: 'table', name: statement.from, schema: statement.schema };
+
+		case 'add_pk':
+		case 'drop_pk':
+		case 'alter_pk':
+			return tableOf(statement.pk);
+		case 'create_fk':
+		case 'drop_fk':
+		case 'recreate_fk':
+			return tableOf(statement.fk);
+		case 'add_unique':
+		case 'drop_unique':
+			return tableOf(statement.unique);
+		case 'alter_unique':
+			return tableOf(statement.to);
+		case 'add_check':
+		case 'drop_check':
+		case 'alter_check':
+			return tableOf(statement.check);
+		case 'rename_constraint':
+			return tableOf(statement);
+		case 'create_policy':
+		case 'drop_policy':
+		case 'alter_policy':
+		case 'recreate_policy':
+			return tableOf(statement.policy);
+		case 'rename_policy':
+			return tableOf(statement.from);
+
+		case 'create_enum':
+		case 'drop_enum':
+			return { kind: 'enum', name: statement.enum.name, schema: statement.enum.schema };
+		case 'rename_enum':
+			return { kind: 'enum', name: statement.from, schema: statement.schema };
+		case 'alter_enum':
+		case 'recreate_enum':
+			return { kind: 'enum', name: statement.to.name, schema: statement.to.schema };
+		case 'move_enum':
+			return { kind: 'enum', name: statement.from.name, schema: statement.from.schema || 'public' };
+
+		case 'create_sequence':
+		case 'drop_sequence':
+		case 'alter_sequence':
+			return { kind: 'sequence', name: statement.sequence.name, schema: statement.sequence.schema };
+		case 'rename_sequence':
+			return { kind: 'sequence', name: statement.from.name, schema: statement.from.schema };
+		case 'move_sequence':
+			return { kind: 'sequence', name: statement.from.name, schema: statement.from.schema || 'public' };
+
+		case 'create_view':
+		case 'drop_view':
+		case 'alter_view':
+			return { kind: 'view', name: statement.view.name, schema: statement.view.schema };
+		case 'rename_view':
+			return { kind: 'view', name: statement.from.name, schema: statement.from.schema };
+		case 'move_view':
+			return { kind: 'view', name: statement.view.name, schema: statement.fromSchema };
+
+		case 'create_schema':
+		case 'drop_schema':
+			return { kind: 'schema', name: statement.name };
+		case 'rename_schema':
+			return { kind: 'schema', name: statement.from.name };
+
+		case 'create_role':
+		case 'drop_role':
+		case 'alter_role':
+			return { kind: 'table', name: statement.role.name, schema: '' };
+		case 'rename_role':
+			return { kind: 'table', name: statement.from.name, schema: '' };
+
+		case 'grant_privilege':
+		case 'revoke_privilege':
+		case 'regrant_privilege':
+			return { kind: 'table', name: statement.privilege.table || '', schema: statement.privilege.schema || '' };
+	}
 }
 
 /**
  * Postgres-specific commutativity rules.
  *
- * `buildFacetPaths` decides which statements conflict. `getStatementDefinitions()` feeds only the report:
- * `buildInfo` gives the target that `describeStatement` and `describeStatementTarget` print. Postgres does
- * not read the `conflicts` arrays of the definitions.
+ * `buildFacetPaths` decides which statements conflict. `targetOf` and `describe` feed only the report.
  */
 class PostgresCommutativity extends FacetCommutativity<
 	SnapshotStatement,
-	PostgresSnapshot,
-	FootprintTarget
+	PostgresSnapshot
 > {
 	private schemaLevelActions = new Set([
 		'create_table',
@@ -94,653 +174,20 @@ class PostgresCommutativity extends FacetCommutativity<
 		'alter_role',
 		'rename_role',
 	]);
-	private schemaConflictTypes: SnapshotStatement['type'][] = [
-		'create_schema',
-		'drop_schema',
-		'rename_schema',
-		'create_table',
-		'drop_table',
-		'rename_table',
-		'move_table',
-		'add_column',
-		'drop_column',
-		'alter_column',
-		'recreate_column',
-		'rename_column',
-		'create_index',
-		'drop_index',
-		'rename_index',
-		'recreate_index',
-		'add_pk',
-		'drop_pk',
-		'alter_pk',
-		'create_fk',
-		'drop_fk',
-		'recreate_fk',
-		'add_unique',
-		'drop_unique',
-		'alter_unique',
-		'add_check',
-		'drop_check',
-		'alter_check',
-		'rename_constraint',
-		'create_enum',
-		'drop_enum',
-		'rename_enum',
-		'alter_enum',
-		'recreate_enum',
-		'move_enum',
-		'create_sequence',
-		'drop_sequence',
-		'rename_sequence',
-		'alter_sequence',
-		'move_sequence',
-		'create_view',
-		'drop_view',
-		'rename_view',
-		'alter_view',
-		'move_view',
-		'create_policy',
-		'drop_policy',
-		'rename_policy',
-		'alter_policy',
-		'recreate_policy',
-		'alter_rls',
-		'grant_privilege',
-		'revoke_privilege',
-		'regrant_privilege',
-	];
 
-	protected override getStatementDefinitions(): StatementDefinitions {
-		return {
-			// Table operations
-			create_table: {
-				conflicts: ['create_table', 'drop_table', 'rename_table', 'move_table'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.table.schema, statement.table.name),
-					ancestors: [],
-				}),
-			},
-			drop_table: {
-				conflicts: [
-					'create_table',
-					'drop_table',
-					'rename_table',
-					'move_table',
-					'add_column',
-					'drop_column',
-					'alter_column',
-					'recreate_column',
-					'rename_column',
-					'alter_rls',
-					'create_index',
-					'recreate_index',
-				],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.table.schema, statement.table.name),
-					ancestors: [],
-				}),
-			},
-			rename_table: {
-				conflicts: ['create_table', 'drop_table', 'rename_table', 'move_table', 'create_index'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.schema, statement.from),
-					ancestors: [],
-				}),
-			},
-			move_table: {
-				conflicts: ['create_table', 'drop_table', 'rename_table', 'move_table'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.from, statement.name),
-					ancestors: [],
-				}),
-			},
+	protected override describe(statement: SnapshotStatement) {
+		const action = statement.type;
+		const target = targetOf(statement);
 
-			// Column operations
-			add_column: {
-				conflicts: ['add_column', 'alter_column', 'drop_column', 'rename_column', 'recreate_column'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.column.schema, statement.column.table, statement.column.name),
-					ancestors: [makeTableTarget(statement.column.schema, statement.column.table)],
-				}),
-			},
-			drop_column: {
-				conflicts: ['add_column', 'drop_column', 'alter_column', 'rename_column', 'recreate_column'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.column.schema, statement.column.table, statement.column.name),
-					ancestors: [makeTableTarget(statement.column.schema, statement.column.table)],
-				}),
-			},
-			alter_column: {
-				conflicts: ['add_column', 'drop_column', 'alter_column', 'rename_column', 'recreate_column'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.to.schema, statement.to.table, statement.to.name),
-					ancestors: [makeTableTarget(statement.to.schema, statement.to.table)],
-				}),
-			},
-			recreate_column: {
-				conflicts: ['add_column', 'drop_column', 'alter_column', 'recreate_column', 'rename_column'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.column.schema, statement.column.table, statement.column.name),
-					ancestors: [makeTableTarget(statement.column.schema, statement.column.table)],
-				}),
-			},
-			rename_column: {
-				conflicts: ['add_column', 'drop_column', 'alter_column', 'recreate_column', 'rename_column'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.from.schema, statement.from.table, statement.from.name),
-					ancestors: [makeTableTarget(statement.from.schema, statement.from.table)],
-				}),
-			},
-
-			// Index operations
-			create_index: {
-				conflicts: ['create_index', 'drop_index', 'rename_index'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.index.schema, statement.index.name),
-					ancestors: [makeTableTarget(statement.index.schema, statement.index.table)],
-				}),
-			},
-			drop_index: {
-				conflicts: ['create_index', 'drop_index', 'rename_index'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.index.schema, statement.index.name),
-					ancestors: [makeTableTarget(statement.index.schema, statement.index.table)],
-				}),
-			},
-			rename_index: {
-				conflicts: ['create_index', 'drop_index', 'rename_index'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.schema, statement.from),
-					ancestors: [],
-				}),
-			},
-			recreate_index: {
-				conflicts: ['create_index', 'drop_index', 'rename_index'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.index.schema, statement.index.name),
-					ancestors: [makeTableTarget(statement.index.schema, statement.index.table)],
-				}),
-			},
-
-			// Primary key operations
-			add_pk: {
-				conflicts: ['add_pk', 'drop_pk', 'alter_pk'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.pk.schema, statement.pk.table),
-					ancestors: [],
-				}),
-			},
-			drop_pk: {
-				conflicts: ['add_pk', 'drop_pk', 'alter_pk'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.pk.schema, statement.pk.table),
-					ancestors: [],
-				}),
-			},
-			alter_pk: {
-				conflicts: ['add_pk', 'drop_pk', 'alter_pk'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.pk.schema, statement.pk.table),
-					ancestors: [],
-				}),
-			},
-
-			// Foreign key operations
-			create_fk: {
-				conflicts: ['create_fk', 'drop_fk', 'recreate_fk'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.fk.schema, statement.fk.table),
-					ancestors: [],
-				}),
-			},
-			drop_fk: {
-				conflicts: ['create_fk', 'drop_fk', 'recreate_fk'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.fk.schema, statement.fk.table),
-					ancestors: [],
-				}),
-			},
-			recreate_fk: {
-				conflicts: ['create_fk', 'drop_fk', 'recreate_fk'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.fk.schema, statement.fk.table),
-					ancestors: [],
-				}),
-			},
-
-			// Unique constraint operations
-			add_unique: {
-				conflicts: ['add_unique', 'drop_unique', 'alter_unique'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.unique.schema, statement.unique.table),
-					ancestors: [],
-				}),
-			},
-			drop_unique: {
-				conflicts: ['add_unique', 'drop_unique', 'alter_unique'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.unique.schema, statement.unique.table),
-					ancestors: [],
-				}),
-			},
-			alter_unique: {
-				conflicts: ['add_unique', 'drop_unique', 'alter_unique'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.to.schema, statement.to.table),
-					ancestors: [],
-				}),
-			},
-
-			// Check constraint operations
-			add_check: {
-				conflicts: ['add_check', 'drop_check', 'alter_check'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.check.schema, statement.check.table),
-					ancestors: [],
-				}),
-			},
-			drop_check: {
-				conflicts: ['add_check', 'drop_check', 'alter_check'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.check.schema, statement.check.table),
-					ancestors: [],
-				}),
-			},
-			alter_check: {
-				conflicts: ['add_check', 'drop_check', 'alter_check'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.check.schema, statement.check.table),
-					ancestors: [],
-				}),
-			},
-
-			// Constraint operations
-			rename_constraint: {
-				conflicts: [
-					'rename_constraint',
-					'add_pk',
-					'drop_pk',
-					'alter_pk',
-					'add_unique',
-					'drop_unique',
-					'alter_unique',
-					'add_check',
-					'drop_check',
-					'alter_check',
-					'create_fk',
-					'drop_fk',
-					'recreate_fk',
-				],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.schema, statement.table),
-					ancestors: [],
-				}),
-			},
-
-			// Enum operations
-			create_enum: {
-				conflicts: ['create_enum', 'drop_enum', 'rename_enum', 'alter_enum', 'recreate_enum', 'move_enum'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.enum.schema, statement.enum.name),
-					ancestors: [],
-				}),
-			},
-			drop_enum: {
-				conflicts: [
-					'create_enum',
-					'drop_enum',
-					'rename_enum',
-					'alter_enum',
-					'recreate_enum',
-					'move_enum',
-				],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.enum.schema, statement.enum.name),
-					ancestors: [],
-				}),
-			},
-			rename_enum: {
-				conflicts: ['create_enum', 'drop_enum', 'rename_enum', 'alter_enum', 'recreate_enum', 'move_enum'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.schema, statement.from),
-					ancestors: [],
-				}),
-			},
-			alter_enum: {
-				conflicts: [
-					'create_enum',
-					'drop_enum',
-					'rename_enum',
-					'alter_enum',
-					'recreate_enum',
-					'move_enum',
-				],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.to.schema, statement.to.name),
-					ancestors: [],
-				}),
-			},
-			recreate_enum: {
-				conflicts: ['create_enum', 'drop_enum', 'rename_enum', 'alter_enum', 'recreate_enum', 'move_enum'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.to.schema, statement.to.name),
-					ancestors: [],
-				}),
-			},
-			move_enum: {
-				conflicts: ['create_enum', 'drop_enum', 'rename_enum', 'alter_enum', 'recreate_enum', 'move_enum'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.from.schema || 'public', statement.from.name),
-					ancestors: [],
-				}),
-			},
-
-			// Sequence operations
-			create_sequence: {
-				conflicts: ['create_sequence', 'drop_sequence', 'rename_sequence', 'alter_sequence', 'move_sequence'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.sequence.schema, statement.sequence.name),
-					ancestors: [],
-				}),
-			},
-			drop_sequence: {
-				conflicts: ['create_sequence', 'drop_sequence', 'rename_sequence', 'alter_sequence', 'move_sequence'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.sequence.schema, statement.sequence.name),
-					ancestors: [],
-				}),
-			},
-			rename_sequence: {
-				conflicts: ['create_sequence', 'drop_sequence', 'rename_sequence', 'alter_sequence', 'move_sequence'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.from.schema, statement.from.name),
-					ancestors: [],
-				}),
-			},
-			alter_sequence: {
-				conflicts: ['create_sequence', 'drop_sequence', 'rename_sequence', 'alter_sequence', 'move_sequence'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.sequence.schema, statement.sequence.name),
-					ancestors: [],
-				}),
-			},
-			move_sequence: {
-				conflicts: ['create_sequence', 'drop_sequence', 'rename_sequence', 'alter_sequence', 'move_sequence'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.from.schema || 'public', statement.from.name),
-					ancestors: [],
-				}),
-			},
-
-			// View operations
-			create_view: {
-				conflicts: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'move_view'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.view.schema, statement.view.name),
-					ancestors: [],
-				}),
-			},
-			drop_view: {
-				conflicts: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'move_view'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.view.schema, statement.view.name),
-					ancestors: [],
-				}),
-			},
-			rename_view: {
-				conflicts: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'move_view'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.from.schema, statement.from.name),
-					ancestors: [],
-				}),
-			},
-			alter_view: {
-				conflicts: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'move_view'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.view.schema, statement.view.name),
-					ancestors: [],
-				}),
-			},
-			move_view: {
-				conflicts: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'move_view'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.fromSchema, statement.view.name),
-					ancestors: [],
-				}),
-			},
-
-			// Schema operations
-			create_schema: {
-				conflicts: this.schemaConflictTypes,
-				buildInfo: (statement) => ({
-					primary: makeSchemaTarget(statement.name),
-					ancestors: [],
-				}),
-			},
-			drop_schema: {
-				conflicts: this.schemaConflictTypes,
-				buildInfo: (statement) => ({
-					primary: makeSchemaTarget(statement.name),
-					ancestors: [],
-				}),
-			},
-			rename_schema: {
-				conflicts: this.schemaConflictTypes,
-				buildInfo: (statement) => ({
-					primary: makeSchemaTarget(statement.from.name),
-					ancestors: [],
-				}),
-			},
-
-			// Policy operations
-			create_policy: {
-				conflicts: ['create_policy', 'drop_policy', 'rename_policy', 'alter_policy', 'recreate_policy'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.policy.schema, statement.policy.table),
-					ancestors: [],
-				}),
-			},
-			drop_policy: {
-				conflicts: ['create_policy', 'drop_policy', 'rename_policy', 'alter_policy', 'recreate_policy'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.policy.schema, statement.policy.table),
-					ancestors: [],
-				}),
-			},
-			rename_policy: {
-				conflicts: ['create_policy', 'drop_policy', 'rename_policy', 'alter_policy', 'recreate_policy'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.from.schema, statement.from.table),
-					ancestors: [],
-				}),
-			},
-			alter_policy: {
-				conflicts: ['create_policy', 'drop_policy', 'rename_policy', 'alter_policy', 'recreate_policy'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.policy.schema, statement.policy.table),
-					ancestors: [],
-				}),
-			},
-			recreate_policy: {
-				conflicts: ['create_policy', 'drop_policy', 'rename_policy', 'alter_policy', 'recreate_policy'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.policy.schema, statement.policy.table),
-					ancestors: [],
-				}),
-			},
-
-			// RLS operations
-			alter_rls: {
-				conflicts: ['alter_rls', 'create_policy', 'drop_policy', 'alter_policy', 'recreate_policy'],
-				buildInfo: (statement) => ({
-					primary: makeTableTarget(statement.schema, statement.name),
-					ancestors: [],
-				}),
-			},
-
-			// Role operations
-			create_role: {
-				conflicts: ['create_role', 'drop_role', 'rename_role', 'alter_role'],
-				buildInfo: (statement) => ({
-					primary: makeTarget('', statement.role.name),
-					ancestors: [],
-				}),
-			},
-			drop_role: {
-				conflicts: [
-					'create_role',
-					'drop_role',
-					'rename_role',
-					'alter_role',
-					'grant_privilege',
-					'revoke_privilege',
-					'regrant_privilege',
-				],
-				buildInfo: (statement) => ({
-					primary: makeTarget('', statement.role.name),
-					ancestors: [],
-				}),
-			},
-			rename_role: {
-				conflicts: ['create_role', 'drop_role', 'rename_role', 'alter_role'],
-				buildInfo: (statement) => ({
-					primary: makeTarget('', statement.from.name),
-					ancestors: [],
-				}),
-			},
-			alter_role: {
-				conflicts: ['create_role', 'drop_role', 'rename_role', 'alter_role'],
-				buildInfo: (statement) => ({
-					primary: makeTarget('', statement.role.name),
-					ancestors: [],
-				}),
-			},
-
-			// Privilege operations
-			grant_privilege: {
-				conflicts: ['grant_privilege', 'revoke_privilege', 'regrant_privilege'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.privilege.schema || '', statement.privilege.table || ''),
-					ancestors: [],
-				}),
-			},
-			revoke_privilege: {
-				conflicts: ['grant_privilege', 'revoke_privilege', 'regrant_privilege'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.privilege.schema || '', statement.privilege.table || ''),
-					ancestors: [],
-				}),
-			},
-			regrant_privilege: {
-				conflicts: ['grant_privilege', 'revoke_privilege', 'regrant_privilege'],
-				buildInfo: (statement) => ({
-					primary: makeTarget(statement.privilege.schema || '', statement.privilege.table || ''),
-					ancestors: [],
-				}),
-			},
-		};
-	}
-
-	protected override describeStatement(
-		statement: SnapshotStatement,
-		info: StatementInfo,
-	): string {
-		if (statement.type === 'create_index' || statement.type === 'drop_index') {
-			return `${statement.type}: ${statement.index.name} on ${statement.index.table} table`;
+		let description = `${action} on ${target.name} table`;
+		if (target.kind === 'index' || target.kind === 'column') {
+			description = `${action}: ${target.name} on ${target.table} table`;
+		} else if (target.kind === 'schema') {
+			description = `${action}: ${target.name} schema`;
+		} else if (this.schemaLevelActions.has(action)) {
+			description = `${action}: ${target.name} in ${target.schema || 'schema'} schema`;
 		}
-
-		if (statement.type === 'recreate_index') {
-			return `${statement.type}: ${statement.index.name} on ${statement.index.table} table`;
-		}
-
-		if (
-			info.action === 'create_schema'
-			|| info.action === 'drop_schema'
-			|| info.action === 'rename_schema'
-		) {
-			return `${info.action}: ${info.primary.schema} schema`;
-		}
-
-		if (this.schemaLevelActions.has(info.action)) {
-			const container = info.primary.schema || 'schema';
-			return `${info.action}: ${info.primary.objectName} in ${container} schema`;
-		}
-
-		if (info.primary.columnName) {
-			return `${info.action}: ${info.primary.columnName} on ${info.primary.objectName} table`;
-		}
-
-		return `${info.action} on ${info.primary.objectName} table`;
-	}
-
-	private enumLevelActions = new Set([
-		'create_enum',
-		'drop_enum',
-		'alter_enum',
-		'recreate_enum',
-		'rename_enum',
-		'move_enum',
-	]);
-
-	private viewLevelActions = new Set([
-		'create_view',
-		'drop_view',
-		'alter_view',
-		'rename_view',
-		'move_view',
-	]);
-
-	private sequenceLevelActions = new Set([
-		'create_sequence',
-		'drop_sequence',
-		'alter_sequence',
-		'rename_sequence',
-		'move_sequence',
-	]);
-
-	protected override describeStatementTarget(
-		statement: SnapshotStatement,
-		info: StatementInfo,
-	): ConflictTarget {
-		if (
-			statement.type === 'create_index'
-			|| statement.type === 'drop_index'
-			|| statement.type === 'recreate_index'
-		) {
-			return { kind: 'index', name: statement.index.name, table: statement.index.table };
-		}
-
-		if (
-			info.action === 'create_schema'
-			|| info.action === 'drop_schema'
-			|| info.action === 'rename_schema'
-		) {
-			return { kind: 'schema', name: info.primary.schema };
-		}
-
-		if (this.enumLevelActions.has(info.action)) {
-			return { kind: 'enum', name: info.primary.objectName, schema: info.primary.schema };
-		}
-
-		if (this.viewLevelActions.has(info.action)) {
-			return { kind: 'view', name: info.primary.objectName, schema: info.primary.schema };
-		}
-
-		if (this.sequenceLevelActions.has(info.action)) {
-			return { kind: 'sequence', name: info.primary.objectName, schema: info.primary.schema };
-		}
-
-		if (info.primary.columnName) {
-			return {
-				kind: 'column',
-				name: info.primary.columnName,
-				table: info.primary.objectName,
-				schema: info.primary.schema,
-			};
-		}
-
-		return { kind: 'table', name: info.primary.objectName, schema: info.primary.schema };
+		return { description, target };
 	}
 
 	// ----------------------------------------------------------------------
@@ -936,7 +383,7 @@ class PostgresCommutativity extends FacetCommutativity<
 						...underTable(s.to.schema, s.to.table),
 						nref('col', ...column),
 						// Only SET DATA TYPE and SET DEFAULT name the type of the column in their SQL.
-						...(properties.has('default') ? colEnum(s.to) : []),
+						...(d.default || properties.has('type') ? colEnum(s.to) : []),
 					],
 				};
 			}

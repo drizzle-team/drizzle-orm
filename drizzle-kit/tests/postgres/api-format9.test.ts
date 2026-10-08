@@ -5,7 +5,15 @@ import { type PostgresSchemaState, snapshotValidator } from 'src/dialects/postgr
 import { generateDrizzleJson, generateMigration, reconstruct, up } from 'src/ext/api-postgres';
 import { expect, test } from 'vitest';
 import { ORIGIN } from '../other/check-fixtures';
-import { columnRow, createFolderFlow, type FolderFlow, reconstructFix, schemaState } from './folder-flow';
+import {
+	columnRow,
+	createFolderFlow,
+	type FolderFlow,
+	forkFlow,
+	reconstructFix,
+	schemaState,
+	step,
+} from './folder-flow';
 
 const users = pgTable('users', { id: integer() });
 const likes = pgTable('likes', { id: integer() });
@@ -180,14 +188,10 @@ test('reconstruct rebuilds any snapshot of a linear folder, and the leaf when no
 
 // Branch a creates and then drops `likes`, so a merge replay out of folder-name order would keep `likes`.
 test('reconstruct rebuilds a folder with a merge, and asks for an id while several leaves are open', async () => {
-	const flow = createFolderFlow();
-	await flow.generate('main', v1);
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	await flow.generate('a', { users, likes });
-	await flow.generate('a', v1);
-	await flow.generate('b', { users, posts });
-	flow.merge('main', 'a', 'b');
+	const { flow } = await forkFlow({
+		base: v1,
+		branches: [[step({ users, likes }), step(v1)], [step({ users, posts })]],
+	});
 	const open = folderFiles(flow, 'main');
 
 	await expect(reconstruct(open)).rejects.toThrow(

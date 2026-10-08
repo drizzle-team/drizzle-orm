@@ -1,73 +1,52 @@
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
 import { toSnapshotStatements } from 'src/dialects/postgres/convertor';
+import type { Column, Privilege } from 'src/dialects/postgres/ddl';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { describe, expect, test } from 'vitest';
-import { build } from './commutativity-statements';
+import { build, check, col, fk, idx, pk, policy, privilege, unique } from './commutativity-statements';
 
 // Curated regression scenarios for the facet commutativity model. Each asserts
 // the verdict the model must produce; several encode bugs the facet model fixed
 // vs the legacy conflict-list model. Facet is Postgres's default, so we call the
 // engine directly.
 
-const col = (schema: string, table: string, name: string, extra: Record<string, unknown> = {}) =>
-	({
-		schema,
-		table,
-		name,
-		type: 'varchar',
-		options: null,
-		typeSchema: 'pg_catalog',
-		notNull: false,
-		dimensions: 0,
-		default: null,
-		generated: null,
-		identity: null,
-		...extra,
-	}) as any;
-
-const index = (schema: string, table: string, name: string, columns: string[]) =>
-	({
-		schema,
-		table,
-		name,
-		nameExplicit: true,
-		isUnique: false,
-		where: null,
-		with: '',
-		method: 'btree',
-		concurrently: false,
-		columns: columns.map((value) => ({
-			value,
-			isExpression: false,
-			asc: true,
-			nullsFirst: false,
-			opclass: { name: '', default: true },
-		})),
-	}) as any;
-
 const S = {
-	renameTable: (schema: string, from: string, to: string) => ({ type: 'rename_table', schema, from, to }) as any,
+	renameTable: (schema: string, from: string, to: string) => ({ type: 'rename_table', schema, from, to }),
 	// `relations` are the names of the indexes that move with the table.
-	moveTable: (name: string, from: string, to: string, relations: string[] = []) =>
-		({ type: 'move_table', name, from, to, relations }) as any,
+	moveTable: (name: string, from: string, to: string, relations: string[] = []) => ({
+		type: 'move_table',
+		name,
+		from,
+		to,
+		relations,
+	}),
 	dropTable: (schema: string, name: string) =>
 		({
 			type: 'drop_table',
 			table: { schema, name, isRlsEnabled: false, policies: [] },
 			key: `${schema}.${name}`,
 		}) as any,
-	addColumn: (schema: string, table: string, name: string, extra: Record<string, unknown> = {}) =>
-		({ type: 'add_column', column: col(schema, table, name, extra), isPK: false, isCompositePK: false }) as any,
-	dropColumn: (schema: string, table: string, name: string) =>
-		({ type: 'drop_column', column: col(schema, table, name) }) as any,
-	renameColumn: (schema: string, table: string, from: string, to: string) =>
-		({ type: 'rename_column', from: col(schema, table, from), to: col(schema, table, to) }) as any,
+	addColumn: (schema: string, table: string, name: string, extra: Partial<Column> = {}) => ({
+		type: 'add_column',
+		column: col(schema, table, name, extra),
+		isPK: false,
+		isCompositePK: false,
+	}),
+	dropColumn: (schema: string, table: string, name: string) => ({
+		type: 'drop_column',
+		column: col(schema, table, name),
+	}),
+	renameColumn: (schema: string, table: string, from: string, to: string) => ({
+		type: 'rename_column',
+		from: col(schema, table, from),
+		to: col(schema, table, to),
+	}),
 	// `change` holds the changed properties of the column, as the diff reports them.
 	alterColumn: (
 		schema: string,
 		table: string,
 		name: string,
-		extra: Record<string, unknown> = {},
+		extra: Partial<Column> = {},
 		change: Record<string, unknown> = { notNull: { from: false, to: true } },
 	) =>
 		({
@@ -77,17 +56,26 @@ const S = {
 		}) as any,
 	recreateColumn: (schema: string, table: string, name: string) =>
 		({ type: 'recreate_column', diff: { schema, table, name, $right: col(schema, table, name) } }) as any,
-	createIndex: (schema: string, table: string, name: string, cols: string[]) =>
-		({ type: 'create_index', index: index(schema, table, name, cols) }) as any,
-	dropIndex: (schema: string, table: string, name: string, cols: string[]) =>
-		({ type: 'drop_index', index: index(schema, table, name, cols) }) as any,
-	renameIndex: (schema: string, table: string, from: string, to: string, columns: string[] = []) =>
-		({ type: 'rename_index', schema, table, from, to, columns }) as any,
-	addUnique: (schema: string, table: string, name: string, cols: string[]) =>
-		({
-			type: 'add_unique',
-			unique: { schema, table, name, nameExplicit: true, columns: cols, nullsNotDistinct: false },
-		}) as any,
+	createIndex: (schema: string, table: string, name: string, cols: string[]) => ({
+		type: 'create_index',
+		index: idx(schema, table, name, cols),
+	}),
+	dropIndex: (schema: string, table: string, name: string, cols: string[]) => ({
+		type: 'drop_index',
+		index: idx(schema, table, name, cols),
+	}),
+	renameIndex: (schema: string, table: string, from: string, to: string, columns: string[] = []) => ({
+		type: 'rename_index',
+		schema,
+		table,
+		from,
+		to,
+		columns,
+	}),
+	addUnique: (schema: string, table: string, name: string, cols: string[]) => ({
+		type: 'add_unique',
+		unique: unique(schema, table, name, cols),
+	}),
 	alterUnique: (schema: string, table: string, name: string, cols: string[]) =>
 		({
 			type: 'alter_unique',
@@ -95,33 +83,37 @@ const S = {
 				schema,
 				table,
 				name,
-				$left: { schema, table, name, columns: cols },
-				$right: { schema, table, name, columns: cols },
+				$left: unique(schema, table, name, cols),
+				$right: unique(schema, table, name, cols),
 			},
 		}) as any,
-	addCheck: (schema: string, table: string, name: string, cols: string[]) =>
-		({
-			type: 'add_check',
-			check: { schema, table, name, value: cols.map((c) => `${c} > 0`).join(' and ') },
-			columns: cols,
-		}) as any,
-	dropCheck: (schema: string, table: string, name: string, cols: string[]) =>
-		({
-			type: 'drop_check',
-			check: { schema, table, name, value: cols.map((c) => `${c} > 0`).join(' and ') },
-			columns: cols,
-		}) as any,
+	addCheck: (schema: string, table: string, name: string, cols: string[]) => ({
+		type: 'add_check',
+		check: check(schema, table, name, cols.map((c) => `${c} > 0`).join(' and ')),
+		columns: cols,
+	}),
+	dropCheck: (schema: string, table: string, name: string, cols: string[]) => ({
+		type: 'drop_check',
+		check: check(schema, table, name, cols.map((c) => `${c} > 0`).join(' and ')),
+		columns: cols,
+	}),
 	alterCheck: (schema: string, table: string, name: string, cols: string[]) =>
 		({
 			type: 'alter_check',
-			diff: { schema, table, name, $right: { schema, table, name, value: cols.map((c) => `${c} > 1`).join(' and ') } },
+			diff: { schema, table, name, $right: check(schema, table, name, cols.map((c) => `${c} > 1`).join(' and ')) },
 			newColumns: cols,
 			oldColumns: cols,
 		}) as any,
-	renameConstraint: (schema: string, table: string, from: string, to: string, cols: string[]) =>
-		({ type: 'rename_constraint', entityType: 'uniques', schema, table, from, to, columns: cols }) as any,
-	addPk: (schema: string, table: string, cols: string[]) =>
-		({ type: 'add_pk', pk: { schema, table, name: `${table}_pkey`, nameExplicit: false, columns: cols } }) as any,
+	renameConstraint: (schema: string, table: string, from: string, to: string, cols: string[]) => ({
+		type: 'rename_constraint',
+		entityType: 'uniques',
+		schema,
+		table,
+		from,
+		to,
+		columns: cols,
+	}),
+	addPk: (schema: string, table: string, cols: string[]) => ({ type: 'add_pk', pk: pk(schema, table, cols) }),
 	createFk: (
 		schema: string,
 		table: string,
@@ -130,34 +122,17 @@ const S = {
 		schemaTo: string,
 		tableTo: string,
 		colsTo: string[],
-	) =>
-		({
-			type: 'create_fk',
-			fk: {
-				schema,
-				table,
-				name,
-				nameExplicit: true,
-				columns: cols,
-				schemaTo,
-				tableTo,
-				columnsTo: colsTo,
-				onUpdate: null,
-				onDelete: null,
-			},
-		}) as any,
+	) => ({ type: 'create_fk', fk: fk(schema, table, name, cols, schemaTo, tableTo, colsTo) }),
 	createTable: (schema: string, name: string, columns: unknown[] = []) =>
 		({
 			type: 'create_table',
 			table: { schema, name, isRlsEnabled: false, columns, pk: null, uniques: [], checks: [], policies: [] },
 		}) as any,
-	dropPk: (schema: string, table: string, cols: string[]) =>
-		({ type: 'drop_pk', pk: { schema, table, name: `${table}_pkey`, nameExplicit: false, columns: cols } }) as any,
-	dropUnique: (schema: string, table: string, name: string, cols: string[]) =>
-		({
-			type: 'drop_unique',
-			unique: { schema, table, name, nameExplicit: true, columns: cols, nullsNotDistinct: false },
-		}) as any,
+	dropPk: (schema: string, table: string, cols: string[]) => ({ type: 'drop_pk', pk: pk(schema, table, cols) }),
+	dropUnique: (schema: string, table: string, name: string, cols: string[]) => ({
+		type: 'drop_unique',
+		unique: unique(schema, table, name, cols),
+	}),
 	createEnum: (schema: string, name: string) => ({ type: 'create_enum', enum: { schema, name, values: ['a'] } }) as any,
 	createView: (schema: string, name: string) => ({ type: 'create_view', view: { schema, name } }) as any,
 	createSequence: (schema: string, name: string) => ({ type: 'create_sequence', sequence: { schema, name } }) as any,
@@ -165,9 +140,12 @@ const S = {
 	dropRole: (name: string) => ({ type: 'drop_role', role: { name } }) as any,
 	dropEnum: (schema: string, name: string) =>
 		({ type: 'drop_enum', enum: { schema, name, values: ['a', 'b'] } }) as any,
-	renameEnum: (schema: string, from: string, to: string) => ({ type: 'rename_enum', schema, from, to }) as any,
-	moveEnum: (name: string, from: string, to: string) =>
-		({ type: 'move_enum', from: { schema: from, name }, to: { schema: to, name } }) as any,
+	renameEnum: (schema: string, from: string, to: string) => ({ type: 'rename_enum', schema, from, to }),
+	moveEnum: (name: string, from: string, to: string) => ({
+		type: 'move_enum',
+		from: { schema: from, name },
+		to: { schema: to, name },
+	}),
 	// `columns` are the columns of the enum type that the statement converts.
 	recreateEnum: (schema: string, name: string, columns: object[] = []) =>
 		({
@@ -175,20 +153,20 @@ const S = {
 			to: { schema, name, values: ['a'] },
 			columns: columns.map((it) => ({ ...it, default: { left: null, right: null } })),
 		}) as any,
-	dropSchema: (name: string) => ({ type: 'drop_schema', name }) as any,
-	alterRls: (schema: string, table: string, on: boolean) =>
-		({ type: 'alter_rls', schema, name: table, isRlsEnabled: on }) as any,
-	grant: (schema: string, table: string, grantee: string, type: string) =>
-		({
-			type: 'grant_privilege',
-			privilege: { schema, table, grantee, grantor: 'admin', type, isGrantable: false },
-		}) as any,
+	dropSchema: (name: string) => ({ type: 'drop_schema', name }),
+	alterRls: (schema: string, table: string, on: boolean) => ({
+		type: 'alter_rls',
+		schema,
+		name: table,
+		isRlsEnabled: on,
+	}),
+	grant: (schema: string, table: string, grantee: string, type: Privilege['type']) => ({
+		type: 'grant_privilege',
+		privilege: privilege(schema, table, grantee, type, 'admin'),
+	}),
 	createPolicy: (schema: string, table: string, name: string, roles = ['public'], type = 'create_policy') =>
-		({
-			type,
-			policy: { schema, table, name, as: 'PERMISSIVE', for: 'ALL', roles, using: null, withCheck: null },
-		}) as any,
-};
+		({ type, policy: policy(schema, table, name, roles) }) as any,
+} satisfies Record<string, (...args: any[]) => JsonStatement>;
 
 // The claim rules read the form of a statement that a snapshot stores.
 async function conflicts(a: JsonStatement[], b: JsonStatement[]): Promise<boolean> {
@@ -517,6 +495,23 @@ const cases: Case[] = [
 		b: [S.moveEnum('user_role', 'public', 'app')],
 		expect: 'conflict',
 	},
+	{
+		name: 'alter_column(generated enum column) DROP EXPRESSION ∥ rename_enum commute',
+		a: [S.alterColumn('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' }, {
+			generated: { from: { as: `'a'::"user_role"`, type: 'stored' }, to: null },
+		})],
+		b: [S.renameEnum('public', 'user_role', 'staff_role')],
+		expect: 'commute',
+	},
+	{
+		name: 'alter_column(generated enum column) DROP EXPRESSION and a new type ∥ rename_enum conflict',
+		a: [S.alterColumn('public', 'users', 'role', { type: 'user_role', typeSchema: 'public' }, {
+			generated: { from: { as: `'a'`, type: 'stored' }, to: null },
+			type: { from: 'varchar', to: 'user_role' },
+		})],
+		b: [S.renameEnum('public', 'user_role', 'staff_role')],
+		expect: 'conflict',
+	},
 
 	// a privilege statement claims its table, its grantee and its privilege type
 	{
@@ -546,14 +541,14 @@ const cases: Case[] = [
 	{
 		name: 'grant by admin ∥ rename_role admin (GRANTED BY names it) conflict',
 		a: [S.grant('public', 'users', 'r', 'SELECT')],
-		b: [{ type: 'rename_role', from: { name: 'admin' }, to: { name: 'owner' } } as any],
+		b: [S.renameRole('admin', 'owner')],
 		expect: 'conflict',
 	},
 
 	{
 		name: 'revoke of a privilege that admin granted ∥ rename_role admin (the key of the privilege holds it) conflict',
 		a: [{ ...S.grant('public', 'users', 'r', 'SELECT'), type: 'revoke_privilege' }],
-		b: [{ type: 'rename_role', from: { name: 'admin' }, to: { name: 'owner' } } as any],
+		b: [S.renameRole('admin', 'owner')],
 		expect: 'conflict',
 	},
 
@@ -620,7 +615,7 @@ const cases: Case[] = [
 			S.renameTable('public', 'users', 'accounts'),
 			S.createFk('public', 'posts', 'posts_user_fk', ['user_id'], 'public', 'accounts', ['id']),
 		],
-		b: [{ type: 'drop_index', index: { ...index('public', 'users', 'users_id_ux', ['id']), isUnique: true } } as any],
+		b: [{ type: 'drop_index', index: { ...idx('public', 'users', 'users_id_ux', ['id']), isUnique: true } }],
 		expect: 'conflict',
 	},
 	{
@@ -632,7 +627,7 @@ const cases: Case[] = [
 	{
 		name: 'create_fk ∥ drop of a unique index (on the referenced columns) conflict',
 		a: [S.createFk('public', 'orders', 'fk', ['uid'], 'public', 'users', ['id'])],
-		b: [{ type: 'drop_index', index: { ...index('public', 'users', 'users_id_ux', ['id']), isUnique: true } } as any],
+		b: [{ type: 'drop_index', index: { ...idx('public', 'users', 'users_id_ux', ['id']), isUnique: true } }],
 		expect: 'conflict',
 	},
 	{

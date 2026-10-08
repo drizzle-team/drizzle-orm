@@ -32,6 +32,8 @@ An index is keyed by schema and name, without its table: `DROP INDEX` and `ALTER
 
 `src/dialects/postgres/reconstruct.ts` holds the code that applies deltas: `applyDeltas` applies a list of deltas to a state, `reconstruct` gives the state after a snapshot, and `startingState` gives the state that the deltas of a new snapshot start from. For a merge snapshot that state is the combined state.
 
+`src/dialects/postgres/folder.ts` reads the snapshot files of a migrations folder one time, runs the history rules and the status check, and gives the loaded folder: the snapshots by id in folder-name order, their files, and the ids of the leaves. `generate`, `check`, `pull` and the programmatic `reconstruct` use it. Its functions `stateOf` and `combinedState` call `reconstruct` and `startingState`, and they turn a failure into the `malformed` error that names the migration.
+
 `applyDeltas` applies each delta through one call to the DDL engine in `src/dialects/dialect.ts`, which `ddlDiff` uses too. A `create` adds the entity. A `drop` removes that one entity and follows no edge. An `alter` or a `rename` goes through `update` for the entity that the key names. `ddlDiff` calls the same `update` on the old state when it applies a rename decision, and `update` records the rename delta there. The final comparison of the two states gives the `create`, `drop` and `alter` deltas.
 
 One set of rules covers a delta that does not fit the state. The rules are the same in a merge and outside a merge:
@@ -113,7 +115,13 @@ A merge snapshot lists every leaf in `prevIds`, and it stores only the statement
 
 The report has only the first conflict of each pair of leaves. `planConflictFix` in `src/cli/commands/fix-conflicts.ts` plans what `generate --fix-conflicts` deletes: the `source` of every reported statement with all its children. It checks the rest of the history again and repeats until no conflict is left.
 
-The facet rules are also the source of the commutativity matrix. `tests/postgres/commutativity-matrix.json` is generated from them, and `tests/postgres/commutativity.matrix-gen.test.ts` fails when the two differ.
+The facet rules are also the source of the commutativity matrix. `tests/postgres/commutativity-matrix.json` is generated from them, and `tests/postgres/commutativity.matrix-gen.test.ts` fails when the two differ. The file has three fields:
+
+- `types` lists the row names. A statement type has one row, and one more row for each variant that has other claims. `tests/postgres/commutativity-statements.ts` holds the statement of each row.
+- `matrix` has one string of `0` and `1` for each row, in the order of `types`. A `1` means that the statement of the row conflicts with the statement of the column.
+- `impossible` has the same layout. A `1` marks a conflict that no folder can have: one statement creates an object, and the other statement needs that object to exist at the fork point.
+
+The file stores verdicts only. A rule change that keeps every verdict leaves no diff in the file. The reason for each conflict is on the visualizer page, which the same test builds from the rules: `MATRIX_HTML=<out.html> pnpm vitest run tests/postgres/commutativity.matrix-gen.test.ts`.
 
 ## mysql, sqlite and turso: compare full states at each fork
 

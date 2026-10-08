@@ -20,11 +20,10 @@ import type {
 	View,
 } from '../dialects/postgres/ddl';
 import { fromEntities, interimToDDL } from '../dialects/postgres/ddl';
-import type { PostgresSchemaState, PostgresSnapshot, PostgresSnapshotV8 } from '../dialects/postgres/snapshot';
+import type { PostgresSchemaState, PostgresSnapshotV8 } from '../dialects/postgres/snapshot';
 import { upToV8 } from '../dialects/postgres/versions';
 import { originUUID } from '../utils';
 import type { DB } from '../utils';
-import type { SnapshotNode } from '../utils/utils-node';
 
 const schemaState = (id: string, prevIds: string[], ddl: PostgresEntity[]): PostgresSchemaState => {
 	const parents = prevIds.filter((it) => it && it !== originUUID);
@@ -266,56 +265,29 @@ export const up = (it: Record<string, any>): { snapshot: PostgresSchemaState; hi
 // `files` maps each migration folder name to the parsed JSON of its snapshot.json.
 // Returns the state of snapshot `id`, or of the only leaf when `id` is not given.
 export const reconstruct = async (files: Record<string, unknown>, id?: string): Promise<PostgresSchemaState> => {
-	const { reconstruct: reconstructState, reconstructErrorMessage } = await import('../dialects/postgres/reconstruct');
-	const { CheckCliError } = await import('../cli/errors');
-	const { assertPostgresHistory, assertSnapshotStatus, validatorForDialect } = await import('../utils/utils-node');
+	const { assertHistory, leafFolders, loadFolder, stateOf, validFiles } = await import('../dialects/postgres/folder');
 
 	// A merge applies the rest of its history in folder-name order.
-	const folders = Object.keys(files).sort();
-	const validate = validatorForDialect('postgresql');
-	for (const folder of folders) {
-		const raw = files[folder];
-		assertSnapshotStatus(folder, typeof raw === 'object' && raw !== null ? validate(raw).status : 'malformed');
-	}
-
-	const snapshots = folders.map((folder) => files[folder] as PostgresSnapshot);
-	const nodes: SnapshotNode[] = snapshots.map((it, idx) => ({
-		path: folders[idx],
-		folder: folders[idx],
-		id: it.id,
-		prevIds: it.prevIds,
-		dialect: it.dialect,
-		type: it.type,
-	}));
-	assertPostgresHistory(folders, nodes);
+	const entries = Object.keys(files).sort().map((folder) => ({ folder, path: folder, raw: files[folder] }));
+	// A file that is not valid is reported before a broken history.
+	const valid = validFiles(entries);
+	assertHistory(entries);
+	const migrations = loadFolder(valid);
 
 	if (id === undefined) {
-		const parents = new Set(nodes.flatMap((it) => it.prevIds));
-		const leaves = nodes.filter((it) => !parents.has(it.id));
+		const leaves = leafFolders(migrations);
 		if (leaves.length === 0) {
 			throw new Error('The migrations folder has no snapshots. Pass the snapshot files of at least one migration.');
 		}
 		if (leaves.length > 1) {
 			throw new Error(
-				`The migrations folder has ${leaves.length} leaf snapshots: ${leaves.map((it) => it.folder).join(', ')}. `
+				`The migrations folder has ${leaves.length} leaf snapshots: ${leaves.join(', ')}. `
 					+ 'Pass the id of the snapshot to rebuild, or run generate to merge the leaves.',
 			);
 		}
-		id = leaves[0].id;
+		[id] = migrations.leafIds;
 	}
 
-	const history = new Map(snapshots.map((it) => [it.id, it]));
-	try {
-		const state = reconstructState(history, id);
-		return schemaState(id, history.get(id)!.prevIds, state.entities.list());
-	} catch (e) {
-		const folder = nodes.find((it) => it.id === id)?.folder;
-		// The error for an id that the folder does not hold already says what to do.
-		if (!folder) throw e;
-		throw new CheckCliError(
-			'malformed',
-			reconstructErrorMessage(folder, `Cannot reconstruct the state of migration ${folder}: ${(e as Error).message}`),
-			{ snapshot: folder },
-		);
-	}
+	const state = stateOf(migrations, id);
+	return schemaState(id, migrations.snapshots.get(id)!.prevIds, state.entities.list());
 };

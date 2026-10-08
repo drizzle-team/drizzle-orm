@@ -1,6 +1,5 @@
 import { randomUUID } from 'crypto';
 import { render } from 'hanji';
-import { dirname } from 'path';
 import { copyDDL, type Delta } from '../../dialects/dialect';
 import { toSnapshotStatements } from '../../dialects/postgres/convertor';
 import type {
@@ -23,11 +22,17 @@ import { createDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { SchemaSource } from '../../dialects/postgres/drizzle';
-import { prepareSnapshot, previousState, stateOfSchema } from '../../dialects/postgres/serializer';
+import {
+	combinedState,
+	leafFolders,
+	type MigrationsFolder,
+	readFolder,
+	withoutMigrations,
+} from '../../dialects/postgres/folder';
+import { prepareSnapshot, stateOfSchema } from '../../dialects/postgres/serializer';
 import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
 import type { SnapshotStatement } from '../../dialects/postgres/snapshot-statements';
 import { originUUID } from '../../utils';
-import { prepareOutFolder } from '../../utils/utils-node';
 import { isInteractive, outputFormat } from '../context';
 import { CheckCliError, CommandOutputCliError, SchemaFilesNotFoundCliError } from '../errors';
 import { resolver } from '../prompts';
@@ -59,15 +64,14 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	const { out: outFolder } = config;
 	const json = outputFormat() === 'json';
 
-	const stored = prepareOutFolder(outFolder);
-	const { report, fix } = await checkSnapshots(stored.snapshots, 'postgresql');
+	const stored = readFolder(outFolder);
+	const { report, fix } = await checkSnapshots(stored.files, 'postgresql');
 	if (fix && !config.fixConflicts) await confirmConflictFix(config, conflictError(report, fix));
-	const deleted = new Set(fix?.migrations);
-	const snapshots = stored.snapshots.filter((it) => !deleted.has(dirname(it)));
-	const index = stored.index.filter((it) => !deleted.has(dirname(it.path)));
+	const kept = withoutMigrations(stored, fix?.migrations ?? []);
+	const snapshots = kept.files.map((it) => it.path);
 	const prepared = await config.schemaSource.load();
-	const { ddlCur, ddlPrev, prevIds } = await prepareSnapshot(snapshots, prepared);
-	const parentFolders = index.filter((it) => prevIds.includes(it.id)).map((it) => it.folder);
+	const { ddlCur, ddlPrev, prevIds } = await prepareSnapshot(kept, prepared);
+	const parentFolders = leafFolders(kept);
 
 	// `state` is the state after the migration, and `deltas` turn `ddlPrev` into it. `statements` are the
 	// statements of the migration, in the order of its SQL.
@@ -174,7 +178,7 @@ export type CheckWarning = { kind: 'schema_changed' | 'merge_needed' | 'not_comp
 // would write no SQL. Nothing is written. No failure here may fail check, so a schema that cannot be
 // compared is a warning too.
 export const schemaWarnings = async (
-	stored: ReturnType<typeof prepareOutFolder>,
+	stored: MigrationsFolder,
 	schemaSource: SchemaSource,
 ): Promise<CheckWarning[]> => {
 	const notCompared = (reason: string): CheckWarning[] => [{
@@ -188,11 +192,10 @@ export const schemaWarnings = async (
 			return notCompared('the schema has errors. Run drizzle-kit generate to see them.');
 		}
 
-		const { ddlPrev, prevIds } = await previousState(stored.snapshots);
-		const { sqlStatements } = await ddlDiffDry(ddlPrev, ddlCur, 'default');
+		const { sqlStatements } = await ddlDiffDry(combinedState(stored), ddlCur, 'default');
 		if (sqlStatements.length === 0) return [];
 
-		const leaves = stored.index.filter((it) => prevIds.includes(it.id)).map((it) => it.folder);
+		const leaves = leafFolders(stored);
 		if (leaves.length === 0) {
 			return [{
 				kind: 'schema_changed',

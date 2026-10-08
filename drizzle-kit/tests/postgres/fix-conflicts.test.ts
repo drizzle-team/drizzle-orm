@@ -3,7 +3,7 @@ import { basename } from 'path';
 import { errorToEnvelope } from 'src/cli/errors';
 import { runGenerate } from 'src/cli/schema';
 import { expect, onTestFinished, test, vi } from 'vitest';
-import { createFolderFlow, type FolderFlow, schemaState, tempDir } from './folder-flow';
+import { forkFlow, rename, schemaState, step, tempDir } from './folder-flow';
 import type { PostgresSchema } from './mocks';
 
 const tags = pgTable('tags', { id: integer() });
@@ -12,20 +12,13 @@ const users = (score?: number, extra: Record<string, ReturnType<typeof integer>>
 
 const forkPoint = { users: pgTable('users', { id: integer(), note: varchar(), score: integer() }) };
 
-const conflictingFork = async (flow: FolderFlow) => {
-	await flow.generate('main', forkPoint);
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	await flow.generate('a', { users: users(1), tags });
-	await flow.generate('b', { users: users(2) });
-	flow.merge('main', 'a', 'b');
-};
+const conflictingFork = () =>
+	forkFlow({ base: forkPoint, branches: [[step({ users: users(1), tags })], [step({ users: users(2) })]] });
 
 const resolved = { users: users(3), tags };
 
 test('check and generate stop on a conflict and name the migrations that --fix-conflicts deletes', async () => {
-	const flow = createFolderFlow();
-	await conflictingFork(flow);
+	const { flow } = await conflictingFork();
 
 	const result = await flow.check('main');
 
@@ -41,8 +34,7 @@ test('check and generate stop on a conflict and name the migrations that --fix-c
 });
 
 test('--fix-conflicts deletes both conflicting migrations and generates one migration from the fork point', async () => {
-	const flow = createFolderFlow();
-	await conflictingFork(flow);
+	const { flow } = await conflictingFork();
 
 	const { folder, deleted } = await flow.generate('main', resolved, { fixConflicts: true });
 
@@ -60,15 +52,13 @@ test('--fix-conflicts deletes both conflicting migrations and generates one migr
 });
 
 test('--fix-conflicts also deletes the children of a conflicting migration and names the custom ones', async () => {
-	const flow = createFolderFlow();
-	await flow.generate('main', { users: users() });
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	await flow.generate('a', { users: users(1) });
-	await flow.generate('a', { users: users(1) }, { custom: true });
-	await flow.generate('a', { users: users(1), tags });
-	await flow.generate('b', { users: users(2) });
-	flow.merge('main', 'a', 'b');
+	const { flow } = await forkFlow({
+		base: { users: users() },
+		branches: [
+			[step({ users: users(1) }), { schema: { users: users(1) }, custom: true }, step({ users: users(1), tags })],
+			[step({ users: users(2) })],
+		],
+	});
 	const fix = {
 		migrations: ['20260101120002_a', '20260101120003_a', '20260101120004_a', '20260101120005_b'],
 		customMigrations: ['20260101120003_a'],
@@ -89,17 +79,15 @@ test('--fix-conflicts also deletes the children of a conflicting migration and n
 });
 
 test('the migrations before a conflicting one stay, and --fix-conflicts merges the branches that remain', async () => {
-	const flow = createFolderFlow();
 	const x = pgTable('x', { id: integer() });
 	const y = pgTable('y', { id: integer() });
-	await flow.generate('main', { users: users() });
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	await flow.generate('a', { users: users(), x });
-	await flow.generate('a', { users: users(1), x });
-	await flow.generate('b', { users: users(), y });
-	await flow.generate('b', { users: users(2), y });
-	flow.merge('main', 'a', 'b');
+	const { flow } = await forkFlow({
+		base: { users: users() },
+		branches: [
+			[step({ users: users(), x }), step({ users: users(1), x })],
+			[step({ users: users(), y }), step({ users: users(2), y })],
+		],
+	});
 	const merged = { users: users(3), x, y };
 
 	const { folder, deleted } = await flow.generate('main', merged, { fixConflicts: true });
@@ -116,16 +104,14 @@ test('the migrations before a conflicting one stay, and --fix-conflicts merges t
 
 // Check reports one conflict for each pair of leaves, and these branches conflict in two places.
 test('--fix-conflicts fixes every conflict between two branches', async () => {
-	const flow = createFolderFlow();
 	const level = (value?: number) => ({ level: value === undefined ? integer() : integer().default(value) });
-	await flow.generate('main', { users: users(undefined, level()) });
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	await flow.generate('a', { users: users(1, level()) });
-	await flow.generate('a', { users: users(1, level(1)) });
-	await flow.generate('b', { users: users(2, level()) });
-	await flow.generate('b', { users: users(2, level(2)) });
-	flow.merge('main', 'a', 'b');
+	const { flow } = await forkFlow({
+		base: { users: users(undefined, level()) },
+		branches: [
+			[step({ users: users(1, level()) }), step({ users: users(1, level(1)) })],
+			[step({ users: users(2, level()) }), step({ users: users(2, level(2)) })],
+		],
+	});
 	const merged = { users: users(3, level(3)) };
 
 	const { folder, deleted } = await flow.generate('main', merged, { fixConflicts: true });
@@ -137,8 +123,7 @@ test('--fix-conflicts fixes every conflict between two branches', async () => {
 });
 
 test('--fix-conflicts in explain mode names the migrations that the fix deletes and deletes nothing', async () => {
-	const flow = createFolderFlow();
-	await conflictingFork(flow);
+	const { flow } = await conflictingFork();
 	const log = vi.spyOn(console, 'log').mockImplementation(() => {});
 	onTestFinished(() => log.mockRestore());
 	const explainAsText = async (schema: PostgresSchema) => {
@@ -171,8 +156,7 @@ test('--fix-conflicts in explain mode names the migrations that the fix deletes 
 });
 
 test('--fix-conflicts deletes nothing while generate still needs rename hints', async () => {
-	const flow = createFolderFlow();
-	await conflictingFork(flow);
+	const { flow } = await conflictingFork();
 	const renamed = { users: pgTable('users', { id: integer(), points: integer().default(3) }), tags };
 
 	const pending = await flow.generate('main', renamed, { fixConflicts: true });
@@ -182,7 +166,7 @@ test('--fix-conflicts deletes nothing while generate still needs rename hints', 
 
 	const { folder, deleted } = await flow.generate('main', renamed, {
 		fixConflicts: true,
-		hints: [{ type: 'rename', kind: 'column', from: ['public', 'users', 'score'], to: ['public', 'users', 'points'] }],
+		hints: [rename('column', 'public.users.score', 'public.users.points')],
 	});
 
 	expect(deleted).toStrictEqual(['20260101120002_a', '20260101120003_b']);

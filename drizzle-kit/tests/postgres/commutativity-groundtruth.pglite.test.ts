@@ -9,7 +9,7 @@ import type { DB } from 'src/utils';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { mutations, PAIRS, parent } from './commutativity-fixtures';
 import matrixData from './commutativity-matrix.json';
-import { build } from './commutativity-statements';
+import { build, type NeededObject, rows } from './commutativity-statements';
 import { diff, prepareTestDatabase } from './mocks';
 
 // Two branches commute only if postgres applies them in both orders and both
@@ -352,7 +352,7 @@ describe('changes of one column on two branches vs a real database', () => {
 // the objects that either statement needs.
 const sqlOf = (type: string) => fromJson([build(type)]).sqlStatements;
 
-const baseObjects = {
+const baseObjects: Record<NeededObject, string[]> = {
 	schema: sqlOf('create_schema'),
 	targetSchema: [`CREATE SCHEMA "s_new";`],
 	table: sqlOf('create_table'),
@@ -371,87 +371,6 @@ const baseObjects = {
 	policy: sqlOf('create_policy'),
 	role: sqlOf('create_role'),
 	privilege: sqlOf('grant_privilege'),
-};
-type BaseObject = keyof typeof baseObjects;
-
-const onTable = ['schema', 'table'] as const;
-const onColumn = [...onTable, 'column'] as const;
-
-const needs: Record<string, readonly BaseObject[]> = {
-	create_table: ['schema'],
-	'create_table:enum': ['schema', 'enum'],
-	'create_table:ix': ['schema'],
-	drop_table: onTable,
-	rename_table: onTable,
-	move_table: [...onTable, 'targetSchema'],
-	add_column: onTable,
-	'add_column:enum': [...onTable, 'enum'],
-	drop_column: onColumn,
-	alter_column: onColumn,
-	'alter_column:default': onColumn,
-	'alter_column:type': onColumn,
-	'alter_column:enum_not_null': [...onTable, 'enum', 'enumColumn'],
-	'alter_column:enum_default': [...onTable, 'enum', 'enumColumn'],
-	recreate_column: onColumn,
-	rename_column: onColumn,
-	create_index: onColumn,
-	drop_index: [...onColumn, 'index'],
-	rename_index: [...onColumn, 'index'],
-	recreate_index: [...onColumn, 'index'],
-	add_pk: onColumn,
-	drop_pk: [...onColumn, 'pk'],
-	'drop_pk:target': ['schema', 'referencedTable'],
-	alter_pk: [...onColumn, 'pk'],
-	create_fk: [...onColumn, 'referencedTable'],
-	drop_fk: [...onColumn, 'referencedTable', 'fk'],
-	recreate_fk: [...onColumn, 'referencedTable', 'fk'],
-	add_unique: onColumn,
-	drop_unique: [...onColumn, 'unique'],
-	alter_unique: [...onColumn, 'unique'],
-	add_check: onColumn,
-	'add_check:uq': onColumn,
-	drop_check: [...onColumn, 'check'],
-	alter_check: [...onColumn, 'check'],
-	'rename_constraint:pks': [...onColumn, 'pk'],
-	'rename_constraint:uniques': [...onColumn, 'unique'],
-	'rename_constraint:checks': [...onColumn, 'check'],
-	'rename_constraint:fks': [...onColumn, 'referencedTable', 'fk'],
-	create_enum: ['schema'],
-	drop_enum: ['schema', 'enum'],
-	rename_enum: ['schema', 'enum'],
-	alter_enum: ['schema', 'enum'],
-	recreate_enum: ['schema', 'enum'],
-	'recreate_enum:column': [...onTable, 'enum', 'enumColumn'],
-	move_enum: ['schema', 'targetSchema', 'enum'],
-	create_schema: [],
-	drop_schema: ['schema'],
-	rename_schema: ['schema'],
-	create_sequence: ['schema'],
-	drop_sequence: ['schema', 'sequence'],
-	rename_sequence: ['schema', 'sequence'],
-	alter_sequence: ['schema', 'sequence'],
-	move_sequence: ['schema', 'targetSchema', 'sequence'],
-	create_view: ['schema'],
-	drop_view: ['schema', 'view'],
-	rename_view: ['schema', 'view'],
-	alter_view: ['schema', 'view'],
-	move_view: ['schema', 'targetSchema', 'view'],
-	create_policy: onTable,
-	'create_policy:role': [...onTable, 'role'],
-	drop_policy: [...onTable, 'policy'],
-	rename_policy: [...onTable, 'policy'],
-	alter_policy: [...onTable, 'policy'],
-	recreate_policy: [...onTable, 'policy'],
-	alter_rls: onTable,
-	'alter_rls:disable': [...onTable, 'rls'],
-	create_role: [],
-	drop_role: ['role'],
-	rename_role: ['role'],
-	alter_role: ['role'],
-	grant_privilege: [...onTable, 'role'],
-	'grant_privilege:insert': [...onTable, 'role'],
-	revoke_privilege: [...onTable, 'role', 'privilege'],
-	regrant_privilege: [...onTable, 'role', 'privilege'],
 };
 
 const unenforcedPolicy =
@@ -519,16 +438,18 @@ const run = async (sql: string[]): Promise<Run> => {
 	return { ok: true, schema: await fingerprint() };
 };
 
+const catalog = rows();
 const baseFor = (...types: string[]) =>
-	(Object.keys(baseObjects) as BaseObject[])
-		.filter((object) => types.some((type) => needs[type]!.includes(object)))
+	(Object.keys(baseObjects) as NeededObject[])
+		.filter((object) => types.some((type) => catalog[type]!.needs.includes(object)))
 		.flatMap((object) => baseObjects[object]);
 
 describe('matrix cells vs a real database', () => {
 	const { types, matrix, impossible } = matrixData;
+	// A grid row is one string of 0 and 1.
+	const isSet = (grid: string[], i: number, j: number) => grid[i]![j] === '1';
 
 	test('every matrix statement applies to its own base', async () => {
-		expect(Object.keys(needs).sort()).toEqual([...types].sort());
 		const failed: string[] = [];
 		for (const type of types) {
 			const result = await run([...baseFor(type), ...sqlOf(type)]);
@@ -541,7 +462,7 @@ describe('matrix cells vs a real database', () => {
 		const mismatches: Record<string, string> = {};
 		for (let i = 0; i < types.length; i++) {
 			for (let j = i; j < types.length; j++) {
-				if (impossible[i]![j] || impossible[j]![i]) continue;
+				if (isSet(impossible, i, j) || isSet(impossible, j, i)) continue;
 				const [a, b] = [types[i]!, types[j]!];
 				const base = baseFor(a, b);
 				const ab = await run([...base, ...sqlOf(a), ...sqlOf(b)]);
@@ -555,7 +476,7 @@ describe('matrix cells vs a real database', () => {
 					? 'both orders succeed with different schemas'
 					: 'both orders succeed with the same schema';
 				const postgresCommutes = ab.ok && ba.ok && ab.schema === ba.schema;
-				const rulesCommute = !matrix[i]![j] && !matrix[j]![i];
+				const rulesCommute = !isSet(matrix, i, j) && !isSet(matrix, j, i);
 				if (postgresCommutes === rulesCommute) continue;
 				// The shared base holds what both statements need. When one statement fails on it without the
 				// other, no real folder has this pair. An example is a drop of an enum that a column of the

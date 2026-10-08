@@ -8,9 +8,10 @@ import { resolve } from 'node:path';
 import { dialects } from '../utils/schemaValidator';
 import '../@types/utils';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
+import { readFolder } from '../dialects/postgres/folder';
 import { assertUnreachable } from '../utils';
-import { assertV3OutFolder, prepareFilenames, prepareOutFolder } from '../utils/utils-node';
-import { assertConflictOptions, checkHandler } from './commands/check';
+import { assertV3OutFolder, prepareFilenames } from '../utils/utils-node';
+import { assertConflictOptions, checkHandler, checkSnapshots, conflictError } from './commands/check';
 import type { CheckWarning } from './commands/generate-postgres';
 import type { Setup } from './commands/studio';
 import { upCockroachHandler } from './commands/up-cockroach';
@@ -593,17 +594,23 @@ export const runCheck = async (
 	assertV3OutFolder(config.out);
 	const { out, dialect, schema, ignoreConflicts } = config;
 	assertConflictOptions('check', dialect, { ignoreConflicts });
-	const stored = prepareOutFolder(out);
-	await checkHandler(out, dialect, ignoreConflicts, true, stored);
-
-	// The folder is valid here. A schema that differs from it is a warning and no error.
 	let warnings: CheckWarning[] = [];
-	if (dialect === 'postgresql' && schema) {
-		const { schemaWarnings } = await import('./commands/generate-postgres');
-		const { SchemaSource } = await import('../dialects/postgres/drizzle');
-		warnings = await schemaWarnings(stored, {
-			load: async () => SchemaSource.fromFilenames(prepareFilenames(schema)).load(),
-		});
+	if (dialect === 'postgresql') {
+		// Postgres keeps the folder that the check read, so the schema warnings read no snapshot file again.
+		const stored = readFolder(out);
+		const { report, fix } = await checkSnapshots(stored.files, dialect);
+		if (fix) throw conflictError(report, fix);
+
+		// The folder is valid here. A schema that differs from it is a warning and no error.
+		if (schema) {
+			const { schemaWarnings } = await import('./commands/generate-postgres');
+			const { SchemaSource } = await import('../dialects/postgres/drizzle');
+			warnings = await schemaWarnings(stored, {
+				load: async () => SchemaSource.fromFilenames(prepareFilenames(schema)).load(),
+			});
+		}
+	} else {
+		await checkHandler(out, dialect, ignoreConflicts);
 	}
 	return { status: 'ok' as const, dialect, ...(warnings.length > 0 && { warnings }) };
 };
@@ -1239,7 +1246,7 @@ const detectInstaller = (): { cmd: 'pnpm' | 'bunx' | 'yarn' | 'npx'; args: strin
 	return { cmd: 'npx', args: ['-y'] };
 };
 
-export const LEGACY_SKILLS: readonly string[] = [
+const LEGACY_SKILLS: readonly string[] = [
 	'drizzle-generate',
 	'drizzle-push',
 	'drizzle-pull',

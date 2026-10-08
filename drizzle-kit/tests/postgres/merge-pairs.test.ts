@@ -17,9 +17,8 @@ import {
 	serial,
 	unique,
 } from 'drizzle-orm/pg-core';
-import type { Hint, RenameCreateHintKind } from 'src/cli/hints';
 import { expect, test } from 'vitest';
-import { createFolderFlow } from './folder-flow';
+import { type Fork, forkFlow, rename, step } from './folder-flow';
 import type { PostgresSchema } from './mocks';
 
 // Every row is a base schema and two or more branches. A branch is a list of migrations, and each
@@ -31,14 +30,7 @@ import type { PostgresSchema } from './mocks';
 // runs in either order says so in a comment.
 //
 // To add a case, add a row. The tests below run every row with each branch as the first parent of the merge.
-type Step = { schema: PostgresSchema; hints: Hint[] };
-type Row = { name: string; base: PostgresSchema; branches: Step[][]; merged?: PostgresSchema };
-
-const step = (schema: PostgresSchema, ...hints: Hint[]): Step => ({ schema, hints });
-
-// `from` and `to` are the names of the entity with a dot between them, for example `public.users.email`.
-const rename = (kind: RenameCreateHintKind, from: string, to: string) =>
-	({ type: 'rename', kind, from: from.split('.'), to: to.split('.') }) as unknown as Hint;
+type Row = Fork & { name: string; merged?: PostgresSchema };
 
 type Namespace = ReturnType<typeof pgSchema>;
 type Extra = (t: any) => any[];
@@ -215,6 +207,15 @@ const rows: Row[] = [
 		merged: { accounts },
 	},
 	{
+		name: 'a new table and then a new column of that table against a new column of another table',
+		base: { users },
+		branches: [
+			[step({ users, posts: table('posts', ['id']) }), step({ users, posts })],
+			[step({ users: table('users', ['id', 'email']) })],
+		],
+		merged: { users: table('users', ['id', 'email']), posts },
+	},
+	{
 		name: 'a table rename against a new column of that table',
 		base: { users, posts },
 		branches: [
@@ -318,6 +319,15 @@ const rows: Row[] = [
 			[step({ t: pgTable('t', { email: integer(), age: integer().default(0) }) })],
 		],
 		merged: { t: pgTable('t', { contact: integer(), age: integer().notNull().default(0) }) },
+	},
+	{
+		name: 'NOT NULL on a column against a default on that column',
+		base: { t: pgTable('t', { id: integer(), age: integer() }) },
+		branches: [
+			[step({ t: pgTable('t', { id: integer(), age: integer().notNull() }) })],
+			[step({ t: pgTable('t', { id: integer(), age: integer().default(0) }) })],
+		],
+		merged: { t: pgTable('t', { id: integer(), age: integer().notNull().default(0) }) },
 	},
 	{
 		name: 'NOT NULL on one column in both branches, with a column rename in one branch',
@@ -494,6 +504,15 @@ const rows: Row[] = [
 			[step(withEnum(mood, 'state', ['age']))],
 		],
 		merged: withEnum(feeling, 'state', ['age']),
+	},
+	{
+		name: 'an enum rename against NOT NULL on a column of that enum type',
+		base: withEnum(mood, 'state'),
+		branches: [
+			[step(withEnum(feeling, 'state'), moodToFeeling)],
+			[step({ mood, t: pgTable('t', { id: integer(), state: mood('state').notNull() }) })],
+		],
+		merged: { feeling, t: pgTable('t', { id: integer(), state: feeling('state').notNull() }) },
 	},
 	{
 		name: 'a removed enum value against NOT NULL on a column of that enum type',
@@ -689,6 +708,29 @@ const rows: Row[] = [
 			[step(tableT(['id', 'email']))],
 		],
 		merged: tableT(['id', 'contact']),
+	},
+	{
+		name: 'a column rename against a drop of an index on that column',
+		base: tableT(['id', 'email'], withIndex('t_email_ix', 'email')),
+		branches: [
+			[step(tableT(['id', 'contact'], withIndex('t_email_ix', 'contact')), emailToContact)],
+			[step(tableT(['id', 'email']))],
+		],
+		merged: tableT(['id', 'contact']),
+	},
+	{
+		// The old index has the old name of the column, so the column rename must not match the index.
+		name: 'a column rename with a new index in place of an index with the old column name against a new table',
+		base: tableT(['id', 'email'], withIndex('email', 'email')),
+		branches: [
+			[step(
+				tableT(['id', 'contact'], withIndex('t_contact_ix', 'contact')),
+				emailToContact,
+				{ type: 'create', kind: 'index', entity: ['public', 't', 't_contact_ix'] },
+			)],
+			[step({ ...tableT(['id', 'email'], withIndex('email', 'email')), posts })],
+		],
+		merged: { ...tableT(['id', 'contact'], withIndex('t_contact_ix', 'contact')), posts },
 	},
 	{
 		name: 'a column rename against a new index on that column',
@@ -1018,29 +1060,12 @@ const rows: Row[] = [
 const marker = pgTable('merge_marker', { id: integer() });
 const markerSql = 'CREATE TABLE "merge_marker" (\n\t"id" integer\n);\n';
 
-// The branch that generates last has the newest folder, so it is the first parent of the merge.
 const runs = (rows: Row[]) => rows.flatMap((it) => it.branches.map((_, first) => ({ ...it, first })));
-
-const mergeBranches = async ({ base, branches, first }: Row & { first: number }) => {
-	const flow = createFolderFlow();
-	await flow.generate('main', base);
-	const names = branches.map((_, idx) => `branch${idx}`);
-	for (const name of names) flow.branch(name, 'main');
-	const order = [...branches.keys()].filter((idx) => idx !== first).concat(first);
-	for (const idx of order) {
-		for (const { schema, hints } of branches[idx]) {
-			expect(await flow.generate(names[idx], schema, { hints })).toMatchObject({ status: 'ok' });
-		}
-	}
-	flow.merge('main', ...names);
-	expect(flow.leaves('main').at(-1)).toMatch(new RegExp(`_branch${first}$`));
-	return flow;
-};
 
 test.each(runs(rows.filter((it) => it.merged)))(
 	'$name: the branches merge, with branch $first as the first parent',
 	async (row) => {
-		const flow = await mergeBranches(row);
+		const { flow } = await forkFlow(row);
 		const merged = { ...row.merged, marker };
 
 		expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
@@ -1055,7 +1080,7 @@ test.each(runs(rows.filter((it) => it.merged)))(
 test.each(runs(rows.filter((it) => !it.merged)))(
 	'$name: check reports a conflict, with branch $first as the first parent',
 	async (row) => {
-		const flow = await mergeBranches(row);
+		const { flow } = await forkFlow(row);
 
 		expect(await flow.check('main')).toMatchObject({ status: 'conflicts' });
 	},

@@ -124,8 +124,8 @@
 		for (let j = 0; j < N; j++) {
 			let cls = 'cell';
 			if (i === j) cls += ' self';
-			else if (impossible[i][j]) cls += ' imp';
-			else if (matrix[i][j]) cls += ' l' + Math.min(4, Math.max(1, Math.ceil(4 * reasonOf(i, j).length / maxReasons)));
+			else if (impossible[i][j] === '1') cls += ' imp';
+			else if (matrix[i][j] === '1') cls += ' l' + Math.min(4, Math.max(1, Math.ceil(4 * reasonOf(i, j).length / maxReasons)));
 			html.push(`<div class="${cls}" data-i="${i}" data-j="${j}"></div>`);
 		}
 	});
@@ -186,10 +186,10 @@
 		if (i === j) {
 			tip.innerHTML = `<div class="pair"><code>${A}</code><span class="verdict b">self</span></div>`
 				+ `<div class="why">A branch can't apply <b>${A}</b> twice — the same change on both sides is a conflict, not a merge.</div>`;
-		} else if (impossible[i][j]) {
+		} else if (impossible[i][j] === '1') {
 			tip.innerHTML = `<div class="pair"><code>${A}</code> <span style="color:var(--faint)">×</span> <code>${B}</code><span class="verdict i">impossible</span></div>`
 				+ reasonOf(i, j).map((sentence) => `<div class="why">${sentence}</div>`).join('');
-		} else if (matrix[i][j]) {
+		} else if (matrix[i][j] === '1') {
 			tip.innerHTML = `<div class="pair"><code>${A}</code> <span style="color:var(--faint)">×</span> <code>${B}</code><span class="verdict b">non-commute</span></div>`
 				+ reasonOf(i, j).map((sentence) => `<div class="why">${sentence}.</div>`).join('');
 		} else {

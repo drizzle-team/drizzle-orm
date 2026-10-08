@@ -75,9 +75,6 @@ export const missingBaseMessage = (snapshot: string) =>
 	`Cannot rebuild snapshot ${snapshot}: its history does not reach a base snapshot. `
 	+ `Restore the first migration folder from git, or delete ${snapshot} and every later migration, then run generate again.`;
 
-export const reconstructErrorMessage = (folder: string, problem: string) =>
-	`${problem} Restore the migration folder from git, or delete ${folder} and every later migration, then run generate again.`;
-
 // `child` is the snapshot that lists `id` as a parent.
 const lookup = (snapshots: Snapshots, id: string, child?: string): PostgresSnapshot => {
 	const snapshot = snapshots.get(id);

@@ -2,18 +2,13 @@ import chalk from 'chalk';
 import { readFileSync, writeFileSync } from 'fs';
 import { basename, dirname, join } from 'path';
 import { DuplicateEntityError, fromEntities } from '../../dialects/postgres/ddl';
+import { folderOrderError, sortsAfter } from '../../dialects/postgres/folder';
 import { reconstruct } from '../../dialects/postgres/reconstruct';
 import { type PostgresSnapshot, snapshotValidator, stateDifference } from '../../dialects/postgres/snapshot';
 import { upToV8 } from '../../dialects/postgres/versions';
 import { UnsupportedMergeError, upToV9, withStateKeyNames } from '../../dialects/postgres/versions-v9';
 import { originUUID } from '../../utils';
-import {
-	assertSnapshotStatus,
-	folderOrderError,
-	listSnapshots,
-	sortsAfter,
-	validateWithReport,
-} from '../../utils/utils-node';
+import { assertSnapshotStatus, listSnapshots, validateWithReport } from '../../utils/utils-node';
 import { outputFormat } from '../context';
 import { CommandOutputCliError, DrizzleCliError } from '../errors';
 import { applyFoldersV3, planFoldersV3 } from './utils';

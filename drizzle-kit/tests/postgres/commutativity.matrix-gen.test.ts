@@ -21,134 +21,20 @@ import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
 import { toSnapshotStatement } from 'src/dialects/postgres/convertor';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { expect, test } from 'vitest';
-import { build } from './commutativity-statements';
+import { build, rows } from './commutativity-statements';
 import { diff } from './mocks';
 
 // The committed matrix must match the rules in buildFacetPaths.
 // Rewrite it after a rule change:
 //   UPDATE_MATRIX=1 pnpm vitest run tests/postgres/commutativity.matrix-gen.test.ts
-// Build the visualizer page from the committed matrix:
+// Build the visualizer page from the rules:
 //   MATRIX_HTML=<out.html> pnpm vitest run tests/postgres/commutativity.matrix-gen.test.ts
 const matrixPath = join(import.meta.dirname, 'commutativity-matrix.json');
 const templatePath = join(import.meta.dirname, 'commutativity-matrix.template.html');
 const placeholder = '__MATRIX_DATA__';
 
-const TYPES = [
-	'create_table',
-	'create_table:enum',
-	'create_table:ix',
-	'drop_table',
-	'rename_table',
-	'move_table',
-	'add_column',
-	'add_column:enum',
-	'drop_column',
-	'alter_column',
-	'alter_column:default',
-	'alter_column:type',
-	'alter_column:enum_not_null',
-	'alter_column:enum_default',
-	'recreate_column',
-	'rename_column',
-	'create_index',
-	'drop_index',
-	'rename_index',
-	'recreate_index',
-	'add_pk',
-	'drop_pk',
-	'drop_pk:target',
-	'alter_pk',
-	'create_fk',
-	'drop_fk',
-	'recreate_fk',
-	'add_unique',
-	'drop_unique',
-	'alter_unique',
-	'add_check',
-	'add_check:uq',
-	'drop_check',
-	'alter_check',
-	'rename_constraint:pks',
-	'rename_constraint:uniques',
-	'rename_constraint:checks',
-	'rename_constraint:fks',
-	'create_enum',
-	'drop_enum',
-	'rename_enum',
-	'alter_enum',
-	'recreate_enum',
-	'recreate_enum:column',
-	'move_enum',
-	'create_schema',
-	'drop_schema',
-	'rename_schema',
-	'create_sequence',
-	'drop_sequence',
-	'rename_sequence',
-	'alter_sequence',
-	'move_sequence',
-	'create_view',
-	'drop_view',
-	'rename_view',
-	'alter_view',
-	'move_view',
-	'create_policy',
-	'create_policy:role',
-	'drop_policy',
-	'rename_policy',
-	'alter_policy',
-	'recreate_policy',
-	'alter_rls',
-	'alter_rls:disable',
-	'create_role',
-	'drop_role',
-	'rename_role',
-	'alter_role',
-	'grant_privilege',
-	'grant_privilege:insert',
-	'revoke_privilege',
-	'regrant_privilege',
-];
-
-const FAMILY: Record<string, string> = {};
-// A row name is a statement type, or a type and a variant after a colon.
-const typeOf = (row: string) => row.split(':')[0];
-for (const row of TYPES) {
-	const t = typeOf(row);
-	FAMILY[row] = t.includes('table')
-		? 'table'
-		: t.includes('column')
-		? 'column'
-		: t.includes('index')
-		? 'index'
-		: t.includes('_pk')
-		? 'pk'
-		: t.includes('_fk')
-		? 'fk'
-		: t.includes('unique')
-		? 'unique'
-		: t.includes('check')
-		? 'check'
-		: t === 'rename_constraint'
-		? 'constraint'
-		: t.includes('enum')
-		? 'enum'
-		: t.includes('sequence')
-		? 'sequence'
-		: t.includes('view')
-		? 'view'
-		: t.includes('schema')
-		? 'schema'
-		: t.includes('policy')
-		? 'policy'
-		: t.includes('rls')
-		? 'rls'
-		: t.includes('role')
-		? 'role'
-		: t.includes('privilege')
-		? 'privilege'
-		: 'other';
-}
+const catalog = rows();
+const TYPES = Object.keys(catalog);
 
 const KINDNAME: Record<string, string> = {
 	sch: 'schema',
@@ -200,39 +86,22 @@ function facetSets(stmt: JsonStatement) {
 	};
 }
 
-// A create cannot share a base with a statement that needs the created node to
-// exist already. The matrix marks such pairs impossible. The rules still report
-// them as conflicts.
-const CREATE_OPS = new Set([
-	'create_table',
-	'create_schema',
-	'create_enum',
-	'create_sequence',
-	'create_view',
-	'create_role',
-	'add_column',
-	'add_pk',
-	'add_unique',
-	'add_check',
-	'create_fk',
-	'create_index',
-	'create_policy',
-	'grant_privilege',
-]);
-
 async function conflict(a: JsonStatement, b: JsonStatement): Promise<boolean> {
 	return !!(await postgresCommutativity.getReasonsFromStatements([toSnapshotStatement(a)], [toSnapshotStatement(b)]));
 }
 
 async function generateMatrix() {
-	const stmts = TYPES.map(build);
+	const stmts = TYPES.map((type) => catalog[type].statement);
 	const sets = stmts.map(facetSets);
 
-	const matrix: number[][] = [];
-	const impossible: number[][] = [];
+	// One string of 0 and 1 for each row.
+	const matrix: string[] = [];
+	const impossible: string[] = [];
 	const reasons: Record<string, string[]> = {};
 
-	const isCreate = (i: number) => CREATE_OPS.has(typeOf(TYPES[i]));
+	// A create cannot follow the same fork point as a statement that needs the created node to exist
+	// already. The matrix marks such pairs impossible. The rules still report them as conflicts.
+	const isCreate = (i: number) => !!catalog[TYPES[i]].isCreate;
 	const creates = (i: number) => (isCreate(i) ? [...sets[i].writes] : []);
 	const assumesExists = (i: number) => {
 		const s = new Set(sets[i].reads);
@@ -294,17 +163,18 @@ async function generateMatrix() {
 			}
 			irow.push(imp);
 		}
-		matrix.push(row);
-		impossible.push(irow);
+		matrix.push(row.join(''));
+		impossible.push(irow.join(''));
 	}
 
-	const conflictsCount = matrix.flat().filter(Boolean).length;
-	const impossibleCount = impossible.flat().filter(Boolean).length;
-	return { types: TYPES, family: FAMILY, matrix, impossible, reasons, conflictsCount, impossibleCount };
+	const family = Object.fromEntries(TYPES.map((type) => [type, catalog[type].family]));
+	return { types: TYPES, family, matrix, impossible, reasons };
 }
 
+// Only the visualizer page reads `family` and `reasons`, so the committed file leaves them out.
 test('committed matrix matches the rules', async () => {
-	const fresh = await generateMatrix();
+	const { types, matrix, impossible } = await generateMatrix();
+	const fresh = { types, matrix, impossible };
 	// Tab-indented JSON is also the layout that dprint keeps.
 	if (process.env.UPDATE_MATRIX) writeFileSync(matrixPath, JSON.stringify(fresh, null, '\t') + '\n');
 
@@ -426,11 +296,11 @@ test('a constraint rename of an unknown kind throws', async () => {
 	);
 });
 
-test('visualizer page builds from the committed matrix', () => {
+test('visualizer page builds from the rules', async () => {
 	const template = readFileSync(templatePath, 'utf8');
 	expect(template.split(placeholder)).toHaveLength(2);
 
-	const data = readFileSync(matrixPath, 'utf8').trim();
+	const data = JSON.stringify(await generateMatrix());
 	const page = template.replace(placeholder, () => data);
 	expect(page).not.toContain(placeholder);
 	if (process.env.MATRIX_HTML) writeFileSync(process.env.MATRIX_HTML, page);

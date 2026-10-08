@@ -1,6 +1,6 @@
 import { integer, pgPolicy, pgTable, serial, varchar } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { createFolderFlow } from './folder-flow';
+import { createFolderFlow, forkFlow, step } from './folder-flow';
 
 const users = pgTable('users', { id: integer() });
 const usersWithEmail = pgTable('users', { id: integer(), email: varchar() });
@@ -37,13 +37,10 @@ test('check warns when the schema has a change that no migration holds, and writ
 // Each branch drops another policy, so no branch disables row level security. After both migrations the
 // table has row level security and no policy, and only a merge migration turns it off.
 test('check warns that a merge migration is needed when the schema differs from the combined state of two branches', async () => {
-	const flow = createFolderFlow();
-	await flow.generate('main', guarded('readers', 'writers'));
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	await flow.generate('a', guarded('writers'));
-	await flow.generate('b', guarded('readers'));
-	flow.merge('main', 'a', 'b');
+	const { flow } = await forkFlow({
+		base: guarded('readers', 'writers'),
+		branches: [[step(guarded('writers'))], [step(guarded('readers'))]],
+	});
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 
 	const warnings = await flow.schemaWarnings('main', guarded());
@@ -62,15 +59,12 @@ test('check warns that a merge migration is needed when the schema differs from 
 });
 
 test('check gives no warning when the combined state of two branches equals the schema', async () => {
-	const flow = createFolderFlow();
 	const likes = pgTable('likes', { id: integer() });
 	const groups = pgTable('groups', { id: integer() });
-	await flow.generate('main', { users });
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	await flow.generate('a', { users, likes });
-	await flow.generate('b', { users, groups });
-	flow.merge('main', 'a', 'b');
+	const { flow } = await forkFlow({
+		base: { users },
+		branches: [[step({ users, likes })], [step({ users, groups })]],
+	});
 
 	expect(await flow.schemaWarnings('main', { users, likes, groups })).toStrictEqual([]);
 });

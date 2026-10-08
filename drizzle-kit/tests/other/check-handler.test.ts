@@ -2,8 +2,8 @@ import { integer, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { checkHandler, checkSnapshots } from 'src/cli/commands/check';
+import { readFolder } from 'src/dialects/postgres/folder';
 import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
-import { prepareOutFolder } from 'src/utils/utils-node';
 import { expect, test } from 'vitest';
 import { makePgSnapshot as makeSnapshot } from './check-fixtures';
 
@@ -53,7 +53,7 @@ test('returns every open leaf for commutative open branches', async () => {
 	snapshotPath(out, '001_left', left);
 	snapshotPath(out, '002_right', right);
 
-	const { report, fix } = await checkSnapshots(prepareOutFolder(out).snapshots, 'postgresql');
+	const { report, fix } = await checkSnapshots(readFolder(out).files, 'postgresql');
 
 	expect(report.leafNodes).toStrictEqual(['a1', 'b1']);
 	expect(report.conflicts).toStrictEqual([]);
@@ -110,7 +110,7 @@ test('returns one leaf and no conflicts when branches are already merged into on
 	snapshotPath(out, '002_right', right);
 	snapshotPath(out, '003_merged', merged);
 
-	const { report, fix } = await checkSnapshots(prepareOutFolder(out).snapshots, 'postgresql');
+	const { report, fix } = await checkSnapshots(readFolder(out).files, 'postgresql');
 
 	expect(report.leafNodes).toStrictEqual(['m1']);
 	expect(report.conflicts).toStrictEqual([]);
@@ -205,7 +205,7 @@ test('does not report conflicts when sibling branches converge to the same termi
 	snapshotPath(out, '003_right', right);
 	snapshotPath(out, '004_merged', merged);
 
-	const { report, fix } = await checkSnapshots(prepareOutFolder(out).snapshots, 'postgresql');
+	const { report, fix } = await checkSnapshots(readFolder(out).files, 'postgresql');
 
 	expect(report.leafNodes).toStrictEqual(['m1']);
 	expect(report.conflicts).toStrictEqual([]);
@@ -323,7 +323,7 @@ test('a nested open fork returns every open leaf', async () => {
 	snapshotPath(out, '003_bx', bx);
 	snapshotPath(out, '004_by', by);
 
-	const { report } = await checkSnapshots(prepareOutFolder(out).snapshots, 'postgresql');
+	const { report } = await checkSnapshots(readFolder(out).files, 'postgresql');
 
 	expect(report.leafNodes).toStrictEqual(['a1', 'bx1', 'by1']);
 });
@@ -404,7 +404,7 @@ test('an open fork with a deep branch returns only the open leaves', async () =>
 	snapshotPath(out, '003_leaf3', leaf3);
 	snapshotPath(out, '004_leaf4', leaf4);
 
-	const { report } = await checkSnapshots(prepareOutFolder(out).snapshots, 'postgresql');
+	const { report } = await checkSnapshots(readFolder(out).files, 'postgresql');
 
 	expect(report.leafNodes).toStrictEqual(['l1', 'l4']);
 });

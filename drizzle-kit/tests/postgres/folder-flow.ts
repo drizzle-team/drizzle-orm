@@ -23,17 +23,17 @@ import { upPgHandler } from 'src/cli/commands/up-postgres';
 import { preparePostgresDB } from 'src/cli/connections';
 import { type CliContext, runWithCliContext } from 'src/cli/context';
 import { CheckCliError } from 'src/cli/errors';
-import { type Hint, HintsHandler } from 'src/cli/hints';
+import { type Hint, HintsHandler, type RenameCreateHintKind } from 'src/cli/hints';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import type { Delta } from 'src/dialects/dialect';
 import { fromSnapshotStatements } from 'src/dialects/postgres/convertor';
 import { interimToDDL, type PostgresDDL } from 'src/dialects/postgres/ddl';
 import { fromDrizzleSchema, fromExports, SchemaSource } from 'src/dialects/postgres/drizzle';
+import { readFolder, withoutMigrations } from 'src/dialects/postgres/folder';
 import { reconstruct, startingState } from 'src/dialects/postgres/reconstruct';
 import { prepareSnapshot } from 'src/dialects/postgres/serializer';
 import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import { BREAKPOINT } from 'src/utils';
-import { prepareOutFolder } from 'src/utils/utils-node';
 import { expect, onTestFinished, vi } from 'vitest';
 import { type PostgresSchema, push } from './mocks';
 
@@ -161,10 +161,9 @@ export const createFolderFlow = () => {
 	// generate --fix-conflicts diffs the schema against.
 	const stateBeforeGenerate = (branch: string, schema: PostgresSchema) =>
 		quietly(async () => {
-			const stored = prepareOutFolder(dirOf(branch));
-			const { fix } = await checkSnapshots(stored.snapshots, 'postgresql');
-			const deleted = new Set(fix?.migrations);
-			const kept = stored.snapshots.filter((it) => !deleted.has(dirname(it)));
+			const stored = readFolder(dirOf(branch));
+			const { fix } = await checkSnapshots(stored.files, 'postgresql');
+			const kept = withoutMigrations(stored, fix?.migrations ?? []);
 			return (await prepareSnapshot(kept, fromExports(schema))).ddlPrev;
 		});
 
@@ -242,7 +241,7 @@ export const createFolderFlow = () => {
 
 	// What check says about `schema` against the migrations of the branch. The folder must pass check first.
 	const schemaWarnings = (branch: string, schema: PostgresSchema) =>
-		quietly(() => checkSchema(prepareOutFolder(dirOf(branch)), SchemaSource.fromSchema(fromExports(schema))));
+		quietly(() => checkSchema(readFolder(dirOf(branch)), SchemaSource.fromSchema(fromExports(schema))));
 
 	const up = (branch: string) => quietly(async () => upPgHandler(dirOf(branch)));
 
@@ -324,3 +323,37 @@ export const createFolderFlow = () => {
 };
 
 export type FolderFlow = ReturnType<typeof createFolderFlow>;
+
+// A step is one migration of a branch: the schema after it, with the options that generate needs for it.
+export type Step = GenerateOptions & { schema: PostgresSchema };
+// `base` is the schema of the base snapshot, which is the fork point of the branches. `first` is the index of
+// the branch whose leaf is the first parent of a merge snapshot. Without it, that branch is the last one.
+export type Fork = { base: PostgresSchema; branches: Step[][]; first?: number };
+
+export const step = (schema: PostgresSchema, ...hints: Hint[]): Step => ({ schema, hints });
+
+// `from` and `to` are the names of the entity with a dot between them, for example `public.users.email`.
+export const rename = (kind: RenameCreateHintKind, from: string, to: string) =>
+	({ type: 'rename', kind, from: from.split('.'), to: to.split('.') }) as unknown as Hint;
+
+// Generates `base` on main and the steps of each branch on a branch of its own, then merges the branches
+// into main. The branches have the names a, b, c and so on. The branch `first` generates last, so its leaf
+// has the newest folder name. `folders` holds the migration folders of each branch.
+export const forkFlow = async ({ base, branches, first = branches.length - 1 }: Fork) => {
+	const flow = createFolderFlow();
+	await flow.generate('main', base);
+	const names = branches.map((_, idx) => String.fromCharCode(97 + idx));
+	for (const name of names) flow.branch(name, 'main');
+	const folders: string[][] = branches.map(() => []);
+	const order = [...branches.keys()].filter((idx) => idx !== first).concat(first);
+	for (const idx of order) {
+		for (const { schema, ...options } of branches[idx]) {
+			const result = await flow.generate(names[idx], schema, options);
+			expect(result).toMatchObject({ status: 'ok' });
+			folders[idx].push(result.folder!);
+		}
+	}
+	flow.merge('main', ...names);
+	expect(flow.leaves('main').at(-1)).toBe(folders[first].at(-1));
+	return { flow, folders };
+};
