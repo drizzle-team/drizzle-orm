@@ -18,6 +18,10 @@ export const grey = (msg: string): string => {
 	return chalk.grey(msg);
 };
 
+const errorMessage = (err: unknown): string => {
+	return err instanceof Error ? err.message : String(err);
+};
+
 export const error = (error: string, greyMsg: string = ''): string => {
 	return `${chalk.bgRed.bold(' Error ')} ${error} ${greyMsg ? chalk.grey(greyMsg) : ''}`.trim();
 };
@@ -509,7 +513,7 @@ export class IntrospectProgress extends TaskView {
 		return `${prefix} ${suffix}\n`;
 	};
 
-	render(): string {
+	render(status?: 'pending' | 'done' | 'rejected', err?: unknown): string {
 		let info = '';
 		const spin = this.spinner.value();
 		info += this.statusText(spin, this.state.tables);
@@ -520,6 +524,10 @@ export class IntrospectProgress extends TaskView {
 		info += this.statusText(spin, this.state.policies);
 		info += this.statusText(spin, this.state.checks);
 		info += this.statusText(spin, this.state.views);
+
+		if (status === 'rejected') {
+			info += `\n${chalk.red(`Error during introspection: ${errorMessage(err)}`)}\n`;
+		}
 
 		return info;
 	}
@@ -565,10 +573,14 @@ export class ProgressView extends TaskView {
 		this.on('detach', () => clearInterval(this.timeout));
 	}
 
-	render(status: 'pending' | 'done' | 'rejected'): string {
+	render(status: 'pending' | 'done' | 'rejected', err?: unknown): string {
 		if (status === 'pending' || status === 'rejected') {
 			const spin = this.spinner.value();
-			return `[${spin}] ${this.progressText}\n`;
+			let text = `[${spin}] ${this.progressText}\n`;
+			if (status === 'rejected') {
+				text += `${chalk.red(`Error: ${errorMessage(err)}`)}\n`;
+			}
+			return text;
 		}
 		return `[${chalk.green('✓')}] ${this.successText}\n`;
 	}
