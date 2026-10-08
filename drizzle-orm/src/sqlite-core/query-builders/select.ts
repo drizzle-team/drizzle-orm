@@ -14,7 +14,7 @@ import type {
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { SQL, View } from '~/sql/sql.ts';
+import { SQL, sql, View } from '~/sql/sql.ts';
 import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
@@ -109,7 +109,9 @@ export class SQLiteSelectBuilder<
 		} else if (is(source, SQLiteViewBase)) {
 			fields = source[ViewBaseConfig].selectedFields as SelectedFields;
 		} else if (is(source, SQL)) {
-			fields = {};
+			// Raw SQL sources aren't modeled, so there are no columns to enumerate:
+			// select all columns from it instead of an empty (and invalid) field list.
+			fields = { '*': sql.raw('*') };
 		} else {
 			fields = getTableColumns<SQLiteTable>(source);
 		}

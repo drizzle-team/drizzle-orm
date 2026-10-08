@@ -20,7 +20,7 @@ import type {
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { SQL, View } from '~/sql/sql.ts';
+import { SQL, sql, View } from '~/sql/sql.ts';
 import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
@@ -133,7 +133,9 @@ export class PgSelectBuilder<
 		} else if (is(src, PgViewBase)) {
 			fields = src[ViewBaseConfig].selectedFields as SelectedFields;
 		} else if (is(src, SQL)) {
-			fields = {};
+			// Raw SQL sources aren't modeled, so there are no columns to enumerate:
+			// select all columns from it instead of an empty (and invalid) field list.
+			fields = { '*': sql.raw('*') };
 		} else {
 			fields = getTableColumns<PgTable>(src);
 		}
