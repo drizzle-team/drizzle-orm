@@ -1,5 +1,6 @@
 import { entityKind } from '~/entity.ts';
-import type { SQL } from '~/sql/sql.ts';
+import type { SQL, SQLWrapper } from '~/sql/sql.ts';
+import { sql } from '~/sql/sql.ts';
 import type { InferSelectModel } from '~/table.ts';
 import type { AnyPgColumnBuilder, ResolvePgColumnConfig } from './columns/common.ts';
 import type { PgTable } from './table.ts';
@@ -88,6 +89,27 @@ export interface PgFunctionDefinition<
 	args: TArgs;
 	returns: TReturns;
 }
+
+export type PgFunctionArgumentReferences<
+	TArgs extends PgFunctionArgsDefinition,
+> = {
+	[K in keyof TArgs]: PgFunctionArgument<TArgs[K]>;
+};
+
+export interface PgFunctionBodyContext<
+	TName extends string,
+	TArgs extends PgFunctionArgsDefinition,
+> {
+	readonly name: TName;
+	readonly args: PgFunctionArgumentReferences<TArgs>;
+}
+
+type PgFunctionBody<
+	TName extends string,
+	TArgs extends PgFunctionArgsDefinition,
+> =
+	| SQL
+	| ((fn: PgFunctionBodyContext<TName, TArgs>) => SQL);
 
 /* Class */
 export class PgFunctionBuilder<
@@ -195,15 +217,39 @@ export class PgFunctionBuilder<
 	}
 
 	/* Build */
-	as(body: SQL): PgFunction<TName, TArgs, TReturns> {
+	as(
+		body: PgFunctionBody<TName, TArgs>,
+	): PgFunction<TName, TArgs, TReturns> {
+		const resolvedBody = typeof body === 'function'
+			? body({
+				name: this.config.name,
+				args: buildFunctionArgumentReferences(this.config.args),
+			})
+			: body;
+
 		return new PgFunction<TName, TArgs, TReturns>({
 			...this.config,
 			configuration: new Map(this.config.configuration),
 			...(this.config.searchPath
 				? { searchPath: [...this.config.searchPath] }
 				: {}),
-			body,
+			body: resolvedBody,
 		});
+	}
+}
+
+export class PgFunctionArgument<
+	TBuilder extends AnyPgColumnBuilder = AnyPgColumnBuilder,
+> implements SQLWrapper<InferPgFunctionColumnBuilder<TBuilder>> {
+	static readonly [entityKind]: string = 'PgFunctionArgument';
+
+	constructor(
+		readonly name: string,
+		readonly sqlName: string,
+	) {}
+
+	getSQL(): SQL<InferPgFunctionColumnBuilder<TBuilder>> {
+		return sql<InferPgFunctionColumnBuilder<TBuilder>>`${sql.identifier(this.sqlName)}`;
 	}
 }
 
@@ -272,6 +318,19 @@ export function pgFunction<
 }
 
 /** Helpers */
+function buildFunctionArgumentReferences<
+	TArgs extends PgFunctionArgsDefinition,
+>(
+	args: TArgs,
+): PgFunctionArgumentReferences<TArgs> {
+	return Object.fromEntries(
+		Object.keys(args).map((name) => [
+			name,
+			new PgFunctionArgument(name, `a_${name}`),
+		]),
+	) as PgFunctionArgumentReferences<TArgs>;
+}
+
 export function setOf<
 	TType extends PgFunctionScalarReturn,
 >(

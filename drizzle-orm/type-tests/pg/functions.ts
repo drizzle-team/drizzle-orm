@@ -35,6 +35,7 @@ import {
 	type InferFunctionArgs,
 	type InferFunctionReturns,
 	pgFunction,
+	type PgFunctionArgument,
 	returnsRecord,
 	returnsTrigger,
 	returnsVoid,
@@ -539,16 +540,51 @@ Expect<
 	>
 >;
 
-// Expect setof to fail on a non scalar argument
+/** Expect setof to fail on a non scalar argument */
 // @ts-expect-error - setof must be a scalar return type
 setOf(tableReturn({
 	id: integer('id'),
 	name: text('name'),
 }));
 
-// Expect table return to fail on a non PgBuilder column
+/** Expect table return to fail on a non PgBuilder column */
 tableReturn({
 	// @ts-expect-error - table return must be a PgBuilder column
 	id: 'id',
 	name: text('name'),
 });
+
+/** Expect builder callback to resolve correctly */
+const callbackBodyFunction = pgFunction('callback_body_function', {
+	args: {
+		id: uuid(),
+		count: integer(),
+		tags: text().array(),
+	},
+	returns: text(),
+}).as((f) => {
+	Expect<
+		Equal<
+			typeof f.args.id,
+			PgFunctionArgument<ReturnType<typeof uuid>>
+		>
+	>;
+
+	// @ts-expect-error - undeclared function argument
+	f.args.doesNotExist;
+
+	return sql`
+		SELECT ${f.args.id}, ${f.args.count}, ${f.args.tags}
+	`;
+});
+
+Expect<
+	Equal<
+		InferFunctionArgs<typeof callbackBodyFunction>,
+		{
+			id: string;
+			count: number;
+			tags: string[];
+		}
+	>
+>;
