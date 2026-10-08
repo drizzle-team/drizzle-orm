@@ -10,11 +10,17 @@ import { ViewBaseConfig } from './view-common.ts';
 export class ColumnAliasProxyHandler<TColumn extends Column> implements ProxyHandler<TColumn> {
 	static readonly [entityKind]: string = 'ColumnAliasProxyHandler';
 
-	constructor(private table: Table | View) {}
+	constructor(private table: Table | View, private isSelectionField = false) {}
 
 	get(columnObj: TColumn, prop: string | symbol): any {
 		if (prop === 'table') {
 			return this.table;
+		}
+
+		// A column projected by a query-built view already holds the value produced by its
+		// `selectFromDb` mapper, so the mapper must not be applied to it a second time
+		if (prop === 'selectFromDb' && this.isSelectionField) {
+			return undefined;
 		}
 
 		return columnObj[prop as keyof TColumn];

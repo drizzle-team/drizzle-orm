@@ -1,6 +1,6 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
-import { Column } from '~/column.ts';
+import { Column, mapColumnSelection } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import { GelColumn, GelDecimal, GelJson, GelUUID } from '~/gel-core/columns/index.ts';
@@ -201,7 +201,15 @@ export class GelDialect {
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
-		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+		{ isSingleTable = false, materializedSources }: {
+			isSingleTable?: boolean;
+			/**
+			 * Aliases of sources (subqueries/CTEs) whose output columns are already materialized.
+			 * `selectFromDb` is not applied to columns referencing them — their values were
+			 * already transformed inside the subquery.
+			 */
+			materializedSources?: Set<string>;
+		} = {},
 	): SQL {
 		const columnsLen = fields.length;
 
@@ -237,11 +245,14 @@ export class GelDialect {
 				} else if (is(field, Column)) {
 					// Gel throws an error when more than one similarly named columns exist within context instead of preferring the closest one
 					// thus forcing us to be explicit about column's source
-					// if (isSingleTable) {
-					// 	chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-					// } else {
-					chunk.push(field);
-					// }
+					const columnSql = field.getSQL();
+					const selectionSql = materializedSources?.has(field.table[Table.Symbol.Name])
+						? columnSql
+						: mapColumnSelection(field, columnSql);
+					chunk.push(selectionSql);
+					if (selectionSql !== columnSql) {
+						chunk.push(sql` as ${sql.identifier(this.casing.getColumnCasing(field))}`);
+					}
 				} else if (is(field, Subquery)) {
 					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
 
@@ -386,7 +397,21 @@ export class GelDialect {
 			distinctSql = distinct === true ? sql` distinct` : sql` distinct on (${sql.join(distinct.on, sql`, `)})`;
 		}
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		// Columns read through a subquery/CTE reference its materialized output —
+		// `selectFromDb` was already applied inside it and must not be re-applied here.
+		const materializedSources = new Set<string>();
+		if (is(table, Subquery)) {
+			materializedSources.add(table._.alias);
+		}
+		if (joins) {
+			for (const join of joins) {
+				if (is(join.table, Subquery)) {
+					materializedSources.add(join.table._.alias);
+				}
+			}
+		}
+
+		const selection = this.buildSelection(fieldsList, { isSingleTable, materializedSources });
 
 		const tableSql = this.buildFromTable(table);
 
@@ -1351,6 +1376,8 @@ export class GelDialect {
 							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
 							: is(field, SQL.Aliased)
 							? field.sql
+							: is(field, Column)
+							? mapColumnSelection(field, field.getSQL())
 							: field
 					),
 					sql`, `,
