@@ -139,7 +139,7 @@ test('generateMigration rejects a diff snapshot', async () => {
 
 	await expect(generateMigration(parent, diff)).rejects.toThrow(
 		'Snapshot d1 is a diff snapshot, so it holds only the changes of one migration. '
-			+ 'Rebuild the state of d1 with reconstruct first, and pass that state.',
+			+ 'Call reconstruct first to get the state of d1, and pass that state.',
 	);
 });
 
@@ -161,6 +161,14 @@ test('up returns a schema state unchanged', async () => {
 	const state = await generateDrizzleJson(v1);
 
 	expect(up(JSON.parse(JSON.stringify(state)))).toStrictEqual({ snapshot: state, hints: [] });
+});
+
+test('up rejects a state of format 8 or 9 that has no rows or no parents', () => {
+	const message = 'State p1 has no `ddl` or no `prevIds` array. Pass the result of generateDrizzleJson, '
+		+ 'or a full state of an older format.';
+
+	expect(() => up({ version: '8', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], renames: [] })).toThrow(message);
+	expect(() => up({ version: '9', dialect: 'postgres', id: 'p1', ddl: [] })).toThrow(message);
 });
 
 test('reconstruct rebuilds any snapshot of a linear folder, and the leaf when no id is given', async () => {
@@ -186,7 +194,8 @@ test('reconstruct rebuilds any snapshot of a linear folder, and the leaf when no
 	expect(await generateMigration(second, leaf)).toStrictEqual(['ALTER TABLE "users" ADD COLUMN "age" integer;']);
 });
 
-// Branch a creates and then drops `likes`, so a merge replay out of folder-name order would keep `likes`.
+// Branch a creates and then drops `likes`, so reconstruct would keep `likes` if it applied the deltas of the
+// merge out of folder-name order.
 test('reconstruct rebuilds a folder with a merge, and asks for an id while several leaves are open', async () => {
 	const { flow } = await forkFlow({
 		base: v1,
@@ -196,14 +205,14 @@ test('reconstruct rebuilds a folder with a merge, and asks for an id while sever
 
 	await expect(reconstruct(open)).rejects.toThrow(
 		'The migrations folder has 2 leaf snapshots: 20260101120003_a, 20260101120004_b. '
-			+ 'Pass the id of the snapshot to rebuild, or run generate to merge the leaves.',
+			+ 'Pass the id of the snapshot to reconstruct, or run generate to merge the leaves.',
 	);
 	const leafB = await reconstruct(open, flow.snapshot('main', '20260101120004_b').id);
 	expect(normalizeDDL(leafB.ddl)).toStrictEqual(schemaState({ users, posts }));
 
 	const merged = { users: v2.users, posts };
 	const { folder } = await flow.generate('main', merged);
-	expect(flow.snapshot('main', folder!).prevIds).toHaveLength(2);
+	expect(flow.snapshot('main', folder).prevIds).toHaveLength(2);
 
 	const state = await reconstruct(Object.fromEntries(Object.entries(folderFiles(flow, 'main')).reverse()));
 	expect(normalizeDDL(state.ddl)).toStrictEqual(schemaState(merged));
@@ -219,7 +228,7 @@ test('reconstruct reports a missing parent with the same message as the CLI', as
 	const cli: Error = await flow.check('main').catch((e) => e);
 	const api: Error = await reconstruct(folderFiles(flow, 'main')).catch((e) => e);
 
-	expect(cli.message).toMatch(/^Cannot rebuild snapshot 20260101120003_main: snapshot \S+ is missing/);
+	expect(cli.message).toMatch(/^Cannot reconstruct snapshot 20260101120003_main: snapshot \S+ is missing/);
 	expect(api.message).toBe(cli.message);
 });
 
@@ -242,7 +251,7 @@ test('reconstruct reports a leaf that does not reconstruct with the same message
 	const flow = createFolderFlow();
 	await flow.generate('main', v1);
 	const { folder } = await flow.generate('main', v2);
-	flow.appendDeltas('main', folder!, {
+	flow.appendDeltas('main', folder, {
 		op: 'create',
 		row: { ...columnRow('users', 'email', 'varchar'), type: 'text' },
 	});
@@ -253,7 +262,7 @@ test('reconstruct reports a leaf that does not reconstruct with the same message
 	expect(api.message).toBe(
 		`Cannot reconstruct the state of migration ${folder}: The create delta adds columns `
 			+ '["public","users","email"], and another entity of columns with other values already has this key. '
-			+ `Two migrations gave one name to two different entities. ${reconstructFix(folder!)}`,
+			+ `Two migrations gave one name to two different entities. ${reconstructFix(folder)}`,
 	);
 	expect(api.message).toBe(cli.message);
 });
@@ -261,16 +270,16 @@ test('reconstruct reports a leaf that does not reconstruct with the same message
 test('reconstruct reports a base snapshot that lists an entity twice with the same message as generate', async () => {
 	const flow = createFolderFlow();
 	const { folder } = await flow.generate('main', v1);
-	const base = flow.snapshot('main', folder!);
+	const base = flow.snapshot('main', folder);
 	if (base.type !== 'base') throw new Error('The first snapshot of a folder must be a base snapshot.');
-	flow.overwriteSnapshot('main', folder!, JSON.stringify({ ...base, ddl: [...base.ddl, base.ddl[0]] }));
+	flow.overwriteSnapshot('main', folder, JSON.stringify({ ...base, ddl: [...base.ddl, base.ddl[0]] }));
 
 	const cli: Error = await flow.generate('main', v1).catch((e) => e);
 	const api: Error = await reconstruct(folderFiles(flow, 'main')).catch((e) => e);
 
 	expect(api.message).toBe(
 		`Cannot reconstruct the state of migration ${folder}: The snapshot lists two rows of tables with the key `
-			+ `["public","users"]. A snapshot must list every entity one time. ${reconstructFix(folder!)}`,
+			+ `["public","users"]. A snapshot must list every entity one time. ${reconstructFix(folder)}`,
 	);
 	expect(api.message).toBe(cli.message);
 });
@@ -290,7 +299,7 @@ test('reconstruct reports a malformed snapshot, an unknown id and an empty folde
 		message: '20260101120000_init data is malformed. Restore the file from git, or fix the JSON in it by hand.',
 	});
 	await expect(reconstruct({ '20260101120000_init': base }, 'missing')).rejects.toMatchObject({
-		message: 'Cannot rebuild snapshot missing: it is not in the migrations folder. '
+		message: 'Cannot reconstruct snapshot missing: it is not in the migrations folder. '
 			+ 'Check the snapshot id, or restore the migration folder from git.',
 	});
 	await expect(reconstruct({})).rejects.toMatchObject({

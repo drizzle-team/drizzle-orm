@@ -15,7 +15,6 @@ import {
 	type Step,
 	step,
 } from './folder-flow';
-import type { PostgresSchema } from './mocks';
 
 // A hand edit of a snapshot gives a delta that does not fit the state. The rules for such a delta are the
 // same in the history of one leaf and in the combined state of several leaves.
@@ -40,7 +39,7 @@ describe('a delta in the history of one leaf', () => {
 		const flow = createFolderFlow();
 		await flow.generate('main', { users });
 		const { folder } = await flow.generate('main', { users: usersWithEmail });
-		return { flow, folder: folder! };
+		return { flow, folder };
 	};
 
 	test('a drop, an alter and a rename of a missing entity are skipped', async () => {
@@ -50,7 +49,7 @@ describe('a delta in the history of one leaf', () => {
 		flow.appendDeltas('main', folder, ...deltasOfMissingEntities);
 
 		expect(flow.state('main', folder)).toStrictEqual(before);
-		expect(await flow.generate('main', { users: usersWithEmail })).toMatchObject({ status: 'no_changes' });
+		expect(await flow.tryGenerate('main', { users: usersWithEmail })).toMatchObject({ status: 'no_changes' });
 	});
 
 	test('a create of an equal entity onto a taken key does nothing, in any order of the fields', async () => {
@@ -60,7 +59,7 @@ describe('a delta in the history of one leaf', () => {
 		flow.appendDeltas('main', folder, { op: 'create', row: emailColumn });
 
 		expect(flow.state('main', folder)).toStrictEqual(before);
-		expect(await flow.generate('main', { users: usersWithEmail })).toMatchObject({ status: 'no_changes' });
+		expect(await flow.tryGenerate('main', { users: usersWithEmail })).toMatchObject({ status: 'no_changes' });
 	});
 
 	test('a create of a different entity onto a taken key stops generate, and the error names the leaf and the entity', async () => {
@@ -126,16 +125,16 @@ describe('a delta that reaches a merge only through another parent', () => {
 		return { flow, older, newer };
 	};
 	const merged = { users: usersWithEmail, likes, groups };
-	const combinedState = async (flow: FolderFlow, schema: PostgresSchema) =>
-		normalizeDDL((await flow.stateBeforeGenerate('main', schema)).entities.list());
+	const combinedState = async (flow: FolderFlow) =>
+		normalizeDDL((await flow.stateBeforeGenerate('main')).entities.list());
 
 	test('a drop, an alter and a rename of a missing entity are skipped, and an equal create does nothing', async () => {
 		const { flow, older } = await forked();
 
 		flow.appendDeltas('main', older, ...deltasOfMissingEntities, { op: 'create', row: emailColumn });
 
-		expect(await combinedState(flow, merged)).toStrictEqual(schemaState(merged));
-		expect(await flow.generate('main', merged)).toMatchObject({ status: 'no_changes' });
+		expect(await combinedState(flow)).toStrictEqual(schemaState(merged));
+		expect(await flow.tryGenerate('main', merged)).toMatchObject({ status: 'no_changes' });
 	});
 
 	// Both branches add the column users.email with another type. check reads the stored statements, so it
@@ -173,7 +172,7 @@ describe('a delta that reaches a merge only through another parent', () => {
 		flow.appendDeltas('main', older, { op: 'alter', key: 'tables\0["public","likes"]', set: { name: 'reactions' } });
 
 		const renamed = { users: usersWithEmail, reactions: pgTable('reactions', { id: integer() }), groups };
-		expect(await combinedState(flow, renamed)).toStrictEqual(schemaState(renamed));
+		expect(await combinedState(flow)).toStrictEqual(schemaState(renamed));
 	});
 
 	// The first parent holds a column of a table `reactions` that it does not hold. The leaf of branch a
@@ -229,9 +228,9 @@ describe('one branch stores a delta with no statement, and the other branch rena
 
 		const { folder } = await flow.generate('main', merged);
 
-		expect(flow.deltas('main', folder!)).toContainEqual(defaultDelta('things'));
-		expect(flow.sql('main', folder!)).toBe('CREATE TABLE "notes" (\n\t"id" integer\n);\n');
-		expect(flow.state('main', folder!)).toStrictEqual(schemaState(merged));
+		expect(flow.deltas('main', folder)).toContainEqual(defaultDelta('things'));
+		expect(flow.sql('main', folder)).toBe('CREATE TABLE "notes" (\n\t"id" integer\n);\n');
+		expect(flow.state('main', folder)).toStrictEqual(schemaState(merged));
 		expect(await flow.migrate('main', merged)).toStrictEqual([]);
 	});
 
@@ -240,8 +239,8 @@ describe('one branch stores a delta with no statement, and the other branch rena
 
 		const { folder } = await flow.generate('main', merged);
 
-		expect(flow.deltas('main', folder!).map((it) => it.op)).not.toContain('alter');
-		expect(flow.state('main', folder!)).toStrictEqual(schemaState(merged));
+		expect(flow.deltas('main', folder).map((it) => it.op)).not.toContain('alter');
+		expect(flow.state('main', folder)).toStrictEqual(schemaState(merged));
 		expect(await flow.migrate('main', merged)).toStrictEqual([]);
 	});
 });

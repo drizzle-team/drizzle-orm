@@ -14,6 +14,7 @@ import type {
 	Enum,
 	ForeignKey,
 	Index,
+	IndexColumn,
 	Policy,
 	PostgresDDL,
 	PostgresEntities,
@@ -26,6 +27,7 @@ import type {
 } from './ddl';
 import { createDDL, tableFromDDL } from './ddl';
 import { defaults, defaultsCommutative, existsInViewDef, isSerialType } from './grammar';
+import type { SnapshotStatement } from './snapshot-statements';
 import type { JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
 
@@ -139,6 +141,7 @@ export const ddlDiff = async (
 	keepGeneratedNames = true,
 ): Promise<{
 	statements: JsonStatement[];
+	snapshotStatements: SnapshotStatement[];
 	sqlStatements: string[];
 	groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[];
 	renames: string[];
@@ -298,6 +301,18 @@ export const ddlDiff = async (
 			set: { name: rename.to.name, schema: rename.to.schema },
 			where: { name: rename.from.name, schema: rename.from.schema },
 		});
+
+		// Drizzle Studio builds the new state from the form of one table and copies the rest from the old
+		// state. So the foreign keys of other tables and the policies of the renamed table can still name the
+		// old table. The new state holds no table with the old name, so every such name is stale.
+		ddl2.fks.update({
+			set: { schemaTo: rename.to.schema, tableTo: rename.to.name },
+			where: { schemaTo: rename.from.schema, tableTo: rename.from.name },
+		});
+		ddl2.entities.update({
+			set: { schema: rename.to.schema, table: rename.to.name },
+			where: { schema: rename.from.schema, table: rename.from.name },
+		});
 	}
 
 	// after table renames
@@ -330,6 +345,23 @@ export const ddlDiff = async (
 			// unscoped rename would also rename the other column, whose change propagates
 			// through fk/index edges into columnsTo — a spurious constraint recreate.
 			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
+		});
+
+		// The form of Drizzle Studio renames a column only in the column list. So the indexes and the
+		// constraints of the new state can still name the old column. The new state holds no column with the
+		// old name in this table, so every such name is stale.
+		const newNameOf = (column: string) => column === rename.from.name ? rename.to.name : column;
+		const inTable = { schema: rename.to.schema, table: rename.to.table };
+		ddl2.indexes.update({
+			set: { columns: (it: IndexColumn) => it.isExpression ? it : { ...it, value: newNameOf(it.value) } },
+			where: inTable,
+		});
+		ddl2.pks.update({ set: { columns: newNameOf }, where: inTable });
+		ddl2.uniques.update({ set: { columns: newNameOf }, where: inTable });
+		ddl2.fks.update({ set: { columns: newNameOf }, where: inTable });
+		ddl2.fks.update({
+			set: { columnsTo: newNameOf },
+			where: { schemaTo: rename.to.schema, tableTo: rename.to.table },
 		});
 	}
 
@@ -1324,7 +1356,7 @@ export const ddlDiff = async (
 	jsonStatements.push(...dropSequences);
 	jsonStatements.push(...dropSchemas);
 
-	const { groupedStatements, sqlStatements } = fromJson(jsonStatements);
+	const { groupedStatements, sqlStatements, snapshotStatements } = fromJson(jsonStatements);
 
 	const renames = prepareMigrationRenames([
 		...renameSchemas,
@@ -1344,6 +1376,7 @@ export const ddlDiff = async (
 
 	return {
 		statements: jsonStatements,
+		snapshotStatements,
 		sqlStatements,
 		groupedStatements: groupedStatements,
 		renames: renames,

@@ -68,11 +68,11 @@ type Snapshots = ReadonlyMap<string, PostgresSnapshot>;
 
 // The folder loader and reconstruct report a broken history with the same messages.
 export const missingParentMessage = (snapshot: string, parentId: string) =>
-	`Cannot rebuild snapshot ${snapshot}: snapshot ${parentId} is missing from the migrations folder. `
+	`Cannot reconstruct snapshot ${snapshot}: snapshot ${parentId} is missing from the migrations folder. `
 	+ `Restore the missing migration folder from git, or delete ${snapshot} and every later migration, then run generate again.`;
 
 export const missingBaseMessage = (snapshot: string) =>
-	`Cannot rebuild snapshot ${snapshot}: its history does not reach a base snapshot. `
+	`Cannot reconstruct snapshot ${snapshot}: its history does not reach a base snapshot. `
 	+ `Restore the first migration folder from git, or delete ${snapshot} and every later migration, then run generate again.`;
 
 // `child` is the snapshot that lists `id` as a parent.
@@ -82,7 +82,7 @@ const lookup = (snapshots: Snapshots, id: string, child?: string): PostgresSnaps
 	throw new Error(
 		child
 			? missingParentMessage(child, id)
-			: `Cannot rebuild snapshot ${id}: it is not in the migrations folder. Check the snapshot id, or restore the migration folder from git.`,
+			: `Cannot reconstruct snapshot ${id}: it is not in the migrations folder. Check the snapshot id, or restore the migration folder from git.`,
 	);
 };
 

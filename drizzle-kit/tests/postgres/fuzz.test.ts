@@ -18,7 +18,7 @@ import { withStateKeyNames } from 'src/dialects/postgres/versions-v9';
 import { originUUID } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
 import { expect, test } from 'vitest';
-import { createFolderFlow, schemaState, tempDir } from './folder-flow';
+import { createFolderFlow, createFormat8Flow, schemaState, tempDir } from './folder-flow';
 import {
 	applyOps,
 	checkProperty,
@@ -62,23 +62,10 @@ const statesOf = ({ before, after }: Pair) => {
 	return { left: toDDL(from)!, right: toDDL(to)!, renames: renameDecisions(from, to, after).map(toRenameString) };
 };
 
+// mockResolver keeps no state between calls, so one resolver fills every resolver argument of ddlDiff.
 const renameResolvers = (renames: string[]) => {
-	const resolver = () => mockResolver<any>(new Set(renames));
-	return [
-		resolver(),
-		resolver(),
-		resolver(),
-		resolver(),
-		resolver(),
-		resolver(),
-		resolver(),
-		resolver(),
-		resolver(),
-		resolver(),
-		resolver(),
-		resolver(),
-		resolver(),
-	] as const;
+	const same = mockResolver<any>(new Set(renames));
+	return [same, same, same, same, same, same, same, same, same, same, same, same, same] as const;
 };
 
 test('the deltas of ddlDiff reconstruct the new state', async () => {
@@ -220,7 +207,6 @@ test('up rebuilds every state of a format 8 folder, or refuses a merge of two en
 });
 
 test('up keeps a generated constraint name that a format 8 merge got from its newest leaf', async () => {
-	const dir = tempDir('dk-fuzz-format-8-');
 	const users = pgTable('users', { id: integer().notNull() });
 	const withKey = (name: string) =>
 		pgTable(name, { id: integer().notNull() }, (t) => [foreignKey({ columns: [t.id], foreignColumns: [t.id] })]);
@@ -229,7 +215,7 @@ test('up keeps a generated constraint name that a format 8 merge got from its ne
 	// rc.4 diffed this merge from leaf b, which has no foreign key, so the key got the name of the renamed
 	// table. The combined state has the key from leaf a, with the name of the old table.
 	const merge = rowsOf({ people: withKey('people'), archive });
-	const files = [
+	const flow = createFormat8Flow([
 		{ folder: '20260101120001_main', id: 'main', prevIds: [originUUID], ddl: rowsOf({ users }) },
 		{ folder: '20260101120002_a', id: 'a', prevIds: ['main'], ddl: rowsOf({ users: withKey('users') }) },
 		{ folder: '20260101120003_b', id: 'b', prevIds: ['main'], ddl: rowsOf({ users, archive }) },
@@ -240,16 +226,7 @@ test('up keeps a generated constraint name that a format 8 merge got from its ne
 			ddl: merge,
 			renames: ['public.users->public.people'],
 		},
-	];
-	for (const { folder, renames = [], ...it } of files) {
-		mkdirSync(join(dir, folder));
-		writeFileSync(
-			join(dir, folder, 'snapshot.json'),
-			JSON.stringify({ version: '8', dialect: 'postgres', ...it, renames }),
-		);
-	}
-	const flow = createFolderFlow();
-	flow.seed('main', dir);
+	]);
 
 	await flow.up('main');
 

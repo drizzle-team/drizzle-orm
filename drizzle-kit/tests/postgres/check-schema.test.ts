@@ -54,7 +54,7 @@ test('check warns that a merge migration is needed when the schema differs from 
 	}]);
 
 	const { folder } = await flow.generate('main', guarded());
-	expect(flow.sql('main', folder!)).toBe('ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;');
+	expect(flow.sql('main', folder)).toBe('ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;');
 	expect(await flow.schemaWarnings('main', guarded())).toStrictEqual([]);
 });
 

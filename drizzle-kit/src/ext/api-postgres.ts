@@ -20,8 +20,8 @@ import type {
 	View,
 } from '../dialects/postgres/ddl';
 import { fromEntities, interimToDDL } from '../dialects/postgres/ddl';
-import type { PostgresSchemaState, PostgresSnapshotV8 } from '../dialects/postgres/snapshot';
-import { upToV8 } from '../dialects/postgres/versions';
+import type { PostgresSchemaState } from '../dialects/postgres/snapshot';
+import { isSnapshotV8, upToV8 } from '../dialects/postgres/versions';
 import { originUUID } from '../utils';
 import type { DB } from '../utils';
 
@@ -247,13 +247,11 @@ export const up = (it: Record<string, any>): { snapshot: PostgresSchemaState; hi
 	if (it.type === 'diff') {
 		throw new Error(
 			`Snapshot ${it.id} is a diff snapshot, so it holds only the changes of one migration. `
-				+ `Rebuild the state of ${it.id} with reconstruct first, and pass that state.`,
+				+ `Call reconstruct first to get the state of ${it.id}, and pass that state.`,
 		);
 	}
-	const { snapshot, hints } = Number(it.version) >= 8
-		? { snapshot: it as PostgresSchemaState | PostgresSnapshotV8, hints: [] }
-		: upToV8(it);
-	if (!Array.isArray(snapshot.ddl) || !Array.isArray(snapshot.prevIds)) {
+	const { snapshot, hints } = Number(it.version) >= 8 ? { snapshot: it, hints: [] } : upToV8(it);
+	if (!isSnapshotV8(snapshot)) {
 		throw new Error(
 			`State ${it.id} has no \`ddl\` or no \`prevIds\` array. Pass the result of generateDrizzleJson, `
 				+ 'or a full state of an older format.',
@@ -282,7 +280,7 @@ export const reconstruct = async (files: Record<string, unknown>, id?: string): 
 		if (leaves.length > 1) {
 			throw new Error(
 				`The migrations folder has ${leaves.length} leaf snapshots: ${leaves.join(', ')}. `
-					+ 'Pass the id of the snapshot to rebuild, or run generate to merge the leaves.',
+					+ 'Pass the id of the snapshot to reconstruct, or run generate to merge the leaves.',
 			);
 		}
 		[id] = migrations.leafIds;

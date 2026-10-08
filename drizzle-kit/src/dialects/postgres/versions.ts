@@ -19,6 +19,12 @@ import type {
 } from '../../dialects/postgres/snapshot';
 import { getOrNull } from '../../dialects/utils';
 
+// Checks only `ddl` and `prevIds`, the two lists that the conversion to format 9 requires. The conversion reads
+// a missing `renames` list as empty. The caller checks the version. A schema state of the programmatic API holds
+// its rows and its parents in the same two lists.
+export const isSnapshotV8 = (it: Record<string, any>): it is PostgresSnapshotV8 =>
+	Array.isArray(it.ddl) && Array.isArray(it.prevIds);
+
 export const upToV8 = (
 	it: Record<string, any>,
 ): { snapshot: PostgresSnapshotV8; hints: string[] } => {

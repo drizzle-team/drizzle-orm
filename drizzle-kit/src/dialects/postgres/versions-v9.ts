@@ -2,7 +2,6 @@ import { originUUID } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
 import { copyDDL, type Delta, delta } from '../dialect';
-import { toSnapshotStatements } from './convertor';
 import { createDDL, fromEntities, type PostgresDDL, type PostgresEntity } from './ddl';
 import { ddlDiff } from './diff';
 import { defaultNameForPK } from './grammar';
@@ -47,7 +46,7 @@ const statementsOf = async (start: PostgresDDL, deltas: Delta[]): Promise<Snapsh
 	const from = copyDDL(start);
 	const to = copyDDL(start);
 	const resolver = renameResolvers(to, deltas);
-	const { statements } = await ddlDiff(
+	const { snapshotStatements } = await ddlDiff(
 		from,
 		to,
 		resolver('schemas'),
@@ -66,13 +65,13 @@ const statementsOf = async (start: PostgresDDL, deltas: Delta[]): Promise<Snapsh
 		'default',
 		false,
 	);
-	return toSnapshotStatements(statements);
+	return snapshotStatements;
 };
 
-// An old merge whose branches gave one name to two different entities. Its combined state cannot be rebuilt.
+// An old merge whose branches gave one name to two different entities. Its combined state cannot be reconstructed.
 export class UnsupportedMergeError extends Error {
 	constructor(readonly folder: string, cause: KeyCollisionError) {
-		super(`the merge in migration ${folder} cannot be rebuilt. ${cause.message}`, { cause });
+		super(`the merge in migration ${folder} cannot be reconstructed. ${cause.message}`, { cause });
 	}
 }
 

@@ -1,12 +1,9 @@
 /**
- * Canonical, order-independent serialization of a ddl state — for comparing two states and
- * for the snapshot integrity fingerprint. Object key order is normalised; array order is
- * kept (it is semantic for `enum.values` / `index.columns`). Two states are equal iff their
- * `normalizeDDL()`s are deep-equal.
+ * The canonical form of a state, which does not depend on the order of the entities or of their fields.
+ * The order of an array is kept, because it has a meaning for `enum.values` and `index.columns`. Two
+ * states are equal when their `normalizeDDL()` results are deep-equal.
  *
- * Deliberately NOT part of the engine (`./dialect`): `delta`/`apply` never need it. Canonical
- * form is a concern of whoever compares or persists ddl states — the snapshot layer and its
- * tests — not of the Dialect itself.
+ * It is not part of the engine (`./dialect`), because no engine function needs it.
  */
 type Row = Record<string, any>;
 

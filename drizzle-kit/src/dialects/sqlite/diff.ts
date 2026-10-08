@@ -4,7 +4,7 @@ import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
-import type { Column, SQLiteDDL, SqliteEntities } from './ddl';
+import type { Column, IndexColumn, SQLiteDDL, SqliteEntities } from './ddl';
 import { tableFromDDL } from './ddl';
 import { defaultsCommutative } from './grammar';
 import type { JsonCreateViewStatement, JsonDropViewStatement, JsonStatement } from './statements';
@@ -43,6 +43,11 @@ export const ddlDiff = async (
 			set: { name: renamed.to.name },
 			where: { name: renamed.from.name },
 		});
+
+		// Drizzle Studio builds the new state from the form of one table and copies the rest from the old
+		// state. So the foreign keys of other tables can still name the old table. The new state holds no
+		// table with the old name, so every such name is stale.
+		ddl2.fks.update({ set: { tableTo: renamed.to.name }, where: { tableTo: renamed.from.name } });
 	}
 
 	const columnsDiff = diff(ddl1, ddl2, 'columns').filter((it) =>
@@ -71,6 +76,20 @@ export const ddlDiff = async (
 			set: { name: rename.to.name },
 			where: { table: rename.from.table, name: rename.from.name },
 		});
+
+		// The form of Drizzle Studio renames a column only in the column list. So the indexes and the
+		// constraints of the new state can still name the old column. The new state holds no column with the
+		// old name in this table, so every such name is stale.
+		const newNameOf = (column: string) => column === rename.from.name ? rename.to.name : column;
+		const inTable = { table: rename.to.table };
+		ddl2.indexes.update({
+			set: { columns: (it: IndexColumn) => it.isExpression ? it : { ...it, value: newNameOf(it.value) } },
+			where: inTable,
+		});
+		ddl2.pks.update({ set: { columns: newNameOf }, where: inTable });
+		ddl2.uniques.update({ set: { columns: newNameOf }, where: inTable });
+		ddl2.fks.update({ set: { columns: newNameOf }, where: inTable });
+		ddl2.fks.update({ set: { columnsTo: newNameOf }, where: { tableTo: rename.to.table } });
 	}
 
 	const createdFilteredColumns = columnsToCreate.filter((it) => !it.generated || it.generated.type === 'virtual');

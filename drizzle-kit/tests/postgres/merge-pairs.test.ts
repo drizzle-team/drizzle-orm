@@ -1071,8 +1071,8 @@ test.each(runs(rows.filter((it) => it.merged)))(
 		expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 		const { status, folder } = await flow.generate('main', merged);
 		expect(status).toBe('ok');
-		expect(flow.sql('main', folder!)).toBe(markerSql);
-		expect(flow.snapshot('main', folder!).prevIds).toHaveLength(row.branches.length);
+		expect(flow.sql('main', folder)).toBe(markerSql);
+		expect(flow.snapshot('main', folder).prevIds).toHaveLength(row.branches.length);
 		expect(await flow.migrate('main', merged)).toStrictEqual([]);
 	},
 );

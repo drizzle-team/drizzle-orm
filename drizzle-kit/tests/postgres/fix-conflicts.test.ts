@@ -40,13 +40,13 @@ test('--fix-conflicts deletes both conflicting migrations and generates one migr
 
 	expect(deleted).toStrictEqual(['20260101120002_a', '20260101120003_b']);
 	expect(flow.folders('main')).toStrictEqual(['20260101120001_main', '20260101120004_main']);
-	expect(flow.snapshot('main', folder!).prevIds).toStrictEqual([flow.snapshot('main', '20260101120001_main').id]);
-	expect(flow.sql('main', folder!).split('--> statement-breakpoint\n').sort()).toStrictEqual([
+	expect(flow.snapshot('main', folder).prevIds).toStrictEqual([flow.snapshot('main', '20260101120001_main').id]);
+	expect(flow.sql('main', folder).split('--> statement-breakpoint\n').sort()).toStrictEqual([
 		'ALTER TABLE "users" ALTER COLUMN "score" SET DEFAULT 3;',
 		'ALTER TABLE "users" DROP COLUMN "note";',
 		'CREATE TABLE "tags" (\n\t"id" integer\n);\n',
 	]);
-	expect(flow.state('main', folder!)).toStrictEqual(schemaState(resolved));
+	expect(flow.state('main', folder)).toStrictEqual(schemaState(resolved));
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	expect(await flow.migrate('main', resolved)).toStrictEqual([]);
 });
@@ -74,7 +74,7 @@ test('--fix-conflicts also deletes the children of a conflicting migration and n
 	expect(fixed.deleted).toStrictEqual(fix.migrations);
 	expect(fixed).toMatchObject({ deleted_custom_migrations: [expect.stringMatching(/20260101120003_a$/)] });
 	expect(flow.folders('main')).toStrictEqual(['20260101120001_main', fixed.folder]);
-	expect(flow.state('main', fixed.folder!)).toStrictEqual(schemaState(resolved));
+	expect(flow.state('main', fixed.folder)).toStrictEqual(schemaState(resolved));
 	expect(await flow.migrate('main', resolved)).toStrictEqual([]);
 });
 
@@ -93,11 +93,11 @@ test('the migrations before a conflicting one stay, and --fix-conflicts merges t
 	const { folder, deleted } = await flow.generate('main', merged, { fixConflicts: true });
 
 	expect(deleted).toStrictEqual(['20260101120003_a', '20260101120005_b']);
-	expect(flow.snapshot('main', folder!).prevIds).toStrictEqual(
+	expect(flow.snapshot('main', folder).prevIds).toStrictEqual(
 		['20260101120004_b', '20260101120002_a'].map((it) => flow.snapshot('main', it).id),
 	);
-	expect(flow.sql('main', folder!)).toBe('ALTER TABLE "users" ALTER COLUMN "score" SET DEFAULT 3;');
-	expect(flow.state('main', folder!)).toStrictEqual(schemaState(merged));
+	expect(flow.sql('main', folder)).toBe('ALTER TABLE "users" ALTER COLUMN "score" SET DEFAULT 3;');
+	expect(flow.state('main', folder)).toStrictEqual(schemaState(merged));
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	expect(await flow.migrate('main', merged)).toStrictEqual([]);
 });
@@ -117,7 +117,7 @@ test('--fix-conflicts fixes every conflict between two branches', async () => {
 	const { folder, deleted } = await flow.generate('main', merged, { fixConflicts: true });
 
 	expect(deleted).toStrictEqual(['20260101120002_a', '20260101120003_a', '20260101120004_b', '20260101120005_b']);
-	expect(flow.state('main', folder!)).toStrictEqual(schemaState(merged));
+	expect(flow.state('main', folder)).toStrictEqual(schemaState(merged));
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	expect(await flow.migrate('main', merged)).toStrictEqual([]);
 });
@@ -128,12 +128,12 @@ test('--fix-conflicts in explain mode names the migrations that the fix deletes 
 	onTestFinished(() => log.mockRestore());
 	const explainAsText = async (schema: PostgresSchema) => {
 		log.mockClear();
-		await flow.generate('main', schema, { fixConflicts: true, explain: true, output: 'text' });
+		await flow.tryGenerate('main', schema, { fixConflicts: true, explain: true, output: 'text' });
 		return log.mock.calls.map((call) => String(call[0])).join('\n');
 	};
 
-	const explained = await flow.generate('main', resolved, { fixConflicts: true, explain: true });
-	const unchanged = await flow.generate('main', forkPoint, { fixConflicts: true, explain: true });
+	const explained = await flow.tryGenerate('main', resolved, { fixConflicts: true, explain: true });
+	const unchanged = await flow.tryGenerate('main', forkPoint, { fixConflicts: true, explain: true });
 	const explainedText = await explainAsText(resolved);
 	const unchangedText = await explainAsText(forkPoint);
 	const fix = 'fix' in explained ? explained.fix : undefined;
@@ -159,7 +159,7 @@ test('--fix-conflicts deletes nothing while generate still needs rename hints', 
 	const { flow } = await conflictingFork();
 	const renamed = { users: pgTable('users', { id: integer(), points: integer().default(3) }), tags };
 
-	const pending = await flow.generate('main', renamed, { fixConflicts: true });
+	const pending = await flow.tryGenerate('main', renamed, { fixConflicts: true });
 
 	expect(pending.status).toBe('missing_hints');
 	expect(flow.folders('main')).toStrictEqual(['20260101120001_main', '20260101120002_a', '20260101120003_b']);
@@ -170,8 +170,8 @@ test('--fix-conflicts deletes nothing while generate still needs rename hints', 
 	});
 
 	expect(deleted).toStrictEqual(['20260101120002_a', '20260101120003_b']);
-	expect(flow.sql('main', folder!)).toContain('ALTER TABLE "users" RENAME COLUMN "score" TO "points";');
-	expect(flow.state('main', folder!)).toStrictEqual(schemaState(renamed));
+	expect(flow.sql('main', folder)).toContain('ALTER TABLE "users" RENAME COLUMN "score" TO "points";');
+	expect(flow.state('main', folder)).toStrictEqual(schemaState(renamed));
 	expect(await flow.migrate('main', renamed)).toStrictEqual([]);
 });
 

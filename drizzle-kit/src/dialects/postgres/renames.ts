@@ -1,7 +1,7 @@
 import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
 import { type Delta, findRow, splitDeltaKey } from '../dialect';
-import type { PostgresDDL } from './ddl';
+import type { PostgresDDL, PostgresEntities } from './ddl';
 import { applyDeltas } from './reconstruct';
 
 const nameOf = (row: { schema?: string; table?: string; name?: string }) =>
@@ -21,6 +21,7 @@ export const renameResolvers = (state: PostgresDDL, deltas: Delta[]) => {
 		}
 		applyDeltas(state, [delta]);
 	}
-	return <T extends { name: string; table?: string; schema?: string }>(type: string): Resolver<T> =>
-		mockResolver<T>(renames.get(type) ?? new Set());
+	// A privilege has no name, so it has no rename decision.
+	return <K extends Exclude<keyof PostgresEntities, 'privileges'>>(type: K): Resolver<PostgresEntities[K]> =>
+		mockResolver<PostgresEntities[K]>(renames.get(type) ?? new Set());
 };

@@ -22,7 +22,7 @@ import { type PostgresSnapshotV8, snapshotValidator } from 'src/dialects/postgre
 import { updateUpToV6 } from 'src/dialects/postgres/versions';
 import { expect, test } from 'vitest';
 import { ORIGIN, writeSnapshot } from '../other/check-fixtures';
-import { createFolderFlow, type FolderFlow, schemaState, tempDir } from './folder-flow';
+import { createFolderFlow, createFormat8Flow, type FolderFlow, schemaState, tempDir } from './folder-flow';
 import { drizzleToDDL } from './mocks';
 
 // drizzle-kit 1.0.0-rc.4 wrote the format 8 folders. Its check passed on the linear, renames and merge
@@ -43,6 +43,12 @@ const seedFormat8 = (name: string) => {
 	);
 	return { flow, original };
 };
+
+// The JSON output of the error that up gives. `fields` holds the fields that only this error has.
+const upError = (kind: string, fields: Record<string, unknown>) => ({
+	status: 'error',
+	error: { code: 'command_output_error', command: 'up', kind, ...fields },
+});
 
 // Every converted snapshot must rebuild to the state that its format 8 file stores.
 const expectOriginalStates = (flow: FolderFlow, original: Map<string, PostgresSnapshotV8>) => {
@@ -164,7 +170,7 @@ test('check passes after up converts a format 8 fork that changes two properties
 	expectOriginalStates(flow, original);
 	expect(flow.leaves('main')).toStrictEqual(['20260928145239_not_null', '20260928145241_integer']);
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
-	expect(await flow.generate('main', merged)).toMatchObject({ status: 'no_changes' });
+	expect(await flow.tryGenerate('main', merged)).toMatchObject({ status: 'no_changes' });
 	expect(await flow.migrate('main', merged)).toStrictEqual([]);
 });
 
@@ -202,15 +208,9 @@ test('up writes nothing when a format 8 snapshot is malformed', async () => {
 	expect((error as Error).message).toContain(
 		`Cannot convert migration ${folder} to snapshot format 9: its snapshot.json is malformed. No snapshot was converted. Restore `,
 	);
-	expect(errorToEnvelope(error)).toStrictEqual({
-		status: 'error',
-		error: {
-			code: 'command_output_error',
-			command: 'up',
-			kind: 'malformed',
-			snapshot: expect.stringContaining(join(folder, 'snapshot.json')),
-		},
-	});
+	expect(errorToEnvelope(error)).toStrictEqual(
+		upError('malformed', { snapshot: expect.stringContaining(join(folder, 'snapshot.json')) }),
+	);
 	expect(flow.folders('main').map((it) => flow.snapshot('main', it))).toStrictEqual(before);
 });
 
@@ -231,16 +231,10 @@ test('up refuses a format 8 folder with a deleted middle migration and changes n
 			+ '20260928145210_roles and every later migration, run drizzle-kit up, and generate them again. '
 			+ `See ${troubleshooting}`,
 	);
-	expect(errorToEnvelope(error)).toStrictEqual({
-		status: 'error',
-		error: {
-			code: 'command_output_error',
-			command: 'up',
-			kind: 'history',
-			snapshot: expect.stringContaining(join('20260928145210_roles', 'snapshot.json')),
-			parentId: missing,
-		},
-	});
+	expect(errorToEnvelope(error)).toStrictEqual(upError('history', {
+		snapshot: expect.stringContaining(join('20260928145210_roles', 'snapshot.json')),
+		parentId: missing,
+	}));
 	expect(flow.files('main')).toStrictEqual(before);
 });
 
@@ -275,16 +269,9 @@ test('up refuses a journal entry that has no SQL file and changes no file', asyn
 	expect((error as Error).message).toMatch(
 		/^Cannot convert the migrations folder to snapshot format 9: the journal entry 0001_posts has no SQL file\. drizzle-kit expects it at \S+0001_posts\.sql\. No file was changed\. Restore this file from git, then run drizzle-kit up again\. See /,
 	);
-	expect(errorToEnvelope(error)).toStrictEqual({
-		status: 'error',
-		error: {
-			code: 'command_output_error',
-			command: 'up',
-			kind: 'history',
-			entry: '0001_posts',
-			sql: expect.stringMatching(/0001_posts\.sql$/),
-		},
-	});
+	expect(errorToEnvelope(error)).toStrictEqual(
+		upError('history', { entry: '0001_posts', sql: expect.stringMatching(/0001_posts\.sql$/) }),
+	);
 	expect(flow.files('main')).toStrictEqual(before);
 });
 
@@ -311,65 +298,98 @@ test('up refuses a format 8 folder that sorts before its parent, with the error 
 	expect(flow.files('main')).toStrictEqual(before);
 });
 
+test('up names the journal entry of a malformed snapshot in a journal folder, and changes no file', async () => {
+	const flow = createFolderFlow();
+	flow.seed('main', join(fixtures, 'format-7'));
+	const { id, prevId } = readFixture('format-7', 'meta', '0001_snapshot.json');
+	const withoutRows = { version: '8', dialect: 'postgres', id, prevIds: [prevId], renames: [] };
+	flow.overwriteFile('main', join('meta', '0001_snapshot.json'), JSON.stringify(withoutRows, null, 2));
+	const before = flow.files('main');
+
+	const error = await flow.up('main').catch((e: unknown) => e);
+
+	expect((error as Error).message).toMatch(
+		/^Cannot convert migration 0001_posts to snapshot format 9: its snapshot\.json is malformed\. No snapshot was converted\. Restore \S+0001_snapshot\.json from git, then run drizzle-kit up again\.$/,
+	);
+	expect(errorToEnvelope(error)).toStrictEqual(
+		upError('malformed', { snapshot: expect.stringContaining(join('meta', '0001_snapshot.json')) }),
+	);
+	expect(flow.files('main')).toStrictEqual(before);
+});
+
+test('up refuses a journal entry that is older than its parent, names both entries, and changes no file', async () => {
+	const flow = createFolderFlow();
+	flow.seed('main', join(fixtures, 'format-7'));
+	const journal = readFixture('format-7', 'meta', '_journal.json');
+	journal.entries[2].when = journal.entries[1].when - 1000;
+	flow.overwriteFile('main', join('meta', '_journal.json'), JSON.stringify(journal, null, 2));
+	const before = flow.files('main');
+
+	const error = await flow.up('main').catch((e: unknown) => e);
+
+	expect((error as Error).message).toBe(
+		'After drizzle-kit up moves the migrations into folders, migration 0002_renames sorts before its parent '
+			+ '0001_posts, so migrate can run it first. drizzle-kit up names each folder after the time in `when` of its '
+			+ 'journal entry. No file was changed. In meta/_journal.json, set `when` of 0002_renames to a time at least '
+			+ 'one second after `when` of 0001_posts, then run drizzle-kit up again.',
+	);
+	expect(errorToEnvelope(error)).toStrictEqual({
+		status: 'error',
+		error: {
+			code: 'check_error',
+			kind: 'order',
+			snapshot: expect.stringContaining(join('meta', '0002_snapshot.json')),
+			parentSnapshot: expect.stringContaining(join('meta', '0001_snapshot.json')),
+		},
+	});
+	expect(flow.files('main')).toStrictEqual(before);
+});
+
+const unsupportedMergeFix = 'Snapshot format 9 does not support a merge of such branches. Delete the merge migration '
+	+ '20260101120004_merge, every later migration, and the migrations of one of its branches after the fork point. '
+	+ 'After that, run drizzle-kit up again, and then run drizzle-kit generate. A database that ran a deleted migration '
+	+ `must be reset. See ${troubleshooting}`;
+
 // drizzle-kit 1.0.0-rc.4 could merge two branches with --ignore-conflicts. Here branch a renames the schema
 // `old` to `archive`, and branch b adds a schema `archive`. The merge starts from b, its newest leaf, and
 // the rename of branch a then moves `old` onto the name that b took.
 test('up refuses an old merge whose branches gave one name to two entities, and changes no file', async () => {
-	const dir = tempDir('dk-format-8-collision-');
 	const rowsOf = (...schemas: string[]) => schemas.map((name) => ({ entityType: 'schemas', name }));
-	const files = [
+	const flow = createFormat8Flow([
 		{ folder: '20260101120001_main', id: 'main', prevIds: [ORIGIN], ddl: rowsOf('old') },
 		{ folder: '20260101120002_a', id: 'a', prevIds: ['main'], ddl: rowsOf('archive'), renames: ['old->archive'] },
 		{ folder: '20260101120003_b', id: 'b', prevIds: ['main'], ddl: rowsOf('old', 'archive') },
 		{ folder: '20260101120004_merge', id: 'merge', prevIds: ['a', 'b'], ddl: rowsOf('archive', 'extra') },
-	];
-	for (const { folder, renames = [], ...it } of files) {
-		writeSnapshot(dir, folder, { version: '8', dialect: 'postgres', ...it, renames });
-	}
-	const flow = createFolderFlow();
-	flow.seed('main', dir);
+	]);
 	const before = flow.files('main');
 
 	const error = await flow.up('main').catch((e: unknown) => e);
 
 	expect((error as Error).message).toBe(
 		'Cannot convert the migrations folder to snapshot format 9: the merge in migration 20260101120004_merge cannot '
-			+ 'be rebuilt. The rename delta moves schemas ["old"] to ["archive"], and another row of schemas already has '
-			+ 'the key ["archive"]. Two migrations gave one name to two different entities. No file was changed. '
-			+ `Snapshot format 9 does not support a merge of such branches. See ${troubleshooting}`,
+			+ 'be reconstructed. The rename delta moves schemas ["old"] to ["archive"], and another row of schemas already '
+			+ 'has the key ["archive"]. Two migrations gave one name to two different entities. No file was changed. '
+			+ unsupportedMergeFix,
 	);
-	expect(errorToEnvelope(error)).toStrictEqual({
-		status: 'error',
-		error: {
-			code: 'command_output_error',
-			command: 'up',
-			kind: 'history',
-			snapshot: expect.stringContaining(join('20260101120004_merge', 'snapshot.json')),
-		},
-	});
+	expect(errorToEnvelope(error)).toStrictEqual(
+		upError('history', { snapshot: expect.stringContaining(join('20260101120004_merge', 'snapshot.json')) }),
+	);
 	expect(flow.files('main')).toStrictEqual(before);
 });
 
 // A format 8 folder in which branch a and branch b each add the column users.email, and a merge follows.
 const emailTypes = { varchar, text };
 const seedMergeOfTwoEmailColumns = (typeOnA: keyof typeof emailTypes, typeOnB: keyof typeof emailTypes) => {
-	const dir = tempDir('dk-format-8-two-creates-');
 	const rowsOf = (type?: keyof typeof emailTypes) =>
 		drizzleToDDL({
 			users: pgTable('users', type ? { id: integer(), email: emailTypes[type]() } : { id: integer() }),
 		}).ddl.entities.list();
-	const files = [
+	return createFormat8Flow([
 		{ folder: '20260101120001_main', id: 'main', prevIds: [ORIGIN], ddl: rowsOf() },
 		{ folder: '20260101120002_a', id: 'a', prevIds: ['main'], ddl: rowsOf(typeOnA) },
 		{ folder: '20260101120003_b', id: 'b', prevIds: ['main'], ddl: rowsOf(typeOnB) },
 		{ folder: '20260101120004_merge', id: 'merge', prevIds: ['a', 'b'], ddl: rowsOf(typeOnB) },
-	];
-	for (const { folder, ...it } of files) {
-		writeSnapshot(dir, folder, { version: '8', dialect: 'postgres', ...it, renames: [] });
-	}
-	const flow = createFolderFlow();
-	flow.seed('main', dir);
-	return flow;
+	]);
 };
 
 test('up refuses an old merge whose branches created different entities under one key, and changes no file', async () => {
@@ -380,19 +400,13 @@ test('up refuses an old merge whose branches created different entities under on
 
 	expect((error as Error).message).toBe(
 		'Cannot convert the migrations folder to snapshot format 9: the merge in migration 20260101120004_merge cannot '
-			+ 'be rebuilt. The create delta adds columns ["public","users","email"], and another entity of columns with '
-			+ 'other values already has this key. Two migrations gave one name to two different entities. No file was '
-			+ `changed. Snapshot format 9 does not support a merge of such branches. See ${troubleshooting}`,
+			+ 'be reconstructed. The create delta adds columns ["public","users","email"], and another entity of columns '
+			+ 'with other values already has this key. Two migrations gave one name to two different entities. No file was '
+			+ `changed. ${unsupportedMergeFix}`,
 	);
-	expect(errorToEnvelope(error)).toStrictEqual({
-		status: 'error',
-		error: {
-			code: 'command_output_error',
-			command: 'up',
-			kind: 'history',
-			snapshot: expect.stringContaining(join('20260101120004_merge', 'snapshot.json')),
-		},
-	});
+	expect(errorToEnvelope(error)).toStrictEqual(
+		upError('history', { snapshot: expect.stringContaining(join('20260101120004_merge', 'snapshot.json')) }),
+	);
 	expect(flow.files('main')).toStrictEqual(before);
 });
 
@@ -409,17 +423,11 @@ test('up converts an old merge whose branches created equal entities under one k
 
 // Two git branches that each started from an empty folder. drizzle-kit 1.0.0-rc.4 could merge them.
 test('up refuses a format 8 folder with two first migrations, and changes no file', async () => {
-	const dir = tempDir('dk-format-8-two-first-');
-	const files = [
+	const flow = createFormat8Flow([
 		{ folder: '20260101120001_a', id: 'a', prevIds: [ORIGIN] },
 		{ folder: '20260101120002_b', id: 'b', prevIds: [ORIGIN] },
 		{ folder: '20260101120003_merge', id: 'merge', prevIds: ['a', 'b'] },
-	];
-	for (const { folder, ...it } of files) {
-		writeSnapshot(dir, folder, { version: '8', dialect: 'postgres', ...it, ddl: [], renames: [] });
-	}
-	const flow = createFolderFlow();
-	flow.seed('main', dir);
+	]);
 	const before = flow.files('main');
 
 	const error = await flow.up('main').catch((e: unknown) => e);
@@ -430,36 +438,20 @@ test('up refuses a format 8 folder with two first migrations, and changes no fil
 			+ 'two migrations together with every migration that follows it, run drizzle-kit up again, and then run '
 			+ `drizzle-kit generate. See ${troubleshooting}`,
 	);
-	expect(errorToEnvelope(error)).toStrictEqual({
-		status: 'error',
-		error: {
-			code: 'command_output_error',
-			command: 'up',
-			kind: 'history',
-			snapshot: expect.stringContaining(join('20260101120002_b', 'snapshot.json')),
-			baseSnapshot: expect.stringContaining(join('20260101120001_a', 'snapshot.json')),
-		},
-	});
+	expect(errorToEnvelope(error)).toStrictEqual(upError('history', {
+		snapshot: expect.stringContaining(join('20260101120002_b', 'snapshot.json')),
+		baseSnapshot: expect.stringContaining(join('20260101120001_a', 'snapshot.json')),
+	}));
 	expect(flow.files('main')).toStrictEqual(before);
 });
 
 test('up refuses a format 8 snapshot with one index name on two tables of one schema, and changes no file', async () => {
-	const dir = tempDir('dk-format-8-duplicate-');
 	const { ddl } = drizzleToDDL({
 		a: pgTable('a', { id: integer() }, (t) => [index('a_idx').on(t.id)]),
 		b: pgTable('b', { id: integer() }, (t) => [index('b_idx').on(t.id)]),
 	});
 	const rows = ddl.entities.list().map((it) => (it.entityType === 'indexes' ? { ...it, name: 'a_idx' } : it));
-	writeSnapshot(dir, '20260101120001_main', {
-		version: '8',
-		dialect: 'postgres',
-		id: 'main',
-		prevIds: [ORIGIN],
-		ddl: rows,
-		renames: [],
-	});
-	const flow = createFolderFlow();
-	flow.seed('main', dir);
+	const flow = createFormat8Flow([{ folder: '20260101120001_main', id: 'main', prevIds: [ORIGIN], ddl: rows }]);
 	const before = flow.files('main');
 
 	const error = await flow.up('main').catch((e: unknown) => e);
@@ -687,7 +679,7 @@ test('after up, a migration that drops the primary key of a table that 0.x renam
 
 	const { folder } = await flow.generate('main', withoutKey);
 
-	expect(flow.sql('main', folder!)).toBe('ALTER TABLE "articles" DROP CONSTRAINT "posts_pkey";');
+	expect(flow.sql('main', folder)).toBe('ALTER TABLE "articles" DROP CONSTRAINT "posts_pkey";');
 	expect(await flow.migrate('main', withoutKey)).toStrictEqual([]);
 });
 

@@ -12,14 +12,8 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 
-/**
- * A fork and the branches it could take, shared by the commutativity comparisons.
- *
- * Every mutation is a whole schema — the state a branch arrives at, not a
- * hand-written statement — so the real diff engine produces the statements and the
- * real database can be driven with the resulting SQL. That is what lets the same
- * scenarios feed the model comparison and the PGlite ground-truth check.
- */
+// The schema of a fork point and the schemas that a branch can reach from it. Each one is a whole schema,
+// so the real diff writes the statements and the SQL of a branch.
 export const mood = pgEnum('mood', ['ok', 'sad']);
 export const archive = pgSchema('archive');
 

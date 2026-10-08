@@ -1,20 +1,31 @@
 import { FacetCommutativity, type FacetPaths, type ParsedSnapshotInput } from '../../commutativity/engine';
 import type { ConflictTarget } from '../../commutativity/types';
-import type { Column, Index, IndexColumn, Privilege } from './ddl';
+import { type Column, type Index, type IndexColumn, privilegeTypes } from './ddl';
 import { builtinPolicyRoles, isSerialType } from './grammar';
-import { drySnapshot, type PostgresSnapshot } from './snapshot';
+import type { PostgresSnapshot } from './snapshot';
 import type { SnapshotStatement } from './snapshot-statements';
 
-const privilegeTypes: Privilege['type'][] = [
-	'ALL',
-	'SELECT',
-	'INSERT',
-	'UPDATE',
-	'DELETE',
-	'TRUNCATE',
-	'REFERENCES',
-	'TRIGGER',
-];
+type NodeKind =
+	| 'tbl'
+	| 'view'
+	| 'seq'
+	| 'idx'
+	| 'enum'
+	| 'uq'
+	| 'ck'
+	| 'fk'
+	| 'pk'
+	| 'col'
+	| 'colprop'
+	| 'sch'
+	| 'pol'
+	| 'rls'
+	| 'role'
+	| 'priv'
+	| 'ukey'
+	| 'rel'
+	| 'type'
+	| 'con';
 
 // The target that the report and the JSON output of `check` show for a statement. A constraint, a policy and
 // a privilege show their table. A role and a renamed index also have the kind 'table', with their own name.
@@ -94,7 +105,7 @@ function targetOf(statement: SnapshotStatement): ConflictTarget {
 		case 'recreate_enum':
 			return { kind: 'enum', name: statement.to.name, schema: statement.to.schema };
 		case 'move_enum':
-			return { kind: 'enum', name: statement.from.name, schema: statement.from.schema || 'public' };
+			return { kind: 'enum', name: statement.from.name, schema: statement.from.schema };
 
 		case 'create_sequence':
 		case 'drop_sequence':
@@ -103,7 +114,7 @@ function targetOf(statement: SnapshotStatement): ConflictTarget {
 		case 'rename_sequence':
 			return { kind: 'sequence', name: statement.from.name, schema: statement.from.schema };
 		case 'move_sequence':
-			return { kind: 'sequence', name: statement.from.name, schema: statement.from.schema || 'public' };
+			return { kind: 'sequence', name: statement.from.name, schema: statement.from.schema };
 
 		case 'create_view':
 		case 'drop_view':
@@ -207,14 +218,14 @@ class PostgresCommutativity extends FacetCommutativity<
 				const { dimensions, generated, identity } = statement.diff;
 				const dropsSequence = statement.wasSerial && !isSerialType(statement.to.type);
 				const isArrayConversion = !!dimensions && (dimensions.from === 0 || dimensions.to === 0);
-				return !dropsSequence && !statement.toSerial && !generated && !identity && !isArrayConversion;
+				return !dropsSequence && !statement.becomesSerial && !generated && !identity && !isArrayConversion;
 			}
 			// Without the DROP, the second CREATE INDEX fails.
 			case 'recreate_index':
 				return statement.shouldDrop;
 			// Without the DROP, the second ADD PRIMARY KEY fails.
 			case 'alter_pk':
-				return !statement.deleted;
+				return statement.shouldDrop;
 			// For a column with a foreign key, an index or a unique constraint, the diff stores a drop_fk, a
 			// create_fk, a create_index or an add_unique next to the recreate_column. Those run a second time only
 			// in the migration that also recreates the column, and a statement here does not know its migration.
@@ -239,7 +250,7 @@ class PostgresCommutativity extends FacetCommutativity<
 		}
 	}
 
-	protected override buildFacetPaths(statement: SnapshotStatement): FacetPaths {
+	public override buildFacetPaths(statement: SnapshotStatement): FacetPaths {
 		// EXACT (strict) COMMUTATIVITY via three facets per node:
 		//   s|N  self       — written by EVERY structural op on N. Two ops on the same
 		//                     node collide here (add+drop, two alters, …).
@@ -256,14 +267,14 @@ class PostgresCommutativity extends FacetCommutativity<
 		// writes only `s|`, a name reference (`n|`) does NOT collide with an alter — the
 		// two genuinely commute. Because rename writes `n|` but not `e|`, a cascade
 		// reference (`e|`) does NOT collide with a rename. Both are exact, not conservative.
-		const self = (k: string, ...p: string[]) => `s|${k}|${p.join('.')}`;
-		const name = (k: string, ...p: string[]) => `n|${k}|${p.join('.')}`;
-		const exist = (k: string, ...p: string[]) => `e|${k}|${p.join('.')}`;
+		const self = (k: NodeKind, ...p: string[]) => `s|${k}|${p.join('.')}`;
+		const name = (k: NodeKind, ...p: string[]) => `n|${k}|${p.join('.')}`;
+		const exist = (k: NodeKind, ...p: string[]) => `e|${k}|${p.join('.')}`;
 		// Postgres keeps the names of several kinds of objects in one namespace: relations (tables, views,
 		// sequences and indexes) and types (tables, views and enums) in a schema, and constraints in a table.
 		// Two objects of different kinds cannot take one name there, so each name is also written in its
 		// namespaces. A primary key or a unique constraint is kept by an index with its name.
-		const sharedNames = (k: string, p: string[]): string[] => {
+		const sharedNames = (k: NodeKind, p: string[]): string[] => {
 			switch (k) {
 				case 'tbl':
 				case 'view':
@@ -278,22 +289,33 @@ class PostgresCommutativity extends FacetCommutativity<
 				case 'ck':
 				case 'fk':
 					return [name('con', ...p)];
-				default:
+				case 'pk':
+				case 'col':
+				case 'colprop':
+				case 'sch':
+				case 'pol':
+				case 'rls':
+				case 'role':
+				case 'priv':
+				case 'ukey':
+				case 'rel':
+				case 'type':
+				case 'con':
 					return [];
 			}
 		};
 		// The node of a primary key holds no name, so its names are written with these.
 		const pkNames = (schema: string, table: string, pk: string) => sharedNames('uq', [schema, table, pk]);
-		const created = (k: string, ...p: string[]) => [
+		const created = (k: NodeKind, ...p: string[]) => [
 			self(k, ...p),
 			name(k, ...p),
 			exist(k, ...p),
 			...sharedNames(k, p),
 		]; // create/drop
-		const endpoint = (k: string, ...p: string[]) => [self(k, ...p), name(k, ...p), ...sharedNames(k, p)]; // one endpoint of a rename/move
-		const altered = (k: string, ...p: string[]) => [self(k, ...p)];
-		const nref = (k: string, ...p: string[]) => name(k, ...p); // name reference (broken by rename OR drop)
-		const eref = (k: string, ...p: string[]) => exist(k, ...p); // cascade reference (broken only by drop)
+		const endpoint = (k: NodeKind, ...p: string[]) => [self(k, ...p), name(k, ...p), ...sharedNames(k, p)]; // one endpoint of a rename/move
+		const altered = (k: NodeKind, ...p: string[]) => [self(k, ...p)];
+		const nref = (k: NodeKind, ...p: string[]) => name(k, ...p); // name reference (broken by rename OR drop)
+		const eref = (k: NodeKind, ...p: string[]) => exist(k, ...p); // cascade reference (broken only by drop)
 		const underTable = (schema: string, table: string) => [nref('tbl', schema, table), nref('sch', schema)];
 		// What DROP INDEX and ALTER INDEX read of the table of the index. They name the index by its schema,
 		// so a rename of the table does not break them. A drop of the table drops the index, and a move of
@@ -347,7 +369,7 @@ class PostgresCommutativity extends FacetCommutativity<
 						...endpoint('tbl', s.to, s.name),
 						exist('tbl', s.from, s.name),
 						exist('tbl', s.to, s.name),
-						...s.relations.flatMap((relation) => [name('rel', s.from, relation), name('rel', s.to, relation)]),
+						...s.indexNames.flatMap((index) => [name('rel', s.from, index), name('rel', s.to, index)]),
 					],
 					needs: [nref('sch', s.from), nref('sch', s.to)],
 				};
@@ -391,7 +413,7 @@ class PostgresCommutativity extends FacetCommutativity<
 				// indexes/constraints), so it writes existence like a create/drop, not just `self` like an alter
 				return {
 					owns: created('col', s.column.schema, s.column.table, s.column.name),
-					needs: underTable(s.column.schema, s.column.table),
+					needs: [...underTable(s.column.schema, s.column.table), ...colEnum(s.column)],
 				};
 			case 'rename_column':
 				return {
@@ -562,7 +584,7 @@ class PostgresCommutativity extends FacetCommutativity<
 					...underTable(s.schema, s.table),
 					...s.columns.map((c) => eref('col', s.schema, s.table, c)),
 				];
-				const named = (k: string) => ({
+				const named = (k: NodeKind) => ({
 					owns: [...endpoint(k, s.schema, s.table, s.from), ...endpoint(k, s.schema, s.table, s.to)],
 					needs,
 				});
@@ -619,10 +641,10 @@ class PostgresCommutativity extends FacetCommutativity<
 			case 'move_enum':
 				return {
 					owns: [
-						...endpoint('enum', s.from.schema || 'public', s.from.name),
-						...endpoint('enum', s.to.schema || 'public', s.to.name),
+						...endpoint('enum', s.from.schema, s.from.name),
+						...endpoint('enum', s.to.schema, s.to.name),
 					],
-					needs: [nref('sch', s.from.schema || 'public'), nref('sch', s.to.schema || 'public')],
+					needs: [nref('sch', s.from.schema), nref('sch', s.to.schema)],
 				};
 
 			// ---- sequences (schema-scoped) ----
@@ -640,10 +662,10 @@ class PostgresCommutativity extends FacetCommutativity<
 			case 'move_sequence':
 				return {
 					owns: [
-						...endpoint('seq', s.from.schema || 'public', s.from.name),
-						...endpoint('seq', s.to.schema || 'public', s.to.name),
+						...endpoint('seq', s.from.schema, s.from.name),
+						...endpoint('seq', s.to.schema, s.to.name),
 					],
-					needs: [nref('sch', s.from.schema || 'public'), nref('sch', s.to.schema || 'public')],
+					needs: [nref('sch', s.from.schema), nref('sch', s.to.schema)],
 				};
 
 			// ---- views (schema-scoped) ----
@@ -755,13 +777,8 @@ class PostgresCommutativity extends FacetCommutativity<
 
 	public override async detectNonCommutative(snapshots: string[] | ParsedSnapshotInput[]) {
 		const nodes = this.buildSnapshotGraph(snapshots);
-		const byId = new Map(Object.values(nodes).map((node) => [node.id, node.raw]));
 		// The conflicts come only from the statements that each snapshot stores. Nothing is diffed here.
-		return this.detectBranchConflicts(nodes, async (id) => byId.get(id)!.statements);
-	}
-
-	protected override getDrySnapshot(): PostgresSnapshot {
-		return drySnapshot;
+		return this.detectBranchConflicts(nodes, (id) => nodes[id].raw.statements);
 	}
 }
 

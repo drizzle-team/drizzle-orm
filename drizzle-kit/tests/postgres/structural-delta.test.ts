@@ -144,10 +144,8 @@ describe('structural deltas round-trip every entity type', () => {
 });
 
 describe('entity identity is injective (no collisions)', () => {
-	// The engine keys every entity by its injective identity generator, so pushing a full
-	// entity set never loses a row to a collision. `pushAll` returns CONFLICT on a genuine
-	// duplicate, so an OK status is the collision-free proof — the successor to the old
-	// fixed `entityType|schema|table|name` keyOf's `findKeyCollisions`.
+	// `pushAll` returns CONFLICT when two rows have one key, so the status OK shows that no two entities of
+	// a set share a key.
 	for (const [name, [from, to]] of Object.entries(scenarios)) {
 		test(name, () => {
 			expect(createDDL().entities.pushAll(rowsOf(from)).status).toBe('OK');
@@ -383,5 +381,14 @@ describe('apply deltas to a state', () => {
 		const start = ddlOf({ users });
 		const next = apply(start, [{ op: 'rename', key: 'tables\0["public","orders"]', set: { name: 'x' } }]);
 		expect(eq(next, start)).toBe(true);
+	});
+
+	test('a delta whose key has no entity type throws', () => {
+		const withoutEntityType = { op: 'drop', key: '["public","users"]' } as const;
+
+		expect(() => apply(ddlOf({ users }), [withoutEntityType])).toThrow(
+			'The key ["public","users"] has no entity type. Pass the key as a delta holds it: the entity type, "\\0" '
+				+ 'and the identity.',
+		);
 	});
 });

@@ -3,6 +3,17 @@ import type { Alter } from '../dialect';
 import { create } from '../dialect';
 import { defaultNameForPK, defaultNameForUnique } from './grammar';
 
+export const privilegeTypes = [
+	'ALL',
+	'SELECT',
+	'INSERT',
+	'UPDATE',
+	'DELETE',
+	'TRUNCATE',
+	'REFERENCES',
+	'TRIGGER',
+] as const;
+
 export const createDDL = () => {
 	return create({
 		schemas: { name: 'string' },
@@ -120,7 +131,7 @@ export const createDDL = () => {
 			grantee: 'string',
 			schema: 'string',
 			table: 'string',
-			type: ['ALL', 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'],
+			type: privilegeTypes,
 			isGrantable: 'boolean',
 		},
 		policies: {

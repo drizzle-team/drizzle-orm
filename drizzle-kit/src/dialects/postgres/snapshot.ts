@@ -633,8 +633,8 @@ const entityName = (json: string) => {
 };
 
 // The first entity that is in only one of the two states, or that differs between them.
-export const stateDifference = (expected: PostgresDDL, rebuilt: PostgresDDL): string | undefined => {
-	const [a, b] = [normalizeDDL(expected.entities.list()), normalizeDDL(rebuilt.entities.list())];
+export const stateDifference = (expected: PostgresDDL, reconstructed: PostgresDDL): string | undefined => {
+	const [a, b] = [normalizeDDL(expected.entities.list()), normalizeDDL(reconstructed.entities.list())];
 	const [inA, inB] = [new Set(a), new Set(b)];
 	const differing = a.find((it) => !inB.has(it)) ?? b.find((it) => !inA.has(it));
 	return differing === undefined ? undefined : entityName(differing);
@@ -654,14 +654,4 @@ export const toJsonSnapshot = (
 		statements,
 		ddl: ddl.entities.list(),
 	};
-};
-
-export const drySnapshot: PostgresBaseSnapshot = {
-	type: 'base',
-	version: '9',
-	dialect: 'postgres',
-	id: originUUID,
-	prevIds: [],
-	statements: [],
-	ddl: [],
 };

@@ -47,8 +47,8 @@ export interface JsonDropEnum {
 
 export interface JsonMoveEnum {
 	type: 'move_enum';
-	from: { name: string; schema: string | null };
-	to: { name: string; schema: string | null };
+	from: { name: string; schema: string };
+	to: { name: string; schema: string };
 }
 
 export interface JsonRenameEnum {
@@ -130,8 +130,8 @@ export interface JsonDropSequence {
 
 export interface JsonMoveSequence {
 	type: 'move_sequence';
-	from: { name: string; schema: string | null };
-	to: { name: string; schema: string | null };
+	from: { name: string; schema: string };
+	to: { name: string; schema: string };
 }
 
 export interface JsonRenameSequence {

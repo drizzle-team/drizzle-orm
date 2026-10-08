@@ -4,23 +4,40 @@ import { basename, dirname, join } from 'path';
 import { DuplicateEntityError, fromEntities } from '../../dialects/postgres/ddl';
 import { folderOrderError, sortsAfter } from '../../dialects/postgres/folder';
 import { reconstruct } from '../../dialects/postgres/reconstruct';
-import { type PostgresSnapshot, snapshotValidator, stateDifference } from '../../dialects/postgres/snapshot';
-import { upToV8 } from '../../dialects/postgres/versions';
+import {
+	type PostgresSnapshot,
+	type PostgresSnapshotV8,
+	snapshotValidator,
+	stateDifference,
+} from '../../dialects/postgres/snapshot';
+import { isSnapshotV8, upToV8 } from '../../dialects/postgres/versions';
 import { UnsupportedMergeError, upToV9, withStateKeyNames } from '../../dialects/postgres/versions-v9';
 import { originUUID } from '../../utils';
-import { assertSnapshotStatus, listSnapshots, validateWithReport } from '../../utils/utils-node';
+import { assertSnapshotStatus, listSnapshots, validatorForDialect } from '../../utils/utils-node';
 import { outputFormat } from '../context';
-import { CommandOutputCliError, DrizzleCliError } from '../errors';
+import { CheckCliError, CommandOutputCliError, DrizzleCliError, UnsupportedSnapshotVersionCliError } from '../errors';
 import { applyFoldersV3, planFoldersV3 } from './utils';
 
 const reportIssueHint =
 	'Keep the current snapshot files and report this issue at https://github.com/drizzle-team/drizzle-orm/issues.';
 
-const conversionError = (folder: string, reason: string, next: string, meta: Record<string, string>) =>
+const conversionError = (name: string, reason: string, next: string, meta: Record<string, string>) =>
 	new CommandOutputCliError(
 		'up',
-		`Cannot convert migration ${folder} to snapshot format 9: ${reason}. No snapshot was converted. ${next}`,
+		`Cannot convert migration ${name} to snapshot format 9: ${reason}. No snapshot was converted. ${next}`,
 		meta,
+	);
+
+// The order error of a journal folder. Its migration folders do not exist yet, so the message names the
+// journal entries. The JSON output is the same as for folderOrderError.
+const journalOrderError = (file: { name: string; path: string }, parent: { name: string; path: string }) =>
+	new CheckCliError(
+		'order',
+		`After drizzle-kit up moves the migrations into folders, migration ${file.name} sorts before its parent `
+			+ `${parent.name}, so migrate can run it first. drizzle-kit up names each folder after the time in \`when\` `
+			+ `of its journal entry. No file was changed. In meta/_journal.json, set \`when\` of ${file.name} to a time at `
+			+ `least one second after \`when\` of ${parent.name}, then run drizzle-kit up again.`,
+		{ snapshot: file.path, parentSnapshot: parent.path },
 	);
 
 const troubleshootingUrl = 'https://orm.drizzle.team/docs/kit-migrations-troubleshooting';
@@ -48,44 +65,51 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 		);
 	}
 
+	const validate = validatorForDialect('postgresql');
 	// `path` is where the file is now, and `name` is how the user knows the migration now, so that an error
 	// names things that exist. `folder` is the migration folder after the move.
-	const sources = moves
+	const sources = (moves
 		? moves.map((it) => ({ path: it.snapshotPath, folder: it.folder, name: it.tag }))
-		: listSnapshots(out).map((path) => ({ path, folder: basename(dirname(path)), name: basename(dirname(path)) }));
-	for (const { path } of sources) {
-		try {
-			JSON.parse(readFileSync(path, 'utf8'));
-		} catch {
-			assertSnapshotStatus(path, 'malformed');
-		}
-	}
-	const report = validateWithReport(sources.map((it) => it.path), 'postgresql');
+		: listSnapshots(out).map((path) => ({ path, folder: basename(dirname(path)), name: basename(dirname(path)) })))
+		.map((it) => {
+			let raw: any;
+			try {
+				raw = JSON.parse(readFileSync(it.path, 'utf8'));
+			} catch {
+				assertSnapshotStatus(it.path, 'malformed');
+			}
+			return { ...it, raw };
+		})
+		// Every file is read before the first status is checked, so a file that is not JSON is reported first.
+		.map((it) => {
+			const { status } = validate(it.raw);
+			if (status === 'unsupported') throw new UnsupportedSnapshotVersionCliError(it.path);
+			return { ...it, status };
+		});
 
 	// A folder that holds only format 9 snapshots is not validated here. `check` does that.
 	const converted: { path: string; text: string }[] = [];
-	if (report.nonLatest.length > 0) {
-		const files = sources.map((it) => {
-			const raw = report.rawMap[it.path];
-			return { ...it, snapshot: Number(raw.version) < 8 ? upToV8(raw).snapshot : raw };
+	if (sources.some((it) => it.status === 'nonLatest')) {
+		const files = sources.map(({ raw, ...it }) => {
+			const snapshot: PostgresSnapshotV8 | PostgresSnapshot = Number(raw.version) < 8 ? upToV8(raw).snapshot : raw;
+			return { ...it, snapshot };
 		}).sort((a, b) => (a.folder < b.folder ? -1 : 1));
-		// validateWithReport checks the shape of format 9 files only, so a format 8 file needs this check.
-		const malformedFile = files.find(({ path, snapshot }) =>
-			report.malformed.includes(path)
-			|| (snapshot.version === '8' && !(Array.isArray(snapshot.ddl) && Array.isArray(snapshot.prevIds)))
+		// The validator checks the shape of format 9 files only, so a format 8 file needs this check.
+		const malformedFile = files.find(({ status, snapshot }) =>
+			status === 'malformed' || (snapshot.version === '8' && !isSnapshotV8(snapshot))
 		);
 		if (malformedFile) {
 			throw conversionError(
-				malformedFile.folder,
+				malformedFile.name,
 				'its snapshot.json is malformed',
 				`Restore ${malformedFile.path} from git, then run drizzle-kit up again.`,
 				{ kind: 'malformed', snapshot: malformedFile.path },
 			);
 		}
 
-		const fileOf = new Map(files.map((it) => [it.snapshot.id as string, it]));
+		const fileOf = new Map(files.map((it) => [it.snapshot.id, it]));
 		for (const file of files) {
-			for (const parentId of file.snapshot.prevIds as string[]) {
+			for (const parentId of file.snapshot.prevIds) {
 				if (!parentId || parentId === originUUID) continue;
 				const parent = fileOf.get(parentId);
 				if (!parent) {
@@ -97,14 +121,14 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 						{ snapshot: file.path, parentId },
 					);
 				}
-				if (!sortsAfter(file.folder, parent.folder)) throw folderOrderError(file, parent);
+				if (!sortsAfter(file.folder, parent.folder)) {
+					throw moves ? journalOrderError(file, parent) : folderOrderError(file, parent);
+				}
 			}
 		}
 
 		// Each snapshot with no parent becomes a base snapshot, and a folder holds one base snapshot.
-		const [first, second] = files.filter((it) =>
-			(it.snapshot.prevIds as string[]).every((id) => !id || id === originUUID)
-		);
+		const [first, second] = files.filter((it) => it.snapshot.prevIds.every((id) => !id || id === originUUID));
 		if (second) {
 			throw historyError(
 				`the folder has two first migrations, ${first.name} and ${second.name}, and a folder must have one.`,
@@ -121,7 +145,14 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 			if (e instanceof DrizzleCliError) throw e;
 			if (e instanceof UnsupportedMergeError) {
 				const snapshot = files.find((it) => it.folder === e.folder)!.path;
-				throw historyError(e.message, 'Snapshot format 9 does not support a merge of such branches.', { snapshot });
+				throw historyError(
+					e.message,
+					`Snapshot format 9 does not support a merge of such branches. Delete the merge migration ${e.folder}, `
+						+ 'every later migration, and the migrations of one of its branches after the fork point. After that, '
+						+ 'run drizzle-kit up again, and then run drizzle-kit generate. A database that ran a deleted migration '
+						+ 'must be reset.',
+					{ snapshot },
+				);
 			}
 			if (e instanceof DuplicateEntityError) {
 				throw historyError(
@@ -136,11 +167,11 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 		// The files are checked in the form that is written to disk.
 		const written = snapshotTexts.map((it) => JSON.parse(it) as PostgresSnapshot);
 		const byId = new Map(written.map((it) => [it.id, it]));
-		for (const [idx, { path, folder, snapshot }] of files.entries()) {
+		for (const [idx, { path, folder, name, snapshot }] of files.entries()) {
 			if (snapshot.version === '9') continue;
 			const { errors } = snapshotValidator.parse(written[idx]);
 			if (errors) {
-				throw conversionError(folder, `the new snapshot is not valid (${errors.join('; ')})`, reportIssueHint, {
+				throw conversionError(name, `the new snapshot is not valid (${errors.join('; ')})`, reportIssueHint, {
 					kind: 'invalid_snapshot',
 					snapshot: path,
 				});
@@ -149,8 +180,8 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 			const entity = stateDifference(fromEntities(withStateKeyNames(snapshot.ddl, state)), state);
 			if (entity !== undefined) {
 				throw conversionError(
-					folder,
-					`its rebuilt state differs from the format 8 state at ${entity}`,
+					name,
+					`its reconstructed state differs from the format 8 state at ${entity}`,
 					reportIssueHint,
 					{
 						kind: 'state_mismatch',

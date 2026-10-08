@@ -4,16 +4,8 @@ import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { expect, test } from 'vitest';
 import { build, rows } from './commutativity-statements';
 
-// ---------------------------------------------------------------------------
-// Algorithmic commutativity test suite.
-//
-// Rather than hand-picking scenarios, we generate every statement type inside
-// a parameterized "namespace" (a private set of schema/table/column/... names)
-// and assert first-principles INVARIANTS that any correct commutativity model
-// must satisfy. The oracles are derived from what commutativity means, not from
-// buildFacetPaths, so they catch mapping bugs (wrong field, missing cross-ref,
-// over-broad key) rather than tautologically agreeing with the implementation.
-// ---------------------------------------------------------------------------
+// Invariants that every correct set of claim rules meets, checked for every statement of the catalog. The
+// expected verdicts come from the meaning of a conflict, and not from the claim rules.
 
 const TYPES = Object.keys(rows());
 

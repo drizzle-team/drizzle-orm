@@ -38,7 +38,6 @@ const row = <K extends keyof PostgresEntities>(type: K, source: StoredRow<K>): S
 const inTable = ({ schema, table, name }: { schema: string; table: string; name: string }) => ({ schema, table, name });
 
 const inSchema = ({ schema, name }: { schema: string; name: string }) => ({ schema, name });
-const movable = ({ schema, name }: { schema: string | null; name: string }) => ({ schema, name });
 const viewName = ({ schema, name, materialized }: StoredRow<'views'>) => ({ schema, name, materialized });
 
 const constraint = (it: { schema: string; table: string; name: string; columns: string[] }) => ({
@@ -315,7 +314,7 @@ const moveTableConvertor = convertor('move_table', ({ name, from, to, relations 
 	name,
 	from,
 	to,
-	relations,
+	indexNames: relations,
 }), (st) => {
 	const from = st.from !== 'public' ? `"${st.from}"."${st.name}"` : `"${st.name}"`;
 
@@ -441,7 +440,7 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 	isEnum,
 	wasEnum,
 	wasSerial,
-	toSerial,
+	becomesSerial: toSerial,
 	diff: {
 		type: diff.type,
 		typeSchema: diff.typeSchema,
@@ -452,7 +451,7 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 		identity: diff.identity,
 	},
 }), (st) => {
-	const { diff, to: column, isEnum, wasEnum, wasSerial, toSerial } = st;
+	const { diff, to: column, isEnum, wasEnum, wasSerial, becomesSerial } = st;
 	const statements = [] as string[];
 
 	const key = column.schema !== 'public'
@@ -502,7 +501,7 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 			statements.push(`DROP SEQUENCE ${sequenceKey};`);
 		}
 
-		if (toSerial) {
+		if (becomesSerial) {
 			const sequenceKey = column.schema !== 'public'
 				? `"${column.schema}"."${column.table}_${column.name}_seq"`
 				: `"${column.table}_${column.name}_seq"`;
@@ -694,11 +693,11 @@ const dropPrimaryKeyConvertor = convertor('drop_pk', ({ pk }) => ({ pk: constrai
 
 const recreatePrimaryKeyConvertor = convertor('alter_pk', ({ pk, diff, deleted }) => ({
 	pk: row('pks', pk),
-	deleted: !!deleted,
+	shouldDrop: !deleted,
 	oldColumns: diff.columns?.from ?? pk.columns,
 }), (it) => {
 	const st: string[] = [];
-	if (!it.deleted) st.push(dropPrimaryKeyConvertor.convert({ pk: it.pk }) as string);
+	if (it.shouldDrop) st.push(dropPrimaryKeyConvertor.convert({ pk: it.pk }) as string);
 	st.push(addPrimaryKeyConvertor.convert({ pk: it.pk }) as string);
 	return st;
 });
@@ -872,11 +871,14 @@ const renameEnumConvertor = convertor('rename_enum', ({ schema, from, to }) => (
 	return `ALTER TYPE ${from} RENAME TO "${st.to}";`;
 });
 
-const moveEnumConvertor = convertor('move_enum', ({ from, to }) => ({ from: movable(from), to: movable(to) }), (st) => {
+const moveEnumConvertor = convertor('move_enum', ({ from, to }) => ({
+	from: inSchema(from),
+	to: inSchema(to),
+}), (st) => {
 	const { from, to } = st;
 
 	const enumNameWithSchema = from.schema !== 'public' ? `"${from.schema}"."${from.name}"` : `"${from.name}"`;
-	return `ALTER TYPE ${enumNameWithSchema} SET SCHEMA "${to.schema || 'public'}";`;
+	return `ALTER TYPE ${enumNameWithSchema} SET SCHEMA "${to.schema}";`;
 });
 
 const alterEnumConvertor = convertor('alter_enum', ({ to, diff }) => ({
@@ -909,7 +911,7 @@ const recreateEnumConvertor = convertor('recreate_enum', ({ to, columns }) => ({
 		type,
 		typeSchema,
 		dimensions,
-		default: { left, right },
+		default: { from: left, to: right },
 	})),
 }), (st) => {
 	const { to, columns } = st;
@@ -919,7 +921,7 @@ const recreateEnumConvertor = convertor('recreate_enum', ({ to, columns }) => ({
 		statements.push(
 			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE text${'[]'.repeat(column.dimensions)};`,
 		);
-		if (column.default.left) statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
+		if (column.default.from) statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 	statements.push(dropEnumConvertor.convert({ enum: to }) as string);
 	statements.push(createEnumConvertor.convert({ enum: to }) as string);
@@ -932,11 +934,11 @@ const recreateEnumConvertor = convertor('recreate_enum', ({ to, columns }) => ({
 				'[]'.repeat(column.dimensions)
 			} USING "${column.name}"::${enumType}${'[]'.repeat(column.dimensions)};`,
 		);
-		if (column.default.right) {
+		if (column.default.to) {
 			statements.push(
 				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${
 					defaultToSQL({
-						default: column.default.right,
+						default: column.default.to,
 						dimensions: column.dimensions,
 						type: column.type,
 						typeSchema: column.typeSchema,
@@ -979,8 +981,8 @@ const renameSequenceConvertor = convertor('rename_sequence', ({ from, to }) => (
 });
 
 const moveSequenceConvertor = convertor('move_sequence', ({ from, to }) => ({
-	from: movable(from),
-	to: movable(to),
+	from: inSchema(from),
+	to: inSchema(to),
 }), (st) => {
 	const { from, to } = st;
 	const sequenceWithSchema = from.schema !== 'public'
@@ -1313,18 +1315,15 @@ const convertors: { [TType in StatementType]: ReturnType<typeof convertor<TType>
 export const toSnapshotStatement = <TType extends StatementType>(
 	statement: Extract<JsonStatement, { type: TType }>,
 ): Extract<SnapshotStatement, { type: TType }> => {
-	const found = convertors[statement.type as TType];
-	if (!found) throw new Error(`No convertor for: ${statement.type} statement`);
-	return { type: statement.type, ...found.store(statement) } as unknown as Extract<SnapshotStatement, { type: TType }>;
+	const stored = convertors[statement.type as TType].store(statement);
+	return { type: statement.type, ...stored } as unknown as Extract<SnapshotStatement, { type: TType }>;
 };
 
 export const toSnapshotStatements = (statements: JsonStatement[]): SnapshotStatement[] =>
 	statements.map((it) => toSnapshotStatement(it));
 
 const sqlOf = <TType extends StatementType>(statement: Extract<SnapshotStatement, { type: TType }>): string[] => {
-	const found = convertors[statement.type as TType];
-	if (!found) throw new Error(`No convertor for: ${statement.type} statement`);
-	const sql = found.convert(statement as unknown as StoredOf<TType>);
+	const sql = convertors[statement.type as TType].convert(statement as unknown as StoredOf<TType>);
 	return typeof sql === 'string' ? [sql] : sql;
 };
 
@@ -1335,14 +1334,16 @@ export const fromSnapshotStatements = (statements: SnapshotStatement[]): string[
 export function fromJson(
 	statements: JsonStatement[],
 ) {
-	const grouped = statements.map((statement) => ({
+	const snapshotStatements = toSnapshotStatements(statements);
+	const grouped = statements.map((statement, idx) => ({
 		jsonStatement: statement,
-		sqlStatements: sqlOf(toSnapshotStatement(statement)),
+		sqlStatements: sqlOf(snapshotStatements[idx]),
 	}));
 
 	return {
 		sqlStatements: grouped.flatMap((it) => it.sqlStatements),
 		groupedStatements: grouped,
+		snapshotStatements,
 	};
 }
 

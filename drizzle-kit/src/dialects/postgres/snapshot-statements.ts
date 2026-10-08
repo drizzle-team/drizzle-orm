@@ -34,8 +34,6 @@ const inTable = object({ schema: string(), table: string(), name: string() }).st
 
 // The names of an entity that belongs to a schema.
 const inSchema = object({ schema: string(), name: string() }).strict();
-// The diff writes a move with the schema of each side, which is null for the default schema.
-const movable = object({ schema: string().nullable(), name: string() }).strict();
 const named = object({ name: string() }).strict();
 const viewName = object({ schema: string(), name: string(), materialized: boolean() }).strict();
 
@@ -69,7 +67,7 @@ export const snapshotStatementSchemas = {
 		to: string(),
 		// The indexes that move with the table, also the ones of its primary key and its unique constraints.
 		// Their names leave one schema and enter the other.
-		relations: array(string()),
+		indexNames: array(string()),
 	}),
 	add_column: statement('add_column', { column: row('columns'), isPK: boolean(), isCompositePK: boolean() }),
 	drop_column: statement('drop_column', { column: inTable }),
@@ -81,7 +79,7 @@ export const snapshotStatementSchemas = {
 		isEnum: boolean(),
 		wasEnum: boolean(),
 		wasSerial: boolean(),
-		toSerial: boolean(),
+		becomesSerial: boolean(),
 		diff: object({
 			type: change(field('columns', 'type')),
 			typeSchema: change(field('columns', 'typeSchema')),
@@ -115,8 +113,8 @@ export const snapshotStatementSchemas = {
 	drop_pk: statement('drop_pk', { pk: constraint }),
 	alter_pk: statement('alter_pk', {
 		pk: row('pks'),
-		// True when a column of the old key is dropped in the same migration, because that drops the key too.
-		deleted: boolean(),
+		// False when a column of the old key is dropped in the same migration, because that drops the key too.
+		shouldDrop: boolean(),
 		oldColumns: array(string()),
 	}),
 	create_fk: statement('create_fk', { fk: row('fks') }),
@@ -148,7 +146,7 @@ export const snapshotStatementSchemas = {
 	create_enum: statement('create_enum', { enum: row('enums') }),
 	drop_enum: statement('drop_enum', { enum: inSchema }),
 	rename_enum: statement('rename_enum', { schema: string(), from: string(), to: string() }),
-	move_enum: statement('move_enum', { from: movable, to: movable }),
+	move_enum: statement('move_enum', { from: inSchema, to: inSchema }),
 	alter_enum: statement('alter_enum', {
 		to: inSchema,
 		// The new values. `beforeValue` is the value that the new one goes in front of, or null for the end.
@@ -165,14 +163,14 @@ export const snapshotStatementSchemas = {
 				type: field('columns', 'type'),
 				typeSchema: field('columns', 'typeSchema'),
 				dimensions: field('columns', 'dimensions'),
-				default: object({ left: field('columns', 'default'), right: field('columns', 'default') }).strict(),
+				default: object({ from: field('columns', 'default'), to: field('columns', 'default') }).strict(),
 			}).strict(),
 		),
 	}),
 	create_sequence: statement('create_sequence', { sequence: row('sequences') }),
 	drop_sequence: statement('drop_sequence', { sequence: inSchema }),
 	rename_sequence: statement('rename_sequence', { from: inSchema, to: inSchema }),
-	move_sequence: statement('move_sequence', { from: movable, to: movable }),
+	move_sequence: statement('move_sequence', { from: inSchema, to: inSchema }),
 	alter_sequence: statement('alter_sequence', { sequence: row('sequences') }),
 	create_view: statement('create_view', { view: row('views') }),
 	drop_view: statement('drop_view', { view: viewName }),

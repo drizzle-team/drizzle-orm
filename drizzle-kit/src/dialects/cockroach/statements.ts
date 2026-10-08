@@ -351,6 +351,8 @@ export interface JsonCreateView {
 export interface JsonDropView {
 	type: 'drop_view';
 	view: View;
+	// The view that is created in place of the dropped view. It is null for a view that is deleted.
+	cause: View | null;
 }
 
 export interface JsonRenameView {
@@ -372,14 +374,6 @@ export interface JsonAlterView {
 	view: View;
 }
 
-export interface JsonRecreateView {
-	type: 'recreate_view';
-	from: View;
-	to: View;
-	// Set for the two statements of a recreate that has other statements between its drop and its create.
-	part?: 'drop' | 'create';
-}
-
 export type JsonStatement =
 	| JsonCreateTable
 	| JsonDropTable
@@ -389,7 +383,6 @@ export type JsonStatement =
 	| JsonRecreateColumn
 	| JsonMoveView
 	| JsonAlterView
-	| JsonRecreateView
 	| JsonCreateEnum
 	| JsonDropEnum
 	| JsonMoveEnum

@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest';
-import { isNoOpPruneOutput, legacySkillsRemoveArgs } from '../../src/cli/schema';
+import { isNoOpRemoveOutput, supersededSkillsRemoveArgs } from '../../src/cli/schema';
 
 test('the removal of the superseded skills names the seven old skills and asks no question', () => {
-	expect(legacySkillsRemoveArgs()).toStrictEqual([
+	expect(supersededSkillsRemoveArgs).toStrictEqual([
 		'skills@latest',
 		'remove',
 		'drizzle-generate',
@@ -17,8 +17,8 @@ test('the removal of the superseded skills names the seven old skills and asks n
 });
 
 test('only the output of a removal that found no skill counts as nothing to print', () => {
-	expect(isNoOpPruneOutput('■  No matching skills found for: drizzle-generate, drizzle-push')).toBe(true);
-	expect(isNoOpPruneOutput('◆  Successfully removed 7 skill(s)')).toBe(false);
-	expect(isNoOpPruneOutput('')).toBe(false);
-	expect(isNoOpPruneOutput('Error: EACCES: permission denied')).toBe(false);
+	expect(isNoOpRemoveOutput('■  No matching skills found for: drizzle-generate, drizzle-push')).toBe(true);
+	expect(isNoOpRemoveOutput('◆  Successfully removed 7 skill(s)')).toBe(false);
+	expect(isNoOpRemoveOutput('')).toBe(false);
+	expect(isNoOpRemoveOutput('Error: EACCES: permission denied')).toBe(false);
 });

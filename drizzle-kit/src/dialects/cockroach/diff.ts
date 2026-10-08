@@ -799,8 +799,7 @@ export const ddlDiff = async (
 
 	const createTables = createdTables.map((it) => prepareStatement('create_table', { table: tableFromDDL(it, ddl2) }));
 
-	const createViews = createdViews.map((it) => prepareStatement('create_view', { view: it }));
-	const jsonDropViews = deletedViews.map((it) => prepareStatement('drop_view', { view: it }));
+	const jsonDropViews = deletedViews.map((it) => prepareStatement('drop_view', { view: it, cause: null }));
 
 	// Cockroach refuses to rename or to move a table while a view reads it, and only the definition of a view
 	// shows the tables that the view reads. Drizzle writes a table after FROM or JOIN: "table" in the public
@@ -835,8 +834,9 @@ export const ddlDiff = async (
 
 	const viewsAlters = filteredViewAlters.map((it) => ({ diff: it, view: it.$right }));
 
-	const jsonRecreateViews = viewsAlters.map((entry) => {
-		const it = entry.view;
+	const jsonRecreateViews: JsonStatement[] = [];
+	const createViews: JsonStatement[] = [];
+	for (const { view: it } of viewsAlters) {
 		const viewRename = renamedOrMovedViews.find((r) => r.to.schema === it.schema && r.to.name === it.name);
 		const viewSchema = viewRename ? viewRename.from.schema : it.schema;
 		const schemaRename = renamedSchemas.find((r) => r.to.name === viewSchema);
@@ -851,18 +851,19 @@ export const ddlDiff = async (
 				${schema}:${name}
 				`);
 		}
-		const statement = prepareStatement('recreate_view', { from, to: it });
-		return readsRenamedTable(it) ? { ...statement, part: 'drop' as const } : statement;
-	});
-	// The drop of such a view runs before the table statements, and its create runs after them.
-	const jsonCreateViewsOfRenamedTables = jsonRecreateViews.filter((it) => it.part === 'drop').map((it) => ({
-		...it,
-		part: 'create' as const,
-	}));
+
+		jsonRecreateViews.push(prepareStatement('drop_view', { view: from, cause: it }));
+		const jsonCreateView = prepareStatement('create_view', { view: it });
+		// The drop of a view that reads a renamed or moved table runs before the table statements, and its create
+		// runs after them.
+		if (readsRenamedTable(it)) createViews.push(jsonCreateView);
+		else jsonRecreateViews.push(jsonCreateView);
+	}
+	createViews.push(...createdViews.map((it) => prepareStatement('create_view', { view: it })));
 
 	// The recreate drops the view under its old name in its old schema. So a view that is created again gets
 	// no rename and no move.
-	const recreatedTargets = new Set(jsonRecreateViews.map((stmt) => `${stmt.to.schema}:${stmt.to.name}`));
+	const recreatedTargets = new Set(viewsAlters.map(({ view }) => `${view.schema}:${view.name}`));
 	const jsonRenameViews = renamedViews.filter(({ to }) => !recreatedTargets.has(`${to.schema}:${to.name}`)).map((
 		rename,
 	) => prepareStatement('rename_view', rename));
@@ -947,7 +948,6 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonAlterCheckConstraints);
 
-	jsonStatements.push(...jsonCreateViewsOfRenamedTables);
 	jsonStatements.push(...createViews);
 
 	jsonStatements.push(...jsonRenamePoliciesStatements);

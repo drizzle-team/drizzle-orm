@@ -12,6 +12,7 @@ import {
 	pgTable,
 	pgView,
 	primaryKey,
+	serial,
 	text,
 	unique,
 	uniqueIndex,
@@ -364,5 +365,96 @@ describe('stored statements', () => {
 			'uniques',
 		]);
 		expect(objectsIn(createTable).filter(({ object }) => 'entityType' in object)).toStrictEqual([]);
+	});
+
+	test.each(['move_enum', 'move_sequence'])('a stored %s with a null schema is malformed', (type) => {
+		const from = { schema: 'public', name: 'status' };
+		const to = { schema: 'archive', name: 'status' };
+
+		expect(isSnapshotStatement({ type, from, to })).toBe(true);
+		expect(isSnapshotStatement({ type, from: { ...from, schema: null }, to })).toBe(false);
+		expect(isSnapshotStatement({ type, from, to: { ...to, schema: null } })).toBe(false);
+	});
+
+	const storedOf = async <K extends SnapshotStatement['type']>(
+		kind: K,
+		from: PostgresSchema,
+		to: PostgresSchema,
+		renames: string[] = [],
+	) => {
+		const { statements } = await diff(from, to, renames);
+		return toSnapshotStatements(statements).filter((it): it is Extract<SnapshotStatement, { type: K }> =>
+			it.type === kind
+		);
+	};
+
+	test('a stored move_table names the indexes that move with the table', async () => {
+		const columns = { id: integer(), email: varchar() };
+		const indexes = (t: any) => [index('users_email_ix').on(t.email)];
+
+		expect(
+			await storedOf(
+				'move_table',
+				{ archive, users: pgTable('users', columns, indexes) },
+				{ archive, users: archive.table('users', columns, indexes) },
+				['public.users->archive.users'],
+			),
+		).toStrictEqual([{
+			type: 'move_table',
+			name: 'users',
+			from: 'public',
+			to: 'archive',
+			indexNames: ['users_email_ix'],
+		}]);
+	});
+
+	test('a stored alter_column says whether the column becomes serial', async () => {
+		const [integerToSerial] = await storedOf(
+			'alter_column',
+			{ users: pgTable('users', { id: integer().notNull() }) },
+			{ users: pgTable('users', { id: serial() }) },
+		);
+		const [integerToText] = await storedOf(
+			'alter_column',
+			{ users: pgTable('users', { id: integer().notNull() }) },
+			{ users: pgTable('users', { id: text().notNull() }) },
+		);
+
+		expect(integerToSerial).toMatchObject({ wasSerial: false, becomesSerial: true });
+		expect(integerToText).toMatchObject({ wasSerial: false, becomesSerial: false });
+	});
+
+	test('a stored alter_pk says whether its SQL drops the old key', async () => {
+		const columns = { id: integer().notNull(), email: varchar().notNull(), name: varchar().notNull() };
+		const keyOnName = (t: any) => [primaryKey({ name: 'users_pk', columns: [t.name] })];
+		const from = {
+			users: pgTable('users', columns, (t) => [primaryKey({ name: 'users_pk', columns: [t.id, t.email] })]),
+		};
+		const stored = {
+			type: 'alter_pk',
+			pk: { schema: 'public', table: 'users', name: 'users_pk', nameExplicit: true, columns: ['name'] },
+			oldColumns: ['id', 'email'],
+		};
+
+		expect(await storedOf('alter_pk', from, { users: pgTable('users', columns, keyOnName) })).toStrictEqual([
+			{ ...stored, shouldDrop: true },
+		]);
+		// The drop of the column `email` drops the old key.
+		expect(
+			await storedOf('alter_pk', from, {
+				users: pgTable('users', { id: columns.id, name: columns.name }, keyOnName),
+			}),
+		).toStrictEqual([{ ...stored, shouldDrop: false }]);
+	});
+
+	test('a stored recreate_enum holds the default of each column before and after', async () => {
+		const open = pgEnum('status', ['open']);
+		const [recreateEnum] = await storedOf(
+			'recreate_enum',
+			{ status, tickets: tickets(status) },
+			{ status: open, tickets: pgTable('tickets', { status: open() }) },
+		);
+
+		expect(recreateEnum.columns.map((column) => column.default)).toStrictEqual([{ from: "'open'", to: null }]);
 	});
 });

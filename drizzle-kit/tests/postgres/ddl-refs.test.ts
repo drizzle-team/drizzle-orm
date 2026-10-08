@@ -41,7 +41,7 @@ const usersRef = pgTable('users', { id: integer('id').primaryKey() });
 
 const rows = () => drizzleToDDL(schema);
 
-test('test #1', () => {
+test('an enum rename reaches the column type, and a column rename reaches the index columns', () => {
 	const { ddl } = rows();
 
 	ddl.enums.update({ where: { name: 'mood' }, set: { name: 'mood2' } });

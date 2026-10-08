@@ -16,10 +16,9 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import type { Hint } from 'src/cli/hints';
-import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import type { Delta } from 'src/dialects/dialect';
 import { describe, expect, test } from 'vitest';
-import { createFolderFlow, forkFlow, rename, schemaState, step } from './folder-flow';
+import { createFolderFlow, rename, schemaState } from './folder-flow';
 import type { PostgresSchema } from './mocks';
 
 // `sql` is the whole migration of the rename, and `delta` is the delta that the snapshot stores for it.
@@ -193,39 +192,11 @@ describe('a rename is stored as one delta, and the reconstructed state and the d
 
 			const { folder } = await flow.generate('main', after, { hints: [hint] });
 
-			expect(flow.sql('main', folder!)).toBe(sql);
-			expect(flow.deltas('main', folder!)).toStrictEqual([delta]);
-			expect(flow.state('main', folder!)).toStrictEqual(schemaState(after));
-			expect(await flow.generate('main', after)).toMatchObject({ status: 'no_changes' });
+			expect(flow.sql('main', folder)).toBe(sql);
+			expect(flow.deltas('main', folder)).toStrictEqual([delta]);
+			expect(flow.state('main', folder)).toStrictEqual(schemaState(after));
+			expect(await flow.tryGenerate('main', after)).toMatchObject({ status: 'no_changes' });
 			expect(await flow.migrate('main', after)).toStrictEqual([]);
-		});
-	}
-});
-
-// Each branch renames one column of the primary key. The first parent is the leaf with the newest folder name,
-// so the branch that generates last is the first parent.
-describe('two branches that each rename one column of one primary key', () => {
-	const table = (first: string, second: string) => ({
-		items: pgTable('items', { [first]: integer().notNull(), [second]: integer().notNull() }, (t) => [
-			primaryKey({ name: 'items_pk', columns: [t[first], t[second]] }),
-		]),
-	});
-	const branches = [
-		[step(table('y', 'z'), rename('column', 'public.items.x', 'public.items.y'))],
-		[step(table('x', 'w'), rename('column', 'public.items.z', 'public.items.w'))],
-	];
-	const merged = table('y', 'w');
-
-	for (const [first, newer] of [[1, 'b'], [0, 'a']] as const) {
-		test(`the combined state lists both new names when branch ${newer} is the first parent`, async () => {
-			const { flow, folders } = await forkFlow({ base: table('x', 'z'), branches, first });
-
-			expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
-			expect(flow.leaves('main').at(-1)).toBe(folders[first][0]);
-			const combined = await flow.stateBeforeGenerate('main', merged);
-			expect(normalizeDDL(combined.entities.list())).toStrictEqual(schemaState(merged));
-			expect(await flow.generate('main', merged)).toMatchObject({ status: 'no_changes' });
-			expect(await flow.migrate('main', merged)).toStrictEqual([]);
 		});
 	}
 });

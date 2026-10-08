@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { isDeepStrictEqual } from 'node:util';
 import { basename, dirname } from 'path';
+import { originUUID } from '../utils';
 import type { ConflictTarget, MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from './types';
 
 type SnapshotNode<TSnapshot extends { id: string; prevIds: string[] }> = {
@@ -187,8 +188,6 @@ export abstract class AbstractCommutativity<
 > {
 	protected abstract describe(statement: TStatement): { description: string; target: ConflictTarget };
 
-	protected abstract getDrySnapshot(): TSnapshot;
-
 	public abstract detectNonCommutative(
 		snapshots: string[] | ParsedSnapshotInput[],
 	): Promise<NonCommutativityReport>;
@@ -300,7 +299,7 @@ export abstract class FacetCommutativity<
 	TStatement extends { type: string },
 	TSnapshot extends { id: string; prevIds: string[] },
 > extends AbstractCommutativity<TStatement, TSnapshot> {
-	protected abstract buildFacetPaths(statement: TStatement): FacetPaths;
+	public abstract buildFacetPaths(statement: TStatement): FacetPaths;
 
 	/**
 	 * Facet-model footprints. Encodes a read/write lock per node so that
@@ -342,22 +341,13 @@ export abstract class FacetCommutativity<
 	// other, so a change that a later snapshot of the same branch reverts still counts.
 	protected async detectBranchConflicts(
 		nodes: Record<string, SnapshotNode<TSnapshot>>,
-		statementsOf: (id: string) => Promise<TStatement[]>,
+		statementsOf: (id: string) => TStatement[],
 	): Promise<NonCommutativityReport> {
 		const histories = new Map<string, Set<string>>();
-		const statements = new Map<string, Promise<TStatement[]>>();
 		const sources = new Map<TStatement, string>();
-		const load = (id: string) => {
-			let pending = statements.get(id);
-			if (!pending) {
-				pending = statementsOf(id).then((list) => {
-					for (const statement of list) sources.set(statement, id);
-					return list;
-				});
-				statements.set(id, pending);
-			}
-			return pending;
-		};
+		for (const id of Object.keys(nodes)) {
+			for (const statement of statementsOf(id)) sources.set(statement, id);
+		}
 
 		const conflicts: UnifiedBranchConflict[] = [];
 		const leafIds = leafIdsOf(nodes);
@@ -370,11 +360,10 @@ export abstract class FacetCommutativity<
 				// snapshot after its parents, as migrate runs them.
 				const branchX = Object.keys(nodes).filter((id) => historyX.has(id) && !historyY.has(id));
 				const branchY = Object.keys(nodes).filter((id) => historyY.has(id) && !historyX.has(id));
-				const statementsOfBranch = async (branch: string[]) => (await Promise.all(branch.map(load))).flat();
 
 				const found = await this.getReasonsFromStatements(
-					await statementsOfBranch(branchX),
-					await statementsOfBranch(branchY),
+					branchX.flatMap((id) => statementsOf(id)),
+					branchY.flatMap((id) => statementsOf(id)),
 				);
 				if (!found) continue;
 
@@ -392,7 +381,7 @@ export abstract class FacetCommutativity<
 				};
 				const forkId = forkPointOf(nodes, [x, y]);
 				conflicts.push({
-					parentId: forkId ?? this.getDrySnapshot().id,
+					parentId: forkId ?? originUUID,
 					parentPath: forkId ? nodes[forkId].folderPath : undefined,
 					branchA: describeLeafBranch(branchX, x, statementX),
 					branchB: describeLeafBranch(branchY, y, statementY),
@@ -451,6 +440,8 @@ export abstract class ConflictListCommutativity<
 		TStatement,
 		TTarget
 	>;
+
+	protected abstract getDrySnapshot(): TSnapshot;
 
 	protected abstract describeStatement(
 		statement: TStatement,

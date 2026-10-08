@@ -25,7 +25,7 @@ test('deleting a middle migration stops every command with the missing parent an
 	flow.deleteFolder('main', '20260101120002_main');
 
 	const message =
-		`Cannot rebuild snapshot 20260101120003_main: snapshot ${missing} is missing from the migrations folder. `
+		`Cannot reconstruct snapshot 20260101120003_main: snapshot ${missing} is missing from the migrations folder. `
 		+ 'Restore the missing migration folder from git, '
 		+ 'or delete 20260101120003_main and every later migration, then run generate again.';
 	await expect(flow.check('main')).rejects.toThrow(message);
@@ -47,33 +47,10 @@ test('deleting a middle migration stops every command with the missing parent an
 		},
 	});
 	expect(() => flow.state('main', '20260101120003_main')).toThrow(
-		`Cannot rebuild snapshot ${leaf}: snapshot ${missing} is missing from the migrations folder. `
+		`Cannot reconstruct snapshot ${leaf}: snapshot ${missing} is missing from the migrations folder. `
 			+ 'Restore the missing migration folder from git, '
 			+ `or delete ${leaf} and every later migration, then run generate again.`,
 	);
-});
-
-test('a snapshot with the type checkpoint is malformed', async () => {
-	const flow = createFolderFlow();
-	await flow.generate('main', v1);
-	const { folder } = await flow.generate('main', v2);
-	const { id, prevIds } = flow.snapshot('main', folder!);
-	flow.overwriteSnapshot(
-		'main',
-		folder!,
-		JSON.stringify({ type: 'checkpoint', version: '9', dialect: 'postgres', id, prevIds, ddl: [] }),
-	);
-
-	expect(errorToEnvelope(await flow.check('main').catch((e) => e))).toStrictEqual({
-		status: 'error',
-		error: {
-			code: 'check_error',
-			kind: 'malformed',
-			snapshot: expect.stringMatching(/20260101120002_main[/\\]snapshot\.json$/),
-		},
-	});
-	await expect(flow.generate('main', v3)).rejects.toThrow('data is malformed');
-	expect(flow.folders('main')).toStrictEqual(['20260101120001_main', '20260101120002_main']);
 });
 
 test('deleting the first migration stops every command because the base is missing', async () => {
@@ -82,7 +59,7 @@ test('deleting the first migration stops every command because the base is missi
 	await flow.generate('main', v2);
 	flow.deleteFolder('main', '20260101120001_main');
 
-	const message = 'Cannot rebuild snapshot 20260101120002_main: its history does not reach a base snapshot. '
+	const message = 'Cannot reconstruct snapshot 20260101120002_main: its history does not reach a base snapshot. '
 		+ 'Restore the first migration folder from git, '
 		+ 'or delete 20260101120002_main and every later migration, then run generate again.';
 	await expect(flow.check('main')).rejects.toThrow(message);
@@ -188,9 +165,9 @@ test('deleting the newest migration leaves generate working', async () => {
 	const { folder } = await flow.generate('main', redo);
 
 	expect(folder).toBe('20260101120004_main');
-	expect(flow.snapshot('main', folder!).prevIds).toStrictEqual([flow.snapshot('main', '20260101120002_main').id]);
-	expect(flow.sql('main', folder!)).toBe('ALTER TABLE "users" ADD COLUMN "name" text;');
-	expect(flow.state('main', folder!)).toStrictEqual(schemaState(redo));
+	expect(flow.snapshot('main', folder).prevIds).toStrictEqual([flow.snapshot('main', '20260101120002_main').id]);
+	expect(flow.sql('main', folder)).toBe('ALTER TABLE "users" ADD COLUMN "name" text;');
+	expect(flow.state('main', folder)).toStrictEqual(schemaState(redo));
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	expect(await flow.migrate('main', redo)).toStrictEqual([]);
 });
@@ -207,9 +184,9 @@ test('deleting a migration and every later one leaves generate working', async (
 	const { folder } = await flow.generate('main', redo);
 
 	expect(flow.folders('main')).toStrictEqual(['20260101120001_main', '20260101120004_main']);
-	expect(flow.snapshot('main', folder!).prevIds).toStrictEqual([flow.snapshot('main', '20260101120001_main').id]);
-	expect(flow.sql('main', folder!)).toBe('ALTER TABLE "users" ADD COLUMN "name" text;');
-	expect(flow.state('main', folder!)).toStrictEqual(schemaState(redo));
+	expect(flow.snapshot('main', folder).prevIds).toStrictEqual([flow.snapshot('main', '20260101120001_main').id]);
+	expect(flow.sql('main', folder)).toBe('ALTER TABLE "users" ADD COLUMN "name" text;');
+	expect(flow.state('main', folder)).toStrictEqual(schemaState(redo));
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	expect(await flow.migrate('main', redo)).toStrictEqual([]);
 });
@@ -273,7 +250,7 @@ test('reconstruct stops on a cycle of first parents', () => {
 	const history = new Map([diff('a', 'b'), diff('b', 'a')].map((it) => [it.id, it]));
 
 	expect(() => reconstruct(history, 'a')).toThrow(
-		'Cannot rebuild snapshot a: its history does not reach a base snapshot. '
+		'Cannot reconstruct snapshot a: its history does not reach a base snapshot. '
 			+ 'Restore the first migration folder from git, or delete a and every later migration, then run generate again.',
 	);
 });

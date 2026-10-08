@@ -106,6 +106,7 @@ export type NeededObject =
 	| 'rls'
 	| 'column'
 	| 'referencedTable'
+	| 'tableWithUnique'
 	| 'index'
 	| 'pk'
 	| 'fk'
@@ -144,6 +145,9 @@ export const rows = (prefix = ''): Record<string, Row> => {
 	const column = named('c1');
 	const referencedTable = named('t2');
 	const referencedColumn = named('c2');
+	// A table whose column `c3` has a unique constraint and no primary key.
+	const tableWithUnique = named('t3');
+	const uniqueColumn = named('c3');
 	const index = named('ix');
 	const enumName = named('e');
 	const sequence = named('sq');
@@ -268,6 +272,15 @@ export const rows = (prefix = ''): Record<string, Row> => {
 				isPK: false,
 			} as any,
 		},
+		'recreate_column:enum': {
+			family: 'column',
+			needs: [...onTable, 'enum', 'enumColumn'],
+			statement: {
+				type: 'recreate_column',
+				diff: { schema, table, name: enumColumn.name, $right: enumColumn },
+				isPK: false,
+			} as any,
+		},
 		rename_column: {
 			family: 'column',
 			needs: onColumn,
@@ -334,6 +347,16 @@ export const rows = (prefix = ''): Record<string, Row> => {
 			isCreate: true,
 			statement: { type: 'create_fk', fk: foreignKey('NO ACTION') },
 		},
+		// A foreign key that references the unique constraint of the table `t3`.
+		'create_fk:unique': {
+			family: 'fk',
+			needs: [...onColumn, 'tableWithUnique'],
+			isCreate: true,
+			statement: {
+				type: 'create_fk',
+				fk: fk(schema, table, named('fk'), [column], schema, tableWithUnique, [uniqueColumn]),
+			},
+		},
 		drop_fk: {
 			family: 'fk',
 			needs: [...onColumn, 'referencedTable', 'fk'],
@@ -355,6 +378,15 @@ export const rows = (prefix = ''): Record<string, Row> => {
 			family: 'unique',
 			needs: [...onColumn, 'unique'],
 			statement: { type: 'drop_unique', unique: uniqueConstraint },
+		},
+		// The unique constraint that the foreign key of `create_fk:unique` references.
+		'drop_unique:target': {
+			family: 'unique',
+			needs: ['schema', 'tableWithUnique'],
+			statement: {
+				type: 'drop_unique',
+				unique: unique(schema, tableWithUnique, `${tableWithUnique}_${uniqueColumn}_key`, [uniqueColumn]),
+			},
 		},
 		alter_unique: {
 			family: 'unique',

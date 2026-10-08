@@ -84,6 +84,25 @@ export function createDrizzleMcpServer(): McpServer {
 		custom: z.boolean().optional().describe('Generate a blank custom migration'),
 	};
 
+	// The fix_conflicts tool has no `ignoreConflicts` input, so its handler passes no value for that option.
+	const generateHandler = (fixConflicts?: boolean) => async (args: Record<string, unknown>) => {
+		try {
+			const envelope = await serialize(() =>
+				generate({
+					config: args.config as string | undefined,
+					hints: args.hints as Hint[] | undefined,
+					name: args.name as string | undefined,
+					custom: args.custom as boolean | undefined,
+					ignoreConflicts: args.ignoreConflicts as boolean | undefined,
+					fixConflicts,
+				})
+			) as unknown as SdkEnvelope;
+			return toToolResult(envelope);
+		} catch {
+			return toToolResult(unexpectedErrorEnvelope());
+		}
+	};
+
 	server.registerTool(
 		'generate',
 		{
@@ -99,22 +118,7 @@ export function createDrizzleMcpServer(): McpServer {
 			outputSchema: looseEnvelopeSchema,
 			annotations: { destructiveHint: false },
 		},
-		async (args) => {
-			try {
-				const envelope = await serialize(() =>
-					generate({
-						config: args.config as string | undefined,
-						hints: args.hints as Hint[] | undefined,
-						name: args.name as string | undefined,
-						custom: args.custom as boolean | undefined,
-						ignoreConflicts: args.ignoreConflicts as boolean | undefined,
-					})
-				) as unknown as SdkEnvelope;
-				return toToolResult(envelope);
-			} catch {
-				return toToolResult(unexpectedErrorEnvelope());
-			}
-		},
+		generateHandler(),
 	);
 
 	server.registerTool(
@@ -130,22 +134,7 @@ export function createDrizzleMcpServer(): McpServer {
 			outputSchema: looseEnvelopeSchema,
 			annotations: { destructiveHint: true },
 		},
-		async (args) => {
-			try {
-				const envelope = await serialize(() =>
-					generate({
-						config: args.config as string | undefined,
-						hints: args.hints as Hint[] | undefined,
-						name: args.name as string | undefined,
-						custom: args.custom as boolean | undefined,
-						fixConflicts: true,
-					})
-				) as unknown as SdkEnvelope;
-				return toToolResult(envelope);
-			} catch {
-				return toToolResult(unexpectedErrorEnvelope());
-			}
-		},
+		generateHandler(true),
 	);
 
 	server.registerTool(

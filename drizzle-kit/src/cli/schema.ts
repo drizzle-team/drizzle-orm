@@ -2,7 +2,7 @@ import { boolean, command, type GenericBuilderInternals, number, string } from '
 import chalk from 'chalk';
 import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { dialects } from '../utils/schemaValidator';
@@ -12,7 +12,7 @@ import { readFolder } from '../dialects/postgres/folder';
 import { assertUnreachable } from '../utils';
 import { assertV3OutFolder, prepareFilenames } from '../utils/utils-node';
 import { assertConflictOptions, checkHandler, checkSnapshots, conflictError } from './commands/check';
-import type { CheckWarning } from './commands/generate-postgres';
+import type { CheckWarning } from './commands/check-postgres';
 import type { Setup } from './commands/studio';
 import { upCockroachHandler } from './commands/up-cockroach';
 import { upMssqlHandler } from './commands/up-mssql';
@@ -603,7 +603,7 @@ export const runCheck = async (
 
 		// The folder is valid here. A schema that differs from it is a warning and no error.
 		if (schema) {
-			const { schemaWarnings } = await import('./commands/generate-postgres');
+			const { schemaWarnings } = await import('./commands/check-postgres');
 			const { SchemaSource } = await import('../dialects/postgres/drizzle');
 			warnings = await schemaWarnings(stored, {
 				load: async () => SchemaSource.fromFilenames(prepareFilenames(schema)).load(),
@@ -1246,7 +1246,7 @@ const detectInstaller = (): { cmd: 'pnpm' | 'bunx' | 'yarn' | 'npx'; args: strin
 	return { cmd: 'npx', args: ['-y'] };
 };
 
-const LEGACY_SKILLS: readonly string[] = [
+const SUPERSEDED_SKILLS: readonly string[] = [
 	'drizzle-generate',
 	'drizzle-push',
 	'drizzle-pull',
@@ -1256,14 +1256,13 @@ const LEGACY_SKILLS: readonly string[] = [
 	'drizzle-responses-and-errors',
 ];
 
-// Prune scope must follow install scope: `skills add` above is always project-scoped, so a
-// user-level pass would strip legacy skills other projects still rely on.
-export const legacySkillsRemoveArgs = (): string[] => ['skills@latest', 'remove', ...LEGACY_SKILLS, '-y'];
+// These arguments pass no option for the user level, because `skills add` installs into the project. A
+// removal at the user level would delete skills that other projects still use.
+export const supersededSkillsRemoveArgs: readonly string[] = ['skills@latest', 'remove', ...SUPERSEDED_SKILLS, '-y'];
 
-// Every re-run on an already-migrated project prunes nothing; keeping that silent stops the
-// command shouting about a no-op. Fails open — output we don't recognize is printed, so a real
-// removal can never be hidden by a change to the skills CLI's wording.
-export const isNoOpPruneOutput = (output: string): boolean => /no matching skills found/i.test(output);
+// The remove command prints this line when the project has none of the superseded skills. Only this output
+// is hidden. Every other output is printed, so a new wording of the skills CLI cannot hide a real removal.
+export const isNoOpRemoveOutput = (output: string): boolean => /no matching skills found/i.test(output);
 
 const skillsVersion = command({
 	name: 'version',
@@ -1318,37 +1317,29 @@ export const skills = command({
 		});
 		if (exitCode !== 0) process.exit(exitCode);
 
-		if (LEGACY_SKILLS.length > 0) {
-			// Buffered rather than inherited so the no-op case can be dropped wholesale. `-y` makes
-			// the child non-interactive, and an ignored stdin turns any future prompt into EOF
-			// rather than a hang.
-			const pruneChild = spawn(cmd, [...args, ...legacySkillsRemoveArgs()], {
-				stdio: ['ignore', 'pipe', 'pipe'],
-				shell: onWindows,
-			});
-			let pruneOutput = '';
-			pruneChild.stdout?.on('data', (chunk) => pruneOutput += chunk);
-			pruneChild.stderr?.on('data', (chunk) => pruneOutput += chunk);
-			// `close` rather than `exit`: with piped stdio it is the only event that guarantees
-			// both streams have flushed.
-			const pruneExitCode = await new Promise<number>((resolve) => {
-				pruneChild.on('error', () => resolve(1));
-				pruneChild.on('close', (code, signal) => {
-					resolve(signal ? 1 : (code ?? 0));
-				});
-			});
-			if (pruneExitCode !== 0 || !isNoOpPruneOutput(pruneOutput)) {
-				process.stderr.write('Removing superseded skills…\n');
-				process.stderr.write(pruneOutput);
-			}
-			if (pruneExitCode !== 0) {
-				const manualArgs = legacySkillsRemoveArgs().slice(1).join(' ');
-				process.stderr.write(
-					`Could not automatically remove superseded skills. Run \`npx skills@latest ${manualArgs}\` manually.\n`,
-				);
-			}
+		// The output is captured and not inherited, so that it is printed only when a skill was removed or the
+		// removal failed. `-y` makes the child ask no question. stdin is ignored, so a prompt that a later
+		// version of the skills CLI adds reads the end of input and does not wait.
+		const removal = spawnSync(cmd, [...args, ...supersededSkillsRemoveArgs], {
+			stdio: ['ignore', 'pipe', 'pipe'],
+			encoding: 'utf8',
+			shell: onWindows,
+		});
+		// The child has no output when it did not start, and no exit code when it did not start or a signal
+		// stopped it.
+		const removeOutput = [removal.stdout, removal.stderr].join('');
+		const removeExitCode = removal.status ?? 1;
+		if (removeExitCode !== 0 || !isNoOpRemoveOutput(removeOutput)) {
+			process.stderr.write('Removing superseded skills…\n');
+			process.stderr.write(removeOutput);
+		}
+		if (removeExitCode !== 0) {
+			const manualArgs = supersededSkillsRemoveArgs.slice(1).join(' ');
+			process.stderr.write(
+				`Could not automatically remove superseded skills. Run \`npx skills@latest ${manualArgs}\` manually.\n`,
+			);
 		}
 
-		process.exit(exitCode);
+		process.exit(0);
 	},
 });

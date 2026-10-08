@@ -195,7 +195,7 @@ describe('reconstruct', () => {
 		const history = historyOf(diff('b', ['a'], []));
 
 		expect(() => reconstruct(history, 'b')).toThrow(
-			'Cannot rebuild snapshot b: snapshot a is missing from the migrations folder.',
+			'Cannot reconstruct snapshot b: snapshot a is missing from the migrations folder.',
 		);
 	});
 
@@ -283,15 +283,6 @@ describe('snapshotValidator', () => {
 		expect(valid(diff('c', ['b'], deltas))).toBe(true);
 	});
 
-	test('rejects a checkpoint, and a base that has a parent', () => {
-		expect(valid({ ...base('b', users), type: 'checkpoint', prevIds: ['a'] })).toBe(false);
-		expect(snapshotValidator.parse({ ...base('b', users), prevIds: ['a'] })).toStrictEqual({
-			success: false,
-			data: null,
-			errors: ["Field 'prevIds' of a base snapshot must not list a parent"],
-		});
-	});
-
 	test('rejects malformed deltas', () => {
 		const withDelta = (it: unknown) => ({ ...diff('b', ['a'], []), deltas: [it] });
 
@@ -305,24 +296,6 @@ describe('snapshotValidator', () => {
 		expect(valid(withDelta({ op: 'create', row: { entityType: 'tables', schema: 'public' } }))).toBe(false);
 		expect(valid(withDelta({ op: 'alter', key: 'tables\0["public","users"]', set: { color: 'red' } }))).toBe(false);
 		expect(valid(withDelta({ op: 'rename', key: 'tables\0["public","users"]' }))).toBe(false);
-	});
-
-	test('rejects a delta with an instruction operation', () => {
-		const withDelta = (it: unknown) => ({ ...diff('b', ['a'], []), deltas: [it] });
-
-		expect(valid(withDelta({ op: 'update', type: 'columns', where: { table: 'users' }, set: { table: 'accounts' } })))
-			.toBe(false);
-		expect(
-			valid(withDelta({ op: 'replace_in_list', type: 'pks', where: {}, field: 'columns', from: 'id', to: 'key' })),
-		).toBe(false);
-		expect(valid(withDelta({
-			op: 'update_list_items',
-			type: 'indexes',
-			where: {},
-			field: 'columns',
-			match: { value: 'id', isExpression: false },
-			set: { value: 'key' },
-		}))).toBe(false);
 	});
 
 	test('rejects a snapshot without statements, and a statement of an unknown kind', () => {

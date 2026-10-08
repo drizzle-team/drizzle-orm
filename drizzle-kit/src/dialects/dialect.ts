@@ -11,6 +11,11 @@ export type Delta =
 // Returns [entityType, identity].
 export const splitDeltaKey = (key: string): [string, string] => {
 	const idx = key.indexOf('\0'); // the identity is JSON and never contains \0
+	if (idx < 0) {
+		throw new Error(
+			`The key ${key} has no entity type. Pass the key as a delta holds it: the entity type, "\\0" and the identity.`,
+		);
+	}
 	return [key.slice(0, idx), key.slice(idx + 1)];
 };
 
@@ -132,7 +137,7 @@ export type AnyDDL = {
 	key: (type: string, row: Row) => string;
 };
 
-const qual = (t: string, k: string) => t + '\0' + k; // the two families are unique only WITHIN a bucket
+const qualifiedKey = (t: string, k: string) => t + '\0' + k; // an identity is unique only inside one entity type
 
 const COMMON_FIELDS = ['schema', 'table', 'name'] as const;
 
@@ -160,7 +165,7 @@ function matches(row: Row, where: Row): boolean {
 	return true;
 }
 
-const unq = (s: string) => (s.endsWith('?') ? s.slice(0, -1) : s);
+const nonNullableType = (s: string) => (s.endsWith('?') ? s.slice(0, -1) : s);
 
 export function validateRow(data: any, def: Def, deep = false): boolean {
 	if (typeof data !== 'object' || data === null) return false;
@@ -174,7 +179,7 @@ export function validateRow(data: any, def: Def, deep = false): boolean {
 			const nullable = f.endsWith('?');
 			if (data[k] === null) {
 				if (!nullable) return false;
-			} else if (typeof data[k] !== unq(f)) return false;
+			} else if (typeof data[k] !== nonNullableType(f)) return false;
 		} else if (Array.isArray(f)) {
 			if (typeof f[0] === 'string' || f[0] === null) {
 				if (!(f as readonly any[]).some((e) => e === data[k])) return false; // enum
@@ -190,20 +195,20 @@ export function validateRow(data: any, def: Def, deep = false): boolean {
 }
 
 function compileEdge(spec: EdgeSpec, idOf: IdFn): Edge {
-	type LE = { tf: string; list: string; pick?: string; skipWhen?: string };
+	type LE = { targetField: string; list: string; pick?: string; skipWhen?: string };
 	const scalars: [string, string][] = []; // [targetField, sourceField]
-	let listE: LE | null = null;
-	for (const [tf, src] of Object.entries(spec.map)) {
-		if (typeof src === 'string') scalars.push([tf, src]);
-		else listE = { tf, ...src };
+	let listEdge: LE | null = null;
+	for (const [targetField, src] of Object.entries(spec.map)) {
+		if (typeof src === 'string') scalars.push([targetField, src]);
+		else listEdge = { targetField, ...src };
 	}
 	const readList = (row: Row): string[] => {
-		const arr = row[listE!.list];
+		const arr = row[listEdge!.list];
 		if (!Array.isArray(arr)) return [];
 		const out: string[] = [];
 		for (const it of arr) {
-			if (listE!.skipWhen && it?.[listE!.skipWhen]) continue;
-			const v = listE!.pick ? it?.[listE!.pick] : it;
+			if (listEdge!.skipWhen && it?.[listEdge!.skipWhen]) continue;
+			const v = listEdge!.pick ? it?.[listEdge!.pick] : it;
 			if (typeof v === 'string') out.push(v);
 		}
 		return out;
@@ -215,36 +220,37 @@ function compileEdge(spec: EdgeSpec, idOf: IdFn): Edge {
 		resolve: (row) => {
 			if (spec.when && !spec.when(row)) return [];
 			const base: Row = {};
-			for (const [tf, sf] of scalars) base[tf] = row[sf];
-			if (!listE) return [idOf(base)];
-			return readList(row).map((v) => idOf({ ...base, [listE!.tf]: v }));
+			for (const [targetField, sourceField] of scalars) base[targetField] = row[sourceField];
+			if (!listEdge) return [idOf(base)];
+			return readList(row).map((v) => idOf({ ...base, [listEdge!.targetField]: v }));
 		},
 		// null unless the row's mapped fields currently equal `from`'s identity
 		// components (self-guard); else the patch re-pointing them at `to`.
 		relocate: (row, from, to) => {
 			if (spec.when && !spec.when(row)) return null;
-			for (const [tf, sf] of scalars) {
-				if (!isEqual(row[sf], from[tf])) return null; // this row doesn't point at `from`
+			for (const [targetField, sourceField] of scalars) {
+				if (!isEqual(row[sourceField], from[targetField])) return null; // this row doesn't point at `from`
 			}
-			if (!listE) {
+			if (!listEdge) {
+				// scalar edge: rewrite the mapped source fields
 				const patch: Row = {};
-				for (const [tf, sf] of scalars) patch[sf] = to[tf]; // scalar edge: rewrite the mapped source fields
+				for (const [targetField, sourceField] of scalars) patch[sourceField] = to[targetField];
 				return patch;
 			}
 			// list edge: rewrite only the matching element, plus the shared prefix.
-			const arr = row[listE.list];
+			const arr = row[listEdge.list];
 			if (!Array.isArray(arr)) return null;
 			let changed = false;
 			const next = arr.map((it) => {
-				if (listE!.skipWhen && it?.[listE!.skipWhen]) return it;
-				const v = listE!.pick ? it?.[listE!.pick] : it;
-				if (!isEqual(v, from[listE!.tf])) return it;
+				if (listEdge!.skipWhen && it?.[listEdge!.skipWhen]) return it;
+				const v = listEdge!.pick ? it?.[listEdge!.pick] : it;
+				if (!isEqual(v, from[listEdge!.targetField])) return it;
 				changed = true;
-				return listE!.pick ? { ...it, [listE!.pick]: to[listE!.tf] } : to[listE!.tf];
+				return listEdge!.pick ? { ...it, [listEdge!.pick]: to[listEdge!.targetField] } : to[listEdge!.targetField];
 			});
 			if (!changed) return null;
-			const patch: Row = { [listE.list]: next };
-			for (const [tf, sf] of scalars) patch[sf] = to[tf];
+			const patch: Row = { [listEdge.list]: next };
+			for (const [targetField, sourceField] of scalars) patch[sourceField] = to[targetField];
 			return patch;
 		},
 	};
@@ -253,12 +259,12 @@ function compileEdge(spec: EdgeSpec, idOf: IdFn): Edge {
 function reverseIndex(store: Store, edges: Record<string, Edge[]>): Map<string, Dep[]> {
 	const idx = new Map<string, Dep[]>();
 	for (const [type, bucket] of store) {
-		const es = edges[type];
-		if (!es || !es.length) continue;
+		const typeEdges = edges[type];
+		if (!typeEdges || !typeEdges.length) continue;
 		for (const row of bucket.values()) {
-			for (const edge of es) {
-				for (const tk of edge.resolve(row)) {
-					const q = qual(edge.to, tk);
+			for (const edge of typeEdges) {
+				for (const targetKey of edge.resolve(row)) {
+					const q = qualifiedKey(edge.to, targetKey);
 					let list = idx.get(q);
 					if (!list) idx.set(q, list = []);
 					list.push({ row, edge, type });
@@ -293,10 +299,10 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 	};
 
 	const prepare = (input: Row): Row => {
-		const et = type ?? input.entityType;
-		const out: Row = { ...nulls[et] };
+		const entityType = type ?? input.entityType;
+		const out: Row = { ...nulls[entityType] };
 		for (const k in input) if (input[k] !== undefined && k in out) out[k] = input[k];
-		out.entityType = et;
+		out.entityType = entityType;
 		return out;
 	};
 
@@ -314,11 +320,11 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 
 	const pushAll: Processors['pushAll'] = (items) => {
 		const seen = new Set<string>();
-		for (const [t, b] of store) for (const key of b.keys()) seen.add(qual(t, key));
+		for (const [t, b] of store) for (const key of b.keys()) seen.add(qualifiedKey(t, key));
 		const prepared: Row[] = [];
 		for (const it of items) {
 			const row = prepare(it);
-			const q = qual(row.entityType, keyOf(row));
+			const q = qualifiedKey(row.entityType, keyOf(row));
 			if (seen.has(q)) return { status: 'CONFLICT', key: keyOf(row) };
 			seen.add(q);
 			prepared.push(row);
@@ -357,13 +363,13 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 
 		// Only a key change can end in a conflict, so only then the entities are copied to put them back. The
 		// copy is taken here, before any selected entity changes in place.
-		const snap: [string, Row][] = [];
+		const copies: [string, Row][] = [];
 		if (planned.some(({ row, next }) => keyOf(next) !== keyOf(row))) {
-			for (const b of store.values()) for (const r of b.values()) snap.push([r.entityType, { ...r }]);
+			for (const b of store.values()) for (const r of b.values()) copies.push([r.entityType, { ...r }]);
 		}
 		const restore = () => {
 			for (const b of store.values()) b.clear();
-			for (const [t, r] of snap) bucketOf(t).set(keyOf(r), r);
+			for (const [t, r] of copies) bucketOf(t).set(keyOf(r), r);
 		};
 
 		// While recording, each selected entity that changes gives one delta: a rename when its key changes,
@@ -380,7 +386,11 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 				const changes: Row = {};
 				for (const k of Object.keys(next)) if (!isEqual(row[k], next[k])) changes[k] = next[k];
 				if (Object.keys(changes).length) {
-					deltas.push({ op: hasKeyChanged ? 'rename' : 'alter', key: qual(row.entityType, oldKey), set: changes });
+					deltas.push({
+						op: hasKeyChanged ? 'rename' : 'alter',
+						key: qualifiedKey(row.entityType, oldKey),
+						set: changes,
+					});
 				}
 			}
 			Object.assign(row, next);
@@ -389,11 +399,11 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 
 		if (seeds.length) {
 			const idx = reverseIndex(store, edges);
-			const visited = new Set(seeds.map((s) => qual(s.type, s.oldKey)));
+			const visited = new Set(seeds.map((s) => qualifiedKey(s.type, s.oldKey)));
 			const queue = [...seeds];
 			for (let i = 0; i < queue.length; i++) {
 				const s = queue[i];
-				for (const dep of idx.get(qual(s.type, s.oldKey)) ?? []) {
+				for (const dep of idx.get(qualifiedKey(s.type, s.oldKey)) ?? []) {
 					const patch = dep.edge.relocate(dep.row, s.oldRow, s.newRow);
 					if (!patch) continue;
 					const depOld = { ...dep.row };
@@ -401,7 +411,7 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 					Object.assign(dep.row, patch);
 					const depNewKey = keyOf(dep.row);
 					if (depNewKey !== depOldKey) {
-						const q = qual(dep.type, depOldKey);
+						const q = qualifiedKey(dep.type, depOldKey);
 						if (!visited.has(q)) {
 							visited.add(q);
 							queue.push({ type: dep.type, oldKey: depOldKey, oldRow: depOld, newRow: dep.row });
@@ -414,7 +424,7 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 			const colliders: Row[] = [];
 			for (const b of store.values()) {
 				for (const r of b.values()) {
-					const q = qual(r.entityType, keyOf(r));
+					const q = qualifiedKey(r.entityType, keyOf(r));
 					if (held.has(q)) colliders.push(r);
 					else held.add(q);
 				}
@@ -445,7 +455,7 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 		const seen = new Set<string>();
 		const queue: Row[] = [];
 		const seed = (row: Row) => {
-			const q = qual(row.entityType, keyOf(row));
+			const q = qualifiedKey(row.entityType, keyOf(row));
 			if (!seen.has(q)) {
 				seen.add(q);
 				queue.push(row);
@@ -457,7 +467,7 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 			const row = queue[i];
 			store.get(row.entityType)?.delete(keyOf(row));
 			deleted.push(row);
-			for (const dep of idx.get(qual(row.entityType, keyOf(row))) ?? []) {
+			for (const dep of idx.get(qualifiedKey(row.entityType, keyOf(row))) ?? []) {
 				if (dep.edge.cascade) seed(dep.row);
 			}
 		}
@@ -466,18 +476,13 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 
 	const validate: Processors['validate'] = (row) => {
 		if (typeof row !== 'object' || row === null) return false;
-		const et = type ?? (row as any).entityType;
-		const d = defs[et];
+		const entityType = type ?? (row as any).entityType;
+		const d = defs[entityType];
 		return d ? validateRow(row, d) : false;
 	};
 
-	const hasDiff: Processors['hasDiff'] = (alter) => {
-		for (const [k, v] of Object.entries(alter)) {
-			if (k === '$left' || k === '$right' || k === '$diffType' || k === 'entityType') continue;
-			if (v && typeof v === 'object' && 'from' in v && 'to' in v) return true;
-		}
-		return false;
-	};
+	const hasDiff: Processors['hasDiff'] = (alter) =>
+		Object.entries(alter).some(([k, v]) => k !== '$left' && k !== '$right' && isChangePair(v));
 
 	return { push, pushAll, list, one, update, delete: del, drop, validate, hasDiff };
 }
@@ -514,7 +519,6 @@ export function create<const D extends Record<string, Def>>(
 	return build<InferEntities<D>>(internals);
 }
 
-// Build a DDL from prepared internals — the tail of create(), shared with apply().
 function build<M extends Record<string, Row>>(internals: Internals): DDL<M> {
 	const ddl: any = { _: internals, key: (t: string, row: Row) => internals.identity[t](row) };
 	ddl.entities = makeProcessors(internals); // aggregate view
@@ -531,7 +535,7 @@ function _diff(
 	const where = type ? { entityType: type } : undefined;
 	const keyBy = (ddl: AnyDDL, rows: Row[]) => {
 		const m: Record<string, Row> = {};
-		for (const r of rows) m[qual(r.entityType, ddl.key(r.entityType, r))] = r;
+		for (const r of rows) m[qualifiedKey(r.entityType, ddl.key(r.entityType, r))] = r;
 		return m;
 	};
 	const left = keyBy(a, a.entities.list(where));
@@ -619,9 +623,9 @@ export namespace diff {
 
 export const key = (ddl: AnyDDL, type: string, row: Row): string => ddl.key(type, row);
 
-/* ------------------------------------------------------------------ structural delta */
+/* ------------------------------------------------------------------ deltas */
 
-const qkeyOf = (ddl: AnyDDL, r: Row): string => qual(r.entityType, ddl.key(r.entityType, r));
+const qualifiedKeyOf = (ddl: AnyDDL, r: Row): string => qualifiedKey(r.entityType, ddl.key(r.entityType, r));
 export const findRow = (ddl: { _: { store: Store } }, key: string): Row | undefined => {
 	const [entityType, identity] = splitDeltaKey(key);
 	return ddl._.store.get(entityType)?.get(identity);
@@ -644,7 +648,7 @@ export function delta<M extends Record<string, Row>>(
 		if (r.$diffType === 'create') {
 			out.push({ op: 'create', row: stripMeta(r) });
 		} else if (r.$diffType === 'drop') {
-			out.push({ op: 'drop', key: qkeyOf(a, r) }); // r is the whole old row
+			out.push({ op: 'drop', key: qualifiedKeyOf(a, r) }); // r is the whole old row
 		} else {
 			const set: Row = {};
 			for (const [k, v] of Object.entries(r)) {
@@ -653,7 +657,7 @@ export function delta<M extends Record<string, Row>>(
 			}
 			// The alter row holds only the changed fields, so a nameless entity (privileges)
 			// can build its key only from the whole new row.
-			out.push({ op: 'alter', key: qkeyOf(b, (r as any).$right as Row), set });
+			out.push({ op: 'alter', key: qualifiedKeyOf(b, (r as any).$right as Row), set });
 		}
 	}
 	return out;

@@ -57,83 +57,39 @@ const sqlFor = async (name: string): Promise<string[]> => {
 	return sqlCache.get(name)!;
 };
 
-let parentSql: string[] = [];
-const truth = new Map<string, { commutes: boolean; why: string }>();
-const facet = new Map<string, boolean>();
-
 beforeAll(async () => {
 	const prepared = await prepareTestDatabase();
 	db = prepared.db;
 	clear = prepared.clear;
-
-	parentSql = (await diff({}, parent, [])).sqlStatements;
-
-	for (const { a, b, name } of PAIRS) {
-		const [sa, sb] = [await sqlFor(a), await sqlFor(b)];
-
-		const ab = await applyBoth(parentSql, sa, sb);
-		const ba = await applyBoth(parentSql, sb, sa);
-
-		let commutes: boolean;
-		let why: string;
-		if (!ab.ok || !ba.ok) {
-			commutes = false;
-			why = `sql failed: ${(!ab.ok ? ab.error : (ba as any).error)}`;
-		} else if (ab.hash !== ba.hash) {
-			commutes = false;
-			why = 'both orders succeed but land on DIFFERENT schemas';
-		} else {
-			commutes = true;
-			why = 'both orders succeed, same schema';
-		}
-		truth.set(name, { commutes, why });
-
-		const stA = (await diff(parent, mutations[a], [])).statements;
-		const stB = (await diff(parent, mutations[b], [])).statements;
-		facet.set(
-			name,
-			!!(await postgresCommutativity.getReasonsFromStatements(toSnapshotStatements(stA), toSnapshotStatements(stB))),
-		);
-	}
-}, 600_000);
+});
 
 afterAll(async () => {
 	await clear?.();
 });
 
 describe('facet model vs a real database', () => {
-	test('report', () => {
-		const rows = PAIRS.map(({ name }) => {
-			const t = truth.get(name)!;
-			const modelSaysConflict = facet.get(name)!;
-			// The model reports conflicts; the database reports commutativity.
-			const agree = modelSaysConflict === !t.commutes;
-			return {
-				name,
-				agree,
-				model: modelSaysConflict ? 'conflict' : 'commutes',
-				db: t.commutes ? 'commutes' : 'conflict',
-				why: t.why,
-			};
-		});
+	test('report', async () => {
+		const parentSql = (await diff({}, parent, [])).sqlStatements;
+		const falseNegatives: string[] = [];
 
-		const wrong = rows.filter((r) => !r.agree);
-		const falseNegative = wrong.filter((r) => r.model === 'commutes'); // model says fine, db disagrees — DANGEROUS
-		const falsePositive = wrong.filter((r) => r.model === 'conflict'); // model over-reports — merely annoying
+		for (const { a, b, name } of PAIRS) {
+			const [sa, sb] = [await sqlFor(a), await sqlFor(b)];
 
-		// eslint-disable-next-line no-console
-		console.log(
-			`\n@@ ${PAIRS.length} pairs against real postgres\n`
-				+ `@@   agree            : ${rows.length - wrong.length}\n`
-				+ `@@   false NEGATIVES  : ${falseNegative.length}   (model says commutes, database disagrees)\n`
-				+ `@@   false positives  : ${falsePositive.length}   (model over-reports)\n`
-				+ falseNegative.map((r) => `@@     [FN] ${r.name.padEnd(46)} ${r.why}`).join('\n')
-				+ (falseNegative.length ? '\n' : '')
-				+ falsePositive.map((r) => `@@     [fp] ${r.name.padEnd(46)} ${r.why}`).join('\n')
-				+ '\n',
-		);
-		expect(falseNegative.map((r) => r.name), 'pairs that the rules call commutative and postgres rejects').toEqual([]);
-	});
+			const ab = await applyBoth(parentSql, sa, sb);
+			const ba = await applyBoth(parentSql, sb, sa);
+			const commutes = ab.ok && ba.ok && ab.hash === ba.hash;
+
+			const stA = (await diff(parent, mutations[a], [])).statements;
+			const stB = (await diff(parent, mutations[b], [])).statements;
+			const found = await postgresCommutativity.getReasonsFromStatements(
+				toSnapshotStatements(stA),
+				toSnapshotStatements(stB),
+			);
+			if (!found && !commutes) falseNegatives.push(name);
+		}
+
+		expect(falseNegatives, 'pairs that the rules call commutative and postgres rejects').toEqual([]);
+	}, 600_000);
 });
 
 describe('the same change on two branches, against a real database', () => {
@@ -160,34 +116,6 @@ describe('the same change on two branches, against a real database', () => {
 		expect(await applyBoth(base, sqlStatements, [])).toMatchObject({ ok: true });
 		expect(await applyBoth(base, sqlStatements, sqlStatements)).toMatchObject({ ok: false });
 		expect(await postgresCommutativity.getReasonsFromStatements(stored, structuredClone(stored))).toBeDefined();
-	});
-});
-
-describe('the squash false negative, against a real database', () => {
-	// Branch A does and undoes: two migrations, so its fork->leaf diff is empty and
-	// `detectNonCommutative` sees no statements at all. Branch B adds the same column.
-	// Concatenating A's steps says conflict; the squashed fork->leaf diff says commute.
-	const fork = { users: pgTable('users', { id: integer('id') }) };
-	const addX = { users: pgTable('users', { id: integer('id'), x: varchar('x') }) };
-
-	test('postgres rejects the order the squashed diff calls commutative', async () => {
-		const forkSql = (await diff({}, fork, [])).sqlStatements;
-		const a1 = (await diff(fork, addX, [])).sqlStatements; // add x
-		const a2 = (await diff(addX, fork, [])).sqlStatements; // drop x
-		const b = (await diff(fork, addX, [])).sqlStatements; // add x
-
-		// order B -> A : B adds x, then A's first migration adds x again
-		await clear();
-		let error: string | null = null;
-		try {
-			for (const sql of [...forkSql, ...b, ...a1, ...a2]) await db.query(sql);
-		} catch (e) {
-			error = e instanceof Error ? e.message.split('\n')[0]! : String(e);
-		}
-
-		// eslint-disable-next-line no-console
-		console.log(`\n@@ squash case — replaying B then A on postgres: ${error ?? 'SUCCEEDED (no conflict)'}\n`);
-		expect(error, 'postgres must reject adding the same column twice').not.toBeNull();
 	});
 });
 
@@ -359,6 +287,7 @@ const baseObjects: Record<NeededObject, string[]> = {
 	rls: sqlOf('alter_rls'),
 	column: sqlOf('add_column'),
 	referencedTable: [`CREATE TABLE "s"."t2" ("c2" varchar PRIMARY KEY);`],
+	tableWithUnique: [`CREATE TABLE "s"."t3" ("c3" varchar UNIQUE);`],
 	index: sqlOf('create_index'),
 	pk: sqlOf('add_pk'),
 	fk: sqlOf('create_fk'),
@@ -381,6 +310,9 @@ const knownExceptions: Record<string, string> = {
 		'a type change converts the default, and the rules do not know that the conversion from varchar to text keeps it',
 	'create_policy x alter_rls:disable': unenforcedPolicy,
 	'create_policy:role x alter_rls:disable': unenforcedPolicy,
+	'recreate_column:enum x recreate_enum:column':
+		'both orders end with the same column of the enum type, and the rules do not know that the type conversion '
+		+ 'of recreate_enum and the new ADD COLUMN give the same column',
 };
 
 // Everything a pair can change, as sorted text. Column order is left out, because

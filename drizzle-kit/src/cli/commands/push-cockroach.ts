@@ -173,7 +173,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 
 	const filtered = jsonStatements.filter((it) => {
 		// discussion -
-		if (it.type === 'recreate_view') return false;
+		if (it.type === 'drop_view' && it.cause) return false;
 
 		/*
 			drizzle-kit push does not handle alternations of views definitions

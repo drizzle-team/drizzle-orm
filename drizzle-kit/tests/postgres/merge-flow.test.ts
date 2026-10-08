@@ -18,16 +18,16 @@ test('a merge of three leaves lists every leaf, newest first, and holds only the
 	const { folder } = await flow.generate('main', merged);
 
 	expect(folder).toBe('20260101120005_main');
-	expect(flow.snapshot('main', folder!)).toMatchObject({
+	expect(flow.snapshot('main', folder)).toMatchObject({
 		type: 'diff',
 		prevIds: ['20260101120004_c', '20260101120003_b', '20260101120002_a'].map((it) => flow.snapshot('main', it).id),
 		deltas: [{ op: 'create', row: columnRow('users', 'email', 'varchar') }],
 	});
-	expect(flow.sql('main', folder!)).toBe('ALTER TABLE "users" ADD COLUMN "email" varchar;');
+	expect(flow.sql('main', folder)).toBe('ALTER TABLE "users" ADD COLUMN "email" varchar;');
 	expect(flow.state('main', '20260101120002_a')).toStrictEqual(schemaState({ users, likes }));
 	expect(flow.state('main', '20260101120003_b')).toStrictEqual(schemaState({ users, groups }));
 	expect(flow.state('main', '20260101120004_c')).toStrictEqual(schemaState({ users, posts }));
-	expect(flow.state('main', folder!)).toStrictEqual(schemaState(merged));
+	expect(flow.state('main', folder)).toStrictEqual(schemaState(merged));
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	expect(await flow.migrate('main', merged)).toStrictEqual([]);
 });
@@ -63,12 +63,12 @@ test('a merge composes a branch of several migrations with a newer branch', asyn
 
 	const { folder } = await flow.generate('main', merged);
 
-	expect(flow.snapshot('main', folder!).prevIds[0]).toBe(flow.snapshot('main', '20260101120005_b').id);
-	expect(flow.snapshot('main', folder!)).toMatchObject({
+	expect(flow.snapshot('main', folder).prevIds[0]).toBe(flow.snapshot('main', '20260101120005_b').id);
+	expect(flow.snapshot('main', folder)).toMatchObject({
 		deltas: [{ op: 'create', row: columnRow('t2', 'note', 'text') }],
 	});
-	expect(flow.sql('main', folder!)).toBe('ALTER TABLE "t2" ADD COLUMN "note" text;');
-	expect(flow.state('main', folder!)).toStrictEqual(schemaState(merged));
+	expect(flow.sql('main', folder)).toBe('ALTER TABLE "t2" ADD COLUMN "note" text;');
+	expect(flow.state('main', folder)).toStrictEqual(schemaState(merged));
 	expect(await flow.migrate('main', merged)).toStrictEqual([]);
 });
 
@@ -89,11 +89,11 @@ test('a merge that renames a column from another branch stores a rename, and che
 	);
 
 	// likes comes from branch a, which is not the first parent, so the renamed column exists only in the combined state.
-	expect(flow.snapshot('main', folder!).prevIds[0]).toBe(flow.snapshot('main', '20260101120003_b').id);
-	expect(flow.deltas('main', folder!)).toStrictEqual([
+	expect(flow.snapshot('main', folder).prevIds[0]).toBe(flow.snapshot('main', '20260101120003_b').id);
+	expect(flow.deltas('main', folder)).toStrictEqual([
 		{ op: 'rename', key: 'columns\0["public","likes","c"]', set: { name: 'd' } },
 	]);
-	expect(flow.sql('main', folder!)).toBe('ALTER TABLE "likes" RENAME COLUMN "c" TO "d";');
+	expect(flow.sql('main', folder)).toBe('ALTER TABLE "likes" RENAME COLUMN "c" TO "d";');
 
 	await flow.generate('late', { users, likes: pgTable('likes', { id: integer(), c: varchar().notNull() }) });
 	flow.merge('main', 'late');
@@ -150,12 +150,12 @@ test('a branch that arrives after a merge and commutes merges again', async () =
 	const { folder } = await flow.generate('main', merged);
 
 	expect(folder).toBe('20260101120006_main');
-	expect(flow.snapshot('main', folder!)).toMatchObject({
+	expect(flow.snapshot('main', folder)).toMatchObject({
 		prevIds: ['20260101120005_late', '20260101120004_main'].map((it) => flow.snapshot('main', it).id),
 		deltas: [{ op: 'create', row: columnRow('users', 'email', 'varchar') }],
 	});
 	expect(flow.state('main', '20260101120004_main')).toStrictEqual(schemaState({ users, likes, groups, posts }));
-	expect(flow.state('main', folder!)).toStrictEqual(schemaState(merged));
+	expect(flow.state('main', folder)).toStrictEqual(schemaState(merged));
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	expect(await flow.migrate('main', merged)).toStrictEqual([]);
 });
@@ -175,10 +175,10 @@ test('deleting a merge reopens its branches, and the next generate merges them a
 	const { folder } = await flow.generate('main', redo);
 
 	expect(folder).toBe('20260101120005_main');
-	expect(flow.snapshot('main', folder!).prevIds).toStrictEqual(
+	expect(flow.snapshot('main', folder).prevIds).toStrictEqual(
 		['20260101120003_b', '20260101120002_a'].map((it) => flow.snapshot('main', it).id),
 	);
-	expect(flow.sql('main', folder!)).toBe('CREATE TABLE "posts" (\n\t"id" integer\n);\n');
-	expect(flow.state('main', folder!)).toStrictEqual(schemaState(redo));
+	expect(flow.sql('main', folder)).toBe('CREATE TABLE "posts" (\n\t"id" integer\n);\n');
+	expect(flow.state('main', folder)).toStrictEqual(schemaState(redo));
 	expect(await flow.migrate('main', redo)).toStrictEqual([]);
 });

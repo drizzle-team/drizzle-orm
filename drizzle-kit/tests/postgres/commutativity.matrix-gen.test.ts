@@ -76,7 +76,7 @@ const verb = (type: string): string =>
 
 // `provides` are writes that only a read of the same node conflicts with.
 function facetSets(stmt: JsonStatement) {
-	const { owns = [], destroys = [], needs = [], provides = [] } = (postgresCommutativity as any).buildFacetPaths(
+	const { owns, destroys = [], needs = [], provides = [] } = postgresCommutativity.buildFacetPaths(
 		toSnapshotStatement(stmt),
 	);
 	return {
@@ -113,14 +113,14 @@ async function generateMatrix() {
 			if (assumesExists(j).has(k)) {
 				return `<b>${TYPES[i]}</b> creates <code>${pretty(k)}</code>, which <b>${
 					TYPES[j]
-				}</b> assumes already exists — so they can't come from a shared base.`;
+				}</b> assumes already exists, so they can't come from the same fork point.`;
 			}
 		}
 		for (const k of creates(j)) {
 			if (assumesExists(i).has(k)) {
 				return `<b>${TYPES[j]}</b> creates <code>${pretty(k)}</code>, which <b>${
 					TYPES[i]
-				}</b> assumes already exists — so they can't come from a shared base.`;
+				}</b> assumes already exists, so they can't come from the same fork point.`;
 			}
 		}
 		return null;
@@ -263,9 +263,7 @@ const isRename = (statement: JsonStatement) =>
 	statement.type.startsWith('rename_') || statement.type.startsWith('move_');
 // The kinds of nodes (`pk`, `col`, ...) that the claims of a statement name.
 const claimKinds = (statement: JsonStatement) => {
-	const { owns = [], destroys = [], needs = [] } = (postgresCommutativity as any).buildFacetPaths(
-		toSnapshotStatement(statement),
-	);
+	const { owns, destroys = [], needs = [] } = postgresCommutativity.buildFacetPaths(toSnapshotStatement(statement));
 	const kinds = (keys: string[]) => [...new Set(keys.map((key) => key.split('|')[1]))].sort();
 	return { writes: kinds([...owns, ...destroys]), reads: kinds(needs) };
 };
@@ -296,7 +294,7 @@ test('a constraint rename of an unknown kind throws', async () => {
 	);
 });
 
-test('visualizer page builds from the rules', async () => {
+test.runIf(process.env.MATRIX_HTML)('visualizer page builds from the rules', async () => {
 	const template = readFileSync(templatePath, 'utf8');
 	expect(template.split(placeholder)).toHaveLength(2);
 

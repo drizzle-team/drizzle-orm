@@ -18,6 +18,7 @@ import {
 	uniqueIndex,
 	varchar,
 } from 'drizzle-orm/pg-core';
+import { basename, dirname } from 'path';
 import { CheckCliError, InvalidHintsCliError } from 'src/cli/errors';
 import type { Hint } from 'src/cli/hints';
 import { interimToDDL, type PostgresDDL, type Privilege } from 'src/dialects/postgres/ddl';
@@ -764,7 +765,7 @@ const generateWithHints = async (
 	// renames turn into creates, and any other rejection fails the run. The DDL identity of every renamable
 	// kind has the same shape as identityOf.
 	const withoutMissingRenames = async (error: InvalidHintsCliError) => {
-		const start = await flow.stateBeforeGenerate(branch, schema);
+		const start = await flow.stateBeforeGenerate(branch);
 		const missing = renames.filter(({ kind, oldIdentity }) =>
 			!start.entities.list().some((row) =>
 				row.entityType === kind && start.key(kind, row) === JSON.stringify(oldIdentity)
@@ -777,8 +778,13 @@ const generateWithHints = async (
 	};
 	for (let attempt = 0; attempt < 4; attempt++) {
 		try {
-			const result = await flow.generate(branch, schema, { hints: [...renames.map(toHint), ...creates], fixConflicts });
-			if (result.status !== 'missing_hints') return result.folder;
+			const result = await flow.tryGenerate(branch, schema, {
+				hints: [...renames.map(toHint), ...creates],
+				fixConflicts,
+			});
+			if (result.status !== 'missing_hints') {
+				return 'migration_path' in result ? basename(dirname(result.migration_path)) : undefined;
+			}
 			creates = [
 				...creates,
 				...result.unresolved.map((it) => {
@@ -807,7 +813,7 @@ export const runHistory = async (steps: Step[]) => {
 		if (step.type === 'custom') {
 			if (flow.leaves(step.branch).length !== 1) return;
 			const { folder } = await flow.generate(step.branch, toSchema(start), { custom: true });
-			written.set(folder!, { branch: step.branch, model: start, isCustom: true });
+			written.set(folder, { branch: step.branch, model: start, isCustom: true });
 			return;
 		}
 		flow.merge(step.branch, ...sources);

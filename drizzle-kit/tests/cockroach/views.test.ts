@@ -6,6 +6,8 @@ import {
 	cockroachView,
 	int4,
 } from 'drizzle-orm/cockroach-core';
+import { stripAnsi } from 'hanji/utils';
+import { explain } from 'src/cli/views';
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
@@ -1312,6 +1314,70 @@ test.concurrent('a view that is created again keeps its place when it does not r
 		'ALTER TABLE "pets" SET SCHEMA "folder";\n',
 	]);
 	expect((await push({ db, to })).sqlStatements).toStrictEqual([]);
+});
+
+test.concurrent('explain shows a view with a new definition one time, with both definitions', async () => {
+	const users = cockroachTable('users', { id: int4() });
+	const reader = (id: number) =>
+		cockroachView('v', { id: int4('id') }).as(sql.raw(`SELECT ${id} AS "id" FROM "users"`));
+
+	const { statements, groupedStatements } = await diff({ users, view: reader(1) }, { users, view: reader(2) }, []);
+
+	expect(statements.map((it) => it.type)).toStrictEqual(['drop_view', 'create_view']);
+	expect(stripAnsi(explain('cockroach', groupedStatements, []))).toBe(
+		'\n--- Generated migration statements ---\n'
+			+ '┌─── public.v view changed:\n'
+			+ '│ definition: [SELECT 1 AS "id" FROM "users"] -> [SELECT 2 AS "id" FROM "users"]\n'
+			+ '├───\n'
+			+ '│ DROP VIEW "v";\n'
+			+ '└───\n'
+			+ '\n'
+			+ 'CREATE VIEW "v" AS (SELECT 2 AS "id" FROM "users");',
+	);
+});
+
+test.concurrent('explain shows a view that reads a renamed table one time, with both definitions', async () => {
+	const reader = (table: string) => cockroachView('v', { id: int4('id') }).as(sql.raw(`SELECT "id" FROM ${table}`));
+	const from = { users: cockroachTable('users', { id: int4() }), view: reader('"users"') };
+	const to = { users: cockroachTable('people', { id: int4() }), view: reader('"people"') };
+
+	const { statements, groupedStatements } = await diff(from, to, ['public.users->public.people']);
+
+	expect(statements.map((it) => it.type)).toStrictEqual(['drop_view', 'rename_table', 'create_view']);
+	expect(stripAnsi(explain('cockroach', groupedStatements, []))).toBe(
+		'\n--- Generated migration statements ---\n'
+			+ '┌─── public.v view changed:\n'
+			+ '│ definition: [SELECT "id" FROM "users"] -> [SELECT "id" FROM "people"]\n'
+			+ '├───\n'
+			+ '│ DROP VIEW "v";\n'
+			+ '└───\n'
+			+ '\n'
+			+ 'ALTER TABLE "users" RENAME TO "people";\n'
+			+ 'CREATE VIEW "v" AS (SELECT "id" FROM "people");',
+	);
+});
+
+test.concurrent('push asks for no confirmation when it creates a materialized view with rows again', async ({ db }) => {
+	const reader = (table: string) =>
+		cockroachMaterializedView('v', { id: int4('id') }).as(sql.raw(`SELECT "id" FROM ${table}`));
+	const users = cockroachTable('users', { id: int4() });
+	const renames = ['public.users->public.people'];
+
+	await push({ db, to: { users } });
+	await db.query('INSERT INTO "users" VALUES (7);');
+	await push({ db, to: { users, view: reader('"users"') } });
+	const { sqlStatements: pst, hints } = await push({
+		db,
+		to: { users: cockroachTable('people', { id: int4() }), view: reader('"people"') },
+		renames,
+	});
+
+	expect(pst).toStrictEqual([
+		'DROP MATERIALIZED VIEW "v";',
+		'ALTER TABLE "users" RENAME TO "people";',
+		'CREATE MATERIALIZED VIEW "v" AS (SELECT "id" FROM "people");',
+	]);
+	expect(hints).toStrictEqual([]);
 });
 
 // The view reads the table `log` of the schema `people`, and no table with the name `people`.

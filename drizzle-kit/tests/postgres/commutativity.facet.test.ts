@@ -5,10 +5,7 @@ import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { describe, expect, test } from 'vitest';
 import { build, check, col, fk, idx, pk, policy, privilege, unique } from './commutativity-statements';
 
-// Curated regression scenarios for the facet commutativity model. Each asserts
-// the verdict the model must produce; several encode bugs the facet model fixed
-// vs the legacy conflict-list model. Facet is Postgres's default, so we call the
-// engine directly.
+// Curated pairs of statements, each with the verdict that the claim rules must give.
 
 const S = {
 	renameTable: (schema: string, from: string, to: string) => ({ type: 'rename_table', schema, from, to }),
@@ -834,7 +831,7 @@ const cases: Case[] = [
 		b: [S.renameIndex('public', 'users', 'ix', 'ix2', ['c'])],
 		expect: 'commute',
 	},
-	// alter of a column does not break a name reference to it (fixes prior false positive)
+	// An alter of a column does not break a name reference to it.
 	{
 		name: 'alter_column c ∥ create_index over c commute',
 		a: [S.alterColumn('public', 'users', 'c')],
