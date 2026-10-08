@@ -34,6 +34,7 @@ import { sql } from '~/sql/sql.ts';
 import {
 	type InferFunctionArgs,
 	type InferFunctionReturns,
+	type InferFunctionSchema,
 	pgFunction,
 	type PgFunctionArgument,
 	returnsRecord,
@@ -45,6 +46,7 @@ import {
 
 import { type Equal, Expect } from 'type-tests/utils.ts';
 
+import { pgSchema } from '~/pg-core/schema.ts';
 import { pgTable } from '~/pg-core/table.ts';
 
 /** Arguments */
@@ -109,6 +111,39 @@ Expect<Equal<BasicTypesTestFunctionArgs['time'], string>>;
 Expect<Equal<BasicTypesTestFunctionArgs['timestamp'], Date>>;
 Expect<Equal<BasicTypesTestFunctionArgs['uuid'], string>>;
 Expect<Equal<BasicTypesTestFunctionArgs['varchar'], string>>;
+
+/** Expect schema to resolve correctly */
+Expect<Equal<undefined, InferFunctionSchema<typeof basicTypesTestFunction>>>;
+Expect<Equal<undefined, typeof basicTypesTestFunction.config.schema>>;
+
+const customSchema = pgSchema('custom');
+
+const schemaTestFunction = customSchema.function('schema_test_function', {
+	args: {
+		id: integer(),
+	},
+	returns: text(),
+}).as(sql`SELECT 'test'`);
+
+Expect<Equal<'custom', InferFunctionSchema<typeof schemaTestFunction>>>;
+Expect<Equal<'custom', typeof schemaTestFunction.config.schema>>;
+
+{
+	const getSchemaFunction = <TSchema extends string>(schemaName: TSchema) => {
+		return pgSchema(schemaName).function('schema_generic_function', {
+			args: {},
+			returns: integer(),
+		}).as(sql`SELECT 1`);
+	};
+
+	const schemaFunction1 = getSchemaFunction('id1');
+	Expect<Equal<'id1', InferFunctionSchema<typeof schemaFunction1>>>;
+	Expect<Equal<'id1', typeof schemaFunction1.config.schema>>;
+
+	const schemaFunction2 = getSchemaFunction('id2');
+	Expect<Equal<'id2', InferFunctionSchema<typeof schemaFunction2>>>;
+	Expect<Equal<'id2', typeof schemaFunction2.config.schema>>;
+}
 
 /** Expect arrays to resolve correctly */
 const arrayTestFunction = pgFunction('array_test_function', {
@@ -527,6 +562,7 @@ const chainedFunction = pgFunction('chained_function', {
 	.as(sql`SELECT 'test'`);
 
 Expect<Equal<typeof chainedFunction.config.name, 'chained_function'>>;
+Expect<Equal<undefined, typeof chainedFunction.config.schema>>;
 Expect<
 	Equal<
 		InferFunctionArgs<typeof chainedFunction>,
