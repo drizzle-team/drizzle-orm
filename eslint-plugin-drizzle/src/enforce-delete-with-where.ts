@@ -1,12 +1,10 @@
 import { ESLintUtils } from '@typescript-eslint/utils';
-import { resolveMemberExpressionPath } from './utils/ast';
+import { isFollowedByWhere, resolveMemberExpressionPath } from './utils/ast';
 import { isDrizzleObj, type Options } from './utils/options';
 
 const createRule = ESLintUtils.RuleCreator(() => 'https://github.com/drizzle-team/eslint-plugin-drizzle');
 
 type MessageIds = 'enforceDeleteWithWhere';
-
-let lastNodeName: string = '';
 
 const deleteRule = createRule<Options, MessageIds>({
 	defaultOptions: [{ drizzleObjectName: [] }],
@@ -34,17 +32,19 @@ const deleteRule = createRule<Options, MessageIds>({
 	create(context, options) {
 		return {
 			MemberExpression: (node) => {
-				if (node.property.type === 'Identifier') {
-					if (node.property.name === 'delete' && lastNodeName !== 'where' && isDrizzleObj(node, options)) {
-						context.report({
-							node,
-							messageId: 'enforceDeleteWithWhere',
-							data: {
-								drizzleObjName: resolveMemberExpressionPath(node),
-							},
-						});
-					}
-					lastNodeName = node.property.name;
+				if (
+					node.property.type === 'Identifier'
+					&& node.property.name === 'delete'
+					&& isDrizzleObj(node, options)
+					&& !isFollowedByWhere(node)
+				) {
+					context.report({
+						node,
+						messageId: 'enforceDeleteWithWhere',
+						data: {
+							drizzleObjName: resolveMemberExpressionPath(node),
+						},
+					});
 				}
 				return;
 			},
