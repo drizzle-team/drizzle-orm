@@ -275,6 +275,10 @@ export class PgFunctionArgument<
 	getSQL(): SQL<InferPgFunctionColumnBuilder<TBuilder>> {
 		return sql<InferPgFunctionColumnBuilder<TBuilder>>`${sql.identifier(this.sqlName)}`;
 	}
+
+	shouldOmitSQLParens(): boolean {
+		return true;
+	}
 }
 
 export class PgFunction<
