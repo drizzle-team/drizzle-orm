@@ -475,13 +475,13 @@ export class GelDialect {
 			// which is invalid Sql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
 			for (const singleOrderBy of orderBy) {
 				if (is(singleOrderBy, GelColumn)) {
-					orderByValues.push(sql.identifier(singleOrderBy.name));
+					orderByValues.push(sql.identifier(this.casing.getColumnCasing(singleOrderBy)));
 				} else if (is(singleOrderBy, SQL)) {
 					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
 						const chunk = singleOrderBy.queryChunks[i];
 
 						if (is(chunk, GelColumn)) {
-							singleOrderBy.queryChunks[i] = sql.identifier(chunk.name);
+							singleOrderBy.queryChunks[i] = sql.identifier(this.casing.getColumnCasing(chunk));
 						}
 					}
 
