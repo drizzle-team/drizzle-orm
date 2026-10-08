@@ -2,6 +2,7 @@ import { is } from '~/entity.ts';
 import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
+import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { type Check, CheckBuilder } from './checks.ts';
 import type { AnyGelColumn } from './columns/index.ts';
@@ -46,6 +47,8 @@ export function getTableConfig<TTable extends GelTable>(table: TTable) {
 				foreignKeys.push(builder.build(table));
 			} else if (is(builder, GelPolicy)) {
 				policies.push(builder);
+			} else {
+				throwUnknownExtraConfigValue(builder);
 			}
 		}
 	}
