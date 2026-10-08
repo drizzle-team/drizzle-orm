@@ -150,6 +150,45 @@ test('migrator : migrate with custom table and custom schema', async () => {
 	await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
 });
 
+test('migrator : migration with create index concurrently', async () => {
+	await db.execute(sql`drop table if exists users_concurrently`);
+	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+
+	await migrate(db, { migrationsFolder: './drizzle2/pg-concurrently' });
+
+	// test that both concurrently built indexes exist and are valid
+	const { rows: indexes } = await db.execute(
+		sql`select i.relname as name, ix.indisvalid as valid
+			from pg_index ix
+			join pg_class i on i.oid = ix.indexrelid
+			join pg_class t on t.oid = ix.indrelid
+			where t.relname = 'users_concurrently' and not ix.indisprimary
+			order by i.relname`,
+	);
+	expect(indexes).toEqual([
+		{ name: 'users_concurrently_email_index', valid: true },
+		{ name: 'users_concurrently_name_index', valid: true },
+	]);
+
+	// test that all migrations were recorded and a second run is a no-op
+	await migrate(db, { migrationsFolder: './drizzle2/pg-concurrently' });
+	const { rows: migrations } = await db.execute(sql`select hash from "drizzle"."__drizzle_migrations"`);
+	expect(migrations).toHaveLength(2);
+
+	// test that the migrated table and the unique index are working as expected
+	await db.execute(
+		sql`insert into users_concurrently ("name", "email", "last_name") values ('John', 'john@example.com', 'Doe')`,
+	);
+	await expect(
+		db.execute(sql`insert into users_concurrently ("name", "email") values ('Jane', 'john@example.com')`),
+	).rejects.toMatchObject({
+		cause: expect.objectContaining({ constraint: 'users_concurrently_email_index' }),
+	});
+
+	await db.execute(sql`drop table users_concurrently`);
+	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
+});
+
 test('all date and time columns without timezone first case mode string', async () => {
 	const table = pgTable('all_columns', {
 		id: serial('id').primaryKey(),
