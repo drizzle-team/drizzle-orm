@@ -293,7 +293,7 @@ const generateGelSnapshot = (
 		// // 						chalk.underline.blue(
 		// // 							columnNames.join(','),
 		// // 						)
-		// // 					} columns is confilcting with a unique constraint name already defined for ${
+		// // 					} columns is conflicting with a unique constraint name already defined for ${
 		// // 						chalk.underline.blue(existingUnique.columns.join(','))
 		// // 					} columns\n`,
 		// // 				)
@@ -540,7 +540,7 @@ const generateGelSnapshot = (
 		// 							chalk.underline.blue(
 		// 								tableName,
 		// 							)
-		// 						} table or the table with the duplicated check contraint name`,
+		// 						} table or the table with the duplicated check constraint name`,
 		// 					)
 		// 				}`,
 		// 			);
@@ -795,7 +795,7 @@ const generateGelSnapshot = (
 										chalk.underline.blue(
 											column.name,
 										)
-									} column is confilcting with a unique constraint name already defined for ${
+									} column is conflicting with a unique constraint name already defined for ${
 										chalk.underline.blue(existingUnique.columns.join(','))
 									} columns\n`,
 								)
