@@ -254,6 +254,23 @@ test('reconstruct reports a leaf that does not reconstruct with the same message
 	expect(api.message).toBe(cli.message);
 });
 
+test('reconstruct reports a base snapshot that lists an entity twice with the same message as generate', async () => {
+	const flow = createFolderFlow();
+	const { folder } = await flow.generate('main', v1);
+	const base = flow.snapshot('main', folder!);
+	if (base.type !== 'base') throw new Error('The first snapshot of a folder must be a base snapshot.');
+	flow.overwriteSnapshot('main', folder!, JSON.stringify({ ...base, ddl: [...base.ddl, base.ddl[0]] }));
+
+	const cli: Error = await flow.generate('main', v1).catch((e) => e);
+	const api: Error = await reconstruct(folderFiles(flow, 'main')).catch((e) => e);
+
+	expect(api.message).toBe(
+		`Cannot reconstruct the state of migration ${folder}: The snapshot lists two rows of tables with the key `
+			+ `["public","users"]. A snapshot must list every entity one time. ${reconstructFix(folder!)}`,
+	);
+	expect(api.message).toBe(cli.message);
+});
+
 test('reconstruct reports a malformed snapshot, an unknown id and an empty folder', async () => {
 	const base = {
 		type: 'base',
