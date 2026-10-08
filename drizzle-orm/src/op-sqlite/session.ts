@@ -148,7 +148,7 @@ export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 			logger.logQuery(query.sql, params);
 
 			return await this.queryWithCache(query.sql, params, async () => {
-				return client.execute(query.sql, params).rows?._array || [];
+				return (await client.executeAsync(query.sql, params)).rows || [];
 			});
 		}
 
@@ -165,7 +165,7 @@ export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		logger.logQuery(query.sql, params);
 		if (!fields && !customResultMapper) {
 			const rows = await this.queryWithCache(query.sql, params, async () => {
-				return client.execute(query.sql, params).rows?._array || [];
+				return (await client.executeAsync(query.sql, params)).rows || [];
 			});
 			return rows[0];
 		}
