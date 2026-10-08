@@ -17,13 +17,14 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import { and, eq } from '~/sql/expressions/index.ts';
-import { Param, SQL, sql, View } from '~/sql/sql.ts';
-import type { Name, Placeholder, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
+import { Name, Param, SQL, sql, View } from '~/sql/sql.ts';
+import type { Placeholder, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { type Casing, mapColumnsToIdentifiers, orderSelectedFields, replaceIdentifierWithField, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
+import { MySqlCustomColumn } from './columns/custom.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
 import type {
@@ -245,8 +246,21 @@ export class MySqlDialect {
 					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 				}
 			} else if (is(field, Column)) {
-				if (isSingleTable) {
-					chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+				const columnName = this.casing.getColumnCasing(field);
+				const customSelect = is(field, MySqlCustomColumn) ? field.getSelectSQL(columnName) : undefined;
+
+				if (customSelect) {
+					let query = is(customSelect, SQL.Aliased) ? customSelect.sql : customSelect;
+					if (isSingleTable) {
+						query = mapColumnsToIdentifiers(query, this.casing);
+					} else {
+						query = replaceIdentifierWithField(query, columnName, field);
+					}
+					chunk.push(query);
+					const alias = is(customSelect, SQL.Aliased) ? customSelect.fieldAlias : columnName;
+					chunk.push(sql` as ${sql.identifier(alias)}`);
+				} else if (isSingleTable) {
+					chunk.push(sql.identifier(columnName));
 				} else {
 					chunk.push(field);
 				}
@@ -893,13 +907,22 @@ export class MySqlDialect {
 		if (nestedQueryRelation) {
 			let field = sql`json_array(${
 				sql.join(
-					selection.map(({ field, tsKey, isJson }) =>
-						isJson
-							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
-							: is(field, SQL.Aliased)
-							? field.sql
-							: field
-					),
+					selection.map(({ field, tsKey, isJson }) => {
+						if (isJson) {
+							return sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`;
+						}
+						if (is(field, SQL.Aliased)) {
+							return field.sql;
+						}
+						if (is(field, MySqlCustomColumn)) {
+							const customSelect = field.getSelectSQL(this.casing.getColumnCasing(field));
+							if (customSelect) {
+								const query = is(customSelect, SQL.Aliased) ? customSelect.sql : customSelect;
+								return replaceIdentifierWithField(query, this.casing.getColumnCasing(field), field);
+							}
+						}
+						return field;
+					}),
 					sql`, `,
 				)
 			})`;
@@ -1235,13 +1258,22 @@ export class MySqlDialect {
 		if (nestedQueryRelation) {
 			let field = sql`json_array(${
 				sql.join(
-					selection.map(({ field }) =>
-						is(field, MySqlColumn)
-							? sql.identifier(this.casing.getColumnCasing(field))
-							: is(field, SQL.Aliased)
-							? field.sql
-							: field
-					),
+					selection.map(({ field }) => {
+						if (is(field, MySqlCustomColumn)) {
+							const customSelect = field.getSelectSQL(this.casing.getColumnCasing(field));
+							if (customSelect) {
+								const query = is(customSelect, SQL.Aliased) ? customSelect.sql : customSelect;
+								return replaceIdentifierWithField(query, this.casing.getColumnCasing(field), field);
+							}
+						}
+						if (is(field, MySqlColumn)) {
+							return sql.identifier(this.casing.getColumnCasing(field));
+						}
+						if (is(field, SQL.Aliased)) {
+							return field.sql;
+						}
+						return field;
+					}),
 					sql`, `,
 				)
 			})`;

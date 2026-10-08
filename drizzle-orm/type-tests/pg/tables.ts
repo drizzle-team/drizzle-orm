@@ -1474,3 +1474,32 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 
 	Expect<Equal<{ enum: Role | null }[], typeof schemaRes>>;
 }
+
+{
+	type Point = { x: number; y: number };
+
+	const customPoint = customType<{ data: Point; driverData: string }>({
+		dataType() {
+			return 'geometry(Point, 4326)';
+		},
+		toDriver(value: Point) {
+			return `POINT(${value.x} ${value.y})`;
+		},
+		fromDriver(value: string) {
+			const match = value.match(/POINT\(([\d.-]+)\s+([\d.-]+)\)/);
+			return match ? { x: parseFloat(match[1]!), y: parseFloat(match[2]!) } : { x: 0, y: 0 };
+		},
+		selectFromDb(column, decoder) {
+			return sql<Point>`st_astext(${sql.identifier(column)})`.mapWith(decoder).as(column);
+		},
+	});
+
+	const locationTable = pgTable('locations', {
+		id: serial('id').primaryKey(),
+		coords: customPoint('coords').notNull(),
+	});
+
+	const res = await db.select().from(locationTable);
+	Expect<Equal<{ id: number; coords: Point }[], typeof res>>;
+}
+
