@@ -9,6 +9,9 @@ import {
 	decimal,
 	doublePrecision,
 	inet,
+	type InferFunctionArgs,
+	type InferFunctionReturns,
+	type InferFunctionSchema,
 	integer,
 	interval,
 	json,
@@ -18,11 +21,18 @@ import {
 	macaddr8,
 	numeric,
 	pgEnum,
+	pgFunction,
+	type PgFunctionArgument,
 	point,
 	real,
+	returnsRecord,
+	returnsTrigger,
+	returnsVoid,
 	serial,
+	setOf,
 	smallint,
 	smallserial,
+	tableReturn,
 	text,
 	time,
 	timestamp,
@@ -30,19 +40,6 @@ import {
 	varchar,
 } from '~/pg-core/index.ts';
 import { sql } from '~/sql/sql.ts';
-
-import {
-	type InferFunctionArgs,
-	type InferFunctionReturns,
-	type InferFunctionSchema,
-	pgFunction,
-	type PgFunctionArgument,
-	returnsRecord,
-	returnsTrigger,
-	returnsVoid,
-	setOf,
-	tableReturn,
-} from '~/pg-core/functions.ts';
 
 import { type Equal, Expect } from 'type-tests/utils.ts';
 
