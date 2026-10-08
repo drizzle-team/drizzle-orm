@@ -78,7 +78,16 @@ export async function migrate<
 				}
 			}
 		} catch (error: any) {
-			tx.rollback();
+			// tx.rollback() throws a sentinel TransactionRollbackError to abort
+			// the surrounding transaction. Attach the original migration error
+			// as the cause so callers can surface it instead of seeing only the
+			// "Rollback" message.
+			try {
+				tx.rollback();
+			} catch (rollbackError: any) {
+				rollbackError.cause = error;
+				throw rollbackError;
+			}
 			throw error;
 		}
 	});
