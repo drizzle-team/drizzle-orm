@@ -23,7 +23,7 @@ import {
 	type RelationalQueryMapperConfig,
 	type RelationsBuilder,
 } from '~/relations';
-import { eq, max, sql } from '~/sql';
+import { avg, avgDistinct, eq, max, sql, sum, sumDistinct } from '~/sql';
 import {
 	getColumns,
 	getTableColumns,
@@ -1326,6 +1326,39 @@ const codecDb = createDB({ codecUsers, codecUsersView }, (r) => ({
 	codecUsers: { self: r.one.codecUsers({ from: r.codecUsers.id, to: r.codecUsers.id }) },
 	codecUsersView: { self: r.one.codecUsersView({ from: r.codecUsersView.id, to: r.codecUsersView.id }) },
 }));
+
+const aggregateCodec = customType<{ data: { usd: string }; driverData: string }>({
+	dataType: () => 'numeric(10, 2)',
+	fromDriver: (value) => ({ usd: String(value) }),
+	toDriver: (value) => value.usd,
+});
+
+const aggregateTable = pgTable('aggregate_codec_jit', {
+	customAmount: aggregateCodec('custom_amount').notNull(),
+	integerAmount: integer('integer_amount').notNull(),
+});
+
+const aggregateDb = drizzle('memory://', { jit: true });
+
+test('Column as decoder: aggregate functions preserve custom column decoders', () => {
+	const mapper = aggregateDb.select({
+		customAvg: avg(aggregateTable.customAmount),
+		customAvgDistinct: avgDistinct(aggregateTable.customAmount),
+		customSum: sum(aggregateTable.customAmount),
+		customSumDistinct: sumDistinct(aggregateTable.customAmount),
+		integerAvg: avg(aggregateTable.integerAmount),
+		integerSum: sum(aggregateTable.integerAmount),
+	}).from(aggregateTable).prepare().mapper!;
+
+	expect(mapper([['10.10', '10.10', '20.20', '20.20', '10.10', '20.20']])).toStrictEqual([{
+		customAvg: { usd: '10.10' },
+		customAvgDistinct: { usd: '10.10' },
+		customSum: { usd: '20.20' },
+		customSumDistinct: { usd: '20.20' },
+		integerAvg: '10.10',
+		integerSum: '20.20',
+	}]);
+});
 
 const nulls = (n: number) => [Array.from({ length: n }, () => null)];
 
