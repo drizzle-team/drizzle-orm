@@ -218,10 +218,10 @@ That's the neat part - you can do that however you'd like! No hand-holding here.
 For example, one of the ways to do that would be `Array.reduce()`:
 
 ```typescript
-import { InferModel } from 'drizzle-orm';
+import { InferSelectModel } from 'drizzle-orm';
 
-type User = InferModel<typeof users>;
-type City = InferModel<typeof cities>;
+type User = InferSelectModel<typeof users>;
+type City = InferSelectModel<typeof cities>;
 
 const rows = await db
   .select({
