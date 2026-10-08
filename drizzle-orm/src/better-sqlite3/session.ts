@@ -34,6 +34,9 @@ export class BetterSQLiteSession<
 	private logger: Logger;
 	private cache: Cache;
 
+	/** Cache of prepared statements keyed by SQL string to avoid native memory leak from repeated prepare() calls */
+	private stmtCache = new Map<string, Statement>();
+
 	constructor(
 		private client: Database,
 		dialect: SQLiteSyncDialect,
@@ -57,7 +60,11 @@ export class BetterSQLiteSession<
 		},
 		cacheConfig?: WithCacheConfig,
 	): PreparedQuery<T> {
-		const stmt = this.client.prepare(query.sql);
+		let stmt = this.stmtCache.get(query.sql);
+		if (!stmt) {
+			stmt = this.client.prepare(query.sql);
+			this.stmtCache.set(query.sql, stmt);
+		}
 		return new PreparedQuery(
 			stmt,
 			query,
