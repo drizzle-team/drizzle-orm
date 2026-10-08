@@ -41,15 +41,15 @@ export function mapResultRow<TResult>(
 					node = node[pathChunk];
 				} else {
 					const rawValue = row[columnIndex]!;
-					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
+					node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
 						const tableName = getTableName(field.table);
 
-						if (value !== null) {
-							// A non-null column proves that the joined row exists, regardless
-							// of which selected column for this object was encountered first.
+						if (rawValue !== null) {
+							// The database value proves the row exists even when its decoder
+							// returns null, regardless of the selected column order.
 							nullifyMap[objectName] = false;
 						} else if (!(objectName in nullifyMap)) {
 							nullifyMap[objectName] = tableName;

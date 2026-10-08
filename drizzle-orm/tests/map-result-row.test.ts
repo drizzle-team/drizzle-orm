@@ -1,5 +1,5 @@
 import { describe, it } from 'vitest';
-import { pgTable, text } from '~/pg-core/index.ts';
+import { customType, pgTable, text } from '~/pg-core/index.ts';
 import { mapResultRow } from '~/utils.ts';
 
 const orgs = pgTable('orgs', {
@@ -56,4 +56,27 @@ describe.concurrent('mapResultRow nested partial select', () => {
 			branding: { logo: null, panelBackground: null },
 		});
 	});
+	it('keeps a matched object when a non-null database value decodes to null', ({ expect }) => {
+		const nullableText = customType<{ data: string | null; driverData: string }>({
+			dataType: () => 'text',
+			fromDriver: () => null,
+		});
+		const branding = pgTable('org_branding', {
+			logo: text('logo'),
+			panelBackground: nullableText('panel_background'),
+		});
+		const fields = [
+			{ path: ['branding', 'logo'], field: branding.logo },
+			{ path: ['branding', 'panelBackground'], field: branding.panelBackground },
+		];
+
+		expect(mapResultRow(fields, [null, 'hidden'], leftJoined)).toEqual({
+			branding: { logo: null, panelBackground: null },
+		});
+		expect(mapResultRow([...fields].reverse(), ['hidden', null], leftJoined)).toEqual({
+			branding: { panelBackground: null, logo: null },
+		});
+		expect(mapResultRow(fields, [null, null], leftJoined)).toEqual({ branding: null });
+	});
+
 });
