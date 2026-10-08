@@ -2,6 +2,14 @@ import { Kind, Type as t, TypeRegistry } from '@sinclair/typebox';
 import type { StringOptions, TSchema, Type as typebox } from '@sinclair/typebox';
 import type { Column, ColumnBaseConfig } from 'drizzle-orm';
 import type {
+	GelDateDuration,
+	GelDuration,
+	GelLocalDateString,
+	GelLocalTime,
+	GelRelDuration,
+	GelTimestamp,
+} from 'drizzle-orm/gel-core';
+import type {
 	MySqlBigInt53,
 	MySqlChar,
 	MySqlDouble,
@@ -63,6 +71,11 @@ export const literalSchema = t.Union([t.String(), t.Number(), t.Boolean(), t.Nul
 export const jsonSchema: JsonSchema = t.Union([literalSchema, t.Array(t.Any()), t.Record(t.String(), t.Any())]) as any;
 TypeRegistry.Set('Buffer', (_, value) => value instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
 export const bufferSchema: BufferSchema = { [Kind]: 'Buffer', type: 'buffer' } as any;
+// Gel temporal columns carry opaque `gel`-package class instances at runtime; there is no `gel`
+// dependency here, so the schema validates a non-null object instead of falling through to
+// `t.Any()` (#6027).
+TypeRegistry.Set('GelTemporal', (_schema, value) => typeof value === 'object' && value !== null);
+export const gelTemporalSchema = { [Kind]: 'GelTemporal', type: 'object' } as any;
 
 export function mapEnumValues(values: string[]) {
 	return Object.fromEntries(values.map((value) => [value, value]));
@@ -130,6 +143,31 @@ export function columnToSchema(column: Column, t: typeof typebox): TSchema {
 			schema = t.Any();
 		} else if (column.dataType === 'buffer') {
 			schema = bufferSchema;
+		} else if (
+			isColumnType<
+				| GelDateDuration<any>
+				| GelDuration<any>
+				| GelRelDuration<any>
+				| GelLocalTime<any>
+				| GelLocalDateString<any>
+				| GelTimestamp<any>
+			>(column, [
+				'GelDateDuration',
+				'GelDuration',
+				'GelRelDuration',
+				'GelLocalTime',
+				'GelLocalDateString',
+				'GelTimestamp',
+			])
+		) {
+			// Gel-only ColumnDataType variants (dateDuration, duration, relDuration,
+			// localTime, localDate, localDateTime). Their runtime values are opaque driver
+			// class instances from the `gel` package (Duration, RelativeDuration,
+			// DateDuration, LocalTime, LocalDate, LocalDateTime). drizzle-typebox has no
+			// `gel` dependency, so rather than an `instanceof` check we validate that the
+			// value is a non-null object instead of letting it fall through to the
+			// `t.Any()` catch-all, which validated nothing (#6027).
+			schema = gelTemporalSchema;
 		}
 	}
 
