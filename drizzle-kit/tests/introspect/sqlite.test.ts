@@ -2,6 +2,8 @@ import Database from 'better-sqlite3';
 import { SQL, sql } from 'drizzle-orm';
 import { check, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
+import { schemaToTypeScript as schemaToTypeScriptSQLite } from 'src/introspect-sqlite';
+import { fromDatabase as fromSqliteDatabase } from 'src/serializer/sqliteSerializer';
 import { introspectSQLiteToFile } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
 
@@ -119,4 +121,57 @@ test('view #1', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect sqlite boolean columns with true/false defaults', async () => {
+	const sqlite = new Database(':memory:');
+
+	// raw DDL mirroring drizzle-team/drizzle-orm#6182, including uppercase defaults
+	sqlite.exec(`
+		CREATE TABLE session_prompt (
+			pending BOOLEAN NOT NULL DEFAULT true,
+			error BOOLEAN NOT NULL DEFAULT false,
+			flag_up BOOLEAN NOT NULL DEFAULT TRUE,
+			flag_down BOOLEAN NOT NULL DEFAULT FALSE,
+			archived BOOLEAN NOT NULL DEFAULT (TRUE)
+		);
+	`);
+
+	const { statements, sqlStatements } = await introspectSQLiteToFile(
+		sqlite,
+		{},
+		'introspect-sqlite-boolean',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect sqlite boolean columns codegen', async () => {
+	const sqlite = new Database(':memory:');
+
+	sqlite.exec(`
+		CREATE TABLE session_prompt (
+			pending BOOLEAN NOT NULL DEFAULT true,
+			error BOOLEAN NOT NULL DEFAULT false,
+			flag_up BOOLEAN NOT NULL DEFAULT TRUE,
+			flag_down BOOLEAN NOT NULL DEFAULT FALSE,
+			archived BOOLEAN NOT NULL DEFAULT (TRUE)
+		);
+	`);
+
+	const schema = await fromSqliteDatabase({
+		query: async <T>(sql: string, params: any[] = []) => {
+			return sqlite.prepare(sql).bind(params).all() as T[];
+		},
+		run: async (query: string) => {
+			sqlite.prepare(query).run();
+		},
+	});
+
+	const { file } = schemaToTypeScriptSQLite(schema, 'preserve');
+
+	expect(file).toContain(`integer({ mode: 'boolean' }).default(true).notNull()`);
+	expect(file).toContain(`integer({ mode: 'boolean' }).default(false).notNull()`);
+	expect(file).not.toContain('numeric(');
 });
