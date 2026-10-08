@@ -973,14 +973,16 @@ order by ${aliases[dim - 1]})`;
 /** Used to recursively apply value normalizer to array of unknown dimensions */
 export const arrayCompatNormalize = (normalize: NormalizeCodec) => {
 	const loop: NormalizeArrayCodec = (value, arrayDimensions) => {
+		if (value === null) return value;
+
 		const innerDimensions = arrayDimensions - 1;
 		if (arrayDimensions > 1) {
 			for (let i = 0; i < (value as unknown[][]).length; ++i) {
 				loop((value as unknown[][])[i]!, innerDimensions);
 			}
 		} else {
-			for (let i = 0; i < (value as unknown[][]).length; ++i) {
-				value[i] = normalize((value as unknown[][])[i]!);
+			for (let i = 0; i < (value as unknown[]).length; ++i) {
+				value[i] = value[i] === null ? null : normalize(value[i]);
 			}
 		}
 
@@ -993,6 +995,8 @@ export const arrayCompatNormalize = (normalize: NormalizeCodec) => {
 /** Doesn't mutate original data - used for insertions */
 export const arrayCompatNormalizeInput = (normalize: NormalizeCodec, transformToPgArray = false) => {
 	const loop: NormalizeArrayCodec = (value, arrayDimensions): any => {
+		if (value === null) return value;
+
 		const innerDimensions = arrayDimensions - 1;
 		const out = Array.from({ length: value.length });
 		if (arrayDimensions > 1) {
@@ -1000,8 +1004,8 @@ export const arrayCompatNormalizeInput = (normalize: NormalizeCodec, transformTo
 				out[i] = loop((value as unknown[][])[i]!, innerDimensions);
 			}
 		} else {
-			for (let i = 0; i < (value as unknown[][]).length; ++i) {
-				out[i] = normalize((value as unknown[][])[i]!);
+			for (let i = 0; i < (value as unknown[]).length; ++i) {
+				out[i] = (value as unknown[])[i] === null ? null : normalize((value as unknown[])[i]!);
 			}
 		}
 
