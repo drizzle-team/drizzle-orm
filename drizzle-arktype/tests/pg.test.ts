@@ -5,6 +5,7 @@ import {
 	integer,
 	json,
 	jsonb,
+	numeric,
 	pgEnum,
 	pgMaterializedView,
 	pgSchema,
@@ -14,7 +15,7 @@ import {
 	text,
 } from 'drizzle-orm/pg-core';
 import type { TopLevelCondition } from 'json-rules-engine';
-import { test } from 'vitest';
+import { expect, test } from 'vitest';
 import { bigintNarrow, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
@@ -500,6 +501,24 @@ test('all data types', (t) => {
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('numeric with bigint mode accepts values beyond int64 range - select', (t) => {
+	// Regression test for https://github.com/drizzle-team/drizzle-orm/issues/5146:
+	// a `PgNumericBigInt` column must not be constrained to the int64 range.
+	const table = pgTable('test_numeric_bigint', {
+		testProp: numeric({ mode: 'bigint', precision: 78, scale: 0 }).notNull(),
+	});
+
+	const result = createSelectSchema(table);
+	const expected = type({ testProp: type.bigint });
+
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+
+	// A valid high-precision value (well beyond the int64 range) must validate.
+	const bigValue = 100000000000000000000n;
+	expect(result({ testProp: bigValue })).toStrictEqual({ testProp: bigValue });
 });
 
 /* Infinitely recursive type */ {
