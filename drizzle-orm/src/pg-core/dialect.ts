@@ -112,6 +112,7 @@ export class PgDialect {
 	}
 
 	escapeName(name: string): string {
+		if (name == null) return '""';
 		return `"${name.replace(/"/g, '""')}"`;
 	}
 
