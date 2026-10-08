@@ -1266,7 +1266,7 @@ export class MySqlDialect {
 				sql.join(
 					selection.map(({ field }) =>
 						is(field, MySqlColumn)
-							? sql.identifier(this.casing.getColumnCasing(field))
+							? mapColumnSelection(field, sql`${sql.identifier(this.casing.getColumnCasing(field))}`)
 							: is(field, SQL.Aliased)
 							? field.sql
 							: field

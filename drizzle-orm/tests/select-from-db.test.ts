@@ -5,14 +5,17 @@ import {
 	customType as mysqlCustomType,
 	int as mysqlInt,
 	mysqlTable,
+	mysqlView,
 	serial as mysqlSerial,
 	varchar,
 } from '~/mysql-core/index.ts';
+import { MySqlDatabase, MySqlDialect } from '~/mysql-core/index.ts';
 import { drizzle as mysqlDrizzle } from '~/mysql-proxy/driver.ts';
+import { MySqlRemoteSession } from '~/mysql-proxy/session.ts';
 import { PgDialect } from '~/pg-core/index.ts';
-import { customType, integer, pgTable, serial, text } from '~/pg-core/index.ts';
+import { customType, integer, pgMaterializedView, pgTable, pgView, serial, text } from '~/pg-core/index.ts';
 import { drizzle as pgDrizzle } from '~/pg-proxy/driver.ts';
-import { relations } from '~/relations.ts';
+import { createTableRelationsHelpers, extractTablesRelationalConfig, relations } from '~/relations.ts';
 import {
 	customType as ssCustomType,
 	serial as ssSerial,
@@ -25,6 +28,7 @@ import {
 	customType as sqliteCustomType,
 	integer as sqliteInteger,
 	sqliteTable,
+	sqliteView,
 	text as sqliteText,
 } from '~/sqlite-core/index.ts';
 import { drizzle as sqliteDrizzle } from '~/sqlite-proxy/driver.ts';
@@ -219,4 +223,88 @@ test('selectFromDb applies in gel select field lists', () => {
 	expect(gelDialect.sqlToQuery(query).sql).toBe(
 		'select "places"."id", "places"."name", to_json("places"."geo") as "geo" from "places"',
 	);
+});
+
+test('selectFromDb is not re-applied to columns of a query-built view', () => {
+	// The view's own query already applies selectFromDb, so its output column holds the transformed value
+	const placesView = pgView('places_view').as((qb) => qb.select().from(places));
+
+	expect(toSQL(db.select().from(placesView))).toBe('select "id", "name", "owner_id", "geo" from "places_view"');
+	expect(toSQL(db.select({ geo: placesView.geo }).from(placesView))).toBe('select "geo" from "places_view"');
+	expect(toSQL(db.select().from(places).leftJoin(placesView, sql`true`))).toBe(
+		'select "places"."id", "places"."name", "places"."owner_id", ST_AsText("places"."geo") as "geo", "places_view"."id", "places_view"."name", "places_view"."owner_id", "places_view"."geo" from "places" left join "places_view" on true',
+	);
+
+	const materialized = pgMaterializedView('places_mv').as((qb) => qb.select().from(places));
+	expect(toSQL(db.select().from(materialized))).toBe('select "id", "name", "owner_id", "geo" from "places_mv"');
+});
+
+test('selectFromDb still applies to columns of a view declared with raw SQL', () => {
+	// A view defined with explicit columns and raw SQL returns the raw database value
+	const rawView = pgView('places_raw', { id: integer('id'), geo: customPoint('geo') }).as(
+		sql`select "id", "geo" from "places"`,
+	);
+
+	expect(toSQL(db.select().from(rawView))).toBe('select "id", ST_AsText("geo") as "geo" from "places_raw"');
+	expect(toSQL(db.select({ geo: rawView.geo }).from(rawView))).toBe(
+		'select ST_AsText("geo") as "geo" from "places_raw"',
+	);
+});
+
+test('selectFromDb is not re-applied to query-built views in mysql and sqlite', () => {
+	const mysqlPoint = mysqlCustomType<{ data: string; driverData: string }>({
+		dataType: () => 'point',
+		selectFromDb: (column) => sql`ST_AsText(${column})`,
+	});
+	const mysqlPlaces = mysqlTable('places', { id: mysqlSerial('id').primaryKey(), geo: mysqlPoint('geo') });
+	const mysqlPlacesView = mysqlView('places_view').as((qb) => qb.select().from(mysqlPlaces));
+	expect(mysqlDrizzle(remoteCallback).select().from(mysqlPlacesView).toSQL().sql).toBe(
+		'select `id`, `geo` from `places_view`',
+	);
+
+	const sqlitePoint = sqliteCustomType<{ data: string; driverData: string }>({
+		dataType: () => 'blob',
+		selectFromDb: (column) => sql`AsText(${column})`,
+	});
+	const sqlitePlaces = sqliteTable('places', { id: sqliteInteger('id').primaryKey(), geo: sqlitePoint('geo') });
+	const sqlitePlacesView = sqliteView('places_view').as((qb) => qb.select().from(sqlitePlaces));
+	expect(sqliteDrizzle(remoteCallback).select().from(sqlitePlacesView).toSQL().sql).toBe(
+		'select "id", "geo" from "places_view"',
+	);
+});
+
+test('selectFromDb applies inside nested relational JSON payloads in mysql planetscale mode', () => {
+	const mysqlPoint = mysqlCustomType<{ data: string; driverData: string }>({
+		dataType: () => 'point',
+		selectFromDb: (column) => sql`ST_AsText(${column})`,
+	});
+	const mUsers = mysqlTable('users', { id: mysqlSerial('id').primaryKey(), name: varchar('name', { length: 32 }) });
+	const mPlaces = mysqlTable('places', {
+		id: mysqlSerial('id').primaryKey(),
+		ownerId: mysqlInt('owner_id'),
+		geo: mysqlPoint('geo'),
+	});
+	const fullSchema = {
+		mUsers,
+		mPlaces,
+		mUsersRelations: relations(mUsers, ({ many }) => ({ places: many(mPlaces) })),
+		mPlacesRelations: relations(mPlaces, ({ one }) => ({
+			owner: one(mUsers, { fields: [mPlaces.ownerId], references: [mUsers.id] }),
+		})),
+	};
+	// PlanetScale mode builds relational queries without lateral joins (as the planetscale-serverless driver does)
+	const tablesConfig = extractTablesRelationalConfig(fullSchema, createTableRelationsHelpers);
+	const schema = { fullSchema, schema: tablesConfig.tables, tableNamesMap: tablesConfig.tableNamesMap };
+	const mysqlDialect = new MySqlDialect();
+	const session = new MySqlRemoteSession(remoteCallback, mysqlDialect, schema, {});
+	const pdb = new MySqlDatabase(mysqlDialect, session, schema as any, 'planetscale') as MySqlDatabase<
+		any,
+		any,
+		typeof fullSchema
+	>;
+
+	const sqlText = pdb.query.mUsers.findMany({ with: { places: true } }).toSQL().sql;
+
+	expect(sqlText).not.toContain('lateral');
+	expect(sqlText).toContain('json_array(`id`, `owner_id`, ST_AsText(`geo`))');
 });
