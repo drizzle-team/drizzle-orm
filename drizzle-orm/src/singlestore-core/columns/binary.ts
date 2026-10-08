@@ -2,61 +2,78 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type SingleStoreBinaryBuilderInitial<TName extends string> = SingleStoreBinaryBuilder<{
+export type BinaryMode = 'buffer' | 'string';
+
+export type SingleStoreBinaryBufferBuilderInitial<TName extends string> = SingleStoreBinaryBuilder<{
+	name: TName;
+	dataType: 'buffer';
+	columnType: 'SingleStoreBinary';
+	data: Buffer;
+	driverParam: Buffer | string;
+	enumValues: undefined;
+}>;
+
+export type SingleStoreBinaryStringBuilderInitial<TName extends string> = SingleStoreBinaryBuilder<{
 	name: TName;
 	dataType: 'string';
 	columnType: 'SingleStoreBinary';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }>;
 
-export class SingleStoreBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreBinary'>>
-	extends SingleStoreColumnBuilder<
-		T,
-		SingleStoreBinaryConfig
-	>
-{
+export class SingleStoreBinaryBuilder<
+	T extends ColumnBuilderBaseConfig<'buffer' | 'string', 'SingleStoreBinary'>,
+> extends SingleStoreColumnBuilder<T, SingleStoreBinaryConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreBinaryBuilder';
 
-	constructor(name: T['name'], length: number | undefined) {
-		super(name, 'string', 'SingleStoreBinary');
+	constructor(name: T['name'], length: number | undefined, mode: BinaryMode) {
+		super(name, mode === 'string' ? 'string' : 'buffer', 'SingleStoreBinary');
 		this.config.length = length;
+		this.config.mode = mode;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnySingleStoreTable<{ name: TTableName }>,
 	): SingleStoreBinary<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreBinary<MakeColumnConfig<T, TTableName>>(
-			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
-		);
+		return new SingleStoreBinary<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
 	}
 }
 
-export class SingleStoreBinary<T extends ColumnBaseConfig<'string', 'SingleStoreBinary'>> extends SingleStoreColumn<
+export class SingleStoreBinary<T extends ColumnBaseConfig<'buffer' | 'string', 'SingleStoreBinary'>> extends SingleStoreColumn<
 	T,
 	SingleStoreBinaryConfig
 > {
 	static override readonly [entityKind]: string = 'SingleStoreBinary';
 
 	length: number | undefined = this.config.length;
+	mode: BinaryMode = this.config.mode ?? 'buffer';
 
-	override mapFromDriverValue(value: string | Buffer | Uint8Array): string {
-		if (typeof value === 'string') return value;
-		if (Buffer.isBuffer(value)) return value.toString();
+	override mapFromDriverValue(value: string | Buffer | Uint8Array): T['data'] {
+		if (this.mode === 'string') {
+			if (typeof value === 'string') return value as T['data'];
+			if (Buffer.isBuffer(value)) return value.toString() as T['data'];
 
-		const str: string[] = [];
-		for (const v of value) {
-			str.push(v === 49 ? '1' : '0');
+			const str: string[] = [];
+			for (const v of value) {
+				str.push(v === 49 ? '1' : '0');
+			}
+			return str.join('') as T['data'];
 		}
 
-		return str.join('');
+		// buffer mode (default): preserve bytes. PlanetScale may hand us a string.
+		if (Buffer.isBuffer(value)) return value as T['data'];
+		if (typeof value === 'string') return Buffer.from(value, 'binary') as T['data'];
+		return Buffer.from(value) as T['data'];
+	}
+
+	override mapToDriverValue(value: T['data']): Buffer | string {
+		if (typeof value === 'string') return value;
+		return value as Buffer;
 	}
 
 	getSQLType(): string {
@@ -64,19 +81,25 @@ export class SingleStoreBinary<T extends ColumnBaseConfig<'string', 'SingleStore
 	}
 }
 
-export interface SingleStoreBinaryConfig {
+export interface SingleStoreBinaryConfig<TMode extends BinaryMode = BinaryMode> {
 	length?: number;
+	/**
+	 * - `'buffer'` (default): matches mysql2 — select type is `Buffer`, bytes preserved.
+	 * - `'string'`: legacy behaviour / PlanetScale-friendly string mapping.
+	 */
+	mode?: TMode;
 }
 
-export function binary(): SingleStoreBinaryBuilderInitial<''>;
-export function binary(
-	config?: SingleStoreBinaryConfig,
-): SingleStoreBinaryBuilderInitial<''>;
-export function binary<TName extends string>(
+export function binary(): SingleStoreBinaryBufferBuilderInitial<''>;
+export function binary<TMode extends BinaryMode>(
+	config?: SingleStoreBinaryConfig<TMode>,
+): Equal<TMode, 'string'> extends true ? SingleStoreBinaryStringBuilderInitial<''> : SingleStoreBinaryBufferBuilderInitial<''>;
+export function binary<TName extends string, TMode extends BinaryMode>(
 	name: TName,
-	config?: SingleStoreBinaryConfig,
-): SingleStoreBinaryBuilderInitial<TName>;
+	config?: SingleStoreBinaryConfig<TMode>,
+): Equal<TMode, 'string'> extends true ? SingleStoreBinaryStringBuilderInitial<TName> : SingleStoreBinaryBufferBuilderInitial<TName>;
 export function binary(a?: string | SingleStoreBinaryConfig, b: SingleStoreBinaryConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreBinaryConfig>(a, b);
-	return new SingleStoreBinaryBuilder(name, config.length);
+	const mode = config.mode ?? 'buffer';
+	return new SingleStoreBinaryBuilder(name, config.length, mode);
 }
