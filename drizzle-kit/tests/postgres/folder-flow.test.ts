@@ -1,13 +1,11 @@
 import { PGlite } from '@electric-sql/pglite';
-import { index, integer, pgPolicy, pgRole, pgTable, text, varchar } from 'drizzle-orm/pg-core';
+import { index, integer, pgPolicy, pgRole, pgTable, primaryKey, text, unique, varchar } from 'drizzle-orm/pg-core';
 import { join } from 'path';
 import { errorToEnvelope } from 'src/cli/errors';
-import { createDDL } from 'src/dialects/postgres/ddl';
-import { reconstruct, stateHash } from 'src/dialects/postgres/snapshot';
+import type { Delta } from 'src/dialects/dialect';
 import { expect, onTestFinished, test } from 'vitest';
 import { ORIGIN, writeSnapshot } from '../other/check-fixtures';
-import { columnRow, createFolderFlow, schemaState, tempDir } from './folder-flow';
-import { drizzleToDDL } from './mocks';
+import { columnRow, createFolderFlow, malformedEnvelope, reconstructFix, schemaState, tempDir } from './folder-flow';
 
 test('linear history with a column rename', async () => {
 	const flow = createFolderFlow();
@@ -36,9 +34,6 @@ test('linear history with a column rename', async () => {
 	const second = flow.snapshot('main', '20260101120002_main');
 	const third = flow.snapshot('main', '20260101120003_main');
 	expect(second.prevIds).toStrictEqual([first.id]);
-	// The rename is followed by one instruction for every reference rule that points at columns.
-	const inUsers = { schema: 'public', table: 'users' };
-	const renamed = { field: 'columns', from: 'email', to: 'contact' };
 	expect(third).toStrictEqual({
 		type: 'diff',
 		version: '9',
@@ -46,28 +41,7 @@ test('linear history with a column rename', async () => {
 		id: third.id,
 		prevIds: [second.id],
 		statements: [expect.objectContaining({ type: 'rename_column' })],
-		deltas: [
-			{ op: 'rename', key: 'columns\0["public","users","email"]', set: { name: 'contact' } },
-			{
-				op: 'update_list_items',
-				type: 'indexes',
-				where: inUsers,
-				field: 'columns',
-				match: { value: 'email', isExpression: false },
-				set: { value: 'contact' },
-			},
-			{ op: 'replace_in_list', type: 'pks', where: inUsers, ...renamed },
-			{ op: 'replace_in_list', type: 'uniques', where: inUsers, ...renamed },
-			{ op: 'replace_in_list', type: 'fks', where: inUsers, ...renamed },
-			{
-				op: 'replace_in_list',
-				type: 'fks',
-				where: { schemaTo: 'public', tableTo: 'users' },
-				...renamed,
-				field: 'columnsTo',
-			},
-		],
-		stateHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+		deltas: [{ op: 'rename', key: 'columns\0["public","users","email"]', set: { name: 'contact' } }],
 	});
 
 	expect(flow.leaves('main')).toStrictEqual(['20260101120003_main']);
@@ -76,7 +50,7 @@ test('linear history with a column rename', async () => {
 	expect(await flow.migrate('main', v3)).toStrictEqual([]);
 });
 
-test('a role rename writes only the rename, and its snapshot stores an instruction for each field that names a role', async () => {
+test('a role rename writes only the rename, and its snapshot stores one rename delta', async () => {
 	const flow = createFolderFlow();
 	const schema = (role: ReturnType<typeof pgRole>) => ({
 		role,
@@ -91,9 +65,6 @@ test('a role rename writes only the rename, and its snapshot stores an instructi
 	expect(flow.sql('main', folder!)).toBe('ALTER ROLE "staff" RENAME TO "team";');
 	expect(flow.deltas('main', folder!)).toStrictEqual([
 		{ op: 'rename', key: 'roles\0["staff"]', set: { name: 'team' } },
-		{ op: 'replace_in_list', type: 'policies', where: {}, field: 'roles', from: 'staff', to: 'team' },
-		{ op: 'update', type: 'privileges', where: { grantee: 'staff' }, set: { grantee: 'team' } },
-		{ op: 'update', type: 'privileges', where: { grantor: 'staff' }, set: { grantor: 'team' } },
 	]);
 	expect(flow.state('main', folder!)).toStrictEqual(schemaState(schema(pgRole('team'))));
 	expect(await flow.migrate('main', schema(pgRole('team')))).toStrictEqual([]);
@@ -143,85 +114,244 @@ test('check takes its conflicts from the stored statements of the snapshots', as
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 });
 
-test('generate stores the hash of the state after each migration', async () => {
+test('no snapshot that generate or up writes has a stateHash field', async () => {
 	const flow = createFolderFlow();
-	const v1 = { users: pgTable('users', { id: integer() }) };
-	const v2 = { users: pgTable('users', { id: integer(), email: varchar() }) };
-	const first = await flow.generate('main', v1);
-	const second = await flow.generate('main', v2);
-	const custom = await flow.generate('main', v2, { custom: true });
+	const users = pgTable('users', { id: integer() });
+	const likes = pgTable('likes', { id: integer() });
+	const groups = pgTable('groups', { id: integer() });
+	const merged = { users: pgTable('users', { id: integer(), email: varchar() }), likes, groups };
+	await flow.generate('main', { users });
+	flow.branch('a', 'main');
+	flow.branch('b', 'main');
+	await flow.generate('a', { users, likes });
+	await flow.generate('b', { users, groups });
+	flow.merge('main', 'a', 'b');
+	await flow.generate('main', merged);
+	await flow.generate('main', merged, { custom: true });
+	const converted = createFolderFlow();
+	converted.seed('main', join(__dirname, 'old-snapshots', 'format-8-merge'));
+	await converted.up('main');
 
-	const hashOf = (schema: Parameters<typeof drizzleToDDL>[0]) => stateHash(drizzleToDDL(schema).ddl);
-	expect(flow.snapshot('main', first.folder!).stateHash).toBe(hashOf(v1));
-	expect(flow.snapshot('main', second.folder!).stateHash).toBe(hashOf(v2));
-	expect(flow.snapshot('main', custom.folder!).stateHash).toBe(hashOf(v2));
+	const written = flow.folders('main').map((it) => flow.snapshot('main', it));
+	expect(written.map((it) => [it.type, it.prevIds.length])).toStrictEqual([
+		['base', 1],
+		['diff', 1],
+		['diff', 1],
+		['diff', 2],
+		['diff', 1],
+	]);
+	for (const it of [...written, ...converted.folders('main').map((folder) => converted.snapshot('main', folder))]) {
+		expect(it).not.toHaveProperty('stateHash');
+	}
 });
 
-test('a snapshot that was edited by hand stops check and generate, and the error names it', async () => {
+// The validator ignores a field that it does not know.
+test('a snapshot that holds a stateHash field with any value passes check, and generate continues from it', async () => {
 	const flow = createFolderFlow();
 	const v1 = { users: pgTable('users', { id: integer() }) };
 	const v2 = { users: pgTable('users', { id: integer(), email: varchar() }) };
 	const v3 = { users: pgTable('users', { id: integer(), email: varchar(), age: integer() }) };
-	await flow.generate('main', v1);
-	const { folder } = await flow.generate('main', v2);
-	const edited = flow.snapshot('main', folder!);
-	if (edited.type !== 'diff') throw new Error('The second migration must have a diff snapshot.');
-	edited.deltas[0] = { op: 'create', row: columnRow('users', 'mail', 'varchar') };
-	flow.overwriteSnapshot('main', folder!, JSON.stringify(edited, null, 2));
-	const before = flow.files('main');
-
-	const message = `Cannot rebuild snapshot ${folder}: the rebuilt state differs from the state that the snapshot `
-		+ `recorded. A snapshot.json in the history of ${folder} was edited by hand, or this drizzle-kit version `
-		+ 'rebuilds the history in another way than the version that wrote it.';
-	await expect(flow.check('main')).rejects.toThrow(message);
-	await expect(flow.generate('main', v3)).rejects.toThrow(message);
-	expect(errorToEnvelope(await flow.check('main').catch((e) => e))).toStrictEqual({
-		status: 'error',
-		error: {
-			code: 'check_error',
-			kind: 'state_hash',
-			snapshot: expect.stringContaining(join(folder!, 'snapshot.json')),
-		},
-	});
-	expect(flow.files('main')).toStrictEqual(before);
-});
-
-test('an edited snapshot in the middle of a history fails at the leaf that follows it', async () => {
-	const flow = createFolderFlow();
-	const v1 = { users: pgTable('users', { id: integer(), email: varchar() }) };
-	const v2 = { users: pgTable('users', { id: integer(), email: varchar().notNull() }) };
 	const first = await flow.generate('main', v1);
 	const second = await flow.generate('main', v2);
-	const base = flow.snapshot('main', first.folder!);
+	for (const [folder, stateHash] of [[first.folder!, 'not-a-hash'], [second.folder!, 42]] as const) {
+		flow.overwriteSnapshot('main', folder, JSON.stringify({ ...flow.snapshot('main', folder), stateHash }));
+	}
+
+	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
+	const { folder } = await flow.generate('main', v3);
+
+	expect(flow.sql('main', folder!)).toBe('ALTER TABLE "users" ADD COLUMN "age" integer;');
+	expect(flow.state('main', folder!)).toStrictEqual(schemaState(v3));
+});
+
+// Nothing compares a reconstructed state with the state at the time of writing. So generate takes the edited
+// state as the state of the database and writes SQL for the difference.
+test('after a hand edit of a base snapshot, check passes and generate writes SQL for the difference', async () => {
+	const flow = createFolderFlow();
+	const v1 = { users: pgTable('users', { id: integer(), email: varchar() }) };
+	const { folder: first } = await flow.generate('main', v1);
+	const base = flow.snapshot('main', first!);
 	if (base.type !== 'base') throw new Error('The first migration must have a base snapshot.');
 	const rows = base.ddl.map((
 		row,
 	) => (row.entityType === 'columns' && row.name === 'id' ? { ...row, type: 'bigint' } : row));
-	flow.overwriteSnapshot('main', first.folder!, JSON.stringify({ ...base, ddl: rows }, null, 2));
+	flow.overwriteSnapshot('main', first!, JSON.stringify({ ...base, ddl: rows }, null, 2));
 
-	await expect(flow.check('main')).rejects.toThrow(
-		`Cannot rebuild snapshot ${second.folder}: the rebuilt state differs from the state that the snapshot recorded.`,
+	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
+	const { folder } = await flow.generate('main', v1);
+
+	expect(flow.sql('main', folder!)).toBe(
+		'ALTER TABLE "users" ALTER COLUMN "id" SET DATA TYPE integer USING "id"::integer;',
 	);
+	expect(flow.state('main', folder!)).toStrictEqual(schemaState(v1));
 });
 
-test('check compares two independent first migrations', async () => {
+// A rename delta that moves the table users onto the key of another table. Reconstruct throws for it.
+const renameUsersTo = (name: string) => ({ op: 'rename', key: 'tables\0["public","users"]', set: { name } }) as const;
+
+test('a leaf that does not reconstruct passes check and stops generate, and the error names the migration folder', async () => {
 	const flow = createFolderFlow();
-	flow.branch('a');
-	flow.branch('b');
-	flow.branch('c');
-	await flow.generate('a', { users: pgTable('users', { id: integer() }) });
-	await flow.generate('b', { users: pgTable('users', { id: integer(), email: varchar() }) });
-	await flow.generate('c', { posts: pgTable('posts', { id: integer() }) });
+	const accounts = pgTable('accounts', { id: integer() });
+	const v1 = { users: pgTable('users', { id: integer() }), accounts };
+	const v2 = { users: pgTable('users', { id: integer(), email: varchar() }), accounts };
+	await flow.generate('main', v1);
+	const { folder } = await flow.generate('main', v2);
+	flow.appendDeltas('main', folder!, renameUsersTo('accounts'));
+	const before = flow.files('main');
 
-	flow.merge('main', 'a', 'c');
-	expect(flow.folders('main').map((it) => flow.snapshot('main', it).type)).toStrictEqual(['base', 'base']);
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
+	for (const custom of [false, true]) {
+		const error = await flow.generate('main', v2, { custom }).catch((e) => e);
+		expect(error.message).toContain(`Cannot reconstruct the state of migration ${folder}: `);
+		expect(error.message).toContain('tables ["public","users"]');
+		expect(error.message).toContain(reconstructFix(folder!));
+		expect(errorToEnvelope(error)).toStrictEqual(malformedEnvelope(folder!));
+	}
+	expect(flow.files('main')).toStrictEqual(before);
+});
 
-	flow.merge('main', 'b');
-	expect(await flow.check('main')).toMatchObject({
-		status: 'conflicts',
-		folders: ['20260101120001_a', '20260101120002_b'],
+test('check with a schema path warns that the schema was not compared when a leaf does not reconstruct', async () => {
+	const flow = createFolderFlow();
+	const accounts = pgTable('accounts', { id: integer() });
+	const v1 = { users: pgTable('users', { id: integer() }), accounts };
+	const v2 = { users: pgTable('users', { id: integer(), email: varchar() }), accounts };
+	await flow.generate('main', v1);
+	const { folder } = await flow.generate('main', v2);
+	flow.appendDeltas('main', folder!, renameUsersTo('accounts'));
+
+	const warnings = await flow.schemaWarnings('main', v2);
+
+	expect(warnings).toStrictEqual([{
+		kind: 'not_compared',
+		message: expect.stringContaining(`The error: Cannot reconstruct the state of migration ${folder}: `),
+	}]);
+});
+
+test('a snapshot that holds an instruction operation stops check and generate, and the error carries its path', async () => {
+	const flow = createFolderFlow();
+	const v1 = { users: pgTable('users', { id: integer() }) };
+	const v2 = { users: pgTable('users', { id: integer(), email: varchar() }) };
+	await flow.generate('main', v1);
+	const { folder } = await flow.generate('main', v2);
+	const instruction = { op: 'update', type: 'columns', where: { table: 'users' }, set: { table: 'accounts' } };
+	flow.appendDeltas('main', folder!, instruction as unknown as Delta);
+	const before = flow.files('main');
+
+	for (const run of [() => flow.check('main'), () => flow.generate('main', v2)]) {
+		expect(errorToEnvelope(await run().catch((e) => e))).toStrictEqual(malformedEnvelope(folder!));
+	}
+	expect(flow.files('main')).toStrictEqual(before);
+});
+
+test('generate stores one drop delta for a dropped table and for each of its columns, constraints and indexes', async () => {
+	const flow = createFolderFlow();
+	const users = pgTable('users', { id: integer().notNull(), email: varchar() }, (t) => [
+		primaryKey({ name: 'users_pk', columns: [t.id] }),
+		unique('users_email_unique').on(t.email),
+		index('users_email_idx').on(t.email),
+	]);
+	const posts = pgTable('posts', { id: integer() });
+	await flow.generate('main', { users, posts });
+
+	const { folder } = await flow.generate('main', { posts });
+
+	expect(flow.sql('main', folder!)).toBe('DROP TABLE "users";');
+	expect(flow.deltas('main', folder!).map((it) => (it.op === 'drop' ? it.key : it)).sort()).toStrictEqual([
+		'columns\0["public","users","email"]',
+		'columns\0["public","users","id"]',
+		'indexes\0["public","users_email_idx"]',
+		'pks\0["public","users","users_pk"]',
+		'tables\0["public","users"]',
+		'uniques\0["public","users","users_email_unique"]',
+	]);
+	expect(flow.state('main', folder!)).toStrictEqual(schemaState({ posts }));
+});
+
+// A drop removes one entity and follows no edge. So the index stays in the state, and its own delta gives it
+// the column list that it has after the column drop.
+test('after a column drop, an index of that column stays in the state with its other columns', async () => {
+	const flow = createFolderFlow();
+	const v1 = {
+		users: pgTable('users', { id: integer(), email: varchar(), name: varchar() }, (t) => [
+			index('users_contact_idx').on(t.email, t.name),
+		]),
+	};
+	const v2 = {
+		users: pgTable('users', { id: integer(), email: varchar() }, (t) => [index('users_contact_idx').on(t.email)]),
+	};
+	await flow.generate('main', v1);
+
+	const { folder } = await flow.generate('main', v2);
+
+	expect(flow.state('main', folder!)).toStrictEqual(schemaState(v2));
+	expect(await flow.generate('main', v2)).toMatchObject({ status: 'no_changes' });
+	expect(await flow.migrate('main', v2)).toStrictEqual([]);
+});
+
+test('generate names the leaf that does not reconstruct when it is not the first parent', async () => {
+	const flow = createFolderFlow();
+	const users = pgTable('users', { id: integer() });
+	const likes = pgTable('likes', { id: integer() });
+	const groups = pgTable('groups', { id: integer() });
+	await flow.generate('main', { users });
+	flow.branch('a', 'main');
+	flow.branch('b', 'main');
+	const older = await flow.generate('a', { users, likes });
+	const newer = await flow.generate('b', { users, groups });
+	flow.merge('main', 'a', 'b');
+	flow.appendDeltas('main', older.folder!, renameUsersTo('likes'));
+	expect(flow.leaves('main')).toStrictEqual([older.folder, newer.folder]);
+	const before = flow.files('main');
+
+	const error = await flow.generate('main', { users, likes, groups, posts: pgTable('posts', { id: integer() }) })
+		.catch((e) => e);
+
+	expect(error.message).toContain(`Cannot reconstruct the state of migration ${older.folder}: `);
+	expect(error.message).toContain(reconstructFix(older.folder!));
+	expect(errorToEnvelope(error)).toStrictEqual(malformedEnvelope(older.folder!));
+	expect(flow.files('main')).toStrictEqual(before);
+});
+
+test('generate --fix-conflicts does not reconstruct a leaf that the fix deletes', async () => {
+	const flow = createFolderFlow();
+	const tags = pgTable('tags', { id: integer() });
+	await flow.generate('main', { users: pgTable('users', { score: integer() }) });
+	flow.branch('a', 'main');
+	flow.branch('b', 'main');
+	const a = await flow.generate('a', { users: pgTable('users', { score: integer().default(1) }), tags });
+	const b = await flow.generate('b', { users: pgTable('users', { score: integer().default(2) }) });
+	flow.merge('main', 'a', 'b');
+	flow.appendDeltas('main', a.folder!, renameUsersTo('tags'));
+	const resolved = { users: pgTable('users', { score: integer().default(3) }), tags };
+
+	const { folder, deleted } = await flow.generate('main', resolved, { fixConflicts: true });
+
+	expect(deleted).toStrictEqual([a.folder, b.folder]);
+	expect(flow.state('main', folder!)).toStrictEqual(schemaState(resolved));
+});
+
+test('a custom migration on two leaves lists both leaves as parents and stores no deltas and no statements', async () => {
+	const flow = createFolderFlow();
+	const users = pgTable('users', { id: integer() });
+	const likes = pgTable('likes', { id: integer() });
+	const groups = pgTable('groups', { id: integer() });
+	await flow.generate('main', { users });
+	flow.branch('a', 'main');
+	flow.branch('b', 'main');
+	const older = await flow.generate('a', { users, likes });
+	const newer = await flow.generate('b', { users, groups });
+	flow.merge('main', 'a', 'b');
+
+	const { folder } = await flow.generate('main', { users, likes, groups }, { custom: true });
+
+	expect(flow.snapshot('main', folder!)).toMatchObject({
+		type: 'diff',
+		prevIds: [newer.folder!, older.folder!].map((it) => flow.snapshot('main', it).id),
+		deltas: [],
+		statements: [],
 	});
+	expect(flow.leaves('main')).toStrictEqual([folder]);
+	expect(flow.state('main', folder!)).toStrictEqual(schemaState({ users, likes, groups }));
 });
 
 test('linear history writes a base snapshot and then diff snapshots', async () => {
@@ -382,7 +512,6 @@ test('commands ask to run up on format 8 snapshots, and up converts them', async
 		prevIds: [ORIGIN],
 		ddl: [],
 		statements: [],
-		stateHash: stateHash(createDDL()),
 	});
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	const { folder } = await flow.generate('main', v1);
@@ -403,7 +532,7 @@ test('pull into an empty folder writes a base snapshot that generate continues',
 	const base = flow.snapshot('main', pulled);
 	expect(base).toMatchObject({ type: 'base', version: '9', dialect: 'postgres', prevIds: [ORIGIN] });
 	expect(base.statements).toMatchObject([{ type: 'create_table', table: { schema: 'public', name: 'users' } }]);
-	expect(base.stateHash).toBe(stateHash(reconstruct(flow.history('main'), base.id)));
+	expect(base).not.toHaveProperty('stateHash');
 	expect(flow.state('main', pulled)).toStrictEqual(schemaState(v1));
 
 	const { folder } = await flow.generate('main', v2);
@@ -417,7 +546,6 @@ test('pull into an empty folder writes a base snapshot that generate continues',
 		prevIds: [base.id],
 		statements: [expect.objectContaining({ type: 'add_column' })],
 		deltas: [expect.objectContaining({ op: 'create', row: expect.objectContaining({ name: 'email' }) })],
-		stateHash: expect.stringMatching(/^[0-9a-f]{64}$/),
 	});
 	expect(flow.state('main', folder!)).toStrictEqual(schemaState(v2));
 });

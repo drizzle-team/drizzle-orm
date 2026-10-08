@@ -1,1 +1,0 @@
-ALTER SCHEMA "app" RENAME TO "core";

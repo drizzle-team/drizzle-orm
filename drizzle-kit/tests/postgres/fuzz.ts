@@ -174,6 +174,8 @@ export type Op =
 
 export const emptyModel = (): Model => Object.fromEntries(kinds.map((kind) => [kind, []])) as unknown as Model;
 
+const isEmptyModel = (model: Model) => kinds.every((kind) => model[kind].length === 0);
+
 const find = (model: Model, kind: Kind, id: number | undefined) => model[kind].find((it) => it.id === id);
 
 const applyOp = (model: Model, op: Op): Model => {
@@ -676,7 +678,9 @@ export const generateHistory = (random: Random, length: number): Step[] => {
 		const branch = random.pick(branches);
 		const model = models.get(branch)!;
 		const roll = random.int(100);
-		if (steps.length > 0 && roll < 20 && branches.length < 3) {
+		// A branch with an empty model can have an empty folder, because a step with no SQL writes no migration.
+		// A fork of an empty folder gives a second base snapshot, and every command refuses such a folder.
+		if (!isEmptyModel(model) && roll < 20 && branches.length < 3) {
 			const name = `b${branches.length}`;
 			steps.push({ type: 'fork', branch: name, from: branch });
 			fork(name, branch);
@@ -714,7 +718,8 @@ export const shrinkHistory = (steps: Step[]): Step[][] => [
 	),
 ];
 
-// Replays the model side of a history. A step on a branch that a shrunk history no longer has is skipped.
+// Replays the model side of a history. A step on a branch that a shrunk history no longer has is skipped, and
+// so is a fork of a branch whose model is empty in the shrunk history.
 export const replayHistory = async (
 	steps: Step[],
 	onStep: (step: Step, start: Model, next: Model, sources: string[]) => Promise<void>,
@@ -722,7 +727,8 @@ export const replayHistory = async (
 	const { models, fork, set, merged } = createBranches();
 	for (const step of steps) {
 		if (step.type === 'fork') {
-			if (!models.has(step.from) || models.has(step.branch)) continue;
+			const source = models.get(step.from);
+			if (!source || isEmptyModel(source) || models.has(step.branch)) continue;
 			fork(step.branch, step.from);
 			await onStep(step, models.get(step.from)!, models.get(step.from)!, []);
 			continue;

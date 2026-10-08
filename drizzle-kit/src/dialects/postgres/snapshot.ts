@@ -1,13 +1,12 @@
-import { createHash, randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
 import type { TypeOf } from 'zod';
 import { any, array as zodArray, boolean, enum as enumType, literal, number, object, record, string } from 'zod';
 import { originUUID } from '../../utils';
 import { normalizeDDL } from '../ddl-canonical';
-import { type AnyDDL, apply } from '../dialect';
+import { type Delta, splitDeltaKey } from '../dialect';
 import { array, validator } from '../simpleValidator';
 import type { PostgresDDL, PostgresEntity } from './ddl';
-import { createDDL, fromEntities } from './ddl';
-import * as replay from './replay-v9';
+import { createDDL } from './ddl';
 import { type SnapshotStatement, snapshotStatementSchemas } from './snapshot-statements';
 
 const indexV2 = object({
@@ -545,32 +544,11 @@ export type PostgresSnapshotV8 = {
 const ddl = createDDL();
 const definitions = ddl._.defs;
 
-const isScalar = (it: unknown) => it === null || ['string', 'number', 'boolean'].includes(typeof it);
-// An object whose keys are fields of `def` and whose values are scalars, because the replay compares the
-// values of `where` and `match` with ===, and an instruction only writes names.
-const isFieldMap = (it: any, def: Record<string, unknown> | undefined): boolean =>
-	!!def && typeof it === 'object' && it !== null && !Array.isArray(it)
-	&& Object.entries(it).every(([field, value]) => Object.hasOwn(def, field) && isScalar(value));
-const isFilled = (it: object) => Object.keys(it).length > 0;
-
-const isInstruction = (it: any): boolean => {
-	const def: Record<string, any> | undefined = Object.hasOwn(definitions, it.type) ? definitions[it.type] : undefined;
-	if (!isFieldMap(it.where, def)) return false;
-	if (it.op === 'update') return isFieldMap(it.set, def) && isFilled(it.set);
-	const list = Object.hasOwn(def!, it.field) ? def![it.field] : undefined;
-	if (it.op === 'replace_in_list') {
-		return list === 'string[]' && typeof it.from === 'string' && typeof it.to === 'string';
-	}
-	const item = Array.isArray(list) && typeof list[0] === 'object' && list[0] !== null ? list[0] : undefined;
-	return isFieldMap(it.match, item) && isFieldMap(it.set, item) && isFilled(it.set);
-};
-
 const isDelta = (it: any): boolean => {
 	if (it?.op === 'create') return Object.hasOwn(definitions, it.row?.entityType) && ddl.entities.validate(it.row);
-	if (['update', 'replace_in_list', 'update_list_items'].includes(it?.op)) return isInstruction(it);
 	if (!['drop', 'alter', 'rename'].includes(it?.op)) return false;
 	if (typeof it.key !== 'string' || !it.key.includes('\0')) return false;
-	const [type] = replay.splitDeltaKey(it.key);
+	const [type] = splitDeltaKey(it.key);
 	if (!Object.hasOwn(definitions, type)) return false;
 	if (it.op === 'drop') return true;
 	return typeof it.set === 'object' && it.set !== null
@@ -600,7 +578,6 @@ const baseValidator = validator({
 		return res;
 	}),
 	statements,
-	stateHash: 'string',
 });
 
 const diffValidator = validator({
@@ -609,9 +586,8 @@ const diffValidator = validator({
 	dialect: ['postgres'],
 	id: 'string',
 	prevIds: array<string>((it) => typeof it === 'string'),
-	deltas: array<replay.Delta>(isDelta),
+	deltas: array<Delta>(isDelta),
 	statements,
-	stateHash: 'string',
 });
 
 export type PostgresBaseSnapshot = typeof baseValidator.shape;
@@ -632,14 +608,14 @@ export const snapshotValidator = {
 	parse: (it: unknown) => {
 		if ((it as { type?: unknown } | null)?.type !== 'diff') {
 			const res = baseValidator.parse(it);
-			// A full state in the middle of a history would bring back rows that a merge replay already dropped.
+			// A folder holds one base snapshot, which is its first snapshot.
 			if (res.data?.prevIds.some((id) => id !== originUUID)) {
 				return { success: false, data: null, errors: ["Field 'prevIds' of a base snapshot must not list a parent"] };
 			}
 			return res;
 		}
 		const res = diffValidator.parse(it);
-		// A diff snapshot is rebuilt from its first parent, so it must have one.
+		// The state of a diff snapshot is reconstructed from its first parent, so it must have one.
 		if (res.data?.prevIds.length === 0) {
 			return {
 				success: false,
@@ -649,30 +625,6 @@ export const snapshotValidator = {
 		}
 		return res;
 	},
-};
-
-const canonical = (value: unknown): unknown => {
-	if (Array.isArray(value)) return value.map(canonical);
-	if (value === null || typeof value !== 'object') return value;
-	return Object.fromEntries(
-		Object.entries(value)
-			.filter(([, it]) => it !== null && it !== undefined)
-			.sort(([a], [b]) => (a < b ? -1 : 1))
-			.map(([field, it]) => [field, canonical(it)]),
-	);
-};
-
-// The hash of a state, as a snapshot stores it in `stateHash`. It reads the canonical form of the state: the
-// rows in the order of their keys and the fields in the order of their names, both by code unit, with no null
-// fields. A locale-aware order differs between machines. Without the null fields, a new optional field of an
-// entity does not change the hash of a state that was written before that field existed.
-export const stateHash = (state: AnyDDL): string => {
-	const rows = state.entities.list()
-		.map((row) => [`${row.entityType}\0${state.key(row.entityType, row)}`, row] as const)
-		.sort(([a], [b]) => (a < b ? -1 : 1));
-	const hash = createHash('sha256');
-	for (const [, row] of rows) hash.update(`${JSON.stringify(canonical(row))}\n`);
-	return hash.digest('hex');
 };
 
 const entityName = (json: string) => {
@@ -688,17 +640,6 @@ export const stateDifference = (expected: PostgresDDL, rebuilt: PostgresDDL): st
 	return differing === undefined ? undefined : entityName(differing);
 };
 
-// generate calls this before it writes a snapshot. A hash does not help here, because the same run would
-// compute it from the same wrong data.
-export const assertDeltasRebuildState = (start: PostgresDDL, deltas: replay.Delta[], expected: PostgresDDL) => {
-	const entity = stateDifference(expected, apply(start, deltas));
-	if (entity === undefined) return;
-	throw new Error(
-		`The deltas of the new migration do not rebuild the schema: ${entity} differs. Nothing was written. `
-			+ 'This is a bug in drizzle-kit. Report it at https://github.com/drizzle-team/drizzle-orm/issues.',
-	);
-};
-
 export const toJsonSnapshot = (
 	ddl: PostgresDDL,
 	prevIds: string[],
@@ -712,7 +653,6 @@ export const toJsonSnapshot = (
 		prevIds,
 		statements,
 		ddl: ddl.entities.list(),
-		stateHash: stateHash(ddl),
 	};
 };
 
@@ -724,39 +664,4 @@ export const drySnapshot: PostgresBaseSnapshot = {
 	prevIds: [],
 	statements: [],
 	ddl: [],
-	stateHash: stateHash(createDDL()),
 };
-
-export const stateHashMessage = (snapshot: string) =>
-	`Cannot rebuild snapshot ${snapshot}: the rebuilt state differs from the state that the snapshot recorded. `
-	+ `A snapshot.json in the history of ${snapshot} was edited by hand, or this drizzle-kit version rebuilds the `
-	+ 'history in another way than the version that wrote it. Restore the migration folders from git. If they are '
-	+ 'unchanged, use the drizzle-kit version that wrote them, and report this issue at '
-	+ 'https://github.com/drizzle-team/drizzle-orm/issues.';
-
-export class StateHashError extends Error {
-	constructor(readonly snapshotId: string) {
-		super(stateHashMessage(snapshotId));
-	}
-}
-
-// The replay code is part of the format. This check turns a rebuild that gives another state than the one
-// that the snapshot recorded into an error. One hash reads the whole state, so only the snapshot that a
-// command asks for and the first parent of each merge are checked, and no other snapshot of the history.
-const assertStateHash = (state: PostgresDDL, snapshot: PostgresSnapshot) => {
-	if (snapshot.stateHash !== stateHash(state)) throw new StateHashError(snapshot.id);
-};
-
-const callbacks: replay.ReplayCallbacks<PostgresDDL, PostgresSnapshot> = {
-	start: fromEntities,
-	verify: assertStateHash,
-};
-
-// `snapshots` must iterate in folder-name order, because a merge replays the other branches in that order.
-export const reconstruct = (snapshots: Map<string, PostgresSnapshot>, id: string): PostgresDDL =>
-	replay.reconstruct(snapshots, id, callbacks);
-
-// The state that the deltas of a snapshot with these parents start from. `snapshots` must iterate in
-// folder-name order, as for reconstruct.
-export const startingState = (snapshots: Map<string, PostgresSnapshot>, prevIds: string[]): PostgresDDL =>
-	replay.startingState(snapshots, prevIds, callbacks);

@@ -1,1 +1,0 @@
-DROP INDEX "core"."users_contact_ix";

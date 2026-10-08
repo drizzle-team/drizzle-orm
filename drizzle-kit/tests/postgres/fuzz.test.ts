@@ -10,10 +10,10 @@ import { join } from 'path';
 import { prepareSnapshotFolderName } from 'src/cli/commands/generate-common';
 import { errorToEnvelope } from 'src/cli/errors';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
-import { apply, applyInPlace, create } from 'src/dialects/dialect';
-import { createDDL, fromEntities, type PostgresDDL } from 'src/dialects/postgres/ddl';
+import { fromEntities } from 'src/dialects/postgres/ddl';
 import { ddlDiff } from 'src/dialects/postgres/diff';
-import { type PostgresSnapshotV8, reconstruct } from 'src/dialects/postgres/snapshot';
+import { reconstruct } from 'src/dialects/postgres/reconstruct';
+import type { PostgresSnapshotV8 } from 'src/dialects/postgres/snapshot';
 import { withStateKeyNames } from 'src/dialects/postgres/versions-v9';
 import { originUUID } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
@@ -81,34 +81,15 @@ const renameResolvers = (renames: string[]) => {
 	] as const;
 };
 
-const stateOf = (ddl: PostgresDDL) => normalizeDDL(ddl.entities.list());
-
-test('replaying the deltas of ddlDiff rebuilds the new state', async () => {
+test('the deltas of ddlDiff reconstruct the new state', async () => {
 	await checkProperty({
 		runs: 300,
 		generate: generatePair,
 		shrink: shrinkPair,
 		check: async (pair) => {
 			const { left, right, renames } = statesOf(pair);
-			// The helper replays the deltas on a copy of `left` and throws when the result differs from `right`.
+			// The helper applies the deltas to a copy of `left` and throws when the result differs from `right`.
 			await diff(left, right, renames);
-		},
-	});
-});
-
-test('a replay on a store without reference edges gives the same state', async () => {
-	const { defs, identity } = createDDL()._;
-	await checkProperty({
-		runs: 300,
-		generate: generatePair,
-		shrink: shrinkPair,
-		check: async (pair) => {
-			const { left, right, renames } = statesOf(pair);
-			const bare = create(defs, { identity }) as unknown as PostgresDDL;
-			bare.entities.pushAll(left.entities.list());
-			const parent = apply(left, []);
-			const { deltas } = await ddlDiff(left, right, ...renameResolvers(renames), 'default');
-			expect(stateOf(applyInPlace(bare, deltas))).toStrictEqual(stateOf(apply(parent, deltas)));
 		},
 	});
 });

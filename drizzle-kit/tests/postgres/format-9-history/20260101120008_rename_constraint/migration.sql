@@ -1,1 +1,0 @@
-ALTER TABLE "articles" RENAME CONSTRAINT "posts_title_uq" TO "articles_title_uq";

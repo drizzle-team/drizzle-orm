@@ -31,7 +31,7 @@ import {
 } from 'orm044/pg-core';
 import { configMigrations } from 'src/cli/validations/common';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
-import { apply, copyDDL, type Delta } from 'src/dialects/dialect';
+import { copyDDL, type Delta } from 'src/dialects/dialect';
 import { fromSnapshotStatements, toSnapshotStatements } from 'src/dialects/postgres/convertor';
 import {
 	createDDL,
@@ -48,6 +48,7 @@ import {
 	prepareFromSchemaFiles,
 	unwrapColumn,
 } from 'src/dialects/postgres/drizzle';
+import { applyDeltas } from 'src/dialects/postgres/reconstruct';
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
 import { PGlite } from '@electric-sql/pglite';
@@ -159,6 +160,8 @@ export const drizzleToDDL = (
 
 	return { ...interimToDDL(res), existing };
 };
+
+export const apply = (base: PostgresDDL, deltas: Delta[]) => applyDeltas(copyDDL(base), deltas);
 
 // ddlDiff mutates both states, so `parent` must be a copy taken before the call
 const expectDeltasRebuildState = (parent: PostgresDDL, deltas: Delta[], next: PostgresDDL) => {

@@ -29,11 +29,12 @@ import type { Delta } from 'src/dialects/dialect';
 import { fromSnapshotStatements } from 'src/dialects/postgres/convertor';
 import { interimToDDL, type PostgresDDL } from 'src/dialects/postgres/ddl';
 import { fromDrizzleSchema, fromExports, SchemaSource } from 'src/dialects/postgres/drizzle';
+import { reconstruct, startingState } from 'src/dialects/postgres/reconstruct';
 import { prepareSnapshot } from 'src/dialects/postgres/serializer';
-import { type PostgresSnapshot, reconstruct, startingState } from 'src/dialects/postgres/snapshot';
+import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import { BREAKPOINT } from 'src/utils';
 import { prepareOutFolder } from 'src/utils/utils-node';
-import { onTestFinished, vi } from 'vitest';
+import { expect, onTestFinished, vi } from 'vitest';
 import { type PostgresSchema, push } from './mocks';
 
 // `fix` lists the folders that generate --fix-conflicts deletes.
@@ -83,6 +84,19 @@ export const schemaState = (schema: PostgresSchema) => {
 	const { schema: interim } = fromDrizzleSchema(fromExports(schema), () => true);
 	return normalizeDDL(interimToDDL(interim).ddl.entities.list());
 };
+
+// The JSON output of the error that a command gives for a malformed snapshot in `folder`.
+export const malformedEnvelope = (folder: string) => ({
+	status: 'error',
+	error: {
+		code: 'check_error',
+		kind: 'malformed',
+		snapshot: expect.stringContaining(join(folder, 'snapshot.json')),
+	},
+});
+
+export const reconstructFix = (folder: string) =>
+	`Restore the migration folder from git, or delete ${folder} and every later migration, then run generate again.`;
 
 const isState = (it: PostgresSchema | PostgresDDL): it is PostgresDDL => 'entities' in it && '_' in it;
 
@@ -251,6 +265,12 @@ export const createFolderFlow = () => {
 	const overwriteSnapshot = (branch: string, folder: string, text: string) =>
 		writeFileSync(join(dirOf(branch), folder, 'snapshot.json'), text);
 
+	// Adds deltas to the end of a diff snapshot, as a hand edit of the file does.
+	const appendDeltas = (branch: string, folder: string, ...added: Delta[]) => {
+		const edited = { ...snapshot(branch, folder), deltas: [...deltas(branch, folder), ...added] };
+		overwriteSnapshot(branch, folder, JSON.stringify(edited, null, 2));
+	};
+
 	// Returns the statements that push still needs after migrate. An empty list means the database matches
 	// `schema`, which is a drizzle schema or a state.
 	const migrate = async (branch: string, schema: PostgresSchema | PostgresDDL) => {
@@ -295,6 +315,7 @@ export const createFolderFlow = () => {
 		overwriteFile,
 		renameFolder,
 		overwriteSnapshot,
+		appendDeltas,
 		migrate,
 	};
 };

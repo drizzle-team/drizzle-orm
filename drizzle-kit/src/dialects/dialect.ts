@@ -1,8 +1,18 @@
-import { applyDeltas, type Delta, type Instruction, KeyCollisionError, splitDeltaKey } from './postgres/replay-v9';
-
-export { type Delta, type Instruction, KeyCollisionError, type KeyedDelta, splitDeltaKey } from './postgres/replay-v9';
-
 export type Row = Record<string, any>;
+
+// A delta is one change to a state. It names one entity by its key, which is the entity type, `\0` and the
+// identity of the entity. A `rename` changes the key of its entity, because the user decided it.
+export type Delta =
+	| { op: 'create'; row: Row }
+	| { op: 'drop'; key: string }
+	| { op: 'alter'; key: string; set: Row }
+	| { op: 'rename'; key: string; set: Row };
+
+// Returns [entityType, identity].
+export const splitDeltaKey = (key: string): [string, string] => {
+	const idx = key.indexOf('\0'); // the identity is JSON and never contains \0
+	return [key.slice(0, idx), key.slice(idx + 1)];
+};
 
 export type Field =
 	| 'string'
@@ -85,7 +95,6 @@ type Internals = {
 	defs: Record<string, Def>;
 	identity: Record<string, IdFn>;
 	edges: Record<string, Edge[]>;
-	specs: Record<string, EdgeSpec[]>;
 	nulls: Record<string, Row>;
 	recorded: Delta[] | null;
 };
@@ -101,8 +110,9 @@ type Processors<T extends Row = Row> = {
 	pushAll: (items: Iterable<Row>) => { status: 'OK'; count: number } | { status: 'CONFLICT'; key: string };
 	list: (where?: Where<T>) => T[];
 	one: (where?: Where<T>) => T | null;
-	update: (cfg: { set: SetOps<T>; where?: Where<T> }) => { status: 'OK' | 'CONFLICT'; data: T[] };
-	delete: (where?: Where<T>) => T[];
+	// A string `where` is the key of one entity, as a delta holds it. The entity is then found without a search.
+	update: (cfg: { set: SetOps<T>; where?: Where<T> | string }) => { status: 'OK' | 'CONFLICT'; data: T[] };
+	delete: (where?: Where<T> | string) => T[];
 	drop: (where?: Where<T>) => T[];
 	validate: (row: unknown) => boolean;
 	hasDiff: (alter: Row) => boolean;
@@ -126,7 +136,7 @@ const qual = (t: string, k: string) => t + '\0' + k; // the two families are uni
 
 const COMMON_FIELDS = ['schema', 'table', 'name'] as const;
 
-function isEqual(a: any, b: any): boolean {
+export function isEqual(a: any, b: any): boolean {
 	if (a === b) return true;
 	if (typeof a !== typeof b) return false;
 	if (Array.isArray(a) && Array.isArray(b)) {
@@ -335,51 +345,46 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 		return next;
 	};
 
+	const select = (where?: Row | string): Row[] => {
+		if (typeof where !== 'string') return list(where);
+		const row = findRow({ _: ctx }, where);
+		return row && (!type || type === row.entityType) ? [row] : [];
+	};
+
 	const update: Processors['update'] = ({ set, where }) => {
-		const recorded = ctx.recorded;
-		const targets = list(where);
+		const targets = select(where);
 		const planned = targets.map((row) => ({ row, next: applySet(row, set) }));
 
+		// Only a key change can end in a conflict, so only then the entities are copied to put them back. The
+		// copy is taken here, before any selected entity changes in place.
 		const snap: [string, Row][] = [];
-		for (const b of store.values()) for (const r of b.values()) snap.push([r.entityType, { ...r }]);
+		if (planned.some(({ row, next }) => keyOf(next) !== keyOf(row))) {
+			for (const b of store.values()) for (const r of b.values()) snap.push([r.entityType, { ...r }]);
+		}
 		const restore = () => {
 			for (const b of store.values()) b.clear();
 			for (const [t, r] of snap) bucketOf(t).set(keyOf(r), r);
 		};
 
-		// While recording, the store changes only through the deltas that are recorded: one keyed delta for
-		// each selected row, and the instructions for each of those rows that changes its key. The reference
-		// edges are not followed, so the state after this call is the state that a replay of the deltas gives.
-		if (recorded) {
-			const keyed: Delta[] = [];
-			const instructions: Delta[] = [];
-			for (const { row, next } of planned) {
-				const changes: Row = {};
-				for (const k of Object.keys(next)) if (!isEqual(row[k], next[k])) changes[k] = next[k];
-				if (!Object.keys(changes).length) continue;
-				const hasKeyChanged = keyOf(next) !== keyOf(row);
-				keyed.push({ op: hasKeyChanged ? 'rename' : 'alter', key: qual(row.entityType, keyOf(row)), set: changes });
-				if (hasKeyChanged) instructions.push(...renameInstructions(ctx, row.entityType, row, changes));
-			}
-			const deltas = [...keyed, ...instructions];
-			try {
-				applyDeltas(ctx, deltas);
-			} catch (e) {
-				if (!(e instanceof KeyCollisionError)) throw e;
-				restore();
-				return { status: 'CONFLICT', data: [e.taken] };
-			}
-			recorded.push(...deltas);
-			return { status: 'OK', data: targets };
-		}
-
+		// While recording, each selected entity that changes gives one delta: a rename when its key changes,
+		// and an alter when its key stays. The entities that reference a renamed entity change through the
+		// edges below and get no delta of their own.
+		const deltas: Delta[] = [];
 		type Seed = { type: string; oldKey: string; oldRow: Row; newRow: Row };
 		const seeds: Seed[] = [];
 		for (const { row, next } of planned) {
 			const oldRow = { ...row };
 			const oldKey = keyOf(oldRow);
+			const hasKeyChanged = keyOf(next) !== oldKey;
+			if (ctx.recorded) {
+				const changes: Row = {};
+				for (const k of Object.keys(next)) if (!isEqual(row[k], next[k])) changes[k] = next[k];
+				if (Object.keys(changes).length) {
+					deltas.push({ op: hasKeyChanged ? 'rename' : 'alter', key: qual(row.entityType, oldKey), set: changes });
+				}
+			}
 			Object.assign(row, next);
-			if (keyOf(row) !== oldKey) seeds.push({ type: row.entityType, oldKey, oldRow, newRow: row });
+			if (hasKeyChanged) seeds.push({ type: row.entityType, oldKey, oldRow, newRow: row });
 		}
 
 		if (seeds.length) {
@@ -422,11 +427,13 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 			rekey(); // rows moved keys — rebuild the buckets once.
 		}
 
+		// A call that ends in a conflict records nothing.
+		ctx.recorded?.push(...deltas);
 		return { status: 'OK', data: targets };
 	};
 
 	const del: Processors['delete'] = (where) => {
-		const targets = list(where);
+		const targets = select(where);
 		for (const row of targets) store.get(row.entityType)?.delete(keyOf(row));
 		return targets;
 	};
@@ -503,7 +510,7 @@ export function create<const D extends Record<string, Def>>(
 		});
 	}
 
-	const internals: Internals = { store, defs, identity, edges, specs: edgeSpecs, nulls, recorded: null };
+	const internals: Internals = { store, defs, identity, edges, nulls, recorded: null };
 	return build<InferEntities<D>>(internals);
 }
 
@@ -614,69 +621,8 @@ export const key = (ddl: AnyDDL, type: string, row: Row): string => ddl.key(type
 
 /* ------------------------------------------------------------------ structural delta */
 
-// The instructions for a row of `type` that changes its key. `from` is the row before the change, and `set`
-// holds its changed fields. The list has one instruction for every reference rule that points at `type`, and
-// for every rule that points at a type whose keys change as a result. It depends only on the rules, and
-// never on the rows that exist.
-function renameInstructions(ctx: Internals, type: string, from: Row, set: Row): Instruction[] {
-	const out = new Map<string, Instruction>();
-	const add = (it: Instruction) => out.set(JSON.stringify(it), it);
-	// `where` holds the old values of the fields of `type` that select the changed rows.
-	const visit = (type: string, where: Row, set: Row, isDirect: boolean) => {
-		for (const [source, specs] of Object.entries(ctx.specs)) {
-			for (const spec of specs) {
-				if (spec.to !== type) continue;
-				const sourceWhere: Row = {};
-				const sourceSet: Row = {};
-				let list: Instruction | null = null;
-				for (const [targetField, src] of Object.entries(spec.map)) {
-					if (!(targetField in where)) continue;
-					if (typeof src === 'string') {
-						sourceWhere[src] = where[targetField];
-						if (targetField in set) sourceSet[src] = set[targetField];
-					} else if (targetField in set) {
-						const [oldName, newName] = [where[targetField], set[targetField]];
-						list = src.pick
-							? {
-								op: 'update_list_items',
-								type: source,
-								where: sourceWhere,
-								field: src.list,
-								match: { [src.pick]: oldName, ...(src.skipWhen ? { [src.skipWhen]: false } : {}) },
-								set: { [src.pick]: newName },
-							}
-							: {
-								op: 'replace_in_list',
-								type: source,
-								where: sourceWhere,
-								field: src.list,
-								from: oldName,
-								to: newName,
-							};
-					} else if (isDirect) {
-						// Such an instruction would need a condition on what a list holds.
-						throw new Error(`Cannot write instructions for a row of ${type} that changes its key and keeps its name`);
-					}
-				}
-				// No row is at hand here, so `when` may read only the fields that the rule maps.
-				if (spec.when && !spec.when(sourceWhere)) continue;
-				// The list instruction comes first, because the update can change the fields that select its rows.
-				if (list) add(list);
-				if (!Object.keys(sourceSet).length) continue;
-				add({ op: 'update', type: source, where: sourceWhere, set: sourceSet });
-				const identityOf = ctx.identity[source];
-				if (identityOf(sourceWhere) !== identityOf({ ...sourceWhere, ...sourceSet })) {
-					visit(source, sourceWhere, sourceSet, false);
-				}
-			}
-		}
-	};
-	visit(type, from, set, true);
-	return [...out.values()];
-}
-
 const qkeyOf = (ddl: AnyDDL, r: Row): string => qual(r.entityType, ddl.key(r.entityType, r));
-export const findRow = <M extends Record<string, Row>>(ddl: DDL<M>, key: string): Row | undefined => {
+export const findRow = (ddl: { _: { store: Store } }, key: string): Row | undefined => {
 	const [entityType, identity] = splitDeltaKey(key);
 	return ddl._.store.get(entityType)?.get(identity);
 };
@@ -724,17 +670,8 @@ export function copyDDL<M extends Record<string, Row>>(ddl: DDL<M>): DDL<M> {
 	return build<M>({ ...src, store, recorded: null });
 }
 
-// From now on, every `update` on this DDL adds a keyed delta for each row that its `where` selects, and the
-// instructions for each of those rows that changes its key. `push`, `delete` and `drop` add nothing.
+// From now on, every `update` on this DDL that ends without a conflict adds one delta for each entity that
+// its `where` selects and changes. `push`, `delete` and `drop` add nothing.
 export function recordDeltas<M extends Record<string, Row>>(ddl: DDL<M>): Delta[] {
 	return ddl._.recorded = [];
-}
-
-export function apply<M extends Record<string, Row>>(base: DDL<M>, deltas: Delta[]): DDL<M> {
-	return applyInPlace(copyDDL(base), deltas);
-}
-
-export function applyInPlace<M extends Record<string, Row>>(ddl: DDL<M>, deltas: Delta[]): DDL<M> {
-	applyDeltas(ddl._, deltas);
-	return ddl;
 }

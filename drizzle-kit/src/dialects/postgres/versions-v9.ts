@@ -1,13 +1,14 @@
 import { originUUID } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
-import { apply, copyDDL, type Delta, delta, KeyCollisionError } from '../dialect';
+import { copyDDL, type Delta, delta } from '../dialect';
 import { toSnapshotStatements } from './convertor';
 import { createDDL, fromEntities, type PostgresDDL, type PostgresEntity } from './ddl';
 import { ddlDiff } from './diff';
 import { defaultNameForPK } from './grammar';
+import { KeyCollisionError, startingState } from './reconstruct';
 import { renameResolvers } from './renames';
-import { type PostgresSnapshot, type PostgresSnapshotV8, startingState, stateHash } from './snapshot';
+import type { PostgresSnapshot, PostgresSnapshotV8 } from './snapshot';
 import type { SnapshotStatement } from './snapshot-statements';
 
 // A format 8 rename string does not say which kind of entity it renames, so every resolver gets all of
@@ -98,7 +99,6 @@ export const upToV9 = async (
 				prevIds: [originUUID],
 				statements: await statementsOf(createDDL(), creates),
 				ddl: state.entities.list(),
-				stateHash: stateHash(state),
 			});
 			continue;
 		}
@@ -144,7 +144,6 @@ export const upToV9 = async (
 			prevIds,
 			statements: await statementsOf(start, deltas),
 			deltas,
-			stateHash: stateHash(apply(start, deltas)),
 		});
 	}
 	return files.map((it) => converted.get(it.snapshot.id)!);

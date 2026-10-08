@@ -1,8 +1,7 @@
 import { integer, pgTable, varchar } from 'drizzle-orm/pg-core';
 import { readFileSync } from 'fs';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
-import { createDDL } from 'src/dialects/postgres/ddl';
-import { type PostgresSchemaState, snapshotValidator, stateHash } from 'src/dialects/postgres/snapshot';
+import { type PostgresSchemaState, snapshotValidator } from 'src/dialects/postgres/snapshot';
 import { generateDrizzleJson, generateMigration, reconstruct, up } from 'src/ext/api-postgres';
 import { expect, test } from 'vitest';
 import { ORIGIN } from '../other/check-fixtures';
@@ -128,7 +127,6 @@ test('generateMigration rejects a diff snapshot', async () => {
 		prevIds: [parent.id],
 		deltas: [],
 		statements: [],
-		stateHash: '',
 	};
 
 	await expect(generateMigration(parent, diff)).rejects.toThrow(
@@ -221,6 +219,21 @@ test('reconstruct reports a missing parent with the same message as the CLI', as
 	expect(api.message).toBe(cli.message);
 });
 
+test('reconstruct reports a second base snapshot with the same message as the CLI', async () => {
+	const flow = createFolderFlow();
+	flow.branch('a');
+	flow.branch('b');
+	await flow.generate('a', v1);
+	await flow.generate('b', { posts });
+	flow.merge('main', 'a', 'b');
+
+	const cli: Error = await flow.check('main').catch((e) => e);
+	const api: Error = await reconstruct(folderFiles(flow, 'main')).catch((e) => e);
+
+	expect(cli.message).toContain('has two base snapshots, in 20260101120001_a and 20260101120002_b.');
+	expect(api.message).toBe(cli.message);
+});
+
 test('reconstruct reports a malformed snapshot, an unknown id and an empty folder', async () => {
 	const base = {
 		type: 'base',
@@ -230,7 +243,6 @@ test('reconstruct reports a malformed snapshot, an unknown id and an empty folde
 		prevIds: [ORIGIN],
 		ddl: [],
 		statements: [],
-		stateHash: stateHash(createDDL()),
 	};
 
 	await expect(reconstruct({ '20260101120000_init': { ...base, ddl: 'broken' } })).rejects.toMatchObject({

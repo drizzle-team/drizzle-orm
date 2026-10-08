@@ -96,12 +96,8 @@ test('a merge that renames a column from another branch stores a rename, and che
 
 	// likes comes from branch a, which is not the first parent, so the renamed column exists only in the combined state.
 	expect(flow.snapshot('main', folder!).prevIds[0]).toBe(flow.snapshot('main', '20260101120003_b').id);
-	const deltas = flow.deltas('main', folder!);
-	expect(deltas[0]).toStrictEqual({ op: 'rename', key: 'columns\0["public","likes","c"]', set: { name: 'd' } });
-	// The rest are the instructions of the rename, one for every rule that points at columns.
-	expect(deltas.slice(1).map((it) => it.op)).toStrictEqual([
-		'update_list_items',
-		...Array(4).fill('replace_in_list'),
+	expect(flow.deltas('main', folder!)).toStrictEqual([
+		{ op: 'rename', key: 'columns\0["public","likes","c"]', set: { name: 'd' } },
 	]);
 	expect(flow.sql('main', folder!)).toBe('ALTER TABLE "likes" RENAME COLUMN "c" TO "d";');
 
@@ -194,26 +190,4 @@ test('deleting a merge reopens its branches, and the next generate merges them a
 	expect(flow.sql('main', folder!)).toBe('CREATE TABLE "posts" (\n\t"id" integer\n);\n');
 	expect(flow.state('main', folder!)).toStrictEqual(schemaState(redo));
 	expect(await flow.migrate('main', redo)).toStrictEqual([]);
-});
-
-test('two branches that each started from an empty folder merge', async () => {
-	const flow = createFolderFlow();
-	flow.branch('a', 'main');
-	flow.branch('b', 'main');
-	await flow.generate('a', { users });
-	await flow.generate('b', { posts });
-	flow.merge('main', 'a', 'b');
-	expect(flow.folders('main').map((it) => flow.snapshot('main', it).type)).toStrictEqual(['base', 'base']);
-	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
-	const merged = { users: usersWithEmail, posts };
-
-	const { folder } = await flow.generate('main', merged);
-
-	expect(flow.snapshot('main', folder!)).toMatchObject({
-		type: 'diff',
-		prevIds: ['20260101120002_b', '20260101120001_a'].map((it) => flow.snapshot('main', it).id),
-		deltas: [{ op: 'create', row: columnRow('users', 'email', 'varchar') }],
-	});
-	expect(flow.state('main', folder!)).toStrictEqual(schemaState(merged));
-	expect(await flow.migrate('main', merged)).toStrictEqual([]);
 });

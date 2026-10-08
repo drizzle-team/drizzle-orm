@@ -8,35 +8,41 @@ Postgres, mysql, sqlite and turso have a branch check. The other dialects have n
 
 ## Postgres: compare branches statement by statement
 
-Postgres snapshots use format 9. The first snapshot is a base snapshot with the full state. Every later snapshot is a diff snapshot with the deltas of its own migration. Every snapshot also stores the statements of its migration in `statements`, as `generate`, `pull` or `up` computed them, and the hash of its state in `stateHash`.
+Postgres snapshots use format 9. The first snapshot is a base snapshot with the full state, and a folder holds one base snapshot. Every later snapshot is a diff snapshot with the deltas of its own migration: one `create`, `drop`, `alter` or `rename` for each changed entity. A delta names its entity by key. Every snapshot also stores the statements of its migration in `statements`, as `generate`, `pull` or `up` computed them.
 
-The code that rebuilds a state from snapshots is part of the format: a change to it can give another state for an existing folder, with no error. Two guards catch this. `reconstruct` in `src/dialects/postgres/snapshot.ts` compares the rebuilt state with `stateHash` for the snapshot that it was asked for and for the first parent of every merge on the way. `check` rebuilds every leaf once for this comparison, so a wrong rebuild fails in CI. `generate` calls `assertDeltasRebuildState` before it writes a diff snapshot, because the hash cannot catch wrong deltas in the run that computes it. The canonical form behind the hash (`stateHash`) must never change: rows in the order of their keys, fields in the order of their names, both by code unit, and no null fields.
+A snapshot stores no hash of its state. drizzle-kit reconstructs the state with the installed version, so the result depends on three things in that version: the edges with their conditions (`edges` in `src/dialects/postgres/ddl.ts`), the key functions (`identity` in the same file), and the engine code that follows the edges (`update` in `src/dialects/dialect.ts`). A later change to one of them can give another state for an existing folder. This is a drift. Nothing detects a drift, and the team accepts it. After a drift, the next `generate` writes SQL for the difference.
 
-### Renames and instructions
+The format number changes only when the stored shape of a snapshot changes: its fields and their types. A change to the edges, the key functions, the engine code or the code that applies deltas is no new format, and existing folders are not converted.
 
-A rename changes other rows too: the columns of a renamed table, or the column list of a key after a column rename. A diff snapshot stores a rename as one keyed `rename` delta, followed by instructions. An instruction selects the rows of one entity type by field values and writes the new name into them:
+`generate` reconstructs every leaf before it writes, and `up` reconstructs when it converts an older folder. `check` and `migrate` reconstruct no state: they read the shape of the snapshots, the parent links and the stored statements. `check` with a schema path reconstructs a state to compare it with the schema, and a failed reconstruct there is a warning.
 
-- `update` sets fields, for example `table` on every column of a renamed table.
-- `replace_in_list` replaces a string in a list of strings, for example a column name in `pks.columns`.
-- `update_list_items` sets fields of the objects in a list that have the values of `match`, for example `value` in `indexes.columns`.
+### Renames
 
-`renameInstructions` in `src/dialects/dialect.ts` derives the instructions from the reference rules (`edges` in `src/dialects/postgres/ddl.ts`) when `ddlDiff` applies a rename decision. It writes one instruction for every rule that points at the renamed entity type, and for every rule that points at a type whose keys change as a result, whether a row matches or not. So a rename of one branch also reaches the rows that another branch adds, and two branches whose SQL commutes rebuild the same combined state with either leaf as the first parent. The `when` function of a rule may read only the fields that the rule maps, because no row is at hand when the instructions are written.
+A rename changes other entities too: the columns of a renamed table, or the column list of a key after a column rename. A diff snapshot stores a rename as one `rename` delta, and it stores nothing for the entities that reference the renamed entity. Reconstruct applies the rename through the edges. `update` finds every entity that references the renamed entity and writes the new name into it. When the key of such an entity changes too, `update` continues with the entities that reference that entity, so a schema rename reaches the columns of its tables.
+
+A rename reaches the entities that the state holds at that moment. So a rename of one branch also reaches the entities that another branch added.
+
+`update` reaches a referencing entity only through the referenced entity. drizzle-kit does not support an entity that a schema file uses and does not export, so the state holds every referenced entity.
 
 A role rename writes the new name at the old place of the role list of a policy, and `drizzle.ts` sorts that list. So before `ddlDiff` compares the states, it gives the new state the role order of the old state when both lists hold the same roles. Without this, the snapshot would store an `alter` of the whole list, and that delta would overwrite a role rename of another branch in a merge.
 
-The key functions (`identity` in `src/dialects/postgres/ddl.ts`) are part of the format too, because a keyed delta names its row by key. An index is keyed by schema and name, without its table: `DROP INDEX` and `ALTER INDEX` do not name the table, so a table rename on one branch must not hide the index from a keyed delta of another branch.
+An index is keyed by schema and name, without its table: `DROP INDEX` and `ALTER INDEX` do not name the table, so a table rename on one branch must not hide the index from a delta of another branch.
 
-While `ddlDiff` records deltas, `update` changes the starting state only through the deltas that it records. It does not follow the reference edges there, so the state that the diff continues with is the state that a replay gives.
+### How a state is reconstructed
 
-### The replay module
+`src/dialects/postgres/reconstruct.ts` holds the code that applies deltas: `applyDeltas` applies a list of deltas to a state, `reconstruct` gives the state after a snapshot, and `startingState` gives the state that the deltas of a new snapshot start from. For a merge snapshot that state is the combined state.
 
-The whole replay of format 9 is in `src/dialects/postgres/replay-v9.ts`: `applyDeltas` runs keyed deltas and instructions, `reconstruct` gives the state after a snapshot, and `startingState` gives the state that a merge starts from. The functions of the same names in `src/dialects/postgres/snapshot.ts` call them with the entity definitions and the state hash check. `ddlDiff` applies the deltas that it records through the same `applyDeltas`.
+`applyDeltas` applies each delta through one call to the DDL engine in `src/dialects/dialect.ts`, which `ddlDiff` uses too. A `create` adds the entity. A `drop` removes that one entity and follows no edge. An `alter` or a `rename` goes through `update` for the entity that the key names. `ddlDiff` calls the same `update` on the old state when it applies a rename decision, and `update` records the rename delta there. The final comparison of the two states gives the `create`, `drop` and `alter` deltas.
 
-The module imports no other module, and a test in `tests/postgres/replay-v9.test.ts` fails if it gets an import. It reads no reference rules. It needs only the rows and the key functions, which it gets as data. So a rule that is added later does not change how an existing file rebuilds, and a rule that is missing when a file is written stays missing in that file.
+One set of rules covers a delta that does not fit the state. The rules are the same in a merge and outside a merge:
 
-Do not change the behavior of this module. A change can give another state for a folder that already exists. If the replay must change, add a new snapshot format with its own replay module next to this one. `generate` then writes the new format, and `up` rebuilds the folders of format 9 with `replay-v9.ts` before it converts them.
+- A `drop`, an `alter` or a `rename` of a missing entity is skipped. A skipped rename changes no other entity.
+- A `create` onto a taken key does nothing when the entity at that key is equal in all fields. It throws when a field differs.
+- A `rename` that moves an entity onto a taken key throws. It also throws when it moves a referencing entity onto a taken key. An `alter` whose fields change the key behaves like a rename.
 
-A `rename` or an `update` that moves a row onto a key that another row holds throws `KeyCollisionError`. `up` turns that into a refusal for an old merge whose branches gave one name to two entities.
+A merge needs the skip. Some changes store a delta and no statement, such as a jsonb default whose keys are written in another order. `check` compares only statements, so it finds no conflict between such a change and a table rename on another branch. If reconstruct applies the rename first, the delta names an entity that is missing under the old key. The diff for the merge snapshot then finds the change again. So in this case the combined state depends on which leaf is the first parent, and the state after the merge snapshot does not.
+
+A delta that throws gives a `KeyCollisionError`. Its message names the entity of the delta, and it carries the id of the snapshot that holds the delta. `generate` turns it into a `check_error` of kind `malformed`. `up` turns it into a refusal for an old merge whose branches gave one key to two different entities.
 
 ### How `check` compares two branches
 
@@ -64,7 +70,7 @@ Example: `p1` is the base, and two git branches each add one migration on top of
 `PostgresCommutativity.detectNonCommutative` builds the snapshot graph and calls `detectBranchConflicts` in `src/commutativity/engine.ts`:
 
 1. For each pair of leaves X and Y, the branch of X is every snapshot in the history of X that is missing from the history of Y. The branch of Y is the reverse. Here the branch of `a1` is `[a1]`, and the branch of `b1` is `[b1]`.
-2. For each snapshot in a branch, the check reads the stored `statements`. It runs no diff and rebuilds no state for them, so the result for an old migration does not depend on the current diff code. A custom migration stores no statements, and a base snapshot stores the create statements of its state.
+2. For each snapshot in a branch, the check reads the stored `statements`. It runs no diff and reconstructs no state for them, so the result for an old migration does not depend on the current diff code. A custom migration stores no statements, and a base snapshot stores the create statements of its state.
 3. Every statement of one branch is compared with every statement of the other. `buildFacetPaths` in `src/dialects/postgres/commutativity.ts` gives each statement the nodes that it owns, destroys and needs. Owning and destroying are writes, and needing is a read. Two statements conflict when one writes a node that the other writes or needs. One pair is left out: two equal stored statements whose SQL gives the same result on a second run (`isRepeatable`), because a claim says which object a statement changes, and not what it changes the object to. A statement kind is repeatable only if every SQL statement that its writer can give runs a second time. So `alter_column` is not repeatable when it adds or drops an identity, drops a generated expression, creates or drops the sequence of a serial column, or changes a column between a scalar type and an array type. For that last change the user writes the conversion into the `USING` clause, so nothing says that it runs a second time.
 
    This comparison is one statement against one statement, and a statement does not know its migration. So a change that is stored as several statements is one change only if each statement is repeatable alone. A new expression for a generated column with a foreign key is stored as `drop_fk`, `recreate_column` and `create_fk`. The SQL of the three together runs a second time. `check` still reports the same three statements on two branches, because a `drop_fk` or a `create_fk` runs a second time only in the migration that also recreates the column. The same holds for the `create_index` or the `add_unique` that is stored for an index or a unique constraint of the column.

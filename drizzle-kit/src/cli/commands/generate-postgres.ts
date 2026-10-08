@@ -24,7 +24,7 @@ import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { SchemaSource } from '../../dialects/postgres/drizzle';
 import { prepareSnapshot, previousState, stateOfSchema } from '../../dialects/postgres/serializer';
-import { assertDeltasRebuildState, type PostgresSnapshot, stateHash } from '../../dialects/postgres/snapshot';
+import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
 import type { SnapshotStatement } from '../../dialects/postgres/snapshot-statements';
 import { originUUID } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
@@ -69,23 +69,14 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	const { ddlCur, ddlPrev, prevIds } = await prepareSnapshot(snapshots, prepared);
 	const parentFolders = index.filter((it) => prevIds.includes(it.id)).map((it) => it.folder);
 
-	// `state` is what the snapshot must rebuild to, and `deltas` turn `ddlPrev` into it. `statements` are the
+	// `state` is the state after the migration, and `deltas` turn `ddlPrev` into it. `statements` are the
 	// statements of the migration, in the order of its SQL.
 	const snapshotOf = (state: PostgresDDL, deltas: Delta[], statements: SnapshotStatement[]): PostgresSnapshot => {
 		const header = { version: '9', dialect: 'postgres', id: randomUUID() } as const;
-		const hash = stateHash(state);
 		if (prevIds.length === 0) {
-			return {
-				type: 'base',
-				...header,
-				prevIds: [originUUID],
-				statements,
-				ddl: state.entities.list(),
-				stateHash: hash,
-			};
+			return { type: 'base', ...header, prevIds: [originUUID], statements, ddl: state.entities.list() };
 		}
-		assertDeltasRebuildState(ddlPrev, deltas, state);
-		return { type: 'diff', ...header, prevIds, statements, deltas, stateHash: hash };
+		return { type: 'diff', ...header, prevIds, statements, deltas };
 	};
 
 	// Deleting waits until generate needs no more hints, so a missing_hints response leaves the folder unchanged.

@@ -2,12 +2,8 @@ import chalk from 'chalk';
 import { readFileSync, writeFileSync } from 'fs';
 import { basename, dirname, join } from 'path';
 import { DuplicateEntityError, fromEntities } from '../../dialects/postgres/ddl';
-import {
-	type PostgresSnapshot,
-	reconstruct,
-	snapshotValidator,
-	stateDifference,
-} from '../../dialects/postgres/snapshot';
+import { reconstruct } from '../../dialects/postgres/reconstruct';
+import { type PostgresSnapshot, snapshotValidator, stateDifference } from '../../dialects/postgres/snapshot';
 import { upToV8 } from '../../dialects/postgres/versions';
 import { UnsupportedMergeError, upToV9, withStateKeyNames } from '../../dialects/postgres/versions-v9';
 import { originUUID } from '../../utils';
@@ -108,6 +104,19 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 				}
 				if (!sortsAfter(file.folder, parent.folder)) throw folderOrderError(file, parent);
 			}
+		}
+
+		// Each snapshot with no parent becomes a base snapshot, and a folder holds one base snapshot.
+		const [first, second] = files.filter((it) =>
+			(it.snapshot.prevIds as string[]).every((id) => !id || id === originUUID)
+		);
+		if (second) {
+			throw historyError(
+				`the folder has two first migrations, ${first.name} and ${second.name}, and a folder must have one.`,
+				'Delete one of the two migrations together with every migration that follows it, run drizzle-kit up '
+					+ 'again, and then run drizzle-kit generate.',
+				{ snapshot: second.path, baseSnapshot: first.path },
+			);
 		}
 
 		let snapshotTexts: string[];

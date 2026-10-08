@@ -4,7 +4,7 @@ import { join } from 'path';
 import { toSnapshotStatements } from '../../src/dialects/postgres/convertor';
 import { createDDL } from '../../src/dialects/postgres/ddl';
 import { ddlDiffDry } from '../../src/dialects/postgres/diff';
-import { type PostgresSnapshot, stateHash } from '../../src/dialects/postgres/snapshot';
+import type { PostgresSnapshot } from '../../src/dialects/postgres/snapshot';
 import { drizzleToDDL, type PostgresSchema } from '../postgres/mocks';
 
 export const ORIGIN = '00000000-0000-0000-0000-000000000000';
@@ -19,10 +19,9 @@ export const makePgSnapshot = async (
 	const header = { version: '9', dialect: 'postgres', id, prevIds } as const;
 	const { ddl } = drizzleToDDL(schema);
 	const { deltas, statements } = await ddlDiffDry(from ? drizzleToDDL(from).ddl : createDDL(), ddl, 'default');
-	const hash = stateHash(ddl);
 	const stored = toSnapshotStatements(statements);
-	if (!from) return { type: 'base', ...header, statements: stored, ddl: ddl.entities.list(), stateHash: hash };
-	return { type: 'diff', ...header, statements: stored, deltas, stateHash: hash };
+	if (!from) return { type: 'base', ...header, statements: stored, ddl: ddl.entities.list() };
+	return { type: 'diff', ...header, statements: stored, deltas };
 };
 
 export const stageOut = (): string => {

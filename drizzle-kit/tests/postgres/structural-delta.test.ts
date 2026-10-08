@@ -19,10 +19,10 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
-import { apply, delta, findRow, recordDeltas } from 'src/dialects/dialect';
+import { type Delta, delta, recordDeltas } from 'src/dialects/dialect';
 import { createDDL } from 'src/dialects/postgres/ddl';
 import { describe, expect, test } from 'vitest';
-import { diff, drizzleToDDL } from './mocks';
+import { apply, diff, drizzleToDDL } from './mocks';
 
 // A DDL instance (for delta/apply, which read the engine's identity generators) and its
 // materialized rows (for canonical comparison, which is identity-independent over the set).
@@ -243,7 +243,7 @@ describe('canonical form', () => {
 const inUsers = { schema: 'public', table: 'users' };
 
 describe('ddlDiff deltas', () => {
-	test('renaming a table and a column gives two renames, each followed by its instructions', async () => {
+	test('renaming a table and a column gives two rename deltas', async () => {
 		const users = pgTable('users', { id: integer('id'), name: text('name') }, (t) => [
 			index('users_name_idx').on(t.name),
 		]);
@@ -256,123 +256,55 @@ describe('ddlDiff deltas', () => {
 			'public.accounts.name->public.accounts.full_name',
 		]);
 
-		expect(deltas.map((it) => it.op)).toStrictEqual([
-			'rename',
-			...Array(9).fill('update'),
-			'rename',
-			'update_list_items',
-			...Array(4).fill('replace_in_list'),
+		expect(deltas).toStrictEqual([
+			{ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } },
+			{ op: 'rename', key: 'columns\0["public","accounts","name"]', set: { name: 'full_name' } },
 		]);
-		expect(deltas[0]).toStrictEqual({ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } });
-		expect(deltas).toContainEqual({ op: 'update', type: 'columns', where: inUsers, set: { table: 'accounts' } });
-		expect(deltas[10]).toStrictEqual({
-			op: 'rename',
-			key: 'columns\0["public","accounts","name"]',
-			set: { name: 'full_name' },
-		});
-		expect(deltas[11]).toStrictEqual({
-			op: 'update_list_items',
-			type: 'indexes',
-			where: { schema: 'public', table: 'accounts' },
-			field: 'columns',
-			match: { value: 'name', isExpression: false },
-			set: { value: 'full_name' },
-		});
 	});
 });
 
 describe('recorded update deltas', () => {
-	const instructionsOf = (change: (ddl: ReturnType<typeof ddlOf>) => unknown) => {
+	const recordedBy = (change: (ddl: ReturnType<typeof ddlOf>) => unknown) => {
 		const ddl = ddlOf({ other, mood, users, items: other.table('items', { id: integer('id') }) });
 		const recorded = recordDeltas(ddl);
 		change(ddl);
 		return recorded;
 	};
 
-	// One instruction for every reference rule that points at the renamed entity type, whether a row
-	// matches it or not. The list of a rename kind has a fixed length.
-	test('a table rename records the rename and nine instructions', () => {
-		const recorded = instructionsOf((ddl) =>
-			ddl.tables.update({ set: { name: 'accounts' }, where: { name: 'users' } })
-		);
+	// The entities that reference the renamed entity change through the edges and get no delta.
+	test('a table rename records one rename delta', () => {
+		const recorded = recordedBy((ddl) => ddl.tables.update({ set: { name: 'accounts' }, where: { name: 'users' } }));
 
-		const toAccounts = { op: 'update', where: inUsers, set: { table: 'accounts' } };
 		expect(recorded).toStrictEqual([
 			{ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } },
-			{ ...toAccounts, type: 'checks' },
-			{ ...toAccounts, type: 'policies' },
-			{ ...toAccounts, type: 'privileges' },
-			{ ...toAccounts, type: 'columns' },
-			{ ...toAccounts, type: 'indexes' },
-			{ ...toAccounts, type: 'pks' },
-			{ ...toAccounts, type: 'uniques' },
-			{ ...toAccounts, type: 'fks' },
-			{ op: 'update', type: 'fks', where: { schemaTo: 'public', tableTo: 'users' }, set: { tableTo: 'accounts' } },
 		]);
 	});
 
-	test('a column rename records the rename and five instructions', () => {
-		const recorded = instructionsOf((ddl) =>
+	test('a column rename records one rename delta', () => {
+		const recorded = recordedBy((ddl) =>
 			ddl.columns.update({ set: { name: 'contact' }, where: { ...inUsers, name: 'email' } })
 		);
 
-		const renamed = { where: inUsers, field: 'columns', from: 'email', to: 'contact' };
 		expect(recorded).toStrictEqual([
 			{ op: 'rename', key: 'columns\0["public","users","email"]', set: { name: 'contact' } },
-			{
-				op: 'update_list_items',
-				type: 'indexes',
-				where: inUsers,
-				field: 'columns',
-				match: { value: 'email', isExpression: false },
-				set: { value: 'contact' },
-			},
-			{ op: 'replace_in_list', type: 'pks', ...renamed },
-			{ op: 'replace_in_list', type: 'uniques', ...renamed },
-			{ op: 'replace_in_list', type: 'fks', ...renamed },
-			{
-				op: 'replace_in_list',
-				type: 'fks',
-				where: { schemaTo: 'public', tableTo: 'users' },
-				field: 'columnsTo',
-				from: 'email',
-				to: 'contact',
-			},
 		]);
 	});
 
-	test('an enum rename records the rename and one instruction', () => {
-		const recorded = instructionsOf((ddl) => ddl.enums.update({ set: { name: 'feeling' }, where: { name: 'mood' } }));
+	test('an enum rename records one rename delta', () => {
+		const recorded = recordedBy((ddl) => ddl.enums.update({ set: { name: 'feeling' }, where: { name: 'mood' } }));
 
 		expect(recorded).toStrictEqual([
 			{ op: 'rename', key: 'enums\0["public","mood"]', set: { name: 'feeling' } },
-			{ op: 'update', type: 'columns', where: { typeSchema: 'public', type: 'mood' }, set: { type: 'feeling' } },
 		]);
 	});
 
-	test('a schema rename records one instruction for every entity type that holds a schema name', () => {
-		const recorded = instructionsOf((ddl) =>
-			ddl.schemas.update({ set: { name: 'archive' }, where: { name: 'other' } })
-		);
+	test('a schema rename records one rename delta', () => {
+		const recorded = recordedBy((ddl) => ddl.schemas.update({ set: { name: 'archive' }, where: { name: 'other' } }));
 
-		expect(recorded[0]).toStrictEqual({ op: 'rename', key: 'schemas\0["other"]', set: { name: 'archive' } });
-		const instructions = recorded.slice(1) as { op: string; type: string; where: object; set: object }[];
-		expect(instructions.map((it) => it.op)).toStrictEqual(Array(14).fill('update'));
-		const own = { where: { schema: 'other' }, set: { schema: 'archive' } };
-		expect(instructions.map(({ type, where, set }) => ({ type, where, set }))).toStrictEqual([
-			...['tables', 'checks', 'policies', 'privileges', 'columns', 'indexes', 'pks', 'uniques', 'fks'].map((type) => ({
-				type,
-				...own,
-			})),
-			{ type: 'fks', where: { schemaTo: 'other' }, set: { schemaTo: 'archive' } },
-			{ type: 'enums', ...own },
-			{ type: 'columns', where: { typeSchema: 'other' }, set: { typeSchema: 'archive' } },
-			{ type: 'sequences', ...own },
-			{ type: 'views', ...own },
-		]);
+		expect(recorded).toStrictEqual([{ op: 'rename', key: 'schemas\0["other"]', set: { name: 'archive' } }]);
 	});
 
-	test('the store changes as a replay of the recorded deltas changes it', () => {
+	test('the recorded deltas, applied to the starting state, give the state after the updates', () => {
 		const start = ddlOf({ other, mood, users, items: other.table('items', { id: integer('id') }) });
 		const ddl = ddlOf({ other, mood, users, items: other.table('items', { id: integer('id') }) });
 		const recorded = recordDeltas(ddl);
@@ -393,7 +325,7 @@ describe('recorded update deltas', () => {
 		expect(ddl.tables.list().map((it) => it.name).sort()).toStrictEqual(['accounts', 'users']);
 	});
 
-	test('are empty, and no row moves, when an instruction would move a row onto a taken key', () => {
+	test('are empty, and no entity moves, when a rename would move a referencing entity onto a taken key', () => {
 		const ddl = ddlOf({
 			users,
 			accounts: pgTable('other_accounts', { id: integer('id') }),
@@ -411,87 +343,45 @@ describe('recorded update deltas', () => {
 	});
 });
 
-describe('apply rename and instructions', () => {
-	const withIndex = pgTable('users', { id: integer('id'), email: varchar('email') }, (t) => [
-		index('users_email_idx').on(t.email, sql`lower(${t.email})`),
-		primaryKey({ name: 'users_pk', columns: [t.id, t.email] }),
-	]);
-
-	test('a rename moves only the renamed row', () => {
+describe('apply deltas to a state', () => {
+	test('a rename changes the renamed entity and, through the edges, the entities that reference it', () => {
 		const next = apply(ddlOf({ users }), [
 			{ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } },
 		]);
 		expect(next.tables.list().map((it) => it.name)).toStrictEqual(['accounts']);
-		expect(next.columns.list().map((it) => it.table)).toStrictEqual(['users', 'users']);
+		expect(next.columns.list().map((it) => it.table)).toStrictEqual(['accounts', 'accounts']);
 	});
 
-	test('an update sets the fields of every row that matches, and moves a row whose key changes', () => {
-		const next = apply(ddlOf({ users, orders: pgTable('orders', { id: integer('id') }) }), [
-			{ op: 'update', type: 'columns', where: inUsers, set: { table: 'accounts' } },
-		]);
-		expect(next.columns.list({ table: 'accounts' }).map((it) => it.name)).toStrictEqual(['id', 'email']);
-		expect(next.columns.one({ table: 'users' })).toBeNull();
-		expect(next.columns.list({ table: 'orders' })).toHaveLength(1);
-		expect(findRow(next, 'columns\0["public","accounts","id"]')).toMatchObject({ table: 'accounts', name: 'id' });
-	});
+	test('a delta with an operation other than create, drop, alter and rename throws', () => {
+		const unsupported = { op: 'update', type: 'columns', where: inUsers, set: { table: 'accounts' } };
 
-	test('an instruction that matches no row changes nothing', () => {
-		const start = ddlOf({ users });
-		const next = apply(start, [
-			{ op: 'update', type: 'policies', where: inUsers, set: { table: 'accounts' } },
-			{ op: 'replace_in_list', type: 'fks', where: inUsers, field: 'columns', from: 'email', to: 'contact' },
-			{
-				op: 'update_list_items',
-				type: 'indexes',
-				where: inUsers,
-				field: 'columns',
-				match: { value: 'email', isExpression: false },
-				set: { value: 'contact' },
-			},
-		]);
-		expect(eq(next, start)).toBe(true);
-	});
-
-	test('replace_in_list replaces a string of a list', () => {
-		const next = apply(ddlOf({ users: withIndex }), [
-			{ op: 'replace_in_list', type: 'pks', where: inUsers, field: 'columns', from: 'email', to: 'contact' },
-		]);
-		expect(next.pks.one()?.columns).toStrictEqual(['id', 'contact']);
-	});
-
-	test('update_list_items changes the objects of a list that have the matched values', () => {
-		const next = apply(ddlOf({ users: withIndex }), [{
-			op: 'update_list_items',
-			type: 'indexes',
-			where: inUsers,
-			field: 'columns',
-			match: { value: 'email', isExpression: false },
-			set: { value: 'contact' },
-		}]);
-		// The second column of the index is an expression, and its text is not a column name.
-		expect(next.indexes.one()?.columns.map((it) => [it.value, it.isExpression])).toStrictEqual([
-			['contact', false],
-			['lower("email")', true],
-		]);
-	});
-
-	test('a move onto a key that another row holds throws and names both rows', () => {
-		const start = ddlOf({ users, accounts: pgTable('accounts', { id: integer('id') }) });
-
-		expect(() => apply(start, [{ op: 'update', type: 'columns', where: inUsers, set: { table: 'accounts' } }])).toThrow(
-			'The update delta moves columns ["public","users","id"] to ["public","accounts","id"], and another row of '
-				+ 'columns already has the key ["public","accounts","id"]. Two migrations gave one name to two different '
-				+ 'entities.',
+		expect(() => apply(ddlOf({ users }), [unsupported as unknown as Delta])).toThrow(
+			'A delta has the operation "update". A delta must be a create, a drop, an alter or a rename.',
 		);
-		expect(() => apply(start, [{ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } }]))
-			.toThrow(
-				'The rename delta moves tables ["public","users"] to ["public","accounts"], and another row of tables already '
-					+ 'has the key ["public","accounts"].',
-			);
 	});
 
-	test('a rename of a missing entity throws', () => {
-		expect(() => apply(ddlOf({ users }), [{ op: 'rename', key: 'tables\0["public","orders"]', set: { name: 'x' } }]))
-			.toThrow(/missing entity/);
+	test('a rename onto a key that another entity holds throws and names both keys', () => {
+		const start = ddlOf({ users, accounts: pgTable('accounts', { id: integer('id') }) });
+		const renameUsers = [{ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } }] as const;
+
+		expect(() => apply(start, [...renameUsers])).toThrow(
+			'The rename delta moves tables ["public","users"] to ["public","accounts"], and another row of tables already '
+				+ 'has the key ["public","accounts"].',
+		);
+
+		// A column of a table `accounts` that the state does not hold, so only a column lands on a taken key.
+		const withColumn = ddlOf({ users });
+		withColumn.columns.push({ ...withColumn.columns.one({ table: 'users', name: 'id' })!, table: 'accounts' });
+		expect(() => apply(withColumn, [...renameUsers])).toThrow(
+			'The rename delta moves tables ["public","users"] to ["public","accounts"], and it also moves an entity of '
+				+ 'columns onto the key ["public","accounts","id"], which another entity of columns already has. Two '
+				+ 'migrations gave one name to two different entities.',
+		);
+	});
+
+	test('a rename of a missing entity is skipped', () => {
+		const start = ddlOf({ users });
+		const next = apply(start, [{ op: 'rename', key: 'tables\0["public","orders"]', set: { name: 'x' } }]);
+		expect(eq(next, start)).toBe(true);
 	});
 });

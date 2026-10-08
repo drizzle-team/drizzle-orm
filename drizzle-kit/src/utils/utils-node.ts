@@ -14,7 +14,7 @@ import {
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
 import { snapshotValidator as mysqlSnapshotValidator } from '../dialects/mysql/snapshot';
-import { missingBaseMessage, missingParentMessage } from '../dialects/postgres/replay-v9';
+import { missingBaseMessage, missingParentMessage } from '../dialects/postgres/reconstruct';
 import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
 import { snapshotValidator as singlestoreSnapshotValidator } from '../dialects/singlestore/snapshot';
 import { snapshotValidator as sqliteStapshotValidator } from '../dialects/sqlite/snapshot';
@@ -164,6 +164,17 @@ export const assertPostgresHistory = (snapshots: string[], index: SnapshotNode[]
 
 	if (nodes.every((it) => it.type === 'diff')) {
 		throw broken(nodes[0], missingBaseMessage(nodes[0].folder));
+	}
+	// A snapshot of an older format has no `type`, so its folder still gets the request to run up.
+	const [base, secondBase] = nodes.filter((it) => it.type === 'base');
+	if (secondBase) {
+		throw broken(
+			secondBase,
+			`The migrations folder has two base snapshots, in ${base.folder} and ${secondBase.folder}. `
+				+ 'A folder must have one base snapshot, which is its first migration. Delete one of the two migration '
+				+ 'folders together with every migration that follows it, then run generate again.',
+			{ baseSnapshot: base.path },
+		);
 	}
 	for (const node of nodes) {
 		if (node.type === 'diff' && (node.prevIds[0] ?? originUUID) === originUUID) {

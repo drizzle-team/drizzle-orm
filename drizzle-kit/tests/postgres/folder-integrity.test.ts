@@ -4,8 +4,8 @@ import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { checkHandler } from 'src/cli/commands/check';
 import { errorToEnvelope } from 'src/cli/errors';
+import { reconstruct } from 'src/dialects/postgres/reconstruct';
 import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
-import { reconstruct } from 'src/dialects/postgres/snapshot';
 import { prepareOutFolder } from 'src/utils/utils-node';
 import { expect, onTestFinished, test } from 'vitest';
 import { ORIGIN, writeSnapshot } from '../other/check-fixtures';
@@ -88,6 +88,36 @@ test('deleting the first migration stops every command because the base is missi
 	await expect(flow.check('main')).rejects.toThrow(message);
 	await expect(flow.generate('main', v3)).rejects.toThrow(message);
 	expect(flow.folders('main')).toStrictEqual(['20260101120002_main']);
+});
+
+// Two git branches that each start from an empty folder both write a base snapshot.
+test('a second base snapshot stops check, generate and pull, and the error names both migration folders', async () => {
+	const flow = createFolderFlow();
+	flow.branch('a');
+	flow.branch('b');
+	await flow.generate('a', v1);
+	await flow.generate('b', { posts: pgTable('posts', { id: integer() }) });
+	flow.merge('main', 'a', 'b');
+	const before = flow.files('main');
+
+	const message = 'The migrations folder has two base snapshots, in 20260101120001_a and 20260101120002_b. '
+		+ 'A folder must have one base snapshot, which is its first migration. Delete one of the two migration folders '
+		+ 'together with every migration that follows it, then run generate again.';
+	await expect(flow.check('main')).rejects.toThrow(message);
+	await expect(flow.generate('main', v1)).rejects.toThrow(message);
+	const client = new PGlite();
+	onTestFinished(() => client.close());
+	await expect(flow.pull('main', client)).rejects.toThrow(message);
+	expect(errorToEnvelope(await flow.check('main').catch((e) => e))).toStrictEqual({
+		status: 'error',
+		error: {
+			code: 'check_error',
+			kind: 'malformed',
+			snapshot: expect.stringMatching(/20260101120002_b[/\\]snapshot\.json$/),
+			baseSnapshot: expect.stringMatching(/20260101120001_a[/\\]snapshot\.json$/),
+		},
+	});
+	expect(flow.files('main')).toStrictEqual(before);
 });
 
 test('a folder that sorts before its parent stops every command and names both folders', async () => {
@@ -239,7 +269,6 @@ test('reconstruct stops on a cycle of first parents', () => {
 		prevIds: [parent],
 		deltas: [],
 		statements: [],
-		stateHash: '',
 	});
 	const history = new Map([diff('a', 'b'), diff('b', 'a')].map((it) => [it.id, it]));
 
