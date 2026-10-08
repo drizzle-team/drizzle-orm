@@ -365,6 +365,7 @@ function buildFunctionArgumentReferences<
 	) as PgFunctionArgumentReferences<TArgs>;
 }
 
+/** @internal Use `PgSchema.function` or `pgFunction` instead */
 export function pgFunctionWithSchema<
 	TName extends string,
 	TSchema extends string | undefined,
