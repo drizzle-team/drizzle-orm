@@ -266,7 +266,10 @@ export const up = (it: Record<string, any>): { snapshot: PostgresSchemaState; hi
 // `files` maps each migration folder name to the parsed JSON of its snapshot.json.
 // Returns the state of snapshot `id`, or of the only leaf when `id` is not given.
 export const reconstruct = async (files: Record<string, unknown>, id?: string): Promise<PostgresSchemaState> => {
-	const { reconstruct: reconstructState } = await import('../dialects/postgres/reconstruct');
+	const { KeyCollisionError, reconstruct: reconstructState, reconstructErrorMessage } = await import(
+		'../dialects/postgres/reconstruct'
+	);
+	const { CheckCliError } = await import('../cli/errors');
 	const { assertPostgresHistory, assertSnapshotStatus, validatorForDialect } = await import('../utils/utils-node');
 
 	// A merge applies the rest of its history in folder-name order.
@@ -304,6 +307,16 @@ export const reconstruct = async (files: Record<string, unknown>, id?: string): 
 	}
 
 	const history = new Map(snapshots.map((it) => [it.id, it]));
-	const state = reconstructState(history, id);
-	return schemaState(id, history.get(id)!.prevIds, state.entities.list());
+	try {
+		const state = reconstructState(history, id);
+		return schemaState(id, history.get(id)!.prevIds, state.entities.list());
+	} catch (e) {
+		if (!(e instanceof KeyCollisionError)) throw e;
+		const folder = nodes.find((it) => it.id === id)!.folder;
+		throw new CheckCliError(
+			'malformed',
+			reconstructErrorMessage(folder, `Cannot reconstruct the state of migration ${folder}: ${e.message}`),
+			{ snapshot: folder },
+		);
+	}
 };

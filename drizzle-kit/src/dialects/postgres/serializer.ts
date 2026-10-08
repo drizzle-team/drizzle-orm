@@ -4,7 +4,7 @@ import type { PostgresDDL } from './ddl';
 import { interimToDDL } from './ddl';
 import { fromDrizzleSchema } from './drizzle';
 import type { PreparedPostgresSchema } from './drizzle';
-import { KeyCollisionError, reconstruct, startingState } from './reconstruct';
+import { KeyCollisionError, reconstruct, reconstructErrorMessage, startingState } from './reconstruct';
 import type { PostgresSnapshot } from './snapshot';
 
 // The state that the next migration starts from: the state of the only leaf, or the combined state of
@@ -26,12 +26,7 @@ export const previousState = async (snapshots: string[]): Promise<{ ddlPrev: Pos
 	const folderOf = (id: string) => basename(dirname(pathOf.get(id)!));
 	// `id` is the snapshot to restore or delete, and `problem` is a full sentence.
 	const malformed = (id: string, problem: string) =>
-		new CheckCliError(
-			'malformed',
-			`${problem} Restore the migration folder from git, or delete ${folderOf(id)} and every later migration, `
-				+ 'then run generate again.',
-			{ snapshot: pathOf.get(id)! },
-		);
+		new CheckCliError('malformed', reconstructErrorMessage(folderOf(id), problem), { snapshot: pathOf.get(id)! });
 	// Every leaf is reconstructed as a separate state. The combined state applies the deltas of the other
 	// leaves to the state of the first parent, so it alone can hide a leaf that does not reconstruct.
 	const leaves = prevIds.map((id) => {

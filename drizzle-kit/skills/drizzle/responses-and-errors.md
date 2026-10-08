@@ -1,15 +1,6 @@
----
-name: drizzle-responses-and-errors
-description: Decode the drizzle-kit response JSON envelope, error codes, and exit codes — from the CLI `--output json` output or any drizzle-kit SDK return value. Load whenever drizzle-kit output contains a non-zero exit, an error code (`config_validation_error`, `database_driver_error`, `invalid_hints`, `unsupported_schema_change`, etc.), or any drizzle-kit JSON response needs parsing or inspection.
-metadata:
-  version: "1.0.0"
----
-
 # Drizzle responses and errors
 
-If the `drizzle` skill has not been loaded yet this session, load it first — it carries the staleness check and the MCP-vs-CLI surface-selection rule that govern every drizzle-kit invocation.
-
-Both invocation surfaces share one envelope: the CLI prints it on stdout when `--output json` is passed, and the SDK functions `generate(...)` / `push(...)` / `check(...)` return the same object. The discriminator is always `status`. Decoding logic written for one surface works on the other. This skill does not invoke commands or author schemas — see `drizzle-generate` and `drizzle-push` for invocation, `drizzle-hints` for the `missing_hints` resolution loop.
+Both invocation surfaces share one envelope: the CLI prints it on stdout when `--output json` is passed, and the SDK functions `generate(...)` / `push(...)` / `check(...)` return the same object. The discriminator is always `status`. Decoding logic written for one surface works on the other. This skill does not invoke commands or author schemas — see [generate.md](generate.md) and [push.md](push.md) for invocation, [hints.md](hints.md) for the `missing_hints` resolution loop.
 
 ## Response envelope
 
@@ -33,9 +24,9 @@ Per-operation extras on `'ok'`:
 - `--explain` (either command, non-empty diff) — `{ status, dialect, statements, hints }`
 - `generate --fix-conflicts --explain` deletes nothing. If the folder has conflicts, the explain `ok` and `no_changes` also carry `fix: { migrations, customMigrations }`, the folders that the fix would delete.
 
-`'missing_hints'` carries `unresolved`, an array of items the agent must resolve before retrying. Each item is `{ type: 'rename_or_create', kind, entity }` or `{ type: 'confirm_data_loss', kind, entity, reason, reason_details? }`. The resolution loop lives in the `drizzle-hints` skill.
+`'missing_hints'` carries `unresolved`, an array of items the agent must resolve before retrying. Each item is `{ type: 'rename_or_create', kind, entity }` or `{ type: 'confirm_data_loss', kind, entity, reason, reason_details? }`. The resolution loop lives in [hints.md](hints.md).
 
-The table above describes `--output json`. Under `--output text` + non-TTY the same `missing_hints` information renders as the human-readable missing-decisions report on stdout, still exiting with code 2 — see the `drizzle-output-modes` skill for the text-report shape.
+The table above describes `--output json`. Under `--output text` + non-TTY the same `missing_hints` information renders as the human-readable missing-decisions report on stdout, still exiting with code 2 — see [output-modes.md](output-modes.md) for the text-report shape.
 
 `'error'` carries `error.code` plus `meta` keys (variable per code). The runtime serializer flattens `{ code, ...meta }` into the `error` object — `code` is always present; the remaining keys vary. The envelope is the only shape an agent observes; no other fields are surfaced.
 
@@ -109,7 +100,7 @@ For the integrity kinds, `snapshot` is the path of the snapshot file that has th
 | none | postgres only, and only from `generate`: the migration of `snapshot` is a leaf that does not reconstruct, because a delta in its history throws; `check` and `migrate` pass on this folder | restore the migration folder from git, or delete the migration of `snapshot` and every later migration, then run `generate` again |
 | none | postgres only, and only from `generate`: every leaf reconstructs, and their combined state does not, because a delta of the migration of `snapshot` gives one key to a second entity; `check` and `migrate` pass on this folder | restore the migration folder from git, or delete the migration of `snapshot` and every later migration, then run `generate` again |
 
-The cases without an extra key differ in the file at `snapshot`, so read that file to tell them apart. Under `--output text`, the message names the case and the fix. The `drizzle-migrations` skill explains the migrations folder, base and diff snapshots, and these fixes in more detail.
+The cases without an extra key differ in the file at `snapshot`, so read that file to tell them apart. Under `--output text`, the message names the case and the fix. [migrations.md](migrations.md) explains the migrations folder, base and diff snapshots, and these fixes in more detail.
 
 For `conflicts`, `conflicts` is the count and `details` is an array of length `conflicts`. Each entry is `{ parentId, parentPath?, branches }`. `parentId` is the fork point: the newest snapshot that is in the history of both leaves. `parentPath` is its folder. `branches` is always a two-element array, one entry for each branch, and each entry is `{ leafId, leafPath, statementDescription, target, action }`. `leafId` / `leafPath` are the id and folder of that branch's newest migration (`null` when the branch is empty). `statementDescription` describes the conflicting statement; for postgres it ends with the folder of the migration that the statement comes from. `target` is `{ kind, name, schema?, table? }`, the entity that the statement changes, and `action` is the statement type. For postgresql, `fix` is `{ migrations, customMigrations }`: the folders that `generate --fix-conflicts` deletes, and the custom migrations among them.
 
@@ -130,7 +121,7 @@ switch (response.status) {
     // response.dialect is present; nothing to do
     break;
   case 'missing_hints':
-    // response.unresolved holds the items to resolve (see drizzle-hints)
+    // response.unresolved holds the items to resolve (see hints.md)
     break;
   case 'error':
     switch (response.error.code) {
@@ -166,11 +157,11 @@ Common failure modes and their fixes — keyed by `error.code` / `meta.kind`:
 - `required_packages_error` — `meta.packages` lists the npm packages to install. Common for dialect drivers (`pg`, `mysql2`, `better-sqlite3`, `@libsql/client`, `mssql`).
 - `unsupported_command_dialect_error` — the command, or one of its options, cannot run here. Without `meta.option`, the command isn't supported for `meta.dialect`: use a different command or switch dialects. With `meta.option` and `meta.dialect`, only that option is unsupported: postgresql rejects `ignore-conflicts` (use `generate --fix-conflicts`), and the other dialects reject `fix-conflicts`. With `meta.conflictsWith`, the two options cannot be used together: `generate` rejects `explain` with `custom`, because a custom migration has no SQL to explain. Run it with only one of them.
 - `migrations_outdated_error` — the migrations folder under `meta.out` uses an older snapshot format. Run `drizzle-kit up` to migrate the folder forward.
-- `check_error`: `meta.kind` discriminates. For `non_latest`, run `drizzle-kit up`. For `malformed`, see the case table in Check errors above. For `order`, rename the folder of `meta.snapshot` so that it sorts after the folder of `meta.parentSnapshot`. For `conflicts`, `meta.details` names the conflicting migrations; the `drizzle-migrations` skill covers how to resolve them.
+- `check_error`: `meta.kind` discriminates. For `non_latest`, run `drizzle-kit up`. For `malformed`, see the case table in Check errors above. For `order`, rename the folder of `meta.snapshot` so that it sorts after the folder of `meta.parentSnapshot`. For `conflicts`, `meta.details` names the conflicting migrations; [migrations.md](migrations.md) covers how to resolve them.
 - `command_output_error` with `meta.command: 'up'`: `up` converted nothing and changed no file. `meta.kind` is `history` (the history of the folder cannot be converted: with `meta.parentId`, a migration was deleted in the middle of the history, so restore it from git, or delete the migration of `meta.snapshot` and every later migration, run `up`, and generate them again; with `meta.entry`, that journal entry has no SQL file, so restore the file at `meta.sql`; with `meta.baseSnapshot`, the folder has two first migrations, so delete one of them together with every migration that follows it, run `up` again, and then run `generate`), `malformed` (a format 8 snapshot is broken, or a format 9 snapshot is broken while the folder has a snapshot to convert: restore `meta.snapshot` from git and run `up` again; a broken snapshot of format 4 to 7 gives `internal_error` instead), `invalid_snapshot` or `state_mismatch` (a drizzle-kit bug: keep the old files and report it; `state_mismatch` also names the first differing `meta.entity`).
 - `invalid_hints` — discriminated by which keys are present in `meta`: `path` means a file read failed, `issues` means schema validation failed, `kind` + `from` together mean a `rename` hint's `from` tuple did not match any deleted entity. For schema-validation failures, fix the named issues; for a `from` mismatch, correct the tuple (the entity must be one the diff would otherwise delete).
 - `unsupported_schema_change` — refer to the variant table above; each variant has a specific remediation path.
 - `query_error` — the live DB threw on `meta.sql` with `meta.params`. Run the same query manually against the target DB to surface the underlying DBMS error; fix the schema or the data.
 - `internal_error` — an unexpected exception escaped. `meta.message` carries the underlying error text. File an issue if reproducible; the SDK never throws for known failures, only for genuine bugs.
 
-For `missing_hints` (status, not an error code) — see the `drizzle-hints` skill for the resolve-and-retry loop. For workflow context — when to use `generate` vs `push`, how migrations folders work — see `drizzle-migrations`.
+For `missing_hints` (status, not an error code) — see [hints.md](hints.md) for the resolve-and-retry loop. For workflow context — when to use `generate` vs `push`, how migrations folders work — see [migrations.md](migrations.md).

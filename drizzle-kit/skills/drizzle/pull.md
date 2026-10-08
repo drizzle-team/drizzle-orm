@@ -1,15 +1,6 @@
----
-name: drizzle-pull
-description: Introspect an existing database into a Drizzle schema — the reverse of generate and push, which drive a database from a schema. Load whenever the task is to generate a Drizzle schema from a live database, reverse-engineer or import an existing database, or decode the result manifest or a connect/introspect failure from a pull.
-metadata:
-  version: "1.0.0"
----
-
 # Drizzle pull
 
-If the `drizzle` skill has not been loaded yet this session, load it first — it carries the staleness check and the MCP-vs-CLI surface-selection rule that govern every drizzle-kit invocation.
-
-Pull introspects an existing database and writes a Drizzle schema from it: it connects, reads the live DDL, and emits `schema.ts`, a `relations.ts` (for the dialects that have one), and a snapshot under the configured `out` dir. It is the inverse of `generate` / `push` — those start from a schema and drive the database; pull starts from the database and writes the schema. The `drizzle-migrations` skill covers where pull sits in the overall workflow. Output format and interactivity are separate axes the same way they are for the other verbs — the `drizzle-output-modes` skill covers the text-vs-json choice — and `drizzle-responses-and-errors` decodes the envelope shapes below.
+Pull introspects an existing database and writes a Drizzle schema from it: it connects, reads the live DDL, and emits `schema.ts`, a `relations.ts` (for the dialects that have one), and a snapshot under the configured `out` dir. It is the inverse of `generate` / `push` — those start from a schema and drive the database; pull starts from the database and writes the schema. [migrations.md](migrations.md) covers where pull sits in the overall workflow. Output format and interactivity are separate axes the same way they are for the other verbs — see [output-modes.md](output-modes.md) — and [responses-and-errors.md](responses-and-errors.md) decodes the envelope shapes below.
 
 ## CLI form
 
@@ -69,7 +60,7 @@ if (response.status === 'ok') {
   // response.status === 'error'
   // response.error.code identifies the failure, e.g. database_driver_error
   // (connect/introspect/init failures are credential-redacted) — decode it
-  // with the drizzle-responses-and-errors skill
+  // with responses-and-errors.md
 }
 ```
 
@@ -101,7 +92,7 @@ The `'error'` envelope, when the driver cannot connect or introspection fails:
 { "status": "error", "error": { "code": "database_driver_error", "database": "postgresql", "packages": ["pg", "postgres"], "note": "<optional connection hint>" } }
 ```
 
-`database_driver_error` carries only `database`, `packages`, and an optional `note` — the connection string, sql, and params are deliberately kept out of the envelope, so no credential substring ever reaches stdout. The `drizzle-responses-and-errors` skill decodes this and the other error codes. Example payloads here use placeholder paths and dialects only — never a real connection string, url, or password.
+`database_driver_error` carries only `database`, `packages`, and an optional `note` — the connection string, sql, and params are deliberately kept out of the envelope, so no credential substring ever reaches stdout. [responses-and-errors.md](responses-and-errors.md) decodes this and the other error codes. Example payloads here use placeholder paths and dialects only — never a real connection string, url, or password.
 
 ## Contract
 
@@ -109,4 +100,4 @@ Pull is ok/error only. It never emits `missing_hints`: it introspects against an
 
 ## --init
 
-`--init` (CLI) / `init: true` (SDK) records the migration that pull wrote as applied in the migrations table of the live database, so that `migrate` does not run it again. It creates the migrations table when the table does not exist. It does not run the migration SQL, because the database already has that schema. This is a write to the connected database. `--init` fails with `command_output_error` when the database already has applied migrations, or when the `out` folder has more than one migration. The MCP `pull` tool surfaces this `init` escalation as a per-call destructive signal on its result; the `drizzle-responses-and-errors` skill carries the canonical shape of that signal.
+`--init` (CLI) / `init: true` (SDK) records the migration that pull wrote as applied in the migrations table of the live database, so that `migrate` does not run it again. It creates the migrations table when the table does not exist. It does not run the migration SQL, because the database already has that schema. This is a write to the connected database. `--init` fails with `command_output_error` when the database already has applied migrations, or when the `out` folder has more than one migration. The MCP `pull` tool surfaces this `init` escalation as a per-call destructive signal on its result; [responses-and-errors.md](responses-and-errors.md) carries the canonical shape of that signal.

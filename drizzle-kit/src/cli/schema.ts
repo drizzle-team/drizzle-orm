@@ -1239,6 +1239,25 @@ const detectInstaller = (): { cmd: 'pnpm' | 'bunx' | 'yarn' | 'npx'; args: strin
 	return { cmd: 'npx', args: ['-y'] };
 };
 
+export const LEGACY_SKILLS: readonly string[] = [
+	'drizzle-generate',
+	'drizzle-push',
+	'drizzle-pull',
+	'drizzle-migrations',
+	'drizzle-hints',
+	'drizzle-output-modes',
+	'drizzle-responses-and-errors',
+];
+
+// Prune scope must follow install scope: `skills add` above is always project-scoped, so a
+// user-level pass would strip legacy skills other projects still rely on.
+export const legacySkillsRemoveArgs = (): string[] => ['skills@latest', 'remove', ...LEGACY_SKILLS, '-y'];
+
+// Every re-run on an already-migrated project prunes nothing; keeping that silent stops the
+// command shouting about a no-op. Fails open — output we don't recognize is printed, so a real
+// removal can never be hidden by a change to the skills CLI's wording.
+export const isNoOpPruneOutput = (output: string): boolean => /no matching skills found/i.test(output);
+
 const skillsVersion = command({
 	name: 'version',
 	options: {},
@@ -1290,6 +1309,39 @@ export const skills = command({
 				resolve(signal ? 1 : (code ?? 0));
 			});
 		});
+		if (exitCode !== 0) process.exit(exitCode);
+
+		if (LEGACY_SKILLS.length > 0) {
+			// Buffered rather than inherited so the no-op case can be dropped wholesale. `-y` makes
+			// the child non-interactive, and an ignored stdin turns any future prompt into EOF
+			// rather than a hang.
+			const pruneChild = spawn(cmd, [...args, ...legacySkillsRemoveArgs()], {
+				stdio: ['ignore', 'pipe', 'pipe'],
+				shell: onWindows,
+			});
+			let pruneOutput = '';
+			pruneChild.stdout?.on('data', (chunk) => pruneOutput += chunk);
+			pruneChild.stderr?.on('data', (chunk) => pruneOutput += chunk);
+			// `close` rather than `exit`: with piped stdio it is the only event that guarantees
+			// both streams have flushed.
+			const pruneExitCode = await new Promise<number>((resolve) => {
+				pruneChild.on('error', () => resolve(1));
+				pruneChild.on('close', (code, signal) => {
+					resolve(signal ? 1 : (code ?? 0));
+				});
+			});
+			if (pruneExitCode !== 0 || !isNoOpPruneOutput(pruneOutput)) {
+				process.stderr.write('Removing superseded skills…\n');
+				process.stderr.write(pruneOutput);
+			}
+			if (pruneExitCode !== 0) {
+				const manualArgs = legacySkillsRemoveArgs().slice(1).join(' ');
+				process.stderr.write(
+					`Could not automatically remove superseded skills. Run \`npx skills@latest ${manualArgs}\` manually.\n`,
+				);
+			}
+		}
+
 		process.exit(exitCode);
 	},
 });

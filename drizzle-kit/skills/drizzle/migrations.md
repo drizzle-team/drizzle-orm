@@ -1,15 +1,6 @@
----
-name: drizzle-migrations
-description: Orient to the drizzle-kit migration workflow — `defineConfig`, `generate` vs `push`, the migrations folder and its snapshots, and per-dialect quirks across postgresql, mysql, sqlite, mssql, cockroach, and singlestore. Load whenever drizzle migrations are being set up or modified, `drizzle.config.ts` is being read or edited, the generate-vs-push choice is being made, any Drizzle schema file has just been edited, migrations from several git branches meet in one migrations folder, a drizzle-kit command reports a broken migrations folder or branch conflicts, or a command asks to run `drizzle-kit up`.
-metadata:
-  version: "1.0.0"
----
-
 # Drizzle migrations
 
-If the `drizzle` skill has not been loaded yet this session, load it first — it carries the staleness check and the MCP-vs-CLI surface-selection rule that govern every drizzle-kit invocation.
-
-Entry-point skill for the drizzle-kit migration workflow. Four responsibilities live here: the `defineConfig` reference, the `generate` vs `push` comparison, the per-dialect quirks catalog, and the guide to the migrations folder (snapshots, branches, errors and `drizzle-kit up`). Invocation details (CLI form, SDK form, response shapes) live in the operation skills.
+Entry-point skill for the drizzle-kit migration workflow. Four responsibilities live here: the `defineConfig` reference, the `generate` vs `push` comparison, the per-dialect quirks catalog, and the guide to the migrations folder (snapshots, branches, errors and `drizzle-kit up`). Invocation details (CLI form, SDK form, response shapes) live in the operation topic files.
 
 ## Configuration
 
@@ -39,12 +30,12 @@ export default defineConfig({
 
 ## Generate vs push
 
-- **`generate`** — file-based. Computes the diff, writes a `.sql` file under `out`, and exits. The agent (or a human, or CI) reviews the SQL and applies it later via the driver's migrate runner. Safest for production. Pairs naturally with code-review workflows. Load the `drizzle-generate` skill for invocation details.
-- **`push`** — direct application. Computes the diff and executes the DDL against the live database immediately. No migration file. Fastest feedback loop during development. In production, destructive changes (dropping a non-empty entity, changing a column's SQL type, or recreating a SQLite table to add a `NOT NULL` column) return `status: 'missing_hints'` and require explicit approval via the `drizzle-hints` resolution loop before they apply. Load the `drizzle-push` skill for invocation details.
+- **`generate`** — file-based. Computes the diff, writes a `.sql` file under `out`, and exits. The agent (or a human, or CI) reviews the SQL and applies it later via the driver's migrate runner. Safest for production. Pairs naturally with code-review workflows. See [generate.md](generate.md) for invocation details.
+- **`push`** — direct application. Computes the diff and executes the DDL against the live database immediately. No migration file. Fastest feedback loop during development. In production, destructive changes (dropping a non-empty entity, changing a column's SQL type, or recreating a SQLite table to add a `NOT NULL` column) return `status: 'missing_hints'` and require explicit approval via the [hints.md](hints.md) resolution loop before they apply. See [push.md](push.md) for invocation details.
 
-Choose `generate` for production releases and review workflows; choose `push` for rapid local iteration. Both operations share one JSON envelope (decoded by the `drizzle-responses-and-errors` skill) and one hint vocabulary.
+Choose `generate` for production releases and review workflows; choose `push` for rapid local iteration. Both operations share one JSON envelope (decoded by [responses-and-errors.md](responses-and-errors.md)) and one hint vocabulary.
 
-To go the other direction — introspect an existing database into a Drizzle schema instead of driving the database from a schema — see the `drizzle-pull` skill.
+To go the other direction — introspect an existing database into a Drizzle schema instead of driving the database from a schema — see [pull.md](pull.md).
 
 ## Dialect notes
 
@@ -107,7 +98,7 @@ A migration folder must sort after the folders of its parents, because the migra
 
 ### Errors in the migrations folder
 
-For postgresql, `generate`, `check`, `migrate` and `pull` check the history of the migrations folder before they do anything else. `up` checks only a folder that it converts. Each problem below stops the command with the `check_error` code. The `kind` is `"malformed"`, and for a wrong folder order it is `"order"`. The `drizzle-responses-and-errors` skill decodes the envelope.
+For postgresql, `generate`, `check`, `migrate` and `pull` check the history of the migrations folder before they do anything else. `up` checks only a folder that it converts. Each problem below stops the command with the `check_error` code. The `kind` is `"malformed"`, and for a wrong folder order it is `"order"`. [responses-and-errors.md](responses-and-errors.md) decodes the envelope.
 
 - **A snapshot file cannot be read.** The file is not valid JSON, or it has no `id` or no `prevIds` array. Only `snapshot` is set. This happens, for example, when a git merge left conflict markers in `snapshot.json`. Restore the file from git (keep the version from one of the merged git branches), or fix the JSON by hand.
 - **A parent is missing.** `parentId` is set to the id of the missing parent, and `snapshot` is the migration that needs it. A migration folder in the middle of the history is gone. Restore that folder from git. If it cannot be restored, delete the migration named in `snapshot` and every later migration, then run `generate` again.

@@ -5,7 +5,7 @@ import { type PostgresSchemaState, snapshotValidator } from 'src/dialects/postgr
 import { generateDrizzleJson, generateMigration, reconstruct, up } from 'src/ext/api-postgres';
 import { expect, test } from 'vitest';
 import { ORIGIN } from '../other/check-fixtures';
-import { createFolderFlow, type FolderFlow, schemaState } from './folder-flow';
+import { columnRow, createFolderFlow, type FolderFlow, reconstructFix, schemaState } from './folder-flow';
 
 const users = pgTable('users', { id: integer() });
 const likes = pgTable('likes', { id: integer() });
@@ -231,6 +231,26 @@ test('reconstruct reports a second base snapshot with the same message as the CL
 	const api: Error = await reconstruct(folderFiles(flow, 'main')).catch((e) => e);
 
 	expect(cli.message).toContain('has two base snapshots, in 20260101120001_a and 20260101120002_b.');
+	expect(api.message).toBe(cli.message);
+});
+
+test('reconstruct reports a leaf that does not reconstruct with the same message as generate', async () => {
+	const flow = createFolderFlow();
+	await flow.generate('main', v1);
+	const { folder } = await flow.generate('main', v2);
+	flow.appendDeltas('main', folder!, {
+		op: 'create',
+		row: { ...columnRow('users', 'email', 'varchar'), type: 'text' },
+	});
+
+	const cli: Error = await flow.generate('main', v2).catch((e) => e);
+	const api: Error = await reconstruct(folderFiles(flow, 'main')).catch((e) => e);
+
+	expect(api.message).toBe(
+		`Cannot reconstruct the state of migration ${folder}: The create delta adds columns `
+			+ '["public","users","email"], and another entity of columns with other values already has this key. '
+			+ `Two migrations gave one name to two different entities. ${reconstructFix(folder!)}`,
+	);
 	expect(api.message).toBe(cli.message);
 });
 

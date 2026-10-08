@@ -1,19 +1,10 @@
----
-name: drizzle-hints
-description: Resolve `missing_hints` responses from drizzle-kit `generate` or `push` — covers rename-vs-create disambiguation, `confirm_data_loss` approvals, and the `Hint` reply array shape for the retry. Load whenever drizzle-kit output shows `missing_hints` status, prompts to confirm a rename or destructive change, or the next step is constructing a `hints` array for a retry call.
-metadata:
-  version: "1.0.0"
----
-
 # Drizzle hints
-
-If the `drizzle` skill has not been loaded yet this session, load it first — it carries the staleness check and the MCP-vs-CLI surface-selection rule that govern every drizzle-kit invocation.
 
 `status: 'missing_hints'` means the diff is ambiguous (a rename could also be a drop + create) or unsafe (would drop a non-empty entity, or would recreate a SQLite table and wipe its rows). Until hints are supplied the operation cannot proceed — the CLI exits `2`, the SDK returns the envelope without writing or applying anything.
 
-Under `--output text` + non-TTY the same unresolved decisions surface as the human-readable missing-decisions report on stdout (also exit code 2) rather than this envelope — the `drizzle-output-modes` skill covers the text-report shape.
+Under `--output text` + non-TTY the same unresolved decisions surface as the human-readable missing-decisions report on stdout (also exit code 2) rather than this envelope — see [output-modes.md](output-modes.md) for the text-report shape.
 
-Resolution is one round trip: read each item in `unresolved`, build one reply `Hint` per item, re-invoke the same command with the array. Both the missing-hints request shape and the reply shape are typed and validated by the runtime — wrong arity, wrong spelling, or wrong reply discriminator returns `status: 'error'` with `error.code: 'invalid_hints'`. See the `drizzle-responses-and-errors` skill for that branch.
+Resolution is one round trip: read each item in `unresolved`, build one reply `Hint` per item, re-invoke the same command with the array. Both the missing-hints request shape and the reply shape are typed and validated by the runtime — wrong arity, wrong spelling, or wrong reply discriminator returns `status: 'error'` with `error.code: 'invalid_hints'`. See [responses-and-errors.md](responses-and-errors.md) for that branch.
 
 ## Reply types
 

@@ -1,15 +1,6 @@
----
-name: drizzle-generate
-description: Create a new drizzle migration SQL file by diffing the schema against the latest snapshot. Load before running `drizzle-kit generate` or calling the `generate(...)` SDK, after any Drizzle schema edit when the next step is producing migration SQL, or when the task is to generate, scaffold, or make a new migration.
-metadata:
-  version: "1.0.0"
----
-
 # Drizzle generate
 
-If the `drizzle` skill has not been loaded yet this session, load it first — it carries the staleness check and the MCP-vs-CLI surface-selection rule that govern every drizzle-kit invocation.
-
-The CLI flag `--output json` and the SDK `generate(...)` function emit the same discriminated-union envelope, and the envelope (not the stdout text) is what the agent decodes. Output format and interactivity are separate axes: `--output json` selects the machine-readable envelope and is always non-interactive, so pass it whenever an agent calls the CLI. Under the default `--output text` the CLI prompts only when stdin is a TTY; in a non-TTY it prints the missing-decisions report and exits 2 (it never hangs prompting). See the `drizzle-output-modes` skill for the two modes and the interactivity rule. The SDK runs in JSON mode internally with no flag needed at the call site. This skill assumes a working Drizzle schema and a `drizzle.config.ts` already exist; it does not author schemas.
+The CLI flag `--output json` and the SDK `generate(...)` function emit the same discriminated-union envelope, and the envelope (not the stdout text) is what the agent decodes. Output format and interactivity are separate axes — see [output-modes.md](output-modes.md). This skill assumes a working Drizzle schema and a `drizzle.config.ts` already exist; it does not author schemas.
 
 ## CLI form
 
@@ -23,8 +14,8 @@ Flag surface:
 - `--dialect`, `--schema`, `--out` — override the corresponding `defineConfig` fields.
 - `--output json` — switches stdout to one JSON line carrying the envelope and is always non-interactive. Use it for agent / CI / scripted contexts. Under the default `--output text` the CLI prompts only on a TTY and otherwise prints the missing-decisions report (exit 2).
 - `--explain` — dry-run mode. Returns planned SQL statements and computed hints instead of writing a migration file. With `--fix-conflicts`, it deletes nothing, and the result also has `fix`: the folders that the fix would delete. It cannot be used with `--custom`, and `generate` rejects that pair with `unsupported_command_dialect_error`.
-- `--fix-conflicts` — postgresql only. When branches in the migrations folder conflict, deletes the conflicting migrations and their children, then generates one new migration. Over MCP, call the `fix_conflicts` tool instead. The `drizzle-migrations` skill explains when that is safe.
-- `--hints` — inline JSON array of hint resolutions (see the `drizzle-hints` skill).
+- `--fix-conflicts` — postgresql only. When branches in the migrations folder conflict, deletes the conflicting migrations and their children, then generates one new migration. Over MCP, call the `fix_conflicts` tool instead. [migrations.md](migrations.md) explains when that is safe.
+- `--hints` — inline JSON array of hint resolutions (see [hints.md](hints.md)).
 - `--hints-file` — same payload as `--hints`, read from a JSON file. Use for long hint sets.
 
 Minimal example:
@@ -52,9 +43,9 @@ if (response.status === 'ok') {
 } else if (response.status === 'no_changes') {
   // schema matches the most recent migration — nothing was written
 } else if (response.status === 'missing_hints') {
-  // response.unresolved lists ambiguities — see the drizzle-hints skill
+  // response.unresolved lists ambiguities — see hints.md
 } else if (response.status === 'error') {
-  // response.error.code identifies the failure — see drizzle-responses-and-errors
+  // response.error.code identifies the failure — see responses-and-errors.md
 }
 ```
 
@@ -69,13 +60,13 @@ The SDK does not throw on user-level failures — every outcome flows through th
 
 ## Response shape
 
-`'ok'` (write mode) carries `{ status, dialect, migration_path }`. When `--fix-conflicts` deleted migrations, `'ok'` and `'no_changes'` also carry `deleted_migrations` and `deleted_custom_migrations?`; `'ok'` (explain mode) carries `{ status, dialect, statements, hints }`. With `--fix-conflicts` and a conflict in the folder, the explain `'ok'` and `'no_changes'` also carry `fix: { migrations, customMigrations }`, the folders that the fix would delete. `'no_changes'`, `'missing_hints'`, and `'error'` are shared across operations. Full envelope shapes, exit-code mapping, and per-code error metadata live in the `drizzle-responses-and-errors` skill's response-envelope section.
+`'ok'` (write mode) carries `{ status, dialect, migration_path }`. When `--fix-conflicts` deleted migrations, `'ok'` and `'no_changes'` also carry `deleted_migrations` and `deleted_custom_migrations?`; `'ok'` (explain mode) carries `{ status, dialect, statements, hints }`. With `--fix-conflicts` and a conflict in the folder, the explain `'ok'` and `'no_changes'` also carry `fix: { migrations, customMigrations }`, the folders that the fix would delete. `'no_changes'`, `'missing_hints'`, and `'error'` are shared across operations. Full envelope shapes, exit-code mapping, and per-code error metadata live in [responses-and-errors.md](responses-and-errors.md)'s response-envelope section.
 
-`'missing_hints'` (exit 2) means the diff is ambiguous or unsafe — the resolution loop lives in the `drizzle-hints` skill. The most common error codes for `generate` are `config_validation_error`, `config_file_not_found_error`, `schema_files_not_found_error`, `orm_version_error`, `invalid_hints`, `unsupported_schema_change`, `internal_error`. Before it diffs, `generate` checks the migrations folder the same way `check` does, so it can also return `check_error` for a broken folder or for branches that conflict. The `drizzle-migrations` skill explains the migrations folder, merges of branches, and the fixes.
+`'missing_hints'` (exit 2) means the diff is ambiguous or unsafe — the resolution loop lives in [hints.md](hints.md). The most common error codes for `generate` are `config_validation_error`, `config_file_not_found_error`, `schema_files_not_found_error`, `orm_version_error`, `invalid_hints`, `unsupported_schema_change`, `internal_error`. Before it diffs, `generate` checks the migrations folder the same way `check` does, so it can also return `check_error` for a broken folder or for branches that conflict. [migrations.md](migrations.md) explains the migrations folder, merges of branches, and the fixes.
 
 ## Dialect notes
 
-Per-dialect quirks (postgresql, mysql, sqlite, mssql, cockroach, singlestore) — the same diff engine and dialect surface drives both `generate` and `push`, so the notes are shared. See the `drizzle-migrations` skill's dialect-notes section.
+Per-dialect quirks (postgresql, mysql, sqlite, mssql, cockroach, singlestore) — the same diff engine and dialect surface drives both `generate` and `push`, so the notes are shared. See [migrations.md](migrations.md)'s dialect-notes section.
 
 ## Examples
 
@@ -91,7 +82,7 @@ drizzle-kit generate --output json --config drizzle.config.ts
 # Ambiguous diff — caller must supply hints and retry
 drizzle-kit generate --output json --config drizzle.config.ts
 # → {"status":"missing_hints","unresolved":[{"type":"rename_or_create","kind":"column","entity":["public","users","email_v2"]}]}
-# (resolution loop: see the drizzle-hints skill)
+# (resolution loop: see hints.md)
 
 # Hard error
 drizzle-kit generate --output json --config missing.ts
