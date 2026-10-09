@@ -10,9 +10,14 @@ import { ViewBaseConfig } from './view-common.ts';
 export class ColumnAliasProxyHandler<TColumn extends Column> implements ProxyHandler<TColumn> {
 	static readonly [entityKind]: string = 'ColumnAliasProxyHandler';
 
-	constructor(private table: Table | View) {}
+	constructor(private table: Table | View, private isSelectionField = false) {}
 
 	get(columnObj: TColumn, prop: string | symbol): any {
+		// A projected column already contains its SQL read transformation.
+		// Keep the original column's decoder, but do not transform it again.
+		if (prop === 'getSQLForSelect' && this.isSelectionField) {
+			return () => undefined;
+		}
 		if (prop === 'table') {
 			return this.table;
 		}

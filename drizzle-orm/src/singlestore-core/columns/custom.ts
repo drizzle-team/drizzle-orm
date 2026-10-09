@@ -66,6 +66,7 @@ export class SingleStoreCustomColumn<T extends ColumnBaseConfig<'custom', 'Singl
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	private selectFromDb?: (column: SQL) => SQL;
 
 	constructor(
 		table: AnySingleStoreTable<{ name: T['tableName'] }>,
@@ -75,6 +76,12 @@ export class SingleStoreCustomColumn<T extends ColumnBaseConfig<'custom', 'Singl
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.selectFromDb = config.customTypeParams.selectFromDb;
+	}
+
+	/** @internal */
+	override getSQLForSelect(column: SQL): SQL | undefined {
+		return this.selectFromDb?.(column);
 	}
 
 	getSQLType(): string {
@@ -198,6 +205,22 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional SQL transformation for selecting this column, also used in returning
+	 * clauses and relational queries where supported. The column reference respects aliases
+	 * and casing. `fromDriver` decodes the result of this expression as usual.
+	 *
+	 * Does not change writes, filters, ordering, or columns inside explicit SQL
+	 * expressions. Values projected by a subquery, CTE, or query-built view are
+	 * not transformed a second time.
+	 *
+	 * @example
+	 * ```ts
+	 * selectFromDb: (column) => sql`ST_AsText(${column})`,
+	 * ```
+	 */
+	selectFromDb?: (column: SQL) => SQL;
 }
 
 /**
