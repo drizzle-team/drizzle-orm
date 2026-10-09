@@ -1,4 +1,5 @@
-import { integer, pgEnum, pgSchema, pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { check, integer, pgEnum, pgSchema, pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemas } from './schemaDiffer';
 
@@ -682,6 +683,101 @@ test('drop enum value. enum is columns data type', async () => {
 		enumSchema: 'public',
 		type: 'alter_type_drop_value',
 	});
+});
+
+test('drop enum value. check references enum column', async () => {
+	const kindFrom = pgEnum('kind', ['a', 'b']);
+
+	const items = pgTable('items', {
+		kind: kindFrom().notNull(),
+		note: text(),
+	}, (t) => [
+		check('items_note_of_a', sql`${t.kind} <> 'a' or ${t.note} is not null`),
+		check('items_note_present', sql`${t.note} is not null`),
+	]);
+
+	const from = {
+		kind: kindFrom,
+		items,
+	};
+
+	const kindTo = pgEnum('kind', ['a']);
+	const to = {
+		kind: kindTo,
+		items,
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TABLE "items" DROP CONSTRAINT "items_note_of_a";`,
+		`ALTER TABLE "items" ALTER COLUMN "kind" SET DATA TYPE text;`,
+		`DROP TYPE "public"."kind";`,
+		`CREATE TYPE "public"."kind" AS ENUM('a');`,
+		`ALTER TABLE "items" ALTER COLUMN "kind" SET DATA TYPE "public"."kind" USING "kind"::"public"."kind";`,
+		`ALTER TABLE "items" ADD CONSTRAINT "items_note_of_a" CHECK ("items"."kind" <> 'a' or "items"."note" is not null);`,
+	]);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [
+			{
+				column: 'kind',
+				tableSchema: '',
+				table: 'items',
+				default: undefined,
+				columnType: 'kind',
+				checks: [
+					`items_note_of_a;"items"."kind" <> 'a' or "items"."note" is not null`,
+				],
+			},
+		],
+		deletedValues: [
+			'b',
+		],
+		name: 'kind',
+		newValues: [
+			'a',
+		],
+		enumSchema: 'public',
+		type: 'alter_type_drop_value',
+	});
+});
+
+test('drop enum value. check that references enum column also changes', async () => {
+	const kindFrom = pgEnum('kind', ['a', 'b']);
+	const from = {
+		kind: kindFrom,
+		items: pgTable('items', {
+			kind: kindFrom().notNull(),
+			note: text(),
+		}, (t) => [
+			check('items_note_of_a', sql`${t.kind} <> 'a' or ${t.note} is not null`),
+		]),
+	};
+
+	const kindTo = pgEnum('kind', ['a']);
+	const to = {
+		kind: kindTo,
+		items: pgTable('items', {
+			kind: kindTo().notNull(),
+			note: text(),
+		}, (t) => [
+			check('items_note_of_a', sql`${t.kind} = 'a' and ${t.note} is not null`),
+		]),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TABLE "items" DROP CONSTRAINT "items_note_of_a";`,
+		`ALTER TABLE "items" ALTER COLUMN "kind" SET DATA TYPE text;`,
+		`DROP TYPE "public"."kind";`,
+		`CREATE TYPE "public"."kind" AS ENUM('a');`,
+		`ALTER TABLE "items" ALTER COLUMN "kind" SET DATA TYPE "public"."kind" USING "kind"::"public"."kind";`,
+		`ALTER TABLE "items" ADD CONSTRAINT "items_note_of_a" CHECK ("items"."kind" = 'a' and "items"."note" is not null);`,
+	]);
+	expect(statements.map((it) => it.type)).toStrictEqual(['alter_type_drop_value']);
 });
 
 test('shuffle enum values', async () => {
