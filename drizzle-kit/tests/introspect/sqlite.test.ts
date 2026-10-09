@@ -75,6 +75,25 @@ test('instrospect strings with single quotes', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('introspect strings with empty string as default', async () => {
+	const sqlite = new Database(':memory:');
+
+	const schema = {
+		columns: sqliteTable('columns', {
+			text: text('text').default(''),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectSQLiteToFile(
+		sqlite,
+		schema,
+		'introspect-strings-with-empty-string-as-default',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
 test('introspect checks', async () => {
 	const sqlite = new Database(':memory:');
 
