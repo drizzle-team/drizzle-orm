@@ -1,5 +1,6 @@
 import { useEffect, useReducer } from 'react';
 import type { MigrationMeta } from '~/migrator.ts';
+import { computeHash } from '~/utils/crypto.ts';
 import type { ExpoSQLiteDatabase } from './driver.ts';
 
 interface MigrationConfig {
@@ -28,7 +29,7 @@ async function readMigrationFiles({ journal, migrations }: MigrationConfig): Pro
 				sql: result,
 				bps: journalEntry.breakpoints,
 				folderMillis: journalEntry.when,
-				hash: '',
+				hash: await computeHash(query),
 			});
 		} catch {
 			throw new Error(`Failed to parse migration: ${journalEntry.tag}`);
