@@ -106,20 +106,31 @@ export function aliasedTableColumn<T extends AnyColumn>(column: T, tableAlias: s
 	);
 }
 
-export function mapColumnsInAliasedSQLToAlias(query: SQL.Aliased, alias: string): SQL.Aliased {
-	return new SQL.Aliased(mapColumnsInSQLToAlias(query.sql, alias), query.fieldAlias);
+export function mapColumnsInAliasedSQLToAlias(query: SQL.Aliased, alias: string, table?: Table): SQL.Aliased {
+	return new SQL.Aliased(mapColumnsInSQLToAlias(query.sql, alias, table), query.fieldAlias);
 }
 
-export function mapColumnsInSQLToAlias(query: SQL, alias: string): SQL {
+export function mapColumnsInSQLToAlias(query: SQL, alias: string, table?: Table): SQL {
 	return sql.join(query.queryChunks.map((c) => {
 		if (is(c, Column)) {
+			// When a source table is provided, only alias columns that belong
+			// to that table.  Columns from other tables (e.g. inside a
+			// db.$count subquery used in `extras`) must keep their original
+			// table reference so the generated SQL is correct.  (#3493)
+			if (table) {
+				const columnTableName = c.table[Table.Symbol.OriginalName];
+				const primaryTableName = table[Table.Symbol.OriginalName];
+				if (columnTableName !== primaryTableName) {
+					return c;
+				}
+			}
 			return aliasedTableColumn(c, alias);
 		}
 		if (is(c, SQL)) {
-			return mapColumnsInSQLToAlias(c, alias);
+			return mapColumnsInSQLToAlias(c, alias, table);
 		}
 		if (is(c, SQL.Aliased)) {
-			return mapColumnsInAliasedSQLToAlias(c, alias);
+			return mapColumnsInAliasedSQLToAlias(c, alias, table);
 		}
 		return c;
 	}));
