@@ -120,7 +120,7 @@ export const ddlDiff = async (
 			set: {
 				columns: (it: IndexColumn) => {
 					if (!it.isExpression && it.value === rename.from.name) {
-						it.value = rename.to.name;
+						return { ...it, value: rename.to.name };
 					}
 					return it;
 				},

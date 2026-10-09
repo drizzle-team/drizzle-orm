@@ -1,3 +1,4 @@
+import type { MissingHint } from './hints';
 import { QueryError } from './utils';
 import { error, errText, info } from './views';
 
@@ -213,6 +214,31 @@ export class CheckCliError extends DrizzleCliError {
 export class InvalidHintsCliError extends DrizzleCliError {
 	constructor(humanMessage: string, meta?: DrizzleCliErrorMeta, options?: ErrorOptions) {
 		super('invalid_hints', humanMessage, meta, options);
+	}
+}
+
+const missingHintsMessage = (missingHints: readonly MissingHint[]): string => {
+	const lines = missingHints.map((it) => {
+		const entity = `${it.kind} ${it.entity.join('.')}`;
+		return it.type === 'rename_or_create'
+			? `- ${entity}: rename of a deleted ${it.kind} or a new one?`
+			: `- ${entity}: data loss must be confirmed`;
+	});
+
+	return `Schema changes require hints to resolve:\n${lines.join('\n')}\n`
+		+ 'Pass a hint for each entity in the hints option: { type: "rename" | "create", ... } for a rename question, '
+		+ '{ type: "confirm_data_loss", ... } for data loss.';
+};
+
+export class MissingHintsError extends DrizzleCliError {
+	declare readonly code: 'missing_hints';
+	readonly missingHints: readonly MissingHint[];
+
+	constructor(missingHints: readonly MissingHint[]) {
+		super('missing_hints', missingHintsMessage(missingHints), {
+			unresolved: missingHints as unknown as JsonValue[],
+		});
+		this.missingHints = missingHints;
 	}
 }
 

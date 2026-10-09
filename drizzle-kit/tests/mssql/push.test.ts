@@ -11,6 +11,7 @@ import {
 	varchar,
 } from 'drizzle-orm/mssql-core';
 import { eq, sql } from 'drizzle-orm/sql';
+import { stripAnsi } from 'hanji/utils';
 import { suggestions } from 'src/cli/commands/push-mssql';
 import { runWithCliContext } from 'src/cli/context';
 import { HintsHandler } from 'src/cli/hints';
@@ -1231,4 +1232,112 @@ test('renaming a column used in a check constraint throws `rename_blocked_by_che
 			to: 'id1',
 		},
 	});
+});
+
+test('drop column in a renamed table with data', async () => {
+	const schema1 = {
+		users: mssqlTable('users', { id: int('id').primaryKey(), name: varchar('name', { length: 255 }) }),
+	};
+	const schema2 = {
+		accounts: mssqlTable('accounts', { id: int('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO [users] ([id], [name]) VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['dbo.users->dbo.accounts'],
+	});
+
+	expect(pst).toStrictEqual([
+		`EXEC sp_rename 'users', [accounts];`,
+		'ALTER TABLE [accounts] DROP COLUMN [name];',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty [name] column in [accounts] table` },
+	]);
+});
+
+test('drop column in a table with data that moves to another schema', async () => {
+	const app = mssqlSchema('app');
+	const schema1 = {
+		app,
+		users: mssqlTable('users', { id: int('id').primaryKey(), name: varchar('name', { length: 255 }) }),
+	};
+	const schema2 = {
+		app,
+		users: app.table('users', { id: int('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO [users] ([id], [name]) VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['dbo.users->app.users'],
+	});
+
+	expect(pst).toStrictEqual([
+		`ALTER SCHEMA [app] TRANSFER [dbo].[users];\n`,
+		'ALTER TABLE [app].[users] DROP COLUMN [name];',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty [name] column in [users] table` },
+	]);
+});
+
+test('drop primary key in a renamed table with data', async () => {
+	const schema1 = {
+		users: mssqlTable('users', { id: int('id').primaryKey(), name: varchar('name', { length: 255 }) }),
+	};
+	const schema2 = {
+		accounts: mssqlTable('accounts', { id: int('id').notNull(), name: varchar('name', { length: 255 }) }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO [users] ([id], [name]) VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['dbo.users->dbo.accounts'],
+	});
+
+	expect(pst).toStrictEqual([
+		`EXEC sp_rename 'users', [accounts];`,
+		'ALTER TABLE [accounts] DROP CONSTRAINT [users_pkey];',
+	]);
+	expect(phints.map((it) => ({ ...it, hint: stripAnsi(it.hint) }))).toStrictEqual([{
+		hint: `You're about to drop [accounts] primary key, this statements may fail and your table may lose primary key`,
+	}]);
+});
+
+test('drop table with data in a renamed schema', async () => {
+	const before = mssqlSchema('before');
+	const after = mssqlSchema('after');
+	const schema1 = {
+		before,
+		users: before.table('users', { id: int('id') }),
+	};
+	const schema2 = { after };
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO [before].[users] ([id]) VALUES (1);`);
+
+	const { statements, next } = await diff(schema1, schema2, ['before->after']);
+	const hints = await runWithCliContext(
+		{ output: 'text', interactive: true },
+		() => suggestions(db, statements, next, new HintsHandler()),
+	);
+
+	expect(hints).toStrictEqual([
+		{
+			hint:
+				'You are trying to rename schema before to after, but it is not supported to rename a schema in mssql.\nYou should create new schema and transfer everything to it',
+		},
+		{ hint: `You're about to delete non-empty [users] table` },
+	]);
 });
