@@ -14,6 +14,7 @@ import type { Query } from '~/sql/sql.ts';
 export interface BunMySqlSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class BunMySqlSession<
@@ -70,6 +71,7 @@ export class BunMySqlSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -158,6 +160,12 @@ export class BunMySqlTransaction<
 	}
 }
 
+export type BunMySqlRawExecuteResult =
+	| (Record<string, unknown>[] & Record<string, unknown>)
+	| (Record<string, unknown>[] & Record<string, unknown>)[];
+
 export interface BunMySqlQueryResultHKT extends MySqlQueryResultHKT {
-	type: Record<string, unknown>[] & Record<string, unknown>;
+	type: [this['row']] extends [never] ? [] & Record<string, unknown>
+		: [this['row']] extends ['unknown'] ? BunMySqlRawExecuteResult
+		: this['row'][] & Record<string, unknown>;
 }

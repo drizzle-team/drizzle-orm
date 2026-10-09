@@ -3,8 +3,8 @@ import { MySqlDeleteBase, type MySqlDeleteHKTBase } from '~/mysql-core/query-bui
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKind } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { MySqlAsyncPreparedQuery, MySqlAsyncSession } from './session.ts';
 
 export type MySqlAsyncDelete<
@@ -57,7 +57,7 @@ export class MySqlAsyncDeleteBase<
 			undefined,
 			{
 				type: 'delete',
-				tables: extractUsedTable(this.config.table),
+				tables: usedTablesOf(this.config.table),
 			},
 		);
 	}

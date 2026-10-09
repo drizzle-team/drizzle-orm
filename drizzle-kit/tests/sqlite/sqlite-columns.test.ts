@@ -1816,7 +1816,7 @@ test('issue #5564', async () => {
 	const users2 = sqliteTable('users', {
 		id: text('id').primaryKey(),
 		email: text('email').notNull(),
-		name: text('name').notNull(), // will change to .notNull() in next push
+		name: text('name').notNull(),
 	}, (t) => [
 		uniqueIndex('users_email_idx').on(t.email),
 	]);
@@ -1889,4 +1889,54 @@ test('issue #4809', async () => {
 	];
 	expect(pst).toStrictEqual(st0);
 	expect(hints).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6360
+test('Issue No6360', async () => {
+	const a1 = sqliteTable('a', {
+		id: text('id').primaryKey(),
+		user_id: text('user_id').notNull(),
+	});
+
+	const b1 = sqliteTable('b', {
+		id: text('id').primaryKey(),
+		user_id: text('user_id').notNull(),
+	});
+
+	const schema1 = { a1, b1 };
+
+	const a2 = sqliteTable('a', {
+		id: text('id').primaryKey(),
+		user_id: text('org_id').notNull(), // new name
+	});
+
+	const b2 = sqliteTable('b', {
+		id: text('id').primaryKey(),
+		user_id: text('user_id'), // dropped not null
+	});
+
+	const schema2 = { a2, b2 };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, [`a.user_id->a.org_id`]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({
+		db,
+		to: schema2,
+		renames: [`a.user_id->a.org_id`],
+	});
+
+	const st0 = [
+		'ALTER TABLE `a` RENAME COLUMN `user_id` TO `org_id`;',
+		`PRAGMA foreign_keys=OFF;`,
+		`CREATE TABLE \`__new_b\` (
+\t\`id\` text PRIMARY KEY,
+\t\`user_id\` text
+);\n`,
+		'INSERT INTO `__new_b`(`id`, `user_id`) SELECT `id`, `user_id` FROM `b`;',
+		'DROP TABLE `b`;',
+		'ALTER TABLE `__new_b` RENAME TO `b`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
 });

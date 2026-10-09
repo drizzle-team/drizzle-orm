@@ -1,12 +1,13 @@
-import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { type ColumnsSelection, sql, type SQLWrapper } from '~/sql/sql.ts';
+import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { InferInsertModel, RequiredInsertKeys } from '~/table.ts';
 import type { DrizzleTypeError, IsNever, JoinUnion } from '~/utils.ts';
 import type { MsSqlDialect } from './dialect.ts';
+import { MsSqlCountBuilder } from './query-builders/count.ts';
 import {
 	MsSqlDeleteBase,
 	MsSqlInsertBuilder,
@@ -21,56 +22,53 @@ import type {
 	MsSqlSession,
 	MsSqlTransaction,
 	MsSqlTransactionConfig,
+	PreparedQueryConfig,
 	PreparedQueryHKTBase,
 	QueryResultHKT,
-	QueryResultKind,
+	RawQueryResultKind,
 } from './session.ts';
 import type { WithSubqueryWithSelection } from './subquery.ts';
 import type { MsSqlTable } from './table.ts';
+import type { MsSqlViewBase } from './view-base.ts';
 
 export class MsSqlDatabase<
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TFullSchema extends Record<string, unknown> = {},
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
+	TRelations extends AnyRelations = EmptyRelations,
 > {
 	static readonly [entityKind]: string = 'MsSqlDatabase';
 
 	declare readonly _: {
-		readonly schema: TSchema | undefined;
-		readonly tableNamesMap: Record<string, string>;
+		readonly relations: TRelations;
+		readonly session: MsSqlSession<any, any, any>;
 	};
 
-	_query: TFullSchema extends Record<string, never>
-		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
-		: {
-			[K in keyof TSchema]: RelationalQueryBuilder<TPreparedQueryHKT, TSchema, TSchema[K]>;
-		};
+	query: {
+		[K in keyof TRelations]: RelationalQueryBuilder<TPreparedQueryHKT, TRelations, TRelations[K]>;
+	};
 
 	constructor(
 		/** @internal */
 		readonly dialect: MsSqlDialect,
 		/** @internal */
-		readonly session: MsSqlSession<any, any, any, any>,
-		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
+		readonly session: MsSqlSession<any, any, any>,
+		relations: TRelations,
 	) {
-		this._ = schema
-			? { schema: schema.schema, tableNamesMap: schema.tableNamesMap }
-			: { schema: undefined, tableNamesMap: {} };
-		this._query = {} as typeof this['_query'];
-		if (this._.schema) {
-			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				(this._query as MsSqlDatabase<TQueryResult, TPreparedQueryHKT, Record<string, any>>['_query'])[tableName] =
-					new RelationalQueryBuilder(
-						schema!.fullSchema,
-						this._.schema,
-						this._.tableNamesMap,
-						schema!.fullSchema[tableName] as MsSqlTable,
-						columns,
-						dialect,
-						session,
-					);
-			}
+		this._ = {
+			relations,
+			session,
+		};
+
+		this.query = {} as typeof this['query'];
+		for (const [tableName, relation] of Object.entries(relations)) {
+			(this.query as MsSqlDatabase<TQueryResult, TPreparedQueryHKT, AnyRelations>['query'])[tableName] =
+				new RelationalQueryBuilder(
+					relations,
+					relations[relation.name]!.table as MsSqlTable,
+					relation,
+					dialect,
+					session,
+				);
 		}
 	}
 
@@ -118,11 +116,23 @@ export class MsSqlDatabase<
 				}
 
 				return new Proxy(
-					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
+					new WithSubquery(
+						qb.getSQL(),
+						qb.getSelectedFields() as SelectedFields,
+						alias,
+						true,
+					),
 					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 				) as WithSubqueryWithSelection<TSelection, TAlias>;
 			},
 		};
+	}
+
+	$count(
+		source: MsSqlTable | MsSqlViewBase | SQL | SQLWrapper,
+		filters?: SQL<unknown>,
+	) {
+		return new MsSqlCountBuilder({ source, filters, session: this.session, dialect: this.dialect });
 	}
 
 	/**
@@ -357,15 +367,82 @@ export class MsSqlDatabase<
 		return new MsSqlDeleteBase(table, this.session, this.dialect);
 	}
 
-	execute<T extends { [column: string]: any } | { [column: string]: any }[]>(
+	/**
+	 * Executes raw SQL query, responding with rows as arrays of values
+	 *
+	 * @param query - SQL query to execute
+	 * @param mode - `'arrays'`
+	 *
+	 * @example
+	 * ```ts
+	 * // [number, string][]
+	 * const rows = await db.execute<[number, string]>(sql`select ${users.id}, ${users.name} from ${users}`, 'arrays');
+	 * ```
+	 */
+	execute<TRow extends unknown[] = unknown[]>(
 		query: SQLWrapper | string,
-	): Promise<QueryResultKind<TQueryResult, T>> {
-		return this.session.execute((typeof query === 'string' ? sql.raw(query) : query).getSQL());
+		mode: 'arrays',
+	): Promise<TRow[]>;
+	/**
+	 * Executes raw SQL query, responding with rows as objects
+	 *
+	 * @param query - SQL query to execute
+	 * @param mode - `'objects'`
+	 *
+	 * @example
+	 * ```ts
+	 * // { id: number; name: string }[]
+	 * const rows = await db.execute<{ id: number; name: string }>(sql`select ${users.id}, ${users.name} from ${users}`, 'objects');
+	 * ```
+	 */
+	execute<TRow extends Record<string, any> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode: 'objects',
+	): Promise<TRow[]>;
+	/**
+	 * Executes raw SQL query, returning driver's raw response
+	 *
+	 * Row type argument defines the type of the response:
+	 * - `'unknown'` (default) - any response of the driver
+	 * - `never` - response of a statement that returns no rows
+	 * - object shape - response with rows of given shape
+	 *
+	 * @param query - SQL query to execute
+	 * @param mode - `'raw'` (default)
+	 *
+	 * @example
+	 * ```ts
+	 * // Any response of the driver
+	 * const response = await db.execute(sql`select * from ${users}`);
+	 *
+	 * // Response of a statement that returns no rows
+	 * const updated = await db.execute<never>(sql`update ${users} set ${users.name} = ${'John'}`);
+	 *
+	 * // Response with rows of given shape
+	 * const selected = await db.execute<{ id: number; name: string }>(sql`select ${users.id}, ${users.name} from ${users}`);
+	 * ```
+	 */
+	execute<TRow extends Record<string, any> | 'unknown' = 'unknown'>(
+		query: SQLWrapper | string,
+		mode?: 'raw' | undefined,
+	): Promise<RawQueryResultKind<TQueryResult, TRow>>;
+	execute(
+		query: SQLWrapper | string,
+		mode?: 'raw' | 'objects' | 'arrays' | undefined,
+	): unknown {
+		const sequel = (typeof query === 'string' ? sql.raw(query) : query).getSQL();
+		return this.session.prepareQuery<
+			PreparedQueryConfig & { execute: unknown },
+			PreparedQueryHKTBase
+		>(
+			this.dialect.sqlToQuery(sequel),
+			mode ?? 'raw',
+		).execute();
 	}
 
 	transaction<T>(
 		transaction: (
-			tx: MsSqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>,
+			tx: MsSqlTransaction<TQueryResult, TPreparedQueryHKT, TRelations>,
 			config?: MsSqlTransactionConfig,
 		) => Promise<T>,
 		config?: MsSqlTransactionConfig,
@@ -374,48 +451,30 @@ export class MsSqlDatabase<
 	}
 }
 
-export type MySQLWithReplicas<Q> = Q & { $primary: Q };
+export type MySQLWithReplicas<Q> = Q & {
+	$replica: Q;
+	/**
+	 * @deprecated `withReplicas` db now defaults to using primary
+	 *
+	 * Use `db.$replica` to redirect query to replica
+	 */
+	$primary: Q;
+	$replicas: Q[];
+};
 
 export const withReplicas = <
 	HKT extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends V1.TablesRelationalConfig,
-	Q extends MsSqlDatabase<
-		HKT,
-		TPreparedQueryHKT,
-		TFullSchema,
-		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
-	>,
+	TRelations extends AnyRelations,
+	Q extends MsSqlDatabase<HKT, TPreparedQueryHKT, TRelations>,
 >(
 	primary: Q,
 	replicas: [Q, ...Q[]],
 	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
 ): MySQLWithReplicas<Q> => {
-	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args);
-	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
-	const $with: Q['with'] = (...args: []) => getReplica(replicas).with(...args);
-
-	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
-	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
-	const transaction: Q['transaction'] = (...args: [any, any]) => primary.transaction(...args);
-
-	return {
-		...primary,
-		update,
-		insert,
-		delete: $delete,
-		execute,
-		transaction,
-		$primary: primary,
-		$replicas: replicas,
-		select,
-		selectDistinct,
-		with: $with,
-		get _query() {
-			return getReplica(replicas)._query;
-		},
-	};
+	return Object.create(primary, {
+		$replica: { get: () => getReplica(replicas) },
+		$primary: { value: primary },
+		$replicas: { value: replicas },
+	});
 };

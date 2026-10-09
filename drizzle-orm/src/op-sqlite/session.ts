@@ -19,6 +19,7 @@ import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core
 export interface OPSQLiteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export type OPSQLiteRunResult = QueryResult;
@@ -70,9 +71,6 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 			run: (params) => {
 				return this.client.execute(query.sql, params as any[]);
 			},
-			values: (params) => {
-				return this.client.executeRaw(query.sql, params as any[]).then(({ rawRows }) => rawRows);
-			},
 		};
 
 		return new SQLiteAsyncPreparedQuery(
@@ -86,6 +84,7 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -102,7 +101,7 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 			await this.run(sql`commit`);
 			return result;
 		} catch (err) {
-			await this.run(sql`rollback`);
+			await this.run(sql`rollback`).catch(() => {});
 			throw err;
 		}
 	}
@@ -130,7 +129,7 @@ export class OPSQLiteTransaction<TRelations extends AnyRelations>
 			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

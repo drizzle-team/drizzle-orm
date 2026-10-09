@@ -1,5 +1,4 @@
 import {
-	aliasedTable,
 	and,
 	arrayContains,
 	asc,
@@ -7,7 +6,6 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
-	desc,
 	DrizzleQueryError,
 	eq,
 	getColumns,
@@ -28,62 +26,51 @@ import {
 	min,
 	not,
 	or,
-	SQL,
 	sql,
 	sum,
 	sumDistinct,
 } from 'drizzle-orm';
 import {
 	alias,
-	AnyPgColumn,
 	bigint,
 	bigserial,
 	boolean,
-	bytea,
 	char,
-	cidr,
 	customType,
-	date,
-	doublePrecision,
 	except,
 	getMaterializedViewConfig,
 	getViewConfig,
-	inet,
 	integer,
-	interval,
 	json,
 	jsonb,
-	line,
-	macaddr,
-	macaddr8,
 	numeric,
 	parsePgArray,
 	PgAsyncSession,
 	PgDialect,
-	pgEnum,
 	pgSchema,
 	pgTable,
 	pgView,
-	point,
 	primaryKey,
-	real,
 	serial,
-	smallint,
-	smallserial,
 	snakeCase,
 	text,
-	time,
 	timestamp,
 	union,
-	unionAll,
-	uniqueIndex,
-	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
 import { PgliteDatabase } from 'drizzle-orm/pglite';
+import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { describe, expect, expectTypeOf } from 'vitest';
-import { type AllTypes, allTypesData, allTypesEnum, allTypesRelations, allTypesTable, makeAllTypes } from './all-types';
-import { assertAllTypesUnions } from './all-types-unions';
+import {
+	type AllTypes,
+	allTypesData,
+	allTypesEnum,
+	allTypesRelations,
+	allTypesTable,
+	assertAllTypesBounds,
+	assertAllTypesUnions,
+	makeAllTypes,
+} from './all-types';
 import type { Test } from './instrumentation';
 import { normalizeDataWithDbCodecs } from './utils';
 
@@ -1398,7 +1385,9 @@ export function tests(test: Test) {
 						'insert into "mySchema_15"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
 					params: [
 						'John',
-						is(db, PgliteDatabase) ? ['foo', 'bar'] : JSON.stringify(['foo', 'bar']),
+						is(db, PgliteDatabase) || is(db, PostgresJsDatabase)
+							? ['foo', 'bar']
+							: JSON.stringify(['foo', 'bar']),
 						'John1',
 					],
 				});
@@ -1430,7 +1419,9 @@ export function tests(test: Test) {
 						'insert into "mySchema_16"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
 					params: [
 						'John',
-						is(db, PgliteDatabase) ? ['foo', 'bar'] : JSON.stringify(['foo', 'bar']),
+						is(db, PgliteDatabase) || is(db, PostgresJsDatabase)
+							? ['foo', 'bar']
+							: JSON.stringify(['foo', 'bar']),
 					],
 				});
 			},
@@ -1762,9 +1753,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3171
-		// TODO: review case
-		// Fails in `postgres-js` if not inlined - driver expects stringified jsons
-		test.skipIf(Date.now() < +new Date('2026-08-05')).concurrent(
+		test.concurrent(
 			'proper json and jsonb handling - sql operator',
 			async ({ db, push }) => {
 				const jsonTable = pgTable('json_table_sql_3', {
@@ -3756,7 +3745,9 @@ export function tests(test: Test) {
 
 			const session = (<any> db).session as PgAsyncSession;
 
-			const queryRes = await session.objects<AllTypes>(db.select().from(allTypesTable).getSQL()).then((e) =>
+			const queryRes = await session.objects<AllTypes>(db.select().from(allTypesTable).getSQL(true)).then((
+				e,
+			) =>
 				normalizeDataWithDbCodecs({
 					db,
 					columns: getColumns(allTypesTable),
@@ -3795,6 +3786,7 @@ export function tests(test: Test) {
 			expect(rootRes).toStrictEqual(allTypesData);
 
 			await assertAllTypesUnions(db);
+			await assertAllTypesBounds(db);
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018
@@ -3896,7 +3888,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
 		// enhancement
 		// allow select which columns to insert in insert...select
-		test.skipIf(Date.now() < +new Date('2026-08-05')).concurrent('insert into ... select #2', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-10-10')).concurrent('insert into ... select #2', async ({ db, push }) => {
 			const users = pgTable('users_114', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
@@ -3952,6 +3944,25 @@ export function tests(test: Test) {
 			});
 		});
 
+		// TODO: Need to implement per-column inliner
+		test.skipIf(Date.now() < +new Date('2026-10-10'))('insert with inline params in sql', async ({ db }) => {
+			const arrays = pgTable('arrays', {
+				id: integer('id').primaryKey(),
+				names: text('names').array().notNull(),
+			});
+
+			const query = db.insert(arrays).values({
+				id: 1,
+				names: ['a', 'b'],
+			});
+
+			const dialect = new PgDialect();
+			expect(dialect.sqlToQuery(query.getSQL().inlineParams())).toStrictEqual({
+				sql: 'insert into "arrays" ("id", "names") values (1, \'{a,b}\')',
+				params: [],
+			});
+		});
+
 		// https://github.com/drizzle-team/drizzle-orm/issues/4578
 		test('arrayContains', async ({ db, push }) => {
 			const myTable = pgTable('my_table', {
@@ -3987,7 +3998,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4596
-		test.skipIf(Date.now() < +new Date('2026-08-05'))(
+		test.skipIf(Date.now() < +new Date('2026-10-10'))(
 			'functional index; onConflict do update',
 			async ({ db, push }) => {
 				throw new Error('SKIP. commented below because of type error');
@@ -4074,7 +4085,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4419
-		test.skipIf(Date.now() < +new Date('2026-08-05'))('db/js timestamp comparison', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-10-10'))('db/js timestamp comparison', async ({ db, push }) => {
 			const table1 = pgTable('table1', {
 				id: integer(),
 				// default config equal to: { mode: 'date' }
@@ -5943,6 +5954,37 @@ export function tests(test: Test) {
 				.rejects.toBeInstanceOf(DrizzleQueryError);
 		});
 
+		test.concurrent('Query error params', async ({ createDB }) => {
+			for (const paramsInErrors of [undefined, false, true]) {
+				const db = createDB({}, () => ({}), undefined, paramsInErrors);
+
+				const error = await db.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`)
+					.catch((e) => e);
+
+				expect(error).toBeInstanceOf(DrizzleQueryError);
+				expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+				expect(error.message).toBe(
+					paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+				);
+			}
+		});
+
+		test.concurrent('Query error params - transaction', async ({ createDB }) => {
+			for (const paramsInErrors of [undefined, false, true]) {
+				const db = createDB({}, () => ({}), undefined, paramsInErrors);
+
+				const error = await db.transaction(async (tx) => {
+					await tx.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`);
+				}).catch((e) => e);
+
+				expect(error).toBeInstanceOf(DrizzleQueryError);
+				expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+				expect(error.message).toBe(
+					paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+				);
+			}
+		});
+
 		test.concurrent(
 			'Mappers: deep nullification',
 			async ({ db, push }) => {
@@ -6183,6 +6225,9 @@ export function tests(test: Test) {
 					arrMax: max(users.arrCreatedAt).as('arr_max'),
 					arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
 					sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+					sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+					sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+						.as('sq_tag'),
 				}).from(users).groupBy(users.id)
 			);
 
@@ -6224,6 +6269,9 @@ export function tests(test: Test) {
 				arrMax: max(users.arrCreatedAt).as('arr_max'),
 				arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
 				sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+				sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+				sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+					.as('sq_tag'),
 			}).from(users).groupBy(users.id);
 
 			const viewRes = await db.select().from(usersView);
@@ -6248,15 +6296,8 @@ export function tests(test: Test) {
 			});
 
 			const viewNested = await db.query.usersView.findFirst({
-				columns: {
-					sq: false, // TODO: re-enable when supported in RQBv2
-				},
 				with: {
-					self: {
-						columns: {
-							sq: false, // TODO: re-enable when supported in RQBv2
-						},
-					},
+					self: true,
 				},
 			});
 
@@ -6273,6 +6314,8 @@ export function tests(test: Test) {
 					arrMax: [exDate],
 					arrMaxStr: [exDateStr],
 					sq: exDate,
+					sqAliased: exDate,
+					sqTag: 'tag-1',
 					cus: exDate,
 					arrCus: [exDate],
 				},
@@ -6290,6 +6333,8 @@ export function tests(test: Test) {
 					arrMax: [exDate],
 					arrMaxStr: [exDateStr],
 					sq: exDate,
+					sqAliased: exDate,
+					sqTag: 'tag-1',
 					cus: exDate,
 					arrCus: [exDate],
 				},
@@ -6328,6 +6373,14 @@ export function tests(test: Test) {
 					},
 				},
 			);
+
+			type ViewRow = typeof usersView.$inferSelect;
+			type ViewNestedRow = {
+				[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+			};
+
+			expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
 			expect(viewNested).toStrictEqual(
 				{
 					id: 1,
@@ -6341,6 +6394,9 @@ export function tests(test: Test) {
 					arrMax: [exDate],
 					arrMaxStr: [exDateStr],
 					cus: exDate,
+					sq: exDate,
+					sqAliased: exDate,
+					sqTag: 'tag-1',
 					arrCus: [exDate],
 					self: {
 						id: 1,
@@ -6354,6 +6410,9 @@ export function tests(test: Test) {
 						arrMax: [exDate],
 						arrMaxStr: [exDateStr],
 						cus: exDate,
+						sq: exDate,
+						sqAliased: exDate,
+						sqTag: 'tag-1',
 						arrCus: [exDate],
 					},
 				},
@@ -6401,6 +6460,9 @@ export function tests(test: Test) {
 					arrMax: max(users.arrCreatedAt).as('arr_max'),
 					arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
 					sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+					sqAliased: qb.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+					sqTag: qb.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+						.as('sq_tag'),
 				}).from(users).groupBy(users.id)
 			);
 
@@ -6442,6 +6504,9 @@ export function tests(test: Test) {
 				arrMax: max(users.arrCreatedAt).as('arr_max'),
 				arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
 				sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+				sqAliased: db.select({ createdAt: users.createdAt }).from(users).as('sq_aliased'),
+				sqTag: db.select({ tag: sql`${users.id}`.mapWith((v): string => `tag-${v}`).as('tag') }).from(users)
+					.as('sq_tag'),
 			}).from(users).groupBy(users.id);
 
 			const viewRes = await db.select().from(usersView);
@@ -6466,15 +6531,8 @@ export function tests(test: Test) {
 			});
 
 			const viewNested = await db.query.usersView.findFirst({
-				columns: {
-					sq: false, // TODO: re-enable when supported in RQBv2
-				},
 				with: {
-					self: {
-						columns: {
-							sq: false, // TODO: re-enable when supported in RQBv2
-						},
-					},
+					self: true,
 				},
 			});
 
@@ -6491,6 +6549,8 @@ export function tests(test: Test) {
 					arrMax: [exDate],
 					arrMaxStr: [exDateStr],
 					sq: exDate,
+					sqAliased: exDate,
+					sqTag: 'tag-1',
 					cus: exDate,
 					arrCus: [exDate],
 				},
@@ -6508,6 +6568,8 @@ export function tests(test: Test) {
 					arrMax: [exDate],
 					arrMaxStr: [exDateStr],
 					sq: exDate,
+					sqAliased: exDate,
+					sqTag: 'tag-1',
 					cus: exDate,
 					arrCus: [exDate],
 				},
@@ -6546,6 +6608,14 @@ export function tests(test: Test) {
 					},
 				},
 			);
+
+			type ViewRow = typeof usersView.$inferSelect;
+			type ViewNestedRow = {
+				[K in keyof (ViewRow & { self: ViewRow | null })]: (ViewRow & { self: ViewRow | null })[K];
+			};
+
+			expectTypeOf(viewNested).toEqualTypeOf<ViewNestedRow | undefined>();
+
 			expect(viewNested).toStrictEqual(
 				{
 					id: 1,
@@ -6559,6 +6629,9 @@ export function tests(test: Test) {
 					arrMax: [exDate],
 					arrMaxStr: [exDateStr],
 					cus: exDate,
+					sq: exDate,
+					sqAliased: exDate,
+					sqTag: 'tag-1',
 					arrCus: [exDate],
 					self: {
 						id: 1,
@@ -6572,6 +6645,9 @@ export function tests(test: Test) {
 						arrMax: [exDate],
 						arrMaxStr: [exDateStr],
 						cus: exDate,
+						sq: exDate,
+						sqAliased: exDate,
+						sqTag: 'tag-1',
 						arrCus: [exDate],
 					},
 				},
@@ -6662,7 +6738,7 @@ export function tests(test: Test) {
 			expect(rArr).toStrictEqual([[1, 'First'], [2, 'Second']]);
 		});
 
-		test.skipIf(Date.now() < +new Date('2026-08-05')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-10-10')).concurrent(
 			'Same table name joined between schemas',
 			async ({ db }) => {
 				const users1 = pgTable('users_cs_join_1', (t) => ({
@@ -6692,7 +6768,7 @@ export function tests(test: Test) {
 					u2: users2,
 				}).from(users1).leftJoin(users2, eq(users1.id, users2.id));
 
-				// @ts-ignore skipIf(Date.now() < +new Date('2026-08-05')) - just to make it searchable
+				// @ts-ignore skipIf(Date.now() < +new Date('2026-08-26')) - just to make it searchable
 				expectTypeOf(res).toEqualTypeOf<{
 					u1: {
 						id: number;

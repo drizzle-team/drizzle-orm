@@ -1,5 +1,3 @@
-import type { ResultSetHeader } from 'mysql2/promise';
-import type * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -24,6 +22,7 @@ import { RelationalQueryBuilder } from './query-builders/query.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type {
 	PreparedQueryHKTBase,
+	SingleStorePreparedQueryConfig,
 	SingleStoreQueryResultHKT,
 	SingleStoreQueryResultKind,
 	SingleStoreSession,
@@ -36,17 +35,13 @@ import type { SingleStoreTable } from './table.ts';
 export class SingleStoreDatabase<
 	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TFullSchema extends Record<string, unknown> = {},
 	TRelations extends AnyRelations = EmptyRelations,
-	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'SingleStoreDatabase';
 
 	declare readonly _: {
-		readonly schema: TSchema | undefined;
-		readonly fullSchema: TFullSchema;
 		readonly relations: TRelations;
-		readonly tableNamesMap: Record<string, string>;
+		readonly session: SingleStoreSession<TQueryResult, TPreparedQueryHKT, TRelations>;
 	};
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
@@ -62,31 +57,19 @@ export class SingleStoreDatabase<
 		/** @internal */
 		readonly dialect: SingleStoreDialect,
 		/** @internal */
-		readonly session: SingleStoreSession<any, any, any, any, any>,
+		readonly session: SingleStoreSession<any, any, any>,
 		relations: TRelations,
-		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 	) {
-		this._ = schema
-			? {
-				schema: schema.schema,
-				fullSchema: schema.fullSchema as TFullSchema,
-				tableNamesMap: schema.tableNamesMap,
-				relations,
-			}
-			: {
-				schema: undefined,
-				fullSchema: {} as TFullSchema,
-				tableNamesMap: {},
-				relations,
-			};
+		this._ = {
+			relations,
+			session,
+		};
 		this.query = {} as typeof this['query'];
 		for (const [tableName, relation] of Object.entries(relations)) {
 			(this.query as SingleStoreDatabase<
 				TQueryResult,
 				TPreparedQueryHKT,
-				TSchema,
-				AnyRelations,
-				V1.TablesRelationalConfig
+				AnyRelations
 			>['query'])[
 				tableName
 			] = new RelationalQueryBuilder(
@@ -509,17 +492,90 @@ export class SingleStoreDatabase<
 		return new SingleStoreDeleteBase(table, this.session, this.dialect);
 	}
 
-	execute<T extends { [column: string]: any } = ResultSetHeader>(
+	/**
+	 * Executes raw SQL query, responding with rows as arrays of values
+	 *
+	 * Types assume single statement is executed per query
+	 *
+	 * @param query - SQL query to execute
+	 * @param mode - `'arrays'`
+	 *
+	 * @example
+	 * ```ts
+	 * // [number, string][]
+	 * const rows = await db.execute<[number, string]>(sql`select ${users.id}, ${users.name} from ${users}`, 'arrays');
+	 * ```
+	 */
+	execute<TRow extends unknown[] = unknown[]>(
 		query: SQLWrapper | string,
-	): Promise<SingleStoreQueryResultKind<TQueryResult, T>> {
-		return this.session.execute(typeof query === 'string' ? sql.raw(query) : query.getSQL());
+		mode: 'arrays',
+	): Promise<TRow[]>;
+	/**
+	 * Executes raw SQL query, responding with rows as objects
+	 *
+	 * Types assume single statement is executed per query
+	 *
+	 * @param query - SQL query to execute
+	 * @param mode - `'objects'`
+	 *
+	 * @example
+	 * ```ts
+	 * // { id: number; name: string }[]
+	 * const rows = await db.execute<{ id: number; name: string }>(sql`select ${users.id}, ${users.name} from ${users}`, 'objects');
+	 * ```
+	 */
+	execute<TRow extends Record<string, any> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode: 'objects',
+	): Promise<TRow[]>;
+	/**
+	 * Executes raw SQL query, returning driver's raw response
+	 *
+	 * Row type argument defines the type of the response:
+	 * - `'unknown'` (default) - any response of the driver
+	 * - `never` - response of a statement that returns no rows
+	 * - object shape - response with rows of given shape
+	 *
+	 * Typed call assumes single statement is executed per query
+	 *
+	 * @param query - SQL query to execute
+	 * @param mode - `'raw'` (default)
+	 *
+	 * @example
+	 * ```ts
+	 * // Any response of the driver
+	 * const response = await db.execute(sql`select * from ${users}`);
+	 *
+	 * // Response of a statement that returns no rows
+	 * const updated = await db.execute<never>(sql`update ${users} set ${users.name} = ${'John'}`);
+	 *
+	 * // Response with rows of given shape
+	 * const selected = await db.execute<{ id: number; name: string }>(sql`select ${users.id}, ${users.name} from ${users}`);
+	 * ```
+	 */
+	execute<TRow extends Record<string, any> | 'unknown' = 'unknown'>(
+		query: SQLWrapper | string,
+		mode?: 'raw' | undefined,
+	): Promise<SingleStoreQueryResultKind<TQueryResult, TRow>>;
+	execute(
+		query: SQLWrapper | string,
+		mode?: 'raw' | 'objects' | 'arrays' | undefined,
+	): unknown {
+		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
+		return this.session.prepareQuery<
+			SingleStorePreparedQueryConfig & { execute: unknown },
+			PreparedQueryHKTBase
+		>(
+			this.dialect.sqlToQuery(sequel),
+			mode ?? 'raw',
+		).execute();
 	}
 
 	$cache: { invalidate: Cache['onMutate'] };
 
 	transaction<T>(
 		transaction: (
-			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TRelations, TSchema>,
+			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TRelations>,
 			config?: SingleStoreTransactionConfig,
 		) => Promise<T>,
 		config?: SingleStoreTransactionConfig,
@@ -528,7 +584,16 @@ export class SingleStoreDatabase<
 	}
 }
 
-export type SingleStoreWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
+export type SingleStoreWithReplicas<Q> = Q & {
+	$replica: Q;
+	/**
+	 * @deprecated `withReplicas` db now defaults to using primary
+	 *
+	 * Use `db.$replica` to redirect query to replica
+	 */
+	$primary: Q;
+	$replicas: Q[];
+};
 
 export const withReplicas = <
 	Q extends SingleStoreDriverDatabase,
@@ -537,32 +602,9 @@ export const withReplicas = <
 	replicas: [Q, ...Q[]],
 	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
 ): SingleStoreWithReplicas<Q> => {
-	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args);
-	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
-	const $count: Q['$count'] = (...args: [any]) => getReplica(replicas).$count(...args);
-	const $with: Q['with'] = (...args: []) => getReplica(replicas).with(...args);
-
-	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
-	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = (...args: [any]) => primary.execute(...args);
-	const transaction: Q['transaction'] = (...args: [any, any]) => primary.transaction(...args);
-
-	return {
-		...primary,
-		update,
-		insert,
-		delete: $delete,
-		execute,
-		transaction,
-		$primary: primary,
-		$replicas: replicas,
-		select,
-		selectDistinct,
-		$count,
-		with: $with,
-		get query() {
-			return getReplica(replicas).query;
-		},
-	};
+	return Object.create(primary, {
+		$replica: { get: () => getReplica(replicas) },
+		$primary: { value: primary },
+		$replicas: { value: replicas },
+	});
 };

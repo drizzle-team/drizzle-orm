@@ -54,17 +54,17 @@ describe('Objects', (it) => {
 
 		expect(
 			isConfig({
-				schema: {
+				relations: {
 					any: true,
 				},
-			} as DrizzleConfig<any>),
+			} as unknown as DrizzleConfig<any>),
 		).toEqual(true);
 
 		expect(
 			isConfig({
 				casing: 'camelCase',
 				logger: true,
-				schema: {
+				relations: {
 					any: true,
 				},
 			} as DrizzleConfig<any>),
@@ -76,6 +76,18 @@ describe('Objects', (it) => {
 				trash: true,
 			} as DrizzleConfig),
 		).toEqual(true);
+
+		expect(
+			isConfig({
+				codecs: {},
+			} as DrizzleConfig),
+		).toEqual(true);
+
+		expect(
+			isConfig({
+				codecs: 'not a codec collection',
+			} as unknown as DrizzleConfig),
+		).toEqual(false);
 	});
 
 	it('Rejects non-configs', () => {

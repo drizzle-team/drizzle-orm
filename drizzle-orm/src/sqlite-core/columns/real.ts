@@ -23,6 +23,9 @@ export class SQLiteRealBuilder extends SQLiteColumnBuilder<{
 export class SQLiteReal<T extends ColumnBaseConfig<'number double'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteReal';
 
+	/** @internal */
+	override readonly codec = 'real';
+
 	getSQLType(): string {
 		return 'real';
 	}

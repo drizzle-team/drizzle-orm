@@ -7,7 +7,7 @@ import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession } from '~/pg-core/async/session.ts';
 import { PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
@@ -34,6 +34,7 @@ const parsers: ParserOptions = {
 export interface PgliteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSession<PgliteQueryResultHKT, TRelations> {
@@ -80,6 +81,7 @@ export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSessi
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -131,12 +133,12 @@ export class PgliteTransaction<
 			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}
 }
 
 export interface PgliteQueryResultHKT extends PgQueryResultHKT {
-	type: Results<Assume<this['row'], Row>>;
+	type: Results<Assume<PgRawRow<this['row']>, Row>>;
 }

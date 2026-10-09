@@ -1,5 +1,5 @@
-import type { Connection, PoolQuery, QueryResult, ShapeSpec } from 'minipg';
-import { Pool } from 'minipg';
+import type { Connection, PoolQuery, QueryResult, ShapeSpec } from '@drizzle-team/minipg';
+import { Pool } from '@drizzle-team/minipg';
 import type { BatchItem } from '~/batch';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -7,7 +7,7 @@ import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
-import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
+import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
@@ -17,6 +17,7 @@ export type PostgresClient = Pool | Connection;
 export interface PostgresSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class PostgresSession<
@@ -83,12 +84,13 @@ export class PostgresSession<
 			queryMetadata,
 			cacheConfig,
 			shape,
+			this.options.paramsInErrors,
 		);
 	}
 
 	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(queries: T) {
-		const preparedQueries: PostgresPreparedQuery<any>[] = [];
-		const builtQueries: PoolQuery[] = Array.from({ length: preparedQueries.length });
+		const preparedQueries: PostgresPreparedQuery<any>[] = new Array(queries.length);
+		const builtQueries: PoolQuery[] = new Array(queries.length);
 
 		const q = this.client;
 		if (!(q instanceof Pool)) throw new Error('`batch` method is only supported on connection pools!'); // oxlint-disable-line no-instanceof-builtins drizzle-internal/no-instanceof
@@ -109,7 +111,7 @@ export class PostgresSession<
 		}
 
 		const batchResults = await q.batch(builtQueries);
-		const response = Array.from({ length: batchResults.length });
+		const response = new Array(batchResults.length);
 		for (let i = 0; i < batchResults.length; ++i) {
 			const { mapper, mode } = preparedQueries[i]!;
 			const result = batchResults[i]!;
@@ -166,7 +168,7 @@ export class PostgresTransaction<
 export type PostgresQueryResult<T> = Omit<QueryResult<T>, 'metrics' | 'debug'>;
 
 export interface PostgresQueryResultHKT extends PgQueryResultHKT {
-	type: Simplify<Omit<QueryResult<this['row']>, 'metrics' | 'debug'>>;
+	type: Simplify<Omit<QueryResult<PgRawRow<this['row']>>, 'metrics' | 'debug'>>;
 }
 
 export class PostgresPreparedQuery<T extends PreparedQueryConfig> extends PgAsyncPreparedQuery<T> {
@@ -188,7 +190,8 @@ export class PostgresPreparedQuery<T extends PreparedQueryConfig> extends PgAsyn
 		// config that was passed through $withCache
 		cacheConfig: WithCacheConfig | undefined,
 		readonly shape?: ShapeSpec,
+		paramsInErrors?: boolean,
 	) {
-		super(executor, query, mapper, mode, logger, cache, queryMetadata, cacheConfig);
+		super(executor, query, mapper, mode, logger, cache, queryMetadata, cacheConfig, paramsInErrors);
 	}
 }

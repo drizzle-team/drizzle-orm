@@ -7,9 +7,9 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import { applyMixins, type Assume, resolveNullableObjectPaths } from '~/utils.ts';
 import { type Join, PgUpdateBase, type PgUpdateHKTBase } from '../query-builders/update.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
 
@@ -110,9 +110,8 @@ export class PgAsyncUpdateBase<
 			const shape = fields
 				? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, nullableObjectPaths)
 				: undefined;
-			if (shape) this.withoutSelectionCastCodecs();
 
-			const query = dialect.sqlToQuery(this.getSQL());
+			const query = dialect.sqlToQuery(this.getSQL(!shape));
 			const mapper = shape || !fields
 				? undefined
 				: this.dialect.mapperGenerators.rows(fields, nullableObjectPaths);
@@ -122,7 +121,7 @@ export class PgAsyncUpdateBase<
 				shape ? 'objects' : fields ? 'arrays' : 'raw',
 				name ?? generateName,
 				mapper,
-				{ type: 'update', tables: [...extractUsedTable(this.config.table)] },
+				{ type: 'update', tables: usedTablesOf(this.config.table) },
 				undefined,
 				shape,
 			);

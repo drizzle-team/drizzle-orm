@@ -2775,3 +2775,56 @@ test('issue #5955', async () => {
 		'ALTER TABLE "customer_category_assignment" ADD CONSTRAINT "uq_customer_category_assignment" UNIQUE("customer_id","category_id");',
 	]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6193
+// https://github.com/drizzle-team/drizzle-orm/issues/6078
+test('Issue No6193. order in composite pks', async () => {
+	const to = {
+		table: pgTable('table', {
+			service: text('service').notNull(),
+			day: text('day').notNull(),
+			count: integer('count').notNull().default(0),
+			updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+		}, (t) => [primaryKey({ columns: [t.service, t.day] })]),
+	};
+
+	const { sqlStatements: st1 } = await diff({}, to, []);
+	const { sqlStatements: pst1 } = await push({ db, to: to });
+
+	const st0 = [
+		`CREATE TABLE \"table\" (
+\t\"service\" text,
+\t\"day\" text,
+\t\"count\" integer DEFAULT 0 NOT NULL,
+\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL,
+\tCONSTRAINT \"table_pkey\" PRIMARY KEY(\"service\",\"day\")
+);\n`,
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6386
+test('Issue No6368', async () => {
+	const chunks = pgTable(
+		'chunk',
+		{ itemId: text('item_id').notNull(), kind: text().notNull(), text: text().notNull() },
+		(t) => [
+			uniqueIndex('chunk_item_kind_md5_uniq').on(t.itemId, t.kind, sql`md5(${t.text})`),
+		],
+	);
+
+	const { sqlStatements: st1 } = await diff({}, { chunks }, []);
+	const { sqlStatements: pst1 } = await push({ db, to: { chunks } });
+
+	const st0 = [
+		`CREATE TABLE \"chunk\" (
+\t"item_id" text NOT NULL,
+\t"kind" text NOT NULL,
+\t"text" text NOT NULL
+);\n`,
+		'CREATE UNIQUE INDEX "chunk_item_kind_md5_uniq" ON "chunk" ("item_id","kind",md5("text"));',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});

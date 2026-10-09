@@ -9,10 +9,7 @@ export const libSQLCredentials = object({
 	authToken: string().min(1).optional(),
 });
 
-export type LibSQLCredentials = {
-	url: string;
-	authToken?: string;
-};
+export type LibSQLCredentials = TypeOf<typeof libSQLCredentials>;
 
 const _: LibSQLCredentials = {} as TypeOf<typeof libSQLCredentials>;
 

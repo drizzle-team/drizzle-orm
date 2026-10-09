@@ -2261,3 +2261,78 @@ test('create table with datetime .onUpdateNow() diff variations', async () => {
 
 	await expect(push({ db, to })).resolves.not.toThrowError();
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3826
+test('Issue No3826. Renaming column and altering contraint on it', async () => {
+	const schemaFrom = {
+		users: mysqlTable('users', {
+			id: int('id').primaryKey().notNull(),
+			phone_number: varchar('old_name', { length: 100 }).notNull(),
+			customer_id: varchar('customer_id', { length: 100 }).unique(),
+			avatar: varchar('avatar', { length: 100 }),
+		}),
+	};
+
+	const schemaTo = {
+		users: mysqlTable('users', {
+			id: int('id').primaryKey().notNull(),
+			phone_number: varchar('new_name', { length: 100 }), // renamed + dropped not null
+			customer_id: varchar('customer_id', { length: 100 }).unique(),
+			avatar: varchar('avatar', { length: 100 }),
+		}),
+	};
+
+	const renames = ['users.old_name->users.new_name'];
+	const { sqlStatements: st1 } = await diff(schemaFrom, schemaTo, renames);
+	await push({ db, to: schemaFrom });
+	const { sqlStatements: pst1 } = await push({ db, to: schemaTo, renames });
+
+	const st0 = [
+		'ALTER TABLE `users` RENAME COLUMN `old_name` TO `new_name`;',
+		'ALTER TABLE `users` MODIFY COLUMN `new_name` varchar(100);',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6360
+test('Issue No6360', async () => {
+	const a1 = mysqlTable('a', {
+		id: int('id').primaryKey(),
+		user_id: int('user_id').notNull(),
+	});
+
+	const b1 = mysqlTable('b', {
+		id: int('id').primaryKey(),
+		user_id: int('user_id').notNull(),
+	});
+
+	const schema1 = { a1, b1 };
+
+	const a2 = mysqlTable('a', {
+		id: int('id').primaryKey(),
+		user_id: int('org_id').notNull(), // new name
+	});
+
+	const b2 = mysqlTable('b', {
+		id: int('id').primaryKey(),
+		user_id: int('user_id'), // dropped not null
+	});
+
+	const schema2 = { a2, b2 };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, [`a.user_id->a.org_id`]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({
+		db,
+		to: schema2,
+		renames: [`a.user_id->a.org_id`],
+	});
+
+	const st0 = [
+		'ALTER TABLE `a` RENAME COLUMN `user_id` TO `org_id`;',
+		'ALTER TABLE `b` MODIFY COLUMN `user_id` int;',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});

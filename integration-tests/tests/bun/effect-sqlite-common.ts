@@ -55,8 +55,16 @@ import * as Predicate from 'effect/Predicate';
 import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
 import * as Scope from 'effect/Scope';
-import { SqlClient } from 'effect/unstable/sql/SqlClient';
-import { SqlError } from 'effect/unstable/sql/SqlError';
+import { SqlClient } from 'effect/sql/SqlClient';
+import { SqlError } from 'effect/sql/SqlError';
+import type { AllTypes } from '../sqlite/all-types';
+import {
+	allTypesData,
+	allTypesInput,
+	assertAllTypesBounds,
+	assertAllTypesUnions,
+	makeAllTypes,
+} from '../sqlite/all-types';
 import relations from '../sqlite/relations';
 import { rqbPost, rqbUser } from '../sqlite/schema';
 
@@ -239,151 +247,23 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 
 		it.effect('all types', () =>
 			Effect.gen(function*() {
-				const allTypesTable = sqliteTable('all_types', {
-					int: integer('int', {
-						mode: 'number',
-					}),
-					bool: integer('bool', {
-						mode: 'boolean',
-					}),
-					time: integer('time', {
-						mode: 'timestamp',
-					}),
-					timeMs: integer('time_ms', {
-						mode: 'timestamp_ms',
-					}),
-					bigint: blob('bigint', {
-						mode: 'bigint',
-					}),
-					buffer: blob('buffer', {
-						mode: 'buffer',
-					}),
-					json: blob('json', {
-						mode: 'json',
-					}),
-					numeric: numeric('numeric'),
-					numericNum: numeric('numeric_num', {
-						mode: 'number',
-					}),
-					numericBig: numeric('numeric_big', {
-						mode: 'bigint',
-					}),
-					real: real('real'),
-					text: text('text', {
-						mode: 'text',
-					}),
-					jsonText: text('json_text', {
-						mode: 'json',
-					}),
-				});
+				const allTypesTable = makeAllTypes('all_types');
 
 				const db = yield* DB;
 				yield* push(db, { allTypesTable });
 
-				yield* db.insert(allTypesTable).values({
-					int: 1,
-					bool: true,
-					bigint: 5044565289845416380n,
-					buffer: Buffer.from([
-						0x44,
-						0x65,
-						0x73,
-						0x70,
-						0x61,
-						0x69,
-						0x72,
-						0x20,
-						0x6f,
-						0x20,
-						0x64,
-						0x65,
-						0x73,
-						0x70,
-						0x61,
-						0x69,
-						0x72,
-						0x2e,
-						0x2e,
-						0x2e,
-					]),
-					json: {
-						str: 'strval',
-						arr: ['str', 10],
-					},
-					jsonText: {
-						str: 'strvalb',
-						arr: ['strb', 11],
-					},
-					numeric: '475452353476',
-					numericNum: 9007199254740991,
-					numericBig: 5044565289845416380n,
-					real: 1.048596,
-					text: 'TEXT STRING',
-					time: new Date(1741743161623),
-					timeMs: new Date(1741743161623),
-				});
+				yield* db.insert(allTypesTable).values(allTypesInput);
 
 				const rawRes = yield* db.select().from(allTypesTable);
 
-				expect(typeof rawRes[0]?.numericBig).toStrictEqual('bigint');
+				expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+				expect(rawRes).toStrictEqual([allTypesData]);
 
-				type ExpectedType = {
-					int: number | null;
-					bool: boolean | null;
-					time: Date | null;
-					timeMs: Date | null;
-					bigint: bigint | null;
-					buffer: Buffer | null;
-					json: unknown;
-					numeric: string | null;
-					numericNum: number | null;
-					numericBig: bigint | null;
-					real: number | null;
-					text: string | null;
-					jsonText: unknown;
-				}[];
+				const context = yield* Effect.context<never>();
+				const run = (query: any) => Effect.runPromiseWith(context)(query);
 
-				const expectedRes: ExpectedType = [
-					{
-						int: 1,
-						bool: true,
-						time: new Date('2025-03-12T01:32:41.000Z'),
-						timeMs: new Date('2025-03-12T01:32:41.623Z'),
-						bigint: 5044565289845416380n,
-						buffer: Buffer.from([
-							0x44,
-							0x65,
-							0x73,
-							0x70,
-							0x61,
-							0x69,
-							0x72,
-							0x20,
-							0x6f,
-							0x20,
-							0x64,
-							0x65,
-							0x73,
-							0x70,
-							0x61,
-							0x69,
-							0x72,
-							0x2e,
-							0x2e,
-							0x2e,
-						]),
-						json: { str: 'strval', arr: ['str', 10] },
-						numeric: '475452353476',
-						numericNum: 9007199254740991,
-						numericBig: 5044565289845416380n,
-						real: 1.048596,
-						text: 'TEXT STRING',
-						jsonText: { str: 'strvalb', arr: ['strb', 11] },
-					},
-				];
-
-				expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
-				expect(rawRes).toStrictEqual(expectedRes);
+				yield* Effect.promise(() => assertAllTypesUnions(db as any, allTypesTable, run));
+				yield* Effect.promise(() => assertAllTypesBounds(db as any, run));
 			}));
 
 		it.effect('RQB v2 simple find first - no rows', () =>
@@ -3989,6 +3869,58 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 					defMix3: 2,
 					defMix4: 1,
 				}]);
+			}));
+
+		it.effect('Query error params', () =>
+			Effect.gen(function*() {
+				const query = sql`select * from params_in_errors_missing where id = ${'S3CRET'}`;
+
+				for (const paramsInErrors of [undefined, false, true]) {
+					const db = yield* SQLiteDrizzle.make({ paramsInErrors }).pipe(Effect.provide(SQLiteDrizzle.DefaultServices));
+
+					for (
+						const effect of [
+							db.get(query),
+							db.all(query),
+							db.run(query),
+							db.values(query),
+						]
+					) {
+						const error: any = yield* effect.pipe(Effect.flip);
+
+						expect(error._tag).toBe('EffectDrizzleQueryError');
+						expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+						expect(error.message).toBe(
+							paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+						);
+					}
+				}
+			}));
+
+		it.effect('Query error params - transaction', () =>
+			Effect.gen(function*() {
+				const query = sql`select * from params_in_errors_missing where id = ${'S3CRET'}`;
+
+				for (const paramsInErrors of [undefined, false, true]) {
+					const db = yield* SQLiteDrizzle.make({ paramsInErrors }).pipe(Effect.provide(SQLiteDrizzle.DefaultServices));
+
+					for (
+						const effect of [
+							db.transaction((tx) => tx.get(query)),
+							db.transaction((tx) => tx.all(query)),
+							db.transaction((tx) => tx.run(query)),
+							db.transaction((tx) => tx.values(query)),
+						]
+					) {
+						const error: any = yield* effect.pipe(Effect.flip);
+
+						expect(error._tag).toBe('EffectDrizzleQueryError');
+						expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+						expect(error.message).toBe(
+							paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+						);
+					}
+				}
 			}));
 
 		addTests?.(it);

@@ -448,3 +448,35 @@ test('validate config #6', async (t) => {
 	if (res.type !== 'error') return;
 	expect((res.error as Error).message).toContain('PostgreSQL');
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3626
+test('Issue No3626. Validate schemaFilter option', async () => {
+	const res = await brotest(
+		push,
+		`--dialect=postgresql --schema=schema.ts --schemaFilter=test --tablesFilter=testingTable --url=test`,
+	);
+
+	console.log('res', res);
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+	expect(res.options).toStrictEqual({
+		credentials: {
+			url: 'test',
+		},
+		dialect: 'postgresql',
+		explain: false,
+		filenames: [filename],
+		filters: {
+			entities: undefined,
+			extensions: undefined,
+			schemas: 'test', // works
+			tables: 'testingTable', // works
+		},
+		force: false,
+		hints: expect.any(HintsHandler) as any,
+		migrations: {
+			schema: 'drizzle',
+			table: '__drizzle_migrations',
+		},
+		verbose: false,
+	});
+});

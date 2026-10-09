@@ -392,3 +392,31 @@ test('validate config #6', async () => {
 	if (res.type !== 'error') return;
 	expect((res.error as Error).message).toContain('MySQL driver');
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3626
+test('Issue No3626. Validate schemaFilter option', async () => {
+	const res = await brotest(pull, `--dialect=postgresql --schemaFilter=test --tablesFilter=testingTable --url=test`);
+
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+	expect(res.options).toStrictEqual({
+		breakpoints: true,
+		casing: 'camel',
+		credentials: {
+			url: 'test',
+		},
+		dialect: 'postgresql',
+		filters: {
+			entities: undefined,
+			extensions: undefined,
+			schemas: 'test', // works
+			tables: 'testingTable', // works
+		},
+		init: false,
+		migrations: {
+			schema: 'drizzle',
+			table: '__drizzle_migrations',
+		},
+		out: 'drizzle',
+		output: 'text',
+	});
+});

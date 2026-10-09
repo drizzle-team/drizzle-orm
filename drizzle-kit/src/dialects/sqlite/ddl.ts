@@ -312,6 +312,7 @@ export function sqliteToRelationsPull(schema: SQLiteDDL): SchemaForPull {
 		const rawTable = tableFromDDL(table.name, schema);
 		return {
 			foreignKeys: rawTable.fks,
+			columns: rawTable.columns.map((it) => ({ name: it.name })),
 			uniques: [
 				...Object.values(rawTable.uniques).map((unq) => ({
 					columns: unq.columns,

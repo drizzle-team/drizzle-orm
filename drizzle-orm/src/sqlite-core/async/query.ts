@@ -40,7 +40,7 @@ export class SQLiteAsyncRelationalQuery<TType extends 'sync' | 'async', TResult>
 	): SQLiteAsyncPreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
 		const { query, builtQuery } = this._toSQL();
 
-		const mapper = this.dialect.mapperGenerators.relationalRows({
+		const mapper = this.mapper ??= this.dialect.mapperGenerators.relationalRows({
 			isFirst: this.mode === 'first',
 			parseJson: true,
 			parseJsonIfString: false,

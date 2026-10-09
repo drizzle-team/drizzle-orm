@@ -59,7 +59,7 @@ export function singlestoreTableWithSchema<
 	extraConfig:
 		| ((
 			self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>,
-		) => SingleStoreTableExtraConfig | SingleStoreTableExtraConfigValue[])
+		) => SingleStoreTableExtraConfig | (SingleStoreTableExtraConfigValue | SingleStoreTableExtraConfigValue[])[])
 		| undefined,
 	schema: TSchemaName,
 	casing: Casing | undefined,
@@ -69,6 +69,7 @@ export function singlestoreTableWithSchema<
 	schema: TSchemaName;
 	columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 	dialect: 'singlestore';
+	isAlias: false;
 }> {
 	const casingFn = getCasingFn(casing);
 	const rawTable = new SingleStoreTable<{
@@ -76,6 +77,7 @@ export function singlestoreTableWithSchema<
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 		dialect: 'singlestore';
+		isAlias: false;
 	}>(name, schema, baseName);
 
 	const parsedColumns: TColumnsMap = typeof columns === 'function' ? columns(getSingleStoreColumnBuilders()) : columns;
@@ -116,12 +118,13 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 		columns: TColumnsMap,
 		extraConfig?: (
 			self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>,
-		) => SingleStoreTableExtraConfigValue[],
+		) => (SingleStoreTableExtraConfigValue | SingleStoreTableExtraConfigValue[])[],
 	): SingleStoreTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 		dialect: 'singlestore';
+		isAlias: false;
 	}>;
 
 	<
@@ -130,12 +133,15 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 	>(
 		name: TTableName,
 		columns: (columnTypes: SingleStoreColumnBuilders) => TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>) => SingleStoreTableExtraConfigValue[],
+		extraConfig?: (
+			self: BuildColumns<TTableName, TColumnsMap, 'singlestore'>,
+		) => (SingleStoreTableExtraConfigValue | SingleStoreTableExtraConfigValue[])[],
 	): SingleStoreTableWithColumns<{
 		name: TTableName;
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 		dialect: 'singlestore';
+		isAlias: false;
 	}>;
 	/**
 	 * @deprecated The third parameter of singlestoreTable is changing and will only accept an array instead of an object
@@ -171,6 +177,7 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 		dialect: 'singlestore';
+		isAlias: false;
 	}>;
 
 	/**
@@ -207,6 +214,7 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 		schema: TSchemaName;
 		columns: BuildColumns<TTableName, TColumnsMap, 'singlestore'>;
 		dialect: 'singlestore';
+		isAlias: false;
 	}>;
 }
 

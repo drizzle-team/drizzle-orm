@@ -18,6 +18,7 @@ import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface BetterSQLiteSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export type BetterSQLite3RunResult = RunResult;
@@ -56,7 +57,7 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 		try {
 			stmt = this.client.prepare(query.sql);
 		} catch (e) {
-			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+			throw new DrizzleQueryError(query.sql, this.options.paramsInErrors ? query.params : undefined, e as Error);
 		}
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {
@@ -69,9 +70,6 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 			},
 			run: (params) => {
 				return stmt.run(...params as any[]);
-			},
-			values: (params) => {
-				return stmt.raw().all(...params as any[]);
 			},
 		};
 
@@ -86,6 +84,7 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 			undefined,
 			queryMetadata,
 			undefined,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -94,9 +93,13 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 		config: SQLiteTransactionConfig = {},
 	): T {
 		const tx = new BetterSQLiteTransaction('sync', this.dialect, this, this.relations);
-		const nativeTx = this.client.transaction(transaction);
+		let result!: T;
+		const nativeTx = this.client.transaction(() => {
+			result = transaction(tx);
+		});
 		if (config.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
-		return nativeTx[config.behavior ?? 'deferred'](tx);
+		nativeTx[config.behavior ?? 'deferred']();
+		return result;
 	}
 }
 
@@ -125,7 +128,11 @@ export class BetterSQLiteTransaction<TRelations extends AnyRelations>
 			this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result as T;
 		} catch (err) {
-			this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			try {
+				this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			} catch {
+				// original error takes priority
+			}
 			throw err;
 		}
 	}

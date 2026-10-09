@@ -1842,8 +1842,15 @@ export const parseOnType = (type: string): OnAction => {
 	}
 };
 
-export const planetscaleNamespaces = ['pscale_extensions'];
-export const systemNamespaceNames = ['pg_toast', 'pg_catalog', 'information_schema', ...planetscaleNamespaces];
+export const planetscaleNamespaces = ['pscale_extensions', '__neki'];
+export const dsqlNamespaces = ['sys'];
+export const systemNamespaceNames = [
+	'pg_toast',
+	'pg_catalog',
+	'information_schema',
+	...planetscaleNamespaces,
+	...dsqlNamespaces,
+];
 export const isSystemNamespace = (name: string) => {
 	return name.startsWith('pg_toast') || name === 'pg_default' || name === 'pg_global' || name.startsWith('pg_temp_')
 		|| systemNamespaceNames.indexOf(name) >= 0;
@@ -2165,6 +2172,24 @@ export const defaultsCommutative = (
 	}
 
 	return false;
+};
+
+export const existsInViewDef = (
+	view1: { name: string; schema: string },
+	view2: { name: string; schema: string; definition: string | null },
+) => {
+	const candidates = view1.schema !== 'public'
+		? [
+			`${view1.schema}"."${view1.name}`, // "schema"."view"
+			`${view1.schema}."${view1.name}`, // schema."view"
+			`${view1.schema}".${view1.name}`, // "schema".view
+			`${view1.schema}.${view1.name}`, // schema.view
+		]
+		: [
+			view1.name, // bare view name
+		];
+
+	return candidates.some((candidate) => view2.definition?.includes(candidate));
 };
 
 export const defaults = {

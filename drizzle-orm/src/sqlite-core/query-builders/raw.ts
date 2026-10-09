@@ -29,6 +29,7 @@ export class SQLiteRaw<TResult> implements SQLWrapper, PreparedQuery {
 		return this.query;
 	}
 
+	/** @internal */
 	_prepare(): PreparedQuery {
 		return this.prepared;
 	}

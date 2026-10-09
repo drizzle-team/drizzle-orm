@@ -9,8 +9,10 @@ import {
 	count,
 	countDistinct,
 	defineRelations,
+	DrizzleQueryError,
 	eq,
 	exists,
+	getColumns,
 	getTableColumns,
 	gt,
 	gte,
@@ -47,6 +49,19 @@ import {
 // Can't use 'vitest' due to it having setTimeout in code, thus breaking workers
 import { expect } from 'chai';
 import { type Equal, Expect } from '~/utils';
+import {
+	allTypesData,
+	allTypesInput,
+	allTypesTable,
+	allTypesUnionCases,
+	boundsData,
+	boundsTable,
+	createAllTypes,
+	createBounds,
+	dropAllTypes,
+	dropBounds,
+} from '../all-types.data';
+import { normalizeDataWithDbCodecs } from '../utils';
 import migrations from './drizzle/migrations';
 
 export const usersTable = sqliteTable('users', {
@@ -146,7 +161,13 @@ export const rqbPost = sqliteTable('post_rqb_test', {
 	}).notNull(),
 });
 
-export const relations = defineRelations({ rqbUser, rqbPost }, (r) => ({
+export const relations = defineRelations({ rqbUser, rqbPost, allTypesTable }, (r) => ({
+	allTypesTable: {
+		self: r.many.allTypesTable({
+			from: r.allTypesTable.id,
+			to: r.allTypesTable.id,
+		}),
+	},
 	rqbUser: {
 		posts: r.many.rqbPost(),
 	},
@@ -3528,6 +3549,125 @@ export class MyDurableObject extends DurableObject {
 		}
 	}
 
+	async allTypes(): Promise<void> {
+		await this.db.run(sql.raw(dropAllTypes('all_types_cdcs')));
+		await this.db.run(sql.raw(createAllTypes('all_types_cdcs')));
+
+		try {
+			await this.db.insert(allTypesTable).values(allTypesInput);
+
+			const rawRes = await this.db.select().from(allTypesTable);
+			expect(rawRes).deep.equal([allTypesData]);
+
+			for (const { query, expected } of allTypesUnionCases(this.db as any, allTypesTable)) {
+				expect(await query).to.have.deep.members(expected);
+			}
+		} finally {
+			await this.db.run(sql.raw(dropAllTypes('all_types_cdcs')));
+		}
+
+		await this.db.run(sql.raw(dropBounds()));
+		await this.db.run(sql.raw(createBounds()));
+
+		try {
+			await this.db.insert(boundsTable).values(boundsData);
+			expect(await this.db.select().from(boundsTable).orderBy(boundsTable.id)).deep.equal(boundsData);
+		} finally {
+			await this.db.run(sql.raw(dropBounds()));
+		}
+	}
+
+	async queryErrorParams(): Promise<void> {
+		this.db.run(sql`drop table if exists params_in_errors`);
+		this.db.run(sql`create table params_in_errors (id integer primary key, name text not null)`);
+
+		const queries = [
+			// Fails on statement preparation
+			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
+			{
+				query: sql`insert into params_in_errors (id, name) values (${1}, ${'First'}), (${1}, ${'Second'}) returning id`,
+				params: [1, 'First', 1, 'Second'],
+			},
+		];
+
+		try {
+			for (const paramsInErrors of [undefined, false, true]) {
+				const db = drizzle(this.storage, { paramsInErrors });
+
+				for (const { query, params } of queries) {
+					for (
+						const run of [
+							() => db.get(query),
+							() => db.all(query),
+							() => db.run(query),
+							() => db.values(query),
+							() =>
+								db.transaction((tx) => {
+									tx.get(query);
+								}),
+							() =>
+								db.transaction((tx) => {
+									tx.all(query);
+								}),
+							() =>
+								db.transaction((tx) => {
+									tx.run(query);
+								}),
+							() =>
+								db.transaction((tx) => {
+									tx.values(query);
+								}),
+						]
+					) {
+						let error: any;
+						try {
+							run();
+						} catch (e) {
+							error = e;
+						}
+
+						expect(error).instanceOf(DrizzleQueryError);
+						expect(error.params).deep.equal(paramsInErrors ? params : undefined);
+						expect(error.message).equal(
+							paramsInErrors ? `Failed query: ${error.query}\nparams: ${params}` : `Failed query: ${error.query}`,
+						);
+					}
+				}
+			}
+		} finally {
+			this.db.run(sql`drop table params_in_errors`);
+		}
+	}
+
+	async allTypesCodecs(): Promise<void> {
+		await this.db.run(sql.raw(dropAllTypes('all_types_cdcs')));
+		await this.db.run(sql.raw(createAllTypes('all_types_cdcs')));
+
+		try {
+			await this.db.insert(allTypesTable).values(allTypesInput);
+
+			const columns = getColumns(allTypesTable);
+			const db = this.db;
+
+			const queryRaw = await db.all<Record<string, unknown>>(
+				db.select(
+					Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
+				).from(allTypesTable).getSQL(true),
+			);
+			expect(normalizeDataWithDbCodecs({ db, columns, data: queryRaw, mode: 'query' })[0]).deep.equal(allTypesData);
+
+			const rqbRaw = await db.all<Record<string, unknown> & { self: string }>(
+				db.query.allTypesTable.findFirst({ with: { self: true } }).getSQL(),
+			);
+			const { self: relationRaw, ...rootRaw } = rqbRaw[0]!;
+
+			expect(normalizeDataWithDbCodecs({ db, columns, data: relationRaw, mode: 'json' })[0]).deep.equal(allTypesData);
+			expect(normalizeDataWithDbCodecs({ db, columns, data: [rootRaw], mode: 'query' })[0]).deep.equal(allTypesData);
+		} finally {
+			await this.db.run(sql.raw(dropAllTypes('all_types_cdcs')));
+		}
+	}
+
 	async testRqbV2SimpleFindFirstNoRows() {
 		const db = this.db;
 		await this.beforeEach();
@@ -4226,6 +4366,10 @@ export default {
 			// await stub.insertUndefined().catch(() => {
 			// 	throw new Error('Insert undefined error');
 			// });
+
+			await stub.allTypes();
+			await stub.allTypesCodecs();
+			await stub.queryErrorParams();
 
 			await stub.testRqbV2SimpleFindFirstMultipleRows();
 			await stub.testRqbV2SimpleFindFirstNoRows();

@@ -37,6 +37,7 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	const session = new PgliteSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new PgliteDatabase(
 		dialect,

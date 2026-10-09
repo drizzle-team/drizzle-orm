@@ -1,5 +1,5 @@
 import { Effect } from 'effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { MutationOption } from '~/cache/core/cache.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
@@ -133,7 +133,7 @@ export class PgEffectDatabase<
 				qb = qb(new QueryBuilder(this.dialect));
 			}
 
-			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
+			const sql = qb.getSQL();
 			return new Proxy(
 				new WithSubquery(
 					sql,
@@ -701,15 +701,68 @@ export class PgEffectDatabase<
 		return new PgEffectRefreshMaterializedView(view, this.session, this.dialect);
 	}
 
+	/**
+	 * Executes raw SQL query, responding with rows as arrays of values
+	 *
+	 * Types assume single statement is executed per query
+	 *
+	 * @param query - SQL query to execute
+	 * @param mode - `'arrays'`
+	 *
+	 * @example
+	 * ```ts
+	 * // [number, string][]
+	 * const rows = yield* db.execute<[number, string]>(sql`select ${users.id}, ${users.name} from ${users}`, 'arrays');
+	 * ```
+	 */
 	execute<TRow extends unknown[] = unknown[]>(
 		query: SQLWrapper | string,
 		mode: 'arrays',
 	): PgEffectRaw<TRow[], TEffectHKT>;
-	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+	/**
+	 * Executes raw SQL query, responding with rows as objects
+	 *
+	 * Types assume single statement is executed per query
+	 *
+	 * @param query - SQL query to execute
+	 * @param mode - `'objects'`
+	 *
+	 * @example
+	 * ```ts
+	 * // { id: number; name: string }[]
+	 * const rows = yield* db.execute<{ id: number; name: string }>(sql`select ${users.id}, ${users.name} from ${users}`, 'objects');
+	 * ```
+	 */
+	execute<TRow extends Record<string, any> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 		mode: 'objects',
 	): PgEffectRaw<TRow[], TEffectHKT>;
-	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+	/**
+	 * Executes raw SQL query, returning driver's raw response
+	 *
+	 * Row type argument defines the type of the response:
+	 * - `'unknown'` (default) - any response of the driver
+	 * - `never` - response of a statement that returns no rows
+	 * - object shape - response with rows of given shape
+	 *
+	 * Typed call assumes single statement is executed per query
+	 *
+	 * @param query - SQL query to execute
+	 * @param mode - `'raw'` (default)
+	 *
+	 * @example
+	 * ```ts
+	 * // Any response of the driver
+	 * const response = yield* db.execute(sql`select * from ${users}`);
+	 *
+	 * // Response of a statement that returns no rows
+	 * const updated = yield* db.execute<never>(sql`update ${users} set ${users.name} = ${'John'}`);
+	 *
+	 * // Response with rows of given shape
+	 * const selected = yield* db.execute<{ id: number; name: string }>(sql`select ${users.id}, ${users.name} from ${users}`);
+	 * ```
+	 */
+	execute<TRow extends Record<string, any> | 'unknown' = 'unknown'>(
 		query: SQLWrapper | string,
 		mode?: 'raw' | undefined,
 	): PgEffectRaw<PgQueryResultKind<TQueryResult, TRow>, TEffectHKT>;
@@ -739,7 +792,16 @@ export class PgEffectDatabase<
 	}
 }
 
-export type PgEffectWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
+export type PgEffectWithReplicas<Q> = Q & {
+	$replica: Q;
+	/**
+	 * @deprecated `withReplicas` db now defaults to using primary
+	 *
+	 * Use `db.$replica` to redirect query to replica
+	 */
+	$primary: Q;
+	$replicas: Q[];
+};
 
 export const withReplicas = <
 	TEffectHKT extends QueryEffectHKTBase,
@@ -751,39 +813,9 @@ export const withReplicas = <
 	replicas: [Q, ...Q[]],
 	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
 ): PgEffectWithReplicas<Q> => {
-	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args);
-	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
-	const selectDistinctOn: Q['selectDistinctOn'] = (...args: [any]) => getReplica(replicas).selectDistinctOn(...args);
-	const $count: Q['$count'] = (...args: [any]) => getReplica(replicas).$count(...args);
-	const _with: Q['with'] = (...args: any) => getReplica(replicas).with(...args);
-	const $with: Q['$with'] = (arg: any) => getReplica(replicas).$with(arg) as any;
-
-	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
-	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
-	const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
-	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: [any]) =>
-		primary.refreshMaterializedView(...args);
-
-	return {
-		...primary,
-		update,
-		insert,
-		delete: $delete,
-		execute,
-		transaction,
-		refreshMaterializedView,
-		$primary: primary,
-		$replicas: replicas,
-		select,
-		selectDistinct,
-		selectDistinctOn,
-		$count,
-		$with,
-		with: _with,
-		get query() {
-			return getReplica(replicas).query;
-		},
-	};
+	return Object.create(primary, {
+		$replica: { get: () => getReplica(replicas) },
+		$primary: { value: primary },
+		$replicas: { value: replicas },
+	});
 };

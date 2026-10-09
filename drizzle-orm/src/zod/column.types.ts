@@ -41,8 +41,6 @@ type GetBaseZodType<
 	: TType['constraint'] extends 'line' ? z.ZodTuple<[z.ZodNumber, z.ZodNumber, z.ZodNumber], null>
 	: TType['constraint'] extends 'vector' | 'halfvector' ? z.ZodArray<z.ZodNumber>
 	: TType['constraint'] extends 'int64vector' ? z.ZodArray<z.ZodBigInt>
-	: TType['constraint'] extends 'basecolumn'
-		? z.ZodArray<GetZodType<Assume<TColumn['_'], { baseColumn: Column<any> }>['baseColumn'], TCoerce>>
 	: z.ZodArray<z.ZodAny>
 	: TType['type'] extends 'object'
 		? TType['constraint'] extends 'date'

@@ -25,14 +25,19 @@ function construct<
 	$client: Sql;
 } {
 	const transparentParser = (val: any) => val;
+	// oxlint-disable-next-line drizzle-internal/no-instanceof
+	const dateSerializer = (val: any) => (val instanceof Date ? val.toISOString() : val);
 
-	// Override postgres.js default date parsers: https://github.com/porsager/postgres/discussions/761
-	for (const type of ['1184', '1082', '1083', '1114', '1182', '1185', '1115', '1231']) {
+	// Override postgres.js default timestamptz, timestamp, date, time parsers: https://github.com/porsager/postgres/discussions/761
+	// `new Date(x)` parse is lossy - not suitable for string-mode columns
+	for (const type of ['1184', '1082', '1083', '1114']) {
 		client.options.parsers[type as any] = transparentParser;
-		client.options.serializers[type as any] = transparentParser;
 	}
-	client.options.serializers['114'] = transparentParser;
-	client.options.serializers['3802'] = transparentParser;
+
+	// Transparent serializer breaks `Date` instance encoding for the entire driver
+	for (const type of ['1184', '1114', '1082', '1083']) {
+		client.options.serializers[type as any] = dateSerializer;
+	}
 
 	const dialect = new PgDialect({
 		useJitMappers: jitCompatCheck(config.jit),
@@ -49,6 +54,7 @@ function construct<
 	const session = new PostgresJsSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new PostgresJsDatabase(dialect, session, relations);
 	(<any> db).$client = client;

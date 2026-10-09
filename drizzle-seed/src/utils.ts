@@ -1,16 +1,4 @@
-import { is } from 'drizzle-orm';
-import type { PgColumn } from 'drizzle-orm/pg-core';
-import {
-	PgBigInt53,
-	PgBigInt64,
-	PgBigSerial53,
-	PgBigSerial64,
-	PgInteger,
-	PgSerial,
-	PgSmallInt,
-	PgSmallSerial,
-} from 'drizzle-orm/pg-core';
-import type { RelationWithReferences } from './types/tables';
+import type { Column, RelationWithReferences } from './types/tables';
 
 export const isRelationCyclic = (
 	startRel: RelationWithReferences,
@@ -46,20 +34,28 @@ export const isRelationCyclic = (
 	return false;
 };
 
+// the integer family postgres attaches a sequence to when a column is declared serial or as an identity
+const postgresSequenceBackedColumnTypes = new Set([
+	'smallint',
+	'integer',
+	'bigint',
+	'smallserial',
+	'serial',
+	'bigserial',
+]);
+
+/**
+ * Whether writing a value into this column may leave the table's sequence behind it. Only a column the database fills
+ * on its own has a sequence to fall behind - serial, identity, or an explicit `nextval` default - and every one of
+ * those reports a default.
+ */
+export const isSequenceBackedColumn = (column: Column) =>
+	(column.typeParams.dimensions ?? 0) === 0
+	&& postgresSequenceBackedColumnTypes.has(column.columnType)
+	&& (column.hasDefault === true || column.generatedIdentityType !== undefined);
+
 export const equalSets = (set1: Set<any>, set2: Set<any>) => {
 	return set1.size === set2.size && [...set1].every((si) => set2.has(si));
 };
 
 export const intMax = (args: (number | bigint)[]) => args.reduce((m, e) => e > m ? e : m);
-
-export const isPostgresColumnIntLike = (column: PgColumn) => {
-	if (column.dimensions > 0) return false;
-	return is(column, PgSmallInt)
-		|| is(column, PgInteger)
-		|| is(column, PgBigInt53)
-		|| is(column, PgBigInt64)
-		|| is(column, PgSmallSerial)
-		|| is(column, PgSerial)
-		|| is(column, PgBigSerial53)
-		|| is(column, PgBigSerial64);
-};

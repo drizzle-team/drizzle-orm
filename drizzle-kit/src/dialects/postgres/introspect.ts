@@ -840,27 +840,34 @@ export const fromDatabase = async (
 	}
 
 	for (const fk of constraintsList.filter((it) => it.type === 'f')) {
-		const table = tablesList.find((it) => Number(it.oid) === Number(fk.tableId))!;
-		const schema = namespaces.find((it) => Number(it.oid) === Number(fk.schemaId))!;
-		const tableTo = tablesList.find((it) => Number(it.oid) === Number(fk.tableToId))!;
+		const table = tablesList.find((it) => Number(it.oid) === Number(fk.tableId));
+		const tableTo = tablesList.find((it) => Number(it.oid) === Number(fk.tableToId));
+
+		if (!table || !tableTo) {
+			// this can happen if:
+			// 1. the foreign key points to a table to which the user does not have access
+			// 2. the foreign key points to a table that is not in the filtered list of tables (e.g., system tables)
+			// in both cases, we cannot resolve the foreign key, so we skip it
+			continue;
+		}
 
 		const columns = fk.columnsOrdinals.map((it) => {
 			const column = columnsList.find((column) =>
-				Number(column.tableId) === Number(fk.tableId) && column.ordinality === it
+				Number(column.tableId) === Number(table.oid) && column.ordinality === it
 			)!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columnsToOrdinals.map((it) => {
 			const column = columnsList.find((column) =>
-				Number(column.tableId) === Number(fk.tableToId) && column.ordinality === it
+				Number(column.tableId) === Number(tableTo.oid) && column.ordinality === it
 			)!;
 			return column.name;
 		});
 
 		fks.push({
 			entityType: 'fks',
-			schema: schema.name,
+			schema: table.schema,
 			table: table.name,
 			name: fk.name,
 			nameExplicit: true,

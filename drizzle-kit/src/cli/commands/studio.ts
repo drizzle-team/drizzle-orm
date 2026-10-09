@@ -1,5 +1,4 @@
 /// <reference types="@cloudflare/workers-types" />
-import type { PGlite } from '@electric-sql/pglite';
 import { serve } from '@hono/node-server';
 import { zValidator } from '@hono/zod-validator';
 import { createHash } from 'crypto';
@@ -34,6 +33,7 @@ import type { BenchmarkProxy, Proxy, TransactionProxy } from '../../utils';
 import { assertUnreachable } from '../../utils';
 import { loadModule, prepareFilenames } from '../../utils/utils-node';
 import { JSONB } from '../../utils/when-json-met-bigint';
+import { extractErrorMessage, serializeError } from '../utils';
 import type { DuckDbCredentials } from '../validations/duckdb';
 import type { LibSQLCredentials } from '../validations/libsql';
 import type { MysqlCredentials } from '../validations/mysql';
@@ -58,6 +58,8 @@ export type Setup = {
 	dialect: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore' | 'duckdb';
 	packageName:
 		| '@aws-sdk/client-rds-data'
+		| '@aws/aurora-dsql-node-postgres-connector'
+		| '@aws/aurora-dsql-postgresjs-connector'
 		| 'pglite'
 		| 'pg'
 		| 'postgres'
@@ -76,7 +78,7 @@ export type Setup = {
 		| 'duckdb'
 		| '@duckdb/node-api'
 		| 'node:sqlite';
-	driver?: 'aws-data-api' | 'd1-http' | 'd1' | 'turso' | 'pglite' | 'sqlite-cloud';
+	driver?: 'aws-data-api' | 'dsql' | 'd1-http' | 'd1' | 'turso' | 'pglite' | 'sqlite-cloud';
 	databaseName?: string; // for planetscale (driver remove database name from connection string)
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
@@ -309,10 +311,7 @@ const getCustomDefaults = <T extends AnyTable<{}>>(
 };
 
 export const drizzleForPostgres = async (
-	credentials: PostgresCredentials | {
-		driver: 'pglite';
-		client: PGlite;
-	},
+	credentials: PostgresCredentials,
 	pgSchema: Record<string, Record<string, AnyPgTable>>,
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
@@ -329,6 +328,10 @@ export const drizzleForPostgres = async (
 			dbUrl = `aws-data-api://${credentials.database}/${credentials.secretArn}/${credentials.resourceArn}`;
 		} else if (driver === 'pglite') {
 			dbUrl = 'client' in credentials ? credentials.client.dataDir || 'pglite://custom-client' : credentials.url;
+		} else if (driver === 'dsql') {
+			dbUrl = 'url' in credentials
+				? credentials.url
+				: `dsql://${credentials.user}@${credentials.host}:${credentials.port}/${credentials.database}`;
 		} else {
 			assertUnreachable(driver);
 		}
@@ -746,11 +749,10 @@ const schema = z.union([
 
 const jsonStringify = (data: any) => {
 	return JSONB.stringify(data, (_key, value) => {
-		// Convert Error to object
+		// Convert Error to object. `serializeError` keeps aggregated errors, causes and
+		// codes, and guarantees a non-empty message
 		if (value instanceof Error) {
-			return {
-				error: value.message,
-			};
+			return { error: extractErrorMessage(value), ...serializeError(value) };
 		}
 
 		// Convert Buffer and ArrayBuffer to base64
@@ -808,11 +810,25 @@ export const prepareServer = async (
 		ctx.header('Access-Control-Allow-Private-Network', 'true');
 	});
 	app.use(cors());
+	// Hono rethrows everything that is not an `Error` instance instead of passing it
+	// to `onError`, which crashes the process on drivers rejecting with a plain object/string
+	app.use(async (_ctx, next) => {
+		try {
+			await next();
+		} catch (error) {
+			if (error instanceof Error) throw error;
+			throw new Error(extractErrorMessage(error), { cause: error });
+		}
+	});
 	app.onError((err, ctx) => {
 		console.error(err);
+		const serialized = serializeError(err);
 		return ctx.json({
 			status: 'error',
-			error: err.message,
+			// `error` is kept as a plain string for backwards compatibility,
+			// the rest is the full error chain (aggregated errors, causes, codes)
+			error: serialized.message,
+			...serialized,
 		});
 	});
 

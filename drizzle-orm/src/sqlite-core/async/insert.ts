@@ -5,9 +5,9 @@ import type { SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteInsertBuilder, SQLiteInsertHKTBase } from '~/sqlite-core/query-builders/insert.ts';
 import { SQLiteInsertBase } from '~/sqlite-core/query-builders/insert.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { SQLiteAsyncPreparedQuery, SQLiteAsyncPreparedQueryConfig, SQLiteAsyncSession } from './session.ts';
 
 export interface SQLiteAsyncInsertHKT extends SQLiteInsertHKTBase {
@@ -16,19 +16,20 @@ export interface SQLiteAsyncInsertHKT extends SQLiteInsertHKTBase {
 		Assume<this['resultType'], 'sync' | 'async'>,
 		this['runResult'],
 		this['returning'],
+		this['mayReturnEmpty'],
 		this['dynamic'],
 		this['excludedMethods']
 	>;
 }
 
-export type AnySQLiteAsyncInsert = SQLiteAsyncInsertBase<any, any, any, any, any, any>;
+export type AnySQLiteAsyncInsert = SQLiteAsyncInsertBase<any, any, any, any, any, any, any>;
 
 export type SQLiteAsyncInsert<
 	TTable extends SQLiteTable = SQLiteTable,
 	TResultType extends 'sync' | 'async' = 'sync' | 'async',
 	TRunResult = unknown,
 	TReturning = any,
-> = SQLiteAsyncInsertBase<TTable, TResultType, TRunResult, TReturning, true, never>;
+> = SQLiteAsyncInsertBase<TTable, TResultType, TRunResult, TReturning, boolean, true, never>;
 
 export type SQLiteAsyncInsertBuilder<
 	TTable extends SQLiteTable,
@@ -48,7 +49,8 @@ export type SQLiteAsyncInsertPrepare<T extends AnySQLiteAsyncInsert> = SQLiteAsy
 		all: T['_']['returning'] extends undefined ? DrizzleTypeError<'.all() cannot be used without .returning()'>
 			: T['_']['returning'][];
 		get: T['_']['returning'] extends undefined ? DrizzleTypeError<'.get() cannot be used without .returning()'>
-			: T['_']['returning'];
+			: T['_']['mayReturnEmpty'] extends false ? T['_']['returning']
+			: T['_']['returning'] | undefined;
 		values: T['_']['returning'] extends undefined ? DrizzleTypeError<'.values() cannot be used without .returning()'>
 			: any[][];
 		execute: SQLiteAsyncInsertExecute<T>;
@@ -63,6 +65,8 @@ export interface SQLiteAsyncInsertBase<
 	TRunResult,
 	TReturning = undefined,
 	// oxlint-disable-next-line no-unused-vars
+	TMayReturnEmpty extends boolean = false,
+	// oxlint-disable-next-line no-unused-vars
 	TDynamic extends boolean = false,
 	// oxlint-disable-next-line no-unused-vars
 	TExcludedMethods extends string = never,
@@ -72,6 +76,7 @@ export interface SQLiteAsyncInsertBase<
 		TTable,
 		TRunResult,
 		TReturning,
+		TMayReturnEmpty,
 		TDynamic,
 		TExcludedMethods
 	>,
@@ -83,6 +88,7 @@ export interface SQLiteAsyncInsertBase<
 			TTable,
 			TRunResult,
 			TReturning,
+			TMayReturnEmpty,
 			TDynamic,
 			TExcludedMethods
 		>['_']
@@ -96,6 +102,8 @@ export class SQLiteAsyncInsertBase<
 	TRunResult,
 	TReturning = undefined,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TMayReturnEmpty extends boolean = false,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
@@ -104,6 +112,7 @@ export class SQLiteAsyncInsertBase<
 	TTable,
 	TRunResult,
 	TReturning,
+	TMayReturnEmpty,
 	TDynamic,
 	TExcludedMethods
 > implements RunnableQuery<TReturning extends undefined ? TRunResult : TReturning[], 'sqlite'>, SQLWrapper {
@@ -114,14 +123,14 @@ export class SQLiteAsyncInsertBase<
 	/** @internal */
 	_prepare(prepare = false): SQLiteAsyncInsertPrepare<this> {
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+			this.dialect.sqlToQuery(this.getSQL(true)),
 			'arrays',
 			prepare,
 			this.config.returning ? 'all' : 'run',
 			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
 			{
 				type: 'insert',
-				tables: extractUsedTable(this.config.table),
+				tables: usedTablesOf(this.config.table),
 			},
 		) as SQLiteAsyncInsertPrepare<this>;
 	}

@@ -1,9 +1,10 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { ColumnBuilderBaseConfig } from '~/index.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig } from '~/index.ts';
 import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
+import { type MsSqlColumnType, type MsSqlType, resolveMsSqlTypeAlias } from '../codecs.ts';
 import { MsSqlColumn, MsSqlColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<T extends Partial<CustomTypeValues>> =
@@ -52,66 +53,41 @@ export class MsSqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'
 export class MsSqlCustomColumn<T extends ColumnBaseConfig<'custom'>> extends MsSqlColumn<T> {
 	static override readonly [entityKind]: string = 'MsSqlCustomColumn';
 
+	/** @internal */
+	override readonly codec?: MsSqlType | undefined;
+
 	private sqlName: string;
-	private mapTo?: (value: T['data']) => T['driverParam'];
-	private mapFrom?: (value: T['driverParam']) => T['data'];
-	private mapJson?: (value: unknown) => T['data'];
-	private forJsonSelect?: (name: SQL, sql: SQLGenerator) => SQL;
+	readonly mapFromJsonValue?: (value: unknown) => T['data'];
+	readonly jsonSelectIdentifier?: (identifier: SQL, sql: SQLGenerator) => SQL;
 
 	constructor(
 		table: MsSqlTable<any>,
-		config: MsSqlCustomColumnBuilder<T>['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']> & {
+			fieldConfig: CustomTypeValues['config'];
+			customTypeParams: CustomTypeParams<any>;
+		},
 	) {
 		super(table, config);
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
-		this.mapTo = config.customTypeParams.toDriver;
-		this.mapFrom = config.customTypeParams.fromDriver;
-		this.mapJson = config.customTypeParams.fromJson;
-		this.forJsonSelect = config.customTypeParams.forJsonSelect;
+		this.mapToDriverValue = config.customTypeParams.toDriver ?? this.mapToDriverValue;
+		this.mapFromDriverValue = config.customTypeParams.fromDriver ?? this.mapFromDriverValue;
+		this.mapFromJsonValue = config.customTypeParams.fromJson;
+		this.jsonSelectIdentifier = config.customTypeParams.forJsonSelect;
+		const cfgCodec =
+			typeof config.customTypeParams.codec === 'string' || typeof config.customTypeParams.codec === 'undefined'
+				? config.customTypeParams.codec
+				: config.customTypeParams.codec(config.fieldConfig);
+		this.codec = typeof cfgCodec === 'string'
+			? resolveMsSqlTypeAlias(cfgCodec) as MsSqlType // If it isn't `MsSqlType`, codec search will simply resolve to no codec, which is supported behaviour
+			: undefined;
 	}
 
 	getSQLType(): string {
 		return this.sqlName;
 	}
-
-	override mapFromDriverValue = (value: T['driverParam']): T['data'] => {
-		return typeof this.mapFrom === 'function' ? this.mapFrom(value) : value as T['data'];
-	};
-
-	mapFromJsonValue(value: unknown): T['data'] {
-		return typeof this.mapJson === 'function' ? this.mapJson(value) : this.mapFromDriverValue(value) as T['data'];
-	}
-
-	jsonSelectIdentifier(identifier: SQL, sql: SQLGenerator): SQL {
-		if (typeof this.forJsonSelect === 'function') return this.forJsonSelect(identifier, sql);
-
-		const rawType = this.getSQLType().toLowerCase();
-		const parenPos = rawType.indexOf('(');
-		const type = (parenPos + 1) ? rawType.slice(0, parenPos) : rawType;
-
-		switch (type) {
-			case 'binary':
-			case 'varbinary':
-			case 'time':
-			case 'datetime':
-			case 'datetime2':
-			case 'decimal':
-			case 'float':
-			case 'bigint': {
-				return sql`cast(${identifier} as char)`;
-			}
-			default: {
-				return identifier;
-			}
-		}
-	}
-
-	override mapToDriverValue = (value: T['data']): T['driverParam'] => {
-		return typeof this.mapTo === 'function' ? this.mapTo(value) : value as T['data'];
-	};
 }
 
-export type CustomTypeValues = {
+export interface CustomTypeValues {
 	/**
 	 * Required type for custom column, that will infer proper type model
 	 *
@@ -124,6 +100,11 @@ export type CustomTypeValues = {
 	data: unknown;
 
 	/**
+	 * Type helper, that represents what type database driver is accepting for specific database data type
+	 */
+	driverData?: unknown;
+
+	/**
 	 * Type helper, that represents what type database driver is returning for specific database data type
 	 *
 	 * Needed only in case driver's output and input for type differ
@@ -131,11 +112,6 @@ export type CustomTypeValues = {
 	 * Defaults to {@link driverData}
 	 */
 	driverOutput?: unknown;
-
-	/**
-	 * Type helper, that represents what type database driver is accepting for specific database data type
-	 */
-	driverData?: unknown;
 
 	/**
 	 * Type helper, that represents what type field returns after being aggregated to JSON
@@ -176,7 +152,7 @@ export type CustomTypeValues = {
 	 * });
 	 */
 	default?: boolean;
-};
+}
 
 export interface CustomTypeParams<T extends CustomTypeValues> {
 	/**
@@ -248,6 +224,8 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	fromDriver?: (value: 'driverOutput' extends keyof T ? T['driverOutput'] : T['driverData']) => T['data'];
 
 	/**
+	 * Bypasses JSON codecs if used
+	 *
 	 * Optional mapping function, that is used for transforming data returned by transofmed to JSON in database data to desired format
 	 *
 	 * Used by [relational queries](https://orm.drizzle.team/docs/rqb-v2)
@@ -278,6 +256,8 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	fromJson?: (value: T['jsonData']) => T['data'];
 
 	/**
+	 * Bypasses JSON codecs if used
+	 *
 	 * Optional selection modifier function, that is used for modifying selection of column inside [JSON functions](https://orm.drizzle.team/docs/json-functions)
 	 *
 	 * Additional mapping that could be required for such scenarios can be handled using {@link fromJson} function
@@ -332,6 +312,16 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	forJsonSelect?: (identifier: SQL, sql: SQLGenerator) => SQL;
+
+	/**
+	 * Select which column type codec will be used for this column
+	 */
+	codec?:
+		| MsSqlColumnType
+		| undefined
+		| ((
+			config: T['config'] | (Equal<T['configRequired'], true> extends true ? never : undefined),
+		) => MsSqlColumnType | undefined);
 }
 
 /**
@@ -349,7 +339,6 @@ export function customType<T extends CustomTypeValues = CustomTypeValues>(
 		): MsSqlCustomColumnBuilder<ConvertCustomConfig<T>>;
 	}
 	: {
-		(): MsSqlCustomColumnBuilder<ConvertCustomConfig<T>>;
 		<TConfig extends Record<string, any> & T['config']>(
 			fieldConfig?: TConfig,
 		): MsSqlCustomColumnBuilder<ConvertCustomConfig<T>>;

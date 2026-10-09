@@ -1,6 +1,6 @@
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
-import type { PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import type { BasePgAsyncSession, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import {
 	type NoDuplicateColumns,
@@ -34,15 +34,16 @@ import { PgAsyncRefreshMaterializedView } from './refresh-materialized-view.ts';
 import { PgAsyncSelectBase, type PgAsyncSelectBuilder } from './select.ts';
 import { PgAsyncUpdateBase, type PgAsyncUpdateHKT } from './update.ts';
 
-export class PgAsyncDatabase<
+/** Transactionless definition -  branches out into `PostgreSQL` & `DSQL` variants */
+export class BasePgAsyncDatabase<
 	TQueryResult extends PgQueryResultHKT,
 	TRelations extends AnyRelations = EmptyRelations,
 > {
-	static readonly [entityKind]: string = 'PgAsyncDatabase';
+	static readonly [entityKind]: string = 'BasePgAsyncDatabase';
 
 	declare readonly _: {
 		readonly relations: TRelations;
-		readonly session: PgAsyncSession<TQueryResult, TRelations>;
+		readonly session: BasePgAsyncSession;
 	};
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
@@ -58,7 +59,7 @@ export class PgAsyncDatabase<
 		/** @internal */
 		readonly dialect: PgDialect,
 		/** @internal */
-		readonly session: PgAsyncSession<any, any>,
+		readonly session: BasePgAsyncSession,
 		relations: TRelations,
 		parseRqbJson: boolean = false,
 		readonly tagged: boolean = false,
@@ -130,7 +131,7 @@ export class PgAsyncDatabase<
 				qb = qb(new QueryBuilder(this.dialect));
 			}
 
-			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
+			const sql = qb.getSQL();
 			return new Proxy(
 				new WithSubquery(
 					sql,
@@ -683,15 +684,68 @@ export class PgAsyncDatabase<
 		return new PgAsyncRefreshMaterializedView(view, this.session, this.dialect);
 	}
 
+	/**
+	 * Executes raw SQL query, responding with rows as arrays of values
+	 *
+	 * Types assume single statement is executed per query
+	 *
+	 * @param query - SQL query to execute
+	 * @param mode - `'arrays'`
+	 *
+	 * @example
+	 * ```ts
+	 * // [number, string][]
+	 * const rows = await db.execute<[number, string]>(sql`select ${users.id}, ${users.name} from ${users}`, 'arrays');
+	 * ```
+	 */
 	execute<TRow extends unknown[] = unknown[]>(
 		query: SQLWrapper | string,
 		mode: 'arrays',
 	): PgAsyncRaw<TRow[]>;
-	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+	/**
+	 * Executes raw SQL query, responding with rows as objects
+	 *
+	 * Types assume single statement is executed per query
+	 *
+	 * @param query - SQL query to execute
+	 * @param mode - `'objects'`
+	 *
+	 * @example
+	 * ```ts
+	 * // { id: number; name: string }[]
+	 * const rows = await db.execute<{ id: number; name: string }>(sql`select ${users.id}, ${users.name} from ${users}`, 'objects');
+	 * ```
+	 */
+	execute<TRow extends Record<string, any> = Record<string, unknown>>(
 		query: SQLWrapper | string,
 		mode: 'objects',
 	): PgAsyncRaw<TRow[]>;
-	execute<TRow extends Record<string, unknown> = Record<string, unknown>>(
+	/**
+	 * Executes raw SQL query, returning driver's raw response
+	 *
+	 * Row type argument defines the type of the response:
+	 * - `'unknown'` (default) - any response of the driver
+	 * - `never` - response of a statement that returns no rows
+	 * - object shape - response with rows of given shape
+	 *
+	 * Typed call assumes single statement is executed per query
+	 *
+	 * @param query - SQL query to execute
+	 * @param mode - `'raw'` (default)
+	 *
+	 * @example
+	 * ```ts
+	 * // Any response of the driver
+	 * const response = await db.execute(sql`select * from ${users}`);
+	 *
+	 * // Response of a statement that returns no rows
+	 * const updated = await db.execute<never>(sql`update ${users} set ${users.name} = ${'John'}`);
+	 *
+	 * // Response with rows of given shape
+	 * const selected = await db.execute<{ id: number; name: string }>(sql`select ${users.id}, ${users.name} from ${users}`);
+	 * ```
+	 */
+	execute<TRow extends Record<string, any> | 'unknown' = 'unknown'>(
 		query: SQLWrapper | string,
 		mode?: 'raw' | undefined,
 	): PgAsyncRaw<PgQueryResultKind<TQueryResult, TRow>>;
@@ -706,6 +760,30 @@ export class PgAsyncDatabase<
 		>(builtQuery, mode ?? 'raw', false);
 		return new PgAsyncRaw(prepared, sequel, builtQuery);
 	}
+}
+
+export class PgAsyncDatabase<
+	TQueryResult extends PgQueryResultHKT,
+	TRelations extends AnyRelations = EmptyRelations,
+> extends BasePgAsyncDatabase<TQueryResult, TRelations> {
+	static override readonly [entityKind]: string = 'PgAsyncDatabase';
+
+	declare readonly _: {
+		readonly relations: TRelations;
+		readonly session: PgAsyncSession<TQueryResult, TRelations>;
+	};
+
+	constructor(
+		/** @internal */
+		dialect: PgDialect,
+		/** @internal */
+		override readonly session: PgAsyncSession<TQueryResult, TRelations>,
+		relations: TRelations,
+		parseRqbJson: boolean = false,
+		tagged: boolean = false,
+	) {
+		super(dialect, session, relations, parseRqbJson, tagged);
+	}
 
 	transaction<T>(
 		transaction: (tx: PgAsyncTransaction<TQueryResult, TRelations>) => Promise<T>,
@@ -715,7 +793,16 @@ export class PgAsyncDatabase<
 	}
 }
 
-export type PgAsyncWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
+export type PgAsyncWithReplicas<Q> = Q & {
+	$replica: Q;
+	/**
+	 * @deprecated `withReplicas` db now defaults to using primary
+	 *
+	 * Use `db.$replica` to redirect query to replica
+	 */
+	$primary: Q;
+	$replicas: Q[];
+};
 
 export const withReplicas = <
 	HKT extends PgQueryResultHKT,
@@ -726,40 +813,9 @@ export const withReplicas = <
 	replicas: [Q, ...Q[]],
 	getReplica: (replicas: Q[]) => Q = () => replicas[Math.floor(Math.random() * replicas.length)]!,
 ): PgAsyncWithReplicas<Q> => {
-	const select: Q['select'] = (...args: []) => getReplica(replicas).select(...args);
-	const selectDistinct: Q['selectDistinct'] = (...args: []) => getReplica(replicas).selectDistinct(...args);
-	const selectDistinctOn: Q['selectDistinctOn'] = (...args: [any]) => getReplica(replicas).selectDistinctOn(...args);
-	const $count: Q['$count'] = (...args: [any]) => getReplica(replicas).$count(...args);
-	const _with: Q['with'] = (...args: any) => getReplica(replicas).with(...args);
-	const $with: Q['$with'] = (arg: any) => getReplica(replicas).$with(arg) as any;
-
-	const update: Q['update'] = (...args: [any]) => primary.update(...args);
-	const insert: Q['insert'] = ((...args: [any]) => primary.insert(...args)) as Q['insert'];
-	const $delete: Q['delete'] = (...args: [any]) => primary.delete(...args);
-	const execute: Q['execute'] = ((...args: [any]) => primary.execute(...args)) as Q['execute'];
-	const transaction: Q['transaction'] = (...args: [any]) => primary.transaction(...args);
-
-	const refreshMaterializedView: Q['refreshMaterializedView'] = (...args: [any]) =>
-		primary.refreshMaterializedView(...args);
-
-	return {
-		...primary,
-		update,
-		insert,
-		delete: $delete,
-		execute,
-		transaction,
-		refreshMaterializedView,
-		$primary: primary,
-		$replicas: replicas,
-		select,
-		selectDistinct,
-		selectDistinctOn,
-		$count,
-		$with,
-		with: _with,
-		get query() {
-			return getReplica(replicas).query;
-		},
-	};
+	return Object.create(primary, {
+		$replica: { get: () => getReplica(replicas) },
+		$primary: { value: primary },
+		$replicas: { value: replicas },
+	});
 };

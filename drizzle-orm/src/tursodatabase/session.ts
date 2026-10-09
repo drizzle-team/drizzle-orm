@@ -20,6 +20,7 @@ import type { TursoDatabaseRunResult } from './driver-core';
 export interface TursoDatabaseSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -70,10 +71,6 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 					stmt ??= await this.client.prepare(query.sql);
 					return stmt.run(...params);
 				},
-				values: async (params) => {
-					stmt ??= await this.client.prepare(query.sql);
-					return stmt.raw(true).all(...params);
-				},
 			}
 			: {
 				all: async (params) => {
@@ -93,10 +90,6 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 					return this.client.get(query.sql, ...params);
 				},
 				run: (params) => stmt ? stmt.run(...params) : this.client.run(query.sql, ...params),
-				values: async (params) => {
-					stmt ??= await this.client.prepare(query.sql);
-					return stmt.raw(true).all(...params);
-				},
 			};
 
 		return new SQLiteAsyncPreparedQuery(
@@ -110,6 +103,7 @@ export class TursoDatabaseSession<TRelations extends AnyRelations>
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -168,7 +162,7 @@ export class TursoDatabaseTransaction<TRelations extends AnyRelations>
 			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

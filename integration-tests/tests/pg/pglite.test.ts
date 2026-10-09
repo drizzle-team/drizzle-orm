@@ -1,12 +1,14 @@
+import type { Results } from '@electric-sql/pglite';
 import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite-pgvector';
 import { postgis } from '@electric-sql/pglite-postgis';
-import { vector } from '@electric-sql/pglite/vector';
 import { defineRelations, getColumns, Name, sql } from 'drizzle-orm';
 import { getTableConfig, integer, pgTable, serial, text } from 'drizzle-orm/pg-core';
 import { drizzle } from 'drizzle-orm/pglite';
+import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { describe, expect, test as vitestTest } from 'vitest';
+import { describe, expect, expectTypeOf, test as vitestTest } from 'vitest';
 import { tests } from './common';
 import { _push, pgliteTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
@@ -14,6 +16,47 @@ import { assertMalformedSnapshotRejected, assertSnapshotIdNotInjectable } from '
 import { normalizeDataWithDbCodecs } from './utils';
 
 tests(test, []);
+
+test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
+	const db = fixtureDb as unknown as PgliteDatabase;
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} ("id" integer primary key, "name" text not null)`);
+	expectTypeOf(created).toEqualTypeOf<Results<never>>();
+	expect(created).toEqual({ rows: [], fields: [], affectedRows: 0, command: 'CREATE' });
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<Results<never>>();
+	expect(inserted).toEqual({ rows: [], fields: [], affectedRows: 1, command: 'INSERT', rowCount: 1 });
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(selected).toEqualTypeOf<Results<{ id: number; name: string }>>();
+	expect(selected).toEqual({
+		rows: [{ id: 1, name: 'John' }],
+		fields: [expect.objectContaining({ name: 'id' }), expect.objectContaining({ name: 'name' })],
+		affectedRows: 0,
+		command: 'SELECT',
+		rowCount: 1,
+	});
+
+	// Any response
+	const any = await db.execute(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(any).toEqualTypeOf<Results<Record<string, unknown>>>();
+	expect(any).toEqual({
+		rows: [{ id: 1, name: 'John' }],
+		fields: [expect.objectContaining({ name: 'id' }), expect.objectContaining({ name: 'name' })],
+		affectedRows: 0,
+		command: 'SELECT',
+		rowCount: 1,
+	});
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
 
 describe('pglite', () => {
 	test('migrator : default migration strategy', async ({ db }) => {
@@ -36,14 +79,30 @@ describe('pglite', () => {
 		await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
 	});
 
-	test('insert via db.execute + select via db.execute', async ({ db }) => {
+	test('insert via db.execute + select via db.execute', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_pglite_1', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		await db.execute(sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`);
 
-		const result = await db.execute<{ id: number; name: string }>(sql`select id, name from "users"`);
+		const result = await db.execute<{ id: number; name: string }>(sql`select id, name from ${usersTable}`);
 		expect(Array.prototype.slice.call(result.rows)).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('insert via db.execute + returning', async ({ db }) => {
+	test('insert via db.execute + returning', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_pglite_2', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		const result = await db.execute<{ id: number; name: string }>(
 			sql`insert into ${usersTable} (${new Name(
 				usersTable.name.name,
@@ -52,7 +111,15 @@ describe('pglite', () => {
 		expect(Array.prototype.slice.call(result.rows)).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('insert via db.execute w/ query builder', async ({ db }) => {
+	test('insert via db.execute w/ query builder', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_pglite_3', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		const result = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 			db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 		);
@@ -288,7 +355,7 @@ describe('pglite extensions', () => {
 		const queryRes = normalizeDataWithDbCodecs({
 			db,
 			columns: getColumns(allTypesTable),
-			data: (await db.execute(db.select().from(allTypesTable))).rows as Record<string, unknown>[],
+			data: (await db.execute(db.select().from(allTypesTable).getSQL(true))).rows as Record<string, unknown>[],
 			mode: 'query',
 		})[0];
 

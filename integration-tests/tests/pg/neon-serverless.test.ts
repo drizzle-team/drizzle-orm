@@ -1,11 +1,14 @@
+import type { QueryResult } from '@neondatabase/serverless';
 import { eq, sql } from 'drizzle-orm';
+import type { NeonDatabase, NeonRawExecuteResult } from 'drizzle-orm/neon-serverless';
 import { migrate } from 'drizzle-orm/neon-serverless/migrator';
 import { getTableConfig, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { describe, expect } from 'vitest';
+import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
+import { assertDroppedConnectionRejectsTransaction } from './connection-drop';
 import { neonWsTest as test } from './instrumentation';
 import { usersMigratorTable, usersMySchemaTable, usersTable } from './schema';
 import {
@@ -20,9 +23,43 @@ import {
  */
 tests(test, []);
 
+test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
+	const db = fixtureDb as unknown as NeonDatabase;
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} ("id" integer primary key, "name" text not null)`);
+	expectTypeOf(created).toEqualTypeOf<QueryResult<never>>();
+	expect(created).toEqual(expect.objectContaining({ command: expect.any(String), rows: [] }));
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<QueryResult<never>>();
+	expect(inserted).toEqual(expect.objectContaining({ command: expect.any(String), rowCount: 1, rows: [] }));
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(selected).toEqualTypeOf<QueryResult<{ id: number; name: string }>>();
+	expect(selected).toEqual(expect.objectContaining({ rowCount: 1, rows: [{ id: 1, name: 'John' }] }));
+
+	// Multi-statement
+	const multi = await db.execute(
+		sql`insert into ${table} values (2, 'Jane'); select "id", "name" from ${table} order by "id"`,
+	);
+	expectTypeOf(multi).toEqualTypeOf<NeonRawExecuteResult>();
+	expect(multi).toEqual([
+		expect.objectContaining({ rowCount: 1, rows: [] }),
+		expect.objectContaining({ rows: [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }] }),
+	]);
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
+
 describe('neon-serverless', () => {
 	let db: PgAsyncDatabase<any, any>;
-	test.sequential('_', async ({ db: _db, push }) => {
+	test('_', { concurrent: false }, async ({ db: _db, push }) => {
 		db = _db;
 
 		await db.execute('drop schema if exists public, "mySchema" cascade;');
@@ -37,30 +74,37 @@ describe('neon-serverless', () => {
 
 		await migrate(db, { migrationsFolder: './drizzle2/pg' });
 
-		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		try {
+			await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
-		const result = await db.select().from(usersMigratorTable);
+			const result = await db.select().from(usersMigratorTable);
 
-		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-		await db.execute(sql`drop table all_columns,users12,"drizzle"."__drizzle_migrations"`);
+			expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		} finally {
+			await db.execute(sql`drop table if exists all_columns,users12,"drizzle"."__drizzle_migrations"`);
+		}
 	});
 
 	test('migrator : migrate with custom schema', async () => {
+		// a leftover migrations table would make migrate() a no-op and users12 would never be created
+		await db.execute(sql`drop schema if exists custom_migrations cascade`);
 		await db.execute(sql`drop table if exists all_columns,users12,"drizzle"."__drizzle_migrations"`);
 
 		await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsSchema: 'custom_migrations' });
 
-		// test if the custom migrations table was created
-		const { rowCount } = await db.execute(sql`select * from custom_migrations."__drizzle_migrations";`);
-		expect(rowCount && rowCount > 0).toBeTruthy();
+		try {
+			// test if the custom migrations table was created
+			const { rowCount } = await db.execute(sql`select * from custom_migrations."__drizzle_migrations";`);
+			expect(rowCount && rowCount > 0).toBeTruthy();
 
-		// test if the migrated table are working as expected
-		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-		const result = await db.select().from(usersMigratorTable);
-		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-		await db.execute(sql`drop table all_columns,users12,custom_migrations."__drizzle_migrations"`);
+			// test if the migrated table are working as expected
+			await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+			const result = await db.select().from(usersMigratorTable);
+			expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		} finally {
+			await db.execute(sql`drop table if exists all_columns,users12`);
+			await db.execute(sql`drop schema if exists custom_migrations cascade`);
+		}
 	});
 
 	test('migrator : migrate with custom table', async () => {
@@ -69,16 +113,18 @@ describe('neon-serverless', () => {
 
 		await migrate(db, { migrationsFolder: './drizzle2/pg', migrationsTable: customTable });
 
-		// test if the custom migrations table was created
-		const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
-		expect(rowCount && rowCount > 0).toBeTruthy();
+		try {
+			// test if the custom migrations table was created
+			const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
+			expect(rowCount && rowCount > 0).toBeTruthy();
 
-		// test if the migrated table are working as expected
-		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-		const result = await db.select().from(usersMigratorTable);
-		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-		await db.execute(sql`drop table all_columns,users12,"drizzle".${sql.identifier(customTable)}`);
+			// test if the migrated table are working as expected
+			await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+			const result = await db.select().from(usersMigratorTable);
+			expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		} finally {
+			await db.execute(sql`drop table if exists all_columns,users12,"drizzle".${sql.identifier(customTable)}`);
+		}
 	});
 
 	test('migrator : migrate with custom table and custom schema', async () => {
@@ -91,18 +137,21 @@ describe('neon-serverless', () => {
 			migrationsSchema: 'custom_migrations',
 		});
 
-		// test if the custom migrations table was created
-		const { rowCount } = await db.execute(
-			sql`select * from custom_migrations.${sql.identifier(customTable)};`,
-		);
-		expect(rowCount && rowCount > 0).toBeTruthy();
+		try {
+			// test if the custom migrations table was created
+			const { rowCount } = await db.execute(
+				sql`select * from custom_migrations.${sql.identifier(customTable)};`,
+			);
+			expect(rowCount && rowCount > 0).toBeTruthy();
 
-		// test if the migrated table are working as expected
-		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-		const result = await db.select().from(usersMigratorTable);
-		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-		await db.execute(sql`drop table all_columns,users12,custom_migrations.${sql.identifier(customTable)}`);
+			// test if the migrated table are working as expected
+			await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+			const result = await db.select().from(usersMigratorTable);
+			expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		} finally {
+			await db.execute(sql`drop table if exists all_columns,users12`);
+			await db.execute(sql`drop schema if exists custom_migrations cascade`);
+		}
 	});
 
 	test('all date and time columns without timezone first case mode string', async () => {
@@ -663,4 +712,8 @@ describe('transaction snapshot', () => {
 	test('does not let the id inject SQL', async ({ db }) => {
 		await assertSnapshotIdNotInjectable(db, expect, 'neonws');
 	});
+});
+
+test('transaction rejects when pooled connection is dropped', async ({ db, peer }) => {
+	await assertDroppedConnectionRejectsTransaction(db, peer!, expect);
 });

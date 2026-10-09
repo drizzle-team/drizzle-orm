@@ -1,10 +1,14 @@
 import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import type { NodePgDatabase, NodePgRawExecuteResult } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { getTableConfig, integer, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { describe, expect } from 'vitest';
+import { Pool, type QueryResult } from 'pg';
+import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
+import { assertDroppedConnectionRejectsTransaction } from './connection-drop';
 import { nodePostgresTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
 import {
@@ -14,6 +18,49 @@ import {
 } from './snapshot';
 
 tests(test, []);
+
+test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
+	const db = fixtureDb as unknown as NodePgDatabase;
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} ("id" integer primary key, "name" text not null)`);
+	expectTypeOf(created).toEqualTypeOf<QueryResult<never>>();
+	expect(created).toEqual(expect.objectContaining({ command: 'CREATE', rowCount: null, rows: [] }));
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<QueryResult<never>>();
+	expect(inserted).toEqual(expect.objectContaining({ command: 'INSERT', rowCount: 1, rows: [] }));
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(selected).toEqualTypeOf<QueryResult<{ id: number; name: string }>>();
+	expect(selected).toEqual(expect.objectContaining({
+		command: 'SELECT',
+		rowCount: 1,
+		rows: [{ id: 1, name: 'John' }],
+		fields: [expect.objectContaining({ name: 'id' }), expect.objectContaining({ name: 'name' })],
+	}));
+
+	// Multi-statement
+	const multi = await db.execute(
+		sql`insert into ${table} values (2, 'Jane'); select "id", "name" from ${table} order by "id"`,
+	);
+	expectTypeOf(multi).toEqualTypeOf<NodePgRawExecuteResult>();
+	expect(multi).toEqual([
+		expect.objectContaining({ command: 'INSERT', rowCount: 1, rows: [] }),
+		expect.objectContaining({
+			command: 'SELECT',
+			rowCount: 2,
+			rows: [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }],
+		}),
+	]);
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
 
 describe('migrator', () => {
 	test('migrator : default migration strategy', async ({ db }) => {
@@ -381,18 +428,34 @@ describe('migrator', () => {
 
 		await db.execute(sql`drop table if exists ${table}`);
 	});
-	test('insert via db.execute + select via db.execute', async ({ db }) => {
+	test('insert via db.execute + select via db.execute', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_node_postgres_1', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		await db.execute(
 			sql`insert into ${usersTable} (${sql.identifier(usersTable.name.name)}) values (${'John'})`,
 		);
 
 		const result = await db.execute<{ id: number; name: string }>(
-			sql`select id, name from "users"`,
+			sql`select id, name from ${usersTable}`,
 		);
 		expect(result.rows).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('insert via db.execute + returning', async ({ db }) => {
+	test('insert via db.execute + returning', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_node_postgres_2', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		const inserted = await db.execute<{ id: number; name: string }>(
 			sql`insert into ${usersTable} (${
 				sql.identifier(
@@ -403,7 +466,15 @@ describe('migrator', () => {
 		expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('insert via db.execute w/ query builder', async ({ db }) => {
+	test('insert via db.execute w/ query builder', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_node_postgres_3', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		const inserted = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 			db
 				.insert(usersTable)
@@ -590,4 +661,17 @@ describe('transaction snapshot', () => {
 	test('does not let the id inject SQL', async ({ db }) => {
 		await assertSnapshotIdNotInjectable(db, expect, 'nodepg');
 	});
+});
+
+test('transaction rejects when pooled connection is dropped', async ({ kit, peer }) => {
+	const url = new URL(process.env['PG_CONNECTION_STRING']!);
+	url.pathname = `/${kit.database}`;
+	const pool = new Pool({ connectionString: url.toString() });
+	pool.on('error', () => {});
+
+	try {
+		await assertDroppedConnectionRejectsTransaction(drizzle({ client: pool }), peer!, expect);
+	} finally {
+		await pool.end();
+	}
 });

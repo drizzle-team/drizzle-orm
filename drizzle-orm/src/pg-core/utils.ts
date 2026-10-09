@@ -1,11 +1,11 @@
 import { is } from '~/entity.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { SQL } from '~/sql/sql.ts';
-import { Subquery } from '~/subquery.ts';
-import { Table, TableSchema } from '~/table.ts';
+import { Table } from '~/table.ts';
+import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import type { ViewConfig } from '~/view.ts';
 import { type Check, CheckBuilder } from './checks.ts';
 import type { PgCodecs } from './codecs.ts';
 import { type ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
@@ -14,7 +14,6 @@ import { IndexBuilder } from './indexes.ts';
 import { PgPolicy } from './policies.ts';
 import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
-import type { PgViewBase } from './view-base.ts';
 import { PgMaterializedViewConfig, PgViewConfig } from './view-common.ts';
 import type { PgMaterializedView, PgView } from './view.ts';
 
@@ -48,6 +47,8 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 				foreignKeys.push(builder.build(table));
 			} else if (is(builder, PgPolicy)) {
 				policies.push(builder);
+			} else {
+				throwUnknownExtraConfigValue(name, builder);
 			}
 		}
 	}
@@ -66,35 +67,14 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 	};
 }
 
-export function extractUsedTable(table: PgTable | Subquery | PgViewBase | SQL): string[] {
-	if (is(table, PgTable)) {
-		return [
-			table[TableSchema] ? `${table[TableSchema]}.${table[Table.Symbol.BaseName]}` : table[Table.Symbol.BaseName],
-		];
-	}
-	if (is(table, Subquery)) {
-		return table._.usedTables ?? [];
-	}
-	if (is(table, SQL)) {
-		return table.usedTables ?? [];
-	}
-	return [];
-}
-
-export function getViewConfig<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
->(view: PgView<TName, TExisting>) {
+export function getViewConfig<T extends ViewConfig = ViewConfig>(view: PgView<T>) {
 	return {
 		...view[ViewBaseConfig],
 		...view[PgViewConfig],
 	};
 }
 
-export function getMaterializedViewConfig<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
->(view: PgMaterializedView<TName, TExisting>) {
+export function getMaterializedViewConfig<T extends ViewConfig = ViewConfig>(view: PgMaterializedView<T>) {
 	return {
 		...view[ViewBaseConfig],
 		...view[PgMaterializedViewConfig],
@@ -102,5 +82,5 @@ export function getMaterializedViewConfig<
 }
 
 export type DrizzlePgConfig<TRelations extends AnyRelations> =
-	& Omit<DrizzleConfig<Record<string, never>, TRelations>, 'schema'>
+	& DrizzleConfig<TRelations>
 	& { codecs?: PgCodecs | undefined };
