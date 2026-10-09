@@ -5,6 +5,7 @@ import { char } from './char.ts';
 import { cidr } from './cidr.ts';
 import { customType } from './custom.ts';
 import { date } from './date.ts';
+import { daterange } from './daterange.ts';
 import { doublePrecision } from './double-precision.ts';
 import { inet } from './inet.ts';
 import { integer } from './integer.ts';
@@ -40,6 +41,7 @@ export function getPgColumnBuilders() {
 		cidr,
 		customType,
 		date,
+		daterange,
 		doublePrecision,
 		inet,
 		integer,
