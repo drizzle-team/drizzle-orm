@@ -41,6 +41,15 @@ import {
 	TablePolicyResolverInput,
 	TablePolicyResolverOutput,
 } from '../../snapshotsDiffer';
+import {
+	type GenerateMigrationChoice,
+	type GenerateMigrationQuestion,
+	type GenerateMigrationQuestionKind,
+	type GenerateMigrationQuestions,
+	GenerateMigrationQuestionsError,
+	createGenerateMigrationQuestionId,
+	normalizeGenerateMigrationRef,
+} from '../../migrationQuestions';
 import { assertV1OutFolder, Journal, prepareMigrationFolder } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
 import { CasingType, Driver, Prefix } from '../validations/common';
@@ -65,87 +74,359 @@ export type NamedWithSchema = {
 	schema: string;
 };
 
-export const schemasResolver = async (
-	input: ResolverInput<Table>,
-): Promise<ResolverOutput<Table>> => {
-	try {
-		const { created, deleted, renamed } = await promptSchemasConflict(
-			input.created,
-			input.deleted,
-		);
-
-		return { created: created, deleted: deleted, renamed: renamed };
-	} catch (e) {
-		console.error(e);
-		throw e;
-	}
+type ConflictResolverState = {
+	answersById: Map<string, GenerateMigrationChoice>;
+	questions: Map<string, GenerateMigrationQuestion>;
 };
 
-export const tablesResolver = async (
-	input: ResolverInput<Table>,
-): Promise<ResolverOutputWithMoved<Table>> => {
-	try {
-		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+export type CreateMigrationResolverOptions = {
+	answers?: GenerateMigrationQuestions;
+};
+
+const createConflictResolverState = (
+	answers?: GenerateMigrationQuestions,
+): ConflictResolverState => {
+	return {
+		answersById: new Map(
+			(answers?.questions ?? [])
+				.filter((it) => it.answer)
+				.map((it) => [it.id, it.answer!] as const),
+		),
+		questions: new Map(),
+	};
+};
+
+const recordResolverQuestion = (
+	state: ConflictResolverState,
+	question: GenerateMigrationQuestion,
+) => {
+	const answer = state.answersById.get(question.id);
+	const existing = state.questions.get(question.id);
+	const nextQuestion = {
+		...existing,
+		...question,
+	};
+	const resolvedAnswer = answer ?? existing?.answer;
+	if (resolvedAnswer) {
+		nextQuestion.answer = resolvedAnswer;
+	}
+	state.questions.set(question.id, nextQuestion);
+	return answer;
+};
+
+const asMigrationRef = (
+	kind: GenerateMigrationQuestionKind,
+	item: { name: string; schema?: string },
+) => {
+	return normalizeGenerateMigrationRef(kind, item);
+};
+
+const sameMigrationRef = (
+	left: { name: string; schema?: string },
+	right: { name: string; schema?: string },
+) => {
+	return left.name === right.name && (left.schema ?? 'public') === (right.schema ?? 'public');
+};
+
+const resolvePromptChoice = async <T extends Named>(
+	state: ConflictResolverState | undefined,
+	question: GenerateMigrationQuestion,
+	created: T,
+	missing: T[],
+	interactive: () => Promise<RenamePropmtItem<T> | T>,
+): Promise<RenamePropmtItem<T> | T> => {
+	if (!state) {
+		return interactive();
+	}
+
+	const answer = recordResolverQuestion(state, question);
+	if (!answer || answer.type === 'create') {
+		return created;
+	}
+
+	const match = missing.find((item) => {
+		return sameMigrationRef(
+			asMigrationRef(question.kind, item),
+			answer.from,
+		);
+	});
+
+	if (!match) {
+		throw new Error(
+			`Invalid answer for "${question.id}". "${answer.from.schema ? `${answer.from.schema}.` : ''}${answer.from.name}" is not a valid rename source.`,
+		);
+	}
+
+	return { from: match, to: created };
+};
+
+const createPromptResolvers = (state?: ConflictResolverState) => {
+	const schemasResolver = async (
+		input: ResolverInput<Table>,
+	): Promise<ResolverOutput<Table>> => {
+		try {
+			const { created, deleted, renamed } = await promptSchemasConflict(
+				input.created,
+				input.deleted,
+				state,
+			);
+
+			return { created: created, deleted: deleted, renamed: renamed };
+		} catch (e) {
+			console.error(e);
+			throw e;
+		}
+	};
+
+	const tablesResolver = async (
+		input: ResolverInput<Table>,
+	): Promise<ResolverOutputWithMoved<Table>> => {
+		try {
+			const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+				input.created,
+				input.deleted,
+				'table',
+				state,
+			);
+
+			return {
+				created: created,
+				deleted: deleted,
+				moved: moved,
+				renamed: renamed,
+			};
+		} catch (e) {
+			console.error(e);
+			throw e;
+		}
+	};
+
+	const viewsResolver = async (
+		input: ResolverInput<View>,
+	): Promise<ResolverOutputWithMoved<View>> => {
+		try {
+			const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+				input.created,
+				input.deleted,
+				'view',
+				state,
+			);
+
+			return {
+				created: created,
+				deleted: deleted,
+				moved: moved,
+				renamed: renamed,
+			};
+		} catch (e) {
+			console.error(e);
+			throw e;
+		}
+	};
+
+	const mySqlViewsResolver = async (
+		input: ResolverInput<ViewSquashed & { schema: '' }>,
+	): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
+		try {
+			const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+				input.created,
+				input.deleted,
+				'view',
+				state,
+			);
+
+			return {
+				created: created,
+				deleted: deleted,
+				moved: moved,
+				renamed: renamed,
+			};
+		} catch (e) {
+			console.error(e);
+			throw e;
+		}
+	};
+
+	const sqliteViewsResolver = async (
+		input: ResolverInput<SQLiteView & { schema: '' }>,
+	): Promise<ResolverOutputWithMoved<SQLiteView>> => {
+		try {
+			const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+				input.created,
+				input.deleted,
+				'view',
+				state,
+			);
+
+			return {
+				created: created,
+				deleted: deleted,
+				moved: moved,
+				renamed: renamed,
+			};
+		} catch (e) {
+			console.error(e);
+			throw e;
+		}
+	};
+
+	const sequencesResolver = async (
+		input: ResolverInput<Sequence>,
+	): Promise<ResolverOutputWithMoved<Sequence>> => {
+		try {
+			const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+				input.created,
+				input.deleted,
+				'sequence',
+				state,
+			);
+
+			return {
+				created: created,
+				deleted: deleted,
+				moved: moved,
+				renamed: renamed,
+			};
+		} catch (e) {
+			console.error(e);
+			throw e;
+		}
+	};
+
+	const roleResolver = async (
+		input: RolesResolverInput<Role>,
+	): Promise<RolesResolverOutput<Role>> => {
+		const result = await promptNamedConflict(
 			input.created,
 			input.deleted,
-			'table',
+			'role',
+			state,
 		);
-
 		return {
-			created: created,
-			deleted: deleted,
-			moved: moved,
-			renamed: renamed,
+			created: result.created,
+			deleted: result.deleted,
+			renamed: result.renamed,
 		};
-	} catch (e) {
-		console.error(e);
-		throw e;
-	}
-};
+	};
 
-export const viewsResolver = async (
-	input: ResolverInput<View>,
-): Promise<ResolverOutputWithMoved<View>> => {
-	try {
-		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+	const policyResolver = async (
+		input: TablePolicyResolverInput<Policy>,
+	): Promise<TablePolicyResolverOutput<Policy>> => {
+		const result = await promptColumnsConflicts(
+			'policy',
+			input.tableName,
+			input.schema,
 			input.created,
 			input.deleted,
-			'view',
+			state,
 		);
-
 		return {
-			created: created,
-			deleted: deleted,
-			moved: moved,
-			renamed: renamed,
+			tableName: input.tableName,
+			schema: input.schema,
+			created: result.created,
+			deleted: result.deleted,
+			renamed: result.renamed,
 		};
-	} catch (e) {
-		console.error(e);
-		throw e;
-	}
-};
+	};
 
-export const mySqlViewsResolver = async (
-	input: ResolverInput<ViewSquashed & { schema: '' }>,
-): Promise<ResolverOutputWithMoved<ViewSquashed>> => {
-	try {
-		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+	const indPolicyResolver = async (
+		input: PolicyResolverInput<Policy>,
+	): Promise<PolicyResolverOutput<Policy>> => {
+		const result = await promptNamedConflict(
 			input.created,
 			input.deleted,
-			'view',
+			'policy',
+			state,
 		);
-
 		return {
-			created: created,
-			deleted: deleted,
-			moved: moved,
-			renamed: renamed,
+			created: result.created,
+			deleted: result.deleted,
+			renamed: result.renamed,
 		};
-	} catch (e) {
-		console.error(e);
-		throw e;
-	}
+	};
+
+	const enumsResolver = async (
+		input: ResolverInput<Enum>,
+	): Promise<ResolverOutputWithMoved<Enum>> => {
+		try {
+			const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
+				input.created,
+				input.deleted,
+				'enum',
+				state,
+			);
+
+			return {
+				created: created,
+				deleted: deleted,
+				moved: moved,
+				renamed: renamed,
+			};
+		} catch (e) {
+			console.error(e);
+			throw e;
+		}
+	};
+
+	const columnsResolver = async (
+		input: ColumnsResolverInput<Column>,
+	): Promise<ColumnsResolverOutput<Column>> => {
+		const result = await promptColumnsConflicts(
+			'column',
+			input.tableName,
+			input.schema,
+			input.created,
+			input.deleted,
+			state,
+		);
+		return {
+			tableName: input.tableName,
+			schema: input.schema,
+			created: result.created,
+			deleted: result.deleted,
+			renamed: result.renamed,
+		};
+	};
+
+	return {
+		schemasResolver,
+		tablesResolver,
+		viewsResolver,
+		mySqlViewsResolver,
+		sqliteViewsResolver,
+		sequencesResolver,
+		roleResolver,
+		policyResolver,
+		indPolicyResolver,
+		enumsResolver,
+		columnsResolver,
+	};
 };
+
+export const createMigrationResolver = (options: CreateMigrationResolverOptions = {}) => {
+	const state = createConflictResolverState(options.answers);
+	const resolvers = createPromptResolvers(state);
+
+	return {
+		...resolvers,
+		questions: (): GenerateMigrationQuestions => {
+			return {
+				version: 1,
+				questions: [...state.questions.values()],
+			};
+		},
+		hasUnresolvedQuestions: () => {
+			return [...state.questions.values()].some((it) => !it.answer);
+		},
+	};
+};
+
+const interactiveResolvers = createPromptResolvers();
+
+export const schemasResolver = interactiveResolvers.schemasResolver;
+export const tablesResolver = interactiveResolvers.tablesResolver;
+export const viewsResolver = interactiveResolvers.viewsResolver;
+export const mySqlViewsResolver = interactiveResolvers.mySqlViewsResolver;
 
 /* export const singleStoreViewsResolver = async (
 	input: ResolverInput<SingleStoreViewSquashed & { schema: '' }>,
@@ -169,134 +450,45 @@ export const mySqlViewsResolver = async (
 	}
 }; */
 
-export const sqliteViewsResolver = async (
-	input: ResolverInput<SQLiteView & { schema: '' }>,
-): Promise<ResolverOutputWithMoved<SQLiteView>> => {
-	try {
-		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
-			input.created,
-			input.deleted,
-			'view',
-		);
+export const sqliteViewsResolver = interactiveResolvers.sqliteViewsResolver;
+export const sequencesResolver = interactiveResolvers.sequencesResolver;
+export const roleResolver = interactiveResolvers.roleResolver;
+export const policyResolver = interactiveResolvers.policyResolver;
+export const indPolicyResolver = interactiveResolvers.indPolicyResolver;
+export const enumsResolver = interactiveResolvers.enumsResolver;
+export const columnsResolver = interactiveResolvers.columnsResolver;
 
-		return {
-			created: created,
-			deleted: deleted,
-			moved: moved,
-			renamed: renamed,
-		};
-	} catch (e) {
-		console.error(e);
-		throw e;
+const createGenerateResolver = (
+	config: Pick<GenerateConfig, 'answers' | 'preflight'>,
+) => {
+	if (!config.preflight && !config.answers) {
+		return undefined;
 	}
+
+	return createMigrationResolver({
+		answers: config.answers,
+	});
 };
 
-export const sequencesResolver = async (
-	input: ResolverInput<Sequence>,
-): Promise<ResolverOutputWithMoved<Sequence>> => {
-	try {
-		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
-			input.created,
-			input.deleted,
-			'sequence',
-		);
-
-		return {
-			created: created,
-			deleted: deleted,
-			moved: moved,
-			renamed: renamed,
-		};
-	} catch (e) {
-		console.error(e);
-		throw e;
+const finalizeGenerateResolver = (
+	config: Pick<GenerateConfig, 'preflight'>,
+	resolver: ReturnType<typeof createMigrationResolver> | undefined,
+) => {
+	if (!resolver) {
+		return undefined;
 	}
-};
 
-export const roleResolver = async (
-	input: RolesResolverInput<Role>,
-): Promise<RolesResolverOutput<Role>> => {
-	const result = await promptNamedConflict(
-		input.created,
-		input.deleted,
-		'role',
-	);
-	return {
-		created: result.created,
-		deleted: result.deleted,
-		renamed: result.renamed,
-	};
-};
+	const questions = resolver.questions();
 
-export const policyResolver = async (
-	input: TablePolicyResolverInput<Policy>,
-): Promise<TablePolicyResolverOutput<Policy>> => {
-	const result = await promptColumnsConflicts(
-		input.tableName,
-		input.created,
-		input.deleted,
-	);
-	return {
-		tableName: input.tableName,
-		schema: input.schema,
-		created: result.created,
-		deleted: result.deleted,
-		renamed: result.renamed,
-	};
-};
-
-export const indPolicyResolver = async (
-	input: PolicyResolverInput<Policy>,
-): Promise<PolicyResolverOutput<Policy>> => {
-	const result = await promptNamedConflict(
-		input.created,
-		input.deleted,
-		'policy',
-	);
-	return {
-		created: result.created,
-		deleted: result.deleted,
-		renamed: result.renamed,
-	};
-};
-
-export const enumsResolver = async (
-	input: ResolverInput<Enum>,
-): Promise<ResolverOutputWithMoved<Enum>> => {
-	try {
-		const { created, deleted, moved, renamed } = await promptNamedWithSchemasConflict(
-			input.created,
-			input.deleted,
-			'enum',
-		);
-
-		return {
-			created: created,
-			deleted: deleted,
-			moved: moved,
-			renamed: renamed,
-		};
-	} catch (e) {
-		console.error(e);
-		throw e;
+	if (config.preflight) {
+		return questions;
 	}
-};
 
-export const columnsResolver = async (
-	input: ColumnsResolverInput<Column>,
-): Promise<ColumnsResolverOutput<Column>> => {
-	const result = await promptColumnsConflicts(
-		input.tableName,
-		input.created,
-		input.deleted,
-	);
-	return {
-		tableName: input.tableName,
-		schema: input.schema,
-		created: result.created,
-		deleted: result.deleted,
-		renamed: result.renamed,
-	};
+	if (resolver.hasUnresolvedQuestions()) {
+		throw new GenerateMigrationQuestionsError(questions);
+	}
+
+	return undefined;
 };
 
 export const prepareAndMigratePg = async (config: GenerateConfig) => {
@@ -306,10 +498,12 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 
 	try {
 		assertV1OutFolder(outFolder);
+		const resolver = createGenerateResolver(config);
 
 		const { snapshots, journal } = prepareMigrationFolder(
 			outFolder,
 			'postgresql',
+			{ createIfMissing: !config.preflight },
 		);
 
 		const { prev, cur, custom } = await preparePgMigrationSnapshot(
@@ -341,18 +535,23 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 		const { sqlStatements, _meta } = await applyPgSnapshotsDiff(
 			squashedPrev,
 			squashedCur,
-			schemasResolver,
-			enumsResolver,
-			sequencesResolver,
-			policyResolver,
-			indPolicyResolver,
-			roleResolver,
-			tablesResolver,
-			columnsResolver,
-			viewsResolver,
+			resolver?.schemasResolver ?? schemasResolver,
+			resolver?.enumsResolver ?? enumsResolver,
+			resolver?.sequencesResolver ?? sequencesResolver,
+			resolver?.policyResolver ?? policyResolver,
+			resolver?.indPolicyResolver ?? indPolicyResolver,
+			resolver?.roleResolver ?? roleResolver,
+			resolver?.tablesResolver ?? tablesResolver,
+			resolver?.columnsResolver ?? columnsResolver,
+			resolver?.viewsResolver ?? viewsResolver,
 			validatedPrev,
 			validatedCur,
 		);
+
+		const questions = finalizeGenerateResolver(config, resolver);
+		if (questions) {
+			return questions;
+		}
 
 		writeResult({
 			cur,
@@ -364,7 +563,7 @@ export const prepareAndMigratePg = async (config: GenerateConfig) => {
 			prefixMode: config.prefix,
 		});
 	} catch (e) {
-		console.error(e);
+		throw e;
 	}
 };
 
@@ -402,7 +601,7 @@ export const prepareAndExportPg = async (config: ExportConfig) => {
 
 		console.log(sqlStatements.join('\n'));
 	} catch (e) {
-		console.error(e);
+		throw e;
 	}
 };
 
@@ -532,8 +731,11 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 	try {
 		// TODO: remove
 		assertV1OutFolder(outFolder);
+		const resolver = createGenerateResolver(config);
 
-		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'mysql');
+		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'mysql', {
+			createIfMissing: !config.preflight,
+		});
 		const { prev, cur, custom } = await prepareMySqlMigrationSnapshot(
 			snapshots,
 			schemaPath,
@@ -563,12 +765,17 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 		const { sqlStatements, statements, _meta } = await applyMysqlSnapshotsDiff(
 			squashedPrev,
 			squashedCur,
-			tablesResolver,
-			columnsResolver,
-			mySqlViewsResolver,
+			resolver?.tablesResolver ?? tablesResolver,
+			resolver?.columnsResolver ?? columnsResolver,
+			resolver?.mySqlViewsResolver ?? mySqlViewsResolver,
 			validatedPrev,
 			validatedCur,
 		);
+
+		const questions = finalizeGenerateResolver(config, resolver);
+		if (questions) {
+			return questions;
+		}
 
 		writeResult({
 			cur,
@@ -581,7 +788,7 @@ export const prepareAndMigrateMysql = async (config: GenerateConfig) => {
 			prefixMode: config.prefix,
 		});
 	} catch (e) {
-		console.error(e);
+		throw e;
 	}
 };
 
@@ -682,8 +889,11 @@ export const prepareAndMigrateSingleStore = async (config: GenerateConfig) => {
 	try {
 		// TODO: remove
 		assertV1OutFolder(outFolder);
+		const resolver = createGenerateResolver(config);
 
-		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'singlestore');
+		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'singlestore', {
+			createIfMissing: !config.preflight,
+		});
 		const { prev, cur, custom } = await prepareSingleStoreMigrationSnapshot(
 			snapshots,
 			schemaPath,
@@ -713,12 +923,17 @@ export const prepareAndMigrateSingleStore = async (config: GenerateConfig) => {
 		const { sqlStatements, _meta } = await applySingleStoreSnapshotsDiff(
 			squashedPrev,
 			squashedCur,
-			tablesResolver,
-			columnsResolver,
+			resolver?.tablesResolver ?? tablesResolver,
+			resolver?.columnsResolver ?? columnsResolver,
 			/* singleStoreViewsResolver, */
 			validatedPrev,
 			validatedCur,
 		);
+
+		const questions = finalizeGenerateResolver(config, resolver);
+		if (questions) {
+			return questions;
+		}
 
 		writeResult({
 			cur,
@@ -731,7 +946,7 @@ export const prepareAndMigrateSingleStore = async (config: GenerateConfig) => {
 			prefixMode: config.prefix,
 		});
 	} catch (e) {
-		console.error(e);
+		throw e;
 	}
 };
 
@@ -763,7 +978,7 @@ export const prepareAndExportSinglestore = async (config: ExportConfig) => {
 
 		console.log(sqlStatements.join('\n'));
 	} catch (e) {
-		console.error(e);
+		throw e;
 	}
 };
 
@@ -806,8 +1021,11 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 
 	try {
 		assertV1OutFolder(outFolder);
+		const resolver = createGenerateResolver(config);
 
-		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'sqlite');
+		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'sqlite', {
+			createIfMissing: !config.preflight,
+		});
 		const { prev, cur, custom } = await prepareSqliteMigrationSnapshot(
 			snapshots,
 			schemaPath,
@@ -838,12 +1056,17 @@ export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 		const { sqlStatements, _meta } = await applySqliteSnapshotsDiff(
 			squashedPrev,
 			squashedCur,
-			tablesResolver,
-			columnsResolver,
-			sqliteViewsResolver,
+			resolver?.tablesResolver ?? tablesResolver,
+			resolver?.columnsResolver ?? columnsResolver,
+			resolver?.sqliteViewsResolver ?? sqliteViewsResolver,
 			validatedPrev,
 			validatedCur,
 		);
+
+		const questions = finalizeGenerateResolver(config, resolver);
+		if (questions) {
+			return questions;
+		}
 
 		writeResult({
 			cur,
@@ -901,8 +1124,11 @@ export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 
 	try {
 		assertV1OutFolder(outFolder);
+		const resolver = createGenerateResolver(config);
 
-		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'sqlite');
+		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'sqlite', {
+			createIfMissing: !config.preflight,
+		});
 		const { prev, cur, custom } = await prepareSqliteMigrationSnapshot(
 			snapshots,
 			schemaPath,
@@ -933,12 +1159,17 @@ export const prepareAndMigrateLibSQL = async (config: GenerateConfig) => {
 		const { sqlStatements, _meta } = await applyLibSQLSnapshotsDiff(
 			squashedPrev,
 			squashedCur,
-			tablesResolver,
-			columnsResolver,
-			sqliteViewsResolver,
+			resolver?.tablesResolver ?? tablesResolver,
+			resolver?.columnsResolver ?? columnsResolver,
+			resolver?.sqliteViewsResolver ?? sqliteViewsResolver,
 			validatedPrev,
 			validatedCur,
 		);
+
+		const questions = finalizeGenerateResolver(config, resolver);
+		if (questions) {
+			return questions;
+		}
 
 		writeResult({
 			cur,
@@ -1064,9 +1295,12 @@ const freeeeeeze = (obj: any) => {
 };
 
 export const promptColumnsConflicts = async <T extends Named>(
+	entity: 'column' | 'policy',
 	tableName: string,
+	tableSchema: string,
 	newColumns: T[],
 	missingColumns: T[],
+	state?: ConflictResolverState,
 ) => {
 	if (newColumns.length === 0 || missingColumns.length === 0) {
 		return { created: newColumns, renamed: [], deleted: missingColumns };
@@ -1088,43 +1322,73 @@ export const promptColumnsConflicts = async <T extends Named>(
 		});
 
 		const promptData: (RenamePropmtItem<T> | T)[] = [created, ...renames];
-
-		const { status, data } = await render(
-			new ResolveColumnSelect<T>(tableName, created, promptData),
+		const data = await resolvePromptChoice(
+			state,
+			{
+				id: createGenerateMigrationQuestionId(
+					entity,
+					asMigrationRef(entity, created),
+					asMigrationRef('table', { name: tableName, schema: tableSchema }),
+				),
+				kind: entity,
+				to: asMigrationRef(entity, created),
+				table: asMigrationRef('table', { name: tableName, schema: tableSchema }),
+				choices: [
+					{ type: 'create' },
+					...leftMissing.map((it) => ({
+						type: 'rename' as const,
+						from: asMigrationRef(entity, it),
+					})),
+				],
+			},
+			created,
+			leftMissing,
+			async () => {
+				const { status, data } = await render(
+					new ResolveColumnSelect<T>(tableName, created, promptData, entity),
+				);
+				if (status === 'aborted') {
+					console.error('ERROR');
+					process.exit(1);
+				}
+				return data;
+			},
 		);
-		if (status === 'aborted') {
-			console.error('ERROR');
-			process.exit(1);
-		}
 
 		if (isRenamePromptItem(data)) {
-			console.log(
-				`${chalk.yellow('~')} ${data.from.name} › ${data.to.name} ${
-					chalk.gray(
-						'column will be renamed',
-					)
-				}`,
-			);
+			if (!state) {
+				console.log(
+					`${chalk.yellow('~')} ${data.from.name} › ${data.to.name} ${
+						chalk.gray(
+							`${entity} will be renamed`,
+						)
+					}`,
+				);
+			}
 			result.renamed.push(data);
 			// this will make [item1, undefined, item2]
 			delete leftMissing[leftMissing.indexOf(data.from)];
 			// this will make [item1, item2]
 			leftMissing = leftMissing.filter(Boolean);
 		} else {
-			console.log(
-				`${chalk.green('+')} ${data.name} ${
-					chalk.gray(
-						'column will be created',
-					)
-				}`,
-			);
+			if (!state) {
+				console.log(
+					`${chalk.green('+')} ${data.name} ${
+						chalk.gray(
+							`${entity} will be created`,
+						)
+					}`,
+				);
+			}
 			result.created.push(created);
 		}
 		index += 1;
 	} while (index < newColumns.length);
-	console.log(
-		chalk.gray(`--- all columns conflicts in ${tableName} table resolved ---\n`),
-	);
+	if (!state) {
+		console.log(
+			chalk.gray(`--- all ${entity} conflicts in ${tableName} table resolved ---\n`),
+		);
+	}
 
 	result.deleted.push(...leftMissing);
 	return result;
@@ -1134,6 +1398,7 @@ export const promptNamedConflict = async <T extends Named>(
 	newItems: T[],
 	missingItems: T[],
 	entity: 'role' | 'policy',
+	state?: ConflictResolverState,
 ): Promise<{
 	created: T[];
 	renamed: { from: T; to: T }[];
@@ -1161,23 +1426,47 @@ export const promptNamedConflict = async <T extends Named>(
 		});
 
 		const promptData: (RenamePropmtItem<T> | T)[] = [created, ...renames];
-
-		const { status, data } = await render(
-			new ResolveSelectNamed<T>(created, promptData, entity),
+		const data = await resolvePromptChoice(
+			state,
+			{
+				id: createGenerateMigrationQuestionId(
+					entity,
+					asMigrationRef(entity, created),
+				),
+				kind: entity,
+				to: asMigrationRef(entity, created),
+				choices: [
+					{ type: 'create' },
+					...leftMissing.map((it) => ({
+						type: 'rename' as const,
+						from: asMigrationRef(entity, it),
+					})),
+				],
+			},
+			created,
+			leftMissing,
+			async () => {
+				const { status, data } = await render(
+					new ResolveSelectNamed<T>(created, promptData, entity),
+				);
+				if (status === 'aborted') {
+					console.error('ERROR');
+					process.exit(1);
+				}
+				return data;
+			},
 		);
-		if (status === 'aborted') {
-			console.error('ERROR');
-			process.exit(1);
-		}
 
 		if (isRenamePromptItem(data)) {
-			console.log(
-				`${chalk.yellow('~')} ${data.from.name} › ${data.to.name} ${
-					chalk.gray(
-						`${entity} will be renamed/moved`,
-					)
-				}`,
-			);
+			if (!state) {
+				console.log(
+					`${chalk.yellow('~')} ${data.from.name} › ${data.to.name} ${
+						chalk.gray(
+							`${entity} will be renamed/moved`,
+						)
+					}`,
+				);
+			}
 
 			if (data.from.name !== data.to.name) {
 				result.renamed.push(data);
@@ -1186,18 +1475,22 @@ export const promptNamedConflict = async <T extends Named>(
 			delete leftMissing[leftMissing.indexOf(data.from)];
 			leftMissing = leftMissing.filter(Boolean);
 		} else {
-			console.log(
-				`${chalk.green('+')} ${data.name} ${
-					chalk.gray(
-						`${entity} will be created`,
-					)
-				}`,
-			);
+			if (!state) {
+				console.log(
+					`${chalk.green('+')} ${data.name} ${
+						chalk.gray(
+							`${entity} will be created`,
+						)
+					}`,
+				);
+			}
 			result.created.push(created);
 		}
 		index += 1;
 	} while (index < newItems.length);
-	console.log(chalk.gray(`--- all ${entity} conflicts resolved ---\n`));
+	if (!state) {
+		console.log(chalk.gray(`--- all ${entity} conflicts resolved ---\n`));
+	}
 	result.deleted.push(...leftMissing);
 	return result;
 };
@@ -1206,6 +1499,7 @@ export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 	newItems: T[],
 	missingItems: T[],
 	entity: 'table' | 'enum' | 'sequence' | 'view',
+	state?: ConflictResolverState,
 ): Promise<{
 	created: T[];
 	renamed: { from: T; to: T }[];
@@ -1236,14 +1530,36 @@ export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 		});
 
 		const promptData: (RenamePropmtItem<T> | T)[] = [created, ...renames];
-
-		const { status, data } = await render(
-			new ResolveSelect<T>(created, promptData, entity),
+		const data = await resolvePromptChoice(
+			state,
+			{
+				id: createGenerateMigrationQuestionId(
+					entity,
+					asMigrationRef(entity, created),
+				),
+				kind: entity,
+				to: asMigrationRef(entity, created),
+				choices: [
+					{ type: 'create' },
+					...leftMissing.map((it) => ({
+						type: 'rename' as const,
+						from: asMigrationRef(entity, it),
+					})),
+				],
+			},
+			created,
+			leftMissing,
+			async () => {
+				const { status, data } = await render(
+					new ResolveSelect<T>(created, promptData, entity),
+				);
+				if (status === 'aborted') {
+					console.error('ERROR');
+					process.exit(1);
+				}
+				return data;
+			},
 		);
-		if (status === 'aborted') {
-			console.error('ERROR');
-			process.exit(1);
-		}
 
 		if (isRenamePromptItem(data)) {
 			const schemaFromPrefix = !data.from.schema || data.from.schema === 'public'
@@ -1253,13 +1569,15 @@ export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 				? ''
 				: `${data.to.schema}.`;
 
-			console.log(
-				`${chalk.yellow('~')} ${schemaFromPrefix}${data.from.name} › ${schemaToPrefix}${data.to.name} ${
-					chalk.gray(
-						`${entity} will be renamed/moved`,
-					)
-				}`,
-			);
+			if (!state) {
+				console.log(
+					`${chalk.yellow('~')} ${schemaFromPrefix}${data.from.name} › ${schemaToPrefix}${data.to.name} ${
+						chalk.gray(
+							`${entity} will be renamed/moved`,
+						)
+					}`,
+				);
+			}
 
 			if (data.from.name !== data.to.name) {
 				result.renamed.push(data);
@@ -1276,18 +1594,22 @@ export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 			delete leftMissing[leftMissing.indexOf(data.from)];
 			leftMissing = leftMissing.filter(Boolean);
 		} else {
-			console.log(
-				`${chalk.green('+')} ${data.name} ${
-					chalk.gray(
-						`${entity} will be created`,
-					)
-				}`,
-			);
+			if (!state) {
+				console.log(
+					`${chalk.green('+')} ${data.name} ${
+						chalk.gray(
+							`${entity} will be created`,
+						)
+					}`,
+				);
+			}
 			result.created.push(created);
 		}
 		index += 1;
 	} while (index < newItems.length);
-	console.log(chalk.gray(`--- all ${entity} conflicts resolved ---\n`));
+	if (!state) {
+		console.log(chalk.gray(`--- all ${entity} conflicts resolved ---\n`));
+	}
 	result.deleted.push(...leftMissing);
 	return result;
 };
@@ -1295,6 +1617,7 @@ export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 export const promptSchemasConflict = async <T extends Named>(
 	newSchemas: T[],
 	missingSchemas: T[],
+	state?: ConflictResolverState,
 ): Promise<{ created: T[]; renamed: { from: T; to: T }[]; deleted: T[] }> => {
 	if (missingSchemas.length === 0 || newSchemas.length === 0) {
 		return { created: newSchemas, renamed: [], deleted: missingSchemas };
@@ -1314,39 +1637,67 @@ export const promptSchemasConflict = async <T extends Named>(
 		});
 
 		const promptData: (RenamePropmtItem<T> | T)[] = [created, ...renames];
-
-		const { status, data } = await render(
-			new ResolveSchemasSelect<T>(created, promptData),
+		const data = await resolvePromptChoice(
+			state,
+			{
+				id: createGenerateMigrationQuestionId(
+					'schema',
+					asMigrationRef('schema', created),
+				),
+				kind: 'schema',
+				to: asMigrationRef('schema', created),
+				choices: [
+					{ type: 'create' },
+					...leftMissing.map((it) => ({
+						type: 'rename' as const,
+						from: asMigrationRef('schema', it),
+					})),
+				],
+			},
+			created,
+			leftMissing,
+			async () => {
+				const { status, data } = await render(
+					new ResolveSchemasSelect<T>(created, promptData),
+				);
+				if (status === 'aborted') {
+					console.error('ERROR');
+					process.exit(1);
+				}
+				return data;
+			},
 		);
-		if (status === 'aborted') {
-			console.error('ERROR');
-			process.exit(1);
-		}
 
 		if (isRenamePromptItem(data)) {
-			console.log(
-				`${chalk.yellow('~')} ${data.from.name} › ${data.to.name} ${
-					chalk.gray(
-						'schema will be renamed',
-					)
-				}`,
-			);
+			if (!state) {
+				console.log(
+					`${chalk.yellow('~')} ${data.from.name} › ${data.to.name} ${
+						chalk.gray(
+							'schema will be renamed',
+						)
+					}`,
+				);
+			}
 			result.renamed.push(data);
 			delete leftMissing[leftMissing.indexOf(data.from)];
 			leftMissing = leftMissing.filter(Boolean);
 		} else {
-			console.log(
-				`${chalk.green('+')} ${data.name} ${
-					chalk.gray(
-						'schema will be created',
-					)
-				}`,
-			);
+			if (!state) {
+				console.log(
+					`${chalk.green('+')} ${data.name} ${
+						chalk.gray(
+							'schema will be created',
+						)
+					}`,
+				);
+			}
 			result.created.push(created);
 		}
 		index += 1;
 	} while (index < newSchemas.length);
-	console.log(chalk.gray('--- all schemas conflicts resolved ---\n'));
+	if (!state) {
+		console.log(chalk.gray('--- all schemas conflicts resolved ---\n'));
+	}
 	result.deleted.push(...leftMissing);
 	return result;
 };

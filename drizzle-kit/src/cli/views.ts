@@ -95,6 +95,7 @@ export class ResolveColumnSelect<T extends Named> extends Prompt<
 		private readonly tableName: string,
 		private readonly base: Named,
 		data: (RenamePropmtItem<T> | T)[],
+		private readonly entityType: 'column' | 'policy' = 'column',
 	) {
 		super();
 		this.on('attach', (terminal) => terminal.toggleCursor('hide'));
@@ -111,11 +112,11 @@ export class ResolveColumnSelect<T extends Named> extends Prompt<
 			chalk.bold.blue(
 				this.base.name,
 			)
-		} column in ${
+		} ${this.entityType} in ${
 			chalk.bold.blue(
 				this.tableName,
 			)
-		} table created or renamed from another column?\n`;
+		} table created or renamed from another ${this.entityType}?\n`;
 
 		const isSelectedRenamed = isRenamePromptItem(
 			this.data.items[this.data.selectedIdx],
@@ -144,8 +145,8 @@ export class ResolveColumnSelect<T extends Named> extends Prompt<
 				? `${it.from.name} › ${it.to.name}`.padEnd(labelLength, ' ')
 				: it.name.padEnd(labelLength, ' ');
 			const label = isRenamed
-				? `${chalk.yellow('~')} ${title} ${chalk.gray('rename column')}`
-				: `${chalk.green('+')} ${title} ${chalk.gray('create column')}`;
+				? `${chalk.yellow('~')} ${title} ${chalk.gray(`rename ${this.entityType}`)}`
+				: `${chalk.green('+')} ${title} ${chalk.gray(`create ${this.entityType}`)}`;
 
 			text += isSelected ? `${selectedPrefix}${label}` : `  ${label}`;
 			text += idx !== this.data.items.length - 1 ? '\n' : '';
