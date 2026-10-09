@@ -26,6 +26,7 @@ export interface ReferenceConfig {
 		onUpdate?: UpdateDeleteAction;
 		onDelete?: UpdateDeleteAction;
 	};
+	name?: string;
 }
 
 export interface MySqlColumnBuilderBase<
@@ -51,8 +52,8 @@ export abstract class MySqlColumnBuilder<
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
-	references(ref: ReferenceConfig['ref'], actions: ReferenceConfig['actions'] = {}): this {
-		this.foreignKeyConfigs.push({ ref, actions });
+	references(ref: ReferenceConfig['ref'], actions: ReferenceConfig['actions'] = {}, name: ReferenceConfig['name'] = undefined): this {
+		this.foreignKeyConfigs.push({ ref, actions, name });
 		return this;
 	}
 
@@ -75,11 +76,11 @@ export abstract class MySqlColumnBuilder<
 
 	/** @internal */
 	buildForeignKeys(column: MySqlColumn, table: MySqlTable): ForeignKey[] {
-		return this.foreignKeyConfigs.map(({ ref, actions }) => {
-			return ((ref, actions) => {
+		return this.foreignKeyConfigs.map(({ ref, actions, name }) => {
+			return ((ref, actions, name) => {
 				const builder = new ForeignKeyBuilder(() => {
 					const foreignColumn = ref();
-					return { columns: [column], foreignColumns: [foreignColumn] };
+					return { columns: [column], foreignColumns: [foreignColumn], name };
 				});
 				if (actions.onUpdate) {
 					builder.onUpdate(actions.onUpdate);
@@ -88,7 +89,7 @@ export abstract class MySqlColumnBuilder<
 					builder.onDelete(actions.onDelete);
 				}
 				return builder.build(table);
-			})(ref, actions);
+			})(ref, actions, name);
 		});
 	}
 
