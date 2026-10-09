@@ -45,8 +45,11 @@ export function mapResultRow<TResult>(
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
-						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
+						if (value !== null) {
+							// a non-null value means the joined row exists
+							nullifyMap[objectName] = false;
+						} else if (!(objectName in nullifyMap)) {
+							nullifyMap[objectName] = getTableName(field.table);
 						} else if (
 							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
 						) {
