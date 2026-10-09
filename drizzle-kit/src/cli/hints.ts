@@ -1,6 +1,7 @@
 import { readFile } from 'fs/promises';
 import { z, type ZodIssue } from 'zod';
-import { InvalidHintsCliError, type JsonValue } from './errors';
+import { runWithCliContext } from './context';
+import { InvalidHintsCliError, type JsonValue, MissingHintsError } from './errors';
 
 const singleTupleSchema = z.tuple([z.string()]);
 const pairTupleSchema = z.tuple([z.string(), z.string()]);
@@ -299,7 +300,27 @@ export class HintsHandler {
 			unresolved: this.missingHints,
 		};
 	}
+
+	throwIfMissingHints(): void {
+		if (this.hasMissingHints()) {
+			throw new MissingHintsError(this.missingHints);
+		}
+	}
 }
+
+// The programmatic API has no terminal, so the resolvers must not prompt and must not print.
+export const runWithApiHints = async <T>(
+	raw: readonly Hint[] | undefined,
+	callback: (hints: HintsHandler) => Promise<T>,
+): Promise<T> => {
+	const list = raw ?? [];
+	if (!Array.isArray(list)) {
+		throw new InvalidHintsCliError('The hints option is not an array. Pass an array of hint objects.');
+	}
+
+	const hints = await HintsHandler.fromCli({ hints: [...list] });
+	return runWithCliContext({ output: 'json', interactive: false }, () => callback(hints));
+};
 
 function formatIssuePath(path: readonly (string | number)[]): string {
 	if (path.length === 0) {

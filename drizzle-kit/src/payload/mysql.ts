@@ -32,12 +32,11 @@ export const generateDrizzleJson = async (
 export const generateMigration = async (
 	prev: MysqlSnapshot,
 	cur: MysqlSnapshot,
-	options?: { hints?: Hint[] },
+	options?: { hints?: readonly Hint[] },
 ) => {
 	const { resolver } = await import('../cli/prompts');
 	const { ddlDiff } = await import('../dialects/mysql/diff');
-	const { HintsHandler, parseHints } = await import('../cli/hints');
-	const { runWithCliContext } = await import('../cli/context');
+	const { runWithApiHints } = await import('../cli/hints');
 	const from = createDDL();
 	const to = createDDL();
 
@@ -48,24 +47,19 @@ export const generateMigration = async (
 		to.entities.push(it);
 	}
 
-	const hints = new HintsHandler(parseHints(options?.hints ?? []));
-
-	const { sqlStatements } = await runWithCliContext({ output: 'json', interactive: false }, () =>
-		ddlDiff(
+	return runWithApiHints(options?.hints, async (hints) => {
+		const { sqlStatements } = await ddlDiff(
 			from,
 			to,
 			resolver<Table>('table', hints),
 			resolver<Column>('column', hints),
 			resolver<View>('view', hints),
 			'default',
-		));
+		);
+		hints.throwIfMissingHints();
 
-	if (hints.hasMissingHints()) {
-		const { MissingHintsError } = await import('../cli/errors');
-		throw new MissingHintsError(hints.missingHints);
-	}
-
-	return sqlStatements;
+		return sqlStatements;
+	});
 };
 
 export const pushSchema = async (
@@ -76,13 +70,14 @@ export const pushSchema = async (
 		table?: string;
 		schema?: string;
 	},
+	options?: { hints?: readonly Hint[] },
 ) => {
 	const { resolver } = await import('../cli/prompts');
 	const { fromDatabaseForDrizzle } = await import('src/dialects/mysql/introspect');
 	const { fromDrizzleSchema, prepareFromExports } = await import('../dialects/mysql/drizzle');
 	const { suggestions } = await import('../cli/commands/push-mysql');
 	const { ddlDiff } = await import('../dialects/mysql/diff');
-	const { HintsHandler } = await import('../cli/hints');
+	const { runWithApiHints } = await import('../cli/hints');
 
 	const migrations = {
 		schema: migrationsConfig?.schema || '',
@@ -97,16 +92,23 @@ export const pushSchema = async (
 	const { ddl: from } = interimToDDL(prev);
 	const { ddl: to } = interimToDDL(cur);
 
-	const { sqlStatements, statements } = await ddlDiff(
-		from,
-		to,
-		resolver<Table>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
-		'push',
-	);
+	const { sqlStatements, hints } = await runWithApiHints(options?.hints, async (userHints) => {
+		const { sqlStatements, statements } = await ddlDiff(
+			from,
+			to,
+			resolver<Table>('table', userHints),
+			resolver<Column>('column', userHints),
+			resolver<View>('view', userHints),
+			'push',
+		);
+		// An unresolved rename is diffed as a drop plus a create, so a data loss check on it would report a false drop.
+		userHints.throwIfMissingHints();
 
-	const hints = await suggestions(db, statements, to, new HintsHandler());
+		const hints = await suggestions(db, statements, to, userHints);
+		userHints.throwIfMissingHints();
+
+		return { sqlStatements, hints };
+	});
 
 	return {
 		sqlStatements,

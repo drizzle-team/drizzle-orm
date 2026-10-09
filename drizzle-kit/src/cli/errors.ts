@@ -225,11 +225,13 @@ const missingHintsMessage = (missingHints: readonly MissingHint[]): string => {
 			: `- ${entity}: data loss must be confirmed`;
 	});
 
-	return `Ambiguous schema changes require hints to resolve:\n${lines.join('\n')}\n`
-		+ 'Provide a { type: "rename" | "create", ... } hint for each entity via the hints option.';
+	return `Schema changes require hints to resolve:\n${lines.join('\n')}\n`
+		+ 'Pass a hint for each entity in the hints option: { type: "rename" | "create", ... } for a rename question, '
+		+ '{ type: "confirm_data_loss", ... } for data loss.';
 };
 
 export class MissingHintsError extends DrizzleCliError {
+	declare readonly code: 'missing_hints';
 	readonly missingHints: readonly MissingHint[];
 
 	constructor(missingHints: readonly MissingHint[]) {
