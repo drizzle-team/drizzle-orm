@@ -37,6 +37,7 @@ import type {
 	SQLiteSelectConfig,
 	SQLiteSelectJoinConfig,
 } from './query-builders/select.types.ts';
+import { SQLiteCustomColumn } from './columns/custom.ts';
 import type { SQLiteSession } from './session.ts';
 import { SQLiteViewBase } from './view-base.ts';
 
@@ -209,24 +210,18 @@ export abstract class SQLiteDialect {
 				}
 			} else if (is(field, Column)) {
 				const tableName = field.table[Table.Symbol.Name];
-				if (field.columnType === 'SQLiteNumericBigInt') {
-					if (isSingleTable) {
-						chunk.push(
-							sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
-						);
-					} else {
-						chunk.push(
-							sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
-						);
-					}
+				const columnName = sql.identifier(this.casing.getColumnCasing(field));
+				const columnRef = isSingleTable
+					? sql`${columnName}`
+					: sql`${sql.identifier(tableName)}.${columnName}`;
+				const selected = is(field, SQLiteCustomColumn) ? field.sqlForSelect(columnRef) : undefined;
+				if (selected) {
+					chunk.push(selected);
+					chunk.push(sql` as ${columnName}`);
+				} else if (field.columnType === 'SQLiteNumericBigInt') {
+					chunk.push(sql`cast(${columnRef} as text)`);
 				} else {
-					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-					} else {
-						chunk.push(
-							sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`,
-						);
-					}
+					chunk.push(columnRef);
 				}
 			} else if (is(field, Subquery)) {
 				const entries = Object.entries(field._.selectedFields) as [
@@ -837,13 +832,19 @@ export abstract class SQLiteDialect {
 		if (nestedQueryRelation) {
 			let field = sql`json_array(${
 				sql.join(
-					selection.map(({ field }) =>
-						is(field, SQLiteColumn)
-							? sql.identifier(this.casing.getColumnCasing(field))
-							: is(field, SQL.Aliased)
-							? field.sql
-							: field
-					),
+					selection.map(({ field }) => {
+						if (is(field, SQLiteCustomColumn)) {
+							const colRef = sql.identifier(this.casing.getColumnCasing(field));
+							return field.sqlForSelect(sql`${colRef}`) ?? colRef;
+						}
+						if (is(field, SQLiteColumn)) {
+							return sql.identifier(this.casing.getColumnCasing(field));
+						}
+						if (is(field, SQL.Aliased)) {
+							return field.sql;
+						}
+						return field;
+					}),
 					sql`, `,
 				)
 			})`;

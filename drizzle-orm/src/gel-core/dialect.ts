@@ -41,6 +41,7 @@ import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { GelTimestamp } from './columns/timestamp.ts';
+import { GelCustomColumn } from './columns/custom.ts';
 import { GelViewBase } from './view-base.ts';
 import type { GelMaterializedView } from './view.ts';
 
@@ -235,13 +236,15 @@ export class GelDialect {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
-					// Gel throws an error when more than one similarly named columns exist within context instead of preferring the closest one
-					// thus forcing us to be explicit about column's source
-					// if (isSingleTable) {
-					// 	chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-					// } else {
-					chunk.push(field);
-					// }
+					const columnName = sql.identifier(this.casing.getColumnCasing(field));
+					const selected = is(field, GelCustomColumn) ? field.sqlForSelect(sql`${field}`) : undefined;
+					if (selected) {
+						chunk.push(selected);
+						chunk.push(sql` as ${columnName}`);
+					} else {
+						// Gel requires qualified column references even in single-table contexts.
+						chunk.push(field);
+					}
 				} else if (is(field, Subquery)) {
 					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
 
