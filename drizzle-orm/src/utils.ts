@@ -41,14 +41,16 @@ export function mapResultRow<TResult>(
 					node = node[pathChunk];
 				} else {
 					const rawValue = row[columnIndex]!;
-					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
+					node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
+						const tableName = getTableName(field.table);
 						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
+							nullifyMap[objectName] = rawValue === null ? tableName : false;
 						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
+							typeof nullifyMap[objectName] === 'string'
+							&& (rawValue !== null || nullifyMap[objectName] !== tableName)
 						) {
 							nullifyMap[objectName] = false;
 						}
