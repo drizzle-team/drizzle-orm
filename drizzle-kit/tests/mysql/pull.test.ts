@@ -225,6 +225,41 @@ test('introspect checks', async () => {
 	expect(generateSqlStatements).toStrictEqual([]);
 });
 
+test('introspect checks ignores a same-named check constraint in another database', async () => {
+	// Regression test: INFORMATION_SCHEMA.CHECK_CONSTRAINTS is not scoped by schema,
+	// so a constraint with the same name in another database on the same server
+	// must not be picked up when introspecting this one.
+	await db.query('drop database if exists `drizzle_other`;');
+	await db.query('create database `drizzle_other`;');
+	await db.query(
+		'create table `drizzle_other`.`other_users` (`age` int, constraint `some_check` check (`age` > 999));',
+	);
+
+	try {
+		const schema = {
+			users: mysqlTable('users', {
+				id: serial('id'),
+				name: varchar('name', { length: 255 }),
+				age: int('age'),
+			}, (table) => [check('some_check', sql`${table.age} > 21`)]),
+		};
+
+		const {
+			pushStatements: statements,
+			pushSqlStatements: sqlStatements,
+			generateStatements,
+			generateSqlStatements,
+		} = await diffIntrospect(db, schema, 'checks-cross-schema');
+
+		expect(statements).toStrictEqual([]);
+		expect(generateStatements).toStrictEqual([]);
+		expect(sqlStatements).toStrictEqual([]);
+		expect(generateSqlStatements).toStrictEqual([]);
+	} finally {
+		await db.query('drop database if exists `drizzle_other`;');
+	}
+});
+
 test('view #1', async () => {
 	const users = mysqlTable('users', { id: int('id') });
 	const testView = mysqlView('some_view', { id: int('id') }).as(
