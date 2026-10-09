@@ -18,6 +18,7 @@ import { NodePgSession } from './session.ts';
 export interface PgDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (err: import('~/errors.ts').DrizzleQueryError) => void;
 }
 
 export class NodePgDriver {
@@ -36,6 +37,7 @@ export class NodePgDriver {
 		return new NodePgSession(this.client, this.dialect, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
+			onError: this.options.onError,
 		});
 	}
 }
@@ -76,7 +78,7 @@ function construct<
 		};
 	}
 
-	const driver = new NodePgDriver(client, dialect, { logger, cache: config.cache });
+	const driver = new NodePgDriver(client, dialect, { logger, cache: config.cache, onError: config.onError });
 	const session = driver.createSession(schema);
 	const db = new NodePgDatabase(dialect, session, schema as any) as NodePgDatabase<TSchema>;
 	(<any> db).$client = client;

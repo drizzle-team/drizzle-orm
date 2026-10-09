@@ -54,7 +54,7 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const session = new BetterSQLiteSession(client, dialect, schema, { logger });
+	const session = new BetterSQLiteSession(client, dialect, schema, { logger, onError: config.onError });
 	const db = new BetterSQLite3Database('sync', dialect, session, schema);
 	(<any> db).$client = client;
 	// (<any> db).$cache = config.cache;

@@ -5,11 +5,12 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 import { Client } from 'pg';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
+import { tests as onErrorTests } from './pg-on-error';
 
 const ENABLE_LOGGING = false;
 
@@ -17,6 +18,8 @@ let db: NodePgDatabase;
 let client: Client;
 let dbGlobalCached: NodePgDatabase;
 let cachedDb: NodePgDatabase;
+const onErrorFn = vi.fn();
+let onErrorDb: NodePgDatabase;
 
 beforeAll(async () => {
 	let connectionString;
@@ -43,6 +46,7 @@ beforeAll(async () => {
 	db = drizzle(client, { logger: ENABLE_LOGGING });
 	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
+	onErrorDb = drizzle(client, { logger: ENABLE_LOGGING, onError: onErrorFn });
 });
 
 afterAll(async () => {
@@ -56,6 +60,10 @@ beforeEach((ctx) => {
 	ctx.cachedPg = {
 		db: cachedDb,
 		dbGlobalCached,
+	};
+	ctx.onErrorPg = {
+		db: onErrorDb,
+		onError: onErrorFn,
 	};
 });
 
@@ -442,6 +450,7 @@ skipTests([
 ]);
 tests();
 cacheTests();
+onErrorTests();
 
 beforeEach(async () => {
 	await db.execute(sql`drop schema if exists public cascade`);

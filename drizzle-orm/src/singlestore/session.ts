@@ -66,8 +66,9 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		private generatedIds?: Record<string, unknown>[],
 		// Keys that should be returned, it has the column with all properties + key from object
 		private returningIds?: SelectedFieldsOrdered,
+		onError?: (err: import('~/errors.ts').DrizzleQueryError) => void,
 	) {
-		super(cache, queryMetadata, cacheConfig);
+		super(cache, queryMetadata, cacheConfig, onError);
 		this.rawQuery = {
 			sql: queryString,
 			// rowsAsArray: true,
@@ -197,6 +198,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 export interface SingleStoreDriverSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	onError?: (err: import('~/errors.ts').DrizzleQueryError) => void;
 }
 
 export class SingleStoreDriverSession<
@@ -207,6 +209,7 @@ export class SingleStoreDriverSession<
 
 	private logger: Logger;
 	private cache: Cache;
+	private onError?: (err: import('~/errors.ts').DrizzleQueryError) => void;
 
 	constructor(
 		private client: SingleStoreDriverClient,
@@ -217,6 +220,7 @@ export class SingleStoreDriverSession<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+		this.onError = options.onError;
 	}
 
 	prepareQuery<T extends SingleStorePreparedQueryConfig>(
@@ -245,6 +249,7 @@ export class SingleStoreDriverSession<
 			customResultMapper,
 			generatedIds,
 			returningIds,
+			this.onError,
 		) as PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T>;
 	}
 
