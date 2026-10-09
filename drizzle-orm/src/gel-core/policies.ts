@@ -20,7 +20,7 @@ export interface GelPolicyConfig {
 	withCheck?: SQL;
 }
 
-export class GelPolicy implements GelPolicyConfig {
+export class GelPolicy {
 	static readonly [entityKind]: string = 'GelPolicy';
 
 	readonly as: GelPolicyConfig['as'];
