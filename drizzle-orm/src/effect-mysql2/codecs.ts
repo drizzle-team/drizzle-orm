@@ -1,14 +1,20 @@
 import { castToText, floatFromDouble, refineGenericMySqlCodecs } from '~/mysql-core/codecs.ts';
 
 export const effectMysql2Codecs = refineGenericMySqlCodecs({
+	serial: {
+		cast: castToText,
+		normalize: Number,
+	},
 	bigint: {
+		cast: castToText,
 		normalize: BigInt,
 	},
 	'bigint:number': {
+		cast: castToText,
 		normalize: Number,
 	},
 	'bigint:string': {
-		normalize: String,
+		cast: castToText,
 	},
 	boolean: {
 		normalize: (value: number) => value === 1,
@@ -41,6 +47,9 @@ export const effectMysql2Codecs = refineGenericMySqlCodecs({
 		normalize: (value: string) => new Date(value + '+0000'),
 	},
 	'timestamp:string': {
+		cast: castToText,
+	},
+	time: {
 		cast: castToText,
 	},
 	binary: {

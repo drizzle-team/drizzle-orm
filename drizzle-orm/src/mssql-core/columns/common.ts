@@ -15,6 +15,7 @@ import { ForeignKeyBuilder } from '~/mssql-core/foreign-keys.ts';
 import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
 import type { SQL } from '~/sql/index.ts';
 import type { Update } from '~/utils.ts';
+import type { MsSqlType } from '../codecs.ts';
 
 export type MsSqlColumns = Record<string, MsSqlColumn<any>>;
 
@@ -97,6 +98,9 @@ export abstract class MsSqlColumn<
 	static override readonly [entityKind]: string = 'MsSqlColumn';
 
 	/** @internal */
+	abstract override readonly codec?: MsSqlType;
+
+	/** @internal */
 	override readonly table: MsSqlTable;
 
 	constructor(
@@ -156,6 +160,7 @@ export abstract class MsSqlColumnWithIdentity<
 
 	readonly identity = this.config.identity;
 
+	/** @internal */
 	override shouldDisableInsert(): boolean {
 		return !!this.identity;
 	}

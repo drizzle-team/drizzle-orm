@@ -40,6 +40,7 @@ import {
 	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
+import { stripAnsi } from 'hanji/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -2260,4 +2261,123 @@ test('create table with datetime .onUpdateNow() diff variations', async () => {
 	};
 
 	await expect(push({ db, to })).resolves.not.toThrowError();
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3826
+test('Issue No3826. Renaming column and altering contraint on it', async () => {
+	const schemaFrom = {
+		users: mysqlTable('users', {
+			id: int('id').primaryKey().notNull(),
+			phone_number: varchar('old_name', { length: 100 }).notNull(),
+			customer_id: varchar('customer_id', { length: 100 }).unique(),
+			avatar: varchar('avatar', { length: 100 }),
+		}),
+	};
+
+	const schemaTo = {
+		users: mysqlTable('users', {
+			id: int('id').primaryKey().notNull(),
+			phone_number: varchar('new_name', { length: 100 }), // renamed + dropped not null
+			customer_id: varchar('customer_id', { length: 100 }).unique(),
+			avatar: varchar('avatar', { length: 100 }),
+		}),
+	};
+
+	const renames = ['users.old_name->users.new_name'];
+	const { sqlStatements: st1 } = await diff(schemaFrom, schemaTo, renames);
+	await push({ db, to: schemaFrom });
+	const { sqlStatements: pst1 } = await push({ db, to: schemaTo, renames });
+
+	const st0 = [
+		'ALTER TABLE `users` RENAME COLUMN `old_name` TO `new_name`;',
+		'ALTER TABLE `users` MODIFY COLUMN `new_name` varchar(100);',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6360
+test('Issue No6360', async () => {
+	const a1 = mysqlTable('a', {
+		id: int('id').primaryKey(),
+		user_id: int('user_id').notNull(),
+	});
+
+	const b1 = mysqlTable('b', {
+		id: int('id').primaryKey(),
+		user_id: int('user_id').notNull(),
+	});
+
+	const schema1 = { a1, b1 };
+
+	const a2 = mysqlTable('a', {
+		id: int('id').primaryKey(),
+		user_id: int('org_id').notNull(), // new name
+	});
+
+	const b2 = mysqlTable('b', {
+		id: int('id').primaryKey(),
+		user_id: int('user_id'), // dropped not null
+	});
+
+	const schema2 = { a2, b2 };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, [`a.user_id->a.org_id`]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({
+		db,
+		to: schema2,
+		renames: [`a.user_id->a.org_id`],
+	});
+
+	const st0 = [
+		'ALTER TABLE `a` RENAME COLUMN `user_id` TO `org_id`;',
+		'ALTER TABLE `b` MODIFY COLUMN `user_id` int;',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});
+
+test('drop column in a renamed table with data', async () => {
+	const schema1 = {
+		users: mysqlTable('users', { id: int('id').primaryKey(), name: varchar('name', { length: 255 }) }),
+	};
+	const schema2 = {
+		accounts: mysqlTable('accounts', { id: int('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO \`users\` (\`id\`, \`name\`) VALUES (1, 'drizzle');`, []);
+
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: ['users->accounts'] });
+
+	expect(pst).toStrictEqual([
+		'RENAME TABLE `users` TO `accounts`;',
+		'ALTER TABLE `accounts` DROP COLUMN `name`;',
+	]);
+	expect(phints.map((it) => ({ ...it, hint: stripAnsi(it.hint) }))).toStrictEqual([
+		{ hint: `You're about to delete non-empty name column in accounts table` },
+	]);
+});
+
+test('drop primary key in a renamed table with data', async () => {
+	const schema1 = {
+		users: mysqlTable('users', { id: int('id').primaryKey(), name: varchar('name', { length: 255 }) }),
+	};
+	const schema2 = {
+		accounts: mysqlTable('accounts', { id: int('id').notNull(), name: varchar('name', { length: 255 }) }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO \`users\` (\`id\`, \`name\`) VALUES (1, 'drizzle');`, []);
+
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: ['users->accounts'] });
+
+	expect(pst).toStrictEqual([
+		'RENAME TABLE `users` TO `accounts`;',
+		'ALTER TABLE `accounts` DROP PRIMARY KEY;',
+	]);
+	expect(phints.map((it) => ({ ...it, hint: stripAnsi(it.hint) }))).toStrictEqual([{
+		hint: `You're about to drop accounts primary key, this statements may fail and your table may lose primary key`,
+	}]);
 });

@@ -15,6 +15,7 @@ import type { Query } from '~/sql/sql.ts';
 export interface BunSQLSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class BunSQLSession<
@@ -68,6 +69,7 @@ export class BunSQLSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -129,6 +131,10 @@ export class BunSQLTransaction<
 	}
 }
 
+export type BunSQLRawExecuteResult = Record<string, unknown>[] | Record<string, unknown>[][];
+
 export interface BunSQLQueryResultHKT extends PgQueryResultHKT {
-	type: this['row'][];
+	type: [this['row']] extends [never] ? []
+		: [this['row']] extends ['unknown'] ? BunSQLRawExecuteResult
+		: this['row'][];
 }

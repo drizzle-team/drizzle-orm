@@ -2,10 +2,14 @@ import type { TypeOf } from 'zod';
 import { boolean, coerce, object, string, union } from 'zod';
 import { ConfigConnectionCliError } from '../errors';
 import { error, humanLog } from '../views';
-import { wrapParam } from './common';
+import { warnOnUrlConflict, wrapParam } from './common';
 import { outputs } from './outputs';
 
 export const singlestoreCredentials = union([
+	// "url" goes first: when it's provided along with individual params, it wins
+	object({
+		url: string().min(1),
+	}),
 	object({
 		host: string().min(1),
 		port: coerce.number().min(1).optional(),
@@ -26,12 +30,12 @@ export const singlestoreCredentials = union([
 			}),
 		]).optional(),
 	}),
-	object({
-		url: string().min(1),
-	}),
 ]);
 
 export type SingleStoreCredentials = TypeOf<typeof singlestoreCredentials>;
+
+export const warnOnConflictingCredentials = (options: Record<string, unknown>) =>
+	warnOnUrlConflict(options, ['host', 'port', 'user', 'password', 'database', 'ssl']);
 
 export const printCliConnectionIssues = (options: any) => {
 	const { uri, host, database } = options || {};

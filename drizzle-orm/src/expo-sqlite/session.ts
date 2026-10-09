@@ -1,6 +1,5 @@
-import type { SQLiteDatabase, SQLiteRunResult, SQLiteStatement } from 'expo-sqlite';
+import type { SQLiteDatabase, SQLiteRunResult } from 'expo-sqlite';
 import { entityKind } from '~/entity.ts';
-import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -18,6 +17,7 @@ import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface ExpoSQLiteSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export type ExpoSQLiteRunResult = SQLiteRunResult;
@@ -52,31 +52,38 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 			tables: string[];
 		},
 	): SQLiteAsyncPreparedQuery<T & { run: ExpoSQLiteRunResult }> {
-		let stmt: SQLiteStatement;
-		try {
-			stmt = this.client.prepareSync(query.sql);
-		} catch (e) {
-			throw new DrizzleQueryError(query.sql, query.params, e as Error);
-		}
-
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {
-				if (mode === 'arrays') return stmt.executeForRawResultSync(params as any[]).getAllSync();
-				return stmt.executeSync(params as any[]).getAllSync();
+				const stmt = this.client.prepareSync(query.sql);
+				try {
+					return mode === 'arrays'
+						? stmt.executeForRawResultSync(params as any[]).getAllSync()
+						: stmt.executeSync(params as any[]).getAllSync();
+				} finally {
+					stmt.finalizeSync();
+				}
 			},
 			get: (params) => {
-				if (mode === 'arrays') return stmt.executeForRawResultSync(params as any[]).getFirstSync();
-				return stmt.executeSync(params as any[]).getFirstSync();
+				const stmt = this.client.prepareSync(query.sql);
+				try {
+					return mode === 'arrays'
+						? stmt.executeForRawResultSync(params as any[]).getFirstSync()
+						: stmt.executeSync(params as any[]).getFirstSync();
+				} finally {
+					stmt.finalizeSync();
+				}
 			},
 			run: (params) => {
-				const res = stmt.executeSync(params as any[]);
-				return {
-					changes: res.changes,
-					lastInsertRowId: res.lastInsertRowId,
-				};
-			},
-			values: (params) => {
-				return stmt.executeForRawResultSync(params as any[]).getAllSync();
+				const stmt = this.client.prepareSync(query.sql);
+				try {
+					const res = stmt.executeSync(params as any[]);
+					return {
+						changes: res.changes,
+						lastInsertRowId: res.lastInsertRowId,
+					};
+				} finally {
+					stmt.finalizeSync();
+				}
 			},
 		};
 
@@ -91,6 +98,7 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 			undefined,
 			queryMetadata,
 			undefined,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -98,6 +106,8 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 		transaction: (tx: ExpoSQLiteTransaction<TRelations>) => T,
 		config: SQLiteTransactionConfig = {},
 	): T {
+		if (config?.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
+
 		const tx = new ExpoSQLiteTransaction('sync', this.dialect, this, this.relations);
 		this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
@@ -105,7 +115,11 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 			this.run(sql`commit`);
 			return result;
 		} catch (err) {
-			this.run(sql`rollback`);
+			try {
+				this.run(sql`rollback`);
+			} catch {
+				// original error takes priority
+			}
 			throw err;
 		}
 	}
@@ -136,7 +150,11 @@ export class ExpoSQLiteTransaction<
 			this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result as T;
 		} catch (err) {
-			this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			try {
+				this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			} catch {
+				// original error takes priority
+			}
 			throw err;
 		}
 	}

@@ -8,6 +8,7 @@ import { ddlDiff } from '../../dialects/sqlite/diff';
 import { fromDrizzleSchema } from '../../dialects/sqlite/drizzle';
 import type { SchemaSource } from '../../dialects/sqlite/drizzle';
 import type { JsonStatement } from '../../dialects/sqlite/statements';
+import { tableBeforeRenames } from '../../dialects/utils';
 import type { SQLiteClient } from '../../utils';
 import { isInteractive, outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
@@ -138,6 +139,7 @@ export const suggestions = async (
 	const json = outputFormat() === 'json';
 	const useHints = json || !isInteractive();
 	const grouped: { hint: string; statement?: string }[] = [];
+	const tableBefore = tableBeforeRenames({ tables: jsonStatements.filter((it) => it.type === 'rename_table') });
 
 	// TODO: generate truncations/recreates ??
 	for (const statement of jsonStatements) {
@@ -162,7 +164,7 @@ export const suggestions = async (
 			const entity = ['public', table, name] as const;
 			if (hints.matchConfirm('column', entity)) continue;
 
-			const res = await connection.query(`select 1 from "${table}" limit 1;`);
+			const res = await connection.query(`select 1 from "${tableBefore({ name: table }).name}" limit 1;`);
 			if (res.length > 0) {
 				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
@@ -176,12 +178,17 @@ export const suggestions = async (
 		if (statement.type === 'add_column' && (statement.column.notNull && !statement.column.default)) {
 			const { table, name } = statement.column;
 			const entity = ['public', table, name] as const;
-			const res = await connection.query(`select 1 from "${table}" limit 1`);
+			const tableInDb = tableBefore({ name: table }).name;
+			const res = await connection.query(`select 1 from "${tableInDb}" limit 1`);
 			const tableNonEmpty = res.length > 0;
+			const loss = {
+				hint: `You're about to add not-null '${name}' column without default value to non-empty '${table}' table`,
+				statement: `DELETE FROM "${tableInDb}" where true;`,
+			};
 
 			if (hints.matchConfirm('add_not_null', entity)) {
 				if (tableNonEmpty) {
-					grouped.push({ hint: '', statement: `DELETE FROM "${table}" where true;` });
+					grouped.push(loss);
 				}
 				continue;
 			}
@@ -195,12 +202,7 @@ export const suggestions = async (
 						reason: 'table_recreate',
 					});
 				} else {
-					grouped.push(
-						{
-							hint: `You're about to add not-null '${name}' column without default value to non-empty '${table}' table`,
-							statement: `DELETE FROM "${table}" where true;`,
-						},
-					);
+					grouped.push(loss);
 				}
 			}
 
@@ -213,7 +215,7 @@ export const suggestions = async (
 			);
 			if (droppedColumns.length === 0) continue;
 
-			const res = await connection.query(`select 1 from "${statement.from.name}" limit 1`);
+			const res = await connection.query(`select 1 from "${tableBefore(statement.from).name}" limit 1`);
 			if (res.length > 0) {
 				if (useHints) {
 					for (const droppedColumn of droppedColumns) {

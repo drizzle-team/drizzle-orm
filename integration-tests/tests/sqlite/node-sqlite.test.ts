@@ -189,6 +189,7 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 const skip = [
 	// Uses sync versions
 	'transaction rollback',
+	'Query error params - transaction',
 	'nested transaction rollback',
 	// DB needs to be built in special way to support this
 	'delete with limit and order by',

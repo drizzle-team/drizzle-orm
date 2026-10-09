@@ -475,3 +475,15 @@ export const newYorkersWithSubquery = sqliteView('new_yorkers_with_sq')
 		textdef: text().default(''),
 	});
 }
+
+{
+	// https://github.com/drizzle-team/drizzle-orm/issues/4294
+	const test = sqliteTable('test', {
+		id: text('id').primaryKey().unique(),
+		parentRef: text('parentRef').$type<string | null>(),
+	});
+
+	type InsertTest = typeof test.$inferInsert;
+
+	Expect<Equal<InsertTest, { id: string; parentRef?: string | null }>>;
+}

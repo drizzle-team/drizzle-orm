@@ -4,8 +4,8 @@ import { entityKind } from '~/entity.ts';
 import { MySqlDeleteBase, type MySqlDeleteHKTBase } from '~/mysql-core/query-builders/delete.ts';
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKind } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import type { Assume } from '~/utils.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { MySqlEffectPreparedQuery, MySqlEffectSession } from './session.ts';
 
 export type MySqlEffectDelete<
@@ -68,7 +68,7 @@ export class MySqlEffectDeleteBase<
 			undefined,
 			{
 				type: 'delete',
-				tables: extractUsedTable(this.config.table),
+				tables: usedTablesOf(this.config.table),
 			},
 		) as MySqlEffectDeletePrepare<this, TEffectHKT>;
 	}

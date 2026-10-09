@@ -4,48 +4,15 @@ import { globSync } from 'glob';
 import { mkdirSync, renameSync, rmSync } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import { build as tsdown } from 'tsdown';
+import { emitDirIndexShims } from './emit-dir-index-shims.ts';
 
 const entries = globSync('src/**/*.ts', { ignore: ['src/**/*.test.ts'] });
 
-async function updateAndCopyPackageJson() {
+async function copyPackageJson() {
+	// The published `exports` map is static (root + `"./*"` wildcard) and lives in package.json
+	// directly; this just carries it into the dist that gets packed. The wildcard's directory-index
+	// shims are the only dynamic piece — see emitDirIndexShims.
 	const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'));
-
-	pkg.exports = entries.reduce<
-		Record<string, {
-			import: {
-				types?: string;
-				default: string;
-			};
-			require: {
-				types: string;
-				default: string;
-			};
-			default: string;
-			types: string;
-		}>
-	>(
-		(acc, rawEntry) => {
-			const entry = rawEntry.match(/src\/(.*)\.ts/)![1]!;
-			const exportsEntry = entry === 'index' ? '.' : './' + entry.replace(/\/index$/, '');
-			const importEntry = `./${entry}.js`;
-			const requireEntry = `./${entry}.cjs`;
-			acc[exportsEntry] = {
-				import: {
-					types: `./${entry}.d.ts`,
-					default: importEntry,
-				},
-				require: {
-					types: `./${entry}.d.cts`,
-					default: requireEntry,
-				},
-				types: `./${entry}.d.ts`,
-				default: importEntry,
-			};
-			return acc;
-		},
-		{},
-	);
-
 	await fs.writeFile('dist.new/package.json', JSON.stringify(pkg, null, 2));
 }
 
@@ -80,8 +47,9 @@ async function main() {
 	await $`bun scripts/fix-imports.ts`.quiet();
 	await Promise.all([
 		fs.copyFile('../README.md', 'dist.new/README.md'),
-		updateAndCopyPackageJson(),
+		copyPackageJson(),
 	]);
+	await emitDirIndexShims(entries, 'dist.new');
 
 	rmSync('dist', { recursive: true, force: true });
 	renameSync('dist.new', 'dist');
@@ -90,7 +58,9 @@ async function main() {
 	console.log(`Build complete ${elapsed}s`);
 }
 
-main().catch((e) => {
-	console.error(e);
-	process.exit(1);
-}).then(() => process.exit(0));
+if (import.meta.main) {
+	main().catch((e) => {
+		console.error(e);
+		process.exit(1);
+	}).then(() => process.exit(0));
+}

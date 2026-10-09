@@ -1,9 +1,11 @@
+import type { ExecutedQuery } from '@planetscale/database';
 import { Client } from '@planetscale/database';
 import { sql } from 'drizzle-orm';
 import { getTableConfig } from 'drizzle-orm/mysql-core';
 import { drizzle } from 'drizzle-orm/planetscale-serverless';
+import type { PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
 import { migrate } from 'drizzle-orm/planetscale-serverless/migrator';
-import { describe, expect } from 'vitest';
+import { describe, expect, expectTypeOf } from 'vitest';
 import { planetscaleTest as test } from './instrumentation';
 import { tests } from './mysql-common';
 import { runTests as cacheTests } from './mysql-common-cache';
@@ -52,6 +54,11 @@ const omit = new Set([
 	'utc config for datetime',
 	'transaction',
 	'transaction with options (set isolationLevel)',
+	'transaction with options (isolationLevel read committed sees concurrent commits)',
+	'transaction with options (isolationLevel repeatable read hides concurrent commits)',
+	'transaction with options (accessMode read only)',
+	'transaction with options (withConsistentSnapshot)',
+	'transaction with options (withConsistentSnapshot combined with accessMode)',
 	'having',
 	'select count()',
 	'insert via db.execute w/ query builder',
@@ -68,6 +75,35 @@ const omit = new Set([
 
 tests(test, omit);
 cacheTests('planetscale', test);
+
+test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
+	const db = fixtureDb as unknown as PlanetScaleDatabase;
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} (\`id\` int primary key, \`name\` text not null)`);
+	expectTypeOf(created).toEqualTypeOf<ExecutedQuery<never>>();
+	expect(created).toEqual(expect.objectContaining({ rows: [], rowsAffected: expect.any(Number) }));
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<ExecutedQuery<never>>();
+	expect(inserted).toEqual(expect.objectContaining({ rows: [], rowsAffected: 1, insertId: expect.any(String) }));
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select \`id\`, \`name\` from ${table}`);
+	expectTypeOf(selected).toEqualTypeOf<ExecutedQuery<{ id: number; name: string }>>();
+	expect(selected).toEqual(expect.objectContaining({ rows: [{ id: 1, name: 'John' }], headers: ['id', 'name'] }));
+
+	// Any response
+	const any = await db.execute(sql`select \`id\`, \`name\` from ${table}`);
+	expectTypeOf(any).toEqualTypeOf<ExecutedQuery>();
+	expect(any).toEqual(expect.objectContaining({ rows: [{ id: 1, name: 'John' }] }));
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
 
 describe('migrator', () => {
 	test('migrator', async ({ db }) => {

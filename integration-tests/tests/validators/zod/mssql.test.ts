@@ -463,11 +463,11 @@ test('type coercion - all', (t) => {
 	});
 	const result = createSelectSchema(table);
 	const expected = z.object({
-		bigint: z.coerce.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		bit: z.coerce.boolean(),
-		datetime: z.coerce.date(),
-		int: z.coerce.number().int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
-		text: z.coerce.string(),
+		bigint: z.coerce.bigint<bigint>().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
+		bit: z.coerce.boolean<boolean>(),
+		datetime: z.coerce.date<Date>(),
+		int: z.coerce.number<number>().int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
+		text: z.coerce.string<string>(),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -489,7 +489,7 @@ test('type coercion - mixed', (t) => {
 	});
 	const result = createSelectSchema(table);
 	const expected = z.object({
-		datetime: z.coerce.date(),
+		datetime: z.coerce.date<Date>(),
 		int: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
 	});
 	expectSchemaShape(t, expected).from(result);

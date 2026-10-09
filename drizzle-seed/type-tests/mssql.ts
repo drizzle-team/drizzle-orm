@@ -10,7 +10,7 @@ const mssqlUsers = mssqlTable('users', {
 });
 
 {
-	const db0 = drizzle('', { schema: { users: mssqlUsers } });
+	const db0 = drizzle('');
 
 	await seed(db0, { users: mssqlUsers });
 	await seed(db0, { users: mssqlUsers }).refine((funcs) => ({

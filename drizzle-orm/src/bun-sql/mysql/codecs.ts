@@ -2,11 +2,20 @@ import { castToText, floatFromDouble, refineGenericMySqlCodecs } from '~/mysql-c
 import { sql } from '~/sql/sql.ts';
 
 export const bunSqlMySqlCodecs = refineGenericMySqlCodecs({
+	serial: {
+		cast: castToText,
+		normalize: Number,
+	},
+	bigint: {
+		cast: castToText,
+		normalize: BigInt,
+	},
 	'bigint:number': {
+		cast: castToText,
 		normalize: Number,
 	},
 	'bigint:string': {
-		normalize: String,
+		cast: castToText,
 	},
 	boolean: {
 		normalize: (value: number) => value === 1,
@@ -23,6 +32,9 @@ export const bunSqlMySqlCodecs = refineGenericMySqlCodecs({
 		normalize: (value: Date) => value.toISOString().slice(0, -1).replace('T', ' '),
 	},
 	'timestamp:string': {
+		cast: castToText,
+	},
+	time: {
 		cast: castToText,
 	},
 	'decimal:number': {

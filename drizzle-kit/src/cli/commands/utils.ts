@@ -17,7 +17,10 @@ import {
 } from '../errors';
 import { type Hint, HintsHandler } from '../hints';
 import type { CockroachCredentials } from '../validations/cockroach';
-import { cockroachCredentials } from '../validations/cockroach';
+import {
+	cockroachCredentials,
+	warnOnConflictingCredentials as warnOnConflictingCredentialsCockroach,
+} from '../validations/cockroach';
 import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroach';
 import type { EntitiesFilterConfig } from '../validations/common';
 import { pullParams, pushParams } from '../validations/common';
@@ -29,16 +32,28 @@ import type { LibSQLCredentials } from '../validations/libsql';
 import { libSQLCredentials, printConfigConnectionIssues as printIssuesLibSQL } from '../validations/libsql';
 import { printConfigConnectionIssues as printMssqlIssues } from '../validations/mssql';
 import type { MssqlCredentials } from '../validations/mssql';
-import { mssqlCredentials } from '../validations/mssql';
+import {
+	mssqlCredentials,
+	warnOnConflictingCredentials as warnOnConflictingCredentialsMssql,
+} from '../validations/mssql';
 import type { MysqlCredentials } from '../validations/mysql';
-import { mysqlCredentials, printConfigConnectionIssues as printIssuesMysql } from '../validations/mysql';
+import {
+	mysqlCredentials,
+	printConfigConnectionIssues as printIssuesMysql,
+	warnOnConflictingCredentials as warnOnConflictingCredentialsMysql,
+} from '../validations/mysql';
 import { outputs } from '../validations/outputs';
 import type { PostgresCredentials } from '../validations/postgres';
-import { postgresCredentials, printConfigConnectionIssues as printIssuesPg } from '../validations/postgres';
+import {
+	postgresCredentials,
+	printConfigConnectionIssues as printIssuesPg,
+	warnOnConflictingCredentials as warnOnConflictingCredentialsPg,
+} from '../validations/postgres';
 import type { SingleStoreCredentials } from '../validations/singlestore';
 import {
 	printConfigConnectionIssues as printIssuesSingleStore,
 	singlestoreCredentials,
+	warnOnConflictingCredentials as warnOnConflictingCredentialsSingleStore,
 } from '../validations/singlestore';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { printConfigConnectionIssues as printIssuesSqlite, sqliteCredentials } from '../validations/sqlite';
@@ -278,7 +293,6 @@ export const preparePushConfig = async (
 	);
 
 	raw.verbose ||= options.verbose; // if provided in cli to debug
-	raw.strict ||= options.strict; // if provided in cli only
 
 	const parsed = pushParams.safeParse(raw);
 
@@ -306,6 +320,7 @@ export const preparePushConfig = async (
 	} as const;
 
 	if (config.dialect === 'postgresql') {
+		warnOnConflictingCredentialsPg(config);
 		const parsed = postgresCredentials.safeParse(config);
 		if (parsed.success) {
 			return {
@@ -324,6 +339,7 @@ export const preparePushConfig = async (
 	}
 
 	if (config.dialect === 'mysql') {
+		warnOnConflictingCredentialsMysql(config);
 		const parsed = mysqlCredentials.safeParse(config);
 		if (parsed.success) {
 			return {
@@ -342,6 +358,7 @@ export const preparePushConfig = async (
 	}
 
 	if (config.dialect === 'singlestore') {
+		warnOnConflictingCredentialsSingleStore(config);
 		const parsed = singlestoreCredentials.safeParse(config);
 		if (parsed.success) {
 			return {
@@ -396,6 +413,7 @@ export const preparePushConfig = async (
 	}
 
 	if (config.dialect === 'mssql') {
+		warnOnConflictingCredentialsMssql(config);
 		const parsed = mssqlCredentials.safeParse(config);
 		if (parsed.success) {
 			return {
@@ -414,6 +432,7 @@ export const preparePushConfig = async (
 	}
 
 	if (config.dialect === 'cockroach') {
+		warnOnConflictingCredentialsCockroach(config);
 		const parsed = cockroachCredentials.safeParse(config);
 		if (parsed.success) {
 			return {
@@ -515,6 +534,7 @@ export const preparePullConfig = async (
 	} as const;
 
 	if (dialect === 'postgresql') {
+		warnOnConflictingCredentialsPg(config);
 		const parsed = postgresCredentials.safeParse(config);
 		if (parsed.success) {
 			return {
@@ -532,6 +552,7 @@ export const preparePullConfig = async (
 	}
 
 	if (dialect === 'mysql') {
+		warnOnConflictingCredentialsMysql(config);
 		const parsed = mysqlCredentials.safeParse(config);
 		if (parsed.success) {
 			return {
@@ -549,6 +570,7 @@ export const preparePullConfig = async (
 	}
 
 	if (dialect === 'singlestore') {
+		warnOnConflictingCredentialsSingleStore(config);
 		const parsed = singlestoreCredentials.safeParse(config);
 		if (parsed.success) {
 			return {
@@ -600,6 +622,7 @@ export const preparePullConfig = async (
 	}
 
 	if (dialect === 'mssql') {
+		warnOnConflictingCredentialsMssql(config);
 		const parsed = mssqlCredentials.safeParse(config);
 		if (parsed.success) {
 			return {
@@ -617,6 +640,7 @@ export const preparePullConfig = async (
 	}
 
 	if (dialect === 'cockroach') {
+		warnOnConflictingCredentialsCockroach(config);
 		const parsed = cockroachCredentials.safeParse(config);
 		if (parsed.success) {
 			return {
@@ -653,7 +677,12 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		process.exit(1);
 	}
 
-	if (!('dbCredentials' in config)) {
+	if (config.driver === 'pglite') {
+		if (!('dbCredentials' in config) && !('client' in config)) {
+			humanLog(outputs.studio.noClientAndCredentials());
+			process.exit(1);
+		}
+	} else if (!('dbCredentials' in config)) {
 		humanLog(outputs.studio.noCredentials());
 		process.exit(1);
 	}
@@ -662,6 +691,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 	const flattened = flattenDatabaseCredentials(config);
 
 	if (dialect === 'postgresql') {
+		warnOnConflictingCredentialsPg(flattened as Record<string, unknown>);
 		const parsed = postgresCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			printIssuesPg(flattened as Record<string, unknown>);
@@ -678,6 +708,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 	}
 
 	if (dialect === 'mysql') {
+		warnOnConflictingCredentialsMysql(flattened as Record<string, unknown>);
 		const parsed = mysqlCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			printIssuesMysql(flattened as Record<string, unknown>);
@@ -694,6 +725,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 	}
 
 	if (dialect === 'singlestore') {
+		warnOnConflictingCredentialsSingleStore(flattened as Record<string, unknown>);
 		const parsed = singlestoreCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			printIssuesSingleStore(flattened as Record<string, unknown>);
@@ -742,6 +774,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 	}
 
 	if (dialect === 'cockroach') {
+		warnOnConflictingCredentialsCockroach(flattened as Record<string, unknown>);
 		const parsed = cockroachCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			printCockroachIssues(flattened as Record<string, unknown>);
@@ -804,6 +837,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	const flattened = flattenDatabaseCredentials(config);
 
 	if (dialect === 'postgresql') {
+		warnOnConflictingCredentialsPg(flattened as Record<string, unknown>);
 		const parsed = postgresCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			return printIssuesPg(flattened as Record<string, unknown>);
@@ -819,6 +853,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	}
 
 	if (dialect === 'mysql') {
+		warnOnConflictingCredentialsMysql(flattened as Record<string, unknown>);
 		const parsed = mysqlCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			return printIssuesMysql(flattened as Record<string, unknown>);
@@ -834,6 +869,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	}
 
 	if (dialect === 'singlestore') {
+		warnOnConflictingCredentialsSingleStore(flattened as Record<string, unknown>);
 		const parsed = singlestoreCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			return printIssuesSingleStore(flattened as Record<string, unknown>);
@@ -878,6 +914,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	}
 
 	if (dialect === 'mssql') {
+		warnOnConflictingCredentialsMssql(flattened as Record<string, unknown>);
 		const parsed = mssqlCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			return printMssqlIssues(flattened as Record<string, unknown>);
@@ -893,6 +930,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	}
 
 	if (dialect === 'cockroach') {
+		warnOnConflictingCredentialsCockroach(flattened as Record<string, unknown>);
 		const parsed = cockroachCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			return printCockroachIssues(flattened as Record<string, unknown>);

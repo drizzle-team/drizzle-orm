@@ -11,9 +11,7 @@ export class CockroachRole implements CockroachRoleConfig {
 	/** @internal */
 	_existing?: boolean;
 
-	/** @internal */
 	readonly createDb: CockroachRoleConfig['createDb'];
-	/** @internal */
 	readonly createRole: CockroachRoleConfig['createRole'];
 
 	constructor(

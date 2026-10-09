@@ -52,6 +52,20 @@ test.each([
 	["((lower(first_name) || ', '::text) || lower(last_name))", [
 		"((lower(first_name) || ', '::text) || lower(last_name))",
 	]],
+	// ARRAY[...] holds commas of its own
+	['ARRAY[lower(first_name), upper(first_name)]', ['ARRAY[lower(first_name), upper(first_name)]']],
+	['ARRAY[lower(first_name), upper(first_name)], lower(last_name)', [
+		'ARRAY[lower(first_name), upper(first_name)]',
+		'lower(last_name)',
+	]],
+	['ARRAY[ARRAY[first_name, last_name], ARRAY[last_name, first_name]]', [
+		'ARRAY[ARRAY[first_name, last_name], ARRAY[last_name, first_name]]',
+	]],
+	[`(ARRAY[first_name, ','::text])[1], lower(last_name)`, [
+		`(ARRAY[first_name, ','::text])[1]`,
+		'lower(last_name)',
+	]],
+	[`ARRAY['a,b'::text, name], ARRAY[name]`, [`ARRAY['a,b'::text, name]`, 'ARRAY[name]']],
 ])('split expression %#: %s', (it, expected) => {
 	expect(splitExpressions(it)).toStrictEqual(expected);
 });

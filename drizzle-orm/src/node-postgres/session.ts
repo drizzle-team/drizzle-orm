@@ -41,6 +41,7 @@ const typeConfig: CustomTypesConfig = {
 export interface NodePgSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class NodePgSession<
@@ -97,6 +98,7 @@ export class NodePgSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -105,9 +107,23 @@ export class NodePgSession<
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		const isPool = this.client instanceof Pool || Object.getPrototypeOf(this.client).constructor.name.includes('Pool'); // oxlint-disable-line drizzle-internal/no-instanceof
-		const session = isPool
+		const poolClient = isPool ? await (<pg.Pool> this.client).connect() : undefined;
+		// pg-pool detaches its own `error` listener from checked-out clients, so a connection dropped mid-transaction would crash the process
+		let connectionError: Error | undefined;
+		let rollbackError: Error | undefined;
+		const onConnectionError = (e: Error) => {
+			connectionError ??= e;
+		};
+		poolClient?.on('error', onConnectionError);
+		const release = () => {
+			if (!poolClient) return;
+			// broken client is destroyed by the pool, listener stays to absorb any trailing errors
+			if (!connectionError) poolClient.off('error', onConnectionError);
+			poolClient.release(connectionError ?? rollbackError);
+		};
+		const session = poolClient
 			? new NodePgSession(
-				await (<pg.Pool> this.client).connect(),
+				poolClient,
 				this.dialect,
 				this.relations,
 				this.options,
@@ -120,16 +136,31 @@ export class NodePgSession<
 			undefined,
 			false,
 		);
-		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
+
 		try {
+			await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
+		} catch (e) {
+			release();
+			throw e;
+		}
+
+		try {
+			if (typeof config?.snapshot === 'string') {
+				await tx.execute(tx.setTransactionSnapshotSQL(config.snapshot));
+			}
 			const result = await transaction(tx);
 			await tx.execute(sql`commit`);
 			return result;
 		} catch (error) {
-			await tx.execute(sql`rollback`);
+			// nothing to roll back on a dead connection; failed rollback must not mask the original error
+			if (!connectionError) {
+				await tx.execute(sql`rollback`).catch((e) => {
+					rollbackError = e;
+				});
+			}
 			throw error;
 		} finally {
-			if (isPool) (session.client as PoolClient).release();
+			release();
 		}
 	}
 }
@@ -156,12 +187,16 @@ export class NodePgTransaction<
 			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}
 }
 
+export type NodePgRawExecuteResult = QueryResult<Record<string, unknown>> | QueryResult<Record<string, unknown>>[];
+
 export interface NodePgQueryResultHKT extends PgQueryResultHKT {
-	type: QueryResult<Assume<this['row'], QueryResultRow>>;
+	type: [this['row']] extends [never] ? QueryResult<never>
+		: [this['row']] extends ['unknown'] ? NodePgRawExecuteResult
+		: QueryResult<Assume<this['row'], QueryResultRow>>;
 }

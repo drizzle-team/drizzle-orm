@@ -37,6 +37,7 @@ export class PgEffectRaw<TResult, TEffectHKT extends QueryEffectHKTBase = QueryE
 		return this.prepared.execute(placeholderValues);
 	}
 
+	/** @internal */
 	override _prepare() {
 		return this.prepared;
 	}

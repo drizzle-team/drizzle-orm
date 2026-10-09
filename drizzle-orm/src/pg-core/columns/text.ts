@@ -23,7 +23,7 @@ export class PgTextBuilder<TEnum extends [string, ...string[]] = [string, ...str
 
 	/** @internal */
 	override build(table: PgTable<any>) {
-		return new PgText(table, this.config as any, this.config.enumValues);
+		return new PgText(table, this.config as any);
 	}
 }
 
@@ -39,10 +39,9 @@ export class PgText<TEnum extends [string, ...string[]] = [string, ...string[]]>
 	constructor(
 		table: PgTable<any>,
 		config: any,
-		enumValues?: string[],
 	) {
 		super(table, config);
-		this.enumValues = enumValues;
+		this.enumValues = config.enumValues;
 	}
 
 	getSQLType(): string {

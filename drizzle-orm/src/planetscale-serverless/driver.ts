@@ -58,6 +58,7 @@ const db = drizzle({ client });
 	const session = new PlanetscaleSession(client, dialect, undefined, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new PlanetScaleDatabase(
 		dialect,

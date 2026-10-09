@@ -303,21 +303,6 @@ function arrayColumnToSchema(
 				sizeParam,
 			);
 		}
-		case 'basecolumn': {
-			// CockroachDB/GEL style: has a separate baseColumn
-			const baseColumn = (<{ baseColumn?: Column }> column).baseColumn;
-			if (baseColumn) {
-				const size = column.length;
-				const sizeParam = size
-					? {
-						minItems: size,
-						maxItems: size,
-					}
-					: undefined;
-				return t.Array(columnToSchema(baseColumn, t), sizeParam);
-			}
-			return t.Array(t.Any());
-		}
 		default: {
 			return t.Array(t.Any());
 		}

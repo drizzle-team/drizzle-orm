@@ -1,6 +1,6 @@
 import type { SqliteClient } from '@effect/sql-sqlite-wasm/SqliteClient';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
@@ -23,11 +23,12 @@ export interface EffectSQLiteWasmQueryEffectHKT extends QueryEffectHKTBase {
 	readonly context: never;
 }
 
-export type EffectSQLiteWasmRunResult = unknown;
+export type EffectSQLiteWasmRunResult = [];
 
 export interface EffectSQLiteWasmSessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
+	paramsInErrors?: boolean;
 }
 
 export class EffectSQLiteWasmSession<TRelations extends AnyRelations>
@@ -69,7 +70,6 @@ export class EffectSQLiteWasmSession<TRelations extends AnyRelations>
 				if (mode === 'arrays') return q.values.pipe(Effect.map((e) => e[0]));
 				return q.withoutTransform.pipe(Effect.map((e) => e[0]));
 			},
-			values: (params) => this.client.unsafe(query.sql, params).values,
 			run: (params) => this.client.unsafe(query.sql, params).raw,
 		};
 
@@ -83,6 +83,7 @@ export class EffectSQLiteWasmSession<TRelations extends AnyRelations>
 			this.options.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

@@ -1,15 +1,16 @@
 import retry from 'async-retry';
 import { sql } from 'drizzle-orm';
-import type { NodeCockroachDatabase } from 'drizzle-orm/cockroach';
+import type { NodeCockroachDatabase, NodeCockroachRawExecuteResult } from 'drizzle-orm/cockroach';
 import { drizzle } from 'drizzle-orm/cockroach';
 import { cockroachTable, getTableConfig, int4, text, timestamp } from 'drizzle-orm/cockroach-core';
 import { migrate } from 'drizzle-orm/cockroach/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { Client } from 'pg';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { Client, Pool, type QueryResult } from 'pg';
+import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { requireCockroachConnectionString, tests, usersMigratorTable, usersTable } from './common';
+import { tests as testCommonRQB } from './common-rqb';
 
 const ENABLE_LOGGING = false;
 
@@ -39,93 +40,173 @@ afterAll(async () => {
 	await client?.end();
 });
 
-beforeEach((ctx) => {
-	ctx.cockroach = {
-		db,
-	};
+test('raw db.execute type matches returned data', async () => {
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} ("id" int4 primary key, "name" text not null)`);
+	expectTypeOf(created).toEqualTypeOf<QueryResult<never>>();
+	expect(created).toEqual(expect.objectContaining({ command: 'CREATE', rowCount: null, rows: [] }));
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<QueryResult<never>>();
+	expect(inserted).toEqual(expect.objectContaining({ command: 'INSERT', rowCount: 1, rows: [] }));
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(selected).toEqualTypeOf<QueryResult<{ id: number; name: string }>>();
+	expect(selected).toEqual(expect.objectContaining({
+		command: 'SELECT',
+		rowCount: 1,
+		rows: [{ id: 1, name: 'John' }],
+		fields: [expect.objectContaining({ name: 'id' }), expect.objectContaining({ name: 'name' })],
+	}));
+
+	// Multi-statement
+	const multi = await db.execute(
+		sql`insert into ${table} values (2, 'Jane'); select "id", "name" from ${table} order by "id"`,
+	);
+	expectTypeOf(multi).toEqualTypeOf<NodeCockroachRawExecuteResult>();
+	expect(multi).toEqual([
+		expect.objectContaining({ command: 'INSERT', rowCount: 1, rows: [] }),
+		expect.objectContaining({
+			command: 'SELECT',
+			rowCount: 2,
+			rows: [{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }],
+		}),
+	]);
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
+
+test('transaction rejects when pooled connection is dropped', async () => {
+	const pool = new Pool({ connectionString: requireCockroachConnectionString() });
+	pool.on('error', () => {});
+	const poolDb = drizzle({ client: pool });
+
+	try {
+		let error: any;
+		try {
+			await poolDb.transaction(async (tx) => {
+				const { rows } = await tx.execute<{ session_id: string }>(sql`show session_id`);
+				await client.query(`cancel session '${rows[0]!.session_id}'`);
+				await new Promise((resolve) => setTimeout(resolve, 200));
+				await tx.execute(sql`select 1`);
+			});
+		} catch (e) {
+			error = e;
+		}
+
+		// Original failure, not the rollback attempted on a dead connection
+		expect(error?.query).toBe('select 1');
+
+		// Broken client was discarded, pool hands out a working one
+		const { rows } = await poolDb.execute<{ ok: number }>(sql`select 1::int4 as ok`);
+		expect(rows).toEqual([{ ok: 1 }]);
+	} finally {
+		await pool.end();
+	}
 });
 
 test('migrator : default migration strategy', async () => {
-	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+	try {
+		await db.execute(sql`drop table if exists users12`);
+		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/cockroach' });
+		await migrate(db, { migrationsFolder: './drizzle2/cockroach' });
 
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
-	const result = await db.select().from(usersMigratorTable);
+		const result = await db.select().from(usersMigratorTable);
 
-	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
+		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+	} finally {
+		await db.execute(sql`drop table if exists users12`);
+		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
+	}
 });
 
 test('migrator : migrate with custom schema', async () => {
 	const customSchema = randomString();
-	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/cockroach', migrationsSchema: customSchema });
+	try {
+		await db.execute(sql`drop table if exists users12`);
+		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	// test if the custom migrations table was created
-	const { rowCount } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
-	expect(rowCount && rowCount > 0).toBeTruthy();
+		await migrate(db, { migrationsFolder: './drizzle2/cockroach', migrationsSchema: customSchema });
 
-	// test if the migrated table are working as expected
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-	const result = await db.select().from(usersMigratorTable);
-	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		// test if the custom migrations table was created
+		const { rowCount } = await db.execute<Record<string, unknown>>(
+			sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`,
+		);
+		expect(rowCount && rowCount > 0).toBeTruthy();
 
-	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table ${sql.identifier(customSchema)}."__drizzle_migrations"`);
+		// test if the migrated table are working as expected
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		const result = await db.select().from(usersMigratorTable);
+		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+	} finally {
+		await db.execute(sql`drop table if exists users12`);
+		await db.execute(sql`drop table if exists ${sql.identifier(customSchema)}."__drizzle_migrations"`);
+	}
 });
 
 test('migrator : migrate with custom table', async () => {
 	const customTable = randomString();
-	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/cockroach', migrationsTable: customTable });
+	try {
+		await db.execute(sql`drop table if exists users12`);
+		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	// test if the custom migrations table was created
-	const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
-	expect(rowCount && rowCount > 0).toBeTruthy();
+		await migrate(db, { migrationsFolder: './drizzle2/cockroach', migrationsTable: customTable });
 
-	// test if the migrated table are working as expected
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-	const result = await db.select().from(usersMigratorTable);
-	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		// test if the custom migrations table was created
+		const { rowCount } = await db.execute<Record<string, unknown>>(
+			sql`select * from "drizzle".${sql.identifier(customTable)};`,
+		);
+		expect(rowCount && rowCount > 0).toBeTruthy();
 
-	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table "drizzle".${sql.identifier(customTable)}`);
+		// test if the migrated table are working as expected
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		const result = await db.select().from(usersMigratorTable);
+		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+	} finally {
+		await db.execute(sql`drop table if exists users12`);
+		await db.execute(sql`drop table if exists "drizzle".${sql.identifier(customTable)}`);
+	}
 });
 
 test('migrator : migrate with custom table and custom schema', async () => {
 	const customTable = randomString();
 	const customSchema = randomString();
-	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	await migrate(db, {
-		migrationsFolder: './drizzle2/cockroach',
-		migrationsTable: customTable,
-		migrationsSchema: customSchema,
-	});
+	try {
+		await db.execute(sql`drop table if exists users12`);
+		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	// test if the custom migrations table was created
-	const { rowCount } = await db.execute(
-		sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`,
-	);
-	expect(rowCount && rowCount > 0).toBeTruthy();
+		await migrate(db, {
+			migrationsFolder: './drizzle2/cockroach',
+			migrationsTable: customTable,
+			migrationsSchema: customSchema,
+		});
 
-	// test if the migrated table are working as expected
-	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
-	const result = await db.select().from(usersMigratorTable);
-	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		// test if the custom migrations table was created
+		const { rowCount } = await db.execute<Record<string, unknown>>(
+			sql`select * from ${sql.identifier(customSchema)}.${sql.identifier(customTable)};`,
+		);
+		expect(rowCount && rowCount > 0).toBeTruthy();
 
-	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
+		// test if the migrated table are working as expected
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		const result = await db.select().from(usersMigratorTable);
+		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+	} finally {
+		await db.execute(sql`drop table if exists users12`);
+		await db.execute(sql`drop table if exists ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
+	}
 });
 
 test('migrator : --init', async () => {
@@ -575,52 +656,55 @@ skipTests([
 	'test mode string for timestamp with timezone in UTC timezone',
 	'test mode string for timestamp with timezone in different timezone',
 ]);
-tests();
+tests(() => db);
+testCommonRQB();
 
-beforeEach(async () => {
-	await db.execute(sql`drop database defaultdb;`);
-	await db.execute(sql`create database defaultdb;`);
-	await db.execute(
-		sql`
-			create table users (
-				id int4 primary key generated by default as identity,
-				name text not null,
-				verified boolean not null default false, 
-				jsonb jsonb,
-				created_at timestamptz not null default now()
-			)
-		`,
-	);
-});
+describe('db.execute', () => {
+	beforeEach(async () => {
+		await db.execute(sql`drop database defaultdb;`);
+		await db.execute(sql`create database defaultdb;`);
+		await db.execute(
+			sql`
+				create table users (
+					id int4 primary key generated by default as identity,
+					name text not null,
+					verified boolean not null default false, 
+					jsonb jsonb,
+					created_at timestamptz not null default now()
+				)
+			`,
+		);
+	});
 
-test('insert via db.execute + select via db.execute', async () => {
-	await db.execute(
-		sql`insert into ${usersTable} (${sql.identifier(usersTable.name.name)}) values (${'John'})`,
-	);
+	test('insert via db.execute + select via db.execute', async () => {
+		await db.execute(
+			sql`insert into ${usersTable} (${sql.identifier(usersTable.name.name)}) values (${'John'})`,
+		);
 
-	const result = await db.execute<{ id: string; name: string }>(
-		sql`select id, name from "users"`,
-	);
-	expect(result.rows).toEqual([{ id: 1, name: 'John' }]);
-});
+		const result = await db.execute<{ id: string; name: string }>(
+			sql`select id, name from "users"`,
+		);
+		expect(result.rows).toEqual([{ id: 1, name: 'John' }]);
+	});
 
-test('insert via db.execute + returning', async () => {
-	const inserted = await db.execute<{ id: string; name: string }>(
-		sql`insert into ${usersTable} (${
-			sql.identifier(
-				usersTable.name.name,
-			)
-		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
-	);
-	expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
-});
+	test('insert via db.execute + returning', async () => {
+		const inserted = await db.execute<{ id: string; name: string }>(
+			sql`insert into ${usersTable} (${
+				sql.identifier(
+					usersTable.name.name,
+				)
+			}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
+		);
+		expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
+	});
 
-test('insert via db.execute w/ query builder', async () => {
-	const inserted = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
-		db
-			.insert(usersTable)
-			.values({ name: 'John' })
-			.returning({ id: usersTable.id, name: usersTable.name }),
-	);
-	expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
+	test('insert via db.execute w/ query builder', async () => {
+		const inserted = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
+			db
+				.insert(usersTable)
+				.values({ name: 'John' })
+				.returning({ id: usersTable.id, name: usersTable.name }),
+		);
+		expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
+	});
 });

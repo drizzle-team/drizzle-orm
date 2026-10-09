@@ -1,6 +1,7 @@
 import type { MysqlClient } from '@effect/sql-mysql2/MysqlClient';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
@@ -12,20 +13,27 @@ import { MySqlEffectPreparedQuery, MySqlEffectSession, MySqlEffectTransaction } 
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT } from '~/mysql-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
-import type { Assume } from '~/utils.ts';
 
 export interface EffectMysql2QueryEffectHKT extends QueryEffectHKTBase {
 	readonly error: EffectDrizzleQueryError;
 	readonly context: never;
 }
 
+export type EffectMysql2RawExecuteResult =
+	| ResultSetHeader
+	| RowDataPacket[]
+	| (ResultSetHeader | RowDataPacket[])[];
+
 export interface EffectMysql2QueryResultHKT extends MySqlQueryResultHKT {
-	type: readonly Assume<this['row'], object>[];
+	type: [this['row']] extends [never] ? ResultSetHeader
+		: [this['row']] extends ['unknown'] ? EffectMysql2RawExecuteResult
+		: this['row'][];
 }
 
 export interface EffectMysql2SessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
+	paramsInErrors?: boolean;
 }
 
 export class EffectMysql2Session<
@@ -75,6 +83,7 @@ export class EffectMysql2Session<
 			this.options.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

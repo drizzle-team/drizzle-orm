@@ -122,6 +122,14 @@ export const escapeForTsLiteral = (input: string) => {
 	return JSON.stringify(input);
 };
 
+/**
+ * Escapes raw sql so it can be embedded into a `sql` template literal of a generated file,
+ * a backslash of a sql escape sequence(`_utf8mb4\'\'`) would otherwise be eaten by TypeScript
+ */
+export const escapeForSqlTemplate = (sql: string) => {
+	return sql.replaceAll('\\', '\\\\').replaceAll('`', '\\`').replaceAll('${', '\\${');
+};
+
 export function inspect(it: any): string {
 	if (!it) return '';
 
@@ -170,6 +178,21 @@ export const preserveEntityNames = <
 			} as any,
 		});
 	}
+};
+
+// Statements name a table as it is after the diff. A data loss check runs before any statement,
+// so it must query the table by the name that the database still has.
+export const tableBeforeRenames = (renames: {
+	schemas?: readonly { from: Named; to: Named }[];
+	tables: readonly { schema?: string; from: string; to: string }[];
+	moves?: readonly { name: string; from: string; to: string }[];
+}) =>
+<T extends { schema?: string; name: string }>(table: T): T => {
+	const schema = renames.moves?.find((it) => it.name === table.name && it.to === table.schema)?.from ?? table.schema;
+	const name = renames.tables.find((it) => it.to === table.name && it.schema === schema)?.from ?? table.name;
+	const schemaBefore = renames.schemas?.find((it) => it.to.name === schema)?.from.name ?? schema;
+
+	return { ...table, schema: schemaBefore, name };
 };
 
 export const filterMigrationsSchema = (

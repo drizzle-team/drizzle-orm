@@ -21,6 +21,7 @@ import type { DrizzleTypeError } from '~/utils.ts';
 export interface SQLiteBunSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export type SQLiteBunRunResult = Changes;
@@ -63,7 +64,7 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 		try {
 			stmt = this.client.query(query.sql);
 		} catch (e) {
-			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+			throw new DrizzleQueryError(query.sql, this.options.paramsInErrors ? query.params : undefined, e as Error);
 		}
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {
@@ -76,9 +77,6 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 			},
 			run: (params) => {
 				return stmt.run(...params as any[]);
-			},
-			values: (params) => {
-				return stmt.values(...params as any[]);
 			},
 		};
 
@@ -93,6 +91,7 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 			undefined,
 			queryMetadata,
 			undefined,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -105,6 +104,7 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 		const nativeTx = this.client.transaction(() => {
 			result = transaction(tx);
 		});
+		if (config.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
 		nativeTx[config.behavior ?? 'deferred']();
 		return result!;
 	}
@@ -135,7 +135,11 @@ export class SQLiteBunTransaction<
 			this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result as T;
 		} catch (err) {
-			this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			try {
+				this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			} catch {
+				// original error takes priority
+			}
 			throw err;
 		}
 	}

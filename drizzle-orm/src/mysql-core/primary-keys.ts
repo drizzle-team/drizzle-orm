@@ -25,6 +25,10 @@ export function primaryKey(...config: any) {
 export class PrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'MySqlPrimaryKeyBuilder';
 
+	declare _: {
+		brand: 'MySqlPrimaryKeyBuilder';
+	};
+
 	/** @internal */
 	columns: MySqlColumn[];
 

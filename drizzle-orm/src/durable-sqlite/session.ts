@@ -16,6 +16,7 @@ import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface SQLiteDOSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -67,7 +68,7 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyn
 					? this.client.sql.exec(query.sql, ...params)
 					: this.client.sql.exec(query.sql);
 
-				if (mode === 'objects') return res.one();
+				if (mode === 'objects') return res.next().value;
 
 				return res.raw().next().value;
 			},
@@ -75,14 +76,6 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyn
 				return params.length > 0
 					? this.client.sql.exec(query.sql, ...params)
 					: this.client.sql.exec(query.sql);
-			},
-			values: (params) => {
-				const res = params.length > 0
-					? this.client.sql.exec(query.sql, ...params)
-					: this.client.sql.exec(query.sql);
-
-				// @ts-ignore .raw().toArray() exists
-				return res.raw().toArray();
 			},
 		};
 
@@ -97,6 +90,7 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyn
 			undefined,
 			queryMetadata,
 			undefined,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -108,8 +102,11 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyn
 				TRelations
 			>,
 		) => T,
-		_config?: SQLiteTransactionConfig,
+		config?: SQLiteTransactionConfig,
 	): T {
+		if (config?.behavior) {
+			throw new Error('Transaction behavior is not supported by driver');
+		}
 		const tx = new SQLiteDOTransaction('sync', this.dialect, this, this.relations, undefined, true);
 		return this.client.transactionSync(() => transaction(tx));
 	}
