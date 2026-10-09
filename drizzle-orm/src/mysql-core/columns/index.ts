@@ -13,6 +13,7 @@ export * from './float.ts';
 export * from './int.ts';
 export * from './json.ts';
 export * from './mediumint.ts';
+export * from './point.ts';
 export * from './real.ts';
 export * from './serial.ts';
 export * from './smallint.ts';

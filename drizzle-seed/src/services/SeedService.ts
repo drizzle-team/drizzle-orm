@@ -838,7 +838,10 @@ export class SeedService {
 				}
 			}
 
-			if (col.columnType.includes('int')) {
+			if (
+				col.columnType.includes('int')
+				&& !col.columnType.includes('point')
+			) {
 				const generator = new generatorsMap.GenerateInt[0]({
 					minValue,
 					maxValue,
@@ -979,6 +982,12 @@ export class SeedService {
 				const generator = new generatorsMap.GenerateDefault[0]({
 					defaultValue: col.default,
 				});
+				return generator;
+			}
+
+			// POINT
+			if (col.columnType.includes('point')) {
+				const generator = new generatorsMap.GeneratePoint[0]();
 				return generator;
 			}
 
