@@ -243,9 +243,7 @@ jobs:
             ;;
 
             neon-serverless)
-              docker compose -f docker-neon.yml up -d
               pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/neon-serverless.test.ts tests/pg/postgres-neon-ws.test.ts
-              docker compose -f docker-neon.yml down
             ;;
 
             cockroach)
