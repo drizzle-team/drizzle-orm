@@ -54,6 +54,21 @@ Column class has set of types/functions, that could be overridden to get needed 
 
 - `mapFromDriverValue()` - interceptor between database and select query execution. If you want to modify/map/change value for specific data type, it could be done here
 
+- `selectFromDb()` - optional SQL wrapper for custom types that need to transform the column expression before the driver value is decoded
+
+#### Usage example for selecting PostGIS geometry as text
+
+```typescript
+const customGeometry = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return 'geometry';
+  },
+  selectFromDb(column) {
+    return sql`ST_AsText(${column})`;
+  },
+});
+```
+
 #### Usage example for jsonb type
 
 ```typescript
