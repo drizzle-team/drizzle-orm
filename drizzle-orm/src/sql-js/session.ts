@@ -44,8 +44,17 @@ export class SQLJsSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
+		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery<T> {
-		return new PreparedQuery(this.client, query, this.logger, fields, executeMethod, isResponseInArrayMode);
+		return new PreparedQuery(
+			this.client,
+			query,
+			this.logger,
+			fields,
+			executeMethod,
+			isResponseInArrayMode,
+			customResultMapper
+		);
 	}
 
 	override transaction<T>(
