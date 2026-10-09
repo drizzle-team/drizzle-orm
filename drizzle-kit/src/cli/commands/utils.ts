@@ -7,6 +7,7 @@ import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByE
 import { assertUnreachable } from '../../global';
 import { type Dialect, dialect } from '../../schemaValidator';
 import { prepareFilenames } from '../../serializer';
+import { push_array } from '../../utils';
 import type { Entities } from '../validations/cli';
 import { pullParams, pushParams } from '../validations/cli';
 import type { Casing, CasingType, CliConfig, Driver, Prefix } from '../validations/common';
@@ -348,7 +349,7 @@ export const preparePushConfig = async (
 			: schemasFilterConfig
 		: [];
 
-	tablesFilter.push(...getTablesFilterByExtensions(config));
+	push_array(tablesFilter, getTablesFilterByExtensions(config));
 
 	if (config.dialect === 'postgresql') {
 		const parsed = postgresCredentials.safeParse(config);

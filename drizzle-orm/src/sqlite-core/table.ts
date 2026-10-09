@@ -1,6 +1,7 @@
 import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
+import { push_array } from '~/utils.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getSQLiteColumnBuilders, type SQLiteColumnBuilders } from './columns/all.ts';
 import type { SQLiteColumn, SQLiteColumnBuilder, SQLiteColumnBuilderBase } from './columns/common.ts';
@@ -193,7 +194,7 @@ function sqliteTableBase<
 			const colBuilder = colBuilderBase as SQLiteColumnBuilder;
 			colBuilder.setName(name);
 			const column = colBuilder.build(rawTable);
-			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
+			push_array(rawTable[InlineForeignKeys], colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
 	) as unknown as BuildColumns<TTableName, TColumnsMap, 'sqlite'>;

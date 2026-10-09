@@ -34,7 +34,7 @@ import {
 	type NeonAuthToken,
 	type ValueOrArray,
 } from '~/utils.ts';
-import { orderSelectedFields } from '~/utils.ts';
+import { orderSelectedFields, push_array } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { extractUsedTable } from '../utils.ts';
 import type {
@@ -729,7 +729,7 @@ export abstract class PgSelectQueryBuilderBase<
 		PgSetOperatorExcludedMethods,
 		true
 	> {
-		this.config.setOperators.push(...setOperators);
+		push_array(this.config.setOperators, setOperators);
 		return this as any;
 	}
 

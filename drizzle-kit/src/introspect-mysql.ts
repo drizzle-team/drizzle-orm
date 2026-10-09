@@ -14,6 +14,7 @@ import {
 	UniqueConstraint,
 } from './serializer/mysqlSchema';
 import { unescapeSingleQuotes } from './utils';
+import { push_array } from './utils';
 
 const mysqlImportsList = new Set([
 	'mysqlTable',
@@ -157,11 +158,11 @@ export const schemaToTypeScript = (
 				(it) => 'check',
 			);
 
-			res.mysql.push(...idxImports);
-			res.mysql.push(...fkImpots);
-			res.mysql.push(...pkImports);
-			res.mysql.push(...uniqueImports);
-			res.mysql.push(...checkImports);
+			push_array(res.mysql, idxImports);
+			push_array(res.mysql, fkImpots);
+			push_array(res.mysql, pkImports);
+			push_array(res.mysql, uniqueImports);
+			push_array(res.mysql, checkImports);
 
 			const columnImports = Object.values(it.columns)
 				.map((col) => {
@@ -188,7 +189,7 @@ export const schemaToTypeScript = (
 					return mysqlImportsList.has(type);
 				});
 
-			res.mysql.push(...columnImports);
+			push_array(res.mysql, columnImports);
 			return res;
 		},
 		{ mysql: [] as string[] },
@@ -222,7 +223,7 @@ export const schemaToTypeScript = (
 				return mysqlImportsList.has(type);
 			});
 
-		imports.mysql.push(...columnImports);
+		push_array(imports.mysql, columnImports);
 	});
 
 	const tableStatements = Object.values(schema.tables).map((table) => {
