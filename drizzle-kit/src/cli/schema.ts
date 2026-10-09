@@ -10,7 +10,7 @@ import '../@types/utils';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import { assertUnreachable } from '../utils';
 import { assertV3OutFolder } from '../utils/utils-node';
-import { checkHandler } from './commands/check';
+import { checkHandler, findStaleDownMigrations, warnStaleDownMigrations } from './commands/check';
 import type { Setup } from './commands/studio';
 import { upCockroachHandler } from './commands/up-cockroach';
 import { upMssqlHandler } from './commands/up-mssql';
@@ -86,7 +86,7 @@ export const prepareGenerate = async (opts: GenerateOptionsInput) => {
 		'generate',
 		opts,
 		['name', 'custom', 'ignoreConflicts', 'explain', 'output', 'hints', 'hintsFile'],
-		['driver', 'breakpoints', 'schema', 'out', 'dialect'],
+		['driver', 'breakpoints', 'generateDownMigrations', 'schema', 'out', 'dialect'],
 	);
 	return prepareGenerateConfig(opts as Parameters<typeof prepareGenerateConfig>[0], from);
 };
@@ -328,6 +328,8 @@ export const generateOptions = {
 	out: optionOut,
 	name: string().desc('Migration file name'),
 	breakpoints: optionBreakpoints,
+	generateDownMigrations: boolean()
+		.desc('Emit down.sql rollback files alongside each migration (default: true)'),
 	custom: boolean()
 		.desc('Prepare empty migration file for custom SQL')
 		.default(false),
@@ -574,7 +576,13 @@ export const runCheck = async (
 	assertV3OutFolder(config.out);
 	const { out, dialect, ignoreConflicts } = config;
 	await checkHandler(out, dialect, ignoreConflicts);
-	return { status: 'ok' as const, dialect };
+	const staleDownMigrations = findStaleDownMigrations(out);
+	warnStaleDownMigrations(staleDownMigrations);
+	return {
+		status: 'ok' as const,
+		dialect,
+		...(staleDownMigrations.length > 0 && { staleDownMigrations }),
+	};
 };
 
 export const check = command({

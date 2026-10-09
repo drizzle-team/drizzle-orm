@@ -54,6 +54,7 @@ test('generate #1', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
+		generateDownMigrations: true,
 		filenames: [filename],
 		schemaSource: expect.anything(),
 		out: 'drizzle',
@@ -78,6 +79,7 @@ test('generate #2', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
+		generateDownMigrations: true,
 		filenames: [filename],
 		schemaSource: expect.anything(),
 		out: 'out',
@@ -99,6 +101,7 @@ test('generate #3', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
+		generateDownMigrations: true,
 		filenames: [filename],
 		schemaSource: expect.anything(),
 		out: 'drizzle',
@@ -121,6 +124,7 @@ test('generate #4', async (t) => {
 		name: undefined,
 		custom: true,
 		breakpoints: true,
+		generateDownMigrations: true,
 		filenames: [filename],
 		schemaSource: expect.anything(),
 		out: 'drizzle',
@@ -142,6 +146,7 @@ test('generate #5', async (t) => {
 		name: 'custom',
 		custom: false,
 		breakpoints: true,
+		generateDownMigrations: true,
 		filenames: [filename],
 		schemaSource: expect.anything(),
 		out: 'drizzle',
@@ -163,6 +168,7 @@ test('generate #7', async (t) => {
 		name: 'custom',
 		custom: true,
 		breakpoints: true,
+		generateDownMigrations: true,
 		filenames: [filename],
 		schemaSource: expect.anything(),
 		out: 'drizzle',
@@ -185,6 +191,7 @@ test('generate #8', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
+		generateDownMigrations: true,
 		filenames: [filename],
 		schemaSource: expect.anything(),
 		out: 'drizzle',
@@ -206,6 +213,7 @@ test('generate #9', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
+		generateDownMigrations: true,
 		filenames: [filename],
 		schemaSource: expect.anything(),
 		out: 'drizzle',
@@ -231,6 +239,7 @@ test('generate #10', async (t) => {
 		name: 'custom',
 		custom: true,
 		breakpoints: true,
+		generateDownMigrations: true,
 		filenames: [filename],
 		schemaSource: expect.anything(),
 		out: 'out',
@@ -257,6 +266,7 @@ test('generate #10 tsconfig paths', async () => {
 			name: undefined,
 			custom: false,
 			breakpoints: true,
+			generateDownMigrations: true,
 			out: 'drizzle',
 			bundle: false,
 
@@ -286,6 +296,7 @@ test('generate --explain', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
+		generateDownMigrations: true,
 		filenames: [filename],
 		schemaSource: expect.anything(),
 		out: 'drizzle',
@@ -295,6 +306,15 @@ test('generate --explain', async (t) => {
 		explain: true,
 		hints: expect.any(HintsHandler),
 	});
+});
+
+test('generate --generateDownMigrations=false', async () => {
+	const res = await brotest(
+		generate,
+		'--dialect=postgresql --schema=schema.ts --generateDownMigrations=false',
+	);
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+	expect(res.options).toMatchObject({ generateDownMigrations: false });
 });
 
 // --- errors ---
@@ -368,6 +388,7 @@ test('validate config #1', async (t) => {
 		filenames: [filename],
 		schemaSource: expect.anything(),
 		breakpoints: false,
+		generateDownMigrations: true,
 		bundle: false,
 		custom: false,
 		out: 'drizzle',
@@ -409,6 +430,7 @@ test('validate config #2', async (t) => {
 		filenames: [filename],
 		schemaSource: expect.anything(),
 		breakpoints: true,
+		generateDownMigrations: true,
 		bundle: false,
 		custom: false,
 		out: 'test',
@@ -476,6 +498,7 @@ test('validate config #5', async (t) => {
 		filenames: [filename],
 		schemaSource: expect.anything(),
 		breakpoints: true,
+		generateDownMigrations: true,
 		bundle: false,
 		custom: false,
 		out: 'drizzle',
@@ -486,4 +509,18 @@ test('validate config #5', async (t) => {
 		hints: expect.any(HintsHandler) as any,
 	};
 	expect(res.options).toStrictEqual(expected);
+});
+
+test('validate config: generateDownMigrations false', async () => {
+	const { path, name } = createConfig({
+		dialect: 'postgresql',
+		schema: 'schema.ts',
+		generateDownMigrations: false,
+	}, prefix);
+
+	const res = await brotest(generate, `--config=${name}`);
+
+	unlinkSync(path);
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+	expect(res.options).toMatchObject({ generateDownMigrations: false });
 });

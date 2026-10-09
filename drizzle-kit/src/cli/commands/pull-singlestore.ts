@@ -91,6 +91,7 @@ export const handle = async (
 			init,
 			outFolder: out,
 			breakpoints,
+			generateDownMigrations: false,
 			type: 'introspect',
 			snapshots,
 		}));

@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import { createHash } from 'crypto';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs';
 import { getTsconfig } from 'get-tsconfig';
 import { sync as globSync } from 'glob';
@@ -120,6 +121,19 @@ export const prepareOutFolder = (out: string) => {
 	snapshots.sort();
 
 	return { snapshots };
+};
+
+const UP_HASH_PREFIX = '-- drizzle:up-hash=';
+
+// Must match the digest drizzle-orm's readMigrationFiles stores, or check reports fresh down.sql files as stale.
+export const migrationHash = (migrationSql: string): string => createHash('sha256').update(migrationSql).digest('hex');
+
+export const upHashStamp = (migrationSql: string): string => `${UP_HASH_PREFIX}${migrationHash(migrationSql)}`;
+
+export const readUpHashStamp = (downSql: string): string | null => {
+	const firstLine = downSql.split('\n', 1)[0]!.trim();
+	if (!firstLine.startsWith(UP_HASH_PREFIX)) return null;
+	return firstLine.slice(UP_HASH_PREFIX.length).trim() || null;
 };
 
 const tsconfigAliasCache = new Map<string, Record<string, string> | undefined>();

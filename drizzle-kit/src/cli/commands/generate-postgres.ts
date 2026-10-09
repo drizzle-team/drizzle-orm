@@ -5,6 +5,7 @@ import type {
 	ForeignKey,
 	Index,
 	Policy,
+	PostgresDDL,
 	PostgresEntities,
 	PrimaryKey,
 	Privilege,
@@ -26,7 +27,32 @@ import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, postgresSchemaError, postgresSchemaWarning } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
+import { computeDown, diffWithDown, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
+
+const diff = (from: PostgresDDL, to: PostgresDDL, resolverFor: ResolverFor) =>
+	ddlDiff(
+		from,
+		to,
+		resolverFor<Schema>('schema'),
+		resolverFor<Enum>('enum'),
+		resolverFor<Sequence>('sequence'),
+		resolverFor<Policy>('policy'),
+		resolverFor<Role>('role'),
+		resolverFor<Privilege>('privilege'),
+		resolverFor<PostgresEntities['tables']>('table'),
+		resolverFor<Column>('column'),
+		resolverFor<View>('view'),
+		resolverFor<UniqueConstraint>('unique'),
+		resolverFor<Index>('index'),
+		resolverFor<CheckConstraint>('check'),
+		resolverFor<PrimaryKey>('primary_key'),
+		resolverFor<ForeignKey>('foreign key'),
+		'default',
+	);
+
+export const ddlDiffWithDown = (ddlPrev: PostgresDDL, ddlCur: PostgresDDL, resolverFor: ResolverFor) =>
+	diffWithDown(ddlPrev, ddlCur, createDDL, resolverFor, diff);
 
 export const handle = async (
 	config: GenerateConfig<SchemaSource>,
@@ -51,30 +77,17 @@ export const handle = async (
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect: 'postgresql',
+			generateDownMigrations: config.generateDownMigrations,
 			type: 'custom',
 			renames: [],
 			snapshots,
 		});
 	}
 
-	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements, statements, down } = await ddlDiffWithDown(
 		ddlPrev,
 		ddlCur,
-		resolver<Schema>('schema', config.hints),
-		resolver<Enum>('enum', config.hints),
-		resolver<Sequence>('sequence', config.hints),
-		resolver<Policy>('policy', config.hints),
-		resolver<Role>('role', config.hints),
-		resolver<Privilege>('privilege', config.hints),
-		resolver<PostgresEntities['tables']>('table', config.hints),
-		resolver<Column>('column', config.hints),
-		resolver<View>('view', config.hints),
-		resolver<UniqueConstraint>('unique', config.hints),
-		resolver<Index>('index', config.hints),
-		resolver<CheckConstraint>('check', config.hints),
-		resolver<PrimaryKey>('primary_key', config.hints),
-		resolver<ForeignKey>('foreign key', config.hints),
-		'default',
+		(kind) => resolver(kind, config.hints),
 	);
 
 	if (config.hints.hasMissingHints()) {
@@ -85,10 +98,12 @@ export const handle = async (
 		return writeResult({
 			snapshot: snapshot,
 			sqlStatements,
+			down: config.generateDownMigrations ? await computeDown(down) : undefined,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect: 'postgresql',
+			generateDownMigrations: config.generateDownMigrations,
 			renames,
 			snapshots,
 		});

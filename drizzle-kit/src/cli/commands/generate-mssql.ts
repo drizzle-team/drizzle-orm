@@ -5,6 +5,7 @@ import type {
 	Column,
 	ForeignKey,
 	Index,
+	MssqlDDL,
 	MssqlEntities,
 	PrimaryKey,
 	Schema,
@@ -22,7 +23,28 @@ import { resolver } from '../prompts';
 import { withStyle } from '../validations/outputs';
 import { explain, explainJsonOutput, humanLog, mssqlSchemaError } from '../views';
 import { writeResult } from './generate-common';
+import { computeDown, diffWithDown, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
+
+const diff = (from: MssqlDDL, to: MssqlDDL, resolverFor: ResolverFor) =>
+	ddlDiff(
+		from,
+		to,
+		resolverFor<Schema>('schema'),
+		resolverFor<MssqlEntities['tables']>('table'),
+		resolverFor<Column>('column'),
+		resolverFor<View>('view'),
+		resolverFor<UniqueConstraint>('unique'),
+		resolverFor<Index>('index'),
+		resolverFor<CheckConstraint>('check'),
+		resolverFor<PrimaryKey>('primary_key'),
+		resolverFor<ForeignKey>('foreign key'),
+		resolverFor<DefaultConstraint>('default'),
+		'default',
+	);
+
+export const ddlDiffWithDown = (ddlPrev: MssqlDDL, ddlCur: MssqlDDL, resolverFor: ResolverFor) =>
+	diffWithDown(ddlPrev, ddlCur, createDDL, resolverFor, diff);
 
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, filenames } = config;
@@ -38,26 +60,17 @@ export const handle = async (config: GenerateConfig) => {
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect: 'mssql',
+			generateDownMigrations: config.generateDownMigrations,
 			type: 'custom',
 			renames: [],
 			snapshots,
 		});
 	}
 
-	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements, statements, down } = await ddlDiffWithDown(
 		ddlPrev,
 		ddlCur,
-		resolver<Schema>('schema', config.hints, 'dbo'),
-		resolver<MssqlEntities['tables']>('table', config.hints, 'dbo'),
-		resolver<Column>('column', config.hints, 'dbo'),
-		resolver<View>('view', config.hints, 'dbo'),
-		resolver<UniqueConstraint>('unique', config.hints, 'dbo'),
-		resolver<Index>('index', config.hints, 'dbo'),
-		resolver<CheckConstraint>('check', config.hints, 'dbo'),
-		resolver<PrimaryKey>('primary_key', config.hints, 'dbo'),
-		resolver<ForeignKey>('foreign key', config.hints, 'dbo'),
-		resolver<DefaultConstraint>('default', config.hints, 'dbo'),
-		'default',
+		(kind) => resolver(kind, config.hints, 'dbo'),
 	);
 
 	if (config.hints.hasMissingHints()) {
@@ -88,10 +101,12 @@ export const handle = async (config: GenerateConfig) => {
 		return writeResult({
 			snapshot: snapshot,
 			sqlStatements,
+			down: config.generateDownMigrations ? await computeDown(down) : undefined,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect: 'mssql',
+			generateDownMigrations: config.generateDownMigrations,
 			renames,
 			snapshots,
 		});
