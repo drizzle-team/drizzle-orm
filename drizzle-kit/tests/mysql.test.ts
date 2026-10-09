@@ -896,3 +896,35 @@ test('add table with ts enum', async () => {
 		checkConstraints: [],
 	});
 });
+
+test('add table with enum value containing comma', async () => {
+	const to = {
+		users: mysqlTable('users', {
+			enum: mysqlEnum('enum', ['a,b', 'c']),
+		}),
+	};
+
+	const { statements } = await diffTestSchemasMysql({}, to, []);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'create_table',
+		tableName: 'users',
+		schema: undefined,
+		columns: [{
+			autoincrement: false,
+			name: 'enum',
+			notNull: false,
+			primaryKey: false,
+			type: "enum('a,b','c')",
+		}],
+		compositePKs: [],
+		internals: {
+			tables: {},
+			indexes: {},
+		},
+		uniqueConstraints: [],
+		compositePkName: '',
+		checkConstraints: [],
+	});
+});
