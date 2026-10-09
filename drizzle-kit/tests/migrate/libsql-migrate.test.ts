@@ -10,7 +10,7 @@ test('validate migrate function', async () => {
 
 	await migrate({ migrationsFolder: 'tests/migrate/migrations' });
 
-	const res = await query(`PRAGMA table_info("users");`);
+	const res = await query(`PRAGMA table_info("users");--> statement-breakpoint`);
 
 	expect(res).toStrictEqual([{
 		cid: 0,
