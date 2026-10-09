@@ -187,7 +187,7 @@ export const SQLiteSquasher = {
 		return result;
 	},
 	squashUnique: (unq: UniqueConstraint) => {
-		return `${unq.name};${unq.columns.join(',')}`;
+		return `${unq.name};${unq.columns.sort().join(',')}`;
 	},
 	unsquashUnique: (unq: string): UniqueConstraint => {
 		const [name, columns] = unq.split(';');
