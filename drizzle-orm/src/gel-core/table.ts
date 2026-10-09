@@ -1,61 +1,28 @@
 import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
-import { entityKind } from '~/entity.ts';
-import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
-import type { CheckBuilder } from './checks.ts';
+import { Table } from '~/table.ts';
 import { type GelColumnsBuilders, getGelColumnBuilders } from './columns/all.ts';
-import type { GelColumn, GelColumnBuilder, GelColumnBuilderBase, GelExtraConfigColumn } from './columns/common.ts';
-import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
-import type { AnyIndexBuilder } from './indexes.ts';
-import type { GelPolicy } from './policies.ts';
-import type { PrimaryKeyBuilder } from './primary-keys.ts';
-import type { UniqueConstraintBuilder } from './unique-constraint.ts';
+import type { GelColumnBuilder, GelColumnBuilderBase } from './columns/common.ts';
+import {
+	EnableRLS as EnableRLSSymbol,
+	GelTable,
+	type GelTableExtraConfig,
+	type GelTableExtraConfigValue,
+	InlineForeignKeys as InlineForeignKeysSymbol,
+	type TableConfig,
+} from './table-common.ts';
 
-export type GelTableExtraConfigValue =
-	| AnyIndexBuilder
-	| CheckBuilder
-	| ForeignKeyBuilder
-	| PrimaryKeyBuilder
-	| UniqueConstraintBuilder
-	| GelPolicy;
-
-export type GelTableExtraConfig = Record<
-	string,
-	GelTableExtraConfigValue
->;
-
-export type TableConfig = TableConfigBase<GelColumn>;
+export {
+	type AnyGelTable,
+	GelTable,
+	type GelTableExtraConfig,
+	type GelTableExtraConfigValue,
+	type TableConfig,
+} from './table-common.ts';
 
 /** @internal */
-export const InlineForeignKeys = Symbol.for('drizzle:GelInlineForeignKeys');
+export const InlineForeignKeys: typeof InlineForeignKeysSymbol = InlineForeignKeysSymbol;
 /** @internal */
-export const EnableRLS = Symbol.for('drizzle:EnableRLS');
-
-export class GelTable<T extends TableConfig = TableConfig> extends Table<T> {
-	static override readonly [entityKind]: string = 'GelTable';
-
-	/** @internal */
-	static override readonly Symbol = Object.assign({}, Table.Symbol, {
-		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,
-		EnableRLS: EnableRLS as typeof EnableRLS,
-	});
-
-	/**@internal */
-	[InlineForeignKeys]: ForeignKey[] = [];
-
-	/** @internal */
-	[EnableRLS]: boolean = false;
-
-	/** @internal */
-	override [Table.Symbol.ExtraConfigBuilder]: ((self: Record<string, GelColumn>) => GelTableExtraConfig) | undefined =
-		undefined;
-
-	/** @internal */
-	override [Table.Symbol.ExtraConfigColumns]: Record<string, GelExtraConfigColumn> = {};
-}
-
-export type AnyGelTable<TPartial extends Partial<TableConfig> = {}> = GelTable<
-	UpdateTableConfig<TableConfig, TPartial>
->;
+export const EnableRLS: typeof EnableRLSSymbol = EnableRLSSymbol;
 
 export type GelTableWithColumns<T extends TableConfig> =
 	& GelTable<T>

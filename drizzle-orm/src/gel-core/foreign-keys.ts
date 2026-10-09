@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import { TableName } from '~/table.utils.ts';
-import type { AnyGelColumn, GelColumn } from './columns/index.ts';
-import type { GelTable } from './table.ts';
+import type { AnyGelColumn, GelColumn } from './columns/common.ts';
+import type { GelTable } from './table-common.ts';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
