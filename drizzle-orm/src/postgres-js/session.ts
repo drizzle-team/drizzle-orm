@@ -112,7 +112,7 @@ export interface PostgresJsSessionOptions {
 }
 
 export class PostgresJsSession<
-	TSQL extends Sql,
+	TSQL extends Sql | TransactionSql,
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends PgSession<PostgresJsQueryResultHKT, TFullSchema, TSchema> {
