@@ -27,6 +27,19 @@ ruleTester.run('enforce update with where (default options)', myRule, {
       .update()
       .set()
       .where()`,
+		// Issue #5612: .where() may appear after intermediate chained calls
+		// such as .from() and the rule must still see it.
+		`db
+      .update(table)
+      .set({})
+      .from(sql)
+      .where(eq(table.id, v.id))`,
+		`db
+      .update(table)
+      .set({})
+      .from(sql)
+      .where(eq(table.id, v.id))
+      .returning()`,
 	],
 	invalid: [
 		{
