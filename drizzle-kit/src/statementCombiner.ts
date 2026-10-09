@@ -7,6 +7,36 @@ import {
 import { SingleStoreSchemaSquashed } from './serializer/singlestoreSchema';
 import { SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema';
 
+// When a table is recreated (e.g. because a column type or constraint changed)
+// and new columns are added in the same migration, the added columns don't yet
+// exist on the old table. They must therefore be excluded from the
+// `INSERT ... SELECT` that copies the data into the recreated table, otherwise
+// the generated migration fails with "no such column". See issue #5822.
+const excludeAddedColumnsFromRecreate = (
+	statements: JsonStatement[],
+	newStatements: Record<string, JsonStatement[]>,
+) => {
+	const addedColumnsByTable: Record<string, Set<string>> = {};
+	for (const statement of statements) {
+		if (statement.type === 'sqlite_alter_table_add_column') {
+			(addedColumnsByTable[statement.tableName] ??= new Set()).add(statement.column.name);
+		}
+	}
+
+	for (const [tableName, tableStatements] of Object.entries(newStatements)) {
+		const addedColumns = addedColumnsByTable[tableName];
+		if (!addedColumns || addedColumns.size === 0) continue;
+
+		for (const statement of tableStatements) {
+			if (statement.type === 'recreate_table') {
+				statement.columnsToTransfer = statement.columns
+					.map((column) => column.name)
+					.filter((name) => !addedColumns.has(name));
+			}
+		}
+	}
+};
+
 export const prepareLibSQLRecreateTable = (
 	table: SQLiteSchemaSquashed['tables'][keyof SQLiteSchemaSquashed['tables']],
 	action?: 'push',
@@ -293,6 +323,8 @@ export const libSQLCombineStatements = (
 		}
 	}
 
+	excludeAddedColumnsFromRecreate(statements, newStatements);
+
 	const combinedStatements = Object.values(newStatements).flat();
 	const renamedTables = combinedStatements.filter((it) => it.type === 'rename_table');
 	const renamedColumns = combinedStatements.filter((it) => it.type === 'alter_table_rename_column');
@@ -435,6 +467,8 @@ export const sqliteCombineStatements = (
 			newStatements[tableName].push(statement);
 		}
 	}
+
+	excludeAddedColumnsFromRecreate(statements, newStatements);
 
 	const combinedStatements = Object.values(newStatements).flat();
 
