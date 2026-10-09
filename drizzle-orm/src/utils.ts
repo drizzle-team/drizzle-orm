@@ -45,10 +45,17 @@ export function mapResultRow<TResult>(
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
-						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
+						const tableName = getTableName(field.table);
+						// Keep the nested object when:
+						// - any selected column is non-null (#1603: first field null, later field set), or
+						// - selected columns come from more than one table (mixed-table projections
+						//   are typed as an object of individually nullable fields, even if all null).
+						if (value !== null) {
+							nullifyMap[objectName] = false;
+						} else if (!(objectName in nullifyMap)) {
+							nullifyMap[objectName] = tableName;
 						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
+							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== tableName
 						) {
 							nullifyMap[objectName] = false;
 						}
