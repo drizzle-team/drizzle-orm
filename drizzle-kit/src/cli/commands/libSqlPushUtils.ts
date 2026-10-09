@@ -29,6 +29,7 @@ export const _moveDataStatements = (
 	tableName: string,
 	json: SQLiteSchemaSquashed,
 	dataLoss: boolean = false,
+	addedColumns?: string[],
 ) => {
 	const statements: string[] = [];
 
@@ -63,19 +64,22 @@ export const _moveDataStatements = (
 		}),
 	);
 
-	// move data
+	// move data - only SELECT columns that exist in the old table
 	if (!dataLoss) {
-		const columns = Object.keys(json.tables[tableName].columns).map(
-			(c) => `"${c}"`,
-		);
+		const addedSet = new Set(addedColumns ?? []);
+		const columns = Object.keys(json.tables[tableName].columns)
+			.filter((c) => !addedSet.has(c))
+			.map((c) => `"${c}"`);
 
-		statements.push(
-			`INSERT INTO \`${newTableName}\`(${
-				columns.join(
-					', ',
-				)
-			}) SELECT ${columns.join(', ')} FROM \`${tableName}\`;`,
-		);
+		if (columns.length > 0) {
+			statements.push(
+				`INSERT INTO \`${newTableName}\`(${
+					columns.join(
+						', ',
+					)
+				}) SELECT ${columns.join(', ')} FROM \`${tableName}\`;`,
+			);
+		}
 	}
 
 	statements.push(
@@ -302,14 +306,20 @@ export const libSqlLogSuggestionsAndReturn = async (
 				tablesReferencingCurrent.push(...tablesRefs);
 			}
 
+			// Use the statement's addedColumns (computed by the differ with rename
+			// awareness) rather than the raw column diff for the INSERT INTO SELECT
+			const statementAddedColumns = statement.type === 'recreate_table'
+				? (statement as any).addedColumns as string[] | undefined
+				: undefined;
+
 			if (!tablesReferencingCurrent.length) {
-				statementsToExecute.push(..._moveDataStatements(tableName, json2, dataLoss));
+				statementsToExecute.push(..._moveDataStatements(tableName, json2, dataLoss, statementAddedColumns));
 				continue;
 			}
 
 			// recreate table
 			statementsToExecute.push(
-				..._moveDataStatements(tableName, json2, dataLoss),
+				..._moveDataStatements(tableName, json2, dataLoss, statementAddedColumns),
 			);
 		} else if (
 			statement.type === 'alter_table_alter_column_set_generated'

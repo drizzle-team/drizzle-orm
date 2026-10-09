@@ -10,6 +10,7 @@ import { SQLiteSchemaSquashed, SQLiteSquasher } from './serializer/sqliteSchema'
 export const prepareLibSQLRecreateTable = (
 	table: SQLiteSchemaSquashed['tables'][keyof SQLiteSchemaSquashed['tables']],
 	action?: 'push',
+	oldTable?: SQLiteSchemaSquashed['tables'][keyof SQLiteSchemaSquashed['tables']],
 ): (JsonRecreateTableStatement | JsonCreateIndexStatement)[] => {
 	const { name, columns, uniqueConstraints, indexes, checkConstraints } = table;
 
@@ -22,6 +23,10 @@ export const prepareLibSQLRecreateTable = (
 		action === 'push' ? SQLiteSquasher.unsquashPushFK(it) : SQLiteSquasher.unsquashFK(it)
 	);
 
+	const newColumnNames = Object.keys(columns);
+	const oldColumnNames = oldTable ? Object.keys(oldTable.columns) : newColumnNames;
+	const addedColumns = newColumnNames.filter((c) => !oldColumnNames.includes(c));
+
 	const statements: (JsonRecreateTableStatement | JsonCreateIndexStatement)[] = [
 		{
 			type: 'recreate_table',
@@ -31,6 +36,7 @@ export const prepareLibSQLRecreateTable = (
 			referenceData: fks,
 			uniqueConstraints: Object.values(uniqueConstraints),
 			checkConstraints: Object.values(checkConstraints),
+			...(addedColumns.length ? { addedColumns } : {}),
 		},
 	];
 
@@ -43,6 +49,7 @@ export const prepareLibSQLRecreateTable = (
 export const prepareSQLiteRecreateTable = (
 	table: SQLiteSchemaSquashed['tables'][keyof SQLiteSchemaSquashed['tables']],
 	action?: 'push',
+	oldTable?: SQLiteSchemaSquashed['tables'][keyof SQLiteSchemaSquashed['tables']],
 ): JsonStatement[] => {
 	const { name, columns, uniqueConstraints, indexes, checkConstraints } = table;
 
@@ -55,6 +62,10 @@ export const prepareSQLiteRecreateTable = (
 		action === 'push' ? SQLiteSquasher.unsquashPushFK(it) : SQLiteSquasher.unsquashFK(it)
 	);
 
+	const newColumnNames = Object.keys(columns);
+	const oldColumnNames = oldTable ? Object.keys(oldTable.columns) : newColumnNames;
+	const addedColumns = newColumnNames.filter((c) => !oldColumnNames.includes(c));
+
 	const statements: JsonStatement[] = [
 		{
 			type: 'recreate_table',
@@ -64,6 +75,7 @@ export const prepareSQLiteRecreateTable = (
 			referenceData: fks,
 			uniqueConstraints: Object.values(uniqueConstraints),
 			checkConstraints: Object.values(checkConstraints),
+			...(addedColumns.length ? { addedColumns } : {}),
 		},
 	];
 
@@ -77,6 +89,7 @@ export const libSQLCombineStatements = (
 	statements: JsonStatement[],
 	json2: SQLiteSchemaSquashed,
 	action?: 'push',
+	json1?: SQLiteSchemaSquashed,
 ) => {
 	// const tablesContext: Record<string, string[]> = {};
 	const newStatements: Record<string, JsonStatement[]> = {};
@@ -97,14 +110,22 @@ export const libSQLCombineStatements = (
 			const statementsForTable = newStatements[tableName];
 
 			if (!statementsForTable) {
-				newStatements[tableName] = prepareLibSQLRecreateTable(json2.tables[tableName], action);
+				newStatements[tableName] = prepareLibSQLRecreateTable(
+					json2.tables[tableName],
+					action,
+					json1?.tables[tableName],
+				);
 
 				continue;
 			}
 
 			if (!statementsForTable.some(({ type }) => type === 'recreate_table')) {
 				const wasRename = statementsForTable.some(({ type }) => type === 'rename_table');
-				const preparedStatements = prepareLibSQLRecreateTable(json2.tables[tableName], action);
+				const preparedStatements = prepareLibSQLRecreateTable(
+					json2.tables[tableName],
+					action,
+					json1?.tables[tableName],
+				);
 
 				if (wasRename) {
 					newStatements[tableName].push(...preparedStatements);
@@ -142,7 +163,11 @@ export const libSQLCombineStatements = (
 			if (
 				!statementsForTable && (columnIsPartOfForeignKey || columnPk)
 			) {
-				newStatements[tableName] = prepareLibSQLRecreateTable(json2.tables[tableName], action);
+				newStatements[tableName] = prepareLibSQLRecreateTable(
+					json2.tables[tableName],
+					action,
+					json1?.tables[tableName],
+				);
 				continue;
 			}
 
@@ -151,7 +176,11 @@ export const libSQLCombineStatements = (
 			) {
 				if (!statementsForTable.some(({ type }) => type === 'recreate_table')) {
 					const wasRename = statementsForTable.some(({ type }) => type === 'rename_table');
-					const preparedStatements = prepareLibSQLRecreateTable(json2.tables[tableName], action);
+					const preparedStatements = prepareLibSQLRecreateTable(
+						json2.tables[tableName],
+						action,
+						json1?.tables[tableName],
+					);
 
 					if (wasRename) {
 						newStatements[tableName].push(...preparedStatements);
@@ -186,7 +215,7 @@ export const libSQLCombineStatements = (
 
 			if (!statementsForTable) {
 				newStatements[tableName] = statement.isMulticolumn
-					? prepareLibSQLRecreateTable(json2.tables[tableName], action)
+					? prepareLibSQLRecreateTable(json2.tables[tableName], action, json1?.tables[tableName])
 					: [statement];
 
 				continue;
@@ -205,7 +234,11 @@ export const libSQLCombineStatements = (
 			if (statement.isMulticolumn) {
 				if (!statementsForTable.some(({ type }) => type === 'recreate_table')) {
 					const wasRename = statementsForTable.some(({ type }) => type === 'rename_table');
-					const preparedStatements = prepareLibSQLRecreateTable(json2.tables[tableName], action);
+					const preparedStatements = prepareLibSQLRecreateTable(
+						json2.tables[tableName],
+						action,
+						json1?.tables[tableName],
+					);
 
 					if (wasRename) {
 						newStatements[tableName].push(...preparedStatements);
@@ -232,13 +265,21 @@ export const libSQLCombineStatements = (
 			const statementsForTable = newStatements[tableName];
 
 			if (!statementsForTable) {
-				newStatements[tableName] = prepareLibSQLRecreateTable(json2.tables[tableName], action);
+				newStatements[tableName] = prepareLibSQLRecreateTable(
+					json2.tables[tableName],
+					action,
+					json1?.tables[tableName],
+				);
 				continue;
 			}
 
 			if (!statementsForTable.some(({ type }) => type === 'recreate_table')) {
 				const wasRename = statementsForTable.some(({ type }) => type === 'rename_table');
-				const preparedStatements = prepareLibSQLRecreateTable(json2.tables[tableName], action);
+				const preparedStatements = prepareLibSQLRecreateTable(
+					json2.tables[tableName],
+					action,
+					json1?.tables[tableName],
+				);
 
 				if (wasRename) {
 					newStatements[tableName].push(...preparedStatements);
@@ -258,13 +299,21 @@ export const libSQLCombineStatements = (
 			const statementsForTable = newStatements[tableName];
 
 			if (!statementsForTable) {
-				newStatements[tableName] = prepareLibSQLRecreateTable(json2.tables[tableName], action);
+				newStatements[tableName] = prepareLibSQLRecreateTable(
+					json2.tables[tableName],
+					action,
+					json1?.tables[tableName],
+				);
 				continue;
 			}
 
 			if (!statementsForTable.some(({ type }) => type === 'recreate_table')) {
 				const wasRename = statementsForTable.some(({ type }) => type === 'rename_table');
-				const preparedStatements = prepareLibSQLRecreateTable(json2.tables[tableName], action);
+				const preparedStatements = prepareLibSQLRecreateTable(
+					json2.tables[tableName],
+					action,
+					json1?.tables[tableName],
+				);
 
 				if (wasRename) {
 					newStatements[tableName].push(...preparedStatements);
@@ -306,6 +355,7 @@ export const sqliteCombineStatements = (
 	statements: JsonStatement[],
 	json2: SQLiteSchemaSquashed,
 	action?: 'push',
+	json1?: SQLiteSchemaSquashed,
 ) => {
 	// const tablesContext: Record<string, string[]> = {};
 	const newStatements: Record<string, JsonStatement[]> = {};
@@ -335,13 +385,21 @@ export const sqliteCombineStatements = (
 			const statementsForTable = newStatements[tableName];
 
 			if (!statementsForTable) {
-				newStatements[tableName] = prepareSQLiteRecreateTable(json2.tables[tableName], action);
+				newStatements[tableName] = prepareSQLiteRecreateTable(
+					json2.tables[tableName],
+					action,
+					json1?.tables[tableName],
+				);
 				continue;
 			}
 
 			if (!statementsForTable.some(({ type }) => type === 'recreate_table')) {
 				const wasRename = statementsForTable.some(({ type }) => type === 'rename_table');
-				const preparedStatements = prepareSQLiteRecreateTable(json2.tables[tableName], action);
+				const preparedStatements = prepareSQLiteRecreateTable(
+					json2.tables[tableName],
+					action,
+					json1?.tables[tableName],
+				);
 
 				if (wasRename) {
 					newStatements[tableName].push(...preparedStatements);
@@ -361,13 +419,21 @@ export const sqliteCombineStatements = (
 			const statementsForTable = newStatements[tableName];
 
 			if (!statementsForTable) {
-				newStatements[tableName] = prepareSQLiteRecreateTable(json2.tables[tableName], action);
+				newStatements[tableName] = prepareSQLiteRecreateTable(
+					json2.tables[tableName],
+					action,
+					json1?.tables[tableName],
+				);
 				continue;
 			}
 
 			if (!statementsForTable.some(({ type }) => type === 'recreate_table')) {
 				const wasRename = statementsForTable.some(({ type }) => type === 'rename_table');
-				const preparedStatements = prepareSQLiteRecreateTable(json2.tables[tableName], action);
+				const preparedStatements = prepareSQLiteRecreateTable(
+					json2.tables[tableName],
+					action,
+					json1?.tables[tableName],
+				);
 
 				if (wasRename) {
 					newStatements[tableName].push(...preparedStatements);
@@ -390,7 +456,11 @@ export const sqliteCombineStatements = (
 			const statementsForTable = newStatements[tableName];
 
 			if (!statementsForTable) {
-				newStatements[tableName] = prepareSQLiteRecreateTable(json2.tables[tableName], action);
+				newStatements[tableName] = prepareSQLiteRecreateTable(
+					json2.tables[tableName],
+					action,
+					json1?.tables[tableName],
+				);
 				continue;
 			}
 
@@ -406,7 +476,11 @@ export const sqliteCombineStatements = (
 
 			if (!statementsForTable.some(({ type }) => type === 'recreate_table')) {
 				const wasRename = statementsForTable.some(({ type }) => type === 'rename_table');
-				const preparedStatements = prepareSQLiteRecreateTable(json2.tables[tableName], action);
+				const preparedStatements = prepareSQLiteRecreateTable(
+					json2.tables[tableName],
+					action,
+					json1?.tables[tableName],
+				);
 
 				if (wasRename) {
 					newStatements[tableName].push(...preparedStatements);
