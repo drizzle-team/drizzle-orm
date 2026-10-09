@@ -49,7 +49,7 @@ export const generateMigration = async (
 		to.entities.push(it);
 	}
 
-	return runWithApiHints(options?.hints, async (hints) => {
+	return runWithApiHints(options?.hints ?? [], async (hints) => {
 		const { sqlStatements } = await ddlDiff(
 			from,
 			to,
@@ -92,7 +92,7 @@ export const pushSchema = async (
 	const { ddl: from } = interimToDDL(prev);
 	const { ddl: to } = interimToDDL(cur);
 
-	const { sqlStatements, hints } = await runWithApiHints(options?.hints, async (userHints) => {
+	const { sqlStatements, hints } = await runWithApiHints(options?.hints ?? [], async (userHints) => {
 		const { sqlStatements, statements } = await ddlDiff(
 			from,
 			to,

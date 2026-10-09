@@ -69,12 +69,35 @@ test('sqlite push of a confirmed not-null column deletes the rows before it adds
 		missingHints: [{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'a', 'name'] }],
 	});
 
-	const { apply } = await sqlitePush(schema, sqliteDb(client), undefined, {
+	const { apply, hints } = await sqlitePush(schema, sqliteDb(client), undefined, {
 		hints: [{ type: 'confirm_data_loss', kind: 'add_not_null', entity: ['public', 'a', 'name'] }],
 	});
 	await apply();
 
+	expect(hints).toEqual([{
+		hint: `You're about to add not-null 'name' column without default value to non-empty 'a' table`,
+		statement: 'DELETE FROM "a" where true;',
+	}]);
 	expect(client.prepare('SELECT `id`, `name` FROM `a`').all()).toEqual([]);
+});
+
+test('sqlite push with a table rename hint asks to confirm a dropped column of that table', async () => {
+	const client = new BetterSqlite3(':memory:');
+	client.exec("CREATE TABLE `a` (`id` integer PRIMARY KEY, `name` text); INSERT INTO `a` VALUES (1, 'drizzle');");
+	const schema = { b: sqliteTable('b', { id: sqliteInteger('id').primaryKey() }) };
+	const rename = { type: 'rename', kind: 'table', from: ['public', 'a'], to: ['public', 'b'] } as const;
+
+	await expect(sqlitePush(schema, sqliteDb(client), undefined, { hints: [rename] })).rejects.toMatchObject({
+		code: 'missing_hints',
+		missingHints: [{ type: 'confirm_data_loss', kind: 'column', entity: ['public', 'b', 'name'] }],
+	});
+
+	const { apply } = await sqlitePush(schema, sqliteDb(client), undefined, {
+		hints: [rename, { type: 'confirm_data_loss', kind: 'column', entity: ['public', 'b', 'name'] }],
+	});
+	await apply();
+
+	expect(client.prepare('SELECT * FROM `b`').all()).toEqual([{ id: 1 }]);
 });
 
 test('postgres push of a renamed table asks for a hint and keeps the rows with a rename hint', async () => {
