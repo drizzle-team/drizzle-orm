@@ -42,6 +42,7 @@ export type SQLiteUpdateSetSource<TTable extends SQLiteTable> =
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL
 			| SQLiteColumn
+			| Placeholder
 			| undefined;
 	}
 	& {};
