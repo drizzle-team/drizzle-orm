@@ -1,6 +1,7 @@
 import {
 	JsonCreateIndexStatement,
 	JsonRecreateTableStatement,
+	JsonRenameColumnStatement,
 	JsonStatement,
 	prepareCreateIndexesJson,
 } from './jsonStatements';
@@ -80,7 +81,17 @@ export const libSQLCombineStatements = (
 ) => {
 	// const tablesContext: Record<string, string[]> = {};
 	const newStatements: Record<string, JsonStatement[]> = {};
+	const columnRenamesByTable: Record<string, { oldName: string; newName: string }[]> = {};
+
 	for (const statement of statements) {
+		if (statement.type === 'alter_table_rename_column') {
+			const s = statement as unknown as JsonRenameColumnStatement;
+			if (!columnRenamesByTable[s.tableName]) {
+				columnRenamesByTable[s.tableName] = [];
+			}
+			columnRenamesByTable[s.tableName].push({ oldName: s.oldColumnName, newName: s.newColumnName });
+		}
+
 		if (
 			statement.type === 'alter_table_alter_column_drop_autoincrement'
 			|| statement.type === 'alter_table_alter_column_set_autoincrement'
@@ -293,6 +304,18 @@ export const libSQLCombineStatements = (
 		}
 	}
 
+	for (const [tableName, renames] of Object.entries(columnRenamesByTable)) {
+		const stmts = newStatements[tableName];
+		if (stmts) {
+			const recreate = stmts.find((s) => s.type === 'recreate_table') as JsonRecreateTableStatement | undefined;
+			if (recreate) {
+				recreate.columnRenames = renames;
+				// drop retained rename_column stmts — recreate handles them via columnRenames
+				newStatements[tableName] = stmts.filter((s) => s.type !== 'alter_table_rename_column');
+			}
+		}
+	}
+
 	const combinedStatements = Object.values(newStatements).flat();
 	const renamedTables = combinedStatements.filter((it) => it.type === 'rename_table');
 	const renamedColumns = combinedStatements.filter((it) => it.type === 'alter_table_rename_column');
@@ -309,7 +332,17 @@ export const sqliteCombineStatements = (
 ) => {
 	// const tablesContext: Record<string, string[]> = {};
 	const newStatements: Record<string, JsonStatement[]> = {};
+	const columnRenamesByTable: Record<string, { oldName: string; newName: string }[]> = {};
+
 	for (const statement of statements) {
+		if (statement.type === 'alter_table_rename_column') {
+			const s = statement as unknown as JsonRenameColumnStatement;
+			if (!columnRenamesByTable[s.tableName]) {
+				columnRenamesByTable[s.tableName] = [];
+			}
+			columnRenamesByTable[s.tableName].push({ oldName: s.oldColumnName, newName: s.newColumnName });
+		}
+
 		if (
 			statement.type === 'alter_table_alter_column_set_type'
 			|| statement.type === 'alter_table_alter_column_set_default'
@@ -433,6 +466,18 @@ export const sqliteCombineStatements = (
 
 		if (!statementsForTable.some(({ type }) => type === 'recreate_table')) {
 			newStatements[tableName].push(statement);
+		}
+	}
+
+	for (const [tableName, renames] of Object.entries(columnRenamesByTable)) {
+		const stmts = newStatements[tableName];
+		if (stmts) {
+			const recreate = stmts.find((s) => s.type === 'recreate_table') as JsonRecreateTableStatement | undefined;
+			if (recreate) {
+				recreate.columnRenames = renames;
+				// drop retained rename_column stmts — recreate handles them via columnRenames
+				newStatements[tableName] = stmts.filter((s) => s.type !== 'alter_table_rename_column');
+			}
 		}
 	}
 
