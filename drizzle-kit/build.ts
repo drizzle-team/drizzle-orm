@@ -11,6 +11,7 @@ const driversPackages = [
 	'@vercel/postgres',
 	'@neondatabase/serverless',
 	'@electric-sql/pglite',
+	'@aws-sdk/client-rds-data',
 	//  mysql drivers
 	'mysql2',
 	'@planetscale/database',
