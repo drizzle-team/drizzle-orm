@@ -39,6 +39,7 @@ import {
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
+import { interimToDDL } from 'src/dialects/mysql/ddl';
 import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { DB } from 'src/utils';
@@ -507,6 +508,27 @@ CREATE TABLE \`t_default\` (
 	expect(generateStatements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
 	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6047
+test('pull unique indexes on text columns with a prefix length', async () => {
+	await db.query(`
+CREATE TABLE \`t\` (
+	\`id\` int PRIMARY KEY,
+	\`title\` text,
+	\`body\` mediumtext,
+	\`slug\` varchar(64),
+	UNIQUE KEY \`title_unique\` (\`title\`(191)),
+	UNIQUE KEY \`slug_body_unique\` (\`slug\`, \`body\`(100))
+);`);
+
+	const schema = await fromDatabaseForDrizzle(db, 'drizzle', () => true, () => {}, {
+		schema: 'drizzle',
+		table: '__drizzle_migrations',
+	});
+	const { errors } = interimToDDL(schema, 'pull');
+
+	expect(errors).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4115
