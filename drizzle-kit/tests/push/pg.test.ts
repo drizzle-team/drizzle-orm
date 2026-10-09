@@ -29,6 +29,7 @@ import {
 	text,
 	time,
 	timestamp,
+	unique,
 	uniqueIndex,
 	uuid,
 	varchar,
@@ -4409,4 +4410,50 @@ test('alter inherit in role', async (t) => {
 	for (const st of sqlStatements) {
 		await client.query(st);
 	}
+});
+
+test('no diff: composite primary key with key order different from column order', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		tag: pgTable('tag', {
+			itemId: text('item_id').notNull(),
+			tag: text('tag').notNull(),
+		}, (t) => [primaryKey({ name: 'tag_pk', columns: [t.tag, t.itemId] })]),
+	};
+
+	const schema2 = {
+		tag: pgTable('tag', {
+			itemId: text('item_id').notNull(),
+			tag: text('tag').notNull(),
+		}, (t) => [primaryKey({ name: 'tag_pk', columns: [t.tag, t.itemId] })]),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('no diff: composite unique constraint with key order different from column order', async () => {
+	const client = new PGlite();
+
+	const schema1 = {
+		tag: pgTable('tag', {
+			itemId: text('item_id').notNull(),
+			tag: text('tag').notNull(),
+		}, (t) => [unique('tag_unique').on(t.tag, t.itemId)]),
+	};
+
+	const schema2 = {
+		tag: pgTable('tag', {
+			itemId: text('item_id').notNull(),
+			tag: text('tag').notNull(),
+		}, (t) => [unique('tag_unique').on(t.tag, t.itemId)]),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
