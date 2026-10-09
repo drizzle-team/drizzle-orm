@@ -46,11 +46,18 @@ const optionDriver = string()
 	.desc('Database driver');
 
 const optionCasing = string().enum('camelCase', 'snake_case').desc('Casing for serialization');
+// Documented here for help output. The flag is intercepted and removed
+// from argv by ./env-loader before brocli parses the command, so the
+// option value will always be undefined when handlers run.
+const optionEnvFile = string('env-file').desc(
+	'Load environment variables from a file before evaluating the drizzle config (can be passed multiple times; later files override earlier ones; existing env vars are never overwritten)',
+);
 
 export const generate = command({
 	name: 'generate',
 	options: {
 		config: optionConfig,
+		envFile: optionEnvFile,
 		dialect: optionDialect,
 		driver: optionDriver,
 		casing: optionCasing,
@@ -116,6 +123,7 @@ export const migrate = command({
 	name: 'migrate',
 	options: {
 		config: optionConfig,
+		envFile: optionEnvFile,
 	},
 	transform: async (opts) => {
 		return await prepareMigrateConfig(opts.config);
@@ -248,6 +256,7 @@ export const push = command({
 	name: 'push',
 	options: {
 		config: optionConfig,
+		envFile: optionEnvFile,
 		dialect: optionDialect,
 		casing: optionCasing,
 		schema: string().desc('Path to a schema file or folder'),
@@ -407,6 +416,7 @@ export const check = command({
 	name: 'check',
 	options: {
 		config: optionConfig,
+		envFile: optionEnvFile,
 		dialect: optionDialect,
 		out: optionOut,
 	},
@@ -427,6 +437,7 @@ export const up = command({
 	name: 'up',
 	options: {
 		config: optionConfig,
+		envFile: optionEnvFile,
 		dialect: optionDialect,
 		out: optionOut,
 	},
@@ -472,6 +483,7 @@ export const pull = command({
 	aliases: ['pull'],
 	options: {
 		config: optionConfig,
+		envFile: optionEnvFile,
 		dialect: optionDialect,
 		out: optionOut,
 		breakpoints: optionBreakpoints,
@@ -634,6 +646,7 @@ export const drop = command({
 	name: 'drop',
 	options: {
 		config: optionConfig,
+		envFile: optionEnvFile,
 		out: optionOut,
 		driver: optionDriver,
 	},
@@ -653,6 +666,7 @@ export const studio = command({
 	name: 'studio',
 	options: {
 		config: optionConfig,
+		envFile: optionEnvFile,
 		port: number().desc('Custom port for drizzle studio [default=4983]'),
 		host: string().desc('Custom host for drizzle studio [default=0.0.0.0]'),
 		verbose: boolean()
@@ -810,6 +824,7 @@ export const exportRaw = command({
 	options: {
 		sql: boolean('sql').default(true).desc('Generate as sql'),
 		config: optionConfig,
+		envFile: optionEnvFile,
 		dialect: optionDialect,
 		schema: string().desc('Path to a schema file or folder'),
 	},
