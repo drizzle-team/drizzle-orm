@@ -123,6 +123,268 @@ import {
 	prepareSqliteCreateViewJson,
 } from './jsonStatements';
 
+type ViewDependencyItem = {
+	key: string;
+	schema: string;
+	name: string;
+	definition?: string;
+	dependsOn?: string[];
+};
+
+type IdentifierPart = {
+	value: string;
+	quoted: boolean;
+};
+
+const viewDependencyTokenRegex = /\b(from|join|update|into)\s+(?:lateral\s+)?(?:only\s+)?([^\s,;]+)/gi;
+
+const trimIdentifierToken = (token: string): string => {
+	let result = token.trim();
+	while (result.startsWith('(')) result = result.slice(1);
+	while (result.endsWith(')') || result.endsWith(',') || result.endsWith(';')) {
+		result = result.slice(0, -1);
+	}
+	return result;
+};
+
+const parseIdentifierPart = (part: string): IdentifierPart => {
+	const trimmed = part.trim();
+	if (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2) {
+		return { value: trimmed.slice(1, -1).replace(/""/g, '"'), quoted: true };
+	}
+	return { value: trimmed, quoted: false };
+};
+
+const parseIdentifierToken = (
+	token: string,
+): { schema?: IdentifierPart; name: IdentifierPart } | null => {
+	const trimmed = trimIdentifierToken(token);
+	if (!trimmed || trimmed.startsWith('(')) return null;
+	if (trimmed.toLowerCase() === 'select') return null;
+
+	const parts = trimmed.split('.');
+	if (parts.length >= 2) {
+		return {
+			schema: parseIdentifierPart(parts[0]),
+			name: parseIdentifierPart(parts[1]),
+		};
+	}
+
+	return { name: parseIdentifierPart(trimmed) };
+};
+
+const getViewDependencies = (
+	item: ViewDependencyItem,
+	viewKeyByExact: Map<string, string>,
+	viewKeyByLower: Map<string, string>,
+	viewKeys: Set<string>,
+): Set<string> => {
+	const dependencies = new Set<string>();
+	if (item.dependsOn) {
+		for (const entry of item.dependsOn) {
+			const parsed = parseIdentifierToken(entry);
+			if (!parsed) continue;
+
+			let dependencyKey: string | undefined;
+			if (parsed.schema) {
+				if (parsed.schema.quoted || parsed.name.quoted) {
+					dependencyKey = viewKeyByExact.get(`${parsed.schema.value}.${parsed.name.value}`);
+				} else {
+					dependencyKey = viewKeyByLower.get(
+						`${parsed.schema.value.toLowerCase()}.${parsed.name.value.toLowerCase()}`,
+					);
+				}
+			} else if (parsed.name.quoted) {
+				dependencyKey = viewKeyByExact.get(`${item.schema}.${parsed.name.value}`);
+			} else {
+				dependencyKey = viewKeyByLower.get(`${item.schema.toLowerCase()}.${parsed.name.value.toLowerCase()}`);
+			}
+
+			if (dependencyKey && dependencyKey !== item.key && viewKeys.has(dependencyKey)) {
+				dependencies.add(dependencyKey);
+			}
+		}
+	}
+
+	if (!item.definition) return dependencies;
+
+	for (const match of item.definition.matchAll(viewDependencyTokenRegex)) {
+		const token = match[2];
+		const parsed = parseIdentifierToken(token);
+		if (!parsed) continue;
+
+		let dependencyKey: string | undefined;
+		if (parsed.schema) {
+			if (parsed.schema.quoted || parsed.name.quoted) {
+				dependencyKey = viewKeyByExact.get(`${parsed.schema.value}.${parsed.name.value}`);
+			} else {
+				dependencyKey = viewKeyByLower.get(
+					`${parsed.schema.value.toLowerCase()}.${parsed.name.value.toLowerCase()}`,
+				);
+			}
+		} else if (parsed.name.quoted) {
+			dependencyKey = viewKeyByExact.get(`${item.schema}.${parsed.name.value}`);
+		} else {
+			dependencyKey = viewKeyByLower.get(`${item.schema.toLowerCase()}.${parsed.name.value.toLowerCase()}`);
+		}
+
+		if (dependencyKey && dependencyKey !== item.key && viewKeys.has(dependencyKey)) {
+			dependencies.add(dependencyKey);
+		}
+	}
+
+	return dependencies;
+};
+
+const topoSortViewKeys = (
+	keys: string[],
+	dependenciesByKey: Map<string, Set<string>>,
+): { sorted: string[]; remaining: string[] } => {
+	const keySet = new Set(keys);
+	const inDegree = new Map<string, number>();
+	const dependents = new Map<string, Set<string>>();
+	const orderIndex = new Map<string, number>();
+
+	keys.forEach((key, index) => {
+		inDegree.set(key, 0);
+		dependents.set(key, new Set());
+		orderIndex.set(key, index);
+	});
+
+	for (const [key, deps] of dependenciesByKey.entries()) {
+		if (!keySet.has(key)) continue;
+		for (const dep of deps) {
+			if (!keySet.has(dep)) continue;
+			inDegree.set(key, (inDegree.get(key) ?? 0) + 1);
+			dependents.get(dep)!.add(key);
+		}
+	}
+
+	const zeroInDegree: string[] = keys.filter((key) => (inDegree.get(key) ?? 0) === 0);
+	const sorted: string[] = [];
+
+	const insertSorted = (value: string) => {
+		const valueIndex = orderIndex.get(value) ?? 0;
+		const insertAt = zeroInDegree.findIndex((key) => (orderIndex.get(key) ?? 0) > valueIndex);
+		if (insertAt === -1) {
+			zeroInDegree.push(value);
+		} else {
+			zeroInDegree.splice(insertAt, 0, value);
+		}
+	};
+
+	while (zeroInDegree.length > 0) {
+		const current = zeroInDegree.shift()!;
+		sorted.push(current);
+		for (const dependent of dependents.get(current) ?? []) {
+			const nextValue = (inDegree.get(dependent) ?? 0) - 1;
+			inDegree.set(dependent, nextValue);
+			if (nextValue === 0) {
+				insertSorted(dependent);
+			}
+		}
+	}
+
+	const remaining = keys.filter((key) => !sorted.includes(key));
+	return { sorted, remaining };
+};
+
+const orderCreateViewsByDependencies = (
+	createViews: JsonCreatePgViewStatement[],
+): JsonCreatePgViewStatement[] => {
+	if (createViews.length < 2) return createViews;
+
+	const items: ViewDependencyItem[] = createViews.map((view) => {
+		const schema = view.schema || 'public';
+		return {
+			key: `${schema}.${view.name}`,
+			schema,
+			name: view.name,
+			definition: view.definition,
+			dependsOn: view.dependsOn,
+		};
+	});
+
+	const viewKeyByExact = new Map<string, string>();
+	const viewKeyByLower = new Map<string, string>();
+	const viewKeys = new Set(items.map((it) => it.key));
+
+	for (const item of items) {
+		viewKeyByExact.set(item.key, item.key);
+		viewKeyByLower.set(`${item.schema.toLowerCase()}.${item.name.toLowerCase()}`, item.key);
+	}
+
+	const dependenciesByKey = new Map<string, Set<string>>();
+	for (const item of items) {
+		dependenciesByKey.set(
+			item.key,
+			getViewDependencies(item, viewKeyByExact, viewKeyByLower, viewKeys),
+		);
+	}
+
+	const { sorted, remaining } = topoSortViewKeys(
+		items.map((it) => it.key),
+		dependenciesByKey,
+	);
+	const orderedKeys = [...sorted, ...remaining];
+	const byKey = new Map<string, JsonCreatePgViewStatement>();
+	createViews.forEach((view) => {
+		const schema = view.schema || 'public';
+		byKey.set(`${schema}.${view.name}`, view);
+	});
+
+	return orderedKeys.map((key) => byKey.get(key)!).filter(Boolean);
+};
+
+const orderDropViewsByDependencies = (
+	dropViews: JsonDropViewStatement[],
+	prevViews: Record<string, View>,
+): JsonDropViewStatement[] => {
+	if (dropViews.length < 2) return dropViews;
+
+	const items: ViewDependencyItem[] = dropViews.map((view) => {
+		const schema = view.schema || 'public';
+		const key = `${schema}.${view.name}`;
+		return {
+			key,
+			schema,
+			name: view.name,
+			definition: prevViews[key]?.definition,
+			dependsOn: prevViews[key]?.dependsOn,
+		};
+	});
+
+	const viewKeyByExact = new Map<string, string>();
+	const viewKeyByLower = new Map<string, string>();
+	const viewKeys = new Set(items.map((it) => it.key));
+
+	for (const item of items) {
+		viewKeyByExact.set(item.key, item.key);
+		viewKeyByLower.set(`${item.schema.toLowerCase()}.${item.name.toLowerCase()}`, item.key);
+	}
+
+	const dependenciesByKey = new Map<string, Set<string>>();
+	for (const item of items) {
+		dependenciesByKey.set(
+			item.key,
+			getViewDependencies(item, viewKeyByExact, viewKeyByLower, viewKeys),
+		);
+	}
+
+	const { sorted, remaining } = topoSortViewKeys(
+		items.map((it) => it.key),
+		dependenciesByKey,
+	);
+	const orderedKeys = [...sorted.reverse(), ...remaining];
+	const byKey = new Map<string, JsonDropViewStatement>();
+	dropViews.forEach((view) => {
+		const schema = view.schema || 'public';
+		byKey.set(`${schema}.${view.name}`, view);
+	});
+
+	return orderedKeys.map((key) => byKey.get(key)!).filter(Boolean);
+};
+
 import { Named, NamedWithSchema } from './cli/commands/migrate';
 import { mapEntries, mapKeys, mapValues } from './global';
 import { MySqlSchema, MySqlSchemaSquashed, MySqlSquasher, ViewSquashed } from './serializer/mysqlSchema';
@@ -1811,6 +2073,7 @@ export const applyPgSnapshotsDiff = async (
 				it.with,
 				it.using,
 				it.tablespace,
+				it.dependsOn,
 			);
 		}),
 	);
@@ -1846,7 +2109,15 @@ export const applyPgSnapshotsDiff = async (
 	for (const alteredView of alteredViews) {
 		const viewKey = `${alteredView.schema}.${alteredView.name}`;
 
-		const { materialized, with: withOption, definition, withNoData, using, tablespace } = json2.views[viewKey];
+		const {
+			materialized,
+			with: withOption,
+			definition,
+			withNoData,
+			using,
+			tablespace,
+			dependsOn,
+		} = json2.views[viewKey];
 
 		if (alteredView.alteredExisting || (alteredView.alteredDefinition && action !== 'push')) {
 			dropViews.push(prepareDropViewJson(alteredView.name, alteredView.schema, materialized));
@@ -1861,6 +2132,7 @@ export const applyPgSnapshotsDiff = async (
 					withOption,
 					using,
 					tablespace,
+					dependsOn,
 				),
 			);
 
@@ -1945,6 +2217,102 @@ export const applyPgSnapshotsDiff = async (
 		}
 	}
 
+	const recreatedViewKeys = new Set<string>();
+	for (const alteredView of alteredViews) {
+		if (alteredView.alteredExisting || (alteredView.alteredDefinition && action !== 'push')) {
+			recreatedViewKeys.add(`${alteredView.schema}.${alteredView.name}`);
+		}
+	}
+
+	if (recreatedViewKeys.size > 0) {
+		const viewKeys = new Set(Object.keys(json2.views));
+		const viewKeyByExact = new Map<string, string>();
+		const viewKeyByLower = new Map<string, string>();
+
+		for (const key of viewKeys) {
+			const view = json2.views[key];
+			viewKeyByExact.set(key, key);
+			viewKeyByLower.set(`${view.schema.toLowerCase()}.${view.name.toLowerCase()}`, key);
+		}
+
+		const dependenciesByKey = new Map<string, Set<string>>();
+		for (const key of viewKeys) {
+			const view = json2.views[key];
+			dependenciesByKey.set(
+				key,
+				getViewDependencies(
+					{
+						key,
+						schema: view.schema,
+						name: view.name,
+						definition: view.definition,
+						dependsOn: view.dependsOn,
+					},
+					viewKeyByExact,
+					viewKeyByLower,
+					viewKeys,
+				),
+			);
+		}
+
+		let added = true;
+		while (added) {
+			added = false;
+			for (const [key, deps] of dependenciesByKey.entries()) {
+				const view = json2.views[key];
+				if (view.isExisting) continue;
+				if (recreatedViewKeys.has(key)) continue;
+				const shouldRecreate = Array.from(deps).some((dep) => recreatedViewKeys.has(dep));
+				if (shouldRecreate) {
+					recreatedViewKeys.add(key);
+					added = true;
+				}
+			}
+		}
+
+		const createViewByKey = new Map<string, JsonCreatePgViewStatement>();
+		createViews.forEach((view) => {
+			createViewByKey.set(`${view.schema}.${view.name}`, view);
+		});
+
+		const dropViewByKey = new Map<string, JsonDropViewStatement>();
+		dropViews.forEach((view) => {
+			const schema = view.schema ?? 'public';
+			dropViewByKey.set(`${schema}.${view.name}`, view);
+		});
+
+		for (const viewKey of recreatedViewKeys) {
+			const view = json2.views[viewKey];
+			if (!view || view.isExisting || !view.definition) continue;
+
+			if (!createViewByKey.has(viewKey)) {
+				const statement = preparePgCreateViewJson(
+					view.name,
+					view.schema,
+					view.definition,
+					view.materialized,
+					view.withNoData ?? false,
+					view.with,
+					view.using,
+					view.tablespace,
+					view.dependsOn,
+				);
+				createViews.push(statement);
+				createViewByKey.set(viewKey, statement);
+			}
+
+			const prevView = json1.views[viewKey];
+			if (prevView && !prevView.isExisting && !dropViewByKey.has(viewKey)) {
+				const dropStatement = prepareDropViewJson(view.name, view.schema, view.materialized);
+				dropViews.push(dropStatement);
+				dropViewByKey.set(viewKey, dropStatement);
+			}
+		}
+	}
+
+	const orderedCreateViews = orderCreateViewsByDependencies(createViews);
+	const orderedDropViews = orderDropViewsByDependencies(dropViews, json1.views);
+
 	jsonStatements.push(...createSchemas);
 	jsonStatements.push(...renameSchemas);
 	jsonStatements.push(...createEnums);
@@ -1966,7 +2334,7 @@ export const applyPgSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonEnableRLSStatements);
 	jsonStatements.push(...jsonDisableRLSStatements);
-	jsonStatements.push(...dropViews);
+	jsonStatements.push(...orderedDropViews);
 	jsonStatements.push(...renameViews);
 	jsonStatements.push(...alterViews);
 
@@ -2005,7 +2373,7 @@ export const applyPgSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 
-	jsonStatements.push(...createViews);
+	jsonStatements.push(...orderedCreateViews);
 
 	jsonStatements.push(...jsonRenamePoliciesStatements);
 	jsonStatements.push(...jsonDropPoliciesStatements);
