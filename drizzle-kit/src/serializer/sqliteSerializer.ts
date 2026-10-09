@@ -768,10 +768,12 @@ export const fromDatabase = async (
 		indexName: string;
 		columnName: string;
 		isUnique: number;
+		isPartial: number;
 		seq: string;
 	}>(`SELECT 
     	  m.tbl_name as tableName,
     	  il.name as indexName,
+		  il.partial as isPartial,
     	  ii.name as columnName,
     	  il.[unique] as isUnique,
     	  il.seq as seq
@@ -789,6 +791,7 @@ export const fromDatabase = async (
 		const constraintName = idxRow.indexName;
 		const columnName: string = idxRow.columnName;
 		const isUnique = idxRow.isUnique === 1;
+		const isPartial = idxRow.isPartial === 1;
 
 		const tableInResult = result[tableName];
 		if (typeof tableInResult === 'undefined') continue;
@@ -797,6 +800,13 @@ export const fromDatabase = async (
 		if (progressCallback) {
 			progressCallback('indexes', indexesCount, 'fetching');
 		}
+
+		let where: string | undefined = undefined;
+		if (isPartial) 
+			where = (await db.query<{sql:string}>(`
+					SELECT sql FROM sqlite_master
+					WHERE type = 'index' AND name = '${escapeSingleQuotes(constraintName)}'
+					`))[0].sql.match(/WHERE\s+(.+?)(?=\s*(?:;|$))/i)?.[1];
 
 		if (
 			typeof tableInResult.indexes[constraintName] !== 'undefined'
@@ -808,6 +818,7 @@ export const fromDatabase = async (
 				name: constraintName,
 				columns: columnName ? [columnName] : [],
 				isUnique: isUnique,
+				where: where,
 			};
 		}
 		// if (isUnique) {
