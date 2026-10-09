@@ -707,7 +707,7 @@ const mysqlSuite: DialectSuite = {
 			},
 		]);
 		expect(sqlStatements).toStrictEqual([
-			'CREATE TABLE `table` (\n\t`col1` int NOT NULL,\n\t`col2` int NOT NULL,\n\tCONSTRAINT `table_col1_col2_pk` PRIMARY KEY(`col1`,`col2`)\n);\n',
+			'CREATE TABLE `table` (\n\t`col1` int NOT NULL,\n\t`col2` int NOT NULL,\n\tPRIMARY KEY(`col1`,`col2`)\n);\n',
 		]);
 	},
 	renameTableWithCompositePrimaryKey: async function(context?: any): Promise<void> {
