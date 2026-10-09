@@ -81,6 +81,25 @@ const customTimestamp = customType<
 });
 ```
 
+#### Selecting values with SQL transformation (`selectFromDb`)
+
+Some database types need an SQL transform to become decodable by the driver (e.g. PostGIS geometries).
+For those cases you can customize how a custom column is selected via `selectFromDb`:
+
+```typescript
+type Point = { lat: number; lng: number };
+
+const pointType = customType<{ data: Point; driverData: string }>({
+  dataType: () => 'geometry(Point,4326)',
+  selectFromDb: (column) => sql<string>`st_astext(${column})`.mapWith(column),
+  fromDriver: (value: string): Point => {
+    const matches = value.match(/POINT\\((?<lng>[\\d.-]+) (?<lat>[\\d.-]+)\\)/);
+    const { lat, lng } = matches?.groups ?? {};
+    return { lat: parseFloat(String(lat)), lng: parseFloat(String(lng)) };
+  },
+});
+```
+
 #### Usage for all types will be same as defined functions in Drizzle ORM
 
 ```typescript
