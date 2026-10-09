@@ -11,78 +11,87 @@ To make cache work you would need to define cache callbacks in drizzle instance 
 **Using upstash cache with drizzle**
 
 ```ts
-const db = drizzle(process.env.DB_URL!, { cache: upstashCache() })
+const db = drizzle(process.env.DB_URL!, { cache: upstashCache() });
 ```
 
 You can also define custom logic for your cache behavior. This is an example of our NodeKV implementation for the Drizzle cache test suites
 
 ```ts
-const db = drizzle(process.env.DB_URL!, { cache: new TestGlobalCache() })
+const db = drizzle(process.env.DB_URL!, { cache: new TestGlobalCache() });
 ```
 
 ```ts
-import Keyv from 'keyv';
+import Keyv from "keyv";
 
 export class TestGlobalCache extends Cache {
   private globalTtl: number = 1000;
-  // This object will be used to store which query keys were used
-  // for a specific table, so we can later use it for invalidation.
   private usedTablesPerKey: Record<string, string[]> = {};
 
   constructor(private kv: Keyv = new Keyv()) {
     super();
   }
 
-  // For the strategy, we have two options:
-  // - 'explicit': The cache is used only when .$withCache() is added to a query.
-  // - 'all': All queries are cached globally.
-  // The default behavior is 'explicit'.
-  override strategy(): 'explicit' | 'all' {
-    return 'all';
+  override strategy(): "explicit" | "all" {
+    return "all";
   }
 
-  // This function accepts query and parameters that cached into key param,
-  // allowing you to retrieve response values for this query from the cache.
-  override async get(key: string): Promise<any[] | undefined> {
-    const res = await this.kv.get(key) ?? undefined;
+  override async get(
+    key: string,
+    tables: string[],
+    isTag: boolean,
+    isAutoInvalidate?: boolean
+  ): Promise<any[] | undefined> {
+    const res = (await this.kv.get(key)) ?? undefined;
     return res;
   }
 
-  // This function accepts several options to define how cached data will be stored:
-  // - 'key': A hashed query and parameters.
-  // - 'response': An array of values returned by Drizzle from the database.
-  // - 'tables': An array of tables involved in the select queries. This information is needed for cache invalidation.
-  //
-  // For example, if a query uses the "users" and "posts" tables, you can store this information. Later, when the app executes
-  // any mutation statements on these tables, you can remove the corresponding key from the cache. 
-  // If you're okay with eventual consistency for your queries, you can skip this option.
-  override async put(key: string, response: any, tables: string[], config?: CacheConfig): Promise<void> {
-    await this.kv.set(key, response, config ? config.ex : this.globalTtl);
+  override async put(
+    hashedQuery: string,
+    response: any,
+    tables: string[],
+    isTag: boolean,
+    config?: CacheConfig
+  ): Promise<void> {
+    await this.kv.set(
+      hashedQuery,
+      response,
+      config ? config.ex : this.globalTtl
+    );
+
+    if (isTag) {
+    }
+
     for (const table of tables) {
       const keys = this.usedTablesPerKey[table];
       if (keys === undefined) {
-        this.usedTablesPerKey[table] = [key];
+        this.usedTablesPerKey[table] = [hashedQuery];
       } else {
-        keys.push(key);
+        keys.push(hashedQuery);
       }
     }
   }
 
-  // This function is called when insert, update, or delete statements are executed. 
-  // You can either skip this step or invalidate queries that used the affected tables.
-  //
-  // The function receives an object with two keys:
-  // - 'tags': Used for queries labeled with a specific tag, allowing you to invalidate by that tag.
-  // - 'tables': The actual tables affected by the insert, update, or delete statements, 
-  //   helping you track which tables have changed since the last cache update.
-  override async onMutate(params: { tags: string | string[], tables: string | string[] | Table<any> | Table<any>[]}): Promise<void> {
-    const tagsArray = params.tags ? Array.isArray(params.tags) ? params.tags : [params.tags] : [];
-    const tablesArray = params.tables ? Array.isArray(params.tables) ? params.tables : [params.tables] : [];
+  override async onMutate(params: {
+    tags: string | string[];
+    tables: string | string[] | Table<any> | Table<any>[];
+  }): Promise<void> {
+    const tagsArray = params.tags
+      ? Array.isArray(params.tags)
+        ? params.tags
+        : [params.tags]
+      : [];
+    const tablesArray = params.tables
+      ? Array.isArray(params.tables)
+        ? params.tables
+        : [params.tables]
+      : [];
 
     const keysToDelete = new Set<string>();
 
     for (const table of tablesArray) {
-      const tableName = is(table, Table) ? getTableName(table) : table as string;
+      const tableName = is(table, Table)
+        ? getTableName(table)
+        : (table as string);
       const keys = this.usedTablesPerKey[tableName] ?? [];
       for (const key of keys) keysToDelete.add(key);
     }
@@ -95,7 +104,9 @@ export class TestGlobalCache extends Cache {
       for (const key of keysToDelete) {
         await this.kv.delete(key);
         for (const table of tablesArray) {
-          const tableName = is(table, Table) ? getTableName(table) : table as string;
+          const tableName = is(table, Table)
+            ? getTableName(table)
+            : (table as string);
           this.usedTablesPerKey[tableName] = [];
         }
       }
@@ -104,52 +115,162 @@ export class TestGlobalCache extends Cache {
 }
 ```
 
+### Understanding Cache Entry Types
+
+When implementing a custom cache, it's important to understand the difference between regular cache entries and tag-based cache entries:
+
+#### Regular Cache Entries (`isTag: false`)
+
+- These are created from regular queries like `db.select().from(users)`
+- They use hashed query + parameters as the cache key
+- They can be invalidated when tables are mutated (if `autoInvalidate` is enabled)
+
+#### Tag-based Cache Entries (`isTag: true`)
+
+- These are created when you use custom tags with `.$withCache({ tag: 'custom_key' })`
+- They allow you to invalidate specific cache entries by tag name
+- They're useful for caching complex queries or API responses that don't directly map to table mutations
+
+#### Implementing Tag Support
+
+For a more complete implementation that properly handles tags, consider this enhanced version:
+
+```ts
+export class AdvancedTestGlobalCache extends Cache {
+  private globalTtl: number = 1000;
+  private usedTablesPerKey: Record<string, string[]> = {};
+  private tagToKey: Record<string, string> = {};
+
+  constructor(private kv: Keyv = new Keyv()) {
+    super();
+  }
+
+  override strategy(): "explicit" | "all" {
+    return "all";
+  }
+
+  override async get(
+    key: string,
+    tables: string[],
+    isTag: boolean,
+    isAutoInvalidate?: boolean
+  ): Promise<any[] | undefined> {
+    if (isTag) {
+      const actualKey = this.tagToKey[key];
+      if (!actualKey) return undefined;
+      return (await this.kv.get(actualKey)) ?? undefined;
+    }
+
+    return (await this.kv.get(key)) ?? undefined;
+  }
+
+  override async put(
+    hashedQuery: string,
+    response: any,
+    tables: string[],
+    isTag: boolean,
+    config?: CacheConfig
+  ): Promise<void> {
+    const cacheKey = isTag ? `tag_${hashedQuery}` : hashedQuery;
+
+    await this.kv.set(cacheKey, response, config ? config.ex : this.globalTtl);
+
+    if (isTag) {
+      this.tagToKey[hashedQuery] = cacheKey;
+    }
+    for (const table of tables) {
+      const keys = this.usedTablesPerKey[table];
+      if (keys === undefined) {
+        this.usedTablesPerKey[table] = [cacheKey];
+      } else {
+        keys.push(cacheKey);
+      }
+    }
+  }
+
+  override async onMutate(params: {
+    tags: string | string[];
+    tables: string | string[] | Table<any> | Table<any>[];
+  }): Promise<void> {
+    const tagsArray = params.tags
+      ? Array.isArray(params.tags)
+        ? params.tags
+        : [params.tags]
+      : [];
+    const tablesArray = params.tables
+      ? Array.isArray(params.tables)
+        ? params.tables
+        : [params.tables]
+      : [];
+
+    const keysToDelete = new Set<string>();
+
+    for (const tag of tagsArray) {
+      const cacheKey = this.tagToKey[tag];
+      if (cacheKey) {
+        keysToDelete.add(cacheKey);
+        delete this.tagToKey[tag];
+      }
+    }
+
+    for (const table of tablesArray) {
+      const tableName = is(table, Table)
+        ? getTableName(table)
+        : (table as string);
+      const keys = this.usedTablesPerKey[tableName] ?? [];
+      for (const key of keys) keysToDelete.add(key);
+    }
+
+    for (const key of keysToDelete) {
+      await this.kv.delete(key);
+    }
+  }
+}
+```
+
+This advanced implementation:
+
+- Stores tag-based entries with a `tag_` prefix to distinguish them
+- Maintains a mapping from tag names to cache keys
+- Properly handles both tag-based and table-based invalidation
+- Demonstrates how to extend the simple example for production use
+
 ### Cache definition
 
 **Define cache credentials, but no cache will be used globally for all queries**
 
 ```ts
-const db = drizzle(process.env.DB_URL!, { cache: upstashCache({ url: '', token: '' }) })
+const db = drizzle(process.env.DB_URL!, {
+  cache: upstashCache({ url: "", token: "" }),
+});
 ```
 
 **Define cache credentials, and the cache will be used globally for all queries**
 
 ```ts
-const db = drizzle(process.env.DB_URL!, { cache: upstashCache({ url: '', token: '', global: true }) })
+const db = drizzle(process.env.DB_URL!, {
+  cache: upstashCache({ url: "", token: "", global: true }),
+});
 ```
 
 **Define cache credentials with custom config values to be used for all queries, unless overridden**
 
 ```ts
-const db = drizzle(process.env.DB_URL!, { cache: upstashCache({ url: '', token: '', global: true, config: {} }) })
+const db = drizzle(process.env.DB_URL!, {
+  cache: upstashCache({ url: "", token: "", global: true, config: {} }),
+});
 ```
 
 These are all the possible config values that Drizzle supports with the cache layer
 
 ```ts
 export type CacheConfig = {
-  /**
-   * expire time, in seconds (a positive integer)
-   */
   ex?: number;
-  /**
-   * expire time, in milliseconds (a positive integer).
-   */
   px?: number;
-  /**
-   * Unix time at which the key will expire, in seconds (a positive integer).
-   */
   exat?: number;
-  /**
-   * Unix time at which the key will expire, in milliseconds (a positive integer)
-   */
   pxat?: number;
-  /**
-   * Retain the time to live associated with the key.
-   */
   keepTtl?: boolean;
 };
-
 ```
 
 ### Cache usage
@@ -159,72 +280,64 @@ Once you've provided all the necessary instructions to the Drizzle database inst
 **Case 1: Drizzle with global: false option**
 
 ```ts
-const db = drizzle(process.env.DB_URL!, { cache: upstashCache({ url: '', token: '' }) })
+const db = drizzle(process.env.DB_URL!, {
+  cache: upstashCache({ url: "", token: "" }),
+});
 ```
 
 In this case, the current query won't use the cache
 
 ```ts
-const res = await db.select().from(users)
+const res = await db.select().from(users);
 
-// However, any mutate operation will trigger the onMutate function in the cache
-// and attempt to invalidate queries that used the tables involved in this mutation query.
-await db.insert(users).value({ email: 'cacheman@upstash.com' })
+await db.insert(users).value({ email: "cacheman@upstash.com" });
 ```
 
 If you want the query to actually use the cache, you need to call `.$withCache()`
 
 ```ts
-const res = await db.select().from(users).$withCache()
+const res = await db.select().from(users).$withCache();
 ```
 
 `.$withCache` has a set of options you can use to manage and config this specific query strategy
 
 ```ts
-// rewrite the global config options for this specific query
 .$withCache({ config: {} })
 
-// give a query custom cache key instead of hashing query+params under the hood
 .$withCache({ tag: 'custom_key' })
 
-// disable autoinvalidation for this query, if you are fine with eventual consstnecy for this specific query
 .$withCache({ autoInvalidate: false })
 ```
 
 **Case 2: Drizzle with global: true option**
 
 ```ts
-const db = drizzle(process.env.DB_URL!, { cache: upstashCache({ url: '', token: '', global: true }) })
+const db = drizzle(process.env.DB_URL!, {
+  cache: upstashCache({ url: "", token: "", global: true }),
+});
 ```
 
 In this case, the current query will use the cache
 
 ```ts
-const res = await db.select().from(users)
+const res = await db.select().from(users);
 ```
 
 If you want the query to disable cache for some specific query, you need to call `.$withCache(false)`
 
 ```ts
-// cache is disabled for this query
-const res = await db.select().from(users).$withCache(false)
+const res = await db.select().from(users).$withCache(false);
 ```
 
 You can also use cache instance from a `db` to force invalidate specific tables or tags you've defined previously
 
 ```ts
-// Invalidate all queries that use the `users` table. You can do this with the Drizzle instance.
 await db.$cache?.invalidate({ tables: users });
-// or
 await db.$cache?.invalidate({ tables: [users, posts] });
 
-// Invalidate all queries that use the `usersTable`. You can do this by using just the table name.
-await db.$cache?.invalidate({ tables: 'usersTable' });
-// or
-await db.$cache?.invalidate({ tables: ['usersTable' , 'postsTable' ] });
+await db.$cache?.invalidate({ tables: "usersTable" });
+await db.$cache?.invalidate({ tables: ["usersTable", "postsTable"] });
 
-// You can also invalidate custom tags defined in any previously executed select queries.
-await db.$cache?.invalidate({ tags: 'custom_key' });
-// or
-await db.$cache?.invalidate({ tags: ['custom_key', 'custom_key1'] });
+await db.$cache?.invalidate({ tags: "custom_key" });
+await db.$cache?.invalidate({ tags: ["custom_key", "custom_key1"] });
 ```
