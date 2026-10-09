@@ -917,7 +917,7 @@ test('set not null with index', async (t) => {
 
 	expect(sqlStatements.length).toBe(3);
 	expect(sqlStatements[0]).toBe(
-		`DROP INDEX "users_name_index";`,
+		`DROP INDEX IF EXISTS "users_name_index";`,
 	);
 	expect(sqlStatements[1]).toBe(
 		`ALTER TABLE \`users\` ALTER COLUMN "name" TO "name" text NOT NULL;`,
@@ -972,10 +972,10 @@ test('drop not null with two indexes', async (t) => {
 
 	expect(sqlStatements.length).toBe(5);
 	expect(sqlStatements[0]).toBe(
-		`DROP INDEX "users_name_unique";`,
+		`DROP INDEX IF EXISTS "users_name_unique";`,
 	);
 	expect(sqlStatements[1]).toBe(
-		`DROP INDEX "users_age_index";`,
+		`DROP INDEX IF EXISTS "users_age_index";`,
 	);
 	expect(sqlStatements[2]).toBe(
 		`ALTER TABLE \`users\` ALTER COLUMN "name" TO "name" text;`,
@@ -986,4 +986,53 @@ test('drop not null with two indexes', async (t) => {
 	expect(sqlStatements[4]).toBe(
 		`CREATE INDEX \`users_age_index\` ON \`users\` (\`age\`);`,
 	);
+});
+
+test('set not null on two tables uses idempotent index drops', async (t) => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name'),
+		}, (table) => ({
+			someIndex: index('users_name_index').on(table.name),
+		})),
+		projects: sqliteTable('projects', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			title: text('title'),
+		}, (table) => ({
+			someIndex: index('projects_title_index').on(table.title),
+		})),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name').notNull(),
+		}, (table) => ({
+			someIndex: index('users_name_index').on(table.name),
+		})),
+		projects: sqliteTable('projects', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			title: text('title').notNull(),
+		}, (table) => ({
+			someIndex: index('projects_title_index').on(table.title),
+		})),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasLibSQL(
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements.length).toBe(2);
+	expect(statements.every((statement) => statement.type === 'alter_table_alter_column_set_notnull')).toBe(true);
+
+	const usersDrops = sqlStatements.filter((statement) => statement === `DROP INDEX IF EXISTS "users_name_index";`);
+	const projectsDrops = sqlStatements.filter((statement) => statement === `DROP INDEX IF EXISTS "projects_title_index";`);
+
+	expect(usersDrops.length).toBeGreaterThanOrEqual(1);
+	expect(projectsDrops.length).toBeGreaterThanOrEqual(1);
+	expect(sqlStatements.some((statement) => statement.startsWith(`DROP INDEX "users_name_index"`))).toBe(false);
+	expect(sqlStatements.some((statement) => statement.startsWith(`DROP INDEX "projects_title_index"`))).toBe(false);
 });
