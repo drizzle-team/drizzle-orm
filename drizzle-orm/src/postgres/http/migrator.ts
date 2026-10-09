@@ -1,7 +1,7 @@
 import type { BatchItem } from '~/batch.ts';
-import type { MigrationConfig, MigratorInitFailResponse } from '~/migrator.ts';
+import type { MigrationConfig, MigratorInitFailResponse, RollbackOptions, RollbackStep } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import { getMigrationsToRun, journalReadError, type JournalRow, planRollback } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import { upgradeIfNeeded } from '~/up-migrations/pg.ts';
@@ -85,4 +85,37 @@ export async function migrate<TRelations extends AnyRelations>(
 	if (statements.length) {
 		await db.batch(statements as [BatchItem<'pg'>, ...BatchItem<'pg'>[]]);
 	}
+}
+
+/**
+ * Down statements and their journal deletions are sent as a single batch: the driver has no interactive
+ * transactions, so a batch is the only way to keep a failed rollback from leaving partial state behind.
+ */
+export async function rollback<TRelations extends AnyRelations>(
+	db: PostgresHttpDatabase<TRelations>,
+	config: MigrationConfig,
+	options?: RollbackOptions,
+): Promise<RollbackStep[]> {
+	const migrations = readMigrationFiles(config);
+	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+	const migrationsSchema = config.migrationsSchema ?? 'drizzle';
+	const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
+
+	const dbMigrations = await db.session.objects<JournalRow>(sql`select id, hash, created_at, name from ${table}`)
+		.catch((e) => {
+			throw journalReadError(`${migrationsSchema}.${migrationsTable}`, e);
+		});
+
+	const plan = planRollback({ localMigrations: migrations, dbMigrations, options });
+	if (options?.dryRun || plan.length === 0) return plan;
+
+	const statements: BatchItem<'pg'>[] = [];
+	for (const step of plan) {
+		for (const stmt of step.downSql) {
+			statements.push(db.execute(sql.raw(stmt)));
+		}
+		statements.push(db.execute(sql`delete from ${table} where id = ${step.id}`));
+	}
+	await db.batch(statements as [BatchItem<'pg'>, ...BatchItem<'pg'>[]]);
+	return plan;
 }

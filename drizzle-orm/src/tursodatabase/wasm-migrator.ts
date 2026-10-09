@@ -1,17 +1,18 @@
-import type { MigrationMeta } from '~/migrator.ts';
-import { formatToMillis } from '~/migrator.utils.ts';
+import type { MigrationMeta, RollbackOptions } from '~/migrator.ts';
+import { formatToMillis, splitDownSql } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { migrateAsync } from '~/sqlite-core/async/session.ts';
+import { migrateAsync, rollbackAsync } from '~/sqlite-core/async/session.ts';
 import type { TursoDatabaseDatabase } from './driver-core.ts';
 
 interface MigrationConfig {
 	migrations: Record<string, string>;
+	downMigrations?: Record<string, string>;
 	migrationsTable?: string;
 	/** @internal */
 	init?: boolean;
 }
 
-function readMigrationFiles({ migrations }: MigrationConfig): MigrationMeta[] {
+function readMigrationFiles({ migrations, downMigrations }: MigrationConfig): MigrationMeta[] {
 	const migrationQueries: MigrationMeta[] = [];
 
 	const sortedMigrations = Object.keys(migrations).sort();
@@ -29,8 +30,11 @@ function readMigrationFiles({ migrations }: MigrationConfig): MigrationMeta[] {
 
 			const migrationDate = formatToMillis(key.slice(0, 14));
 
+			const downSql = splitDownSql(downMigrations?.[key]);
+
 			migrationQueries.push({
 				sql: result,
+				downSql,
 				bps: true,
 				folderMillis: migrationDate,
 				hash: '',
@@ -51,4 +55,14 @@ export function migrate<TRelations extends AnyRelations>(
 ) {
 	const migrations = readMigrationFiles(config);
 	return migrateAsync(migrations, db, config);
+}
+
+/** Filesystemless version of rollback for browser environments */
+export async function rollback<TRelations extends AnyRelations>(
+	db: TursoDatabaseDatabase<TRelations>,
+	config: MigrationConfig,
+	options?: RollbackOptions,
+) {
+	const migrations = readMigrationFiles(config);
+	return await rollbackAsync(migrations, db.session as any, config, options);
 }

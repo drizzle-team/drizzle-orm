@@ -1,6 +1,6 @@
-import type { MigrationConfig, MigratorInitFailResponse } from '~/migrator.ts';
+import type { MigrationConfig, MigratorInitFailResponse, RollbackOptions, RollbackStep } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import { getMigrationsToRun, journalReadError, type JournalRow, planRollback } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mysql-proxy.ts';
@@ -85,4 +85,38 @@ export async function migrate<TRelations extends AnyRelations>(
 	}
 
 	await callback(queriesToRun);
+}
+
+export async function rollback<TRelations extends AnyRelations>(
+	db: MySqlRemoteDatabase<TRelations>,
+	callback: ProxyMigrator,
+	config: MigrationConfig,
+	options?: RollbackOptions,
+): Promise<RollbackStep[]> {
+	const migrations = readMigrationFiles(config);
+	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+
+	const dbMigrations = await (db.select({
+		id: sql.raw('id'),
+		hash: sql.raw('hash'),
+		created_at: sql.raw('created_at'),
+		name: sql.raw('name'),
+	}).from(sql.identifier(migrationsTable).getSQL()) as Promise<JournalRow[]>).catch((e) => {
+		throw journalReadError(migrationsTable, e);
+	});
+
+	const plan = planRollback({ localMigrations: migrations, dbMigrations, options });
+	if (options?.dryRun || plan.length === 0) return plan;
+
+	const queriesToRun: string[] = [];
+	for (const step of plan) {
+		queriesToRun.push(
+			...step.downSql,
+			db.dialect.sqlToQuery(
+				sql`delete from ${sql.identifier(migrationsTable)} where id = ${step.id}`.inlineParams(),
+			).sql,
+		);
+	}
+	await callback(queriesToRun);
+	return plan;
 }

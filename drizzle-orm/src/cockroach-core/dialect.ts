@@ -14,8 +14,14 @@ import { CodecsCollection } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import type {
+	MigrationConfig,
+	MigrationMeta,
+	MigratorInitFailResponse,
+	RollbackOptions,
+	RollbackStep,
+} from '~/migrator.ts';
+import { getMigrationsToRun, journalReadError, type JournalRow, planRollback } from '~/migrator.utils.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	AnyOne,
@@ -189,6 +195,37 @@ export class CockroachDialect {
 				);
 			}
 		});
+	}
+
+	async rollback(
+		migrations: MigrationMeta[],
+		session: CockroachSession,
+		config: string | MigrationConfig,
+		options?: RollbackOptions,
+	): Promise<RollbackStep[]> {
+		const migrationsTable = typeof config === 'string'
+			? '__drizzle_migrations'
+			: config.migrationsTable ?? '__drizzle_migrations';
+		const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
+		const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
+
+		const dbMigrations = await session.objects<JournalRow>(sql`select id, hash, created_at, name from ${table}`)
+			.catch((e) => {
+				throw journalReadError(`${migrationsSchema}.${migrationsTable}`, e);
+			});
+
+		const plan = planRollback({ localMigrations: migrations, dbMigrations, options });
+		if (options?.dryRun || plan.length === 0) return plan;
+
+		await session.transaction(async (tx) => {
+			for (const step of plan) {
+				for (const stmt of step.downSql) {
+					await tx.execute(sql.raw(stmt));
+				}
+				await tx.execute(sql`delete from ${table} where id = ${step.id}`);
+			}
+		});
+		return plan;
 	}
 
 	escapeName(name: string): string {
