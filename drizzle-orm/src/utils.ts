@@ -17,7 +17,7 @@ export function mapResultRow<TResult>(
 	row: unknown[],
 	joinsNotNullableMap: Record<string, boolean> | undefined,
 ): TResult {
-	// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
+	// Key -> nested object key, value -> table name if all tracked columns are null and from the same table, false otherwise
 	const nullifyMap: Record<string, string | false> = {};
 
 	const result = columns.reduce<Record<string, any>>(
@@ -48,7 +48,8 @@ export function mapResultRow<TResult>(
 						if (!(objectName in nullifyMap)) {
 							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
 						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
+							typeof nullifyMap[objectName] === 'string'
+							&& (value !== null || nullifyMap[objectName] !== getTableName(field.table))
 						) {
 							nullifyMap[objectName] = false;
 						}
