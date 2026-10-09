@@ -149,6 +149,8 @@ export type PgMaterializedViewWithConfig = RequireAtLeastOne<{
 	autovacuumMultixactFreezeTableAge: number;
 	logAutovacuumMinDuration: number;
 	userCatalogTable: boolean;
+	"timescaledb.continuous": boolean;
+	"timescaledb.materializedOnly": boolean;
 }>;
 
 export class MaterializedViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
