@@ -1,4 +1,5 @@
 import type { WithCacheConfig } from '~/cache/core/types.ts';
+import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { IndexColumn } from '~/pg-core/indexes.ts';
@@ -326,13 +327,19 @@ export class PgInsertBase<
 		if (config.target === undefined) {
 			this.config.onConflict = sql`do nothing`;
 		} else {
-			let targetColumn = '';
-			targetColumn = Array.isArray(config.target)
-				? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
-				: this.dialect.escapeName(this.dialect.casing.getColumnCasing(config.target));
+			const targets = Array.isArray(config.target) ? config.target : [config.target];
+			const targetSql = sql.join(
+				targets.map((it) => {
+					if (is(it, Column)) {
+						return sql.raw(this.dialect.escapeName(this.dialect.casing.getColumnCasing(it)));
+					}
+					return it;
+				}),
+				sql`,`,
+			);
 
 			const whereSql = config.where ? sql` where ${config.where}` : undefined;
-			this.config.onConflict = sql`(${sql.raw(targetColumn)})${whereSql} do nothing`;
+			this.config.onConflict = sql`(${targetSql})${whereSql} do nothing`;
 		}
 		return this as any;
 	}
@@ -378,13 +385,17 @@ export class PgInsertBase<
 		const targetWhereSql = config.targetWhere ? sql` where ${config.targetWhere}` : undefined;
 		const setWhereSql = config.setWhere ? sql` where ${config.setWhere}` : undefined;
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
-		let targetColumn = '';
-		targetColumn = Array.isArray(config.target)
-			? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
-			: this.dialect.escapeName(this.dialect.casing.getColumnCasing(config.target));
-		this.config.onConflict = sql`(${
-			sql.raw(targetColumn)
-		})${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`;
+		const targets = Array.isArray(config.target) ? config.target : [config.target];
+		const targetSql = sql.join(
+			targets.map((it) => {
+				if (is(it, Column)) {
+					return sql.raw(this.dialect.escapeName(this.dialect.casing.getColumnCasing(it)));
+				}
+				return it;
+			}),
+			sql`,`,
+		);
+		this.config.onConflict = sql`(${targetSql})${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`;
 		return this as any;
 	}
 

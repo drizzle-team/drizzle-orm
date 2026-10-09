@@ -41,7 +41,7 @@ interface IndexConfig {
 	method?: 'btree' | string;
 }
 
-export type IndexColumn = PgColumn;
+export type IndexColumn = PgColumn | SQL;
 
 export type PgIndexMethod = 'btree' | 'hash' | 'gist' | 'spgist' | 'gin' | 'brin' | 'hnsw' | 'ivfflat' | (string & {});
 
