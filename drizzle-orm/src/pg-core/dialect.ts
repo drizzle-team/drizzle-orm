@@ -152,9 +152,11 @@ export class PgDialect {
 	buildUpdateSet(table: PgTable, set: UpdateSet): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
 
-		const columnNames = Object.keys(tableColumns).filter((colName) =>
-			set[colName] !== undefined || tableColumns[colName]?.onUpdateFn !== undefined
-		);
+		const columnNames = Object.keys(tableColumns).filter((colName) => {
+			const col = tableColumns[colName];
+			if (col?.shouldDisableInsert()) return false;
+			return set[colName] !== undefined || col?.onUpdateFn !== undefined;
+		});
 
 		const setSize = columnNames.length;
 		return sql.join(columnNames.flatMap((colName, i) => {
