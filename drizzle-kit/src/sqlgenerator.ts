@@ -1880,7 +1880,7 @@ export class SQLiteAlterTableAddColumnConvertor extends Convertor {
 			: undefined;
 		const referenceStatement = `${
 			referenceAsObject
-				? ` REFERENCES ${referenceAsObject.tableTo}(${referenceAsObject.columnsTo})`
+				? ` REFERENCES ${referenceAsObject.tableTo}(${referenceAsObject.columnsTo})${referenceAsObject.onDelete ? ` ON DELETE ${referenceAsObject.onDelete}` : ''}${referenceAsObject.onUpdate ? ` ON UPDATE ${referenceAsObject.onUpdate}` : ''}`
 				: ''
 		}`;
 		// const autoincrementStatement = `${autoincrement ? 'AUTO_INCREMENT' : ''}`
