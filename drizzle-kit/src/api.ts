@@ -54,6 +54,17 @@ import { generateSingleStoreSnapshot } from './serializer/singlestoreSerializer'
 import { SQLiteSchema as SQLiteSchemaKit, sqliteSchema, squashSqliteScheme } from './serializer/sqliteSchema';
 import { generateSqliteSnapshot } from './serializer/sqliteSerializer';
 import type { Setup } from './serializer/studio';
+import type {
+	ColumnsResolverInput,
+	ColumnsResolverOutput,
+	ResolverInput,
+	ResolverOutput,
+	ResolverOutputWithMoved,
+	RolesResolverInput,
+	RolesResolverOutput,
+	TablePolicyResolverInput,
+	TablePolicyResolverOutput,
+} from './snapshotsDiffer';
 import type { DB, SQLiteDB } from './utils';
 import { certs } from './utils/certs';
 export type DrizzleSnapshotJSON = PgSchemaKit;
@@ -106,20 +117,62 @@ export const generateMigration = async (
 	const { sqlStatements, _meta } = await applyPgSnapshotsDiff(
 		squashedPrev,
 		squashedCur,
-		schemasResolver,
-		enumsResolver,
-		sequencesResolver,
-		policyResolver,
-		indPolicyResolver,
-		roleResolver,
-		tablesResolver,
-		columnsResolver,
-		viewsResolver,
+		resolveAsCreateAndDelete,
+		resolveAsCreateAndDeleteWithMoved,
+		resolveAsCreateAndDeleteWithMoved,
+		resolveTablePoliciesAsCreateAndDelete,
+		resolveAsCreateAndDelete,
+		resolveRolesAsCreateAndDelete,
+		resolveAsCreateAndDeleteWithMoved,
+		resolveColumnsAsCreateAndDelete,
+		resolveAsCreateAndDeleteWithMoved,
 		validatedPrev,
 		validatedCur,
 	);
 
 	return sqlStatements;
+};
+
+const resolveAsCreateAndDelete = async <T extends { name: string }>(
+	input: ResolverInput<T>,
+): Promise<ResolverOutput<T>> => {
+	return { created: input.created, renamed: [], deleted: input.deleted };
+};
+
+const resolveAsCreateAndDeleteWithMoved = async <T extends { name: string }>(
+	input: ResolverInput<T>,
+): Promise<ResolverOutputWithMoved<T>> => {
+	return { created: input.created, moved: [], renamed: [], deleted: input.deleted };
+};
+
+const resolveColumnsAsCreateAndDelete = async <T extends { name: string }>(
+	input: ColumnsResolverInput<T>,
+): Promise<ColumnsResolverOutput<T>> => {
+	return {
+		tableName: input.tableName,
+		schema: input.schema,
+		created: input.created,
+		renamed: [],
+		deleted: input.deleted,
+	};
+};
+
+const resolveTablePoliciesAsCreateAndDelete = async <T extends { name: string }>(
+	input: TablePolicyResolverInput<T>,
+): Promise<TablePolicyResolverOutput<T>> => {
+	return {
+		tableName: input.tableName,
+		schema: input.schema,
+		created: input.created,
+		renamed: [],
+		deleted: input.deleted,
+	};
+};
+
+const resolveRolesAsCreateAndDelete = async <T extends { name: string }>(
+	input: RolesResolverInput<T>,
+): Promise<RolesResolverOutput<T>> => {
+	return { created: input.created, renamed: [], deleted: input.deleted };
 };
 
 export const pushSchema = async (
