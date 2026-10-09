@@ -30,3 +30,17 @@ const table = pgTable('table', {
 
 const columns/*: { id: ..., name: ... } */ = getTableColumns(table);
 ```
+
+```ts
+import { pgTable, pickTableColumns } from 'drizzle-orm/pg-core';
+
+const table = pgTable('table', {
+  id: integer('id').primaryKey(),
+  name: text('name'),
+});
+
+const colums = pickTableColumns(table, {
+  id: true,
+  name: false,
+});
+```
