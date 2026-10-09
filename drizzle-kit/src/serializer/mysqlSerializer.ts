@@ -862,11 +862,15 @@ export const fromDatabase = async (
 		const tableSchema = idxRow['TABLE_SCHEMA'];
 		const tableName = idxRow['TABLE_NAME'];
 		const constraintName = idxRow['INDEX_NAME'];
-		const columnName: string = idxRow['COLUMN_NAME'];
+		const columnName: string | null = idxRow['COLUMN_NAME'];
 		const isUnique = idxRow['NON_UNIQUE'] === 0;
 
 		const tableInResult = result[tableName];
 		if (typeof tableInResult === 'undefined') continue;
+
+		// MySQL 8+ functional/expression indexes have COLUMN_NAME = NULL.
+		// Skip these since Drizzle doesn't support expression indexes yet.
+		if (columnName === null) continue;
 
 		// if (tableInResult.columns[columnName].type === "serial") continue;
 
