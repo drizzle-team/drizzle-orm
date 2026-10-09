@@ -34,7 +34,7 @@ export const generateDrizzleJson = async (
 export const generateMigration = async (
 	prev: SqliteSnapshot,
 	cur: SqliteSnapshot,
-	options?: { hints?: readonly Hint[] },
+	options?: { hints?: Hint[] },
 ) => {
 	const { resolver } = await import('../cli/prompts');
 	const { ddlDiff } = await import('../dialects/sqlite/diff');
@@ -70,7 +70,7 @@ export const pushSchema = async (
 		table?: string;
 		schema?: string;
 	},
-	options?: { hints?: readonly Hint[] },
+	options?: { hints?: Hint[] },
 ) => {
 	const { resolver } = await import('../cli/prompts');
 	const { fromDatabaseForDrizzle } = await import('src/dialects/sqlite/introspect');

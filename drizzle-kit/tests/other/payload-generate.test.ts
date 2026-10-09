@@ -44,7 +44,7 @@ test('ambiguity in two entity kinds is listed in one error and resolves with cre
 		],
 	});
 
-	const hints: readonly Hint[] = err.missingHints.flatMap((it) =>
+	const hints: Hint[] = err.missingHints.flatMap((it) =>
 		it.type === 'rename_or_create' ? [{ ...it, type: 'create' as const }] : []
 	);
 	const sql = await pgMigration(prev, cur, { hints });

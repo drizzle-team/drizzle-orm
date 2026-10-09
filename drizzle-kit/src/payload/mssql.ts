@@ -60,7 +60,7 @@ export const generateDrizzleJson = async (
 export const generateMigration = async (
 	prev: MssqlSnapshot,
 	cur: MssqlSnapshot,
-	options?: { hints?: readonly Hint[] },
+	options?: { hints?: Hint[] },
 ) => {
 	const { resolver } = await import('../cli/prompts');
 	const { ddlDiff } = await import('../dialects/mssql/diff');
@@ -105,7 +105,7 @@ export const pushSchema = async (
 		table?: string;
 		schema?: string;
 	},
-	options?: { hints?: readonly Hint[] },
+	options?: { hints?: Hint[] },
 ) => {
 	const { prepareEntityFilter } = await import('src/dialects/pull-utils');
 	const { resolver } = await import('../cli/prompts');

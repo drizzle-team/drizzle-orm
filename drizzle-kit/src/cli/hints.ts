@@ -206,12 +206,11 @@ export class HintsHandler {
 		this.userHints = buildHints(hints);
 	}
 
-	static async fromCli(opts: { hints?: string | readonly Hint[]; hintsFile?: string }): Promise<HintsHandler> {
+	static async fromCli(opts: { hints?: string | Hint[]; hintsFile?: string }): Promise<HintsHandler> {
 		let source: 'file' | 'inline';
 		let parsedJson: unknown;
 
-		// `Array.isArray` does not narrow a readonly array out of the `else` branch.
-		if (typeof opts.hints === 'object' && opts.hints !== null) {
+		if (Array.isArray(opts.hints)) {
 			source = 'inline';
 			parsedJson = opts.hints;
 		} else {
@@ -311,7 +310,7 @@ export class HintsHandler {
 
 // The programmatic API has no terminal, so the resolvers must not prompt and must not print.
 export const runWithApiHints = async <T>(
-	raw: readonly Hint[],
+	raw: Hint[],
 	callback: (hints: HintsHandler) => Promise<T>,
 ): Promise<T> => {
 	const hints = await HintsHandler.fromCli({ hints: raw });
