@@ -1550,6 +1550,41 @@ export function tests() {
 			});
 		});
 
+		test('build query insert with onConflict do update / sql expression target', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const query = db
+				.insert(usersTable)
+				.values({ name: 'John', jsonb: ['foo', 'bar'] })
+				.onConflictDoUpdate({
+					target: sql`lower(${usersTable.name})`,
+					set: { name: 'John1' },
+				})
+				.toSQL();
+
+			expect(query).toEqual({
+				sql:
+					'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict (lower("users"."name")) do update set "name" = $3',
+				params: ['John', '["foo","bar"]', 'John1'],
+			});
+		});
+
+		test('build query insert with onConflict do nothing / sql expression target', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const query = db
+				.insert(usersTable)
+				.values({ name: 'John', jsonb: ['foo', 'bar'] })
+				.onConflictDoNothing({ target: sql`lower(${usersTable.name})` })
+				.toSQL();
+
+			expect(query).toEqual({
+				sql:
+					'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict (lower("users"."name")) do nothing',
+				params: ['John', '["foo","bar"]'],
+			});
+		});
+
 		test('build query insert with onConflict do nothing', async (ctx) => {
 			const { db } = ctx.pg;
 
@@ -1629,6 +1664,69 @@ export function tests() {
 				.select({ id: usersTable.id, name: usersTable.name })
 				.from(usersTable)
 				.where(eq(usersTable.id, 1));
+
+			expect(res).toEqual([{ id: 1, name: 'John' }]);
+		});
+
+		test('insert with onConflict do update / sql expression target', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.execute(sql`drop table if exists ${usersTable}`);
+			await db.execute(sql`
+				create table ${usersTable} (
+					id serial primary key,
+					name text not null,
+					verified boolean not null default false,
+					jsonb jsonb,
+					created_at timestamp not null default now()
+				)
+			`);
+			await db.execute(sql`create unique index users_lower_name_idx on ${usersTable} (lower("name"))`);
+
+			await db.insert(usersTable).values({ name: 'John' });
+
+			await db
+				.insert(usersTable)
+				.values({ name: 'john' })
+				.onConflictDoUpdate({
+					target: sql`lower(${usersTable.name})`,
+					set: { name: 'John Updated' },
+				});
+
+			const res = await db
+				.select({ id: usersTable.id, name: usersTable.name })
+				.from(usersTable);
+
+			expect(res).toEqual([{ id: 1, name: 'John Updated' }]);
+		});
+
+		test('insert with onConflict do nothing / sql expression target', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.execute(sql`drop table if exists ${usersTable}`);
+			await db.execute(sql`
+				create table ${usersTable} (
+					id serial primary key,
+					name text not null,
+					verified boolean not null default false,
+					jsonb jsonb,
+					created_at timestamp not null default now()
+				)
+			`);
+			await db.execute(sql`create unique index users_lower_name_idx on ${usersTable} (lower("name"))`);
+
+			await db.insert(usersTable).values({ name: 'John' });
+
+			await db
+				.insert(usersTable)
+				.values({ name: 'john' })
+				.onConflictDoNothing({
+					target: sql`lower(${usersTable.name})`,
+				});
+
+			const res = await db
+				.select({ id: usersTable.id, name: usersTable.name })
+				.from(usersTable);
 
 			expect(res).toEqual([{ id: 1, name: 'John' }]);
 		});
