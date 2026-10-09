@@ -26,11 +26,12 @@ const textSchema = t.String();
 test('table - select', (tc) => {
 	const table = pgTable('test', {
 		id: serial().primaryKey(),
+		generated: integer().generatedAlwaysAsIdentity(),
 		name: text().notNull(),
 	});
 
 	const result = createSelectSchema(table);
-	const expected = t.Object({ id: integerSchema, name: textSchema });
+	const expected = t.Object({ id: integerSchema, generated: integerSchema, name: textSchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
