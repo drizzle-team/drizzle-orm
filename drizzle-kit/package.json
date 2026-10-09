@@ -77,7 +77,6 @@
 		"ava": "^5.1.0",
 		"better-sqlite3": "^11.9.1",
 		"bun-types": "^0.6.6",
-		"camelcase": "^7.0.1",
 		"chalk": "^5.2.0",
 		"commander": "^12.1.0",
 		"dockerode": "^4.0.6",
