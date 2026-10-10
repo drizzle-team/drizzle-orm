@@ -1208,10 +1208,11 @@ WHERE
 
 	const sequencesInColumns: string[] = [];
 
-	const all = allTables
-		.filter((it) => it.type === 'table')
-		.map((row) => {
-			return new Promise(async (res, rej) => {
+	const tables = allTables
+		.filter((it) => it.type === 'table');
+
+	for (const row of tables) {
+		await new Promise(async (res, rej) => {
 				const tableName = row.table_name as string;
 				if (!tablesFilter(tableName)) return res('');
 				tableCount += 1;
@@ -1369,6 +1370,8 @@ WHERE
 						// Where (email) is column in table
 						let checkValue: string = checks.constraint_definition;
 						const constraintName: string = checks.constraint_name;
+
+						if (!checkValue) continue;
 
 						checkValue = checkValue.replace(/^CHECK\s*\(\(/, '').replace(/\)\)\s*$/, '');
 
@@ -1668,19 +1671,19 @@ WHERE
 				}
 				res('');
 			});
-		});
+	}
 
 	if (progressCallback) {
 		progressCallback('tables', tableCount, 'done');
 	}
 
-	for await (const _ of all) {
-	}
 
-	const allViews = allTables
-		.filter((it) => it.type === 'view' || it.type === 'materialized_view')
-		.map((row) => {
-			return new Promise(async (res, rej) => {
+
+	const viewsToProcess = allTables
+		.filter((it) => it.type === 'view' || it.type === 'materialized_view');
+
+	for (const row of viewsToProcess) {
+		await new Promise(async (res, rej) => {
 				const viewName = row.table_name as string;
 				if (!tablesFilter(viewName)) return res('');
 				tableCount += 1;
@@ -1900,12 +1903,9 @@ WHERE
 				}
 				res('');
 			});
-		});
-
-	viewsCount = allViews.length;
-
-	for await (const _ of allViews) {
 	}
+
+	viewsCount = viewsToProcess.length;
 
 	if (progressCallback) {
 		progressCallback('columns', columnsCount, 'done');
