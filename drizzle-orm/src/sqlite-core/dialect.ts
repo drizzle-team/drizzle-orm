@@ -20,6 +20,7 @@ import {
 import type { Name, Placeholder } from '~/sql/index.ts';
 import { and, eq } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
+import { SQLiteCustomColumn } from '~/sqlite-core/columns/custom.ts';
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type {
 	AnySQLiteSelectQueryBuilder,
@@ -209,7 +210,10 @@ export abstract class SQLiteDialect {
 				}
 			} else if (is(field, Column)) {
 				const tableName = field.table[Table.Symbol.Name];
-				if (field.columnType === 'SQLiteNumericBigInt') {
+				if (is(field, SQLiteCustomColumn)) {
+					// Custom types can define a `selectFromDb` SQL wrapper
+					chunk.push(field.getSelectSQL());
+				} else if (field.columnType === 'SQLiteNumericBigInt') {
 					if (isSingleTable) {
 						chunk.push(
 							sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
@@ -219,6 +223,9 @@ export abstract class SQLiteDialect {
 							sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
 						);
 					}
+				} else if (is(field, SQLiteCustomColumn) && !isSingleTable) {
+					// Custom types can define a `selectFromDb` SQL wrapper
+					chunk.push(field.getSelectSQL());
 				} else {
 					if (isSingleTable) {
 						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));

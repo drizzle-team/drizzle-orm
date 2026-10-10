@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyGelTable } from '~/gel-core/table.ts';
-import type { SQL } from '~/sql/sql.ts';
+import type { SQL, SQLWrapper } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
@@ -63,6 +63,7 @@ export class GelCustomColumn<T extends ColumnBaseConfig<'custom', 'GelCustomColu
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	private selectFromDb?: (column: SQLWrapper) => SQL;
 
 	constructor(
 		table: AnyGelTable<{ name: T['tableName'] }>,
@@ -72,10 +73,21 @@ export class GelCustomColumn<T extends ColumnBaseConfig<'custom', 'GelCustomColu
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.selectFromDb = config.customTypeParams.selectFromDb;
 	}
 
 	getSQLType(): string {
 		return this.sqlName;
+	}
+
+	/**
+	 * Returns the SQL expression used to select this column, wrapped by the
+	 * custom type's `selectFromDb` function if one was provided.
+	 */
+	getSelectSQL(): SQL {
+		return typeof this.selectFromDb === 'function'
+			? this.selectFromDb(this).mapWith(this)
+			: this.getSQL();
 	}
 
 	override mapFromDriverValue(value: T['driverParam']): T['data'] {
@@ -195,6 +207,21 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional SQL wrapper applied to the column reference in `SELECT` queries.
+	 *
+	 * Useful for custom types whose values cannot be read directly, e.g. spatial
+	 * columns that need to be wrapped in a function call.
+	 *
+	 * @example
+	 * ```ts
+	 * selectFromDb(column) {
+	 * 	return sql`ST_AsText(${column})`;
+	 * },
+	 * ```
+	 */
+	selectFromDb?: (column: SQLWrapper) => SQL;
 }
 
 /**
