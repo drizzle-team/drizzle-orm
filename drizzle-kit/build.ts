@@ -22,6 +22,21 @@ const driversPackages = [
 	'bun:sqlite',
 ];
 
+// Externals for shipped artifacts: only packages the consumer must provide
+// themselves. package.json dependencies (tsx, brocli, esbuild) are
+// externalized by tsup automatically.
+const coreExternals = ['drizzle-orm', ...driversPackages];
+
+// Local artifacts additionally externalize the devDependencies that the CLI
+// imports at runtime (they are not installed for consumers, but a local
+// build runs from this repo's node_modules).
+const localCliExternals = ['commander', 'json-diff', 'glob', ...coreExternals];
+
+const dualOut = (ctx: { format: string }): { dts?: string; js: string } =>
+	ctx.format === 'cjs'
+		? { dts: '.d.ts', js: '.js' }
+		: { dts: '.d.mts', js: '.mjs' };
+
 esbuild.buildSync({
 	entryPoints: ['./src/utils.ts'],
 	bundle: true,
@@ -66,87 +81,53 @@ if (!dev) {
 	});
 }
 
-if (!dev) {
-	esbuild.buildSync({
-		entryPoints: ['./src/cli/index.ts'],
-		bundle: true,
-		outfile: 'dist/bin.cjs',
-		format: 'cjs',
-		target: 'node16',
-		platform: 'node',
-		define: {
-			'process.env.DRIZZLE_KIT_VERSION': `"${pkg.version}"`,
-		},
-		external: [
-			'esbuild',
-			'drizzle-orm',
-			...driversPackages,
-		],
-		banner: {
-			js: `#!/usr/bin/env node`,
-		},
-	});
-}
-
-const main = async () => {
+const run = async () => {
 	if (dev) {
-		// Dev CLI: raw esbuild with the loader.mjs banner — a dev-only artifact.
-		esbuild.buildSync({
-			entryPoints: ['./src/cli/index.ts'],
-			bundle: true,
-			outfile: 'dist/index.cjs',
-			format: 'cjs',
-			target: 'node16',
-			platform: 'node',
-			external: [
-				'commander',
-				'json-diff',
-				'glob',
-				'esbuild',
-				'drizzle-orm',
-				...driversPackages,
-			],
-			banner: {
-				js: `#!/usr/bin/env -S node --loader ./dist/loader.mjs --no-warnings`,
-			},
+		// Dev CLI with the loader.mjs banner — a local-only artifact.
+		await tsup.build({
+			entry: { index: './src/cli/index.ts' },
+			outDir: './dist',
+			format: ['cjs'],
+			external: localCliExternals,
+			banner: { js: `#!/usr/bin/env -S node --loader ./dist/loader.mjs --no-warnings` },
+			splitting: false,
+			dts: false,
+			outExtension: () => ({ js: '.cjs' }),
 		});
 		cpSync('./src/loader.mjs', 'dist/loader.mjs');
 		return;
 	}
 
+	// CLI entry: same tsup setup as the library builds — package.json
+	// dependencies (tsx, brocli, esbuild) are externalized automatically,
+	// only the non-dependency externals are listed explicitly below.
+	await tsup.build({
+		entry: { bin: './src/cli/index.ts' },
+		outDir: './dist',
+		external: coreExternals,
+		splitting: false,
+		dts: false,
+		format: ['cjs'],
+		outExtension: () => ({ js: '.cjs' }),
+		banner: { js: '#!/usr/bin/env node' },
+		define: {
+			'process.env.DRIZZLE_KIT_VERSION': JSON.stringify(pkg.version),
+		},
+	});
 	await tsup.build({
 		entryPoints: ['./src/index.ts'],
 		outDir: './dist',
-		external: [
-			'esbuild',
-			'drizzle-orm',
-			...driversPackages,
-		],
+		external: coreExternals,
 		splitting: false,
 		dts: true,
 		format: ['cjs', 'esm'],
-		outExtension: (ctx) => {
-			if (ctx.format === 'cjs') {
-				return {
-					dts: '.d.ts',
-					js: '.js',
-				};
-			}
-			return {
-				dts: '.d.mts',
-				js: '.mjs',
-			};
-		},
+		outExtension: dualOut,
 	});
 
 	await tsup.build({
 		entryPoints: ['./src/api.ts'],
 		outDir: './dist',
-		external: [
-			'esbuild',
-			'drizzle-orm',
-			...driversPackages,
-		],
+		external: coreExternals,
 		splitting: false,
 		dts: true,
 		format: ['cjs', 'esm'],
@@ -162,25 +143,14 @@ const main = async () => {
 			}
 			return undefined;
 		},
-		outExtension: (ctx) => {
-			if (ctx.format === 'cjs') {
-				return {
-					dts: '.d.ts',
-					js: '.js',
-				};
-			}
-			return {
-				dts: '.d.mts',
-				js: '.mjs',
-			};
-		},
+		outExtension: dualOut,
 	});
 
 	const apiCjs = readFileSync('./dist/api.js', 'utf8').replace(/await import\(/g, 'require(');
 	writeFileSync('./dist/api.js', apiCjs);
 };
 
-main().catch((e) => {
+run().catch((e) => {
 	console.error(e);
 	process.exit(1);
 });
