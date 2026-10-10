@@ -1,8 +1,10 @@
 /// <reference types="bun-types" />
 import * as esbuild from 'esbuild';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, readFileSync, writeFileSync } from 'node:fs';
 import * as tsup from 'tsup';
 import pkg from './package.json';
+
+const dev = process.argv.includes('--dev');
 
 const driversPackages = [
 	// postgres drivers
@@ -36,51 +38,82 @@ esbuild.buildSync({
 		...driversPackages,
 	],
 	banner: {
-		js: `#!/usr/bin/env node`,
+		js: dev
+			? `#!/usr/bin/env -S node --loader @esbuild-kit/esm-loader --no-warnings`
+			: `#!/usr/bin/env node`,
 	},
 });
 
-esbuild.buildSync({
-	entryPoints: ['./src/utils.ts'],
-	bundle: true,
-	outfile: 'dist/utils.mjs',
-	format: 'esm',
-	target: 'node16',
-	platform: 'node',
-	external: [
-		'commander',
-		'json-diff',
-		'glob',
-		'esbuild',
-		'drizzle-orm',
-		...driversPackages,
-	],
-	banner: {
-		js: `#!/usr/bin/env node`,
-	},
-});
+if (!dev) {
+	esbuild.buildSync({
+		entryPoints: ['./src/utils.ts'],
+		bundle: true,
+		outfile: 'dist/utils.mjs',
+		format: 'esm',
+		target: 'node16',
+		platform: 'node',
+		external: [
+			'commander',
+			'json-diff',
+			'glob',
+			'esbuild',
+			'drizzle-orm',
+			...driversPackages,
+		],
+		banner: {
+			js: `#!/usr/bin/env node`,
+		},
+	});
+}
 
-esbuild.buildSync({
-	entryPoints: ['./src/cli/index.ts'],
-	bundle: true,
-	outfile: 'dist/bin.cjs',
-	format: 'cjs',
-	target: 'node16',
-	platform: 'node',
-	define: {
-		'process.env.DRIZZLE_KIT_VERSION': `"${pkg.version}"`,
-	},
-	external: [
-		'esbuild',
-		'drizzle-orm',
-		...driversPackages,
-	],
-	banner: {
-		js: `#!/usr/bin/env node`,
-	},
-});
+if (!dev) {
+	esbuild.buildSync({
+		entryPoints: ['./src/cli/index.ts'],
+		bundle: true,
+		outfile: 'dist/bin.cjs',
+		format: 'cjs',
+		target: 'node16',
+		platform: 'node',
+		define: {
+			'process.env.DRIZZLE_KIT_VERSION': `"${pkg.version}"`,
+		},
+		external: [
+			'esbuild',
+			'drizzle-orm',
+			...driversPackages,
+		],
+		banner: {
+			js: `#!/usr/bin/env node`,
+		},
+	});
+}
 
 const main = async () => {
+	if (dev) {
+		// Dev CLI: raw esbuild with the loader.mjs banner — a dev-only artifact.
+		esbuild.buildSync({
+			entryPoints: ['./src/cli/index.ts'],
+			bundle: true,
+			outfile: 'dist/index.cjs',
+			format: 'cjs',
+			target: 'node16',
+			platform: 'node',
+			external: [
+				'commander',
+				'json-diff',
+				'glob',
+				'esbuild',
+				'drizzle-orm',
+				...driversPackages,
+			],
+			banner: {
+				js: `#!/usr/bin/env -S node --loader ./dist/loader.mjs --no-warnings`,
+			},
+		});
+		cpSync('./src/loader.mjs', 'dist/loader.mjs');
+		return;
+	}
+
 	await tsup.build({
 		entryPoints: ['./src/index.ts'],
 		outDir: './dist',
