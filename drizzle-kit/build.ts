@@ -1,5 +1,4 @@
 /// <reference types="bun-types" />
-import * as esbuild from 'esbuild';
 import { cpSync, readFileSync, writeFileSync } from 'node:fs';
 import * as tsup from 'tsup';
 import pkg from './package.json';
@@ -36,50 +35,6 @@ const dualOut = (ctx: { format: string }): { dts?: string; js: string } =>
 	ctx.format === 'cjs'
 		? { dts: '.d.ts', js: '.js' }
 		: { dts: '.d.mts', js: '.mjs' };
-
-esbuild.buildSync({
-	entryPoints: ['./src/utils.ts'],
-	bundle: true,
-	outfile: 'dist/utils.js',
-	format: 'cjs',
-	target: 'node16',
-	platform: 'node',
-	external: [
-		'commander',
-		'json-diff',
-		'glob',
-		'esbuild',
-		'drizzle-orm',
-		...driversPackages,
-	],
-	banner: {
-		js: dev
-			? `#!/usr/bin/env -S node --loader @esbuild-kit/esm-loader --no-warnings`
-			: `#!/usr/bin/env node`,
-	},
-});
-
-if (!dev) {
-	esbuild.buildSync({
-		entryPoints: ['./src/utils.ts'],
-		bundle: true,
-		outfile: 'dist/utils.mjs',
-		format: 'esm',
-		target: 'node16',
-		platform: 'node',
-		external: [
-			'commander',
-			'json-diff',
-			'glob',
-			'esbuild',
-			'drizzle-orm',
-			...driversPackages,
-		],
-		banner: {
-			js: `#!/usr/bin/env node`,
-		},
-	});
-}
 
 const run = async () => {
 	if (dev) {
