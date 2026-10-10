@@ -70,7 +70,7 @@ const run = async () => {
 		},
 	});
 	await tsup.build({
-		entryPoints: ['./src/index.ts'],
+		entry: ['./src/index.ts'],
 		outDir: './dist',
 		external: coreExternals,
 		splitting: false,
@@ -80,7 +80,7 @@ const run = async () => {
 	});
 
 	await tsup.build({
-		entryPoints: ['./src/api.ts'],
+		entry: ['./src/api.ts'],
 		outDir: './dist',
 		external: coreExternals,
 		splitting: false,
@@ -101,6 +101,12 @@ const run = async () => {
 		outExtension: dualOut,
 	});
 
+	// Rewrite api.ts's dynamic imports (lazy loads and runtime-path probes,
+	// which tsup leaves verbatim in the CJS artifact) to require(): dist/api.js
+	// then uses a single module-loading mechanism — the CJS counterpart of the
+	// ESM banner above. Text-level by design; if tsup's output format changes,
+	// the pattern stops matching silently (symptom: leftover `await import(`
+	// in dist/api.js).
 	const apiCjs = readFileSync('./dist/api.js', 'utf8').replace(/await import\(/g, 'require(');
 	writeFileSync('./dist/api.js', apiCjs);
 };
