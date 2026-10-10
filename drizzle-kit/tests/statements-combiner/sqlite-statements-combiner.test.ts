@@ -1209,3 +1209,72 @@ test(`add column and fk`, async (t) => {
 		newJsonStatements,
 	);
 });
+
+// Regression test for https://github.com/drizzle-team/drizzle-orm/issues/6408
+// SQLite forbids ALTER TABLE ... ADD COLUMN with a non-constant default
+// (CURRENT_TIMESTAMP, CURRENT_DATE, CURRENT_TIME). Without the fix, these
+// statements were emitted as-is and crashed at runtime.
+test(`add column with CURRENT_TIMESTAMP default triggers recreate_table`, async () => {
+	const statements: JsonStatement[] = [
+		{
+			type: 'sqlite_alter_table_add_column',
+			tableName: 'user',
+			column: {
+				name: 'created_at',
+				type: 'integer',
+				primaryKey: false,
+				notNull: true,
+				autoincrement: false,
+				default: '(CURRENT_TIMESTAMP)',
+			},
+		},
+	];
+
+	const json2: SQLiteSchemaSquashed = {
+		version: '6',
+		dialect: 'sqlite',
+		tables: {
+			user: {
+				name: 'user',
+				columns: {
+					id: {
+						name: 'id',
+						type: 'integer',
+						primaryKey: true,
+						notNull: true,
+						autoincrement: false,
+					},
+					name: {
+						name: 'name',
+						type: 'text',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+					created_at: {
+						name: 'created_at',
+						type: 'integer',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+						default: '(CURRENT_TIMESTAMP)',
+					},
+				},
+				indexes: {},
+				foreignKeys: {},
+				compositePrimaryKeys: {},
+				uniqueConstraints: {},
+				checkConstraints: {},
+			},
+		},
+		enums: {},
+		views: {},
+	};
+
+	const result = sqliteCombineStatements(statements, json2);
+
+	// Must produce a recreate_table, not a raw sqlite_alter_table_add_column
+	expect(result).toHaveLength(1);
+	expect(result[0].type).toBe('recreate_table');
+	expect((result[0] as any).tableName).toBe('user');
+});
