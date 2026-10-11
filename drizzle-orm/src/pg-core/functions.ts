@@ -73,7 +73,7 @@ export interface PgFunctionBuilderRuntimeConfig<
 	nullInput: PgFunctionNullInput;
 	parallel: PgFunctionParallel;
 	searchPath?: string[];
-	configuration: Map<string, unknown>;
+	configuration: Map<string, string>;
 }
 
 export interface PgFunctionConfig<
@@ -131,6 +131,8 @@ export interface PgFunctionFn<
 		TReturns
 	>;
 }
+
+type PgFunctionConfigValue = string | number | boolean;
 
 /* Class */
 export class PgFunctionBuilder<
@@ -234,9 +236,9 @@ export class PgFunctionBuilder<
 	/* Configuration */
 	setConfig(
 		name: string,
-		value: unknown,
+		value: PgFunctionConfigValue,
 	): this {
-		this.config.configuration.set(name, value);
+		this.config.configuration.set(name, String(value));
 		return this;
 	}
 
