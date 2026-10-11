@@ -6,6 +6,33 @@ export const createDDL = () => {
 	return create({
 		schemas: {},
 		tables: { schema: 'required', isRlsEnabled: 'boolean' },
+		functions: {
+			schema: 'required',
+			functionName: 'string',
+
+			args: [{
+				name: 'string',
+				type: 'string',
+				default: 'string?',
+			}],
+
+			returns: 'string',
+
+			language: 'string',
+			volatility: ['volatile', 'stable', 'immutable'],
+			security: ['definer', 'invoker'],
+			nullInput: ['called', 'strict'],
+			parallel: ['unsafe', 'restricted', 'safe'],
+
+			searchPath: 'string[]',
+
+			configuration: [{
+				name: 'string',
+				value: 'string',
+			}],
+
+			body: 'string',
+		},
 		enums: {
 			schema: 'required',
 			values: 'string[]',
@@ -218,6 +245,7 @@ export type InterimIndex = Index & {
 };
 
 export interface InterimSchema {
+	functions: PostgresEntities['functions'][];
 	schemas: Schema[];
 	enums: Enum[];
 	tables: PostgresEntities['tables'][];

@@ -22,6 +22,7 @@ import {
 	PgDialect,
 	PgEnumColumn,
 	PgEnumObjectColumn,
+	PgFunction,
 	PgGeometry,
 	PgGeometryObject,
 	PgLineABC,
@@ -217,6 +218,7 @@ export const fromDrizzleSchema = (
 	schema: {
 		schemas: PgSchema[];
 		tables: AnyPgTable[];
+		functions: PgFunction[];
 		enums: PgEnum<any>[];
 		sequences: PgSequence[];
 		roles: PgRole[];
@@ -242,6 +244,7 @@ export const fromDrizzleSchema = (
 		checks: [],
 		columns: [],
 		policies: [],
+		functions: [],
 		enums: [],
 		roles: [],
 		privileges: [],
@@ -784,6 +787,7 @@ export const fromDrizzleSchema = (
 
 export const fromExports = (exports: Record<string, unknown>) => {
 	const tables: AnyPgTable[] = [];
+	const functions: PgFunction[] = [];
 	const enums: PgEnum<any>[] = [];
 	const schemas: PgSchema[] = [];
 	const sequences: PgSequence[] = [];
@@ -801,6 +805,10 @@ export const fromExports = (exports: Record<string, unknown>) => {
 		}
 		if (is(t, PgTable)) {
 			tables.push(t);
+		}
+
+		if (is(t, PgFunction)) {
+			functions.push(t);
 		}
 
 		if (is(t, PgSchema)) {
@@ -834,6 +842,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 
 	return {
 		tables,
+		functions,
 		enums,
 		schemas,
 		sequences,
@@ -847,6 +856,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 
 export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const tables: AnyPgTable[] = [];
+	const functions: PgFunction[] = [];
 	const enums: PgEnum<any>[] = [];
 	const schemas: PgSchema[] = [];
 	const sequences: PgSequence[] = [];
@@ -863,6 +873,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		const prepared = fromExports(i0);
 
 		tables.push(...prepared.tables);
+		functions.push(...prepared.functions);
 		enums.push(...prepared.enums);
 		schemas.push(...prepared.schemas);
 		sequences.push(...prepared.sequences);
@@ -875,6 +886,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 
 	return {
 		tables,
+		functions,
 		enums,
 		schemas,
 		sequences,
