@@ -18,7 +18,7 @@ type Verify<T, U extends T> = U;
 
 /**
  * **You are currently using version 0.21.0+ of drizzle-kit. If you have just upgraded to this version, please make sure to read the changelog to understand what changes have been made and what
- * adjustments may be necessary for you. See https://orm.drizzle.team/kit-docs/upgrade-21#how-to-migrate-to-0210**
+ * adjustments may be necessary for you. See https://orm.drizzle.team/docs/upgrade-21#how-to-migrate-to-0210**
  *
  * **Config** usage:
  *
@@ -256,7 +256,7 @@ export type Config =
 
 /**
  * **You are currently using version 0.21.0+ of drizzle-kit. If you have just upgraded to this version, please make sure to read the changelog to understand what changes have been made and what
- * adjustments may be necessary for you. See https://orm.drizzle.team/kit-docs/upgrade-21#how-to-migrate-to-0210**
+ * adjustments may be necessary for you. See https://orm.drizzle.team/docs/upgrade-21#how-to-migrate-to-0210**
  *
  * **Config** usage:
  *

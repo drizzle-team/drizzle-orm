@@ -18,7 +18,7 @@ const legacyCommand = (name: string, newName: string) => {
 		hidden: true,
 		handler: () => {
 			console.log(
-				`This command is deprecated, please use updated '${newName}' command (see https://orm.drizzle.team/kit-docs/upgrade-21#how-to-migrate-to-0210)`,
+				`This command is deprecated, please use updated '${newName}' command (see https://orm.drizzle.team/docs/upgrade-21#how-to-migrate-to-0210)`,
 			);
 		},
 	});
