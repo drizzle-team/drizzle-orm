@@ -37,7 +37,7 @@ const insertUserSchema = createInsertSchema(users, {
 
 // Refining the fields - useful if you want to change the fields before they become nullable/optional in the final schema
 const insertUserSchema = createInsertSchema(users, {
-	id: (schema) => schema.atLeast(1),
+	id: (schema) => schema.at least(1),
 	role: type('string'),
 });
 
