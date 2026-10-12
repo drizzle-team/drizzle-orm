@@ -1,7 +1,7 @@
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
 import type { AnyColumn } from '~/column.ts';
-import { Column } from '~/column.ts';
+import { Column, mapColumnSelection } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
@@ -209,24 +209,19 @@ export abstract class SQLiteDialect {
 				}
 			} else if (is(field, Column)) {
 				const tableName = field.table[Table.Symbol.Name];
-				if (field.columnType === 'SQLiteNumericBigInt') {
-					if (isSingleTable) {
-						chunk.push(
-							sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
-						);
-					} else {
-						chunk.push(
-							sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
-						);
-					}
-				} else {
-					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-					} else {
-						chunk.push(
-							sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`,
-						);
-					}
+				const columnName = this.casing.getColumnCasing(field);
+				const columnSql = field.columnType === 'SQLiteNumericBigInt'
+					? isSingleTable
+						? sql`cast(${sql.identifier(columnName)} as text)`
+						: sql`cast(${sql.identifier(tableName)}.${sql.identifier(columnName)} as text)`
+					: isSingleTable
+					? sql`${sql.identifier(columnName)}`
+					: sql`${sql.identifier(tableName)}.${sql.identifier(columnName)}`;
+				const selectionSql = mapColumnSelection(field, columnSql);
+				chunk.push(selectionSql);
+
+				if (selectionSql !== columnSql) {
+					chunk.push(sql` as ${sql.identifier(this.casing.getColumnCasing(field))}`);
 				}
 			} else if (is(field, Subquery)) {
 				const entries = Object.entries(field._.selectedFields) as [
