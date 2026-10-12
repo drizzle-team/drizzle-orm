@@ -160,6 +160,7 @@ export const mysqlPush = async (
 		}
 	} catch (e) {
 		console.log(e);
+		process.exitCode = 1;
 	}
 };
 
@@ -283,6 +284,7 @@ export const singlestorePush = async (
 		}
 	} catch (e) {
 		console.log(e);
+		process.exitCode = 1;
 	}
 };
 
@@ -407,6 +409,7 @@ export const pgPush = async (
 		}
 	} catch (e) {
 		console.error(e);
+		process.exitCode = 1;
 	}
 };
 
