@@ -19,6 +19,7 @@ import type {
 	SetOperator,
 } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection, Placeholder, SQL, View } from '~/sql/sql.ts';
+import type { WindowSpec } from '~/sql/functions/window.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
@@ -65,6 +66,7 @@ export interface MySqlSelectConfig {
 	offset?: number | Placeholder;
 	joins?: MySqlSelectJoinConfig[];
 	orderBy?: (MySqlColumn | SQL | SQL.Aliased)[];
+	windows?: { name: string; spec: WindowSpec }[];
 	groupBy?: (MySqlColumn | SQL | SQL.Aliased)[];
 	lockingClause?: {
 		strength: LockStrength;
@@ -234,6 +236,7 @@ export type MySqlSetOperatorExcludedMethods =
 	| 'where'
 	| 'having'
 	| 'groupBy'
+	| 'window'
 	| 'session'
 	| 'leftJoin'
 	| 'rightJoin'

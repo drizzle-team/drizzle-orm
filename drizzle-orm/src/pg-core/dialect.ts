@@ -48,6 +48,7 @@ import {
 	sql,
 	type SQLChunk,
 } from '~/sql/sql.ts';
+import { buildWindowClause } from '~/sql/functions/window.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
@@ -345,6 +346,7 @@ export class PgDialect {
 			fieldsFlat,
 			where,
 			having,
+			windows,
 			table,
 			joins,
 			orderBy,
@@ -400,6 +402,7 @@ export class PgDialect {
 		const whereSql = where ? sql` where ${where}` : undefined;
 
 		const havingSql = having ? sql` having ${having}` : undefined;
+		const windowSql = buildWindowClause(windows);
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
@@ -438,7 +441,7 @@ export class PgDialect {
 			lockingClauseSql.append(clauseSql);
 		}
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}`;
+			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${windowSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);

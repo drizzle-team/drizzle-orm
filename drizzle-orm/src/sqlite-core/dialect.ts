@@ -20,6 +20,7 @@ import {
 import type { Name, Placeholder } from '~/sql/index.ts';
 import { and, eq } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
+import { buildWindowClause } from '~/sql/functions/window.ts';
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type {
 	AnySQLiteSelectQueryBuilder,
@@ -307,6 +308,7 @@ export abstract class SQLiteDialect {
 			fieldsFlat,
 			where,
 			having,
+			windows,
 			table,
 			joins,
 			orderBy,
@@ -358,6 +360,7 @@ export abstract class SQLiteDialect {
 		const whereSql = where ? sql` where ${where}` : undefined;
 
 		const havingSql = having ? sql` having ${having}` : undefined;
+		const windowSql = buildWindowClause(windows);
 
 		const groupByList: (SQL | AnyColumn | SQL.Aliased)[] = [];
 		if (groupBy) {
@@ -379,7 +382,7 @@ export abstract class SQLiteDialect {
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
+			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${windowSql}${orderBySql}${limitSql}${offsetSql}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);

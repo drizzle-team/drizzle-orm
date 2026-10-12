@@ -15,6 +15,7 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
+import { validateWindowName, type WindowSpec } from '~/sql/functions/window.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
@@ -880,6 +881,13 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *   .groupBy(people.lastName);
 	 * ```
 	 */
+
+	window(name: string, spec: WindowSpec): this {
+		validateWindowName(name);
+		(this.config.windows ??= []).push({ name, spec });
+		return this;
+	}
+
 	groupBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<MySqlColumn | SQL | SQL.Aliased>,
 	): MySqlSelectWithout<this, TDynamic, 'groupBy'>;

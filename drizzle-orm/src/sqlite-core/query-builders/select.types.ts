@@ -21,6 +21,7 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
+import type { WindowSpec } from '~/sql/functions/window.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { SQLitePreparedQuery } from '../session.ts';
@@ -60,6 +61,7 @@ export interface SQLiteSelectConfig {
 	offset?: number | Placeholder;
 	joins?: SQLiteSelectJoinConfig[];
 	orderBy?: (SQLiteColumn | SQL | SQL.Aliased)[];
+	windows?: { name: string; spec: WindowSpec }[];
 	groupBy?: (SQLiteColumn | SQL | SQL.Aliased)[];
 	distinct?: boolean;
 	setOperators: {
@@ -207,7 +209,8 @@ export type SQLiteSetOperatorExcludedMethods =
 	| 'fullJoin'
 	| 'where'
 	| 'having'
-	| 'groupBy';
+	| 'groupBy'
+	| 'window';
 
 export type CreateSQLiteSelectFromBuilderMode<
 	TBuilderMode extends 'db' | 'qb',

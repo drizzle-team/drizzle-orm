@@ -11,6 +11,7 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
+import { validateWindowName, type WindowSpec } from '~/sql/functions/window.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { SingleStoreColumn } from '~/singlestore-core/columns/index.ts';
@@ -753,6 +754,13 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 	 *   .groupBy(people.lastName);
 	 * ```
 	 */
+
+	window(name: string, spec: WindowSpec): this {
+		validateWindowName(name);
+		(this.config.windows ??= []).push({ name, spec });
+		return this;
+	}
+
 	groupBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<SingleStoreColumn | SQL | SQL.Aliased>,
 	): SingleStoreSelectWithout<this, TDynamic, 'groupBy'>;

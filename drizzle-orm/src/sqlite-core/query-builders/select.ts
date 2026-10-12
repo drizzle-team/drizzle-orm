@@ -11,6 +11,7 @@ import type {
 	SelectResult,
 	SetOperator,
 } from '~/query-builders/select.types.ts';
+import { validateWindowName, type WindowSpec } from '~/sql/functions/window.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -681,6 +682,13 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	 *   .groupBy(people.lastName);
 	 * ```
 	 */
+
+	window(name: string, spec: WindowSpec): this {
+		validateWindowName(name);
+		(this.config.windows ??= []).push({ name, spec });
+		return this;
+	}
+
 	groupBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<SQLiteColumn | SQL | SQL.Aliased>,
 	): SQLiteSelectWithout<this, TDynamic, 'groupBy'>;

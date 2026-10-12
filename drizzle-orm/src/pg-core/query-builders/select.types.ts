@@ -21,6 +21,7 @@ import type {
 	SetOperator,
 } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection, Placeholder, SQL, SQLWrapper, View } from '~/sql/sql.ts';
+import type { WindowSpec } from '~/sql/functions/window.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, DrizzleTypeError, Equal, ValidateShape, ValueOrArray } from '~/utils.ts';
@@ -61,6 +62,7 @@ export interface PgSelectConfig {
 	offset?: number | Placeholder;
 	joins?: PgSelectJoinConfig[];
 	orderBy?: (PgColumn | SQL | SQL.Aliased)[];
+	windows?: { name: string; spec: WindowSpec }[];
 	groupBy?: (PgColumn | SQL | SQL.Aliased)[];
 	lockingClause?: {
 		strength: LockStrength;
@@ -241,6 +243,7 @@ export type PgSetOperatorExcludedMethods =
 	| 'where'
 	| 'having'
 	| 'groupBy'
+	| 'window'
 	| 'for';
 
 export type PgSelectWithout<
