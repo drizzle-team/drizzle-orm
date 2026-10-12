@@ -11,6 +11,8 @@ import type {
 	ViewWithConfig,
 } from 'drizzle-orm/pg-core';
 import {
+	type AnyPgColumnBuilder,
+	buildPgFunctionColumn,
 	getMaterializedViewConfig,
 	getPgFunctionArgumentSQLName,
 	getTableConfig,
@@ -111,48 +113,63 @@ export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 	};
 };
 
-type FunctionArgBuilder = { getSQLType(): string };
+const sqlTypeFromFunctionArg = (
+	builder: AnyPgColumnBuilder,
+) => {
+	const column = buildPgFunctionColumn(builder);
+	return unwrapColumn(column).sqlType;
+};
 
-const sqlTypeFromFunctionArg = (builder: FunctionArgBuilder) => builder.getSQLType();
+const _functionTableTypeSql = (
+	table: PgTable,
+	dialect: PgDialect,
+): string => {
+	const name = getTableName(table);
+	const schema = getTableConfig(table).schema ?? 'public';
+
+	return `${dialect.escapeName(schema)}.${dialect.escapeName(name)}`;
+};
 
 const functionReturnTypeSql = (
 	returns: PgFunction['config']['returns'],
 	dialect: PgDialect,
 ): string => {
-	// Return SQL as is
+	// Raw SQL must be fully serializable into the snapshot
 	if (is(returns, SQL)) {
-		return dialect.sqlToQuery(returns).sql;
+		return dialect.sqlToQuery(returns.inlineParams()).sql;
 	}
-	// Handle any return type that is JSON
+
 	if (typeof returns === 'object' && returns !== null && 'kind' in returns) {
-		// Handle special return types
 		if (returns.kind === 'special') {
 			return returns.type;
 		}
-		// Handle setof return type
+
 		if (returns.kind === 'setof') {
 			const inner = returns.type;
-			// If table, return a set of the table
+
 			if (is(inner, PgTable)) {
 				return `SETOF ${getTableName(inner)}`;
 			}
-			// Otherwise, return a set of the type
-			return `SETOF ${sqlTypeFromFunctionArg(inner as unknown as FunctionArgBuilder)}`;
+
+			return `SETOF ${sqlTypeFromFunctionArg(inner)}`;
 		}
-		// Handle arbitrary table return type
+
 		if (returns.kind === 'table') {
 			const columns = Object.entries(returns.columns)
-				.map(([name, builder]) => `${name} ${sqlTypeFromFunctionArg(builder)}`)
+				.map(
+					([name, builder]) => `${dialect.escapeName(name)} ${sqlTypeFromFunctionArg(builder)}`,
+				)
 				.join(', ');
+
 			return `TABLE(${columns})`;
 		}
 	}
-	// Handle defined (scalar) table return type
+
 	if (is(returns, PgTable)) {
 		return getTableName(returns);
 	}
-	// Handle arbitrary scalar return type
-	return sqlTypeFromFunctionArg(returns as unknown as FunctionArgBuilder);
+
+	return sqlTypeFromFunctionArg(returns);
 };
 
 export const functionFrom = (fn: PgFunction, dialect: PgDialect) => {
@@ -165,7 +182,7 @@ export const functionFrom = (fn: PgFunction, dialect: PgDialect) => {
 
 		args: Object.entries(config.args).map(([name, builder]) => ({
 			name: getPgFunctionArgumentSQLName(name),
-			type: sqlTypeFromFunctionArg(builder as unknown as FunctionArgBuilder),
+			type: sqlTypeFromFunctionArg(builder),
 			default: null,
 		})),
 

@@ -2,8 +2,8 @@ import { entityKind } from '~/entity.ts';
 import type { SQL, SQLWrapper } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
 import type { InferSelectModel } from '~/table.ts';
-import type { AnyPgColumnBuilder, ResolvePgColumnConfig } from './columns/common.ts';
-import type { PgTable } from './table.ts';
+import type { AnyPgColumn, AnyPgColumnBuilder, PgColumnBuilder, ResolvePgColumnConfig } from './columns/common.ts';
+import { PgTable } from './table.ts';
 
 /* Types */
 export type PgFunctionLanguage =
@@ -392,6 +392,24 @@ export function pgFunctionWithSchema<
 		config.args,
 		config.returns,
 	);
+}
+
+// Our current API using the AnyPgColumnBuilder is dependent on the table-column relationship, so we build a temp table to hold
+// the type of the column and arg so we can serialize it in kit.
+// TODO: Replace this with a more generic type API that doesn't rely directly on tables.
+const pgFunctionTypeTable = new PgTable(
+	'__drizzle_function_type__',
+	undefined,
+	'__drizzle_function_type__',
+);
+
+/** @internal */
+export function buildPgFunctionColumn(
+	builder: AnyPgColumnBuilder,
+): AnyPgColumn {
+	return (builder as PgColumnBuilder)
+		.build(pgFunctionTypeTable)
+		.postBuild();
 }
 
 export function setOf<
