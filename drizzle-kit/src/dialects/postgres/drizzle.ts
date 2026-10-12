@@ -120,7 +120,7 @@ const sqlTypeFromFunctionArg = (
 	return unwrapColumn(column).sqlType;
 };
 
-const _functionTableTypeSql = (
+const functionTableTypeSql = (
 	table: PgTable,
 	dialect: PgDialect,
 ): string => {
@@ -148,7 +148,7 @@ const functionReturnTypeSql = (
 			const inner = returns.type;
 
 			if (is(inner, PgTable)) {
-				return `SETOF ${getTableName(inner)}`;
+				return `SETOF ${functionTableTypeSql(inner, dialect)}`;
 			}
 
 			return `SETOF ${sqlTypeFromFunctionArg(inner)}`;
@@ -166,7 +166,7 @@ const functionReturnTypeSql = (
 	}
 
 	if (is(returns, PgTable)) {
-		return getTableName(returns);
+		return functionTableTypeSql(returns, dialect);
 	}
 
 	return sqlTypeFromFunctionArg(returns);
