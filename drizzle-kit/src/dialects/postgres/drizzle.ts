@@ -159,7 +159,6 @@ export const functionFrom = (fn: PgFunction, dialect: PgDialect) => {
 	return {
 		entityType: 'functions',
 		name: config.name,
-
 		schema: config.schema ?? 'public',
 		functionName: config.name,
 
@@ -172,13 +171,9 @@ export const functionFrom = (fn: PgFunction, dialect: PgDialect) => {
 		returns: functionReturnTypeSql(config.returns, dialect),
 
 		language: config.language,
-
 		volatility: config.volatility,
-
 		security: config.security,
-
 		nullInput: config.nullInput,
-
 		parallel: config.parallel,
 
 		searchPath: config.searchPath === undefined
