@@ -180,12 +180,15 @@ export const functionFrom = (fn: PgFunction, dialect: PgDialect) => {
 			? null
 			: { values: [...config.searchPath] },
 
-		configuration: Array.from(config.configuration.entries()).map(([name, value]) => {
-			return {
-				name,
-				value,
-			};
-		}),
+		// Sort configuration so we keep a consistent ordering
+		configuration: Array.from(config.configuration.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(
+			([name, value]) => {
+				return {
+					name,
+					value,
+				};
+			},
+		),
 
 		body: dialect.sqlToQuery(config.body).sql,
 	} satisfies PostgresEntities['functions'] & { schema: string };
