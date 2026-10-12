@@ -20,6 +20,7 @@ import type {
 	AnyPgSelectQueryBuilder,
 	PgDeleteConfig,
 	PgInsertConfig,
+	PgMergeConfig,
 	PgSelectJoinConfig,
 	PgUpdateConfig,
 } from '~/pg-core/query-builders/index.ts';
@@ -577,6 +578,47 @@ export class PgDialect {
 		const overridingSql = overridingSystemValue_ === true ? sql`overriding system value ` : undefined;
 
 		return sql`${withSql}insert into ${table} ${insertOrder} ${overridingSql}${valuesSql}${onConflictSql}${returningSql}`;
+	}
+
+	buildMergeQuery({ table, source, on, whenClauses, returning, withList }: PgMergeConfig): SQL {
+		const withSql = this.buildWithCTE(withList);
+
+		const sourceSql = this.buildFromTable(source as Parameters<typeof this.buildFromTable>[0]);
+
+		const whenSqls: SQL[] = [];
+		for (const clause of whenClauses) {
+			const predicateSql = clause.predicate ? sql` and ${clause.predicate}` : undefined;
+
+			if (clause.type === 'matched') {
+				if (clause.action === 'update') {
+					const setSql = this.buildUpdateSet(table, clause.set);
+					whenSqls.push(sql`when matched${predicateSql} then update set ${setSql}`);
+				} else if (clause.action === 'delete') {
+					whenSqls.push(sql`when matched${predicateSql} then delete`);
+				} else {
+					whenSqls.push(sql`when matched${predicateSql} then do nothing`);
+				}
+			} else if (clause.type === 'not_matched') {
+				if (clause.action === 'insert') {
+					const tableColumns = table[Table.Symbol.Columns];
+					const colEntries = Object.entries(tableColumns).filter(([key]) => key in clause.values);
+					const insertOrder = colEntries.map(([, col]) => sql.identifier(this.casing.getColumnCasing(col)));
+					const valuesSql = colEntries.map(([key]) => clause.values[key]!);
+
+					whenSqls.push(sql`when not matched${predicateSql} then insert ${insertOrder} values ${valuesSql}`);
+				} else {
+					whenSqls.push(sql`when not matched${predicateSql} then do nothing`);
+				}
+			}
+		}
+
+		const whenSql = sql.join(whenSqls, sql` `);
+
+		const returningSql = returning
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			: undefined;
+
+		return sql`${withSql}merge into ${table} using ${sourceSql} on ${on} ${whenSql}${returningSql}`;
 	}
 
 	buildRefreshMaterializedViewQuery(
