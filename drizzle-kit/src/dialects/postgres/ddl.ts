@@ -24,7 +24,11 @@ export const createDDL = () => {
 			nullInput: ['called', 'strict'],
 			parallel: ['unsafe', 'restricted', 'safe'],
 
-			searchPath: 'string[]',
+			// We need to explicitly support both undefined search paths and empty search paths since they are fundamentally different and important for security.
+			// Drizzle's current DDL doesn't support a 'string[]?' type, so we we get around it this way.
+			searchPath: {
+				values: 'string[]',
+			},
 
 			configuration: [{
 				name: 'string',

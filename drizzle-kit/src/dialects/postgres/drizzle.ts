@@ -110,6 +110,92 @@ export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 	};
 };
 
+type FunctionArgBuilder = { getSQLType(): string };
+
+const sqlTypeFromFunctionArg = (builder: FunctionArgBuilder) => builder.getSQLType();
+
+const functionReturnTypeSql = (
+	returns: PgFunction['config']['returns'],
+	dialect: PgDialect,
+): string => {
+	// Return SQL as is
+	if (is(returns, SQL)) {
+		return dialect.sqlToQuery(returns).sql;
+	}
+	// Handle any return type that is JSON
+	if (typeof returns === 'object' && returns !== null && 'kind' in returns) {
+		// Handle special return types
+		if (returns.kind === 'special') {
+			return returns.type;
+		}
+		// Handle setof return type
+		if (returns.kind === 'setof') {
+			const inner = returns.type;
+			// If table, return a set of the table
+			if (is(inner, PgTable)) {
+				return `SETOF ${getTableName(inner)}`;
+			}
+			// Otherwise, return a set of the type
+			return `SETOF ${sqlTypeFromFunctionArg(inner as unknown as FunctionArgBuilder)}`;
+		}
+		// Handle arbitrary table return type
+		if (returns.kind === 'table') {
+			const columns = Object.entries(returns.columns)
+				.map(([name, builder]) => `${name} ${sqlTypeFromFunctionArg(builder)}`)
+				.join(', ');
+			return `TABLE(${columns})`;
+		}
+	}
+	// Handle defined (scalar) table return type
+	if (is(returns, PgTable)) {
+		return getTableName(returns);
+	}
+	// Handle arbitrary scalar return type
+	return sqlTypeFromFunctionArg(returns as unknown as FunctionArgBuilder);
+};
+
+export const functionFrom = (fn: PgFunction, dialect: PgDialect) => {
+	const config = fn.config;
+	return {
+		entityType: 'functions',
+		name: config.name,
+
+		schema: config.schema ?? 'public',
+		functionName: config.name,
+
+		args: Object.entries(config.args).map(([name, builder]) => ({
+			name,
+			type: sqlTypeFromFunctionArg(builder as unknown as FunctionArgBuilder),
+			default: null,
+		})),
+
+		returns: functionReturnTypeSql(config.returns, dialect),
+
+		language: config.language,
+
+		volatility: config.volatility,
+
+		security: config.security,
+
+		nullInput: config.nullInput,
+
+		parallel: config.parallel,
+
+		searchPath: config.searchPath === undefined
+			? null
+			: { values: [...config.searchPath] },
+
+		configuration: Array.from(config.configuration.entries()).map(([name, value]) => {
+			return {
+				name,
+				value,
+			};
+		}),
+
+		body: dialect.sqlToQuery(config.body).sql,
+	} satisfies PostgresEntities['functions'] & { schema: string };
+};
+
 export const unwrapColumn = (column: AnyPgColumn) => {
 	// In the new architecture, columns have a dimensions property directly
 	const dimensions = (column as any).dimensions ?? 0;
@@ -298,6 +384,8 @@ export const fromDrizzleSchema = (
 			withCheck: p.withCheck,
 		});
 	}
+
+	res.functions = schema.functions.map((it) => functionFrom(it, dialect));
 
 	res.tables = tableConfigPairs.map((it) => {
 		const config = it.config;
