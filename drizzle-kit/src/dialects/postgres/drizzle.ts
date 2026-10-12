@@ -115,9 +115,18 @@ export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 
 const sqlTypeFromFunctionArg = (
 	builder: AnyPgColumnBuilder,
+	dialect: PgDialect,
 ) => {
 	const column = buildPgFunctionColumn(builder);
-	return unwrapColumn(column).sqlType;
+	const unwrapped = unwrapColumn(column);
+
+	if (unwrapped.isEnum && unwrapped.typeSchema) {
+		return `${dialect.escapeName(unwrapped.typeSchema)}.${dialect.escapeName(unwrapped.baseColumn.getSQLType())}${
+			'[]'.repeat(unwrapped.dimensions)
+		}`;
+	}
+
+	return unwrapped.sqlType;
 };
 
 const functionTableTypeSql = (
@@ -151,13 +160,13 @@ const functionReturnTypeSql = (
 				return `SETOF ${functionTableTypeSql(inner, dialect)}`;
 			}
 
-			return `SETOF ${sqlTypeFromFunctionArg(inner)}`;
+			return `SETOF ${sqlTypeFromFunctionArg(inner, dialect)}`;
 		}
 
 		if (returns.kind === 'table') {
 			const columns = Object.entries(returns.columns)
 				.map(
-					([name, builder]) => `${dialect.escapeName(name)} ${sqlTypeFromFunctionArg(builder)}`,
+					([name, builder]) => `${dialect.escapeName(name)} ${sqlTypeFromFunctionArg(builder, dialect)}`,
 				)
 				.join(', ');
 
@@ -169,7 +178,7 @@ const functionReturnTypeSql = (
 		return functionTableTypeSql(returns, dialect);
 	}
 
-	return sqlTypeFromFunctionArg(returns);
+	return sqlTypeFromFunctionArg(returns, dialect);
 };
 
 export const functionFrom = (fn: PgFunction, dialect: PgDialect) => {
@@ -182,7 +191,7 @@ export const functionFrom = (fn: PgFunction, dialect: PgDialect) => {
 
 		args: Object.entries(config.args).map(([name, builder]) => ({
 			name: getPgFunctionArgumentSQLName(name),
-			type: sqlTypeFromFunctionArg(builder),
+			type: sqlTypeFromFunctionArg(builder, dialect),
 			default: null,
 		})),
 
