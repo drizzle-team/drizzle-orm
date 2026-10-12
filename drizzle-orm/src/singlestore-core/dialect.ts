@@ -179,6 +179,7 @@ export class SingleStoreDialect {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
 
+	/** @internal */
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
 
@@ -294,6 +295,7 @@ export class SingleStoreDialect {
 	 * `insert ... returning <selection>`
 	 *
 	 * If `isSingleTable` is true, then columns won't be prefixed with table name
+	 * @internal
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
@@ -446,6 +448,7 @@ export class SingleStoreDialect {
 		return new SQL(chunks);
 	}
 
+	/** @internal */
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
 		return typeof limit === 'object'
 				|| (typeof limit === 'number' && limit >= 0)
@@ -453,6 +456,7 @@ export class SingleStoreDialect {
 			: undefined;
 	}
 
+	/** @internal */
 	private buildOrderBy(
 		orderBy: (SingleStoreColumn | SQL | SQL.Aliased)[] | undefined,
 	): SQL | undefined {
@@ -820,6 +824,7 @@ export class SingleStoreDialect {
 		});
 	}
 
+	/** @internal */
 	private buildRqbColumn(
 		table: SchemaEntry,
 		field: unknown,
@@ -917,6 +922,7 @@ export class SingleStoreDialect {
 		return output;
 	}
 
+	/** @internal */
 	private getSelectedTableColumns = (
 		table: SchemaEntry,
 		columns: Record<string, boolean | undefined>,
@@ -954,6 +960,7 @@ export class SingleStoreDialect {
 		return selectedColumns;
 	};
 
+	/** @internal */
 	private buildColumns = (
 		table: SchemaEntry,
 		selection: BuildRelationalQueryResult['selection'],

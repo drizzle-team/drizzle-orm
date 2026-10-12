@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import { beforeAll, describe, expect, test } from 'vitest';
 import { checkPackage } from '../../attw-fork/src/checkPackage.ts';
 import { getExitCode } from '../../attw-fork/src/cli/getExitCode.ts';
@@ -112,6 +113,205 @@ describe.skipIf(!ARTIFACTS_PRESENT)('no public subpath is dropped', () => {
 			.map((p) => p.entrypoint);
 		expect(unresolved, `unresolved: ${unresolved.slice(0, 20).join(', ')}`).toEqual([]);
 	}, 120_000);
+});
+
+// Two physically distinct installs of the package produce two declaration sites for
+// every class. TypeScript compares classes carrying `private`/`protected` members
+// nominally, so any such member surviving into the emitted `.d.ts` makes that type
+// non-portable: a value from copy A is not assignable to the same type from copy B.
+// This is the failure a consumer hits whenever a transitive dep, a pnpm peer split
+// or a linked tarball puts two copies of drizzle-orm on disk.
+//
+// The matrix below is the current, measured state of the public surface. `portable:
+// false` entries are known leaks, not aspirations -- each is annotated with the member
+// responsible. Fixing one is expected to flip its flag here; that is the point of
+// asserting both directions.
+interface PortabilityProbe {
+	/** Exported type name. */
+	name: string;
+	/** Package subpath it is exported from. */
+	subpath: string;
+	/** Type arguments, when the type has no usable defaults. */
+	typeArgs?: string;
+	/** Whether a value of this type survives crossing between two installs. */
+	portable: boolean;
+	/** For known leaks: the member whose nominality blocks assignment. */
+	blockedBy?: string;
+}
+
+const EMPTY_FILTER = 'EmptyFilter (unique symbol)';
+
+const PORTABILITY_MATRIX: PortabilityProbe[] = [
+	{ name: 'SQL', subpath: 'sql/sql', portable: true },
+	{ name: 'Column', subpath: 'column', portable: true },
+	{ name: 'Table', subpath: 'table', portable: true },
+	{ name: 'Subquery', subpath: 'subquery', portable: true },
+	{ name: 'View', subpath: 'sql/sql', portable: true },
+	{ name: 'Placeholder', subpath: 'sql/sql', portable: true },
+	{ name: 'QueryPromise', subpath: 'query-promise', typeArgs: '<number>', portable: true },
+	{ name: 'MySqlTable', subpath: 'mysql-core', portable: true },
+	{ name: 'MySqlColumn', subpath: 'mysql-core', portable: true },
+	{ name: 'SQLiteTable', subpath: 'sqlite-core', portable: true },
+	{ name: 'SQLiteColumn', subpath: 'sqlite-core', portable: true },
+	{ name: 'PgView', subpath: 'pg-core', portable: true },
+	{ name: 'MySqlView', subpath: 'mysql-core', portable: true },
+	{ name: 'SQLiteView', subpath: 'sqlite-core', portable: true },
+	{ name: 'CockroachView', subpath: 'cockroach-core', portable: true },
+	{ name: 'MsSqlView', subpath: 'mssql-core', portable: true },
+	{ name: 'SingleStoreView', subpath: 'singlestore-core/view', portable: true },
+
+	{ name: 'Param', subpath: 'sql/sql', portable: true },
+	{ name: 'Name', subpath: 'sql/sql', portable: true },
+	{ name: 'CodecsCollection', subpath: 'codecs', portable: true },
+	// Their nominal members are stripped; what remains is `EmptyFilter`, whose
+	// `unique symbol` type is nominal per declaration site. That is an API decision
+	// rather than a marker, so it is made separately.
+	{ name: 'PgDialect', subpath: 'pg-core', portable: false, blockedBy: EMPTY_FILTER },
+	{ name: 'MySqlDialect', subpath: 'mysql-core', portable: false, blockedBy: EMPTY_FILTER },
+	{ name: 'SQLiteDialect', subpath: 'sqlite-core', portable: false, blockedBy: EMPTY_FILTER },
+	// These three reach their session class, and so inherit a chain of nominal members
+	// -- Session#dialect, then the prepared-query and transaction classes behind it --
+	// on top of EmptyFilter. The chain does not fall to a contained change, so unlike
+	// their pg/mysql/sqlite counterparts they stay recorded rather than fixed here.
+	{
+		name: 'CockroachDialect',
+		subpath: 'cockroach-core',
+		portable: false,
+		blockedBy: 'CockroachSession#dialect (protected), and a chain behind it',
+	},
+	{
+		name: 'MsSqlDialect',
+		subpath: 'mssql-core',
+		portable: false,
+		blockedBy: 'MsSqlSession#dialect (protected), and a chain behind it',
+	},
+	{
+		name: 'SingleStoreDialect',
+		subpath: 'singlestore-core',
+		portable: false,
+		blockedBy: 'SingleStoreSession#dialect (protected), and a chain behind it',
+	},
+	{ name: 'PgTable', subpath: 'pg-core', portable: true },
+	{ name: 'PgColumn', subpath: 'pg-core', portable: true },
+	// Query builders are non-portable for the same reason, and stop at the same kind of
+	// wall: stripping PgSelectBase's nominal members only reveals `CheckTableLikeSelection`,
+	// a conditional deferred on an unresolved type parameter, behind them. Recorded so
+	// `function withPagination(qb: PgSelect)` is known not to survive the boundary.
+	{
+		name: 'PgSelect',
+		subpath: 'pg-core',
+		portable: false,
+		blockedBy: 'PgSelectBase#config (protected), and a deferred conditional behind it',
+	},
+	// The database object is reached through the session, and every prepared-query,
+	// transaction and relational-query-builder class on that path contributes its own
+	// nominal member. Peeling them is not worth attempting: past the last of them the
+	// type comes to rest on `BuildQueryResult<..., TConfig, ...>`, a mapped type deferred
+	// on the unresolved parameter of `findMany<TConfig>`. The compiler cannot relate
+	// `keyof X` from one declaration site to `keyof X` from the other while X stays
+	// deferred, so it widens to `string | number | symbol` and fails -- a comparison
+	// limit in TypeScript rather than anything drizzle emits. Recorded, not chased.
+	{
+		name: 'NodePgDatabase',
+		subpath: 'node-postgres/driver',
+		typeArgs: '<Record<string, never>>',
+		portable: false,
+		blockedBy: 'a multi-layer chain rooted at PgAsyncPreparedQuery#executor (protected)',
+	},
+];
+
+// Unpacks the built tarball's declarations twice, under two different package names,
+// so the compiler sees two independent installs of the same types.
+function materializeTwoInstalls(outDir: string): void {
+	const sourcePrefix = `/node_modules/${pkg.packageName}/`;
+	for (const packageName of ['drizzle-a', 'drizzle-b']) {
+		for (const file of pkg.listFiles(sourcePrefix)) {
+			if (file !== `${sourcePrefix}package.json` && !file.endsWith('.d.ts')) continue;
+
+			const destination = join(outDir, 'node_modules', packageName, file.slice(sourcePrefix.length));
+			mkdirSync(dirname(destination), { recursive: true });
+			const contents = pkg.readFile(file);
+			writeFileSync(
+				destination,
+				file === `${sourcePrefix}package.json`
+					? JSON.stringify({ ...JSON.parse(contents), name: packageName })
+					: contents,
+			);
+		}
+	}
+}
+
+describe.skipIf(!ARTIFACTS_PRESENT)('types are portable across package instances', () => {
+	test('the published surface matches the recorded portability matrix', () => {
+		const outDir = mkdtempSync(join(tmpdir(), 'drizzle-duplicate-types-'));
+		try {
+			materializeTwoInstalls(outDir);
+
+			// One program covering every probe: each assignment gets its own line so a
+			// diagnostic's line number identifies which type failed.
+			const lines: string[] = [];
+			const lineToName = new Map<number, string>();
+			for (const { name, subpath } of PORTABILITY_MATRIX) {
+				lines.push(`import type { ${name} as ${name}_A } from 'drizzle-a/${subpath}';`);
+				lines.push(`import type { ${name} as ${name}_B } from 'drizzle-b/${subpath}';`);
+			}
+			for (const { name, typeArgs = '' } of PORTABILITY_MATRIX) {
+				lines.push(`declare const v_${name}: ${name}_B${typeArgs};`);
+				lineToName.set(lines.length + 1, name);
+				lines.push(`export const c_${name}: ${name}_A${typeArgs} = v_${name};`);
+			}
+
+			const entrypoint = join(outDir, 'index.mts');
+			writeFileSync(entrypoint, lines.join('\n') + '\n');
+
+			const program = ts.createProgram({
+				rootNames: [entrypoint],
+				options: {
+					module: ts.ModuleKind.NodeNext,
+					moduleResolution: ts.ModuleResolutionKind.NodeNext,
+					noEmit: true,
+					skipLibCheck: true,
+					strict: true,
+					target: ts.ScriptTarget.ESNext,
+				},
+			});
+
+			const failed = new Map<string, string>();
+			const unattributed: string[] = [];
+			for (const diagnostic of ts.getPreEmitDiagnostics(program)) {
+				const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ');
+				if (!diagnostic.file || diagnostic.start === undefined) {
+					unattributed.push(message);
+					continue;
+				}
+				const line = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start).line + 1;
+				const name = lineToName.get(line);
+				// A diagnostic on a non-assignment line means the probe itself is malformed
+				// (bad subpath, wrong type arity) rather than a portability result.
+				if (name === undefined) {
+					unattributed.push(`line ${line}: ${message}`);
+					continue;
+				}
+				if (!failed.has(name)) failed.set(name, message);
+			}
+
+			expect(unattributed, `malformed probes:\n${unattributed.join('\n')}`).toEqual([]);
+
+			const actual = PORTABILITY_MATRIX.filter((p) => !failed.has(p.name)).map((p) => p.name).sort();
+			const expected = PORTABILITY_MATRIX.filter((p) => p.portable).map((p) => p.name).sort();
+
+			const regressed = expected.filter((n) => !actual.includes(n));
+			const fixed = actual.filter((n) => !expected.includes(n));
+			const hint = [
+				...regressed.map((n) => `REGRESSED ${n} is no longer portable: ${failed.get(n)}`),
+				...fixed.map((n) => `FIXED ${n} is now portable -- set portable: true in PORTABILITY_MATRIX`),
+			].join('\n');
+
+			expect(actual, hint).toEqual(expected);
+		} finally {
+			rmSync(outDir, { recursive: true, force: true });
+		}
+	});
 });
 
 describe('directory-index shim emitter refuses to shadow a source artifact', () => {
