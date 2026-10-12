@@ -9,6 +9,8 @@ import { type Dialect, dialect } from '../../schemaValidator';
 import { prepareFilenames } from '../../serializer';
 import type { Entities } from '../validations/cli';
 import { pullParams, pushParams } from '../validations/cli';
+import type { ClickHouseCredentials } from '../validations/clickhouse';
+import { clickhouseCredentials, printConfigConnectionIssues as printIssuesClickHouse } from '../validations/clickhouse';
 import type { Casing, CasingType, CliConfig, Driver, Prefix } from '../validations/common';
 import { configCommonSchema, configMigrations, wrapParam } from '../validations/common';
 import type { GelCredentials } from '../validations/gel';
@@ -296,6 +298,10 @@ export const preparePushConfig = async (
 			dialect: 'singlestore';
 			credentials: SingleStoreCredentials;
 		}
+		| {
+			dialect: 'clickhouse';
+			credentials: ClickHouseCredentials;
+		}
 	) & {
 		schemaPath: string | string[];
 		verbose: boolean;
@@ -447,6 +453,25 @@ export const preparePushConfig = async (
 		};
 	}
 
+	if (config.dialect === 'clickhouse') {
+		const parsed = clickhouseCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesClickHouse(config);
+			process.exit(1);
+		}
+		return {
+			dialect: 'clickhouse',
+			schemaPath: config.schema,
+			strict: config.strict ?? false,
+			verbose: config.verbose ?? false,
+			force: (options.force as boolean) ?? false,
+			credentials: parsed.data,
+			casing: config.casing,
+			tablesFilter,
+			schemasFilter,
+		};
+	}
+
 	if (config.dialect === 'gel') {
 		console.log(
 			error(
@@ -487,6 +512,10 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'gel';
 			credentials?: GelCredentials;
+		}
+		| {
+			dialect: 'clickhouse';
+			credentials: ClickHouseCredentials;
 		}
 	) & {
 		out: string;
@@ -636,6 +665,25 @@ export const preparePullConfig = async (
 		};
 	}
 
+	if (dialect === 'clickhouse') {
+		const parsed = clickhouseCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesClickHouse(config);
+			process.exit(1);
+		}
+		return {
+			dialect,
+			out: config.out,
+			breakpoints: config.breakpoints,
+			casing: config.casing,
+			credentials: parsed.data,
+			tablesFilter,
+			schemasFilter,
+			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
+		};
+	}
+
 	if (dialect === 'gel') {
 		const parsed = gelCredentials.safeParse(config);
 		if (!parsed.success) {
@@ -762,6 +810,15 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		};
 	}
 
+	if (dialect === 'clickhouse') {
+		console.log(
+			error(
+				`The 'studio' command does not support ClickHouse yet`,
+			),
+		);
+		process.exit(1);
+	}
+
 	if (dialect === 'gel') {
 		console.log(
 			error(
@@ -867,6 +924,21 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			dialect,
 			out,
 			credentials,
+			schema,
+			table,
+		};
+	}
+
+	if (dialect === 'clickhouse') {
+		const parsed = clickhouseCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printIssuesClickHouse(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		return {
+			dialect,
+			out,
+			credentials: parsed.data,
 			schema,
 			table,
 		};

@@ -85,6 +85,7 @@ export const generate = command({
 			prepareAndMigrateMysql,
 			prepareAndMigrateSqlite,
 			prepareAndMigrateLibSQL,
+			prepareAndMigrateClickHouse,
 			prepareAndMigrateSingleStore,
 		} = await import('./commands/migrate');
 
@@ -99,6 +100,8 @@ export const generate = command({
 			await prepareAndMigrateLibSQL(opts);
 		} else if (dialect === 'singlestore') {
 			await prepareAndMigrateSingleStore(opts);
+		} else if (dialect === 'clickhouse') {
+			await prepareAndMigrateClickHouse(opts);
 		} else if (dialect === 'gel') {
 			console.log(
 				error(
@@ -193,6 +196,17 @@ export const migrate = command({
 			} else if (dialect === 'turso') {
 				const { connectToLibSQL } = await import('./connections');
 				const { migrate } = await connectToLibSQL(credentials);
+				await renderWithTask(
+					new MigrateProgress(),
+					migrate({
+						migrationsFolder: opts.out,
+						migrationsTable: table,
+						migrationsSchema: schema,
+					}),
+				);
+			} else if (dialect === 'clickhouse') {
+				const { connectToClickHouse } = await import('./connections');
+				const { migrate } = await connectToClickHouse(credentials);
 				await renderWithTask(
 					new MigrateProgress(),
 					migrate({
@@ -378,6 +392,17 @@ export const push = command({
 			} else if (dialect === 'singlestore') {
 				const { singlestorePush } = await import('./commands/push');
 				await singlestorePush(
+					schemaPath,
+					credentials,
+					tablesFilter,
+					strict,
+					verbose,
+					force,
+					casing,
+				);
+			} else if (dialect === 'clickhouse') {
+				const { clickhousePush } = await import('./commands/push');
+				await clickhousePush(
 					schemaPath,
 					credentials,
 					tablesFilter,
@@ -620,6 +645,13 @@ export const pull = command({
 					prefix,
 					entities,
 				);
+			} else if (dialect === 'clickhouse') {
+				console.log(
+					error(
+						`The 'pull' command does not support ClickHouse yet`,
+					),
+				);
+				process.exit(1);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -842,6 +874,13 @@ export const exportRaw = command({
 			await prepareAndExportLibSQL(opts);
 		} else if (dialect === 'singlestore') {
 			await prepareAndExportSinglestore(opts);
+		} else if (dialect === 'clickhouse') {
+			console.log(
+				error(
+					`The 'export' command does not support ClickHouse yet`,
+				),
+			);
+			process.exit(1);
 		} else if (dialect === 'gel') {
 			console.log(
 				error(

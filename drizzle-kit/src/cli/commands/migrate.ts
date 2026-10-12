@@ -1,5 +1,7 @@
 import fs from 'fs';
 import {
+	prepareClickHouseDbPushSnapshot,
+	prepareClickHouseMigrationSnapshot,
 	prepareMySqlDbPushSnapshot,
 	prepareMySqlMigrationSnapshot,
 	preparePgDbPushSnapshot,
@@ -13,8 +15,10 @@ import {
 import chalk from 'chalk';
 import { render } from 'hanji';
 import path, { join } from 'path';
+import { ClickHouseSchema, clickhouseSchema, squashClickHouseScheme } from 'src/serializer/clickhouseSchema';
 import { SingleStoreSchema, singlestoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
 import { TypeOf } from 'zod';
+import { applyClickHouseSnapshotsDiff } from '../../clickhouseDiffer';
 import type { CommonSchema } from '../../schemaValidator';
 import { MySqlSchema, mysqlSchema, squashMysqlScheme, ViewSquashed } from '../../serializer/mysqlSchema';
 import { PgSchema, pgSchema, Policy, Role, squashPgScheme, View } from '../../serializer/pgSchema';
@@ -735,6 +739,100 @@ export const prepareAndMigrateSingleStore = async (config: GenerateConfig) => {
 	}
 };
 
+export const prepareAndMigrateClickHouse = async (config: GenerateConfig) => {
+	const outFolder = config.out;
+	const schemaPath = config.schema;
+	const casing = config.casing;
+
+	try {
+		assertV1OutFolder(outFolder);
+
+		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'clickhouse');
+		const { prev, cur, custom } = await prepareClickHouseMigrationSnapshot(
+			snapshots,
+			schemaPath,
+			casing,
+		);
+
+		const validatedPrev = clickhouseSchema.parse(prev);
+		const validatedCur = clickhouseSchema.parse(cur);
+
+		if (config.custom) {
+			writeResult({
+				cur: custom,
+				sqlStatements: [],
+				journal,
+				outFolder,
+				name: config.name,
+				breakpoints: config.breakpoints,
+				type: 'custom',
+				prefixMode: config.prefix,
+			});
+			return;
+		}
+
+		const squashedPrev = squashClickHouseScheme(validatedPrev);
+		const squashedCur = squashClickHouseScheme(validatedCur);
+
+		const { sqlStatements, _meta } = await applyClickHouseSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver as any,
+			columnsResolver as any,
+			validatedPrev,
+			validatedCur,
+		);
+
+		writeResult({
+			cur,
+			sqlStatements,
+			journal,
+			_meta,
+			outFolder,
+			name: config.name,
+			breakpoints: config.breakpoints,
+			prefixMode: config.prefix,
+		});
+	} catch (e) {
+		console.error(e);
+	}
+};
+
+export const prepareClickHousePush = async (
+	schemaPath: string | string[],
+	snapshot: ClickHouseSchema,
+	casing: CasingType | undefined,
+) => {
+	try {
+		const { prev, cur } = await prepareClickHouseDbPushSnapshot(
+			snapshot,
+			schemaPath,
+			casing,
+		);
+
+		const validatedPrev = clickhouseSchema.parse(prev);
+		const validatedCur = clickhouseSchema.parse(cur);
+
+		const squashedPrev = squashClickHouseScheme(validatedPrev);
+		const squashedCur = squashClickHouseScheme(validatedCur);
+
+		const { sqlStatements, statements } = await applyClickHouseSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver as any,
+			columnsResolver as any,
+			validatedPrev,
+			validatedCur,
+			'push',
+		);
+
+		return { sqlStatements, statements, validatedCur, validatedPrev };
+	} catch (e) {
+		console.error(e);
+		process.exit(1);
+	}
+};
+
 export const prepareAndExportSinglestore = async (config: ExportConfig) => {
 	const schemaPath = config.schema;
 
@@ -1370,7 +1468,7 @@ export const writeResult = ({
 	prefixMode,
 	driver,
 }: {
-	cur: CommonSchema;
+	cur: CommonSchema | ClickHouseSchema;
 	sqlStatements: string[];
 	journal: Journal;
 	_meta?: any;

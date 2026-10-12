@@ -11,6 +11,7 @@ export default defineConfig({
 			'tests/pg/**/*.test.ts',
 			'tests/mysql/**/*.test.ts',
 			'tests/singlestore/**/*.test.ts',
+			'tests/clickhouse/**/*.test.ts',
 			'tests/sqlite/**/*.test.ts',
 			'tests/replicas/**/*',
 			'tests/imports/**/*',

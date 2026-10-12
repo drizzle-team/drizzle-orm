@@ -4,6 +4,7 @@ import * as glob from 'glob';
 import Path from 'path';
 import { CasingType } from 'src/cli/validations/common';
 import { error } from '../cli/views';
+import { ClickHouseSchemaInternal } from './clickhouseSchema';
 import type { MySqlSchemaInternal } from './mysqlSchema';
 import type { PgSchemaInternal } from './pgSchema';
 import { SingleStoreSchemaInternal } from './singlestoreSchema';
@@ -68,6 +69,22 @@ export const serializeSingleStore = async (
 	const { tables /* views */ } = await prepareFromSingleStoreImports(filenames);
 
 	return generateSingleStoreSnapshot(tables, /* views, */ casing);
+};
+
+export const serializeClickHouse = async (
+	path: string | string[],
+	casing: CasingType | undefined,
+): Promise<ClickHouseSchemaInternal> => {
+	const filenames = prepareFilenames(path);
+
+	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
+
+	const { prepareFromClickHouseImports } = await import('./clickhouseImports');
+	const { generateClickHouseSnapshot } = await import('./clickhouseSerializer');
+
+	const { tables } = await prepareFromClickHouseImports(filenames);
+
+	return generateClickHouseSnapshot(tables, casing);
 };
 
 export const prepareFilenames = (path: string | string[]) => {
