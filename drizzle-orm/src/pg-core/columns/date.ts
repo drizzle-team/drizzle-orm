@@ -44,6 +44,8 @@ export class PgDate<T extends ColumnBaseConfig<'date', 'PgDate'>> extends PgColu
 	}
 
 	override mapToDriverValue(value: Date): string {
+		if (typeof value === 'string') return new Date(value);
+		
 		return value.toISOString();
 	}
 }
