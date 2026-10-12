@@ -366,9 +366,13 @@ function buildFunctionArgumentReferences<
 	return Object.fromEntries(
 		Object.keys(args).map((name) => [
 			name,
-			new PgFunctionArgument(name, `a_${name}`),
+			new PgFunctionArgument(name, getPgFunctionArgumentSQLName(name)),
 		]),
 	) as PgFunctionArgumentReferences<TArgs>;
+}
+
+export function getPgFunctionArgumentSQLName(name: string): string {
+	return `a_${name}`;
 }
 
 /** @internal Use `PgSchema.function` or `pgFunction` instead */
