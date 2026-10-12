@@ -64,7 +64,6 @@
 		"@xata.io/client": "*",
 		"better-sqlite3": ">=7",
 		"bun-types": "*",
-		"expo-sqlite": ">=14.0.0",
 		"gel": ">=2",
 		"knex": "*",
 		"kysely": "*",
@@ -140,9 +139,6 @@
 			"optional": true
 		},
 		"@opentelemetry/api": {
-			"optional": true
-		},
-		"expo-sqlite": {
 			"optional": true
 		},
 		"gel": {
