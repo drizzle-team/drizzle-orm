@@ -115,7 +115,8 @@ export type SQLiteInsertWithout<T extends AnySQLiteInsert, TDynamic extends bool
 				T['_']['runResult'],
 				T['_']['returning'],
 				TDynamic,
-				T['_']['excludedMethods'] | K
+				T['_']['excludedMethods'] | K,
+				T['_']['onConflict']
 			>,
 			T['_']['excludedMethods'] | K
 		>;
@@ -131,7 +132,8 @@ export type SQLiteInsertReturning<
 		T['_']['runResult'],
 		SelectResultFields<TSelectedFields>,
 		TDynamic,
-		T['_']['excludedMethods']
+		T['_']['excludedMethods'],
+		T['_']['onConflict']
 	>,
 	TDynamic,
 	'returning'
@@ -147,7 +149,8 @@ export type SQLiteInsertReturningAll<
 		T['_']['runResult'],
 		T['_']['table']['$inferSelect'],
 		TDynamic,
-		T['_']['excludedMethods']
+		T['_']['excludedMethods'],
+		T['_']['onConflict']
 	>,
 	TDynamic,
 	'returning'
@@ -163,11 +166,28 @@ export type SQLiteInsertOnConflictDoUpdateConfig<T extends AnySQLiteInsert> = {
 	set: SQLiteUpdateSetSource<T['_']['table']>;
 };
 
-export type SQLiteInsertDynamic<T extends AnySQLiteInsert> = SQLiteInsert<
+export type SQLiteInsertDynamic<T extends AnySQLiteInsert> = SQLiteInsertBase<
 	T['_']['table'],
 	T['_']['resultType'],
 	T['_']['runResult'],
-	T['_']['returning']
+	T['_']['returning'],
+	true,
+	never,
+	T['_']['onConflict']
+>;
+
+export type SQLiteInsertOnConflict<T extends AnySQLiteInsert> = SQLiteInsertWithout<
+	SQLiteInsertBase<
+		T['_']['table'],
+		T['_']['resultType'],
+		T['_']['runResult'],
+		T['_']['returning'],
+		T['_']['dynamic'],
+		T['_']['excludedMethods'],
+		true
+	>,
+	T['_']['dynamic'],
+	never
 >;
 
 export type SQLiteInsertExecute<T extends AnySQLiteInsert> = T['_']['returning'] extends undefined ? T['_']['runResult']
@@ -180,6 +200,7 @@ export type SQLiteInsertPrepare<T extends AnySQLiteInsert> = SQLitePreparedQuery
 		all: T['_']['returning'] extends undefined ? DrizzleTypeError<'.all() cannot be used without .returning()'>
 			: T['_']['returning'][];
 		get: T['_']['returning'] extends undefined ? DrizzleTypeError<'.get() cannot be used without .returning()'>
+			: T['_']['onConflict'] extends true ? T['_']['returning'] | undefined
 			: T['_']['returning'];
 		values: T['_']['returning'] extends undefined ? DrizzleTypeError<'.values() cannot be used without .returning()'>
 			: any[][];
@@ -187,7 +208,7 @@ export type SQLiteInsertPrepare<T extends AnySQLiteInsert> = SQLitePreparedQuery
 	}
 >;
 
-export type AnySQLiteInsert = SQLiteInsertBase<any, any, any, any, any, any>;
+export type AnySQLiteInsert = SQLiteInsertBase<any, any, any, any, any, any, any>;
 
 export type SQLiteInsert<
 	TTable extends SQLiteTable = SQLiteTable,
@@ -203,6 +224,7 @@ export interface SQLiteInsertBase<
 	TReturning = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
+	TOnConflict extends boolean = false,
 > extends
 	SQLWrapper,
 	QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>,
@@ -216,6 +238,7 @@ export interface SQLiteInsertBase<
 		readonly returning: TReturning;
 		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;
+		readonly onConflict: TOnConflict;
 		readonly result: TReturning extends undefined ? TRunResult : TReturning[];
 	};
 }
@@ -230,6 +253,8 @@ export class SQLiteInsertBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TOnConflict extends boolean = false,
 > extends QueryPromise<TReturning extends undefined ? TRunResult : TReturning[]>
 	implements RunnableQuery<TReturning extends undefined ? TRunResult : TReturning[], 'sqlite'>, SQLWrapper
 {
@@ -303,7 +328,7 @@ export class SQLiteInsertBase<
 	 *   .onConflictDoNothing({ target: cars.id });
 	 * ```
 	 */
-	onConflictDoNothing(config: { target?: IndexColumn | IndexColumn[]; where?: SQL } = {}): this {
+	onConflictDoNothing(config: { target?: IndexColumn | IndexColumn[]; where?: SQL } = {}): SQLiteInsertOnConflict<this> {
 		if (!this.config.onConflict) this.config.onConflict = [];
 
 		if (config.target === undefined) {
@@ -313,7 +338,7 @@ export class SQLiteInsertBase<
 			const whereSql = config.where ? sql` where ${config.where}` : sql``;
 			this.config.onConflict.push(sql` on conflict ${targetSql} do nothing${whereSql}`);
 		}
-		return this;
+		return this as any;
 	}
 
 	/**
@@ -345,7 +370,9 @@ export class SQLiteInsertBase<
 	 *   });
 	 * ```
 	 */
-	onConflictDoUpdate(config: SQLiteInsertOnConflictDoUpdateConfig<this>): this {
+	onConflictDoUpdate<TConfig extends SQLiteInsertOnConflictDoUpdateConfig<this>>(
+		config: TConfig,
+	): TConfig extends { where: SQL } | { setWhere: SQL } ? SQLiteInsertOnConflict<this> : this {
 		if (config.where && (config.targetWhere || config.setWhere)) {
 			throw new Error(
 				'You cannot use both "where" and "targetWhere"/"setWhere" at the same time - "where" is deprecated, use "targetWhere" or "setWhere" instead.',
@@ -362,7 +389,7 @@ export class SQLiteInsertBase<
 		this.config.onConflict.push(
 			sql` on conflict ${targetSql}${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`,
 		);
-		return this;
+		return this as any;
 	}
 
 	/** @internal */
