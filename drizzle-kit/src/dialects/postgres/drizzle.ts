@@ -12,6 +12,7 @@ import type {
 } from 'drizzle-orm/pg-core';
 import {
 	getMaterializedViewConfig,
+	getPgFunctionArgumentSQLName,
 	getTableConfig,
 	getViewConfig,
 	IndexedColumn,
@@ -163,7 +164,7 @@ export const functionFrom = (fn: PgFunction, dialect: PgDialect) => {
 		functionName: config.name,
 
 		args: Object.entries(config.args).map(([name, builder]) => ({
-			name,
+			name: getPgFunctionArgumentSQLName(name),
 			type: sqlTypeFromFunctionArg(builder as unknown as FunctionArgBuilder),
 			default: null,
 		})),
