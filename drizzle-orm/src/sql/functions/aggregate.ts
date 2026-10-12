@@ -48,8 +48,12 @@ export function countDistinct(expression: SQLWrapper): SQL<number> {
  *
  * @see avgDistinct to get the average of all non-null and non-duplicate values in `expression`
  */
-export function avg(expression: SQLWrapper): SQL<string | null> {
-	return sql`avg(${expression})`.mapWith(String);
+export function avg<T extends SQLWrapper>(
+	expression: T,
+): SQL<(T extends AnyColumn ? T['_']['dataType'] extends 'custom' ? T['_']['data'] : string : string) | null> {
+	return sql`avg(${expression})`.mapWith(
+		is(expression, Column) && expression.dataType === 'custom' ? expression : String,
+	) as any;
 }
 
 /**
@@ -64,8 +68,12 @@ export function avg(expression: SQLWrapper): SQL<string | null> {
  *
  * @see avg to get the average of all non-null values in `expression`, including duplicates
  */
-export function avgDistinct(expression: SQLWrapper): SQL<string | null> {
-	return sql`avg(distinct ${expression})`.mapWith(String);
+export function avgDistinct<T extends SQLWrapper>(
+	expression: T,
+): SQL<(T extends AnyColumn ? T['_']['dataType'] extends 'custom' ? T['_']['data'] : string : string) | null> {
+	return sql`avg(distinct ${expression})`.mapWith(
+		is(expression, Column) && expression.dataType === 'custom' ? expression : String,
+	) as any;
 }
 
 /**
@@ -80,8 +88,12 @@ export function avgDistinct(expression: SQLWrapper): SQL<string | null> {
  *
  * @see sumDistinct to get the sum of all non-null and non-duplicate values in `expression`
  */
-export function sum(expression: SQLWrapper): SQL<string | null> {
-	return sql`sum(${expression})`.mapWith(String);
+export function sum<T extends SQLWrapper>(
+	expression: T,
+): SQL<(T extends AnyColumn ? T['_']['dataType'] extends 'custom' ? T['_']['data'] : string : string) | null> {
+	return sql`sum(${expression})`.mapWith(
+		is(expression, Column) && expression.dataType === 'custom' ? expression : String,
+	) as any;
 }
 
 /**
@@ -96,8 +108,12 @@ export function sum(expression: SQLWrapper): SQL<string | null> {
  *
  * @see sum to get the sum of all non-null values in `expression`, including duplicates
  */
-export function sumDistinct(expression: SQLWrapper): SQL<string | null> {
-	return sql`sum(distinct ${expression})`.mapWith(String);
+export function sumDistinct<T extends SQLWrapper>(
+	expression: T,
+): SQL<(T extends AnyColumn ? T['_']['dataType'] extends 'custom' ? T['_']['data'] : string : string) | null> {
+	return sql`sum(distinct ${expression})`.mapWith(
+		is(expression, Column) && expression.dataType === 'custom' ? expression : String,
+	) as any;
 }
 
 /**
