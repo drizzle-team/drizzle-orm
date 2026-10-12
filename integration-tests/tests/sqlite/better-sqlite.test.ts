@@ -48,6 +48,43 @@ test('migrator', async () => {
 	db.run(sql`drop table __drizzle_migrations`);
 });
 
+test('migrator skips blank statement chunks', () => {
+	db.run(sql`drop table if exists blank_statements`);
+	db.run(sql`drop table if exists __drizzle_migrations`);
+
+	migrate(db, { migrationsFolder: './drizzle2/sqlite-blank-statements' });
+
+	const tables = db.all<{ name: string }>(
+		sql`select name from sqlite_master where type = 'table' and name = 'blank_statements'`,
+	);
+	const migrationRecords = db.all(sql`select hash, created_at from __drizzle_migrations`);
+
+	expect(tables).toEqual([{ name: 'blank_statements' }]);
+	expect(migrationRecords).toHaveLength(1);
+
+	db.run(sql`drop table blank_statements`);
+	db.run(sql`drop table __drizzle_migrations`);
+});
+
+test('migrator rejects a migration with no statements', () => {
+	db.run(sql`drop table if exists empty_migration_probe`);
+	db.run(sql`drop table if exists __drizzle_migrations`);
+
+	expect(() => migrate(db, { migrationsFolder: './drizzle2/sqlite-empty-migration' })).toThrow(
+		/contains no SQL statements/,
+	);
+
+	const tables = db.all<{ name: string }>(
+		sql`select name from sqlite_master where type = 'table' and name = 'empty_migration_probe'`,
+	);
+	const migrationRecords = db.all(sql`select hash, created_at from __drizzle_migrations`);
+
+	expect(tables).toEqual([]);
+	expect(migrationRecords).toHaveLength(0);
+
+	db.run(sql`drop table __drizzle_migrations`);
+});
+
 skipTests([
 	/**
 	 * doesn't work properly:
