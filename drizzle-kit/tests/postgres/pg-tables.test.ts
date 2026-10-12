@@ -7,6 +7,7 @@ import {
 	geometry,
 	index,
 	integer,
+	pgMaterializedView,
 	PgSchema,
 	pgSchema,
 	pgTable,
@@ -23,6 +24,10 @@ import {
 	vector,
 } from 'drizzle-orm/pg-core';
 import { stripAnsi } from 'hanji/utils';
+import { suggestions } from 'src/cli/commands/push-postgres';
+import { runWithCliContext } from 'src/cli/context';
+import { HintsHandler } from 'src/cli/hints';
+import { prepareStatement } from 'src/dialects/postgres/statements';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -1706,7 +1711,7 @@ test('drop column in a renamed table with data', async () => {
 		'ALTER TABLE "accounts" DROP COLUMN "name";',
 	]);
 	expect(phints).toStrictEqual([
-		{ hint: `You're about to delete non-empty name column in "accounts" table` },
+		{ hint: `You're about to delete non-empty "name" column in "users" (would become "accounts") table` },
 	]);
 });
 
@@ -1735,7 +1740,7 @@ test('drop column in a table with data that moves to another schema', async () =
 		'ALTER TABLE "app"."users" DROP COLUMN "name";',
 	]);
 	expect(phints).toStrictEqual([
-		{ hint: `You're about to delete non-empty name column in "app"."users" table` },
+		{ hint: `You're about to delete non-empty "name" column in "users" (would become "app"."users") table` },
 	]);
 });
 
@@ -1761,7 +1766,7 @@ test('drop column in a table with data in a renamed schema', async () => {
 		'ALTER TABLE "after"."users" DROP COLUMN "name";',
 	]);
 	expect(phints).toStrictEqual([
-		{ hint: `You're about to delete non-empty name column in "after"."users" table` },
+		{ hint: `You're about to delete non-empty "name" column in "before"."users" (would become "after"."users") table` },
 	]);
 });
 
@@ -1791,7 +1796,7 @@ test('drop column in a table with data that is renamed and moves to another sche
 		'ALTER TABLE "app"."accounts" DROP COLUMN "name";',
 	]);
 	expect(phints).toStrictEqual([
-		{ hint: `You're about to delete non-empty name column in "app"."accounts" table` },
+		{ hint: `You're about to delete non-empty "name" column in "users" (would become "app"."accounts") table` },
 	]);
 });
 
@@ -1822,7 +1827,10 @@ test('drop column in a renamed table with data in a renamed schema', async () =>
 		'ALTER TABLE "after"."accounts" DROP COLUMN "name";',
 	]);
 	expect(phints).toStrictEqual([
-		{ hint: `You're about to delete non-empty name column in "after"."accounts" table` },
+		{
+			hint:
+				`You're about to delete non-empty "name" column in "before"."users" (would become "after"."accounts") table`,
+		},
 	]);
 });
 
@@ -1849,7 +1857,7 @@ test('drop primary key in a renamed table with data', async () => {
 	]);
 	expect(phints.map((it) => ({ ...it, hint: stripAnsi(it.hint) }))).toStrictEqual([{
 		hint:
-			`You're about to drop "public"."accounts" primary key, this statements may fail and your table may lose primary key`,
+			`You're about to drop the primary key of "users" (would become "accounts") table. The statements may fail, and the table may lose its primary key`,
 	}]);
 });
 
@@ -1877,6 +1885,102 @@ test('drop materialized view with data in a renamed schema', async () => {
 		'DROP MATERIALIZED VIEW "after"."view";',
 	]);
 	expect(phints).toStrictEqual([
-		{ hint: `You're about to delete non-empty "after"."view" materialized view` },
+		{ hint: `You're about to delete non-empty "before"."view" materialized view` },
+	]);
+});
+
+test('drop primary key with an implicit name in a renamed table with data', async () => {
+	await db.query(`CREATE TABLE "orders" ("id" integer CONSTRAINT "orders_custom_pk" PRIMARY KEY);`);
+	await db.query(`INSERT INTO "orders" ("id") VALUES (1);`);
+
+	const hints = await runWithCliContext({ output: 'text', interactive: true }, () =>
+		suggestions(db, [
+			prepareStatement('rename_table', { schema: 'public', from: 'orders', to: 'purchases' }),
+			prepareStatement('drop_pk', {
+				pk: {
+					entityType: 'pks',
+					schema: 'public',
+					table: 'purchases',
+					name: 'purchases_pkey',
+					nameExplicit: false,
+					columns: ['id'],
+				},
+			}),
+		], new HintsHandler()));
+
+	for (const it of hints) {
+		if (it.statement) await db.query(it.statement);
+	}
+
+	const primaryKeys = await db.query(
+		`select conname from pg_constraint where conrelid = '"orders"'::regclass and contype = 'p';`,
+	);
+	expect(hints).toHaveLength(1);
+	expect(primaryKeys).toStrictEqual([]);
+});
+
+test('drop column without values in a table with data', async () => {
+	const schema1 = {
+		users: pgTable('users', { id: integer('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		users: pgTable('users', { id: integer('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "users" ("id") VALUES (1);`);
+
+	const { hints: phints } = await push({ db, to: schema2 });
+
+	expect(phints).toStrictEqual([]);
+});
+
+test('drop table with data in a renamed schema', async () => {
+	const before = pgSchema('before');
+	const after = pgSchema('after');
+	const schema1 = {
+		before,
+		users: before.table('users', { id: integer('id').primaryKey() }),
+	};
+	const schema2 = { after };
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "before"."users" ("id") VALUES (1);`);
+
+	const { hints: phints } = await push({ db, to: schema2, renames: ['before->after'] });
+
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "before"."users" table` },
+	]);
+});
+
+test('drop materialized view with data when a renamed table takes its name', async () => {
+	const users = pgTable('users', { id: integer('id').primaryKey() });
+	const schema1 = {
+		users,
+		accounts: pgTable('accounts', { id: integer('id').primaryKey() }),
+		report: pgMaterializedView('report', { id: integer('id') }).as(sql`SELECT "id" FROM "users"`),
+	};
+	const schema2 = {
+		users,
+		report: pgTable('report', { id: integer('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "users" ("id") VALUES (1);`);
+	await db.query(`REFRESH MATERIALIZED VIEW "report";`);
+
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['public.accounts->public.report'],
+	});
+
+	expect(pst).toStrictEqual([
+		'DROP MATERIALIZED VIEW "report";',
+		'ALTER TABLE "accounts" RENAME TO "report";',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "report" materialized view` },
 	]);
 });
