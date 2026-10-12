@@ -282,7 +282,7 @@ const pgSuite: DialectSuite = {
 				name: 'users_name_id_index',
 				where: 'select 1',
 				with: {
-					fillfactor: 70,
+					fillfactor: "70",
 				},
 			},
 		});
@@ -312,7 +312,7 @@ const pgSuite: DialectSuite = {
 				name: 'indx1',
 				where: undefined,
 				with: {
-					fillfactor: 70,
+					fillfactor: "70",
 				},
 			},
 		});
