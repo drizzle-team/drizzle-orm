@@ -1028,28 +1028,16 @@ export class SingleStoreDialect {
 
 		const columns = this.buildColumns(table, selection, !!nested, tableConfig.name, params);
 
-		const where: SQL | undefined = params && 'where' in params && relationWhere
-			? and(
-				relationsFilterToSQL(
-					table,
-					params.where,
-					tableConfig.relations,
-					schema,
-					subqueries,
-				),
-				relationWhere,
-			)
-			: params && 'where' in params
-			? relationsFilterToSQL(
-				table,
-				params.where,
-				tableConfig.relations,
-				schema,
-				subqueries,
-			)
+		const filter = params && 'where' in params
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries)
+			: undefined;
+		const where: SQL | undefined = filter && relationWhere
+			? and(filter.sql, relationWhere)
+			: filter
+			? filter.sql
 			: relationWhere;
 		const order = params?.orderBy
-			? relationsOrderToSQL(table, params.orderBy)
+			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, subqueries)
 			: undefined;
 		const extras = params?.extras
 			? relationExtrasToSQL(table, params.extras, this.codecs, nested)

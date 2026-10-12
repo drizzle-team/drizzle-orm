@@ -11,6 +11,7 @@ import type {
 	BuildRelationalQueryResult,
 	ColumnWithTSName,
 	DBQueryConfigWithComment,
+	RelationalQueryStrategy,
 	RelationalRowsMapperGenerator,
 	TableRelationalConfig,
 	TablesRelationalConfig,
@@ -1135,6 +1136,7 @@ export class MsSqlDialect {
 		throughJoin,
 		nested,
 		withSubqueries,
+		strategy,
 	}: {
 		schema: TablesRelationalConfig;
 		table: SchemaEntry;
@@ -1147,12 +1149,14 @@ export class MsSqlDialect {
 		throughJoin?: SQL;
 		nested?: boolean;
 		withSubqueries?: RelationalWithSubqueries;
+		strategy?: RelationalQueryStrategy;
 	}): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
+		const isOptimized = (currentDepth ? strategy : params?.strategy) !== 'basic';
 		const subqueries: RelationalWithSubqueries = withSubqueries ?? new Map();
 		if (!currentDepth) {
 			collectRelationalSubquery(subqueries, table);
@@ -1162,15 +1166,17 @@ export class MsSqlDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const where: SQL | undefined = params && 'where' in params && relationWhere
-			? and(
-				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries),
-				relationWhere,
-			)
-			: params && 'where' in params
+		const filter = params && 'where' in params
 			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries)
+			: undefined;
+		const where: SQL | undefined = filter && relationWhere
+			? and(filter.sql, relationWhere)
+			: filter
+			? filter.sql
 			: relationWhere;
-		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
+		const order = params?.orderBy
+			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, subqueries, 'top')
+			: undefined;
 
 		if (offset !== undefined && !order) {
 			throw new DrizzleError({
@@ -1229,6 +1235,7 @@ export class MsSqlDialect {
 						errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 						depth: currentDepth + 1,
 						withSubqueries: subqueries,
+						strategy: currentDepth ? strategy : params?.strategy,
 						throughJoin: nestedThroughJoin,
 						nested: true,
 					});
@@ -1276,11 +1283,23 @@ export class MsSqlDialect {
 		const top = !useOffset && limit !== undefined ? sql` top(${limit})` : undefined;
 
 		const withSql = currentDepth ? undefined : this.buildWithCTE([...subqueries.values()]);
-		const query = sql`${withSql}select${top} ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
-			applies.length ? sql.join(applies) : undefined
-		}${where ? sql` where ${where}` : undefined}${order ? sql` order by ${order}` : undefined}${
-			useOffset ? sql` offset ${offset} rows` : undefined
-		}${useOffset && limit !== undefined ? sql` fetch next ${limit} rows only` : undefined}`;
+		const appliesSql = applies.length ? sql.join(applies) : undefined;
+		const whereSql = where ? sql` where ${where}` : undefined;
+		const orderSql = order ? sql` order by ${order}` : undefined;
+		const offsetSql = sql`${useOffset ? sql` offset ${offset} rows` : undefined}${
+			useOffset && limit !== undefined ? sql` fetch next ${limit} rows only` : undefined
+		}`;
+
+		// Optimize slow queries caused by planner applying pagination or filters after building relations
+		// `offset` isn't pushed below `outer apply`: relations would get built for skipped rows as well.
+		// Paginating the table in a derived table first restricts applies to the rows that are actually returned
+		const query = appliesSql && isOptimized && useOffset
+			? sql`${withSql}select ${selectionSet} from (select ${table}.* from ${
+				getTableAsAliasSQL(table)
+			}${throughJoin}${whereSql}${orderSql}${offsetSql}) as ${table}${appliesSql}${orderSql}`
+			: sql`${withSql}select${top} ${selectionSet} from ${
+				getTableAsAliasSQL(table)
+			}${throughJoin}${appliesSql}${whereSql}${orderSql}${offsetSql}`;
 
 		return {
 			sql: query,

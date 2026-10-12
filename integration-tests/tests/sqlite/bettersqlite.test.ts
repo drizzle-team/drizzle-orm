@@ -12295,3 +12295,134 @@ test('[Find Many] Get subquery users with posts with subquery authors', async ()
 		}],
 	}]);
 });
+
+test('[Find Many] Order by fields of relations', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+		{ id: 4, name: 'John' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1' },
+		{ id: 2, ownerId: 1, content: 'Post2' },
+		{ id: 3, ownerId: 2, content: 'Post3' },
+		{ id: 4, ownerId: 3, content: 'Post4' },
+		{ id: 5, ownerId: 3, content: 'Post5' },
+		{ id: 6, ownerId: 3, content: 'Post6' },
+	]);
+
+	await db.insert(commentsTable).values([
+		{ id: 1, postId: 2, creator: 2, content: 'Comment1' },
+		{ id: 2, postId: 5, creator: 1, content: 'Comment2' },
+		{ id: 3, postId: 5, creator: 2, content: 'Comment3' },
+		{ id: 4, postId: 6, creator: 2, content: 'Comment4' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'GroupA' },
+		{ id: 2, name: 'GroupB' },
+		{ id: 3, name: 'GroupC' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 3 },
+		{ userId: 2, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const ids = (rows: { id: number }[]) => rows.map(({ id }) => id);
+
+	// field of a single relation
+	expect(ids(
+		await db.query.postsTable.findMany({ columns: { id: true }, orderBy: { author: { name: 'asc' }, id: 'desc' } }),
+	)).toStrictEqual([6, 5, 4, 3, 2, 1]);
+
+	// nested single relations
+	expect(ids(
+		await db.query.commentsTable.findMany({
+			columns: { id: true },
+			orderBy: { post: { author: { name: 'desc' } }, id: 'asc' },
+		}),
+	)).toStrictEqual([1, 2, 3, 4]);
+
+	// aggregates of a many relation
+	expect(ids(
+		await db.query.usersTable.findMany({ columns: { id: true }, orderBy: { posts: { id: 'desc(count)' }, id: 'asc' } }),
+	)).toStrictEqual([3, 1, 2, 4]);
+	expect(ids(
+		await db.query.usersTable.findMany({
+			columns: { id: true },
+			where: { id: { lte: 3 } },
+			orderBy: { posts: { id: 'desc(max)' } },
+		}),
+	)).toStrictEqual([3, 2, 1]);
+	expect(ids(
+		await db.query.usersTable.findMany({
+			columns: { id: true },
+			where: { id: { lte: 3 } },
+			orderBy: { posts: { id: 'asc(avg)' } },
+		}),
+	)).toStrictEqual([1, 2, 3]);
+
+	// relation nested in a many relation
+	expect(ids(
+		await db.query.usersTable.findMany({
+			columns: { id: true },
+			orderBy: { posts: { comments: { id: 'desc(count)' } }, id: 'asc' },
+		}),
+	)).toStrictEqual([3, 1, 2, 4]);
+
+	// number of rows of a many relation
+	expect(ids(
+		await db.query.usersTable.findMany({ columns: { id: true }, orderBy: { posts: 'desc(count)', id: 'asc' } }),
+	)).toStrictEqual([3, 1, 2, 4]);
+
+	// first row of a many relation: all posts of a user carry the same value
+	expect(ids(
+		await db.query.usersTable.findMany({
+			columns: { id: true },
+			where: { id: { lte: 3 } },
+			orderBy: { posts: { ownerId: 'desc(first)' } },
+		}),
+	)).toStrictEqual([3, 2, 1]);
+
+	// many relation nested in a single relation
+	expect(ids(
+		await db.query.postsTable.findMany({
+			columns: { id: true },
+			orderBy: { author: { posts: { id: 'asc(count)' } }, id: 'desc' },
+		}),
+	)).toStrictEqual([3, 2, 1, 6, 5, 4]);
+
+	// through relation
+	expect(ids(
+		await db.query.usersTable.findMany({
+			columns: { id: true },
+			where: { id: { lte: 3 } },
+			orderBy: { groups: { name: 'asc(min)' } },
+		}),
+	)).toStrictEqual([2, 3, 1]);
+
+	// limited and skipped together with selected relations, nested relation ordered by its own relation
+	const paginated = db.query.usersTable.findMany({
+		columns: { id: true },
+		orderBy: { posts: { id: 'desc(count)' }, id: 'asc' },
+		limit: 2,
+		offset: 1,
+		with: {
+			posts: {
+				columns: { id: true },
+				orderBy: { comments: { id: 'desc(count)' }, id: 'asc' },
+				with: { comments: { columns: { id: true }, orderBy: { post: { author: { name: 'asc' } }, id: 'desc' } } },
+			},
+		},
+	});
+
+	expect(await paginated).toStrictEqual([
+		{ id: 1, posts: [{ id: 2, comments: [{ id: 1 }] }, { id: 1, comments: [] }] },
+		{ id: 2, posts: [{ id: 3, comments: [] }] },
+	]);
+});

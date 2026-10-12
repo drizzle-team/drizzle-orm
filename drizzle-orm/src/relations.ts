@@ -565,6 +565,69 @@ export type DBQueryConfigOrderBy<TTable extends SchemaEntry, TColumns extends Fi
 	| DBQueryConfigOrderByCallback<TTable>
 	| DBQueryConfigOrderByObject<TColumns>;
 
+export type RelationsOrderDirection = 'asc' | 'desc';
+
+/**`first` takes the field of whichever related row the database returns first, the rest aggregate over all of them */
+export type RelationsOrderAggregate = 'min' | 'max' | 'count' | 'avg' | 'first';
+
+/** Order of rows by an aggregate over fields of rows of a `many` relation */
+export type RelationsAggregatedOrderDirection = `${RelationsOrderDirection}(${RelationsOrderAggregate})`;
+
+/** Order of rows by the number of rows of a `many` relation */
+export type RelationsCountOrderDirection = `${RelationsOrderDirection}(count)`;
+
+export type RelationsOrderColumns<
+	TColumns extends Record<string, unknown>,
+	TAggregated extends boolean = false,
+> = {
+	[K in keyof TColumns]?:
+		| (TAggregated extends true ? RelationsAggregatedOrderDirection : RelationsOrderDirection)
+		| undefined;
+};
+
+export type RelationsOrderRelations<
+	TTable extends TableRelationalConfig,
+	TSchema extends TablesRelationalConfig,
+	TAggregated extends boolean = false,
+	TRelations extends RelationsRecord = TTable['relations'],
+> = {
+	[K in keyof TRelations]?:
+		| RelationsOrderBy<
+			FindTargetTableInRelationalConfig<TSchema, TRelations[K]>,
+			TSchema,
+			// Everything under a `many` relation resolves to multiple rows
+			TAggregated extends true ? true : TRelations[K]['relationType'] extends 'one' ? false : true
+		>
+		| (TRelations[K]['relationType'] extends 'many' ? RelationsCountOrderDirection : never)
+		| undefined;
+};
+
+export type RelationsOrderBy<
+	TTable extends TableRelationalConfig,
+	TSchema extends TablesRelationalConfig,
+	TAggregated extends boolean = false,
+	TColumns extends FieldSelection = GetTableViewFieldSelection<TTable['table']>,
+> = TTable['relations'] extends Record<string, never> ? RelationsOrderColumns<TColumns, TAggregated>
+	:
+		& RelationsOrderColumns<TColumns, TAggregated>
+		& RelationsOrderRelations<TTable, TSchema, TAggregated>;
+
+export type AnyRelationsOrder = {
+	[K: string]:
+		| RelationsOrderDirection
+		| RelationsAggregatedOrderDirection
+		| RelationsCountOrderDirection
+		| AnyRelationsOrder
+		| undefined;
+};
+
+export type DBQueryConfigRelationsOrderBy<
+	TTable extends TableRelationalConfig,
+	TSchema extends TablesRelationalConfig,
+> =
+	| DBQueryConfigOrderByCallback<TTable['table']>
+	| RelationsOrderBy<TTable, TSchema>;
+
 export type DBQueryConfigWith<TSchema extends TablesRelationalConfig, TRelations extends RelationsRecord> = {
 	[K in keyof TRelations]?:
 		| boolean
@@ -594,7 +657,7 @@ export type DBQueryConfig<
 			| DBQueryConfigExtras<TTableConfig['table']>
 			| undefined;
 		orderBy?:
-			| DBQueryConfigOrderBy<TTableConfig['table'], GetTableViewFieldSelection<TTableConfig['table']>>
+			| DBQueryConfigRelationsOrderBy<TTableConfig, TSchema>
 			| undefined;
 		offset?: number | Placeholder | undefined;
 	}
@@ -603,11 +666,30 @@ export type DBQueryConfig<
 		}
 		: {});
 
-export type DBQueryConfigWithComment<
+export type RelationalQueryStrategy = 'basic' | 'optimized';
+
+export type DBQueryConfigWithStrategy<
 	TRelationType extends 'one' | 'many' = 'one' | 'many',
 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
 > = DBQueryConfig<TRelationType, TSchema, TTableConfig> & {
+	/**
+	 * Query build strategy
+	 *
+	 * - `optimized` - applies query optimizations based on presence of pagination, ordering & filters to avoid slow query plans. Conditions vary per dialect.
+	 * - `basic` - keeps original query shape regardless of conditions.
+	 * Use to opt out of `optimized` if the query refers to relations' subqueries from raw SQL in `where` or `orderBy` or causes performance issues
+	 *
+	 * @default 'optimized'
+	 */
+	strategy?: RelationalQueryStrategy | undefined;
+};
+
+export type DBQueryConfigWithComment<
+	TRelationType extends 'one' | 'many' = 'one' | 'many',
+	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
+	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
+> = DBQueryConfigWithStrategy<TRelationType, TSchema, TTableConfig> & {
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
@@ -626,11 +708,13 @@ export type AnyDBQueryConfig = {
 		| Record<string, AnyDBQueryConfig>
 		| undefined;
 	orderBy?:
-		| DBQueryConfigOrderBy<TableRelationalConfig['table'], GetTableViewFieldSelection<TableRelationalConfig['table']>>
+		| DBQueryConfigOrderByCallback<TableRelationalConfig['table']>
+		| AnyRelationsOrder
 		| undefined;
 	offset?: number | Placeholder | undefined;
 	limit?: number | Placeholder | undefined;
 	comment?: CommentInput | undefined;
+	strategy?: RelationalQueryStrategy | undefined;
 };
 
 export interface TableRelationalConfig {
@@ -1910,10 +1994,15 @@ function relationsFieldFilterToSQL(
 	return and(...parts);
 }
 
+export type BuiltRelationsFilter = {
+	sql: SQL | undefined;
+	hasRelationFilters: boolean;
+};
+
 export function relationsFilterToSQL(
 	table: SchemaEntry,
 	filter: AnyRelationsFilter | AnyTableFilter | undefined | EmptyFilter,
-): SQL | undefined;
+): BuiltRelationsFilter;
 export function relationsFilterToSQL(
 	table: SchemaEntry,
 	filter: AnyRelationsFilter | AnyTableFilter | undefined | EmptyFilter,
@@ -1921,7 +2010,7 @@ export function relationsFilterToSQL(
 	tablesRelations: TablesRelationalConfig,
 	withSubqueries: RelationalWithSubqueries,
 	depth?: number,
-): SQL | undefined;
+): BuiltRelationsFilter;
 export function relationsFilterToSQL(
 	table: SchemaEntry,
 	filter: AnyRelationsFilter | AnyTableFilter | undefined | EmptyFilter,
@@ -1929,17 +2018,25 @@ export function relationsFilterToSQL(
 	tablesRelations: TablesRelationalConfig = {},
 	withSubqueries?: RelationalWithSubqueries,
 	depth: number = 0,
-): SQL | undefined {
-	if (filter === EmptyFilter) return undefined;
+): BuiltRelationsFilter {
+	if (filter === EmptyFilter) return { sql: undefined, hasRelationFilters: false };
 	if (filter === undefined) {
 		throw new Error(
 			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
 		);
 	}
 	const entries = Object.entries(filter);
-	if (!entries.length) return undefined;
+	if (!entries.length) return { sql: undefined, hasRelationFilters: false };
 
 	const parts: (SQL | undefined)[] = [];
+	let hasRelationFilters = false;
+	const buildNested = (subFilter: AnyRelationsFilter) => {
+		const built = relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, withSubqueries!, depth);
+		if (built.hasRelationFilters) hasRelationFilters = true;
+
+		return built.sql;
+	};
+
 	for (const [target, value] of entries) {
 		if (value === EmptyFilter) continue;
 		if (value === undefined) {
@@ -1959,6 +2056,7 @@ export function relationsFilterToSQL(
 				if (processed === EmptyFilter) continue;
 
 				parts.push(processed);
+				hasRelationFilters = true;
 
 				continue;
 			}
@@ -1969,13 +2067,7 @@ export function relationsFilterToSQL(
 					);
 				}
 
-				parts.push(
-					or(
-						...(value as AnyRelationsFilter[]).map((subFilter) =>
-							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, withSubqueries!, depth)
-						),
-					)!,
-				);
+				parts.push(or(...(value as AnyRelationsFilter[]).map(buildNested))!);
 
 				continue;
 			}
@@ -1986,25 +2078,12 @@ export function relationsFilterToSQL(
 					);
 				}
 
-				parts.push(
-					and(
-						...(value as AnyRelationsFilter[]).map((subFilter) =>
-							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, withSubqueries!, depth)
-						),
-					)!,
-				);
+				parts.push(and(...(value as AnyRelationsFilter[]).map(buildNested))!);
 
 				continue;
 			}
 			case 'NOT': {
-				const built = relationsFilterToSQL(
-					table,
-					value as AnyRelationsFilter,
-					tableRelations,
-					tablesRelations,
-					withSubqueries!,
-					depth,
-				);
+				const built = buildNested(value as AnyRelationsFilter);
 				if (!built) continue;
 
 				parts.push(not(built));
@@ -2051,7 +2130,7 @@ export function relationsFilterToSQL(
 					tablesRelations,
 					withSubqueries!,
 					depth + 1,
-				);
+				).sql;
 
 				if (!isExistsOnly && !subfilter) continue;
 
@@ -2069,17 +2148,214 @@ export function relationsFilterToSQL(
 						getTableAsAliasSQL(throughTable)
 					} on ${joinCondition}${sql` where ${filter}`.if(filter)})`
 					: sql`(select * from ${getTableAsAliasSQL(targetTable)}${sql` where ${filter}`.if(filter)})`;
-				if (filter) parts.push((value ? exists : notExists)(subquery));
+				if (filter) {
+					parts.push((value ? exists : notExists)(subquery));
+					hasRelationFilters = true;
+				}
 			}
 		}
 	}
 
-	return and(...parts)!;
+	return { sql: and(...parts), hasRelationFilters };
+}
+
+const relationsOrderAggregates: ReadonlySet<string> = new Set<RelationsOrderAggregate>([
+	'min',
+	'max',
+	'count',
+	'avg',
+	'first',
+]);
+
+export function parseRelationsOrderValue(
+	value: unknown,
+	path: string,
+): { direction: RelationsOrderDirection; aggregate?: RelationsOrderAggregate } {
+	if (typeof value !== 'string') {
+		throw new DrizzleError({
+			message: `Invalid order "${path}": expected a string, got ${value === null ? 'null' : typeof value}`,
+		});
+	}
+
+	const parts = value.split('(');
+	const direction = parts[0];
+	if (direction !== 'asc' && direction !== 'desc') {
+		throw new DrizzleError({
+			message: `Invalid order "${path}": unknown direction "${direction}" in "${value}", expected "asc" or "desc"`,
+		});
+	}
+	if (parts.length === 1) return { direction };
+
+	if (parts.length > 2 || !parts[1]!.endsWith(')')) {
+		throw new DrizzleError({
+			message:
+				`Invalid order "${path}": malformed value "${value}", expected "${direction}" or "${direction}(<aggregate>)"`,
+		});
+	}
+
+	const aggregate = parts[1]!.slice(0, -1);
+	if (!relationsOrderAggregates.has(aggregate)) {
+		throw new DrizzleError({
+			message: `Invalid order "${path}": unknown aggregate "${aggregate}" in "${value}", expected one of: ${
+				[...relationsOrderAggregates].join(', ')
+			}`,
+		});
+	}
+
+	return { direction, aggregate: aggregate as RelationsOrderAggregate };
+}
+
+export type RelationsOrderSource = {
+	/** Relations' tables between the ordered table and the field */
+	from: SQL;
+	filters: (SQL | undefined)[];
+	/** Whether there's a `many` relation on the way: fields have to be aggregated */
+	isAggregated: boolean;
+	depth: number;
+	path: string;
+};
+
+export function relationsOrderEntriesToSQL(
+	table: SchemaEntry,
+	orders: AnyRelationsOrder,
+	tableRelations: RelationsRecord,
+	tablesRelations: TablesRelationalConfig,
+	withSubqueries: RelationalWithSubqueries | undefined,
+	/** 'top' for MSSQL, 'limit' for rest */
+	singleRowLimit: 'limit' | 'top',
+	source: RelationsOrderSource | undefined,
+	parts: SQL[],
+) {
+	for (const [target, value] of Object.entries(orders)) {
+		if (!value) continue;
+
+		const path = source ? `${source.path}.${target}` : target;
+
+		if (Object.prototype.hasOwnProperty.call(table[TableColumns], target) && table[TableColumns][target]) {
+			const { direction, aggregate } = parseRelationsOrderValue(value, path);
+			if (!!aggregate !== !!source?.isAggregated) {
+				throw new DrizzleError({
+					message: `Invalid order "${path}": expected ${
+						source?.isAggregated
+							? '"asc(<aggregate>)" or "desc(<aggregate>)", with aggregate being one of: min, max, count, avg, first'
+							: '"asc" or "desc"'
+					}, got "${value}"`,
+				});
+			}
+
+			const column = fieldSelectionToSQL(table, target);
+			const order = direction === 'asc' ? asc : desc;
+			if (!source) {
+				parts.push(order(column));
+				continue;
+			}
+
+			const isSingleRowLimited = !aggregate || aggregate === 'first';
+			const selection = isSingleRowLimited ? column : sql`${sql.raw(aggregate!)}(${column})`;
+			const where = and(...source.filters);
+			parts.push(
+				order(
+					sql`(select ${
+						isSingleRowLimited && singleRowLimit === 'top'
+							? sql.raw('top(1) ')
+							: undefined
+					}${selection} from ${source.from}${sql` where ${where}`.if(where)}${
+						isSingleRowLimited && singleRowLimit === 'limit'
+							? sql.raw(' limit 1')
+							: undefined
+					})`,
+				),
+			);
+
+			continue;
+		}
+
+		const relation = Object.prototype.hasOwnProperty.call(tableRelations, target)
+			? tableRelations[target]
+			: undefined;
+		if (!relation) {
+			// Should never trigger unless the types've been violated
+			throw new DrizzleError({ message: `Unknown relational order field: "${path}"` });
+		}
+		const count = relation.relationType === 'many' && typeof value === 'string'
+			? parseRelationsOrderValue(value, path)
+			: undefined;
+		const countDirection = count?.aggregate === 'count' ? count.direction : undefined;
+		if (typeof value !== 'object' && !countDirection) {
+			throw new DrizzleError({
+				message: `Invalid order "${path}": expected an object with fields of relation to order by${
+					relation.relationType === 'many' ? ', "asc(count)" or "desc(count)"' : ''
+				}, got "${value}"`,
+			});
+		}
+
+		if (withSubqueries) {
+			collectRelationalSubquery(withSubqueries, relation.targetTable);
+			collectRelationalSubquery(withSubqueries, relation.throughTable);
+		}
+
+		const depth = source?.depth ?? 0;
+		const targetTable = aliasedTable(relation.targetTable, `o${depth}`);
+		const throughTable = relation.throughTable ? aliasedTable(relation.throughTable, `ot${depth}`) : undefined;
+		const { filter, joinCondition } = relationToSQL(relation, table, targetTable, throughTable);
+
+		const from = throughTable
+			? sql`${getTableAsAliasSQL(targetTable)} inner join ${getTableAsAliasSQL(throughTable)} on ${joinCondition}`
+			: getTableAsAliasSQL(targetTable);
+
+		if (typeof value !== 'object') {
+			const where = and(...(source?.filters ?? []), filter);
+			parts.push(
+				(countDirection === 'asc' ? asc : desc)(
+					sql`(select count(*) from ${source ? sql`${source.from} cross join ${from}` : from}${
+						sql` where ${where}`.if(where)
+					})`,
+				),
+			);
+
+			continue;
+		}
+
+		relationsOrderEntriesToSQL(
+			targetTable,
+			value,
+			tablesRelations[relation.targetTableName]?.relations ?? {},
+			tablesRelations,
+			withSubqueries,
+			singleRowLimit,
+			{
+				from: source ? sql`${source.from} cross join ${from}` : from,
+				filters: source ? [...source.filters, filter] : [filter],
+				isAggregated: !!source?.isAggregated || relation.relationType === 'many',
+				depth: depth + 1,
+				path,
+			},
+			parts,
+		);
+	}
 }
 
 export function relationsOrderToSQL(
 	table: SchemaEntry,
 	orders: OrderBy,
+): SQL | undefined;
+export function relationsOrderToSQL(
+	table: SchemaEntry,
+	orders: OrderBy,
+	tableRelations: RelationsRecord,
+	tablesRelations: TablesRelationalConfig,
+	withSubqueries: RelationalWithSubqueries,
+	/** 'top' for MSSQL, 'limit' for rest */
+	singleRowLimit?: 'limit' | 'top',
+): SQL | undefined;
+export function relationsOrderToSQL(
+	table: SchemaEntry,
+	orders: OrderBy,
+	tableRelations: RelationsRecord = {},
+	tablesRelations: TablesRelationalConfig = {},
+	withSubqueries?: RelationalWithSubqueries,
+	/** 'top' for MSSQL, 'limit' for rest */
+	singleRowLimit: 'limit' | 'top' = 'limit',
 ): SQL | undefined {
 	if (typeof orders === 'function') {
 		const data = orders(table as any, orderByOperators);
@@ -2096,13 +2372,20 @@ export function relationsOrderToSQL(
 			: undefined;
 	}
 
-	const entries = Object.entries(orders).filter(([_, value]) => value);
-	if (!entries.length) return undefined;
-
-	return sql.join(
-		entries.map(([target, value]) => (value === 'asc' ? asc : desc)(fieldSelectionToSQL(table, target))),
-		new StringChunk(`, `),
+	const parts: SQL[] = [];
+	relationsOrderEntriesToSQL(
+		table,
+		orders,
+		tableRelations,
+		tablesRelations,
+		withSubqueries,
+		singleRowLimit,
+		undefined,
+		parts,
 	);
+	if (!parts.length) return undefined;
+
+	return sql.join(parts, new StringChunk(`, `));
 }
 
 export function relationExtrasToSQL(
@@ -2191,7 +2474,7 @@ export function relationToSQL(
 
 		return {
 			filter: and(
-				relationsFilterToSQL(relation.isFilterReversed ? sourceTable : targetTable, relation.where),
+				relationsFilterToSQL(relation.isFilterReversed ? sourceTable : targetTable, relation.where).sql,
 				...outerColumnWhere,
 			),
 			joinCondition: and(...innerColumnWhere),
@@ -2209,7 +2492,7 @@ export function relationToSQL(
 
 	const fullWhere = and(
 		...columnWhere,
-		relationsFilterToSQL(relation.isFilterReversed ? sourceTable : targetTable, relation.where),
+		relationsFilterToSQL(relation.isFilterReversed ? sourceTable : targetTable, relation.where).sql,
 	)!;
 
 	return { filter: fullWhere };

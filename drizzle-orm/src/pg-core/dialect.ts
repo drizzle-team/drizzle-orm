@@ -23,6 +23,7 @@ import {
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
 	makeJitRqbMapper,
+	type RelationalQueryStrategy,
 	type RelationalRowsMapperGenerator,
 	type RelationalWithSubqueries,
 	relationExtrasToSQL,
@@ -983,6 +984,7 @@ export class PgDialect {
 		throughJoin,
 		nested,
 		withSubqueries,
+		strategy,
 	}: {
 		schema: TablesRelationalConfig;
 		table: SchemaEntry;
@@ -995,12 +997,14 @@ export class PgDialect {
 		throughJoin?: SQL;
 		nested?: boolean;
 		withSubqueries?: RelationalWithSubqueries;
+		strategy?: RelationalQueryStrategy;
 	}): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
+		const isOptimized = (currentDepth ? strategy : params?.strategy) !== 'basic';
 		const subqueries: RelationalWithSubqueries = withSubqueries ?? new Map();
 		if (!currentDepth) {
 			collectRelationalSubquery(subqueries, table);
@@ -1010,28 +1014,16 @@ export class PgDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const where: SQL | undefined = params && 'where' in params && relationWhere
-			? and(
-				relationsFilterToSQL(
-					table,
-					params.where,
-					tableConfig.relations,
-					schema,
-					subqueries,
-				),
-				relationWhere,
-			)
-			: params && 'where' in params
-			? relationsFilterToSQL(
-				table,
-				params.where,
-				tableConfig.relations,
-				schema,
-				subqueries,
-			)
+		const filter = params && 'where' in params
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries)
+			: undefined;
+		const where: SQL | undefined = filter && relationWhere
+			? and(filter.sql, relationWhere)
+			: filter
+			? filter.sql
 			: relationWhere;
 		const order = params?.orderBy
-			? relationsOrderToSQL(table, params.orderBy)
+			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, subqueries)
 			: undefined;
 		const columns = this.buildColumns(table, selection, !!nested, tableConfig.name, params);
 		const extras = params?.extras
@@ -1102,6 +1094,7 @@ export class PgDialect {
 						errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 						depth: currentDepth + 1,
 						withSubqueries: subqueries,
+						strategy: currentDepth ? strategy : params?.strategy,
 						throughJoin,
 						nested: true,
 					});
@@ -1145,11 +1138,33 @@ export class PgDialect {
 			: undefined;
 
 		const withSql = currentDepth ? undefined : this.buildWithCTE([...subqueries.values()]);
-		const query = sql`${withSql}select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${joins}${
-			where ? sql` where ${where}` : undefined
-		}${order ? sql` order by ${order}` : undefined}${limit !== undefined ? sql` limit ${limit}` : undefined}${
+		const whereSql = where ? sql` where ${where}` : undefined;
+		const orderSql = order ? sql` order by ${order}` : undefined;
+		const limitSql = sql`${limit !== undefined ? sql` limit ${limit}` : undefined}${
 			offset !== undefined ? sql` offset ${offset}` : undefined
-		}${comment ? sql` ${comment}` : undefined}`;
+		}`;
+
+		// Unordered `limit` alone already stops at the limit, pagination only goes inside when rows get sorted or skipped
+		const isPaginatedFirst = offset !== undefined || (limit !== undefined && order);
+
+		// Optimize slow queries caused by planner applying pagination or filters after building relations
+		// Relations are joined to an already filtered and paginated table:
+		// - `order by ... limit` and `offset` aren't always pushed below lateral joins, relations would get built
+		// for sorted out and skipped rows
+		// - past `join_collapse_limit` joins are executed in the order they're written in, relations would get
+		// built before filters on relations are applied. Filters on table's own columns are pushed down regardless
+		// Unless paginated, table's subquery has to stay flattenable, hence no `order by` or `limit` in it
+		const query = joins && isOptimized && (isPaginatedFirst || filter?.hasRelationFilters)
+			? sql`${withSql}select ${selectionSet} from (select ${table}.* from ${
+				getTableAsAliasSQL(table)
+			}${throughJoin}${whereSql}${
+				isPaginatedFirst ? sql`${orderSql}${limitSql}` : undefined
+			}) as ${table}${joins}${orderSql}${isPaginatedFirst ? undefined : limitSql}${
+				comment ? sql` ${comment}` : undefined
+			}`
+			: sql`${withSql}select ${selectionSet} from ${
+				getTableAsAliasSQL(table)
+			}${throughJoin}${joins}${whereSql}${orderSql}${limitSql}${comment ? sql` ${comment}` : undefined}`;
 
 		return {
 			sql: query,
