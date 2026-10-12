@@ -313,12 +313,12 @@ export const schemaToTypeScript = (
 		)
 	} } from "drizzle-orm/singlestore-core"\nimport { sql } from "drizzle-orm"\n\n`;
 
-	let decalrations = '';
-	decalrations += tableStatements.join('\n\n');
-	decalrations += '\n';
-	/* decalrations += viewsStatements.join('\n\n'); */
+	let declarations = '';
+	declarations += tableStatements.join('\n\n');
+	declarations += '\n';
+	/* declarations += viewsStatements.join('\n\n'); */
 
-	const file = importsTs + decalrations;
+	const file = importsTs + declarations;
 
 	const schemaEntry = `
     {
@@ -333,7 +333,7 @@ export const schemaToTypeScript = (
 	return {
 		file, // backward compatible, print to file
 		imports: importsTs,
-		decalrations,
+		declarations,
 		schemaEntry,
 	};
 };

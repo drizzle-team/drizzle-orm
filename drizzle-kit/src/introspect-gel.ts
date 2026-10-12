@@ -494,16 +494,16 @@ export const schemaToTypeScript = (schema: GelSchemaInternal, casing: Casing) =>
 	} } from "drizzle-orm/gel-core"
 import { sql } from "drizzle-orm"\n\n`;
 
-	let decalrations = schemaStatements;
-	decalrations += rolesStatements;
-	// decalrations += enumStatements;
-	// decalrations += sequencesStatements;
-	decalrations += '\n';
-	decalrations += tableStatements.join('\n\n');
-	decalrations += '\n';
-	// decalrations += viewsStatements;
+	let declarations = schemaStatements;
+	declarations += rolesStatements;
+	// declarations += enumStatements;
+	// declarations += sequencesStatements;
+	declarations += '\n';
+	declarations += tableStatements.join('\n\n');
+	declarations += '\n';
+	// declarations += viewsStatements;
 
-	const file = importsTs + decalrations;
+	const file = importsTs + declarations;
 
 	// for drizzle studio query runner
 	const schemaEntry = `
@@ -516,7 +516,7 @@ import { sql } from "drizzle-orm"\n\n`;
     }
   `;
 
-	return { file, imports: importsTs, decalrations, schemaEntry };
+	return { file, imports: importsTs, declarations, schemaEntry };
 };
 
 const isCyclic = (fk: ForeignKey) => {

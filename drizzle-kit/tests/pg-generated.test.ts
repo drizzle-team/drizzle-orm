@@ -48,7 +48,7 @@ test('generated as callback: add column with generated constraint', async () => 
 	]);
 });
 
-test('generated as callback: add generated constraint to an exisiting column', async () => {
+test('generated as callback: add generated constraint to an existing column', async () => {
 	const from = {
 		users: pgTable('users', {
 			id: integer('id'),
@@ -223,7 +223,7 @@ test('generated as sql: add column with generated constraint', async () => {
 	]);
 });
 
-test('generated as sql: add generated constraint to an exisiting column', async () => {
+test('generated as sql: add generated constraint to an existing column', async () => {
 	const from = {
 		users: pgTable('users', {
 			id: integer('id'),
@@ -398,7 +398,7 @@ test('generated as string: add column with generated constraint', async () => {
 	]);
 });
 
-test('generated as string: add generated constraint to an exisiting column', async () => {
+test('generated as string: add generated constraint to an existing column', async () => {
 	const from = {
 		users: pgTable('users', {
 			id: integer('id'),
