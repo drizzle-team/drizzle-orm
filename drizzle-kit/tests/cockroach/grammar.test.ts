@@ -1,4 +1,4 @@
-import { splitSqlType, trimDefaultValueSuffix } from 'src/dialects/cockroach/grammar';
+import { parseCheckDefinition, splitSqlType, trimDefaultValueSuffix } from 'src/dialects/cockroach/grammar';
 import { expect, test } from 'vitest';
 
 test.each([
@@ -73,4 +73,17 @@ test('split sql type', () => {
 	expect.soft(splitSqlType('numeric(10)[][]')).toStrictEqual({ type: 'numeric', options: '10' });
 	expect.soft(splitSqlType('numeric(10,0)[][]')).toStrictEqual({ type: 'numeric', options: '10,0' });
 	expect.soft(splitSqlType('numeric(10,2)[][]')).toStrictEqual({ type: 'numeric', options: '10,2' });
+});
+
+test.each([
+	['CHECK ((version >= 0))', '(version >= 0)'],
+	['CHECK((version >= 0)) NOT VALID', '(version >= 0)'],
+	['check ((version >= 0)) not valid', '(version >= 0)'],
+	['CHECK ((version >= 0)) NO INHERIT', '(version >= 0)'],
+	['CHECK ((version >= 0)) NO INHERIT NOT VALID', '(version >= 0)'],
+	["CHECK (status <> 'NOT VALID')", "status <> 'NOT VALID'"],
+	["CHECK (status <> 'NOT VALID') NOT VALID", "status <> 'NOT VALID'"],
+	['version >= 0 NOT VALID', 'version >= 0 NOT VALID'],
+])('parse check definition %#: %s', (it, expected) => {
+	expect(parseCheckDefinition(it)).toBe(expected);
 });
