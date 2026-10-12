@@ -190,7 +190,7 @@ export const functionFrom = (fn: PgFunction, dialect: PgDialect) => {
 			},
 		),
 
-		body: dialect.sqlToQuery(config.body).sql,
+		body: dialect.sqlToQuery(config.body.inlineParams()).sql,
 	} satisfies PostgresEntities['functions'] & { schema: string };
 };
 
