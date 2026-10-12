@@ -10,8 +10,16 @@ export const assertExists = (it?: any) => {
 	if (!it) throw new Error();
 };
 
-export const ormVersionGt = async (version: string) => {
-	const { npmVersion } = await import('drizzle-orm/version');
+/**
+ * @param version
+ * @param currentVersion used for tests
+ * @returns
+ */
+export const ormVersionGt = async (version: string, currentVersion?: string) => {
+	let npmVersion: string;
+	if (currentVersion) npmVersion = currentVersion;
+	else ({ npmVersion } = await import('drizzle-orm/version'));
+
 	if (!semver.gte(npmVersion, version)) {
 		return false;
 	}
