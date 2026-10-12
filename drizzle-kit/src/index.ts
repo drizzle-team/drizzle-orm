@@ -23,7 +23,7 @@ type Verify<T, U extends T> = U;
  * **Config** usage:
  *
  * `dialect` - mandatory and is responsible for explicitly providing a databse dialect you are using for all the commands
- * *Possible values*: `postgresql`, `mysql`, `sqlite`, `singlestore
+ * *Possible values*: `postgresql`, `mysql`, `sqlite`, `singlestore`, `firebird`
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#dialect
  *
@@ -213,7 +213,6 @@ export type Config =
 			dialect: Verify<Dialect, 'sqlite'>;
 			driver: Verify<Driver, 'durable-sqlite'>;
 		}
-		| {}
 		| {
 			dialect: Verify<Dialect, 'singlestore'>;
 			dbCredentials:
@@ -228,6 +227,18 @@ export type Config =
 				| {
 					url: string;
 				};
+		}
+		| {
+			dialect: Verify<Dialect, 'firebird'>;
+			dbCredentials: {
+				host: string;
+				port?: number;
+				user?: string;
+				password?: string;
+				database: string;
+				role?: string;
+				pageSize?: number;
+			};
 		}
 		| {
 			dialect: Verify<Dialect, 'gel'>;
@@ -252,6 +263,7 @@ export type Config =
 					})
 				);
 		}
+		| {}
 	);
 
 /**
@@ -261,7 +273,7 @@ export type Config =
  * **Config** usage:
  *
  * `dialect` - mandatory and is responsible for explicitly providing a databse dialect you are using for all the commands
- * *Possible values*: `postgresql`, `mysql`, `sqlite`, `singlestore`, `gel`
+ * *Possible values*: `postgresql`, `mysql`, `sqlite`, `singlestore`, `gel`, `firebird`
  *
  * See https://orm.drizzle.team/kit-docs/config-reference#dialect
  *

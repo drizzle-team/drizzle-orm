@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import { CasingType } from './cli/validations/common';
-import { serializeMySql, serializePg, serializeSingleStore, serializeSQLite } from './serializer';
+import { serializeFirebird, serializeMySql, serializePg, serializeSingleStore, serializeSQLite } from './serializer';
+import { dryFirebird, FirebirdSchema, firebirdSchema } from './serializer/firebirdSchema';
 import { dryMySql, MySqlSchema, mysqlSchema } from './serializer/mysqlSchema';
 import { dryPg, PgSchema, pgSchema } from './serializer/pgSchema';
 import { drySingleStore, SingleStoreSchema, singlestoreSchema } from './serializer/singlestoreSchema';
@@ -51,6 +52,28 @@ export const prepareSQLiteDbPushSnapshot = async (
 
 	const { version, dialect, ...rest } = serialized;
 	const result: SQLiteSchema = {
+		version,
+		dialect,
+		id,
+		prevId: idPrev,
+		...rest,
+	};
+
+	return { prev, cur: result };
+};
+
+export const prepareFirebirdDbPushSnapshot = async (
+	prev: FirebirdSchema,
+	schemaPath: string | string[],
+	casing: CasingType | undefined,
+): Promise<{ prev: FirebirdSchema; cur: FirebirdSchema }> => {
+	const serialized = await serializeFirebird(schemaPath, casing);
+
+	const id = randomUUID();
+	const idPrev = prev.id;
+
+	const { version, dialect, ...rest } = serialized;
+	const result: FirebirdSchema = {
 		version,
 		dialect,
 		id,
@@ -160,6 +183,39 @@ export const prepareSqliteMigrationSnapshot = async (
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
 	const custom: SQLiteSchema = {
+		id,
+		prevId: idPrev,
+		...prevRest,
+	};
+
+	return { prev: prevSnapshot, cur: result, custom };
+};
+
+export const prepareFirebirdMigrationSnapshot = async (
+	snapshots: string[],
+	schemaPath: string | string[],
+	casing: CasingType | undefined,
+): Promise<{ prev: FirebirdSchema; cur: FirebirdSchema; custom: FirebirdSchema }> => {
+	const prevSnapshot = firebirdSchema.parse(
+		preparePrevSnapshot(snapshots, dryFirebird),
+	);
+	const serialized = await serializeFirebird(schemaPath, casing);
+
+	const id = randomUUID();
+	const idPrev = prevSnapshot.id;
+
+	const { version, dialect, ...rest } = serialized;
+	const result: FirebirdSchema = {
+		version,
+		dialect,
+		id,
+		prevId: idPrev,
+		...rest,
+	};
+
+	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
+
+	const custom: FirebirdSchema = {
 		id,
 		prevId: idPrev,
 		...prevRest,

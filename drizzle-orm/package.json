@@ -69,7 +69,7 @@
 		"knex": "*",
 		"kysely": "*",
 		"mysql2": ">=2",
-		"@netlify/db": ">=0.4.0",
+		"node-firebird": ">=2",
 		"pg": ">=8",
 		"postgres": ">=3",
 		"sql.js": ">=1",
@@ -77,6 +77,9 @@
 	},
 	"peerDependenciesMeta": {
 		"mysql2": {
+			"optional": true
+		},
+		"node-firebird": {
 			"optional": true
 		},
 		"@vercel/postgres": {
@@ -199,6 +202,7 @@
 		"knex": "^2.4.2",
 		"kysely": "^0.25.0",
 		"mysql2": "^3.14.1",
+		"node-firebird": "^2.0.2",
 		"pg": "^8.11.0",
 		"postgres": "^3.3.5",
 		"prisma": "5.14.0",

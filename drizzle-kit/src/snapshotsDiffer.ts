@@ -125,6 +125,7 @@ import {
 
 import { Named, NamedWithSchema } from './cli/commands/migrate';
 import { mapEntries, mapKeys, mapValues } from './global';
+import { FirebirdSchema, FirebirdSchemaSquashed, View as FirebirdView } from './serializer/firebirdSchema';
 import { MySqlSchema, MySqlSchemaSquashed, MySqlSquasher, ViewSquashed } from './serializer/mysqlSchema';
 import {
 	mergedViewWithOption,
@@ -3251,6 +3252,7 @@ export const applySqliteSnapshotsDiff = async (
 	prevFull: SQLiteSchema,
 	curFull: SQLiteSchema,
 	action?: 'push' | undefined,
+	dialect: 'sqlite' | 'turso' | 'firebird' = 'sqlite',
 ): Promise<{
 	statements: JsonStatement[];
 	sqlStatements: string[];
@@ -3684,6 +3686,11 @@ export const applySqliteSnapshotsDiff = async (
 	const jsonDroppedReferencesForAlteredTables = jsonReferencesForAllAlteredTables.filter(
 		(t) => t.type === 'delete_reference',
 	);
+	const jsonCreatedReferencesForCreatedTables: JsonCreateReferenceStatement[] = dialect === 'firebird'
+		? createdTables
+			.map((it) => prepareCreateReferencesJson(it.name, it.schema, it.foreignKeys))
+			.flat()
+		: [];
 
 	const createViews: JsonCreateSqliteViewStatement[] = [];
 	const dropViews: JsonDropViewStatement[] = [];
@@ -3755,6 +3762,7 @@ export const applySqliteSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonCreatedCheckConstraints);
 
+	jsonStatements.push(...jsonCreatedReferencesForCreatedTables);
 	jsonStatements.push(...jsonCreatedReferencesForAlteredTables);
 
 	jsonStatements.push(...jsonDropColumnsStatemets);
@@ -3768,8 +3776,10 @@ export const applySqliteSnapshotsDiff = async (
 	jsonStatements.push(...dropViews);
 	jsonStatements.push(...createViews);
 
-	const combinedJsonStatements = sqliteCombineStatements(jsonStatements, json2, action);
-	const sqlStatements = fromJson(combinedJsonStatements, 'sqlite');
+	const combinedJsonStatements = dialect === 'firebird'
+		? jsonStatements
+		: sqliteCombineStatements(jsonStatements, json2, action);
+	const sqlStatements = fromJson(combinedJsonStatements, dialect, action);
 
 	const uniqueSqlStatements: string[] = [];
 	sqlStatements.forEach((ss) => {
@@ -3789,6 +3799,35 @@ export const applySqliteSnapshotsDiff = async (
 		sqlStatements: uniqueSqlStatements,
 		_meta,
 	};
+};
+
+export const applyFirebirdSnapshotsDiff = async (
+	json1: FirebirdSchemaSquashed,
+	json2: FirebirdSchemaSquashed,
+	tablesResolver: (
+		input: ResolverInput<Table>,
+	) => Promise<ResolverOutputWithMoved<Table>>,
+	columnsResolver: (
+		input: ColumnsResolverInput<Column>,
+	) => Promise<ColumnsResolverOutput<Column>>,
+	viewsResolver: (
+		input: ResolverInput<FirebirdView & { schema: '' }>,
+	) => Promise<ResolverOutputWithMoved<FirebirdView>>,
+	prevFull: FirebirdSchema,
+	curFull: FirebirdSchema,
+	action?: 'push' | undefined,
+) => {
+	return applySqliteSnapshotsDiff(
+		json1 as any,
+		json2 as any,
+		tablesResolver,
+		columnsResolver,
+		viewsResolver as any,
+		prevFull as any,
+		curFull as any,
+		action,
+		'firebird',
+	);
 };
 
 export const applyLibSQLSnapshotsDiff = async (
