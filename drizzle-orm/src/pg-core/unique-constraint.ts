@@ -18,6 +18,10 @@ export class UniqueConstraintBuilder {
 	columns: PgColumn[];
 	/** @internal */
 	nullsNotDistinctConfig = false;
+	/** @internal */
+	_deferrable: 'deferrable' | 'not deferrable' | undefined;
+	/** @internal */
+	_initially: 'deferred' | 'immediate' | undefined;
 
 	constructor(
 		columns: PgColumn[],
@@ -31,9 +35,29 @@ export class UniqueConstraintBuilder {
 		return this;
 	}
 
+	deferrable() {
+		this._deferrable = 'deferrable';
+		return this;
+	}
+
+	notDeferrable() {
+		this._deferrable = 'not deferrable';
+		return this;
+	}
+
+	initiallyDeferred() {
+		this._initially = 'deferred';
+		return this;
+	}
+
+	initiallyImmediate() {
+		this._initially = 'immediate';
+		return this;
+	}
+
 	/** @internal */
 	build(table: PgTable): UniqueConstraint {
-		return new UniqueConstraint(table, this.columns, this.nullsNotDistinctConfig, this.name);
+		return new UniqueConstraint(table, this.columns, this.nullsNotDistinctConfig, this.name, this._deferrable, this._initially);
 	}
 }
 
@@ -60,11 +84,22 @@ export class UniqueConstraint {
 	readonly columns: PgColumn[];
 	readonly name?: string;
 	readonly nullsNotDistinct: boolean = false;
+	readonly deferrable: 'deferrable' | 'not deferrable' | undefined;
+	readonly initially: 'deferred' | 'immediate' | undefined;
 
-	constructor(readonly table: PgTable, columns: PgColumn[], nullsNotDistinct: boolean, name?: string) {
+	constructor(
+		readonly table: PgTable,
+		columns: PgColumn[],
+		nullsNotDistinct: boolean,
+		name?: string,
+		deferrable?: 'deferrable' | 'not deferrable',
+		initially?: 'deferred' | 'immediate',
+	) {
 		this.columns = columns;
 		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
 		this.nullsNotDistinct = nullsNotDistinct;
+		this.deferrable = deferrable;
+		this.initially = initially;
 	}
 
 	getName() {
