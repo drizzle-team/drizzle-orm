@@ -269,6 +269,7 @@ const tableScheme = object({
 	policies: record(string(), string()).default({}),
 	checkConstraints: record(string(), string()).default({}),
 	isRLSEnabled: boolean().default(false),
+	isStrict: boolean().default(false),
 }).strict();
 
 export const alteredTableScheme = object({
