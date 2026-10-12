@@ -6768,7 +6768,7 @@ export function tests(test: Test) {
 					u2: users2,
 				}).from(users1).leftJoin(users2, eq(users1.id, users2.id));
 
-				// @ts-ignore skipIf(Date.now() < +new Date('2026-08-26')) - just to make it searchable
+				// @ts-ignore skipIf(Date.now() < +new Date('2026-11-09')) - just to make it searchable
 				expectTypeOf(res).toEqualTypeOf<{
 					u1: {
 						id: number;

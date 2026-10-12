@@ -65,6 +65,17 @@ export class NoopCache extends Cache {
 }
 
 // TODO: one place for all dialects
+//
+// PERF TODO (used-tables allocation): `strategyFor` is the ONLY reader of
+// `queryMetadata.tables`, and it only runs on the real-cache path
+// (`cache && !NoopCache`). Yet the query builders materialise `tables: [...this.usedTables]`
+// eagerly at prepare time, so every uncached query allocates an array it never reads.
+// To make the uncached path allocation-free WITHOUT a breaking change, make
+// `queryMetadata.tables` a lazy getter over the builder's `Set` (`get tables() { return
+// [...usedTables]; }`): the type stays `string[]`, so no `Cache`/`Session` implementor is
+// affected, and the array is only built when this function destructures it. (Widening the
+// type to `Iterable<string>` was rejected — it's a contravariant break for the 58 session
+// signatures + custom `Cache`s, and method overloads can't fix an abstract override's param.)
 export const strategyFor = async (
 	query: string,
 	params: any[] | undefined,

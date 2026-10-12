@@ -19,6 +19,7 @@ import { ddlDiff } from '../../dialects/mssql/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mssql/drizzle';
 import type { JsonStatement } from '../../dialects/mssql/statements';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
+import { tableBeforeRenames } from '../../dialects/utils';
 import type { DB } from '../../utils';
 import { isInteractive, outputFormat } from '../context';
 import { CommandOutputCliError, UnsupportedSchemaChangeError } from '../errors';
@@ -162,6 +163,15 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 	const json = outputFormat() === 'json';
 	const useHints = json || !isInteractive();
 	const grouped: { hint: string; statement?: string }[] = [];
+	const tableBefore = tableBeforeRenames({
+		schemas: jsonStatements.filter((it) => it.type === 'rename_schema'),
+		tables: jsonStatements.filter((it) => it.type === 'rename_table'),
+		moves: jsonStatements.filter((it) => it.type === 'move_table'),
+	});
+	const schemaBefore = tableBeforeRenames({
+		schemas: jsonStatements.filter((it) => it.type === 'rename_schema'),
+		tables: [],
+	});
 
 	const filtered = jsonStatements.filter((it) => {
 		if (it.type === 'alter_column' && it.diff.generated) return false;
@@ -171,7 +181,8 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 	for (const statement of filtered) {
 		if (statement.type === 'drop_table') {
-			const tableName = identifier({ schema: statement.table.schema, table: statement.table.name });
+			const inDb = schemaBefore({ schema: statement.table.schema, name: statement.table.name });
+			const tableName = identifier({ schema: inDb.schema, table: inDb.name });
 			const entity = [statement.table.schema ?? 'dbo', statement.table.name] as const;
 			if (hints.matchConfirm('table', entity)) continue;
 			const res = await db.query(`select top(1) 1 from ${tableName};`);
@@ -189,7 +200,8 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 		if (statement.type === 'drop_column') {
 			const column = statement.column;
 
-			const key = identifier({ schema: column.schema, table: column.table });
+			const inDb = tableBefore({ schema: column.schema, name: column.table });
+			const key = identifier({ schema: inDb.schema, table: inDb.name });
 			const entity = [column.schema ?? 'dbo', column.table, column.name] as const;
 			if (hints.matchConfirm('column', entity)) continue;
 
@@ -229,8 +241,9 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const id = identifier({ table: table, schema: schema });
 			const entity = [schema, table, statement.pk.name] as const;
 			if (hints.matchConfirm('primary_key', entity)) continue;
+			const inDb = tableBefore({ schema, name: table });
 			const res = await db.query(
-				`select top(1) 1 from ${id};`,
+				`select top(1) 1 from ${identifier({ table: inDb.name, schema: inDb.schema })};`,
 			);
 
 			if (res.length > 0) {

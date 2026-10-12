@@ -22,6 +22,7 @@ import { SQL, sql } from '~/sql/sql.ts';
 import type { ColumnsSelection, CommentInput, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
+import { collectUsedTables } from '~/used-tables.ts';
 import {
 	type Assume,
 	getTableColumns,
@@ -33,7 +34,6 @@ import {
 import { ViewBaseConfig } from '~/view-common.ts';
 import { View } from '~/view.ts';
 import { type PostgresType, unionsTypeTable } from '../codecs.ts';
-import { extractUsedTable } from '../utils.ts';
 import type {
 	AnyPgSelectQueryBuilder,
 	CheckTableLikeSelection,
@@ -270,12 +270,8 @@ export class PgSelectBase<
 		this.tableName = getTableLikeName(config.table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 
-		for (const item of extractUsedTable(config.table)) this.usedTables.add(item);
-
-		this.config.withList?.forEach((it) => {
-			const extracted = extractUsedTable(it);
-			for (const el of extracted) this.usedTables.add(el);
-		});
+		collectUsedTables(config.table, this.usedTables);
+		this.config.withList?.forEach((it) => collectUsedTables(it, this.usedTables));
 	}
 
 	/** @internal */
@@ -300,7 +296,7 @@ export class PgSelectBase<
 			const tableName = getTableLikeName(table);
 
 			// store all tables used in a query
-			for (const item of extractUsedTable(table)) this.usedTables.add(item);
+			collectUsedTables(table, this.usedTables);
 
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
@@ -1149,14 +1145,12 @@ export class PgSelectBase<
 	as<TAlias extends string>(
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
-		const usedTables: string[] = [];
-		usedTables.push(...extractUsedTable(this.config.table));
-		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
+		const usedTables = new Set<string>();
+		collectUsedTables(this.config.table, usedTables);
+		if (this.config.joins) { for (const it of this.config.joins) collectUsedTables(it.table, usedTables); }
 
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias, false, [
-				...new Set(usedTables),
-			]),
+			new Subquery(this.getSQL(), this.config.fields, alias, false, usedTables),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}

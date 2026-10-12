@@ -6,8 +6,8 @@ import type { SQLiteUpdateBuilder, SQLiteUpdateHKTBase } from '~/sqlite-core/que
 import { SQLiteUpdateBase } from '~/sqlite-core/query-builders/update.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import { applyMixins, type Assume, type DrizzleTypeError } from '~/utils.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { SQLiteViewBase } from '../view-base.ts';
 import type { SQLiteAsyncPreparedQuery, SQLiteAsyncPreparedQueryConfig, SQLiteAsyncSession } from './session.ts';
 
@@ -129,7 +129,7 @@ export class SQLiteAsyncUpdateBase<
 			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
 			{
 				type: 'update',
-				tables: extractUsedTable(this.config.table),
+				tables: usedTablesOf(this.config.table),
 			},
 		) as SQLiteAsyncUpdatePrepare<this>;
 	}
