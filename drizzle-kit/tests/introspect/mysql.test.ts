@@ -317,3 +317,25 @@ test('instrospect strings with single quotes', async () => {
 
 	await client.query(`drop table columns;`);
 });
+
+test('introspect smallint, mediumint and bigint columns with a zero default', async () => {
+	const schema = {
+		columns: mysqlTable('columns', {
+			smallintCol: smallint('smallint_col').notNull().default(0),
+			mediumintCol: mediumint('mediumint_col').notNull().default(0),
+			bigintCol: bigint('bigint_col', { mode: 'number' }).notNull().default(0),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectMySQLToFile(
+		client,
+		schema,
+		'introspect-integer-zero-default',
+		'drizzle',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+
+	await client.query(`drop table columns;`);
+});
