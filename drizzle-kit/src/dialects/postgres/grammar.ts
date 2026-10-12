@@ -15,7 +15,7 @@ import {
 import { parseArray, parseExpressionArray } from '../../utils/parse-pgarray';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
 import { hash } from '../common';
-import { escapeForSqlDefault, escapeForTsLiteral, numberForTs, parseParams, unescapeFromSqlDefault } from '../utils';
+import { escapeForSqlDefault, escapeForTsLiteral, numberForTs, parseParams, unescapeFromSqlDefault } from '../grammar';
 import type { Column, DiffEntities, PostgresEntities } from './ddl';
 import type { Import } from './typescript';
 

@@ -15,7 +15,7 @@ import {
 import { parseArray } from '../../utils/parse-pgarray';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
 import { hash } from '../common';
-import { numberForTs, parseParams } from '../utils';
+import { numberForTs, parseParams } from '../grammar';
 import type { CockroachEntities, Column, DiffEntities } from './ddl';
 import type { Import } from './typescript';
 

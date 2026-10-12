@@ -7,8 +7,9 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable, trimChar } from '../../utils';
+import { escapeForTsLiteral } from '../grammar';
 import { withCasing } from '../pull-utils';
-import { escapeForTsLiteral, inspect } from '../utils';
+import { inspect } from '../utils';
 import type {
 	CheckConstraint,
 	Column,
