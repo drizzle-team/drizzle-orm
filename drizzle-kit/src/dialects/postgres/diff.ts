@@ -810,7 +810,16 @@ export const ddlDiff = async (
 		return ddl2.uniques.hasDiff(it);
 	});
 
-	const jsonAlteredUniqueConstraints = alteredUniques.map((it) => prepareStatement('alter_unique', { diff: it }));
+	const tableHasColumnsToDelete = (it: { schema: string; table: string }) =>
+		columnsToDelete.some((x) => x.schema === it.schema && x.table === it.table);
+	const jsonDropAlteredUniqueConstraints = alteredUniques.filter((it) => tableHasColumnsToDelete(it.$right)).map((it) =>
+		prepareStatement('drop_unique', { unique: it.$left })
+	);
+	const jsonAlteredUniqueConstraints = alteredUniques.map((it) =>
+		tableHasColumnsToDelete(it.$right)
+			? prepareStatement('add_unique', { unique: it.$right })
+			: prepareStatement('alter_unique', { diff: it })
+	);
 
 	const jsonAddedUniqueConstraints = uniqueCreates.filter(tablesFilter('created')).map((it) =>
 		prepareStatement('add_unique', { unique: it })
@@ -905,8 +914,13 @@ export const ddlDiff = async (
 		})
 	);
 
+	const jsonDropAlteredCheckConstraints = alteredChecks.filter((it) =>
+		it.value && mode !== 'push' && tableHasColumnsToDelete(it.$right)
+	).map((it) => prepareStatement('drop_check', { check: it.$left }));
 	const jsonAlterCheckConstraints = alteredChecks.filter((it) => it.value && mode !== 'push').map((it) =>
-		prepareStatement('alter_check', { diff: it })
+		tableHasColumnsToDelete(it.$right)
+			? prepareStatement('add_check', { check: it.$right })
+			: prepareStatement('alter_check', { diff: it })
 	);
 	const jsonCreatePoliciesStatements = policyCreates.map((it) => prepareStatement('create_policy', { policy: it }));
 	const jsonDropPoliciesStatements = policyDeletes.map((it) => prepareStatement('drop_policy', { policy: it }));
@@ -1252,7 +1266,9 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
 	jsonStatements.push(...jsonDropUniqueConstraints);
+	jsonStatements.push(...jsonDropAlteredUniqueConstraints);
 	jsonStatements.push(...jsonDropCheckConstraints);
+	jsonStatements.push(...jsonDropAlteredCheckConstraints);
 	jsonStatements.push(...jsonRenamedCheckConstraints);
 
 	// TODO: ? will need to drop indexes before changing any columns in table
