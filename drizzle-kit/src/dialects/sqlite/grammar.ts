@@ -1,6 +1,6 @@
 import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
-import { escapeForTsLiteral } from '../utils';
+import { escapeForTsLiteral } from '../grammar';
 import type { Column, DiffEntities, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
@@ -577,6 +577,15 @@ export function parseSqliteIndex(rawSql: string): IParsedIndex {
 
 	return result;
 }
+
+/**
+ * Tells whether a key part of an index ddl is a plain reference to `column`, `\`code\``, `[code]`,
+ * `"code"` and `code` all reference the same column, while `code DESC` or `lower(code)` do not
+ */
+export const isColumnRef = (keyPart: string, column: string) => {
+	const unquoted = keyPart.replace(/^(?:\[|`|")/, '').replace(/(?:\]|`|")$/, '');
+	return unquoted.toLowerCase() === column.toLowerCase();
+};
 
 interface IParseResult {
 	uniques: { name: string | null; columns: string[] }[];
