@@ -37,6 +37,7 @@ import {
 	sql,
 	StringChunk,
 } from '~/sql';
+import { integer as sqliteInteger, sqliteTable, text as sqliteText } from '~/sqlite-core';
 import type { AnyTable, Table } from '~/table';
 import type { Simplify, ValueOrArray } from '~/utils';
 
@@ -53,7 +54,7 @@ const table = pgTable('test', {
 const returnUndefined = () => undefined;
 
 const buildFilter = <TTable extends Table>(table: TTable, filter: TableFilter<TTable>) =>
-	relationsFilterToSQL(table, filter as TableFilter);
+	relationsFilterToSQL(table, filter as TableFilter).sql;
 
 describe('Filters', () => {
 	test('No shortcuts for object-type data', () => {
@@ -311,7 +312,7 @@ describe('Filters', () => {
 	});
 
 	test('EmptyFilter as whole filter returns undefined', () => {
-		expect(relationsFilterToSQL(table, EmptyFilter)).toStrictEqual(undefined);
+		expect(relationsFilterToSQL(table, EmptyFilter)).toStrictEqual({ sql: undefined, hasRelationFilters: false });
 	});
 
 	test('undefined column field throws', () => {
@@ -1004,5 +1005,351 @@ describe('Relational filter EmptyFilter behavior', () => {
 
 		expect(sql).not.toContain('exists');
 		expect(sql).not.toContain('where');
+	});
+});
+
+describe('Relational filter `hasRelationFilters` flag', () => {
+	const flagUsers = pgTable('user', { id: integer(), a: text(), b: text() });
+	const flagData = pgTable('data', { id: integer(), userId: integer(), email: text(), username: text() });
+	const flagTags = pgTable('tags', { id: integer(), dataId: integer(), name: text() });
+
+	const relations = defineRelations({ user: flagUsers, data: flagData, tags: flagTags }, (r) => ({
+		user: { data: r.many.data({ from: r.user.id, to: r.data.userId }) },
+		data: { tags: r.many.tags({ from: r.data.id, to: r.tags.dataId }) },
+	}));
+
+	// loosely typed: the filters are checked against generic table config otherwise
+	const build = (filter: Record<string, unknown> | typeof EmptyFilter) =>
+		relationsFilterToSQL(flagUsers, filter as TableFilter, relations.user.relations, relations, new Map());
+
+	test('Unset for empty filters', () => {
+		expect(build(EmptyFilter)).toStrictEqual({ sql: undefined, hasRelationFilters: false });
+		expect(build({})).toStrictEqual({ sql: undefined, hasRelationFilters: false });
+		expect(build({ a: EmptyFilter, RAW: EmptyFilter, OR: EmptyFilter })).toStrictEqual({
+			sql: undefined,
+			hasRelationFilters: false,
+		});
+	});
+
+	test('Unset for filters on own columns', () => {
+		expect(build({ a: 'x' }).hasRelationFilters).toStrictEqual(false);
+		expect(build({ a: 'x', b: { OR: [{ eq: 'y' }, { isNull: true }] } }).hasRelationFilters).toStrictEqual(false);
+		expect(build({ OR: [{ a: 'x' }, { AND: [{ b: 'y' }, { NOT: { id: 1 } }] }] }).hasRelationFilters)
+			.toStrictEqual(false);
+	});
+
+	test('Set for filters on relations', () => {
+		expect(build({ data: { email: 'x' } }).hasRelationFilters).toStrictEqual(true);
+		expect(build({ data: true }).hasRelationFilters).toStrictEqual(true);
+		expect(build({ data: false }).hasRelationFilters).toStrictEqual(true);
+		expect(build({ a: 'x', data: { tags: { name: 'y' } } }).hasRelationFilters).toStrictEqual(true);
+	});
+
+	test('Set for filters on relations nested in `OR`, `AND`, `NOT`', () => {
+		expect(build({ OR: [{ a: 'x' }, { data: { email: 'x' } }] }).hasRelationFilters).toStrictEqual(true);
+		expect(build({ AND: [{ a: 'x' }, { data: { email: 'x' } }] }).hasRelationFilters).toStrictEqual(true);
+		expect(build({ NOT: { data: { email: 'x' } } }).hasRelationFilters).toStrictEqual(true);
+		expect(build({ OR: [{ a: 'x' }, { AND: [{ b: 'y' }, { NOT: { data: true } }] }] }).hasRelationFilters)
+			.toStrictEqual(true);
+	});
+
+	test('Unset for filters on relations that build to nothing', () => {
+		expect(build({ data: EmptyFilter })).toStrictEqual({ sql: undefined, hasRelationFilters: false });
+		expect(build({ data: { email: EmptyFilter } })).toStrictEqual({ sql: undefined, hasRelationFilters: false });
+		expect(build({ a: 'x', data: { OR: [{ email: EmptyFilter }, { tags: { name: EmptyFilter } }] } }))
+			.toStrictEqual({ sql: and(eq(flagUsers.a, 'x')), hasRelationFilters: false });
+		expect(build({ NOT: { data: { email: EmptyFilter } } }).hasRelationFilters).toStrictEqual(false);
+	});
+
+	test('Set for non-empty `RAW`: it may contain a subquery', () => {
+		expect(build({ RAW: sql`1 = 1` }).hasRelationFilters).toStrictEqual(true);
+		expect(build({ RAW: (t: typeof flagUsers) => sql`${t.id} > 1` }).hasRelationFilters).toStrictEqual(true);
+		expect(build({ a: 'x', OR: [{ b: 'y' }, { RAW: sql`1 = 1` }] }).hasRelationFilters).toStrictEqual(true);
+	});
+
+	test('Unset for empty `RAW`', () => {
+		expect(build({ RAW: EmptyFilter }).hasRelationFilters).toStrictEqual(false);
+		expect(build({ RAW: () => EmptyFilter, a: 'x' }).hasRelationFilters).toStrictEqual(false);
+	});
+});
+
+describe('Order by relations', () => {
+	const orderUsers = pgTable('users', { id: integer(), name: text(), invitedBy: integer() });
+	const orderPosts = pgTable('posts', { id: integer(), authorId: integer(), title: text(), score: integer() });
+	const orderComments = pgTable('comments', { id: integer(), postId: integer(), likes: integer() });
+	const orderGroups = pgTable('groups', { id: integer(), name: text() });
+	const orderUsersToGroups = pgTable('users_to_groups', { userId: integer(), groupId: integer() });
+
+	const db = drizzle.mock({
+		relations: defineRelations({
+			users: orderUsers,
+			posts: orderPosts,
+			comments: orderComments,
+			groups: orderGroups,
+			usersToGroups: orderUsersToGroups,
+		}, (r) => ({
+			users: {
+				posts: r.many.posts({ from: r.users.id, to: r.posts.authorId }),
+				topPosts: r.many.posts({
+					from: r.users.id,
+					to: r.posts.authorId,
+					where: { score: { gt: 10 } },
+					alias: 'top',
+				}),
+				inviter: r.one.users({ from: r.users.invitedBy, to: r.users.id }),
+				groups: r.many.groups({
+					from: r.users.id.through(r.usersToGroups.userId),
+					to: r.groups.id.through(r.usersToGroups.groupId),
+				}),
+			},
+			posts: {
+				author: r.one.users({ from: r.posts.authorId, to: r.users.id }),
+				comments: r.many.comments({ from: r.posts.id, to: r.comments.postId }),
+			},
+			comments: { post: r.one.posts({ from: r.comments.postId, to: r.posts.id }) },
+		})),
+	});
+
+	const orderOf = (query: { toSQL(): { sql: string } }) => query.toSQL().sql.split(' order by ').at(-1);
+
+	test('Field of a single relation, mixed with own fields in the given order', () => {
+		expect(orderOf(db.query.posts.findMany({ orderBy: { title: 'asc', author: { name: 'asc' }, id: 'desc' } })))
+			.toStrictEqual(
+				'"d0"."title" asc, (select "o0"."name" from "users" as "o0" where "d0"."authorId" = "o0"."id" limit 1) asc, "d0"."id" desc',
+			);
+	});
+
+	test('Aggregated fields of a many relation', () => {
+		expect(orderOf(db.query.users.findMany({
+			orderBy: { posts: { score: 'desc(max)', id: 'asc(count)', title: 'asc(min)', authorId: 'desc(avg)' } },
+		}))).toStrictEqual(
+			[
+				'(select max("o0"."score") from "posts" as "o0" where "d0"."id" = "o0"."authorId") desc',
+				'(select count("o0"."id") from "posts" as "o0" where "d0"."id" = "o0"."authorId") asc',
+				'(select min("o0"."title") from "posts" as "o0" where "d0"."id" = "o0"."authorId") asc',
+				'(select avg("o0"."authorId") from "posts" as "o0" where "d0"."id" = "o0"."authorId") desc',
+			].join(', '),
+		);
+	});
+
+	test('First row of a many relation', () => {
+		expect(orderOf(db.query.users.findMany({
+			orderBy: { posts: { score: 'desc(first)', comments: { likes: 'asc(first)' } } },
+		}))).toStrictEqual(
+			[
+				'(select "o0"."score" from "posts" as "o0" where "d0"."id" = "o0"."authorId" limit 1) desc',
+				'(select "o1"."likes" from "posts" as "o0" cross join "comments" as "o1" where (("d0"."id" = "o0"."authorId") and ("o0"."id" = "o1"."postId")) limit 1) asc',
+			].join(', '),
+		);
+	});
+
+	test('Number of rows of a many relation', () => {
+		const query = db.query.users.findMany({
+			orderBy: {
+				posts: 'desc(count)',
+				groups: 'asc(count)',
+				topPosts: 'desc(count)',
+				inviter: { posts: 'asc(count)' },
+				id: 'asc',
+			},
+		});
+
+		expect(orderOf(query)).toStrictEqual(
+			[
+				'(select count(*) from "posts" as "o0" where "d0"."id" = "o0"."authorId") desc',
+				'(select count(*) from "groups" as "o0" inner join "users_to_groups" as "ot0" on "ot0"."groupId" = "o0"."id" where "d0"."id" = "ot0"."userId") asc',
+				'(select count(*) from "posts" as "o0" where (("d0"."id" = "o0"."authorId") and ("o0"."score" > $1))) desc',
+				'(select count(*) from "users" as "o0" cross join "posts" as "o1" where (("d0"."invitedBy" = "o0"."id") and ("o0"."id" = "o1"."authorId"))) asc',
+				'"d0"."id" asc',
+			].join(', '),
+		);
+		expect(query.toSQL().params).toStrictEqual([10]);
+
+		// rows of a many relation nested in a many relation are counted in total
+		expect(orderOf(db.query.users.findMany({ orderBy: { posts: { comments: 'desc(count)' } } }))).toStrictEqual(
+			'(select count(*) from "posts" as "o0" cross join "comments" as "o1" where (("d0"."id" = "o0"."authorId") and ("o0"."id" = "o1"."postId"))) desc',
+		);
+	});
+
+	test('Nested single relations', () => {
+		expect(orderOf(db.query.comments.findMany({ orderBy: { post: { author: { inviter: { name: 'desc' } } } } })))
+			.toStrictEqual(
+				'(select "o2"."name" from "posts" as "o0" cross join "users" as "o1" cross join "users" as "o2" where (("d0"."postId" = "o0"."id") and ("o0"."authorId" = "o1"."id") and ("o1"."invitedBy" = "o2"."id")) limit 1) desc',
+			);
+	});
+
+	test('Relations nested in a many relation are aggregated', () => {
+		expect(orderOf(db.query.users.findMany({
+			orderBy: { posts: { comments: { likes: 'desc(avg)' }, author: { id: 'asc(min)' } } },
+		}))).toStrictEqual(
+			[
+				'(select avg("o1"."likes") from "posts" as "o0" cross join "comments" as "o1" where (("d0"."id" = "o0"."authorId") and ("o0"."id" = "o1"."postId"))) desc',
+				'(select min("o1"."id") from "posts" as "o0" cross join "users" as "o1" where (("d0"."id" = "o0"."authorId") and ("o0"."authorId" = "o1"."id"))) asc',
+			].join(', '),
+		);
+	});
+
+	test('Through relations and relations with filters', () => {
+		const query = db.query.users.findMany({
+			orderBy: {
+				groups: { name: 'asc(min)' },
+				topPosts: { id: 'desc(count)' },
+				inviter: { groups: { id: 'asc(count)' } },
+			},
+		});
+
+		expect(orderOf(query)).toStrictEqual(
+			[
+				'(select min("o0"."name") from "groups" as "o0" inner join "users_to_groups" as "ot0" on "ot0"."groupId" = "o0"."id" where "d0"."id" = "ot0"."userId") asc',
+				'(select count("o0"."id") from "posts" as "o0" where (("d0"."id" = "o0"."authorId") and ("o0"."score" > $1))) desc',
+				'(select count("o1"."id") from "users" as "o0" cross join "groups" as "o1" inner join "users_to_groups" as "ot1" on "ot1"."groupId" = "o1"."id" where (("d0"."invitedBy" = "o0"."id") and ("o0"."id" = "ot1"."userId"))) asc',
+			].join(', '),
+		);
+		expect(query.toSQL().params).toStrictEqual([10]);
+	});
+
+	test('Stays in the limited table when relations are selected', () => {
+		const order = '(select max("o0"."score") from "posts" as "o0" where "d0"."id" = "o0"."authorId") desc';
+		const query = db.query.users.findMany({
+			orderBy: { posts: { score: 'desc(max)' } },
+			limit: 5,
+			with: { posts: true },
+		}).toSQL();
+
+		expect(query.sql).toContain(
+			`from (select "d0".* from "users" as "d0" order by ${order} limit $1) as "d0" left join`,
+		);
+		expect(query.sql.endsWith(`as "posts" on true order by ${order}`)).toStrictEqual(true);
+	});
+
+	test('Nested relation ordered by its own relation', () => {
+		expect(
+			db.query.posts.findMany({
+				columns: { id: true },
+				with: { comments: { columns: { id: true }, orderBy: { post: { author: { name: 'asc' } } } } },
+			}).toSQL().sql,
+		).toContain(
+			'where "d0"."id" = "d1"."postId" order by (select "o1"."name" from "posts" as "o0" cross join "users" as "o1" where (("d1"."postId" = "o0"."id") and ("o0"."authorId" = "o1"."id")) limit 1) asc) as "t"',
+		);
+	});
+
+	test('Skipped and empty orders', () => {
+		expect(db.query.users.findMany({ orderBy: { posts: {}, inviter: undefined, id: undefined } }).toSQL().sql)
+			.not.toContain('order by');
+		expect(orderOf(db.query.users.findMany({ orderBy: { posts: { score: undefined }, id: 'asc' } })))
+			.toStrictEqual('"d0"."id" asc');
+	});
+
+	test('Invalid orders throw', () => {
+		const build = (orderBy: unknown) => () => db.query.users.findMany({ orderBy: orderBy as any }).toSQL();
+
+		expect(build({ posts: { score: 'desc' } })).toThrowError(
+			'Invalid order "posts.score": expected "asc(<aggregate>)" or "desc(<aggregate>)", with aggregate being one of: min, max, count, avg, first, got "desc"',
+		);
+		expect(build({ posts: { author: { name: 'asc' } } })).toThrowError('Invalid order "posts.author.name"');
+		expect(build({ inviter: { name: 'asc(min)' } })).toThrowError(
+			'Invalid order "inviter.name": expected "asc" or "desc", got "asc(min)"',
+		);
+		expect(build({ id: 'asc(count)' })).toThrowError('Invalid order "id": expected "asc" or "desc", got "asc(count)"');
+		expect(build({ posts: { score: 'desc(sum)' } })).toThrowError(
+			'Invalid order "posts.score": unknown aggregate "sum" in "desc(sum)", expected one of: min, max, count, avg, first',
+		);
+		expect(build({ posts: { score: 'desc()' } })).toThrowError('Invalid order "posts.score": unknown aggregate ""');
+		expect(build({ id: 'ascending' })).toThrowError(
+			'Invalid order "id": unknown direction "ascending" in "ascending", expected "asc" or "desc"',
+		);
+		expect(build({ posts: { score: 'DESC(max)' } })).toThrowError(
+			'Invalid order "posts.score": unknown direction "DESC"',
+		);
+		expect(build({ posts: { score: '(max)' } })).toThrowError('Invalid order "posts.score": unknown direction ""');
+		expect(build({ posts: { score: 'desc(max' } })).toThrowError(
+			'Invalid order "posts.score": malformed value "desc(max", expected "desc" or "desc(<aggregate>)"',
+		);
+		expect(build({ posts: { score: 'desc(max)(min)' } })).toThrowError(
+			'Invalid order "posts.score": malformed value',
+		);
+		expect(build({ id: 1 })).toThrowError('Invalid order "id": expected a string, got number');
+		expect(build({ id: { nested: 'asc' } })).toThrowError('Invalid order "id": expected a string, got object');
+		// aggregate's name is written into the query as is: nothing but a known one may get through
+		expect(build({ posts: { score: 'desc(max) , (select 1)' } })).toThrowError(
+			'Invalid order "posts.score": malformed value "desc(max) , (select 1)"',
+		);
+		expect(build({ posts: { score: 'desc(max) --)' } })).toThrowError(
+			'Invalid order "posts.score": unknown aggregate "max) --"',
+		);
+		for (
+			const malformed of [
+				'desc(max',
+				'desc(max))',
+				'desc(max)(min)',
+				'desc()',
+				'(max)',
+				'max',
+				'DESC(max)',
+				'desc (max)',
+			]
+		) {
+			expect(build({ posts: { score: malformed } })).toThrowError('Invalid order "posts.score"');
+			expect(build({ posts: malformed })).toThrowError('Invalid order "posts"');
+		}
+		for (const malformed of ['asc(', 'asc)', 'ascending']) {
+			expect(build({ id: malformed })).toThrowError('Invalid order "id"');
+		}
+		expect(build({ inviter: 'asc' })).toThrowError(
+			'Invalid order "inviter": expected an object with fields of relation to order by, got "asc"',
+		);
+		expect(build({ inviter: 'asc(count)' })).toThrowError(
+			'Invalid order "inviter": expected an object with fields of relation to order by, got "asc(count)"',
+		);
+		expect(build({ posts: 'desc' })).toThrowError(
+			'Invalid order "posts": expected an object with fields of relation to order by, "asc(count)" or "desc(count)", got "desc"',
+		);
+		expect(build({ posts: 'desc(max)' })).toThrowError('Invalid order "posts"');
+		expect(build({ nope: { id: 'asc' } })).toThrowError('Unknown relational order field: "nope"');
+	});
+
+	test('Types', () => {
+		db.query.users.findMany({ orderBy: { id: 'asc', inviter: { name: 'desc', inviter: { id: 'asc' } } } });
+		db.query.users.findMany({ orderBy: { posts: { score: 'desc(max)', comments: { likes: 'asc(avg)' } } } });
+		db.query.users.findMany({ orderBy: { inviter: { posts: { id: 'asc(count)', author: { name: 'desc(min)' } } } } });
+		db.query.users.findMany({
+			with: { posts: { orderBy: { author: { name: 'asc' }, comments: { id: 'desc(count)' } } } },
+		});
+		db.query.users.findMany({ orderBy: (t, { desc }) => desc(t.id) });
+
+		db.query.users.findMany({ orderBy: { posts: { score: 'desc(first)', author: { name: 'asc(first)' } } } });
+
+		db.query.users.findMany({ orderBy: { posts: 'desc(count)', inviter: { posts: 'asc(count)' } } });
+		db.query.users.findMany({ orderBy: { posts: { comments: 'desc(count)' } } });
+		// @ts-expect-error - single relations have no rows to count
+		db.query.users.findMany({ orderBy: { inviter: 'asc(count)' } });
+		// @ts-expect-error - relations are only ordered by the number of their rows
+		db.query.users.findMany({ orderBy: { posts: 'desc(max)' } });
+		// @ts-expect-error - direction is required
+		db.query.users.findMany({ orderBy: { posts: 'count' } });
+
+		// @ts-expect-error - fields of many relations have to be aggregated
+		db.query.users.findMany({ orderBy: { posts: { score: 'desc' } } });
+
+		db.query.users.findMany({ strategy: 'basic', with: { posts: true } });
+		db.query.users.findFirst({ strategy: 'optimized' });
+		// @ts-expect-error - unknown strategy
+		db.query.users.findMany({ strategy: 'fast' });
+		// @ts-expect-error - strategy is set for the whole query on its root level
+		db.query.users.findMany({ with: { posts: { strategy: 'basic' } } });
+		// @ts-expect-error - so do fields of relations nested in them
+		db.query.users.findMany({ orderBy: { posts: { author: { name: 'asc' } } } });
+		// @ts-expect-error - `first` is for many relations only
+		db.query.users.findMany({ orderBy: { inviter: { name: 'asc(first)' } } });
+		// @ts-expect-error - fields of single relations can't be aggregated
+		db.query.users.findMany({ orderBy: { inviter: { name: 'asc(min)' } } });
+		// @ts-expect-error - neither can own fields
+		db.query.users.findMany({ orderBy: { id: 'asc(count)' } });
+		// @ts-expect-error - unknown aggregate
+		db.query.users.findMany({ orderBy: { posts: { score: 'desc(sum)' } } });
+		// @ts-expect-error - relations are ordered by their fields
+		db.query.users.findMany({ orderBy: { inviter: 'asc' } });
+		// @ts-expect-error - unknown field of a relation
+		db.query.users.findMany({ orderBy: { inviter: { nope: 'asc' } } });
 	});
 });

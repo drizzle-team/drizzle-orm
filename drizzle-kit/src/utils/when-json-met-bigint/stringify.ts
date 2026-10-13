@@ -186,7 +186,7 @@ export const stringify = ((): Stringify => {
 		// If the space parameter is a string, it will be used as the indent string.
 		const primitive_space = toPrimitive(space);
 		gap = typeof primitive_space === `number` && primitive_space > 0
-			? Array.from({ length: primitive_space + 1 }).join(` `)
+			? new Array(primitive_space + 1).join(` `)
 			: typeof primitive_space !== `string`
 			? ``
 			: primitive_space.length > 10

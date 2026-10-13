@@ -670,8 +670,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	);
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
-	test;
-	test.skipIf(Date.now() < +new Date('2026-10-17'))
+	test
+		.skipIf(Date.now() < +new Date('2026-10-17'))
 		.concurrent(
 			'prepared statement sql.placeholder in .inArray #2',
 			async ({ db, push, seed }) => {

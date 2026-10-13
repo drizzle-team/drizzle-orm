@@ -521,9 +521,7 @@ export const fromDatabase = async (
 	const fksToColumns = dbFKs.reduce((acc, it) => {
 		if (!it.to) {
 			throw Error(
-				`Table ${chalk.underline(it.tableTo)} has no primary key, so the foreign key from ${
-					chalk.underline(`${it.tableFrom}.${it.from}`)
-				} to ${chalk.underline(it.tableTo)} cannot be resolved`,
+				`Table ${it.tableTo} has no primary key, so the foreign key from ${it.tableFrom}.${it.from} to ${it.tableTo} cannot be resolved`,
 			);
 		}
 		const key = `${it.tableFrom}:${it.id}`;

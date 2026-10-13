@@ -703,12 +703,12 @@ export class SQLiteDialect {
 		insertOrderArr[writeIdx++] = new StringChunk(')');
 		const insertOrder = new SQL(insertOrderArr);
 
-		const valuesSqlList: SQLChunk[] = Array.from({
-			length: select
+		const valuesSqlList: SQLChunk[] = new Array(
+			select
 				? 1
 				: (colEntriesFiltered.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
 					+ (valuesOrSelect as Record<string, unknown>[]).length,
-		});
+		);
 
 		if (select) {
 			valuesSqlList[0] = (valuesOrSelect as AnySQLiteSelectQueryBuilder | SQL).getSQL();
@@ -1002,28 +1002,16 @@ export class SQLiteDialect {
 
 		const columns = this.buildColumns(table, selection, !!isNested, tableConfig.name, params);
 
-		const where: SQL | undefined = params && 'where' in params && relationWhere
-			? and(
-				relationsFilterToSQL(
-					table,
-					params.where,
-					tableConfig.relations,
-					schema,
-					subqueries,
-				),
-				relationWhere,
-			)
-			: params && 'where' in params
-			? relationsFilterToSQL(
-				table,
-				params.where,
-				tableConfig.relations,
-				schema,
-				subqueries,
-			)
+		const filter = params && 'where' in params
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries)
+			: undefined;
+		const where: SQL | undefined = filter && relationWhere
+			? and(filter.sql, relationWhere)
+			: filter
+			? filter.sql
 			: relationWhere;
 		const order = params?.orderBy
-			? relationsOrderToSQL(table, params.orderBy)
+			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, subqueries)
 			: undefined;
 		const extras = params?.extras
 			? relationExtrasToSQL(table, params.extras, this.codecs, !!isNested)

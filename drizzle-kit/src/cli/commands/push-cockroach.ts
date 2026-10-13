@@ -19,6 +19,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/cockro
 import type { JsonStatement } from '../../dialects/cockroach/statements';
 import { extractCrdbExisting } from '../../dialects/drizzle';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
+import { tableBeforeRenames } from '../../dialects/utils';
 import type { DB } from '../../utils';
 import { isInteractive, outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
@@ -171,6 +172,15 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 	const json = outputFormat() === 'json';
 	const useHints = json || !isInteractive();
 	const grouped: { hint: string; statement?: string }[] = [];
+	const tableBefore = tableBeforeRenames({
+		schemas: jsonStatements.filter((it) => it.type === 'rename_schema'),
+		tables: jsonStatements.filter((it) => it.type === 'rename_table'),
+		moves: jsonStatements.filter((it) => it.type === 'move_table'),
+	});
+	const schemaBefore = tableBeforeRenames({
+		schemas: jsonStatements.filter((it) => it.type === 'rename_schema'),
+		tables: [],
+	});
 
 	const filtered = jsonStatements.filter((it) => {
 		/*
@@ -215,7 +225,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			const id = identifier(statement.view);
 			const entity = [statement.view.schema, statement.view.name] as const;
 			if (hints.matchConfirm('view', entity)) continue;
-			const res = await db.query(`select 1 from ${id} limit 1`);
+			const res = await db.query(`select 1 from ${identifier(schemaBefore(statement.view))} limit 1`);
 			if (res.length === 0) continue;
 
 			if (useHints) {
@@ -231,7 +241,8 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			const id = identifier({ schema: column.schema, name: column.table });
 			const entity = [column.schema, column.table, column.name] as const;
 			if (hints.matchConfirm('column', entity)) continue;
-			const res = await db.query(`select 1 from ${id} limit 1`);
+			const idInDb = identifier(tableBefore({ schema: column.schema, name: column.table }));
+			const res = await db.query(`select 1 from ${idInDb} limit 1`);
 			if (res.length === 0) continue;
 
 			if (useHints) {
@@ -267,8 +278,10 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			const id = `"${schema}"."${table}"`;
 			const entity = [schema, table, statement.pk.name] as const;
 			if (hints.matchConfirm('primary_key', entity)) continue;
+			const inDb = tableBefore({ schema, name: table });
+			const idInDb = `"${inDb.schema}"."${inDb.name}"`;
 			const res = await db.query(
-				`select 1 from ${id} limit 1`,
+				`select 1 from ${idInDb} limit 1`,
 			);
 
 			if (res.length > 0) {
