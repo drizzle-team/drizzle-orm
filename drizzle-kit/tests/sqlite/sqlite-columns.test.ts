@@ -699,7 +699,7 @@ test('drop autoincrement. drop column with data', async (t) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	expect(phints[0].hint).toStrictEqual("You're about to drop 'name' column(s) in a non-empty 'companies' table");
+	expect(phints[0].hint).toStrictEqual('You\'re about to delete non-empty "name" column in "companies" table');
 });
 
 test('drop autoincrement. drop column with data with pragma off', async (t) => {
@@ -752,7 +752,7 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	expect(phints[0].hint).toStrictEqual("You're about to drop 'name' column(s) in a non-empty 'companies' table");
+	expect(phints[0].hint).toStrictEqual('You\'re about to delete non-empty "name" column in "companies" table');
 });
 
 test('change autoincrement. other table references current', async (t) => {
@@ -1959,7 +1959,7 @@ test('drop column in a renamed table with data', async () => {
 		'ALTER TABLE `accounts` DROP COLUMN `name`;',
 	]);
 	expect(phints).toStrictEqual([
-		{ hint: `You're about to delete 'name' column in a non-empty 'accounts' table` },
+		{ hint: `You're about to delete non-empty "name" column in "users" (would become "accounts") table` },
 	]);
 });
 
@@ -1987,7 +1987,8 @@ test('added column not null and without default to a renamed table with data', a
 		'ALTER TABLE `accounts` ADD `age` integer NOT NULL;',
 	]);
 	expect(phints).toStrictEqual([{
-		hint: `You're about to add not-null 'age' column without default value to non-empty 'accounts' table`,
+		hint:
+			`You're about to add not-null "age" column without default value to non-empty "users" (would become "accounts") table`,
 		statement: 'DELETE FROM "users" where true;',
 	}]);
 	expect(error).toBeNull();
@@ -2021,6 +2022,22 @@ test('drop autoincrement. drop column in a renamed table with data', async () =>
 		'PRAGMA foreign_keys=ON;',
 	]);
 	expect(phints).toStrictEqual([
-		{ hint: `You're about to drop 'name' column(s) in a non-empty 'accounts' table` },
+		{ hint: `You're about to delete non-empty "name" column in "companies" (would become "accounts") table` },
 	]);
+});
+
+test('drop column without values in a table with data', async () => {
+	const schema1 = {
+		users: sqliteTable('users', { id: integer('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		users: sqliteTable('users', { id: integer('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.run(`INSERT INTO \`users\` ("id") VALUES (1);`);
+
+	const { hints: phints } = await push({ db, to: schema2 });
+
+	expect(phints).toStrictEqual([]);
 });

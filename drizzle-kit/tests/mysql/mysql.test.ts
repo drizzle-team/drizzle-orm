@@ -2356,7 +2356,7 @@ test('drop column in a renamed table with data', async () => {
 		'ALTER TABLE `accounts` DROP COLUMN `name`;',
 	]);
 	expect(phints.map((it) => ({ ...it, hint: stripAnsi(it.hint) }))).toStrictEqual([
-		{ hint: `You're about to delete non-empty name column in accounts table` },
+		{ hint: `You're about to delete non-empty \`name\` column in \`users\` (would become \`accounts\`) table` },
 	]);
 });
 
@@ -2378,6 +2378,25 @@ test('drop primary key in a renamed table with data', async () => {
 		'ALTER TABLE `accounts` DROP PRIMARY KEY;',
 	]);
 	expect(phints.map((it) => ({ ...it, hint: stripAnsi(it.hint) }))).toStrictEqual([{
-		hint: `You're about to drop accounts primary key, this statements may fail and your table may lose primary key`,
+		hint:
+			`You're about to drop the primary key of \`users\` (would become \`accounts\`) table. The statements may fail, and the table may lose its primary key`,
+	}]);
+});
+
+test('change column type in a renamed table', async () => {
+	const schema1 = {
+		users: mysqlTable('users', { id: int('id').primaryKey(), name: varchar('name', { length: 255 }) }),
+	};
+	const schema2 = {
+		accounts: mysqlTable('accounts', { id: int('id').primaryKey(), name: text('name') }),
+	};
+
+	await push({ db, to: schema1 });
+
+	const { hints: phints } = await push({ db, to: schema2, renames: ['users->accounts'] });
+
+	expect(phints).toStrictEqual([{
+		hint:
+			"You're about to change `name` column type in `users` (would become `accounts`) table from varchar(255) to text",
 	}]);
 });

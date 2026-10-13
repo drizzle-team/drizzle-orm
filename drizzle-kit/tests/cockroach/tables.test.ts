@@ -1261,7 +1261,7 @@ test.concurrent('drop column in a renamed table with data', async ({ dbc: db }) 
 		'ALTER TABLE "accounts" DROP COLUMN "name";',
 	]);
 	expect(phints).toStrictEqual([
-		{ hint: `You're about to delete non-empty name column in "accounts" table` },
+		{ hint: `You're about to delete non-empty "name" column in "users" (would become "accounts") table` },
 	]);
 });
 
@@ -1290,7 +1290,7 @@ test.concurrent('drop column in a table with data that moves to another schema',
 		'ALTER TABLE "app"."users" DROP COLUMN "name";',
 	]);
 	expect(phints).toStrictEqual([
-		{ hint: `You're about to delete non-empty name column in "app"."users" table` },
+		{ hint: `You're about to delete non-empty "name" column in "users" (would become "app"."users") table` },
 	]);
 });
 
@@ -1316,7 +1316,7 @@ test.concurrent('drop column in a table with data in a renamed schema', async ({
 		'ALTER TABLE "after"."users" DROP COLUMN "name";',
 	]);
 	expect(phints).toStrictEqual([
-		{ hint: `You're about to delete non-empty name column in "after"."users" table` },
+		{ hint: `You're about to delete non-empty "name" column in "before"."users" (would become "after"."users") table` },
 	]);
 });
 
@@ -1345,6 +1345,6 @@ test.concurrent('drop primary key in a renamed table with data', async ({ dbc: d
 	]);
 	expect(phints.map((it) => ({ ...it, hint: stripAnsi(it.hint) }))).toStrictEqual([{
 		hint:
-			`You're about to drop "public"."accounts" primary key, these statements may fail and your table may lose the primary key`,
+			`You're about to drop the primary key of "users" (would become "accounts") table. The statements may fail, and the table may lose its primary key`,
 	}]);
 });
