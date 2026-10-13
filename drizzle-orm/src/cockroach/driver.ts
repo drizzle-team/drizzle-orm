@@ -13,6 +13,7 @@ import { NodeCockroachSession } from './session.ts';
 
 export interface CockroachDriverOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export class NodeCockroachDriver {
@@ -30,6 +31,7 @@ export class NodeCockroachDriver {
 	): NodeCockroachSession<AnyRelations> {
 		return new NodeCockroachSession(this.client, this.dialect, relations, {
 			logger: this.options.logger,
+			paramsInErrors: this.options.paramsInErrors,
 		});
 	}
 }
@@ -64,6 +66,7 @@ function construct<
 
 	const driver = new NodeCockroachDriver(client, dialect, {
 		logger,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const session = driver.createSession(relations);
 	const db = new NodeCockroachDatabase(dialect, session, relations) as NodeCockroachDatabase<TRelations>;

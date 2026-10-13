@@ -33,6 +33,9 @@ export const OriginalName = Symbol.for('drizzle:OriginalName');
 export const BaseName = Symbol.for('drizzle:BaseName');
 
 /** @internal */
+export const CacheKey = Symbol.for('drizzle:CacheKey');
+
+/** @internal */
 export const IsAlias = Symbol.for('drizzle:IsAlias');
 
 /** @internal */
@@ -64,6 +67,7 @@ export class Table<out T extends TableConfig = TableConfig> {
 		BaseName: BaseName as typeof BaseName,
 		IsAlias: IsAlias as typeof IsAlias,
 		ExtraConfigBuilder: ExtraConfigBuilder as typeof ExtraConfigBuilder,
+		CacheKey: CacheKey as typeof CacheKey,
 	};
 
 	/**
@@ -93,6 +97,13 @@ export class Table<out T extends TableConfig = TableConfig> {
 	 */
 	[BaseName]: string;
 
+	/**
+	 * @internal
+	 * This table's identity in the query cache's invalidation index (`schema.name`, or `name`
+	 * when unscoped). Computed once here so the per-query used-tables path never re-concatenates.
+	 */
+	[CacheKey]: string;
+
 	/** @internal */
 	[IsAlias] = false;
 
@@ -106,6 +117,7 @@ export class Table<out T extends TableConfig = TableConfig> {
 		this[TableName] = this[OriginalName] = name;
 		this[TableSchema] = schema;
 		this[BaseName] = baseName;
+		this[CacheKey] = schema ? `${schema}.${baseName}` : baseName;
 	}
 }
 

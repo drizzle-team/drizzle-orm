@@ -28,6 +28,7 @@ export type EffectSQLiteBunRunResult = [];
 export interface EffectSQLiteBunSessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
+	paramsInErrors?: boolean;
 }
 
 export class EffectSQLiteBunSession<TRelations extends AnyRelations>
@@ -82,6 +83,7 @@ export class EffectSQLiteBunSession<TRelations extends AnyRelations>
 			this.options.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

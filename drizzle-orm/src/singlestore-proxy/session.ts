@@ -30,6 +30,7 @@ export type SingleStoreRemoteRawExecuteResult =
 export interface SingleStoreRemoteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class SingleStoreRemoteSession<TRelations extends AnyRelations> extends SingleStoreSession<
@@ -87,6 +88,7 @@ export class SingleStoreRemoteSession<TRelations extends AnyRelations> extends S
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		) as PreparedQueryKind<SingleStoreRemotePreparedQueryHKT, T>;
 	}
 

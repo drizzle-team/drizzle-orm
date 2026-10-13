@@ -68,7 +68,8 @@
 		"typescript/no-empty-interface": "off",
 		"typescript/no-unsafe-declaration-merging": "off",
 		"no-inner-declarations": "off",
-		"drizzle-internal/require-entity-kind": "error"
+		"drizzle-internal/require-entity-kind": "error",
+		"drizzle-internal/prefer-new-array": "error"
 	},
 	"overrides": [
 		{

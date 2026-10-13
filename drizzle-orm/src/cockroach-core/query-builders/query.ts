@@ -3,7 +3,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import type {
 	BuildQueryResult,
 	BuildRelationalQueryResult,
-	DBQueryConfig,
+	DBQueryConfigWithStrategy,
 	RelationalRowsMapper,
 	TableRelationalConfig,
 	TablesRelationalConfig,
@@ -29,9 +29,9 @@ export class RelationalQueryBuilder<
 		private session: CockroachSession,
 	) {}
 
-	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
-		config?: DBQueryConfig<'many', TSchema, TFields> extends TConfig ? TConfig
-			: DBQueryConfig<'many', TSchema, TFields>,
+	findMany<TConfig extends DBQueryConfigWithStrategy<'many', TSchema, TFields>>(
+		config?: DBQueryConfigWithStrategy<'many', TSchema, TFields> extends TConfig ? TConfig
+			: DBQueryConfigWithStrategy<'many', TSchema, TFields>,
 	): CockroachRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new CockroachRelationalQuery(
 			this.schema,
@@ -39,14 +39,14 @@ export class RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config as DBQueryConfig<'many'> | undefined ?? true,
+			config as DBQueryConfigWithStrategy<'many'> | undefined ?? true,
 			'many',
 		);
 	}
 
-	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields>>(
-		config?: DBQueryConfig<'one', TSchema, TFields> extends TConfig ? TConfig
-			: DBQueryConfig<'one', TSchema, TFields>,
+	findFirst<TConfig extends DBQueryConfigWithStrategy<'one', TSchema, TFields>>(
+		config?: DBQueryConfigWithStrategy<'one', TSchema, TFields> extends TConfig ? TConfig
+			: DBQueryConfigWithStrategy<'one', TSchema, TFields>,
 	): CockroachRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return new CockroachRelationalQuery(
 			this.schema,
@@ -54,7 +54,7 @@ export class RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config as DBQueryConfig<'one'> | undefined ?? true,
+			config as DBQueryConfigWithStrategy<'one'> | undefined ?? true,
 			'first',
 		);
 	}
@@ -79,7 +79,7 @@ export class CockroachRelationalQuery<TResult> extends QueryPromise<TResult>
 		protected tableConfig: TableRelationalConfig,
 		protected dialect: CockroachDialect,
 		protected session: CockroachSession,
-		protected config: DBQueryConfig<'many' | 'one'> | true,
+		protected config: DBQueryConfigWithStrategy<'many' | 'one'> | true,
 		protected mode: 'many' | 'first',
 	) {
 		super();

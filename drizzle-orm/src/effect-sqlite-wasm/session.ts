@@ -28,6 +28,7 @@ export type EffectSQLiteWasmRunResult = [];
 export interface EffectSQLiteWasmSessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
+	paramsInErrors?: boolean;
 }
 
 export class EffectSQLiteWasmSession<TRelations extends AnyRelations>
@@ -82,6 +83,7 @@ export class EffectSQLiteWasmSession<TRelations extends AnyRelations>
 			this.options.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

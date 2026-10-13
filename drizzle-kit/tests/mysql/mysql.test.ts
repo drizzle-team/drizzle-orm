@@ -40,6 +40,7 @@ import {
 	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
+import { stripAnsi } from 'hanji/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -2335,4 +2336,48 @@ test('Issue No6360', async () => {
 	];
 	expect(st1).toStrictEqual(st0);
 	expect(pst1).toStrictEqual(st0);
+});
+
+test('drop column in a renamed table with data', async () => {
+	const schema1 = {
+		users: mysqlTable('users', { id: int('id').primaryKey(), name: varchar('name', { length: 255 }) }),
+	};
+	const schema2 = {
+		accounts: mysqlTable('accounts', { id: int('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO \`users\` (\`id\`, \`name\`) VALUES (1, 'drizzle');`, []);
+
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: ['users->accounts'] });
+
+	expect(pst).toStrictEqual([
+		'RENAME TABLE `users` TO `accounts`;',
+		'ALTER TABLE `accounts` DROP COLUMN `name`;',
+	]);
+	expect(phints.map((it) => ({ ...it, hint: stripAnsi(it.hint) }))).toStrictEqual([
+		{ hint: `You're about to delete non-empty name column in accounts table` },
+	]);
+});
+
+test('drop primary key in a renamed table with data', async () => {
+	const schema1 = {
+		users: mysqlTable('users', { id: int('id').primaryKey(), name: varchar('name', { length: 255 }) }),
+	};
+	const schema2 = {
+		accounts: mysqlTable('accounts', { id: int('id').notNull(), name: varchar('name', { length: 255 }) }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO \`users\` (\`id\`, \`name\`) VALUES (1, 'drizzle');`, []);
+
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: ['users->accounts'] });
+
+	expect(pst).toStrictEqual([
+		'RENAME TABLE `users` TO `accounts`;',
+		'ALTER TABLE `accounts` DROP PRIMARY KEY;',
+	]);
+	expect(phints.map((it) => ({ ...it, hint: stripAnsi(it.hint) }))).toStrictEqual([{
+		hint: `You're about to drop accounts primary key, this statements may fail and your table may lose primary key`,
+	}]);
 });

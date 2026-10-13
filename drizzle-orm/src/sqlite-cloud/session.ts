@@ -21,6 +21,7 @@ import type { SQLiteCloudRunResult } from './driver.ts';
 export interface SQLiteCloudSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -60,7 +61,7 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 		try {
 			stmt = this.client.prepare(query.sql);
 		} catch (e) {
-			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+			throw new DrizzleQueryError(query.sql, this.options.paramsInErrors ? query.params : undefined, e as Error);
 		}
 
 		const executors: SQLiteQueryExecutors<'async'> = {
@@ -122,6 +123,7 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -146,7 +148,7 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 			await tx.run(sql`COMMIT`);
 			return result;
 		} catch (err) {
-			await tx.run(sql`ROLLBACK`);
+			await tx.run(sql`ROLLBACK`).catch(() => {});
 			throw err;
 		}
 	}
@@ -174,7 +176,7 @@ export class SQLiteCloudTransaction<TRelations extends AnyRelations>
 			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

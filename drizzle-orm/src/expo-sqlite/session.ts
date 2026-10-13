@@ -17,6 +17,7 @@ import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface ExpoSQLiteSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export type ExpoSQLiteRunResult = SQLiteRunResult;
@@ -97,6 +98,7 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 			undefined,
 			queryMetadata,
 			undefined,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -113,7 +115,11 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 			this.run(sql`commit`);
 			return result;
 		} catch (err) {
-			this.run(sql`rollback`);
+			try {
+				this.run(sql`rollback`);
+			} catch {
+				// original error takes priority
+			}
 			throw err;
 		}
 	}
@@ -144,7 +150,11 @@ export class ExpoSQLiteTransaction<
 			this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result as T;
 		} catch (err) {
-			this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			try {
+				this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			} catch {
+				// original error takes priority
+			}
 			throw err;
 		}
 	}

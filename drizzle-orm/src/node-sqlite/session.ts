@@ -18,6 +18,7 @@ import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface NodeSQLiteSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export type NodeSQLiteRunResult = StatementResultingChanges;
@@ -56,7 +57,7 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 		try {
 			stmt = this.client.prepare(query.sql);
 		} catch (e) {
-			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+			throw new DrizzleQueryError(query.sql, this.options.paramsInErrors ? query.params : undefined, e as Error);
 		}
 
 		const executors: SQLiteQueryExecutors<'sync'> = {
@@ -93,6 +94,7 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 			undefined,
 			queryMetadata,
 			undefined,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -109,7 +111,11 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 			this.run(sql`commit`);
 			return result;
 		} catch (err) {
-			this.run(sql`rollback`);
+			try {
+				this.run(sql`rollback`);
+			} catch {
+				// original error takes priority
+			}
 			throw err;
 		}
 	}
@@ -140,7 +146,11 @@ export class NodeSQLiteTransaction<TRelations extends AnyRelations>
 			tx.run(sql.raw(`release savepoint ${savepointName}`));
 			return result as T;
 		} catch (err) {
-			tx.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			try {
+				tx.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			} catch {
+				// original error takes priority
+			}
 			throw err;
 		}
 	}

@@ -21,6 +21,7 @@ import { postgresHttpTest as test } from './instrumentation';
 import { usersMigratorTable } from './schema';
 
 const skips = [
+	'Query error params - transaction',
 	'RQB v2 transaction find first - no rows',
 	'RQB v2 transaction find first - multiple rows',
 	'RQB v2 transaction find first - with relation',

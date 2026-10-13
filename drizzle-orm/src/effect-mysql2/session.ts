@@ -33,6 +33,7 @@ export interface EffectMysql2QueryResultHKT extends MySqlQueryResultHKT {
 export interface EffectMysql2SessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
+	paramsInErrors?: boolean;
 }
 
 export class EffectMysql2Session<
@@ -82,6 +83,7 @@ export class EffectMysql2Session<
 			this.options.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

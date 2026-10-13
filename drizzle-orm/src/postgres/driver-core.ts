@@ -55,6 +55,7 @@ export function construct<
 	const session = new PostgresSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 
 	const db = new PostgresDatabase(

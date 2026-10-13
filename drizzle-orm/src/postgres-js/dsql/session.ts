@@ -53,6 +53,7 @@ export interface PostgresJsDsqlTransactionConfig extends DsqlTransactionConfig {
 export interface PostgresJsDsqlSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class PostgresJsDsqlSession<TSQL extends Sql, TRelations extends AnyRelations>
@@ -111,6 +112,7 @@ export class PostgresJsDsqlSession<TSQL extends Sql, TRelations extends AnyRelat
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

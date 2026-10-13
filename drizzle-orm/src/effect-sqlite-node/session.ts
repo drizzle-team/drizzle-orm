@@ -29,6 +29,7 @@ export type EffectSQLiteNodeRunResult = StatementResultingChanges;
 export interface EffectSQLiteNodeSessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
+	paramsInErrors?: boolean;
 }
 
 export class EffectSQLiteNodeSession<TRelations extends AnyRelations>
@@ -87,6 +88,7 @@ export class EffectSQLiteNodeSession<TRelations extends AnyRelations>
 			this.options.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

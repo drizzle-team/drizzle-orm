@@ -25,6 +25,7 @@ export type MySqlRemoteRawExecuteResult =
 export interface MySqlRemoteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class MySqlRemoteSession<
@@ -81,6 +82,7 @@ export class MySqlRemoteSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

@@ -42,6 +42,7 @@ function construct<
 	const session = new BunMySqlSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new BunMySqlDatabase(dialect, session, relations) as BunMySqlDatabase<
 		TRelations

@@ -52,6 +52,7 @@ function construct<
 	const session = new NodePgDsqlSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 
 	const db = new NodePgDsqlDatabase(

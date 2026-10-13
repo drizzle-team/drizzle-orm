@@ -21,6 +21,7 @@ const omit = new Set([
 	'transaction with options (accessMode read only)',
 	'transaction with options (withConsistentSnapshot)',
 	'transaction with options (withConsistentSnapshot combined with accessMode)',
+	'Query error params - transaction',
 	'RQB v2 transaction find first - no rows',
 	'RQB v2 transaction find first - multiple rows',
 	'RQB v2 transaction find first - with relation',

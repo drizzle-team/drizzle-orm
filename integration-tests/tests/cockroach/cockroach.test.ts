@@ -5,7 +5,7 @@ import { drizzle } from 'drizzle-orm/cockroach';
 import { cockroachTable, getTableConfig, int4, text, timestamp } from 'drizzle-orm/cockroach-core';
 import { migrate } from 'drizzle-orm/cockroach/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { Client, type QueryResult } from 'pg';
+import { Client, Pool, type QueryResult } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
@@ -80,6 +80,35 @@ test('raw db.execute type matches returned data', async () => {
 	]);
 
 	await db.execute<never>(sql`drop table ${table}`);
+});
+
+test('transaction rejects when pooled connection is dropped', async () => {
+	const pool = new Pool({ connectionString: requireCockroachConnectionString() });
+	pool.on('error', () => {});
+	const poolDb = drizzle({ client: pool });
+
+	try {
+		let error: any;
+		try {
+			await poolDb.transaction(async (tx) => {
+				const { rows } = await tx.execute<{ session_id: string }>(sql`show session_id`);
+				await client.query(`cancel session '${rows[0]!.session_id}'`);
+				await new Promise((resolve) => setTimeout(resolve, 200));
+				await tx.execute(sql`select 1`);
+			});
+		} catch (e) {
+			error = e;
+		}
+
+		// Original failure, not the rollback attempted on a dead connection
+		expect(error?.query).toBe('select 1');
+
+		// Broken client was discarded, pool hands out a working one
+		const { rows } = await poolDb.execute<{ ok: number }>(sql`select 1::int4 as ok`);
+		expect(rows).toEqual([{ ok: 1 }]);
+	} finally {
+		await pool.end();
+	}
 });
 
 test('migrator : default migration strategy', async () => {

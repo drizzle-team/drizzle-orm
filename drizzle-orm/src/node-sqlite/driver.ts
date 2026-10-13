@@ -42,6 +42,7 @@ function construct<TRelations extends AnyRelations = EmptyRelations>(
 	const relations = config.relations ?? {} as TRelations;
 	const session = new NodeSQLiteSession(client, dialect, relations, {
 		logger,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new NodeSQLiteDatabase(
 		'sync',

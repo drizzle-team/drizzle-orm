@@ -4,8 +4,8 @@ import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKin
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { MySqlAsyncPreparedQuery, MySqlAsyncSession } from './session.ts';
 
 export interface MySqlAsyncInsertHKT extends MySqlInsertHKTBase {
@@ -70,7 +70,7 @@ export class MySqlAsyncInsertBase<
 			this.dialect.mapperGenerators.$returning(this.config.returning, generatedIds),
 			{
 				type: 'insert',
-				tables: extractUsedTable(this.config.table),
+				tables: usedTablesOf(this.config.table),
 			},
 		) as MySqlAsyncInsertPrepare<this, TReturning>;
 	}

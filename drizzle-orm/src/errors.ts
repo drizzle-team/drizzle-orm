@@ -15,10 +15,10 @@ export class DrizzleQueryError extends Error {
 
 	constructor(
 		public query: string,
-		public params: any[],
+		public params: any[] | undefined,
 		public override cause?: Error,
 	) {
-		super(`Failed query: ${query}\nparams: ${params}`);
+		super(params ? `Failed query: ${query}\nparams: ${params}` : `Failed query: ${query}`);
 		this.name = 'DrizzleQueryError';
 		Error.captureStackTrace(this, DrizzleQueryError);
 

@@ -3871,6 +3871,58 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				}]);
 			}));
 
+		it.effect('Query error params', () =>
+			Effect.gen(function*() {
+				const query = sql`select * from params_in_errors_missing where id = ${'S3CRET'}`;
+
+				for (const paramsInErrors of [undefined, false, true]) {
+					const db = yield* SQLiteDrizzle.make({ paramsInErrors }).pipe(Effect.provide(SQLiteDrizzle.DefaultServices));
+
+					for (
+						const effect of [
+							db.get(query),
+							db.all(query),
+							db.run(query),
+							db.values(query),
+						]
+					) {
+						const error: any = yield* effect.pipe(Effect.flip);
+
+						expect(error._tag).toBe('EffectDrizzleQueryError');
+						expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+						expect(error.message).toBe(
+							paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+						);
+					}
+				}
+			}));
+
+		it.effect('Query error params - transaction', () =>
+			Effect.gen(function*() {
+				const query = sql`select * from params_in_errors_missing where id = ${'S3CRET'}`;
+
+				for (const paramsInErrors of [undefined, false, true]) {
+					const db = yield* SQLiteDrizzle.make({ paramsInErrors }).pipe(Effect.provide(SQLiteDrizzle.DefaultServices));
+
+					for (
+						const effect of [
+							db.transaction((tx) => tx.get(query)),
+							db.transaction((tx) => tx.all(query)),
+							db.transaction((tx) => tx.run(query)),
+							db.transaction((tx) => tx.values(query)),
+						]
+					) {
+						const error: any = yield* effect.pipe(Effect.flip);
+
+						expect(error._tag).toBe('EffectDrizzleQueryError');
+						expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+						expect(error.message).toBe(
+							paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+						);
+					}
+				}
+			}));
+
 		addTests?.(it);
 	});
 };

@@ -652,7 +652,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
-	test.skipIf(Date.now() < +new Date('2026-10-10')).concurrent(
+	test.skipIf(Date.now() < +new Date('2026-10-17')).concurrent(
 		'prepared statement sql.placeholder in .inArray',
 		async ({ db, push }) => {
 			const users = createUserTable('users_116');
@@ -671,7 +671,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
 	test
-		.skipIf(Date.now() < +new Date('2026-10-10'))
+		.skipIf(Date.now() < +new Date('2026-10-17'))
 		.concurrent(
 			'prepared statement sql.placeholder in .inArray #2',
 			async ({ db, push, seed }) => {
@@ -1476,6 +1476,37 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		await push({ table });
 		await expect(db.insert(table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
 			.rejects.toBeInstanceOf(DrizzleQueryError);
+	});
+
+	test.concurrent('Query error params', async ({ createDB }) => {
+		for (const paramsInErrors of [undefined, false, true]) {
+			const db = createDB({ paramsInErrors });
+
+			const error = await db.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`)
+				.catch((e) => e);
+
+			expect(error).toBeInstanceOf(DrizzleQueryError);
+			expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+			expect(error.message).toBe(
+				paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+			);
+		}
+	});
+
+	test.concurrent('Query error params - transaction', async ({ createDB }) => {
+		for (const paramsInErrors of [undefined, false, true]) {
+			const db = createDB({ paramsInErrors });
+
+			const error = await db.transaction(async (tx) => {
+				await tx.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`);
+			}).catch((e) => e);
+
+			expect(error).toBeInstanceOf(DrizzleQueryError);
+			expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+			expect(error.message).toBe(
+				paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+			);
+		}
 	});
 
 	test.concurrent('comments', async ({ createDB, push }) => {

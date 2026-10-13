@@ -1327,7 +1327,7 @@ const codecDb = createDB({ codecUsers, codecUsersView }, (r) => ({
 	codecUsersView: { self: r.one.codecUsersView({ from: r.codecUsersView.id, to: r.codecUsersView.id }) },
 }));
 
-const nulls = (n: number) => [Array.from({ length: n }, () => null)];
+const nulls = (n: number) => [new Array(n).fill(null)];
 
 test('Column as decoder: a select with aggregates and a subquery resolves each column codec', () => {
 	const qb = codecDb.select({
@@ -1484,7 +1484,7 @@ test('Column as decoder: in-JSON codec-bypass - view', () => {
 		columns: { sq: false },
 		with: { self: { columns: { sq: false } } },
 	});
-	expect(rqbArrayCase(query, true, [Array.from({ length: 11 }, () => null)], undefined)).toMatchInlineSnapshot(`
+	expect(rqbArrayCase(query, true, [new Array(11).fill(null)], undefined)).toMatchInlineSnapshot(`
 		"function jitRqbMapper (rows) {
 			"use strict";
 			const { selection } = this;

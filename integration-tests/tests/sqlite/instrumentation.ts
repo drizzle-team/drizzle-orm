@@ -764,6 +764,7 @@ const testFor = (
 				schema: S,
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 				jit?: boolean,
+				paramsInErrors?: boolean,
 			): SQLiteAsyncDatabase<
 				'async' | 'sync',
 				any,
@@ -882,30 +883,52 @@ const testFor = (
 						helpers: RelationsBuilder<ExtractTablesFromSchema<S>>,
 					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
 					jit?: boolean,
+					paramsInErrors?: boolean,
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
-					if (vendor === 'sqlite-cloud') return drizzleSqliteCloud({ client: kit.client, relations, jit });
-					if (vendor === 'tursodatabase') return drizzleTursoDatabase({ client: kit.client, relations, jit });
-					if (vendor === 'tursodatabase-sync') return drizzleTursoDatabaseSync({ client: kit.client, relations, jit });
+					if (vendor === 'sqlite-cloud') {
+						return drizzleSqliteCloud({ client: kit.client, relations, jit, paramsInErrors });
+					}
+					if (vendor === 'tursodatabase') {
+						return drizzleTursoDatabase({ client: kit.client, relations, jit, paramsInErrors });
+					}
+					if (vendor === 'tursodatabase-sync') {
+						return drizzleTursoDatabaseSync({ client: kit.client, relations, jit, paramsInErrors });
+					}
 					if (vendor === 'tursodatabase-serverless') {
-						return drizzleTursoDatabaseSls({ client: kit.client, relations, jit });
+						return drizzleTursoDatabaseSls({ client: kit.client, relations, jit, paramsInErrors });
 					}
 					if (vendor === 'libsql' || vendor === 'libsql-turso' || vendor === 'libsql-turso-v1') {
-						return drizzleLibSQL({ client: kit.client, relations, jit });
+						return drizzleLibSQL({ client: kit.client, relations, jit, paramsInErrors });
 					}
-					if (vendor === 'libsql-ws') return drizzleLibSQLWs({ client: kit.client, relations, jit });
-					if (vendor === 'libsql-sqlite3') return drizzleLibSQLSqlite3({ client: kit.client, relations, jit });
-					if (vendor === 'libsql-node') return drizzleLibSQLNode({ client: kit.client, relations, jit });
-					if (vendor === 'libsql-http') return drizzleLibSQLHttp({ client: kit.client, relations, jit });
-					if (vendor === 'better-sqlite3') return drizzleBetterSqlite3({ client: kit.client, relations, jit });
-					if (vendor === 'd1') return drizzleD1(kit.client, { relations });
-					if (vendor === 'sql-js') return drizzleSqlJs(kit.client, { relations, jit });
-					if (vendor === 'node-sqlite') return drizzleNodeSQLite({ client: kit.client, relations, jit });
+					if (vendor === 'libsql-ws') return drizzleLibSQLWs({ client: kit.client, relations, jit, paramsInErrors });
+					if (vendor === 'libsql-sqlite3') {
+						return drizzleLibSQLSqlite3({ client: kit.client, relations, jit, paramsInErrors });
+					}
+					if (vendor === 'libsql-node') {
+						return drizzleLibSQLNode({ client: kit.client, relations, jit, paramsInErrors });
+					}
+					if (vendor === 'libsql-http') {
+						return drizzleLibSQLHttp({ client: kit.client, relations, jit, paramsInErrors });
+					}
+					if (vendor === 'better-sqlite3') {
+						return drizzleBetterSqlite3({ client: kit.client, relations, jit, paramsInErrors });
+					}
+					if (vendor === 'd1') return drizzleD1(kit.client, { relations, paramsInErrors });
+					if (vendor === 'sql-js') return drizzleSqlJs(kit.client, { relations, jit, paramsInErrors });
+					if (vendor === 'node-sqlite') {
+						return drizzleNodeSQLite({ client: kit.client, relations, jit, paramsInErrors });
+					}
 
 					if (vendor === 'proxy') {
 						const serverSimulator = new ServerSimulator(kit.client);
-						return drizzleProxy(proxyExecutors(serverSimulator), { relations, jit, codecs: betterSQLite3Codecs });
+						return drizzleProxy(proxyExecutors(serverSimulator), {
+							relations,
+							jit,
+							paramsInErrors,
+							codecs: betterSQLite3Codecs,
+						});
 					}
 					throw new Error();
 				};
