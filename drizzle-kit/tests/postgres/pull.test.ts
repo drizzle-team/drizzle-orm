@@ -3146,6 +3146,66 @@ test('non-admin: public schema without usage', async () => {
 	expect(asUser.indexes.map((it) => it.name).sort()).toStrictEqual(['users_name_idx', 'users_pkey']);
 });
 
+test('filtered out table referenced by fk', async () => {
+	const other = pgSchema('other');
+	const teams = other.table('teams', {
+		id: integer('id').primaryKey(),
+	});
+	const orgs = pgTable('orgs', {
+		id: integer('id').primaryKey(),
+	});
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+		orgId: integer('org_id').references(() => orgs.id),
+		teamId: integer('team_id').references(() => teams.id, { onDelete: 'cascade' }),
+	});
+
+	await push({ db, to: { other, teams, orgs, users } });
+
+	// `orgs` is left out by the tables filter, `other.teams` by the schemas filter
+	const filter = prepareEntityFilter(
+		'postgresql',
+		{
+			tables: ['users'],
+			schemas: ['public'],
+			entities: undefined,
+			extensions: undefined,
+		},
+		[],
+	);
+	const { tables, fks } = await fromDatabase(db, filter);
+
+	expect(tables.map((it) => `${it.schema}.${it.name}`)).toStrictEqual(['public.users']);
+	expect(fks).toStrictEqual([
+		{
+			entityType: 'fks',
+			schema: 'public',
+			table: 'users',
+			name: 'users_org_id_orgs_id_fkey',
+			nameExplicit: true,
+			columns: ['org_id'],
+			schemaTo: 'public',
+			tableTo: 'orgs',
+			columnsTo: ['id'],
+			onUpdate: 'NO ACTION',
+			onDelete: 'NO ACTION',
+		},
+		{
+			entityType: 'fks',
+			schema: 'public',
+			table: 'users',
+			name: 'users_team_id_teams_id_fkey',
+			nameExplicit: true,
+			columns: ['team_id'],
+			schemaTo: 'other',
+			tableTo: 'teams',
+			columnsTo: ['id'],
+			onUpdate: 'NO ACTION',
+			onDelete: 'CASCADE',
+		},
+	]);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/5869
 test('issue #5869', async () => {
 	await db.query(`DROP TABLE IF EXISTS opclass_repro`);
