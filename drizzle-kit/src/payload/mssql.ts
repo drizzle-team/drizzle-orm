@@ -134,7 +134,7 @@ export const pushSchema = async (
 
 	const prev = await fromDatabaseForDrizzle(db, filter, () => {}, migrations);
 
-	const { schema: cur } = fromDrizzleSchema(prepared, filter);
+	const { schema: cur, metadata } = fromDrizzleSchema(prepared, filter);
 
 	const { ddl: from } = interimToDDL(prev);
 	const { ddl: to } = interimToDDL(cur);
@@ -153,6 +153,7 @@ export const pushSchema = async (
 		resolver<ForeignKey>('foreign key', undefined, 'dbo'),
 		resolver<DefaultConstraint>('default', undefined, 'dbo'),
 		'push',
+		metadata,
 	);
 
 	const hints = await suggestions(db, statements, to, new HintsHandler());

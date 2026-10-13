@@ -108,7 +108,7 @@ export const handle = async (
 	const json = outputFormat() === 'json';
 
 	const { snapshots } = prepareOutFolder(outFolder);
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
+	const { ddlCur, ddlPrev, metadata, snapshot, custom } = await prepareSnapshot(
 		snapshots,
 		filenames,
 		checkResult,
@@ -135,6 +135,7 @@ export const handle = async (
 		resolver<Column>('column', config.hints),
 		resolver<View>('view', config.hints),
 		'default',
+		metadata,
 	);
 
 	if (config.hints.hasMissingHints()) {
@@ -177,7 +178,7 @@ export const handle = async (
 
 export const handleExport = async (config: ExportConfig) => {
 	const res = await prepareFromSchemaFiles(config.filenames);
-	const schema = fromDrizzleSchema(res.tables, res.views);
+	const { schema, metadata } = fromDrizzleSchema(res.tables, res.views);
 	const { ddl, errors } = interimToDDL(schema);
 
 	if (errors.length > 0) {
@@ -187,6 +188,6 @@ export const handleExport = async (config: ExportConfig) => {
 		});
 	}
 
-	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
+	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default', metadata);
 	return { statements: sqlStatements, warnings: [] };
 };

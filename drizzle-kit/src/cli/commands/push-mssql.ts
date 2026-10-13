@@ -61,7 +61,7 @@ export const handle = async (
 	const existing = extractMssqlExisting(res.schemas, res.views);
 	const filter = prepareEntityFilter('mssql', filters, existing);
 
-	const { schema: schemaTo, errors } = fromDrizzleSchema(res, filter);
+	const { schema: schemaTo, metadata, errors } = fromDrizzleSchema(res, filter);
 
 	if (errors.length > 0) {
 		throw new CommandOutputCliError('push', errors.map((it) => mssqlSchemaError(it)).join('\n'), {
@@ -97,6 +97,7 @@ export const handle = async (
 		resolver<ForeignKey>('foreign key', hints, 'dbo'),
 		resolver<DefaultConstraint>('default', hints, 'dbo'),
 		'push',
+		metadata,
 	);
 
 	if (hints.hasMissingHints()) {

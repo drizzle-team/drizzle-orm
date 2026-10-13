@@ -2,7 +2,8 @@ import { trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
-import { groupDiffs, preserveEntityNames } from '../utils';
+import { groupDiffs, preserveEntityNames, sortCreateViews } from '../utils';
+import type { SchemaMetadata } from '../utils';
 import { fromJson } from './convertor';
 import type { Column, DiffEntities, Index, MysqlDDL, Table, View } from './ddl';
 import { fullTableFromDDL } from './ddl';
@@ -10,9 +11,14 @@ import { charSetAndCollationCommutative, commutative, defaultNameForFK } from '.
 import { prepareStatement } from './statements';
 import type { JsonStatement } from './statements';
 
-export const ddlDiffDry = async (from: MysqlDDL, to: MysqlDDL, mode: 'default' | 'push' = 'default') => {
+export const ddlDiffDry = async (
+	from: MysqlDDL,
+	to: MysqlDDL,
+	mode: 'default' | 'push' = 'default',
+	$metadata?: SchemaMetadata,
+) => {
 	const s = new Set<string>();
-	return ddlDiff(from, to, mockResolver(s), mockResolver(s), mockResolver(s), mode);
+	return ddlDiff(from, to, mockResolver(s), mockResolver(s), mockResolver(s), mode, $metadata);
 };
 
 export const ddlDiff = async (
@@ -22,6 +28,7 @@ export const ddlDiff = async (
 	columnsResolver: Resolver<Column>,
 	viewsResolver: Resolver<View>,
 	mode: 'default' | 'push',
+	$metadata?: SchemaMetadata,
 ): Promise<{
 	statements: JsonStatement[];
 	sqlStatements: string[];
@@ -496,7 +503,11 @@ export const ddlDiff = async (
 			...createCheckStatements,
 
 			...dropColumnStatements,
-			...createViewStatements,
+			// dependent views must be created after their dependencies, otherwise the migration breaks
+			// but this will not help us when views are altered ("alter_view")
+			// "alter_view" does not drop and create, it alters through ddl, see drizzle-kit/tests/mysql/views.test.ts -> "topological sort test. existing view starts reading a new view" case
+			// but for created views we still sort in the correct order
+			...sortCreateViews(createViewStatements, $metadata?.viewDependencies),
 		]),
 	];
 

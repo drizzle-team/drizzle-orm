@@ -36,7 +36,8 @@ export const drizzleToDDL = (schema: SqliteSchema) => {
 	const tables = Object.values(schema).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
 	const views = Object.values(schema).filter((it) => is(it, SQLiteView)) as SQLiteView[];
 
-	return interimToDDL(fromDrizzleSchema(tables, views));
+	const { schema: interim, metadata } = fromDrizzleSchema(tables, views);
+	return { ...interimToDDL(interim), metadata };
 };
 
 export const diff = async (
@@ -47,8 +48,8 @@ export const diff = async (
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as SQLiteDDL, errors: [] }
 		: drizzleToDDL(left);
-	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
-		? { ddl: right as SQLiteDDL, errors: [] }
+	const { ddl: ddl2, errors: err2, metadata } = 'entities' in right && '_' in right
+		? { ddl: right as SQLiteDDL, errors: [], metadata: undefined }
 		: drizzleToDDL(right);
 
 	if (err1.length > 0 || err2.length > 0) {
@@ -67,6 +68,7 @@ export const diff = async (
 		mockResolver(renames),
 		mockResolver(renames),
 		'default',
+		metadata,
 	);
 	return { sqlStatements, statements, err1, err2, next: ddl2 };
 };
@@ -130,7 +132,7 @@ export const diffAfterPull = async (
 
 	// generate snapshot from ts file
 	const res = await prepareFromSchemaFiles([filePath]);
-	const { ddl: ddl2, errors: err2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views));
+	const { ddl: ddl2, errors: err2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views).schema);
 
 	// we need to create copies, since first ddlDiffDry makes preserve entity names logic
 	const ddl1Copy = fromEntities(ddl1.entities.list());
@@ -204,8 +206,8 @@ export const push = async (config: {
 		() => {},
 		migrations,
 	);
-	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
-		? { ddl: to as SQLiteDDL, errors: [] }
+	const { ddl: ddl2, errors: err2, metadata } = 'entities' in to && '_' in to
+		? { ddl: to as SQLiteDDL, errors: [], metadata: undefined }
 		: drizzleToDDL(to);
 
 	if (err2.length > 0) {
@@ -230,6 +232,7 @@ export const push = async (config: {
 		mockResolver(renames),
 		mockResolver(renames),
 		'push',
+		metadata,
 	);
 
 	const hints = await runWithCliContext(
@@ -332,7 +335,7 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 	await tsc(file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
-	const sch = fromDrizzleSchema(response.tables, response.views);
+	const { schema: sch } = fromDrizzleSchema(response.tables, response.views);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');

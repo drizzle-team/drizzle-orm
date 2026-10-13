@@ -250,3 +250,45 @@ export const batchQuery = async <T>(
 	}
 	return results;
 };
+
+export type EntityKey = string;
+// names may contain `.` or `"`, so `${schema}.${name}` would be ambiguous
+// schema is null for dialects without schemas (mysql, sqlite)
+export const entityKey = (schema: string | null, name: string): EntityKey => JSON.stringify([schema, name]);
+
+export interface SchemaMetadata {
+	viewDependencies: Map<EntityKey, readonly EntityKey[]>;
+}
+
+/*
+	DFS topological sort of create_view statements
+	Every view goes after the views it reads from (direct dependencies from metadata, see `findViewDependencies` in dialects/drizzle.ts)
+	dependencies that are not created in this migration are skipped, without metadata the order is kept as is
+
+	fixes https://github.com/drizzle-team/drizzle-orm/issues/4520 and https://github.com/drizzle-team/drizzle-orm/issues/6176
+*/
+export const sortCreateViews = <T extends { view: { schema?: string; name: string } }>(
+	statements: T[],
+	viewDependencies: SchemaMetadata['viewDependencies'] | undefined,
+): T[] => {
+	if (!viewDependencies) return statements;
+
+	const byKey = new Map<EntityKey, T>(statements.map((it) => [entityKey(it.view.schema ?? null, it.view.name), it]));
+	const visited = new Set<EntityKey>();
+	const sorted: T[] = [];
+
+	const visit = (key: EntityKey) => {
+		if (visited.has(key)) return; // marked on enter, so a dependency cycle can't loop forever
+		visited.add(key);
+
+		for (const dependency of viewDependencies.get(key) ?? []) {
+			if (byKey.has(dependency)) visit(dependency);
+		}
+
+		sorted.push(byKey.get(key)!);
+	};
+
+	for (const key of byKey.keys()) visit(key);
+
+	return sorted;
+};

@@ -3,7 +3,8 @@ import { mockResolver } from '../../utils/mocks';
 import { diffStringArrays } from '../../utils/sequence-matcher';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
-import { groupDiffs, preserveEntityNames } from '../utils';
+import { groupDiffs, preserveEntityNames, sortCreateViews } from '../utils';
+import type { SchemaMetadata } from '../utils';
 import { fromJson } from './convertor';
 import type {
 	CheckConstraint,
@@ -30,7 +31,12 @@ import type {
 } from './statements';
 import { prepareStatement } from './statements';
 
-export const ddlDiffDry = async (ddlFrom: CockroachDDL, ddlTo: CockroachDDL, mode: 'default' | 'push') => {
+export const ddlDiffDry = async (
+	ddlFrom: CockroachDDL,
+	ddlTo: CockroachDDL,
+	mode: 'default' | 'push',
+	$metadata?: SchemaMetadata,
+) => {
 	const mocks = new Set<string>();
 	return ddlDiff(
 		ddlFrom,
@@ -47,6 +53,7 @@ export const ddlDiffDry = async (ddlFrom: CockroachDDL, ddlTo: CockroachDDL, mod
 		mockResolver(mocks),
 		mockResolver(mocks),
 		mode,
+		$metadata,
 	);
 };
 
@@ -65,6 +72,7 @@ export const ddlDiff = async (
 	pksResolver: Resolver<PrimaryKey>,
 	fksResolver: Resolver<ForeignKey>,
 	mode: 'default' | 'push',
+	$metadata?: SchemaMetadata,
 ): Promise<{
 	statements: JsonStatement[];
 	sqlStatements: string[];
@@ -980,7 +988,7 @@ export const ddlDiff = async (
 
 	const viewsAlters = filteredViewAlters.map((it) => ({ diff: it, view: it.$right }));
 
-	const jsonRecreateViews = viewsAlters.map((entry) => {
+	viewsAlters.map((entry) => {
 		const it = entry.view;
 		const schemaRename = renamedSchemas.find((r) => r.to.name === it.schema);
 		const schema = schemaRename ? schemaRename.from.name : it.schema;
@@ -995,10 +1003,11 @@ export const ddlDiff = async (
 				${schema}:${name}
 				`);
 		}
-		return prepareStatement('recreate_view', { from, to: it });
+		jsonDropViews.push(prepareStatement('drop_view', { view: entry.diff.$left }));
+		createViews.push(prepareStatement('create_view', { view: it }));
 	});
 
-	const recreatedTargets = new Set(jsonRecreateViews.map((stmt) => `${stmt.to.schema}:${stmt.to.name}`));
+	const recreatedTargets = new Set(createViews.map((stmt) => `${stmt.view.schema}:${stmt.view.name}`));
 	const jsonRenameViews = renamedViews.filter(({ to }) => !recreatedTargets.has(`${to.schema}:${to.name}`)).map((
 		rename,
 	) => prepareStatement('rename_view', rename));
@@ -1025,7 +1034,6 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropViews);
 	jsonStatements.push(...jsonRenameViews);
 	jsonStatements.push(...jsonMoveViews);
-	jsonStatements.push(...jsonRecreateViews);
 
 	jsonStatements.push(...jsonRenameTables);
 	jsonStatements.push(...jsonDropFks);
@@ -1068,7 +1076,8 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonAlterCheckConstraints);
 
-	jsonStatements.push(...createViews);
+	// dependent views must be created after their dependencies, otherwise the migration breaks
+	jsonStatements.push(...sortCreateViews(createViews, $metadata?.viewDependencies));
 
 	jsonStatements.push(...jsonRenamePoliciesStatements);
 	jsonStatements.push(...jsonCreatePoliciesStatements);

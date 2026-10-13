@@ -18,7 +18,7 @@ export const generateDrizzleJson = async (
 	const { fromDrizzleSchema, fromExports } = await import('../dialects/sqlite/drizzle');
 	const prepared = fromExports(imports);
 
-	const interim = fromDrizzleSchema(prepared.tables, prepared.views);
+	const { schema: interim } = fromDrizzleSchema(prepared.tables, prepared.views);
 
 	const { ddl, errors } = interimToDDL(interim);
 
@@ -80,7 +80,7 @@ export const pushSchema = async (
 	const prepared = fromExports(imports);
 
 	const prev = await fromDatabaseForDrizzle(db, () => true, () => {}, migrations);
-	const cur = fromDrizzleSchema(prepared.tables, prepared.views);
+	const { schema: cur, metadata } = fromDrizzleSchema(prepared.tables, prepared.views);
 
 	const { ddl: from } = interimToDDL(prev);
 	const { ddl: to } = interimToDDL(cur);
@@ -91,6 +91,7 @@ export const pushSchema = async (
 		resolver<Table>('table'),
 		resolver<Column>('column'),
 		'push',
+		metadata,
 	);
 
 	const hints = await suggestions(db, statements, new HintsHandler());

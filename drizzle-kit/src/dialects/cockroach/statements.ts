@@ -369,12 +369,6 @@ export interface JsonAlterView {
 	view: View;
 }
 
-export interface JsonRecreateView {
-	type: 'recreate_view';
-	from: View;
-	to: View;
-}
-
 export type JsonStatement =
 	| JsonCreateTable
 	| JsonDropTable
@@ -384,7 +378,6 @@ export type JsonStatement =
 	| JsonRecreateColumn
 	| JsonMoveView
 	| JsonAlterView
-	| JsonRecreateView
 	| JsonCreateEnum
 	| JsonDropEnum
 	| JsonMoveEnum

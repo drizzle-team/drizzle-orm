@@ -50,7 +50,8 @@ export const handle = async (
 	const existing = extractSqliteExisting(res.views);
 	const filter = prepareEntityFilter('sqlite', filters, existing);
 
-	const { ddl: ddl2, errors: errors1 } = interimToDDL(fromDrizzleSchema(res.tables, res.views));
+	const { schema: schemaTo, metadata } = fromDrizzleSchema(res.tables, res.views);
+	const { ddl: ddl2, errors: errors1 } = interimToDDL(schemaTo);
 
 	if (errors1.length > 0) {
 		throw new CommandOutputCliError('push', errors1.map((it) => sqliteSchemaError(it)).join('\n'), {
@@ -74,6 +75,7 @@ export const handle = async (
 		resolver<Table>('table', hints),
 		resolver<Column>('column', hints),
 		'push',
+		metadata,
 	);
 
 	if (hints.hasMissingHints()) {
