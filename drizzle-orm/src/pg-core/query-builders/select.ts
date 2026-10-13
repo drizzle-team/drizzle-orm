@@ -107,6 +107,7 @@ export type PgSelectQueryBuilder<
 	TSelectedFields
 >;
 
+/* oxlint-disable no-unused-vars -- type params must match the merged class declaration */
 export interface PgSelectBase<
 	THKT extends PgSelectHKTBase,
 	TTableName extends string | undefined,
@@ -118,6 +119,7 @@ export interface PgSelectBase<
 	TResult extends any[],
 	TSelectedFields extends ColumnsSelection,
 > {
+	/* oxlint-enable no-unused-vars */
 	/**
 	 * Executes a `left join` operation by adding another table to the current query.
 	 *
@@ -1022,8 +1024,9 @@ export class PgSelectBase<
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		const result = this.dialect.sqlToQuery(this.getSQL());
+		delete result.typings;
+		return result;
 	}
 	as<TAlias extends string>(
 		alias: TAlias,

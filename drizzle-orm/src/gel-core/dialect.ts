@@ -8,7 +8,7 @@ import {
 } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
-import { entityKind, is } from '~/entity.ts';
+import { ChunkKind, chunkKind, entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import { GelArray, GelColumn, type GelCustomColumn, GelDecimal, GelJson, GelUUID } from '~/gel-core/columns/index.ts';
 import type {
@@ -147,14 +147,14 @@ export class GelDialect {
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
 
-		const withSqlChunks = [sql`with `];
+		const withSqlChunks = [sql.WITH];
 		for (const [i, w] of queries.entries()) {
 			withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
 			if (i < queries.length - 1) {
-				withSqlChunks.push(sql`, `);
+				withSqlChunks.push(sql.COMMA);
 			}
 		}
-		withSqlChunks.push(sql` `);
+		withSqlChunks.push(sql.SPACE);
 		return sql.join(withSqlChunks);
 	}
 
@@ -172,24 +172,27 @@ export class GelDialect {
 
 	buildUpdateSet(table: GelTable, set: UpdateSet): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
+		const keys = Object.keys(tableColumns);
+		const chunks: SQLChunk[] = [];
 
-		const columnNames = Object.keys(tableColumns).filter((colName) =>
-			set[colName] !== undefined || tableColumns[colName]?.onUpdateFn !== undefined
-		);
-
-		const setLength = columnNames.length;
-		return sql.join(columnNames.flatMap((colName, i) => {
+		for (let i = 0; i < keys.length; i++) {
+			const colName = keys[i]!;
 			const col = tableColumns[colName]!;
+			const setValue = set[colName];
+
+			if (setValue === undefined && col.onUpdateFn === undefined) continue;
+
+			if (chunks.length > 0) chunks.push(sql.RAW_COMMA);
 
 			const onUpdateFnResult = col.onUpdateFn?.();
-			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
-			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+			const value = setValue
+				?? ((onUpdateFnResult as any)?.[chunkKind] === ChunkKind.SQL
+					? onUpdateFnResult as SQL
+					: sql.param(onUpdateFnResult, col));
+			chunks.push(sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`);
+		}
 
-			if (i < setLength - 1) {
-				return [res, sql.raw(', ')];
-			}
-			return [res];
-		}));
+		return new SQL(chunks);
 	}
 
 	buildUpdateQuery({ table, set, where, returning, withList, from, joins }: GelUpdateConfig): SQL {
@@ -205,7 +208,7 @@ export class GelDialect {
 
 		const setSql = this.buildUpdateSet(table, set);
 
-		const fromSql = from && sql.join([sql.raw(' from '), this.buildFromTable(from)]);
+		const fromSql = from && sql.join([sql.RAW_FROM, this.buildFromTable(from)]);
 
 		const joinsSql = this.buildJoins(joins);
 
@@ -299,7 +302,7 @@ export class GelDialect {
 				}
 
 				if (i < columnsLen - 1) {
-					chunk.push(sql`, `);
+					chunk.push(sql.COMMA);
 				}
 
 				return chunk;
@@ -317,7 +320,7 @@ export class GelDialect {
 
 		for (const [index, joinMeta] of joins.entries()) {
 			if (index === 0) {
-				joinsArray.push(sql` `);
+				joinsArray.push(sql.SPACE);
 			}
 			const table = joinMeta.table;
 			const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
@@ -349,7 +352,7 @@ export class GelDialect {
 				);
 			}
 			if (index < joins.length - 1) {
-				joinsArray.push(sql` `);
+				joinsArray.push(sql.SPACE);
 			}
 		}
 
@@ -428,7 +431,7 @@ export class GelDialect {
 
 		let distinctSql: SQL | undefined;
 		if (distinct) {
-			distinctSql = distinct === true ? sql` distinct` : sql` distinct on (${sql.join(distinct.on, sql`, `)})`;
+			distinctSql = distinct === true ? sql.DISTINCT : sql` distinct on (${sql.join(distinct.on, sql.COMMA)})`;
 		}
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
@@ -443,12 +446,12 @@ export class GelDialect {
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
-			orderBySql = sql` order by ${sql.join(orderBy, sql`, `)}`;
+			orderBySql = sql` order by ${sql.join(orderBy, sql.COMMA)}`;
 		}
 
 		let groupBySql;
 		if (groupBy && groupBy.length > 0) {
-			groupBySql = sql` group by ${sql.join(groupBy, sql`, `)}`;
+			groupBySql = sql` group by ${sql.join(groupBy, sql.COMMA)}`;
 		}
 
 		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
@@ -457,25 +460,24 @@ export class GelDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		const lockingClauseSql = sql.empty();
+		let lockingClauseSql: SQL | undefined;
 		if (lockingClause) {
-			const clauseSql = sql` for ${sql.raw(lockingClause.strength)}`;
+			lockingClauseSql = sql` for ${sql.raw(lockingClause.strength)}`;
 			if (lockingClause.config.of) {
-				clauseSql.append(
+				lockingClauseSql.append(
 					sql` of ${
 						sql.join(
 							Array.isArray(lockingClause.config.of) ? lockingClause.config.of : [lockingClause.config.of],
-							sql`, `,
+							sql.COMMA,
 						)
 					}`,
 				);
 			}
 			if (lockingClause.config.noWait) {
-				clauseSql.append(sql` nowait`);
+				lockingClauseSql.append(sql.NOWAIT);
 			} else if (lockingClause.config.skipLocked) {
-				clauseSql.append(sql` skip locked`);
+				lockingClauseSql.append(sql.SKIP_LOCKED);
 			}
-			lockingClauseSql.append(clauseSql);
 		}
 		const finalQuery =
 			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}`;
@@ -536,7 +538,7 @@ export class GelDialect {
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
+			orderBySql = sql` order by ${sql.join(orderByValues, sql.COMMA)} `;
 		}
 
 		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
@@ -572,7 +574,7 @@ export class GelDialect {
 			}
 		} else {
 			const values = valuesOrSelect as Record<string, Param | SQL>[];
-			valuesSqlList.push(sql.raw('values '));
+			valuesSqlList.push(sql.RAW_VALUES);
 
 			for (const [valueIndex, value] of values.entries()) {
 				const valueList: (SQLChunk | SQL)[] = [];
@@ -590,7 +592,7 @@ export class GelDialect {
 							const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
 							valueList.push(newValue);
 						} else {
-							valueList.push(sql`default`);
+							valueList.push(sql.DEFAULT);
 						}
 					} else {
 						valueList.push(colValue);
@@ -599,7 +601,7 @@ export class GelDialect {
 
 				valuesSqlList.push(valueList);
 				if (valueIndex < values.length - 1) {
-					valuesSqlList.push(sql`, `);
+					valuesSqlList.push(sql.COMMA);
 				}
 			}
 		}
@@ -833,7 +835,7 @@ export class GelDialect {
 				});
 				const field = sql`${sql.identifier(relationTableAlias)}.${sql.identifier('data')}`.as(selectedRelationTsKey);
 				joins.push({
-					on: sql`true`,
+					on: sql.TRUE,
 					table: new Subquery(builtRelation.sql as SQL, {}, relationTableAlias),
 					alias: relationTableAlias,
 					joinType: 'left',
@@ -868,12 +870,12 @@ export class GelDialect {
 							? field.sql
 							: field
 					),
-					sql`, `,
+					sql.COMMA,
 				)
 			})`;
 			if (is(nestedQueryRelation, V1.Many)) {
 				field = sql`coalesce(json_agg(${field}${
-					orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined
+					orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql.COMMA)}` : undefined
 				}), '[]'::json)`;
 				// orderBy = [];
 			}
@@ -894,7 +896,7 @@ export class GelDialect {
 					fields: {},
 					fieldsFlat: [{
 						path: [],
-						field: sql.raw('*'),
+						field: sql.RAW_STAR,
 					}],
 					where,
 					limit,
@@ -1013,7 +1015,7 @@ export class GelDialect {
 
 				return this.buildRqbColumn(table, v, k);
 			}),
-			sql`, `,
+			sql.COMMA,
 		);
 	};
 
@@ -1059,7 +1061,7 @@ export class GelDialect {
 				}
 
 				return columnIdentifiers.length
-					? sql.join(columnIdentifiers, sql`, `)
+					? sql.join(columnIdentifiers, sql.COMMA)
 					: undefined;
 			})()
 			: this.unwrapAllColumns(table, selection);
@@ -1186,7 +1188,7 @@ export class GelDialect {
 
 						return joinQuery;
 					}),
-					sql` `,
+					sql.SPACE,
 				);
 			})()
 			: undefined;
@@ -1197,7 +1199,7 @@ export class GelDialect {
 				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
 			});
 		}
-		const selectionSet = sql.join(selectionArr.filter((e) => e !== undefined), sql`, `);
+		const selectionSet = sql.join(selectionArr.filter((e) => e !== undefined), sql.COMMA);
 		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
 			sql` ${joins}`.if(joins)
 		}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${

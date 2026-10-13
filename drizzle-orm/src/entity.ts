@@ -19,6 +19,8 @@ export const ChunkKind = {
 	Placeholder: 8,
 	SQLAliased: 9,
 	Subquery: 10,
+	/** @internal Pre-serialized INSERT VALUES rows — bypasses Param allocation entirely. */
+	InsertValues: 11,
 } as const;
 
 export interface DrizzleEntity {

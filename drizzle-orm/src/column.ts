@@ -7,6 +7,7 @@ import type {
 import { OriginalColumn } from './column-common.ts';
 import { ChunkKind, chunkKind, entityKind } from './entity.ts';
 import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
+import { OriginalName as TableOriginalName, TableSchema } from './table.ts';
 import type { Table } from './table.ts';
 import type { Update } from './utils.ts';
 
@@ -75,6 +76,9 @@ export abstract class Column<
 	readonly isAlias: boolean;
 
 	/** @internal */
+	readonly casingCacheKey: string | undefined;
+
+	/** @internal */
 	protected config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 
 	/** @internal */
@@ -109,6 +113,11 @@ export abstract class Column<
 		this.generatedIdentity = config.generatedIdentity;
 		this.length = (<{ length?: number }> config)['length'];
 		this.isLengthExact = (<{ isLengthExact?: boolean }> config)['isLengthExact'];
+
+		// hacky, should probably provide via dialect specific super()
+		this.casingCacheKey = config.keyAsName
+			? `${(table as any)[TableSchema] ?? 'public'}.${(table as any)[TableOriginalName]}.${config.name}`
+			: undefined;
 	}
 
 	abstract getSQLType(): string;

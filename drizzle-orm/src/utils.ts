@@ -1,7 +1,6 @@
 import type { Cache } from './cache/core/cache.ts';
-import type { AnyColumn } from './column.ts';
-import { Column } from './column.ts';
-import { is } from './entity.ts';
+import type { AnyColumn, Column } from './column.ts';
+import { ChunkKind, chunkKind, is } from './entity.ts';
 import type { Logger } from './logger.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
@@ -21,49 +20,65 @@ export function mapResultRow<TResult>(
 	// Key -> nested object key, value -> table name if all fields in the nested object are from the same table, false otherwise
 	const nullifyMap: Record<string, string | false> = {};
 
-	const result = columns.reduce<Record<string, any>>(
-		(result, { path, field }, columnIndex) => {
-			let decoder: DriverValueDecoder<unknown, unknown>;
-			if (is(field, Column)) {
-				decoder = field;
-			} else if (is(field, SQL)) {
-				decoder = field.decoder;
-			} else if (is(field, Subquery)) {
-				decoder = field._.sql.decoder;
-			} else {
-				decoder = field.sql.decoder;
-			}
-			let node = result;
-			for (const [pathChunkIndex, pathChunk] of path.entries()) {
-				if (pathChunkIndex < path.length - 1) {
-					if (!(pathChunk in node)) {
-						node[pathChunk] = {};
-					}
-					node = node[pathChunk];
-				} else {
-					const rawValue = row[columnIndex]!;
-					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
+	const result: Record<string, any> = {};
+	for (let columnIndex = 0; columnIndex < columns.length; columnIndex++) {
+		const { path, field } = columns[columnIndex]!;
 
-					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
-						const objectName = path[0]!;
-						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
-						} else if (
-							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
-						) {
-							nullifyMap[objectName] = false;
-						}
-					}
+		// Fast decoder dispatch via chunkKind discriminant instead of is() cascade.
+		// is() walks the prototype chain (expensive); chunkKind is a single symbol-keyed property read.
+		let decoder: DriverValueDecoder<unknown, unknown>;
+		const kind = (field as any)[chunkKind];
+		if (kind === ChunkKind.Column) {
+			decoder = field as any;
+		} else if (kind === ChunkKind.SQL) {
+			decoder = (field as any).decoder;
+		} else if (kind === ChunkKind.Subquery) {
+			decoder = (field as any)._.sql.decoder;
+		} else {
+			// SQL.Aliased
+			decoder = (field as any).sql.decoder;
+		}
+
+		const pathLen = path.length;
+
+		// Fast path: flat fields (path length === 1) — the common case for simple SELECTs.
+		// Avoids the inner loop, intermediate node traversal, and `in` checks entirely.
+		if (pathLen === 1) {
+			const rawValue = row[columnIndex]!;
+			result[path[0]!] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
+		} else {
+			// Nested path: traverse/create intermediate objects, then assign the leaf.
+			let node = result;
+			const lastIndex = pathLen - 1;
+			for (let i = 0; i < lastIndex; i++) {
+				const pathChunk = path[i]!;
+				if (!(pathChunk in node)) {
+					node[pathChunk] = {};
+				}
+				node = node[pathChunk];
+			}
+			const leafKey = path[lastIndex]!;
+			const rawValue = row[columnIndex]!;
+			const value = node[leafKey] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
+
+			if (joinsNotNullableMap && kind === ChunkKind.Column && pathLen === 2) {
+				const objectName = path[0]!;
+				if (!(objectName in nullifyMap)) {
+					nullifyMap[objectName] = value === null ? getTableName((field as AnyColumn).table) : false;
+				} else if (
+					typeof nullifyMap[objectName] === 'string'
+					&& nullifyMap[objectName] !== getTableName((field as AnyColumn).table)
+				) {
+					nullifyMap[objectName] = false;
 				}
 			}
-			return result;
-		},
-		{},
-	);
+		}
+	}
 
 	// Nullify all nested objects from nullifyMap that are nullable
 	if (joinsNotNullableMap && Object.keys(nullifyMap).length > 0) {
-		for (const [objectName, tableName] of Object.entries(nullifyMap)) {
+		for (const objectName in nullifyMap) {
+			const tableName = nullifyMap[objectName];
 			if (typeof tableName === 'string' && !joinsNotNullableMap[tableName]) {
 				result[objectName] = null;
 			}
@@ -73,26 +88,63 @@ export function mapResultRow<TResult>(
 	return result as TResult;
 }
 
+/**
+ * @internal Cache for orderSelectedFields() — keyed by the fields record reference.
+ * When `.returning()` is called with no arguments, it always passes the same
+ * `table[Table.Symbol.Columns]` reference, so the result is computed once per table.
+ */
+const orderedFieldsCache = new WeakMap<Record<string, unknown>, SelectedFieldsOrdered<AnyColumn>>();
+
 /** @internal */
 export function orderSelectedFields<TColumn extends AnyColumn>(
 	fields: Record<string, unknown>,
 	pathPrefix?: string[],
 ): SelectedFieldsOrdered<TColumn> {
-	return Object.entries(fields).reduce<SelectedFieldsOrdered<AnyColumn>>((result, [name, field]) => {
-		if (typeof name !== 'string') {
-			return result;
-		}
+	// Only use cache for top-level calls (no pathPrefix) to avoid
+	// caching intermediate recursive results that include a prefix.
+	if (!pathPrefix) {
+		const cached = orderedFieldsCache.get(fields);
+		if (cached) return cached as SelectedFieldsOrdered<TColumn>;
+	}
 
-		const newPath = pathPrefix ? [...pathPrefix, name] : [name];
-		if (is(field, Column) || is(field, SQL) || is(field, SQL.Aliased) || is(field, Subquery)) {
-			result.push({ path: newPath, field });
-		} else if (is(field, Table)) {
-			result.push(...orderSelectedFields(field[Table.Symbol.Columns], newPath));
+	const result: SelectedFieldsOrdered<AnyColumn> = [];
+	const keys = Object.keys(fields);
+	for (let i = 0; i < keys.length; i++) {
+		const name = keys[i]!;
+		const field = fields[name];
+
+		// Build path: avoid spread for the common top-level case (no prefix).
+		// pathPrefix.concat(name) is faster than [...pathPrefix, name] as it avoids the spread iterator.
+		const newPath = pathPrefix ? pathPrefix.concat(name) : [name];
+
+		// Fast dispatch via chunkKind discriminant instead of is() cascade.
+		const kind = (field as any)?.[chunkKind];
+		if (
+			kind === ChunkKind.Column
+			|| kind === ChunkKind.SQL
+			|| kind === ChunkKind.SQLAliased
+			|| kind === ChunkKind.Subquery
+		) {
+			result.push({ path: newPath, field: field as AnyColumn | SQL | SQL.Aliased | Subquery });
+		} else if (kind === ChunkKind.Table) {
+			const tableFields = orderSelectedFields((field as Table)[Table.Symbol.Columns], newPath);
+			for (let j = 0; j < tableFields.length; j++) {
+				result.push(tableFields[j]!);
+			}
 		} else {
-			result.push(...orderSelectedFields(field as Record<string, unknown>, newPath));
+			// Unknown record — recurse
+			const nested = orderSelectedFields(field as Record<string, unknown>, newPath);
+			for (let j = 0; j < nested.length; j++) {
+				result.push(nested[j]!);
+			}
 		}
-		return result;
-	}, []) as SelectedFieldsOrdered<TColumn>;
+	}
+
+	if (!pathPrefix) {
+		orderedFieldsCache.set(fields, result);
+	}
+
+	return result as SelectedFieldsOrdered<TColumn>;
 }
 
 export function haveSameKeys(left: Record<string, unknown>, right: Record<string, unknown>) {
@@ -114,22 +166,27 @@ export function haveSameKeys(left: Record<string, unknown>, right: Record<string
 
 /** @internal */
 export function mapUpdateSet(table: Table, values: Record<string, unknown>): UpdateSet {
-	const entries: [string, UpdateSet[string]][] = Object.entries(values)
-		.filter(([, value]) => value !== undefined)
-		.map(([key, value]) => {
-			// eslint-disable-next-line unicorn/prefer-ternary
-			if (is(value, SQL) || is(value, Column)) {
-				return [key, value];
-			} else {
-				return [key, new Param(value, table[Table.Symbol.Columns][key])];
-			}
-		});
+	const columns = table[Table.Symbol.Columns];
+	const result: UpdateSet = {};
+	let hasValues = false;
 
-	if (entries.length === 0) {
+	for (const key in values) {
+		const value = values[key];
+		if (value === undefined) continue;
+		hasValues = true;
+		const kind = (value as any)?.[chunkKind];
+		if (kind === ChunkKind.SQL || kind === ChunkKind.Column) {
+			result[key] = value as SQL | AnyColumn;
+		} else {
+			result[key] = new Param(value, columns[key]);
+		}
+	}
+
+	if (!hasValues) {
 		throw new Error('No values to set');
 	}
 
-	return Object.fromEntries(entries);
+	return result;
 }
 
 export type UpdateSet = Record<string, SQL | Param | AnyColumn | null | undefined>;

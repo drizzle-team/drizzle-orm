@@ -8,7 +8,7 @@ import {
 } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
-import { entityKind, is } from '~/entity.ts';
+import { ChunkKind, chunkKind, entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
@@ -153,14 +153,14 @@ export class MySqlDialect {
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
 
-		const withSqlChunks = [sql`with `];
+		const withSqlChunks = [sql.WITH];
 		for (const [i, w] of queries.entries()) {
 			withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
 			if (i < queries.length - 1) {
-				withSqlChunks.push(sql`, `);
+				withSqlChunks.push(sql.COMMA);
 			}
 		}
-		withSqlChunks.push(sql` `);
+		withSqlChunks.push(sql.SPACE);
 		return sql.join(withSqlChunks);
 	}
 
@@ -182,24 +182,27 @@ export class MySqlDialect {
 
 	buildUpdateSet(table: MySqlTable, set: UpdateSet): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
+		const keys = Object.keys(tableColumns);
+		const chunks: SQLChunk[] = [];
 
-		const columnNames = Object.keys(tableColumns).filter((colName) =>
-			set[colName] !== undefined || tableColumns[colName]?.onUpdateFn !== undefined
-		);
-
-		const setLength = columnNames.length;
-		return sql.join(columnNames.flatMap((colName, i) => {
+		for (let i = 0; i < keys.length; i++) {
+			const colName = keys[i]!;
 			const col = tableColumns[colName]!;
+			const setValue = set[colName];
+
+			if (setValue === undefined && col.onUpdateFn === undefined) continue;
+
+			if (chunks.length > 0) chunks.push(sql.RAW_COMMA);
 
 			const onUpdateFnResult = col.onUpdateFn?.();
-			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
-			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+			const value = setValue
+				?? ((onUpdateFnResult as any)?.[chunkKind] === ChunkKind.SQL
+					? onUpdateFnResult as SQL
+					: sql.param(onUpdateFnResult, col));
+			chunks.push(sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`);
+		}
 
-			if (i < setLength - 1) {
-				return [res, sql.raw(', ')];
-			}
-			return [res];
-		}));
+		return new SQL(chunks);
 	}
 
 	buildUpdateQuery({ table, set, where, returning, withList, limit, orderBy }: MySqlUpdateConfig): SQL {
@@ -295,7 +298,7 @@ export class MySqlDialect {
 				}
 
 				if (i < columnsLen - 1) {
-					chunk.push(sql`, `);
+					chunk.push(sql.COMMA);
 				}
 
 				return chunk;
@@ -311,7 +314,7 @@ export class MySqlDialect {
 	}
 
 	private buildOrderBy(orderBy: (MySqlColumn | SQL | SQL.Aliased)[] | undefined): SQL | undefined {
-		return orderBy && orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined;
+		return orderBy && orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql.COMMA)}` : undefined;
 	}
 
 	private buildIndex({
@@ -377,7 +380,7 @@ export class MySqlDialect {
 
 		const withSql = this.buildWithCTE(withList);
 
-		const distinctSql = distinct ? sql` distinct` : undefined;
+		const distinctSql = distinct ? sql.DISTINCT : undefined;
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
@@ -404,7 +407,7 @@ export class MySqlDialect {
 		if (joins) {
 			for (const [index, joinMeta] of joins.entries()) {
 				if (index === 0) {
-					joinsArray.push(sql` `);
+					joinsArray.push(sql.SPACE);
 				}
 				const table = joinMeta.table;
 				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
@@ -441,7 +444,7 @@ export class MySqlDialect {
 					);
 				}
 				if (index < joins.length - 1) {
-					joinsArray.push(sql` `);
+					joinsArray.push(sql.SPACE);
 				}
 			}
 		}
@@ -454,7 +457,7 @@ export class MySqlDialect {
 
 		const orderBySql = this.buildOrderBy(orderBy);
 
-		const groupBySql = groupBy && groupBy.length > 0 ? sql` group by ${sql.join(groupBy, sql`, `)}` : undefined;
+		const groupBySql = groupBy && groupBy.length > 0 ? sql` group by ${sql.join(groupBy, sql.COMMA)}` : undefined;
 
 		const limitSql = this.buildLimit(limit);
 
@@ -471,9 +474,9 @@ export class MySqlDialect {
 			const { config, strength } = lockingClause;
 			lockingClausesSql = sql` for ${sql.raw(strength)}`;
 			if (config.noWait) {
-				lockingClausesSql.append(sql` nowait`);
+				lockingClausesSql.append(sql.NOWAIT);
 			} else if (config.skipLocked) {
-				lockingClausesSql.append(sql` skip locked`);
+				lockingClausesSql.append(sql.SKIP_LOCKED);
 			}
 		}
 
@@ -536,7 +539,7 @@ export class MySqlDialect {
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
+			orderBySql = sql` order by ${sql.join(orderByValues, sql.COMMA)} `;
 		}
 
 		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
@@ -573,7 +576,7 @@ export class MySqlDialect {
 			}
 		} else {
 			const values = valuesOrSelect as Record<string, Param | SQL>[];
-			valuesSqlList.push(sql.raw('values '));
+			valuesSqlList.push(sql.RAW_VALUES);
 
 			for (const [valueIndex, value] of values.entries()) {
 				const generatedIds: Record<string, unknown> = {};
@@ -594,7 +597,7 @@ export class MySqlDialect {
 							const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
 							valueList.push(newValue);
 						} else {
-							valueList.push(sql`default`);
+							valueList.push(sql.DEFAULT);
 						}
 					} else {
 						if (col.defaultFn && is(colValue, Param)) {
@@ -607,7 +610,7 @@ export class MySqlDialect {
 				generatedIdsResponse.push(generatedIds);
 				valuesSqlList.push(valueList);
 				if (valueIndex < values.length - 1) {
-					valuesSqlList.push(sql`, `);
+					valuesSqlList.push(sql.COMMA);
 				}
 			}
 		}
@@ -813,7 +816,7 @@ export class MySqlDialect {
 				});
 				const field = sql`${sql.identifier(relationTableAlias)}.${sql.identifier('data')}`.as(selectedRelationTsKey);
 				joins.push({
-					on: sql`true`,
+					on: sql.TRUE,
 					table: new Subquery(builtRelation.sql as SQL, {}, relationTableAlias),
 					alias: relationTableAlias,
 					joinType: 'left',
@@ -848,7 +851,7 @@ export class MySqlDialect {
 							? field.sql
 							: field
 					),
-					sql`, `,
+					sql.COMMA,
 				)
 			})`;
 			if (is(nestedQueryRelation, V1.Many)) {
@@ -872,12 +875,12 @@ export class MySqlDialect {
 					fieldsFlat: [
 						{
 							path: [],
-							field: sql.raw('*'),
+							field: sql.RAW_STAR,
 						},
 						...(((orderBy?.length ?? 0) > 0)
 							? [{
 								path: [],
-								field: sql`row_number() over (order by ${sql.join(orderBy!, sql`, `)})`,
+								field: sql`row_number() over (order by ${sql.join(orderBy!, sql.COMMA)})`,
 							}]
 							: []),
 					],
@@ -1146,7 +1149,7 @@ export class MySqlDialect {
 							? field.sql
 							: field
 					),
-					sql`, `,
+					sql.COMMA,
 				)
 			})`;
 			if (is(nestedQueryRelation, V1.Many)) {
@@ -1170,12 +1173,12 @@ export class MySqlDialect {
 					fieldsFlat: [
 						{
 							path: [],
-							field: sql.raw('*'),
+							field: sql.RAW_STAR,
 						},
 						...(orderBy.length > 0)
 							? [{
 								path: [],
-								field: sql`row_number() over (order by ${sql.join(orderBy, sql`, `)})`,
+								field: sql`row_number() over (order by ${sql.join(orderBy, sql.COMMA)})`,
 							}]
 							: [],
 					],
@@ -1288,7 +1291,7 @@ export class MySqlDialect {
 
 				return this.buildRqbColumn(table, v, k);
 			}),
-			sql`, `,
+			sql.COMMA,
 		);
 	};
 
@@ -1347,7 +1350,7 @@ export class MySqlDialect {
 				}
 
 				return columnIdentifiers.length
-					? sql.join(columnIdentifiers, sql`, `)
+					? sql.join(columnIdentifiers, sql.COMMA)
 					: undefined;
 			})()
 			: this.unwrapAllColumns(table, selection);
@@ -1470,7 +1473,7 @@ export class MySqlDialect {
 
 						const jsonColumns = sql.join(
 							innerQuery.selection.map((s) => sql`${sql.raw(this.escapeString(s.key))}, ${sql.identifier(s.key)}`),
-							sql`, `,
+							sql.COMMA,
 						);
 
 						const joinQuery = sql` left join lateral(select ${sql`${
@@ -1497,7 +1500,7 @@ export class MySqlDialect {
 		if (isNestedMany && order) {
 			selectionArr.push(sql`row_number() over (order by ${order})`);
 		}
-		const selectionSet = sql.join(selectionArr, sql`, `);
+		const selectionSet = sql.join(selectionArr, sql.COMMA);
 
 		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${sql`${joins}`.if(joins)}${
 			sql` where ${where}`.if(where)

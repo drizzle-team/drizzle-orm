@@ -46,9 +46,7 @@ export class CasingCache {
 	getColumnCasing(column: Column): string {
 		if (!column.keyAsName) return column.name;
 
-		const schema = column.table[Table.Symbol.Schema] ?? 'public';
-		const tableName = column.table[Table.Symbol.OriginalName];
-		const key = `${schema}.${tableName}.${column.name}`;
+		const key = column.casingCacheKey!;
 
 		if (!this.cache[key]) {
 			this.cacheTable(column.table);

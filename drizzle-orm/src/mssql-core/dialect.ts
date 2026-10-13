@@ -8,7 +8,7 @@ import {
 } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
-import { entityKind, is } from '~/entity.ts';
+import { ChunkKind, chunkKind, entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
@@ -148,54 +148,43 @@ export class MsSqlDialect {
 
 	buildUpdateSet(table: MsSqlTable, set: UpdateSet): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
+		const keys = Object.keys(tableColumns);
+		const chunks: SQLChunk[] = [];
 
-		const columnNames = Object.keys(tableColumns).filter((colName) =>
-			set[colName] !== undefined || tableColumns[colName]?.onUpdateFn !== undefined
-		);
-
-		const setSize = columnNames.length;
-		return sql.join(columnNames.flatMap((colName, i) => {
+		for (let i = 0; i < keys.length; i++) {
+			const colName = keys[i]!;
 			const col = tableColumns[colName]!;
+			const setValue = set[colName];
+
+			if (setValue === undefined && col.onUpdateFn === undefined) continue;
+
+			if (chunks.length > 0) chunks.push(sql.RAW_COMMA);
 
 			const onUpdateFnResult = col.onUpdateFn?.();
-			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
-			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+			const value = setValue
+				?? ((onUpdateFnResult as any)?.[chunkKind] === ChunkKind.SQL
+					? onUpdateFnResult as SQL
+					: sql.param(onUpdateFnResult, col));
+			chunks.push(sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`);
+		}
 
-			if (i < setSize - 1) {
-				return [res, sql.raw(', ')];
-			}
-			return [res];
-		}));
-		// const setEntries = Object.entries(set);
-		//
-		// const setSize = setEntries.length;
-		// return sql.join(
-		// 	setEntries
-		// 		.flatMap(([colName, value], i): SQL[] => {
-		// 			const col: MsSqlColumn = table[Table.Symbol.Columns][colName]!;
-		// 			const res = sql`${sql.identifier(col.name)} = ${value}`;
-		// 			if (i < setSize - 1) {
-		// 				return [res, sql.raw(', ')];
-		// 			}
-		// 			return [res];
-		// 		}),
-		// );
+		return new SQL(chunks);
 	}
 
 	buildUpdateQuery({ table, set, where, output }: MsSqlUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
-		const outputSql = sql``;
+		let outputSql: SQL | undefined;
 
 		if (output) {
-			outputSql.append(sql` output `);
+			outputSql = sql` output `;
 
 			if (output.inserted) {
 				outputSql.append(this.buildSelectionOutput(output.inserted, { type: 'INSERTED' }));
 			}
 
 			if (output.deleted) {
-				if (output.inserted) outputSql.append(sql`, `); // add space if both are present
+				if (output.inserted) outputSql.append(sql.COMMA);
 				outputSql.append(this.buildSelectionOutput(output.deleted, { type: 'DELETED' }));
 			}
 		}
@@ -280,7 +269,7 @@ export class MsSqlDialect {
 				}
 
 				if (i < columnsLen - 1) {
-					chunk.push(sql`, `);
+					chunk.push(sql.COMMA);
 				}
 
 				return chunk;
@@ -330,7 +319,7 @@ export class MsSqlDialect {
 				}
 
 				if (i < columnsLen - 1) {
-					chunk.push(sql`, `);
+					chunk.push(sql.COMMA);
 				}
 
 				return chunk;
@@ -388,18 +377,18 @@ export class MsSqlDialect {
 
 		let withSql: SQL | undefined;
 		if (withList?.length) {
-			const withSqlChunks = [sql`with `];
+			const withSqlChunks = [sql.WITH];
 			for (const [i, w] of withList.entries()) {
 				withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
 				if (i < withList.length - 1) {
-					withSqlChunks.push(sql`, `);
+					withSqlChunks.push(sql.COMMA);
 				}
 			}
-			withSqlChunks.push(sql` `);
+			withSqlChunks.push(sql.SPACE);
 			withSql = sql.join(withSqlChunks);
 		}
 
-		const distinctSql = distinct ? sql` distinct` : undefined;
+		const distinctSql = distinct ? sql.DISTINCT : undefined;
 
 		const topSql = top
 			? sql` top(${top})`
@@ -434,7 +423,7 @@ export class MsSqlDialect {
 		if (joins) {
 			for (const [index, joinMeta] of joins.entries()) {
 				if (index === 0) {
-					joinsArray.push(sql` `);
+					joinsArray.push(sql.SPACE);
 				}
 				const table = joinMeta.table;
 				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
@@ -465,7 +454,7 @@ export class MsSqlDialect {
 					);
 				}
 				if (index < joins.length - 1) {
-					joinsArray.push(sql` `);
+					joinsArray.push(sql.SPACE);
 				}
 			}
 		}
@@ -478,12 +467,12 @@ export class MsSqlDialect {
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
-			orderBySql = sql` order by ${sql.join(orderBy, sql`, `)}`;
+			orderBySql = sql` order by ${sql.join(orderBy, sql.COMMA)}`;
 		}
 
 		let groupBySql;
 		if (groupBy && groupBy.length > 0) {
-			groupBySql = sql` group by ${sql.join(groupBy, sql`, `)}`;
+			groupBySql = sql` group by ${sql.join(groupBy, sql.COMMA)}`;
 		}
 
 		const offsetSql = offset === undefined ? undefined : sql` offset ${offset} rows`;
@@ -558,7 +547,7 @@ export class MsSqlDialect {
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
+			orderBySql = sql` order by ${sql.join(orderByValues, sql.COMMA)} `;
 		}
 
 		const offsetSql = offset === undefined ? undefined : sql` offset ${offset} rows`;
@@ -594,7 +583,7 @@ export class MsSqlDialect {
 						const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
 						valueList.push(newValue);
 					} else {
-						valueList.push(sql`default`);
+						valueList.push(sql.DEFAULT);
 					}
 				} else {
 					valueList.push(colValue);
@@ -602,7 +591,7 @@ export class MsSqlDialect {
 			}
 			valuesSqlList.push(valueList);
 			if (valueIndex < values.length - 1) {
-				valuesSqlList.push(sql`, `);
+				valuesSqlList.push(sql.COMMA);
 			}
 		}
 
@@ -613,7 +602,7 @@ export class MsSqlDialect {
 			: undefined;
 
 		return sql`insert into ${table} ${
-			insertOrder.length === 0 ? sql`default` : insertOrder
+			insertOrder.length === 0 ? sql.DEFAULT : insertOrder
 		}${outputSql} values ${valuesSql}`;
 	}
 
@@ -847,7 +836,7 @@ export class MsSqlDialect {
 								: sql`${sel.field.sql} as ${sql.identifier(sel.field.fieldAlias)}`
 							: sel.field;
 					}),
-					sql`, `,
+					sql.COMMA,
 				)
 			}`;
 			if (is(nestedQueryRelation, V1.Many)) {

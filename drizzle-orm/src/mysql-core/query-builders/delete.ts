@@ -178,8 +178,9 @@ export class MySqlDeleteBase<
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		const result = this.dialect.sqlToQuery(this.getSQL());
+		delete result.typings;
+		return result;
 	}
 
 	prepare(): MySqlDeletePrepare<this> {

@@ -18,7 +18,7 @@ import type {
 import type { CockroachSelectConfig, SelectedFieldsOrdered } from '~/cockroach-core/query-builders/select.types.ts';
 import { CockroachTable } from '~/cockroach-core/table.ts';
 import { Column } from '~/column.ts';
-import { entityKind, is } from '~/entity.ts';
+import { ChunkKind, chunkKind, entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
@@ -307,24 +307,27 @@ export class CockroachDialect {
 
 	buildUpdateSet(table: CockroachTable, set: UpdateSet): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
+		const keys = Object.keys(tableColumns);
+		const chunks: SQLChunk[] = [];
 
-		const columnNames = Object.keys(tableColumns).filter((colName) =>
-			set[colName] !== undefined || tableColumns[colName]?.onUpdateFn !== undefined
-		);
-
-		const setSize = columnNames.length;
-		return sql.join(columnNames.flatMap((colName, i) => {
+		for (let i = 0; i < keys.length; i++) {
+			const colName = keys[i]!;
 			const col = tableColumns[colName]!;
+			const setValue = set[colName];
+
+			if (setValue === undefined && col.onUpdateFn === undefined) continue;
+
+			if (chunks.length > 0) chunks.push(sql.RAW_COMMA);
 
 			const onUpdateFnResult = col.onUpdateFn?.();
-			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
-			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+			const value = setValue
+				?? ((onUpdateFnResult as any)?.[chunkKind] === ChunkKind.SQL
+					? onUpdateFnResult as SQL
+					: sql.param(onUpdateFnResult, col));
+			chunks.push(sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`);
+		}
 
-			if (i < setSize - 1) {
-				return [res, sql.raw(', ')];
-			}
-			return [res];
-		}));
+		return new SQL(chunks);
 	}
 
 	buildUpdateQuery({ table, set, where, returning, withList, from, joins }: CockroachUpdateConfig): SQL {
@@ -586,11 +589,11 @@ export class CockroachDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		const lockingClauseSql = sql.empty();
+		let lockingClauseSql: SQL | undefined;
 		if (lockingClause) {
-			const clauseSql = sql` for ${sql.raw(lockingClause.strength)}`;
+			lockingClauseSql = sql` for ${sql.raw(lockingClause.strength)}`;
 			if (lockingClause.config.of) {
-				clauseSql.append(
+				lockingClauseSql.append(
 					sql` of ${
 						sql.join(
 							Array.isArray(lockingClause.config.of) ? lockingClause.config.of : [lockingClause.config.of],
@@ -600,11 +603,10 @@ export class CockroachDialect {
 				);
 			}
 			if (lockingClause.config.noWait) {
-				clauseSql.append(sql` nowait`);
+				lockingClauseSql.append(sql` nowait`);
 			} else if (lockingClause.config.skipLocked) {
-				clauseSql.append(sql` skip locked`);
+				lockingClauseSql.append(sql` skip locked`);
 			}
-			lockingClauseSql.append(clauseSql);
 		}
 		const finalQuery =
 			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}`;

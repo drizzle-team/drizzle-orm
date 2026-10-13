@@ -1,3 +1,4 @@
+/* oxlint-disable unicorn/no-new-array -- preallocating by length is intentional on hot paths */
 import * as V1 from '~/_relations.ts';
 import {
 	aliasedTable,
@@ -8,7 +9,7 @@ import {
 } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
-import { entityKind, is } from '~/entity.ts';
+import { ChunkKind, chunkKind, entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import {
 	PgColumn,
@@ -50,9 +51,11 @@ import {
 } from '~/relations.ts';
 import { and, eq, isSQLWrapper, type SQLWrapper, View } from '~/sql/index.ts';
 import {
+	type BuildQueryConfig,
 	type DriverValueEncoder,
+	INSERT_SQL_SENTINEL,
+	type InsertValuesChunk,
 	type Name,
-	Param,
 	type QueryTypingsValue,
 	type QueryWithTypings,
 	SQL,
@@ -76,8 +79,61 @@ export class PgDialect {
 	/** @internal */
 	readonly casing: CasingCache;
 
+	/**
+	 * @internal Cached per-table insert metadata to avoid re-computing
+	 * Object.entries().filter().map() + Name allocations + typing computations on every insert.
+	 * WeakMap ensures entries are GC'd when the table is collected.
+	 */
+	private insertMetaCache = new WeakMap<Table, {
+		colEntries: [string, PgColumn][];
+		insertOrder: Name[];
+		colTypings: QueryTypingsValue[];
+	}>();
+
+	/** @internal Get or compute cached insert metadata for a table. */
+	private getInsertMeta(table: PgTable): {
+		colEntries: [string, PgColumn][];
+		insertOrder: Name[];
+		colTypings: QueryTypingsValue[];
+	} {
+		let meta = this.insertMetaCache.get(table);
+		if (meta === undefined) {
+			const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
+			const colEntries: [string, PgColumn][] = [];
+			for (const key of Object.keys(columns)) {
+				const col = columns[key]!;
+				if (!col.shouldDisableInsert()) {
+					colEntries.push([key, col]);
+				}
+			}
+			const insertOrder: Name[] = new Array(colEntries.length);
+			const colTypings: QueryTypingsValue[] = new Array(colEntries.length);
+			for (let i = 0; i < colEntries.length; i++) {
+				const col = colEntries[i]![1];
+				insertOrder[i] = sql.identifier(this.casing.getColumnCasing(col));
+				colTypings[i] = this.prepareTyping(col);
+			}
+			meta = { colEntries, insertOrder, colTypings };
+			this.insertMetaCache.set(table, meta);
+		}
+		return meta;
+	}
+
+	/**
+	 * @internal Cached BuildQueryConfig to avoid allocating a new config object on every sqlToQuery() call.
+	 * All properties except `invokeSource` are stable per dialect instance.
+	 */
+	private readonly queryConfig: BuildQueryConfig;
+
 	constructor(config?: PgDialectConfig) {
 		this.casing = new CasingCache(config?.casing);
+		this.queryConfig = {
+			casing: this.casing,
+			escapeName: this.escapeName,
+			escapeParam: this.escapeParam,
+			escapeString: this.escapeString,
+			prepareTyping: this.prepareTyping,
+		};
 	}
 
 	escapeName(name: string): string {
@@ -95,49 +151,62 @@ export class PgDialect {
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
 		if (!queries?.length) return undefined;
 
-		const withSqlChunks = [sql`with `];
+		const withSqlChunks = [sql.WITH];
 		for (const [i, w] of queries.entries()) {
 			withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
 			if (i < queries.length - 1) {
-				withSqlChunks.push(sql`, `);
+				withSqlChunks.push(sql.COMMA);
 			}
 		}
-		withSqlChunks.push(sql` `);
+		withSqlChunks.push(sql.SPACE);
 		return sql.join(withSqlChunks);
 	}
 
 	buildDeleteQuery({ table, where, returning, withList }: PgDeleteConfig): SQL {
-		const withSql = this.buildWithCTE(withList);
+		// Direct array construction using pre-allocated constants.
+		// Avoids sql`...` tagged template allocations (StringChunk + SQL per fragment).
+		const chunks: SQLChunk[] = [];
 
-		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
-			: undefined;
+		if (withList?.length) {
+			chunks.push(this.buildWithCTE(withList)!);
+		}
 
-		const whereSql = where ? sql` where ${where}` : undefined;
+		chunks.push(sql.RAW_DELETE_FROM, table);
 
-		return sql`${withSql}delete from ${table}${whereSql}${returningSql}`;
+		if (where) {
+			chunks.push(sql.RAW_WHERE, where);
+		}
+
+		if (returning) {
+			chunks.push(sql.RAW_RETURNING, this.buildSelection(returning, true));
+		}
+
+		return new SQL(chunks);
 	}
 
 	buildUpdateSet(table: PgTable, set: UpdateSet): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
+		const keys = Object.keys(tableColumns);
+		const chunks: SQLChunk[] = [];
 
-		const columnNames = Object.keys(tableColumns).filter((colName) =>
-			set[colName] !== undefined || tableColumns[colName]?.onUpdateFn !== undefined
-		);
-
-		const setLength = columnNames.length;
-		return sql.join(columnNames.flatMap((colName, i) => {
+		for (let i = 0; i < keys.length; i++) {
+			const colName = keys[i]!;
 			const col = tableColumns[colName]!;
+			const setValue = set[colName];
+
+			if (setValue === undefined && col.onUpdateFn === undefined) continue;
+
+			if (chunks.length > 0) chunks.push(sql.RAW_COMMA);
 
 			const onUpdateFnResult = col.onUpdateFn?.();
-			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
-			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+			const value = setValue
+				?? ((onUpdateFnResult as any)?.[chunkKind] === ChunkKind.SQL
+					? onUpdateFnResult as SQL
+					: sql.param(onUpdateFnResult, col));
+			chunks.push(sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`);
+		}
 
-			if (i < setLength - 1) {
-				return [res, sql.raw(', ')];
-			}
-			return [res];
-		}));
+		return new SQL(chunks);
 	}
 
 	buildUpdateQuery({ table, set, where, returning, withList, from, joins }: PgUpdateConfig): SQL {
@@ -153,12 +222,12 @@ export class PgDialect {
 
 		const setSql = this.buildUpdateSet(table, set);
 
-		const fromSql = from && sql.join([sql.raw(' from '), this.buildFromTable(from)]);
+		const fromSql = from && sql.join([sql.RAW_FROM, this.buildFromTable(from)]);
 
 		const joinsSql = this.buildJoins(joins);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: !from })}`
+			? sql` returning ${this.buildSelection(returning, !from)}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -179,75 +248,111 @@ export class PgDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+		isSingleTable: boolean = false,
 	): SQL {
 		const columnsLen = fields.length;
 
-		const chunks = fields
-			.flatMap(({ field }, i) => {
-				const chunk: SQLChunk[] = [];
+		// Single result array — no per-field chunk[] arrays, no flatMap.
+		const result: SQLChunk[] = [];
 
-				if (is(field, SQL.Aliased) && field.isSelectionField) {
-					if (!isSingleTable && field.origin !== undefined) chunk.push(sql.identifier(field.origin), sql.raw('.'));
-					chunk.push(sql.identifier(field.fieldAlias));
-				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
-					const query = is(field, SQL.Aliased) ? field.sql : field;
+		for (let i = 0; i < columnsLen; i++) {
+			const field = fields[i]!.field;
 
+			// Fast dispatch via chunkKind discriminant instead of is() cascade.
+			const kind = (field as any)?.[chunkKind];
+
+			if (kind === ChunkKind.SQLAliased) {
+				const aliased = field as SQL.Aliased;
+				if (aliased.isSelectionField) {
+					if (!isSingleTable && aliased.origin !== undefined) {
+						result.push(sql.identifier(aliased.origin), sql.RAW_DOT);
+					}
+					result.push(sql.identifier(aliased.fieldAlias));
+				} else {
+					const query = aliased.sql;
 					if (isSingleTable) {
-						const newSql = new SQL(
-							query.queryChunks.map((c) => {
-								if (is(c, PgColumn)) {
-									return sql.identifier(this.casing.getColumnCasing(c));
-								}
-								return c;
-							}),
-						);
-
-						chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
+						const newSql = this.mapSQLChunkColumns(query);
+						result.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
 					} else {
-						chunk.push(query);
+						result.push(query);
 					}
-
-					if (is(field, SQL.Aliased)) {
-						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
-					}
-				} else if (is(field, Column)) {
-					if (isSingleTable) {
-						chunk.push(
-							field.isAlias
-								? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
-								: sql.identifier(this.casing.getColumnCasing(field)),
+					result.push(sql.RAW_AS, sql.identifier(aliased.fieldAlias));
+				}
+			} else if (kind === ChunkKind.SQL) {
+				const query = field as SQL;
+				if (isSingleTable) {
+					const newSql = this.mapSQLChunkColumns(query);
+					result.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
+				} else {
+					result.push(query);
+				}
+			} else if (kind === ChunkKind.Column) {
+				const col = field as Column;
+				if (isSingleTable) {
+					if (col.isAlias) {
+						result.push(
+							sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(col))),
+							sql.RAW_AS,
+							col,
 						);
 					} else {
-						chunk.push(field.isAlias ? sql`${getOriginalColumnFromAlias(field)} as ${field}` : field);
+						result.push(sql.identifier(this.casing.getColumnCasing(col)));
 					}
-				} else if (is(field, Subquery)) {
-					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
-
-					if (entries.length === 1) {
-						const entry = entries[0]![1];
-
-						const fieldDecoder = is(entry, SQL)
-							? entry.decoder
-							: is(entry, Column)
-							? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
-							: entry.sql.decoder;
-
-						if (fieldDecoder) {
-							field._.sql.decoder = fieldDecoder;
-						}
+				} else {
+					if (col.isAlias) {
+						result.push(getOriginalColumnFromAlias(col), sql.RAW_AS, col);
+					} else {
+						result.push(col);
 					}
-					chunk.push(field);
 				}
+			} else if (kind === ChunkKind.Subquery) {
+				const sub = field as Subquery;
+				const entries = Object.entries(sub._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
 
-				if (i < columnsLen - 1) {
-					chunk.push(sql`, `);
+				if (entries.length === 1) {
+					const entry = entries[0]![1];
+					const entryKind = (entry as any)?.[chunkKind];
+
+					const fieldDecoder = entryKind === ChunkKind.SQL
+						? (entry as SQL).decoder
+						: entryKind === ChunkKind.Column
+						? { mapFromDriverValue: (v: any) => (entry as Column).mapFromDriverValue(v) }
+						: (entry as SQL.Aliased).sql.decoder;
+
+					if (fieldDecoder) {
+						sub._.sql.decoder = fieldDecoder;
+					}
 				}
+				result.push(sub);
+			}
 
-				return chunk;
-			});
+			if (i < columnsLen - 1) {
+				result.push(sql.COMMA);
+			}
+		}
 
-		return sql.join(chunks);
+		return new SQL(result);
+	}
+
+	/** @internal Map PgColumn chunks in a SQL's queryChunks to identifiers. Used by buildSelection for isSingleTable mode. */
+	private mapSQLChunkColumns(query: SQL): SQL {
+		const chunks = query.queryChunks;
+		let needsMapping = false;
+		for (let j = 0; j < chunks.length; j++) {
+			if ((chunks[j] as any)?.[chunkKind] === ChunkKind.Column) {
+				needsMapping = true;
+				break;
+			}
+		}
+		if (!needsMapping) return query;
+		const mapped: SQLChunk[] = new Array(chunks.length);
+		for (let j = 0; j < chunks.length; j++) {
+			const c = chunks[j]!;
+			mapped[j] = (c as any)?.[chunkKind] === ChunkKind.Column
+				? sql.identifier(this.casing.getColumnCasing(c as PgColumn))
+				: c;
+		}
+		return new SQL(mapped);
 	}
 
 	private buildJoins(joins: PgSelectJoinConfig[] | undefined): SQL | undefined {
@@ -259,7 +364,7 @@ export class PgDialect {
 
 		for (const [index, joinMeta] of joins.entries()) {
 			if (index === 0) {
-				joinsArray.push(sql` `);
+				joinsArray.push(sql.SPACE);
 			}
 			const table = joinMeta.table;
 			const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
@@ -291,7 +396,7 @@ export class PgDialect {
 				);
 			}
 			if (index < joins.length - 1) {
-				joinsArray.push(sql` `);
+				joinsArray.push(sql.SPACE);
 			}
 		}
 
@@ -370,10 +475,10 @@ export class PgDialect {
 
 		let distinctSql: SQL | undefined;
 		if (distinct) {
-			distinctSql = distinct === true ? sql` distinct` : sql` distinct on (${sql.join(distinct.on, sql`, `)})`;
+			distinctSql = distinct === true ? sql.DISTINCT : sql` distinct on (${sql.join(distinct.on, sql.COMMA)})`;
 		}
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		const selection = this.buildSelection(fieldsList, isSingleTable);
 
 		const tableSql = this.buildFromTable(table);
 
@@ -385,12 +490,12 @@ export class PgDialect {
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
-			orderBySql = sql` order by ${sql.join(orderBy, sql`, `)}`;
+			orderBySql = sql` order by ${sql.join(orderBy, sql.COMMA)}`;
 		}
 
 		let groupBySql;
 		if (groupBy && groupBy.length > 0) {
-			groupBySql = sql` group by ${sql.join(groupBy, sql`, `)}`;
+			groupBySql = sql` group by ${sql.join(groupBy, sql.COMMA)}`;
 		}
 
 		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
@@ -399,27 +504,26 @@ export class PgDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
-		const lockingClauseSql = sql.empty();
+		let lockingClauseSql: SQL | undefined;
 		if (lockingClause) {
-			const clauseSql = sql` for ${sql.raw(lockingClause.strength)}`;
+			lockingClauseSql = sql` for ${sql.raw(lockingClause.strength)}`;
 			if (lockingClause.config.of) {
-				clauseSql.append(
+				lockingClauseSql.append(
 					sql` of ${
 						sql.join(
 							Array.isArray(lockingClause.config.of)
 								? lockingClause.config.of.map((it) => sql.identifier(it[PgTable.Symbol.Name]))
 								: [sql.identifier(lockingClause.config.of[PgTable.Symbol.Name])],
-							sql`, `,
+							sql.COMMA,
 						)
 					}`,
 				);
 			}
 			if (lockingClause.config.noWait) {
-				clauseSql.append(sql` nowait`);
+				lockingClauseSql.append(sql.NOWAIT);
 			} else if (lockingClause.config.skipLocked) {
-				clauseSql.append(sql` skip locked`);
+				lockingClauseSql.append(sql.SKIP_LOCKED);
 			}
-			lockingClauseSql.append(clauseSql);
 		}
 		const finalQuery =
 			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClauseSql}`;
@@ -480,7 +584,7 @@ export class PgDialect {
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
+			orderBySql = sql` order by ${sql.join(orderByValues, sql.COMMA)} `;
 		}
 
 		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
@@ -497,70 +601,114 @@ export class PgDialect {
 	buildInsertQuery(
 		{ table, values: valuesOrSelect, onConflict, returning, withList, select, overridingSystemValue_ }: PgInsertConfig,
 	): SQL {
-		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
-		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
+		// Use cached column metadata — avoids Object.entries().filter().map(), Name allocations,
+		// and prepareTyping() is() checks on every call for the same table.
+		const { colEntries, insertOrder, colTypings } = this.getInsertMeta(table);
 
-		const colEntries: [string, PgColumn][] = Object.entries(columns).filter(([_, col]) => !col.shouldDisableInsert());
-
-		const insertOrder = colEntries.map(
-			([, column]) => sql.identifier(this.casing.getColumnCasing(column)),
-		);
-
+		let valuesSql: SQL;
 		if (select) {
 			const select = valuesOrSelect as AnyPgSelectQueryBuilder | SQL;
-
-			if (is(select, SQL)) {
-				valuesSqlList.push(select);
-			} else {
-				valuesSqlList.push(select.getSQL());
-			}
+			const selectSql = is(select, SQL) ? select : select.getSQL();
+			valuesSql = selectSql;
 		} else {
-			const values = valuesOrSelect as Record<string, Param | SQL>[];
-			valuesSqlList.push(sql.raw('values '));
+			const values = valuesOrSelect as Record<string, unknown>[];
+			const numCols = colEntries.length;
 
-			for (const [valueIndex, value] of values.entries()) {
-				const valueList: (SQLChunk | SQL)[] = [];
-				for (const [fieldName, col] of colEntries) {
+			// Pre-map all values and pack into InsertValuesChunk
+			const numRows = values.length;
+			const rows: unknown[][] = new Array(numRows);
+			let sqlCells: Map<number, SQL> | null = null;
+
+			for (let r = 0; r < numRows; r++) {
+				const value = values[r]!;
+				const row: unknown[] = new Array(numCols);
+				for (let c = 0; c < numCols; c++) {
+					const [fieldName, col] = colEntries[c]!;
 					const colValue = value[fieldName];
-					if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
+					if (colValue === undefined) {
 						// eslint-disable-next-line unicorn/no-negated-condition
 						if (col.defaultFn !== undefined) {
 							const defaultFnResult = col.defaultFn();
-							const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
-							valueList.push(defaultValue);
+							if ((defaultFnResult as any)?.[chunkKind] === ChunkKind.SQL) {
+								(sqlCells ??= new Map()).set(r * numCols + c, defaultFnResult as SQL);
+								row[c] = INSERT_SQL_SENTINEL;
+							} else {
+								const mapped = defaultFnResult === null
+									? null
+									: col.mapToDriverValue(defaultFnResult);
+								row[c] = mapped;
+							}
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (!col.default && col.onUpdateFn !== undefined) {
 							const onUpdateFnResult = col.onUpdateFn();
-							const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
-							valueList.push(newValue);
+							if ((onUpdateFnResult as any)?.[chunkKind] === ChunkKind.SQL) {
+								(sqlCells ??= new Map()).set(r * numCols + c, onUpdateFnResult as SQL);
+								row[c] = INSERT_SQL_SENTINEL;
+							} else {
+								const mapped = onUpdateFnResult === null
+									? null
+									: col.mapToDriverValue(onUpdateFnResult);
+								row[c] = mapped;
+							}
 						} else {
-							valueList.push(sql`default`);
+							(sqlCells ??= new Map()).set(r * numCols + c, sql.DEFAULT);
+							row[c] = INSERT_SQL_SENTINEL;
 						}
+					} else if ((colValue as any)?.[chunkKind] === ChunkKind.SQL) {
+						// Raw SQL expression passed as column value
+						(sqlCells ??= new Map()).set(r * numCols + c, colValue as SQL);
+						row[c] = INSERT_SQL_SENTINEL;
 					} else {
-						valueList.push(colValue);
+						// Common case: plain value — pre-map to driver value
+						const mapped = colValue === null ? null : col.mapToDriverValue(colValue);
+						if ((mapped as any)?.[chunkKind] === ChunkKind.SQL) {
+							// Custom column mapToDriverValue returned SQL
+							(sqlCells ??= new Map()).set(r * numCols + c, mapped as SQL);
+							row[c] = INSERT_SQL_SENTINEL;
+						} else {
+							row[c] = mapped;
+						}
 					}
 				}
-
-				valuesSqlList.push(valueList);
-				if (valueIndex < values.length - 1) {
-					valuesSqlList.push(sql`, `);
-				}
+				rows[r] = row;
 			}
+
+			const insertValuesChunk: InsertValuesChunk = {
+				[chunkKind]: ChunkKind.InsertValues,
+				rows,
+				typings: colTypings,
+				sqlCells,
+				numCols,
+			};
+			// Construct valuesSql directly — avoids sql.join() intermediate array + SQL wrapper
+			valuesSql = new SQL([sql.RAW_VALUES, insertValuesChunk as any]);
 		}
 
-		const withSql = this.buildWithCTE(withList);
+		// Direct array construction using pre-allocated constants.
+		// Avoids sql`...` tagged template allocations (StringChunk + SQL per fragment).
+		const chunks: SQLChunk[] = [];
 
-		const valuesSql = sql.join(valuesSqlList);
+		if (withList?.length) {
+			chunks.push(this.buildWithCTE(withList)!);
+		}
 
-		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
-			: undefined;
+		chunks.push(sql.RAW_INSERT_INTO, table, sql.SPACE, insertOrder as any, sql.SPACE);
 
-		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
+		if (overridingSystemValue_ === true) {
+			chunks.push(sql.RAW_OVERRIDING_SYSTEM_VALUE);
+		}
 
-		const overridingSql = overridingSystemValue_ === true ? sql`overriding system value ` : undefined;
+		chunks.push(valuesSql);
 
-		return sql`${withSql}insert into ${table} ${insertOrder} ${overridingSql}${valuesSql}${onConflictSql}${returningSql}`;
+		if (onConflict) {
+			chunks.push(sql.RAW_ON_CONFLICT, onConflict);
+		}
+
+		if (returning) {
+			chunks.push(sql.RAW_RETURNING, this.buildSelection(returning, true));
+		}
+
+		return new SQL(chunks);
 	}
 
 	buildRefreshMaterializedViewQuery(
@@ -591,14 +739,11 @@ export class PgDialect {
 	}
 
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
-		return sql.toQuery({
-			casing: this.casing,
-			escapeName: this.escapeName,
-			escapeParam: this.escapeParam,
-			escapeString: this.escapeString,
-			prepareTyping: this.prepareTyping,
-			invokeSource,
-		});
+		if (invokeSource !== undefined) {
+			// Rare path (only index building) — allocate a one-off config with invokeSource set.
+			return sql.toQuery({ ...this.queryConfig, invokeSource });
+		}
+		return sql.toQuery(this.queryConfig);
 	}
 
 	/** @deprecated */
@@ -782,7 +927,7 @@ export class PgDialect {
 				});
 				const field = sql`${sql.identifier(relationTableAlias)}.${sql.identifier('data')}`.as(selectedRelationTsKey);
 				joins.push({
-					on: sql`true`,
+					on: sql.TRUE,
 					table: new Subquery(builtRelation.sql as SQL, {}, relationTableAlias),
 					alias: relationTableAlias,
 					joinType: 'left',
@@ -817,12 +962,12 @@ export class PgDialect {
 							? field.sql
 							: field
 					),
-					sql`, `,
+					sql.COMMA,
 				)
 			})`;
 			if (is(nestedQueryRelation, V1.Many)) {
 				field = sql`coalesce(json_agg(${field}${
-					orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined
+					orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql.COMMA)}` : undefined
 				}), '[]'::json)`;
 				// orderBy = [];
 			}
@@ -843,7 +988,7 @@ export class PgDialect {
 					fields: {},
 					fieldsFlat: [{
 						path: [],
-						field: sql.raw('*'),
+						field: sql.RAW_STAR,
 					}],
 					where,
 					limit,
@@ -960,7 +1105,7 @@ export class PgDialect {
 
 				return this.buildRqbColumn(table, v, k);
 			}),
-			sql`, `,
+			sql.COMMA,
 		);
 	};
 
@@ -1006,7 +1151,7 @@ export class PgDialect {
 				}
 
 				return columnIdentifiers.length
-					? sql.join(columnIdentifiers, sql`, `)
+					? sql.join(columnIdentifiers, sql.COMMA)
 					: undefined;
 			})()
 			: this.unwrapAllColumns(table, selection);
@@ -1133,7 +1278,7 @@ export class PgDialect {
 
 						return joinQuery;
 					}),
-					sql` `,
+					sql.SPACE,
 				);
 			})()
 			: undefined;
@@ -1144,7 +1289,7 @@ export class PgDialect {
 				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
 			});
 		}
-		const selectionSet = sql.join(selectionArr.filter((e) => e !== undefined), sql`, `);
+		const selectionSet = sql.join(selectionArr.filter((e) => e !== undefined), sql.COMMA);
 		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
 			sql` ${joins}`.if(joins)
 		}${sql` where ${where}`.if(where)}${sql` order by ${order}`.if(order)}${

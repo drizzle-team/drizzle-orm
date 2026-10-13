@@ -134,7 +134,8 @@ export class CockroachRelationalQuery<TResult> extends QueryPromise<TResult>
 	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 
-		const { typings: _typings, ...builtQuery } = this.dialect.sqlToQuery(query.sql as SQL);
+		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
+		delete builtQuery.typings;
 
 		return { query, builtQuery };
 	}

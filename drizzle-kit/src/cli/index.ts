@@ -58,7 +58,6 @@ const legacy = [
 run([generate, migrate, pull, push, studio, up, check, exportRaw, ...legacy], {
 	name: 'drizzle-kit',
 	version: version,
-
 	hook: (event, command) => {
 		if (event === 'after' && getCommandNameWithParents(command) !== 'studio') process.exit(0);
 	},

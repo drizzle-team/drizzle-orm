@@ -71,30 +71,35 @@ export function isSQLWrapper(value: unknown): value is SQLWrapper {
 	return value !== null && value !== undefined && typeof (value as any).getSQL === 'function';
 }
 
-function mergeQueries(queries: QueryWithTypings[]): QueryWithTypings {
-	const result: QueryWithTypings = { sql: '', params: [] };
-	for (const query of queries) {
-		result.sql += query.sql;
-		result.params.push(...query.params);
-		if (query.typings?.length) {
-			if (!result.typings) {
-				result.typings = [];
-			}
-			result.typings.push(...query.typings);
-		}
-	}
-	return result;
+/** @internal Mutable accumulator used during SQL serialization to avoid intermediate object allocations. */
+interface QueryAccumulator {
+	sqlParts: string[];
+	params: unknown[];
+	typings: QueryTypingsValue[] | undefined;
 }
+
+function accPushTyping(acc: QueryAccumulator, typing: QueryTypingsValue): void {
+	if (!acc.typings) {
+		acc.typings = [];
+	}
+	acc.typings.push(typing);
+}
+
+/**
+ * @internal Reusable paramStartIndex wrapper, reset at the top of each toQuery() call.
+ * Safe because toQuery/buildChunks is fully synchronous and non-reentrant for a given SQL tree.
+ */
+const defaultParamStartIndex: { value: number } = { value: 0 };
 
 export class StringChunk implements SQLWrapper {
 	static readonly [entityKind]: string = 'StringChunk';
 
 	/** @internal */
 	readonly [chunkKind]: number = ChunkKind.StringChunk;
-	readonly value: string[];
+	readonly value: string;
 
-	constructor(value: string | string[]) {
-		this.value = Array.isArray(value) ? value : [value];
+	constructor(value: string) {
+		this.value = value;
 	}
 
 	getSQL(): SQL<unknown> {
@@ -119,7 +124,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 	public shouldInlineParams = false;
 
 	/** @internal */
-	usedTables: string[] = [];
+	usedTables: string[] | undefined = undefined;
 
 	constructor(readonly queryChunks: SQLChunk[]) {
 		for (const chunk of queryChunks) {
@@ -127,7 +132,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				const tableChunk = chunk as Table;
 				const schemaName = tableChunk[Table.Symbol.Schema];
 
-				this.usedTables.push(
+				(this.usedTables ??= []).push(
 					schemaName === undefined
 						? tableChunk[Table.Symbol.Name]
 						: schemaName + '.' + tableChunk[Table.Symbol.Name],
@@ -143,7 +148,20 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 
 	toQuery(config: BuildQueryConfig): QueryWithTypings {
 		return tracer.startActiveSpan('drizzle.buildSQL', (span) => {
-			const query = this.buildQueryFromSourceParams(this.queryChunks, config);
+			let paramStartIndex: { value: number };
+			if (config.paramStartIndex) {
+				paramStartIndex = config.paramStartIndex;
+			} else {
+				defaultParamStartIndex.value = 0;
+				paramStartIndex = defaultParamStartIndex;
+			}
+			const inlineParams = config.inlineParams || this.shouldInlineParams;
+			const acc: QueryAccumulator = { sqlParts: [], params: [], typings: undefined };
+			this.buildChunks(this.queryChunks, config, paramStartIndex, inlineParams, acc);
+			const query: QueryWithTypings = { sql: acc.sqlParts.join(''), params: acc.params };
+			if (acc.typings) {
+				query.typings = acc.typings;
+			}
 			span?.setAttributes({
 				'drizzle.query.text': query.sql,
 				'drizzle.query.params': JSON.stringify(query.params),
@@ -152,39 +170,62 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 		});
 	}
 
-	buildQueryFromSourceParams(chunks: SQLChunk[], _config: BuildQueryConfig): Query {
-		const config = Object.assign({}, _config, {
-			inlineParams: _config.inlineParams || this.shouldInlineParams,
-			paramStartIndex: _config.paramStartIndex || { value: 0 },
-		});
+	/** @deprecated Use `toQuery()` instead. Kept for backward compatibility. */
+	buildQueryFromSourceParams(
+		chunks: SQLChunk[],
+		config: BuildQueryConfig,
+		paramStartIndex: { value: number },
+		inlineParams: boolean,
+	): Query {
+		const acc: QueryAccumulator = { sqlParts: [], params: [], typings: undefined };
+		this.buildChunks(chunks, config, paramStartIndex, inlineParams, acc);
+		const result: QueryWithTypings = { sql: acc.sqlParts.join(''), params: acc.params };
+		if (acc.typings) {
+			result.typings = acc.typings;
+		}
+		return result;
+	}
 
+	/** @internal Accumulator-based SQL serializer. Pushes directly to `acc` instead of allocating intermediate objects. */
+	private buildChunks(
+		chunks: SQLChunk[],
+		config: BuildQueryConfig,
+		paramStartIndex: { value: number },
+		inlineParams: boolean,
+		acc: QueryAccumulator,
+	): void {
 		const {
 			casing,
 			escapeName,
 			escapeParam,
 			prepareTyping,
-			inlineParams,
-			paramStartIndex,
 			invokeSource,
 		} = config;
 
-		return mergeQueries(chunks.map((chunk): QueryWithTypings => {
+		for (const chunk of chunks) {
 			// Fast-path: use numeric [chunkKind] discriminant to avoid sequential is() prototype-chain walks.
 			// Chunks that have [chunkKind] (all Drizzle entity classes) are dispatched via switch.
 			// Chunks without [chunkKind] (arrays, undefined, functions, raw primitives) fall to the default case.
-			switch ((chunk as any)?.[chunkKind]) {
+			const kind = (chunk as any)?.[chunkKind];
+			switch (kind) {
 				case ChunkKind.StringChunk:
-					return { sql: (chunk as StringChunk).value.join(''), params: [] };
+					acc.sqlParts.push((chunk as StringChunk).value);
+					continue;
 
 				case ChunkKind.Name:
-					return { sql: escapeName((chunk as Name).value), params: [] };
+					acc.sqlParts.push(escapeName((chunk as Name).value));
+					continue;
 
 				case ChunkKind.SQL: {
 					const sqlChunk = chunk as SQL;
-					return this.buildQueryFromSourceParams(sqlChunk.queryChunks, {
-						...config,
-						inlineParams: inlineParams || sqlChunk.shouldInlineParams,
-					});
+					this.buildChunks(
+						sqlChunk.queryChunks,
+						config,
+						paramStartIndex,
+						inlineParams || sqlChunk.shouldInlineParams,
+						acc,
+					);
+					continue;
 				}
 
 				case ChunkKind.Table: {
@@ -193,89 +234,97 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 					const tableName = tableChunk[Table.Symbol.Name];
 
 					if (invokeSource === 'mssql-view-with-schemabinding') {
-						return {
-							sql: (schemaName === undefined ? escapeName('dbo') : escapeName(schemaName)) + '.'
+						acc.sqlParts.push(
+							(schemaName === undefined ? escapeName('dbo') : escapeName(schemaName)) + '.'
 								+ escapeName(tableName),
-							params: [],
-						};
+						);
+					} else {
+						acc.sqlParts.push(
+							schemaName === undefined || tableChunk[IsAlias]
+								? escapeName(tableName)
+								: escapeName(schemaName) + '.' + escapeName(tableName),
+						);
 					}
-
-					return {
-						sql: schemaName === undefined || tableChunk[IsAlias]
-							? escapeName(tableName)
-							: escapeName(schemaName) + '.' + escapeName(tableName),
-						params: [],
-					};
+					continue;
 				}
 
 				case ChunkKind.Column: {
 					const colChunk = chunk as Column;
 					const columnName = casing.getColumnCasing(colChunk);
-					if (_config.invokeSource === 'indexes') {
-						return { sql: escapeName(columnName), params: [] };
+					if (invokeSource === 'indexes') {
+						acc.sqlParts.push(escapeName(columnName));
+						continue;
 					}
 
 					const schemaName = invokeSource === 'mssql-check' ? undefined : colChunk.table[Table.Symbol.Schema];
-					return {
-						sql: colChunk.isAlias ? escapeName(colChunk.name) : colChunk.table[IsAlias] || schemaName === undefined
+					acc.sqlParts.push(
+						colChunk.isAlias ? escapeName(colChunk.name) : colChunk.table[IsAlias] || schemaName === undefined
 							? escapeName(colChunk.table[Table.Symbol.Name]) + '.' + escapeName(columnName)
 							: escapeName(schemaName) + '.' + escapeName(colChunk.table[Table.Symbol.Name]) + '.'
 								+ escapeName(columnName),
-						params: [],
-					};
+					);
+					continue;
 				}
 
 				case ChunkKind.View: {
 					const viewChunk = chunk as View;
 					const schemaName = viewChunk[ViewBaseConfig].schema;
 					const viewName = viewChunk[ViewBaseConfig].name;
-					return {
-						sql: schemaName === undefined || viewChunk[ViewBaseConfig].isAlias
+					acc.sqlParts.push(
+						schemaName === undefined || viewChunk[ViewBaseConfig].isAlias
 							? escapeName(viewName)
 							: escapeName(schemaName) + '.' + escapeName(viewName),
-						params: [],
-					};
+					);
+					continue;
 				}
 
 				case ChunkKind.Param: {
 					const paramChunk = chunk as Param;
 					if ((paramChunk.value as any)?.[chunkKind] === ChunkKind.Placeholder) {
-						return { sql: escapeParam(paramStartIndex.value++, paramChunk), params: [paramChunk], typings: ['none'] };
+						acc.sqlParts.push(escapeParam(paramStartIndex.value++, paramChunk));
+						acc.params.push(paramChunk);
+						accPushTyping(acc, 'none');
+						continue;
 					}
 
 					const mappedValue = paramChunk.value === null ? null : paramChunk.encoder.mapToDriverValue(paramChunk.value);
 
 					if ((mappedValue as any)?.[chunkKind] === ChunkKind.SQL) {
-						return this.buildQueryFromSourceParams([mappedValue as SQL], config);
+						this.buildChunks(
+							(mappedValue as SQL).queryChunks,
+							config,
+							paramStartIndex,
+							inlineParams,
+							acc,
+						);
+						continue;
 					}
 
 					if (inlineParams) {
-						return { sql: this.mapInlineParam(mappedValue, config), params: [] };
+						acc.sqlParts.push(this.mapInlineParam(mappedValue, config));
+						continue;
 					}
 
-					let typings: QueryTypingsValue[] = ['none'];
-					if (prepareTyping) {
-						typings = [prepareTyping(paramChunk.encoder)];
-					}
-
-					return { sql: escapeParam(paramStartIndex.value++, mappedValue), params: [mappedValue], typings };
+					acc.sqlParts.push(escapeParam(paramStartIndex.value++, mappedValue));
+					acc.params.push(mappedValue);
+					accPushTyping(acc, prepareTyping ? prepareTyping(paramChunk.encoder) : 'none');
+					continue;
 				}
 
 				case ChunkKind.Placeholder:
-					return {
-						sql: escapeParam(paramStartIndex.value++, chunk as Placeholder),
-						params: [chunk as Placeholder],
-						typings: ['none'],
-					};
+					acc.sqlParts.push(escapeParam(paramStartIndex.value++, chunk as Placeholder));
+					acc.params.push(chunk as Placeholder);
+					accPushTyping(acc, 'none');
+					continue;
 
 				case ChunkKind.SQLAliased: {
 					const aliasedChunk = chunk as SQL.Aliased;
 					if (aliasedChunk.fieldAlias !== undefined) {
-						return {
-							sql: (aliasedChunk.origin !== undefined ? escapeName(aliasedChunk.origin) + '.' : '')
+						acc.sqlParts.push(
+							(aliasedChunk.origin !== undefined ? escapeName(aliasedChunk.origin) + '.' : '')
 								+ escapeName(aliasedChunk.fieldAlias),
-							params: [],
-						};
+						);
+						continue;
 					}
 					// fieldAlias is undefined - fall through to SQLWrapper handling below
 					break;
@@ -284,14 +333,65 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				case ChunkKind.Subquery: {
 					const subqueryChunk = chunk as Subquery;
 					if (subqueryChunk._.isWith) {
-						return { sql: escapeName(subqueryChunk._.alias), params: [] };
+						acc.sqlParts.push(escapeName(subqueryChunk._.alias));
+						continue;
 					}
-					return this.buildQueryFromSourceParams([
-						new StringChunk('('),
-						subqueryChunk._.sql,
-						new StringChunk(') '),
-						new Name(subqueryChunk._.alias),
-					], config);
+					// Directly push parens and recurse -- no intermediate StringChunk/Name/array allocations
+					acc.sqlParts.push('(');
+					this.buildChunks(
+						subqueryChunk._.sql.queryChunks,
+						config,
+						paramStartIndex,
+						inlineParams,
+						acc,
+					);
+					acc.sqlParts.push(') ');
+					acc.sqlParts.push(escapeName(subqueryChunk._.alias));
+					continue;
+				}
+
+				case ChunkKind.InsertValues: {
+					const iv = chunk as unknown as InsertValuesChunk;
+					const { rows, typings, sqlCells, numCols } = iv;
+					const hasTypings = prepareTyping !== undefined;
+
+					for (let r = 0; r < rows.length; r++) {
+						if (r > 0) {
+							acc.sqlParts.push(', ');
+						}
+						acc.sqlParts.push('(');
+						const row = rows[r]!;
+						for (let c = 0; c < numCols; c++) {
+							if (c > 0) {
+								acc.sqlParts.push(', ');
+							}
+							const cellValue = row[c];
+							if (cellValue === INSERT_SQL_SENTINEL) {
+								// Deferred SQL cell — process via full chunk path
+								const sqlKey = r * numCols + c;
+								const sqlChunk = sqlCells!.get(sqlKey)!;
+								this.buildChunks(
+									sqlChunk.queryChunks,
+									config,
+									paramStartIndex,
+									inlineParams || sqlChunk.shouldInlineParams,
+									acc,
+								);
+							} else if (inlineParams) {
+								acc.sqlParts.push(this.mapInlineParam(cellValue, config));
+							} else {
+								acc.sqlParts.push(escapeParam(paramStartIndex.value++, cellValue));
+								acc.params.push(cellValue);
+								if (hasTypings) {
+									accPushTyping(acc, typings[c]!);
+								} else {
+									accPushTyping(acc, 'none');
+								}
+							}
+						}
+						acc.sqlParts.push(')');
+					}
+					continue;
 				}
 
 				default:
@@ -300,45 +400,71 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 
 			// Fallback for chunks without [chunkKind]: undefined, arrays, functions (PgEnum), raw primitives, generic SQLWrapper
 			if (chunk === undefined) {
-				return { sql: '', params: [] };
+				continue;
 			}
 
 			if (Array.isArray(chunk)) {
-				const result: SQLChunk[] = [new StringChunk('(')];
-				for (const [i, p] of chunk.entries()) {
-					result.push(p);
-					if (i < chunk.length - 1) {
-						result.push(new StringChunk(', '));
+				// Directly push parens and separators -- no intermediate StringChunk allocations
+				acc.sqlParts.push('(');
+				for (let i = 0; i < chunk.length; i++) {
+					if (i > 0) {
+						acc.sqlParts.push(', ');
 					}
+					// Each element is a SQLChunk -- recurse with a single-element view
+					this.buildChunk(chunk[i]!, config, paramStartIndex, inlineParams, acc);
 				}
-				result.push(new StringChunk(')'));
-				return this.buildQueryFromSourceParams(result, config);
+				acc.sqlParts.push(')');
+				continue;
 			}
 
 			if (typeof chunk === 'function' && 'enumName' in chunk) {
 				if ('schema' in chunk && chunk.schema) {
-					return { sql: escapeName(chunk.schema as string) + '.' + escapeName(chunk.enumName as string), params: [] };
+					acc.sqlParts.push(escapeName(chunk.schema as string) + '.' + escapeName(chunk.enumName as string));
+				} else {
+					acc.sqlParts.push(escapeName(chunk.enumName as string));
 				}
-				return { sql: escapeName(chunk.enumName as string), params: [] };
+				continue;
 			}
 
 			if (isSQLWrapper(chunk)) {
 				if (chunk.shouldOmitSQLParens?.()) {
-					return this.buildQueryFromSourceParams([chunk.getSQL()], config);
+					this.buildChunks(chunk.getSQL().queryChunks, config, paramStartIndex, inlineParams, acc);
+				} else {
+					acc.sqlParts.push('(');
+					this.buildChunks(chunk.getSQL().queryChunks, config, paramStartIndex, inlineParams, acc);
+					acc.sqlParts.push(')');
 				}
-				return this.buildQueryFromSourceParams([
-					new StringChunk('('),
-					chunk.getSQL(),
-					new StringChunk(')'),
-				], config);
+				continue;
 			}
 
 			if (inlineParams) {
-				return { sql: this.mapInlineParam(chunk, config), params: [] };
+				acc.sqlParts.push(this.mapInlineParam(chunk, config));
+				continue;
 			}
 
-			return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
-		}));
+			acc.sqlParts.push(escapeParam(paramStartIndex.value++, chunk));
+			acc.params.push(chunk);
+			accPushTyping(acc, 'none');
+		}
+	}
+
+	/** @internal Process a single chunk into the accumulator. Used for array element handling. */
+	private buildChunk(
+		chunk: SQLChunk,
+		config: BuildQueryConfig,
+		paramStartIndex: { value: number },
+		inlineParams: boolean,
+		acc: QueryAccumulator,
+	): void {
+		// For a single chunk, check if it's a nested SQL with its own queryChunks
+		const kind = (chunk as any)?.[chunkKind];
+		if (kind === ChunkKind.SQL) {
+			const sqlChunk = chunk as SQL;
+			this.buildChunks(sqlChunk.queryChunks, config, paramStartIndex, inlineParams || sqlChunk.shouldInlineParams, acc);
+		} else {
+			// Wrap in a single-element array to reuse the full dispatch logic
+			this.buildChunks([chunk], config, paramStartIndex, inlineParams, acc);
+		}
 	}
 
 	private mapInlineParam(
@@ -504,6 +630,40 @@ export function param<TData, TDriver>(
 }
 
 /**
+ * @internal Pre-serialized INSERT VALUES rows.
+ *
+ * Created by PgDialect.buildInsertQuery() to bypass per-cell Param allocation.
+ * Values are pre-mapped via mapToDriverValue() and typings are pre-computed per column.
+ * buildChunks() handles this chunk type with a tight loop that directly emits
+ * `($1, $2, ...), ($3, $4, ...)` without touching the Param dispatch path.
+ *
+ * For cells that produce SQL (e.g. DEFAULT, defaultFn returning SQL, raw SQL values),
+ * a sentinel is placed in the row data and the SQL chunk is stored in `sqlCells` for
+ * deferred processing via the full buildChunks path.
+ */
+export interface InsertValuesChunk {
+	readonly [chunkKind]: typeof ChunkKind.InsertValues;
+	/**
+	 * Per-row arrays of pre-mapped values (result of mapToDriverValue, or null).
+	 * Cells containing SQL are set to INSERT_SQL_SENTINEL and their SQL is stored in `sqlCells`.
+	 */
+	readonly rows: unknown[][];
+	/** Pre-computed query typing per column (length = numCols). */
+	readonly typings: QueryTypingsValue[];
+	/**
+	 * Sparse map: `${rowIndex},${colIndex}` → SQL chunk for cells that require
+	 * deferred SQL processing (DEFAULT, defaultFn SQL results, raw SQL column values).
+	 * null when no cells contain SQL (the common case).
+	 */
+	readonly sqlCells: Map<number, SQL> | null;
+	/** Number of columns per row. */
+	readonly numCols: number;
+}
+
+/** @internal Sentinel value placed in InsertValuesChunk.rows for cells that contain SQL. */
+export const INSERT_SQL_SENTINEL: unique symbol = Symbol.for('drizzle:insertSqlSentinel');
+
+/**
  * Anything that can be passed to the `` sql`...` `` tagged function.
  */
 export type SQLChunk =
@@ -519,7 +679,8 @@ export type SQLChunk =
 	| Name
 	| undefined
 	| FakePrimitiveParam
-	| Placeholder;
+	| Placeholder
+	| InsertValuesChunk;
 
 export type SQLGenerator<T = unknown> = typeof sql<T>;
 
@@ -536,7 +697,12 @@ export function sql(strings: TemplateStringsArray, ...params: SQLChunk[]): SQL {
 		queryChunks.push(new StringChunk(strings[0]!));
 	}
 	for (const [paramIndex, param] of params.entries()) {
-		queryChunks.push(param, new StringChunk(strings[paramIndex + 1]!));
+		const str = strings[paramIndex + 1]!;
+		if (str !== '') {
+			queryChunks.push(param, new StringChunk(str));
+		} else {
+			queryChunks.push(param);
+		}
 	}
 
 	return new SQL(queryChunks);
@@ -610,6 +776,35 @@ export namespace sql {
 	): Param<TData, TDriver> {
 		return new Param(value, encoder);
 	}
+
+	/**
+	 * @internal Pre-allocated constant SQL fragments to avoid repeated allocations in hot paths.
+	 * These are used as separators in `sql.join()` and as inline fragments in dialect query builders.
+	 * Hoisted to module level so they are allocated once, not per query.
+	 * WARNING: Do not mutate these (no `.append()`, no `.shouldInlineParams = ...`).
+	 */
+	export const COMMA: SQL = sql`, `;
+	export const SPACE: SQL = sql` `;
+	export const WITH: SQL = sql`with `;
+	export const DISTINCT: SQL = sql` distinct`;
+	export const NOWAIT: SQL = sql` nowait`;
+	export const SKIP_LOCKED: SQL = sql` skip locked`;
+	export const DEFAULT: SQL = sql`default`;
+	export const TRUE: SQL = sql`true`;
+	export const FALSE: SQL = sql`false`;
+	export const NULL: SQL = sql`null`;
+	export const RAW_COMMA: SQL = raw(', ');
+	export const RAW_VALUES: SQL = raw('values ');
+	export const RAW_FROM: SQL = raw(' from ');
+	export const RAW_STAR: SQL = raw('*');
+	export const RAW_DOT: SQL = raw('.');
+	export const RAW_AS: SQL = raw(' as ');
+	export const RAW_WHERE: SQL = raw(' where ');
+	export const RAW_RETURNING: SQL = raw(' returning ');
+	export const RAW_DELETE_FROM: SQL = raw('delete from ');
+	export const RAW_INSERT_INTO: SQL = raw('insert into ');
+	export const RAW_ON_CONFLICT: SQL = raw(' on conflict ');
+	export const RAW_OVERRIDING_SYSTEM_VALUE: SQL = raw('overriding system value ');
 }
 
 export namespace SQL {
