@@ -5,6 +5,7 @@ import { SQL } from '~/sql/sql.ts';
 import type { AnySQLiteSelect } from '~/sqlite-core/index.ts';
 import { getTableConfig, getViewConfig, SQLiteTable, SQLiteView } from '~/sqlite-core/index.ts';
 import { SQLiteRelationalQuery } from '~/sqlite-core/query-builders/query.ts';
+import { extractUsedTable } from '~/sqlite-core/utils.ts';
 import { Subquery } from '~/subquery.ts';
 
 export const useLiveQuery = <T extends Pick<AnySQLiteSelect, '_' | 'then'> | SQLiteRelationalQuery<'sync', unknown>>(
@@ -36,8 +37,19 @@ export const useLiveQuery = <T extends Pick<AnySQLiteSelect, '_' | 'then'> | SQL
 
 		if (is(entity, SQLiteTable) || is(entity, SQLiteView)) {
 			const config = is(entity, SQLiteTable) ? getTableConfig(entity) : getViewConfig(entity);
+			const listeningTables = new Set<string>([config.name]);
+			if (is(query, SQLiteRelationalQuery)) {
+				for (const name of query.getReferencedTables()) listeningTables.add(name);
+			} else {
+				const sel = query as AnySQLiteSelect;
+				if (sel.config.joins) {
+					for (const join of sel.config.joins) {
+						for (const name of extractUsedTable(join.table)) listeningTables.add(name);
+					}
+				}
+			}
 			listener = addDatabaseChangeListener(({ tableName }) => {
-				if (config.name === tableName) {
+				if (listeningTables.has(tableName)) {
 					query.then(handleData).catch(setError);
 				}
 			});
