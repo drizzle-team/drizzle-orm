@@ -180,6 +180,7 @@ export const diffAfterPull = async (
 		initDDL,
 		ddlAfterPull: ddl1,
 		resultDdl: ddl1,
+		ddlFromPulledTsSchema: ddl2,
 		relationsError,
 	};
 };

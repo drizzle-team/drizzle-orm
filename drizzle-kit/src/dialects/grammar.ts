@@ -1,5 +1,3 @@
-import { trimChar } from '../utils';
-
 export const escapeForSqlDefault = (input: string, mode: 'default' | 'pg-arr' = 'default') => {
 	let value = input.replace(/\\/g, '\\\\').replace(/'/g, "''");
 	if (mode === 'pg-arr') value = value.replaceAll('"', '\\"');
@@ -27,7 +25,7 @@ export const escapeForSqlTemplate = (sql: string) => {
 
 export const numberForTs = (value: string): { mode: 'number' | 'bigint'; value: string } => {
 	const check = Number(value);
-	if (Number.isNaN(check)) return { mode: 'number', value: `sql\`${trimChar(escapeForTsLiteral(value), '"')}\`` };
+	if (Number.isNaN(check)) return { mode: 'number', value: `sql\`${escapeForSqlTemplate(value)}\`` };
 
 	if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return { mode: 'number', value: value };
 	return { mode: 'bigint', value: `${value}n` };
