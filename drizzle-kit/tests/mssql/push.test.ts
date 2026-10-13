@@ -1256,7 +1256,7 @@ test('drop column in a renamed table with data', async () => {
 		'ALTER TABLE [accounts] DROP COLUMN [name];',
 	]);
 	expect(phints).toStrictEqual([
-		{ hint: `You're about to delete non-empty [name] column in [accounts] table` },
+		{ hint: `You're about to delete non-empty [name] column in [users] (would become [accounts]) table` },
 	]);
 });
 
@@ -1285,7 +1285,7 @@ test('drop column in a table with data that moves to another schema', async () =
 		'ALTER TABLE [app].[users] DROP COLUMN [name];',
 	]);
 	expect(phints).toStrictEqual([
-		{ hint: `You're about to delete non-empty [name] column in [users] table` },
+		{ hint: `You're about to delete non-empty [name] column in [users] (would become [app].[users]) table` },
 	]);
 });
 
@@ -1311,7 +1311,8 @@ test('drop primary key in a renamed table with data', async () => {
 		'ALTER TABLE [accounts] DROP CONSTRAINT [users_pkey];',
 	]);
 	expect(phints.map((it) => ({ ...it, hint: stripAnsi(it.hint) }))).toStrictEqual([{
-		hint: `You're about to drop [accounts] primary key, this statements may fail and your table may lose primary key`,
+		hint:
+			`You're about to drop the primary key of [users] (would become [accounts]) table. The statements may fail, and the table may lose its primary key`,
 	}]);
 });
 
@@ -1338,6 +1339,6 @@ test('drop table with data in a renamed schema', async () => {
 			hint:
 				'You are trying to rename schema before to after, but it is not supported to rename a schema in mssql.\nYou should create new schema and transfer everything to it',
 		},
-		{ hint: `You're about to delete non-empty [users] table` },
+		{ hint: `You're about to delete non-empty [before].[users] table` },
 	]);
 });

@@ -8,7 +8,6 @@ import { ddlDiff } from '../../dialects/sqlite/diff';
 import { fromDrizzleSchema } from '../../dialects/sqlite/drizzle';
 import type { SchemaSource } from '../../dialects/sqlite/drizzle';
 import type { JsonStatement } from '../../dialects/sqlite/statements';
-import { tableBeforeRenames } from '../../dialects/utils';
 import type { SQLiteClient } from '../../utils';
 import { isInteractive, outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
@@ -26,6 +25,7 @@ import {
 	ProgressView,
 	sqliteSchemaError,
 } from '../views';
+import { addNotNullColumnWarning, dropColumnWarning, dropTableWarning, tableNamesBeforeRenames } from './warnings';
 
 export const handle = async (
 	db: SQLiteClient,
@@ -133,6 +133,8 @@ export const handle = async (
 	return { status: 'ok' as const, dialect };
 };
 
+const quote = (name: string) => `"${name}"`;
+
 export const suggestions = async (
 	connection: SQLiteClient,
 	jsonStatements: JsonStatement[],
@@ -141,21 +143,25 @@ export const suggestions = async (
 	const json = outputFormat() === 'json';
 	const useHints = json || !isInteractive();
 	const grouped: { hint: string; statement?: string }[] = [];
-	const tableBefore = tableBeforeRenames({ tables: jsonStatements.filter((it) => it.type === 'rename_table') });
+	const { identifier, label } = tableNamesBeforeRenames(
+		{ tables: jsonStatements.filter((it) => it.type === 'rename_table') },
+		(it) => quote(it.name),
+	);
 
 	// TODO: generate truncations/recreates ??
 	for (const statement of jsonStatements) {
 		if (statement.type === 'drop_table') {
 			const name = statement.tableName;
+			const id = identifier({ name }, 'dropped');
 			const entity = ['public', name] as const;
 			if (hints.matchConfirm('table', entity)) continue;
-			const res = await connection.query(`select 1 from "${name}" limit 1;`);
+			const res = await connection.query(`select 1 from ${id} limit 1;`);
 
 			if (res.length > 0) {
 				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'table', entity, reason: 'non_empty' });
 				} else {
-					grouped.push({ hint: `You're about to delete non-empty '${name}' table` });
+					grouped.push({ hint: dropTableWarning(id) });
 				}
 			}
 			continue;
@@ -166,12 +172,14 @@ export const suggestions = async (
 			const entity = ['public', table, name] as const;
 			if (hints.matchConfirm('column', entity)) continue;
 
-			const res = await connection.query(`select 1 from "${tableBefore({ name: table }).name}" limit 1;`);
+			const res = await connection.query(
+				`select 1 from ${identifier({ name: table }, 'kept')} where ${quote(name)} is not null limit 1;`,
+			);
 			if (res.length > 0) {
 				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
 				} else {
-					grouped.push({ hint: `You're about to delete '${name}' column in a non-empty '${table}' table` });
+					grouped.push({ hint: dropColumnWarning(quote(name), label({ name: table })) });
 				}
 			}
 			continue;
@@ -180,12 +188,12 @@ export const suggestions = async (
 		if (statement.type === 'add_column' && (statement.column.notNull && !statement.column.default)) {
 			const { table, name } = statement.column;
 			const entity = ['public', table, name] as const;
-			const tableInDb = tableBefore({ name: table }).name;
-			const res = await connection.query(`select 1 from "${tableInDb}" limit 1`);
+			const id = identifier({ name: table }, 'kept');
+			const res = await connection.query(`select 1 from ${id} limit 1`);
 			const tableNonEmpty = res.length > 0;
 			const loss = {
-				hint: `You're about to add not-null '${name}' column without default value to non-empty '${table}' table`,
-				statement: `DELETE FROM "${tableInDb}" where true;`,
+				hint: addNotNullColumnWarning(quote(name), label({ name: table })),
+				statement: `DELETE FROM ${id} where true;`,
 			};
 
 			if (hints.matchConfirm('add_not_null', entity)) {
@@ -217,22 +225,20 @@ export const suggestions = async (
 			);
 			if (droppedColumns.length === 0) continue;
 
-			const res = await connection.query(`select 1 from "${tableBefore(statement.from).name}" limit 1`);
-			if (res.length > 0) {
+			const table = { name: statement.from.name };
+			for (const droppedColumn of droppedColumns) {
+				const entity = ['public', table.name, droppedColumn.name] as const;
+				if (hints.matchConfirm('column', entity)) continue;
+
+				const res = await connection.query(
+					`select 1 from ${identifier(table, 'kept')} where ${quote(droppedColumn.name)} is not null limit 1`,
+				);
+				if (res.length === 0) continue;
+
 				if (useHints) {
-					for (const droppedColumn of droppedColumns) {
-						const entity = ['public', statement.from.name, droppedColumn.name] as const;
-						if (hints.matchConfirm('column', entity)) continue;
-						hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
-					}
+					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
 				} else {
-					grouped.push(
-						{
-							hint: `You're about to drop ${
-								droppedColumns.map((col) => `'${col.name}'`).join(', ')
-							} column(s) in a non-empty '${statement.from.name}' table`,
-						},
-					);
+					grouped.push({ hint: dropColumnWarning(quote(droppedColumn.name), label(table)) });
 				}
 			}
 		}

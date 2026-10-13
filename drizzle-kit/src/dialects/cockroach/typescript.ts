@@ -2,6 +2,7 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable, trimChar } from '../../utils';
+import { escapeForSqlTemplate, escapeForTsLiteral } from '../grammar';
 import { withCasing } from '../pull-utils';
 import { inspect } from '../utils';
 import type { CheckConstraint, CockroachDDL, Column, ForeignKey, Index, Policy, PrimaryKey, ViewColumn } from './ddl';
@@ -273,9 +274,7 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 			const func = enumSchema ? `${enumSchema}.enum` : 'cockroachEnum';
 
 			const values = Object.values(it.values)
-				.map((it) => {
-					return `\`${it.replaceAll('\\', '\\\\').replace('`', '\\`')}\``;
-				})
+				.map((it) => escapeForTsLiteral(it))
 				.join(', ');
 			return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", [${values}])\n`;
 		})
@@ -404,7 +403,7 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 				? 'cockroachMaterializedView'
 				: 'cockroachView';
 
-			const as = `sql\`${it.definition}\``;
+			const as = `sql\`${it.definition ? escapeForSqlTemplate(it.definition) : it.definition}\``;
 
 			const viewColumns = columnsForViews.filter((x) => x.schema === it.schema && x.view === it.name);
 
@@ -546,7 +545,7 @@ const createTableColumns = (
 		if (pk) columnStatement += '.primaryKey()';
 		if (it.notNull && !it.identity && !pk) columnStatement += '.notNull()';
 		if (identity) columnStatement += generateIdentityParams(it);
-		if (generated) columnStatement += `.generatedAlwaysAs(sql\`${generated.as}\`)`;
+		if (generated) columnStatement += `.generatedAlwaysAs(sql\`${escapeForSqlTemplate(generated.as)}\`)`;
 
 		statement += '\t';
 		statement += columnStatement;
@@ -614,14 +613,14 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 			it.columns
 				.map((it) => {
 					if (it.isExpression) {
-						return `sql\`${it.value}\``;
+						return `sql\`${escapeForSqlTemplate(it.value)}\``;
 					} else {
 						return `table.${withCasing(it.value, casing)}${it.asc ? '.asc()' : '.desc()'}`;
 					}
 				})
 				.join(', ')
 		})`;
-		statement += it.where ? `.where(sql\`${it.where}\`)` : '';
+		statement += it.where ? `.where(sql\`${escapeForSqlTemplate(it.where)}\`)` : '';
 
 		statement += `,\n`;
 	});
@@ -663,8 +662,8 @@ const createTablePolicies = (
 		if (!(mappedItTo.length === 1 && mappedItTo[0] === '"public"')) {
 			tuples.push(['to', `[${mappedItTo.map((x) => `${x}`).join(', ')}]`]);
 		}
-		if (it.using !== null) tuples.push(['using', `sql\`${it.using}\``]);
-		if (it.withCheck !== null) tuples.push(['withCheck', `sql\`${it.withCheck}\``]);
+		if (it.using !== null) tuples.push(['using', `sql\`${escapeForSqlTemplate(it.using)}\``]);
+		if (it.withCheck !== null) tuples.push(['withCheck', `sql\`${escapeForSqlTemplate(it.withCheck)}\``]);
 		const opts = tuples.length > 0 ? `, { ${tuples.map((x) => `${x[0]}: ${x[1]}`).join(', ')} }` : '';
 		statement += `\tcockroachPolicy("${it.name}"${opts}),\n`;
 	});
@@ -678,7 +677,7 @@ const createTableChecks = (checkConstraints: CheckConstraint[], _casing: Casing)
 	checkConstraints.forEach((it) => {
 		statement += 'check(';
 		statement += `"${it.name}", `;
-		statement += `sql\`${it.value}\`)`;
+		statement += `sql\`${escapeForSqlTemplate(it.value)}\`)`;
 		statement += `,`;
 	});
 

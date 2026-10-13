@@ -75,7 +75,7 @@ test('sqlite push of a confirmed not-null column deletes the rows before it adds
 	await apply();
 
 	expect(hints).toEqual([{
-		hint: `You're about to add not-null 'name' column without default value to non-empty 'a' table`,
+		hint: `You're about to add not-null "name" column without default value to non-empty "a" table`,
 		statement: 'DELETE FROM "a" where true;',
 	}]);
 	expect(client.prepare('SELECT `id`, `name` FROM `a`').all()).toEqual([]);

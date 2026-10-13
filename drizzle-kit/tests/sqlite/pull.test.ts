@@ -1342,3 +1342,62 @@ test('issue No2993', async () => {
 	expect(pushSqlStatements).toStrictEqual([]);
 	expect(generateSqlStatements).toStrictEqual([]);
 });
+
+const templateUnsafeLiteral = "'\\d${x}`'";
+
+test('introspect generated column with a backslash, a backtick and "${"', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	const expression = `name || ${templateUnsafeLiteral}`;
+	await db.run(`CREATE TABLE users (name text, tag text GENERATED ALWAYS AS (${expression}) VIRTUAL);`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, ddlFromPulledTsSchema } = await diffAfterPull(
+		sqlite,
+		{},
+		'generated-column-with-template-unsafe-text',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.one({ table: 'users', name: 'tag' })?.generated?.as).toBe(`(${expression})`);
+	expect(ddlFromPulledTsSchema.columns.one({ table: 'users', name: 'tag' })?.generated?.as).toBe(`(${expression})`);
+});
+
+test('introspect default expression of an integer column with a backslash, a backtick and "${"', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	const expression = `length(${templateUnsafeLiteral})`;
+	await db.run(`CREATE TABLE users (size integer DEFAULT (${expression}));`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, ddlFromPulledTsSchema } = await diffAfterPull(
+		sqlite,
+		{},
+		'integer-default-with-template-unsafe-text',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.one({ table: 'users', name: 'size' })?.default).toBe(expression);
+	expect(ddlFromPulledTsSchema.columns.one({ table: 'users', name: 'size' })?.default).toBe(expression);
+});
+
+test('introspect default expression of a text column with a backslash, a backtick and "${"', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	const expression = `lower(${templateUnsafeLiteral})`;
+	await db.run(`CREATE TABLE users (tag text DEFAULT (${expression}));`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, ddlFromPulledTsSchema } = await diffAfterPull(
+		sqlite,
+		{},
+		'text-default-with-template-unsafe-text',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.one({ table: 'users', name: 'tag' })?.default).toBe(expression);
+	expect(ddlFromPulledTsSchema.columns.one({ table: 'users', name: 'tag' })?.default).toBe(expression);
+});
