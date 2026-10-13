@@ -714,14 +714,15 @@ export const ddlDiff = async (
 
 			// when a column used by the index is being dropped, emit a plain drop_index instead of recreate
 			const prevIndex = ddl1.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name });
-			const usesDroppedColumn = !!prevIndex
-				&& columnsToDelete.some((col) =>
+			const shouldDrop = !!prevIndex
+				&& !columnsToDelete.some((col) =>
 					col.schema === idx.schema
 					&& col.table === idx.table
 					&& prevIndex.columns.some((idxCol) => idxCol.value === col.name)
 				);
-			if (usesDroppedColumn) {
-				jsonDropIndexes.push(prepareStatement('drop_index', { index }));
+
+			if (!shouldDrop) {
+				jsonCreateIndexes.push(prepareStatement('create_index', { index }));
 				continue;
 			}
 
