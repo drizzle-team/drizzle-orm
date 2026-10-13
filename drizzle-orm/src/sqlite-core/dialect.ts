@@ -703,12 +703,12 @@ export class SQLiteDialect {
 		insertOrderArr[writeIdx++] = new StringChunk(')');
 		const insertOrder = new SQL(insertOrderArr);
 
-		const valuesSqlList: SQLChunk[] = Array.from({
-			length: select
+		const valuesSqlList: SQLChunk[] = new Array(
+			select
 				? 1
 				: (colEntriesFiltered.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
 					+ (valuesOrSelect as Record<string, unknown>[]).length,
-		});
+		);
 
 		if (select) {
 			valuesSqlList[0] = (valuesOrSelect as AnySQLiteSelectQueryBuilder | SQL).getSQL();

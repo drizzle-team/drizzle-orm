@@ -741,9 +741,7 @@ export class SingleStoreDialect {
 		const insertOrder = new SQL(insertOrderArr);
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
-		const valuesSqlList: SQLChunk[] = Array.from({
-			length: (colEntries.length * 2 + 1) * values.length + values.length - 1,
-		});
+		const valuesSqlList: SQLChunk[] = new Array((colEntries.length * 2 + 1) * values.length + values.length - 1);
 
 		let writeIdx = 0;
 		for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {

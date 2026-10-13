@@ -70,10 +70,8 @@ test.skipIf(Date.now() < +new Date('2026-10-17'))('NOT conditions deep filter em
 // https://github.com/drizzle-team/drizzle-orm/issues/5994
 test(`Issue No5994. sqlToQuery with large parameter lists`, () => {
 	const parameterCount = 150_000;
-	const parameters = Array.from(
-		{ length: parameterCount },
-		(_, index) => index,
-	);
+	const parameters: number[] = new Array(parameterCount);
+	for (let index = 0; index < parameterCount; ++index) parameters[index] = index;
 
 	const result = dialect['sqlToQuery'](sql`${parameters}`);
 
@@ -84,10 +82,8 @@ test(`Issue No5994. sqlToQuery with large parameter lists`, () => {
 });
 test(`Issue No5994. _sqlToQuery with large parameter lists`, () => {
 	const parameterCount = 150_000;
-	const parameters = Array.from(
-		{ length: parameterCount },
-		(_, index) => index,
-	);
+	const parameters: number[] = new Array(parameterCount);
+	for (let index = 0; index < parameterCount; ++index) parameters[index] = index;
 
 	const result = dialect['_sqlToQuery'](sql`${parameters}`);
 

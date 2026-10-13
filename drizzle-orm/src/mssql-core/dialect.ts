@@ -881,10 +881,10 @@ export class MsSqlDialect {
 		insertOrderArr[orderWriteIdx++] = new StringChunk(')');
 		const insertOrder = new SQL(insertOrderArr);
 
-		const valuesSqlList: SQLChunk[] = Array.from({
-			length: select ? 1 : (colEntries.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
+		const valuesSqlList: SQLChunk[] = new Array(
+			select ? 1 : (colEntries.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
 				+ (valuesOrSelect as Record<string, unknown>[]).length - 1,
-		});
+		);
 
 		if (select) {
 			valuesSqlList[0] = (valuesOrSelect as AnyMsSqlSelectQueryBuilder | SQL).getSQL();

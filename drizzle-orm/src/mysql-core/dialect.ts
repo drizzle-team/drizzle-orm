@@ -744,12 +744,12 @@ export class MySqlDialect {
 		const insertOrder = new SQL(insertOrderArr);
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
-		const valuesSqlList: SQLChunk[] = Array.from({
-			length: select
+		const valuesSqlList: SQLChunk[] = new Array(
+			select
 				? 1
 				: (colEntriesFiltered.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
 					+ (valuesOrSelect as Record<string, unknown>[]).length,
-		});
+		);
 
 		if (select) {
 			valuesSqlList[0] = (valuesOrSelect as AnyMySqlSelectQueryBuilder | SQL).getSQL();
