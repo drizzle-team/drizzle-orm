@@ -277,7 +277,7 @@ const createTableColumns = (
 		statement += it.notNull && !isPrimary ? '.notNull()' : '';
 		statement += it.generated
 			? `.generatedAlwaysAs(sql\`${
-				it.generated.as.replace(/`/g, '\\`').slice(1, -1)
+				escapeForSqlTemplate(it.generated.as.slice(1, -1))
 			}\`, { mode: "${it.generated.type}" })`
 			: '';
 

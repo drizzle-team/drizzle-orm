@@ -1,6 +1,6 @@
 import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
-import { escapeForTsLiteral } from '../grammar';
+import { escapeForSqlTemplate, escapeForTsLiteral } from '../grammar';
 import type { Column, DiffEntities, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
@@ -133,7 +133,7 @@ export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
 		}
 
 		const check = Number(value);
-		if (Number.isNaN(check)) return `sql\`${value}\``; // unknown
+		if (Number.isNaN(check)) return `sql\`${escapeForSqlTemplate(value)}\``; // unknown
 		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return value;
 		return `${value}n`; // bigint
 	},
@@ -263,7 +263,7 @@ export const Text: SqlType = {
 	},
 	toTs: function(value: Column['default']) {
 		if (value === null) return '';
-		if (!value.startsWith("'")) return `sql\`${value}\``; // CURRENT_TIMESTAMP
+		if (!value.startsWith("'")) return `sql\`${escapeForSqlTemplate(value)}\``; // CURRENT_TIMESTAMP
 
 		try {
 			const parsed = parse(trimChar(value, "'"), (_, v) => {

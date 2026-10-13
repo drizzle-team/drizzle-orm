@@ -1289,3 +1289,89 @@ references parent (other_id, child_id);`);
 	expect(pushSqlStatements).toStrictEqual([]);
 	expect(generateSqlStatements).toStrictEqual([]);
 });
+
+test('introspect check with a backslash, a backtick and "${"', async () => {
+	await db.query(
+		"create table `users` (`id` int, `name` varchar(100), constraint `name_check` check (`name` <> 'a\\\\b${id}'));",
+	);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlFromPulledTsSchema,
+	} = await diffIntrospect(db, {}, 'check-with-template-unsafe-text');
+
+	const checkFromPulledTsSchema = ddlFromPulledTsSchema.checks.one({ name: 'name_check' })?.value;
+	await db.query(
+		`create table \`users_copy\` (\`id\` int, \`name\` varchar(100), constraint \`name_check_copy\` check (${checkFromPulledTsSchema}));`,
+	);
+	const checksInDatabase = await db.query<{ CONSTRAINT_NAME: string; CHECK_CLAUSE: string }>(
+		"select CONSTRAINT_NAME, CHECK_CLAUSE from information_schema.check_constraints where CONSTRAINT_SCHEMA = 'drizzle';",
+	);
+	const clauses = Object.fromEntries(checksInDatabase.map((it) => [it.CONSTRAINT_NAME, it.CHECK_CLAUSE]));
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	for (const part of ['\\', '`', '${']) expect(clauses['name_check']).toContain(part);
+	expect(clauses['name_check_copy']).toBe(clauses['name_check']);
+});
+
+test('introspect default expressions with a backslash, a backtick and "${"', async () => {
+	const text = "concat(`name`, 'a\\\\b${id}')";
+	const length = `char_length(${text})`;
+	const columns: Record<string, [type: string, defaultExpression: string]> = {
+		col_int: ['int', length],
+		col_bigint: ['bigint', length],
+		col_decimal: ['decimal(10,2)', length],
+		col_double: ['double', length],
+		col_varchar: ['varchar(50)', "(`name` <> 'a\\\\b${id}')"],
+		col_text: ['text', text],
+		col_varbinary: ['varbinary(50)', text],
+		col_json: ['json', "json_object(`name`, 'a\\\\b${id}')"],
+		col_timestamp: ['timestamp', `date_add(now(), interval ${length} day)`],
+		col_datetime: ['datetime', `date_add(now(), interval ${length} day)`],
+	};
+	const createTable = (table: string, defaultOf: (column: string) => string) => {
+		const definitions = Object.entries(columns).map(([column, [type]]) =>
+			`\`${column}\` ${type} default ${defaultOf(column)}`
+		);
+		return db.query(`create table \`${table}\` (\`name\` varchar(20), ${definitions.join(', ')});`);
+	};
+	await createTable('table1', (column) => `(${columns[column][1]})`);
+
+	// The database returns a default with doubled backslashes, so the diff after the pull has statements,
+	// and `diffIntrospect` keeps the pulled file when the diff has statements.
+	const { ddlFromPulledTsSchema } = await diffIntrospect(db, {}, 'default-expressions-with-template-unsafe-text');
+	fs.rmSync('tests/mysql/tmp/default-expressions-with-template-unsafe-text.ts', { force: true });
+
+	const pulledColumns = ddlFromPulledTsSchema.columns;
+	await createTable('table1_copy', (column) => pulledColumns.one({ table: 'table1', name: column })!.default!);
+	const defaultsInDatabase = await db.query<{ TABLE_NAME: string; COLUMN_NAME: string; COLUMN_DEFAULT: string }>(
+		"select TABLE_NAME, COLUMN_NAME, COLUMN_DEFAULT from information_schema.columns where TABLE_SCHEMA = 'drizzle' and COLUMN_NAME <> 'name';",
+	);
+	const defaultsOf = (table: string) =>
+		Object.fromEntries(
+			defaultsInDatabase.filter((it) => it.TABLE_NAME === table).map((it) => [it.COLUMN_NAME, it.COLUMN_DEFAULT]),
+		);
+
+	for (const defaultInDatabase of Object.values(defaultsOf('table1'))) {
+		for (const part of ['\\', '`', '${']) expect(defaultInDatabase).toContain(part);
+	}
+	expect(defaultsOf('table1_copy')).toStrictEqual(defaultsOf('table1'));
+});
+
+test('introspect default expression of a fractional seconds column with a backslash, a backtick and "${"', async () => {
+	const expression = "timestamp(concat('2020-01-01 00:00:0', char_length(concat(`name`, 'a\\\\b${id}'))))";
+	await db.query(
+		`create table \`table1\` (\`name\` varchar(20), \`col_timestamp\` timestamp(6) default (${expression}), \`col_datetime\` datetime(6) default (${expression}));`,
+	);
+
+	// The pulled schema holds such a default as a quoted string, so the diff after the pull has statements,
+	// and `diffIntrospect` keeps the pulled file when the diff has statements.
+	await expect(diffIntrospect(db, {}, 'fractional-seconds-defaults-with-template-unsafe-text')).resolves.toBeDefined();
+	fs.rmSync('tests/mysql/tmp/fractional-seconds-defaults-with-template-unsafe-text.ts', { force: true });
+});
