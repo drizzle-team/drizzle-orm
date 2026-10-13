@@ -16,6 +16,7 @@ import {
 	uniqueIndex,
 	vector,
 } from 'drizzle-orm/cockroach-core';
+import { stripAnsi } from 'hanji/utils';
 import { expect } from 'vitest';
 import { type CockroachDBSchema, diff, push, test } from './mocks';
 
@@ -1400,7 +1401,9 @@ test.for(tablesWithDroppedColumn)(
 		const { sqlStatements: pst, hints } = await push({ db, to, renames });
 
 		expect(pst).toStrictEqual([...expected, `ALTER TABLE ${newTable} DROP COLUMN "name";`]);
-		expect(hints).toStrictEqual([{ hint: `You're about to delete non-empty name column in ${newTable} table` }]);
+		expect(hints).toStrictEqual([{
+			hint: `You're about to delete non-empty "name" column in ${table} (would become ${newTable}) table`,
+		}]);
 	},
 );
 
@@ -1415,4 +1418,114 @@ test('push warns about a dropped primary key of a table with rows that moves to 
 
 	expect(hints).toHaveLength(1);
 	expect(hints[0].hint).toContain('primary key');
+});
+
+test.concurrent('drop column in a renamed table with data', async ({ dbc: db }) => {
+	const schema1 = {
+		users: cockroachTable('users', { id: int4('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		accounts: cockroachTable('accounts', { id: int4('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "users" ("id", "name") VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['public.users->public.accounts'],
+	});
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE "users" RENAME TO "accounts";',
+		'ALTER TABLE "accounts" DROP COLUMN "name";',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "name" column in "users" (would become "accounts") table` },
+	]);
+});
+
+test.concurrent('drop column in a table with data that moves to another schema', async ({ dbc: db }) => {
+	const app = cockroachSchema('app');
+	const schema1 = {
+		app,
+		users: cockroachTable('users', { id: int4('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		app,
+		users: app.table('users', { id: int4('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "users" ("id", "name") VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['public.users->app.users'],
+	});
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE "users" SET SCHEMA "app";\n',
+		'ALTER TABLE "app"."users" DROP COLUMN "name";',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "name" column in "users" (would become "app"."users") table` },
+	]);
+});
+
+test.concurrent('drop column in a table with data in a renamed schema', async ({ dbc: db }) => {
+	const before = cockroachSchema('before');
+	const after = cockroachSchema('after');
+	const schema1 = {
+		before,
+		users: before.table('users', { id: int4('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		after,
+		users: after.table('users', { id: int4('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "before"."users" ("id", "name") VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: ['before->after'] });
+
+	expect(pst).toStrictEqual([
+		'ALTER SCHEMA "before" RENAME TO "after";\n',
+		'ALTER TABLE "after"."users" DROP COLUMN "name";',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "name" column in "before"."users" (would become "after"."users") table` },
+	]);
+});
+
+test.concurrent('drop primary key in a renamed table with data', async ({ dbc: db }) => {
+	const schema1 = {
+		users: cockroachTable('users', { id: int4('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		accounts: cockroachTable('accounts', { id: int4('id').notNull(), name: text('name') }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "users" ("id", "name") VALUES (1, 'drizzle');`);
+
+	// The table still has a primary key after the drop in CockroachDB, so the second push of the helper is not empty.
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['public.users->public.accounts'],
+		ignoreSubsequent: true,
+	});
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE "users" RENAME TO "accounts";',
+		'ALTER TABLE "accounts" DROP CONSTRAINT "users_pkey";',
+	]);
+	expect(phints.map((it) => ({ ...it, hint: stripAnsi(it.hint) }))).toStrictEqual([{
+		hint:
+			`You're about to drop the primary key of "users" (would become "accounts") table. The statements may fail, and the table may lose its primary key`,
+	}]);
 });

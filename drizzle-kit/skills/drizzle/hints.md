@@ -69,7 +69,7 @@ The unresolved item for a `confirm_data_loss` carries a `reason` (and, for `type
 
 | reason | applicable kinds | meaning | reason_details |
 |--------|------------------|---------|----------------|
-| `non_empty` | `table`, `column`, `schema`, `view`, `primary_key` | Target entity has ≥1 row; drop will lose data | — |
+| `non_empty` | `table`, `column`, `schema`, `view`, `primary_key` | Target entity has ≥1 row (a `column`: ≥1 non-null value); drop will lose data | — |
 | `table_recreate` | `add_not_null` (sqlite / turso only) | Adding the `NOT NULL` column has no in-place path on SQLite, so confirming wipes all rows and recreates the table | — |
 | `type_change` | `column` | Existing column SQL type changes (e.g. mysql / singlestore `ALTER COLUMN`) | `{ from: string, to: string }` |
 

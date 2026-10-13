@@ -3,8 +3,8 @@ import { toCamelCase } from 'drizzle-orm/casing';
 import '../../@types/utils';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
+import { escapeForSqlTemplate } from '../grammar';
 import { withCasing } from '../pull-utils';
-import { escapeForSqlTemplate } from '../utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -277,7 +277,7 @@ const createTableColumns = (
 		statement += it.notNull && !isPrimary ? '.notNull()' : '';
 		statement += it.generated
 			? `.generatedAlwaysAs(sql\`${
-				it.generated.as.replace(/`/g, '\\`').slice(1, -1)
+				escapeForSqlTemplate(it.generated.as.slice(1, -1))
 			}\`, { mode: "${it.generated.type}" })`
 			: '';
 

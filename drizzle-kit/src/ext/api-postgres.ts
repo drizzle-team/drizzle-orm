@@ -1,6 +1,7 @@
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
+import type { Hint } from '../cli/hints';
 import type { EntitiesFilterConfig } from '../cli/validations/common';
 import type { PostgresCredentials } from '../cli/validations/postgres';
 import type {
@@ -77,30 +78,35 @@ export const generateDrizzleJson = async (
 export const generateMigration = async (
 	prev: PostgresSchemaState | Record<string, any>,
 	cur: PostgresSchemaState | Record<string, any>,
+	options?: { hints?: Hint[] },
 ) => {
 	const { resolver } = await import('../cli/prompts');
 	const { ddlDiff } = await import('../dialects/postgres/diff');
+	const { runWithApiHints } = await import('../cli/hints');
 
-	const { sqlStatements } = await ddlDiff(
-		fromEntities(up(prev).snapshot.ddl),
-		fromEntities(up(cur).snapshot.ddl),
-		resolver<Schema>('schema'),
-		resolver<Enum>('enum'),
-		resolver<Sequence>('sequence'),
-		resolver<Policy>('policy'),
-		resolver<Role>('role'),
-		resolver<PostgresEntities['tables']>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
-		resolver<UniqueConstraint>('unique'),
-		resolver<Index>('index'),
-		resolver<CheckConstraint>('check'),
-		resolver<PrimaryKey>('primary_key'),
-		resolver<ForeignKey>('foreign key'),
-		'default',
-	);
+	return runWithApiHints(options?.hints ?? [], async (hints) => {
+		const { sqlStatements } = await ddlDiff(
+			fromEntities(up(prev).snapshot.ddl),
+			fromEntities(up(cur).snapshot.ddl),
+			resolver<Schema>('schema', hints),
+			resolver<Enum>('enum', hints),
+			resolver<Sequence>('sequence', hints),
+			resolver<Policy>('policy', hints),
+			resolver<Role>('role', hints),
+			resolver<PostgresEntities['tables']>('table', hints),
+			resolver<Column>('column', hints),
+			resolver<View>('view', hints),
+			resolver<UniqueConstraint>('unique', hints),
+			resolver<Index>('index', hints),
+			resolver<CheckConstraint>('check', hints),
+			resolver<PrimaryKey>('primary_key', hints),
+			resolver<ForeignKey>('foreign key', hints),
+			'default',
+		);
+		hints.throwIfMissingHints();
 
-	return sqlStatements;
+		return sqlStatements;
+	});
 };
 
 export const pushSchema = async (
@@ -111,9 +117,11 @@ export const pushSchema = async (
 		table?: string;
 		schema?: string;
 	},
+	options?: { hints?: Hint[] },
 ) => {
 	const { prepareEntityFilter } = await import('src/dialects/pull-utils');
 	const { resolver } = await import('../cli/prompts');
+	const { runWithApiHints } = await import('../cli/hints');
 	const { fromDatabaseForDrizzle } = await import('src/dialects/postgres/introspect');
 	const { fromDrizzleSchema, fromExports } = await import('../dialects/postgres/drizzle');
 	const { suggestions } = await import('../cli/commands/push-postgres');
@@ -154,27 +162,33 @@ export const pushSchema = async (
 
 	// TODO: handle errors, for now don't throw
 
-	const { sqlStatements, statements } = await ddlDiff(
-		from,
-		to,
-		resolver<Schema>('schema'),
-		resolver<Enum>('enum'),
-		resolver<Sequence>('sequence'),
-		resolver<Policy>('policy'),
-		resolver<Role>('role'),
-		resolver<PostgresEntities['tables']>('table'),
-		resolver<Column>('column'),
-		resolver<View>('view'),
-		resolver<UniqueConstraint>('unique'),
-		resolver<Index>('index'),
-		resolver<CheckConstraint>('check'),
-		resolver<PrimaryKey>('primary_key'),
-		resolver<ForeignKey>('foreign key'),
-		'push',
-	);
+	const { sqlStatements, hints } = await runWithApiHints(options?.hints ?? [], async (userHints) => {
+		const { sqlStatements, statements } = await ddlDiff(
+			from,
+			to,
+			resolver<Schema>('schema', userHints),
+			resolver<Enum>('enum', userHints),
+			resolver<Sequence>('sequence', userHints),
+			resolver<Policy>('policy', userHints),
+			resolver<Role>('role', userHints),
+			resolver<PostgresEntities['tables']>('table', userHints),
+			resolver<Column>('column', userHints),
+			resolver<View>('view', userHints),
+			resolver<UniqueConstraint>('unique', userHints),
+			resolver<Index>('index', userHints),
+			resolver<CheckConstraint>('check', userHints),
+			resolver<PrimaryKey>('primary_key', userHints),
+			resolver<ForeignKey>('foreign key', userHints),
+			'push',
+		);
+		// An unresolved rename is diffed as a drop plus a create, so a data loss check on it would report a false drop.
+		userHints.throwIfMissingHints();
 
-	const { HintsHandler } = await import('../cli/hints');
-	const hints = await suggestions(db, statements, new HintsHandler());
+		const hints = await suggestions(db, statements, userHints);
+		userHints.throwIfMissingHints();
+
+		return { sqlStatements, hints };
+	});
 
 	return {
 		sqlStatements,
@@ -289,3 +303,6 @@ export const reconstruct = async (files: Record<string, unknown>, id?: string): 
 	const state = stateOf(migrations, id);
 	return schemaState(id, migrations.snapshots.get(id)!.prevIds, state.entities.list());
 };
+
+export type { MissingHintsError } from '../cli/errors';
+export type { Hint, MissingHint } from '../cli/hints';

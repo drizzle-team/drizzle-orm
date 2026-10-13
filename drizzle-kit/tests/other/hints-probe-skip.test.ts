@@ -236,7 +236,7 @@ test('json mode records only the risky probe sites when multiple probes have mix
 				return [{ count: '2' }];
 			}
 
-			if (sql === 'select 1 from "legacy_users" limit 1') {
+			if (sql === 'select 1 from "legacy_users" where "legacy_flag" is not null limit 1') {
 				return [];
 			}
 
@@ -252,7 +252,7 @@ test('json mode records only the risky probe sites when multiple probes have mix
 		expect(result).toStrictEqual([]);
 		expect(queries).toStrictEqual([
 			`select count(*) as count from information_schema.tables where table_schema = 'archive';`,
-			'select 1 from "legacy_users" limit 1',
+			'select 1 from "legacy_users" where "legacy_flag" is not null limit 1',
 		]);
 		expect(unresolved(hints)).toStrictEqual([
 			{ type: 'confirm_data_loss', kind: 'schema', entity: ['archive'], reason: 'non_empty' },
@@ -264,11 +264,11 @@ test('tty mode keeps the existing drop-pk hint path, including the constraint-na
 	await runWithCliContext({ output: 'text', interactive: true }, async () => {
 		const hintsHandler = new HintsHandler();
 		const { db, queries } = createDb(async (sql) => {
-			if (sql === 'select 1 from "public"."orders" limit 1') {
+			if (sql === 'select 1 from "orders" limit 1') {
 				return [{}];
 			}
 
-			if (sql.includes('information_schema.table_constraints')) {
+			if (sql.includes('pg_constraint')) {
 				return [{ name: 'orders_actual_pkey' }];
 			}
 
@@ -280,14 +280,14 @@ test('tty mode keeps the existing drop-pk hint path, including the constraint-na
 		], hintsHandler);
 
 		expect(queries).toStrictEqual([
-			'select 1 from "public"."orders" limit 1',
-			`\n        SELECT constraint_name as name \n        FROM information_schema.table_constraints\n        WHERE \n          table_schema = 'public'\n          AND table_name = 'orders'\n          AND constraint_type = 'PRIMARY KEY';`,
+			'select 1 from "orders" limit 1',
+			`select conname as name from pg_constraint where conrelid = '"orders"'::regclass and contype = 'p';`,
 		]);
 		expect(hints).toHaveLength(1);
 		expect(stripAnsi(hints[0]!.hint).replace(/^·\s*/, '')).toBe(
-			'You\'re about to drop "public"."orders" primary key, this statements may fail and your table may lose primary key',
+			'You\'re about to drop the primary key of "orders" table. The statements may fail, and the table may lose its primary key',
 		);
-		expect(hints[0]!.statement).toBe('ALTER TABLE "public"."orders" DROP CONSTRAINT "orders_actual_pkey"');
+		expect(hints[0]!.statement).toBe('ALTER TABLE "orders" DROP CONSTRAINT "orders_actual_pkey"');
 	});
 });
 

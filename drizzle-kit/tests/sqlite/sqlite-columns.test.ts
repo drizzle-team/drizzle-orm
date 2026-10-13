@@ -699,7 +699,7 @@ test('drop autoincrement. drop column with data', async (t) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	expect(phints[0].hint).toStrictEqual("You're about to drop 'name' column(s) in a non-empty 'companies' table");
+	expect(phints[0].hint).toStrictEqual('You\'re about to delete non-empty "name" column in "companies" table');
 });
 
 test('drop autoincrement. drop column with data with pragma off', async (t) => {
@@ -752,7 +752,7 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	expect(phints[0].hint).toStrictEqual("You're about to drop 'name' column(s) in a non-empty 'companies' table");
+	expect(phints[0].hint).toStrictEqual('You\'re about to delete non-empty "name" column in "companies" table');
 });
 
 test('change autoincrement. other table references current', async (t) => {
@@ -1939,4 +1939,105 @@ test('Issue No6360', async () => {
 	];
 	expect(st1).toStrictEqual(st0);
 	expect(pst1).toStrictEqual(st0);
+});
+
+test('drop column in a renamed table with data', async () => {
+	const schema1 = {
+		users: sqliteTable('users', { id: integer('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		accounts: sqliteTable('accounts', { id: integer('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.run(`INSERT INTO \`users\` ("name") VALUES ('drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: ['users->accounts'] });
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE `users` RENAME TO `accounts`;',
+		'ALTER TABLE `accounts` DROP COLUMN `name`;',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "name" column in "users" (would become "accounts") table` },
+	]);
+});
+
+test('added column not null and without default to a renamed table with data', async () => {
+	const schema1 = {
+		users: sqliteTable('users', { id: integer('id').primaryKey() }),
+	};
+	const schema2 = {
+		accounts: sqliteTable('accounts', { id: integer('id').primaryKey(), age: integer('age').notNull() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.run(`INSERT INTO \`users\` ("id") VALUES (1);`);
+
+	const { sqlStatements: pst, hints: phints, error } = await push({
+		db,
+		to: schema2,
+		renames: ['users->accounts'],
+		expectError: true,
+		force: true,
+	});
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE `users` RENAME TO `accounts`;',
+		'ALTER TABLE `accounts` ADD `age` integer NOT NULL;',
+	]);
+	expect(phints).toStrictEqual([{
+		hint:
+			`You're about to add not-null "age" column without default value to non-empty "users" (would become "accounts") table`,
+		statement: 'DELETE FROM "users" where true;',
+	}]);
+	expect(error).toBeNull();
+});
+
+test('drop autoincrement. drop column in a renamed table with data', async () => {
+	const schema1 = {
+		companies: sqliteTable('companies', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name'),
+		}),
+	};
+	const schema2 = {
+		accounts: sqliteTable('accounts', {
+			id: integer('id').primaryKey({ autoIncrement: false }),
+		}),
+	};
+
+	await push({ db, to: schema1 });
+	await db.run(`INSERT INTO \`companies\` ("id", "name") VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: ['companies->accounts'] });
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE `companies` RENAME TO `accounts`;',
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_accounts` (\n\t`id` integer PRIMARY KEY\n);\n',
+		'INSERT INTO `__new_accounts`(`id`) SELECT `id` FROM `accounts`;',
+		'DROP TABLE `accounts`;',
+		'ALTER TABLE `__new_accounts` RENAME TO `accounts`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "name" column in "companies" (would become "accounts") table` },
+	]);
+});
+
+test('drop column without values in a table with data', async () => {
+	const schema1 = {
+		users: sqliteTable('users', { id: integer('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		users: sqliteTable('users', { id: integer('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.run(`INSERT INTO \`users\` ("id") VALUES (1);`);
+
+	const { hints: phints } = await push({ db, to: schema2 });
+
+	expect(phints).toStrictEqual([]);
 });

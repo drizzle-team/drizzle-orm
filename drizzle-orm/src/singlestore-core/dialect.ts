@@ -741,9 +741,7 @@ export class SingleStoreDialect {
 		const insertOrder = new SQL(insertOrderArr);
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
-		const valuesSqlList: SQLChunk[] = Array.from({
-			length: (colEntries.length * 2 + 1) * values.length + values.length - 1,
-		});
+		const valuesSqlList: SQLChunk[] = new Array((colEntries.length * 2 + 1) * values.length + values.length - 1);
 
 		let writeIdx = 0;
 		for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
@@ -1028,28 +1026,16 @@ export class SingleStoreDialect {
 
 		const columns = this.buildColumns(table, selection, !!nested, tableConfig.name, params);
 
-		const where: SQL | undefined = params && 'where' in params && relationWhere
-			? and(
-				relationsFilterToSQL(
-					table,
-					params.where,
-					tableConfig.relations,
-					schema,
-					subqueries,
-				),
-				relationWhere,
-			)
-			: params && 'where' in params
-			? relationsFilterToSQL(
-				table,
-				params.where,
-				tableConfig.relations,
-				schema,
-				subqueries,
-			)
+		const filter = params && 'where' in params
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries)
+			: undefined;
+		const where: SQL | undefined = filter && relationWhere
+			? and(filter.sql, relationWhere)
+			: filter
+			? filter.sql
 			: relationWhere;
 		const order = params?.orderBy
-			? relationsOrderToSQL(table, params.orderBy)
+			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, subqueries)
 			: undefined;
 		const extras = params?.extras
 			? relationExtrasToSQL(table, params.extras, this.codecs, nested)

@@ -926,7 +926,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-11-08'))('introspect view #4', async () => {
+test.skipIf(Date.now() < +new Date('2026-10-17'))('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -951,7 +951,7 @@ test.skipIf(Date.now() < +new Date('2026-11-08'))('introspect view #4', async ()
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-11-08'))('introspect view #5', async () => {
+test.skipIf(Date.now() < +new Date('2026-10-17'))('introspect view #5', async () => {
 	const applications = pgTable('applications', {
 		applicationId: serial('application_id').primaryKey(),
 		studentId: integer('student_id').references(() => students.studentId),
@@ -1832,7 +1832,7 @@ test('introspect view with table filter', async () => {
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(Date.now() < +new Date('2026-11-08'))('introspect sequences with table filter', async () => {
+test.skipIf(Date.now() < +new Date('2026-10-17'))('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
@@ -3551,7 +3551,7 @@ test('Issue No3446', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6214
 // TODO revise this when "NOT VALID" feature is supported
-test.skipIf(Date.now() < +new Date('2026-11-08'))('Issue No6214', async () => {
+test.skipIf(Date.now() < +new Date('2026-10-17'))('Issue No6214', async () => {
 	await db.query(`CREATE TABLE documents (
   id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   version integer NOT NULL
@@ -3740,4 +3740,221 @@ test(`PlanetScale's Neki internal schema #2`, async () => {
 		entityType: 'tables',
 		isRlsEnabled: false,
 	}]);
+});
+
+const templateUnsafeText = 'a\\b`${c}';
+
+test('introspect check with a backslash, a backtick and "${"', async () => {
+	await db.query(
+		`CREATE TABLE users (name text, CONSTRAINT name_check CHECK (name <> '${templateUnsafeText}'));`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'check-with-template-unsafe-text',
+	);
+
+	const expected = [`(name <> '${templateUnsafeText}'::text)`];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.checks.list().map((it) => it.value)).toStrictEqual(expected);
+	expect(schema2.checks.map((it) => it.value)).toStrictEqual(expected);
+});
+
+test('introspect view with a backslash, a backtick and "${"', async () => {
+	await db.query(`CREATE VIEW some_view AS SELECT '${templateUnsafeText}'::text AS name;`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'view-with-template-unsafe-text',
+	);
+
+	const expected = [`SELECT '${templateUnsafeText}'::text AS name`];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.views.list().map((it) => it.definition)).toStrictEqual(expected);
+	expect(schema2.views.map((it) => it.definition)).toStrictEqual(expected);
+});
+
+test('introspect generated column with a backslash, a backtick and "${"', async () => {
+	await db.query(
+		`CREATE TABLE users (name text, generated_name text GENERATED ALWAYS AS (name || '${templateUnsafeText}') STORED);`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'generated-column-with-template-unsafe-text',
+	);
+
+	const expected = [null, `(name || '${templateUnsafeText}'::text)`];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.list().map((it) => it.generated?.as ?? null)).toStrictEqual(expected);
+	expect(schema2.columns.map((it) => it.generated?.as ?? null)).toStrictEqual(expected);
+});
+
+test('introspect policy with a backslash, a backtick and "${"', async () => {
+	await db.query(`CREATE TABLE users (name text);`);
+	await db.query(`ALTER TABLE users ENABLE ROW LEVEL SECURITY;`);
+	await db.query(
+		`CREATE POLICY name_policy ON users USING (name <> '${templateUnsafeText}') WITH CHECK (name <> '${templateUnsafeText}');`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'policy-with-template-unsafe-text',
+	);
+
+	const expected = [{
+		using: `(name <> '${templateUnsafeText}'::text)`,
+		withCheck: `(name <> '${templateUnsafeText}'::text)`,
+	}];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.policies.list().map((it) => ({ using: it.using, withCheck: it.withCheck }))).toStrictEqual(
+		expected,
+	);
+	expect(schema2.policies.map((it) => ({ using: it.using, withCheck: it.withCheck }))).toStrictEqual(expected);
+});
+
+test('introspect index expression and predicate with a backslash, a backtick and "${"', async () => {
+	await db.query(`CREATE TABLE users (name text);`);
+	await db.query(
+		`CREATE INDEX name_idx ON users ((name || '${templateUnsafeText}')) WHERE name <> '${templateUnsafeText}';`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'index-with-template-unsafe-text',
+	);
+
+	const expected = [{
+		expression: `(name || '${templateUnsafeText}'::text)`,
+		where: `(name <> '${templateUnsafeText}'::text)`,
+	}];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.indexes.list().map((it) => ({ expression: it.columns[0].value, where: it.where })))
+		.toStrictEqual(expected);
+	expect(schema2.indexes.map((it) => ({ expression: it.columns[0].value, where: it.where }))).toStrictEqual(expected);
+});
+
+test('introspect default expressions with a backslash, a backtick and "${"', async () => {
+	const types = [
+		'smallint',
+		'integer',
+		'bigint',
+		'char(20)',
+		'varchar(20)',
+		'text',
+		'json',
+		'jsonb',
+		'time',
+		'time with time zone',
+		'date',
+		'timestamp',
+		'timestamp with time zone',
+		'bit(3)',
+		'point',
+		'line',
+	];
+	const columns = types.map((type, i) => `column${i} ${type} DEFAULT NULLIF('${templateUnsafeText}', '')::${type}`);
+
+	await db.query(
+		`CREATE FUNCTION "uuid_${templateUnsafeText}"() RETURNS uuid LANGUAGE sql AS 'SELECT gen_random_uuid()';`,
+	);
+	await db.query(`CREATE TABLE users (${columns.join(', ')}, id uuid DEFAULT "uuid_${templateUnsafeText}"());`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'default-expressions-with-template-unsafe-text',
+	);
+
+	const defaultsInDatabase = ddlAfterPull.columns.list().map((it) => [it.name, it.default]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(defaultsInDatabase.length).toBe(types.length + 1);
+	for (const [, def] of defaultsInDatabase) expect(def).toContain(templateUnsafeText);
+	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
+});
+
+test('introspect array default expressions with a backslash, a backtick and "${"', async () => {
+	const types = [
+		'smallint',
+		'integer',
+		'bigint',
+		'numeric',
+		'real',
+		'double precision',
+		'boolean',
+		'char(20)',
+		'varchar(20)',
+		'text',
+		'json',
+		'jsonb',
+		'time',
+		'time with time zone',
+		'date',
+		'timestamp',
+		'timestamp with time zone',
+		'uuid',
+		'interval',
+		'inet',
+		'cidr',
+		'macaddr',
+		'macaddr8',
+		'vector(3)',
+		'halfvec(3)',
+		'sparsevec(3)',
+		'bit(3)',
+		'point',
+		'line',
+		'mood',
+		'box',
+	];
+	const columns = types.map((type, i) =>
+		`column${i} ${type}[] DEFAULT ARRAY[NULLIF('${templateUnsafeText}', '')::${type}]`
+	);
+
+	await db.query(`CREATE TYPE mood AS ENUM ('ok', 'bad');`);
+	await db.query(`CREATE TABLE users (${columns.join(', ')});`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'array-default-expressions-with-template-unsafe-text',
+	);
+
+	const defaultsInDatabase = ddlAfterPull.columns.list().map((it) => [it.name, it.default]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(defaultsInDatabase.length).toBe(types.length);
+	for (const [, def] of defaultsInDatabase) expect(def).toContain(templateUnsafeText);
+	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
+});
+
+test('introspect json array defaults with a backslash, a backtick and "${"', async () => {
+	const json = JSON.stringify({ key: templateUnsafeText });
+	const arrayLiteral = `{"${json.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"}`;
+	await db.query(
+		`CREATE TABLE users (column1 json[] DEFAULT '${arrayLiteral}', column2 jsonb[] DEFAULT '${arrayLiteral}');`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'json-array-defaults-with-template-unsafe-text',
+	);
+
+	const defaultsInDatabase = ddlAfterPull.columns.list().map((it) => [it.name, it.default]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(defaultsInDatabase[0]).toStrictEqual(['column1', `'${arrayLiteral}'`]);
+	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
 });

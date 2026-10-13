@@ -7,8 +7,9 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable, trimChar } from '../../utils';
+import { escapeForSqlTemplate, escapeForTsLiteral } from '../grammar';
 import { withCasing } from '../pull-utils';
-import { escapeForTsLiteral, inspect } from '../utils';
+import { inspect } from '../utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -414,7 +415,7 @@ export const ddlToTypeScript = (
 				: 'pgView';
 
 			const withOption = Object.fromEntries(Object.entries(it.with ?? {}).filter((x) => x[1] !== null));
-			const as = `sql\`${it.definition}\``;
+			const as = `sql\`${it.definition ? escapeForSqlTemplate(it.definition) : it.definition}\``;
 			const tablespace = it.tablespace ?? '';
 
 			const viewColumns = columnsForViews.filter((x) => x.schema === it.schema && x.view === it.name);
@@ -588,7 +589,7 @@ const createTableColumns = (
 		if (pk) columnStatement += '.primaryKey()';
 		if (it.notNull && !it.identity && !pk) columnStatement += '.notNull()';
 		if (identity) columnStatement += generateIdentityParams(it);
-		if (generated) columnStatement += `.generatedAlwaysAs(sql\`${generated.as}\`)`;
+		if (generated) columnStatement += `.generatedAlwaysAs(sql\`${escapeForSqlTemplate(generated.as)}\`)`;
 
 		statement += '\t';
 		statement += columnStatement;
@@ -656,7 +657,7 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 			it.columns
 				.map((it) => {
 					if (it.isExpression) {
-						return `sql\`${it.value}\``;
+						return `sql\`${escapeForSqlTemplate(it.value)}\``;
 					} else {
 						return `table.${withCasing(it.value, casing)}${it.asc ? '.asc()' : '.desc()'}${
 							it.nullsFirst ? '.nullsFirst()' : '.nullsLast()'
@@ -669,7 +670,7 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 				})
 				.join(', ')
 		})`;
-		statement += it.where ? `.where(sql\`${it.where}\`)` : '';
+		statement += it.where ? `.where(sql\`${escapeForSqlTemplate(it.where)}\`)` : '';
 
 		statement += it.with
 			? `.with({ ${
@@ -722,8 +723,8 @@ const createTablePolicies = (
 				`[${mappedItTo.map((x) => `${x}`).join(', ')}]`,
 			]);
 		}
-		if (it.using !== null) tuples.push(['using', `sql\`${it.using}\``]);
-		if (it.withCheck !== null) tuples.push(['withCheck', `sql\`${it.withCheck}\``]);
+		if (it.using !== null) tuples.push(['using', `sql\`${escapeForSqlTemplate(it.using)}\``]);
+		if (it.withCheck !== null) tuples.push(['withCheck', `sql\`${escapeForSqlTemplate(it.withCheck)}\``]);
 		const opts = tuples.length > 0 ? `, { ${tuples.map((x) => `${x[0]}: ${x[1]}`).join(', ')} }` : '';
 		statement += `\n\tpgPolicy("${it.name}"${opts}),\n`;
 	});
@@ -757,7 +758,7 @@ const createTableChecks = (
 	checkConstraints.forEach((it) => {
 		statement += 'check(';
 		statement += `"${it.name}", `;
-		statement += `sql\`${it.value.replaceAll('`', '\\`')}\`)`;
+		statement += `sql\`${escapeForSqlTemplate(it.value)}\`)`;
 		statement += `,`;
 	});
 

@@ -37,6 +37,14 @@ import {
 	postgresSchemaWarning,
 	ProgressView,
 } from '../views';
+import {
+	dropColumnWarning,
+	dropPrimaryKeyWarning,
+	dropSchemaWarning,
+	dropTableWarning,
+	dropViewWarning,
+	tableNamesBeforeRenames,
+} from './warnings';
 
 export const handle = async (
 	filenames: string[],
@@ -160,16 +168,21 @@ export const handle = async (
 	return { status: 'ok' as const, dialect: 'cockroach' };
 };
 
-const identifier = (it: { schema?: string; name: string }) => {
-	const { schema, name } = it;
-	const schemakey = schema && schema !== 'public' ? `"${schema}".` : '';
-	return `${schemakey}"${name}"`;
+const quote = (name: string) => `"${name}"`;
+
+const quoteTable = ({ schema, name }: { schema?: string; name: string }) => {
+	return schema && schema !== 'public' ? `${quote(schema)}.${quote(name)}` : quote(name);
 };
 
 export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints: HintsHandler) => {
 	const json = outputFormat() === 'json';
 	const useHints = json || !isInteractive();
 	const grouped: { hint: string; statement?: string }[] = [];
+	const { identifier, label } = tableNamesBeforeRenames({
+		schemas: jsonStatements.filter((it) => it.type === 'rename_schema'),
+		tables: jsonStatements.filter((it) => it.type === 'rename_table'),
+		moves: jsonStatements.filter((it) => it.type === 'move_table'),
+	}, quoteTable);
 
 	const filtered = jsonStatements.filter((it) => {
 		// discussion -
@@ -197,37 +210,25 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 		return true;
 	});
 
-	// The queries below run before the statements of the push. So they name a table by the schema and the name
-	// that the table has in the database at that point. A table gets its new name first and moves after that.
-	const schemaRenames = jsonStatements.filter((it) => it.type === 'rename_schema');
-	const tableRenames = jsonStatements.filter((it) => it.type === 'rename_table');
-	const tableMoves = jsonStatements.filter((it) => it.type === 'move_table');
-	const tableInDatabase = (schema: string, name: string) => {
-		const schemaBeforeMove = tableMoves.find((it) => it.to === schema && it.name === name)?.from ?? schema;
-		return {
-			schema: schemaRenames.find((it) => it.to.name === schemaBeforeMove)?.from.name ?? schemaBeforeMove,
-			name: tableRenames.find((it) => it.schema === schemaBeforeMove && it.to === name)?.from ?? name,
-		};
-	};
-
 	for (const statement of filtered) {
 		if (statement.type === 'drop_table') {
+			const id = identifier(statement.table, 'dropped');
 			const entity = [statement.table.schema, statement.table.name] as const;
 			if (hints.matchConfirm('table', entity)) continue;
-			const res = await db.query(`select 1 from ${statement.key} limit 1`);
+			const res = await db.query(`select 1 from ${id} limit 1`);
 
 			if (res.length > 0) {
 				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'table', entity, reason: 'non_empty' });
 				} else {
-					grouped.push({ hint: `You're about to delete non-empty ${statement.key} table` });
+					grouped.push({ hint: dropTableWarning(id) });
 				}
 			}
 			continue;
 		}
 
 		if (statement.type === 'drop_view' && statement.view.materialized) {
-			const id = identifier(statement.view);
+			const id = identifier(statement.view, 'dropped');
 			const entity = [statement.view.schema, statement.view.name] as const;
 			if (hints.matchConfirm('view', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
@@ -236,25 +237,25 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'view', entity, reason: 'non_empty' });
 			} else {
-				grouped.push({ hint: `You're about to delete non-empty ${id} materialized view` });
+				grouped.push({ hint: dropViewWarning(id) });
 			}
 			continue;
 		}
 
 		if (statement.type === 'drop_column') {
 			const column = statement.column;
-			const id = identifier({ schema: column.schema, name: column.table });
+			const table = { schema: column.schema, name: column.table };
 			const entity = [column.schema, column.table, column.name] as const;
 			if (hints.matchConfirm('column', entity)) continue;
 			const res = await db.query(
-				`select 1 from ${identifier(tableInDatabase(column.schema, column.table))} limit 1`,
+				`select 1 from ${identifier(table, 'kept')} where ${quote(column.name)} is not null limit 1`,
 			);
 			if (res.length === 0) continue;
 
 			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
 			} else {
-				grouped.push({ hint: `You're about to delete non-empty ${column.name} column in ${id} table` });
+				grouped.push({ hint: dropColumnWarning(quote(column.name), label(table)) });
 			}
 			continue;
 		}
@@ -272,7 +273,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'schema', entity, reason: 'non_empty' });
 			} else {
-				grouped.push({ hint: `You're about to delete ${chalk.underline(statement.name)} schema with ${count} tables` });
+				grouped.push({ hint: dropSchemaWarning(quote(statement.name), count) });
 			}
 			continue;
 		}
@@ -281,23 +282,18 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 		if (statement.type === 'drop_pk') {
 			const schema = statement.pk.schema ?? 'public';
 			const table = statement.pk.table;
-			const id = `"${schema}"."${table}"`;
+			const id = identifier({ schema, name: table }, 'kept');
 			const entity = [schema, table, statement.pk.name] as const;
 			if (hints.matchConfirm('primary_key', entity)) continue;
-			const inDatabase = tableInDatabase(schema, table);
 			const res = await db.query(
-				`select 1 from "${inDatabase.schema}"."${inDatabase.name}" limit 1`,
+				`select 1 from ${id} limit 1`,
 			);
 
 			if (res.length > 0) {
-				const hint = `You're about to drop ${
-					chalk.underline(id)
-				} primary key, these statements may fail and your table may lose the primary key`;
-
 				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'primary_key', entity, reason: 'non_empty' });
 				} else {
-					grouped.push({ hint });
+					grouped.push({ hint: dropPrimaryKeyWarning(label({ schema, name: table })) });
 				}
 			}
 
