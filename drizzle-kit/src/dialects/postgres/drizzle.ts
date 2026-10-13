@@ -113,11 +113,10 @@ export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 	};
 };
 
-const sqlTypeFromFunctionArg = (
-	builder: AnyPgColumnBuilder,
+const sqlTypeFromFunctionColumn = (
+	column: AnyPgColumn,
 	dialect: PgDialect,
 ) => {
-	const column = buildPgFunctionColumn(builder);
 	const unwrapped = unwrapColumn(column);
 
 	if (unwrapped.isEnum && unwrapped.typeSchema) {
@@ -128,6 +127,11 @@ const sqlTypeFromFunctionArg = (
 
 	return unwrapped.sqlType;
 };
+
+const sqlTypeFromFunctionArg = (
+	builder: AnyPgColumnBuilder,
+	dialect: PgDialect,
+) => sqlTypeFromFunctionColumn(buildPgFunctionColumn(builder), dialect);
 
 const functionTableTypeSql = (
 	table: PgTable,
@@ -189,11 +193,21 @@ export const functionFrom = (fn: PgFunction, dialect: PgDialect) => {
 		schema: config.schema ?? 'public',
 		functionName: config.name,
 
-		args: Object.entries(config.args).map(([name, builder]) => ({
-			name: getPgFunctionArgumentSQLName(name),
-			type: sqlTypeFromFunctionArg(builder, dialect),
-			default: null,
-		})),
+		args: Object.entries(config.args).map(([name, builder]) => {
+			const column = buildPgFunctionColumn(builder);
+			const { dimensions } = unwrapColumn(column);
+
+			return {
+				name: getPgFunctionArgumentSQLName(name),
+				type: sqlTypeFromFunctionColumn(column, dialect),
+				default: defaultFromColumn(
+					column,
+					column.default,
+					dimensions,
+					dialect,
+				),
+			};
+		}),
 
 		returns: functionReturnTypeSql(config.returns, dialect),
 
