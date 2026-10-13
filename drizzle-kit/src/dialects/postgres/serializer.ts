@@ -15,14 +15,13 @@ export const stateOfSchema = (prepared: PreparedPostgresSchema) => {
 	return { stage: 'ddl' as const, ddl, errors: ddlErrors, warnings };
 };
 
-export const prepareSnapshot = async (
+export const prepareSnapshot = (
 	migrations: MigrationsFolder,
 	prepared: PreparedPostgresSchema,
-): Promise<{
+): {
 	ddlPrev: PostgresDDL;
 	ddlCur: PostgresDDL;
-	prevIds: string[];
-}> => {
+} => {
 	const ddlPrev = combinedState(migrations);
 	const { ddl: ddlCur, errors, warnings } = stateOfSchema(prepared);
 
@@ -35,5 +34,5 @@ export const prepareSnapshot = async (
 		process.exit(1);
 	}
 
-	return { ddlPrev, ddlCur, prevIds: migrations.leafIds };
+	return { ddlPrev, ddlCur };
 };

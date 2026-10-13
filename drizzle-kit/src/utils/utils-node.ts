@@ -109,19 +109,19 @@ export const dryJournal = (dialect: Dialect): Journal => {
 	};
 };
 
-// The snapshot files of the migration folders in `out`, in folder-name order.
-export const listSnapshots = (out: string): string[] => {
+export const prepareOutFolder = (out: string) => {
 	if (!existsSync(out)) {
 		mkdirSync(out, { recursive: true });
 	}
 
-	return readdirSync(out)
+	const snapshots = readdirSync(out)
 		.map((subdir) => join(out, subdir, 'snapshot.json'))
-		.filter((filePath) => existsSync(filePath))
-		.sort();
-};
+		.filter((filePath) => existsSync(filePath));
 
-export const prepareOutFolder = (out: string) => ({ snapshots: listSnapshots(out) });
+	snapshots.sort();
+
+	return { snapshots };
+};
 
 const tsconfigAliasCache = new Map<string, Record<string, string> | undefined>();
 

@@ -34,7 +34,7 @@ An index is keyed by schema and name, without its table: `DROP INDEX` and `ALTER
 
 `src/dialects/postgres/folder.ts` reads the snapshot files of a migrations folder one time, runs the history rules and the status check, and gives the loaded folder: the snapshots by id in folder-name order, their files, and the ids of the leaves. `generate`, `check`, `pull` and the programmatic `reconstruct` use it. Its functions `stateOf` and `combinedState` call `reconstruct` and `startingState`, and they turn a failure into the `malformed` error that names the migration.
 
-`applyDeltas` applies each delta through one call to the DDL engine in `src/dialects/dialect.ts`, which `ddlDiff` uses too. A `create` adds the entity. A `drop` removes that one entity and follows no edge. An `alter` or a `rename` goes through `update` for the entity that the key names. `ddlDiff` calls the same `update` on the old state when it applies a rename decision, and `update` records the rename delta there. The final comparison of the two states gives the `create`, `drop` and `alter` deltas.
+`applyDeltas` applies each delta through one call to the DDL engine in `src/dialects/dialect.ts`, which `ddlDiff` uses too. A `create` adds the entity. A `drop` removes that one entity and follows no edge. An `alter` or a `rename` goes through `update` for the entity that the key names. `ddlDiff` turns each rename decision into one rename delta with `renameEntity`, which applies the delta to the old state through the same `update`. A decision that changes nothing gives no delta. The final comparison of the two states gives the `create`, `drop` and `alter` deltas.
 
 One set of rules covers a delta that does not fit the state. The rules are the same in a merge and outside a merge:
 

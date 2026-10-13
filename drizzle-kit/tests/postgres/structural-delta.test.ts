@@ -19,7 +19,7 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
-import { type Delta, delta, recordDeltas } from 'src/dialects/dialect';
+import { type Delta, delta, renameEntity } from 'src/dialects/dialect';
 import { createDDL } from 'src/dialects/postgres/ddl';
 import { describe, expect, test } from 'vitest';
 import { apply, diff, drizzleToDDL } from './mocks';
@@ -261,83 +261,93 @@ describe('ddlDiff deltas', () => {
 	});
 });
 
-describe('recorded update deltas', () => {
-	const recordedBy = (change: (ddl: ReturnType<typeof ddlOf>) => unknown) => {
-		const ddl = ddlOf({ other, mood, users, items: other.table('items', { id: integer('id') }) });
-		const recorded = recordDeltas(ddl);
-		change(ddl);
-		return recorded;
-	};
+describe('rename deltas', () => {
+	const stateOf = () => ddlOf({ other, mood, users, items: other.table('items', { id: integer('id') }) });
 
 	// The entities that reference the renamed entity change through the edges and get no delta.
-	test('a table rename records one rename delta', () => {
-		const recorded = recordedBy((ddl) => ddl.tables.update({ set: { name: 'accounts' }, where: { name: 'users' } }));
+	test('a table rename gives one rename delta', () => {
+		const ddl = stateOf();
 
-		expect(recorded).toStrictEqual([
-			{ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } },
-		]);
+		const renamed = renameEntity(ddl, ddl.tables.one({ name: 'users' })!, { name: 'accounts' });
+
+		expect(renamed).toStrictEqual({ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } });
 	});
 
-	test('a column rename records one rename delta', () => {
-		const recorded = recordedBy((ddl) =>
-			ddl.columns.update({ set: { name: 'contact' }, where: { ...inUsers, name: 'email' } })
-		);
+	test('a column rename gives one rename delta', () => {
+		const ddl = stateOf();
 
-		expect(recorded).toStrictEqual([
-			{ op: 'rename', key: 'columns\0["public","users","email"]', set: { name: 'contact' } },
-		]);
+		const renamed = renameEntity(ddl, ddl.columns.one({ ...inUsers, name: 'email' })!, { name: 'contact' });
+
+		expect(renamed).toStrictEqual({
+			op: 'rename',
+			key: 'columns\0["public","users","email"]',
+			set: { name: 'contact' },
+		});
 	});
 
-	test('an enum rename records one rename delta', () => {
-		const recorded = recordedBy((ddl) => ddl.enums.update({ set: { name: 'feeling' }, where: { name: 'mood' } }));
+	test('an enum rename gives one rename delta', () => {
+		const ddl = stateOf();
 
-		expect(recorded).toStrictEqual([
-			{ op: 'rename', key: 'enums\0["public","mood"]', set: { name: 'feeling' } },
-		]);
+		const renamed = renameEntity(ddl, ddl.enums.one({ name: 'mood' })!, { name: 'feeling' });
+
+		expect(renamed).toStrictEqual({ op: 'rename', key: 'enums\0["public","mood"]', set: { name: 'feeling' } });
 	});
 
-	test('a schema rename records one rename delta', () => {
-		const recorded = recordedBy((ddl) => ddl.schemas.update({ set: { name: 'archive' }, where: { name: 'other' } }));
+	test('a schema rename gives one rename delta', () => {
+		const ddl = stateOf();
 
-		expect(recorded).toStrictEqual([{ op: 'rename', key: 'schemas\0["other"]', set: { name: 'archive' } }]);
+		const renamed = renameEntity(ddl, ddl.schemas.one({ name: 'other' })!, { name: 'archive' });
+
+		expect(renamed).toStrictEqual({ op: 'rename', key: 'schemas\0["other"]', set: { name: 'archive' } });
 	});
 
-	test('the recorded deltas, applied to the starting state, give the state after the updates', () => {
-		const start = ddlOf({ other, mood, users, items: other.table('items', { id: integer('id') }) });
-		const ddl = ddlOf({ other, mood, users, items: other.table('items', { id: integer('id') }) });
-		const recorded = recordDeltas(ddl);
-		ddl.schemas.update({ set: { name: 'archive' }, where: { name: 'other' } });
-		ddl.tables.update({ set: { name: 'accounts' }, where: { name: 'users' } });
+	test('the delta holds only the fields that change', () => {
+		const ddl = stateOf();
+
+		const renamed = renameEntity(ddl, ddl.tables.one({ name: 'users' })!, { name: 'accounts', schema: 'public' });
+
+		expect(renamed).toStrictEqual({ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } });
+	});
+
+	test('the rename deltas, applied to the starting state, give the state after the renames', () => {
+		const start = stateOf();
+		const ddl = stateOf();
+		const deltas = [
+			renameEntity(ddl, ddl.schemas.one({ name: 'other' })!, { name: 'archive' })!,
+			renameEntity(ddl, ddl.tables.one({ name: 'users' })!, { name: 'accounts' })!,
+		];
 
 		expect(ddl.columns.list({ schema: 'archive' }).map((it) => it.table)).toStrictEqual(['items']);
 		expect(ddl.columns.list({ table: 'accounts' })).toHaveLength(2);
-		expect(eq(apply(start, recorded), ddl)).toBe(true);
+		expect(eq(apply(start, deltas), ddl)).toBe(true);
 	});
 
-	test('are empty when the update is rolled back on a conflict', () => {
+	test('a rename onto a taken key gives no delta and changes no entity', () => {
 		const ddl = ddlOf({ users, accounts: pgTable('accounts', { id: integer('id') }) });
-		const recorded = recordDeltas(ddl);
-		const result = ddl.tables.update({ set: { name: 'accounts' }, where: { name: 'users' } });
-		expect(result.status).toBe('CONFLICT');
-		expect(recorded).toStrictEqual([]);
+
+		expect(renameEntity(ddl, ddl.tables.one({ name: 'users' })!, { name: 'accounts' })).toBeNull();
 		expect(ddl.tables.list().map((it) => it.name).sort()).toStrictEqual(['accounts', 'users']);
 	});
 
-	test('are empty, and no entity moves, when a rename would move a referencing entity onto a taken key', () => {
+	test('a rename that would move a referencing entity onto a taken key gives no delta and moves no entity', () => {
 		const ddl = ddlOf({
 			users,
 			accounts: pgTable('other_accounts', { id: integer('id') }),
 		});
 		// A column of a table `accounts` that the state does not hold.
 		ddl.columns.push({ ...ddl.columns.one({ table: 'users', name: 'id' })!, table: 'accounts' });
-		const recorded = recordDeltas(ddl);
 
-		const result = ddl.tables.update({ set: { name: 'accounts' }, where: { name: 'users' } });
-
-		expect(result.status).toBe('CONFLICT');
-		expect(recorded).toStrictEqual([]);
+		expect(renameEntity(ddl, ddl.tables.one({ name: 'users' })!, { name: 'accounts' })).toBeNull();
 		expect(ddl.tables.one({ name: 'users' })).not.toBeNull();
 		expect(ddl.columns.list({ table: 'users' })).toHaveLength(2);
+	});
+
+	test('a rename of an entity that the state does not hold gives no delta', () => {
+		const ddl = stateOf();
+		const missing = { ...ddl.tables.one({ name: 'users' })!, name: 'missing' };
+
+		expect(renameEntity(ddl, missing, { name: 'accounts' })).toBeNull();
+		expect(ddl.tables.one({ name: 'accounts' })).toBeNull();
 	});
 });
 

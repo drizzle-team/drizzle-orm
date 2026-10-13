@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { render } from 'hanji';
-import { copyDDL, type Delta } from '../../dialects/dialect';
+import type { Delta } from '../../dialects/dialect';
 import type {
 	CheckConstraint,
 	Column,
@@ -61,9 +61,9 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	const { report, fix } = await checkSnapshots(stored.files, 'postgresql');
 	if (fix && !config.fixConflicts) await confirmConflictFix(config, conflictError(report, fix));
 	const kept = withoutMigrations(stored, fix?.migrations ?? []);
-	const snapshots = kept.files.map((it) => it.path);
 	const prepared = await config.schemaSource.load();
-	const { ddlCur, ddlPrev, prevIds } = await prepareSnapshot(kept, prepared);
+	const { ddlCur, ddlPrev } = prepareSnapshot(kept, prepared);
+	const prevIds = kept.leafIds;
 	const parentFolders = leafFolders(kept);
 
 	// `state` is the state after the migration, and `deltas` turn `ddlPrev` into it. `statements` are the
@@ -98,7 +98,7 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 				breakpoints: config.breakpoints,
 				dialect: 'postgresql',
 				type: 'custom',
-				snapshots,
+				snapshots: [],
 				parentFolders,
 			}),
 			...deleteConflictingMigrations(),
@@ -108,7 +108,7 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	// ddlDiff changes both states. ddlCur keeps the changes: auto-named constraints get the names that the
 	// SQL leaves in the database.
 	const { sqlStatements, groupedStatements, statements, snapshotStatements, deltas } = await ddlDiff(
-		copyDDL(ddlPrev),
+		ddlPrev,
 		ddlCur,
 		resolver<Schema>('schema', config.hints),
 		resolver<Enum>('enum', config.hints),
@@ -139,7 +139,7 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 				name: config.name,
 				breakpoints: config.breakpoints,
 				dialect: 'postgresql',
-				snapshots,
+				snapshots: [],
 				parentFolders,
 			}),
 			...deleteConflictingMigrations(),

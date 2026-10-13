@@ -100,16 +100,10 @@ export const ddlDiff = async (
 	const renamedEnums = renamedOrMovedEnums.filter((it) => it.from.name !== it.to.name);
 	const movedEnums = renamedOrMovedEnums.filter((it) => it.from.schema !== it.to.schema);
 
-	for (const rename of renamedEnums) {
+	for (const it of renamedOrMovedEnums) {
 		ddl1.enums.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
-		});
-	}
-	for (const move of movedEnums) {
-		ddl1.enums.update({
-			set: { schema: move.to.schema },
-			where: { name: move.from.name, schema: move.from.schema },
+			set: { name: it.to.name, schema: it.to.schema },
+			where: { name: it.from.name, schema: it.from.schema },
 		});
 	}
 

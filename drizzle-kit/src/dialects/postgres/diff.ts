@@ -1,10 +1,10 @@
-import { prepareMigrationRenames, trimChar } from '../../utils';
+import { trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import { deepStrictEqual } from '../../utils/node-assert/deep-strict-equal';
 import { diffStringArrays } from '../../utils/sequence-matcher';
 import { parse } from '../../utils/when-json-met-bigint';
 import type { Resolver } from '../common';
-import { type Delta, delta, diff, recordDeltas } from '../dialect';
+import { type Delta, delta, diff, renameEntity, type Row } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
 import type {
@@ -144,7 +144,6 @@ export const ddlDiff = async (
 	snapshotStatements: SnapshotStatement[];
 	sqlStatements: string[];
 	groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[];
-	renames: string[];
 	deltas: Delta[];
 }> => {
 	const ddl1Copy = createDDL();
@@ -152,7 +151,13 @@ export const ddlDiff = async (
 		ddl1Copy.entities.push(entity);
 	}
 
-	const recorded = recordDeltas(ddl1);
+	// Each rename or move decision is one delta. `renameEntity` applies it to `ddl1` with the call that
+	// reconstruct makes for a stored delta, so the diff continues from the state that reconstruct will give.
+	const renameDeltas: Delta[] = [];
+	const applyRename = (from: Row, set: Row) => {
+		const renamed = renameEntity(ddl1, from, set);
+		if (renamed) renameDeltas.push(renamed);
+	};
 
 	const schemasDiff = diff(ddl1, ddl2, 'schemas');
 	const { created: createdSchemas, deleted: deletedSchemas, renamedOrMoved: renamedSchemas } = await schemasResolver({
@@ -161,10 +166,7 @@ export const ddlDiff = async (
 	});
 
 	for (const rename of renamedSchemas) {
-		ddl1.schemas.update({
-			set: { name: rename.to.name },
-			where: { name: rename.from.name },
-		});
+		applyRename(rename.from, { name: rename.to.name });
 	}
 
 	const enumsDiff = diff(ddl1, ddl2, 'enums');
@@ -176,17 +178,8 @@ export const ddlDiff = async (
 	const renamedEnums = renamedOrMovedEnums.filter((it) => it.from.name !== it.to.name);
 	const movedEnums = renamedOrMovedEnums.filter((it) => it.from.schema !== it.to.schema);
 
-	for (const rename of renamedEnums) {
-		ddl1.enums.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
-		});
-	}
-	for (const move of movedEnums) {
-		ddl1.enums.update({
-			set: { schema: move.to.schema },
-			where: { name: move.from.name, schema: move.from.schema },
-		});
+	for (const it of renamedOrMovedEnums) {
+		applyRename(it.from, { name: it.to.name, schema: it.to.schema });
 	}
 
 	const sequencesDiff = diff(ddl1, ddl2, 'sequences');
@@ -230,10 +223,7 @@ export const ddlDiff = async (
 	));
 
 	for (const it of renamedOrMovedSeqs) {
-		ddl1.sequences.update({
-			set: { name: it.to.name, schema: it.to.schema },
-			where: { name: it.from.name, schema: it.from.schema },
-		});
+		applyRename(it.from, { name: it.to.name, schema: it.to.schema });
 	}
 
 	const rolesDiff = diff(ddl1, ddl2, 'roles');
@@ -242,10 +232,7 @@ export const ddlDiff = async (
 		deleted: rolesDiff.filter((it) => it.$diffType === 'drop'),
 	});
 	for (const rename of renamedRoles) {
-		ddl1.roles.update({
-			set: { name: rename.to.name },
-			where: { name: rename.from.name },
-		});
+		applyRename(rename.from, { name: rename.to.name });
 	}
 
 	const tablesDiff = diff(ddl1, ddl2, 'tables');
@@ -297,10 +284,7 @@ export const ddlDiff = async (
 	]);
 
 	for (const rename of orMovedTables) {
-		ddl1.tables.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
-		});
+		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
 
 		// Drizzle Studio builds the new state from the form of one table and copies the rest from the old
 		// state. So the foreign keys of other tables and the policies of the renamed table can still name the
@@ -339,13 +323,7 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of columnRenames) {
-		ddl1.columns.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			// scope by table: two tables can share a column name, and under dialect2 an
-			// unscoped rename would also rename the other column, whose change propagates
-			// through fk/index edges into columnsTo — a spurious constraint recreate.
-			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
-		});
+		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
 
 		// The form of Drizzle Studio renames a column only in the column list. So the indexes and the
 		// constraints of the new state can still name the old column. The new state holds no column with the
@@ -391,10 +369,7 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of uniqueRenames) {
-		ddl1.uniques.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
-		});
+		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
 	}
 
 	const diffChecks = diff(ddl1, ddl2, 'checks');
@@ -415,10 +390,7 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of checkRenames) {
-		ddl1.checks.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
-		});
+		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
 	}
 
 	const diffIndexes = diff(ddl1, ddl2, 'indexes');
@@ -446,10 +418,7 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of indexesRenames) {
-		ddl1.indexes.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
-		});
+		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
 	}
 
 	const diffPKs = diff(ddl1, ddl2, 'pks');
@@ -470,10 +439,7 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of pksRenames) {
-		ddl1.pks.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
-		});
+		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
 	}
 
 	const diffFKs = diff(ddl1, ddl2, 'fks');
@@ -494,10 +460,7 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of fksRenames) {
-		ddl1.fks.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
-		});
+		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
 	}
 
 	const policiesDiff = diff(ddl1, ddl2, 'policies');
@@ -519,10 +482,7 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of policyRenames) {
-		ddl1.policies.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
-		});
+		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
 	}
 
 	const viewsDiff = diff(ddl1, ddl2, 'views');
@@ -545,10 +505,7 @@ export const ddlDiff = async (
 	));
 
 	for (const it of renamedOrMovedViews) {
-		ddl1.views.update({
-			set: { name: it.to.name, schema: it.to.schema },
-			where: { name: it.from.name, schema: it.from.schema },
-		});
+		applyRename(it.from, { name: it.to.name, schema: it.to.schema });
 	}
 
 	// The order of the roles of a policy has no meaning in SQL. After a role rename, the old state can list
@@ -565,7 +522,7 @@ export const ddlDiff = async (
 
 	const all = diff.all(ddl1, ddl2);
 	// convert now: the statement code below deletes fields from the alter rows
-	const deltas: Delta[] = [...recorded, ...delta(ddl1, ddl2, all)];
+	const deltas: Delta[] = [...renameDeltas, ...delta(ddl1, ddl2, all)];
 	const alters = all.filter((it): it is Extract<typeof it, { $diffType: 'alter' }> => it.$diffType === 'alter');
 
 	const jsonStatements: JsonStatement[] = [];
@@ -1358,28 +1315,11 @@ export const ddlDiff = async (
 
 	const { groupedStatements, sqlStatements, snapshotStatements } = fromJson(jsonStatements);
 
-	const renames = prepareMigrationRenames([
-		...renameSchemas,
-		...renamedEnums,
-		...orMovedTables,
-		...columnRenames,
-		...uniqueRenames,
-		...checkRenames,
-		...indexesRenames,
-		...pksRenames,
-		...fksRenames,
-		...policyRenames,
-		...renamedOrMovedViews,
-		...renamedRoles,
-		...renamedOrMovedSeqs,
-	]);
-
 	return {
 		statements: jsonStatements,
 		snapshotStatements,
 		sqlStatements,
 		groupedStatements: groupedStatements,
-		renames: renames,
 		deltas,
 	};
 };

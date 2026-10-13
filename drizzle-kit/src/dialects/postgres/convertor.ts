@@ -321,11 +321,7 @@ const moveTableConvertor = convertor('move_table', ({ name, from, to, relations 
 	return `ALTER TABLE ${from} SET SCHEMA "${st.to}";\n`;
 });
 
-const addColumnConvertor = convertor('add_column', ({ column, isPK, isCompositePK }) => ({
-	column: row('columns', column),
-	isPK,
-	isCompositePK,
-}), (st) => {
+const addColumnSql = (st: { column: StoredRow<'columns'>; isPK: boolean; isCompositePK: boolean }) => {
 	const { schema, table, name, identity, generated } = st.column;
 	const column = st.column;
 
@@ -381,7 +377,13 @@ const addColumnConvertor = convertor('add_column', ({ column, isPK, isCompositeP
 	const generatedStatement = column.generated ? ` GENERATED ALWAYS AS (${column.generated.as}) STORED` : '';
 
 	return `ALTER TABLE ${tableNameWithSchema} ADD COLUMN "${name}" ${fixedType}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${identityStatement};`;
-});
+};
+
+// The primary key of a new column has its own statement, `add_pk` or `alter_pk`.
+const addColumnConvertor = convertor('add_column', ({ column, isCompositePK }) => ({
+	column: row('columns', column),
+	isCompositePK,
+}), (st) => addColumnSql({ ...st, isPK: false }));
 
 const dropColumnConvertor = convertor('drop_column', ({ column }) => ({ column: inTable(column) }), (st) => {
 	const { schema, table, name } = st.column;
@@ -414,7 +416,7 @@ const recreateColumnConvertor = convertor('recreate_column', ({ diff, isPK }) =>
 	// AlterTableAlterColumnAlterGeneratedConvertor
 
 	const drop = dropColumnConvertor.convert({ column: st.column }) as string;
-	const add = addColumnConvertor.convert({ column: st.column, isPK: st.isPK, isCompositePK: false }) as string;
+	const add = addColumnSql({ column: st.column, isPK: st.isPK, isCompositePK: false });
 
 	return [drop, add];
 });

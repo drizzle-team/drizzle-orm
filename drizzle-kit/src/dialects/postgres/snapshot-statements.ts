@@ -69,7 +69,7 @@ export const snapshotStatementSchemas = {
 		// Their names leave one schema and enter the other.
 		indexNames: array(string()),
 	}),
-	add_column: statement('add_column', { column: row('columns'), isPK: boolean(), isCompositePK: boolean() }),
+	add_column: statement('add_column', { column: row('columns'), isCompositePK: boolean() }),
 	drop_column: statement('drop_column', { column: inTable }),
 	rename_column: statement('rename_column', { from: inTable, to: inTable }),
 	alter_column: statement('alter_column', {

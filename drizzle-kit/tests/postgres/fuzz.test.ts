@@ -15,7 +15,7 @@ import { ddlDiff } from 'src/dialects/postgres/diff';
 import { reconstruct } from 'src/dialects/postgres/reconstruct';
 import type { PostgresSnapshotV8 } from 'src/dialects/postgres/snapshot';
 import { withStateKeyNames } from 'src/dialects/postgres/versions-v9';
-import { originUUID } from 'src/utils';
+import { originUUID, prepareMigrationRenames } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
 import { expect, test } from 'vitest';
 import { createFolderFlow, createFormat8Flow, schemaState, tempDir } from './folder-flow';
@@ -62,9 +62,16 @@ const statesOf = ({ before, after }: Pair) => {
 	return { left: toDDL(from)!, right: toDDL(to)!, renames: renameDecisions(from, to, after).map(toRenameString) };
 };
 
+type ResolvedRename = Record<'from' | 'to', { entityType: string; schema?: string; table?: string; name: string }>;
+
 // mockResolver keeps no state between calls, so one resolver fills every resolver argument of ddlDiff.
-const renameResolvers = (renames: string[]) => {
-	const same = mockResolver<any>(new Set(renames));
+const renameResolvers = (renames: string[], resolved: ResolvedRename[]) => {
+	const mock = mockResolver<any>(new Set(renames));
+	const same: typeof mock = async (it) => {
+		const result = await mock(it);
+		resolved.push(...result.renamedOrMoved);
+		return result;
+	};
 	return [same, same, same, same, same, same, same, same, same, same, same, same, same] as const;
 };
 
@@ -156,7 +163,8 @@ const writeFormat8Folder = async (steps: Step[], dir: string) => {
 			const to = toDDL(next)!;
 			const renames = renameDecisions(start, next, step.ops).map(toRenameString);
 			const from = fromEntities(structuredClone(latest?.ddl ?? []));
-			const result = await ddlDiff(from, to, ...renameResolvers(renames), 'default');
+			const resolved: ResolvedRename[] = [];
+			const result = await ddlDiff(from, to, ...renameResolvers(renames, resolved), 'default');
 			if (result.sqlStatements.length === 0) return;
 			snapshot = {
 				version: '8',
@@ -164,7 +172,10 @@ const writeFormat8Folder = async (steps: Step[], dir: string) => {
 				id: randomUUID(),
 				prevIds,
 				ddl: to.entities.list(),
-				renames: result.renames,
+				// A version 8 snapshot has no rename string for an enum that only moved to another schema.
+				renames: prepareMigrationRenames(
+					resolved.filter((it) => it.from.entityType !== 'enums' || it.from.name !== it.to.name),
+				),
 			};
 		}
 		time += 1000;

@@ -8,8 +8,7 @@ export type Delta =
 	| { op: 'alter'; key: string; set: Row }
 	| { op: 'rename'; key: string; set: Row };
 
-// Returns [entityType, identity].
-export const splitDeltaKey = (key: string): [string, string] => {
+export const splitDeltaKey = (key: string): [entityType: string, identity: string] => {
 	const idx = key.indexOf('\0'); // the identity is JSON and never contains \0
 	if (idx < 0) {
 		throw new Error(
@@ -101,7 +100,6 @@ type Internals = {
 	identity: Record<string, IdFn>;
 	edges: Record<string, Edge[]>;
 	nulls: Record<string, Row>;
-	recorded: Delta[] | null;
 };
 
 type Where<T> = { [K in keyof T]?: T[K] | { CONTAINS: any } } & Record<string, any>;
@@ -372,27 +370,12 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 			for (const [t, r] of copies) bucketOf(t).set(keyOf(r), r);
 		};
 
-		// While recording, each selected entity that changes gives one delta: a rename when its key changes,
-		// and an alter when its key stays. The entities that reference a renamed entity change through the
-		// edges below and get no delta of their own.
-		const deltas: Delta[] = [];
 		type Seed = { type: string; oldKey: string; oldRow: Row; newRow: Row };
 		const seeds: Seed[] = [];
 		for (const { row, next } of planned) {
 			const oldRow = { ...row };
 			const oldKey = keyOf(oldRow);
 			const hasKeyChanged = keyOf(next) !== oldKey;
-			if (ctx.recorded) {
-				const changes: Row = {};
-				for (const k of Object.keys(next)) if (!isEqual(row[k], next[k])) changes[k] = next[k];
-				if (Object.keys(changes).length) {
-					deltas.push({
-						op: hasKeyChanged ? 'rename' : 'alter',
-						key: qualifiedKey(row.entityType, oldKey),
-						set: changes,
-					});
-				}
-			}
 			Object.assign(row, next);
 			if (hasKeyChanged) seeds.push({ type: row.entityType, oldKey, oldRow, newRow: row });
 		}
@@ -437,8 +420,6 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 			rekey(); // rows moved keys — rebuild the buckets once.
 		}
 
-		// A call that ends in a conflict records nothing.
-		ctx.recorded?.push(...deltas);
 		return { status: 'OK', data: targets };
 	};
 
@@ -515,7 +496,7 @@ export function create<const D extends Record<string, Def>>(
 		});
 	}
 
-	const internals: Internals = { store, defs, identity, edges, nulls, recorded: null };
+	const internals: Internals = { store, defs, identity, edges, nulls };
 	return build<InferEntities<D>>(internals);
 }
 
@@ -671,11 +652,16 @@ export function copyDDL<M extends Record<string, Row>>(ddl: DDL<M>): DDL<M> {
 		const copy = store.get(entityType)!;
 		for (const [identity, row] of bucket) copy.set(identity, structuredClone(row));
 	}
-	return build<M>({ ...src, store, recorded: null });
+	return build<M>({ ...src, store });
 }
 
-// From now on, every `update` on this DDL that ends without a conflict adds one delta for each entity that
-// its `where` selects and changes. `push`, `delete` and `drop` add nothing.
-export function recordDeltas<M extends Record<string, Row>>(ddl: DDL<M>): Delta[] {
-	return ddl._.recorded = [];
+// Renames the entity `from` in `ddl` and returns the delta of that change. The result is null when the state
+// does not change: no field of `set` differs, the state does not hold `from`, or the new key is taken.
+export function renameEntity<M extends Record<string, Row>>(ddl: DDL<M>, from: Row, set: Row): Delta | null {
+	const changes: Row = {};
+	for (const field of Object.keys(set)) if (!isEqual(from[field], set[field])) changes[field] = set[field];
+	if (!Object.keys(changes).length) return null;
+	const key = qualifiedKeyOf(ddl, from);
+	const { status, data } = ddl.entities.update({ set: changes, where: key });
+	return status === 'OK' && data.length ? { op: 'rename', key, set: changes } : null;
 }

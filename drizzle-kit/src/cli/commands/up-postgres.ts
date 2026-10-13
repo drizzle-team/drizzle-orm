@@ -13,7 +13,7 @@ import {
 import { isSnapshotV8, upToV8 } from '../../dialects/postgres/versions';
 import { UnsupportedMergeError, upToV9, withStateKeyNames } from '../../dialects/postgres/versions-v9';
 import { originUUID } from '../../utils';
-import { assertSnapshotStatus, listSnapshots, validatorForDialect } from '../../utils/utils-node';
+import { assertSnapshotStatus, prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
 import { outputFormat } from '../context';
 import { CheckCliError, CommandOutputCliError, DrizzleCliError, UnsupportedSnapshotVersionCliError } from '../errors';
 import { applyFoldersV3, planFoldersV3 } from './utils';
@@ -70,7 +70,11 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 	// names things that exist. `folder` is the migration folder after the move.
 	const sources = (moves
 		? moves.map((it) => ({ path: it.snapshotPath, folder: it.folder, name: it.tag }))
-		: listSnapshots(out).map((path) => ({ path, folder: basename(dirname(path)), name: basename(dirname(path)) })))
+		: prepareOutFolder(out).snapshots.map((path) => ({
+			path,
+			folder: basename(dirname(path)),
+			name: basename(dirname(path)),
+		})))
 		.map((it) => {
 			let raw: any;
 			try {

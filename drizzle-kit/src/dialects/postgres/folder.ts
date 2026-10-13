@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { basename, dirname } from 'path';
 import { CheckCliError, type DrizzleCliErrorMeta } from '../../cli/errors';
 import { originUUID } from '../../utils';
-import { assertSnapshotStatus, listSnapshots, validatorForDialect } from '../../utils/utils-node';
+import { assertSnapshotStatus, prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
 import type { PostgresDDL } from './ddl';
 import { KeyCollisionError, missingBaseMessage, missingParentMessage, reconstruct, startingState } from './reconstruct';
 import type { PostgresSnapshot } from './snapshot';
@@ -106,7 +106,7 @@ export const loadFolder = (files: FolderFile[]): MigrationsFolder => {
 
 // Every snapshot.json of the migrations folder `out`, in folder-name order.
 export const readEntries = (out: string): FolderEntry[] =>
-	listSnapshots(out).map((path) => {
+	prepareOutFolder(out).snapshots.map((path) => {
 		let raw: unknown;
 		try {
 			raw = JSON.parse(readFileSync(path, 'utf8'));

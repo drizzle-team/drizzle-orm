@@ -1,3 +1,5 @@
+// This file imports only types from snapshot.ts, because the programmatic API imports this file at module load
+// and must load snapshot.ts only inside its functions.
 import { createDDL, type Index } from '../../dialects/postgres/ddl';
 import {
 	defaultNameForIndex,
