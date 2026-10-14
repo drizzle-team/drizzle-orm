@@ -5,6 +5,7 @@ import type {
 	Index,
 	InterimColumn,
 	PrimaryKey,
+	SQLiteDDL,
 	SqliteEntities,
 	UniqueConstraint,
 	View,
@@ -106,14 +107,23 @@ const fromInterims = (tables: InterimTable[], views: InterimView[]) => {
 	};
 };
 
+export const studioSchemaToDDL = (schema: InterimStudioSchema) => {
+	const interimSchema = fromInterims(schema.tables, schema.views);
+	const { ddl, errors } = interimToDDL(interimSchema);
+
+	if (errors.length > 0) {
+		throw new Error(errors.map((it) => JSON.stringify(it)).join('\n'));
+	}
+
+	return ddl;
+};
+
 export const diffSqlite = async (
-	from: InterimStudioSchema,
-	to: InterimStudioSchema,
+	ddl1: SQLiteDDL,
+	ddl2: SQLiteDDL,
 	renamesArr: string[],
 ) => {
 	const renames = new Set(renamesArr);
-	const { ddl: ddl1 } = interimToDDL(fromInterims(from.tables, from.views));
-	const { ddl: ddl2 } = interimToDDL(fromInterims(to.tables, to.views));
 
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,

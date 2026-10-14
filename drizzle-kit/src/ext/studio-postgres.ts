@@ -8,6 +8,7 @@ import type {
 	InterimIndex,
 	InterimSchema,
 	Policy,
+	PostgresDDL,
 	PostgresEntities,
 	PrimaryKey,
 	Privilege,
@@ -166,10 +167,18 @@ const fromInterims = ({
 	};
 };
 
-export const diffPostgresql = async (from: InterimStudioSchema, to: InterimStudioSchema, renamesArr: string[]) => {
-	const { ddl: ddl1 } = interimToDDL(fromInterims(from));
-	const { ddl: ddl2 } = interimToDDL(fromInterims(to));
+export const studioSchemaToDDL = (schema: InterimStudioSchema) => {
+	const interimSchema = fromInterims(schema);
+	const { ddl, errors } = interimToDDL(interimSchema);
 
+	if (errors.length > 0) {
+		throw new Error(errors.map((it) => JSON.stringify(it)).join('\n'));
+	}
+
+	return ddl;
+};
+
+export const diffPostgresql = async (ddl1: PostgresDDL, ddl2: PostgresDDL, renamesArr: string[]) => {
 	const renames = new Set(renamesArr);
 
 	const { sqlStatements, groupedStatements, statements } = await ddlDiff(
@@ -184,11 +193,11 @@ export const diffPostgresql = async (from: InterimStudioSchema, to: InterimStudi
 		mockResolver(renames),
 		mockResolver(renames),
 		mockResolver(renames),
-		mockResolver(renames), // views
-		mockResolver(renames), // uniques
-		mockResolver(renames), // indexes
-		mockResolver(renames), // checks
-		mockResolver(renames), // pks
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
 		'default',
 	);
 

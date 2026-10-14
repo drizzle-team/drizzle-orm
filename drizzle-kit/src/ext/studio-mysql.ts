@@ -5,6 +5,7 @@ import type {
 	Index,
 	InterimColumn,
 	InterimSchema,
+	MysqlDDL,
 	MysqlEntities,
 	PrimaryKey,
 	View,
@@ -123,10 +124,18 @@ const fromInterims = ({
 	};
 };
 
-export const diffMySql = async (from: InterimStudioSchema, to: InterimStudioSchema, renamesArr: string[]) => {
-	const { ddl: ddl1 } = interimToDDL(fromInterims(from));
-	const { ddl: ddl2 } = interimToDDL(fromInterims(to));
+export const studioSchemaToDDL = (schema: InterimStudioSchema) => {
+	const interimSchema = fromInterims(schema);
+	const { ddl, errors } = interimToDDL(interimSchema);
 
+	if (errors.length > 0) {
+		throw new Error(errors.map((it) => JSON.stringify(it)).join('\n'));
+	}
+
+	return ddl;
+};
+
+export const diffMySql = async (ddl1: MysqlDDL, ddl2: MysqlDDL, renamesArr: string[]) => {
 	const renames = new Set(renamesArr);
 
 	const { sqlStatements, groupedStatements, statements } = await ddlDiff(
