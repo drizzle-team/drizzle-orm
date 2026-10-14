@@ -21,6 +21,7 @@ import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core
 export interface BunSQLiteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export type BunSQLiteRunResult = Record<string, unknown>[] & Record<string, unknown>;
@@ -75,9 +76,6 @@ export class BunSQLiteSession<
 			run: (params) => {
 				return this.client.unsafe(query.sql, params);
 			},
-			values: (params) => {
-				return this.client.unsafe(query.sql, params).values();
-			},
 		};
 		return new SQLiteAsyncPreparedQuery(
 			'async',
@@ -90,6 +88,7 @@ export class BunSQLiteSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

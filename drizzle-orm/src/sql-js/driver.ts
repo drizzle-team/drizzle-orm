@@ -33,6 +33,7 @@ export function drizzle<TRelations extends AnyRelations = EmptyRelations>(
 	const relations = config.relations ?? {} as TRelations;
 	const session = new SQLJsSession(client, dialect, relations, {
 		logger,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new SQLJsDatabase(
 		'sync',

@@ -10,13 +10,13 @@ export class EffectDrizzleError extends Schema.TaggedError<EffectDrizzleError>()
 
 export class EffectDrizzleQueryError extends Schema.TaggedError<EffectDrizzleQueryError>()('EffectDrizzleQueryError', {
 	query: Schema.String,
-	params: Schema.Array(Schema.Any).pipe(Schema.mutable),
+	params: Schema.UndefinedOr(Schema.Array(Schema.Any).pipe(Schema.mutable)),
 	cause: Schema.Unknown,
 }) {
 	static readonly [entityKind]: string = 'EffectDrizzleQueryError';
 
 	override get message() {
-		return `Failed query: ${this.query}\nparams: ${this.params}`;
+		return this.params ? `Failed query: ${this.query}\nparams: ${this.params}` : `Failed query: ${this.query}`;
 	}
 
 	constructor(params: Omit<Schema.Struct.MakeIn<typeof EffectDrizzleQueryError.fields>, '_tag'>) {

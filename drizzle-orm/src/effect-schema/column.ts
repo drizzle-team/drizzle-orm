@@ -290,7 +290,7 @@ function arrayColumnToSchema(
 			const length = column.length;
 			const schema = S.Array(S.Number);
 			return length
-				? schema.check(S.isLengthBetween(length, length))
+				? schema.check(S.isBetweenLength(length, length))
 				: schema;
 		}
 		case 'int64vector': {
@@ -302,7 +302,7 @@ function arrayColumnToSchema(
 				),
 			);
 			return length
-				? schema.check(S.isLengthBetween(length, length))
+				? schema.check(S.isBetweenLength(length, length))
 				: schema;
 		}
 		default: {
@@ -375,7 +375,7 @@ function stringColumnToSchema(
 	let schema = S.String;
 	schema = regex ? schema.check(S.isPattern(regex)) : schema;
 	return length && isLengthExact
-		? schema.check(S.isLengthBetween(length, length))
+		? schema.check(S.isBetweenLength(length, length))
 		: length
 		? schema.check(S.isMaxLength(length))
 		: schema;

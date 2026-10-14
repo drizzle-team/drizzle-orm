@@ -1,6 +1,8 @@
 import { neon, Pool as NeonPool } from '@neondatabase/serverless';
 import { eq, sql } from 'drizzle-orm';
+import type { NeonHttpQueryResult } from 'drizzle-orm/neon-http';
 import { drizzle } from 'drizzle-orm/netlify-db';
+import type { NetlifyDbDatabase } from 'drizzle-orm/netlify-db';
 import { migrate } from 'drizzle-orm/netlify-db/migrator';
 import {
 	bigint,
@@ -40,6 +42,7 @@ import pg from 'pg';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
+import { assertDroppedConnectionRejectsTransaction } from './connection-drop';
 import { netlifyDbTest as test } from './instrumentation';
 import { usersMigratorTable, usersTable } from './schema';
 import {
@@ -75,6 +78,35 @@ async function setupTestTable(database: { execute: (query: any) => Promise<any> 
 async function teardownTestTable(database: { execute: (query: any) => Promise<any> }) {
 	await database.execute(sql`drop table if exists netlify_db_test_items`);
 }
+
+test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
+	const db = fixtureDb as unknown as NetlifyDbDatabase;
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} ("id" integer primary key, "name" text not null)`);
+	expectTypeOf(created).toEqualTypeOf<NeonHttpQueryResult<never>>();
+	expect(created).toEqual(expect.objectContaining({ rows: [], command: expect.any(String) }));
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<NeonHttpQueryResult<never>>();
+	expect(inserted).toEqual(expect.objectContaining({ rows: [], rowCount: 1 }));
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(selected).toEqualTypeOf<NeonHttpQueryResult<{ id: number; name: string }>>();
+	expect(selected).toEqual(expect.objectContaining({ rows: [{ id: 1, name: 'John' }], rowCount: 1 }));
+
+	// Any response
+	const any = await db.execute(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(any).toEqualTypeOf<NeonHttpQueryResult<Record<string, unknown>>>();
+	expect(any).toEqual(expect.objectContaining({ rows: [{ id: 1, name: 'John' }], rowCount: 1 }));
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
 
 describe('migrator', () => {
 	test.beforeEach(async ({ db }) => {
@@ -559,18 +591,34 @@ describe('migrator', () => {
 		await db.execute(sql`drop table if exists ${table}`);
 	});
 
-	test('insert via db.execute + select via db.execute', async ({ db }) => {
+	test('insert via db.execute + select via db.execute', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_netlify_db_1', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		await db.execute(
 			sql`insert into ${usersTable} (${sql.identifier(usersTable.name.name)}) values (${'John'})`,
 		);
 
 		const result = await db.execute<{ id: number; name: string }>(
-			sql`select id, name from "users"`,
+			sql`select id, name from ${usersTable}`,
 		);
 		expect(result.rows).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('insert via db.execute + returning', async ({ db }) => {
+	test('insert via db.execute + returning', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_netlify_db_2', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		const inserted = await db.execute<{ id: number; name: string }>(
 			sql`insert into ${usersTable} (${
 				sql.identifier(
@@ -581,7 +629,15 @@ describe('migrator', () => {
 		expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
 	});
 
-	test('insert via db.execute w/ query builder', async ({ db }) => {
+	test('insert via db.execute w/ query builder', async ({ db, push }) => {
+		const usersTable = pgTable('users_execute_raw_netlify_db_3', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${usersTable}`);
+		await push({ usersTable });
+
 		const inserted = await db.execute<Pick<typeof usersTable.$inferSelect, 'id' | 'name'>>(
 			db
 				.insert(usersTable)
@@ -805,4 +861,8 @@ describe('transaction snapshot', () => {
 	test('does not let the id inject SQL', async ({ db }) => {
 		await assertSnapshotIdNotInjectable(db, expect, 'netlify');
 	});
+});
+
+test('transaction rejects when pooled connection is dropped', async ({ db, peer }) => {
+	await assertDroppedConnectionRejectsTransaction(db, peer!, expect);
 });

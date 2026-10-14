@@ -104,7 +104,7 @@ export class MySqlEffectSelectBase<
 	declare readonly session: MySqlEffectSession<TEffectHKT, any, any>;
 
 	prepare(): MySqlEffectSelectPrepare<this, TEffectHKT> {
-		const query = this.dialect.sqlToQuery(this.getSQL());
+		const query = this.dialect.sqlToQuery(this.getSQL(true));
 		const fieldsList = this.config.fieldsFlat!;
 		const mapper = this.dialect.mapperGenerators.rows(
 			fieldsList,

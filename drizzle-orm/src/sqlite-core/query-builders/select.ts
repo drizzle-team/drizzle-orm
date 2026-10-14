@@ -21,10 +21,10 @@ import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
+import { collectUsedTables } from '~/used-tables.ts';
 import { getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields, type ValueOrArray } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { View } from '~/view.ts';
-import { extractUsedTable } from '../utils.ts';
 import { SQLiteViewBase } from '../view-base.ts';
 import type {
 	AnySQLiteSelect,
@@ -201,7 +201,7 @@ export class SQLiteSelectBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
-		for (const item of extractUsedTable(table)) this.usedTables.add(item);
+		collectUsedTables(table, this.usedTables);
 	}
 
 	/** @internal */
@@ -222,7 +222,7 @@ export class SQLiteSelectBase<
 			const tableName = getTableLikeName(table);
 
 			// store all tables used in a query
-			for (const item of extractUsedTable(table)) this.usedTables.add(item);
+			collectUsedTables(table, this.usedTables);
 
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
@@ -831,26 +831,26 @@ export class SQLiteSelectBase<
 		return this;
 	}
 
-	getSQL(): SQL {
+	getSQL(withCastCodecs = false): SQL {
 		this.config.fieldsFlat ??= orderSelectedFields<SQLiteColumn>(this.config.fields, undefined, this.dialect.codecs);
-		return this.dialect.buildSelectQuery(this.config);
+		return this.dialect.buildSelectQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	as<TAlias extends string>(
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
-		const usedTables: string[] = [];
-		usedTables.push(...extractUsedTable(this.config.table));
-		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
+		const usedTables = new Set<string>();
+		collectUsedTables(this.config.table, usedTables);
+		if (this.config.joins) { for (const it of this.config.joins) collectUsedTables(it.table, usedTables); }
 
 		return new Proxy(
-			new Subquery(this.withoutSelectionCastCodecs().getSQL(), this.config.fields, alias, false, [
-				...new Set(usedTables),
-			]),
+			new Subquery(this.getSQL(), this.config.fields, alias, false, usedTables),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -861,12 +861,6 @@ export class SQLiteSelectBase<
 			this.config.fields,
 			new SelectionProxyHandler({ alias: this.tableName, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as this['_']['selectedFields'];
-	}
-
-	/** @internal */
-	override withoutSelectionCastCodecs(): this {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
 	}
 
 	$dynamic(): SQLiteSelectDynamic<this> {

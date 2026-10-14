@@ -9,7 +9,6 @@ import type {
 	TablesRelationalConfig,
 } from '~/relations.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
-import type { KnownKeysOnly } from '~/utils.ts';
 import type { SingleStoreDialect } from '../dialect.ts';
 import type {
 	PreparedQueryHKTBase,
@@ -36,7 +35,8 @@ export class RelationalQueryBuilder<
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
+		config?: DBQueryConfig<'many', TSchema, TFields> extends TConfig ? TConfig
+			: DBQueryConfig<'many', TSchema, TFields>,
 	): SingleStoreRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new SingleStoreRelationalQuery(
 			this.schema,
@@ -50,7 +50,8 @@ export class RelationalQueryBuilder<
 	}
 
 	findFirst<TSelection extends DBQueryConfig<'one', TSchema, TFields>>(
-		config?: KnownKeysOnly<TSelection, DBQueryConfig<'one', TSchema, TFields>>,
+		config?: DBQueryConfig<'one', TSchema, TFields> extends TSelection ? TSelection
+			: DBQueryConfig<'one', TSchema, TFields>,
 	): SingleStoreRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
 		return new SingleStoreRelationalQuery(
 			this.schema,

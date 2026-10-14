@@ -483,7 +483,7 @@ describe('[execute] replicas mysql', () => {
 		const spyRead1 = vi.spyOn(read1, 'execute');
 		const spyRead2 = vi.spyOn(read2, 'execute');
 
-		expect(db.execute(sql``)).rejects.toThrow();
+		await expect(db.execute(sql``)).rejects.toThrow();
 
 		// try {
 		// 	db.execute(sql``);
@@ -493,7 +493,7 @@ describe('[execute] replicas mysql', () => {
 		expect(spyRead1).toHaveBeenCalledTimes(0);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 
-		expect(db.execute(sql``)).rejects.toThrow();
+		await expect(db.execute(sql``)).rejects.toThrow();
 		// try {
 		// 	db.execute(sql``);
 		// } catch { /* empty */ }
@@ -502,7 +502,7 @@ describe('[execute] replicas mysql', () => {
 		expect(spyRead1).toHaveBeenCalledTimes(0);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 
-		expect(db.execute(sql``)).rejects.toThrow();
+		await expect(db.execute(sql``)).rejects.toThrow();
 		// try {
 		// 	db.execute(sql``);
 		// } catch { /* empty */ }
@@ -528,7 +528,7 @@ describe('[transaction] replicas mysql', () => {
 			tx.select().from({} as any);
 		};
 
-		expect(db.transaction(txFn1)).rejects.toThrow();
+		await expect(db.transaction(txFn1)).rejects.toThrow();
 
 		expect(spyPrimary).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledTimes(0);
@@ -539,14 +539,14 @@ describe('[transaction] replicas mysql', () => {
 			tx.select().from({} as any);
 		};
 
-		expect(db.transaction(txFn2)).rejects.toThrow();
+		await expect(db.transaction(txFn2)).rejects.toThrow();
 
 		expect(spyPrimary).toHaveBeenCalledTimes(2);
 		expect(spyRead1).toHaveBeenCalledTimes(0);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(spyPrimary).toHaveBeenNthCalledWith(2, txFn2);
 
-		expect(db.transaction(async (tx) => {
+		await expect(db.transaction(async (tx) => {
 			tx.select().from({} as any);
 		})).rejects.toThrow();
 

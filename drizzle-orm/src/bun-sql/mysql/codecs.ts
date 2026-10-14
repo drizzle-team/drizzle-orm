@@ -34,6 +34,9 @@ export const bunSqlMySqlCodecs = refineGenericMySqlCodecs({
 	'timestamp:string': {
 		cast: castToText,
 	},
+	time: {
+		cast: castToText,
+	},
 	'decimal:number': {
 		normalize: Number,
 	},

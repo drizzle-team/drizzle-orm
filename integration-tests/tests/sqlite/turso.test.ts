@@ -854,7 +854,7 @@ test.concurrent('[Find Many] Get users with posts in rollbacked transaction', as
 		}[];
 	}[] = [];
 
-	expect(db.transaction(async (tx) => {
+	await expect(db.transaction(async (tx) => {
 		await tx.insert(usersTable).values([
 			{ id: 1, name: 'Dan' },
 			{ id: 2, name: 'Andrew' },
@@ -8698,7 +8698,7 @@ test('Correct error message on unknown column', async ({ db }) => {
 		},
 	});
 
-	expect(async () => await query).rejects.toThrow(
+	await expect(async () => await query).rejects.toThrow(
 		new DrizzleError({ message: `Unknown column: "usersTable"."unknown"` }),
 	);
 });
@@ -8712,7 +8712,7 @@ test('Correct error message on unknown relation', async ({ db }) => {
 		},
 	});
 
-	expect(async () => await query).rejects.toThrow(
+	await expect(async () => await query).rejects.toThrow(
 		new DrizzleError({ message: `Unknown relation "usersTable" -> "unknown"` }),
 	);
 });
@@ -8727,7 +8727,7 @@ test('Disallow unknown keys in filters', async ({ db }) => {
 		},
 	});
 
-	expect(async () => await query).rejects.toThrow(
+	await expect(async () => await query).rejects.toThrow(
 		new DrizzleError({ message: `Unknown relational filter field: "unknown"` }),
 	);
 });

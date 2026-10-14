@@ -92,6 +92,7 @@ export class SingleStorePreparedQuery<T extends SingleStorePreparedQueryConfig>
 		} | undefined,
 		// config that was passed through $withCache
 		private cacheConfig?: WithCacheConfig | undefined,
+		protected paramsInErrors?: boolean | undefined,
 	) {
 		super(query);
 		this.mapper = mapper;
@@ -119,19 +120,18 @@ export class SingleStorePreparedQuery<T extends SingleStorePreparedQueryConfig>
 
 		if (cacheStrat.type === 'skip') {
 			return query().catch((e) => {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
 			});
 		}
 
 		const cache = this.cache!;
 
-		// For mutate queries, we should query the database, wait for a response, and then perform invalidation
 		if (cacheStrat.type === 'invalidate') {
-			return Promise.all([
-				query(),
-				cache.onMutate({ tables: cacheStrat.tables }),
-			]).then((res) => res[0]).catch((e) => {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+			return query().then(async (res) => {
+				await cache.onMutate({ tables: cacheStrat.tables });
+				return res;
+			}).catch((e) => {
+				throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
 			});
 		}
 
@@ -146,7 +146,7 @@ export class SingleStorePreparedQuery<T extends SingleStorePreparedQueryConfig>
 
 			if (fromCache === undefined) {
 				const result = await query().catch((e) => {
-					throw new DrizzleQueryError(queryString, params, e as Error);
+					throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
 				});
 				// put actual key
 				await cache.put(
@@ -177,7 +177,7 @@ export class SingleStorePreparedQuery<T extends SingleStorePreparedQueryConfig>
 
 		const res = fastPath
 			? executor(params).catch((e) => {
-				throw new DrizzleQueryError(sql, params, e as Error);
+				throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
 			})
 			: this.queryWithCache(sql, params, () => executor(params));
 		if (!mapper) return res;
@@ -210,14 +210,14 @@ export class SingleStorePreparedQuery<T extends SingleStorePreparedQueryConfig>
 
 				return;
 			} catch (e) {
-				throw new DrizzleQueryError(sql, params, e as Error);
+				throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
 			}
 		}
 
 		// Fallback for compatibility between drivers
 		const rows = await (fastPath
 			? executor(params).catch((e) => {
-				throw new DrizzleQueryError(sql, params, e as Error);
+				throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
 			})
 			: this.queryWithCache(sql, params, () => executor(params)));
 

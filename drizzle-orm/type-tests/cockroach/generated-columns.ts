@@ -138,12 +138,7 @@ const users = cockroachTable(
 
 {
 	// @ts-expect-error - Can't use the fullName because it's a generated column
-	await db.insert(users).values({
-		firstName: 'test',
-		lastName: 'test',
-		email: 'test',
-		fullName: 'test',
-	});
+	await db.insert(users).values({ firstName: 'test', lastName: 'test', email: 'test', fullName: 'test' });
 }
 
 {

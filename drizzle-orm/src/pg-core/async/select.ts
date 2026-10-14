@@ -111,9 +111,9 @@ export class PgAsyncSelectBase<
 				{ type: 'plain', fields: fieldsList },
 				nullableObjectPaths,
 			);
-			if (shape) this.withoutSelectionCastCodecs();
 
-			const query = config.tagged ? dialect._sqlToQuery(this.getSQL()) : dialect.sqlToQuery(this.getSQL());
+			const sequel = this.getSQL(!shape);
+			const query = config.tagged ? dialect._sqlToQuery(sequel) : dialect.sqlToQuery(sequel);
 			const mapper = shape
 				? undefined
 				: (config.mapper ??= dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths));

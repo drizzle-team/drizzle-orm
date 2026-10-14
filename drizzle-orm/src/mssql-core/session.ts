@@ -22,6 +22,11 @@ export type QueryResultKind<TKind extends QueryResultHKT, TRow> = (TKind & {
 	readonly row: TRow;
 })['type'];
 
+export type RawQueryResultKind<TKind extends QueryResultHKT, TRow> = QueryResultKind<
+	TKind,
+	TRow extends 'unknown' ? Record<string, unknown> : TRow
+>;
+
 export interface PreparedQueryConfig {
 	execute: unknown;
 	iterator: unknown;
@@ -73,6 +78,7 @@ export class MsSqlPreparedQuery<T extends PreparedQueryConfig> extends MsSqlBase
 		mapper: ((rows: any[]) => any) | undefined,
 		readonly mode: 'arrays' | 'objects' | 'raw',
 		protected logger: Logger,
+		protected paramsInErrors: boolean | undefined,
 	) {
 		super(query);
 		this.mapper = mapper;
@@ -86,7 +92,7 @@ export class MsSqlPreparedQuery<T extends PreparedQueryConfig> extends MsSqlBase
 		logger.logQuery(query.sql, params);
 
 		const res = executor(params).catch((e) => {
-			throw new DrizzleQueryError(query.sql, params, e as Error);
+			throw new DrizzleQueryError(query.sql, this.paramsInErrors ? params : undefined, e as Error);
 		});
 		if (!mapper) return res;
 
@@ -117,13 +123,13 @@ export class MsSqlPreparedQuery<T extends PreparedQueryConfig> extends MsSqlBase
 
 				return;
 			} catch (e) {
-				throw new DrizzleQueryError(query.sql, params, e as Error);
+				throw new DrizzleQueryError(query.sql, this.paramsInErrors ? params : undefined, e as Error);
 			}
 		}
 
 		// Fallback for compatibility between drivers
 		const rows = await executor(params).catch((e) => {
-			throw new DrizzleQueryError(query.sql, params, e as Error);
+			throw new DrizzleQueryError(query.sql, this.paramsInErrors ? params : undefined, e as Error);
 		});
 
 		if (mapper) {

@@ -17,6 +17,7 @@ import type {
 import type { Generated } from './grammar';
 import {
 	extractGeneratedColumns,
+	isColumnRef,
 	nameForForeignKey,
 	nameForPk,
 	nameForUnique,
@@ -27,15 +28,6 @@ import {
 	parseViewSQL,
 	sqlTypeFrom,
 } from './grammar';
-
-/**
- * Tells whether a key part of an index ddl is a plain reference to `column`, `\`code\``, `[code]`,
- * `"code"` and `code` all reference the same column, while `code DESC` or `lower(code)` do not
- */
-const isColumnRef = (keyPart: string, column: string) => {
-	const unquoted = keyPart.replace(/^(?:\[|`|")/, '').replace(/(?:\]|`|")$/, '');
-	return unquoted.toLowerCase() === column.toLowerCase();
-};
 
 export const fromDatabaseForDrizzle = async (
 	db: DB,
@@ -521,9 +513,7 @@ export const fromDatabase = async (
 	const fksToColumns = dbFKs.reduce((acc, it) => {
 		if (!it.to) {
 			throw Error(
-				`Table ${chalk.underline(it.tableTo)} has no primary key, so the foreign key from ${
-					chalk.underline(`${it.tableFrom}.${it.from}`)
-				} to ${chalk.underline(it.tableTo)} cannot be resolved`,
+				`Table ${it.tableTo} has no primary key, so the foreign key from ${it.tableFrom}.${it.from} to ${it.tableTo} cannot be resolved`,
 			);
 		}
 		const key = `${it.tableFrom}:${it.id}`;

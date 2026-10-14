@@ -131,7 +131,7 @@ export class SQLiteAsyncDatabase<
 				qb = qb(new QueryBuilder(self.dialect));
 			}
 
-			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
+			const sql = qb.getSQL();
 			return new Proxy(
 				new WithSubquery(
 					sql,
@@ -614,30 +614,52 @@ export class SQLiteAsyncDatabase<
 		return this.session.run(sequel) as DBResult<TResultKind, TRunResult>;
 	}
 
-	all<T = unknown>(query: SQLWrapper | string): DBResult<TResultKind, T[]> {
+	all<TRow extends unknown[] = unknown[]>(
+		query: SQLWrapper | string,
+		mode: 'arrays',
+	): DBResult<TResultKind, TRow[]>;
+	all<TRow extends Record<string, any> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode?: 'objects' | undefined,
+	): DBResult<TResultKind, TRow[]>;
+	all(
+		query: SQLWrapper | string,
+		mode?: 'arrays' | 'objects' | undefined,
+	): unknown {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
-		const prepared = this.session.prepareQuery(builtQuery, 'objects', false, 'all');
+		const prepared = this.session.prepareQuery(builtQuery, mode ?? 'objects', false, 'all');
 		if (this.resultKind === 'async') {
-			return new SQLiteAsyncRaw(prepared, sequel, builtQuery) as DBResult<TResultKind, T[]>;
+			return new SQLiteAsyncRaw(prepared, sequel, builtQuery);
 		}
-		return this.session.objects(sequel) as DBResult<TResultKind, T[]>;
+		return mode === 'arrays' ? this.session.arrays(sequel) : this.session.objects(sequel);
 	}
 
-	get<T = unknown>(query: SQLWrapper | string): DBResult<TResultKind, T> {
+	get<TRow extends unknown[] = unknown[]>(
+		query: SQLWrapper | string,
+		mode: 'arrays',
+	): DBResult<TResultKind, TRow | undefined>;
+	get<TRow extends Record<string, any> = Record<string, unknown>>(
+		query: SQLWrapper | string,
+		mode?: 'objects' | undefined,
+	): DBResult<TResultKind, TRow | undefined>;
+	get(
+		query: SQLWrapper | string,
+		mode?: 'arrays' | 'objects' | undefined,
+	): unknown {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
-		const prepared = this.session.prepareQuery(builtQuery, 'objects', false, 'get');
+		const prepared = this.session.prepareQuery(builtQuery, mode ?? 'objects', false, 'get');
 		if (this.resultKind === 'async') {
-			return new SQLiteAsyncRaw(prepared, sequel, builtQuery) as DBResult<TResultKind, T>;
+			return new SQLiteAsyncRaw(prepared, sequel, builtQuery);
 		}
-		return this.session.object(sequel) as DBResult<TResultKind, T>;
+		return mode === 'arrays' ? this.session.array(sequel) : this.session.object(sequel);
 	}
 
 	values<T extends unknown[] = unknown[]>(query: SQLWrapper | string): DBResult<TResultKind, T[]> {
 		const sequel = typeof query === 'string' ? sql.raw(query) : query.getSQL();
 		const builtQuery = this.dialect.sqlToQuery(sequel);
-		const prepared = this.session.prepareQuery(builtQuery, 'objects', false, 'values');
+		const prepared = this.session.prepareQuery(builtQuery, 'arrays', false, 'values');
 		if (this.resultKind === 'async') {
 			return new SQLiteAsyncRaw(prepared, sequel, builtQuery) as DBResult<TResultKind, T[]>;
 		}

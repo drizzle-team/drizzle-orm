@@ -11,6 +11,7 @@ import type {
 	BuildRelationalQueryResult,
 	ColumnWithTSName,
 	DBQueryConfigWithComment,
+	RelationalQueryStrategy,
 	RelationalRowsMapperGenerator,
 	TableRelationalConfig,
 	TablesRelationalConfig,
@@ -231,10 +232,10 @@ export class MsSqlDialect {
 		return new SQL(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, output, ignoreSelectionCastCodecs }: MsSqlDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, output, useSelectionCastCodecs }: MsSqlDeleteConfig): SQL {
 		const outputSql = output
 			? sql` output ${
-				this.buildSelectionOutput(output, { type: 'DELETED', ignoreCastCodecs: ignoreSelectionCastCodecs })
+				this.buildSelectionOutput(output, { type: 'DELETED', ignoreCastCodecs: !useSelectionCastCodecs })
 			}`
 			: undefined;
 
@@ -289,7 +290,7 @@ export class MsSqlDialect {
 		// );
 	}
 
-	buildUpdateQuery({ table, set, where, output, ignoreSelectionCastCodecs }: MsSqlUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, output, useSelectionCastCodecs }: MsSqlUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const outputSql = sql``;
@@ -301,7 +302,7 @@ export class MsSqlDialect {
 				outputSql.append(
 					this.buildSelectionOutput(output.inserted, {
 						type: 'INSERTED',
-						ignoreCastCodecs: ignoreSelectionCastCodecs,
+						ignoreCastCodecs: !useSelectionCastCodecs,
 					}),
 				);
 			}
@@ -311,7 +312,7 @@ export class MsSqlDialect {
 				outputSql.append(
 					this.buildSelectionOutput(output.deleted, {
 						type: 'DELETED',
-						ignoreCastCodecs: ignoreSelectionCastCodecs,
+						ignoreCastCodecs: !useSelectionCastCodecs,
 					}),
 				);
 			}
@@ -578,7 +579,7 @@ export class MsSqlDialect {
 		offset,
 		distinct,
 		setOperators,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: MsSqlSelectConfig): SQL {
 		if (!fieldsFlat) {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
@@ -626,7 +627,7 @@ export class MsSqlDialect {
 		const selection = this.buildSelection(fieldsList, {
 			isSingleTable,
 			table,
-			ignoreCastCodecs: ignoreSelectionCastCodecs || setOperators.length > 0,
+			ignoreCastCodecs: !useSelectionCastCodecs || setOperators.length > 0,
 		});
 
 		const tableSql = (() => {
@@ -737,7 +738,7 @@ export class MsSqlDialect {
 			sql`${withSql}select${distinctSql}${topSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${offsetSql}${fetchSql}${forSQL}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, fieldsList, ignoreSelectionCastCodecs, setOperators);
+			return this.buildSetOperations(finalQuery, fieldsList, useSelectionCastCodecs, setOperators);
 		}
 
 		return finalQuery;
@@ -746,7 +747,7 @@ export class MsSqlDialect {
 	buildSetOperations(
 		leftSelect: SQL,
 		outputSelection: SelectedFieldsOrdered,
-		ignoreSelectionCastCodecs: boolean | undefined,
+		useSelectionCastCodecs: boolean | undefined,
 		setOperators: MsSqlSelectConfig['setOperators'],
 	): SQL {
 		const lastIdx = setOperators.length - 1;
@@ -755,12 +756,12 @@ export class MsSqlDialect {
 		for (let i = 0; i <= lastIdx; ++i) {
 			const setOperator = setOperators[i]!;
 
-			const hoistTail = !ignoreSelectionCastCodecs && i === lastIdx;
+			const hoistTail = useSelectionCastCodecs && i === lastIdx;
 			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator, omitTail: hoistTail });
 			if (hoistTail) tailSql = this.buildSetOperationTail(setOperator);
 		}
 
-		return ignoreSelectionCastCodecs ? leftSelect : sql`select ${
+		return !useSelectionCastCodecs ? leftSelect : sql`select ${
 			this.buildSelection(
 				outputSelection.map((field) => {
 					if (field.fieldType === 'SQL.Aliased') {
@@ -782,7 +783,7 @@ export class MsSqlDialect {
 				}),
 				{
 					isSingleTable: true,
-					ignoreCastCodecs: ignoreSelectionCastCodecs,
+					ignoreCastCodecs: !useSelectionCastCodecs,
 				},
 			)
 		} from (${leftSelect}) ${sql.identifier('drizzle_union')}${tailSql}`;
@@ -838,7 +839,7 @@ export class MsSqlDialect {
 	}): SQL {
 		const { type, isAll, rightSelect } = setOperator;
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
-		const rightChunk = sql`(${rightSelect.withoutSelectionCastCodecs().getSQL()})`;
+		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
 		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
 		const tailSql = omitTail ? undefined : this.buildSetOperationTail(setOperator);
@@ -847,7 +848,7 @@ export class MsSqlDialect {
 	}
 
 	buildInsertQuery(
-		{ table, values: valuesOrSelect, output, columnList, select, ignoreSelectionCastCodecs }: MsSqlInsertConfig,
+		{ table, values: valuesOrSelect, output, columnList, select, useSelectionCastCodecs }: MsSqlInsertConfig,
 	): SQL {
 		const columns: Record<string, MsSqlColumn> = table[Table.Symbol.Columns];
 		const colEntries: [string, MsSqlColumn][] = select && !is(valuesOrSelect, SQL)
@@ -880,10 +881,10 @@ export class MsSqlDialect {
 		insertOrderArr[orderWriteIdx++] = new StringChunk(')');
 		const insertOrder = new SQL(insertOrderArr);
 
-		const valuesSqlList: SQLChunk[] = Array.from({
-			length: select ? 1 : (colEntries.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
+		const valuesSqlList: SQLChunk[] = new Array(
+			select ? 1 : (colEntries.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
 				+ (valuesOrSelect as Record<string, unknown>[]).length - 1,
-		});
+		);
 
 		if (select) {
 			valuesSqlList[0] = (valuesOrSelect as AnyMsSqlSelectQueryBuilder | SQL).getSQL();
@@ -934,7 +935,7 @@ export class MsSqlDialect {
 
 		const outputSql = output
 			? sql` output ${
-				this.buildSelectionOutput(output, { type: 'INSERTED', ignoreCastCodecs: ignoreSelectionCastCodecs })
+				this.buildSelectionOutput(output, { type: 'INSERTED', ignoreCastCodecs: !useSelectionCastCodecs })
 			}`
 			: undefined;
 
@@ -1135,6 +1136,7 @@ export class MsSqlDialect {
 		throughJoin,
 		nested,
 		withSubqueries,
+		strategy,
 	}: {
 		schema: TablesRelationalConfig;
 		table: SchemaEntry;
@@ -1147,12 +1149,14 @@ export class MsSqlDialect {
 		throughJoin?: SQL;
 		nested?: boolean;
 		withSubqueries?: RelationalWithSubqueries;
+		strategy?: RelationalQueryStrategy;
 	}): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
+		const isOptimized = (currentDepth ? strategy : params?.strategy) !== 'basic';
 		const subqueries: RelationalWithSubqueries = withSubqueries ?? new Map();
 		if (!currentDepth) {
 			collectRelationalSubquery(subqueries, table);
@@ -1162,15 +1166,17 @@ export class MsSqlDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const where: SQL | undefined = params && 'where' in params && relationWhere
-			? and(
-				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries),
-				relationWhere,
-			)
-			: params && 'where' in params
+		const filter = params && 'where' in params
 			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries)
+			: undefined;
+		const where: SQL | undefined = filter && relationWhere
+			? and(filter.sql, relationWhere)
+			: filter
+			? filter.sql
 			: relationWhere;
-		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
+		const order = params?.orderBy
+			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, subqueries, 'top')
+			: undefined;
 
 		if (offset !== undefined && !order) {
 			throw new DrizzleError({
@@ -1229,6 +1235,7 @@ export class MsSqlDialect {
 						errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 						depth: currentDepth + 1,
 						withSubqueries: subqueries,
+						strategy: currentDepth ? strategy : params?.strategy,
 						throughJoin: nestedThroughJoin,
 						nested: true,
 					});
@@ -1276,11 +1283,23 @@ export class MsSqlDialect {
 		const top = !useOffset && limit !== undefined ? sql` top(${limit})` : undefined;
 
 		const withSql = currentDepth ? undefined : this.buildWithCTE([...subqueries.values()]);
-		const query = sql`${withSql}select${top} ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
-			applies.length ? sql.join(applies) : undefined
-		}${where ? sql` where ${where}` : undefined}${order ? sql` order by ${order}` : undefined}${
-			useOffset ? sql` offset ${offset} rows` : undefined
-		}${useOffset && limit !== undefined ? sql` fetch next ${limit} rows only` : undefined}`;
+		const appliesSql = applies.length ? sql.join(applies) : undefined;
+		const whereSql = where ? sql` where ${where}` : undefined;
+		const orderSql = order ? sql` order by ${order}` : undefined;
+		const offsetSql = sql`${useOffset ? sql` offset ${offset} rows` : undefined}${
+			useOffset && limit !== undefined ? sql` fetch next ${limit} rows only` : undefined
+		}`;
+
+		// Optimize slow queries caused by planner applying pagination or filters after building relations
+		// `offset` isn't pushed below `outer apply`: relations would get built for skipped rows as well.
+		// Paginating the table in a derived table first restricts applies to the rows that are actually returned
+		const query = appliesSql && isOptimized && useOffset
+			? sql`${withSql}select ${selectionSet} from (select ${table}.* from ${
+				getTableAsAliasSQL(table)
+			}${throughJoin}${whereSql}${orderSql}${offsetSql}) as ${table}${appliesSql}${orderSql}`
+			: sql`${withSql}select${top} ${selectionSet} from ${
+				getTableAsAliasSQL(table)
+			}${throughJoin}${appliesSql}${whereSql}${orderSql}${offsetSql}`;
 
 		return {
 			sql: query,

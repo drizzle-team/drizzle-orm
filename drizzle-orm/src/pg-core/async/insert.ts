@@ -5,10 +5,10 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
 import type { PgInsertHKTBase } from '../query-builders/insert.ts';
 import { PgInsertBase } from '../query-builders/insert.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
 
 export interface PgAsyncInsertHKT extends PgInsertHKTBase {
@@ -82,9 +82,8 @@ export class PgAsyncInsertBase<
 			const shape = fields
 				? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, undefined)
 				: undefined;
-			if (shape) this.withoutSelectionCastCodecs();
 
-			const query = dialect.sqlToQuery(this.getSQL());
+			const query = dialect.sqlToQuery(this.getSQL(!shape));
 			const mapper = shape || !fields
 				? undefined
 				: this.dialect.mapperGenerators.rows(fields, undefined);
@@ -94,7 +93,7 @@ export class PgAsyncInsertBase<
 				shape ? 'objects' : fields ? 'arrays' : 'raw',
 				name ?? generateName,
 				mapper,
-				{ type: 'insert', tables: [...extractUsedTable(this.config.table)] },
+				{ type: 'insert', tables: usedTablesOf(this.config.table) },
 				undefined,
 				shape,
 			);

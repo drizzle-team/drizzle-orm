@@ -1,13 +1,5 @@
 import type { Connection as CallbackConnection, TypeCast } from 'mysql2';
-import type {
-	Connection,
-	FieldPacket,
-	OkPacket,
-	Pool,
-	PoolConnection,
-	ResultSetHeader,
-	RowDataPacket,
-} from 'mysql2/promise';
+import type { Connection, FieldPacket, Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -26,15 +18,16 @@ import { sql } from '~/sql/sql.ts';
 import type { Query } from '~/sql/sql.ts';
 export type MySql2Client = Pool | Connection;
 
-export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
-export type MySqlQueryResultType = RowDataPacket[][] | RowDataPacket[] | OkPacket | OkPacket[] | ResultSetHeader;
-export type MySqlQueryResult<
-	T = any,
-> = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
+export type MySqlRawQueryResult = [ResultSetHeader, undefined];
+export type MySql2RawExecuteResult =
+	| MySqlRawQueryResult
+	| [RowDataPacket[], FieldPacket[]]
+	| [(ResultSetHeader | RowDataPacket[])[], (FieldPacket[] | undefined)[]];
 
 export interface MySql2SessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 const typeCast: TypeCast = function(field, next) {
@@ -100,12 +93,16 @@ export class MySql2Session<
 				rowsAsArray: mode === 'arrays',
 			}, params);
 			const stream = driverQuery.stream();
+			// mysql2 reports a connection lost mid-stream on the connection only, stream would never end
+			const onConnectionError = (err: Error) => stream.destroy(err);
+			conn.on('error', onConnectionError);
 
 			try {
 				for await (const row of stream.iterator({ destroyOnReturn: false })) {
 					yield row;
 				}
 			} finally {
+				conn.off('error', onConnectionError);
 				if (!stream.readableEnded && !stream.destroyed) {
 					stream.resume();
 					await new Promise<void>((resolve) => {
@@ -131,6 +128,7 @@ export class MySql2Session<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -167,7 +165,7 @@ export class MySql2Session<
 			await tx.execute(sql`commit`);
 			return result;
 		} catch (err) {
-			await tx.execute(sql`rollback`);
+			await tx.execute(sql`rollback`).catch(() => {});
 			throw err;
 		} finally {
 			if (isPool(this.client)) {
@@ -201,7 +199,7 @@ export class MySql2Transaction<
 			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}
@@ -212,5 +210,7 @@ function isPool(client: MySql2Client): client is Pool {
 }
 
 export interface MySql2QueryResultHKT extends MySqlQueryResultHKT {
-	type: MySqlRawQueryResult;
+	type: [this['row']] extends [never] ? MySqlRawQueryResult
+		: [this['row']] extends ['unknown'] ? MySql2RawExecuteResult
+		: [this['row'][], FieldPacket[]];
 }

@@ -1,10 +1,11 @@
 import { toCamelCase } from 'drizzle-orm/casing';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
+import { escapeForSqlTemplate } from '../grammar';
 import { withCasing as makeCasing } from '../pull-utils';
-import { escapeForSqlTemplate, inspect } from '../utils';
+import { inspect } from '../utils';
 import type { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
-import { Enum, parseEnum, typeFor } from './grammar';
+import { defaultNameForFK, Enum, escapeBacktickAndInterpolation, parseEnum, typeFor } from './grammar';
 
 export const imports = [
 	'boolean',
@@ -97,7 +98,6 @@ export const ddlToTypeScript = (
 	const imports = new Set<string>([
 		vendor === 'mysql' ? 'mysqlTable' : 'signlestoreTable',
 		vendor === 'mysql' ? 'mysqlSchema' : 'singlestoreSchema',
-		vendor === 'mysql' ? 'AnyMySqlColumn' : 'AnySinsgleStoreColumn',
 	]);
 
 	const viewEntities = viewColumns.map((it) => {
@@ -123,39 +123,53 @@ export const ddlToTypeScript = (
 
 	const tableStatements = [] as string[];
 	for (const table of ddl.tables.list()) {
+		const fks = ddl.fks.list({ table: table.name });
+		const indexes = ddl.indexes.list({ table: table.name });
+		const checks = ddl.checks.list({ table: table.name });
+		const pk = ddl.pks.one({ table: table.name });
+
+		const callbackFks: ForeignKey[] = [];
+		const inlineFks: ForeignKey[] = [];
+		for (const fk of fks) {
+			if (
+				!isSelf(fk) && fk.columns.length === 1
+				&& fk.name === defaultNameForFK(fk)
+			) inlineFks.push(fk);
+			else callbackFks.push(fk);
+		}
+		// self() already was filtered above
+		if (inlineFks.some((fk) => isCyclic(fk))) {
+			imports.add(vendor === 'mysql' ? 'type AnyMySqlColumn' : 'type AnySinsgleStoreColumn');
+		}
+
+		const extraConfigType = vendor === 'mysql' ? 'MySqlTableExtraConfigValue' : 'SingleStoreTableExtraConfigValue';
+		const hasCyclicCallbackFk = callbackFks.some((fk) => isCyclic(fk) && !isSelf(fk));
+		if (hasCyclicCallbackFk) imports.add(`type ${extraConfigType}`);
+
+		const primaryKeyType: 'callback' | 'inline' = pk && pk.columns.length > 1 ? 'callback' : 'inline';
+
 		let statement = `export const ${withCasing(table.name)} = ${vendor}Table("${table.name}", {\n`;
 		statement += createTableColumns(
 			ddl.columns.list({ table: table.name }),
-			ddl.pks.one({ table: table.name }),
-			ddl.fks.list({ table: table.name }),
+			primaryKeyType === 'inline' ? pk : null,
+			inlineFks,
 			withCasing,
 			casing,
 			vendor,
 		);
 		statement += '}';
 
-		const fks = ddl.fks.list({ table: table.name });
-		const indexes = ddl.indexes.list({ table: table.name });
-		const checks = ddl.checks.list({ table: table.name });
-		const pk = ddl.pks.one({ table: table.name });
-
-		// more than 2 fields or self reference or cyclic
-		const filteredFKs = fks.filter((it) => {
-			return it.columns.length > 1 || isSelf(it);
-		});
-
 		const hasIndexes = indexes.length > 0;
-		const hasFKs = filteredFKs.length > 0;
-		const hasPK = pk && pk.columns.length > 1;
+		const hasFKs = callbackFks.length > 0;
 		const hasChecks = checks.length > 0;
-		const hasCallbackParams = hasIndexes || hasFKs || hasPK || hasChecks;
+		const hasCallbackParams = hasIndexes || hasFKs || primaryKeyType === 'callback' || hasChecks;
 
 		if (hasCallbackParams) {
 			statement += ',\n';
-			statement += '(table) => [\n';
-			statement += hasPK ? createTablePK(pk, withCasing) : '';
+			statement += hasCyclicCallbackFk ? `(table): ${extraConfigType}[] => [\n` : '(table) => [\n';
+			statement += primaryKeyType === 'callback' ? createTablePK(pk!, withCasing) : '';
 			statement += createTableIndexes(indexes, withCasing);
-			statement += createTableFKs(filteredFKs, withCasing);
+			statement += createTableFKs(callbackFks, withCasing);
 			statement += createTableChecks(checks);
 			statement += ']';
 		}
@@ -280,7 +294,7 @@ const column = (
 const createTableColumns = (
 	columns: Column[],
 	pk: PrimaryKey | null,
-	fks: ForeignKey[],
+	inlineFks: ForeignKey[],
 	casing: (val: string) => string,
 	rawCasing: Casing,
 	vendor: 'mysql' | 'singlestore',
@@ -309,15 +323,10 @@ const createTableColumns = (
 		statement += it.notNull && !isPK ? '.notNull()' : '';
 
 		statement += it.generated
-			? `.generatedAlwaysAs(sql\`${
-				it.generated.as.replace(
-					/`/g,
-					'\\`',
-				)
-			}\`, { mode: "${it.generated.type}" })`
+			? `.generatedAlwaysAs(sql\`${escapeForSqlTemplate(it.generated.as)}\`, { mode: "${it.generated.type}" })`
 			: '';
 
-		const columnFKs = fks.filter((x) => x.columns.length === 1 && x.columns[0] === it.name && !isSelf(x));
+		const columnFKs = inlineFks.filter((x) => x.columns[0] === it.name);
 
 		for (const fk of columnFKs) {
 			const onDelete = fk.onDelete !== 'NO ACTION' ? fk.onDelete?.toLowerCase() : null;
@@ -386,7 +395,7 @@ const createTableChecks = (
 	let statement = '';
 
 	for (const it of checks) {
-		statement += `\tcheck("${it.name}", sql\`${it.value.replace(/`/g, '\\`')}\`),\n`;
+		statement += `\tcheck("${it.name}", sql\`${escapeBacktickAndInterpolation(it.value)}\`),\n`;
 	}
 
 	return statement;

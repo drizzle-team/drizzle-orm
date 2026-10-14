@@ -41,6 +41,7 @@ function construct<
 	const session = new BunSQLiteSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new BunSQLiteDatabase('async', dialect, session, relations);
 	(<any> db).$client = client;

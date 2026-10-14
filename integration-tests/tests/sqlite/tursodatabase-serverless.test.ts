@@ -305,6 +305,7 @@ const skip: string[] = [
 	'transaction mode: concurrent is rejected',
 	// Uses async versions
 	'sync transaction rollback',
+	'Query error params - sync transaction',
 	'sync nested transaction rollback',
 
 	// ORDER BY clause is not supported in DELETE

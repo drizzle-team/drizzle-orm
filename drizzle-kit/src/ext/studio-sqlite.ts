@@ -13,7 +13,7 @@ import type {
 import { interimToDDL } from '../dialects/sqlite/ddl';
 import { ddlDiff } from '../dialects/sqlite/diff';
 import { fromDatabase as fd } from '../dialects/sqlite/introspect';
-import { ddlToTypeScript as dtt } from '../dialects/sqlite/typescript';
+// import { ddlToTypeScript as dtt } from '../dialects/sqlite/typescript';
 import { mockResolver } from '../utils/mocks';
 
 export type Interim<T> = Omit<T, 'entityType'>;
@@ -128,8 +128,8 @@ export const diffSqlite = async (
 
 export const fromDatabase = fd;
 
-export const ddlToTypeScript = (schema: InterimStudioSchema) => {
-	const interimSchema = fromInterims(schema.tables, schema.views);
-	const { ddl } = interimToDDL(interimSchema);
-	return dtt(ddl, 'camel', interimSchema.viewsToColumns, 'sqlite');
-};
+// export const ddlToTypeScript = (schema: InterimStudioSchema) => {
+// 	const interimSchema = fromInterims(schema.tables, schema.views);
+// 	const { ddl } = interimToDDL(interimSchema);
+// 	return dtt(ddl, 'camel', interimSchema.viewsToColumns, 'sqlite');
+// };

@@ -43,7 +43,7 @@ export function construct<TRelations extends AnyRelations = EmptyRelations>(
 		client,
 		dialect,
 		relations,
-		{ logger, cache: config.cache },
+		{ logger, cache: config.cache, paramsInErrors: config.paramsInErrors },
 	);
 	const db = new SQLiteCloudDatabase('async', dialect, session, relations);
 	(<any> db).$client = client;

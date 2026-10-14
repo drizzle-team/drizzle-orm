@@ -33,7 +33,6 @@ export function drizzle<
 	if (typeof params[0] === 'string') {
 		const instance = createPool({
 			url: params[0],
-			temporal: 'string',
 		});
 
 		return construct(
@@ -52,7 +51,7 @@ export function drizzle<
 
 	const instance = typeof connection === 'string'
 		? createPool({ url: connection })
-		: createPool({ ...connection! });
+		: createPool(connection!);
 
 	return construct(instance, runBatch(instance), config) as any;
 }

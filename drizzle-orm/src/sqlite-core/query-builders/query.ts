@@ -8,7 +8,6 @@ import type {
 	TablesRelationalConfig,
 } from '~/relations.ts';
 import { type Query, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
-import type { KnownKeysOnly } from '~/utils.ts';
 import type { SQLiteDialect } from '../dialect.ts';
 import type { SQLiteSession } from '../session.ts';
 import type { SQLiteTable } from '../table.ts';
@@ -68,7 +67,8 @@ export class RelationalQueryBuilder<
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
+		config?: DBQueryConfig<'many', TSchema, TFields> extends TConfig ? TConfig
+			: DBQueryConfig<'many', TSchema, TFields>,
 	): SQLiteRelationalQueryKind<TBuilderHKT, TMode, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new this.builder(
 			this.mode,
@@ -84,7 +84,8 @@ export class RelationalQueryBuilder<
 	}
 
 	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>,
+		config?: DBQueryConfig<'one', TSchema, TFields> extends TConfig ? TConfig
+			: DBQueryConfig<'one', TSchema, TFields>,
 	): SQLiteRelationalQueryKind<TBuilderHKT, TMode, BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return new this.builder(
 			this.mode,

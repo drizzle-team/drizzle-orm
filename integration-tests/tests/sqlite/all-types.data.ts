@@ -148,9 +148,6 @@ export const allTypesUnionCases = (
 	db: SQLiteAsyncDatabase<any, any, any>,
 	allTypesTable: AllTypesTable = defaultAllTypesTable,
 ): { query: any; expected: Record<string, unknown>[] }[] => {
-	const realsLoseLastBit = (db as any)?.constructor?.[entityKind] === 'SQLiteCloudDatabase';
-	const numericNumThroughReal = realsLoseLastBit ? 9007199254740990 : 9007199254740991;
-
 	return [
 		// ---- numbers ----
 		{
@@ -196,7 +193,7 @@ export const allTypesUnionCases = (
 					'int ∪ numericNum': 9007199254740991,
 					'real ∪ int': 1,
 					'real ∪ real': 1.048596,
-					'real ∪ numericNum': numericNumThroughReal,
+					'real ∪ numericNum': 9007199254740991,
 					'numericNum ∪ int': 1,
 					'numericNum ∪ real': 1.048596,
 					'numericNum ∪ numericNum': 9007199254740991,

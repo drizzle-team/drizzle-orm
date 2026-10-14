@@ -71,3 +71,5 @@ export interface PgQueryResultHKT {
 export type PgQueryResultKind<TKind extends PgQueryResultHKT, TRow> = (TKind & {
 	readonly row: TRow;
 })['type'];
+
+export type PgRawRow<TRow> = TRow extends 'unknown' ? Record<string, unknown> : TRow;

@@ -24,7 +24,7 @@ import {
 import { migrate } from 'drizzle-orm/singlestore/migrator';
 import * as mysql2 from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { Expect, toLocalDate } from '~/utils';
+import { Expect } from '~/utils';
 
 const ENABLE_LOGGING = false;
 
@@ -627,7 +627,7 @@ test('insert via db.execute + select via db.execute', async () => {
 });
 
 test('insert via db.execute w/ query builder', async () => {
-	const inserted = await db.execute(
+	const inserted = await db.execute<never>(
 		db.insert(usersTable).values({ name: 'John' }),
 	);
 	expect(inserted[0].affectedRows).toBe(1);
@@ -677,7 +677,7 @@ test('insert + select all possible dates', async () => {
 		expect(typeof res[0]?.datetimeAsString).toBe('string');
 
 		expect(res).toEqual([{
-			date: toLocalDate(new Date('2022-11-11')),
+			date: new Date('2022-11-11'),
 			dateAsString: '2022-11-11',
 			time: '12:12:12',
 			datetime: new Date('2022-11-11'),

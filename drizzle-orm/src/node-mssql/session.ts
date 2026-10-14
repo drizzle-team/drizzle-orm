@@ -26,6 +26,7 @@ export type MsSqlQueryResult<T extends unknown | unknown[] = any> = IResult<T>;
 
 export interface NodeMsSqlSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export class NodeMsSqlSession<
@@ -103,6 +104,7 @@ export class NodeMsSqlSession<
 			mapper,
 			mode,
 			this.logger,
+			this.options.paramsInErrors,
 		) as PreparedQueryKind<NodeMsSqlPreparedQueryHKT, T>;
 	}
 
@@ -141,7 +143,7 @@ export class NodeMsSqlSession<
 			await mssqlTransaction.commit();
 			return result;
 		} catch (err) {
-			await mssqlTransaction.rollback();
+			await mssqlTransaction.rollback().catch(() => {});
 			throw err;
 		}
 	}
@@ -172,7 +174,7 @@ export class NodeMsSqlTransaction<
 			const result = await transaction(tx);
 			return result;
 		} catch (err) {
-			await tx.execute(sql.raw(`rollback transaction ${savepointName}`));
+			await tx.execute(sql.raw(`rollback transaction ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

@@ -2,7 +2,6 @@ import type { Connection as CallbackConnection } from 'mysql2';
 import type {
 	Connection,
 	FieldPacket,
-	OkPacket,
 	Pool,
 	PoolConnection,
 	ResultSetHeader,
@@ -33,15 +32,16 @@ import type { Assume } from '~/utils.ts';
 
 export type SingleStoreDriverClient = Pool | Connection;
 
-export type SingleStoreRawQueryResult = [ResultSetHeader, FieldPacket[]];
-export type SingleStoreQueryResultType = RowDataPacket[][] | RowDataPacket[] | OkPacket | OkPacket[] | ResultSetHeader;
-export type SingleStoreQueryResult<
-	T = any,
-> = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
+export type SingleStoreRawQueryResult = [ResultSetHeader, undefined];
+export type SingleStoreRawExecuteResult =
+	| SingleStoreRawQueryResult
+	| [RowDataPacket[], FieldPacket[]]
+	| [(ResultSetHeader | RowDataPacket[])[], (FieldPacket[] | undefined)[]];
 
 export interface SingleStoreDriverSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 const typeCast: TypeCast = function(field, next) {
@@ -111,12 +111,16 @@ export class SingleStoreDriverSession<
 				rowsAsArray: mode === 'arrays',
 			}, params);
 			const stream = driverQuery.stream();
+			// mysql2 reports a connection lost mid-stream on the connection only, stream would never end
+			const onConnectionError = (err: Error) => stream.destroy(err);
+			conn.on('error', onConnectionError);
 
 			try {
 				for await (const row of stream.iterator({ destroyOnReturn: false })) {
 					yield row;
 				}
 			} finally {
+				conn.off('error', onConnectionError);
 				if (!stream.readableEnded && !stream.destroyed) {
 					stream.resume();
 					await new Promise<void>((resolve) => {
@@ -142,6 +146,7 @@ export class SingleStoreDriverSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		) as PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T>;
 	}
 
@@ -178,7 +183,7 @@ export class SingleStoreDriverSession<
 			await tx.execute(sql`commit`);
 			return result;
 		} catch (err) {
-			await tx.execute(sql`rollback`);
+			await tx.execute(sql`rollback`).catch(() => {});
 			throw err;
 		} finally {
 			if (isPool(this.client)) {
@@ -213,7 +218,7 @@ export class SingleStoreDriverTransaction<
 			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}
@@ -224,7 +229,9 @@ function isPool(client: SingleStoreDriverClient): client is Pool {
 }
 
 export interface SingleStoreDriverQueryResultHKT extends SingleStoreQueryResultHKT {
-	type: SingleStoreRawQueryResult;
+	type: [this['row']] extends [never] ? SingleStoreRawQueryResult
+		: [this['row']] extends ['unknown'] ? SingleStoreRawExecuteResult
+		: [this['row'][], FieldPacket[]];
 }
 
 export interface SingleStoreDriverPreparedQueryHKT extends SingleStorePreparedQueryHKT {

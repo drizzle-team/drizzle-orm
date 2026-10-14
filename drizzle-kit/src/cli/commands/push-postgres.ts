@@ -41,6 +41,14 @@ import {
 	postgresSchemaWarning,
 	ProgressView,
 } from '../views';
+import {
+	dropColumnWarning,
+	dropPrimaryKeyWarning,
+	dropSchemaWarning,
+	dropTableWarning,
+	dropViewWarning,
+	tableNamesBeforeRenames,
+} from './warnings';
 
 export const handle = async (
 	schemaSource: SchemaSource,
@@ -172,16 +180,21 @@ export const handle = async (
 	return { status: 'ok' as const, dialect: 'postgresql' };
 };
 
-const identifier = (it: { schema?: string; name: string }) => {
-	const { schema, name } = it;
-	const schemakey = schema && schema !== 'public' ? `"${schema}".` : '';
-	return `${schemakey}"${name}"`;
+const quote = (name: string) => `"${name}"`;
+
+const quoteTable = ({ schema, name }: { schema?: string; name: string }) => {
+	return schema && schema !== 'public' ? `${quote(schema)}.${quote(name)}` : quote(name);
 };
 
 export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints: HintsHandler) => {
 	const json = outputFormat() === 'json';
 	const useHints = json || !isInteractive();
 	const grouped: { hint: string; statement?: string }[] = [];
+	const { identifier, label } = tableNamesBeforeRenames({
+		schemas: jsonStatements.filter((it) => it.type === 'rename_schema'),
+		tables: jsonStatements.filter((it) => it.type === 'rename_table'),
+		moves: jsonStatements.filter((it) => it.type === 'move_table'),
+	}, quoteTable);
 
 	const filtered = jsonStatements.filter((it) => {
 		// TODO: discussion -
@@ -211,22 +224,23 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 
 	for (const statement of filtered) {
 		if (statement.type === 'drop_table') {
+			const id = identifier(statement.table, 'dropped');
 			const entity = [statement.table.schema, statement.table.name] as const;
 			if (hints.matchConfirm('table', entity)) continue;
-			const res = await db.query(`select 1 from ${statement.key} limit 1`);
+			const res = await db.query(`select 1 from ${id} limit 1`);
 
 			if (res.length > 0) {
 				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'table', entity, reason: 'non_empty' });
 				} else {
-					grouped.push({ hint: `You're about to delete non-empty ${statement.key} table` });
+					grouped.push({ hint: dropTableWarning(id) });
 				}
 			}
 			continue;
 		}
 
 		if (statement.type === 'drop_view' && statement.view.materialized) {
-			const id = identifier(statement.view);
+			const id = identifier(statement.view, 'dropped');
 			const entity = [statement.view.schema, statement.view.name] as const;
 			if (hints.matchConfirm('view', entity)) continue;
 			const res = await db.query(`select 1 from ${id} limit 1`);
@@ -235,23 +249,25 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'view', entity, reason: 'non_empty' });
 			} else {
-				grouped.push({ hint: `You're about to delete non-empty ${id} materialized view` });
+				grouped.push({ hint: dropViewWarning(id) });
 			}
 			continue;
 		}
 
 		if (statement.type === 'drop_column') {
 			const column = statement.column;
-			const id = identifier({ schema: column.schema, name: column.table });
+			const table = { schema: column.schema, name: column.table };
 			const entity = [column.schema, column.table, column.name] as const;
 			if (hints.matchConfirm('column', entity)) continue;
-			const res = await db.query(`select 1 from ${id} limit 1`);
+			const res = await db.query(
+				`select 1 from ${identifier(table, 'kept')} where ${quote(column.name)} is not null limit 1`,
+			);
 			if (res.length === 0) continue;
 
 			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
 			} else {
-				grouped.push({ hint: `You're about to delete non-empty ${column.name} column in ${id} table` });
+				grouped.push({ hint: dropColumnWarning(quote(column.name), label(table)) });
 			}
 			continue;
 		}
@@ -269,9 +285,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'schema', entity, reason: 'non_empty' });
 			} else {
-				grouped.push({
-					hint: `You're about to delete ${chalk.underline(statement.name)} schema with ${count} tables`,
-				});
+				grouped.push({ hint: dropSchemaWarning(quote(statement.name), count) });
 			}
 			continue;
 		}
@@ -280,7 +294,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 		if (statement.type === 'drop_pk') {
 			const schema = statement.pk.schema ?? 'public';
 			const table = statement.pk.table;
-			const id = `"${schema}"."${table}"`;
+			const id = identifier({ schema, name: table }, 'kept');
 			const entity = [schema, table, statement.pk.name] as const;
 			if (hints.matchConfirm('primary_key', entity)) continue;
 			const res = await db.query(
@@ -289,27 +303,20 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 
 			if (res.length === 0) continue;
 
-			const hint = `You're about to drop ${
-				chalk.underline(id)
-			} primary key, this statements may fail and your table may lose primary key`;
-
 			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'primary_key', entity, reason: 'non_empty' });
 				continue;
 			}
 
+			const hint = dropPrimaryKeyWarning(label({ schema, name: table }));
 			if (statement.pk.nameExplicit) {
 				grouped.push({ hint });
 				continue;
 			}
 
-			const [{ name: pkName }] = await db.query<{ name: string }>(`
-        SELECT constraint_name as name 
-        FROM information_schema.table_constraints
-        WHERE 
-          table_schema = '${schema}'
-          AND table_name = '${table}'
-          AND constraint_type = 'PRIMARY KEY';`);
+			const [{ name: pkName }] = await db.query<{ name: string }>(
+				`select conname as name from pg_constraint where conrelid = '${id}'::regclass and contype = 'p';`,
+			);
 
 			grouped.push({ hint, statement: `ALTER TABLE ${id} DROP CONSTRAINT "${pkName}"` });
 			continue;

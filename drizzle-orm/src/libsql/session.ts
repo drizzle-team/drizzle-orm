@@ -20,6 +20,7 @@ import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core
 export interface LibSQLSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -85,8 +86,6 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 					rows[0] ? (mode === 'arrays' ? toArrayRow(rows[0]) : normalizeRow(rows[0])) : undefined
 				),
 			run: (params) => client.execute({ sql: query.sql, args: params as InArgs }),
-			values: (params) =>
-				client.execute({ sql: query.sql, args: params as InArgs }).then(({ rows }) => rows.map(toArrayRow)),
 		};
 
 		return new SQLiteAsyncPreparedQuery(
@@ -100,6 +99,7 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -131,7 +131,7 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 			const { executeMethod, mapper, mode } = preparedQueries[i]!;
 
 			if (executeMethod === 'run') return result;
-			if (executeMethod === 'values') return result.rows;
+			if (executeMethod === 'values') return result.rows.map(toArrayRow);
 
 			if (executeMethod === 'get') {
 				const value = result.rows[0];
@@ -177,7 +177,7 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 			await libsqlTx.commit();
 			return result;
 		} catch (err) {
-			await libsqlTx.rollback();
+			await libsqlTx.rollback().catch(() => {});
 			throw err;
 		}
 	}
@@ -205,7 +205,7 @@ export class LibSQLTransaction<TRelations extends AnyRelations>
 			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

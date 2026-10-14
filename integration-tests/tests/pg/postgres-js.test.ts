@@ -1,8 +1,22 @@
 import { Name, sql } from 'drizzle-orm';
-import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+	boolean,
+	customType,
+	getTableConfig,
+	integer,
+	json,
+	jsonb,
+	pgTable,
+	serial,
+	text,
+	timestamp,
+} from 'drizzle-orm/pg-core';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import type { PostgresJsDatabase, PostgresJsRawExecuteResult } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { describe, expect } from 'vitest';
+import type { RowList } from 'postgres';
+import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
 import { postgresjsTest as test } from './instrumentation';
@@ -13,7 +27,52 @@ import {
 	assertSnapshotIsolatesTransaction,
 } from './snapshot';
 
-tests(test, []);
+tests(test, [
+	'Issue No1504',
+	'set json/jsonb fields with strings and retrieve with the ->> operator',
+	'set json/jsonb fields with strings and retrieve with the -> operator',
+]);
+
+test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
+	const db = fixtureDb as unknown as PostgresJsDatabase;
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} ("id" integer primary key, "name" text not null)`);
+	expectTypeOf(created).toEqualTypeOf<RowList<never[]>>();
+	expect([...created]).toStrictEqual([]);
+	expect(created.command).toStrictEqual('CREATE TABLE');
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<RowList<never[]>>();
+	expect([...inserted]).toStrictEqual([]);
+	expect({ command: inserted.command, count: inserted.count }).toMatchObject({ command: 'INSERT', count: 1 });
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select "id", "name" from ${table} order by "id"`);
+	expectTypeOf(selected).toEqualTypeOf<RowList<{ id: number; name: string }[]>>();
+	expect([...selected]).toStrictEqual([{ id: 1, name: 'John' }]);
+	expect({ command: selected.command, count: selected.count }).toMatchObject({ command: 'SELECT', count: 1 });
+
+	// Multi-statement
+	const multi = await db.execute(
+		sql`insert into ${table} values (2, 'Jane'); select "id", "name" from ${table} order by "id"`,
+	);
+	expectTypeOf(multi).toEqualTypeOf<PostgresJsRawExecuteResult>();
+	expect(multi).toHaveLength(2);
+	const [multiInserted, multiSelected] = multi as RowList<Record<string, unknown>[]>[];
+	expect([...multiInserted!]).toStrictEqual([]);
+	expect({ command: multiInserted!.command, count: multiInserted!.count }).toMatchObject({
+		command: 'INSERT',
+		count: 1,
+	});
+	expect([...multiSelected!]).toStrictEqual([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
 
 describe('postgresjs', () => {
 	test('migrator : default migration strategy', async ({ db }) => {
@@ -602,6 +661,143 @@ describe('postgresjs', () => {
 		expect(meta.length).toStrictEqual(1);
 		expect(res[0]?.tableExists).toStrictEqual(true);
 	});
+});
+
+describe('raw sql`` params', () => {
+	test('insert -> select roundtrip over json, jsonb and date columns', async ({ db }) => {
+		const table = pgTable('raw_sql_params', {
+			id: integer('id').primaryKey(),
+			json: json('json').$type<{ hello: string }>().notNull(),
+			jsonb: jsonb('jsonb').$type<{ foo: string }>().notNull(),
+			ts: timestamp('ts', { withTimezone: true, mode: 'date' }).notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${table}`);
+		await db.execute(
+			sql`create table ${table} (id integer primary key, json json not null, jsonb jsonb not null, ts timestamptz not null)`,
+		);
+
+		const jsonValue = { hello: 'world' };
+		const jsonbValue = { foo: 'bar' };
+		const ts = new Date('2024-03-05T06:07:08.900Z');
+
+		await db.execute(
+			sql`insert into ${table} (id, json, jsonb, ts) values (${1}, ${jsonValue}, ${jsonbValue}, ${ts})`,
+		);
+
+		expect(await db.select().from(table)).toEqual([{ id: 1, json: jsonValue, jsonb: jsonbValue, ts }]);
+
+		await db.execute(sql`drop table if exists ${table}`);
+	});
+});
+
+describe('json params', () => {
+	test.concurrent('Issue No1504 - postgres-js', async ({ push, db }) => {
+		type PropTypes = { [key: string]: any };
+
+		const jsonDbType = customType<{ data: PropTypes }>({
+			dataType() {
+				return 'jsonb';
+			},
+			toDriver(value: PropTypes) {
+				return sql`${value}::jsonb`;
+			},
+			fromDriver(value: any): PropTypes {
+				return JSON.parse(value);
+			},
+		});
+
+		const table = pgTable('table', {
+			column: jsonDbType('column'),
+		});
+
+		await db.execute(sql`DROP TABLE IF EXISTS ${table}`);
+		await push({ table });
+
+		await db.insert(table).values({ column: { hello: 'world' } });
+		const res = await db
+			.select({ value: sql`${table.column} ->> 'hello'` })
+			.from(table);
+		expect(res).toStrictEqual([{ value: 'world' }]);
+	});
+
+	test.concurrent(
+		'set json/jsonb fields with strings and retrieve with the ->> operator - postgres-js',
+		async ({ db, push }) => {
+			const jsonTestTable = pgTable('json_test_25', {
+				id: serial('id').primaryKey(),
+				json: json('json').notNull(),
+				jsonb: jsonb('jsonb').notNull(),
+			});
+
+			await push({ jsonTestTable });
+
+			const obj = { string: 'test', number: 123 };
+			const { string: testString, number: testNumber } = obj;
+
+			await db.insert(jsonTestTable).values({
+				json: sql`${obj}`,
+				jsonb: sql`${obj}`,
+			});
+
+			const result = await db
+				.select({
+					jsonStringField: sql<string>`${jsonTestTable.json}->>'string'`,
+					jsonNumberField: sql<string>`${jsonTestTable.json}->>'number'`,
+					jsonbStringField: sql<string>`${jsonTestTable.jsonb}->>'string'`,
+					jsonbNumberField: sql<string>`${jsonTestTable.jsonb}->>'number'`,
+				})
+				.from(jsonTestTable);
+
+			expect(result).toStrictEqual([
+				{
+					jsonStringField: testString,
+					jsonNumberField: String(testNumber),
+					jsonbStringField: testString,
+					jsonbNumberField: String(testNumber),
+				},
+			]);
+		},
+	);
+
+	test.concurrent(
+		'set json/jsonb fields with strings and retrieve with the -> operator - postgres-js',
+		async ({ db, push }) => {
+			const jsonTestTable = pgTable('json_test_27', {
+				id: serial('id').primaryKey(),
+				json: json('json').notNull(),
+				jsonb: jsonb('jsonb').notNull(),
+			});
+
+			await push({ jsonTestTable });
+
+			const obj = { string: 'test', number: 123 };
+			const { string: testString, number: testNumber } = obj;
+
+			await db.insert(jsonTestTable).values({
+				json: sql`${obj}`,
+				jsonb: sql`${obj}`,
+			});
+
+			const result = await db
+				.select({
+					jsonStringField: sql<string>`${jsonTestTable.json}->'string'`,
+					jsonNumberField: sql<number>`${jsonTestTable.json}->'number'`,
+					jsonbStringField: sql<string>`${jsonTestTable.jsonb}->'string'`,
+					jsonbNumberField: sql<number>`${jsonTestTable.jsonb}->'number'`,
+				})
+				.from(jsonTestTable);
+
+			expect(result).toStrictEqual([
+				{
+					jsonStringField: testString,
+					jsonNumberField: testNumber,
+					jsonbStringField: testString,
+					jsonbNumberField: testNumber,
+				},
+			]);
+		},
+	);
 });
 
 describe('transaction snapshot', () => {

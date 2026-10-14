@@ -88,7 +88,7 @@ export class ViewBuilder<
 					name: this.name,
 					schema: this.schema,
 					selectedFields: aliasedSelection,
-					query: qb.withoutSelectionCastCodecs().getSQL().inlineParams(),
+					query: qb.getSQL().inlineParams(),
 				},
 			}),
 			selectionProxy as any,

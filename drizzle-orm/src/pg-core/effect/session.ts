@@ -1,6 +1,6 @@
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
 import { EffectCache, type EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
@@ -52,6 +52,7 @@ export class PgEffectPreparedQuery<
 		} | undefined,
 		// config that was passed through $withCache
 		protected cacheConfig: WithCacheConfig | undefined,
+		protected paramsInErrors: boolean | undefined,
 	) {
 		super(query);
 		this.mapper = mapper;
@@ -98,7 +99,6 @@ export class PgEffectPreparedQuery<
 				return yield* query;
 			}
 
-			// For mutate queries, we should query the database, wait for a response, and then perform invalidation
 			if (cacheStrat.type === 'invalidate') {
 				const result = yield* query;
 				yield* cache!.onMutate({ tables: cacheStrat.tables });
@@ -134,7 +134,13 @@ export class PgEffectPreparedQuery<
 		}).pipe(
 			Effect.provideService(EffectCache, this.cache),
 			Effect.catch((e) => {
-				return Effect.fail(new EffectDrizzleQueryError({ query: queryString, params, cause: Cause.fail(e) }));
+				return Effect.fail(
+					new EffectDrizzleQueryError({
+						query: queryString,
+						params: this.paramsInErrors ? params : undefined,
+						cause: Cause.fail(e),
+					}),
+				);
 			}),
 		);
 	}

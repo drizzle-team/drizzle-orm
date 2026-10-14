@@ -1,7 +1,13 @@
 import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
 import { hash } from '../common';
-import { escapeForSqlDefault, escapeForTsLiteral, parseParams, unescapeFromSqlDefault } from '../utils';
+import {
+	escapeForSqlDefault,
+	escapeForSqlTemplate,
+	escapeForTsLiteral,
+	parseParams,
+	unescapeFromSqlDefault,
+} from '../grammar';
 import type { DefaultConstraint, MssqlEntities } from './ddl';
 import type { Import } from './typescript';
 
@@ -235,7 +241,7 @@ export const Int: SqlType = {
 		const trimmed = trimChar(value, ['(', ')']);
 
 		const numType = checkNumber(trimmed);
-		if (numType === 'NaN') return { default: `sql\`${value}\`` };
+		if (numType === 'NaN') return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		return { default: trimmed };
 	},
 };
@@ -276,7 +282,7 @@ export const BigInt: SqlType = {
 
 		const numType = checkNumber(trimmed);
 
-		if (numType === 'NaN') return { options: { mode: 'bigint' }, default: `sql\`${value}\`` };
+		if (numType === 'NaN') return { options: { mode: 'bigint' }, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		if (numType === 'number') return { options: { mode: 'number' }, default: trimmed };
 		if (numType === 'bigint') return { options: { mode: 'bigint' }, default: `${trimmed}n` };
 		assertUnreachable(numType);
@@ -304,7 +310,7 @@ export const Bit: SqlType = {
 		if (value === '(1)') return { default: 'true' };
 		if (value === '(0)') return { default: 'false' };
 
-		return { default: `sql\`${value}\`` };
+		return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 	},
 };
 
@@ -351,7 +357,7 @@ export const Char: SqlType = {
 			return { options: optionsToSet, default: escaped };
 		}
 
-		return { options: optionsToSet, default: `sql\`${value}\`` };
+		return { options: optionsToSet, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 	},
 };
 export const NChar: SqlType = {
@@ -413,7 +419,7 @@ export const NVarchar: SqlType = {
 		};
 
 		if (!isTSQLStringLiteral(value)) {
-			return { options: optionsToSet, default: `sql\`${value}\`` };
+			return { options: optionsToSet, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 
 		try {
@@ -489,7 +495,9 @@ export const Decimal: SqlType = {
 
 		const numType = checkNumber(trimmed);
 
-		if (numType === 'NaN') return { options: { ...optionsToSet, mode: 'bigint' }, default: `sql\`${value}\`` };
+		if (numType === 'NaN') {
+			return { options: { ...optionsToSet, mode: 'bigint' }, default: `sql\`${escapeForSqlTemplate(value)}\`` };
+		}
 		if (numType === 'number') return { options: { ...optionsToSet, mode: 'number' }, default: trimmed };
 		if (numType === 'bigint') return { options: { ...optionsToSet, mode: 'bigint' }, default: `${trimmed}n` };
 		assertUnreachable(numType);
@@ -533,7 +541,7 @@ export const Float: SqlType = {
 
 		const numType = checkNumber(trimmed);
 
-		if (numType === 'NaN') return { options: optionsToSet, default: `sql\`${value}\`` };
+		if (numType === 'NaN') return { options: optionsToSet, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		return { options: optionsToSet, default: trimmed };
 	},
 };
@@ -556,7 +564,7 @@ export const Real: SqlType = {
 		const trimmed = trimChar(value, ['(', ')']);
 
 		const numType = checkNumber(trimmed);
-		if (numType === 'NaN') return { default: `sql\`${value}\`` };
+		if (numType === 'NaN') return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		if (numType === 'number') return { default: trimmed };
 		if (numType === 'bigint') return { default: `${trimmed}n` };
 		assertUnreachable(numType);
@@ -588,7 +596,7 @@ export const Datetime: SqlType = {
 		value = value.substring(1, value.length - 1);
 		// check for valid date
 		if (isNaN(Date.parse(value.substring(1, value.length - 1)))) {
-			return { default: `sql\`${value}\``, options };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\``, options };
 		}
 
 		return { default: value, options };
@@ -628,7 +636,7 @@ export const Datetime2: SqlType = {
 		value = value.substring(1, value.length - 1);
 		// check for valid date
 		if (isNaN(Date.parse(value.substring(1, value.length - 1)))) {
-			return { default: `sql\`${value}\``, options };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\``, options };
 		}
 
 		return { default: value, options };
@@ -663,7 +671,7 @@ export const Datetimeoffset: SqlType = {
 		value = value.substring(1, value.length - 1);
 		// check for valid date
 		if (isNaN(Date.parse(value.substring(1, value.length - 1)))) {
-			return { default: `sql\`${value}\``, options };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\``, options };
 		}
 
 		return { default: value, options };
@@ -696,7 +704,7 @@ export const Time: SqlType = {
 		value = value.substring(1, value.length - 1);
 		// check for valid date
 		if (isNaN(Date.parse(value.substring(1, value.length - 1)))) {
-			return { default: `sql\`${value}\``, options };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\``, options };
 		}
 
 		return { default: value, options };
@@ -722,7 +730,7 @@ export const Binary: SqlType = {
 		if (param) optionsToSet['length'] = param === 'max' ? 'max' : Number(param);
 
 		// (0x...)
-		const def = value ? `sql\`${value.substring(1, value.length - 1)}\`` : '';
+		const def = value ? `sql\`${escapeForSqlTemplate(value.substring(1, value.length - 1))}\`` : '';
 		return { options: optionsToSet, default: def };
 	},
 };
@@ -746,7 +754,7 @@ export const Custom: SqlType = {
 		return value;
 	},
 	toTs: (type, value) => {
-		return { default: `sql\`${value}\``, customType: type };
+		return { default: `sql\`${escapeForSqlTemplate(String(value))}\``, customType: type };
 	},
 };
 

@@ -134,7 +134,7 @@ export class SQLiteAsyncSelectBase<
 	/** @internal */
 	_prepare(prepare = false): SQLiteAsyncSelectPrepare<this> {
 		// Build query before accessing `fieldsFlat` - build mutates it
-		const query = this.dialect.sqlToQuery(this.getSQL());
+		const query = this.dialect.sqlToQuery(this.getSQL(true));
 		const fieldsList = this.config.fieldsFlat!;
 		const mapper = this.config.mapper ??= this.dialect.mapperGenerators.rows(
 			fieldsList,

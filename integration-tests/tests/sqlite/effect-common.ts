@@ -45,8 +45,8 @@ import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
 import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
-import { SqlClient } from 'effect/unstable/sql/SqlClient';
-import { SqlError } from 'effect/unstable/sql/SqlError';
+import { SqlClient } from 'effect/sql/SqlClient';
+import { SqlError } from 'effect/sql/SqlError';
 import type { AllTypes } from './all-types';
 import { allTypesData, allTypesInput, assertAllTypesBounds, assertAllTypesUnions, makeAllTypes } from './all-types';
 import { TestCache } from './instrumentation';
@@ -2402,6 +2402,61 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				spyInvalidate.mockClear();
 			}));
 
+		it.effect('Cache: onMutate runs after the write is committed', () =>
+			Effect.gen(function*() {
+				const baseCache = new TestCache('explicit');
+
+				const db = yield* SQLiteDrizzle.make({ relations }).pipe(
+					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
+					Effect.provide(SQLiteDrizzle.DefaultServices),
+				);
+
+				const users = sqliteTable('users_cache_mutate_order', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+
+				yield* push(db, { users });
+
+				const context = yield* Effect.context<never>();
+				const run = (query: any) => Effect.runPromiseWith(context)(query);
+				const seen: string[][] = [];
+				using spyInvalidate = vi.spyOn(baseCache, 'onMutate').mockImplementation(async () => {
+					const rows = await run(db.select({ name: users.name }).from(users)) as { name: string }[];
+					seen.push(rows.map((r) => r.name));
+				});
+
+				yield* db.insert(users).values({ id: 1, name: 'John' });
+
+				expect(spyInvalidate).toHaveBeenCalledTimes(1);
+				expect(seen).toStrictEqual([['John']]);
+			}));
+
+		it.effect('Cache: no onMutate on failed write', () =>
+			Effect.gen(function*() {
+				const baseCache = new TestCache('explicit');
+
+				const db = yield* SQLiteDrizzle.make({ relations }).pipe(
+					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
+					Effect.provide(SQLiteDrizzle.DefaultServices),
+				);
+
+				const users = sqliteTable('users_cache_failed_write', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+
+				yield* push(db, { users });
+				yield* db.insert(users).values({ id: 1, name: 'John' });
+
+				using spyInvalidate = vi.spyOn(baseCache, 'onMutate');
+
+				const res = yield* db.insert(users).values({ id: 1, name: 'Jane' }).pipe(Effect.result);
+
+				assert(Result.isFailure(res));
+				expect(spyInvalidate).toHaveBeenCalledTimes(0);
+			}));
+
 		it.effect('makeWithDefaults - convenience function that includes DefaultServices', () =>
 			Effect.gen(function*() {
 				const db = yield* SQLiteDrizzle.makeWithDefaults({ relations });
@@ -4259,6 +4314,58 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 					defMix3: 2,
 					defMix4: 1,
 				}]);
+			}));
+
+		it.effect('Query error params', () =>
+			Effect.gen(function*() {
+				const query = sql`select * from params_in_errors_missing where id = ${'S3CRET'}`;
+
+				for (const paramsInErrors of [undefined, false, true]) {
+					const db = yield* SQLiteDrizzle.make({ paramsInErrors }).pipe(Effect.provide(SQLiteDrizzle.DefaultServices));
+
+					for (
+						const effect of [
+							db.get(query),
+							db.all(query),
+							db.run(query),
+							db.values(query),
+						]
+					) {
+						const error: any = yield* effect.pipe(Effect.flip);
+
+						expect(error._tag).toBe('EffectDrizzleQueryError');
+						expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+						expect(error.message).toBe(
+							paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+						);
+					}
+				}
+			}));
+
+		it.effect('Query error params - transaction', () =>
+			Effect.gen(function*() {
+				const query = sql`select * from params_in_errors_missing where id = ${'S3CRET'}`;
+
+				for (const paramsInErrors of [undefined, false, true]) {
+					const db = yield* SQLiteDrizzle.make({ paramsInErrors }).pipe(Effect.provide(SQLiteDrizzle.DefaultServices));
+
+					for (
+						const effect of [
+							db.transaction((tx) => tx.get(query)),
+							db.transaction((tx) => tx.all(query)),
+							db.transaction((tx) => tx.run(query)),
+							db.transaction((tx) => tx.values(query)),
+						]
+					) {
+						const error: any = yield* effect.pipe(Effect.flip);
+
+						expect(error._tag).toBe('EffectDrizzleQueryError');
+						expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+						expect(error.message).toBe(
+							paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+						);
+					}
+				}
 			}));
 
 		addTests?.(it);

@@ -14,7 +14,7 @@ import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from '
  */
 export async function upgradeAsyncIfNeeded(
 	migrationsTable: string,
-	db: SqliteRemoteDatabase<AnyRelations>,
+	db: SqliteRemoteDatabase<any, AnyRelations>,
 	callback: ProxyMigrator,
 	localMigrations: MigrationMeta[],
 ): Promise<UpgradeResult> {

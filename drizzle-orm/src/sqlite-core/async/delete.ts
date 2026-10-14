@@ -5,8 +5,8 @@ import type { SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteDeleteHKTBase } from '~/sqlite-core/query-builders/delete.ts';
 import { SQLiteDeleteBase } from '~/sqlite-core/query-builders/delete.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import { applyMixins, type Assume, type DrizzleTypeError } from '~/utils.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { SQLiteAsyncPreparedQuery, SQLiteAsyncPreparedQueryConfig, SQLiteAsyncSession } from './session.ts';
 
 export interface SQLiteAsyncDeleteHKT extends SQLiteDeleteHKTBase {
@@ -105,14 +105,14 @@ export class SQLiteAsyncDeleteBase<
 	/** @internal */
 	_prepare(prepare = false): SQLiteAsyncDeletePrepare<this> {
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+			this.dialect.sqlToQuery(this.getSQL(true)),
 			'arrays',
 			prepare,
 			this.config.returning ? 'all' : 'run',
 			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
 			{
 				type: 'delete',
-				tables: extractUsedTable(this.config.table),
+				tables: usedTablesOf(this.config.table),
 			},
 		) as SQLiteAsyncDeletePrepare<this>;
 	}

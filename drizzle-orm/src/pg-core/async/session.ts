@@ -43,6 +43,7 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 		} | undefined,
 		// config that was passed through $withCache
 		protected cacheConfig: WithCacheConfig | undefined,
+		protected paramsInErrors: boolean | undefined,
 	) {
 		super(query);
 		this.mapper = mapper;
@@ -68,7 +69,7 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 				: fillPlaceholders(query.params, placeholderValues);
 			logger.logQuery(sql, params);
 			const res = executor(params).catch((e) => {
-				throw new DrizzleQueryError(sql, params, e as Error);
+				throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
 			});
 			if (!mapper) return res;
 
@@ -115,19 +116,18 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 
 		if (cacheStrat.type === 'skip') {
 			return query().catch((e) => {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
 			});
 		}
 
 		const cache = this.cache!;
 
-		// For mutate queries, we should query the database, wait for a response, and then perform invalidation
 		if (cacheStrat.type === 'invalidate') {
-			return Promise.all([
-				query(),
-				cache.onMutate({ tables: cacheStrat.tables }),
-			]).then((res) => res[0]).catch((e) => {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+			return query().then(async (res) => {
+				await cache.onMutate({ tables: cacheStrat.tables });
+				return res;
+			}).catch((e) => {
+				throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
 			});
 		}
 
@@ -142,7 +142,7 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 
 			if (fromCache === undefined) {
 				const result = await query().catch((e) => {
-					throw new DrizzleQueryError(queryString, params, e as Error);
+					throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
 				});
 				// put actual key
 				await cache.put(
@@ -164,11 +164,8 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 	}
 }
 
-export abstract class PgAsyncSession<
-	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
-	TRelations extends AnyRelations = EmptyRelations,
-> extends PgSession {
-	static override readonly [entityKind]: string = 'PgAsyncSession';
+export abstract class BasePgAsyncSession extends PgSession {
+	static override readonly [entityKind]: string = 'BasePgAsyncSession';
 
 	abstract override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
@@ -224,6 +221,13 @@ export abstract class PgAsyncSession<
 			return prepared.execute();
 		});
 	}
+}
+
+export abstract class PgAsyncSession<
+	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
+	TRelations extends AnyRelations = EmptyRelations,
+> extends BasePgAsyncSession {
+	static override readonly [entityKind]: string = 'PgAsyncSession';
 
 	abstract transaction<T>(
 		transaction: (tx: PgAsyncTransaction<TQueryResult, TRelations>) => Promise<T>,

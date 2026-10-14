@@ -8,6 +8,7 @@ import type {
 	AnyOne,
 	BuildRelationalQueryResult,
 	DBQueryConfigWithComment,
+	RelationalQueryStrategy,
 	RelationalRowsMapperGenerator,
 	TableRelationalConfig,
 	TablesRelationalConfig,
@@ -416,7 +417,7 @@ export class MySqlDialect {
 		forceIndex,
 		ignoreIndex,
 		comment,
-		ignoreSelectionCastCodecs,
+		useSelectionCastCodecs,
 	}: MySqlSelectConfig): SQL {
 		if (!fieldsFlat) {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
@@ -461,7 +462,7 @@ export class MySqlDialect {
 
 		const selection = this.buildSelection(fieldsList, {
 			isSingleTable,
-			ignoreCastCodecs: ignoreSelectionCastCodecs || setOperators.length > 0,
+			ignoreCastCodecs: !useSelectionCastCodecs || setOperators.length > 0,
 			table,
 		});
 
@@ -589,7 +590,7 @@ export class MySqlDialect {
 			}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, fieldsList, ignoreSelectionCastCodecs, setOperators);
+			return this.buildSetOperations(finalQuery, fieldsList, useSelectionCastCodecs, setOperators);
 		}
 
 		return finalQuery;
@@ -598,7 +599,7 @@ export class MySqlDialect {
 	buildSetOperations(
 		leftSelect: SQL,
 		leftSelection: SelectedFieldsOrdered,
-		ignoreSelectionCastCodecs: boolean | undefined,
+		useSelectionCastCodecs: boolean | undefined,
 		setOperators: MySqlSelectConfig['setOperators'],
 	): SQL {
 		const outputSelection = leftSelection;
@@ -631,7 +632,7 @@ export class MySqlDialect {
 				: out.codec;
 		}
 
-		return ignoreSelectionCastCodecs ? leftSelect : sql`select ${
+		return !useSelectionCastCodecs ? leftSelect : sql`select ${
 			this.buildSelection(
 				outputSelection.map((field) => {
 					if (field.fieldType === 'SQL.Aliased') {
@@ -653,7 +654,7 @@ export class MySqlDialect {
 				}),
 				{
 					isSingleTable: true,
-					ignoreCastCodecs: ignoreSelectionCastCodecs,
+					ignoreCastCodecs: !useSelectionCastCodecs,
 				},
 			)
 		} from (${leftSelect}) ${sql.identifier('drizzle_union')}`;
@@ -667,7 +668,7 @@ export class MySqlDialect {
 		setOperator: MySqlSelectConfig['setOperators'][number];
 	}): SQL {
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
-		const rightChunk = sql`(${rightSelect.withoutSelectionCastCodecs().getSQL()})`;
+		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
@@ -743,12 +744,12 @@ export class MySqlDialect {
 		const insertOrder = new SQL(insertOrderArr);
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
-		const valuesSqlList: SQLChunk[] = Array.from({
-			length: select
+		const valuesSqlList: SQLChunk[] = new Array(
+			select
 				? 1
 				: (colEntriesFiltered.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
 					+ (valuesOrSelect as Record<string, unknown>[]).length,
-		});
+		);
 
 		if (select) {
 			valuesSqlList[0] = (valuesOrSelect as AnyMySqlSelectQueryBuilder | SQL).getSQL();
@@ -987,6 +988,7 @@ export class MySqlDialect {
 		throughJoin,
 		nested,
 		withSubqueries,
+		strategy,
 	}: {
 		schema: TablesRelationalConfig;
 		table: SchemaEntry;
@@ -1000,12 +1002,14 @@ export class MySqlDialect {
 		throughJoin?: SQL;
 		nested?: boolean;
 		withSubqueries?: RelationalWithSubqueries;
+		strategy?: RelationalQueryStrategy;
 	}): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
+		const isOptimized = (currentDepth ? strategy : params?.strategy) !== 'basic';
 		const subqueries: RelationalWithSubqueries = withSubqueries ?? new Map();
 		if (!currentDepth) {
 			collectRelationalSubquery(subqueries, table);
@@ -1017,28 +1021,16 @@ export class MySqlDialect {
 
 		const columns = this.buildColumns(table, selection, !!nested, tableConfig.name, params);
 
-		const where: SQL | undefined = params && 'where' in params && relationWhere
-			? and(
-				relationsFilterToSQL(
-					table,
-					params.where,
-					tableConfig.relations,
-					schema,
-					subqueries,
-				),
-				relationWhere,
-			)
-			: params && 'where' in params
-			? relationsFilterToSQL(
-				table,
-				params.where,
-				tableConfig.relations,
-				schema,
-				subqueries,
-			)
+		const filter = params && 'where' in params
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries)
+			: undefined;
+		const where: SQL | undefined = filter && relationWhere
+			? and(filter.sql, relationWhere)
+			: filter
+			? filter.sql
 			: relationWhere;
 		const order = params?.orderBy
-			? relationsOrderToSQL(table, params.orderBy)
+			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, subqueries)
 			: undefined;
 		const extras = params?.extras
 			? relationExtrasToSQL(table, params.extras, this.codecs, nested)
@@ -1104,6 +1096,7 @@ export class MySqlDialect {
 						errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 						depth: currentDepth + 1,
 						withSubqueries: subqueries,
+						strategy: currentDepth ? strategy : params?.strategy,
 						isNestedMany: !isSingle,
 						throughJoin,
 						nested: true,
@@ -1163,15 +1156,30 @@ export class MySqlDialect {
 			: undefined;
 
 		const withSql = currentDepth ? undefined : this.buildWithCTE([...subqueries.values()]);
-		const query = sql`${withSql}select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${joins}${
-			where ? sql` where ${where}` : undefined
-		}${order ? sql` order by ${order}` : undefined}${
-			limit !== undefined ? sql` limit ${sql.param(limit, this.paginationEncoder)}` : undefined
-		}${
+		const whereSql = where ? sql` where ${where}` : undefined;
+		const orderSql = order ? sql` order by ${order}` : undefined;
+		const limitSql = sql`${limit !== undefined ? sql` limit ${sql.param(limit, this.paginationEncoder)}` : undefined}${
 			offset !== undefined
 				? sql` offset ${sql.param(offset, this.paginationEncoder)}`
 				: undefined
-		}${comment ? sql` ${comment}` : undefined}`;
+		}`;
+
+		// Optimize slow queries caused by planner applying pagination or filters after building relations
+		// MySQL doesn't push `order by ... limit ... offset` below lateral joins: whenever the rows have to be sorted
+		// or skipped, every joined relation gets built for each of those rows instead of just the returned ones.
+		// Limiting the table in a derived table first restricts the joins to the rows that are actually returned.
+		// Unordered `offset` isn't handled for tables filtered by relations: MySQL may plan such limited table
+		// on its own noticeably worse than it does as a part of the whole query
+		const query =
+			joins && isOptimized && limit !== undefined && (order || (offset !== undefined && !filter?.hasRelationFilters))
+				? sql`${withSql}select ${selectionSet} from (select ${table}.* from ${
+					getTableAsAliasSQL(table)
+				}${throughJoin}${whereSql}${orderSql}${limitSql}) as ${table}${joins}${orderSql}${
+					comment ? sql` ${comment}` : undefined
+				}`
+				: sql`${withSql}select ${selectionSet} from ${
+					getTableAsAliasSQL(table)
+				}${throughJoin}${joins}${whereSql}${orderSql}${limitSql}${comment ? sql` ${comment}` : undefined}`;
 
 		return {
 			sql: query,

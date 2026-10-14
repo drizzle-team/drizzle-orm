@@ -68,7 +68,7 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 					name: this.name,
 					schema: undefined,
 					selectedFields: aliasedSelectedFields,
-					query: qb.withoutSelectionCastCodecs().getSQL().inlineParams(),
+					query: qb.getSQL().inlineParams(),
 				},
 			}),
 			selectionProxy as any,
