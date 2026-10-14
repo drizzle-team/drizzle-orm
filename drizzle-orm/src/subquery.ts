@@ -1,4 +1,4 @@
-import { entityKind } from './entity.ts';
+import { entityKind, is } from './entity.ts';
 import type { SQL, SQLWrapper } from './sql/sql.ts';
 import { IsAlias, OriginalName, TableColumns, TableSchema } from './table.ts';
 import { TableName } from './table.utils.ts';
@@ -16,6 +16,9 @@ export class Subquery<
 	TSelectedFields extends Record<string, unknown> = Record<string, unknown>,
 > implements SQLWrapper {
 	static readonly [entityKind]: string = 'Subquery';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare _: {
 		brand: 'Subquery';

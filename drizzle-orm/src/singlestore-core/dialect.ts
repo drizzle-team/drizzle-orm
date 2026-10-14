@@ -30,6 +30,8 @@ import {
 import { and } from '~/sql/expressions/index.ts';
 import type { DriverValueDecoder, Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
 import { isSQLWrapper, Param, SQL, sql, StringChunk } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk } from '~/sql/sql.ts';
+import { commonStringChunks } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/singlestore.ts';
@@ -64,6 +66,9 @@ interface BuildRelationalQueryResultWithOrder extends BuildRelationalQueryResult
 
 export class SingleStoreDialect {
 	static readonly [entityKind]: string = 'SingleStoreDialect';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly codecs: CodecsCollection<SingleStoreType>;
 	readonly mapperGenerators: {
@@ -185,7 +190,7 @@ export class SingleStoreDialect {
 		const queriesLen = queries.length;
 		const withSqlChunks: SQLChunk[] = new Array(queriesLen + 1);
 		let writeIdx = 0;
-		withSqlChunks[writeIdx++] = new StringChunk('with ');
+		withSqlChunks[writeIdx++] = commonStringChunks['with '];
 
 		for (let i = 0; i < queriesLen; ++i) {
 			const w = queries[i]!;
@@ -305,8 +310,9 @@ export class SingleStoreDialect {
 	): SQL {
 		const { length: columnsLen } = fields;
 		const chunks: SQLChunk[] = [];
+		const tableKind = chunkKindOf(table);
 		const tableName = table
-			? is(table, SQL) || is(table, Subquery)
+			? isChunk(table, tableKind, chunkKinds.sql) || isChunk(table, tableKind, chunkKinds.subquery)
 				? undefined
 				: (table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
 					? table[Table.Symbol.Name]
@@ -439,7 +445,7 @@ export class SingleStoreDialect {
 			}
 
 			if (i < columnsLen - 1) {
-				chunks.push(new StringChunk(', '));
+				chunks.push(commonStringChunks[', ']);
 			}
 		}
 
@@ -457,7 +463,7 @@ export class SingleStoreDialect {
 		orderBy: (SingleStoreColumn | SQL | SQL.Aliased)[] | undefined,
 	): SQL | undefined {
 		return orderBy && orderBy.length > 0
-			? sql` order by ${sql.join(orderBy, new StringChunk(', '))}`
+			? sql` order by ${sql.join(orderBy, commonStringChunks[', '])}`
 			: undefined;
 	}
 
@@ -481,17 +487,19 @@ export class SingleStoreDialect {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
 		}
 		const fieldsList = fieldsFlat;
+
+		const tableKind = chunkKindOf(table);
+		const ownTableName = isChunk(table, tableKind, chunkKinds.subquery)
+			? table._.alias
+			/* : is(table, SingleStoreViewBase)
+			? table[ViewBaseConfig].name */
+			: isChunk(table, tableKind, chunkKinds.sql)
+			? undefined
+			: getTableName(table);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
-				&& getTableName(f.field.table)
-					!== (is(table, Subquery)
-						? table._.alias
-						/* : is(table, SingleStoreViewBase)
-						? table[ViewBaseConfig].name */
-						: is(table, SQL)
-						? undefined
-						: getTableName(table))
+				&& getTableName(f.field.table) !== ownTableName
 				&& !((table) =>
 					joins?.some(
 						({ alias }) =>
@@ -549,7 +557,7 @@ export class SingleStoreDialect {
 		if (joins) {
 			for (const [index, joinMeta] of joins.entries()) {
 				if (index === 0) {
-					joinsArray.push(new StringChunk(' '));
+					joinsArray.push(commonStringChunks[' ']);
 				}
 				const table = joinMeta.table;
 				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
@@ -581,7 +589,7 @@ export class SingleStoreDialect {
 					);
 				}
 				if (index < joins.length - 1) {
-					joinsArray.push(new StringChunk(' '));
+					joinsArray.push(commonStringChunks[' ']);
 				}
 			}
 		}
@@ -595,7 +603,7 @@ export class SingleStoreDialect {
 		const orderBySql = this.buildOrderBy(orderBy);
 
 		const groupBySql = groupBy && groupBy.length > 0
-			? sql` group by ${sql.join(groupBy, new StringChunk(', '))}`
+			? sql` group by ${sql.join(groupBy, commonStringChunks[', '])}`
 			: undefined;
 
 		const limitSql = this.buildLimit(limit);
@@ -696,7 +704,7 @@ export class SingleStoreDialect {
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, new StringChunk(', '))}`;
+			orderBySql = sql` order by ${sql.join(orderByValues, commonStringChunks[', '])}`;
 		}
 
 		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
@@ -730,14 +738,14 @@ export class SingleStoreDialect {
 
 		const insertOrderArr: SQLChunk[] = new Array(colEntries.length * 2 + 1);
 		let orderWriteIdx = 0;
-		insertOrderArr[orderWriteIdx++] = new StringChunk('(');
+		insertOrderArr[orderWriteIdx++] = commonStringChunks['('];
 		for (let i = 0; i < colEntries.length; ++i) {
 			const [, { name }] = colEntries[i]!;
 			insertOrderArr[orderWriteIdx++] = sql.identifier(name);
 
-			if (i < colEntries.length - 1) insertOrderArr[orderWriteIdx++] = new StringChunk(', ');
+			if (i < colEntries.length - 1) insertOrderArr[orderWriteIdx++] = commonStringChunks[', '];
 		}
-		insertOrderArr[orderWriteIdx++] = new StringChunk(')');
+		insertOrderArr[orderWriteIdx++] = commonStringChunks[')'];
 		const insertOrder = new SQL(insertOrderArr);
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
@@ -748,7 +756,7 @@ export class SingleStoreDialect {
 			const value = values[valueIndex]!;
 			const generatedIds: Record<string, unknown> = {};
 
-			valuesSqlList[writeIdx++] = new StringChunk('(');
+			valuesSqlList[writeIdx++] = commonStringChunks['('];
 			for (let i = 0; i < colEntries.length; ++i) {
 				const [fieldName, col] = colEntries[i]!;
 				const colValue = value[fieldName];
@@ -769,7 +777,7 @@ export class SingleStoreDialect {
 							: sql.param(onUpdateFnResult, col);
 						valuesSqlList[writeIdx++] = newValue;
 					} else {
-						valuesSqlList[writeIdx++] = new StringChunk(`default`);
+						valuesSqlList[writeIdx++] = commonStringChunks['default'];
 					}
 				} else if (is(colValue, SQL)) {
 					valuesSqlList[writeIdx++] = colValue;
@@ -781,16 +789,16 @@ export class SingleStoreDialect {
 				}
 
 				if (i < colEntries.length - 1) {
-					valuesSqlList[writeIdx++] = new StringChunk(', ');
+					valuesSqlList[writeIdx++] = commonStringChunks[', '];
 				}
 			}
 
 			generatedIdsResponse.push(generatedIds);
 
-			valuesSqlList[writeIdx++] = new StringChunk(')');
+			valuesSqlList[writeIdx++] = commonStringChunks[')'];
 
 			if (valueIndex < values.length - 1) {
-				valuesSqlList[writeIdx++] = new StringChunk(`, `);
+				valuesSqlList[writeIdx++] = commonStringChunks[', '];
 			}
 		}
 
@@ -964,7 +972,7 @@ export class SingleStoreDialect {
 				Object.entries(table[TableColumns]).map(([k, v]) => {
 					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
 				}),
-				new StringChunk(', '),
+				commonStringChunks[', '],
 			);
 		}
 
@@ -979,7 +987,7 @@ export class SingleStoreDialect {
 		}
 
 		return columnIdentifiers.length
-			? sql.join(columnIdentifiers, new StringChunk(', '))
+			? sql.join(columnIdentifiers, commonStringChunks[', '])
 			: undefined;
 	};
 
@@ -1057,7 +1065,7 @@ export class SingleStoreDialect {
 				if (!withEntries.length) break;
 
 				const joinChunks: SQLChunk[] = new Array(withEntries.length * 2);
-				joinChunks[0] = new StringChunk(' ');
+				joinChunks[0] = commonStringChunks[' '];
 
 				for (let readIdx = 0, writeIdx = 1; readIdx < withEntries.length; ++readIdx) {
 					const [k, join] = withEntries[readIdx]!;
@@ -1127,7 +1135,7 @@ export class SingleStoreDialect {
 						innerQuery.selection.map(
 							(s) => sql`${new StringChunk(this.escapeString(s.key))}, ${sql.identifier(s.key)}`,
 						),
-						new StringChunk(', '),
+						commonStringChunks[', '],
 					);
 
 					const joinQuery = sql`left join lateral(select ${sql`${
@@ -1145,7 +1153,7 @@ export class SingleStoreDialect {
 					} on true`;
 
 					joinChunks[writeIdx++] = joinQuery;
-					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = new StringChunk(' ');
+					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = commonStringChunks[' '];
 				}
 
 				joins = new SQL(joinChunks);
@@ -1165,7 +1173,7 @@ export class SingleStoreDialect {
 				sql`row_number() over (order by ${order}) as ${sql.identifier(`$drizzle_order_row_number`)}`,
 			);
 		}
-		const selectionSet = sql.join(selectionArr, new StringChunk(', '));
+		const selectionSet = sql.join(selectionArr, commonStringChunks[', ']);
 
 		const withSql = currentDepth ? undefined : this.buildWithCTE([...subqueries.values()]);
 		const query = sql`${withSql}select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${joins}${

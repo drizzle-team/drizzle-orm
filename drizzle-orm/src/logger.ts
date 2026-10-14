@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 
 export interface Logger {
 	logQuery(query: string, params: unknown[]): void;
@@ -10,6 +10,9 @@ export interface LogWriter {
 
 export class ConsoleLogWriter implements LogWriter {
 	static readonly [entityKind]: string = 'ConsoleLogWriter';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	write(message: string) {
 		console.log(message);
@@ -18,6 +21,9 @@ export class ConsoleLogWriter implements LogWriter {
 
 export class DefaultLogger implements Logger {
 	static readonly [entityKind]: string = 'DefaultLogger';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly writer: LogWriter;
 
@@ -40,6 +46,9 @@ export class DefaultLogger implements Logger {
 
 export class NoopLogger implements Logger {
 	static readonly [entityKind]: string = 'NoopLogger';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	logQuery(): void {
 		// noop

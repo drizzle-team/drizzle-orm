@@ -1,4 +1,3 @@
-/* eslint-disable no-instanceof/no-instanceof */
 import fs from 'fs';
 import * as childProcess from 'node:child_process';
 import { parseDiagOutput, type TSCDiagOutput } from './utils.ts';

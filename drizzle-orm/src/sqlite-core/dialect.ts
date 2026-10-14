@@ -28,6 +28,8 @@ import {
 import type { Name, Placeholder, SQLWrapper } from '~/sql/index.ts';
 import { and, isSQLWrapper } from '~/sql/index.ts';
 import { type DriverValueDecoder, Param, type Query, SQL, sql, type SQLChunk, StringChunk } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk } from '~/sql/sql.ts';
+import { commonStringChunks } from '~/sql/sql.ts';
 import { resolveSQLiteTypeAlias, resolveUnionType, type SQLiteCodecs, type SQLiteType } from '~/sqlite-core/codecs.ts';
 import { SQLiteColumn, type SQLiteCustomColumn } from '~/sqlite-core/columns/index.ts';
 import type {
@@ -54,7 +56,7 @@ import type {
 	SQLiteSelectConfig,
 	SQLiteSelectJoinConfig,
 } from './query-builders/select.types.ts';
-import { SQLiteViewBase } from './view-base.ts';
+import type { SQLiteViewBase } from './view-base.ts';
 
 export interface SQLiteDialectConfig {
 	codecs?: SQLiteCodecs;
@@ -63,6 +65,9 @@ export interface SQLiteDialectConfig {
 
 export class SQLiteDialect {
 	static readonly [entityKind]: string = 'SQLiteDialect';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly codecs: CodecsCollection<SQLiteType>;
 	readonly mapperGenerators: {
@@ -101,7 +106,7 @@ export class SQLiteDialect {
 		const queriesLen = queries.length;
 		const withSqlChunks: SQLChunk[] = new Array(queriesLen + 1);
 		let writeIdx = 0;
-		withSqlChunks[writeIdx++] = new StringChunk('with ');
+		withSqlChunks[writeIdx++] = commonStringChunks['with '];
 
 		for (let i = 0; i < queriesLen; ++i) {
 			const w = queries[i]!;
@@ -187,7 +192,7 @@ export class SQLiteDialect {
 
 		const setSql = this.buildUpdateSet(table, set);
 
-		const fromSql = from && new SQL([new StringChunk(' from '), this.buildFromTable(from)]);
+		const fromSql = from && new SQL([commonStringChunks[' from '], this.buildFromTable(from)]);
 
 		const joinsSql = this.buildJoins(joins);
 
@@ -227,8 +232,9 @@ export class SQLiteDialect {
 	): SQL {
 		const { length: columnsLen } = fields;
 		const chunks: SQLChunk[] = [];
+		const tableKind = chunkKindOf(table);
 		const tableName = table
-			? is(table, SQL) || is(table, Subquery)
+			? isChunk(table, tableKind, chunkKinds.sql) || isChunk(table, tableKind, chunkKinds.subquery)
 				? undefined
 				: (table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
 					? table[Table.Symbol.Name]
@@ -361,7 +367,7 @@ export class SQLiteDialect {
 			}
 
 			if (i < columnsLen - 1) {
-				chunks.push(new StringChunk(', '));
+				chunks.push(commonStringChunks[', ']);
 			}
 		}
 
@@ -380,7 +386,7 @@ export class SQLiteDialect {
 		if (joins) {
 			for (const [index, joinMeta] of joins.entries()) {
 				if (index === 0) {
-					joinsArray.push(new StringChunk(' '));
+					joinsArray.push(commonStringChunks[' ']);
 				}
 				const table = joinMeta.table;
 				const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : undefined;
@@ -405,7 +411,7 @@ export class SQLiteDialect {
 					);
 				}
 				if (index < joins.length - 1) {
-					joinsArray.push(new StringChunk(' '));
+					joinsArray.push(commonStringChunks[' ']);
 				}
 			}
 		}
@@ -430,7 +436,7 @@ export class SQLiteDialect {
 				orderByList.push(orderByValue);
 
 				if (index < orderBy.length - 1) {
-					orderByList.push(new StringChunk(', '));
+					orderByList.push(commonStringChunks[', ']);
 				}
 			}
 		}
@@ -479,17 +485,19 @@ export class SQLiteDialect {
 		useSelectionCastCodecs,
 	}: SQLiteSelectConfig): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<SQLiteColumn>(fields, undefined, this.codecs);
+
+		const tableKind = chunkKindOf(table);
+		const ownTableName = isChunk(table, tableKind, chunkKinds.subquery)
+			? table._.alias
+			: isChunk(table, tableKind, chunkKinds.view)
+			? table[ViewBaseConfig].name
+			: isChunk(table, tableKind, chunkKinds.sql)
+			? undefined
+			: getTableName(table);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
-				&& getTableName(f.field.table)
-					!== (is(table, Subquery)
-						? table._.alias
-						: is(table, SQLiteViewBase)
-						? table[ViewBaseConfig].name
-						: is(table, SQL)
-						? undefined
-						: getTableName(table))
+				&& getTableName(f.field.table) !== ownTableName
 				&& !((table) =>
 					joins?.some(
 						({ alias }) =>
@@ -536,7 +544,7 @@ export class SQLiteDialect {
 				groupByList.push(groupByValue);
 
 				if (index < groupBy.length - 1) {
-					groupByList.push(new StringChunk(', '));
+					groupByList.push(commonStringChunks[', ']);
 				}
 			}
 		}
@@ -655,7 +663,7 @@ export class SQLiteDialect {
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, new StringChunk(', '))}`;
+			orderBySql = sql` order by ${sql.join(orderByValues, commonStringChunks[', '])}`;
 		}
 
 		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
@@ -693,14 +701,14 @@ export class SQLiteDialect {
 
 		const insertOrderArr: SQLChunk[] = new Array(colEntriesFiltered.length * 2 + 1);
 		let writeIdx = 0;
-		insertOrderArr[writeIdx++] = new StringChunk('(');
+		insertOrderArr[writeIdx++] = commonStringChunks['('];
 		for (let i = 0; i < colEntriesFiltered.length; ++i) {
 			const [, { name }] = colEntriesFiltered[i]!;
 			insertOrderArr[writeIdx++] = sql.identifier(name);
 
-			if (i < colEntriesFiltered.length - 1) insertOrderArr[writeIdx++] = new StringChunk(', ');
+			if (i < colEntriesFiltered.length - 1) insertOrderArr[writeIdx++] = commonStringChunks[', '];
 		}
-		insertOrderArr[writeIdx++] = new StringChunk(')');
+		insertOrderArr[writeIdx++] = commonStringChunks[')'];
 		const insertOrder = new SQL(insertOrderArr);
 
 		const valuesSqlList: SQLChunk[] = new Array(
@@ -716,12 +724,12 @@ export class SQLiteDialect {
 			const values = valuesOrSelect as Record<string, unknown>[];
 
 			let writeIdx = 0;
-			valuesSqlList[writeIdx++] = new StringChunk('values ');
+			valuesSqlList[writeIdx++] = commonStringChunks['values '];
 
 			for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
 				const value = values[valueIndex]!;
 
-				valuesSqlList[writeIdx++] = new StringChunk('(');
+				valuesSqlList[writeIdx++] = commonStringChunks['('];
 				for (let i = 0; i < colEntriesFiltered.length; ++i) {
 					const [fieldName, col] = colEntriesFiltered[i]!;
 					const colValue = value[fieldName];
@@ -744,7 +752,7 @@ export class SQLiteDialect {
 								? onUpdateFnResult
 								: sql.param(onUpdateFnResult, col);
 						} else {
-							defaultValue = new StringChunk('null');
+							defaultValue = commonStringChunks['null'];
 						}
 						valuesSqlList[writeIdx++] = defaultValue;
 					} else {
@@ -752,14 +760,14 @@ export class SQLiteDialect {
 					}
 
 					if (i < colEntriesFiltered.length - 1) {
-						valuesSqlList[writeIdx++] = new StringChunk(', ');
+						valuesSqlList[writeIdx++] = commonStringChunks[', '];
 					}
 				}
 
-				valuesSqlList[writeIdx++] = new StringChunk(')');
+				valuesSqlList[writeIdx++] = commonStringChunks[')'];
 
 				if (valueIndex < values.length - 1) {
-					valuesSqlList[writeIdx++] = new StringChunk(`, `);
+					valuesSqlList[writeIdx++] = commonStringChunks[', '];
 				}
 			}
 		}
@@ -939,7 +947,7 @@ export class SQLiteDialect {
 				Object.entries(table[TableColumns]).map(([k, v]) => {
 					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
 				}),
-				new StringChunk(', '),
+				commonStringChunks[', '],
 			);
 		}
 
@@ -955,7 +963,7 @@ export class SQLiteDialect {
 		}
 
 		return columnIdentifiers.length
-			? sql.join(columnIdentifiers, new StringChunk(', '))
+			? sql.join(columnIdentifiers, commonStringChunks[', '])
 			: undefined;
 	};
 
@@ -1093,7 +1101,7 @@ export class SQLiteDialect {
 									: sql.identifier(s.key)
 							}`;
 						}),
-						new StringChunk(', '),
+						commonStringChunks[', '],
 					);
 
 					const json = isNested ? jsonb : sql`json`;
@@ -1111,7 +1119,7 @@ export class SQLiteDialect {
 						} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${sql.identifier(k)}`;
 
 					joinChunks[writeIdx++] = joinQuery;
-					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = new StringChunk(', ');
+					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = commonStringChunks[', '];
 				}
 
 				joins = new SQL(joinChunks);
@@ -1128,7 +1136,7 @@ export class SQLiteDialect {
 				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
 			});
 		}
-		const selectionSet = sql.join(selectionArr, new StringChunk(', '));
+		const selectionSet = sql.join(selectionArr, commonStringChunks[', ']);
 
 		const withSql = currentDepth ? undefined : this.buildWithCTE([...subqueries.values()]);
 		const query = sql`${withSql}select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${

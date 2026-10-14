@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
@@ -159,6 +159,9 @@ export class SQLiteDeleteBase<
 	TExcludedMethods extends string = never,
 > implements SQLWrapper {
 	static readonly [entityKind]: string = 'SQLiteDelete';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	config: SQLiteDeleteConfig;

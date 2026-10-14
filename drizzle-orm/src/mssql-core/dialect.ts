@@ -40,6 +40,8 @@ import {
 	type SQLWrapper,
 	StringChunk,
 } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk } from '~/sql/sql.ts';
+import { commonStringChunks } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mssql.ts';
@@ -64,7 +66,7 @@ import type {
 import type { MsSqlUpdateConfig } from './query-builders/update.ts';
 import type { MsSqlSession } from './session.ts';
 import { MsSqlTable } from './table.ts';
-import { MsSqlViewBase } from './view-base.ts';
+import type { MsSqlViewBase } from './view-base.ts';
 
 export interface MsSqlDialectConfig {
 	useJitMappers?: boolean;
@@ -73,6 +75,9 @@ export interface MsSqlDialectConfig {
 
 export class MsSqlDialect {
 	static readonly [entityKind]: string = 'MsSqlDialect';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly codecs: CodecsCollection<MsSqlType>;
 	readonly mapperGenerators: {
@@ -220,7 +225,7 @@ export class MsSqlDialect {
 		const queriesLen = queries.length;
 		const withSqlChunks: SQLChunk[] = new Array(queriesLen + 1);
 		let writeIdx = 0;
-		withSqlChunks[writeIdx++] = new StringChunk('with ');
+		withSqlChunks[writeIdx++] = commonStringChunks['with '];
 
 		for (let i = 0; i < queriesLen; ++i) {
 			const w = queries[i]!;
@@ -344,8 +349,9 @@ export class MsSqlDialect {
 	): SQL {
 		const { length: columnsLen } = fields;
 		const chunks: SQLChunk[] = [];
+		const tableKind = chunkKindOf(table);
 		const tableName = table
-			? is(table, SQL) || is(table, Subquery)
+			? isChunk(table, tableKind, chunkKinds.sql) || isChunk(table, tableKind, chunkKinds.subquery)
 				? undefined
 				: (table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
 					? table[Table.Symbol.Name]
@@ -478,7 +484,7 @@ export class MsSqlDialect {
 			}
 
 			if (i < columnsLen - 1) {
-				chunks.push(new StringChunk(', '));
+				chunks.push(commonStringChunks[', ']);
 			}
 		}
 
@@ -557,7 +563,7 @@ export class MsSqlDialect {
 			}
 
 			if (i < columnsLen - 1) {
-				chunks.push(new StringChunk(', '));
+				chunks.push(commonStringChunks[', ']);
 			}
 		}
 
@@ -585,17 +591,19 @@ export class MsSqlDialect {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
 		}
 		const fieldsList = fieldsFlat;
+
+		const tableKind = chunkKindOf(table);
+		const ownTableName = isChunk(table, tableKind, chunkKinds.subquery)
+			? table._.alias
+			: isChunk(table, tableKind, chunkKinds.view)
+			? table[ViewBaseConfig].name
+			: isChunk(table, tableKind, chunkKinds.sql)
+			? undefined
+			: getTableName(table);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
-				&& getTableName(f.field.table)
-					!== (is(table, Subquery)
-						? table._.alias
-						: is(table, MsSqlViewBase)
-						? table[ViewBaseConfig].name
-						: is(table, SQL)
-						? undefined
-						: getTableName(table))
+				&& getTableName(f.field.table) !== ownTableName
 				&& !((table) =>
 					joins?.some(
 						({ alias }) =>
@@ -662,7 +670,7 @@ export class MsSqlDialect {
 		if (joins) {
 			for (const [index, joinMeta] of joins.entries()) {
 				if (index === 0) {
-					joinsArray.push(new StringChunk(' '));
+					joinsArray.push(commonStringChunks[' ']);
 				}
 				const table = joinMeta.table;
 				const joinKeyword = joinMeta.lateral
@@ -696,7 +704,7 @@ export class MsSqlDialect {
 					);
 				}
 				if (index < joins.length - 1) {
-					joinsArray.push(new StringChunk(' '));
+					joinsArray.push(commonStringChunks[' ']);
 				}
 			}
 		}
@@ -709,12 +717,12 @@ export class MsSqlDialect {
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
-			orderBySql = sql` order by ${sql.join(orderBy, new StringChunk(', '))}`;
+			orderBySql = sql` order by ${sql.join(orderBy, commonStringChunks[', '])}`;
 		}
 
 		let groupBySql;
 		if (groupBy && groupBy.length > 0) {
-			groupBySql = sql` group by ${sql.join(groupBy, new StringChunk(', '))}`;
+			groupBySql = sql` group by ${sql.join(groupBy, commonStringChunks[', '])}`;
 		}
 
 		const offsetSql = offset === undefined ? undefined : sql` offset ${offset} rows`;
@@ -816,7 +824,7 @@ export class MsSqlDialect {
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, new StringChunk(', '))}`;
+			orderBySql = sql` order by ${sql.join(orderByValues, commonStringChunks[', '])}`;
 		}
 
 		const offsetSql = offset === undefined ? undefined : sql` offset ${offset} rows`;
@@ -871,14 +879,14 @@ export class MsSqlDialect {
 
 		const insertOrderArr: SQLChunk[] = new Array(colEntries.length * 2 + 1);
 		let orderWriteIdx = 0;
-		insertOrderArr[orderWriteIdx++] = new StringChunk('(');
+		insertOrderArr[orderWriteIdx++] = commonStringChunks['('];
 		for (let i = 0; i < colEntries.length; ++i) {
 			const [, { name }] = colEntries[i]!;
 			insertOrderArr[orderWriteIdx++] = sql.identifier(name);
 
-			if (i < colEntries.length - 1) insertOrderArr[orderWriteIdx++] = new StringChunk(', ');
+			if (i < colEntries.length - 1) insertOrderArr[orderWriteIdx++] = commonStringChunks[', '];
 		}
-		insertOrderArr[orderWriteIdx++] = new StringChunk(')');
+		insertOrderArr[orderWriteIdx++] = commonStringChunks[')'];
 		const insertOrder = new SQL(insertOrderArr);
 
 		const valuesSqlList: SQLChunk[] = new Array(
@@ -896,7 +904,7 @@ export class MsSqlDialect {
 			for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
 				const value = values[valueIndex]!;
 
-				valuesSqlList[writeIdx++] = new StringChunk('(');
+				valuesSqlList[writeIdx++] = commonStringChunks['('];
 				for (let i = 0; i < colEntries.length; ++i) {
 					const [fieldName, col] = colEntries[i]!;
 					const colValue = value[fieldName];
@@ -914,21 +922,21 @@ export class MsSqlDialect {
 								: sql.param(onUpdateFnResult, col);
 							valuesSqlList[writeIdx++] = newValue;
 						} else {
-							valuesSqlList[writeIdx++] = new StringChunk(`default`);
+							valuesSqlList[writeIdx++] = commonStringChunks['default'];
 						}
 					} else {
 						valuesSqlList[writeIdx++] = is(colValue, SQL) ? colValue : new Param(colValue, col);
 					}
 
 					if (i < colEntries.length - 1) {
-						valuesSqlList[writeIdx++] = new StringChunk(', ');
+						valuesSqlList[writeIdx++] = commonStringChunks[', '];
 					}
 				}
 
-				valuesSqlList[writeIdx++] = new StringChunk(')');
+				valuesSqlList[writeIdx++] = commonStringChunks[')'];
 
 				if (valueIndex < values.length - 1) {
-					valuesSqlList[writeIdx++] = new StringChunk(`, `);
+					valuesSqlList[writeIdx++] = commonStringChunks[', '];
 				}
 			}
 		}
@@ -1108,7 +1116,7 @@ export class MsSqlDialect {
 				Object.entries(table[TableColumns]).map(([k, v]) => {
 					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
 				}),
-				new StringChunk(', '),
+				commonStringChunks[', '],
 			);
 		}
 
@@ -1120,7 +1128,7 @@ export class MsSqlDialect {
 		}
 
 		return columnIdentifiers.length
-			? sql.join(columnIdentifiers, new StringChunk(', '))
+			? sql.join(columnIdentifiers, commonStringChunks[', '])
 			: undefined;
 	};
 
@@ -1277,7 +1285,7 @@ export class MsSqlDialect {
 				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
 			});
 		}
-		const selectionSet = sql.join(selectionArr, new StringChunk(', '));
+		const selectionSet = sql.join(selectionArr, commonStringChunks[', ']);
 
 		const useOffset = offset !== undefined;
 		const top = !useOffset && limit !== undefined ? sql` top(${limit})` : undefined;

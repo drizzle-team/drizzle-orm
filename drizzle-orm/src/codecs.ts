@@ -1,5 +1,5 @@
 import type { Column } from './column.ts';
-import { entityKind } from './entity.ts';
+import { entityKind, is } from './entity.ts';
 import type { SQLChunk } from './sql/sql.ts';
 import type { PartialWithUndefined } from './utils.ts';
 
@@ -61,6 +61,9 @@ const itemToArrayTypeCodecNameMap = {
 
 export class CodecsCollection<TTypeSet extends string = string> {
 	static readonly [entityKind]: string = 'CodecsCollection';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(protected resolveTypes: (type: string) => string, readonly codecs: Codecs<TTypeSet> = noopCodecs) {}
 

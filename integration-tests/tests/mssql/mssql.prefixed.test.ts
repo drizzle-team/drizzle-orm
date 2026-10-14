@@ -63,7 +63,7 @@ test('select all fields', async ({ db }) => {
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
 
-	expect(result[0]!.createdAt).toBeInstanceOf(Date); // eslint-disable-line no-instanceof/no-instanceof
+	expect(result[0]!.createdAt).toBeInstanceOf(Date);
 	// not timezone based timestamp, thats why it should not work here
 	// t.assert(Math.abs(result[0]!.createdAt.getTime() - now) < 2000);
 	expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
@@ -140,7 +140,7 @@ test('update with returning all fields', async ({ db }) => {
 
 	expect(updatedUsers.rowsAffected[0]).toBe(1);
 
-	expect(users[0]!.createdAt).toBeInstanceOf(Date); // eslint-disable-line no-instanceof/no-instanceof
+	expect(users[0]!.createdAt).toBeInstanceOf(Date);
 	// not timezone based timestamp, thats why it should not work here
 	// t.assert(Math.abs(users[0]!.createdAt.getTime() - now) < 2000);
 	expect(users).toEqual([{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
@@ -540,8 +540,8 @@ test('insert + select all possible dates', async ({ db }) => {
 
 		const res = await db.select().from(datesTable);
 
-		expect(res[0]?.date).toBeInstanceOf(Date); // eslint-disable-line no-instanceof/no-instanceof
-		expect(res[0]?.datetime).toBeInstanceOf(Date); // eslint-disable-line no-instanceof/no-instanceof
+		expect(res[0]?.date).toBeInstanceOf(Date);
+		expect(res[0]?.datetime).toBeInstanceOf(Date);
 		expect(typeof res[0]?.dateAsString).toEqual('string');
 		expect(typeof res[0]?.datetimeAsString).toEqual('string');
 

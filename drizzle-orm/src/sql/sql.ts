@@ -1,5 +1,5 @@
 import type { CodecsCollection } from '~/codecs.ts';
-import { entityKind, is } from '~/entity.ts';
+import { entityKind, entityKindsOf, is } from '~/entity.ts';
 import { Subquery } from '~/subquery.ts';
 import { hasTelemetry, tracer } from '~/tracing.ts';
 import type { Equal } from '~/utils.ts';
@@ -16,6 +16,9 @@ import { IsAlias, Table } from '../table.ts';
  */
 export class FakePrimitiveParam {
 	static readonly [entityKind]: string = 'FakePrimitiveParam';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 }
 
 export type Chunk =
@@ -69,6 +72,9 @@ export function isSQLWrapper(value: unknown): value is SQLWrapper {
 
 export class StringChunk implements SQLWrapper {
 	static readonly [entityKind]: string = 'StringChunk';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(readonly value: string) {}
 
@@ -77,8 +83,25 @@ export class StringChunk implements SQLWrapper {
 	}
 }
 
+export const commonStringChunks = {
+	', ': new StringChunk(', '),
+	' ': new StringChunk(' '),
+	'(': new StringChunk('('),
+	')': new StringChunk(')'),
+	default: new StringChunk('default'),
+	'values ': new StringChunk('values '),
+	'with ': new StringChunk('with '),
+	' from ': new StringChunk(' from '),
+	null: new StringChunk('null'),
+	'1 = 0': new StringChunk('1 = 0'),
+	'1 = 1': new StringChunk('1 = 1'),
+} as const satisfies Record<string, StringChunk>;
+
 export class SQL<T = unknown> implements SQLWrapper<T> {
 	static readonly [entityKind]: string = 'SQL';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare _: {
 		brand: 'SQL';
@@ -189,13 +212,14 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 			if (bounds !== undefined) bounds.push(strings.length);
 
 			const chunk = chunks[i]!;
+			const kind = chunkKindOf(chunk);
 
-			if (is(chunk, StringChunk)) {
+			if (isChunk(chunk, kind, chunkKinds.string)) {
 				strings.push(chunk.value);
 				continue;
 			}
 
-			if (is(chunk, SQL)) {
+			if (isChunk(chunk, kind, chunkKinds.sql)) {
 				this.collectSQL(
 					chunk.queryChunks,
 					config,
@@ -208,7 +232,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				continue;
 			}
 
-			if (is(chunk, Name)) {
+			if (isChunk(chunk, kind, chunkKinds.name)) {
 				strings.push(escapeName(chunk.value));
 				continue;
 			}
@@ -217,7 +241,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				continue;
 			}
 
-			if (is(chunk, Column)) {
+			if (isChunk(chunk, kind, chunkKinds.column)) {
 				const columnName = chunk.name;
 				if (invokeSource === 'indexes') {
 					strings.push(escapeName(columnName));
@@ -234,9 +258,12 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				continue;
 			}
 
-			if (is(chunk, Param)) {
-				if (is(chunk.value, SQL)) {
-					const nested = chunk.value;
+			if (isChunk(chunk, kind, chunkKinds.param)) {
+				const paramValue = chunk.value;
+				const valueKind = chunkKindOf(paramValue);
+
+				if (isChunk(paramValue, valueKind, chunkKinds.sql)) {
+					const nested = paramValue;
 					this.collectSQL(
 						nested.queryChunks,
 						config,
@@ -251,7 +278,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 
 				const useCodecs = codecs && is(chunk.encoder, Column);
 
-				if (is(chunk.value, Placeholder)) {
+				if (valueKind === chunkKinds.placeholder) {
 					const escaped = escapeParam(paramStartIndex.value++, chunk);
 					chunk.codec = useCodecs
 						? (value) => codecs.apply(chunk.encoder as Column, 'normalizeParam', value)
@@ -273,7 +300,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 						? chunk.value
 						: chunk.encoder.mapToDriverValue(chunk.value);
 
-					if (is(mappedValue, SQL)) {
+					if (chunkKindOf(mappedValue) === chunkKinds.sql) {
 						const nested: SQL = mappedValue;
 						this.collectSQL(
 							nested.queryChunks,
@@ -311,13 +338,13 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				continue;
 			}
 
-			if (is(chunk, Placeholder)) {
+			if (isChunk(chunk, kind, chunkKinds.placeholder)) {
 				strings.push(escapeParam(paramStartIndex.value++, chunk));
 				params.push(chunk);
 				continue;
 			}
 
-			if (is(chunk, Table)) {
+			if (isChunk(chunk, kind, chunkKinds.table)) {
 				const schemaName = chunk[Table.Symbol.Schema];
 				const tableName = chunk[Table.Symbol.Name];
 
@@ -337,7 +364,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				continue;
 			}
 
-			if (is(chunk, View)) {
+			if (isChunk(chunk, kind, chunkKinds.view)) {
 				const schemaName = chunk[ViewBaseConfig].schema;
 				const viewName = chunk[ViewBaseConfig].name;
 				strings.push(
@@ -348,14 +375,14 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 				continue;
 			}
 
-			if (is(chunk, SQL.Aliased) && chunk.fieldAlias !== undefined) {
+			if (isChunk(chunk, kind, chunkKinds.aliased) && chunk.fieldAlias !== undefined) {
 				strings.push(
 					(chunk.origin !== undefined ? escapeName(chunk.origin) + '.' : '') + escapeName(chunk.fieldAlias),
 				);
 				continue;
 			}
 
-			if (is(chunk, Subquery)) {
+			if (isChunk(chunk, kind, chunkKinds.subquery)) {
 				if (chunk._.isWith) {
 					strings.push(escapeName(chunk._.alias));
 					continue;
@@ -519,6 +546,80 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 	}
 }
 
+/**
+ * Ids of the chunk classes `chunkKindOf` tells apart
+ */
+export const chunkKinds = {
+	other: 0,
+	string: 1,
+	sql: 2,
+	name: 3,
+	column: 4,
+	param: 5,
+	placeholder: 6,
+	table: 7,
+	view: 8,
+	aliased: 9,
+	subquery: 10,
+} as const;
+
+const chunkKindByConstructor = new WeakMap<object, number>();
+function resolveChunkKind(ctor: object, kinds: Set<string>): number {
+	const kind = kinds.has(StringChunk[entityKind])
+		? chunkKinds.string
+		: kinds.has(SQL[entityKind])
+		? chunkKinds.sql
+		: kinds.has(Name[entityKind])
+		? chunkKinds.name
+		: kinds.has(Column[entityKind])
+		? chunkKinds.column
+		: kinds.has(Param[entityKind])
+		? chunkKinds.param
+		: kinds.has(Placeholder[entityKind])
+		? chunkKinds.placeholder
+		: kinds.has(Table[entityKind])
+		? chunkKinds.table
+		: kinds.has(View[entityKind])
+		? chunkKinds.view
+		: kinds.has(SQL.Aliased[entityKind])
+		? chunkKinds.aliased
+		: kinds.has(Subquery[entityKind])
+		? chunkKinds.subquery
+		: chunkKinds.other;
+	chunkKindByConstructor.set(ctor, kind);
+	return kind;
+}
+
+export function chunkKindOf(chunk: unknown): number {
+	if (chunk === null || typeof chunk !== 'object') return chunkKinds.other;
+
+	const ctor = Object.getPrototypeOf(chunk)?.constructor;
+	if (typeof ctor !== 'function') return chunkKinds.other;
+
+	return chunkKindByConstructor.get(ctor) ?? resolveChunkKind(ctor, entityKindsOf(chunk)!);
+}
+
+export interface ChunkTypes {
+	[chunkKinds.string]: StringChunk;
+	[chunkKinds.sql]: SQL;
+	[chunkKinds.name]: Name;
+	[chunkKinds.column]: Column;
+	[chunkKinds.param]: Param;
+	[chunkKinds.placeholder]: Placeholder;
+	[chunkKinds.table]: Table;
+	[chunkKinds.view]: View;
+	[chunkKinds.aliased]: SQL.Aliased;
+	[chunkKinds.subquery]: Subquery;
+}
+
+export function isChunk<TKind extends keyof ChunkTypes>(
+	_chunk: unknown,
+	kind: number,
+	expected: TKind,
+): _chunk is ChunkTypes[TKind] {
+	return kind === expected;
+}
+
 export type GetDecoderResult<T> = T extends Column ? T['_']['data'] : T extends
 	| DriverValueDecoder<infer TData, any>
 	| DriverValueDecoder<infer TData, any>['mapFromDriverValue'] ? TData
@@ -529,6 +630,9 @@ export type GetDecoderResult<T> = T extends Column ? T['_']['data'] : T extends
  */
 export class Name implements SQLWrapper {
 	static readonly [entityKind]: string = 'Name';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected brand!: 'Name';
 
@@ -600,6 +704,9 @@ export const noopMapper: DriverValueMapper<any, any> = {
 /** Parameter value that is optionally bound to an encoder (for example, a column). */
 export class Param<TDataType = any, TDriverParamType = TDataType> implements SQLWrapper {
 	static readonly [entityKind]: string = 'Param';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected brand!: 'BoundParamValue';
 
@@ -827,6 +934,10 @@ export namespace SQL {
 	export class Aliased<T = unknown> implements SQLWrapper<T> {
 		static readonly [entityKind]: string = 'SQL.Aliased';
 
+		static [Symbol.hasInstance](value: unknown): boolean {
+			return is(value, this);
+		}
+
 		declare _: {
 			brand: 'SQL.Aliased';
 			type: T;
@@ -855,6 +966,9 @@ export namespace SQL {
 
 export class Placeholder<TName extends string = string, TValue = any> implements SQLWrapper {
 	static readonly [entityKind]: string = 'Placeholder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	// Keep values as protected to avoid bleeding into autocomplete (ex.: relational queries' "where")
 	declare protected value: TValue;

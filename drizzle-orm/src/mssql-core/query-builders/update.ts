@@ -1,5 +1,5 @@
 import type { GetColumnData } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { MsSqlDialect } from '~/mssql-core/dialect.ts';
 import type {
 	AnyQueryResultHKT,
@@ -88,6 +88,9 @@ export class MsSqlUpdateBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > {
 	static readonly [entityKind]: string = 'MsSqlUpdateBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly table: TTable;

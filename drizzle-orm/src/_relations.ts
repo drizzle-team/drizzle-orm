@@ -32,6 +32,9 @@ import type { Assume, ColumnsWithTable, Equal, Simplify, ValueOrArray } from './
 
 export abstract class Relation<TTableName extends string = string> {
 	static readonly [entityKind]: string = 'Relation';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly $brand: 'Relation';
 	readonly referencedTableName: TTableName;
@@ -53,6 +56,9 @@ export class Relations<
 	TConfig extends Record<string, Relation> = Record<string, Relation>,
 > {
 	static readonly [entityKind]: string = 'Relations';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly $brand: 'Relations';
 

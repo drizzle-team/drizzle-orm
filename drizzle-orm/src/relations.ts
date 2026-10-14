@@ -42,8 +42,8 @@ import {
 	SQL,
 	sql,
 	type SQLWrapper,
-	StringChunk,
 } from './sql/sql.ts';
+import { commonStringChunks } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import {
 	type Assume,
@@ -298,6 +298,10 @@ export abstract class Relation<
 	TTargetTableName extends string = string,
 > {
 	static readonly [entityKind]: string = 'RelationV2';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
 	declare readonly $brand: 'RelationV2';
 	declare public readonly relationType: 'many' | 'one';
 
@@ -450,6 +454,9 @@ export type AnyMany = Many<string>;
 
 export abstract class AggregatedField<T = unknown> implements SQLWrapper<T> {
 	static readonly [entityKind]: string = 'AggregatedField';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly $brand: 'AggregatedField';
 
@@ -1444,6 +1451,9 @@ export function makeJitRqbMapper<T = unknown>(
 
 export class RelationsBuilderTable<TTableName extends string = string> {
 	static readonly [entityKind]: string = 'RelationsBuilderTable';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected readonly _: {
 		readonly name: TTableName;
@@ -1477,6 +1487,9 @@ export class RelationsBuilderColumn<
 	TTableName extends string = string,
 > implements RelationsBuilderColumnBase<TTableName> {
 	static readonly [entityKind]: string = 'RelationsBuilderColumn';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly _: {
 		readonly tableName: TTableName;
@@ -1510,6 +1523,9 @@ export class RelationsBuilderJunctionColumn<
 	TTableName extends string = string,
 > implements RelationsBuilderColumnBase<TTableName> {
 	static readonly [entityKind]: string = 'RelationsBuilderColumn';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly _: {
 		readonly tableName: TTableName;
@@ -1686,6 +1702,9 @@ export interface ManyFn<TTargetTable extends SchemaEntry, TTargetTableName exten
 
 export class RelationsHelperStatic<TTables extends Schema> {
 	static readonly [entityKind]: string = 'RelationsHelperStatic';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(tables: TTables) {
 		const one: Record<string, OneFn<TTables[string], string>> = {};
@@ -2365,7 +2384,7 @@ export function relationsOrderToSQL(
 			? data
 			: Array.isArray(data)
 			? data.length
-				? sql.join(data.map((o) => is(o, SQL) ? o : asc(o)), new StringChunk(`, `))
+				? sql.join(data.map((o) => is(o, SQL) ? o : asc(o)), commonStringChunks[', '])
 				: undefined
 			: is(data, Column)
 			? asc(data)
@@ -2385,7 +2404,7 @@ export function relationsOrderToSQL(
 	);
 	if (!parts.length) return undefined;
 
-	return sql.join(parts, new StringChunk(`, `));
+	return sql.join(parts, commonStringChunks[', ']);
 }
 
 export function relationExtrasToSQL(
@@ -2431,7 +2450,7 @@ export function relationExtrasToSQL(
 	}
 
 	return {
-		sql: subqueries.length ? sql.join(subqueries, new StringChunk(`, `)) : undefined,
+		sql: subqueries.length ? sql.join(subqueries, commonStringChunks[', ']) : undefined,
 		selection,
 	};
 }

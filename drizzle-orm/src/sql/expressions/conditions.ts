@@ -1,12 +1,13 @@
-import { type AnyColumn, Column, type GetColumnData } from '~/column.ts';
-import { entityKind, is, isAnyKindIn } from '~/entity.ts';
-import { Table } from '~/table.ts';
-import { View } from '~/view.ts';
+import type { AnyColumn, Column, GetColumnData } from '~/column.ts';
+import { is } from '~/entity.ts';
 import {
+	chunkKindOf,
+	chunkKinds,
+	commonStringChunks,
 	isDriverValueEncoder,
 	isSQLWrapper,
 	Param,
-	Placeholder,
+	type Placeholder,
 	SQL,
 	sql,
 	type SQLChunk,
@@ -14,21 +15,16 @@ import {
 	StringChunk,
 } from '../sql.ts';
 
-const notParamKinds = [
-	Param[entityKind],
-	Placeholder[entityKind],
-	Column[entityKind],
-	Table[entityKind],
-	View[entityKind],
-];
 export function bindIfParam(value: unknown, column: SQLWrapper): SQLChunk {
-	if (
-		isDriverValueEncoder(column) && !isSQLWrapper(value)
-		&& !(value instanceof Param || value instanceof Placeholder || value instanceof Column || value instanceof Table // oxlint-disable-line drizzle-internal/no-instanceof
-			|| value instanceof View) // oxlint-disable-line drizzle-internal/no-instanceof
-		&& !isAnyKindIn(notParamKinds, value)
-	) {
-		return new Param(value, column);
+	if (isDriverValueEncoder(column) && !isSQLWrapper(value)) {
+		const kind = chunkKindOf(value);
+		if (
+			kind !== chunkKinds.param && kind !== chunkKinds.placeholder && kind !== chunkKinds.column
+			&& kind !== chunkKinds.table
+			&& kind !== chunkKinds.view
+		) {
+			return new Param(value, column);
+		}
 	}
 	return value as SQLChunk;
 }
@@ -311,7 +307,7 @@ export function inArray(
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
 			return new SQL([
-				new StringChunk('1 = 0'),
+				commonStringChunks['1 = 0'],
 			]);
 		}
 
@@ -360,7 +356,7 @@ export function notInArray(
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
 			return new SQL([
-				new StringChunk('1 = 1'),
+				commonStringChunks['1 = 1'],
 			]);
 		}
 

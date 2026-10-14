@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type {
 	BuildQueryResult,
 	BuildRelationalQueryResult,
@@ -33,6 +33,9 @@ export class RelationalQueryBuilder<
 	TBuilderHKT extends MySqlRelationalQueryHKTBase = MySqlRelationalQueryHKT,
 > {
 	static readonly [entityKind]: string = 'MySqlRelationalQueryBuilderV2';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		private schema: TSchema,
@@ -92,6 +95,9 @@ export type MySqlRelationalQueryKind<
 
 export class MySqlRelationalQuery<THKT extends MySqlRelationalQueryHKTBase, TResult> implements SQLWrapper {
 	static readonly [entityKind]: string = 'MySqlRelationalQueryV2';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	protected mapper?: RelationalRowsMapper;

@@ -1,6 +1,6 @@
 import type { ColumnType, GeneratedColumnConfig, GeneratedIdentityConfig } from '~/column-builder.ts';
 import { Column } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys.ts';
 import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
@@ -172,6 +172,9 @@ export abstract class PgColumnBuilder<
 	out TRuntimeConfig extends object = object,
 > {
 	static readonly [entityKind]: string = 'PgColumnBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: T;
 
@@ -612,6 +615,9 @@ export class ExtraConfigColumn<
 
 export class IndexedColumn {
 	static readonly [entityKind]: string = 'IndexedColumn';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 	constructor(
 		name: string,
 		keyAsName: boolean,

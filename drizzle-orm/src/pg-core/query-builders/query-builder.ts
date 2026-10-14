@@ -12,6 +12,9 @@ import type { SelectedFields } from './select.types.ts';
 
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'PgQueryBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private dialect: PgDialect | undefined;
 	private dialectConfig: PgDialectConfig | undefined;

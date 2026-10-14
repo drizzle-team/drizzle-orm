@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PgSession } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
@@ -182,6 +182,9 @@ export class PgDeleteBase<
 	SQLWrapper
 {
 	static readonly [entityKind]: string = 'PgDelete';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected config: PgDeleteConfig;
 

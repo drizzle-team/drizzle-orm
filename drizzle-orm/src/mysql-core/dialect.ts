@@ -38,6 +38,8 @@ import type {
 	SQLChunk,
 	SQLWrapper,
 } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk } from '~/sql/sql.ts';
+import { commonStringChunks } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import {
@@ -63,7 +65,7 @@ import type {
 } from './query-builders/select.types.ts';
 import type { MySqlUpdateConfig } from './query-builders/update.ts';
 import { MySqlTable } from './table.ts';
-import { MySqlViewBase } from './view-base.ts';
+import type { MySqlViewBase } from './view-base.ts';
 
 export interface MySqlDialectConfig {
 	escapeParam?: (num: number) => string;
@@ -75,6 +77,9 @@ export interface MySqlDialectConfig {
 
 export class MySqlDialect {
 	static readonly [entityKind]: string = 'MySqlDialect';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly codecs: CodecsCollection<MySqlType>;
 	readonly mapperGenerators: {
@@ -122,7 +127,7 @@ export class MySqlDialect {
 		const queriesLen = queries.length;
 		const withSqlChunks: SQLChunk[] = new Array(queriesLen + 1);
 		let writeIdx = 0;
-		withSqlChunks[writeIdx++] = new StringChunk('with ');
+		withSqlChunks[writeIdx++] = commonStringChunks['with '];
 
 		for (let i = 0; i < queriesLen; ++i) {
 			const w = queries[i]!;
@@ -230,8 +235,9 @@ export class MySqlDialect {
 	): SQL {
 		const { length: columnsLen } = fields;
 		const chunks: SQLChunk[] = [];
+		const tableKind = chunkKindOf(table);
 		const tableName = table
-			? is(table, SQL) || is(table, Subquery)
+			? isChunk(table, tableKind, chunkKinds.sql) || isChunk(table, tableKind, chunkKinds.subquery)
 				? undefined
 				: (table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
 					? table[Table.Symbol.Name]
@@ -364,7 +370,7 @@ export class MySqlDialect {
 			}
 
 			if (i < columnsLen - 1) {
-				chunks.push(new StringChunk(', '));
+				chunks.push(commonStringChunks[', ']);
 			}
 		}
 
@@ -383,7 +389,7 @@ export class MySqlDialect {
 		orderBy: (MySqlColumn | SQL | SQL.Aliased)[] | undefined,
 	): SQL | undefined {
 		return orderBy && orderBy.length > 0
-			? sql` order by ${sql.join(orderBy, new StringChunk(', '))}`
+			? sql` order by ${sql.join(orderBy, commonStringChunks[', '])}`
 			: undefined;
 	}
 
@@ -423,17 +429,19 @@ export class MySqlDialect {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
 		}
 		const fieldsList = fieldsFlat;
+
+		const tableKind = chunkKindOf(table);
+		const ownTableName = isChunk(table, tableKind, chunkKinds.subquery)
+			? table._.alias
+			: isChunk(table, tableKind, chunkKinds.view)
+			? table[ViewBaseConfig].name
+			: isChunk(table, tableKind, chunkKinds.sql)
+			? undefined
+			: getTableName(table);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
-				&& getTableName(f.field.table)
-					!== (is(table, Subquery)
-						? table._.alias
-						: is(table, MySqlViewBase)
-						? table[ViewBaseConfig].name
-						: is(table, SQL)
-						? undefined
-						: getTableName(table))
+				&& getTableName(f.field.table) !== ownTableName
 				&& !((table) =>
 					joins?.some(
 						({ alias }) =>
@@ -491,7 +499,7 @@ export class MySqlDialect {
 		if (joins) {
 			for (const [index, joinMeta] of joins.entries()) {
 				if (index === 0) {
-					joinsArray.push(new StringChunk(' '));
+					joinsArray.push(commonStringChunks[' ']);
 				}
 				const table = joinMeta.table;
 				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
@@ -537,7 +545,7 @@ export class MySqlDialect {
 					);
 				}
 				if (index < joins.length - 1) {
-					joinsArray.push(new StringChunk(' '));
+					joinsArray.push(commonStringChunks[' ']);
 				}
 			}
 		}
@@ -551,7 +559,7 @@ export class MySqlDialect {
 		const orderBySql = this.buildOrderBy(orderBy);
 
 		const groupBySql = groupBy && groupBy.length > 0
-			? sql` group by ${sql.join(groupBy, new StringChunk(', '))}`
+			? sql` group by ${sql.join(groupBy, commonStringChunks[', '])}`
 			: undefined;
 
 		const limitSql = this.buildLimit(limit);
@@ -694,7 +702,7 @@ export class MySqlDialect {
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, new StringChunk(', '))}`;
+			orderBySql = sql` order by ${sql.join(orderByValues, commonStringChunks[', '])}`;
 		}
 
 		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
@@ -733,14 +741,14 @@ export class MySqlDialect {
 
 		const insertOrderArr: SQLChunk[] = new Array(colEntriesFiltered.length * 2 + 1);
 		let writeIdx = 0;
-		insertOrderArr[writeIdx++] = new StringChunk('(');
+		insertOrderArr[writeIdx++] = commonStringChunks['('];
 		for (let i = 0; i < colEntriesFiltered.length; ++i) {
 			const [, { name }] = colEntriesFiltered[i]!;
 			insertOrderArr[writeIdx++] = sql.identifier(name);
 
-			if (i < colEntriesFiltered.length - 1) insertOrderArr[writeIdx++] = new StringChunk(', ');
+			if (i < colEntriesFiltered.length - 1) insertOrderArr[writeIdx++] = commonStringChunks[', '];
 		}
-		insertOrderArr[writeIdx++] = new StringChunk(')');
+		insertOrderArr[writeIdx++] = commonStringChunks[')'];
 		const insertOrder = new SQL(insertOrderArr);
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
@@ -757,13 +765,13 @@ export class MySqlDialect {
 			const values = valuesOrSelect as Record<string, unknown>[];
 
 			let writeIdx = 0;
-			valuesSqlList[writeIdx++] = new StringChunk('values ');
+			valuesSqlList[writeIdx++] = commonStringChunks['values '];
 
 			for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
 				const value = values[valueIndex]!;
 				const generatedIds: Record<string, unknown> = {};
 
-				valuesSqlList[writeIdx++] = new StringChunk('(');
+				valuesSqlList[writeIdx++] = commonStringChunks['('];
 				for (let i = 0; i < colEntriesFiltered.length; ++i) {
 					const [fieldName, col] = colEntriesFiltered[i]!;
 					const colValue = value[fieldName];
@@ -784,7 +792,7 @@ export class MySqlDialect {
 								: sql.param(onUpdateFnResult, col);
 							valuesSqlList[writeIdx++] = newValue;
 						} else {
-							valuesSqlList[writeIdx++] = new StringChunk(`default`);
+							valuesSqlList[writeIdx++] = commonStringChunks['default'];
 						}
 					} else if (is(colValue, SQL)) {
 						valuesSqlList[writeIdx++] = colValue;
@@ -796,16 +804,16 @@ export class MySqlDialect {
 					}
 
 					if (i < colEntriesFiltered.length - 1) {
-						valuesSqlList[writeIdx++] = new StringChunk(', ');
+						valuesSqlList[writeIdx++] = commonStringChunks[', '];
 					}
 				}
 
 				generatedIdsResponse.push(generatedIds);
 
-				valuesSqlList[writeIdx++] = new StringChunk(')');
+				valuesSqlList[writeIdx++] = commonStringChunks[')'];
 
 				if (valueIndex < values.length - 1) {
-					valuesSqlList[writeIdx++] = new StringChunk(`, `);
+					valuesSqlList[writeIdx++] = commonStringChunks[', '];
 				}
 			}
 		}
@@ -945,7 +953,7 @@ export class MySqlDialect {
 				Object.entries(table[TableColumns]).map(([k, v]) => {
 					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
 				}),
-				new StringChunk(', '),
+				commonStringChunks[', '],
 			);
 		}
 
@@ -971,7 +979,7 @@ export class MySqlDialect {
 		}
 
 		return columnIdentifiers.length
-			? sql.join(columnIdentifiers, new StringChunk(', '))
+			? sql.join(columnIdentifiers, commonStringChunks[', '])
 			: undefined;
 	};
 
@@ -1052,7 +1060,7 @@ export class MySqlDialect {
 				if (!withEntries.length) break;
 
 				const joinChunks: SQLChunk[] = new Array(withEntries.length * 2);
-				joinChunks[0] = new StringChunk(' ');
+				joinChunks[0] = commonStringChunks[' '];
 
 				for (let readIdx = 0, writeIdx = 1; readIdx < withEntries.length; ++readIdx) {
 					const [k, join] = withEntries[readIdx]!;
@@ -1118,7 +1126,7 @@ export class MySqlDialect {
 						innerQuery.selection.map(
 							(s) => sql`${new StringChunk(this.escapeString(s.key))}, ${sql.identifier(s.key)}`,
 						),
-						new StringChunk(', '),
+						commonStringChunks[', '],
 					);
 
 					const joinQuery = sql`left join lateral(select ${sql`${
@@ -1132,7 +1140,7 @@ export class MySqlDialect {
 					} on true`;
 
 					joinChunks[writeIdx++] = joinQuery;
-					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = new StringChunk(' ');
+					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = commonStringChunks[' '];
 				}
 
 				joins = new SQL(joinChunks);
@@ -1150,7 +1158,7 @@ export class MySqlDialect {
 		if (isNestedMany && order) {
 			selectionArr.push(sql`row_number() over (order by ${order})`);
 		}
-		const selectionSet = sql.join(selectionArr, new StringChunk(', '));
+		const selectionSet = sql.join(selectionArr, commonStringChunks[', ']);
 		const comment = config !== true && config?.comment
 			? sql.comment(config.comment)
 			: undefined;

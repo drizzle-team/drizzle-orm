@@ -108,6 +108,9 @@ export class CockroachInsertBuilder<
 	OverrideT extends boolean = false,
 > {
 	static readonly [entityKind]: string = 'CockroachInsertBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		private table: TTable,

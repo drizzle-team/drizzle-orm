@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type {
 	BuildQueryResult,
 	BuildRelationalQueryResult,
@@ -33,6 +33,9 @@ export class RelationalQueryBuilder<
 	TBuilderHKT extends PgRelationalQueryHKTBase = PgRelationalQueryHKT,
 > {
 	static readonly [entityKind]: string = 'PgRelationalQueryBuilderV2';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		private schema: TSchema,
@@ -95,6 +98,9 @@ export type PgRelationalQueryKind<
 
 export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> implements SQLWrapper {
 	static readonly [entityKind]: string = 'PgRelationalQueryV2';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	protected mapper?: RelationalRowsMapper;
