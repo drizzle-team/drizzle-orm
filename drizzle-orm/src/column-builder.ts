@@ -320,10 +320,28 @@ export type BuildColumn<
 	TTableName extends string,
 	TBuilder extends ColumnBuilderBase,
 	TDialect extends Dialect,
-> = TDialect extends 'pg' ? PgColumn<
+>  = TDialect extends 'pg'
+	// When builder has both notNull: true and a referencedColumn, make it a required reference
+	? TBuilder extends { _: { notNull: true } & { referencedColumn: infer TRef } } ? PgColumn<
+		MakeColumnConfig<TBuilder['_'], TTableName>,
+			{},
+			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>,
+			TRef // Non-optional reference
+		>
+		// When builder only has a referencedColumn (but not notNull: true), make it an optional reference
+: TBuilder extends { _: { referencedColumn: infer TRef } } ? PgColumn<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			{},
+			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>,
+			TRef | undefined // Optional reference
+		>
+		// Default case: no reference
+	: PgColumn<
 		MakeColumnConfig<TBuilder['_'], TTableName>,
 		{},
-		Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
+		Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>,
+		undefined
+
 	>
 	: TDialect extends 'mysql' ? MySqlColumn<
 			MakeColumnConfig<TBuilder['_'], TTableName>,
