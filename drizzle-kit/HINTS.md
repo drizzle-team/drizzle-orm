@@ -247,7 +247,7 @@ Unmarked kinds apply to all dialects (`postgresql`, `mysql`, `sqlite`, `turso`, 
 
 | `reason` | applicable `kind`s | explanation | `reason_details` |
 |----------|--------------------|-------------|------------------|
-| `non_empty` | `table`, `column`, `schema`, `view`, `primary_key` | Runtime probed the target entity and found at least one row of existing data. Approval authorizes the DDL to proceed and acknowledges that existing rows will be lost. | — |
+| `non_empty` | `table`, `column`, `schema`, `view`, `primary_key` | Runtime probed the target entity and found existing data: at least one row, or for a `column` at least one non-null value in that column. Approval authorizes the DDL to proceed and acknowledges that the existing data will be lost. | — |
 | `table_recreate` | `add_not_null` (`sqlite` / `turso` only) | SQLite has no in-place path to add a `NOT NULL` column, so confirming wipes all rows and recreates the table. Approval acknowledges that the table is recreated and its existing rows are lost. | — |
 | `type_change` | `column` | An existing column's SQL type would change via `alter_column` on MySQL or SingleStore. Approval authorizes the type change. `from`/`to` carry dialect-native column-type spellings (e.g. `varchar(100)`, `int`, `decimal(10,4)`) sourced from the underlying `JsonStatement`. | `{ from: string, to: string }` |
 

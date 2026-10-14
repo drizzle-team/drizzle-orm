@@ -19,7 +19,6 @@ import { ddlDiff } from '../../dialects/mssql/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mssql/drizzle';
 import type { JsonStatement } from '../../dialects/mssql/statements';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
-import { tableBeforeRenames } from '../../dialects/utils';
 import type { DB } from '../../utils';
 import { isInteractive, outputFormat } from '../context';
 import { CommandOutputCliError, UnsupportedSchemaChangeError } from '../errors';
@@ -37,6 +36,13 @@ import {
 	mssqlSchemaError,
 	ProgressView,
 } from '../views';
+import {
+	dropColumnWarning,
+	dropPrimaryKeyWarning,
+	dropSchemaWarning,
+	dropTableWarning,
+	tableNamesBeforeRenames,
+} from './warnings';
 
 export const handle = async (
 	filenames: string[],
@@ -150,28 +156,21 @@ export const handle = async (
 	return { status: 'ok' as const, dialect: 'mssql' };
 };
 
-const identifier = (it: { schema?: string; table: string }) => {
-	const { schema, table } = it;
+const quote = (name: string) => `[${name}]`;
 
-	const schemaKey = schema && schema !== 'dbo' ? `[${schema}].` : '';
-	const tableKey = `[${table}]`;
-
-	return `${schemaKey}${tableKey}`;
+const quoteTable = ({ schema, name }: { schema?: string; name: string }) => {
+	return schema && schema !== 'dbo' ? `${quote(schema)}.${quote(name)}` : quote(name);
 };
 
 export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2: MssqlDDL, hints: HintsHandler) => {
 	const json = outputFormat() === 'json';
 	const useHints = json || !isInteractive();
 	const grouped: { hint: string; statement?: string }[] = [];
-	const tableBefore = tableBeforeRenames({
+	const { identifier, label } = tableNamesBeforeRenames({
 		schemas: jsonStatements.filter((it) => it.type === 'rename_schema'),
 		tables: jsonStatements.filter((it) => it.type === 'rename_table'),
 		moves: jsonStatements.filter((it) => it.type === 'move_table'),
-	});
-	const schemaBefore = tableBeforeRenames({
-		schemas: jsonStatements.filter((it) => it.type === 'rename_schema'),
-		tables: [],
-	});
+	}, quoteTable);
 
 	const filtered = jsonStatements.filter((it) => {
 		if (it.type === 'alter_column' && it.diff.generated) return false;
@@ -181,17 +180,16 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 	for (const statement of filtered) {
 		if (statement.type === 'drop_table') {
-			const inDb = schemaBefore({ schema: statement.table.schema, name: statement.table.name });
-			const tableName = identifier({ schema: inDb.schema, table: inDb.name });
+			const id = identifier(statement.table, 'dropped');
 			const entity = [statement.table.schema ?? 'dbo', statement.table.name] as const;
 			if (hints.matchConfirm('table', entity)) continue;
-			const res = await db.query(`select top(1) 1 from ${tableName};`);
+			const res = await db.query(`select top(1) 1 from ${id};`);
 
 			if (res.length > 0) {
 				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'table', entity, reason: 'non_empty' });
 				} else {
-					grouped.push({ hint: `You're about to delete non-empty [${statement.table.name}] table` });
+					grouped.push({ hint: dropTableWarning(id) });
 				}
 			}
 			continue;
@@ -199,19 +197,19 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 		if (statement.type === 'drop_column') {
 			const column = statement.column;
-
-			const inDb = tableBefore({ schema: column.schema, name: column.table });
-			const key = identifier({ schema: inDb.schema, table: inDb.name });
+			const table = { schema: column.schema, name: column.table };
 			const entity = [column.schema ?? 'dbo', column.table, column.name] as const;
 			if (hints.matchConfirm('column', entity)) continue;
 
-			const res = await db.query(`SELECT TOP(1) 1 FROM ${key} WHERE [${column.name}] IS NOT NULL;`);
+			const res = await db.query(
+				`select top(1) 1 from ${identifier(table, 'kept')} where ${quote(column.name)} is not null;`,
+			);
 			if (res.length === 0) continue;
 
 			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
 			} else {
-				grouped.push({ hint: `You're about to delete non-empty [${column.name}] column in [${column.table}] table` });
+				grouped.push({ hint: dropColumnWarning(quote(column.name), label(table)) });
 			}
 			continue;
 		}
@@ -226,11 +224,10 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const count = Number(res[0].count);
 			if (count === 0) continue;
 
-			const tableGrammar = count === 1 ? 'table' : 'tables';
 			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'schema', entity, reason: 'non_empty' });
 			} else {
-				grouped.push({ hint: `You're about to delete [${statement.name}] schema with ${count} ${tableGrammar}` });
+				grouped.push({ hint: dropSchemaWarning(quote(statement.name), count) });
 			}
 			continue;
 		}
@@ -238,23 +235,16 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 		if (statement.type === 'drop_pk') {
 			const schema = statement.pk.schema ?? 'dbo';
 			const table = statement.pk.table;
-			const id = identifier({ table: table, schema: schema });
+			const id = identifier({ schema, name: table }, 'kept');
 			const entity = [schema, table, statement.pk.name] as const;
 			if (hints.matchConfirm('primary_key', entity)) continue;
-			const inDb = tableBefore({ schema, name: table });
-			const res = await db.query(
-				`select top(1) 1 from ${identifier({ table: inDb.name, schema: inDb.schema })};`,
-			);
+			const res = await db.query(`select top(1) 1 from ${id};`);
 
 			if (res.length > 0) {
-				const hint = `You're about to drop ${
-					chalk.underline(id)
-				} primary key, this statements may fail and your table may lose primary key`;
-
 				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'primary_key', entity, reason: 'non_empty' });
 				} else {
-					grouped.push({ hint });
+					grouped.push({ hint: dropPrimaryKeyWarning(label({ schema, name: table })) });
 				}
 			}
 

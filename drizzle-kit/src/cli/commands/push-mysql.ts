@@ -6,7 +6,6 @@ import { interimToDDL } from '../../dialects/mysql/ddl';
 import { ddlDiff } from '../../dialects/mysql/diff';
 import type { JsonStatement } from '../../dialects/mysql/statements';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
-import { tableBeforeRenames } from '../../dialects/utils';
 import type { DB } from '../../utils';
 import { connectToMySQL } from '../connections';
 import { isInteractive, outputFormat } from '../context';
@@ -26,6 +25,15 @@ import {
 	ProgressView,
 } from '../views';
 import { introspect } from './pull-mysql';
+import {
+	changeColumnTypeWarning,
+	dropColumnWarning,
+	dropPrimaryKeyWarning,
+	dropReferencedPrimaryKeyWarning,
+	dropTableWarning,
+	nameWithRename,
+	tableNamesBeforeRenames,
+} from './warnings';
 
 export const handle = async (
 	filenames: string[],
@@ -131,14 +139,16 @@ export const handle = async (
 	return { status: 'ok' as const, dialect: 'mysql' };
 };
 
-const identifier = ({ table, column }: { table?: string; column?: string }) => {
-	return [table, column].filter(Boolean).map((t) => `\`${t}\``).join('.');
-};
+const quote = (name: string) => `\`${name}\``;
+
 export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2: MysqlDDL, hints: HintsHandler) => {
 	const json = outputFormat() === 'json';
 	const useHints = json || !isInteractive();
 	const grouped: { hint: string; statement?: string }[] = [];
-	const tableBefore = tableBeforeRenames({ tables: jsonStatements.filter((it) => it.type === 'rename_table') });
+	const { identifier, label } = tableNamesBeforeRenames(
+		{ tables: jsonStatements.filter((it) => it.type === 'rename_table') },
+		(it) => quote(it.name),
+	);
 
 	const filtered = jsonStatements.filter((it) => {
 		if (it.type === 'alter_column' && it.diff.generated) return false;
@@ -148,15 +158,16 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 	for (const statement of filtered) {
 		if (statement.type === 'drop_table') {
+			const id = identifier({ name: statement.table }, 'dropped');
 			const entity = ['public', statement.table] as const;
 			if (hints.matchConfirm('table', entity)) continue;
-			const res = await db.query(`select 1 from ${identifier({ table: statement.table })} limit 1`);
+			const res = await db.query(`select 1 from ${id} limit 1`);
 
 			if (res.length > 0) {
 				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'table', entity, reason: 'non_empty' });
 				} else {
-					grouped.push({ hint: `You're about to delete non-empty ${chalk.underline(statement.table)} table` });
+					grouped.push({ hint: dropTableWarning(id) });
 				}
 			}
 			continue;
@@ -164,20 +175,18 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 		if (statement.type === 'drop_column') {
 			const column = statement.column;
+			const table = { name: column.table };
 			const entity = ['public', column.table, column.name] as const;
 			if (hints.matchConfirm('column', entity)) continue;
-			const tableInDb = tableBefore({ name: column.table }).name;
-			const res = await db.query(`select 1 from ${identifier({ table: tableInDb })} limit 1`);
+			const res = await db.query(
+				`select 1 from ${identifier(table, 'kept')} where ${quote(column.name)} is not null limit 1`,
+			);
 			if (res.length === 0) continue;
 
 			if (useHints) {
 				hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'column', entity, reason: 'non_empty' });
 			} else {
-				grouped.push({
-					hint: `You're about to delete non-empty ${chalk.underline(column.name)} column in ${
-						chalk.underline(column.table)
-					} table`,
-				});
+				grouped.push({ hint: dropColumnWarning(quote(column.name), label(table)) });
 			}
 			continue;
 		}
@@ -185,7 +194,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 		// drop pk
 		if (statement.type === 'drop_pk') {
 			const { table, columns } = statement.pk;
-			const id = identifier({ table: tableBefore({ name: table }).name });
+			const id = identifier({ name: table }, 'kept');
 			const entity = ['public', table, statement.pk.name] as const;
 			if (hints.matchConfirm('primary_key', entity)) continue;
 			const res = await db.query(
@@ -193,14 +202,10 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			);
 
 			if (res.length > 0) {
-				const hint = `You're about to drop ${
-					chalk.underline(table)
-				} primary key, this statements may fail and your table may lose primary key`;
-
 				if (useHints) {
 					hints.pushMissingHint({ type: 'confirm_data_loss', kind: 'primary_key', entity, reason: 'non_empty' });
 				} else {
-					grouped.push({ hint });
+					grouped.push({ hint: dropPrimaryKeyWarning(label({ name: table })) });
 				}
 			}
 
@@ -233,20 +238,11 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 					blocking_fks: fkFound.map((fk) => fk.name),
 				});
 			}
-			grouped.push({
-				hint: `You are trying to drop primary key from "${table}" ("${
-					columns.join('", ')
-				}"), but there is an existing reference on this column. You must either add a UNIQUE constraint to ("${
-					columns.join('", ')
-				}") or drop the foreign key constraint that references this column.`,
-			});
+			grouped.push({ hint: dropReferencedPrimaryKeyWarning(label({ name: table }), columns.map(quote)) });
 			continue;
 		}
 
 		if (statement.type === 'alter_column') {
-			const tableName = identifier({ table: statement.origin.table });
-			const columnName = identifier({ column: statement.origin.column });
-
 			if (statement.diff.type) {
 				const entity = ['public', statement.column.table, statement.column.name] as const;
 				if (!hints.matchConfirm('column', entity)) {
@@ -259,17 +255,14 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 							reason_details: { from: statement.diff.type.from, to: statement.diff.type.to },
 						});
 					} else {
-						const hint = `You're about to change ${
-							chalk.underline(
-								columnName,
-							)
-						} column type in ${tableName} from ${
-							chalk.underline(
+						grouped.push({
+							hint: changeColumnTypeWarning(
+								nameWithRename(quote(statement.origin.column), quote(statement.column.name)),
+								label({ name: statement.column.table }),
 								statement.diff.type.from,
-							)
-						} to ${chalk.underline(statement.diff.type.to)}`;
-
-						grouped.push({ hint });
+								statement.diff.type.to,
+							),
+						});
 					}
 				}
 			}

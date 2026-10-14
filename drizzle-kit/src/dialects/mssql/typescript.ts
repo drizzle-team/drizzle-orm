@@ -2,6 +2,7 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
+import { escapeForSqlTemplate } from '../grammar';
 import { withCasing } from '../pull-utils';
 import type {
 	CheckConstraint,
@@ -228,7 +229,7 @@ export const ddlToTypeScript = (
 				? `${viewSchema}.view`
 				: 'mssqlView';
 
-			const as = `sql\`${it.definition}\``;
+			const as = `sql\`${escapeForSqlTemplate(it.definition)}\``;
 
 			const viewColumns = columnsForViews.filter((x) => x.schema === it.schema && x.view === it.name);
 
@@ -373,7 +374,7 @@ const createTableColumns = (
 		statement += columnStatement;
 		statement += it.notNull && !it.identity && !pk ? '.notNull()' : '';
 		statement += it.identity ? generateIdentityParams(it) : '';
-		statement += it.generated ? `.generatedAlwaysAs(sql\`${it.generated.as}\`)` : '';
+		statement += it.generated ? `.generatedAlwaysAs(sql\`${escapeForSqlTemplate(it.generated.as)}\`)` : '';
 
 		const fks = fkByColumnName[it.name];
 		if (fks) {
@@ -442,7 +443,7 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 				})
 				.join(', ')
 		})`;
-		statement += it.where ? `.where(sql\`${it.where}\`)` : '';
+		statement += it.where ? `.where(sql\`${escapeForSqlTemplate(it.where)}\`)` : '';
 
 		statement += `,\n`;
 	});
@@ -490,7 +491,7 @@ const createTableChecks = (
 	checkConstraints.forEach((it) => {
 		statement += 'check(';
 		statement += `"${it.name}", `;
-		statement += `sql\`${it.value}\`)`;
+		statement += `sql\`${escapeForSqlTemplate(it.value)}\`)`;
 		statement += `,`;
 	});
 

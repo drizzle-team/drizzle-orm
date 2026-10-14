@@ -1,10 +1,11 @@
 import { toCamelCase } from 'drizzle-orm/casing';
 import type { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
+import { escapeForSqlTemplate } from '../grammar';
 import { withCasing as makeCasing } from '../pull-utils';
-import { escapeForSqlTemplate, inspect } from '../utils';
+import { inspect } from '../utils';
 import type { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
-import { defaultNameForFK, Enum, parseEnum, typeFor } from './grammar';
+import { defaultNameForFK, Enum, escapeBacktickAndInterpolation, parseEnum, typeFor } from './grammar';
 
 export const imports = [
 	'boolean',
@@ -394,7 +395,7 @@ const createTableChecks = (
 	let statement = '';
 
 	for (const it of checks) {
-		statement += `\tcheck("${it.name}", sql\`${it.value.replace(/`/g, '\\`')}\`),\n`;
+		statement += `\tcheck("${it.name}", sql\`${escapeBacktickAndInterpolation(it.value)}\`),\n`;
 	}
 
 	return statement;

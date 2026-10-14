@@ -1080,3 +1080,114 @@ references drizzle_test.parent (other_id, child_id);`);
 	expect(pushSqlStatements).toStrictEqual([]);
 	expect(generateSqlStatements).toStrictEqual([]);
 });
+
+const templateUnsafeText = 'a\\b`${c}';
+
+test('introspect check with a backslash, a backtick and "${"', async () => {
+	await db.query(
+		`CREATE TABLE users (name varchar(50), CONSTRAINT name_check CHECK (name <> '${templateUnsafeText}'));`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, introspectDDL, fromFileDDL } = await diffIntrospect(
+		db,
+		{},
+		'check-with-template-unsafe-text',
+	);
+
+	const expected = [`([name]<>'${templateUnsafeText}')`];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(introspectDDL.checks.list().map((it) => it.value)).toStrictEqual(expected);
+	expect(fromFileDDL.checks.list().map((it) => it.value)).toStrictEqual(expected);
+});
+
+test('introspect view with a backslash, a backtick and "${"', async () => {
+	await db.query(`CREATE VIEW some_view AS SELECT '${templateUnsafeText}' AS name`);
+
+	const { pushSqlStatements, generateSqlStatements, introspectDDL, fromFileDDL } = await diffIntrospect(
+		db,
+		{},
+		'view-with-template-unsafe-text',
+	);
+
+	const expected = [`SELECT '${templateUnsafeText}' AS name`];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(introspectDDL.views.list().map((it) => it.definition)).toStrictEqual(expected);
+	expect(fromFileDDL.views.list().map((it) => it.definition)).toStrictEqual(expected);
+});
+
+test('introspect generated column with a backslash, a backtick and "${"', async () => {
+	await db.query(
+		`CREATE TABLE users (name varchar(50), generated_name AS (name + '${templateUnsafeText}'));`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, introspectDDL, fromFileDDL } = await diffIntrospect(
+		db,
+		{},
+		'generated-column-with-template-unsafe-text',
+	);
+
+	const expected = [`([name]+'${templateUnsafeText}')`];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(introspectDDL.columns.list({ name: 'generated_name' }).map((it) => it.generated?.as)).toStrictEqual(expected);
+	expect(fromFileDDL.columns.list({ name: 'generated_name' }).map((it) => it.generated?.as)).toStrictEqual(expected);
+});
+
+test('introspect index predicate with a backslash, a backtick and "${"', async () => {
+	await db.query(`CREATE TABLE users (name varchar(50));`);
+	await db.query(`CREATE INDEX name_idx ON users (name) WHERE name <> '${templateUnsafeText}';`);
+
+	const { pushSqlStatements, generateSqlStatements, introspectDDL, fromFileDDL } = await diffIntrospect(
+		db,
+		{},
+		'index-with-template-unsafe-text',
+	);
+
+	const expected = [`([name]<>'${templateUnsafeText}')`];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(introspectDDL.indexes.list().map((it) => it.where)).toStrictEqual(expected);
+	expect(fromFileDDL.indexes.list().map((it) => it.where)).toStrictEqual(expected);
+});
+
+test('introspect default expressions with a backslash, a backtick and "${"', async () => {
+	const length = `len('${templateUnsafeText}')`;
+	const date = `dateadd(minute,${length},getdate())`;
+	const defaults = [
+		['int', `(${length})`],
+		['bigint', `(${length})`],
+		['bit', `(${length}%(2))`],
+		['varchar(50)', `('${templateUnsafeText}'+'${templateUnsafeText}')`],
+		['nvarchar(50)', `(N'${templateUnsafeText}')`],
+		['decimal(10,2)', `(${length})`],
+		['float', `(${length})`],
+		['real', `(${length})`],
+		['datetime', `(${date})`],
+		['datetime2', `(${date})`],
+		['datetimeoffset', `(${date})`],
+		['time', `(${date})`],
+		['binary(16)', `(CONVERT([binary](16),'${templateUnsafeText}'))`],
+		['sql_variant', `('${templateUnsafeText}')`],
+	];
+	const columns = defaults.map(([type, value], i) =>
+		`column${i} ${type} CONSTRAINT users_column${i}_default DEFAULT ${value}`
+	);
+
+	await db.query(`CREATE TABLE users (${columns.join(', ')});`);
+
+	const { pushSqlStatements, generateSqlStatements, introspectDDL, fromFileDDL } = await diffIntrospect(
+		db,
+		{},
+		'default-expressions-with-template-unsafe-text',
+	);
+
+	const expected = Object.fromEntries(defaults.map(([_, value], i) => [`column${i}`, value]));
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(Object.fromEntries(introspectDDL.defaults.list().map((it) => [it.column, it.default]))).toStrictEqual(
+		expected,
+	);
+	expect(Object.fromEntries(fromFileDDL.defaults.list().map((it) => [it.column, it.default]))).toStrictEqual(expected);
+});
