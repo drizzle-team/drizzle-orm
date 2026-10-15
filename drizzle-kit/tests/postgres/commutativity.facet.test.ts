@@ -1,15 +1,15 @@
-// Verifies the verdict of the facet rules of `postgresCommutativity` for a fixed list of branch pairs, each with
-// one or a few statements. The pairs cover renames, moves and drops of referenced objects, enum and column
-// changes, privileges, policies, foreign keys, and new objects whose names share one postgres namespace. The last
-// group checks when the same statement on both branches counts as one change. `S` builds the statements of the
-// pairs in `cases`.
-
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
 import { toSnapshotStatements } from 'src/dialects/postgres/convertor';
 import type { Column, Privilege } from 'src/dialects/postgres/ddl';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { describe, expect, test } from 'vitest';
 import { build, check, col, fk, idx, pk, policy, privilege, unique } from './commutativity-statements';
+
+// Verifies the verdict of the facet rules of `postgresCommutativity` for a fixed list of branch pairs, each with
+// one or a few statements. The pairs cover renames, moves and drops of referenced objects, enum and column
+// changes, privileges, policies, foreign keys, and new objects whose names share one postgres namespace. The last
+// group checks when the same statement on both branches counts as one change. `S` builds the statements of the
+// pairs in `cases`.
 
 const S = {
 	renameTable: (schema: string, from: string, to: string) => ({ type: 'rename_table', schema, from, to }),

@@ -1,8 +1,3 @@
-// Verifies that `generate` with a rename hint stores one rename delta, for every kind of entity that can be
-// renamed: schema, table, column, enum, sequence, role, index, primary key, unique, foreign key, check,
-// policy and view. Entities that reference the renamed entity get no delta, and the reconstructed state still
-// equals the schema. Each case also checks the SQL of the migration, runs it on PGlite, and checks that the
-// next `generate` finds no changes.
 import { sql } from 'drizzle-orm';
 import {
 	check,
@@ -25,6 +20,12 @@ import type { Delta } from 'src/dialects/dialect';
 import { describe, expect, test } from 'vitest';
 import { createFolderFlow, rename, schemaState } from './folder-flow';
 import type { PostgresSchema } from './mocks';
+
+// Verifies that `generate` with a rename hint stores one rename delta, for every kind of entity that can be
+// renamed: schema, table, column, enum, sequence, role, index, primary key, unique, foreign key, check,
+// policy and view. Entities that reference the renamed entity get no delta, and the reconstructed state still
+// equals the schema. Each case also checks the SQL of the migration, runs it on PGlite, and checks that the
+// next `generate` finds no changes.
 
 // One rename case. `sql` is the whole migration of the rename, and `delta` is the only delta that the
 // snapshot stores for it.

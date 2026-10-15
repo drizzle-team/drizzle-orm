@@ -1,9 +1,3 @@
-// Verifies the facet rules of `postgresCommutativity` against a real database. A pair of branches commutes when
-// postgres runs their SQL in both orders and both orders end at the same schema. The tests run the fork scenarios
-// of `commutativity-fixtures.ts`, column changes from the real diff, and every cell of `commutativity-matrix.json`.
-// A matrix cell where the rules and postgres disagree must be in `knownExceptions`. The database is PGlite, or
-// the postgres server that `PG_VERSION` selects.
-
 import { sql } from 'drizzle-orm';
 import { integer, pgEnum, pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
@@ -17,6 +11,12 @@ import { mutations, PAIRS, parent } from './commutativity-fixtures';
 import matrixData from './commutativity-matrix.json';
 import { build, type NeededObject, rows } from './commutativity-statements';
 import { diff, prepareTestDatabase } from './mocks';
+
+// Verifies the facet rules of `postgresCommutativity` against a real database. A pair of branches commutes when
+// postgres runs their SQL in both orders and both orders end at the same schema. The tests run the fork scenarios
+// of `commutativity-fixtures.ts`, column changes from the real diff, and every cell of `commutativity-matrix.json`.
+// A matrix cell where the rules and postgres disagree must be in `knownExceptions`. The database is PGlite, or
+// the postgres server that `PG_VERSION` selects.
 
 type Outcome = { ok: true; hash: string } | { ok: false; error: string };
 

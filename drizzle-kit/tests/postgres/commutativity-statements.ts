@@ -1,9 +1,3 @@
-// Provides the statement catalog of the commutativity tests. `rows` holds one statement for each statement type,
-// and one for each variant that takes another facet path, with the objects that its SQL needs in the database.
-// `build` returns the statement of one row, and helpers such as `col` and `idx` build the entities inside a
-// statement. These files use it: `commutativity.facet.test.ts`, `commutativity.facet-invariants.test.ts`,
-// `commutativity.matrix-gen.test.ts` and `commutativity-groundtruth.pglite.test.ts`.
-
 import type {
 	CheckConstraint,
 	Column,
@@ -15,6 +9,12 @@ import type {
 	UniqueConstraint,
 } from 'src/dialects/postgres/ddl';
 import type { JsonRenameConstraint, JsonStatement } from 'src/dialects/postgres/statements';
+
+// Provides the statement catalog of the commutativity tests. `rows` holds one statement for each statement type,
+// and one for each variant that takes another facet path, with the objects that its SQL needs in the database.
+// `build` returns the statement of one row, and helpers such as `col` and `idx` build the entities inside a
+// statement. These files use it: `commutativity.facet.test.ts`, `commutativity.facet-invariants.test.ts`,
+// `commutativity.matrix-gen.test.ts` and `commutativity-groundtruth.pglite.test.ts`.
 
 // These functions build the entities inside a statement, for `rows` and for the facet tests. Each entity has
 // the fields that a snapshot stores for it, so it has no `entityType`.

@@ -1,12 +1,13 @@
+import { integer, pgTable, text, varchar } from 'drizzle-orm/pg-core';
+import { expect, test } from 'vitest';
+import { columnRow, createFolderFlow, forkFlow, rename, schemaState, step } from './folder-flow';
+
 // Verifies what `generate` writes when it merges several leaves, and what `check` reports for the result. The
 // merge snapshot lists every leaf as a parent, newest first. Its deltas hold only the change of the merge
 // itself, also when a branch has several migrations or the merge renames a column of another branch. A branch
 // that arrives after a merge is checked against the snapshots behind the first parent. If it commutes, the next
 // `generate` merges it again. If a merge folder is deleted, the next `generate` merges its leaves again.
 // `migrate` runs each folder on PGlite and compares the database with the schema.
-import { integer, pgTable, text, varchar } from 'drizzle-orm/pg-core';
-import { expect, test } from 'vitest';
-import { columnRow, createFolderFlow, forkFlow, rename, schemaState, step } from './folder-flow';
 
 const users = pgTable('users', { id: integer() });
 const likes = pgTable('likes', { id: integer() });

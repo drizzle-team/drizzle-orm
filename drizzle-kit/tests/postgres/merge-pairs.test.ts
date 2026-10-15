@@ -1,9 +1,3 @@
-// Verifies `check` and `generate` on a migration folder that holds the merged migrations of two or more branches.
-// For a row of `rows` with `merged`, `check` passes and `generate` writes a merge migration with one parent for
-// each branch. That migration holds only the marker table, because the branches together already give `merged`,
-// and the folder then runs on PGlite to a database equal to `merged`. For a row without `merged`, `check` reports
-// a conflict. Each row runs once with each branch as the first parent of the merge.
-
 import { type SQL, sql } from 'drizzle-orm';
 import {
 	bigserial,
@@ -26,6 +20,12 @@ import {
 import { expect, test } from 'vitest';
 import { type Fork, forkFlow, rename, step } from './folder-flow';
 import type { PostgresSchema } from './mocks';
+
+// Verifies `check` and `generate` on a migration folder that holds the merged migrations of two or more branches.
+// For a row of `rows` with `merged`, `check` passes and `generate` writes a merge migration with one parent for
+// each branch. That migration holds only the marker table, because the branches together already give `merged`,
+// and the folder then runs on PGlite to a database equal to `merged`. For a row without `merged`, `check` reports
+// a conflict. Each row runs once with each branch as the first parent of the merge.
 
 // The merge cases: every row of `rows` is a base schema and two or more branches. A branch is a list of
 // migrations, and each migration is the schema after it with the rename decisions that generate needs.

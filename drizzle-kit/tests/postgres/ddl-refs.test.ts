@@ -1,6 +1,3 @@
-// Verifies that a rename in the postgres DDL reaches, through the edges, the rows that name the renamed entity.
-// An enum rename changes the type of the column that uses the enum. A column rename changes the column names
-// in the indexes of its table. The state comes from a drizzle schema through `drizzleToDDL`, with no database.
 import { sql } from 'drizzle-orm';
 import {
 	check,
@@ -16,6 +13,10 @@ import {
 } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { drizzleToDDL } from './mocks';
+
+// Verifies that a rename in the postgres DDL reaches, through the edges, the rows that name the renamed entity.
+// An enum rename changes the type of the column that uses the enum. A column rename changes the column names
+// in the indexes of its table. The state comes from a drizzle schema through `drizzleToDDL`, with no database.
 
 const admin = pgRole('admin');
 const mood = pgEnum('mood', ['ok', 'sad']);

@@ -1,8 +1,3 @@
-// Verifies how the postgres commands handle a damaged migrations folder. A deleted middle or first migration,
-// a second base snapshot, a folder that sorts before its parent and a snapshot file that does not parse each
-// stop `check` and `generate` with an error that names the folders and the fix. The file also verifies that
-// `generate` keeps working after the newest migrations are deleted, and that a new folder sorts after its
-// newest parent when the clock is behind. A sqlite folder with a broken history still loads.
 import { PGlite } from '@electric-sql/pglite';
 import { integer, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 import { mkdirSync, writeFileSync } from 'fs';
@@ -13,6 +8,12 @@ import { prepareOutFolder } from 'src/utils/utils-node';
 import { expect, onTestFinished, test } from 'vitest';
 import { ORIGIN, writeSnapshot } from '../other/check-fixtures';
 import { createFolderFlow, forkFlow, schemaState, step, tempDir } from './folder-flow';
+
+// Verifies how the postgres commands handle a damaged migrations folder. A deleted middle or first migration,
+// a second base snapshot, a folder that sorts before its parent and a snapshot file that does not parse each
+// stop `check` and `generate` with an error that names the folders and the fix. The file also verifies that
+// `generate` keeps working after the newest migrations are deleted, and that a new folder sorts after its
+// newest parent when the clock is behind. A sqlite folder with a broken history still loads.
 
 const v1 = { users: pgTable('users', { id: integer() }) };
 const v2 = { users: pgTable('users', { id: integer(), email: varchar() }) };
