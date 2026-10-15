@@ -1,9 +1,9 @@
+import { View } from '~/view.ts';
 import type * as V1 from './_relations.ts';
 import { OriginalColumn } from './column-common.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
-import { View } from './sql/sql.ts';
 import { isSQLWrapper, SQL, sql } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import { Table } from './table.ts';
@@ -11,6 +11,9 @@ import { ViewBaseConfig } from './view-common.ts';
 
 export class ColumnTableAliasProxyHandler<TColumn extends Column> implements ProxyHandler<TColumn> {
 	static readonly [entityKind]: string = 'ColumnTableAliasProxyHandler';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(private table: Table | View, private ignoreColumnAlias?: boolean) {}
 
@@ -23,6 +26,10 @@ export class ColumnTableAliasProxyHandler<TColumn extends Column> implements Pro
 			return false;
 		}
 
+		if (prop === OriginalColumn && !this.ignoreColumnAlias) {
+			return () => columnObj;
+		}
+
 		return columnObj[prop as keyof TColumn];
 	}
 }
@@ -31,6 +38,9 @@ export class ViewSelectionAliasProxyHandler<TSelection extends Record<string, un
 	implements ProxyHandler<TSelection>
 {
 	static readonly [entityKind]: string = 'ViewSelectionAliasProxyHandler';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(protected view: View, protected selection: TSelection, private ignoreColumnAlias?: boolean) {}
 
@@ -49,8 +59,25 @@ export class ViewSelectionAliasProxyHandler<TSelection extends Record<string, un
 
 export class TableAliasProxyHandler<T extends Table | View> implements ProxyHandler<T> {
 	static readonly [entityKind]: string = 'TableAliasProxyHandler';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(private alias: string, private replaceOriginalName: boolean, private ignoreColumnAlias?: boolean) {}
+
+	private proxiedColumns: Record<string, any> | undefined;
+
+	private getProxiedColumns(target: T, columns: Record<string, AnyColumn>): Record<string, any> {
+		if (this.proxiedColumns) return this.proxiedColumns;
+
+		const handler = new ColumnTableAliasProxyHandler(new Proxy(target, this), this.ignoreColumnAlias);
+		const proxiedColumns: Record<string, any> = {};
+		for (const key of Object.keys(columns)) {
+			proxiedColumns[key] = new Proxy(columns[key]!, handler);
+		}
+
+		return this.proxiedColumns = proxiedColumns;
+	}
 
 	get(target: T, prop: string | symbol): any {
 		if (prop === Table.Symbol.IsAlias) {
@@ -98,20 +125,16 @@ export class TableAliasProxyHandler<T extends Table | View> implements ProxyHand
 				);
 			}
 
-			const proxiedColumns: { [key: string]: any } = {};
-
-			Object.keys(columns).map((key) => {
-				proxiedColumns[key] = new Proxy(
-					columns[key]!,
-					new ColumnTableAliasProxyHandler(new Proxy(target, this), this.ignoreColumnAlias),
-				);
-			});
-
-			return proxiedColumns;
+			return this.getProxiedColumns(target, columns);
 		}
 
 		const value = target[prop as keyof typeof target];
 		if (is(value, Column)) {
+			const columns = (target as Table)[Table.Symbol.Columns];
+			if (typeof prop === 'string' && columns?.[prop] === value) {
+				return this.getProxiedColumns(target, columns)[prop];
+			}
+
 			return new Proxy(
 				value as AnyColumn,
 				new ColumnTableAliasProxyHandler(new Proxy(target, this), this.ignoreColumnAlias),
@@ -122,8 +145,85 @@ export class TableAliasProxyHandler<T extends Table | View> implements ProxyHand
 	}
 }
 
+export class SubquerySelectionAliasProxyHandler<TSelection extends Record<string, unknown>>
+	implements ProxyHandler<TSelection>
+{
+	static readonly [entityKind]: string = 'SubquerySelectionAliasProxyHandler';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
+	constructor(private subquery: Subquery, private alias: string) {}
+
+	get(selection: TSelection, prop: string | symbol): any {
+		const value = selection[prop as keyof TSelection];
+
+		if (is(value, Column)) return new Proxy(value, new ColumnTableAliasProxyHandler(this.subquery as any, true));
+		if (is(value, SQL.Aliased)) {
+			const newValue = value.clone();
+			newValue.isSelectionField = true;
+			newValue.origin = this.alias;
+
+			return newValue;
+		}
+
+		return value;
+	}
+}
+
+export class SubqueryAliasProxyHandler<T extends Subquery> implements ProxyHandler<T> {
+	static readonly [entityKind]: string = 'SubqueryAliasProxyHandler';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
+	constructor(private alias: string) {}
+
+	get(target: T, prop: string | symbol, receiver: any): any {
+		if (prop === Table.Symbol.IsAlias) {
+			return true;
+		}
+
+		if (prop === Table.Symbol.Name) {
+			return this.alias;
+		}
+
+		if (prop === Table.Symbol.OriginalName) {
+			return target._.alias;
+		}
+
+		if (prop === Table.Symbol.Schema) {
+			return undefined;
+		}
+
+		if (prop === '_') {
+			return {
+				...target._,
+				alias: this.alias,
+				isWith: true,
+				selectedFields: new Proxy(
+					target._.selectedFields,
+					new SubquerySelectionAliasProxyHandler(receiver, this.alias),
+				),
+			};
+		}
+
+		if (prop === Table.Symbol.Columns) {
+			return new Proxy(
+				target._.selectedFields,
+				new SubquerySelectionAliasProxyHandler(receiver, this.alias),
+			);
+		}
+
+		return target[prop as keyof T];
+	}
+}
+
 export class ColumnAliasProxyHandler<T extends Column> implements ProxyHandler<T> {
 	static readonly [entityKind]: string = 'ColumnAliasProxyHandler';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(private alias: string) {}
 
@@ -150,6 +250,9 @@ export class ColumnAliasProxyHandler<T extends Column> implements ProxyHandler<T
 
 export class RelationTableAliasProxyHandler<T extends V1.Relation> implements ProxyHandler<T> {
 	static readonly [entityKind]: string = 'RelationTableAliasProxyHandler';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(private alias: string) {}
 
@@ -162,8 +265,15 @@ export class RelationTableAliasProxyHandler<T extends V1.Relation> implements Pr
 	}
 }
 
-export function aliasedTable<T extends Table | View>(table: T, tableAlias: string): T {
-	return new Proxy(table, new TableAliasProxyHandler(tableAlias, false, false));
+/**
+ * Does not apply type-level transformation
+ *
+ * For typed alias, use `import { alias } from 'drizzle-orm/dialect-core/alias'`
+ */
+export function aliasedTable<T extends Table | View | Subquery>(table: T, tableAlias: string): T {
+	return is(table, Subquery)
+		? new Proxy(table, new SubqueryAliasProxyHandler(tableAlias)) as T
+		: new Proxy(table, new TableAliasProxyHandler(tableAlias, false, false) as ProxyHandler<T>);
 }
 
 export function aliasedColumn<T extends Column>(column: T, alias: string): T {

@@ -1,5 +1,5 @@
-import type { OPSQLiteConnection, QueryResult } from '@op-engineering/op-sqlite';
-import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { DB, QueryResult } from '@op-engineering/op-sqlite';
+import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
@@ -19,6 +19,7 @@ import type { SQLiteExecuteMethod, SQLiteTransactionConfig } from '~/sqlite-core
 export interface OPSQLiteSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export type OPSQLiteRunResult = QueryResult;
@@ -34,7 +35,7 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 	private cache: Cache;
 
 	constructor(
-		private client: OPSQLiteConnection,
+		private client: DB,
 		dialect: SQLiteDialect,
 		private relations: TRelations,
 		private options: OPSQLiteSessionOptions = {},
@@ -58,18 +59,17 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 	): SQLiteAsyncPreparedQuery<T & { run: OPSQLiteRunResult }> {
 		const executors: SQLiteQueryExecutors<'async'> = {
 			all: (params) => {
-				if (mode === 'arrays') return this.client.executeRawAsync(query.sql, params);
-				return this.client.executeAsync(query.sql, params).then(({ rows }) => rows?._array || []);
+				if (mode === 'arrays') return this.client.executeRaw(query.sql, params as any[]).then(({ rawRows }) => rawRows);
+				return this.client.execute(query.sql, params as any[]).then(({ rows }) => rows);
 			},
 			get: (params) => {
-				if (mode === 'arrays') return this.client.executeRawAsync(query.sql, params).then((rows) => rows[0]);
-				return this.client.executeAsync(query.sql, params).then(({ rows }) => rows?._array?.[0]);
+				if (mode === 'arrays') {
+					return this.client.executeRaw(query.sql, params as any[]).then(({ rawRows }) => rawRows[0]);
+				}
+				return this.client.execute(query.sql, params as any[]).then(({ rows }) => rows[0]);
 			},
 			run: (params) => {
-				return this.client.executeAsync(query.sql, params);
-			},
-			values: (params) => {
-				return this.client.executeRawAsync(query.sql, params);
+				return this.client.execute(query.sql, params as any[]);
 			},
 		};
 
@@ -84,21 +84,24 @@ export class OPSQLiteSession<TRelations extends AnyRelations>
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
-	override transaction<T>(
-		transaction: (tx: OPSQLiteTransaction<TRelations>) => T,
+	override async transaction<T>(
+		transaction: (tx: OPSQLiteTransaction<TRelations>) => T | Promise<T>,
 		config: SQLiteTransactionConfig = {},
-	): T {
+	): Promise<T> {
+		if (config?.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
+
 		const tx = new OPSQLiteTransaction('async', this.dialect, this, this.relations);
-		this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
+		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
-			const result = transaction(tx);
-			this.run(sql`commit`);
+			const result = await transaction(tx);
+			await this.run(sql`commit`);
 			return result;
 		} catch (err) {
-			this.run(sql`rollback`);
+			await this.run(sql`rollback`).catch(() => {});
 			throw err;
 		}
 	}
@@ -109,9 +112,9 @@ export class OPSQLiteTransaction<TRelations extends AnyRelations>
 {
 	static override readonly [entityKind]: string = 'OPSQLiteTransaction';
 
-	override transaction<T>(
-		transaction: (tx: OPSQLiteTransaction<TRelations>) => T,
-	): T {
+	override async transaction<T>(
+		transaction: (tx: OPSQLiteTransaction<TRelations>) => T | Promise<T>,
+	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
 		const tx = new OPSQLiteTransaction(
 			'async',
@@ -120,13 +123,13 @@ export class OPSQLiteTransaction<TRelations extends AnyRelations>
 			this._.relations,
 			this.nestedIndex + 1,
 		);
-		this.session.run(sql.raw(`savepoint ${savepointName}`));
+		await this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
-			const result = transaction(tx);
-			this.session.run(sql.raw(`release savepoint ${savepointName}`));
+			const result = await transaction(tx);
+			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

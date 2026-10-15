@@ -1,5 +1,5 @@
 import type { WithCacheConfig } from '~/cache/core/types.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
@@ -36,6 +36,9 @@ export type AnyMySqlMapper = (
 
 export abstract class MySqlBasePreparedQuery implements PreparedQuery {
 	static readonly [entityKind]: string = 'MySqlBasePreparedQuery';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		protected query: Query,
@@ -56,6 +59,9 @@ export interface MySqlTransactionConfig {
 
 export abstract class MySqlSession {
 	static readonly [entityKind]: string = 'MySqlSession';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(protected dialect: MySqlDialect) {}
 
@@ -97,6 +103,6 @@ export abstract class MySqlSession {
 			parts.push(config.accessMode);
 		}
 
-		return parts.length ? sql`start transaction ${sql.raw(parts.join(' '))}` : undefined;
+		return parts.length ? sql`start transaction ${sql.raw(parts.join(', '))}` : undefined;
 	}
 }

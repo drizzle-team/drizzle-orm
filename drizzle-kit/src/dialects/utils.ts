@@ -1,4 +1,4 @@
-import { type DB, type Simplify, trimChar } from '../utils';
+import type { DB, Simplify } from '../utils';
 import type { CockroachDDL } from './cockroach/ddl';
 import type { MssqlDDL } from './mssql/ddl';
 import type { MysqlDDL } from './mysql/ddl';
@@ -90,36 +90,6 @@ export const groupDiffs = <
 		}
 	}
 	return res;
-};
-
-export const numberForTs = (value: string): { mode: 'number' | 'bigint'; value: string } => {
-	const check = Number(value);
-	if (Number.isNaN(check)) return { mode: 'number', value: `sql\`${trimChar(escapeForTsLiteral(value), '"')}\`` };
-
-	if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return { mode: 'number', value: value };
-	return { mode: 'bigint', value: `${value}n` };
-};
-
-// numeric precision can be bigger than 9 as it was before here
-export const parseParams = (type: string) => {
-	return type.match(/\(((?:\d+(?:\s*,\s*\d+)*)|max)\)/i)?.[1].split(',').map((x) => x.trim()) ?? [];
-};
-
-export const escapeForSqlDefault = (input: string, mode: 'default' | 'pg-arr' = 'default') => {
-	let value = input.replace(/\\/g, '\\\\').replace(/'/g, "''");
-	if (mode === 'pg-arr') value = value.replaceAll('"', '\\"');
-	return value;
-};
-
-export const unescapeFromSqlDefault = (input: string, mode: 'default' | 'arr' = 'default') => {
-	let res = input.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-
-	if (mode === 'arr') return res;
-	return res.replace(/''/g, "'");
-};
-
-export const escapeForTsLiteral = (input: string) => {
-	return JSON.stringify(input);
 };
 
 export function inspect(it: any): string {

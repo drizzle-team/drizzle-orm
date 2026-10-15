@@ -1,3 +1,4 @@
+export * from './count.ts';
 export * from './delete.ts';
 export * from './insert.ts';
 export * from './query-builder.ts';

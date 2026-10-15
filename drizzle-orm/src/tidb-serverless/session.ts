@@ -6,13 +6,37 @@ import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import { MySqlAsyncPreparedQuery, MySqlAsyncSession, MySqlAsyncTransaction } from '~/mysql-core/async/session.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT } from '~/mysql-core/session.ts';
+import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlTransactionConfig } from '~/mysql-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
+import type { Simplify } from '~/utils.ts';
 
 export interface TiDBServerlessSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
+}
+
+function tidbBeginOptions(
+	config: MySqlTransactionConfig | undefined,
+): { isolation?: 'READ COMMITTED' | 'REPEATABLE READ' } | undefined {
+	if (!config) return undefined;
+	if (config.accessMode !== undefined) {
+		throw new Error('Access mode transaction config is not supported by driver');
+	}
+	if (config.withConsistentSnapshot !== undefined) {
+		throw new Error('Consistent snapshot transaction config is not supported by driver');
+	}
+	switch (config.isolationLevel) {
+		case undefined:
+			return undefined;
+		case 'read committed':
+			return { isolation: 'READ COMMITTED' };
+		case 'repeatable read':
+			return { isolation: 'REPEATABLE READ' };
+		default:
+			throw new Error(`Isolation level '${config.isolationLevel}' is not supported by driver`);
+	}
 }
 
 export class TiDBServerlessSession<
@@ -82,13 +106,15 @@ export class TiDBServerlessSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
 	override async transaction<T>(
 		transaction: (tx: TiDBServerlessTransaction<TRelations>) => Promise<T>,
+		config?: MySqlTransactionConfig,
 	): Promise<T> {
-		const nativeTx = await this.baseClient.begin();
+		const nativeTx = await this.baseClient.begin(tidbBeginOptions(config));
 		try {
 			const session = new TiDBServerlessSession(
 				this.baseClient,
@@ -106,7 +132,7 @@ export class TiDBServerlessSession<
 			await nativeTx.commit();
 			return result;
 		} catch (err) {
-			await nativeTx.rollback();
+			await nativeTx.rollback().catch(() => {});
 			throw err;
 		}
 	}
@@ -145,12 +171,17 @@ export class TiDBServerlessTransaction<
 			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}
 }
 
+export type TiDBServerlessQueryResult<TRow> = Simplify<Omit<FullResult, 'rows'> & { rows: TRow[] | null }>;
+
 export interface TiDBServerlessQueryResultHKT extends MySqlQueryResultHKT {
-	type: FullResult;
+	// `never` - no rows (`insert`, `update` & `delete` without returning), `'unknown'` - any response, otherwise - rows of given shape
+	type: [this['row']] extends [never] ? TiDBServerlessQueryResult<never>
+		: [this['row']] extends ['unknown'] ? FullResult
+		: TiDBServerlessQueryResult<this['row']>;
 }

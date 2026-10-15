@@ -28,7 +28,7 @@ type WriteResultConfigBase = {
 };
 
 export function writeResult(
-	config: WriteResultConfigBase & { type: 'introspect' },
+	config: WriteResultConfigBase & { type: 'introspect'; init: boolean },
 ): { snapshotPath: string; migrationPath: string };
 export function writeResult(
 	config: WriteResultConfigBase & { type?: 'custom' | 'none' },
@@ -36,7 +36,12 @@ export function writeResult(
 	| { status: 'no_changes'; dialect: string | undefined }
 	| { status: 'ok'; dialect: string | undefined; migration_path: string };
 export function writeResult(
-	config: WriteResultConfigBase & { type?: 'introspect' | 'custom' | 'none' },
+	config:
+		& WriteResultConfigBase
+		& (
+			| { type: 'introspect'; init: boolean }
+			| { type?: 'custom' | 'none'; init?: never }
+		),
 ) {
 	const {
 		snapshot,
@@ -47,6 +52,7 @@ export function writeResult(
 		renames,
 		bundle = false,
 		type = 'none',
+		init,
 		dialect,
 		driver,
 		snapshots,
@@ -73,7 +79,7 @@ export function writeResult(
 	const sqlDelimiter = breakpoints ? BREAKPOINT : '\n';
 	let sql = sqlStatements.join(sqlDelimiter);
 
-	if (type === 'introspect') {
+	if (type === 'introspect' && !init) {
 		sql =
 			`-- Current sql file was generated after introspecting the database\n-- If you want to run this migration please uncomment this code before executing migrations\n/*\n${sql}\n*/`;
 	}

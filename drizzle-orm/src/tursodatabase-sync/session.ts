@@ -1,4 +1,4 @@
-import type { Database } from '@tursodatabase/sync';
+import type { Database, Transaction } from '@tursodatabase/sync';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -20,6 +20,7 @@ import type { TursoDatabaseSyncRunResult } from './driver.ts';
 export interface TursoDatabaseSyncSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -33,7 +34,7 @@ export class TursoDatabaseSyncSession<TRelations extends AnyRelations>
 	private cache: Cache;
 
 	constructor(
-		private client: Database,
+		private client: Database | Transaction,
 		dialect: SQLiteDialect,
 		private relations: TRelations,
 		private options: TursoDatabaseSyncSessionOptions,
@@ -71,10 +72,6 @@ export class TursoDatabaseSyncSession<TRelations extends AnyRelations>
 					stmt ??= await this.client.prepare(query.sql);
 					return stmt.run(params);
 				},
-				values: async (params) => {
-					stmt ??= await this.client.prepare(query.sql);
-					return stmt.raw(true).all(params);
-				},
 			}
 			: {
 				all: async (params) => {
@@ -94,10 +91,6 @@ export class TursoDatabaseSyncSession<TRelations extends AnyRelations>
 					return this.client.get(query.sql, ...params);
 				},
 				run: (params) => stmt ? stmt.run(params) : this.client.run(query.sql, ...params),
-				values: async (params) => {
-					stmt ??= await this.client.prepare(query.sql);
-					return stmt.raw(true).all(params);
-				},
 			};
 
 		return new SQLiteAsyncPreparedQuery(
@@ -111,30 +104,36 @@ export class TursoDatabaseSyncSession<TRelations extends AnyRelations>
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
 	override async transaction<T>(
 		transaction: (db: TursoDatabaseSyncTransaction<TRelations>) => Promise<T>,
-		_config?: SQLiteTransactionConfig,
+		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const session = new TursoDatabaseSyncSession<TRelations>(
-			this.client,
-			this.dialect,
-			this.relations,
-			this.options,
-		);
-		const tx = new TursoDatabaseSyncTransaction<TRelations>(
-			'async',
-			this.dialect,
-			session,
-			this.relations,
-		);
+		let clientTx = (this.client as Database).transactionAsync(async (txClient) => {
+			const session = new TursoDatabaseSyncSession<TRelations>(
+				txClient,
+				this.dialect,
+				this.relations,
+				this.options,
+			);
+			const tx = new TursoDatabaseSyncTransaction<TRelations>(
+				'async',
+				this.dialect,
+				session,
+				this.relations,
+			);
 
-		const clientTx = this.client.transaction(async () => await transaction(tx));
+			return await transaction(tx);
+		});
 
-		const result = await clientTx();
-		return result;
+		if (config?.behavior) {
+			clientTx = clientTx[config.behavior];
+		}
+
+		return clientTx();
 	}
 }
 
@@ -162,7 +161,7 @@ export class TursoDatabaseSyncTransaction<TRelations extends AnyRelations>
 			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

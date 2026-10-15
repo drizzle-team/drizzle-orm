@@ -10,7 +10,6 @@ import type { CockroachTable } from '~/cockroach-core/table.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -52,6 +51,7 @@ export interface CockroachDeleteConfig {
 	returningFields?: SelectedFieldsFlat;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
+	useSelectionCastCodecs?: boolean;
 }
 
 export type CockroachDeleteReturningAll<
@@ -230,31 +230,39 @@ export class CockroachDeleteBase<
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): CockroachDeleteReturning<this, TDynamic, any> | CockroachDeleteReturningAll<this, TDynamic> {
 		this.config.returningFields = fields;
-		this.config.returning = orderSelectedFields<CockroachColumn>(fields);
+		this.config.returning = orderSelectedFields<CockroachColumn>(
+			fields,
+			undefined,
+			this.dialect.codecs,
+		);
 		return this as any;
 	}
 
-	/** @internal */
-	getSQL(): SQL {
-		return this.dialect.buildDeleteQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildDeleteQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): CockroachDeletePrepare<this> {
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const query = this.dialect.sqlToQuery(this.getSQL());
+			const { returning: fields } = this.config;
+			const query = this.dialect.sqlToQuery(this.getSQL(true));
+
 			return this.session.prepareQuery<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? CockroachQueryResultKind<TQueryResult, never> : TReturning[];
 				}
 			>(
 				query,
-				this.config.returning,
-				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
+				fields ? 'arrays' : 'raw',
+				name ?? generateName,
+				fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 			);
 		});
 	}
@@ -283,11 +291,6 @@ export class CockroachDeleteBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
-	}
-
-	/** @internal */
-	withoutSelectionCastCodecs(): this {
-		return this;
 	}
 
 	$dynamic(): CockroachDeleteDynamic<this> {

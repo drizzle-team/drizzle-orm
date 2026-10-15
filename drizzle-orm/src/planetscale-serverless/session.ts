@@ -13,6 +13,7 @@ import { type Query, sql } from '~/sql/sql.ts';
 export interface PlanetscaleSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlAsyncSession<
@@ -75,6 +76,7 @@ export class PlanetscaleSession<TRelations extends AnyRelations> extends MySqlAs
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -132,12 +134,14 @@ export class PlanetScaleTransaction<
 			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}
 }
 
 export interface PlanetscaleQueryResultHKT extends MySqlQueryResultHKT {
-	type: ExecutedQuery;
+	type: [this['row']] extends [never] ? ExecutedQuery<never>
+		: [this['row']] extends ['unknown'] ? ExecutedQuery
+		: ExecutedQuery<this['row']>;
 }

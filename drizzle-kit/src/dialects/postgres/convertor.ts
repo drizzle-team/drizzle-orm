@@ -341,10 +341,11 @@ const recreateIndexConvertor = convertor('recreate_index', (st) => {
 	// AlterTableAlterColumnSetExpressionConvertor
 	// AlterTableAlterColumnAlterGeneratedConvertor
 
-	const drop = dropIndexConvertor.convert({ index: st.index }) as string;
-	const add = createIndexConvertor.convert({ index: st.index }) as string;
+	const res: string[] = [];
+	if (st.shouldDrop) res.push(dropIndexConvertor.convert({ index: st.index }) as string);
+	res.push(createIndexConvertor.convert({ index: st.index }) as string);
 
-	return [drop, add];
+	return res;
 });
 
 const alterColumnConvertor = convertor('alter_column', (st) => {

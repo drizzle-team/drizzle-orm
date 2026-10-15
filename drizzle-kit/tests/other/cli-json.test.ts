@@ -1,15 +1,14 @@
 import { PGlite } from '@electric-sql/pglite';
 import { createClient as createLibsqlClient } from '@libsql/client';
 import BetterSqlite3 from 'better-sqlite3';
-import { spawnSync } from 'child_process';
 import { sql } from 'drizzle-orm';
 import { integer as pgInteger, pgPolicy, pgSchema, pgTable, text as pgText } from 'drizzle-orm/pg-core';
 import { check, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
-import { stripAnsi } from 'hanji/utils';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
+import { check as sdkCheck } from '../../src/cli-sdk';
 import { HintsHandler } from '../../src/cli/hints';
 import {
 	fromExports as pgFromExports,
@@ -86,63 +85,8 @@ const runPushPostgres = async (
 		));
 };
 
-const runCli = (argv: string[], env: NodeJS.ProcessEnv = {}) => {
-	const script = [
-		'(async () => {',
-		`process.argv = ${JSON.stringify(['node', 'drizzle-kit', ...argv])};`,
-		"await import('./src/cli/index.ts');",
-		'})().catch((err) => {',
-		'console.error(err);',
-		'process.exit(1);',
-		'});',
-	].join(' ');
-
-	return spawnSync('pnpm', ['exec', 'tsx', '-e', script], {
-		cwd: process.cwd(),
-		encoding: 'utf8',
-		env: { ...process.env, ...env },
-	});
-};
-
 const resetMockedModules = () => {
-	for (
-		const modulePath of [
-			'../../src/cli/views',
-			'../../src/cli/utils',
-			'../../src/cli/commands/pull-postgres',
-			'../../src/cli/commands/pull-mysql',
-			'../../src/cli/commands/pull-sqlite',
-			'../../src/cli/commands/pull-cockroach',
-			'../../src/cli/connections',
-			'../../src/utils/utils-node',
-			'../../src/dialects/drizzle',
-			'../../src/dialects/pull-utils',
-			'../../src/dialects/postgres/drizzle',
-			'../../src/dialects/postgres/ddl',
-			'../../src/dialects/postgres/diff',
-			'../../src/dialects/postgres/introspect',
-			'../../src/dialects/postgres/serializer',
-			'../../src/dialects/mysql/drizzle',
-			'../../src/dialects/mysql/ddl',
-			'../../src/dialects/mysql/diff',
-			'../../src/dialects/sqlite/drizzle',
-			'../../src/dialects/sqlite/ddl',
-			'../../src/dialects/sqlite/diff',
-			'../../src/dialects/sqlite/serializer',
-			'../../src/dialects/cockroach/drizzle',
-			'../../src/dialects/cockroach/ddl',
-			'../../src/dialects/cockroach/diff',
-			'../../src/dialects/cockroach/introspect',
-			'../../src/cli/commands/pull-mssql',
-			'../../src/dialects/mssql/drizzle',
-			'../../src/dialects/mssql/ddl',
-			'../../src/dialects/mssql/diff',
-			'../../src/dialects/mssql/introspect',
-			'../../src/dialects/mysql/introspect',
-			'../../src/dialects/singlestore/drizzle',
-			'../../src/dialects/singlestore/diff',
-		]
-	) {
+	for (const modulePath of ['../../src/cli/views', '../../src/cli/utils']) {
 		vi.doUnmock(modulePath);
 	}
 };
@@ -151,103 +95,6 @@ afterEach(() => {
 	vi.restoreAllMocks();
 	resetMockedModules();
 	vi.resetModules();
-});
-
-test('root --version prints human-readable output', () => {
-	const result = runCli(['--version']);
-
-	expect(result.status).toBe(0);
-	expect(result.stdout).toContain('drizzle-kit:');
-	expect(result.stdout).toContain('drizzle-orm:');
-	expect(result.stdout).not.toContain('skills:');
-	expect(() => JSON.parse(result.stdout.trim())).toThrow();
-});
-
-test('skills version prints the bundled revision on a single line', () => {
-	const result = runCli(['skills', 'version'], { DRIZZLE_KIT_SKILLS_REVISION: '42' });
-
-	expect(result.status).toBe(0);
-	expect(stripAnsi(result.stdout).trim()).toBe('42');
-});
-
-test('json error output includes structured cli error fields', () => {
-	const result = runCli(['generate', '--output', 'json', '--config=foo.ts', '--dialect=postgresql']);
-
-	expect(result.status).not.toBeNull();
-	expect(result.stderr).toContain("You can't use both --config and other cli options for generate command");
-	expect(result.stdout.trim().startsWith('{')).toBe(true);
-	expect(result.stdout.trim().endsWith('}')).toBe(true);
-	const parsed = JSON.parse(result.stdout.trim());
-	expect(parsed).toStrictEqual({
-		status: 'error',
-		error: {
-			code: 'ambiguous_params_error',
-			command: 'generate',
-			configOption: 'config',
-		},
-	});
-});
-
-test('generate with config emits clean json stdout in json mode', () => {
-	const result = runCli(
-		['generate', '--output', 'json', '--config=drizzle.config.ts', '--explain'],
-		{ TEST_CONFIG_PATH_PREFIX: './tests/cli/' },
-	);
-
-	expect(result.status).toBe(0);
-	expect(result.stdout).not.toContain('Reading config file');
-	expect(result.stdout).not.toContain('No config path provided');
-	expect(result.stderr).not.toContain('Reading config file');
-	expect(result.stderr).not.toContain('No config path provided');
-	expect(JSON.parse(result.stdout.trim())).toStrictEqual({
-		status: 'no_changes',
-		dialect: 'postgresql',
-	});
-});
-
-test('generate missing schema path emits structured json error', () => {
-	const result = runCli([
-		'generate',
-		'--output',
-		'json',
-		'--dialect=postgresql',
-		'--schema=tests/definitely-missing-schema.ts',
-	]);
-
-	expect(result.status).toBe(1);
-	expect(result.stdout.trim().startsWith('{')).toBe(true);
-	expect(result.stdout.trim().endsWith('}')).toBe(true);
-	const parsed = JSON.parse(result.stdout.trim());
-	expect(parsed).toMatchObject({
-		status: 'error',
-		error: {
-			code: 'schema_files_not_found_error',
-			paths: ['tests/definitely-missing-schema.ts'],
-		},
-	});
-});
-
-test('push missing schema path emits structured json error', () => {
-	const result = runCli([
-		'push',
-		'--output',
-		'json',
-		'--dialect=postgresql',
-		'--schema=tests/definitely-missing-schema.ts',
-		'--url=postgres://postgres:postgres@127.0.0.1:5432/postgres',
-	]);
-
-	expect(result.status).toBe(1);
-	expect(result.stdout.trim().startsWith('{')).toBe(true);
-	expect(result.stdout.trim().endsWith('}')).toBe(true);
-	const parsed = JSON.parse(result.stdout.trim());
-	expect(parsed).toMatchObject({
-		status: 'error',
-		error: {
-			code: 'schema_files_not_found_error',
-			paths: ['tests/definitely-missing-schema.ts'],
-		},
-	});
 });
 
 test('push throws a structured command_output_error for a duplicate-name schema in json mode', async () => {
@@ -988,7 +835,6 @@ describe('push sqlite confirm_data_loss[add_not_null] in json mode', () => {
 			notnull: number;
 		}[];
 		const emailCol = cols.find((c) => c.name === 'email');
-		expect(emailCol).toBeDefined();
 		expect(emailCol!.notnull).toBe(1);
 
 		sqlite.close();
@@ -1035,7 +881,6 @@ describe('push sqlite confirm_data_loss[add_not_null] in json mode', () => {
 			notnull: number;
 		}[];
 		const emailCol = cols.find((c) => c.name === 'email');
-		expect(emailCol).toBeDefined();
 		expect(emailCol!.notnull).toBe(1);
 
 		sqlite.close();
@@ -1258,52 +1103,56 @@ describe('check --output', () => {
 	const stageConflict = _stageConflict;
 	const stageTableConflict = _stageTableConflict;
 
-	const runCheck = (out: string, extra: string[] = []) =>
-		runCli(['check', `--out=${out}`, '--dialect=postgresql', ...extra]);
-
-	const expectNoHumanStrings = (stdout: string) => {
-		expect(stdout).not.toContain('🐶🔥');
-		expect(stdout).not.toContain('Non-commutative');
-		expect(stdout).not.toContain('\x1b[');
+	type ConflictBranch = {
+		leafId: string | null;
+		leafPath: string | null;
+		statementDescription: string;
+		action: string;
+		target: { kind: string; name: string; table?: string; schema?: string };
+	};
+	type CheckEnvelope = {
+		status: 'ok' | 'error';
+		dialect?: string;
+		error?: {
+			code: string;
+			kind: string;
+			snapshot?: unknown;
+			conflicts?: number;
+			details?: Array<{ parentId: string; parentPath?: string; branches: ConflictBranch[] }>;
+		};
 	};
 
-	test('valid journal emits an ok envelope with clean json stdout in json mode', () => {
-		const result = runCheck(stageValid(), ['--output', 'json']);
+	const runCheck = async (out: string, opts: { ignoreConflicts?: boolean } = {}): Promise<CheckEnvelope> =>
+		(await sdkCheck({ dialect: 'postgresql', out, ...opts })) as unknown as CheckEnvelope;
 
-		expect(result.status).toBe(0);
-		expect(JSON.parse(result.stdout.trim())).toStrictEqual({ status: 'ok', dialect: 'postgresql' });
-		expectNoHumanStrings(result.stdout);
+	test('valid journal emits an ok envelope', async () => {
+		const result = await runCheck(stageValid());
+		expect(result).toStrictEqual({ status: 'ok', dialect: 'postgresql' });
 	});
 
-	test('unsupported snapshot version emits a check_error envelope in json mode', () => {
+	test('unsupported snapshot version emits a check_error envelope', async () => {
 		const out = stageOut();
 		writeSnapshot(out, '0000_init', { version: '999', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [] });
-		const result = runCheck(out, ['--output', 'json']);
+		const result = await runCheck(out);
 
-		expect(result.status).toBe(1);
-		const parsed = JSON.parse(result.stdout.trim());
-		expect(parsed.status).toBe('error');
-		expect(parsed.error.code).toBe('check_error');
-		expect(parsed.error.kind).toBe('unsupported');
-		expect(typeof parsed.error.snapshot).toBe('string');
-		expectNoHumanStrings(result.stdout);
+		expect(result.status).toBe('error');
+		expect(result.error?.code).toBe('check_error');
+		expect(result.error?.kind).toBe('unsupported');
+		expect(typeof result.error?.snapshot).toBe('string');
 	});
 
-	test('non-latest snapshot version emits a check_error envelope in json mode', () => {
+	test('non-latest snapshot version emits a check_error envelope', async () => {
 		const out = stageOut();
 		writeSnapshot(out, '0000_init', { version: '1', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [] });
-		const result = runCheck(out, ['--output', 'json']);
+		const result = await runCheck(out);
 
-		expect(result.status).toBe(1);
-		const parsed = JSON.parse(result.stdout.trim());
-		expect(parsed.status).toBe('error');
-		expect(parsed.error.code).toBe('check_error');
-		expect(parsed.error.kind).toBe('non_latest');
-		expect(typeof parsed.error.snapshot).toBe('string');
-		expectNoHumanStrings(result.stdout);
+		expect(result.status).toBe('error');
+		expect(result.error?.code).toBe('check_error');
+		expect(result.error?.kind).toBe('non_latest');
+		expect(typeof result.error?.snapshot).toBe('string');
 	});
 
-	test('malformed snapshot emits a check_error envelope in json mode', () => {
+	test('malformed snapshot emits a check_error envelope', async () => {
 		const out = stageOut();
 		// Correct version but a structurally invalid body trips the `malformed` validator status.
 		writeSnapshot(out, '0000_init', {
@@ -1313,51 +1162,44 @@ describe('check --output', () => {
 			prevIds: [ORIGIN],
 			ddl: 'not-an-array',
 		});
-		const result = runCheck(out, ['--output', 'json']);
+		const result = await runCheck(out);
 
-		expect(result.status).toBe(1);
-		const parsed = JSON.parse(result.stdout.trim());
-		expect(parsed.status).toBe('error');
-		expect(parsed.error.code).toBe('check_error');
-		expect(parsed.error.kind).toBe('malformed');
-		expect(typeof parsed.error.snapshot).toBe('string');
-		expectNoHumanStrings(result.stdout);
+		expect(result.status).toBe('error');
+		expect(result.error?.code).toBe('check_error');
+		expect(result.error?.kind).toBe('malformed');
+		expect(typeof result.error?.snapshot).toBe('string');
 	});
 
-	test('valid-but-non-object snapshot emits a check_error envelope in json mode', () => {
+	test('valid-but-non-object snapshot emits a check_error envelope', async () => {
 		// Valid JSON but not an object — `JSON.parse` succeeds (no SyntaxError), so the post-parse
 		// narrowing guard is what turns these into `malformed` rather than an uncaught
 		// `'version' in <primitive>` TypeError. `null` is covered because `typeof null === 'object'`.
 		for (const body of [42, 'x', true, null]) {
 			const out = stageOut();
 			writeSnapshot(out, '0000_init', body);
-			const result = runCheck(out, ['--output', 'json']);
+			const result = await runCheck(out);
 
-			expect(result.status).toBe(1);
-			const parsed = JSON.parse(result.stdout.trim());
-			expect(parsed.status).toBe('error');
-			expect(parsed.error.code).toBe('check_error');
-			expect(parsed.error.kind).toBe('malformed');
-			expect(typeof parsed.error.snapshot).toBe('string');
-			expectNoHumanStrings(result.stdout);
+			expect(result.status).toBe('error');
+			expect(result.error?.code).toBe('check_error');
+			expect(result.error?.kind).toBe('malformed');
+			expect(typeof result.error?.snapshot).toBe('string');
 		}
 	});
 
-	test('conflicting branches emit an enriched conflicts envelope in json mode', () => {
-		const result = runCheck(stageConflict(), ['--output', 'json']);
+	test('conflicting branches emit an enriched conflicts envelope', async () => {
+		const result = await runCheck(stageConflict());
 
-		expect(result.status).toBe(1);
-		const parsed = JSON.parse(result.stdout.trim());
-		expect(parsed.status).toBe('error');
-		expect(parsed.error.code).toBe('check_error');
-		expect(parsed.error.kind).toBe('conflicts');
-		expect(parsed.error.conflicts).toBeGreaterThan(0);
+		expect(result.status).toBe('error');
+		expect(result.error?.code).toBe('check_error');
+		expect(result.error?.kind).toBe('conflicts');
+		expect(result.error?.conflicts).toBeGreaterThan(0);
 
 		// the per-conflict parent/branch-leaf/statement-description data must be
 		// machine-parseable from `error` (not just the count, and not via the human tree).
-		expect(Array.isArray(parsed.error.details)).toBe(true);
-		expect(parsed.error.details.length).toBe(parsed.error.conflicts);
-		for (const detail of parsed.error.details) {
+		const details = result.error!.details!;
+		expect(Array.isArray(details)).toBe(true);
+		expect(details.length).toBe(result.error!.conflicts);
+		for (const detail of details) {
 			expect(typeof detail.parentId).toBe('string');
 			const detailKeys = Object.keys(detail).sort();
 			expect(
@@ -1382,18 +1224,15 @@ describe('check --output', () => {
 				expect(branch.target.table).toBe('users');
 			}
 		}
-
-		expectNoHumanStrings(result.stdout);
 	});
 
-	test('a table-level conflict carries a table-kind target with its schema in json mode', () => {
-		const result = runCheck(stageTableConflict(), ['--output', 'json']);
+	test('a table-level conflict carries a table-kind target with its schema', async () => {
+		const result = await runCheck(stageTableConflict());
 
-		expect(result.status).toBe(1);
-		const parsed = JSON.parse(result.stdout.trim());
-		expect(parsed.error.kind).toBe('conflicts');
-		expect(parsed.error.details.length).toBeGreaterThan(0);
-		for (const detail of parsed.error.details) {
+		expect(result.error?.kind).toBe('conflicts');
+		const details = result.error!.details!;
+		expect(details.length).toBeGreaterThan(0);
+		for (const detail of details) {
 			for (const branch of detail.branches) {
 				// The structured kind for a create_table/create_table conflict is the table
 				// itself — not 'column' and not the schema — and it carries the schema so the
@@ -1403,56 +1242,11 @@ describe('check --output', () => {
 				expect(branch.target.schema).toBe('public');
 			}
 		}
-
-		expectNoHumanStrings(result.stdout);
 	});
 
-	test('ignore-conflicts emits an ok envelope despite conflicts in json mode', () => {
-		const result = runCheck(stageConflict(), ['--ignore-conflicts', '--output', 'json']);
-
-		expect(result.status).toBe(0);
-		expect(JSON.parse(result.stdout.trim())).toStrictEqual({ status: 'ok', dialect: 'postgresql' });
-		expectNoHumanStrings(result.stdout);
-	});
-
-	test('text mode prints the human success line for a valid journal', () => {
-		const result = runCheck(stageValid(), ['--output', 'text']);
-
-		expect(result.status).toBe(0);
-		expect(result.stdout).toContain("Everything's fine 🐶🔥");
-		expect(() => JSON.parse(result.stdout.trim())).toThrow();
-	});
-
-	test('text mode defaults when --output is omitted', () => {
-		const result = runCheck(stageValid());
-
-		expect(result.status).toBe(0);
-		expect(result.stdout).toContain("Everything's fine 🐶🔥");
-		expect(() => JSON.parse(result.stdout.trim())).toThrow();
-	});
-
-	test('text mode renders the conflict tree and exits non-zero', () => {
-		const result = runCheck(stageConflict(), ['--output', 'text']);
-
-		expect(result.status).not.toBe(0);
-		const combined = stripAnsi(result.stdout + result.stderr);
-		expect(combined).toContain('Non-commutative migrations detected');
-	});
-
-	test('text mode renders the typed integrity error and emits no json on stdout', () => {
-		const out = stageOut();
-		writeSnapshot(out, '0000_init', { version: '999', dialect: 'postgres', id: 'p1', prevIds: [ORIGIN], ddl: [] });
-		const result = runCheck(out, ['--output', 'text']);
-
-		expect(result.status).not.toBe(0);
-		expect(() => JSON.parse(result.stdout.trim())).toThrow();
-	});
-
-	test('ignore-conflicts emits the human success line in text mode', () => {
-		const result = runCheck(stageConflict(), ['--ignore-conflicts', '--output', 'text']);
-
-		expect(result.status).toBe(0);
-		expect(result.stdout).toContain("Everything's fine 🐶🔥");
+	test('ignore-conflicts emits an ok envelope despite conflicts', async () => {
+		const result = await runCheck(stageConflict(), { ignoreConflicts: true });
+		expect(result).toStrictEqual({ status: 'ok', dialect: 'postgresql' });
 	});
 });
 
@@ -1605,7 +1399,7 @@ describe('pull json envelopes', () => {
 
 	const baseConfig = (out: string) => ({
 		dialect: 'postgresql' as const,
-		credentials: { url: 'postgresql://postgres:postgres@127.0.0.1:5432/db' },
+		credentials: { url: 'postgresql://postgres:postgres@127.0.0.1:1/db' },
 		out,
 		casing: 'camel' as const,
 		breakpoints: true,

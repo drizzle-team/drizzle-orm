@@ -14,6 +14,7 @@ import type { Query } from '~/sql/sql.ts';
 export interface BunMySqlSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class BunMySqlSession<
@@ -70,6 +71,7 @@ export class BunMySqlSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -81,11 +83,18 @@ export class BunMySqlSession<
 			? this.getStartTransactionSQL(config)?.inlineParams().toQuery(this.dialect).sql.slice(18) ?? ''
 			: '';
 
-		if (config?.isolationLevel) throw new Error("Driver doesn't support setting isolation level on transaction");
+		const setTransactionSql = config?.isolationLevel
+			? this.getSetTransactionSQL(config)?.inlineParams().toQuery(this.dialect).sql
+			: undefined;
 
-		return this.client.begin(startTransactionSql, async (client) => {
+		const reserved = await this.client.reserve();
+
+		try {
+			if (setTransactionSql) await reserved.unsafe(setTransactionSql);
+			await reserved.unsafe(`start transaction ${startTransactionSql}`.trimEnd());
+
 			const session = new BunMySqlSession<TransactionSQL, TRelations>(
-				client,
+				reserved as unknown as TransactionSQL,
 				this.dialect,
 				this.relations,
 				this.options,
@@ -96,14 +105,18 @@ export class BunMySqlSession<
 				this.relations,
 				0,
 			);
-			// if (config) {
-			// 	const setTransactionConfigSql = this.getSetTransactionSQL(config);
-			// 	if (setTransactionConfigSql) {
-			// 		await tx.execute(setTransactionConfigSql);
-			// 	}
-			// }
-			return transaction(tx);
-		}) as Promise<T>;
+
+			try {
+				const result = await transaction(tx);
+				await reserved.unsafe('commit');
+				return result;
+			} catch (e) {
+				await reserved.unsafe('rollback').catch(() => {});
+				throw e;
+			}
+		} finally {
+			reserved.release();
+		}
 	}
 }
 
@@ -118,24 +131,41 @@ export class BunMySqlTransaction<
 	override async transaction<T>(
 		transaction: (tx: BunMySqlTransaction<TRelations>) => Promise<T>,
 	): Promise<T> {
-		return (<BunMySqlSession<TransactionSQL, any>> this.session).client.savepoint((client) => {
-			const session = new BunMySqlSession<SavepointSQL, TRelations>(
-				client,
-				this.dialect,
-				this.relations,
-				(<BunMySqlSession<any, any>> this.session).options,
-			);
-			const tx = new BunMySqlTransaction<TRelations>(
-				this.dialect,
-				session as MySqlAsyncSession<any, any>,
-				this.relations,
-				this.nestedIndex + 1,
-			);
-			return transaction(tx);
-		}) as Promise<T>;
+		const { client, options } = <BunMySqlSession<TransactionSQL, any>> this.session;
+
+		const session = new BunMySqlSession<SavepointSQL, TRelations>(
+			client as unknown as SavepointSQL,
+			this.dialect,
+			this.relations,
+			options,
+		);
+		const tx = new BunMySqlTransaction<TRelations>(
+			this.dialect,
+			session as MySqlAsyncSession<any, any>,
+			this.relations,
+			this.nestedIndex + 1,
+		);
+
+		const name = `sp${this.nestedIndex + 1}`;
+		await client.unsafe(`savepoint ${name}`);
+
+		try {
+			const result = await transaction(tx);
+			await client.unsafe(`release savepoint ${name}`);
+			return result;
+		} catch (e) {
+			await client.unsafe(`rollback to savepoint ${name}`).catch(() => {});
+			throw e;
+		}
 	}
 }
 
+export type BunMySqlRawExecuteResult =
+	| (Record<string, unknown>[] & Record<string, unknown>)
+	| (Record<string, unknown>[] & Record<string, unknown>)[];
+
 export interface BunMySqlQueryResultHKT extends MySqlQueryResultHKT {
-	type: Record<string, unknown>[] & Record<string, unknown>;
+	type: [this['row']] extends [never] ? [] & Record<string, unknown>
+		: [this['row']] extends ['unknown'] ? BunMySqlRawExecuteResult
+		: this['row'][] & Record<string, unknown>;
 }

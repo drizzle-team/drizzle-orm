@@ -159,7 +159,7 @@ export const preparePush = async (opts: PushOptionsInput) => {
 			'database',
 			'ssl',
 			'authToken',
-			'schemaFilters',
+			'schemaFilter',
 			'extensionsFilters',
 			'tablesFilter',
 			'tlsSecurity',
@@ -392,6 +392,10 @@ export const migrate = command({
 						);
 						process.exit(1);
 					}
+				} else if (driver === 'dsql') {
+					// TODO
+					// author: alex.sherman
+					// Do we need to check version here?
 				} else {
 					assertUnreachable(driver);
 				}
@@ -480,7 +484,7 @@ export const migrate = command({
 
 const optionsFilters = {
 	tablesFilter: string().desc('Table name filters'),
-	schemaFilters: string().desc('Schema name filters'),
+	schemaFilter: string().desc('Schema name filter'),
 	extensionsFilters: string().desc(
 		'`Database extensions internal database filters',
 	),
@@ -678,7 +682,7 @@ export const preparePull = async (opts: PullOptionsInput) => {
 			'casing',
 			'breakpoints',
 			'tablesFilter',
-			'schemaFilters',
+			'schemaFilter',
 			'extensionsFilters',
 			'tlsSecurity',
 		],
@@ -754,7 +758,7 @@ export const runPull = async (
 			const { handle: introspectPostgres } = await import(
 				'./commands/pull-postgres'
 			);
-			manifest = await introspectPostgres(casing, out, breakpoints, credentials, filters, migrations, db);
+			manifest = await introspectPostgres(casing, out, breakpoints, credentials, filters, migrations, init, db);
 		} catch (e) {
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(
@@ -775,7 +779,7 @@ export const runPull = async (
 			};
 
 			const { handle: introspectMysql } = await import('./commands/pull-mysql');
-			manifest = await introspectMysql(casing, out, breakpoints, credentials, filters, migrations, db);
+			manifest = await introspectMysql(casing, out, breakpoints, credentials, filters, migrations, init, db);
 		} catch (e) {
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(
@@ -796,7 +800,7 @@ export const runPull = async (
 			};
 
 			const { handle } = await import('./commands/pull-sqlite');
-			manifest = await handle(casing, out, breakpoints, credentials, filters, 'sqlite', migrations, db);
+			manifest = await handle(casing, out, breakpoints, credentials, filters, 'sqlite', migrations, init, db);
 		} catch (e) {
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(
@@ -817,7 +821,7 @@ export const runPull = async (
 			};
 
 			const { handle } = await import('./commands/pull-libsql');
-			manifest = await handle(casing, out, breakpoints, credentials, filters, 'libsql', migrations, db);
+			manifest = await handle(casing, out, breakpoints, credentials, filters, 'libsql', migrations, init, db);
 		} catch (e) {
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(
@@ -838,7 +842,7 @@ export const runPull = async (
 			};
 
 			const { handle } = await import('./commands/pull-singlestore');
-			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, db);
+			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, init, db);
 		} catch (e) {
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(
@@ -859,7 +863,7 @@ export const runPull = async (
 			};
 
 			const { handle } = await import('./commands/pull-mssql');
-			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, db);
+			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, init, db);
 		} catch (e) {
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(
@@ -880,7 +884,7 @@ export const runPull = async (
 			};
 
 			const { handle } = await import('./commands/pull-cockroach');
-			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, db);
+			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, init, db);
 		} catch (e) {
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(
@@ -1000,6 +1004,10 @@ export const studio = command({
 						);
 						process.exit(1);
 					}
+				} else if (driver === 'dsql') {
+					// TODO
+					// author: alex.sherman
+					// Do we need to check version here?
 				} else {
 					assertUnreachable(driver);
 				}

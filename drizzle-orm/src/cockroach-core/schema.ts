@@ -11,14 +11,17 @@ import {
 import { type cockroachSequence, cockroachSequenceWithSchema } from './sequence.ts';
 import { type CockroachTableFn, type CockroachTableFnInternal, cockroachTableWithSchema, EnableRLS } from './table.ts';
 import {
-	type cockroachMaterializedView,
+	type CockroachMaterializedViewFn,
 	cockroachMaterializedViewWithSchema,
-	type cockroachView,
+	type CockroachViewFn,
 	cockroachViewWithSchema,
 } from './view.ts';
 
 export class CockroachSchema<TName extends string = string> implements SQLWrapper {
 	static readonly [entityKind]: string = 'CockroachSchema';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	isExisting: boolean = false;
 	constructor(
@@ -41,11 +44,11 @@ export class CockroachSchema<TName extends string = string> implements SQLWrappe
 
 	view = ((name, columns) => {
 		return cockroachViewWithSchema(name, columns, this.schemaName, this.casing);
-	}) as typeof cockroachView;
+	}) as CockroachViewFn<TName>;
 
 	materializedView = ((name, columns) => {
 		return cockroachMaterializedViewWithSchema(name, columns, this.schemaName, this.casing);
-	}) as typeof cockroachMaterializedView;
+	}) as CockroachMaterializedViewFn<TName>;
 
 	public enum<U extends string, T extends Readonly<[U, ...U[]]>>(
 		enumName: string,

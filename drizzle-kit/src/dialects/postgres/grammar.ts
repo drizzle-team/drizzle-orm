@@ -15,7 +15,14 @@ import {
 import { parseArray, parseExpressionArray } from '../../utils/parse-pgarray';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
 import { hash } from '../common';
-import { escapeForSqlDefault, escapeForTsLiteral, numberForTs, parseParams, unescapeFromSqlDefault } from '../utils';
+import {
+	escapeForSqlDefault,
+	escapeForSqlTemplate,
+	escapeForTsLiteral,
+	numberForTs,
+	parseParams,
+	unescapeFromSqlDefault,
+} from '../grammar';
 import type { Column, DiffEntities, PostgresEntities } from './ddl';
 import type { Import } from './typescript';
 
@@ -53,7 +60,13 @@ export const SmallInt: SqlType = {
 	defaultArrayFromIntrospect: (value) => {
 		return value as string;
 	},
-	toTs: (_, value) => ({ default: value ?? '' }),
+	toTs: (_, value) => {
+		if (!value) return { default: '' };
+
+		const check = Number(value);
+
+		return { default: Number.isNaN(check) ? `sql\`${escapeForSqlTemplate(value)}\`` : value };
+	},
 	toArrayTs: (_, value) => {
 		if (!value) return { default: '' };
 
@@ -67,7 +80,7 @@ export const SmallInt: SqlType = {
 				}),
 			};
 		} catch {
-			return { default: `sql\`${value}\`` };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -113,7 +126,7 @@ export const BigInt: SqlType = {
 				default: stringifyArray(res, 'ts', (v) => `${v}n`),
 			};
 		} catch {
-			return { options: { mode: 'bigint' }, default: `sql\`${value}\`` };
+			return { options: { mode: 'bigint' }, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -170,7 +183,7 @@ export const Numeric: SqlType = {
 		// 		}),
 		// 	};
 		// } catch {
-		return { options, default: `sql\`${value}\`` };
+		return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		// }
 	},
 };
@@ -204,7 +217,7 @@ export const Real: SqlType = {
 				}),
 			};
 		} catch {
-			return { default: `sql\`${value}\`` };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -249,7 +262,7 @@ export const Boolean: SqlType = {
 				}),
 			};
 		} catch {
-			return { default: `sql\`${value}\`` };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -286,7 +299,9 @@ export const Char: SqlType = {
 		const [length] = parseParams(type);
 		if (length) options['length'] = Number(length);
 		if (!value) return { options, default: '' };
-		if (!value.startsWith("'") && !value.endsWith("'")) return { options, default: `sql\`${value}\`` };
+		if (!value.startsWith("'") && !value.endsWith("'")) {
+			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
+		}
 		const escaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(value, "'")));
 		return { options, default: escaped };
 	},
@@ -308,7 +323,7 @@ export const Char: SqlType = {
 				}),
 			};
 		} catch {
-			return { options, default: `sql\`${value}\`` };
+			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -395,11 +410,11 @@ export const Json: SqlType = {
 			)!;
 			return { default: stringified };
 		} catch {}
-		return { default: `sql\`${value}\`` };
+		return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 	},
 	toArrayTs: (_, def) => {
 		if (!def) return { default: '' };
-		return { default: `sql\`${def.replaceAll('\\"', '\\\\"')}\`` };
+		return { default: `sql\`${escapeForSqlTemplate(def)}\`` };
 	},
 };
 
@@ -457,7 +472,7 @@ export const Time: SqlType = {
 
 		if (!value) return { options, default: '' };
 		const trimmed = trimChar(value, "'");
-		if (!isTime(trimmed)) return { options, default: `sql\`${value}\`` };
+		if (!isTime(trimmed)) return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 
 		return { options, default: value };
 	},
@@ -481,7 +496,7 @@ export const Time: SqlType = {
 				}),
 			};
 		} catch {
-			return { options, default: `sql\`${value}\`` };
+			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -515,7 +530,7 @@ export const TimeTz: SqlType = {
 
 		if (!value) return { options, default: '' };
 		const trimmed = trimChar(value, "'");
-		if (!isTime(trimmed)) return { options, default: `sql\`${value}\`` };
+		if (!isTime(trimmed)) return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 
 		return { options, default: value };
 	},
@@ -543,7 +558,7 @@ export const TimeTz: SqlType = {
 				default: isDrizzleSql ? `sql\`${value}\`` : def,
 			};
 		} catch {
-			return { options, default: `sql\`${value}\`` };
+			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -583,7 +598,7 @@ export const DateType: SqlType = {
 	toTs: (type, value) => {
 		if (!value) return { default: '' };
 		const trimmed = trimChar(value, "'");
-		if (!isDate(trimmed)) return { default: `sql\`${value}\`` };
+		if (!isDate(trimmed)) return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 
 		return { default: value };
 	},
@@ -604,7 +619,7 @@ export const DateType: SqlType = {
 				default: isDrizzleSql ? mapped : `sql\`${value}\``,
 			};
 		} catch {
-			return { default: `sql\`${value}\`` };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -663,7 +678,7 @@ export const Timestamp: SqlType = {
 
 		const test = new Date(patched);
 
-		if (isNaN(test.getTime())) return { options, default: `sql\`${value}\`` };
+		if (isNaN(test.getTime())) return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 
 		return { options, default: `new Date('${patched}')` };
 	},
@@ -690,7 +705,7 @@ export const Timestamp: SqlType = {
 				default: isDrizzleSql ? `sql\`${value}\`` : def,
 			};
 		} catch {
-			return { options, default: `sql\`${value}\`` };
+			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -756,7 +771,7 @@ export const TimestampTz: SqlType = {
 
 		const test = new Date(patched);
 
-		if (isNaN(test.getTime())) return { options, default: `sql\`${value}\`` };
+		if (isNaN(test.getTime())) return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 
 		return { options, default: `new Date('${patched}')` };
 	},
@@ -785,7 +800,7 @@ export const TimestampTz: SqlType = {
 				default: isDrizzleSql ? `sql\`${value}\`` : def,
 			};
 		} catch {
-			return { options, default: `sql\`${value}\`` };
+			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -816,7 +831,7 @@ export const Uuid: SqlType = {
 		value = trimChar(value, "'");
 		if (value === 'gen_random_uuid()') return { options, default: '.defaultRandom()' };
 		if (!value.startsWith("'") && !value.endsWith("'") && value.endsWith('()')) {
-			return { options, default: `sql\`${value}\`` };
+			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 		return { options, default: `"${trimChar(value, "'")}"` };
 	},
@@ -835,7 +850,7 @@ export const Uuid: SqlType = {
 				}),
 			};
 		} catch {
-			return { options, default: `sql\`${value}\`` };
+			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -893,7 +908,7 @@ export const Interval: SqlType = {
 				}),
 			};
 		} catch {
-			return { options, default: `sql\`${value}\`` };
+			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -937,7 +952,7 @@ export const Inet: SqlType = {
 				}),
 			};
 		} catch {
-			return { default: `sql\`${value}\`` };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -981,7 +996,7 @@ export const Cidr: SqlType = {
 				}),
 			};
 		} catch {
-			return { default: `sql\`${value}\`` };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -1023,7 +1038,7 @@ export const MacAddr: SqlType = {
 				}),
 			};
 		} catch {
-			return { default: `sql\`${value}\`` };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -1084,7 +1099,7 @@ export const Vector: SqlType = {
 				}, Number(dimensions)),
 			};
 		} catch {
-			return { options, default: `sql\`${value}\`` };
+			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -1143,7 +1158,7 @@ export const SparseVec: SqlType = {
 				}),
 			};
 		} catch {
-			return { options, default: `sql\`${value}\`` };
+			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -1173,7 +1188,7 @@ export const Bit: SqlType = {
 			return { options, default: value };
 		}
 
-		return { options, default: `sql\`${value}\`` };
+		return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 	},
 	toArrayTs: (type, value) => {
 		const [dimensions] = parseParams(type);
@@ -1196,7 +1211,7 @@ export const Bit: SqlType = {
 				default: isDrizzleSql ? `sql\`${value}\`` : def,
 			};
 		} catch {
-			return { options, default: `sql\`${value}\`` };
+			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -1251,7 +1266,7 @@ export const Point: SqlType = {
 			return { default: trimChar(value, "'").replace('(', '[').replace(')', ']'), options: {} };
 		}
 
-		return { default: `sql\`${value}\``, options: {} };
+		return { default: `sql\`${escapeForSqlTemplate(value)}\``, options: {} };
 	},
 	toArrayTs: function(type: string, value: string | null): { options?: Record<string, unknown>; default: string } {
 		if (!value) return { default: '' };
@@ -1270,7 +1285,7 @@ export const Point: SqlType = {
 				default: isDrizzleSql ? `sql\`${value}\`` : def,
 			};
 		} catch {
-			return { default: `sql\`${value}\`` };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -1330,7 +1345,7 @@ export const Line: SqlType = {
 			return { default: trimChar(value, "'").replace('{', '[').replace('}', ']'), options: {} };
 		}
 
-		return { default: `sql\`${value}\``, options: {} };
+		return { default: `sql\`${escapeForSqlTemplate(value)}\``, options: {} };
 	},
 	toArrayTs: function(type: string, value: string | null): { options?: Record<string, unknown>; default: string } {
 		if (!value) return { default: '' };
@@ -1349,7 +1364,7 @@ export const Line: SqlType = {
 				default: isDrizzleSql ? `sql\`${value}\`` : def,
 			};
 		} catch {
-			return { default: `sql\`${value}\`` };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -1466,12 +1481,12 @@ export const GeometryPoint: SqlType = {
 		if (sridOption) options.srid = Number(sridOption);
 
 		if (!value.includes('POINT(')) {
-			return { default: `sql\`${value}\``, options };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\``, options };
 		}
 
 		const sridInDef = value.startsWith("'SRID=") ? Number(value.split('SRID=')[1].split(';')[0]) : undefined;
 		if (!sridOption && sridInDef) {
-			return { default: `sql\`${value}\``, options };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\``, options };
 		}
 
 		const [res1, res2] = value.split('POINT(')[1].split(')')[0].split(' ');
@@ -1512,10 +1527,10 @@ export const GeometryPoint: SqlType = {
 
 			return {
 				options,
-				default: isDrizzleSql ? `sql\`${value}\`` : def,
+				default: isDrizzleSql ? `sql\`${escapeForSqlTemplate(value)}\`` : def,
 			};
 		} catch {
-			return { options, default: `sql\`${value}\`` };
+			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -1573,7 +1588,7 @@ export const Enum: SqlType = {
 				}),
 			};
 		} catch {
-			return { default: `sql\`${value}\`` };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 	},
 };
@@ -1632,7 +1647,6 @@ export const Custom: SqlType = {
 	},
 	drizzleImport: () => 'customType',
 	defaultFromDrizzle: (value) => {
-		if (!value) return '';
 		return String(value);
 	},
 	defaultArrayFromDrizzle: (value) => {
@@ -1665,7 +1679,7 @@ export const Custom: SqlType = {
 				customType: type,
 			};
 		} catch {
-			return { default: `sql\`${value}\``, customType: type };
+			return { default: `sql\`${escapeForSqlTemplate(value)}\``, customType: type };
 		}
 	},
 };
@@ -1754,7 +1768,9 @@ export const isSerialExpression = (expr: string, schema: string) => {
 	const schemaPrefix = schema === 'public' ? '' : `${schema}`;
 	return (expr.startsWith(`nextval('${schemaPrefix}`)
 		|| expr.startsWith(`nextval('"${schemaPrefix}"${schemaPrefix ? '.' : ''}`))
-		&& (expr.endsWith(`_seq'::regclass)`) || expr.endsWith(`_seq"'::regclass)`));
+		// Postgres appends a numeric suffix on name collision (`_seq`, `_seq1`, `_seq2`, …); `"?` allows a
+		// quoted identifier's closing double quote
+		&& /_seq\d*"?'::regclass\)$/.test(expr);
 };
 
 export function stringFromDatabaseIdentityProperty(field: any): string | null {
@@ -1835,8 +1851,15 @@ export const parseOnType = (type: string): OnAction => {
 	}
 };
 
-export const planetscaleNamespaces = ['pscale_extensions'];
-export const systemNamespaceNames = ['pg_toast', 'pg_catalog', 'information_schema', ...planetscaleNamespaces];
+export const planetscaleNamespaces = ['pscale_extensions', '__neki'];
+export const dsqlNamespaces = ['sys'];
+export const systemNamespaceNames = [
+	'pg_toast',
+	'pg_catalog',
+	'information_schema',
+	...planetscaleNamespaces,
+	...dsqlNamespaces,
+];
 export const isSystemNamespace = (name: string) => {
 	return name.startsWith('pg_toast') || name === 'pg_default' || name === 'pg_global' || name.startsWith('pg_temp_')
 		|| systemNamespaceNames.indexOf(name) >= 0;
@@ -1975,7 +1998,7 @@ export const defaultNameForIndex = (table: string, columns: string[]) => {
 
 export const trimDefaultValueSuffix = (value: string) => {
 	let res = value.endsWith('[]') ? value.slice(0, -2) : value;
-	res = res.replace(/(::["\w.\s]+(?:\([^)]*\))?(?:\swith(?:out)?\stime\szone)?(?:\[\])?)+$/gi, '');
+	res = res.replace(/(::["\w.\s-]+(?:\([^)]*\))?(?:\swith(?:out)?\stime\szone)?(?:\[\])?)+$/gi, '');
 	return res;
 };
 
@@ -2158,6 +2181,24 @@ export const defaultsCommutative = (
 	}
 
 	return false;
+};
+
+export const existsInViewDef = (
+	view1: { name: string; schema: string },
+	view2: { name: string; schema: string; definition: string | null },
+) => {
+	const candidates = view1.schema !== 'public'
+		? [
+			`${view1.schema}"."${view1.name}`, // "schema"."view"
+			`${view1.schema}."${view1.name}`, // schema."view"
+			`${view1.schema}".${view1.name}`, // "schema".view
+			`${view1.schema}.${view1.name}`, // schema.view
+		]
+		: [
+			view1.name, // bare view name
+		];
+
+	return candidates.some((candidate) => view2.definition?.includes(candidate));
 };
 
 export const defaults = {

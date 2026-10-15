@@ -5,8 +5,8 @@ import { MySqlInsertBase, type MySqlInsertHKTBase } from '~/mysql-core/query-bui
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlQueryResultKind } from '~/mysql-core/session.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import type { Assume } from '~/utils.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { MySqlEffectPreparedQuery, MySqlEffectSession } from './session.ts';
 
 export interface MySqlEffectInsertHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
@@ -91,7 +91,7 @@ export class MySqlEffectInsertBase<
 			this.dialect.mapperGenerators.$returning(this.config.returning, generatedIds),
 			{
 				type: 'insert',
-				tables: extractUsedTable(this.config.table),
+				tables: usedTablesOf(this.config.table),
 			},
 		) as MySqlEffectInsertPrepare<this, TReturning, TEffectHKT>;
 	}

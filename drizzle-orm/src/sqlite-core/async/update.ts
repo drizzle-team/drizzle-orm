@@ -6,8 +6,8 @@ import type { SQLiteUpdateBuilder, SQLiteUpdateHKTBase } from '~/sqlite-core/que
 import { SQLiteUpdateBase } from '~/sqlite-core/query-builders/update.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import { applyMixins, type Assume, type DrizzleTypeError } from '~/utils.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { SQLiteViewBase } from '../view-base.ts';
 import type { SQLiteAsyncPreparedQuery, SQLiteAsyncPreparedQueryConfig, SQLiteAsyncSession } from './session.ts';
 
@@ -50,7 +50,7 @@ export type SQLiteAsyncUpdatePrepare<T extends AnySQLiteAsyncUpdate> = SQLiteAsy
 		all: T['_']['returning'] extends undefined ? DrizzleTypeError<'.all() cannot be used without .returning()'>
 			: T['_']['returning'][];
 		get: T['_']['returning'] extends undefined ? DrizzleTypeError<'.get() cannot be used without .returning()'>
-			: T['_']['returning'];
+			: T['_']['returning'] | undefined;
 		values: T['_']['returning'] extends undefined ? DrizzleTypeError<'.values() cannot be used without .returning()'>
 			: any[][];
 		execute: SQLiteAsyncUpdateExecute<T>;
@@ -122,14 +122,14 @@ export class SQLiteAsyncUpdateBase<
 	/** @internal */
 	_prepare(prepare = false): SQLiteAsyncUpdatePrepare<this> {
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+			this.dialect.sqlToQuery(this.getSQL(true)),
 			'arrays',
 			prepare,
 			this.config.returning ? 'all' : 'run',
 			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
 			{
 				type: 'update',
-				tables: extractUsedTable(this.config.table),
+				tables: usedTablesOf(this.config.table),
 			},
 		) as SQLiteAsyncUpdatePrepare<this>;
 	}
