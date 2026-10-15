@@ -1018,6 +1018,45 @@ test('fks with same names but in diff databases', async () => {
 	}]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6447
+test('checks with same names but in diff databases', async () => {
+	await db.query('DROP DATABASE if exists `check_test`;');
+	await db.query('DROP DATABASE if exists `check_test_2`;');
+	await db.query('CREATE DATABASE `check_test`;');
+	await db.query('CREATE DATABASE `check_test_2`;');
+
+	// MySQL auto-names checks `<table>_chk_<n>`, so both databases get `menu_chk_1`
+	await db.query(`USE check_test;`);
+	await db.query(`
+		CREATE TABLE menu (
+			id INT PRIMARY KEY,
+			vidim INT,
+			CHECK (vidim IN (1, 2))
+		);
+	`);
+
+	await db.query(`USE check_test_2;`);
+	await db.query(`
+		CREATE TABLE menu (
+			id INT PRIMARY KEY,
+			vidim INT,
+			CHECK (vidim IN (1, 2))
+		);
+	`);
+
+	const { checks } = await fromDatabaseForDrizzle(db, 'check_test', () => true, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+
+	expect(checks).toStrictEqual([{
+		entityType: 'checks',
+		table: 'menu',
+		name: 'menu_chk_1',
+		value: '(`vidim` in (1,2))',
+	}]);
+});
+
 test('introspect cyclic foreign key', async () => {
 	const inviteCode = mysqlTable('InviteCode', {
 		id: int().primaryKey(),
