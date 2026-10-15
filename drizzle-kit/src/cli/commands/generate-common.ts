@@ -9,16 +9,35 @@ import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
 import type { SingleStoreSnapshot } from '../../dialects/singlestore/snapshot';
 import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
 import { BREAKPOINT } from '../../utils';
+import { upHashStamp } from '../../utils/utils-node';
 import { prepareMigrationMetadata } from '../../utils/words';
 import { outputFormat } from '../context';
 import type { Driver } from '../validations/common';
+import { withStyle } from '../validations/outputs';
 import { humanLog } from '../views';
+import {
+	collectIrreversibleDownWarnings,
+	describeIrreversibleWarnings,
+	type DownResult,
+	formatIrreversibleBanner,
+} from './generate-down-helpers';
+
+export const DOWN_SQL_HEADER =
+	'-- Auto-generated rollback for the migration above, produced from the reverse schema diff.\n'
+	+ '-- It reverses structural (DDL) changes only. Custom or data statements you add to\n'
+	+ '-- migration.sql are NOT reversed automatically — add their inverse here by hand.\n'
+	+ '-- Review before relying on it in production. The up-hash line lets `drizzle-kit check`\n'
+	+ '-- warn when migration.sql changes after this file was generated.';
+
+export const CUSTOM_DOWN_SQL_SCAFFOLD = '-- Custom SQL rollback file, put your reverse statements below! --';
 
 type WriteResultConfigBase = {
 	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot | CockroachSnapshot | SingleStoreSnapshot;
 	sqlStatements: string[];
+	down?: DownResult;
 	outFolder: string;
 	breakpoints: boolean;
+	generateDownMigrations: boolean;
 	name?: string;
 	bundle?: boolean;
 	dialect?: string;
@@ -46,8 +65,10 @@ export function writeResult(
 	const {
 		snapshot,
 		sqlStatements,
+		down,
 		outFolder,
 		breakpoints,
+		generateDownMigrations,
 		name,
 		renames,
 		bundle = false,
@@ -92,6 +113,35 @@ export function writeResult(
 	fs.writeFileSync(join(outFolder, `${tag}/migration.sql`), sql);
 	const migrationPath = path.join(`${outFolder}/${tag}/migration.sql`);
 
+	if (generateDownMigrations) {
+		const downPath = join(outFolder, `${tag}/down.sql`);
+		if (type === 'custom') {
+			fs.writeFileSync(downPath, CUSTOM_DOWN_SQL_SCAFFOLD);
+		} else if (down && 'error' in down) {
+			const reason = down.error instanceof Error ? down.error.message : String(down.error);
+			humanLog(
+				withStyle.warning(
+					`Could not generate a rollback for ${tag}, so no down.sql was written: ${reason}`,
+				),
+			);
+		} else if (down && down.sqlStatements.length > 0) {
+			const stamp = upHashStamp(sql);
+			const warnings = collectIrreversibleDownWarnings(down.statements);
+			const banner = formatIrreversibleBanner(warnings);
+			const header = banner ? `${DOWN_SQL_HEADER}\n${banner}` : DOWN_SQL_HEADER;
+			fs.writeFileSync(downPath, `${stamp}\n${header}\n${down.sqlStatements.join(sqlDelimiter)}`);
+			if (warnings.length > 0) {
+				humanLog(
+					withStyle.warning(
+						`${downPath} needs review; best-effort checks flagged:\n${
+							describeIrreversibleWarnings(warnings).join('\n')
+						}`,
+					),
+				);
+			}
+		}
+	}
+
 	// js file with .sql imports for React Native / Expo and Durable Sqlite Objects
 	if (bundle) {
 		// adding new migration to the list of all migrations
@@ -126,19 +176,32 @@ export const embeddedMigrations = (snapshots: string[], driver?: Driver) => {
 		: '';
 
 	const migrations: Record<string, string> = {};
+	const downMigrations: Record<string, string> = {};
 
 	snapshots.forEach((entry, idx) => {
-		const prefix = entry.split(path.sep)[entry.split(path.sep).length - 2];
+		const folder = path.dirname(entry);
+		const tag = path.basename(folder);
 		const importName = idx.toString().padStart(4, '0');
-		content += `import m${importName} from './${prefix}/migration.sql';\n`;
-		migrations[prefix] = importName;
+		content += `import m${importName} from './${tag}/migration.sql';\n`;
+		migrations[tag] = importName;
+		if (fs.existsSync(join(folder, 'down.sql'))) {
+			content += `import d${importName} from './${tag}/down.sql';\n`;
+			downMigrations[tag] = importName;
+		}
 	});
+
+	const hasDown = Object.keys(downMigrations).length > 0;
+	const downBlock = hasDown
+		? `,\n    downMigrations: {\n      ${
+			Object.entries(downMigrations).map(([key, query]) => `"${key}": d${query}`).join(',\n      ')
+		}\n    }`
+		: '';
 
 	content += `
   export default {
     migrations: {
-      ${Object.entries(migrations).map(([key, query]) => `"${key}": m${query}`).join(',\n')}
-}
+      ${Object.entries(migrations).map(([key, query]) => `"${key}": m${query}`).join(',\n      ')}
+    }${downBlock}
   }
   `;
 

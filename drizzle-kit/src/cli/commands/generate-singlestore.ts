@@ -1,4 +1,4 @@
-import type { Column, Table, View } from '../../dialects/mysql/ddl';
+import type { Column, MysqlDDL, Table, View } from '../../dialects/mysql/ddl';
 import { createDDL, interimToDDL } from '../../dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/singlestore/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/singlestore/drizzle';
@@ -9,7 +9,21 @@ import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, mysqlSchemaError } from '../views';
 import { writeResult } from './generate-common';
+import { computeDown, diffWithDown, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
+
+const diff = (from: MysqlDDL, to: MysqlDDL, resolverFor: ResolverFor) =>
+	ddlDiff(
+		from,
+		to,
+		resolverFor<Table>('table'),
+		resolverFor<Column>('column'),
+		resolverFor<View>('view'),
+		'default',
+	);
+
+export const ddlDiffWithDown = (ddlPrev: MysqlDDL, ddlCur: MysqlDDL, resolverFor: ResolverFor) =>
+	diffWithDown(ddlPrev, ddlCur, createDDL, resolverFor, diff);
 
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, filenames } = config;
@@ -25,19 +39,17 @@ export const handle = async (config: GenerateConfig) => {
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect: 'singlestore',
+			generateDownMigrations: config.generateDownMigrations,
 			type: 'custom',
 			renames: [],
 			snapshots,
 		});
 	}
 
-	const { sqlStatements, renames, groupedStatements, statements } = await ddlDiff(
+	const { sqlStatements, renames, groupedStatements, statements, down } = await ddlDiffWithDown(
 		ddlPrev,
 		ddlCur,
-		resolver<Table>('table', config.hints),
-		resolver<Column>('column', config.hints),
-		resolver<View>('view', config.hints),
-		'default',
+		(kind) => resolver(kind, config.hints),
 	);
 
 	if (config.hints.hasMissingHints()) {
@@ -48,10 +60,12 @@ export const handle = async (config: GenerateConfig) => {
 		return writeResult({
 			snapshot,
 			sqlStatements,
+			down: config.generateDownMigrations ? await computeDown(down) : undefined,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect: 'singlestore',
+			generateDownMigrations: config.generateDownMigrations,
 			renames,
 			snapshots,
 		});

@@ -1,4 +1,4 @@
-import { type Column, createDDL, interimToDDL, type SqliteEntities } from '../../dialects/sqlite/ddl';
+import { type Column, createDDL, interimToDDL, type SQLiteDDL, type SqliteEntities } from '../../dialects/sqlite/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/sqlite/drizzle';
 import type { SchemaSource } from '../../dialects/sqlite/drizzle';
@@ -10,7 +10,20 @@ import { resolver } from '../prompts';
 import { explain, explainJsonOutput, humanLog, sqliteSchemaError, warning } from '../views';
 import type { CheckHandlerResult } from './check';
 import { writeResult } from './generate-common';
+import { computeDown, diffWithDown, type ResolverFor } from './generate-down-helpers';
 import type { ExportConfig, GenerateConfig } from './utils';
+
+const diff = (from: SQLiteDDL, to: SQLiteDDL, resolverFor: ResolverFor) =>
+	ddlDiff(
+		from,
+		to,
+		resolverFor<SqliteEntities['tables']>('table'),
+		resolverFor<Column>('column'),
+		'default',
+	);
+
+export const ddlDiffWithDown = (ddlPrev: SQLiteDDL, ddlCur: SQLiteDDL, resolverFor: ResolverFor) =>
+	diffWithDown(ddlPrev, ddlCur, createDDL, resolverFor, diff);
 
 export const handle = async (
 	config: GenerateConfig<SchemaSource>,
@@ -34,6 +47,7 @@ export const handle = async (
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect,
+			generateDownMigrations: config.generateDownMigrations,
 			bundle: config.bundle,
 			type: 'custom',
 			renames: [],
@@ -41,12 +55,10 @@ export const handle = async (
 		});
 	}
 
-	const { sqlStatements, warnings, renames, groupedStatements, statements } = await ddlDiff(
+	const { sqlStatements, warnings, renames, groupedStatements, statements, down } = await ddlDiffWithDown(
 		ddlPrev,
 		ddlCur,
-		resolver<SqliteEntities['tables']>('table', config.hints),
-		resolver<Column>('column', config.hints),
-		'default',
+		(kind) => resolver(kind, config.hints),
 	);
 
 	if (config.hints.hasMissingHints()) {
@@ -63,11 +75,13 @@ export const handle = async (
 		return writeResult({
 			snapshot: snapshot,
 			sqlStatements,
+			down: config.generateDownMigrations ? await computeDown(down) : undefined,
 			renames,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			dialect,
+			generateDownMigrations: config.generateDownMigrations,
 			bundle: config.bundle,
 			driver: config.driver,
 			snapshots,
