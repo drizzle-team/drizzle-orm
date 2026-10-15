@@ -687,6 +687,27 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Schema Modifications', 
 	});
 
 	// DSQL does not support changing the primary key of an existing table - throws an error
+	test('drop primary key throws error (unsupported in DSQL)', async () => {
+		const tableName = _.uniqueName('gen_drop_pk');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey(),
+				name: text('name'),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').notNull(),
+				name: text('name'),
+			}),
+		};
+
+		await expect(diff(from, to, [])).rejects.toThrow('DSQL does not support changing the primary key');
+	});
+
+	// DSQL does not support changing the primary key of an existing table - throws an error
 	test('add primary key to existing table throws error (unsupported in DSQL)', async () => {
 		const tableName = _.uniqueName('gen_add_pk');
 
