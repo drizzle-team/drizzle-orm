@@ -215,7 +215,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 			const kind = chunkKindOf(chunk);
 
 			if (isChunk(chunk, kind, chunkKinds.string)) {
-				out.sql += chunk.value;
+				out.sql += chunk.value ?? '';
 				continue;
 			}
 
@@ -368,7 +368,7 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 					}
 
 					if (isChunk(cell, cellKind, chunkKinds.string)) {
-						out.sql += cell.value;
+						out.sql += cell.value ?? '';
 						continue;
 					}
 

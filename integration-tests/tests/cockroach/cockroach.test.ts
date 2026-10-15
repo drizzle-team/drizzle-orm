@@ -554,7 +554,7 @@ test('test mode date for timestamp with timezone', async () => {
 
 test('test mode string for timestamp with timezone in UTC timezone', async () => {
 	// get current timezone from db
-	const timezone = await db.execute<{ TimeZone: string }>(sql`show timezone`);
+	const timezone = await db.execute<{ timezone: string }>(sql`show timezone`);
 
 	// set timezone to UTC
 	await db.execute(sql`set time zone 'UTC'`);
@@ -590,14 +590,14 @@ test('test mode string for timestamp with timezone in UTC timezone', async () =>
 
 	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
 
-	await db.execute(sql`set time zone '${sql.raw(timezone.rows[0]!.TimeZone)}'`);
+	await db.execute(sql`set time zone '${sql.raw(timezone.rows[0]!.timezone)}'`);
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
 test('test mode string for timestamp with timezone in different timezone', async () => {
 	// get current timezone from db
-	const timezone = await db.execute<{ TimeZone: string }>(sql`show timezone`);
+	const timezone = await db.execute<{ timezone: string }>(sql`show timezone`);
 
 	// set timezone to HST (UTC - 10)
 	await db.execute(sql`set time zone 'HST'`);
@@ -636,7 +636,7 @@ test('test mode string for timestamp with timezone in different timezone', async
 
 	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 00:00:00.123456-10' }]);
 
-	await db.execute(sql`set time zone '${sql.raw(timezone.rows[0]!.TimeZone)}'`);
+	await db.execute(sql`set time zone '${sql.raw(timezone.rows[0]!.timezone)}'`);
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
