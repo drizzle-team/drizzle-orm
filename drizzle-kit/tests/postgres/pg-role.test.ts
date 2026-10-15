@@ -117,8 +117,8 @@ test('create and drop role', async (t) => {
 	});
 
 	const st0 = [
-		'DROP ROLE "manager";',
 		'CREATE ROLE "admin";',
+		'DROP ROLE "manager";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -285,4 +285,40 @@ test('a role rename changes no policy and no privilege that names the role', asy
 	expect(await db.query(`select has_table_privilege('admin', 'users', 'SELECT') as granted`)).toStrictEqual([
 		{ granted: true },
 	]);
+});
+
+// The policy statement in each `sql` runs before `DROP ROLE`, because Postgres refuses to drop a role that a
+// policy still names.
+test.each([
+	{
+		name: 'a drop of the policy that names it',
+		policies: [[pgPolicy('readers', { for: 'select', to: pgRole('staff') })], []],
+		sql: [
+			'DROP POLICY "readers" ON "users";',
+			'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
+			'DROP ROLE "staff";',
+		],
+	},
+	{
+		name: 'a policy that no longer names it',
+		policies: [
+			[pgPolicy('readers', { for: 'select', to: pgRole('staff') })],
+			[pgPolicy('readers', { for: 'select', to: 'public' })],
+		],
+		sql: ['ALTER POLICY "readers" ON "users" TO public;', 'DROP ROLE "staff";'],
+	},
+])('a role drop together with $name writes SQL that runs', async ({ policies: [before, after], sql }) => {
+	const users = (policies: ReturnType<typeof pgPolicy>[]) => pgTable('users', { id: integer() }, () => policies);
+	const entities = { roles: { include: ['staff'] } };
+
+	const { sqlStatements: st } = await diff(
+		{ staff: pgRole('staff'), users: users(before) },
+		{ users: users(after) },
+		[],
+	);
+	await push({ db, to: { staff: pgRole('staff'), users: users(before) }, entities });
+	const { sqlStatements: pst } = await push({ db, to: { users: users(after) }, entities });
+
+	expect(st).toStrictEqual(sql);
+	expect(pst).toStrictEqual(sql);
 });

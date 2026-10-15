@@ -462,6 +462,12 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 		? `"${column.schema}"."${column.table}"`
 		: `"${column.table}"`;
 
+	// When the column stops being generated, DROP EXPRESSION must run before the type and default statements
+	// below, because Postgres refuses a default and a USING clause for a generated column.
+	if (diff.generated && diff.generated.to === null) {
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP EXPRESSION;`);
+	}
+
 	// `hasNewType` decides if SET DATA TYPE runs. It counts a new `typeSchema`, because an enum with the same
 	// name in another schema is another type. A new count of `dimensions` gets a plain cast. Postgres has no
 	// cast between most scalar types and their array types, so the user edits that USING clause.
@@ -516,9 +522,9 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 		}
 
 		statements.push(
-			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${
-				'[]'.repeat(column.dimensions)
-			}${suffix};`,
+			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${'[]'.repeat(column.dimensions)}${
+				column.generated ? '' : suffix
+			};`,
 		);
 
 		if (recreateDefault && column.default) {
@@ -536,10 +542,6 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 		} else {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 		}
-	}
-
-	if (diff.generated && diff.generated.to === null) {
-		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP EXPRESSION;`);
 	}
 
 	if (diff.identity) {

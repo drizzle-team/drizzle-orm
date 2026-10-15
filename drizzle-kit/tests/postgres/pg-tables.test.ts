@@ -8,6 +8,7 @@ import {
 	index,
 	integer,
 	pgMaterializedView,
+	pgPolicy,
 	PgSchema,
 	pgSchema,
 	pgTable,
@@ -1687,6 +1688,88 @@ test('#6256: push re-diffs composite FK, expression index and empty text[] defau
 	const { sqlStatements } = await push({ db, to, ignoreSubsequent: true });
 
 	expect(sqlStatements).toStrictEqual([]);
+});
+
+const folder = pgSchema('folder');
+const moved = (inFolder: boolean, extra: (t: any) => any[] = () => [], withRls = false) => {
+	const columns = { id: integer(), ownerId: integer() };
+	const create = inFolder ? (withRls ? folder.table.withRLS : folder.table) : (withRls ? pgTable.withRLS : pgTable);
+	return (create as typeof pgTable)('users', columns, extra);
+};
+const owners = pgTable('owners', { id: integer().primaryKey() });
+const reader = () => pgPolicy('readers', { for: 'select' });
+const writer = () => pgPolicy('writers', { for: 'insert' });
+const ownerKey = (t: any) => [foreignKey({ name: 'owner_fk', columns: [t.ownerId], foreignColumns: [owners.id] })];
+
+// Each `sql` starts with the move, because the statements about `users` name the table in its new schema.
+test.each([
+	{
+		name: 'a drop of one of its policies',
+		from: moved(false, () => [reader(), writer()]),
+		to: moved(true, () => [reader()]),
+		sql: ['ALTER TABLE "users" SET SCHEMA "folder";\n', 'DROP POLICY "writers" ON "folder"."users";'],
+	},
+	{
+		name: 'a drop of its last policy',
+		from: moved(false, () => [reader()]),
+		to: moved(true),
+		sql: [
+			'ALTER TABLE "users" SET SCHEMA "folder";\n',
+			'DROP POLICY "readers" ON "folder"."users";',
+			'ALTER TABLE "folder"."users" DISABLE ROW LEVEL SECURITY;',
+		],
+	},
+	{
+		name: 'its first policy',
+		from: moved(false),
+		to: moved(true, () => [reader()]),
+		sql: [
+			'ALTER TABLE "users" SET SCHEMA "folder";\n',
+			'ALTER TABLE "folder"."users" ENABLE ROW LEVEL SECURITY;',
+			'CREATE POLICY "readers" ON "folder"."users" AS PERMISSIVE FOR SELECT TO public;',
+		],
+	},
+	{
+		name: 'the row level security flag',
+		from: moved(false),
+		to: moved(true, undefined, true),
+		sql: ['ALTER TABLE "users" SET SCHEMA "folder";\n', 'ALTER TABLE "folder"."users" ENABLE ROW LEVEL SECURITY;'],
+	},
+	{
+		name: 'a drop of its foreign key',
+		from: moved(false, ownerKey),
+		to: moved(true),
+		sql: ['ALTER TABLE "users" SET SCHEMA "folder";\n', 'ALTER TABLE "folder"."users" DROP CONSTRAINT "owner_fk";'],
+	},
+])('a table move together with $name writes SQL that runs', async ({ from, to, sql }) => {
+	const renames = ['public.users->folder.users'];
+
+	const { sqlStatements: st } = await diff({ folder, owners, users: from }, { folder, owners, users: to }, renames);
+	await push({ db, to: { folder, owners, users: from } });
+	const { sqlStatements: pst } = await push({ db, to: { folder, owners, users: to }, renames });
+
+	expect(st).toStrictEqual(sql);
+	expect(pst).toStrictEqual(sql);
+});
+
+// The drop of `users_old` must run before the move, because `users_pkey` moves with `users` into `folder`,
+// and `users_old` still holds a primary key with that name.
+test('a table move into a schema where a dropped table holds the name of its primary key writes SQL that runs', async () => {
+	const usersInFolder = folder.table('users', { id: integer().primaryKey() });
+	const from = {
+		folder,
+		old: folder.table('users_old', { id: integer() }, (t) => [primaryKey({ name: 'users_pkey', columns: [t.id] })]),
+		users: pgTable('users', { id: integer().primaryKey() }),
+	};
+	const renames = ['public.users->folder.users'];
+
+	const { sqlStatements: st } = await diff(from, { folder, users: usersInFolder }, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: { folder, users: usersInFolder }, renames });
+
+	const st0 = ['DROP TABLE "folder"."users_old";', 'ALTER TABLE "users" SET SCHEMA "folder";\n'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop column in a renamed table with data', async () => {
