@@ -3,6 +3,11 @@ import { diffPostgresql, type InterimStudioSchema as PostgresState } from 'src/e
 import { diffSqlite, type InterimStudioSchema as SqliteState } from 'src/ext/studio-sqlite';
 import { expect, test } from 'vitest';
 
+// Verifies the Drizzle Studio diffs `diffPostgresql`, `diffMySql` and `diffSqlite` after a confirmed rename of
+// a column or a table. The new state can still name the old column or table in constraints, indexes, foreign
+// keys and policies. The diff must read these old names as the renamed ones. So it gives the rename statement,
+// plus only the statements of a real change. The states are built in memory, with no database.
+
 // The new states in these tests copy what Drizzle Studio sends. Studio renames a column only in the column
 // list of the edited table, and it copies the policies and every other table from the old state. So the new
 // state can still hold an old column name in the constraints and the indexes of the edited table, and an old

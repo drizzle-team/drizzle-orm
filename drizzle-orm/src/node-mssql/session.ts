@@ -57,7 +57,7 @@ export class NodeMsSqlSession<
 
 		for (const [index, param] of params.entries()) {
 			// Avoid precision loss
-			if (param instanceof Date) request.input(`par${index}`, mssql.DateTime2(7), param); // oxlint-disable-line drizzle-internal/no-instanceof
+			if (param instanceof Date) request.input(`par${index}`, mssql.DateTime2(7), param);
 			else request.input(`par${index}`, param);
 		}
 

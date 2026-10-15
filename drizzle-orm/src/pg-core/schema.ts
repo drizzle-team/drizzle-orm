@@ -9,6 +9,9 @@ import { type PgMaterializedViewFn, pgMaterializedViewWithSchema, type PgViewFn,
 
 export class PgSchema<TName extends string = string> implements SQLWrapper {
 	static readonly [entityKind]: string = 'PgSchema';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	isExisting: boolean = false;
 	constructor(

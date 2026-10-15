@@ -15,6 +15,12 @@ import {
 	step,
 } from './folder-flow';
 
+// Verifies the postgres functions of the `drizzle-kit/api-postgres` entry point. `generateDrizzleJson` returns
+// a schema state, and `generateMigration` gives the SQL between two states of format 5, 7, 8 or 9 and rejects a
+// diff snapshot. `up` converts one saved state of an older format. `reconstruct` rebuilds the state of a snapshot
+// from the snapshot files of a migrations folder, and its errors have the same messages as the CLI commands.
+// The tests write these folders with the real `generate` command in temporary directories.
+
 const users = pgTable('users', { id: integer() });
 const likes = pgTable('likes', { id: integer() });
 const posts = pgTable('posts', { id: integer() });

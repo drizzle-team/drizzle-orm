@@ -26,6 +26,12 @@ import { fromDrizzleSchema, fromExports } from 'src/dialects/postgres/drizzle';
 import { createFolderFlow, type FolderFlow, rename } from './folder-flow';
 import type { PostgresSchema } from './mocks';
 
+// This file holds the generators and the runner for the property tests in `fuzz.test.ts`. `checkProperty` runs
+// a check on cases from a seeded random generator and reduces the first failing case to a smaller one that still
+// fails. `generateHistory` builds a random migration history with forks, merges and custom migrations over a
+// model of postgres entities. `toSchema` turns a model into a drizzle schema, and `runHistory` drives a history
+// through the real `generate` command with rename hints.
+
 export type Random = {
 	int: (max: number) => number;
 	pick: <T>(items: readonly T[]) => T;

@@ -15,6 +15,12 @@ import {
 	step,
 } from './folder-flow';
 
+// Verifies the main flows of snapshot format 9 through the real `generate`, `check`, `up` and `pull` commands.
+// A linear history writes a base snapshot and then diff snapshots, and each snapshot stores the deltas and the
+// statements of its migration. `check` reads only the stored statements. Branches that commute merge into one
+// leaf, and branches that conflict stop `check` and `generate`. A hand-edited snapshot that does not
+// reconstruct stops `generate` with an error that names the migration folder. `migrate` and `pull` use PGlite.
+
 test('generate stores the statements of each migration, and a custom migration stores none', async () => {
 	const flow = createFolderFlow();
 	const v1 = { users: pgTable('users', { id: integer() }) };

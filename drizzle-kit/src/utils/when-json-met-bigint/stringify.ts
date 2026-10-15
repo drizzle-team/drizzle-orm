@@ -6,7 +6,7 @@ const isNonNullObjectWithToJSOnImplemented = <T>(
 
 // Number -> number & String -> string
 const toPrimitive = <T>(o: number | string | T) =>
-	o instanceof Number ? Number(o) : o instanceof String ? String(o) : o; // oxlint-disable-line no-instanceof-builtins drizzle-internal/no-instanceof
+	o instanceof Number ? Number(o) : o instanceof String ? String(o) : o;
 
 const quote = (() => {
 	const ESCAPABLE =

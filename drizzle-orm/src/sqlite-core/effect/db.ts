@@ -3,7 +3,7 @@ import type { SqlError } from 'effect/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import type { MutationOption } from '~/cache/core/cache.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -37,6 +37,9 @@ export class SQLiteEffectDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
 > {
 	static readonly [entityKind]: string = 'SQLiteEffectDatabase';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly relations: TRelations;

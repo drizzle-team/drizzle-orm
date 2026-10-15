@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { AnyColumn } from '~/column';
-import { boolean, date, integer, pgTable, text } from '~/pg-core';
+import { is } from '~/entity';
+import { boolean, date, integer, PgDialect, pgTable, text } from '~/pg-core';
 import { drizzle } from '~/pglite';
 import {
 	defineRelations,
@@ -33,11 +34,10 @@ import {
 	notInArray,
 	notLike,
 	or,
-	type SQL,
+	SQL,
 	sql,
 	StringChunk,
 } from '~/sql';
-import { integer as sqliteInteger, sqliteTable, text as sqliteText } from '~/sqlite-core';
 import type { AnyTable, Table } from '~/table';
 import type { Simplify, ValueOrArray } from '~/utils';
 
@@ -53,8 +53,21 @@ const table = pgTable('test', {
 // oxlint-disable-next-line unicorn/no-useless-undefined
 const returnUndefined = () => undefined;
 
-const buildFilter = <TTable extends Table>(table: TTable, filter: TableFilter<TTable>) =>
-	relationsFilterToSQL(table, filter as TableFilter).sql;
+const renderDialect = new PgDialect();
+
+expect.addEqualityTesters([function areEquivalentSQL(a: unknown, b: unknown) {
+	if (!is(a, SQL) || !is(b, SQL)) return;
+
+	const renderedA = renderDialect.sqlToQuery(a);
+	const renderedB = renderDialect.sqlToQuery(b);
+	return renderedA.sql === renderedB.sql && this.equals(renderedA.params, renderedB.params);
+}]);
+
+const buildFilter = <TTable extends Table>(table: TTable, filter: TableFilter<TTable>) => {
+	const chunks = relationsFilterToSQL(table, filter as TableFilter).sql;
+
+	return chunks && new SQL(chunks);
+};
 
 describe('Filters', () => {
 	test('No shortcuts for object-type data', () => {
@@ -638,7 +651,11 @@ const buildOrder = <TTable extends Table>(
 			>,
 			operators: OrderByOperators,
 		) => ValueOrArray<AnyColumn | SQL> | undefined),
-) => relationsOrderToSQL(table, order as OrderBy);
+) => {
+	const chunks = relationsOrderToSQL(table, order as OrderBy);
+
+	return chunks && new SQL(chunks);
+};
 
 describe('Orders', () => {
 	test('Callback column', () => {
@@ -1019,8 +1036,17 @@ describe('Relational filter `hasRelationFilters` flag', () => {
 	}));
 
 	// loosely typed: the filters are checked against generic table config otherwise
-	const build = (filter: Record<string, unknown> | typeof EmptyFilter) =>
-		relationsFilterToSQL(flagUsers, filter as TableFilter, relations.user.relations, relations, new Map());
+	const build = (filter: Record<string, unknown> | typeof EmptyFilter) => {
+		const built = relationsFilterToSQL(
+			flagUsers,
+			filter as TableFilter,
+			relations.user.relations,
+			relations,
+			new Map(),
+		);
+
+		return { ...built, sql: built.sql && new SQL(built.sql) };
+	};
 
 	test('Unset for empty filters', () => {
 		expect(build(EmptyFilter)).toStrictEqual({ sql: undefined, hasRelationFilters: false });

@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { CockroachColumn, ExtraConfigColumn as CockroachExtraConfigColumn } from './cockroach-core/index.ts';
 import type { Column, ColumnBaseConfig } from './column.ts';
 import type { MsSqlColumn } from './mssql-core/index.ts';
@@ -261,6 +261,9 @@ export abstract class ColumnBuilder<
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > implements ColumnBuilderBase<T> {
 	static readonly [entityKind]: string = 'ColumnBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare _: T;
 

@@ -12,9 +12,10 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 
-// The fork scenarios of the ground-truth test. `parent` is the schema at the fork point, and each entry of
-// `mutations` is the whole schema that one branch reaches from it, so the real diff writes the statements
-// and the SQL of a branch.
+// Provides the fork scenarios of `commutativity-groundtruth.pglite.test.ts`: the schema `parent` at the fork
+// point, one whole branch schema for each entry of `mutations`, and every unordered pair of branches in `PAIRS`.
+// The real diff writes the statements and the SQL of each branch from these schemas.
+
 export const mood = pgEnum('mood', ['ok', 'sad']);
 export const archive = pgSchema('archive');
 

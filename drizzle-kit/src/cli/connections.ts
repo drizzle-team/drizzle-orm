@@ -105,7 +105,7 @@ export const preparePostgresDB = async (
 
 				return prepared.execute().catch((e) => {
 					// * AwsDataApiSession wraps all errors into DrizzleQueryError, so we need to check the cause
-					if (e instanceof DrizzleQueryError && e.cause instanceof Error) {
+					if (is(e, DrizzleQueryError) && e.cause instanceof Error) {
 						throw new QueryError(e.cause, sql, params);
 					}
 					throw new QueryError(e, sql, params);

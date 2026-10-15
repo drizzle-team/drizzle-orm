@@ -106,7 +106,7 @@ export class NodePgSession<
 		transaction: (tx: NodePgTransaction<TRelations>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
-		const isPool = this.client instanceof Pool || Object.getPrototypeOf(this.client).constructor.name.includes('Pool'); // oxlint-disable-line drizzle-internal/no-instanceof
+		const isPool = this.client instanceof Pool || Object.getPrototypeOf(this.client).constructor.name.includes('Pool');
 		const poolClient = isPool ? await (<pg.Pool> this.client).connect() : undefined;
 		// pg-pool detaches its own `error` listener from checked-out clients, so a connection dropped mid-transaction would crash the process
 		let connectionError: Error | undefined;

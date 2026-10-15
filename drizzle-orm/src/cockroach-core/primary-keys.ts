@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { AnyCockroachColumn, CockroachColumn } from './columns/index.ts';
 import type { CockroachTable } from './table.ts';
 
@@ -12,6 +12,9 @@ export function primaryKey<
 
 export class PrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'CockroachPrimaryKeyBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare _: {
 		brand: 'CockroachPrimaryKeyBuilder';
@@ -39,6 +42,9 @@ export class PrimaryKeyBuilder {
 
 export class PrimaryKey {
 	static readonly [entityKind]: string = 'CockroachPrimaryKey';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly columns: AnyCockroachColumn<{}>[];
 	readonly name?: string;

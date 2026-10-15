@@ -16,7 +16,7 @@ import type {
 	PreparedQueryConfig,
 } from '~/cockroach-core/session.ts';
 import type { CockroachTable } from '~/cockroach-core/table.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -39,6 +39,9 @@ export class CockroachDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
 > {
 	static readonly [entityKind]: string = 'CockroachDatabase';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly relations: TRelations;

@@ -1,8 +1,3 @@
-// Property tests over random schemas, rename decisions and migration histories. Each property checks
-// the same cases on every run: case n uses seed 20260928 + n. FUZZ_SEED sets another first seed, and
-// FUZZ_SEED=random picks one at random. FUZZ_RUNS sets the number of cases for each property:
-//   FUZZ_SEED=random FUZZ_RUNS=300 pnpm vitest run tests/postgres/fuzz.test.ts
-// A failure prints the seed of the failing case and the smallest case that still fails.
 import { randomUUID } from 'crypto';
 import { foreignKey, integer, pgSchema, pgTable } from 'drizzle-orm/pg-core';
 import { mkdirSync, writeFileSync } from 'fs';
@@ -39,6 +34,13 @@ import {
 	withoutOne,
 } from './fuzz';
 import { diff, drizzleToDDL, type PostgresSchema } from './mocks';
+
+// Verifies four properties on random schemas and on random migration histories with forks and merges: the
+// deltas of `ddlDiff` rebuild the new state, the stored statements rebuild each migration.sql, every snapshot
+// reconstructs to its schema, and `up` keeps every state of a format 8 folder or refuses the whole folder.
+// Case n uses seed 20260928 + n. FUZZ_SEED sets another first seed or "random", and FUZZ_RUNS sets the number
+// of cases for each property, for example: FUZZ_SEED=random FUZZ_RUNS=300 pnpm vitest run tests/postgres/fuzz.test.ts
+// A failure prints the seed of the failing case and the smallest case that still fails.
 
 type Pair = { before: Op[]; after: Op[] };
 

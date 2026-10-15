@@ -24,6 +24,9 @@ export class DefaultViewBuilderCore<
 	TSchema extends string | undefined = undefined,
 > {
 	static readonly [entityKind]: string = 'PgDefaultViewBuilderCore';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly name: TConfig['name'];
@@ -191,6 +194,9 @@ export class MaterializedViewBuilderCore<
 	TSchema extends string | undefined = undefined,
 > {
 	static readonly [entityKind]: string = 'PgMaterializedViewBuilderCore';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare _: {
 		readonly name: TConfig['name'];
