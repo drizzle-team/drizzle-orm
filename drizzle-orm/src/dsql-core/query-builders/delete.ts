@@ -1,7 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { applyMixins, orderSelectedFields } from '~/utils.ts';
@@ -67,9 +67,8 @@ export class DSQLDeleteBase<
 		return this.dialect.buildDeleteQuery(this.config);
 	}
 
-	toSQL(): { sql: string; params: unknown[] } {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	private _prepare(name?: string) {

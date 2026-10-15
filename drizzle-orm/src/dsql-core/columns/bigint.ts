@@ -85,9 +85,9 @@ export class DSQLBigInt extends DSQLColumn<'bigint'> {
 	}
 
 	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
-	override mapFromDriverValue(value: string): bigint {
+	override mapFromDriverValue = (value: string): bigint => {
 		return BigInt(value);
-	}
+	};
 }
 
 export function bigint(name?: string): DSQLBigIntBuilder {

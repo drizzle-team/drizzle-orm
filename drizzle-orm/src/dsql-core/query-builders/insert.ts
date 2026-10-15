@@ -1,7 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { SQLWrapper } from '~/sql/sql.ts';
+import type { Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
@@ -101,8 +101,8 @@ export class DSQLInsertBase<
 			this.config.onConflict = sql`do nothing`;
 		} else {
 			const targetColumn = Array.isArray(config.target)
-				? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
-				: this.dialect.escapeName(this.dialect.casing.getColumnCasing(config.target));
+				? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
+				: this.dialect.escapeName(config.target.name);
 
 			this.config.onConflict = sql`(${sql.raw(targetColumn)}) do nothing`;
 		}
@@ -143,8 +143,8 @@ export class DSQLInsertBase<
 		setWhere?: SQL;
 	}): this {
 		const targetColumn = Array.isArray(config.target)
-			? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
-			: this.dialect.escapeName(this.dialect.casing.getColumnCasing(config.target));
+			? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
+			: this.dialect.escapeName(config.target.name);
 
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
 		const setWhereSql = config.setWhere ? sql` where ${config.setWhere}` : undefined;
@@ -158,9 +158,8 @@ export class DSQLInsertBase<
 		return this.dialect.buildInsertQuery(this.config);
 	}
 
-	toSQL(): { sql: string; params: unknown[] } {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	private _prepare(name?: string) {

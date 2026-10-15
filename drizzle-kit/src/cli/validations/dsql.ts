@@ -1,5 +1,6 @@
 import type { TypeOf } from 'zod';
 import { coerce, object, string } from 'zod';
+import { ConfigConnectionCliError } from '../errors';
 import { error } from '../views';
 import { wrapParam } from './common';
 
@@ -46,14 +47,19 @@ export type DsqlCredentials = TypeOf<typeof dsqlCredentials>;
 
 export const printConfigConnectionIssues = (
 	options: Record<string, unknown>,
-) => {
+): never => {
 	const text = `Please provide required params for DSQL driver:\n`;
-	console.log(error(text));
-	console.log(wrapParam('host', options.host));
-	console.log(wrapParam('region', options.region, true));
-	console.log(wrapParam('user', options.user, true));
-	console.log(wrapParam('database', options.database, true));
-	console.log(wrapParam('port', options.port, true));
-	console.log(wrapParam('profile', options.profile, true));
-	process.exit(1);
+	throw new ConfigConnectionCliError(
+		'dsql',
+		['host'],
+		[
+			error(text),
+			wrapParam('host', options.host),
+			wrapParam('region', options.region, true),
+			wrapParam('user', options.user, true),
+			wrapParam('database', options.database, true),
+			wrapParam('port', options.port, true),
+			wrapParam('profile', options.profile, true),
+		].join('\n'),
+	);
 };

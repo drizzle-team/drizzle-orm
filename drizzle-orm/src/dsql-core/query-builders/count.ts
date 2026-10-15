@@ -1,5 +1,5 @@
 import { entityKind } from '~/entity.ts';
-import { type QueryWithTypings, SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
+import { type Query, SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { DSQLDialect } from '../dialect.ts';
 import type { DSQLTable } from '../table.ts';
 import type { DSQLViewBase } from '../view-base.ts';
@@ -36,7 +36,7 @@ export class DSQLCountBuilder extends SQL<number> implements SQLWrapper<number> 
 		});
 	}
 
-	protected build(): QueryWithTypings {
+	protected build(): Query {
 		const { filters, source } = this.countConfig;
 		const query = DSQLCountBuilder.buildEmbeddedCount(source, filters);
 

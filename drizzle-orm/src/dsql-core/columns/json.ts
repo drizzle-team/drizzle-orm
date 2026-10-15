@@ -26,11 +26,11 @@ export class DSQLJson extends DSQLColumn<'object json'> {
 		return 'json';
 	}
 
-	override mapToDriverValue(value: unknown): string {
+	override mapToDriverValue = (value: unknown): string => {
 		return JSON.stringify(value);
-	}
+	};
 
-	override mapFromDriverValue(value: unknown): unknown {
+	override mapFromDriverValue = (value: unknown): unknown => {
 		if (typeof value === 'string') {
 			try {
 				return JSON.parse(value);
@@ -39,7 +39,7 @@ export class DSQLJson extends DSQLColumn<'object json'> {
 			}
 		}
 		return value;
-	}
+	};
 }
 
 export function json(name?: string): DSQLJsonBuilder {

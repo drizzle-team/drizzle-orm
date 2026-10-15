@@ -26,12 +26,12 @@ export class DSQLReal extends DSQLColumn<'number float'> {
 		return 'real';
 	}
 
-	override mapFromDriverValue(value: string | number): number {
+	override mapFromDriverValue = (value: string | number): number => {
 		if (typeof value === 'string') {
 			return Number.parseFloat(value);
 		}
 		return value;
-	}
+	};
 }
 
 export function real(name?: string): DSQLRealBuilder {

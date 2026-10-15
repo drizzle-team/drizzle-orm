@@ -390,13 +390,13 @@ export class ExtraConfigColumn<
 export class IndexedColumn {
 	static readonly [entityKind]: string = 'IndexedColumn';
 
-	name: string | undefined;
+	name: string;
 	keyAsName: boolean;
 	type: string;
 	indexConfig: IndexedExtraConfigType;
 
 	constructor(
-		name: string | undefined,
+		name: string,
 		keyAsName: boolean,
 		type: string,
 		indexConfig: IndexedExtraConfigType,

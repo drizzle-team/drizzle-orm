@@ -26,12 +26,12 @@ export class DSQLInteger extends DSQLColumn<'number int32'> {
 		return 'integer';
 	}
 
-	override mapFromDriverValue(value: number | string): number {
+	override mapFromDriverValue = (value: number | string): number => {
 		if (typeof value === 'string') {
 			return parseInt(value, 10);
 		}
 		return value;
-	}
+	};
 }
 
 export function integer(name?: string): DSQLIntegerBuilder {

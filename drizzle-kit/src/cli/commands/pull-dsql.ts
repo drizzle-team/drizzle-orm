@@ -3,18 +3,19 @@ import { writeFileSync } from 'fs';
 import type { TaskView } from 'hanji';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
-import { interimToDDL, postgresToRelationsPull } from 'src/dialects/postgres/ddl';
-import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
-import type { EntityFilter } from 'src/dialects/pull-utils';
-import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { fromDatabaseForDrizzle } from '../../dialects/dsql/introspect';
+import { interimToDDL, postgresToRelationsPull } from '../../dialects/postgres/ddl';
+import { ddlToTypeScript } from '../../dialects/postgres/typescript';
+import type { EntityFilter } from '../../dialects/pull-utils';
+import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type { DB } from '../../utils';
-import type { EntitiesFilterConfig } from '../validations/cli';
-import type { Casing } from '../validations/common';
+import { outputFormat } from '../context';
+import { CommandOutputCliError } from '../errors';
+import type { Casing, EntitiesFilterConfig } from '../validations/common';
 import type { DsqlCredentials } from '../validations/dsql';
 import type { IntrospectStage, IntrospectStatus } from '../views';
-import { IntrospectProgress } from '../views';
-import { relationsToTypeScript } from './pull-common';
+import { humanLog, IntrospectProgress } from '../views';
+import { relationsToTypeScript, summarizeSchemaMappingErrors } from './pull-common';
 
 export type { DsqlCredentials } from '../validations/dsql';
 
@@ -70,23 +71,28 @@ export const handle = async (
 		db = await prepareDsqlDB(credentials);
 	}
 
-	const progress = new IntrospectProgress(true);
+	const text = outputFormat() === 'text';
 	const entityFilter = prepareEntityFilter('postgresql', filters, []);
 
 	// Use DSQL's introspection (fromDatabaseForDrizzle filters out PK/unique backing indexes)
-	const task = fromDatabaseForDrizzle(db, entityFilter, (stage, count, status) => {
-		progress.update(stage, count, status);
-	}, migrations);
-
-	const res = await renderWithTask(progress, task);
+	let res: Awaited<ReturnType<typeof fromDatabaseForDrizzle>>;
+	if (text) {
+		const progress = new IntrospectProgress(true);
+		const task = fromDatabaseForDrizzle(db, entityFilter, (stage, count, status) => {
+			progress.update(stage, count, status);
+		}, migrations);
+		res = await renderWithTask(progress, task);
+	} else {
+		res = await fromDatabaseForDrizzle(db, entityFilter, () => {}, migrations);
+	}
 
 	// Use PostgreSQL's DDL conversion
 	const { ddl, errors } = interimToDDL(res);
 
 	if (errors.length > 0) {
-		// TODO: print errors
-		console.error(errors);
-		process.exit(1);
+		throw new CommandOutputCliError('pull', 'Failed to map the introspected schema', {
+			errors: summarizeSchemaMappingErrors(errors),
+		});
 	}
 
 	// Generate TypeScript with 'dsql' dialect
@@ -97,14 +103,21 @@ export const handle = async (
 	writeFileSync(schemaFile, ts.file);
 	const relationsFile = join(out, 'relations.ts');
 	writeFileSync(relationsFile, relationsTs.file);
-	console.log();
+	humanLog();
 
-	render(
-		`[${chalk.green('✓')}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
-	);
-	render(
-		`[${chalk.green('✓')}] Your relations file is ready ➜ ${chalk.bold.underline.blue(relationsFile)} 🚀`,
-	);
+	if (text) {
+		render(
+			`[${chalk.green('✓')}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		);
+		render(
+			`[${chalk.green('✓')}] Your relations file is ready ➜ ${chalk.bold.underline.blue(relationsFile)} 🚀`,
+		);
+	}
+
+	return {
+		schemaPath: schemaFile,
+		relationsPath: relationsFile,
+	};
 };
 
 /**

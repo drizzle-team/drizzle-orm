@@ -715,7 +715,7 @@ export const preparePull = async (opts: PullOptionsInput) => {
 type PullManifest = {
 	schemaPath: string;
 	relationsPath?: string;
-	snapshotPath: string;
+	snapshotPath?: string;
 	migrationPath?: string;
 };
 

@@ -390,7 +390,7 @@ function construct<
 ): DSQLDatabase<TSchema, TRelations> & {
 	$client: TClient;
 } {
-	const dialect = new DSQLDialect({ casing: config.casing });
+	const dialect = new DSQLDialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

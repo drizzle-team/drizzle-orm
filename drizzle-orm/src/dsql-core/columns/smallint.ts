@@ -26,12 +26,12 @@ export class DSQLSmallInt extends DSQLColumn<'number int16'> {
 		return 'smallint';
 	}
 
-	override mapFromDriverValue(value: number | string): number {
+	override mapFromDriverValue = (value: number | string): number => {
 		if (typeof value === 'string') {
 			return Number(value);
 		}
 		return value;
-	}
+	};
 }
 
 export function smallint(name?: string): DSQLSmallIntBuilder {

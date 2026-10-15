@@ -27,13 +27,13 @@ export class DSQLDate extends DSQLColumn<'object date'> {
 		return 'date';
 	}
 
-	override mapFromDriverValue(value: string): Date {
+	override mapFromDriverValue = (value: string): Date => {
 		return new Date(value + 'T00:00:00.000Z');
-	}
+	};
 
-	override mapToDriverValue(value: Date): string {
+	override mapToDriverValue = (value: Date): string => {
 		return value.toISOString().split('T')[0]!;
-	}
+	};
 }
 
 export function date(name?: string): DSQLDateBuilder {

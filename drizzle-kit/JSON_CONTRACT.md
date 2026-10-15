@@ -449,7 +449,7 @@ Key semantics:
 
 ## `pull`
 
-`drizzle-kit pull --output json` introspects a live database and writes `schema.ts`, an optional `relations.ts`, and a snapshot to the configured `out` directory. The `pull()` SDK export returns the same envelope verbatim. `pull` is **ok-or-error only** — it never emits `missing_hints` (it diffs the introspected database against empty DDL, so there is no rename/data-loss consent surface) and never emits `no_changes` (a pull always writes the introspected files).
+`drizzle-kit pull --output json` introspects a live database and writes `schema.ts`, an optional `relations.ts`, and a snapshot (except for `dsql`) to the configured `out` directory. The `pull()` SDK export returns the same envelope verbatim. `pull` is **ok-or-error only** — it never emits `missing_hints` (it diffs the introspected database against empty DDL, so there is no rename/data-loss consent surface) and never emits `no_changes` (a pull always writes the introspected files).
 
 ### `pull` success
 
@@ -469,8 +469,8 @@ Keys:
 
 - `dialect` — always present, consistent with every other `status: "ok"` response.
 - `schemaPath` — the written `schema.ts`. Always present.
-- `snapshotPath` — the written snapshot JSON. Always present.
-- `relationsPath?` — the written `relations.ts`. **Optional**: present for `postgresql`, `mysql`, `sqlite`, `turso`, `cockroach`, and `singlestore`; omitted for `mssql` (it does not generate a relations file).
+- `snapshotPath?` — the written snapshot JSON. **Optional**: omitted for `dsql` (it does not write a snapshot).
+- `relationsPath?` — the written `relations.ts`. **Optional**: present for `postgresql`, `mysql`, `sqlite`, `turso`, `cockroach`, `singlestore`, and `dsql`; omitted for `mssql` (it does not generate a relations file).
 - `migrationPath?` — **Optional**: present only when `--init` ran the initial migration against the live database and wrote a migration file.
 
 With `--init` having written an initial migration:

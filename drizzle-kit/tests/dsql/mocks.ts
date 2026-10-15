@@ -23,7 +23,6 @@ import {
 	isDSQLSequence,
 	isDSQLView,
 } from 'drizzle-orm/dsql-core';
-import type { CasingType } from 'src/cli/validations/common';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/dsql/diff';
 import { fromDrizzleSchema } from 'src/dialects/dsql/drizzle';
 import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/dsql/introspect';
@@ -84,7 +83,6 @@ export const skipIfNoCluster = () => {
  */
 export const drizzleToDDL = (
 	schema: DSQLSchemaType,
-	casing?: CasingType | undefined,
 ) => {
 	const tables = Object.values(schema).filter((it) => is(it, DSQLTable)) as DSQLTable[];
 	const schemas = Object.values(schema).filter((it) => is(it, DSQLSchema)) as DSQLSchema<string>[];
@@ -97,7 +95,7 @@ export const drizzleToDDL = (
 		schema: res,
 		errors,
 		warnings,
-	} = fromDrizzleSchema(grouped, casing, () => true);
+	} = fromDrizzleSchema(grouped, () => true);
 
 	if (errors.length > 0) {
 		throw new Error(`Schema errors: ${JSON.stringify(errors)}`);
@@ -114,17 +112,16 @@ export const diff = async (
 	left: DSQLSchemaType | PostgresDDL,
 	right: DSQLSchemaType | PostgresDDL,
 	renamesArr: string[],
-	casing?: CasingType | undefined,
 ) => {
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as PostgresDDL, errors: [] }
 		: Object.keys(left).length === 0
 		? { ddl: createDDL(), errors: [] }
-		: drizzleToDDL(left, casing);
+		: drizzleToDDL(left);
 
 	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
 		? { ddl: right as PostgresDDL, errors: [] }
-		: drizzleToDDL(right, casing);
+		: drizzleToDDL(right);
 
 	if (err1.length > 0 || err2.length > 0) {
 		throw new Error(`Schema errors: ${JSON.stringify([...err1, ...err2])}`);
@@ -161,17 +158,16 @@ export const diff = async (
 export const diffDry = async (
 	left: DSQLSchemaType | PostgresDDL,
 	right: DSQLSchemaType | PostgresDDL,
-	casing?: CasingType | undefined,
 ) => {
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as PostgresDDL, errors: [] }
 		: Object.keys(left).length === 0
 		? { ddl: createDDL(), errors: [] }
-		: drizzleToDDL(left, casing);
+		: drizzleToDDL(left);
 
 	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
 		? { ddl: right as PostgresDDL, errors: [] }
-		: drizzleToDDL(right, casing);
+		: drizzleToDDL(right);
 
 	if (err1.length > 0 || err2.length > 0) {
 		throw new Error(`Schema errors: ${JSON.stringify([...err1, ...err2])}`);
@@ -239,7 +235,6 @@ export const push = async (config: {
 	dsqlDb: DSQLDatabase<any>;
 	to: DSQLSchemaType | PostgresDDL;
 	renames?: string[];
-	casing?: CasingType;
 	log?: 'statements' | 'none';
 	ignoreSubsequent?: boolean;
 }): Promise<{
@@ -248,12 +243,11 @@ export const push = async (config: {
 }> => {
 	const { db, dsqlDb, to } = config;
 	const log = config.log ?? 'none';
-	const casing = config.casing;
 
 	// Convert target schema to DDL
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
 		? { ddl: to as PostgresDDL, errors: [] }
-		: drizzleToDDL(to, casing);
+		: drizzleToDDL(to);
 
 	if (err2.length > 0) {
 		throw new Error(`Schema errors: ${JSON.stringify(err2)}`);

@@ -11,7 +11,7 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { applyMixins } from '~/utils.ts';
 import type { DSQLDriverSession } from './session.ts';
@@ -82,7 +82,7 @@ export class DSQLRelationalQuery<TResult> implements SQLWrapper, RunnableQuery<T
 		return this._getQuery().sql;
 	}
 
-	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 		const builtQuery = this.dialect.sqlToQuery(query.sql);
 		return { query, builtQuery };
@@ -101,12 +101,12 @@ export class DSQLRelationalQuery<TResult> implements SQLWrapper, RunnableQuery<T
 				builtQuery,
 				undefined,
 				name,
-				(rawRows, mapColumnValue) => {
-					const rows = rawRows.map((row) => mapRelationalRow(row, query.selection, mapColumnValue, this.parseJson));
+				(rawRows) => {
 					if (this.mode === 'first') {
-						return rows[0] as TResult;
+						if (!rawRows[0]) return rawRows[0] as TResult;
+						return mapRelationalRow(rawRows[0], true, query.selection, this.parseJson, false, false) as TResult;
 					}
-					return rows as TResult;
+					return mapRelationalRow(rawRows, false, query.selection, this.parseJson, false, false) as TResult;
 				},
 			);
 		});

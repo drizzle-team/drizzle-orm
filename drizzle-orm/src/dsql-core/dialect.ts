@@ -1,5 +1,4 @@
 import { aliasedTable } from '~/alias.ts';
-import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
@@ -18,11 +17,11 @@ import {
 	type TablesRelationalConfig,
 	type WithContainer,
 } from '~/relations.ts';
-import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
+import { Param, type Query, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
-import type { Casing, UpdateSet } from '~/utils.ts';
+import type { UpdateSet } from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { DSQLColumn } from './columns/common.ts';
@@ -33,9 +32,7 @@ import type { DSQLUpdateConfig } from './query-builders/update.ts';
 import { DSQLTable } from './table.ts';
 import { DSQLViewBase } from './view-base.ts';
 
-export interface DSQLDialectConfig {
-	casing?: Casing;
-}
+export interface DSQLDialectConfig {}
 
 /**
  * Dialect for Amazon Aurora DSQL.
@@ -48,12 +45,7 @@ export interface DSQLDialectConfig {
 export class DSQLDialect {
 	static readonly [entityKind]: string = 'DSQLDialect';
 
-	/** @internal */
-	readonly casing: CasingCache;
-
-	constructor(config?: DSQLDialectConfig) {
-		this.casing = new CasingCache(config?.casing);
-	}
+	constructor(_config?: DSQLDialectConfig) {}
 
 	escapeName(name: string): string {
 		// PostgreSQL-style double-quote identifier escaping
@@ -105,7 +97,7 @@ export class DSQLDialect {
 						const newSql = new SQL(
 							query.queryChunks.map((c) => {
 								if (is(c, DSQLColumn)) {
-									return sql.identifier(this.casing.getColumnCasing(c));
+									return sql.identifier(c.name);
 								}
 								return c;
 							}),
@@ -121,7 +113,7 @@ export class DSQLDialect {
 					}
 				} else if (is(field, Column)) {
 					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+						chunk.push(sql.identifier(field.name));
 					} else {
 						chunk.push(field);
 					}
@@ -232,7 +224,7 @@ export class DSQLDialect {
 
 			const onUpdateFnResult = col.onUpdateFn?.();
 			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
-			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+			const res = sql`${sql.identifier(col.name)} = ${value}`;
 
 			if (i < setSize - 1) {
 				return [res, sql.raw(', ')];
@@ -445,7 +437,7 @@ export class DSQLDialect {
 		const colEntries: [string, DSQLColumn][] = Object.entries(columns).filter(([_, col]) => !col.shouldDisableInsert());
 
 		const insertOrder = colEntries.map(
-			([, column]) => sql.identifier(this.casing.getColumnCasing(column)),
+			([, column]) => sql.identifier(column.name),
 		);
 
 		if (select) {
@@ -501,9 +493,8 @@ export class DSQLDialect {
 		return sql`${withSql}insert into ${table} ${insertOrder} ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
-	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
+	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): Query {
 		return sql.toQuery({
-			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
@@ -599,11 +590,9 @@ export class DSQLDialect {
 		const offset = params?.offset;
 
 		const where: SQL | undefined = (params?.where && relationWhere)
-			? sql`${
-				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, this.casing)
-			} and ${relationWhere}`
+			? sql`${relationsFilterToSQL(table, params.where, tableConfig.relations, schema)} and ${relationWhere}`
 			: params?.where
-			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, this.casing)
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema)
 			: relationWhere;
 
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
@@ -630,7 +619,6 @@ export class DSQLDialect {
 							? aliasedTable(relation.throughTable, `tr${currentDepth}`) as Table | View
 							: undefined;
 						const { filter, joinCondition } = relationToSQL(
-							this.casing,
 							relation,
 							table,
 							targetTable,

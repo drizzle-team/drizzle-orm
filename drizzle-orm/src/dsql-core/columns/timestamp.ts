@@ -47,15 +47,15 @@ export class DSQLTimestamp extends DSQLColumn<'object date'> {
 		return this.withTimezone ? `timestamp${precision} with time zone` : `timestamp${precision}`;
 	}
 
-	override mapFromDriverValue(value: Date | string): Date {
+	override mapFromDriverValue = (value: Date | string): Date => {
 		if (typeof value === 'string') return new Date(this.withTimezone ? value : value + '+0000');
 		return value;
-	}
+	};
 
-	override mapToDriverValue(value: Date | string): string {
+	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString();
-	}
+	};
 }
 
 export function timestamp(name?: string, config?: DSQLTimestampConfig): DSQLTimestampBuilder {

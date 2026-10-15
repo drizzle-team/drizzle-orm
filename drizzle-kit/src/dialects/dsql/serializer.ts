@@ -1,6 +1,4 @@
-import type { CasingType } from '../../cli/validations/common';
-import { dsqlSchemaError, dsqlSchemaWarning } from '../../cli/views';
-import { prepareFilenames } from '../../utils/utils-node';
+import { dsqlSchemaError, dsqlSchemaWarning, humanLog } from '../../cli/views';
 import type { PostgresDDL } from '../postgres/ddl';
 import { createDDL, interimToDDL } from '../postgres/ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
@@ -19,8 +17,7 @@ import { drySnapshot, snapshotValidator, toJsonSnapshot } from './snapshot';
  */
 export const prepareSnapshot = async (
 	snapshots: string[],
-	schemaPath: string | string[],
-	casing: CasingType | undefined,
+	filenames: string[],
 ): Promise<
 	{
 		ddlPrev: PostgresDDL;
@@ -44,18 +41,17 @@ export const prepareSnapshot = async (
 	}
 
 	// Load schema files
-	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
 	// Convert DSQL schema to interim schema format
-	const { schema, errors, warnings } = fromDrizzleSchema(res, casing, () => true);
+	const { schema, errors, warnings } = fromDrizzleSchema(res, () => true);
 
 	if (warnings.length > 0) {
-		console.log(warnings.map((it) => dsqlSchemaWarning(it)).join('\n\n'));
+		humanLog(warnings.map((it) => dsqlSchemaWarning(it)).join('\n\n'));
 	}
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => dsqlSchemaError(it)).join('\n'));
+		humanLog(errors.map((it) => dsqlSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
@@ -63,7 +59,7 @@ export const prepareSnapshot = async (
 	const { ddl: ddlCur, errors: errors2 } = interimToDDL(schema);
 
 	if (errors2.length > 0) {
-		console.log(errors2.map((it) => dsqlSchemaError(it)).join('\n'));
+		humanLog(errors2.map((it) => dsqlSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 

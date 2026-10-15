@@ -5,7 +5,7 @@ import { DrizzleError } from '~/errors.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { SQL } from '~/sql/sql.ts';
+import { type Query, SQL } from '~/sql/sql.ts';
 import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
@@ -394,9 +394,8 @@ export abstract class DSQLSelectQueryBuilderBase<
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
-	toSQL(): { sql: string; params: unknown[] } {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+	toSQL(): Query {
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */

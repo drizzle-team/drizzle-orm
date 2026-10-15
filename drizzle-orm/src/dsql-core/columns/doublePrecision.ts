@@ -26,12 +26,12 @@ export class DSQLDoublePrecision extends DSQLColumn<'number double'> {
 		return 'double precision';
 	}
 
-	override mapFromDriverValue(value: string | number): number {
+	override mapFromDriverValue = (value: string | number): number => {
 		if (typeof value === 'string') {
 			return Number.parseFloat(value);
 		}
 		return value;
-	}
+	};
 }
 
 export function doublePrecision(name?: string): DSQLDoublePrecisionBuilder {

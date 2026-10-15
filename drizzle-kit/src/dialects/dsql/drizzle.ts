@@ -1,9 +1,7 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
-import type { CasingType } from 'src/cli/validations/common';
 import { assertUnreachable } from 'src/utils';
 import { loadModule } from 'src/utils/utils-node';
-import { getColumnCasing } from '../drizzle';
 import type {
 	Column,
 	ForeignKey,
@@ -130,14 +128,13 @@ export const fromDrizzleSchema = (
 		views: DSQLView[];
 		sequences: DSQLSequence[];
 	},
-	casing: CasingType | undefined,
 	filter: EntityFilter,
 ): {
 	schema: InterimSchema;
 	errors: SchemaError[];
 	warnings: SchemaWarning[];
 } => {
-	const dialect = new DSQLDialect({ casing });
+	const dialect = new DSQLDialect();
 	const errors: SchemaError[] = [];
 	const warnings: SchemaWarning[] = [];
 
@@ -204,7 +201,7 @@ export const fromDrizzleSchema = (
 
 		res.columns.push(
 			...drizzleColumns.map<InterimColumn>((column) => {
-				const name = getColumnCasing(column, casing);
+				const name = column.name;
 
 				const isPk = column.primary
 					|| config.primaryKeys.find((pk) =>
@@ -285,7 +282,7 @@ export const fromDrizzleSchema = (
 
 		res.pks.push(
 			...drizzlePKs.map<PrimaryKey>((pk) => {
-				const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
+				const columnNames = pk.columns.map((c) => c.name);
 
 				const name = pk.name || defaultNameForPK(tableName);
 
@@ -302,7 +299,7 @@ export const fromDrizzleSchema = (
 
 		res.uniques.push(
 			...drizzleUniques.map<UniqueConstraint>((unq) => {
-				const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
+				const columnNames = unq.columns.map((c) => c.name);
 				const name = unq.isNameExplicit ? unq.name! : `${tableName}_${columnNames.join('_')}_unique`;
 				return {
 					entityType: 'uniques',
@@ -324,8 +321,8 @@ export const fromDrizzleSchema = (
 
 				const tableTo = getTableName(reference.foreignTable);
 				const schemaTo = getTableConfig(reference.foreignTable).schema || 'public';
-				const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
-				const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
+				const columnsFrom = reference.columns.map((it) => it.name);
+				const columnsTo = reference.foreignColumns.map((it) => it.name);
 
 				const name = fk.isNameExplicit() ? fk.getName() : defaultNameForFK(tableName, columnsFrom, tableTo, columnsTo);
 
@@ -367,7 +364,7 @@ export const fromDrizzleSchema = (
 				const columns = value.config.columns;
 
 				let indexColumnNames = columns.map((it) => {
-					const name = getColumnCasing(it as IndexedColumn, casing);
+					const name = (it as IndexedColumn).name;
 					return name;
 				});
 
@@ -391,7 +388,7 @@ export const fromDrizzleSchema = (
 						else nullsFirst = it.indexConfig?.nulls ? it.indexConfig.nulls === 'first' : nullsFirst;
 
 						return {
-							value: getColumnCasing(it as IndexedColumn, casing),
+							value: (it as IndexedColumn).name,
 							isExpression: false,
 							asc: asc,
 							nullsFirst: nullsFirst,
