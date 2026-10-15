@@ -88,7 +88,7 @@
 		"@neondatabase/serverless": ">=0.10.0",
 		"@op-engineering/op-sqlite": ">=17",
 		"@opentelemetry/api": "^1.4.1",
-		"@planetscale/database": ">=1.13",
+		"@planetscale/database": ">=1.13 <2",
 		"@sinclair/typebox": ">=0.34.8",
 		"@sqlitecloud/drivers": ">=1.0.653",
 		"@tidbcloud/serverless": "*",
