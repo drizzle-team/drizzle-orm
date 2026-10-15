@@ -139,3 +139,74 @@ test('domain table with two FKs and extra columns produces direct relations', ()
 	expect(allTypes).not.toContain('through');
 	expect(allTypes).not.toContain('many-through');
 });
+
+// A table whose two FKs point at two different tables, one of which is the table
+// itself, is NOT a junction — treating it as one swallowed both `one` relations.
+// See https://github.com/drizzle-team/drizzle-orm/issues/6197
+test('self-referencing FK next to another FK produces direct relations', () => {
+	const schema: SchemaForPull = [
+		table([], ['id'], [{ columns: ['id'] }]), // organizations
+		table(
+			[
+				fk('users', ['organization_id'], 'organizations', ['id'], 'users_organization_fk'),
+				fk('users', ['referrer_id'], 'users', ['id'], 'users_referrer_fk'),
+			],
+			['organization_id', 'referrer_id'],
+		),
+	];
+
+	const { file, tableRelations } = relationsToTypeScript(schema, 'camel');
+
+	// both FKs get their own `one` relation, including the self reference
+	expect(tableRelations['users']).toStrictEqual([
+		{
+			name: 'organization',
+			type: 'one',
+			tableFrom: 'users',
+			columnsFrom: ['organizationId'],
+			tableTo: 'organizations',
+			columnsTo: ['id'],
+		},
+		{
+			name: 'user',
+			type: 'one',
+			tableFrom: 'users',
+			columnsFrom: ['referrerId'],
+			tableTo: 'users',
+			columnsTo: ['id'],
+		},
+		{
+			name: 'users',
+			type: 'many',
+			tableFrom: 'users',
+			columnsFrom: ['id'],
+			tableTo: 'users',
+			columnsTo: ['referrerId'],
+		},
+	]);
+
+	// the reverse of the non-self FK
+	expect(tableRelations['organizations']).toStrictEqual([{
+		name: 'users',
+		type: 'many',
+		tableFrom: 'organizations',
+		columnsFrom: ['id'],
+		tableTo: 'users',
+		columnsTo: ['organizationId'],
+	}]);
+
+	// no many-to-many was inferred — `users` is not a junction between itself and organizations
+	const allTypes = Object.values(tableRelations).flat().map((r) => r.type);
+	expect(allTypes).not.toContain('through');
+	expect(allTypes).not.toContain('many-through');
+
+	// the `one`/`many` pair of the self reference shares an alias, so both sides line up
+	expect(file).toContain(`user: r.one.users({
+			from: r.users.referrerId,
+			to: r.users.id,
+			alias: "users_referrerId_users_id"
+		}),`);
+	expect(file).toContain(`users: r.many.users({
+			alias: "users_referrerId_users_id"
+		}),`);
+});
