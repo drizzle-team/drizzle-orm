@@ -312,10 +312,30 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Indexes', () => {
 		expect(indexStmt).toContain('created_at');
 	});
 
-	test('index with order and nulls options', async () => {
+	test('index with nulls options', async () => {
 		const to = {
 			orders: dsqlTable(
 				_.uniqueName('gen_idx_opts'),
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					createdAt: timestamp('created_at').defaultNow(),
+				},
+				(t) => [index('date_nulls_idx').on(t.createdAt.nullsFirst())],
+			),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		const indexStmt = sqlStatements.find((s) => s.includes('CREATE INDEX'));
+		expect(indexStmt).toBeDefined();
+		expect(indexStmt).toContain('("created_at" NULLS FIRST)');
+	});
+
+	// DSQL does not support sort order for index keys - throws an error
+	test('index with order throws error (unsupported in DSQL)', async () => {
+		const to = {
+			orders: dsqlTable(
+				_.uniqueName('gen_idx_order'),
 				{
 					id: uuid('id').primaryKey().defaultRandom(),
 					createdAt: timestamp('created_at').defaultNow(),
@@ -324,11 +344,23 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Indexes', () => {
 			),
 		};
 
-		const { sqlStatements } = await diff({}, to, []);
+		await expect(diff({}, to, [])).rejects.toThrow('DSQL does not support sort order for index keys');
+	});
 
-		const indexStmt = sqlStatements.find((s) => s.includes('CREATE INDEX'));
-		expect(indexStmt).toBeDefined();
-		expect(indexStmt).toContain('DESC');
+	// DSQL does not support operator classes for index keys - throws an error
+	test('index with operator class throws error (unsupported in DSQL)', async () => {
+		const to = {
+			users: dsqlTable(
+				_.uniqueName('gen_idx_opclass'),
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					email: text('email').notNull(),
+				},
+				(t) => [index('email_pattern_idx').on(t.email.op('text_pattern_ops'))],
+			),
+		};
+
+		await expect(diff({}, to, [])).rejects.toThrow('DSQL does not support operator classes for index keys');
 	});
 });
 

@@ -4,7 +4,7 @@
  * DSQL-specific SQL generation that overrides PostgreSQL convertors
  * for DSQL-unique requirements:
  * - CREATE INDEX ASYNC (instead of PostgreSQL's CONCURRENTLY)
- * - Only btree indexes supported
+ * - Only btree indexes supported, without sort order or operator classes
  * - No enums, policies, RLS
  * - Sequences require CACHE (must be 1 or >= 65536)
  * - Foreign keys and check constraints added with ALTER TABLE require NOT VALID
@@ -347,6 +347,17 @@ function validateStatement(statement: JsonStatement): string | null {
 		const method = st.index?.method;
 		if (method && method !== 'btree') {
 			return `DSQL only supports btree indexes. Cannot create index with method '${method}'.`;
+		}
+
+		// DSQL doesn't support sort order or operator classes for index keys
+		const columns: { asc: boolean; opclass: { name: string; default: boolean } | null }[] = st.index?.columns ?? [];
+		if (columns.some((it) => !it.asc)) {
+			return `DSQL does not support sort order for index keys. Cannot create index '${st.index.name}' with DESC.`;
+		}
+		const opclass = columns.find((it) => it.opclass && !it.opclass.default)?.opclass;
+		if (opclass) {
+			return `DSQL does not support operator classes for index keys. `
+				+ `Cannot create index '${st.index.name}' with operator class '${opclass.name}'.`;
 		}
 	}
 
