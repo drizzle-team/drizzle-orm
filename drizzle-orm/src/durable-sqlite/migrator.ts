@@ -1,5 +1,12 @@
-import type { MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
-import { formatToMillis, getMigrationsToRun } from '~/migrator.utils.ts';
+import type { MigrationMeta, MigratorInitFailResponse, RollbackOptions, RollbackStep } from '~/migrator.ts';
+import {
+	formatToMillis,
+	getMigrationsToRun,
+	journalReadError,
+	type JournalRow,
+	planRollback,
+	splitDownSql,
+} from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/index.ts';
 import { upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
@@ -7,11 +14,12 @@ import type { DrizzleSqliteDODatabase } from './driver.ts';
 
 interface MigrationConfig {
 	migrations: Record<string, string>;
+	downMigrations?: Record<string, string>;
 	/** @internal */
 	init?: boolean;
 }
 
-function readMigrationFiles({ migrations }: MigrationConfig): MigrationMeta[] {
+function readMigrationFiles({ migrations, downMigrations }: MigrationConfig): MigrationMeta[] {
 	const migrationQueries: MigrationMeta[] = [];
 
 	const sortedMigrations = Object.keys(migrations).sort();
@@ -29,8 +37,11 @@ function readMigrationFiles({ migrations }: MigrationConfig): MigrationMeta[] {
 
 			const migrationDate = formatToMillis(key.slice(0, 14));
 
+			const downSql = splitDownSql(downMigrations?.[key]);
+
 			migrationQueries.push({
 				sql: result,
+				downSql,
 				bps: true,
 				folderMillis: migrationDate,
 				hash: '',
@@ -117,4 +128,35 @@ export function migrate<TRelations extends AnyRelations>(
 			throw error;
 		}
 	});
+}
+
+export function rollback<TRelations extends AnyRelations>(
+	db: DrizzleSqliteDODatabase<TRelations>,
+	config: MigrationConfig,
+	options?: RollbackOptions,
+): RollbackStep[] {
+	const migrations = readMigrationFiles(config);
+	const migrationsTable = '__drizzle_migrations';
+
+	let dbMigrations: JournalRow[];
+	try {
+		dbMigrations = db.values<[number, string, string, string | null]>(
+			sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
+		).map(([id, hash, created_at, name]) => ({ id, hash, created_at, name }));
+	} catch (e) {
+		throw journalReadError(migrationsTable, e);
+	}
+
+	const plan = planRollback({ localMigrations: migrations, dbMigrations, options });
+	if (options?.dryRun || plan.length === 0) return plan;
+
+	db.transaction(() => {
+		for (const step of plan) {
+			for (const stmt of step.downSql) {
+				db.run(sql.raw(stmt));
+			}
+			db.run(sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE id = ${step.id}`);
+		}
+	});
+	return plan;
 }

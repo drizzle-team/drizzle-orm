@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import fs, { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { formatToMillis } from './migrator.utils.ts';
+import { formatToMillis, splitDownSql } from './migrator.utils.ts';
 
 export interface KitConfig {
 	out: string;
@@ -18,6 +18,7 @@ export interface MigrationConfig {
 
 export interface MigrationMeta {
 	sql: string[];
+	downSql?: string[];
 	folderMillis: number;
 	hash: string;
 	bps: boolean;
@@ -31,9 +32,27 @@ export interface MigrationFromJournalConfig {
 
 export type MigrationsJournal = {
 	sql: string;
+	downSql?: string;
 	timestamp: number;
 	name: string;
 }[];
+
+export interface RollbackOptions {
+	/** Number of most recently applied migrations to roll back; more than are applied rolls back all of them. Defaults to 1; mutually exclusive with `to` */
+	steps?: number;
+	/** Roll back every migration applied after this one, leaving it as the latest applied migration */
+	to?: string;
+	/** Resolve and return the plan without executing anything */
+	dryRun?: boolean;
+}
+
+export interface RollbackStep {
+	id: number;
+	name: string;
+	hash: string;
+	/** Statements executed, in order; comment-only chunks of down.sql are dropped */
+	downSql: string[];
+}
 
 /** Only gets returned if migrator failed with `init: true` used by `drizzle-kit pull --init`*/
 export interface MigratorInitFailResponse {
@@ -75,8 +94,12 @@ export function readMigrationFiles(config: MigrationConfig): MigrationMeta[] {
 
 		const millis = formatToMillis(migrationDate);
 
+		const downPath = join(migrationFolderTo, migration.name, 'down.sql');
+		const downSql = existsSync(downPath) ? splitDownSql(fs.readFileSync(downPath).toString()) : undefined;
+
 		migrationQueries.push({
 			sql: result,
+			downSql,
 			bps: true,
 			folderMillis: millis,
 			hash: crypto.createHash('sha256').update(query).digest('hex'),

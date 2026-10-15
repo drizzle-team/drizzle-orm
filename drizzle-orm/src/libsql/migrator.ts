@@ -1,6 +1,6 @@
-import type { MigrationConfig } from '~/migrator.ts';
+import type { MigrationConfig, RollbackOptions, RollbackStep } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import { getMigrationsToRun, journalReadError, planRollback } from '~/migrator.utils.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import { upgradeAsyncIfNeeded } from '~/up-migrations/sqlite.ts';
@@ -77,4 +77,32 @@ export async function migrate<TRelations extends AnyRelations>(
 	await db.session.migrate(statementToBatch);
 
 	return;
+}
+
+export async function rollback<TRelations extends AnyRelations>(
+	db: LibSQLDatabase<TRelations>,
+	config: MigrationConfig,
+	options?: RollbackOptions,
+): Promise<RollbackStep[]> {
+	const migrations = readMigrationFiles(config);
+	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+
+	const dbMigrations = await db.values<[number, string, string, string | null]>(
+		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
+	).then((rows) => rows.map(([id, hash, created_at, name]) => ({ id, hash, created_at, name })), (e) => {
+		throw journalReadError(migrationsTable, e);
+	});
+
+	const plan = planRollback({ localMigrations: migrations, dbMigrations, options });
+	if (options?.dryRun || plan.length === 0) return plan;
+
+	const statementToBatch = [];
+	for (const step of plan) {
+		for (const stmt of step.downSql) {
+			statementToBatch.push(db.run(sql.raw(stmt)));
+		}
+		statementToBatch.push(db.run(sql`DELETE FROM ${sql.identifier(migrationsTable)} WHERE id = ${step.id}`));
+	}
+	await db.session.migrate(statementToBatch);
+	return plan;
 }

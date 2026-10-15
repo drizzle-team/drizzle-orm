@@ -1,5 +1,6 @@
+import type { RollbackOptions, RollbackStep } from '~/migrator.ts';
 import { type MigratorInitFailResponse, readMigrationFiles } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import { getMigrationsToRun, journalReadError, type JournalRow, planRollback } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { sql } from '~/sql/sql.ts';
 import { upgradeIfNeeded } from '~/up-migrations/pg.ts';
@@ -87,4 +88,31 @@ export interface MigrationConfig {
 			} ("hash", "created_at", "name") values(${migration.hash}, ${migration.folderMillis}, ${migration.name})`,
 		);
 	}
+}
+
+/** Xata HTTP has no transactions, so a rollback that fails mid-way leaves earlier steps applied */
+export async function rollback<TRelations extends AnyRelations = EmptyRelations>(
+	db: XataHttpDatabase<TRelations>,
+	config: MigrationConfig,
+	options?: RollbackOptions,
+): Promise<RollbackStep[]> {
+	const migrations = readMigrationFiles(config);
+	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+	const table = sql.identifier(migrationsTable);
+
+	const dbMigrations = await db.session.objects<JournalRow>(sql`select id, hash, created_at, name from ${table}`)
+		.catch((e) => {
+			throw journalReadError(migrationsTable, e);
+		});
+
+	const plan = planRollback({ localMigrations: migrations, dbMigrations, options });
+	if (options?.dryRun) return plan;
+
+	for (const step of plan) {
+		for (const stmt of step.downSql) {
+			await db.session.execute(sql.raw(stmt));
+		}
+		await db.session.execute(sql`delete from ${table} where id = ${step.id}`);
+	}
+	return plan;
 }

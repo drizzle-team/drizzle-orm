@@ -3,8 +3,14 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
-import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import type {
+	MigrationConfig,
+	MigrationMeta,
+	MigratorInitFailResponse,
+	RollbackOptions,
+	RollbackStep,
+} from '~/migrator.ts';
+import { getMigrationsToRun, journalReadError, type JournalRow, planRollback } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mysql.ts';
@@ -343,4 +349,33 @@ export async function migrate(
 			);
 		}
 	});
+}
+
+/** MySQL commits each DDL statement implicitly, so a rollback that fails mid-way leaves its earlier DDL applied */
+export async function rollback(
+	migrations: MigrationMeta[],
+	db: MySqlAsyncDatabase<MySqlQueryResultHKT, any>,
+	config: Omit<MigrationConfig, 'migrationsSchema'>,
+	options?: RollbackOptions,
+): Promise<RollbackStep[]> {
+	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+	const table = sql.identifier(migrationsTable);
+
+	const dbMigrations = await db.session.objects<JournalRow>(sql`select id, hash, created_at, name from ${table}`)
+		.catch((e) => {
+			throw journalReadError(migrationsTable, e);
+		});
+
+	const plan = planRollback({ localMigrations: migrations, dbMigrations, options });
+	if (options?.dryRun || plan.length === 0) return plan;
+
+	await db.transaction(async (tx) => {
+		for (const step of plan) {
+			for (const stmt of step.downSql) {
+				await tx.execute(sql.raw(stmt));
+			}
+			await tx.execute(sql`delete from ${table} where id = ${step.id}`);
+		}
+	});
+	return plan;
 }

@@ -4,12 +4,17 @@ import type { SqlError } from 'effect/sql/SqlError';
 import { EffectCache, type EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
-import { EffectDrizzleQueryError, EffectTransactionRollbackError, MigratorInitError } from '~/effect-core/errors.ts';
+import {
+	EffectDrizzleError,
+	EffectDrizzleQueryError,
+	EffectTransactionRollbackError,
+	MigratorInitError,
+} from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-effect.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import type { MigrationConfig, MigrationMeta, RollbackOptions } from '~/migrator.ts';
+import { getMigrationsToRun, journalReadError, type JournalRow, planRollback } from '~/migrator.utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { upgradeIfNeeded } from '~/up-migrations/effect-mysql.ts';
@@ -301,4 +306,40 @@ export const migrate = Effect.fn('migrate')(function*<TEffectHKT extends QueryEf
 			}
 		})
 	);
+});
+
+/** MySQL commits each DDL statement implicitly, so a rollback that fails mid-way leaves its earlier DDL applied */
+export const rollback = Effect.fn('rollback')(function*<TEffectHKT extends QueryEffectHKTBase>(
+	migrations: MigrationMeta[],
+	session: MySqlEffectSession<TEffectHKT>,
+	config: Omit<MigrationConfig, 'migrationsSchema'>,
+	options?: RollbackOptions,
+) {
+	const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+	const table = sql.identifier(migrationsTable);
+
+	const dbMigrations = yield* session.objects<JournalRow>(sql`select id, hash, created_at, name from ${table}`).pipe(
+		Effect.mapError((e) => {
+			const error = journalReadError(migrationsTable, e);
+			return new EffectDrizzleError({ message: error.message, cause: e });
+		}),
+	);
+
+	const plan = yield* Effect.try({
+		try: () => planRollback({ localMigrations: migrations, dbMigrations, options }),
+		catch: (e) => new EffectDrizzleError({ message: (e as Error).message, cause: e }),
+	});
+	if (options?.dryRun || plan.length === 0) return plan;
+
+	yield* session.transaction((tx) =>
+		Effect.gen(function*() {
+			for (const step of plan) {
+				for (const stmt of step.downSql) {
+					yield* tx.execute(sql.raw(stmt));
+				}
+				yield* tx.execute(sql`delete from ${table} where id = ${step.id}`);
+			}
+		})
+	);
+	return plan;
 });

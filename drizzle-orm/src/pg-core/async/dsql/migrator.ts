@@ -1,5 +1,11 @@
-import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import type {
+	MigrationConfig,
+	MigrationMeta,
+	MigratorInitFailResponse,
+	RollbackOptions,
+	RollbackStep,
+} from '~/migrator.ts';
+import { getMigrationsToRun, journalReadError, type JournalRow, planRollback } from '~/migrator.utils.ts';
 import type { PgQueryResultHKT } from '~/pg-core/session.ts';
 import { sql } from '~/sql/sql.ts';
 import { upgradeIfNeeded } from '~/up-migrations/dsql.ts';
@@ -74,4 +80,37 @@ export async function migrate(
 			})`,
 		);
 	}
+}
+
+/**
+ * DSQL transactions allow only one DDL statement and can't mix DDL with DML, so this rollback is not atomic:
+ * a statement failing mid-way leaves earlier steps applied and must be repaired manually.
+ */
+export async function rollback(
+	migrations: MigrationMeta[],
+	db: DsqlAsyncDatabase<PgQueryResultHKT, any>,
+	config: string | MigrationConfig,
+	options?: RollbackOptions,
+): Promise<RollbackStep[]> {
+	const migrationsTable = typeof config === 'string'
+		? '__drizzle_migrations'
+		: config.migrationsTable ?? '__drizzle_migrations';
+	const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
+	const table = sql`${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)}`;
+
+	const dbMigrations = await db.session.objects<JournalRow>(sql`select id, hash, created_at, name from ${table}`)
+		.catch((e) => {
+			throw journalReadError(`${migrationsSchema}.${migrationsTable}`, e);
+		});
+
+	const plan = planRollback({ localMigrations: migrations, dbMigrations, options });
+	if (options?.dryRun) return plan;
+
+	for (const step of plan) {
+		for (const stmt of step.downSql) {
+			await db.execute(sql.raw(stmt));
+		}
+		await db.execute(sql`delete from ${table} where id = ${step.id}`);
+	}
+	return plan;
 }
