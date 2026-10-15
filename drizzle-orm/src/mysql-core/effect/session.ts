@@ -135,9 +135,11 @@ export class MySqlEffectPreparedQuery<
 			assertUnreachable(cacheStrat);
 		}).pipe(
 			Effect.provideService(EffectCache, this.cache),
-			Effect.catch((e) => {
-				return Effect.fail(new EffectDrizzleQueryError({ query: queryString, params, cause: Cause.fail(e) }));
-			}),
+			Effect.catchCause((cause) =>
+				Effect.failCause(
+					Cause.map(cause, (e) => new EffectDrizzleQueryError({ query: queryString, params, cause: Cause.fail(e) })),
+				)
+			),
 		);
 	}
 }
