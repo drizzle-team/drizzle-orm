@@ -31,32 +31,6 @@ function buildPrevToChildren<TNode extends { id: string; prevIds: string[] }>(
 	return prevToChildren;
 }
 
-function collectLeaves(
-	prevToChildren: Record<string, string[]>,
-	startId: string,
-): string[] {
-	const leaves: string[] = [];
-	const visited = new Set<string>();
-	const stack: string[] = [startId];
-
-	while (stack.length) {
-		const id = stack.pop()!;
-		if (visited.has(id)) continue;
-		visited.add(id);
-
-		const children = prevToChildren[id];
-		if (!children || children.length === 0) {
-			leaves.push(id);
-			continue;
-		}
-		for (const child of children) {
-			if (!visited.has(child)) stack.push(child);
-		}
-	}
-
-	return leaves;
-}
-
 function ancestorsOf(
 	nodes: Record<string, { prevIds: string[] }>,
 	startId: string,
@@ -153,6 +127,52 @@ function composeMergeStatements<TStatement>(
 		}
 	}
 	return composed;
+}
+
+/**
+ * Common ancestors of two leaves that are not themselves ancestors of another
+ * common ancestor — the DAG frontier both heads still share. A fan-in has two
+ * (or more) such nodes; a regular fork has one.
+ */
+function maximalCommonAncestors(
+	nodes: Record<string, { prevIds: string[] }>,
+	leafA: string,
+	leafB: string,
+): string[] {
+	const cache = new Map<string, Set<string>>();
+	const ancestorsA = ancestorsOf(nodes, leafA, cache);
+	const ancestorsB = ancestorsOf(nodes, leafB, cache);
+	const common: string[] = [];
+	for (const id of ancestorsA) {
+		if (!ancestorsB.has(id)) continue;
+		if (id === leafA || id === leafB) continue;
+		common.push(id);
+	}
+	return common.filter((id) => {
+		for (const other of common) {
+			if (other === id) continue;
+			if (ancestorsOf(nodes, other, cache).has(id)) return false;
+		}
+		return true;
+	});
+}
+
+function firstChildFromParent(
+	nodes: Record<string, { prevIds: string[] }>,
+	parentId: string | null,
+	leafId: string,
+): string {
+	if (!parentId) return leafId;
+	let current = leafId;
+	const seen = new Set<string>();
+	while (nodes[current] && !seen.has(current)) {
+		seen.add(current);
+		if (nodes[current].prevIds.includes(parentId)) return current;
+		const next = nodes[current].prevIds.find((id) => nodes[id]);
+		if (!next) break;
+		current = next;
+	}
+	return leafId;
 }
 
 export type CommutativityStatementInfo<
@@ -299,115 +319,104 @@ export abstract class AbstractCommutativity<
 			return pending;
 		};
 
-		const conflicts: UnifiedBranchConflict[] = [];
-		const commutativeBranches: NonCommutativityReport['commutativeBranches'] = [];
-
-		for (const [prevId, childIds] of Object.entries(prevToChildren)) {
-			if (childIds.length <= 1) continue;
-
-			const parentNode = nodes[prevId];
-			const parentSnapshot = parentNode ? parentNode.raw : drySnapshot;
-			const childToLeaves: Record<string, string[]> = {};
-
-			for (const childId of childIds) {
-				childToLeaves[childId] = collectLeaves(prevToChildren, childId);
-			}
-
-			const leafStatementsCache: Record<
-				string,
-				Promise<{ statements: TStatement[]; path: string }>
-			> = {};
-
-			const resolveLeaf = (leafId: string) => {
-				const cached = leafStatementsCache[leafId];
-				if (cached) return cached;
-				const leafNode = nodes[leafId]!;
-				const pending = diffOnce(parentSnapshot, leafNode.raw).then((d) => ({
-					statements: d.statements,
-					path: leafNode.folderPath,
-				}));
-				leafStatementsCache[leafId] = pending;
-				return pending;
-			};
-
-			for (let i = 0; i < childIds.length; i++) {
-				for (let j = i + 1; j < childIds.length; j++) {
-					const groupA = childToLeaves[childIds[i]] ?? [];
-					const groupB = childToLeaves[childIds[j]] ?? [];
-					const groupASet = new Set(groupA);
-					const hasMergedOverlap = groupB.some((leafId) => groupASet.has(leafId));
-					if (hasMergedOverlap) continue;
-
-					for (const aId of groupA) {
-						for (const bId of groupB) {
-							if (aId === bId) continue;
-
-							const [{ statements: aStatements }, { statements: bStatements }] = await Promise.all([
-								resolveLeaf(aId),
-								resolveLeaf(bId),
-							]);
-
-							const intersected = await this.getReasonsFromStatements(
-								aStatements,
-								bStatements,
-								parentSnapshot,
-							);
-
-							if (!intersected) continue;
-
-							const chainA = this.buildChain(
-								nodes,
-								prevToChildren,
-								childIds[i],
-								aId,
-							);
-							const chainB = this.buildChain(
-								nodes,
-								prevToChildren,
-								childIds[j],
-								bId,
-							);
-
-							const leftInfo = this.resolveStatement(intersected.leftStatement).info;
-							const rightInfo = this.resolveStatement(intersected.rightStatement).info;
-
-							conflicts.push({
-								parentId: prevId,
-								parentPath: parentNode?.folderPath,
-								branchA: {
-									chain: chainA,
-									statementDescription: this.describeStatement(
-										intersected.leftStatement,
-										leftInfo,
-									),
-									target: this.describeStatementTarget(
-										intersected.leftStatement,
-										leftInfo,
-									),
-									action: leftInfo.action,
-								},
-								branchB: {
-									chain: chainB,
-									statementDescription: this.describeStatement(
-										intersected.rightStatement,
-										rightInfo,
-									),
-									target: this.describeStatementTarget(
-										intersected.rightStatement,
-										rightInfo,
-									),
-									action: rightInfo.action,
-								},
-							});
-						}
-					}
-				}
-			}
-		}
-
 		const leafNodes: string[] = [];
 		for (const id of Object.keys(nodes)) {
 			if (!prevToChildren[id]) leafNodes.push(id);
+		}
+
+		const conflicts: UnifiedBranchConflict[] = [];
+		const commutativeBranches: NonCommutativityReport['commutativeBranches'] = [];
+		const sortedLeafIds = [...leafNodes].sort((a, b) => a.localeCompare(b));
+
+		// Compare live leaf pairs against the composed frontier they share, not
+		// against each historical fork parent. A fan-in parent is missing its
+		// siblings' DDL, so diff(forkParent → leaf) treats inherited work as
+		// that leaf's own and reports false collisions.
+		for (let i = 0; i < sortedLeafIds.length; i++) {
+			for (let j = i + 1; j < sortedLeafIds.length; j++) {
+				const aId = sortedLeafIds[i]!;
+				const bId = sortedLeafIds[j]!;
+				const mca = maximalCommonAncestors(nodes, aId, bId);
+				const belowId = mca.length <= 1
+					? (mca[0] ?? null)
+					: lowestCommonAncestor(nodes, mca);
+				const belowNode = belowId ? nodes[belowId] : undefined;
+				const belowSnapshot = belowNode ? belowNode.raw : drySnapshot;
+
+				const inheritedKeys = new Set<string>();
+				if (mca.length > 1) {
+					const inherited = composeMergeStatements(
+						await Promise.all(
+							mca.map(async (id) => (await diffOnce(belowSnapshot, nodes[id]!.raw)).statements),
+						),
+					);
+					for (const statement of inherited) {
+						inheritedKeys.add(JSON.stringify(statement));
+					}
+				}
+
+				const [{ statements: aAll }, { statements: bAll }] = await Promise.all([
+					diffOnce(belowSnapshot, nodes[aId]!.raw),
+					diffOnce(belowSnapshot, nodes[bId]!.raw),
+				]);
+				const aStatements = inheritedKeys.size
+					? aAll.filter((statement) => !inheritedKeys.has(JSON.stringify(statement)))
+					: aAll;
+				const bStatements = inheritedKeys.size
+					? bAll.filter((statement) => !inheritedKeys.has(JSON.stringify(statement)))
+					: bAll;
+
+				const intersected = await this.getReasonsFromStatements(
+					aStatements,
+					bStatements,
+					belowSnapshot,
+				);
+				if (!intersected) continue;
+
+				const parentId = mca.length === 1 ? mca[0]! : (belowId ?? drySnapshot.id);
+				const parentNode = nodes[parentId];
+				const leftInfo = this.resolveStatement(intersected.leftStatement).info;
+				const rightInfo = this.resolveStatement(intersected.rightStatement).info;
+
+				conflicts.push({
+					parentId,
+					parentPath: parentNode?.folderPath,
+					branchA: {
+						chain: this.buildChain(
+							nodes,
+							prevToChildren,
+							firstChildFromParent(nodes, parentId, aId),
+							aId,
+						),
+						statementDescription: this.describeStatement(
+							intersected.leftStatement,
+							leftInfo,
+						),
+						target: this.describeStatementTarget(
+							intersected.leftStatement,
+							leftInfo,
+						),
+						action: leftInfo.action,
+					},
+					branchB: {
+						chain: this.buildChain(
+							nodes,
+							prevToChildren,
+							firstChildFromParent(nodes, parentId, bId),
+							bId,
+						),
+						statementDescription: this.describeStatement(
+							intersected.rightStatement,
+							rightInfo,
+						),
+						target: this.describeStatementTarget(
+							intersected.rightStatement,
+							rightInfo,
+						),
+						action: rightInfo.action,
+					},
+				});
+			}
 		}
 
 		// Open commutative merge. When the whole history is conflict-free and more
@@ -425,7 +434,6 @@ export abstract class AbstractCommutativity<
 
 			// Sort heads by id so the composed migration and leaf ids are
 			// deterministic regardless of file read order.
-			const sortedLeafIds = [...leafNodes].sort((a, b) => a.localeCompare(b));
 			const leafs = await Promise.all(
 				sortedLeafIds.map(async (leafId) => {
 					const leafNode = nodes[leafId]!;
