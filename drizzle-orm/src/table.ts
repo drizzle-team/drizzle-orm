@@ -1,6 +1,6 @@
 import type { View } from '~/view.ts';
 import type { Column, Columns, GetColumnData } from './column.ts';
-import { entityKind } from './entity.ts';
+import { entityKind, is } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
 import { TableName } from './table.utils.ts';
 import type { Simplify, Update } from './utils.ts';
@@ -54,6 +54,9 @@ export interface TableTypeConfig<T extends TableConfig> {
 
 export class Table<out T extends TableConfig = TableConfig> {
 	static readonly [entityKind]: string = 'Table';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: TableTypeConfig<T>;
 

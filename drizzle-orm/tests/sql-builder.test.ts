@@ -114,3 +114,11 @@ test('Subquery.getSQL() shadowed by selection field named `getSQL`', () => {
 
 	expect(dialect.sqlToQuery(sql`${sq.getSQL}`).sql).toStrictEqual(`"sq"."get_sql"`);
 });
+
+test('nullish sql.raw() values render as nothing', () => {
+	expect(dialect.sqlToQuery(sql`set time zone '${sql.raw(undefined as unknown as string)}'`).sql).toStrictEqual(
+		`set time zone ''`,
+	);
+	expect(dialect.sqlToQuery(sql`a ${sql.raw(null as unknown as string)} b`).sql).toStrictEqual(`a  b`);
+	expect(dialect.sqlToQuery(sql`limit ${sql.raw(5 as unknown as string)}`).sql).toStrictEqual(`limit 5`);
+});

@@ -1,7 +1,11 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 
 export class DrizzleError extends Error {
 	static readonly [entityKind]: string = 'DrizzleError';
+
+	static override [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor({ message, cause }: { message?: string; cause?: unknown }) {
 		super(message);
@@ -12,6 +16,10 @@ export class DrizzleError extends Error {
 
 export class DrizzleQueryError extends Error {
 	static readonly [entityKind]: string = 'DrizzleQueryError';
+
+	static override [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		public query: string,

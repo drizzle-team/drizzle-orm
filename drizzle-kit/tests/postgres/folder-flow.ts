@@ -38,6 +38,13 @@ import { expect, onTestFinished, vi } from 'vitest';
 import { writeSnapshot } from '../other/check-fixtures';
 import { type PostgresSchema, push } from './mocks';
 
+// This file holds helpers that run the real postgres CLI commands on temporary migrations folders.
+// `createFolderFlow` keeps one folder for each git branch and runs `generate`, `check`, `up` and `pull` on it.
+// `generate` and `pull` run with a fake clock, because they name each new folder from the current time. `migrate`
+// applies a folder to PGlite and returns the statements that `push` still needs. `forkFlow` generates a base and
+// the migrations of several branches, then copies every branch into main. `createFormat8Flow` writes format 8
+// snapshots. The snapshot tests of this folder use these helpers, for example `merge-flow.test.ts` and `fuzz.ts`.
+
 // The result of `check` as data that a test can compare. `fix` lists the folders that generate
 // --fix-conflicts deletes.
 export type CheckResult =

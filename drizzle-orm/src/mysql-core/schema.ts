@@ -5,6 +5,9 @@ import { type MySqlViewFn, mysqlViewWithSchema } from './view.ts';
 
 export class MySqlSchema<TName extends string = string> {
 	static readonly [entityKind]: string = 'MySqlSchema';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		public readonly schemaName: TName,

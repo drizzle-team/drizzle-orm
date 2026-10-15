@@ -1,5 +1,5 @@
 import type { WithCacheConfig } from '~/cache/core/types.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query } from '~/sql/sql.ts';
@@ -21,6 +21,9 @@ export type SQLiteExecuteMethod = 'run' | 'all' | 'get' | 'values';
 
 export abstract class SQLitePreparedQuery implements PreparedQuery {
 	static readonly [entityKind]: string = 'SQLiteBasePreparedQuery';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	readonly mapper: {
@@ -53,6 +56,9 @@ export abstract class SQLitePreparedQuery implements PreparedQuery {
 
 export abstract class SQLiteSession<TRunResult = unknown, TRelations extends AnyRelations = EmptyRelations> {
 	static readonly [entityKind]: string = 'SQLiteSession';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly runResult: TRunResult;

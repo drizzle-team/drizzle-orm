@@ -1,5 +1,5 @@
 import type { Cache } from '~/cache/core/cache.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -36,6 +36,9 @@ export class SQLiteAsyncDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
 > {
 	static readonly [entityKind]: string = 'BaseSQLiteDatabase';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly relations: TRelations;

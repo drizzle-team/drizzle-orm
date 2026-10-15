@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { AnyMsSqlColumn, MsSqlColumn } from './columns/index.ts';
 import type { MsSqlTable } from './table.ts';
@@ -23,6 +23,9 @@ export type IndexColumn = MsSqlColumn | SQL;
 
 export class IndexBuilderOn {
 	static readonly [entityKind]: string = 'MsSqlIndexBuilderOn';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(private name: string, private unique: boolean) {}
 
@@ -40,6 +43,9 @@ export interface IndexBuilder extends AnyIndexBuilder {}
 
 export class IndexBuilder implements AnyIndexBuilder {
 	static readonly [entityKind]: string = 'MsSqlIndexBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	config: IndexConfig;
@@ -65,6 +71,9 @@ export class IndexBuilder implements AnyIndexBuilder {
 
 export class Index {
 	static readonly [entityKind]: string = 'MsSqlIndex';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly config: IndexConfig & { table: MsSqlTable };
 	readonly isNameExplicit: boolean;

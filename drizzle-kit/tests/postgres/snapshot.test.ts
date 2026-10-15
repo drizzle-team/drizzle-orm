@@ -7,6 +7,12 @@ import { originUUID } from 'src/utils';
 import { describe, expect, test } from 'vitest';
 import { columnRow } from './folder-flow';
 
+// Verifies `reconstruct` and `startingState` on snapshot histories that the tests build in memory, and
+// `snapshotValidator` on base and diff snapshots. `reconstruct` applies the deltas of each diff snapshot from the
+// base, and a merge applies the history of its other parents on top of its first parent, in folder-name order.
+// The tests also cover the delta rules of a merge, a missing parent, and the time to reconstruct 1000
+// snapshots. The validator must reject malformed deltas, statements and entity rows.
+
 const ddlOf = (table: string, columns: string[]) => {
 	const ddl = createDDL();
 	ddl.schemas.push({ name: 'public' });

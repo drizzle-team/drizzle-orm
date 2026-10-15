@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { AnySingleStoreColumn, SingleStoreColumn } from './columns/index.ts';
 import { SingleStoreTable } from './table.ts';
 
@@ -24,6 +24,9 @@ export function primaryKey(...config: any) {
 
 export class PrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'SingleStorePrimaryKeyBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare _: {
 		brand: 'SingleStorePrimaryKeyBuilder';
@@ -51,6 +54,9 @@ export class PrimaryKeyBuilder {
 
 export class PrimaryKey {
 	static readonly [entityKind]: string = 'SingleStorePrimaryKey';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly columns: SingleStoreColumn[];
 	readonly name?: string;

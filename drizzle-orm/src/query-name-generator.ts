@@ -7,7 +7,6 @@ function isBinary(value: unknown): boolean {
 		&& typeof Buffer.isBuffer === 'function'
 		&& Buffer.isBuffer(value)
 	) return true;
-	// oxlint-disable-next-line drizzle-internal/no-instanceof
 	if (value instanceof ArrayBuffer) return true;
 	if (ArrayBuffer.isView(value)) return true;
 	return false;
@@ -38,7 +37,6 @@ function arrayTypeId(arr: readonly unknown[]) {
 function jsTypeId(value: unknown): string {
 	if (value === null) return 'null';
 	if (is(value, Placeholder)) return 'placeholder';
-	// oxlint-disable-next-line drizzle-internal/no-instanceof
 	if (value instanceof Date) return 'date';
 	if (Array.isArray(value)) return arrayTypeId(value);
 	if (isBinary(value)) return 'binary';

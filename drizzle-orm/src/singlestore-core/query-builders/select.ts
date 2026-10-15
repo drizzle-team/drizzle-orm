@@ -65,6 +65,9 @@ export class SingleStoreSelectBuilder<
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
 	static readonly [entityKind]: string = 'SingleStoreSelectBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private fields: TSelection;
 	private session: SingleStoreSession | undefined;

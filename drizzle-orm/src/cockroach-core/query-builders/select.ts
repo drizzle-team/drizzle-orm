@@ -64,6 +64,9 @@ export class CockroachSelectBuilder<
 	TBuilderMode extends 'db' | 'qb' = 'db',
 > {
 	static readonly [entityKind]: string = 'CockroachSelectBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private fields: TSelection;
 	private session: CockroachSession | undefined;

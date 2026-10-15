@@ -25,6 +25,12 @@ import { type SnapshotStatement, snapshotStatementSchemas } from 'src/dialects/p
 import { describe, expect, test } from 'vitest';
 import { diff, drizzleToDDL, type PostgresSchema } from './mocks';
 
+// Verifies the statements that a format 9 snapshot stores for its migration. The cases run real diffs, and
+// `toSnapshotStatements` must turn them into every statement kind of `snapshotStatementSchemas`.
+// `isSnapshotStatement` must reject a stored statement with an unknown or a missing field at any depth. Other
+// tests check single fields of some kinds, for example `indexNames` of `move_table` and `shouldDrop` of
+// `alter_pk`.
+
 // A case is a real diff that must write statements of every kind in `kinds`. A `Side` is a function when
 // it holds entities that a drizzle schema cannot declare. The diff mutates its states, so the function
 // builds a new state on each call.

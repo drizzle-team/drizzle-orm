@@ -6,6 +6,12 @@ import { expect, onTestFinished, test, vi } from 'vitest';
 import { forkFlow, rename, schemaState, step, tempDir } from './folder-flow';
 import type { PostgresSchema } from './mocks';
 
+// Verifies `generate --fix-conflicts`. `check` and a plain `generate` stop on a conflict and name the migrations
+// that the fix deletes. The fix deletes the conflicting migrations and their children, keeps the migrations
+// before them, and writes one migration from the remaining state to the schema. Explain mode and missing rename
+// hints delete nothing, and `generate` rejects the option for sqlite. `migrate` runs the folder on PGlite to
+// compare the database with the schema.
+
 const tags = pgTable('tags', { id: integer() });
 const users = (score?: number, extra: Record<string, ReturnType<typeof integer>> = {}) =>
 	pgTable('users', { id: integer(), score: score === undefined ? integer() : integer().default(score), ...extra });

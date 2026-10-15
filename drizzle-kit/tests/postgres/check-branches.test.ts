@@ -3,6 +3,12 @@ import { stripVTControlCharacters } from 'util';
 import { expect, test } from 'vitest';
 import { type CheckResult, createFolderFlow, forkFlow, rename, step } from './folder-flow';
 
+// Verifies that `check` reports a conflict when the merged branches of a migration folder change the same
+// object: a column, a primary key, an enum, a role, a policy, a foreign key, or a name that a table and an index
+// share. Most cases also run the folder with `migrate` on PGlite, to show that the SQL fails or leaves a database
+// that differs from the schema. Two cases check the report text: the snapshots that it names, and the groups of
+// conflicting pairs when three branches meet.
+
 // Gives the lines of a conflict report with folder names in place of the temporary folder paths, so that a
 // test can compare exact lines.
 const reportOf = (result: CheckResult) =>

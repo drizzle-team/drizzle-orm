@@ -93,6 +93,9 @@ export class MsSqlInsertBuilder<
 	TColumnList extends string[] | 'all' = 'all',
 > {
 	static readonly [entityKind]: string = 'MsSqlInsertBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private config: {
 		output?: SelectedFieldsOrdered;

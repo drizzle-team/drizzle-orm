@@ -19,6 +19,9 @@ import {
 
 export class CockroachSchema<TName extends string = string> implements SQLWrapper {
 	static readonly [entityKind]: string = 'CockroachSchema';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	isExisting: boolean = false;
 	constructor(
