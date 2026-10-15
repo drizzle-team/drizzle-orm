@@ -1,8 +1,3 @@
-// Verifies that the SDK `check` and the `check` CLI command compare a postgres schema file with the migrations
-// folder and add `warnings` to the `ok` result. The tests cover a schema that equals or differs from the
-// migrations, a schema path with no file, a schema file that throws, the text output with exit code 0, a folder
-// with conflicts, and sqlite, which `check` does not compare with the schema.
-// Each test stages a migrations folder under tests/tmp/ with `check-fixtures` and writes a real schema file into it.
 import { rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { afterAll, expect, onTestFinished, test, vi } from 'vitest';
@@ -10,6 +5,12 @@ import { check } from '../../src/cli-sdk';
 import { runWithCliContext } from '../../src/cli/context';
 import { check as checkCommand, prepareCheck } from '../../src/cli/schema';
 import { stageConflict, stageOut, stageValid } from './check-fixtures';
+
+// Verifies that the SDK `check` and the `check` CLI command compare a postgres schema file with the migrations
+// folder and add `warnings` to the `ok` result. The tests cover a schema that equals or differs from the
+// migrations, a schema path with no file, a schema file that throws, the text output with exit code 0, a folder
+// with conflicts, and sqlite, which `check` does not compare with the schema.
+// Each test stages a migrations folder under tests/tmp/ with `check-fixtures` and writes a real schema file into it.
 
 // The tests of this file run without TEST_CONFIG_PATH_PREFIX. The `pnpm test` script sets the prefix to
 // ./tests/cli/, and drizzle-kit adds the prefix in front of the schema path, so the schema files are not found.

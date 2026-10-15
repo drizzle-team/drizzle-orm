@@ -1,11 +1,12 @@
+import { integer, pgPolicy, pgTable, serial, varchar } from 'drizzle-orm/pg-core';
+import { expect, test } from 'vitest';
+import { createFolderFlow, forkFlow, step } from './folder-flow';
+
 // Verifies `schemaWarnings`, the function that `check` uses to compare a postgres schema with the migrations folder.
 // The function compares the schema with the combined state of all leaf migrations. The tests cover each warning
 // kind (`schema_changed`, `merge_needed`, `not_compared`) and the cases that give no warning. They also verify that
 // the comparison writes no file and asks for no rename decision.
 // Each test writes the folder with real generate runs through `createFolderFlow` or `forkFlow`.
-import { integer, pgPolicy, pgTable, serial, varchar } from 'drizzle-orm/pg-core';
-import { expect, test } from 'vitest';
-import { createFolderFlow, forkFlow, step } from './folder-flow';
 
 const users = pgTable('users', { id: integer() });
 const usersWithEmail = pgTable('users', { id: integer(), email: varchar() });
