@@ -707,6 +707,52 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Schema Modifications', 
 		await expect(diff(from, to, [])).rejects.toThrow('DSQL does not support changing the primary key');
 	});
 
+	// DSQL only adds unique constraints to existing tables from a built unique index - throws an error
+	test('add unique constraint to existing table throws error (unsupported in DSQL)', async () => {
+		const tableName = _.uniqueName('gen_add_unique');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				email: text('email'),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				email: text('email').unique(),
+			}),
+		};
+
+		await expect(diff(from, to, [])).rejects.toThrow(
+			'DSQL only supports adding a unique constraint to an existing table',
+		);
+	});
+
+	// DSQL only adds unique constraints to existing tables from a built unique index - throws an error
+	test('alter unique constraint throws error (unsupported in DSQL)', async () => {
+		const tableName = _.uniqueName('gen_alter_unique');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				email: text('email').unique('email_unique'),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				email: text('email').unique('email_unique', { nulls: 'not distinct' }),
+			}),
+		};
+
+		await expect(diff(from, to, [])).rejects.toThrow(
+			'DSQL only supports adding a unique constraint to an existing table',
+		);
+	});
+
 	// DSQL does not support changing a generated expression - throws an error
 	test('alter generated expression throws error (unsupported in DSQL)', async () => {
 		const tableName = _.uniqueName('gen_alter_expr');

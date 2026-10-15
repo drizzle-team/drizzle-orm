@@ -9,6 +9,7 @@
  * - Sequences require CACHE (must be 1 or >= 65536)
  * - Foreign keys and check constraints added with ALTER TABLE require NOT VALID
  * - Primary keys can only be defined in CREATE TABLE
+ * - Unique constraints can only be added to existing tables from a built unique index
  * - Limited ALTER TABLE support (no SET NOT NULL, SET DATA TYPE, etc.)
  */
 
@@ -276,6 +277,11 @@ const primaryKeyStatementTypes = [
 	'alter_pk',
 ] as const;
 
+const uniqueStatementTypes = [
+	'add_unique',
+	'alter_unique',
+] as const;
+
 /**
  * Validates a statement and returns an error message if it's unsupported in DSQL.
  * Returns null if the statement is supported.
@@ -298,6 +304,13 @@ function validateStatement(statement: JsonStatement): string | null {
 		return `DSQL does not support changing the primary key of an existing table. `
 			+ `Cannot perform ${statement.type} operation. `
 			+ `Consider recreating the table with the desired schema.`;
+	}
+
+	// Unique constraint statements - DSQL only adds them to existing tables from a built unique index
+	if ((uniqueStatementTypes as readonly string[]).includes(statement.type)) {
+		return `DSQL only supports adding a unique constraint to an existing table from a unique index that has finished building. `
+			+ `Cannot perform ${statement.type} operation. `
+			+ `Consider using a unique index instead.`;
 	}
 
 	// ADD COLUMN with constraints
