@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { AnyPgColumn, PgColumn } from './columns/index.ts';
 import { PgTable } from './table.ts';
 
@@ -24,6 +24,9 @@ export function primaryKey(...config: any) {
 
 export class PrimaryKeyBuilder {
 	static readonly [entityKind]: string = 'PgPrimaryKeyBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare _: {
 		brand: 'PgPrimaryKeyBuilder';
@@ -51,6 +54,9 @@ export class PrimaryKeyBuilder {
 
 export class PrimaryKey {
 	static readonly [entityKind]: string = 'PgPrimaryKey';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly columns: AnyPgColumn<{}>[];
 	readonly name?: string;

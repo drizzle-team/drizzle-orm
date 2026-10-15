@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PgSession } from '~/pg-core/session.ts';
 import type { PgMaterializedView } from '~/pg-core/view.ts';
@@ -7,6 +7,9 @@ import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 // eslint-disable-next-line no-unused-vars
 export class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT> implements SQLWrapper {
 	static readonly [entityKind]: string = 'PgRefreshMaterializedView';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly dialect: 'pg';

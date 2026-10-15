@@ -64,6 +64,9 @@ export class SQLiteUpdateBuilder<
 	THKT extends SQLiteUpdateHKTBase = SQLiteUpdateQueryBuilderHKT,
 > {
 	static readonly [entityKind]: string = 'SQLiteUpdateBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly table: TTable;
@@ -276,6 +279,9 @@ export class SQLiteUpdateBase<
 	TExcludedMethods extends string = never,
 > implements SQLWrapper {
 	static readonly [entityKind]: string = 'SQLiteUpdate';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	config: SQLiteUpdateConfig;

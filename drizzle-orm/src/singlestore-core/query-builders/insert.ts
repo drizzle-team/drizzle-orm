@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
@@ -63,6 +63,9 @@ export class SingleStoreInsertBuilder<
 	TColumnList extends string[] | 'all' = 'all',
 > {
 	static readonly [entityKind]: string = 'SingleStoreInsertBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private shouldIgnore = false;
 

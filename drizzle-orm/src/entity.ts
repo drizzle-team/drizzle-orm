@@ -9,36 +9,33 @@ export type DrizzleEntityClass<T> =
 	& ((abstract new(...args: any[]) => T) | (new(...args: any[]) => T))
 	& DrizzleEntity;
 
-export function is<T extends DrizzleEntityClass<any>>(value: any, type: T): value is InstanceType<T> {
-	if (value instanceof type) { // oxlint-disable-line drizzle-internal/no-instanceof
-		return true;
+const kindsByConstructor = new WeakMap<object, Set<string>>();
+function collectKinds(ctor: object): Set<string> {
+	const kinds = new Set<string>();
+	for (let cls: any = ctor; cls; cls = Object.getPrototypeOf(cls)) {
+		if (entityKind in cls) kinds.add(cls[entityKind]);
 	}
-
-	if (value && typeof value === 'object') {
-		// Traverse the prototype chain to find the entityKind
-		for (
-			let cls = Object.getPrototypeOf(value)?.constructor, targetKind = type[entityKind];
-			cls;
-			cls = Object.getPrototypeOf(cls)
-		) {
-			if (entityKind in cls && cls[entityKind] === targetKind) {
-				return true;
-			}
-		}
-	}
-	return false;
+	kindsByConstructor.set(ctor, kinds);
+	return kinds;
 }
 
-// Faster checking for multiple entity kinds
-export function isAnyKindIn(entityKinds: string[], value: any): boolean {
-	if (value && typeof value === 'object') {
-		// Traverse the prototype chain to find the entityKind
-		for (let cls = Object.getPrototypeOf(value)?.constructor; cls; cls = Object.getPrototypeOf(cls)) {
-			if (entityKind in cls && entityKinds.includes(cls[entityKind])) {
-				return true;
-			}
-		}
-	}
+const nativeHasInstance = Function.prototype[Symbol.hasInstance];
+export function is<T extends DrizzleEntityClass<any>>(value: any, type: T): value is InstanceType<T> {
+	// `instanceof` would loop back to `is` due to `Symbol.hasInstance` redefinitions
+	if (nativeHasInstance.call(type, value)) return true;
+	if (value === null || typeof value !== 'object') return false;
 
-	return false;
+	const ctor = Object.getPrototypeOf(value)?.constructor;
+	if (typeof ctor !== 'function') return false;
+
+	return (kindsByConstructor.get(ctor) ?? collectKinds(ctor)).has(type[entityKind]);
+}
+
+export function entityKindsOf(value: unknown): Set<string> | undefined {
+	if (value === null || typeof value !== 'object') return undefined;
+
+	const ctor = Object.getPrototypeOf(value)?.constructor;
+	if (typeof ctor !== 'function') return undefined;
+
+	return kindsByConstructor.get(ctor) ?? collectKinds(ctor);
 }

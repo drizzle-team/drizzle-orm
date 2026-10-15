@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type {
 	BuildQueryResult,
@@ -20,6 +20,9 @@ export class RelationalQueryBuilder<
 	TFields extends TableRelationalConfig,
 > {
 	static readonly [entityKind]: string = 'CockroachRelationalQueryBuilderV2';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		private schema: TSchema,

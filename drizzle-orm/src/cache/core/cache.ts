@@ -1,9 +1,12 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { Table } from '~/table.ts';
 import type { CacheConfig, WithCacheConfig } from './types.ts';
 
 export abstract class Cache {
 	static readonly [entityKind]: string = 'Cache';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	abstract strategy(): 'explicit' | 'all';
 

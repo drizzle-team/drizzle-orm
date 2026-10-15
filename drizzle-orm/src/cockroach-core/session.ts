@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -14,6 +14,9 @@ export interface PreparedQueryConfig {
 
 export abstract class CockroachBasePreparedQuery implements PreparedQuery {
 	static readonly [entityKind]: string = 'CockroachBasePreparedQuery';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		protected query: Query,
@@ -106,6 +109,9 @@ export abstract class CockroachSession<
 	TRelations extends AnyRelations = EmptyRelations,
 > {
 	static readonly [entityKind]: string = 'CockroachSession';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(protected dialect: CockroachDialect) {}
 

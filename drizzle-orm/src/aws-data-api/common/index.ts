@@ -61,10 +61,10 @@ export function toValueParam(value: any): Field {
 	if (valueType === 'bigint') {
 		return { stringValue: value.toString() };
 	}
-	if (value instanceof Date) { // oxlint-disable-line drizzle-internal/no-instanceof
+	if (value instanceof Date) {
 		return { stringValue: value.toISOString().replace('T', ' ').replace('Z', '') };
 	}
-	if ((typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) || value instanceof Uint8Array) { // oxlint-disable-line drizzle-internal/no-instanceof
+	if ((typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) || value instanceof Uint8Array) {
 		return { blobValue: value };
 	}
 

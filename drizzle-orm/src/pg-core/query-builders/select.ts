@@ -76,6 +76,9 @@ export class PgSelectBuilder<
 	THKT extends PgSelectHKTBase = PgSelectHKT,
 > {
 	static readonly [entityKind]: string = 'PgSelectBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private fields: TSelection;
 	private session: PgSession | undefined;

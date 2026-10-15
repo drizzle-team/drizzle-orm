@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { SelectResult } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { IsAlias, OriginalName, TableColumns, TableSchema } from '~/table.ts';
@@ -37,6 +37,9 @@ export type AnyView<TPartial extends Partial<ViewConfig>> = View<UpdateViewConfi
 
 export abstract class View<T extends ViewConfig = ViewConfig> {
 	static readonly [entityKind]: string = 'View';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare _: ViewTypeConfig<T>;
 

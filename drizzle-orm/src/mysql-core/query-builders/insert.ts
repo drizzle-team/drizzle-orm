@@ -108,6 +108,9 @@ export class MySqlInsertBuilder<
 	TBuilderHKT extends MySqlInsertHKTBase = MySqlInsertHKT,
 > {
 	static readonly [entityKind]: string = 'MySqlInsertBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private shouldIgnore = false;
 
@@ -321,6 +324,9 @@ export class MySqlInsertBase<
 	TExcludedMethods extends string = never,
 > implements SQLWrapper {
 	static readonly [entityKind]: string = 'MySqlInsert';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare protected $table: TTable;
 

@@ -93,7 +93,7 @@ export class PostgresSession<
 		const builtQueries: PoolQuery[] = new Array(queries.length);
 
 		const q = this.client;
-		if (!(q instanceof Pool)) throw new Error('`batch` method is only supported on connection pools!'); // oxlint-disable-line no-instanceof-builtins drizzle-internal/no-instanceof
+		if (!(q instanceof Pool)) throw new Error('`batch` method is only supported on connection pools!');
 		for (let i = 0; i < queries.length; ++i) {
 			const query = queries[i]!;
 			const preparedQuery = query._prepare() as PostgresPreparedQuery<any>;

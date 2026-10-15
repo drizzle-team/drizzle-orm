@@ -83,6 +83,9 @@ export class MySqlSelectBuilder<
 	THKT extends MySqlSelectHKTBase = MySqlSelectQueryBuilderHKT,
 > {
 	static readonly [entityKind]: string = 'MySqlSelectBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private fields: TSelection;
 	private session: MySqlSession | undefined;
