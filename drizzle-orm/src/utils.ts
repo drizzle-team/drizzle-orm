@@ -486,10 +486,9 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 }
 
 export function getColumnFromDecoder(source: SQL | SQL.Aliased | SQLWrapper): Column | undefined {
-	const query = source.getSQL();
+	const { decoder } = source.getSQL();
 
-	if (is(query.decoder, Column)) return query.decoder;
-	return undefined;
+	return isChunk(decoder, chunkKindOf(decoder), chunkKinds.column) ? decoder : undefined;
 }
 
 export function haveSameKeys(left: Record<string, unknown>, right: Record<string, unknown>) {

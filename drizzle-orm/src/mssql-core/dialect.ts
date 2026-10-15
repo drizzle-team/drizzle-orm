@@ -4,49 +4,35 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
-import type { MsSqlCustomColumn } from '~/mssql-core/columns/custom.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	AnyOne,
+	BuildRelationalQueryConfig,
 	BuildRelationalQueryResult,
-	ColumnWithTSName,
 	DBQueryConfigWithComment,
-	RelationalQueryStrategy,
 	RelationalRowsMapperGenerator,
-	TableRelationalConfig,
-	TablesRelationalConfig,
 	WithContainer,
 } from '~/relations.ts';
 import {
+	buildRqbColumns,
 	collectRelationalSubquery,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
 	makeJitRqbMapper,
+	relationalQueryWhereToSQL,
 	type RelationalWithSubqueries,
 	relationExtrasToSQL,
-	relationsFilterToSQL,
 	relationsOrderToSQL,
 	relationToSQL,
-	type SchemaEntry,
 } from '~/relations.ts';
-import {
-	type DriverValueDecoder,
-	isSQLWrapper,
-	type Query,
-	SQL,
-	sql,
-	type SQLChunk,
-	type SQLWrapper,
-	StringChunk,
-} from '~/sql/sql.ts';
+import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
+import { type Query, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { chunkKindOf, chunkKinds, isChunk } from '~/sql/sql.ts';
-import { commonStringChunks } from '~/sql/sql.ts';
 import { ValueRows } from '~/sql/sql.ts';
-import { Subquery } from '~/subquery.ts';
+import type { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mssql.ts';
 import {
-	getColumnFromDecoder,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
 	memoizeEscape,
@@ -54,7 +40,7 @@ import {
 	type UpdateSet,
 } from '~/utils.ts';
 import { View } from '~/view.ts';
-import { and, DrizzleError, type Name, ViewBaseConfig } from '../index.ts';
+import { DrizzleError, type Name, ViewBaseConfig } from '../index.ts';
 import { type MsSqlCodecs, type MsSqlType, resolveMsSqlTypeAlias } from './codecs.ts';
 import { MsSqlColumn } from './columns/common.ts';
 import type { MsSqlDeleteConfig } from './query-builders/delete.ts';
@@ -75,6 +61,27 @@ export interface MsSqlDialectConfig {
 }
 
 const escapeMsSqlName = memoizeEscape((name) => `[${name.replace(/\]/g, ']]')}]`);
+// Stored separately - differ per dialect
+const rqbChunks = {
+	select: new StringChunk('select'),
+	top: new StringChunk(' top('),
+	offset: new StringChunk(' offset '),
+	rows: new StringChunk(' rows'),
+	fetchNext: new StringChunk(' fetch next '),
+	rowsOnly: new StringChunk(' rows only'),
+	jsonQueryOpen: new StringChunk('json_query('),
+	jsonQueryCoalesceOpen: new StringChunk('json_query(coalesce('),
+	coalesceOpen: new StringChunk('coalesce('),
+	jsonOneClose: new StringChunk('.[j] as '),
+	jsonOneNestedClose: new StringChunk('.[j]) as '),
+	jsonManyClose: new StringChunk(`.[j], '[]') as `),
+	jsonManyNestedClose: new StringChunk(`.[j], '[]')) as `),
+	applyOpen: new StringChunk(' outer apply ('),
+	forJsonOne: new StringChunk(' for json path, include_null_values, without_array_wrapper) '),
+	forJsonMany: new StringChunk(' for json path, include_null_values) '),
+	applyColumn: new StringChunk('([j])'),
+} as const;
+
 export class MsSqlDialect {
 	static readonly [entityKind]: string = 'MsSqlDialect';
 	static [Symbol.hasInstance](value: unknown): boolean {
@@ -955,179 +962,19 @@ export class MsSqlDialect {
 		return res;
 	}
 
-	private buildRqbColumn(
-		table: SchemaEntry,
-		field: unknown,
-		key: string,
-		inJson: boolean,
-		selection: BuildRelationalQueryResult['selection'],
-		tableTsName: string,
-	) {
-		let decoderColumn: Column | undefined;
-		let subqueryDecoder: DriverValueDecoder<any, any> | undefined;
-		let fieldType: BuildRelationalQueryResult['selection'][number]['fieldType'];
-		let output: SQL;
+	buildRelationalQuery(
+		config: Omit<BuildRelationalQueryConfig, 'through'>,
+	): BuildRelationalQueryResult {
+		const chunks: SQLChunk[] = [];
+		const selection = this.collectRelationalQuery(config, chunks);
 
-		if (is(field, Column)) {
-			decoderColumn = field;
-			fieldType = 'Column';
-
-			const cast = inJson && (<MsSqlCustomColumn<any>> field).jsonSelectIdentifier
-				? undefined
-				: this.codecs.codecsOf(field)[inJson ? 'castInJson' : 'cast'];
-			if (cast || (inJson && (<MsSqlCustomColumn<any>> field).jsonSelectIdentifier)) {
-				const name = sql`${table}.${sql.identifier(field.name)}`;
-				const casted = cast
-					? cast(name, (<any> field).dimensions)
-					: (<MsSqlCustomColumn<any>> field).jsonSelectIdentifier!(name, sql);
-				output = sql`${casted} as ${sql.identifier(key)}`;
-			} else {
-				output = new SQL([
-					table,
-					commonStringChunks['.'],
-					sql.identifier(field.name),
-					commonStringChunks[' as '],
-					sql.identifier(key),
-				]);
-			}
-		} else if (is(field, SQL)) {
-			decoderColumn = is(field.decoder, Column) ? field.decoder : undefined;
-			fieldType = 'SQL';
-
-			const q = sql`${table}.${sql.identifier(key)}`;
-			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
-				sql.identifier(key)
-			}`;
-		} else if (is(field, SQL.Aliased)) {
-			decoderColumn = is(field.sql.decoder, Column) ? field.sql.decoder : undefined;
-			fieldType = 'SQL.Aliased';
-
-			const q = sql`${table}.${sql.identifier(field.fieldAlias)}`;
-			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
-				sql.identifier(key)
-			}`;
-		} else if (is(field, Subquery)) {
-			const innerField = Object.values(field._.selectedFields)[0];
-
-			if (is(innerField, Column)) {
-				decoderColumn = innerField;
-				subqueryDecoder = innerField;
-			} else if (is(innerField, SQL.Aliased)) {
-				decoderColumn = getColumnFromDecoder(innerField);
-				subqueryDecoder = innerField.sql.decoder;
-			} else if (is(innerField, SQL)) {
-				decoderColumn = getColumnFromDecoder(innerField);
-				subqueryDecoder = innerField.decoder;
-			}
-			fieldType = 'Subquery';
-
-			const q = sql`${table}.${sql.identifier(field._.alias)}`;
-			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
-				sql.identifier(key)
-			}`;
-		} else if (isSQLWrapper(field)) {
-			const query = (field as SQLWrapper).getSQL();
-			decoderColumn = is(query.decoder, Column) ? query.decoder : undefined;
-			fieldType = 'SQLWrapper';
-
-			const q = sql`${table}.${sql.identifier(key)}`;
-			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
-				sql.identifier(key)
-			}`;
-		} else {
-			throw new DrizzleError({
-				message: field === undefined
-					? `Unknown column: "${tableTsName}"."${key}"`
-					: `Views and subqueries with nested selections are not supported by the relational query builder`,
-			});
-		}
-
-		selection.push(
-			(decoderColumn
-				? {
-					key,
-					field,
-					fieldType,
-					subqueryDecoder,
-					codec: !inJson || !(<MsSqlCustomColumn<any>> decoderColumn).mapFromJsonValue
-						? this.codecs.get(decoderColumn, inJson ? 'normalizeInJson' : 'normalize')
-						: undefined,
-				}
-				: {
-					key,
-					field,
-					fieldType,
-					subqueryDecoder,
-				}) as BuildRelationalQueryResult['selection'][number],
-		);
-
-		return output;
+		return {
+			sql: new SQL(chunks),
+			selection,
+		};
 	}
 
-	private getSelectedTableColumns = (
-		columnContainer: Record<string, unknown>,
-		columns: Record<string, boolean | undefined>,
-	) => {
-		const selectedColumns: ColumnWithTSName[] = [];
-		const entries = Object.entries(columns);
-
-		let colSelectionMode: boolean | undefined;
-		for (const [k, v] of entries) {
-			if (v === undefined) continue;
-			colSelectionMode = colSelectionMode || v;
-
-			if (v) {
-				selectedColumns.push({
-					column: columnContainer[k]! as Column | SQL | SQLWrapper | SQL.Aliased,
-					tsName: k,
-				});
-			}
-		}
-
-		if (colSelectionMode === false) {
-			for (const [k, v] of Object.entries(columnContainer)) {
-				if (columns[k] === false) continue;
-
-				selectedColumns.push({
-					column: v as Column | SQL | SQLWrapper | SQL.Aliased,
-					tsName: k,
-				});
-			}
-		}
-
-		return selectedColumns;
-	};
-
-	private buildColumns = (
-		table: SchemaEntry,
-		columns: Record<string, unknown>,
-		selection: BuildRelationalQueryResult['selection'],
-		inJson: boolean,
-		tableTsName: string,
-		config?: DBQueryConfigWithComment<'many'>,
-	) => {
-		if (!config?.columns) {
-			return sql.join(
-				Object.entries(columns).map(([k, v]) => {
-					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
-				}),
-				commonStringChunks[', '],
-			);
-		}
-
-		const columnIdentifiers: SQL[] = [];
-		const selectedColumns = this.getSelectedTableColumns(columns, config.columns);
-
-		for (const { column, tsName } of selectedColumns) {
-			columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, inJson, selection, tableTsName));
-		}
-
-		return columnIdentifiers.length
-			? sql.join(columnIdentifiers, commonStringChunks[', '])
-			: undefined;
-	};
-
-	buildRelationalQuery({
+	private collectRelationalQuery({
 		schema,
 		table,
 		tableConfig,
@@ -1136,24 +983,11 @@ export class MsSqlDialect {
 		mode,
 		errorPath,
 		depth,
-		throughJoin,
+		through,
 		nested,
 		withSubqueries,
 		strategy,
-	}: {
-		schema: TablesRelationalConfig;
-		table: SchemaEntry;
-		tableConfig: TableRelationalConfig;
-		queryConfig?: DBQueryConfigWithComment<'many'> | true;
-		relationWhere?: SQL;
-		mode: 'first' | 'many';
-		errorPath?: string;
-		depth?: number;
-		throughJoin?: SQL;
-		nested?: boolean;
-		withSubqueries?: RelationalWithSubqueries;
-		strategy?: RelationalQueryStrategy;
-	}): BuildRelationalQueryResult {
+	}: BuildRelationalQueryConfig, collectTo: SQLChunk[]): BuildRelationalQueryResult['selection'] {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
@@ -1169,14 +1003,14 @@ export class MsSqlDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const filter = params && 'where' in params
-			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries)
-			: undefined;
-		const where: SQL | undefined = filter && relationWhere
-			? and(filter.sql, relationWhere)
-			: filter
-			? filter.sql
-			: relationWhere;
+		const { sql: where } = relationalQueryWhereToSQL(
+			table,
+			params,
+			tableConfig.relations,
+			schema,
+			subqueries,
+			relationWhere,
+		);
 		const order = params?.orderBy
 			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, subqueries, 'top')
 			: undefined;
@@ -1189,135 +1023,156 @@ export class MsSqlDialect {
 			});
 		}
 
-		const columns = this.buildColumns(
+		const withParam = params ? (params as WithContainer).with : undefined;
+		const withKeys: string[] = [];
+		if (withParam) {
+			for (const key of Object.keys(withParam)) {
+				if (withParam[key]) withKeys.push(key);
+			}
+		}
+
+		const useOffset = offset !== undefined;
+
+		// Reserved for `with` clause, filled once all subqueries are collected
+		const withIdx = currentDepth ? -1 : collectTo.length;
+		if (!currentDepth) collectTo.push(undefined);
+
+		collectTo.push(rqbChunks.select);
+		if (!useOffset && limit !== undefined) {
+			collectTo.push(rqbChunks.top, limit as SQLChunk, commonStringChunks[')']);
+		}
+		collectTo.push(commonStringChunks[' ']);
+		const hasColumns = buildRqbColumns(
 			table,
 			tableConfig.table[TableColumns],
 			selection,
 			!!nested,
 			tableConfig.name,
-			params,
+			this.codecs,
+			collectTo,
+			params?.columns,
 		);
-		const extras = params?.extras ? relationExtrasToSQL(table, params.extras, this.codecs, nested) : undefined;
-		if (extras) selection.push(...extras.selection);
+		let selected = hasColumns ? 1 : 0;
+		if (params?.extras) {
+			const mark = collectTo.length;
+			if (selected) collectTo.push(commonStringChunks[', ']);
+			const extras = relationExtrasToSQL(table, params.extras, this.codecs, nested, collectTo);
+			selection.push(...extras.selection);
+			if (extras.sql) ++selected;
+			else collectTo.length = mark;
+		}
+		const applyAliases: Name[] = new Array(withKeys.length);
+		for (let i = 0; i < withKeys.length; ++i) {
+			const k = withKeys[i]!;
+			const relation = tableConfig.relations[k];
+			if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
 
-		const selectionArr: SQL[] = [];
-		if (columns) selectionArr.push(columns);
-		if (extras?.sql) selectionArr.push(extras.sql);
-
-		const applies: SQL[] = [];
-
-		switch (params) {
-			case undefined:
-				break;
-			default: {
-				const { with: withParam } = params as WithContainer;
-				if (!withParam) break;
-
-				const withKeys: string[] = [];
-				for (const key of Object.keys(withParam)) {
-					if (withParam[key]) withKeys.push(key);
-				}
-				if (!withKeys.length) break;
-
-				for (let i = 0; i < withKeys.length; ++i) {
-					const k = withKeys[i]!;
-					const join = withParam[k]!;
-					const relation = tableConfig.relations[k];
-					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
-					const isSingle = relation.relationType === 'one';
-					collectRelationalSubquery(subqueries, relation.targetTable);
-					collectRelationalSubquery(subqueries, relation.throughTable);
-
-					const targetTable = aliasedTable(relation.targetTable, `d${currentDepth + 1}`);
-					const throughTable = relation.throughTable
-						? (aliasedTable(relation.throughTable, `tr${currentDepth}`))
-						: undefined;
-
-					const { filter, joinCondition } = relationToSQL(relation, table, targetTable, throughTable);
-
-					const nestedThroughJoin = throughTable
-						? sql` inner join ${getTableAsAliasSQL(throughTable)} on ${joinCondition!}`
-						: undefined;
-
-					const innerQuery = this.buildRelationalQuery({
-						table: targetTable,
-						mode: isSingle ? 'first' : 'many',
-						schema,
-						queryConfig: join as DBQueryConfigWithComment,
-						tableConfig: schema[relation.targetTableName]!,
-						relationWhere: filter,
-						errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
-						depth: currentDepth + 1,
-						withSubqueries: subqueries,
-						strategy: currentDepth ? strategy : params?.strategy,
-						throughJoin: nestedThroughJoin,
-						nested: true,
-					});
-
-					selection.push({
-						field: targetTable,
-						fieldType: 'Nested',
-						key: k,
-						selection: innerQuery.selection,
-						isArray: !isSingle,
-						isOptional: ((relation as AnyOne).optional ?? false)
-							|| (join !== true && !!(join as Exclude<typeof join, boolean | undefined>).where),
-					});
-
-					const forJson = isSingle
-						? sql` for json path, include_null_values, without_array_wrapper`
-						: sql` for json path, include_null_values`;
-
-					const applyAlias = sql.identifier(`r${currentDepth}_${i}`);
-					const jsonColumn = sql.identifier('j');
-					applies.push(
-						sql` outer apply (${innerQuery.sql}${forJson}) ${applyAlias}(${jsonColumn})`,
-					);
-
-					const jsonRef = sql`${applyAlias}.${jsonColumn}`;
-					const jsonQuery = isSingle ? jsonRef : sql`coalesce(${jsonRef}, '[]')`;
-
-					selectionArr.push(
-						sql`${nested ? sql`json_query(${jsonQuery})` : jsonQuery} as ${sql.identifier(k)}`,
-					);
-				}
-
-				break;
-			}
+			const applyAlias = applyAliases[i] = sql.identifier(`r${currentDepth}_${i}`);
+			if (selected++) collectTo.push(commonStringChunks[', ']);
+			collectTo.push(
+				relation.relationType === 'one'
+					? nested ? rqbChunks.jsonQueryOpen : undefined
+					: nested
+					? rqbChunks.jsonQueryCoalesceOpen
+					: rqbChunks.coalesceOpen,
+				applyAlias,
+				relation.relationType === 'one'
+					? nested ? rqbChunks.jsonOneNestedClose : rqbChunks.jsonOneClose
+					: nested
+					? rqbChunks.jsonManyNestedClose
+					: rqbChunks.jsonManyClose,
+				sql.identifier(k),
+			);
 		}
 
-		if (!selectionArr.length) {
+		if (!selected) {
 			throw new DrizzleError({
 				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
 			});
 		}
-		const selectionSet = sql.join(selectionArr, commonStringChunks[', ']);
-
-		const useOffset = offset !== undefined;
-		const top = !useOffset && limit !== undefined ? sql` top(${limit})` : undefined;
-
-		const withSql = currentDepth ? undefined : this.buildWithCTE([...subqueries.values()]);
-		const appliesSql = applies.length ? sql.join(applies) : undefined;
-		const whereSql = where ? sql` where ${where}` : undefined;
-		const orderSql = order ? sql` order by ${order}` : undefined;
-		const offsetSql = sql`${useOffset ? sql` offset ${offset} rows` : undefined}${
-			useOffset && limit !== undefined ? sql` fetch next ${limit} rows only` : undefined
-		}`;
 
 		// Optimize slow queries caused by planner applying pagination or filters after building relations
 		// `offset` isn't pushed below `outer apply`: relations would get built for skipped rows as well.
 		// Paginating the table in a derived table first restricts applies to the rows that are actually returned
-		const query = appliesSql && isOptimized && useOffset
-			? sql`${withSql}select ${selectionSet} from (select ${table}.* from ${
-				getTableAsAliasSQL(table)
-			}${throughJoin}${whereSql}${orderSql}${offsetSql}) as ${table}${appliesSql}${orderSql}`
-			: sql`${withSql}select${top} ${selectionSet} from ${
-				getTableAsAliasSQL(table)
-			}${throughJoin}${appliesSql}${whereSql}${orderSql}${offsetSql}`;
+		const isWrapped = withKeys.length > 0 && isOptimized && useOffset;
 
-		return {
-			sql: query,
-			selection,
-		};
+		collectTo.push(commonStringChunks[' from ']);
+		if (isWrapped) collectTo.push(commonStringChunks['(select '], table, commonStringChunks['.* from ']);
+		getTableAsAliasSQL(table, collectTo);
+		if (through) {
+			collectTo.push(commonStringChunks[' inner join ']);
+			getTableAsAliasSQL(through.table, collectTo);
+			collectTo.push(commonStringChunks[' on '], ...through.condition);
+		}
+		if (isWrapped) {
+			if (where) collectTo.push(commonStringChunks[' where '], ...where);
+			if (order) collectTo.push(commonStringChunks[' order by '], ...order);
+			// Wrapped only when paginated with `offset`
+			collectTo.push(rqbChunks.offset, offset as SQLChunk, rqbChunks.rows);
+			if (limit !== undefined) collectTo.push(rqbChunks.fetchNext, limit as SQLChunk, rqbChunks.rowsOnly);
+			collectTo.push(commonStringChunks[') as '], table);
+		}
+
+		for (let i = 0; i < withKeys.length; ++i) {
+			const k = withKeys[i]!;
+			const join = withParam![k]!;
+			const relation = tableConfig.relations[k]!;
+			const isSingle = relation.relationType === 'one';
+			collectRelationalSubquery(subqueries, relation.targetTable);
+			collectRelationalSubquery(subqueries, relation.throughTable);
+
+			const targetTable = aliasedTable(relation.targetTable, `d${currentDepth + 1}`);
+			const throughTable = relation.throughTable
+				? (aliasedTable(relation.throughTable, `tr${currentDepth}`))
+				: undefined;
+
+			const { filter, joinCondition } = relationToSQL(relation, table, targetTable, throughTable);
+
+			collectTo.push(rqbChunks.applyOpen);
+			const innerSelection = this.collectRelationalQuery({
+				table: targetTable,
+				mode: isSingle ? 'first' : 'many',
+				schema,
+				queryConfig: join as DBQueryConfigWithComment,
+				tableConfig: schema[relation.targetTableName]!,
+				relationWhere: filter,
+				errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
+				depth: currentDepth + 1,
+				withSubqueries: subqueries,
+				strategy: currentDepth ? strategy : params?.strategy,
+				through: throughTable ? { table: throughTable, condition: joinCondition! } : undefined,
+				nested: true,
+			}, collectTo);
+			collectTo.push(
+				isSingle ? rqbChunks.forJsonOne : rqbChunks.forJsonMany,
+				applyAliases[i],
+				rqbChunks.applyColumn,
+			);
+
+			selection.push({
+				field: targetTable,
+				fieldType: 'Nested',
+				key: k,
+				selection: innerSelection,
+				isArray: !isSingle,
+				isOptional: ((relation as AnyOne).optional ?? false)
+					|| (join !== true && !!(join as Exclude<typeof join, boolean | undefined>).where),
+			});
+		}
+
+		if (isWrapped) {
+			if (order) collectTo.push(commonStringChunks[' order by '], ...order);
+		} else {
+			if (where) collectTo.push(commonStringChunks[' where '], ...where);
+			if (order) collectTo.push(commonStringChunks[' order by '], ...order);
+			if (useOffset) {
+				collectTo.push(rqbChunks.offset, offset as SQLChunk, rqbChunks.rows);
+				if (limit !== undefined) collectTo.push(rqbChunks.fetchNext, limit as SQLChunk, rqbChunks.rowsOnly);
+			}
+		}
+
+		if (withIdx !== -1) collectTo[withIdx] = this.buildWithCTE([...subqueries.values()]);
+
+		return selection;
 	}
 }

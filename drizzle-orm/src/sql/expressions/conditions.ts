@@ -1,9 +1,9 @@
 import type { AnyColumn, Column, GetColumnData } from '~/column.ts';
 import { is } from '~/entity.ts';
+import { commonStringChunks, type StringChunk } from '../common-chunks.ts';
 import {
 	chunkKindOf,
 	chunkKinds,
-	commonStringChunks,
 	isDriverValueEncoder,
 	isSQLWrapper,
 	Param,
@@ -12,7 +12,6 @@ import {
 	sql,
 	type SQLChunk,
 	type SQLWrapper,
-	StringChunk,
 } from '../sql.ts';
 
 export function bindIfParam(value: unknown, column: SQLWrapper): SQLChunk {
@@ -48,7 +47,6 @@ export interface BinaryOperator {
 	): SQL;
 }
 
-const equalOp = new StringChunk(' = ');
 /**
  * Test that two values are equal.
  *
@@ -67,9 +65,9 @@ const equalOp = new StringChunk(' = ');
  *
  * @see isNull for a way to test equality to NULL.
  */
-export const eq: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => checkColumnWithValue(left, equalOp, right);
+export const eq: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
+	checkColumnWithValue(left, commonStringChunks[' = '], right);
 
-const notEqualOp = new StringChunk(' <> ');
 /**
  * Test that two values are not equal.
  *
@@ -89,30 +87,26 @@ const notEqualOp = new StringChunk(' <> ');
  * @see isNotNull for a way to test whether a value is not null.
  */
 export const ne: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
-	checkColumnWithValue(left, notEqualOp, right);
+	checkColumnWithValue(left, commonStringChunks[' <> '], right);
 
-const doubleOpenParenChunk = new StringChunk('(('),
-	doubleCloseParenChunk = new StringChunk('))'),
-	andWithParenChunk = new StringChunk(') and ('),
-	orWithParenChunk = new StringChunk(') or ('),
-	joinConditions = (conditions: SQLWrapper<unknown>[], separatorWithParenChunk: SQLChunk) => {
-		const chunks: SQLChunk[] = new Array(conditions.length * 2 + 1),
-			lastIdx = conditions.length - 1;
+const joinConditions = (conditions: SQLWrapper<unknown>[], separatorWithParenChunk: SQLChunk) => {
+	const chunks: SQLChunk[] = new Array(conditions.length * 2 + 1),
+		lastIdx = conditions.length - 1;
 
-		// ['((']
-		chunks[0] = doubleOpenParenChunk;
+	// ['((']
+	chunks[0] = commonStringChunks['(('];
 
-		for (let i = 0; i < lastIdx; i++) {
-			// [..., condition, ') and (']
-			chunks[i * 2 + 1] = conditions[i];
-			chunks[i * 2 + 2] = separatorWithParenChunk;
-		}
-		// [..., condition, '))']
-		chunks[lastIdx * 2 + 1] = conditions[lastIdx];
-		chunks[lastIdx * 2 + 2] = doubleCloseParenChunk;
+	for (let i = 0; i < lastIdx; i++) {
+		// [..., condition, ') and (']
+		chunks[i * 2 + 1] = conditions[i];
+		chunks[i * 2 + 2] = separatorWithParenChunk;
+	}
+	// [..., condition, '))']
+	chunks[lastIdx * 2 + 1] = conditions[lastIdx];
+	chunks[lastIdx * 2 + 2] = commonStringChunks['))'];
 
-		return new SQL(chunks);
-	};
+	return new SQL(chunks);
+};
 /**
  * Combine a list of conditions with the `and` operator. Conditions
  * that are equal `undefined` are automatically ignored.
@@ -145,7 +139,7 @@ export function and(
 		return new SQL(conditions);
 	}
 
-	return joinConditions(conditions, andWithParenChunk);
+	return joinConditions(conditions, commonStringChunks[') and (']);
 }
 
 /**
@@ -180,7 +174,7 @@ export function or(
 		return new SQL(conditions);
 	}
 
-	return joinConditions(conditions, orWithParenChunk);
+	return joinConditions(conditions, commonStringChunks[') or (']);
 }
 
 /**
@@ -199,7 +193,6 @@ export function not(condition: SQLWrapper | undefined): SQL | undefined {
 	return is(condition, SQL) ? sql`not (${condition})` : sql`not ${condition}`;
 }
 
-const greaterThanOp = new StringChunk(' > ');
 /**
  * Test that the first expression passed is greater than
  * the second expression.
@@ -215,9 +208,8 @@ const greaterThanOp = new StringChunk(' > ');
  * @see gte for greater-than-or-equal
  */
 export const gt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
-	checkColumnWithValue(left, greaterThanOp, right);
+	checkColumnWithValue(left, commonStringChunks[' > '], right);
 
-const greaterThanOrEqualOp = new StringChunk(' >= ');
 /**
  * Test that the first expression passed is greater than
  * or equal to the second expression. Use `gt` to
@@ -235,9 +227,8 @@ const greaterThanOrEqualOp = new StringChunk(' >= ');
  * @see gt for a strictly greater-than condition
  */
 export const gte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
-	checkColumnWithValue(left, greaterThanOrEqualOp, right);
+	checkColumnWithValue(left, commonStringChunks[' >= '], right);
 
-const lessThanOp = new StringChunk(' < ');
 /**
  * Test that the first expression passed is less than
  * the second expression.
@@ -253,9 +244,8 @@ const lessThanOp = new StringChunk(' < ');
  * @see lte for less-than-or-equal
  */
 export const lt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
-	checkColumnWithValue(left, lessThanOp, right);
+	checkColumnWithValue(left, commonStringChunks[' < '], right);
 
-const lessThanOrEqualOp = new StringChunk(' <= ');
 /**
  * Test that the first expression passed is less than
  * or equal to the second expression.
@@ -271,9 +261,8 @@ const lessThanOrEqualOp = new StringChunk(' <= ');
  * @see lt for a strictly less-than condition
  */
 export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
-	checkColumnWithValue(left, lessThanOrEqualOp, right);
+	checkColumnWithValue(left, commonStringChunks[' <= '], right);
 
-const inOp = new StringChunk(' in ');
 /**
  * Test whether the first parameter, a column or expression,
  * has a value from a list passed as the second argument.
@@ -313,15 +302,14 @@ export function inArray(
 
 		return new SQL([
 			column,
-			inOp,
+			commonStringChunks[' in '],
 			values.map((v) => bindIfParam(v, column)),
 		]);
 	}
 
-	return checkColumnWithValue(column, inOp, values);
+	return checkColumnWithValue(column, commonStringChunks[' in '], values);
 }
 
-const notInOp = new StringChunk(' not in ');
 /**
  * Test whether the first parameter, a column or expression,
  * has a value that is not present in a list passed as the
@@ -362,12 +350,12 @@ export function notInArray(
 
 		return new SQL([
 			column,
-			notInOp,
+			commonStringChunks[' not in '],
 			values.map((v) => bindIfParam(v, column)),
 		]);
 	}
 
-	return checkColumnWithValue(column, notInOp, values);
+	return checkColumnWithValue(column, commonStringChunks[' not in '], values);
 }
 
 /**

@@ -8,6 +8,7 @@ import { View } from '~/view.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
 import { IsAlias, Table } from '../table.ts';
+import { commonStringChunks, StringChunk } from './common-chunks.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -69,35 +70,6 @@ export interface SQLWrapper<T = unknown> {
 export function isSQLWrapper(value: unknown): value is SQLWrapper {
 	return value !== null && value !== undefined && typeof (value as any).getSQL === 'function';
 }
-
-export class StringChunk implements SQLWrapper {
-	static readonly [entityKind]: string = 'StringChunk';
-	static [Symbol.hasInstance](value: unknown): boolean {
-		return is(value, this);
-	}
-
-	constructor(readonly value: string) {}
-
-	getSQL(): SQL<unknown> {
-		return new SQL([this]);
-	}
-}
-
-export const commonStringChunks = {
-	', ': new StringChunk(', '),
-	' ': new StringChunk(' '),
-	'(': new StringChunk('('),
-	')': new StringChunk(')'),
-	default: new StringChunk('default'),
-	'values ': new StringChunk('values '),
-	'with ': new StringChunk('with '),
-	' from ': new StringChunk(' from '),
-	null: new StringChunk('null'),
-	'1 = 0': new StringChunk('1 = 0'),
-	'1 = 1': new StringChunk('1 = 1'),
-	'.': new StringChunk('.'),
-	' as ': new StringChunk(' as '),
-} as const satisfies Record<string, StringChunk>;
 
 export class SQL<T = unknown> implements SQLWrapper<T> {
 	static readonly [entityKind]: string = 'SQL';
@@ -805,7 +777,7 @@ export class ValueRows implements SQLWrapper {
 		for (let i = 0; i < cells.length; ++i) {
 			const column = i % width;
 			chunks.push(
-				column === 0 ? (i === 0 ? commonStringChunks['('] : new StringChunk('), (')) : commonStringChunks[', '],
+				column === 0 ? (i === 0 ? commonStringChunks['('] : commonStringChunks['), (']) : commonStringChunks[', '],
 			);
 			const cell = cells[i];
 			const kind = chunkKindOf(cell);
