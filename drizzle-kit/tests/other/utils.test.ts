@@ -1,3 +1,4 @@
+import { ormVersionGt } from 'src/cli/utils';
 import { isTime, splitExpressions, trimChar, wrapWith } from 'src/utils';
 import { expect, test } from 'vitest';
 
@@ -80,4 +81,12 @@ test('is time', () => {
 	expect.soft(isTime('10:20:30')).toBe(true);
 	expect.soft(isTime('10:20:30+0000')).toBe(true);
 	expect.soft(isTime('now()')).toBe(false);
+});
+
+test('semver checks', async () => {
+	await expect(ormVersionGt('1.0.0-rc.5', '1.0.0-rc.4')).resolves.toBe(false);
+	await expect(ormVersionGt('1.0.0-rc.5', '1.0.0-rc.5')).resolves.toBe(true);
+	await expect(ormVersionGt('1.0.0-rc.5', '1.0.0-rc.6')).resolves.toBe(true);
+	await expect(ormVersionGt('1.0.0-rc.5', '1.0.0')).resolves.toBe(true);
+	await expect(ormVersionGt('1.0.0-rc.5', '1.0.1')).resolves.toBe(true);
 });
