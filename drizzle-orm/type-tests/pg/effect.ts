@@ -1,15 +1,20 @@
 import type { PgClient } from '@effect/sql-pg/PgClient';
-import type { SqlError } from '@effect/sql/SqlError';
-import type * as Effect from 'effect/Effect';
+import * as Effect from 'effect/Effect';
+import type { SqlError } from 'effect/unstable/sql/SqlError';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import type { EffectDrizzleQueryError, MigratorInitError } from '~/effect-core/errors.ts';
+import { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import type { EffectPgDatabase } from '~/effect-postgres/index.ts';
 import { make, makeWithDefaults } from '~/effect-postgres/index.ts';
 import { migrate } from '~/effect-postgres/migrator.ts';
+import { PgEffectDatabase } from '~/pg-core/effect/db.ts';
+import { PgQueryResultHKT } from '~/pg-core/session.ts';
 import type { EmptyRelations } from '~/relations.ts';
 import { eq } from '~/sql/expressions/index.ts';
 import { cities, users } from './tables.ts';
+
+type AsEffect<T> = T extends Effect.Effect<infer A, infer E, infer R> ? Effect.Effect<A, E, R> : T;
 
 {
 	const dbEffect = makeWithDefaults();
@@ -18,7 +23,7 @@ import { cities, users } from './tables.ts';
 	Expect<
 		Equal<
 			DbEffect,
-			Effect.Effect<EffectPgDatabase<Record<string, never>, EmptyRelations> & { $client: PgClient }, never, PgClient>
+			Effect.Effect<EffectPgDatabase<EmptyRelations> & { $client: PgClient }, never, PgClient>
 		>
 	>;
 }
@@ -31,7 +36,7 @@ import { cities, users } from './tables.ts';
 		Equal<
 			DbEffect,
 			Effect.Effect<
-				EffectPgDatabase<Record<string, never>, EmptyRelations> & { $client: PgClient },
+				EffectPgDatabase<EmptyRelations> & { $client: PgClient },
 				never,
 				import('~/effect-core/logger.ts').EffectLogger | import('~/cache/core/cache-effect.ts').EffectCache | PgClient
 			>
@@ -43,7 +48,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 
 {
 	const selectAll = db.select().from(users);
-	type SelectAllEffect = Effect.Effect.AsEffect<typeof selectAll>;
+	type SelectAllEffect = AsEffect<typeof selectAll>;
 
 	Expect<Equal<SelectAllEffect, Effect.Effect<(typeof users.$inferSelect)[], EffectDrizzleQueryError, never>>>;
 }
@@ -53,7 +58,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 		id: users.id,
 		name: users.text,
 	}).from(users);
-	type SelectColumnsEffect = Effect.Effect.AsEffect<typeof selectColumns>;
+	type SelectColumnsEffect = AsEffect<typeof selectColumns>;
 
 	Expect<
 		Equal<
@@ -68,7 +73,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 		.select()
 		.from(users)
 		.leftJoin(cities, eq(users.homeCity, cities.id));
-	type SelectWithJoinEffect = Effect.Effect.AsEffect<typeof selectWithJoin>;
+	type SelectWithJoinEffect = AsEffect<typeof selectWithJoin>;
 
 	Expect<
 		Equal<
@@ -93,7 +98,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 		enumCol: 'a',
 		arrayCol: ['test'],
 	});
-	type InsertOneEffect = Effect.Effect.AsEffect<typeof insertOne>;
+	type InsertOneEffect = AsEffect<typeof insertOne>;
 
 	Expect<Equal<InsertOneEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
 }
@@ -106,7 +111,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 		enumCol: 'a',
 		arrayCol: ['test'],
 	}).returning();
-	type InsertReturningEffect = Effect.Effect.AsEffect<typeof insertReturning>;
+	type InsertReturningEffect = AsEffect<typeof insertReturning>;
 
 	Expect<
 		Equal<InsertReturningEffect, Effect.Effect<(typeof users.$inferSelect)[], EffectDrizzleQueryError, never>>
@@ -121,7 +126,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 		enumCol: 'a',
 		arrayCol: ['test'],
 	}).returning({ id: users.id, text: users.text });
-	type InsertReturningColumnsEffect = Effect.Effect.AsEffect<typeof insertReturningColumns>;
+	type InsertReturningColumnsEffect = AsEffect<typeof insertReturningColumns>;
 
 	Expect<
 		Equal<
@@ -133,7 +138,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 
 {
 	const updateAll = db.update(users).set({ text: 'updated' });
-	type UpdateAllEffect = Effect.Effect.AsEffect<typeof updateAll>;
+	type UpdateAllEffect = AsEffect<typeof updateAll>;
 
 	Expect<Equal<UpdateAllEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
 }
@@ -143,7 +148,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 		.set({ text: 'updated' })
 		.where(eq(users.id, 1))
 		.returning();
-	type UpdateWithReturningEffect = Effect.Effect.AsEffect<typeof updateWithReturning>;
+	type UpdateWithReturningEffect = AsEffect<typeof updateWithReturning>;
 
 	Expect<
 		Equal<
@@ -155,7 +160,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 
 {
 	const deleteAll = db.delete(users);
-	type DeleteAllEffect = Effect.Effect.AsEffect<typeof deleteAll>;
+	type DeleteAllEffect = AsEffect<typeof deleteAll>;
 
 	Expect<Equal<DeleteAllEffect, Effect.Effect<readonly never[], EffectDrizzleQueryError, never>>>;
 }
@@ -164,7 +169,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 	const deleteWithReturning = db.delete(users)
 		.where(eq(users.id, 1))
 		.returning();
-	type DeleteWithReturningEffect = Effect.Effect.AsEffect<typeof deleteWithReturning>;
+	type DeleteWithReturningEffect = AsEffect<typeof deleteWithReturning>;
 
 	Expect<
 		Equal<
@@ -185,14 +190,14 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 
 {
 	const count = db.$count(users);
-	type CountEffect = Effect.Effect.AsEffect<typeof count>;
+	type CountEffect = AsEffect<typeof count>;
 
 	Expect<Equal<CountEffect, Effect.Effect<number, EffectDrizzleQueryError, never>>>;
 }
 
 {
 	const countFiltered = db.$count(users, eq(users.class, 'A'));
-	type CountFilteredEffect = Effect.Effect.AsEffect<typeof countFiltered>;
+	type CountFilteredEffect = AsEffect<typeof countFiltered>;
 
 	Expect<Equal<CountFilteredEffect, Effect.Effect<number, EffectDrizzleQueryError, never>>>;
 }
@@ -200,7 +205,7 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 {
 	const prepared = db.select().from(users).prepare('get_users');
 	const executed = prepared.execute();
-	type ExecutedEffect = Effect.Effect.AsEffect<typeof executed>;
+	type ExecutedEffect = AsEffect<typeof executed>;
 
 	Expect<Equal<ExecutedEffect, Effect.Effect<(typeof users.$inferSelect)[], EffectDrizzleQueryError, never>>>;
 }
@@ -215,4 +220,89 @@ declare const db: EffectPgDatabase<Record<string, never>>;
 			Effect.Effect<undefined, SqlError | EffectDrizzleQueryError | MigratorInitError, never>
 		>
 	>;
+}
+
+{
+	type RunResult = { $brand: 'RUN' };
+	const db = {} as PgEffectDatabase<
+		QueryEffectHKTBase & {
+			readonly error: EffectDrizzleQueryError;
+			readonly context: never;
+		},
+		PgQueryResultHKT & {
+			type: RunResult;
+		},
+		EmptyRelations
+	>;
+
+	const p1 = db.insert(users).values({
+		homeCity: 1,
+		class: 'A',
+		age1: 25,
+		enumCol: 'a',
+		arrayCol: ['test'],
+	}).prepare()
+		.execute();
+	const p2 = db.update(users).set({
+		homeCity: 1,
+		class: 'A',
+		age1: 25,
+		enumCol: 'a',
+		arrayCol: ['test'],
+	}).prepare()
+		.execute();
+	const p3 = db.delete(users).prepare()
+		.execute();
+
+	const r1 = db.insert(users).values({
+		homeCity: 1,
+		class: 'A',
+		age1: 25,
+		enumCol: 'a',
+		arrayCol: ['test'],
+	}).execute();
+	const r2 = db.update(users).set({
+		homeCity: 1,
+		class: 'A',
+		age1: 25,
+		enumCol: 'a',
+		arrayCol: ['test'],
+	}).execute();
+	const r3 = db.delete(users).execute();
+
+	const d1 = Effect.suspend(() =>
+		db.insert(users).values({
+			homeCity: 1,
+			class: 'A',
+			age1: 25,
+			enumCol: 'a',
+			arrayCol: ['test'],
+		})
+	);
+	const d2 = Effect.suspend(() =>
+		db.update(users).set({
+			homeCity: 1,
+			class: 'A',
+			age1: 25,
+			enumCol: 'a',
+			arrayCol: ['test'],
+		})
+	);
+	const d3 = Effect.suspend(() => db.delete(users));
+	const d4 = Effect.suspend(() => db.execute(`somequery`));
+
+	type Expected = Effect.Effect<RunResult, EffectDrizzleQueryError, never>;
+
+	Expect<Equal<typeof p1, Expected>>;
+	Expect<Equal<typeof p2, Expected>>;
+	Expect<Equal<typeof p3, Expected>>;
+
+	Expect<Equal<typeof r1, Expected>>;
+	Expect<Equal<typeof r2, Expected>>;
+	Expect<Equal<typeof r3, Expected>>;
+
+	Expect<Equal<typeof d1, Expected>>;
+	Expect<Equal<typeof d2, Expected>>;
+	Expect<Equal<typeof d3, Expected>>;
+	Expect<Equal<typeof d4, Expected>>;
 }

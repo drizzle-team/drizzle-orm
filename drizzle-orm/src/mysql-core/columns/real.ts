@@ -32,6 +32,9 @@ export class MySqlReal<T extends ColumnBaseConfig<'number double'>> extends MySq
 > {
 	static override readonly [entityKind]: string = 'MySqlReal';
 
+	/** @internal */
+	override readonly codec = 'real';
+
 	precision: number | undefined = this.config.precision;
 	scale: number | undefined = this.config.scale;
 

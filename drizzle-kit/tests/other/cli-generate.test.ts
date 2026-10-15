@@ -1,6 +1,24 @@
 import { test as brotest } from '@drizzle-team/brocli';
-import { assert, expect, test } from 'vitest';
+import { unlinkSync } from 'node:fs';
+import { join } from 'node:path';
+import { afterEach, assert, expect, test, vi } from 'vitest';
+import { GenerateConfig } from '../../src/cli/commands/utils';
+import { HintsHandler } from '../../src/cli/hints';
 import { generate } from '../../src/cli/schema';
+import { wrapParam } from '../../src/cli/validations/common';
+import { error } from '../../src/cli/views';
+import { createConfig } from './utils';
+
+const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
+process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+
+afterEach(() => {
+	if (originalPrefix === undefined) {
+		process.env.TEST_CONFIG_PATH_PREFIX = './tests/cli/';
+	} else {
+		process.env.TEST_CONFIG_PATH_PREFIX = originalPrefix;
+	}
+});
 
 // good:
 // #1 drizzle-kit generate --dialect=postgresql --schema=schema.ts
@@ -23,6 +41,8 @@ import { generate } from '../../src/cli/schema';
 // #7 drizzle-kit generate --config=drizzle.config.ts --schema=schema.ts
 // #8 drizzle-kit generate --config=drizzle.config.ts --dialect=postgresql
 
+const filename = join(process.cwd(), 'tests/cli/schema.ts');
+
 test('generate #1', async (t) => {
 	const res = await brotest(
 		generate,
@@ -34,12 +54,15 @@ test('generate #1', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
-		schema: 'schema.ts',
+		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -55,12 +78,15 @@ test('generate #2', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
-		schema: 'schema.ts',
+		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'out',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -73,12 +99,15 @@ test('generate #3', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
-		schema: './schema.ts',
+		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -92,12 +121,15 @@ test('generate #4', async (t) => {
 		name: undefined,
 		custom: true,
 		breakpoints: true,
-		schema: './schema.ts',
+		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -110,12 +142,15 @@ test('generate #5', async (t) => {
 		name: 'custom',
 		custom: false,
 		breakpoints: true,
-		schema: './schema.ts',
+		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -128,12 +163,15 @@ test('generate #6', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
-		schema: './schema.ts',
+		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -146,12 +184,15 @@ test('generate #7', async (t) => {
 		name: 'custom',
 		custom: true,
 		breakpoints: true,
-		schema: './schema.ts',
+		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -165,12 +206,15 @@ test('generate #8', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
-		schema: './schema.ts',
+		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: true, // expo driver
-		casing: undefined,
+
 		driver: 'expo',
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -183,12 +227,15 @@ test('generate #9', async (t) => {
 		name: undefined,
 		custom: false,
 		breakpoints: true,
-		schema: './schema.ts',
+		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'drizzle',
 		bundle: true, // expo driver
-		casing: undefined,
+
 		driver: 'durable-sqlite',
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -205,12 +252,69 @@ test('generate #9', async (t) => {
 		name: 'custom',
 		custom: true,
 		breakpoints: true,
-		schema: 'schema.ts',
+		filenames: [filename],
+		schemaSource: expect.anything(),
 		out: 'out',
 		bundle: false,
-		casing: undefined,
+
 		driver: undefined,
 		ignoreConflicts: false,
+		explain: false,
+		hints: expect.any(HintsHandler),
+	});
+});
+
+test('generate #10 tsconfig paths', async () => {
+	const originalPrefix = process.env.TEST_CONFIG_PATH_PREFIX;
+	process.env.TEST_CONFIG_PATH_PREFIX = './tests/fixtures/tsconfig-paths/';
+
+	const filename = join(process.cwd(), 'tests/fixtures/tsconfig-paths/entry.ts');
+	try {
+		const res = await brotest(generate, '--config=drizzle.config.ts');
+		if (res.type !== 'handler') assert.fail(res.type, 'handler');
+		expect(res.options).toStrictEqual({
+			dialect: 'postgresql',
+			ignoreConflicts: false,
+			name: undefined,
+			custom: false,
+			breakpoints: true,
+			out: 'drizzle',
+			bundle: false,
+
+			driver: undefined,
+			filenames: [filename],
+			schemaSource: expect.anything(),
+			explain: false,
+			hints: expect.any(HintsHandler),
+		});
+	} finally {
+		if (originalPrefix === undefined) {
+			delete process.env.TEST_CONFIG_PATH_PREFIX;
+		} else {
+			process.env.TEST_CONFIG_PATH_PREFIX = originalPrefix;
+		}
+	}
+});
+
+test('generate --explain', async (t) => {
+	const res = await brotest(
+		generate,
+		'--dialect=postgresql --schema=schema.ts --explain',
+	);
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+	expect(res.options).toStrictEqual({
+		dialect: 'postgresql',
+		name: undefined,
+		custom: false,
+		breakpoints: true,
+		filenames: [filename],
+		schemaSource: expect.anything(),
+		out: 'drizzle',
+		bundle: false,
+		driver: undefined,
+		ignoreConflicts: false,
+		explain: true,
+		hints: expect.any(HintsHandler),
 	});
 });
 
@@ -259,4 +363,148 @@ test('err #8', async (t) => {
 		'--config=drizzle.config.ts --dialect=postgresql',
 	);
 	assert.equal(res.type, 'error');
+});
+
+// should point to test/cli
+const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
+test('validate config #1', async (t) => {
+	const { path, name } = createConfig({
+		dialect: 'postgresql',
+		schema: 'schema.ts',
+		dbCredentials: { url: '' },
+		introspect: { casing: 'preserve' },
+		strict: true,
+		schemaFilter: ['public'],
+		breakpoints: false,
+	}, prefix);
+
+	const res = await brotest(generate, `--config=${name}`);
+
+	unlinkSync(path);
+	assert.equal(res.type, 'handler');
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+
+	const expected: GenerateConfig = {
+		dialect: 'postgresql',
+		filenames: [filename],
+		schemaSource: expect.anything(),
+		breakpoints: false,
+		bundle: false,
+		custom: false,
+		out: 'drizzle',
+		driver: undefined,
+		ignoreConflicts: false,
+		name: undefined,
+		explain: false,
+		hints: expect.any(HintsHandler) as any,
+	};
+	expect(res.options).toStrictEqual(expected);
+});
+
+test('validate config #2', async (t) => {
+	const { path, name } = createConfig({
+		dialect: 'postgresql',
+		schema: 'schema.ts',
+		dbCredentials: { url: '' },
+		introspect: { casing: 'preserve' },
+		strict: true,
+		schemaFilter: ['public'],
+		breakpoints: true,
+		driver: 'pglite',
+		out: 'test',
+		entities: {
+			roles: true,
+		},
+		extensionsFilters: ['postgis'],
+		verbose: false,
+	}, prefix);
+
+	const res = await brotest(generate, `--config=${name}`);
+
+	unlinkSync(path);
+	assert.equal(res.type, 'handler');
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+
+	const expected: GenerateConfig = {
+		dialect: 'postgresql',
+		filenames: [filename],
+		schemaSource: expect.anything(),
+		breakpoints: true,
+		bundle: false,
+		custom: false,
+		out: 'test',
+		driver: 'pglite',
+		ignoreConflicts: false,
+		name: undefined,
+		explain: false,
+		hints: expect.any(HintsHandler) as any,
+	};
+	expect(res.options).toStrictEqual(expected);
+});
+
+test('validate config #3', async (t) => {
+	const { path, name } = createConfig(
+		{ dialect: 'postgresql', driver: 'aws-data-api', out: 'test' },
+		prefix,
+	);
+
+	const res = await brotest(generate, `--config=${name}`);
+
+	unlinkSync(path);
+
+	expect(res.type).toBe('error');
+	if (res.type !== 'error') return;
+	expect((res.error as Error).message).toBe(
+		[
+			error('Please provide required params:'),
+			wrapParam('dialect', 'postgresql'),
+			wrapParam('schema', undefined),
+		].join('\n'),
+	);
+});
+
+test('validate config #4', async (t) => {
+	const { path, name } = createConfig(
+		// @ts-expect-error
+		{ dialect: 1, schema: 'path-to-schema' },
+		prefix,
+	);
+
+	const res = await brotest(generate, `--config=${name}`);
+
+	unlinkSync(path);
+
+	expect(res.type).toBe('error');
+	if (res.type !== 'error') return;
+	expect((res.error as Error).name).toBe('ConfigValidationCliError');
+});
+
+test('validate config #5', async (t) => {
+	const { path, name } = createConfig({
+		dialect: 'sqlite',
+		driver: 'd1-http',
+		schema: 'schema.ts',
+	}, prefix);
+
+	const res = await brotest(generate, `--config=${name}`);
+
+	unlinkSync(path);
+	assert.equal(res.type, 'handler');
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+
+	const expected: GenerateConfig = {
+		dialect: 'sqlite',
+		filenames: [filename],
+		schemaSource: expect.anything(),
+		breakpoints: true,
+		bundle: false,
+		custom: false,
+		out: 'drizzle',
+		driver: 'd1-http',
+		ignoreConflicts: false,
+		name: undefined,
+		explain: false,
+		hints: expect.any(HintsHandler) as any,
+	};
+	expect(res.options).toStrictEqual(expected);
 });

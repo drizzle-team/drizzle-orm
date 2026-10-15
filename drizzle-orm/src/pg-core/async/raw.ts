@@ -1,10 +1,10 @@
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { applyMixins } from '~/utils.ts';
 import { PgRaw } from '../query-builders/raw.ts';
+import type { PgAsyncPreparedQuery } from './session.ts';
 
 export interface PgAsyncRaw<TResult> extends QueryPromise<TResult>, RunnableQuery<TResult, 'pg'>, SQLWrapper {}
 export class PgAsyncRaw<TResult> extends PgRaw<TResult> implements RunnableQuery<TResult, 'pg'> {
@@ -15,17 +15,26 @@ export class PgAsyncRaw<TResult> extends PgRaw<TResult> implements RunnableQuery
 		readonly result: TResult;
 	};
 
+	declare protected prepared: PgAsyncPreparedQuery<{
+		execute: TResult;
+	}>;
+
 	constructor(
-		public execute: () => Promise<TResult>,
+		prepared: PgAsyncPreparedQuery<{
+			execute: TResult;
+		}>,
 		sql: SQL,
 		query: Query,
-		mapBatchResult: (result: unknown) => unknown,
 	) {
-		super(sql, query, mapBatchResult);
+		super(prepared, sql, query);
 	}
 
-	_prepare(): PreparedQuery {
-		return this;
+	execute(placeholderValues?: Record<string, unknown>) {
+		return this.prepared.execute(placeholderValues);
+	}
+
+	override _prepare() {
+		return this.prepared;
 	}
 }
 

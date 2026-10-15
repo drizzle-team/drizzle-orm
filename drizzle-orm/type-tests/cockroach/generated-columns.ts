@@ -1,7 +1,7 @@
 import { type Equal, Expect } from 'type-tests/utils';
+import { drizzle } from '~/cockroach';
 import { cockroachTable, int4, text, varchar } from '~/cockroach-core';
 import { type InferInsertModel, type InferSelectModel, sql } from '~/index';
-import { drizzle } from '~/node-postgres';
 import { db } from './db';
 
 const users = cockroachTable(

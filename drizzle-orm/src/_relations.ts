@@ -27,7 +27,7 @@ import {
 	notLike,
 	or,
 } from './sql/expressions/index.ts';
-import { type Placeholder, SQL, sql } from './sql/sql.ts';
+import { type CommentInput, type Placeholder, SQL, sql } from './sql/sql.ts';
 import type { Assume, ColumnsWithTable, Equal, Simplify, ValueOrArray } from './utils.ts';
 
 export abstract class Relation<TTableName extends string = string> {
@@ -275,6 +275,13 @@ export type DBQueryConfig<
 				}
 				: {})
 		: {});
+
+export type DBQueryConfigWithComment<
+	TRelationType extends 'one' | 'many' = 'one' | 'many',
+	TIsRoot extends boolean = boolean,
+	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
+	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
+> = DBQueryConfig<TRelationType, TIsRoot, TSchema, TTableConfig> & { comment?: CommentInput | undefined };
 
 export interface TableRelationalConfig {
 	tsName: string;

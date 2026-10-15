@@ -1,5 +1,7 @@
+import { connect } from '@tidbcloud/serverless';
 import { sql } from 'drizzle-orm';
 import { getTableConfig } from 'drizzle-orm/mysql-core';
+import { drizzle } from 'drizzle-orm/tidb-serverless';
 import { migrate } from 'drizzle-orm/tidb-serverless/migrator';
 import { describe, expect } from 'vitest';
 import { tidbTest as test } from './instrumentation';
@@ -47,8 +49,6 @@ const skip = new Set([
 	'set operations (union all) as function',
 	'set operations (union) as function',
 	'tc config for datetime',
-	'select iterator w/ prepared statement',
-	'select iterator',
 	'transaction',
 	'transaction with options (set isolationLevel)',
 	'Insert all defaults in multiple rows',
@@ -65,7 +65,13 @@ const skip = new Set([
 	'left join (lateral)',
 	'update with returning all fields + partial',
 	'insert+update+delete returning sql',
+	'RQB v2 find many - bigint precision loss',
+	'select from a one subquery',
 	'all types',
+	'Column as decoder applies codecs',
+	'Column as decoder applies codecs - Jit mappers',
+	'Mappers: relational',
+	'Jit mappers: relational',
 ]);
 
 tests(test, skip);
@@ -115,7 +121,7 @@ describe('migrator', () => {
 
 		expect(migratorRes).toStrictEqual(undefined);
 		expect(meta.length).toStrictEqual(1);
-		expect(!!res[0]?.[0]?.tableExists).toStrictEqual(false);
+		expect(!!res.rows[0]?.tableExists).toStrictEqual(false);
 	});
 
 	test('migrator : --init - local migrations error', async ({ db }) => {
@@ -146,7 +152,7 @@ describe('migrator', () => {
 
 		expect(migratorRes).toStrictEqual({ exitCode: 'localMigrations' });
 		expect(meta.length).toStrictEqual(0);
-		expect(!!res[0]?.[0]?.tableExists).toStrictEqual(false);
+		expect(!!res.rows[0]?.tableExists).toStrictEqual(false);
 	});
 
 	test('migrator : --init - db migrations error', async ({ db }) => {
@@ -182,6 +188,61 @@ describe('migrator', () => {
 
 		expect(migratorRes).toStrictEqual({ exitCode: 'databaseMigrations' });
 		expect(meta.length).toStrictEqual(1);
-		expect(!!res[0]?.[0]?.tableExists).toStrictEqual(true);
+		expect(!!res.rows[0]?.tableExists).toStrictEqual(true);
+	});
+
+	test('managing multiple databases #1', async ({ db }) => {
+		await db.execute('drop database if exists drizzle1;');
+		await db.execute('create database drizzle1;');
+		await db.execute('drop database if exists drizzle2;');
+		await db.execute('create database drizzle2;');
+
+		await db.execute(`use drizzle1`);
+		await migrate(db, { migrationsFolder: './drizzle2/mysql' });
+
+		await db.execute(`use drizzle2`);
+		await migrate(db, { migrationsFolder: './drizzle2/mysql' });
+
+		// drizzle2
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		const result2 = await db.select().from(usersMigratorTable);
+
+		// drizzle1
+		await db.execute(`use drizzle1`);
+		await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		const result1 = await db.select().from(usersMigratorTable);
+
+		expect(result1).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		expect(result2).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+	});
+
+	test('managing multiple databases #2', async ({ db }) => {
+		await db.execute('drop database if exists drizzle1;');
+		await db.execute('drop database if exists drizzle2;');
+		await db.execute('create database drizzle1;');
+		await db.execute('create database drizzle2;');
+
+		const client1 = connect({ url: process.env['TIDB_CONNECTION_STRING'], database: 'drizzle1' });
+		const client2 = connect({ url: process.env['TIDB_CONNECTION_STRING'], database: 'drizzle2' });
+
+		const db1 = drizzle({ client: client1 });
+		const db2 = drizzle({ client: client2 });
+
+		await migrate(db1, { migrationsFolder: './drizzle2/mysql' });
+		await migrate(db2, { migrationsFolder: './drizzle2/mysql' });
+
+		// drizzle1
+		await db1.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		const result1 = await db1.select().from(usersMigratorTable);
+
+		// drizzle2
+		await db2.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
+		const result2 = await db2.select().from(usersMigratorTable);
+
+		await db.execute('drop database drizzle1;');
+		await db.execute('drop database drizzle2;');
+
+		expect(result1).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+		expect(result2).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 	});
 });

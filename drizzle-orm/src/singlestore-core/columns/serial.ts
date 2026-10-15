@@ -39,12 +39,12 @@ export class SingleStoreSerial<
 		return 'serial';
 	}
 
-	override mapFromDriverValue(value: number | string): number {
+	override mapFromDriverValue = (value: number | string): number => {
 		if (typeof value === 'string') {
 			return Number(value);
 		}
 		return value;
-	}
+	};
 }
 
 export function serial(name?: string): SingleStoreSerialBuilder {

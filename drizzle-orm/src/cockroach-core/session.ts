@@ -47,9 +47,6 @@ export abstract class CockroachPreparedQuery<T extends PreparedQueryConfig> impl
 
 	/** @internal */
 	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
-
-	/** @internal */
-	abstract isResponseInArrayMode(): boolean;
 }
 
 export interface CockroachTransactionConfig {
@@ -71,7 +68,6 @@ export abstract class CockroachSession<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
-		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
 	): CockroachPreparedQuery<T>;
 
@@ -86,7 +82,7 @@ export abstract class CockroachSession<
 					this.dialect.sqlToQuery(query),
 					undefined,
 					undefined,
-					false,
+					undefined,
 				);
 			});
 
@@ -99,20 +95,8 @@ export abstract class CockroachSession<
 			this.dialect.sqlToQuery(query),
 			undefined,
 			undefined,
-			false,
+			undefined,
 		).all();
-	}
-
-	async count(sql: SQL): Promise<number>;
-	/** @internal */
-	async count(sql: SQL, token?: NeonAuthToken): Promise<number>;
-	/** @internal */
-	async count(sql: SQL, token?: NeonAuthToken): Promise<number> {
-		const res = await this.execute<[{ count: string }]>(sql, token);
-
-		return Number(
-			res[0]['count'],
-		);
 	}
 
 	abstract transaction<T>(

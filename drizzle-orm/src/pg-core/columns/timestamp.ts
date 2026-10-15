@@ -33,6 +33,9 @@ export class PgTimestampBuilder extends PgDateColumnBuilder<
 export class PgTimestamp extends PgColumn<'object date'> {
 	static override readonly [entityKind]: string = 'PgTimestamp';
 
+	/** @internal */
+	override readonly codec: 'timestamp' | 'timestamptz';
+
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
@@ -40,6 +43,7 @@ export class PgTimestamp extends PgColumn<'object date'> {
 		super(table, config);
 		this.withTimezone = config.withTimezone;
 		this.precision = config.precision;
+		this.codec = this.withTimezone ? 'timestamptz' : 'timestamp';
 	}
 
 	getSQLType(): string {
@@ -47,16 +51,10 @@ export class PgTimestamp extends PgColumn<'object date'> {
 		return `timestamp${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 
-	override mapFromDriverValue(value: Date | string): Date {
-		if (typeof value === 'string') return new Date(this.withTimezone ? value : value + '+0000');
-
-		return value;
-	}
-
-	override mapToDriverValue(value: Date | string): string {
+	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString();
-	}
+	};
 }
 
 export class PgTimestampStringBuilder extends PgDateColumnBuilder<
@@ -91,6 +89,9 @@ export class PgTimestampStringBuilder extends PgDateColumnBuilder<
 export class PgTimestampString extends PgColumn<'string timestamp'> {
 	static override readonly [entityKind]: string = 'PgTimestampString';
 
+	/** @internal */
+	override readonly codec: 'timestamp:string' | 'timestamptz:string';
+
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
@@ -98,6 +99,7 @@ export class PgTimestampString extends PgColumn<'string timestamp'> {
 		super(table, config);
 		this.withTimezone = config.withTimezone;
 		this.precision = config.precision;
+		this.codec = this.withTimezone ? 'timestamptz:string' : 'timestamp:string';
 	}
 
 	getSQLType(): string {
@@ -105,21 +107,10 @@ export class PgTimestampString extends PgColumn<'string timestamp'> {
 		return `timestamp${precision}${this.withTimezone ? ' with time zone' : ''}`;
 	}
 
-	override mapFromDriverValue(value: Date | string): string {
-		if (typeof value === 'string') return value;
-
-		const shortened = value.toISOString().slice(0, -1).replace('T', ' ');
-		if (this.withTimezone) {
-			return `${shortened}+00`;
-		}
-
-		return shortened;
-	}
-
-	override mapToDriverValue(value: Date | string): string {
+	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString();
-	}
+	};
 }
 
 export type Precision = 0 | 1 | 2 | 3 | 4 | 5 | 6;

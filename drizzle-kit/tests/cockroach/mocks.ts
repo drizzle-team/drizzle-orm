@@ -19,7 +19,7 @@ import {
 	isCockroachSequence,
 	isCockroachView,
 } from 'drizzle-orm/cockroach-core';
-import { CasingType, configMigrations } from 'src/cli/validations/common';
+import { configMigrations } from 'src/cli/validations/common';
 import { CockroachDDL, Column, createDDL, interimToDDL, SchemaError } from 'src/dialects/cockroach/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/cockroach/diff';
 import {
@@ -30,21 +30,20 @@ import {
 } from 'src/dialects/cockroach/drizzle';
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
-import Docker from 'dockerode';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import getPort from 'get-port';
 import { Pool, PoolClient } from 'pg';
 import { introspect } from 'src/cli/commands/pull-cockroach';
 import { suggestions } from 'src/cli/commands/push-cockroach';
+import { runWithCliContext } from 'src/cli/context';
+import { HintsHandler } from 'src/cli/hints';
 import { EmptyProgressView, explain } from 'src/cli/views';
 import { defaultToSQL, isSystemRole } from 'src/dialects/cockroach/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/cockroach/introspect';
 import { ddlToTypeScript } from 'src/dialects/cockroach/typescript';
 import { DB } from 'src/utils';
-import { v4 as uuidV4 } from 'uuid';
 import 'zx/globals';
 import { randomUUID } from 'crypto';
-import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/cli';
+import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
 import { hash } from 'src/dialects/common';
 import { extractCrdbExisting } from 'src/dialects/drizzle';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
@@ -74,7 +73,6 @@ class MockError extends Error {
 
 export const drizzleToDDL = (
 	schema: CockroachDBSchema,
-	casing: CasingType | undefined,
 	filterConfig: EntitiesFilterConfig = {
 		schemas: undefined,
 		tables: undefined,
@@ -106,7 +104,6 @@ export const drizzleToDDL = (
 			views,
 			matViews: materializedViews,
 		},
-		casing,
 		filter,
 	);
 
@@ -122,14 +119,13 @@ export const diff = async (
 	left: CockroachDBSchema | CockroachDDL,
 	right: CockroachDBSchema | CockroachDDL,
 	renamesArr: string[],
-	casing?: CasingType | undefined,
 ) => {
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as CockroachDDL, errors: [] }
-		: drizzleToDDL(left, casing);
+		: drizzleToDDL(left);
 	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
 		? { ddl: right as CockroachDDL, errors: [] }
-		: drizzleToDDL(right, casing);
+		: drizzleToDDL(right);
 
 	if (err1.length > 0 || err2.length > 0) {
 		throw new MockError([...err1, ...err2]);
@@ -161,7 +157,6 @@ export const pushM = async (config: {
 	to: CockroachDBSchema | CockroachDDL;
 	renames?: string[];
 	schemas?: string[];
-	casing?: CasingType;
 	log?: 'statements' | 'none';
 	entities?: EntitiesFilter;
 }) => {
@@ -174,7 +169,6 @@ export const push = async (
 		to: CockroachDBSchema | CockroachDDL;
 		renames?: string[];
 		schemas?: string[];
-		casing?: CasingType;
 		log?: 'statements' | 'none';
 		entities?: EntitiesFilter;
 		ignoreSubsequent?: boolean;
@@ -187,7 +181,6 @@ export const push = async (
 ) => {
 	const { db, to } = config;
 	const log = config.log ?? 'none';
-	const casing = config.casing;
 
 	const filterConfig: EntitiesFilterConfig = {
 		schemas: config.schemas,
@@ -200,7 +193,7 @@ export const push = async (
 
 	const { ddl: ddl2, errors: err3, existing } = 'entities' in to && '_' in to
 		? { ddl: to as CockroachDDL, errors: [], existing: [] }
-		: drizzleToDDL(to, casing, filterConfig);
+		: drizzleToDDL(to, filterConfig);
 
 	const filter = prepareEntityFilter('cockroach', filterConfig, existing);
 
@@ -242,10 +235,13 @@ export const push = async (
 		'push',
 	);
 
-	const hints = await suggestions(db, statements);
+	const hints = await runWithCliContext(
+		{ output: 'text', interactive: true },
+		() => suggestions(db, statements, new HintsHandler()),
+	);
 
 	if (config.explain) {
-		const explainMessage = explain('cockroach', groupedStatements, false, []);
+		const explainMessage = explain('cockroach', groupedStatements, []);
 		console.log(explainMessage);
 		return { sqlStatements, statements, hints };
 	}
@@ -302,7 +298,6 @@ export const diffIntrospect = async (
 	testName: string,
 	schemas: string[] = [],
 	entities?: EntitiesFilter,
-	casing?: CasingType | undefined,
 ) => {
 	const filterConfig: EntitiesFilterConfig = {
 		schemas,
@@ -310,7 +305,7 @@ export const diffIntrospect = async (
 		tables: [],
 		extensions: [],
 	};
-	const { ddl: initDDL, existing } = drizzleToDDL(initSchema, casing, filterConfig);
+	const { ddl: initDDL, existing } = drizzleToDDL(initSchema, filterConfig);
 	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL, 'default');
 
 	for (const st of init) await db.query(st);
@@ -330,7 +325,7 @@ export const diffIntrospect = async (
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([filePath]);
 
-	const { schema: schema2, errors: e2, warnings } = fromDrizzleSchema(response, casing, filter);
+	const { schema: schema2, errors: e2, warnings } = fromDrizzleSchema(response, filter);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 
 	const { sqlStatements: afterFileSqlStatements, statements: afterFileStatements } = await ddlDiffDry(
@@ -423,7 +418,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 
 	const response = await prepareFromSchemaFiles([path]);
 
-	const { schema: sch } = fromDrizzleSchema(response, 'camelCase', () => true);
+	const { schema: sch } = fromDrizzleSchema(response, () => true);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
@@ -495,36 +490,6 @@ export type TestDatabaseKit = {
 	close: () => Promise<void>;
 };
 
-export async function createDockerDB() {
-	const docker = new Docker();
-	const port = await getPort({ port: 26257 });
-	const image = 'cockroachdb/cockroach:v25.2.0';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	const container = await docker.createContainer({
-		Image: image,
-		Cmd: ['start-single-node', '--insecure'],
-		name: `drizzle-integration-tests-${uuidV4()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'26257/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await container.start();
-
-	return {
-		url: `postgresql://root@127.0.0.1:${port}/defaultdb?sslmode=disable`,
-		container,
-	};
-}
-
 const prepareClient = async (url: string, n: string, tx: boolean) => {
 	const name = `${n}${hash(String(Math.random()), 10)}`;
 
@@ -587,24 +552,21 @@ const prepareClient = async (url: string, n: string, tx: boolean) => {
 
 export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 	const envUrl = process.env.COCKROACH_CONNECTION_STRING;
+	if (!envUrl) {
+		throw new Error(
+			'COCKROACH_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up cockroach` and export the connection string before running tests.',
+		);
+	}
 
 	let url: string;
-	let container: Docker.Container | null = null;
-
-	if (envUrl) {
-		// Support multiple connection strings separated by ';'
-		const urls = envUrl.split(';').filter(Boolean);
-		if (urls.length > 1) {
-			// Use VITEST_POOL_ID to distribute workers across containers
-			const poolId = parseInt(process.env.VITEST_POOL_ID || '1', 10);
-			url = urls[poolId % urls.length]!;
-		} else {
-			url = urls[0]!;
-		}
+	// Support multiple connection strings separated by ';'
+	const urls = envUrl.split(';').filter(Boolean);
+	if (urls.length > 1) {
+		// Use VITEST_POOL_ID to distribute workers across containers
+		const poolId = parseInt(process.env.VITEST_POOL_ID || '1', 10);
+		url = urls[poolId % urls.length]!;
 	} else {
-		const dockerResult = await createDockerDB();
-		url = dockerResult.url;
-		container = dockerResult.container;
+		url = urls[0]!;
 	}
 
 	const clients = [
@@ -662,7 +624,6 @@ export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
 			for (const c of clients) {
 				c.close();
 			}
-			await container?.stop();
 		},
 	};
 };

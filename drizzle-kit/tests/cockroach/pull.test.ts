@@ -29,7 +29,6 @@ import {
 	text,
 	time,
 	timestamp,
-	uniqueIndex,
 	uuid,
 	varbit,
 	varchar,

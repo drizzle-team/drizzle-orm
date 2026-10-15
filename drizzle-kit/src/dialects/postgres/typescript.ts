@@ -60,14 +60,12 @@ const imports = [
 	'geometry',
 	'bit',
 	'pgEnum',
-	'gelEnum',
 	'customType',
 ] as const;
 export type Import = typeof imports[number];
 
 const pgImportsList = new Set([
 	'pgTable',
-	'gelTable',
 	...imports,
 ]);
 
@@ -241,7 +239,7 @@ export const ddlToTypeScript = (
 	ddl: PostgresDDL,
 	columnsForViews: ViewColumn[],
 	casing: Casing,
-	mode: 'pg' | 'gel' | 'dsql',
+	mode: 'pg' | 'dsql' = 'pg',
 ) => {
 	const tableFn = `${mode}Table`;
 	const anyColumnType = mode === 'dsql' ? 'AnyDSQLColumn' : 'AnyPgColumn';
@@ -442,7 +440,6 @@ export const ddlToTypeScript = (
 
 	const coreModule = {
 		pg: 'drizzle-orm/pg-core',
-		gel: 'drizzle-orm/gel-core',
 		dsql: 'drizzle-orm/dsql-core',
 	}[mode];
 
@@ -558,7 +555,7 @@ const createTableColumns = (
 	schemas: Record<string, string>,
 	casing: Casing,
 	anyColumnType: string,
-	mode: 'pg' | 'gel' | 'dsql',
+	mode: 'pg' | 'dsql',
 ): string => {
 	let statement = '';
 

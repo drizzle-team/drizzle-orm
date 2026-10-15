@@ -1,8 +1,7 @@
-import type { CheckHandlerResult } from 'src/cli/commands/check';
-import { mysqlSchemaError } from 'src/cli/views';
-import type { CasingType } from '../../cli/validations/common';
+import type { CheckHandlerResult } from '../../cli/commands/check';
+import { humanLog, mysqlSchemaError } from '../../cli/views';
 import { assertUnreachable } from '../../utils';
-import { findLeafSnapshotIds, prepareFilenames } from '../../utils/utils-node';
+import { findLeafSnapshotIds } from '../../utils/utils-node';
 import type { MysqlDDL, SchemaError } from './ddl';
 import { createDDL, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
@@ -12,8 +11,7 @@ import type { JsonStatement } from './statements';
 
 export const prepareSnapshot = async (
 	snapshots: string[],
-	schemaPath: string | string[],
-	casing: CasingType | undefined,
+	filenames: string[],
 	checkResult?: CheckHandlerResult,
 ): Promise<{
 	ddlPrev: MysqlDDL;
@@ -48,15 +46,14 @@ export const prepareSnapshot = async (
 	for (const entry of prevSnapshot.ddl) {
 		ddlPrev.entities.push(entry);
 	}
-	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const interim = fromDrizzleSchema(res.tables, res.views, casing);
+	const interim = fromDrizzleSchema(res.tables, res.views);
 
 	const { ddl: ddlCur, errors: errors2 } = interimToDDL(interim);
 
 	if (errors2.length > 0) {
-		console.log(errors2.map((it) => mysqlSchemaError(it)).join('\n'));
+		humanLog(errors2.map((it) => mysqlSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 

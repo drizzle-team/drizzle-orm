@@ -7,10 +7,8 @@ import type {
 	SelectMode,
 	SelectResult,
 } from '~/query-builders/select.types.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
-import { type Assume, orderSelectedFields } from '~/utils.ts';
-import type { PgColumn } from '../columns/index.ts';
+import type { Assume } from '~/utils.ts';
 import { PgSelectBase, type PgSelectBuilder } from '../query-builders/select.ts';
 import type { PgSelectHKTBase, SelectedFields } from '../query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '../session.ts';
@@ -106,32 +104,27 @@ export class PgEffectSelectBase<
 > {
 	static override readonly [entityKind]: string = 'PgEffectSelectQueryBuilder';
 
-	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
+	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgEffectSelectPrepare<this, TEffectHKT> {
-		const { session, config, dialect, joinsNotNullableMap, cacheConfig, usedTables } = this;
-		const { fields } = config;
+		const { session, cacheConfig, usedTables } = this;
 
-		const query = dialect.sqlToQuery(this.getSQL());
-		const fieldsList = orderSelectedFields<PgColumn>(fields);
-		const preparedQUery = session.prepareQuery<
-			PreparedQueryConfig & { execute: TResult }
-		>(
+		// Build query before accessing `fieldsFlat` - build mutates it
+		const query = this.dialect.sqlToQuery(this.getSQL());
+		const fieldsList = this.config.fieldsFlat!;
+		const mapper = this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap);
+
+		const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 			query,
-			fieldsList,
-			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-			true,
-			undefined,
-			{
-				type: 'select',
-				tables: [...usedTables],
-			},
+			'arrays',
+			name ?? generateName,
+			mapper,
+			{ type: 'select', tables: [...usedTables] },
 			cacheConfig,
 		);
-		preparedQUery.joinsNotNullableMap = joinsNotNullableMap;
 
-		return preparedQUery;
+		return preparedQuery;
 	}
 
 	/**

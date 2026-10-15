@@ -34,12 +34,12 @@ export class CockroachFloat<T extends ColumnBaseConfig<'number double'>> extends
 		return 'float';
 	}
 
-	override mapFromDriverValue(value: string | number): number {
+	override mapFromDriverValue = (value: string | number): number => {
 		if (typeof value === 'string') {
 			return Number.parseFloat(value);
 		}
 		return value;
-	}
+	};
 }
 export function float(name?: string) {
 	return new CockroachFloatBuilder(name ?? '');

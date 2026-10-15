@@ -34,14 +34,14 @@ export class CockroachDate<T extends ColumnBaseConfig<'object date'>> extends Co
 		return 'date';
 	}
 
-	override mapFromDriverValue(value: string): Date {
+	override mapFromDriverValue = (value: string): Date => {
 		return new Date(value);
-	}
+	};
 
-	override mapToDriverValue(value: Date | string): string {
+	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString();
-	}
+	};
 }
 
 export class CockroachDateStringBuilder extends CockroachDateColumnBaseBuilder<{
@@ -73,10 +73,10 @@ export class CockroachDateString<T extends ColumnBaseConfig<'string date'>> exte
 		return 'date';
 	}
 
-	override mapToDriverValue(value: Date | string): string {
+	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString();
-	}
+	};
 }
 
 export interface CockroachDateConfig<T extends 'date' | 'string' = 'date' | 'string'> {

@@ -1,15 +1,20 @@
 import chalk from 'chalk';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs';
+import { getTsconfig } from 'get-tsconfig';
 import { sync as globSync } from 'glob';
-import { join, resolve } from 'path';
-import { snapshotValidator as mysqlSnapshotValidator } from 'src/dialects/mysql/snapshot';
-import { snapshotValidator as singlestoreSnapshotValidator } from 'src/dialects/singlestore/snapshot';
+import { dirname, join, resolve } from 'path';
 import { parse, pathToFileURL } from 'url';
-import { error, info } from '../cli/views';
+import {
+	MigrationsOutdatedCliError,
+	SchemaFilesNotFoundCliError,
+	UnsupportedSnapshotVersionCliError,
+} from '../cli/errors';
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as dsqlSnapshotValidator } from '../dialects/dsql/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
+import { snapshotValidator as mysqlSnapshotValidator } from '../dialects/mysql/snapshot';
 import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
+import { snapshotValidator as singlestoreSnapshotValidator } from '../dialects/singlestore/snapshot';
 import { snapshotValidator as sqliteStapshotValidator } from '../dialects/sqlite/snapshot';
 import { assertUnreachable } from '.';
 import type { Journal } from '.';
@@ -22,22 +27,40 @@ export const prepareFilenames = (path: string | string[]) => {
 
 	const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
 
+	const skippedFiles: string[] = [];
+
 	const result = path.reduce((result, cur) => {
 		const globbed = globSync(`${prefix}${cur}`);
 
 		for (const it of globbed) {
-			const fileName = lstatSync(it).isDirectory() ? null : resolve(it);
+			const stats = lstatSync(it);
+
+			const fileName = stats.isDirectory() ? null : resolve(it);
 
 			const filenames = fileName
-				? [fileName!]
-				: readdirSync(it).map((file) => join(resolve(it), file));
+				? [{ path: fileName, stat: stats }]
+				: readdirSync(it).map((file) => {
+					const fullPath = join(resolve(it), file);
+					return { path: fullPath, stat: lstatSync(fullPath) };
+				});
 
-			for (
-				const file of filenames.filter(
-					(file) => !lstatSync(file).isDirectory(),
-				)
-			) {
-				result.add(file);
+			for (const { path: file, stat } of filenames) {
+				if (stat.isDirectory()) continue;
+
+				if (
+					file.endsWith('.js')
+					|| file.endsWith('.mjs')
+					|| file.endsWith('.cjs')
+					|| file.endsWith('.jsx')
+					|| file.endsWith('.ts')
+					|| file.endsWith('.mts')
+					|| file.endsWith('.cts')
+					|| file.endsWith('.tsx')
+				) {
+					result.add(file);
+				} else {
+					skippedFiles.push(file);
+				}
 			}
 		}
 
@@ -45,35 +68,14 @@ export const prepareFilenames = (path: string | string[]) => {
 	}, new Set<string>());
 	const res = [...result];
 
-	// TODO: properly handle and test
-	// const errors = res.filter((it) => {
-	// 	return !(
-	// 		it.endsWith('.ts')
-	// 		|| it.endsWith('.js')
-	// 		|| it.endsWith('.cjs')
-	// 		|| it.endsWith('.mjs')
-	// 		|| it.endsWith('.mts')
-	// 		|| it.endsWith('.cts')
-	// 	);
-	// });
+	// TODO can be added. Need approve on this
+	// if (skippedFiles.length > 0) {
+	// 	console.log(info(` ⚠ Skipped ${chalk.blue(skippedFiles.join(', '))} file(s)`));
+	// }
 
 	// when schema: "./schema" and not "./schema.ts"
 	if (res.length === 0) {
-		console.log(
-			error(
-				`No schema files found for path config [${
-					path
-						.map((it) => `'${it}'`)
-						.join(', ')
-				}]`,
-			),
-		);
-		console.log(
-			error(
-				`If path represents a file - please make sure to use .ts or other extension in the path`,
-			),
-		);
-		process.exit(1);
+		throw new SchemaFilesNotFoundCliError(path);
 	}
 
 	return res;
@@ -87,14 +89,7 @@ export const assertV1OutFolder = (out: string) => {
 	);
 
 	if (oldMigrationFolders.length > 0) {
-		console.log(
-			`Your migrations folder format is outdated, please run ${
-				chalk.green.bold(
-					`drizzle-kit up`,
-				)
-			}`,
-		);
-		process.exit(1);
+		throw new MigrationsOutdatedCliError(out);
 	}
 };
 
@@ -102,14 +97,7 @@ export const assertV3OutFolder = (out: string) => {
 	if (!existsSync(out)) return;
 
 	if (existsSync(join(out, 'meta/_journal.json'))) {
-		console.log(
-			`Your migrations folder format is outdated, please run ${
-				chalk.green.bold(
-					`drizzle-kit up`,
-				)
-			}`,
-		);
-		process.exit(1);
+		throw new MigrationsOutdatedCliError(out);
 	}
 };
 
@@ -133,6 +121,62 @@ export const prepareOutFolder = (out: string) => {
 	snapshots.sort();
 
 	return { snapshots };
+};
+
+const tsconfigAliasCache = new Map<string, Record<string, string> | undefined>();
+
+const getAliasesForTsconfig = (baseDir: string): Record<string, string> | undefined => {
+	const cached = tsconfigAliasCache.get(baseDir);
+	if (cached !== undefined || tsconfigAliasCache.has(baseDir)) {
+		return cached;
+	}
+
+	const tsconfig = getTsconfig(baseDir);
+	const tsconfigPaths = tsconfig?.config?.compilerOptions?.paths as Record<string, string[]> | undefined;
+	if (!tsconfigPaths || !tsconfig?.path) {
+		tsconfigAliasCache.set(baseDir, undefined);
+		return undefined;
+	}
+
+	const tsconfigBaseUrl = tsconfig.config.compilerOptions?.baseUrl ?? '.';
+	const tsconfigDir = dirname(tsconfig.path);
+
+	const aliases = Object.fromEntries(
+		Object.entries(tsconfigPaths).flatMap(([key, values]) => {
+			const targets = (values ?? []).filter((value): value is string => Boolean(value));
+			if (targets.length === 0) return [];
+
+			const hasWildcard = key.includes('*') || targets.some((target) => target.includes('*'));
+			const supportsTrailingWildcard = key.endsWith('/*') && targets.every((target) => target.endsWith('/*'));
+			if (hasWildcard && !supportsTrailingWildcard) {
+				console.warn(
+					chalk.yellow(
+						`[drizzle-kit] Unsupported tsconfig "paths" mapping "${key}": [${
+							targets
+								.map((target) => `"${target}"`)
+								.join(', ')
+						}]. Only trailing "/*" patterns are supported; this mapping will be ignored.`,
+					),
+				);
+				return [];
+			}
+
+			const aliasKey = key.endsWith('/*') ? key.slice(0, -1) : key;
+			const resolvedTargets = targets.map((target) => {
+				if (supportsTrailingWildcard) {
+					const targetPrefix = target.slice(0, -1);
+					return resolve(tsconfigDir, tsconfigBaseUrl, targetPrefix);
+				}
+				return resolve(tsconfigDir, tsconfigBaseUrl, target);
+			});
+
+			const selectedTarget = resolvedTargets.find((candidate) => existsSync(candidate)) ?? resolvedTargets[0]!;
+			return [[aliasKey, selectedTarget]];
+		}),
+	);
+
+	tsconfigAliasCache.set(baseDir, aliases);
+	return aliases;
 };
 
 /**
@@ -276,8 +320,6 @@ export const validatorForDialect = (
 			return mssqlSnapshotValidator;
 		case 'cockroach':
 			return cockroachSnapshotValidator;
-		case 'gel':
-			throw Error('gel validator is not implemented yet'); // TODO
 		case 'duckdb':
 			throw Error('duckdb validator is not implemented yet'); // TODO
 		case 'dsql':
@@ -302,12 +344,7 @@ export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
 
 			const res = validator(raw);
 			if (res.status === 'unsupported') {
-				console.log(
-					info(
-						`${it} snapshot is of unsupported version, please update drizzle-kit`,
-					),
-				);
-				process.exit(0);
+				throw new UnsupportedSnapshotVersionCliError(it);
 			}
 			if (res.status === 'malformed') {
 				accum.malformed.push(it);
@@ -408,11 +445,12 @@ const isDeno = typeof (globalThis as any).Deno !== 'undefined';
 
 export const loadModule = async <T = unknown>(
 	modulePath: string,
+	{ defaultExport = false }: { defaultExport?: boolean } = {},
 ): Promise<T> => {
 	if (isBun || isDeno) {
 		const fileUrl = pathToFileURL(modulePath).href;
 		const mod = await import(fileUrl);
-		return mod.default ?? mod;
+		return defaultExport ? (mod?.default ?? mod) : mod;
 	}
 
 	const [major, minor] = process.versions.node.split('.').map(Number);
@@ -436,16 +474,19 @@ export const loadModule = async <T = unknown>(
 	const isTS = ext === '.ts' || ext === '.mts' || ext === '.cts';
 
 	if (isTS) {
-		const jiti = require('jiti')(path.dirname(absoluteModulePath), {
+		const baseDir = path.dirname(absoluteModulePath);
+		const aliases = getAliasesForTsconfig(baseDir);
+		// oxlint-disable-next-line consistent-type-imports
+		const { createJiti } = require('jiti') as typeof import('jiti');
+		const jiti = createJiti(baseDir, {
 			interopDefault: true,
-			esmResolve: true,
+			alias: aliases,
 			requireCache: false,
 		});
-		const mod = await jiti.import(absoluteModulePath);
-		return mod;
+		const mod = await jiti.import<any>(absoluteModulePath);
+		return defaultExport ? (mod?.default ?? mod) : mod;
 	}
-
 	const fileUrl = pathToFileURL(absoluteModulePath).href;
 	const mod = await import(fileUrl);
-	return mod.default ?? mod;
+	return defaultExport ? (mod?.default ?? mod) : mod;
 };

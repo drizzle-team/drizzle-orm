@@ -34,10 +34,12 @@
 		"oxlint": "^1.28.0",
 		"recast": "^0.23.9",
 		"resolve-tspaths": "^0.8.16",
+		"rolldown": "1.0.0-rc.9",
+		"tsdown": "^0.20.3",
 		"tsup": "^8.3.5",
 		"tsx": "^4.10.5",
 		"turbo": "^2.2.3",
-		"typescript": "5.9.2",
+		"typescript": "5.9.3",
 		"vite-tsconfig-paths": "^4.3.2",
 		"vitest": "4.0.13"
 	},

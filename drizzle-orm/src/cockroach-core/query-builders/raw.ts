@@ -41,9 +41,4 @@ export class CockroachRaw<TResult> extends QueryPromise<TResult>
 	_prepare(): PreparedQuery {
 		return this;
 	}
-
-	/** @internal */
-	isResponseInArrayMode() {
-		return false;
-	}
 }

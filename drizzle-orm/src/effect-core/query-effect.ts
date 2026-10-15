@@ -15,9 +15,13 @@ export type QueryEffectKind<
 > = Effect.Effect<TSuccess, TKind['error'] | TError, TKind['context'] | TContext>;
 
 export function applyEffectWrapper(baseClass: any) {
-	Object.assign(baseClass.prototype, Effectable.CommitPrototype);
-
-	baseClass.prototype.commit = function(this: { execute(): Effect.Effect<any, any, any> }) {
-		return this.execute();
-	};
+	Object.assign(
+		baseClass.prototype,
+		Effectable.Prototype({
+			label: 'DrizzleQuery',
+			evaluate(this: { execute(): Effect.Effect<any, any, any> }) {
+				return this.execute();
+			},
+		} as any),
+	);
 }

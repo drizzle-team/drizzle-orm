@@ -30,15 +30,11 @@ export class MySqlBigInt53<T extends ColumnBaseConfig<'number int53' | 'number u
 {
 	static override readonly [entityKind]: string = 'MySqlBigInt53';
 
+	/** @internal */
+	override readonly codec = 'bigint:number';
+
 	getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
-	}
-
-	override mapFromDriverValue(value: number | string): number {
-		if (typeof value === 'number') {
-			return value;
-		}
-		return Number(value);
 	}
 }
 
@@ -68,20 +64,16 @@ export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint int64' | 'bigint u
 {
 	static override readonly [entityKind]: string = 'MySqlBigInt64';
 
+	/** @internal */
+	override readonly codec = 'bigint';
+
 	getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
 	}
 
-	override mapToDriverValue(value: bigint): string {
+	override mapToDriverValue = (value: bigint): string => {
 		return value.toString();
-	}
-
-	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
-	override mapFromDriverValue(value: bigint | string): bigint {
-		if (typeof value === 'bigint') return value;
-
-		return BigInt(value);
-	}
+	};
 }
 
 export class MySqlBigIntStringBuilder<TUnsigned extends boolean | undefined>
@@ -112,15 +104,11 @@ export class MySqlBigIntString<T extends ColumnBaseConfig<'string int64' | 'stri
 {
 	static override readonly [entityKind]: string = 'MySqlBigIntString';
 
+	/** @internal */
+	override readonly codec = 'bigint:string';
+
 	getSQLType(): string {
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
-	}
-
-	override mapFromDriverValue(value: number | string): string {
-		if (typeof value === 'string') {
-			return value;
-		}
-		return String(value);
 	}
 }
 

@@ -2,9 +2,7 @@ import type { PGlite } from '@electric-sql/pglite';
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnyPgTable } from 'drizzle-orm/pg-core';
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
-import type { EntitiesFilterConfig } from 'src/cli/validations/cli';
-import { upToV8 } from 'src/dialects/postgres/versions';
-import type { CasingType } from '../cli/validations/common';
+import type { EntitiesFilterConfig } from '../cli/validations/common';
 import type { PostgresCredentials } from '../cli/validations/postgres';
 import type {
 	CheckConstraint,
@@ -24,6 +22,7 @@ import type {
 } from '../dialects/postgres/ddl';
 import { createDDL, interimToDDL } from '../dialects/postgres/ddl';
 import type { PostgresSnapshot } from '../dialects/postgres/snapshot';
+import { upToV8 } from '../dialects/postgres/versions';
 import { originUUID } from '../utils';
 import type { DB } from '../utils';
 
@@ -31,10 +30,9 @@ export const generateDrizzleJson = async (
 	imports: Record<string, unknown>,
 	prevId?: string,
 	schemaFilters?: string[],
-	casing?: CasingType,
 ): Promise<PostgresSnapshot> => {
 	const { prepareEntityFilter } = await import('src/dialects/pull-utils');
-	const { postgresSchemaError, postgresSchemaWarning } = await import('../cli/views');
+	const { humanLog, postgresSchemaError, postgresSchemaWarning } = await import('../cli/views');
 	const { toJsonSnapshot } = await import('../dialects/postgres/snapshot');
 	const { fromDrizzleSchema, fromExports } = await import('../dialects/postgres/drizzle');
 	const { extractPostgresExisting } = await import('../dialects/drizzle');
@@ -50,20 +48,20 @@ export const generateDrizzleJson = async (
 	}, existing);
 
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
-	const { schema: interim, errors, warnings } = fromDrizzleSchema(prepared, casing, filter);
+	const { schema: interim, errors, warnings } = fromDrizzleSchema(prepared, filter);
 
 	const { ddl, errors: err2 } = interimToDDL(interim);
 	if (warnings.length > 0) {
-		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
+		humanLog(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
 	}
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
+		humanLog(errors.map((it) => postgresSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
 	if (err2.length > 0) {
-		console.log(err2.map((it) => postgresSchemaError(it)).join('\n'));
+		humanLog(err2.map((it) => postgresSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
@@ -101,7 +99,7 @@ export const generateMigration = async (
 		resolver<UniqueConstraint>('unique'),
 		resolver<Index>('index'),
 		resolver<CheckConstraint>('check'),
-		resolver<PrimaryKey>('primary key'),
+		resolver<PrimaryKey>('primary_key'),
 		resolver<ForeignKey>('foreign key'),
 		'default',
 	);
@@ -112,7 +110,6 @@ export const generateMigration = async (
 export const pushSchema = async (
 	imports: Record<string, unknown>,
 	drizzleInstance: PgAsyncDatabase<any>,
-	casing?: CasingType,
 	entitiesConfig?: EntitiesFilterConfig,
 	migrationsConfig?: {
 		table?: string;
@@ -154,7 +151,7 @@ export const pushSchema = async (
 
 	// TODO: filter?
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
-	const { schema: cur } = fromDrizzleSchema(prepared, casing, filter);
+	const { schema: cur } = fromDrizzleSchema(prepared, filter);
 
 	const { ddl: from, errors: _err1 } = interimToDDL(prev);
 	const { ddl: to, errors: _err2 } = interimToDDL(cur);
@@ -176,12 +173,13 @@ export const pushSchema = async (
 		resolver<UniqueConstraint>('unique'),
 		resolver<Index>('index'),
 		resolver<CheckConstraint>('check'),
-		resolver<PrimaryKey>('primary key'),
+		resolver<PrimaryKey>('primary_key'),
 		resolver<ForeignKey>('foreign key'),
 		'push',
 	);
 
-	const hints = await suggestions(db, statements);
+	const { HintsHandler } = await import('../cli/hints');
+	const hints = await suggestions(db, statements, new HintsHandler());
 
 	return {
 		sqlStatements,
@@ -207,7 +205,6 @@ export const startStudioServer = async (
 	options?: {
 		host?: string;
 		port?: number;
-		casing?: CasingType;
 		key?: string;
 		cert?: string;
 	},
@@ -216,6 +213,7 @@ export const startStudioServer = async (
 	const { PgTable, getTableConfig } = await import('drizzle-orm/pg-core');
 	const { Relations } = await import('drizzle-orm/_relations');
 	const { drizzleForPostgres, prepareServer } = await import('../cli/commands/studio');
+	const { humanLog: studioLog } = await import('../cli/views');
 
 	const pgSchema: Record<string, Record<string, AnyPgTable>> = {};
 	const relations: Record<string, Relations> = {};
@@ -232,7 +230,7 @@ export const startStudioServer = async (
 		}
 	});
 
-	const setup = await drizzleForPostgres(credentials, pgSchema, relations, [], options?.casing);
+	const setup = await drizzleForPostgres(credentials, pgSchema, relations, []);
 	const server = await prepareServer(setup);
 
 	const host = options?.host || '127.0.0.1';
@@ -246,7 +244,7 @@ export const startStudioServer = async (
 			if (err) {
 				console.error(err);
 			} else {
-				console.log(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
+				studioLog(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
 			}
 		},
 	});

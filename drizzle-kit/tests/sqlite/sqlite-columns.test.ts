@@ -699,7 +699,7 @@ test('drop autoincrement. drop column with data', async (t) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	expect(phints[0].hint).toStrictEqual("· You're about to drop 'name' column(s) in a non-empty 'companies' table");
+	expect(phints[0].hint).toStrictEqual("You're about to drop 'name' column(s) in a non-empty 'companies' table");
 });
 
 test('drop autoincrement. drop column with data with pragma off', async (t) => {
@@ -752,7 +752,7 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	expect(phints[0].hint).toStrictEqual("· You're about to drop 'name' column(s) in a non-empty 'companies' table");
+	expect(phints[0].hint).toStrictEqual("You're about to drop 'name' column(s) in a non-empty 'companies' table");
 });
 
 test('change autoincrement. other table references current', async (t) => {
@@ -1702,4 +1702,91 @@ test('filter out system tables created by analyze', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: schema });
 	const expectedSql1 = ['CREATE TABLE `table` (\n\t`id` integer PRIMARY KEY\n);\n'];
 	expect(pst1).toStrictEqual(expectedSql1);
+});
+
+test('add column with reference', async (t) => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+		}),
+	};
+
+	const some = sqliteTable('some', {
+		id: int().unique(),
+	});
+	const users = sqliteTable(
+		'users',
+		{
+			id: int('id').primaryKey({ autoIncrement: true }),
+			reporteeId: int('report_to').references((): AnySQLiteColumn => users.id, {
+				onDelete: 'cascade',
+				onUpdate: 'restrict',
+			}),
+			reporteeId2: int('report_to2').references((): AnySQLiteColumn => users.id, {
+				onDelete: 'no action',
+				onUpdate: 'no action',
+			}),
+			reporteeId3: int('report_to3'),
+		},
+		(
+			t,
+		) => [
+			foreignKey({ columns: [t.reporteeId3], foreignColumns: [some.id], name: 'test_name' }).onDelete('set default'),
+		],
+	);
+
+	const schema2 = {
+		users,
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'ALTER TABLE `users` ADD `report_to` integer REFERENCES users(id) ON UPDATE RESTRICT ON DELETE CASCADE;',
+		'ALTER TABLE `users` ADD `report_to2` integer REFERENCES users(id);',
+		'ALTER TABLE `users` ADD `report_to3` integer CONSTRAINT `test_name` REFERENCES some(id) ON DELETE SET DEFAULT;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5822
+test('issue #5822. Add column - table recreation', async () => {
+	const schemaFrom = {
+		test: sqliteTable('test', {
+			column1: text('column1').notNull(),
+			column2: text('column2'),
+		}),
+	};
+
+	const schemaTo = {
+		test: sqliteTable('test', {
+			column1: text('column1').notNull(),
+			column2: text('column2'),
+			column3: text('column3').notNull().unique(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schemaFrom, schemaTo, []);
+	await push({ db, to: schemaFrom, log: 'statements' });
+	const { sqlStatements: pst } = await push({ db, to: schemaTo, log: 'statements' });
+
+	const st0: string[] = [
+		'ALTER TABLE `test` ADD `column3` text NOT NULL;',
+		'PRAGMA foreign_keys=OFF;',
+		`CREATE TABLE \`__new_test\` (
+\t\`column1\` text NOT NULL,
+\t\`column2\` text,
+\t\`column3\` text NOT NULL UNIQUE
+);\n`,
+		'INSERT INTO \`__new_test\`(\`column1\`, \`column2\`) SELECT \`column1\`, \`column2\` FROM \`test\`;',
+		'DROP TABLE \`test\`;',
+		'ALTER TABLE \`__new_test\` RENAME TO \`test\`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });

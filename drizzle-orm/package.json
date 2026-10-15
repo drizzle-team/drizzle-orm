@@ -1,11 +1,10 @@
 {
 	"name": "drizzle-orm",
-	"version": "1.0.0-beta.17",
+	"version": "1.0.0-rc.4",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
-		"p": "prisma generate --schema src/prisma/schema.prisma",
-		"build": "pnpm p && scripts/build.ts",
+		"build": "bun --bun run scripts/build.ts",
 		"build:artifact": "pnpm build",
 		"b": "pnpm build",
 		"test:types": "cd type-tests && tsc",
@@ -50,8 +49,15 @@
 		"@aws/aurora-dsql-node-postgres-connector": ">=0.1.0",
 		"@aws-sdk/client-rds-data": ">=3",
 		"@cloudflare/workers-types": ">=4",
-		"@effect/sql": "^0.48.5",
-		"@effect/sql-pg": "^0.49.7",
+		"@effect/sql-d1": ">=4.0.0-beta.83 || >=4.0.0",
+		"@effect/sql-libsql": ">=4.0.0-beta.83 || >=4.0.0",
+		"@effect/sql-mysql2": ">=4.0.0-beta.83 || >=4.0.0",
+		"@effect/sql-pg": ">=4.0.0-beta.83 || >=4.0.0",
+		"@effect/sql-pglite": ">=4.0.0-beta.83 || >=4.0.0",
+		"@effect/sql-sqlite-bun": ">=4.0.0-beta.83 || >=4.0.0",
+		"@effect/sql-sqlite-do": ">=4.0.0-beta.83 || >=4.0.0",
+		"@effect/sql-sqlite-node": ">=4.0.0-beta.83 || >=4.0.0",
+		"@effect/sql-sqlite-wasm": ">=4.0.0-beta.83 || >=4.0.0",
 		"@electric-sql/pglite": ">=0.2.0",
 		"@libsql/client": ">=0.10.0",
 		"@libsql/client-wasm": ">=0.10.0",
@@ -62,9 +68,11 @@
 		"@sinclair/typebox": ">=0.34.8",
 		"@sqlitecloud/drivers": ">=1.0.653",
 		"@tidbcloud/serverless": "*",
-		"@tursodatabase/database": ">=0.2.1",
-		"@tursodatabase/database-common": ">=0.2.1",
-		"@tursodatabase/database-wasm": ">=0.2.1",
+		"@tursodatabase/database": ">=0.6.0-pre.28 || >=0.6.0",
+		"@tursodatabase/database-common": ">=0.6.0-pre.28 || >=0.6.0",
+		"@tursodatabase/database-wasm": ">=0.6.0-pre.28 || >=0.6.0",
+		"@tursodatabase/serverless": ">=1.1.3",
+		"@tursodatabase/sync": ">=0.6.0-pre.28 || >=0.6.0",
 		"@types/better-sqlite3": "*",
 		"@types/mssql": "^9.1.4",
 		"@types/pg": "*",
@@ -75,8 +83,8 @@
 		"arktype": ">=2.0.0",
 		"better-sqlite3": ">=9.3.0",
 		"bun-types": "*",
+		"effect": ">=4.0.0-beta.83 || >=4.0.0",
 		"expo-sqlite": ">=14.0.0",
-		"gel": ">=2",
 		"mssql": "^11.0.1",
 		"mysql2": ">=2",
 		"pg": ">=8",
@@ -89,6 +97,12 @@
 	},
 	"peerDependenciesMeta": {
 		"@aws/aurora-dsql-node-postgres-connector": {
+			"optional": true
+		},
+		"@types/mssql": {
+			"optional": true
+		},
+		"mssql": {
 			"optional": true
 		},
 		"arktype": {
@@ -154,9 +168,6 @@
 		"expo-sqlite": {
 			"optional": true
 		},
-		"gel": {
-			"optional": true
-		},
 		"@op-engineering/op-sqlite": {
 			"optional": true
 		},
@@ -175,19 +186,49 @@
 		"@tursodatabase/database": {
 			"optional": true
 		},
+		"@tursodatabase/sync": {
+			"optional": true
+		},
 		"@tursodatabase/database-wasm": {
 			"optional": true
 		},
 		"@tursodatabase/database-common": {
 			"optional": true
 		},
+		"@tursodatabase/serverless": {
+			"optional": true
+		},
 		"@upstash/redis": {
 			"optional": true
 		},
-		"@effect/sql": {
+		"effect": {
+			"optional": true
+		},
+		"@effect/sql-d1": {
+			"optional": true
+		},
+		"@effect/sql-mysql2": {
 			"optional": true
 		},
 		"@effect/sql-pg": {
+			"optional": true
+		},
+		"@effect/sql-pglite": {
+			"optional": true
+		},
+		"@effect/sql-sqlite-bun": {
+			"optional": true
+		},
+		"@effect/sql-sqlite-do": {
+			"optional": true
+		},
+		"@effect/sql-sqlite-node": {
+			"optional": true
+		},
+		"@effect/sql-sqlite-wasm": {
+			"optional": true
+		},
+		"@effect/sql-libsql": {
 			"optional": true
 		},
 		"typebox": {
@@ -204,10 +245,16 @@
 		"@arktype/attest": "^0.46.0",
 		"@aws-sdk/client-rds-data": "^3.914.0",
 		"@cloudflare/workers-types": "^4.20251004.0",
-		"@effect/sql": "^0.48.5",
-		"@effect/sql-pg": "^0.49.7",
-		"@effect/sql-sqlite-node": "^0.49.1",
-		"@electric-sql/pglite": "^0.2.12",
+		"@effect/sql-d1": "4.0.0-beta.83",
+		"@effect/sql-libsql": "4.0.0-beta.83",
+		"@effect/sql-mysql2": "4.0.0-beta.83",
+		"@effect/sql-pg": "4.0.0-beta.83",
+		"@effect/sql-pglite": "4.0.0-beta.83",
+		"@effect/sql-sqlite-bun": "4.0.0-beta.83",
+		"@effect/sql-sqlite-do": "4.0.0-beta.83",
+		"@effect/sql-sqlite-node": "4.0.0-beta.83",
+		"@effect/sql-sqlite-wasm": "4.0.0-beta.83",
+		"@electric-sql/pglite": "^0.4.6",
 		"@libsql/client": "^0.10.0",
 		"@libsql/client-wasm": "^0.10.0",
 		"@miniflare/d1": "^2.14.4",
@@ -220,9 +267,11 @@
 		"@sinclair/typebox": "^0.34.48",
 		"@sqlitecloud/drivers": "^1.0.653",
 		"@tidbcloud/serverless": "^0.1.1",
-		"@tursodatabase/database": "0.2.1",
-		"@tursodatabase/database-common": "^0.2.1",
-		"@tursodatabase/database-wasm": "^0.2.1",
+		"@tursodatabase/database": "0.6.0-pre.28",
+		"@tursodatabase/database-common": "0.6.0-pre.28",
+		"@tursodatabase/database-wasm": "0.6.0-pre.28",
+		"@tursodatabase/serverless": "1.1.3",
+		"@tursodatabase/sync": "0.6.0",
 		"@types/better-sqlite3": "^7.6.12",
 		"@types/node": "^25.4.0",
 		"@types/pg": "^8.10.1",
@@ -235,20 +284,16 @@
 		"better-sqlite3": "^11.9.1",
 		"bun-types": "^1.2.23",
 		"cpy": "^10.1.0",
-		"effect": "^3.19.8",
+		"effect": "4.0.0-beta.83",
 		"expo-sqlite": "^14.0.0",
-		"gel": "^2.0.0",
 		"glob": "^11.0.1",
 		"mysql2": "^3.14.1",
 		"pg": "^8.11.0",
 		"postgres": "^3.3.5",
-		"prisma": "5.14.0",
 		"react": "^18.2.0",
-		"rolldown": "^1.0.0-beta.57",
 		"sql.js": "^1.8.0",
 		"sqlite3": "^5.1.2",
 		"ts-morph": "^25.0.1",
-		"tsdown": "^0.18.3",
 		"tslib": "^2.5.2",
 		"tsx": "^3.12.7",
 		"typebox": "^1.0.80",

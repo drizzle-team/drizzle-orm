@@ -1,5 +1,5 @@
 import { defineRelations, sql } from 'drizzle-orm';
-import { bigserial, geometry, line, pgTable, point } from 'drizzle-orm/pg-core';
+import { bigserial, customType, geometry, integer, line, pgTable, point } from 'drizzle-orm/pg-core';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres, { type Sql } from 'postgres';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
@@ -7,7 +7,7 @@ import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vit
 const ENABLE_LOGGING = false;
 
 let client: Sql;
-let db: PostgresJsDatabase<never, typeof relations>;
+let db: PostgresJsDatabase<typeof relations>;
 
 const items = pgTable('items', {
 	id: bigserial('id', { mode: 'number' }).primaryKey(),
@@ -51,6 +51,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
 	await db.execute(sql`drop table if exists items cascade`);
+	await db.execute(sql`drop table if exists geofences cascade`);
 	await db.execute(sql`
 		CREATE TABLE items (
 		          id bigserial PRIMARY KEY, 
@@ -125,4 +126,90 @@ test('RQBv2', async () => {
 
 	expect(rootRqbResponse).toStrictEqual(rawResponse);
 	expect(nestedRqbResponse).toStrictEqual(rawResponse);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5711
+test('No wrong codec autoresolution', async () => {
+	const polygon = customType<{ data: [number, number][][]; driverData: string }>({
+		dataType() {
+			return 'geometry(Polygon, 4326)';
+		},
+		toDriver(value) {
+			return sql`ST_GeomFromText(
+				'POLYGON(${
+				sql.raw(
+					value.map((v) => `(${v.map((v1) => `${v1[0]!} ${v1[1]!}`).join(', ')})`).join(', '),
+				)
+			})',
+				4326
+			)`;
+		},
+		fromDriver(ewkb: string) {
+			const buffer = Buffer.from(ewkb, 'hex');
+			const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+
+			let offset = 0;
+
+			const littleEndian = view.getUint8(offset) === 1;
+			offset += 1;
+
+			const getUint32 = () => {
+				const val = view.getUint32(offset, littleEndian);
+				offset += 4;
+				return val;
+			};
+
+			const getFloat64 = () => {
+				const val = view.getFloat64(offset, littleEndian);
+				offset += 8;
+				return val;
+			};
+
+			const typeWithFlags = getUint32();
+			const hasSRID = (typeWithFlags & 0x20000000) !== 0;
+			if (hasSRID) {
+				const srid = getUint32();
+			}
+
+			const numRings = getUint32();
+			const rings: [number, number][][] = [];
+
+			for (let i = 0; i < numRings; i++) {
+				const numPoints = getUint32();
+				const ring: [number, number][] = [];
+
+				for (let j = 0; j < numPoints; j++) {
+					const x = getFloat64();
+					const y = getFloat64();
+					ring.push([x, y]);
+				}
+
+				rings.push(ring);
+			}
+
+			return rings;
+		},
+	});
+
+	const Geofence = pgTable('geofences', {
+		id: integer().primaryKey(),
+		polygon: polygon('polygon').notNull(),
+	});
+
+	await db.execute(sql`CREATE TABLE IF NOT EXISTS geofences (
+		id INTEGER PRIMARY KEY,
+		polygon geometry(Polygon, 4326)
+	)`);
+
+	await db.insert(Geofence).values({
+		id: 1,
+		polygon: [[[30.0, 50.0], [30.1, 50.0], [30.1, 50.1], [30.0, 50.1], [30.0, 50.0]]],
+	});
+
+	const res = await db.select().from(Geofence);
+
+	expect(res).toStrictEqual([{
+		id: 1,
+		polygon: [[[30.0, 50.0], [30.1, 50.0], [30.1, 50.1], [30.0, 50.1], [30.0, 50.0]]],
+	}]);
 });

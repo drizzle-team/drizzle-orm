@@ -30,6 +30,9 @@ export class PgUUIDBuilder extends PgColumnBuilder<{
 export class PgUUID extends PgColumn<'string uuid'> {
 	static override readonly [entityKind]: string = 'PgUUID';
 
+	/** @internal */
+	override readonly codec = 'uuid';
+
 	getSQLType(): string {
 		return 'uuid';
 	}

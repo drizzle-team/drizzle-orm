@@ -96,7 +96,6 @@ export class CockroachRelationalQuery<TResult> extends QueryPromise<TResult>
 				builtQuery,
 				undefined,
 				name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
-				true,
 				(rawRows, mapColumnValue) => {
 					const rows = rawRows.map((row) =>
 						mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)
@@ -134,7 +133,7 @@ export class CockroachRelationalQuery<TResult> extends QueryPromise<TResult>
 	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 
-		const { typings: _typings, ...builtQuery } = this.dialect.sqlToQuery(query.sql as SQL);
+		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 
 		return { query, builtQuery };
 	}

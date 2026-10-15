@@ -1,42 +1,36 @@
 /// <reference types="bun-types" />
 
 import { SQL } from 'bun';
-import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
-import { DrizzleError } from '~/errors.ts';
 import { DefaultLogger } from '~/logger.ts';
-import { MySqlDatabase } from '~/mysql-core/db.ts';
+import { MySqlAsyncDatabase } from '~/mysql-core/async/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { Mode } from '~/mysql-core/session.ts';
+import type { DrizzleMySqlConfig } from '~/mysql-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
-import type { DrizzleConfig } from '~/utils.ts';
-import type { BunMySqlPreparedQueryHKT, BunMySqlQueryResultHKT } from './session.ts';
+import { jitCompatCheck } from '~/utils.ts';
+import { bunSqlMySqlCodecs } from './codecs.ts';
+import type { BunMySqlQueryResultHKT } from './session.ts';
 import { BunMySqlSession } from './session.ts';
 
-export type BunMySqlDrizzleConfig<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
-> =
-	& Omit<DrizzleConfig<TSchema, TRelations>, 'schema'>
-	& ({ schema: TSchema; mode: Mode } | { schema?: undefined; mode?: Mode });
-
 export class BunMySqlDatabase<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-> extends MySqlDatabase<BunMySqlQueryResultHKT, BunMySqlPreparedQueryHKT, TSchema, TRelations> {
+> extends MySqlAsyncDatabase<BunMySqlQueryResultHKT, TRelations> {
 	static override readonly [entityKind]: string = 'BunMySqlDatabase';
 }
 
 function construct<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 >(
 	client: SQL,
-	config: BunMySqlDrizzleConfig<TSchema, TRelations> = {},
-): BunMySqlDatabase<TSchema, TRelations> & {
+	config: DrizzleMySqlConfig<TRelations> = {},
+): BunMySqlDatabase<TRelations> & {
 	$client: SQL;
 } {
-	const dialect = new MySqlDialect({ casing: config.casing });
+	client.options.bigint = true;
+	const dialect = new MySqlDialect({
+		useJitMappers: jitCompatCheck(config.jit),
+		codecs: config.codecs ?? bunSqlMySqlCodecs,
+	});
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
@@ -44,32 +38,12 @@ function construct<
 		logger = config.logger;
 	}
 
-	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
-	if (config.schema) {
-		if (config.mode === undefined) {
-			throw new DrizzleError({
-				message:
-					'You need to specify "mode": "planetscale" or "default" when providing a schema. Read more: https://orm.drizzle.team/docs/rqb#modes',
-			});
-		}
-
-		const tablesConfig = V1.extractTablesRelationalConfig(
-			config.schema,
-			V1.createTableRelationsHelpers,
-		);
-		schema = {
-			fullSchema: config.schema,
-			schema: tablesConfig.tables,
-			tableNamesMap: tablesConfig.tableNamesMap,
-		};
-	}
-
-	const mode = config.mode ?? 'default';
-
 	const relations = config.relations ?? {} as TRelations;
-	const session = new BunMySqlSession(client, dialect, relations, schema, { logger, mode, cache: config.cache });
-	const db = new BunMySqlDatabase(dialect, session, relations, schema as any, mode) as BunMySqlDatabase<
-		TSchema,
+	const session = new BunMySqlSession(client, dialect, relations, {
+		logger,
+		cache: config.cache,
+	});
+	const db = new BunMySqlDatabase(dialect, session, relations) as BunMySqlDatabase<
 		TRelations
 	>;
 	(<any> db).$client = client;
@@ -82,7 +56,6 @@ function construct<
 }
 
 export function drizzle<
-	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends SQL = SQL,
 >(
@@ -90,10 +63,10 @@ export function drizzle<
 		string,
 	] | [
 		string,
-		BunMySqlDrizzleConfig<TSchema, TRelations>,
+		DrizzleMySqlConfig<TRelations>,
 	] | [
 		(
-			& BunMySqlDrizzleConfig<TSchema, TRelations>
+			& DrizzleMySqlConfig<TRelations>
 			& ({
 				connection: string | ({ url?: string } & SQL.Options);
 			} | {
@@ -101,7 +74,7 @@ export function drizzle<
 			})
 		),
 	]
-): BunMySqlDatabase<TSchema, TRelations> & {
+): BunMySqlDatabase<TRelations> & {
 	$client: TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -113,7 +86,7 @@ export function drizzle<
 	const { connection, client, ...drizzleConfig } = params[0] as {
 		connection?: { url?: string } & SQL.Options;
 		client?: TClient;
-	} & BunMySqlDrizzleConfig<TSchema, TRelations>;
+	} & DrizzleMySqlConfig<TRelations>;
 
 	if (client) return construct(client, drizzleConfig) as any;
 
@@ -130,11 +103,10 @@ export function drizzle<
 
 export namespace drizzle {
 	export function mock<
-		TSchema extends Record<string, unknown> = Record<string, never>,
 		TRelations extends AnyRelations = EmptyRelations,
 	>(
-		config?: BunMySqlDrizzleConfig<TSchema, TRelations>,
-	): BunMySqlDatabase<TSchema, TRelations> & {
+		config?: DrizzleMySqlConfig<TRelations>,
+	): BunMySqlDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({

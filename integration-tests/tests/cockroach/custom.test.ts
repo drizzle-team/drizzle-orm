@@ -1,5 +1,4 @@
 import retry from 'async-retry';
-import type Docker from 'dockerode';
 import { asc, eq, sql } from 'drizzle-orm';
 import type { NodeCockroachDatabase } from 'drizzle-orm/cockroach';
 import { drizzle } from 'drizzle-orm/cockroach';
@@ -8,23 +7,15 @@ import { migrate } from 'drizzle-orm/cockroach/migrator';
 import { Client } from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { randomString } from '~/utils';
-import { createDockerDB } from './common';
+import { requireCockroachConnectionString } from './common';
 
 const ENABLE_LOGGING = false;
 
 let db: NodeCockroachDatabase;
 let client: Client;
-let container: Docker.Container | undefined;
 
 beforeAll(async () => {
-	let connectionString;
-	if (process.env['COCKROACH_CONNECTION_STRING']) {
-		connectionString = process.env['COCKROACH_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
-		connectionString = conStr;
-		container = contrainerObj;
-	}
+	const connectionString = requireCockroachConnectionString();
 	client = await retry(async () => {
 		client = new Client(connectionString);
 		await client.connect();
@@ -44,7 +35,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await client?.end();
-	await container?.stop().catch(console.error);
 });
 
 beforeEach((ctx) => {

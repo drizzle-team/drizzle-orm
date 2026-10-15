@@ -1,4 +1,4 @@
-import { assertUnreachable } from 'src/utils';
+import { assertUnreachable } from '../../utils';
 import { createDDL } from './ddl';
 import type { MssqlSnapshot, MssqlSnapshotV1 } from './snapshot';
 

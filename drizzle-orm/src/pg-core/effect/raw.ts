@@ -2,9 +2,9 @@ import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { PgRaw } from '../query-builders/raw.ts';
+import type { PgEffectPreparedQuery } from './session.ts';
 
 export interface PgEffectRaw<TResult, TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase>
 	extends Effect.Effect<TResult, TEffectHKT['error'], TEffectHKT['context']>, RunnableQuery<TResult, 'pg'>, SQLWrapper
@@ -19,17 +19,26 @@ export class PgEffectRaw<TResult, TEffectHKT extends QueryEffectHKTBase = QueryE
 		readonly result: TResult;
 	};
 
+	declare protected prepared: PgEffectPreparedQuery<{
+		execute: TResult;
+	}, TEffectHKT>;
+
 	constructor(
-		public execute: () => Effect.Effect<TResult, TEffectHKT['error'], TEffectHKT['context']>,
+		prepared: PgEffectPreparedQuery<{
+			execute: TResult;
+		}, TEffectHKT>,
 		sql: SQL,
 		query: Query,
-		mapBatchResult: (result: unknown) => unknown,
 	) {
-		super(sql, query, mapBatchResult);
+		super(prepared, sql, query);
 	}
 
-	_prepare(): PreparedQuery {
-		return this;
+	execute(placeholderValues?: Record<string, unknown>) {
+		return this.prepared.execute(placeholderValues);
+	}
+
+	override _prepare() {
+		return this.prepared;
 	}
 }
 

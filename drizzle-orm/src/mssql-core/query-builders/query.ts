@@ -8,7 +8,7 @@ import {
 } from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
+import type { Query, SQL } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { MsSqlDialect } from '../dialect.ts';
 import type { MsSqlSession, PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
@@ -113,7 +113,7 @@ export class MsSqlRelationalQuery<
 		});
 	}
 
-	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);

@@ -1,4 +1,4 @@
-import type { SchemaForPull } from 'src/cli/commands/pull-common';
+import type { SchemaForPull } from '../../cli/commands/pull-common';
 import { create } from '../dialect';
 import { nameForPk, nameForUnique } from './grammar';
 

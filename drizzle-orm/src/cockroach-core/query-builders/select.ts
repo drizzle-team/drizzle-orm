@@ -960,12 +960,12 @@ export abstract class CockroachSelectQueryBuilderBase<
 
 	/** @internal */
 	getSQL(): SQL {
+		this.config.fieldsFlat = orderSelectedFields<CockroachColumn>(this.config.fields);
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	as<TAlias extends string>(
@@ -983,6 +983,11 @@ export abstract class CockroachSelectQueryBuilderBase<
 			this.config.fields,
 			new SelectionProxyHandler({ alias: this.tableName, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as this['_']['selectedFields'];
+	}
+
+	/** @internal */
+	override withoutSelectionCastCodecs(): this {
+		return this;
 	}
 
 	$dynamic(): CockroachSelectDynamic<this> {
@@ -1041,20 +1046,20 @@ export class CockroachSelectBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): CockroachSelectPrepare<this> {
-		const { session, config, dialect, joinsNotNullableMap } = this;
+		const { session, dialect, joinsNotNullableMap } = this;
 		if (!session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const fieldsList = orderSelectedFields<CockroachColumn>(config.fields);
+			// Build query before accessing `fieldsFlat` - build mutates it
 			const query = dialect.sqlToQuery(this.getSQL());
+			const fieldsList = this.config.fieldsFlat!;
 			const preparedQuery = session.prepareQuery<
 				PreparedQueryConfig & { execute: TResult }
 			>(
 				query,
 				fieldsList,
 				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-				true,
 			);
 			preparedQuery.joinsNotNullableMap = joinsNotNullableMap;
 

@@ -1,28 +1,21 @@
-import * as V1 from '~/_relations.ts';
-import {
-	aliasedTable,
-	aliasedTableColumn,
-	getOriginalColumnFromAlias,
-	mapColumnsInAliasedSQLToAlias,
-	mapColumnsInSQLToAlias,
-} from '~/alias.ts';
-import { CasingCache } from '~/casing.ts';
+import { aliasedTable, getOriginalColumnFromAlias } from '~/alias.ts';
 import type { AnyColumn } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
-import { getMigrationsToRun } from '~/migrator.utils.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import {
 	type AnyOne,
 	// AggregatedField,
-	type AnyRelations,
 	type BuildRelationalQueryResult,
 	type ColumnWithTSName,
 	type DBQueryConfig,
 	getTableAsAliasSQL,
+	makeDefaultRqbMapper,
+	makeJitRqbMapper,
 	One,
 	type Relation,
+	type RelationalRowsMapperGenerator,
 	relationExtrasToSQL,
 	relationsFilterToSQL,
 	relationsOrderToSQL,
@@ -32,8 +25,8 @@ import {
 	type WithContainer,
 } from '~/relations.ts';
 import type { Name, Placeholder, SQLWrapper } from '~/sql/index.ts';
-import { and, eq, isSQLWrapper } from '~/sql/index.ts';
-import { Param, type QueryWithTypings, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
+import { and, isSQLWrapper } from '~/sql/index.ts';
+import { Param, type Query, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
 import { SQLiteColumn, type SQLiteCustomColumn } from '~/sqlite-core/columns/index.ts';
 import type {
 	AnySQLiteSelectQueryBuilder,
@@ -43,35 +36,50 @@ import type {
 } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
-import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
-import { upgradeAsyncIfNeeded, upgradeSyncIfNeeded } from '~/up-migrations/sqlite.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { getTableName, Table, TableColumns } from '~/table.ts';
+import {
+	makeDefaultQueryMapper,
+	makeJitQueryMapper,
+	orderSelectedFields,
+	type RowsMapperGenerator,
+	type UpdateSet,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
 	SelectedFieldsOrdered,
 	SQLiteSelectConfig,
 	SQLiteSelectJoinConfig,
 } from './query-builders/select.types.ts';
-import type { SQLiteSession } from './session.ts';
 import { SQLiteViewBase } from './view-base.ts';
 import type { SQLiteView } from './view.ts';
 
+// Will add codecs here, do not remove
 export interface SQLiteDialectConfig {
-	casing?: Casing;
+	useJitMappers?: boolean;
 }
 
-export abstract class SQLiteDialect {
+export class SQLiteDialect {
 	static readonly [entityKind]: string = 'SQLiteDialect';
 
-	/** @internal */
-	readonly casing: CasingCache;
+	readonly mapperGenerators: {
+		rows: RowsMapperGenerator;
+		relationalRows: RelationalRowsMapperGenerator;
+	};
 
 	constructor(config?: SQLiteDialectConfig) {
-		this.casing = new CasingCache(config?.casing);
+		this.mapperGenerators = config?.useJitMappers
+			? {
+				rows: makeJitQueryMapper,
+				relationalRows: makeJitRqbMapper,
+			}
+			: {
+				rows: makeDefaultQueryMapper,
+				relationalRows: makeDefaultRqbMapper,
+			};
 	}
 
 	escapeName(name: string): string {
-		return `"${name}"`;
+		return `"${name.replace(/"/g, '""')}"`;
 	}
 
 	escapeParam(_num: number): string {
@@ -96,7 +104,14 @@ export abstract class SQLiteDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: SQLiteDeleteConfig): SQL {
+	buildDeleteQuery({
+		table,
+		where,
+		returning,
+		withList,
+		limit,
+		orderBy,
+	}: SQLiteDeleteConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
@@ -115,26 +130,43 @@ export abstract class SQLiteDialect {
 	buildUpdateSet(table: SQLiteTable, set: UpdateSet): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
 
-		const columnNames = Object.keys(tableColumns).filter((colName) =>
-			set[colName] !== undefined || tableColumns[colName]?.onUpdateFn !== undefined
+		const columnNames = Object.keys(tableColumns).filter(
+			(colName) =>
+				set[colName] !== undefined
+				|| tableColumns[colName]?.onUpdateFn !== undefined,
 		);
 
 		const setLength = columnNames.length;
-		return sql.join(columnNames.flatMap((colName, i) => {
-			const col = tableColumns[colName]!;
+		return sql.join(
+			columnNames.flatMap((colName, i) => {
+				const col = tableColumns[colName]!;
 
-			const onUpdateFnResult = col.onUpdateFn?.();
-			const value = set[colName] ?? (is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col));
-			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
+				const onUpdateFnResult = col.onUpdateFn?.();
+				const value = set[colName]
+					?? (is(onUpdateFnResult, SQL)
+						? onUpdateFnResult
+						: sql.param(onUpdateFnResult, col));
+				const res = sql`${sql.identifier(col.name)} = ${value}`;
 
-			if (i < setLength - 1) {
-				return [res, sql.raw(', ')];
-			}
-			return [res];
-		}));
+				if (i < setLength - 1) {
+					return [res, sql.raw(', ')];
+				}
+				return [res];
+			}),
+		);
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList, joins, from, limit, orderBy }: SQLiteUpdateConfig): SQL {
+	buildUpdateQuery({
+		table,
+		set,
+		where,
+		returning,
+		withList,
+		joins,
+		from,
+		limit,
+		orderBy,
+	}: SQLiteUpdateConfig): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const setSql = this.buildUpdateSet(table, set);
@@ -173,21 +205,23 @@ export abstract class SQLiteDialect {
 	): SQL {
 		const columnsLen = fields.length;
 
-		const chunks = fields
-			.flatMap(({ field }, i) => {
-				const chunk: SQLChunk[] = [];
+		const chunks = fields.flatMap(({ field }, i) => {
+			const chunk: SQLChunk[] = [];
 
-				if (is(field, SQL.Aliased) && field.isSelectionField) {
-					if (!isSingleTable && field.origin !== undefined) chunk.push(sql.identifier(field.origin), sql.raw('.'));
+			if (is(field, SQL.Aliased)) {
+				if (field.isSelectionField) {
+					if (!isSingleTable && field.origin !== undefined) {
+						chunk.push(sql.identifier(field.origin), sql.raw('.'));
+					}
 					chunk.push(sql.identifier(field.fieldAlias));
-				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
-					const query = is(field, SQL.Aliased) ? field.sql : field;
+				} else {
+					const query = field.sql;
 
 					if (isSingleTable) {
 						const newSql = new SQL(
 							query.queryChunks.map((c) => {
 								if (is(c, Column)) {
-									return sql.identifier(this.casing.getColumnCasing(c));
+									return sql.identifier(c.name);
 								}
 								return c;
 							}),
@@ -198,64 +232,77 @@ export abstract class SQLiteDialect {
 						chunk.push(query);
 					}
 
-					if (is(field, SQL.Aliased)) {
-						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
-					}
-				} else if (is(field, Column)) {
-					if (field.columnType === 'SQLiteNumericBigInt') {
-						if (isSingleTable) {
-							chunk.push(
-								field.isAlias
-									? sql`cast(${
-										sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))
-									} as text) as ${field}`
-									: sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
-							);
-						} else {
-							chunk.push(
-								field.isAlias
-									? sql`cast(${getOriginalColumnFromAlias(field)} as text) as ${field}`
-									: sql`cast(${field} as text)`,
-							);
-						}
+					chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+				}
+			} else if (is(field, SQL)) {
+				const query = field;
+
+				if (isSingleTable) {
+					const newSql = new SQL(
+						query.queryChunks.map((c) => {
+							if (is(c, Column)) {
+								return sql.identifier(c.name);
+							}
+							return c;
+						}),
+					);
+
+					chunk.push(query.shouldInlineParams ? newSql.inlineParams() : newSql);
+				} else {
+					chunk.push(query);
+				}
+			} else if (is(field, Column)) {
+				// TODO: remove after implementing codecs
+				if (field.columnType === 'SQLiteNumericBigInt' || field.columnType === 'SQLiteNumeric') {
+					if (isSingleTable) {
+						chunk.push(
+							field.isAlias
+								? sql`cast(${sql.identifier(getOriginalColumnFromAlias(field).name)} as text) as ${field}`
+								: sql`cast(${sql.identifier(field.name)} as text)`,
+						);
 					} else {
-						if (isSingleTable) {
-							chunk.push(
-								field.isAlias
-									? sql`${sql.identifier(this.casing.getColumnCasing(getOriginalColumnFromAlias(field)))} as ${field}`
-									: sql.identifier(this.casing.getColumnCasing(field)),
-							);
-						} else {
-							chunk.push(field.isAlias ? sql`${getOriginalColumnFromAlias(field)} as ${field}` : field);
-						}
+						chunk.push(
+							field.isAlias
+								? sql`cast(${getOriginalColumnFromAlias(field)} as text) as ${field}`
+								: sql`cast(${field} as text)`,
+						);
 					}
-				} else if (is(field, Subquery)) {
-					const entries = Object.entries(field._.selectedFields) as [string, SQL.Aliased | Column | SQL][];
-
-					if (entries.length === 1) {
-						const entry = entries[0]![1];
-
-						const fieldDecoder = is(entry, SQL)
-							? entry.decoder
-							: is(entry, Column)
-							? { mapFromDriverValue: (v: any) => entry.mapFromDriverValue(v) }
-							: entry.sql.decoder;
-						if (fieldDecoder) field._.sql.decoder = fieldDecoder;
+				} else {
+					if (isSingleTable) {
+						chunk.push(
+							field.isAlias
+								? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
+								: sql.identifier(field.name),
+						);
+					} else {
+						chunk.push(
+							field.isAlias
+								? sql`${getOriginalColumnFromAlias(field)} as ${field}`
+								: field,
+						);
 					}
+				}
+			} else if (is(field, Subquery)) {
+				if (!field._.isWith) {
+					chunk.push(sql`(${field._.sql}) ${sql.identifier(field._.alias)}`);
+				} else {
 					chunk.push(field);
 				}
+			}
 
-				if (i < columnsLen - 1) {
-					chunk.push(sql`, `);
-				}
+			if (i < columnsLen - 1) {
+				chunk.push(sql`, `);
+			}
 
-				return chunk;
-			});
+			return chunk;
+		});
 
 		return sql.join(chunks);
 	}
 
-	private buildJoins(joins: SQLiteSelectJoinConfig[] | undefined): SQL | undefined {
+	private buildJoins(
+		joins: SQLiteSelectJoinConfig[] | undefined,
+	): SQL | undefined {
 		if (!joins || joins.length === 0) {
 			return undefined;
 		}
@@ -277,7 +324,9 @@ export abstract class SQLiteDialect {
 					const alias = tableName === origTableName ? undefined : joinMeta.alias;
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
-							sql.identifier(origTableName)
+							sql.identifier(
+								origTableName,
+							)
 						}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else {
@@ -295,12 +344,15 @@ export abstract class SQLiteDialect {
 	}
 
 	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
-		return typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
+		return typeof limit === 'object'
+				|| (typeof limit === 'number' && limit >= 0)
 			? sql` limit ${limit}`
 			: undefined;
 	}
 
-	private buildOrderBy(orderBy: (SQLiteColumn | SQL | SQL.Aliased)[] | undefined): SQL | undefined {
+	private buildOrderBy(
+		orderBy: (SQLiteColumn | SQL | SQL.Aliased)[] | undefined,
+	): SQL | undefined {
 		const orderByList: (SQLiteColumn | SQL | SQL.Aliased)[] = [];
 
 		if (orderBy) {
@@ -313,7 +365,9 @@ export abstract class SQLiteDialect {
 			}
 		}
 
-		return orderByList.length > 0 ? sql` order by ${sql.join(orderByList)}` : undefined;
+		return orderByList.length > 0
+			? sql` order by ${sql.join(orderByList)}`
+			: undefined;
 	}
 
 	private buildFromTable(
@@ -321,7 +375,9 @@ export abstract class SQLiteDialect {
 	): SQL | Subquery | SQLiteViewBase | SQLiteTable | undefined {
 		if (is(table, Table) && table[Table.Symbol.IsAlias]) {
 			return sql`${sql`${sql.identifier(table[Table.Symbol.Schema] ?? '')}.`.if(table[Table.Symbol.Schema])}${
-				sql.identifier(table[Table.Symbol.OriginalName])
+				sql.identifier(
+					table[Table.Symbol.OriginalName],
+				)
 			} ${sql.identifier(table[Table.Symbol.Name])}`;
 		}
 
@@ -336,23 +392,21 @@ export abstract class SQLiteDialect {
 		return table;
 	}
 
-	buildSelectQuery(
-		{
-			withList,
-			fields,
-			fieldsFlat,
-			where,
-			having,
-			table,
-			joins,
-			orderBy,
-			groupBy,
-			limit,
-			offset,
-			distinct,
-			setOperators,
-		}: SQLiteSelectConfig,
-	): SQL {
+	buildSelectQuery({
+		withList,
+		fields,
+		fieldsFlat,
+		where,
+		having,
+		table,
+		joins,
+		orderBy,
+		groupBy,
+		limit,
+		offset,
+		distinct,
+		setOperators,
+	}: SQLiteSelectConfig): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<SQLiteColumn>(fields);
 		for (const f of fieldsList) {
 			if (
@@ -366,14 +420,20 @@ export abstract class SQLiteDialect {
 						? undefined
 						: getTableName(table))
 				&& !((table) =>
-					joins?.some(({ alias }) =>
-						alias === (table[Table.Symbol.IsAlias] ? getTableName(table) : table[Table.Symbol.BaseName])
+					joins?.some(
+						({ alias }) =>
+							alias
+								=== (table[Table.Symbol.IsAlias]
+									? getTableName(table)
+									: table[Table.Symbol.BaseName]),
 					))(f.field.table)
 			) {
 				const tableName = getTableName(f.field.table);
 				throw new Error(
 					`Your "${
-						f.path.join('->')
+						f.path.join(
+							'->',
+						)
 					}" field references a column "${tableName}"."${f.field.name}", but the table "${tableName}" is not part of the query! Did you forget to join it?`,
 				);
 			}
@@ -406,7 +466,9 @@ export abstract class SQLiteDialect {
 			}
 		}
 
-		const groupBySql = groupByList.length > 0 ? sql` group by ${sql.join(groupByList)}` : undefined;
+		const groupBySql = groupByList.length > 0
+			? sql` group by ${sql.join(groupByList)}`
+			: undefined;
 
 		const orderBySql = this.buildOrderBy(orderBy);
 
@@ -424,7 +486,10 @@ export abstract class SQLiteDialect {
 		return finalQuery;
 	}
 
-	buildSetOperations(leftSelect: SQL, setOperators: SQLiteSelectConfig['setOperators']): SQL {
+	buildSetOperations(
+		leftSelect: SQL,
+		setOperators: SQLiteSelectConfig['setOperators'],
+	): SQL {
 		const [setOperator, ...rest] = setOperators;
 
 		if (!setOperator) {
@@ -445,7 +510,10 @@ export abstract class SQLiteDialect {
 	buildSetOperationQuery({
 		leftSelect,
 		setOperator: { type, isAll, rightSelect, limit, orderBy, offset },
-	}: { leftSelect: SQL; setOperator: SQLiteSelectConfig['setOperators'][number] }): SQL {
+	}: {
+		leftSelect: SQL;
+		setOperator: SQLiteSelectConfig['setOperators'][number];
+	}): SQL {
 		// SQLite doesn't support parenthesis in set operations
 		const leftChunk = sql`${leftSelect.getSQL()} `;
 		const rightChunk = sql`${rightSelect.getSQL()}`;
@@ -464,7 +532,7 @@ export abstract class SQLiteDialect {
 						const chunk = singleOrderBy.queryChunks[i];
 
 						if (is(chunk, SQLiteColumn)) {
-							singleOrderBy.queryChunks[i] = sql.identifier(this.casing.getColumnCasing(chunk));
+							singleOrderBy.queryChunks[i] = sql.identifier(chunk.name);
 						}
 					}
 
@@ -488,17 +556,26 @@ export abstract class SQLiteDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
-	buildInsertQuery(
-		{ table, values: valuesOrSelect, onConflict, returning, withList, select }: SQLiteInsertConfig,
-	): SQL {
+	buildInsertQuery({
+		table,
+		values: valuesOrSelect,
+		onConflict,
+		returning,
+		withList,
+		select,
+	}: SQLiteInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, SQLiteColumn> = table[Table.Symbol.Columns];
 
-		const colEntries: [string, SQLiteColumn][] = Object.entries(columns).filter(([_, col]) =>
-			!col.shouldDisableInsert()
-		);
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(this.casing.getColumnCasing(column)));
+		const colEntries: [string, SQLiteColumn][] = Object.entries(columns);
+		const colEntriesFiltered: [string, SQLiteColumn][] = select && !is(valuesOrSelect, SQL)
+			? Object
+				.keys((valuesOrSelect as TypedQueryBuilder<any>).getSelectedFields())
+				.map((key) => [key, columns[key]] as [string, SQLiteColumn])
+			: colEntries.filter(([_, col]) => !col.shouldDisableInsert());
+
+		const insertOrder = colEntriesFiltered.map(([, column]) => sql.identifier(column.name));
 
 		if (select) {
 			const select = valuesOrSelect as AnySQLiteSelectQueryBuilder | SQL;
@@ -514,20 +591,29 @@ export abstract class SQLiteDialect {
 
 			for (const [valueIndex, value] of values.entries()) {
 				const valueList: (SQLChunk | SQL)[] = [];
-				for (const [fieldName, col] of colEntries) {
+				for (const [fieldName, col] of colEntriesFiltered) {
 					const colValue = value[fieldName];
-					if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
+					if (
+						colValue === undefined
+						|| (is(colValue, Param) && colValue.value === undefined)
+					) {
 						let defaultValue;
 						if (col.default !== null && col.default !== undefined) {
-							defaultValue = is(col.default, SQL) ? col.default : sql.param(col.default, col);
+							defaultValue = is(col.default, SQL)
+								? col.default
+								: sql.param(col.default, col);
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (col.defaultFn !== undefined) {
 							const defaultFnResult = col.defaultFn();
-							defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+							defaultValue = is(defaultFnResult, SQL)
+								? defaultFnResult
+								: sql.param(defaultFnResult, col);
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (!col.default && col.onUpdateFn !== undefined) {
 							const onUpdateFnResult = col.onUpdateFn();
-							defaultValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+							defaultValue = is(onUpdateFnResult, SQL)
+								? onUpdateFnResult
+								: sql.param(onUpdateFnResult, col);
 						} else {
 							defaultValue = sql`null`;
 						}
@@ -551,9 +637,7 @@ export abstract class SQLiteDialect {
 			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
 			: undefined;
 
-		const onConflictSql = onConflict?.length
-			? sql.join(onConflict)
-			: undefined;
+		const onConflictSql = onConflict?.length ? sql.join(onConflict) : undefined;
 
 		// if (isSingleValue && valuesSqlList.length === 0){
 		// 	return sql`insert into ${table} default values ${onConflictSql}${returningSql}`;
@@ -562,305 +646,13 @@ export abstract class SQLiteDialect {
 		return sql`${withSql}insert into ${table} ${insertOrder} ${valuesSql}${onConflictSql}${returningSql}`;
 	}
 
-	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
+	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): Query {
 		return sql.toQuery({
-			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
 			invokeSource,
 		});
-	}
-
-	/** @deprecated */
-	_buildRelationalQuery({
-		fullSchema,
-		schema,
-		tableNamesMap,
-		table,
-		tableConfig,
-		queryConfig: config,
-		tableAlias,
-		nestedQueryRelation,
-		joinOn,
-	}: {
-		fullSchema: Record<string, unknown>;
-		schema: V1.TablesRelationalConfig;
-		tableNamesMap: Record<string, string>;
-		table: SQLiteTable;
-		tableConfig: V1.TableRelationalConfig;
-		queryConfig: true | V1.DBQueryConfig<'many', true>;
-		tableAlias: string;
-		nestedQueryRelation?: V1.Relation;
-		joinOn?: SQL;
-	}): V1.BuildRelationalQueryResult<SQLiteTable, SQLiteColumn> {
-		let selection: V1.BuildRelationalQueryResult<SQLiteTable, SQLiteColumn>['selection'] = [];
-		let limit, offset, orderBy: SQLiteSelectConfig['orderBy'] = [], where;
-		const joins: SQLiteSelectJoinConfig[] = [];
-
-		if (config === true) {
-			const selectionEntries = Object.entries(tableConfig.columns);
-			selection = selectionEntries.map((
-				[key, value],
-			) => ({
-				dbKey: value.name,
-				tsKey: key,
-				field: aliasedTableColumn(value as SQLiteColumn, tableAlias),
-				relationTableTsKey: undefined,
-				isJson: false,
-				selection: [],
-			}));
-		} else {
-			const aliasedColumns = Object.fromEntries(
-				Object.entries(tableConfig.columns).map(([key, value]) => [key, aliasedTableColumn(value, tableAlias)]),
-			);
-
-			if (config.where) {
-				const whereSql = typeof config.where === 'function'
-					? config.where(aliasedColumns, V1.getOperators())
-					: config.where;
-				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
-			}
-
-			const fieldsSelection: { tsKey: string; value: SQLiteColumn | SQL.Aliased }[] = [];
-			let selectedColumns: string[] = [];
-
-			// Figure out which columns to select
-			if (config.columns) {
-				let isIncludeMode = false;
-
-				for (const [field, value] of Object.entries(config.columns)) {
-					if (value === undefined) {
-						continue;
-					}
-
-					if (field in tableConfig.columns) {
-						if (!isIncludeMode && value === true) {
-							isIncludeMode = true;
-						}
-						selectedColumns.push(field);
-					}
-				}
-
-				if (selectedColumns.length > 0) {
-					selectedColumns = isIncludeMode
-						? selectedColumns.filter((c) => config.columns?.[c] === true)
-						: Object.keys(tableConfig.columns).filter((key) => !selectedColumns.includes(key));
-				}
-			} else {
-				// Select all columns if selection is not specified
-				selectedColumns = Object.keys(tableConfig.columns);
-			}
-
-			for (const field of selectedColumns) {
-				const column = tableConfig.columns[field]! as SQLiteColumn;
-				fieldsSelection.push({ tsKey: field, value: column });
-			}
-
-			let selectedRelations: {
-				tsKey: string;
-				queryConfig: true | V1.DBQueryConfig<'many', false>;
-				relation: V1.Relation;
-			}[] = [];
-
-			// Figure out which relations to select
-			if (config.with) {
-				selectedRelations = Object.entries(config.with)
-					.filter((entry): entry is [typeof entry[0], NonNullable<typeof entry[1]>] => !!entry[1])
-					.map(([tsKey, queryConfig]) => ({ tsKey, queryConfig, relation: tableConfig.relations[tsKey]! }));
-			}
-
-			let extras;
-
-			// Figure out which extras to select
-			if (config.extras) {
-				extras = typeof config.extras === 'function'
-					? config.extras(aliasedColumns, { sql })
-					: config.extras;
-				for (const [tsKey, value] of Object.entries(extras)) {
-					fieldsSelection.push({
-						tsKey,
-						value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
-					});
-				}
-			}
-
-			// Transform `fieldsSelection` into `selection`
-			// `fieldsSelection` shouldn't be used after this point
-			for (const { tsKey, value } of fieldsSelection) {
-				selection.push({
-					dbKey: is(value, SQL.Aliased) ? value.fieldAlias : tableConfig.columns[tsKey]!.name,
-					tsKey,
-					field: is(value, Column) ? aliasedTableColumn(value, tableAlias) : value,
-					relationTableTsKey: undefined,
-					isJson: false,
-					selection: [],
-				});
-			}
-
-			let orderByOrig = typeof config.orderBy === 'function'
-				? config.orderBy(aliasedColumns, V1.getOrderByOperators())
-				: config.orderBy ?? [];
-			if (!Array.isArray(orderByOrig)) {
-				orderByOrig = [orderByOrig];
-			}
-			orderBy = orderByOrig.map((orderByValue) => {
-				if (is(orderByValue, Column)) {
-					return aliasedTableColumn(orderByValue, tableAlias) as SQLiteColumn;
-				}
-				return mapColumnsInSQLToAlias(orderByValue, tableAlias);
-			});
-
-			limit = config.limit;
-			offset = config.offset;
-
-			// Process all relations
-			for (
-				const {
-					tsKey: selectedRelationTsKey,
-					queryConfig: selectedRelationConfigValue,
-					relation,
-				} of selectedRelations
-			) {
-				const normalizedRelation = V1.normalizeRelation(schema, tableNamesMap, relation);
-				const relationTableName = getTableUniqueName(relation.referencedTable);
-				const relationTableTsName = tableNamesMap[relationTableName]!;
-				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
-				// const relationTable = schema[relationTableTsName]!;
-				const joinOn = and(
-					...normalizedRelation.fields.map((field, i) =>
-						eq(
-							aliasedTableColumn(normalizedRelation.references[i]!, relationTableAlias),
-							aliasedTableColumn(field, tableAlias),
-						)
-					),
-				);
-				const builtRelation = this._buildRelationalQuery({
-					fullSchema,
-					schema,
-					tableNamesMap,
-					table: fullSchema[relationTableTsName] as SQLiteTable,
-					tableConfig: schema[relationTableTsName]!,
-					queryConfig: is(relation, V1.One)
-						? (selectedRelationConfigValue === true
-							? { limit: 1 }
-							: { ...selectedRelationConfigValue, limit: 1 })
-						: selectedRelationConfigValue,
-					tableAlias: relationTableAlias,
-					joinOn,
-					nestedQueryRelation: relation,
-				});
-				const field = (sql`(${builtRelation.sql})`).as(selectedRelationTsKey);
-				selection.push({
-					dbKey: selectedRelationTsKey,
-					tsKey: selectedRelationTsKey,
-					field,
-					relationTableTsKey: relationTableTsName,
-					isJson: true,
-					selection: builtRelation.selection,
-				});
-			}
-		}
-
-		if (selection.length === 0) {
-			throw new DrizzleError({
-				message:
-					`No fields selected for table "${tableConfig.tsName}" ("${tableAlias}"). You need to have at least one item in "columns", "with" or "extras". If you need to select all columns, omit the "columns" key or set it to undefined.`,
-			});
-		}
-
-		let result;
-
-		where = and(joinOn, where);
-
-		if (nestedQueryRelation) {
-			let field = sql`json_array(${
-				sql.join(
-					selection.map(({ field }) =>
-						is(field, SQLiteColumn)
-							? sql.identifier(this.casing.getColumnCasing(field))
-							: is(field, SQL.Aliased)
-							? field.sql
-							: field
-					),
-					sql`, `,
-				)
-			})`;
-			if (is(nestedQueryRelation, V1.Many)) {
-				field = sql`coalesce(json_group_array(${field}), json_array())`;
-			}
-			const nestedSelection = [{
-				dbKey: 'data',
-				tsKey: 'data',
-				field: field.as('data'),
-				isJson: true,
-				relationTableTsKey: tableConfig.tsName,
-				selection,
-			}];
-
-			const needsSubquery = limit !== undefined || offset !== undefined || orderBy.length > 0;
-
-			if (needsSubquery) {
-				result = this.buildSelectQuery({
-					table: aliasedTable(table, tableAlias),
-					fields: {},
-					fieldsFlat: [
-						{
-							path: [],
-							field: sql.raw('*'),
-						},
-					],
-					where,
-					limit,
-					offset,
-					orderBy,
-					setOperators: [],
-				});
-
-				where = undefined;
-				limit = undefined;
-				offset = undefined;
-				orderBy = undefined;
-			} else {
-				result = aliasedTable(table, tableAlias);
-			}
-
-			result = this.buildSelectQuery({
-				table: is(result, SQLiteTable) ? result : new Subquery(result, {}, tableAlias),
-				fields: {},
-				fieldsFlat: nestedSelection.map(({ field }) => ({
-					path: [],
-					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
-				})),
-				joins,
-				where,
-				limit,
-				offset,
-				orderBy,
-				setOperators: [],
-			});
-		} else {
-			result = this.buildSelectQuery({
-				table: aliasedTable(table, tableAlias),
-				fields: {},
-				fieldsFlat: selection.map(({ field }) => ({
-					path: [],
-					field: is(field, Column) ? aliasedTableColumn(field, tableAlias) : field,
-				})),
-				joins,
-				where,
-				limit,
-				offset,
-				orderBy,
-				setOperators: [],
-			});
-		}
-
-		return {
-			tableTsKey: tableConfig.tsName,
-			sql: result,
-			selection,
-		};
 	}
 
 	private nestedSelectionerror() {
@@ -869,24 +661,28 @@ export abstract class SQLiteDialect {
 		});
 	}
 
-	private buildRqbColumn(table: Table | View, column: unknown, key: string) {
+	private buildRqbColumn(table: Table | View, column: unknown, key: string, inJson: boolean) {
 		if (is(column, Column)) {
-			const name = sql`${table}.${sql.identifier(this.casing.getColumnCasing(column))}`;
+			const name = sql`${table}.${sql.identifier(column.name)}`;
 
 			switch (column.columnType) {
 				case 'SQLiteBigInt':
 				case 'SQLiteBlobJson':
 				case 'SQLiteBlobBuffer': {
+					if (!inJson) return sql`${name} as ${sql.identifier(key)}`;
 					return sql`hex(${name}) as ${sql.identifier(key)}`;
 				}
 
 				case 'SQLiteNumeric':
 				case 'SQLiteNumericNumber':
 				case 'SQLiteNumericBigInt': {
+					// Special case - needs casting in root of query as well for drivers chop it down to number by default
+					// TODO: handle with codecs
 					return sql`cast(${name} as text) as ${sql.identifier(key)}`;
 				}
 
 				case 'SQLiteCustomColumn': {
+					if (!inJson) return sql`${name} as ${sql.identifier(key)}`;
 					return sql`${(<SQLiteCustomColumn<any>> column).jsonSelectIdentifier(name, sql)} as ${sql.identifier(key)}`;
 				}
 
@@ -905,7 +701,11 @@ export abstract class SQLiteDialect {
 		} as ${sql.identifier(key)}`;
 	}
 
-	private unwrapAllColumns = (table: Table | View, selection: BuildRelationalQueryResult['selection']) => {
+	private unwrapAllColumns = (
+		table: Table | View,
+		selection: BuildRelationalQueryResult['selection'],
+		inJson: boolean,
+	) => {
 		return sql.join(
 			Object.entries(table[TableColumns]).map(([k, v]) => {
 				selection.push({
@@ -913,13 +713,16 @@ export abstract class SQLiteDialect {
 					field: v as Column | SQL | SQLWrapper | SQL.Aliased,
 				});
 
-				return this.buildRqbColumn(table, v, k);
+				return this.buildRqbColumn(table, v, k, inJson);
 			}),
 			sql`, `,
 		);
 	};
 
-	private getSelectedTableColumns = (table: Table | View, columns: Record<string, boolean | undefined>) => {
+	private getSelectedTableColumns = (
+		table: Table | View,
+		columns: Record<string, boolean | undefined>,
+	) => {
 		const selectedColumns: ColumnWithTSName[] = [];
 		const columnContainer = table[TableColumns];
 		const entries = Object.entries(columns);
@@ -956,16 +759,20 @@ export abstract class SQLiteDialect {
 	private buildColumns = (
 		table: SQLiteTable | SQLiteView,
 		selection: BuildRelationalQueryResult['selection'],
+		inJson: boolean,
 		params?: DBQueryConfig<'many'>,
 	) =>
 		params?.columns
 			? (() => {
 				const columnIdentifiers: SQL[] = [];
 
-				const selectedColumns = this.getSelectedTableColumns(table, params?.columns);
+				const selectedColumns = this.getSelectedTableColumns(
+					table,
+					params?.columns,
+				);
 
 				for (const { column, tsName } of selectedColumns) {
-					columnIdentifiers.push(this.buildRqbColumn(table, column, tsName));
+					columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, inJson));
 					selection.push({
 						key: tsName,
 						field: column,
@@ -976,35 +783,33 @@ export abstract class SQLiteDialect {
 					? sql.join(columnIdentifiers, sql`, `)
 					: undefined;
 			})()
-			: this.unwrapAllColumns(table, selection);
+			: this.unwrapAllColumns(table, selection, inJson);
 
-	buildRelationalQuery(
-		{
-			schema,
-			table,
-			tableConfig,
-			queryConfig: config,
-			relationWhere,
-			mode,
-			isNested,
-			errorPath,
-			depth,
-			throughJoin,
-			jsonb,
-		}: {
-			schema: TablesRelationalConfig;
-			table: SQLiteTable | SQLiteView;
-			tableConfig: TableRelationalConfig;
-			queryConfig?: DBQueryConfig<'many'> | true;
-			relationWhere?: SQL;
-			mode: 'first' | 'many';
-			isNested?: boolean;
-			errorPath?: string;
-			depth?: number;
-			throughJoin?: SQL;
-			jsonb: SQL;
-		},
-	): BuildRelationalQueryResult {
+	buildRelationalQuery({
+		schema,
+		table,
+		tableConfig,
+		queryConfig: config,
+		relationWhere,
+		mode,
+		isNested,
+		errorPath,
+		depth,
+		throughJoin,
+		jsonb,
+	}: {
+		schema: TablesRelationalConfig;
+		table: SQLiteTable | SQLiteView;
+		tableConfig: TableRelationalConfig;
+		queryConfig?: DBQueryConfig<'many'> | true;
+		relationWhere?: SQL;
+		mode: 'first' | 'many';
+		isNested?: boolean;
+		errorPath?: string;
+		depth?: number;
+		throughJoin?: SQL;
+		jsonb: SQL;
+	}): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
@@ -1015,18 +820,32 @@ export abstract class SQLiteDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const columns = this.buildColumns(table, selection, params);
+		const columns = this.buildColumns(table, selection, !!isNested, params);
 
-		const where: SQL | undefined = (params?.where && relationWhere)
+		const where: SQL | undefined = params?.where && relationWhere
 			? and(
-				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, this.casing),
+				relationsFilterToSQL(
+					table,
+					params.where,
+					tableConfig.relations,
+					schema,
+				),
 				relationWhere,
 			)
 			: params?.where
-			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, this.casing)
+			? relationsFilterToSQL(
+				table,
+				params.where,
+				tableConfig.relations,
+				schema,
+			)
 			: relationWhere;
-		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
-		const extras = params?.extras ? relationExtrasToSQL(table, params.extras) : undefined;
+		const order = params?.orderBy
+			? relationsOrderToSQL(table, params.orderBy)
+			: undefined;
+		const extras = params?.extras
+			? relationExtrasToSQL(table, params.extras)
+			: undefined;
 		if (extras) selection.push(...extras.selection);
 
 		const joins = params
@@ -1055,12 +874,14 @@ export abstract class SQLiteDialect {
 
 						const relation = tableConfig.relations[k]! as Relation;
 						const isSingle = is(relation, One);
-						const targetTable = aliasedTable(relation.targetTable, `d${currentDepth + 1}`);
+						const targetTable = aliasedTable(
+							relation.targetTable,
+							`d${currentDepth + 1}`,
+						);
 						const throughTable = relation.throughTable
 							? aliasedTable(relation.throughTable, `tr${currentDepth}`)
 							: undefined;
 						const { filter, joinCondition } = relationToSQL(
-							this.casing,
 							relation,
 							table,
 							targetTable,
@@ -1091,13 +912,17 @@ export abstract class SQLiteDialect {
 							selection: innerQuery.selection,
 							isArray: !isSingle,
 							isOptional: ((relation as AnyOne).optional ?? false)
-								|| (join !== true && !!(join as Exclude<typeof join, boolean | undefined>).where),
+								|| (join !== true
+									&& !!(join as Exclude<typeof join, boolean | undefined>)
+										.where),
 						});
 
 						const jsonColumns = sql.join(
 							innerQuery.selection.map((s) => {
 								return sql`${sql.raw(this.escapeString(s.key))}, ${
-									s.selection ? sql`${jsonb}(${sql.identifier(s.key)})` : sql.identifier(s.key)
+									s.selection
+										? sql`${jsonb}(${sql.identifier(s.key)})`
+										: sql.identifier(s.key)
 								}`;
 							}),
 							sql`, `,
@@ -1107,10 +932,14 @@ export abstract class SQLiteDialect {
 
 						const joinQuery = isSingle
 							? sql`(select ${json}_object(${jsonColumns}) as ${sql.identifier('r')} from (${innerQuery.sql}) as ${
-								sql.identifier('t')
+								sql.identifier(
+									't',
+								)
 							}) as ${sql.identifier(k)}`
 							: sql`coalesce((select ${json}_group_array(json_object(${jsonColumns})) as ${
-								sql.identifier('r')
+								sql.identifier(
+									'r',
+								)
 							} from (${innerQuery.sql}) as ${sql.identifier('t')}), ${jsonb}_array()) as ${sql.identifier(k)}`;
 
 						return joinQuery;
@@ -1120,7 +949,9 @@ export abstract class SQLiteDialect {
 			})()
 			: undefined;
 
-		const selectionArr = [columns, extras?.sql, joins].filter((e) => e !== undefined);
+		const selectionArr = [columns, extras?.sql, joins].filter(
+			(e) => e !== undefined,
+		);
 		if (!selectionArr.length) {
 			throw new DrizzleError({
 				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
@@ -1129,184 +960,18 @@ export abstract class SQLiteDialect {
 		const selectionSet = sql.join(selectionArr, sql`, `);
 
 		const query = sql`select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
-			sql` where ${where}`.if(where)
+			sql` where ${where}`.if(
+				where,
+			)
 		}${sql` order by ${order}`.if(order)}${sql` limit ${limit}`.if(limit !== undefined)}${
-			sql` offset ${offset}`.if(offset !== undefined)
+			sql` offset ${offset}`.if(
+				offset !== undefined,
+			)
 		}`;
 
 		return {
 			sql: query,
 			selection,
 		};
-	}
-}
-
-export class SQLiteSyncDialect extends SQLiteDialect {
-	static override readonly [entityKind]: string = 'SQLiteSyncDialect';
-
-	migrate(
-		migrations: MigrationMeta[],
-		session: SQLiteSession<
-			'sync',
-			unknown,
-			Record<string, unknown>,
-			AnyRelations,
-			V1.TablesRelationalConfig
-		>,
-		config?: string | Omit<MigrationConfig, 'migrationsFolder'>,
-	): void | MigratorInitFailResponse {
-		const migrationsTable = config === undefined
-			? '__drizzle_migrations'
-			: typeof config === 'string'
-			? '__drizzle_migrations'
-			: config.migrationsTable ?? '__drizzle_migrations';
-
-		// Detect DB version and upgrade table schema if needed
-		const { newDb } = upgradeSyncIfNeeded(migrationsTable, session, migrations);
-
-		if (newDb) {
-			const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id INTEGER PRIMARY KEY,
-				hash text NOT NULL,
-				created_at numeric,
-				name text,
-				applied_at TEXT
-			)`;
-			session.run(migrationTableCreate);
-		}
-
-		const dbMigrations = session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
-			sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
-		);
-
-		if (typeof config === 'object' && config.init) {
-			if (dbMigrations.length) {
-				return { exitCode: 'databaseMigrations' as const };
-			}
-
-			if (migrations.length > 1) {
-				return { exitCode: 'localMigrations' as const };
-			}
-
-			const [migration] = migrations;
-
-			if (!migration) return;
-
-			session.run(
-				sql`insert into ${
-					sql.identifier(migrationsTable)
-				} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
-					new Date().toISOString()
-				})`,
-			);
-
-			return;
-		}
-
-		const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
-		session.run(sql`BEGIN`);
-
-		try {
-			for (const migration of migrationsToRun) {
-				for (const stmt of migration.sql) {
-					session.run(sql.raw(stmt));
-				}
-				session.run(
-					sql`INSERT INTO ${
-						sql.identifier(migrationsTable)
-					} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
-						new Date().toISOString()
-					})`,
-				);
-			}
-
-			session.run(sql`COMMIT`);
-		} catch (e) {
-			session.run(sql`ROLLBACK`);
-			throw e;
-		}
-	}
-}
-
-export class SQLiteAsyncDialect extends SQLiteDialect {
-	static override readonly [entityKind]: string = 'SQLiteAsyncDialect';
-
-	async migrate(
-		migrations: MigrationMeta[],
-		session: SQLiteSession<
-			'async',
-			unknown,
-			Record<string, unknown>,
-			AnyRelations,
-			V1.TablesRelationalConfig
-		>,
-		config?: string | Omit<MigrationConfig, 'migrationsFolder'>,
-	): Promise<void | MigratorInitFailResponse> {
-		const migrationsTable = config === undefined
-			? '__drizzle_migrations'
-			: typeof config === 'string'
-			? '__drizzle_migrations'
-			: config.migrationsTable ?? '__drizzle_migrations';
-
-		// Detect DB version and upgrade table schema if needed
-		const { newDb } = await upgradeAsyncIfNeeded(migrationsTable, session, migrations);
-
-		if (newDb) {
-			const migrationTableCreate = sql`
-			CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
-				id INTEGER PRIMARY KEY,
-				hash text NOT NULL,
-				created_at numeric,
-				name text,
-				applied_at TEXT
-		)
-		`;
-			await session.run(migrationTableCreate);
-		}
-
-		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string; name: string | null }>(
-			sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)};`,
-		);
-
-		if (typeof config === 'object' && config.init) {
-			if (dbMigrations.length) {
-				return { exitCode: 'databaseMigrations' as const };
-			}
-
-			if (migrations.length > 1) {
-				return { exitCode: 'localMigrations' as const };
-			}
-
-			const [migration] = migrations;
-
-			if (!migration) return;
-
-			await session.run(
-				sql`insert into ${
-					sql.identifier(migrationsTable)
-				} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
-					new Date().toISOString()
-				})`,
-			);
-
-			return;
-		}
-
-		const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
-		await session.transaction(async (tx) => {
-			for (const migration of migrationsToRun) {
-				for (const stmt of migration.sql) {
-					await tx.run(sql.raw(stmt));
-				}
-				await tx.run(
-					sql`insert into ${
-						sql.identifier(migrationsTable)
-					} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
-						new Date().toISOString()
-					})`,
-				);
-			}
-		});
 	}
 }

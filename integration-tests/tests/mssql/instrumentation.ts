@@ -1,46 +1,10 @@
 import { randomUUID } from 'crypto';
-import Docker from 'dockerode';
 import { defineRelations } from 'drizzle-orm';
 import type { NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { drizzle } from 'drizzle-orm/node-mssql';
-import getPort from 'get-port';
 import mssql from 'mssql';
 import { test as base } from 'vitest';
 import * as schema from './mssql.schema';
-
-export async function createDockerDB(): Promise<{ close: () => Promise<void>; url: string }> {
-	const docker = new Docker();
-	const port = await getPort({ port: 1433 });
-	const image = 'mcr.microsoft.com/azure-sql-edge';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	const mssqlContainer = await docker.createContainer({
-		Image: image,
-		Env: ['ACCEPT_EULA=1', 'MSSQL_SA_PASSWORD=drizzle123PASSWORD!'],
-		name: `drizzle-integration-tests-${randomUUID()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'1433/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await mssqlContainer.start();
-
-	const close = async () => {
-		await mssqlContainer.remove();
-	};
-
-	return {
-		url: `mssql://SA:drizzle123PASSWORD!@localhost:${port}?encrypt=true&trustServerCertificate=true`,
-		close,
-	};
-}
 
 export function parseMssqlUrl(urlString: string) {
 	const url = new URL(urlString);
@@ -58,8 +22,13 @@ export function parseMssqlUrl(urlString: string) {
 }
 
 export const createClient = async () => {
-	const envurl = process.env['MSSQL_CONNECTION_STRING'];
-	const { url, close } = envurl ? { url: envurl, close: () => Promise.resolve() } : await createDockerDB();
+	const url = process.env['MSSQL_CONNECTION_STRING'];
+	if (!url) {
+		throw new Error(
+			'MSSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mssql` and export the connection string (e.g. `mssql://SA:drizzle123PASSWORD!@127.0.0.1:1433?encrypt=true&trustServerCertificate=true`) before running tests.',
+		);
+	}
+	const close = () => Promise.resolve();
 	const params = parseMssqlUrl(url);
 
 	const url2 = `Server=localhost,${params.port};User Id=SA;Password=drizzle123PASSWORD!;TrustServerCertificate=True;`;

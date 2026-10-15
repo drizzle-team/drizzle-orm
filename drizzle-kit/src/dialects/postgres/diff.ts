@@ -1,8 +1,8 @@
-import { parse } from 'src/utils/when-json-met-bigint';
 import { prepareMigrationRenames, trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import { deepStrictEqual } from '../../utils/node-assert/deep-strict-equal';
 import { diffStringArrays } from '../../utils/sequence-matcher';
+import { parse } from '../../utils/when-json-met-bigint';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
@@ -240,7 +240,7 @@ export const ddlDiff = async (
 	const {
 		created: createdTables,
 		deleted: deletedTables,
-		renamedOrMoved: renamedOrMovedTables, // renamed or moved
+		renamedOrMoved: renamedOrMovedTables,
 	} = await tablesResolver({
 		created: tablesDiff.filter((it) => it.$diffType === 'create'),
 		deleted: tablesDiff.filter((it) => it.$diffType === 'drop'),
@@ -623,11 +623,7 @@ export const ddlDiff = async (
 
 	const viewsDiff = diff(ddl1, ddl2, 'views');
 
-	const {
-		created: createdViews,
-		deleted: deletedViews,
-		renamedOrMoved: renamedOrMovedViews,
-	} = await viewsResolver({
+	const { created: createdViews, deleted: deletedViews, renamedOrMoved: renamedOrMovedViews } = await viewsResolver({
 		created: viewsDiff.filter((it) => it.$diffType === 'create'),
 		deleted: viewsDiff.filter((it) => it.$diffType === 'drop'),
 	});
@@ -873,13 +869,7 @@ export const ddlDiff = async (
 	});
 
 	const jsonRecreateFKs = alters.filter((it) => it.entityType === 'fks').filter((x) => {
-		if (
-			x.nameExplicit
-			&& ((mode === 'push' && x.nameExplicit.from && !x.nameExplicit.to)
-				|| x.nameExplicit.to && !x.nameExplicit.from)
-		) {
-			delete x.nameExplicit;
-		}
+		if (x.nameExplicit) delete x.nameExplicit;
 
 		return ddl2.fks.hasDiff(x);
 	}).map((it) => prepareStatement('recreate_fk', { fk: it.$right, diff: it }));
@@ -1133,7 +1123,10 @@ export const ddlDiff = async (
 		// default access method
 		// from db -> heap,
 		// drizzle schema -> null
-		if (mode === 'push' && it.using && !it.using.to && it.using.from === defaults.accessMethod) {
+		//
+		// should work for push and generate since that is commutative
+		// + when we introspect we recieve heap,
+		if (it.using && !it.using.to && it.using.from === defaults.accessMethod) {
 			delete it.using;
 		}
 

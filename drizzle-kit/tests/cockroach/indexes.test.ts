@@ -1,5 +1,15 @@
-import { sql } from 'drizzle-orm';
-import { boolean, cockroachTable, index, int4, text, uniqueIndex, uuid } from 'drizzle-orm/cockroach-core';
+import { isNotNull, sql } from 'drizzle-orm';
+import {
+	boolean,
+	cockroachSchema,
+	cockroachTable,
+	index,
+	IndexBuilder,
+	int4,
+	text,
+	uniqueIndex,
+	uuid,
+} from 'drizzle-orm/cockroach-core';
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
@@ -427,43 +437,30 @@ test.concurrent('index #3_1', async ({ dbc: db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-// https://github.com/drizzle-team/drizzle-orm/issues/3255
-test('index #4', async ({ dbc: db }) => {
-	const table1 = cockroachTable('table1', {
+// https://github.com/drizzle-team/drizzle-orm/issues/5593
+test('indexes #5', async ({ dbc: db }) => {
+	const schema = cockroachSchema('my_schema');
+	const table1 = schema.table('table1', {
 		col1: int4(),
 		col2: int4(),
-	}, () => [
-		index1,
-		index2,
-		index3,
-		index4,
-		index5,
-		index6,
+	}, (t) => [
+		uniqueIndex('index1').on(t.col1).where(isNotNull(t.col1)),
+		index('index2').on(t.col1).where(isNotNull(t.col1)),
 	]);
 
-	const index1 = uniqueIndex('index1').on(table1.col1);
-	const index2 = uniqueIndex('index2').on(table1.col1, table1.col2);
-	const index3 = index('index3').on(table1.col1);
-	const index4 = index('index4').on(table1.col1, table1.col2);
-	const index5 = index('index5').on(sql`${table1.col1} asc`);
-	const index6 = index('index6').on(sql`${table1.col1} asc`, sql`${table1.col2} desc`);
-
-	const schema1 = { table1 };
+	const schema1 = { schema, table1 };
 
 	const { sqlStatements: st1 } = await diff({}, schema1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 
 	const expectedSt1 = [
-		'CREATE TABLE "table1" (\n'
+		'CREATE SCHEMA "my_schema";\n',
+		'CREATE TABLE "my_schema"."table1" (\n'
 		+ '\t"col1" int4,\n'
-		+ '\t"col2" int4,\n'
-		+ '\tCONSTRAINT "index1" UNIQUE("col1"),\n'
-		+ '\tCONSTRAINT "index2" UNIQUE("col1","col2")\n'
+		+ '\t"col2" int4\n'
 		+ ');\n',
-		'CREATE INDEX "index3" ON "table1" ("col1");',
-		'CREATE INDEX "index4" ON "table1" ("col1","col2");',
-		'CREATE INDEX "index5" ON "table1" ("col1" asc);',
-		'CREATE INDEX "index6" ON "table1" ("col1" asc,"col2" desc);',
+		'CREATE UNIQUE INDEX "index1" ON "my_schema"."table1" ("col1") WHERE ("my_schema"."table1"."col1" is not null);',
+		'CREATE INDEX "index2" ON "my_schema"."table1" ("col1") WHERE ("my_schema"."table1"."col1" is not null);',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);

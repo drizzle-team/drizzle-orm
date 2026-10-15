@@ -13,7 +13,7 @@ const pgUsers = pgTable('users', {
 
 // node-postgres
 {
-	const db0 = nodePostgresDrizzle('', { schema: { users: pgUsers } });
+	const db0 = nodePostgresDrizzle('');
 
 	await seed(db0, { users: pgUsers });
 	await seed(db0, { users: pgUsers }).refine((funcs) => ({
@@ -40,7 +40,7 @@ const pgUsers = pgTable('users', {
 
 // pglite
 {
-	const db0 = pgliteDrizzle('', { schema: { users: pgUsers } });
+	const db0 = pgliteDrizzle('');
 
 	await seed(db0, { users: pgUsers });
 	await seed(db0, { users: pgUsers }).refine((funcs) => ({
@@ -67,7 +67,7 @@ const pgUsers = pgTable('users', {
 
 // postgres-js
 {
-	const db0 = postgresJsDrizzle('', { schema: { users: pgUsers } });
+	const db0 = postgresJsDrizzle('');
 
 	await seed(db0, { users: pgUsers });
 	await seed(db0, { users: pgUsers }).refine((funcs) => ({

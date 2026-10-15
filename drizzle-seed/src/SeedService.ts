@@ -1,12 +1,13 @@
 /* eslint-disable drizzle-internal/require-entity-kind */
+import type { AnyColumn, AnyTable } from 'drizzle-orm';
 import { entityKind, eq, is, sql } from 'drizzle-orm';
 import type { MySqlTable, MySqlTableWithColumns } from 'drizzle-orm/mysql-core';
-import { MySqlDatabase } from 'drizzle-orm/mysql-core';
+import { MySqlAsyncDatabase } from 'drizzle-orm/mysql-core';
 import type { PgTable, PgTableWithColumns } from 'drizzle-orm/pg-core';
-import { getTableConfig as getTableConfigPg } from 'drizzle-orm/pg-core';
+import { getTableConfig as getTableConfigPg, type PgDialect } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async';
 import type { SQLiteTable, SQLiteTableWithColumns } from 'drizzle-orm/sqlite-core';
-import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
+import { SQLiteAsyncDatabase } from 'drizzle-orm/sqlite-core';
 import { generatorsMap } from './generators/GeneratorFuncs.ts';
 import type {
 	AbstractGenerator,
@@ -14,6 +15,7 @@ import type {
 	GenerateCompositeUniqueKey,
 	GenerateHashFromString,
 	GenerateWeightedCount,
+	WeightedRandomGenerator,
 } from './generators/Generators.ts';
 import type {
 	DbType,
@@ -423,6 +425,12 @@ export class SeedService {
 			newBaseColumnGen.typeParams = oldBaseColumnGen.typeParams;
 
 			(generator as GenerateArray).params.baseColumnGen = newBaseColumnGen;
+		}
+
+		if (entityKind === 'WeightedRandomGenerator') {
+			for (const param of (generator as WeightedRandomGenerator).params) {
+				param.value = this.selectVersionOfGenerator(param.value);
+			}
 		}
 
 		const possibleGeneratorConstructors = generatorsMap[entityKind as keyof typeof generatorsMap];
@@ -925,7 +933,14 @@ export class SeedService {
 		// sequence updates will only be performed for PostgreSQL, since MySQL and SQLite already update their sequences correctly on their own.
 		const columnsToUpdateSeq: Map<
 			string,
-			{ schemaName: string | undefined; tableName: string; columnName: string; valueToUpdate?: number | bigint }
+			{
+				schemaName: string | undefined;
+				tableName: string;
+				columnName: string;
+				valueToUpdate?: number | bigint;
+				table: AnyTable<any>;
+				column: AnyColumn<any>;
+			}
 		> = new Map();
 		if (
 			count > 0 && is(db, PgAsyncDatabase) && schema !== undefined && tableName !== undefined
@@ -942,6 +957,8 @@ export class SeedService {
 						tableName: tableConfig.name,
 						columnName: column.name,
 						valueToUpdate: undefined,
+						table: schema[tableName],
+						column: (schema[tableName] as PgTableWithColumns<any>)[column.name],
 					});
 				}
 			}
@@ -953,9 +970,9 @@ export class SeedService {
 			maxParametersNumber = db.constructor[entityKind] === 'PgliteDatabase'
 				? this.postgresPgLiteMaxParametersNumber
 				: this.postgresMaxParametersNumber;
-		} else if (is(db, MySqlDatabase<any, any>)) {
+		} else if (is(db, MySqlAsyncDatabase<any, any>)) {
 			maxParametersNumber = this.mysqlMaxParametersNumber;
-		} else if (is(db, BaseSQLiteDatabase<any, any>)) {
+		} else if (is(db, SQLiteAsyncDatabase<any, any>)) {
 			maxParametersNumber = this.sqliteMaxParametersNumber;
 		} else {
 			// is(db, MsSqlDatabase<any, any>)
@@ -1073,16 +1090,31 @@ export class SeedService {
 		return preserveData === true ? generatedValues : [];
 	};
 
-	updateColumnSequence = async ({ db, columnConfig: { schemaName, tableName, columnName, valueToUpdate } }: {
-		db: DbType;
-		columnConfig: { schemaName?: string; tableName: string; columnName: string; valueToUpdate?: number | bigint };
-	}) => {
+	updateColumnSequence = async (
+		{ db, columnConfig: { valueToUpdate, table, column } }: {
+			db: DbType;
+			columnConfig: {
+				schemaName?: string;
+				tableName: string;
+				columnName: string;
+				valueToUpdate?: number | bigint;
+				table: AnyTable<any>;
+				column: AnyColumn<any>;
+			};
+		},
+	) => {
 		if (is(db, PgAsyncDatabase)) {
-			const fullTableName = schemaName ? `"${schemaName}"."${tableName}"` : `"${tableName}"`;
+			// const fullTableName = schemaName ? `"${schemaName}"."${tableName}"` : `"${tableName}"`;
+			const dialect = (<any> db).dialect as PgDialect;
+			// const columnCasing = (<any> dialect).casing as CasingCache;
+			// const columnName = columnCasing.getColumnCasing(column as any);
+			const fullTableName = dialect.sqlToQuery(sql`${table}`).sql;
+			const columnName = dialect.sqlToQuery(sql`${column}`).sql.replace(`${fullTableName}.`, '').replaceAll('"', '');
+
 			const rawQuery = `SELECT setval(pg_get_serial_sequence('${fullTableName}', '${columnName}'), ${
 				(valueToUpdate ?? 'null').toString()
 			}, true);`;
-			await db.execute(sql.raw(rawQuery));
+			await db.execute(rawQuery);
 		}
 		// mysql updates auto_increment or serial column by itself
 		// sqlite updates autoincrement  column by itself
@@ -1112,11 +1144,11 @@ export class SeedService {
 				return await query.overridingSystemValue().values(generatedValues);
 			}
 			await query.values(generatedValues);
-		} else if (is(db, MySqlDatabase<any, any>)) {
+		} else if (is(db, MySqlAsyncDatabase<any, any>)) {
 			await db
 				.insert((schema as { [key: string]: MySqlTable })[tableName]!)
 				.values(generatedValues);
-		} else if (is(db, BaseSQLiteDatabase<any, any>)) {
+		} else if (is(db, SQLiteAsyncDatabase<any, any>)) {
 			await db
 				.insert((schema as { [key: string]: SQLiteTable })[tableName]!)
 				.values(generatedValues);
@@ -1177,12 +1209,12 @@ export class SeedService {
 			await db.update(table).set(values).where(
 				eq(uniqueNotNullCol, uniqueNotNullColValue),
 			);
-		} else if (is(db, MySqlDatabase<any, any>)) {
+		} else if (is(db, MySqlAsyncDatabase<any, any>)) {
 			const table = (schema as { [key: string]: MySqlTableWithColumns<any> })[tableName]!;
 			await db.update(table).set(values).where(
 				eq(table[uniqueNotNullColName], uniqueNotNullColValue),
 			);
-		} else if (is(db, BaseSQLiteDatabase<any, any>)) {
+		} else if (is(db, SQLiteAsyncDatabase<any, any>)) {
 			const table = (schema as { [key: string]: SQLiteTableWithColumns<any> })[tableName]!;
 			await db.update(table).set(values).where(
 				eq(table[uniqueNotNullColName], uniqueNotNullColValue),

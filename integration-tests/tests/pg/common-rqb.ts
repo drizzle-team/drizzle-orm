@@ -1,5 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { and, eq, inArray, isNotNull, not, or, sql } from 'drizzle-orm';
+import { and, defineRelations, eq, inArray, isNotNull, not, or, sql } from 'drizzle-orm';
 import type { AnyPgColumn, PgColumnBuilder } from 'drizzle-orm/pg-core';
 import { bigint, integer, numeric, pgEnum, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { describe, expect, expectTypeOf } from 'vitest';
@@ -965,8 +965,7 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4169
-		// postpone
-		test.skipIf(Date.now() < +new Date('2026-03-15')).concurrent(
+		test.concurrent(
 			'RQB v2 find many - $count',
 			async ({ push, createDB }) => {
 				const users = pgTable('rqb_users_18', {
@@ -1000,35 +999,36 @@ export function tests(test: Test) {
 
 				const recordsQuery = db.query.users.findMany({
 					extras: {
-						activeOrders: db
-							.$count(
-								orders,
-								and(
-									eq(orders.userId, users.id),
-									not(
-										inArray(orders.status, ['CANCELED', 'CLOSED']),
+						activeOrders: (users) =>
+							db
+								.$count(
+									orders,
+									and(
+										eq(orders.userId, users.id),
+										not(
+											inArray(orders.status, ['CANCELED', 'CLOSED']),
+										),
 									),
-								),
-							)
-							.as('activeOrders'),
+								)
+								.as('activeOrders'),
+						allOrders: db.$count(orders),
 					},
 				});
 
-				const expectedResult = [{ id: 1, activeOrders: 0 }, { id: 2, activeOrders: 1 }];
+				const expectedResult = [{ id: 1, activeOrders: 0, allOrders: 2 }, { id: 2, activeOrders: 1, allOrders: 2 }];
 				const result = await recordsQuery;
 				expect(result).toStrictEqual(expectedResult);
 				expect(recordsQuery.toSQL()).toStrictEqual({
 					sql:
-						'select "d0"."id" as "id", ((select count(*) from "rqb_orders_18" where ("rqb_orders_18"."user_id" = "d0"."id" and not "rqb_orders_18"."status" in ($1, $2)))) as "activeOrders" from "rqb_users_18" as "d0"',
+						'select "d0"."id" as "id", ((select count(*) from "rqb_orders_18" where (("rqb_orders_18"."user_id" = "d0"."id") and (not ("rqb_orders_18"."status" in ($1, $2)))))) as "activeOrders", ((select count(*) from "rqb_orders_18")) as "allOrders" from "rqb_users_18" as "d0"',
 					params: ['CANCELED', 'CLOSED'],
-					typings: ['none', 'none'],
 				});
 			},
 		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4696
 		// postgresjs returns strings for itemCount but other drivers return numbers
-		test.skipIf(Date.now() < +new Date('2026-03-15')).concurrent(
+		test.skipIf(Date.now() < +new Date('2026-07-01')).concurrent(
 			'RQB v2 find many - extras',
 			async ({ push, createDB }) => {
 				const orderItemTable = pgTable('rqb_order_item_19', {
@@ -1102,5 +1102,99 @@ export function tests(test: Test) {
 			});
 			await query;
 		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/5350
+		test.concurrent('RQB v2 defineRelations error', () => {
+			const users = pgTable('users', { id: integer().primaryKey() });
+			const posts = pgTable('posts', { id: integer().primaryKey(), userId: integer() });
+			const blogs = pgTable('blogs', { id: integer().primaryKey() });
+
+			const throwFunc1 = () => {
+				defineRelations({ users, posts, blogs }, (r) => ({
+					users: {
+						posts: r.many.posts({
+							from: r.users.id,
+							to: r.blogs.id,
+						}),
+					},
+				}));
+			};
+			expect(throwFunc1).toThrowError(
+				/.+all "to" columns must belong to table "posts", found column of table "blogs"$/,
+			);
+
+			const throwFunc2 = () => {
+				defineRelations({ users, posts, blogs }, (r) => ({
+					users: {
+						posts: r.many.posts({
+							from: r.blogs.id,
+							to: r.posts.userId,
+						}),
+					},
+				}));
+			};
+			expect(throwFunc2).toThrowError(
+				/.+all "from" columns must belong to table "users", found column of table "blogs"$/,
+			);
+		});
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/5760
+	test.concurrent('issue 5760. bigint precision', async ({ createDB, push }) => {
+		const users = pgTable('users', {
+			id: bigint({ mode: 'bigint' }).primaryKey(),
+		});
+
+		const posts = pgTable('posts', {
+			id: bigint({ mode: 'bigint' }).primaryKey(),
+			title: text().notNull(),
+			author: bigint({ mode: 'bigint' })
+				.notNull()
+				.references(() => users.id, { onDelete: 'cascade' }),
+		});
+
+		const schema = { users, posts };
+		const db = createDB(schema, (r) => ({
+			users: {
+				posts: r.many.posts(),
+			},
+			posts: {
+				authorRel: r.one.users({
+					from: r.posts.author,
+					to: r.users.id,
+				}),
+			},
+		}));
+
+		await db.execute(sql`DROP TABLE IF EXISTS ${posts};`);
+		await db.execute(sql`DROP TABLE IF EXISTS ${users};`);
+
+		await push(schema);
+
+		await db.insert(users).values({ id: 1000000000000000001n });
+		await db.insert(posts).values([{ id: 1000000000000000002n, title: 'foo', author: 1000000000000000001n }, {
+			id: 1000000000000000003n,
+			title: 'bar',
+			author: 1000000000000000001n,
+		}]);
+
+		const res = await db.query.users.findMany({ with: { posts: true } });
+		expect(res).toStrictEqual([
+			{
+				id: 1000000000000000001n,
+				posts: [
+					{
+						author: 1000000000000000001n,
+						id: 1000000000000000002n,
+						title: 'foo',
+					},
+					{
+						author: 1000000000000000001n,
+						id: 1000000000000000003n,
+						title: 'bar',
+					},
+				],
+			},
+		]);
 	});
 }

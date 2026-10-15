@@ -19,9 +19,9 @@ import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
-import { getTableName, Table, TableColumns } from '~/table.ts';
+import { getTableName, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
-import { haveSameKeys, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
+import { type DrizzleTypeError, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { AnyCockroachColumn, CockroachColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
@@ -29,7 +29,7 @@ import type { CockroachUpdateSetSource } from './update.ts';
 
 export interface CockroachInsertConfig<TTable extends CockroachTable = CockroachTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[] | CockroachInsertSelectQueryBuilder<TTable> | SQL;
+	values: Record<string, Param | SQL>[] | TypedQueryBuilder<CockroachInsertSelection<TTable>> | SQL;
 	withList?: Subquery[];
 	onConflict?: SQL;
 	returningFields?: SelectedFieldsFlat;
@@ -50,12 +50,33 @@ export type CockroachInsertValue<
 	}
 	& {};
 
-export type CockroachInsertSelectQueryBuilder<
-	TTable extends CockroachTable,
-	TModel extends Record<string, any> = InferInsertModel<TTable>,
-> = TypedQueryBuilder<
-	{ [K in keyof TModel]: AnyCockroachColumn | SQL | SQL.Aliased | TModel[K] }
->;
+export type CockroachInsertSelection<
+	TTable extends CockroachTable<TableConfig>,
+	TModel extends Record<string, unknown> = InferInsertModel<TTable>,
+> =
+	& {
+		[K in keyof TModel]:
+			| AnyCockroachColumn
+			| SQL
+			| SQL.Aliased
+			| TModel[K];
+	}
+	& {};
+
+export type NoUnknownKeysInInsertSelection<
+	TTable extends CockroachTable<TableConfig>,
+	TSelection extends CockroachInsertSelection<any>,
+> = {
+	[K in keyof TSelection]: K extends keyof InferInsertModel<TTable> ? TSelection[K]
+		: K extends keyof InferInsertModel<TTable, { override: true }> ? DrizzleTypeError<
+				`Column "${
+					& K
+					& string}" in table "${TTable['_'][
+					'name'
+				]}" is a generated column - manual value insertion restricted`
+			>
+		: DrizzleTypeError<`Column "${K & string}" does not exist in table "${TTable['_']['name']}"`>;
+};
 
 export class CockroachInsertBuilder<
 	TTable extends CockroachTable,
@@ -85,7 +106,7 @@ export class CockroachInsertBuilder<
 			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue, cols[colKey]);
+				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue as any, cols[colKey]);
 			}
 			return result;
 		});
@@ -100,27 +121,35 @@ export class CockroachInsertBuilder<
 		) as any;
 	}
 
-	select(
-		selectQuery: (qb: QueryBuilder) => CockroachInsertSelectQueryBuilder<TTable>,
+	select<TSelection extends CockroachInsertSelection<TTable>>(
+		selectQuery: (qb: QueryBuilder) => TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection>>,
 	): CockroachInsertBase<TTable, TQueryResult>;
 	select(selectQuery: (qb: QueryBuilder) => SQL): CockroachInsertBase<TTable, TQueryResult>;
 	select(selectQuery: SQL): CockroachInsertBase<TTable, TQueryResult>;
-	select(selectQuery: CockroachInsertSelectQueryBuilder<TTable>): CockroachInsertBase<TTable, TQueryResult>;
+	select<TSelection extends CockroachInsertSelection<TTable>>(
+		selectQuery: TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, TSelection>>,
+	): CockroachInsertBase<TTable, TQueryResult>;
 	select(
 		selectQuery:
 			| SQL
-			| CockroachInsertSelectQueryBuilder<TTable>
-			| ((qb: QueryBuilder) => CockroachInsertSelectQueryBuilder<TTable> | SQL),
+			| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, CockroachInsertSelection<TTable>>>
+			| ((qb: QueryBuilder) =>
+				| TypedQueryBuilder<NoUnknownKeysInInsertSelection<TTable, CockroachInsertSelection<TTable>>>
+				| SQL),
 	): CockroachInsertBase<TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
 
-		if (
-			!is(select, SQL)
-			&& !haveSameKeys(this.table[TableColumns], select._.selectedFields)
-		) {
-			throw new Error(
-				'Insert select error: selected fields are not the same or are in a different order compared to the table definition',
-			);
+		if (!is(select, SQL)) {
+			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
+			const selected = Object.keys(select._.selectedFields);
+
+			for (const col of selected) {
+				if (!insertCols.includes(col)) {
+					throw new Error(
+						`Insert select error: column "${col}" does not exist in table "${this.table[Table.Symbol.Name]}"`,
+					);
+				}
+			}
 		}
 
 		return new CockroachInsertBase(this.table, select, this.session, this.dialect, this.withList, true);
@@ -328,8 +357,8 @@ export class CockroachInsertBase<
 		} else {
 			let targetColumn = '';
 			targetColumn = Array.isArray(config.target)
-				? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
-				: this.dialect.escapeName(this.dialect.casing.getColumnCasing(config.target));
+				? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
+				: this.dialect.escapeName(config.target.name);
 
 			const whereSql = config.where ? sql` where ${config.where}` : undefined;
 			this.config.onConflict = sql`(${sql.raw(targetColumn)})${whereSql} do nothing`;
@@ -380,8 +409,8 @@ export class CockroachInsertBase<
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
 		let targetColumn = '';
 		targetColumn = Array.isArray(config.target)
-			? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
-			: this.dialect.escapeName(this.dialect.casing.getColumnCasing(config.target));
+			? config.target.map((it) => this.dialect.escapeName(it.name)).join(',')
+			: this.dialect.escapeName(config.target.name);
 		this.config.onConflict = sql`(${
 			sql.raw(targetColumn)
 		})${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`;
@@ -394,8 +423,7 @@ export class CockroachInsertBase<
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */
@@ -410,7 +438,6 @@ export class CockroachInsertBase<
 				query,
 				this.config.returning,
 				name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-				true,
 			);
 		});
 	}
@@ -446,6 +473,11 @@ export class CockroachInsertBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
+	}
+
+	/** @internal */
+	withoutSelectionCastCodecs(): this {
+		return this;
 	}
 
 	$dynamic(): CockroachInsertDynamic<this> {

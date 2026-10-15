@@ -1,4 +1,5 @@
 import type { RunResult } from 'better-sqlite3';
+import type { Changes } from 'bun:sqlite';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { eq } from '~/sql/expressions/index.ts';
@@ -24,7 +25,7 @@ const updateRunBun = bunDb.update(users)
 	})
 	.where(eq(users.id, 1))
 	.run();
-Expect<Equal<void, typeof updateRunBun>>;
+Expect<Equal<Changes, typeof updateRunBun>>;
 
 const updateAll = db.update(users)
 	.set({

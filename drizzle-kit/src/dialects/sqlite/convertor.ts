@@ -148,13 +148,15 @@ const alterTableAddColumn = convertor('add_column', (st) => {
 
 	const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
 
-	const referenceStatement = `${
-		fk
-			? !fk.nameExplicit
-				? ` REFERENCES ${fk.tableTo}(${fk.columnsTo})`
-				: ` CONSTRAINT \`${fk.name}\` REFERENCES ${fk.tableTo}(${fk.columnsTo})`
-			: ''
-	}`;
+	let referenceStatement = '';
+	if (fk) {
+		const onDeleteStatement = (fk.onDelete && fk.onDelete !== 'NO ACTION') ? ` ON DELETE ${fk.onDelete}` : '';
+		const onUpdateStatement = (fk.onUpdate && fk.onUpdate !== 'NO ACTION') ? ` ON UPDATE ${fk.onUpdate}` : '';
+
+		referenceStatement = !fk.nameExplicit
+			? ` REFERENCES ${fk.tableTo}(${fk.columnsTo})${onUpdateStatement}${onDeleteStatement}`
+			: ` CONSTRAINT \`${fk.name}\` REFERENCES ${fk.tableTo}(${fk.columnsTo})${onUpdateStatement}${onDeleteStatement}`;
+	}
 
 	const generatedStatement = generated
 		? ` GENERATED ALWAYS AS ${generated.as} ${generated.type.toUpperCase()}`

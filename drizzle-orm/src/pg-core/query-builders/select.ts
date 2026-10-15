@@ -18,8 +18,8 @@ import type {
 	SetOperator,
 } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { SQL, View } from '~/sql/sql.ts';
-import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
+import { SQL, sql, View } from '~/sql/sql.ts';
+import type { ColumnsSelection, CommentInput, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import {
@@ -28,8 +28,8 @@ import {
 	getTableColumns,
 	getTableLikeName,
 	haveSameKeys,
+	orderSelectedFields,
 	type ValueOrArray,
-	type Writable,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { extractUsedTable } from '../utils.ts';
@@ -54,22 +54,115 @@ import type {
 	TableLikeHasEmptySelection,
 } from './select.types.ts';
 
-export interface PgSelectBuilder<
+export interface PgSelectBuilderConstructor {
+	new(
+		config: {
+			table: PgSelectConfig['table'];
+			fields: PgSelectConfig['fields'];
+			isPartialSelect: boolean;
+			session: PgSession | undefined;
+			dialect: PgDialect;
+			withList: Subquery[];
+			distinct: boolean | { on: (PgColumn | SQLWrapper)[] } | undefined;
+			tagged?: boolean;
+		},
+	): AnyPgSelectQueryBuilder;
+}
+
+export class PgSelectBuilder<
 	TSelection extends SelectedFields | undefined,
 	THKT extends PgSelectHKTBase = PgSelectHKT,
 > {
+	static readonly [entityKind]: string = 'PgSelectBuilder';
+
+	private fields: TSelection;
+	private session: PgSession | undefined;
+	private dialect: PgDialect;
+	private withList: Subquery[] = [];
+	private distinct: boolean | { on: (PgColumn | SQLWrapper)[] } | undefined;
+	private tagged: boolean | undefined;
+
+	constructor(
+		config: {
+			fields: TSelection;
+			session: PgSession | undefined;
+			dialect: PgDialect;
+			withList?: Subquery[];
+			distinct?: boolean | { on: (PgColumn | SQLWrapper)[] };
+			tagged?: boolean;
+		},
+		private builder: PgSelectBuilderConstructor = PgSelectBase as unknown as PgSelectBuilderConstructor,
+	) {
+		this.fields = config.fields;
+		this.session = config.session;
+		this.dialect = config.dialect;
+		if (config.withList) {
+			this.withList = config.withList;
+		}
+		this.distinct = config.distinct;
+		// this.tagged = config.tagged; // TODO: bugged, to be remade
+	}
+
 	/**
 	 * Specify the table, subquery, or other target that you're
 	 * building a select query against.
 	 *
 	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM | Postgres from documentation}
 	 */
-	from: PgSelectBase<
+	from<
+		TFrom extends PgTable | Subquery | PgViewBase | SQL,
+		TConfig extends Record<string, any> = {
+			tableName: GetSelectTableName<TFrom>;
+			selection: TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection;
+			selectMode: TSelection extends undefined ? 'single' : 'partial';
+			nullabilityMap: GetSelectTableName<TFrom> extends string ? Record<GetSelectTableName<TFrom>, 'not-null'> : {};
+		},
+	>(
+		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
+				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+			>
+			: TFrom,
+	): PgSelectKind<
 		THKT,
-		undefined,
-		TSelection,
-		SelectMode
-	>['from'];
+		TConfig['tableName'],
+		TConfig['selection'],
+		TConfig['selectMode'],
+		TConfig['tableName'] extends string ? Record<TConfig['tableName'], 'not-null'> : {},
+		false,
+		never
+	> {
+		const isPartialSelect = !!this.fields;
+		const src = source as TFrom;
+
+		let fields: SelectedFields;
+		if (this.fields) {
+			fields = this.fields as SelectedFields;
+		} else if (is(src, Subquery)) {
+			// This is required to use the proxy handler to get the correct field values from the subquery
+			fields = Object.fromEntries(
+				Object.keys(src._.selectedFields).map((
+					key,
+				) => [key, src[key as unknown as keyof typeof src] as unknown as SelectedFields[string]]),
+			);
+		} else if (is(src, PgViewBase)) {
+			fields = src[ViewBaseConfig].selectedFields as SelectedFields;
+		} else if (is(src, SQL)) {
+			fields = {};
+		} else {
+			fields = getTableColumns<PgTable>(src);
+		}
+
+		return new this.builder({
+			table: src,
+			fields,
+			isPartialSelect,
+			session: this.session,
+			dialect: this.dialect,
+			withList: this.withList,
+			distinct: this.distinct,
+			// tagged: this.tagged,  // TODO: bugged, to be remade
+		}) as any;
+	}
 }
 
 export type PgSelect<
@@ -139,9 +232,9 @@ export class PgSelectBase<
 	};
 
 	protected config: PgSelectConfig;
-	protected joinsNotNullableMap: Record<string, boolean> = {};
+	protected joinsNotNullableMap: Record<string, boolean>;
 	protected tableName: string | undefined;
-	protected isPartialSelect!: boolean;
+	protected isPartialSelect: boolean;
 	protected session: PgSession | undefined;
 	protected dialect: PgDialect;
 	protected cacheConfig?: WithCacheConfig;
@@ -149,102 +242,41 @@ export class PgSelectBase<
 
 	constructor(
 		config: {
-			fields: TSelection;
+			table: PgSelectConfig['table'];
+			fields: PgSelectConfig['fields'];
+			isPartialSelect: boolean;
 			session: PgSession | undefined;
 			dialect: PgDialect;
-			withList?: Subquery[];
-			distinct?: boolean | {
-				on: (PgColumn | SQLWrapper)[];
-			};
+			withList: Subquery[];
+			distinct: boolean | { on: (PgColumn | SQLWrapper)[] } | undefined;
+			tagged?: boolean;
 		},
 	) {
 		super();
 		this.session = config.session;
 		this.dialect = config.dialect;
 		this.config = {
-			withList: config.withList ?? [],
-			// will be rewriten on `from(...)`
-			table: {} as any,
-			// will be rewriten on `from(...)`
-			fields: config.fields as any,
+			withList: config.withList,
+			table: config.table,
+			fields: { ...config.fields },
 			distinct: config.distinct,
 			setOperators: [],
+			// tagged: config.tagged, // TODO: bugged, to be remade
 		};
-		this._ = undefined as any;
-	}
-
-	/**
-	 * Specify the table, subquery, or other target that you're
-	 * building a select query against.
-	 *
-	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM | Postgres from documentation}
-	 */
-	from<
-		TFrom extends PgTable | Subquery | PgViewBase | SQL,
-		TConfig extends Record<string, any> = {
-			tableName: GetSelectTableName<TFrom>;
-			selection: TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection;
-			selectMode: TSelection extends undefined ? 'single' : 'partial';
-			nullabilityMap: GetSelectTableName<TFrom> extends string ? Record<GetSelectTableName<TFrom>, 'not-null'> : {};
-		},
-	>(
-		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
-				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-			>
-			: TFrom,
-	): Omit<
-		PgSelectKind<
-			THKT,
-			TConfig['tableName'],
-			TConfig['selection'],
-			TConfig['selectMode'],
-			TConfig['tableName'] extends string ? Record<TConfig['tableName'], 'not-null'> : {},
-			false,
-			'from'
-		>,
-		'from'
-	> {
-		const { fields: initFields } = this.config;
-
-		const isPartialSelect = !!initFields;
-		const src = source as TFrom;
-
-		let fields: SelectedFields;
-		if (initFields) {
-			fields = initFields as SelectedFields;
-		} else if (is(src, Subquery)) {
-			// This is required to use the proxy handler to get the correct field values from the subquery
-			fields = Object.fromEntries(
-				Object.keys(src._.selectedFields).map((
-					key,
-				) => [key, src[key as unknown as keyof typeof src] as unknown as SelectedFields[string]]),
-			);
-		} else if (is(src, PgViewBase)) {
-			fields = src[ViewBaseConfig].selectedFields as SelectedFields;
-		} else if (is(src, SQL)) {
-			fields = {};
-		} else {
-			fields = getTableColumns<PgTable>(src);
-		}
-
-		this.config.table = src;
-		this.config.fields = { ...fields };
-		(<Writable<typeof this['_']>> this._) = {
+		this.isPartialSelect = config.isPartialSelect;
+		this._ = {
 			selectedFields: this.config.fields as TSelectedFields,
 			config: this.config,
-		} as typeof this['_'];
-		this.isPartialSelect = isPartialSelect;
-		this.tableName = getTableLikeName(src);
+		} as this['_'];
+		this.tableName = getTableLikeName(config.table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 
-		for (const item of extractUsedTable(src)) this.usedTables.add(item);
+		for (const item of extractUsedTable(config.table)) this.usedTables.add(item);
 
 		this.config.withList?.forEach((it) => {
 			const extracted = extractUsedTable(it);
 			for (const el of extracted) this.usedTables.add(el);
 		});
-
-		return this as any;
 	}
 
 	/** @internal */
@@ -1007,14 +1039,21 @@ export class PgSelectBase<
 		return this as any;
 	}
 
-	/** @internal */
+	/**
+	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
+	 */
+	comment(comment: CommentInput): PgSelectWithout<this, TDynamic, 'comment'> {
+		this.config.comment = sql.comment(comment);
+		return this as any;
+	}
+
 	getSQL(): SQL {
+		this.config.fieldsFlat = orderSelectedFields<PgColumn>(this.config.fields, undefined, this.dialect.codecs);
 		return this.dialect.buildSelectQuery(this.config);
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 	as<TAlias extends string>(
 		alias: TAlias,
@@ -1024,7 +1063,9 @@ export class PgSelectBase<
 		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
 
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias, false, [...new Set(usedTables)]),
+			new Subquery(this.withoutSelectionCastCodecs().getSQL(), this.config.fields, alias, false, [
+				...new Set(usedTables),
+			]),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -1035,6 +1076,12 @@ export class PgSelectBase<
 			this.config.fields,
 			new SelectionProxyHandler({ alias: this.tableName, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as this['_']['selectedFields'];
+	}
+
+	/** @internal */
+	override withoutSelectionCastCodecs(): this {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
 	}
 
 	$dynamic(): PgSelectDynamic<this> {

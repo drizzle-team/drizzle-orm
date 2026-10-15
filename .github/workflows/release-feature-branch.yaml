@@ -19,9 +19,17 @@ on:
         required: true
       LIBSQL_REMOTE_TOKEN:
         required: true
+      TURSODATABASE_REMOTE_URL:
+        required: true
+      TURSODATABASE_REMOTE_TOKEN:
+        required: true
       SQLITE_CLOUD_CONNECTION_STRING:
         required: true
       SQLITE_MANY_CLOUD_CONNECTION_STRING:
+        required: true
+      TURBO_TOKEN: 
+        required: true
+      NETLIFY_DB_URL: 
         required: true
       DSQL_CLUSTER_ENDPOINT:
         required: true
@@ -49,9 +57,6 @@ jobs:
         id: meta
         shell: bash
         run: echo "suffix=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-      - name: Build Prisma client
-        working-directory: drizzle-orm
-        run: pnpm prisma generate --schema src/prisma/schema.prisma
       - name: Build all
         run: pnpm build:artifact
       - name: Upload build-dist
@@ -84,15 +89,12 @@ jobs:
 
   test:
     # NOTE: no 'needs: [prepare]' on purpose — start early, warm DBs, then wait for artifacts
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
-          # - shard: int:gel
-          #   dbs: [gel]
           # - shard: int:singlestore
           #   dbs: [singlestore]
           # - shard: int:singlestore-core
@@ -105,10 +107,12 @@ jobs:
             dbs: [postgres]
           - shard: int:sqlite
             dbs: []
+          - shard: int:turso-serverless
+            dbs: []
           - shard: int:other
             dbs: [mysql, postgres, postgres-postgis, postgres-vector]
           - shard: int:seeder
-            dbs: []
+            dbs: [mysql, postgres]
           - shard: int:imports
             dbs: []
           - shard: int:planetscale
@@ -172,7 +176,6 @@ jobs:
               singlestore-many)    compose_files+=("-f" "compose/singlestore-many.yml") ;;
               mssql)               compose_files+=("-f" "compose/mssql.yml") ;;
               cockroach)           compose_files+=("-f" "compose/cockroach.yml") ;;
-              gel)                 compose_files+=("-f" "compose/gel.yml") ;;
               *) echo "Unknown db '$db'"; exit 1 ;;
             esac
           done
@@ -206,7 +209,6 @@ jobs:
           name: build-dist
           path: .
 
-      # Prisma client was generated in prepare -> build outputs already contain it
       # No `pnpm build` here — we reuse dist to save time
 
       - uses: oven-sh/setup-bun@v2
@@ -228,7 +230,8 @@ jobs:
           LIBSQL_URL: file:local.db
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
-          GEL_CONNECTION_STRING: gel://admin:password@localhost:56565/main
+          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
+          TURSODATABASE_REMOTE_TOKEN: ${{ secrets.TURSODATABASE_REMOTE_TOKEN }}
           SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
           SINGLESTORE_MANY_CONNECTION_STRING: singlestore://root:singlestore@localhost:3308/;singlestore://root:singlestore@localhost:3309/;singlestore://root:singlestore@localhost:3310/;singlestore://root:singlestore@localhost:3311/
           COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
@@ -236,26 +239,22 @@ jobs:
           TEST_CONFIG_PATH_PREFIX: ./tests/cli/
           SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
           SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
+          NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
           DSQL_CLUSTER_ENDPOINT: ${{ secrets.DSQL_CLUSTER_ENDPOINT }}
         working-directory: integration-tests
         shell: bash
         run: |
           set -euxo pipefail
-          if [[ ${{ github.event_name }} != "push" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
             export SKIP_EXTERNAL_DB_TESTS=1
           fi
           case ${{ matrix.shard }} in
-            int:gel)
-              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
-              fi
-            ;;
             int:singlestore) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-prefixed.test.ts ./singlestore/singlestore-custom.test.ts ;;
             int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore.test.ts ;;
             int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-proxy.test.ts ;;
             int:postgres)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/
+                pnpm --stream test:postgres
               fi
             ;;
             int:mysql)
@@ -278,8 +277,8 @@ jobs:
             ;;
             int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;
             int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
-            int:sqlite) pnpm --stream vitest --reporter=verbose --silent=false run tests/sqlite ;;
-            
+            int:sqlite) pnpm --stream test:sqlite ;;
+            int:turso-serverless) pnpm --stream vitest --reporter=verbose --silent=false --test-timeout=200000 --hook-timeout=200000 run tests/sqlite/tursodatabase-serverless.test.ts ;;
             kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
             kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
             kit:postgres18) cd ../drizzle-kit && PG_VERSION=18 pnpm --stream run test:postgres ;;
@@ -293,19 +292,18 @@ jobs:
             orm|seed)
               (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
             ;;
-          
+            
             int:bun)  bun test ./tests/bun/ ;;
 
-            int:seeder) pnpm test:seeder ;;
-            int:imports) pnpm test:imports ;;
-            int:other) pnpm test:other ;;
+            int:seeder) pnpm --stream test:seeder ;;
+            int:imports) pnpm --stream test:imports ;;
+            int:other) pnpm --stream test:other ;;
 
             *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
           esac
 
   attw:
     needs: [prepare]
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -331,12 +329,11 @@ jobs:
 
   attw-orm:
     needs: [prepare]
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       matrix:
-        package: [node10, node16-cjs, node16-esm, bundler]
+        package: [node16-cjs, node16-esm, bundler]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -356,9 +353,37 @@ jobs:
         env:
           ATTW_FORMAT: concise
 
+  skills-revision-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Skip on non-pull-request events
+        if: github.event_name != 'pull_request'
+        run: echo "Not a pull request — skills revision gate does not apply"
+      - if: github.event_name == 'pull_request'
+        uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - if: github.event_name == 'pull_request'
+        uses: pnpm/action-setup@v4
+        with: { run_install: false }
+      - if: github.event_name == 'pull_request'
+        uses: actions/setup-node@v6
+        with: { node-version: '24', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+      - name: Skills revision gate
+        if: github.event_name == 'pull_request'
+        working-directory: drizzle-kit
+        env:
+          GH_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          pnpm install --frozen-lockfile --prefer-offline
+          pnpm skills:revision:check
+
   release:
-    needs: [test, prepare, attw, attw-orm]
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    needs: [test, prepare, attw, attw-orm, skills-revision-gate]
+    # workflow_dispatch only: this job holds `id-token: write` and is the sole path to
+    # the publish step, so PR/push events must never enter it — that would both expose
+    # OIDC minting to untrusted PR code and auto-publish on push.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions: { contents: read, id-token: write }
@@ -396,9 +421,15 @@ jobs:
           set -euxo pipefail
           
           _version="$(tar -xOf ./artifacts/${{ matrix.package }}/package.tgz package/package.json | jq -r .version)"
-          tag="${{ github.ref_name }}"
-          suffix=$(git rev-parse --short HEAD)
-          version="$_version-$suffix"
+          branch="${{ github.ref_name }}"
+          if [[ "$branch" == "beta" ]]; then
+            tag="rc"
+            version="$_version"
+          else
+            tag="$branch"
+            suffix=$(git rev-parse --short HEAD)
+            version="$_version-$suffix"
+          fi
           tmpdir="$(mktemp -d)"
           tar -xzf ./artifacts/${{ matrix.package }}/package.tgz -C "$tmpdir"
 

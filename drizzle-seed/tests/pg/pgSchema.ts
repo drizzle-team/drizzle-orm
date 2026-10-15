@@ -5,9 +5,11 @@ import {
 	integer,
 	numeric,
 	pgSchema,
+	pgTable,
 	serial,
 	smallint,
 	smallserial,
+	snakeCase,
 	text,
 	timestamp,
 	uuid,
@@ -157,4 +159,16 @@ export const testSequences = schema.table(
 
 export const uuidTest = schema.table('uuid_test', {
 	col1: uuid(),
+});
+
+const casingSchema = snakeCase.schema('seeder_lib_pg');
+
+export const schemaCasingTest = casingSchema.table('casing_test', {
+	columnName1: integer(),
+	columnName2: integer(),
+});
+
+export const casingTest = snakeCase.table('casing_test', {
+	columnName1: integer(),
+	columnName2: integer(),
 });

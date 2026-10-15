@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
 	AnySQLiteColumn,
 	blob,
+	camelCase,
 	customType,
 	foreignKey,
 	index,
@@ -10,6 +11,7 @@ import {
 	numeric,
 	primaryKey,
 	real,
+	snakeCase,
 	sqliteTable,
 	text,
 	unique,
@@ -535,7 +537,7 @@ test('create table with unique in third param and in column config', async () =>
 test('optional db aliases (snake case)', async () => {
 	const from = {};
 
-	const t1 = sqliteTable(
+	const t1 = snakeCase.table(
 		't1',
 		{
 			t1Id1: int().notNull().primaryKey(),
@@ -557,14 +559,14 @@ test('optional db aliases (snake case)', async () => {
 		],
 	);
 
-	const t2 = sqliteTable(
+	const t2 = snakeCase.table(
 		't2',
 		{
 			t2Id: int().primaryKey({ autoIncrement: true }),
 		},
 	);
 
-	const t3 = sqliteTable(
+	const t3 = snakeCase.table(
 		't3',
 		{
 			t3Id1: int(),
@@ -581,11 +583,10 @@ test('optional db aliases (snake case)', async () => {
 		t3,
 	};
 
-	const casing = 'snake_case';
-	const { sqlStatements: st } = await diff(from, to, [], casing);
+	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to, casing });
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
 		'CREATE TABLE `t1` (\n'
@@ -615,7 +616,7 @@ test('optional db aliases (snake case)', async () => {
 test('optional db aliases (camel case)', async () => {
 	const from = {};
 
-	const t1 = sqliteTable(
+	const t1 = camelCase.table(
 		't1',
 		{
 			t1_id1: int().notNull().primaryKey(),
@@ -637,14 +638,14 @@ test('optional db aliases (camel case)', async () => {
 		],
 	);
 
-	const t2 = sqliteTable(
+	const t2 = camelCase.table(
 		't2',
 		{
 			t2_id: int().primaryKey({ autoIncrement: true }),
 		},
 	);
 
-	const t3 = sqliteTable(
+	const t3 = camelCase.table(
 		't3',
 		{
 			t3_id1: int(),
@@ -661,11 +662,10 @@ test('optional db aliases (camel case)', async () => {
 		t3,
 	};
 
-	const casing = 'camelCase';
-	const { sqlStatements: st } = await diff(from, to, [], casing);
+	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to, casing });
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
 		'CREATE TABLE `t1` (\n'
@@ -1057,4 +1057,44 @@ test('push after migrate with custom migrations table #2', async () => {
 	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5360
+test('recreate table and add unique column', async (t) => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: text('id').primaryKey(),
+			email: text('email').notNull(),
+		}),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: text('id').primaryKey(),
+			email: text('email').notNull(),
+			referralCode: text('referral_code').unique(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: [] });
+
+	const st0: string[] = [
+		'ALTER TABLE `users` ADD `referral_code` text;',
+		'PRAGMA foreign_keys=OFF;',
+		`CREATE TABLE \`__new_users\` (
+\t\`id\` text PRIMARY KEY,
+\t\`email\` text NOT NULL,
+\t\`referral_code\` text UNIQUE
+);\n`,
+		`INSERT INTO \`__new_users\`(\`id\`, \`email\`) SELECT \`id\`, \`email\` FROM \`users\`;`,
+		`DROP TABLE \`users\`;`,
+		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(phints).toStrictEqual([]);
 });

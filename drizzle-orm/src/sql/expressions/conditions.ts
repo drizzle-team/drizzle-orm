@@ -119,7 +119,7 @@ export function and(
 
 	return new SQL([
 		new StringChunk('('),
-		sql.join(conditions, new StringChunk(' and ')),
+		sql.join(conditions.map((c) => sql`(${c})`), new StringChunk(' and ')),
 		new StringChunk(')'),
 	]);
 }
@@ -158,7 +158,7 @@ export function or(
 
 	return new SQL([
 		new StringChunk('('),
-		sql.join(conditions, new StringChunk(' or ')),
+		sql.join(conditions.map((c) => sql`(${c})`), new StringChunk(' or ')),
 		new StringChunk(')'),
 	]);
 }
@@ -175,7 +175,7 @@ export function or(
  * ```
  */
 export function not(condition: SQLWrapper): SQL {
-	return sql`not ${condition}`;
+	return is(condition, SQL) ? sql`not (${condition})` : sql`not ${condition}`;
 }
 
 /**

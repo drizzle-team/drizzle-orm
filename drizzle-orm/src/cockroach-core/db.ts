@@ -150,7 +150,7 @@ export class CockroachDatabase<
 		source: CockroachTable | CockroachViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 	) {
-		return new CockroachCountBuilder({ source, filters, session: this.session });
+		return new CockroachCountBuilder({ source, filters, session: this.session, dialect: this.dialect });
 	}
 
 	/**
@@ -628,7 +628,6 @@ export class CockroachDatabase<
 			builtQuery,
 			undefined,
 			undefined,
-			false,
 		);
 		return new CockroachRaw(
 			() => prepared.execute(undefined, this.authToken),

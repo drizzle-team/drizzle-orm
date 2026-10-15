@@ -2,11 +2,11 @@ import { entityKind } from '~/entity.ts';
 import type {
 	BuildQueryResult,
 	BuildRelationalQueryResult,
-	DBQueryConfig,
+	DBQueryConfigWithComment,
 	TableRelationalConfig,
 	TablesRelationalConfig,
 } from '~/relations.ts';
-import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PgSession } from '../session.ts';
@@ -19,7 +19,7 @@ export interface PgRelationalQueryConstructor {
 		tableConfig: TableRelationalConfig,
 		dialect: PgDialect,
 		session: PgSession,
-		config: DBQueryConfig<'many' | 'one'> | true,
+		config: DBQueryConfigWithComment<'many' | 'one'> | true,
 		mode: 'many' | 'first',
 		parseJson: boolean,
 	): AnyPgRelationalQuery;
@@ -44,8 +44,8 @@ export class RelationalQueryBuilder<
 		private builder: PgRelationalQueryConstructor = PgRelationalQuery,
 	) {}
 
-	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
+	findMany<TConfig extends DBQueryConfigWithComment<'many', TSchema, TFields>>(
+		config?: KnownKeysOnly<TConfig, DBQueryConfigWithComment<'many', TSchema, TFields>>,
 	): PgRelationalQueryKind<TBuilderHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new this.builder(
 			this.schema,
@@ -53,14 +53,14 @@ export class RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config as DBQueryConfig<'many'> | undefined ?? true,
+			config as DBQueryConfigWithComment<'many'> | undefined ?? true,
 			'many',
 			this.parseJson,
 		);
 	}
 
-	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>,
+	findFirst<TConfig extends DBQueryConfigWithComment<'one', TSchema, TFields>>(
+		config?: KnownKeysOnly<TConfig, DBQueryConfigWithComment<'one', TSchema, TFields>>,
 	): PgRelationalQueryKind<TBuilderHKT, BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return new this.builder(
 			this.schema,
@@ -68,7 +68,7 @@ export class RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config as DBQueryConfig<'one'> | undefined ?? true,
+			config as DBQueryConfigWithComment<'one'> | undefined ?? true,
 			'first',
 			this.parseJson,
 		);
@@ -106,7 +106,7 @@ export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> i
 		protected tableConfig: TableRelationalConfig,
 		protected dialect: PgDialect,
 		protected session: PgSession,
-		protected config: DBQueryConfig<'many' | 'one'> | true,
+		protected config: DBQueryConfigWithComment<'many' | 'one'> | true,
 		protected mode: 'many' | 'first',
 		protected parseJson: boolean,
 	) {}
@@ -121,12 +121,11 @@ export class PgRelationalQuery<THKT extends PgRelationalQueryHKTBase, TResult> i
 		});
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this._getQuery().sql;
 	}
 
-	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
+	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
 		const query = this._getQuery();
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql);

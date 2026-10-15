@@ -1,4 +1,3 @@
-import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -16,7 +15,15 @@ import type {
 	SelectResult,
 } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import { type ColumnsSelection, type Placeholder, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
+import {
+	type ColumnsSelection,
+	type CommentInput,
+	type Placeholder,
+	type Query,
+	SQL,
+	sql,
+	type SQLWrapper,
+} from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, type InferInsertModel, Table } from '~/table.ts';
 import {
@@ -25,7 +32,6 @@ import {
 	type Equal,
 	getTableLikeName,
 	mapUpdateSet,
-	type NeonAuthToken,
 	orderSelectedFields,
 	type Simplify,
 	type UpdateSet,
@@ -49,6 +55,8 @@ export interface PgUpdateConfig {
 	returningFields?: SelectedFields;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
+	comment?: SQL;
+	ignoreSelectionCastCodecs?: boolean;
 }
 
 export type PgUpdateSetSource<
@@ -94,14 +102,6 @@ export class PgUpdateBuilder<
 		private builder: PgUpdateBuilderConstructor = PgUpdateBase,
 	) {}
 
-	/** @internal */
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
-	}
-
 	set(
 		values: PgUpdateSetSource<TTable>,
 	): PgUpdateWithout<
@@ -116,10 +116,6 @@ export class PgUpdateBuilder<
 			this.dialect,
 			this.withList,
 		) as AnyPgUpdate;
-
-		if ('setToken' in builder) {
-			(builder.setToken as (authToken?: NeonAuthToken) => typeof builder)(this.authToken);
-		}
 
 		return builder as any;
 	}
@@ -458,7 +454,6 @@ export class PgUpdateBase<
 	protected config: PgUpdateConfig;
 	protected tableName: string | undefined;
 	protected joinsNotNullableMap: Record<string, boolean>;
-	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -656,18 +651,28 @@ export class PgUpdateBase<
 		}
 
 		this.config.returningFields = fields;
-		this.config.returning = orderSelectedFields<PgColumn>(fields);
+		this.config.returning = orderSelectedFields<PgColumn>(
+			fields,
+			undefined,
+			this.dialect.codecs,
+		);
 		return this as any;
 	}
 
-	/** @internal */
+	/**
+	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
+	 */
+	comment(comment: CommentInput): PgUpdateWithout<this, TDynamic, 'comment'> {
+		this.config.comment = sql.comment(comment);
+		return this as any;
+	}
+
 	getSQL(): SQL {
 		return this.dialect.buildUpdateQuery(this.config);
 	}
 
 	toSQL(): Query {
-		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
-		return rest;
+		return this.dialect.sqlToQuery(this.getSQL());
 	}
 
 	/** @internal */
@@ -684,6 +689,12 @@ export class PgUpdateBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
+	}
+
+	/** @internal */
+	withoutSelectionCastCodecs() {
+		this.config.ignoreSelectionCastCodecs = true;
+		return this;
 	}
 
 	$dynamic(): PgUpdateDynamic<this> {

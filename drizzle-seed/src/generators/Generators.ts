@@ -134,7 +134,7 @@ export abstract class AbstractGenerator<T = {}> {
 			);
 			arrayGen.typeParams = { dimensions };
 
-			return arrayGen;
+			return arrayGen as AbstractGenerator<any>;
 		}
 
 		return;
@@ -3329,6 +3329,14 @@ export class WeightedRandomGenerator extends AbstractGenerator<{ weight: number;
 		rng: prand.RandomGenerator;
 		weightedIndices: number[];
 	} | undefined;
+
+	override replaceIfArray() {
+		for (const param of this.params) {
+			const arrayGen = param.value.replaceIfArray();
+			if (arrayGen) param.value = arrayGen;
+		}
+		return this;
+	}
 
 	override init({ count, seed }: { count: number; seed: number }) {
 		const weights = this.params.map((weightedGen) => weightedGen.weight);

@@ -1,5 +1,4 @@
 import type { SQL } from 'drizzle-orm';
-import { CasingCache, toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import {
 	type CockroachMaterializedView,
 	type CockroachSchema,
@@ -17,7 +16,6 @@ import {
 	type PgView,
 } from 'drizzle-orm/pg-core';
 import { getViewConfig as sqliteViewConfig, type SQLiteView } from 'drizzle-orm/sqlite-core';
-import type { CasingType } from '../cli/validations/common';
 import type { Schema, Table } from './pull-utils';
 
 export const extractPostgresExisting = (
@@ -112,19 +110,7 @@ export const extractSqliteExisting = (
 	return [...existingViews];
 };
 
-export const getColumnCasing = (
-	column: { keyAsName: boolean; name: string | undefined },
-	casing: CasingType | undefined,
-) => {
-	if (!column.name) return '';
-	return !column.keyAsName || casing === undefined
-		? column.name
-		: casing === 'camelCase'
-		? toCamelCase(column.name)
-		: toSnakeCase(column.name);
-};
-
-export const sqlToStr = (sql: SQL, casing: CasingType | undefined) => {
+export const sqlToStr = (sql: SQL) => {
 	return sql.toQuery({
 		escapeName: () => {
 			throw new Error("we don't support params for `sql` default values");
@@ -135,6 +121,5 @@ export const sqlToStr = (sql: SQL, casing: CasingType | undefined) => {
 		escapeString: () => {
 			throw new Error("we don't support params for `sql` default values");
 		},
-		casing: new CasingCache(casing),
 	}).sql;
 };

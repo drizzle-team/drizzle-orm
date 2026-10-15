@@ -4,6 +4,21 @@ import { paramNameFor } from '../../dialects/postgres/typescript';
 import { assertUnreachable } from '../../utils';
 import type { Casing } from '../validations/common';
 
+// interimToDDL mapping errors are schema-shape descriptors ({ type, schema?,
+// table?, name? }) and carry no driver credentials, so they're safe to surface.
+// Bounded to keep the message/meta from ballooning on large schemas.
+type SchemaMappingError = { type: string; schema?: string; table?: string; name?: string; column?: string };
+
+export const summarizeSchemaMappingErrors = (errors: SchemaMappingError[], limit = 5): string => {
+	const describe = (e: SchemaMappingError) => {
+		const target = [e.schema, e.table, e.column ?? e.name].filter(Boolean).join('.');
+		return target ? `${e.type} (${target})` : e.type;
+	};
+	const head = errors.slice(0, limit).map(describe).join('; ');
+	const rest = errors.length > limit ? ` (+${errors.length - limit} more)` : '';
+	return `${head}${rest}`;
+};
+
 const withCasing = (value: string, casing: Casing) => {
 	if (casing === 'preserve') {
 		return value;
@@ -63,7 +78,10 @@ export const relationsToTypeScript = (
 			columnsThroughFrom?: string[];
 			columnsThroughTo?: string[];
 		}[]
-	> = {};
+	> =
+		// {} links to Object.prototype that has "constructor" property
+		// table can be named so
+		Object.create(null);
 
 	// Process all foreign keys as before.
 	schema.forEach((table) => {
@@ -112,9 +130,9 @@ export const relationsToTypeScript = (
 					// this type is used for .many() side of relation, when another side has .through() with from and to fields
 					type: 'many-through',
 					tableFrom: toTable2,
-					columnsFrom: fk2.columnsTo,
+					columnsFrom: columnsTo2,
 					tableTo: toTable1,
-					columnsTo: columnsTo2,
+					columnsTo: columnsTo1,
 					tableThrough,
 					columnsThroughFrom,
 					columnsThroughTo,

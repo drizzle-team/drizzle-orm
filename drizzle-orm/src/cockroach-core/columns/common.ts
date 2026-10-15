@@ -183,7 +183,7 @@ export class ExtraConfigColumn<
 export class IndexedColumn {
 	static readonly [entityKind]: string = 'IndexedColumn';
 	constructor(
-		name: string | undefined,
+		name: string,
 		keyAsName: boolean,
 		type: string,
 		indexConfig: IndexedExtraConfigType,
@@ -194,7 +194,7 @@ export class IndexedColumn {
 		this.indexConfig = indexConfig;
 	}
 
-	name: string | undefined;
+	name: string;
 	keyAsName: boolean;
 	type: string;
 	indexConfig: IndexedExtraConfigType;
@@ -234,7 +234,15 @@ export class CockroachArrayBuilder<
 
 	constructor(
 		name: string,
-		baseBuilder: CockroachArrayBuilder<T, TBase>['config']['baseBuilder'],
+		// CockroachArrayBuilder<T, TBase>['config']['baseBuilder'] - removed - 'config' is internal property, do not reference directly in types
+		baseBuilder: TBase extends CockroachArrayColumnBuilderBaseConfig ? CockroachArrayBuilder<
+				TBase,
+				TBase extends {
+					baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any>;
+				} ? TBaseBuilder
+					: never
+			>
+			: CockroachColumnWithArrayBuilder<TBase, {}>,
 		length: number | undefined,
 	) {
 		super(name, 'array basecolumn', 'CockroachArray');
@@ -275,12 +283,12 @@ export class CockroachArray<
 		return `${this.baseColumn.getSQLType()}[${typeof this.length === 'number' ? this.length : ''}]`;
 	}
 
-	override mapFromDriverValue(value: unknown[] | string): T['data'] {
+	override mapFromDriverValue = (value: unknown[] | string): T['data'] => {
 		if (typeof value === 'string') {
 			value = parseCockroachArray(value);
 		}
 		return value.map((v) => this.baseColumn.mapFromDriverValue(v));
-	}
+	};
 
 	// Needed for arrays of custom types
 	mapFromJsonValue(value: unknown[] | string): T['data'] {
@@ -296,7 +304,7 @@ export class CockroachArray<
 			: value.map((v) => base.mapFromDriverValue(v));
 	}
 
-	override mapToDriverValue(value: unknown[], isNestedArray = false): unknown[] | string {
+	override mapToDriverValue = (value: unknown[], isNestedArray = false): unknown[] | string => {
 		const a = value.map((v) =>
 			v === null
 				? null
@@ -306,5 +314,5 @@ export class CockroachArray<
 		);
 		if (isNestedArray) return a;
 		return makeCockroachArray(a);
-	}
+	};
 }

@@ -36,11 +36,11 @@ export class CockroachJsonb<T extends ColumnBaseConfig<'object json'>> extends C
 		return 'jsonb';
 	}
 
-	override mapToDriverValue(value: T['data']): string {
+	override mapToDriverValue = (value: T['data']): string => {
 		return JSON.stringify(value);
-	}
+	};
 
-	override mapFromDriverValue(value: T['data'] | string): T['data'] {
+	override mapFromDriverValue = (value: T['data'] | string): T['data'] => {
 		if (typeof value === 'string') {
 			try {
 				return JSON.parse(value);
@@ -49,7 +49,7 @@ export class CockroachJsonb<T extends ColumnBaseConfig<'object json'>> extends C
 			}
 		}
 		return value;
-	}
+	};
 }
 
 export function jsonb(name?: string) {

@@ -91,7 +91,7 @@ export abstract class MsSqlSession<
 			parts.push(`isolation level ${config.isolationLevel}`);
 		}
 
-		return parts.length ? sql.join(['set transaction ', parts.join(' ')]) : undefined;
+		return parts.length ? sql`set transaction ${sql.raw(parts.join(' '))}` : undefined;
 	}
 
 	protected getStartTransactionSQL(_config: MsSqlTransactionConfig): SQL | undefined {

@@ -1,6 +1,7 @@
 import type { PGlite } from '@electric-sql/pglite';
-import { SQL, sql } from 'drizzle-orm';
+import { aliasedTable, SQL, sql } from 'drizzle-orm';
 import {
+	camelCase,
 	foreignKey,
 	geometry,
 	index,
@@ -10,6 +11,7 @@ import {
 	pgTableCreator,
 	primaryKey,
 	serial,
+	snakeCase,
 	text,
 	unique,
 	uniqueIndex,
@@ -378,6 +380,28 @@ test('add table #15', async () => {
 
 	const st0 = [
 		`CREATE TABLE "users" (\n\t"name" text CONSTRAINT "name_unique" UNIQUE NULLS NOT DISTINCT\n);\n`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5603
+test.skipIf(Date.now() < +new Date('2026-07-01'))('add table #16', async () => {
+	const users = pgTable('users', {
+		name: text(),
+	}, (t) => [index('name_idx').on(t.name)]);
+	const u = aliasedTable(users, 'u');
+	const to = {
+		users,
+		u,
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		'CREATE TABLE "users" (\n\t"name" text\n);\n',
+		'CREATE INDEX "name_idx" ON "users" ("name");',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1036,7 +1060,7 @@ test('add index with op', async () => {
 test('optional db aliases (snake case)', async () => {
 	const from = {};
 
-	const t1 = pgTable(
+	const t1 = snakeCase.table(
 		't1',
 		{
 			t1Id1: integer().notNull().primaryKey(),
@@ -1059,14 +1083,14 @@ test('optional db aliases (snake case)', async () => {
 		],
 	);
 
-	const t2 = pgTable(
+	const t2 = snakeCase.table(
 		't2',
 		{
 			t2Id: serial().primaryKey(),
 		},
 	);
 
-	const t3 = pgTable(
+	const t3 = snakeCase.table(
 		't3',
 		{
 			t3Id1: integer(),
@@ -1081,13 +1105,11 @@ test('optional db aliases (snake case)', async () => {
 		t3,
 	};
 
-	const casing = 'snake_case';
-	const { sqlStatements: st } = await diff(from, to, [], casing);
+	const { sqlStatements: st } = await diff(from, to, []);
 
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		casing,
 	});
 
 	const st1 = `CREATE TABLE "t1" (
@@ -1130,7 +1152,7 @@ test('optional db aliases (snake case)', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4541
 test('create table (camel case -> snake case)', async () => {
-	const t1 = pgTable('table_snake_case1', {
+	const t1 = snakeCase.table('table_snake_case1', {
 		columnCamelCase1: integer(),
 		columnCamelCase2: integer(),
 		columnCamelCase3: integer(),
@@ -1143,8 +1165,8 @@ test('create table (camel case -> snake case)', async () => {
 	const to = { t1 };
 
 	const casing = 'snake_case';
-	const { sqlStatements: st1 } = await diff({}, to, [], casing);
-	const { sqlStatements: pst1 } = await push({ db, to, casing });
+	const { sqlStatements: st1 } = await diff({}, to, []);
+	const { sqlStatements: pst1 } = await push({ db, to });
 
 	const eSt1 = [
 		'CREATE TABLE "table_snake_case1" (\n'
@@ -1161,7 +1183,7 @@ test('create table (camel case -> snake case)', async () => {
 });
 
 test('create table (snake case -> camel case)', async () => {
-	const t1 = pgTable('tableCamelcase1', {
+	const t1 = camelCase.table('tableCamelcase1', {
 		column_snake_case1: integer(),
 		column_snake_case2: integer(),
 		column_snake_case3: integer(),
@@ -1173,9 +1195,8 @@ test('create table (snake case -> camel case)', async () => {
 
 	const to = { t1 };
 
-	const casing = 'camelCase';
-	const { sqlStatements: st1 } = await diff({}, to, [], casing);
-	const { sqlStatements: pst1 } = await push({ db, to, casing });
+	const { sqlStatements: st1 } = await diff({}, to, []);
+	const { sqlStatements: pst1 } = await push({ db, to });
 
 	const eSt1 = [
 		'CREATE TABLE "tableCamelcase1" (\n'
@@ -1194,7 +1215,7 @@ test('create table (snake case -> camel case)', async () => {
 test('optional db aliases (camel case)', async () => {
 	const from = {};
 
-	const t1 = pgTable('t1', {
+	const t1 = camelCase.table('t1', {
 		t1_id1: integer().notNull().primaryKey(),
 		t1_col2: integer().notNull(),
 		t1_col3: integer().notNull(),
@@ -1212,11 +1233,11 @@ test('optional db aliases (camel case)', async () => {
 		}),
 	]);
 
-	const t2 = pgTable('t2', {
+	const t2 = camelCase.table('t2', {
 		t2_id: serial().primaryKey(),
 	});
 
-	const t3 = pgTable('t3', {
+	const t3 = camelCase.table('t3', {
 		t3_id1: integer(),
 		t3_id2: integer(),
 	}, (table) => [primaryKey({ columns: [table.t3_id1, table.t3_id2] })]);
@@ -1227,13 +1248,11 @@ test('optional db aliases (camel case)', async () => {
 		t3,
 	};
 
-	const casing = 'camelCase';
-	const { sqlStatements: st } = await diff(from, to, [], casing);
+	const { sqlStatements: st } = await diff(from, to, []);
 
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		casing,
 	});
 
 	const st1 = `CREATE TABLE "t1" (
@@ -1500,7 +1519,7 @@ test('push with pscale_extensions schema', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5329
-test.skipIf(Date.now() < +new Date('2026-03-15'))(
+test(
 	'push empty schema with `schemaFilter` set to `["public"]`',
 	async () => {
 		await db.query(`CREATE SCHEMA "cron";`);
@@ -1518,3 +1537,34 @@ test.skipIf(Date.now() < +new Date('2026-03-15'))(
 		expect(pst2).toStrictEqual(expectedSt2);
 	},
 );
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4838
+test('rename table with identity column', async () => {
+	const from = {
+		Hello: pgTable('hello', {
+			id: integer().primaryKey().generatedAlwaysAsIdentity(),
+		}),
+	};
+
+	const to = {
+		Hello: pgTable('hello2', {
+			id: integer().primaryKey().generatedAlwaysAsIdentity(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, [`public.hello->public.hello2`]);
+
+	await push({ db, to: from, schemas: [] });
+
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		schemas: [],
+		renames: [`public.hello->public.hello2`],
+	});
+
+	const expectedSt: string[] = ['ALTER TABLE "hello" RENAME TO "hello2";'];
+
+	expect(st).toStrictEqual(expectedSt);
+	expect(pst).toStrictEqual(expectedSt);
+});

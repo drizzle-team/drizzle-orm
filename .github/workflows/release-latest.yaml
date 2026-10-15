@@ -19,9 +19,15 @@ on:
         required: true
       LIBSQL_REMOTE_TOKEN:
         required: true
+      TURSODATABASE_REMOTE_URL:
+        required: true
+      TURSODATABASE_REMOTE_TOKEN:
+        required: true
       SQLITE_CLOUD_CONNECTION_STRING:
         required: true
       SQLITE_MANY_CLOUD_CONNECTION_STRING:
+        required: true
+      TURBO_TOKEN: 
         required: true
 
 env:
@@ -33,7 +39,6 @@ jobs:
     strategy:
       matrix:
         shard:
-          - gel
           - planetscale
           - singlestore-core
           - singlestore-proxy
@@ -158,10 +163,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build Prisma client
-        working-directory: drizzle-orm
-        run: pnpm prisma generate --schema src/prisma/schema.prisma
-
       - name: Build
         run: pnpm build
 
@@ -182,6 +183,8 @@ jobs:
           LIBSQL_URL: file:local.db
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
+          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
+          TURSODATABASE_REMOTE_TOKEN: ${{ secrets.TURSODATABASE_REMOTE_TOKEN }}
           SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
           COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
           MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true
@@ -190,10 +193,6 @@ jobs:
         working-directory: integration-tests
         run: |
           case ${{ matrix.shard }} in
-
-            gel)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
-            ;;
 
             planetscale)
               pnpm --stream vitest --reporter=verbose --silent=false run \
@@ -264,7 +263,6 @@ jobs:
 
             other)
               pnpm --stream vitest --reporter=verbose --silent=false run \
-                --exclude tests/gel \
                 --exclude tests/mysql/mysql-planetscale.test.ts \
                 --exclude tests/relational/mysql.planetscale-v1.test.ts \
                 --exclude tests/relational/mysql.planetscale.test.ts \
@@ -349,11 +347,6 @@ jobs:
             } >> $GITHUB_OUTPUT
           fi
 
-      - name: Build Prisma client
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: drizzle-orm
-        run: pnpm prisma generate --schema src/prisma/schema.prisma
-
       - name: Build
         if: steps.checks.outputs.has_new_release == 'true'
         run: pnpm build
@@ -375,7 +368,6 @@ jobs:
     strategy:
       matrix:
         shard:
-          - node10
           - node16-cjs
           - node16-esm
           - bundler
@@ -443,11 +435,6 @@ jobs:
             } >> $GITHUB_OUTPUT
           fi
 
-      - name: Build Prisma client
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: drizzle-orm
-        run: pnpm prisma generate --schema src/prisma/schema.prisma
-
       - name: Build
         if: steps.checks.outputs.has_new_release == 'true'
         run: pnpm build
@@ -466,8 +453,8 @@ jobs:
 
   release:
     permissions:
-      contents: read
-      id-token: write
+      contents: write # for creating GitHub releases
+      id-token: write # for OIDC
     needs:
       - test
       - attw
@@ -548,11 +535,6 @@ jobs:
             echo "Already up to date: $version"
             echo "\`$version\` is already latest on NPM" >> $GITHUB_STEP_SUMMARY
           fi
-
-      - name: Build Prisma client
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: drizzle-orm
-        run: pnpm prisma generate --schema src/prisma/schema.prisma
 
       - name: Build
         if: steps.checks.outputs.has_new_release == 'true'

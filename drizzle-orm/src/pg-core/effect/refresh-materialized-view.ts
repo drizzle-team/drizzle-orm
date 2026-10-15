@@ -2,7 +2,6 @@ import type * as Effect from 'effect/Effect';
 import { applyEffectWrapper, type QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgQueryResultHKT, PgQueryResultKind, PreparedQueryConfig } from '~/pg-core/session.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { PgRefreshMaterializedView } from '../query-builders/refresh-materialized-view.ts';
 import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
@@ -21,7 +20,7 @@ export class PgEffectRefreshMaterializedView<
 {
 	static override readonly [entityKind]: string = 'PgEffectRefreshMaterializedView';
 
-	declare protected session: PgEffectSession<TEffectHKT, any, any, any, any>;
+	declare protected session: PgEffectSession<TEffectHKT, any, any>;
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgEffectPreparedQuery<
@@ -33,9 +32,8 @@ export class PgEffectRefreshMaterializedView<
 		const query = this.dialect.sqlToQuery(this.getSQL());
 		return this.session.prepareQuery(
 			query,
-			undefined,
-			name ?? (generateName ? preparedStatementName(query.sql, query.params) : name),
-			true,
+			'raw',
+			name ?? generateName,
 		);
 	}
 

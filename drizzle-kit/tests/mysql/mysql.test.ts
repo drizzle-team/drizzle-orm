@@ -4,6 +4,7 @@ import {
 	binary,
 	blob,
 	boolean,
+	camelCase,
 	char,
 	customType,
 	date,
@@ -26,6 +27,7 @@ import {
 	primaryKey,
 	serial,
 	smallint,
+	snakeCase,
 	text,
 	time,
 	timestamp,
@@ -1194,7 +1196,7 @@ test('rename table with composite primary key', async () => {
 test('optional db aliases (snake case)', async () => {
 	const from = {};
 
-	const t1 = mysqlTable('t1', {
+	const t1 = snakeCase.table('t1', {
 		t1Id1: int().notNull().primaryKey(),
 		t1Col2: int().notNull(),
 		t1Col3: int().notNull(),
@@ -1212,11 +1214,11 @@ test('optional db aliases (snake case)', async () => {
 		}),
 	]);
 
-	const t2 = mysqlTable('t2', {
+	const t2 = snakeCase.table('t2', {
 		t2Id: serial().primaryKey(),
 	});
 
-	const t3 = mysqlTable('t3', {
+	const t3 = snakeCase.table('t3', {
 		t3Id1: int(),
 		t3Id2: int(),
 	}, (table) => [primaryKey({
@@ -1225,9 +1227,8 @@ test('optional db aliases (snake case)', async () => {
 
 	const to = { t1, t2, t3 };
 
-	const casing = 'snake_case';
-	const { sqlStatements: st } = await diff(from, to, [], casing);
-	const { sqlStatements: pst } = await push({ db, to, casing });
+	const { sqlStatements: st } = await diff(from, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
 		`CREATE TABLE \`t1\` (
@@ -1258,7 +1259,7 @@ test('optional db aliases (snake case)', async () => {
 test('optional db aliases (camel case)', async () => {
 	const from = {};
 
-	const t1 = mysqlTable('t1', {
+	const t1 = camelCase.table('t1', {
 		t1_id1: int().notNull().primaryKey(),
 		t1_col2: int().notNull(),
 		t1_col3: int().notNull(),
@@ -1276,11 +1277,11 @@ test('optional db aliases (camel case)', async () => {
 		}),
 	]);
 
-	const t2 = mysqlTable('t2', {
+	const t2 = camelCase.table('t2', {
 		t2_id: serial().primaryKey(),
 	});
 
-	const t3 = mysqlTable('t3', {
+	const t3 = camelCase.table('t3', {
 		t3_id1: int(),
 		t3_id2: int(),
 	}, (table) => [primaryKey({
@@ -1293,9 +1294,8 @@ test('optional db aliases (camel case)', async () => {
 		t3,
 	};
 
-	const casing = 'camelCase';
-	const { sqlStatements: st } = await diff(from, to, [], casing);
-	const { sqlStatements: pst } = await push({ db, to, casing });
+	const { sqlStatements: st } = await diff(from, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
 		`CREATE TABLE \`t1\` (\n\t\`t1Id1\` int PRIMARY KEY,\n\t\`t1Col2\` int NOT NULL,\n\t\`t1Col3\` int NOT NULL,\n`

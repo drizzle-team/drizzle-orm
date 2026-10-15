@@ -30,9 +30,9 @@ export class SingleStoreJson<T extends ColumnBaseConfig<'object json'>> extends 
 		return 'json';
 	}
 
-	override mapToDriverValue(value: T['data']): string {
+	override mapToDriverValue = (value: T['data']): string => {
 		return JSON.stringify(value);
-	}
+	};
 }
 
 export function json(name?: string): SingleStoreJsonBuilder {

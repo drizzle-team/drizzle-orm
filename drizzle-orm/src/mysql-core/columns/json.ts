@@ -23,13 +23,16 @@ export class MySqlJsonBuilder extends MySqlColumnBuilder<{
 export class MySqlJson<T extends ColumnBaseConfig<'object json'>> extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlJson';
 
+	/** @internal */
+	override readonly codec = 'json';
+
 	getSQLType(): string {
 		return 'json';
 	}
 
-	override mapToDriverValue(value: T['data']): string {
+	override mapToDriverValue = (value: T['data']): string => {
 		return JSON.stringify(value);
-	}
+	};
 }
 
 export function json(name?: string): MySqlJsonBuilder {

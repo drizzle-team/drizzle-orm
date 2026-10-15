@@ -1,7 +1,9 @@
 import { is } from '~/entity.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
+import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { Check } from './checks.ts';
 import { CheckBuilder } from './checks.ts';
@@ -80,3 +82,8 @@ export function getViewConfig<
 		// ...view[SQLiteViewConfig],
 	};
 }
+
+export type DrizzleSQLiteConfig<TRelations extends AnyRelations> = Omit<
+	DrizzleConfig<Record<string, never>, TRelations>,
+	'schema'
+>;

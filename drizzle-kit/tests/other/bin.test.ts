@@ -23,6 +23,7 @@ test('imports-issues', () => {
 		localPaths: ['src'],
 		whiteList: [
 			'@drizzle-team/brocli',
+			'get-tsconfig',
 			'path',
 			'fs',
 			'fs/*',
@@ -36,6 +37,7 @@ test('imports-issues', () => {
 			'@hono/*',
 			'crypto',
 			'hanji',
+			'hanji/utils',
 			'chalk',
 			'dotenv/config',
 			'camelcase',

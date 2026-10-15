@@ -49,14 +49,14 @@ export class SingleStoreDateTime<T extends ColumnBaseConfig<'object date'>> exte
 		return `datetime`;
 	}
 
-	override mapToDriverValue(value: Date | string): string {
+	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString().replace('T', ' ').replace('Z', '');
-	}
+	};
 
-	override mapFromDriverValue(value: string): Date {
+	override mapFromDriverValue = (value: string): Date => {
 		return new Date(value.replace(' ', 'T') + 'Z');
-	}
+	};
 }
 
 export class SingleStoreDateTimeStringBuilder extends SingleStoreColumnBuilder<{
@@ -100,10 +100,10 @@ export class SingleStoreDateTimeString<T extends ColumnBaseConfig<'string dateti
 		return `datetime`;
 	}
 
-	override mapToDriverValue(value: Date | string): string {
+	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString().replace('T', ' ').replace('Z', '');
-	}
+	};
 }
 
 export interface SingleStoreDatetimeConfig<TMode extends 'date' | 'string' = 'date' | 'string'> {

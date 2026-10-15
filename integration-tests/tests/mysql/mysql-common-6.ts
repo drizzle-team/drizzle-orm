@@ -698,20 +698,23 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		const schema = { products, prices };
 		await push(schema);
 
-		const db = createDB(schema, (r) => ({
-			// prices: {
-			// 	product: r.one.products({
-			// 		from: r.prices.productId,
-			// 		to: r.products.id,
-			// 	}),
-			// },
-			products: {
-				price: r.many.prices({
-					from: r.products.id,
-					to: r.prices.productId,
-				}),
-			},
-		}));
+		const db = createDB({
+			schema,
+			cb: (r) => ({
+				// prices: {
+				// 	product: r.one.products({
+				// 		from: r.prices.productId,
+				// 		to: r.products.id,
+				// 	}),
+				// },
+				products: {
+					price: r.many.prices({
+						from: r.products.id,
+						to: r.prices.productId,
+					}),
+				},
+			}),
+		});
 
 		await db.insert(products).values({ id: 219701375175495680n });
 		await db.insert(prices).values({ id: 219701380107997184n, productId: 219701375175495680n });

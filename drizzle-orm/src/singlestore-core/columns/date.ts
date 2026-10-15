@@ -38,9 +38,9 @@ export class SingleStoreDate<T extends ColumnBaseConfig<'object date'>> extends 
 		return `date`;
 	}
 
-	override mapFromDriverValue(value: string): Date {
+	override mapFromDriverValue = (value: string): Date => {
 		return new Date(value);
-	}
+	};
 }
 
 export class SingleStoreDateStringBuilder extends SingleStoreColumnBuilder<{

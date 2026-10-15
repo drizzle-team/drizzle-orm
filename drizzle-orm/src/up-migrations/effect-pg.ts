@@ -3,19 +3,7 @@ import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
 import type { MigrationMeta } from '~/migrator.ts';
 import type { PgEffectSession } from '~/pg-core/effect/session.ts';
 import { sql } from '~/sql/sql.ts';
-
-const CURRENT_MIGRATION_TABLE_VERSION = 1;
-
-interface UpgradeResult {
-	newDb?: boolean;
-	prevVersion?: number;
-	currentVersion?: number;
-}
-
-function getVersion(columns: string[]) {
-	if (columns.includes('name')) return 1;
-	return 0;
-}
+import { GET_VERSION_FOR, MIGRATIONS_TABLE_VERSIONS, type UpgradeResult } from './utils.ts';
 
 /**
  * Map of upgrade functions. Each key is the version being upgraded FROM,
@@ -45,7 +33,7 @@ const upgradeFunctions: Record<
 
 			// 1. Read all existing DB migrations
 			// Sort them by ids asc (order how they were applied)
-			const dbRows = yield* session.all<{ id: number; hash: string; created_at: string }>(
+			const dbRows = yield* session.objects<{ id: number; hash: string; created_at: string }>(
 				sql`SELECT id, hash, created_at FROM ${table} ORDER BY id ASC`,
 			);
 
@@ -143,7 +131,7 @@ export const upgradeIfNeeded: <TEffectHKT extends QueryEffectHKTBase>(
 		localMigrations: MigrationMeta[],
 	) {
 		// Check if the table exists at all
-		const result = yield* session.all(
+		const result = yield* session.objects(
 			sql`SELECT 1 FROM information_schema.tables
 			WHERE table_schema = ${migrationsSchema}
 			AND table_name = ${migrationsTable}`,
@@ -154,7 +142,7 @@ export const upgradeIfNeeded: <TEffectHKT extends QueryEffectHKTBase>(
 		}
 
 		// Table exists, check table shape
-		const rows = yield* session.all<{ schema: string; table_name: string; column_name: string; type: string }>(
+		const rows = yield* session.objects<{ schema: string; table_name: string; column_name: string; type: string }>(
 			sql`SELECT
 			n.nspname AS "schema",
 			c.relname AS "table_name",
@@ -172,9 +160,9 @@ export const upgradeIfNeeded: <TEffectHKT extends QueryEffectHKTBase>(
 		ORDER BY a.attnum;`,
 		);
 
-		const version = getVersion(rows.map((r) => r.column_name));
+		const version = GET_VERSION_FOR.effect(rows.map((r) => r.column_name));
 
-		for (let v = version; v < CURRENT_MIGRATION_TABLE_VERSION; v++) {
+		for (let v = version; v < MIGRATIONS_TABLE_VERSIONS.effect; v++) {
 			const upgradeFn = upgradeFunctions[v];
 			if (!upgradeFn) {
 				throw new Error(`No upgrade path from migration table version ${v} to ${v + 1}`);
@@ -182,6 +170,6 @@ export const upgradeIfNeeded: <TEffectHKT extends QueryEffectHKTBase>(
 			yield* upgradeFn(migrationsSchema, migrationsTable, session, localMigrations);
 		}
 
-		return { prevVersion: version, currentVersion: CURRENT_MIGRATION_TABLE_VERSION };
+		return { newDb: false };
 	},
 );

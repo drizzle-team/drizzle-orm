@@ -7,7 +7,6 @@ export const dialects = [
 	'sqlite',
 	'turso',
 	'singlestore',
-	'gel',
 	'mssql',
 	'cockroach',
 	'duckdb',

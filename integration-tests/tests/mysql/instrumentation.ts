@@ -14,10 +14,11 @@ import {
 import type { MutationOption } from 'drizzle-orm/cache/core';
 import { Cache } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
-import type { MySqlDatabase, MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
-import { drizzle as proxyDrizzle } from 'drizzle-orm/mysql-proxy';
+import type { MySqlAsyncDatabase, MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
+import { drizzle as proxyDrizzle, RemoteCallback } from 'drizzle-orm/mysql-proxy';
 import type { AnyMySql2Connection } from 'drizzle-orm/mysql2';
 import { drizzle as mysql2Drizzle } from 'drizzle-orm/mysql2';
+import { mysql2Codecs } from 'drizzle-orm/mysql2/codecs';
 import { drizzle as psDrizzle } from 'drizzle-orm/planetscale-serverless';
 import { drizzle as drizzleTidb } from 'drizzle-orm/tidb-serverless';
 import { type FunctionsVersioning, type InferCallbackType, seed } from 'drizzle-seed';
@@ -158,7 +159,7 @@ export type MysqlSchema = Record<
 
 export type RefineCallbackT<Schema extends MysqlSchema> = (
 	funcs: FunctionsVersioning,
-) => InferCallbackType<MySqlDatabase<any, any>, Schema>;
+) => InferCallbackType<MySqlAsyncDatabase<any, any>, Schema>;
 
 const _push = async (
 	query: (sql: string, params: any[]) => Promise<any[]>,
@@ -179,7 +180,7 @@ const _push = async (
 };
 
 const _seed = async <Schema extends MysqlSchema>(
-	db: MySqlDatabase<any, any>,
+	db: MySqlAsyncDatabase<any, any>,
 	schema: Schema,
 	refineCallback?: RefineCallbackT<Schema>,
 ) => {
@@ -188,13 +189,18 @@ const _seed = async <Schema extends MysqlSchema>(
 
 const createProxyHandler = (client: mysql.Connection) => {
 	const serverSimulator = new ServerSimulator(client);
-	const proxyHandler = async (sql: string, params: any[], method: any) => {
+	const proxyHandler: RemoteCallback = async (sql: string, params: any[], method: any) => {
 		try {
 			const response = await serverSimulator.query(sql, params, method);
 			if (response.error !== undefined) {
 				throw response.error;
 			}
-			return { rows: response.data };
+			return {
+				rows: response.data,
+				...(Array.isArray(response.data[0])
+					? {}
+					: { insertId: response.data.lastInsertRowId, affectedRows: response.data.affectedRows }),
+			};
 		} catch (e: any) {
 			console.error('Error from mysql proxy server:', e.message);
 			throw e;
@@ -213,29 +219,30 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 			// proxyHandler: (sql: string, params: any[], method: any) => Promise<{
 			// 	rows: any;
 			// }>;
-			db: MySqlDatabase<any, any, never, typeof relations>;
+			db: MySqlAsyncDatabase<any, typeof relations>;
 			createDB: {
-				<S extends MysqlSchema>(schema: S): MySqlDatabase<any, any, never, ReturnType<typeof defineRelations<S>>>;
-				<S extends MysqlSchema, TConfig extends AnyRelationsBuilderConfig>(
-					schema: S,
-					cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
-				): MySqlDatabase<any, any, never, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
+				<S extends MysqlSchema, TConfig extends AnyRelationsBuilderConfig>(config: {
+					schema?: S;
+					cb?: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig;
+					proxyClient?: mysql.Connection;
+					jit?: boolean;
+				}): MySqlAsyncDatabase<any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 			};
 			push: (schema: any) => Promise<void>;
 			seed: <Schema extends MysqlSchema>(
 				schema: Schema,
-				refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlDatabase<any, any>, Schema>,
+				refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlAsyncDatabase<any, any>, Schema>,
 			) => Promise<void>;
 			drizzle: {
 				withCacheAll: {
-					db: MySqlDatabase<any, any>;
+					db: MySqlAsyncDatabase<any, any>;
 					put: Mock<any>;
 					get: Mock<any>;
 					onMutate: Mock<any>;
 					invalidate: Mock<any>;
 				};
 				withCacheExplicit: {
-					db: MySqlDatabase<any, any>;
+					db: MySqlAsyncDatabase<any, any>;
 					put: Mock<any>;
 					get: Mock<any>;
 					onMutate: Mock<any>;
@@ -353,6 +360,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 					? psDrizzle({ client: client.client as Client, relations })
 					: proxyDrizzle(createProxyHandler(client.client as mysql.Connection), {
 						relations,
+						codecs: mysql2Codecs,
 					});
 
 				await use(db as any);
@@ -361,19 +369,28 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 		],
 		createDB: [
 			async ({ client }, use) => {
-				const createDB = <S extends MysqlSchema>(
-					schema: S,
+				const createDB = <S extends MysqlSchema>(config: {
+					schema?: S;
 					cb?: (
 						helpers: RelationsBuilder<ExtractTablesFromSchema<S>>,
-					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
-				) => {
-					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
+					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>;
+					proxyClient?: mysql.Connection;
+					jit?: boolean;
+				}) => {
+					const { schema, cb, proxyClient, jit } = config;
+					const relations = schema ? cb ? defineRelations(schema, cb) : defineRelations(schema) : undefined;
 
-					if (vendor === 'mysql') return mysql2Drizzle({ client: client.client as any, relations });
-					if (vendor === 'tidb') return drizzleTidb({ client: client.client as any, relations });
-					if (vendor === 'planetscale') return psDrizzle({ client: client.client as any, relations });
+					if (vendor === 'mysql') {
+						return mysql2Drizzle({ client: client.client as any, relations, jit });
+					}
+					if (vendor === 'tidb') return drizzleTidb({ client: client.client as any, relations, jit });
+					if (vendor === 'planetscale') return psDrizzle({ client: client.client as any, relations, jit });
 					if (vendor === 'mysql-proxy') {
-						return proxyDrizzle(createProxyHandler(client.client as any), { relations }) as any;
+						return proxyDrizzle(createProxyHandler(proxyClient ?? client.client as any), {
+							relations,
+							codecs: mysql2Codecs,
+							jit,
+						}) as any;
 					}
 					throw new Error();
 				};
@@ -397,7 +414,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 			async ({ db }, use) => {
 				const seed = (
 					schema: any,
-					refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlDatabase<any, any>, any>,
+					refineCallback?: (funcs: FunctionsVersioning) => InferCallbackType<MySqlAsyncDatabase<any, any>, any>,
 				) => _seed(db, schema, refineCallback);
 
 				await use(seed);
@@ -416,14 +433,14 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 					? drizzleTidb({ client: client.client as Connection, relations, cache: explicitCache })
 					: vendor === 'planetscale'
 					? psDrizzle({ client: client.client as any, cache: explicitCache })
-					: proxyDrizzle(proxyHandler, { cache: explicitCache });
+					: proxyDrizzle(proxyHandler, { cache: explicitCache, codecs: mysql2Codecs });
 				const withCacheAll = vendor === 'mysql'
 					? mysql2Drizzle({ client: client.client as any, cache: allCache })
 					: vendor === 'tidb'
 					? drizzleTidb({ client: client.client as Connection, relations, cache: allCache })
 					: vendor === 'planetscale'
 					? psDrizzle({ client: client.client as any, cache: allCache })
-					: proxyDrizzle(proxyHandler, { cache: allCache });
+					: proxyDrizzle(proxyHandler, { cache: allCache, codecs: mysql2Codecs });
 
 				const drz = {
 					withCacheAll: {
@@ -463,11 +480,24 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 export const mysqlTest = prepareTest('mysql');
 export const planetscaleTest = prepareTest('planetscale');
 export const tidbTest = prepareTest('tidb');
-export const proxyTest = prepareTest('mysql-proxy').extend<{ simulator: ServerSimulator }>({
+export const proxyTest = prepareTest('mysql-proxy').extend<
+	{ simulator: ServerSimulator; createSimulator: (proxyClient?: mysql.Connection) => ServerSimulator }
+>({
 	simulator: [
 		async ({ client: { client } }, use) => {
 			const simulator = new ServerSimulator(client as mysql.Connection);
 			await use(simulator);
+		},
+		{ scope: 'test' },
+	],
+	createSimulator: [
+		async ({ client: { client } }, use) => {
+			const createSimulator = (proxyClient?: mysql.Connection) => {
+				const simulator = new ServerSimulator(proxyClient ?? client as mysql.Connection);
+				return simulator;
+			};
+
+			await use(createSimulator);
 		},
 		{ scope: 'test' },
 	],

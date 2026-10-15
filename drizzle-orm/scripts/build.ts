@@ -52,8 +52,6 @@ async function updateAndCopyPackageJson() {
 async function main() {
 	const startTime = Date.now();
 
-	await $`pnpm p`.quiet();
-
 	rmSync('dist.new', { recursive: true, force: true });
 	mkdirSync('dist.new', { recursive: true });
 
@@ -68,7 +66,6 @@ async function main() {
 		sourcemap: true,
 		dts: true,
 		clean: false,
-		silent: true,
 		alias: {
 			'~': './src',
 		},
@@ -96,4 +93,4 @@ async function main() {
 main().catch((e) => {
 	console.error(e);
 	process.exit(1);
-});
+}).then(() => process.exit(0));

@@ -1,11 +1,11 @@
-import Docker, { Container } from 'dockerode';
 import { is } from 'drizzle-orm';
 import { SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { mkdirSync, writeFileSync } from 'fs';
-import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
 import { suggestions } from 'src/cli/commands/push-mysql';
-import { CasingType, configMigrations } from 'src/cli/validations/common';
+import { runWithCliContext } from 'src/cli/context';
+import { HintsHandler } from 'src/cli/hints';
+import { configMigrations } from 'src/cli/validations/common';
 import { explain } from 'src/cli/views';
 import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mysql/diff';
@@ -14,23 +14,21 @@ import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlestore/drizzle';
 import { DB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
-import { v4 as uuid } from 'uuid';
 
 export type SinglestoreSchema = Record<string, SingleStoreTable<any> | SingleStoreSchema>;
 
-export const drizzleToDDL = (sch: SinglestoreSchema, casing?: CasingType | undefined) => {
+export const drizzleToDDL = (sch: SinglestoreSchema) => {
 	const tables = Object.values(sch).filter((it) => is(it, SingleStoreTable)) as SingleStoreTable[];
-	return interimToDDL(fromDrizzleSchema(tables, casing));
+	return interimToDDL(fromDrizzleSchema(tables));
 };
 
 export const diff = async (
 	left: SinglestoreSchema,
 	right: SinglestoreSchema,
 	renamesArr: string[],
-	casing?: CasingType | undefined,
 ) => {
-	const { ddl: ddl1 } = drizzleToDDL(left, casing);
-	const { ddl: ddl2 } = drizzleToDDL(right, casing);
+	const { ddl: ddl1 } = drizzleToDDL(left);
+	const { ddl: ddl2 } = drizzleToDDL(right);
 
 	const renames = new Set(renamesArr);
 
@@ -49,10 +47,9 @@ export const pullDiff = async (
 	db: DB,
 	initSchema: SinglestoreSchema,
 	testName: string,
-	casing?: CasingType | undefined,
 ) => {
 	mkdirSync('tests/mysql/tmp', { recursive: true });
-	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
+	const { ddl: initDDL } = drizzleToDDL(initSchema);
 	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL);
 	for (const st of init) await db.query(st);
 
@@ -75,7 +72,7 @@ export const pullDiff = async (
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([filePath]);
 
-	const interim = fromDrizzleSchema(response.tables, casing);
+	const interim = fromDrizzleSchema(response.tables);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(interim);
 
 	// TODO: handle errors
@@ -106,7 +103,6 @@ export const diffPush = async (config: {
 	init: SinglestoreSchema;
 	destination: SinglestoreSchema;
 	renames?: string[];
-	casing?: CasingType;
 	before?: string[];
 	after?: string[];
 	apply?: boolean;
@@ -114,9 +110,9 @@ export const diffPush = async (config: {
 		table?: string;
 	};
 }) => {
-	const { db, init: initSchema, destination, casing, before, after, renames: rens } = config;
+	const { db, init: initSchema, destination, before, after, renames: rens } = config;
 	const apply = config.apply ?? true;
-	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
+	const { ddl: initDDL } = drizzleToDDL(initSchema);
 	const { sqlStatements: inits } = await ddlDiffDry(createDDL(), initDDL, 'default');
 
 	const migrations = configMigrations.parse(config.migrationsConfig);
@@ -140,7 +136,7 @@ export const diffPush = async (config: {
 	);
 
 	const { ddl: ddl1, errors: err3 } = interimToDDL(introspectedSchema);
-	const { ddl: ddl2, errors: err2 } = drizzleToDDL(destination, casing);
+	const { ddl: ddl2, errors: err2 } = drizzleToDDL(destination);
 
 	// TODO: handle errors
 
@@ -154,38 +150,15 @@ export const diffPush = async (config: {
 		'push',
 	);
 
-	const explainMessage = explain('singlestore', groupedStatements, false, []);
+	const hints = await runWithCliContext(
+		{ output: 'text', interactive: true },
+		() => suggestions(db, statements, ddl2, new HintsHandler()),
+	);
+	const explainMessage = explain('singlestore', groupedStatements, []);
 	if (explainMessage) console.log(explainMessage);
 
-	return { sqlStatements, statements, hints: [] };
+	return { sqlStatements, statements, hints };
 };
-
-async function createDockerDB(): Promise<{ url: string; container: Container }> {
-	const docker = new Docker();
-	const port = await getPort({ port: 3306 });
-	const image = 'ghcr.io/singlestore-labs/singlestoredb-dev:latest';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-		docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(err))
-	);
-
-	const mysqlContainer = await docker.createContainer({
-		Image: image,
-		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
-		name: `drizzle-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'3306/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await mysqlContainer.start();
-	return { url: `singlestore://root:singlestore@localhost:${port}/`, container: mysqlContainer };
-}
 
 export type TestDatabase = {
 	db: DB;
@@ -195,8 +168,12 @@ export type TestDatabase = {
 };
 
 export const prepareTestDatabase = async (): Promise<TestDatabase> => {
-	const envUrl = process.env.MYSQL_CONNECTION_STRING;
-	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
+	const url = process.env.MYSQL_CONNECTION_STRING;
+	if (!url) {
+		throw new Error(
+			'MYSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up singlestore` and export the connection string before running tests (the singlestore mocks read MYSQL_CONNECTION_STRING — swap the .env line per .env.example).',
+		);
+	}
 
 	const sleep = 1000;
 	let timeLeft = 20000;
@@ -215,7 +192,6 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 			connected = true;
 			const close = async () => {
 				await client?.end().catch(console.error);
-				await container?.stop().catch(console.error);
 			};
 			const clear = async () => {
 				await client.query(`drop database if exists \`drizzle\`;`);

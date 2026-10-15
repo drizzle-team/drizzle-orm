@@ -1,10 +1,11 @@
 import chalk from 'chalk';
 import { readFileSync } from 'fs';
-import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from 'src/utils/commutativity';
-import { detectNonCommutative } from 'src/utils/commutativity';
+import { getCommutativityDialect } from '../../commutativity';
+import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from '../../commutativity/types';
 import type { Dialect } from '../../utils/schemaValidator';
 import { prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
-import { info } from '../views';
+import { CheckCliError } from '../errors';
+import { humanLog } from '../views';
 
 export type CheckHandlerResult = {
 	statements: unknown[];
@@ -25,15 +26,14 @@ const selectOpenCommutativeBranch = (report: NonCommutativityReport) => {
 	if (branches.length === 0) return null;
 
 	const leafSet = new Set(report.leafNodes);
-	const candidates = branches.filter(
-		(branch) =>
-			branch.leafs.length > 1
-			&& branch.leafs.length === leafSet.size
-			&& branch.leafs.every((leaf) => leafSet.has(leaf.id)),
+	return (
+		branches.find(
+			(branch) =>
+				branch.leafs.length > 1
+				&& branch.leafs.length === leafSet.size
+				&& branch.leafs.every((leaf) => leafSet.has(leaf.id)),
+		) ?? null
 	);
-
-	if (candidates.length !== 1) return null;
-	return candidates[0];
 };
 
 const countLeafs = (conflicts: UnifiedBranchConflict[]): number => {
@@ -143,64 +143,91 @@ export const checkHandler = async (
 	const { snapshots } = prepareOutFolder(out);
 	const validator = validatorForDialect(dialect);
 
+	// const parsedInputs: ParsedSnapshotInput[] = [];
 	for (const snapshot of snapshots) {
-		const raw = JSON.parse(readFileSync(snapshot).toString());
+		let raw: object;
+		try {
+			const parsed: unknown = JSON.parse(readFileSync(snapshot).toString());
+			if (typeof parsed !== 'object' || parsed === null) {
+				throw new CheckCliError('malformed', `${snapshot} data is malformed`, { snapshot });
+			}
+			raw = parsed;
+		} catch (e) {
+			if (e instanceof CheckCliError) throw e;
+			throw new CheckCliError('malformed', `${snapshot} data is malformed`, { snapshot });
+		}
 
 		const res = validator(raw);
 		switch (res.status) {
 			case 'valid':
+				// parsedInputs.push({ path: snapshot, snapshot: raw });
 				break;
 			case 'unsupported':
-				console.log(
-					info(
-						`${snapshot} snapshot is of unsupported version, please update drizzle-kit`,
-					),
+				throw new CheckCliError(
+					'unsupported',
+					`${snapshot} snapshot is of unsupported version, please update drizzle-kit`,
+					{ snapshot },
 				);
-				process.exit(0);
-				break;
 			case 'malformed':
-				console.log(`${snapshot} data is malformed`);
-				process.exit(1);
-				break;
+				throw new CheckCliError('malformed', `${snapshot} data is malformed`, { snapshot });
 			case 'nonLatest':
-				console.log(
+				throw new CheckCliError(
+					'non_latest',
 					`${snapshot} is not of the latest version, please run "drizzle-kit up"`,
+					{ snapshot },
 				);
-				process.exit(1);
-				break;
 		}
 	}
 
-	if (ignoreConflicts) {
+	const commutativity = getCommutativityDialect(dialect);
+	if (!commutativity) {
 		return emptyResult();
 	}
 
-	try {
-		const response = await detectNonCommutative(snapshots, dialect);
-		if (response.conflicts.length > 0) {
-			const nonCommutativityMessage = generateReportDirectory(response);
-			console.log(nonCommutativityMessage);
+	const response = await commutativity.detectNonCommutative(snapshots);
+	if (response.conflicts.length > 0) {
+		const nonCommutativityMessage = generateReportDirectory(response);
+		if (!ignoreConflicts) {
 			if (shouldExitOnConflict) {
-				process.exit(1);
+				const leafOf = (chain: MigrationNode[]) => chain[chain.length - 1];
+				const details = response.conflicts.map((conflict) => ({
+					parentId: conflict.parentId,
+					...(conflict.parentPath !== undefined && { parentPath: conflict.parentPath }),
+					branches: [conflict.branchA, conflict.branchB].map((branch) => ({
+						leafId: leafOf(branch.chain)?.id ?? null,
+						leafPath: leafOf(branch.chain)?.path ?? null,
+						statementDescription: branch.statementDescription,
+						target: branch.target,
+						action: branch.action,
+					})),
+				}));
+				throw new CheckCliError('conflicts', nonCommutativityMessage, {
+					conflicts: response.conflicts.length,
+					details,
+				});
 			}
+			humanLog(nonCommutativityMessage);
 			return emptyResult(nonCommutativityMessage);
 		}
+	}
 
-		const selectedBranch = selectOpenCommutativeBranch(response);
-		if (!selectedBranch) {
-			return emptyResult();
-		}
-
-		// Maybe remove
-		const sortedLeafs = [...selectedBranch.leafs].sort((left, right) => left.id.localeCompare(right.id));
+	const selectedBranch = selectOpenCommutativeBranch(response);
+	if (selectedBranch) {
 		return {
-			statements: sortedLeafs.flatMap((leaf) => leaf.statements),
+			statements: selectedBranch.statements,
 			parentSnapshot: selectedBranch.parentSnapshot,
 			parentId: selectedBranch.parentId,
-			leafIds: sortedLeafs.map((leaf) => leaf.id),
+			leafIds: selectedBranch.leafs.map((leaf) => leaf.id),
 		};
-	} catch (e) {
-		console.error(e);
-		return emptyResult();
 	}
+
+	if (ignoreConflicts && response.leafNodes.length > 1) {
+		return {
+			statements: [],
+			parentSnapshot: null,
+			leafIds: [...response.leafNodes].sort((left, right) => left.localeCompare(right)),
+		};
+	}
+
+	return emptyResult();
 };

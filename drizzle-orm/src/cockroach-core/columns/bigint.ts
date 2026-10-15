@@ -34,12 +34,12 @@ export class CockroachBigInt53<T extends ColumnBaseConfig<'number int53'>> exten
 		return 'int8';
 	}
 
-	override mapFromDriverValue(value: number | string): number {
+	override mapFromDriverValue = (value: number | string): number => {
 		if (typeof value === 'number') {
 			return value;
 		}
 		return Number(value);
-	}
+	};
 }
 
 export class CockroachBigInt64Builder extends CockroachIntColumnBaseBuilder<{
@@ -72,9 +72,9 @@ export class CockroachBigInt64<T extends ColumnBaseConfig<'bigint int64'>> exten
 	}
 
 	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
-	override mapFromDriverValue(value: string): bigint {
+	override mapFromDriverValue = (value: string): bigint => {
 		return BigInt(value);
-	}
+	};
 }
 
 export interface CockroachBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {

@@ -1,10 +1,8 @@
 import { entityKind } from '~/entity.ts';
-import { preparedStatementName } from '~/query-name-generator.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import { mapRelationalRow } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, type NeonAuthToken } from '~/utils.ts';
+import { applyMixins } from '~/utils.ts';
 import { PgRelationalQuery, type PgRelationalQueryHKTBase } from '../query-builders/query.ts';
 import type { PreparedQueryConfig } from '../session.ts';
 import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
@@ -28,31 +26,27 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { query, builtQuery } = this._toSQL();
 
-			return this.session.prepareRelationalQuery<PreparedQueryConfig & { execute: TResult }>(
+			const mapper = this.dialect.mapperGenerators.relationalRows({
+				isFirst: this.mode === 'first',
+				parseJson: this.parseJson,
+				parseJsonIfString: false,
+				rootJsonMappers: false,
+				selection: query.selection,
+				arrayModeRoot: true,
+			});
+
+			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
 				builtQuery,
-				undefined,
-				name ?? (generateName ? preparedStatementName(builtQuery.sql, builtQuery.params) : name),
-				(rawRows, mapColumnValue) => {
-					const rows = rawRows.map((row) => mapRelationalRow(row, query.selection, mapColumnValue, this.parseJson));
-					if (this.mode === 'first') {
-						return rows[0] as TResult;
-					}
-					return rows as TResult;
-				},
-			).setToken(this.authToken);
+				'arrays',
+				name ?? generateName,
+				mapper,
+				// TODO: implement cache
+			);
 		});
 	}
 
 	prepare(name?: string): PgAsyncPreparedQuery<PreparedQueryConfig & { execute: TResult }> {
 		return this._prepare(name, true);
-	}
-
-	/** @internal */
-	private authToken?: NeonAuthToken;
-	/** @internal */
-	setToken(token?: NeonAuthToken) {
-		this.authToken = token;
-		return this;
 	}
 
 	execute(placeholderValues?: Record<string, unknown>): Promise<TResult> {

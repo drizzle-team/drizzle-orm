@@ -1,5 +1,5 @@
 import { entityKind } from '~/entity.ts';
-import { type QueryWithTypings, SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
+import { type Query, SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { PgDialect } from '../dialect.ts';
 import type { PgTable } from '../table.ts';
 import type { PgViewBase } from '../view-base.ts';
@@ -9,7 +9,7 @@ export class PgCountBuilder extends SQL<number> implements SQLWrapper<number> {
 
 	private dialect: PgDialect;
 
-	private static buildEmbeddedCount(
+	private static buildCount(
 		source: PgTable | PgViewBase | SQL | SQLWrapper,
 		filters?: SQL<unknown>,
 		parens?: boolean,
@@ -27,7 +27,7 @@ export class PgCountBuilder extends SQL<number> implements SQLWrapper<number> {
 			dialect: PgDialect;
 		},
 	) {
-		super(PgCountBuilder.buildEmbeddedCount(countConfig.source, countConfig.filters, true).queryChunks);
+		super(PgCountBuilder.buildCount(countConfig.source, countConfig.filters, true).queryChunks);
 		this.dialect = countConfig.dialect;
 		this.mapWith((e) => {
 			if (typeof e === 'number') return e;
@@ -36,10 +36,13 @@ export class PgCountBuilder extends SQL<number> implements SQLWrapper<number> {
 		});
 	}
 
-	protected build(): QueryWithTypings {
-		const { filters, source } = this.countConfig;
-		const query = PgCountBuilder.buildEmbeddedCount(source, filters);
+	private executableSql: SQL<number> | undefined;
+	protected build(): Query {
+		if (!this.executableSql) {
+			const { source, filters } = this.countConfig;
+			this.executableSql = PgCountBuilder.buildCount(source, filters);
+		}
 
-		return this.dialect.sqlToQuery(query);
+		return this.dialect.sqlToQuery(this.executableSql);
 	}
 }

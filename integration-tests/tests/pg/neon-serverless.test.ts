@@ -14,7 +14,7 @@ import { usersMigratorTable, usersMySchemaTable, usersTable } from './schema';
 	it doesn't work as expected, scope: "file" treats all these tests as 1 file
 	thus extra execute statements below
  */
-// tests(test, []);
+tests(test, []);
 
 describe('neon-serverless', () => {
 	let db: PgAsyncDatabase<any, any>;

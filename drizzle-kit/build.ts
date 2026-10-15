@@ -3,6 +3,7 @@ import * as esbuild from 'esbuild';
 import { readFileSync, writeFileSync } from 'node:fs';
 import * as tsup from 'tsup';
 import pkg from './package.json';
+import { readSkillsRevisionFromDisk } from './scripts/lib/read-skills-revision';
 
 const driversPackages = [
 	// postgres drivers
@@ -35,6 +36,7 @@ esbuild.buildSync({
 	platform: 'node',
 	define: {
 		'process.env.DRIZZLE_KIT_VERSION': `"${pkg.version}"`,
+		'process.env.DRIZZLE_KIT_SKILLS_REVISION': `"${readSkillsRevisionFromDisk('./skills')}"`,
 	},
 	external: [
 		'esbuild',

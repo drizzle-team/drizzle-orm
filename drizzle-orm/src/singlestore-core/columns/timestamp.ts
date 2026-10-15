@@ -38,14 +38,14 @@ export class SingleStoreTimestamp<T extends ColumnBaseConfig<'object date'>>
 		return `timestamp`;
 	}
 
-	override mapFromDriverValue(value: string): Date {
+	override mapFromDriverValue = (value: string): Date => {
 		return new Date(value + '+0000');
-	}
+	};
 
-	override mapToDriverValue(value: Date | string): string {
+	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString().slice(0, -1).replace('T', ' ');
-	}
+	};
 }
 
 export class SingleStoreTimestampStringBuilder extends SingleStoreDateColumnBaseBuilder<{
@@ -81,10 +81,10 @@ export class SingleStoreTimestampString<T extends ColumnBaseConfig<'string times
 		return `timestamp`;
 	}
 
-	override mapToDriverValue(value: Date | string): string {
+	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
 		return value.toISOString().slice(0, -1).replace('T', ' ');
-	}
+	};
 }
 
 export interface SingleStoreTimestampConfig<TMode extends 'string' | 'date' = 'string' | 'date'> {

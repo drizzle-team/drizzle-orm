@@ -1,15 +1,17 @@
+/// <reference types="@cloudflare/workers-types" />
 import type { Relations } from 'drizzle-orm/_relations';
 import type { AnySQLiteTable } from 'drizzle-orm/sqlite-core';
-import type { CasingType } from 'src/cli/validations/common';
-import type { SqliteCredentials } from 'src/cli/validations/sqlite';
+import type { SqliteCredentials } from '../cli/validations/sqlite';
 
 export const startStudioServer = async (
 	imports: Record<string, unknown>,
-	credentials: SqliteCredentials,
+	credentials: SqliteCredentials | {
+		driver: 'd1';
+		binding: D1Database;
+	},
 	options?: {
 		host?: string;
 		port?: number;
-		casing?: CasingType;
 		key?: string;
 		cert?: string;
 	},
@@ -18,6 +20,7 @@ export const startStudioServer = async (
 	const { SQLiteTable } = await import('drizzle-orm/sqlite-core');
 	const { Relations } = await import('drizzle-orm/_relations');
 	const { drizzleForSQLite, prepareServer } = await import('../cli/commands/studio');
+	const { humanLog } = await import('../cli/views');
 
 	const sqliteSchema: Record<string, Record<string, AnySQLiteTable>> = {};
 	const relations: Record<string, Relations> = {};
@@ -34,7 +37,7 @@ export const startStudioServer = async (
 		}
 	});
 
-	const setup = await drizzleForSQLite(credentials, sqliteSchema, relations, [], options?.casing);
+	const setup = await drizzleForSQLite(credentials, sqliteSchema, relations, []);
 	const server = await prepareServer(setup);
 
 	const host = options?.host || '127.0.0.1';
@@ -48,7 +51,7 @@ export const startStudioServer = async (
 			if (err) {
 				console.error(err);
 			} else {
-				console.log(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
+				humanLog(`Studio is running at ${options?.key ? 'https' : 'http'}://${host}:${port}`);
 			}
 		},
 	});

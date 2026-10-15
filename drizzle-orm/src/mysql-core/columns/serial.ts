@@ -31,15 +31,11 @@ export class MySqlSerial<
 > extends MySqlColumnWithAutoIncrement<T> {
 	static override readonly [entityKind]: string = 'MySqlSerial';
 
+	/** @internal */
+	override readonly codec = 'serial';
+
 	getSQLType(): string {
 		return 'serial';
-	}
-
-	override mapFromDriverValue(value: number | string): number {
-		if (typeof value === 'string') {
-			return Number(value);
-		}
-		return value;
 	}
 }
 

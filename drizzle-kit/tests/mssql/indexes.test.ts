@@ -1,5 +1,15 @@
-import { sql } from 'drizzle-orm';
-import { bit, index, int, mssqlTable, text, uniqueIndex, varchar } from 'drizzle-orm/mssql-core';
+import { isNotNull, sql } from 'drizzle-orm';
+import {
+	bit,
+	index,
+	IndexBuilder,
+	int,
+	mssqlSchema,
+	mssqlTable,
+	text,
+	uniqueIndex,
+	varchar,
+} from 'drizzle-orm/mssql-core';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
@@ -73,7 +83,7 @@ test('indexes #0', async (t) => {
 		'CREATE INDEX [removeColumn] ON [users] ([name]);',
 		'CREATE INDEX [addColumn] ON [users] ([name],[id]);',
 		'CREATE INDEX [removeWhere] ON [users] ([name]);',
-		"CREATE INDEX [addWhere] ON [users] ([name]) WHERE [users].[name] != 'name';",
+		"CREATE INDEX [addWhere] ON [users] ([name]) WHERE [name] != 'name';",
 	]);
 	expect(pst).toStrictEqual([
 		'DROP INDEX [changeName] ON [users];',
@@ -83,49 +93,36 @@ test('indexes #0', async (t) => {
 		'DROP INDEX [removeWhere] ON [users];',
 		'CREATE INDEX [newName] ON [users] ([name]);',
 		'CREATE INDEX [addColumn] ON [users] ([name],[id]);',
-		"CREATE INDEX [addWhere] ON [users] ([name]) WHERE [users].[name] != 'name';",
+		"CREATE INDEX [addWhere] ON [users] ([name]) WHERE [name] != 'name';",
 		'CREATE INDEX [removeColumn] ON [users] ([name]);',
 		'CREATE INDEX [removeWhere] ON [users] ([name]);',
 	]);
 });
 
-// https://github.com/drizzle-team/drizzle-orm/issues/3255
-test('indexes #2', async () => {
-	const table1 = mssqlTable('table1', {
+// https://github.com/drizzle-team/drizzle-orm/issues/5593
+test('indexes #4', async () => {
+	const schema = mssqlSchema('my_schema');
+	const table1 = schema.table('table1', {
 		col1: int(),
 		col2: int(),
-	}, () => [
-		index1,
-		index2,
-		index3,
-		index4,
-		index5,
-		index6,
+	}, (t) => [
+		uniqueIndex('index1').on(t.col1).where(isNotNull(t.col1)),
+		index('index2').on(t.col2).where(isNotNull(t.col2)),
 	]);
 
-	const index1 = uniqueIndex('index1').on(table1.col1);
-	const index2 = uniqueIndex('index2').on(table1.col1, table1.col2);
-	const index3 = index('index3').on(table1.col1);
-	const index4 = index('index4').on(table1.col1, table1.col2);
-	const index5 = index('index5').on(sql`${table1.col1} asc`);
-	const index6 = index('index6').on(sql`${table1.col1} asc`, sql`${table1.col2} desc`);
-
-	const schema1 = { table1 };
+	const schema1 = { schema, table1 };
 
 	const { sqlStatements: st1 } = await diff({}, schema1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 
 	const expectedSt1 = [
-		'CREATE TABLE [table1] (\n'
+		'CREATE SCHEMA [my_schema];\n',
+		'CREATE TABLE [my_schema].[table1] (\n'
 		+ '\t[col1] int,\n'
 		+ '\t[col2] int\n'
 		+ ');\n',
-		`CREATE UNIQUE INDEX [index1] ON [table1] ([col1]);`,
-		`CREATE UNIQUE INDEX [index2] ON [table1] ([col1],[col2]);`,
-		'CREATE INDEX [index3] ON [table1] ([col1]);',
-		'CREATE INDEX [index4] ON [table1] ([col1],[col2]);',
-		'CREATE INDEX [index5] ON [table1] ([col1] asc);',
-		'CREATE INDEX [index6] ON [table1] ([col1] asc,[col2] desc);',
+		'CREATE UNIQUE INDEX [index1] ON [my_schema].[table1] ([col1]) WHERE ([col1] is not null);',
+		'CREATE INDEX [index2] ON [my_schema].[table1] ([col2]) WHERE ([col2] is not null);',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);

@@ -1,4 +1,4 @@
-import type { SchemaForPull } from 'src/cli/commands/pull-common';
+import type { SchemaForPull } from '../../cli/commands/pull-common';
 import { create } from '../dialect';
 import { nameForUnique } from './grammar';
 
@@ -259,13 +259,9 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 
 	// TODO: add to other dialects, though potentially we should check on push
 	for (const it of ddl.entities.list()) {
-		let err = false;
-
 		if (!ddl.entities.validate(it)) {
-			console.log('invalid entity:', it);
-			err = true;
+			throw new Error(`Invalid entity: ${JSON.stringify(it)}`);
 		}
-		if (err) throw new Error();
 	}
 
 	return { ddl, errors };

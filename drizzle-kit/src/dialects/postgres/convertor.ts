@@ -698,7 +698,7 @@ const alterUniqueConvertor = convertor('alter_unique', (st) => {
 	const statements: string[] = [];
 
 	statements.push(dropUniqueConvertor.convert({ unique: st.diff.$left }) as string);
-	statements.push(addUniqueConvertor.convert({ unique: st.diff.$left }) as string);
+	statements.push(addUniqueConvertor.convert({ unique: st.diff.$right }) as string);
 
 	return statements;
 });

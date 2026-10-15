@@ -1,56 +1,35 @@
 import { entityKind } from '~/entity.ts';
-import { QueryPromise } from '~/query-promise.ts';
-import type { RunnableQuery } from '~/runnable-query.ts';
 import type { PreparedQuery } from '~/session.ts';
-import type { SQL, SQLWrapper } from '~/sql/sql.ts';
-import type { SQLiteAsyncDialect } from '../dialect.ts';
+import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import type { SQLitePreparedQuery } from '../session.ts';
 
-type SQLiteRawAction = 'all' | 'get' | 'values' | 'run';
-export interface SQLiteRawConfig {
-	action: SQLiteRawAction;
-}
-
-export interface SQLiteRaw<TResult> extends QueryPromise<TResult>, RunnableQuery<TResult, 'sqlite'>, SQLWrapper {}
-
-export class SQLiteRaw<TResult> extends QueryPromise<TResult>
-	implements RunnableQuery<TResult, 'sqlite'>, SQLWrapper, PreparedQuery
-{
-	static override readonly [entityKind]: string = 'SQLiteRaw';
+// TODO: remove Raw builders & replace them with preparedQuery instances directly
+// oxlint-disable-next-line no-unused-vars
+export interface SQLiteRaw<TResult> extends SQLWrapper {}
+export class SQLiteRaw<TResult> implements SQLWrapper, PreparedQuery {
+	static readonly [entityKind]: string = 'SQLiteRaw';
 
 	declare readonly _: {
 		readonly dialect: 'sqlite';
 		readonly result: TResult;
 	};
 
-	/** @internal */
-	config: SQLiteRawConfig;
-
 	constructor(
-		public execute: () => Promise<TResult>,
-		/** @internal */
-		public getSQL: () => SQL,
-		action: SQLiteRawAction,
-		private dialect: SQLiteAsyncDialect,
-		private mapBatchResult: (result: unknown) => unknown,
+		protected prepared: SQLitePreparedQuery,
+		protected sql: SQL,
+		protected query: Query,
 	) {
-		super();
-		this.config = { action };
+	}
+
+	getSQL() {
+		return this.sql;
 	}
 
 	getQuery() {
-		return { ...this.dialect.sqlToQuery(this.getSQL()), method: this.config.action };
-	}
-
-	mapResult(result: unknown, isFromBatch?: boolean) {
-		return isFromBatch ? this.mapBatchResult(result) : result;
+		return this.query;
 	}
 
 	_prepare(): PreparedQuery {
-		return this;
-	}
-
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return false;
+		return this.prepared;
 	}
 }

@@ -46,11 +46,11 @@ export class CockroachDecimal<T extends ColumnBaseConfig<'string numeric'>> exte
 		this.scale = config.scale;
 	}
 
-	override mapFromDriverValue(value: unknown): string {
+	override mapFromDriverValue = (value: unknown): string => {
 		if (typeof value === 'string') return value;
 
 		return String(value);
-	}
+	};
 
 	getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
@@ -108,11 +108,11 @@ export class CockroachDecimalNumber<T extends ColumnBaseConfig<'number'>> extend
 		this.scale = config.scale;
 	}
 
-	override mapFromDriverValue(value: unknown): number {
+	override mapFromDriverValue = (value: unknown): number => {
 		if (typeof value === 'number') return value;
 
 		return Number(value);
-	}
+	};
 
 	override mapToDriverValue = String;
 

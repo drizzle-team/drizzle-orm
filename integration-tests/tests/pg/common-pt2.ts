@@ -1,4 +1,5 @@
 import {
+	aliasedTable,
 	and,
 	arrayContains,
 	asc,
@@ -7,6 +8,7 @@ import {
 	count,
 	countDistinct,
 	desc,
+	DrizzleQueryError,
 	eq,
 	getColumns,
 	getTableColumns,
@@ -14,9 +16,14 @@ import {
 	gte,
 	ilike,
 	inArray,
+	is,
 	isNull,
 	like,
 	lt,
+	makeDefaultQueryMapper,
+	makeDefaultRqbMapper,
+	makeJitQueryMapper,
+	makeJitRqbMapper,
 	max,
 	min,
 	not,
@@ -35,6 +42,7 @@ import {
 	bytea,
 	char,
 	cidr,
+	customType,
 	date,
 	doublePrecision,
 	except,
@@ -49,7 +57,8 @@ import {
 	macaddr,
 	macaddr8,
 	numeric,
-	type PgDialect,
+	PgAsyncSession,
+	PgDialect,
 	pgEnum,
 	pgSchema,
 	pgTable,
@@ -60,201 +69,222 @@ import {
 	serial,
 	smallint,
 	smallserial,
+	snakeCase,
 	text,
 	time,
 	timestamp,
 	union,
+	unionAll,
 	uniqueIndex,
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
+import { PgliteDatabase } from 'drizzle-orm/pglite';
 import { describe, expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
+import { normalizeDataWithDbCodecs } from './utils';
 
 const msDelay = 15000;
 
 export function tests(test: Test) {
 	describe('common', () => {
-		test.concurrent('set operations (mixed) from query builder with subquery', async ({ db, push }) => {
-			const cities2Table = pgTable('cities_1', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-			});
+		test.concurrent(
+			'set operations (mixed) from query builder with subquery',
+			async ({ db, push }) => {
+				const cities2Table = pgTable('cities_1', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+				});
 
-			const users2Table = pgTable('users2_1', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				cityId: integer('city_id').references(() => cities2Table.id),
-			});
+				const users2Table = pgTable('users2_1', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					cityId: integer('city_id').references(() => cities2Table.id),
+				});
 
-			await push({ cities2Table, users2Table });
+				await push({ cities2Table, users2Table });
 
-			await db.insert(cities2Table).values([
-				{ id: 1, name: 'New York' },
-				{ id: 2, name: 'London' },
-				{ id: 3, name: 'Tampa' },
-			]);
+				await db.insert(cities2Table).values([
+					{ id: 1, name: 'New York' },
+					{ id: 2, name: 'London' },
+					{ id: 3, name: 'Tampa' },
+				]);
 
-			await db.insert(users2Table).values([
-				{ id: 1, name: 'John', cityId: 1 },
-				{ id: 2, name: 'Jane', cityId: 2 },
-				{ id: 3, name: 'Jack', cityId: 3 },
-				{ id: 4, name: 'Peter', cityId: 3 },
-				{ id: 5, name: 'Ben', cityId: 2 },
-				{ id: 6, name: 'Jill', cityId: 1 },
-				{ id: 7, name: 'Mary', cityId: 2 },
-				{ id: 8, name: 'Sally', cityId: 1 },
-			]);
+				await db.insert(users2Table).values([
+					{ id: 1, name: 'John', cityId: 1 },
+					{ id: 2, name: 'Jane', cityId: 2 },
+					{ id: 3, name: 'Jack', cityId: 3 },
+					{ id: 4, name: 'Peter', cityId: 3 },
+					{ id: 5, name: 'Ben', cityId: 2 },
+					{ id: 6, name: 'Jill', cityId: 1 },
+					{ id: 7, name: 'Mary', cityId: 2 },
+					{ id: 8, name: 'Sally', cityId: 1 },
+				]);
 
-			const sq = db
-				.select()
-				.from(cities2Table).where(gt(cities2Table.id, 1)).as('sq');
+				const sq = db
+					.select()
+					.from(cities2Table)
+					.where(gt(cities2Table.id, 1))
+					.as('sq');
 
-			const result = await db
-				.select()
-				.from(cities2Table).except(
-					({ unionAll }) =>
+				const result = await db
+					.select()
+					.from(cities2Table)
+					.except(({ unionAll }) =>
 						unionAll(
 							db.select().from(sq),
 							db.select().from(cities2Table).where(eq(cities2Table.id, 2)),
-						),
-				);
-
-			expect(result).toHaveLength(1);
-
-			expect(result).toEqual([
-				{ id: 1, name: 'New York' },
-			]);
-
-			await expect((async () => {
-				db
-					.select()
-					.from(cities2Table).except(
-						({ unionAll }) =>
-							unionAll(
-								db
-									.select({ name: cities2Table.name, id: cities2Table.id })
-									.from(cities2Table).where(gt(cities2Table.id, 1)),
-								db.select().from(cities2Table).where(eq(cities2Table.id, 2)),
-							),
+						)
 					);
-			})()).rejects.toThrowError();
-		});
 
-		test.concurrent('set operations (mixed all) as function', async ({ db, push }) => {
-			const cities2Table = pgTable('cities_2', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-			});
+				expect(result).toHaveLength(1);
 
-			const users2Table = pgTable('users2_2', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				cityId: integer('city_id').references(() => cities2Table.id),
-			});
+				expect(result).toEqual([{ id: 1, name: 'New York' }]);
 
-			await push({ cities2Table, users2Table });
+				await expect(
+					(async () => {
+						db.select()
+							.from(cities2Table)
+							.except(({ unionAll }) =>
+								unionAll(
+									db
+										.select({ name: cities2Table.name, id: cities2Table.id })
+										.from(cities2Table)
+										.where(gt(cities2Table.id, 1)),
+									db.select().from(cities2Table).where(eq(cities2Table.id, 2)),
+								)
+							);
+					})(),
+				).rejects.toThrowError();
+			},
+		);
 
-			await db.insert(cities2Table).values([
-				{ id: 1, name: 'New York' },
-				{ id: 2, name: 'London' },
-				{ id: 3, name: 'Tampa' },
-			]);
+		test.concurrent(
+			'set operations (mixed all) as function',
+			async ({ db, push }) => {
+				const cities2Table = pgTable('cities_2', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+				});
 
-			await db.insert(users2Table).values([
-				{ id: 1, name: 'John', cityId: 1 },
-				{ id: 2, name: 'Jane', cityId: 2 },
-				{ id: 3, name: 'Jack', cityId: 3 },
-				{ id: 4, name: 'Peter', cityId: 3 },
-				{ id: 5, name: 'Ben', cityId: 2 },
-				{ id: 6, name: 'Jill', cityId: 1 },
-				{ id: 7, name: 'Mary', cityId: 2 },
-				{ id: 8, name: 'Sally', cityId: 1 },
-			]);
+				const users2Table = pgTable('users2_2', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					cityId: integer('city_id').references(() => cities2Table.id),
+				});
 
-			const result = await union(
-				db
-					.select({ id: users2Table.id, name: users2Table.name })
-					.from(users2Table).where(eq(users2Table.id, 1)),
-				except(
+				await push({ cities2Table, users2Table });
+
+				await db.insert(cities2Table).values([
+					{ id: 1, name: 'New York' },
+					{ id: 2, name: 'London' },
+					{ id: 3, name: 'Tampa' },
+				]);
+
+				await db.insert(users2Table).values([
+					{ id: 1, name: 'John', cityId: 1 },
+					{ id: 2, name: 'Jane', cityId: 2 },
+					{ id: 3, name: 'Jack', cityId: 3 },
+					{ id: 4, name: 'Peter', cityId: 3 },
+					{ id: 5, name: 'Ben', cityId: 2 },
+					{ id: 6, name: 'Jill', cityId: 1 },
+					{ id: 7, name: 'Mary', cityId: 2 },
+					{ id: 8, name: 'Sally', cityId: 1 },
+				]);
+
+				const result = await union(
 					db
 						.select({ id: users2Table.id, name: users2Table.name })
-						.from(users2Table).where(gte(users2Table.id, 5)),
-					db
-						.select({ id: users2Table.id, name: users2Table.name })
-						.from(users2Table).where(eq(users2Table.id, 7)),
-				),
-				db
-					.select().from(cities2Table).where(gt(cities2Table.id, 1)),
-			).orderBy(asc(sql`id`));
-
-			expect(result).toHaveLength(6);
-
-			expect(result).toEqual([
-				{ id: 1, name: 'John' },
-				{ id: 2, name: 'London' },
-				{ id: 3, name: 'Tampa' },
-				{ id: 5, name: 'Ben' },
-				{ id: 6, name: 'Jill' },
-				{ id: 8, name: 'Sally' },
-			]);
-
-			await expect((async () => {
-				union(
-					db
-						.select({ id: users2Table.id, name: users2Table.name })
-						.from(users2Table).where(eq(users2Table.id, 1)),
+						.from(users2Table)
+						.where(eq(users2Table.id, 1)),
 					except(
 						db
 							.select({ id: users2Table.id, name: users2Table.name })
-							.from(users2Table).where(gte(users2Table.id, 5)),
+							.from(users2Table)
+							.where(gte(users2Table.id, 5)),
 						db
-							.select({ name: users2Table.name, id: users2Table.id })
-							.from(users2Table).where(eq(users2Table.id, 7)),
+							.select({ id: users2Table.id, name: users2Table.name })
+							.from(users2Table)
+							.where(eq(users2Table.id, 7)),
 					),
-					db
-						.select().from(cities2Table).where(gt(cities2Table.id, 1)),
+					db.select().from(cities2Table).where(gt(cities2Table.id, 1)),
 				).orderBy(asc(sql`id`));
-			})()).rejects.toThrowError();
-		});
+
+				expect(result).toHaveLength(6);
+
+				expect(result).toEqual([
+					{ id: 1, name: 'John' },
+					{ id: 2, name: 'London' },
+					{ id: 3, name: 'Tampa' },
+					{ id: 5, name: 'Ben' },
+					{ id: 6, name: 'Jill' },
+					{ id: 8, name: 'Sally' },
+				]);
+
+				await expect(
+					(async () => {
+						union(
+							db
+								.select({ id: users2Table.id, name: users2Table.name })
+								.from(users2Table)
+								.where(eq(users2Table.id, 1)),
+							except(
+								db
+									.select({ id: users2Table.id, name: users2Table.name })
+									.from(users2Table)
+									.where(gte(users2Table.id, 5)),
+								db
+									.select({ name: users2Table.name, id: users2Table.id })
+									.from(users2Table)
+									.where(eq(users2Table.id, 7)),
+							),
+							db.select().from(cities2Table).where(gt(cities2Table.id, 1)),
+						).orderBy(asc(sql`id`));
+					})(),
+				).rejects.toThrowError();
+			},
+		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4189
-		test.concurrent('set operations; union; date mode', async ({ db, push }) => {
-			const recipes = pgTable('recipes', {
-				id: serial().primaryKey(),
-				publishedAt: timestamp({ mode: 'date' }).defaultNow(),
-			});
+		test.concurrent(
+			'set operations; union; date mode',
+			async ({ db, push }) => {
+				const recipes = pgTable('recipes', {
+					id: serial().primaryKey(),
+					publishedAt: timestamp({ mode: 'date' }).defaultNow(),
+				});
 
-			const recipesQuery = db
-				.select({
-					id: recipes.id,
-					publishedAt: recipes.publishedAt,
-				})
-				.from(recipes);
+				const recipesQuery = db
+					.select({
+						id: recipes.id,
+						publishedAt: recipes.publishedAt,
+					})
+					.from(recipes);
 
-			const creators = pgTable('creators', {
-				id: serial().primaryKey(),
-				publishedAt: timestamp({ mode: 'date' }).defaultNow(),
-			});
+				const creators = pgTable('creators', {
+					id: serial().primaryKey(),
+					publishedAt: timestamp({ mode: 'date' }).defaultNow(),
+				});
 
-			const creatorsQuery = db
-				.select({
-					id: creators.id,
-					publishedAt: creators.publishedAt,
-				})
-				.from(creators);
+				const creatorsQuery = db
+					.select({
+						id: creators.id,
+						publishedAt: creators.publishedAt,
+					})
+					.from(creators);
 
-			await push({ recipes, creators });
-			await db.insert(recipes).values({});
-			await db.insert(creators).values({});
+				await push({ recipes, creators });
+				await db.insert(recipes).values({});
+				await db.insert(creators).values({});
 
-			const unionQuery = union(creatorsQuery, recipesQuery);
-			const result = await unionQuery;
+				const unionQuery = union(creatorsQuery, recipesQuery);
+				const result = await unionQuery;
 
-			for (const val of result) {
-				expect(val.publishedAt).toBeInstanceOf(Date);
-			}
-		});
+				for (const val of result) {
+					expect(val.publishedAt).toBeInstanceOf(Date);
+				}
+			},
+		);
 
 		test.concurrent('aggregate function: count', async ({ db, push }) => {
 			const aggregateTable = pgTable('aggregate_table_3', {
@@ -277,8 +307,12 @@ export function tests(test: Test) {
 			]);
 
 			const result1 = await db.select({ value: count() }).from(aggregateTable);
-			const result2 = await db.select({ value: count(aggregateTable.value) }).from(aggregateTable);
-			const result3 = await db.select({ value: countDistinct(aggregateTable.name) }).from(aggregateTable);
+			const result2 = await db
+				.select({ value: count(aggregateTable.value) })
+				.from(aggregateTable);
+			const result3 = await db
+				.select({ value: countDistinct(aggregateTable.name) })
+				.from(aggregateTable);
 
 			expect(result1[0]?.value).toBe(7);
 			expect(result2[0]?.value).toBe(6);
@@ -305,9 +339,15 @@ export function tests(test: Test) {
 				{ name: 'value 6', nullOnly: null },
 			]);
 
-			const result1 = await db.select({ value: avg(aggregateTable.value) }).from(aggregateTable);
-			const result2 = await db.select({ value: avg(aggregateTable.nullOnly) }).from(aggregateTable);
-			const result3 = await db.select({ value: avgDistinct(aggregateTable.value) }).from(aggregateTable);
+			const result1 = await db
+				.select({ value: avg(aggregateTable.value) })
+				.from(aggregateTable);
+			const result2 = await db
+				.select({ value: avg(aggregateTable.nullOnly) })
+				.from(aggregateTable);
+			const result3 = await db
+				.select({ value: avgDistinct(aggregateTable.value) })
+				.from(aggregateTable);
 
 			expect(result1[0]?.value).toBe('33.3333333333333333');
 			expect(result2[0]?.value).toBeNull();
@@ -334,9 +374,15 @@ export function tests(test: Test) {
 				{ name: 'value 6', nullOnly: null },
 			]);
 
-			const result1 = await db.select({ value: sum(aggregateTable.value) }).from(aggregateTable);
-			const result2 = await db.select({ value: sum(aggregateTable.nullOnly) }).from(aggregateTable);
-			const result3 = await db.select({ value: sumDistinct(aggregateTable.value) }).from(aggregateTable);
+			const result1 = await db
+				.select({ value: sum(aggregateTable.value) })
+				.from(aggregateTable);
+			const result2 = await db
+				.select({ value: sum(aggregateTable.nullOnly) })
+				.from(aggregateTable);
+			const result3 = await db
+				.select({ value: sumDistinct(aggregateTable.value) })
+				.from(aggregateTable);
 
 			expect(result1[0]?.value).toBe('200');
 			expect(result2[0]?.value).toBeNull();
@@ -363,8 +409,12 @@ export function tests(test: Test) {
 				{ name: 'value 6', nullOnly: null },
 			]);
 
-			const result1 = await db.select({ value: max(aggregateTable.value) }).from(aggregateTable);
-			const result2 = await db.select({ value: max(aggregateTable.nullOnly) }).from(aggregateTable);
+			const result1 = await db
+				.select({ value: max(aggregateTable.value) })
+				.from(aggregateTable);
+			const result2 = await db
+				.select({ value: max(aggregateTable.nullOnly) })
+				.from(aggregateTable);
 
 			expect(result1[0]?.value).toBe(90);
 			expect(result2[0]?.value).toBeNull();
@@ -390,8 +440,12 @@ export function tests(test: Test) {
 				{ name: 'value 6', nullOnly: null },
 			]);
 
-			const result1 = await db.select({ value: min(aggregateTable.value) }).from(aggregateTable);
-			const result2 = await db.select({ value: min(aggregateTable.nullOnly) }).from(aggregateTable);
+			const result1 = await db
+				.select({ value: min(aggregateTable.value) })
+				.from(aggregateTable);
+			const result2 = await db
+				.select({ value: min(aggregateTable.nullOnly) })
+				.from(aggregateTable);
 
 			expect(result1[0]?.value).toBe(10);
 			expect(result2[0]?.value).toBeNull();
@@ -409,285 +463,408 @@ export function tests(test: Test) {
 
 			await db.insert(arrays).values({
 				tags: ['', 'b', 'c'],
-				nested: [['1', ''], ['3', '\\a']],
+				nested: [
+					['1', ''],
+					['3', '\\a'],
+				],
 				numbers: [1, 2, 3],
 			});
 
 			const result = await db.select().from(arrays);
 
-			expect(result).toEqual([{
-				id: 1,
-				tags: ['', 'b', 'c'],
-				nested: [['1', ''], ['3', '\\a']],
-				numbers: [1, 2, 3],
-			}]);
-		});
-
-		test.concurrent('test $onUpdateFn and $onUpdate works as $default', async ({ db, push }) => {
-			const usersOnUpdate = pgTable('users_on_update_8', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				updateCounter: integer('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
-				updatedAt: timestamp('updated_at', { mode: 'date', precision: 3 }).$onUpdate(() => new Date()),
-				alwaysNull: text('always_null').$type<string | null>().$onUpdate(() => null),
-			});
-
-			await push({ usersOnUpdate });
-
-			await db.insert(usersOnUpdate).values([
-				{ name: 'John' },
-				{ name: 'Jane' },
-				{ name: 'Jack' },
-				{ name: 'Jill' },
-			]);
-
-			const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
-
-			const justDates = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
-
-			const response = await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
-
-			expect(response).toEqual([
-				{ name: 'John', id: 1, updateCounter: 1, alwaysNull: null },
-				{ name: 'Jane', id: 2, updateCounter: 1, alwaysNull: null },
-				{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
-				{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
-			]);
-
-			for (const eachUser of justDates) {
-				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
-			}
-		});
-
-		test.concurrent('test $onUpdateFn and $onUpdate works updating', async ({ db, push }) => {
-			const usersOnUpdate = pgTable('users_on_update_9', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				updateCounter: integer('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
-				updatedAt: timestamp('updated_at', { mode: 'date', precision: 3 }).$onUpdate(() => new Date()),
-				alwaysNull: text('always_null').$type<string | null>().$onUpdate(() => null),
-			});
-
-			await push({ usersOnUpdate });
-
-			await db.insert(usersOnUpdate).values([
-				{ name: 'John', alwaysNull: 'this will be null after updating' },
-				{ name: 'Jane' },
-				{ name: 'Jack' },
-				{ name: 'Jill' },
-			]);
-
-			const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
-			await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
-
-			await db.update(usersOnUpdate).set({ name: 'Angel' }).where(eq(usersOnUpdate.id, 1));
-			await db.update(usersOnUpdate).set({ updateCounter: null }).where(eq(usersOnUpdate.id, 2));
-
-			const justDates = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
-
-			const response = await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
-
-			expect(response).toEqual([
-				{ name: 'Angel', id: 1, updateCounter: 2, alwaysNull: null },
-				{ name: 'Jane', id: 2, updateCounter: null, alwaysNull: null },
-				{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
-				{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
-			]);
-
-			// expect(initial[0]?.updatedAt?.valueOf()).not.toBe(justDates[0]?.updatedAt?.valueOf());
-
-			for (const eachUser of justDates) {
-				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
-			}
-		});
-
-		test.concurrent('test if method with sql operators', async ({ db, push }) => {
-			const users = pgTable('users_106', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				age: integer('age').notNull(),
-				city: text('city').notNull(),
-			});
-
-			await push({ users });
-
-			await db.insert(users).values([
-				{ id: 1, name: 'John', age: 20, city: 'New York' },
-				{ id: 2, name: 'Alice', age: 21, city: 'New York' },
-				{ id: 3, name: 'Nick', age: 22, city: 'London' },
-				{ id: 4, name: 'Lina', age: 23, city: 'London' },
-			]);
-
-			const condition1 = true;
-
-			const [result1] = await db.select().from(users).where(eq(users.id, 1).if(condition1));
-
-			expect(result1).toEqual({ id: 1, name: 'John', age: 20, city: 'New York' });
-
-			const condition2 = 1;
-
-			const [result2] = await db.select().from(users).where(sql`${users.id} = 1`.if(condition2));
-
-			expect(result2).toEqual({ id: 1, name: 'John', age: 20, city: 'New York' });
-
-			const condition3 = 'non-empty string';
-
-			const result3 = await db.select().from(users).where(
-				or(eq(users.id, 1).if(condition3), eq(users.id, 2).if(condition3)),
-			);
-
-			expect(result3).toEqual([{ id: 1, name: 'John', age: 20, city: 'New York' }, {
-				id: 2,
-				name: 'Alice',
-				age: 21,
-				city: 'New York',
-			}]);
-
-			const condtition4 = false;
-
-			const result4 = await db.select().from(users).where(eq(users.id, 1).if(condtition4));
-
-			expect(result4).toEqual([
-				{ id: 1, name: 'John', age: 20, city: 'New York' },
-				{ id: 2, name: 'Alice', age: 21, city: 'New York' },
-				{ id: 3, name: 'Nick', age: 22, city: 'London' },
-				{ id: 4, name: 'Lina', age: 23, city: 'London' },
-			]);
-
-			const condition5 = undefined;
-
-			const result5 = await db.select().from(users).where(sql`${users.id} = 1`.if(condition5));
-
-			expect(result5).toEqual([
-				{ id: 1, name: 'John', age: 20, city: 'New York' },
-				{ id: 2, name: 'Alice', age: 21, city: 'New York' },
-				{ id: 3, name: 'Nick', age: 22, city: 'London' },
-				{ id: 4, name: 'Lina', age: 23, city: 'London' },
-			]);
-
-			const condition6 = null;
-
-			const result6 = await db.select().from(users).where(
-				or(eq(users.id, 1).if(condition6), eq(users.id, 2).if(condition6)),
-			);
-
-			expect(result6).toEqual([
-				{ id: 1, name: 'John', age: 20, city: 'New York' },
-				{ id: 2, name: 'Alice', age: 21, city: 'New York' },
-				{ id: 3, name: 'Nick', age: 22, city: 'London' },
-				{ id: 4, name: 'Lina', age: 23, city: 'London' },
-			]);
-
-			const condition7 = {
-				term1: 0,
-				term2: 1,
-			};
-
-			const result7 = await db.select().from(users).where(
-				and(gt(users.age, 20).if(condition7.term1), eq(users.city, 'New York').if(condition7.term2)),
-			);
-
-			expect(result7).toEqual([
-				{ id: 1, name: 'John', age: 20, city: 'New York' },
-				{ id: 2, name: 'Alice', age: 21, city: 'New York' },
-			]);
-
-			const condition8 = {
-				term1: '',
-				term2: 'non-empty string',
-			};
-
-			const result8 = await db.select().from(users).where(
-				or(lt(users.age, 21).if(condition8.term1), eq(users.city, 'London').if(condition8.term2)),
-			);
-
-			expect(result8).toEqual([
-				{ id: 3, name: 'Nick', age: 22, city: 'London' },
-				{ id: 4, name: 'Lina', age: 23, city: 'London' },
-			]);
-
-			const condition9 = {
-				term1: 1,
-				term2: true,
-			};
-
-			const result9 = await db.select().from(users).where(
-				and(
-					inArray(users.city, ['New York', 'London']).if(condition9.term1),
-					ilike(users.name, 'a%').if(condition9.term2),
-				),
-			);
-
-			expect(result9).toEqual([
-				{ id: 2, name: 'Alice', age: 21, city: 'New York' },
-			]);
-
-			const condition10 = {
-				term1: 4,
-				term2: 19,
-			};
-
-			const result10 = await db.select().from(users).where(
-				and(
-					sql`length(${users.name}) <= ${condition10.term1}`.if(condition10.term1),
-					gt(users.age, condition10.term2).if(condition10.term2 > 20),
-				),
-			);
-
-			expect(result10).toEqual([
-				{ id: 1, name: 'John', age: 20, city: 'New York' },
-				{ id: 3, name: 'Nick', age: 22, city: 'London' },
-				{ id: 4, name: 'Lina', age: 23, city: 'London' },
-			]);
-
-			const condition11 = true;
-
-			const result11 = await db.select().from(users).where(
-				or(eq(users.city, 'New York'), gte(users.age, 22))!.if(condition11),
-			);
-
-			expect(result11).toEqual([
-				{ id: 1, name: 'John', age: 20, city: 'New York' },
-				{ id: 2, name: 'Alice', age: 21, city: 'New York' },
-				{ id: 3, name: 'Nick', age: 22, city: 'London' },
-				{ id: 4, name: 'Lina', age: 23, city: 'London' },
-			]);
-
-			const condition12 = false;
-
-			const result12 = await db.select().from(users).where(
-				and(eq(users.city, 'London'), gte(users.age, 23))!.if(condition12),
-			);
-
-			expect(result12).toEqual([
-				{ id: 1, name: 'John', age: 20, city: 'New York' },
-				{ id: 2, name: 'Alice', age: 21, city: 'New York' },
-				{ id: 3, name: 'Nick', age: 22, city: 'London' },
-				{ id: 4, name: 'Lina', age: 23, city: 'London' },
-			]);
-
-			const condition13 = true;
-
-			const result13 = await db.select().from(users).where(sql`(city = 'New York' or age >= 22)`.if(condition13));
-
-			expect(result13).toEqual([
-				{ id: 1, name: 'John', age: 20, city: 'New York' },
-				{ id: 2, name: 'Alice', age: 21, city: 'New York' },
-				{ id: 3, name: 'Nick', age: 22, city: 'London' },
-				{ id: 4, name: 'Lina', age: 23, city: 'London' },
-			]);
-
-			const condition14 = false;
-
-			const result14 = await db.select().from(users).where(sql`(city = 'London' and age >= 23)`.if(condition14));
-
-			expect(result14).toEqual([
-				{ id: 1, name: 'John', age: 20, city: 'New York' },
-				{ id: 2, name: 'Alice', age: 21, city: 'New York' },
-				{ id: 3, name: 'Nick', age: 22, city: 'London' },
-				{ id: 4, name: 'Lina', age: 23, city: 'London' },
+			expect(result).toEqual([
+				{
+					id: 1,
+					tags: ['', 'b', 'c'],
+					nested: [
+						['1', ''],
+						['3', '\\a'],
+					],
+					numbers: [1, 2, 3],
+				},
 			]);
 		});
+
+		test.concurrent(
+			'test $onUpdateFn and $onUpdate works as $default',
+			async ({ db, push }) => {
+				const usersOnUpdate = pgTable('users_on_update_8', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					updateCounter: integer('update_counter')
+						.default(sql`1`)
+						.$onUpdateFn(() => sql`update_counter + 1`),
+					updatedAt: timestamp('updated_at', {
+						mode: 'date',
+						precision: 3,
+					}).$onUpdate(() => new Date()),
+					alwaysNull: text('always_null')
+						.$type<string | null>()
+						.$onUpdate(() => null),
+				});
+
+				await push({ usersOnUpdate });
+
+				await db
+					.insert(usersOnUpdate)
+					.values([
+						{ name: 'John' },
+						{ name: 'Jane' },
+						{ name: 'Jack' },
+						{ name: 'Jill' },
+					]);
+
+				const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
+
+				const justDates = await db
+					.select({ updatedAt })
+					.from(usersOnUpdate)
+					.orderBy(asc(usersOnUpdate.id));
+
+				const response = await db
+					.select({ ...rest })
+					.from(usersOnUpdate)
+					.orderBy(asc(usersOnUpdate.id));
+
+				expect(response).toEqual([
+					{ name: 'John', id: 1, updateCounter: 1, alwaysNull: null },
+					{ name: 'Jane', id: 2, updateCounter: 1, alwaysNull: null },
+					{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
+					{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
+				]);
+
+				for (const eachUser of justDates) {
+					expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(
+						Date.now() - msDelay,
+					);
+				}
+			},
+		);
+
+		test.concurrent(
+			'test $onUpdateFn and $onUpdate works updating',
+			async ({ db, push }) => {
+				const usersOnUpdate = pgTable('users_on_update_9', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					updateCounter: integer('update_counter')
+						.default(sql`1`)
+						.$onUpdateFn(() => sql`update_counter + 1`),
+					updatedAt: timestamp('updated_at', {
+						mode: 'date',
+						precision: 3,
+					}).$onUpdate(() => new Date()),
+					alwaysNull: text('always_null')
+						.$type<string | null>()
+						.$onUpdate(() => null),
+				});
+
+				await push({ usersOnUpdate });
+
+				await db
+					.insert(usersOnUpdate)
+					.values([
+						{ name: 'John', alwaysNull: 'this will be null after updating' },
+						{ name: 'Jane' },
+						{ name: 'Jack' },
+						{ name: 'Jill' },
+					]);
+
+				const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
+				await db
+					.select({ updatedAt })
+					.from(usersOnUpdate)
+					.orderBy(asc(usersOnUpdate.id));
+
+				await db
+					.update(usersOnUpdate)
+					.set({ name: 'Angel' })
+					.where(eq(usersOnUpdate.id, 1));
+				await db
+					.update(usersOnUpdate)
+					.set({ updateCounter: null })
+					.where(eq(usersOnUpdate.id, 2));
+
+				const justDates = await db
+					.select({ updatedAt })
+					.from(usersOnUpdate)
+					.orderBy(asc(usersOnUpdate.id));
+
+				const response = await db
+					.select({ ...rest })
+					.from(usersOnUpdate)
+					.orderBy(asc(usersOnUpdate.id));
+
+				expect(response).toEqual([
+					{ name: 'Angel', id: 1, updateCounter: 2, alwaysNull: null },
+					{ name: 'Jane', id: 2, updateCounter: null, alwaysNull: null },
+					{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
+					{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
+				]);
+
+				// expect(initial[0]?.updatedAt?.valueOf()).not.toBe(justDates[0]?.updatedAt?.valueOf());
+
+				for (const eachUser of justDates) {
+					expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(
+						Date.now() - msDelay,
+					);
+				}
+			},
+		);
+
+		test.concurrent(
+			'test if method with sql operators',
+			async ({ db, push }) => {
+				const users = pgTable('users_106', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					age: integer('age').notNull(),
+					city: text('city').notNull(),
+				});
+
+				await push({ users });
+
+				await db.insert(users).values([
+					{ id: 1, name: 'John', age: 20, city: 'New York' },
+					{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+					{ id: 3, name: 'Nick', age: 22, city: 'London' },
+					{ id: 4, name: 'Lina', age: 23, city: 'London' },
+				]);
+
+				const condition1 = true;
+
+				const [result1] = await db
+					.select()
+					.from(users)
+					.where(eq(users.id, 1).if(condition1));
+
+				expect(result1).toEqual({
+					id: 1,
+					name: 'John',
+					age: 20,
+					city: 'New York',
+				});
+
+				const condition2 = 1;
+
+				const [result2] = await db
+					.select()
+					.from(users)
+					.where(sql`${users.id} = 1`.if(condition2));
+
+				expect(result2).toEqual({
+					id: 1,
+					name: 'John',
+					age: 20,
+					city: 'New York',
+				});
+
+				const condition3 = 'non-empty string';
+
+				const result3 = await db
+					.select()
+					.from(users)
+					.where(
+						or(eq(users.id, 1).if(condition3), eq(users.id, 2).if(condition3)),
+					);
+
+				expect(result3).toEqual([
+					{ id: 1, name: 'John', age: 20, city: 'New York' },
+					{
+						id: 2,
+						name: 'Alice',
+						age: 21,
+						city: 'New York',
+					},
+				]);
+
+				const condtition4 = false;
+
+				const result4 = await db
+					.select()
+					.from(users)
+					.where(eq(users.id, 1).if(condtition4));
+
+				expect(result4).toEqual([
+					{ id: 1, name: 'John', age: 20, city: 'New York' },
+					{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+					{ id: 3, name: 'Nick', age: 22, city: 'London' },
+					{ id: 4, name: 'Lina', age: 23, city: 'London' },
+				]);
+
+				const condition5 = undefined;
+
+				const result5 = await db
+					.select()
+					.from(users)
+					.where(sql`${users.id} = 1`.if(condition5));
+
+				expect(result5).toEqual([
+					{ id: 1, name: 'John', age: 20, city: 'New York' },
+					{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+					{ id: 3, name: 'Nick', age: 22, city: 'London' },
+					{ id: 4, name: 'Lina', age: 23, city: 'London' },
+				]);
+
+				const condition6 = null;
+
+				const result6 = await db
+					.select()
+					.from(users)
+					.where(
+						or(eq(users.id, 1).if(condition6), eq(users.id, 2).if(condition6)),
+					);
+
+				expect(result6).toEqual([
+					{ id: 1, name: 'John', age: 20, city: 'New York' },
+					{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+					{ id: 3, name: 'Nick', age: 22, city: 'London' },
+					{ id: 4, name: 'Lina', age: 23, city: 'London' },
+				]);
+
+				const condition7 = {
+					term1: 0,
+					term2: 1,
+				};
+
+				const result7 = await db
+					.select()
+					.from(users)
+					.where(
+						and(
+							gt(users.age, 20).if(condition7.term1),
+							eq(users.city, 'New York').if(condition7.term2),
+						),
+					);
+
+				expect(result7).toEqual([
+					{ id: 1, name: 'John', age: 20, city: 'New York' },
+					{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+				]);
+
+				const condition8 = {
+					term1: '',
+					term2: 'non-empty string',
+				};
+
+				const result8 = await db
+					.select()
+					.from(users)
+					.where(
+						or(
+							lt(users.age, 21).if(condition8.term1),
+							eq(users.city, 'London').if(condition8.term2),
+						),
+					);
+
+				expect(result8).toEqual([
+					{ id: 3, name: 'Nick', age: 22, city: 'London' },
+					{ id: 4, name: 'Lina', age: 23, city: 'London' },
+				]);
+
+				const condition9 = {
+					term1: 1,
+					term2: true,
+				};
+
+				const result9 = await db
+					.select()
+					.from(users)
+					.where(
+						and(
+							inArray(users.city, ['New York', 'London']).if(condition9.term1),
+							ilike(users.name, 'a%').if(condition9.term2),
+						),
+					);
+
+				expect(result9).toEqual([
+					{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+				]);
+
+				const condition10 = {
+					term1: 4,
+					term2: 19,
+				};
+
+				const result10 = await db
+					.select()
+					.from(users)
+					.where(
+						and(
+							sql`length(${users.name}) <= ${condition10.term1}`.if(
+								condition10.term1,
+							),
+							gt(users.age, condition10.term2).if(condition10.term2 > 20),
+						),
+					);
+
+				expect(result10).toEqual([
+					{ id: 1, name: 'John', age: 20, city: 'New York' },
+					{ id: 3, name: 'Nick', age: 22, city: 'London' },
+					{ id: 4, name: 'Lina', age: 23, city: 'London' },
+				]);
+
+				const condition11 = true;
+
+				const result11 = await db
+					.select()
+					.from(users)
+					.where(
+						or(eq(users.city, 'New York'), gte(users.age, 22))!.if(condition11),
+					);
+
+				expect(result11).toEqual([
+					{ id: 1, name: 'John', age: 20, city: 'New York' },
+					{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+					{ id: 3, name: 'Nick', age: 22, city: 'London' },
+					{ id: 4, name: 'Lina', age: 23, city: 'London' },
+				]);
+
+				const condition12 = false;
+
+				const result12 = await db
+					.select()
+					.from(users)
+					.where(
+						and(eq(users.city, 'London'), gte(users.age, 23))!.if(condition12),
+					);
+
+				expect(result12).toEqual([
+					{ id: 1, name: 'John', age: 20, city: 'New York' },
+					{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+					{ id: 3, name: 'Nick', age: 22, city: 'London' },
+					{ id: 4, name: 'Lina', age: 23, city: 'London' },
+				]);
+
+				const condition13 = true;
+
+				const result13 = await db
+					.select()
+					.from(users)
+					.where(sql`(city = 'New York' or age >= 22)`.if(condition13));
+
+				expect(result13).toEqual([
+					{ id: 1, name: 'John', age: 20, city: 'New York' },
+					{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+					{ id: 3, name: 'Nick', age: 22, city: 'London' },
+					{ id: 4, name: 'Lina', age: 23, city: 'London' },
+				]);
+
+				const condition14 = false;
+
+				const result14 = await db
+					.select()
+					.from(users)
+					.where(sql`(city = 'London' and age >= 23)`.if(condition14));
+
+				expect(result14).toEqual([
+					{ id: 1, name: 'John', age: 20, city: 'New York' },
+					{ id: 2, name: 'Alice', age: 21, city: 'New York' },
+					{ id: 3, name: 'Nick', age: 22, city: 'London' },
+					{ id: 4, name: 'Lina', age: 23, city: 'London' },
+				]);
+			},
+		);
 
 		// MySchema tests
 		test.concurrent('mySchema :: select all fields', async ({ db, push }) => {
@@ -697,7 +874,9 @@ export function tests(test: Test) {
 				name: text('name').notNull(),
 				verified: boolean('verified').notNull().default(false),
 				jsonb: jsonb('jsonb').$type<string[]>(),
-				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+				createdAt: timestamp('created_at', { withTimezone: true })
+					.notNull()
+					.defaultNow(),
 			});
 
 			await push({ users });
@@ -709,7 +888,15 @@ export function tests(test: Test) {
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
 			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(300);
-			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+			expect(result).toEqual([
+				{
+					id: 1,
+					name: 'John',
+					verified: false,
+					jsonb: null,
+					createdAt: result[0]!.createdAt,
+				},
+			]);
 		});
 
 		test.concurrent('mySchema :: select sql', async ({ db, push }) => {
@@ -722,9 +909,11 @@ export function tests(test: Test) {
 			await push({ users });
 
 			await db.insert(users).values({ name: 'John' });
-			const usersResult = await db.select({
-				name: sql`upper(${users.name})`,
-			}).from(users);
+			const usersResult = await db
+				.select({
+					name: sql`upper(${users.name})`,
+				})
+				.from(users);
 
 			expect(usersResult).toEqual([{ name: 'JOHN' }]);
 		});
@@ -739,9 +928,11 @@ export function tests(test: Test) {
 			await push({ users });
 
 			await db.insert(users).values({ name: 'John' });
-			const usersResult = await db.select({
-				name: sql<string>`upper(${users.name})`,
-			}).from(users);
+			const usersResult = await db
+				.select({
+					name: sql<string>`upper(${users.name})`,
+				})
+				.from(users);
 
 			expect(usersResult).toEqual([{ name: 'JOHN' }]);
 		});
@@ -760,18 +951,26 @@ export function tests(test: Test) {
 				{ id: 2, name: 'John' },
 				{ id: 1, name: 'Jane' },
 			]);
-			const users1 = await db.selectDistinct().from(usersDistinctTable).orderBy(
-				usersDistinctTable.id,
-				usersDistinctTable.name,
-			);
-			const users2 = await db.selectDistinctOn([usersDistinctTable.id]).from(usersDistinctTable).orderBy(
-				usersDistinctTable.id,
-			);
-			const users3 = await db.selectDistinctOn([usersDistinctTable.name], { name: usersDistinctTable.name }).from(
-				usersDistinctTable,
-			).orderBy(usersDistinctTable.name);
+			const users1 = await db
+				.selectDistinct()
+				.from(usersDistinctTable)
+				.orderBy(usersDistinctTable.id, usersDistinctTable.name);
+			const users2 = await db
+				.selectDistinctOn([usersDistinctTable.id])
+				.from(usersDistinctTable)
+				.orderBy(usersDistinctTable.id);
+			const users3 = await db
+				.selectDistinctOn([usersDistinctTable.name], {
+					name: usersDistinctTable.name,
+				})
+				.from(usersDistinctTable)
+				.orderBy(usersDistinctTable.name);
 
-			expect(users1).toEqual([{ id: 1, name: 'Jane' }, { id: 1, name: 'John' }, { id: 2, name: 'John' }]);
+			expect(users1).toEqual([
+				{ id: 1, name: 'Jane' },
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'John' },
+			]);
 
 			expect(users2).toHaveLength(2);
 			expect(users2[0]?.id).toBe(1);
@@ -782,79 +981,115 @@ export function tests(test: Test) {
 			expect(users3[1]?.name).toBe('John');
 		});
 
-		test.concurrent('mySchema :: insert returning sql', async ({ db, push }) => {
-			const mySchema = pgSchema('mySchema');
-			const users = mySchema.table('users_2', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-			});
-
-			await push({ users });
-
-			const result = await db.insert(users).values({ name: 'John' }).returning({
-				name: sql`upper(${users.name})`,
-			});
-
-			expect(result).toEqual([{ name: 'JOHN' }]);
-		});
-
-		test.concurrent('mySchema :: delete returning sql', async ({ db, push }) => {
-			const mySchema = pgSchema('mySchema');
-			const users = mySchema.table('users_3', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-			});
-
-			await push({ users });
-
-			await db.insert(users).values({ name: 'John' });
-			const result = await db.delete(users).where(eq(users.name, 'John')).returning({
-				name: sql`upper(${users.name})`,
-			});
-
-			expect(result).toEqual([{ name: 'JOHN' }]);
-		});
-
-		test.concurrent('mySchema :: update with returning partial', async ({ db, push }) => {
-			const mySchema = pgSchema('mySchema');
-			const users = mySchema.table('users_4', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-			});
-
-			await push({ users });
-
-			await db.insert(users).values({ name: 'John' });
-			const result = await db.update(users).set({ name: 'Jane' }).where(eq(users.name, 'John'))
-				.returning({
-					id: users.id,
-					name: users.name,
+		test.concurrent(
+			'mySchema :: insert returning sql',
+			async ({ db, push }) => {
+				const mySchema = pgSchema('mySchema');
+				const users = mySchema.table('users_2', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
 				});
 
-			expect(result).toEqual([{ id: 1, name: 'Jane' }]);
-		});
+				await push({ users });
 
-		test.concurrent('mySchema :: delete with returning all fields', async ({ db, push }) => {
-			const mySchema = pgSchema('mySchema');
-			const users = mySchema.table('users_5', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				verified: boolean('verified').notNull().default(false),
-				jsonb: jsonb('jsonb').$type<string[]>(),
-				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-			});
+				const result = await db
+					.insert(users)
+					.values({ name: 'John' })
+					.returning({
+						name: sql`upper(${users.name})`,
+					});
 
-			await push({ users });
+				expect(result).toEqual([{ name: 'JOHN' }]);
+			},
+		);
 
-			const now = Date.now();
+		test.concurrent(
+			'mySchema :: delete returning sql',
+			async ({ db, push }) => {
+				const mySchema = pgSchema('mySchema');
+				const users = mySchema.table('users_3', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+				});
 
-			await db.insert(users).values({ name: 'John' });
-			const result = await db.delete(users).where(eq(users.name, 'John')).returning();
+				await push({ users });
 
-			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(300);
-			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
-		});
+				await db.insert(users).values({ name: 'John' });
+				const result = await db
+					.delete(users)
+					.where(eq(users.name, 'John'))
+					.returning({
+						name: sql`upper(${users.name})`,
+					});
+
+				expect(result).toEqual([{ name: 'JOHN' }]);
+			},
+		);
+
+		test.concurrent(
+			'mySchema :: update with returning partial',
+			async ({ db, push }) => {
+				const mySchema = pgSchema('mySchema');
+				const users = mySchema.table('users_4', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+
+				await push({ users });
+
+				await db.insert(users).values({ name: 'John' });
+				const result = await db
+					.update(users)
+					.set({ name: 'Jane' })
+					.where(eq(users.name, 'John'))
+					.returning({
+						id: users.id,
+						name: users.name,
+					});
+
+				expect(result).toEqual([{ id: 1, name: 'Jane' }]);
+			},
+		);
+
+		test.concurrent(
+			'mySchema :: delete with returning all fields',
+			async ({ db, push }) => {
+				const mySchema = pgSchema('mySchema');
+				const users = mySchema.table('users_5', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					verified: boolean('verified').notNull().default(false),
+					jsonb: jsonb('jsonb').$type<string[]>(),
+					createdAt: timestamp('created_at', { withTimezone: true })
+						.notNull()
+						.defaultNow(),
+				});
+
+				await push({ users });
+
+				const now = Date.now();
+
+				await db.insert(users).values({ name: 'John' });
+				const result = await db
+					.delete(users)
+					.where(eq(users.name, 'John'))
+					.returning();
+
+				expect(result[0]!.createdAt).toBeInstanceOf(Date);
+				expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(
+					300,
+				);
+				expect(result).toEqual([
+					{
+						id: 1,
+						name: 'John',
+						verified: false,
+						jsonb: null,
+						createdAt: result[0]!.createdAt,
+					},
+				]);
+			},
+		);
 
 		test.concurrent('mySchema :: insert + select', async ({ db, push }) => {
 			const mySchema = pgSchema('mySchema');
@@ -863,40 +1098,75 @@ export function tests(test: Test) {
 				name: text('name').notNull(),
 				verified: boolean('verified').notNull().default(false),
 				jsonb: jsonb('jsonb').$type<string[]>(),
-				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+				createdAt: timestamp('created_at', { withTimezone: true })
+					.notNull()
+					.defaultNow(),
 			});
 
 			await push({ users });
 
 			await db.insert(users).values({ name: 'John' });
 			const result = await db.select().from(users);
-			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
+			expect(result).toEqual([
+				{
+					id: 1,
+					name: 'John',
+					verified: false,
+					jsonb: null,
+					createdAt: result[0]!.createdAt,
+				},
+			]);
 
 			await db.insert(users).values({ name: 'Jane' });
 			const result2 = await db.select().from(users);
 			expect(result2).toEqual([
-				{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result2[0]!.createdAt },
-				{ id: 2, name: 'Jane', verified: false, jsonb: null, createdAt: result2[1]!.createdAt },
+				{
+					id: 1,
+					name: 'John',
+					verified: false,
+					jsonb: null,
+					createdAt: result2[0]!.createdAt,
+				},
+				{
+					id: 2,
+					name: 'Jane',
+					verified: false,
+					jsonb: null,
+					createdAt: result2[1]!.createdAt,
+				},
 			]);
 		});
 
-		test.concurrent('mySchema :: insert with overridden default values', async ({ db, push }) => {
-			const mySchema = pgSchema('mySchema');
-			const users = mySchema.table('users_7', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				verified: boolean('verified').notNull().default(false),
-				jsonb: jsonb('jsonb').$type<string[]>(),
-				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-			});
+		test.concurrent(
+			'mySchema :: insert with overridden default values',
+			async ({ db, push }) => {
+				const mySchema = pgSchema('mySchema');
+				const users = mySchema.table('users_7', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					verified: boolean('verified').notNull().default(false),
+					jsonb: jsonb('jsonb').$type<string[]>(),
+					createdAt: timestamp('created_at', { withTimezone: true })
+						.notNull()
+						.defaultNow(),
+				});
 
-			await push({ users });
+				await push({ users });
 
-			await db.insert(users).values({ name: 'John', verified: true });
-			const result = await db.select().from(users);
+				await db.insert(users).values({ name: 'John', verified: true });
+				const result = await db.select().from(users);
 
-			expect(result).toEqual([{ id: 1, name: 'John', verified: true, jsonb: null, createdAt: result[0]!.createdAt }]);
-		});
+				expect(result).toEqual([
+					{
+						id: 1,
+						name: 'John',
+						verified: true,
+						jsonb: null,
+						createdAt: result[0]!.createdAt,
+					},
+				]);
+			},
+		);
 
 		test.concurrent('mySchema :: insert many', async ({ db, push }) => {
 			const mySchema = pgSchema('mySchema');
@@ -905,23 +1175,29 @@ export function tests(test: Test) {
 				name: text('name').notNull(),
 				verified: boolean('verified').notNull().default(false),
 				jsonb: jsonb('jsonb').$type<string[]>(),
-				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+				createdAt: timestamp('created_at', { withTimezone: true })
+					.notNull()
+					.defaultNow(),
 			});
 
 			await push({ users });
 
-			await db.insert(users).values([
-				{ name: 'John' },
-				{ name: 'Bruce', jsonb: ['foo', 'bar'] },
-				{ name: 'Jane' },
-				{ name: 'Austin', verified: true },
-			]);
-			const result = await db.select({
-				id: users.id,
-				name: users.name,
-				jsonb: users.jsonb,
-				verified: users.verified,
-			}).from(users);
+			await db
+				.insert(users)
+				.values([
+					{ name: 'John' },
+					{ name: 'Bruce', jsonb: ['foo', 'bar'] },
+					{ name: 'Jane' },
+					{ name: 'Austin', verified: true },
+				]);
+			const result = await db
+				.select({
+					id: users.id,
+					name: users.name,
+					jsonb: users.jsonb,
+					verified: users.verified,
+				})
+				.from(users);
 
 			expect(result).toEqual([
 				{ id: 1, name: 'John', jsonb: null, verified: false },
@@ -931,40 +1207,58 @@ export function tests(test: Test) {
 			]);
 		});
 
-		test.concurrent('mySchema :: select with group by as field', async ({ db, push }) => {
-			const mySchema = pgSchema('mySchema');
-			const users = mySchema.table('users_9', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-			});
+		test.concurrent(
+			'mySchema :: select with group by as field',
+			async ({ db, push }) => {
+				const mySchema = pgSchema('mySchema');
+				const users = mySchema.table('users_9', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+				});
 
-			await push({ users });
+				await push({ users });
 
-			await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+				await db
+					.insert(users)
+					.values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
-			const result = await db.select({ name: users.name }).from(users)
-				.groupBy(users.name);
+				const result = await db
+					.select({ name: users.name })
+					.from(users)
+					.groupBy(users.name);
 
-			expect(result).toEqual([{ name: 'Jane' }, { name: 'John' }]);
-		});
+				expect(result).toEqual([{ name: 'Jane' }, { name: 'John' }]);
+			},
+		);
 
-		test.concurrent('mySchema :: select with group by as column + sql', async ({ db, push }) => {
-			const mySchema = pgSchema('mySchema');
-			const users = mySchema.table('users_101', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-			});
+		test.concurrent(
+			'mySchema :: select with group by as column + sql',
+			async ({ db, push }) => {
+				const mySchema = pgSchema('mySchema');
+				const users = mySchema.table('users_101', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+				});
 
-			await push({ users });
+				await push({ users });
 
-			await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+				await db
+					.insert(users)
+					.values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
-			const result = await db.select({ name: users.name }).from(users)
-				.groupBy(users.id, sql`${users.name}`)
-				.orderBy(users.name);
+				const result = await db
+					.select({ name: users.name })
+					.from(users)
+					.groupBy(users.id, sql`${users.name}`)
+					.orderBy(users.name);
 
-			expect(result).toEqual([{ name: 'Jane' }, { name: 'Jane' }, { name: 'John' }]);
-		});
+				expect(result).toEqual([
+					{ name: 'Jane' },
+					{ name: 'Jane' },
+					{ name: 'John' },
+				]);
+			},
+		);
 
 		test.concurrent('mySchema :: build query', async ({ db }) => {
 			const mySchema = pgSchema('mySchema_11');
@@ -973,7 +1267,9 @@ export function tests(test: Test) {
 				name: text('name').notNull(),
 			});
 
-			const query = db.select({ id: users.id, name: users.name }).from(users)
+			const query = db
+				.select({ id: users.id, name: users.name })
+				.from(users)
 				.groupBy(users.id, users.name)
 				.toSQL();
 
@@ -984,37 +1280,46 @@ export function tests(test: Test) {
 			});
 		});
 
-		test.concurrent('mySchema :: partial join with alias', async ({ db, push }) => {
-			const mySchema = pgSchema('mySchema');
-			const users = mySchema.table('users_105', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-			});
+		test.concurrent(
+			'mySchema :: partial join with alias',
+			async ({ db, push }) => {
+				const mySchema = pgSchema('mySchema');
+				const users = mySchema.table('users_105', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+				});
 
-			await push({ users });
+				await push({ users });
 
-			const customerAlias = alias(users, 'customer');
+				const customerAlias = alias(users, 'customer');
 
-			await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
-			const result = await db
-				.select({
-					user: {
-						id: users.id,
-						name: users.name,
+				await db.insert(users).values([
+					{ id: 10, name: 'Ivan' },
+					{ id: 11, name: 'Hans' },
+				]);
+				const result = await db
+					.select({
+						user: {
+							id: users.id,
+							name: users.name,
+						},
+						customer: {
+							id: customerAlias.id,
+							name: customerAlias.name,
+						},
+					})
+					.from(users)
+					.leftJoin(customerAlias, eq(customerAlias.id, 11))
+					.where(eq(users.id, 10));
+
+				expect(result).toEqual([
+					{
+						user: { id: 10, name: 'Ivan' },
+						customer: { id: 11, name: 'Hans' },
 					},
-					customer: {
-						id: customerAlias.id,
-						name: customerAlias.name,
-					},
-				}).from(users)
-				.leftJoin(customerAlias, eq(customerAlias.id, 11))
-				.where(eq(users.id, 10));
-
-			expect(result).toEqual([{
-				user: { id: 10, name: 'Ivan' },
-				customer: { id: 11, name: 'Hans' },
-			}]);
-		});
+				]);
+			},
+		);
 
 		test.concurrent('mySchema :: insert with spaces', async ({ db, push }) => {
 			const mySchema = pgSchema('mySchema');
@@ -1026,134 +1331,165 @@ export function tests(test: Test) {
 			await push({ users });
 
 			await db.insert(users).values({ name: sql`'Jo   h     n'` });
-			const result = await db.select({ id: users.id, name: users.name }).from(
-				users,
-			);
+			const result = await db
+				.select({ id: users.id, name: users.name })
+				.from(users);
 
 			expect(result).toEqual([{ id: 1, name: 'Jo   h     n' }]);
 		});
 
-		test.concurrent('mySchema :: prepared statement with placeholder in .limit', async ({ db, push }) => {
-			const mySchema = pgSchema('mySchema');
-			const users = mySchema.table('users_103', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-			});
+		test.concurrent(
+			'mySchema :: prepared statement with placeholder in .limit',
+			async ({ db, push }) => {
+				const mySchema = pgSchema('mySchema');
+				const users = mySchema.table('users_103', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+				});
 
-			await push({ users });
+				await push({ users });
 
-			await db.insert(users).values({ name: 'John' });
-			const stmt = db
-				.select({
-					id: users.id,
-					name: users.name,
-				})
-				.from(users)
-				.where(eq(users.id, sql.placeholder('id')))
-				.limit(sql.placeholder('limit'))
-				.prepare('mySchema_stmt_limit');
+				await db.insert(users).values({ name: 'John' });
+				const stmt = db
+					.select({
+						id: users.id,
+						name: users.name,
+					})
+					.from(users)
+					.where(eq(users.id, sql.placeholder('id')))
+					.limit(sql.placeholder('limit'))
+					.prepare('mySchema_stmt_limit');
 
-			const result = await stmt.execute({ id: 1, limit: 1 });
+				const result = await stmt.execute({ id: 1, limit: 1 });
 
-			expect(result).toEqual([{ id: 1, name: 'John' }]);
-			expect(result).toHaveLength(1);
-		});
+				expect(result).toEqual([{ id: 1, name: 'John' }]);
+				expect(result).toHaveLength(1);
+			},
+		);
 
-		test
-			.concurrent(
-				'mySchema :: build query insert with onConflict do update / multiple columns',
-				async ({ db }) => {
-					const mySchema = pgSchema('mySchema_15');
-					const users = mySchema.table('users', {
-						id: serial('id').primaryKey(),
-						name: text('name').notNull(),
-						verified: boolean('verified').notNull().default(false),
-						jsonb: jsonb('jsonb').$type<string[]>(),
-						createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-					});
+		test.concurrent(
+			'mySchema :: build query insert with onConflict do update / multiple columns',
+			async ({ db }) => {
+				const mySchema = pgSchema('mySchema_15');
+				const users = mySchema.table('users', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					verified: boolean('verified').notNull().default(false),
+					jsonb: jsonb('jsonb').$type<string[]>(),
+					createdAt: timestamp('created_at', { withTimezone: true })
+						.notNull()
+						.defaultNow(),
+				});
 
-					const query = db.insert(users)
-						.values({ name: 'John', jsonb: ['foo', 'bar'] })
-						.onConflictDoUpdate({ target: [users.id, users.name], set: { name: 'John1' } })
-						.toSQL();
+				const query = db
+					.insert(users)
+					.values({ name: 'John', jsonb: ['foo', 'bar'] })
+					.onConflictDoUpdate({
+						target: [users.id, users.name],
+						set: { name: 'John1' },
+					})
+					.toSQL();
 
-					expect(query).toEqual({
-						sql:
-							'insert into "mySchema_15"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
-						params: ['John', '["foo","bar"]', 'John1'],
-					});
-				},
-			);
+				expect(query).toEqual({
+					sql:
+						'insert into "mySchema_15"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
+					params: [
+						'John',
+						is(db, PgliteDatabase) ? ['foo', 'bar'] : JSON.stringify(['foo', 'bar']),
+						'John1',
+					],
+				});
+			},
+		);
 
-		test.concurrent('mySchema :: build query insert with onConflict do nothing + target', async ({ db }) => {
-			const mySchema = pgSchema('mySchema_16');
-			const users = mySchema.table('users', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				verified: boolean('verified').notNull().default(false),
-				jsonb: jsonb('jsonb').$type<string[]>(),
-				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-			});
+		test.concurrent(
+			'mySchema :: build query insert with onConflict do nothing + target',
+			async ({ db }) => {
+				const mySchema = pgSchema('mySchema_16');
+				const users = mySchema.table('users', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					verified: boolean('verified').notNull().default(false),
+					jsonb: jsonb('jsonb').$type<string[]>(),
+					createdAt: timestamp('created_at', { withTimezone: true })
+						.notNull()
+						.defaultNow(),
+				});
 
-			const query = db.insert(users)
-				.values({ name: 'John', jsonb: ['foo', 'bar'] })
-				.onConflictDoNothing({ target: users.id })
-				.toSQL();
+				const query = db
+					.insert(users)
+					.values({ name: 'John', jsonb: ['foo', 'bar'] })
+					.onConflictDoNothing({ target: users.id })
+					.toSQL();
 
-			expect(query).toEqual({
-				sql:
-					'insert into "mySchema_16"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
-				params: ['John', '["foo","bar"]'],
-			});
-		});
+				expect(query).toEqual({
+					sql:
+						'insert into "mySchema_16"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
+					params: [
+						'John',
+						is(db, PgliteDatabase) ? ['foo', 'bar'] : JSON.stringify(['foo', 'bar']),
+					],
+				});
+			},
+		);
 
-		test.concurrent('mySchema :: select from tables with same name from different schema using alias', async ({ db, push }) => {
-			const mySchema = pgSchema('mySchema');
-			const users = mySchema.table('users_99', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				verified: boolean('verified').notNull().default(false),
-				jsonb: jsonb('jsonb').$type<string[]>(),
-				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-			});
+		test.concurrent(
+			'mySchema :: select from tables with same name from different schema using alias',
+			async ({ db, push }) => {
+				const mySchema = pgSchema('mySchema');
+				const users = mySchema.table('users_99', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					verified: boolean('verified').notNull().default(false),
+					jsonb: jsonb('jsonb').$type<string[]>(),
+					createdAt: timestamp('created_at', { withTimezone: true })
+						.notNull()
+						.defaultNow(),
+				});
 
-			const usersDefault = pgTable('users_17', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				verified: boolean('verified').notNull().default(false),
-				jsonb: jsonb('jsonb').$type<string[]>(),
-				createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-			});
+				const usersDefault = pgTable('users_17', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					verified: boolean('verified').notNull().default(false),
+					jsonb: jsonb('jsonb').$type<string[]>(),
+					createdAt: timestamp('created_at', { withTimezone: true })
+						.notNull()
+						.defaultNow(),
+				});
 
-			await push({ users, usersDefault });
+				await push({ users, usersDefault });
 
-			await db.insert(users).values({ id: 10, name: 'Ivan' });
-			await db.insert(usersDefault).values({ id: 11, name: 'Hans' });
+				await db.insert(users).values({ id: 10, name: 'Ivan' });
+				await db.insert(usersDefault).values({ id: 11, name: 'Hans' });
 
-			const customerAlias = alias(usersDefault, 'customer');
+				const customerAlias = alias(usersDefault, 'customer');
 
-			const result = await db
-				.select().from(users)
-				.leftJoin(customerAlias, eq(customerAlias.id, 11))
-				.where(eq(customerAlias.id, 11));
+				const result = await db
+					.select()
+					.from(users)
+					.leftJoin(customerAlias, eq(customerAlias.id, 11))
+					.where(eq(customerAlias.id, 11));
 
-			expect(result).toEqual([{
-				users_99: {
-					id: 10,
-					name: 'Ivan',
-					verified: false,
-					jsonb: null,
-					createdAt: result[0]!.users_99.createdAt,
-				},
-				customer: {
-					id: 11,
-					name: 'Hans',
-					verified: false,
-					jsonb: null,
-					createdAt: result[0]!.customer!.createdAt,
-				},
-			}]);
-		});
+				expect(result).toEqual([
+					{
+						users_99: {
+							id: 10,
+							name: 'Ivan',
+							verified: false,
+							jsonb: null,
+							createdAt: result[0]!.users_99.createdAt,
+						},
+						customer: {
+							id: 11,
+							name: 'Hans',
+							verified: false,
+							jsonb: null,
+							createdAt: result[0]!.customer!.createdAt,
+						},
+					},
+				]);
+			},
+		);
 
 		test.concurrent('mySchema :: view', async ({ db, push }) => {
 			const mySchema = pgSchema('mySchema');
@@ -1171,22 +1507,29 @@ export function tests(test: Test) {
 
 			await push({ users, cities });
 
-			const newYorkers1 = mySchema.view('new_yorkers')
+			const newYorkers1 = mySchema
+				.view('new_yorkers')
 				.as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
 
-			const newYorkers2 = mySchema.view('new_yorkers', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				cityId: integer('city_id').notNull(),
-			}).as(sql`select * from ${users} where ${eq(users.cityId, 1)}`);
+			const newYorkers2 = mySchema
+				.view('new_yorkers', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					cityId: integer('city_id').notNull(),
+				})
+				.as(sql`select * from ${users} where ${eq(users.cityId, 1)}`);
 
-			const newYorkers3 = mySchema.view('new_yorkers', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				cityId: integer('city_id').notNull(),
-			}).existing();
+			const newYorkers3 = mySchema
+				.view('new_yorkers', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					cityId: integer('city_id').notNull(),
+				})
+				.existing();
 
-			await db.execute(sql`create view ${newYorkers1} as ${getViewConfig(newYorkers1).query}`);
+			await db.execute(
+				sql`create view ${newYorkers1} as ${getViewConfig(newYorkers1).query}`,
+			);
 
 			await db.insert(cities).values([{ name: 'New York' }, { name: 'Paris' }]);
 
@@ -1221,11 +1564,10 @@ export function tests(test: Test) {
 			}
 
 			{
-				const result = await db.select({ name: newYorkers1.name }).from(newYorkers1);
-				expect(result).toEqual([
-					{ name: 'John' },
-					{ name: 'Jane' },
-				]);
+				const result = await db
+					.select({ name: newYorkers1.name })
+					.from(newYorkers1);
+				expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
 			}
 
 			await db.execute(sql`drop view ${newYorkers1}`);
@@ -1247,22 +1589,29 @@ export function tests(test: Test) {
 
 			await push({ users, cities });
 
-			const newYorkers1 = mySchema.materializedView('new_yorkers')
+			const newYorkers1 = mySchema
+				.materializedView('new_yorkers')
 				.as((qb) => qb.select().from(users).where(eq(users.cityId, 1)));
 
-			const newYorkers2 = mySchema.materializedView('new_yorkers', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				cityId: integer('city_id').notNull(),
-			}).as(sql`select * from ${users} where ${eq(users.cityId, 1)}`);
+			const newYorkers2 = mySchema
+				.materializedView('new_yorkers', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					cityId: integer('city_id').notNull(),
+				})
+				.as(sql`select * from ${users} where ${eq(users.cityId, 1)}`);
 
-			const newYorkers3 = mySchema.materializedView('new_yorkers', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				cityId: integer('city_id').notNull(),
-			}).existing();
+			const newYorkers3 = mySchema
+				.materializedView('new_yorkers', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					cityId: integer('city_id').notNull(),
+				})
+				.existing();
 
-			await db.execute(sql`create materialized view ${newYorkers1} as ${getMaterializedViewConfig(newYorkers1).query}`);
+			await db.execute(
+				sql`create materialized view ${newYorkers1} as ${getMaterializedViewConfig(newYorkers1).query}`,
+			);
 
 			await db.insert(cities).values([{ name: 'New York' }, { name: 'Paris' }]);
 
@@ -1304,11 +1653,10 @@ export function tests(test: Test) {
 			}
 
 			{
-				const result = await db.select({ name: newYorkers1.name }).from(newYorkers1);
-				expect(result).toEqual([
-					{ name: 'John' },
-					{ name: 'Jane' },
-				]);
+				const result = await db
+					.select({ name: newYorkers1.name })
+					.from(newYorkers1);
+				expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
 			}
 
 			await db.execute(sql`drop materialized view ${newYorkers1}`);
@@ -1323,10 +1671,7 @@ export function tests(test: Test) {
 			await push({ users });
 
 			await db.insert(users).values({ name: 'John' });
-			const result = await db
-				.select()
-				.from(users)
-				.limit(0);
+			const result = await db.select().from(users).limit(0);
 
 			expect(result).toEqual([]);
 		});
@@ -1340,10 +1685,7 @@ export function tests(test: Test) {
 			await push({ users });
 
 			await db.insert(users).values({ name: 'John' });
-			const result = await db
-				.select()
-				.from(users)
-				.limit(-1);
+			const result = await db.select().from(users).limit(-1);
 
 			expect(result.length).toBeGreaterThan(0);
 		});
@@ -1368,13 +1710,15 @@ export function tests(test: Test) {
 				{ firstName: 'Jane', lastName: 'Smith', admin: false },
 			]);
 			const result = await db
-				.select({ id: users.id, firstName: users.firstName, lastName: users.lastName })
+				.select({
+					id: users.id,
+					firstName: users.firstName,
+					lastName: users.lastName,
+				})
 				.from(users)
 				.where(eq(users.admin, true));
 
-			expect(result).toEqual([
-				{ id: 1, firstName: 'John', lastName: 'Doe' },
-			]);
+			expect(result).toEqual([{ id: 1, firstName: 'John', lastName: 'Doe' }]);
 		});
 
 		test.concurrent('proper json and jsonb handling', async ({ db, push }) => {
@@ -1385,14 +1729,19 @@ export function tests(test: Test) {
 
 			await push({ jsonTable });
 
-			await db.insert(jsonTable).values({ json: { name: 'Tom', age: 75 }, jsonb: { name: 'Pete', age: 23 } });
+			await db.insert(jsonTable).values({
+				json: { name: 'Tom', age: 75 },
+				jsonb: { name: 'Pete', age: 23 },
+			});
 
 			const result = await db.select().from(jsonTable);
 
-			const justNames = await db.select({
-				name1: sql<string>`${jsonTable.json}->>'name'`.as('name1'),
-				name2: sql<string>`${jsonTable.jsonb}->>'name'`.as('name2'),
-			}).from(jsonTable);
+			const justNames = await db
+				.select({
+					name1: sql<string>`${jsonTable.json}->>'name'`.as('name1'),
+					name2: sql<string>`${jsonTable.jsonb}->>'name'`.as('name2'),
+				})
+				.from(jsonTable);
 
 			expect(result).toStrictEqual([
 				{
@@ -1409,80 +1758,130 @@ export function tests(test: Test) {
 			]);
 		});
 
-		test
-			.concurrent(
-				'set json/jsonb fields with objects and retrieve with the ->> operator',
-				async ({ db, push }) => {
-					const jsonTestTable_13 = pgTable('json_test_24', {
-						id: serial('id').primaryKey(),
-						json: json('json').notNull(),
-						jsonb: jsonb('jsonb').notNull(),
-					});
+		// https://github.com/drizzle-team/drizzle-orm/issues/3171
+		// TODO: review case
+		// Fails in `postgres-js` if not inlined - driver expects stringified jsons
+		test.skipIf(Date.now() < +new Date('2026-07-01')).concurrent(
+			'proper json and jsonb handling - sql operator',
+			async ({ db, push }) => {
+				const jsonTable = pgTable('json_table_sql_3', {
+					json: json('json').$type<{ name: string; age: number }>(),
+					jsonb: jsonb('jsonb').$type<{ name: string; age: number }>(),
+				});
 
-					await push({ jsonTestTable_13 });
+				await push({ jsonTable });
 
-					const obj = { string: 'test', number: 123 };
-					const { string: testString, number: testNumber } = obj;
+				await db.execute(
+					sql`insert into ${jsonTable} ("json", "jsonb") values (${{ name: 'Tom', age: 75 }}, ${{
+						name: 'Pete',
+						age: 23,
+					}})`,
+				);
 
-					await db.insert(jsonTestTable_13).values({
-						json: obj,
-						jsonb: obj,
-					});
+				const result = await db.select().from(jsonTable);
 
-					const result = await db.select({
+				const justNames = await db.select({
+					name1: sql<string>`${jsonTable.json}->>'name'`.as('name1'),
+					name2: sql<string>`${jsonTable.jsonb}->>'name'`.as('name2'),
+				}).from(jsonTable);
+
+				expect(result).toStrictEqual([
+					{
+						json: { name: 'Tom', age: 75 },
+						jsonb: { name: 'Pete', age: 23 },
+					},
+				]);
+
+				expect(justNames).toStrictEqual([
+					{
+						name1: 'Tom',
+						name2: 'Pete',
+					},
+				]);
+			},
+		);
+
+		test.concurrent(
+			'set json/jsonb fields with objects and retrieve with the ->> operator',
+			async ({ db, push }) => {
+				const jsonTestTable_13 = pgTable('json_test_24', {
+					id: serial('id').primaryKey(),
+					json: json('json').notNull(),
+					jsonb: jsonb('jsonb').notNull(),
+				});
+
+				await push({ jsonTestTable_13 });
+
+				const obj = { string: 'test', number: 123 };
+				const { string: testString, number: testNumber } = obj;
+
+				await db.insert(jsonTestTable_13).values({
+					json: obj,
+					jsonb: obj,
+				});
+
+				const result = await db
+					.select({
 						jsonStringField: sql<string>`${jsonTestTable_13.json}->>'string'`,
 						jsonNumberField: sql<string>`${jsonTestTable_13.json}->>'number'`,
 						jsonbStringField: sql<string>`${jsonTestTable_13.jsonb}->>'string'`,
 						jsonbNumberField: sql<string>`${jsonTestTable_13.jsonb}->>'number'`,
-					}).from(jsonTestTable_13);
+					})
+					.from(jsonTestTable_13);
 
-					expect(result).toStrictEqual([{
+				expect(result).toStrictEqual([
+					{
 						jsonStringField: testString,
 						jsonNumberField: String(testNumber),
 						jsonbStringField: testString,
 						jsonbNumberField: String(testNumber),
-					}]);
-				},
-			);
+					},
+				]);
+			},
+		);
 
-		test
-			.concurrent(
-				'set json/jsonb fields with strings and retrieve with the ->> operator',
-				async ({ db, push }) => {
-					const jsonTestTable = pgTable('json_test_25', {
-						id: serial('id').primaryKey(),
-						json: json('json').notNull(),
-						jsonb: jsonb('jsonb').notNull(),
-					});
+		test.concurrent(
+			'set json/jsonb fields with strings and retrieve with the ->> operator',
+			async ({ db, push }) => {
+				const jsonTestTable = pgTable('json_test_25', {
+					id: serial('id').primaryKey(),
+					json: json('json').notNull(),
+					jsonb: jsonb('jsonb').notNull(),
+				});
 
-					await push({ jsonTestTable });
+				await push({ jsonTestTable });
 
-					const obj = { string: 'test', number: 123 };
-					const { string: testString, number: testNumber } = obj;
+				const obj = { string: 'test', number: 123 };
+				const { string: testString, number: testNumber } = obj;
 
-					await db.insert(jsonTestTable).values({
-						json: sql`${JSON.stringify(obj)}`,
-						jsonb: sql`${JSON.stringify(obj)}`,
-					});
+				await db.insert(jsonTestTable).values({
+					json: sql`${JSON.stringify(obj)}`,
+					jsonb: sql`${JSON.stringify(obj)}`,
+				});
 
-					const result = await db.select({
+				const result = await db
+					.select({
 						jsonStringField: sql<string>`${jsonTestTable.json}->>'string'`,
 						jsonNumberField: sql<string>`${jsonTestTable.json}->>'number'`,
 						jsonbStringField: sql<string>`${jsonTestTable.jsonb}->>'string'`,
 						jsonbNumberField: sql<string>`${jsonTestTable.jsonb}->>'number'`,
-					}).from(jsonTestTable);
+					})
+					.from(jsonTestTable);
 
-					expect(result).toStrictEqual([{
+				expect(result).toStrictEqual([
+					{
 						jsonStringField: testString,
 						jsonNumberField: String(testNumber),
 						jsonbStringField: testString,
 						jsonbNumberField: String(testNumber),
-					}]);
-				},
-			);
+					},
+				]);
+			},
+		);
 
-		test
-			.concurrent('set json/jsonb fields with objects and retrieve with the -> operator', async ({ db, push }) => {
+		test.concurrent(
+			'set json/jsonb fields with objects and retrieve with the -> operator',
+			async ({ db, push }) => {
 				const jsonTestTable = pgTable('json_test_26', {
 					id: serial('id').primaryKey(),
 					json: json('json').notNull(),
@@ -1499,23 +1898,29 @@ export function tests(test: Test) {
 					jsonb: obj,
 				});
 
-				const result = await db.select({
-					jsonStringField: sql<string>`${jsonTestTable.json}->'string'`,
-					jsonNumberField: sql<number>`${jsonTestTable.json}->'number'`,
-					jsonbStringField: sql<string>`${jsonTestTable.jsonb}->'string'`,
-					jsonbNumberField: sql<number>`${jsonTestTable.jsonb}->'number'`,
-				}).from(jsonTestTable);
+				const result = await db
+					.select({
+						jsonStringField: sql<string>`${jsonTestTable.json}->'string'`,
+						jsonNumberField: sql<number>`${jsonTestTable.json}->'number'`,
+						jsonbStringField: sql<string>`${jsonTestTable.jsonb}->'string'`,
+						jsonbNumberField: sql<number>`${jsonTestTable.jsonb}->'number'`,
+					})
+					.from(jsonTestTable);
 
-				expect(result).toStrictEqual([{
-					jsonStringField: testString,
-					jsonNumberField: testNumber,
-					jsonbStringField: testString,
-					jsonbNumberField: testNumber,
-				}]);
-			});
+				expect(result).toStrictEqual([
+					{
+						jsonStringField: testString,
+						jsonNumberField: testNumber,
+						jsonbStringField: testString,
+						jsonbNumberField: testNumber,
+					},
+				]);
+			},
+		);
 
-		test
-			.concurrent('set json/jsonb fields with strings and retrieve with the -> operator', async ({ db, push }) => {
+		test.concurrent(
+			'set json/jsonb fields with strings and retrieve with the -> operator',
+			async ({ db, push }) => {
 				const jsonTestTable = pgTable('json_test_27', {
 					id: serial('id').primaryKey(),
 					json: json('json').notNull(),
@@ -1532,20 +1937,25 @@ export function tests(test: Test) {
 					jsonb: sql`${JSON.stringify(obj)}`,
 				});
 
-				const result = await db.select({
-					jsonStringField: sql<string>`${jsonTestTable.json}->'string'`,
-					jsonNumberField: sql<number>`${jsonTestTable.json}->'number'`,
-					jsonbStringField: sql<string>`${jsonTestTable.jsonb}->'string'`,
-					jsonbNumberField: sql<number>`${jsonTestTable.jsonb}->'number'`,
-				}).from(jsonTestTable);
+				const result = await db
+					.select({
+						jsonStringField: sql<string>`${jsonTestTable.json}->'string'`,
+						jsonNumberField: sql<number>`${jsonTestTable.json}->'number'`,
+						jsonbStringField: sql<string>`${jsonTestTable.jsonb}->'string'`,
+						jsonbNumberField: sql<number>`${jsonTestTable.jsonb}->'number'`,
+					})
+					.from(jsonTestTable);
 
-				expect(result).toStrictEqual([{
-					jsonStringField: testString,
-					jsonNumberField: testNumber,
-					jsonbStringField: testString,
-					jsonbNumberField: testNumber,
-				}]);
-			});
+				expect(result).toStrictEqual([
+					{
+						jsonStringField: testString,
+						jsonNumberField: testNumber,
+						jsonbStringField: testString,
+						jsonbNumberField: testNumber,
+					},
+				]);
+			},
+		);
 
 		test.concurrent('update ... from', async ({ db, push }) => {
 			const cities2Table = pgTable('cities_28', {
@@ -1560,10 +1970,9 @@ export function tests(test: Test) {
 
 			await push({ cities2Table, users2Table });
 
-			await db.insert(cities2Table).values([
-				{ name: 'New York City' },
-				{ name: 'Seattle' },
-			]);
+			await db
+				.insert(cities2Table)
+				.values([{ name: 'New York City' }, { name: 'Seattle' }]);
 			await db.insert(users2Table).values([
 				{ name: 'John', cityId: 1 },
 				{ name: 'Jane', cityId: 2 },
@@ -1575,18 +1984,22 @@ export function tests(test: Test) {
 					cityId: cities2Table.id,
 				})
 				.from(cities2Table)
-				.where(and(eq(cities2Table.name, 'Seattle'), eq(users2Table.name, 'John')))
+				.where(
+					and(eq(cities2Table.name, 'Seattle'), eq(users2Table.name, 'John')),
+				)
 				.returning();
 
-			expect(result).toStrictEqual([{
-				id: 1,
-				name: 'John',
-				cityId: 2,
-				cities_28: {
-					id: 2,
-					name: 'Seattle',
+			expect(result).toStrictEqual([
+				{
+					id: 1,
+					name: 'John',
+					cityId: 2,
+					cities_28: {
+						id: 2,
+						name: 'Seattle',
+					},
 				},
-			}]);
+			]);
 		});
 
 		test.concurrent('update ... from with alias', async ({ db, push }) => {
@@ -1602,10 +2015,9 @@ export function tests(test: Test) {
 
 			await push({ cities2Table, users2Table });
 
-			await db.insert(cities2Table).values([
-				{ name: 'New York City' },
-				{ name: 'Seattle' },
-			]);
+			await db
+				.insert(cities2Table)
+				.values([{ name: 'New York City' }, { name: 'Seattle' }]);
 			await db.insert(users2Table).values([
 				{ name: 'John', cityId: 1 },
 				{ name: 'Jane', cityId: 2 },
@@ -1622,15 +2034,17 @@ export function tests(test: Test) {
 				.where(and(eq(cities.name, 'Seattle'), eq(users.name, 'John')))
 				.returning();
 
-			expect(result).toStrictEqual([{
-				id: 1,
-				name: 'John',
-				cityId: 2,
-				c: {
-					id: 2,
-					name: 'Seattle',
+			expect(result).toStrictEqual([
+				{
+					id: 1,
+					name: 'John',
+					cityId: 2,
+					c: {
+						id: 2,
+						name: 'Seattle',
+					},
 				},
-			}]);
+			]);
 		});
 
 		test.concurrent('update ... from with join', async ({ db, push }) => {
@@ -1646,20 +2060,23 @@ export function tests(test: Test) {
 			const users = pgTable('users_30', {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
-				cityId: integer('city_id').notNull().references(() => cities.id),
+				cityId: integer('city_id')
+					.notNull()
+					.references(() => cities.id),
 			});
 
 			await push({ states, cities, users });
 
-			await db.insert(states).values([
-				{ name: 'New York' },
-				{ name: 'Washington' },
-			]);
-			await db.insert(cities).values([
-				{ name: 'New York City', stateId: 1 },
-				{ name: 'Seattle', stateId: 2 },
-				{ name: 'London' },
-			]);
+			await db
+				.insert(states)
+				.values([{ name: 'New York' }, { name: 'Washington' }]);
+			await db
+				.insert(cities)
+				.values([
+					{ name: 'New York City', stateId: 1 },
+					{ name: 'Seattle', stateId: 2 },
+					{ name: 'London' },
+				]);
 			await db.insert(users).values([
 				{ name: 'John', cityId: 1 },
 				{ name: 'Jane', cityId: 2 },
@@ -1685,31 +2102,35 @@ export function tests(test: Test) {
 				.where(and(eq(cities.name, 'London'), eq(users.name, 'Jack')))
 				.returning();
 
-			expect(result1).toStrictEqual([{
-				id: 1,
-				name: 'John',
-				cityId: 2,
-				cities_30: {
-					id: 2,
-					name: 'Seattle',
-					stateId: 2,
+			expect(result1).toStrictEqual([
+				{
+					id: 1,
+					name: 'John',
+					cityId: 2,
+					cities_30: {
+						id: 2,
+						name: 'Seattle',
+						stateId: 2,
+					},
+					states_30: {
+						id: 2,
+						name: 'Washington',
+					},
 				},
-				states_30: {
-					id: 2,
-					name: 'Washington',
-				},
-			}]);
-			expect(result2).toStrictEqual([{
-				id: 3,
-				name: 'Jack',
-				cityId: 3,
-				cities_30: {
+			]);
+			expect(result2).toStrictEqual([
+				{
 					id: 3,
-					name: 'London',
-					stateId: null,
+					name: 'Jack',
+					cityId: 3,
+					cities_30: {
+						id: 3,
+						name: 'London',
+						stateId: null,
+					},
+					states_30: null,
 				},
-				states_30: null,
-			}]);
+			]);
 		});
 
 		test.concurrent('insert into ... select', async ({ db, push }) => {
@@ -1722,12 +2143,20 @@ export function tests(test: Test) {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 			});
-			const userNotications = pgTable('user_notifications_31', {
-				userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-				notificationId: integer('notification_id').notNull().references(() => notifications.id, {
-					onDelete: 'cascade',
-				}),
-			}, (t) => [primaryKey({ columns: [t.userId, t.notificationId] })]);
+			const userNotications = pgTable(
+				'user_notifications_31',
+				{
+					userId: integer('user_id')
+						.notNull()
+						.references(() => users.id, { onDelete: 'cascade' }),
+					notificationId: integer('notification_id')
+						.notNull()
+						.references(() => notifications.id, {
+							onDelete: 'cascade',
+						}),
+				},
+				(t) => [primaryKey({ columns: [t.userId, t.notificationId] })],
+			);
 
 			await push({ notifications, users, userNotications });
 
@@ -1736,13 +2165,15 @@ export function tests(test: Test) {
 				.values({ message: 'You are one of the 3 lucky winners!' })
 				.returning({ id: notifications.id })
 				.then((result) => result[0]);
-			await db.insert(users).values([
-				{ name: 'Alice' },
-				{ name: 'Bob' },
-				{ name: 'Charlie' },
-				{ name: 'David' },
-				{ name: 'Eve' },
-			]);
+			await db
+				.insert(users)
+				.values([
+					{ name: 'Alice' },
+					{ name: 'Bob' },
+					{ name: 'Charlie' },
+					{ name: 'David' },
+					{ name: 'Eve' },
+				]);
 
 			const sentNotifications = await db
 				.insert(userNotications)
@@ -1765,31 +2196,102 @@ export function tests(test: Test) {
 			]);
 		});
 
-		test.concurrent('insert into ... select with keys in different order', async ({ db, push }) => {
-			const users1 = pgTable('users1_32', {
-				id: serial('id').primaryKey(),
+		test.concurrent(
+			'insert into ... select with keys in different order',
+			async ({ db, push }) => {
+				const users1 = pgTable('users1_32', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+				const users2 = pgTable('users2_32', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+
+				await push({ users1, users2 });
+
+				await db.insert(users2).values({ id: 1, name: 'First' });
+				const res = await db.insert(users1).select(
+					db
+						.select({
+							name: users2.name,
+							id: users2.id,
+						})
+						.from(users2),
+				).returning();
+
+				expect(res).toStrictEqual([{
+					id: 1,
+					name: 'First',
+				}]);
+			},
+		);
+
+		test.concurrent('insert into ... select with generated column', async ({ db, push }) => {
+			const users1 = pgTable('users1_iswgc', {
+				id: integer().generatedAlwaysAsIdentity().primaryKey(),
 				name: text('name').notNull(),
 			});
-			const users2 = pgTable('users2_32', {
-				id: serial('id').primaryKey(),
+			const users2 = pgTable('users2_iswgc', {
+				id: integer().generatedAlwaysAsIdentity().primaryKey(),
 				name: text('name').notNull(),
 			});
 
 			await push({ users1, users2 });
 
-			expect(
-				() =>
-					db
-						.insert(users1)
-						.select(
-							db
-								.select({
-									name: users2.name,
-									id: users2.id,
-								})
-								.from(users2),
-						),
-			).toThrowError();
+			await db.insert(users1).values([
+				{ name: 'Alice' },
+				{ name: 'Bob' },
+				{ name: 'Charlie' },
+			]);
+
+			const result1 = await db.insert(users2).select(db.select({ name: users1.name }).from(users1))
+				.returning();
+			const result2 = await db.insert(users2).overridingSystemValue().select((db) =>
+				db.select({ id: sql`${users1.id} + 3`.as('id'), name: users1.name }).from(users1)
+			).returning();
+
+			expect(result1).toStrictEqual([
+				{ id: 1, name: 'Alice' },
+				{ id: 2, name: 'Bob' },
+				{ id: 3, name: 'Charlie' },
+			]);
+			expect(result2).toStrictEqual([
+				{ id: 4, name: 'Alice' },
+				{ id: 5, name: 'Bob' },
+				{ id: 6, name: 'Charlie' },
+			]);
+
+			// @ts-expect-error
+			db.insert(users2).select(db.select({ name: users1.name, id: users1.id }).from(users1));
+			// @ts-expect-error
+			expect(() => db.insert(users2).select(db.select({ name: users1.name, unknown: users1.id }).from(users1)))
+				.toThrowError();
+		});
+
+		test.concurrent('ignore generated columns in insert', async ({ db, push }) => {
+			const users = pgTable('users_ignore_generated_columns_in_insert', {
+				id: integer().generatedAlwaysAsIdentity(),
+				otherId: integer('other_id').generatedByDefaultAsIdentity(),
+				firstName: text('first_name').notNull(),
+				lastName: text('last_name').notNull(),
+				name: text().generatedAlwaysAs((): any => sql`${users.firstName} || ' ' || ${users.lastName}`),
+			});
+
+			await push({ users });
+
+			const values = {
+				id: 5,
+				otherId: 10,
+				firstName: 'John',
+				lastName: 'Doe',
+				name: 'N/A',
+			};
+			const result = await db.insert(users).values(values).returning();
+
+			expect(result).toEqual([
+				{ id: 1, otherId: 10, firstName: 'John', lastName: 'Doe', name: 'John Doe' },
+			]);
 		});
 
 		test.concurrent('$count separate', async ({ db, push }) => {
@@ -1827,9 +2329,11 @@ export function tests(test: Test) {
 				{ id: 4, name: 'Fourth' },
 			]);
 
-			const count = await db.select({
-				count: db.$count(countTestTable),
-			}).from(countTestTable);
+			const count = await db
+				.select({
+					count: db.$count(countTestTable),
+				})
+				.from(countTestTable);
 
 			expect(count).toStrictEqual([
 				{ count: 4 },
@@ -1886,9 +2390,11 @@ export function tests(test: Test) {
 				{ id: 4, name: 'Fourth' },
 			]);
 
-			const count = db.select({
-				count: db.$count(countTestTable),
-			}).from(countTestTable);
+			const count = db
+				.select({
+					count: db.$count(countTestTable),
+				})
+				.from(countTestTable);
 
 			const count1 = await count;
 
@@ -1957,9 +2463,11 @@ export function tests(test: Test) {
 				{ id: 4, name: 'Fourth' },
 			]);
 
-			const count = await db.select({
-				count: db.$count(countTestTable, gt(countTestTable.id, 1)),
-			}).from(countTestTable);
+			const count = await db
+				.select({
+					count: db.$count(countTestTable, gt(countTestTable.id, 1)),
+				})
+				.from(countTestTable);
 
 			expect(count).toStrictEqual([
 				{ count: 3 },
@@ -1969,61 +2477,70 @@ export function tests(test: Test) {
 			]);
 		});
 
-		test.concurrent('insert multiple rows into table with generated identity column', async ({ db, push }) => {
-			const identityColumnsTable = pgTable('identity_columns_table_39', {
-				id: integer('id').generatedAlwaysAsIdentity(),
-				id1: integer('id1').generatedByDefaultAsIdentity(),
-				name: text('name').notNull(),
-			});
+		test.concurrent(
+			'insert multiple rows into table with generated identity column',
+			async ({ db, push }) => {
+				const identityColumnsTable = pgTable('identity_columns_table_39', {
+					id: integer('id').generatedAlwaysAsIdentity(),
+					id1: integer('id1').generatedByDefaultAsIdentity(),
+					name: text('name').notNull(),
+				});
 
-			// not passing identity columns
-			await db.execute(sql`drop table if exists ${identityColumnsTable}`);
-			await push({ identityColumnsTable });
+				// not passing identity columns
+				await db.execute(sql`drop table if exists ${identityColumnsTable}`);
+				await push({ identityColumnsTable });
 
-			let result = await db.insert(identityColumnsTable).values([
-				{ name: 'John' },
-				{ name: 'Jane' },
-				{ name: 'Bob' },
-			]).returning();
+				let result = await db
+					.insert(identityColumnsTable)
+					.values([{ name: 'John' }, { name: 'Jane' }, { name: 'Bob' }])
+					.returning();
 
-			expect(result).toEqual([
-				{ id: 1, id1: 1, name: 'John' },
-				{ id: 2, id1: 2, name: 'Jane' },
-				{ id: 3, id1: 3, name: 'Bob' },
-			]);
+				expect(result).toEqual([
+					{ id: 1, id1: 1, name: 'John' },
+					{ id: 2, id1: 2, name: 'Jane' },
+					{ id: 3, id1: 3, name: 'Bob' },
+				]);
 
-			// passing generated by default as identity column
-			await db.execute(sql`drop table if exists ${identityColumnsTable}`);
-			await push({ identityColumnsTable });
+				// passing generated by default as identity column
+				await db.execute(sql`drop table if exists ${identityColumnsTable}`);
+				await push({ identityColumnsTable });
 
-			result = await db.insert(identityColumnsTable).values([
-				{ name: 'John', id1: 3 },
-				{ name: 'Jane', id1: 5 },
-				{ name: 'Bob', id1: 5 },
-			]).returning();
+				result = await db
+					.insert(identityColumnsTable)
+					.values([
+						{ name: 'John', id1: 3 },
+						{ name: 'Jane', id1: 5 },
+						{ name: 'Bob', id1: 5 },
+					])
+					.returning();
 
-			expect(result).toEqual([
-				{ id: 1, id1: 3, name: 'John' },
-				{ id: 2, id1: 5, name: 'Jane' },
-				{ id: 3, id1: 5, name: 'Bob' },
-			]);
+				expect(result).toEqual([
+					{ id: 1, id1: 3, name: 'John' },
+					{ id: 2, id1: 5, name: 'Jane' },
+					{ id: 3, id1: 5, name: 'Bob' },
+				]);
 
-			// passing all identity columns
-			await db.execute(sql`drop table if exists ${identityColumnsTable}`);
-			await push({ identityColumnsTable });
+				// passing all identity columns
+				await db.execute(sql`drop table if exists ${identityColumnsTable}`);
+				await push({ identityColumnsTable });
 
-			result = await db.insert(identityColumnsTable).overridingSystemValue().values([
-				{ name: 'John', id: 2, id1: 3 },
-				{ name: 'Jane', id: 4, id1: 5 },
-				{ name: 'Bob', id: 4, id1: 5 },
-			]).returning();
+				result = await db
+					.insert(identityColumnsTable)
+					.overridingSystemValue()
+					.values([
+						{ name: 'John', id: 2, id1: 3 },
+						{ name: 'Jane', id: 4, id1: 5 },
+						{ name: 'Bob', id: 4, id1: 5 },
+					])
+					.returning();
 
-			expect(result).toEqual([
-				{ id: 2, id1: 3, name: 'John' },
-				{ id: 4, id1: 5, name: 'Jane' },
-				{ id: 4, id1: 5, name: 'Bob' },
-			]);
-		});
+				expect(result).toEqual([
+					{ id: 2, id1: 3, name: 'John' },
+					{ id: 4, id1: 5, name: 'Jane' },
+					{ id: 4, id1: 5, name: 'Bob' },
+				]);
+			},
+		);
 
 		test.concurrent('insert as cte', async ({ db, push }) => {
 			const users = pgTable('users_40', {
@@ -2033,15 +2550,20 @@ export function tests(test: Test) {
 
 			await push({ users });
 
-			const sq1 = db.$with('sq').as(
-				db.insert(users).values({ name: 'John' }).returning(),
-			);
+			const sq1 = db
+				.$with('sq')
+				.as(db.insert(users).values({ name: 'John' }).returning());
 			const result1 = await db.with(sq1).select().from(sq1);
 			const result2 = await db.with(sq1).select({ id: sq1.id }).from(sq1);
 
-			const sq2 = db.$with('sq').as(
-				db.insert(users).values({ name: 'Jane' }).returning({ id: users.id, name: users.name }),
-			);
+			const sq2 = db
+				.$with('sq')
+				.as(
+					db
+						.insert(users)
+						.values({ name: 'Jane' })
+						.returning({ id: users.id, name: users.name }),
+				);
 			const result3 = await db.with(sq2).select().from(sq2);
 			const result4 = await db.with(sq2).select({ name: sq2.name }).from(sq2);
 
@@ -2065,16 +2587,28 @@ export function tests(test: Test) {
 				{ name: 'Jane', age: 30 },
 			]);
 
-			const sq1 = db.$with('sq').as(
-				db.update(users).set({ age: 25 }).where(eq(users.name, 'John')).returning(),
-			);
+			const sq1 = db
+				.$with('sq')
+				.as(
+					db
+						.update(users)
+						.set({ age: 25 })
+						.where(eq(users.name, 'John'))
+						.returning(),
+				);
 			const result1 = await db.with(sq1).select().from(sq1);
 			await db.update(users).set({ age: 30 });
 			const result2 = await db.with(sq1).select({ age: sq1.age }).from(sq1);
 
-			const sq2 = db.$with('sq').as(
-				db.update(users).set({ age: 20 }).where(eq(users.name, 'Jane')).returning({ name: users.name, age: users.age }),
-			);
+			const sq2 = db
+				.$with('sq')
+				.as(
+					db
+						.update(users)
+						.set({ age: 20 })
+						.where(eq(users.name, 'Jane'))
+						.returning({ name: users.name, age: users.age }),
+				);
 			const result3 = await db.with(sq2).select().from(sq2);
 			await db.update(users).set({ age: 30 });
 			const result4 = await db.with(sq2).select({ age: sq2.age }).from(sq2);
@@ -2093,21 +2627,23 @@ export function tests(test: Test) {
 
 			await push({ users });
 
-			await db.insert(users).values([
-				{ name: 'John' },
-				{ name: 'Jane' },
-			]);
+			await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
 
-			const sq1 = db.$with('sq').as(
-				db.delete(users).where(eq(users.name, 'John')).returning(),
-			);
+			const sq1 = db
+				.$with('sq')
+				.as(db.delete(users).where(eq(users.name, 'John')).returning());
 			const result1 = await db.with(sq1).select().from(sq1);
 			await db.insert(users).values({ name: 'John' });
 			const result2 = await db.with(sq1).select({ name: sq1.name }).from(sq1);
 
-			const sq2 = db.$with('sq').as(
-				db.delete(users).where(eq(users.name, 'Jane')).returning({ id: users.id, name: users.name }),
-			);
+			const sq2 = db
+				.$with('sq')
+				.as(
+					db
+						.delete(users)
+						.where(eq(users.name, 'Jane'))
+						.returning({ id: users.id, name: users.name }),
+				);
 			const result3 = await db.with(sq2).select().from(sq2);
 			await db.insert(users).values({ name: 'Jane' });
 			const result4 = await db.with(sq2).select({ name: sq2.name }).from(sq2);
@@ -2119,52 +2655,55 @@ export function tests(test: Test) {
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4160
-		test.concurrent('delete; composition of `not` and `or`/`and`', async ({ db, push }) => {
-			const users = pgTable('users_1070', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-			});
+		test.concurrent(
+			'delete; composition of `not` and `or`/`and`',
+			async ({ db, push }) => {
+				const users = pgTable('users_1070', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+				});
 
-			const sessions = pgTable('sessions_0', {
-				id: serial('id').primaryKey(),
-				userId: integer('userId').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-				name: text('name').notNull().default(''),
-			});
+				const sessions = pgTable('sessions_0', {
+					id: serial('id').primaryKey(),
+					userId: integer('userId')
+						.references(() => users.id, { onDelete: 'cascade' })
+						.notNull(),
+					name: text('name').notNull().default(''),
+				});
 
-			await push({ users, sessions });
+				await push({ users, sessions });
 
-			const DEFAULT_SESSION_NAME = 'Default Session';
-			const BASE_SESSION_NAME = 'Base Scramble';
-			const sessionId = 1;
-			const userId = 1;
+				const DEFAULT_SESSION_NAME = 'Default Session';
+				const BASE_SESSION_NAME = 'Base Scramble';
+				const sessionId = 1;
+				const userId = 1;
 
-			await db.insert(users).values([
-				{ id: userId, name: 'John' },
-			]);
+				await db.insert(users).values([{ id: userId, name: 'John' }]);
 
-			await db.insert(sessions).values([
-				{ id: sessionId, userId: 1, name: 'some session' },
-			]);
+				await db
+					.insert(sessions)
+					.values([{ id: sessionId, userId: 1, name: 'some session' }]);
 
-			const query = db.delete(sessions).where(
-				and(
-					eq(sessions.id, sessionId),
-					eq(sessions.userId, userId),
-					not(
-						// @ts-expect-error
-						// TODO @skylotus
-						or(
-							eq(sessions.name, DEFAULT_SESSION_NAME),
-							eq(sessions.name, BASE_SESSION_NAME),
+				const query = db.delete(sessions).where(
+					and(
+						eq(sessions.id, sessionId),
+						eq(sessions.userId, userId),
+						not(
+							// @ts-expect-error
+							// TODO @skylotus
+							or(
+								eq(sessions.name, DEFAULT_SESSION_NAME),
+								eq(sessions.name, BASE_SESSION_NAME),
+							),
 						),
 					),
-				),
-			);
+				);
 
-			await query;
-			const result = await db.select().from(sessions);
-			expect(result).toStrictEqual([]);
-		});
+				await query;
+				const result = await db.select().from(sessions);
+				expect(result).toStrictEqual([]);
+			},
+		);
 
 		test.concurrent('sql operator as cte', async ({ db, push }) => {
 			const users = pgTable('users_109', {
@@ -2173,25 +2712,26 @@ export function tests(test: Test) {
 			});
 
 			await push({ users });
-			await db.insert(users).values([
-				{ name: 'John' },
-				{ name: 'Jane' },
-			]);
+			await db.insert(users).values([{ name: 'John' }, { name: 'Jane' }]);
 
-			const sq1 = db.$with('sq', {
-				userId: users.id,
-				data: {
-					name: users.name,
-				},
-			}).as(sql`select * from ${users} where ${users.name} = 'John'`);
+			const sq1 = db
+				.$with('sq', {
+					userId: users.id,
+					data: {
+						name: users.name,
+					},
+				})
+				.as(sql`select * from ${users} where ${users.name} = 'John'`);
 			const result1 = await db.with(sq1).select().from(sq1);
 
-			const sq2 = db.$with('sq', {
-				userId: users.id,
-				data: {
-					name: users.name,
-				},
-			}).as(() => sql`select * from ${users} where ${users.name} = 'Jane'`);
+			const sq2 = db
+				.$with('sq', {
+					userId: users.id,
+					data: {
+						name: users.name,
+					},
+				})
+				.as(() => sql`select * from ${users} where ${users.name} = 'Jane'`);
 			const result2 = await db.with(sq2).select().from(sq1);
 
 			expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
@@ -2211,26 +2751,39 @@ export function tests(test: Test) {
 			]);
 
 			const sq1 = db.$with('sq1').as((qb) =>
-				qb.select({
-					aliased: sql`count(*)`.mapWith(Number).as('alias'),
-				}).from(users)
+				qb
+					.select({
+						aliased: sql`count(*)`.mapWith(Number).as('alias'),
+					})
+					.from(users)
 			);
 			const sq2 = db.$with('sq2').as((qb) =>
-				qb.select({
-					aliased: sql`sum(${users.id})`.mapWith(Number).as('alias'),
-				}).from(users)
+				qb
+					.select({
+						aliased: sql`sum(${users.id})`.mapWith(Number).as('alias'),
+					})
+					.from(users)
 			);
 
-			const result = await db.with(sq1, sq2).select({
-				count: sq1.aliased,
-				sum: sq2.aliased,
-			}).from(sq1).crossJoin(sq2);
+			const result = await db
+				.with(sq1, sq2)
+				.select({
+					count: sq1.aliased,
+					sum: sq2.aliased,
+				})
+				.from(sq1)
+				.crossJoin(sq2);
 
 			expect(result).toEqual([{ count: 2, sum: 3 }]);
 
-			const result2 = await db.with(sq1).select({
-				count: sq1.aliased,
-			}).from(sq1).groupBy(sq1.aliased).orderBy(sq1.aliased);
+			const result2 = await db
+				.with(sq1)
+				.select({
+					count: sq1.aliased,
+				})
+				.from(sq1)
+				.groupBy(sq1.aliased)
+				.orderBy(sq1.aliased);
 
 			expect(result2).toEqual([{ count: 2 }]);
 		});
@@ -2247,19 +2800,11 @@ export function tests(test: Test) {
 
 			await push({ usersTable, citiesTable });
 
-			await db
-				.insert(usersTable)
-				.values([
-					{ name: 'John' },
-					{ name: 'Jane' },
-				]);
+			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
 
 			await db
 				.insert(citiesTable)
-				.values([
-					{ name: 'Seattle' },
-					{ name: 'New York City' },
-				]);
+				.values([{ name: 'Seattle' }, { name: 'New York City' }]);
 
 			const result = await db
 				.select({
@@ -2291,11 +2836,14 @@ export function tests(test: Test) {
 
 			await push({ citiesTable, users2Table });
 
-			await db
-				.insert(citiesTable)
-				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+			await db.insert(citiesTable).values([
+				{ id: 1, name: 'Paris' },
+				{ id: 2, name: 'London' },
+			]);
 
-			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+			await db
+				.insert(users2Table)
+				.values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
 
 			const sq = db
 				.select({
@@ -2336,11 +2884,14 @@ export function tests(test: Test) {
 
 			await push({ citiesTable, users2Table });
 
-			await db
-				.insert(citiesTable)
-				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+			await db.insert(citiesTable).values([
+				{ id: 1, name: 'Paris' },
+				{ id: 2, name: 'London' },
+			]);
 
-			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+			await db
+				.insert(users2Table)
+				.values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
 
 			const sq = db
 				.select({
@@ -2380,14 +2931,20 @@ export function tests(test: Test) {
 
 			await push({ citiesTable, users2Table });
 
-			await db
-				.insert(citiesTable)
-				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }, { id: 3, name: 'Berlin' }]);
+			await db.insert(citiesTable).values([
+				{ id: 1, name: 'Paris' },
+				{ id: 2, name: 'London' },
+				{ id: 3, name: 'Berlin' },
+			]);
 
-			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }, {
-				name: 'Patrick',
-				cityId: 2,
-			}]);
+			await db.insert(users2Table).values([
+				{ name: 'John', cityId: 1 },
+				{ name: 'Jane' },
+				{
+					name: 'Patrick',
+					cityId: 2,
+				},
+			]);
 
 			const sq = db
 				.select({
@@ -2463,129 +3020,181 @@ export function tests(test: Test) {
 			});
 
 			const ucView = pgView('cities_users_column_as_view').as((qb) =>
-				qb.select({
-					userId: users.id.as('user_id'),
-					cityId: cities.id.as('city_id'),
-					userName: users.name.as('user_name'),
-					cityName: cities.name.as('city_name'),
-				}).from(users).leftJoin(cities, eq(cities.id, users.cityId))
+				qb
+					.select({
+						userId: users.id.as('user_id'),
+						cityId: cities.id.as('city_id'),
+						userName: users.name.as('user_name'),
+						cityName: cities.name.as('city_name'),
+					})
+					.from(users)
+					.leftJoin(cities, eq(cities.id, users.cityId))
 			);
 
 			await push({ users, cities, ucView });
 
-			const citiesInsRet = await db.insert(cities).values([{
-				id: 1,
-				name: 'Firstistan',
-			}, {
-				id: 2,
-				name: 'Secondaria',
-			}]).returning({
-				cityId: cities.id.as('city_id'),
-				cityName: cities.name.as('city_name'),
-			});
+			const citiesInsRet = await db
+				.insert(cities)
+				.values([
+					{
+						id: 1,
+						name: 'Firstistan',
+					},
+					{
+						id: 2,
+						name: 'Secondaria',
+					},
+				])
+				.returning({
+					cityId: cities.id.as('city_id'),
+					cityName: cities.name.as('city_name'),
+				});
 
-			expect(citiesInsRet).toStrictEqual(expect.arrayContaining([{
-				cityId: 1,
-				cityName: 'Firstistan',
-			}, {
-				cityId: 2,
-				cityName: 'Secondaria',
-			}]));
+			expect(citiesInsRet).toStrictEqual(
+				expect.arrayContaining([
+					{
+						cityId: 1,
+						cityName: 'Firstistan',
+					},
+					{
+						cityId: 2,
+						cityName: 'Secondaria',
+					},
+				]),
+			);
 
-			const usersInsRet = await db.insert(users).values([{ id: 1, name: 'First', cityId: 1 }, {
-				id: 2,
-				name: 'Second',
-				cityId: 2,
-			}, {
-				id: 3,
-				name: 'Third',
-			}]).returning({
-				userId: users.id.as('user_id'),
-				userName: users.name.as('users_name'),
-				userCityId: users.cityId,
-			});
+			const usersInsRet = await db
+				.insert(users)
+				.values([
+					{ id: 1, name: 'First', cityId: 1 },
+					{
+						id: 2,
+						name: 'Second',
+						cityId: 2,
+					},
+					{
+						id: 3,
+						name: 'Third',
+					},
+				])
+				.returning({
+					userId: users.id.as('user_id'),
+					userName: users.name.as('users_name'),
+					userCityId: users.cityId,
+				});
 
-			expect(usersInsRet).toStrictEqual(expect.arrayContaining([{ userId: 1, userName: 'First', userCityId: 1 }, {
-				userId: 2,
-				userName: 'Second',
-				userCityId: 2,
-			}, {
-				userId: 3,
-				userName: 'Third',
-				userCityId: null,
-			}]));
+			expect(usersInsRet).toStrictEqual(
+				expect.arrayContaining([
+					{ userId: 1, userName: 'First', userCityId: 1 },
+					{
+						userId: 2,
+						userName: 'Second',
+						userCityId: 2,
+					},
+					{
+						userId: 3,
+						userName: 'Third',
+						userCityId: null,
+					},
+				]),
+			);
 
-			const joinSelectReturn = await db.select({
-				userId: users.id.as('user_id'),
-				cityId: cities.id.as('city_id'),
-				userName: users.name.as('user_name'),
-				cityName: cities.name.as('city_name'),
-			}).from(users).leftJoin(cities, eq(cities.id, users.cityId));
+			const joinSelectReturn = await db
+				.select({
+					userId: users.id.as('user_id'),
+					cityId: cities.id.as('city_id'),
+					userName: users.name.as('user_name'),
+					cityName: cities.name.as('city_name'),
+				})
+				.from(users)
+				.leftJoin(cities, eq(cities.id, users.cityId));
 
-			expect(joinSelectReturn).toStrictEqual(expect.arrayContaining([{
-				userId: 1,
-				userName: 'First',
-				cityId: 1,
-				cityName: 'Firstistan',
-			}, {
-				userId: 2,
-				userName: 'Second',
-				cityId: 2,
-				cityName: 'Secondaria',
-			}, {
-				userId: 3,
-				userName: 'Third',
-				cityId: null,
-				cityName: null,
-			}]));
+			expect(joinSelectReturn).toStrictEqual(
+				expect.arrayContaining([
+					{
+						userId: 1,
+						userName: 'First',
+						cityId: 1,
+						cityName: 'Firstistan',
+					},
+					{
+						userId: 2,
+						userName: 'Second',
+						cityId: 2,
+						cityName: 'Secondaria',
+					},
+					{
+						userId: 3,
+						userName: 'Third',
+						cityId: null,
+						cityName: null,
+					},
+				]),
+			);
 
 			const viewSelectReturn = await db.select().from(ucView);
 
-			expect(viewSelectReturn).toStrictEqual(expect.arrayContaining([{
-				userId: 1,
-				userName: 'First',
-				cityId: 1,
-				cityName: 'Firstistan',
-			}, {
-				userId: 2,
-				userName: 'Second',
-				cityId: 2,
-				cityName: 'Secondaria',
-			}, {
-				userId: 3,
-				userName: 'Third',
-				cityId: null,
-				cityName: null,
-			}]));
+			expect(viewSelectReturn).toStrictEqual(
+				expect.arrayContaining([
+					{
+						userId: 1,
+						userName: 'First',
+						cityId: 1,
+						cityName: 'Firstistan',
+					},
+					{
+						userId: 2,
+						userName: 'Second',
+						cityId: 2,
+						cityName: 'Secondaria',
+					},
+					{
+						userId: 3,
+						userName: 'Third',
+						cityId: null,
+						cityName: null,
+					},
+				]),
+			);
 
-			const viewJoinReturn = await db.select({
-				userId: ucView.userId.as('user_id_ucv'),
-				cityId: cities.id.as('city_id'),
-				userName: ucView.userName.as('user_name_ucv'),
-				cityName: cities.name.as('city_name'),
-			}).from(ucView).leftJoin(cities, eq(cities.id, ucView.cityId));
+			const viewJoinReturn = await db
+				.select({
+					userId: ucView.userId.as('user_id_ucv'),
+					cityId: cities.id.as('city_id'),
+					userName: ucView.userName.as('user_name_ucv'),
+					cityName: cities.name.as('city_name'),
+				})
+				.from(ucView)
+				.leftJoin(cities, eq(cities.id, ucView.cityId));
 
-			expect(viewJoinReturn).toStrictEqual(expect.arrayContaining([{
-				userId: 1,
-				userName: 'First',
-				cityId: 1,
-				cityName: 'Firstistan',
-			}, {
-				userId: 2,
-				userName: 'Second',
-				cityId: 2,
-				cityName: 'Secondaria',
-			}, {
-				userId: 3,
-				userName: 'Third',
-				cityId: null,
-				cityName: null,
-			}]));
+			expect(viewJoinReturn).toStrictEqual(
+				expect.arrayContaining([
+					{
+						userId: 1,
+						userName: 'First',
+						cityId: 1,
+						cityName: 'Firstistan',
+					},
+					{
+						userId: 2,
+						userName: 'Second',
+						cityId: 2,
+						cityName: 'Secondaria',
+					},
+					{
+						userId: 3,
+						userName: 'Third',
+						cityId: null,
+						cityName: null,
+					},
+				]),
+			);
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5112
 		// looks like casing issue
-		test.skipIf(Date.now() < +new Date('2026-03-15')).concurrent('view #1', async ({ push, createDB }) => {
+		// ^ and so it was
+		test.concurrent('view #1', async ({ push, createDB }) => {
 			const animal = pgTable('animal', (t) => ({
 				id: t.text().primaryKey(),
 				name: t.text().notNull(),
@@ -2611,7 +3220,9 @@ export function tests(test: Test) {
 			const db = createDB(schema);
 
 			const sql = db.select().from(animalWithCaretakerView).toSQL().sql;
-			expect(sql).toEqual('select "id", "name", "caretakerName" from "animal_with_caretaker_view";');
+			expect(sql).toEqual(
+				'select "id", "name", "caretakerName" from "animal_with_caretaker_view"',
+			);
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4875
@@ -2621,18 +3232,17 @@ export function tests(test: Test) {
 				name: text('name'),
 			});
 
-			const rfidTagTable = pgTable(
-				'rfid_tag',
-				{
-					createdAt: timestamp('created_at')
-						.notNull()
-						.default(sql`now()`),
-					epc: text('epc').notNull(),
-					locationId: text('location_id')
-						.notNull(),
-					id: text('id').notNull().unique().$default(() => 'abc'),
-				},
-			);
+			const rfidTagTable = pgTable('rfid_tag', {
+				createdAt: timestamp('created_at')
+					.notNull()
+					.default(sql`now()`),
+				epc: text('epc').notNull(),
+				locationId: text('location_id').notNull(),
+				id: text('id')
+					.notNull()
+					.unique()
+					.$default(() => 'abc'),
+			});
 
 			const productionJobWithLocationView = pgView(
 				'production_job_with_location',
@@ -2663,14 +3273,69 @@ export function tests(test: Test) {
 
 			const query = db.select().from(sub);
 			expect(query.toSQL().sql).toStrictEqual(
-				(<{ dialect: PgDialect }> <any> db).dialect.sqlToQuery(
+				(<{ dialect: PgDialect }> (<any> db)).dialect.sqlToQuery(
 					sql`select ${sql.identifier('id')}, ${sql.identifier('name')}, ${sql.identifier('location_id')}, ${
-						sql.identifier('tag_id')
+						sql.identifier(
+							'tag_id',
+						)
 					}, ${sql.identifier('tag_created_at')} from ${sql.identifier('production_job_with_location')} ${
-						sql.identifier('p')
+						sql.identifier(
+							'p',
+						)
 					}`,
 				).sql,
 			);
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/4326
+		test.concurrent('mutation of getColumns(table)', async ({ db, push }) => {
+			const cities2Table = pgTable('cities_48', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			const users2Table = pgTable('users2_48', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				cityId: integer('city_id').references(() => cities2Table.id),
+			});
+
+			await push({ cities2Table, users2Table });
+
+			await db.insert(cities2Table).values([
+				{ id: 1, name: 'New York' },
+				{ id: 2, name: 'London' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ id: 1, name: 'John', cityId: 1 },
+				{ id: 2, name: 'Jane', cityId: 2 },
+			]);
+
+			const joinSelection = Object.assign(
+				{ ...getColumns(users2Table) },
+				{ cityName: cities2Table.name },
+			);
+			const result = await db
+				.select({ ...joinSelection })
+				.from(users2Table)
+				.innerJoin(cities2Table, eq(users2Table.cityId, cities2Table.id))
+				.where(eq(users2Table.id, 1));
+			expect(result).toStrictEqual([
+				{ cityId: 1, cityName: 'New York', id: 1, name: 'John' },
+			]);
+
+			const userSelection = getColumns(users2Table);
+			expect(Object.keys(userSelection)).toStrictEqual([
+				'id',
+				'name',
+				'cityId',
+			]);
+			const result1 = await db
+				.select({ ...userSelection })
+				.from(users2Table)
+				.where(eq(users2Table.id, 2));
+			expect(result1).toStrictEqual([{ id: 2, name: 'Jane', cityId: 2 }]);
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5049
@@ -2682,10 +3347,12 @@ export function tests(test: Test) {
 
 			const view1 = pgView('view1').as((qb) => qb.select().from(table1));
 
-			const query = db.select({
-				id: view1.id,
-				name: view1.name,
-			}).from(view1)
+			const query = db
+				.select({
+					id: view1.id,
+					name: view1.name,
+				})
+				.from(view1)
 				.innerJoin(table1, eq(view1.id, table1.id));
 			expect(query.toSQL().sql).toEqual(
 				'select "view1"."id", "view1"."name" from "view1" inner join "table1" on "view1"."id" = "table1"."id"',
@@ -2707,7 +3374,8 @@ export function tests(test: Test) {
 
 			await push({ citiesTable, users2Table });
 
-			await db.insert(citiesTable)
+			await db
+				.insert(citiesTable)
 				.values([{ name: 'Paris' }, { name: 'London' }]);
 
 			await db.insert(users2Table).values([
@@ -2716,27 +3384,34 @@ export function tests(test: Test) {
 				{ name: 'Jack', cityId: 2 },
 			]);
 
-			const res = await db.select({
-				population: db.select({ count: count().as('count') }).from(users2Table).where(
-					eq(users2Table.cityId, citiesTable.id),
-				).as(
-					'population',
-				),
-				name: citiesTable.name,
-			}).from(citiesTable);
+			const res = await db
+				.select({
+					population: db
+						.select({ count: count().as('count') })
+						.from(users2Table)
+						.where(eq(users2Table.cityId, citiesTable.id))
+						.as('population'),
+					name: citiesTable.name,
+				})
+				.from(citiesTable);
 
-			expectTypeOf(res).toEqualTypeOf<{
-				population: number;
-				name: string;
-			}[]>();
+			expectTypeOf(res).toEqualTypeOf<
+				{
+					population: number;
+					name: string;
+				}[]
+			>();
 
-			expect(res).toStrictEqual([{
-				population: 1,
-				name: 'Paris',
-			}, {
-				population: 2,
-				name: 'London',
-			}]);
+			expect(res).toStrictEqual([
+				{
+					population: 1,
+					name: 'Paris',
+				},
+				{
+					population: 2,
+					name: 'London',
+				},
+			]);
 		});
 
 		test.concurrent('select from a one subquery', async ({ db, push }) => {
@@ -2754,7 +3429,8 @@ export function tests(test: Test) {
 
 			await push({ citiesTable, users2Table });
 
-			await db.insert(citiesTable)
+			await db
+				.insert(citiesTable)
 				.values([{ name: 'Paris' }, { name: 'London' }]);
 
 			await db.insert(users2Table).values([
@@ -2763,29 +3439,38 @@ export function tests(test: Test) {
 				{ name: 'Jack', cityId: 2 },
 			]);
 
-			const res = await db.select({
-				cityName: db.select({ name: citiesTable.name }).from(citiesTable).where(eq(users2Table.cityId, citiesTable.id))
-					.as(
-						'cityName',
-					),
-				name: users2Table.name,
-			}).from(users2Table);
+			const res = await db
+				.select({
+					cityName: db
+						.select({ name: citiesTable.name })
+						.from(citiesTable)
+						.where(eq(users2Table.cityId, citiesTable.id))
+						.as('cityName'),
+					name: users2Table.name,
+				})
+				.from(users2Table);
 
-			expectTypeOf(res).toEqualTypeOf<{
-				cityName: string;
-				name: string;
-			}[]>();
+			expectTypeOf(res).toEqualTypeOf<
+				{
+					cityName: string;
+					name: string;
+				}[]
+			>();
 
-			expect(res).toStrictEqual([{
-				cityName: 'Paris',
-				name: 'John',
-			}, {
-				cityName: 'London',
-				name: 'Jane',
-			}, {
-				cityName: 'London',
-				name: 'Jack',
-			}]);
+			expect(res).toStrictEqual([
+				{
+					cityName: 'Paris',
+					name: 'John',
+				},
+				{
+					cityName: 'London',
+					name: 'Jane',
+				},
+				{
+					cityName: 'London',
+					name: 'Jack',
+				},
+			]);
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4878
@@ -2796,45 +3481,64 @@ export function tests(test: Test) {
 			});
 
 			await push({ table });
-			await db.insert(table).values([{ col1: true }, { col1: false, col2: 'qwerty' }]);
+			await db
+				.insert(table)
+				.values([{ col1: true }, { col1: false, col2: 'qwerty' }]);
 
-			const query = db.select().from(table).where(eq(table.col1, isNull(table.col2)));
+			const query = db
+				.select()
+				.from(table)
+				.where(eq(table.col1, isNull(table.col2)));
 			expect(query.toSQL()).toStrictEqual({
 				sql:
 					'select "col1", "col2" from "table_where_is_null" where "table_where_is_null"."col1" = ("table_where_is_null"."col2" is null)',
 				params: [],
 			});
 			const res = await query;
-			expect(res).toStrictEqual([{ col1: true, col2: null }, { col1: false, col2: 'qwerty' }]);
+			expect(res).toStrictEqual([
+				{ col1: true, col2: null },
+				{ col1: false, col2: 'qwerty' },
+			]);
 		});
 
-		test.concurrent('test $onUpdateFn and $onUpdate works with sql value', async ({ db, push }) => {
-			const users = pgTable('users_on_update', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				updatedAt: timestamp('updated_at', { mode: 'date' }).notNull().$onUpdate(() => sql`now()`),
-			});
+		test.concurrent(
+			'test $onUpdateFn and $onUpdate works with sql value',
+			async ({ db, push }) => {
+				const users = pgTable('users_on_update', {
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					updatedAt: timestamp('updated_at', { mode: 'date' })
+						.notNull()
+						.$onUpdate(() => sql`now()`),
+				});
 
-			await push({ users });
+				await push({ users });
 
-			const insertResp = await db.insert(users).values({
-				name: 'John',
-			}).returning({
-				updatedAt: users.updatedAt,
-			});
-			await new Promise((resolve) => setTimeout(resolve, 1000));
+				const insertResp = await db
+					.insert(users)
+					.values({
+						name: 'John',
+					})
+					.returning({
+						updatedAt: users.updatedAt,
+					});
+				await new Promise((resolve) => setTimeout(resolve, 1000));
 
-			const now = Date.now();
-			await new Promise((resolve) => setTimeout(resolve, 1000));
-			const updateResp = await db.update(users).set({
-				name: 'John',
-			}).returning({
-				updatedAt: users.updatedAt,
-			});
+				const now = Date.now();
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+				const updateResp = await db
+					.update(users)
+					.set({
+						name: 'John',
+					})
+					.returning({
+						updatedAt: users.updatedAt,
+					});
 
-			expect(insertResp[0]?.updatedAt.getTime() ?? 0).lessThan(now);
-			expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
-		});
+				expect(insertResp[0]?.updatedAt.getTime() ?? 0).lessThan(now);
+				expect(updateResp[0]?.updatedAt.getTime() ?? 0).greaterThan(now);
+			},
+		);
 
 		test.concurrent('placeholder + sql dates', async ({ db }) => {
 			const dateTable = pgTable('dates_placeholder_test', (t) => ({
@@ -2842,7 +3546,9 @@ export function tests(test: Test) {
 				date: t.date('date', { mode: 'date' }).notNull(),
 				dateStr: t.date('date_str', { mode: 'string' }).notNull(),
 				timestamp: t.timestamp('timestamp', { mode: 'date' }).notNull(),
-				timestampStr: t.timestamp('timestamp_str', { mode: 'string' }).notNull(),
+				timestampStr: t
+					.timestamp('timestamp_str', { mode: 'string' })
+					.notNull(),
 			}));
 
 			await db.execute(sql`DROP TABLE IF EXISTS ${dateTable};`);
@@ -2857,75 +3563,95 @@ export function tests(test: Test) {
 			const date = new Date('2025-12-10T00:00:00.000Z');
 			const timestamp = new Date('2025-12-10T01:01:01.111Z');
 			const dateStr = date.toISOString().slice(0, -14);
-			const timestampStr = timestamp.toISOString().slice(0, -1).replace('T', ' ');
+			const timestampStr = timestamp
+				.toISOString()
+				.slice(0, -1)
+				.replace('T', ' ');
 
-			const initial = await db.insert(dateTable).values([{
-				id: 1,
-				date: date,
-				dateStr: dateStr,
-				timestamp: timestamp,
-				timestampStr: timestampStr,
-			}, {
-				id: 2,
-				date: sql.placeholder('dateAsDate'),
-				dateStr: sql.placeholder('dateStrAsDate'),
-				timestamp: sql.placeholder('timestampAsDate'),
-				timestampStr: sql.placeholder('timestampStrAsDate'),
-			}, {
-				id: 3,
-				date: sql.placeholder('dateAsString'),
-				dateStr: sql.placeholder('dateStrAsString'),
-				timestamp: sql.placeholder('timestampAsString'),
-				timestampStr: sql.placeholder('timestampStrAsString'),
-			}, {
-				id: 4,
-				date: sql`${dateStr}`,
-				dateStr: sql`${dateStr}`,
-				timestamp: sql`${timestampStr}`,
-				timestampStr: sql`${timestampStr}`,
-			}]).returning().execute({
-				dateAsDate: date,
-				dateAsString: dateStr,
-				dateStrAsDate: date,
-				dateStrAsString: dateStr,
-				timestampAsDate: timestamp,
-				timestampAsString: timestampStr,
-				timestampStrAsDate: timestamp,
-				timestampStrAsString: timestampStr,
-			});
+			const initial = await db
+				.insert(dateTable)
+				.values([
+					{
+						id: 1,
+						date: date,
+						dateStr: dateStr,
+						timestamp: timestamp,
+						timestampStr: timestampStr,
+					},
+					{
+						id: 2,
+						date: sql.placeholder('dateAsDate'),
+						dateStr: sql.placeholder('dateStrAsDate'),
+						timestamp: sql.placeholder('timestampAsDate'),
+						timestampStr: sql.placeholder('timestampStrAsDate'),
+					},
+					{
+						id: 3,
+						date: sql.placeholder('dateAsString'),
+						dateStr: sql.placeholder('dateStrAsString'),
+						timestamp: sql.placeholder('timestampAsString'),
+						timestampStr: sql.placeholder('timestampStrAsString'),
+					},
+					{
+						id: 4,
+						date: sql`${dateStr}`,
+						dateStr: sql`${dateStr}`,
+						timestamp: sql`${timestampStr}`,
+						timestampStr: sql`${timestampStr}`,
+					},
+				])
+				.returning()
+				.execute({
+					dateAsDate: date,
+					dateAsString: dateStr,
+					dateStrAsDate: date,
+					dateStrAsString: dateStr,
+					timestampAsDate: timestamp,
+					timestampAsString: timestampStr,
+					timestampStrAsDate: timestamp,
+					timestampStrAsString: timestampStr,
+				});
 
-			const updated = await db.update(dateTable).set({
-				date: sql`${dateStr}`,
-				dateStr: sql`${dateStr}`,
-				timestamp: sql`${timestampStr}`,
-				timestampStr: sql`${timestampStr}`,
-			}).returning();
+			const updated = await db
+				.update(dateTable)
+				.set({
+					date: sql`${dateStr}`,
+					dateStr: sql`${dateStr}`,
+					timestamp: sql`${timestampStr}`,
+					timestampStr: sql`${timestampStr}`,
+				})
+				.returning();
 
-			expect(initial).toStrictEqual([{
-				id: 1,
-				date,
-				dateStr,
-				timestamp,
-				timestampStr,
-			}, {
-				id: 2,
-				date,
-				dateStr,
-				timestamp,
-				timestampStr,
-			}, {
-				id: 3,
-				date,
-				dateStr,
-				timestamp,
-				timestampStr,
-			}, {
-				id: 4,
-				date,
-				dateStr,
-				timestamp,
-				timestampStr,
-			}]);
+			expect(initial).toStrictEqual([
+				{
+					id: 1,
+					date,
+					dateStr,
+					timestamp,
+					timestampStr,
+				},
+				{
+					id: 2,
+					date,
+					dateStr,
+					timestamp,
+					timestampStr,
+				},
+				{
+					id: 3,
+					date,
+					dateStr,
+					timestamp,
+					timestampStr,
+				},
+				{
+					id: 4,
+					date,
+					dateStr,
+					timestamp,
+					timestampStr,
+				},
+			]);
 
 			expect(updated).toStrictEqual(initial);
 		});
@@ -3148,27 +3874,35 @@ export function tests(test: Test) {
 				arrenum: ['enVal1'],
 				arrint: [621],
 				arrinterval: ['2 months ago'],
-				arrjson: [{
-					str: 'strval',
-					arr: ['str', 10],
-				}],
-				arrjsonb: [{
-					str: 'strvalb',
-					arr: ['strb', 11],
-				}],
-				arrline: [{
-					a: 1,
-					b: 2,
-					c: 3,
-				}],
+				arrjson: [
+					{
+						str: 'strval',
+						arr: ['str', 10],
+					},
+				],
+				arrjsonb: [
+					{
+						str: 'strvalb',
+						arr: ['strb', 11],
+					},
+				],
+				arrline: [
+					{
+						a: 1,
+						b: 2,
+						c: 3,
+					},
+				],
 				arrlineTuple: [[1, 2, 3]],
 				arrnumeric: ['475452353476'],
 				arrnumericNum: [9007199254740991],
 				arrnumericBig: [5044565289845416380n],
-				arrpoint: [{
-					x: 24.5,
-					y: 49.6,
-				}],
+				arrpoint: [
+					{
+						x: 24.5,
+						y: 49.6,
+					},
+				],
 				arrpointTuple: [[57.2, 94.3]],
 				arrreal: [1.048596],
 				arrsmallint: [10],
@@ -3247,11 +3981,13 @@ export function tests(test: Test) {
 				arrinterval: string[] | null;
 				arrjson: unknown[] | null;
 				arrjsonb: unknown[] | null;
-				arrline: {
-					a: number;
-					b: number;
-					c: number;
-				}[] | null;
+				arrline:
+					| {
+						a: number;
+						b: number;
+						c: number;
+					}[]
+					| null;
 				arrlineTuple: [number, number, number][] | null;
 				arrmacaddr: string[] | null;
 				arrmacaddr8: string[] | null;
@@ -3355,8 +4091,1201 @@ export function tests(test: Test) {
 			expect(rawRes).toStrictEqual(expectedRes);
 		});
 
+		test('raw jsons', async ({ db, push }) => {
+			const allTypesTable = pgTable('all_types_raw_jsons', {
+				json: json('json'),
+				jsonb: jsonb('jsonb'),
+				arrjson: json('arrjson').array(),
+				arrjsonb: jsonb('arrjsonb').array(),
+			});
+
+			await push({ allTypesTable });
+
+			await db.insert(allTypesTable).values({
+				json: {
+					str: 'strval',
+					arr: ['str', 10],
+				},
+				jsonb: {
+					str: 'strvalb',
+					arr: ['strb', 11],
+				},
+				arrjson: [{
+					str: 'strval',
+					arr: ['str', 10],
+				}],
+				arrjsonb: [{
+					str: 'strvalb',
+					arr: ['strb', 11],
+				}],
+			});
+
+			const queryRes1 = await db.execute(sql`select * from ${allTypesTable};`);
+			const rawData1 = [(queryRes1.rows ?? queryRes1)[0]];
+
+			const expectedRes1 = [
+				{
+					json: { str: 'strval', arr: ['str', 10] },
+					jsonb: { arr: ['strb', 11], str: 'strvalb' },
+
+					arrjson: [{ str: 'strval', arr: ['str', 10] }],
+					arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
+				},
+			];
+
+			expect(rawData1).toStrictEqual(expectedRes1);
+
+			await db.update(allTypesTable).set({
+				json: {
+					str: 'strval',
+					arr: ['str', 100],
+				},
+				jsonb: {
+					str: 'strvalb',
+					arr: ['strb', 110],
+				},
+				arrjson: [{
+					str: 'strval',
+					arr: ['str', 100],
+				}],
+				arrjsonb: [{
+					str: 'strvalb',
+					arr: ['strb', 110],
+				}],
+			});
+
+			const queryRes2 = await db.execute(sql`select * from ${allTypesTable};`);
+			const rawData2 = [(queryRes2.rows ?? queryRes2)[0]];
+
+			const expectedRes2 = [
+				{
+					json: { str: 'strval', arr: ['str', 100] },
+					jsonb: { arr: ['strb', 110], str: 'strvalb' },
+
+					arrjson: [{ str: 'strval', arr: ['str', 100] }],
+					arrjsonb: [{ arr: ['strb', 110], str: 'strvalb' }],
+				},
+			];
+
+			expect(rawData2).toStrictEqual(expectedRes2);
+		});
+
+		test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
+			const en = pgEnum('en_49', ['enVal1', 'enVal2']);
+			const allTypesTable = pgTable('all_types_48_cdcs', {
+				serial: serial('serial').notNull(),
+				bigserial: bigserial('bigserial', {
+					mode: 'bigint',
+				}).notNull(),
+				bigserialnum: bigserial('bigserialnum', {
+					mode: 'number',
+				}).notNull(),
+				int: integer('int').notNull(),
+				bigint: bigint('bigint', {
+					mode: 'bigint',
+				}).notNull(),
+				bigintnum: bigint('bigintnum', {
+					mode: 'number',
+				}).notNull(),
+				bigintstr: bigint('bigintstr', {
+					mode: 'string',
+				}).notNull(),
+				bool: boolean('bool').notNull(),
+				bytea: bytea('bytea').notNull(),
+				char: char('char').notNull(),
+				cidr: cidr('cidr').notNull(),
+				date: date('date', {
+					mode: 'date',
+				}).notNull(),
+				datestr: date('datestr', {
+					mode: 'string',
+				}).notNull(),
+				double: doublePrecision('double').notNull(),
+				enum: en('enum').notNull(),
+				inet: inet('inet').notNull(),
+				interval: interval('interval').notNull(),
+				json: json('json').notNull(),
+				jsonb: jsonb('jsonb').notNull(),
+				json1: json('json1').notNull(),
+				jsonb1: jsonb('jsonb1').notNull(),
+				json2: json('json2').notNull(),
+				jsonb2: jsonb('jsonb2').notNull(),
+				json3: json('json3').notNull(),
+				jsonb3: jsonb('jsonb3').notNull(),
+				line: line('line', {
+					mode: 'abc',
+				}).notNull(),
+				linetuple: line('linetuple', {
+					mode: 'tuple',
+				}).notNull(),
+				macaddr: macaddr('macaddr').notNull(),
+				macaddr8: macaddr8('macaddr8').notNull(),
+				numeric: numeric('numeric').notNull(),
+				numericnum: numeric('numericnum', {
+					mode: 'number',
+				}).notNull(),
+				numericbig: numeric('numericbig', {
+					mode: 'bigint',
+				}).notNull(),
+				point: point('point', {
+					mode: 'xy',
+				}).notNull(),
+				pointtuple: point('pointtuple', {
+					mode: 'tuple',
+				}).notNull(),
+				real: real('real').notNull(),
+				smallint: smallint('smallint').notNull(),
+				smallserial: smallserial('smallserial').notNull(),
+				text: text('text').notNull(),
+				time: time('time').notNull(),
+				timestamp: timestamp('timestamp', {
+					mode: 'date',
+				}).notNull(),
+				timestampTz: timestamp('timestampTz', {
+					mode: 'date',
+					withTimezone: true,
+				}).notNull(),
+				timestampstr: timestamp('timestampstr', {
+					mode: 'string',
+				}).notNull(),
+				timestampTzstr: timestamp('timestampTzstr', {
+					mode: 'string',
+					withTimezone: true,
+				}).notNull(),
+				uuid: uuid('uuid').notNull(),
+				varchar: varchar('varchar').notNull(),
+				arrint: integer('arrint').array().notNull(),
+				arrbigint: bigint('arrbigint', {
+					mode: 'bigint',
+				}).array().notNull(),
+				arrbigintnum: bigint('arrbigintnum', {
+					mode: 'number',
+				}).array().notNull(),
+				arrbigintstr: bigint('arrbigintstr', {
+					mode: 'string',
+				}).array().notNull(),
+				arrbool: boolean('arrbool').array().notNull(),
+				arrbytea: bytea('arrbytea').array().notNull(),
+				mtxbytea: bytea('mtxbytea').array('[][]').notNull(),
+				arrchar: char('arrchar').array().notNull(),
+				arrcidr: cidr('arrcidr').array().notNull(),
+				arrdate: date('arrdate', {
+					mode: 'date',
+				}).array().notNull(),
+				arrdatestr: date('arrdatestr', {
+					mode: 'string',
+				}).array().notNull(),
+				arrdouble: doublePrecision('arrdouble').array().notNull(),
+				arrenum: en('arrenum').array().notNull(),
+				arrinet: inet('arrinet').array().notNull(),
+				arrinterval: interval('arrinterval').array().notNull(),
+				arrjson: json('arrjson').array().notNull(),
+				arrjsonb: jsonb('arrjsonb').array().notNull(),
+				arrjson1: json('arrjson1').array().notNull(),
+				arrjsonb1: jsonb('arrjsonb1').array().notNull(),
+				arrjson2: json('arrjson2').array().notNull(),
+				arrjsonb2: jsonb('arrjsonb2').array().notNull(),
+				arrjson3: json('arrjson3').array().notNull(),
+				arrjsonb3: jsonb('arrjsonb3').array().notNull(),
+				arrline: line('arrline', {
+					mode: 'abc',
+				}).array().notNull(),
+				arrlinetuple: line('arrlinetuple', {
+					mode: 'tuple',
+				}).array().notNull(),
+				arrmacaddr: macaddr('arrmacaddr').array().notNull(),
+				arrmacaddr8: macaddr8('arrmacaddr8').array().notNull(),
+				arrnumeric: numeric('arrnumeric').array().notNull(),
+				arrnumericnum: numeric('arrnumericnum', { mode: 'number' }).array().notNull(),
+				arrnumericbig: numeric('arrnumericbig', { mode: 'bigint' }).array().notNull(),
+				arrpoint: point('arrpoint', {
+					mode: 'xy',
+				}).array().notNull(),
+				arrpointtuple: point('arrpointtuple', {
+					mode: 'tuple',
+				}).array().notNull(),
+				arrreal: real('arrreal').array().notNull(),
+				arrsmallint: smallint('arrsmallint').array().notNull(),
+				arrtext: text('arrtext').array().notNull(),
+				arrtime: time('arrtime').array().notNull(),
+				arrtimestamp: timestamp('arrtimestamp', {
+					mode: 'date',
+				}).array().notNull(),
+				arrtimestampTz: timestamp('arrtimestampTz', {
+					mode: 'date',
+					withTimezone: true,
+				}).array().notNull(),
+				arrtimestampstr: timestamp('arrtimestampstr', {
+					mode: 'string',
+				}).array().notNull(),
+				arrtimestampTzstr: timestamp('arrtimestampTzstr', {
+					mode: 'string',
+					withTimezone: true,
+				}).array().notNull(),
+				arruuid: uuid('arruuid').array().notNull(),
+				arrvarchar: varchar('arrvarchar').array().notNull(),
+			});
+
+			const db = createDB({ allTypesTable }, (r) => ({
+				allTypesTable: {
+					self: r.many.allTypesTable({
+						from: r.allTypesTable.serial,
+						to: r.allTypesTable.serial,
+					}),
+				},
+			}));
+			await push({ en, allTypesTable });
+			type ExpectedType = {
+				serial: number;
+				bigserial: bigint;
+				bigserialnum: number;
+				int: number;
+				bigint: bigint;
+				bigintnum: number;
+				bigintstr: string;
+				bool: boolean;
+				bytea: Buffer;
+				char: string;
+				cidr: string;
+				date: Date;
+				datestr: string;
+				double: number;
+				enum: 'enVal1' | 'enVal2';
+				inet: string;
+				interval: string;
+				json: unknown;
+				jsonb: unknown;
+				json1: unknown;
+				jsonb1: unknown;
+				json2: unknown;
+				jsonb2: unknown;
+				json3: unknown;
+				jsonb3: unknown;
+				line: { a: number; b: number; c: number };
+				linetuple: [number, number, number];
+				macaddr: string;
+				macaddr8: string;
+				numeric: string;
+				numericnum: number;
+				numericbig: bigint;
+				point: { x: number; y: number };
+				pointtuple: [number, number];
+				real: number;
+				smallint: number;
+				smallserial: number;
+				text: string;
+				time: string;
+				timestamp: Date;
+				timestampTz: Date;
+				timestampstr: string;
+				timestampTzstr: string;
+				uuid: string;
+				varchar: string;
+				arrint: number[];
+				arrbigint: bigint[];
+				arrbigintnum: number[];
+				arrbigintstr: string[];
+				arrbool: boolean[];
+				arrbytea: (Buffer)[];
+				mtxbytea: (Buffer)[][];
+				arrchar: string[];
+				arrcidr: string[];
+				arrdate: Date[];
+				arrdatestr: string[];
+				arrdouble: number[];
+				arrenum: ('enVal1' | 'enVal2')[];
+				arrinet: string[];
+				arrinterval: string[];
+				arrjson: unknown[];
+				arrjsonb: unknown[];
+				arrjson1: unknown[];
+				arrjsonb1: unknown[];
+				arrjson2: unknown[];
+				arrjsonb2: unknown[];
+				arrjson3: unknown[];
+				arrjsonb3: unknown[];
+				arrline: { a: number; b: number; c: number }[];
+				arrlinetuple: [number, number, number][];
+				arrmacaddr: string[];
+				arrmacaddr8: string[];
+				arrnumeric: string[];
+				arrnumericnum: number[];
+				arrnumericbig: bigint[];
+				arrpoint: { x: number; y: number }[];
+				arrpointtuple: [number, number][];
+				arrreal: number[];
+				arrsmallint: number[];
+				arrtext: string[];
+				arrtime: string[];
+				arrtimestamp: Date[];
+				arrtimestampTz: Date[];
+				arrtimestampstr: string[];
+				arrtimestampTzstr: string[];
+				arruuid: string[];
+				arrvarchar: string[];
+			};
+
+			const testData: ExpectedType = {
+				serial: 1,
+				bigserial: 5044565289845416380n,
+				bigserialnum: 9007199254740991,
+				int: 621,
+				bigint: 5044565289845416380n,
+				bigintnum: 9007199254740991,
+				bigintstr: '5044565289845416380',
+				bool: true,
+				bytea: Buffer.from('BYTES'),
+				char: 'c',
+				cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+				date: new Date('2025-03-12'),
+				datestr: '2025-03-12',
+				double: 15.35325689124218,
+				enum: 'enVal1',
+				inet: '192.168.0.1/24',
+				interval: '-2 mons',
+				json: { str: 'strval', arr: ['str', 10] },
+				jsonb: { arr: ['strb', 11], str: 'strvalb' },
+				json1: [{ key: 'value', num: 7 }, 'v', '11', 5],
+				jsonb1: [{ key: 'value', num: 8 }, 'x', '10', 3],
+				json2: 5,
+				jsonb2: 7,
+				json3: '5',
+				jsonb3: '7',
+				line: { a: 1, b: 2, c: 3 },
+				linetuple: [1, 2, 3],
+				macaddr: '08:00:2b:01:02:03',
+				macaddr8: '08:00:2b:01:02:03:04:05',
+				numeric: '5044565289845416380',
+				numericnum: 9007199254740991,
+				numericbig: 5044565289845416380n,
+				point: { x: 24.5, y: 49.6 },
+				pointtuple: [24.5, 49.6],
+				real: 1.048596,
+				smallint: 10,
+				smallserial: 15,
+				text: 'TEXT STRING',
+				time: '13:59:28',
+				timestamp: new Date('2025-03-12 01:32:41.623'),
+				timestampTz: new Date('2025-03-12 01:32:41.623+00'),
+				timestampstr: '2025-03-12 01:32:41.623',
+				timestampTzstr: '2025-03-12 01:32:41.623+00',
+				uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+				varchar: 'C4-',
+				arrint: [621],
+				arrbigint: [5044565289845416380n],
+				arrbigintnum: [9007199254740991],
+				arrbigintstr: ['5044565289845416380'],
+				arrbool: [true],
+				arrbytea: [Buffer.from('BYTES')],
+				mtxbytea: [[Buffer.from('BYTES'), Buffer.from('BYTES2')], [
+					Buffer.from('OTHERBYTES'),
+					Buffer.from('OTHERBYTES2'),
+				]],
+				arrchar: ['c'],
+				arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
+				arrdate: [new Date('2025-03-12')],
+				arrdatestr: ['2025-03-12'],
+				arrdouble: [15.35325689124218],
+				arrenum: ['enVal1'],
+				arrinet: ['192.168.0.1/24'],
+				arrinterval: ['-2 mons'],
+				arrjson: [{ str: 'strval', arr: ['str', 10] }],
+				arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
+				arrjson1: [[{ key: 'value', num: 7 }, 'v', '11', 5]],
+				arrjsonb1: [[{ key: 'value', num: 8 }, 'x', '10', 3]],
+				arrjson2: [5],
+				arrjsonb2: [7],
+				arrjson3: ['5'],
+				arrjsonb3: ['7'],
+				arrline: [{ a: 1, b: 2, c: 3 }],
+				arrlinetuple: [[1, 2, 3]],
+				arrmacaddr: ['08:00:2b:01:02:03'],
+				arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
+				arrnumeric: ['5044565289845416380'],
+				arrnumericnum: [9007199254740991],
+				arrnumericbig: [5044565289845416380n],
+				arrpoint: [{ x: 24.5, y: 49.6 }],
+				arrpointtuple: [[24.5, 49.6]],
+				arrreal: [1.048596],
+				arrsmallint: [10],
+				arrtext: ['TEXT STRING'],
+				arrtime: ['13:59:28'],
+				arrtimestamp: [new Date('2025-03-12 01:32:41.623')],
+				arrtimestampTz: [new Date('2025-03-12 01:32:41.623+00')],
+				arrtimestampstr: ['2025-03-12 01:32:41.623'],
+				arrtimestampTzstr: ['2025-03-12 01:32:41.623+00'],
+				arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
+				arrvarchar: ['C4-'],
+			};
+
+			await db.insert(allTypesTable).values(testData);
+			const session = (<any> db).session as PgAsyncSession;
+
+			const queryRes = await session.objects<ExpectedType>(db.select().from(allTypesTable).getSQL()).then((e) =>
+				normalizeDataWithDbCodecs({
+					db,
+					columns: getColumns(allTypesTable),
+					data: e,
+					mode: 'query',
+				})[0]
+			);
+
+			const { relationRes, rootRes } = await session.objects<ExpectedType & { self: ExpectedType[] }>(
+				db.query.allTypesTable.findFirst({
+					with: {
+						self: true,
+					},
+				}).getSQL(),
+			).then((e) => {
+				const { self: relationRaw, ...rootRaw } = e[0]!;
+
+				return {
+					relationRes: normalizeDataWithDbCodecs({
+						db,
+						columns: getColumns(allTypesTable),
+						data: relationRaw,
+						mode: 'json',
+					})[0]!,
+					rootRes: normalizeDataWithDbCodecs({
+						db,
+						columns: getColumns(allTypesTable),
+						data: [rootRaw],
+						mode: 'query',
+					})[0]!,
+				};
+			});
+
+			expect(queryRes).toStrictEqual(testData);
+			expect(relationRes).toStrictEqual(testData);
+			expect(rootRes).toStrictEqual(testData);
+
+			// ---- numbers ----
+			expect(
+				await unionAll(
+					db.select({
+						'int ∪ int': allTypesTable.int.as('int ∪ int'),
+						'int ∪ smallint': allTypesTable.int.as('int ∪ smallint'),
+						'int ∪ double': allTypesTable.int.as('int ∪ double'),
+						'int ∪ real': allTypesTable.int.as('int ∪ real'),
+						'int ∪ smallserial': allTypesTable.int.as('int ∪ smallserial'),
+						'int ∪ serial': allTypesTable.int.as('int ∪ serial'),
+						'int ∪ bigserialnum': allTypesTable.int.as('int ∪ bigserialnum'),
+						'int ∪ bigintnum': allTypesTable.int.as('int ∪ bigintnum'),
+						'int ∪ numericnum': allTypesTable.int.as('int ∪ numericnum'),
+						'smallint ∪ int': allTypesTable.smallint.as('smallint ∪ int'),
+						'smallint ∪ smallint': allTypesTable.smallint.as('smallint ∪ smallint'),
+						'smallint ∪ double': allTypesTable.smallint.as('smallint ∪ double'),
+						'smallint ∪ real': allTypesTable.smallint.as('smallint ∪ real'),
+						'smallint ∪ smallserial': allTypesTable.smallint.as('smallint ∪ smallserial'),
+						'smallint ∪ serial': allTypesTable.smallint.as('smallint ∪ serial'),
+						'smallint ∪ bigserialnum': allTypesTable.smallint.as('smallint ∪ bigserialnum'),
+						'smallint ∪ bigintnum': allTypesTable.smallint.as('smallint ∪ bigintnum'),
+						'smallint ∪ numericnum': allTypesTable.smallint.as('smallint ∪ numericnum'),
+						'double ∪ int': allTypesTable.double.as('double ∪ int'),
+						'double ∪ smallint': allTypesTable.double.as('double ∪ smallint'),
+						'double ∪ double': allTypesTable.double.as('double ∪ double'),
+						'double ∪ real': allTypesTable.double.as('double ∪ real'),
+						'double ∪ smallserial': allTypesTable.double.as('double ∪ smallserial'),
+						'double ∪ serial': allTypesTable.double.as('double ∪ serial'),
+						'double ∪ bigserialnum': allTypesTable.double.as('double ∪ bigserialnum'),
+						'double ∪ bigintnum': allTypesTable.double.as('double ∪ bigintnum'),
+						'double ∪ numericnum': allTypesTable.double.as('double ∪ numericnum'),
+						'real ∪ int': allTypesTable.real.as('real ∪ int'),
+						'real ∪ smallint': allTypesTable.real.as('real ∪ smallint'),
+						'real ∪ double': allTypesTable.real.as('real ∪ double'),
+						'real ∪ real': allTypesTable.real.as('real ∪ real'),
+						'real ∪ smallserial': allTypesTable.real.as('real ∪ smallserial'),
+						'real ∪ serial': allTypesTable.real.as('real ∪ serial'),
+						'smallserial ∪ int': allTypesTable.smallserial.as('smallserial ∪ int'),
+						'smallserial ∪ smallint': allTypesTable.smallserial.as('smallserial ∪ smallint'),
+						'smallserial ∪ double': allTypesTable.smallserial.as('smallserial ∪ double'),
+						'smallserial ∪ real': allTypesTable.smallserial.as('smallserial ∪ real'),
+						'smallserial ∪ smallserial': allTypesTable.smallserial.as('smallserial ∪ smallserial'),
+						'smallserial ∪ serial': allTypesTable.smallserial.as('smallserial ∪ serial'),
+						'smallserial ∪ bigserialnum': allTypesTable.smallserial.as('smallserial ∪ bigserialnum'),
+						'smallserial ∪ bigintnum': allTypesTable.smallserial.as('smallserial ∪ bigintnum'),
+						'smallserial ∪ numericnum': allTypesTable.smallserial.as('smallserial ∪ numericnum'),
+						'serial ∪ int': allTypesTable.serial.as('serial ∪ int'),
+						'serial ∪ smallint': allTypesTable.serial.as('serial ∪ smallint'),
+						'serial ∪ double': allTypesTable.serial.as('serial ∪ double'),
+						'serial ∪ real': allTypesTable.serial.as('serial ∪ real'),
+						'serial ∪ smallserial': allTypesTable.serial.as('serial ∪ smallserial'),
+						'serial ∪ serial': allTypesTable.serial.as('serial ∪ serial'),
+						'serial ∪ bigserialnum': allTypesTable.serial.as('serial ∪ bigserialnum'),
+						'serial ∪ bigintnum': allTypesTable.serial.as('serial ∪ bigintnum'),
+						'serial ∪ numericnum': allTypesTable.serial.as('serial ∪ numericnum'),
+						'bigserialnum ∪ int': allTypesTable.bigserialnum.as('bigserialnum ∪ int'),
+						'bigserialnum ∪ smallint': allTypesTable.bigserialnum.as('bigserialnum ∪ smallint'),
+						'bigserialnum ∪ double': allTypesTable.bigserialnum.as('bigserialnum ∪ double'),
+						'bigserialnum ∪ smallserial': allTypesTable.bigserialnum.as('bigserialnum ∪ smallserial'),
+						'bigserialnum ∪ serial': allTypesTable.bigserialnum.as('bigserialnum ∪ serial'),
+						'bigserialnum ∪ bigserialnum': allTypesTable.bigserialnum.as('bigserialnum ∪ bigserialnum'),
+						'bigserialnum ∪ bigintnum': allTypesTable.bigserialnum.as('bigserialnum ∪ bigintnum'),
+						'bigserialnum ∪ numericnum': allTypesTable.bigserialnum.as('bigserialnum ∪ numericnum'),
+						'bigintnum ∪ int': allTypesTable.bigintnum.as('bigintnum ∪ int'),
+						'bigintnum ∪ smallint': allTypesTable.bigintnum.as('bigintnum ∪ smallint'),
+						'bigintnum ∪ double': allTypesTable.bigintnum.as('bigintnum ∪ double'),
+						'bigintnum ∪ smallserial': allTypesTable.bigintnum.as('bigintnum ∪ smallserial'),
+						'bigintnum ∪ serial': allTypesTable.bigintnum.as('bigintnum ∪ serial'),
+						'bigintnum ∪ bigserialnum': allTypesTable.bigintnum.as('bigintnum ∪ bigserialnum'),
+						'bigintnum ∪ bigintnum': allTypesTable.bigintnum.as('bigintnum ∪ bigintnum'),
+						'bigintnum ∪ numericnum': allTypesTable.bigintnum.as('bigintnum ∪ numericnum'),
+						'numericnum ∪ int': allTypesTable.numericnum.as('numericnum ∪ int'),
+						'numericnum ∪ smallint': allTypesTable.numericnum.as('numericnum ∪ smallint'),
+						'numericnum ∪ double': allTypesTable.numericnum.as('numericnum ∪ double'),
+						'numericnum ∪ smallserial': allTypesTable.numericnum.as('numericnum ∪ smallserial'),
+						'numericnum ∪ serial': allTypesTable.numericnum.as('numericnum ∪ serial'),
+						'numericnum ∪ bigserialnum': allTypesTable.numericnum.as('numericnum ∪ bigserialnum'),
+						'numericnum ∪ bigintnum': allTypesTable.numericnum.as('numericnum ∪ bigintnum'),
+						'numericnum ∪ numericnum': allTypesTable.numericnum.as('numericnum ∪ numericnum'),
+					}).from(allTypesTable),
+					db.select({
+						'int ∪ int': allTypesTable.int.as('int ∪ int'),
+						'int ∪ smallint': allTypesTable.smallint.as('int ∪ smallint'),
+						'int ∪ double': allTypesTable.double.as('int ∪ double'),
+						'int ∪ real': allTypesTable.real.as('int ∪ real'),
+						'int ∪ smallserial': allTypesTable.smallserial.as('int ∪ smallserial'),
+						'int ∪ serial': allTypesTable.serial.as('int ∪ serial'),
+						'int ∪ bigserialnum': allTypesTable.bigserialnum.as('int ∪ bigserialnum'),
+						'int ∪ bigintnum': allTypesTable.bigintnum.as('int ∪ bigintnum'),
+						'int ∪ numericnum': allTypesTable.numericnum.as('int ∪ numericnum'),
+						'smallint ∪ int': allTypesTable.int.as('smallint ∪ int'),
+						'smallint ∪ smallint': allTypesTable.smallint.as('smallint ∪ smallint'),
+						'smallint ∪ double': allTypesTable.double.as('smallint ∪ double'),
+						'smallint ∪ real': allTypesTable.real.as('smallint ∪ real'),
+						'smallint ∪ smallserial': allTypesTable.smallserial.as('smallint ∪ smallserial'),
+						'smallint ∪ serial': allTypesTable.serial.as('smallint ∪ serial'),
+						'smallint ∪ bigserialnum': allTypesTable.bigserialnum.as('smallint ∪ bigserialnum'),
+						'smallint ∪ bigintnum': allTypesTable.bigintnum.as('smallint ∪ bigintnum'),
+						'smallint ∪ numericnum': allTypesTable.numericnum.as('smallint ∪ numericnum'),
+						'double ∪ int': allTypesTable.int.as('double ∪ int'),
+						'double ∪ smallint': allTypesTable.smallint.as('double ∪ smallint'),
+						'double ∪ double': allTypesTable.double.as('double ∪ double'),
+						'double ∪ real': allTypesTable.real.as('double ∪ real'),
+						'double ∪ smallserial': allTypesTable.smallserial.as('double ∪ smallserial'),
+						'double ∪ serial': allTypesTable.serial.as('double ∪ serial'),
+						'double ∪ bigserialnum': allTypesTable.bigserialnum.as('double ∪ bigserialnum'),
+						'double ∪ bigintnum': allTypesTable.bigintnum.as('double ∪ bigintnum'),
+						'double ∪ numericnum': allTypesTable.numericnum.as('double ∪ numericnum'),
+						'real ∪ int': allTypesTable.int.as('real ∪ int'),
+						'real ∪ smallint': allTypesTable.smallint.as('real ∪ smallint'),
+						'real ∪ double': allTypesTable.double.as('real ∪ double'),
+						'real ∪ real': allTypesTable.real.as('real ∪ real'),
+						'real ∪ smallserial': allTypesTable.smallserial.as('real ∪ smallserial'),
+						'real ∪ serial': allTypesTable.serial.as('real ∪ serial'),
+						'smallserial ∪ int': allTypesTable.int.as('smallserial ∪ int'),
+						'smallserial ∪ smallint': allTypesTable.smallint.as('smallserial ∪ smallint'),
+						'smallserial ∪ double': allTypesTable.double.as('smallserial ∪ double'),
+						'smallserial ∪ real': allTypesTable.real.as('smallserial ∪ real'),
+						'smallserial ∪ smallserial': allTypesTable.smallserial.as('smallserial ∪ smallserial'),
+						'smallserial ∪ serial': allTypesTable.serial.as('smallserial ∪ serial'),
+						'smallserial ∪ bigserialnum': allTypesTable.bigserialnum.as('smallserial ∪ bigserialnum'),
+						'smallserial ∪ bigintnum': allTypesTable.bigintnum.as('smallserial ∪ bigintnum'),
+						'smallserial ∪ numericnum': allTypesTable.numericnum.as('smallserial ∪ numericnum'),
+						'serial ∪ int': allTypesTable.int.as('serial ∪ int'),
+						'serial ∪ smallint': allTypesTable.smallint.as('serial ∪ smallint'),
+						'serial ∪ double': allTypesTable.double.as('serial ∪ double'),
+						'serial ∪ real': allTypesTable.real.as('serial ∪ real'),
+						'serial ∪ smallserial': allTypesTable.smallserial.as('serial ∪ smallserial'),
+						'serial ∪ serial': allTypesTable.serial.as('serial ∪ serial'),
+						'serial ∪ bigserialnum': allTypesTable.bigserialnum.as('serial ∪ bigserialnum'),
+						'serial ∪ bigintnum': allTypesTable.bigintnum.as('serial ∪ bigintnum'),
+						'serial ∪ numericnum': allTypesTable.numericnum.as('serial ∪ numericnum'),
+						'bigserialnum ∪ int': allTypesTable.int.as('bigserialnum ∪ int'),
+						'bigserialnum ∪ smallint': allTypesTable.smallint.as('bigserialnum ∪ smallint'),
+						'bigserialnum ∪ double': allTypesTable.double.as('bigserialnum ∪ double'),
+						'bigserialnum ∪ smallserial': allTypesTable.smallserial.as('bigserialnum ∪ smallserial'),
+						'bigserialnum ∪ serial': allTypesTable.serial.as('bigserialnum ∪ serial'),
+						'bigserialnum ∪ bigserialnum': allTypesTable.bigserialnum.as('bigserialnum ∪ bigserialnum'),
+						'bigserialnum ∪ bigintnum': allTypesTable.bigintnum.as('bigserialnum ∪ bigintnum'),
+						'bigserialnum ∪ numericnum': allTypesTable.numericnum.as('bigserialnum ∪ numericnum'),
+						'bigintnum ∪ int': allTypesTable.int.as('bigintnum ∪ int'),
+						'bigintnum ∪ smallint': allTypesTable.smallint.as('bigintnum ∪ smallint'),
+						'bigintnum ∪ double': allTypesTable.double.as('bigintnum ∪ double'),
+						'bigintnum ∪ smallserial': allTypesTable.smallserial.as('bigintnum ∪ smallserial'),
+						'bigintnum ∪ serial': allTypesTable.serial.as('bigintnum ∪ serial'),
+						'bigintnum ∪ bigserialnum': allTypesTable.bigserialnum.as('bigintnum ∪ bigserialnum'),
+						'bigintnum ∪ bigintnum': allTypesTable.bigintnum.as('bigintnum ∪ bigintnum'),
+						'bigintnum ∪ numericnum': allTypesTable.numericnum.as('bigintnum ∪ numericnum'),
+						'numericnum ∪ int': allTypesTable.int.as('numericnum ∪ int'),
+						'numericnum ∪ smallint': allTypesTable.smallint.as('numericnum ∪ smallint'),
+						'numericnum ∪ double': allTypesTable.double.as('numericnum ∪ double'),
+						'numericnum ∪ smallserial': allTypesTable.smallserial.as('numericnum ∪ smallserial'),
+						'numericnum ∪ serial': allTypesTable.serial.as('numericnum ∪ serial'),
+						'numericnum ∪ bigserialnum': allTypesTable.bigserialnum.as('numericnum ∪ bigserialnum'),
+						'numericnum ∪ bigintnum': allTypesTable.bigintnum.as('numericnum ∪ bigintnum'),
+						'numericnum ∪ numericnum': allTypesTable.numericnum.as('numericnum ∪ numericnum'),
+					}).from(allTypesTable),
+				),
+			).toEqual(expect.arrayContaining([
+				{
+					'int ∪ int': 621,
+					'int ∪ smallint': 621,
+					'int ∪ double': 621,
+					'int ∪ real': 621,
+					'int ∪ smallserial': 621,
+					'int ∪ serial': 621,
+					'int ∪ bigserialnum': 621,
+					'int ∪ bigintnum': 621,
+					'int ∪ numericnum': 621,
+					'smallint ∪ int': 10,
+					'smallint ∪ smallint': 10,
+					'smallint ∪ double': 10,
+					'smallint ∪ real': 10,
+					'smallint ∪ smallserial': 10,
+					'smallint ∪ serial': 10,
+					'smallint ∪ bigserialnum': 10,
+					'smallint ∪ bigintnum': 10,
+					'smallint ∪ numericnum': 10,
+					'double ∪ int': 15.35325689124218,
+					'double ∪ smallint': 15.35325689124218,
+					'double ∪ double': 15.35325689124218,
+					'double ∪ real': 15.35325689124218,
+					'double ∪ smallserial': 15.35325689124218,
+					'double ∪ serial': 15.35325689124218,
+					'double ∪ bigserialnum': 15.35325689124218,
+					'double ∪ bigintnum': 15.35325689124218,
+					'double ∪ numericnum': 15.35325689124218,
+					'real ∪ int': 1.048596,
+					'real ∪ smallint': 1.048596,
+					'real ∪ double': 1.0485960245132446,
+					'real ∪ real': 1.048596,
+					'real ∪ smallserial': 1.048596,
+					'real ∪ serial': 1.048596,
+					'smallserial ∪ int': 15,
+					'smallserial ∪ smallint': 15,
+					'smallserial ∪ double': 15,
+					'smallserial ∪ real': 15,
+					'smallserial ∪ smallserial': 15,
+					'smallserial ∪ serial': 15,
+					'smallserial ∪ bigserialnum': 15,
+					'smallserial ∪ bigintnum': 15,
+					'smallserial ∪ numericnum': 15,
+					'serial ∪ int': 1,
+					'serial ∪ smallint': 1,
+					'serial ∪ double': 1,
+					'serial ∪ real': 1,
+					'serial ∪ smallserial': 1,
+					'serial ∪ serial': 1,
+					'serial ∪ bigserialnum': 1,
+					'serial ∪ bigintnum': 1,
+					'serial ∪ numericnum': 1,
+					'bigserialnum ∪ int': 9007199254740991,
+					'bigserialnum ∪ smallint': 9007199254740991,
+					'bigserialnum ∪ double': 9007199254740991,
+					'bigserialnum ∪ smallserial': 9007199254740991,
+					'bigserialnum ∪ serial': 9007199254740991,
+					'bigserialnum ∪ bigserialnum': 9007199254740991,
+					'bigserialnum ∪ bigintnum': 9007199254740991,
+					'bigserialnum ∪ numericnum': 9007199254740991,
+					'bigintnum ∪ int': 9007199254740991,
+					'bigintnum ∪ smallint': 9007199254740991,
+					'bigintnum ∪ double': 9007199254740991,
+					'bigintnum ∪ smallserial': 9007199254740991,
+					'bigintnum ∪ serial': 9007199254740991,
+					'bigintnum ∪ bigserialnum': 9007199254740991,
+					'bigintnum ∪ bigintnum': 9007199254740991,
+					'bigintnum ∪ numericnum': 9007199254740991,
+					'numericnum ∪ int': 9007199254740991,
+					'numericnum ∪ smallint': 9007199254740991,
+					'numericnum ∪ double': 9007199254740991,
+					'numericnum ∪ smallserial': 9007199254740991,
+					'numericnum ∪ serial': 9007199254740991,
+					'numericnum ∪ bigserialnum': 9007199254740991,
+					'numericnum ∪ bigintnum': 9007199254740991,
+					'numericnum ∪ numericnum': 9007199254740991,
+				},
+				{
+					'int ∪ int': 621,
+					'int ∪ smallint': 10,
+					'int ∪ double': 15.35325689124218,
+					'int ∪ real': 1.048596,
+					'int ∪ smallserial': 15,
+					'int ∪ serial': 1,
+					'int ∪ bigserialnum': 9007199254740991,
+					'int ∪ bigintnum': 9007199254740991,
+					'int ∪ numericnum': 9007199254740991,
+					'smallint ∪ int': 621,
+					'smallint ∪ smallint': 10,
+					'smallint ∪ double': 15.35325689124218,
+					'smallint ∪ real': 1.048596,
+					'smallint ∪ smallserial': 15,
+					'smallint ∪ serial': 1,
+					'smallint ∪ bigserialnum': 9007199254740991,
+					'smallint ∪ bigintnum': 9007199254740991,
+					'smallint ∪ numericnum': 9007199254740991,
+					'double ∪ int': 621,
+					'double ∪ smallint': 10,
+					'double ∪ double': 15.35325689124218,
+					'double ∪ real': 1.0485960245132446,
+					'double ∪ smallserial': 15,
+					'double ∪ serial': 1,
+					'double ∪ bigserialnum': 9007199254740991,
+					'double ∪ bigintnum': 9007199254740991,
+					'double ∪ numericnum': 9007199254740991,
+					'real ∪ int': 621,
+					'real ∪ smallint': 10,
+					'real ∪ double': 15.35325689124218,
+					'real ∪ real': 1.048596,
+					'real ∪ smallserial': 15,
+					'real ∪ serial': 1,
+					'smallserial ∪ int': 621,
+					'smallserial ∪ smallint': 10,
+					'smallserial ∪ double': 15.35325689124218,
+					'smallserial ∪ real': 1.048596,
+					'smallserial ∪ smallserial': 15,
+					'smallserial ∪ serial': 1,
+					'smallserial ∪ bigserialnum': 9007199254740991,
+					'smallserial ∪ bigintnum': 9007199254740991,
+					'smallserial ∪ numericnum': 9007199254740991,
+					'serial ∪ int': 621,
+					'serial ∪ smallint': 10,
+					'serial ∪ double': 15.35325689124218,
+					'serial ∪ real': 1.048596,
+					'serial ∪ smallserial': 15,
+					'serial ∪ serial': 1,
+					'serial ∪ bigserialnum': 9007199254740991,
+					'serial ∪ bigintnum': 9007199254740991,
+					'serial ∪ numericnum': 9007199254740991,
+					'bigserialnum ∪ int': 621,
+					'bigserialnum ∪ smallint': 10,
+					'bigserialnum ∪ double': 15.35325689124218,
+					'bigserialnum ∪ smallserial': 15,
+					'bigserialnum ∪ serial': 1,
+					'bigserialnum ∪ bigserialnum': 9007199254740991,
+					'bigserialnum ∪ bigintnum': 9007199254740991,
+					'bigserialnum ∪ numericnum': 9007199254740991,
+					'bigintnum ∪ int': 621,
+					'bigintnum ∪ smallint': 10,
+					'bigintnum ∪ double': 15.35325689124218,
+					'bigintnum ∪ smallserial': 15,
+					'bigintnum ∪ serial': 1,
+					'bigintnum ∪ bigserialnum': 9007199254740991,
+					'bigintnum ∪ bigintnum': 9007199254740991,
+					'bigintnum ∪ numericnum': 9007199254740991,
+					'numericnum ∪ int': 621,
+					'numericnum ∪ smallint': 10,
+					'numericnum ∪ double': 15.35325689124218,
+					'numericnum ∪ smallserial': 15,
+					'numericnum ∪ serial': 1,
+					'numericnum ∪ bigserialnum': 9007199254740991,
+					'numericnum ∪ bigintnum': 9007199254740991,
+					'numericnum ∪ numericnum': 9007199254740991,
+				},
+			]));
+
+			// ---- bigint ----
+			expect(
+				await unionAll(
+					db.select({
+						'bigint ∪ bigint': allTypesTable.bigint.as('bigint ∪ bigint'),
+						'bigint ∪ bigserial': allTypesTable.bigint.as('bigint ∪ bigserial'),
+						'bigint ∪ numericbig': allTypesTable.bigint.as('bigint ∪ numericbig'),
+						'bigserial ∪ bigint': allTypesTable.bigserial.as('bigserial ∪ bigint'),
+						'bigserial ∪ bigserial': allTypesTable.bigserial.as('bigserial ∪ bigserial'),
+						'bigserial ∪ numericbig': allTypesTable.bigserial.as('bigserial ∪ numericbig'),
+						'numericbig ∪ bigint': allTypesTable.numericbig.as('numericbig ∪ bigint'),
+						'numericbig ∪ bigserial': allTypesTable.numericbig.as('numericbig ∪ bigserial'),
+						'numericbig ∪ numericbig': allTypesTable.numericbig.as('numericbig ∪ numericbig'),
+					}).from(allTypesTable),
+					db.select({
+						'bigint ∪ bigint': allTypesTable.bigint.as('bigint ∪ bigint'),
+						'bigint ∪ bigserial': allTypesTable.bigserial.as('bigint ∪ bigserial'),
+						'bigint ∪ numericbig': allTypesTable.numericbig.as('bigint ∪ numericbig'),
+						'bigserial ∪ bigint': allTypesTable.bigint.as('bigserial ∪ bigint'),
+						'bigserial ∪ bigserial': allTypesTable.bigserial.as('bigserial ∪ bigserial'),
+						'bigserial ∪ numericbig': allTypesTable.numericbig.as('bigserial ∪ numericbig'),
+						'numericbig ∪ bigint': allTypesTable.bigint.as('numericbig ∪ bigint'),
+						'numericbig ∪ bigserial': allTypesTable.bigserial.as('numericbig ∪ bigserial'),
+						'numericbig ∪ numericbig': allTypesTable.numericbig.as('numericbig ∪ numericbig'),
+					}).from(allTypesTable),
+				),
+			).toEqual(expect.arrayContaining([
+				{
+					'bigint ∪ bigint': 5044565289845416380n,
+					'bigint ∪ bigserial': 5044565289845416380n,
+					'bigint ∪ numericbig': 5044565289845416380n,
+					'bigserial ∪ bigint': 5044565289845416380n,
+					'bigserial ∪ bigserial': 5044565289845416380n,
+					'bigserial ∪ numericbig': 5044565289845416380n,
+					'numericbig ∪ bigint': 5044565289845416380n,
+					'numericbig ∪ bigserial': 5044565289845416380n,
+					'numericbig ∪ numericbig': 5044565289845416380n,
+				},
+				{
+					'bigint ∪ bigint': 5044565289845416380n,
+					'bigint ∪ bigserial': 5044565289845416380n,
+					'bigint ∪ numericbig': 5044565289845416380n,
+					'bigserial ∪ bigint': 5044565289845416380n,
+					'bigserial ∪ bigserial': 5044565289845416380n,
+					'bigserial ∪ numericbig': 5044565289845416380n,
+					'numericbig ∪ bigint': 5044565289845416380n,
+					'numericbig ∪ bigserial': 5044565289845416380n,
+					'numericbig ∪ numericbig': 5044565289845416380n,
+				},
+			]));
+
+			// ---- text ----
+			expect(
+				await unionAll(
+					db.select({
+						'varchar ∪ varchar': allTypesTable.varchar.as('varchar ∪ varchar'),
+						'varchar ∪ text': allTypesTable.varchar.as('varchar ∪ text'),
+						'text ∪ varchar': allTypesTable.text.as('text ∪ varchar'),
+						'text ∪ text': allTypesTable.text.as('text ∪ text'),
+					}).from(allTypesTable),
+					db.select({
+						'varchar ∪ varchar': allTypesTable.varchar.as('varchar ∪ varchar'),
+						'varchar ∪ text': allTypesTable.text.as('varchar ∪ text'),
+						'text ∪ varchar': allTypesTable.varchar.as('text ∪ varchar'),
+						'text ∪ text': allTypesTable.text.as('text ∪ text'),
+					}).from(allTypesTable),
+				),
+			).toEqual(expect.arrayContaining([
+				{
+					'varchar ∪ varchar': 'C4-',
+					'varchar ∪ text': 'C4-',
+					'text ∪ varchar': 'TEXT STRING',
+					'text ∪ text': 'TEXT STRING',
+				},
+				{
+					'varchar ∪ varchar': 'C4-',
+					'varchar ∪ text': 'TEXT STRING',
+					'text ∪ varchar': 'C4-',
+					'text ∪ text': 'TEXT STRING',
+				},
+			]));
+
+			// ---- numstr ----
+			expect(
+				await unionAll(
+					db.select({
+						'bigintstr ∪ bigintstr': allTypesTable.bigintstr.as('bigintstr ∪ bigintstr'),
+						'bigintstr ∪ numeric': allTypesTable.bigintstr.as('bigintstr ∪ numeric'),
+						'numeric ∪ bigintstr': allTypesTable.numeric.as('numeric ∪ bigintstr'),
+						'numeric ∪ numeric': allTypesTable.numeric.as('numeric ∪ numeric'),
+					}).from(allTypesTable),
+					db.select({
+						'bigintstr ∪ bigintstr': allTypesTable.bigintstr.as('bigintstr ∪ bigintstr'),
+						'bigintstr ∪ numeric': allTypesTable.numeric.as('bigintstr ∪ numeric'),
+						'numeric ∪ bigintstr': allTypesTable.bigintstr.as('numeric ∪ bigintstr'),
+						'numeric ∪ numeric': allTypesTable.numeric.as('numeric ∪ numeric'),
+					}).from(allTypesTable),
+				),
+			).toEqual(expect.arrayContaining([
+				{
+					'bigintstr ∪ bigintstr': '5044565289845416380',
+					'bigintstr ∪ numeric': '5044565289845416380',
+					'numeric ∪ bigintstr': '5044565289845416380',
+					'numeric ∪ numeric': '5044565289845416380',
+				},
+				{
+					'bigintstr ∪ bigintstr': '5044565289845416380',
+					'bigintstr ∪ numeric': '5044565289845416380',
+					'numeric ∪ bigintstr': '5044565289845416380',
+					'numeric ∪ numeric': '5044565289845416380',
+				},
+			]));
+
+			// ---- date ----
+			expect(
+				await unionAll(
+					db.select({
+						'date ∪ date': allTypesTable.date.as('date ∪ date'),
+						'date ∪ timestamp': allTypesTable.date.as('date ∪ timestamp'),
+						'date ∪ timestampTz': allTypesTable.date.as('date ∪ timestampTz'),
+						'timestamp ∪ date': allTypesTable.timestamp.as('timestamp ∪ date'),
+						'timestamp ∪ timestamp': allTypesTable.timestamp.as('timestamp ∪ timestamp'),
+						'timestamp ∪ timestampTz': allTypesTable.timestamp.as('timestamp ∪ timestampTz'),
+						'timestampTz ∪ date': allTypesTable.timestampTz.as('timestampTz ∪ date'),
+						'timestampTz ∪ timestamp': allTypesTable.timestampTz.as('timestampTz ∪ timestamp'),
+						'timestampTz ∪ timestampTz': allTypesTable.timestampTz.as('timestampTz ∪ timestampTz'),
+					}).from(allTypesTable),
+					db.select({
+						'date ∪ date': allTypesTable.date.as('date ∪ date'),
+						'date ∪ timestamp': allTypesTable.timestamp.as('date ∪ timestamp'),
+						'date ∪ timestampTz': allTypesTable.timestampTz.as('date ∪ timestampTz'),
+						'timestamp ∪ date': allTypesTable.date.as('timestamp ∪ date'),
+						'timestamp ∪ timestamp': allTypesTable.timestamp.as('timestamp ∪ timestamp'),
+						'timestamp ∪ timestampTz': allTypesTable.timestampTz.as('timestamp ∪ timestampTz'),
+						'timestampTz ∪ date': allTypesTable.date.as('timestampTz ∪ date'),
+						'timestampTz ∪ timestamp': allTypesTable.timestamp.as('timestampTz ∪ timestamp'),
+						'timestampTz ∪ timestampTz': allTypesTable.timestampTz.as('timestampTz ∪ timestampTz'),
+					}).from(allTypesTable),
+				),
+			).toEqual(expect.arrayContaining([
+				{
+					'date ∪ date': new Date('2025-03-12'),
+					'date ∪ timestamp': new Date('2025-03-12'),
+					'date ∪ timestampTz': new Date('2025-03-12'),
+					'timestamp ∪ date': new Date('2025-03-12 01:32:41.623'),
+					'timestamp ∪ timestamp': new Date('2025-03-12 01:32:41.623'),
+					'timestamp ∪ timestampTz': new Date('2025-03-12 01:32:41.623'),
+					'timestampTz ∪ date': new Date('2025-03-12 01:32:41.623+00'),
+					'timestampTz ∪ timestamp': new Date('2025-03-12 01:32:41.623+00'),
+					'timestampTz ∪ timestampTz': new Date('2025-03-12 01:32:41.623+00'),
+				},
+				{
+					'date ∪ date': new Date('2025-03-12'),
+					'date ∪ timestamp': new Date('2025-03-12 01:32:41.623'),
+					'date ∪ timestampTz': new Date('2025-03-12 01:32:41.623+00'),
+					'timestamp ∪ date': new Date('2025-03-12'),
+					'timestamp ∪ timestamp': new Date('2025-03-12 01:32:41.623'),
+					'timestamp ∪ timestampTz': new Date('2025-03-12 01:32:41.623+00'),
+					'timestampTz ∪ date': new Date('2025-03-12'),
+					'timestampTz ∪ timestamp': new Date('2025-03-12 01:32:41.623'),
+					'timestampTz ∪ timestampTz': new Date('2025-03-12 01:32:41.623+00'),
+				},
+			]));
+
+			// ---- json ----
+			expect(
+				await unionAll(
+					db.select({
+						'json ∪ json': allTypesTable.json.as('json ∪ json'),
+						'json ∪ json1': allTypesTable.json.as('json ∪ json1'),
+						'json ∪ json2': allTypesTable.json.as('json ∪ json2'),
+						'json ∪ json3': allTypesTable.json.as('json ∪ json3'),
+						'json1 ∪ json': allTypesTable.json1.as('json1 ∪ json'),
+						'json1 ∪ json1': allTypesTable.json1.as('json1 ∪ json1'),
+						'json1 ∪ json2': allTypesTable.json1.as('json1 ∪ json2'),
+						'json1 ∪ json3': allTypesTable.json1.as('json1 ∪ json3'),
+						'json2 ∪ json': allTypesTable.json2.as('json2 ∪ json'),
+						'json2 ∪ json1': allTypesTable.json2.as('json2 ∪ json1'),
+						'json2 ∪ json2': allTypesTable.json2.as('json2 ∪ json2'),
+						'json2 ∪ json3': allTypesTable.json2.as('json2 ∪ json3'),
+						'json3 ∪ json': allTypesTable.json3.as('json3 ∪ json'),
+						'json3 ∪ json1': allTypesTable.json3.as('json3 ∪ json1'),
+						'json3 ∪ json2': allTypesTable.json3.as('json3 ∪ json2'),
+						'json3 ∪ json3': allTypesTable.json3.as('json3 ∪ json3'),
+					}).from(allTypesTable),
+					db.select({
+						'json ∪ json': allTypesTable.json.as('json ∪ json'),
+						'json ∪ json1': allTypesTable.json1.as('json ∪ json1'),
+						'json ∪ json2': allTypesTable.json2.as('json ∪ json2'),
+						'json ∪ json3': allTypesTable.json3.as('json ∪ json3'),
+						'json1 ∪ json': allTypesTable.json.as('json1 ∪ json'),
+						'json1 ∪ json1': allTypesTable.json1.as('json1 ∪ json1'),
+						'json1 ∪ json2': allTypesTable.json2.as('json1 ∪ json2'),
+						'json1 ∪ json3': allTypesTable.json3.as('json1 ∪ json3'),
+						'json2 ∪ json': allTypesTable.json.as('json2 ∪ json'),
+						'json2 ∪ json1': allTypesTable.json1.as('json2 ∪ json1'),
+						'json2 ∪ json2': allTypesTable.json2.as('json2 ∪ json2'),
+						'json2 ∪ json3': allTypesTable.json3.as('json2 ∪ json3'),
+						'json3 ∪ json': allTypesTable.json.as('json3 ∪ json'),
+						'json3 ∪ json1': allTypesTable.json1.as('json3 ∪ json1'),
+						'json3 ∪ json2': allTypesTable.json2.as('json3 ∪ json2'),
+						'json3 ∪ json3': allTypesTable.json3.as('json3 ∪ json3'),
+					}).from(allTypesTable),
+				),
+			).toEqual(expect.arrayContaining([
+				{
+					'json ∪ json': { str: 'strval', arr: ['str', 10] },
+					'json ∪ json1': { str: 'strval', arr: ['str', 10] },
+					'json ∪ json2': { str: 'strval', arr: ['str', 10] },
+					'json ∪ json3': { str: 'strval', arr: ['str', 10] },
+					'json1 ∪ json': [{ key: 'value', num: 7 }, 'v', '11', 5],
+					'json1 ∪ json1': [{ key: 'value', num: 7 }, 'v', '11', 5],
+					'json1 ∪ json2': [{ key: 'value', num: 7 }, 'v', '11', 5],
+					'json1 ∪ json3': [{ key: 'value', num: 7 }, 'v', '11', 5],
+					'json2 ∪ json': 5,
+					'json2 ∪ json1': 5,
+					'json2 ∪ json2': 5,
+					'json2 ∪ json3': 5,
+					'json3 ∪ json': '5',
+					'json3 ∪ json1': '5',
+					'json3 ∪ json2': '5',
+					'json3 ∪ json3': '5',
+				},
+				{
+					'json ∪ json': { str: 'strval', arr: ['str', 10] },
+					'json ∪ json1': [{ key: 'value', num: 7 }, 'v', '11', 5],
+					'json ∪ json2': 5,
+					'json ∪ json3': '5',
+					'json1 ∪ json': { str: 'strval', arr: ['str', 10] },
+					'json1 ∪ json1': [{ key: 'value', num: 7 }, 'v', '11', 5],
+					'json1 ∪ json2': 5,
+					'json1 ∪ json3': '5',
+					'json2 ∪ json': { str: 'strval', arr: ['str', 10] },
+					'json2 ∪ json1': [{ key: 'value', num: 7 }, 'v', '11', 5],
+					'json2 ∪ json2': 5,
+					'json2 ∪ json3': '5',
+					'json3 ∪ json': { str: 'strval', arr: ['str', 10] },
+					'json3 ∪ json1': [{ key: 'value', num: 7 }, 'v', '11', 5],
+					'json3 ∪ json2': 5,
+					'json3 ∪ json3': '5',
+				},
+			]));
+
+			// ---- jsonb ----
+			expect(
+				await unionAll(
+					db.select({
+						'jsonb ∪ jsonb': allTypesTable.jsonb.as('jsonb ∪ jsonb'),
+						'jsonb ∪ jsonb1': allTypesTable.jsonb.as('jsonb ∪ jsonb1'),
+						'jsonb ∪ jsonb2': allTypesTable.jsonb.as('jsonb ∪ jsonb2'),
+						'jsonb ∪ jsonb3': allTypesTable.jsonb.as('jsonb ∪ jsonb3'),
+						'jsonb1 ∪ jsonb': allTypesTable.jsonb1.as('jsonb1 ∪ jsonb'),
+						'jsonb1 ∪ jsonb1': allTypesTable.jsonb1.as('jsonb1 ∪ jsonb1'),
+						'jsonb1 ∪ jsonb2': allTypesTable.jsonb1.as('jsonb1 ∪ jsonb2'),
+						'jsonb1 ∪ jsonb3': allTypesTable.jsonb1.as('jsonb1 ∪ jsonb3'),
+						'jsonb2 ∪ jsonb': allTypesTable.jsonb2.as('jsonb2 ∪ jsonb'),
+						'jsonb2 ∪ jsonb1': allTypesTable.jsonb2.as('jsonb2 ∪ jsonb1'),
+						'jsonb2 ∪ jsonb2': allTypesTable.jsonb2.as('jsonb2 ∪ jsonb2'),
+						'jsonb2 ∪ jsonb3': allTypesTable.jsonb2.as('jsonb2 ∪ jsonb3'),
+						'jsonb3 ∪ jsonb': allTypesTable.jsonb3.as('jsonb3 ∪ jsonb'),
+						'jsonb3 ∪ jsonb1': allTypesTable.jsonb3.as('jsonb3 ∪ jsonb1'),
+						'jsonb3 ∪ jsonb2': allTypesTable.jsonb3.as('jsonb3 ∪ jsonb2'),
+						'jsonb3 ∪ jsonb3': allTypesTable.jsonb3.as('jsonb3 ∪ jsonb3'),
+					}).from(allTypesTable),
+					db.select({
+						'jsonb ∪ jsonb': allTypesTable.jsonb.as('jsonb ∪ jsonb'),
+						'jsonb ∪ jsonb1': allTypesTable.jsonb1.as('jsonb ∪ jsonb1'),
+						'jsonb ∪ jsonb2': allTypesTable.jsonb2.as('jsonb ∪ jsonb2'),
+						'jsonb ∪ jsonb3': allTypesTable.jsonb3.as('jsonb ∪ jsonb3'),
+						'jsonb1 ∪ jsonb': allTypesTable.jsonb.as('jsonb1 ∪ jsonb'),
+						'jsonb1 ∪ jsonb1': allTypesTable.jsonb1.as('jsonb1 ∪ jsonb1'),
+						'jsonb1 ∪ jsonb2': allTypesTable.jsonb2.as('jsonb1 ∪ jsonb2'),
+						'jsonb1 ∪ jsonb3': allTypesTable.jsonb3.as('jsonb1 ∪ jsonb3'),
+						'jsonb2 ∪ jsonb': allTypesTable.jsonb.as('jsonb2 ∪ jsonb'),
+						'jsonb2 ∪ jsonb1': allTypesTable.jsonb1.as('jsonb2 ∪ jsonb1'),
+						'jsonb2 ∪ jsonb2': allTypesTable.jsonb2.as('jsonb2 ∪ jsonb2'),
+						'jsonb2 ∪ jsonb3': allTypesTable.jsonb3.as('jsonb2 ∪ jsonb3'),
+						'jsonb3 ∪ jsonb': allTypesTable.jsonb.as('jsonb3 ∪ jsonb'),
+						'jsonb3 ∪ jsonb1': allTypesTable.jsonb1.as('jsonb3 ∪ jsonb1'),
+						'jsonb3 ∪ jsonb2': allTypesTable.jsonb2.as('jsonb3 ∪ jsonb2'),
+						'jsonb3 ∪ jsonb3': allTypesTable.jsonb3.as('jsonb3 ∪ jsonb3'),
+					}).from(allTypesTable),
+				),
+			).toEqual(expect.arrayContaining([
+				{
+					'jsonb ∪ jsonb': { arr: ['strb', 11], str: 'strvalb' },
+					'jsonb ∪ jsonb1': { arr: ['strb', 11], str: 'strvalb' },
+					'jsonb ∪ jsonb2': { arr: ['strb', 11], str: 'strvalb' },
+					'jsonb ∪ jsonb3': { arr: ['strb', 11], str: 'strvalb' },
+					'jsonb1 ∪ jsonb': [{ key: 'value', num: 8 }, 'x', '10', 3],
+					'jsonb1 ∪ jsonb1': [{ key: 'value', num: 8 }, 'x', '10', 3],
+					'jsonb1 ∪ jsonb2': [{ key: 'value', num: 8 }, 'x', '10', 3],
+					'jsonb1 ∪ jsonb3': [{ key: 'value', num: 8 }, 'x', '10', 3],
+					'jsonb2 ∪ jsonb': 7,
+					'jsonb2 ∪ jsonb1': 7,
+					'jsonb2 ∪ jsonb2': 7,
+					'jsonb2 ∪ jsonb3': 7,
+					'jsonb3 ∪ jsonb': '7',
+					'jsonb3 ∪ jsonb1': '7',
+					'jsonb3 ∪ jsonb2': '7',
+					'jsonb3 ∪ jsonb3': '7',
+				},
+				{
+					'jsonb ∪ jsonb': { arr: ['strb', 11], str: 'strvalb' },
+					'jsonb ∪ jsonb1': [{ key: 'value', num: 8 }, 'x', '10', 3],
+					'jsonb ∪ jsonb2': 7,
+					'jsonb ∪ jsonb3': '7',
+					'jsonb1 ∪ jsonb': { arr: ['strb', 11], str: 'strvalb' },
+					'jsonb1 ∪ jsonb1': [{ key: 'value', num: 8 }, 'x', '10', 3],
+					'jsonb1 ∪ jsonb2': 7,
+					'jsonb1 ∪ jsonb3': '7',
+					'jsonb2 ∪ jsonb': { arr: ['strb', 11], str: 'strvalb' },
+					'jsonb2 ∪ jsonb1': [{ key: 'value', num: 8 }, 'x', '10', 3],
+					'jsonb2 ∪ jsonb2': 7,
+					'jsonb2 ∪ jsonb3': '7',
+					'jsonb3 ∪ jsonb': { arr: ['strb', 11], str: 'strvalb' },
+					'jsonb3 ∪ jsonb1': [{ key: 'value', num: 8 }, 'x', '10', 3],
+					'jsonb3 ∪ jsonb2': 7,
+					'jsonb3 ∪ jsonb3': '7',
+				},
+			]));
+
+			// ---- self-only ----
+			expect(
+				await unionAll(
+					db.select({
+						'char ∪ char': allTypesTable.char.as('char ∪ char'),
+						'cidr ∪ cidr': allTypesTable.cidr.as('cidr ∪ cidr'),
+						'inet ∪ inet': allTypesTable.inet.as('inet ∪ inet'),
+						'macaddr ∪ macaddr': allTypesTable.macaddr.as('macaddr ∪ macaddr'),
+						'macaddr8 ∪ macaddr8': allTypesTable.macaddr8.as('macaddr8 ∪ macaddr8'),
+						'uuid ∪ uuid': allTypesTable.uuid.as('uuid ∪ uuid'),
+						'interval ∪ interval': allTypesTable.interval.as('interval ∪ interval'),
+						'time ∪ time': allTypesTable.time.as('time ∪ time'),
+						'datestr ∪ datestr': allTypesTable.datestr.as('datestr ∪ datestr'),
+						'timestampstr ∪ timestampstr': allTypesTable.timestampstr.as('timestampstr ∪ timestampstr'),
+						'timestampTzstr ∪ timestampTzstr': allTypesTable.timestampTzstr.as('timestampTzstr ∪ timestampTzstr'),
+						'bool ∪ bool': allTypesTable.bool.as('bool ∪ bool'),
+						'bytea ∪ bytea': allTypesTable.bytea.as('bytea ∪ bytea'),
+						'enum ∪ enum': allTypesTable.enum.as('enum ∪ enum'),
+						'line ∪ line': allTypesTable.line.as('line ∪ line'),
+						'linetuple ∪ linetuple': allTypesTable.linetuple.as('linetuple ∪ linetuple'),
+						'point ∪ point': allTypesTable.point.as('point ∪ point'),
+						'pointtuple ∪ pointtuple': allTypesTable.pointtuple.as('pointtuple ∪ pointtuple'),
+					}).from(allTypesTable),
+					db.select({
+						'char ∪ char': allTypesTable.char.as('char ∪ char'),
+						'cidr ∪ cidr': allTypesTable.cidr.as('cidr ∪ cidr'),
+						'inet ∪ inet': allTypesTable.inet.as('inet ∪ inet'),
+						'macaddr ∪ macaddr': allTypesTable.macaddr.as('macaddr ∪ macaddr'),
+						'macaddr8 ∪ macaddr8': allTypesTable.macaddr8.as('macaddr8 ∪ macaddr8'),
+						'uuid ∪ uuid': allTypesTable.uuid.as('uuid ∪ uuid'),
+						'interval ∪ interval': allTypesTable.interval.as('interval ∪ interval'),
+						'time ∪ time': allTypesTable.time.as('time ∪ time'),
+						'datestr ∪ datestr': allTypesTable.datestr.as('datestr ∪ datestr'),
+						'timestampstr ∪ timestampstr': allTypesTable.timestampstr.as('timestampstr ∪ timestampstr'),
+						'timestampTzstr ∪ timestampTzstr': allTypesTable.timestampTzstr.as('timestampTzstr ∪ timestampTzstr'),
+						'bool ∪ bool': allTypesTable.bool.as('bool ∪ bool'),
+						'bytea ∪ bytea': allTypesTable.bytea.as('bytea ∪ bytea'),
+						'enum ∪ enum': allTypesTable.enum.as('enum ∪ enum'),
+						'line ∪ line': allTypesTable.line.as('line ∪ line'),
+						'linetuple ∪ linetuple': allTypesTable.linetuple.as('linetuple ∪ linetuple'),
+						'point ∪ point': allTypesTable.point.as('point ∪ point'),
+						'pointtuple ∪ pointtuple': allTypesTable.pointtuple.as('pointtuple ∪ pointtuple'),
+					}).from(allTypesTable),
+				),
+			).toEqual(expect.arrayContaining([
+				{
+					'char ∪ char': 'c',
+					'cidr ∪ cidr': '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+					'inet ∪ inet': '192.168.0.1/24',
+					'macaddr ∪ macaddr': '08:00:2b:01:02:03',
+					'macaddr8 ∪ macaddr8': '08:00:2b:01:02:03:04:05',
+					'uuid ∪ uuid': 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+					'interval ∪ interval': '-2 mons',
+					'time ∪ time': '13:59:28',
+					'datestr ∪ datestr': '2025-03-12',
+					'timestampstr ∪ timestampstr': '2025-03-12 01:32:41.623',
+					'timestampTzstr ∪ timestampTzstr': '2025-03-12 01:32:41.623+00',
+					'bool ∪ bool': true,
+					'bytea ∪ bytea': Buffer.from('BYTES'),
+					'enum ∪ enum': 'enVal1',
+					'line ∪ line': { a: 1, b: 2, c: 3 },
+					'linetuple ∪ linetuple': [1, 2, 3],
+					'point ∪ point': { x: 24.5, y: 49.6 },
+					'pointtuple ∪ pointtuple': [24.5, 49.6],
+				},
+				{
+					'char ∪ char': 'c',
+					'cidr ∪ cidr': '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+					'inet ∪ inet': '192.168.0.1/24',
+					'macaddr ∪ macaddr': '08:00:2b:01:02:03',
+					'macaddr8 ∪ macaddr8': '08:00:2b:01:02:03:04:05',
+					'uuid ∪ uuid': 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+					'interval ∪ interval': '-2 mons',
+					'time ∪ time': '13:59:28',
+					'datestr ∪ datestr': '2025-03-12',
+					'timestampstr ∪ timestampstr': '2025-03-12 01:32:41.623',
+					'timestampTzstr ∪ timestampTzstr': '2025-03-12 01:32:41.623+00',
+					'bool ∪ bool': true,
+					'bytea ∪ bytea': Buffer.from('BYTES'),
+					'enum ∪ enum': 'enVal1',
+					'line ∪ line': { a: 1, b: 2, c: 3 },
+					'linetuple ∪ linetuple': [1, 2, 3],
+					'point ∪ point': { x: 24.5, y: 49.6 },
+					'pointtuple ∪ pointtuple': [24.5, 49.6],
+				},
+			]));
+		});
+
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018
-		test.skipIf(Date.now() < +new Date('2026-03-15')).concurrent(
+		test.concurrent(
 			'select string from jsonb/json column',
 			async ({ db, push }) => {
 				const table = pgTable('table_jsonb', { col1: jsonb(), col2: json() });
@@ -3379,10 +5308,14 @@ export function tests(test: Test) {
 
 				await push({ users });
 
-				await db.insert(users).values([{ id: 1n, name: 'John' }, { id: 2n, name: 'Jane' }, {
-					id: 9223372036854775807n,
-					name: 'Jane',
-				}]);
+				await db.insert(users).values([
+					{ id: 1n, name: 'John' },
+					{ id: 2n, name: 'Jane' },
+					{
+						id: 9223372036854775807n,
+						name: 'Jane',
+					},
+				]);
 				const result = await db
 					.select({ name: users.name })
 					.from(users)
@@ -3392,28 +5325,30 @@ export function tests(test: Test) {
 		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4950
-		test.concurrent(
-			'mySchema :: select with for',
-			async ({ db, push }) => {
-				const mySchema = pgSchema('mySchema');
-				const users = mySchema.table('users_113', {
-					id: integer('id').primaryKey(),
-					name: text('name').notNull(),
-				});
+		test.concurrent('mySchema :: select with for', async ({ db, push }) => {
+			const mySchema = pgSchema('mySchema');
+			const users = mySchema.table('users_113', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+			});
 
-				await push({ users });
+			await push({ users });
 
-				await db.insert(users).values([{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }]);
-				const query = db
-					.select({ name: users.name })
-					.from(users)
-					.for('update', { of: users });
+			await db.insert(users).values([
+				{ id: 1, name: 'John' },
+				{ id: 2, name: 'Jane' },
+			]);
+			const query = db
+				.select({ name: users.name })
+				.from(users)
+				.for('update', { of: users });
 
-				expect(query.toSQL().sql).toEqual('select "name" from "mySchema"."users_113" for update of "users_113"');
-				const result = await query;
-				expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
-			},
-		);
+			expect(query.toSQL().sql).toEqual(
+				'select "name" from "mySchema"."users_113" for update of "users_113"',
+			);
+			const result = await query;
+			expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }]);
+		});
 
 		// test.concurrent('mySchema :: select with for #2', async ({ db, push }) => {
 		// 	const schemaA = pgSchema('schema_a');
@@ -3448,7 +5383,7 @@ export function tests(test: Test) {
 		// https://github.com/drizzle-team/drizzle-orm/issues/5253
 		// enhancement
 		// allow select which columns to insert in insert...select
-		test.skipIf(Date.now() < +new Date('2026-03-15')).concurrent('insert into ... select #2', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-07-01')).concurrent('insert into ... select #2', async ({ db, push }) => {
 			const users = pgTable('users_114', {
 				id: integer('id').primaryKey(),
 				name: text('name').notNull(),
@@ -3461,16 +5396,22 @@ export function tests(test: Test) {
 
 			await push({ users, employees });
 
-			await db.insert(users).values([{ id: 1, name: 'John', role: 'employee' }, {
-				id: 2,
-				name: 'Jane',
-				role: 'admin',
-			}]);
+			await db.insert(users).values([
+				{ id: 1, name: 'John', role: 'employee' },
+				{
+					id: 2,
+					name: 'Jane',
+					role: 'admin',
+				},
+			]);
 
 			await db
 				.insert(employees)
 				.select(
-					db.select({ name: users.name }).from(users).where(eq(users.role, 'employee')),
+					db
+						.select({ name: users.name })
+						.from(users)
+						.where(eq(users.role, 'employee')),
 				)
 				.returning({
 					id: employees.id,
@@ -3507,22 +5448,31 @@ export function tests(test: Test) {
 			});
 
 			await push({ myTable });
-			await db.insert(myTable).values([{ id: 1, movieId: 1, tag: 'abc' }, { id: 2, movieId: 1, tag: 'def' }]);
+			await db.insert(myTable).values([
+				{ id: 1, movieId: 1, tag: 'abc' },
+				{ id: 2, movieId: 1, tag: 'def' },
+			]);
 
-			const subquery = db.select({
-				tags_array: sql<string[] | null>`array_agg(${myTable.tag})`.as('selectedIds'),
-			})
+			const subquery = db
+				.select({
+					tags_array: sql<string[] | null>`array_agg(${myTable.tag})`.as(
+						'selectedIds',
+					),
+				})
 				.from(myTable)
-				.groupBy(myTable.movieId).as('subquery');
+				.groupBy(myTable.movieId)
+				.as('subquery');
 
-			const result = await db.select().from(subquery)
+			const result = await db
+				.select()
+				.from(subquery)
 				.where(arrayContains(subquery.tags_array, ['abc', 'def']));
 
 			expect(result).toStrictEqual([{ tags_array: ['abc', 'def'] }]);
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/4596
-		test.skipIf(Date.now() < +new Date('2026-03-15'))(
+		test.skipIf(Date.now() < +new Date('2026-07-01'))(
 			'functional index; onConflict do update',
 			async ({ db, push }) => {
 				throw new Error('SKIP. commented below because of type error');
@@ -3560,17 +5510,19 @@ export function tests(test: Test) {
 		);
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/5282
-		test.skipIf(Date.now() < +new Date('2026-03-15'))('casing in sql``', async ({ createDB, push }) => {
-			const payments = pgTable('payments', {
+		test('casing in sql``', async ({ db, push }) => {
+			const payments = snakeCase.table('payments', {
 				id: integer().primaryKey(),
 				amount: numeric(),
 				completedAt: timestamp(),
 			});
 			const schema = { payments };
-			const db = createDB(schema, () => ({}), 'snake_case');
-
 			await push(schema);
-			db.insert(payments).values({ id: 1, amount: '10.12', completedAt: new Date() });
+			db.insert(payments).values({
+				id: 1,
+				amount: '10.12',
+				completedAt: new Date(),
+			});
 
 			const query = db
 				.insert(payments)
@@ -3578,24 +5530,36 @@ export function tests(test: Test) {
 				.onConflictDoUpdate({
 					target: [payments.id],
 					set: {
-						completedAt: sql`excluded.${payments.completedAt}`,
-						amount: sql`excluded.${payments.amount}`,
+						completedAt: sql`excluded.${sql.identifier(payments.completedAt.name)}`,
+						amount: sql`excluded.${sql.identifier(payments.amount.name)}`,
 					},
 				});
 
 			expect(query.toSQL().sql).toEqual(
-				'insert into "payments" ("id", "amount", "completedAt") values ($1, $2, $3) on conflict ("id") do update set "amount" = excluded."amount", "completed_at" = excluded."completed_at"',
+				'insert into "payments" ("id", "amount", "completed_at") values ($1, $2, $3) on conflict ("id") do update set "amount" = excluded."amount", "completed_at" = excluded."completed_at"',
 			);
 			await query;
 
-			const result = await db.select({ amount: payments.amount })
-				.from(payments).where(eq(payments.id, 1));
+			const result = await db
+				.select({ amount: payments.amount })
+				.from(payments)
+				.where(eq(payments.id, 1));
 
 			expect(result).toStrictEqual([{ amount: '12.14' }]);
 		});
 
+		test.concurrent('sql.identifier escape', async () => {
+			const dialect = new PgDialect();
+			const userInput = 'id" ASC, CAST((SELECT password_hash FROM users LIMIT 1) AS int)--';
+			const query = sql`SELECT * FROM ${sql.identifier('users')} ORDER BY ${sql.identifier(userInput)} ASC`;
+			const str = dialect.sqlToQuery(query);
+			expect(str.sql).toBe(
+				'SELECT * FROM "users" ORDER BY "id"" ASC, CAST((SELECT password_hash FROM users LIMIT 1) AS int)--" ASC',
+			);
+		});
+
 		// https://github.com/drizzle-team/drizzle-orm/issues/4419
-		test.skipIf(Date.now() < +new Date('2026-03-15'))('db/js timestamp comparison', async ({ db, push }) => {
+		test.skipIf(Date.now() < +new Date('2026-07-01'))('db/js timestamp comparison', async ({ db, push }) => {
 			const table1 = pgTable('table1', {
 				id: integer(),
 				// default config equal to: { mode: 'date' }
@@ -3609,8 +5573,2415 @@ export function tests(test: Test) {
 			const result1 = await db.select().from(table1);
 			const rowCreatedAt = result1[0]!.rowCreatedAt;
 
-			const result2 = await db.select({ id: table1.id }).from(table1).where(eq(table1.rowCreatedAt, rowCreatedAt));
+			const result2 = await db
+				.select({ id: table1.id })
+				.from(table1)
+				.where(eq(table1.rowCreatedAt, rowCreatedAt));
 			expect(result2).toStrictEqual([{ id: 1 }]);
 		});
+
+		test.concurrent('comments', async ({ createDB, push }) => {
+			const ctbl = pgTable('comments_test', (t) => ({
+				id: t.integer('id').primaryKey(),
+				name: t.text('name').notNull(),
+			}));
+
+			await push({ ctbl });
+			const db = createDB({ ctbl });
+
+			const insertQ = db
+				.insert(ctbl)
+				.values([
+					{
+						id: 1,
+						name: 'First',
+					},
+					{
+						id: 2,
+						name: 'Second',
+					},
+				])
+				.comment({ insert: '*/ comment /*', '/* n': 1 });
+
+			expect(insertQ.toSQL().sql).toStrictEqual(
+				`insert into "comments_test" ("id", "name") values ($1, $2), ($3, $4) /*%2F*%20n='1',insert='*%2F%20comment%20%2F*'*/`,
+			);
+
+			const deleteQ = db
+				.delete(ctbl)
+				.where(eq(ctbl.id, 2))
+				.comment({ "del ' ete": '*/ comment /*' });
+			expect(deleteQ.toSQL().sql).toStrictEqual(
+				`delete from "comments_test" where "comments_test"."id" = $1 /*del%20\\'%20ete='*%2F%20comment%20%2F*'*/`,
+			);
+
+			const updateQ = db
+				.update(ctbl)
+				.set({ name: 'Updated' })
+				.where(eq(ctbl.id, 1))
+				.comment({
+					update: 'here /**',
+				});
+			expect(updateQ.toSQL().sql).toStrictEqual(
+				`update "comments_test" set "name" = $1 where "comments_test"."id" = $2 /*update='here%20%2F**'*/`,
+			);
+
+			const selectQ = db
+				.select()
+				.from(ctbl)
+				.comment({ select: 'co\'m"m`/* ent*/ "' });
+			expect(selectQ.toSQL().sql).toStrictEqual(
+				`select "id", "name" from "comments_test" /*select='co\\'m%22m%60%2F*%20ent*%2F%20%22'*/`,
+			);
+
+			const rqbQ = db.query.ctbl.findFirst({
+				columns: {
+					id: true,
+				},
+				comment: {
+					fieldOne: '_valueOne',
+					_fieldTwo: 'value two',
+				},
+			});
+			expect(rqbQ.toSQL().sql).toStrictEqual(
+				`select "d0"."id" as "id" from "comments_test" as "d0" limit $1 /*_fieldTwo='value%20two',fieldOne='_valueOne'*/`,
+			);
+
+			const selectQPrepared = db
+				.select()
+				.from(ctbl)
+				.comment({
+					select: `com'ment`,
+				})
+				.prepare();
+			expect(selectQPrepared.getQuery().sql).toStrictEqual(
+				`select "id", "name" from "comments_test" /*select='com\\'ment'*/`,
+			);
+
+			await insertQ;
+			await updateQ;
+			await deleteQ;
+
+			const [res1, res2, res3] = [
+				await selectQ,
+				await rqbQ,
+				await selectQPrepared.execute(),
+			];
+
+			expectTypeOf(res2).toEqualTypeOf<
+				| {
+					id: number;
+				}
+				| undefined
+			>();
+
+			expect(res1).toStrictEqual([{ id: 1, name: 'Updated' }]);
+			expect(res2).toStrictEqual({ id: 1 });
+			expect(res3).toStrictEqual([{ id: 1, name: 'Updated' }]);
+		});
+
+		test.concurrent('Mappers: correct mappers enabled', async ({ createDB, db }) => {
+			const dialect: PgDialect = (<any> db).dialect;
+			const jitDialect: PgDialect = (<any> createDB({}, () => ({}), true)).dialect;
+
+			expect(dialect.mapperGenerators.relationalRows === makeDefaultRqbMapper).toStrictEqual(true);
+			expect(dialect.mapperGenerators.rows === makeDefaultQueryMapper).toStrictEqual(true);
+			expect(jitDialect.mapperGenerators.relationalRows === makeJitRqbMapper).toStrictEqual(true);
+			expect(jitDialect.mapperGenerators.rows === makeJitQueryMapper).toStrictEqual(true);
+		});
+
+		const mappersDate = new Date('2026-04-02T00:00:00.000Z');
+
+		test.concurrent('Mappers: simple select - no rows', async ({ db, push }) => {
+			const users = pgTable('mappers_users_1', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			await push({ users });
+
+			const result = await db.select().from(users);
+
+			expect(result).toStrictEqual([]);
+		});
+
+		test.concurrent('Mappers: select - nothing to decode - text', async ({ db, push }) => {
+			const users = pgTable('mappers_users_2', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			await push({ users });
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}]).returning();
+
+			const selected = await db.select({ name: users.name }).from(users);
+
+			expect(selected).toStrictEqual([{ name: 'First' }]);
+		});
+
+		test.concurrent('Mappers: select - nothing to decode - null', async ({ db, push }) => {
+			const users = pgTable('mappers_users_3', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			await push({ users });
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}]).returning();
+
+			const selected = await db.select({ isBanned: users.isBanned }).from(users);
+
+			expect(selected).toStrictEqual([{ isBanned: null }]);
+		});
+
+		test.concurrent('Mappers: insert returning all + select + update returning + delete returning', async ({ db, push }) => {
+			const users = pgTable('mappers_users_4', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			await push({ users });
+
+			const inserted = await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]).returning();
+
+			const selected = await db.select().from(users);
+
+			const updated = await db.update(users).set({
+				isBanned: false,
+			}).where(eq(users.id, 2)).returning();
+
+			const deleted = await db.delete(users).returning();
+
+			expect(inserted).toStrictEqual([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+				isBanned: null,
+			}]);
+			expect(selected).toStrictEqual([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+				isBanned: null,
+			}]);
+			expect(updated).toStrictEqual([{
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: false,
+			}]);
+			expect(deleted).toStrictEqual(expect.arrayContaining([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: false,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+				isBanned: null,
+			}]));
+		});
+
+		test.concurrent('Mappers: select complex selections', async ({ db, push }) => {
+			const users = pgTable('mappers_users_5', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			const posts = pgTable('mappers_posts_1', (t) => ({
+				id: t.integer('id').primaryKey(),
+				authorId: t.bigint('author_id', { mode: 'number' }).references(() => users.id),
+				content: t.text('content'),
+			}));
+
+			const internalStaff = pgTable('internal_staff_qm1', {
+				userId: integer('user_id').notNull().primaryKey(),
+			});
+
+			const ticket = pgTable('ticket_qm1', {
+				staffId: integer('staff_id').notNull(),
+			});
+
+			await push({ users, posts, internalStaff, ticket });
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]).returning();
+			await db.insert(posts).values({
+				id: 1,
+				authorId: 1,
+				content: 'p1',
+			});
+			await db.insert(internalStaff).values([{
+				userId: 1,
+			}, {
+				userId: 2,
+			}]);
+			await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }]);
+
+			const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			);
+			const selected2 = await db.select({ user: users, post: posts }).from(users).innerJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			);
+			const selected3 = await db.select({
+				userId: users.id,
+				postId: posts.id,
+				name: users.name,
+				isBanned: users.isBanned,
+				content: posts.content,
+				createdAt: users.createdAt,
+			}).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			);
+			const selected4 = await db.select({
+				userId: users.id,
+				postId: posts.id,
+				name: users.name,
+				isBanned: users.isBanned,
+				content: posts.content,
+				createdAt: users.createdAt,
+			}).from(users).innerJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			);
+			const selected5 = await db.select({
+				user: {
+					...getTableColumns(users),
+					extra: sql`1`.mapWith(Number).as('extra_1'),
+				},
+				post: {
+					...getTableColumns(posts),
+					extra: sql`1`.mapWith(Number).as('extra_1'),
+				},
+			}).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			);
+			const subq = db
+				.select()
+				.from(internalStaff)
+				.leftJoin(users, eq(internalStaff.userId, users.id))
+				.as('internal_staff');
+			const selected6 = await db
+				.select()
+				.from(ticket)
+				.leftJoin(subq, eq(subq.internal_staff_qm1.userId, ticket.staffId));
+
+			expect(selected1).toStrictEqual([{
+				user: {
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: {
+					id: 1,
+					authorId: 1,
+					content: 'p1',
+				},
+			}, {
+				user: {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				},
+				post: null,
+			}, {
+				user: {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: null,
+			}]);
+			expect(selected2).toStrictEqual([{
+				user: {
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: {
+					id: 1,
+					authorId: 1,
+					content: 'p1',
+				},
+			}]);
+			expect(selected3).toStrictEqual([
+				{
+					content: 'p1',
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'First',
+					postId: 1,
+					userId: 1,
+				},
+				{
+					content: null,
+					createdAt: mappersDate,
+					isBanned: true,
+					name: 'Second',
+					postId: null,
+					userId: 2,
+				},
+				{
+					content: null,
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'Third',
+					postId: null,
+					userId: 3,
+				},
+			]);
+			expect(selected4).toStrictEqual([
+				{
+					content: 'p1',
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'First',
+					postId: 1,
+					userId: 1,
+				},
+			]);
+			expect(selected5).toStrictEqual([
+				{
+					post: {
+						authorId: 1,
+						content: 'p1',
+						extra: 1,
+						id: 1,
+					},
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+					},
+				},
+				{
+					post: null,
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 2,
+						isBanned: true,
+						name: 'Second',
+					},
+				},
+				{
+					post: null,
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 3,
+						isBanned: null,
+						name: 'Third',
+					},
+				},
+			]);
+			expect(selected6).toStrictEqual(
+				[
+					{
+						internal_staff: {
+							internal_staff_qm1: {
+								userId: 1,
+							},
+							mappers_users_5: {
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+							},
+						},
+						ticket_qm1: {
+							staffId: 1,
+						},
+					},
+					{
+						internal_staff: {
+							internal_staff_qm1: {
+								userId: 2,
+							},
+							mappers_users_5: {
+								createdAt: mappersDate,
+								id: 2,
+								isBanned: true,
+								name: 'Second',
+							},
+						},
+						ticket_qm1: {
+							staffId: 2,
+						},
+					},
+				],
+			);
+		});
+
+		test.concurrent('Mappers: relational', async ({ createDB, push }) => {
+			const users = pgTable('mappers_users_6', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			const posts = pgTable('mappers_posts_2', (t) => ({
+				id: t.integer('id').primaryKey(),
+				authorId: t.bigint('author_id', { mode: 'number' }).references(() => users.id),
+				content: t.text('content'),
+			}));
+
+			await push({ users, posts });
+			const db = createDB(
+				{ users, posts },
+				(r) => ({
+					users: {
+						post: r.one.posts({
+							from: r.users.id,
+							to: r.posts.authorId,
+						}),
+						posts: r.one.posts({
+							from: r.users.id,
+							to: r.posts.authorId,
+						}),
+					},
+					posts: {
+						author: r.one.users({
+							from: r.posts.authorId,
+							to: r.users.id,
+						}),
+						authors: r.many.users({
+							from: r.posts.authorId,
+							to: r.users.id,
+						}),
+					},
+				}),
+				false,
+			);
+
+			const empty1 = await db.query.users.findFirst();
+			const empty2 = await db.query.users.findMany();
+
+			expect(empty1).toStrictEqual(undefined);
+			expect(empty2).toStrictEqual([]);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]).returning();
+			await db.insert(posts).values({
+				id: 1,
+				authorId: 1,
+				content: 'p1',
+			});
+
+			const simple1 = await db.query.users.findFirst();
+			const simple2 = await db.query.users.findMany();
+
+			expect(simple1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+				},
+			);
+			expect(simple2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+				},
+			]);
+
+			const extra1 = await db.query.users.findFirst({
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+			const extra2 = await db.query.users.findMany({
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+
+			expect(extra1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			);
+			expect(extra2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			]);
+
+			const nested1 = await db.query.users.findFirst({
+				with: {
+					post: {
+						with: {
+							author: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+								where: {
+									RAW: sql`false`,
+								},
+							},
+							authors: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+								where: {
+									RAW: sql`false`,
+								},
+							},
+						},
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+					posts: {
+						with: {
+							author: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+							},
+							authors: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+							},
+						},
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+				},
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+			const nested2 = await db.query.users.findMany({
+				with: {
+					post: {
+						with: {
+							author: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+								where: {
+									RAW: sql`false`,
+								},
+							},
+							authors: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+								where: {
+									RAW: sql`false`,
+								},
+							},
+						},
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+					posts: {
+						with: {
+							author: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+							},
+							authors: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+							},
+						},
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+				},
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+
+			expect(nested1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					post: {
+						author: null,
+						authorId: 1,
+						authors: [],
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					posts: {
+						author: {
+							createdAt: mappersDate,
+							id: 1,
+							isBanned: null,
+							name: 'First',
+							sql: 1,
+							sqlWrapper: 2,
+						},
+						authorId: 1,
+						authors: [
+							{
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+								sql: 1,
+								sqlWrapper: 2,
+							},
+						],
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			);
+			expect(nested2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					post: {
+						author: null,
+						authorId: 1,
+						authors: [],
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					posts: {
+						author: {
+							createdAt: mappersDate,
+							id: 1,
+							isBanned: null,
+							name: 'First',
+							sql: 1,
+							sqlWrapper: 2,
+						},
+						authorId: 1,
+						authors: [
+							{
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+								sql: 1,
+								sqlWrapper: 2,
+							},
+						],
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+					post: null,
+					posts: null,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+					post: null,
+					posts: null,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			]);
+		});
+
+		test.concurrent('Jit mappers: simple select - no rows', async ({ createDB, push }) => {
+			const users = pgTable('jit_mappers_users_1', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			await push({ users });
+			const db = createDB({}, () => ({}), true);
+
+			const result = await db.select().from(users);
+
+			expect(result).toStrictEqual([]);
+		});
+
+		test.concurrent('Jit mappers: select - nothing to decode - text', async ({ createDB, push }) => {
+			const users = pgTable('jit_mappers_users_2', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			await push({ users });
+			const db = createDB({}, () => ({}), true);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}]).returning();
+
+			const selected = await db.select({ name: users.name }).from(users);
+
+			expect(selected).toStrictEqual([{ name: 'First' }]);
+		});
+
+		test.concurrent('Jit mappers: select - nothing to decode - null', async ({ createDB, push }) => {
+			const users = pgTable('jit_mappers_users_3', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			await push({ users });
+			const db = createDB({}, () => ({}), true);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}]).returning();
+
+			const selected = await db.select({ isBanned: users.isBanned }).from(users);
+
+			expect(selected).toStrictEqual([{ isBanned: null }]);
+		});
+
+		test.concurrent('Jit mappers: insert returning all + select + update returning + delete returning', async ({ createDB, push }) => {
+			const users = pgTable('jit_mappers_users_4', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			await push({ users });
+			const db = createDB({}, () => ({}), true);
+
+			const inserted = await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]).returning();
+
+			const selected = await db.select().from(users);
+
+			const updated = await db.update(users).set({
+				isBanned: false,
+			}).where(eq(users.id, 2)).returning();
+
+			const deleted = await db.delete(users).returning();
+
+			expect(inserted).toStrictEqual([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+				isBanned: null,
+			}]);
+			expect(selected).toStrictEqual([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+				isBanned: null,
+			}]);
+			expect(updated).toStrictEqual([{
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: false,
+			}]);
+			expect(deleted).toStrictEqual(expect.arrayContaining([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+				isBanned: null,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: false,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+				isBanned: null,
+			}]));
+		});
+
+		test.concurrent('Jit mappers: select complex selections', async ({ createDB, push }) => {
+			const users = pgTable('jit_mappers_users_5', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			const posts = pgTable('jit_mappers_posts_1', (t) => ({
+				id: t.integer('id').primaryKey(),
+				authorId: t.bigint('author_id', { mode: 'number' }).references(() => users.id),
+				content: t.text('content'),
+			}));
+
+			const internalStaff = pgTable('internal_staff_jqm1', {
+				userId: integer('user_id').notNull().primaryKey(),
+			});
+
+			const ticket = pgTable('ticket_jqm1', {
+				staffId: integer('staff_id').notNull(),
+			});
+
+			await push({ users, posts, internalStaff, ticket });
+			const db = createDB({}, () => ({}), true);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]).returning();
+			await db.insert(posts).values({
+				id: 1,
+				authorId: 1,
+				content: 'p1',
+			});
+			await db.insert(internalStaff).values([{
+				userId: 1,
+			}, {
+				userId: 2,
+			}]);
+			await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }]);
+
+			const selected1 = await db.select({ user: users, post: posts }).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			);
+			const selected2 = await db.select({ user: users, post: posts }).from(users).innerJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			);
+			const selected3 = await db.select({
+				userId: users.id,
+				postId: posts.id,
+				name: users.name,
+				isBanned: users.isBanned,
+				content: posts.content,
+				createdAt: users.createdAt,
+			}).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			);
+			const selected4 = await db.select({
+				userId: users.id,
+				postId: posts.id,
+				name: users.name,
+				isBanned: users.isBanned,
+				content: posts.content,
+				createdAt: users.createdAt,
+			}).from(users).innerJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			);
+			const selected5 = await db.select({
+				user: {
+					...getTableColumns(users),
+					extra: sql`1`.mapWith(Number).as('extra_1'),
+				},
+				post: {
+					...getTableColumns(posts),
+					extra: sql`1`.mapWith(Number).as('extra_1'),
+				},
+			}).from(users).leftJoin(
+				posts,
+				eq(users.id, posts.authorId),
+			);
+			const subq = db
+				.select()
+				.from(internalStaff)
+				.leftJoin(users, eq(internalStaff.userId, users.id))
+				.as('internal_staff');
+			const selected6 = await db
+				.select()
+				.from(ticket)
+				.leftJoin(subq, eq(subq.internal_staff_jqm1.userId, ticket.staffId));
+
+			expect(selected1).toStrictEqual([{
+				user: {
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: {
+					id: 1,
+					authorId: 1,
+					content: 'p1',
+				},
+			}, {
+				user: {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				},
+				post: null,
+			}, {
+				user: {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: null,
+			}]);
+			expect(selected2).toStrictEqual([{
+				user: {
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+					isBanned: null,
+				},
+				post: {
+					id: 1,
+					authorId: 1,
+					content: 'p1',
+				},
+			}]);
+			expect(selected3).toStrictEqual([
+				{
+					content: 'p1',
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'First',
+					postId: 1,
+					userId: 1,
+				},
+				{
+					content: null,
+					createdAt: mappersDate,
+					isBanned: true,
+					name: 'Second',
+					postId: null,
+					userId: 2,
+				},
+				{
+					content: null,
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'Third',
+					postId: null,
+					userId: 3,
+				},
+			]);
+			expect(selected4).toStrictEqual([
+				{
+					content: 'p1',
+					createdAt: mappersDate,
+					isBanned: null,
+					name: 'First',
+					postId: 1,
+					userId: 1,
+				},
+			]);
+			expect(selected5).toStrictEqual([
+				{
+					post: {
+						authorId: 1,
+						content: 'p1',
+						extra: 1,
+						id: 1,
+					},
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 1,
+						isBanned: null,
+						name: 'First',
+					},
+				},
+				{
+					post: null,
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 2,
+						isBanned: true,
+						name: 'Second',
+					},
+				},
+				{
+					post: null,
+					user: {
+						createdAt: mappersDate,
+						extra: 1,
+						id: 3,
+						isBanned: null,
+						name: 'Third',
+					},
+				},
+			]);
+			expect(selected6).toStrictEqual(
+				[
+					{
+						internal_staff: {
+							internal_staff_jqm1: {
+								userId: 1,
+							},
+							jit_mappers_users_5: {
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+							},
+						},
+						ticket_jqm1: {
+							staffId: 1,
+						},
+					},
+					{
+						internal_staff: {
+							internal_staff_jqm1: {
+								userId: 2,
+							},
+							jit_mappers_users_5: {
+								createdAt: mappersDate,
+								id: 2,
+								isBanned: true,
+								name: 'Second',
+							},
+						},
+						ticket_jqm1: {
+							staffId: 2,
+						},
+					},
+				],
+			);
+		});
+
+		test.concurrent('Jit mappers: relational', async ({ createDB, push }) => {
+			const users = pgTable('jit_mappers_users_6', (t) => ({
+				id: t.bigint('id', { mode: 'number' }).primaryKey(),
+				name: t.text('name').notNull(),
+				createdAt: t.timestamp('created_at', {
+					withTimezone: true,
+					mode: 'date',
+				}).notNull(),
+				isBanned: t.boolean('is_banned'),
+			}));
+
+			const posts = pgTable('jit_mappers_posts_2', (t) => ({
+				id: t.integer('id').primaryKey(),
+				authorId: t.bigint('author_id', { mode: 'number' }).references(() => users.id),
+				content: t.text('content'),
+			}));
+
+			await push({ users, posts });
+			const db = createDB(
+				{ users, posts },
+				(r) => ({
+					users: {
+						post: r.one.posts({
+							from: r.users.id,
+							to: r.posts.authorId,
+						}),
+						posts: r.one.posts({
+							from: r.users.id,
+							to: r.posts.authorId,
+						}),
+					},
+					posts: {
+						author: r.one.users({
+							from: r.posts.authorId,
+							to: r.users.id,
+						}),
+						authors: r.many.users({
+							from: r.posts.authorId,
+							to: r.users.id,
+						}),
+					},
+				}),
+				true,
+			);
+
+			const empty1 = await db.query.users.findFirst();
+			const empty2 = await db.query.users.findMany();
+
+			expect(empty1).toStrictEqual(undefined);
+			expect(empty2).toStrictEqual([]);
+
+			await db.insert(users).values([{
+				id: 1,
+				name: 'First',
+				createdAt: mappersDate,
+			}, {
+				id: 2,
+				name: 'Second',
+				createdAt: mappersDate,
+				isBanned: true,
+			}, {
+				id: 3,
+				name: 'Third',
+				createdAt: mappersDate,
+			}]).returning();
+			await db.insert(posts).values({
+				id: 1,
+				authorId: 1,
+				content: 'p1',
+			});
+
+			const simple1 = await db.query.users.findFirst();
+			const simple2 = await db.query.users.findMany();
+
+			expect(simple1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+				},
+			);
+			expect(simple2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+				},
+			]);
+
+			const extra1 = await db.query.users.findFirst({
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+			const extra2 = await db.query.users.findMany({
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+
+			expect(extra1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			);
+			expect(extra2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			]);
+
+			const nested1 = await db.query.users.findFirst({
+				with: {
+					post: {
+						with: {
+							author: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+								where: {
+									RAW: sql`false`,
+								},
+							},
+							authors: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+								where: {
+									RAW: sql`false`,
+								},
+							},
+						},
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+					posts: {
+						with: {
+							author: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+							},
+							authors: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+							},
+						},
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+				},
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+			const nested2 = await db.query.users.findMany({
+				with: {
+					post: {
+						with: {
+							author: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+								where: {
+									RAW: sql`false`,
+								},
+							},
+							authors: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+								where: {
+									RAW: sql`false`,
+								},
+							},
+						},
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+					posts: {
+						with: {
+							author: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+							},
+							authors: {
+								extras: {
+									sql: sql`SELECT 1`.mapWith(Number),
+									sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+								},
+							},
+						},
+						extras: {
+							sql: sql`SELECT 1`.mapWith(Number),
+							sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+						},
+					},
+				},
+				extras: {
+					sql: sql`SELECT 1`.mapWith(Number),
+					sqlWrapper: { getSQL: () => sql`SELECT 2`.mapWith(Number) },
+				},
+			});
+
+			expect(nested1).toStrictEqual(
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					post: {
+						author: null,
+						authorId: 1,
+						authors: [],
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					posts: {
+						author: {
+							createdAt: mappersDate,
+							id: 1,
+							isBanned: null,
+							name: 'First',
+							sql: 1,
+							sqlWrapper: 2,
+						},
+						authorId: 1,
+						authors: [
+							{
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+								sql: 1,
+								sqlWrapper: 2,
+							},
+						],
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			);
+			expect(nested2).toStrictEqual([
+				{
+					createdAt: mappersDate,
+					id: 1,
+					isBanned: null,
+					name: 'First',
+					post: {
+						author: null,
+						authorId: 1,
+						authors: [],
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					posts: {
+						author: {
+							createdAt: mappersDate,
+							id: 1,
+							isBanned: null,
+							name: 'First',
+							sql: 1,
+							sqlWrapper: 2,
+						},
+						authorId: 1,
+						authors: [
+							{
+								createdAt: mappersDate,
+								id: 1,
+								isBanned: null,
+								name: 'First',
+								sql: 1,
+								sqlWrapper: 2,
+							},
+						],
+						content: 'p1',
+						id: 1,
+						sql: 1,
+						sqlWrapper: 2,
+					},
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 2,
+					isBanned: true,
+					name: 'Second',
+					post: null,
+					posts: null,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+				{
+					createdAt: mappersDate,
+					id: 3,
+					isBanned: null,
+					name: 'Third',
+					post: null,
+					posts: null,
+					sql: 1,
+					sqlWrapper: 2,
+				},
+			]);
+		});
+
+		test.concurrent('Query error wrapping', async ({ db, push }) => {
+			const table = pgTable('users_error_wrap', (t) => ({
+				id: t.integer().primaryKey(),
+				name: t.text().notNull(),
+			}));
+
+			await push({ table });
+			await expect(db.insert(table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
+				.rejects.toBeInstanceOf(DrizzleQueryError);
+		});
+
+		test.skipIf(Date.now() < +new Date('2026-07-01')).concurrent(
+			'Mappers: deep nullification',
+			async ({ db, push }) => {
+				const users = pgTable('mappers_users_dn', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', {
+						withTimezone: true,
+						mode: 'date',
+					}).notNull(),
+					isBanned: t.boolean('is_banned'),
+				}));
+
+				const internalStaff = pgTable('internal_staff_qm_dn', {
+					userId: integer('user_id').notNull().primaryKey(),
+				});
+
+				const ticket = pgTable('ticket_qm_dn', {
+					staffId: integer('staff_id').notNull(),
+				});
+
+				await push({ users, internalStaff, ticket });
+
+				await db.insert(users).values([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+				}, {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+				}]).returning();
+				await db.insert(internalStaff).values([{
+					userId: 1,
+				}, {
+					userId: 2,
+				}]);
+				await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]);
+
+				const subq = db
+					.select()
+					.from(internalStaff)
+					.leftJoin(users, eq(internalStaff.userId, users.id))
+					.as('internal_staff');
+				const selected = await db
+					.select()
+					.from(ticket)
+					.leftJoin(subq, eq(subq.internal_staff_qm_dn.userId, ticket.staffId));
+
+				expect(selected).toStrictEqual(
+					[
+						{
+							internal_staff: {
+								internal_staff_qm_dn: {
+									userId: 1,
+								},
+								mappers_users_dn: {
+									createdAt: mappersDate,
+									id: 1,
+									isBanned: null,
+									name: 'First',
+								},
+							},
+							ticket_qm_dn: {
+								staffId: 1,
+							},
+						},
+						{
+							internal_staff: {
+								internal_staff_qm_dn: {
+									userId: 2,
+								},
+								mappers_users_dn: {
+									createdAt: mappersDate,
+									id: 2,
+									isBanned: true,
+									name: 'Second',
+								},
+							},
+							ticket_qm_dn: {
+								staffId: 2,
+							},
+						},
+						{
+							internal_staff: null,
+							ticket_qm_dn: {
+								staffid: 3,
+							},
+						},
+					],
+				);
+			},
+		);
+
+		test.skipIf(Date.now() < +new Date('2026-07-01')).concurrent(
+			'Jit mappers: deep nullification',
+			async ({ createDB, push }) => {
+				const users = pgTable('mappers_users_jdn', (t) => ({
+					id: t.bigint('id', { mode: 'number' }).primaryKey(),
+					name: t.text('name').notNull(),
+					createdAt: t.timestamp('created_at', {
+						withTimezone: true,
+						mode: 'date',
+					}).notNull(),
+					isBanned: t.boolean('is_banned'),
+				}));
+
+				const internalStaff = pgTable('internal_staff_qm_jdn', {
+					userId: integer('user_id').notNull().primaryKey(),
+				});
+
+				const ticket = pgTable('ticket_qm_jdn', {
+					staffId: integer('staff_id').notNull(),
+				});
+
+				await push({ users, internalStaff, ticket });
+				const db = createDB({}, () => ({}), true);
+
+				await db.insert(users).values([{
+					id: 1,
+					name: 'First',
+					createdAt: mappersDate,
+				}, {
+					id: 2,
+					name: 'Second',
+					createdAt: mappersDate,
+					isBanned: true,
+				}, {
+					id: 3,
+					name: 'Third',
+					createdAt: mappersDate,
+				}]).returning();
+				await db.insert(internalStaff).values([{
+					userId: 1,
+				}, {
+					userId: 2,
+				}]);
+				await db.insert(ticket).values([{ staffId: 1 }, { staffId: 2 }, { staffId: 3 }]);
+
+				const subq = db
+					.select()
+					.from(internalStaff)
+					.leftJoin(users, eq(internalStaff.userId, users.id))
+					.as('internal_staff');
+				const selected = await db
+					.select()
+					.from(ticket)
+					.leftJoin(subq, eq(subq.internal_staff_qm_jdn.userId, ticket.staffId));
+
+				expect(selected).toStrictEqual(
+					[
+						{
+							internal_staff: {
+								internal_staff_qm_jdn: {
+									userId: 1,
+								},
+								mappers_users_jdn: {
+									createdAt: mappersDate,
+									id: 1,
+									isBanned: null,
+									name: 'First',
+								},
+							},
+							ticket_qm_jdn: {
+								staffId: 1,
+							},
+						},
+						{
+							internal_staff: {
+								internal_staff_qm_jdn: {
+									userId: 2,
+								},
+								mappers_users_jdn: {
+									createdAt: mappersDate,
+									id: 2,
+									isBanned: true,
+									name: 'Second',
+								},
+							},
+							ticket_qm_jdn: {
+								staffId: 2,
+							},
+						},
+						{
+							internal_staff: null,
+							ticket_qm_jdn: {
+								staffid: 3,
+							},
+						},
+					],
+				);
+			},
+		);
+
+		test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
+			let customCast = false;
+			let customMap = false;
+
+			const codecBypass = customType<{
+				data: Date;
+				driverData: string;
+				jsonData: string;
+			}>({
+				codec: 'timestamptz',
+				dataType: () => 'timestamptz(3)',
+				forJsonSelect: (identifier, sql, arrayDimensions) => {
+					customCast = true;
+					return sql`${identifier}::text${arrayDimensions ? sql.raw('[]'.repeat(arrayDimensions)) : undefined}`;
+				},
+				fromJson: (v) => {
+					customMap = true;
+					return new Date(v);
+				},
+				toDriver: (v) => v.toISOString(),
+			});
+
+			const users = pgTable('users_823', (t) => ({
+				id: t.integer().primaryKey(),
+				name: t.text().notNull(),
+				createdAt: t.timestamp('created_at').notNull(),
+				createdAtStr: t.timestamp('created_at_str', { mode: 'string' }).notNull(),
+				arrCreatedAt: t.timestamp('arr_created_at').notNull().array(),
+				arrCreatedAtStr: t.timestamp('arr_created_at_str', { mode: 'string' }).notNull().array(),
+				cus: codecBypass('custom').notNull(),
+				arrCus: codecBypass('arr_custom').notNull().array(),
+			}));
+
+			const usersView = pgView('users_823_v').as((qb) =>
+				qb.select({
+					...getColumns(users),
+					max: max(users.createdAt).as('max'),
+					maxStr: max(users.createdAtStr).as('max_str'),
+					arrMax: max(users.arrCreatedAt).as('arr_max'),
+					arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
+					sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+				}).from(users).groupBy(users.id)
+			);
+
+			await push({ users, usersView });
+
+			const db = createDB({ users, usersView }, (r) => ({
+				users: {
+					self: r.one.users({
+						from: r.users.id,
+						to: r.users.id,
+					}),
+				},
+				usersView: {
+					self: r.one.usersView({
+						from: r.usersView.id,
+						to: r.usersView.id,
+					}),
+				},
+			}));
+
+			const exDateStr = '1970-01-16 16:45:46.351';
+			const exDate = new Date(exDateStr);
+
+			await db.insert(users).values({
+				id: 1,
+				name: 'First',
+				createdAt: exDate,
+				createdAtStr: exDateStr,
+				arrCreatedAt: [exDate],
+				arrCreatedAtStr: [exDateStr],
+				cus: exDate,
+				arrCus: [exDate],
+			});
+
+			const res = await db.select({
+				...getColumns(users),
+				max: max(users.createdAt).as('max'),
+				maxStr: max(users.createdAtStr).as('max_str'),
+				arrMax: max(users.arrCreatedAt).as('arr_max'),
+				arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
+				sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+			}).from(users).groupBy(users.id);
+
+			const viewRes = await db.select().from(usersView);
+
+			const nested = await db.query.users.findFirst({
+				with: {
+					self: {
+						extras: {
+							max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+							maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+							arrMax: () => sql`select max(${users.arrCreatedAt}) from ${users}`.mapWith(users.arrCreatedAt),
+							arrMaxStr: () => sql`select max(${users.arrCreatedAtStr}) from ${users}`.mapWith(users.arrCreatedAtStr),
+						},
+					},
+				},
+				extras: {
+					max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+					maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+					arrMax: () => sql`select max(${users.arrCreatedAt}) from ${users}`.mapWith(users.arrCreatedAt),
+					arrMaxStr: () => sql`select max(${users.arrCreatedAtStr}) from ${users}`.mapWith(users.arrCreatedAtStr),
+				},
+			});
+
+			const viewNested = await db.query.usersView.findFirst({
+				columns: {
+					sq: false, // TODO: re-enable when supported in RQBv2
+				},
+				with: {
+					self: {
+						columns: {
+							sq: false, // TODO: re-enable when supported in RQBv2
+						},
+					},
+				},
+			});
+
+			expect(res).toStrictEqual([
+				{
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					max: exDate,
+					maxStr: exDateStr,
+					arrMax: [exDate],
+					arrMaxStr: [exDateStr],
+					sq: exDate,
+					cus: exDate,
+					arrCus: [exDate],
+				},
+			]);
+			expect(viewRes).toStrictEqual([
+				{
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					max: exDate,
+					maxStr: exDateStr,
+					arrMax: [exDate],
+					arrMaxStr: [exDateStr],
+					sq: exDate,
+					cus: exDate,
+					arrCus: [exDate],
+				},
+			]);
+
+			expect(customCast).toBeTruthy();
+			expect(customMap).toBeTruthy();
+
+			expect(nested).toStrictEqual(
+				{
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					max: exDate,
+					maxStr: exDateStr,
+					arrMax: [exDate],
+					arrMaxStr: [exDateStr],
+					cus: exDate,
+					arrCus: [exDate],
+					self: {
+						id: 1,
+						name: 'First',
+						createdAt: exDate,
+						createdAtStr: exDateStr,
+						arrCreatedAt: [exDate],
+						arrCreatedAtStr: [exDateStr],
+						max: exDate,
+						maxStr: exDateStr,
+						arrMax: [exDate],
+						arrMaxStr: [exDateStr],
+						cus: exDate,
+						arrCus: [exDate],
+					},
+				},
+			);
+			expect(viewNested).toStrictEqual(
+				{
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					max: exDate,
+					maxStr: exDateStr,
+					arrMax: [exDate],
+					arrMaxStr: [exDateStr],
+					cus: exDate,
+					arrCus: [exDate],
+					self: {
+						id: 1,
+						name: 'First',
+						createdAt: exDate,
+						createdAtStr: exDateStr,
+						arrCreatedAt: [exDate],
+						arrCreatedAtStr: [exDateStr],
+						max: exDate,
+						maxStr: exDateStr,
+						arrMax: [exDate],
+						arrMaxStr: [exDateStr],
+						cus: exDate,
+						arrCus: [exDate],
+					},
+				},
+			);
+		});
+
+		test.concurrent('Column as decoder applies codecs - Jit mappers', async ({ createDB, push }) => {
+			let customCast = false;
+			let customMap = false;
+
+			const codecBypass = customType<{
+				data: Date;
+				driverData: string;
+				jsonData: string;
+			}>({
+				codec: 'timestamptz',
+				dataType: () => 'timestamptz(3)',
+				forJsonSelect: (identifier, sql, arrayDimensions) => {
+					customCast = true;
+					return sql`${identifier}::text${arrayDimensions ? sql.raw('[]'.repeat(arrayDimensions)) : undefined}`;
+				},
+				fromJson: (v) => {
+					customMap = true;
+					return new Date(v);
+				},
+				toDriver: (v) => v.toISOString(),
+			});
+
+			const users = pgTable('users_823_jit', (t) => ({
+				id: t.integer().primaryKey(),
+				name: t.text().notNull(),
+				createdAt: t.timestamp('created_at').notNull(),
+				createdAtStr: t.timestamp('created_at_str', { mode: 'string' }).notNull(),
+				arrCreatedAt: t.timestamp('arr_created_at').notNull().array(),
+				arrCreatedAtStr: t.timestamp('arr_created_at_str', { mode: 'string' }).notNull().array(),
+				cus: codecBypass('custom').notNull(),
+				arrCus: codecBypass('arr_custom').notNull().array(),
+			}));
+
+			const usersView = pgView('users_823_v_jit').as((qb) =>
+				qb.select({
+					...getColumns(users),
+					max: max(users.createdAt).as('max'),
+					maxStr: max(users.createdAtStr).as('max_str'),
+					arrMax: max(users.arrCreatedAt).as('arr_max'),
+					arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
+					sq: qb.select({ createdAt: users.createdAt }).from(users).as('sq'),
+				}).from(users).groupBy(users.id)
+			);
+
+			await push({ users, usersView });
+
+			const db = createDB({ users, usersView }, (r) => ({
+				users: {
+					self: r.one.users({
+						from: r.users.id,
+						to: r.users.id,
+					}),
+				},
+				usersView: {
+					self: r.one.usersView({
+						from: r.usersView.id,
+						to: r.usersView.id,
+					}),
+				},
+			}), true);
+
+			const exDateStr = '1970-01-16 16:45:46.351';
+			const exDate = new Date(exDateStr);
+
+			await db.insert(users).values({
+				id: 1,
+				name: 'First',
+				createdAt: exDate,
+				createdAtStr: exDateStr,
+				arrCreatedAt: [exDate],
+				arrCreatedAtStr: [exDateStr],
+				cus: exDate,
+				arrCus: [exDate],
+			});
+
+			const res = await db.select({
+				...getColumns(users),
+				max: max(users.createdAt).as('max'),
+				maxStr: max(users.createdAtStr).as('max_str'),
+				arrMax: max(users.arrCreatedAt).as('arr_max'),
+				arrMaxStr: max(users.arrCreatedAtStr).as('arr_max_str'),
+				sq: db.select({ createdAt: users.createdAt }).from(users).as('sq'),
+			}).from(users).groupBy(users.id);
+
+			const viewRes = await db.select().from(usersView);
+
+			const nested = await db.query.users.findFirst({
+				with: {
+					self: {
+						extras: {
+							max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+							maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+							arrMax: () => sql`select max(${users.arrCreatedAt}) from ${users}`.mapWith(users.arrCreatedAt),
+							arrMaxStr: () => sql`select max(${users.arrCreatedAtStr}) from ${users}`.mapWith(users.arrCreatedAtStr),
+						},
+					},
+				},
+				extras: {
+					max: () => sql`select max(${users.createdAt}) from ${users}`.mapWith(users.createdAt),
+					maxStr: () => sql`select max(${users.createdAtStr}) from ${users}`.mapWith(users.createdAtStr),
+					arrMax: () => sql`select max(${users.arrCreatedAt}) from ${users}`.mapWith(users.arrCreatedAt),
+					arrMaxStr: () => sql`select max(${users.arrCreatedAtStr}) from ${users}`.mapWith(users.arrCreatedAtStr),
+				},
+			});
+
+			const viewNested = await db.query.usersView.findFirst({
+				columns: {
+					sq: false, // TODO: re-enable when supported in RQBv2
+				},
+				with: {
+					self: {
+						columns: {
+							sq: false, // TODO: re-enable when supported in RQBv2
+						},
+					},
+				},
+			});
+
+			expect(res).toStrictEqual([
+				{
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					max: exDate,
+					maxStr: exDateStr,
+					arrMax: [exDate],
+					arrMaxStr: [exDateStr],
+					sq: exDate,
+					cus: exDate,
+					arrCus: [exDate],
+				},
+			]);
+			expect(viewRes).toStrictEqual([
+				{
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					max: exDate,
+					maxStr: exDateStr,
+					arrMax: [exDate],
+					arrMaxStr: [exDateStr],
+					sq: exDate,
+					cus: exDate,
+					arrCus: [exDate],
+				},
+			]);
+
+			expect(customCast).toBeTruthy();
+			expect(customMap).toBeTruthy();
+
+			expect(nested).toStrictEqual(
+				{
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					max: exDate,
+					maxStr: exDateStr,
+					arrMax: [exDate],
+					arrMaxStr: [exDateStr],
+					cus: exDate,
+					arrCus: [exDate],
+					self: {
+						id: 1,
+						name: 'First',
+						createdAt: exDate,
+						createdAtStr: exDateStr,
+						arrCreatedAt: [exDate],
+						arrCreatedAtStr: [exDateStr],
+						max: exDate,
+						maxStr: exDateStr,
+						arrMax: [exDate],
+						arrMaxStr: [exDateStr],
+						cus: exDate,
+						arrCus: [exDate],
+					},
+				},
+			);
+			expect(viewNested).toStrictEqual(
+				{
+					id: 1,
+					name: 'First',
+					createdAt: exDate,
+					createdAtStr: exDateStr,
+					arrCreatedAt: [exDate],
+					arrCreatedAtStr: [exDateStr],
+					max: exDate,
+					maxStr: exDateStr,
+					arrMax: [exDate],
+					arrMaxStr: [exDateStr],
+					cus: exDate,
+					arrCus: [exDate],
+					self: {
+						id: 1,
+						name: 'First',
+						createdAt: exDate,
+						createdAtStr: exDateStr,
+						arrCreatedAt: [exDate],
+						arrCreatedAtStr: [exDateStr],
+						max: exDate,
+						maxStr: exDateStr,
+						arrMax: [exDate],
+						arrMaxStr: [exDateStr],
+						cus: exDate,
+						arrCus: [exDate],
+					},
+				},
+			);
+		});
+
+		test.skipIf(Date.now() < +new Date('2026-07-01')).concurrent(
+			'Same table name joined between schemas',
+			async ({ db }) => {
+				const users1 = pgTable('users_cs_join_1', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+				}));
+				const schema = pgSchema('cs_join_1');
+				const users2 = schema.table('users_cs_join_1', (t) => ({
+					id: t.integer('id').primaryKey(),
+					name: t.text('name').notNull(),
+				}));
+
+				await db.insert(users1).values([{
+					id: 1,
+					name: 'First',
+				}, {
+					id: 2,
+					name: 'Second',
+				}]);
+				await db.insert(users2).values([{
+					id: 1,
+					name: 'First',
+				}]);
+
+				const res = await db.select({
+					u1: users1,
+					u2: users2,
+				}).from(users1).leftJoin(users2, eq(users1.id, users2.id));
+
+				// @ts-ignore skipIf(Date.now() < +new Date('2026-07-01')) - just to make it searchable
+				expectTypeOf(res).toEqualTypeOf<{
+					u1: {
+						id: number;
+						name: string;
+					};
+					u2: {
+						id: number;
+						name: string;
+					} | null;
+				}[]>();
+				expect(res).toStrictEqual([
+					{
+						u1: {
+							id: 1,
+							name: 'First',
+						},
+						u2: {
+							id: 1,
+							name: 'First',
+						},
+					},
+					{
+						u1: {
+							id: 2,
+							name: 'Second',
+						},
+						u2: null,
+					},
+				]);
+			},
+		);
 	});
 }
