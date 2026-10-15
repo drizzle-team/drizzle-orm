@@ -6,8 +6,9 @@
  *
  * Key differences from PostgreSQL:
  * - Uses CREATE INDEX ASYNC (not CONCURRENTLY)
- * - No enums, sequences, foreign keys, policies, RLS
- * - No ALTER COLUMN SET NOT NULL / DROP NOT NULL / SET DEFAULT / DROP DEFAULT
+ * - No enums, policies, RLS
+ * - Foreign keys and check constraints added with ALTER TABLE use NOT VALID
+ * - No ALTER COLUMN SET NOT NULL / SET DATA TYPE
  * - Schema-qualified index names for DROP INDEX
  */
 

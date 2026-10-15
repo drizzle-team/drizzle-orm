@@ -9,7 +9,9 @@
  * - ASYNC index creation
  * - Idempotency verification
  * - Sequences with required CACHE (must be 1 or >= 65536)
- * - No foreign keys, enums, or policies
+ * - Identity columns with required CACHE (must be 1 or >= 65536)
+ * - Foreign keys and check constraints added with NOT VALID
+ * - No enums or policies
  *
  * Required environment variable:
  *   DSQL_CLUSTER_ENDPOINT - The full DSQL cluster endpoint (e.g., "abc123.dsql.us-west-2.on.aws")
@@ -18,13 +20,17 @@
 import { sql } from 'drizzle-orm';
 import type { DSQLDatabase } from 'drizzle-orm/dsql';
 import {
+	bigint,
 	boolean,
 	check,
 	dsqlSchema,
 	dsqlSequence,
 	dsqlTable,
+	foreignKey,
 	index,
 	integer,
+	json,
+	jsonb,
 	numeric,
 	primaryKey,
 	text,
@@ -162,8 +168,7 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL Push - Basic Operations', () => {
 		}
 	});
 
-	// DSQL does not support DROP COLUMN - throws an error
-	test('push drops column throws error (unsupported in DSQL)', async () => {
+	test('push drops column', async () => {
 		const tableName = _.uniqueName('push_drop_col');
 
 		// Initial schema with two columns
@@ -183,12 +188,18 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL Push - Basic Operations', () => {
 
 		try {
 			// Create initial table
-			await push({ db, dsqlDb, to: initial, ignoreSubsequent: true });
+			await push({ db, dsqlDb, to: initial });
 
-			// Drop column should throw
-			await expect(push({ db, dsqlDb, to: updated, ignoreSubsequent: true })).rejects.toThrow(
-				'DSQL does not support',
-			);
+			// Drop column
+			const { sqlStatements } = await push({ db, dsqlDb, to: updated });
+
+			expect(sqlStatements.some((s) => s.includes('DROP COLUMN'))).toBe(true);
+
+			// Verify column no longer exists
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			expect(ddl.columns.one({ table: tableName, name: 'email' })).toBeNull();
+			expect(ddl.columns.list({ table: tableName })).toHaveLength(1);
 		} finally {
 			await cleanupTable(dsqlDb, tableName);
 		}
@@ -520,8 +531,7 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL Push - Column Modifications', () =
 		}
 	});
 
-	// DSQL does not support ALTER COLUMN SET DEFAULT - throws an error
-	test('push adds default value throws error (unsupported in DSQL)', async () => {
+	test('push adds default value', async () => {
 		const tableName = _.uniqueName('push_add_def');
 
 		// Initial schema without default
@@ -542,12 +552,58 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL Push - Column Modifications', () =
 
 		try {
 			// Create initial table
-			await push({ db, dsqlDb, to: initial, ignoreSubsequent: true });
+			await push({ db, dsqlDb, to: initial });
 
-			// Add default should throw
-			await expect(push({ db, dsqlDb, to: updated, ignoreSubsequent: true })).rejects.toThrow(
-				'DSQL does not support',
-			);
+			// Add default
+			const { sqlStatements } = await push({ db, dsqlDb, to: updated });
+
+			expect(sqlStatements.some((s) => s.includes('SET DEFAULT'))).toBe(true);
+
+			// Verify default exists
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			const activeCol = ddl.columns.one({ table: tableName, name: 'active' });
+			expect(activeCol?.default).toBe('true');
+		} finally {
+			await cleanupTable(dsqlDb, tableName);
+		}
+	});
+
+	test('push drops default value and not null', async () => {
+		const tableName = _.uniqueName('push_drop_def');
+
+		// Initial schema with default and not null
+		const initial = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				active: boolean('active').notNull().default(true),
+			}),
+		};
+
+		// Updated schema without default and not null
+		const updated = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				active: boolean('active'),
+			}),
+		};
+
+		try {
+			// Create initial table
+			await push({ db, dsqlDb, to: initial });
+
+			// Drop default and not null
+			const { sqlStatements } = await push({ db, dsqlDb, to: updated });
+
+			expect(sqlStatements.some((s) => s.includes('DROP DEFAULT'))).toBe(true);
+			expect(sqlStatements.some((s) => s.includes('DROP NOT NULL'))).toBe(true);
+
+			// Verify column is nullable with no default
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			const activeCol = ddl.columns.one({ table: tableName, name: 'active' });
+			expect(activeCol?.default).toBeNull();
+			expect(activeCol?.notNull).toBe(false);
 		} finally {
 			await cleanupTable(dsqlDb, tableName);
 		}
@@ -561,14 +617,14 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL Push - Full Workflow', () => {
 	// - CREATE INDEX ASYNC
 	// - DROP INDEX
 	// - DROP TABLE
-	// Note: DSQL does NOT support ALTER COLUMN or DROP COLUMN!
+	// Note: DSQL does NOT support ALTER COLUMN SET NOT NULL or SET DATA TYPE!
 	test('complete schema lifecycle (DSQL-compatible operations)', async () => {
 		const tableName = _.uniqueName('push_lifecycle');
 		const indexName = _.uniqueName('lifecycle_idx');
 
 		try {
 			// Step 1: Create initial table with all desired columns and constraints upfront
-			// DSQL supports constraints only in CREATE TABLE, not in ALTER TABLE
+			// DSQL supports most constraints only in CREATE TABLE, not in ALTER TABLE
 			const v1 = {
 				users: dsqlTable(tableName, {
 					id: uuid('id').primaryKey().defaultRandom(),
@@ -665,31 +721,31 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL Push - Full Workflow', () => {
 		}
 	});
 
-	// Test that DSQL properly rejects DROP COLUMN
-	test('drop column throws error (unsupported in DSQL)', async () => {
-		const tableName = _.uniqueName('push_drop_col2');
+	// Test that DSQL properly rejects ADD COLUMN with NOT NULL
+	test('add column with not null throws error (unsupported in DSQL)', async () => {
+		const tableName = _.uniqueName('push_add_col_nn');
 
-		// Initial table with two columns
+		// Initial table
 		const initial = {
 			users: dsqlTable(tableName, {
 				id: uuid('id').primaryKey().defaultRandom(),
 				name: text('name'),
-				email: text('email'),
 			}),
 		};
 
-		// Try to drop a column
+		// Try to add a not null column
 		const updated = {
 			users: dsqlTable(tableName, {
 				id: uuid('id').primaryKey().defaultRandom(),
 				name: text('name'),
+				email: text('email').notNull(),
 			}),
 		};
 
 		try {
 			await push({ db, dsqlDb, to: initial, ignoreSubsequent: true });
 
-			// Dropping column should throw
+			// Adding column with NOT NULL should throw
 			await expect(push({ db, dsqlDb, to: updated, ignoreSubsequent: true })).rejects.toThrow(
 				'DSQL does not support',
 			);
@@ -993,6 +1049,440 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL Push - Sequences', () => {
 			expect(seq).toBeTruthy();
 		} finally {
 			await cleanupSchema(dsqlDb, schemaName);
+		}
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Push - Foreign Keys', () => {
+	test('push creates tables with foreign key', async () => {
+		const usersTable = _.uniqueName('push_fk_users');
+		const postsTable = _.uniqueName('push_fk_posts');
+
+		const users = dsqlTable(usersTable, {
+			id: uuid('id').primaryKey().defaultRandom(),
+		});
+		const posts = dsqlTable(postsTable, {
+			id: uuid('id').primaryKey().defaultRandom(),
+			userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+		});
+
+		try {
+			// Push helper verifies idempotency
+			const { sqlStatements } = await push({ db, dsqlDb, to: { users, posts } });
+
+			expect(sqlStatements.some((s) => s.includes('FOREIGN KEY') && s.includes('NOT VALID'))).toBe(true);
+			expect(sqlStatements.some((s) => s.includes('ALTER TABLE ASYNC') && s.includes('VALIDATE CONSTRAINT'))).toBe(
+				true,
+			);
+
+			// Verify foreign key exists via introspection
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			const fks = ddl.fks.list({ table: postsTable });
+			expect(fks).toHaveLength(1);
+			expect(fks[0]?.tableTo).toBe(usersTable);
+			expect(fks[0]?.columns).toStrictEqual(['user_id']);
+			expect(fks[0]?.columnsTo).toStrictEqual(['id']);
+			expect(fks[0]?.onDelete).toBe('CASCADE');
+		} finally {
+			await cleanupTable(dsqlDb, postsTable);
+			await cleanupTable(dsqlDb, usersTable);
+		}
+	});
+
+	test('foreign key is enforced', async () => {
+		const usersTable = _.uniqueName('push_fk_enf_users');
+		const postsTable = _.uniqueName('push_fk_enf_posts');
+
+		const users = dsqlTable(usersTable, {
+			id: uuid('id').primaryKey().defaultRandom(),
+		});
+		const posts = dsqlTable(postsTable, {
+			id: uuid('id').primaryKey().defaultRandom(),
+			userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+		});
+
+		try {
+			await push({ db, dsqlDb, to: { users, posts }, ignoreSubsequent: true });
+
+			// Rows referencing a missing parent are rejected
+			await expect(
+				dsqlDb.execute(sql`INSERT INTO ${posts} (user_id) VALUES (gen_random_uuid())`),
+			).rejects.toThrow();
+
+			// ON DELETE CASCADE removes child rows
+			const [user] = (await dsqlDb.execute(sql`INSERT INTO ${users} DEFAULT VALUES RETURNING id`) as any).rows;
+			await dsqlDb.execute(sql`INSERT INTO ${posts} (user_id) VALUES (${user.id})`);
+			await dsqlDb.execute(sql`DELETE FROM ${users} WHERE id = ${user.id}`);
+
+			const remaining = await dsqlDb.execute(sql`SELECT count(*)::int AS count FROM ${posts}`);
+			expect((remaining as any).rows[0].count).toBe(0);
+		} finally {
+			await cleanupTable(dsqlDb, postsTable);
+			await cleanupTable(dsqlDb, usersTable);
+		}
+	});
+
+	test('push creates composite and self-referencing foreign keys', async () => {
+		const ordersTable = _.uniqueName('push_fk_orders');
+		const itemsTable = _.uniqueName('push_fk_items');
+
+		const orders = dsqlTable(
+			ordersTable,
+			{
+				region: text('region').notNull(),
+				orderNo: integer('order_no').notNull(),
+			},
+			(t) => [primaryKey({ columns: [t.region, t.orderNo] })],
+		);
+		const items = dsqlTable(
+			itemsTable,
+			{
+				id: uuid('id').primaryKey().defaultRandom(),
+				parentId: uuid('parent_id'),
+				region: text('region'),
+				orderNo: integer('order_no'),
+			},
+			(t) => [
+				foreignKey({ columns: [t.region, t.orderNo], foreignColumns: [orders.region, orders.orderNo] }),
+				foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }),
+			],
+		);
+
+		try {
+			// Push helper verifies idempotency
+			await push({ db, dsqlDb, to: { orders, items } });
+
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			const fks = ddl.fks.list({ table: itemsTable });
+			expect(fks).toHaveLength(2);
+			expect(fks.find((fk) => fk.tableTo === ordersTable)?.columns).toStrictEqual(['region', 'order_no']);
+			expect(fks.find((fk) => fk.tableTo === itemsTable)?.columns).toStrictEqual(['parent_id']);
+		} finally {
+			await cleanupTable(dsqlDb, itemsTable);
+			await cleanupTable(dsqlDb, ordersTable);
+		}
+	});
+
+	test('push adds and drops foreign key on existing table', async () => {
+		const usersTable = _.uniqueName('push_fk_add_users');
+		const postsTable = _.uniqueName('push_fk_add_posts');
+
+		const users = dsqlTable(usersTable, {
+			id: uuid('id').primaryKey().defaultRandom(),
+		});
+		const withoutFk = {
+			users,
+			posts: dsqlTable(postsTable, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id'),
+			}),
+		};
+		const withFk = {
+			users,
+			posts: dsqlTable(postsTable, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id').references(() => users.id),
+			}),
+		};
+
+		try {
+			await push({ db, dsqlDb, to: withoutFk });
+
+			// Add foreign key (push helper verifies idempotency)
+			const { sqlStatements: added } = await push({ db, dsqlDb, to: withFk });
+			expect(added.some((s) => s.includes('ADD CONSTRAINT') && s.includes('NOT VALID'))).toBe(true);
+
+			let schema = await fromDatabase(db, () => true);
+			let { ddl } = interimToDDL(schema);
+			expect(ddl.fks.list({ table: postsTable })).toHaveLength(1);
+
+			// Drop foreign key
+			const { sqlStatements: dropped } = await push({ db, dsqlDb, to: withoutFk });
+			expect(dropped.some((s) => s.includes('DROP CONSTRAINT'))).toBe(true);
+
+			schema = await fromDatabase(db, () => true);
+			({ ddl } = interimToDDL(schema));
+			expect(ddl.fks.list({ table: postsTable })).toHaveLength(0);
+		} finally {
+			await cleanupTable(dsqlDb, postsTable);
+			await cleanupTable(dsqlDb, usersTable);
+		}
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Push - Check Constraints', () => {
+	test('push adds check constraint to existing table', async () => {
+		const tableName = _.uniqueName('push_check_add');
+
+		const initial = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				age: integer('age'),
+			}),
+		};
+
+		const updated = {
+			users: dsqlTable(
+				tableName,
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					age: integer('age'),
+				},
+				(t) => [check('age_check', sql`${t.age} >= 0`)],
+			),
+		};
+
+		try {
+			await push({ db, dsqlDb, to: initial });
+
+			// Push helper verifies idempotency while the constraint may still be NOT VALID
+			const { sqlStatements } = await push({ db, dsqlDb, to: updated });
+
+			expect(sqlStatements.some((s) => s.includes('CHECK') && s.includes('NOT VALID'))).toBe(true);
+			expect(sqlStatements.some((s) => s.includes('VALIDATE CONSTRAINT "age_check"'))).toBe(true);
+
+			// Verify check constraint exists
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			const checks = ddl.checks.list({ table: tableName });
+			expect(checks).toHaveLength(1);
+			expect(checks[0]?.value).toBe('(age >= 0)');
+
+			// New rows are checked immediately
+			await expect(dsqlDb.execute(sql`INSERT INTO ${sql.identifier(tableName)} (age) VALUES (-1)`)).rejects
+				.toThrow();
+		} finally {
+			await cleanupTable(dsqlDb, tableName);
+		}
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Push - Identity Columns', () => {
+	test('push creates table with identity column', async () => {
+		const tableName = _.uniqueName('push_ident');
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: bigint('id').primaryKey().generatedAlwaysAsIdentity(),
+				name: text('name'),
+			}),
+		};
+
+		try {
+			// Push helper verifies idempotency
+			const { sqlStatements } = await push({ db, dsqlDb, to });
+
+			expect(sqlStatements.some((s) => s.includes('GENERATED ALWAYS AS IDENTITY'))).toBe(true);
+
+			// Verify identity column via introspection
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			const idCol = ddl.columns.one({ table: tableName, name: 'id' });
+			expect(idCol?.identity?.type).toBe('always');
+			expect(idCol?.identity?.cache).toBe(65536);
+
+			// The identity sequence is not introspected as a standalone sequence
+			expect(ddl.sequences.list().some((seq) => seq.name === idCol?.identity?.name)).toBe(false);
+
+			// Values are generated on insert
+			const result = await dsqlDb.execute(
+				sql`INSERT INTO ${sql.identifier(tableName)} (name) VALUES ('a') RETURNING id`,
+			);
+			expect(Number((result as any).rows[0].id)).toBeGreaterThan(0);
+		} finally {
+			await cleanupTable(dsqlDb, tableName);
+		}
+	});
+
+	test('push creates identity column with options', async () => {
+		const tableName = _.uniqueName('push_ident_opts');
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: bigint('id').primaryKey().generatedByDefaultAsIdentity({ startWith: 100, increment: 5, cache: 1 }),
+			}),
+		};
+
+		try {
+			// Push helper verifies idempotency
+			await push({ db, dsqlDb, to });
+
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			const idCol = ddl.columns.one({ table: tableName, name: 'id' });
+			expect(idCol?.identity?.type).toBe('byDefault');
+			expect(idCol?.identity?.startWith).toBe('100');
+			expect(idCol?.identity?.increment).toBe('5');
+			expect(idCol?.identity?.cache).toBe(1);
+		} finally {
+			await cleanupTable(dsqlDb, tableName);
+		}
+	});
+
+	test('push alters and drops identity', async () => {
+		const tableName = _.uniqueName('push_ident_alter');
+
+		const v1 = {
+			users: dsqlTable(tableName, {
+				id: bigint('id').primaryKey().generatedAlwaysAsIdentity(),
+			}),
+		};
+		const v2 = {
+			users: dsqlTable(tableName, {
+				id: bigint('id').primaryKey().generatedByDefaultAsIdentity(),
+			}),
+		};
+		const v3 = {
+			users: dsqlTable(tableName, {
+				id: bigint('id').primaryKey(),
+			}),
+		};
+
+		try {
+			await push({ db, dsqlDb, to: v1 });
+
+			const { sqlStatements: altered } = await push({ db, dsqlDb, to: v2 });
+			expect(altered.some((s) => s.includes('SET GENERATED BY DEFAULT'))).toBe(true);
+
+			const { sqlStatements: dropped } = await push({ db, dsqlDb, to: v3 });
+			expect(dropped.some((s) => s.includes('DROP IDENTITY'))).toBe(true);
+
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			expect(ddl.columns.one({ table: tableName, name: 'id' })?.identity).toBeNull();
+		} finally {
+			await cleanupTable(dsqlDb, tableName);
+		}
+	});
+
+	test('push adds identity to existing NOT NULL column', async () => {
+		const tableName = _.uniqueName('push_ident_add');
+
+		const v1 = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				seq: bigint('seq').notNull(),
+			}),
+		};
+		const v2 = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				seq: bigint('seq').generatedAlwaysAsIdentity(),
+			}),
+		};
+
+		try {
+			await push({ db, dsqlDb, to: v1 });
+
+			// Push helper verifies idempotency
+			const { sqlStatements } = await push({ db, dsqlDb, to: v2 });
+			expect(sqlStatements.some((s) => s.includes('ADD GENERATED ALWAYS AS IDENTITY'))).toBe(true);
+
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			const seqCol = ddl.columns.one({ table: tableName, name: 'seq' });
+			expect(seqCol?.identity?.type).toBe('always');
+			expect(seqCol?.identity?.cache).toBe(65536);
+		} finally {
+			await cleanupTable(dsqlDb, tableName);
+		}
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Push - Column Types', () => {
+	test('push creates json and jsonb columns', async () => {
+		const tableName = _.uniqueName('push_json');
+
+		const to = {
+			docs: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				data: json('data'),
+				metadata: jsonb('metadata').default({ enabled: true }),
+			}),
+		};
+
+		try {
+			// Push helper verifies idempotency
+			await push({ db, dsqlDb, to });
+
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			expect(ddl.columns.one({ table: tableName, name: 'data' })?.type).toBe('json');
+			expect(ddl.columns.one({ table: tableName, name: 'metadata' })?.type).toBe('jsonb');
+		} finally {
+			await cleanupTable(dsqlDb, tableName);
+		}
+	});
+
+	test('push drops generated expression', async () => {
+		const tableName = _.uniqueName('push_drop_expr');
+
+		const initial = {
+			items: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				price: integer('price'),
+				total: integer('total').generatedAlwaysAs(sql`price * 2`),
+			}),
+		};
+
+		const updated = {
+			items: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				price: integer('price'),
+				total: integer('total'),
+			}),
+		};
+
+		try {
+			await push({ db, dsqlDb, to: initial });
+
+			const { sqlStatements } = await push({ db, dsqlDb, to: updated });
+			expect(sqlStatements.some((s) => s.includes('DROP EXPRESSION'))).toBe(true);
+
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			expect(ddl.columns.one({ table: tableName, name: 'total' })?.generated).toBeNull();
+		} finally {
+			await cleanupTable(dsqlDb, tableName);
+		}
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Push - Expression and Partial Indexes', () => {
+	test('push creates expression and partial indexes', async () => {
+		const tableName = _.uniqueName('push_expr_idx');
+		const exprIndexName = _.uniqueName('lower_email_idx');
+		const partialIndexName = _.uniqueName('active_email_idx');
+
+		const to = {
+			users: dsqlTable(
+				tableName,
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					email: text('email').notNull(),
+					active: boolean('active'),
+				},
+				(t) => [
+					index(exprIndexName).on(sql`lower(${t.email})`),
+					index(partialIndexName).on(t.email).where(sql`${t.active} = true`),
+				],
+			),
+		};
+
+		try {
+			// Push helper waits for async index and verifies idempotency
+			await push({ db, dsqlDb, to });
+
+			const schema = await fromDatabase(db, () => true);
+			const { ddl } = interimToDDL(schema);
+			const exprIdx = ddl.indexes.one({ name: exprIndexName });
+			expect(exprIdx?.columns[0]?.isExpression).toBe(true);
+			const partialIdx = ddl.indexes.one({ name: partialIndexName });
+			expect(partialIdx?.where).toBe('(active = true)');
+		} finally {
+			await cleanupTable(dsqlDb, tableName);
 		}
 	});
 });

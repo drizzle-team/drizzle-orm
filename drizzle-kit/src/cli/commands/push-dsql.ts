@@ -6,7 +6,7 @@
  * DSQL-specific behavior:
  * - No transaction support (each DDL statement auto-commits)
  * - Uses CREATE INDEX ASYNC instead of CONCURRENTLY
- * - Simplified suggestions (no enums, sequences, FKs, policies)
+ * - Simplified suggestions (no enums, policies)
  */
 
 import chalk from 'chalk';
@@ -20,11 +20,13 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/dsql/d
 import type {
 	CheckConstraint,
 	Column,
+	ForeignKey,
 	Index,
 	PostgresEntities,
 	PrimaryKey,
 	Role,
 	Schema,
+	Sequence,
 	UniqueConstraint,
 	View,
 } from '../../dialects/postgres/ddl';
@@ -121,14 +123,14 @@ export const handle = async (
 		process.exit(1);
 	}
 
-	// DSQL doesn't support enums, sequences, policies, privileges, or foreign keys
+	// DSQL doesn't support enums, policies, or privileges
 	// so we use placeholder resolvers that never get called
 	const { sqlStatements, statements: jsonStatements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Schema>('schema'),
 		resolver<never>('enum'),
-		resolver<never>('sequence'),
+		resolver<Sequence>('sequence'),
 		resolver<never>('policy'),
 		resolver<Role>('role'),
 		resolver<never>('privilege'),
@@ -139,7 +141,7 @@ export const handle = async (
 		resolver<Index>('index'),
 		resolver<CheckConstraint>('check'),
 		resolver<PrimaryKey>('primary key'),
-		resolver<never>('foreign key'),
+		resolver<ForeignKey>('foreign key'),
 		'push',
 	);
 
@@ -194,7 +196,7 @@ const isAddUnique = (s: JsonStatement): s is JsonCreateUnique => s.type === 'add
  * Generates suggestions for potentially destructive operations.
  *
  * DSQL-specific version:
- * - No enum, sequence, policy, FK related suggestions
+ * - No enum, policy related suggestions
  * - Warns about no transaction support (partial failures possible)
  * - Focuses on table, column, schema, index, and constraint operations
  */

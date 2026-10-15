@@ -12,6 +12,7 @@ import type {
 	DSQLColumns,
 	ExtraConfigColumn,
 } from './columns/common.ts';
+import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
@@ -19,6 +20,7 @@ import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 export type DSQLTableExtraConfigValue =
 	| AnyIndexBuilder
 	| CheckBuilder
+	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
 	| UniqueConstraintBuilder;
 
@@ -26,11 +28,19 @@ export type DSQLTableExtraConfig = Record<string, DSQLTableExtraConfigValue>;
 
 export type TableConfig = TableConfigBase<DSQLColumns>;
 
+/** @internal */
+export const InlineForeignKeys = Symbol.for('drizzle:DSQLInlineForeignKeys');
+
 export class DSQLTable<out T extends TableConfig = TableConfig> extends Table<T> {
 	static override readonly [entityKind]: string = 'DSQLTable';
 
 	/** @internal */
-	static override readonly Symbol = Object.assign({}, Table.Symbol, {});
+	static override readonly Symbol = Object.assign({}, Table.Symbol, {
+		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,
+	});
+
+	/** @internal */
+	[InlineForeignKeys]: ForeignKey[] = [];
 
 	/** @internal */
 	override [Table.Symbol.ExtraConfigBuilder]: ((self: Record<string, DSQLColumn>) => DSQLTableExtraConfig) | undefined =
@@ -85,6 +95,7 @@ export function dsqlTableWithSchema<
 			const colBuilder = colBuilderBase as DSQLColumnBuilder;
 			colBuilder.setName(name);
 			const column = colBuilder.build(rawTable);
+			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
 	) as unknown as DSQLBuildColumns<TTableName, TColumnsMap>;

@@ -5,13 +5,15 @@
  * for DSQL-unique requirements:
  * - CREATE INDEX ASYNC (instead of PostgreSQL's CONCURRENTLY)
  * - Only btree indexes supported
- * - No enums, foreign keys, policies, RLS
+ * - No enums, policies, RLS
  * - Sequences require CACHE (must be 1 or >= 65536)
- * - Limited ALTER TABLE support (no SET NOT NULL, SET DEFAULT, etc.)
+ * - Foreign keys and check constraints added with ALTER TABLE require NOT VALID
+ * - Primary keys can only be defined in CREATE TABLE
+ * - Limited ALTER TABLE support (no SET NOT NULL, SET DATA TYPE, etc.)
  */
 
 import { convertor, fromJson as pgFromJson } from '../postgres/convertor';
-import { defaults } from '../postgres/grammar';
+import { defaults, isDefaultAction } from '../postgres/grammar';
 import type { JsonStatement } from '../postgres/statements';
 
 /**
@@ -159,6 +161,78 @@ const alterSequenceConvertor = convertor('alter_sequence', (st) => {
 });
 
 /**
+ * Validates existing rows against a NOT VALID constraint.
+ * DSQL runs the validation as an asynchronous job.
+ */
+const validateConstraint = (schema: string, table: string, name: string) => {
+	const key = schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`;
+	return `ALTER TABLE ASYNC ${key} VALIDATE CONSTRAINT "${name}";`;
+};
+
+/**
+ * DSQL-specific foreign key convertor.
+ * DSQL requires NOT VALID when adding a foreign key with ALTER TABLE.
+ * The constraint applies to new rows immediately, then existing rows are validated asynchronously.
+ */
+const createForeignKeyConvertor = convertor('create_fk', (st) => {
+	const { schema, table, name, tableTo, columns, columnsTo, onDelete, onUpdate, schemaTo } = st.fk;
+
+	const onDeleteStatement = onDelete && !isDefaultAction(onDelete) ? ` ON DELETE ${onDelete}` : '';
+	const onUpdateStatement = onUpdate && !isDefaultAction(onUpdate) ? ` ON UPDATE ${onUpdate}` : '';
+	const fromColumnsString = columns.map((it) => `"${it}"`).join(',');
+	const toColumnsString = columnsTo.map((it) => `"${it}"`).join(',');
+
+	const tableNameWithSchema = schema !== 'public'
+		? `"${schema}"."${table}"`
+		: `"${table}"`;
+
+	const tableToNameWithSchema = schemaTo !== 'public'
+		? `"${schemaTo}"."${tableTo}"`
+		: `"${tableTo}"`;
+
+	return [
+		`ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement} NOT VALID;`,
+		validateConstraint(schema, table, name),
+	];
+});
+
+/**
+ * DSQL-specific recreate foreign key convertor.
+ */
+const recreateForeignKeyConvertor = convertor('recreate_fk', (st) => {
+	const { schema, table, name } = st.fk;
+	const key = schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`;
+	const drop = `ALTER TABLE ${key} DROP CONSTRAINT "${name}";`;
+	const add = createForeignKeyConvertor.convert({ fk: st.fk }) as string[];
+	return [drop, ...add];
+});
+
+/**
+ * DSQL-specific check constraint convertor.
+ * DSQL requires NOT VALID when adding a check constraint with ALTER TABLE.
+ * The constraint applies to new rows immediately, then existing rows are validated asynchronously.
+ */
+const addCheckConvertor = convertor('add_check', (st) => {
+	const { check } = st;
+	const key = check.schema !== 'public' ? `"${check.schema}"."${check.table}"` : `"${check.table}"`;
+	return [
+		`ALTER TABLE ${key} ADD CONSTRAINT "${check.name}" CHECK (${check.value}) NOT VALID;`,
+		validateConstraint(check.schema, check.table, check.name),
+	];
+});
+
+/**
+ * DSQL-specific recreate check constraint convertor.
+ */
+const recreateCheckConvertor = convertor('alter_check', (st) => {
+	const check = st.diff.$right;
+	const key = check.schema !== 'public' ? `"${check.schema}"."${check.table}"` : `"${check.table}"`;
+	const drop = `ALTER TABLE ${key} DROP CONSTRAINT "${check.name}";`;
+	const add = addCheckConvertor.convert({ check }) as string[];
+	return [drop, ...add];
+});
+
+/**
  * List of DSQL-specific convertors that override PostgreSQL behavior.
  */
 const dsqlConvertors = [
@@ -170,6 +244,10 @@ const dsqlConvertors = [
 	renameSequenceConvertor,
 	moveSequenceConvertor,
 	alterSequenceConvertor,
+	createForeignKeyConvertor,
+	recreateForeignKeyConvertor,
+	addCheckConvertor,
+	recreateCheckConvertor,
 ];
 
 // Unsupported statement types in DSQL
@@ -192,10 +270,10 @@ const policyStatementTypes = [
 	'alter_rls',
 ] as const;
 
-const fkStatementTypes = [
-	'create_fk',
-	'drop_fk',
-	'recreate_fk',
+const primaryKeyStatementTypes = [
+	'add_pk',
+	'drop_pk',
+	'alter_pk',
 ] as const;
 
 /**
@@ -210,24 +288,15 @@ function validateStatement(statement: JsonStatement): string | null {
 		return `DSQL does not support enums. Cannot perform ${statement.type} operation.`;
 	}
 
-	// Foreign key statements
-	if ((fkStatementTypes as readonly string[]).includes(statement.type)) {
-		return `DSQL does not support foreign keys. Cannot perform ${statement.type} operation.`;
-	}
-
 	// Policy statements
 	if ((policyStatementTypes as readonly string[]).includes(statement.type)) {
 		return `DSQL does not support row-level security policies. Cannot perform ${statement.type} operation.`;
 	}
 
-	// DROP COLUMN
-	if (statement.type === 'drop_column') {
-		const column = st.column;
-		const key = column.schema !== 'public'
-			? `"${column.schema}"."${column.table}"`
-			: `"${column.table}"`;
-		return `DSQL does not support DROP COLUMN. `
-			+ `Cannot drop column "${column.name}" from table ${key}. `
+	// Primary key statements - DSQL only supports primary keys defined in CREATE TABLE
+	if ((primaryKeyStatementTypes as readonly string[]).includes(statement.type)) {
+		return `DSQL does not support changing the primary key of an existing table. `
+			+ `Cannot perform ${statement.type} operation. `
 			+ `Consider recreating the table with the desired schema.`;
 	}
 
@@ -254,9 +323,9 @@ function validateStatement(statement: JsonStatement): string | null {
 				+ `Consider recreating the table with the desired schema.`;
 		}
 		if (column.identity) {
-			return `DSQL does not support identity columns. `
-				+ `Cannot add column "${column.name}" to table ${key} with identity. `
-				+ `Consider using UUID with gen_random_uuid() instead.`;
+			return `DSQL does not support ADD COLUMN with IDENTITY constraint. `
+				+ `Cannot add column "${column.name}" to table ${key} as identity. `
+				+ `Consider recreating the table with the desired schema.`;
 		}
 	}
 
@@ -275,28 +344,17 @@ function validateStatement(statement: JsonStatement): string | null {
 			? `"${column.schema}"."${column.table}"`
 			: `"${column.table}"`;
 
-		if (diff.notNull) {
-			const action = diff.notNull.to ? 'SET NOT NULL' : 'DROP NOT NULL';
-			return `DSQL does not support ALTER COLUMN ${action}. `
+		// DROP NOT NULL is supported, SET NOT NULL is not
+		if (diff.notNull && diff.notNull.to) {
+			return `DSQL does not support ALTER COLUMN SET NOT NULL. `
 				+ `Cannot change nullability of column "${column.name}" in table ${key}. `
 				+ `Consider recreating the table with the desired schema.`;
 		}
 
-		if (diff.default) {
-			const action = diff.default.to ? 'SET DEFAULT' : 'DROP DEFAULT';
-			return `DSQL does not support ALTER COLUMN ${action}. `
-				+ `Cannot change default value of column "${column.name}" in table ${key}. `
-				+ `Consider recreating the table with the desired schema.`;
-		}
-
-		if (diff.identity) {
-			return `DSQL does not support identity columns. `
-				+ `Cannot modify identity on column "${column.name}" in table ${key}.`;
-		}
-
-		if (diff.generated) {
-			return `DSQL does not support altering generated columns. `
-				+ `Cannot modify generated column "${column.name}" in table ${key}. `
+		// ADD GENERATED AS IDENTITY requires the column to already be NOT NULL
+		if (diff.identity && diff.identity.from === null && !diff.$left.notNull) {
+			return `DSQL does not support adding IDENTITY to a nullable column. `
+				+ `Cannot add identity to column "${column.name}" in table ${key}. `
 				+ `Consider recreating the table with the desired schema.`;
 		}
 
@@ -362,12 +420,16 @@ export function fromJson(statements: JsonStatement[]) {
 }
 
 export {
+	addCheckConvertor,
 	alterSequenceConvertor,
+	createForeignKeyConvertor,
 	createIndexConvertor,
 	createSequenceConvertor,
 	dropIndexConvertor,
 	dropSequenceConvertor,
 	moveSequenceConvertor,
+	recreateCheckConvertor,
+	recreateForeignKeyConvertor,
 	recreateIndexConvertor,
 	renameSequenceConvertor,
 };

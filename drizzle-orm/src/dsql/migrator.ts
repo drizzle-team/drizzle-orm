@@ -43,7 +43,7 @@ function hashStatement(stmt: string): string {
 }
 
 /**
- * Generate a timestamp-based ID for the migrations table (DSQL has no sequences).
+ * Generate a timestamp-based ID for the migrations table.
  */
 function generateId(): bigint {
 	// Use current timestamp in microseconds + random component for uniqueness
@@ -56,7 +56,6 @@ function generateId(): bigint {
  * DSQL constraints handled:
  * - One DDL statement per transaction (auto-commits)
  * - Cannot mix DDL and DML in same transaction
- * - No sequences (uses timestamp-based IDs)
  *
  * Each statement is executed and tracked individually, allowing recovery
  * from partial failures by re-running the migration command.

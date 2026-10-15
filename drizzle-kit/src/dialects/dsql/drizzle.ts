@@ -1,10 +1,12 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
 import type { CasingType } from 'src/cli/validations/common';
+import { assertUnreachable } from 'src/utils';
 import { loadModule } from 'src/utils/utils-node';
 import { getColumnCasing } from '../drizzle';
 import type {
 	Column,
+	ForeignKey,
 	Index,
 	InterimColumn,
 	InterimIndex,
@@ -16,11 +18,21 @@ import type {
 	Sequence,
 	UniqueConstraint,
 } from '../postgres/ddl';
-import { defaultNameForPK, indexName, splitSqlType, trimDefaultValueSuffix, typeFor } from '../postgres/grammar';
+import {
+	defaultNameForFK,
+	defaultNameForPK,
+	indexName,
+	maxRangeForIdentityBasedOn,
+	minRangeForIdentityBasedOn,
+	splitSqlType,
+	stringFromIdentityProperty,
+	trimDefaultValueSuffix,
+	typeFor,
+} from '../postgres/grammar';
 import type { EntityFilter } from '../pull-utils';
 
 // DSQL-specific imports
-import type { AnyDSQLColumn, DSQLSequence, DSQLView } from 'drizzle-orm/dsql-core';
+import type { AnyDSQLColumn, DSQLSequence, DSQLView, UpdateDeleteAction } from 'drizzle-orm/dsql-core';
 import {
 	DSQL_DEFAULT_CACHE,
 	DSQLDialect,
@@ -89,16 +101,16 @@ export const defaultFromColumn = (
 };
 
 /**
- * Default name for foreign key constraint.
- * DSQL doesn't support foreign keys, but we keep this for consistency.
+ * Converts a foreign key referential action to its DDL form.
  */
-export const defaultNameForFK = (
-	tableFrom: string,
-	columnsFrom: string[],
-	tableTo: string,
-	columnsTo: string[],
-): string => {
-	return `${tableFrom}_${columnsFrom.join('_')}_${tableTo}_${columnsTo.join('_')}_fk`;
+export const transformOnUpdateDelete = (on: UpdateDeleteAction): ForeignKey['onUpdate'] => {
+	if (on === 'no action') return 'NO ACTION';
+	if (on === 'cascade') return 'CASCADE';
+	if (on === 'restrict') return 'RESTRICT';
+	if (on === 'set default') return 'SET DEFAULT';
+	if (on === 'set null') return 'SET NULL';
+
+	assertUnreachable(on);
 };
 
 /**
@@ -107,10 +119,9 @@ export const defaultNameForFK = (
  * DSQL limitations handled here:
  * - No enums (dsql-core doesn't have enums)
  * - No policies/RLS (dsql-core doesn't have policies)
- * - No foreign keys (dsql-core doesn't have foreign keys)
- * - No identity columns (dsql-core doesn't have identity columns)
  * - Only btree indexes (dsql-core only supports btree)
  * - Sequences require CACHE (must be 1 or >= 65536)
+ * - Identity columns require CACHE (must be 1 or >= 65536)
  */
 export const fromDrizzleSchema = (
 	schema: {
@@ -186,6 +197,7 @@ export const fromDrizzleSchema = (
 			schema: drizzleSchema,
 			primaryKeys: drizzlePKs,
 			uniqueConstraints: drizzleUniques,
+			foreignKeys: drizzleFKs,
 		} = config;
 
 		const schema = drizzleSchema || 'public';
@@ -202,9 +214,38 @@ export const fromDrizzleSchema = (
 				const notNull = column.notNull || isPk;
 
 				const generated = column.generated;
+				const identity = column.generatedIdentity;
 
-				// DSQL doesn't support identity columns
-				const identityValue = null;
+				const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment)
+					?? '1';
+				const minValue = stringFromIdentityProperty(identity?.sequenceOptions?.minValue)
+					?? (parseFloat(increment) < 0
+						? minRangeForIdentityBasedOn(column.getSQLType())
+						: '1');
+				const maxValue = stringFromIdentityProperty(identity?.sequenceOptions?.maxValue)
+					?? (parseFloat(increment) < 0
+						? '-1'
+						: maxRangeForIdentityBasedOn(column.getSQLType()));
+				const startWith = stringFromIdentityProperty(identity?.sequenceOptions?.startWith)
+					?? (parseFloat(increment) < 0 ? maxValue : minValue);
+				// DSQL requires CACHE to be 1 or >= 65536, defaulting to 65536
+				const identityCache = identity?.sequenceOptions?.cache;
+				const cache = identityCache !== undefined
+					? (typeof identityCache === 'string' ? parseInt(identityCache, 10) : identityCache)
+					: DSQL_DEFAULT_CACHE;
+
+				const identityValue = identity
+					? {
+						type: identity.type,
+						name: identity.sequenceName ?? `${tableName}_${name}_seq`,
+						increment,
+						startWith,
+						minValue,
+						maxValue,
+						cache,
+						cycle: identity?.sequenceOptions?.cycle ?? false,
+					}
+					: null;
 
 				const generatedValue: Column['generated'] = generated
 					? {
@@ -275,7 +316,34 @@ export const fromDrizzleSchema = (
 			}),
 		);
 
-		// DSQL doesn't support foreign keys - skip FK processing
+		res.fks.push(
+			...drizzleFKs.map<ForeignKey>((fk) => {
+				const onDelete = fk.onDelete;
+				const onUpdate = fk.onUpdate;
+				const reference = fk.reference();
+
+				const tableTo = getTableName(reference.foreignTable);
+				const schemaTo = getTableConfig(reference.foreignTable).schema || 'public';
+				const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
+				const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
+
+				const name = fk.isNameExplicit() ? fk.getName() : defaultNameForFK(tableName, columnsFrom, tableTo, columnsTo);
+
+				return {
+					entityType: 'fks',
+					schema: schema,
+					table: tableName,
+					name,
+					nameExplicit: fk.isNameExplicit(),
+					tableTo,
+					schemaTo,
+					columns: columnsFrom,
+					columnsTo,
+					onDelete: onDelete ? transformOnUpdateDelete(onDelete) : null,
+					onUpdate: onUpdate ? transformOnUpdateDelete(onUpdate) : null,
+				} satisfies ForeignKey;
+			}),
+		);
 
 		for (const index of drizzleIndexes) {
 			const columns = index.config.columns;

@@ -5,11 +5,13 @@ import { prepareSnapshot } from '../../dialects/dsql/serializer';
 import type {
 	CheckConstraint,
 	Column,
+	ForeignKey,
 	Index,
 	PostgresEntities,
 	PrimaryKey,
 	Role,
 	Schema,
+	Sequence,
 	UniqueConstraint,
 	View,
 } from '../../dialects/postgres/ddl';
@@ -42,14 +44,14 @@ export const handle = async (config: GenerateConfig) => {
 		return;
 	}
 
-	// DSQL doesn't support enums, sequences, policies, privileges, or foreign keys
+	// DSQL doesn't support enums, policies, or privileges
 	// so we use placeholder resolvers that never get called
 	const { sqlStatements, renames, groupedStatements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
 		resolver<Schema>('schema'),
 		resolver<never>('enum'),
-		resolver<never>('sequence'),
+		resolver<Sequence>('sequence'),
 		resolver<never>('policy'),
 		resolver<Role>('role'),
 		resolver<never>('privilege'),
@@ -60,7 +62,7 @@ export const handle = async (config: GenerateConfig) => {
 		resolver<Index>('index'),
 		resolver<CheckConstraint>('check'),
 		resolver<PrimaryKey>('primary key'),
-		resolver<never>('foreign key'),
+		resolver<ForeignKey>('foreign key'),
 		'default',
 	);
 

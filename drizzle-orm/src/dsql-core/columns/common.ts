@@ -1,8 +1,11 @@
 import type { ColumnType, GeneratedColumnConfig, GeneratedIdentityConfig } from '~/column-builder.ts';
 import { Column } from '~/column.ts';
+import type { ForeignKey, UpdateDeleteAction } from '~/dsql-core/foreign-keys.ts';
+import { ForeignKeyBuilder } from '~/dsql-core/foreign-keys.ts';
 import type { AnyDSQLTable, DSQLTable } from '~/dsql-core/table.ts';
 import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
+import { iife } from '~/tracing-utils.ts';
 import type { Update } from '~/utils.ts';
 
 declare const DSQLColumnBuilderBrand: unique symbol;
@@ -22,6 +25,7 @@ export interface DSQLColumnBuilderConfig {
 	hasRuntimeDefault?: boolean;
 	enumValues?: string[];
 	generated?: unknown;
+	identity?: 'always' | 'byDefault';
 	$type?: unknown;
 }
 
@@ -69,6 +73,11 @@ export type Set$Type<T, TType> = T & { readonly [DSQLColumnBuilderBrand]: { $typ
 export type SetHasGenerated<T> = T & {
 	readonly [DSQLColumnBuilderBrand]: { hasDefault: true; generated: true };
 };
+export type SetIdentity<T, TType extends 'always' | 'byDefault'> = T & {
+	readonly [DSQLColumnBuilderBrand]: { notNull: true; hasDefault: true; identity: TType };
+};
+
+export type HasIdentity<T, TType extends 'always' | 'byDefault'> = SetIdentity<T, TType>;
 
 type GetBaseData<T> = T extends { $type: infer U } ? U : T extends { data: infer D } ? D : unknown;
 
@@ -89,7 +98,7 @@ export type ResolveDSQLColumnConfig<
 	hasRuntimeDefault: false;
 	enumValues: T extends { enumValues: infer E extends string[] } ? E : undefined;
 	generated: T['generated'] extends true ? true : undefined;
-	identity: undefined;
+	identity: T['identity'] extends 'always' | 'byDefault' ? T['identity'] : undefined;
 } & {};
 
 export interface AnyDSQLColumnBuilder {
@@ -128,6 +137,15 @@ export type DSQLBuildExtraConfigColumns<
 
 export type DSQLColumns = Record<string, DSQLColumn>;
 
+export interface ReferenceConfig {
+	ref: () => DSQLColumn;
+	config: {
+		name?: string;
+		onUpdate?: UpdateDeleteAction;
+		onDelete?: UpdateDeleteAction;
+	};
+}
+
 export abstract class DSQLColumnBuilder<
 	out T extends DSQLColumnBuilderConfig = DSQLColumnBuilderConfig,
 	out TRuntimeConfig extends object = object,
@@ -135,6 +153,8 @@ export abstract class DSQLColumnBuilder<
 	static readonly [entityKind]: string = 'DSQLColumnBuilder';
 
 	declare readonly [DSQLColumnBuilderBrand]: T;
+
+	private foreignKeyConfigs: ReferenceConfig[] = [];
 
 	protected config: DSQLColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 
@@ -238,6 +258,14 @@ export abstract class DSQLColumnBuilder<
 		this.config.name = name;
 	}
 
+	references(
+		ref: ReferenceConfig['ref'],
+		config: ReferenceConfig['config'] = {},
+	): this {
+		this.foreignKeyConfigs.push({ ref, config });
+		return this;
+	}
+
 	unique(
 		name?: string,
 		config?: { nulls: 'distinct' | 'not distinct' },
@@ -255,6 +283,29 @@ export abstract class DSQLColumnBuilder<
 			mode: 'stored',
 		};
 		return this as SetHasGenerated<this>;
+	}
+
+	/** @internal */
+	buildForeignKeys(column: DSQLColumn, table: DSQLTable): ForeignKey[] {
+		return this.foreignKeyConfigs.map(({ ref, config }) => {
+			return iife(
+				(ref, config) => {
+					const builder = new ForeignKeyBuilder(() => {
+						const foreignColumn = ref();
+						return { name: config.name, columns: [column], foreignColumns: [foreignColumn] };
+					});
+					if (config.onUpdate) {
+						builder.onUpdate(config.onUpdate);
+					}
+					if (config.onDelete) {
+						builder.onDelete(config.onDelete);
+					}
+					return builder.build(table);
+				},
+				ref,
+				config,
+			);
+		});
 	}
 
 	/** @internal */

@@ -3,9 +3,10 @@ import { Table } from '~/table.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { type Check, CheckBuilder } from './checks.ts';
 import type { AnyDSQLColumn } from './columns/common.ts';
+import { type ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import { type Index, IndexBuilder } from './indexes.ts';
 import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys.ts';
-import type { DSQLTable } from './table.ts';
+import { DSQLTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
 import { DSQLViewConfig } from './view-common.ts';
 import type { DSQLView } from './view.ts';
@@ -15,6 +16,7 @@ export function getTableConfig(table: DSQLTable): {
 	indexes: Index[];
 	checks: Check[];
 	primaryKeys: PrimaryKey[];
+	foreignKeys: ForeignKey[];
 	uniqueConstraints: UniqueConstraint[];
 	name: string;
 	schema: string | undefined;
@@ -23,6 +25,7 @@ export function getTableConfig(table: DSQLTable): {
 	const indexes: Index[] = [];
 	const checks: Check[] = [];
 	const primaryKeys: PrimaryKey[] = [];
+	const foreignKeys: ForeignKey[] = Object.values(table[DSQLTable.Symbol.InlineForeignKeys]);
 	const uniqueConstraints: UniqueConstraint[] = [];
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
@@ -41,6 +44,8 @@ export function getTableConfig(table: DSQLTable): {
 				uniqueConstraints.push(builder.build(table));
 			} else if (is(builder, PrimaryKeyBuilder)) {
 				primaryKeys.push(builder.build(table));
+			} else if (is(builder, ForeignKeyBuilder)) {
+				foreignKeys.push(builder.build(table));
 			}
 		}
 	}
@@ -50,6 +55,7 @@ export function getTableConfig(table: DSQLTable): {
 		indexes,
 		checks,
 		primaryKeys,
+		foreignKeys,
 		uniqueConstraints,
 		name,
 		schema,

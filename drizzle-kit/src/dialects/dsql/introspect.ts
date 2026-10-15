@@ -25,16 +25,13 @@ import { isSystemNamespace } from './grammar';
  * Introspects a DSQL database and returns the schema.
  *
  * DSQL is PostgreSQL-compatible, so we use pg_catalog system tables.
- * DSQL supports JSON runtime functions but not JSON as column data types,
- * so we cast JSON results to ::text and parse them in JavaScript.
  *
  * DSQL limitations (not supported in schema generation):
  * - No enums (uses text/varchar instead)
  * - No policies/RLS
- * - No foreign keys (DDL operations blocked, but introspection reads any existing FKs)
  * - Only btree indexes (no hash, gin, gist, etc.)
  *
- * DSQL-specific sequence requirements:
+ * DSQL-specific sequence and identity column requirements:
  * - CACHE is required and must be 1 or >= 65536
  * - Only BIGINT data type is supported
  */
@@ -262,7 +259,7 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	// Query columns (without JSON for identity - DSQL doesn't support identity columns)
+	// Query columns
 	const columnsList = await db.query<{
 		tableId: number | string;
 		kind: 'r' | 'p' | 'v' | 'm';
@@ -305,16 +302,67 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	// Query indexes with JSON cast to text
-	// DSQL supports JSON runtime functions but not JSON as column types
-	// So we cast to ::text and parse in JavaScript
+	// Query identity columns and their sequences
+	// DSQL supports identity columns with CACHE required (must be 1 or >= 65536)
+	const identitiesList = await db.query<{
+		tableId: number | string;
+		ordinality: number;
+		type: 'a' | 'd';
+		seqId: number | string;
+		name: string;
+		startWith: string;
+		minValue: string;
+		maxValue: string;
+		incrementBy: string;
+		cycle: boolean;
+		cacheSize: string;
+	}>(`
+		SELECT
+			attrelid AS "tableId",
+			attnum AS "ordinality",
+			attidentity AS "type",
+			pg_sequence.seqrelid AS "seqId",
+			pg_class.relname AS "name",
+			seqstart::text AS "startWith",
+			seqmin::text AS "minValue",
+			seqmax::text AS "maxValue",
+			seqincrement::text AS "incrementBy",
+			seqcycle AS "cycle",
+			seqcache::text AS "cacheSize"
+		FROM
+			pg_catalog.pg_attribute attr
+			JOIN pg_catalog.pg_depend ON pg_depend.refobjid OPERATOR(pg_catalog.=) attr.attrelid
+				AND pg_depend.refobjsubid OPERATOR(pg_catalog.=) attr.attnum
+				AND pg_depend.deptype OPERATOR(pg_catalog.=) 'i'
+			JOIN pg_catalog.pg_sequence ON pg_sequence.seqrelid OPERATOR(pg_catalog.=) pg_depend.objid
+			JOIN pg_catalog.pg_class ON pg_class.oid OPERATOR(pg_catalog.=) pg_sequence.seqrelid
+		WHERE
+			${filterByTableIds ? ` attrelid IN ${filterByTableIds}` : 'false'}
+			AND attidentity IN ('a', 'd')
+	`).then((rows) => {
+		queryCallback('identities', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('identities', [], err);
+		throw err;
+	});
+
+	// Query indexes
 	const idxs = await db.query<{
 		oid: number | string;
 		schema: string;
 		name: string;
 		accessMethod: string;
 		with?: string[];
-		metadataJson: string; // JSON cast to text
+		metadata: {
+			tableId: number;
+			expression: string | null;
+			where: string | null;
+			columnOrdinals: number[];
+			options: number[];
+			isUnique: boolean;
+			isPrimary: boolean;
+		};
 	}>(`
 		SELECT
 			pg_class.oid,
@@ -322,7 +370,7 @@ export const fromDatabase = async (
 			relname AS "name",
 			am.amname AS "accessMethod",
 			reloptions AS "with",
-			(pg_catalog.json_build_object(
+			pg_catalog.json_build_object(
 				'tableId', indrelid::int,
 				'expression', pg_catalog.pg_get_expr(indexprs, indrelid),
 				'where', pg_catalog.pg_get_expr(indpred, indrelid),
@@ -330,7 +378,7 @@ export const fromDatabase = async (
 				'options', indoption::int[],
 				'isUnique', indisunique,
 				'isPrimary', indisprimary
-			))::text as "metadataJson"
+			) as "metadata"
 		FROM
 			pg_catalog.pg_class
 		JOIN pg_catalog.pg_am am ON am.oid OPERATOR(pg_catalog.=) pg_class.relam
@@ -437,6 +485,10 @@ export const fromDatabase = async (
 				&& it.columnsOrdinals.includes(column.ordinality);
 		}) ?? null;
 
+		const identity = identitiesList.find((it) =>
+			Number(it.tableId) === Number(column.tableId) && it.ordinality === column.ordinality
+		) ?? null;
+
 		columns.push({
 			entityType: 'columns',
 			schema: table.schema,
@@ -455,7 +507,18 @@ export const fromDatabase = async (
 			generated: column.generatedType === 's'
 				? { type: 'stored', as: columnDefault?.expression ?? '' }
 				: null,
-			identity: null, // DSQL doesn't support identity columns
+			identity: identity
+				? {
+					type: identity.type === 'a' ? 'always' : 'byDefault',
+					name: identity.name,
+					increment: identity.incrementBy,
+					minValue: identity.minValue,
+					maxValue: identity.maxValue,
+					startWith: identity.startWith,
+					cycle: identity.cycle,
+					cache: parseInt(identity.cacheSize, 10),
+				}
+				: null,
 		});
 	}
 
@@ -504,7 +567,7 @@ export const fromDatabase = async (
 		});
 	}
 
-	// Process foreign keys (DSQL doesn't support FKs yet, but include for completeness)
+	// Process foreign keys
 	for (const fk of constraintsList.filter((it) => it.type === 'f')) {
 		const table = tablesList.find((it) => Number(it.oid) === Number(fk.tableId))!;
 		const schema = namespaces.find((it) => Number(it.oid) === Number(fk.schemaId))!;
@@ -544,27 +607,23 @@ export const fromDatabase = async (
 		const table = tablesList.find((it) => Number(it.oid) === Number(check.tableId))!;
 		const schema = namespaces.find((it) => Number(it.oid) === Number(check.schemaId))!;
 
+		// DSQL appends NOT VALID until the asynchronous VALIDATE CONSTRAINT job completes
+		const definition = check.definition.endsWith(' NOT VALID')
+			? check.definition.slice(0, -' NOT VALID'.length)
+			: check.definition;
+
 		checks.push({
 			entityType: 'checks',
 			schema: schema.name,
 			table: table.name,
 			name: check.name,
-			value: check.definition.startsWith('CHECK (') ? check.definition.slice(7, -1) : check.definition,
+			value: definition.startsWith('CHECK (') ? definition.slice(7, -1) : definition,
 		});
 	}
 
-	// Process indexes - parse JSON metadata from text
+	// Process indexes
 	for (const idx of idxs) {
-		// Parse the JSON metadata from text
-		const metadata = JSON.parse(idx.metadataJson) as {
-			tableId: number;
-			expression: string | null;
-			where: string | null;
-			columnOrdinals: number[];
-			options: number[];
-			isUnique: boolean;
-			isPrimary: boolean;
-		};
+		const metadata = idx.metadata;
 
 		const forUnique = metadata.isUnique
 			&& constraintsList.some((x) => x.type === 'u' && Number(x.indexId) === Number(idx.oid));
@@ -752,6 +811,7 @@ export const fromDatabase = async (
 	// Query sequences
 	// DSQL supports sequences with CACHE required (must be 1 or >= 65536)
 	const sequencesList = await db.query<{
+		oid: number | string;
 		schema: string;
 		name: string;
 		startWith: string;
@@ -762,6 +822,7 @@ export const fromDatabase = async (
 		cacheSize: string;
 	}>(`
 		SELECT
+			seqrelid AS "oid",
 			nspname AS "schema",
 			relname AS "name",
 			seqstart::text AS "startWith",
@@ -785,6 +846,9 @@ export const fromDatabase = async (
 
 	// Process sequences
 	for (const seq of sequencesList) {
+		// Skip sequences owned by identity columns
+		if (identitiesList.some((it) => Number(it.seqId) === Number(seq.oid))) continue;
+
 		sequences.push({
 			entityType: 'sequences',
 			schema: seq.schema,

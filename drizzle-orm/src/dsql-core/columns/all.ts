@@ -6,6 +6,8 @@ import { date } from './date.ts';
 import { doublePrecision } from './doublePrecision.ts';
 import { integer } from './integer.ts';
 import { interval } from './interval.ts';
+import { json } from './json.ts';
+import { jsonb } from './jsonb.ts';
 import { numeric } from './numeric.ts';
 import { real } from './real.ts';
 import { smallint } from './smallint.ts';
@@ -25,6 +27,8 @@ export function getDSQLColumnBuilders() {
 		doublePrecision,
 		integer,
 		interval,
+		json,
+		jsonb,
 		numeric,
 		real,
 		smallint,

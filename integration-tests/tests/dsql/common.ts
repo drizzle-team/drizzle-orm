@@ -1,15 +1,19 @@
 import { asc, eq, gt, sql, TransactionRollbackError } from 'drizzle-orm';
 import {
 	alias,
+	bigint,
 	boolean,
 	check,
 	dsqlSchema,
 	dsqlTable,
 	dsqlView,
+	foreignKey,
 	getTableConfig,
 	getViewConfig,
 	index,
 	integer,
+	json,
+	jsonb,
 	text,
 	timestamp,
 	unique,
@@ -1192,6 +1196,127 @@ export function tests(test: Test) {
 			} finally {
 				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
 			}
+		});
+
+		// Foreign key tests
+		test.concurrent('table config: foreign keys', () => {
+			const parents = dsqlTable('fk_parents', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				code: text('code').notNull(),
+			});
+			const children = dsqlTable('fk_children', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				parentId: uuid('parent_id').references(() => parents.id, { onDelete: 'cascade' }),
+				parentCode: text('parent_code'),
+			}, (t) => [foreignKey({ name: 'children_code_fk', columns: [t.parentCode], foreignColumns: [parents.code] })]);
+
+			const config = getTableConfig(children);
+			expect(config.foreignKeys).toHaveLength(2);
+
+			const inline = config.foreignKeys.find((fk) => !fk.isNameExplicit())!;
+			expect(inline.onDelete).toBe('cascade');
+			expect(inline.reference().foreignTable).toBe(parents);
+			expect(inline.getName()).toBe('fk_children_parent_id_fk_parents_id_fk');
+
+			const named = config.foreignKeys.find((fk) => fk.isNameExplicit())!;
+			expect(named.getName()).toBe('children_code_fk');
+			expect(named.reference().foreignColumns[0]).toBe(parents.code);
+		});
+
+		test.concurrent('foreign key enforcement', async ({ db }) => {
+			const parentTable = uniqueName('fk_parent');
+			const childTable = uniqueName('fk_child');
+			const parents = dsqlTable(parentTable, {
+				id: uuid('id').primaryKey().defaultRandom(),
+			});
+			const children = dsqlTable(childTable, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				parentId: uuid('parent_id').references(() => parents.id, { onDelete: 'cascade' }),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(parentTable)} (
+					id uuid primary key default gen_random_uuid()
+				)
+			`);
+			await db.execute(sql`
+				create table ${sql.identifier(childTable)} (
+					id uuid primary key default gen_random_uuid(),
+					parent_id uuid references ${sql.identifier(parentTable)}(id) on delete cascade
+				)
+			`);
+
+			try {
+				const [parent] = await db.insert(parents).values({}).returning();
+				await db.insert(children).values({ parentId: parent!.id });
+
+				// Rows referencing a missing parent fail with a foreign key violation
+				await expect(
+					db.insert(children).values({ parentId: '00000000-0000-0000-0000-000000000000' }),
+				).rejects.toMatchObject({ cause: { code: '23503' } });
+
+				await db.delete(parents).where(eq(parents.id, parent!.id));
+				expect(await db.select().from(children)).toHaveLength(0);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(childTable)} cascade`);
+				await db.execute(sql`drop table if exists ${sql.identifier(parentTable)} cascade`);
+			}
+		});
+
+		// JSON column tests
+		test.concurrent('json and jsonb columns', async ({ db }) => {
+			const tableName = uniqueName('json_test');
+			const docs = dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				data: json('data').$type<string[]>(),
+				metadata: jsonb('metadata').$type<{ enabled: boolean }[]>(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id uuid primary key default gen_random_uuid(),
+					data json,
+					metadata jsonb
+				)
+			`);
+
+			try {
+				// Top-level arrays need the columns to serialize them as JSON
+				await db.insert(docs).values({
+					data: ['a', 'b'],
+					metadata: [{ enabled: true }],
+				});
+
+				const result = await db.select({ data: docs.data, metadata: docs.metadata }).from(docs);
+				expect(result).toEqual([{ data: ['a', 'b'], metadata: [{ enabled: true }] }]);
+
+				const filtered = await db.select({ id: docs.id }).from(docs).where(
+					sql`${docs.metadata} @> '[{"enabled": true}]'`,
+				);
+				expect(filtered).toHaveLength(1);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
+		// Identity column tests
+		test.concurrent('table config: identity column', () => {
+			const tableWithIdentity = dsqlTable('with_identity', {
+				id: uuid('id').primaryKey().defaultRandom(),
+				always: bigint('always').generatedAlwaysAsIdentity({ startWith: 10, cache: 1 }),
+				byDefault: bigint('by_default').generatedByDefaultAsIdentity(),
+			});
+
+			const config = getTableConfig(tableWithIdentity);
+			const always = config.columns.find((c) => c.name === 'always')!;
+			expect(always.generatedIdentity?.type).toBe('always');
+			expect(always.generatedIdentity?.sequenceOptions?.startWith).toBe(10);
+			expect(always.generatedIdentity?.sequenceOptions?.cache).toBe(1);
+			expect(always.notNull).toBe(true);
+
+			const byDefault = config.columns.find((c) => c.name === 'by_default')!;
+			expect(byDefault.generatedIdentity?.type).toBe('byDefault');
+			expect(byDefault.notNull).toBe(true);
 		});
 
 		// Primary key tests

@@ -201,7 +201,7 @@ export const relationsToTypeScriptForStudio = (
 	return result;
 };
 
-function generateIdentityParams(column: Column) {
+function generateIdentityParams(column: Column, defaultCache: number) {
 	if (column.identity === null) return '';
 	const identity = column.identity;
 
@@ -220,7 +220,7 @@ function generateIdentityParams(column: Column) {
 	if (identity.maxValue && defaults.identity.maxFor(column.type) !== identity.maxValue) {
 		tuples.push(['maxValue', identity.maxValue]);
 	}
-	if (identity.cache && defaults.identity.cache !== identity.cache) tuples.push(['cache', identity.cache]);
+	if (identity.cache && defaultCache !== identity.cache) tuples.push(['cache', identity.cache]);
 	if (identity.cycle) tuples.push(['cycle', identity.cycle]);
 
 	const params = tuples.length > 0 ? `{ ${tuples.map((x) => `${x[0]}: ${x[1]}`).join(' ,')} }` : '';
@@ -244,6 +244,7 @@ export const ddlToTypeScript = (
 	mode: 'pg' | 'gel' | 'dsql',
 ) => {
 	const tableFn = `${mode}Table`;
+	const anyColumnType = mode === 'dsql' ? 'AnyDSQLColumn' : 'AnyPgColumn';
 	for (const fk of ddl.fks.list()) {
 		relations.add(`${fk.table}-${fk.tableTo}`);
 	}
@@ -272,7 +273,7 @@ export const ddlToTypeScript = (
 		if (x.entityType === 'fks') {
 			imports.add('foreignKey');
 
-			if (isCyclic(x) && !isSelf(x)) imports.add('type AnyPgColumn');
+			if (isCyclic(x) && !isSelf(x)) imports.add(`type ${anyColumnType}`);
 		}
 		if (x.entityType === 'pks') imports.add('primaryKey');
 		if (x.entityType === 'uniques') imports.add('unique');
@@ -371,6 +372,8 @@ export const ddlToTypeScript = (
 			fks,
 			schemas,
 			casing,
+			anyColumnType,
+			mode,
 		);
 		statement += '}';
 
@@ -554,8 +557,13 @@ const createTableColumns = (
 	fks: ForeignKey[],
 	schemas: Record<string, string>,
 	casing: Casing,
+	anyColumnType: string,
+	mode: 'pg' | 'gel' | 'dsql',
 ): string => {
 	let statement = '';
+
+	// DSQL identity columns default to CACHE 65536, PostgreSQL to CACHE 1
+	const identityDefaultCache = mode === 'dsql' ? 65536 : defaults.identity.cache;
 
 	// no self refs and no cyclic
 	const oneColumnsFKs = Object.values(fks)
@@ -581,6 +589,9 @@ const createTableColumns = (
 			? grammarType.toArrayTs(type, def ?? null)
 			: grammarType.toTs(type, def ?? null);
 
+		// dsql-core's bigint() has no mode option
+		if (mode === 'dsql' && grammarType.drizzleImport() === 'bigint') delete options?.mode;
+
 		const dbName = dbColumnName({ name, casing });
 		const opts = inspect(options);
 		const comma = (dbName && opts) ? ', ' : '';
@@ -601,7 +612,7 @@ const createTableColumns = (
 		if (defaultValue) columnStatement += defaultValue.startsWith('.') ? defaultValue : `.default(${defaultValue})`;
 		if (pk) columnStatement += '.primaryKey()';
 		if (it.notNull && !it.identity && !pk) columnStatement += '.notNull()';
-		if (identity) columnStatement += generateIdentityParams(it);
+		if (identity) columnStatement += generateIdentityParams(it, identityDefaultCache);
 		if (generated) columnStatement += `.generatedAlwaysAs(sql\`${generated.as}\`)`;
 
 		statement += '\t';
@@ -617,7 +628,7 @@ const createTableColumns = (
 					const onUpdate = it.onUpdate && it.onUpdate !== 'NO ACTION' ? it.onUpdate.toLowerCase() : null;
 					const params = { onDelete, onUpdate };
 
-					const typeSuffix = isCyclic(it) ? ': AnyPgColumn' : '';
+					const typeSuffix = isCyclic(it) ? `: ${anyColumnType}` : '';
 
 					const paramsStr = objToStatement2(params);
 					const tableSchema = schemas[it.schemaTo || ''];

@@ -9,6 +9,8 @@ export * from './date.ts';
 export * from './doublePrecision.ts';
 export * from './integer.ts';
 export * from './interval.ts';
+export * from './json.ts';
+export * from './jsonb.ts';
 export * from './numeric.ts';
 export * from './real.ts';
 export * from './smallint.ts';
