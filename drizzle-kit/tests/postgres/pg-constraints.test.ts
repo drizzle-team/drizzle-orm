@@ -2828,3 +2828,63 @@ test('Issue No6368', async () => {
 	expect(st1).toStrictEqual(st0);
 	expect(pst1).toStrictEqual(st0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6472
+test('drop column and alter check constraint that references it', async () => {
+	const from = {
+		items: pgTable('items', {
+			id: integer().primaryKey(),
+			a: integer(),
+			b: integer(),
+		}, (table) => [check('items_a_b', sql`${table.a} > 0 and ${table.b} > 0`)]),
+	};
+
+	const to = {
+		items: pgTable('items', {
+			id: integer().primaryKey(),
+			a: integer(),
+		}, (table) => [check('items_a_b', sql`${table.a} > 0`)]),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	const st0 = [
+		'ALTER TABLE "items" DROP CONSTRAINT "items_a_b";',
+		'ALTER TABLE "items" DROP COLUMN "b";',
+		'ALTER TABLE "items" ADD CONSTRAINT "items_a_b" CHECK ("a" > 0);',
+	];
+	expect(st).toStrictEqual(st0);
+
+	await push({ db, to: from });
+	for (const statement of st) await db.query(statement);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6472
+test('drop column and alter unique constraint that references it', async () => {
+	const from = {
+		items: pgTable('items', {
+			id: integer().primaryKey(),
+			a: integer(),
+			b: integer(),
+		}, (table) => [unique('items_a_b').on(table.a, table.b)]),
+	};
+
+	const to = {
+		items: pgTable('items', {
+			id: integer().primaryKey(),
+			a: integer(),
+		}, (table) => [unique('items_a_b').on(table.a)]),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	const st0 = [
+		'ALTER TABLE "items" DROP CONSTRAINT "items_a_b";',
+		'ALTER TABLE "items" DROP COLUMN "b";',
+		'ALTER TABLE "items" ADD CONSTRAINT "items_a_b" UNIQUE("a");',
+	];
+	expect(st).toStrictEqual(st0);
+
+	await push({ db, to: from });
+	for (const statement of st) await db.query(statement);
+});
