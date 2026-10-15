@@ -1,3 +1,9 @@
+// Verifies that `up` converts postgres migrations folders of format 4, 5, 7 and 8 to snapshot format 9. Each
+// converted snapshot must reconstruct to the state of its original file, and old renames must become rename
+// deltas. When `up` refuses a broken folder or a merge that format 9 cannot reconstruct, it changes no file.
+// `check` must report the conflict of two converted branches that rename the two ends of one foreign key.
+// The old folders are committed fixtures in `old-snapshots`, or the tests write them in temporary
+// directories. `migrate` runs on PGlite.
 import { randomUUID } from 'crypto';
 import {
 	boolean,

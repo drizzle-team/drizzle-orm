@@ -1,3 +1,9 @@
+// Verifies `check` and `generate` on a migration folder that holds the merged migrations of two or more branches.
+// For a row of `rows` with `merged`, `check` passes and `generate` writes a merge migration with one parent for
+// each branch. That migration holds only the marker table, because the branches together already give `merged`,
+// and the folder then runs on PGlite to a database equal to `merged`. For a row without `merged`, `check` reports
+// a conflict. Each row runs once with each branch as the first parent of the merge.
+
 import { type SQL, sql } from 'drizzle-orm';
 import {
 	bigserial,

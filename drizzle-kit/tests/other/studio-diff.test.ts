@@ -1,3 +1,7 @@
+// Verifies the Drizzle Studio diffs `diffPostgresql`, `diffMySql` and `diffSqlite` after a confirmed rename of
+// a column or a table. The new state can still name the old column or table in constraints, indexes, foreign
+// keys and policies. The diff must read these old names as the renamed ones. So it gives the rename statement,
+// plus only the statements of a real change. The states are built in memory, with no database.
 import { diffMySql, type InterimStudioSchema as MysqlState } from 'src/ext/studio-mysql';
 import { diffPostgresql, type InterimStudioSchema as PostgresState } from 'src/ext/studio-postgres';
 import { diffSqlite, type InterimStudioSchema as SqliteState } from 'src/ext/studio-sqlite';

@@ -1,3 +1,9 @@
+// Verifies that `delta` and `apply` turn one postgres DDL state into another for every entity type, in both
+// directions, and that `apply` does not change its base state.
+// It also checks that every entity gets its own key, that `normalizeDDL` ignores the order of rows and fields,
+// and that `validate` rejects names that every object inherits.
+// The rename tests check the rename deltas from `ddl.rename` and `ddlDiff`, and how `apply` handles them.
+// The states come from drizzle schemas through `drizzleToDDL`, with no database.
 import { sql } from 'drizzle-orm';
 import {
 	check,

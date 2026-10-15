@@ -1,3 +1,9 @@
+// Provides the statement catalog of the commutativity tests. `rows` holds one statement for each statement type,
+// and one for each variant that takes another facet path, with the objects that its SQL needs in the database.
+// `build` returns the statement of one row, and helpers such as `col` and `idx` build the entities inside a
+// statement. These files use it: `commutativity.facet.test.ts`, `commutativity.facet-invariants.test.ts`,
+// `commutativity.matrix-gen.test.ts` and `commutativity-groundtruth.pglite.test.ts`.
+
 import type {
 	CheckConstraint,
 	Column,

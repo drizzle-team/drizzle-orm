@@ -1,12 +1,15 @@
+// Verifies that the facet rules of `postgresCommutativity` meet general invariants for every statement in
+// `commutativity-statements.ts`. Statements on different objects commute, two changes of one object conflict,
+// and the verdict does not depend on the order of the branches. A drop of a schema, a table, a column or an enum
+// conflicts with the statements that use that object, and so does a rename or a move of a table. Extra
+// statements on a branch never remove a conflict. The expected verdicts follow from what a conflict means, so a
+// change of the facet rules must not change them.
+
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
 import { toSnapshotStatements } from 'src/dialects/postgres/convertor';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { expect, test } from 'vitest';
 import { build, rows } from './commutativity-statements';
-
-// These tests check every statement of the catalog against invariants that any correct set of facet rules
-// meets. The expected verdicts follow from what a conflict means, so a change of the facet rules must not
-// change them.
 
 const TYPES = Object.keys(rows());
 

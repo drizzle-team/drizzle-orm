@@ -1,3 +1,8 @@
+// Verifies the statements that a format 9 snapshot stores for its migration. The cases run real diffs, and
+// `toSnapshotStatements` must turn them into every statement kind of `snapshotStatementSchemas`.
+// `isSnapshotStatement` must reject a stored statement with an unknown or a missing field at any depth. Other
+// tests check single fields of some kinds, for example `indexNames` of `move_table` and `shouldDrop` of
+// `alter_pk`.
 import { sql } from 'drizzle-orm';
 import {
 	check,

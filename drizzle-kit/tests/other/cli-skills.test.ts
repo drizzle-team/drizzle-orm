@@ -1,3 +1,7 @@
+// Verifies the removal of the superseded skills in the `skills` command.
+// `supersededSkillsRemoveArgs` must name the seven old skills and pass `-y`, so that the removal asks no question.
+// `isNoOpRemoveOutput` must return true only for the output of a removal that found no skill, because the
+// command hides only that output.
 import { expect, test } from 'vitest';
 import { isNoOpRemoveOutput, supersededSkillsRemoveArgs } from '../../src/cli/schema';
 

@@ -1,3 +1,7 @@
+// Verifies that the committed `commutativity-matrix.json` matches the verdicts of the facet rules for every pair
+// of statements in `commutativity-statements.ts`. It also verifies that each rename or move that the real diff
+// writes has a matrix row whose facet paths name the same kinds of nodes.
+
 import { sql } from 'drizzle-orm';
 import {
 	check,

@@ -1,3 +1,9 @@
+// Verifies that `check` reports a conflict when the merged branches of a migration folder change the same
+// object: a column, a primary key, an enum, a role, a policy, a foreign key, or a name that a table and an index
+// share. Most cases also run the folder with `migrate` on PGlite, to show that the SQL fails or leaves a database
+// that differs from the schema. Two cases check the report text: the snapshots that it names, and the groups of
+// conflicting pairs when three branches meet.
+
 import { index, integer, pgEnum, pgPolicy, pgRole, pgTable, primaryKey, text, varchar } from 'drizzle-orm/pg-core';
 import { stripVTControlCharacters } from 'util';
 import { expect, test } from 'vitest';

@@ -1,3 +1,9 @@
+// Verifies the rules that `reconstruct` and the combined state of a merge follow for a delta that does not fit the
+// state, which a hand edit of a snapshot can give. A drop, an alter or a rename of a missing entity is skipped, and
+// a create of an equal entity does nothing. A create of a different entity onto a taken key stops `generate` with an
+// error that names the migration folder of that delta. If a merge skips an alter delta that has no statement, the
+// merge snapshot stores that change again. `migrate` runs on PGlite.
+
 import { integer, jsonb, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 import { errorToEnvelope } from 'src/cli/errors';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
@@ -16,8 +22,6 @@ import {
 	step,
 } from './folder-flow';
 
-// These tests cover a delta that does not fit the state, which a hand edit of a snapshot can give. Such a
-// delta follows the same rules in the history of one leaf and in the combined state of several leaves.
 const users = pgTable('users', { id: integer() });
 const usersWithEmail = pgTable('users', { id: integer(), email: varchar() });
 const likes = pgTable('likes', { id: integer() });

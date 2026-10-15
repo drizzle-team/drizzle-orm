@@ -1,3 +1,8 @@
+// Verifies that `generate` with a rename hint stores one rename delta, for every kind of entity that can be
+// renamed: schema, table, column, enum, sequence, role, index, primary key, unique, foreign key, check,
+// policy and view. Entities that reference the renamed entity get no delta, and the reconstructed state still
+// equals the schema. Each case also checks the SQL of the migration, runs it on PGlite, and checks that the
+// next `generate` finds no changes.
 import { sql } from 'drizzle-orm';
 import {
 	check,
