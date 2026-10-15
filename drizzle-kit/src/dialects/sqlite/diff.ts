@@ -44,9 +44,9 @@ export const ddlDiff = async (
 			where: { name: renamed.from.name },
 		});
 
-		// Drizzle Studio builds the new state from the form of one table and copies the rest from the old
-		// state. So the foreign keys of other tables can still name the old table. The new state holds no
-		// table with the old name, so every such name is stale.
+		// Sets the new table name in the foreign keys of `ddl2`. Drizzle Studio copies every table except the
+		// edited one from the old state, so the foreign keys of other tables can still name the old table.
+		// `ddl2` holds no table with the old name, so every such name is stale.
 		ddl2.fks.update({ set: { tableTo: renamed.to.name }, where: { tableTo: renamed.from.name } });
 	}
 
@@ -77,9 +77,9 @@ export const ddlDiff = async (
 			where: { table: rename.from.table, name: rename.from.name },
 		});
 
-		// The form of Drizzle Studio renames a column only in the column list. So the indexes and the
-		// constraints of the new state can still name the old column. The new state holds no column with the
-		// old name in this table, so every such name is stale.
+		// Sets the new column name in the indexes and the constraints of `ddl2`. The form of Drizzle Studio
+		// renames a column only in the column list, so these can still name the old column. `ddl2` holds no
+		// column with the old name in this table, so every such name is stale.
 		const newNameOf = (column: string) => column === rename.from.name ? rename.to.name : column;
 		const inTable = { table: rename.to.table };
 		ddl2.indexes.update({

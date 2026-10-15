@@ -17,7 +17,6 @@ import {
 import { tmpdir } from 'os';
 import { basename, dirname, join, relative } from 'path';
 import { checkHandler, checkSnapshots } from 'src/cli/commands/check';
-import { schemaWarnings as checkSchema } from 'src/cli/commands/check-postgres';
 import { handle } from 'src/cli/commands/generate-postgres';
 import { handle as pullHandle } from 'src/cli/commands/pull-postgres';
 import { upPgHandler } from 'src/cli/commands/up-postgres';
@@ -38,7 +37,8 @@ import { expect, onTestFinished, vi } from 'vitest';
 import { writeSnapshot } from '../other/check-fixtures';
 import { type PostgresSchema, push } from './mocks';
 
-// `fix` lists the folders that generate --fix-conflicts deletes.
+// The result of `check` as data that a test can compare. `fix` lists the folders that generate
+// --fix-conflicts deletes.
 export type CheckResult =
 	| { status: 'passed' }
 	| {
@@ -57,7 +57,8 @@ export type GenerateOptions = {
 	output?: CliContext['output'];
 };
 
-// Runs the output quietly: json mode turns off the human log, and hints resolve renames without prompts.
+// Runs a command without console text or prompts: the json output turns off the human log, and
+// `interactive: false` turns off the prompts.
 const quietly = <T>(fn: () => Promise<T>) => runWithCliContext({ output: 'json', interactive: false }, fn);
 
 export const tempDir = (prefix: string) => {
@@ -85,7 +86,7 @@ export const schemaState = (schema: PostgresSchema) => {
 	return normalizeDDL(interimToDDL(interim).ddl.entities.list());
 };
 
-// The JSON output of the error that a command gives for a malformed snapshot in `folder`.
+// The expected JSON output of a command that stops on a malformed snapshot in `folder`.
 export const malformedEnvelope = (folder: string) => ({
 	status: 'error',
 	error: {
@@ -98,7 +99,8 @@ export const malformedEnvelope = (folder: string) => ({
 export const reconstructFix = (folder: string) =>
 	`Restore the migration folder from git, or delete ${folder} and every later migration, then run generate again.`;
 
-// A branch is a folder that holds only that branch's migration folders, like a git checkout of it.
+// Runs the CLI commands on the migration folders of several git branches. A branch is a folder that holds
+// only the migration folders of that branch, like a git checkout of it.
 export const createFolderFlow = () => {
 	const root = tempDir('dk-folder-flow-');
 	const branches = new Map<string, string>();
@@ -117,7 +119,7 @@ export const createFolderFlow = () => {
 	};
 	branch('main');
 
-	// pull also writes schema.ts and relations.ts next to the migration folders.
+	// The `isDirectory` filter skips schema.ts and relations.ts, which pull writes next to the migration folders.
 	const folders = (branch: string) =>
 		readdirSync(dirOf(branch), { withFileTypes: true }).filter((it) => it.isDirectory()).map((it) => it.name).sort();
 
@@ -136,7 +138,8 @@ export const createFolderFlow = () => {
 
 	const statements = (branch: string, folder: string) => snapshot(branch, folder).statements;
 
-	// The SQL that the SQL writers give for the stored statements, joined like a migration file.
+	// Rebuilds the SQL of a migration from its stored statements, joined like migration.sql, so that a test can
+	// compare the two.
 	const statementsSql = (branch: string, folder: string) =>
 		fromSnapshotStatements(statements(branch, folder)).join(BREAKPOINT);
 
@@ -155,8 +158,8 @@ export const createFolderFlow = () => {
 	const combinedState = (branch: string, folder: string) =>
 		normalizeDDL(startingState(history(branch), snapshot(branch, folder).prevIds).entities.list());
 
-	// It leaves out the migrations that --fix-conflicts deletes, so with conflicts it is the state that
-	// generate --fix-conflicts diffs the schema against.
+	// The state that the next generate diffs the schema against. With conflicts, it is the state of generate
+	// --fix-conflicts, because it omits the migrations that --fix-conflicts deletes.
 	const stateBeforeGenerate = (branch: string) =>
 		quietly(async () => {
 			const stored = readFolder(dirOf(branch));
@@ -170,7 +173,8 @@ export const createFolderFlow = () => {
 		return it.deltas;
 	};
 
-	// Generate and pull name each folder from the current time in seconds.
+	// Runs `fn` with a fake clock, one second after the last run by default. Generate and pull name each folder
+	// from the current time in seconds, so each run gets a new folder name that sorts last.
 	const atTime = async <T>(at: number | undefined, fn: () => Promise<T>, output: CliContext['output'] = 'json') => {
 		const time = at ?? clock + 1000;
 		clock = Math.max(clock, time);
@@ -200,7 +204,8 @@ export const createFolderFlow = () => {
 				hints: new HintsHandler(options.hints),
 			}), options.output);
 
-	// `folder` is the folder of the new migration, and `deleted` lists the folders that `fixConflicts` deleted.
+	// Runs generate and throws when it writes no migration. `folder` is the folder of the new migration, and
+	// `deleted` lists the folders that `fixConflicts` deleted.
 	const generate = async (branch: string, schema: PostgresSchema, options: GenerateOptions = {}) => {
 		const result = await tryGenerate(branch, schema, options);
 		if (!('migration_path' in result)) {
@@ -246,10 +251,6 @@ export const createFolderFlow = () => {
 		}
 	};
 
-	// What check says about `schema` against the migrations of the branch. The folder must pass check first.
-	const schemaWarnings = (branch: string, schema: PostgresSchema) =>
-		quietly(() => checkSchema(readFolder(dirOf(branch)), SchemaSource.fromSchema(fromExports(schema))));
-
 	const up = (branch: string) => quietly(async () => upPgHandler(dirOf(branch)));
 
 	const merge = (target: string, ...sources: string[]) => {
@@ -263,7 +264,7 @@ export const createFolderFlow = () => {
 
 	const seed = (branch: string, from: string) => cpSync(from, dirOf(branch), { recursive: true });
 
-	// `path` is a migration folder, or one file inside the branch.
+	// Deletes `path` as a hand edit does. `path` is a migration folder or one file inside the branch.
 	const deleteFolder = (branch: string, path: string) => rmSync(join(dirOf(branch), path), { recursive: true });
 
 	const overwriteFile = (branch: string, path: string, text: string) => writeFileSync(join(dirOf(branch), path), text);
@@ -287,7 +288,7 @@ export const createFolderFlow = () => {
 		try {
 			await migrateFolder(drizzle({ client }), { migrationsFolder: dirOf(branch) });
 			const db = { query: async (query: string, params?: any[]) => (await client.query<any>(query, params)).rows };
-			// push compares only the roles that the filter names, and the database has roles of its own.
+			// `entities` limits push to the roles of `schema`, because the database also has roles of its own.
 			const roles = Object.values(schema).filter((it) => is(it, PgRole)).map((it) => it.name);
 			const entities = roles.length > 0 ? { roles: { include: roles } } : undefined;
 			const { sqlStatements } = await push({ db, to: schema, entities });
@@ -315,7 +316,6 @@ export const createFolderFlow = () => {
 		generate,
 		pull,
 		check,
-		schemaWarnings,
 		up,
 		merge,
 		seed,
@@ -345,13 +345,14 @@ export const createFormat8Flow = (files: Format8File[]) => {
 
 // A step is one migration of a branch: the schema after it, with the options that generate needs for it.
 export type Step = GenerateOptions & { schema: PostgresSchema };
-// `base` is the schema of the base snapshot, which is the fork point of the branches. `first` is the index of
-// the branch whose leaf is the first parent of a merge snapshot. Without it, that branch is the last one.
+// The input of `forkFlow`. `base` is the schema of the base snapshot, where the branches fork. `first` is the
+// index of the branch whose leaf becomes the first parent of a merge, and it defaults to the last branch.
 export type Fork = { base: PostgresSchema; branches: Step[][]; first?: number };
 
 export const step = (schema: PostgresSchema, ...hints: Hint[]): Step => ({ schema, hints });
 
-// `from` and `to` are the names of the entity with a dot between them, for example `public.users.email`.
+// Builds a rename hint for generate. `from` and `to` are the name parts of the entity joined by dots, for
+// example `public.users.email`.
 export const rename = (kind: RenameCreateHintKind, from: string, to: string) =>
 	({ type: 'rename', kind, from: from.split('.'), to: to.split('.') }) as unknown as Hint;
 

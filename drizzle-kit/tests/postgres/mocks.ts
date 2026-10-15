@@ -31,7 +31,7 @@ import {
 } from 'orm044/pg-core';
 import { configMigrations } from 'src/cli/validations/common';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
-import { copyDDL, type Delta } from 'src/dialects/dialect';
+import type { Delta } from 'src/dialects/dialect';
 import { fromSnapshotStatements, toSnapshotStatements } from 'src/dialects/postgres/convertor';
 import {
 	createDDL,
@@ -160,16 +160,17 @@ export const drizzleToDDL = (
 	return { ...interimToDDL(res), existing };
 };
 
-export const apply = (base: PostgresDDL, deltas: Delta[]) => applyDeltas(copyDDL(base), deltas);
+export const apply = (base: PostgresDDL, deltas: Delta[]) => applyDeltas(base.clone(), deltas);
 
-// ddlDiff mutates both states, so `parent` must be a copy taken before the call
+// Checks that the deltas from ddlDiff turn `parent` into `next`. ddlDiff mutates both of its states, so
+// `parent` must be a copy taken before the call.
 const expectDeltasRebuildState = (parent: PostgresDDL, deltas: Delta[], next: PostgresDDL) => {
 	expect(normalizeDDL(apply(parent, deltas).entities.list()), 'the deltas from ddlDiff rebuild the new state')
 		.toStrictEqual(normalizeDDL(next.entities.list()));
 };
 
-// A snapshot stores the statements in their stored form, as JSON. Every stored statement must pass the
-// validator of a snapshot, and the SQL of a migration must be rebuilt from the stored statements.
+// Checks the stored statements in the form that a snapshot file holds, after a JSON round trip. Each one must
+// pass the snapshot validator, and together they must rebuild `sqlStatements`.
 const expectStatementsRebuildSql = (snapshotStatements: SnapshotStatement[], sqlStatements: string[]) => {
 	const stored: SnapshotStatement[] = JSON.parse(JSON.stringify(snapshotStatements));
 	expect(stored.filter((it) => !isSnapshotStatement(it)), 'stored statements that the validator rejects')
@@ -196,7 +197,7 @@ export const diff = async (
 
 	const renames = new Set(renamesArr);
 
-	const parent = copyDDL(ddl1);
+	const parent = ddl1.clone();
 	const { sqlStatements, statements, snapshotStatements, groupedStatements, deltas } = await ddlDiff(
 		ddl1,
 		ddl2,
@@ -281,7 +282,7 @@ export const push = async (config: {
 	}
 
 	const renames = new Set(config.renames ?? []);
-	const parent = copyDDL(ddl1);
+	const parent = ddl1.clone();
 	const { sqlStatements, statements, groupedStatements, deltas } = await ddlDiff(
 		ddl1,
 		ddl2,
@@ -330,7 +331,7 @@ export const push = async (config: {
 			);
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 
-			const parent = copyDDL(ddl1);
+			const parent = ddl1.clone();
 			const { sqlStatements, statements, deltas } = await ddlDiff(
 				ddl1,
 				ddl2,

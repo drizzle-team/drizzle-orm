@@ -20,7 +20,6 @@ Per-operation extras on `'ok'`:
 - `pull` — `{ status, dialect, schemaPath, snapshotPath, relationsPath?, migrationPath? }` (`relationsPath?` omitted for mssql; `migrationPath?` only when pull wrote a new migration folder into an empty `out` folder). `pull` is ok-or-error only — never `missing_hints`, never `no_changes`.
 - `export` — `{ status, dialect, statements, warnings }` (the individual SQL statements plus rendered warnings — there is no joined `sql` field).
 - `up` — `{ status, dialect, upgraded }` (`upgraded` is the array of rewritten snapshot paths; `[]` means a no-op).
-- `check` — `{ status, dialect, warnings? }`. For postgresql, `warnings` is an array of `{ kind, message }`. `schema_changed` means that the schema differs from the migrations folder, and `merge_needed` means that several leaves need a merge migration: run `generate --explain` to see the difference, then `generate`. `not_compared` means that the schema could not be loaded or compared: fix what `message` names. The exit code stays 0.
 - `--explain` (either command, non-empty diff) — `{ status, dialect, statements, hints }`
 - `generate --fix-conflicts --explain` deletes nothing. If the folder has conflicts, the explain `ok` and `no_changes` also carry `fix: { migrations, customMigrations }`, the folders that the fix would delete.
 

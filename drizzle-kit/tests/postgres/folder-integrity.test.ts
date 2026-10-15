@@ -4,8 +4,6 @@ import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { checkHandler } from 'src/cli/commands/check';
 import { errorToEnvelope } from 'src/cli/errors';
-import { reconstruct } from 'src/dialects/postgres/reconstruct';
-import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import { prepareOutFolder } from 'src/utils/utils-node';
 import { expect, onTestFinished, test } from 'vitest';
 import { ORIGIN, writeSnapshot } from '../other/check-fixtures';
@@ -21,7 +19,6 @@ test('deleting a middle migration stops every command with the missing parent an
 	await flow.generate('main', v2);
 	await flow.generate('main', v3);
 	const missing = flow.snapshot('main', '20260101120002_main').id;
-	const leaf = flow.snapshot('main', '20260101120003_main').id;
 	flow.deleteFolder('main', '20260101120002_main');
 
 	const message =
@@ -30,7 +27,8 @@ test('deleting a middle migration stops every command with the missing parent an
 		+ 'or delete 20260101120003_main and every later migration, then run generate again.';
 	await expect(flow.check('main')).rejects.toThrow(message);
 	await expect(flow.generate('main', v3)).rejects.toThrow(message);
-	// up converts older formats. It does not validate a folder that holds only format 9 snapshots.
+	// `up` does not throw for this broken folder, because it converts only older formats and does not check
+	// the history of format 9 snapshots.
 	expect(await flow.up('main')).toStrictEqual([]);
 	const client = new PGlite();
 	onTestFinished(() => client.close());
@@ -46,11 +44,6 @@ test('deleting a middle migration stops every command with the missing parent an
 			parentId: missing,
 		},
 	});
-	expect(() => flow.state('main', '20260101120003_main')).toThrow(
-		`Cannot reconstruct snapshot ${leaf}: snapshot ${missing} is missing from the migrations folder. `
-			+ 'Restore the missing migration folder from git, '
-			+ `or delete ${leaf} and every later migration, then run generate again.`,
-	);
 });
 
 test('deleting the first migration stops every command because the base is missing', async () => {
@@ -67,7 +60,7 @@ test('deleting the first migration stops every command because the base is missi
 	expect(flow.folders('main')).toStrictEqual(['20260101120002_main']);
 });
 
-// Two git branches that each start from an empty folder both write a base snapshot.
+// Branches a and b start from an empty folder, so the first generate on each branch writes a base snapshot.
 test('a second base snapshot stops check, generate and pull, and the error names both migration folders', async () => {
 	const flow = createFolderFlow();
 	flow.branch('a');
@@ -228,31 +221,6 @@ test('a merge folder sorts after its newest parent when the clock is behind', as
 	expect(folder).toBe('20260101130001_main');
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	expect(await flow.migrate('main', merged)).toStrictEqual([]);
-});
-
-test('up reads a healthy folder at an absolute path', async () => {
-	const flow = createFolderFlow();
-	await flow.generate('main', v1);
-
-	expect(await flow.up('main')).toStrictEqual([]);
-});
-
-test('reconstruct stops on a cycle of first parents', () => {
-	const diff = (id: string, parent: string): PostgresSnapshot => ({
-		type: 'diff',
-		version: '9',
-		dialect: 'postgres',
-		id,
-		prevIds: [parent],
-		deltas: [],
-		statements: [],
-	});
-	const history = new Map([diff('a', 'b'), diff('b', 'a')].map((it) => [it.id, it]));
-
-	expect(() => reconstruct(history, 'a')).toThrow(
-		'Cannot reconstruct snapshot a: its history does not reach a base snapshot. '
-			+ 'Restore the first migration folder from git, or delete a and every later migration, then run generate again.',
-	);
 });
 
 test('folders of other dialects keep loading with a broken history', async () => {

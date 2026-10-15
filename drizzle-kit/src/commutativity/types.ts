@@ -15,7 +15,8 @@ type ConflictingBranch = {
 	statementDescription: string;
 	target: ConflictTarget;
 	action: string;
-	// The migration that holds the conflicting statement. Only the postgres check knows it.
+	// The migration that holds the conflicting statement, which `fix-conflicts` removes. Only the postgres check
+	// sets it, because the other dialects diff a whole branch and do not know the migration of a statement.
 	source?: MigrationNode;
 };
 

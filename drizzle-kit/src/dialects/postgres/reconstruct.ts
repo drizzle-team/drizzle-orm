@@ -1,13 +1,12 @@
 import { originUUID } from '../../utils';
-import { type DDL, type Delta, findRow, isEqual, type Row, splitDeltaKey } from '../dialect';
+import { type DDL, type Delta, findRow, isEqual, parseEntityKey, type Row } from '../dialect';
 import { fromEntities, type PostgresDDL } from './ddl';
 import type { PostgresDiffSnapshot, PostgresSnapshot } from './snapshot';
 
 type State = Pick<DDL, 'entities' | 'key' | '_'>;
 
-// A delta gives one key to two different entities: a rename moves an entity onto a taken key, or a create
-// names a taken key with other values. The message names the entity of the delta. Reconstruct sets
-// `snapshotId` to the snapshot that holds the delta.
+// Thrown by `applyDeltas` when a delta gives one key to two different entities. `applySnapshot` sets
+// `snapshotId`, so that a command can name the migration folder of the delta.
 export class KeyCollisionError extends Error {
 	snapshotId?: string;
 
@@ -16,26 +15,20 @@ export class KeyCollisionError extends Error {
 	}
 }
 
-// `colliders` are the entities that share their key with another entity after the rename. `update` put the
-// state back, so the state holds the renamed entity under its old key.
-const renameCollision = (state: State, delta: { op: string; key: string; set: Row }, colliders: Row[]) => {
-	const [entityType, from] = splitDeltaKey(delta.key);
+// Builds the error for an alter or a rename that `update` refused with `CONFLICT`. `update` restored the
+// state, so the state still holds the renamed entity under its old key.
+const renameCollision = (state: State, delta: { op: string; key: string; set: Row }) => {
+	const [entityType, from] = parseEntityKey(delta.key);
 	const to = state.key(entityType, { ...findRow(state, delta.key), ...delta.set });
-	const moved = `The ${delta.op} delta moves ${entityType} ${from} to ${to}`;
-	if (colliders.some((it) => it.entityType === entityType && state.key(entityType, it) === to)) {
-		return new KeyCollisionError(`${moved}, and another row of ${entityType} already has the key ${to}.`);
-	}
-	const [{ entityType: moving }] = colliders;
 	return new KeyCollisionError(
-		`${moved}, and it also moves an entity of ${moving} onto the key ${state.key(moving, colliders[0])}, which `
-			+ `another entity of ${moving} already has.`,
+		`The ${delta.op} delta moves ${entityType} ${from} to ${to}, and another row of ${entityType} already has the key ${to}.`,
 	);
 };
 
-// A rename follows the edges, and a drop follows none. A delta that does not fit the state has these rules:
-// a drop, an alter or a rename of a missing entity is skipped. A create onto a taken key does nothing when
-// the entity at that key is equal in all fields, and it throws when a field differs. A rename that moves an
-// entity onto a taken key throws, and so does an alter whose fields change the key.
+// Applies `deltas` to `state` in place. A rename also moves the dependent entities through the edges, and a
+// drop removes only its own entity. A drop, an alter or a rename of a missing entity does nothing, and so does
+// a create of an equal entity. A merge needs these rules, and they hold outside a merge too. A create with
+// other values, or an alter or a rename onto a taken key, throws a `KeyCollisionError`.
 export const applyDeltas = <T extends State>(state: T, deltas: Delta[]): T => {
 	for (const delta of deltas) {
 		if (delta.op === 'create') {
@@ -50,56 +43,40 @@ export const applyDeltas = <T extends State>(state: T, deltas: Delta[]): T => {
 			);
 		} else if (delta.op === 'drop') {
 			state.entities.delete(delta.key);
-		} else if (delta.op === 'alter' || delta.op === 'rename') {
-			const { status, data } = state.entities.update({ set: delta.set, where: delta.key });
-			if (status === 'CONFLICT') throw renameCollision(state, delta, data);
 		} else {
-			throw new Error(
-				`A delta has the operation "${(delta as { op: string }).op}". `
-					+ 'A delta must be a create, a drop, an alter or a rename.',
-			);
+			const { status } = state.entities.update({ set: delta.set, where: delta.key });
+			if (status === 'CONFLICT') throw renameCollision(state, delta);
 		}
 	}
 	return state;
 };
 
-// Every snapshot of a migrations folder by id, in folder-name order.
+// Every snapshot of a migrations folder by id. The map must iterate in folder-name order.
 type Snapshots = ReadonlyMap<string, PostgresSnapshot>;
 
-// The folder loader and reconstruct report a broken history with the same messages.
-export const missingParentMessage = (snapshot: string, parentId: string) =>
-	`Cannot reconstruct snapshot ${snapshot}: snapshot ${parentId} is missing from the migrations folder. `
-	+ `Restore the missing migration folder from git, or delete ${snapshot} and every later migration, then run generate again.`;
-
-export const missingBaseMessage = (snapshot: string) =>
-	`Cannot reconstruct snapshot ${snapshot}: its history does not reach a base snapshot. `
-	+ `Restore the first migration folder from git, or delete ${snapshot} and every later migration, then run generate again.`;
-
-// `child` is the snapshot that lists `id` as a parent.
-const lookup = (snapshots: Snapshots, id: string, child?: string): PostgresSnapshot => {
+const lookup = (snapshots: Snapshots, id: string): PostgresSnapshot => {
 	const snapshot = snapshots.get(id);
 	if (snapshot) return snapshot;
 	throw new Error(
-		child
-			? missingParentMessage(child, id)
-			: `Cannot reconstruct snapshot ${id}: it is not in the migrations folder. Check the snapshot id, or restore the migration folder from git.`,
+		`Cannot reconstruct snapshot ${id}: it is not in the migrations folder. Check the snapshot id, or restore the migration folder from git.`,
 	);
 };
 
-// The walk stops at ids in `known`.
-const historyOf = (snapshots: Snapshots, ids: string[], child?: string, known = new Set<string>()): Set<string> => {
+// Collects `ids` and all their ancestors. The walk stops at the ids in `known`.
+const historyOf = (snapshots: Snapshots, ids: string[], known = new Set<string>()): Set<string> => {
 	const found = new Set<string>();
-	const stack = ids.map((id) => [id, child] as const);
+	const stack = [...ids];
 	while (stack.length) {
-		const [id, childId] = stack.pop()!;
+		const id = stack.pop()!;
 		if (id === originUUID || found.has(id) || known.has(id)) continue;
 		found.add(id);
-		for (const parentId of lookup(snapshots, id, childId).prevIds) stack.push([parentId, id]);
+		stack.push(...lookup(snapshots, id).prevIds);
 	}
 	return found;
 };
 
-// A delta that throws gets the id of its snapshot, so that a command can name the migration folder.
+// Applies the deltas of `snapshot`. A `KeyCollisionError` gets the snapshot id, so that a command can name the
+// migration folder.
 const applySnapshot = (state: PostgresDDL, snapshot: PostgresDiffSnapshot) => {
 	try {
 		applyDeltas(state, snapshot.deltas);
@@ -109,44 +86,37 @@ const applySnapshot = (state: PostgresDDL, snapshot: PostgresDiffSnapshot) => {
 	}
 };
 
-// Turns the state of the first parent into the combined state: it applies the deltas of the snapshots that
-// reach a merge only through its other parents, in the order of `snapshots`. A rename changes the entities
-// that the state holds at that moment, so a rename of one branch also reaches the entities that another
-// branch added or renamed. The base snapshot is in the history of the first parent, so every snapshot here
-// is a diff snapshot.
-const applyOtherParents = (state: PostgresDDL, snapshots: Snapshots, prevIds: string[], child?: string) => {
+// Turns the state of the first parent into the combined state of a merge. It applies the deltas of each
+// snapshot that only the other parents reach, in the order of `snapshots`. Every such snapshot is a diff
+// snapshot, because the base snapshot is in the history of the first parent.
+const applyOtherParents = (state: PostgresDDL, snapshots: Snapshots, prevIds: string[]) => {
 	const [first, ...others] = prevIds;
-	const rest = historyOf(snapshots, others, child, historyOf(snapshots, [first], child));
+	const rest = historyOf(snapshots, others, historyOf(snapshots, [first]));
 	for (const [id, snapshot] of snapshots) {
 		if (rest.has(id) && snapshot.type === 'diff') applySnapshot(state, snapshot);
 	}
 };
 
-// The state after the snapshot `id`. `snapshots` must iterate in folder-name order, because a merge applies
-// the rest of its history in that order.
+// Gives the state after snapshot `id`. `snapshots` must iterate in folder-name order, because a merge applies
+// the snapshots of its other branches in that order.
 export const reconstruct = (snapshots: Snapshots, id: string): PostgresDDL => {
-	// The diff snapshots on the path of first parents from `id` back to the base snapshot.
+	// `diffs` collects the diff snapshots on the path of first parents from `id` back to the base snapshot.
 	const diffs: PostgresDiffSnapshot[] = [];
 	let snapshot = lookup(snapshots, id);
 	while (snapshot.type === 'diff') {
 		diffs.push(snapshot);
-		const parentId = snapshot.prevIds[0];
-		// More diff snapshots than the folder holds means that the first parents form a cycle.
-		if (!parentId || parentId === originUUID || diffs.length > snapshots.size) {
-			throw new Error(missingBaseMessage(snapshot.id));
-		}
-		snapshot = lookup(snapshots, parentId, snapshot.id);
+		snapshot = lookup(snapshots, snapshot.prevIds[0]);
 	}
 	const state = fromEntities(snapshot.ddl);
 	for (const it of diffs.reverse()) {
-		if (it.prevIds.length > 1) applyOtherParents(state, snapshots, it.prevIds, it.id);
+		if (it.prevIds.length > 1) applyOtherParents(state, snapshots, it.prevIds);
 		applySnapshot(state, it);
 	}
 	return state;
 };
 
-// The state that the deltas of a snapshot with these parents start from. `snapshots` must iterate in
-// folder-name order, as for reconstruct.
+// Gives the state that a new snapshot with the parents `prevIds` starts from. For several parents it is the
+// combined state of the merge. `snapshots` must iterate in folder-name order, as for `reconstruct`.
 export const startingState = (snapshots: Snapshots, prevIds: string[]): PostgresDDL => {
 	if ((prevIds[0] ?? originUUID) === originUUID) return fromEntities([]);
 	const state = reconstruct(snapshots, prevIds[0]);

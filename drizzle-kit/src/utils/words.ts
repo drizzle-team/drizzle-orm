@@ -4,7 +4,8 @@ export const prepareMigrationMetadata = (
 	name?: string,
 	parentFolders: string[] = [],
 ) => {
-	// When the clock is behind the newest parent, the folder takes that parent's time plus one second.
+	// The new folder must sort after each of `parentFolders`. When the clock is behind the newest parent, the
+	// prefix takes the time of that parent plus one second.
 	const prefix = prepareSnapshotFolderName(
 		Math.max(Date.now(), ...parentFolders.map((it) => snapshotFolderTime(it) + 1000)),
 	);

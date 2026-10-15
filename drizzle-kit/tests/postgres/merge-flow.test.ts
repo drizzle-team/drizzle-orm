@@ -88,7 +88,8 @@ test('a merge that renames a column from another branch stores a rename, and che
 		{ hints: [rename('column', 'public.likes.c', 'public.likes.d')] },
 	);
 
-	// likes comes from branch a, which is not the first parent, so the renamed column exists only in the combined state.
+	// The first parent is the leaf of branch b. The table `likes` comes from branch a, so the column likes.c
+	// exists only in the combined state, and the merge still stores a rename for it.
 	expect(flow.snapshot('main', folder).prevIds[0]).toBe(flow.snapshot('main', '20260101120003_b').id);
 	expect(flow.deltas('main', folder)).toStrictEqual([
 		{ op: 'rename', key: 'columns\0["public","likes","c"]', set: { name: 'd' } },
@@ -125,7 +126,8 @@ test('a branch that arrives after a merge is compared with the snapshots behind 
 	expect(result.status === 'conflicts' && result.message).toContain(
 		'add_column: email on users table (20260101120003_b)',
 	);
-	// In folder order, branch b and the late branch both add the column.
+	// `migrate` runs the folders in name order. Branch b and branch late both add the column users.email, so
+	// the second ADD COLUMN fails.
 	await expect(flow.migrate('main', { users: usersWithEmail, likes, posts })).rejects.toThrow(
 		'Failed query: ALTER TABLE "users" ADD COLUMN "email" varchar;',
 	);

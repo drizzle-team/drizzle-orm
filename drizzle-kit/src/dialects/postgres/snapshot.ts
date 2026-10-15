@@ -1,9 +1,8 @@
 import { randomUUID } from 'crypto';
 import type { TypeOf } from 'zod';
 import { any, array as zodArray, boolean, enum as enumType, literal, number, object, record, string } from 'zod';
-import { originUUID } from '../../utils';
 import { normalizeDDL } from '../ddl-canonical';
-import { type Delta, splitDeltaKey } from '../dialect';
+import { type Delta, parseEntityKey } from '../dialect';
 import { array, validator } from '../simpleValidator';
 import type { PostgresDDL, PostgresEntity } from './ddl';
 import { createDDL } from './ddl';
@@ -544,11 +543,11 @@ export type PostgresSnapshotV8 = {
 const ddl = createDDL();
 const definitions = ddl._.defs;
 
-const isDelta = (it: any): boolean => {
+const isDelta = (it: any): it is Delta => {
 	if (it?.op === 'create') return Object.hasOwn(definitions, it.row?.entityType) && ddl.entities.validate(it.row);
 	if (!['drop', 'alter', 'rename'].includes(it?.op)) return false;
 	if (typeof it.key !== 'string' || !it.key.includes('\0')) return false;
-	const [type] = splitDeltaKey(it.key);
+	const [type] = parseEntityKey(it.key);
 	if (!Object.hasOwn(definitions, type)) return false;
 	if (it.op === 'drop') return true;
 	return typeof it.set === 'object' && it.set !== null
@@ -561,16 +560,16 @@ export const isSnapshotStatement = (it: unknown): it is SnapshotStatement => {
 		&& snapshotStatementSchemas[type as keyof typeof snapshotStatementSchemas].safeParse(it).success;
 };
 
-// Every snapshot stores the statements of its own migration, in the order of the SQL.
-const statements = array<SnapshotStatement>(isSnapshotStatement);
+// Checks the `statements` field of both snapshot types: the statements of the migration, in the order of its SQL.
+const statements = array(isSnapshotStatement);
 
 const baseValidator = validator({
 	type: ['base'],
 	version: ['9'],
 	dialect: ['postgres'],
 	id: 'string',
-	prevIds: array<string>((it) => typeof it === 'string'),
-	ddl: array<PostgresEntity>((it) => {
+	prevIds: array((it) => typeof it === 'string'),
+	ddl: array((it) => {
 		const res = ddl.entities.validate(it);
 		if (!res) {
 			console.error(JSON.stringify(it));
@@ -585,8 +584,8 @@ const diffValidator = validator({
 	version: ['9'],
 	dialect: ['postgres'],
 	id: 'string',
-	prevIds: array<string>((it) => typeof it === 'string'),
-	deltas: array<Delta>(isDelta),
+	prevIds: array((it) => typeof it === 'string'),
+	deltas: array(isDelta),
 	statements,
 });
 
@@ -594,8 +593,8 @@ export type PostgresBaseSnapshot = typeof baseValidator.shape;
 export type PostgresDiffSnapshot = typeof diffValidator.shape;
 export type PostgresSnapshot = PostgresBaseSnapshot | PostgresDiffSnapshot;
 
-// The programmatic API returns a schema state: a full state with an id and parents. It is not a snapshot,
-// and a migrations folder never holds one.
+// The full state that the programmatic API returns and takes. It has the id and the parents of a snapshot,
+// and a migrations folder never holds it.
 export type PostgresSchemaState = {
 	version: '9';
 	dialect: 'postgres';
@@ -605,26 +604,8 @@ export type PostgresSchemaState = {
 };
 
 export const snapshotValidator = {
-	parse: (it: unknown) => {
-		if ((it as { type?: unknown } | null)?.type !== 'diff') {
-			const res = baseValidator.parse(it);
-			// A folder holds one base snapshot, which is its first snapshot.
-			if (res.data?.prevIds.some((id) => id !== originUUID)) {
-				return { success: false, data: null, errors: ["Field 'prevIds' of a base snapshot must not list a parent"] };
-			}
-			return res;
-		}
-		const res = diffValidator.parse(it);
-		// The state of a diff snapshot is reconstructed from its first parent, so it must have one.
-		if (res.data?.prevIds.length === 0) {
-			return {
-				success: false,
-				data: null,
-				errors: ["Field 'prevIds' of a diff snapshot must list at least one parent"],
-			};
-		}
-		return res;
-	},
+	parse: (it: unknown) =>
+		(it as { type?: unknown } | null)?.type === 'diff' ? diffValidator.parse(it) : baseValidator.parse(it),
 };
 
 const entityName = (json: string) => {
@@ -632,7 +613,8 @@ const entityName = (json: string) => {
 	return `${row.entityType} ${[row.schema, row.table, row.name].filter(Boolean).join('.')}`;
 };
 
-// The first entity that is in only one of the two states, or that differs between them.
+// Gives the name of the first entity that differs between two states, or undefined when they are equal. `up`
+// uses it to check each converted snapshot against its format 8 state.
 export const stateDifference = (expected: PostgresDDL, reconstructed: PostgresDDL): string | undefined => {
 	const [a, b] = [normalizeDDL(expected.entities.list()), normalizeDDL(reconstructed.entities.list())];
 	const [inA, inB] = [new Set(a), new Set(b)];
@@ -640,7 +622,7 @@ export const stateDifference = (expected: PostgresDDL, reconstructed: PostgresDD
 	return differing === undefined ? undefined : entityName(differing);
 };
 
-export const toJsonSnapshot = (
+export const toJsonBaseSnapshot = (
 	ddl: PostgresDDL,
 	prevIds: string[],
 	statements: SnapshotStatement[],

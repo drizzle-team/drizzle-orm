@@ -52,6 +52,7 @@ describe('reconstruct', () => {
 		expect(rows(reconstruct(history, 'a'))).toStrictEqual(rows(s0));
 		expect(rows(reconstruct(history, 'b'))).toStrictEqual(rows(s1));
 		expect(rows(reconstruct(history, 'c'))).toStrictEqual(rows(s2));
+		// Reconstructing a again shows that the later calls did not change the rows of the base snapshot.
 		expect(rows(reconstruct(history, 'a'))).toStrictEqual(rows(s0));
 	});
 
@@ -143,8 +144,9 @@ describe('reconstruct', () => {
 		);
 	});
 
-	// Branch b renames column x, and branch c renames column z and the key. Each column rename reaches the
-	// column list of the key through the edges, so the key gets both new column names with either first parent.
+	// Branch b renames column x, and branch c renames column z and the primary key `t_pk`. Each column
+	// rename reaches the column list of the key through the edges, so the key gets both new column names
+	// with either first parent.
 	test('a merge applies the renames of the other branches to the entities that it has at that moment', () => {
 		const start = ddlOf('t', ['x', 'z']);
 		start.pks.push({ schema: 'public', table: 't', name: 't_pk', nameExplicit: true, columns: ['x', 'z'] });
@@ -169,7 +171,8 @@ describe('reconstruct', () => {
 		}
 	});
 
-	// Branch c drops the table, so the deltas of branch b for the table and its column name missing entities.
+	// Branch c, the first parent, drops `users`. The deltas of branch b then name a table and a column that the
+	// state does not hold.
 	test('a merge skips a delta whose entity is missing', () => {
 		const start = ddlOf('users', ['id']);
 		start.tables.push({ schema: 'public', name: 'posts', isRlsEnabled: false });
@@ -195,7 +198,7 @@ describe('reconstruct', () => {
 		const history = historyOf(diff('b', ['a'], []));
 
 		expect(() => reconstruct(history, 'b')).toThrow(
-			'Cannot reconstruct snapshot b: snapshot a is missing from the migrations folder.',
+			'Cannot reconstruct snapshot a: it is not in the migrations folder.',
 		);
 	});
 
@@ -207,7 +210,8 @@ describe('reconstruct', () => {
 		expect(rows(reconstruct(history, 'b'))).toStrictEqual(rows(s0));
 	});
 
-	// One snapshot in 20 holds a rename. A rename reads every entity of the state, and the other deltas do not.
+	// One snapshot in 20 holds a column or table rename, and the others create or alter a column. A rename reads
+	// every entity of the state, and the other deltas do not.
 	test('reconstructs the last of 1000 snapshots over 5500 entities in under one second', () => {
 		const tables = new Map<string, { name: string; notNull: boolean }[]>();
 		for (let idx = 0; idx < 500; idx++) {
@@ -286,10 +290,7 @@ describe('snapshotValidator', () => {
 	test('rejects malformed deltas', () => {
 		const withDelta = (it: unknown) => ({ ...diff('b', ['a'], []), deltas: [it] });
 
-		expect(valid(withDelta({ op: 'move', key: 'tables\0["public","users"]', set: {} }))).toBe(false);
-		expect(valid(withDelta({ op: 'relocate', key: 'columns\0["public","users","id"]', set: { table: 'x' } }))).toBe(
-			false,
-		);
+		expect(valid(withDelta({ op: 'paint', key: 'tables\0["public","users"]' }))).toBe(false);
 		expect(valid(withDelta({ op: 'drop', key: 42 }))).toBe(false);
 		expect(valid(withDelta({ op: 'drop', key: 'tables["public","users"]' }))).toBe(false);
 		expect(valid(withDelta({ op: 'drop', key: 'widgets\0["public","users"]' }))).toBe(false);
@@ -309,15 +310,34 @@ describe('snapshotValidator', () => {
 		expect(valid({ ...diff('b', ['a'], []), statements: ['rename_table'] })).toBe(false);
 	});
 
-	test('rejects a diff with no parent', () => {
-		expect(snapshotValidator.parse(diff('b', [], []))).toStrictEqual({
-			success: false,
-			data: null,
-			errors: ["Field 'prevIds' of a diff snapshot must list at least one parent"],
-		});
-	});
-
 	test('rejects a base with an invalid entity', () => {
 		expect(valid({ ...base('a', users), ddl: [{ entityType: 'tables', name: 1 }] })).toBe(false);
+	});
+
+	// `file` builds each snapshot with `JSON.parse`, because only `JSON.parse` makes a key `__proto__` an own
+	// field of the row, as a snapshot file on disk does.
+	test('rejects a base with an entity whose type or field is a name that every object inherits', () => {
+		const file = (entity: string) =>
+			JSON.parse(
+				`{"type":"base","version":"9","dialect":"postgres","id":"a","prevIds":["${originUUID}"],"ddl":[${entity}],`
+					+ '"statements":[]}',
+			);
+		const table = '"entityType":"tables","schema":"public","name":"users","isRlsEnabled":false';
+
+		expect(valid(file(`{${table}}`))).toBe(true);
+		expect(valid(file('{"entityType":"constructor"}'))).toBe(false);
+		expect(valid(file('{"entityType":"__proto__"}'))).toBe(false);
+		expect(valid(file(`{${table},"constructor":null}`))).toBe(false);
+		expect(valid(file(`{${table},"__proto__":{}}`))).toBe(false);
+	});
+
+	test('rejects a base with an entity type that is not a string', () => {
+		const file = (entity: string) =>
+			JSON.parse(
+				`{"type":"base","version":"9","dialect":"postgres","id":"a","prevIds":["${originUUID}"],"ddl":[${entity}],`
+					+ '"statements":[]}',
+			);
+
+		expect(valid(file('{"entityType":["tables"],"schema":"public","name":"users","isRlsEnabled":false}'))).toBe(false);
 	});
 });

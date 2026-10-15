@@ -212,17 +212,18 @@ export const checkHandler = async (
 	return emptyResult();
 };
 
-// `fix` is set only for postgresql, and only when the report has conflicts.
+// The result of `checkSnapshots`. `fix` is set only for postgresql, and only when `report` has conflicts.
 export type SnapshotCheck = { report: NonCommutativityReport; fix?: ConflictFix };
 
-// `inputs` are the valid snapshots of a migrations folder, in folder-name order.
+// Checks the branches of a migrations folder for conflicts, and plans a fix for postgresql. `inputs` are the
+// valid snapshots of the folder, in folder-name order.
 export const checkSnapshots = async (inputs: ParsedSnapshotInput[], dialect: Dialect): Promise<SnapshotCheck> => {
 	const commutativity = getCommutativityDialect(dialect);
 	if (!commutativity) return { report: { conflicts: [], leafNodes: [] } };
 
 	const report = await commutativity.detectNonCommutative(inputs);
 	if (dialect !== 'postgresql' || report.conflicts.length === 0) return { report };
-	// The validator accepted every input as a postgres snapshot.
+	// The cast of `inputs` is safe, because the postgres validator accepted each input.
 	return { report, fix: await planConflictFix(inputs as ParsedSnapshotInput<PostgresSnapshot>[], report) };
 };
 

@@ -356,10 +356,7 @@ export const fromDrizzleSchema = (
 					}
 					: null;
 
-				const { dimensions: arrayDimensions, sqlType, typeSchema, baseColumn } = unwrapColumn(column);
-				// A custom type can name an array type in its SQL type, without `.array()`. Cockroach has no
-				// array of arrays, so such a type with `.array()` is one array too.
-				const dimensions = arrayDimensions || sqlType.split('[]').length - 1;
+				const { dimensions, sqlType, typeSchema, baseColumn } = unwrapColumn(column);
 
 				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
 

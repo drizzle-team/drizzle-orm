@@ -101,19 +101,15 @@ type CheckResponse = Awaited<ReturnType<typeof check>>;
 const response: CheckResponse = await check({
   dialect: 'postgresql',
   out: './drizzle',
-  schema: './src/db/schema.ts',
 });
 
 if (response.status === 'ok') {
   console.log(`Migrations folder is valid (${response.dialect})`);
-  for (const warning of response.warnings ?? []) console.warn(`${warning.kind}: ${warning.message}`);
 } else if (response.status === 'error') {
   console.error(`check failed (${response.error.code})`);
   process.exit(1);
 }
 ```
-
-For postgresql, `check` compares the schema with the migrations when it gets a schema path, from `schema` or from the config file. An `ok` response then can have `warnings`, each `{ kind, message }`. The kinds `schema_changed` and `merge_needed` mean that `generate` would write a migration: the schema differs from the migrations, or the branches of the folder need a merge migration. The kind `not_compared` means that the schema could not be loaded or compared. `warnings` is absent when there is nothing to report.
 
 ## Minimal `pull` example
 

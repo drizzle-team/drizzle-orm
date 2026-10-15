@@ -25,16 +25,17 @@ import { type SnapshotStatement, snapshotStatementSchemas } from 'src/dialects/p
 import { describe, expect, test } from 'vitest';
 import { diff, drizzleToDDL, type PostgresSchema } from './mocks';
 
-// Each case is a real diff that writes statements of the named kinds. A side is a function when it
-// holds entities that a drizzle schema cannot declare. The diff changes its states, so each run
-// builds a new state.
+// A case is a real diff that must write statements of every kind in `kinds`. A `Side` is a function when
+// it holds entities that a drizzle schema cannot declare. The diff mutates its states, so the function
+// builds a new state on each call.
 type Side = PostgresSchema | (() => PostgresDDL);
 type Case = { kinds: string[]; from: Side; to: Side; renames?: string[] };
 
 const archive = pgSchema('archive');
 const users = pgTable('users', { id: integer(), email: varchar() });
 
-// The table `users` with other indexes and constraints, and a table that references it.
+// One side of a case that changes an index or a constraint of `users`. `extra` gives the indexes and
+// constraints, and the table `posts` is the same on both sides.
 const constrained = (extra: (t: any) => any[]) => {
 	const table = pgTable('users', { id: integer().notNull(), email: varchar().notNull() }, extra);
 	return { users: table, posts: pgTable('posts', { userId: integer(), userEmail: varchar() }) };
@@ -66,7 +67,8 @@ const guarded = (name: string, command: 'select' | 'all' = 'select', using = sql
 		pgPolicy(name, { for: command, to: 'public', using }),
 	]),
 });
-// The table `users` with a privilege, or without one when `isGrantable` is not given.
+// A side with the table `users` and a privilege on it, which a drizzle schema cannot declare. Without
+// `isGrantable`, the side has no privilege.
 const granted = (isGrantable?: boolean) => () => {
 	const { ddl } = drizzleToDDL({ users });
 	if (isGrantable !== undefined) {
@@ -291,11 +293,12 @@ const storedStatements = async () => {
 		);
 		stored.push(...statements);
 	}
-	// A snapshot holds the statements as JSON.
+	// The JSON round trip gives the statements the form that a snapshot file holds.
 	return JSON.parse(JSON.stringify(stored)) as SnapshotStatement[];
 };
 
-// Every object inside `value`, with the path to it. An array is not an object here, and its items are.
+// Lists every object inside `value` with its path, so that a test can change a field at any depth. An array
+// itself is skipped, and its items are listed.
 const objectsIn = (value: unknown, path: string[] = []): { path: string[]; object: Record<string, unknown> }[] => {
 	if (Array.isArray(value)) return value.flatMap((it, idx) => objectsIn(it, [...path, String(idx)]));
 	if (value === null || typeof value !== 'object') return [];
@@ -314,10 +317,6 @@ describe('stored statements', () => {
 		const covered = new Set((await storedStatements()).map((it) => it.type));
 
 		expect(Object.keys(snapshotStatementSchemas).filter((kind) => !covered.has(kind as never))).toStrictEqual([]);
-	});
-
-	test('a stored statement passes the validator', async () => {
-		expect((await storedStatements()).filter((it) => !isSnapshotStatement(it))).toStrictEqual([]);
 	});
 
 	test('a stored statement with an unknown field at any depth is malformed', async () => {
@@ -339,7 +338,8 @@ describe('stored statements', () => {
 		for (const statement of await storedStatements()) {
 			for (const { path, object } of objectsIn(statement)) {
 				for (const field of Object.keys(object)) {
-					// A changed property of an altered entity is present only when it changed.
+					// The fields of a `diff` object are optional, because an altered entity stores only the properties
+					// that changed.
 					if (path.at(-1) === 'diff') continue;
 					const changed = changedAt(statement, path, (it) => {
 						delete it[field];
@@ -420,8 +420,8 @@ describe('stored statements', () => {
 			{ users: pgTable('users', { id: text().notNull() }) },
 		);
 
-		expect(integerToSerial).toMatchObject({ wasSerial: false, becomesSerial: true });
-		expect(integerToText).toMatchObject({ wasSerial: false, becomesSerial: false });
+		expect(integerToSerial).toMatchObject({ wasSerial: false, toSerial: true });
+		expect(integerToText).toMatchObject({ wasSerial: false, toSerial: false });
 	});
 
 	test('a stored alter_pk says whether its SQL drops the old key', async () => {
@@ -439,7 +439,7 @@ describe('stored statements', () => {
 		expect(await storedOf('alter_pk', from, { users: pgTable('users', columns, keyOnName) })).toStrictEqual([
 			{ ...stored, shouldDrop: true },
 		]);
-		// The drop of the column `email` drops the old key.
+		// `shouldDrop` is false here, because the drop of the column `email` already drops the old key.
 		expect(
 			await storedOf('alter_pk', from, {
 				users: pgTable('users', { id: columns.id, name: columns.name }, keyOnName),
@@ -455,6 +455,6 @@ describe('stored statements', () => {
 			{ status: open, tickets: pgTable('tickets', { status: open() }) },
 		);
 
-		expect(recreateEnum.columns.map((column) => column.default)).toStrictEqual([{ from: "'open'", to: null }]);
+		expect(recreateEnum.columns.map((column) => column.default)).toStrictEqual([{ left: "'open'", right: null }]);
 	});
 });

@@ -21,11 +21,13 @@ import { describe, expect, test } from 'vitest';
 import { createFolderFlow, rename, schemaState } from './folder-flow';
 import type { PostgresSchema } from './mocks';
 
-// `sql` is the whole migration of the rename, and `delta` is the delta that the snapshot stores for it.
+// One rename case. `sql` is the whole migration of the rename, and `delta` is the only delta that the
+// snapshot stores for it.
 type Scenario = { before: PostgresSchema; after: PostgresSchema; hint: Hint; sql: string; delta: Delta };
 
-// Every constraint has an explicit name, because a constraint with a generated name keeps the name that it
-// had before the rename, and the schema then derives another name.
+// The tables of the rename cases. Every constraint has an explicit name, because after a table or column
+// rename a constraint with a generated name keeps its old name in the reconstructed state, and
+// `schemaState(after)` derives a new name from the schema file.
 const usersTable = (table: string, contact: string, role = pgRole('staff'), policy = 'users_read') => {
 	const users = pgTable(table, { id: integer().notNull(), [contact]: varchar().notNull() }, (t) => [
 		primaryKey({ name: 'users_pk', columns: [t.id, t[contact]] }),
@@ -182,8 +184,8 @@ const scenarios: Record<string, Scenario> = {
 	},
 };
 
-// The snapshot stores no delta for an entity that references the renamed entity. Reconstruct changes these
-// entities through the edges.
+// Each case expects one delta. The snapshot stores no delta for an entity that references the renamed
+// entity, because reconstruct changes those entities through the edges.
 describe('a rename is stored as one delta, and the reconstructed state and the database equal the schema', () => {
 	for (const [name, { before, after, hint, sql, delta }] of Object.entries(scenarios)) {
 		test(name, async () => {

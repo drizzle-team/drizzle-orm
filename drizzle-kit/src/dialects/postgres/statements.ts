@@ -288,8 +288,9 @@ export interface JsonMoveTable {
 	name: string;
 	from: string;
 	to: string;
-	// The names of the indexes of the table, and of its primary key and unique constraints.
-	relations: string[];
+	// The names that the move takes into the new schema: the indexes of the table, its primary key and its
+	// unique constraints.
+	indexNames: string[];
 }
 
 export interface JsonDropIndex {
@@ -326,6 +327,22 @@ export interface JsonRecreateColumn {
 	type: 'recreate_column';
 	diff: DiffEntities['columns'];
 	isPK: boolean;
+}
+
+export interface JsonAlterColumnSetPrimaryKey {
+	type: 'alter_column_set_pk';
+	table: string;
+	schema: string;
+	column: string;
+}
+
+export interface JsonAlterColumnChangeGenerated {
+	type: 'alter_column_change_generated';
+	column: Column;
+}
+export interface JsonAlterColumnChangeIdentity {
+	type: 'alter_column_change_identity';
+	column: Column;
 }
 
 export interface JsonCreateSchema {

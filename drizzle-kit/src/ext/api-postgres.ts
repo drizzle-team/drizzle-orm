@@ -33,7 +33,7 @@ const schemaState = (id: string, prevIds: string[], ddl: PostgresEntity[]): Post
 
 export const generateDrizzleJson = async (
 	imports: Record<string, unknown>,
-	prevId?: string | string[],
+	prevId?: string,
 	schemaFilters?: string[],
 ): Promise<PostgresSchemaState> => {
 	const { randomUUID } = await import('crypto');
@@ -70,11 +70,11 @@ export const generateDrizzleJson = async (
 		process.exit(1);
 	}
 
-	return schemaState(randomUUID(), typeof prevId === 'string' ? [prevId] : prevId ?? [], ddl.entities.list());
+	return schemaState(randomUUID(), prevId ? [prevId] : [], ddl.entities.list());
 };
 
-// Each argument is a schema state, or a full state of an older format. Only the rows of a state are read,
-// so its id and its parents do not have to match the other argument.
+// Returns the SQL statements that turn `prev` into `cur`. Each argument is a schema state or a full state of an
+// older format. Only the rows of each state are read, so `cur` does not have to list `prev` as a parent.
 export const generateMigration = async (
 	prev: PostgresSchemaState | Record<string, any>,
 	cur: PostgresSchemaState | Record<string, any>,
@@ -274,17 +274,15 @@ export const up = (it: Record<string, any>): { snapshot: PostgresSchemaState; hi
 	return { snapshot: schemaState(snapshot.id, snapshot.prevIds, snapshot.ddl), hints };
 };
 
-// `files` maps each migration folder name to the parsed JSON of its snapshot.json.
-// Returns the state of snapshot `id`, or of the only leaf when `id` is not given.
+// Reconstructs the schema state of snapshot `id`, or of the only leaf when `id` is not given. `files` maps each
+// migration folder name to the parsed JSON of its snapshot.json.
 export const reconstruct = async (files: Record<string, unknown>, id?: string): Promise<PostgresSchemaState> => {
 	const { assertHistory, leafFolders, loadFolder, stateOf, validFiles } = await import('../dialects/postgres/folder');
 
-	// A merge applies the rest of its history in folder-name order.
+	// `entries` are sorted by folder name, because a merge applies the rest of its history in that order.
 	const entries = Object.keys(files).sort().map((folder) => ({ folder, path: folder, raw: files[folder] }));
-	// A file that is not valid is reported before a broken history.
-	const valid = validFiles(entries);
 	assertHistory(entries);
-	const migrations = loadFolder(valid);
+	const migrations = loadFolder(validFiles(entries));
 
 	if (id === undefined) {
 		const leaves = leafFolders(migrations);

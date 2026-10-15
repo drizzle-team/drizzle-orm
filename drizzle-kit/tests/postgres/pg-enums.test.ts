@@ -502,7 +502,8 @@ test('a column that switches to a new enum with the same name in another schema 
 	expect((await push({ db, to })).sqlStatements).toStrictEqual([]);
 });
 
-// `up` gives such a state for a folder of an older format, which stored no schema for the enum of a column.
+// The test sets `typeSchema` to null in the old state, because `up` writes null there for a snapshot of an
+// older format. Such a snapshot stores no schema for the enum of a column.
 test('an enum move writes no column statement when the old state names no schema for the type', async () => {
 	const schema = pgSchema('schema');
 	const tables = (enum1: ReturnType<typeof pgEnum>) => ({

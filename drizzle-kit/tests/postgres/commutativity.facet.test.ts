@@ -5,17 +5,19 @@ import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { describe, expect, test } from 'vitest';
 import { build, check, col, fk, idx, pk, policy, privilege, unique } from './commutativity-statements';
 
-// Curated pairs of statements, each with the verdict that the claim rules must give.
+// These tests check the verdict of the facet rules for each curated pair of statements in `cases`. `S` builds
+// the statements of the pairs.
 
 const S = {
 	renameTable: (schema: string, from: string, to: string) => ({ type: 'rename_table', schema, from, to }),
-	// `relations` are the names of the indexes that move with the table.
-	moveTable: (name: string, from: string, to: string, relations: string[] = []) => ({
+	// `indexNames` are the names of the indexes, the primary key and the unique constraints of the table.
+	// Postgres moves them to the target schema together with the table.
+	moveTable: (name: string, from: string, to: string, indexNames: string[] = []) => ({
 		type: 'move_table',
 		name,
 		from,
 		to,
-		relations,
+		indexNames,
 	}),
 	dropTable: (schema: string, name: string) =>
 		({
@@ -38,7 +40,8 @@ const S = {
 		from: col(schema, table, from),
 		to: col(schema, table, to),
 	}),
-	// `change` holds the changed properties of the column, as the diff reports them.
+	// `change` maps each changed property of the column to its old and new value, in the form that the diff
+	// reports.
 	alterColumn: (
 		schema: string,
 		table: string,
@@ -143,7 +146,7 @@ const S = {
 		from: { schema: from, name },
 		to: { schema: to, name },
 	}),
-	// `columns` are the columns of the enum type that the statement converts.
+	// `columns` are the columns of the enum type. The SQL of the statement converts each of them to the new type.
 	recreateEnum: (schema: string, name: string, columns: object[] = []) =>
 		({
 			type: 'recreate_enum',
@@ -165,7 +168,8 @@ const S = {
 		({ type, policy: policy(schema, table, name, roles) }) as any,
 } satisfies Record<string, (...args: any[]) => JsonStatement>;
 
-// The claim rules read the form of a statement that a snapshot stores.
+// Tells whether the facet rules see a conflict between two branches. The rules read a statement in the form
+// that a snapshot stores, so `toSnapshotStatements` converts the statements first.
 async function conflicts(a: JsonStatement[], b: JsonStatement[]): Promise<boolean> {
 	return !!(await postgresCommutativity.getReasonsFromStatements(toSnapshotStatements(a), toSnapshotStatements(b)));
 }
@@ -277,7 +281,7 @@ const cases: Case[] = [
 		expect: 'conflict',
 	},
 
-	// a new table with a column of an enum type names the type in its SQL
+	// create_table names the enum type of its column in its SQL, so a rename, move or drop of that type conflicts
 	{
 		name: 'create_table(enum column) ∥ rename_enum (that enum) conflict',
 		a: [
@@ -427,7 +431,7 @@ const cases: Case[] = [
 		expect: 'commute',
 	},
 
-	// alter_column claims each property that its SQL changes or needs
+	// the facet paths of alter_column name each property that its SQL changes or needs
 	{
 		name: 'alter_column c NOT NULL ∥ alter_column c default commute',
 		a: [S.alterColumn('public', 'users', 'c')],
@@ -510,7 +514,7 @@ const cases: Case[] = [
 		expect: 'conflict',
 	},
 
-	// a privilege statement claims its table, its grantee and its privilege type
+	// the facet paths of a privilege statement name its table, its grantee, its privilege type and its grantor
 	{
 		name: 'grant SELECT ∥ grant INSERT (same table and role) commute',
 		a: [S.grant('public', 'users', 'r', 'SELECT')],
@@ -640,7 +644,8 @@ const cases: Case[] = [
 		expect: 'commute',
 	},
 
-	// postgres keeps some kinds of objects in one namespace
+	// two new objects with one name conflict when postgres keeps both names in one namespace: the relations
+	// of a schema, the types of a schema, or the constraints of a table
 	{
 		name: 'create_index x ∥ create_table x (relations of one schema) conflict',
 		a: [S.createIndex('public', 'users', 'x', ['name'])],
@@ -831,7 +836,7 @@ const cases: Case[] = [
 		b: [S.renameIndex('public', 'users', 'ix', 'ix2', ['c'])],
 		expect: 'commute',
 	},
-	// An alter of a column does not break a name reference to it.
+	// alter_column keeps the name of c, so the SQL of create_index can still name c
 	{
 		name: 'alter_column c ∥ create_index over c commute',
 		a: [S.alterColumn('public', 'users', 'c')],
@@ -972,7 +977,7 @@ describe('facet commutativity — curated scenarios (postgres)', () => {
 	});
 });
 
-// The same statement on two branches is one change only when its SQL can run a second time.
+// The rules treat the same statement on two branches as one change only when its SQL can run a second time.
 describe('the same statement on both branches', () => {
 	const conflictsWithItself = (statement: JsonStatement) => conflicts([statement], [structuredClone(statement)]);
 

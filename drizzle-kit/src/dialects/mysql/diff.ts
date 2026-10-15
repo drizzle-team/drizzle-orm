@@ -69,9 +69,9 @@ export const ddlDiff = async (
 			where: { table: rename.from.table, name: rename.from.name },
 		});
 
-		// The form of Drizzle Studio renames a column only in the column list. So the indexes, the primary key
-		// and the foreign keys of the new state can still name the old column. The new state holds no column
-		// with the old name in this table, so every such name is stale.
+		// Sets the new column name in the indexes, the primary key and the foreign keys of `ddl2`. The form of
+		// Drizzle Studio renames a column only in the column list, so these can still name the old column.
+		// `ddl2` holds no column with the old name in this table, so every such name is stale.
 		const newNameOf = (column: string) => column === rename.from.name ? rename.to.name : column;
 		const inTable = { table: rename.to.table };
 		ddl2.indexes.update({

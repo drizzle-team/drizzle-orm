@@ -6,12 +6,13 @@ import type { NonCommutativityReport } from '../../commutativity/types';
 import { postgresCommutativity } from '../../dialects/postgres/commutativity';
 import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
 
-// Folder paths in folder-name order. A custom migration is a diff snapshot with no deltas.
+// The migration folders that the conflict fix deletes, in folder-name order. `customMigrations` lists the
+// deleted custom migrations, that is the diff snapshots with no deltas, because the fix loses their SQL.
 export type ConflictFix = { migrations: string[]; customMigrations: string[] };
 
-// `report` is the check of all `inputs`. Check reports one conflict for each pair of leaves, so the plan
-// removes the migrations that hold the reported statements, with all their children, and checks the rest
-// again until no conflict is left.
+// Plans the migrations to delete, so that the rest of `inputs` has no conflict. `report` is the check of all
+// `inputs`. The check reports one conflict for each pair of leaves, so the loop deletes the migrations of the
+// reported statements with all their children, and then checks the rest again.
 export const planConflictFix = async (
 	inputs: ParsedSnapshotInput<PostgresSnapshot>[],
 	report: NonCommutativityReport,
@@ -24,10 +25,7 @@ export const planConflictFix = async (
 	const removed = new Set<string>();
 	let { conflicts } = report;
 	while (conflicts.length > 0) {
-		const stack = conflicts.flatMap((it) => [it.branchA.source?.id, it.branchB.source?.id]);
-		if (stack.some((id) => id === undefined || removed.has(id))) {
-			throw new Error('A conflict names no migration that is still in the history.');
-		}
+		const stack = conflicts.flatMap((it) => [it.branchA.source!.id, it.branchB.source!.id]);
 		while (stack.length) {
 			const id = stack.pop()!;
 			if (removed.has(id)) continue;

@@ -16,22 +16,23 @@ import {
 	step,
 } from './folder-flow';
 
-// A hand edit of a snapshot gives a delta that does not fit the state. The rules for such a delta are the
-// same in the history of one leaf and in the combined state of several leaves.
+// These tests cover a delta that does not fit the state, which a hand edit of a snapshot can give. Such a
+// delta follows the same rules in the history of one leaf and in the combined state of several leaves.
 const users = pgTable('users', { id: integer() });
 const usersWithEmail = pgTable('users', { id: integer(), email: varchar() });
 const likes = pgTable('likes', { id: integer() });
 const groups = pgTable('groups', { id: integer() });
 
 const missingTable = 'tables\0["public","orders"]';
-// A drop, an alter and a rename of entities that the state does not hold. Without the skip, the rename would
-// move the table users onto the name of the missing table.
+// Deltas of entities that the state does not hold, which the tests append to check that each one is skipped.
+// The rename targets the taken name `users`, so the tests also show that a skipped rename gives no key collision.
 const deltasOfMissingEntities: Delta[] = [
 	{ op: 'drop', key: 'columns\0["public","orders","id"]' },
 	{ op: 'alter', key: 'columns\0["public","orders","id"]', set: { notNull: true } },
 	{ op: 'rename', key: missingTable, set: { name: 'users' } },
 ];
-// The fields of the column users.email in another order than generate writes them.
+// A create delta row for the column users.email, with the fields in reverse order. The equal-create tests use
+// it to check that the order of the fields does not matter.
 const emailColumn = Object.fromEntries(Object.entries(columnRow('users', 'email', 'varchar')).reverse());
 
 describe('a delta in the history of one leaf', () => {
@@ -77,52 +78,17 @@ describe('a delta in the history of one leaf', () => {
 		expect(errorToEnvelope(error)).toStrictEqual(malformedEnvelope(folder));
 		expect(flow.files('main')).toStrictEqual(files);
 	});
-
-	test('a rename that moves a referencing entity onto a taken key stops generate', async () => {
-		const { flow, folder } = await linear();
-		// A column of a table `accounts` that the state does not hold. The rename of the table users moves the
-		// column users.id onto its key.
-		flow.appendDeltas(
-			'main',
-			folder,
-			{ op: 'create', row: columnRow('accounts', 'id') },
-			{ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } },
-		);
-
-		const error = await flow.generate('main', { users: usersWithEmail }).catch((e) => e);
-
-		expect(error.message).toBe(
-			`Cannot reconstruct the state of migration ${folder}: The rename delta moves tables ["public","users"] to `
-				+ '["public","accounts"], and it also moves an entity of columns onto the key ["public","accounts","id"], '
-				+ 'which another entity of columns already has. Two migrations gave one name to two different entities. '
-				+ reconstructFix(folder),
-		);
-		expect(errorToEnvelope(error)).toStrictEqual(malformedEnvelope(folder));
-	});
-
-	test('an alter whose fields change the key gives the same state as a rename with those fields', async () => {
-		const { flow, folder } = await linear();
-		flow.branch('alter', 'main');
-		flow.branch('rename', 'main');
-		const change = { key: 'tables\0["public","users"]', set: { name: 'accounts' } };
-
-		flow.appendDeltas('alter', folder, { op: 'alter', ...change });
-		flow.appendDeltas('rename', folder, { op: 'rename', ...change });
-
-		const renamed = { accounts: pgTable('accounts', { id: integer(), email: varchar() }) };
-		expect(flow.state('rename', folder)).toStrictEqual(schemaState(renamed));
-		expect(flow.state('alter', folder)).toStrictEqual(schemaState(renamed));
-	});
 });
 
 describe('a delta that reaches a merge only through another parent', () => {
-	// The leaf of branch a is not the first parent, because its folder name is older.
+	// Builds two branches from `users`. The leaf of branch a has the older folder name, so it is not the first
+	// parent, and a delta in `older` reaches the combined state only through another parent.
 	const forked = async () => {
-		const { flow, folders: [[older], [newer]] } = await forkFlow({
+		const { flow, folders: [[older]] } = await forkFlow({
 			base: { users },
 			branches: [[step({ users: usersWithEmail, likes })], [step({ users, groups })]],
 		});
-		return { flow, older, newer };
+		return { flow, older };
 	};
 	const merged = { users: usersWithEmail, likes, groups };
 	const combinedState = async (flow: FolderFlow) =>
@@ -137,8 +103,8 @@ describe('a delta that reaches a merge only through another parent', () => {
 		expect(await flow.tryGenerate('main', merged)).toMatchObject({ status: 'no_changes' });
 	});
 
-	// Both branches add the column users.email with another type. check reads the stored statements, so it
-	// passes when the statements of one branch are gone.
+	// Both branches add the column users.email with another type. The test empties the `statements` of b, so
+	// `check` passes, because it reads only the stored statements. The collision then comes from the deltas.
 	test('a create of a different entity onto a taken key stops generate, and the error names the migration of that delta', async () => {
 		const { flow, folders: [[a], [b]] } = await forkFlow({
 			base: { users },
@@ -151,10 +117,6 @@ describe('a delta that reaches a merge only through another parent', () => {
 		const files = flow.files('main');
 
 		expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
-		expect(await flow.schemaWarnings('main', { users: usersWithEmail })).toStrictEqual([{
-			kind: 'not_compared',
-			message: expect.stringContaining(`Cannot reconstruct the combined state at migration ${a}: `),
-		}]);
 		const error = await flow.generate('main', { users: usersWithEmail }).catch((e) => e);
 
 		expect(error.message).toBe(
@@ -165,38 +127,10 @@ describe('a delta that reaches a merge only through another parent', () => {
 		expect(errorToEnvelope(error)).toStrictEqual(malformedEnvelope(a));
 		expect(flow.files('main')).toStrictEqual(files);
 	});
-
-	test('an alter whose fields change the key renames the entity and reaches its columns', async () => {
-		const { flow, older } = await forked();
-
-		flow.appendDeltas('main', older, { op: 'alter', key: 'tables\0["public","likes"]', set: { name: 'reactions' } });
-
-		const renamed = { users: usersWithEmail, reactions: pgTable('reactions', { id: integer() }), groups };
-		expect(await combinedState(flow)).toStrictEqual(schemaState(renamed));
-	});
-
-	// The first parent holds a column of a table `reactions` that it does not hold. The leaf of branch a
-	// reconstructs alone, and its rename moves the column likes.id onto the key of that column only in the
-	// combined state.
-	test('a rename that moves a referencing entity onto a taken key stops generate', async () => {
-		const { flow, older, newer } = await forked();
-		flow.appendDeltas('main', older, { op: 'rename', key: 'tables\0["public","likes"]', set: { name: 'reactions' } });
-		flow.appendDeltas('main', newer, { op: 'create', row: columnRow('reactions', 'id') });
-
-		const error = await flow.generate('main', merged).catch((e) => e);
-
-		expect(error.message).toBe(
-			`Cannot reconstruct the combined state at migration ${older}: The rename delta moves tables `
-				+ '["public","likes"] to ["public","reactions"], and it also moves an entity of columns onto the key '
-				+ '["public","reactions","id"], which another entity of columns already has. Two migrations gave one '
-				+ `name to two different entities. ${reconstructFix(older)}`,
-		);
-		expect(errorToEnvelope(error)).toStrictEqual(malformedEnvelope(older));
-	});
 });
 
-// drizzle-kit compares two jsonb defaults by their parsed values. So another order of the keys changes the
-// state and writes no SQL, and check compares only the stored statements.
+// `reordered` has the keys of `written` in another order. drizzle-kit compares jsonb defaults by their parsed
+// values, so this change gives an alter delta with no statement, and `check` reads only the statements.
 describe('one branch stores a delta with no statement, and the other branch renames the table of that entity', () => {
 	const items = (table: string, meta: Record<string, number>) =>
 		pgTable(table, { id: integer(), meta: jsonb().default(meta) });

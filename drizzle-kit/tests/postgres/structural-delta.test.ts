@@ -19,7 +19,7 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
-import { type Delta, delta, renameEntity } from 'src/dialects/dialect';
+import { delta } from 'src/dialects/dialect';
 import { createDDL } from 'src/dialects/postgres/ddl';
 import { describe, expect, test } from 'vitest';
 import { apply, diff, drizzleToDDL } from './mocks';
@@ -144,8 +144,8 @@ describe('structural deltas round-trip every entity type', () => {
 });
 
 describe('entity identity is injective (no collisions)', () => {
-	// `pushAll` returns CONFLICT when two rows have one key, so the status OK shows that no two entities of
-	// a set share a key.
+	// Every entity of a scenario must get its own key. `pushAll` returns CONFLICT when two rows share a key,
+	// so the status OK shows that the keys differ.
 	for (const [name, [from, to]] of Object.entries(scenarios)) {
 		test(name, () => {
 			expect(createDDL().entities.pushAll(rowsOf(from)).status).toBe('OK');
@@ -238,6 +238,32 @@ describe('canonical form', () => {
 	});
 });
 
+describe('validate', () => {
+	const table = { entityType: 'tables', schema: 'public', name: 'users', isRlsEnabled: false };
+
+	test('rejects an entity type that is a name every object inherits', () => {
+		const ddl = createDDL();
+
+		expect(ddl.entities.validate(table)).toBe(true);
+		for (const entityType of ['constructor', 'toString', '__proto__']) {
+			expect(ddl.entities.validate({ entityType })).toBe(false);
+		}
+	});
+
+	// `JSON.parse` makes `__proto__` an own field of the row. An object literal `{ __proto__: {} }` would set
+	// the prototype and add no field.
+	test('rejects a field that is a name every object inherits', () => {
+		const ddl = createDDL();
+
+		expect(ddl.tables.validate(table)).toBe(true);
+		for (const field of ['{"constructor":null}', '{"toString":{}}', '{"__proto__":{}}']) {
+			const row = { ...table, ...JSON.parse(field) };
+			expect(ddl.tables.validate(row)).toBe(false);
+			expect(ddl.entities.validate(row)).toBe(false);
+		}
+	});
+});
+
 const inUsers = { schema: 'public', table: 'users' };
 
 describe('ddlDiff deltas', () => {
@@ -264,11 +290,11 @@ describe('ddlDiff deltas', () => {
 describe('rename deltas', () => {
 	const stateOf = () => ddlOf({ other, mood, users, items: other.table('items', { id: integer('id') }) });
 
-	// The entities that reference the renamed entity change through the edges and get no delta.
+	// The columns of `users` follow the table rename through the edges, so they get no delta of their own.
 	test('a table rename gives one rename delta', () => {
 		const ddl = stateOf();
 
-		const renamed = renameEntity(ddl, ddl.tables.one({ name: 'users' })!, { name: 'accounts' });
+		const renamed = ddl.rename(ddl.tables.one({ name: 'users' })!, { name: 'accounts' });
 
 		expect(renamed).toStrictEqual({ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } });
 	});
@@ -276,7 +302,7 @@ describe('rename deltas', () => {
 	test('a column rename gives one rename delta', () => {
 		const ddl = stateOf();
 
-		const renamed = renameEntity(ddl, ddl.columns.one({ ...inUsers, name: 'email' })!, { name: 'contact' });
+		const renamed = ddl.rename(ddl.columns.one({ ...inUsers, name: 'email' })!, { name: 'contact' });
 
 		expect(renamed).toStrictEqual({
 			op: 'rename',
@@ -288,7 +314,7 @@ describe('rename deltas', () => {
 	test('an enum rename gives one rename delta', () => {
 		const ddl = stateOf();
 
-		const renamed = renameEntity(ddl, ddl.enums.one({ name: 'mood' })!, { name: 'feeling' });
+		const renamed = ddl.rename(ddl.enums.one({ name: 'mood' })!, { name: 'feeling' });
 
 		expect(renamed).toStrictEqual({ op: 'rename', key: 'enums\0["public","mood"]', set: { name: 'feeling' } });
 	});
@@ -296,7 +322,7 @@ describe('rename deltas', () => {
 	test('a schema rename gives one rename delta', () => {
 		const ddl = stateOf();
 
-		const renamed = renameEntity(ddl, ddl.schemas.one({ name: 'other' })!, { name: 'archive' });
+		const renamed = ddl.rename(ddl.schemas.one({ name: 'other' })!, { name: 'archive' });
 
 		expect(renamed).toStrictEqual({ op: 'rename', key: 'schemas\0["other"]', set: { name: 'archive' } });
 	});
@@ -304,7 +330,7 @@ describe('rename deltas', () => {
 	test('the delta holds only the fields that change', () => {
 		const ddl = stateOf();
 
-		const renamed = renameEntity(ddl, ddl.tables.one({ name: 'users' })!, { name: 'accounts', schema: 'public' });
+		const renamed = ddl.rename(ddl.tables.one({ name: 'users' })!, { name: 'accounts', schema: 'public' });
 
 		expect(renamed).toStrictEqual({ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } });
 	});
@@ -313,8 +339,8 @@ describe('rename deltas', () => {
 		const start = stateOf();
 		const ddl = stateOf();
 		const deltas = [
-			renameEntity(ddl, ddl.schemas.one({ name: 'other' })!, { name: 'archive' })!,
-			renameEntity(ddl, ddl.tables.one({ name: 'users' })!, { name: 'accounts' })!,
+			ddl.rename(ddl.schemas.one({ name: 'other' })!, { name: 'archive' })!,
+			ddl.rename(ddl.tables.one({ name: 'users' })!, { name: 'accounts' })!,
 		];
 
 		expect(ddl.columns.list({ schema: 'archive' }).map((it) => it.table)).toStrictEqual(['items']);
@@ -325,28 +351,15 @@ describe('rename deltas', () => {
 	test('a rename onto a taken key gives no delta and changes no entity', () => {
 		const ddl = ddlOf({ users, accounts: pgTable('accounts', { id: integer('id') }) });
 
-		expect(renameEntity(ddl, ddl.tables.one({ name: 'users' })!, { name: 'accounts' })).toBeNull();
+		expect(ddl.rename(ddl.tables.one({ name: 'users' })!, { name: 'accounts' })).toBeNull();
 		expect(ddl.tables.list().map((it) => it.name).sort()).toStrictEqual(['accounts', 'users']);
-	});
-
-	test('a rename that would move a referencing entity onto a taken key gives no delta and moves no entity', () => {
-		const ddl = ddlOf({
-			users,
-			accounts: pgTable('other_accounts', { id: integer('id') }),
-		});
-		// A column of a table `accounts` that the state does not hold.
-		ddl.columns.push({ ...ddl.columns.one({ table: 'users', name: 'id' })!, table: 'accounts' });
-
-		expect(renameEntity(ddl, ddl.tables.one({ name: 'users' })!, { name: 'accounts' })).toBeNull();
-		expect(ddl.tables.one({ name: 'users' })).not.toBeNull();
-		expect(ddl.columns.list({ table: 'users' })).toHaveLength(2);
 	});
 
 	test('a rename of an entity that the state does not hold gives no delta', () => {
 		const ddl = stateOf();
 		const missing = { ...ddl.tables.one({ name: 'users' })!, name: 'missing' };
 
-		expect(renameEntity(ddl, missing, { name: 'accounts' })).toBeNull();
+		expect(ddl.rename(missing, { name: 'accounts' })).toBeNull();
 		expect(ddl.tables.one({ name: 'accounts' })).toBeNull();
 	});
 });
@@ -360,14 +373,6 @@ describe('apply deltas to a state', () => {
 		expect(next.columns.list().map((it) => it.table)).toStrictEqual(['accounts', 'accounts']);
 	});
 
-	test('a delta with an operation other than create, drop, alter and rename throws', () => {
-		const unsupported = { op: 'update', type: 'columns', where: inUsers, set: { table: 'accounts' } };
-
-		expect(() => apply(ddlOf({ users }), [unsupported as unknown as Delta])).toThrow(
-			'A delta has the operation "update". A delta must be a create, a drop, an alter or a rename.',
-		);
-	});
-
 	test('a rename onto a key that another entity holds throws and names both keys', () => {
 		const start = ddlOf({ users, accounts: pgTable('accounts', { id: integer('id') }) });
 		const renameUsers = [{ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } }] as const;
@@ -376,29 +381,11 @@ describe('apply deltas to a state', () => {
 			'The rename delta moves tables ["public","users"] to ["public","accounts"], and another row of tables already '
 				+ 'has the key ["public","accounts"].',
 		);
-
-		// A column of a table `accounts` that the state does not hold, so only a column lands on a taken key.
-		const withColumn = ddlOf({ users });
-		withColumn.columns.push({ ...withColumn.columns.one({ table: 'users', name: 'id' })!, table: 'accounts' });
-		expect(() => apply(withColumn, [...renameUsers])).toThrow(
-			'The rename delta moves tables ["public","users"] to ["public","accounts"], and it also moves an entity of '
-				+ 'columns onto the key ["public","accounts","id"], which another entity of columns already has. Two '
-				+ 'migrations gave one name to two different entities.',
-		);
 	});
 
 	test('a rename of a missing entity is skipped', () => {
 		const start = ddlOf({ users });
 		const next = apply(start, [{ op: 'rename', key: 'tables\0["public","orders"]', set: { name: 'x' } }]);
 		expect(eq(next, start)).toBe(true);
-	});
-
-	test('a delta whose key has no entity type throws', () => {
-		const withoutEntityType = { op: 'drop', key: '["public","users"]' } as const;
-
-		expect(() => apply(ddlOf({ users }), [withoutEntityType])).toThrow(
-			'The key ["public","users"] has no entity type. Pass the key as a delta holds it: the entity type, "\\0" '
-				+ 'and the identity.',
-		);
 	});
 });

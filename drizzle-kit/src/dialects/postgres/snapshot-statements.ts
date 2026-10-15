@@ -4,44 +4,46 @@ import { validateRow } from '../dialect';
 import { createDDL, type PostgresEntities } from './ddl';
 import type { JsonStatement } from './statements';
 
-// The form of each statement kind that a snapshot stores. A stored statement holds what the SQL writer and
-// the claim rule of its kind read, and nothing else. Every object is strict, so a missing field or an
+// The schemas that validate the statements stored in a snapshot. A stored statement holds only the fields that
+// the SQL writer and `buildFacetPaths` in commutativity.ts read. Every object is strict, so a missing or an
 // unknown field makes the snapshot malformed.
 
 const definitions = createDDL()._.defs;
 
 type EntityType = keyof PostgresEntities;
 
-// A full row of one entity type, without `entityType`. It is checked like a row of a snapshot.
+// The form of an entity inside a stored statement: a full row without `entityType`. `row` checks it like a
+// row of a snapshot.
 export type StoredRow<K extends EntityType> = Omit<PostgresEntities[K], 'entityType'>;
 const row = <K extends EntityType>(type: K) =>
 	custom<StoredRow<K>>((it) =>
 		typeof it === 'object' && it !== null && !('entityType' in it) && validateRow(it, definitions[type])
 	);
 
-// The value of one field of an entity type, checked against the definition of that field.
+// Checks a statement field that stores one field of an entity, with the definition of that entity field.
 const field = <K extends EntityType, F extends keyof PostgresEntities[K] & string>(type: K, name: F) =>
 	custom<PostgresEntities[K][F]>((it) => validateRow({ [name]: it }, { [name]: definitions[type][name] }, true));
 
-// A changed field of an altered entity.
+// The `from` and `to` values of a field that an alter statement changes. The field is missing when it does
+// not change.
 const change = <T extends ZodTypeAny>(value: T) => object({ from: value, to: value }).strict().optional();
 
 const statement = <T extends string, S extends Record<string, ZodTypeAny>>(type: T, shape: S) =>
 	object({ type: literal(type), ...shape }).strict();
 
-// The names of an entity that belongs to a table.
+// Names an entity of a table, for a statement that reads nothing else of that entity.
 const inTable = object({ schema: string(), table: string(), name: string() }).strict();
 
-// The names of an entity that belongs to a schema.
+// Names an entity of a schema, for a statement that reads nothing else of that entity.
 const inSchema = object({ schema: string(), name: string() }).strict();
 const named = object({ name: string() }).strict();
 const viewName = object({ schema: string(), name: string(), materialized: boolean() }).strict();
 
-// What the claim rules read of an index that is dropped or replaced.
+// The fields of a dropped or replaced index that `buildFacetPaths` reads.
 const indexColumns = array(object({ value: string(), isExpression: boolean() }).strict());
 const uniqueness = { columns: indexColumns, isUnique: boolean(), where: string().nullable() };
 
-// The names of a constraint and its columns.
+// Names a constraint that a statement drops or replaces. `buildFacetPaths` also reads its columns.
 const constraint = object({ schema: string(), table: string(), name: string(), columns: array(string()) }).strict();
 
 export const snapshotStatementSchemas = {
@@ -49,7 +51,7 @@ export const snapshotStatementSchemas = {
 		table: object({
 			schema: string(),
 			name: string(),
-			// The statement also enables row level security: the table has it enabled, or it has policies.
+			// True when the SQL also enables row level security, because the table has it enabled or has policies.
 			enablesRls: boolean(),
 			columns: array(row('columns')),
 			pk: row('pks').nullable(),
@@ -65,8 +67,8 @@ export const snapshotStatementSchemas = {
 		name: string(),
 		from: string(),
 		to: string(),
-		// The indexes that move with the table, also the ones of its primary key and its unique constraints.
-		// Their names leave one schema and enter the other.
+		// Every index that moves with the table, including the indexes of its primary key and its unique
+		// constraints. `buildFacetPaths` reads them, because their names leave one schema and enter the other.
 		indexNames: array(string()),
 	}),
 	add_column: statement('add_column', { column: row('columns'), isCompositePK: boolean() }),
@@ -74,12 +76,13 @@ export const snapshotStatementSchemas = {
 	rename_column: statement('rename_column', { from: inTable, to: inTable }),
 	alter_column: statement('alter_column', {
 		to: row('columns'),
-		// The default of the column before the statement, whether the statement changes it or not.
+		// The default before the statement, also when the statement keeps it. The SQL writer drops this default
+		// before a change of the column type.
 		oldDefault: field('columns', 'default'),
 		isEnum: boolean(),
 		wasEnum: boolean(),
 		wasSerial: boolean(),
-		becomesSerial: boolean(),
+		toSerial: boolean(),
 		diff: object({
 			type: change(field('columns', 'type')),
 			typeSchema: change(field('columns', 'typeSchema')),
@@ -105,7 +108,8 @@ export const snapshotStatementSchemas = {
 	}),
 	recreate_index: statement('recreate_index', {
 		index: row('indexes'),
-		// False when a column of the index is dropped in the same migration, because that drops the index too.
+		// False when the migration also drops a column of the index, because Postgres drops the index with
+		// the column.
 		shouldDrop: boolean(),
 		old: object(uniqueness).strict(),
 	}),
@@ -113,7 +117,8 @@ export const snapshotStatementSchemas = {
 	drop_pk: statement('drop_pk', { pk: constraint }),
 	alter_pk: statement('alter_pk', {
 		pk: row('pks'),
-		// False when a column of the old key is dropped in the same migration, because that drops the key too.
+		// False when the migration also drops a column of the old key, because Postgres drops the key with
+		// the column.
 		shouldDrop: boolean(),
 		oldColumns: array(string()),
 	}),
@@ -123,7 +128,7 @@ export const snapshotStatementSchemas = {
 	add_unique: statement('add_unique', { unique: row('uniques') }),
 	drop_unique: statement('drop_unique', { unique: constraint }),
 	alter_unique: statement('alter_unique', { from: constraint, to: row('uniques') }),
-	// `columns` are the columns of the table that the expression of the check names.
+	// `columns` lists the table columns that the check expression names, for `buildFacetPaths`.
 	add_check: statement('add_check', { check: row('checks'), columns: array(string()) }),
 	drop_check: statement('drop_check', { check: inTable, columns: array(string()) }),
 	alter_check: statement('alter_check', {
@@ -154,7 +159,7 @@ export const snapshotStatementSchemas = {
 	}),
 	recreate_enum: statement('recreate_enum', {
 		to: row('enums'),
-		// The columns of the enum type. The statement converts each one to text and back.
+		// The columns that use the enum. The SQL converts each one to text and back.
 		columns: array(
 			object({
 				schema: string(),
@@ -163,7 +168,7 @@ export const snapshotStatementSchemas = {
 				type: field('columns', 'type'),
 				typeSchema: field('columns', 'typeSchema'),
 				dimensions: field('columns', 'dimensions'),
-				default: object({ from: field('columns', 'default'), to: field('columns', 'default') }).strict(),
+				default: object({ left: field('columns', 'default'), right: field('columns', 'default') }).strict(),
 			}).strict(),
 		),
 	}),
@@ -223,7 +228,8 @@ export const snapshotStatementSchemas = {
 		}).strict(),
 	}),
 	grant_privilege: statement('grant_privilege', { privilege: row('privileges') }),
-	// REVOKE does not name the grantor. The claim rule reads it, because the key of a privilege holds it.
+	// The SQL of REVOKE does not use `grantor`. The statement stores it for `buildFacetPaths`, because the key
+	// of a privilege holds the grantor.
 	revoke_privilege: statement('revoke_privilege', {
 		privilege: object({
 			schema: string(),
@@ -234,7 +240,7 @@ export const snapshotStatementSchemas = {
 		}).strict(),
 	}),
 	regrant_privilege: statement('regrant_privilege', { privilege: row('privileges') }),
-	// A statement kind without a schema does not compile.
+	// The `satisfies` check makes a statement kind without a schema a compile error.
 } satisfies Record<JsonStatement['type'], ZodTypeAny>;
 
 type Schemas = typeof snapshotStatementSchemas;

@@ -1,22 +1,21 @@
 export type Row = Record<string, any>;
 
-// A delta is one change to a state. It names one entity by its key, which is the entity type, `\0` and the
-// identity of the entity. A `rename` changes the key of its entity, because the user decided it.
+// One change to a state, as a snapshot stores it. `key` names one entity: the entity type, `\0` and the
+// identity of the entity. Only a `rename` changes that key, and it comes from a rename that the user confirms.
 export type Delta =
 	| { op: 'create'; row: Row }
 	| { op: 'drop'; key: string }
 	| { op: 'alter'; key: string; set: Row }
 	| { op: 'rename'; key: string; set: Row };
 
-export const splitDeltaKey = (key: string): [entityType: string, identity: string] => {
-	const idx = key.indexOf('\0'); // the identity is JSON and never contains \0
-	if (idx < 0) {
-		throw new Error(
-			`The key ${key} has no entity type. Pass the key as a delta holds it: the entity type, "\\0" and the identity.`,
-		);
-	}
-	return [key.slice(0, idx), key.slice(idx + 1)];
+export const parseEntityKey = (k: string): [string, string] => {
+	const i = k.indexOf('\0'); // the identity is JSON and never contains \0, which qualifiedKey relies on
+	return [k.slice(0, i), k.slice(i + 1)];
 };
+
+type EnumField = readonly (string | null)[];
+type ObjectField = { [field: string]: Field };
+type ObjectArrayField = readonly [ObjectField];
 
 export type Field =
 	| 'string'
@@ -26,9 +25,9 @@ export type Field =
 	| 'string?'
 	| 'number?'
 	| 'boolean?'
-	| readonly (string | null)[] // enum
-	| { [k: string]: Field } // nested object
-	| readonly [{ [k: string]: Field }]; // array of objects
+	| EnumField
+	| ObjectField
+	| ObjectArrayField;
 export type Def = Record<string, Field>;
 
 type Simplify<T> = { [K in keyof T]: T[K] } & {};
@@ -90,7 +89,9 @@ export type Edge = {
 	relocate: (r: Row, from: Row, to: Row) => Row | null;
 };
 
-export type Store = Map<string, Map<string, Row>>; // entityType → (identityKey → row)
+type EntityType = string;
+type Identity = string;
+export type Store = Map<EntityType, Map<Identity, Row>>;
 
 type Dep = { row: Row; edge: Edge; type: string };
 
@@ -113,11 +114,12 @@ type Processors<T extends Row = Row> = {
 	pushAll: (items: Iterable<Row>) => { status: 'OK'; count: number } | { status: 'CONFLICT'; key: string };
 	list: (where?: Where<T>) => T[];
 	one: (where?: Where<T>) => T | null;
-	// A string `where` is the key of one entity, as a delta holds it. The entity is then found without a search.
+	// A string `where` lets `update` and `delete` apply a delta: it is the key that the delta holds, and the
+	// entity is found by that key without a search.
 	update: (cfg: { set: SetOps<T>; where?: Where<T> | string }) => { status: 'OK' | 'CONFLICT'; data: T[] };
 	delete: (where?: Where<T> | string) => T[];
 	drop: (where?: Where<T>) => T[];
-	validate: (row: unknown) => boolean;
+	validate: (row: unknown) => row is T;
 	hasDiff: (alter: Row) => boolean;
 };
 
@@ -126,6 +128,10 @@ export type DDL<TMap extends Record<string, Row> = Record<string, Row>> =
 	& {
 		entities: Processors<TMap[keyof TMap]>;
 		key: (type: string, row: Row) => string;
+		// Renames the entity `from` and returns the delta of that change. The result is null when the state does
+		// not change: no field of `set` differs, the state does not hold `from`, or the new key is taken.
+		rename: (from: Row, set: Row) => Delta | null;
+		clone: () => DDL<TMap>;
 		_: Internals;
 		$entities?: TMap;
 	};
@@ -135,7 +141,7 @@ export type AnyDDL = {
 	key: (type: string, row: Row) => string;
 };
 
-const qualifiedKey = (t: string, k: string) => t + '\0' + k; // an identity is unique only inside one entity type
+const qualifiedKey = (t: string, k: string) => t + '\0' + k;
 
 const COMMON_FIELDS = ['schema', 'table', 'name'] as const;
 
@@ -169,7 +175,7 @@ export function validateRow(data: any, def: Def, deep = false): boolean {
 	if (typeof data !== 'object' || data === null) return false;
 	for (const k of new Set([...Object.keys(data), ...Object.keys(def)])) {
 		if (!deep && k === 'entityType') continue;
-		const f = (def as any)[k] as Field | undefined;
+		const f = Object.hasOwn(def, k) ? def[k] : undefined;
 		if (!f) return false;
 		if (f === 'string[]') {
 			if (!Array.isArray(data[k]) || !data[k].every((e: any) => typeof e === 'string')) return false;
@@ -192,62 +198,62 @@ export function validateRow(data: any, def: Def, deep = false): boolean {
 	return true;
 }
 
-function compileEdge(spec: EdgeSpec, idOf: IdFn): Edge {
-	type LE = { targetField: string; list: string; pick?: string; skipWhen?: string };
-	const scalars: [string, string][] = []; // [targetField, sourceField]
-	let listEdge: LE | null = null;
-	for (const [targetField, src] of Object.entries(spec.map)) {
-		if (typeof src === 'string') scalars.push([targetField, src]);
-		else listEdge = { targetField, ...src };
+// Builds the functions that follow one edge spec. An edge spec says which fields of a row hold the name of
+// another entity. `update` uses `relocate` to change those fields when that entity gets a new key, and `drop`
+// uses `resolve` to find the rows that depend on a dropped entity.
+function compileEdge(spec: EdgeSpec, identityOf: IdFn): Edge {
+	type ListEdge = { targetField: string; list: string; pick?: string; skipWhen?: string };
+	const scalars: [targetField: string, sourceField: string][] = [];
+	let listEdge: ListEdge | null = null;
+	for (const [targetField, source] of Object.entries(spec.map)) {
+		if (typeof source === 'string') scalars.push([targetField, source]);
+		else listEdge = { targetField, ...source };
 	}
-	const readList = (row: Row): string[] => {
-		const arr = row[listEdge!.list];
-		if (!Array.isArray(arr)) return [];
-		const out: string[] = [];
-		for (const it of arr) {
-			if (listEdge!.skipWhen && it?.[listEdge!.skipWhen]) continue;
-			const v = listEdge!.pick ? it?.[listEdge!.pick] : it;
-			if (typeof v === 'string') out.push(v);
-		}
-		return out;
-	};
 
 	return {
 		to: spec.to,
 		cascade: spec.cascade ?? true,
 		resolve: (row) => {
 			if (spec.when && !spec.when(row)) return [];
-			const base: Row = {};
-			for (const [targetField, sourceField] of scalars) base[targetField] = row[sourceField];
-			if (!listEdge) return [idOf(base)];
-			return readList(row).map((v) => idOf({ ...base, [listEdge!.targetField]: v }));
+			const target: Row = {};
+			for (const [targetField, sourceField] of scalars) target[targetField] = row[sourceField];
+			if (!listEdge) return [identityOf(target)];
+			const elements = row[listEdge.list];
+			if (!Array.isArray(elements)) return [];
+			const identities: string[] = [];
+			for (const element of elements) {
+				if (listEdge.skipWhen && element?.[listEdge.skipWhen]) continue;
+				const name = listEdge.pick ? element?.[listEdge.pick] : element;
+				if (typeof name === 'string') identities.push(identityOf({ ...target, [listEdge.targetField]: name }));
+			}
+			return identities;
 		},
-		// null unless the row's mapped fields currently equal `from`'s identity
-		// components (self-guard); else the patch re-pointing them at `to`.
 		relocate: (row, from, to) => {
 			if (spec.when && !spec.when(row)) return null;
+			// An earlier patch in the same `update` call can move `row` off `from`. Then a scalar field no longer
+			// holds the matching field of `from`, and `row` gets no patch.
 			for (const [targetField, sourceField] of scalars) {
-				if (!isEqual(row[sourceField], from[targetField])) return null; // this row doesn't point at `from`
+				if (!isEqual(row[sourceField], from[targetField])) return null;
 			}
 			if (!listEdge) {
-				// scalar edge: rewrite the mapped source fields
 				const patch: Row = {};
 				for (const [targetField, sourceField] of scalars) patch[sourceField] = to[targetField];
 				return patch;
 			}
-			// list edge: rewrite only the matching element, plus the shared prefix.
-			const arr = row[listEdge.list];
-			if (!Array.isArray(arr)) return null;
-			let changed = false;
-			const next = arr.map((it) => {
-				if (listEdge!.skipWhen && it?.[listEdge!.skipWhen]) return it;
-				const v = listEdge!.pick ? it?.[listEdge!.pick] : it;
-				if (!isEqual(v, from[listEdge!.targetField])) return it;
-				changed = true;
-				return listEdge!.pick ? { ...it, [listEdge!.pick]: to[listEdge!.targetField] } : to[listEdge!.targetField];
+			// The patch changes only the elements that point at `from`. It also sets the scalar fields, because
+			// they hold the part of the key that all elements share, for example the table of the index columns.
+			const elements = row[listEdge.list];
+			if (!Array.isArray(elements)) return null;
+			let hasChanged = false;
+			const nextElements = elements.map((element) => {
+				if (listEdge.skipWhen && element?.[listEdge.skipWhen]) return element;
+				const name = listEdge.pick ? element?.[listEdge.pick] : element;
+				if (!isEqual(name, from[listEdge.targetField])) return element;
+				hasChanged = true;
+				return listEdge.pick ? { ...element, [listEdge.pick]: to[listEdge.targetField] } : to[listEdge.targetField];
 			});
-			if (!changed) return null;
-			const patch: Row = { [listEdge.list]: next };
+			if (!hasChanged) return null;
+			const patch: Row = { [listEdge.list]: nextElements };
 			for (const [targetField, sourceField] of scalars) patch[sourceField] = to[targetField];
 			return patch;
 		},
@@ -359,25 +365,20 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 		const targets = select(where);
 		const planned = targets.map((row) => ({ row, next: applySet(row, set) }));
 
-		// Only a key change can end in a conflict, so only then the entities are copied to put them back. The
-		// copy is taken here, before any selected entity changes in place.
-		const copies: [string, Row][] = [];
+		// `snap` keeps a copy of every entity, so that a key conflict can put the store back. The copy is needed
+		// only when a key changes, and it must be taken before the rows below change in place.
+		const snap: [string, Row][] = [];
 		if (planned.some(({ row, next }) => keyOf(next) !== keyOf(row))) {
-			for (const b of store.values()) for (const r of b.values()) copies.push([r.entityType, { ...r }]);
+			for (const b of store.values()) for (const r of b.values()) snap.push([r.entityType, { ...r }]);
 		}
-		const restore = () => {
-			for (const b of store.values()) b.clear();
-			for (const [t, r] of copies) bucketOf(t).set(keyOf(r), r);
-		};
 
 		type Seed = { type: string; oldKey: string; oldRow: Row; newRow: Row };
 		const seeds: Seed[] = [];
 		for (const { row, next } of planned) {
 			const oldRow = { ...row };
 			const oldKey = keyOf(oldRow);
-			const hasKeyChanged = keyOf(next) !== oldKey;
 			Object.assign(row, next);
-			if (hasKeyChanged) seeds.push({ type: row.entityType, oldKey, oldRow, newRow: row });
+			if (keyOf(row) !== oldKey) seeds.push({ type: row.entityType, oldKey, oldRow, newRow: row });
 		}
 
 		if (seeds.length) {
@@ -413,13 +414,13 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 				}
 			}
 			if (colliders.length) {
-				restore();
+				for (const b of store.values()) b.clear();
+				for (const [t, r] of snap) bucketOf(t).set(keyOf(r), r);
 				return { status: 'CONFLICT', data: colliders };
 			}
 
 			rekey(); // rows moved keys — rebuild the buckets once.
 		}
-
 		return { status: 'OK', data: targets };
 	};
 
@@ -455,11 +456,10 @@ function makeProcessors(ctx: Internals, type?: string): Processors {
 		return deleted;
 	};
 
-	const validate: Processors['validate'] = (row) => {
+	const validate: Processors['validate'] = (row): row is Row => {
 		if (typeof row !== 'object' || row === null) return false;
 		const entityType = type ?? (row as any).entityType;
-		const d = defs[entityType];
-		return d ? validateRow(row, d) : false;
+		return typeof entityType === 'string' && Object.hasOwn(defs, entityType) && validateRow(row, defs[entityType]);
 	};
 
 	const hasDiff: Processors['hasDiff'] = (alter) =>
@@ -483,7 +483,7 @@ export function create<const D extends Record<string, Def>>(
 	const store: Store = new Map();
 	const nulls: Record<string, Row> = {};
 	for (const t of Object.keys(defs)) {
-		if (t === 'entities' || t === '_' || t === 'key') throw new Error(`Illegal entity type name: "${t}"`);
+		if (['entities', '_', 'key', 'rename', 'clone'].includes(t)) throw new Error(`Illegal entity type name: "${t}"`);
 		if (!identity[t]) throw new Error(`Missing identity generator for "${t}"`);
 		store.set(t, new Map());
 		nulls[t] = Object.fromEntries(Object.keys(defs[t]).map((k) => [k, null]));
@@ -500,10 +500,28 @@ export function create<const D extends Record<string, Def>>(
 	return build<InferEntities<D>>(internals);
 }
 
+// Builds the DDL object for `create` and for `clone`, which passes a copy of the store.
 function build<M extends Record<string, Row>>(internals: Internals): DDL<M> {
 	const ddl: any = { _: internals, key: (t: string, row: Row) => internals.identity[t](row) };
 	ddl.entities = makeProcessors(internals); // aggregate view
 	for (const t of Object.keys(internals.defs)) ddl[t] = makeProcessors(internals, t);
+	ddl.rename = (from: Row, set: Row): Delta | null => {
+		const changes: Row = {};
+		for (const field of Object.keys(set)) if (!isEqual(from[field], set[field])) changes[field] = set[field];
+		if (!Object.keys(changes).length) return null;
+		const key = qualifiedKeyOf(ddl, from);
+		const { status, data } = ddl.entities.update({ set: changes, where: key });
+		return status === 'OK' && data.length ? { op: 'rename', key, set: changes } : null;
+	};
+	ddl.clone = (): DDL<M> => {
+		const store: Store = new Map();
+		for (const entityType of Object.keys(internals.defs)) store.set(entityType, new Map());
+		for (const [entityType, bucket] of internals.store) {
+			const copy = store.get(entityType)!;
+			for (const [identity, row] of bucket) copy.set(identity, structuredClone(row));
+		}
+		return build<M>({ ...internals, store });
+	};
 	return ddl as DDL<M>;
 }
 
@@ -608,17 +626,19 @@ export const key = (ddl: AnyDDL, type: string, row: Row): string => ddl.key(type
 
 const qualifiedKeyOf = (ddl: AnyDDL, r: Row): string => qualifiedKey(r.entityType, ddl.key(r.entityType, r));
 export const findRow = (ddl: { _: { store: Store } }, key: string): Row | undefined => {
-	const [entityType, identity] = splitDeltaKey(key);
+	const [entityType, identity] = parseEntityKey(key);
 	return ddl._.store.get(entityType)?.get(identity);
 };
-// These names must match the meta fields that `_diff` adds to each row.
+// Gives a `create` delta a plain entity row. The three names must match the meta fields that `_diff` adds.
 const stripMeta = (r: Row): Row => {
 	const { $diffType: _1, $left: _2, $right: _3, ...rest } = r as any;
 	return rest;
 };
 const isChangePair = (v: any): v is { from: any; to: any } => !!v && typeof v === 'object' && 'from' in v && 'to' in v;
 
-// `rows` must be the diff.all(a, b) rows, because drop keys come from `a` and alter keys from `b`.
+// Builds the deltas that turn state `a` into state `b`. With `rows`, a caller that already ran
+// `diff.all(a, b)` skips a second diff. They must be the rows of that exact call, because the drop keys come
+// from `a` and the alter keys from `b`.
 export function delta<M extends Record<string, Row>>(
 	a: DDL<M>,
 	b: DDL<M>,
@@ -636,32 +656,10 @@ export function delta<M extends Record<string, Row>>(
 				if (k === '$diffType' || k === '$left' || k === '$right' || k === 'entityType') continue;
 				if (isChangePair(v)) set[k] = v.to;
 			}
-			// The alter row holds only the changed fields, so a nameless entity (privileges)
-			// can build its key only from the whole new row.
+			// The key comes from `$right`, because the alter row holds only the changed fields. A nameless entity,
+			// such as a privilege, needs the whole row to build its key.
 			out.push({ op: 'alter', key: qualifiedKeyOf(b, (r as any).$right as Row), set });
 		}
 	}
 	return out;
-}
-
-export function copyDDL<M extends Record<string, Row>>(ddl: DDL<M>): DDL<M> {
-	const src = ddl._;
-	const store: Store = new Map();
-	for (const entityType of Object.keys(src.defs)) store.set(entityType, new Map());
-	for (const [entityType, bucket] of src.store) {
-		const copy = store.get(entityType)!;
-		for (const [identity, row] of bucket) copy.set(identity, structuredClone(row));
-	}
-	return build<M>({ ...src, store });
-}
-
-// Renames the entity `from` in `ddl` and returns the delta of that change. The result is null when the state
-// does not change: no field of `set` differs, the state does not hold `from`, or the new key is taken.
-export function renameEntity<M extends Record<string, Row>>(ddl: DDL<M>, from: Row, set: Row): Delta | null {
-	const changes: Row = {};
-	for (const field of Object.keys(set)) if (!isEqual(from[field], set[field])) changes[field] = set[field];
-	if (!Object.keys(changes).length) return null;
-	const key = qualifiedKeyOf(ddl, from);
-	const { status, data } = ddl.entities.update({ set: changes, where: key });
-	return status === 'OK' && data.length ? { op: 'rename', key, set: changes } : null;
 }

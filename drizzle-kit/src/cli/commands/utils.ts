@@ -65,10 +65,9 @@ export const prepareCheckParams = async (
 		config?: string;
 		dialect?: Dialect;
 		out?: string;
-		schema?: string;
 	},
 	from: 'cli' | 'config',
-): Promise<{ out: string; dialect: Dialect; schema?: string | string[] }> => {
+): Promise<{ out: string; dialect: Dialect }> => {
 	const config = from === 'config'
 		? await drizzleConfigFromFile(options.config as string | undefined)
 		: options;
@@ -78,7 +77,7 @@ export const prepareCheckParams = async (
 			[error('Please provide required params:'), wrapParam('dialect', config.dialect)].join('\n'),
 		);
 	}
-	return { out: config.out || 'drizzle', dialect: config.dialect, ...(config.schema && { schema: config.schema }) };
+	return { out: config.out || 'drizzle', dialect: config.dialect };
 };
 
 export const prepareDropParams = async (
@@ -97,12 +96,7 @@ export const prepareDropParams = async (
 	return { out: config.out || 'drizzle', bundle: config.driver === 'expo' };
 };
 
-export type CheckConfig = {
-	out: string;
-	dialect: Dialect;
-	schema?: string | string[];
-	ignoreConflicts: boolean | undefined;
-};
+export type CheckConfig = { out: string; dialect: Dialect; ignoreConflicts: boolean | undefined };
 
 type AnySchemaSource = { load(): Promise<unknown> };
 
@@ -1012,12 +1006,12 @@ export const drizzleConfigFromFile = async (
 	return res.data;
 };
 
-// One entry of a journal and the migration folder that it moves to. `sqlPath` is not set when the entry
-// has no SQL file.
+// The planned move of one journal entry into its migration folder. `sqlPath` is not set when the entry has
+// no SQL file.
 export type FoldersV3Move = { tag: string; folder: string; snapshotPath: string; sqlPath?: string };
 
-// Lists the moves from a journal folder (the drizzle-kit 0.x layout) to the folder layout and writes nothing.
-// Returns null when `out` has no journal.
+// Plans the moves from a journal folder (the drizzle-kit 0.x layout) to the folder layout, so that a caller can
+// check the snapshots before `applyFoldersV3` changes any file. Returns null when `out` has no journal.
 export const planFoldersV3 = (out: string): FoldersV3Move[] | null => {
 	const metaPath = join(out, 'meta');
 	const journalPath = join(metaPath, '_journal.json');
@@ -1029,20 +1023,22 @@ export const planFoldersV3 = (out: string): FoldersV3Move[] | null => {
 		const [snapshotPrefix, ...rest] = entry.tag.split('_');
 		const folder = `${prepareSnapshotFolderName(entry.when)}_${rest.join('_')}`;
 		const snapshotPath = join(metaPath, `${snapshotPrefix}_snapshot.json`);
-		// This can't happen unless there were wrong drizzle-kit migrations usage
+		// drizzle-kit writes `snapshotPath` for every journal entry, so a missing file means that the folder was
+		// changed by hand.
 		if (!existsSync(snapshotPath)) throw new MigrationSnapshotNotFoundCliError(snapshotPath);
 
 		const sqlPath = join(out, `${entry.tag}.sql`);
 		if (existsSync(sqlPath)) return { tag: entry.tag, folder, snapshotPath, sqlPath };
-		// We will try to find it by prefix, but this is a sign that something went wrong
-		// with properly using drizzle-kit migrations
+		// When `entry.tag` names no SQL file, for example after a rename by hand, the SQL file is found by
+		// `snapshotPrefix`.
 		const sqlFileNames = sqlFiles.filter((file) => file.startsWith(`${snapshotPrefix}_`) && file.endsWith('.sql'));
 		if (sqlFileNames.length > 1) throw new MigrationSqlFilesConflictCliError(snapshotPrefix);
 		return { tag: entry.tag, folder, snapshotPath, ...(sqlFileNames[0] && { sqlPath: join(out, sqlFileNames[0]) }) };
 	});
 };
 
-// An entry without an SQL file is not moved.
+// Moves each entry of `moves` into its migration folder, then deletes the `meta` folder with the journal.
+// An entry without an SQL file gets no folder.
 export const applyFoldersV3 = (out: string, moves: FoldersV3Move[]) => {
 	for (const { folder, snapshotPath, sqlPath } of moves) {
 		if (!sqlPath) continue;

@@ -55,7 +55,7 @@ const shrinkPair = ({ before, after }: Pair): Pair[] => [
 	...withoutOne(before).map((ops) => ({ before: ops, after })),
 ];
 
-// The two states of a pair and the rename decisions between them, in the mockResolver format.
+// Builds the two DDL states of a pair and the rename decisions between them, in the mockResolver format.
 const statesOf = ({ before, after }: Pair) => {
 	const from = applyOps(emptyModel(), before);
 	const to = applyOps(from, after);
@@ -64,7 +64,8 @@ const statesOf = ({ before, after }: Pair) => {
 
 type ResolvedRename = Record<'from' | 'to', { entityType: string; schema?: string; table?: string; name: string }>;
 
-// mockResolver keeps no state between calls, so one resolver fills every resolver argument of ddlDiff.
+// The resolver arguments of ddlDiff, which record every resolved rename in `resolved`. mockResolver keeps no
+// state between calls, so one resolver fills every argument.
 const renameResolvers = (renames: string[], resolved: ResolvedRename[]) => {
 	const mock = mockResolver<any>(new Set(renames));
 	const same: typeof mock = async (it) => {
@@ -82,7 +83,7 @@ test('the deltas of ddlDiff reconstruct the new state', async () => {
 		shrink: shrinkPair,
 		check: async (pair) => {
 			const { left, right, renames } = statesOf(pair);
-			// The helper applies the deltas to a copy of `left` and throws when the result differs from `right`.
+			// `diff` applies the deltas to a copy of `left` and fails when the result differs from `right`.
 			await diff(left, right, renames);
 		},
 	});
@@ -100,7 +101,7 @@ test('the stored statements of each migration rebuild its SQL file', async () =>
 	await historyProperty(40, async (steps) => {
 		const { flow, written } = await runHistory(steps);
 		for (const [folder, { branch, isCustom }] of written) {
-			// A later generate --fix-conflicts can delete the folder.
+			// A later generate --fix-conflicts can delete `folder`, so the check skips it.
 			if (!flow.folders(branch).includes(folder)) continue;
 			if (isCustom) expect(flow.statements(branch, folder), `the statements of ${folder}`).toStrictEqual([]);
 			else expect(flow.statementsSql(branch, folder), `the statements of ${folder}`).toBe(flow.sql(branch, folder));
@@ -108,8 +109,8 @@ test('the stored statements of each migration rebuild its SQL file', async () =>
 	});
 });
 
-// When a table or column is renamed, Postgres keeps the generated names of its constraints, and so does the
-// state. The schema derives new names from the new table and column names, so the comparison ignores them.
+// Clears the generated names before two states are compared. After a table or column rename, Postgres and the
+// reconstructed state keep the generated names of the constraints, and the schema file derives new names.
 const withoutGeneratedNames = (state: string[]) =>
 	normalizeDDL(state.map((it) => JSON.parse(it)).map((it) => (it.nameExplicit === false ? { ...it, name: '' } : it)));
 
@@ -127,7 +128,8 @@ test('every snapshot of a history with forks and merges rebuilds to its schema, 
 				if (flow.snapshot(branch, folder).prevIds.length < 2) continue;
 				const state = flow.combinedState(branch, folder);
 				expect(flow.combinedState(branch, folder), `the combined state of ${folder}`).toStrictEqual(state);
-				// Another branch folder has other snapshots next to the merge history, which must not change it.
+				// One merge folder can be on several branches with other snapshots next to it. `combined` checks that
+				// the combined state of the merge is the same on every branch.
 				expect(state, `the combined state of ${folder} on branch ${branch}`).toStrictEqual(
 					combined.get(folder) ?? state,
 				);
@@ -172,7 +174,8 @@ const writeFormat8Folder = async (steps: Step[], dir: string) => {
 				id: randomUUID(),
 				prevIds,
 				ddl: to.entities.list(),
-				// A version 8 snapshot has no rename string for an enum that only moved to another schema.
+				// The filter drops the rename of an enum that only moved to another schema, because format 8 has no
+				// rename string for such a move.
 				renames: prepareMigrationRenames(
 					resolved.filter((it) => it.from.entityType !== 'enums' || it.from.name !== it.to.name),
 				),
@@ -223,8 +226,8 @@ test('up keeps a generated constraint name that a format 8 merge got from its ne
 		pgTable(name, { id: integer().notNull() }, (t) => [foreignKey({ columns: [t.id], foreignColumns: [t.id] })]);
 	const archive = pgSchema('archive');
 	const rowsOf = (schema: PostgresSchema) => drizzleToDDL(schema).ddl.entities.list();
-	// rc.4 diffed this merge from leaf b, which has no foreign key, so the key got the name of the renamed
-	// table. The combined state has the key from leaf a, with the name of the old table.
+	// rc.4 diffed this merge from leaf b, which has no foreign key, so the foreign key got a name from the new
+	// table `people`. The combined state has the foreign key of leaf a, with a name from the old table `users`.
 	const merge = rowsOf({ people: withKey('people'), archive });
 	const flow = createFormat8Flow([
 		{ folder: '20260101120001_main', id: 'main', prevIds: [originUUID], ddl: rowsOf({ users }) },

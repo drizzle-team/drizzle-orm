@@ -8,7 +8,8 @@ import { drizzleToDDL, type PostgresSchema } from '../postgres/mocks';
 
 export const ORIGIN = '00000000-0000-0000-0000-000000000000';
 
-// `from` is the schema of the state that the deltas of the snapshot start from. Without it, the snapshot is a base.
+// Builds a version 9 postgres snapshot of `schema` for a staged migration folder. With `from`, the snapshot is a
+// diff that holds the deltas from `from` to `schema`. Without `from`, the snapshot is a base.
 export const makePgSnapshot = async (
 	id: string,
 	prevIds: string[],

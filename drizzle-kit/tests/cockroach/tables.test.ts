@@ -1,7 +1,6 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
 	camelCase,
-	cockroachPolicy,
 	cockroachSchema,
 	cockroachTable,
 	cockroachTableCreator,
@@ -18,7 +17,7 @@ import {
 } from 'drizzle-orm/cockroach-core';
 import { stripAnsi } from 'hanji/utils';
 import { expect } from 'vitest';
-import { type CockroachDBSchema, diff, push, test } from './mocks';
+import { diff, push, test } from './mocks';
 
 fs.mkdirSync('./tests/cockroach/migrations', { recursive: true });
 
@@ -1238,186 +1237,6 @@ test.concurrent('push after migrate with custom migrations table #4', async ({ d
 	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
-});
-
-// A statement about a table that moves names the table in its new schema, so it must run after the move.
-const folder = cockroachSchema('folder');
-const moved = (inFolder: boolean, extra: (t: any) => any[] = () => [], withRls = false) => {
-	const columns = { id: int4(), ownerId: int4() };
-	const create = inFolder
-		? (withRls ? folder.table.withRLS : folder.table)
-		: (withRls ? cockroachTable.withRLS : cockroachTable);
-	return (create as typeof cockroachTable)('users', columns, extra);
-};
-const owners = cockroachTable('owners', { id: int4().primaryKey() });
-const reader = () => cockroachPolicy('readers', { for: 'select' });
-const writer = () => cockroachPolicy('writers', { for: 'insert' });
-const ownerKey = (t: any) => [foreignKey({ name: 'owner_fk', columns: [t.ownerId], foreignColumns: [owners.id] })];
-
-test.for([
-	{
-		name: 'a drop of one of its policies',
-		from: moved(false, () => [reader(), writer()]),
-		to: moved(true, () => [reader()]),
-		expected: ['ALTER TABLE "users" SET SCHEMA "folder";\n', 'DROP POLICY "writers" ON "folder"."users";'],
-	},
-	{
-		name: 'a drop of its last policy',
-		from: moved(false, () => [reader()]),
-		to: moved(true),
-		expected: [
-			'ALTER TABLE "users" SET SCHEMA "folder";\n',
-			'ALTER TABLE "folder"."users" DISABLE ROW LEVEL SECURITY;',
-			'DROP POLICY "readers" ON "folder"."users";',
-		],
-	},
-	{
-		name: 'its first policy',
-		from: moved(false),
-		to: moved(true, () => [reader()]),
-		expected: [
-			'ALTER TABLE "users" SET SCHEMA "folder";\n',
-			'ALTER TABLE "folder"."users" ENABLE ROW LEVEL SECURITY;',
-			'CREATE POLICY "readers" ON "folder"."users" AS PERMISSIVE FOR SELECT TO public;',
-		],
-	},
-	{
-		name: 'the row level security flag',
-		from: moved(false),
-		to: moved(true, undefined, true),
-		expected: [
-			'ALTER TABLE "users" SET SCHEMA "folder";\n',
-			'ALTER TABLE "folder"."users" ENABLE ROW LEVEL SECURITY;',
-		],
-	},
-	{
-		name: 'a drop of its foreign key',
-		from: moved(false, ownerKey),
-		to: moved(true),
-		expected: [
-			'ALTER TABLE "users" SET SCHEMA "folder";\n',
-			'ALTER TABLE "folder"."users" DROP CONSTRAINT "owner_fk";',
-		],
-	},
-])('a table move together with $name writes SQL that runs', async ({ from, to, expected }, { db }) => {
-	const renames = ['public.users->folder.users'];
-
-	const { sqlStatements: st } = await diff({ folder, owners, users: from }, { folder, owners, users: to }, renames);
-	await push({ db, to: { folder, owners, users: from } });
-	const { sqlStatements: pst } = await push({ db, to: { folder, owners, users: to }, renames });
-
-	expect(st).toStrictEqual(expected);
-	expect(pst).toStrictEqual(expected);
-});
-
-test('a table move together with a drop of its foreign key and of the referenced table writes SQL that runs', async ({ db }) => {
-	const from = { folder, owners, users: moved(false, ownerKey) };
-	const to = { folder, users: moved(true) };
-	const renames = ['public.users->folder.users'];
-
-	const { sqlStatements: st } = await diff(from, to, renames);
-	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to, renames });
-
-	const st0 = [
-		'ALTER TABLE "users" SET SCHEMA "folder";\n',
-		'ALTER TABLE "folder"."users" DROP CONSTRAINT "owner_fk";',
-		'DROP TABLE "owners";',
-	];
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
-});
-
-test('a table rename together with the row level security flag writes SQL that runs', async ({ db }) => {
-	const from = { users: cockroachTable('users', { id: int4() }) };
-	const to = { users: cockroachTable.withRLS('people', { id: int4() }) };
-	const renames = ['public.users->public.people'];
-
-	const { sqlStatements: st } = await diff(from, to, renames);
-	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to, renames });
-
-	const st0 = ['ALTER TABLE "users" RENAME TO "people";', 'ALTER TABLE "people" ENABLE ROW LEVEL SECURITY;'];
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
-});
-
-// push asks the database about data loss before it runs its statements. So such a query must name a table by
-// the schema and the name that the table has in the database at that point.
-const other = cockroachSchema('other');
-const usersWithName = { id: int4(), name: text() };
-const tablesWithDroppedColumn: {
-	name: string;
-	from: CockroachDBSchema;
-	to: CockroachDBSchema;
-	renames: string[];
-	table: string;
-	newTable: string;
-	expected: string[];
-}[] = [
-	{
-		name: 'moves to another schema',
-		from: { folder, users: cockroachTable('users', usersWithName) },
-		to: { folder, users: folder.table('users', { id: int4() }) },
-		renames: ['public.users->folder.users'],
-		table: '"users"',
-		newTable: '"folder"."users"',
-		expected: ['ALTER TABLE "users" SET SCHEMA "folder";\n'],
-	},
-	{
-		name: 'gets a new name',
-		from: { users: cockroachTable('users', usersWithName) },
-		to: { users: cockroachTable('people', { id: int4() }) },
-		renames: ['public.users->public.people'],
-		table: '"users"',
-		newTable: '"people"',
-		expected: ['ALTER TABLE "users" RENAME TO "people";'],
-	},
-	{
-		name: 'moves to another schema and gets a new name',
-		from: { folder, users: cockroachTable('users', usersWithName) },
-		to: { folder, users: folder.table('people', { id: int4() }) },
-		renames: ['public.users->folder.people'],
-		table: '"users"',
-		newTable: '"folder"."people"',
-		expected: ['ALTER TABLE "users" RENAME TO "people";', 'ALTER TABLE "people" SET SCHEMA "folder";\n'],
-	},
-	{
-		name: 'gets a new name in a schema that gets a new name',
-		from: { folder, users: folder.table('users', usersWithName) },
-		to: { other, users: other.table('people', { id: int4() }) },
-		renames: ['folder->other', 'other.users->other.people'],
-		table: '"folder"."users"',
-		newTable: '"other"."people"',
-		expected: ['ALTER SCHEMA "folder" RENAME TO "other";\n', 'ALTER TABLE "other"."users" RENAME TO "people";'],
-	},
-];
-
-test.for(tablesWithDroppedColumn)(
-	'push warns about a dropped column of a table with rows that $name',
-	async ({ from, to, renames, table, newTable, expected }, { db }) => {
-		await push({ db, to: from });
-		await db.query(`INSERT INTO ${table} VALUES (1, 'a');`);
-		const { sqlStatements: pst, hints } = await push({ db, to, renames });
-
-		expect(pst).toStrictEqual([...expected, `ALTER TABLE ${newTable} DROP COLUMN "name";`]);
-		expect(hints).toStrictEqual([{
-			hint: `You're about to delete non-empty "name" column in ${table} (would become ${newTable}) table`,
-		}]);
-	},
-);
-
-test('push warns about a dropped primary key of a table with rows that moves to another schema', async ({ db }) => {
-	const from = { folder, users: cockroachTable('users', { id: int4().primaryKey() }) };
-	const to = { folder, users: folder.table('users', { id: int4() }) };
-
-	await push({ db, to: from });
-	await db.query('INSERT INTO "users" VALUES (1);');
-	// Cockroach refuses the drop of a primary key without a new primary key, so the statements do not run here.
-	const { hints } = await push({ db, to, renames: ['public.users->folder.users'], explain: true });
-
-	expect(hints).toHaveLength(1);
-	expect(hints[0].hint).toContain('primary key');
 });
 
 test.concurrent('drop column in a renamed table with data', async ({ dbc: db }) => {

@@ -182,7 +182,8 @@ export const createDDL = () => {
 			tables: (r) => JSON.stringify([r.schema, r.name]),
 			enums: (r) => JSON.stringify([r.schema, r.name]),
 			columns: (r) => JSON.stringify([r.schema, r.table, r.name]),
-			// Postgres keeps index names unique in a schema, and DROP INDEX and ALTER INDEX do not name the table.
+			// The identity of an index has no table, because Postgres keeps index names unique in a schema,
+			// and DROP INDEX and ALTER INDEX do not name the table.
 			indexes: (r) => JSON.stringify([r.schema, r.name]),
 			fks: (r) => JSON.stringify([r.schema, r.table, r.name]),
 			pks: (r) => JSON.stringify([r.schema, r.table, r.name]),
@@ -200,7 +201,8 @@ export const createDDL = () => {
 			sequences: [{ to: 'schemas', map: { name: 'schema' } }],
 			views: [{ to: 'schemas', map: { name: 'schema' } }],
 			checks: [{ to: 'tables', map: { schema: 'schema', name: 'table' } }],
-			// A role rename follows the rows that name the role. A drop of the role does not drop them.
+			// The `roles` edges of policies and privileges apply a role rename to the rows that name the role.
+			// They have `cascade: false`, so a drop of the role keeps these rows.
 			policies: [
 				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
 				{ to: 'roles', cascade: false, map: { name: { list: 'roles' } } },

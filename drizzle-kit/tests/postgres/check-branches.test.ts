@@ -3,7 +3,8 @@ import { stripVTControlCharacters } from 'util';
 import { expect, test } from 'vitest';
 import { type CheckResult, createFolderFlow, forkFlow, rename, step } from './folder-flow';
 
-// The report lines, with folder names in place of the temporary folder paths.
+// Gives the lines of a conflict report with folder names in place of the temporary folder paths, so that a
+// test can compare exact lines.
 const reportOf = (result: CheckResult) =>
 	result.status === 'conflicts'
 		? stripVTControlCharacters(result.message).replaceAll(/\S*[\\/](?=\d{14}_)/g, '').split('\n')
@@ -24,7 +25,8 @@ test('a column that one branch adds and later drops conflicts with the same colu
 	const result = await flow.check('main');
 
 	expect(result).toMatchObject({ status: 'conflicts', folders: ['20260101120003_b', '20260101120004_a'] });
-	// In folder order, both branches add the column before branch a drops it.
+	// `migrate` runs the folders in name order, so the folder of branch b adds the column `c` again before
+	// branch a drops it.
 	await expect(flow.migrate('main', { users: pgTable('users', { id: integer(), c: integer() }) })).rejects.toThrow(
 		'Failed query: ALTER TABLE "users" ADD COLUMN "c" integer;',
 	);
@@ -101,8 +103,8 @@ test('a new policy conflicts with a drop of the last policy of its table, which 
 	const result = await flow.check('main');
 
 	expect(result).toMatchObject({ status: 'conflicts', folders: ['20260101120002_a', '20260101120003_b'] });
-	// The SQL of both branches runs in either order. The database then has the new policy on a table without
-	// row level security, so postgres does not enforce the policy.
+	// The SQL of both branches runs, but the table `users` ends with the policy `writers` and without row level
+	// security. Postgres does not enforce that policy, so push must still enable row level security.
 	expect(await flow.migrate('main', { users: users(policy('writers')) })).toStrictEqual([
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 	]);
@@ -182,8 +184,8 @@ test('with three leaves every pair of branches is compared', async () => {
 
 	const result = await flow.check('main');
 
-	// The third leaf conflicts with the first leaf on likes and with the second leaf on users.email.
-	// Each pair is grouped under its own fork point.
+	// The leaf `20260101120005_b` conflicts with `20260101120002_a` on `likes`, and with `20260101120004_c` on
+	// `users.email`. The report groups each conflicting pair under its own fork point.
 	expect(reportOf(result)).toStrictEqual([
 		'',
 		' Conflicting migrations detected  Found 2 conflicts across 3 migrations',

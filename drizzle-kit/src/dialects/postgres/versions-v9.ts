@@ -1,7 +1,7 @@
 import { originUUID } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
-import { copyDDL, type Delta, delta, findRow, splitDeltaKey } from '../dialect';
+import { type Delta, delta, findRow, parseEntityKey } from '../dialect';
 import { createDDL, fromEntities, type PostgresDDL, type PostgresEntities, type PostgresEntity } from './ddl';
 import { ddlDiff } from './diff';
 import { defaultNameForPK } from './grammar';
@@ -12,9 +12,9 @@ import type { SnapshotStatement } from './snapshot-statements';
 const nameOf = (row: { schema?: string; table?: string; name?: string }) =>
 	[row.schema, row.table, row.name].filter(Boolean).join('.');
 
-// A format 8 rename string does not say which kind of entity it renames, so every resolver gets all of
-// them. A resolver keeps only the strings whose old name is among its dropped rows and whose new name
-// is among its created rows, because mockResolver throws when it finds the old name without the new one.
+// Gives the resolver that `upToV9` passes to `ddlDiff` for every entity type, because a format 8 rename string
+// does not say which entity type it renames. Each call keeps the strings whose old name is in `deleted` and
+// whose new name is in `created`, because `mockResolver` throws when it finds the old name without the new one.
 const format8RenameResolver = (renames: string[]) =>
 <T extends { name: string; table?: string; schema?: string }>(
 	it: Parameters<Resolver<T>>[0],
@@ -28,10 +28,10 @@ const format8RenameResolver = (renames: string[]) =>
 	return mockResolver<T>(new Set(own))(it);
 };
 
-// Postgres names a primary key <table>_pkey when it creates the table and keeps that name when the table is
-// renamed. drizzle-kit 0.x wrote no SQL for the key then, but its files, converted to format 8, name the key after
-// the new table. Such a key keeps the name that `state` has. A composite key from 0.x keeps its stored name,
-// because 0.x dropped it and added it under the new name.
+// Gives the rows of a format 8 file with the primary key names that the database has. Postgres keeps the
+// name <table>_pkey when a table is renamed, and drizzle-kit 0.x wrote no SQL for the key. A converted 0.x
+// file names such a key after the new table, so the key takes its name from `state`. A composite key of 0.x
+// keeps its stored name, because 0.x dropped it and added it under the new name.
 export const withStateKeyNames = (rows: PostgresEntity[], state: PostgresDDL): PostgresEntity[] =>
 	rows.map((row) => {
 		if (row.entityType !== 'pks' || row.nameExplicit || row.name !== defaultNameForPK(row.table)) return row;
@@ -39,13 +39,13 @@ export const withStateKeyNames = (rows: PostgresEntity[], state: PostgresDDL): P
 		return key ? { ...row, name: key.name } : row;
 	});
 
-// Applies `deltas` to `state` in place and turns their renames into rename decisions, one set per
-// entity type, so that a column rename never matches an index or a table.
+// Turns the rename deltas into rename decisions for `ddlDiff`, one set per entity type, so that a column
+// rename never matches an index or a table. It also applies `deltas` to `state` in place.
 const resolversOfRenameDeltas = (state: PostgresDDL, deltas: Delta[]) => {
 	const renames = new Map<string, Set<string>>();
 	for (const it of deltas) {
 		if (it.op === 'rename') {
-			const [type] = splitDeltaKey(it.key);
+			const [type] = parseEntityKey(it.key);
 			const row = findRow(state, it.key);
 			if (row) {
 				renames.set(type, (renames.get(type) ?? new Set()).add(`${nameOf(row)}->${nameOf({ ...row, ...it.set })}`));
@@ -53,18 +53,18 @@ const resolversOfRenameDeltas = (state: PostgresDDL, deltas: Delta[]) => {
 		}
 		applyDeltas(state, [it]);
 	}
-	// A privilege has no name, so it has no rename decision.
+	// `privileges` is excluded, because a privilege has no name and so has no rename decision.
 	return <K extends Exclude<keyof PostgresEntities, 'privileges'>>(type: K): Resolver<PostgresEntities[K]> =>
 		mockResolver<PostgresEntities[K]>(renames.get(type) ?? new Set());
 };
 
-// The statements of a migration that starts from the state `start` and applies `deltas`. The rename deltas
-// are the rename decisions. Generated names are not kept, so a drop and a create of a constraint in the
-// deltas stay a drop and a create statement, as in the SQL that drizzle-kit wrote for the migration.
+// Builds the `statements` of a converted snapshot from its starting state `start` and its `deltas`. The rename
+// deltas become the rename decisions. `keepGeneratedNames` is false, so a drop and a create of a constraint
+// stay two statements, as in the SQL that drizzle-kit wrote for the migration.
 const statementsOf = async (start: PostgresDDL, deltas: Delta[]): Promise<SnapshotStatement[]> => {
-	// ddlDiff changes both states that it gets, so each one is a separate copy.
-	const from = copyDDL(start);
-	const to = copyDDL(start);
+	// `ddlDiff` changes both states that it gets, so `from` and `to` are separate clones of `start`.
+	const from = start.clone();
+	const to = start.clone();
 	const resolverOf = resolversOfRenameDeltas(to, deltas);
 	const { snapshotStatements } = await ddlDiff(
 		from,
@@ -88,15 +88,17 @@ const statementsOf = async (start: PostgresDDL, deltas: Delta[]): Promise<Snapsh
 	return snapshotStatements;
 };
 
-// An old merge whose branches gave one name to two different entities. Its combined state cannot be reconstructed.
+// Thrown by `upToV9` when the branches of an old merge gave one name to two different entities. The combined
+// state of such a merge cannot be reconstructed.
 export class UnsupportedMergeError extends Error {
 	constructor(readonly folder: string, cause: KeyCollisionError) {
 		super(`the merge in migration ${folder} cannot be reconstructed. ${cause.message}`, { cause });
 	}
 }
 
-// This step loads diff.ts, so it is not in versions.ts. The programmatic API imports versions.ts at module
-// load, and the API must load diff.ts only inside its functions. `files` must be in folder-name order.
+// Converts the snapshots of a migrations folder to format 9 for `up`. `files` must be in folder-name order.
+// The function is not in versions.ts, because it loads diff.ts. The programmatic API imports versions.ts at
+// module load, and the API must load diff.ts only inside its functions.
 export const upToV9 = async (
 	files: { folder: string; snapshot: PostgresSnapshotV8 | PostgresSnapshot }[],
 ): Promise<PostgresSnapshot[]> => {
@@ -121,7 +123,7 @@ export const upToV9 = async (
 			});
 			continue;
 		}
-		// The first parent of a merge is the one with the newest folder name.
+		// `prevIds` puts the parent with the newest folder name first, as generate does for a merge.
 		const prevIds = [...parents].sort((a, b) => (folderOf.get(a)! > folderOf.get(b)! ? -1 : 1));
 		let start: PostgresDDL;
 		try {
@@ -130,8 +132,9 @@ export const upToV9 = async (
 			if (e instanceof KeyCollisionError) throw new UnsupportedMergeError(folderOf.get(snapshot.id)!, e);
 			throw e;
 		}
-		// ddlDiff changes both states that it gets, so neither may share rows with a file.
-		const from = copyDDL(start);
+		// `ddlDiff` changes both states that it gets, so `from` and `to` must not share rows with `start` or with
+		// `snapshot.ddl`.
+		const from = start.clone();
 		const to = fromEntities(structuredClone(snapshot.ddl));
 		const renameResolver = format8RenameResolver(snapshot.renames ?? []);
 		const { deltas } = await ddlDiff(
@@ -152,10 +155,9 @@ export const upToV9 = async (
 			renameResolver,
 			'default',
 		);
-		// ddlDiff gives a constraint with a generated name the name that it has in the starting state. A
-		// format 5-8 file can store another generated name, for example after a table rename or in a merge.
-		// Drops and creates at the end restore the stored names, except for the primary key names that
-		// withStateKeyNames takes from the state.
+		// `delta(to, ...)` restores the generated constraint names that the file stores, because `ddlDiff` keeps
+		// the names of the starting state. The two names can differ after a table rename or in a merge. A primary
+		// key keeps the name that `withStateKeyNames` takes from `to`.
 		deltas.push(...delta(to, fromEntities(withStateKeyNames(snapshot.ddl, to))));
 		converted.set(snapshot.id, {
 			type: 'diff',

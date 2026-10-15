@@ -117,8 +117,8 @@ test('create and drop role', async (t) => {
 	});
 
 	const st0 = [
-		'CREATE ROLE "admin";',
 		'DROP ROLE "manager";',
+		'CREATE ROLE "admin";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -244,7 +244,8 @@ test('alter inherit in role', async (t) => {
 });
 
 test('a role rename changes no policy and no privilege that names the role', async () => {
-	// The schema does not manage this role, and `public` is a built-in name.
+	// The policies also name roles that the rename must leave unchanged. The diff does not create these roles:
+	// `auditor` is `.existing()`, and `public` is a built-in role.
 	const auditor = pgRole('auditor').existing();
 	const schema = (roleName: string) => {
 		const role = pgRole(roleName);
@@ -254,7 +255,8 @@ test('a role rename changes no policy and no privilege that names the role', asy
 		]);
 		return { role, users };
 	};
-	// A drizzle schema cannot declare a privilege, so the state gets its row here.
+	// Builds the state of `schema` with a SELECT privilege for the role. The test adds the privilege row itself
+	// because a drizzle schema cannot declare a privilege.
 	const state = (roleName: string) => {
 		const { ddl } = drizzleToDDL(schema(roleName));
 		ddl.privileges.push({
@@ -271,7 +273,8 @@ test('a role rename changes no policy and no privilege that names the role', asy
 	for (const it of (await diff({}, schema('staff'), [])).sqlStatements) await db.query(it);
 	await db.query('GRANT SELECT ON "users" TO "staff";');
 
-	// The new name sorts before the other role of the policy, and the old name sorts after it.
+	// `admin` sorts before `auditor` and `staff` sorts after it, so the rename changes the order of the roles of
+	// `users_read`. The diff must still write no policy statement.
 	const { sqlStatements } = await diff(state('staff'), state('admin'), ['staff->admin']);
 
 	expect(sqlStatements).toStrictEqual(['ALTER ROLE "staff" RENAME TO "admin";']);
@@ -282,39 +285,4 @@ test('a role rename changes no policy and no privilege that names the role', asy
 	expect(await db.query(`select has_table_privilege('admin', 'users', 'SELECT') as granted`)).toStrictEqual([
 		{ granted: true },
 	]);
-});
-
-// Postgres refuses to drop a role that a policy still names.
-test.each([
-	{
-		name: 'a drop of the policy that names it',
-		policies: [[pgPolicy('readers', { for: 'select', to: pgRole('staff') })], []],
-		sql: [
-			'DROP POLICY "readers" ON "users";',
-			'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
-			'DROP ROLE "staff";',
-		],
-	},
-	{
-		name: 'a policy that no longer names it',
-		policies: [
-			[pgPolicy('readers', { for: 'select', to: pgRole('staff') })],
-			[pgPolicy('readers', { for: 'select', to: 'public' })],
-		],
-		sql: ['ALTER POLICY "readers" ON "users" TO public;', 'DROP ROLE "staff";'],
-	},
-])('a role drop together with $name writes SQL that runs', async ({ policies: [before, after], sql }) => {
-	const users = (policies: ReturnType<typeof pgPolicy>[]) => pgTable('users', { id: integer() }, () => policies);
-	const entities = { roles: { include: ['staff'] } };
-
-	const { sqlStatements: st } = await diff(
-		{ staff: pgRole('staff'), users: users(before) },
-		{ users: users(after) },
-		[],
-	);
-	await push({ db, to: { staff: pgRole('staff'), users: users(before) }, entities });
-	const { sqlStatements: pst } = await push({ db, to: { users: users(after) }, entities });
-
-	expect(st).toStrictEqual(sql);
-	expect(pst).toStrictEqual(sql);
 });

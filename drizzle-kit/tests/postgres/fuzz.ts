@@ -32,7 +32,7 @@ export type Random = {
 	chance: (probability: number) => boolean;
 };
 
-// mulberry32: a small generator that gives the same sequence for the same seed on every machine.
+// A seeded random generator (mulberry32), so that one seed gives the same cases on every machine.
 const createRandom = (seed: number): Random => {
 	let state = seed >>> 0;
 	const next = () => {
@@ -75,7 +75,8 @@ const failureOf = async <T>(check: (value: T) => Promise<void>, value: T): Promi
 	}
 };
 
-// The message of an assertion error does not show the values that it compared.
+// Adds the compared values to the failure message, because the message of an assertion error does not show
+// them. For two arrays, it lists only the missing and the unexpected items.
 const describeFailure = (error: Error & { actual?: unknown; expected?: unknown }) => {
 	const { actual, expected } = error;
 	if (!Array.isArray(actual) || !Array.isArray(expected)) {
@@ -90,7 +91,8 @@ const describeFailure = (error: Error & { actual?: unknown; expected?: unknown }
 	}`;
 };
 
-// Case number n uses seed firstSeed + n, so FUZZ_SEED=<that seed> FUZZ_RUNS=1 repeats one failing case.
+// Runs `check` on generated cases and reduces the first failing case with `shrink` before it throws. Case
+// number n uses seed firstSeed + n, so FUZZ_SEED=<that seed> FUZZ_RUNS=1 repeats one failing case.
 export const checkProperty = async <T>(property: {
 	runs: number;
 	generate: (random: Random) => T;
@@ -102,7 +104,8 @@ export const checkProperty = async <T>(property: {
 		let value = property.generate(createRandom(seed));
 		let error = await failureOf(property.check, value);
 		if (!error) continue;
-		// Takes the first smaller case that still fails, until no smaller case fails or the attempts run out.
+		// Replaces `value` with the first smaller candidate that still fails, until no candidate fails or the
+		// attempts run out.
 		let attempts = 0;
 		for (let isReduced = true; isReduced && attempts < maxShrinkAttempts;) {
 			isReduced = false;
@@ -142,9 +145,9 @@ const kinds = [
 export type Kind = (typeof kinds)[number];
 const inSchema = new Set<Kind>(['enums', 'sequences', 'tables', 'views']);
 
-// Entities refer to each other by id, so a rename changes one field. Ids start at 1. A null schemaId means
-// the public schema, and a null name means that drizzle-kit generates the name. Privileges have no name.
-// A privilege keeps its type in `value`.
+// One entity of the fuzz model. Entities refer to each other by id, which starts at 1, so a rename changes
+// one field. A null `schemaId` means the public schema, and a null `name` means that drizzle-kit generates
+// the name. A privilege has no name and keeps its type in `value`.
 export type Entity = {
 	id: number;
 	name: string | null;
@@ -199,7 +202,8 @@ const firstByKey = (rows: Entity[], key: (it: Entity) => string) => {
 	});
 };
 
-// Removes what lost its schema, table or columns, and keeps only the first of two entities with one identity.
+// Makes a model valid after an op. It removes the entities that lost their schema, table or columns, and
+// keeps only the first of two entities with one identity.
 const sanitize = (model: Model): Model => {
 	const schemas = firstByKey(model.schemas, (it) => it.name!);
 	const schemaIds = new Set(schemas.map((it) => it.id));
@@ -284,7 +288,8 @@ export const toSchema = (model: Model): PostgresSchema => {
 				return [it.name!, column];
 			}),
 		);
-		// Drizzle calls this after every table exists, so a foreign key can reach any table.
+		// `extra` is a function because drizzle calls it after every table exists, so a foreign key can reach any
+		// table in `tables`.
 		const extra = (): any[] => [
 			...own('pks').map((it) =>
 				primaryKey({ name: it.name ?? undefined, columns: columnsOf(table.id, it.columns!) as [any] })
@@ -316,7 +321,7 @@ export const toSchema = (model: Model): PostgresSchema => {
 	return exports;
 };
 
-// A drizzle schema cannot declare grants, so privileges go straight into the DDL.
+// Adds the privileges of the model to the DDL, because a drizzle schema cannot declare grants.
 const addPrivileges = (ddl: PostgresDDL, model: Model) => {
 	for (const it of model.privileges) {
 		const [schema, table] = identityOf(model, 'tables', find(model, 'tables', it.tableId)!);
@@ -332,7 +337,8 @@ const addPrivileges = (ddl: PostgresDDL, model: Model) => {
 	return ddl;
 };
 
-// Returns null when drizzle-kit rejects the schema, so that the generators skip such a change.
+// Builds the DDL of a model, or returns null when drizzle-kit rejects its schema, so that the generators skip
+// that change.
 export const toDDL = (model: Model): PostgresDDL | null => {
 	try {
 		const { schema, errors } = fromDrizzleSchema(fromExports(toSchema(model)), () => true);
@@ -343,14 +349,15 @@ export const toDDL = (model: Model): PostgresDDL | null => {
 	}
 };
 
-// Skips an op that leaves an invalid schema, so a shrunk case stays valid.
+// Applies `ops` to a model and skips an op that leaves an invalid schema, so that a shrunk case stays valid.
 export const applyOps = (model: Model, ops: Op[]): Model =>
 	ops.reduce((current, op) => {
 		const next = sanitize(applyOp(current, op));
 		return toDDL(next) ? next : current;
 	}, model);
 
-// Keeps the first model's version of an entity and adds what only the other models have.
+// The model that a merge starts from. It keeps the version of each entity from the first model, which belongs
+// to the first parent, and adds what only the other models have.
 const unionOf = ([primary, ...others]: Model[]): Model => {
 	const union = Object.fromEntries(kinds.map((kind) => {
 		const rows = [...primary![kind]];
@@ -376,11 +383,13 @@ const identityOf = (model: Model, kind: Kind, entity: Entity): string[] => {
 
 const isSame = (a: string[], b: string[]) => a.length === b.length && a.every((it, idx) => it === b[idx]);
 
-// `oldIdentity` is the identity in `before`, with the old names of the parents.
+// A rename that the test resolves with a hint. `oldIdentity` is the identity in `before`, with the old names
+// of the parents.
 type RenameDecision = { kind: Kind; from: string[]; to: string[]; oldIdentity: string[] };
 
-// ddlDiff resolves renames parents first, so the old identity of an entity has the new names of its
-// parents. An entity whose parent was dropped, or renamed without a decision, gets no decision.
+// Lists the renames in `ops` that get a rename hint. ddlDiff resolves the renames of the parents first, so
+// `from` holds the new names of the parents. An entity whose parent was dropped, or renamed without a
+// decision, gets no decision.
 export const renameDecisions = (before: Model, after: Model, ops: Op[]): RenameDecision[] => {
 	const decided = new Map<string, [Kind, number]>();
 	for (const op of ops) {
@@ -393,7 +402,7 @@ export const renameDecisions = (before: Model, after: Model, ops: Op[]): RenameD
 		if (!inSchema.has(kind)) return settled('tables', entity.tableId!);
 		return entity.schemaId ? settled('schemas', entity.schemaId) : ['public'];
 	};
-	// The identity after ddlDiff resolved the entity, when it matches the identity in `after`.
+	// The identity of a parent in `after`, or null when ddlDiff does not resolve the parent to that identity.
 	const settled = (kind: Kind, id: number): string[] | null => {
 		const old = find(before, kind, id);
 		const later = find(after, kind, id);
@@ -429,11 +438,12 @@ const hintKinds = {
 	views: 'view',
 } as const;
 
-// Privileges have no name, so they never get a rename decision. No name of a model has a dot in it.
+// Turns a decision into a rename hint. Privileges have no name, so they never get a decision, and no name of
+// a model has a dot in it.
 const toHint = ({ kind, from, to }: RenameDecision) =>
 	rename(hintKinds[kind as keyof typeof hintKinds], from.join('.'), to.join('.'));
 
-// The format that mockResolver and the format 8 `renames` field use.
+// Writes a decision in the format that mockResolver and the `renames` field of format 8 use.
 export const toRenameString = ({ from, to }: RenameDecision) => `${from.join('.')}->${to.join('.')}`;
 
 const prefixes: Record<Kind, string> = {
@@ -613,8 +623,9 @@ export const createIds = () => {
 	return () => ++id;
 };
 
-// New names are larger than every name in `seen`, so a rename never takes the name of an entity that the
-// same migration drops. Forked branches reuse numbers, so two branches can create the same name.
+// Generates up to `count` valid ops from `start`. New names are larger than every name in `seen`, so a
+// rename never takes the name of an entity that the same migration drops. Forked branches reuse numbers, so
+// two branches can create the same name.
 export const generateOps = (
 	random: Random,
 	nextId: () => number,
@@ -645,8 +656,8 @@ export type Step =
 	| { type: 'custom'; branch: string }
 	| { type: 'merge'; branch: string; sources: string[]; ops: Op[] };
 
-// A merge starts from the branch that changed last, because generate takes the newest leaf as the
-// first parent.
+// Tracks the model of each branch. `merged` puts the branch that changed last first, because generate
+// takes the newest leaf as the first parent.
 const createBranches = () => {
 	const models = new Map<string, Model>([['main', emptyModel()]]);
 	const changedAt = new Map<string, number>([['main', 0]]);
@@ -669,8 +680,8 @@ const createBranches = () => {
 export const generateHistory = (random: Random, length: number): Step[] => {
 	const nextId = createIds();
 	const { models, fork, set, merged } = createBranches();
-	// The indexes of the steps that each branch holds. A merge takes only the branches that hold a step
-	// that the target does not hold, so that most merges have more than one leaf.
+	// `held` has the indexes of the steps that each branch holds. A merge takes only the sources that hold a
+	// step that the target does not hold, so that most merges have more than one leaf.
 	const held = new Map<string, Set<number>>([['main', new Set()]]);
 	const isAhead = (source: string, target: string) => [...held.get(source)!].some((it) => !held.get(target)!.has(it));
 	const steps: Step[] = [];
@@ -679,8 +690,9 @@ export const generateHistory = (random: Random, length: number): Step[] => {
 		const branch = random.pick(branches);
 		const model = models.get(branch)!;
 		const roll = random.int(100);
-		// A branch with an empty model can have an empty folder, because a step with no SQL writes no migration.
-		// A fork of an empty folder gives a second base snapshot, and every command refuses such a folder.
+		// A fork needs a model that is not empty. An empty model can mean an empty folder, because a step with
+		// no SQL writes no migration. A fork of an empty folder gives a second base snapshot, which every command
+		// refuses.
 		if (!isEmptyModel(model) && roll < 20 && branches.length < 3) {
 			const name = `b${branches.length}`;
 			steps.push({ type: 'fork', branch: name, from: branch });
@@ -709,7 +721,8 @@ export const generateHistory = (random: Random, length: number): Step[] => {
 	return steps;
 };
 
-// Removing a whole step first reduces a history faster than removing single ops.
+// The smaller histories that `checkProperty` tries for a failing history. Whole steps come first, because
+// removing a step reduces a history faster than removing one op.
 export const shrinkHistory = (steps: Step[]): Step[][] => [
 	...withoutOne(steps),
 	...steps.flatMap((step, idx) =>
@@ -719,8 +732,8 @@ export const shrinkHistory = (steps: Step[]): Step[][] => [
 	),
 ];
 
-// Replays the model side of a history. A step on a branch that a shrunk history no longer has is skipped, and
-// so is a fork of a branch whose model is empty in the shrunk history.
+// Replays the models of a history and calls `onStep` for each step. A shrunk history can lose a branch or the
+// model of a fork, so a step on a missing branch and a fork of an empty model are skipped.
 export const replayHistory = async (
 	steps: Step[],
 	onStep: (step: Step, start: Model, next: Model, sources: string[]) => Promise<void>,
@@ -756,14 +769,15 @@ const generateWithHints = async (
 	decisions: RenameDecision[],
 	isMerge: boolean,
 ) => {
-	// The combined state of a merge can differ from the model that the decisions come from.
+	// `canDropRenames` allows dropping a rename hint, because the combined state of a merge can differ from the
+	// model that the decisions come from.
 	const canDropRenames = isMerge || flow.leaves(branch).length > 1;
 	let renames = decisions;
 	let creates: Hint[] = [];
 	let fixConflicts = false;
-	// generate rejects a rename hint when the state that it starts from lacks the renamed entity. Only these
-	// renames turn into creates, and any other rejection fails the run. The DDL identity of every renamable
-	// kind has the same shape as identityOf.
+	// Drops the rename hints for entities that the starting state of generate lacks, because generate rejects
+	// them. Any other rejection fails the run. `start.key` gives the same identity as `identityOf` for every
+	// renamable kind.
 	const withoutMissingRenames = async (error: InvalidHintsCliError) => {
 		const start = await flow.stateBeforeGenerate(branch);
 		const missing = renames.filter(({ kind, oldIdentity }) =>

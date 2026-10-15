@@ -53,16 +53,13 @@ test('generateDrizzleJson with a prevId returns a schema state with that parent'
 	const parent = await generateDrizzleJson(v1);
 
 	const single = await generateDrizzleJson(v2, parent.id);
-	const several = await generateDrizzleJson(v2, [parent.id, 'other-leaf']);
 
 	expect(single.prevIds).toStrictEqual([parent.id]);
-	expect(several.prevIds).toStrictEqual([parent.id, 'other-leaf']);
 	expect(await generateMigration(parent, single)).toStrictEqual(addEmail);
-	expect(await generateMigration(parent, several)).toStrictEqual(addEmail);
 });
 
-// Payload saves each state as a JSON file, reads the newest file back as the previous state, and asks for
-// the SQL in both directions.
+// The JSON round trip of `before` follows Payload CMS. Payload saves each state as a JSON file, reads the
+// newest file back as the previous state, and asks for the SQL in both directions.
 test('generateMigration gives the up and the down SQL for a state that was saved as JSON', async () => {
 	const before = JSON.parse(JSON.stringify(await generateDrizzleJson(v1)));
 	const after = await generateDrizzleJson(v2);
@@ -106,7 +103,7 @@ test('generateMigration converts format 5 and format 7 states in either argument
 test('generateMigration takes an empty previous state in format 7 and in format 8', async () => {
 	const after = await generateDrizzleJson(v1);
 	const createUsers = ['CREATE TABLE "users" (\n\t"id" integer\n);\n'];
-	// Payload starts from this state when it has no saved file. Its parent id is one digit short of the origin id.
+	// Payload CMS passes this state when it has no saved file. The values are copied from Payload as they are.
 	const payloadDefault = {
 		id: '00000000-0000-0000-0000-000000000000',
 		_meta: { columns: {}, schemas: {}, tables: {} },
@@ -194,8 +191,8 @@ test('reconstruct rebuilds any snapshot of a linear folder, and the leaf when no
 	expect(await generateMigration(second, leaf)).toStrictEqual(['ALTER TABLE "users" ADD COLUMN "age" integer;']);
 });
 
-// Branch a creates and then drops `likes`, so reconstruct would keep `likes` if it applied the deltas of the
-// merge out of folder-name order.
+// Branch a creates `likes` and then drops it, and the last `reconstruct` call gets the files in reverse order.
+// If `reconstruct` applied the deltas of the merge out of folder-name order, the state would keep `likes`.
 test('reconstruct rebuilds a folder with a merge, and asks for an id while several leaves are open', async () => {
 	const { flow } = await forkFlow({
 		base: v1,

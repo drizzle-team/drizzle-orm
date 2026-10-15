@@ -8,11 +8,9 @@ import { resolve } from 'node:path';
 import { dialects } from '../utils/schemaValidator';
 import '../@types/utils';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
-import { readFolder } from '../dialects/postgres/folder';
 import { assertUnreachable } from '../utils';
-import { assertV3OutFolder, prepareFilenames } from '../utils/utils-node';
-import { assertConflictOptions, checkHandler, checkSnapshots, conflictError } from './commands/check';
-import type { CheckWarning } from './commands/check-postgres';
+import { assertV3OutFolder } from '../utils/utils-node';
+import { assertConflictOptions, checkHandler } from './commands/check';
 import type { Setup } from './commands/studio';
 import { upCockroachHandler } from './commands/up-cockroach';
 import { upMssqlHandler } from './commands/up-mssql';
@@ -112,7 +110,8 @@ export const runGenerate = async (
 	const dialect = config.dialect;
 	assertConflictOptions('generate', dialect, config);
 
-	// Postgres runs check itself, because a conflict can end in generate --fix-conflicts.
+	// Postgres skips `checkHandler`, which throws on a conflict. The postgres `handle` checks the folder itself,
+	// because it can delete the conflicting migrations and then generate.
 	if (dialect === 'postgresql') {
 		const { handle } = await import('./commands/generate-postgres');
 		return await handle(config as Parameters<typeof handle>[0]);
@@ -564,7 +563,6 @@ export const checkOptions = {
 	config: optionConfig,
 	dialect: optionDialect,
 	out: optionOut,
-	schema: string().desc('Path to a schema file or folder'),
 	ignoreConflicts: optionIgnoreConflicts,
 	output: optionOutput,
 } as const satisfies Record<string, GenericBuilderInternals>;
@@ -577,7 +575,7 @@ export const prepareCheck = async (opts: CheckOptionsInput) => {
 		'check',
 		opts,
 		['ignoreConflicts', 'output'],
-		['dialect', 'out', 'schema'],
+		['dialect', 'out'],
 	);
 	const config: CheckConfig & { output: 'text' | 'json' } = {
 		...(await prepareCheckParams(opts, from)),
@@ -592,27 +590,10 @@ export const runCheck = async (
 ) => {
 	await assertOrmCoreVersion();
 	assertV3OutFolder(config.out);
-	const { out, dialect, schema, ignoreConflicts } = config;
+	const { out, dialect, ignoreConflicts } = config;
 	assertConflictOptions('check', dialect, { ignoreConflicts });
-	let warnings: CheckWarning[] = [];
-	if (dialect === 'postgresql') {
-		// Postgres keeps the folder that the check read, so the schema warnings read no snapshot file again.
-		const stored = readFolder(out);
-		const { report, fix } = await checkSnapshots(stored.files, dialect);
-		if (fix) throw conflictError(report, fix);
-
-		// The folder is valid here. A schema that differs from it is a warning and no error.
-		if (schema) {
-			const { schemaWarnings } = await import('./commands/check-postgres');
-			const { SchemaSource } = await import('../dialects/postgres/drizzle');
-			warnings = await schemaWarnings(stored, {
-				load: async () => SchemaSource.fromFilenames(prepareFilenames(schema)).load(),
-			});
-		}
-	} else {
-		await checkHandler(out, dialect, ignoreConflicts);
-	}
-	return { status: 'ok' as const, dialect, ...(warnings.length > 0 && { warnings }) };
+	await checkHandler(out, dialect, ignoreConflicts);
+	return { status: 'ok' as const, dialect };
 };
 
 export const check = command({
@@ -622,7 +603,6 @@ export const check = command({
 	handler: async (cfg) => {
 		const env = await runCheck(cfg);
 		if (outputFormat() === 'json') process.stdout.write(JSON.stringify(env) + '\n');
-		else if (env.warnings) console.log(env.warnings.map((it) => withStyle.fullWarning(it.message)).join('\n'));
 		else console.log("Everything's fine 🐶🔥");
 		process.exit(statusToExitCode(env.status));
 	},
@@ -640,8 +620,7 @@ export const prepareUp = async (opts: UpOptionsInput) => {
 	const interactive = output === 'text' && !!process.stdin.isTTY;
 	setCliContext({ output, interactive });
 	const from = assertCollisions('up', opts, ['output'], ['dialect', 'out']);
-	const { out, dialect } = await prepareCheckParams(opts, from);
-	const config = { out, dialect, output };
+	const config = { ...(await prepareCheckParams(opts, from)), output };
 	return config;
 };
 
@@ -1256,12 +1235,12 @@ const SUPERSEDED_SKILLS: readonly string[] = [
 	'drizzle-responses-and-errors',
 ];
 
-// These arguments pass no option for the user level, because `skills add` installs into the project. A
-// removal at the user level would delete skills that other projects still use.
+// The skills CLI arguments that remove `SUPERSEDED_SKILLS` from the project after `skills add`. They pass no
+// user-level option, because a user-level removal would delete skills that other projects still use.
 export const supersededSkillsRemoveArgs: readonly string[] = ['skills@latest', 'remove', ...SUPERSEDED_SKILLS, '-y'];
 
-// The remove command prints this line when the project has none of the superseded skills. Only this output
-// is hidden. Every other output is printed, so a new wording of the skills CLI cannot hide a real removal.
+// Returns true when the remove command found none of `SUPERSEDED_SKILLS`, so that `skills` hides its output.
+// It matches one message only, so a new wording in the skills CLI cannot hide a real removal.
 export const isNoOpRemoveOutput = (output: string): boolean => /no matching skills found/i.test(output);
 
 const skillsVersion = command({
@@ -1317,16 +1296,16 @@ export const skills = command({
 		});
 		if (exitCode !== 0) process.exit(exitCode);
 
-		// The output is captured and not inherited, so that it is printed only when a skill was removed or the
-		// removal failed. `-y` makes the child ask no question. stdin is ignored, so a prompt that a later
-		// version of the skills CLI adds reads the end of input and does not wait.
+		// Removes the superseded skills with no prompt. `-y` answers the current prompts, and the ignored stdin
+		// ends a prompt that a later skills CLI adds. The output is piped, so that it is printed only when a
+		// skill was removed or the removal failed.
 		const removal = spawnSync(cmd, [...args, ...supersededSkillsRemoveArgs], {
 			stdio: ['ignore', 'pipe', 'pipe'],
 			encoding: 'utf8',
 			shell: onWindows,
 		});
-		// The child has no output when it did not start, and no exit code when it did not start or a signal
-		// stopped it.
+		// `removal.stdout` and `removal.stderr` are null when the child did not start, and `join` reads null as
+		// empty text. `removal.status` is null when the child did not start or a signal stopped it.
 		const removeOutput = [removal.stdout, removal.stderr].join('');
 		const removeExitCode = removal.status ?? 1;
 		if (removeExitCode !== 0 || !isNoOpRemoveOutput(removeOutput)) {

@@ -1,5 +1,3 @@
-// This file imports only types from snapshot.ts, because the programmatic API imports this file at module load
-// and must load snapshot.ts only inside its functions.
 import { createDDL, type Index } from '../../dialects/postgres/ddl';
 import {
 	defaultNameForIndex,
@@ -21,9 +19,9 @@ import type {
 } from '../../dialects/postgres/snapshot';
 import { getOrNull } from '../../dialects/utils';
 
-// Checks only `ddl` and `prevIds`, the two lists that the conversion to format 9 requires. The conversion reads
-// a missing `renames` list as empty. The caller checks the version. A schema state of the programmatic API holds
-// its rows and its parents in the same two lists.
+// Tells whether a format 8 file has the two lists that the conversion to format 9 reads: `ddl` and `prevIds`.
+// A missing `renames` counts as empty, and the caller checks the version. A schema state of the programmatic
+// API passes this check too, because it holds the same two lists.
 export const isSnapshotV8 = (it: Record<string, any>): it is PostgresSnapshotV8 =>
 	Array.isArray(it.ddl) && Array.isArray(it.prevIds);
 
@@ -347,9 +345,9 @@ export const upToV8 = (
 		});
 	}
 
-	// `_meta` maps each old quoted name to its new quoted name, for example `"s"."posts"` to
-	// `"s"."articles"`. A name in the default schema has no schema part, for example `"posts"`.
-	// A format 8 rename string has no quotes and always has the schema.
+	// Turns a quoted name of `_meta` into the form of a format 8 rename string, which has no quotes and always
+	// has the schema. A name in the default schema has no schema part, for example `"posts"`. `_meta` maps each
+	// old name to its new name, for example `"s"."posts"` to `"s"."articles"`.
 	const renameName = (key: string, parts: number) => {
 		const name = key.replaceAll('"', '');
 		return key.split('"."').length < parts ? `public.${name}` : name;
@@ -518,7 +516,8 @@ export const updateToV5 = (it: Record<string, any>): PgSchemaV5 => {
 		};
 	}
 
-	// Format 4 files store their parent in `prevId`, and the later steps read it from there.
+	// `...obj` keeps the other fields of the file. Format 4 files store their parent in `prevId`, and the later
+	// steps read it from there.
 	return {
 		...obj,
 		version: '5',

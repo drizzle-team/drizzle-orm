@@ -12,8 +12,8 @@ import matrixData from './commutativity-matrix.json';
 import { build, type NeededObject, rows } from './commutativity-statements';
 import { diff, prepareTestDatabase } from './mocks';
 
-// Two branches commute only if postgres applies them in both orders and both
-// orders end at the same schema.
+// These tests compare the facet rules with a real database. Two branches commute only if postgres applies
+// them in both orders and both orders end at the same schema.
 
 type Outcome = { ok: true; hash: string } | { ok: false; error: string };
 
@@ -94,8 +94,8 @@ describe('facet model vs a real database', () => {
 
 describe('the same change on two branches, against a real database', () => {
 	const t = (id: any) => ({ t: pgTable('t', { id }) });
-	// Each of these changes of one column fails on the second run, so the rules must report the same change
-	// on two branches as a conflict.
+	// The SQL of each change in `cases` fails when it runs a second time, so the rules must report the same
+	// change on two branches as a conflict.
 	const cases = {
 		'an identity is added': [t(integer().notNull()), t(integer().generatedAlwaysAsIdentity())],
 		'an identity is dropped': [t(integer().generatedAlwaysAsIdentity()), t(integer().notNull())],
@@ -119,11 +119,12 @@ describe('the same change on two branches, against a real database', () => {
 	});
 });
 
-// Two branches change one column each. The statements and the SQL come from the real diff.
+// These cases take the statements and the SQL from the real diff, so they cover what generate writes for a
+// change of one column on each branch.
 describe('changes of one column on two branches vs a real database', () => {
 	const mood = pgEnum('mood', ['ok', 'sad']);
 	const feeling = pgEnum('feeling', ['ok', 'sad']);
-	// The diff drops an enum and creates it again when a value is removed.
+	// `moodWithoutSad` removes the value `sad`, so the diff drops the enum `mood` and creates it again.
 	const moodWithoutSad = pgEnum('mood', ['ok']);
 	const t = (column: Record<string, any>, extra: Record<string, unknown> = {}) => ({
 		...extra,
@@ -132,7 +133,8 @@ describe('changes of one column on two branches vs a real database', () => {
 	const expression = sql`'x'`;
 	const renameMood = ['public.mood->public.feeling'];
 
-	// `rules` and `postgres` say whether the two changes commute.
+	// `rules` is the expected verdict of the facet rules, and `postgres` is the expected verdict of the
+	// database. `true` means that the two changes commute.
 	const cases: {
 		name: string;
 		base: Record<string, unknown>;
@@ -275,9 +277,9 @@ describe('changes of one column on two branches vs a real database', () => {
 	});
 });
 
-// One statement pair per matrix cell. Each cell runs the SQL that the convertor emits
-// for the statements that the matrix is built from. The shared base of a pair holds
-// the objects that either statement needs.
+// The matrix tests below run one statement pair for each matrix cell. `sqlOf` gives the SQL that the
+// convertor emits for the statement of a matrix row, and `baseObjects` gives the SQL that creates each
+// object that a statement can need.
 const sqlOf = (type: string) => fromJson([build(type)]).sqlStatements;
 
 const baseObjects: Record<NeededObject, string[]> = {
@@ -304,7 +306,8 @@ const baseObjects: Record<NeededObject, string[]> = {
 
 const unenforcedPolicy =
 	'both orders give a policy on a table without row level security, so postgres does not enforce the policy';
-// Cells where the rules report a conflict that postgres accepts. Keys are `row x column` in matrix order.
+// The mismatches that the matrix test accepts: cells where the rules report a conflict and postgres accepts
+// both orders. Keys are `row x column` in matrix order.
 const knownExceptions: Record<string, string> = {
 	'alter_column:default x alter_column:type':
 		'a type change converts the default, and the rules do not know that the conversion from varchar to text keeps it',
@@ -315,8 +318,9 @@ const knownExceptions: Record<string, string> = {
 		+ 'of recreate_enum and the new ADD COLUMN give the same column',
 };
 
-// Everything a pair can change, as sorted text. Column order is left out, because
-// two branches that add columns in a different order still hold the same schema.
+// Describes everything that a pair can change as sorted text, so that the matrix test can compare the
+// schemas of the two orders. Column order is left out, because two branches that add columns in a different
+// order hold the same schema.
 const fingerprint = async (): Promise<string> => {
 	const [{ facts }] = await db.query<{ facts: string }>(`
 		WITH ns AS (SELECT oid, nspname FROM pg_namespace WHERE nspname IN ('s', 's_new'))
@@ -378,7 +382,7 @@ const baseFor = (...types: string[]) =>
 
 describe('matrix cells vs a real database', () => {
 	const { types, matrix, impossible } = matrixData;
-	// A grid row is one string of 0 and 1.
+	// `matrix` and `impossible` store each grid row as one string of 0 and 1.
 	const isSet = (grid: string[], i: number, j: number) => grid[i]![j] === '1';
 
 	test('every matrix statement applies to its own base', async () => {
@@ -410,9 +414,9 @@ describe('matrix cells vs a real database', () => {
 				const postgresCommutes = ab.ok && ba.ok && ab.schema === ba.schema;
 				const rulesCommute = !isSet(matrix, i, j) && !isSet(matrix, j, i);
 				if (postgresCommutes === rulesCommute) continue;
-				// The shared base holds what both statements need. When one statement fails on it without the
-				// other, no real folder has this pair. An example is a drop of an enum that a column of the
-				// other statement uses.
+				// Skips a pair that no real fork point can have. `base` holds what both statements need, so `a`
+				// or `b` alone can fail on it. An example is a drop of an enum that the column of the other
+				// statement uses.
 				if (rulesCommute && !((await run([...base, ...sqlOf(a)])).ok && (await run([...base, ...sqlOf(b)])).ok)) {
 					continue;
 				}

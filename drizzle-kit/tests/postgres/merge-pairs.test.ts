@@ -21,8 +21,8 @@ import { expect, test } from 'vitest';
 import { type Fork, forkFlow, rename, step } from './folder-flow';
 import type { PostgresSchema } from './mocks';
 
-// Every row is a base schema and two or more branches. A branch is a list of migrations, and each
-// migration is the schema after it with the rename decisions that generate needs.
+// The merge cases: every row of `rows` is a base schema and two or more branches. A branch is a list of
+// migrations, and each migration is the schema after it with the rename decisions that generate needs.
 //
 // A row with `merged` holds branches whose SQL runs in either order. `merged` is the schema that the
 // branches give together. A row without `merged` holds branches that check must report: their SQL fails in
@@ -35,7 +35,7 @@ type Row = Fork & { name: string; merged?: PostgresSchema };
 type Namespace = ReturnType<typeof pgSchema>;
 type Extra = (t: any) => any[];
 
-// Every column is an integer. A name that ends with `!` is NOT NULL.
+// Builds integer columns from short names. A name that ends with `!` gives a NOT NULL column.
 const columns = (names: string[]) =>
 	Object.fromEntries(names.map((it) => {
 		const name = it.replace('!', '');
@@ -66,7 +66,7 @@ const usersToAccounts = rename('table', 'public.users', 'public.accounts');
 const usersToApp = rename('table', 'public.users', 'app.users');
 const appToCore = rename('schema', 'app', 'core');
 
-// One table `t`. Most rows change only this table.
+// The schema of most rows: one table `t` with the columns in `names`.
 const tableT = (names: string[], extra?: Extra) => ({ t: table('t', names, extra) });
 const emailToContact = rename('column', 'public.t.email', 'public.t.contact');
 
@@ -76,7 +76,7 @@ const appMood = app.enum('mood', ['ok', 'sad']);
 const appFeeling = app.enum('feeling', ['ok', 'sad']);
 const moodToFeeling = rename('enum', 'public.mood', 'public.feeling');
 const moodWithoutSad = pgEnum('mood', ['ok']);
-// The enum and a table `t` with a column of that enum type.
+// A schema for the enum rows: the enum `type` and a table `t` with the column `column` of that type.
 const withEnum = (type: PgEnum<[string, ...string[]]>, column: string, more: string[] = []) => ({
 	[type.enumName]: type,
 	t: pgTable('t', { id: integer(), state: type(column), ...columns(more) }),
@@ -88,12 +88,12 @@ const counter = sequence('counter');
 const ticker = sequence('ticker');
 const counterToTicker = rename('sequence', 'public.counter', 'public.ticker');
 
-// A view over the table `posts`.
+// The view of the view rows. It reads only the table `posts`, which those rows do not change.
 const titles = (name: string, schema?: Namespace) =>
 	(schema ? schema.view(name, { title: integer() }) : pgView(name, { title: integer() }))
 		.as(sql`select title from posts`);
 
-// The roles and a table `t` with one policy for all of them.
+// A schema for the role rows: the roles in `roleNames` and a table `t` with one policy for all of them.
 const withRoles = (roleNames: string[], names: string[]) => {
 	const roles = roleNames.map((it) => pgRole(it));
 	return {
@@ -102,8 +102,8 @@ const withRoles = (roleNames: string[], names: string[]) => {
 	};
 };
 
-// A parent table with a primary key, and a child table with a foreign key to that key. Without `fk`,
-// the child has no foreign key.
+// A schema for the foreign key rows: a parent table with a primary key, and the table `child` with a foreign
+// key to that key. With `fk: null`, `child` has no foreign key.
 const family = (
 	names: {
 		parent?: string;
@@ -136,7 +136,8 @@ const generated = (expression: SQL, fk = false) => {
 	};
 };
 
-// A table with a primary key over three columns, and a foreign key that references that key.
+// A schema for the rows that rename key columns: the table `parent` with a primary key over three columns, and
+// the table `child` with a foreign key to that key.
 const keyed = (first: string, second: string, third: string) => {
 	const parent = table(
 		'parent',
@@ -364,9 +365,9 @@ const rows: Row[] = [
 		],
 	},
 	{
-		// The SQL of these branches runs in either order. check reports them, because each branch drops the
-		// foreign key and creates it again, and the rules compare those statements without the column
-		// recreate between them.
+		// check reports these branches, although their SQL runs in either order. This is a false positive of the
+		// rules: each branch drops the foreign key and creates it again, and the rules compare those statements
+		// without the column recreate between them.
 		name: 'the same new expression of a generated column with a foreign key in both branches',
 		base: generated(sql`"id" + 1`, true),
 		branches: [
@@ -384,8 +385,8 @@ const rows: Row[] = [
 		merged: { t: pgTable('t', { id: bigserial({ mode: 'number' }), name: integer() }) },
 	},
 	{
-		// The SQL of this change has a plain cast that postgres refuses, so the user writes the conversion.
-		// check cannot know whether that conversion runs a second time.
+		// check reports these branches, because it cannot know whether the conversion runs a second time. The SQL
+		// has a plain cast that postgres refuses, so the user writes the conversion.
 		name: 'the same change of a column to an array in both branches',
 		base: tableT(['id', 'age']),
 		branches: [
@@ -719,7 +720,8 @@ const rows: Row[] = [
 		merged: tableT(['id', 'contact']),
 	},
 	{
-		// The old index has the old name of the column, so the column rename must not match the index.
+		// The old index `email` has the name of the column `email`. The column rename must not match that index,
+		// which the branch drops.
 		name: 'a column rename with a new index in place of an index with the old column name against a new table',
 		base: tableT(['id', 'email'], withIndex('email', 'email')),
 		branches: [
@@ -1033,7 +1035,8 @@ const rows: Row[] = [
 		merged: withRoles(['team'], ['id', 'email']),
 	},
 	{
-		// Each new name sorts at another place of the role list than the old name.
+		// `admin` and `zed` sort at other places of the role list than the names that they replace. Both renames
+		// must reach the policy `t_read`, although each rename changes the order of its role list.
 		name: 'two renames of two roles of one policy',
 		base: withRoles(['auditor', 'staff', 'viewer'], ['id']),
 		branches: [
@@ -1056,7 +1059,8 @@ const rows: Row[] = [
 	},
 ];
 
-// The merge migration adds this table, so its SQL shows whether the combined state equals `merged`.
+// `marker` gives the merge migration one known change. Its SQL is `markerSql` only when the combined state of
+// the branches equals `merged`.
 const marker = pgTable('merge_marker', { id: integer() });
 const markerSql = 'CREATE TABLE "merge_marker" (\n\t"id" integer\n);\n';
 

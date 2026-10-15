@@ -3,9 +3,10 @@ import { diffPostgresql, type InterimStudioSchema as PostgresState } from 'src/e
 import { diffSqlite, type InterimStudioSchema as SqliteState } from 'src/ext/studio-sqlite';
 import { expect, test } from 'vitest';
 
-// Drizzle Studio builds the new state from the form of one table and copies every other table from the old
-// state. The form renames a column only in the column list. So the new state of these tests still holds the
-// old name in the constraints and the indexes of the same table and in the foreign keys of other tables.
+// The new states in these tests copy what Drizzle Studio sends. Studio renames a column only in the column
+// list of the edited table, and it copies the policies and every other table from the old state. So the new
+// state can still hold an old column name in the constraints and the indexes of the edited table, and an old
+// table name or an old column name in the policies and in the foreign keys of other tables.
 
 type PostgresTable = PostgresState['tables'][number];
 
@@ -161,23 +162,6 @@ test('postgres: the policy of a table follows the renamed table', async () => {
 	expect(sqlStatements).toStrictEqual(['ALTER TABLE "parent" RENAME TO "owner";']);
 });
 
-// The column `id` is in both states, so the diff applies no rename. It adds `key` as a new column, and the
-// index stays on `id`.
-test('postgres: a rename decision has no effect when the new state still holds the old column', async () => {
-	const { sqlStatements } = await diffPostgresql(
-		postgresState([postgresTable('users', ['id'])]),
-		postgresState([
-			postgresTable('users', ['key', 'id'], { indexes: [postgresIndex('users', 'users_id_idx', ['id'])] }),
-		]),
-		['public.users.id->public.users.key'],
-	);
-
-	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE "users" ADD COLUMN "key" integer NOT NULL;',
-		'CREATE INDEX "users_id_idx" ON "users" ("id");',
-	]);
-});
-
 type MysqlTable = MysqlState['tables'][number];
 
 const mysqlColumn = (table: string, name: string): MysqlTable['columns'][number] => ({
@@ -252,31 +236,6 @@ test('mysql: the constraints and the index of a table follow a renamed column', 
 	);
 
 	expect(sqlStatements).toStrictEqual(['ALTER TABLE `users` RENAME COLUMN `id` TO `key`;']);
-});
-
-test('mysql: the foreign key of another table follows a renamed column', async () => {
-	const parent = mysqlTable('parent', ['id']);
-	const child = mysqlTable('child', ['parentId'], { fks: [mysqlForeignKey('child', ['parentId'], 'parent', ['id'])] });
-
-	const { sqlStatements } = await diffMySql(
-		mysqlState([parent, child]),
-		mysqlState([mysqlTable('parent', ['key']), child]),
-		['parent.id->parent.key'],
-	);
-
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE `parent` RENAME COLUMN `id` TO `key`;']);
-});
-
-test('mysql: the foreign key of another table follows a renamed table', async () => {
-	const child = mysqlTable('child', ['parentId'], { fks: [mysqlForeignKey('child', ['parentId'], 'parent', ['id'])] });
-
-	const { sqlStatements } = await diffMySql(
-		mysqlState([mysqlTable('parent', ['id']), child]),
-		mysqlState([mysqlTable('owner', ['id']), child]),
-		['parent->owner'],
-	);
-
-	expect(sqlStatements).toStrictEqual(['RENAME TABLE `parent` TO `owner`;']);
 });
 
 test('mysql: a new index follows a renamed column', async () => {

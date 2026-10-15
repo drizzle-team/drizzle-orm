@@ -10,8 +10,8 @@ import type {
 } from 'src/dialects/postgres/ddl';
 import type { JsonRenameConstraint, JsonStatement } from 'src/dialects/postgres/statements';
 
-// The parts of a statement. A part holds the fields of its entity that a snapshot stores, so it has no
-// `entityType`.
+// These functions build the entities inside a statement, for `rows` and for the facet tests. Each entity has
+// the fields that a snapshot stores for it, so it has no `entityType`.
 export const col = (schema: string, table: string, name: string, extra: Partial<Column> = {}) =>
 	({
 		schema,
@@ -83,7 +83,8 @@ export const privilege = (
 	grantor = 'postgres',
 ) => ({ schema, table, grantee, grantor, type, isGrantable: false }) as Privilege;
 
-// `change` is the changed property of the column, as the diff reports it.
+// Builds the `alter_column` statement that the diff writes for the column `from`. `change` maps each changed
+// property of the column to its old and new value, in the form that the diff reports.
 const alterColumn = (from: Column, change: Record<string, { from: unknown; to: unknown }>, flags = {}) => {
 	const to = { ...from, ...Object.fromEntries(Object.entries(change).map(([key, value]) => [key, value.to])) };
 	return {
@@ -98,7 +99,8 @@ const alterColumn = (from: Column, change: Record<string, { from: unknown; to: u
 	} as any;
 };
 
-// An object that must exist before the SQL of a row can run.
+// An object that the SQL of a row requires. The ground-truth test creates the objects in `needs` of a row
+// before it runs the SQL of that row.
 export type NeededObject =
 	| 'schema'
 	| 'targetSchema'
@@ -125,18 +127,19 @@ const onColumn = [...onTable, 'column'] as const;
 
 type Row = {
 	statement: JsonStatement;
-	// The rows of one family are neighbors, and the visualizer page gives them one color.
+	// Groups the rows on the visualizer page, which gives each family one color and one band. Keep the rows of
+	// one family next to each other in `rows`.
 	family: string;
 	needs: readonly NeededObject[];
-	// The statement creates the object that it names.
+	// The statement creates the object that it names. The matrix marks a pair impossible when the other
+	// statement needs that object to exist already.
 	isCreate?: boolean;
 };
 
-// One row for each statement type, and one more for each variant of a type that has other claims.
-// Every statement targets the same table s.t (column c1), so the matrix shows the most overlap between
-// statement types. The statements carry the fields that the SQL convertor reads, so that the ground-truth
-// test can run them on a database. Every object that a row creates, changes or drops has a name that
-// starts with `prefix`. The grantor `postgres` and the policy role `public` are the same for every prefix.
+// The statements of the commutativity matrix, which the ground-truth test also runs on a database: one row for
+// each statement type, and one more for each variant of a type that has other facet paths. All rows target the
+// table s.t and its column c1, so that the matrix shows the most overlap. The name of every object that a row
+// creates, changes or drops starts with `prefix`, except the grantor `postgres` and the policy role `public`.
 export const rows = (prefix = ''): Record<string, Row> => {
 	const named = (name: string) => prefix + name;
 	const schema = named('s');
@@ -145,7 +148,7 @@ export const rows = (prefix = ''): Record<string, Row> => {
 	const column = named('c1');
 	const referencedTable = named('t2');
 	const referencedColumn = named('c2');
-	// A table whose column `c3` has a unique constraint and no primary key.
+	// The table that `create_fk:unique` references. Its column `c3` has a unique constraint and no primary key.
 	const tableWithUnique = named('t3');
 	const uniqueColumn = named('c3');
 	const index = named('ix');
@@ -154,8 +157,8 @@ export const rows = (prefix = ''): Record<string, Row> => {
 	const view = named('vw');
 	const role = named('r');
 
-	// A column of the enum type `e`. It has its own name, so that one table can hold it next to the varchar
-	// column `c1`.
+	// The column of the enum type `e` for the enum rows. It has its own name, so that the table can hold it
+	// next to the varchar column `c1`.
 	const enumColumn = col(schema, table, named('ce'), { type: enumName, typeSchema: schema });
 	const primaryKey = pk(schema, table, [column]);
 	const foreignKey = (onDelete: ForeignKey['onDelete']) =>
@@ -170,7 +173,8 @@ export const rows = (prefix = ''): Record<string, Row> => {
 			type: 'create_table',
 			table: { schema, name, isRlsEnabled: false, columns, pk: null, uniques: [], checks: [], policies: [] },
 		}) as any;
-	// One row for each constraint kind, because the SQL is the same and the claims differ.
+	// Builds the `rename_constraint` row of one constraint kind. The catalog has one row for each kind, because
+	// the SQL is the same and the facet paths differ.
 	const renameConstraint = (
 		entityType: JsonRenameConstraint['entityType'],
 		from: string,
@@ -194,7 +198,8 @@ export const rows = (prefix = ''): Record<string, Row> => {
 			isCreate: true,
 			statement: createTable(table, [col(schema, table, named('id')), enumColumn]),
 		},
-		// A table with the name of the index `ix`. Postgres keeps both names in one namespace.
+		// A new table with the name of the index `ix`, for the facet paths of the namespace that postgres shares
+		// between tables and indexes.
 		'create_table:ix': {
 			family: 'table',
 			needs: ['schema'],
@@ -218,7 +223,7 @@ export const rows = (prefix = ''): Record<string, Row> => {
 		move_table: {
 			family: 'table',
 			needs: [...onTable, 'targetSchema'],
-			statement: { type: 'move_table', name: table, from: schema, to: targetSchema, relations: [] },
+			statement: { type: 'move_table', name: table, from: schema, to: targetSchema, indexNames: [] },
 		},
 
 		add_column: {
@@ -329,7 +334,7 @@ export const rows = (prefix = ''): Record<string, Row> => {
 			needs: [...onColumn, 'pk'],
 			statement: { type: 'drop_pk', pk: primaryKey },
 		},
-		// The primary key that the foreign key `fk` references.
+		// A drop of the primary key of `t2`, which the foreign key `fk` references.
 		'drop_pk:target': {
 			family: 'pk',
 			needs: ['schema', 'referencedTable'],
@@ -347,7 +352,8 @@ export const rows = (prefix = ''): Record<string, Row> => {
 			isCreate: true,
 			statement: { type: 'create_fk', fk: foreignKey('NO ACTION') },
 		},
-		// A foreign key that references the unique constraint of the table `t3`.
+		// A variant of `create_fk` that references the unique constraint of `t3`, so that it needs that unique
+		// constraint and no primary key.
 		'create_fk:unique': {
 			family: 'fk',
 			needs: [...onColumn, 'tableWithUnique'],
@@ -379,7 +385,7 @@ export const rows = (prefix = ''): Record<string, Row> => {
 			needs: [...onColumn, 'unique'],
 			statement: { type: 'drop_unique', unique: uniqueConstraint },
 		},
-		// The unique constraint that the foreign key of `create_fk:unique` references.
+		// A drop of the unique constraint that `create_fk:unique` references.
 		'drop_unique:target': {
 			family: 'unique',
 			needs: ['schema', 'tableWithUnique'],
@@ -409,7 +415,8 @@ export const rows = (prefix = ''): Record<string, Row> => {
 			isCreate: true,
 			statement: { type: 'add_check', check: checkConstraint, columns: [column] },
 		},
-		// A check constraint with the name of the unique constraint `uq`. A table has one namespace for both.
+		// A new check constraint with the name of the unique constraint `uq`, for the facet paths of constraint names.
+		// A table keeps the names of both kinds in one namespace.
 		'add_check:uq': {
 			family: 'check',
 			needs: onColumn,
@@ -480,7 +487,8 @@ export const rows = (prefix = ''): Record<string, Row> => {
 				columns: [],
 			} as any,
 		},
-		// The enum has one column of its type, and the statement converts that column.
+		// A variant of `recreate_enum` whose `columns` hold the column `ce`, so the statement also converts that
+		// column.
 		'recreate_enum:column': {
 			family: 'enum',
 			needs: [...onTable, 'enum', 'enumColumn'],
@@ -598,7 +606,8 @@ export const rows = (prefix = ''): Record<string, Row> => {
 			isCreate: true,
 			statement: { type: 'create_policy', policy: tablePolicy },
 		},
-		// A policy for the role `r`.
+		// A variant of `create_policy` for the role `r`. The plain row uses `public`, and the facet rules skip
+		// `public` because it is a built-in role.
 		'create_policy:role': {
 			family: 'policy',
 			needs: [...onTable, 'role'],

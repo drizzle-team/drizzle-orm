@@ -1,5 +1,4 @@
 import { randomUUID } from 'crypto';
-import { render } from 'hanji';
 import type { Delta } from '../../dialects/dialect';
 import type {
 	CheckConstraint,
@@ -17,41 +16,23 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../../dialects/postgres/ddl';
-import { createDDL } from '../../dialects/postgres/ddl';
+import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
-import { prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { SchemaSource } from '../../dialects/postgres/drizzle';
 import { leafFolders, readFolder, withoutMigrations } from '../../dialects/postgres/folder';
-import { prepareSnapshot, stateOfSchema } from '../../dialects/postgres/serializer';
+import { prepareSnapshot } from '../../dialects/postgres/serializer';
 import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
 import type { SnapshotStatement } from '../../dialects/postgres/snapshot-statements';
 import { originUUID } from '../../utils';
-import { isInteractive, outputFormat } from '../context';
-import { CheckCliError, CommandOutputCliError } from '../errors';
+import { outputFormat } from '../context';
+import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
-import { Select } from '../selector-ui';
 import { explain, explainJsonOutput, humanLog, postgresSchemaError, postgresSchemaWarning } from '../views';
 import { checkSnapshots, conflictError } from './check';
 import { applyConflictFix, describeAppliedFix, describeConflictFix } from './fix-conflicts';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';
-
-// Returns when an interactive user agrees to the fix. In every other case, it throws a CheckCliError of kind conflicts.
-const confirmConflictFix = async (config: GenerateConfig<SchemaSource>, error: CheckCliError) => {
-	if (!isInteractive() || config.explain) throw error;
-	humanLog(error.humanMessage);
-	const { data } = await render(
-		new Select(['No, keep the migrations', 'Yes, delete them and generate a new migration']),
-	);
-	if (data?.index !== 1) {
-		throw new CheckCliError(
-			'conflicts',
-			'The migrations are kept, and the conflicts are not fixed. To fix them later, run:\n'
-				+ '  drizzle-kit generate --fix-conflicts',
-			error.meta,
-		);
-	}
-};
 
 export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	const { out: outFolder } = config;
@@ -59,15 +40,15 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 
 	const stored = readFolder(outFolder);
 	const { report, fix } = await checkSnapshots(stored.files, 'postgresql');
-	if (fix && !config.fixConflicts) await confirmConflictFix(config, conflictError(report, fix));
+	if (fix && !config.fixConflicts) throw conflictError(report, fix);
 	const kept = withoutMigrations(stored, fix?.migrations ?? []);
 	const prepared = await config.schemaSource.load();
 	const { ddlCur, ddlPrev } = prepareSnapshot(kept, prepared);
 	const prevIds = kept.leafIds;
 	const parentFolders = leafFolders(kept);
 
-	// `state` is the state after the migration, and `deltas` turn `ddlPrev` into it. `statements` are the
-	// statements of the migration, in the order of its SQL.
+	// Builds the snapshot of the new migration. `deltas` turn `ddlPrev` into `state`, and `statements` follow
+	// the order of the SQL.
 	const snapshotOf = (state: PostgresDDL, deltas: Delta[], statements: SnapshotStatement[]): PostgresSnapshot => {
 		const header = { version: '9', dialect: 'postgres', id: randomUUID() } as const;
 		if (prevIds.length === 0) {
@@ -76,8 +57,8 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 		return { type: 'diff', ...header, prevIds, statements, deltas };
 	};
 
-	// Deleting waits until generate needs no more hints, so a missing_hints response leaves the folder unchanged.
-	// Explain mode is a dry run and deletes nothing.
+	// Deletes the migrations of the conflict fix and lists them for the response. `handle` calls it after the
+	// new migration is written, so a `missing_hints` response deletes nothing.
 	const deleteConflictingMigrations = (): { deleted_migrations?: string[]; deleted_custom_migrations?: string[] } => {
 		if (!fix || config.explain) return {};
 		applyConflictFix(fix);
@@ -105,8 +86,8 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 		};
 	}
 
-	// ddlDiff changes both states. ddlCur keeps the changes: auto-named constraints get the names that the
-	// SQL leaves in the database.
+	// `ddlDiff` changes `ddlPrev` and `ddlCur`. `snapshotOf` stores the changed `ddlCur`, because its auto-named
+	// constraints then have the names that the SQL leaves in the database.
 	const { sqlStatements, groupedStatements, statements, snapshotStatements, deltas } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
@@ -163,11 +144,25 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 };
 
 export const handleExport = async (config: ExportConfig) => {
-	const { stage, ddl, errors, warnings } = stateOfSchema(await prepareFromSchemaFiles(config.filenames));
+	const res = await prepareFromSchemaFiles(config.filenames);
+	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
+	const { schema, errors, warnings } = fromDrizzleSchema(
+		res,
+		() => true,
+	);
 
-	if (!ddl || errors.length > 0) {
+	if (errors.length > 0) {
 		throw new CommandOutputCliError('export', errors.map((it) => postgresSchemaError(it)).join('\n'), {
-			stage,
+			stage: 'schema',
+			dialect: 'postgresql',
+		});
+	}
+
+	const { ddl, errors: errors2 } = interimToDDL(schema);
+
+	if (errors2.length > 0) {
+		throw new CommandOutputCliError('export', errors2.map((it) => postgresSchemaError(it)).join('\n'), {
+			stage: 'ddl',
 			dialect: 'postgresql',
 		});
 	}

@@ -147,7 +147,8 @@ export const embeddedMigrations = (snapshots: string[], driver?: Driver) => {
 	return content;
 };
 
-// The drizzle-orm migrator reads this prefix back as a UTC time.
+// Builds the time prefix of a migration folder name. The prefix is in UTC, because the drizzle-orm migrator
+// reads it back as a UTC time.
 export const prepareSnapshotFolderName = (ms?: number) => {
 	const now = ms ? new Date(ms) : new Date();
 	return `${now.getUTCFullYear()}${two(now.getUTCMonth() + 1)}${

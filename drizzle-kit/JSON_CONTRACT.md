@@ -62,13 +62,13 @@ type SchemaState = {
   dialect: 'postgres';
   id: string;
   prevIds: string[];
-  ddl: Row[];
+  ddl: Entity[];
 };
 ```
 
-A schema state is not a snapshot. It has no `type` field, and a migrations folder never holds one. It is plain JSON, so a tool can save it with `JSON.stringify` and pass the parsed file back later. `Row` is described in [Postgres snapshot format 9](#postgres-snapshot-format-9).
+A schema state is not a snapshot. It has no `type` field, and a migrations folder never holds one. It is plain JSON, so a tool can save it with `JSON.stringify` and pass the parsed file back later. `Entity` is described in [Postgres snapshot format 9](#postgres-snapshot-format-9).
 
-- `generateDrizzleJson(imports, prevId?, schemaFilters?)` returns the state of the schema in `imports`. `prevId` is a string or an array of strings, and it becomes `prevIds`. Without `prevId`, or with an empty string, `prevIds` holds only the origin id `00000000-0000-0000-0000-000000000000`.
+- `generateDrizzleJson(imports, prevId?, schemaFilters?)` returns the state of the schema in `imports`. `prevId` becomes the only entry of `prevIds`. Without `prevId`, or with an empty string, `prevIds` holds only the origin id `00000000-0000-0000-0000-000000000000`.
 - `generateMigration(prev, cur)` returns the SQL statements that turn `prev` into `cur`, as an array of strings. Each argument is a schema state, or a full state in format 5, 6, 7 or 8, which it converts in memory. It reads only the rows of each state. It ignores `id`, `prevIds` and `type`, so the two states do not have to name each other. It throws on a diff snapshot, because a diff snapshot holds only the changes of one migration.
 - `up(state)` converts one full state of an older format to a schema state and returns `{ snapshot, hints }`. It needs no other file of the history. To convert a migrations folder, run `drizzle-kit up`.
 - `reconstruct(files, id?)` reconstructs a state from the snapshot files of a folder. `files` maps each migration folder name to the parsed JSON of its `snapshot.json`. It returns the schema state of snapshot `id`. Without `id`, it returns the state of the only leaf, and it throws when the folder has several leaves. For an old format or a broken history, it throws the same errors as the CLI.
@@ -486,7 +486,7 @@ A stored statement holds the data that its SQL statement needs, and nothing else
 
 `check` compares the stored statements of the snapshots of two branches. It takes its conflicts only from them, so its result for an old migration does not change with a newer drizzle-kit.
 
-drizzle-kit reconstructs the state of a snapshot with the installed version, and a snapshot stores no hash of its state.
+drizzle-kit reconstructs the state of a snapshot with the installed version.
 
 Each item of `ddl`, and each `row` of a `create`, is one entity of the schema. `entityType` names its kind. For example, a column:
 
@@ -621,7 +621,7 @@ Format 8, the postgres format before format 9, stored the full state in every sn
 
 ## `check`
 
-`drizzle-kit check --output json` validates the migrations folder — snapshot integrity plus conflicts between branches — and emits one of three envelopes. For postgresql, it also compares the schema with the migrations and reports a difference as a warning in the `ok` envelope. It never prompts and takes no hints. The `check()` SDK export returns the same envelopes verbatim.
+`drizzle-kit check --output json` validates the migrations folder — snapshot integrity plus conflicts between branches — and emits one of three envelopes. It never prompts and takes no hints. The `check()` SDK export returns the same envelopes verbatim.
 
 ### `check` success
 
@@ -635,33 +635,6 @@ When every snapshot is valid and the branches commute, `check` emits the `ok` en
 ```
 
 `dialect` is always present, consistent with every other `status: "ok"` response.
-
-For postgresql, `check` also compares the schema with the migrations folder when it has a schema path: the `schema` field of the config file, or the `--schema` option. The schema equals the migrations when `generate` would write no SQL. If they differ, the `ok` envelope has `warnings`, and the exit code is still `0`:
-
-```json
-{
-  "status": "ok",
-  "dialect": "postgresql",
-  "warnings": [
-    {
-      "kind": "schema_changed",
-      "message": "The schema differs from the migrations. The newest migration is 20260101120002_email. Run drizzle-kit generate --explain to see the difference, and drizzle-kit generate to write a migration for it."
-    }
-  ]
-}
-```
-
-Each warning is `{ kind, message }`. `message` is plain text for a person. `kind` is one of:
-
-| `kind` | meaning | what to do |
-| --- | --- | --- |
-| `schema_changed` | The folder has one leaf or no migration, and the schema differs from its state. `generate` would write a migration. | Run `generate --explain` to see the difference, then `generate`. |
-| `merge_needed` | The folder has several leaves, and the schema differs from their combined state. `generate` would write a merge migration. This is how a team learns after a git merge that `generate` must run before `migrate`. | Run `generate --explain` to see the difference, then `generate`. |
-| `not_compared` | `check` could not compare: no file matches the schema path, the schema fails to load, the schema has errors, a leaf of the folder does not reconstruct, or the comparison itself fails. The result of `check` for the folder stays the same. | Fix what `message` names. `generate` would fail in the same way. |
-
-The difference can go in either direction. If the schema lacks something that the migrations hold, `generate` writes a migration that drops it, so read the `--explain` output first.
-
-`warnings` is absent when there is nothing to report and when `check` has no schema path. The comparison loads the schema files, as `generate` does, and writes nothing. In text mode, `check` prints the messages in place of the success line.
 
 ### `check` integrity errors
 
@@ -689,7 +662,7 @@ When a snapshot fails integrity validation, `check` emits an `error` envelope wi
 
 `generate`, `migrate` and `pull` read the migrations folder through the same loader, so they return the same `check_error` envelopes. `generate` and `migrate` also run the full `check` first. `up` checks only a folder that it converts. See [`up` errors](#up-errors).
 
-For postgres, `check` and `migrate` read only the shape of the snapshots, their parent links and their stored statements. They reconstruct no state, so a snapshot whose deltas do not apply does not stop them. `generate` reconstructs the state of every leaf before it writes, and `check` with a schema path reconstructs a state to compare it with the schema. A failed reconstruct stops `generate` with `kind: "malformed"`, and in `check` it gives a warning of kind `not_compared`.
+For postgres, `check` and `migrate` read only the shape of the snapshots, their parent links and their stored statements. They reconstruct no state, so a snapshot whose deltas do not apply does not stop them. `generate` reconstructs the state of every leaf before it writes. A failed reconstruct stops `generate` with `kind: "malformed"`.
 
 In a postgres folder, the loader checks the history before anything else. The JSON envelope carries no message. The last column shows the message that `--output text` prints, with the fix. Each case below stops the command with `kind: "malformed"`:
 
@@ -783,9 +756,9 @@ Key semantics:
 
 For postgres, `check` compares every pair of leaves. A leaf's branch is the set of snapshots in its history that are missing from the other leaf's history. `check` reads the stored `statements` of each snapshot in a branch, and compares every statement of one branch with every statement of the other. A change and its later reversal on the same branch still count, and `statementDescription` ends with the folder that the statement comes from. A merge snapshot adds only the statements of its own change. Two equal statements on two branches are one change, and no conflict, when their SQL gives the same result on a second run: for example `SET NOT NULL` on one column in both branches. Two different changes of one object conflict, and so do two equal statements whose SQL fails on a second run, such as a new column. A `DISABLE ROW LEVEL SECURITY` on one branch also conflicts with a new policy for the same table on the other branch. This SQL runs in either order, but postgres does not enforce a policy on a table without row level security. For `mysql`, `sqlite` and `turso`, `check` compares the full state at each fork parent with the full state of each leaf below it. The other dialects have no branch check.
 
-If `check` passes and the folder has several leaves, the next `generate` writes a merge migration, unless the combined state of the leaves already equals the schema. For postgresql, `check` returns a warning when the merge migration is needed. See [Postgres snapshot format 9](#postgres-snapshot-format-9) for what a postgres merge stores.
+If `check` passes and the folder has several leaves, the next `generate` writes a merge migration, unless the combined state of the leaves already equals the schema. See [Postgres snapshot format 9](#postgres-snapshot-format-9) for what a postgres merge stores.
 
-For postgresql, `generate --fix-conflicts` resolves conflicts. It deletes the folders in `fix.migrations` and generates one new migration from the schema. If the remaining history has several leaves, that migration merges them. The fix deletes nothing while `generate` still returns `missing_hints`. It also deletes nothing in explain mode, where the result lists the folders that it would delete in `fix`. Every database that ran a deleted migration must be reset. In interactive mode, `generate` shows the conflict report and offers the same fix.
+For postgresql, `generate --fix-conflicts` resolves conflicts. It deletes the folders in `fix.migrations` and generates one new migration from the schema. If the remaining history has several leaves, that migration merges them. The fix deletes nothing while `generate` still returns `missing_hints`. It also deletes nothing in explain mode, where the result lists the folders that it would delete in `fix`. Every database that ran a deleted migration must be reset.
 
 For `mysql`, `sqlite` and `turso`, `--ignore-conflicts` makes `generate` write the merge even though the branches conflict. postgresql rejects `--ignore-conflicts`, and the other dialects reject `--fix-conflicts`, with `code: "unsupported_command_dialect_error"` and the meta `{ command, dialect, option }`.
 
@@ -794,7 +767,6 @@ For `mysql`, `sqlite` and `turso`, `--ignore-conflicts` makes `generate` write t
 | outcome | envelope | exit code |
 | --- | --- | --- |
 | valid (snapshots intact, branches commute) | `{ status: "ok", dialect }` | `0` |
-| valid, and the schema differs from the migrations (postgresql) | `{ status: "ok", dialect, warnings }` | `0` |
 | integrity error (`unsupported` / `malformed` / `non_latest` / `order`) | `{ status: "error", error: { code: "check_error", kind, snapshot, parentId?, parentSnapshot?, baseSnapshot? } }` | `1` |
 | conflicts (no `--ignore-conflicts`) | `{ status: "error", error: { code: "check_error", kind: "conflicts", conflicts, details, fix? } }` | `1` |
 | conflicts with `--ignore-conflicts` (not postgresql) | `{ status: "ok", dialect }` | `0` |

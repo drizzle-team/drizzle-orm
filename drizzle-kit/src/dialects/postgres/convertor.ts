@@ -16,9 +16,9 @@ import type { JsonStatement } from './statements';
 type StatementType = JsonStatement['type'];
 type StoredOf<TType extends StatementType> = Simplify<Omit<Extract<SnapshotStatement, { type: TType }>, 'type'>>;
 
-// `store` makes the form of a statement that a snapshot stores, from the statement that the diff builds.
-// `convert` writes the SQL from the stored form only, so the SQL of a migration can be rebuilt from its
-// snapshot, and a field that is not stored does not compile here.
+// Defines how a snapshot stores one statement kind and how that kind becomes SQL. `store` picks the fields
+// that the snapshot keeps. `convert` gets only these fields, so the SQL of a migration can be built again
+// from its snapshot, and a field that `store` does not keep is a type error in `convert`.
 export const convertor = <TType extends StatementType>(
 	type: TType,
 	store: (statement: Extract<JsonStatement, { type: TType }>) => StoredOf<TType>,
@@ -31,7 +31,8 @@ const rowFields = Object.fromEntries(
 	Object.entries(createDDL()._.defs).map(([type, def]) => [type, Object.keys(def)]),
 ) as Record<keyof PostgresEntities, string[]>;
 
-// The fields of a row that its entity type defines, without `entityType` and the fields that the diff adds.
+// Copies a row into a stored statement. The copy keeps only the fields that the DDL defines for `type`, so
+// the snapshot does not store `entityType` or the fields that the diff adds.
 const row = <K extends keyof PostgresEntities>(type: K, source: StoredRow<K>): StoredRow<K> =>
 	Object.fromEntries(rowFields[type].map((name) => [name, (source as Record<string, unknown>)[name]])) as StoredRow<K>;
 
@@ -310,11 +311,11 @@ const renameTableConvertor = convertor('rename_table', ({ schema, from, to }) =>
 	return `ALTER TABLE ${schemaPrefix}"${st.from}" RENAME TO "${st.to}";`;
 });
 
-const moveTableConvertor = convertor('move_table', ({ name, from, to, relations }) => ({
+const moveTableConvertor = convertor('move_table', ({ name, from, to, indexNames }) => ({
 	name,
 	from,
 	to,
-	indexNames: relations,
+	indexNames,
 }), (st) => {
 	const from = st.from !== 'public' ? `"${st.from}"."${st.name}"` : `"${st.name}"`;
 
@@ -379,7 +380,8 @@ const addColumnSql = (st: { column: StoredRow<'columns'>; isPK: boolean; isCompo
 	return `ALTER TABLE ${tableNameWithSchema} ADD COLUMN "${name}" ${fixedType}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${identityStatement};`;
 };
 
-// The primary key of a new column has its own statement, `add_pk` or `alter_pk`.
+// Writes ADD COLUMN without PRIMARY KEY (`isPK: false`), because the primary key of a new column has its own
+// statement, `add_pk` or `alter_pk`.
 const addColumnConvertor = convertor('add_column', ({ column, isCompositePK }) => ({
 	column: row('columns', column),
 	isCompositePK,
@@ -442,7 +444,7 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 	isEnum,
 	wasEnum,
 	wasSerial,
-	becomesSerial: toSerial,
+	toSerial,
 	diff: {
 		type: diff.type,
 		typeSchema: diff.typeSchema,
@@ -453,21 +455,16 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 		identity: diff.identity,
 	},
 }), (st) => {
-	const { diff, to: column, isEnum, wasEnum, wasSerial, becomesSerial } = st;
+	const { diff, to: column, isEnum, wasEnum, wasSerial, toSerial } = st;
 	const statements = [] as string[];
 
 	const key = column.schema !== 'public'
 		? `"${column.schema}"."${column.table}"`
 		: `"${column.table}"`;
 
-	// Postgres refuses a default and a USING clause for a generated column, so the expression is dropped first.
-	if (diff.generated && diff.generated.to === null) {
-		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP EXPRESSION;`);
-	}
-
-	// An enum with the same name in another schema is another type. A change of only the array dimensions
-	// gets the plain cast too. Postgres has no cast between most scalar types and their array types, so the
-	// user writes that conversion into the USING clause.
+	// `hasNewType` decides if SET DATA TYPE runs. It counts a new `typeSchema`, because an enum with the same
+	// name in another schema is another type. A new count of `dimensions` gets a plain cast. Postgres has no
+	// cast between most scalar types and their array types, so the user edits that USING clause.
 	const hasNewType = !!(diff.type || diff.typeSchema || diff.dimensions);
 	const recreateDefault = hasNewType && (isEnum || wasEnum || diff.dimensions) && st.oldDefault;
 	if (recreateDefault) {
@@ -477,9 +474,9 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 	if (hasNewType) {
 		const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
 		const textProxy = wasEnum && isEnum ? 'text::' : ''; // using enum1::text::enum2
-		// A serial type is valid only in a new column, so a column that exists gets the integer type of the
-		// serial type. A column that stays serial keeps its sequence and its default. The sequence also keeps
-		// its own integer type, so its maximum stays the same after a change from serial to bigserial.
+		// SERIAL is valid only in a new column, so SET DATA TYPE writes the integer type of a serial type
+		// (`isSerial`). A column that stays serial keeps its sequence and its default. The sequence keeps its
+		// integer type too, so a change from serial to bigserial does not change the maximum of the sequence.
 		const isSerial = isSerialType(column.type);
 		const suffix = isEnum
 			? ` USING "${column.name}"::${textProxy}${typeSchema}"${column.type}"${'[]'.repeat(column.dimensions)}`
@@ -503,7 +500,7 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 			statements.push(`DROP SEQUENCE ${sequenceKey};`);
 		}
 
-		if (becomesSerial) {
+		if (toSerial) {
 			const sequenceKey = column.schema !== 'public'
 				? `"${column.schema}"."${column.table}_${column.name}_seq"`
 				: `"${column.table}_${column.name}_seq"`;
@@ -519,9 +516,9 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 		}
 
 		statements.push(
-			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${'[]'.repeat(column.dimensions)}${
-				column.generated ? '' : suffix
-			};`,
+			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${
+				'[]'.repeat(column.dimensions)
+			}${suffix};`,
 		);
 
 		if (recreateDefault && column.default) {
@@ -539,6 +536,10 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 		} else {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 		}
+	}
+
+	if (diff.generated && diff.generated.to === null) {
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP EXPRESSION;`);
 	}
 
 	if (diff.identity) {
@@ -913,7 +914,7 @@ const recreateEnumConvertor = convertor('recreate_enum', ({ to, columns }) => ({
 		type,
 		typeSchema,
 		dimensions,
-		default: { from: left, to: right },
+		default: { left, right },
 	})),
 }), (st) => {
 	const { to, columns } = st;
@@ -923,7 +924,7 @@ const recreateEnumConvertor = convertor('recreate_enum', ({ to, columns }) => ({
 		statements.push(
 			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE text${'[]'.repeat(column.dimensions)};`,
 		);
-		if (column.default.from) statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
+		if (column.default.left) statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 	statements.push(dropEnumConvertor.convert({ enum: to }) as string);
 	statements.push(createEnumConvertor.convert({ enum: to }) as string);
@@ -936,11 +937,11 @@ const recreateEnumConvertor = convertor('recreate_enum', ({ to, columns }) => ({
 				'[]'.repeat(column.dimensions)
 			} USING "${column.name}"::${enumType}${'[]'.repeat(column.dimensions)};`,
 		);
-		if (column.default.to) {
+		if (column.default.right) {
 			statements.push(
 				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${
 					defaultToSQL({
-						default: column.default.to,
+						default: column.default.right,
 						dimensions: column.dimensions,
 						type: column.type,
 						typeSchema: column.typeSchema,
@@ -1252,7 +1253,8 @@ const toggleRlsConvertor = convertor('alter_rls', ({ schema, name, isRlsEnabled 
 	return `ALTER TABLE ${tableNameWithSchema} ${isRlsEnabled ? 'ENABLE' : 'DISABLE'} ROW LEVEL SECURITY;`;
 });
 
-// One entry for every statement kind. A kind without an entry does not compile.
+// Finds the convertor of a statement by its `type`. The mapped type requires one entry for every statement
+// kind, so a new kind without a convertor is a type error.
 const convertors: { [TType in StatementType]: ReturnType<typeof convertor<TType>> } = {
 	create_schema: createSchemaConvertor,
 	drop_schema: dropSchemaConvertor,
@@ -1329,7 +1331,7 @@ const sqlOf = <TType extends StatementType>(statement: Extract<SnapshotStatement
 	return typeof sql === 'string' ? [sql] : sql;
 };
 
-// The SQL of the statements that a snapshot stores.
+// Builds the SQL of a migration from the statements that its snapshot stores.
 export const fromSnapshotStatements = (statements: SnapshotStatement[]): string[] =>
 	statements.flatMap((it) => sqlOf(it));
 

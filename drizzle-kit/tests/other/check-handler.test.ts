@@ -337,7 +337,7 @@ test('an open fork with a deep branch returns only the open leaves', async () =>
 	// └── leaf2 (create t2)
 	//     └── leaf3              add fk t2.t1_id -> t1.id
 	//         └── leaf4          alter t1.b -> not null
-	// The open leaves are leaf1 and leaf4. leaf2 and leaf3 have children, so they are not leaves.
+	// Only leaf1 and leaf4 are open leaves, because leaf2 and leaf3 have children.
 	const parentSchema = {
 		t1: pgTable('t1', {
 			id: integer('id').primaryKey(),

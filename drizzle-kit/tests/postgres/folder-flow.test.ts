@@ -1,5 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
-import { index, integer, pgPolicy, pgRole, pgTable, primaryKey, text, unique, varchar } from 'drizzle-orm/pg-core';
+import { index, integer, pgTable, primaryKey, text, unique, varchar } from 'drizzle-orm/pg-core';
 import { errorToEnvelope } from 'src/cli/errors';
 import { expect, onTestFinished, test } from 'vitest';
 import { ORIGIN } from '../other/check-fixtures';
@@ -14,65 +14,6 @@ import {
 	schemaState,
 	step,
 } from './folder-flow';
-
-test('linear history with a column rename', async () => {
-	const flow = createFolderFlow();
-	const v1 = { users: pgTable('users', { id: integer() }) };
-	const v2 = { users: pgTable('users', { id: integer(), email: varchar() }) };
-	const v3 = { users: pgTable('users', { id: integer(), contact: varchar() }) };
-
-	await flow.generate('main', v1);
-	await flow.generate('main', v2);
-	await flow.generate('main', v3, { hints: [rename('column', 'public.users.email', 'public.users.contact')] });
-	const unchanged = await flow.tryGenerate('main', v3);
-
-	expect(unchanged.status).toBe('no_changes');
-	expect(flow.folders('main')).toStrictEqual([
-		'20260101120001_main',
-		'20260101120002_main',
-		'20260101120003_main',
-	]);
-	expect(flow.sql('main', '20260101120001_main')).toBe('CREATE TABLE "users" (\n\t"id" integer\n);\n');
-	expect(flow.sql('main', '20260101120002_main')).toBe('ALTER TABLE "users" ADD COLUMN "email" varchar;');
-	expect(flow.sql('main', '20260101120003_main')).toBe('ALTER TABLE "users" RENAME COLUMN "email" TO "contact";');
-
-	const first = flow.snapshot('main', '20260101120001_main');
-	const second = flow.snapshot('main', '20260101120002_main');
-	const third = flow.snapshot('main', '20260101120003_main');
-	expect(second.prevIds).toStrictEqual([first.id]);
-	expect(third).toStrictEqual({
-		type: 'diff',
-		version: '9',
-		dialect: 'postgres',
-		id: third.id,
-		prevIds: [second.id],
-		statements: [expect.objectContaining({ type: 'rename_column' })],
-		deltas: [{ op: 'rename', key: 'columns\0["public","users","email"]', set: { name: 'contact' } }],
-	});
-
-	expect(flow.leaves('main')).toStrictEqual(['20260101120003_main']);
-	expect(flow.state('main', '20260101120003_main')).toStrictEqual(schemaState(v3));
-	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
-	expect(await flow.migrate('main', v3)).toStrictEqual([]);
-});
-
-test('a role rename writes only the rename, and its snapshot stores one rename delta', async () => {
-	const flow = createFolderFlow();
-	const schema = (role: ReturnType<typeof pgRole>) => ({
-		role,
-		users: pgTable('users', { id: integer() }, () => [pgPolicy('users_read', { for: 'select', to: role })]),
-	});
-	await flow.generate('main', schema(pgRole('staff')));
-
-	const { folder } = await flow.generate('main', schema(pgRole('team')), { hints: [rename('role', 'staff', 'team')] });
-
-	expect(flow.sql('main', folder)).toBe('ALTER ROLE "staff" RENAME TO "team";');
-	expect(flow.deltas('main', folder)).toStrictEqual([
-		{ op: 'rename', key: 'roles\0["staff"]', set: { name: 'team' } },
-	]);
-	expect(flow.state('main', folder)).toStrictEqual(schemaState(schema(pgRole('team'))));
-	expect(await flow.migrate('main', schema(pgRole('team')))).toStrictEqual([]);
-});
 
 test('generate stores the statements of each migration, and a custom migration stores none', async () => {
 	const flow = createFolderFlow();
@@ -96,7 +37,8 @@ test('generate stores the statements of each migration, and a custom migration s
 		{ type: 'create_index', index: { table: 'users', name: 'users_email_idx' } },
 	]);
 	expect(flow.statements('main', custom.folder)).toStrictEqual([]);
-	// The statements are in the order of the SQL, and they hold everything that the SQL has.
+	// `statementsSql` rebuilds the SQL from the stored statements. It must equal migration.sql, so the statements
+	// keep the order of the SQL and lose nothing.
 	expect(flow.statementsSql('main', first.folder)).toBe(flow.sql('main', first.folder));
 	expect(flow.statementsSql('main', second.folder)).toBe(flow.sql('main', second.folder));
 });
@@ -112,14 +54,15 @@ test('check takes its conflicts from the stored statements of the snapshots', as
 	const folder = folders[1][0];
 	expect(await flow.check('main')).toMatchObject({ status: 'conflicts' });
 
-	// The deltas of both branches still add the same column. Check does not rebuild statements from them.
+	// After this edit, the deltas of both branches still add the same column. `check` passes because it reads
+	// only the stored `statements`.
 	flow.overwriteSnapshot('main', folder, JSON.stringify({ ...flow.snapshot('main', folder), statements: [] }));
 
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 });
 
-// Nothing compares a reconstructed state with the state at the time of writing. So generate takes the edited
-// state as the state of the database and writes SQL for the difference.
+// The edit sets the type of users.id to bigint in the base snapshot. No check compares a reconstructed state
+// with the state at the time of writing, so `generate` treats the edited state as the state of the database.
 test('after a hand edit of a base snapshot, check passes and generate writes SQL for the difference', async () => {
 	const flow = createFolderFlow();
 	const v1 = { users: pgTable('users', { id: integer(), email: varchar() }) };
@@ -140,7 +83,8 @@ test('after a hand edit of a base snapshot, check passes and generate writes SQL
 	expect(flow.state('main', folder)).toStrictEqual(schemaState(v1));
 });
 
-// A rename delta that moves the table users onto the key of another table. Reconstruct throws for it.
+// Makes a leaf that does not reconstruct. The rename delta moves the table users onto the key of a table that
+// the state already holds, so it gives a key collision.
 const renameUsersTo = (name: string) => ({ op: 'rename', key: 'tables\0["public","users"]', set: { name } }) as const;
 
 test('a leaf that does not reconstruct passes check and stops generate, and the error names the migration folder', async () => {
@@ -162,23 +106,6 @@ test('a leaf that does not reconstruct passes check and stops generate, and the 
 		expect(errorToEnvelope(error)).toStrictEqual(malformedEnvelope(folder));
 	}
 	expect(flow.files('main')).toStrictEqual(before);
-});
-
-test('check with a schema path warns that the schema was not compared when a leaf does not reconstruct', async () => {
-	const flow = createFolderFlow();
-	const accounts = pgTable('accounts', { id: integer() });
-	const v1 = { users: pgTable('users', { id: integer() }), accounts };
-	const v2 = { users: pgTable('users', { id: integer(), email: varchar() }), accounts };
-	await flow.generate('main', v1);
-	const { folder } = await flow.generate('main', v2);
-	flow.appendDeltas('main', folder, renameUsersTo('accounts'));
-
-	const warnings = await flow.schemaWarnings('main', v2);
-
-	expect(warnings).toStrictEqual([{
-		kind: 'not_compared',
-		message: expect.stringContaining(`The error: Cannot reconstruct the state of migration ${folder}: `),
-	}]);
 });
 
 test('generate stores one drop delta for a dropped table and for each of its columns, constraints and indexes', async () => {
@@ -205,8 +132,8 @@ test('generate stores one drop delta for a dropped table and for each of its col
 	expect(flow.state('main', folder)).toStrictEqual(schemaState({ posts }));
 });
 
-// A drop removes one entity and follows no edge. So the index stays in the state, and its own delta gives it
-// the column list that it has after the column drop.
+// The drop delta of the column `name` removes only that column, because a drop follows no edge. The index
+// `users_contact_idx` stays in the state, and its own delta gives it the column list without `name`.
 test('after a column drop, an index of that column stays in the state with its other columns', async () => {
 	const flow = createFolderFlow();
 	const v1 = {

@@ -4,8 +4,9 @@ import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { expect, test } from 'vitest';
 import { build, rows } from './commutativity-statements';
 
-// Invariants that every correct set of claim rules meets, checked for every statement of the catalog. The
-// expected verdicts come from the meaning of a conflict, and not from the claim rules.
+// These tests check every statement of the catalog against invariants that any correct set of facet rules
+// meets. The expected verdicts follow from what a conflict means, so a change of the facet rules must not
+// change them.
 
 const TYPES = Object.keys(rows());
 
@@ -60,13 +61,14 @@ const REFERENCES_COLUMN = new Set([
 	'recreate_fk',
 ]);
 
-// The claim rules read the form of a statement that a snapshot stores.
+// Tells whether the facet rules see a conflict between two branches. The rules read a statement in the form
+// that a snapshot stores, so `toSnapshotStatements` converts the statements first.
 async function conflicts(a: JsonStatement[], b: JsonStatement[]): Promise<boolean> {
 	return !!(await postgresCommutativity.getReasonsFromStatements(toSnapshotStatements(a), toSnapshotStatements(b)));
 }
 
-// The prefixes of two namespaces. Every object that a statement changes has a name that starts with the
-// prefix of its namespace.
+// `build` starts the name of every object that a statement changes with the prefix `A` or `B`. Statements
+// with different prefixes change no common object, so they must commute.
 const A = 'A_';
 const B = 'B_';
 
@@ -84,8 +86,8 @@ test.each(PAIRS)('disjoint commute: $t1 ∥ $t2', async ({ t1, t2 }) => {
 	expect(await conflicts([build(t1, A)], [build(t2, B)])).toBe(false);
 });
 
-// Two equal statements can be one change, so a marker makes the second statement another change of the
-// same object.
+// The rules can treat two equal statements as one change. The `marker` field makes `other` a separate change
+// of the same object, and two separate changes of one object must conflict.
 test.each(SELF)('self-conflict: $t ∥ $t', async ({ t }) => {
 	const [statement] = toSnapshotStatements([build(t, A)]);
 	const other = Object.assign(structuredClone(statement), { marker: true });
@@ -113,7 +115,8 @@ test.each(COL_REF_CASES)('drop_column dominates: $t', async ({ t }) => {
 
 // strict commutativity: renaming/moving a table breaks every reference to it,
 // exactly like dropping it — replaying the reference in the wrong order fails.
-// DROP INDEX and ALTER INDEX do not name the table, so a rename of the table does not break them.
+// The SQL of `drop_index` and `rename_index` names the index without its table, so a rename of the table
+// does not break them. A move of the table still breaks them, because postgres moves the index with the table.
 const NAMES_NO_TABLE = new Set(['drop_index', 'rename_index']);
 test.each(UNDER_TABLE_CASES.filter(({ t }) => t !== 'rename_table' && t !== 'move_table' && !NAMES_NO_TABLE.has(t)))(
 	'rename_table conflicts with reference: $t',

@@ -12,8 +12,9 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 
-// The schema of a fork point and the schemas that a branch can reach from it. Each one is a whole schema,
-// so the real diff writes the statements and the SQL of a branch.
+// The fork scenarios of the ground-truth test. `parent` is the schema at the fork point, and each entry of
+// `mutations` is the whole schema that one branch reaches from it, so the real diff writes the statements
+// and the SQL of a branch.
 export const mood = pgEnum('mood', ['ok', 'sad']);
 export const archive = pgSchema('archive');
 

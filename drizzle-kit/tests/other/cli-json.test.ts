@@ -1410,7 +1410,7 @@ describe('pull json envelopes', () => {
 				version: '9',
 				dialect: 'postgres',
 				id: tag,
-				prevIds: ['00000000-0000-0000-0000-000000000000'],
+				prevIds: [],
 				ddl: [],
 				statements: [],
 			}),

@@ -28,8 +28,8 @@ const conversionError = (name: string, reason: string, next: string, meta: Recor
 		meta,
 	);
 
-// The order error of a journal folder. Its migration folders do not exist yet, so the message names the
-// journal entries. The JSON output is the same as for folderOrderError.
+// Reports a migration that would sort before its parent after the move out of a journal folder. The migration
+// folders do not exist yet, so the message names the journal entries. The JSON output matches `folderOrderError`.
 const journalOrderError = (file: { name: string; path: string }, parent: { name: string; path: string }) =>
 	new CheckCliError(
 		'order',
@@ -40,19 +40,18 @@ const journalOrderError = (file: { name: string; path: string }, parent: { name:
 		{ snapshot: file.path, parentSnapshot: parent.path },
 	);
 
-const troubleshootingUrl = 'https://orm.drizzle.team/docs/kit-migrations-troubleshooting';
-
-// The history of the folder cannot be converted. `reason` and `fix` are full sentences.
+// Reports a migration history that `up` cannot convert. `reason` and `fix` must be full sentences with a final
+// period, because the message joins them with no punctuation.
 const historyError = (reason: string, fix: string, meta: Record<string, string> = {}) =>
 	new CommandOutputCliError(
 		'up',
-		`Cannot convert the migrations folder to snapshot format 9: ${reason} No file was changed. ${fix} `
-			+ `See ${troubleshootingUrl}`,
+		`Cannot convert the migrations folder to snapshot format 9: ${reason} No file was changed. ${fix}`,
 		{ kind: 'history', ...meta },
 	);
 
-// Nothing is moved or written before every snapshot is converted and checked, so a failure leaves the
-// folder as it was. A journal folder (the drizzle-kit 0.x layout) is read in place and moved last.
+// Converts the snapshots of the migrations folder `out` to format 9 and returns the paths of the written files.
+// It moves and writes files only after every snapshot is converted and checked, so a failure leaves the folder
+// as it was. A journal folder (the drizzle-kit 0.x layout) is read in place and moved last.
 export const upPgHandler = async (out: string): Promise<string[]> => {
 	const moves = planFoldersV3(out);
 	const withoutSql = moves?.find((it) => !it.sqlPath);
@@ -66,8 +65,8 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 	}
 
 	const validate = validatorForDialect('postgresql');
-	// `path` is where the file is now, and `name` is how the user knows the migration now, so that an error
-	// names things that exist. `folder` is the migration folder after the move.
+	// The errors below are thrown before the move, so `path` and `name` are the file and the migration name
+	// before the move. `folder` is the migration folder after the move.
 	const sources = (moves
 		? moves.map((it) => ({ path: it.snapshotPath, folder: it.folder, name: it.tag }))
 		: prepareOutFolder(out).snapshots.map((path) => ({
@@ -82,23 +81,21 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 			} catch {
 				assertSnapshotStatus(it.path, 'malformed');
 			}
-			return { ...it, raw };
-		})
-		// Every file is read before the first status is checked, so a file that is not JSON is reported first.
-		.map((it) => {
-			const { status } = validate(it.raw);
+			const { status } = validate(raw);
 			if (status === 'unsupported') throw new UnsupportedSnapshotVersionCliError(it.path);
-			return { ...it, status };
+			return { ...it, raw, status };
 		});
 
-	// A folder that holds only format 9 snapshots is not validated here. `check` does that.
+	// A folder that holds only format 9 snapshots needs no conversion. `check` validates such a folder, so `up`
+	// does not validate it here.
 	const converted: { path: string; text: string }[] = [];
 	if (sources.some((it) => it.status === 'nonLatest')) {
 		const files = sources.map(({ raw, ...it }) => {
 			const snapshot: PostgresSnapshotV8 | PostgresSnapshot = Number(raw.version) < 8 ? upToV8(raw).snapshot : raw;
 			return { ...it, snapshot };
 		}).sort((a, b) => (a.folder < b.folder ? -1 : 1));
-		// The validator checks the shape of format 9 files only, so a format 8 file needs this check.
+		// `validate` returns `nonLatest` for a format 8 file without a check of its shape, so `isSnapshotV8`
+		// checks that shape here.
 		const malformedFile = files.find(({ status, snapshot }) =>
 			status === 'malformed' || (snapshot.version === '8' && !isSnapshotV8(snapshot))
 		);
@@ -131,7 +128,8 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 			}
 		}
 
-		// Each snapshot with no parent becomes a base snapshot, and a folder holds one base snapshot.
+		// `upToV9` turns each snapshot with no parent into a base snapshot. A folder can hold one base snapshot,
+		// so a `second` snapshot with no parent is an error.
 		const [first, second] = files.filter((it) => it.snapshot.prevIds.every((id) => !id || id === originUUID));
 		if (second) {
 			throw historyError(
@@ -168,7 +166,7 @@ export const upPgHandler = async (out: string): Promise<string[]> => {
 			throw historyError((e as Error).message, reportIssueHint);
 		}
 
-		// The files are checked in the form that is written to disk.
+		// `written` parses `snapshotTexts` back, so the checks below see the same JSON that is written to disk.
 		const written = snapshotTexts.map((it) => JSON.parse(it) as PostgresSnapshot);
 		const byId = new Map(written.map((it) => [it.id, it]));
 		for (const [idx, { path, folder, name, snapshot }] of files.entries()) {

@@ -5,7 +5,7 @@ Drizzle Kit `generate` / `push` / `check` render results in one of two output mo
 - `--output text` (the default) renders human-readable progress and results on stdout, with typed errors on stderr. When a command has unresolved decisions and cannot prompt, it writes the missing-decisions report (below) to stdout and exits with code 2.
 - `--output json` emits a single machine-readable JSON envelope on stdout for every status (including errors), and is always non-interactive.
 
-`check --output json` rides the same plumbing: it is a no-hint, non-interactive gate that emits an `ok` envelope when the migrations folder is valid and a `check_error` envelope for snapshot-integrity problems or unreported branch conflicts. It never reaches the missing-decisions path. For postgresql, the `ok` envelope can carry `warnings` when the schema differs from the migrations, and the exit code stays 0. [responses-and-errors.md](responses-and-errors.md) decodes the `check_error` envelope.
+`check --output json` rides the same plumbing: it is a no-hint, non-interactive gate that emits an `ok` envelope when the migrations folder is valid and a `check_error` envelope for snapshot-integrity problems or unreported branch conflicts. It never reaches the missing-decisions path. [responses-and-errors.md](responses-and-errors.md) decodes the `check_error` envelope.
 
 ## Interactivity
 
@@ -19,7 +19,7 @@ interactive = output === 'text' && !!process.stdin.isTTY
 
 When the CLI is non-interactive and reaches a decision it cannot resolve from your `--hints` / `--hints-file`, it does not prompt. Under `--output json` it returns a `missing_hints` envelope; under `--output text` it prints the missing-decisions report below. [hints.md](hints.md) covers building the reply that resolves those decisions.
 
-When postgres `generate` finds conflicting branches, an interactive run shows the conflict report and asks whether to apply the fix. Hints cannot answer this question: `--fix-conflicts` answers yes ahead of time, and without it a non-interactive or `--explain` run returns `check_error` with `kind: "conflicts"`. With `--fix-conflicts`, an `--explain` run deletes nothing. Under `--output text` it prints the planned statements and the folders that the fix would delete, and under `--output json` it returns them as `statements` and `fix`.
+When postgres `generate` finds conflicting branches, it does not prompt. Without `--fix-conflicts` it returns `check_error` with `kind: "conflicts"`, and hints cannot change that. With `--fix-conflicts`, an `--explain` run deletes nothing. Under `--output text` it prints the planned statements and the folders that the fix would delete, and under `--output json` it returns them as `statements` and `fix`.
 
 ## Missing-decisions text report
 

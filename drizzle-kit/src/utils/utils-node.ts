@@ -339,6 +339,10 @@ export const validatorForDialect = (
 };
 
 export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
+	// ✅ check if drizzle-kit can handle snapshot version
+	// ✅ check if snapshot is of the last version
+	// ✅ check if id of the snapshot is valid
+	// ✅ collect {} of prev id -> snapshotName[], if there's more than one - tell about collision
 	const validator = validatorForDialect(dialect);
 
 	const result = snapshots.reduce(

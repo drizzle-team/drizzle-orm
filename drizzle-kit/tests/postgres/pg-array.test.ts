@@ -350,8 +350,8 @@ test('array #13: not null', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-// The plain cast reads text as an array literal. A value that is no array literal makes the statement fail,
-// and the user writes the conversion into the USING clause.
+// The text `row` of each case is an array literal, because the plain cast `"values"::text[]` parses text as an
+// array literal. For another value the statement fails, and the user writes the conversion into the USING clause.
 test.each([
 	{
 		name: 'a text column that becomes an array',
@@ -395,8 +395,8 @@ test.each([
 	expect(await db.query('SELECT "values" FROM "test";')).toStrictEqual([{ values: value }]);
 });
 
-// Postgres has one type for every count of array dimensions, and the count in its catalog is not reliable.
-// So only generate writes this change.
+// push writes nothing because Postgres treats `integer[]` and `integer[][]` as one type, and the count of
+// dimensions in its catalog is not reliable. generate reads both counts from the schemas, so it writes the change.
 test('a change between two array dimension counts gets a type change in generate and nothing in push', async () => {
 	const before = { test: pgTable('test', { values: integer().array() }) };
 	const after = { test: pgTable('test', { values: integer().array('[][]') }) };
@@ -412,7 +412,8 @@ test('a change between two array dimension counts gets a type change in generate
 	expect(pst).toStrictEqual([]);
 });
 
-// The catalog stores no count of dimensions for the column of the child table.
+// The catalog stores 0 dimensions for the inherited column of `child`, so the database reader reports one
+// dimension for it. push must still write no type change.
 test('a two-dimension array column of an inherited table gets no type change in push', async () => {
 	const columns = { values: integer().array('[][]') };
 	const to = { parent: pgTable('parent', columns), child: pgTable('child', columns) };
@@ -424,8 +425,8 @@ test('a two-dimension array column of an inherited table gets no type change in 
 	expect(pst).toStrictEqual([]);
 });
 
-// Postgres has no cast between an enum and its array type, so the cast goes through text.
 const mood = pgEnum('mood', ['ok', 'sad']);
+// Each `sql` casts through text, because Postgres has no cast from an enum to an array of that enum.
 test.each([
 	{
 		name: 'an enum column',
@@ -455,8 +456,8 @@ test.each([
 	expect(pst).toStrictEqual(sql);
 });
 
-// Postgres has no cast from integer to integer[], so this SQL does not run as it is. The user writes the
-// conversion into the USING clause of the migration.
+// The diff keeps the plain cast although it fails here, because Postgres has no cast from integer to integer[].
+// The user writes the conversion into the USING clause of the migration.
 test('an integer column that becomes an array gets a type change with a plain cast', async () => {
 	const before = { test: pgTable('test', { values: integer() }) };
 	const after = { test: pgTable('test', { values: integer().array() }) };
@@ -470,22 +471,8 @@ test('an integer column that becomes an array gets a type change with a plain ca
 	await expect(db.query(st[0])).rejects.toThrow('cannot cast type integer to integer[]');
 });
 
-test.each([
-	{ dataType: 'text[]', defaultValue: ['a'], column: `"values" text[] DEFAULT '{a}'::text[]` },
-	{ dataType: 'text[3]', defaultValue: undefined, column: '"values" text[]' },
-])('a custom type with the type text $dataType is an array column', async ({ dataType, defaultValue, column }) => {
-	const list = customType<{ data: string[] }>({ dataType: () => dataType });
-	const to = { test: pgTable('test', { values: defaultValue ? list().default(defaultValue) : list() }) };
-
-	const { sqlStatements: st } = await diff({}, to, []);
-	for (const statement of st) await db.query(statement);
-	const { sqlStatements: pst } = await push({ db, to });
-
-	expect(st).toStrictEqual([`CREATE TABLE "test" (\n\t${column}\n);\n`]);
-	expect(pst).toStrictEqual([]);
-});
-
-// These types are in the array category of the catalog, and their columns are no array columns.
+// The catalog puts `int_list`, `int2vector` and `oidvector` in the array category. The columns of these types
+// have no array dimensions, so push must not read them as array columns.
 test('a column of a domain over an array type or of a vector type of the catalog gets no type change in push', async () => {
 	const column = (dataType: string) => customType<{ data: unknown }>({ dataType: () => dataType })();
 	const to = {

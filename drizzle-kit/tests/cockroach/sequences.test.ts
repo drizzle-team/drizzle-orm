@@ -229,25 +229,6 @@ test.concurrent('move sequence between schemas #2', async ({ db }) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.concurrent('a sequence that moves to another schema with a new name and new fields writes SQL that runs', async ({ db }) => {
-	const customSchema = cockroachSchema('custom');
-	const from = { customSchema, seq: cockroachSequence('name', { startWith: 100, increment: 2 }) };
-	const to = { customSchema, seq: customSchema.sequence('name_new', { startWith: 100, increment: 4 }) };
-	const renames = ['public.name->custom.name_new'];
-
-	const { sqlStatements: st } = await diff(from, to, renames);
-	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to, renames });
-
-	const st0 = [
-		'ALTER SEQUENCE "name" SET SCHEMA "custom";',
-		'ALTER SEQUENCE "custom"."name" RENAME TO "name_new";',
-		'ALTER SEQUENCE "custom"."name_new" INCREMENT BY 4 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 100 CACHE 1;',
-	];
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
-});
-
 test.concurrent('alter sequence', async ({ db }) => {
 	const from = { seq: cockroachSequence('name', { startWith: 100 }) };
 	const to = { seq: cockroachSequence('name', { startWith: 105 }) };

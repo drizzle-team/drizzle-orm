@@ -1,10 +1,3 @@
-/**
- * The canonical form of a state, which does not depend on the order of the entities or of their fields.
- * The order of an array is kept, because it has a meaning for `enum.values` and `index.columns`. Two
- * states are equal when their `normalizeDDL()` results are deep-equal.
- *
- * It is not part of the engine (`./dialect`), because no engine function needs it.
- */
 type Row = Record<string, any>;
 
 function canonical(value: unknown): unknown {
@@ -17,4 +10,9 @@ function canonical(value: unknown): unknown {
 	return value;
 }
 
+/**
+ * Turns the entities of a state into sorted strings, so that two states with the same entities give equal
+ * results. The order of the entities and of their fields does not change the result. The order inside an
+ * array changes the result, because it has a meaning for `enum.values` and `index.columns`.
+ */
 export const normalizeDDL = (rows: Row[]): string[] => rows.map((e) => JSON.stringify(canonical(e))).sort();

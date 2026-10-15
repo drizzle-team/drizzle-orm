@@ -24,14 +24,12 @@ import { expect, test } from 'vitest';
 import { build, rows } from './commutativity-statements';
 import { diff } from './mocks';
 
-// The committed matrix must match the rules in buildFacetPaths.
-// Rewrite it after a rule change:
+// The first test keeps `commutativity-matrix.json` equal to the verdicts of the rules, because the
+// ground-truth test checks that file against postgres. Rewrite the file after a rule change:
 //   UPDATE_MATRIX=1 pnpm vitest run tests/postgres/commutativity.matrix-gen.test.ts
-// Build the visualizer page from the rules:
-//   MATRIX_HTML=<out.html> pnpm vitest run tests/postgres/commutativity.matrix-gen.test.ts
+// Write the matrix with `family` and `reasons` for the visualizer page:
+//   GEN_MATRIX=<out.json> pnpm vitest run tests/postgres/commutativity.matrix-gen.test.ts
 const matrixPath = join(import.meta.dirname, 'commutativity-matrix.json');
-const templatePath = join(import.meta.dirname, 'commutativity-matrix.template.html');
-const placeholder = '__MATRIX_DATA__';
 
 const catalog = rows();
 const TYPES = Object.keys(catalog);
@@ -74,7 +72,8 @@ const verb = (type: string): string =>
 		? 'creates'
 		: 'changes';
 
-// `provides` are writes that only a read of the same node conflicts with.
+// The facet paths of a statement, for the impossible marks and the reason sentences. `provides` are writes that
+// only a read of the same node conflicts with.
 function facetSets(stmt: JsonStatement) {
 	const { owns, destroys = [], needs = [], provides = [] } = postgresCommutativity.buildFacetPaths(
 		toSnapshotStatement(stmt),
@@ -94,13 +93,13 @@ async function generateMatrix() {
 	const stmts = TYPES.map((type) => catalog[type].statement);
 	const sets = stmts.map(facetSets);
 
-	// One string of 0 and 1 for each row.
+	// `matrix` and `impossible` hold one string of 0 and 1 for each row.
 	const matrix: string[] = [];
 	const impossible: string[] = [];
 	const reasons: Record<string, string[]> = {};
 
-	// A create cannot follow the same fork point as a statement that needs the created node to exist
-	// already. The matrix marks such pairs impossible. The rules still report them as conflicts.
+	// `impossibleWhy` finds the pairs that cannot come from one fork point: one statement creates a node, and
+	// the other statement needs that node to exist already. The rules still report such a pair as a conflict.
 	const isCreate = (i: number) => !!catalog[TYPES[i]].isCreate;
 	const creates = (i: number) => (isCreate(i) ? [...sets[i].writes] : []);
 	const assumesExists = (i: number) => {
@@ -126,7 +125,8 @@ async function generateMatrix() {
 		return null;
 	};
 
-	// One sentence per shared node. A node can appear in several facets, so repeated sentences are removed.
+	// `why` gives the reason sentences of a cell for the visualizer page, one for each shared node. A node can
+	// appear in several facets, so `seen` removes repeated sentences.
 	const why = (i: number, j: number): string[] => {
 		const A = sets[i], B = sets[j], out: string[] = [], seen = new Set<string>();
 		for (const k of new Set([...A.writes, ...B.writes, ...A.provides, ...B.provides])) {
@@ -171,11 +171,12 @@ async function generateMatrix() {
 	return { types: TYPES, family, matrix, impossible, reasons };
 }
 
-// Only the visualizer page reads `family` and `reasons`, so the committed file leaves them out.
+// The committed file holds `types`, `matrix` and `impossible`. It leaves out `family` and `reasons`, because
+// only the visualizer page reads them.
 test('committed matrix matches the rules', async () => {
 	const { types, matrix, impossible } = await generateMatrix();
 	const fresh = { types, matrix, impossible };
-	// Tab-indented JSON is also the layout that dprint keeps.
+	// The tab indent matches the layout that dprint keeps, so a formatter run does not change the file.
 	if (process.env.UPDATE_MATRIX) writeFileSync(matrixPath, JSON.stringify(fresh, null, '\t') + '\n');
 
 	const committed = JSON.parse(readFileSync(matrixPath, 'utf8'));
@@ -186,8 +187,9 @@ test('committed matrix matches the rules', async () => {
 	).toEqual(committed);
 });
 
-// A schema with one entity of every kind that the diff can rename or move. `renamed` gives the names
-// after one rename, and `hint` is the rename decision for it.
+// The fixtures of the rename test below. `schemaWith` builds a schema with one entity of every kind that the
+// diff can rename or move. In `RENAMES`, `renamed` gives the names after one rename, and `hint` is the rename
+// decision for it.
 type Names = Partial<{
 	schema: string;
 	table: string;
@@ -256,19 +258,21 @@ const RENAMES: Record<string, { renamed: Names; hint: string }> = {
 	role: { renamed: { role: 'r2' }, hint: 'r->r2' },
 };
 
-// The matrix row that stands for a statement. rename_constraint has one row for each constraint kind.
+// Finds the matrix row of a statement that the diff writes. `rename_constraint` has one row for each
+// constraint kind.
 const rowOf = (statement: JsonStatement) =>
 	statement.type === 'rename_constraint' ? `${statement.type}:${statement.entityType}` : statement.type;
 const isRename = (statement: JsonStatement) =>
 	statement.type.startsWith('rename_') || statement.type.startsWith('move_');
-// The kinds of nodes (`pk`, `col`, ...) that the claims of a statement name.
-const claimKinds = (statement: JsonStatement) => {
+// The kinds of nodes (`pk`, `col`, etc.) that the facet paths of a statement name, so that the rename test can
+// compare a matrix row with a real rename.
+const nodeKinds = (statement: JsonStatement) => {
 	const { owns, destroys = [], needs = [] } = postgresCommutativity.buildFacetPaths(toSnapshotStatement(statement));
 	const kinds = (keys: string[]) => [...new Set(keys.map((key) => key.split('|')[1]))].sort();
 	return { writes: kinds([...owns, ...destroys]), reads: kinds(needs) };
 };
 
-test('every rename that the diff writes has a matrix row with claims on the same kinds of nodes', async () => {
+test('every rename that the diff writes has a matrix row whose facet paths name the same kinds of nodes', async () => {
 	const seen = new Set<string>();
 	for (const [name, { renamed, hint }] of Object.entries(RENAMES)) {
 		const { statements } = await diff(schemaWith(), schemaWith(renamed), [hint]);
@@ -278,28 +282,17 @@ test('every rename that the diff writes has a matrix row with claims on the same
 			const row = rowOf(statement);
 			seen.add(row);
 			expect(TYPES, `the ${name} rename writes ${row}, which has no matrix row`).toContain(row);
-			expect(claimKinds(build(row)), `matrix row ${row} and the ${name} rename claim other kinds of nodes`)
-				.toEqual(claimKinds(statement));
+			expect(
+				nodeKinds(build(row)),
+				`the facet paths of matrix row ${row} and of the ${name} rename name other kinds of nodes`,
+			)
+				.toEqual(nodeKinds(statement));
 		}
 	}
 	const stale = TYPES.filter((row) => (row.startsWith('rename_') || row.startsWith('move_')) && !seen.has(row));
 	expect(stale, 'matrix rows that no rename of the fixture schema writes').toEqual([]);
 });
 
-test('a constraint rename of an unknown kind throws', async () => {
-	const statement = { ...build('rename_constraint:uniques'), entityType: 'indexes' } as unknown as JsonStatement;
-
-	await expect(postgresCommutativity.getReasonsFromStatements([toSnapshotStatement(statement)], [])).rejects.toThrow(
-		"rename_constraint has the unknown constraint kind 'indexes'",
-	);
-});
-
-test.runIf(process.env.MATRIX_HTML)('visualizer page builds from the rules', async () => {
-	const template = readFileSync(templatePath, 'utf8');
-	expect(template.split(placeholder)).toHaveLength(2);
-
-	const data = JSON.stringify(await generateMatrix());
-	const page = template.replace(placeholder, () => data);
-	expect(page).not.toContain(placeholder);
-	if (process.env.MATRIX_HTML) writeFileSync(process.env.MATRIX_HTML, page);
+test.runIf(process.env.GEN_MATRIX)('generate conflict matrix json', async () => {
+	writeFileSync(process.env.GEN_MATRIX!, JSON.stringify(await generateMatrix()));
 });

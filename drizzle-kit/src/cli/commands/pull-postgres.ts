@@ -22,7 +22,7 @@ import { createDDL, interimToDDL, postgresToRelationsPull } from '../../dialects
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { assertHistory, readEntries } from '../../dialects/postgres/folder';
 import { fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
-import { toJsonSnapshot } from '../../dialects/postgres/snapshot';
+import { toJsonBaseSnapshot } from '../../dialects/postgres/snapshot';
 import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/typescript';
 import type { EntityFilter } from '../../dialects/pull-utils';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
@@ -124,7 +124,7 @@ export const handle = async (
 		);
 
 		({ snapshotPath, migrationPath } = writeResult({
-			snapshot: toJsonSnapshot(ddl2, [originUUID], snapshotStatements),
+			snapshot: toJsonBaseSnapshot(ddl2, [originUUID], snapshotStatements),
 			sqlStatements,
 			outFolder: out,
 			breakpoints,

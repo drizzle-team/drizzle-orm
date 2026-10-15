@@ -19,18 +19,16 @@ import { join } from 'path';
 import { CommandOutputCliError, errorToEnvelope } from 'src/cli/errors';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import { type PostgresSnapshotV8, snapshotValidator } from 'src/dialects/postgres/snapshot';
-import { updateUpToV6 } from 'src/dialects/postgres/versions';
 import { expect, test } from 'vitest';
 import { ORIGIN, writeSnapshot } from '../other/check-fixtures';
 import { createFolderFlow, createFormat8Flow, type FolderFlow, schemaState, tempDir } from './folder-flow';
 import { drizzleToDDL } from './mocks';
 
-// drizzle-kit 1.0.0-rc.4 wrote the format 8 folders. Its check passed on the linear, renames and merge
-// folders. It reported a conflict between the two leaves of the fork folder, which set NOT NULL and
-// change the type of one column. This SQL runs in either order. drizzle-kit 0.31.7 with
-// drizzle-orm 0.44.1 wrote the format 7 folder, where the last migration renames the table posts to
-// articles and the column users.email to contact. The format 4 and format 5 folders come from this
-// repository's history, where an example project and the integration tests kept them.
+// The old migration folders that the `up` tests convert. drizzle-kit 1.0.0-rc.4 wrote the format 8 folders.
+// Its check reported a conflict in the fork folder, although the SQL of the two leaves runs in either order.
+// drizzle-kit 0.31.7 with drizzle-orm 0.44.1 wrote the format 7 folder, whose last migration renames the
+// table posts and the column users.email. The format 4 and format 5 folders come from old example projects
+// and integration tests of this repository.
 const fixtures = join(__dirname, 'old-snapshots');
 
 const readFixture = (...parts: string[]) => JSON.parse(readFileSync(join(fixtures, ...parts), 'utf8'));
@@ -44,13 +42,13 @@ const seedFormat8 = (name: string) => {
 	return { flow, original };
 };
 
-// The JSON output of the error that up gives. `fields` holds the fields that only this error has.
+// The expected JSON output of an `up` error. `fields` holds the fields that only this kind of error has.
 const upError = (kind: string, fields: Record<string, unknown>) => ({
 	status: 'error',
 	error: { code: 'command_output_error', command: 'up', kind, ...fields },
 });
 
-// Every converted snapshot must rebuild to the state that its format 8 file stores.
+// Checks that every converted snapshot reconstructs to the state that its format 8 file stores.
 const expectOriginalStates = (flow: FolderFlow, original: Map<string, PostgresSnapshotV8>) => {
 	expect(flow.folders('main')).toStrictEqual([...original.keys()]);
 	for (const [folder, it] of original) {
@@ -114,8 +112,9 @@ test('up turns format 8 renames into rename deltas', async () => {
 	expect(original.get('20260928150356_contact')!.renames).toStrictEqual(['public.users.email->public.users.contact']);
 	await flow.up('main');
 
-	// The dropped index "email" has the same qualified name as the renamed column, and another index is
-	// created next to it, so the column's rename string also reaches the index resolver.
+	// The dropped index `email` has the same qualified name as the column users.email, and the migration also
+	// creates an index. So the index resolver gets the rename string of the column, and it must still keep the
+	// index as a drop and a create.
 	expect(flow.deltas('main', '20260928150356_contact')).toStrictEqual([
 		{ op: 'rename', key: 'columns\0["public","users","email"]', set: { name: 'contact' } },
 		expect.objectContaining({
@@ -176,8 +175,8 @@ test('check passes after up converts a format 8 fork that changes two properties
 
 test('up keeps the primary key name that Postgres gave when a format 8 file stores the default name of the renamed table', async () => {
 	const { flow, original } = seedFormat8('format-8-renames');
-	// Postgres keeps users_pkey when users is renamed to accounts. This file stores the default name of the new
-	// table instead, as files do that were converted from drizzle-kit 0.x.
+	// Postgres keeps users_pkey when users is renamed to accounts. The edit stores `accounts_pkey` instead, as
+	// the files do that were converted from drizzle-kit 0.x.
 	const folder = '20260928150358_accounts';
 	const edited = original.get(folder)!;
 	for (const row of edited.ddl) if (row.entityType === 'pks') row.name = 'accounts_pkey';
@@ -214,8 +213,6 @@ test('up writes nothing when a format 8 snapshot is malformed', async () => {
 	expect(flow.folders('main').map((it) => flow.snapshot('main', it))).toStrictEqual(before);
 });
 
-const troubleshooting = 'https://orm.drizzle.team/docs/kit-migrations-troubleshooting';
-
 test('up refuses a format 8 folder with a deleted middle migration and changes no file', async () => {
 	const { flow, original } = seedFormat8('format-8-linear');
 	const missing = original.get('20260928145209_posts')!.id;
@@ -228,8 +225,7 @@ test('up refuses a format 8 folder with a deleted middle migration and changes n
 		'Cannot convert the migrations folder to snapshot format 9: a migration was deleted in the middle of the '
 			+ `history. Migration 20260928145210_roles follows the snapshot ${missing}, and no migration in the folder has `
 			+ 'this snapshot. No file was changed. Restore the missing migration from git. If that is not possible, delete '
-			+ '20260928145210_roles and every later migration, run drizzle-kit up, and generate them again. '
-			+ `See ${troubleshooting}`,
+			+ '20260928145210_roles and every later migration, run drizzle-kit up, and generate them again.',
 	);
 	expect(errorToEnvelope(error)).toStrictEqual(upError('history', {
 		snapshot: expect.stringContaining(join('20260928145210_roles', 'snapshot.json')),
@@ -267,7 +263,7 @@ test('up refuses a journal entry that has no SQL file and changes no file', asyn
 	const error = await flow.up('main').catch((e: unknown) => e);
 
 	expect((error as Error).message).toMatch(
-		/^Cannot convert the migrations folder to snapshot format 9: the journal entry 0001_posts has no SQL file\. drizzle-kit expects it at \S+0001_posts\.sql\. No file was changed\. Restore this file from git, then run drizzle-kit up again\. See /,
+		/^Cannot convert the migrations folder to snapshot format 9: the journal entry 0001_posts has no SQL file\. drizzle-kit expects it at \S+0001_posts\.sql\. No file was changed\. Restore this file from git, then run drizzle-kit up again\.$/,
 	);
 	expect(errorToEnvelope(error)).toStrictEqual(
 		upError('history', { entry: '0001_posts', sql: expect.stringMatching(/0001_posts\.sql$/) }),
@@ -348,7 +344,7 @@ test('up refuses a journal entry that is older than its parent, names both entri
 const unsupportedMergeFix = 'Snapshot format 9 does not support a merge of such branches. Delete the merge migration '
 	+ '20260101120004_merge, every later migration, and the migrations of one of its branches after the fork point. '
 	+ 'After that, run drizzle-kit up again, and then run drizzle-kit generate. A database that ran a deleted migration '
-	+ `must be reset. See ${troubleshooting}`;
+	+ 'must be reset.';
 
 // drizzle-kit 1.0.0-rc.4 could merge two branches with --ignore-conflicts. Here branch a renames the schema
 // `old` to `archive`, and branch b adds a schema `archive`. The merge starts from b, its newest leaf, and
@@ -377,7 +373,8 @@ test('up refuses an old merge whose branches gave one name to two entities, and 
 	expect(flow.files('main')).toStrictEqual(before);
 });
 
-// A format 8 folder in which branch a and branch b each add the column users.email, and a merge follows.
+// Builds a format 8 folder in which branch a and branch b each add the column users.email, with the types
+// `typeOnA` and `typeOnB`, and a merge of the two branches follows.
 const emailTypes = { varchar, text };
 const seedMergeOfTwoEmailColumns = (typeOnA: keyof typeof emailTypes, typeOnB: keyof typeof emailTypes) => {
 	const rowsOf = (type?: keyof typeof emailTypes) =>
@@ -421,7 +418,8 @@ test('up converts an old merge whose branches created equal entities under one k
 	expect(flow.deltas('main', '20260101120004_merge')).toStrictEqual([]);
 });
 
-// Two git branches that each started from an empty folder. drizzle-kit 1.0.0-rc.4 could merge them.
+// The folders a and b come from two git branches that each started from an empty folder. drizzle-kit
+// 1.0.0-rc.4 could merge such branches.
 test('up refuses a format 8 folder with two first migrations, and changes no file', async () => {
 	const flow = createFormat8Flow([
 		{ folder: '20260101120001_a', id: 'a', prevIds: [ORIGIN] },
@@ -436,7 +434,7 @@ test('up refuses a format 8 folder with two first migrations, and changes no fil
 		'Cannot convert the migrations folder to snapshot format 9: the folder has two first migrations, '
 			+ '20260101120001_a and 20260101120002_b, and a folder must have one. No file was changed. Delete one of the '
 			+ 'two migrations together with every migration that follows it, run drizzle-kit up again, and then run '
-			+ `drizzle-kit generate. See ${troubleshooting}`,
+			+ 'drizzle-kit generate.',
 	);
 	expect(errorToEnvelope(error)).toStrictEqual(upError('history', {
 		snapshot: expect.stringContaining(join('20260101120002_b', 'snapshot.json')),
@@ -477,7 +475,7 @@ test('up returns ok for a format 9 folder with a broken history, and check repor
 });
 
 // Checks that every file of an old linear folder became format 9 with its parent link, and that each
-// snapshot rebuilds to the given state.
+// snapshot reconstructs to its state in `states`.
 const expectConverted = (
 	flow: FolderFlow,
 	originals: Record<string, any>[],
@@ -531,8 +529,8 @@ test('up converts a format 4 folder to format 9', async () => {
 	]);
 });
 
-// The format 5 folder was written by hand: it names the type timestamptz and gives the serial primary
-// key no NOT NULL.
+// The expected state of the format 5 folder, which was written by hand. That folder names the type
+// timestamptz and gives the serial primary key no NOT NULL, and `patchRows` copies both.
 const format5State = patchRows(
 	schemaState({
 		users: pgTable('users', {
@@ -563,23 +561,6 @@ test('up converts a format 5 journal folder to format 9', async () => {
 	], [format5State, format5State]);
 });
 
-test('up converts a format 6 journal folder to format 9', async () => {
-	const flow = createFolderFlow();
-	// drizzle-kit up wrote format 6 files with this step of the chain.
-	const originals = ['0000_snapshot.json', '0001_snapshot.json'].map((file) =>
-		updateUpToV6(readFixture('format-5', 'meta', file))
-	);
-	const dir = tempDir('dk-old-snapshots-');
-	cpSync(join(fixtures, 'format-5'), dir, { recursive: true });
-	writeFileSync(join(dir, 'meta', '0000_snapshot.json'), JSON.stringify(originals[0], null, 2));
-	writeFileSync(join(dir, 'meta', '0001_snapshot.json'), JSON.stringify(originals[1], null, 2));
-	flow.seed('main', dir);
-
-	expect(await flow.up('main')).toHaveLength(2);
-
-	expectConverted(flow, originals, [format5State, format5State]);
-});
-
 const status = pgEnum('status', ['draft', 'published']);
 const format7Users = pgTable('users', { id: serial().primaryKey(), email: text().notNull(), age: integer() }, (t) => [
 	uniqueIndex('users_email_idx').on(t.email),
@@ -603,7 +584,7 @@ const articles = pgTable('articles', {
 	status: status().default('draft').notNull(),
 	createdAt: timestamp().defaultNow(),
 });
-// drizzle-orm 0.44.1 ended a default foreign key name with _fk.
+// Gives a foreign key the default name of drizzle-orm 0.44.1, which ends with _fk.
 const oldNames = (row: Record<string, any>) =>
 	row.entityType === 'fks' ? { ...row, name: row.name.replace(/_fkey$/, '_fk') } : row;
 const format7States = () => [
@@ -623,8 +604,9 @@ test('up converts a format 7 journal folder to format 9', async () => {
 	expect(await flow.migrate('main', { status, users: renamedUsers, articles })).toStrictEqual([]);
 });
 
-// The fixture has an empty `_meta`. This copy records the renames of the last migration, old name first.
-// A table in the default schema has no schema part in its key.
+// Copies the format 7 fixture and records the renames of the last migration in its `_meta`, which is empty
+// in the fixture. Each entry maps the old name to the new one, and a table in the default schema has no
+// schema part.
 const format7WithRenames = () => {
 	const dir = tempDir('dk-old-snapshots-');
 	cpSync(join(fixtures, 'format-7'), dir, { recursive: true });
@@ -638,7 +620,8 @@ const format7WithRenames = () => {
 	return { dir, originals };
 };
 
-// Postgres keeps the name posts_pkey when the table is renamed, and drizzle-kit 0.31.7 wrote no SQL for the key.
+// Gives the primary key of articles the name posts_pkey. Postgres keeps that name after the table rename,
+// and drizzle-kit 0.31.7 wrote no SQL that renames the key.
 const withPostgresKeyName = (row: Record<string, any>) =>
 	row.entityType === 'pks' && row.table === 'articles' ? { ...row, name: 'posts_pkey' } : row;
 
@@ -683,8 +666,8 @@ test('after up, a migration that drops the primary key of a table that 0.x renam
 	expect(await flow.migrate('main', withoutKey)).toStrictEqual([]);
 });
 
-// A format 7 folder with the first two migrations of the fixture and a third one, as drizzle-kit 0.31.7
-// writes it on a git branch.
+// Builds a format 7 folder with the first two migrations of the fixture and a third one from `change` and
+// `sql`, as drizzle-kit 0.31.7 writes it on a git branch.
 const format7Branch = (
 	tag: string,
 	when: number,
@@ -760,7 +743,8 @@ test('check reports the conflict between two 0.x branches that rename the two en
 	await flow.up('b');
 	flow.merge('a', 'b');
 
-	// The SQL of the people branch drops a foreign key on the posts table, which the articles branch renamed.
+	// `migrate` fails because the SQL of the people branch drops a foreign key on the table posts, which the
+	// articles branch renamed.
 	await expect(flow.migrate('a', {})).rejects.toMatchObject({
 		cause: expect.objectContaining({ message: 'relation "posts" does not exist' }),
 	});

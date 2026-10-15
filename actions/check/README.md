@@ -127,14 +127,6 @@ the base branch:
 
 <dl><dd>🔀 <code>drizzle/0004_add-status-enum</code> <em>(fork point)</em></dd><dd><dl><dd>🔴 <code>drizzle/0005_drop-inactive</code> <em>(this branch)</em> — recreates enum <code>user_status</code> in schema <code>public</code></dd><dd>⭕ <code>drizzle/0005_add-banned</code> <em>(from <code>main</code>)</em> — alters enum <code>user_status</code> in schema <code>public</code></dd></dl></dd></dl>
 
-## Schema warnings
-
-For postgresql, `drizzle-kit check` also compares the schema of the config file with the
-migrations. It gives a warning when the schema differs from them, when open branches need a merge
-migration, and when the schema could not be loaded or compared. The title of the comment then
-shows a warning sign and the count of warnings in place of the green mark, and the comment lists
-the messages. A warning does not fail the step.
-
 ## Permissions
 
 The job needs `pull-requests: write` so the action can create and update the sticky comment.

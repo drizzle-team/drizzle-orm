@@ -102,7 +102,8 @@ test('the migrations before a conflicting one stay, and --fix-conflicts merges t
 	expect(await flow.migrate('main', merged)).toStrictEqual([]);
 });
 
-// Check reports one conflict for each pair of leaves, and these branches conflict in two places.
+// `check` reports one conflict for each pair of leaves. These branches conflict on `score` and on `level`,
+// so the fix must also cover the conflict that `check` does not report.
 test('--fix-conflicts fixes every conflict between two branches', async () => {
 	const level = (value?: number) => ({ level: value === undefined ? integer() : integer().default(value) });
 	const { flow } = await forkFlow({

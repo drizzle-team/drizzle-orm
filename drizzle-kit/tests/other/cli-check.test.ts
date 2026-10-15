@@ -116,33 +116,6 @@ test.each(['json', 'text'] as const)('output option parses %s mode', async (mode
 	expect(res.options).toStrictEqual(expected);
 });
 
-test('the schema option passes the schema path to check', async () => {
-	const res = await brotest(check, `--dialect=postgresql --out=test --schema=src/schema.ts`);
-
-	assert.equal(res.type, 'handler');
-	if (res.type !== 'handler') assert.fail(res.type, 'handler');
-
-	const expected: CheckConfigWithOutput = {
-		dialect: 'postgresql',
-		out: 'test',
-		schema: 'src/schema.ts',
-		ignoreConflicts: undefined,
-		output: 'text',
-	};
-	expect(res.options).toStrictEqual(expected);
-});
-
-test('check takes the schema path of the config file', async () => {
-	const { path, name } = createConfig({ dialect: 'postgresql', schema: './schema.ts' }, prefix);
-
-	const res = await brotest(check, `--config=${name}`);
-
-	unlinkSync(path);
-	assert.equal(res.type, 'handler');
-	if (res.type !== 'handler') assert.fail(res.type, 'handler');
-	expect(res.options).toMatchObject({ dialect: 'postgresql', schema: './schema.ts' });
-});
-
 test('output defaults to text when omitted', async (t) => {
 	const res = await brotest(check, `--dialect=postgresql --out=test`);
 

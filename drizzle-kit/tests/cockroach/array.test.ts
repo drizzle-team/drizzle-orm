@@ -3,10 +3,8 @@ import {
 	boolean,
 	cockroachEnum,
 	cockroachTable,
-	customType,
 	date,
 	int4,
-	string,
 	text,
 	timestamp,
 	uuid,
@@ -263,77 +261,4 @@ test.concurrent('array #12: enum empty array default', async ({ dbc: db }) => {
 	const st0 = ['ALTER TABLE "test" ADD COLUMN "values" "test_enum"[] DEFAULT \'{}\'::"test_enum"[];'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
-});
-
-// The plain cast reads a string as an array literal. A value that is no array literal makes the statement fail,
-// and the user writes the conversion into the USING clause.
-test.for([
-	{
-		name: 'a string column that becomes an array',
-		from: string(),
-		to: string().array(),
-		row: `'{a}'`,
-		value: ['a'],
-		expected: ['ALTER TABLE "test" ALTER COLUMN "vals" SET DATA TYPE string[] USING "vals"::string[];'],
-	},
-	{
-		name: 'a string column with a default that becomes an array',
-		from: string().default('a'),
-		to: string().array().default(['a']),
-		row: `'{a}'`,
-		value: ['a'],
-		expected: [
-			'ALTER TABLE "test" ALTER COLUMN "vals" DROP DEFAULT;',
-			'ALTER TABLE "test" ALTER COLUMN "vals" SET DATA TYPE string[] USING "vals"::string[];',
-			`ALTER TABLE "test" ALTER COLUMN "vals" SET DEFAULT '{a}'::string[];`,
-		],
-	},
-	{
-		name: 'a string array column that becomes a scalar',
-		from: string().array(),
-		to: string(),
-		row: `'{a,b}'`,
-		value: '{a,b}',
-		expected: ['ALTER TABLE "test" ALTER COLUMN "vals" SET DATA TYPE string USING "vals"::string;'],
-	},
-])('$name gets a type change that runs', async ({ from, to, row, value, expected }, { db }) => {
-	const before = { test: cockroachTable('test', { vals: from }) };
-	const after = { test: cockroachTable('test', { vals: to }) };
-
-	const { sqlStatements: st } = await diff(before, after, []);
-	await push({ db, to: before });
-	await db.query(`INSERT INTO "test" VALUES (${row});`);
-	const { sqlStatements: pst } = await push({ db, to: after });
-
-	expect(st).toStrictEqual(expected);
-	expect(pst).toStrictEqual(expected);
-	expect(await db.query('SELECT "vals" FROM "test";')).toStrictEqual([{ vals: value }]);
-});
-
-// Cockroach has no cast from int4 to int4[], so this SQL does not run as it is. The user writes the
-// conversion into the USING clause of the migration.
-test.concurrent('an int4 column that becomes an array gets a type change with a plain cast', async () => {
-	const before = { test: cockroachTable('test', { vals: int4() }) };
-	const after = { test: cockroachTable('test', { vals: int4().array() }) };
-
-	const { sqlStatements: st } = await diff(before, after, []);
-
-	expect(st).toStrictEqual(['ALTER TABLE "test" ALTER COLUMN "vals" SET DATA TYPE int4[] USING "vals"::int4[];']);
-});
-
-// Cockroach has no array of arrays, so `.array()` on such a type gives the same array.
-const list = customType<{ data: string[] }>({ dataType: () => 'string[]' });
-test.for([
-	{ name: 'alone', vals: list(), column: '"vals" string[]' },
-	{ name: 'with .array()', vals: list().array(), column: '"vals" string[]' },
-	{ name: 'with a default', vals: list().default(['a', 'b']), column: `"vals" string[] DEFAULT '{a,b}'::string[]` },
-])('a custom type that names an array type is an array column, $name', async ({ vals, column }, { db }) => {
-	const to = { test: cockroachTable('test', { vals }) };
-
-	const { sqlStatements: st } = await diff({}, to, []);
-	for (const statement of st) await db.query(statement);
-	const { sqlStatements: pst } = await push({ db, to });
-
-	expect(st).toStrictEqual([`CREATE TABLE "test" (\n\t${column}\n);\n`]);
-	expect(pst).toStrictEqual([]);
 });
