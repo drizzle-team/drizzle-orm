@@ -5,7 +5,7 @@ import { spawnSync } from 'child_process';
 import { sql } from 'drizzle-orm';
 import { integer as pgInteger, pgPolicy, pgSchema, pgTable, text as pgText } from 'drizzle-orm/pg-core';
 import { check, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'fs';
 import { stripAnsi } from 'hanji/utils';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -1660,6 +1660,25 @@ describe('pull json envelopes', () => {
 		expect(env).not.toHaveProperty('migrationPath');
 
 		await client.close();
+	});
+
+	test('dsql rejects --init before connecting', async () => {
+		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-pull-dsql-init-'));
+		const runPull = await importRunPull();
+		const { errorToEnvelope } = await import('../../src/cli/errors');
+
+		const caught = await runWithCliContext(
+			{ output: 'json', interactive: false },
+			() =>
+				runPull!({ ...baseConfig(out), dialect: 'dsql', credentials: { host: 'offline.invalid' }, init: true })
+					.then(() => null, (err) => err),
+		);
+
+		expect(errorToEnvelope(caught)).toStrictEqual({
+			status: 'error',
+			error: { code: 'unsupported_command_dialect_error', command: 'pull', dialect: 'dsql' },
+		});
+		expect(readdirSync(out)).toStrictEqual([]);
 	});
 
 	test('a real connection failure never leaks the configured credentials into the error envelope', async () => {

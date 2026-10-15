@@ -11,6 +11,7 @@
  * - Sequences with required CACHE (must be 1 or >= 65536)
  * - Identity columns with required CACHE (must be 1 or >= 65536)
  * - Foreign keys and check constraints added with NOT VALID
+ * - Data loss hints for non-interactive push
  * - No enums or policies
  *
  * Required environment variable:
@@ -40,14 +41,20 @@ import {
 	varchar,
 } from 'drizzle-orm/dsql-core';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { fromDatabase } from '../../src/dialects/dsql/introspect';
+import { suggestions } from '../../src/cli/commands/push-dsql';
+import { runWithCliContext } from '../../src/cli/context';
+import { HintsHandler } from '../../src/cli/hints';
+import { ddlDiff } from '../../src/dialects/dsql/diff';
+import { fromDatabase, fromDatabaseForDrizzle } from '../../src/dialects/dsql/introspect';
 import { interimToDDL } from '../../src/dialects/postgres/ddl';
 import type { DB } from '../../src/utils';
+import { mockResolver } from '../../src/utils/mocks';
 import {
 	_,
 	cleanupIndex,
 	cleanupSchema,
 	cleanupTable,
+	drizzleToDDL,
 	type DSQLTestDatabase,
 	prepareTestDatabase,
 	push,
@@ -1481,6 +1488,150 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL Push - Expression and Partial Inde
 			expect(exprIdx?.columns[0]?.isExpression).toBe(true);
 			const partialIdx = ddl.indexes.one({ name: partialIndexName });
 			expect(partialIdx?.where).toBe('(active = true)');
+		} finally {
+			await cleanupTable(dsqlDb, tableName);
+		}
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Push - Data Loss Hints', () => {
+	// Diffs only `tableName` against `to` without applying it, so suggestions can check existing data
+	const planPush = async (tableName: string, to: Record<string, unknown>) => {
+		const schema = await fromDatabaseForDrizzle(
+			db,
+			(it) => it.type === 'table' ? it.name === tableName : it.type === 'schema' && it.name === 'public',
+			() => {},
+			{
+				schema: 'drizzle',
+				table: '__drizzle_migrations',
+			},
+		);
+		schema.roles = [];
+		schema.sequences = [];
+		const { ddl: ddl1 } = interimToDDL(schema);
+		const { ddl: ddl2 } = drizzleToDDL(to as any);
+		return ddlDiff(
+			ddl1,
+			ddl2,
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			'push',
+		);
+	};
+
+	test('dropping a non-empty column needs a hint in json mode', async () => {
+		const tableName = _.uniqueName('push_hint_col');
+		const initial = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				email: text('email'),
+			}),
+		};
+		const updated = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+			}),
+		};
+
+		try {
+			await push({ db, dsqlDb, to: initial });
+			await dsqlDb.execute(sql`INSERT INTO ${sql.identifier(tableName)} (email) VALUES ('a@b.c')`);
+
+			const { statements } = await planPush(tableName, updated);
+
+			const hints = new HintsHandler();
+			const grouped = await runWithCliContext(
+				{ output: 'json', interactive: false },
+				() => suggestions(db, statements, hints),
+			);
+
+			expect(grouped).toStrictEqual([]);
+			expect(hints.missingHints).toStrictEqual([
+				{ type: 'confirm_data_loss', kind: 'column', entity: ['public', tableName, 'email'], reason: 'non_empty' },
+			]);
+		} finally {
+			await cleanupTable(dsqlDb, tableName);
+		}
+	});
+
+	test('dropping a non-empty table is confirmed by a matching hint', async () => {
+		const tableName = _.uniqueName('push_hint_tbl');
+		const initial = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+			}),
+		};
+
+		try {
+			await push({ db, dsqlDb, to: initial });
+			await dsqlDb.execute(sql`INSERT INTO ${sql.identifier(tableName)} DEFAULT VALUES`);
+
+			const { statements } = await planPush(tableName, {});
+			expect(statements.some((it) => it.type === 'drop_table')).toBe(true);
+
+			const hints = new HintsHandler([
+				{ type: 'confirm_data_loss', kind: 'table', entity: ['public', tableName] },
+			]);
+			const grouped = await runWithCliContext(
+				{ output: 'json', interactive: false },
+				() => suggestions(db, statements, hints),
+			);
+
+			expect(grouped).toStrictEqual([]);
+			expect(hints.hasMissingHints()).toBe(false);
+		} finally {
+			await cleanupTable(dsqlDb, tableName);
+		}
+	});
+
+	// DSQL doesn't support transactions for DDL, so a multi-statement push warns before the prompt
+	test('interactive push warns about data loss and no DDL transactions', async () => {
+		const tableName = _.uniqueName('push_hint_tty');
+		const initial = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				email: text('email'),
+				name: text('name'),
+			}),
+		};
+		const updated = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+			}),
+		};
+
+		try {
+			await push({ db, dsqlDb, to: initial });
+			await dsqlDb.execute(sql`INSERT INTO ${sql.identifier(tableName)} (email, name) VALUES ('a@b.c', 'a')`);
+
+			const { statements } = await planPush(tableName, updated);
+
+			const hints = new HintsHandler();
+			const grouped = await runWithCliContext(
+				{ output: 'text', interactive: true },
+				() => suggestions(db, statements, hints),
+			);
+
+			expect(hints.hasMissingHints()).toBe(false);
+			expect(grouped.map((it) => it.hint)).toStrictEqual([
+				expect.stringContaining(
+					'DSQL does not support transactions for DDL. 2 statements will be executed sequentially.',
+				),
+				`You're about to delete non-empty email column in "${tableName}" table`,
+				`You're about to delete non-empty name column in "${tableName}" table`,
+			]);
 		} finally {
 			await cleanupTable(dsqlDb, tableName);
 		}

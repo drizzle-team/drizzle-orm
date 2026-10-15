@@ -22,7 +22,11 @@
 import { sql } from 'drizzle-orm';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { drizzle, type DSQLDatabase } from 'drizzle-orm/dsql';
+import { mkdtempSync, readdirSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { handle as pull } from '../../src/cli/commands/pull-dsql';
 import { fromDatabase } from '../../src/dialects/dsql/introspect';
 import { interimToDDL } from '../../src/dialects/postgres/ddl';
 import { ddlToTypeScript } from '../../src/dialects/postgres/typescript';
@@ -694,6 +698,39 @@ describe.skipIf(skipIfNoCluster().skip)('DSQL Introspect - Column Types and Type
 		} finally {
 			await dsqlDb.execute(sql`DROP TABLE IF EXISTS ${sql.identifier(childTable)} CASCADE`);
 			await dsqlDb.execute(sql`DROP TABLE IF EXISTS ${sql.identifier(parentTable)} CASCADE`);
+		}
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Introspect - Pull', () => {
+	// DSQL has no init migration, so pull doesn't write a snapshot or an introspect migration
+	test('pull writes only schema and relations files', async () => {
+		const tableName = uniqueName('pull_files');
+		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-dsql-pull-'));
+
+		try {
+			await dsqlDb.execute(
+				sql.raw(`CREATE TABLE "${tableName}" (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text)`),
+			);
+			await dsqlDb.execute(sql.raw(`CREATE INDEX ASYNC "${tableName}_name_idx" ON "${tableName}" (name)`));
+
+			const manifest = await pull(
+				'camel',
+				out,
+				true,
+				{ host: process.env['DSQL_CLUSTER_ENDPOINT']! },
+				{ schemas: undefined, tables: [tableName], entities: undefined, extensions: undefined },
+				{ schema: 'drizzle', table: '__drizzle_migrations' },
+				db,
+			);
+
+			expect(manifest).toStrictEqual({
+				schemaPath: join(out, 'schema.ts'),
+				relationsPath: join(out, 'relations.ts'),
+			});
+			expect(readdirSync(out).sort()).toStrictEqual(['relations.ts', 'schema.ts']);
+		} finally {
+			await dsqlDb.execute(sql`DROP TABLE IF EXISTS ${sql.identifier(tableName)} CASCADE`);
 		}
 	});
 });
