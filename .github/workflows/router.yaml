@@ -44,6 +44,7 @@ jobs:
       SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
+      DSQL_CLUSTER_ENDPOINT: ${{ secrets.DSQL_CLUSTER_ENDPOINT }}
 
   run-latest:
     needs: switch
