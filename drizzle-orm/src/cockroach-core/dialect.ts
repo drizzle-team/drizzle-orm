@@ -45,13 +45,13 @@ import {
 	type DriverValueDecoder,
 	isSQLWrapper,
 	type Name,
-	Param,
 	type Query,
 	SQL,
 	sql,
 	type SQLChunk,
 	type SQLWrapper,
 	StringChunk,
+	ValueRows,
 } from '~/sql/sql.ts';
 import { chunkKindOf, chunkKinds, isChunk } from '~/sql/sql.ts';
 import { commonStringChunks } from '~/sql/sql.ts';
@@ -62,6 +62,7 @@ import {
 	getColumnFromDecoder,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
+	memoizeEscape,
 	type RowsMapperGenerator,
 	type UpdateSet,
 } from '~/utils.ts';
@@ -77,6 +78,7 @@ export interface CockroachDialectConfig {
 	codecs?: CockroachCodecs;
 }
 
+const escapeCockroachName = memoizeEscape((name) => `"${name.replace(/"/g, '""')}"`);
 export class CockroachDialect {
 	static readonly [entityKind]: string = 'CockroachDialect';
 	static [Symbol.hasInstance](value: unknown): boolean {
@@ -198,7 +200,7 @@ export class CockroachDialect {
 	}
 
 	escapeName(name: string): string {
-		return `"${name.replace(/"/g, '""')}"`;
+		return escapeCockroachName(name);
 	}
 
 	escapeParam(num: number): string {
@@ -818,61 +820,39 @@ export class CockroachDialect {
 		insertOrderArr[writeIdx++] = commonStringChunks[')'];
 		const insertOrder = new SQL(insertOrderArr);
 
-		const valuesSqlList: SQLChunk[] = new Array(
-			select
-				? 1
-				: (colEntriesFiltered.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
-					+ (valuesOrSelect as Record<string, unknown>[]).length,
-		);
+		let valuesSqlList: SQLChunk[];
 
 		if (select) {
-			valuesSqlList[0] = (valuesOrSelect as AnyCockroachSelectQueryBuilder | SQL).getSQL();
+			valuesSqlList = [(valuesOrSelect as AnyCockroachSelectQueryBuilder | SQL).getSQL()];
 		} else {
 			const values = valuesOrSelect as Record<string, unknown>[];
+			const cells: unknown[] = new Array(values.length * colEntriesFiltered.length);
 
 			let writeIdx = 0;
-			valuesSqlList[writeIdx++] = commonStringChunks['values '];
 
 			for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
 				const value = values[valueIndex]!;
 
-				valuesSqlList[writeIdx++] = commonStringChunks['('];
 				for (let i = 0; i < colEntriesFiltered.length; ++i) {
 					const [fieldName, col] = colEntriesFiltered[i]!;
 					const colValue = value[fieldName];
 					if (colValue === undefined) {
 						// eslint-disable-next-line unicorn/no-negated-condition
 						if (col.defaultFn !== undefined) {
-							const defaultFnResult = col.defaultFn();
-							const defaultValue = is(defaultFnResult, SQL)
-								? defaultFnResult
-								: sql.param(defaultFnResult, col);
-							valuesSqlList[writeIdx++] = defaultValue;
+							cells[writeIdx++] = col.defaultFn();
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (!col.default && col.onUpdateFn !== undefined) {
-							const onUpdateFnResult = col.onUpdateFn();
-							const newValue = is(onUpdateFnResult, SQL)
-								? onUpdateFnResult
-								: sql.param(onUpdateFnResult, col);
-							valuesSqlList[writeIdx++] = newValue;
+							cells[writeIdx++] = col.onUpdateFn();
 						} else {
-							valuesSqlList[writeIdx++] = commonStringChunks['default'];
+							cells[writeIdx++] = commonStringChunks['default'];
 						}
 					} else {
-						valuesSqlList[writeIdx++] = is(colValue, SQL) ? colValue : new Param(colValue, col);
+						cells[writeIdx++] = colValue;
 					}
-
-					if (i < colEntriesFiltered.length - 1) {
-						valuesSqlList[writeIdx++] = commonStringChunks[', '];
-					}
-				}
-
-				valuesSqlList[writeIdx++] = commonStringChunks[')'];
-
-				if (valueIndex < values.length - 1) {
-					valuesSqlList[writeIdx++] = commonStringChunks[', '];
 				}
 			}
+
+			valuesSqlList = [commonStringChunks['values '], new ValueRows(cells, colEntriesFiltered.map(([, col]) => col))];
 		}
 
 		const withSql = this.buildWithCTE(withList);
@@ -934,13 +914,25 @@ export class CockroachDialect {
 			decoderColumn = field;
 			fieldType = 'Column';
 
-			const name = sql`${table}.${sql.identifier(field.name)}`;
-
 			const custom = field as CockroachCustomColumn<any>;
-			const casted = inJson && custom.jsonSelectIdentifier
-				? custom.jsonSelectIdentifier(name, sql, custom.dimensions)
-				: this.codecs.apply(field, inJson ? 'castInJson' : 'cast', name);
-			output = sql`${casted} as ${sql.identifier(key)}`;
+			const cast = inJson && custom.jsonSelectIdentifier
+				? undefined
+				: this.codecs.codecsOf(field)[inJson ? 'castInJson' : 'cast'];
+			if (cast || (inJson && custom.jsonSelectIdentifier)) {
+				const name = sql`${table}.${sql.identifier(field.name)}`;
+				const casted = cast
+					? cast(name, (<any> field).dimensions)
+					: custom.jsonSelectIdentifier!(name, sql, custom.dimensions);
+				output = sql`${casted} as ${sql.identifier(key)}`;
+			} else {
+				output = new SQL([
+					table,
+					commonStringChunks['.'],
+					sql.identifier(field.name),
+					commonStringChunks[' as '],
+					sql.identifier(key),
+				]);
+			}
 		} else if (is(field, SQL)) {
 			decoderColumn = is(field.decoder, Column) ? field.decoder : undefined;
 			fieldType = 'SQL';
@@ -1017,11 +1009,10 @@ export class CockroachDialect {
 	}
 
 	private getSelectedTableColumns = (
-		table: SchemaEntry,
+		columnContainer: Record<string, unknown>,
 		columns: Record<string, boolean | undefined>,
 	) => {
 		const selectedColumns: ColumnWithTSName[] = [];
-		const columnContainer = table[TableColumns];
 		const entries = Object.entries(columns);
 
 		let colSelectionMode: boolean | undefined;
@@ -1053,6 +1044,7 @@ export class CockroachDialect {
 
 	private buildColumns = (
 		table: SchemaEntry,
+		columns: Record<string, unknown>,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
 		tableTsName: string,
@@ -1060,7 +1052,7 @@ export class CockroachDialect {
 	) => {
 		if (!config?.columns) {
 			return sql.join(
-				Object.entries(table[TableColumns]).map(([k, v]) => {
+				Object.entries(columns).map(([k, v]) => {
 					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
 				}),
 				commonStringChunks[', '],
@@ -1068,7 +1060,7 @@ export class CockroachDialect {
 		}
 
 		const columnIdentifiers: SQL[] = [];
-		const selectedColumns = this.getSelectedTableColumns(table, config.columns);
+		const selectedColumns = this.getSelectedTableColumns(columns, config.columns);
 
 		for (const { column, tsName } of selectedColumns) {
 			columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, inJson, selection, tableTsName));
@@ -1132,7 +1124,14 @@ export class CockroachDialect {
 		const order = params?.orderBy
 			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, subqueries)
 			: undefined;
-		const columns = this.buildColumns(table, selection, !!nested, tableConfig.name, params);
+		const columns = this.buildColumns(
+			table,
+			tableConfig.table[TableColumns],
+			selection,
+			!!nested,
+			tableConfig.name,
+			params,
+		);
 		const extras = params?.extras ? relationExtrasToSQL(table, params.extras, this.codecs, nested) : undefined;
 		if (extras) selection.push(...extras.selection);
 
@@ -1148,14 +1147,18 @@ export class CockroachDialect {
 				const { with: withParam } = params as WithContainer;
 				if (!withParam) break;
 
-				const withEntries = Object.entries(withParam).filter(([_, v]) => v);
-				if (!withEntries.length) break;
+				const withKeys: string[] = [];
+				for (const key of Object.keys(withParam)) {
+					if (withParam[key]) withKeys.push(key);
+				}
+				if (!withKeys.length) break;
 
-				const joinChunks: SQLChunk[] = new Array(withEntries.length * 2);
+				const joinChunks: SQLChunk[] = new Array(withKeys.length * 2);
 				joinChunks[0] = commonStringChunks[' '];
 
-				for (let readIdx = 0, writeIdx = 1; readIdx < withEntries.length; ++readIdx) {
-					const [k, join] = withEntries[readIdx]!;
+				for (let readIdx = 0, writeIdx = 1; readIdx < withKeys.length; ++readIdx) {
+					const k = withKeys[readIdx]!;
+					const join = withParam[k]!;
 
 					const relation = tableConfig.relations[k];
 					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
@@ -1208,7 +1211,7 @@ export class CockroachDialect {
 					} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${sql.identifier(k)} on true`;
 
 					joinChunks[writeIdx++] = joinQuery;
-					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = commonStringChunks[' '];
+					if (readIdx < withKeys.length - 1) joinChunks[writeIdx++] = commonStringChunks[' '];
 				}
 
 				joins = new SQL(joinChunks);
@@ -1227,9 +1230,11 @@ export class CockroachDialect {
 		const withSql = currentDepth ? undefined : this.buildWithCTE([...subqueries.values()]);
 		const whereSql = where ? sql` where ${where}` : undefined;
 		const orderSql = order ? sql` order by ${order}` : undefined;
-		const limitSql = sql`${limit !== undefined ? sql` limit ${limit}` : undefined}${
-			offset !== undefined ? sql` offset ${offset}` : undefined
-		}`;
+		const limitSql = limit !== undefined || offset !== undefined
+			? sql`${limit !== undefined ? sql` limit ${limit}` : undefined}${
+				offset !== undefined ? sql` offset ${offset}` : undefined
+			}`
+			: undefined;
 
 		// Optimize slow queries caused by planner applying pagination or filters after building relations
 		// `limit` and `offset` aren't pushed below lateral joins: relations would get built for more rows than

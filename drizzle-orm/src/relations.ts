@@ -43,7 +43,7 @@ import {
 	sql,
 	type SQLWrapper,
 } from './sql/sql.ts';
-import { commonStringChunks } from './sql/sql.ts';
+import { chunkKindOf, chunkKinds, commonStringChunks, isChunk } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import {
 	type Assume,
@@ -2523,7 +2523,7 @@ export function collectRelationalSubquery(
 	collector: RelationalWithSubqueries,
 	entity: SchemaEntry | undefined,
 ): void {
-	if (!entity || !is(entity, Subquery)) return;
+	if (!isChunk(entity, chunkKindOf(entity), chunkKinds.subquery)) return;
 
 	const name = entity._.alias;
 	const existing = collector.get(name);
@@ -2539,13 +2539,18 @@ export function collectRelationalSubquery(
 }
 
 export function getTableAsAliasSQL(table: SchemaEntry) {
-	return sql`${
-		table[IsAlias]
-			? sql`${sql`${sql.identifier(table[TableSchema] ?? '')}.`.if(table[TableSchema])}${
-				sql.identifier(table[OriginalName])
-			} as ${table}`
-			: table
-	}`;
+	if (!table[IsAlias]) return new SQL([table]);
+
+	const schema = table[TableSchema];
+	return schema
+		? new SQL([
+			sql.identifier(schema),
+			commonStringChunks['.'],
+			sql.identifier(table[OriginalName]),
+			commonStringChunks[' as '],
+			table,
+		])
+		: new SQL([sql.identifier(table[OriginalName]), commonStringChunks[' as '], table]);
 }
 
 export const EmptyFilter = Symbol.for('drizzle:EmptyFilter');

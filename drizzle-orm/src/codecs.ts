@@ -1,7 +1,7 @@
 import type { Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import type { SQLChunk } from './sql/sql.ts';
-import type { PartialWithUndefined } from './utils.ts';
+import type { Writable } from './utils.ts';
 
 export type NormalizeCodec = (value: any) => any;
 export type NormalizeArrayCodec = (value: any, arrayDimensions: number) => any;
@@ -11,23 +11,44 @@ export type CastParamCodec = (name: string, column: Column) => string;
 export type CastArrayParamCodec = (name: string, column: Column, arrayDimensions: number) => string;
 
 export interface Codec {
-	cast?: CastCodec | undefined;
-	castArray?: CastArrayCodec | undefined;
-	castInJson?: CastCodec | undefined;
-	castArrayInJson?: CastArrayCodec | undefined;
-	castParam?: CastParamCodec | undefined;
-	castArrayParam?: CastArrayParamCodec | undefined;
-	normalize?: NormalizeCodec | undefined;
-	normalizeArray?: NormalizeArrayCodec | undefined;
-	normalizeInJson?: NormalizeCodec | undefined;
-	normalizeArrayInJson?: NormalizeArrayCodec | undefined;
-	normalizeParam?: NormalizeCodec | undefined;
-	normalizeParamArray?: NormalizeArrayCodec | undefined;
+	readonly cast?: CastCodec | undefined;
+	readonly castArray?: CastArrayCodec | undefined;
+	readonly castInJson?: CastCodec | undefined;
+	readonly castArrayInJson?: CastArrayCodec | undefined;
+	readonly castParam?: CastParamCodec | undefined;
+	readonly castArrayParam?: CastArrayParamCodec | undefined;
+	readonly normalize?: NormalizeCodec | undefined;
+	readonly normalizeArray?: NormalizeArrayCodec | undefined;
+	readonly normalizeInJson?: NormalizeCodec | undefined;
+	readonly normalizeArrayInJson?: NormalizeArrayCodec | undefined;
+	readonly normalizeParam?: NormalizeCodec | undefined;
+	readonly normalizeParamArray?: NormalizeArrayCodec | undefined;
 }
 
-export type Codecs<TTypeSet extends string = string> = PartialWithUndefined<Record<TTypeSet, Codec>>;
+export type Codecs<TTypeSet extends string = string> = {
+	readonly [K in TTypeSet]?: Codec | undefined;
+};
 
 export const noopCodecs: Codecs = {};
+
+/** Holds array-type codecs for array columns */
+export interface ResolvedCodecs {
+	readonly cast: CastCodec | CastArrayCodec | undefined;
+	readonly castInJson: CastCodec | CastArrayCodec | undefined;
+	readonly castParam: CastParamCodec | CastArrayParamCodec | undefined;
+	readonly normalize: NormalizeCodec | NormalizeArrayCodec | undefined;
+	readonly normalizeInJson: NormalizeCodec | NormalizeArrayCodec | undefined;
+	readonly normalizeParam: NormalizeCodec | NormalizeArrayCodec | undefined;
+}
+
+const noCodecs: ResolvedCodecs = {
+	cast: undefined,
+	castInJson: undefined,
+	castParam: undefined,
+	normalize: undefined,
+	normalizeInJson: undefined,
+	normalizeParam: undefined,
+};
 
 const arrayToItemTypeCodecNameMap = {
 	cast: 'cast',
@@ -67,6 +88,44 @@ export class CodecsCollection<TTypeSet extends string = string> {
 
 	constructor(protected resolveTypes: (type: string) => string, readonly codecs: Codecs<TTypeSet> = noopCodecs) {}
 
+	private itemCodecsCache: Map<string, ResolvedCodecs> = new Map();
+	private arrayCodecsCache: Map<string, ResolvedCodecs> = new Map();
+
+	/** @internal */
+	codecsOf(column: Column, override?: TTypeSet): ResolvedCodecs {
+		const sqlType = (override ?? column.codec) as TTypeSet | undefined;
+		if (!sqlType) return noCodecs;
+
+		const isArray = !!(<any> column).dimensions;
+		const cache = isArray ? this.arrayCodecsCache : this.itemCodecsCache;
+		let resolved = cache.get(sqlType);
+		if (resolved === undefined) {
+			const codec = this.codecs[sqlType];
+			resolved = codec
+				? isArray
+					? {
+						cast: codec.castArray,
+						castInJson: codec.castArrayInJson,
+						castParam: codec.castArrayParam,
+						normalize: codec.normalizeArray,
+						normalizeInJson: codec.normalizeArrayInJson,
+						normalizeParam: codec.normalizeParamArray,
+					}
+					: {
+						cast: codec.cast,
+						castInJson: codec.castInJson,
+						castParam: codec.castParam,
+						normalize: codec.normalize,
+						normalizeInJson: codec.normalizeInJson,
+						normalizeParam: codec.normalizeParam,
+					}
+				: noCodecs;
+			cache.set(sqlType, resolved);
+		}
+
+		return resolved;
+	}
+
 	get<TCodecType extends keyof Codec>(
 		column: Column,
 		type: TCodecType,
@@ -75,14 +134,7 @@ export class CodecsCollection<TTypeSet extends string = string> {
 		| Codec[typeof arrayToItemTypeCodecNameMap[TCodecType]]
 		| Codec[typeof itemToArrayTypeCodecNameMap[TCodecType]]
 	{
-		const sqlType = (override ?? column.codec) as TTypeSet | undefined;
-		if (!sqlType) return undefined;
-
-		const codecType = (<any> column).dimensions
-			? itemToArrayTypeCodecNameMap[type]
-			: arrayToItemTypeCodecNameMap[type];
-
-		return this.codecs[sqlType]?.[codecType];
+		return this.codecsOf(column, override)[arrayToItemTypeCodecNameMap[type]] as any;
 	}
 
 	apply<TCodecType extends keyof Codec>(
@@ -91,17 +143,11 @@ export class CodecsCollection<TTypeSet extends string = string> {
 		value: Codec[TCodecType] extends ((v: infer TValue, ...rest: any[]) => any) ? TValue : unknown,
 		override?: TTypeSet,
 	): ReturnType<Exclude<Codec[TCodecType], undefined>> {
-		const sqlType = (override ?? column.codec) as TTypeSet | undefined;
-		if (!sqlType) return value as any;
-
-		const codecType = (<any> column).dimensions
-			? itemToArrayTypeCodecNameMap[type]
-			: arrayToItemTypeCodecNameMap[type];
-
-		const codec = this.codecs[sqlType]?.[codecType];
+		const codecType = arrayToItemTypeCodecNameMap[type];
+		const codec = this.codecsOf(column, override)[codecType];
 		if (!codec) return value as any;
 
-		if (codecType === 'castParam' || codecType === 'castArrayParam') {
+		if (codecType === 'castParam') {
 			return (<CastParamCodec | CastArrayParamCodec> codec)(value as string, column, (<any> column).dimensions) as any;
 		}
 
@@ -117,7 +163,7 @@ export function refineCodecs<TTypeSet extends string>(
 	extension: Codecs<TTypeSet> = {},
 ): Codecs<TTypeSet> {
 	const keys = new Set<TTypeSet>([...Object.keys(source), ...Object.keys(extension)] as TTypeSet[]).values();
-	const result: Codecs<TTypeSet> = {};
+	const result: { [K in TTypeSet]?: Writable<Codec> | undefined } = {};
 
 	for (const k of keys) {
 		if (!(k in extension)) {

@@ -29,9 +29,10 @@ import {
 } from '~/relations.ts';
 import { and } from '~/sql/expressions/index.ts';
 import type { DriverValueDecoder, Name, Placeholder, Query, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
-import { isSQLWrapper, Param, SQL, sql, StringChunk } from '~/sql/sql.ts';
+import { isSQLWrapper, SQL, sql, StringChunk } from '~/sql/sql.ts';
 import { chunkKindOf, chunkKinds, isChunk } from '~/sql/sql.ts';
 import { commonStringChunks } from '~/sql/sql.ts';
+import { ValueRows } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/singlestore.ts';
@@ -40,6 +41,7 @@ import {
 	make$ReturningResponseMapper,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
+	memoizeEscape,
 	type RowsMapperGenerator,
 	type UpdateSet,
 } from '~/utils.ts';
@@ -64,6 +66,7 @@ interface BuildRelationalQueryResultWithOrder extends BuildRelationalQueryResult
 	order?: SQL;
 }
 
+const escapeSingleStoreName = memoizeEscape((name) => `\`${name.replace(/`/g, '``')}\``);
 export class SingleStoreDialect {
 	static readonly [entityKind]: string = 'SingleStoreDialect';
 	static [Symbol.hasInstance](value: unknown): boolean {
@@ -173,7 +176,7 @@ export class SingleStoreDialect {
 	}
 
 	escapeName(name: string): string {
-		return `\`${name.replace(/`/g, '``')}\``;
+		return escapeSingleStoreName(name);
 	}
 
 	escapeParam(_num: number): string {
@@ -749,14 +752,14 @@ export class SingleStoreDialect {
 		const insertOrder = new SQL(insertOrderArr);
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
-		const valuesSqlList: SQLChunk[] = new Array((colEntries.length * 2 + 1) * values.length + values.length - 1);
+		let valuesSqlList: SQLChunk[];
 
+		const cells: unknown[] = new Array(values.length * colEntries.length);
 		let writeIdx = 0;
 		for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
 			const value = values[valueIndex]!;
 			const generatedIds: Record<string, unknown> = {};
 
-			valuesSqlList[writeIdx++] = commonStringChunks['('];
 			for (let i = 0; i < colEntries.length; ++i) {
 				const [fieldName, col] = colEntries[i]!;
 				const colValue = value[fieldName];
@@ -765,42 +768,27 @@ export class SingleStoreDialect {
 					if (col.defaultFn !== undefined) {
 						const defaultFnResult = col.defaultFn();
 						generatedIds[fieldName] = defaultFnResult;
-						const defaultValue = is(defaultFnResult, SQL)
-							? defaultFnResult
-							: sql.param(defaultFnResult, col);
-						valuesSqlList[writeIdx++] = defaultValue;
+						cells[writeIdx++] = defaultFnResult;
 						// eslint-disable-next-line unicorn/no-negated-condition
 					} else if (!col.default && col.onUpdateFn !== undefined) {
-						const onUpdateFnResult = col.onUpdateFn();
-						const newValue = is(onUpdateFnResult, SQL)
-							? onUpdateFnResult
-							: sql.param(onUpdateFnResult, col);
-						valuesSqlList[writeIdx++] = newValue;
+						cells[writeIdx++] = col.onUpdateFn();
 					} else {
-						valuesSqlList[writeIdx++] = commonStringChunks['default'];
+						cells[writeIdx++] = commonStringChunks['default'];
 					}
 				} else if (is(colValue, SQL)) {
-					valuesSqlList[writeIdx++] = colValue;
+					cells[writeIdx++] = colValue;
 				} else {
 					if (col.defaultFn) {
 						generatedIds[fieldName] = colValue;
 					}
-					valuesSqlList[writeIdx++] = new Param(colValue, col);
-				}
-
-				if (i < colEntries.length - 1) {
-					valuesSqlList[writeIdx++] = commonStringChunks[', '];
+					cells[writeIdx++] = colValue;
 				}
 			}
 
 			generatedIdsResponse.push(generatedIds);
-
-			valuesSqlList[writeIdx++] = commonStringChunks[')'];
-
-			if (valueIndex < values.length - 1) {
-				valuesSqlList[writeIdx++] = commonStringChunks[', '];
-			}
 		}
+
+		valuesSqlList = [new ValueRows(cells, colEntries.map(([, col]) => col))];
 
 		const valuesSql = new SQL(valuesSqlList);
 
@@ -843,12 +831,24 @@ export class SingleStoreDialect {
 			decoderColumn = field;
 			fieldType = 'Column';
 
-			const name = sql`${table}.${sql.identifier(field.name)}`;
-			const casted = inJson && (<SingleStoreCustomColumn<any>> field).jsonSelectIdentifier
-				? (<SingleStoreCustomColumn<any>> field).jsonSelectIdentifier!(name, sql)
-				: this.codecs.apply(field, inJson ? 'castInJson' : 'cast', name);
-
-			output = sql`${casted} as ${sql.identifier(key)}`;
+			const cast = inJson && (<SingleStoreCustomColumn<any>> field).jsonSelectIdentifier
+				? undefined
+				: this.codecs.codecsOf(field)[inJson ? 'castInJson' : 'cast'];
+			if (cast || (inJson && (<SingleStoreCustomColumn<any>> field).jsonSelectIdentifier)) {
+				const name = sql`${table}.${sql.identifier(field.name)}`;
+				const casted = cast
+					? cast(name, (<any> field).dimensions)
+					: (<SingleStoreCustomColumn<any>> field).jsonSelectIdentifier!(name, sql);
+				output = sql`${casted} as ${sql.identifier(key)}`;
+			} else {
+				output = new SQL([
+					table,
+					commonStringChunks['.'],
+					sql.identifier(field.name),
+					commonStringChunks[' as '],
+					sql.identifier(key),
+				]);
+			}
 		} else if (is(field, SQL)) {
 			decoderColumn = is(field.decoder, Column) ? field.decoder : undefined;
 			fieldType = 'SQL';
@@ -924,11 +924,10 @@ export class SingleStoreDialect {
 	}
 
 	private getSelectedTableColumns = (
-		table: SchemaEntry,
+		columnContainer: Record<string, unknown>,
 		columns: Record<string, boolean | undefined>,
 	) => {
 		const selectedColumns: ColumnWithTSName[] = [];
-		const columnContainer = table[TableColumns];
 		const entries = Object.entries(columns);
 
 		let colSelectionMode: boolean | undefined;
@@ -962,6 +961,7 @@ export class SingleStoreDialect {
 
 	private buildColumns = (
 		table: SchemaEntry,
+		columns: Record<string, unknown>,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
 		tableTsName: string,
@@ -969,7 +969,7 @@ export class SingleStoreDialect {
 	) => {
 		if (!config?.columns) {
 			return sql.join(
-				Object.entries(table[TableColumns]).map(([k, v]) => {
+				Object.entries(columns).map(([k, v]) => {
 					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
 				}),
 				commonStringChunks[', '],
@@ -977,10 +977,7 @@ export class SingleStoreDialect {
 		}
 
 		const columnIdentifiers: SQL[] = [];
-		const selectedColumns = this.getSelectedTableColumns(
-			table,
-			config.columns,
-		);
+		const selectedColumns = this.getSelectedTableColumns(columns, config.columns);
 
 		for (const { column, tsName } of selectedColumns) {
 			columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, inJson, selection, tableTsName));
@@ -1032,7 +1029,14 @@ export class SingleStoreDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const columns = this.buildColumns(table, selection, !!nested, tableConfig.name, params);
+		const columns = this.buildColumns(
+			table,
+			tableConfig.table[TableColumns],
+			selection,
+			!!nested,
+			tableConfig.name,
+			params,
+		);
 
 		const filter = params && 'where' in params
 			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries)
@@ -1061,14 +1065,18 @@ export class SingleStoreDialect {
 				const { with: withParam } = params as WithContainer;
 				if (!withParam) break;
 
-				const withEntries = Object.entries(withParam).filter(([_, v]) => v);
-				if (!withEntries.length) break;
+				const withKeys: string[] = [];
+				for (const key of Object.keys(withParam)) {
+					if (withParam[key]) withKeys.push(key);
+				}
+				if (!withKeys.length) break;
 
-				const joinChunks: SQLChunk[] = new Array(withEntries.length * 2);
+				const joinChunks: SQLChunk[] = new Array(withKeys.length * 2);
 				joinChunks[0] = commonStringChunks[' '];
 
-				for (let readIdx = 0, writeIdx = 1; readIdx < withEntries.length; ++readIdx) {
-					const [k, join] = withEntries[readIdx]!;
+				for (let readIdx = 0, writeIdx = 1; readIdx < withKeys.length; ++readIdx) {
+					const k = withKeys[readIdx]!;
+					const join = withParam[k]!;
 
 					const relation = tableConfig.relations[k];
 					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
@@ -1153,7 +1161,7 @@ export class SingleStoreDialect {
 					} on true`;
 
 					joinChunks[writeIdx++] = joinQuery;
-					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = commonStringChunks[' '];
+					if (readIdx < withKeys.length - 1) joinChunks[writeIdx++] = commonStringChunks[' '];
 				}
 
 				joins = new SQL(joinChunks);
@@ -1180,11 +1188,9 @@ export class SingleStoreDialect {
 			sql` where ${where}`.if(
 				where,
 			)
-		}${sql` order by ${order}`.if(order)}${sql` limit ${limit}`.if(limit !== undefined)}${
-			sql` offset ${offset}`.if(
-				offset !== undefined,
-			)
-		}`;
+		}${(order ? sql` order by ${order}` : undefined)}${(limit !== undefined
+			? sql` limit ${limit}`
+			: undefined)}${(offset !== undefined ? sql` offset ${offset}` : undefined)}`;
 
 		return {
 			sql: query,

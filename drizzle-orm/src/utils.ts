@@ -757,6 +757,19 @@ export type NeonAuthToken = string | (() => string | Promise<string>);
 
 export const textDecoder = typeof TextDecoder === 'undefined' ? null : new TextDecoder();
 
+export function memoizeEscape(escape: (name: string) => string, limit = 4096): (name: string) => string {
+	const cache = new Map<string, string>();
+	return (name) => {
+		let escaped = cache.get(name);
+		if (escaped === undefined) {
+			if (cache.size >= limit) cache.clear();
+			escaped = escape(name);
+			cache.set(name, escaped);
+		}
+		return escaped;
+	};
+}
+
 export function assertUnreachable(_x: never | undefined): never {
 	throw new Error("Didn't expect to get here");
 }

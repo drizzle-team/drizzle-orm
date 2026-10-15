@@ -28,7 +28,7 @@ import {
 	type SchemaEntry,
 } from '~/relations.ts';
 import { and } from '~/sql/expressions/index.ts';
-import { isSQLWrapper, noopEncoder, Param, SQL, sql, StringChunk } from '~/sql/sql.ts';
+import { isSQLWrapper, noopEncoder, SQL, sql, StringChunk } from '~/sql/sql.ts';
 import type {
 	DriverValueDecoder,
 	DriverValueEncoder,
@@ -40,6 +40,7 @@ import type {
 } from '~/sql/sql.ts';
 import { chunkKindOf, chunkKinds, isChunk } from '~/sql/sql.ts';
 import { commonStringChunks } from '~/sql/sql.ts';
+import { ValueRows } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import {
@@ -47,6 +48,7 @@ import {
 	make$ReturningResponseMapper,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
+	memoizeEscape,
 	orderSelectedFields,
 	type RowsMapperGenerator,
 	type UpdateSet,
@@ -75,6 +77,7 @@ export interface MySqlDialectConfig {
 	paginationToBigint?: boolean;
 }
 
+const escapeMySqlName = memoizeEscape((name) => `\`${name.replace(/`/g, '``')}\``);
 export class MySqlDialect {
 	static readonly [entityKind]: string = 'MySqlDialect';
 	static [Symbol.hasInstance](value: unknown): boolean {
@@ -110,7 +113,7 @@ export class MySqlDialect {
 	}
 
 	escapeName(name: string): string {
-		return `\`${name.replace(/`/g, '``')}\``;
+		return escapeMySqlName(name);
 	}
 
 	escapeParam(_num: number): string {
@@ -752,26 +755,20 @@ export class MySqlDialect {
 		const insertOrder = new SQL(insertOrderArr);
 		const generatedIdsResponse: Record<string, unknown>[] = [];
 
-		const valuesSqlList: SQLChunk[] = new Array(
-			select
-				? 1
-				: (colEntriesFiltered.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
-					+ (valuesOrSelect as Record<string, unknown>[]).length,
-		);
+		let valuesSqlList: SQLChunk[];
 
 		if (select) {
-			valuesSqlList[0] = (valuesOrSelect as AnyMySqlSelectQueryBuilder | SQL).getSQL();
+			valuesSqlList = [(valuesOrSelect as AnyMySqlSelectQueryBuilder | SQL).getSQL()];
 		} else {
 			const values = valuesOrSelect as Record<string, unknown>[];
+			const cells: unknown[] = new Array(values.length * colEntriesFiltered.length);
 
 			let writeIdx = 0;
-			valuesSqlList[writeIdx++] = commonStringChunks['values '];
 
 			for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
 				const value = values[valueIndex]!;
 				const generatedIds: Record<string, unknown> = {};
 
-				valuesSqlList[writeIdx++] = commonStringChunks['('];
 				for (let i = 0; i < colEntriesFiltered.length; ++i) {
 					const [fieldName, col] = colEntriesFiltered[i]!;
 					const colValue = value[fieldName];
@@ -780,42 +777,27 @@ export class MySqlDialect {
 						if (col.defaultFn !== undefined) {
 							const defaultFnResult = col.defaultFn();
 							generatedIds[fieldName] = defaultFnResult;
-							const defaultValue = is(defaultFnResult, SQL)
-								? defaultFnResult
-								: sql.param(defaultFnResult, col);
-							valuesSqlList[writeIdx++] = defaultValue;
+							cells[writeIdx++] = defaultFnResult;
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (!col.default && col.onUpdateFn !== undefined) {
-							const onUpdateFnResult = col.onUpdateFn();
-							const newValue = is(onUpdateFnResult, SQL)
-								? onUpdateFnResult
-								: sql.param(onUpdateFnResult, col);
-							valuesSqlList[writeIdx++] = newValue;
+							cells[writeIdx++] = col.onUpdateFn();
 						} else {
-							valuesSqlList[writeIdx++] = commonStringChunks['default'];
+							cells[writeIdx++] = commonStringChunks['default'];
 						}
 					} else if (is(colValue, SQL)) {
-						valuesSqlList[writeIdx++] = colValue;
+						cells[writeIdx++] = colValue;
 					} else {
 						if (col.defaultFn) {
 							generatedIds[fieldName] = colValue;
 						}
-						valuesSqlList[writeIdx++] = new Param(colValue, col);
-					}
-
-					if (i < colEntriesFiltered.length - 1) {
-						valuesSqlList[writeIdx++] = commonStringChunks[', '];
+						cells[writeIdx++] = colValue;
 					}
 				}
 
 				generatedIdsResponse.push(generatedIds);
-
-				valuesSqlList[writeIdx++] = commonStringChunks[')'];
-
-				if (valueIndex < values.length - 1) {
-					valuesSqlList[writeIdx++] = commonStringChunks[', '];
-				}
 			}
+
+			valuesSqlList = [commonStringChunks['values '], new ValueRows(cells, colEntriesFiltered.map(([, col]) => col))];
 		}
 
 		const valuesSql = new SQL(valuesSqlList);
@@ -861,12 +843,24 @@ export class MySqlDialect {
 			decoderColumn = field;
 			fieldType = 'Column';
 
-			const name = sql`${table}.${sql.identifier(field.name)}`;
-			const casted = inJson && (<MySqlCustomColumn<any>> field).jsonSelectIdentifier
-				? (<MySqlCustomColumn<any>> field).jsonSelectIdentifier!(name, sql)
-				: this.codecs.apply(field, inJson ? 'castInJson' : 'cast', name);
-
-			output = sql`${casted} as ${sql.identifier(key)}`;
+			const cast = inJson && (<MySqlCustomColumn<any>> field).jsonSelectIdentifier
+				? undefined
+				: this.codecs.codecsOf(field)[inJson ? 'castInJson' : 'cast'];
+			if (cast || (inJson && (<MySqlCustomColumn<any>> field).jsonSelectIdentifier)) {
+				const name = sql`${table}.${sql.identifier(field.name)}`;
+				const casted = cast
+					? cast(name, (<any> field).dimensions)
+					: (<MySqlCustomColumn<any>> field).jsonSelectIdentifier!(name, sql);
+				output = sql`${casted} as ${sql.identifier(key)}`;
+			} else {
+				output = new SQL([
+					table,
+					commonStringChunks['.'],
+					sql.identifier(field.name),
+					commonStringChunks[' as '],
+					sql.identifier(key),
+				]);
+			}
 		} else if (is(field, SQL)) {
 			decoderColumn = is(field.decoder, Column) ? field.decoder : undefined;
 			fieldType = 'SQL';
@@ -943,6 +937,7 @@ export class MySqlDialect {
 
 	private buildColumns = (
 		table: SchemaEntry,
+		columns: Record<string, unknown>,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
 		tableTsName: string,
@@ -950,7 +945,7 @@ export class MySqlDialect {
 	) => {
 		if (!config?.columns) {
 			return sql.join(
-				Object.entries(table[TableColumns]).map(([k, v]) => {
+				Object.entries(columns).map(([k, v]) => {
 					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
 				}),
 				commonStringChunks[', '],
@@ -958,7 +953,7 @@ export class MySqlDialect {
 		}
 
 		const entries = Object.entries(config.columns);
-		const columnContainer: Record<string, unknown> = table[TableColumns];
+		const columnContainer = columns;
 
 		const columnIdentifiers: SQL[] = [];
 		let colSelectionMode: boolean | undefined;
@@ -1027,7 +1022,14 @@ export class MySqlDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const columns = this.buildColumns(table, selection, !!nested, tableConfig.name, params);
+		const columns = this.buildColumns(
+			table,
+			tableConfig.table[TableColumns],
+			selection,
+			!!nested,
+			tableConfig.name,
+			params,
+		);
 
 		const filter = params && 'where' in params
 			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries)
@@ -1056,14 +1058,18 @@ export class MySqlDialect {
 				const { with: withParam } = params as WithContainer;
 				if (!withParam) break;
 
-				const withEntries = Object.entries(withParam).filter(([_, v]) => v);
-				if (!withEntries.length) break;
+				const withKeys: string[] = [];
+				for (const key of Object.keys(withParam)) {
+					if (withParam[key]) withKeys.push(key);
+				}
+				if (!withKeys.length) break;
 
-				const joinChunks: SQLChunk[] = new Array(withEntries.length * 2);
+				const joinChunks: SQLChunk[] = new Array(withKeys.length * 2);
 				joinChunks[0] = commonStringChunks[' '];
 
-				for (let readIdx = 0, writeIdx = 1; readIdx < withEntries.length; ++readIdx) {
-					const [k, join] = withEntries[readIdx]!;
+				for (let readIdx = 0, writeIdx = 1; readIdx < withKeys.length; ++readIdx) {
+					const k = withKeys[readIdx]!;
+					const join = withParam[k]!;
 
 					selectionArr.push(
 						sql`${sql.identifier(k)}.${sql.identifier('r')} as ${sql.identifier(k)}`,
@@ -1140,7 +1146,7 @@ export class MySqlDialect {
 					} on true`;
 
 					joinChunks[writeIdx++] = joinQuery;
-					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = commonStringChunks[' '];
+					if (readIdx < withKeys.length - 1) joinChunks[writeIdx++] = commonStringChunks[' '];
 				}
 
 				joins = new SQL(joinChunks);
@@ -1166,11 +1172,13 @@ export class MySqlDialect {
 		const withSql = currentDepth ? undefined : this.buildWithCTE([...subqueries.values()]);
 		const whereSql = where ? sql` where ${where}` : undefined;
 		const orderSql = order ? sql` order by ${order}` : undefined;
-		const limitSql = sql`${limit !== undefined ? sql` limit ${sql.param(limit, this.paginationEncoder)}` : undefined}${
-			offset !== undefined
-				? sql` offset ${sql.param(offset, this.paginationEncoder)}`
-				: undefined
-		}`;
+		const limitSql = limit !== undefined || offset !== undefined
+			? sql`${limit !== undefined ? sql` limit ${sql.param(limit, this.paginationEncoder)}` : undefined}${
+				offset !== undefined
+					? sql` offset ${sql.param(offset, this.paginationEncoder)}`
+					: undefined
+			}`
+			: undefined;
 
 		// Optimize slow queries caused by planner applying pagination or filters after building relations
 		// MySQL doesn't push `order by ... limit ... offset` below lateral joins: whenever the rows have to be sorted

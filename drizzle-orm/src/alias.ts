@@ -65,6 +65,20 @@ export class TableAliasProxyHandler<T extends Table | View> implements ProxyHand
 
 	constructor(private alias: string, private replaceOriginalName: boolean, private ignoreColumnAlias?: boolean) {}
 
+	private proxiedColumns: Record<string, any> | undefined;
+
+	private getProxiedColumns(target: T, columns: Record<string, AnyColumn>): Record<string, any> {
+		if (this.proxiedColumns) return this.proxiedColumns;
+
+		const handler = new ColumnTableAliasProxyHandler(new Proxy(target, this), this.ignoreColumnAlias);
+		const proxiedColumns: Record<string, any> = {};
+		for (const key of Object.keys(columns)) {
+			proxiedColumns[key] = new Proxy(columns[key]!, handler);
+		}
+
+		return this.proxiedColumns = proxiedColumns;
+	}
+
 	get(target: T, prop: string | symbol): any {
 		if (prop === Table.Symbol.IsAlias) {
 			return true;
@@ -111,20 +125,16 @@ export class TableAliasProxyHandler<T extends Table | View> implements ProxyHand
 				);
 			}
 
-			const proxiedColumns: { [key: string]: any } = {};
-
-			Object.keys(columns).map((key) => {
-				proxiedColumns[key] = new Proxy(
-					columns[key]!,
-					new ColumnTableAliasProxyHandler(new Proxy(target, this), this.ignoreColumnAlias),
-				);
-			});
-
-			return proxiedColumns;
+			return this.getProxiedColumns(target, columns);
 		}
 
 		const value = target[prop as keyof typeof target];
 		if (is(value, Column)) {
+			const columns = (target as Table)[Table.Symbol.Columns];
+			if (typeof prop === 'string' && columns?.[prop] === value) {
+				return this.getProxiedColumns(target, columns)[prop];
+			}
+
 			return new Proxy(
 				value as AnyColumn,
 				new ColumnTableAliasProxyHandler(new Proxy(target, this), this.ignoreColumnAlias),

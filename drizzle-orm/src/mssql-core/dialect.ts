@@ -32,7 +32,6 @@ import {
 import {
 	type DriverValueDecoder,
 	isSQLWrapper,
-	Param,
 	type Query,
 	SQL,
 	sql,
@@ -42,6 +41,7 @@ import {
 } from '~/sql/sql.ts';
 import { chunkKindOf, chunkKinds, isChunk } from '~/sql/sql.ts';
 import { commonStringChunks } from '~/sql/sql.ts';
+import { ValueRows } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mssql.ts';
@@ -49,6 +49,7 @@ import {
 	getColumnFromDecoder,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
+	memoizeEscape,
 	type RowsMapperGenerator,
 	type UpdateSet,
 } from '~/utils.ts';
@@ -73,6 +74,7 @@ export interface MsSqlDialectConfig {
 	codecs?: MsSqlCodecs;
 }
 
+const escapeMsSqlName = memoizeEscape((name) => `[${name.replace(/\]/g, ']]')}]`);
 export class MsSqlDialect {
 	static readonly [entityKind]: string = 'MsSqlDialect';
 	static [Symbol.hasInstance](value: unknown): boolean {
@@ -208,7 +210,7 @@ export class MsSqlDialect {
 	}
 
 	escapeName(name: string): string {
-		return `[${name.replace(/\]/g, ']]')}]`;
+		return escapeMsSqlName(name);
 	}
 
 	escapeParam(_num: number): string {
@@ -889,56 +891,37 @@ export class MsSqlDialect {
 		insertOrderArr[orderWriteIdx++] = commonStringChunks[')'];
 		const insertOrder = new SQL(insertOrderArr);
 
-		const valuesSqlList: SQLChunk[] = new Array(
-			select ? 1 : (colEntries.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
-				+ (valuesOrSelect as Record<string, unknown>[]).length - 1,
-		);
+		let valuesSqlList: SQLChunk[];
 
 		if (select) {
-			valuesSqlList[0] = (valuesOrSelect as AnyMsSqlSelectQueryBuilder | SQL).getSQL();
+			valuesSqlList = [(valuesOrSelect as AnyMsSqlSelectQueryBuilder | SQL).getSQL()];
 		} else {
 			const values = valuesOrSelect as Record<string, unknown>[];
 
+			const cells: unknown[] = new Array(values.length * colEntries.length);
 			let writeIdx = 0;
 
 			for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
 				const value = values[valueIndex]!;
 
-				valuesSqlList[writeIdx++] = commonStringChunks['('];
 				for (let i = 0; i < colEntries.length; ++i) {
 					const [fieldName, col] = colEntries[i]!;
 					const colValue = value[fieldName];
 					if (colValue === undefined) {
 						if (col.defaultFn !== undefined) {
-							const defaultFnResult = col.defaultFn();
-							const defaultValue = is(defaultFnResult, SQL)
-								? defaultFnResult
-								: sql.param(defaultFnResult, col);
-							valuesSqlList[writeIdx++] = defaultValue;
+							cells[writeIdx++] = col.defaultFn();
 						} else if (!col.default && col.onUpdateFn !== undefined) {
-							const onUpdateFnResult = col.onUpdateFn();
-							const newValue = is(onUpdateFnResult, SQL)
-								? onUpdateFnResult
-								: sql.param(onUpdateFnResult, col);
-							valuesSqlList[writeIdx++] = newValue;
+							cells[writeIdx++] = col.onUpdateFn();
 						} else {
-							valuesSqlList[writeIdx++] = commonStringChunks['default'];
+							cells[writeIdx++] = commonStringChunks['default'];
 						}
 					} else {
-						valuesSqlList[writeIdx++] = is(colValue, SQL) ? colValue : new Param(colValue, col);
+						cells[writeIdx++] = colValue;
 					}
-
-					if (i < colEntries.length - 1) {
-						valuesSqlList[writeIdx++] = commonStringChunks[', '];
-					}
-				}
-
-				valuesSqlList[writeIdx++] = commonStringChunks[')'];
-
-				if (valueIndex < values.length - 1) {
-					valuesSqlList[writeIdx++] = commonStringChunks[', '];
 				}
 			}
+
+			valuesSqlList = [new ValueRows(cells, colEntries.map(([, col]) => col))];
 		}
 
 		const outputSql = output
@@ -989,12 +972,24 @@ export class MsSqlDialect {
 			decoderColumn = field;
 			fieldType = 'Column';
 
-			const name = sql`${table}.${sql.identifier(field.name)}`;
-			const casted = inJson && (<MsSqlCustomColumn<any>> field).jsonSelectIdentifier
-				? (<MsSqlCustomColumn<any>> field).jsonSelectIdentifier!(name, sql)
-				: this.codecs.apply(field, inJson ? 'castInJson' : 'cast', name);
-
-			output = sql`${casted} as ${sql.identifier(key)}`;
+			const cast = inJson && (<MsSqlCustomColumn<any>> field).jsonSelectIdentifier
+				? undefined
+				: this.codecs.codecsOf(field)[inJson ? 'castInJson' : 'cast'];
+			if (cast || (inJson && (<MsSqlCustomColumn<any>> field).jsonSelectIdentifier)) {
+				const name = sql`${table}.${sql.identifier(field.name)}`;
+				const casted = cast
+					? cast(name, (<any> field).dimensions)
+					: (<MsSqlCustomColumn<any>> field).jsonSelectIdentifier!(name, sql);
+				output = sql`${casted} as ${sql.identifier(key)}`;
+			} else {
+				output = new SQL([
+					table,
+					commonStringChunks['.'],
+					sql.identifier(field.name),
+					commonStringChunks[' as '],
+					sql.identifier(key),
+				]);
+			}
 		} else if (is(field, SQL)) {
 			decoderColumn = is(field.decoder, Column) ? field.decoder : undefined;
 			fieldType = 'SQL';
@@ -1070,11 +1065,10 @@ export class MsSqlDialect {
 	}
 
 	private getSelectedTableColumns = (
-		table: SchemaEntry,
+		columnContainer: Record<string, unknown>,
 		columns: Record<string, boolean | undefined>,
 	) => {
 		const selectedColumns: ColumnWithTSName[] = [];
-		const columnContainer = table[TableColumns];
 		const entries = Object.entries(columns);
 
 		let colSelectionMode: boolean | undefined;
@@ -1106,6 +1100,7 @@ export class MsSqlDialect {
 
 	private buildColumns = (
 		table: SchemaEntry,
+		columns: Record<string, unknown>,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
 		tableTsName: string,
@@ -1113,7 +1108,7 @@ export class MsSqlDialect {
 	) => {
 		if (!config?.columns) {
 			return sql.join(
-				Object.entries(table[TableColumns]).map(([k, v]) => {
+				Object.entries(columns).map(([k, v]) => {
 					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
 				}),
 				commonStringChunks[', '],
@@ -1121,7 +1116,7 @@ export class MsSqlDialect {
 		}
 
 		const columnIdentifiers: SQL[] = [];
-		const selectedColumns = this.getSelectedTableColumns(table, config.columns);
+		const selectedColumns = this.getSelectedTableColumns(columns, config.columns);
 
 		for (const { column, tsName } of selectedColumns) {
 			columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, inJson, selection, tableTsName));
@@ -1194,7 +1189,14 @@ export class MsSqlDialect {
 			});
 		}
 
-		const columns = this.buildColumns(table, selection, !!nested, tableConfig.name, params);
+		const columns = this.buildColumns(
+			table,
+			tableConfig.table[TableColumns],
+			selection,
+			!!nested,
+			tableConfig.name,
+			params,
+		);
 		const extras = params?.extras ? relationExtrasToSQL(table, params.extras, this.codecs, nested) : undefined;
 		if (extras) selection.push(...extras.selection);
 
@@ -1211,11 +1213,15 @@ export class MsSqlDialect {
 				const { with: withParam } = params as WithContainer;
 				if (!withParam) break;
 
-				const withEntries = Object.entries(withParam).filter(([_, v]) => v);
-				if (!withEntries.length) break;
+				const withKeys: string[] = [];
+				for (const key of Object.keys(withParam)) {
+					if (withParam[key]) withKeys.push(key);
+				}
+				if (!withKeys.length) break;
 
-				for (let i = 0; i < withEntries.length; ++i) {
-					const [k, join] = withEntries[i]!;
+				for (let i = 0; i < withKeys.length; ++i) {
+					const k = withKeys[i]!;
+					const join = withParam[k]!;
 					const relation = tableConfig.relations[k];
 					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
 					const isSingle = relation.relationType === 'one';

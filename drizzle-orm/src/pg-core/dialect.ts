@@ -39,12 +39,12 @@ import { and, isSQLWrapper, type SQLWrapper } from '~/sql/index.ts';
 import {
 	type DriverValueDecoder,
 	type Name,
-	Param,
 	type Query,
 	SQL,
 	sql,
 	type SQLChunk,
 	StringChunk,
+	ValueRows,
 } from '~/sql/sql.ts';
 import { chunkKindOf, chunkKinds, isChunk } from '~/sql/sql.ts';
 import { commonStringChunks } from '~/sql/sql.ts';
@@ -54,6 +54,7 @@ import {
 	getColumnFromDecoder,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
+	memoizeEscape,
 	type RowsMapperGenerator,
 	type UpdateSet,
 } from '~/utils.ts';
@@ -85,6 +86,7 @@ export interface PgDialectConfig {
 	shapeGenerator?: ShapeGenerator;
 }
 
+const escapePgName = memoizeEscape((name) => `"${name.replace(/"/g, '""')}"`);
 export class PgDialect {
 	static readonly [entityKind]: string = 'PgDialect';
 	static [Symbol.hasInstance](value: unknown): boolean {
@@ -113,7 +115,7 @@ export class PgDialect {
 	}
 
 	escapeName(name: string): string {
-		return `"${name.replace(/"/g, '""')}"`;
+		return escapePgName(name);
 	}
 
 	escapeParam(num: number): string {
@@ -714,73 +716,55 @@ export class PgDialect {
 			? colEntries
 			: colEntries.filter(([_, col]) => !col.shouldDisableInsert());
 
-		const insertOrderArr: SQLChunk[] = new Array(colFilteredEntries.length * 2 + 1);
+		const width = colFilteredEntries.length;
+		const insertColumns: PgColumn[] = new Array(width);
+		const insertKeys: string[] = new Array(width);
+		const insertOrderArr: SQLChunk[] = new Array(width * 2 + 1);
 		let writeIdx = 0;
 		insertOrderArr[writeIdx++] = commonStringChunks['('];
-		for (let i = 0; i < colFilteredEntries.length; ++i) {
-			const [, { name }] = colFilteredEntries[i]!;
-			insertOrderArr[writeIdx++] = sql.identifier(name);
+		for (let i = 0; i < width; ++i) {
+			const [key, column] = colFilteredEntries[i]!;
+			insertKeys[i] = key;
+			insertColumns[i] = column;
+			insertOrderArr[writeIdx++] = sql.identifier(column.name);
 
-			if (i < colFilteredEntries.length - 1) insertOrderArr[writeIdx++] = commonStringChunks[', '];
+			if (i < width - 1) insertOrderArr[writeIdx++] = commonStringChunks[', '];
 		}
 		insertOrderArr[writeIdx++] = commonStringChunks[')'];
 		const insertOrder = new SQL(insertOrderArr);
 
-		const valuesSqlList: SQLChunk[] = new Array(
-			select
-				? 1
-				: (colFilteredEntries.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
-					+ (valuesOrSelect as Record<string, unknown>[]).length,
-		);
-
+		let valuesSqlList: SQLChunk[];
 		if (select) {
-			valuesSqlList[0] = (valuesOrSelect as AnyPgSelectQueryBuilder | SQL).getSQL();
+			valuesSqlList = [(valuesOrSelect as AnyPgSelectQueryBuilder | SQL).getSQL()];
 		} else {
-			const values = valuesOrSelect as Record<string, Param | SQL>[];
+			const values = valuesOrSelect as Record<string, unknown>[];
+			const cells: unknown[] = new Array(values.length * width);
 
 			let writeIdx = 0;
-			valuesSqlList[writeIdx++] = commonStringChunks['values '];
-
 			for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
 				const value = values[valueIndex]!;
 
-				valuesSqlList[writeIdx++] = commonStringChunks['('];
-				for (let i = 0; i < colFilteredEntries.length; ++i) {
-					const [fieldName, col] = colFilteredEntries[i]!;
-					const colValue = value[fieldName];
-					if (colValue === undefined) {
+				for (let i = 0; i < width; ++i) {
+					const colValue = value[insertKeys[i]!];
+					if (colValue !== undefined) {
+						cells[writeIdx++] = colValue;
+						continue;
+					}
+
+					const col = insertColumns[i]!;
+					// eslint-disable-next-line unicorn/no-negated-condition
+					if (col.defaultFn !== undefined) {
+						cells[writeIdx++] = col.defaultFn();
 						// eslint-disable-next-line unicorn/no-negated-condition
-						if (col.defaultFn !== undefined) {
-							const defaultFnResult = col.defaultFn();
-							const defaultValue = is(defaultFnResult, SQL)
-								? defaultFnResult
-								: sql.param(defaultFnResult, col);
-							valuesSqlList[writeIdx++] = defaultValue;
-							// eslint-disable-next-line unicorn/no-negated-condition
-						} else if (!col.default && col.onUpdateFn !== undefined) {
-							const onUpdateFnResult = col.onUpdateFn();
-							const newValue = is(onUpdateFnResult, SQL)
-								? onUpdateFnResult
-								: sql.param(onUpdateFnResult, col);
-							valuesSqlList[writeIdx++] = newValue;
-						} else {
-							valuesSqlList[writeIdx++] = commonStringChunks['default'];
-						}
+					} else if (!col.default && col.onUpdateFn !== undefined) {
+						cells[writeIdx++] = col.onUpdateFn();
 					} else {
-						valuesSqlList[writeIdx++] = is(colValue, SQL) ? colValue : new Param(colValue, col);
+						cells[writeIdx++] = commonStringChunks['default'];
 					}
-
-					if (i < colFilteredEntries.length - 1) {
-						valuesSqlList[writeIdx++] = commonStringChunks[', '];
-					}
-				}
-
-				valuesSqlList[writeIdx++] = commonStringChunks[')'];
-
-				if (valueIndex < values.length - 1) {
-					valuesSqlList[writeIdx++] = commonStringChunks[', '];
 				}
 			}
+
+			valuesSqlList = [commonStringChunks['values '], new ValueRows(cells, insertColumns)];
 		}
 
 		const withSql = this.buildWithCTE(withList);
@@ -857,12 +841,24 @@ export class PgDialect {
 			decoderColumn = field;
 			fieldType = 'Column';
 
-			const name = sql`${table}.${sql.identifier(field.name)}`;
-			const casted = inJson && (<PgCustomColumn<any>> field).jsonSelectIdentifier
-				? (<PgCustomColumn<any>> field).jsonSelectIdentifier!(name, sql, (<PgCustomColumn<any>> field).dimensions)
-				: this.codecs.apply(field, inJson ? 'castInJson' : 'cast', name);
-
-			output = sql`${casted} as ${sql.identifier(key)}`;
+			const cast = inJson && (<PgCustomColumn<any>> field).jsonSelectIdentifier
+				? undefined
+				: this.codecs.codecsOf(field)[inJson ? 'castInJson' : 'cast'];
+			if (cast || (inJson && (<PgCustomColumn<any>> field).jsonSelectIdentifier)) {
+				const name = sql`${table}.${sql.identifier(field.name)}`;
+				const casted = cast
+					? cast(name, (<any> field).dimensions)
+					: (<PgCustomColumn<any>> field).jsonSelectIdentifier!(name, sql, (<PgCustomColumn<any>> field).dimensions);
+				output = sql`${casted} as ${sql.identifier(key)}`;
+			} else {
+				output = new SQL([
+					table,
+					commonStringChunks['.'],
+					sql.identifier(field.name),
+					commonStringChunks[' as '],
+					sql.identifier(key),
+				]);
+			}
 		} else if (is(field, SQL)) {
 			decoderColumn = is(field.decoder, Column) ? field.decoder : undefined;
 			fieldType = 'SQL';
@@ -940,6 +936,7 @@ export class PgDialect {
 
 	private buildColumns = (
 		table: SchemaEntry,
+		columns: Record<string, unknown>,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
 		tableTsName: string,
@@ -947,7 +944,7 @@ export class PgDialect {
 	) => {
 		if (!config?.columns) {
 			return sql.join(
-				Object.entries(table[TableColumns]).map(([k, v]) => {
+				Object.entries(columns).map(([k, v]) => {
 					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
 				}),
 				commonStringChunks[', '],
@@ -955,7 +952,7 @@ export class PgDialect {
 		}
 
 		const entries = Object.entries(config.columns);
-		const columnContainer: Record<string, unknown> = table[TableColumns];
+		const columnContainer = columns;
 
 		const columnIdentifiers: SQL[] = [];
 		let colSelectionMode: boolean | undefined;
@@ -1033,7 +1030,14 @@ export class PgDialect {
 		const order = params?.orderBy
 			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, subqueries)
 			: undefined;
-		const columns = this.buildColumns(table, selection, !!nested, tableConfig.name, params);
+		const columns = this.buildColumns(
+			table,
+			tableConfig.table[TableColumns],
+			selection,
+			!!nested,
+			tableConfig.name,
+			params,
+		);
 		const extras = params?.extras
 			? relationExtrasToSQL(table, params.extras, this.codecs, nested)
 			: undefined;
@@ -1051,14 +1055,18 @@ export class PgDialect {
 				const { with: withParam } = params as WithContainer;
 				if (!withParam) break;
 
-				const withEntries = Object.entries(withParam).filter(([_, v]) => v);
-				if (!withEntries.length) break;
+				const withKeys: string[] = [];
+				for (const key of Object.keys(withParam)) {
+					if (withParam[key]) withKeys.push(key);
+				}
+				if (!withKeys.length) break;
 
-				const joinChunks: SQLChunk[] = new Array(withEntries.length * 2);
+				const joinChunks: SQLChunk[] = new Array(withKeys.length * 2);
 				joinChunks[0] = commonStringChunks[' '];
 
-				for (let readIdx = 0, writeIdx = 1; readIdx < withEntries.length; ++readIdx) {
-					const [k, join] = withEntries[readIdx]!;
+				for (let readIdx = 0, writeIdx = 1; readIdx < withKeys.length; ++readIdx) {
+					const k = withKeys[readIdx]!;
+					const join = withParam[k]!;
 
 					const relation = tableConfig.relations[k];
 					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
@@ -1126,7 +1134,7 @@ export class PgDialect {
 					} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${sql.identifier(k)} on true`;
 
 					joinChunks[writeIdx++] = joinQuery;
-					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = commonStringChunks[' '];
+					if (readIdx < withKeys.length - 1) joinChunks[writeIdx++] = commonStringChunks[' '];
 				}
 
 				joins = new SQL(joinChunks);
@@ -1148,9 +1156,11 @@ export class PgDialect {
 		const withSql = currentDepth ? undefined : this.buildWithCTE([...subqueries.values()]);
 		const whereSql = where ? sql` where ${where}` : undefined;
 		const orderSql = order ? sql` order by ${order}` : undefined;
-		const limitSql = sql`${limit !== undefined ? sql` limit ${limit}` : undefined}${
-			offset !== undefined ? sql` offset ${offset}` : undefined
-		}`;
+		const limitSql = limit !== undefined || offset !== undefined
+			? sql`${limit !== undefined ? sql` limit ${limit}` : undefined}${
+				offset !== undefined ? sql` offset ${offset}` : undefined
+			}`
+			: undefined;
 
 		// Unordered `limit` alone already stops at the limit, pagination only goes inside when rows get sorted or skipped
 		const isPaginatedFirst = offset !== undefined || (limit !== undefined && order);

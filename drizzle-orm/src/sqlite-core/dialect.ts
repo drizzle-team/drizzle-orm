@@ -27,9 +27,10 @@ import {
 } from '~/relations.ts';
 import type { Name, Placeholder, SQLWrapper } from '~/sql/index.ts';
 import { and, isSQLWrapper } from '~/sql/index.ts';
-import { type DriverValueDecoder, Param, type Query, SQL, sql, type SQLChunk, StringChunk } from '~/sql/sql.ts';
+import { type DriverValueDecoder, type Query, SQL, sql, type SQLChunk, StringChunk } from '~/sql/sql.ts';
 import { chunkKindOf, chunkKinds, isChunk } from '~/sql/sql.ts';
 import { commonStringChunks } from '~/sql/sql.ts';
+import { ValueRows } from '~/sql/sql.ts';
 import { resolveSQLiteTypeAlias, resolveUnionType, type SQLiteCodecs, type SQLiteType } from '~/sqlite-core/codecs.ts';
 import { SQLiteColumn, type SQLiteCustomColumn } from '~/sqlite-core/columns/index.ts';
 import type {
@@ -45,6 +46,7 @@ import {
 	getColumnFromDecoder,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
+	memoizeEscape,
 	orderSelectedFields,
 	type RowsMapperGenerator,
 	type UpdateSet,
@@ -63,6 +65,7 @@ export interface SQLiteDialectConfig {
 	useJitMappers?: boolean;
 }
 
+const escapeSQLiteName = memoizeEscape((name) => `"${name.replace(/"/g, '""')}"`);
 export class SQLiteDialect {
 	static readonly [entityKind]: string = 'SQLiteDialect';
 	static [Symbol.hasInstance](value: unknown): boolean {
@@ -89,7 +92,7 @@ export class SQLiteDialect {
 	}
 
 	escapeName(name: string): string {
-		return `"${name.replace(/"/g, '""')}"`;
+		return escapeSQLiteName(name);
 	}
 
 	escapeParam(_num: number): string {
@@ -711,65 +714,41 @@ export class SQLiteDialect {
 		insertOrderArr[writeIdx++] = commonStringChunks[')'];
 		const insertOrder = new SQL(insertOrderArr);
 
-		const valuesSqlList: SQLChunk[] = new Array(
-			select
-				? 1
-				: (colEntriesFiltered.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
-					+ (valuesOrSelect as Record<string, unknown>[]).length,
-		);
+		let valuesSqlList: SQLChunk[];
 
 		if (select) {
-			valuesSqlList[0] = (valuesOrSelect as AnySQLiteSelectQueryBuilder | SQL).getSQL();
+			valuesSqlList = [(valuesOrSelect as AnySQLiteSelectQueryBuilder | SQL).getSQL()];
 		} else {
 			const values = valuesOrSelect as Record<string, unknown>[];
+			const cells: unknown[] = new Array(values.length * colEntriesFiltered.length);
 
 			let writeIdx = 0;
-			valuesSqlList[writeIdx++] = commonStringChunks['values '];
 
 			for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
 				const value = values[valueIndex]!;
 
-				valuesSqlList[writeIdx++] = commonStringChunks['('];
 				for (let i = 0; i < colEntriesFiltered.length; ++i) {
 					const [fieldName, col] = colEntriesFiltered[i]!;
 					const colValue = value[fieldName];
 					if (colValue === undefined) {
-						let defaultValue;
 						if (col.defaultFn !== undefined) {
-							const defaultFnResult = col.defaultFn();
-							defaultValue = is(defaultFnResult, SQL)
-								? defaultFnResult
-								: sql.param(defaultFnResult, col);
+							cells[writeIdx++] = col.defaultFn();
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (col.default !== null && col.default !== undefined) {
-							defaultValue = is(col.default, SQL)
-								? col.default
-								: sql.param(col.default, col);
+							cells[writeIdx++] = col.default;
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (col.onUpdateFn !== undefined) {
-							const onUpdateFnResult = col.onUpdateFn();
-							defaultValue = is(onUpdateFnResult, SQL)
-								? onUpdateFnResult
-								: sql.param(onUpdateFnResult, col);
+							cells[writeIdx++] = col.onUpdateFn();
 						} else {
-							defaultValue = commonStringChunks['null'];
+							cells[writeIdx++] = commonStringChunks['null'];
 						}
-						valuesSqlList[writeIdx++] = defaultValue;
 					} else {
-						valuesSqlList[writeIdx++] = is(colValue, SQL) ? colValue : new Param(colValue, col);
+						cells[writeIdx++] = colValue;
 					}
-
-					if (i < colEntriesFiltered.length - 1) {
-						valuesSqlList[writeIdx++] = commonStringChunks[', '];
-					}
-				}
-
-				valuesSqlList[writeIdx++] = commonStringChunks[')'];
-
-				if (valueIndex < values.length - 1) {
-					valuesSqlList[writeIdx++] = commonStringChunks[', '];
 				}
 			}
+
+			valuesSqlList = [commonStringChunks['values '], new ValueRows(cells, colEntriesFiltered.map(([, col]) => col))];
 		}
 
 		const withSql = this.buildWithCTE(withList);
@@ -818,12 +797,24 @@ export class SQLiteDialect {
 			decoderColumn = field;
 			fieldType = 'Column';
 
-			const name = sql`${table}.${sql.identifier(field.name)}`;
-			const casted = inJson && (<SQLiteCustomColumn<any>> field).jsonSelectIdentifier
-				? (<SQLiteCustomColumn<any>> field).jsonSelectIdentifier!(name, sql)
-				: this.codecs.apply(field, inJson ? 'castInJson' : 'cast', name);
-
-			output = sql`${casted} as ${sql.identifier(key)}`;
+			const cast = inJson && (<SQLiteCustomColumn<any>> field).jsonSelectIdentifier
+				? undefined
+				: this.codecs.codecsOf(field)[inJson ? 'castInJson' : 'cast'];
+			if (cast || (inJson && (<SQLiteCustomColumn<any>> field).jsonSelectIdentifier)) {
+				const name = sql`${table}.${sql.identifier(field.name)}`;
+				const casted = cast
+					? cast(name, (<any> field).dimensions)
+					: (<SQLiteCustomColumn<any>> field).jsonSelectIdentifier!(name, sql);
+				output = sql`${casted} as ${sql.identifier(key)}`;
+			} else {
+				output = new SQL([
+					table,
+					commonStringChunks['.'],
+					sql.identifier(field.name),
+					commonStringChunks[' as '],
+					sql.identifier(key),
+				]);
+			}
 		} else if (is(field, SQL)) {
 			decoderColumn = is(field.decoder, Column) ? field.decoder : undefined;
 			fieldType = 'SQL';
@@ -899,11 +890,10 @@ export class SQLiteDialect {
 	}
 
 	private getSelectedTableColumns = (
-		table: SchemaEntry,
+		columnContainer: Record<string, unknown>,
 		columns: Record<string, boolean | undefined>,
 	) => {
 		const selectedColumns: ColumnWithTSName[] = [];
-		const columnContainer = table[TableColumns];
 		const entries = Object.entries(columns);
 
 		let colSelectionMode: boolean | undefined;
@@ -937,6 +927,7 @@ export class SQLiteDialect {
 
 	private buildColumns = (
 		table: SchemaEntry,
+		columns: Record<string, unknown>,
 		selection: BuildRelationalQueryResult['selection'],
 		inJson: boolean,
 		tableTsName: string,
@@ -944,7 +935,7 @@ export class SQLiteDialect {
 	) => {
 		if (!config?.columns) {
 			return sql.join(
-				Object.entries(table[TableColumns]).map(([k, v]) => {
+				Object.entries(columns).map(([k, v]) => {
 					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
 				}),
 				commonStringChunks[', '],
@@ -953,10 +944,7 @@ export class SQLiteDialect {
 
 		const columnIdentifiers: SQL[] = [];
 
-		const selectedColumns = this.getSelectedTableColumns(
-			table,
-			config?.columns,
-		);
+		const selectedColumns = this.getSelectedTableColumns(columns, config?.columns);
 
 		for (const { column, tsName } of selectedColumns) {
 			columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, inJson, selection, tableTsName));
@@ -1008,7 +996,14 @@ export class SQLiteDialect {
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const columns = this.buildColumns(table, selection, !!isNested, tableConfig.name, params);
+		const columns = this.buildColumns(
+			table,
+			tableConfig.table[TableColumns],
+			selection,
+			!!isNested,
+			tableConfig.name,
+			params,
+		);
 
 		const filter = params && 'where' in params
 			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries)
@@ -1034,12 +1029,16 @@ export class SQLiteDialect {
 				const { with: withParam } = params as WithContainer;
 				if (!withParam) break;
 
-				const withEntries = Object.entries(withParam).filter(([_, v]) => v);
-				if (!withEntries.length) break;
+				const withKeys: string[] = [];
+				for (const key of Object.keys(withParam)) {
+					if (withParam[key]) withKeys.push(key);
+				}
+				if (!withKeys.length) break;
 
-				const joinChunks: SQLChunk[] = new Array(withEntries.length * 2 - 1);
-				for (let readIdx = 0, writeIdx = 0; readIdx < withEntries.length; ++readIdx) {
-					const [k, join] = withEntries[readIdx]!;
+				const joinChunks: SQLChunk[] = new Array(withKeys.length * 2 - 1);
+				for (let readIdx = 0, writeIdx = 0; readIdx < withKeys.length; ++readIdx) {
+					const k = withKeys[readIdx]!;
+					const join = withParam[k]!;
 
 					const relation = tableConfig.relations[k];
 					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
@@ -1119,7 +1118,7 @@ export class SQLiteDialect {
 						} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${sql.identifier(k)}`;
 
 					joinChunks[writeIdx++] = joinQuery;
-					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = commonStringChunks[', '];
+					if (readIdx < withKeys.length - 1) joinChunks[writeIdx++] = commonStringChunks[', '];
 				}
 
 				joins = new SQL(joinChunks);
@@ -1143,11 +1142,9 @@ export class SQLiteDialect {
 			sql` where ${where}`.if(
 				where,
 			)
-		}${sql` order by ${order}`.if(order)}${sql` limit ${limit}`.if(limit !== undefined)}${
-			sql` offset ${offset}`.if(
-				offset !== undefined,
-			)
-		}`;
+		}${(order ? sql` order by ${order}` : undefined)}${(limit !== undefined
+			? sql` limit ${limit}`
+			: undefined)}${(offset !== undefined ? sql` offset ${offset}` : undefined)}`;
 
 		return {
 			sql: query,
