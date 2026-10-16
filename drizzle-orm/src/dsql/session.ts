@@ -95,14 +95,22 @@ const defaultRetryConfig: Required<DSQLRetryConfig> = {
 	maxDelayMs: DEFAULT_MAX_DELAY_MS,
 };
 
+// Statements inside a transaction run once: an OCC error ends the transaction, and a
+// failed COMMIT has already rolled it back, so only the whole transaction is retried
+const noRetry: DSQLRetryConfig = { maxRetries: 0 };
+
 function isDSQLRetryableError(error: unknown): boolean {
-	if (!error || typeof error !== 'object') return false;
-	const err = error as { code?: string; message?: string };
-	// Check PostgreSQL error code
-	if (err.code && DSQL_RETRYABLE_ERRORS.includes(err.code)) return true;
-	// Check error message for DSQL error codes
-	if (err.message) {
-		return DSQL_RETRYABLE_ERRORS.some((code) => err.message!.includes(`(${code})`));
+	// Query builders wrap driver errors in DrizzleQueryError, so check the cause chain too.
+	// Exhausted retries are final, so a query that already retried isn't retried again
+	const seen = new Set<unknown>();
+	while (error && typeof error === 'object' && !seen.has(error) && !is(error, DSQLRetryExhaustedError)) {
+		seen.add(error);
+		const err = error as { code?: string; message?: string; cause?: unknown };
+		// Check PostgreSQL error code
+		if (err.code && DSQL_RETRYABLE_ERRORS.includes(err.code)) return true;
+		// Check error message for DSQL error codes
+		if (err.message && DSQL_RETRYABLE_ERRORS.some((code) => err.message!.includes(`(${code})`))) return true;
+		error = err.cause;
 	}
 	return false;
 }
@@ -111,6 +119,7 @@ async function withRetry<T>(
 	fn: () => Promise<T>,
 	config: DSQLRetryConfig = {},
 ): Promise<T> {
+	if (config === noRetry) return fn();
 	const { maxRetries, baseDelayMs, maxDelayMs } = { ...defaultRetryConfig, ...config };
 	let lastError: unknown;
 	for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -438,15 +447,13 @@ export class DSQLDriverSession<
 		const transactionClient: DSQLClient = dedicatedClient || this.client;
 
 		// Create a session with the dedicated client for the transaction
-		const session = dedicatedClient
-			? new DSQLDriverSession(
-				transactionClient,
-				this.dialect,
-				this.relations,
-				this.schema,
-				this.options,
-			)
-			: this;
+		const session = new DSQLDriverSession(
+			transactionClient,
+			this.dialect,
+			this.relations,
+			this.schema,
+			{ ...this.options, retryConfig: noRetry },
+		);
 
 		// Wrap entire transaction in retry logic for OCC errors
 		return withRetry(async () => {

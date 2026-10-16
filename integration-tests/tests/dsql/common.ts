@@ -2573,6 +2573,45 @@ export function tests(test: Test) {
 			}
 		});
 
+		// DSQL reports OCC conflicts at COMMIT, so the whole transaction must be retried
+		test.concurrent('transaction is retried when commit conflicts', async ({ db }) => {
+			const tableName = uniqueName('users');
+			const users = dsqlTable(tableName, {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`
+				create table ${sql.identifier(tableName)} (
+					id integer primary key,
+					name text not null
+				)
+			`);
+
+			try {
+				await db.insert(users).values({ id: 1, name: 'Initial' });
+
+				let attempts = 0;
+				let conflicted = false;
+				await db.transaction(async (tx) => {
+					attempts++;
+					await tx.update(users).set({ name: `TxUser${attempts}` }).where(eq(users.id, 1));
+					if (!conflicted) {
+						conflicted = true;
+						// A conflicting write commits first, so this COMMIT fails with OC000
+						await db.update(users).set({ name: 'OtherUser' }).where(eq(users.id, 1));
+					}
+				});
+
+				// Concurrent DDL in this suite can add more OC001 retries, so only the last attempt is checked
+				expect(attempts).toBeGreaterThan(1);
+				const result = await db.select().from(users);
+				expect(result).toEqual([{ id: 1, name: `TxUser${attempts}` }]);
+			} finally {
+				await db.execute(sql`drop table if exists ${sql.identifier(tableName)} cascade`);
+			}
+		});
+
 		// RQB (Relational Query Builder) tests using proper schema and relations setup
 		// Each test uses uniqueName to create unique data prefixes to avoid conflicts
 		test.concurrent('rqb: findFirst', async ({ rqbDb, uniqueName }) => {
