@@ -12,7 +12,7 @@ export type PgFunctionLanguage =
 	| (string & {});
 export type PgFunctionVolatility = 'volatile' | 'stable' | 'immutable';
 export type PgFunctionSecurity = 'definer' | 'invoker';
-export type PgFunctionNullInput = 'called' | 'strict';
+export type PgFunctionNullInput = 'called' | 'returned' | 'strict';
 export type PgFunctionParallel = 'unsafe' | 'restricted' | 'safe';
 
 type PgFunctionArgumentType = AnyPgColumnBuilder;
@@ -203,6 +203,11 @@ export class PgFunctionBuilder<
 	/* Null input */
 	calledOnNullInput(): this {
 		this.config.nullInput = 'called';
+		return this;
+	}
+
+	returnedOnNullInput(): this {
+		this.config.nullInput = 'returned';
 		return this;
 	}
 

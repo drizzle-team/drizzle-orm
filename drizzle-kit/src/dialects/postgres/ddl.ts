@@ -26,7 +26,7 @@ export const createDDL = () => {
 			language: 'string',
 			volatility: ['volatile', 'stable', 'immutable'],
 			security: ['definer', 'invoker'],
-			nullInput: ['called', 'strict'],
+			nullInput: ['called', 'returned', 'strict'],
 			parallel: ['unsafe', 'restricted', 'safe'],
 
 			// We need to explicitly support both undefined search paths and empty search paths since they are fundamentally different and important for security.
