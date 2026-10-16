@@ -4,24 +4,31 @@ import type { PgEnum } from 'drizzle-orm/pg-core';
 import * as v from 'valibot';
 import { columnToSchema, mapEnumValues } from './column.ts';
 import type { Conditions } from './schema.types.internal.ts';
-import type { CreateInsertSchema, CreateSelectSchema, CreateUpdateSchema } from './schema.types.ts';
+import type {
+	CreateInsertSchema,
+	CreateSchemaFactoryOptions,
+	CreateSelectSchema,
+	CreateUpdateSchema,
+} from './schema.types.ts';
 import { isPgEnum } from './utils.ts';
 
-function getColumns(tableLike: Table | View) {
+export function getColumns(tableLike: Table | View) {
 	return isTable(tableLike) ? getTableColumns(tableLike) : getViewSelectedFields(tableLike);
 }
 
-function handleColumns(
+export function handleColumns(
 	columns: Record<string, any>,
 	refinements: Record<string, any>,
 	conditions: Conditions,
+	factory?: CreateSchemaFactoryOptions,
 ): v.GenericSchema {
 	const columnSchemas: Record<string, v.GenericSchema> = {};
+	const valibot: typeof v = factory?.valibotInstance ?? v;
 
 	for (const [key, selected] of Object.entries(columns)) {
 		if (!is(selected, Column) && !is(selected, SQL) && !is(selected, SQL.Aliased) && typeof selected === 'object') {
 			const columns = isTable(selected) || isView(selected) ? getColumns(selected) : selected;
-			columnSchemas[key] = handleColumns(columns, refinements[key] ?? {}, conditions);
+			columnSchemas[key] = handleColumns(columns, refinements[key] ?? {}, conditions, factory);
 			continue;
 		}
 
@@ -32,7 +39,7 @@ function handleColumns(
 		}
 
 		const column = is(selected, Column) ? selected : undefined;
-		const schema = column ? columnToSchema(column) : v.any();
+		const schema = column ? columnToSchema(column, valibot) : valibot.any();
 		const refined = typeof refinement === 'function' ? refinement(schema) : schema;
 
 		if (conditions.never(column)) {
@@ -43,31 +50,50 @@ function handleColumns(
 
 		if (column) {
 			if (conditions.nullable(column)) {
-				columnSchemas[key] = v.nullable(columnSchemas[key]!);
+				columnSchemas[key] = valibot.nullable(columnSchemas[key]!);
 			}
 
 			if (conditions.optional(column)) {
-				columnSchemas[key] = v.optional(columnSchemas[key]!);
+				columnSchemas[key] = valibot.optional(columnSchemas[key]!);
 			}
 		}
 	}
 
-	return v.object(columnSchemas) as any;
+	return valibot.object(columnSchemas) as any;
 }
+
+export function handleEnum(enum_: PgEnum<any>, factory?: CreateSchemaFactoryOptions) {
+	const valibot: typeof v = factory?.valibotInstance ?? v;
+	return valibot.enum(mapEnumValues(enum_.enumValues));
+}
+
+const selectConditions: Conditions = {
+	never: () => false,
+	optional: () => false,
+	nullable: (column) => !column.notNull,
+};
+
+const insertConditions: Conditions = {
+	never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
+	optional: (column) => !column.notNull || (column.notNull && column.hasDefault),
+	nullable: (column) => !column.notNull,
+};
+
+const updateConditions: Conditions = {
+	never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
+	optional: () => true,
+	nullable: (column) => !column.notNull,
+};
 
 export const createSelectSchema: CreateSelectSchema = (
 	entity: Table | View | PgEnum<[string, ...string[]]>,
 	refine?: Record<string, any>,
 ) => {
 	if (isPgEnum(entity)) {
-		return v.enum(mapEnumValues(entity.enumValues));
+		return handleEnum(entity);
 	}
 	const columns = getColumns(entity);
-	return handleColumns(columns, refine ?? {}, {
-		never: () => false,
-		optional: () => false,
-		nullable: (column) => !column.notNull,
-	}) as any;
+	return handleColumns(columns, refine ?? {}, selectConditions) as any;
 };
 
 export const createInsertSchema: CreateInsertSchema = (
@@ -75,11 +101,7 @@ export const createInsertSchema: CreateInsertSchema = (
 	refine?: Record<string, any>,
 ) => {
 	const columns = getColumns(entity);
-	return handleColumns(columns, refine ?? {}, {
-		never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
-		optional: (column) => !column.notNull || (column.notNull && column.hasDefault),
-		nullable: (column) => !column.notNull,
-	}) as any;
+	return handleColumns(columns, refine ?? {}, insertConditions) as any;
 };
 
 export const createUpdateSchema: CreateUpdateSchema = (
@@ -87,9 +109,36 @@ export const createUpdateSchema: CreateUpdateSchema = (
 	refine?: Record<string, any>,
 ) => {
 	const columns = getColumns(entity);
-	return handleColumns(columns, refine ?? {}, {
-		never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
-		optional: () => true,
-		nullable: (column) => !column.notNull,
-	}) as any;
+	return handleColumns(columns, refine ?? {}, updateConditions) as any;
 };
+
+export function createSchemaFactory(options?: CreateSchemaFactoryOptions) {
+	const createSelectSchema: CreateSelectSchema = (
+		entity: Table | View | PgEnum<[string, ...string[]]>,
+		refine?: Record<string, any>,
+	) => {
+		if (isPgEnum(entity)) {
+			return handleEnum(entity, options);
+		}
+		const columns = getColumns(entity);
+		return handleColumns(columns, refine ?? {}, selectConditions, options) as any;
+	};
+
+	const createInsertSchema: CreateInsertSchema = (
+		entity: Table,
+		refine?: Record<string, any>,
+	) => {
+		const columns = getColumns(entity);
+		return handleColumns(columns, refine ?? {}, insertConditions, options) as any;
+	};
+
+	const createUpdateSchema: CreateUpdateSchema = (
+		entity: Table,
+		refine?: Record<string, any>,
+	) => {
+		const columns = getColumns(entity);
+		return handleColumns(columns, refine ?? {}, updateConditions, options) as any;
+	};
+
+	return { createSelectSchema, createInsertSchema, createUpdateSchema };
+}

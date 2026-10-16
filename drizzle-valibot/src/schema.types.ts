@@ -47,3 +47,7 @@ export interface CreateUpdateSchema {
 		refine?: TRefine,
 	): BuildSchema<'update', TTable['_']['columns'], TRefine>;
 }
+
+export interface CreateSchemaFactoryOptions {
+	valibotInstance?: any;
+}

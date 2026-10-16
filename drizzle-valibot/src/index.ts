@@ -1,4 +1,11 @@
-export { bufferSchema, jsonSchema, literalSchema } from './column.ts';
+export {
+	bufferSchema,
+	createBufferSchema,
+	createJsonSchema,
+	createLiteralSchema,
+	jsonSchema,
+	literalSchema,
+} from './column.ts';
 export * from './column.types.ts';
 export * from './schema.ts';
 export * from './schema.types.internal.ts';
