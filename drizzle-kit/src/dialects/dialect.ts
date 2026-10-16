@@ -143,9 +143,25 @@ type CommonEntity = Common & {
 	entityType: string;
 };
 
+type FunctionIdentityEntity = CommonEntity & {
+	entityType: 'functions';
+	identityArgs: string[];
+};
+
 function getCompositeKey(
 	row: CommonEntity,
 ): string {
+	if (row.entityType === 'functions') {
+		const fn = row as FunctionIdentityEntity;
+
+		return JSON.stringify([
+			fn.schema ?? 'public',
+			fn.name,
+			fn.entityType,
+			fn.identityArgs,
+		]);
+	}
+
 	return `${row.schema ?? ''}:${row.table ?? ''}:${row.name}:${row.entityType}`;
 }
 
