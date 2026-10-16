@@ -1,5 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
-import { Name, sql } from 'drizzle-orm';
+import { eq, Name, sql } from 'drizzle-orm';
+import { integer, pgTable, text } from 'drizzle-orm/pg-core';
 import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -82,6 +83,65 @@ test('insert via db.execute w/ query builder', async () => {
 		db.insert(usersTable).values({ name: 'John' }).returning({ id: usersTable.id, name: usersTable.name }),
 	);
 	expect(Array.prototype.slice.call(result.rows)).toEqual([{ id: 1, name: 'John' }]);
+});
+
+// Repro for #1603: nested partial select on left join must not nullify when
+// the first selected join column is null but a later one is not.
+test('nested partial select left join keeps object when first join column is null (#1603)', async () => {
+	const org = pgTable('org_1603', {
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+	});
+	const orgBranding = pgTable('org_branding_1603', {
+		orgId: integer('org_id').primaryKey(),
+		logo: text('logo'),
+		panelBackground: text('panel_background'),
+	});
+
+	await db.execute(sql`drop table if exists org_branding_1603`);
+	await db.execute(sql`drop table if exists org_1603`);
+	await db.execute(sql`
+		create table org_1603 (
+			id integer primary key,
+			name text not null
+		)
+	`);
+	await db.execute(sql`
+		create table org_branding_1603 (
+			org_id integer primary key references org_1603(id),
+			logo text,
+			panel_background text
+		)
+	`);
+
+	await db.insert(org).values({ id: 1, name: 'Test Org' });
+	await db.insert(orgBranding).values({
+		orgId: 1,
+		logo: null,
+		panelBackground: '#1a8cff',
+	});
+
+	const [result] = await db
+		.select({
+			name: org.name,
+			branding: {
+				logo: orgBranding.logo,
+				panelBackground: orgBranding.panelBackground,
+			},
+		})
+		.from(org)
+		.leftJoin(orgBranding, eq(orgBranding.orgId, org.id));
+
+	expect(result).toEqual({
+		name: 'Test Org',
+		branding: {
+			logo: null,
+			panelBackground: '#1a8cff',
+		},
+	});
+
+	await db.execute(sql`drop table if exists org_branding_1603`);
+	await db.execute(sql`drop table if exists org_1603`);
 });
 
 skipTests([
