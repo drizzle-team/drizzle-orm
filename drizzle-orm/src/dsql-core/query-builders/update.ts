@@ -10,7 +10,7 @@ import type { DSQLDialect } from '../dialect.ts';
 import type { DSQLQueryResultHKT, DSQLQueryResultKind, DSQLSession } from '../session.ts';
 import type { DSQLTable } from '../table.ts';
 import type { DSQLViewBase } from '../view-base.ts';
-import type { DSQLSelectJoinConfig, SelectedFieldsOrdered } from './select.types.ts';
+import type { DSQLSelectJoinConfig, SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface DSQLUpdateConfig<TTable extends DSQLTable = DSQLTable> {
 	table: TTable;
@@ -21,8 +21,6 @@ export interface DSQLUpdateConfig<TTable extends DSQLTable = DSQLTable> {
 	from?: DSQLTable | Subquery | DSQLViewBase | SQL;
 	joins: DSQLSelectJoinConfig[];
 }
-
-export type SelectedFieldsFlat = Record<string, unknown>;
 
 export class DSQLUpdateBuilder<TTable extends DSQLTable> {
 	static readonly [entityKind]: string = 'DSQLUpdateBuilder';

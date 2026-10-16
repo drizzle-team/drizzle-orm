@@ -10,7 +10,7 @@ import type { DSQLColumn } from '../columns/common.ts';
 import type { DSQLDialect } from '../dialect.ts';
 import type { DSQLQueryResultHKT, DSQLQueryResultKind, DSQLSession } from '../session.ts';
 import type { DSQLTable } from '../table.ts';
-import type { SelectedFieldsOrdered } from './select.types.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface DSQLInsertConfig<TTable extends DSQLTable = DSQLTable> {
 	table: TTable;
@@ -20,8 +20,6 @@ export interface DSQLInsertConfig<TTable extends DSQLTable = DSQLTable> {
 	withList?: Subquery[];
 	select?: boolean;
 }
-
-export type SelectedFieldsFlat = Record<string, unknown>;
 
 export class DSQLInsertBuilder<TTable extends DSQLTable> {
 	static readonly [entityKind]: string = 'DSQLInsertBuilder';

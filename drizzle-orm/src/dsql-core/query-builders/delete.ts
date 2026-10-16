@@ -9,7 +9,7 @@ import type { DSQLColumn } from '../columns/common.ts';
 import type { DSQLDialect } from '../dialect.ts';
 import type { DSQLQueryResultHKT, DSQLQueryResultKind, DSQLSession } from '../session.ts';
 import type { DSQLTable } from '../table.ts';
-import type { SelectedFieldsOrdered } from './select.types.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface DSQLDeleteConfig<TTable extends DSQLTable = DSQLTable> {
 	table: TTable;
@@ -17,8 +17,6 @@ export interface DSQLDeleteConfig<TTable extends DSQLTable = DSQLTable> {
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
 }
-
-export type SelectedFieldsFlat = Record<string, unknown>;
 
 export interface DSQLDeleteBase<
 	// oxlint-disable-next-line no-unused-vars

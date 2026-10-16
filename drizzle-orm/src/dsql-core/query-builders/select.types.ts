@@ -47,3 +47,5 @@ export interface SetOperatorConfig {
 }
 
 export type SelectedFieldsOrdered = SelectedFieldsOrderedBase<DSQLColumn>;
+
+export type SelectedFieldsFlat = Record<string, unknown>;
