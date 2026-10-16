@@ -940,9 +940,10 @@ const grantPrivilegeConvertor = convertor('grant_privilege', (st) => {
 	const { schema, table } = st.privilege;
 	const privilege = st.privilege;
 
+	// `GRANTED BY` not specified because it must be the current user (by default)
 	return `GRANT ${privilege.type} ON ${
 		schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`
-	} TO "${privilege.grantee}"${privilege.isGrantable ? ' WITH GRANT OPTION' : ''} GRANTED BY "${privilege.grantor}";`;
+	} TO "${privilege.grantee}"${privilege.isGrantable ? ' WITH GRANT OPTION' : ''};`;
 });
 
 const revokePrivilegeConvertor = convertor('revoke_privilege', (st) => {

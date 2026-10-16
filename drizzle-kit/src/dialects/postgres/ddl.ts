@@ -106,7 +106,7 @@ export const createDDL = () => {
 			validUntil: 'string?',
 		},
 		privileges: {
-			grantor: 'string',
+			grantor: 'string?',
 			grantee: 'string',
 			schema: 'required',
 			table: 'required',
