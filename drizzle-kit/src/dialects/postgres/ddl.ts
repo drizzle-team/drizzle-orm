@@ -10,6 +10,11 @@ export const createDDL = () => {
 			schema: 'required',
 			functionName: 'string',
 
+			// We need to know what args PostGreSQL actually uses to identify a function.
+			// Since PostGreSQL doesn't actually care about the names themselves, we want the function identity
+			// to be based on the args themselves and not the names that we give them.
+			identityArgs: 'string[]',
+
 			args: [{
 				name: 'string',
 				type: 'string',
@@ -400,6 +405,13 @@ interface EnumValuesDuplicate {
 	name: string;
 }
 
+interface FunctionSignatureDuplicate {
+	type: 'function_signature_duplicate';
+	schema: string;
+	name: string;
+	args: string[];
+}
+
 export type SchemaError =
 	| EnumValuesDuplicate
 	| SchemaDuplicate
@@ -414,7 +426,8 @@ export type SchemaError =
 	| PgVectorIndexNoOp
 	| RoleDuplicate
 	| PolicyDuplicate
-	| PrivilegeDuplicate;
+	| PrivilegeDuplicate
+	| FunctionSignatureDuplicate;
 
 interface PolicyNotLinked {
 	type: 'policy_not_linked';
@@ -472,6 +485,18 @@ export const interimToDDL = (
 				type: 'table_name_duplicate',
 				schema: it.schema,
 				name: it.name,
+			});
+		}
+	}
+
+	for (const it of schema.functions) {
+		const res = ddl.functions.push(it, ['schema', 'name', 'identityArgs']);
+		if (res.status === 'CONFLICT') {
+			errors.push({
+				type: 'function_signature_duplicate',
+				schema: it.schema,
+				name: it.name,
+				args: it.identityArgs,
 			});
 		}
 	}

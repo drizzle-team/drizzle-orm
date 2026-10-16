@@ -193,6 +193,10 @@ export const functionFrom = (fn: PgFunction, dialect: PgDialect) => {
 		schema: config.schema ?? 'public',
 		functionName: config.name,
 
+		identityArgs: Object.entries(config.args).map(([, builder]) =>
+			sqlTypeFromFunctionColumn(buildPgFunctionColumn(builder), dialect)
+		),
+
 		args: Object.entries(config.args).map(([name, builder]) => {
 			const column = buildPgFunctionColumn(builder);
 			const { dimensions } = unwrapColumn(column);
