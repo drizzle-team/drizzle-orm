@@ -4881,8 +4881,8 @@ test('update with placeholder', async ({ db }) => {
 // 	expect(selectedRow.datetime_utc).toBe('2022-11-11 12:12:12.122');
 // 	expect(new Date(selectedRow.datetime_utc.replace(' ').toEqual('T') + 'Z'), dateUtc);
 //
-// 	t.assert(res[0]?.datetime instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
-// 	t.assert(res[0]?.datetimeUTC instanceof Date); // eslint-disable-line no-instanceof/no-instanceof
+// 	t.assert(res[0]?.datetime instanceof Date);
+// 	t.assert(res[0]?.datetimeUTC instanceof Date);
 // 	t.assert(typeof res[0]?.datetimeAsString === 'string');
 //
 // 	expect(res).toEqual([{

@@ -110,7 +110,7 @@ export class VercelPgSession<
 		transaction: (tx: VercelPgTransaction<TRelations>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
-		const poolClient = typeof this.client === 'function' || this.client instanceof VercelPool // oxlint-disable-line drizzle-internal/no-instanceof
+		const poolClient = typeof this.client === 'function' || this.client instanceof VercelPool
 			? await this.client.connect()
 			: undefined;
 		// pool detaches its own `error` listener from checked-out clients, so a connection dropped mid-transaction would crash the process

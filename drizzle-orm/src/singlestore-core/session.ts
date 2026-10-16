@@ -49,6 +49,9 @@ export type PreparedQueryKind<
 
 export abstract class SingleStoreBasePreparedQuery<T extends SingleStorePreparedQueryConfig> implements PreparedQuery {
 	static readonly [entityKind]: string = 'SingleStoreBasePreparedQuery';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		protected query: Query,
@@ -248,6 +251,9 @@ export abstract class SingleStoreSession<
 	TRelations extends AnyRelations = EmptyRelations,
 > {
 	static readonly [entityKind]: string = 'SingleStoreSession';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(protected dialect: SingleStoreDialect) {}
 

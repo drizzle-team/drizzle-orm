@@ -119,6 +119,9 @@ export class PgInsertBuilder<
 	TBuilderHKT extends PgInsertHKTBase = PgInsertHKT,
 > {
 	static readonly [entityKind]: string = 'PgInsertBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		private table: TTable,
@@ -388,6 +391,9 @@ export class PgInsertBase<
 	SQLWrapper
 {
 	static readonly [entityKind]: string = 'PgInsert';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected config: PgInsertConfig<TTable>;
 

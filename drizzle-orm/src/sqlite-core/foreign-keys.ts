@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { TableName } from '~/table.utils.ts';
 import type { AnySQLiteColumn, SQLiteColumn } from './columns/index.ts';
 import type { SQLiteTable } from './table.ts';
@@ -14,6 +14,9 @@ export type Reference = () => {
 
 export class ForeignKeyBuilder {
 	static readonly [entityKind]: string = 'SQLiteForeignKeyBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare _: {
 		brand: 'SQLiteForeignKeyBuilder';
@@ -68,6 +71,9 @@ export class ForeignKeyBuilder {
 
 export class ForeignKey {
 	static readonly [entityKind]: string = 'SQLiteForeignKey';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly reference: Reference;
 	readonly onUpdate: UpdateDeleteAction | undefined;

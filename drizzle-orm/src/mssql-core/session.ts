@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -48,6 +48,9 @@ export type PreparedQueryKind<
 
 export abstract class MsSqlBasePreparedQuery<T extends PreparedQueryConfig> implements PreparedQueryBase {
 	static readonly [entityKind]: string = 'MsSqlBasePreparedQuery';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		protected query: Query,
@@ -157,6 +160,9 @@ export abstract class MsSqlSession<
 	TRelations extends AnyRelations = EmptyRelations,
 > {
 	static readonly [entityKind]: string = 'MsSqlSession';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(protected dialect: MsSqlDialect) {}
 

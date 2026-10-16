@@ -3,7 +3,7 @@ import { ForeignKeyBuilder } from '~/cockroach-core/foreign-keys.ts';
 import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
 import type { ColumnType, GeneratedColumnConfig, GeneratedIdentityConfig } from '~/column-builder.ts';
 import { Column } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import { iife } from '~/tracing-utils.ts';
 import type { Update } from '~/utils.ts';
@@ -171,6 +171,9 @@ export abstract class CockroachColumnBuilder<
 	out TRuntimeConfig extends object = object,
 > {
 	static readonly [entityKind]: string = 'CockroachColumnBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: T;
 
@@ -486,6 +489,9 @@ export class ExtraConfigColumn<
 
 export class IndexedColumn {
 	static readonly [entityKind]: string = 'IndexedColumn';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 	constructor(
 		name: string,
 		keyAsName: boolean,

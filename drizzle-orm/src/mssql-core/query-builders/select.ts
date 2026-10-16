@@ -64,6 +64,9 @@ class MsSqlSelectFromBuilderBase<
 	TBranch extends 'from' | 'top',
 > {
 	static readonly [entityKind]: string = 'MsSqlSelectFromBuilderBase';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected fields: TSelection;
 	protected session: MsSqlSession | undefined;

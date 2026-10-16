@@ -2,7 +2,7 @@ import pg, { type Pool, type PoolConfig } from 'pg';
 import { CockroachDatabase } from '~/cockroach-core/db.ts';
 import { CockroachDialect } from '~/cockroach-core/dialect.ts';
 import type { DrizzleCockroachConfig } from '~/cockroach-core/utils.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -18,6 +18,9 @@ export interface CockroachDriverOptions {
 
 export class NodeCockroachDriver {
 	static readonly [entityKind]: string = 'NodeCockroachDriver';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		private client: NodeCockroachClient,

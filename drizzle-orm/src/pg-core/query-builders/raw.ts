@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { PgBasePreparedQuery } from '../session.ts';
@@ -7,6 +7,9 @@ import type { PgBasePreparedQuery } from '../session.ts';
 export interface PgRaw<TResult> extends SQLWrapper {}
 export class PgRaw<TResult> implements SQLWrapper, PreparedQuery {
 	static readonly [entityKind]: string = 'PgRaw';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly dialect: 'pg';

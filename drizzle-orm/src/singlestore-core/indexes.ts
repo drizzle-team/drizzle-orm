@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { AnySingleStoreColumn, SingleStoreColumn } from './columns/index.ts';
 import type { SingleStoreTable } from './table.ts';
@@ -33,6 +33,9 @@ export type IndexColumn = SingleStoreColumn | SQL;
 
 export class IndexBuilderOn {
 	static readonly [entityKind]: string = 'SingleStoreIndexBuilderOn';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(private name: string, private unique: boolean) {}
 
@@ -50,6 +53,9 @@ export interface IndexBuilder extends AnyIndexBuilder {}
 
 export class IndexBuilder implements AnyIndexBuilder {
 	static readonly [entityKind]: string = 'SingleStoreIndexBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	config: IndexConfig;
@@ -85,6 +91,9 @@ export class IndexBuilder implements AnyIndexBuilder {
 
 export class Index {
 	static readonly [entityKind]: string = 'SingleStoreIndex';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly config: IndexConfig & { table: SingleStoreTable };
 	readonly isNameExplicit: boolean;
@@ -125,6 +134,9 @@ interface FullTextIndexFullConfig extends FullTextIndexConfig {
 
 export class FullTextIndexBuilderOn {
 	static readonly [entityKind]: string = 'SingleStoreFullTextIndexBuilderOn';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(private name: string, private config: FullTextIndexConfig) {}
 
@@ -158,6 +170,9 @@ export class FullTextIndexBuilder implements AnyFullTextIndexBuilder {
 
 export class FullTextIndex {
 	static readonly [entityKind]: string = 'SingleStoreFullTextIndex';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly config: FullTextIndexConfig & { table: SingleStoreTable };
 
@@ -174,6 +189,9 @@ export type SortKeyColumn = SingleStoreColumn | SQL;
 
 export class SortKeyBuilder {
 	static readonly [entityKind]: string = 'SingleStoreSortKeyBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(private columns: SortKeyColumn[]) {} */
 
@@ -185,6 +203,9 @@ export class SortKeyBuilder {
 
 export class SortKey {
 	static readonly [entityKind]: string = 'SingleStoreSortKey';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(public columns: SortKeyColumn[], public table: SingleStoreTable) {}
 }

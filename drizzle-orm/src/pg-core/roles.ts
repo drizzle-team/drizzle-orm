@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 
 export interface PgRoleConfig {
 	createDb?: boolean;
@@ -8,6 +8,9 @@ export interface PgRoleConfig {
 
 export class PgRole implements PgRoleConfig {
 	static readonly [entityKind]: string = 'PgRole';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	_existing?: boolean;

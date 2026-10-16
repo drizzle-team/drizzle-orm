@@ -77,7 +77,6 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 			dimensions: number,
 		) => {
 			if (dimensions <= 1) {
-				// eslint-disable-next-line drizzle-internal/no-instanceof
 				if (value instanceof Int32Array) {
 					return Array.from(value) as any;
 				}
@@ -92,7 +91,6 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 				if (depth === dimensions - 1) {
 					for (let i = 0; i < arr.length; i++) {
 						const leaf = arr[i];
-						// eslint-disable-next-line drizzle-internal/no-instanceof
 						if (leaf instanceof Int32Array) {
 							arr[i] = Array.from(leaf);
 						}

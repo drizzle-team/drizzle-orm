@@ -65,6 +65,9 @@ export class SQLiteSelectBuilder<
 	THKT extends SQLiteSelectHKTBase = SQLiteSelectQueryBuilderHKT,
 > {
 	static readonly [entityKind]: string = 'SQLiteSelectBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private fields: TSelection;
 	private session: SQLiteSession<any, any> | undefined;

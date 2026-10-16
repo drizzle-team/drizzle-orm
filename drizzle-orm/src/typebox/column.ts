@@ -20,7 +20,6 @@ export class TBuffer {
 	constructor() {
 		return Type.Refine(
 			Type.Unsafe<Buffer>({ type: 'buffer' }),
-			// oxlint-disable-next-line drizzle-internal/no-instanceof
 			(value): value is Buffer => value instanceof Buffer,
 			() => 'not a Buffer',
 		);
@@ -34,7 +33,6 @@ export class TDate {
 	constructor() {
 		return Type.Refine(
 			Type.Unsafe<Date>({ type: 'date' }),
-			// oxlint-disable-next-line drizzle-internal/no-instanceof
 			(value): value is Date => value instanceof Date,
 			() => 'not a Date',
 		);
