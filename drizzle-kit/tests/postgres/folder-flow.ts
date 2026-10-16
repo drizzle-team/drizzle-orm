@@ -17,6 +17,7 @@ import {
 import { tmpdir } from 'os';
 import { basename, dirname, join, relative } from 'path';
 import { checkHandler, checkSnapshots } from 'src/cli/commands/check';
+import { schemaWarnings as checkSchema } from 'src/cli/commands/check-postgres';
 import { handle } from 'src/cli/commands/generate-postgres';
 import { handle as pullHandle } from 'src/cli/commands/pull-postgres';
 import { upPgHandler } from 'src/cli/commands/up-postgres';
@@ -258,6 +259,11 @@ export const createFolderFlow = () => {
 		}
 	};
 
+	// Returns the warnings that check gives when it compares `schema` with the migrations of the branch. The folder
+	// must pass check first.
+	const schemaWarnings = (branch: string, schema: PostgresSchema) =>
+		quietly(() => checkSchema(readFolder(dirOf(branch)), SchemaSource.fromSchema(fromExports(schema))));
+
 	const up = (branch: string) => quietly(async () => upPgHandler(dirOf(branch)));
 
 	const merge = (target: string, ...sources: string[]) => {
@@ -323,6 +329,7 @@ export const createFolderFlow = () => {
 		generate,
 		pull,
 		check,
+		schemaWarnings,
 		up,
 		merge,
 		seed,

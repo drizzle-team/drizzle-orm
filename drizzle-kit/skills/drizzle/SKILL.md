@@ -2,7 +2,7 @@
 name: drizzle
 description: Work across the Drizzle ecosystem — drizzle-orm schema and query code, drizzle-kit migrations, and related tooling. Load before reading or editing any Drizzle file (anything importing `drizzle-orm/*`), defining or editing `drizzle.config.ts`, generating migrations, applying schema changes to a database (push), introspecting an existing database into a schema (pull), resolving drizzle-kit prompts or `missing_hints` output, choosing output modes, or decoding drizzle-kit JSON responses and errors — via CLI, SDK, or MCP. Load also when migrations from several git branches meet in one migrations folder, when a drizzle-kit command reports a broken migrations folder or branch conflicts, or when a command asks to run `drizzle-kit up`. Also runs a once-per-session staleness check against the installed `drizzle-kit`.
 metadata:
-  revision: 14
+  revision: 15
 ---
 
 # Drizzle

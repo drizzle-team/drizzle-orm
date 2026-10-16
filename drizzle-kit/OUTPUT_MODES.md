@@ -18,7 +18,7 @@ Output format, interactivity, and hint resolution are three orthogonal axes. The
 
 Connection-layer driver-selection chatter (the `Using '<driver>' driver for database querying` lines a connecting command prints while it picks a database driver) follows the same rule: under `--output json` it is suppressed so stdout stays a single JSON envelope, and under `--output text` it still prints as human progress.
 
-`check` is a no-hint, non-interactive gate, so it never reaches the missing-decisions path. Under `--output text` it keeps its current human output (`Everything's fine 🐶🔥` on success, the colorized conflict tree on conflicts); under `--output json` it emits the `ok` / `check_error` envelopes documented in [`./JSON_CONTRACT.md`](./JSON_CONTRACT.md).
+`check` is a no-hint, non-interactive gate, so it never reaches the missing-decisions path. Under `--output text` it keeps its current human output (`Everything's fine 🐶🔥` on success, the colorized conflict tree on conflicts); under `--output json` it emits the `ok` / `check_error` envelopes documented in [`./JSON_CONTRACT.md`](./JSON_CONTRACT.md). For postgresql, a warning about a schema that differs from the migrations prints in place of the success line under `--output text`, and it is in `warnings` of the `ok` envelope under `--output json`. The exit code stays `0`.
 
 `pull`, `up`, and `export` are likewise non-interactive (none of them ever reaches the missing-decisions path):
 

@@ -114,6 +114,23 @@ test('a leaf that does not reconstruct passes check and stops generate, and the 
 	expect(flow.files('main')).toStrictEqual(before);
 });
 
+test('check with a schema path warns that the schema was not compared when a leaf does not reconstruct', async () => {
+	const flow = createFolderFlow();
+	const accounts = pgTable('accounts', { id: integer() });
+	const v1 = { users: pgTable('users', { id: integer() }), accounts };
+	const v2 = { users: pgTable('users', { id: integer(), email: varchar() }), accounts };
+	await flow.generate('main', v1);
+	const { folder } = await flow.generate('main', v2);
+	flow.appendDeltas('main', folder, renameUsersTo('accounts'));
+
+	const warnings = await flow.schemaWarnings('main', v2);
+
+	expect(warnings).toStrictEqual([{
+		kind: 'not_compared',
+		message: expect.stringContaining(`The error: Cannot reconstruct the state of migration ${folder}: `),
+	}]);
+});
+
 test('generate stores one drop delta for a dropped table and for each of its columns, constraints and indexes', async () => {
 	const flow = createFolderFlow();
 	const users = pgTable('users', { id: integer().notNull(), email: varchar() }, (t) => [
