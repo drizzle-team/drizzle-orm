@@ -180,8 +180,8 @@ class PostgresCommutativity extends FacetCommutativity<
 	}
 
 	// ----------------------------------------------------------------------
-	// Each statement declares the nodes it structurally owns, the existence it
-	// destroys (drops), and the existence it needs (ancestors + cross-refs).
+	// Each statement declares the nodes that it writes (creates, renames, alters or drops) and the nodes that it
+	// reads (ancestors and cross-references that must exist).
 	// Node identity here mirrors the DDL's own `schema:table:name:entityType`
 	// key, so children/cross-refs line up with the nodes drops remove.
 	// ----------------------------------------------------------------------
@@ -295,17 +295,21 @@ class PostgresCommutativity extends FacetCommutativity<
 				: [];
 		const idxCols = (cols: Pick<IndexColumn, 'value' | 'isExpression'>[], ref: (c: string) => string) =>
 			cols.filter((c) => !c.isExpression).map((c) => ref(c.value));
-		// Returns the key that a foreign key needs on the columns that it references. A primary key, a unique
-		// constraint or a unique index provides this key, with the columns in any order.
-		const uniqueKey = (schema: string, table: string, columns: string[]) =>
-			exist('ukey', schema, table, ...[...columns].sort());
-		const indexKey = (
+		// Returns the node for the uniqueness of a set of columns, with the columns in any order. A foreign key reads
+		// it on the columns that it references, because Postgres requires a primary key, a unique constraint or a
+		// unique index there. Only a drop of such a guarantee writes the node, because an add cannot break a foreign
+		// key. Two drops share the write, because each one alone leaves the uniqueness to the other guarantees.
+		// The rules cannot count the guarantees, so a drop conflicts with a new foreign key on another branch even
+		// when another guarantee of the same columns remains.
+		const uniqueness = (schema: string, table: string, columns: string[]) =>
+			exist('uniqueness', schema, table, ...[...columns].sort());
+		const indexUniqueness = (
 			index: Pick<Index, 'schema' | 'table' | 'isUnique' | 'where'> & {
 				columns: Pick<IndexColumn, 'value' | 'isExpression'>[];
 			},
 		) =>
 			index.isUnique && !index.where && index.columns.every((c) => !c.isExpression)
-				? [uniqueKey(index.schema, index.table, index.columns.map((c) => c.value))]
+				? [uniqueness(index.schema, index.table, index.columns.map((c) => c.value))]
 				: [];
 		const policyRoles = (policy: { roles: string[] }) =>
 			policy.roles.filter((role) => !builtinPolicyRoles.includes(role)).map((role) => nref('role', role));
@@ -315,42 +319,42 @@ class PostgresCommutativity extends FacetCommutativity<
 			// ---- tables ----
 			case 'create_table':
 				return {
-					owns: [
+					writes: [
 						...created('tbl', s.table.schema, s.table.name),
 						...(s.table.pk ? [name('rel', s.table.schema, s.table.pk.name)] : []),
 						...s.table.uniques.map((unique) => name('rel', s.table.schema, unique.name)),
 					],
-					needs: [nref('sch', s.table.schema), ...s.table.columns.flatMap(colEnum)],
+					reads: [nref('sch', s.table.schema), ...s.table.columns.flatMap(colEnum)],
 				};
 			case 'drop_table':
-				return { owns: created('tbl', s.table.schema, s.table.name), needs: [nref('sch', s.table.schema)] };
+				return { writes: created('tbl', s.table.schema, s.table.name), reads: [nref('sch', s.table.schema)] };
 			case 'rename_table':
 				return {
-					owns: [...endpoint('tbl', s.schema, s.from), ...endpoint('tbl', s.schema, s.to)],
-					needs: [nref('sch', s.schema)],
+					writes: [...endpoint('tbl', s.schema, s.from), ...endpoint('tbl', s.schema, s.to)],
+					reads: [nref('sch', s.schema)],
 				};
 			case 'move_table': // the indexes move too, so it writes `exist` and the index names in both schemas
 				return {
-					owns: [
+					writes: [
 						...endpoint('tbl', s.from, s.name),
 						...endpoint('tbl', s.to, s.name),
 						exist('tbl', s.from, s.name),
 						exist('tbl', s.to, s.name),
 						...s.indexNames.flatMap((index) => [name('rel', s.from, index), name('rel', s.to, index)]),
 					],
-					needs: [nref('sch', s.from), nref('sch', s.to)],
+					reads: [nref('sch', s.from), nref('sch', s.to)],
 				};
 
 			// ---- columns ----
 			case 'add_column':
 				return {
-					owns: created('col', s.column.schema, s.column.table, s.column.name),
-					needs: [...underTable(s.column.schema, s.column.table), ...colEnum(s.column)],
+					writes: created('col', s.column.schema, s.column.table, s.column.name),
+					reads: [...underTable(s.column.schema, s.column.table), ...colEnum(s.column)],
 				};
 			case 'drop_column':
 				return {
-					owns: created('col', s.column.schema, s.column.table, s.column.name),
-					needs: underTable(s.column.schema, s.column.table),
+					writes: created('col', s.column.schema, s.column.table, s.column.name),
+					reads: underTable(s.column.schema, s.column.table),
 				};
 			case 'alter_column': {
 				// `properties` lists each property that the SQL changes or needs. Each property is a node of its
@@ -366,8 +370,8 @@ class PostgresCommutativity extends FacetCommutativity<
 				if (d.identity) properties.add('identity').add('default').add('notNull');
 				const column = [s.to.schema, s.to.table, s.to.name] as const;
 				return {
-					owns: [...properties].flatMap((property) => altered('colprop', ...column, property)),
-					needs: [
+					writes: [...properties].flatMap((property) => altered('colprop', ...column, property)),
+					reads: [
 						...underTable(s.to.schema, s.to.table),
 						nref('col', ...column),
 						// Only SET DATA TYPE and SET DEFAULT name the enum in SQL, so only they need `colEnum`.
@@ -378,62 +382,58 @@ class PostgresCommutativity extends FacetCommutativity<
 			case 'recreate_column': // DROP + re-ADD the column: destroys & re-establishes it (cascading its
 				// indexes/constraints), so it writes existence like a create/drop, not just `self` like an alter
 				return {
-					owns: created('col', s.column.schema, s.column.table, s.column.name),
-					needs: [...underTable(s.column.schema, s.column.table), ...colEnum(s.column)],
+					writes: created('col', s.column.schema, s.column.table, s.column.name),
+					reads: [...underTable(s.column.schema, s.column.table), ...colEnum(s.column)],
 				};
 			case 'rename_column':
 				return {
-					owns: [
+					writes: [
 						...endpoint('col', s.from.schema, s.from.table, s.from.name),
 						...endpoint('col', s.to.schema, s.to.table, s.to.name),
 					],
-					needs: underTable(s.from.schema, s.from.table),
+					reads: underTable(s.from.schema, s.from.table),
 				};
 
 			// ---- indexes ----
 			case 'create_index': // DDL hardcodes the columns -> NAME refs (break on rename)
 				return {
-					owns: created('idx', s.index.schema, s.index.name),
-					needs: [
+					writes: created('idx', s.index.schema, s.index.name),
+					reads: [
 						...underTable(s.index.schema, s.index.table),
 						...idxCols(s.index.columns, (c) => nref('col', s.index.schema, s.index.table, c)),
 					],
-					provides: indexKey(s.index),
 				};
 			// The SQL of DROP INDEX names only the index, so the statement reads the existence of the table and
 			// of the columns with `indexHome` and `eref`.
 			case 'drop_index': {
-				const key = indexKey(s.index);
+				const key = indexUniqueness(s.index);
 				return {
-					owns: created('idx', s.index.schema, s.index.name),
-					needs: [
+					writes: created('idx', s.index.schema, s.index.name),
+					reads: [
 						// `key` holds the name of the table. If another branch renames the table and adds a
 						// foreign key to it, the key of that foreign key has the new name and does not match.
 						// So a drop of a unique index reads the table name with `underTable`.
 						...(key.length > 0 ? underTable : indexHome)(s.index.schema, s.index.table),
 						...idxCols(s.index.columns, (c) => eref('col', s.index.schema, s.index.table, c)),
 					],
-					provides: key,
+					sharedWrites: key,
 				};
 			}
 			case 'recreate_index':
 				return {
-					owns: created('idx', s.index.schema, s.index.name),
-					needs: [
+					writes: created('idx', s.index.schema, s.index.name),
+					reads: [
 						...underTable(s.index.schema, s.index.table),
 						...idxCols(s.index.columns, (c) => nref('col', s.index.schema, s.index.table, c)),
 					],
-					provides: [
-						...indexKey({ ...s.old, schema: s.index.schema, table: s.index.table }),
-						...indexKey(s.index),
-					],
+					sharedWrites: indexUniqueness({ ...s.old, schema: s.index.schema, table: s.index.table }),
 				};
 			// A rename of the index works after a rename of its table or columns and fails after a drop of them.
 			// So the statement reads their existence with `indexHome` and `eref`.
 			case 'rename_index':
 				return {
-					owns: [...endpoint('idx', s.schema, s.from), ...endpoint('idx', s.schema, s.to)],
-					needs: [
+					writes: [...endpoint('idx', s.schema, s.from), ...endpoint('idx', s.schema, s.to)],
+					reads: [
 						...indexHome(s.schema, s.table),
 						...s.columns.map((c) => eref('col', s.schema, s.table, c)),
 					],
@@ -442,50 +442,49 @@ class PostgresCommutativity extends FacetCommutativity<
 			// ---- primary keys ----
 			case 'add_pk': // `ADD PRIMARY KEY (c)` hardcodes columns -> NAME refs
 				return {
-					owns: [...created('pk', s.pk.schema, s.pk.table), ...pkNames(s.pk.schema, s.pk.table, s.pk.name)],
-					needs: [
+					writes: [...created('pk', s.pk.schema, s.pk.table), ...pkNames(s.pk.schema, s.pk.table, s.pk.name)],
+					reads: [
 						...underTable(s.pk.schema, s.pk.table),
 						...s.pk.columns.map((c) => nref('col', s.pk.schema, s.pk.table, c)),
 					],
-					provides: [uniqueKey(s.pk.schema, s.pk.table, s.pk.columns)],
 				};
 			case 'drop_pk': // cascaded by column drop -> EXISTENCE refs
 				return {
-					owns: [...created('pk', s.pk.schema, s.pk.table), ...pkNames(s.pk.schema, s.pk.table, s.pk.name)],
-					needs: [
+					writes: [...created('pk', s.pk.schema, s.pk.table), ...pkNames(s.pk.schema, s.pk.table, s.pk.name)],
+					reads: [
 						...underTable(s.pk.schema, s.pk.table),
 						...s.pk.columns.map((c) => eref('col', s.pk.schema, s.pk.table, c)),
 					],
-					provides: [uniqueKey(s.pk.schema, s.pk.table, s.pk.columns)],
+					sharedWrites: [uniqueness(s.pk.schema, s.pk.table, s.pk.columns)],
 				};
 			case 'alter_pk':
 				return {
-					owns: altered('pk', s.pk.schema, s.pk.table),
-					needs: [
+					writes: altered('pk', s.pk.schema, s.pk.table),
+					reads: [
 						...underTable(s.pk.schema, s.pk.table),
 						...s.pk.columns.map((c) => nref('col', s.pk.schema, s.pk.table, c)),
 					],
-					provides: [s.oldColumns, s.pk.columns].map((columns) => uniqueKey(s.pk.schema, s.pk.table, columns)),
+					sharedWrites: [uniqueness(s.pk.schema, s.pk.table, s.oldColumns)],
 				};
 
 			// ---- foreign keys ----
 			case 'create_fk':
 			case 'recreate_fk':
 				return {
-					owns: created('fk', s.fk.schema, s.fk.table, s.fk.name),
-					needs: [
+					writes: created('fk', s.fk.schema, s.fk.table, s.fk.name),
+					reads: [
 						...underTable(s.fk.schema, s.fk.table),
 						nref('tbl', s.fk.schemaTo, s.fk.tableTo),
 						nref('sch', s.fk.schemaTo),
 						...s.fk.columns.map((c) => nref('col', s.fk.schema, s.fk.table, c)),
 						...s.fk.columnsTo.map((c) => nref('col', s.fk.schemaTo, s.fk.tableTo, c)),
-						uniqueKey(s.fk.schemaTo, s.fk.tableTo, s.fk.columnsTo),
+						uniqueness(s.fk.schemaTo, s.fk.tableTo, s.fk.columnsTo),
 					],
 				};
 			case 'drop_fk':
 				return {
-					owns: created('fk', s.fk.schema, s.fk.table, s.fk.name),
-					needs: [
+					writes: created('fk', s.fk.schema, s.fk.table, s.fk.name),
+					reads: [
 						...underTable(s.fk.schema, s.fk.table),
 						...s.fk.columns.map((c) => eref('col', s.fk.schema, s.fk.table, c)),
 					],
@@ -494,54 +493,53 @@ class PostgresCommutativity extends FacetCommutativity<
 			// ---- unique constraints ----
 			case 'add_unique':
 				return {
-					owns: created('uq', s.unique.schema, s.unique.table, s.unique.name),
-					needs: [
+					writes: created('uq', s.unique.schema, s.unique.table, s.unique.name),
+					reads: [
 						...underTable(s.unique.schema, s.unique.table),
 						...s.unique.columns.map((c) => nref('col', s.unique.schema, s.unique.table, c)),
 					],
-					provides: [uniqueKey(s.unique.schema, s.unique.table, s.unique.columns)],
 				};
 			case 'drop_unique':
 				return {
-					owns: created('uq', s.unique.schema, s.unique.table, s.unique.name),
-					needs: [
+					writes: created('uq', s.unique.schema, s.unique.table, s.unique.name),
+					reads: [
 						...underTable(s.unique.schema, s.unique.table),
 						...s.unique.columns.map((c) => eref('col', s.unique.schema, s.unique.table, c)),
 					],
-					provides: [uniqueKey(s.unique.schema, s.unique.table, s.unique.columns)],
+					sharedWrites: [uniqueness(s.unique.schema, s.unique.table, s.unique.columns)],
 				};
 			case 'alter_unique': // recreated as DROP $left + ADD $right: name-ref the new cols, existence-ref the old
 				return {
-					owns: altered('uq', s.to.schema, s.to.table, s.to.name),
-					needs: [
+					writes: altered('uq', s.to.schema, s.to.table, s.to.name),
+					reads: [
 						...underTable(s.to.schema, s.to.table),
 						...s.to.columns.map((c) => nref('col', s.to.schema, s.to.table, c)),
 						...s.from.columns.map((c) => eref('col', s.to.schema, s.to.table, c)),
 					],
-					provides: [s.from, s.to].map((unique) => uniqueKey(s.to.schema, s.to.table, unique.columns)),
+					sharedWrites: [uniqueness(s.to.schema, s.to.table, s.from.columns)],
 				};
 
 			// ---- check constraints (columns come from parsing the CHECK expression) ----
 			case 'add_check': // `ADD CHECK (c > 0)` hardcodes the columns -> NAME refs
 				return {
-					owns: created('ck', s.check.schema, s.check.table, s.check.name),
-					needs: [
+					writes: created('ck', s.check.schema, s.check.table, s.check.name),
+					reads: [
 						...underTable(s.check.schema, s.check.table),
 						...s.columns.map((c) => nref('col', s.check.schema, s.check.table, c)),
 					],
 				};
 			case 'drop_check': // cascaded by a column drop -> EXISTENCE refs
 				return {
-					owns: created('ck', s.check.schema, s.check.table, s.check.name),
-					needs: [
+					writes: created('ck', s.check.schema, s.check.table, s.check.name),
+					reads: [
 						...underTable(s.check.schema, s.check.table),
 						...s.columns.map((c) => eref('col', s.check.schema, s.check.table, c)),
 					],
 				};
 			case 'alter_check': // recreated as DROP old + ADD new: name-ref new expr cols, existence-ref old
 				return {
-					owns: altered('ck', s.check.schema, s.check.table, s.check.name),
-					needs: [
+					writes: altered('ck', s.check.schema, s.check.table, s.check.name),
+					reads: [
 						...underTable(s.check.schema, s.check.table),
 						...s.newColumns.map((c) => nref('col', s.check.schema, s.check.table, c)),
 						...s.oldColumns.map((c) => eref('col', s.check.schema, s.check.table, c)),
@@ -549,23 +547,23 @@ class PostgresCommutativity extends FacetCommutativity<
 				};
 
 			case 'rename_constraint': { // RENAME CONSTRAINT follows a column rename but is cascaded by a column drop -> EXISTENCE refs
-				const needs = [
+				const reads = [
 					...underTable(s.schema, s.table),
 					...s.columns.map((c) => eref('col', s.schema, s.table, c)),
 				];
 				const named = (k: string) => ({
-					owns: [...endpoint(k, s.schema, s.table, s.from), ...endpoint(k, s.schema, s.table, s.to)],
-					needs,
+					writes: [...endpoint(k, s.schema, s.table, s.from), ...endpoint(k, s.schema, s.table, s.to)],
+					reads,
 				});
 				switch (s.entityType) {
 					case 'pks': // `pkNames` writes the old and the new name, because the `pk` node holds no name
 						return {
-							owns: [
+							writes: [
 								...endpoint('pk', s.schema, s.table),
 								...pkNames(s.schema, s.table, s.from),
 								...pkNames(s.schema, s.table, s.to),
 							],
-							needs,
+							reads,
 						};
 					case 'uniques':
 						return named('uq');
@@ -582,19 +580,19 @@ class PostgresCommutativity extends FacetCommutativity<
 
 			// ---- enums (schema-scoped) ----
 			case 'create_enum':
-				return { owns: created('enum', s.enum.schema, s.enum.name), needs: [nref('sch', s.enum.schema)] };
+				return { writes: created('enum', s.enum.schema, s.enum.name), reads: [nref('sch', s.enum.schema)] };
 			case 'drop_enum':
-				return { owns: created('enum', s.enum.schema, s.enum.name), needs: [nref('sch', s.enum.schema)] };
+				return { writes: created('enum', s.enum.schema, s.enum.name), reads: [nref('sch', s.enum.schema)] };
 			case 'rename_enum':
 				return {
-					owns: [...endpoint('enum', s.schema, s.from), ...endpoint('enum', s.schema, s.to)],
-					needs: [nref('sch', s.schema)],
+					writes: [...endpoint('enum', s.schema, s.from), ...endpoint('enum', s.schema, s.to)],
+					reads: [nref('sch', s.schema)],
 				};
 			case 'alter_enum':
-				return { owns: altered('enum', s.to.schema, s.to.name), needs: [nref('sch', s.to.schema)] };
+				return { writes: altered('enum', s.to.schema, s.to.name), reads: [nref('sch', s.to.schema)] };
 			case 'recreate_enum': // DROP TYPE + CREATE TYPE, and an ALTER TABLE for every column of the type
 				return {
-					owns: [
+					writes: [
 						...created('enum', s.to.schema, s.to.name),
 						// The SQL ends with SET DATA TYPE for each column in `s.columns`, which would undo a
 						// type change of another branch. A type change rewrites the default, so the statement
@@ -603,72 +601,72 @@ class PostgresCommutativity extends FacetCommutativity<
 							['type', 'default'].flatMap((property) => altered('colprop', c.schema, c.table, c.name, property))
 						),
 					],
-					needs: [
+					reads: [
 						nref('sch', s.to.schema),
 						...s.columns.flatMap((c) => [...underTable(c.schema, c.table), nref('col', c.schema, c.table, c.name)]),
 					],
 				};
 			case 'move_enum':
 				return {
-					owns: [
+					writes: [
 						...endpoint('enum', s.from.schema, s.from.name),
 						...endpoint('enum', s.to.schema, s.to.name),
 					],
-					needs: [nref('sch', s.from.schema), nref('sch', s.to.schema)],
+					reads: [nref('sch', s.from.schema), nref('sch', s.to.schema)],
 				};
 
 			// ---- sequences (schema-scoped) ----
 			case 'create_sequence':
-				return { owns: created('seq', s.sequence.schema, s.sequence.name), needs: [nref('sch', s.sequence.schema)] };
+				return { writes: created('seq', s.sequence.schema, s.sequence.name), reads: [nref('sch', s.sequence.schema)] };
 			case 'drop_sequence':
-				return { owns: created('seq', s.sequence.schema, s.sequence.name), needs: [nref('sch', s.sequence.schema)] };
+				return { writes: created('seq', s.sequence.schema, s.sequence.name), reads: [nref('sch', s.sequence.schema)] };
 			case 'rename_sequence':
 				return {
-					owns: [...endpoint('seq', s.from.schema, s.from.name), ...endpoint('seq', s.to.schema, s.to.name)],
-					needs: [nref('sch', s.from.schema)],
+					writes: [...endpoint('seq', s.from.schema, s.from.name), ...endpoint('seq', s.to.schema, s.to.name)],
+					reads: [nref('sch', s.from.schema)],
 				};
 			case 'alter_sequence':
-				return { owns: altered('seq', s.sequence.schema, s.sequence.name), needs: [nref('sch', s.sequence.schema)] };
+				return { writes: altered('seq', s.sequence.schema, s.sequence.name), reads: [nref('sch', s.sequence.schema)] };
 			case 'move_sequence':
 				return {
-					owns: [
+					writes: [
 						...endpoint('seq', s.from.schema, s.from.name),
 						...endpoint('seq', s.to.schema, s.to.name),
 					],
-					needs: [nref('sch', s.from.schema), nref('sch', s.to.schema)],
+					reads: [nref('sch', s.from.schema), nref('sch', s.to.schema)],
 				};
 
 			// ---- views (schema-scoped) ----
 			case 'create_view':
-				return { owns: created('view', s.view.schema, s.view.name), needs: [nref('sch', s.view.schema)] };
+				return { writes: created('view', s.view.schema, s.view.name), reads: [nref('sch', s.view.schema)] };
 			case 'drop_view':
-				return { owns: created('view', s.view.schema, s.view.name), needs: [nref('sch', s.view.schema)] };
+				return { writes: created('view', s.view.schema, s.view.name), reads: [nref('sch', s.view.schema)] };
 			case 'rename_view':
 				return {
-					owns: [...endpoint('view', s.from.schema, s.from.name), ...endpoint('view', s.to.schema, s.to.name)],
-					needs: [nref('sch', s.from.schema)],
+					writes: [...endpoint('view', s.from.schema, s.from.name), ...endpoint('view', s.to.schema, s.to.name)],
+					reads: [nref('sch', s.from.schema)],
 				};
 			case 'alter_view':
-				return { owns: altered('view', s.view.schema, s.view.name), needs: [nref('sch', s.view.schema)] };
+				return { writes: altered('view', s.view.schema, s.view.name), reads: [nref('sch', s.view.schema)] };
 			case 'move_view':
 				return {
-					owns: [...endpoint('view', s.fromSchema, s.view.name), ...endpoint('view', s.toSchema, s.view.name)],
-					needs: [nref('sch', s.fromSchema), nref('sch', s.toSchema)],
+					writes: [...endpoint('view', s.fromSchema, s.view.name), ...endpoint('view', s.toSchema, s.view.name)],
+					reads: [nref('sch', s.fromSchema), nref('sch', s.toSchema)],
 				};
 
 			// ---- schemas (top level) ----
 			case 'create_schema':
-				return { owns: created('sch', s.name) };
+				return { writes: created('sch', s.name) };
 			case 'drop_schema':
-				return { owns: created('sch', s.name) };
+				return { writes: created('sch', s.name) };
 			case 'rename_schema':
-				return { owns: [...endpoint('sch', s.from.name), ...endpoint('sch', s.to.name)] };
+				return { writes: [...endpoint('sch', s.from.name), ...endpoint('sch', s.to.name)] };
 
 			// ---- policies (children of the table) ----
 			case 'create_policy': // the SQL names the roles of the policy, so `policyRoles` reads their names
 				return {
-					owns: created('pol', s.policy.schema, s.policy.table, s.policy.name),
-					needs: [
+					writes: created('pol', s.policy.schema, s.policy.table, s.policy.name),
+					reads: [
 						...underTable(s.policy.schema, s.policy.table),
 						...policyRoles(s.policy),
 						// Postgres does not enforce a policy on a table without row level security, so the
@@ -679,53 +677,52 @@ class PostgresCommutativity extends FacetCommutativity<
 			case 'alter_policy':
 			case 'recreate_policy':
 				return {
-					owns: altered('pol', s.policy.schema, s.policy.table, s.policy.name),
-					needs: [...underTable(s.policy.schema, s.policy.table), ...policyRoles(s.policy)],
+					writes: altered('pol', s.policy.schema, s.policy.table, s.policy.name),
+					reads: [...underTable(s.policy.schema, s.policy.table), ...policyRoles(s.policy)],
 				};
 			case 'drop_policy':
 				return {
-					owns: created('pol', s.policy.schema, s.policy.table, s.policy.name),
-					needs: underTable(s.policy.schema, s.policy.table),
+					writes: created('pol', s.policy.schema, s.policy.table, s.policy.name),
+					reads: underTable(s.policy.schema, s.policy.table),
 				};
 			case 'rename_policy':
 				return {
-					owns: [
+					writes: [
 						...endpoint('pol', s.from.schema, s.from.table, s.from.name),
 						...endpoint('pol', s.to.schema, s.to.table, s.to.name),
 					],
-					needs: underTable(s.from.schema, s.from.table),
+					reads: underTable(s.from.schema, s.from.table),
 				};
 
 			// ---- RLS toggle (a child aspect of the table) ----
 			// In either order, a DISABLE and a new policy of another branch leave the policy without effect. So
-			// when `isRlsEnabled` is false, the statement destroys the `rls` node that `create_policy` needs.
+			// when `isRlsEnabled` is false, the statement writes the `rls` node that `create_policy` reads.
 			case 'alter_rls':
 				return {
-					owns: altered('rls', s.schema, s.name),
-					destroys: s.isRlsEnabled ? [] : [exist('rls', s.schema, s.name)],
-					needs: underTable(s.schema, s.name),
+					writes: [...altered('rls', s.schema, s.name), ...(s.isRlsEnabled ? [] : [exist('rls', s.schema, s.name)])],
+					reads: underTable(s.schema, s.name),
 				};
 
 			// ---- roles (cluster level) ----
 			case 'create_role':
-				return { owns: created('role', s.role.name) };
+				return { writes: created('role', s.role.name) };
 			case 'alter_role':
-				return { owns: altered('role', s.role.name) };
+				return { writes: altered('role', s.role.name) };
 			case 'drop_role':
-				return { owns: created('role', s.role.name) };
+				return { writes: created('role', s.role.name) };
 			case 'rename_role':
-				return { owns: [...endpoint('role', s.from.name), ...endpoint('role', s.to.name)] };
+				return { writes: [...endpoint('role', s.from.name), ...endpoint('role', s.to.name)] };
 
 			// ---- privileges ----
 			case 'grant_privilege':
 			case 'revoke_privilege':
 			case 'regrant_privilege': {
 				const { schema, table, grantee, grantor } = s.privilege;
-				// ALL holds every other privilege type, so the statement owns the node of each type.
+				// ALL holds every other privilege type, so the statement writes the node of each type.
 				const types = s.privilege.type === 'ALL' ? privilegeTypes : [s.privilege.type];
 				return {
-					owns: types.flatMap((type) => altered('priv', schema || '', table || '', grantee, type)),
-					needs: [
+					writes: types.flatMap((type) => altered('priv', schema || '', table || '', grantee, type)),
+					reads: [
 						...(table ? underTable(schema || 'public', table) : []),
 						nref('role', grantee),
 						// GRANT names `grantor` in GRANTED BY. REVOKE does not name it, but the DDL key of a privilege

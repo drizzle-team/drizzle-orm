@@ -76,16 +76,13 @@ const verb = (type: string): string =>
 		? 'creates'
 		: 'changes';
 
-// The facet paths of a statement, for the impossible marks and the reason sentences. `provides` are writes that
-// only a read of the same node conflicts with.
+// The facet paths of a statement, for the impossible marks and the reason sentences.
 function facetSets(stmt: JsonStatement) {
-	const { owns, destroys = [], needs = [], provides = [] } = postgresCommutativity.buildFacetPaths(
-		toSnapshotStatement(stmt),
-	);
+	const { writes, reads = [], sharedWrites = [] } = postgresCommutativity.buildFacetPaths(toSnapshotStatement(stmt));
 	return {
-		writes: new Set<string>([...owns, ...destroys]),
-		reads: new Set<string>(needs),
-		provides: new Set<string>(provides),
+		writes: new Set<string>(writes),
+		reads: new Set<string>(reads),
+		sharedWrites: new Set<string>(sharedWrites),
 	};
 }
 
@@ -133,14 +130,14 @@ async function generateMatrix() {
 	// appear in several facets, so `seen` removes repeated sentences.
 	const why = (i: number, j: number): string[] => {
 		const A = sets[i], B = sets[j], out: string[] = [], seen = new Set<string>();
-		for (const k of new Set([...A.writes, ...B.writes, ...A.provides, ...B.provides])) {
+		for (const k of new Set([...A.writes, ...B.writes, ...A.sharedWrites, ...B.sharedWrites])) {
 			const res = `<code>${pretty(k)}</code>`;
 			const aw = A.writes.has(k), bw = B.writes.has(k), ar = A.reads.has(k), br = B.reads.has(k);
 			let sentence: string | null = null;
 			if (aw && bw) sentence = `<b>${TYPES[i]}</b> and <b>${TYPES[j]}</b> both change ${res}`;
-			else if ((aw || A.provides.has(k)) && br) {
+			else if ((aw || A.sharedWrites.has(k)) && br) {
 				sentence = `<b>${TYPES[i]}</b> ${verb(TYPES[i])} ${res}, which <b>${TYPES[j]}</b> references`;
-			} else if ((bw || B.provides.has(k)) && ar) {
+			} else if ((bw || B.sharedWrites.has(k)) && ar) {
 				sentence = `<b>${TYPES[j]}</b> ${verb(TYPES[j])} ${res}, which <b>${TYPES[i]}</b> references`;
 			}
 			if (sentence && !seen.has(sentence)) {
@@ -271,9 +268,9 @@ const isRename = (statement: JsonStatement) =>
 // The kinds of nodes (`pk`, `col`, etc.) that the facet paths of a statement name, so that the rename test can
 // compare a matrix row with a real rename.
 const nodeKinds = (statement: JsonStatement) => {
-	const { owns, destroys = [], needs = [] } = postgresCommutativity.buildFacetPaths(toSnapshotStatement(statement));
+	const { writes, reads = [] } = postgresCommutativity.buildFacetPaths(toSnapshotStatement(statement));
 	const kinds = (keys: string[]) => [...new Set(keys.map((key) => key.split('|')[1]))].sort();
-	return { writes: kinds([...owns, ...destroys]), reads: kinds(needs) };
+	return { writes: kinds(writes), reads: kinds(reads) };
 };
 
 test('every rename that the diff writes has a matrix row whose facet paths name the same kinds of nodes', async () => {
