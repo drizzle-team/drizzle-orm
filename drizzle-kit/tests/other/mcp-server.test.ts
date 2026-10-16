@@ -40,10 +40,18 @@ const connectPair = async () => {
 };
 
 describe('MCP server tool registration', () => {
-	test('listTools returns exactly check, export, generate, pull, push, up', async () => {
+	test('listTools returns exactly check, export, fix_conflicts, generate, pull, push, up', async () => {
 		const { client } = await connectPair();
 		const { tools } = await client.listTools();
-		expect(tools.map((t) => t.name).sort()).toEqual(['check', 'export', 'generate', 'pull', 'push', 'up']);
+		expect(tools.map((t) => t.name).sort()).toEqual([
+			'check',
+			'export',
+			'fix_conflicts',
+			'generate',
+			'pull',
+			'push',
+			'up',
+		]);
 		await client.close();
 	});
 });
@@ -67,10 +75,45 @@ describe('MCP server pull tool — per-call destructive _meta escalation', () =>
 	});
 });
 
+describe('MCP server fix_conflicts tool', () => {
+	test('generate lists the conflicting folders, and the destructive fix_conflicts tool deletes them', async () => {
+		const { client } = await connectPair();
+		const { tools } = await client.listTools();
+		const annotationsOf = (name: string) => tools.find((t) => t.name === name)?.annotations;
+		expect(annotationsOf('generate')).toMatchObject({ destructiveHint: false });
+		expect(annotationsOf('fix_conflicts')).toMatchObject({ destructiveHint: true });
+		const out = await stageConflict();
+		const schemaPath = resolve(join(out, 'schema.ts'));
+		writeFileSync(
+			schemaPath,
+			[
+				"import { integer, pgTable } from 'drizzle-orm/pg-core';",
+				'',
+				"export const users = pgTable('users', { email: integer('email').notNull() });",
+			].join('\n'),
+		);
+		const config = writeDrizzleConfig(out, schemaPath);
+		const folders = [expect.stringMatching(/0001_left$/), expect.stringMatching(/0002_right$/)];
+		try {
+			const r1 = await client.callTool({ name: 'generate', arguments: { config } });
+			expect(r1.structuredContent).toMatchObject({
+				status: 'error',
+				error: { code: 'check_error', kind: 'conflicts', fix: { migrations: folders, customMigrations: [] } },
+			});
+
+			const r2 = await client.callTool({ name: 'fix_conflicts', arguments: { config } });
+			expect(r2.structuredContent).toMatchObject({ status: 'ok', deleted_migrations: folders });
+		} finally {
+			await client.close();
+			rmSync(out, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('MCP server check tool', () => {
 	test('check against stageValid returns isError:false and status:ok in both channels', async () => {
 		const { client } = await connectPair();
-		const out = stageValid();
+		const out = await stageValid();
 		const config = writeDrizzleConfig(out);
 		try {
 			const result = await client.callTool({ name: 'check', arguments: { config } });
@@ -87,7 +130,7 @@ describe('MCP server check tool', () => {
 
 	test('check against stageConflict resolves to isError:true and status:error rather than rejecting', async () => {
 		const { client } = await connectPair();
-		const out = stageConflict();
+		const out = await stageConflict();
 		const config = writeDrizzleConfig(out);
 		try {
 			const result = await client.callTool({ name: 'check', arguments: { config } });
@@ -150,7 +193,7 @@ describe('MCP server up tool', () => {
 describe('MCP server generate tool — missing_hints round-trip', () => {
 	test('generate without hints returns isError:true with status:missing_hints and non-empty unresolved[]', async () => {
 		const { client } = await connectPair();
-		const { out, schemaPath } = stageGenerateMissingHints();
+		const { out, schemaPath } = await stageGenerateMissingHints();
 		const config = writeDrizzleConfig(out, schemaPath);
 		try {
 			const result = await client.callTool({ name: 'generate', arguments: { config } });
@@ -167,7 +210,7 @@ describe('MCP server generate tool — missing_hints round-trip', () => {
 
 	test('generate with resolving hints returns isError:false', async () => {
 		const { client } = await connectPair();
-		const { out, schemaPath } = stageGenerateMissingHints();
+		const { out, schemaPath } = await stageGenerateMissingHints();
 		const config = writeDrizzleConfig(out, schemaPath);
 		try {
 			// First call: get unresolved items
@@ -191,7 +234,7 @@ describe('MCP server generate tool — missing_hints round-trip', () => {
 
 	test('generate with a malformed hint returns an invalid_hints envelope, not a protocol error', async () => {
 		const { client } = await connectPair();
-		const { out, schemaPath } = stageGenerateMissingHints();
+		const { out, schemaPath } = await stageGenerateMissingHints();
 		const config = writeDrizzleConfig(out, schemaPath);
 		try {
 			// A hint with an unknown `type` fails hintSchema parsing. The loose tool input schema
@@ -221,7 +264,7 @@ describe('MCP server stdout purity (in-process)', () => {
 		);
 
 		const { client } = await connectPair();
-		const out = stageValid();
+		const out = await stageValid();
 		const config = writeDrizzleConfig(out);
 		try {
 			await client.callTool({ name: 'check', arguments: { config } });

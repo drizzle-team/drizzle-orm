@@ -2,7 +2,7 @@ import { boolean, command, type GenericBuilderInternals, number, string } from '
 import chalk from 'chalk';
 import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { dialects } from '../utils/schemaValidator';
@@ -10,7 +10,7 @@ import '../@types/utils';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import { assertUnreachable } from '../utils';
 import { assertV3OutFolder } from '../utils/utils-node';
-import { checkHandler } from './commands/check';
+import { assertConflictOptions, checkHandler } from './commands/check';
 import type { Setup } from './commands/studio';
 import { upCockroachHandler } from './commands/up-cockroach';
 import { upMssqlHandler } from './commands/up-mssql';
@@ -85,9 +85,17 @@ export const prepareGenerate = async (opts: GenerateOptionsInput) => {
 	const from = assertCollisions(
 		'generate',
 		opts,
-		['name', 'custom', 'ignoreConflicts', 'explain', 'output', 'hints', 'hintsFile'],
+		['name', 'custom', 'ignoreConflicts', 'fixConflicts', 'explain', 'output', 'hints', 'hintsFile'],
 		['driver', 'breakpoints', 'schema', 'out', 'dialect'],
 	);
+	if (opts.explain && opts.custom) {
+		throw new UnsupportedCommandCliError(
+			'generate',
+			'--explain cannot be used with --custom. --explain prints the planned SQL and writes nothing, '
+				+ 'and --custom writes an empty migration that has no SQL. Run the command with only one of them.',
+			{ option: 'explain', conflictsWith: 'custom' },
+		);
+	}
 	return prepareGenerateConfig(opts as Parameters<typeof prepareGenerateConfig>[0], from);
 };
 
@@ -100,16 +108,22 @@ export const runGenerate = async (
 	assertV3OutFolder(config.out);
 
 	const dialect = config.dialect;
+	assertConflictOptions('generate', dialect, config);
+
+	// Postgres skips `checkHandler`, which throws on a conflict. The postgres `handle` checks the folder itself,
+	// because it can delete the conflicting migrations and then generate.
+	if (dialect === 'postgresql') {
+		const { handle } = await import('./commands/generate-postgres');
+		return await handle(config as Parameters<typeof handle>[0]);
+	}
+
 	const checkResult = await checkHandler(
 		config.out,
 		dialect,
 		config.ignoreConflicts,
 	);
 
-	if (dialect === 'postgresql') {
-		const { handle } = await import('./commands/generate-postgres');
-		return await handle(config as Parameters<typeof handle>[0], checkResult);
-	} else if (dialect === 'mysql') {
+	if (dialect === 'mysql') {
 		const { handle } = await import('./commands/generate-mysql');
 		return await handle(config, checkResult);
 	} else if (dialect === 'sqlite') {
@@ -314,7 +328,7 @@ const optionDriver = string()
 	.desc('Database driver');
 
 const optionIgnoreConflicts = boolean('ignore-conflicts').desc(
-	'Skip commutativity conflict checks',
+	'Skip the conflict checks (not for postgresql)',
 );
 const optionHints = string().desc('Inline JSON array of hints');
 const optionHintsFile = string('hints-file').desc('Path to a JSON file containing a hints array');
@@ -332,6 +346,9 @@ export const generateOptions = {
 		.desc('Prepare empty migration file for custom SQL')
 		.default(false),
 	ignoreConflicts: optionIgnoreConflicts,
+	fixConflicts: boolean('fix-conflicts').desc(
+		'Delete the conflicting migrations and their children, then generate one new migration (postgresql only)',
+	),
 	explain: boolean()
 		.desc('Print the planned SQL changes (dry run)')
 		.default(false),
@@ -373,6 +390,7 @@ export const migrate = command({
 		assertV3OutFolder(opts.out);
 		const { dialect, schema, table, out, credentials, ignoreConflicts } = opts;
 
+		assertConflictOptions('migrate', dialect, { ignoreConflicts });
 		await checkHandler(out, dialect, ignoreConflicts);
 
 		if (dialect === 'postgresql') {
@@ -573,6 +591,7 @@ export const runCheck = async (
 	await assertOrmCoreVersion();
 	assertV3OutFolder(config.out);
 	const { out, dialect, ignoreConflicts } = config;
+	assertConflictOptions('check', dialect, { ignoreConflicts });
 	await checkHandler(out, dialect, ignoreConflicts);
 	return { status: 'ok' as const, dialect };
 };
@@ -614,7 +633,7 @@ export const runUp = async (
 	const { out, dialect } = config;
 	let upgraded: string[];
 	if (dialect === 'postgresql') {
-		upgraded = upPgHandler(out);
+		upgraded = await upPgHandler(out);
 	} else if (dialect === 'mysql') {
 		upgraded = upMysqlHandler(out);
 	} else if (dialect === 'sqlite' || dialect === 'turso') {
@@ -1206,6 +1225,24 @@ const detectInstaller = (): { cmd: 'pnpm' | 'bunx' | 'yarn' | 'npx'; args: strin
 	return { cmd: 'npx', args: ['-y'] };
 };
 
+const SUPERSEDED_SKILLS: readonly string[] = [
+	'drizzle-generate',
+	'drizzle-push',
+	'drizzle-pull',
+	'drizzle-migrations',
+	'drizzle-hints',
+	'drizzle-output-modes',
+	'drizzle-responses-and-errors',
+];
+
+// The skills CLI arguments that remove `SUPERSEDED_SKILLS` from the project after `skills add`. They pass no
+// user-level option, because a user-level removal would delete skills that other projects still use.
+export const supersededSkillsRemoveArgs: readonly string[] = ['skills@latest', 'remove', ...SUPERSEDED_SKILLS, '-y'];
+
+// Returns true when the remove command found none of `SUPERSEDED_SKILLS`, so that `skills` hides its output.
+// It matches one message only, so a new wording in the skills CLI cannot hide a real removal.
+export const isNoOpRemoveOutput = (output: string): boolean => /no matching skills found/i.test(output);
+
 const skillsVersion = command({
 	name: 'version',
 	options: {},
@@ -1257,6 +1294,31 @@ export const skills = command({
 				resolve(signal ? 1 : (code ?? 0));
 			});
 		});
-		process.exit(exitCode);
+		if (exitCode !== 0) process.exit(exitCode);
+
+		// Removes the superseded skills with no prompt. `-y` answers the current prompts, and the ignored stdin
+		// ends a prompt that a later skills CLI adds. The output is piped, so that it is printed only when a
+		// skill was removed or the removal failed.
+		const removal = spawnSync(cmd, [...args, ...supersededSkillsRemoveArgs], {
+			stdio: ['ignore', 'pipe', 'pipe'],
+			encoding: 'utf8',
+			shell: onWindows,
+		});
+		// `removal.stdout` and `removal.stderr` are null when the child did not start, and `join` reads null as
+		// empty text. `removal.status` is null when the child did not start or a signal stopped it.
+		const removeOutput = [removal.stdout, removal.stderr].join('');
+		const removeExitCode = removal.status ?? 1;
+		if (removeExitCode !== 0 || !isNoOpRemoveOutput(removeOutput)) {
+			process.stderr.write('Removing superseded skills…\n');
+			process.stderr.write(removeOutput);
+		}
+		if (removeExitCode !== 0) {
+			const manualArgs = supersededSkillsRemoveArgs.slice(1).join(' ');
+			process.stderr.write(
+				`Could not automatically remove superseded skills. Run \`npx skills@latest ${manualArgs}\` manually.\n`,
+			);
+		}
+
+		process.exit(0);
 	},
 });

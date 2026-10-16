@@ -370,10 +370,9 @@ export const psqlExplain = (st: StatementPostgres) => {
 	}
 
 	if (st.type === 'regrant_privilege') {
-		const { privilege, diff } = st;
+		const { diff } = st;
 
-		const key = `${privilege.name}`;
-		title += `${key} privilege changed:`;
+		title += `privilege changed:`;
 		if (diff.grantee) cause += `│ grantee: [${diff.grantee.from}] -> [${diff.grantee.to}]\n`;
 		if (diff.grantor) cause += `│ grantor: [${diff.grantor.from}] -> [${diff.grantor.to}]\n`;
 		if (diff.isGrantable) cause += `│ isGrantable: [${diff.isGrantable.from}] -> [${diff.isGrantable.to}]\n`;
@@ -1459,7 +1458,6 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 			| 'default'
 			| 'sequence'
 			| 'view'
-			| 'privilege'
 			| 'policy'
 			| 'role'
 			| 'check'
