@@ -507,8 +507,8 @@ export const cockroachExplain = (st: StatementCockroach) => {
 		if (d.columns) cause += `│ columns: [${d.columns.from.join(',')}] -> [${d.columns.to.join(',')}]\n`;
 	}
 
-	if (st.type === 'recreate_view') {
-		const { from, to } = st;
+	if (st.type === 'drop_view' && st.cause) {
+		const { view: from, cause: to } = st;
 
 		const key = `${to.schema}.${to.name}`;
 		title += `${key} view changed:`;
