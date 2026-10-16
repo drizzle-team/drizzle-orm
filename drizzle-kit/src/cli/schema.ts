@@ -13,6 +13,7 @@ import { assertV3OutFolder } from '../utils/utils-node';
 import { checkHandler } from './commands/check';
 import type { Setup } from './commands/studio';
 import { upCockroachHandler } from './commands/up-cockroach';
+import { upDsqlHandler } from './commands/up-dsql';
 import { upMssqlHandler } from './commands/up-mssql';
 import { upMysqlHandler } from './commands/up-mysql';
 import { upPgHandler } from './commands/up-postgres';
@@ -126,6 +127,9 @@ export const runGenerate = async (
 		return await handle(config);
 	} else if (dialect === 'cockroach') {
 		const { handle } = await import('./commands/generate-cockroach');
+		return await handle(config);
+	} else if (dialect === 'dsql') {
+		const { handle } = await import('./commands/generate-dsql');
 		return await handle(config);
 	} else if (dialect === 'duckdb') {
 		throw new UnsupportedCommandCliError(
@@ -294,6 +298,18 @@ export const runPush = async (
 			migrations,
 			hints,
 		);
+	} else if (dialect === 'dsql') {
+		const { handle } = await import('./commands/push-dsql');
+		return await handle(
+			filenames,
+			verbose,
+			credentials,
+			filters,
+			force,
+			explain,
+			migrations,
+			hints,
+		);
 	}
 	assertUnreachable(dialect);
 };
@@ -301,7 +317,7 @@ export const runPush = async (
 const optionDialect = string('dialect')
 	.enum(...dialects)
 	.desc(
-		`Database dialect: 'postgresql', 'mysql', 'sqlite', 'turso', 'singlestore', 'duckdb' or 'mssql'`,
+		`Database dialect: 'postgresql', 'mysql', 'sqlite', 'turso', 'singlestore', 'duckdb', 'mssql', 'dsql' or 'cockroach'`,
 	);
 const optionOut = string().desc("Output folder, 'drizzle' by default");
 const optionConfig = string().desc('Path to drizzle config file');
@@ -472,6 +488,14 @@ export const migrate = command({
 					migrationsSchema: schema,
 				}),
 			);
+		} else if (dialect === 'dsql') {
+			const { handle } = await import('./commands/migrate-dsql');
+			await handle({
+				out,
+				credentials: credentials as Parameters<typeof handle>[0]['credentials'],
+				table,
+				schema,
+			});
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -621,6 +645,8 @@ export const runUp = async (
 		upgraded = upCockroachHandler(out);
 	} else if (dialect === 'mssql') {
 		upgraded = upMssqlHandler(out);
+	} else if (dialect === 'dsql') {
+		upgraded = upDsqlHandler(out);
 	} else if (dialect === 'duckdb') {
 		throw new UnsupportedCommandDialectCliError('up', 'duckdb');
 	} else {
@@ -689,7 +715,7 @@ export const preparePull = async (opts: PullOptionsInput) => {
 type PullManifest = {
 	schemaPath: string;
 	relationsPath?: string;
-	snapshotPath: string;
+	snapshotPath?: string;
 	migrationPath?: string;
 };
 
@@ -887,6 +913,27 @@ export const runPull = async (
 				'cockroach',
 				['pg'],
 				'Failed to connect to or introspect the Cockroach database',
+			);
+		}
+	} else if (dialect === 'dsql') {
+		// DSQL doesn't support migrate --init due to one-DDL-per-transaction limitation
+		if (init) {
+			throw new UnsupportedCommandCliError('pull', "--init can't be used with 'dsql' dialect", {
+				dialect: 'dsql',
+			});
+		}
+
+		try {
+			const { handle, prepareDsqlDB } = await import('./commands/pull-dsql');
+			const db = await prepareDsqlDB(credentials);
+
+			manifest = await handle(casing, out, breakpoints, credentials, filters, migrations, db);
+		} catch (e) {
+			if (isTypedCliError(e)) throw e;
+			throw new DatabaseDriverCliError(
+				'dsql',
+				['@aws/aurora-dsql-node-postgres-connector', 'pg'],
+				'Failed to connect to or introspect the DSQL database',
 			);
 		}
 	} else {
@@ -1157,6 +1204,9 @@ export const runExport = async (
 		({ statements, warnings } = await handleExport(config));
 	} else if (dialect === 'cockroach') {
 		const { handleExport } = await import('./commands/generate-cockroach');
+		({ statements, warnings } = await handleExport(config));
+	} else if (dialect === 'dsql') {
+		const { handleExport } = await import('./commands/generate-dsql');
 		({ statements, warnings } = await handleExport(config));
 	} else if (dialect === 'duckdb') {
 		throw new UnsupportedCommandDialectCliError('export', 'duckdb');

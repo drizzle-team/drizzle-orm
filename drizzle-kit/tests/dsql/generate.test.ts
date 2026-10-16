@@ -1,0 +1,1634 @@
+/**
+ * DSQL Generate Tests
+ *
+ * Tests that verify drizzle-kit's DDL generation for DSQL dialect.
+ * These tests verify the SQL statements generated when diffing schemas.
+ *
+ * DSQL-specific constraints tested:
+ * - No enums (text/varchar instead)
+ * - Sequences with required CACHE (must be 1 or >= 65536)
+ * - Identity columns with required CACHE (must be 1 or >= 65536)
+ * - Foreign keys and check constraints added with NOT VALID
+ * - Only btree indexes
+ * - ASYNC index creation
+ */
+
+import { sql } from 'drizzle-orm';
+import {
+	bigint,
+	boolean,
+	bytea,
+	char,
+	check,
+	date,
+	doublePrecision,
+	dsqlSchema,
+	dsqlSequence,
+	dsqlTable,
+	foreignKey,
+	index,
+	integer,
+	interval,
+	json,
+	jsonb,
+	numeric,
+	primaryKey,
+	real,
+	smallint,
+	text,
+	time,
+	timestamp,
+	uniqueIndex,
+	uuid,
+	varchar,
+} from 'drizzle-orm/dsql-core';
+import { describe, expect, test } from 'vitest';
+import { _, diff, diffDry, drizzleToDDL, skipIfNoCluster } from './mocks';
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Table Creation', () => {
+	test('create basic table with uuid primary key', async () => {
+		const to = {
+			users: dsqlTable(_.uniqueName('gen_users'), {
+				id: uuid('id').primaryKey().defaultRandom(),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('CREATE TABLE');
+		expect(sqlStatements[0]).toContain('gen_random_uuid()');
+		expect(sqlStatements[0]).toContain('uuid');
+		expect(sqlStatements[0]).toContain('PRIMARY KEY');
+	});
+
+	test('create table with multiple columns', async () => {
+		const to = {
+			users: dsqlTable(_.uniqueName('gen_multi'), {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				email: varchar('email', { length: 255 }),
+				isActive: boolean('is_active').default(true),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('uuid');
+		expect(sqlStatements[0]).toContain('text');
+		expect(sqlStatements[0]).toContain('varchar(255)');
+		expect(sqlStatements[0]).toContain('boolean');
+		expect(sqlStatements[0]).toContain('DEFAULT true');
+	});
+
+	test('create table with composite primary key', async () => {
+		const to = {
+			userRoles: dsqlTable(
+				_.uniqueName('gen_comp_pk'),
+				{
+					userId: uuid('user_id').notNull(),
+					roleId: uuid('role_id').notNull(),
+					assignedAt: timestamp('assigned_at').defaultNow(),
+				},
+				(t) => [primaryKey({ columns: [t.userId, t.roleId] })],
+			),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('user_id');
+		expect(sqlStatements[0]).toContain('role_id');
+		expect(sqlStatements[0]).toContain('PRIMARY KEY');
+	});
+
+	test('create table in custom schema', async () => {
+		const testSchema = dsqlSchema(_.uniqueName('gen_schema'));
+
+		const to = {
+			testSchema,
+			users: testSchema.table(_.uniqueName('gen_schema_table'), {
+				id: uuid('id').primaryKey().defaultRandom(),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		// Should create schema and table
+		expect(sqlStatements.length).toBeGreaterThanOrEqual(2);
+		expect(sqlStatements.some((s) => s.includes('CREATE SCHEMA'))).toBe(true);
+		expect(sqlStatements.some((s) => s.includes('CREATE TABLE'))).toBe(true);
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Column Types', () => {
+	test('uuid column with default', async () => {
+		const to = {
+			t: dsqlTable(_.uniqueName('gen_uuid'), {
+				id: uuid('id').primaryKey().defaultRandom(),
+				ref: uuid('ref').default(sql`gen_random_uuid()`),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements[0]).toContain('gen_random_uuid()');
+	});
+
+	test('text and varchar columns', async () => {
+		const to = {
+			t: dsqlTable(_.uniqueName('gen_text'), {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				email: varchar('email', { length: 255 }),
+				code: char('code', { length: 10 }),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements[0]).toContain('text');
+		expect(sqlStatements[0]).toContain('varchar(255)');
+		expect(sqlStatements[0]).toContain('char(10)');
+	});
+
+	test('integer types', async () => {
+		const to = {
+			t: dsqlTable(_.uniqueName('gen_int'), {
+				id: uuid('id').primaryKey().defaultRandom(),
+				small: smallint('small'),
+				regular: integer('regular').default(0),
+				big: bigint('big'),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements[0]).toContain('smallint');
+		expect(sqlStatements[0]).toContain('integer');
+		expect(sqlStatements[0]).toContain('bigint');
+		expect(sqlStatements[0]).toContain('DEFAULT 0');
+	});
+
+	test('numeric and decimal columns', async () => {
+		const to = {
+			t: dsqlTable(_.uniqueName('gen_num'), {
+				id: uuid('id').primaryKey().defaultRandom(),
+				price: numeric('price', { precision: 10, scale: 2 }),
+				rate: real('rate'),
+				precise: doublePrecision('precise'),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements[0]).toContain('numeric(10,2)');
+		expect(sqlStatements[0]).toContain('real');
+		expect(sqlStatements[0]).toContain('double precision');
+	});
+
+	test('boolean column', async () => {
+		const to = {
+			t: dsqlTable(_.uniqueName('gen_bool'), {
+				id: uuid('id').primaryKey().defaultRandom(),
+				isActive: boolean('is_active').default(true),
+				isDeleted: boolean('is_deleted').notNull().default(false),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements[0]).toContain('boolean');
+		expect(sqlStatements[0]).toContain('DEFAULT true');
+		expect(sqlStatements[0]).toContain('DEFAULT false');
+	});
+
+	test('timestamp columns', async () => {
+		const to = {
+			t: dsqlTable(_.uniqueName('gen_ts'), {
+				id: uuid('id').primaryKey().defaultRandom(),
+				createdAt: timestamp('created_at').defaultNow(),
+				updatedAt: timestamp('updated_at', { withTimezone: true }),
+				scheduledFor: timestamp('scheduled_for', { precision: 3 }),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements[0]).toContain('timestamp');
+		expect(sqlStatements[0]).toContain('now()');
+	});
+
+	test('date and time columns', async () => {
+		const to = {
+			t: dsqlTable(_.uniqueName('gen_date'), {
+				id: uuid('id').primaryKey().defaultRandom(),
+				birthday: date('birthday'),
+				startTime: time('start_time'),
+				duration: interval('duration'),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements[0]).toContain('date');
+		expect(sqlStatements[0]).toContain('time');
+		expect(sqlStatements[0]).toContain('interval');
+	});
+
+	test('bytea column', async () => {
+		const to = {
+			t: dsqlTable(_.uniqueName('gen_bytea'), {
+				id: uuid('id').primaryKey().defaultRandom(),
+				data: bytea('data'),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements[0]).toContain('bytea');
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Indexes', () => {
+	test('create basic index', async () => {
+		const to = {
+			users: dsqlTable(
+				_.uniqueName('gen_idx'),
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					email: text('email').notNull(),
+				},
+				(t) => [index('email_idx').on(t.email)],
+			),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		// Table creation and index creation
+		expect(sqlStatements.length).toBeGreaterThanOrEqual(1);
+		const indexStmt = sqlStatements.find((s) => s.includes('CREATE INDEX ASYNC'));
+		expect(indexStmt).toBeDefined();
+		expect(indexStmt).toContain('email_idx');
+	});
+
+	test('create unique index', async () => {
+		const to = {
+			users: dsqlTable(
+				_.uniqueName('gen_uniq_idx'),
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					email: text('email').notNull(),
+				},
+				(t) => [uniqueIndex('email_unique_idx').on(t.email)],
+			),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		const indexStmt = sqlStatements.find((s) => s.includes('CREATE UNIQUE INDEX'));
+		expect(indexStmt).toBeDefined();
+	});
+
+	test('create composite index', async () => {
+		const to = {
+			orders: dsqlTable(
+				_.uniqueName('gen_comp_idx'),
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					userId: uuid('user_id').notNull(),
+					createdAt: timestamp('created_at').defaultNow(),
+				},
+				(t) => [index('user_date_idx').on(t.userId, t.createdAt)],
+			),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		const indexStmt = sqlStatements.find((s) => s.includes('CREATE INDEX'));
+		expect(indexStmt).toBeDefined();
+		expect(indexStmt).toContain('user_id');
+		expect(indexStmt).toContain('created_at');
+	});
+
+	test('index with nulls options', async () => {
+		const to = {
+			orders: dsqlTable(
+				_.uniqueName('gen_idx_opts'),
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					createdAt: timestamp('created_at').defaultNow(),
+				},
+				(t) => [index('date_nulls_idx').on(t.createdAt.nullsFirst())],
+			),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		const indexStmt = sqlStatements.find((s) => s.includes('CREATE INDEX'));
+		expect(indexStmt).toBeDefined();
+		expect(indexStmt).toContain('("created_at" NULLS FIRST)');
+	});
+
+	// DSQL does not support sort order for index keys - throws an error
+	test('index with order throws error (unsupported in DSQL)', async () => {
+		const to = {
+			orders: dsqlTable(
+				_.uniqueName('gen_idx_order'),
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					createdAt: timestamp('created_at').defaultNow(),
+				},
+				(t) => [index('date_desc_idx').on(t.createdAt.desc().nullsLast())],
+			),
+		};
+
+		await expect(diff({}, to, [])).rejects.toThrow('DSQL does not support sort order for index keys');
+	});
+
+	// DSQL does not support operator classes for index keys - throws an error
+	test('index with operator class throws error (unsupported in DSQL)', async () => {
+		const to = {
+			users: dsqlTable(
+				_.uniqueName('gen_idx_opclass'),
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					email: text('email').notNull(),
+				},
+				(t) => [index('email_pattern_idx').on(t.email.op('text_pattern_ops'))],
+			),
+		};
+
+		await expect(diff({}, to, [])).rejects.toThrow('DSQL does not support operator classes for index keys');
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Constraints', () => {
+	test('unique constraint on column', async () => {
+		const to = {
+			users: dsqlTable(_.uniqueName('gen_uniq'), {
+				id: uuid('id').primaryKey().defaultRandom(),
+				email: text('email').notNull().unique(),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		// Unique constraint can be inline or separate
+		const hasUnique = sqlStatements.some(
+			(s) => s.includes('UNIQUE') || s.includes('ADD CONSTRAINT'),
+		);
+		expect(hasUnique).toBe(true);
+	});
+
+	test('check constraint', async () => {
+		const to = {
+			users: dsqlTable(
+				_.uniqueName('gen_check'),
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					age: integer('age'),
+				},
+				(t) => [check('age_positive', sql`${t.age} >= 0`)],
+			),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		const hasCheck = sqlStatements.some(
+			(s) => s.includes('CHECK') || s.includes('age_positive'),
+		);
+		expect(hasCheck).toBe(true);
+	});
+
+	test('not null constraint', async () => {
+		const to = {
+			users: dsqlTable(_.uniqueName('gen_notnull'), {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements[0]).toContain('NOT NULL');
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Schema Modifications', () => {
+	test('add column to existing table', async () => {
+		const tableName = _.uniqueName('gen_add_col');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				email: text('email'),
+			}),
+		};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('ALTER TABLE');
+		expect(sqlStatements[0]).toContain('ADD COLUMN');
+		expect(sqlStatements[0]).toContain('email');
+	});
+
+	test('drop column from table', async () => {
+		const tableName = _.uniqueName('gen_drop_col');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				email: text('email'),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+			}),
+		};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('ALTER TABLE');
+		expect(sqlStatements[0]).toContain('DROP COLUMN');
+		expect(sqlStatements[0]).toContain('email');
+	});
+
+	test('rename column', async () => {
+		const tableName = _.uniqueName('gen_rename_col');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				email: text('email'),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				emailAddress: text('email_address'),
+			}),
+		};
+
+		// Provide rename hint
+		const { sqlStatements } = await diff(from, to, [`public.${tableName}.email->public.${tableName}.email_address`]);
+
+		expect(sqlStatements.length).toBeGreaterThanOrEqual(1);
+		const renameStmt = sqlStatements.find((s) => s.includes('RENAME COLUMN'));
+		expect(renameStmt).toBeDefined();
+	});
+
+	test('add index to existing table', async () => {
+		const tableName = _.uniqueName('gen_add_idx');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				email: text('email').notNull(),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(
+				tableName,
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					email: text('email').notNull(),
+				},
+				(t) => [index('new_email_idx').on(t.email)],
+			),
+		};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements.length).toBeGreaterThanOrEqual(1);
+		expect(sqlStatements.some((s) => s.includes('CREATE INDEX'))).toBe(true);
+	});
+
+	test('drop table', async () => {
+		const tableName = _.uniqueName('gen_drop_tbl');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+			}),
+		};
+
+		const to = {};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('DROP TABLE');
+	});
+
+	// DSQL does not support ALTER COLUMN SET DATA TYPE - throws an error
+	test('alter column type throws error (unsupported in DSQL)', async () => {
+		const tableName = _.uniqueName('gen_alter_type');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				count: integer('count'),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				count: bigint('count'),
+			}),
+		};
+
+		await expect(diff(from, to, [])).rejects.toThrow('DSQL does not support');
+	});
+
+	test('add default value', async () => {
+		const tableName = _.uniqueName('gen_add_default');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				active: boolean('active'),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				active: boolean('active').default(true),
+			}),
+		};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('ALTER COLUMN "active" SET DEFAULT true');
+	});
+
+	test('drop default value', async () => {
+		const tableName = _.uniqueName('gen_drop_default');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				active: boolean('active').default(true),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				active: boolean('active'),
+			}),
+		};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('ALTER COLUMN "active" DROP DEFAULT');
+	});
+
+	// DSQL does not support ALTER COLUMN SET NOT NULL - throws an error
+	test('set not null throws error (unsupported in DSQL)', async () => {
+		const tableName = _.uniqueName('gen_set_notnull');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name'),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			}),
+		};
+
+		await expect(diff(from, to, [])).rejects.toThrow('DSQL does not support');
+	});
+
+	test('drop not null', async () => {
+		const tableName = _.uniqueName('gen_drop_notnull');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name'),
+			}),
+		};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('ALTER COLUMN "name" DROP NOT NULL');
+	});
+
+	test('drop generated expression', async () => {
+		const tableName = _.uniqueName('gen_drop_expr');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				price: integer('price'),
+				total: integer('total').generatedAlwaysAs(sql`price * 2`),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				price: integer('price'),
+				total: integer('total'),
+			}),
+		};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('ALTER COLUMN "total" DROP EXPRESSION');
+	});
+
+	// DSQL does not support ADD COLUMN with constraints - throws an error
+	test('add column with not null throws error (unsupported in DSQL)', async () => {
+		const tableName = _.uniqueName('gen_add_col_notnull');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			}),
+		};
+
+		await expect(diff(from, to, [])).rejects.toThrow('DSQL does not support');
+	});
+
+	// DSQL does not support changing the primary key of an existing table - throws an error
+	test('drop composite primary key column throws error (unsupported in DSQL)', async () => {
+		const tableName = _.uniqueName('gen_drop_pk_col');
+
+		const from = {
+			userRoles: dsqlTable(
+				tableName,
+				{
+					userId: uuid('user_id').notNull(),
+					roleId: uuid('role_id').notNull(),
+				},
+				(t) => [primaryKey({ columns: [t.userId, t.roleId] })],
+			),
+		};
+
+		const to = {
+			userRoles: dsqlTable(
+				tableName,
+				{
+					userId: uuid('user_id').notNull(),
+				},
+				(t) => [primaryKey({ columns: [t.userId] })],
+			),
+		};
+
+		await expect(diff(from, to, [])).rejects.toThrow('DSQL does not support changing the primary key');
+	});
+
+	// DSQL does not support changing the primary key of an existing table - throws an error
+	test('drop primary key throws error (unsupported in DSQL)', async () => {
+		const tableName = _.uniqueName('gen_drop_pk');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey(),
+				name: text('name'),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').notNull(),
+				name: text('name'),
+			}),
+		};
+
+		await expect(diff(from, to, [])).rejects.toThrow('DSQL does not support changing the primary key');
+	});
+
+	// DSQL does not support changing the primary key of an existing table - throws an error
+	test('add primary key to existing table throws error (unsupported in DSQL)', async () => {
+		const tableName = _.uniqueName('gen_add_pk');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').notNull(),
+				name: text('name'),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey(),
+				name: text('name'),
+			}),
+		};
+
+		await expect(diff(from, to, [])).rejects.toThrow('DSQL does not support changing the primary key');
+	});
+
+	// DSQL only adds unique constraints to existing tables from a built unique index - throws an error
+	test('add unique constraint to existing table throws error (unsupported in DSQL)', async () => {
+		const tableName = _.uniqueName('gen_add_unique');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				email: text('email'),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				email: text('email').unique(),
+			}),
+		};
+
+		await expect(diff(from, to, [])).rejects.toThrow(
+			'DSQL only supports adding a unique constraint to an existing table',
+		);
+	});
+
+	// DSQL only adds unique constraints to existing tables from a built unique index - throws an error
+	test('alter unique constraint throws error (unsupported in DSQL)', async () => {
+		const tableName = _.uniqueName('gen_alter_unique');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				email: text('email').unique('email_unique'),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				email: text('email').unique('email_unique', { nulls: 'not distinct' }),
+			}),
+		};
+
+		await expect(diff(from, to, [])).rejects.toThrow(
+			'DSQL only supports adding a unique constraint to an existing table',
+		);
+	});
+
+	// DSQL does not support changing a generated expression - throws an error
+	test('alter generated expression throws error (unsupported in DSQL)', async () => {
+		const tableName = _.uniqueName('gen_alter_expr');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				price: integer('price'),
+				total: integer('total').generatedAlwaysAs(sql`price * 2`),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				price: integer('price'),
+				total: integer('total').generatedAlwaysAs(sql`price * 3`),
+			}),
+		};
+
+		await expect(diff(from, to, [])).rejects.toThrow('DSQL does not support');
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Idempotency', () => {
+	test('no changes when schemas match', async () => {
+		const tableName = _.uniqueName('gen_idemp');
+
+		const schema = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			}),
+		};
+
+		const { sqlStatements } = await diff(schema, schema, []);
+
+		expect(sqlStatements).toHaveLength(0);
+	});
+
+	test('DDL conversion is stable', () => {
+		const tableName = _.uniqueName('gen_stable');
+
+		const schema = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+				email: varchar('email', { length: 255 }),
+			}),
+		};
+
+		const { ddl: ddl1 } = drizzleToDDL(schema);
+		const { ddl: ddl2 } = drizzleToDDL(schema);
+
+		// Verify DDL entities are equivalent
+		const entities1 = ddl1.entities.list();
+		const entities2 = ddl2.entities.list();
+
+		expect(entities1.length).toBe(entities2.length);
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Complex Schemas', () => {
+	test('multiple tables with relationships (no FK)', async () => {
+		// Relationships can still be modeled without a foreign key
+		const usersTable = _.uniqueName('gen_rel_users');
+		const postsTable = _.uniqueName('gen_rel_posts');
+
+		const to = {
+			users: dsqlTable(usersTable, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				name: text('name').notNull(),
+			}),
+			posts: dsqlTable(
+				postsTable,
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					userId: uuid('user_id').notNull(), // Reference without FK
+					title: text('title').notNull(),
+					content: text('content'),
+				},
+				(t) => [index('posts_user_idx').on(t.userId)],
+			),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		// Should create both tables and index
+		expect(sqlStatements.filter((s) => s.includes('CREATE TABLE'))).toHaveLength(2);
+		expect(sqlStatements.some((s) => s.includes('CREATE INDEX'))).toBe(true);
+	});
+
+	test('table with all supported column types', async () => {
+		const tableName = _.uniqueName('gen_all_types');
+
+		const to = {
+			allTypes: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				textCol: text('text_col'),
+				varcharCol: varchar('varchar_col', { length: 100 }),
+				charCol: char('char_col', { length: 5 }),
+				boolCol: boolean('bool_col'),
+				smallintCol: smallint('smallint_col'),
+				intCol: integer('int_col'),
+				bigintCol: bigint('bigint_col'),
+				realCol: real('real_col'),
+				doubleCol: doublePrecision('double_col'),
+				numericCol: numeric('numeric_col', { precision: 10, scale: 2 }),
+				dateCol: date('date_col'),
+				timeCol: time('time_col'),
+				timestampCol: timestamp('timestamp_col'),
+				timestampTzCol: timestamp('timestamp_tz_col', { withTimezone: true }),
+				intervalCol: interval('interval_col'),
+				byteaCol: bytea('bytea_col'),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		const createTable = sqlStatements[0];
+
+		// Verify all column types are present
+		expect(createTable).toContain('uuid');
+		expect(createTable).toContain('text');
+		expect(createTable).toContain('varchar(100)');
+		expect(createTable).toContain('char(5)');
+		expect(createTable).toContain('boolean');
+		expect(createTable).toContain('smallint');
+		expect(createTable).toContain('integer');
+		expect(createTable).toContain('bigint');
+		expect(createTable).toContain('real');
+		expect(createTable).toContain('double precision');
+		expect(createTable).toContain('numeric(10,2)');
+		expect(createTable).toContain('date');
+		expect(createTable).toContain('time');
+		expect(createTable).toContain('timestamp');
+		expect(createTable).toContain('interval');
+		expect(createTable).toContain('bytea');
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Sequences', () => {
+	test('create sequence with default cache (65536)', async () => {
+		const to = {
+			mySeq: dsqlSequence(_.uniqueName('gen_seq_default')),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('CREATE SEQUENCE');
+		expect(sqlStatements[0]).toContain('CACHE 65536');
+	});
+
+	test('create sequence with cache = 1', async () => {
+		const to = {
+			mySeq: dsqlSequence(_.uniqueName('gen_seq_cache1'), { cache: 1 }),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('CREATE SEQUENCE');
+		expect(sqlStatements[0]).toContain('CACHE 1');
+	});
+
+	test('create sequence with cache >= 65536', async () => {
+		const to = {
+			mySeq: dsqlSequence(_.uniqueName('gen_seq_cache_large'), { cache: 100000 }),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('CREATE SEQUENCE');
+		expect(sqlStatements[0]).toContain('CACHE 100000');
+	});
+
+	test('create sequence with all options', async () => {
+		const to = {
+			mySeq: dsqlSequence(_.uniqueName('gen_seq_full'), {
+				startWith: 1000,
+				increment: 10,
+				minValue: 1,
+				maxValue: 1000000,
+				cache: 65536,
+				cycle: true,
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('CREATE SEQUENCE');
+		expect(sqlStatements[0]).toContain('INCREMENT BY 10');
+		expect(sqlStatements[0]).toContain('MINVALUE 1');
+		expect(sqlStatements[0]).toContain('MAXVALUE 1000000');
+		expect(sqlStatements[0]).toContain('START WITH 1000');
+		expect(sqlStatements[0]).toContain('CACHE 65536');
+		expect(sqlStatements[0]).toContain('CYCLE');
+	});
+
+	test('create sequence in custom schema', async () => {
+		const customSchema = dsqlSchema(_.uniqueName('gen_seq_schema'));
+		const to = {
+			schema: customSchema,
+			mySeq: customSchema.sequence(_.uniqueName('gen_seq_in_schema')),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		// Should create schema and sequence
+		expect(sqlStatements.length).toBeGreaterThanOrEqual(2);
+		expect(sqlStatements.some((s) => s.includes('CREATE SCHEMA'))).toBe(true);
+		expect(sqlStatements.some((s) => s.includes('CREATE SEQUENCE'))).toBe(true);
+	});
+
+	test('drop sequence', async () => {
+		const seqName = _.uniqueName('gen_seq_drop');
+		const from = {
+			mySeq: dsqlSequence(seqName),
+		};
+
+		const to = {};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('DROP SEQUENCE');
+		expect(sqlStatements[0]).toContain(seqName);
+	});
+
+	test('invalid cache value (between 1 and 65536) throws error', async () => {
+		// DSQL requires cache to be exactly 1 or >= 65536
+		expect(() => {
+			dsqlSequence('invalid_seq', { cache: 100 });
+		}).toThrow('DSQL requires cache to be exactly 1 or >= 65536');
+	});
+
+	test('invalid cache value (0) throws error', async () => {
+		expect(() => {
+			dsqlSequence('invalid_seq_zero', { cache: 0 });
+		}).toThrow('DSQL requires cache to be exactly 1 or >= 65536');
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Foreign Keys', () => {
+	test('create tables with foreign key', async () => {
+		const usersTable = _.uniqueName('gen_fk_users');
+		const postsTable = _.uniqueName('gen_fk_posts');
+
+		const users = dsqlTable(usersTable, {
+			id: uuid('id').primaryKey().defaultRandom(),
+		});
+		const posts = dsqlTable(postsTable, {
+			id: uuid('id').primaryKey().defaultRandom(),
+			userId: uuid('user_id').references(() => users.id),
+		});
+
+		const { sqlStatements } = await diff({}, { users, posts }, []);
+
+		// DSQL requires NOT VALID for ALTER TABLE ADD CONSTRAINT, followed by an async validation
+		expect(sqlStatements).toHaveLength(4);
+		expect(sqlStatements.filter((s) => s.includes('CREATE TABLE'))).toHaveLength(2);
+		expect(sqlStatements[2]).toContain(`ALTER TABLE "${postsTable}" ADD CONSTRAINT`);
+		expect(sqlStatements[2]).toContain(`FOREIGN KEY ("user_id") REFERENCES "${usersTable}"("id")`);
+		expect(sqlStatements[2]).toContain('NOT VALID');
+		expect(sqlStatements[3]).toContain(`ALTER TABLE ASYNC "${postsTable}" VALIDATE CONSTRAINT`);
+	});
+
+	test('foreign key with referential actions', async () => {
+		const usersTable = _.uniqueName('gen_fk_act_users');
+		const postsTable = _.uniqueName('gen_fk_act_posts');
+
+		const users = dsqlTable(usersTable, {
+			id: uuid('id').primaryKey().defaultRandom(),
+		});
+		const posts = dsqlTable(postsTable, {
+			id: uuid('id').primaryKey().defaultRandom(),
+			userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade', onUpdate: 'set null' }),
+		});
+
+		const { sqlStatements } = await diff({}, { users, posts }, []);
+
+		const fkStmt = sqlStatements.find((s) => s.includes('FOREIGN KEY'));
+		expect(fkStmt).toBeDefined();
+		expect(fkStmt).toContain('ON DELETE CASCADE');
+		expect(fkStmt).toContain('ON UPDATE SET NULL');
+		expect(fkStmt).toContain('NOT VALID');
+	});
+
+	test('composite foreign key', async () => {
+		const ordersTable = _.uniqueName('gen_fk_comp_orders');
+		const itemsTable = _.uniqueName('gen_fk_comp_items');
+		const fkName = _.uniqueName('items_order_fk');
+
+		const orders = dsqlTable(
+			ordersTable,
+			{
+				region: text('region').notNull(),
+				orderNo: integer('order_no').notNull(),
+			},
+			(t) => [primaryKey({ columns: [t.region, t.orderNo] })],
+		);
+		const items = dsqlTable(
+			itemsTable,
+			{
+				id: uuid('id').primaryKey().defaultRandom(),
+				region: text('region'),
+				orderNo: integer('order_no'),
+			},
+			(t) => [
+				foreignKey({ name: fkName, columns: [t.region, t.orderNo], foreignColumns: [orders.region, orders.orderNo] }),
+			],
+		);
+
+		const { sqlStatements } = await diff({}, { orders, items }, []);
+
+		const fkStmt = sqlStatements.find((s) => s.includes('FOREIGN KEY'));
+		expect(fkStmt).toContain(`ADD CONSTRAINT "${fkName}"`);
+		expect(fkStmt).toContain(`FOREIGN KEY ("region","order_no") REFERENCES "${ordersTable}"("region","order_no")`);
+		expect(fkStmt).toContain('NOT VALID');
+		expect(sqlStatements.some((s) => s.includes(`VALIDATE CONSTRAINT "${fkName}"`))).toBe(true);
+	});
+
+	test('self-referencing foreign key', async () => {
+		const tableName = _.uniqueName('gen_fk_self');
+
+		const tree = dsqlTable(
+			tableName,
+			{
+				id: uuid('id').primaryKey().defaultRandom(),
+				parentId: uuid('parent_id'),
+			},
+			(t) => [foreignKey({ columns: [t.parentId], foreignColumns: [t.id] })],
+		);
+
+		const { sqlStatements } = await diff({}, { tree }, []);
+
+		expect(sqlStatements).toHaveLength(3);
+		expect(sqlStatements[1]).toContain(`FOREIGN KEY ("parent_id") REFERENCES "${tableName}"("id")`);
+		expect(sqlStatements[1]).toContain('NOT VALID');
+		expect(sqlStatements[2]).toContain('VALIDATE CONSTRAINT');
+	});
+
+	test('foreign key in custom schema', async () => {
+		const testSchema = dsqlSchema(_.uniqueName('gen_fk_schema'));
+		const usersTable = _.uniqueName('gen_fk_schema_users');
+		const postsTable = _.uniqueName('gen_fk_schema_posts');
+
+		const users = testSchema.table(usersTable, {
+			id: uuid('id').primaryKey().defaultRandom(),
+		});
+		const posts = testSchema.table(postsTable, {
+			id: uuid('id').primaryKey().defaultRandom(),
+			userId: uuid('user_id').references(() => users.id),
+		});
+
+		const { sqlStatements } = await diff({}, { testSchema, users, posts }, []);
+
+		const schemaName = testSchema.schemaName;
+		expect(sqlStatements.some((s) =>
+			s.includes(`ALTER TABLE "${schemaName}"."${postsTable}" ADD CONSTRAINT`)
+			&& s.includes(`REFERENCES "${schemaName}"."${usersTable}"("id")`)
+		)).toBe(true);
+		expect(sqlStatements.some((s) => s.includes(`ALTER TABLE ASYNC "${schemaName}"."${postsTable}" VALIDATE`))).toBe(
+			true,
+		);
+	});
+
+	test('add foreign key to existing table', async () => {
+		const usersTable = _.uniqueName('gen_fk_add_users');
+		const postsTable = _.uniqueName('gen_fk_add_posts');
+
+		const users = dsqlTable(usersTable, {
+			id: uuid('id').primaryKey().defaultRandom(),
+		});
+
+		const from = {
+			users,
+			posts: dsqlTable(postsTable, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id'),
+			}),
+		};
+
+		const to = {
+			users,
+			posts: dsqlTable(postsTable, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id').references(() => users.id),
+			}),
+		};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements).toHaveLength(2);
+		expect(sqlStatements[0]).toContain('ADD CONSTRAINT');
+		expect(sqlStatements[0]).toContain('NOT VALID');
+		expect(sqlStatements[1]).toContain(`ALTER TABLE ASYNC "${postsTable}" VALIDATE CONSTRAINT`);
+	});
+
+	test('alter foreign key actions', async () => {
+		const usersTable = _.uniqueName('gen_fk_alter_users');
+		const postsTable = _.uniqueName('gen_fk_alter_posts');
+
+		const users = dsqlTable(usersTable, {
+			id: uuid('id').primaryKey().defaultRandom(),
+		});
+
+		const from = {
+			users,
+			posts: dsqlTable(postsTable, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id').references(() => users.id),
+			}),
+		};
+
+		const to = {
+			users,
+			posts: dsqlTable(postsTable, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+			}),
+		};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		// Recreated as separate statements, since each DDL runs in its own transaction
+		expect(sqlStatements).toHaveLength(3);
+		expect(sqlStatements[0]).toContain('DROP CONSTRAINT');
+		expect(sqlStatements[1]).toContain('ON DELETE CASCADE');
+		expect(sqlStatements[1]).toContain('NOT VALID');
+		expect(sqlStatements[2]).toContain('VALIDATE CONSTRAINT');
+	});
+
+	test('drop foreign key', async () => {
+		const usersTable = _.uniqueName('gen_fk_drop_users');
+		const postsTable = _.uniqueName('gen_fk_drop_posts');
+
+		const users = dsqlTable(usersTable, {
+			id: uuid('id').primaryKey().defaultRandom(),
+		});
+
+		const from = {
+			users,
+			posts: dsqlTable(postsTable, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id').references(() => users.id),
+			}),
+		};
+
+		const to = {
+			users,
+			posts: dsqlTable(postsTable, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				userId: uuid('user_id'),
+			}),
+		};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain(`ALTER TABLE "${postsTable}" DROP CONSTRAINT`);
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Check Constraints', () => {
+	test('add check constraint to existing table', async () => {
+		const tableName = _.uniqueName('gen_check_add');
+
+		const from = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				age: integer('age'),
+			}),
+		};
+
+		const to = {
+			users: dsqlTable(
+				tableName,
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					age: integer('age'),
+				},
+				(t) => [check('age_check', sql`${t.age} >= 0`)],
+			),
+		};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		// DSQL requires NOT VALID for ALTER TABLE ADD CONSTRAINT, followed by an async validation
+		expect(sqlStatements).toHaveLength(2);
+		expect(sqlStatements[0]).toContain('ADD CONSTRAINT "age_check" CHECK');
+		expect(sqlStatements[0]).toContain('NOT VALID');
+		expect(sqlStatements[1]).toContain(`ALTER TABLE ASYNC "${tableName}" VALIDATE CONSTRAINT "age_check"`);
+	});
+
+	test('alter check constraint', async () => {
+		const tableName = _.uniqueName('gen_check_alter');
+
+		const from = {
+			users: dsqlTable(
+				tableName,
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					age: integer('age'),
+				},
+				(t) => [check('age_check', sql`${t.age} >= 0`)],
+			),
+		};
+
+		const to = {
+			users: dsqlTable(
+				tableName,
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					age: integer('age'),
+				},
+				(t) => [check('age_check', sql`${t.age} >= 18`)],
+			),
+		};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements).toHaveLength(3);
+		expect(sqlStatements[0]).toContain('DROP CONSTRAINT "age_check"');
+		expect(sqlStatements[1]).toContain('>= 18');
+		expect(sqlStatements[1]).toContain('NOT VALID');
+		expect(sqlStatements[2]).toContain('VALIDATE CONSTRAINT "age_check"');
+	});
+
+	test('drop check constraint', async () => {
+		const tableName = _.uniqueName('gen_check_drop');
+
+		const from = {
+			users: dsqlTable(
+				tableName,
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					age: integer('age'),
+				},
+				(t) => [check('age_check', sql`${t.age} >= 0`)],
+			),
+		};
+
+		const to = {
+			users: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				age: integer('age'),
+			}),
+		};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('DROP CONSTRAINT "age_check"');
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Identity Columns', () => {
+	test('create table with identity column (default cache 65536)', async () => {
+		const to = {
+			t: dsqlTable(_.uniqueName('gen_ident'), {
+				id: bigint('id').primaryKey().generatedAlwaysAsIdentity(),
+				name: text('name'),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('GENERATED ALWAYS AS IDENTITY');
+		expect(sqlStatements[0]).toContain('CACHE 65536');
+	});
+
+	test('identity column with cache = 1', async () => {
+		const to = {
+			t: dsqlTable(_.uniqueName('gen_ident_cache1'), {
+				id: bigint('id').primaryKey().generatedByDefaultAsIdentity({ cache: 1 }),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('GENERATED BY DEFAULT AS IDENTITY');
+		expect(sqlStatements[0]).toContain('CACHE 1');
+		expect(sqlStatements[0]).not.toContain('CACHE 65536');
+	});
+
+	test('identity column with string cache value', async () => {
+		const to = {
+			t: dsqlTable(_.uniqueName('gen_ident_cache_str'), {
+				id: bigint('id').primaryKey().generatedAlwaysAsIdentity({ cache: '1' }),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('CACHE 1)');
+	});
+
+	test('identity column with all options', async () => {
+		const to = {
+			t: dsqlTable(_.uniqueName('gen_ident_full'), {
+				id: bigint('id').primaryKey().generatedAlwaysAsIdentity({
+					name: 'custom_ident_seq',
+					startWith: 100,
+					increment: 5,
+					minValue: 1,
+					maxValue: 1000000,
+					cache: 65536,
+					cycle: true,
+				}),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('sequence name "custom_ident_seq"');
+		expect(sqlStatements[0]).toContain('INCREMENT BY 5');
+		expect(sqlStatements[0]).toContain('MINVALUE 1');
+		expect(sqlStatements[0]).toContain('MAXVALUE 1000000');
+		expect(sqlStatements[0]).toContain('START WITH 100');
+		expect(sqlStatements[0]).toContain('CACHE 65536');
+		expect(sqlStatements[0]).toContain('CYCLE');
+	});
+
+	test('alter identity type', async () => {
+		const tableName = _.uniqueName('gen_ident_alter');
+
+		const from = {
+			t: dsqlTable(tableName, {
+				id: bigint('id').primaryKey().generatedAlwaysAsIdentity(),
+			}),
+		};
+
+		const to = {
+			t: dsqlTable(tableName, {
+				id: bigint('id').primaryKey().generatedByDefaultAsIdentity(),
+			}),
+		};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('ALTER COLUMN "id" SET GENERATED BY DEFAULT');
+	});
+
+	test('drop identity', async () => {
+		const tableName = _.uniqueName('gen_ident_drop');
+
+		const from = {
+			t: dsqlTable(tableName, {
+				id: bigint('id').primaryKey().generatedAlwaysAsIdentity(),
+			}),
+		};
+
+		const to = {
+			t: dsqlTable(tableName, {
+				id: bigint('id').primaryKey(),
+			}),
+		};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('ALTER COLUMN "id" DROP IDENTITY');
+	});
+
+	// DSQL does not support ADD COLUMN with constraints - throws an error
+	test('add identity column to existing table throws error (unsupported in DSQL)', async () => {
+		const tableName = _.uniqueName('gen_ident_add_col');
+
+		const from = {
+			t: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+			}),
+		};
+
+		const to = {
+			t: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				seq: bigint('seq').generatedAlwaysAsIdentity(),
+			}),
+		};
+
+		// Identity columns are always NOT NULL, which ADD COLUMN can't add
+		await expect(diff(from, to, [])).rejects.toThrow('DSQL does not support ADD COLUMN with NOT NULL constraint');
+	});
+
+	test('add identity to existing NOT NULL column', async () => {
+		const tableName = _.uniqueName('gen_ident_add_notnull');
+
+		const from = {
+			t: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				seq: bigint('seq').notNull(),
+			}),
+		};
+
+		const to = {
+			t: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				seq: bigint('seq').generatedAlwaysAsIdentity(),
+			}),
+		};
+
+		const { sqlStatements } = await diff(from, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('ALTER COLUMN "seq" ADD GENERATED ALWAYS AS IDENTITY');
+		expect(sqlStatements[0]).toContain('CACHE 65536');
+	});
+
+	// DSQL requires the column to be NOT NULL before identity can be added,
+	// and does not support SET NOT NULL
+	test('add identity to existing nullable column throws error (unsupported in DSQL)', async () => {
+		const tableName = _.uniqueName('gen_ident_add_nullable');
+
+		const from = {
+			t: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				seq: bigint('seq'),
+			}),
+		};
+
+		const to = {
+			t: dsqlTable(tableName, {
+				id: uuid('id').primaryKey().defaultRandom(),
+				seq: bigint('seq').generatedAlwaysAsIdentity(),
+			}),
+		};
+
+		await expect(diff(from, to, [])).rejects.toThrow('DSQL does not support adding IDENTITY to a nullable column');
+	});
+
+	test('identity column with negative increment uses bigint range', async () => {
+		const to = {
+			t: dsqlTable(_.uniqueName('gen_ident_desc'), {
+				id: bigint('id').primaryKey().generatedAlwaysAsIdentity({ increment: -1 }),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain(
+			'INCREMENT BY -1 MINVALUE -9223372036854775808 MAXVALUE -1 START WITH -1 CACHE 65536',
+		);
+	});
+
+	test('invalid identity cache value (between 1 and 65536) throws error', async () => {
+		// DSQL requires cache to be exactly 1 or >= 65536
+		expect(() => {
+			bigint('id').generatedAlwaysAsIdentity({ cache: 100 });
+		}).toThrow('DSQL requires cache to be exactly 1 or >= 65536');
+		expect(() => {
+			bigint('id').generatedByDefaultAsIdentity({ cache: 100 });
+		}).toThrow('DSQL requires cache to be exactly 1 or >= 65536');
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - JSON Columns', () => {
+	test('json and jsonb columns', async () => {
+		const to = {
+			t: dsqlTable(_.uniqueName('gen_json'), {
+				id: uuid('id').primaryKey().defaultRandom(),
+				data: json('data'),
+				metadata: jsonb('metadata').default({ enabled: true }),
+			}),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		expect(sqlStatements).toHaveLength(1);
+		expect(sqlStatements[0]).toContain('"data" json,');
+		expect(sqlStatements[0]).toContain('"metadata" jsonb');
+		expect(sqlStatements[0]).toContain(`DEFAULT '{"enabled":true}'`);
+	});
+});
+
+describe.skipIf(skipIfNoCluster().skip)('DSQL Generate - Expression and Partial Indexes', () => {
+	test('expression index', async () => {
+		const to = {
+			users: dsqlTable(
+				_.uniqueName('gen_expr_idx'),
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					email: text('email').notNull(),
+				},
+				(t) => [index('lower_email_idx').on(sql`lower(${t.email})`)],
+			),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		const indexStmt = sqlStatements.find((s) => s.includes('CREATE INDEX ASYNC'));
+		expect(indexStmt).toBeDefined();
+		expect(indexStmt).toContain('(lower("email"));');
+	});
+
+	test('partial index', async () => {
+		const to = {
+			users: dsqlTable(
+				_.uniqueName('gen_partial_idx'),
+				{
+					id: uuid('id').primaryKey().defaultRandom(),
+					email: text('email').notNull(),
+					active: boolean('active'),
+				},
+				(t) => [index('active_email_idx').on(t.email).where(sql`${t.active} = true`)],
+			),
+		};
+
+		const { sqlStatements } = await diff({}, to, []);
+
+		const indexStmt = sqlStatements.find((s) => s.includes('CREATE INDEX ASYNC'));
+		expect(indexStmt).toBeDefined();
+		expect(indexStmt).toContain('WHERE "active" = true');
+	});
+});

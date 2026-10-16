@@ -3,6 +3,7 @@ import fs from 'fs';
 import { render } from 'hanji';
 import path, { join } from 'path';
 import type { CockroachSnapshot } from '../../dialects/cockroach/snapshot';
+import type { DSQLSnapshot } from '../../dialects/dsql/snapshot';
 import type { MssqlSnapshot } from '../../dialects/mssql/snapshot';
 import type { MysqlSnapshot } from '../../dialects/mysql/snapshot';
 import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
@@ -15,7 +16,14 @@ import type { Driver } from '../validations/common';
 import { humanLog } from '../views';
 
 type WriteResultConfigBase = {
-	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot | CockroachSnapshot | SingleStoreSnapshot;
+	snapshot:
+		| SqliteSnapshot
+		| PostgresSnapshot
+		| MysqlSnapshot
+		| MssqlSnapshot
+		| CockroachSnapshot
+		| SingleStoreSnapshot
+		| DSQLSnapshot;
 	sqlStatements: string[];
 	outFolder: string;
 	breakpoints: boolean;

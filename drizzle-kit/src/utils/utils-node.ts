@@ -10,6 +10,7 @@ import {
 	UnsupportedSnapshotVersionCliError,
 } from '../cli/errors';
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
+import { snapshotValidator as dsqlSnapshotValidator } from '../dialects/dsql/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
 import { snapshotValidator as mysqlSnapshotValidator } from '../dialects/mysql/snapshot';
 import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
@@ -287,6 +288,20 @@ const singlestoreValidator = (snapshot: object): ValidationResult => {
 	return { status: 'valid' };
 };
 
+const dsqlValidator = (
+	snapshot: object,
+): ValidationResult => {
+	const versionError = assertVersion(snapshot, 1);
+	if (versionError) return { status: versionError };
+
+	const res = dsqlSnapshotValidator.parse(snapshot);
+	if (!res.success) {
+		return { status: 'malformed', errors: res.errors ?? [] };
+	}
+
+	return { status: 'valid' };
+};
+
 export const validatorForDialect = (
 	dialect: Dialect,
 ): (snapshot: object) => ValidationResult => {
@@ -307,6 +322,8 @@ export const validatorForDialect = (
 			return cockroachSnapshotValidator;
 		case 'duckdb':
 			throw Error('duckdb validator is not implemented yet'); // TODO
+		case 'dsql':
+			return dsqlValidator;
 		default:
 			assertUnreachable(dialect);
 	}

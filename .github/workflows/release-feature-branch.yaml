@@ -31,6 +31,8 @@ on:
         required: true
       NETLIFY_DB_URL: 
         required: true
+      DSQL_CLUSTER_ENDPOINT:
+        required: true
 
 concurrency:
   group: feature-${{ github.workflow }}-${{ github.ref }}
@@ -114,6 +116,8 @@ jobs:
           - shard: int:imports
             dbs: []
           - shard: int:planetscale
+            dbs: []
+          - shard: int:dsql
             dbs: []
           - shard: int:cockroach
             dbs: [cockroach]
@@ -236,6 +240,7 @@ jobs:
           SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
           SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
           NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
+          DSQL_CLUSTER_ENDPOINT: ${{ secrets.DSQL_CLUSTER_ENDPOINT }}
         working-directory: integration-tests
         shell: bash
         run: |
@@ -263,6 +268,11 @@ jobs:
             int:planetscale)
               if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
                 pnpm --stream test:planetscale
+              fi
+            ;;
+            int:dsql)
+              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
+                pnpm --stream vitest --reporter=verbose --silent=false run tests/dsql
               fi
             ;;
             int:cockroach) pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach ;;

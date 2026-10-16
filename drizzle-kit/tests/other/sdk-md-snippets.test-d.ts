@@ -59,7 +59,7 @@ function _checkNarrowing() {
 function _pullNarrowing() {
 	if (pullResponse.status === 'ok') {
 		expectTypeOf(pullResponse.schemaPath).toBeString();
-		expectTypeOf(pullResponse.snapshotPath).toBeString();
+		expectTypeOf(pullResponse.snapshotPath).toEqualTypeOf<string | undefined>();
 	} else if (pullResponse.status === 'error') {
 		expectTypeOf(pullResponse.error.code).toBeString();
 	}

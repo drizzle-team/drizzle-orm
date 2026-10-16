@@ -117,7 +117,7 @@ export function extractExtendedColumnType<TColumn extends Column>(
 	return { type, constraint } as any;
 }
 
-export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'cockroach';
+export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'cockroach' | 'dsql';
 
 // TODO update description
 // 'virtual' | 'stored'  for postgres

@@ -24,6 +24,8 @@ import { pullParams, pushParams } from '../validations/common';
 import type { Casing, CliConfig, Driver } from '../validations/common';
 import { configCommonSchema, configMigrations, wrapParam } from '../validations/common';
 import { studioCliParams, studioConfig } from '../validations/common';
+import type { DsqlCredentials } from '../validations/dsql';
+import { dsqlCredentials, printConfigConnectionIssues as printDsqlIssues } from '../validations/dsql';
 import { duckdbCredentials, printConfigConnectionIssues as printIssuesDuckDb } from '../validations/duckdb';
 import type { LibSQLCredentials } from '../validations/libsql';
 import { libSQLCredentials, printConfigConnectionIssues as printIssuesLibSQL } from '../validations/libsql';
@@ -254,6 +256,10 @@ export const preparePushConfig = async (
 			dialect: 'cockroach';
 			credentials: CockroachCredentials;
 		}
+		| {
+			dialect: 'dsql';
+			credentials: DsqlCredentials;
+		}
 	) & {
 		verbose: boolean;
 		force: boolean;
@@ -431,6 +437,24 @@ export const preparePushConfig = async (
 		printCockroachIssues(config);
 	}
 
+	if (config.dialect === 'dsql') {
+		const parsed = dsqlCredentials.safeParse(config);
+		if (parsed.success) {
+			return {
+				dialect: 'dsql',
+				verbose: config.verbose ?? false,
+				force: (options.force as boolean) ?? false,
+				credentials: parsed.data,
+				filters,
+				explain: (options.explain as boolean) ?? false,
+				hints,
+				migrations: config.migrations,
+				filenames: schemaFiles,
+			};
+		}
+		printDsqlIssues(config);
+	}
+
 	if (config.dialect === 'duckdb') {
 		throw new UnsupportedCommandCliError('push', error(`You can't use 'push' command with DuckDb dialect`), {
 			dialect: 'DuckDb',
@@ -472,6 +496,10 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'cockroach';
 			credentials: CockroachCredentials;
+		}
+		| {
+			dialect: 'dsql';
+			credentials: DsqlCredentials;
 		}
 	) & {
 		out: string;
@@ -633,6 +661,23 @@ export const preparePullConfig = async (
 		printCockroachIssues(config);
 	}
 
+	if (dialect === 'dsql') {
+		const parsed = dsqlCredentials.safeParse(config);
+		if (parsed.success) {
+			return {
+				dialect,
+				out: config.out,
+				breakpoints: config.breakpoints,
+				casing: config.casing,
+				credentials: parsed.data,
+				filters,
+				init: !!options.init,
+				migrations,
+			};
+		}
+		printDsqlIssues(config);
+	}
+
 	if (dialect === 'duckdb') {
 		throw new UnsupportedCommandCliError('pull', error(`You can't use 'pull' command with DuckDb dialect`), {
 			dialect: 'DuckDb',
@@ -759,6 +804,10 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 
 	if (dialect === 'mssql') {
 		throw new Error(`You can't use 'studio' command with MsSql dialect yet`);
+	}
+
+	if (dialect === 'dsql') {
+		throw new Error(`You can't use 'studio' command with DSQL dialect`);
 	}
 
 	if (dialect === 'duckdb') {
@@ -896,6 +945,21 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 		const parsed = cockroachCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			return printCockroachIssues(flattened as Record<string, unknown>);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			out,
+			credentials,
+			schema,
+			table,
+		};
+	}
+
+	if (dialect === 'dsql') {
+		const parsed = dsqlCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			return printDsqlIssues(flattened as Record<string, unknown>);
 		}
 		const credentials = parsed.data;
 		return {
