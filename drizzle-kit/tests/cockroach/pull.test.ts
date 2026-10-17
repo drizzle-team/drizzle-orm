@@ -1354,3 +1354,28 @@ test('introspect array default expressions with a backslash, a backtick and "${"
 	for (const [, def] of defaultsInDatabase) expect(def).toContain(templateUnsafeTextInDatabase);
 	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6493
+test('introspect expression defaults of int2, int4, bool, real, float, uuid, interval and inet', async ({ db }) => {
+	await db.query(`CREATE TABLE "t" (
+		"c1" int2 DEFAULT floor(random() * 10)::int2,
+		"c2" int4 DEFAULT floor(random() * 10)::int4,
+		"c3" bool DEFAULT (random() > 0.5),
+		"c4" real DEFAULT random(),
+		"c5" float DEFAULT random(),
+		"c6" uuid DEFAULT uuid_generate_v4(),
+		"c7" interval DEFAULT age(now()),
+		"c8" inet DEFAULT inet_client_addr()
+	);`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'expression-defaults-6493',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	const defaultsInDatabase = ddlAfterPull.columns.list().map((it) => [it.name, it.default]);
+	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
+});

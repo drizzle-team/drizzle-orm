@@ -254,7 +254,7 @@ export const fromDatabase = async (
 		const generatedExpression: string = column.GENERATION_EXPRESSION;
 
 		const extra = column.EXTRA ?? '';
-		// const isDefaultAnExpression = extra.includes('DEFAULT_GENERATED'); // 'auto_increment', ''
+		const isDefaultAnExpression = extra.includes('DEFAULT_GENERATED'); // 'auto_increment', ''
 		// const dataType = column.DATA_TYPE; // varchar
 		// const isPrimary = column.COLUMN_KEY === 'PRI'; // 'PRI', ''
 		// const numericPrecision = column.NUMERIC_PRECISION;
@@ -283,7 +283,7 @@ export const fromDatabase = async (
 			}
 		}
 
-		const def = parseDefaultValue(changedType, columnDefault);
+		const def = parseDefaultValue(changedType, columnDefault, isDefaultAnExpression);
 
 		const { DEFAULT_CHARACTER_SET_NAME: defDbCharSet, DEFAULT_COLLATION_NAME: defDbCollation } =
 			defaultCharSetAndCollation[0];

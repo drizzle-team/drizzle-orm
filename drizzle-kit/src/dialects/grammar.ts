@@ -23,6 +23,20 @@ export const escapeForSqlTemplate = (sql: string) => {
 	return sql.replaceAll('\\', '\\\\').replaceAll('`', '\\`').replaceAll('${', '\\${');
 };
 
+/**
+ * Checks that the text of a default is a single sql string literal: `'text'`, a quote inside it is doubled
+ */
+export const isSqlStringLiteral = (value: string) => {
+	return /^'(?:[^']|'')*'$/s.test(value);
+};
+
+/**
+ * Checks that the text of a default can be printed as a TypeScript number as it is
+ */
+export const isNumberLiteral = (value: string) => {
+	return value.trim() !== '' && (!Number.isNaN(Number(value)) || value === 'NaN');
+};
+
 export const numberForTs = (value: string): { mode: 'number' | 'bigint'; value: string } => {
 	const check = Number(value);
 	if (Number.isNaN(check)) return { mode: 'number', value: `sql\`${escapeForSqlTemplate(value)}\`` };
