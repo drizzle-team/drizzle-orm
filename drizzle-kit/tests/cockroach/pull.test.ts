@@ -1232,6 +1232,31 @@ test('introspect policy with a backslash, a backtick and "${"', async ({ db }) =
 	expect(schema2.policies.map((it) => ({ using: it.using, withCheck: it.withCheck }))).toStrictEqual(expected);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6492
+test('introspect restrictive policy', async ({ db }) => {
+	await db.query(`CREATE TABLE "users" ("id" int4 PRIMARY KEY);`);
+	await db.query(`ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;`);
+	await db.query(`CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO public;`);
+	await db.query(`CREATE POLICY "test_insert" ON "users" AS RESTRICTIVE FOR INSERT TO public WITH CHECK (true);`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'restrictive-policy',
+	);
+
+	const expected = [
+		{ name: 'test', as: 'RESTRICTIVE', for: 'ALL' },
+		{ name: 'test_insert', as: 'RESTRICTIVE', for: 'INSERT' },
+	];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.policies.list().map((it) => ({ name: it.name, as: it.as, for: it.for }))).toStrictEqual(
+		expected,
+	);
+	expect(schema2.policies.map((it) => ({ name: it.name, as: it.as, for: it.for }))).toStrictEqual(expected);
+});
+
 test('introspect index expression and predicate with a backslash, a backtick and "${"', async ({ db }) => {
 	await db.query(`CREATE TABLE users (name string);`);
 	await db.query(
