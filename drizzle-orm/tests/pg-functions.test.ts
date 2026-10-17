@@ -23,7 +23,24 @@ describe('configuration', () => {
 		});
 
 		expect(fn.config.searchPath).toBeUndefined();
+		expect(fn.config.declare).toBeUndefined();
 		expect(fn.config.configuration.size).toBe(0);
+	});
+
+	test('distinguishes omitted declare from empty declare', () => {
+		const withoutDeclare = pgFunction('without_declare', {
+			args: {},
+			returns: integer(),
+		}).as(sql`SELECT 1`);
+
+		const withEmptyDeclare = pgFunction('with_empty_declare', {
+			args: {},
+			declare: {},
+			returns: integer(),
+		}).as(sql`SELECT 1`);
+
+		expect(withoutDeclare.config.declare).toBeUndefined();
+		expect(withEmptyDeclare.config.declare).toStrictEqual({});
 	});
 
 	test('modifiers update configuration', () => {
@@ -127,6 +144,50 @@ describe('body', () => {
 
 		expect(fn.config.args).toStrictEqual({});
 	});
+
+	test('callback omits declare references without a declare block', () => {
+		pgFunction('test_function', {
+			args: {},
+			returns: integer(),
+		}).as((f) => {
+			expect(f.declare).toBeUndefined();
+			return sql`SELECT 1`;
+		});
+	});
+
+	test('callback receives declare references', () => {
+		pgFunction('test_function', {
+			args: {
+				id: uuid(),
+			},
+			declare: {
+				total: integer(),
+				label: text(),
+			},
+			returns: integer(),
+		}).as((f) => {
+			expect(f.declare).toBeDefined();
+
+			expect(f.declare!.total.name).toBe('total');
+			expect(f.declare!.total.sqlName).toBe('total');
+
+			expect(f.declare!.label.name).toBe('label');
+			expect(f.declare!.label.sqlName).toBe('label');
+
+			return sql`SELECT 1`;
+		});
+	});
+
+	test('callback supports an empty declare block', () => {
+		pgFunction('test_function', {
+			args: {},
+			declare: {},
+			returns: integer(),
+		}).as((f) => {
+			expect(f.declare).toStrictEqual({});
+			return sql`SELECT 1`;
+		});
+	});
 });
 
 describe('argument references', () => {
@@ -185,5 +246,85 @@ describe('argument references', () => {
 			'a_second',
 			'a_third',
 		]);
+	});
+});
+
+describe('declare references', () => {
+	test('render as bare identifiers without arg prefix', () => {
+		const fn = pgFunction('sum_values', {
+			args: {
+				id: uuid(),
+			},
+			declare: {
+				total: integer(),
+				label: text(),
+			},
+			returns: integer(),
+		}).as((f) => sql`SELECT ${f.args.id}, ${f.declare!.total}, ${f.declare!.label}`);
+
+		const query = dialect.sqlToQuery(fn.config.body);
+
+		expect(query.sql).toStrictEqual(
+			'SELECT "a_id", "total", "label"',
+		);
+		expect(query.params).toStrictEqual([]);
+	});
+
+	test('escape SQL identifiers', () => {
+		const fn = pgFunction('test_function', {
+			args: {},
+			declare: {
+				'running-total': integer(),
+			},
+			returns: integer(),
+		}).as((f) => sql`SELECT ${f.declare!['running-total']}`);
+
+		const query = dialect.sqlToQuery(fn.config.body);
+
+		expect(query.sql).toBe('SELECT "running-total"');
+	});
+
+	test('preserve declaration order', () => {
+		const names: string[] = [];
+
+		pgFunction('test_function', {
+			args: {},
+			declare: {
+				first: integer(),
+				second: text(),
+				third: uuid(),
+			},
+			returns: integer(),
+		}).as((f) => {
+			names.push(
+				f.declare!.first.sqlName,
+				f.declare!.second.sqlName,
+				f.declare!.third.sqlName,
+			);
+
+			return sql`SELECT 1`;
+		});
+
+		expect(names).toStrictEqual([
+			'first',
+			'second',
+			'third',
+		]);
+	});
+
+	test('finalized function clones declare definition', () => {
+		const builder = pgFunction('test_function', {
+			args: {},
+			declare: {
+				total: integer(),
+			},
+			returns: integer(),
+		});
+
+		const first = builder.as(sql`SELECT 1`);
+		const second = builder.as(sql`SELECT 2`);
+
+		expect(first.config.declare).not.toBe(second.config.declare);
+		expect(first.config.declare).toStrictEqual(second.config.declare);
 	});
 });

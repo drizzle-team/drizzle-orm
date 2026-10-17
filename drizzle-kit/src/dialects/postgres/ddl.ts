@@ -21,6 +21,14 @@ export const createDDL = () => {
 				default: 'string?',
 			}],
 
+			declare: {
+				values: [{
+					name: 'string',
+					type: 'string',
+					default: 'string?',
+				}],
+			},
+
 			returns: 'string',
 
 			language: 'string',

@@ -10,6 +10,7 @@ import {
 	doublePrecision,
 	inet,
 	type InferFunctionArgs,
+	type InferFunctionDeclare,
 	type InferFunctionReturns,
 	type InferFunctionSchema,
 	integer,
@@ -618,6 +619,132 @@ Expect<
 			id: string;
 			count: number;
 			tags: string[];
+		}
+	>
+>;
+
+/** Declare */
+const basicTypesDeclare = {
+	bigint: bigint({ mode: 'number' }),
+	bigserial: bigserial({ mode: 'number' }),
+	boolean: boolean(),
+	char: char(),
+	cidr: cidr(),
+	date: date({ mode: 'date' }),
+	decimal: decimal({ precision: 100, scale: 2 }),
+	doublePrecision: doublePrecision(),
+	inet: inet(),
+	integer: integer(),
+	interval: interval(),
+	line: line(),
+	macaddr: macaddr(),
+	macaddr8: macaddr8(),
+	numeric: numeric(),
+	point: point(),
+	real: real(),
+	serial: serial(),
+	smallint: smallint(),
+	smallserial: smallserial(),
+	text: text(),
+	time: time(),
+	timestamp: timestamp(),
+	uuid: uuid(),
+	varchar: varchar(),
+};
+
+const basicTypesDeclareFunction = pgFunction('basic_types_declare_function', {
+	args: {},
+	declare: basicTypesDeclare,
+	returns: integer(),
+}).as(sql`SELECT 1`);
+
+type BasicTypesDeclareFunctionDeclare = InferFunctionDeclare<
+	typeof basicTypesDeclareFunction
+>;
+
+Expect<Equal<BasicTypesDeclareFunctionDeclare['bigint'], number>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['bigserial'], number>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['boolean'], boolean>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['char'], string>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['cidr'], string>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['date'], Date>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['decimal'], string>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['doublePrecision'], number>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['inet'], string>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['integer'], number>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['interval'], string>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['line'], [number, number, number]>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['macaddr'], string>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['macaddr8'], string>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['numeric'], string>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['point'], [number, number]>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['real'], number>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['serial'], number>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['smallint'], number>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['smallserial'], number>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['text'], string>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['time'], string>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['timestamp'], Date>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['uuid'], string>>;
+Expect<Equal<BasicTypesDeclareFunctionDeclare['varchar'], string>>;
+
+const emptyDeclareFunction = pgFunction('empty_declare_function', {
+	args: {},
+	declare: {},
+	returns: integer(),
+}).as(sql`SELECT 1`);
+
+Expect<
+	Equal<
+		InferFunctionDeclare<typeof emptyDeclareFunction>,
+		{}
+	>
+>;
+
+const declareCallbackFunction = pgFunction('declare_callback_function', {
+	args: {
+		id: uuid(),
+	},
+	declare: {
+		total: integer(),
+		label: text(),
+		tags: text().array(),
+	},
+	returns: text(),
+}).as((f) => {
+	const declareRefs = f.declare!;
+
+	Expect<
+		Equal<
+			typeof declareRefs.total,
+			PgFunctionArgument<ReturnType<typeof integer>>
+		>
+	>;
+
+	// @ts-expect-error - undeclared block variable
+	declareRefs.doesNotExist;
+
+	return sql`
+		SELECT ${f.args.id}, ${declareRefs.total}, ${declareRefs.label}, ${declareRefs.tags}
+	`;
+});
+
+Expect<
+	Equal<
+		InferFunctionDeclare<typeof declareCallbackFunction>,
+		{
+			total: number;
+			label: string;
+			tags: string[];
+		}
+	>
+>;
+
+Expect<
+	Equal<
+		InferFunctionArgs<typeof declareCallbackFunction>,
+		{
+			id: string;
 		}
 	>
 >;

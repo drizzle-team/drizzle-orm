@@ -15,6 +15,7 @@ import {
 	buildPgFunctionColumn,
 	getMaterializedViewConfig,
 	getPgFunctionArgumentSQLName,
+	getPgFunctionDeclareSQLName,
 	getTableConfig,
 	getViewConfig,
 	IndexedColumn,
@@ -224,6 +225,26 @@ export const functionFrom = (fn: PgFunction, dialect: PgDialect) => {
 		searchPath: config.searchPath === undefined
 			? null
 			: { values: [...config.searchPath] },
+
+		declare: config.declare === undefined
+			? null
+			: {
+				values: Object.entries(config.declare).map(([name, builder]) => {
+					const column = buildPgFunctionColumn(builder);
+					const { dimensions } = unwrapColumn(column);
+
+					return {
+						name: getPgFunctionDeclareSQLName(name),
+						type: sqlTypeFromFunctionColumn(column, dialect),
+						default: defaultFromColumn(
+							column,
+							column.default,
+							dimensions,
+							dialect,
+						),
+					};
+				}),
+			},
 
 		// Sort configuration so we keep a consistent ordering
 		configuration: Array.from(config.configuration.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(
