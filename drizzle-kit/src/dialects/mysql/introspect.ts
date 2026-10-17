@@ -3,7 +3,7 @@ import type { DB } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
 import { batchQuery, filterMigrationsSchema } from '../utils';
 import type { ForeignKey, Index, InterimSchema, PrimaryKey } from './ddl';
-import { parseDefaultValue } from './grammar';
+import { parseDefaultValue, unescapeFromInformationSchema } from './grammar';
 
 // ! Important note about column names in SELECT queries:
 // * For consistency with MariaDB, we need to use uppercase for column names in SELECT queries,
@@ -61,6 +61,11 @@ export const fromDatabase = async (
 		views: [],
 		viewColumns: [],
 	};
+
+	// MySQL escapes the text of expressions in information_schema, MariaDB does not
+	const [{ version }] = await db.query<{ version: string }>('SELECT VERSION() AS version;');
+	const isMariaDB = version.toLowerCase().includes('mariadb');
+	const unescapeExpression = (text: string) => isMariaDB ? text : unescapeFromInformationSchema(text);
 
 	// TABLES
 
@@ -142,7 +147,7 @@ export const fromDatabase = async (
 		const table = it.TABLE_NAME;
 		const column = it.COLUMN_NAME;
 		const isUnique = it.NON_UNIQUE === 0;
-		const expression = it.EXPRESSION;
+		const expression = it.EXPRESSION ? unescapeExpression(it.EXPRESSION) : it.EXPRESSION;
 
 		const key = `${table}:${name}`;
 
@@ -248,12 +253,19 @@ export const fromDatabase = async (
 		const name: string = column.COLUMN_NAME;
 		const isNullable = column.IS_NULLABLE === 'YES'; // 'YES', 'NO'
 		const columnType = column.COLUMN_TYPE; // varchar(256)
-		const columnDefault: string | undefined = column.COLUMN_DEFAULT ?? undefined;
+		const extra = column.EXTRA ?? '';
+		// A default expression of MySQL has `DEFAULT_GENERATED` in `EXTRA`, a literal default holds the value as is
+		const columnDefault: string | undefined = column.COLUMN_DEFAULT === null
+			? undefined
+			: extra.includes('DEFAULT_GENERATED')
+			? unescapeExpression(column.COLUMN_DEFAULT)
+			: column.COLUMN_DEFAULT;
 		const dbCollation: string = column.COLLATION_NAME;
 		const dbCharSet: string = column.CHARACTER_SET_NAME;
-		const generatedExpression: string = column.GENERATION_EXPRESSION;
+		const generatedExpression: string = column.GENERATION_EXPRESSION
+			? unescapeExpression(column.GENERATION_EXPRESSION)
+			: column.GENERATION_EXPRESSION;
 
-		const extra = column.EXTRA ?? '';
 		// const isDefaultAnExpression = extra.includes('DEFAULT_GENERATED'); // 'auto_increment', ''
 		// const dataType = column.DATA_TYPE; // varchar
 		// const isPrimary = column.COLUMN_KEY === 'PRI'; // 'PRI', ''
@@ -478,7 +490,7 @@ export const fromDatabase = async (
 	for (const check of checks.filter((it) => tableNames.has(it.TABLE_NAME))) {
 		const table = check.TABLE_NAME;
 		const name = check.CONSTRAINT_NAME;
-		const value = check.CHECK_CLAUSE;
+		const value = unescapeExpression(check.CHECK_CLAUSE);
 
 		res.checks.push({
 			entityType: 'checks',

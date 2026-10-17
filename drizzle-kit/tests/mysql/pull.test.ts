@@ -1343,10 +1343,13 @@ test('introspect default expressions with a backslash, a backtick and "${"', asy
 	};
 	await createTable('table1', (column) => `(${columns[column][1]})`);
 
-	// The database returns a default with doubled backslashes, so the diff after the pull has statements,
-	// and `diffIntrospect` keeps the pulled file when the diff has statements.
-	const { ddlFromPulledTsSchema } = await diffIntrospect(db, {}, 'default-expressions-with-template-unsafe-text');
-	fs.rmSync('tests/mysql/tmp/default-expressions-with-template-unsafe-text.ts', { force: true });
+	const { pushSqlStatements, generateSqlStatements, ddlFromPulledTsSchema } = await diffIntrospect(
+		db,
+		{},
+		'default-expressions-with-template-unsafe-text',
+	);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 
 	const pulledColumns = ddlFromPulledTsSchema.columns;
 	await createTable('table1_copy', (column) => pulledColumns.one({ table: 'table1', name: column })!.default!);
@@ -1374,4 +1377,77 @@ test('introspect default expression of a fractional seconds column with a backsl
 	// and `diffIntrospect` keeps the pulled file when the diff has statements.
 	await expect(diffIntrospect(db, {}, 'fractional-seconds-defaults-with-template-unsafe-text')).resolves.toBeDefined();
 	fs.rmSync('tests/mysql/tmp/fractional-seconds-defaults-with-template-unsafe-text.ts', { force: true });
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6491
+test('introspect generated column with a string literal', async () => {
+	await db.query(
+		"create table `users` (`name` varchar(100), `label` varchar(120) generated always as (concat(`name`, 'x', 'it''s', 'a\\\\b')) stored);",
+	);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, ddlFromPulledTsSchema } = await diffIntrospect(
+		db,
+		{},
+		'generated-column-with-string-literal',
+	);
+
+	const expected = "concat(`name`,_utf8mb4'x',_utf8mb4'it\\'s',_utf8mb4'a\\\\b')";
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.one({ table: 'users', name: 'label' })?.generated?.as).toBe(expected);
+	expect(ddlFromPulledTsSchema.columns.one({ table: 'users', name: 'label' })?.generated?.as).toBe(expected);
+
+	await db.query(
+		`create table \`users_copy\` (\`name\` varchar(100), \`label\` varchar(120) generated always as (${expected}) stored);`,
+	);
+	await db.query("insert into `users_copy` (`name`) values ('n');");
+	const [row] = await db.query<{ label: string }>('select `label` from `users_copy`;');
+	expect(row.label).toBe("nxit'sa\\b");
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6491
+test('introspect index expression with a string literal', async () => {
+	await db.query("create table `users` (`name` varchar(100), key `name_idx` ((concat(`name`, 'x', 'a\\\\b'))));");
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, ddlFromPulledTsSchema } = await diffIntrospect(
+		db,
+		{},
+		'index-expression-with-string-literal',
+	);
+
+	const expected = "concat(`name`,_utf8mb4'x',_utf8mb4'a\\\\b')";
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.indexes.one({ table: 'users', name: 'name_idx' })?.columns[0].value).toBe(expected);
+	expect(ddlFromPulledTsSchema.indexes.one({ table: 'users', name: 'name_idx' })?.columns[0].value).toBe(expected);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6491
+test('introspect text defaults with a backslash', async () => {
+	await db.query(
+		"create table `users` (`a` text default (concat('a\\\\b', 'c')), `b` text default ('a\\\\b'), `c` text default ('it''s\\\\'));",
+	);
+
+	const { pushSqlStatements, generateSqlStatements, ddlFromPulledTsSchema } = await diffIntrospect(
+		db,
+		{},
+		'text-defaults-with-backslash',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+
+	const columns = ['a', 'b', 'c'].map((name) =>
+		`\`${name}\` text default ${ddlFromPulledTsSchema.columns.one({ table: 'users', name })!.default}`
+	);
+	await db.query(`create table \`users_copy\` (${columns.join(', ')});`);
+	await db.query('insert into `users` () values ();');
+	await db.query('insert into `users_copy` () values ();');
+	const rows = await db.query<{ a: string; b: string; c: string }>(
+		'select `a`, `b`, `c` from `users` union all select `a`, `b`, `c` from `users_copy`;',
+	);
+	expect(rows).toStrictEqual([
+		{ a: 'a\\bc', b: 'a\\b', c: "it's\\" },
+		{ a: 'a\\bc', b: 'a\\b', c: "it's\\" },
+	]);
 });

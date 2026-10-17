@@ -45,3 +45,19 @@ test('introspect primary keys', async () => {
 		columns: ['id'],
 	}]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6491
+// Unlike MySQL, MariaDB returns the text of an expression in information_schema without extra escapes
+test('introspect generated column and default expression with a string literal', async () => {
+	await db.query(
+		"create table `users` (`name` varchar(100), `label` varchar(120) generated always as (concat(`name`, 'x', 'a\\\\b')) stored, `b` text default (concat('a\\\\b', 'c')));",
+	);
+
+	const { sqlStatements, ddlAfterPull } = await diffIntrospect(db, {}, 'generated-and-default-with-string-literal');
+
+	expect(sqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.one({ table: 'users', name: 'label' })?.generated?.as).toBe(
+		"concat(`name`,'x','a\\\\b')",
+	);
+	expect(ddlAfterPull.columns.one({ table: 'users', name: 'b' })?.default).toBe("concat('a\\\\b','c')");
+});
