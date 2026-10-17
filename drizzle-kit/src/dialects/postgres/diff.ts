@@ -28,6 +28,7 @@ import type {
 } from './ddl';
 import { createDDL, tableFromDDL } from './ddl';
 import { defaults, defaultsCommutative, existsInViewDef, isSerialType } from './grammar';
+import { moveOrder, orderRenames, relationNames, RelationNamespace } from './rename-order';
 import type { JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
 
@@ -112,6 +113,9 @@ export const ddlDiff = async (
 			},
 		});
 	}
+
+	// names of tables, views, sequences, indexes, primary keys and unique constraints before and after the migration
+	const relations = new RelationNamespace(relationNames(ddl1), relationNames(ddl2));
 
 	const enumsDiff = diff(ddl1, ddl2, 'enums');
 	const {
@@ -199,6 +203,7 @@ export const ddlDiff = async (
 		ddl1.sequences.update({
 			set: {
 				schema: move.to.schema,
+				name: move.to.name,
 			},
 			where: {
 				name: move.from.name,
@@ -245,9 +250,6 @@ export const ddlDiff = async (
 		created: tablesDiff.filter((it) => it.$diffType === 'create'),
 		deleted: tablesDiff.filter((it) => it.$diffType === 'drop'),
 	});
-
-	const renamedTables = renamedOrMovedTables.filter((it) => it.from.name !== it.to.name);
-	const movedTables = renamedOrMovedTables.filter((it) => it.from.schema !== it.to.schema);
 
 	for (const rename of renamedOrMovedTables) {
 		ddl1.tables.update({
@@ -684,9 +686,24 @@ export const ddlDiff = async (
 		prepareStatement('drop_index', { index })
 	);
 
-	const jsonRenameIndexes = indexesRenames.map((r) => {
-		return prepareStatement('rename_index', { schema: r.to.schema, from: r.from.name, to: r.to.name });
-	});
+	// index, primary key and unique constraint renames share the name space of the schema,
+	// so a rename that frees a name runs before the rename that takes it
+	const jsonRenameIndexesAndConstraints = orderRenames(relations, [
+		...indexesRenames.map((r) => ({
+			schema: r.to.schema,
+			from: r.from.name,
+			to: r.to.name,
+			statement: (from: string, to: string): JsonStatement =>
+				prepareStatement('rename_index', { schema: r.to.schema, from, to }),
+		})),
+		...[...pksRenames, ...uniqueRenames].map((r) => ({
+			schema: r.to.schema,
+			from: r.from.name,
+			to: r.to.name,
+			statement: (from: string, to: string): JsonStatement =>
+				prepareStatement('rename_constraint', { schema: r.to.schema, table: r.to.table, from, to }),
+		})),
+	]);
 
 	const indexesAlters = alters.filter((it): it is DiffEntities['indexes'] => {
 		if (it.entityType !== 'indexes') return false;
@@ -722,13 +739,47 @@ export const ddlDiff = async (
 		const key = oldSchema ? `"${oldSchema.from.name}"."${it.name}"` : `"${it.schema}"."${it.name}"`;
 		return prepareStatement('drop_table', { table: tableFromDDL(it, ddl2), key });
 	});
-	const jsonRenameTables = renamedTables.map((it) =>
-		prepareStatement('rename_table', {
-			schema: it.from.schema,
-			from: it.from.name,
-			to: it.to.name,
-		})
-	);
+	const jsonRenameTables: JsonStatement[] = [];
+	const jsonSetTableSchemas: JsonStatement[] = [];
+	for (const it of renamedOrMovedTables) {
+		const renamed = it.from.name !== it.to.name;
+		const moved = it.from.schema !== it.to.schema;
+
+		if (!moved) {
+			jsonRenameTables.push(
+				prepareStatement('rename_table', { schema: it.from.schema, from: it.from.name, to: it.to.name }),
+			);
+			continue;
+		}
+
+		if (!renamed) {
+			jsonSetTableSchemas.push(
+				prepareStatement('move_table', { name: it.to.name, from: it.from.schema, to: it.to.schema }),
+			);
+			continue;
+		}
+
+		const order = moveOrder(relations, it.from, it.to, 'rename-first');
+		if (order.type === 'rename-first') {
+			jsonRenameTables.push(
+				prepareStatement('rename_table', { schema: it.from.schema, from: it.from.name, to: it.to.name }),
+			);
+			jsonSetTableSchemas.push(
+				prepareStatement('move_table', { name: it.to.name, from: it.from.schema, to: it.to.schema }),
+			);
+		} else if (order.type === 'move-first') {
+			jsonRenameTables.push(
+				prepareStatement('move_table', { name: it.from.name, from: it.from.schema, to: it.to.schema }),
+				prepareStatement('rename_table', { schema: it.to.schema, from: it.from.name, to: it.to.name }),
+			);
+		} else {
+			jsonRenameTables.push(
+				prepareStatement('rename_table', { schema: it.from.schema, from: it.from.name, to: order.name }),
+				prepareStatement('move_table', { name: order.name, from: it.from.schema, to: it.to.schema }),
+				prepareStatement('rename_table', { schema: it.to.schema, from: order.name, to: it.to.name }),
+			);
+		}
+	}
 
 	const jsonRenameColumnsStatements = columnRenames.map((it) => prepareStatement('rename_column', it));
 	const jsonDropColumnsStatemets = columnsToDelete.filter(tablesFilter('deleted')).map((it) =>
@@ -819,14 +870,6 @@ export const ddlDiff = async (
 	const jsonDropUniqueConstraints = uniqueDeletes.filter(tablesFilter('deleted')).map((it) =>
 		prepareStatement('drop_unique', { unique: it })
 	);
-	const jsonRenamedUniqueConstraints = uniqueRenames.map((it) =>
-		prepareStatement('rename_constraint', {
-			schema: it.to.schema,
-			table: it.to.table,
-			from: it.from.name,
-			to: it.to.name,
-		})
-	);
 
 	const jsonAddPrimaryKeys = pksCreates.filter(tablesFilter('created')).map((it) =>
 		prepareStatement('add_pk', { pk: it })
@@ -834,23 +877,6 @@ export const ddlDiff = async (
 
 	const jsonDropPrimaryKeys = pksDeletes.filter(tablesFilter('deleted')).map((it) =>
 		prepareStatement('drop_pk', { pk: it })
-	);
-
-	const jsonRenamePrimaryKey = pksRenames.map((it) => {
-		return prepareStatement('rename_constraint', {
-			schema: it.to.schema,
-			table: it.to.table,
-			from: it.from.name,
-			to: it.to.name,
-		});
-	});
-
-	const jsonSetTableSchemas = movedTables.map((it) =>
-		prepareStatement('move_table', {
-			name: it.to.name, // rename of table comes first
-			from: it.from.schema,
-			to: it.to.schema,
-		})
 	);
 
 	const jsonCreatedCheckConstraints = checkCreates.filter(tablesFilter('created')).map((it) =>
@@ -1089,7 +1115,31 @@ export const ddlDiff = async (
 
 	const createSequences = createdSequences.map((it) => prepareStatement('create_sequence', { sequence: it }));
 	const dropSequences = deletedSequences.map((it) => prepareStatement('drop_sequence', { sequence: it }));
-	const moveSequences = movedSequences.map((it) => prepareStatement('move_sequence', it));
+	const moveSequences = movedSequences.flatMap((it): JsonStatement[] => {
+		if (it.from.name === it.to.name) return [prepareStatement('move_sequence', it)];
+
+		const order = moveOrder(relations, it.from, it.to, 'move-first');
+		if (order.type === 'move-first') {
+			return [
+				prepareStatement('move_sequence', { from: it.from, to: { schema: it.to.schema, name: it.from.name } }),
+				prepareStatement('rename_sequence', { from: { ...it.to, name: it.from.name }, to: it.to }),
+			];
+		}
+		if (order.type === 'rename-first') {
+			return [
+				prepareStatement('rename_sequence', { from: it.from, to: { ...it.from, name: it.to.name } }),
+				prepareStatement('move_sequence', { from: { schema: it.from.schema, name: it.to.name }, to: it.to }),
+			];
+		}
+		return [
+			prepareStatement('rename_sequence', { from: it.from, to: { ...it.from, name: order.name } }),
+			prepareStatement('move_sequence', {
+				from: { schema: it.from.schema, name: order.name },
+				to: { schema: it.to.schema, name: order.name },
+			}),
+			prepareStatement('rename_sequence', { from: { ...it.to, name: order.name }, to: it.to }),
+		];
+	});
 	const renameSequences = renamedSequences.map((it) => prepareStatement('rename_sequence', it));
 	const sequencesAlter = alters.filter((it) => it.entityType === 'sequences');
 	const jsonAlterSequences = sequencesAlter.map((it) =>
@@ -1121,9 +1171,36 @@ export const ddlDiff = async (
 
 	const jsonRenameViews = renamedViews.map((it) => prepareStatement('rename_view', it));
 
-	const jsonMoveViews = movedViews.map((it) =>
-		prepareStatement('move_view', { fromSchema: it.from.schema, toSchema: it.to.schema, view: it.to })
-	);
+	const jsonMoveViews = movedViews.flatMap((it): JsonStatement[] => {
+		const move = (name: string) =>
+			prepareStatement('move_view', {
+				fromSchema: it.from.schema,
+				toSchema: it.to.schema,
+				view: { ...it.to, name, materialized: it.from.materialized },
+			});
+		const rename = (schema: string, from: string, to: string) =>
+			prepareStatement('rename_view', {
+				from: { ...it.from, schema, name: from },
+				to: { ...it.to, schema, name: to, materialized: it.from.materialized },
+			});
+
+		if (it.from.name === it.to.name) {
+			return [prepareStatement('move_view', { fromSchema: it.from.schema, toSchema: it.to.schema, view: it.to })];
+		}
+
+		const order = moveOrder(relations, it.from, it.to, 'rename-first');
+		if (order.type === 'rename-first') {
+			return [rename(it.from.schema, it.from.name, it.to.name), move(it.to.name)];
+		}
+		if (order.type === 'move-first') {
+			return [move(it.from.name), rename(it.to.schema, it.from.name, it.to.name)];
+		}
+		return [
+			rename(it.from.schema, it.from.name, order.name),
+			move(order.name),
+			rename(it.to.schema, order.name, it.to.name),
+		];
+	});
 
 	const filteredViewAlters = alters.filter((it): it is DiffEntities['views'] => {
 		if (it.entityType !== 'views') return false;
@@ -1257,14 +1334,13 @@ export const ddlDiff = async (
 
 	// TODO: ? will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
-	jsonStatements.push(...jsonRenameIndexes);
 	jsonStatements.push(...jsonDropIndexes);
 	jsonStatements.push(...jsonDropPrimaryKeys);
+	jsonStatements.push(...jsonRenameIndexesAndConstraints);
 
 	jsonStatements.push(...jsonRenameReferences);
 	jsonStatements.push(...jsonAddColumnsStatemets);
 	jsonStatements.push(...jsonAddPrimaryKeys);
-	jsonStatements.push(...jsonRenamePrimaryKey);
 	jsonStatements.push(...recreateEnums);
 	jsonStatements.push(...jsonRecreateColumns);
 
@@ -1274,7 +1350,6 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonRecreateIndex);
 
-	jsonStatements.push(...jsonRenamedUniqueConstraints);
 	jsonStatements.push(...jsonAddedUniqueConstraints);
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 	jsonStatements.push(...jsonCreateIndexes); // above fks for uniqueness constraint to come first

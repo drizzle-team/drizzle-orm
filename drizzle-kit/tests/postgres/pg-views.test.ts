@@ -2480,3 +2480,56 @@ test('Issue No3309. tablesFilter with views', async () => {
 
 	expect(pst1).toStrictEqual(expectedSt1);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6509
+test('move view to another schema with a new name', async () => {
+	const folder = pgSchema('folder');
+	const from = {
+		folder,
+		view: pgView('v', { id: integer('id') }).as(sql`SELECT 1 AS id`),
+	};
+	const to = {
+		folder,
+		view: folder.view('v2', { id: integer('id') }).as(sql`SELECT 1 AS id`),
+	};
+
+	const renames = ['public.v->folder.v2'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER VIEW "v" RENAME TO "v2";',
+		'ALTER VIEW "v2" SET SCHEMA "folder";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('a view that moves with a new name is moved first when a relation holds the new name in the old schema', async () => {
+	const folder = pgSchema('folder');
+	const from = {
+		folder,
+		holder: pgTable('v2', { id: integer('id') }),
+		view: pgMaterializedView('v', { id: integer('id') }).as(sql`SELECT 1 AS id`),
+	};
+	const to = {
+		folder,
+		holder: pgTable('v2', { id: integer('id') }),
+		view: folder.materializedView('v2', { id: integer('id') }).as(sql`SELECT 1 AS id`),
+	};
+
+	const renames = ['public.v->folder.v2'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER MATERIALIZED VIEW "v" SET SCHEMA "folder";',
+		'ALTER MATERIALIZED VIEW "folder"."v" RENAME TO "v2";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
