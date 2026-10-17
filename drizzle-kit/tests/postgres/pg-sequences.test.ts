@@ -446,3 +446,42 @@ test('Add basic sequences', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6509
+test('move sequence between schemas with a new name', async () => {
+	const folder = pgSchema('folder');
+	const from = { folder, seq: pgSequence('s', { startWith: 100 }) };
+	const to = { folder, seq: folder.sequence('s2', { startWith: 100 }) };
+
+	const renames = ['public.s->folder.s2'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER SEQUENCE "s" SET SCHEMA "folder";',
+		'ALTER SEQUENCE "folder"."s" RENAME TO "s2";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('a sequence that moves with a new name is renamed first when a relation holds the old name in the new schema', async () => {
+	const folder = pgSchema('folder');
+	const from = { folder, seq: pgSequence('s'), holder: folder.sequence('s') };
+	const to = { folder, seq: folder.sequence('s2'), holder: folder.sequence('s') };
+
+	const renames = ['public.s->folder.s2'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER SEQUENCE "s" RENAME TO "s2";',
+		'ALTER SEQUENCE "s2" SET SCHEMA "folder";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});

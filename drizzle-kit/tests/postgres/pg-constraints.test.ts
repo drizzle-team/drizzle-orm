@@ -2828,3 +2828,84 @@ test('Issue No6368', async () => {
 	expect(st1).toStrictEqual(st0);
 	expect(pst1).toStrictEqual(st0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6509
+test.each([
+	['unique constraints', (name: string) => (t: { id: any }) => [unique(name).on(t.id)]],
+	['primary keys', (name: string) => (t: { id: any }) => [primaryKey({ name, columns: [t.id] })]],
+])('rename %s onto a name that another rename frees', async (_, constraint) => {
+	const from = {
+		cats: pgTable('cats', { id: integer().notNull() }, constraint('key_a')),
+		dogs: pgTable('dogs', { id: integer().notNull() }, constraint('key_b')),
+	};
+	const to = {
+		cats: pgTable('cats', { id: integer().notNull() }, constraint('key_b')),
+		dogs: pgTable('dogs', { id: integer().notNull() }, constraint('key_c')),
+	};
+
+	const renames = ['public.cats.key_a->public.cats.key_b', 'public.dogs.key_b->public.dogs.key_c'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER TABLE "dogs" RENAME CONSTRAINT "key_b" TO "key_c";',
+		'ALTER TABLE "cats" RENAME CONSTRAINT "key_a" TO "key_b";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('rename primary key onto the name of a unique constraint that is renamed', async () => {
+	const from = {
+		cats: pgTable('cats', { id: integer().notNull(), name: text() }, (t) => [
+			primaryKey({ name: 'key_a', columns: [t.id] }),
+			unique('key_b').on(t.name),
+		]),
+	};
+	const to = {
+		cats: pgTable('cats', { id: integer().notNull(), name: text() }, (t) => [
+			primaryKey({ name: 'key_b', columns: [t.id] }),
+			unique('key_c').on(t.name),
+		]),
+	};
+
+	const renames = ['public.cats.key_a->public.cats.key_b', 'public.cats.key_b->public.cats.key_c'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER TABLE "cats" RENAME CONSTRAINT "key_b" TO "key_c";',
+		'ALTER TABLE "cats" RENAME CONSTRAINT "key_a" TO "key_b";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('swap the names of unique constraints of two tables', async () => {
+	const from = {
+		cats: pgTable('cats', { id: integer() }, (t) => [unique('key_a').on(t.id)]),
+		dogs: pgTable('dogs', { id: integer() }, (t) => [unique('key_b').on(t.id)]),
+	};
+	const to = {
+		cats: pgTable('cats', { id: integer() }, (t) => [unique('key_b').on(t.id)]),
+		dogs: pgTable('dogs', { id: integer() }, (t) => [unique('key_a').on(t.id)]),
+	};
+
+	const renames = ['public.cats.key_a->public.cats.key_b', 'public.dogs.key_b->public.dogs.key_a'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER TABLE "cats" RENAME CONSTRAINT "key_a" TO "key_a_tmp";',
+		'ALTER TABLE "dogs" RENAME CONSTRAINT "key_b" TO "key_a";',
+		'ALTER TABLE "cats" RENAME CONSTRAINT "key_a_tmp" TO "key_b";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});

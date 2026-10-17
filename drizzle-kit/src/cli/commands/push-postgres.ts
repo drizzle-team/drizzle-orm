@@ -186,14 +186,52 @@ const quoteTable = ({ schema, name }: { schema?: string; name: string }) => {
 	return schema && schema !== 'public' ? `${quote(schema)}.${quote(name)}` : quote(name);
 };
 
+// A table that moves to another schema with a new name can take a move first, a rename first or a temporary name.
+// Collapse the statements to one rename in the old schema and one move with the new name for each table
+const tableRenamesAndMoves = (jsonStatements: JsonStatement[]) => {
+	const key = (schema: string, name: string) => `${schema}\u0000${name}`;
+	const tables = new Map<string, { from: { schema: string; name: string }; to: { schema: string; name: string } }>();
+
+	for (const it of jsonStatements) {
+		let current: { schema: string; name: string };
+		let next: { schema: string; name: string };
+		if (it.type === 'rename_table') {
+			current = { schema: it.schema, name: it.from };
+			next = { schema: it.schema, name: it.to };
+		} else if (it.type === 'move_table') {
+			current = { schema: it.from, name: it.name };
+			next = { schema: it.to, name: it.name };
+		} else {
+			continue;
+		}
+
+		const from = tables.get(key(current.schema, current.name))?.from ?? current;
+		tables.delete(key(current.schema, current.name));
+		tables.set(key(next.schema, next.name), { from, to: next });
+	}
+
+	const list = [...tables.values()];
+	return {
+		tables: list.filter((it) => it.from.name !== it.to.name).map((it) => ({
+			schema: it.from.schema,
+			from: it.from.name,
+			to: it.to.name,
+		})),
+		moves: list.filter((it) => it.from.schema !== it.to.schema).map((it) => ({
+			name: it.to.name,
+			from: it.from.schema,
+			to: it.to.schema,
+		})),
+	};
+};
+
 export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints: HintsHandler) => {
 	const json = outputFormat() === 'json';
 	const useHints = json || !isInteractive();
 	const grouped: { hint: string; statement?: string }[] = [];
 	const { identifier, label } = tableNamesBeforeRenames({
 		schemas: jsonStatements.filter((it) => it.type === 'rename_schema'),
-		tables: jsonStatements.filter((it) => it.type === 'rename_table'),
-		moves: jsonStatements.filter((it) => it.type === 'move_table'),
+		...tableRenamesAndMoves(jsonStatements),
 	}, quoteTable);
 
 	const filtered = jsonStatements.filter((it) => {

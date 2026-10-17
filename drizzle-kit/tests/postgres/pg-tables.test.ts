@@ -10,8 +10,10 @@ import {
 	pgMaterializedView,
 	PgSchema,
 	pgSchema,
+	pgSequence,
 	pgTable,
 	pgTableCreator,
+	pgView,
 	primaryKey,
 	serial,
 	snakeCase,
@@ -1982,5 +1984,109 @@ test('drop materialized view with data when a renamed table takes its name', asy
 	]);
 	expect(phints).toStrictEqual([
 		{ hint: `You're about to delete non-empty "report" materialized view` },
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6509
+test.each([
+	['a table', () => ({ holder: pgTable('people', { id: integer() }) })],
+	['a view', () => ({ holder: pgView('people', { id: integer() }).as(sql`SELECT 1 AS id`) })],
+	['a materialized view', () => ({ holder: pgMaterializedView('people', { id: integer() }).as(sql`SELECT 1 AS id`) })],
+	['a sequence', () => ({ holder: pgSequence('people') })],
+	['an index', () => ({ holder: pgTable('other', { id: integer() }, (t) => [index('people').on(t.id)]) })],
+	[
+		'a primary key',
+		() => ({ holder: pgTable('other', { id: integer() }, (t) => [primaryKey({ name: 'people', columns: [t.id] })]) }),
+	],
+	['a unique constraint', () => ({ holder: pgTable('other', { id: integer() }, (t) => [unique('people').on(t.id)]) })],
+])(
+	'a table that moves with a new name is moved first when %s holds the new name in the old schema',
+	async (_, holder) => {
+		const folder = pgSchema('folder');
+		const from = {
+			folder,
+			users: pgTable('users', { id: integer() }),
+			...holder(),
+		};
+		const to = {
+			folder,
+			users: folder.table('people', { id: integer() }),
+			...holder(),
+		};
+
+		const renames = ['public.users->folder.people'];
+		const { sqlStatements: st } = await diff(from, to, renames);
+
+		await push({ db, to: from });
+		const { sqlStatements: pst } = await push({ db, to, renames });
+
+		const st0 = [
+			'ALTER TABLE "users" SET SCHEMA "folder";\n',
+			'ALTER TABLE "folder"."users" RENAME TO "people";',
+		];
+		expect(st).toStrictEqual(st0);
+		expect(pst).toStrictEqual(st0);
+	},
+);
+
+test('a table that moves with a new name takes a temporary name when both names in between are held', async () => {
+	const folder = pgSchema('folder');
+	const from = {
+		folder,
+		users: pgTable('users', { id: integer() }),
+		people: pgTable('people', { id: integer() }),
+		folderUsers: folder.table('users', { id: integer() }),
+	};
+	const to = {
+		folder,
+		users: folder.table('people', { id: integer() }),
+		people: pgTable('people', { id: integer() }),
+		folderUsers: folder.table('users', { id: integer() }),
+	};
+
+	const renames = ['public.users->folder.people'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER TABLE "users" RENAME TO "users_tmp";',
+		'ALTER TABLE "users_tmp" SET SCHEMA "folder";\n',
+		'ALTER TABLE "folder"."users_tmp" RENAME TO "people";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('drop column in a table with data that moves first and then gets a new name', async () => {
+	const app = pgSchema('app');
+	const schema1 = {
+		app,
+		users: pgTable('users', { id: integer('id').primaryKey(), name: text('name') }),
+		accounts: pgTable('accounts', { id: integer('id') }),
+	};
+	const schema2 = {
+		app,
+		users: app.table('accounts', { id: integer('id').primaryKey() }),
+		accounts: pgTable('accounts', { id: integer('id') }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "users" ("id", "name") VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['public.users->app.accounts'],
+	});
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE "users" SET SCHEMA "app";\n',
+		'ALTER TABLE "app"."users" RENAME TO "accounts";',
+		'ALTER TABLE "app"."accounts" DROP COLUMN "name";',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "name" column in "users" (would become "app"."accounts") table` },
 	]);
 });

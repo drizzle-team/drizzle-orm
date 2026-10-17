@@ -10,6 +10,7 @@ import {
 	serial,
 	text,
 	timestamp,
+	unique,
 	uniqueIndex,
 	uuid,
 	vector,
@@ -839,4 +840,84 @@ test('Issue No6079', async () => {
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6509
+test('rename index onto a name that another rename frees', async () => {
+	const from = {
+		cats: pgTable('cats', { id: integer() }, (t) => [index('idx_a').on(t.id)]),
+		dogs: pgTable('dogs', { id: integer() }, (t) => [index('idx_b').on(t.id)]),
+	};
+	const to = {
+		cats: pgTable('cats', { id: integer() }, (t) => [index('idx_b').on(t.id)]),
+		dogs: pgTable('dogs', { id: integer() }, (t) => [index('idx_c').on(t.id)]),
+	};
+
+	const renames = ['public.cats.idx_a->public.cats.idx_b', 'public.dogs.idx_b->public.dogs.idx_c'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER INDEX "idx_b" RENAME TO "idx_c";',
+		'ALTER INDEX "idx_a" RENAME TO "idx_b";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('rename index onto the name of a unique constraint that is renamed', async () => {
+	const from = {
+		cats: pgTable(
+			'cats',
+			{ id: integer(), name: text() },
+			(t) => [index('key_a').on(t.id), unique('key_b').on(t.name)],
+		),
+	};
+	const to = {
+		cats: pgTable(
+			'cats',
+			{ id: integer(), name: text() },
+			(t) => [index('key_b').on(t.id), unique('key_c').on(t.name)],
+		),
+	};
+
+	const renames = ['public.cats.key_a->public.cats.key_b', 'public.cats.key_b->public.cats.key_c'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER TABLE "cats" RENAME CONSTRAINT "key_b" TO "key_c";',
+		'ALTER INDEX "key_a" RENAME TO "key_b";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('swap the names of indexes of two tables', async () => {
+	const from = {
+		cats: pgTable('cats', { id: integer() }, (t) => [index('idx_a').on(t.id)]),
+		dogs: pgTable('dogs', { id: integer() }, (t) => [index('idx_b').on(t.id)]),
+	};
+	const to = {
+		cats: pgTable('cats', { id: integer() }, (t) => [index('idx_b').on(t.id)]),
+		dogs: pgTable('dogs', { id: integer() }, (t) => [index('idx_a').on(t.id)]),
+	};
+
+	const renames = ['public.cats.idx_a->public.cats.idx_b', 'public.dogs.idx_b->public.dogs.idx_a'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER INDEX "idx_a" RENAME TO "idx_a_tmp";',
+		'ALTER INDEX "idx_b" RENAME TO "idx_a";',
+		'ALTER INDEX "idx_a_tmp" RENAME TO "idx_b";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
