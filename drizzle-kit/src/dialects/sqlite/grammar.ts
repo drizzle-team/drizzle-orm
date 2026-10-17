@@ -1,6 +1,6 @@
 import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
-import { escapeForSqlTemplate, escapeForTsLiteral } from '../grammar';
+import { escapeForSqlTemplate, escapeForTsLiteral, isNumberLiteral, isSqlStringLiteral } from '../grammar';
 import type { Column, DiffEntities, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
@@ -160,7 +160,9 @@ export const Real: SqlType = {
 		return value;
 	},
 	toTs: function(value: Column['default']): string {
-		return value ?? '';
+		if (!value) return '';
+		if (isNumberLiteral(value)) return value;
+		return `sql\`${escapeForSqlTemplate(value)}\``;
 	},
 };
 
@@ -210,7 +212,10 @@ export const Numeric: SqlType = {
 		if (!value) return '';
 		const check = Number(value);
 
-		if (Number.isNaN(check)) return value; // unknown
+		if (Number.isNaN(check)) {
+			if (isSqlStringLiteral(value)) return value;
+			return `sql\`${escapeForSqlTemplate(value)}\``;
+		}
 		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) {
 			return { def: value, options: { mode: 'number' } };
 		}

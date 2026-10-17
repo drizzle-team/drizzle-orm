@@ -1375,3 +1375,52 @@ test('introspect default expression of a fractional seconds column with a backsl
 	await expect(diffIntrospect(db, {}, 'fractional-seconds-defaults-with-template-unsafe-text')).resolves.toBeDefined();
 	fs.rmSync('tests/mysql/tmp/fractional-seconds-defaults-with-template-unsafe-text.ts', { force: true });
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6493
+test('introspect expression defaults of date, year, time, datetime, timestamp and varchar', async () => {
+	await db.query(`create table \`t\` (
+		\`c1\` date default (curdate()),
+		\`c2\` year default (year(curdate())),
+		\`c3\` time default (curtime()),
+		\`c4\` datetime default (utc_timestamp()),
+		\`c5\` timestamp null default (utc_timestamp()),
+		\`c6\` varchar(36) default (uuid()),
+		\`c7\` varchar(36) default 'uuid()',
+		\`c8\` date default '2024-01-01',
+		\`c9\` time default '10:00:00',
+		\`c10\` year default 2024
+	);`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, ddlFromPulledTsSchema } = await diffIntrospect(
+		db,
+		{},
+		'expression-defaults-6493',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.list().map((it) => [it.name, it.default])).toStrictEqual([
+		['c1', '(curdate())'],
+		['c2', 'year(curdate())'],
+		['c3', '(curtime())'],
+		['c4', 'utc_timestamp()'],
+		['c5', 'utc_timestamp()'],
+		['c6', '(uuid())'],
+		['c7', "'uuid()'"],
+		['c8', "'2024-01-01'"],
+		['c9', "'10:00:00'"],
+		['c10', '2024'],
+	]);
+	expect(ddlFromPulledTsSchema.columns.list().map((it) => [it.name, it.default])).toStrictEqual([
+		['c1', '(curdate())'],
+		['c2', '(year(curdate()))'],
+		['c3', '(curtime())'],
+		['c4', '(utc_timestamp())'],
+		['c5', '(utc_timestamp())'],
+		['c6', '(uuid())'],
+		['c7', "'uuid()'"],
+		['c8', "'2024-01-01'"],
+		['c9', "'10:00:00'"],
+		['c10', '2024'],
+	]);
+});

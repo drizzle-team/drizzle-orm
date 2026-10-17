@@ -15,7 +15,7 @@ import {
 import { parseArray } from '../../utils/parse-pgarray';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
 import { hash } from '../common';
-import { escapeForSqlTemplate, numberForTs, parseParams } from '../grammar';
+import { escapeForSqlTemplate, isNumberLiteral, isSqlStringLiteral, numberForTs, parseParams } from '../grammar';
 import type { CockroachEntities, Column, DiffEntities } from './ddl';
 import type { Import } from './typescript';
 
@@ -639,7 +639,11 @@ export const Int2: SqlType = {
 	defaultArrayFromIntrospect: (value) => {
 		return value as string;
 	},
-	toTs: (_, value) => ({ default: value ?? '' }),
+	toTs: (_, value) => {
+		if (!value) return { default: '' };
+		if (isNumberLiteral(value)) return { default: value };
+		return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
+	},
 	toArrayTs: (_, value) => {
 		if (!value) return { default: '' };
 
@@ -719,7 +723,11 @@ export const Bool: SqlType = {
 	defaultArrayFromIntrospect: (value) => {
 		return value as string;
 	},
-	toTs: (_, value) => ({ default: value ?? '' }),
+	toTs: (_, value) => {
+		if (!value) return { default: '' };
+		if (value === 'true' || value === 'false') return { default: value };
+		return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
+	},
 	toArrayTs: (_, value) => {
 		if (!value) return { default: '' };
 
@@ -761,10 +769,10 @@ export const Uuid: SqlType = {
 		const options: any = {};
 		if (!value) return { options, default: '' };
 
-		value = trimChar(value, "'");
-		if (value === 'gen_random_uuid()') {
+		if (trimChar(value, "'") === 'gen_random_uuid()') {
 			return { options, default: '.defaultRandom()' };
 		}
+		if (!isSqlStringLiteral(value)) return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		return { options, default: `"${trimChar(value, "'")}"` };
 	},
 	toArrayTs: (type, value) => {
@@ -803,7 +811,11 @@ export const Real: SqlType = {
 	defaultArrayFromIntrospect: (value) => {
 		return value as string;
 	},
-	toTs: (_, value) => ({ default: value ?? '' }),
+	toTs: (_, value) => {
+		if (!value) return { default: '' };
+		if (isNumberLiteral(value)) return { default: value };
+		return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
+	},
 	toArrayTs: (_, value) => {
 		if (!value) return { default: '' };
 
@@ -1455,6 +1467,7 @@ export const Interval: SqlType = {
 		if (fields.fields) options['fields'] = fields.fields;
 
 		if (!value) return { options, default: '' };
+		if (!isSqlStringLiteral(value)) return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 
 		return { options, default: `"${trimChar(value, "'")}"` };
 	},
@@ -1768,8 +1781,8 @@ export const Inet: SqlType = {
 		const options: any = {};
 		if (!value) return { options, default: '' };
 
-		value = trimChar(value, "'");
-		return { options, default: `"${value}"` };
+		if (!isSqlStringLiteral(value)) return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
+		return { options, default: `"${trimChar(value, "'")}"` };
 	},
 	toArrayTs: (type, value) => {
 		const options: any = {};

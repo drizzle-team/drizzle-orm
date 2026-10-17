@@ -4271,3 +4271,29 @@ test('introspect json array defaults with a backslash, a backtick and "${"', asy
 	expect(defaultsInDatabase[0]).toStrictEqual(['column1', `'${arrayLiteral}'`]);
 	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6493
+test('introspect expression defaults of real, double precision, boolean, uuid, interval, inet, cidr and macaddr', async () => {
+	await db.query(`CREATE TABLE "t" (
+		"c1" real DEFAULT random(),
+		"c2" double precision DEFAULT random(),
+		"c3" boolean DEFAULT (random() > 0.5),
+		"c4" uuid DEFAULT md5(random()::text)::uuid,
+		"c5" interval DEFAULT age(now()),
+		"c6" inet DEFAULT inet_client_addr(),
+		"c7" cidr DEFAULT network(inet_client_addr()),
+		"c8" macaddr DEFAULT trunc('08:00:2b:01:02:03'::macaddr),
+		"c9" macaddr8 DEFAULT trunc('08:00:2b:01:02:03:04:05'::macaddr8)
+	);`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'expression-defaults-6493',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	const defaultsInDatabase = ddlAfterPull.columns.list().map((it) => [it.name, it.default]);
+	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
+});

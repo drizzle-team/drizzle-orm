@@ -1401,3 +1401,37 @@ test('introspect default expression of a text column with a backslash, a backtic
 	expect(ddlAfterPull.columns.one({ table: 'users', name: 'tag' })?.default).toBe(expression);
 	expect(ddlFromPulledTsSchema.columns.one({ table: 'users', name: 'tag' })?.default).toBe(expression);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6493
+test('introspect expression defaults of real and numeric columns', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`CREATE TABLE t (
+		id integer PRIMARY KEY,
+		created_at datetime DEFAULT CURRENT_TIMESTAMP,
+		score real DEFAULT (random()),
+		day real DEFAULT (julianday('now')),
+		amount numeric DEFAULT (abs(-5)),
+		price numeric DEFAULT '10.5'
+	);`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, ddlFromPulledTsSchema } = await diffAfterPull(
+		sqlite,
+		{},
+		'expression-defaults-6493',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	const defaultsInDatabase = ddlAfterPull.columns.list().map((it) => [it.name, it.default]);
+	expect(defaultsInDatabase).toStrictEqual([
+		['id', null],
+		['created_at', 'CURRENT_TIMESTAMP'],
+		['score', 'random()'],
+		['day', "julianday('now')"],
+		['amount', 'abs(-5)'],
+		['price', "'10.5'"],
+	]);
+	expect(ddlFromPulledTsSchema.columns.list().map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
+});

@@ -19,6 +19,8 @@ import {
 	escapeForSqlDefault,
 	escapeForSqlTemplate,
 	escapeForTsLiteral,
+	isNumberLiteral,
+	isSqlStringLiteral,
 	numberForTs,
 	parseParams,
 	unescapeFromSqlDefault,
@@ -203,7 +205,11 @@ export const Real: SqlType = {
 	defaultArrayFromIntrospect: (value) => {
 		return value as string;
 	},
-	toTs: (_, value) => ({ default: value ?? '' }),
+	toTs: (_, value) => {
+		if (!value) return { default: '' };
+		if (isNumberLiteral(value)) return { default: value };
+		return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
+	},
 	toArrayTs: (_, value) => {
 		if (!value) return { default: '' };
 
@@ -248,7 +254,11 @@ export const Boolean: SqlType = {
 	defaultArrayFromIntrospect: (value) => {
 		return value as string;
 	},
-	toTs: (_, value) => ({ default: value ?? '' }),
+	toTs: (_, value) => {
+		if (!value) return { default: '' };
+		if (value === 'true' || value === 'false') return { default: value };
+		return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
+	},
 	toArrayTs: (_, value) => {
 		if (!value) return { default: '' };
 
@@ -828,9 +838,8 @@ export const Uuid: SqlType = {
 		const options: any = {};
 		if (!value) return { options, default: '' };
 
-		value = trimChar(value, "'");
-		if (value === 'gen_random_uuid()') return { options, default: '.defaultRandom()' };
-		if (!value.startsWith("'") && !value.endsWith("'") && value.endsWith('()')) {
+		if (trimChar(value, "'") === 'gen_random_uuid()') return { options, default: '.defaultRandom()' };
+		if (!isSqlStringLiteral(value)) {
 			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 		return { options, default: `"${trimChar(value, "'")}"` };
@@ -885,6 +894,7 @@ export const Interval: SqlType = {
 		if (fields.fields) options['fields'] = fields.fields;
 
 		if (!value) return { options, default: '' };
+		if (!isSqlStringLiteral(value)) return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 
 		return { options, default: `"${trimChar(value, "'")}"` };
 	},
@@ -937,6 +947,7 @@ export const Inet: SqlType = {
 	},
 	toTs: (_, value) => {
 		if (!value) return { default: '' };
+		if (!isSqlStringLiteral(value)) return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		return { default: `"${trimChar(value, "'")}"` };
 	},
 	toArrayTs: (_, value) => {
@@ -981,6 +992,7 @@ export const Cidr: SqlType = {
 	},
 	toTs: (_, value) => {
 		if (!value) return { default: '' };
+		if (!isSqlStringLiteral(value)) return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		return { default: `"${trimChar(value, "'")}"` };
 	},
 	toArrayTs: (_, value) => {
@@ -1023,6 +1035,7 @@ export const MacAddr: SqlType = {
 	},
 	toTs: (_, value) => {
 		if (!value) return { default: '' };
+		if (!isSqlStringLiteral(value)) return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		return { default: `"${trimChar(value, "'")}"` };
 	},
 	toArrayTs: (_, value) => {

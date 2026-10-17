@@ -41,7 +41,8 @@ export interface SqlType<MODE = unknown> {
 	is(type: string): boolean;
 	drizzleImport(vendor?: 'singlestore' | 'mysql'): Import;
 	defaultFromDrizzle(value: unknown, mode?: MODE): Column['default'];
-	defaultFromIntrospect(value: string): Column['default'];
+	// isExpression is true when the database marks the default as an expression, the text of it is not quoted then
+	defaultFromIntrospect(value: string, isExpression?: boolean): Column['default'];
 	toTs(
 		type: string,
 		value: Column['default'],
@@ -229,8 +230,10 @@ export const Char: SqlType = {
 		return `'${escapeForSqlDefault(String(value))}'`;
 	},
 	// 'text''text' -> text'text, we need to make match on introspect
-	defaultFromIntrospect: (value) => {
+	defaultFromIntrospect: (value, isExpression) => {
 		if (value.startsWith('(')) return value;
+		// `uuid()`, a literal is `'text'` here
+		if (isExpression && !value.startsWith("'")) return `(${value})`;
 
 		const trimmed = trimChar(value, "'");
 		return `'${escapeForSqlDefault(trimmed)}'`;
@@ -485,6 +488,9 @@ export const Timestamp: SqlType = {
 			return { options, default: `sql\`${escapeBacktickAndInterpolation(trimmed)}\`` };
 		}
 
+		// a literal is quoted in defaultFromIntrospect, `utc_timestamp()` is not
+		if (!def.startsWith("'")) return { options, default: `sql\`${escapeBacktickAndInterpolation(def)}\`` };
+
 		if (fsp && Number(fsp) > 3) return { options, default: `sql\`'${escapeBacktickAndInterpolation(trimmed)}'\`` };
 		// TODO: we can handle fsp 6 here too, using sql``
 		return { options, default: `new Date("${trimmed}Z")` };
@@ -508,6 +514,9 @@ export const DateTime: SqlType = {
 			return { options, default: `sql\`${escapeBacktickAndInterpolation(trimmed)}\`` };
 		}
 
+		// a literal is quoted in defaultFromIntrospect, `utc_timestamp()` is not
+		if (!def.startsWith("'")) return { options, default: `sql\`${escapeBacktickAndInterpolation(def)}\`` };
+
 		if (fsp && Number(fsp) > 3) return { options, default: `sql\`'${escapeBacktickAndInterpolation(trimmed)}'\`` };
 		// TODO: we can handle fsp 6 here too, using sql``
 		return { options, default: `new Date("${trimmed}Z")` };
@@ -520,7 +529,9 @@ export const Time: SqlType = {
 	defaultFromDrizzle: (value) => {
 		return `'${String(value)}'`;
 	},
-	defaultFromIntrospect: (value) => {
+	defaultFromIntrospect: (value, isExpression) => {
+		if (value.startsWith('(')) return value;
+		if (isExpression && !value.startsWith("'")) return `(${value})`;
 		if (!value.startsWith("'")) return `'${value}'`;
 		return value;
 	},
@@ -530,6 +541,7 @@ export const Time: SqlType = {
 		if (fsp) options['fsp'] = Number(fsp);
 
 		if (!def) return { options, default: '' };
+		if (def.startsWith('(')) return { options, default: `sql\`${escapeBacktickAndInterpolation(def)}\`` };
 
 		const trimmed = trimChar(def, "'");
 		return { options, default: `"${trimmed}"` };
@@ -546,7 +558,9 @@ export const Date_: SqlType = {
 		}
 		return `'${value}'`;
 	},
-	defaultFromIntrospect: (value) => {
+	defaultFromIntrospect: (value, isExpression) => {
+		if (value.startsWith('(')) return value;
+		if (isExpression && !value.startsWith("'")) return `(${value})`;
 		if (!value.startsWith("'")) return `'${value}'`;
 		return value;
 	},
@@ -555,6 +569,7 @@ export const Date_: SqlType = {
 		const [fsp] = parseParams(type);
 		if (fsp) options['fsp'] = Number(fsp);
 		if (!def) return { options, default: '' };
+		if (def.startsWith('(')) return { options, default: `sql\`${escapeBacktickAndInterpolation(def)}\`` };
 		return { options, default: `new Date("${trimChar(def, "'")}")` };
 	},
 };
@@ -574,6 +589,7 @@ export const Year: SqlType = {
 		if (fsp) options['fsp'] = Number(fsp);
 
 		if (!def) return { options, default: '' };
+		if (checkNumber(def) === 'NaN') return { options, default: `sql\`${escapeBacktickAndInterpolation(def)}\`` };
 		return { options, default: `${def}` };
 	},
 };
@@ -691,13 +707,14 @@ export const parseEnum = (it: string) => {
 export const parseDefaultValue = (
 	columnType: string,
 	value: string | undefined,
+	isExpression: boolean = false,
 ): Column['default'] => {
 	if (value === null || typeof value === 'undefined') return null;
 
 	value = stripCollation(value);
 
 	const grammarType = typeFor(columnType);
-	if (grammarType) return grammarType.defaultFromIntrospect(value);
+	if (grammarType) return grammarType.defaultFromIntrospect(value, isExpression);
 
 	console.error(`unknown default: ${columnType} ${value}`);
 	return null;
