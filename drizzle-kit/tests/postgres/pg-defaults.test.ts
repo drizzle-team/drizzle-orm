@@ -264,6 +264,22 @@ test('numeric', async () => {
 	expect.soft(res13).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6495
+test('numeric expression default', async () => {
+	// the deparsed form is what `pull` generates for `DEFAULT (random() * 10)` (pg_get_expr)
+	const res1 = await diffDefault(
+		_,
+		numeric({ mode: 'number' }).default(sql`(random() * (10)::double precision)`),
+		'(random() * (10)::double precision)',
+	);
+	const res2 = await diffDefault(_, numeric({ mode: 'number' }).default(10.5), "'10.5'");
+	const res3 = await diffDefault(_, numeric({ mode: 'number' }).default(-10.5), "'-10.5'");
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+});
+
 test('numeric arrays', async () => {
 	const res1 = await diffDefault(_, numeric({ mode: 'number' }).array().default([]), "'{}'::numeric[]");
 	const res2 = await diffDefault(
