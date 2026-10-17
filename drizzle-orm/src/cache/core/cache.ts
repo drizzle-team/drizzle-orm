@@ -76,3 +76,26 @@ export async function hashQuery(sql: string, params?: any[]) {
 
 	return hashHex;
 }
+
+const cacheEntryVersion = 1;
+
+export type CachedQueryEntry = { v: number; q: string; r: any };
+
+export function toCacheEntry(query: string, response: any): CachedQueryEntry {
+	return { v: cacheEntryVersion, q: query, r: response };
+}
+
+/**
+ * Unwrap a cached response, or return `undefined` if it cannot be used by this query.
+ *
+ * Cached payloads are raw driver responses, and most drivers return rows positionally -
+ * the column names are applied afterwards, from the field list of whatever query reads
+ * the entry. A differing `q` therefore means a different column layout, so mapping the
+ * entry would shift values between properties instead of merely serving stale data.
+ * This matters for queries cached under a custom tag, whose key stays the same when the
+ * query changes. A differing `v` means the entry predates this envelope. Both are
+ * treated as a cache miss and refetched.
+ */
+export function fromCacheEntry(entry: any, query: string): any | undefined {
+	return entry?.v === cacheEntryVersion && entry.q === query ? entry.r : undefined;
+}

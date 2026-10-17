@@ -1,4 +1,4 @@
-import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
+import { type Cache, fromCacheEntry, hashQuery, NoopCache, toCacheEntry } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
@@ -89,11 +89,14 @@ export abstract class GelPreparedQuery<T extends PreparedQueryConfig> implements
 		}
 
 		if (this.queryMetadata.type === 'select') {
-			const fromCache = await this.cache.get(
-				this.cacheConfig.tag ?? await hashQuery(queryString, params),
-				this.queryMetadata.tables,
-				this.cacheConfig.tag !== undefined,
-				this.cacheConfig.autoInvalidate,
+			const fromCache = fromCacheEntry(
+				await this.cache.get(
+					this.cacheConfig.tag ?? await hashQuery(queryString, params),
+					this.queryMetadata.tables,
+					this.cacheConfig.tag !== undefined,
+					this.cacheConfig.autoInvalidate,
+				),
+				queryString,
 			);
 			if (fromCache === undefined) {
 				let result;
@@ -106,7 +109,7 @@ export abstract class GelPreparedQuery<T extends PreparedQueryConfig> implements
 				// put actual key
 				await this.cache.put(
 					this.cacheConfig.tag ?? await hashQuery(queryString, params),
-					result,
+					toCacheEntry(queryString, result),
 					// make sure we send tables that were used in a query only if user wants to invalidate it on each write
 					this.cacheConfig.autoInvalidate ? this.queryMetadata.tables : [],
 					this.cacheConfig.tag !== undefined,
