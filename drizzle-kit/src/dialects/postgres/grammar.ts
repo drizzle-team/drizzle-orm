@@ -142,7 +142,13 @@ export const Numeric: SqlType = {
 	},
 	defaultFromIntrospect: (value) => {
 		// 10.123, but '9223372036854775807'
-		return `'${trimChar(value, "'")}'`;
+		const trimmed = trimChar(value, "'");
+		// https://github.com/drizzle-team/drizzle-orm/issues/6495
+		// expression defaults must stay unquoted: quoting them makes the introspected
+		// default never match the `sql` default from the schema, so every diff emits
+		// a spurious `SET DEFAULT`
+		if (Number.isNaN(Number(trimmed))) return trimmed;
+		return `'${trimmed}'`;
 	},
 	defaultArrayFromIntrospect: (value) => {
 		return value;
