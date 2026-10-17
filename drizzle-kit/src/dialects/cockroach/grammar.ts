@@ -765,7 +765,10 @@ export const Uuid: SqlType = {
 		if (value === 'gen_random_uuid()') {
 			return { options, default: '.defaultRandom()' };
 		}
-		return { options, default: `"${trimChar(value, "'")}"` };
+		if (/^[0-9a-f-]{36}$/i.test(value)) {
+			return { options, default: `"${value}"` };
+		}
+		return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 	},
 	toArrayTs: (type, value) => {
 		const options: any = {};

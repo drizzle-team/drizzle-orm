@@ -1,7 +1,13 @@
 import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
 import { hash } from '../common';
-import { escapeForSqlDefault, escapeForTsLiteral, parseParams, unescapeFromSqlDefault } from '../grammar';
+import {
+	escapeForSqlDefault,
+	escapeForSqlTemplate,
+	escapeForTsLiteral,
+	parseParams,
+	unescapeFromSqlDefault,
+} from '../grammar';
 import type { Column, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
@@ -555,7 +561,9 @@ export const Date_: SqlType = {
 		const [fsp] = parseParams(type);
 		if (fsp) options['fsp'] = Number(fsp);
 		if (!def) return { options, default: '' };
-		return { options, default: `new Date("${trimChar(def, "'")}")` };
+		const trimmed = trimChar(def, "'");
+		if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return { options, default: `new Date("${trimmed}")` };
+		return { options, default: `sql\`${escapeForSqlTemplate(trimmed)}\`` };
 	},
 };
 

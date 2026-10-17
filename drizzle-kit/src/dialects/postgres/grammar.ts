@@ -203,7 +203,11 @@ export const Real: SqlType = {
 	defaultArrayFromIntrospect: (value) => {
 		return value as string;
 	},
-	toTs: (_, value) => ({ default: value ?? '' }),
+	toTs: (_, value) => {
+		if (!value) return { default: '' };
+		const check = Number(value);
+		return { default: Number.isNaN(check) ? `sql\`${escapeForSqlTemplate(value)}\`` : value };
+	},
 	toArrayTs: (_, value) => {
 		if (!value) return { default: '' };
 

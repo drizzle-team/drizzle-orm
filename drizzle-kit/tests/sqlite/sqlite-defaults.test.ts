@@ -183,3 +183,18 @@ test('blob', async () => {
 	expect.soft(res13).toStrictEqual([]);
 	expect.soft(res14).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6493
+test('real/numeric expression defaults', async () => {
+	const res1 = await diffDefault(_, real().default(sql`(random())`), '(random())');
+	const res2 = await diffDefault(_, numeric().default(sql`CURRENT_TIMESTAMP`), 'CURRENT_TIMESTAMP');
+
+	// literal defaults keep working
+	const res3 = await diffDefault(_, real().default(10.5), '10.5');
+	const res4 = await diffDefault(_, numeric({ mode: 'number' }).default(10), '10');
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+});
