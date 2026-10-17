@@ -470,6 +470,12 @@ export const ddlDiff = async (
 		});
 	}
 
+	const functionsDiff = diff.all(ddl1, ddl2, 'functions');
+
+	const createdFunctions = functionsDiff.filter((it) => it.$diffType === 'create');
+	const deletedFunctions = functionsDiff.filter((it) => it.$diffType === 'drop');
+	const alteredFunctions = functionsDiff.filter((it) => it.$diffType === 'alter');
+
 	const diffChecks = diff(ddl1, ddl2, 'checks');
 	const groupedChecksDiff = groupDiffs(diffChecks);
 	const checkRenames = [] as { from: CheckConstraint; to: CheckConstraint }[];
@@ -667,6 +673,15 @@ export const ddlDiff = async (
 		we filter them out, because we either create them on table creation
 		or they get automatically deleted when table is deleted
 	*/
+
+	const jsonCreateFunctions = createdFunctions.map((it) => prepareStatement('create_function', { function: it }));
+	const jsonDropFunctions = deletedFunctions.map((it) => prepareStatement('drop_function', { function: it }));
+	const jsonAlterFunctions = alteredFunctions.map((it) => {
+		const oldFunction = it.$left as PostgresEntities['functions'];
+		const newFunction = it.$right as PostgresEntities['functions'];
+		return prepareStatement('alter_function', { oldFunction, newFunction });
+	});
+
 	const tablesFilter = (type: 'deleted' | 'created') => {
 		return (it: { schema: string; table: string }) => {
 			if (type === 'created') {
@@ -1274,12 +1289,16 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonAlterCheckConstraints);
 
+	jsonStatements.push(...jsonCreateFunctions);
+	jsonStatements.push(...jsonAlterFunctions);
+
 	jsonStatements.push(...createViews);
 
 	jsonStatements.push(...jsonRenamePoliciesStatements);
 	jsonStatements.push(...jsonCreatePoliciesStatements);
 	jsonStatements.push(...jsonAlterOrRecreatePoliciesStatements);
 
+	jsonStatements.push(...jsonDropFunctions);
 	jsonStatements.push(...jsonDropEnums);
 	jsonStatements.push(...dropSequences);
 	jsonStatements.push(...dropSchemas);

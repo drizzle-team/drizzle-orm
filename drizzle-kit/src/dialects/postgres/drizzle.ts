@@ -11,7 +11,11 @@ import type {
 	ViewWithConfig,
 } from 'drizzle-orm/pg-core';
 import {
+	type AnyPgColumnBuilder,
+	buildPgFunctionColumn,
 	getMaterializedViewConfig,
+	getPgFunctionArgumentSQLName,
+	getPgFunctionDeclareSQLName,
 	getTableConfig,
 	getViewConfig,
 	IndexedColumn,
@@ -22,6 +26,7 @@ import {
 	PgDialect,
 	PgEnumColumn,
 	PgEnumObjectColumn,
+	PgFunction,
 	PgGeometry,
 	PgGeometryObject,
 	PgLineABC,
@@ -107,6 +112,152 @@ export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 		using: policyUsing,
 		withCheck,
 	};
+};
+
+const sqlTypeFromFunctionColumn = (
+	column: AnyPgColumn,
+	dialect: PgDialect,
+) => {
+	const unwrapped = unwrapColumn(column);
+
+	if (unwrapped.isEnum && unwrapped.typeSchema) {
+		return `${dialect.escapeName(unwrapped.typeSchema)}.${dialect.escapeName(unwrapped.baseColumn.getSQLType())}${
+			'[]'.repeat(unwrapped.dimensions)
+		}`;
+	}
+
+	return unwrapped.sqlType;
+};
+
+const sqlTypeFromFunctionArg = (
+	builder: AnyPgColumnBuilder,
+	dialect: PgDialect,
+) => sqlTypeFromFunctionColumn(buildPgFunctionColumn(builder), dialect);
+
+const functionTableTypeSql = (
+	table: PgTable,
+	dialect: PgDialect,
+): string => {
+	const name = getTableName(table);
+	const schema = getTableConfig(table).schema ?? 'public';
+
+	return `${dialect.escapeName(schema)}.${dialect.escapeName(name)}`;
+};
+
+const functionReturnTypeSql = (
+	returns: PgFunction['config']['returns'],
+	dialect: PgDialect,
+): string => {
+	// Raw SQL must be fully serializable into the snapshot
+	if (is(returns, SQL)) {
+		return dialect.sqlToQuery(returns.inlineParams()).sql;
+	}
+
+	if (typeof returns === 'object' && returns !== null && 'kind' in returns) {
+		if (returns.kind === 'special') {
+			return returns.type;
+		}
+
+		if (returns.kind === 'setof') {
+			const inner = returns.type;
+
+			if (is(inner, PgTable)) {
+				return `SETOF ${functionTableTypeSql(inner, dialect)}`;
+			}
+
+			return `SETOF ${sqlTypeFromFunctionArg(inner, dialect)}`;
+		}
+
+		if (returns.kind === 'table') {
+			const columns = Object.entries(returns.columns)
+				.map(
+					([name, builder]) => `${dialect.escapeName(name)} ${sqlTypeFromFunctionArg(builder, dialect)}`,
+				)
+				.join(', ');
+
+			return `TABLE(${columns})`;
+		}
+	}
+
+	if (is(returns, PgTable)) {
+		return functionTableTypeSql(returns, dialect);
+	}
+
+	return sqlTypeFromFunctionArg(returns, dialect);
+};
+
+export const functionFrom = (fn: PgFunction, dialect: PgDialect) => {
+	const config = fn.config;
+	return {
+		entityType: 'functions',
+		name: config.name,
+		schema: config.schema ?? 'public',
+		functionName: config.name,
+
+		identityArgs: Object.entries(config.args).map(([, builder]) =>
+			sqlTypeFromFunctionColumn(buildPgFunctionColumn(builder), dialect)
+		),
+
+		args: Object.entries(config.args).map(([name, builder]) => {
+			const column = buildPgFunctionColumn(builder);
+			const { dimensions } = unwrapColumn(column);
+
+			return {
+				name: getPgFunctionArgumentSQLName(name),
+				type: sqlTypeFromFunctionColumn(column, dialect),
+				default: defaultFromColumn(
+					column,
+					column.default,
+					dimensions,
+					dialect,
+				),
+			};
+		}),
+
+		returns: functionReturnTypeSql(config.returns, dialect),
+
+		language: config.language,
+		volatility: config.volatility,
+		security: config.security,
+		nullInput: config.nullInput,
+		parallel: config.parallel,
+
+		searchPath: config.searchPath === undefined
+			? null
+			: { values: [...config.searchPath] },
+
+		declare: config.declare === undefined
+			? null
+			: {
+				values: Object.entries(config.declare).map(([name, builder]) => {
+					const column = buildPgFunctionColumn(builder);
+					const { dimensions } = unwrapColumn(column);
+
+					return {
+						name: getPgFunctionDeclareSQLName(name),
+						type: sqlTypeFromFunctionColumn(column, dialect),
+						default: defaultFromColumn(
+							column,
+							column.default,
+							dimensions,
+							dialect,
+						),
+					};
+				}),
+			},
+
+		// Sort configuration so we keep a consistent ordering
+		configuration: Array.from(config.configuration.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(
+			([name, value]) => {
+				return {
+					name,
+					value,
+				};
+			},
+		),
+
+		body: dialect.sqlToQuery(config.body.inlineParams()).sql,
+	} satisfies PostgresEntities['functions'] & { schema: string };
 };
 
 export const unwrapColumn = (column: AnyPgColumn) => {
@@ -217,6 +368,7 @@ export const fromDrizzleSchema = (
 	schema: {
 		schemas: PgSchema[];
 		tables: AnyPgTable[];
+		functions: PgFunction[];
 		enums: PgEnum<any>[];
 		sequences: PgSequence[];
 		roles: PgRole[];
@@ -242,6 +394,7 @@ export const fromDrizzleSchema = (
 		checks: [],
 		columns: [],
 		policies: [],
+		functions: [],
 		enums: [],
 		roles: [],
 		privileges: [],
@@ -295,6 +448,8 @@ export const fromDrizzleSchema = (
 			withCheck: p.withCheck,
 		});
 	}
+
+	res.functions = schema.functions.map((it) => functionFrom(it, dialect));
 
 	res.tables = tableConfigPairs.map((it) => {
 		const config = it.config;
@@ -784,6 +939,7 @@ export const fromDrizzleSchema = (
 
 export const fromExports = (exports: Record<string, unknown>) => {
 	const tables: AnyPgTable[] = [];
+	const functions: PgFunction[] = [];
 	const enums: PgEnum<any>[] = [];
 	const schemas: PgSchema[] = [];
 	const sequences: PgSequence[] = [];
@@ -801,6 +957,10 @@ export const fromExports = (exports: Record<string, unknown>) => {
 		}
 		if (is(t, PgTable)) {
 			tables.push(t);
+		}
+
+		if (is(t, PgFunction)) {
+			functions.push(t);
 		}
 
 		if (is(t, PgSchema)) {
@@ -834,6 +994,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 
 	return {
 		tables,
+		functions,
 		enums,
 		schemas,
 		sequences,
@@ -847,6 +1008,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 
 export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const tables: AnyPgTable[] = [];
+	const functions: PgFunction[] = [];
 	const enums: PgEnum<any>[] = [];
 	const schemas: PgSchema[] = [];
 	const sequences: PgSequence[] = [];
@@ -863,6 +1025,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		const prepared = fromExports(i0);
 
 		tables.push(...prepared.tables);
+		functions.push(...prepared.functions);
 		enums.push(...prepared.enums);
 		schemas.push(...prepared.schemas);
 		sequences.push(...prepared.sequences);
@@ -875,6 +1038,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 
 	return {
 		tables,
+		functions,
 		enums,
 		schemas,
 		sequences,

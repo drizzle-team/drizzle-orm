@@ -6,6 +6,50 @@ export const createDDL = () => {
 	return create({
 		schemas: {},
 		tables: { schema: 'required', isRlsEnabled: 'boolean' },
+		functions: {
+			schema: 'required',
+			functionName: 'string',
+
+			// We need to know what args PostGreSQL actually uses to identify a function.
+			// Since PostGreSQL doesn't actually care about the names themselves, we want the function identity
+			// to be based on the args themselves and not the names that we give them.
+			identityArgs: 'string[]',
+
+			args: [{
+				name: 'string',
+				type: 'string',
+				default: 'string?',
+			}],
+
+			declare: {
+				values: [{
+					name: 'string',
+					type: 'string',
+					default: 'string?',
+				}],
+			},
+
+			returns: 'string',
+
+			language: 'string',
+			volatility: ['volatile', 'stable', 'immutable'],
+			security: ['definer', 'invoker'],
+			nullInput: ['called', 'returned', 'strict'],
+			parallel: ['unsafe', 'restricted', 'safe'],
+
+			// We need to explicitly support both undefined search paths and empty search paths since they are fundamentally different and important for security.
+			// Drizzle's current DDL doesn't support a 'string[]?' type, so we we get around it this way.
+			searchPath: {
+				values: 'string[]',
+			},
+
+			configuration: [{
+				name: 'string',
+				value: 'string',
+			}],
+
+			body: 'string',
+		},
 		enums: {
 			schema: 'required',
 			values: 'string[]',
@@ -218,6 +262,7 @@ export type InterimIndex = Index & {
 };
 
 export interface InterimSchema {
+	functions: PostgresEntities['functions'][];
 	schemas: Schema[];
 	enums: Enum[];
 	tables: PostgresEntities['tables'][];
@@ -368,6 +413,13 @@ interface EnumValuesDuplicate {
 	name: string;
 }
 
+interface FunctionSignatureDuplicate {
+	type: 'function_signature_duplicate';
+	schema: string;
+	name: string;
+	args: string[];
+}
+
 export type SchemaError =
 	| EnumValuesDuplicate
 	| SchemaDuplicate
@@ -382,7 +434,8 @@ export type SchemaError =
 	| PgVectorIndexNoOp
 	| RoleDuplicate
 	| PolicyDuplicate
-	| PrivilegeDuplicate;
+	| PrivilegeDuplicate
+	| FunctionSignatureDuplicate;
 
 interface PolicyNotLinked {
 	type: 'policy_not_linked';
@@ -440,6 +493,18 @@ export const interimToDDL = (
 				type: 'table_name_duplicate',
 				schema: it.schema,
 				name: it.name,
+			});
+		}
+	}
+
+	for (const it of schema.functions) {
+		const res = ddl.functions.push(it, ['schema', 'name', 'identityArgs']);
+		if (res.status === 'CONFLICT') {
+			errors.push({
+				type: 'function_signature_duplicate',
+				schema: it.schema,
+				name: it.name,
+				args: it.identityArgs,
 			});
 		}
 	}

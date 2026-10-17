@@ -1,0 +1,516 @@
+import { entityKind } from '~/entity.ts';
+import type { SQL, SQLWrapper } from '~/sql/sql.ts';
+import { sql } from '~/sql/sql.ts';
+import type { InferSelectModel } from '~/table.ts';
+import type { AnyPgColumn, AnyPgColumnBuilder, PgColumnBuilder, ResolvePgColumnConfig } from './columns/common.ts';
+import { PgTable } from './table.ts';
+
+/* Types */
+export type PgFunctionLanguage =
+	| 'plpgsql'
+	| 'sql'
+	| (string & {});
+export type PgFunctionVolatility = 'volatile' | 'stable' | 'immutable';
+export type PgFunctionSecurity = 'definer' | 'invoker';
+export type PgFunctionNullInput = 'called' | 'returned' | 'strict';
+export type PgFunctionParallel = 'unsafe' | 'restricted' | 'safe';
+
+type PgFunctionArgumentType = AnyPgColumnBuilder;
+
+export type PgFunctionArgsDefinition = Record<string, PgFunctionArgumentType>;
+export type PgFunctionDeclareDefinition = PgFunctionArgsDefinition;
+
+export type PgFunctionScalarReturn =
+	| AnyPgColumnBuilder
+	| PgTable;
+
+export interface PgFunctionTableReturn<
+	TColumns extends Record<string, AnyPgColumnBuilder> = Record<string, AnyPgColumnBuilder>,
+> {
+	kind: 'table';
+	columns: TColumns;
+}
+
+export interface PgFunctionSetOfReturn<
+	TType extends PgFunctionScalarReturn = PgFunctionScalarReturn,
+> {
+	kind: 'setof';
+	type: TType;
+}
+
+export type PgFunctionSpecialReturnType =
+	| 'void'
+	| 'record'
+	| 'trigger';
+
+export interface PgFunctionSpecialReturn<
+	TType extends PgFunctionSpecialReturnType = PgFunctionSpecialReturnType,
+> {
+	kind: 'special';
+	type: TType;
+}
+
+export type PgFunctionReturnType =
+	| PgFunctionScalarReturn
+	| PgFunctionTableReturn
+	| PgFunctionSetOfReturn
+	| PgFunctionSpecialReturn
+	| SQL;
+
+export interface PgFunctionBuilderRuntimeConfig<
+	TName extends string = string,
+	TSchema extends string | undefined = string | undefined,
+	TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+	TDeclare extends PgFunctionDeclareDefinition = PgFunctionDeclareDefinition,
+	TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+> {
+	name: TName;
+	schema: TSchema;
+	args: TArgs;
+	declare?: TDeclare;
+	returns: TReturns;
+
+	language: PgFunctionLanguage;
+	volatility: PgFunctionVolatility;
+	security: PgFunctionSecurity;
+	nullInput: PgFunctionNullInput;
+	parallel: PgFunctionParallel;
+	searchPath?: string[];
+	configuration: Map<string, string>;
+}
+
+export interface PgFunctionConfig<
+	TName extends string = string,
+	TSchema extends string | undefined = string | undefined,
+	TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+	TDeclare extends PgFunctionDeclareDefinition = PgFunctionDeclareDefinition,
+	TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+> extends PgFunctionBuilderRuntimeConfig<TName, TSchema, TArgs, TDeclare, TReturns> {
+	body: SQL;
+}
+
+export interface PgFunctionDefinition<
+	TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+	TDeclare extends PgFunctionDeclareDefinition = PgFunctionDeclareDefinition,
+	TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+> {
+	args: TArgs;
+	declare?: TDeclare;
+	returns: TReturns;
+}
+
+export type PgFunctionArgumentReferences<
+	TArgs extends PgFunctionArgsDefinition,
+> = {
+	[K in keyof TArgs]: PgFunctionArgument<TArgs[K]>;
+};
+
+export type PgFunctionDeclareReferences<
+	TDeclare extends PgFunctionDeclareDefinition,
+> = {
+	[K in keyof TDeclare]: PgFunctionArgument<TDeclare[K]>;
+};
+
+export interface PgFunctionBodyContext<
+	TName extends string,
+	TArgs extends PgFunctionArgsDefinition,
+	TDeclare extends PgFunctionDeclareDefinition,
+> {
+	readonly name: TName;
+	readonly args: PgFunctionArgumentReferences<TArgs>;
+	readonly declare?: PgFunctionDeclareReferences<TDeclare>;
+}
+
+type PgFunctionBody<
+	TName extends string,
+	TArgs extends PgFunctionArgsDefinition,
+	TDeclare extends PgFunctionDeclareDefinition,
+> =
+	| SQL
+	| ((fn: PgFunctionBodyContext<TName, TArgs, TDeclare>) => SQL);
+
+export interface PgFunctionFn<
+	TSchema extends string | undefined = undefined,
+> {
+	<
+		TName extends string,
+		TArgs extends PgFunctionArgsDefinition,
+		TDeclare extends PgFunctionDeclareDefinition,
+		TReturns extends PgFunctionReturnType,
+	>(
+		name: TName,
+		config: PgFunctionDefinition<TArgs, TDeclare, TReturns>,
+	): PgFunctionBuilder<
+		TName,
+		TSchema,
+		TArgs,
+		TDeclare,
+		TReturns
+	>;
+}
+
+type PgFunctionConfigValue = string | number | boolean;
+
+/* Class */
+export class PgFunctionBuilder<
+	TName extends string = string,
+	TSchema extends string | undefined = string | undefined,
+	TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+	TDeclare extends PgFunctionDeclareDefinition = PgFunctionDeclareDefinition,
+	TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+> {
+	static readonly [entityKind]: string = 'PgFunctionBuilder';
+
+	protected config: PgFunctionBuilderRuntimeConfig<TName, TSchema, TArgs, TDeclare, TReturns>;
+
+	constructor(
+		name: TName,
+		schema: TSchema,
+		args: TArgs,
+		returns: TReturns,
+		declare?: TDeclare,
+	) {
+		this.config = {
+			name: name,
+			schema: schema,
+			args: args,
+			returns: returns,
+			...(declare !== undefined ? { declare } : {}),
+
+			language: 'plpgsql',
+			volatility: 'volatile',
+			security: 'invoker',
+			nullInput: 'called',
+			parallel: 'unsafe',
+			// searchPath: undefined,
+			configuration: new Map(),
+		};
+	}
+
+	/* Language */
+	language(language: PgFunctionLanguage): this {
+		this.config.language = language;
+		return this;
+	}
+
+	/* Volatility */
+	volatile(): this {
+		this.config.volatility = 'volatile';
+		return this;
+	}
+
+	stable(): this {
+		this.config.volatility = 'stable';
+		return this;
+	}
+
+	immutable(): this {
+		this.config.volatility = 'immutable';
+		return this;
+	}
+
+	/* Security */
+	securityDefiner(): this {
+		this.config.security = 'definer';
+		return this;
+	}
+
+	securityInvoker(): this {
+		this.config.security = 'invoker';
+		return this;
+	}
+
+	/* Null input */
+	calledOnNullInput(): this {
+		this.config.nullInput = 'called';
+		return this;
+	}
+
+	returnedOnNullInput(): this {
+		this.config.nullInput = 'returned';
+		return this;
+	}
+
+	strict(): this {
+		this.config.nullInput = 'strict';
+		return this;
+	}
+
+	/* Parallel */
+	parallelUnsafe(): this {
+		this.config.parallel = 'unsafe';
+		return this;
+	}
+
+	parallelRestricted(): this {
+		this.config.parallel = 'restricted';
+		return this;
+	}
+
+	parallelSafe(): this {
+		this.config.parallel = 'safe';
+		return this;
+	}
+
+	/* Search path */
+	searchPath(...searchPath: string[]): this {
+		this.config.searchPath = searchPath;
+		return this;
+	}
+
+	/* Configuration */
+	setConfig(
+		name: string,
+		value: PgFunctionConfigValue,
+	): this {
+		this.config.configuration.set(name, String(value));
+		return this;
+	}
+
+	/* Build */
+	as(
+		body: PgFunctionBody<TName, TArgs, TDeclare>,
+	): PgFunction<TName, TSchema, TArgs, TDeclare, TReturns> {
+		const resolvedBody = typeof body === 'function'
+			? body({
+				name: this.config.name,
+				args: buildFunctionArgumentReferences(this.config.args),
+				...(this.config.declare !== undefined
+					? { declare: buildFunctionDeclareReferences(this.config.declare) }
+					: {}),
+			} as PgFunctionBodyContext<TName, TArgs, TDeclare>)
+			: body;
+
+		return new PgFunction<TName, TSchema, TArgs, TDeclare, TReturns>({
+			...this.config,
+			configuration: new Map(this.config.configuration),
+			...(this.config.searchPath !== undefined
+				? { searchPath: [...this.config.searchPath] }
+				: {}),
+			...(this.config.declare !== undefined
+				? { declare: { ...this.config.declare } }
+				: {}),
+			body: resolvedBody,
+		});
+	}
+}
+
+export class PgFunctionArgument<
+	TBuilder extends AnyPgColumnBuilder = AnyPgColumnBuilder,
+> implements SQLWrapper<InferPgFunctionColumnBuilder<TBuilder>> {
+	static readonly [entityKind]: string = 'PgFunctionArgument';
+
+	constructor(
+		readonly name: string,
+		readonly sqlName: string,
+	) {}
+
+	getSQL(): SQL<InferPgFunctionColumnBuilder<TBuilder>> {
+		return sql<InferPgFunctionColumnBuilder<TBuilder>>`${sql.identifier(this.sqlName)}`;
+	}
+
+	shouldOmitSQLParens(): boolean {
+		return true;
+	}
+}
+
+export class PgFunction<
+	TName extends string = string,
+	TSchema extends string | undefined = string | undefined,
+	TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+	TDeclare extends PgFunctionDeclareDefinition = PgFunctionDeclareDefinition,
+	TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+> {
+	static readonly [entityKind]: string = 'PgFunction';
+
+	readonly config: PgFunctionConfig<TName, TSchema, TArgs, TDeclare, TReturns>;
+
+	constructor(config: PgFunctionConfig<TName, TSchema, TArgs, TDeclare, TReturns>) {
+		this.config = config;
+	}
+}
+
+/* Infer Helpers */
+type InferPgFunctionColumnBuilder<
+	TBuilder extends AnyPgColumnBuilder,
+> = ResolvePgColumnConfig<TBuilder['_'], ''>['data'];
+
+export type InferFunctionSchema<
+	TFunction extends PgFunction,
+> = TFunction extends PgFunction<any, infer TSchema, any, any, any> ? TSchema
+	: never;
+
+export type InferFunctionArgs<
+	TFunction extends PgFunction,
+> = TFunction extends PgFunction<any, any, infer TArgs, any, any> ? {
+		[K in keyof TArgs]: TArgs[K] extends AnyPgColumnBuilder ? InferPgFunctionColumnBuilder<TArgs[K]>
+			: never;
+	}
+	: never;
+
+export type InferFunctionDeclare<
+	TFunction extends PgFunction,
+> = TFunction extends PgFunction<any, any, any, infer TDeclare, any> ? {
+		[K in keyof TDeclare]: TDeclare[K] extends AnyPgColumnBuilder ? InferPgFunctionColumnBuilder<TDeclare[K]>
+			: never;
+	}
+	: never;
+
+type InferPgFunctionScalarReturn<T> = T extends AnyPgColumnBuilder ? InferPgFunctionColumnBuilder<T>
+	: T extends PgTable ? InferSelectModel<T>
+	: never;
+
+type InferPgFunctionTableColumns<
+	TColumns extends Record<string, AnyPgColumnBuilder>,
+> = {
+	[K in keyof TColumns]: InferPgFunctionColumnBuilder<TColumns[K]>;
+};
+
+type InferPgFunctionReturn<TReturns> = TReturns extends AnyPgColumnBuilder ? InferPgFunctionColumnBuilder<TReturns>
+	: TReturns extends PgTable ? InferSelectModel<TReturns>
+	: TReturns extends PgFunctionSetOfReturn<infer TType> ? InferPgFunctionScalarReturn<TType>[]
+	: TReturns extends PgFunctionTableReturn<infer TColumns> ? InferPgFunctionTableColumns<TColumns>[]
+	: TReturns extends PgFunctionSpecialReturn<'void'> ? void
+	: TReturns extends PgFunctionSpecialReturn<'record'> ? unknown
+	: TReturns extends PgFunctionSpecialReturn<'trigger'> ? unknown
+	: TReturns extends SQL<infer T> ? T
+	: never;
+
+export type InferFunctionReturns<
+	TFunction extends PgFunction,
+> = TFunction extends PgFunction<any, any, any, any, infer TReturns> ? InferPgFunctionReturn<TReturns>
+	: never;
+
+/* Factory */
+export function pgFunction<
+	TName extends string = string,
+	TArgs extends PgFunctionArgsDefinition = PgFunctionArgsDefinition,
+	TDeclare extends PgFunctionDeclareDefinition = PgFunctionDeclareDefinition,
+	TReturns extends PgFunctionReturnType = PgFunctionReturnType,
+>(
+	name: TName,
+	config: PgFunctionDefinition<TArgs, TDeclare, TReturns>,
+): PgFunctionBuilder<TName, undefined, TArgs, TDeclare, TReturns> {
+	return pgFunctionWithSchema(
+		name,
+		config,
+		undefined,
+	);
+}
+
+/** Helpers */
+function buildFunctionArgumentReferences<
+	TArgs extends PgFunctionArgsDefinition,
+>(
+	args: TArgs,
+): PgFunctionArgumentReferences<TArgs> {
+	return Object.fromEntries(
+		Object.keys(args).map((name) => [
+			name,
+			new PgFunctionArgument(name, getPgFunctionArgumentSQLName(name)),
+		]),
+	) as PgFunctionArgumentReferences<TArgs>;
+}
+
+function buildFunctionDeclareReferences<
+	TDeclare extends PgFunctionDeclareDefinition,
+>(
+	declare: TDeclare,
+): PgFunctionDeclareReferences<TDeclare> {
+	return Object.fromEntries(
+		Object.keys(declare).map((name) => [
+			name,
+			new PgFunctionArgument(name, getPgFunctionDeclareSQLName(name)),
+		]),
+	) as PgFunctionDeclareReferences<TDeclare>;
+}
+
+export function getPgFunctionArgumentSQLName(name: string): string {
+	return `a_${name}`;
+}
+
+export function getPgFunctionDeclareSQLName(name: string): string {
+	return name;
+}
+
+/** @internal Use `PgSchema.function` or `pgFunction` instead */
+export function pgFunctionWithSchema<
+	TName extends string,
+	TSchema extends string | undefined,
+	TArgs extends PgFunctionArgsDefinition,
+	TDeclare extends PgFunctionDeclareDefinition,
+	TReturns extends PgFunctionReturnType,
+>(
+	name: TName,
+	config: PgFunctionDefinition<TArgs, TDeclare, TReturns>,
+	schema: TSchema,
+): PgFunctionBuilder<TName, TSchema, TArgs, TDeclare, TReturns> {
+	return new PgFunctionBuilder(
+		name,
+		schema,
+		config.args,
+		config.returns,
+		config.declare,
+	);
+}
+
+// Our current API using the AnyPgColumnBuilder is dependent on the table-column relationship, so we build a temp table to hold
+// the type of the column and arg so we can serialize it in kit.
+// TODO: Replace this with a more generic type API that doesn't rely directly on tables.
+const pgFunctionTypeTable = new PgTable(
+	'__drizzle_function_type__',
+	undefined,
+	'__drizzle_function_type__',
+);
+
+/** @internal */
+export function buildPgFunctionColumn(
+	builder: AnyPgColumnBuilder,
+): AnyPgColumn {
+	return (builder as PgColumnBuilder)
+		.build(pgFunctionTypeTable)
+		.postBuild();
+}
+
+export function setOf<
+	TType extends PgFunctionScalarReturn,
+>(
+	type: TType,
+): PgFunctionSetOfReturn<TType> {
+	return {
+		kind: 'setof',
+		type,
+	};
+}
+
+export function tableReturn<
+	TColumns extends Record<string, AnyPgColumnBuilder>,
+>(
+	columns: TColumns,
+): PgFunctionTableReturn<TColumns> {
+	return {
+		kind: 'table',
+		columns,
+	};
+}
+
+export function returnsVoid(): PgFunctionSpecialReturn<'void'> {
+	return {
+		kind: 'special',
+		type: 'void',
+	};
+}
+
+export function returnsRecord(): PgFunctionSpecialReturn<'record'> {
+	return {
+		kind: 'special',
+		type: 'record',
+	};
+}
+
+export function returnsTrigger(): PgFunctionSpecialReturn<'trigger'> {
+	return {
+		kind: 'special',
+		type: 'trigger',
+	};
+}
