@@ -1214,42 +1214,48 @@ function renderFunction(fn: PostgresEntities['functions'], type: 'create' | 'rep
 	return sql.join('\n');
 }
 
+function renderDropFunction(fn: PostgresEntities['functions']): string {
+	const qualifiedName = `${quoteIdentifier(fn.schema)}.${quoteIdentifier(fn.name)}`;
+	const identityArgs = fn.identityArgs.join(', ');
+
+	return `DROP FUNCTION ${qualifiedName}(${identityArgs});`;
+}
+
 const createFunctionConvertor = convertor('create_function', (st) => {
 	const { function: fn } = st;
 	return renderFunction(fn, 'create');
 });
 
+function returnsMatch(oldFunction: PostgresEntities['functions'], newFunction: PostgresEntities['functions']): boolean {
+	return oldFunction.returns === newFunction.returns;
+}
+
+function argsMatch(oldFunction: PostgresEntities['functions'], newFunction: PostgresEntities['functions']): boolean {
+	return oldFunction.args.length === newFunction.args.length
+		&& oldFunction.args.every(
+			(arg, index) => arg.name === newFunction.args[index]?.name,
+		);
+}
+
 const alterFunctionConvertor = convertor('alter_function', (st) => {
 	const { oldFunction, newFunction } = st;
 
-	// Explicity reject changing return type for now
-	if (oldFunction.returns !== newFunction.returns) {
-		throw new Error(
-			'Changing a function return type requires dropping and recreating it',
-		);
+	let sql = '';
+	// Drop old function if return type or args change
+	if (!returnsMatch(oldFunction, newFunction) || !argsMatch(oldFunction, newFunction)) {
+		sql += renderDropFunction(oldFunction) + '\n';
 	}
 
-	// Explicity reject changing argument names for now
-	if (
-		oldFunction.args.some(
-			(arg, index) => arg.name !== newFunction.args[index]?.name,
-		)
-	) {
-		throw new Error(
-			'Renaming existing function arguments requires dropping and recreating it',
-		);
+	// Only use `CREATE OR REPLACE FUNCTION` if no changes were made to the function.
+	if (sql === '') {
+		return renderFunction(newFunction, 'replace');
 	}
 
-	return renderFunction(newFunction, 'replace');
+	return sql + renderFunction(newFunction, 'create');
 });
 
 const dropFunctionConvertor = convertor('drop_function', (st) => {
-	const { function: fn } = st;
-	const qualifiedName = `${quoteIdentifier(fn.schema)}.${quoteIdentifier(fn.name)}`;
-
-	const identityArgs = fn.identityArgs.join(', ');
-
-	return `DROP FUNCTION ${qualifiedName}(${identityArgs});`;
+	return renderDropFunction(st.function);
 });
 
 const convertors = [
