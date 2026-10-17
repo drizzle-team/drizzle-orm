@@ -1836,3 +1836,18 @@ test.skip('corner cases', async () => {
 		`'{"{\\"key\\":\\"val''ue\\"}"}'::jsonb[]`,
 	);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6493
+test('real/double precision expression defaults', async () => {
+	const res1 = await diffDefault(_, real().default(sql`random()`), 'random()');
+	const res2 = await diffDefault(_, doublePrecision().default(sql`random()`), 'random()');
+
+	// literal defaults keep working
+	const res3 = await diffDefault(_, real().default(10.5), '10.5');
+	const res4 = await diffDefault(_, doublePrecision().default(0), '0');
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+});
