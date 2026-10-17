@@ -1,6 +1,7 @@
 import { desc, isNotNull, isNull, sql } from 'drizzle-orm';
 import {
 	AnySQLiteColumn,
+	blob,
 	check,
 	foreignKey,
 	index,
@@ -753,7 +754,7 @@ test('pk #1. add pk. inline param without name', async () => {
 	const st0 = [
 		'PRAGMA foreign_keys=OFF;',
 		`CREATE TABLE \`__new_users\` (
-	\`name\` text PRIMARY KEY
+	\`name\` text PRIMARY KEY NOT NULL
 );\n`,
 		'INSERT INTO `__new_users`(`name`) SELECT `name` FROM `users`;',
 		'DROP TABLE `users`;',
@@ -1176,6 +1177,115 @@ test('pk #9. rename pk. 3rd without + with name', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2611
+test('pk #10. inline pk is not null unless it is an integer pk', async () => {
+	const to = {
+		text: sqliteTable('text', { id: text().primaryKey() }),
+		textNotNull: sqliteTable('text_not_null', { id: text().notNull().primaryKey() }),
+		blob: sqliteTable('blob', { id: blob().primaryKey() }),
+		real: sqliteTable('real', { id: real().primaryKey() }),
+		int: sqliteTable('int', { id: integer().primaryKey() }),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		'CREATE TABLE `text` (\n\t`id` text PRIMARY KEY NOT NULL\n);\n',
+		'CREATE TABLE `text_not_null` (\n\t`id` text PRIMARY KEY NOT NULL\n);\n',
+		'CREATE TABLE `blob` (\n\t`id` blob PRIMARY KEY NOT NULL\n);\n',
+		'CREATE TABLE `real` (\n\t`id` real PRIMARY KEY NOT NULL\n);\n',
+		'CREATE TABLE `int` (\n\t`id` integer PRIMARY KEY\n);\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	await expect(db.run('INSERT INTO `text` VALUES (NULL);')).rejects.toThrowError(
+		'NOT NULL constraint failed: text.id',
+	);
+	await expect(db.run('INSERT INTO `text_not_null` VALUES (NULL);')).rejects.toThrowError(
+		'NOT NULL constraint failed: text_not_null.id',
+	);
+	await expect(db.run('INSERT INTO `blob` VALUES (NULL);')).rejects.toThrowError(
+		'NOT NULL constraint failed: blob.id',
+	);
+	await expect(db.run('INSERT INTO `real` VALUES (NULL);')).rejects.toThrowError(
+		'NOT NULL constraint failed: real.id',
+	);
+	await db.run('INSERT INTO `int` VALUES (NULL);');
+	expect(await db.query('SELECT `id` FROM `int`;')).toStrictEqual([{ id: 1 }]);
+});
+
+test('pk #11. no changes for existing inline pks created with or without not null', async () => {
+	const to = {
+		users: sqliteTable('users', { id: text().primaryKey() }),
+		posts: sqliteTable('posts', { id: integer().primaryKey() }),
+	};
+
+	// drizzle-kit v1 created `users` without NOT NULL before this fix
+	const { ddl: from } = drizzleToDDL(to);
+	from.columns.update({ where: { table: 'users', name: 'id' }, set: { notNull: false } });
+	await db.run('CREATE TABLE `users` (\n\t`id` text PRIMARY KEY\n);');
+	// drizzle-kit 0.x created `posts` with NOT NULL
+	await db.run('CREATE TABLE `posts` (\n\t`id` integer PRIMARY KEY NOT NULL\n);');
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	expect(st).toStrictEqual([]);
+	expect(pst).toStrictEqual([]);
+});
+
+test('pk #12. add text pk column to table with rows', async () => {
+	const from = {
+		users: sqliteTable('users', { name: text() }),
+	};
+	const to = {
+		users: sqliteTable('users', { name: text(), id: text().primaryKey() }),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	await db.run("INSERT INTO `users` VALUES ('drizzle');");
+	const { sqlStatements: pst, hints: phints, error } = await push({
+		db,
+		to,
+		expectError: true,
+		ignoreSubsequent: true,
+	});
+
+	const st0 = [
+		'ALTER TABLE `users` ADD `id` text NOT NULL;',
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n\t`name` text,\n\t`id` text PRIMARY KEY NOT NULL\n);\n',
+		'INSERT INTO `__new_users`(`name`) SELECT `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(phints[0].statement).toStrictEqual('DELETE FROM "users" where true;');
+	expect(error?.message).toContain('Cannot add a NOT NULL column with default value NULL');
+});
+
+test('pk #13. add integer pk column to table with rows', async () => {
+	const from = {
+		users: sqliteTable('users', { name: text() }),
+	};
+	const to = {
+		users: sqliteTable('users', { name: text(), id: integer().primaryKey() }),
+	};
+
+	await push({ db, to: from });
+	await db.run("INSERT INTO `users` VALUES ('drizzle');");
+	const { sqlStatements: pst } = await push({ db, to });
+
+	expect(pst[0]).toStrictEqual('ALTER TABLE `users` ADD `id` integer;');
+	expect(await db.query('SELECT `name`, `id` FROM `users`;')).toStrictEqual([{ name: 'drizzle', id: 1 }]);
+});
+
 test('pk multistep #1', async () => {
 	const sch1 = {
 		users: sqliteTable('users', {
@@ -1186,7 +1296,7 @@ test('pk multistep #1', async () => {
 	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 
-	const e1 = ['CREATE TABLE `users` (\n\t`name` text PRIMARY KEY\n);\n'];
+	const e1 = ['CREATE TABLE `users` (\n\t`name` text PRIMARY KEY NOT NULL\n);\n'];
 	expect(st1).toStrictEqual(e1);
 	expect(pst1).toStrictEqual(e1);
 
@@ -1261,7 +1371,7 @@ test('pk multistep #2', async () => {
 
 	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
-	const e1 = ['CREATE TABLE `users` (\n\t`name` text PRIMARY KEY\n);\n'];
+	const e1 = ['CREATE TABLE `users` (\n\t`name` text PRIMARY KEY NOT NULL\n);\n'];
 	expect(st1).toStrictEqual(e1);
 	expect(pst1).toStrictEqual(e1);
 
@@ -1332,10 +1442,10 @@ test('pk multistep #3', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 
 	expect(st1).toStrictEqual([
-		'CREATE TABLE `users` (\n\t`name` text PRIMARY KEY\n);\n',
+		'CREATE TABLE `users` (\n\t`name` text PRIMARY KEY NOT NULL\n);\n',
 	]);
 	expect(pst1).toStrictEqual([
-		'CREATE TABLE `users` (\n\t`name` text PRIMARY KEY\n);\n',
+		'CREATE TABLE `users` (\n\t`name` text PRIMARY KEY NOT NULL\n);\n',
 	]);
 
 	const sch2 = {

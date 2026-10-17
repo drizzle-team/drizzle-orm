@@ -1024,7 +1024,7 @@ test('generated as sql: change column with virtual generated constraint on anoth
 	const expectedSt2: string[] = [
 		'PRAGMA foreign_keys=OFF;',
 		'CREATE TABLE `__new_test_table` (\n'
-		+ '\t`id` text PRIMARY KEY,\n'
+		+ '\t`id` text PRIMARY KEY NOT NULL,\n'
 		+ '\t`likes` integer DEFAULT 0 NOT NULL,\n'
 		+ '\t`dislikes` integer DEFAULT 0 NOT NULL,\n'
 		+ '\t`votes` integer GENERATED ALWAYS AS (likes + dislikes) VIRTUAL,\n'

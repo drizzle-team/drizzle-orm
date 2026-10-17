@@ -73,13 +73,19 @@ export const fromDrizzleSchema = (
 				return column && !is(column, SQL) && column.name === name && i.unique;
 			}));
 
+			const type = column.getSQLType();
+			// SQLite accepts NULL in a PRIMARY KEY column unless the column is declared NOT NULL
+			// or is the INTEGER rowid: https://www.sqlite.org/lang_createtable.html#the_primary_key
+			// keep notNull except for integer keys, the same check as omitNotNull in convertor.ts
+			const isRowId = primaryKey && type.toLowerCase().startsWith('int');
+
 			return {
 				entityType: 'columns',
 				table: it.config.name,
 				name,
-				type: column.getSQLType(),
+				type,
 				default: defalutValue,
-				notNull: column.notNull && !primaryKey,
+				notNull: column.notNull && !isRowId,
 				pk: primaryKey,
 				pkName: null,
 				autoincrement: is(column, SQLiteBaseInteger)

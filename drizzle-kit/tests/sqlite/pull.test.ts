@@ -1401,3 +1401,25 @@ test('introspect default expression of a text column with a backslash, a backtic
 	expect(ddlAfterPull.columns.one({ table: 'users', name: 'tag' })?.default).toBe(expression);
 	expect(ddlFromPulledTsSchema.columns.one({ table: 'users', name: 'tag' })?.default).toBe(expression);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2611
+test('introspect text primary key with and without not null', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run('CREATE TABLE `users` (`id` text PRIMARY KEY);');
+	await db.run('CREATE TABLE `posts` (`id` text PRIMARY KEY NOT NULL);');
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, ddlFromPulledTsSchema } = await diffAfterPull(
+		sqlite,
+		{},
+		'text-primary-key-not-null',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.one({ table: 'users', name: 'id' })?.notNull).toBe(false);
+	expect(ddlAfterPull.columns.one({ table: 'posts', name: 'id' })?.notNull).toBe(true);
+	expect(ddlFromPulledTsSchema.columns.one({ table: 'users', name: 'id' })?.notNull).toBe(true);
+	expect(ddlFromPulledTsSchema.columns.one({ table: 'posts', name: 'id' })?.notNull).toBe(true);
+});

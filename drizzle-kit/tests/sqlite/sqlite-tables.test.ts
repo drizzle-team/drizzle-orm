@@ -1083,7 +1083,7 @@ test('recreate table and add unique column', async (t) => {
 		'ALTER TABLE `users` ADD `referral_code` text;',
 		'PRAGMA foreign_keys=OFF;',
 		`CREATE TABLE \`__new_users\` (
-\t\`id\` text PRIMARY KEY,
+\t\`id\` text PRIMARY KEY NOT NULL,
 \t\`email\` text NOT NULL,
 \t\`referral_code\` text UNIQUE
 );\n`,
@@ -1125,13 +1125,13 @@ test('recreate table and add unique column', async (t) => {
 
 	const st0: string[] = [
 		`CREATE TABLE \`rating_event\` (
-\t\`id\` text PRIMARY KEY,
+\t\`id\` text PRIMARY KEY NOT NULL,
 \t\`player_id\` text NOT NULL,
 \tCONSTRAINT \`fk_rating_event_player_id_player_id_fk\` FOREIGN KEY (\`player_id\`) REFERENCES \`player\`(\`id\`)
 );\n`,
 		'PRAGMA foreign_keys=OFF;',
 		`CREATE TABLE \`__new_player\` (
-\t\`id\` text PRIMARY KEY,
+\t\`id\` text PRIMARY KEY NOT NULL,
 \t\`rd\` real DEFAULT 350 NOT NULL
 );\n`,
 		'INSERT INTO `__new_player`(`id`, `rd`) SELECT `id`, `rd` FROM `player`;',

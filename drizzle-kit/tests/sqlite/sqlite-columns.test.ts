@@ -1839,7 +1839,7 @@ test('issue #5564', async () => {
 	const st0: string[] = [
 		'PRAGMA foreign_keys=OFF;',
 		`CREATE TABLE \`__new_users\` (
-\t\`id\` text PRIMARY KEY,
+\t\`id\` text PRIMARY KEY NOT NULL,
 \t\`email\` text NOT NULL,
 \t\`name\` text NOT NULL
 );\n`,
@@ -1849,7 +1849,7 @@ test('issue #5564', async () => {
 		'PRAGMA foreign_keys=ON;',
 		'PRAGMA foreign_keys=OFF;',
 		`CREATE TABLE \`__new_projects\` (
-\t\`id\` text PRIMARY KEY,
+\t\`id\` text PRIMARY KEY NOT NULL,
 \t\`owner_id\` text NOT NULL,
 \t\`title\` text NOT NULL,
 \t\`created_at\` text DEFAULT (datetime('now')),
@@ -1929,7 +1929,7 @@ test('Issue No6360', async () => {
 		'ALTER TABLE `a` RENAME COLUMN `user_id` TO `org_id`;',
 		`PRAGMA foreign_keys=OFF;`,
 		`CREATE TABLE \`__new_b\` (
-\t\`id\` text PRIMARY KEY,
+\t\`id\` text PRIMARY KEY NOT NULL,
 \t\`user_id\` text
 );\n`,
 		'INSERT INTO `__new_b`(`id`, `user_id`) SELECT `id`, `user_id` FROM `b`;',
