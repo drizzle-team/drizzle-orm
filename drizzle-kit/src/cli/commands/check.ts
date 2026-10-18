@@ -1,8 +1,8 @@
 import { Dialect } from '../../schemaValidator';
-import { prepareOutFolder, validateWithReport } from '../../utils';
+import { type Journal, prepareOutFolder, validateWithReport } from '../../utils';
 
 export const checkHandler = (out: string, dialect: Dialect) => {
-	const { snapshots } = prepareOutFolder(out, dialect);
+	const { snapshots, journal } = prepareOutFolder(out, dialect);
 	const report = validateWithReport(snapshots, dialect);
 
 	if (report.nonLatest.length > 0) {
@@ -42,6 +42,20 @@ export const checkHandler = (out: string, dialect: Dialect) => {
 
 	if (message) {
 		console.log(message);
+	}
+
+	let latest: Journal['entries'][number] | undefined;
+	for (const entry of (journal as Journal).entries) {
+		if (latest && entry.when <= latest.when) {
+			console.warn(
+				`Warning: ${entry.tag} (idx: ${entry.idx}, when: ${entry.when}) follows `
+					+ `${latest.tag} (idx: ${latest.idx}, when: ${latest.when}) in the journal, `
+					+ 'but its timestamp is not greater. If the earlier entry has already been applied, '
+					+ 'the migrator will skip this entry. Journal timestamps must strictly increase in entry order.',
+			);
+		} else {
+			latest = entry;
+		}
 	}
 
 	const abort = report.malformed.length!! || collisionEntries.length > 0;
