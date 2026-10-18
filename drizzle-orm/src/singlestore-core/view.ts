@@ -77,6 +77,7 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 			sqlBehavior: 'error',
 			sqlAliasedBehavior: 'alias',
 			replaceOriginalName: true,
+			isSelectionField: true,
 		});
 		const aliasedSelection = new Proxy(qb.getSelectedFields(), selectionProxy);
 		return new Proxy(
