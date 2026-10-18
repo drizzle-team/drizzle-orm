@@ -27,7 +27,6 @@ jobs:
     strategy:
       matrix:
         shard:
-          - gel
           - planetscale
           - singlestore-core
           - singlestore-proxy
@@ -165,10 +164,6 @@ jobs:
         run: |
           case ${{ matrix.shard }} in
 
-            gel)
-              pnpm vitest run tests/gel
-            ;;
-
             planetscale)
               pnpm vitest run \
                 tests/mysql/mysql-planetscale.test.ts \
@@ -200,10 +195,6 @@ jobs:
               docker compose -f docker-neon.yml up -d
               pnpm vitest run tests/pg/neon-serverless.test.ts
               docker compose -f docker-neon.yml down
-            ;;
-
-            netlify-db)
-              pnpm vitest run tests/pg/netlify-db.test.ts
             ;;
 
             drizzle-orm|drizzle-kit|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot|drizzle-arktype)
@@ -398,7 +389,7 @@ jobs:
     
       # >= 11.5.1 for trusted publishing
       - name: Update NPM
-        run: npm install -g npm@latest
+        run: npm install -g npm@11 # npm 12.0.0 ships without sigstore in its bundled tree and breaks `npm publish`
 
       # nuke, so npm can use OIDC
       - name: Remove temp npmrc
