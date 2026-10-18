@@ -46,6 +46,23 @@ export type ColumnRuntimeConfig<TData, TRuntimeConfig extends object> = ColumnBu
 	TRuntimeConfig
 >;
 
+/**
+ * Maps the SQL chunk produced for a column reference to the SQL that should be
+ * emitted when the column is read from the database (SELECT field lists,
+ * RETURNING clauses, and relational query JSON payloads).
+ */
+export type ColumnSelectMapper = (field: SQL) => SQL;
+
+/**
+ * Applies the column's `selectFromDb` mapper (when defined) to the SQL produced
+ * for the column reference. Returns the input SQL unchanged when the column has
+ * no mapper, so callers can distinguish a wrapped selection from a plain column
+ * reference and only emit an alias when the expression was transformed.
+ */
+export function mapColumnSelection(column: Column, columnSql: SQL): SQL {
+	return column.selectFromDb?.(columnSql) ?? columnSql;
+}
+
 export interface Column<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -54,6 +71,7 @@ export interface Column<
 	TTypeConfig extends object = object,
 > extends DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	// SQLWrapper runtime implementation is defined in 'sql/sql.ts'
+	readonly selectFromDb?: ColumnSelectMapper | undefined;
 }
 /*
 	`Column` only accepts a full `ColumnConfig` as its generic.
@@ -85,6 +103,7 @@ export abstract class Column<
 	readonly enumValues: T['enumValues'] = undefined;
 	readonly generated: GeneratedColumnConfig<T['data']> | undefined = undefined;
 	readonly generatedIdentity: GeneratedIdentityConfig | undefined = undefined;
+	readonly selectFromDb?: ColumnSelectMapper | undefined;
 
 	protected config: ColumnRuntimeConfig<T['data'], TRuntimeConfig>;
 

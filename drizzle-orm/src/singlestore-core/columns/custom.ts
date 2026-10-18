@@ -66,6 +66,7 @@ export class SingleStoreCustomColumn<T extends ColumnBaseConfig<'custom', 'Singl
 	private sqlName: string;
 	private mapTo?: (value: T['data']) => T['driverParam'];
 	private mapFrom?: (value: T['driverParam']) => T['data'];
+	override readonly selectFromDb?: (column: SQL) => SQL;
 
 	constructor(
 		table: AnySingleStoreTable<{ name: T['tableName'] }>,
@@ -75,6 +76,7 @@ export class SingleStoreCustomColumn<T extends ColumnBaseConfig<'custom', 'Singl
 		this.sqlName = config.customTypeParams.dataType(config.fieldConfig);
 		this.mapTo = config.customTypeParams.toDriver;
 		this.mapFrom = config.customTypeParams.fromDriver;
+		this.selectFromDb = config.customTypeParams.selectFromDb;
 	}
 
 	getSQLType(): string {
@@ -198,6 +200,14 @@ export interface CustomTypeParams<T extends CustomTypeValues> {
 	 * ```
 	 */
 	fromDriver?: (value: T['driverData']) => T['data'];
+
+	/**
+	 * Optional function that transforms the SQL emitted when this column is read from the database.
+	 * Applied in `select` field lists, `returning` clauses and relational query payloads.
+	 * The transformed expression is aliased back to the column name, so `fromDriver` still
+	 * applies to the returned value.
+	 */
+	selectFromDb?: (column: SQL) => SQL;
 }
 
 /**
