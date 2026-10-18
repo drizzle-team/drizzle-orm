@@ -471,6 +471,21 @@ test('an integer column that becomes an array gets a type change with a plain ca
 	await expect(db.query(st[0])).rejects.toThrow('cannot cast type integer to integer[]');
 });
 
+test.each([
+	{ dataType: 'text[]', defaultValue: ['a'], column: `"values" text[] DEFAULT '{a}'::text[]` },
+	{ dataType: 'text[3]', defaultValue: undefined, column: '"values" text[]' },
+])('a custom type with the type text $dataType is an array column', async ({ dataType, defaultValue, column }) => {
+	const list = customType<{ data: string[] }>({ dataType: () => dataType });
+	const to = { test: pgTable('test', { values: defaultValue ? list().default(defaultValue) : list() }) };
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	for (const statement of st) await db.query(statement);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	expect(st).toStrictEqual([`CREATE TABLE "test" (\n\t${column}\n);\n`]);
+	expect(pst).toStrictEqual([]);
+});
+
 // The catalog puts `int_list`, `int2vector` and `oidvector` in the array category. The columns of these types
 // have no array dimensions, so push must not read them as array columns.
 test('a column of a domain over an array type or of a vector type of the catalog gets no type change in push', async () => {
