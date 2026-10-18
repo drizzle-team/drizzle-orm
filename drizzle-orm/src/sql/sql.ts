@@ -624,7 +624,8 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 				throw new Error(`No value for placeholder "${p.value.name}" was provided`);
 			}
 
-			return p.encoder.mapToDriverValue(values[p.value.name]);
+			const value = values[p.value.name];
+			return value === null ? null : p.encoder.mapToDriverValue(value);
 		}
 
 		return p;
