@@ -37,7 +37,7 @@ export const handle = async (
 
 	const { snapshots } = prepareOutFolder(outFolder);
 	const prepared = await config.schemaSource.load();
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
+	const { ddlCur, ddlPrev, metadata, snapshot, custom } = await prepareSnapshot(
 		snapshots,
 		prepared,
 		checkResult,
@@ -75,6 +75,7 @@ export const handle = async (
 		resolver<PrimaryKey>('primary_key', config.hints),
 		resolver<ForeignKey>('foreign key', config.hints),
 		'default',
+		metadata,
 	);
 
 	if (config.hints.hasMissingHints()) {
@@ -112,7 +113,7 @@ export const handle = async (
 export const handleExport = async (config: ExportConfig) => {
 	const res = await prepareFromSchemaFiles(config.filenames);
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
-	const { schema, errors, warnings } = fromDrizzleSchema(
+	const { schema, metadata, errors, warnings } = fromDrizzleSchema(
 		res,
 		() => true,
 	);
@@ -133,7 +134,7 @@ export const handleExport = async (config: ExportConfig) => {
 		});
 	}
 
-	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
+	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default', metadata);
 	return {
 		statements: sqlStatements,
 		warnings: warnings.map((it) => postgresSchemaWarning(it)),

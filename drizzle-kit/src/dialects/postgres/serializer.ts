@@ -1,6 +1,7 @@
 import type { CheckHandlerResult } from '../../cli/commands/check';
 import { humanLog, postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
 import { assertUnreachable } from '../../utils';
+import type { SchemaMetadata } from '../utils';
 import type { PostgresDDL } from './ddl';
 import { createDDL, fromEntities, interimToDDL } from './ddl';
 import { fromDrizzleSchema } from './drizzle';
@@ -16,6 +17,7 @@ export const prepareSnapshot = async (
 ): Promise<{
 	ddlPrev: PostgresDDL;
 	ddlCur: PostgresDDL;
+	metadata: SchemaMetadata;
 	snapshot: PostgresSnapshot;
 	snapshotPrev: PostgresSnapshot;
 	custom: PostgresSnapshot;
@@ -48,7 +50,7 @@ export const prepareSnapshot = async (
 	const res = prepared;
 
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
-	const { schema, errors, warnings } = fromDrizzleSchema(
+	const { schema, metadata, errors, warnings } = fromDrizzleSchema(
 		res,
 		() => true,
 	);
@@ -94,7 +96,7 @@ export const prepareSnapshot = async (
 		...prevRest,
 	};
 
-	return { ddlPrev, ddlCur, snapshot, snapshotPrev: prevSnapshot, custom };
+	return { ddlPrev, ddlCur, metadata, snapshot, snapshotPrev: prevSnapshot, custom };
 };
 
 // takes parent snapshot and statements

@@ -28,7 +28,7 @@ export const handle = async (config: GenerateConfig) => {
 	const json = outputFormat() === 'json';
 
 	const { snapshots } = prepareOutFolder(outFolder);
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, filenames);
+	const { ddlCur, ddlPrev, metadata, snapshot, custom } = await prepareSnapshot(snapshots, filenames);
 	if (config.custom) {
 		return writeResult({
 			snapshot: custom,
@@ -58,6 +58,7 @@ export const handle = async (config: GenerateConfig) => {
 		resolver<PrimaryKey>('primary_key', config.hints),
 		resolver<ForeignKey>('foreign key', config.hints),
 		'default',
+		metadata,
 	);
 
 	if (config.hints.hasMissingHints()) {
@@ -97,7 +98,7 @@ export const handleExport = async (config: ExportConfig) => {
 
 	// TODO: do we wanna respect entity filter while exporting to sql?
 	// cc: @AleksandrSherman
-	const { schema, errors, warnings } = fromDrizzleSchema(res, () => true);
+	const { schema, metadata, errors, warnings } = fromDrizzleSchema(res, () => true);
 
 	if (errors.length > 0) {
 		throw new CommandOutputCliError('export', errors.map((it) => cockroachSchemaError(it)).join('\n'), {
@@ -115,7 +116,7 @@ export const handleExport = async (config: ExportConfig) => {
 		});
 	}
 
-	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
+	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default', metadata);
 	return {
 		statements: sqlStatements,
 		warnings: warnings.map((it) => cockroachSchemaWarning(it)),

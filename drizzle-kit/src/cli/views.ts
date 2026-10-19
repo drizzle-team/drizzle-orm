@@ -508,14 +508,6 @@ export const cockroachExplain = (st: StatementCockroach) => {
 		if (d.columns) cause += `│ columns: [${d.columns.from.join(',')}] -> [${d.columns.to.join(',')}]\n`;
 	}
 
-	if (st.type === 'recreate_view') {
-		const { from, to } = st;
-
-		const key = `${to.schema}.${to.name}`;
-		title += `${key} view changed:`;
-		cause += `│ definition: [${from.definition}] -> [${to.definition}]\n`;
-	}
-
 	if (title) return { title, cause };
 
 	return null;

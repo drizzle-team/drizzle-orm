@@ -5,7 +5,8 @@ import { diffStringArrays } from '../../utils/sequence-matcher';
 import { parse } from '../../utils/when-json-met-bigint';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
-import { groupDiffs, preserveEntityNames } from '../utils';
+import { groupDiffs, preserveEntityNames, sortCreateViews } from '../utils';
+import type { SchemaMetadata } from '../utils';
 import { fromJson } from './convertor';
 import type {
 	CheckConstraint,
@@ -27,11 +28,16 @@ import type {
 	View,
 } from './ddl';
 import { createDDL, tableFromDDL } from './ddl';
-import { defaults, defaultsCommutative, existsInViewDef, isSerialType } from './grammar';
+import { defaults, defaultsCommutative, isSerialType } from './grammar';
 import type { JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
 
-export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode: 'default' | 'push') => {
+export const ddlDiffDry = async (
+	ddlFrom: PostgresDDL,
+	ddlTo: PostgresDDL,
+	mode: 'default' | 'push',
+	$metadata?: SchemaMetadata,
+) => {
 	const mocks = new Set<string>();
 	return ddlDiff(
 		ddlFrom,
@@ -51,6 +57,7 @@ export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode:
 		mockResolver(mocks),
 		mockResolver(mocks),
 		mode,
+		$metadata,
 	);
 };
 
@@ -72,6 +79,7 @@ export const ddlDiff = async (
 	pksResolver: Resolver<PrimaryKey>,
 	fksResolver: Resolver<ForeignKey>,
 	mode: 'default' | 'push',
+	$metadata?: SchemaMetadata,
 ): Promise<{
 	statements: JsonStatement[];
 	sqlStatements: string[];
@@ -704,8 +712,7 @@ export const ddlDiff = async (
 		if (idx.isUnique || idx.concurrently || idx.method || idx.with || forColumns || forWhere) {
 			const index = ddl2.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name })!;
 
-			// when a column used by the index is being dropped, the index is dropped with it (cascade),
-			// so the recreate must skip the explicit DROP INDEX
+			// when a column used by the index is being dropped, emit a plain drop_index instead of recreate
 			const prevIndex = ddl1.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name });
 			const shouldDrop = !!prevIndex
 				&& !columnsToDelete.some((col) =>
@@ -713,7 +720,13 @@ export const ddlDiff = async (
 					&& col.table === idx.table
 					&& prevIndex.columns.some((idxCol) => idxCol.value === col.name)
 				);
-			jsonRecreateIndex.push(prepareStatement('recreate_index', { index, diff: idx, shouldDrop }));
+
+			if (!shouldDrop) {
+				jsonCreateIndexes.push(prepareStatement('create_index', { index }));
+				continue;
+			}
+
+			jsonRecreateIndex.push(prepareStatement('recreate_index', { index, diff: idx }));
 		}
 	}
 
@@ -1287,31 +1300,8 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonAlterCheckConstraints);
 
 	// Topological sort
-	// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520 and https://github.com/drizzle-team/drizzle-orm/issues/6176
-	// View1 can be recreated and other view2 was newly created. view2 depends on view1, need to sort them -> https://github.com/drizzle-team/drizzle-orm/issues/6176
-	// Dependent views must be created after their dependencies, otherwise the migration breaks
-	//
-	// `view2` depends on `view1` when `view1`'s (schema-qualified) name appears in `view2`'s definition
-	// Other dialects do this in drizzle.ts files
-	// TODO we have some tests on it in pg-views.test.ts
-	// but probably we should move this to function and test the function
-	const sortedCreateViews: typeof createViews[number][] = [];
-	const visited = new Set<typeof createViews[number]>();
-	const onStack = new Set<typeof createViews[number]>();
-	const visit = (node: typeof createViews[number]) => {
-		if (visited.has(node) || onStack.has(node)) return; // onStack guards against dependency cycles
-		onStack.add(node);
-		for (const other of createViews) {
-			// `node` depends on `other` when `other`'s name appears in `node`'s definition
-			if (other !== node && existsInViewDef(other.view, node.view)) visit(other);
-		}
-		onStack.delete(node);
-		visited.add(node);
-		sortedCreateViews.push(node);
-	};
-	for (const node of createViews) visit(node);
-
-	jsonStatements.push(...sortedCreateViews);
+	// dependent views must be created after their dependencies, otherwise the migration breaks
+	jsonStatements.push(...sortCreateViews(createViews, $metadata?.viewDependencies));
 
 	jsonStatements.push(...jsonRenamePoliciesStatements);
 	jsonStatements.push(...jsonCreatePoliciesStatements);
