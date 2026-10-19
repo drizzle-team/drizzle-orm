@@ -3,6 +3,7 @@ import { writeFileSync } from 'fs';
 import type { TaskView } from 'hanji';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
+import { footprintsOf } from '../../dialects/postgres/commutativity';
 import type {
 	CheckConstraint,
 	Column,
@@ -104,7 +105,7 @@ export const handle = async (
 	let snapshotPath: string;
 	let migrationPath: string | undefined;
 	if (snapshots.length === 0) {
-		const { sqlStatements, snapshotStatements } = await ddlDiff(
+		const { sqlStatements, groupedStatements } = await ddlDiff(
 			createDDL(), // dry ddl
 			ddl2,
 			resolver<Schema>('schema'),
@@ -124,7 +125,7 @@ export const handle = async (
 		);
 
 		({ snapshotPath, migrationPath } = writeResult({
-			snapshot: toJsonBaseSnapshot(ddl2, [originUUID], snapshotStatements),
+			snapshot: toJsonBaseSnapshot(ddl2, [originUUID], footprintsOf(groupedStatements)),
 			sqlStatements,
 			outFolder: out,
 			breakpoints,

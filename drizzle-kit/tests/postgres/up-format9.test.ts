@@ -92,19 +92,6 @@ test('up converts a linear format 8 history', async () => {
 	expect(await flow.up('main')).toStrictEqual([]);
 });
 
-test.each(['format-8-linear', 'format-8-renames', 'format-8-merge', 'format-8-fork'])(
-	'up stores statements that rebuild the SQL of every migration of %s',
-	async (name) => {
-		const { flow } = seedFormat8(name);
-
-		await flow.up('main');
-
-		for (const folder of flow.folders('main')) {
-			expect(flow.statementsSql('main', folder), `the statements of ${folder}`).toBe(flow.sql('main', folder));
-		}
-	},
-);
-
 test('up turns format 8 renames into rename deltas', async () => {
 	const { flow, original } = seedFormat8('format-8-renames');
 	const core = pgSchema('core');
@@ -644,9 +631,12 @@ test('up turns format 7 renames into rename deltas', async () => {
 		{ op: 'rename', key: 'tables\0["public","posts"]', set: { name: 'articles' } },
 		{ op: 'rename', key: 'columns\0["public","users","email"]', set: { name: 'contact' } },
 	]));
-	expect(flow.statements('main', last)).toStrictEqual(expect.arrayContaining([
-		{ type: 'rename_table', schema: 'public', from: 'posts', to: 'articles' },
-		expect.objectContaining({ type: 'rename_column', to: expect.objectContaining({ name: 'contact' }) }),
+	expect(flow.footprints('main', last)).toStrictEqual(expect.arrayContaining([
+		expect.objectContaining({ statementType: 'rename_table', statementTarget: ['table', 'public', 'posts'] }),
+		expect.objectContaining({
+			statementType: 'rename_column',
+			statementTarget: ['column', 'public', 'users', 'email'],
+		}),
 	]));
 	const [first, second, third] = format7States();
 	expectConverted(flow, originals, [first, second, patchRows(third, withPostgresKeyName)]);

@@ -385,7 +385,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 		});
 
 		expect(conflicts).not.toBeUndefined();
-		expect(conflicts?.leftStatement.type).toBe('drop_table');
-		expect(conflicts?.rightStatement.type).toBe('alter_column');
+		expect(conflicts?.left.statementType).toBe('drop_table');
+		expect(conflicts?.right.statementType).toBe('alter_column');
 	});
 });
