@@ -5,7 +5,8 @@ import { diffStringArrays } from '../../utils/sequence-matcher';
 import { parse } from '../../utils/when-json-met-bigint';
 import type { Resolver } from '../common';
 import { type Delta, delta, diff, type Row } from '../dialect';
-import { groupDiffs, preserveEntityNames } from '../utils';
+import { groupDiffs, preserveEntityNames, sortCreateViews } from '../utils';
+import type { SchemaMetadata } from '../utils';
 import { fromJson } from './convertor';
 import type {
 	CheckConstraint,
@@ -26,12 +27,17 @@ import type {
 	View,
 } from './ddl';
 import { createDDL, tableFromDDL } from './ddl';
-import { defaults, defaultsCommutative, existsInViewDef, isSerialType } from './grammar';
+import { defaults, defaultsCommutative, isSerialType } from './grammar';
 import type { SnapshotStatement } from './snapshot-statements';
 import type { JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
 
-export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode: 'default' | 'push') => {
+export const ddlDiffDry = async (
+	ddlFrom: PostgresDDL,
+	ddlTo: PostgresDDL,
+	mode: 'default' | 'push',
+	$metadata?: SchemaMetadata,
+) => {
 	const mocks = new Set<string>();
 	return ddlDiff(
 		ddlFrom,
@@ -50,6 +56,7 @@ export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode:
 		mockResolver(mocks), // pks
 		mockResolver(mocks), // fks
 		mode,
+		$metadata,
 	);
 };
 
@@ -70,6 +77,7 @@ export const ddlDiff = async (
 	pksResolver: Resolver<PrimaryKey>,
 	fksResolver: Resolver<ForeignKey>,
 	mode: 'default' | 'push',
+	$metadata?: SchemaMetadata,
 	// Keeps the old name of a constraint whose generated name differs between the states, so no statement
 	// changes it. With false, the constraint is dropped and created with its new name.
 	keepGeneratedNames = true,
@@ -357,7 +365,7 @@ export const ddlDiff = async (
 		deleted: viewsDiff.filter((it) => it.$diffType === 'drop'),
 	});
 
-	const renamedViews = renamedOrMovedViews.filter((it) => it.from.schema === it.to.schema);
+	const renamedViews = renamedOrMovedViews.filter((it) => it.from.name !== it.to.name);
 	const movedViews = renamedOrMovedViews.filter((it) => it.from.schema !== it.to.schema);
 
 	for (const it of renamedOrMovedViews) {
@@ -433,8 +441,7 @@ export const ddlDiff = async (
 		if (idx.isUnique || idx.concurrently || idx.method || idx.with || forColumns || forWhere) {
 			const index = ddl2.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name })!;
 
-			// when a column used by the index is being dropped, the index is dropped with it (cascade),
-			// so the recreate must skip the explicit DROP INDEX
+			// when a column used by the index is being dropped, emit a plain drop_index instead of recreate
 			const prevIndex = ddl1.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name });
 			const shouldDrop = !!prevIndex
 				&& !columnsToDelete.some((col) =>
@@ -442,7 +449,13 @@ export const ddlDiff = async (
 					&& col.table === idx.table
 					&& prevIndex.columns.some((idxCol) => idxCol.value === col.name)
 				);
-			jsonRecreateIndex.push(prepareStatement('recreate_index', { index, diff: idx, shouldDrop }));
+
+			if (!shouldDrop) {
+				jsonCreateIndexes.push(prepareStatement('create_index', { index }));
+				continue;
+			}
+
+			jsonRecreateIndex.push(prepareStatement('recreate_index', { index, diff: idx }));
 		}
 	}
 
@@ -660,17 +673,6 @@ export const ddlDiff = async (
 		return true;
 	}).map((it) => prepareStatement('drop_fk', { fk: it }));
 
-	const jsonRenameReferences = fksRenames.map((it) =>
-		prepareStatement('rename_constraint', {
-			entityType: 'fks',
-			schema: it.to.schema,
-			table: it.to.table,
-			from: it.from.name,
-			to: it.to.name,
-			columns: it.to.columns ?? [],
-		})
-	);
-
 	const jsonAlterCheckConstraints = alteredChecks.filter((it) => it.value && mode !== 'push').map((it) =>
 		prepareStatement('alter_check', {
 			diff: it,
@@ -797,16 +799,20 @@ export const ddlDiff = async (
 
 		if (res.some((it) => it.type === 'removed')) {
 			// recreate enum
-			const columns = ddl1.columns.list({ typeSchema: alter.schema, type: alter.name })
+			// Finds the columns of this enum. A snapshot of an older format can store no `typeSchema` for a
+			// column, and then the same column in `ddl2` gives the schema if it has the same type name.
+			const columns = ddl1.columns.list({ type: alter.name })
 				.map((it) => {
 					const c2 = ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name });
 					if (c2 === null) return null;
+					const typeSchema = it.typeSchema ?? (c2.type === it.type ? c2.typeSchema : null);
+					if (typeSchema !== alter.schema) return null;
 
 					const def = {
 						right: c2.default,
 						left: it.default,
 					};
-					return { ...it, default: def };
+					return { ...it, typeSchema, default: def };
 				})
 				.filter((x) => x !== null);
 			recreateEnums.push(prepareStatement('recreate_enum', { to: e, columns, from: alter.$left }));
@@ -893,10 +899,19 @@ export const ddlDiff = async (
 
 	const jsonDropViews = deletedViews.map((it) => prepareStatement('drop_view', { view: it, cause: null }));
 
-	const jsonRenameViews = renamedViews.map((it) => prepareStatement('rename_view', it));
+	// The rename runs first, so a view that also moves is renamed in its old schema.
+	const jsonRenameViews = renamedViews.map((it) =>
+		prepareStatement('rename_view', { from: it.from, to: { ...it.to, schema: it.from.schema } })
+	);
 
+	// The move uses the old `materialized`, because the view still has its old kind at the move. A view that
+	// changes its kind is dropped and created later.
 	const jsonMoveViews = movedViews.map((it) =>
-		prepareStatement('move_view', { fromSchema: it.from.schema, toSchema: it.to.schema, view: it.to })
+		prepareStatement('move_view', {
+			fromSchema: it.from.schema,
+			toSchema: it.to.schema,
+			view: { ...it.to, materialized: it.from.materialized },
+		})
 	);
 
 	const filteredViewAlters = alters.filter((it): it is DiffEntities['views'] => {
@@ -932,12 +947,14 @@ export const ddlDiff = async (
 		});
 	});
 
+	const jsonDropRecreatedViews: typeof jsonDropViews = [];
 	// recreate views
 	viewsAlters.filter((it) => it.diff.definition || it.diff.materialized).forEach((entry) => {
 		const it = entry.view;
-		const schemaRename = renamedSchemas.find((r) => r.to.name === it.schema);
-		const schema = schemaRename ? schemaRename.from.name : it.schema;
-		const viewRename = renamedViews.find((r) => r.to.schema === it.schema && r.to.name === it.name);
+		const viewRename = renamedOrMovedViews.find((r) => r.to.schema === it.schema && r.to.name === it.name);
+		const viewSchema = viewRename ? viewRename.from.schema : it.schema;
+		const schemaRename = renamedSchemas.find((r) => r.to.name === viewSchema);
+		const schema = schemaRename ? schemaRename.from.name : viewSchema;
 		const name = viewRename ? viewRename.from.name : it.name;
 		const from = ddl1Copy.views.one({ schema, name });
 
@@ -949,7 +966,7 @@ export const ddlDiff = async (
 				`);
 		}
 
-		jsonDropViews.push(prepareStatement('drop_view', { view: entry.diff.$left, cause: from }));
+		jsonDropRecreatedViews.push(prepareStatement('drop_view', { view: entry.diff.$left, cause: from }));
 		createViews.push(prepareStatement('create_view', { view: it }));
 	});
 
@@ -958,28 +975,35 @@ export const ddlDiff = async (
 		return !(it.generated?.to && it.generated.from && mode === 'push');
 	});
 
+	const isSameFk = (a: ForeignKey, b: ForeignKey) => a.schema === b.schema && a.table === b.table && a.name === b.name;
+	// Collects the foreign keys that must be dropped and created again with the recreated columns. A key can
+	// use two recreated columns, so the list holds each key one time.
+	const fksOfRecreatedColumns: ForeignKey[] = [];
+
 	const jsonRecreateColumns = columnsToRecreate.map((it) => {
 		const indexes = ddl2.indexes.list({ table: it.table, schema: it.schema }).filter((index) =>
 			index.columns.some((column) => trimChar(column.value, '`') === it.name)
 		);
+		// `isListed` skips an index or a unique constraint that already has a create statement: a new one, or
+		// one that uses two recreated columns and was found for the other column.
 		for (const index of indexes) {
-			jsonCreateIndexes.push({ type: 'create_index', index });
+			const isListed = jsonCreateIndexes.some((it) => it.index.schema === index.schema && it.index.name === index.name);
+			if (!isListed) jsonCreateIndexes.push({ type: 'create_index', index });
 		}
 
 		const uniques = ddl2.uniques.list({ table: it.table, schema: it.schema, columns: { CONTAINS: it.name } });
 		for (const unique of uniques) {
-			jsonAddedUniqueConstraints.push({ type: 'add_unique', unique });
+			const isListed = jsonAddedUniqueConstraints.some(({ unique: other }) =>
+				other.schema === unique.schema && other.table === unique.table && other.name === unique.name
+			);
+			if (!isListed) jsonAddedUniqueConstraints.push({ type: 'add_unique', unique });
 		}
 
 		// Not sure if anyone tries to add fk on generated column or from it, but still...
 		const fksFrom = ddl2.fks.list({ table: it.table, schema: it.schema, columns: { CONTAINS: it.name } });
 		const fksTo = ddl2.fks.list({ tableTo: it.table, schemaTo: it.schema, columnsTo: { CONTAINS: it.name } });
-		for (const fkFrom of fksFrom) {
-			jsonDropFKs.push({ type: 'drop_fk', fk: fkFrom });
-		}
-		for (const fkTo of fksTo) {
-			jsonDropFKs.push({ type: 'drop_fk', fk: fkTo });
-			jsonCreateFKs.push({ type: 'create_fk', fk: fkTo });
+		for (const fk of [...fksFrom, ...fksTo]) {
+			if (!fksOfRecreatedColumns.some((other) => isSameFk(other, fk))) fksOfRecreatedColumns.push(fk);
 		}
 
 		return prepareStatement('recreate_column', {
@@ -987,6 +1011,29 @@ export const ddlDiff = async (
 			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
 		});
 	});
+
+	for (const fk of fksOfRecreatedColumns) {
+		// Skips a new foreign key, because it is not in the database yet and has its own create statement.
+		if (fksCreates.some((created) => isSameFk(created, fk))) continue;
+		// A renamed key is dropped with its old name (`rename.from`), because the drops of foreign keys run
+		// before their renames. The create uses the new name.
+		const rename = fksRenames.find((it) => isSameFk(it.to, fk));
+		jsonDropFKs.push({ type: 'drop_fk', fk: rename?.from ?? fk });
+		jsonCreateFKs.push({ type: 'create_fk', fk });
+	}
+
+	// Skips the rename of a key in `fksOfRecreatedColumns`, because the key is created again with its new name.
+	const jsonRenameReferences = fksRenames.filter((it) => !fksOfRecreatedColumns.some((fk) => isSameFk(fk, it.to)))
+		.map((it) =>
+			prepareStatement('rename_constraint', {
+				entityType: 'fks',
+				schema: it.to.schema,
+				table: it.to.table,
+				from: it.from.name,
+				to: it.to.name,
+				columns: it.to.columns ?? [],
+			})
+		);
 
 	jsonStatements.push(...createSchemas);
 	jsonStatements.push(...renameSchemas);
@@ -1001,7 +1048,6 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonAlterSequences);
 
 	jsonStatements.push(...jsonRenameRoles);
-	jsonStatements.push(...jsonDropRoles);
 	jsonStatements.push(...jsonCreateRoles);
 	jsonStatements.push(...jsonAlterRoles);
 
@@ -1014,15 +1060,25 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropViews);
 	jsonStatements.push(...jsonRenameViews);
 	jsonStatements.push(...jsonMoveViews);
+	// A drop in `jsonDropRecreatedViews` uses the new schema and name of the view, so it must run after the
+	// renames and moves of views.
+	jsonStatements.push(...jsonDropRecreatedViews);
 	jsonStatements.push(...jsonAlterViews);
 
 	jsonStatements.push(...jsonRenameTables);
-	jsonStatements.push(...jsonDropPoliciesStatements); // before drop tables
-	jsonStatements.push(...jsonDropFKs);
+	// `jsonDropTables` runs before `jsonSetTableSchemas`, because a move takes the indexes and constraints of
+	// its table into the new schema, where a dropped table can still hold one of their names. `isMoved` puts
+	// the policy and foreign key drops of a moved table after the moves, because they name the new schema.
+	const isMoved = (it: { schema: string; table: string }) =>
+		movedTables.some((moved) => moved.to.schema === it.schema && moved.to.name === it.table);
+	jsonStatements.push(...jsonDropPoliciesStatements.filter((it) => !isMoved(it.policy))); // before drop tables
+	jsonStatements.push(...jsonDropFKs.filter((it) => !isMoved(it.fk)));
 
 	jsonStatements.push(...jsonDropTables);
-	jsonStatements.push(...jsonAlterRlsStatements);
 	jsonStatements.push(...jsonSetTableSchemas);
+	jsonStatements.push(...jsonDropPoliciesStatements.filter((it) => isMoved(it.policy)));
+	jsonStatements.push(...jsonDropFKs.filter((it) => isMoved(it.fk)));
+	jsonStatements.push(...jsonAlterRlsStatements);
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
 	jsonStatements.push(...jsonDropUniqueConstraints);
@@ -1054,42 +1110,24 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonCreateIndexes); // above fks for uniqueness constraint to come first
 
 	jsonStatements.push(...jsonCreateFKs);
-	jsonStatements.push(...jsonRecreateFKs);
+	// A key in `fksOfRecreatedColumns` is already dropped and created with its new definition.
+	jsonStatements.push(...jsonRecreateFKs.filter((it) => !fksOfRecreatedColumns.some((fk) => isSameFk(fk, it.fk))));
 
 	jsonStatements.push(...jsonCreatedCheckConstraints);
 
 	jsonStatements.push(...jsonAlterCheckConstraints);
 
 	// Topological sort
-	// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520 and https://github.com/drizzle-team/drizzle-orm/issues/6176
-	// View1 can be recreated and other view2 was newly created. view2 depends on view1, need to sort them -> https://github.com/drizzle-team/drizzle-orm/issues/6176
-	// Dependent views must be created after their dependencies, otherwise the migration breaks
-	//
-	// `view2` depends on `view1` when `view1`'s (schema-qualified) name appears in `view2`'s definition
-	// Other dialects do this in drizzle.ts files
-	// TODO we have some tests on it in pg-views.test.ts
-	// but probably we should move this to function and test the function
-	const sortedCreateViews: typeof createViews[number][] = [];
-	const visited = new Set<typeof createViews[number]>();
-	const onStack = new Set<typeof createViews[number]>();
-	const visit = (node: typeof createViews[number]) => {
-		if (visited.has(node) || onStack.has(node)) return; // onStack guards against dependency cycles
-		onStack.add(node);
-		for (const other of createViews) {
-			// `node` depends on `other` when `other`'s name appears in `node`'s definition
-			if (other !== node && existsInViewDef(other.view, node.view)) visit(other);
-		}
-		onStack.delete(node);
-		visited.add(node);
-		sortedCreateViews.push(node);
-	};
-	for (const node of createViews) visit(node);
-
-	jsonStatements.push(...sortedCreateViews);
+	// dependent views must be created after their dependencies, otherwise the migration breaks
+	jsonStatements.push(...sortCreateViews(createViews, $metadata?.viewDependencies));
 
 	jsonStatements.push(...jsonRenamePoliciesStatements);
 	jsonStatements.push(...jsonCreatePoliciesStatements);
 	jsonStatements.push(...jsonAlterOrRecreatePoliciesStatements);
+
+	// `jsonDropRoles` runs after the policy statements, because Postgres refuses to drop a role that a policy
+	// or a privilege still names.
+	jsonStatements.push(...jsonDropRoles);
 
 	jsonStatements.push(...jsonDropEnums);
 	jsonStatements.push(...dropSequences);

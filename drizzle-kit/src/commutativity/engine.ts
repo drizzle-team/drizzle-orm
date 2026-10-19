@@ -22,29 +22,25 @@ export type ParsedSnapshotInput<TSnapshot extends SnapshotHeader = SnapshotHeade
 };
 
 /**
- * Lists the nodes that one statement touches in a hierarchical namespace.
- * `FacetCommutativity` compares these nodes between two branches:
- *  - `owns`     exclusive structural locks — the exact node(s) it creates,
- *               renames, alters, or drops. Two statements that own the same
- *               node conflict.
- *  - `destroys` existence writes — a drop removes a node, which conflicts with
- *               anything that `needs` it (children and cross-references).
- *  - `needs`    shared existence reads — ancestor nodes (table, schema) and
- *               cross-referenced nodes that must still exist. Reads never
- *               conflict with reads, so two branches both needing the same
- *               table is fine.
- *  - `provides` nodes that the statement adds or removes for other statements
- *               to need, such as the unique key that a primary key gives to
- *               foreign keys. It conflicts with a statement that needs the
- *               node, and not with another statement that provides it.
+ * Lists the nodes that one statement touches in a hierarchical namespace. `FacetCommutativity` compares these
+ * nodes between two branches, and two statements conflict when the rules below say so:
+ *  - `writes`        a write conflicts with a write or a read of the same node. For example, two branches that
+ *                    add a column with one name, or a table rename and a new column of that table.
+ *  - `reads`         a read conflicts only with a write. For example, two branches that add different columns
+ *                    to one table both read the table, and they do not conflict.
+ *  - `sharedWrites`  a shared write conflicts with a write or a read, and never with another shared write. Use it
+ *                    for a fact that several objects guarantee. For example, a drop of a unique constraint and a
+ *                    drop of a unique index on the same columns do not conflict, and either of them conflicts
+ *                    with a new foreign key that reads the uniqueness of those columns.
+ * Two equal statements on two branches pass through `isRepeatable`, not through `sharedWrites`, because a
+ * shared write would let two different values of one property pass too.
  *
  * Keys are opaque strings minted by the dialect; the engine only compares them.
  */
 export type FacetPaths = {
-	owns: string[];
-	destroys?: string[];
-	needs?: string[];
-	provides?: string[];
+	writes: string[];
+	reads?: string[];
+	sharedWrites?: string[];
 };
 
 type LeafFootprints<TStatement> = {
@@ -322,31 +318,31 @@ export abstract class FacetCommutativity<
 	 * Facet-model footprints. Encodes a read/write lock per node so that
 	 * `findFootprintIntersections` (which matches produced-hashes of one branch
 	 * against conflict-hashes of the other) yields:
-	 *   write vs write  -> conflict   (two statements own the same node)
-	 *   write vs read   -> conflict   (a drop destroys something another needs)
-	 *   read  vs read   -> no conflict (both merely need the node to exist)
+	 *   write vs write  -> conflict   (two statements write the same node)
+	 *   write vs read   -> conflict   (a drop removes something that another statement reads)
+	 *   read  vs read   -> no conflict (both only read that the node exists)
 	 * A write contributes `key#w` to both lists; a read contributes `key#r` to
 	 * the produced list and `key#w` to the conflict list, so reads only ever
-	 * match against writes. A provided node contributes `key#w` to the produced
+	 * match against writes. A shared write contributes `key#w` to the produced
 	 * list only, so it matches a read or a write of the other branch, and never
-	 * another provided node.
+	 * another shared write.
 	 */
 	protected override generateLeafFootprints(statements: TStatement[]): LeafFootprints<TStatement> {
 		const statementHashes: Array<{ hash: string; statement: TStatement }> = [];
 		const conflictFootprints: Array<{ hash: string; statement: TStatement }> = [];
 
 		for (const statement of statements) {
-			const { owns, destroys = [], needs = [], provides = [] } = this.buildFacetPaths(statement);
+			const { writes, reads = [], sharedWrites = [] } = this.buildFacetPaths(statement);
 
-			for (const key of [...owns, ...destroys]) {
+			for (const key of writes) {
 				statementHashes.push({ hash: `${key}#w`, statement });
 				conflictFootprints.push({ hash: `${key}#w`, statement });
 			}
-			for (const key of needs) {
+			for (const key of reads) {
 				statementHashes.push({ hash: `${key}#r`, statement });
 				conflictFootprints.push({ hash: `${key}#w`, statement });
 			}
-			for (const key of provides) {
+			for (const key of sharedWrites) {
 				statementHashes.push({ hash: `${key}#w`, statement });
 			}
 		}

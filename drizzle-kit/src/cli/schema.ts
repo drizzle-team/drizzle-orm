@@ -226,19 +226,32 @@ export const runPush = async (
 	} else if (dialect === 'postgresql') {
 		if ('driver' in credentials) {
 			const { driver } = credentials;
-			if (driver === 'aws-data-api' && !(await ormVersionGt('0.30.10'))) {
-				throw new OrmDriverVersionCliError(
-					'aws-data-api',
-					'0.30.10',
-					"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
-				);
-			}
-			if (driver === 'pglite' && !(await ormVersionGt('0.30.6'))) {
-				throw new OrmDriverVersionCliError(
-					'pglite',
-					'0.30.6',
-					"To use 'pglite' driver - please update drizzle-orm to the latest version",
-				);
+			if (driver === 'aws-data-api') {
+				if (!(await ormVersionGt('0.30.10'))) {
+					throw new OrmDriverVersionCliError(
+						'aws-data-api',
+						'0.30.10',
+						"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
+					);
+				}
+			} else if (driver === 'pglite') {
+				if (!(await ormVersionGt('0.30.6'))) {
+					throw new OrmDriverVersionCliError(
+						'pglite',
+						'0.30.6',
+						"To use 'pglite' driver - please update drizzle-orm to the latest version",
+					);
+				}
+			} else if (driver === 'dsql') {
+				if (!(await ormVersionGt('1.0.0-rc.5'))) {
+					throw new OrmDriverVersionCliError(
+						'dsql',
+						'1.0.0-rc.5',
+						"To use 'dsql' driver - please update drizzle-orm to the >=1.0.0-rc.5 version",
+					);
+				}
+			} else {
+				assertUnreachable(driver);
 			}
 		}
 
@@ -413,9 +426,12 @@ export const migrate = command({
 						process.exit(1);
 					}
 				} else if (driver === 'dsql') {
-					// TODO
-					// author: alex.sherman
-					// Do we need to check version here?
+					if (!(await ormVersionGt('1.0.0-rc.5'))) {
+						console.log(
+							"To use 'dsql' driver - please update drizzle-orm to the >=1.0.0-rc.5 version",
+						);
+						process.exit(1);
+					}
 				} else {
 					assertUnreachable(driver);
 				}
@@ -768,19 +784,32 @@ export const runPull = async (
 	if (dialect === 'postgresql') {
 		if ('driver' in credentials) {
 			const { driver } = credentials;
-			if (driver === 'aws-data-api' && !(await ormVersionGt('0.30.10'))) {
-				throw new OrmDriverVersionCliError(
-					'aws-data-api',
-					'0.30.10',
-					"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
-				);
-			}
-			if (driver === 'pglite' && !(await ormVersionGt('0.30.6'))) {
-				throw new OrmDriverVersionCliError(
-					'pglite',
-					'0.30.6',
-					"To use 'pglite' driver - please update drizzle-orm to the latest version",
-				);
+			if (driver === 'aws-data-api') {
+				if (!(await ormVersionGt('0.30.10'))) {
+					throw new OrmDriverVersionCliError(
+						'aws-data-api',
+						'0.30.10',
+						"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
+					);
+				}
+			} else if (driver === 'pglite') {
+				if (!(await ormVersionGt('0.30.6'))) {
+					throw new OrmDriverVersionCliError(
+						'pglite',
+						'0.30.6',
+						"To use 'pglite' driver - please update drizzle-orm to the latest version",
+					);
+				}
+			} else if (driver === 'dsql') {
+				if (!(await ormVersionGt('1.0.0-rc.5'))) {
+					throw new OrmDriverVersionCliError(
+						'dsql',
+						'1.0.0-rc.5',
+						"To use 'dsql' driver - please update drizzle-orm to the >=1.0.0-rc.5 version",
+					);
+				}
+			} else {
+				assertUnreachable(driver);
 			}
 		}
 
@@ -1047,9 +1076,12 @@ export const studio = command({
 						process.exit(1);
 					}
 				} else if (driver === 'dsql') {
-					// TODO
-					// author: alex.sherman
-					// Do we need to check version here?
+					if (!(await ormVersionGt('1.0.0-rc.5'))) {
+						console.log(
+							"To use 'dsql' driver - please update drizzle-orm to the >=1.0.0-rc.5 version",
+						);
+						process.exit(1);
+					}
 				} else {
 					assertUnreachable(driver);
 				}

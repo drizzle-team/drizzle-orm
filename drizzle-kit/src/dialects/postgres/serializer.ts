@@ -1,4 +1,5 @@
 import { humanLog, postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
+import type { SchemaMetadata } from '../utils';
 import type { PostgresDDL } from './ddl';
 import { interimToDDL } from './ddl';
 import { fromDrizzleSchema } from './drizzle';
@@ -9,10 +10,10 @@ import { combinedState, type MigrationsFolder } from './folder';
 // schema is. `stage` names the step that gave the errors, and `ddl` is null when `fromDrizzleSchema` fails.
 export const stateOfSchema = (prepared: PreparedPostgresSchema) => {
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
-	const { schema, errors, warnings } = fromDrizzleSchema(prepared, () => true);
-	if (errors.length > 0) return { stage: 'schema' as const, ddl: null, errors, warnings };
+	const { schema, metadata, errors, warnings } = fromDrizzleSchema(prepared, () => true);
+	if (errors.length > 0) return { stage: 'schema' as const, ddl: null, metadata, errors, warnings };
 	const { ddl, errors: ddlErrors } = interimToDDL(schema);
-	return { stage: 'ddl' as const, ddl, errors: ddlErrors, warnings };
+	return { stage: 'ddl' as const, ddl, metadata, errors: ddlErrors, warnings };
 };
 
 export const prepareSnapshot = (
@@ -21,9 +22,10 @@ export const prepareSnapshot = (
 ): {
 	ddlPrev: PostgresDDL;
 	ddlCur: PostgresDDL;
+	metadata: SchemaMetadata;
 } => {
 	const ddlPrev = combinedState(migrations);
-	const { ddl: ddlCur, errors, warnings } = stateOfSchema(prepared);
+	const { ddl: ddlCur, metadata, errors, warnings } = stateOfSchema(prepared);
 
 	if (warnings.length > 0) {
 		humanLog(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
@@ -34,5 +36,5 @@ export const prepareSnapshot = (
 		process.exit(1);
 	}
 
-	return { ddlPrev, ddlCur };
+	return { ddlPrev, ddlCur, metadata };
 };

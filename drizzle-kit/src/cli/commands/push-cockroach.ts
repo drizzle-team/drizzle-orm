@@ -70,7 +70,7 @@ export const handle = async (
 	const existing = extractCrdbExisting(res.schemas, res.views, res.matViews);
 	const filter = prepareEntityFilter('cockroach', filters, existing);
 
-	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, filter);
+	const { schema: schemaTo, metadata, errors, warnings } = fromDrizzleSchema(res, filter);
 
 	if (warnings.length > 0) {
 		humanLog(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
@@ -119,6 +119,7 @@ export const handle = async (
 		resolver<PrimaryKey>('primary_key', hints),
 		resolver<ForeignKey>('foreign key', hints),
 		'push',
+		metadata,
 	);
 
 	if (hints.hasMissingHints()) {
@@ -186,7 +187,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 
 	const filtered = jsonStatements.filter((it) => {
 		// discussion -
-		if (it.type === 'recreate_view') return false;
+		if (it.type === 'drop_view' && it.cause) return false;
 
 		/*
 			drizzle-kit push does not handle alternations of views definitions

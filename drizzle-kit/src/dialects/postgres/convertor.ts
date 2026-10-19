@@ -423,16 +423,15 @@ const recreateColumnConvertor = convertor('recreate_column', ({ diff, isPK }) =>
 	return [drop, add];
 });
 
-const recreateIndexConvertor = convertor('recreate_index', ({ index, diff, shouldDrop }) => ({
+const recreateIndexConvertor = convertor('recreate_index', ({ index, diff }) => ({
 	index: row('indexes', index),
-	shouldDrop,
 	old: uniqueness(diff.$left),
 }), (st) => {
 	// AlterTableAlterColumnSetExpressionConvertor
 	// AlterTableAlterColumnAlterGeneratedConvertor
 
 	const res: string[] = [];
-	if (st.shouldDrop) res.push(dropIndexConvertor.convert({ index: st.index }) as string);
+	res.push(dropIndexConvertor.convert({ index: st.index }) as string);
 	res.push(createIndexConvertor.convert({ index: st.index }) as string);
 
 	return res;
@@ -461,6 +460,12 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 	const key = column.schema !== 'public'
 		? `"${column.schema}"."${column.table}"`
 		: `"${column.table}"`;
+
+	// When the column stops being generated, DROP EXPRESSION must run before the type and default statements
+	// below, because Postgres refuses a default and a USING clause for a generated column.
+	if (diff.generated && diff.generated.to === null) {
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP EXPRESSION;`);
+	}
 
 	// `hasNewType` decides if SET DATA TYPE runs. It counts a new `typeSchema`, because an enum with the same
 	// name in another schema is another type. A new count of `dimensions` gets a plain cast. Postgres has no
@@ -516,9 +521,9 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 		}
 
 		statements.push(
-			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${
-				'[]'.repeat(column.dimensions)
-			}${suffix};`,
+			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${'[]'.repeat(column.dimensions)}${
+				column.generated ? '' : suffix
+			};`,
 		);
 
 		if (recreateDefault && column.default) {
@@ -536,10 +541,6 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 		} else {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 		}
-	}
-
-	if (diff.generated && diff.generated.to === null) {
-		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP EXPRESSION;`);
 	}
 
 	if (diff.identity) {

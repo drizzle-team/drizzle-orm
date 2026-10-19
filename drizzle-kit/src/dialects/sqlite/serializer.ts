@@ -2,6 +2,7 @@ import type { CheckHandlerResult } from '../../cli/commands/check';
 import { humanLog, sqliteSchemaError } from '../../cli/views';
 import { assertUnreachable } from '../../utils';
 import { findLeafSnapshotIds } from '../../utils/utils-node';
+import type { SchemaMetadata } from '../utils';
 import type { Column, ForeignKey, Index, PrimaryKey, SQLiteDDL, UniqueConstraint } from './ddl';
 import { createDDL, fromEntities, interimToDDL } from './ddl';
 import { fromDrizzleSchema } from './drizzle';
@@ -17,6 +18,7 @@ export const prepareSqliteSnapshot = async (
 ): Promise<{
 	ddlPrev: SQLiteDDL;
 	ddlCur: SQLiteDDL;
+	metadata: SchemaMetadata;
 	snapshot: SqliteSnapshot;
 	snapshotPrev: SqliteSnapshot;
 	custom: SqliteSnapshot;
@@ -48,7 +50,7 @@ export const prepareSqliteSnapshot = async (
 	}
 
 	const { tables, views } = prepared;
-	const interim = fromDrizzleSchema(tables, views);
+	const { schema: interim, metadata } = fromDrizzleSchema(tables, views);
 
 	const { ddl: ddlCur, errors } = interimToDDL(interim);
 
@@ -86,7 +88,7 @@ export const prepareSqliteSnapshot = async (
 		...prevRest,
 	};
 
-	return { ddlPrev, ddlCur, snapshot, snapshotPrev: prevSnapshot, custom };
+	return { ddlPrev, ddlCur, metadata, snapshot, snapshotPrev: prevSnapshot, custom };
 };
 
 /**

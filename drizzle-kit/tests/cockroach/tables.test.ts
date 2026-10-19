@@ -1,6 +1,7 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
 	camelCase,
+	cockroachPolicy,
 	cockroachSchema,
 	cockroachTable,
 	cockroachTableCreator,
@@ -1237,6 +1238,109 @@ test.concurrent('push after migrate with custom migrations table #4', async ({ d
 	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// In the tests below, the statement that moves or renames `users` runs first, because the other statements
+// name the table by its new schema and name.
+const folder = cockroachSchema('folder');
+const moved = (inFolder: boolean, extra: (t: any) => any[] = () => [], withRls = false) => {
+	const columns = { id: int4(), ownerId: int4() };
+	const create = inFolder
+		? (withRls ? folder.table.withRLS : folder.table)
+		: (withRls ? cockroachTable.withRLS : cockroachTable);
+	return (create as typeof cockroachTable)('users', columns, extra);
+};
+const owners = cockroachTable('owners', { id: int4().primaryKey() });
+const reader = () => cockroachPolicy('readers', { for: 'select' });
+const writer = () => cockroachPolicy('writers', { for: 'insert' });
+const ownerKey = (t: any) => [foreignKey({ name: 'owner_fk', columns: [t.ownerId], foreignColumns: [owners.id] })];
+
+test.for([
+	{
+		name: 'a drop of one of its policies',
+		from: moved(false, () => [reader(), writer()]),
+		to: moved(true, () => [reader()]),
+		expected: ['ALTER TABLE "users" SET SCHEMA "folder";\n', 'DROP POLICY "writers" ON "folder"."users";'],
+	},
+	{
+		name: 'a drop of its last policy',
+		from: moved(false, () => [reader()]),
+		to: moved(true),
+		expected: [
+			'ALTER TABLE "users" SET SCHEMA "folder";\n',
+			'ALTER TABLE "folder"."users" DISABLE ROW LEVEL SECURITY;',
+			'DROP POLICY "readers" ON "folder"."users";',
+		],
+	},
+	{
+		name: 'its first policy',
+		from: moved(false),
+		to: moved(true, () => [reader()]),
+		expected: [
+			'ALTER TABLE "users" SET SCHEMA "folder";\n',
+			'ALTER TABLE "folder"."users" ENABLE ROW LEVEL SECURITY;',
+			'CREATE POLICY "readers" ON "folder"."users" AS PERMISSIVE FOR SELECT TO public;',
+		],
+	},
+	{
+		name: 'the row level security flag',
+		from: moved(false),
+		to: moved(true, undefined, true),
+		expected: [
+			'ALTER TABLE "users" SET SCHEMA "folder";\n',
+			'ALTER TABLE "folder"."users" ENABLE ROW LEVEL SECURITY;',
+		],
+	},
+	{
+		name: 'a drop of its foreign key',
+		from: moved(false, ownerKey),
+		to: moved(true),
+		expected: [
+			'ALTER TABLE "users" SET SCHEMA "folder";\n',
+			'ALTER TABLE "folder"."users" DROP CONSTRAINT "owner_fk";',
+		],
+	},
+])('a table move together with $name writes SQL that runs', async ({ from, to, expected }, { db }) => {
+	const renames = ['public.users->folder.users'];
+
+	const { sqlStatements: st } = await diff({ folder, owners, users: from }, { folder, owners, users: to }, renames);
+	await push({ db, to: { folder, owners, users: from } });
+	const { sqlStatements: pst } = await push({ db, to: { folder, owners, users: to }, renames });
+
+	expect(st).toStrictEqual(expected);
+	expect(pst).toStrictEqual(expected);
+});
+
+test('a table move together with a drop of its foreign key and of the referenced table writes SQL that runs', async ({ db }) => {
+	const from = { folder, owners, users: moved(false, ownerKey) };
+	const to = { folder, users: moved(true) };
+	const renames = ['public.users->folder.users'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER TABLE "users" SET SCHEMA "folder";\n',
+		'ALTER TABLE "folder"."users" DROP CONSTRAINT "owner_fk";',
+		'DROP TABLE "owners";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('a table rename together with the row level security flag writes SQL that runs', async ({ db }) => {
+	const from = { users: cockroachTable('users', { id: int4() }) };
+	const to = { users: cockroachTable.withRLS('people', { id: int4() }) };
+	const renames = ['public.users->public.people'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = ['ALTER TABLE "users" RENAME TO "people";', 'ALTER TABLE "people" ENABLE ROW LEVEL SECURITY;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test.concurrent('drop column in a renamed table with data', async ({ dbc: db }) => {

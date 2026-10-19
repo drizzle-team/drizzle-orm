@@ -594,7 +594,9 @@ const cases: Case[] = [
 		expect: 'commute',
 	},
 
-	// a foreign key needs a primary key, a unique constraint or a unique index on the columns that it references
+	// a foreign key needs a primary key, a unique constraint or a unique index on the columns that it references.
+	// The rules cannot count these guarantees, so a drop conflicts with a new foreign key also when another
+	// guarantee of the same columns remains, although both orders run then.
 	{
 		name: 'create_fk ∥ drop_pk (on the referenced columns) conflict',
 		a: [S.createFk('public', 'orders', 'fk', ['uid'], 'public', 'users', ['id'])],
@@ -638,6 +640,24 @@ const cases: Case[] = [
 		name: 'create_fk ∥ drop_unique (on other columns) commute',
 		a: [S.createFk('public', 'orders', 'fk', ['uid'], 'public', 'users', ['id'])],
 		b: [S.dropUnique('public', 'users', 'users_email_uq', ['email'])],
+		expect: 'commute',
+	},
+	{
+		name: 'create_fk ∥ add_unique (on the referenced columns) commute',
+		a: [S.createFk('public', 'orders', 'fk', ['uid'], 'public', 'users', ['id'])],
+		b: [S.addUnique('public', 'users', 'users_id_uq', ['id'])],
+		expect: 'commute',
+	},
+	{
+		name: 'create_fk ∥ create of a unique index (on the referenced columns) commute',
+		a: [S.createFk('public', 'orders', 'fk', ['uid'], 'public', 'users', ['id'])],
+		b: [{ type: 'create_index', index: { ...idx('public', 'users', 'users_id_ux', ['id']), isUnique: true } }],
+		expect: 'commute',
+	},
+	{
+		name: 'drop_unique ∥ drop of a unique index (same columns) commute',
+		a: [S.dropUnique('public', 'users', 'users_id_uq', ['id'])],
+		b: [{ type: 'drop_index', index: { ...idx('public', 'users', 'users_id_ux', ['id']), isUnique: true } }],
 		expect: 'commute',
 	},
 	{
@@ -984,9 +1004,8 @@ describe('facet commutativity — curated scenarios (postgres)', () => {
 describe('the same statement on both branches', () => {
 	const conflictsWithItself = (statement: JsonStatement) => conflicts([statement], [structuredClone(statement)]);
 
-	test('a recreate_index with its DROP INDEX commutes, and one without it conflicts', async () => {
+	test('a recreate_index commutes with itself', async () => {
 		expect(await conflictsWithItself(build('recreate_index'))).toBe(false);
-		expect(await conflictsWithItself({ ...build('recreate_index'), shouldDrop: false } as JsonStatement)).toBe(true);
 	});
 
 	test('an alter_pk with its DROP CONSTRAINT commutes, and one without it conflicts', async () => {

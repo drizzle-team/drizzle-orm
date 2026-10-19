@@ -17,7 +17,7 @@ export const generateDrizzleJson = async (
 	const { fromDrizzleSchema, prepareFromExports } = await import('../dialects/mysql/drizzle');
 	const prepared = prepareFromExports(imports);
 
-	const interim = fromDrizzleSchema(prepared.tables, prepared.views);
+	const { schema: interim } = fromDrizzleSchema(prepared.tables, prepared.views);
 
 	const { ddl, errors } = interimToDDL(interim);
 
@@ -87,7 +87,7 @@ export const pushSchema = async (
 	const prepared = prepareFromExports(imports);
 
 	const prev = await fromDatabaseForDrizzle(db, database, () => true, () => {}, migrations);
-	const cur = fromDrizzleSchema(prepared.tables, prepared.views);
+	const { schema: cur, metadata } = fromDrizzleSchema(prepared.tables, prepared.views);
 
 	const { ddl: from } = interimToDDL(prev);
 	const { ddl: to } = interimToDDL(cur);
@@ -100,6 +100,7 @@ export const pushSchema = async (
 			resolver<Column>('column', userHints),
 			resolver<View>('view', userHints),
 			'push',
+			metadata,
 		);
 		// An unresolved rename is diffed as a drop plus a create, so a data loss check on it would report a false drop.
 		userHints.throwIfMissingHints();

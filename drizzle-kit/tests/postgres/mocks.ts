@@ -149,6 +149,7 @@ export const drizzleToDDL = (
 
 	const {
 		schema: res,
+		metadata,
 		errors,
 		warnings,
 	} = fromDrizzleSchema(grouped, filter);
@@ -157,7 +158,7 @@ export const drizzleToDDL = (
 		throw new Error();
 	}
 
-	return { ...interimToDDL(res), existing };
+	return { ...interimToDDL(res), existing, metadata };
 };
 
 export const apply = (base: PostgresDDL, deltas: Delta[]) => applyDeltas(base.clone(), deltas);
@@ -187,8 +188,8 @@ export const diff = async (
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as PostgresDDL, errors: [] }
 		: drizzleToDDL(left);
-	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
-		? { ddl: right as PostgresDDL, errors: [] }
+	const { ddl: ddl2, errors: err2, metadata } = 'entities' in right && '_' in right
+		? { ddl: right as PostgresDDL, errors: [], metadata: undefined }
 		: drizzleToDDL(right);
 
 	if (err1.length > 0 || err2.length > 0) {
@@ -215,6 +216,7 @@ export const diff = async (
 		mockResolver(renames),
 		mockResolver(renames),
 		'default',
+		metadata,
 	);
 	expectDeltasRebuildState(parent, deltas, ddl2);
 	expectStatementsRebuildSql(snapshotStatements, sqlStatements);
@@ -252,8 +254,8 @@ export const push = async (config: {
 		extensions: [],
 	};
 
-	const { ddl: ddl2, errors: err2, existing } = 'entities' in to && '_' in to
-		? { ddl: to as PostgresDDL, errors: [], existing: [] }
+	const { ddl: ddl2, errors: err2, existing, metadata } = 'entities' in to && '_' in to
+		? { ddl: to as PostgresDDL, errors: [], existing: [], metadata: undefined }
 		: drizzleToDDL(to, filterConfig);
 
 	const filter = prepareEntityFilter('postgresql', filterConfig, existing);
@@ -300,6 +302,7 @@ export const push = async (config: {
 		mockResolver(renames),
 		mockResolver(renames),
 		'push',
+		metadata,
 	);
 	expectDeltasRebuildState(parent, deltas, ddl2);
 
