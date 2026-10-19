@@ -584,10 +584,10 @@ WHERE obj.type in ('U', 'V')
 		if (!tableFrom) continue;
 		const schemaFrom = filteredSchemas.find((it) => it.schema_id === fk.schema_id)!;
 
+		// TODO need to discuss
 		// the referenced table can be outside the tablesFilter. In that case the FK target can not be
 		// resolved, so skip it instead
-		const tableTo = filteredTables.find((it) => it.object_id === fk.reference_table_id);
-		if (!tableTo) continue;
+		const tableTo = filteredTables.find((it) => it.object_id === fk.reference_table_id)!;
 		const schemaTo = filteredSchemas.find((it) => it.schema_id === tableTo.schema_id)!;
 
 		const columns = fk.columns.parent_column_ids.map((it) => {

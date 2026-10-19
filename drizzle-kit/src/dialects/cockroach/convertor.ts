@@ -62,12 +62,6 @@ const moveViewConvertor = convertor('move_view', (st) => {
 	return `ALTER${view.materialized ? ' MATERIALIZED' : ''} VIEW ${from} SET SCHEMA "${toSchema}";`;
 });
 
-const recreateViewConvertor = convertor('recreate_view', (st) => {
-	const drop = dropViewConvertor.convert({ view: st.from }) as string;
-	const create = createViewConvertor.convert({ view: st.to }) as string;
-	return [drop, create];
-});
-
 const createTableConvertor = convertor('create_table', (st) => {
 	const { schema, name, columns, pk, checks, policies, isRlsEnabled, indexes } = st.table;
 
@@ -723,7 +717,6 @@ const convertors = [
 	dropViewConvertor,
 	renameViewConvertor,
 	moveViewConvertor,
-	recreateViewConvertor,
 	createTableConvertor,
 	dropTableConvertor,
 	renameTableConvertor,

@@ -73,7 +73,7 @@ export const handle = async (
 	const existing = extractPostgresExisting(res.schemas, res.views, res.matViews);
 	const entityFilter = prepareEntityFilter('postgresql', filters, existing);
 
-	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, entityFilter);
+	const { schema: schemaTo, metadata, errors, warnings } = fromDrizzleSchema(res, entityFilter);
 
 	if (warnings.length > 0) {
 		humanLog(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
@@ -127,6 +127,7 @@ export const handle = async (
 		resolver<PrimaryKey>('primary_key', hints),
 		resolver<ForeignKey>('foreign key', hints),
 		'push',
+		metadata,
 	);
 
 	if (hints.hasMissingHints()) {

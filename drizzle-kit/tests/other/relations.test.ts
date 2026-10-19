@@ -34,7 +34,7 @@ const table = (
 });
 
 // A pure link table: exactly two FKs and no columns beyond the FK columns.
-test('junction table produces a through relation', () => {
+test('junction table produces a through relation and direct relations', () => {
 	const schema: SchemaForPull = [
 		table([], ['id'], [{ columns: ['id'] }]), // users
 		table([], ['id'], [{ columns: ['id'] }]), // groups
@@ -50,37 +50,74 @@ test('junction table produces a through relation', () => {
 
 	const { tableRelations } = relationsToTypeScript(schema, 'camel');
 
-	expect(tableRelations['users']).toStrictEqual([{
-		name: 'groups',
-		type: 'through',
-		tableFrom: 'users',
-		columnsFrom: ['id'],
-		tableTo: 'groups',
-		columnsTo: ['id'],
-		tableThrough: 'usersToGroups',
-		columnsThroughFrom: ['userId'],
-		columnsThroughTo: ['groupId'],
-	}]);
+	expect(tableRelations['users']).toStrictEqual([
+		{
+			name: 'groups',
+			type: 'through',
+			tableFrom: 'users',
+			columnsFrom: ['id'],
+			tableTo: 'groups',
+			columnsTo: ['id'],
+			tableThrough: 'usersToGroups',
+			columnsThroughFrom: ['userId'],
+			columnsThroughTo: ['groupId'],
+		},
+		{
+			name: 'usersToGroups',
+			type: 'many',
+			tableFrom: 'users',
+			columnsFrom: ['id'],
+			tableTo: 'usersToGroups',
+			columnsTo: ['userId'],
+		},
+	]);
 
-	expect(tableRelations['groups']).toStrictEqual([{
-		name: 'users',
-		type: 'many-through',
-		tableFrom: 'groups',
-		columnsFrom: ['id'],
-		tableTo: 'users',
-		columnsTo: ['id'],
-		tableThrough: 'usersToGroups',
-		columnsThroughFrom: ['userId'],
-		columnsThroughTo: ['groupId'],
-	}]);
+	expect(tableRelations['groups']).toStrictEqual([
+		{
+			name: 'users',
+			type: 'many-through',
+			tableFrom: 'groups',
+			columnsFrom: ['id'],
+			tableTo: 'users',
+			columnsTo: ['id'],
+			tableThrough: 'usersToGroups',
+			columnsThroughFrom: ['userId'],
+			columnsThroughTo: ['groupId'],
+		},
+		{
+			name: 'usersToGroups',
+			type: 'many',
+			tableFrom: 'groups',
+			columnsFrom: ['id'],
+			tableTo: 'usersToGroups',
+			columnsTo: ['groupId'],
+		},
+	]);
 
-	// the junction table itself gets no relations
-	expect(tableRelations['usersToGroups']).toBeUndefined();
+	// the junction table itself gets direct relations to both sides
+	expect(tableRelations['usersToGroups']).toStrictEqual([
+		{
+			name: 'user',
+			type: 'one',
+			tableFrom: 'usersToGroups',
+			columnsFrom: ['userId'],
+			tableTo: 'users',
+			columnsTo: ['id'],
+		},
+		{
+			name: 'group',
+			type: 'one',
+			tableFrom: 'usersToGroups',
+			columnsFrom: ['groupId'],
+			tableTo: 'groups',
+			columnsTo: ['id'],
+		},
+	]);
 });
 
 // A domain entity that happens to have two FKs plus its own business columns
-// It must NOT be collapsed into a junction — see https://github.com/drizzle-team/drizzle-orm/issues/6253
-test('domain table with two FKs and extra columns produces direct relations', () => {
+// Generate junction and direct relations — see https://github.com/drizzle-team/drizzle-orm/issues/6253
+test('domain table with two FKs and extra columns produces junction and direct relations', () => {
 	const schema: SchemaForPull = [
 		table([], ['id'], [{ columns: ['id'] }]), // account
 		table([], ['id'], [{ columns: ['id'] }]), // category
@@ -116,26 +153,47 @@ test('domain table with two FKs and extra columns produces direct relations', ()
 		},
 	]);
 
-	// plain `many` reverse collections on the referenced tables
-	expect(tableRelations['account']).toStrictEqual([{
-		name: 'transactionRecords',
-		type: 'many',
-		tableFrom: 'account',
-		columnsFrom: ['id'],
-		tableTo: 'transactionRecord',
-		columnsTo: ['accountId'],
-	}]);
-	expect(tableRelations['category']).toStrictEqual([{
-		name: 'transactionRecords',
-		type: 'many',
-		tableFrom: 'category',
-		columnsFrom: ['id'],
-		tableTo: 'transactionRecord',
-		columnsTo: ['categoryId'],
-	}]);
-
-	// no many-to-many was inferred
-	const allTypes = Object.values(tableRelations).flat().map((r) => r.type);
-	expect(allTypes).not.toContain('through');
-	expect(allTypes).not.toContain('many-through');
+	// many-to-many through the domain table and plain `many` reverse collections on the referenced tables
+	expect(tableRelations['account']).toStrictEqual([
+		{
+			name: 'categories',
+			type: 'through',
+			tableFrom: 'account',
+			columnsFrom: ['id'],
+			tableTo: 'category',
+			columnsTo: ['id'],
+			tableThrough: 'transactionRecord',
+			columnsThroughFrom: ['accountId'],
+			columnsThroughTo: ['categoryId'],
+		},
+		{
+			name: 'transactionRecords',
+			type: 'many',
+			tableFrom: 'account',
+			columnsFrom: ['id'],
+			tableTo: 'transactionRecord',
+			columnsTo: ['accountId'],
+		},
+	]);
+	expect(tableRelations['category']).toStrictEqual([
+		{
+			name: 'accounts',
+			type: 'many-through',
+			tableFrom: 'category',
+			columnsFrom: ['id'],
+			tableTo: 'account',
+			columnsTo: ['id'],
+			tableThrough: 'transactionRecord',
+			columnsThroughFrom: ['accountId'],
+			columnsThroughTo: ['categoryId'],
+		},
+		{
+			name: 'transactionRecords',
+			type: 'many',
+			tableFrom: 'category',
+			columnsFrom: ['id'],
+			tableTo: 'transactionRecord',
+			columnsTo: ['categoryId'],
+		},
+	]);
 });

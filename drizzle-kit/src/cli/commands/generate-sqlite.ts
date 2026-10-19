@@ -21,7 +21,7 @@ export const handle = async (
 	const { out: outFolder } = config;
 	const { snapshots } = prepareOutFolder(outFolder);
 	const prepared = await config.schemaSource.load();
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSqliteSnapshot(
+	const { ddlCur, ddlPrev, metadata, snapshot, custom } = await prepareSqliteSnapshot(
 		snapshots,
 		prepared,
 		checkResult,
@@ -47,6 +47,7 @@ export const handle = async (
 		resolver<SqliteEntities['tables']>('table', config.hints),
 		resolver<Column>('column', config.hints),
 		'default',
+		metadata,
 	);
 
 	if (config.hints.hasMissingHints()) {
@@ -91,7 +92,7 @@ export const handle = async (
 
 export const handleExport = async (config: ExportConfig) => {
 	const res = await prepareFromSchemaFiles(config.filenames);
-	const schema = fromDrizzleSchema(res.tables, res.views);
+	const { schema, metadata } = fromDrizzleSchema(res.tables, res.views);
 	const { ddl, errors } = interimToDDL(schema);
 
 	if (errors.length > 0) {
@@ -101,6 +102,6 @@ export const handleExport = async (config: ExportConfig) => {
 		});
 	}
 
-	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
+	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default', metadata);
 	return { statements: sqlStatements, warnings: [] };
 };

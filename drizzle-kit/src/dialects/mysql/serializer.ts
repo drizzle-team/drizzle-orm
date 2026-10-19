@@ -2,6 +2,7 @@ import type { CheckHandlerResult } from '../../cli/commands/check';
 import { humanLog, mysqlSchemaError } from '../../cli/views';
 import { assertUnreachable } from '../../utils';
 import { findLeafSnapshotIds } from '../../utils/utils-node';
+import type { SchemaMetadata } from '../utils';
 import type { MysqlDDL, SchemaError } from './ddl';
 import { createDDL, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
@@ -16,6 +17,7 @@ export const prepareSnapshot = async (
 ): Promise<{
 	ddlPrev: MysqlDDL;
 	ddlCur: MysqlDDL;
+	metadata: SchemaMetadata;
 	snapshot: MysqlSnapshot;
 	snapshotPrev: MysqlSnapshot;
 	custom: MysqlSnapshot;
@@ -48,7 +50,7 @@ export const prepareSnapshot = async (
 	}
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const interim = fromDrizzleSchema(res.tables, res.views);
+	const { schema: interim, metadata } = fromDrizzleSchema(res.tables, res.views);
 
 	const { ddl: ddlCur, errors: errors2 } = interimToDDL(interim);
 
@@ -88,6 +90,7 @@ export const prepareSnapshot = async (
 	return {
 		ddlPrev,
 		ddlCur,
+		metadata,
 		snapshot,
 		snapshotPrev: prevSnapshot,
 		custom,
