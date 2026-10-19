@@ -1,5 +1,5 @@
 import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { is } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
@@ -37,10 +37,7 @@ export class PgAsyncPreparedQuery<T extends PreparedQueryConfig> extends PgBaseP
 		// cache instance
 		protected cache: Cache | undefined,
 		// per query related metadata
-		protected queryMetadata: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		} | undefined,
+		protected queryMetadata: QueryMetadata | undefined,
 		// config that was passed through $withCache
 		protected cacheConfig: WithCacheConfig | undefined,
 		protected paramsInErrors: boolean | undefined,
@@ -172,10 +169,7 @@ export abstract class BasePgAsyncSession extends PgSession {
 		mode: 'arrays' | 'objects' | 'raw',
 		name: string | boolean,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 		driverShape?: unknown,
 	): PgAsyncPreparedQuery<T>;

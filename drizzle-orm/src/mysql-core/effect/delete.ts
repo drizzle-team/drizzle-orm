@@ -68,7 +68,7 @@ export class MySqlEffectDeleteBase<
 			undefined,
 			{
 				type: 'delete',
-				tables: usedTablesOf(this.config.table),
+				tables: () => usedTablesOf(this.config.table),
 			},
 		) as MySqlEffectDeletePrepare<this, TEffectHKT>;
 	}

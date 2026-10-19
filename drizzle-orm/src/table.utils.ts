@@ -3,6 +3,33 @@ import { DrizzleError } from '~/errors.ts';
 /** @internal */
 export const TableName = Symbol.for('drizzle:Name');
 
+/** @internal */
+export const TableSchema = Symbol.for('drizzle:Schema');
+
+/** @internal */
+export const TableColumns = Symbol.for('drizzle:Columns');
+
+/** @internal */
+export const ExtraConfigColumns = Symbol.for('drizzle:ExtraConfigColumns');
+
+/** @internal */
+export const OriginalName = Symbol.for('drizzle:OriginalName');
+
+/** @internal */
+export const BaseName = Symbol.for('drizzle:BaseName');
+
+/** @internal */
+export const CacheKey = Symbol.for('drizzle:CacheKey');
+
+/** @internal */
+export const IsAlias = Symbol.for('drizzle:IsAlias');
+
+/** @internal */
+export const Qualifier = Symbol.for('drizzle:Qualifier');
+
+/** @internal */
+export const ExtraConfigBuilder = Symbol.for('drizzle:ExtraConfigBuilder');
+
 function describeExtraConfigValue(value: unknown): string {
 	if (value === null) return 'null';
 	if (Array.isArray(value)) return 'an array';

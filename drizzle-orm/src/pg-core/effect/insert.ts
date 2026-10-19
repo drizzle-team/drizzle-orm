@@ -102,7 +102,7 @@ export class PgEffectInsertBase<
 			fields ? 'arrays' : 'raw',
 			name ?? generateName,
 			mapper,
-			{ type: 'insert', tables: usedTablesOf(this.config.table) },
+			{ type: 'insert', tables: () => usedTablesOf(this.config.table) },
 		);
 
 		return preparedQuery;

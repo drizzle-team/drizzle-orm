@@ -2,7 +2,7 @@ import { describe, it } from 'vitest';
 import { drizzle, nodeCockroachCodecs } from '~/cockroach';
 import { alias, boolean, camelCase, castToText, int4, QueryBuilder, text, union } from '~/cockroach-core';
 import { defineRelations } from '~/relations';
-import { asc, eq, exists, inArray, Param, sql } from '~/sql';
+import { asc, desc, eq, exists, inArray, Param, sql } from '~/sql';
 
 const testSchema = camelCase.schema('test');
 const users = camelCase.table('users', {
@@ -654,6 +654,23 @@ describe('cockroach to camel case', () => {
 				'select "firstName" from ((select "firstName" from "users") union (select "firstName" from "users")) "drizzle_union"',
 			params: [],
 		});
+	});
+
+	it('set operator - order by leaves passed sql intact', ({ expect }) => {
+		const order = desc(users.first_name);
+		const query = db
+			.select({ first_name: users.first_name })
+			.from(users)
+			.union(db.select({ first_name: users.first_name }).from(users))
+			.orderBy(order);
+
+		expect(query.toSQL().sql).toBe(
+			'select "firstName" from ((select "firstName" from "users") union (select "firstName" from "users")) "drizzle_union" order by "firstName" desc',
+		);
+		// Same SQL objects keep their qualifiers in other queries
+		expect(db.select({ first_name: users.first_name }).from(users).orderBy(order).toSQL().sql).toBe(
+			'select "firstName" from "users" order by "users"."firstName" desc',
+		);
 	});
 
 	it('query (find first)', ({ expect }) => {

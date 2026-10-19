@@ -129,7 +129,7 @@ export class SQLiteAsyncUpdateBase<
 			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
 			{
 				type: 'update',
-				tables: usedTablesOf(this.config.table),
+				tables: () => usedTablesOf(this.config.table),
 			},
 		) as SQLiteAsyncUpdatePrepare<this>;
 	}

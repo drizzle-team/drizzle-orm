@@ -109,7 +109,8 @@ export class SQLiteEffectSelectBase<
 	/** @internal */
 	_prepare(prepare = false): SQLiteEffectSelectPrepare<this, TEffectHKT> {
 		// Build query before accessing `fieldsFlat` - build mutates it
-		const query = this.dialect.sqlToQuery(this.getSQL(true));
+		const sequel = this.getSQL(true);
+		const query = this.dialect.sqlToQuery(sequel);
 		const fieldsList = this.config.fieldsFlat!;
 		const mapper = this.dialect.mapperGenerators.rows(
 			fieldsList,
@@ -122,10 +123,7 @@ export class SQLiteEffectSelectBase<
 			prepare,
 			'all',
 			mapper,
-			{
-				type: 'select',
-				tables: [...this.usedTables],
-			},
+			{ type: 'select', tables: () => this.getUsedTables(sequel) },
 			this.cacheConfig,
 		);
 		return preparedQuery as ReturnType<this['prepare']>;
