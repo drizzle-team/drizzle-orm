@@ -197,7 +197,7 @@ export class SQLiteBoolean<T extends ColumnBaseConfig<'boolean', 'SQLiteBoolean'
 	}
 
 	override mapToDriverValue(value: boolean): number {
-		return typeof value === 'boolean' ? (value ? 1 : 0) : (value as any);
+		return value ? 1 : 0;
 	}
 }
 
