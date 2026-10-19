@@ -35,9 +35,9 @@ import {
 } from './fuzz';
 import { diff, drizzleToDDL, type PostgresSchema } from './mocks';
 
-// Verifies four properties on random schemas and on random migration histories with forks and merges: the
-// deltas of `ddlDiff` rebuild the new state, the stored statements rebuild each migration.sql, every snapshot
-// reconstructs to its schema, and `up` keeps every state of a format 8 folder or refuses the whole folder.
+// Verifies three properties on random schemas and on random migration histories with forks and merges: the
+// deltas of `ddlDiff` rebuild the new state, every snapshot reconstructs to its schema, and `up` keeps every
+// state of a format 8 folder or refuses the whole folder.
 // Case n uses seed 20260928 + n. FUZZ_SEED sets another first seed or "random", and FUZZ_RUNS sets the number
 // of cases for each property, for example: FUZZ_SEED=random FUZZ_RUNS=300 pnpm vitest run tests/postgres/fuzz.test.ts
 // A failure prints the seed of the failing case and the smallest case that still fails.
@@ -98,18 +98,6 @@ const historyProperty = (runs: number, check: (steps: Step[]) => Promise<void>) 
 		shrink: shrinkHistory,
 		check,
 	});
-
-test('the stored statements of each migration rebuild its SQL file', async () => {
-	await historyProperty(40, async (steps) => {
-		const { flow, written } = await runHistory(steps);
-		for (const [folder, { branch, isCustom }] of written) {
-			// A later generate --fix-conflicts can delete `folder`, so the check skips it.
-			if (!flow.folders(branch).includes(folder)) continue;
-			if (isCustom) expect(flow.statements(branch, folder), `the statements of ${folder}`).toStrictEqual([]);
-			else expect(flow.statementsSql(branch, folder), `the statements of ${folder}`).toBe(flow.sql(branch, folder));
-		}
-	});
-});
 
 // Clears the generated names before two states are compared. After a table or column rename, Postgres and the
 // reconstructed state keep the generated names of the constraints, and the schema file derives new names.

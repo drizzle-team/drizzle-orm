@@ -469,22 +469,37 @@ type Delta =
 ```
 
 - A **base snapshot** holds the full state. It is the first snapshot in the migrations folder. `generate` writes it for the first migration, and `pull` writes it into an empty migrations folder.
-- A **diff snapshot** holds only the deltas of its own migration. `generate` writes one for every later migration. `generate --custom` writes one with `deltas: []` and `statements: []`.
+- A **diff snapshot** holds only the deltas of its own migration. `generate` writes one for every later migration. `generate --custom` writes one with `deltas: []` and `footprints: []`.
 
 A snapshot with another `type` is malformed. A base snapshot that lists a parent is malformed too.
 
 Format 9 snapshots have no `renames` field. `generate` on an unchanged schema writes no folder.
 
-Every snapshot stores the **statements** of its own migration in `statements`, in the order of the SQL in `migration.sql`. A statement is one schema change with its meaning, for example a column rename or a new index. `type` names its kind, such as `create_table`, `add_column` or `rename_column`. The other fields hold the data of that change, so the statements say what the SQL does without a rebuild of the history.
+Every snapshot stores one **footprint** for each statement of its own migration in `footprints`, in the order of the SQL in `migration.sql`. A statement is one schema change, for example a column rename or a new index. Its footprint says what the statement writes and reads in the schema, so that `check` can compare two branches:
 
-A stored statement holds the data that its SQL statement needs, and nothing else. So drizzle-kit can rebuild the SQL of a migration from the statements of its snapshot. Every kind has a fixed shape, which [`src/dialects/postgres/snapshot-statements.ts`](./src/dialects/postgres/snapshot-statements.ts) defines. `statements` is required. A snapshot is malformed if it has no `statements`, or if one of its statements has an unknown `type`, a missing field or an unknown field.
+```json
+{
+  "statementType": "alter_column",
+  "statementTarget": ["column", "public", "users", "age"],
+  "writes": ["s|colprop|public.users.age.default"],
+  "reads": ["n|tbl|public.users", "n|sch|public", "n|col|public.users.age"],
+  "sqlHash": "3f9a1c0e7b2d4a55"
+}
+```
 
-- A base snapshot stores the create statements of its state. This applies to the first `generate`, to `pull` and to `up`.
-- A diff snapshot stores the statements of its migration. A merge snapshot stores only the statements of its own change.
+- `statementType` names the kind of the statement, such as `create_table`, `add_column` or `rename_column`.
+- `statementTarget` names the object of the statement, from the outer name to the inner name. Its first item is the kind of the object: `schema`, `table`, `column`, `index`, `enum`, `sequence`, `view` or `role`. At least one name follows the kind. A constraint, a policy and a privilege name their table.
+- `writes`, `reads` and the optional `sharedWrites` list the nodes that the statement writes, reads and shares a write of. A node is an opaque string.
+- `sqlHash` is a hash of the SQL of the statement. Only a statement whose SQL is idempotent has it.
+
+`footprints` is required. A snapshot is malformed if it has no `footprints`, or if one of its footprints has a missing field, a field of the wrong type or an unknown field.
+
+- A base snapshot stores the footprints of the create statements of its state. This applies to the first `generate`, to `pull` and to `up`.
+- A diff snapshot stores the footprints of its migration. A merge snapshot stores only the footprints of its own change.
 - The snapshot of a custom migration stores an empty list, so drizzle-kit does not see SQL that was written by hand.
-- `up` computes the statements of every snapshot that it converts.
+- `up` computes the footprints of every snapshot that it converts.
 
-`check` compares the stored statements of the snapshots of two branches. It takes its conflicts only from them, so its result for an old migration does not change with a newer drizzle-kit.
+`check` compares the stored footprints of the snapshots of two branches. Two footprints conflict when one writes a node that the other writes, reads or shares a write of, or when one shares a write of a node that the other reads. Two footprints with the same `sqlHash` are the same change on both branches, so they do not conflict with each other. `check` takes its conflicts only from the stored footprints, so its result for an old migration does not change with a newer drizzle-kit.
 
 drizzle-kit reconstructs the state of a snapshot with the installed version.
 
@@ -544,7 +559,7 @@ One set of rules covers a delta that does not fit the state. The rules are the s
 - A `create` onto a taken key does nothing when the entity at that key has equal values in all fields. When a field differs, the command stops with an error.
 - A `rename` that moves an entity onto a key that another entity holds stops the command with an error that names both keys. The same holds when the rename moves a referencing entity onto a taken key.
 
-A skip occurs in a merge that `generate` writes. Some changes store a delta and no statement, for example a jsonb default whose keys are written in another order. `check` compares statements, so it finds no conflict between such a change on one branch and a rename of the table on the other branch. If the rename is applied first, the delta names an entity that is missing under the old key, and it is skipped. The diff for the merge snapshot then finds the change again, and the merge snapshot stores it. A skip also occurs in a merge that `drizzle-kit up` converted from format 8.
+A skip occurs in a merge that `generate` writes. Some changes store a delta and no footprint, for example a jsonb default whose keys are written in another order. `check` compares footprints, so it finds no conflict between such a change on one branch and a rename of the table on the other branch. If the rename is applied first, the delta names an entity that is missing under the old key, and it is skipped. The diff for the merge snapshot then finds the change again, and the merge snapshot stores it. A skip also occurs in a merge that `drizzle-kit up` converted from format 8.
 
 When the combined state already equals the schema, `generate` returns `no_changes` and writes no merge migration, so every migration that is not custom contains SQL.
 
@@ -560,8 +575,8 @@ Example: a base, a column add, a column rename with a `NOT NULL` change, and a m
   "dialect": "postgres",
   "id": "d3339e19-89f8-4fe9-a7ee-bee3db901d0d",
   "prevIds": ["00000000-0000-0000-0000-000000000000"],
-  "statements": [
-    { "type": "create_table", "table": { "schema": "public", "name": "users", "columns": [ … ], … } }
+  "footprints": [
+    { "statementType": "create_table", "statementTarget": ["table", "public", "users"], "writes": [ … ], "reads": [ … ] }
   ],
   "ddl": [
     { "schema": "public", "name": "users", "isRlsEnabled": false, "entityType": "tables" },
@@ -576,8 +591,8 @@ Example: a base, a column add, a column rename with a `NOT NULL` change, and a m
   "dialect": "postgres",
   "id": "2b39a1e8-3f89-4842-916d-6998b0ac6304",
   "prevIds": ["d3339e19-89f8-4fe9-a7ee-bee3db901d0d"],
-  "statements": [
-    { "type": "add_column", "column": { "schema": "public", "table": "users", "name": "email", "type": "varchar", … }, … }
+  "footprints": [
+    { "statementType": "add_column", "statementTarget": ["column", "public", "users", "email"], "writes": [ … ], "reads": [ … ] }
   ],
   "deltas": [
     { "op": "create", "row": { "schema": "public", "table": "users", "name": "email", "type": "varchar", …, "entityType": "columns" } }
@@ -591,9 +606,9 @@ Example: a base, a column add, a column rename with a `NOT NULL` change, and a m
   "dialect": "postgres",
   "id": "d4eab725-04f4-4581-bc0a-8982608fa2b3",
   "prevIds": ["2b39a1e8-3f89-4842-916d-6998b0ac6304"],
-  "statements": [
-    { "type": "rename_column", "from": { "table": "users", "name": "email", … }, "to": { "table": "users", "name": "mail", … } },
-    { "type": "alter_column", "to": { "table": "users", "name": "mail", "notNull": true, … }, … }
+  "footprints": [
+    { "statementType": "rename_column", "statementTarget": ["column", "public", "users", "email"], "writes": [ … ], "reads": [ … ] },
+    { "statementType": "alter_column", "statementTarget": ["column", "public", "users", "mail"], "writes": [ … ], "reads": [ … ], "sqlHash": "…" }
   ],
   "deltas": [
     { "op": "rename", "key": "columns\u0000[\"public\",\"users\",\"email\"]", "set": { "name": "mail" } },
@@ -608,8 +623,8 @@ Example: a base, a column add, a column rename with a `NOT NULL` change, and a m
   "dialect": "postgres",
   "id": "31c40787-97df-4bc4-b064-bf418893d2f3",
   "prevIds": ["75e723a1-d6f4-4516-9340-82f9696797fc", "71a65ad8-0ae7-48e8-9fff-ad4343d8a315"],
-  "statements": [
-    { "type": "add_column", "column": { "schema": "public", "table": "users", "name": "age", "type": "integer", … }, … }
+  "footprints": [
+    { "statementType": "add_column", "statementTarget": ["column", "public", "users", "age"], "writes": [ … ], "reads": [ … ] }
   ],
   "deltas": [
     { "op": "create", "row": { "schema": "public", "table": "users", "name": "age", "type": "integer", …, "entityType": "columns" } }
@@ -662,7 +677,7 @@ When a snapshot fails integrity validation, `check` emits an `error` envelope wi
 
 `generate`, `migrate` and `pull` read the migrations folder through the same loader, so they return the same `check_error` envelopes. `generate` and `migrate` also run the full `check` first. `up` checks only a folder that it converts. See [`up` errors](#up-errors).
 
-For postgres, `check` and `migrate` read only the shape of the snapshots, their parent links and their stored statements. They reconstruct no state, so a snapshot whose deltas do not apply does not stop them. `generate` reconstructs the state of every leaf before it writes. A failed reconstruct stops `generate` with `kind: "malformed"`.
+For postgres, `check` and `migrate` read only the shape of the snapshots, their parent links and their stored footprints. They reconstruct no state, so a snapshot whose deltas do not apply does not stop them. `generate` reconstructs the state of every leaf before it writes. A failed reconstruct stops `generate` with `kind: "malformed"`.
 
 In a postgres folder, the loader checks the history before anything else. The JSON envelope carries no message. The last column shows the message that `--output text` prints, with the fix. Each case below stops the command with `kind: "malformed"`:
 
@@ -754,7 +769,7 @@ Key semantics:
   - `branches`: always a two-element array, one entry for each branch. Each entry is `{ leafId, leafPath, statementDescription, target, action }`. `leafId` and `leafPath` are the id and the folder of the last migration in that branch (`null` when the branch is empty). `statementDescription` describes the conflicting statement. `target` is `{ kind, name, schema?, table? }` for the entity that the statement changes, and `action` is the statement type.
 - `fix`: postgresql only. `migrations` lists the folders that `generate --fix-conflicts` deletes, in folder-name order: the migrations that hold the conflicting statements that check reports, on both branches, and all their children. Check reports one conflict for each pair of branches, so the fix checks the rest again and repeats until no conflict is left. A migration that conflicts only with a deleted migration stays. `customMigrations` lists the custom migrations among them (diff snapshots with `deltas: []`), whose SQL the fix loses.
 
-For postgres, `check` compares every pair of leaves. A leaf's branch is the set of snapshots in its history that are missing from the other leaf's history. `check` reads the stored `statements` of each snapshot in a branch, and compares every statement of one branch with every statement of the other. A change and its later reversal on the same branch still count, and `statementDescription` ends with the folder that the statement comes from. A merge snapshot adds only the statements of its own change. Two equal statements on two branches are one change, and no conflict, when their SQL gives the same result on a second run: for example `SET NOT NULL` on one column in both branches. Two different changes of one object conflict, and so do two equal statements whose SQL fails on a second run, such as a new column. A `DISABLE ROW LEVEL SECURITY` on one branch also conflicts with a new policy for the same table on the other branch. This SQL runs in either order, but postgres does not enforce a policy on a table without row level security. For `mysql`, `sqlite` and `turso`, `check` compares the full state at each fork parent with the full state of each leaf below it. The other dialects have no branch check.
+For postgres, `check` compares every pair of leaves. A leaf's branch is the set of snapshots in its history that are missing from the other leaf's history. `check` reads the stored `footprints` of each snapshot in a branch, and compares every footprint of one branch with every footprint of the other. A change and its later reversal on the same branch still count, and `statementDescription` ends with the folder that the statement comes from. A merge snapshot adds only the footprints of its own change. Two equal statements on two branches are one change, and no conflict, when their SQL is idempotent: for example `SET NOT NULL` on one column in both branches. Two different changes of one object conflict, and so do two equal statements whose SQL fails on a second run, such as a new column. A `DISABLE ROW LEVEL SECURITY` on one branch also conflicts with a new policy for the same table on the other branch. This SQL runs in either order, but postgres does not enforce a policy on a table without row level security. For `mysql`, `sqlite` and `turso`, `check` compares the full state at each fork parent with the full state of each leaf below it. The other dialects have no branch check.
 
 If `check` passes and the folder has several leaves, the next `generate` writes a merge migration, unless the combined state of the leaves already equals the schema. See [Postgres snapshot format 9](#postgres-snapshot-format-9) for what a postgres merge stores.
 

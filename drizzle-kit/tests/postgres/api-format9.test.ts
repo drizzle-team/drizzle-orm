@@ -137,7 +137,7 @@ test('generateMigration rejects a diff snapshot', async () => {
 		id: 'd1',
 		prevIds: [parent.id],
 		deltas: [],
-		statements: [],
+		footprints: [],
 	};
 
 	await expect(generateMigration(parent, diff)).rejects.toThrow(
@@ -295,7 +295,7 @@ test('reconstruct reports a malformed snapshot, an unknown id and an empty folde
 		id: 'b1',
 		prevIds: [ORIGIN],
 		ddl: [],
-		statements: [],
+		footprints: [],
 	};
 
 	await expect(reconstruct({ '20260101120000_init': { ...base, ddl: 'broken' } })).rejects.toMatchObject({

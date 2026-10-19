@@ -107,8 +107,8 @@ describe('a delta that reaches a merge only through another parent', () => {
 		expect(await flow.tryGenerate('main', merged)).toMatchObject({ status: 'no_changes' });
 	});
 
-	// Both branches add the column users.email with another type. The test empties the `statements` of b, so
-	// `check` passes, because it reads only the stored statements. The collision then comes from the deltas.
+	// Both branches add the column users.email with another type. The test empties the `footprints` of b, so
+	// `check` passes, because it reads only the stored footprints. The collision then comes from the deltas.
 	test('a create of a different entity onto a taken key stops generate, and the error names the migration of that delta', async () => {
 		const { flow, folders: [[a], [b]] } = await forkFlow({
 			base: { users },
@@ -117,7 +117,7 @@ describe('a delta that reaches a merge only through another parent', () => {
 				[step({ users: pgTable('users', { id: integer(), email: text() }) })],
 			],
 		});
-		flow.overwriteSnapshot('main', b, JSON.stringify({ ...flow.snapshot('main', b), statements: [] }));
+		flow.overwriteSnapshot('main', b, JSON.stringify({ ...flow.snapshot('main', b), footprints: [] }));
 		const files = flow.files('main');
 
 		expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
@@ -153,11 +153,11 @@ describe('one branch stores a delta with no statement, and the other branch rena
 	const forked = (older: Step[], newer: Step[]) =>
 		forkFlow({ base: { items: items('items', written) }, branches: [older, newer] });
 
-	test('the branch with the reordered default stores an alter delta and no statement for it', async () => {
+	test('the branch with the reordered default stores an alter delta and no footprint for it', async () => {
 		const { flow, folders: [[folder]] } = await forked(reorderBranch, renameBranch);
 
 		expect(flow.deltas('main', folder)).toContainEqual(defaultDelta('items'));
-		expect(flow.statements('main', folder).map((it) => it.type)).toStrictEqual(['create_table']);
+		expect(flow.footprints('main', folder).map((it) => it.statementType)).toStrictEqual(['create_table']);
 		expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	});
 
