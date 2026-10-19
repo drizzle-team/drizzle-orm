@@ -268,6 +268,10 @@ export class PgFunctionBuilder<
 	}
 
 	/* Build */
+	as(body: SQL): PgFunction<TName, TSchema, TArgs, TDeclare, TReturns>;
+	as(
+		body: (fn: PgFunctionBodyContext<TName, TArgs, TDeclare>) => SQL,
+	): PgFunction<TName, TSchema, TArgs, TDeclare, TReturns>;
 	as(
 		body: PgFunctionBody<TName, TArgs, TDeclare>,
 	): PgFunction<TName, TSchema, TArgs, TDeclare, TReturns> {
