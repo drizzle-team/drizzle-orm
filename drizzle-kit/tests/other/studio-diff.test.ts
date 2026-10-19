@@ -210,7 +210,7 @@ test('postgres: the policy of a table follows the renamed table', async () => {
 	expect(sqlStatements).toStrictEqual(['ALTER TABLE "parent" RENAME TO "owner";']);
 });
 
-test.only('postgres: add role and privilege without grantor (because must be the current user)', async () => {
+test('postgres: add role and privilege without grantor (because must be the current user)', async () => {
 	const state = postgresState([postgresTable('parent', ['id'])]);
 	const ddl1 = studioSchemaToDDLPostgres(state);
 	const ddl2 = studioSchemaToDDLPostgres(state);
