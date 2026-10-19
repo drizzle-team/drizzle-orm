@@ -1,6 +1,18 @@
-import { diffMySql, type InterimStudioSchema as MysqlState } from 'src/ext/studio-mysql';
-import { diffPostgresql, type InterimStudioSchema as PostgresState } from 'src/ext/studio-postgres';
-import { diffSqlite, type InterimStudioSchema as SqliteState } from 'src/ext/studio-sqlite';
+import {
+	diffMySql,
+	type InterimStudioSchema as MysqlState,
+	studioSchemaToDDL as studioSchemaToDDLMysql,
+} from 'src/ext/studio-mysql';
+import {
+	diffPostgresql,
+	type InterimStudioSchema as PostgresState,
+	studioSchemaToDDL as studioSchemaToDDLPostgres,
+} from 'src/ext/studio-postgres';
+import {
+	diffSqlite,
+	type InterimStudioSchema as SqliteState,
+	studioSchemaToDDL as studioSchemaToDDLSqlite,
+} from 'src/ext/studio-sqlite';
 import { expect, test } from 'vitest';
 
 // Verifies the Drizzle Studio diffs `diffPostgresql`, `diffMySql` and `diffSqlite` after a confirmed rename of
@@ -105,11 +117,18 @@ test('postgres: the constraints and the index of a table follow a renamed column
 		fks: [postgresForeignKey('users', ['id'], 'parent', ['id'])],
 		indexes: [postgresIndex('users', 'users_id_idx', ['id'])],
 	});
-	const renamed = { ...users, columns: [postgresColumn('users', 'key'), postgresColumn('users', 'email')] };
+
+	const state = postgresState([parent, users]);
+	const ddl1 = studioSchemaToDDLPostgres(state);
+	const ddl2 = studioSchemaToDDLPostgres(state);
+
+	ddl2.rename(ddl1.columns.one({ table: 'users', name: 'id' })!, {
+		name: 'key',
+	});
 
 	const { sqlStatements } = await diffPostgresql(
-		postgresState([parent, users]),
-		postgresState([parent, renamed]),
+		ddl1,
+		ddl2,
 		['public.users.id->public.users.key'],
 	);
 
@@ -122,9 +141,17 @@ test('postgres: the foreign key of another table follows a renamed column', asyn
 		fks: [postgresForeignKey('child', ['parentId'], 'parent', ['id'])],
 	});
 
+	const state = postgresState([parent, child]);
+	const ddl1 = studioSchemaToDDLPostgres(state);
+	const ddl2 = studioSchemaToDDLPostgres(state);
+
+	ddl2.rename(ddl1.columns.one({ table: 'parent', name: 'id' })!, {
+		name: 'key',
+	});
+
 	const { sqlStatements } = await diffPostgresql(
-		postgresState([parent, child]),
-		postgresState([postgresTable('parent', ['key']), child]),
+		ddl1,
+		ddl2,
 		['public.parent.id->public.parent.key'],
 	);
 
@@ -136,9 +163,17 @@ test('postgres: the foreign key of another table follows a renamed table', async
 		fks: [postgresForeignKey('child', ['parentId'], 'parent', ['id'])],
 	});
 
+	const state = postgresState([postgresTable('parent', ['id']), child]);
+	const ddl1 = studioSchemaToDDLPostgres(state);
+	const ddl2 = studioSchemaToDDLPostgres(state);
+
+	ddl2.rename(ddl1.tables.one({ name: 'parent' })!, {
+		name: 'owner',
+	});
+
 	const { sqlStatements } = await diffPostgresql(
-		postgresState([postgresTable('parent', ['id']), child]),
-		postgresState([postgresTable('owner', ['id']), child]),
+		ddl1,
+		ddl2,
 		['public.parent->public.owner'],
 	);
 
@@ -158,13 +193,50 @@ test('postgres: the policy of a table follows the renamed table', async () => {
 		withCheck: null,
 	}];
 
+	const state = postgresState([postgresTable('parent', ['id'], { isRlsEnabled: true })], policies);
+	const ddl1 = studioSchemaToDDLPostgres(state);
+	const ddl2 = studioSchemaToDDLPostgres(state);
+
+	ddl2.rename(ddl1.tables.one({ name: 'parent' })!, {
+		name: 'owner',
+	});
+
 	const { sqlStatements } = await diffPostgresql(
-		postgresState([postgresTable('parent', ['id'], { isRlsEnabled: true })], policies),
-		postgresState([postgresTable('owner', ['id'], { isRlsEnabled: true })], policies),
+		ddl1,
+		ddl2,
 		['public.parent->public.owner'],
 	);
 
 	expect(sqlStatements).toStrictEqual(['ALTER TABLE "parent" RENAME TO "owner";']);
+});
+
+test.only('postgres: add role and privilege without grantor (because must be the current user)', async () => {
+	const state = postgresState([postgresTable('parent', ['id'])]);
+	const ddl1 = studioSchemaToDDLPostgres(state);
+	const ddl2 = studioSchemaToDDLPostgres(state);
+
+	ddl2.roles.push({
+		name: 'user',
+	});
+	ddl2.privileges.push({
+		schema: 'public',
+		table: 'parent',
+		name: 'parent_select',
+		grantee: 'user',
+		type: 'SELECT',
+		isGrantable: false,
+	});
+
+	const { sqlStatements } = await diffPostgresql(
+		ddl1,
+		ddl2,
+		[],
+	);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE ROLE "user" WITH NOINHERIT;',
+		'GRANT SELECT ON "parent" TO "user";',
+	]);
 });
 
 type MysqlTable = MysqlState['tables'][number];
@@ -232,11 +304,18 @@ test('mysql: the constraints and the index of a table follow a renamed column', 
 		fks: [mysqlForeignKey('users', ['id'], 'parent', ['id'])],
 		indexes: [mysqlIndex('users', 'users_id_idx', ['id'])],
 	});
-	const renamed = { ...users, columns: [mysqlColumn('users', 'key'), mysqlColumn('users', 'email')] };
+
+	const state = mysqlState([parent, users]);
+	const ddl1 = studioSchemaToDDLMysql(state);
+	const ddl2 = studioSchemaToDDLMysql(state);
+
+	ddl2.rename(ddl1.columns.one({ table: 'users', name: 'id' })!, {
+		name: 'key',
+	});
 
 	const { sqlStatements } = await diffMySql(
-		mysqlState([parent, users]),
-		mysqlState([parent, renamed]),
+		ddl1,
+		ddl2,
 		['users.id->users.key'],
 	);
 
@@ -244,9 +323,18 @@ test('mysql: the constraints and the index of a table follow a renamed column', 
 });
 
 test('mysql: a new index follows a renamed column', async () => {
+	const state = mysqlState([mysqlTable('users', ['id'])]);
+	const ddl1 = studioSchemaToDDLMysql(state);
+	const ddl2 = studioSchemaToDDLMysql(state);
+
+	ddl2.indexes.push(mysqlIndex('users', 'users_new_idx', ['id']));
+	ddl2.rename(ddl1.columns.one({ table: 'users', name: 'id' })!, {
+		name: 'key',
+	});
+
 	const { sqlStatements } = await diffMySql(
-		mysqlState([mysqlTable('users', ['id'])]),
-		mysqlState([mysqlTable('users', ['key'], { indexes: [mysqlIndex('users', 'users_new_idx', ['id'])] })]),
+		ddl1,
+		ddl2,
 		['users.id->users.key'],
 	);
 
@@ -260,9 +348,21 @@ test('mysql: a changed foreign key follows a renamed column of its table', async
 	const parent = mysqlTable('parent', ['id']);
 	const foreignKey = mysqlForeignKey('users', ['id'], 'parent', ['id']);
 
+	const state = mysqlState([parent, mysqlTable('users', ['id'], { fks: [foreignKey] })]);
+	const ddl1 = studioSchemaToDDLMysql(state);
+	const ddl2 = studioSchemaToDDLMysql(state);
+
+	ddl2.fks.update({
+		set: { onDelete: 'CASCADE' },
+		where: foreignKey,
+	});
+	ddl2.rename(ddl1.columns.one({ table: 'users', name: 'id' })!, {
+		name: 'key',
+	});
+
 	const { sqlStatements } = await diffMySql(
-		mysqlState([parent, mysqlTable('users', ['id'], { fks: [foreignKey] })]),
-		mysqlState([parent, mysqlTable('users', ['key'], { fks: [{ ...foreignKey, onDelete: 'CASCADE' }] })]),
+		ddl1,
+		ddl2,
 		['users.id->users.key'],
 	);
 
@@ -276,15 +376,24 @@ test('mysql: a changed foreign key follows a renamed column of its table', async
 test('mysql: a recreated foreign key of another table follows a renamed column', async () => {
 	const child = mysqlTable('child', ['parentId'], { fks: [mysqlForeignKey('child', ['parentId'], 'parent', ['id'])] });
 
+	const state = mysqlState([
+		mysqlTable('parent', ['id', 'other'], { pks: [{ table: 'parent', name: 'PRIMARY', columns: ['id'] }] }),
+		child,
+	]);
+	const ddl1 = studioSchemaToDDLMysql(state);
+	const ddl2 = studioSchemaToDDLMysql(state);
+
+	ddl2.pks.update({
+		set: { columns: ['id', 'other'] },
+		where: { table: 'parent', name: 'PRIMARY' },
+	});
+	ddl2.rename(ddl1.columns.one({ table: 'parent', name: 'id' })!, {
+		name: 'key',
+	});
+
 	const { sqlStatements } = await diffMySql(
-		mysqlState([
-			mysqlTable('parent', ['id', 'other'], { pks: [{ table: 'parent', name: 'PRIMARY', columns: ['id'] }] }),
-			child,
-		]),
-		mysqlState([
-			mysqlTable('parent', ['key', 'other'], { pks: [{ table: 'parent', name: 'PRIMARY', columns: ['id', 'other'] }] }),
-			child,
-		]),
+		ddl1,
+		ddl2,
 		['parent.id->parent.key'],
 	);
 
@@ -359,11 +468,18 @@ test('sqlite: the constraints and the index of a table follow a renamed column',
 		fks: [sqliteForeignKey('users', ['id'], 'parent', ['id'])],
 		indexes: [sqliteIndex('users', 'users_id_idx', ['id'])],
 	});
-	const renamed = { ...users, columns: [sqliteColumn('users', 'key'), sqliteColumn('users', 'email')] };
+
+	const state = sqliteState([parent, users]);
+	const ddl1 = studioSchemaToDDLSqlite(state);
+	const ddl2 = studioSchemaToDDLSqlite(state);
+
+	ddl2.rename(ddl1.columns.one({ table: 'users', name: 'id' })!, {
+		name: 'key',
+	});
 
 	const { sqlStatements } = await diffSqlite(
-		sqliteState([parent, users]),
-		sqliteState([parent, renamed]),
+		ddl1,
+		ddl2,
 		['users.id->users.key'],
 	);
 
@@ -376,9 +492,17 @@ test('sqlite: the foreign key of another table follows a renamed column', async 
 		fks: [sqliteForeignKey('child', ['parentId'], 'parent', ['id'])],
 	});
 
+	const state = sqliteState([parent, child]);
+	const ddl1 = studioSchemaToDDLSqlite(state);
+	const ddl2 = studioSchemaToDDLSqlite(state);
+
+	ddl2.rename(ddl1.columns.one({ table: 'parent', name: 'id' })!, {
+		name: 'key',
+	});
+
 	const { sqlStatements } = await diffSqlite(
-		sqliteState([parent, child]),
-		sqliteState([sqliteTable('parent', ['key']), child]),
+		ddl1,
+		ddl2,
 		['parent.id->parent.key'],
 	);
 
@@ -390,9 +514,17 @@ test('sqlite: the foreign key of another table follows a renamed table', async (
 		fks: [sqliteForeignKey('child', ['parentId'], 'parent', ['id'])],
 	});
 
+	const state = sqliteState([sqliteTable('parent', ['id']), child]);
+	const ddl1 = studioSchemaToDDLSqlite(state);
+	const ddl2 = studioSchemaToDDLSqlite(state);
+
+	ddl2.rename(ddl1.tables.one({ name: 'parent' })!, {
+		name: 'owner',
+	});
+
 	const { sqlStatements } = await diffSqlite(
-		sqliteState([sqliteTable('parent', ['id']), child]),
-		sqliteState([sqliteTable('owner', ['id']), child]),
+		ddl1,
+		ddl2,
 		['parent->owner'],
 	);
 
@@ -400,9 +532,18 @@ test('sqlite: the foreign key of another table follows a renamed table', async (
 });
 
 test('sqlite: a new index follows a renamed column', async () => {
+	const state = sqliteState([sqliteTable('users', ['id'])]);
+	const ddl1 = studioSchemaToDDLSqlite(state);
+	const ddl2 = studioSchemaToDDLSqlite(state);
+
+	ddl2.indexes.push(sqliteIndex('users', 'users_new_idx', ['id']));
+	ddl2.rename(ddl1.columns.one({ table: 'users', name: 'id' })!, {
+		name: 'key',
+	});
+
 	const { sqlStatements } = await diffSqlite(
-		sqliteState([sqliteTable('users', ['id'])]),
-		sqliteState([sqliteTable('users', ['key'], { indexes: [sqliteIndex('users', 'users_new_idx', ['id'])] })]),
+		ddl1,
+		ddl2,
 		['users.id->users.key'],
 	);
 

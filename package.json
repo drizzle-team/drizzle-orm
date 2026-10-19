@@ -36,7 +36,7 @@
 		"resolve-tspaths": "^0.8.16",
 		"rolldown": "1.2.5",
 		"tsdown": "^0.22.14",
-		"tsup": "^8.3.5",
+		"tsup": "^9.0.0",
 		"tsx": "^4.10.5",
 		"turbo": "^2.2.3",
 		"typescript": "6.0.3",

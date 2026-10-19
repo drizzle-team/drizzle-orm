@@ -543,12 +543,11 @@ const cases: Case[] = [
 		expect: 'conflict',
 	},
 	{
-		name: 'grant by admin ∥ rename_role admin (GRANTED BY names it) conflict',
+		name: 'grant by admin ∥ rename_role admin (the key of the privilege holds it) conflict',
 		a: [S.grant('public', 'users', 'r', 'SELECT')],
 		b: [S.renameRole('admin', 'owner')],
 		expect: 'conflict',
 	},
-
 	{
 		name: 'revoke of a privilege that admin granted ∥ rename_role admin (the key of the privilege holds it) conflict',
 		a: [{ ...S.grant('public', 'users', 'r', 'SELECT'), type: 'revoke_privilege' }],

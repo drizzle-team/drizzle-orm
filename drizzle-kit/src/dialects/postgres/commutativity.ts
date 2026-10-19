@@ -725,9 +725,10 @@ class PostgresCommutativity extends FacetCommutativity<
 					reads: [
 						...(table ? underTable(schema || 'public', table) : []),
 						nref('role', grantee),
-						// GRANT names `grantor` in GRANTED BY. REVOKE does not name it, but the DDL key of a privilege
-						// holds `grantor`. If another branch renames that role, reconstruct finds no privilege under
-						// the key of the drop delta and skips the delta.
+						// The SQL does not name `grantor`: GRANT omits GRANTED BY, so the current user grants, and REVOKE
+						// never names it. But the DDL key of a privilege holds `grantor`, and the `roles` edge renames it.
+						// If another branch renames that role first, the create delta of GRANT keeps the old name, and
+						// reconstruct finds no privilege under the key of the drop delta of REVOKE and skips the delta.
 						nref('role', grantor),
 					],
 				};
