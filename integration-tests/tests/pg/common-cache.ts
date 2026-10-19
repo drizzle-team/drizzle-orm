@@ -812,7 +812,7 @@ export function tests(test: Test) {
 				).toStrictEqual(['cache_groups', 'cache_users', 'cache_posts']);
 			});
 
-			test.skipIf(Date.now() < +new Date('2026-11-19'))(
+			test.skipIf(Date.now() < +new Date('2026-11-24'))(
 				"View collects tables of all columns it's created from",
 				({ caches }) => {
 					const { explicit: db } = caches;

@@ -1,6 +1,6 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, type SQL, sql } from 'drizzle-orm';
 import { alias, boolean, int, json, mysqlSchema, mysqlTable, serial, text, timestamp } from 'drizzle-orm/mysql-core';
-import { describe, expect } from 'vitest';
+import { describe, expect, onTestFinished } from 'vitest';
 import type { Test } from './instrumentation';
 import { rqbPost, rqbUser } from './schema';
 
@@ -17,6 +17,11 @@ const postsTable = mysqlTable('posts_for_cache', {
 	description: text().notNull(),
 	userId: int('city_id').references(() => usersTable.id),
 });
+
+// Shared with the RQB tests in mysql-common-6, which seed these tables once - must not leak rows into them
+async function dropRqbTables(db: { execute: (query: SQL) => Promise<unknown> }) {
+	await db.execute(sql`drop table if exists ${rqbUser}, ${rqbPost}`);
+}
 
 export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 	describe('cache:', () => {
@@ -198,7 +203,8 @@ export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 		test('relational: default global config - no cache should be hit', async ({ drizzle, push }) => {
 			const { db, put, get, onMutate } = drizzle.withCacheExplicit;
 
-			await db.execute(sql`drop table if exists ${rqbUser}`);
+			await dropRqbTables(db);
+			onTestFinished(() => dropRqbTables(db));
 			await push({ rqbUser });
 			onMutate.mockClear();
 
@@ -212,7 +218,8 @@ export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 		test('relational: default global config + withCache: get, put', async ({ drizzle, push }) => {
 			const { db, put, get, onMutate } = drizzle.withCacheExplicit;
 
-			await db.execute(sql`drop table if exists ${rqbUser}`);
+			await dropRqbTables(db);
+			onTestFinished(() => dropRqbTables(db));
 			await push({ rqbUser });
 			onMutate.mockClear();
 
@@ -226,7 +233,8 @@ export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 		test('relational: global: true - cache should be hit', async ({ drizzle, push }) => {
 			const { db, put, get, onMutate } = drizzle.withCacheAll;
 
-			await db.execute(sql`drop table if exists ${rqbUser}`);
+			await dropRqbTables(db);
+			onTestFinished(() => dropRqbTables(db));
 			await push({ rqbUser });
 			onMutate.mockClear();
 
@@ -240,7 +248,8 @@ export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 		test('relational: global: true - withCache: false - no cache hit', async ({ drizzle, push }) => {
 			const { db, put, get, onMutate } = drizzle.withCacheAll;
 
-			await db.execute(sql`drop table if exists ${rqbUser}`);
+			await dropRqbTables(db);
+			onTestFinished(() => dropRqbTables(db));
 			await push({ rqbUser });
 			onMutate.mockClear();
 
@@ -254,8 +263,8 @@ export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 		test('relational: relation tables - cache hit + invalidate', async ({ drizzle, push }) => {
 			const { db, put, get } = drizzle.withCacheExplicit;
 
-			await db.execute(sql`drop table if exists ${rqbUser}`);
-			await db.execute(sql`drop table if exists ${rqbPost}`);
+			await dropRqbTables(db);
+			onTestFinished(() => dropRqbTables(db));
 			await push({ rqbUser, rqbPost });
 			const createdAt = new Date('2024-01-01T00:00:00.000Z');
 			await db.insert(rqbUser).values({ id: 1, name: 'John', createdAt });
@@ -295,7 +304,8 @@ export function runTests(vendor: 'mysql' | 'planetscale', test: Test) {
 		test('relational: raw sql tables - invalidate', async ({ drizzle, push }) => {
 			const { db, put } = drizzle.withCacheExplicit;
 
-			await db.execute(sql`drop table if exists ${rqbUser}`);
+			await dropRqbTables(db);
+			onTestFinished(() => dropRqbTables(db));
 			await push({ rqbUser });
 			await db.insert(rqbUser).values({ id: 1, name: 'John', createdAt: new Date('2024-01-01T00:00:00.000Z') });
 

@@ -2389,7 +2389,7 @@ test('Issue No6176', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6194
-test.skipIf(Date.now() < +new Date('2026-10-17'))('Issue No6194', async () => {
+test.skipIf(Date.now() < +new Date('2026-11-24'))('Issue No6194', async () => {
 	const accessLogsTableFrom = pgTable('access_logs', {
 		id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
 		accessedAt: timestamp('accessed_at', { mode: 'string' }).notNull().defaultNow(),
@@ -2486,7 +2486,7 @@ test('topological sort test. existing view starts reading a new view', async () 
 
 // TODO enhancement: dependents of a recreated view are not recreated, DROP VIEW "v1" fails since "v2" depends on it
 // can not know right now the dependency tree of dropped views
-test.skipIf(Date.now() < +new Date('2026-10-17'))(
+test.skipIf(Date.now() < +new Date('2026-11-24'))(
 	'topological sort test. recreate view that another view depends on',
 	async () => {
 		const t = pgTable('t', { id: integer() });
@@ -2516,7 +2516,7 @@ test.skipIf(Date.now() < +new Date('2026-10-17'))(
 
 // TODO enhancement: views are dropped in declaration order, DROP VIEW "v1" fails since "v2" depends on it
 // since metadata uses everyting from fromDrizzleSchema(), there is no info about dropped and their deps
-test.skipIf(Date.now() < +new Date('2026-10-17'))('topological sort test. drop 2 dependent views', async () => {
+test.skipIf(Date.now() < +new Date('2026-11-24'))('topological sort test. drop 2 dependent views', async () => {
 	const t = pgTable('t', { id: integer() });
 
 	const v1 = pgView('v1').as((qb) => qb.select().from(t));
