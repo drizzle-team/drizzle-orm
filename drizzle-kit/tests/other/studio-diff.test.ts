@@ -102,6 +102,40 @@ const postgresState = (tables: PostgresTable[], policies: PostgresState['policie
 	policies,
 });
 
+test('postgres: change schema of a table', async () => {
+	const state = {
+		schemas: [{
+			entityType: 'schemas' as const,
+			name: 'public',
+		}, {
+			entityType: 'schemas' as const,
+			name: 'other',
+		}],
+		tables: [postgresTable('users', ['id'])],
+		views: [],
+		enums: [],
+		sequences: [],
+		roles: [],
+		privileges: [],
+		policies: [],
+	};
+	const ddl1 = studioSchemaToDDLPostgres(state);
+	const ddl2 = studioSchemaToDDLPostgres(state);
+
+	ddl2.tables.update({
+		set: { schema: 'other' },
+		where: { schema: 'public', name: 'users' },
+	});
+
+	const { sqlStatements } = await diffPostgresql(
+		ddl1,
+		ddl2,
+		['public.users->other.users'],
+	);
+
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" SET SCHEMA "other";']);
+});
+
 test('postgres: the constraints and the index of a table follow a renamed column', async () => {
 	const parent = postgresTable('parent', ['id']);
 	const users = postgresTable('users', ['id', 'email'], {
@@ -132,7 +166,7 @@ test('postgres: the constraints and the index of a table follow a renamed column
 		['public.users.id->public.users.key'],
 	);
 
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" RENAME COLUMN "id" TO "key";']);
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" RENAME COLUMN "id" TO "key";\n']);
 });
 
 test('postgres: the foreign key of another table follows a renamed column', async () => {
