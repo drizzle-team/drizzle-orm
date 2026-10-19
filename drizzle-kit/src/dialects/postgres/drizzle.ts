@@ -14,7 +14,6 @@ import {
 	type AnyPgColumnBuilder,
 	buildPgFunctionColumn,
 	getMaterializedViewConfig,
-	getPgFunctionArgumentSQLName,
 	getPgFunctionDeclareSQLName,
 	getTableConfig,
 	getViewConfig,
@@ -203,7 +202,7 @@ export const functionFrom = (fn: PgFunction, dialect: PgDialect) => {
 			const { dimensions } = unwrapColumn(column);
 
 			return {
-				name: getPgFunctionArgumentSQLName(name),
+				name,
 				type: sqlTypeFromFunctionColumn(column, dialect),
 				default: defaultFromColumn(
 					column,
