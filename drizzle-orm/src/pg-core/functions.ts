@@ -274,7 +274,7 @@ export class PgFunctionBuilder<
 		const resolvedBody = typeof body === 'function'
 			? body({
 				name: this.config.name,
-				args: buildFunctionArgumentReferences(this.config.args),
+				args: buildFunctionArgumentReferences(this.config.args, this.config.name),
 				...(this.config.declare !== undefined
 					? { declare: buildFunctionDeclareReferences(this.config.declare) }
 					: {}),
@@ -403,11 +403,12 @@ function buildFunctionArgumentReferences<
 	TArgs extends PgFunctionArgsDefinition,
 >(
 	args: TArgs,
+	functionName: string,
 ): PgFunctionArgumentReferences<TArgs> {
 	return Object.fromEntries(
 		Object.keys(args).map((name) => [
 			name,
-			new PgFunctionArgument(name, getPgFunctionArgumentSQLName(name)),
+			new PgFunctionArgument(name, getPgFunctionArgumentSQLName(name, functionName)),
 		]),
 	) as PgFunctionArgumentReferences<TArgs>;
 }
@@ -425,8 +426,8 @@ function buildFunctionDeclareReferences<
 	) as PgFunctionDeclareReferences<TDeclare>;
 }
 
-export function getPgFunctionArgumentSQLName(name: string): string {
-	return `a_${name}`;
+export function getPgFunctionArgumentSQLName(argName: string, functionName: string): string {
+	return `${functionName}.${argName}`;
 }
 
 export function getPgFunctionDeclareSQLName(name: string): string {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { integer, pgFunction, pgSchema, text, uuid } from '~/pg-core';
 import { PgDialect } from '~/pg-core/dialect.ts';
+import { getPgFunctionArgumentSQLName, getPgFunctionDeclareSQLName, PgFunctionArgument } from '~/pg-core/functions.ts';
 import { sql } from '~/sql/sql.ts';
 
 const dialect = new PgDialect();
@@ -66,6 +67,19 @@ describe('configuration', () => {
 		expect(fn.config.configuration.get('statement_timeout')).toBe('5s');
 	});
 
+	test('setConfig coerces non-string values to strings', () => {
+		const fn = pgFunction('test_function', {
+			args: {},
+			returns: integer(),
+		})
+			.setConfig('enable_seqscan', false)
+			.setConfig('work_mem', 4096)
+			.as(sql`SELECT 1`);
+
+		expect(fn.config.configuration.get('enable_seqscan')).toBe('false');
+		expect(fn.config.configuration.get('work_mem')).toBe('4096');
+	});
+
 	test('schema function preserves schema', () => {
 		const internal = pgSchema('internal');
 
@@ -124,10 +138,10 @@ describe('body', () => {
 			expect(f.name).toBe('test_function');
 
 			expect(f.args.id.name).toBe('id');
-			expect(f.args.id.sqlName).toBe('a_id');
+			expect(f.args.id.sqlName).toBe('test_function.id');
 
 			expect(f.args.count.name).toBe('count');
-			expect(f.args.count.sqlName).toBe('a_count');
+			expect(f.args.count.sqlName).toBe('test_function.count');
 
 			return sql`SELECT 1`;
 		});
@@ -190,8 +204,20 @@ describe('body', () => {
 	});
 });
 
+describe('sql name helpers', () => {
+	test('qualify argument names with the function name', () => {
+		expect(getPgFunctionArgumentSQLName('id', 'get_user')).toBe('get_user.id');
+		expect(getPgFunctionArgumentSQLName('user-id', 'test_function')).toBe('test_function.user-id');
+	});
+
+	test('use bare names for declare variables', () => {
+		expect(getPgFunctionDeclareSQLName('total')).toBe('total');
+		expect(getPgFunctionDeclareSQLName('running-total')).toBe('running-total');
+	});
+});
+
 describe('argument references', () => {
-	test('render as prefixed identifiers without parentheses', () => {
+	test('render as function-qualified identifiers without parentheses', () => {
 		const fn = pgFunction('get_user', {
 			args: {
 				id: uuid(),
@@ -203,9 +229,15 @@ describe('argument references', () => {
 		const query = dialect.sqlToQuery(fn.config.body);
 
 		expect(query.sql).toStrictEqual(
-			'SELECT "a_id", "a_count"',
+			'SELECT "get_user.id", "get_user.count"',
 		);
 		expect(query.params).toStrictEqual([]);
+	});
+
+	test('PgFunctionArgument omits SQL parentheses', () => {
+		const arg = new PgFunctionArgument('id', 'get_user.id');
+
+		expect(arg.shouldOmitSQLParens()).toBe(true);
 	});
 
 	test('escape SQL identifiers', () => {
@@ -218,7 +250,24 @@ describe('argument references', () => {
 
 		const query = dialect.sqlToQuery(fn.config.body);
 
-		expect(query.sql).toBe('SELECT "a_user-id"');
+		expect(query.sql).toBe('SELECT "test_function.user-id"');
+	});
+
+	test('use function name rather than schema for qualification', () => {
+		const internal = pgSchema('internal');
+
+		const fn = internal.function('schema_fn', {
+			args: {
+				id: uuid(),
+			},
+			returns: integer(),
+		}).as((f) => sql`SELECT ${f.args.id}`);
+
+		expect(fn.config.schema).toBe('internal');
+
+		const query = dialect.sqlToQuery(fn.config.body);
+
+		expect(query.sql).toBe('SELECT "schema_fn.id"');
 	});
 
 	test('preserve declaration order', () => {
@@ -242,15 +291,15 @@ describe('argument references', () => {
 		});
 
 		expect(names).toStrictEqual([
-			'a_first',
-			'a_second',
-			'a_third',
+			'test_function.first',
+			'test_function.second',
+			'test_function.third',
 		]);
 	});
 });
 
 describe('declare references', () => {
-	test('render as bare identifiers without arg prefix', () => {
+	test('render declare variables as bare identifiers', () => {
 		const fn = pgFunction('sum_values', {
 			args: {
 				id: uuid(),
@@ -265,7 +314,7 @@ describe('declare references', () => {
 		const query = dialect.sqlToQuery(fn.config.body);
 
 		expect(query.sql).toStrictEqual(
-			'SELECT "a_id", "total", "label"',
+			'SELECT "sum_values.id", "total", "label"',
 		);
 		expect(query.params).toStrictEqual([]);
 	});
