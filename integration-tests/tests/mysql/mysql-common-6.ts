@@ -14,10 +14,14 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		resolveValue = resolve;
 	});
 	test.beforeEach(async ({ task, skip, client, db }) => {
+		if (exclude.has(task.name)) skip();
+		if (!task.name.startsWith('RQB v2')) return;
+
 		if (firstTime) {
 			firstTime = false;
 
 			await client.batch([
+				'DROP TABLE IF EXISTS `user_rqb_test`, `post_rqb_test`, `empty`;',
 				`CREATE TABLE \`user_rqb_test\` (
 		        	\`id\` SERIAL PRIMARY KEY,
 		        	\`name\` TEXT NOT NULL,
@@ -59,7 +63,6 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		}
 
 		await promise;
-		if (exclude.has(task.name)) skip();
 	});
 
 	// .sequential is needed for beforeEach to be executed before all tests
