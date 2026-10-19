@@ -3000,6 +3000,42 @@ export function tests(test: Test, exclude: string[] = []) {
 			},
 		);
 
+		test.concurrent(
+			'insert with onConflict do nothing using partial index as target',
+			async ({ db }) => {
+				const users = sqliteTable('users_on_conflict_do_nothing_where', {
+					id: integer('id').primaryKey(),
+					email: text('email').notNull(),
+					deletedAt: integer('deleted_at'),
+				});
+
+				await db.run(sql`drop table if exists ${users}`);
+				await db.run(sql`
+					create table ${users} (
+						id integer primary key,
+						email text not null,
+						deleted_at integer
+					)
+				`);
+				await db.run(
+					sql`create unique index users_on_conflict_do_nothing_where_email_idx on ${users} (email) where deleted_at is null`,
+				);
+
+				await db.insert(users).values({ id: 1, email: 'john@example.com', deletedAt: 1 }).run();
+				await db.insert(users).values({ id: 2, email: 'john@example.com' }).run();
+
+				await db
+					.insert(users)
+					.values({ id: 3, email: 'john@example.com' })
+					.onConflictDoNothing({ target: users.email, where: isNull(users.deletedAt) })
+					.run();
+
+				const res = await db.select({ id: users.id }).from(users).orderBy(users.id).all();
+
+				expect(res).toEqual([{ id: 1 }, { id: 2 }]);
+			},
+		);
+
 		test.concurrent('insert with onConflict do update', async ({ db }) => {
 			await db.insert(usersTable).values({ id: 1, name: 'John' }).run();
 
