@@ -289,3 +289,35 @@ test('create checks with same names', async (t) => {
 
 	await expect(diffTestSchemasMysql({}, to, [])).rejects.toThrowError();
 });
+
+test('rename column referenced by a check drops the check first', async (t) => {
+	const from = {
+		balances: mysqlTable('balances', {
+			id: serial('id').primaryKey(),
+			amount: int('amount').notNull(),
+		}, (table) => ({
+			checkConstraint: check('balances_amount_check', sql`${table.amount} >= 0`),
+		})),
+	};
+
+	const to = {
+		balances: mysqlTable('balances', {
+			id: serial('id').primaryKey(),
+			total: int('total').notNull(),
+		}, (table) => ({
+			checkConstraint: check('balances_total_check', sql`${table.total} >= 0`),
+		})),
+	};
+
+	const { sqlStatements } = await diffTestSchemasMysql(from, to, [
+		'public.balances.amount->public.balances.total',
+	]);
+
+	// MySQL rejects a rename while a check still references the column,
+	// so the old check must be dropped before the rename runs.
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE `balances` DROP CONSTRAINT `balances_amount_check`;',
+		'ALTER TABLE `balances` RENAME COLUMN `amount` TO `total`;',
+		'ALTER TABLE `balances` ADD CONSTRAINT `balances_total_check` CHECK (`balances`.`total` >= 0);',
+	]);
+});
