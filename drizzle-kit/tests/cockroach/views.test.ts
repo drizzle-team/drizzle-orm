@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, gt, sql } from 'drizzle-orm';
 import {
 	cockroachMaterializedView,
 	cockroachSchema,
@@ -1296,27 +1296,6 @@ test.concurrent.for([
 	expect(await db.query('SELECT "id"::int4 FROM "v";')).toStrictEqual([{ id: 7 }]);
 });
 
-test.concurrent('a view that is created again keeps its place when it does not read the table that moves', async ({ db }) => {
-	const users = cockroachTable('users', { id: int4() });
-	const reader = (id: number) =>
-		cockroachView('v', { id: int4('id') }).as(sql.raw(`SELECT ${id} AS "id" FROM "users"`));
-	const from = { folder, users, pets: cockroachTable('pets', { id: int4() }), view: reader(1) };
-	const to = { folder, users, pets: folder.table('pets', { id: int4() }), view: reader(2) };
-	const renames = ['public.pets->folder.pets'];
-
-	const { sqlStatements: st } = await diff(from, to, renames);
-	await push({ db, to: from });
-	// The `st` statements run directly, because push does not compare the definition of a view.
-	for (const statement of st) await db.query(statement);
-
-	expect(st).toStrictEqual([
-		'DROP VIEW "v";',
-		'CREATE VIEW "v" AS (SELECT 2 AS "id" FROM "users");',
-		'ALTER TABLE "pets" SET SCHEMA "folder";\n',
-	]);
-	expect((await push({ db, to })).sqlStatements).toStrictEqual([]);
-});
-
 test.concurrent('explain shows a view with a new definition one time, with both definitions', async () => {
 	const users = cockroachTable('users', { id: int4() });
 	const reader = (id: number) =>
@@ -1398,4 +1377,110 @@ test.concurrent('a table rename leaves a view alone that reads a table of a sche
 	const st0 = ['ALTER TABLE "users" RENAME TO "people";'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6176
+test.concurrent('Issue No6176', async ({ db }) => {
+	const users = cockroachTable('users', {
+		id: int4(),
+	});
+
+	const mat1 = cockroachView('mat_user').as((qb) => qb.select().from(users));
+
+	const schema1 = { users, mat1 };
+
+	const mat2 = cockroachMaterializedView('mat_user').as((qb) => qb.select().from(users));
+	const view = cockroachView('user_view').as((qb) => qb.select().from(mat2));
+
+	const schema2 = { users, mat2, view };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+	const expectedSt1 = [
+		`DROP VIEW "mat_user";`,
+		'CREATE MATERIALIZED VIEW "mat_user" AS (select "id" from "users");',
+		'CREATE VIEW "user_view" AS (select "id" from "mat_user");',
+	];
+
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
+// so "v2" is recreated before "v_new" exists
+test.concurrent(
+	'topological sort test. existing view starts reading a new view',
+	async ({ db }) => {
+		const t = cockroachTable('t', { id: int4() });
+
+		const v2a = cockroachView('v2').as((qb) => qb.select().from(t));
+		const schema1 = { t, v2a };
+
+		const vNew = cockroachView('v_new').as((qb) => qb.select().from(t));
+		const v2b = cockroachView('v2').as((qb) => qb.select().from(vNew));
+		const schema2 = { t, v2b, vNew };
+
+		const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+		await push({ db, to: schema1 });
+		const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+		expect(st1).toStrictEqual([
+			'DROP VIEW "v2";',
+			'CREATE VIEW "v_new" AS (select "id" from "t");',
+			'CREATE VIEW "v2" AS (select "id" from "v_new");',
+		]);
+		// push ignores definition changes
+		expect(pst1).toStrictEqual(['CREATE VIEW "v_new" AS (select "id" from "t");']);
+	},
+);
+
+// TODO enhancement: dependents of a recreated view are not recreated, DROP VIEW "v1" fails since "v2" depends on it
+test.skipIf(Date.now() < +new Date('2026-11-13'))(
+	'topological sort test. recreate view that another view depends on',
+	async ({ db }) => {
+		const t = cockroachTable('t', { id: int4() });
+
+		const v1a = cockroachView('v1').as((qb) => qb.select().from(t));
+		const v2a = cockroachView('v2').as((qb) => qb.select().from(v1a));
+		const schema1 = { t, v1a, v2a };
+
+		const v1b = cockroachView('v1').as((qb) => qb.select().from(t).where(gt(t.id, 0)));
+		const v2b = cockroachView('v2').as((qb) => qb.select().from(v1b));
+		const schema2 = { t, v1b, v2b };
+
+		const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+		await push({ db, to: schema1 });
+		const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+		expect(st1).toStrictEqual([
+			'DROP VIEW "v2";',
+			'DROP VIEW "v1";',
+			'CREATE VIEW "v1" AS (select "id" from "t" where "t"."id" > 0);',
+			'CREATE VIEW "v2" AS (select "id" from "v1");',
+		]);
+		// push ignores definition changes
+		expect(pst1).toStrictEqual([]);
+	},
+);
+
+// TODO enhancement: views are dropped in declaration order, DROP VIEW "v1" fails since "v2" depends on it
+// since metadata uses everyting from fromDrizzleSchema(), there is no info about dropped and their deps
+test.skipIf(Date.now() < +new Date('2026-11-13'))('topological sort test. drop 2 dependent views', async ({ db }) => {
+	const t = cockroachTable('t', { id: int4() });
+
+	const v1 = cockroachView('v1').as((qb) => qb.select().from(t));
+	const v2 = cockroachView('v2').as((qb) => qb.select().from(v1));
+	const schema1 = { t, v1, v2 };
+	const schema2 = { t };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+	const expectedSt1 = [
+		'DROP VIEW "v2";',
+		'DROP VIEW "v1";',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
 });

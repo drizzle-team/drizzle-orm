@@ -423,16 +423,15 @@ const recreateColumnConvertor = convertor('recreate_column', ({ diff, isPK }) =>
 	return [drop, add];
 });
 
-const recreateIndexConvertor = convertor('recreate_index', ({ index, diff, shouldDrop }) => ({
+const recreateIndexConvertor = convertor('recreate_index', ({ index, diff }) => ({
 	index: row('indexes', index),
-	shouldDrop,
 	old: uniqueness(diff.$left),
 }), (st) => {
 	// AlterTableAlterColumnSetExpressionConvertor
 	// AlterTableAlterColumnAlterGeneratedConvertor
 
 	const res: string[] = [];
-	if (st.shouldDrop) res.push(dropIndexConvertor.convert({ index: st.index }) as string);
+	res.push(dropIndexConvertor.convert({ index: st.index }) as string);
 	res.push(createIndexConvertor.convert({ index: st.index }) as string);
 
 	return res;

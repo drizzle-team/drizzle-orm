@@ -83,6 +83,7 @@ const statementsOf = async (start: PostgresDDL, deltas: Delta[]): Promise<Snapsh
 		resolverOf('pks'),
 		resolverOf('fks'),
 		'default',
+		undefined,
 		false,
 	);
 	return snapshotStatements;

@@ -2,7 +2,8 @@ import { prepareMigrationRenames, trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
-import { groupDiffs, preserveEntityNames } from '../utils';
+import { groupDiffs, preserveEntityNames, sortCreateViews } from '../utils';
+import type { SchemaMetadata } from '../utils';
 import { fromJson } from './convertor';
 import type {
 	CheckConstraint,
@@ -23,7 +24,12 @@ import { typesCommutative } from './grammar';
 import type { JsonStatement } from './statements';
 import { prepareStatement } from './statements';
 
-export const ddlDiffDry = async (ddlFrom: MssqlDDL, ddlTo: MssqlDDL, mode: 'default' | 'push') => {
+export const ddlDiffDry = async (
+	ddlFrom: MssqlDDL,
+	ddlTo: MssqlDDL,
+	mode: 'default' | 'push',
+	$metadata?: SchemaMetadata,
+) => {
 	const mocks = new Set<string>();
 	return ddlDiff(
 		ddlFrom,
@@ -39,6 +45,7 @@ export const ddlDiffDry = async (ddlFrom: MssqlDDL, ddlTo: MssqlDDL, mode: 'defa
 		mockResolver(mocks),
 		mockResolver(mocks),
 		mode,
+		$metadata,
 	);
 };
 
@@ -56,6 +63,7 @@ export const ddlDiff = async (
 	fksResolver: Resolver<ForeignKey>,
 	defaultsResolver: Resolver<DefaultConstraint>,
 	mode: 'default' | 'push',
+	$metadata?: SchemaMetadata,
 ): Promise<{
 	statements: JsonStatement[];
 	sqlStatements: string[];
@@ -845,7 +853,11 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonRenameReferences);
 	// jsonStatements.push(...jsonRenameDefaults);
 
-	jsonStatements.push(...createViews);
+	// dependent views must be created after their dependencies, otherwise the migration breaks
+	// but this will not help us when views are altered ("alter_view")
+	// "alter_view" does not drop and create, it alters through ddl, see drizzle-kit/tests/mssql/views.test.ts -> "topological sort test. existing view starts reading a new view" case
+	// but for created views we still sort in the correct order
+	jsonStatements.push(...sortCreateViews(createViews, $metadata?.viewDependencies));
 
 	jsonStatements.push(...dropSchemas);
 

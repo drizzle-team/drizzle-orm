@@ -325,7 +325,6 @@ export const rows = (prefix = ''): Record<string, Row> => {
 				type: 'recreate_index',
 				index: idx(schema, table, index, [column]),
 				diff: { schema, name: index, $left: idx(schema, table, index, [column]) },
-				shouldDrop: true,
 			} as any,
 		},
 

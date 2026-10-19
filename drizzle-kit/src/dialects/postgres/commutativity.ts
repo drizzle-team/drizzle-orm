@@ -198,9 +198,6 @@ class PostgresCommutativity extends FacetCommutativity<
 				const isArrayConversion = !!dimensions && (dimensions.from === 0 || dimensions.to === 0);
 				return !dropsSequence && !statement.toSerial && !generated && !identity && !isArrayConversion;
 			}
-			// Without `shouldDrop`, the SQL has no DROP INDEX, and the second CREATE INDEX fails.
-			case 'recreate_index':
-				return statement.shouldDrop;
 			// Without `shouldDrop`, the SQL has no DROP CONSTRAINT, and the second ADD PRIMARY KEY fails.
 			case 'alter_pk':
 				return statement.shouldDrop;
@@ -209,6 +206,7 @@ class PostgresCommutativity extends FacetCommutativity<
 			// add_unique. `isRepeatable` cannot know that those run twice only next to the recreate, so the same
 			// recreate of such a column on two branches still conflicts.
 			case 'recreate_column':
+			case 'recreate_index':
 			case 'recreate_fk':
 			case 'alter_unique':
 			case 'alter_check':

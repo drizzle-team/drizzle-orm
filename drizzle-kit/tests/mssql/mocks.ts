@@ -54,7 +54,7 @@ export const drizzleToDDL = (
 
 	const existing = extractMssqlExisting(schemas, views);
 	const filter = prepareEntityFilter('mssql', filterConfig, existing);
-	const { schema: res, errors } = fromDrizzleSchema(
+	const { schema: res, metadata, errors } = fromDrizzleSchema(
 		{ schemas, tables, views },
 		filter,
 	);
@@ -63,7 +63,7 @@ export const drizzleToDDL = (
 		throw new Error();
 	}
 
-	return { ...interimToDDL(res), existing };
+	return { ...interimToDDL(res), existing, metadata };
 };
 
 // 2 schemas -> 2 ddls -> diff
@@ -75,7 +75,7 @@ export const diff = async (
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as MssqlDDL, errors: [] }
 		: drizzleToDDL(left);
-	const { ddl: ddl2, errors: err2 } = drizzleToDDL(right);
+	const { ddl: ddl2, errors: err2, metadata } = drizzleToDDL(right);
 
 	if (err1.length > 0 || err2.length > 0) {
 		throw new MockError([...err1, ...err2]);
@@ -97,6 +97,7 @@ export const diff = async (
 		mockResolver(renames), // fks
 		mockResolver(renames), // defaults
 		'default',
+		metadata,
 	);
 
 	return { sqlStatements, statements, groupedStatements, next: ddl2 };
@@ -218,8 +219,8 @@ export const push = async (config: {
 		tables: [],
 		extensions: [],
 	};
-	const { ddl: ddl2, errors: err2, existing } = 'entities' in to && '_' in to
-		? { ddl: to as MssqlDDL, errors: [], existing: [] }
+	const { ddl: ddl2, errors: err2, existing, metadata } = 'entities' in to && '_' in to
+		? { ddl: to as MssqlDDL, errors: [], existing: [], metadata: undefined }
 		: drizzleToDDL(to, filterConfig);
 
 	const filter = prepareEntityFilter('mssql', filterConfig, existing);
@@ -257,6 +258,7 @@ export const push = async (config: {
 		mockResolver(renames), // fks
 		mockResolver(renames), // defaults
 		'push',
+		metadata,
 	);
 
 	const hints = await runWithCliContext(

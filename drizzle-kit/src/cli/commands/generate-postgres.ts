@@ -43,7 +43,7 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	if (fix && !config.fixConflicts) throw conflictError(report, fix);
 	const kept = withoutMigrations(stored, fix?.migrations ?? []);
 	const prepared = await config.schemaSource.load();
-	const { ddlCur, ddlPrev } = prepareSnapshot(kept, prepared);
+	const { ddlCur, ddlPrev, metadata } = prepareSnapshot(kept, prepared);
 	const prevIds = kept.leafIds;
 	const parentFolders = leafFolders(kept);
 
@@ -105,6 +105,7 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 		resolver<PrimaryKey>('primary_key', config.hints),
 		resolver<ForeignKey>('foreign key', config.hints),
 		'default',
+		metadata,
 	);
 
 	if (config.hints.hasMissingHints()) {
@@ -146,7 +147,7 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 export const handleExport = async (config: ExportConfig) => {
 	const res = await prepareFromSchemaFiles(config.filenames);
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
-	const { schema, errors, warnings } = fromDrizzleSchema(
+	const { schema, metadata, errors, warnings } = fromDrizzleSchema(
 		res,
 		() => true,
 	);
@@ -167,7 +168,7 @@ export const handleExport = async (config: ExportConfig) => {
 		});
 	}
 
-	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
+	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default', metadata);
 	return {
 		statements: sqlStatements,
 		warnings: warnings.map((it) => postgresSchemaWarning(it)),

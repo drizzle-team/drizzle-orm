@@ -1004,9 +1004,8 @@ describe('facet commutativity — curated scenarios (postgres)', () => {
 describe('the same statement on both branches', () => {
 	const conflictsWithItself = (statement: JsonStatement) => conflicts([statement], [structuredClone(statement)]);
 
-	test('a recreate_index with its DROP INDEX commutes, and one without it conflicts', async () => {
+	test('a recreate_index commutes with itself', async () => {
 		expect(await conflictsWithItself(build('recreate_index'))).toBe(false);
-		expect(await conflictsWithItself({ ...build('recreate_index'), shouldDrop: false } as JsonStatement)).toBe(true);
 	});
 
 	test('an alter_pk with its DROP CONSTRAINT commutes, and one without it conflicts', async () => {

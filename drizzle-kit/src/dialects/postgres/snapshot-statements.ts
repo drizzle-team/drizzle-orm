@@ -108,9 +108,6 @@ export const snapshotStatementSchemas = {
 	}),
 	recreate_index: statement('recreate_index', {
 		index: row('indexes'),
-		// False when the migration also drops a column of the index, because Postgres drops the index with
-		// the column.
-		shouldDrop: boolean(),
 		old: object(uniqueness).strict(),
 	}),
 	add_pk: statement('add_pk', { pk: row('pks') }),

@@ -2567,6 +2567,82 @@ test('topological sort test. deep view chain (recreate) is created in dependency
 	expect(pst).toStrictEqual(st0);
 });
 
+// topological sort test. existing view gets a new definition that reads a brand-new view
+test('topological sort test. existing view starts reading a new view', async () => {
+	const t = pgTable('t', { id: integer() });
+
+	const v2a = pgView('v2').as((qb) => qb.select().from(t));
+	const schema1 = { t, v2a };
+
+	const vNew = pgView('v_new').as((qb) => qb.select().from(t));
+	const v2b = pgView('v2').as((qb) => qb.select().from(vNew));
+	const schema2 = { t, v2b, vNew };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+	expect(st1).toStrictEqual([
+		'DROP VIEW "v2";',
+		'CREATE VIEW "v_new" AS (select "id" from "t");',
+		'CREATE VIEW "v2" AS (select "id" from "v_new");',
+	]);
+	// push ignores definition changes
+	expect(pst1).toStrictEqual(['CREATE VIEW "v_new" AS (select "id" from "t");']);
+});
+
+// TODO enhancement: dependents of a recreated view are not recreated, DROP VIEW "v1" fails since "v2" depends on it
+// can not know right now the dependency tree of dropped views
+test.skipIf(Date.now() < +new Date('2026-11-19'))(
+	'topological sort test. recreate view that another view depends on',
+	async () => {
+		const t = pgTable('t', { id: integer() });
+
+		const v1a = pgView('v1').as((qb) => qb.select().from(t));
+		const v2a = pgView('v2').as((qb) => qb.select().from(v1a));
+		const schema1 = { t, v1a, v2a };
+
+		const v1b = pgView('v1').as((qb) => qb.select().from(t).where(gt(t.id, 0)));
+		const v2b = pgView('v2').as((qb) => qb.select().from(v1b));
+		const schema2 = { t, v1b, v2b };
+
+		const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+		await push({ db, to: schema1 });
+		const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+		expect(st1).toStrictEqual([
+			'DROP VIEW "v2";',
+			'DROP VIEW "v1";',
+			'CREATE VIEW "v1" AS (select "id" from "t" where "t"."id" > 0);',
+			'CREATE VIEW "v2" AS (select "id" from "v1");',
+		]);
+		// push ignores definition changes
+		expect(pst1).toStrictEqual([]);
+	},
+);
+
+// TODO enhancement: views are dropped in declaration order, DROP VIEW "v1" fails since "v2" depends on it
+// since metadata uses everyting from fromDrizzleSchema(), there is no info about dropped and their deps
+test.skipIf(Date.now() < +new Date('2026-11-19'))('topological sort test. drop 2 dependent views', async () => {
+	const t = pgTable('t', { id: integer() });
+
+	const v1 = pgView('v1').as((qb) => qb.select().from(t));
+	const v2 = pgView('v2').as((qb) => qb.select().from(v1));
+	const schema1 = { t, v1, v2 };
+	const schema2 = { t };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+	const expectedSt1 = [
+		'DROP VIEW "v2";',
+		'DROP VIEW "v1";',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/3309
 test('Issue No3309. tablesFilter with views', async () => {
 	await db.query(`CREATE TABLE test (id integer)`);

@@ -1,4 +1,5 @@
 import { humanLog, postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
+import type { SchemaMetadata } from '../utils';
 import type { PostgresDDL } from './ddl';
 import { interimToDDL } from './ddl';
 import { fromDrizzleSchema } from './drizzle';
@@ -11,11 +12,12 @@ export const prepareSnapshot = (
 ): {
 	ddlPrev: PostgresDDL;
 	ddlCur: PostgresDDL;
+	metadata: SchemaMetadata;
 } => {
 	const ddlPrev = combinedState(migrations);
 
 	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
-	const { schema, errors, warnings } = fromDrizzleSchema(prepared, () => true);
+	const { schema, metadata, errors, warnings } = fromDrizzleSchema(prepared, () => true);
 
 	if (warnings.length > 0) {
 		humanLog(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
@@ -33,5 +35,5 @@ export const prepareSnapshot = (
 		process.exit(1);
 	}
 
-	return { ddlPrev, ddlCur };
+	return { ddlPrev, ddlCur, metadata };
 };
