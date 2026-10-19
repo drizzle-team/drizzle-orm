@@ -1865,6 +1865,10 @@ export const isSystemNamespace = (name: string) => {
 		|| systemNamespaceNames.indexOf(name) >= 0;
 };
 
+// Keywords that a policy can list in place of a role. The convertor writes them without quotes, and the
+// conflict check skips them, because no schema can rename or drop them.
+export const builtinPolicyRoles = ['current_user', 'current_role', 'session_user', 'public'];
+
 export const isSystemRole = (name: string) => {
 	return name === 'postgres' || name.startsWith('pg_');
 };

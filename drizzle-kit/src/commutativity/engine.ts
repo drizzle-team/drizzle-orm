@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from 'fs';
-import { dirname } from 'path';
-import type { ConflictTarget, NonCommutativityReport, UnifiedBranchConflict } from './types';
+import { isDeepStrictEqual } from 'node:util';
+import { basename, dirname } from 'path';
+import { originUUID } from '../utils';
+import type { ConflictTarget, MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from './types';
 
 type SnapshotNode<TSnapshot extends { id: string; prevIds: string[] }> = {
 	id: string;
@@ -19,6 +21,33 @@ export type ParsedSnapshotInput<TSnapshot extends SnapshotHeader = SnapshotHeade
 	snapshot: TSnapshot;
 };
 
+/**
+ * Lists the nodes that one statement touches in a hierarchical namespace. `FacetCommutativity` compares these
+ * nodes between two branches, and two statements conflict when the rules below say so:
+ *  - `writes`        a write conflicts with a write or a read of the same node. For example, two branches that
+ *                    add a column with one name, or a table rename and a new column of that table.
+ *  - `reads`         a read conflicts only with a write. For example, two branches that add different columns
+ *                    to one table both read the table, and they do not conflict.
+ *  - `sharedWrites`  a shared write conflicts with a write or a read, and never with another shared write. Use it
+ *                    for a fact that several objects guarantee. For example, a drop of a unique constraint and a
+ *                    drop of a unique index on the same columns do not conflict, and either of them conflicts
+ *                    with a new foreign key that reads the uniqueness of those columns.
+ * Two equal statements on two branches pass through `isRepeatable`, not through `sharedWrites`, because a
+ * shared write would let two different values of one property pass too.
+ *
+ * Keys are opaque strings minted by the dialect; the engine only compares them.
+ */
+export type FacetPaths = {
+	writes: string[];
+	reads?: string[];
+	sharedWrites?: string[];
+};
+
+type LeafFootprints<TStatement> = {
+	statementHashes: Array<{ hash: string; statement: TStatement }>;
+	conflictFootprints: Array<{ hash: string; statement: TStatement }>;
+};
+
 function buildPrevToChildren<TNode extends { id: string; prevIds: string[] }>(
 	nodes: Record<string, TNode>,
 ): Record<string, string[]> {
@@ -29,6 +58,11 @@ function buildPrevToChildren<TNode extends { id: string; prevIds: string[] }>(
 		}
 	}
 	return prevToChildren;
+}
+
+function leafIdsOf(nodes: Record<string, { prevIds: string[] }>): string[] {
+	const parents = new Set(Object.values(nodes).flatMap((it) => it.prevIds));
+	return Object.keys(nodes).filter((id) => !parents.has(id));
 }
 
 function collectLeaves(
@@ -91,6 +125,9 @@ function ancestorsOf(
  * replayed. Returns `null` when the leaves share no real-node ancestor (their
  * only common ancestor is the ORIGIN sentinel), in which case the caller falls
  * back to the dry snapshot.
+ *
+ * For two leaves, this node is their fork point. `detectBranchConflicts` reports
+ * it as the parent of a conflict, and it reports ORIGIN when the result is `null`.
  */
 function lowestCommonAncestor(
 	nodes: Record<string, { prevIds: string[] }>,
@@ -155,6 +192,220 @@ function composeMergeStatements<TStatement>(
 	return composed;
 }
 
+export abstract class AbstractCommutativity<
+	TStatement extends { type: string },
+	TSnapshot extends { id: string; prevIds: string[] },
+> {
+	protected abstract describe(statement: TStatement): { description: string; target: ConflictTarget };
+
+	public abstract detectNonCommutative(
+		snapshots: string[] | ParsedSnapshotInput[],
+	): Promise<NonCommutativityReport>;
+
+	protected abstract generateLeafFootprints(statements: TStatement[]): LeafFootprints<TStatement>;
+
+	// Lets `isSameChange` accept two equal statements on two branches. A dialect returns true when the SQL of the
+	// statement gives the same result if it runs a second time.
+	protected isRepeatable(_statement: TStatement): boolean {
+		return false;
+	}
+
+	// Tells whether two statements of two branches are one change, so that they do not conflict. A footprint
+	// names only the object that a statement changes, so two equal statements always match.
+	private isSameChange(a: TStatement, b: TStatement): boolean {
+		return a.type === b.type && this.isRepeatable(a) && isDeepStrictEqual(a, b);
+	}
+
+	public async getReasonsFromStatements(aStatements: TStatement[], bStatements: TStatement[]) {
+		const branchAFootprints = this.generateLeafFootprints(aStatements);
+		const branchBFootprints = this.generateLeafFootprints(bStatements);
+
+		return this.findFootprintIntersections(
+			branchAFootprints.statementHashes,
+			branchAFootprints.conflictFootprints,
+			branchBFootprints.statementHashes,
+			branchBFootprints.conflictFootprints,
+		);
+	}
+
+	protected branchOf(
+		chain: MigrationNode[],
+		statement: TStatement,
+		source?: MigrationNode,
+	): UnifiedBranchConflict['branchA'] {
+		const { description, target } = this.describe(statement);
+		return {
+			chain,
+			statementDescription: source ? `${description} (${basename(source.path)})` : description,
+			target,
+			action: statement.type,
+			...(source && { source }),
+		};
+	}
+
+	private findFootprintIntersections(
+		branchAHashes: Array<{ hash: string; statement: TStatement }>,
+		branchAConflicts: Array<{ hash: string; statement: TStatement }>,
+		branchBHashes: Array<{ hash: string; statement: TStatement }>,
+		branchBConflicts: Array<{ hash: string; statement: TStatement }>,
+	) {
+		const byHash = (conflicts: Array<{ hash: string; statement: TStatement }>) => {
+			const map = new Map<string, TStatement[]>();
+			for (const { hash, statement } of conflicts) {
+				const list = map.get(hash);
+				if (list) list.push(statement);
+				else map.set(hash, [statement]);
+			}
+			return map;
+		};
+		// Returns the first statement of `hashes` that conflicts with the other branch, and the last statement of
+		// the other branch with that hash. A pair that `isSameChange` accepts does not count.
+		const firstConflict = (
+			hashes: Array<{ hash: string; statement: TStatement }>,
+			conflicts: Map<string, TStatement[]>,
+		) => {
+			for (const { hash, statement } of hashes) {
+				const others = conflicts.get(hash) ?? [];
+				for (let idx = others.length - 1; idx >= 0; idx--) {
+					if (!this.isSameChange(statement, others[idx])) {
+						return { leftStatement: statement, rightStatement: others[idx] };
+					}
+				}
+			}
+		};
+
+		return firstConflict(branchAHashes, byHash(branchBConflicts))
+			?? firstConflict(branchBHashes, byHash(branchAConflicts));
+	}
+
+	protected buildSnapshotGraph(
+		snapshots: string[] | ParsedSnapshotInput[],
+	): Record<string, SnapshotNode<TSnapshot>> {
+		const byId: Record<string, SnapshotNode<TSnapshot>> = {};
+		for (const input of snapshots) {
+			let file: string;
+			// The cast to `TSnapshot` is not checked. This function reads only `id` and `prevIds`, and the dialect
+			// code that reads `raw` needs the rest of `TSnapshot`.
+			let raw: TSnapshot;
+			if (typeof input === 'string') {
+				file = input;
+				if (!existsSync(file)) continue;
+				raw = JSON.parse(readFileSync(file, 'utf8')) as TSnapshot;
+			} else {
+				file = input.path;
+				raw = input.snapshot as TSnapshot;
+			}
+			byId[raw.id] = {
+				id: raw.id,
+				prevIds: raw.prevIds,
+				path: file,
+				folderPath: dirname(file),
+				raw,
+			};
+		}
+
+		return byId;
+	}
+}
+
+export abstract class FacetCommutativity<
+	TStatement extends { type: string },
+	TSnapshot extends { id: string; prevIds: string[] },
+> extends AbstractCommutativity<TStatement, TSnapshot> {
+	public abstract buildFacetPaths(statement: TStatement): FacetPaths;
+
+	/**
+	 * Facet-model footprints. Encodes a read/write lock per node so that
+	 * `findFootprintIntersections` (which matches produced-hashes of one branch
+	 * against conflict-hashes of the other) yields:
+	 *   write vs write  -> conflict   (two statements write the same node)
+	 *   write vs read   -> conflict   (a drop removes something that another statement reads)
+	 *   read  vs read   -> no conflict (both only read that the node exists)
+	 * A write contributes `key#w` to both lists; a read contributes `key#r` to
+	 * the produced list and `key#w` to the conflict list, so reads only ever
+	 * match against writes. A shared write contributes `key#w` to the produced
+	 * list only, so it matches a read or a write of the other branch, and never
+	 * another shared write.
+	 */
+	protected override generateLeafFootprints(statements: TStatement[]): LeafFootprints<TStatement> {
+		const statementHashes: Array<{ hash: string; statement: TStatement }> = [];
+		const conflictFootprints: Array<{ hash: string; statement: TStatement }> = [];
+
+		for (const statement of statements) {
+			const { writes, reads = [], sharedWrites = [] } = this.buildFacetPaths(statement);
+
+			for (const key of writes) {
+				statementHashes.push({ hash: `${key}#w`, statement });
+				conflictFootprints.push({ hash: `${key}#w`, statement });
+			}
+			for (const key of reads) {
+				statementHashes.push({ hash: `${key}#r`, statement });
+				conflictFootprints.push({ hash: `${key}#w`, statement });
+			}
+			for (const key of sharedWrites) {
+				statementHashes.push({ hash: `${key}#w`, statement });
+			}
+		}
+
+		return { statementHashes, conflictFootprints };
+	}
+
+	// Finds the conflicts between every pair of leaves, for a dialect whose snapshots store their statements. The
+	// branch of a leaf is the part of its history that the other leaf does not have. Every statement of the branch
+	// counts, so a change that a later snapshot of the same branch reverts still conflicts.
+	protected async detectBranchConflicts(
+		nodes: Record<string, SnapshotNode<TSnapshot>>,
+		statementsOf: (id: string) => TStatement[],
+	): Promise<NonCommutativityReport> {
+		const histories = new Map<string, Set<string>>();
+		const sources = new Map<TStatement, string>();
+		for (const id of Object.keys(nodes)) {
+			for (const statement of statementsOf(id)) sources.set(statement, id);
+		}
+
+		const conflicts: UnifiedBranchConflict[] = [];
+		const leafIds = leafIdsOf(nodes);
+		for (let i = 0; i < leafIds.length; i++) {
+			for (let j = i + 1; j < leafIds.length; j++) {
+				const [x, y] = [leafIds[i], leafIds[j]];
+				const historyX = ancestorsOf(nodes, x, histories);
+				const historyY = ancestorsOf(nodes, y, histories);
+				// `branchX` and `branchY` keep the key order of `nodes`, which is folder-name order. A child sorts
+				// after its parent, so each branch lists its snapshots in the order that migrate runs them.
+				const branchX = Object.keys(nodes).filter((id) => historyX.has(id) && !historyY.has(id));
+				const branchY = Object.keys(nodes).filter((id) => historyY.has(id) && !historyX.has(id));
+
+				const found = await this.getReasonsFromStatements(
+					branchX.flatMap((id) => statementsOf(id)),
+					branchY.flatMap((id) => statementsOf(id)),
+				);
+				if (!found) continue;
+
+				// `found.leftStatement` can come from either branch. Its snapshot in `sources` tells which one.
+				const [statementX, statementY] = historyX.has(sources.get(found.leftStatement)!)
+					? [found.leftStatement, found.rightStatement]
+					: [found.rightStatement, found.leftStatement];
+				const describeLeafBranch = (branch: string[], statement: TStatement) => {
+					const sourceId = sources.get(statement)!;
+					return this.branchOf(
+						branch.map((id) => ({ id, path: nodes[id].folderPath })),
+						statement,
+						{ id: sourceId, path: nodes[sourceId].folderPath },
+					);
+				};
+				const forkId = lowestCommonAncestor(nodes, [x, y]);
+				conflicts.push({
+					parentId: forkId ?? originUUID,
+					parentPath: forkId ? nodes[forkId].folderPath : undefined,
+					branchA: describeLeafBranch(branchX, statementX),
+					branchB: describeLeafBranch(branchY, statementY),
+				});
+			}
+		}
+		return { conflicts, leafNodes: leafIds };
+	}
+}
+
 export type CommutativityStatementInfo<
 	TStatement extends { type: string },
 	TTarget,
@@ -189,11 +440,11 @@ export type CommutativityStatementDefinitions<
 	>;
 };
 
-export abstract class AbstractCommutativity<
+export abstract class ConflictListCommutativity<
 	TStatement extends { type: string },
 	TSnapshot extends { id: string; prevIds: string[] },
 	TTarget,
-> {
+> extends AbstractCommutativity<TStatement, TSnapshot> {
 	private statementDefinitionsCache?: CommutativityStatementDefinitions<
 		TStatement,
 		TTarget
@@ -247,10 +498,15 @@ export abstract class AbstractCommutativity<
 		};
 	}
 
-	public footprint(
-		statement: TStatement,
-		_snapshot?: TSnapshot,
-	): [string[], string[]] {
+	protected override describe(statement: TStatement) {
+		const { info } = this.resolveStatement(statement);
+		return {
+			description: this.describeStatement(statement, info),
+			target: this.describeStatementTarget(statement, info),
+		};
+	}
+
+	public footprint(statement: TStatement): [string[], string[]] {
 		const { info, conflicts } = this.resolveStatement(statement);
 
 		const statementFootprints = this.statementTargets(info).map((target) =>
@@ -262,24 +518,9 @@ export abstract class AbstractCommutativity<
 		return [statementFootprints, conflictFootprints];
 	}
 
-	public async getReasonsFromStatements(
-		aStatements: TStatement[],
-		bStatements: TStatement[],
-		parentSnapshot?: TSnapshot,
-	) {
-		const snapshot = parentSnapshot ?? this.getDrySnapshot();
-		const branchAFootprints = this.generateLeafFootprints(aStatements, snapshot);
-		const branchBFootprints = this.generateLeafFootprints(bStatements, snapshot);
-
-		return this.findFootprintIntersections(
-			branchAFootprints.statementHashes,
-			branchAFootprints.conflictFootprints,
-			branchBFootprints.statementHashes,
-			branchBFootprints.conflictFootprints,
-		);
-	}
-
-	public async detectNonCommutative(
+	// Finds the conflicts for a dialect whose snapshots store the full state. It diffs every fork parent against
+	// the leaves under each of its children, so it sees only the net effect of a branch.
+	public override async detectNonCommutative(
 		snapshots: string[] | ParsedSnapshotInput[],
 	): Promise<NonCommutativityReport> {
 		const nodes = this.buildSnapshotGraph(snapshots);
@@ -347,11 +588,7 @@ export abstract class AbstractCommutativity<
 								resolveLeaf(bId),
 							]);
 
-							const intersected = await this.getReasonsFromStatements(
-								aStatements,
-								bStatements,
-								parentSnapshot,
-							);
+							const intersected = await this.getReasonsFromStatements(aStatements, bStatements);
 
 							if (!intersected) continue;
 
@@ -368,36 +605,11 @@ export abstract class AbstractCommutativity<
 								bId,
 							);
 
-							const leftInfo = this.resolveStatement(intersected.leftStatement).info;
-							const rightInfo = this.resolveStatement(intersected.rightStatement).info;
-
 							conflicts.push({
 								parentId: prevId,
 								parentPath: parentNode?.folderPath,
-								branchA: {
-									chain: chainA,
-									statementDescription: this.describeStatement(
-										intersected.leftStatement,
-										leftInfo,
-									),
-									target: this.describeStatementTarget(
-										intersected.leftStatement,
-										leftInfo,
-									),
-									action: leftInfo.action,
-								},
-								branchB: {
-									chain: chainB,
-									statementDescription: this.describeStatement(
-										intersected.rightStatement,
-										rightInfo,
-									),
-									target: this.describeStatementTarget(
-										intersected.rightStatement,
-										rightInfo,
-									),
-									action: rightInfo.action,
-								},
+								branchA: this.branchOf(chainA, intersected.leftStatement),
+								branchB: this.branchOf(chainB, intersected.rightStatement),
 							});
 						}
 					}
@@ -473,13 +685,7 @@ export abstract class AbstractCommutativity<
 		return [info.primary, ...info.ancestors, ...this.getImplicitAncestors(info.primary)];
 	}
 
-	private generateLeafFootprints(
-		statements: TStatement[],
-		_snapshot?: TSnapshot,
-	): {
-		statementHashes: Array<{ hash: string; statement: TStatement }>;
-		conflictFootprints: Array<{ hash: string; statement: TStatement }>;
-	} {
+	protected override generateLeafFootprints(statements: TStatement[]): LeafFootprints<TStatement> {
 		const statementHashes: Array<{ hash: string; statement: TStatement }> = [];
 		const conflictFootprints: Array<{ hash: string; statement: TStatement }> = [];
 
@@ -496,64 +702,6 @@ export abstract class AbstractCommutativity<
 		}
 
 		return { statementHashes, conflictFootprints };
-	}
-
-	private findFootprintIntersections(
-		branchAHashes: Array<{ hash: string; statement: TStatement }>,
-		branchAConflicts: Array<{ hash: string; statement: TStatement }>,
-		branchBHashes: Array<{ hash: string; statement: TStatement }>,
-		branchBConflicts: Array<{ hash: string; statement: TStatement }>,
-	) {
-		const branchAConflictByHash = new Map<string, TStatement>();
-		for (const c of branchAConflicts) branchAConflictByHash.set(c.hash, c.statement);
-
-		const branchBConflictByHash = new Map<string, TStatement>();
-		for (const c of branchBConflicts) branchBConflictByHash.set(c.hash, c.statement);
-
-		for (const a of branchAHashes) {
-			const match = branchBConflictByHash.get(a.hash);
-			if (match) {
-				return { leftStatement: a.statement, rightStatement: match };
-			}
-		}
-
-		for (const b of branchBHashes) {
-			const match = branchAConflictByHash.get(b.hash);
-			if (match) {
-				return { leftStatement: b.statement, rightStatement: match };
-			}
-		}
-	}
-
-	private buildSnapshotGraph(
-		snapshots: string[] | ParsedSnapshotInput[],
-	): Record<string, SnapshotNode<TSnapshot>> {
-		const byId: Record<string, SnapshotNode<TSnapshot>> = {};
-		for (const input of snapshots) {
-			let file: string;
-			// The engine accepts snapshots whose shape we only know to have `id`
-			// and `prevIds`. The full snapshot is then handed to the dialect's
-			// `diffSnapshots`, which is the only place that requires the rest
-			// of `TSnapshot` and is responsible for that contract.
-			let raw: TSnapshot;
-			if (typeof input === 'string') {
-				file = input;
-				if (!existsSync(file)) continue;
-				raw = JSON.parse(readFileSync(file, 'utf8')) as TSnapshot;
-			} else {
-				file = input.path;
-				raw = input.snapshot as TSnapshot;
-			}
-			byId[raw.id] = {
-				id: raw.id,
-				prevIds: raw.prevIds,
-				path: file,
-				folderPath: dirname(file),
-				raw,
-			};
-		}
-
-		return byId;
 	}
 
 	private buildChain(

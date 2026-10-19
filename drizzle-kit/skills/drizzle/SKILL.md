@@ -1,13 +1,24 @@
 ---
 name: drizzle
-description: Run a one-time staleness check against the installed `drizzle-kit` and notify the user if it ships a newer agent-skills bundle than what's embedded here. Load before reading or editing any Drizzle file (anything importing from `drizzle-orm/*`), touching `drizzle.config.ts`, invoking `drizzle-kit <command>` or using the Drizzle SDK, or handling drizzle-kit output.
+description: Work across the Drizzle ecosystem — drizzle-orm schema and query code, drizzle-kit migrations, and related tooling. Load before reading or editing any Drizzle file (anything importing `drizzle-orm/*`), defining or editing `drizzle.config.ts`, generating migrations, applying schema changes to a database (push), introspecting an existing database into a schema (pull), resolving drizzle-kit prompts or `missing_hints` output, choosing output modes, or decoding drizzle-kit JSON responses and errors — via CLI, SDK, or MCP. Load also when migrations from several git branches meet in one migrations folder, when a drizzle-kit command reports a broken migrations folder or branch conflicts, or when a command asks to run `drizzle-kit up`. Also runs a once-per-session staleness check against the installed `drizzle-kit`.
 metadata:
-  revision: 13
+  revision: 14
 ---
 
 # Drizzle
 
-This skill runs a one-time staleness check against the installed `drizzle-kit` binary. If `drizzle-kit` ships a newer agent-skills bundle than the revision embedded in this file (the skills currently in use), surface a single user-facing notice with the refresh command.
+This skill is the entry point for all Drizzle work — drizzle-orm schema and query code, drizzle-kit migrations, and the wider ecosystem — and carries topic files with deeper detail on the drizzle-kit workflow (see Topic files below). It also runs a one-time staleness check against the installed `drizzle-kit` and notifies the user if it ships a newer agent-skills bundle than the revision embedded here.
+
+## Topic files
+
+- Setting up or changing the migration workflow, `drizzle.config.ts`, the generate-vs-push choice, or dialect quirks → [migrations.md](migrations.md)
+- The migrations folder and its snapshots, migrations from several git branches, a broken migrations folder, branch conflicts, or `drizzle-kit up` → [migrations.md](migrations.md)
+- Creating a migration SQL file from schema changes → [generate.md](generate.md)
+- Applying schema changes directly to a live database → [push.md](push.md)
+- Introspecting an existing database into a Drizzle schema → [pull.md](pull.md)
+- Resolving `missing_hints`, rename-vs-create, or `confirm_data_loss` → [hints.md](hints.md)
+- Choosing `--output` modes and non-interactive runs → [output-modes.md](output-modes.md)
+- Decoding the response envelope, error codes, and exit codes → [responses-and-errors.md](responses-and-errors.md)
 
 ## Staleness check
 
@@ -33,7 +44,7 @@ If `drizzle-kit` is found and runs but the call errors — non-zero exit, stdout
 
 ## Surface selection
 
-drizzle-kit exposes the same migration verbs (`generate`, `push`, `pull`, `up`, `check`, `export`) over three surfaces — CLI, SDK, and an MCP server — that all return the identical JSON envelope and consume the same `hints` array. The procedural skills (`drizzle-hints`, `drizzle-responses-and-errors`) apply unchanged regardless of surface; only the invocation differs. Pick the surface per verb:
+drizzle-kit exposes the same migration verbs (`generate`, `push`, `pull`, `up`, `check`, `export`) over three surfaces — CLI, SDK, and an MCP server — that all return the identical JSON envelope and consume the same `hints` array. The MCP server also has a `fix_conflicts` tool, for postgresql only. On the CLI it is `drizzle-kit generate --fix-conflicts`, and in the SDK it is `generate({ fixConflicts: true })`. The procedural topic files ([hints.md](hints.md), [responses-and-errors.md](responses-and-errors.md)) apply unchanged regardless of surface; only the invocation differs. Pick the surface per verb:
 
 1. If a `mcp__drizzle__<verb>` tool is available in the session, prefer it over shelling out. Its `structuredContent` is the same envelope; resolve a `missing_hints` result with the same `hints` array and re-call the tool.
 2. Otherwise fall back to the CLI: `drizzle-kit <verb> --output json`.

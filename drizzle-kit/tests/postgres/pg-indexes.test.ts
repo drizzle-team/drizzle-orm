@@ -840,3 +840,39 @@ test('Issue No6079', async () => {
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
 });
+
+test('an index that keeps its name is created again when another table replaces its table', async () => {
+	const schema1 = {
+		users: pgTable('users', { id: integer(), email: text() }, (t) => [index('email_idx').on(t.email)]),
+	};
+	const schema2 = {
+		accounts: pgTable('accounts', { id: integer(), contact: text() }, (t) => [index('email_idx').on(t.contact)]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0 = [
+		'CREATE TABLE "accounts" (\n\t"id" integer,\n\t"contact" text\n);\n',
+		'DROP TABLE "users";',
+		'CREATE INDEX "email_idx" ON "accounts" ("contact");',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('an index that keeps its name and moves to another table is dropped and created', async () => {
+	const tables = (indexed: 'a' | 'b') => ({
+		a: pgTable('a', { x: integer() }, (t) => (indexed === 'a' ? [index('x_idx').on(t.x)] : [])),
+		b: pgTable('b', { x: integer() }, (t) => (indexed === 'b' ? [index('x_idx').on(t.x)] : [])),
+	});
+
+	const { sqlStatements: st } = await diff(tables('a'), tables('b'), []);
+	await push({ db, to: tables('a') });
+	const { sqlStatements: pst } = await push({ db, to: tables('b') });
+
+	const st0 = ['DROP INDEX "x_idx";', 'CREATE INDEX "x_idx" ON "b" ("x");'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});

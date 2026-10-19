@@ -1126,7 +1126,7 @@ describe('check --output', () => {
 		(await sdkCheck({ dialect: 'postgresql', out, ...opts })) as unknown as CheckEnvelope;
 
 	test('valid journal emits an ok envelope', async () => {
-		const result = await runCheck(stageValid());
+		const result = await runCheck(await stageValid());
 		expect(result).toStrictEqual({ status: 'ok', dialect: 'postgresql' });
 	});
 
@@ -1156,11 +1156,13 @@ describe('check --output', () => {
 		const out = stageOut();
 		// Correct version but a structurally invalid body trips the `malformed` validator status.
 		writeSnapshot(out, '0000_init', {
-			version: '8',
+			type: 'base',
+			version: '9',
 			dialect: 'postgres',
 			id: 'p1',
 			prevIds: [ORIGIN],
 			ddl: 'not-an-array',
+			statements: [],
 		});
 		const result = await runCheck(out);
 
@@ -1187,7 +1189,7 @@ describe('check --output', () => {
 	});
 
 	test('conflicting branches emit an enriched conflicts envelope', async () => {
-		const result = await runCheck(stageConflict());
+		const result = await runCheck(await stageConflict());
 
 		expect(result.status).toBe('error');
 		expect(result.error?.code).toBe('check_error');
@@ -1227,7 +1229,7 @@ describe('check --output', () => {
 	});
 
 	test('a table-level conflict carries a table-kind target with its schema', async () => {
-		const result = await runCheck(stageTableConflict());
+		const result = await runCheck(await stageTableConflict());
 
 		expect(result.error?.kind).toBe('conflicts');
 		const details = result.error!.details!;
@@ -1244,9 +1246,17 @@ describe('check --output', () => {
 		}
 	});
 
-	test('ignore-conflicts emits an ok envelope despite conflicts', async () => {
-		const result = await runCheck(stageConflict(), { ignoreConflicts: true });
-		expect(result).toStrictEqual({ status: 'ok', dialect: 'postgresql' });
+	test('postgresql rejects ignore-conflicts', async () => {
+		const result = await runCheck(await stageConflict(), { ignoreConflicts: true });
+		expect(result).toStrictEqual({
+			status: 'error',
+			error: {
+				code: 'unsupported_command_dialect_error',
+				command: 'check',
+				dialect: 'postgresql',
+				option: 'ignore-conflicts',
+			},
+		});
 	});
 });
 
@@ -1393,7 +1403,18 @@ describe('pull json envelopes', () => {
 		const meta = join(out, tag);
 		mkdirSync(meta, { recursive: true });
 		const snapshotPath = join(meta, 'snapshot.json');
-		writeFileSync(snapshotPath, JSON.stringify({ version: '8', dialect: 'postgres', id: tag, prevIds: [], ddl: [] }));
+		writeFileSync(
+			snapshotPath,
+			JSON.stringify({
+				type: 'base',
+				version: '9',
+				dialect: 'postgres',
+				id: tag,
+				prevIds: [],
+				ddl: [],
+				statements: [],
+			}),
+		);
 		return snapshotPath;
 	};
 

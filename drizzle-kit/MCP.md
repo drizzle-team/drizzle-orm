@@ -20,14 +20,15 @@ See your MCP client's documentation for how to register a stdio server. As an ex
 
 | Tool | Parameters | Annotations |
 |------|-----------|-------------|
-| `generate` | `config?`, `hints?`, `name?`, `custom?`, `ignoreConflicts?` | non-destructive |
+| `generate` | `config?`, `hints?`, `name?`, `custom?`, `ignoreConflicts?` (not for postgresql) | non-destructive |
+| `fix_conflicts` | `config?`, `hints?`, `name?`, `custom?` | destructive (postgresql only; see below) |
 | `push` | `config?`, `hints?` | destructive |
-| `check` | `config?`, `ignoreConflicts?` | read-only, idempotent |
+| `check` | `config?`, `ignoreConflicts?` (not for postgresql) | read-only, idempotent |
 | `export` | `config?` | read-only, idempotent |
 | `up` | `config?` | idempotent (not read-only — rewrites snapshots in place) |
 | `pull` | `config?`, `init?` | `destructiveHint: false` (static — see the `--init` signal below) |
 
-Each tool returns the same JSON envelope as the CLI `--output json` / SDK contract — see [JSON_CONTRACT.md](./JSON_CONTRACT.md) for the full envelope spec.
+Each tool returns the same JSON envelope as the CLI `--output json` / SDK contract — see [JSON_CONTRACT.md](./JSON_CONTRACT.md) for the full envelope spec. For postgresql, two error kinds tell an agent that the migrations folder itself needs a fix. `check_error` with `kind: "order"` means that a migration folder sorts before its parent. `command_output_error` from `up` with `kind: "history"` means that `up` cannot convert the history of the folder, and that it changed no file.
 
 ## Consent round-trip (`missing_hints`)
 
@@ -35,13 +36,19 @@ When `generate` or `push` encounters an ambiguous or destructive change it canno
 
 ## `pull --init` destructive signal
 
-The static `listTools` annotation for `pull` is `destructiveHint: false` and cannot flip per call. When the agent calls `pull` with `init: true`, the tool runs the initial migration against the live database — a destructive write — and signals this per-call on the result rather than on the static annotation. The escalation rides the result `_meta` key:
+The static `listTools` annotation for `pull` is `destructiveHint: false` and cannot flip per call. When the agent calls `pull` with `init: true`, the tool writes to the live database: it creates the migrations table if needed and records the pulled migration as applied, so that `migrate` does not run it again. It does not run the SQL of that migration. The tool signals this write per call on the result rather than on the static annotation. The escalation rides the result `_meta` key:
 
 ```json
 { "_meta": { "com.drizzle.team/pull.destructiveHint": true } }
 ```
 
 The `_meta` key is set whenever `init: true`, derived from the input alone and independent of `isError`, so a failed `init` call still warns the client. A `pull` without `init` (or with `init: false`) carries no such `_meta` key. This is implemented in `src/mcp/server.ts`.
+
+## `fix_conflicts`
+
+`fix_conflicts` is the MCP form of `drizzle-kit generate --fix-conflicts`, for postgresql only. It deletes the migrations that hold the conflicting statements that check reports, with all their children. It then generates one new migration from the schema. The `check_error` response of `check` or `generate` lists these folders in `error.fix` before anything is deleted. The tool deletes nothing while it returns `missing_hints`. Every database that ran a deleted migration must be reset.
+
+The tool is separate from `generate`, so that the static annotation of each tool holds for every call.
 
 ## Explicit `config` parameter
 

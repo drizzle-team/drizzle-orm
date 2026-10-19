@@ -12,28 +12,33 @@ import type {
 	Index,
 	Policy,
 	PostgresEntities,
+	PostgresEntity,
 	PrimaryKey,
-	Privilege,
 	Role,
 	Schema,
 	Sequence,
 	UniqueConstraint,
 	View,
 } from '../dialects/postgres/ddl';
-import { createDDL, interimToDDL } from '../dialects/postgres/ddl';
-import type { PostgresSnapshot } from '../dialects/postgres/snapshot';
-import { upToV8 } from '../dialects/postgres/versions';
+import { fromEntities, interimToDDL } from '../dialects/postgres/ddl';
+import type { PostgresSchemaState } from '../dialects/postgres/snapshot';
+import { isSnapshotV8, upToV8 } from '../dialects/postgres/versions';
 import { originUUID } from '../utils';
 import type { DB } from '../utils';
+
+const schemaState = (id: string, prevIds: string[], ddl: PostgresEntity[]): PostgresSchemaState => {
+	const parents = prevIds.filter((it) => it && it !== originUUID);
+	return { version: '9', dialect: 'postgres', id, prevIds: parents.length === 0 ? [originUUID] : parents, ddl };
+};
 
 export const generateDrizzleJson = async (
 	imports: Record<string, unknown>,
 	prevId?: string,
 	schemaFilters?: string[],
-): Promise<PostgresSnapshot> => {
+): Promise<PostgresSchemaState> => {
+	const { randomUUID } = await import('crypto');
 	const { prepareEntityFilter } = await import('src/dialects/pull-utils');
 	const { humanLog, postgresSchemaError, postgresSchemaWarning } = await import('../cli/views');
-	const { toJsonSnapshot } = await import('../dialects/postgres/snapshot');
 	const { fromDrizzleSchema, fromExports } = await import('../dialects/postgres/drizzle');
 	const { extractPostgresExisting } = await import('../dialects/drizzle');
 	const prepared = fromExports(imports);
@@ -65,37 +70,29 @@ export const generateDrizzleJson = async (
 		process.exit(1);
 	}
 
-	return toJsonSnapshot(ddl, prevId ? [prevId] : [originUUID], []);
+	return schemaState(randomUUID(), prevId ? [prevId] : [], ddl.entities.list());
 };
 
+// Returns the SQL statements that turn `prev` into `cur`. Each argument is a schema state or a full state of an
+// older format. Only the rows of each state are read, so `cur` does not have to list `prev` as a parent.
 export const generateMigration = async (
-	prev: PostgresSnapshot,
-	cur: PostgresSnapshot,
+	prev: PostgresSchemaState | Record<string, any>,
+	cur: PostgresSchemaState | Record<string, any>,
 	options?: { hints?: Hint[] },
 ) => {
 	const { resolver } = await import('../cli/prompts');
 	const { ddlDiff } = await import('../dialects/postgres/diff');
 	const { runWithApiHints } = await import('../cli/hints');
-	const from = createDDL();
-	const to = createDDL();
-
-	for (const it of prev.ddl) {
-		from.entities.push(it);
-	}
-	for (const it of cur.ddl) {
-		to.entities.push(it);
-	}
 
 	return runWithApiHints(options?.hints ?? [], async (hints) => {
 		const { sqlStatements } = await ddlDiff(
-			from,
-			to,
+			fromEntities(up(prev).snapshot.ddl),
+			fromEntities(up(cur).snapshot.ddl),
 			resolver<Schema>('schema', hints),
 			resolver<Enum>('enum', hints),
 			resolver<Sequence>('sequence', hints),
 			resolver<Policy>('policy', hints),
 			resolver<Role>('role', hints),
-			resolver<Privilege>('privilege', hints),
 			resolver<PostgresEntities['tables']>('table', hints),
 			resolver<Column>('column', hints),
 			resolver<View>('view', hints),
@@ -174,7 +171,6 @@ export const pushSchema = async (
 			resolver<Sequence>('sequence', userHints),
 			resolver<Policy>('policy', userHints),
 			resolver<Role>('role', userHints),
-			resolver<Privilege>('privilege', userHints),
 			resolver<PostgresEntities['tables']>('table', userHints),
 			resolver<Column>('column', userHints),
 			resolver<View>('view', userHints),
@@ -260,7 +256,51 @@ export const startStudioServer = async (
 	});
 };
 
-export const up = upToV8;
+// Converts one full state of any format to a schema state. `drizzle-kit up` converts a whole migrations folder.
+export const up = (it: Record<string, any>): { snapshot: PostgresSchemaState; hints: string[] } => {
+	if (it.type === 'diff') {
+		throw new Error(
+			`Snapshot ${it.id} is a diff snapshot, so it holds only the changes of one migration. `
+				+ `Call reconstruct first to get the state of ${it.id}, and pass that state.`,
+		);
+	}
+	const { snapshot, hints } = Number(it.version) >= 8 ? { snapshot: it, hints: [] } : upToV8(it);
+	if (!isSnapshotV8(snapshot)) {
+		throw new Error(
+			`State ${it.id} has no \`ddl\` or no \`prevIds\` array. Pass the result of generateDrizzleJson, `
+				+ 'or a full state of an older format.',
+		);
+	}
+	return { snapshot: schemaState(snapshot.id, snapshot.prevIds, snapshot.ddl), hints };
+};
+
+// Reconstructs the schema state of snapshot `id`, or of the only leaf when `id` is not given. `files` maps each
+// migration folder name to the parsed JSON of its snapshot.json.
+export const reconstruct = async (files: Record<string, unknown>, id?: string): Promise<PostgresSchemaState> => {
+	const { assertHistory, leafFolders, loadFolder, stateOf, validFiles } = await import('../dialects/postgres/folder');
+
+	// `entries` are sorted by folder name, because a merge applies the rest of its history in that order.
+	const entries = Object.keys(files).sort().map((folder) => ({ folder, path: folder, raw: files[folder] }));
+	assertHistory(entries);
+	const migrations = loadFolder(validFiles(entries));
+
+	if (id === undefined) {
+		const leaves = leafFolders(migrations);
+		if (leaves.length === 0) {
+			throw new Error('The migrations folder has no snapshots. Pass the snapshot files of at least one migration.');
+		}
+		if (leaves.length > 1) {
+			throw new Error(
+				`The migrations folder has ${leaves.length} leaf snapshots: ${leaves.join(', ')}. `
+					+ 'Pass the id of the snapshot to reconstruct, or run generate to merge the leaves.',
+			);
+		}
+		[id] = migrations.leafIds;
+	}
+
+	const state = stateOf(migrations, id);
+	return schemaState(id, migrations.snapshots.get(id)!.prevIds, state.entities.list());
+};
 
 export type { MissingHintsError } from '../cli/errors';
 export type { Hint, MissingHint } from '../cli/hints';

@@ -1,30 +1,13 @@
-import { integer, pgTable, varchar } from 'drizzle-orm/pg-core';
+import { integer, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { checkHandler } from 'src/cli/commands/check';
-import { createDDL } from 'src/dialects/postgres/ddl';
-import { generateLatestSnapshot } from 'src/dialects/postgres/serializer';
+import { checkHandler, checkSnapshots } from 'src/cli/commands/check';
+import { readFolder } from 'src/dialects/postgres/folder';
 import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
-import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { expect, test } from 'vitest';
-import { drizzleToDDL, type PostgresSchema } from '../postgres/mocks';
+import { makePgSnapshot as makeSnapshot } from './check-fixtures';
 
 const ORIGIN = '00000000-0000-0000-0000-000000000000';
-
-function makeSnapshot(
-	id: string,
-	prevIds: string[],
-	schema: PostgresSchema,
-): PostgresSnapshot {
-	return {
-		version: '8',
-		dialect: 'postgres',
-		id,
-		prevIds,
-		ddl: drizzleToDDL(schema).ddl.entities.list(),
-		renames: [],
-	};
-}
 
 function snapshotPath(out: string, tag: string, snapshot: PostgresSnapshot) {
 	const folder = join(out, tag);
@@ -34,7 +17,7 @@ function snapshotPath(out: string, tag: string, snapshot: PostgresSnapshot) {
 	return path;
 }
 
-test('returns aggregated leaf statements with common parent snapshot for commutative open branches', async () => {
+test('returns every open leaf for commutative open branches', async () => {
 	mkdirSync('tests/tmp', { recursive: true });
 	const out = mkdtempSync('tests/tmp/dk-check-handler-');
 
@@ -62,23 +45,22 @@ test('returns aggregated leaf statements with common parent snapshot for commuta
 		}),
 	};
 
-	const parent = makeSnapshot('p1', [ORIGIN], parentSchema);
-	const left = makeSnapshot('a1', ['p1'], leftSchema);
-	const right = makeSnapshot('b1', ['p1'], rightSchema);
+	const parent = await makeSnapshot('p1', [ORIGIN], parentSchema);
+	const left = await makeSnapshot('a1', ['p1'], leftSchema, parentSchema);
+	const right = await makeSnapshot('b1', ['p1'], rightSchema, parentSchema);
 
 	snapshotPath(out, '000_parent', parent);
 	snapshotPath(out, '001_left', left);
 	snapshotPath(out, '002_right', right);
 
-	const result = await checkHandler(out, 'postgresql', false, false);
+	const { report, fix } = await checkSnapshots(readFolder(out).files, 'postgresql');
 
-	expect(result.parentSnapshot).not.toBeNull();
-	expect((result.parentSnapshot as PostgresSnapshot).id).toBe('p1');
-	expect(result.leafIds).toStrictEqual(['a1', 'b1']);
-	expect(result.statements.length).toBeGreaterThan(0);
+	expect(report.leafNodes).toStrictEqual(['a1', 'b1']);
+	expect(report.conflicts).toStrictEqual([]);
+	expect(fix).toBeUndefined();
 });
 
-test('returns empty statements when branches are already merged into one leaf', async () => {
+test('returns one leaf and no conflicts when branches are already merged into one leaf', async () => {
 	mkdirSync('tests/tmp', { recursive: true });
 	const out = mkdtempSync('tests/tmp/dk-check-handler-');
 
@@ -118,21 +100,21 @@ test('returns empty statements when branches are already merged into one leaf', 
 		}),
 	};
 
-	const parent = makeSnapshot('p1', [ORIGIN], parentSchema);
-	const left = makeSnapshot('a1', ['p1'], leftSchema);
-	const right = makeSnapshot('b1', ['p1'], rightSchema);
-	const merged = makeSnapshot('m1', ['a1', 'b1'], mergedSchema);
+	const parent = await makeSnapshot('p1', [ORIGIN], parentSchema);
+	const left = await makeSnapshot('a1', ['p1'], leftSchema, parentSchema);
+	const right = await makeSnapshot('b1', ['p1'], rightSchema, parentSchema);
+	const merged = await makeSnapshot('m1', ['a1', 'b1'], mergedSchema, mergedSchema);
 
 	snapshotPath(out, '000_parent', parent);
 	snapshotPath(out, '001_left', left);
 	snapshotPath(out, '002_right', right);
 	snapshotPath(out, '003_merged', merged);
 
-	const result = await checkHandler(out, 'postgresql', false, false);
+	const { report, fix } = await checkSnapshots(readFolder(out).files, 'postgresql');
 
-	expect(result.statements).toStrictEqual([]);
-	expect(result.parentSnapshot).toBeNull();
-	expect(result.nonCommutativityMessage).toBeUndefined();
+	expect(report.leafNodes).toStrictEqual(['m1']);
+	expect(report.conflicts).toStrictEqual([]);
+	expect(fix).toBeUndefined();
 });
 
 test('returns non-commutativity message and no statements for conflicting branches', async () => {
@@ -147,7 +129,7 @@ test('returns non-commutativity message and no statements for conflicting branch
 
 	const leftSchema = {
 		users: pgTable('users', {
-			email: varchar('email').notNull(),
+			email: text('email'),
 		}),
 	};
 
@@ -157,9 +139,9 @@ test('returns non-commutativity message and no statements for conflicting branch
 		}),
 	};
 
-	const parent = makeSnapshot('p1', [ORIGIN], parentSchema);
-	const left = makeSnapshot('a1', ['p1'], leftSchema);
-	const right = makeSnapshot('b1', ['p1'], rightSchema);
+	const parent = await makeSnapshot('p1', [ORIGIN], parentSchema);
+	const left = await makeSnapshot('a1', ['p1'], leftSchema, parentSchema);
+	const right = await makeSnapshot('b1', ['p1'], rightSchema, parentSchema);
 
 	snapshotPath(out, '000_parent', parent);
 	snapshotPath(out, '001_left', left);
@@ -169,46 +151,8 @@ test('returns non-commutativity message and no statements for conflicting branch
 
 	expect(result.statements).toStrictEqual([]);
 	expect(result.nonCommutativityMessage).toContain(
-		'Non-commutative migrations detected',
+		'Conflicting migrations detected',
 	);
-});
-
-test('ignoreConflicts keeps all open leaf ids for conflicting branches', async () => {
-	mkdirSync('tests/tmp', { recursive: true });
-	const out = mkdtempSync('tests/tmp/dk-check-handler-');
-
-	const parentSchema = {
-		users: pgTable('users', {
-			email: varchar('email'),
-		}),
-	};
-
-	const leftSchema = {
-		users: pgTable('users', {
-			email: varchar('email').notNull(),
-		}),
-	};
-
-	const rightSchema = {
-		users: pgTable('users', {
-			email: integer('email'),
-		}),
-	};
-
-	const parent = makeSnapshot('p1', [ORIGIN], parentSchema);
-	const left = makeSnapshot('a1', ['p1'], leftSchema);
-	const right = makeSnapshot('b1', ['p1'], rightSchema);
-
-	snapshotPath(out, '000_parent', parent);
-	snapshotPath(out, '001_left', left);
-	snapshotPath(out, '002_right', right);
-
-	const result = await checkHandler(out, 'postgresql', true, false);
-
-	expect(result.statements).toStrictEqual([]);
-	expect(result.parentSnapshot).toBeNull();
-	expect(result.leafIds).toStrictEqual(['a1', 'b1']);
-	expect(result.nonCommutativityMessage).toBeUndefined();
 });
 
 test('does not report conflicts when sibling branches converge to the same terminal leaf', async () => {
@@ -249,11 +193,11 @@ test('does not report conflicts when sibling branches converge to the same termi
 		}),
 	};
 
-	const root = makeSnapshot('r1', [ORIGIN], rootSchema);
-	const parent = makeSnapshot('p1', ['r1'], parentSchema);
-	const left = makeSnapshot('a1', ['p1'], leftSchema);
-	const right = makeSnapshot('b1', ['p1'], rightSchema);
-	const merged = makeSnapshot('m1', ['a1', 'b1'], mergedSchema);
+	const root = await makeSnapshot('r1', [ORIGIN], rootSchema);
+	const parent = await makeSnapshot('p1', ['r1'], parentSchema, rootSchema);
+	const left = await makeSnapshot('a1', ['p1'], leftSchema, parentSchema);
+	const right = await makeSnapshot('b1', ['p1'], rightSchema, parentSchema);
+	const merged = await makeSnapshot('m1', ['a1', 'b1'], mergedSchema, mergedSchema);
 
 	snapshotPath(out, '000_root', root);
 	snapshotPath(out, '001_parent', parent);
@@ -261,11 +205,11 @@ test('does not report conflicts when sibling branches converge to the same termi
 	snapshotPath(out, '003_right', right);
 	snapshotPath(out, '004_merged', merged);
 
-	const result = await checkHandler(out, 'postgresql', false, false);
+	const { report, fix } = await checkSnapshots(readFolder(out).files, 'postgresql');
 
-	expect(result.statements).toStrictEqual([]);
-	expect(result.parentSnapshot).toBeNull();
-	expect(result.nonCommutativityMessage).toBeUndefined();
+	expect(report.leafNodes).toStrictEqual(['m1']);
+	expect(report.conflicts).toStrictEqual([]);
+	expect(fix).toBeUndefined();
 });
 
 test('reports only active leaf conflict after branch merge and re-split', async () => {
@@ -327,13 +271,13 @@ test('reports only active leaf conflict after branch merge and re-split', async 
 		...splitOneSchema,
 	};
 
-	const root = makeSnapshot('r1', [ORIGIN], rootSchema);
-	const parent = makeSnapshot('p1', ['r1'], parentSchema);
-	const left = makeSnapshot('a1', ['p1'], leftSchema);
-	const right = makeSnapshot('b1', ['p1'], rightSchema);
-	const merged = makeSnapshot('m1', ['a1', 'b1'], mergedSchema);
-	const splitOne = makeSnapshot('s1', ['m1'], splitOneSchema);
-	const splitTwo = makeSnapshot('s2', ['m1'], splitTwoSchema);
+	const root = await makeSnapshot('r1', [ORIGIN], rootSchema);
+	const parent = await makeSnapshot('p1', ['r1'], parentSchema, rootSchema);
+	const left = await makeSnapshot('a1', ['p1'], leftSchema, parentSchema);
+	const right = await makeSnapshot('b1', ['p1'], rightSchema, parentSchema);
+	const merged = await makeSnapshot('m1', ['a1', 'b1'], mergedSchema, mergedSchema);
+	const splitOne = await makeSnapshot('s1', ['m1'], splitOneSchema, mergedSchema);
+	const splitTwo = await makeSnapshot('s2', ['m1'], splitTwoSchema, mergedSchema);
 
 	snapshotPath(out, '000_root', root);
 	snapshotPath(out, '001_parent', parent);
@@ -353,7 +297,7 @@ test('reports only active leaf conflict after branch merge and re-split', async 
 	);
 });
 
-test('nested open fork merges all heads at their LCA with de-duplicated statements', async () => {
+test('a nested open fork returns every open leaf', async () => {
 	mkdirSync('tests/tmp', { recursive: true });
 	const out = mkdtempSync('tests/tmp/dk-check-handler-');
 
@@ -362,19 +306,16 @@ test('nested open fork merges all heads at their LCA with de-duplicated statemen
 	// └── b
 	//     ├── bx (leaf)
 	//     └── by (leaf)
-	// All three heads merge in one step based at their lowest common ancestor p.
-	// bx and by both inherit `create table b`, so the per-head diffs overlap; the
-	// merge migration must replay `create table b` exactly once.
 	const t = (...names: string[]) =>
 		Object.fromEntries(
 			['t', ...names].map((name) => [name, pgTable(name, { id: integer('id') })]),
 		);
 
-	const p = makeSnapshot('p1', [ORIGIN], t());
-	const a = makeSnapshot('a1', ['p1'], t('a'));
-	const b = makeSnapshot('b1', ['p1'], t('b'));
-	const bx = makeSnapshot('bx1', ['b1'], t('b', 'x'));
-	const by = makeSnapshot('by1', ['b1'], t('b', 'y'));
+	const p = await makeSnapshot('p1', [ORIGIN], t());
+	const a = await makeSnapshot('a1', ['p1'], t('a'), t());
+	const b = await makeSnapshot('b1', ['p1'], t('b'), t());
+	const bx = await makeSnapshot('bx1', ['b1'], t('b', 'x'), t('b'));
+	const by = await makeSnapshot('by1', ['b1'], t('b', 'y'), t('b'));
 
 	snapshotPath(out, '000_p', p);
 	snapshotPath(out, '001_a', a);
@@ -382,21 +323,12 @@ test('nested open fork merges all heads at their LCA with de-duplicated statemen
 	snapshotPath(out, '003_bx', bx);
 	snapshotPath(out, '004_by', by);
 
-	const result = await checkHandler(out, 'postgresql', false, false);
+	const { report } = await checkSnapshots(readFolder(out).files, 'postgresql');
 
-	expect((result.parentSnapshot as PostgresSnapshot)?.id).toBe('p1');
-	expect(result.leafIds).toStrictEqual(['a1', 'bx1', 'by1']);
-
-	const createdTables = result.statements
-		.filter((statement) => (statement as any).type === 'create_table')
-		.map((statement) => (statement as any).table.name)
-		.sort();
-	// `t` already exists at the base p; `b` is inherited by both bx and by but
-	// appears only once after de-duplication.
-	expect(createdTables).toStrictEqual(['a', 'b', 'x', 'y']);
+	expect(report.leafNodes).toStrictEqual(['a1', 'bx1', 'by1']);
 });
 
-test('open merge composes alters and fk across a deep branch and a shallow branch', async () => {
+test('an open fork with a deep branch returns only the open leaves', async () => {
 	mkdirSync('tests/tmp', { recursive: true });
 	const out = mkdtempSync('tests/tmp/dk-check-handler-');
 
@@ -405,9 +337,7 @@ test('open merge composes alters and fk across a deep branch and a shallow branc
 	// └── leaf2 (create t2)
 	//     └── leaf3              add fk t2.t1_id -> t1.id
 	//         └── leaf4          alter t1.b -> not null
-	// Open heads are leaf1 and leaf4 (leaf2/leaf3 are internal). Their lowest
-	// common ancestor is the parent, so the merge composes one alter from the
-	// shallow head and (create t2 + fk + the other alter) from the deep head.
+	// Only leaf1 and leaf4 are open leaves, because leaf2 and leaf3 have children.
 	const parentSchema = {
 		t1: pgTable('t1', {
 			id: integer('id').primaryKey(),
@@ -462,11 +392,11 @@ test('open merge composes alters and fk across a deep branch and a shallow branc
 		}),
 	};
 
-	const parent = makeSnapshot('p1', [ORIGIN], parentSchema);
-	const leaf1 = makeSnapshot('l1', ['p1'], leaf1Schema);
-	const leaf2 = makeSnapshot('l2', ['p1'], leaf2Schema);
-	const leaf3 = makeSnapshot('l3', ['l2'], leaf3Schema);
-	const leaf4 = makeSnapshot('l4', ['l3'], leaf4Schema);
+	const parent = await makeSnapshot('p1', [ORIGIN], parentSchema);
+	const leaf1 = await makeSnapshot('l1', ['p1'], leaf1Schema, parentSchema);
+	const leaf2 = await makeSnapshot('l2', ['p1'], leaf2Schema, parentSchema);
+	const leaf3 = await makeSnapshot('l3', ['l2'], leaf3Schema, leaf2Schema);
+	const leaf4 = await makeSnapshot('l4', ['l3'], leaf4Schema, leaf3Schema);
 
 	snapshotPath(out, '000_parent', parent);
 	snapshotPath(out, '001_leaf1', leaf1);
@@ -474,26 +404,7 @@ test('open merge composes alters and fk across a deep branch and a shallow branc
 	snapshotPath(out, '003_leaf3', leaf3);
 	snapshotPath(out, '004_leaf4', leaf4);
 
-	const result = await checkHandler(out, 'postgresql', false, false);
+	const { report } = await checkSnapshots(readFolder(out).files, 'postgresql');
 
-	// Base is the LCA, and the merge parents are the open heads only — never the
-	// internal leaf2/leaf3.
-	expect((result.parentSnapshot as PostgresSnapshot)?.id).toBe('p1');
-	expect(result.leafIds).toStrictEqual(['l1', 'l4']);
-
-	// Reconstruct the merged snapshot exactly as the serializer does downstream,
-	// then assert it is the union of both heads.
-	const merged = generateLatestSnapshot(
-		result.parentSnapshot as PostgresSnapshot,
-		result.statements as JsonStatement[],
-	);
-	const ddl = createDDL();
-	ddl.entities.pushAll(merged.ddl);
-
-	// both alters landed, each coming from a different head
-	expect(ddl.columns.one({ schema: 'public', table: 't1', name: 'a' })?.notNull).toBe(true);
-	expect(ddl.columns.one({ schema: 'public', table: 't1', name: 'b' })?.notNull).toBe(true);
-	// the deep branch's table and its fk landed
-	expect(ddl.tables.one({ schema: 'public', name: 't2' })).not.toBeNull();
-	expect(ddl.fks.list({ schema: 'public', table: 't2' }).length).toBe(1);
+	expect(report.leafNodes).toStrictEqual(['l1', 'l4']);
 });
