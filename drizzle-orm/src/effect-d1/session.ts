@@ -4,7 +4,7 @@ import type { D1Client } from '@effect/sql-d1/D1Client';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
@@ -53,10 +53,7 @@ export class EffectSQLiteD1Session<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): SQLiteEffectPreparedQuery<T, EffectSQLiteD1QueryEffectHKT> {
 		const executors: SQLiteEffectQueryExecutors = {

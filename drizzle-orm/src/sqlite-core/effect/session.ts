@@ -3,7 +3,7 @@ import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/sql/SqlError';
 import { EffectCache, type EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { EffectDrizzleQueryError, EffectTransactionRollbackError, MigratorInitError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase, QueryEffectKind } from '~/effect-core/query-effect.ts';
@@ -45,10 +45,7 @@ export class SQLiteEffectPreparedQuery<
 		// cache instance
 		protected cache: EffectCacheShape,
 		// per query related metadata
-		protected queryMetadata: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		} | undefined,
+		protected queryMetadata: QueryMetadata | undefined,
 		// config that was passed through $withCache
 		protected cacheConfig: WithCacheConfig | undefined,
 		protected paramsInErrors: boolean | undefined,
@@ -218,10 +215,7 @@ export abstract class SQLiteEffectSession<
 		prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): SQLiteEffectPreparedQuery<T, TEffectHKT>;
 

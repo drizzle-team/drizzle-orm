@@ -1,7 +1,7 @@
 import type { FieldPacket, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import type { Cache } from '~/cache/core/index.ts';
 import { NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -58,10 +58,7 @@ export class SingleStoreRemoteSession<TRelations extends AnyRelations> extends S
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: AnySingleStoreMapper,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<SingleStoreRemotePreparedQueryHKT, T> {
 		const { client } = this;

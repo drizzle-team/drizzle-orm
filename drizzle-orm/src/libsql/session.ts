@@ -1,7 +1,7 @@
 import type { Client, InArgs, InStatement, ResultSet, Transaction, TransactionMode } from '@libsql/client';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -68,10 +68,7 @@ export class LibSQLSession<TRelations extends AnyRelations> extends SQLiteAsyncS
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): SQLiteAsyncPreparedQuery<T & { run: LibSQLRunResult }> {
 		const client = this.tx ?? this.client;

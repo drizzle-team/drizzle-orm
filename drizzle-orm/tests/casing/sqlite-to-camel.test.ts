@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { describe, it } from 'vitest';
 import { betterSQLite3Codecs, drizzle } from '~/better-sqlite3';
 import { defineRelations } from '~/relations';
-import { asc, eq, exists, inArray, Param, sql } from '~/sql';
+import { asc, desc, eq, exists, inArray, Param, sql } from '~/sql';
 import { alias, camelCase, castToText, integer, QueryBuilder, text, union } from '~/sqlite-core';
 
 const users = camelCase.table('users', {
@@ -485,6 +485,23 @@ describe('sqlite to camel case', () => {
 				'select "firstName" from (select "firstName" from "users" union select "firstName" from "users") "drizzle_union"',
 			params: [],
 		});
+	});
+
+	it('set operator - order by leaves passed sql intact', ({ expect }) => {
+		const order = desc(users.first_name);
+		const query = db
+			.select({ first_name: users.first_name })
+			.from(users)
+			.union(db.select({ first_name: users.first_name }).from(users))
+			.orderBy(order);
+
+		expect(query.toSQL().sql).toBe(
+			'select "firstName" from (select "firstName" from "users" union select "firstName" from "users" order by "firstName" desc) "drizzle_union"',
+		);
+		// Same SQL objects keep their qualifiers in other queries
+		expect(db.select({ first_name: users.first_name }).from(users).orderBy(order).toSQL().sql).toBe(
+			'select "firstName" from "users" order by "users"."firstName" desc',
+		);
 	});
 
 	it('insert (on conflict do nothing)', ({ expect }) => {

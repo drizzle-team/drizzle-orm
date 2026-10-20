@@ -65,20 +65,20 @@ const arrayToItemTypeCodecNameMap = {
 	normalizeParamArray: 'normalizeParam',
 } as const satisfies Record<keyof Codec, keyof Codec>;
 
-const itemToArrayTypeCodecNameMap = {
-	cast: 'castArray',
-	castArray: 'castArray',
-	castInJson: 'castArrayInJson',
-	castArrayInJson: 'castArrayInJson',
-	castParam: 'castArrayParam',
-	castArrayParam: 'castArrayParam',
-	normalize: 'normalizeArray',
-	normalizeArray: 'normalizeArray',
-	normalizeInJson: 'normalizeArrayInJson',
-	normalizeArrayInJson: 'normalizeArrayInJson',
-	normalizeParam: 'normalizeParamArray',
-	normalizeParamArray: 'normalizeParamArray',
-} as const satisfies Record<keyof Codec, keyof Codec>;
+export type ItemToArrayTypeCodecNameMap = {
+	cast: 'castArray';
+	castArray: 'castArray';
+	castInJson: 'castArrayInJson';
+	castArrayInJson: 'castArrayInJson';
+	castParam: 'castArrayParam';
+	castArrayParam: 'castArrayParam';
+	normalize: 'normalizeArray';
+	normalizeArray: 'normalizeArray';
+	normalizeInJson: 'normalizeArrayInJson';
+	normalizeArrayInJson: 'normalizeArrayInJson';
+	normalizeParam: 'normalizeParamArray';
+	normalizeParamArray: 'normalizeParamArray';
+};
 
 export class CodecsCollection<TTypeSet extends string = string> {
 	static readonly [entityKind]: string = 'CodecsCollection';
@@ -132,7 +132,7 @@ export class CodecsCollection<TTypeSet extends string = string> {
 		override?: TTypeSet,
 	):
 		| Codec[typeof arrayToItemTypeCodecNameMap[TCodecType]]
-		| Codec[typeof itemToArrayTypeCodecNameMap[TCodecType]]
+		| Codec[ItemToArrayTypeCodecNameMap[TCodecType]]
 	{
 		return this.codecsOf(column, override)[arrayToItemTypeCodecNameMap[type]] as any;
 	}

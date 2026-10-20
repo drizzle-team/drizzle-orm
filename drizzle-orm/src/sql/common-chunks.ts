@@ -1,6 +1,9 @@
 import { entityKind, is } from '~/entity.ts';
-import { SQL, type SQLWrapper } from './sql.ts';
+import type { SQLWrapper } from './sql.ts';
 
+export interface StringChunk extends SQLWrapper {
+	// SQLWrapper runtime implementation is defined in 'sql/sql.ts'
+}
 export class StringChunk implements SQLWrapper {
 	static readonly [entityKind]: string = 'StringChunk';
 	static [Symbol.hasInstance](value: unknown): boolean {
@@ -8,10 +11,6 @@ export class StringChunk implements SQLWrapper {
 	}
 
 	constructor(readonly value: string) {}
-
-	getSQL(): SQL<unknown> {
-		return new SQL([this]);
-	}
 }
 
 /** Shared string chunks, keyed by their values */

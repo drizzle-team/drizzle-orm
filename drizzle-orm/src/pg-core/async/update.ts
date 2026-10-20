@@ -121,7 +121,7 @@ export class PgAsyncUpdateBase<
 				shape ? 'objects' : fields ? 'arrays' : 'raw',
 				name ?? generateName,
 				mapper,
-				{ type: 'update', tables: usedTablesOf(this.config.table) },
+				{ type: 'update', tables: () => usedTablesOf(this.config.table) },
 				undefined,
 				shape,
 			);

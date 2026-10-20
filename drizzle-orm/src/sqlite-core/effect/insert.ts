@@ -109,7 +109,7 @@ export class SQLiteEffectInsertBase<
 			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
 			{
 				type: 'insert',
-				tables: usedTablesOf(this.config.table),
+				tables: () => usedTablesOf(this.config.table),
 			},
 		) as SQLiteEffectInsertPrepare<this, TEffectHKT>;
 	}

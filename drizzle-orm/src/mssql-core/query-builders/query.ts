@@ -3,7 +3,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import type {
 	BuildQueryResult,
 	BuildRelationalQueryResult,
-	DBQueryConfigWithStrategy,
+	DBQueryConfigRoot,
 	RelationalRowsMapper,
 	TableRelationalConfig,
 	TablesRelationalConfig,
@@ -14,6 +14,12 @@ import { tracer } from '~/tracing.ts';
 import type { MsSqlDialect } from '../dialect.ts';
 import type { MsSqlSession, PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
 import type { MsSqlTable } from '../table.ts';
+
+export type MsSqlDBQueryConfigRoot<
+	TRelationType extends 'one' | 'many' = 'one' | 'many',
+	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
+	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
+> = Omit<DBQueryConfigRoot<TRelationType, TSchema, TTableConfig>, 'comment' | 'withCache'>;
 
 export class RelationalQueryBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
@@ -33,9 +39,9 @@ export class RelationalQueryBuilder<
 		private session: MsSqlSession,
 	) {}
 
-	findMany<TConfig extends DBQueryConfigWithStrategy<'many', TSchema, TFields>>(
-		config?: DBQueryConfigWithStrategy<'many', TSchema, TFields> extends TConfig ? TConfig
-			: DBQueryConfigWithStrategy<'many', TSchema, TFields>,
+	findMany<TConfig extends MsSqlDBQueryConfigRoot<'many', TSchema, TFields>>(
+		config?: MsSqlDBQueryConfigRoot<'many', TSchema, TFields> extends TConfig ? TConfig
+			: MsSqlDBQueryConfigRoot<'many', TSchema, TFields>,
 	): MsSqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new MsSqlRelationalQuery(
 			this.schema,
@@ -43,14 +49,14 @@ export class RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config as DBQueryConfigWithStrategy<'many'> | undefined ?? true,
+			config as MsSqlDBQueryConfigRoot<'many'> | undefined ?? true,
 			'many',
 		);
 	}
 
-	findFirst<TConfig extends DBQueryConfigWithStrategy<'one', TSchema, TFields>>(
-		config?: DBQueryConfigWithStrategy<'one', TSchema, TFields> extends TConfig ? TConfig
-			: DBQueryConfigWithStrategy<'one', TSchema, TFields>,
+	findFirst<TConfig extends MsSqlDBQueryConfigRoot<'one', TSchema, TFields>>(
+		config?: MsSqlDBQueryConfigRoot<'one', TSchema, TFields> extends TConfig ? TConfig
+			: MsSqlDBQueryConfigRoot<'one', TSchema, TFields>,
 	): MsSqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return new MsSqlRelationalQuery(
 			this.schema,
@@ -58,7 +64,7 @@ export class RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config as DBQueryConfigWithStrategy<'one'> | undefined ?? true,
+			config as MsSqlDBQueryConfigRoot<'one'> | undefined ?? true,
 			'first',
 		);
 	}
@@ -85,7 +91,7 @@ export class MsSqlRelationalQuery<TPreparedQueryHKT extends PreparedQueryHKTBase
 		protected tableConfig: TableRelationalConfig,
 		protected dialect: MsSqlDialect,
 		protected session: MsSqlSession,
-		protected config: DBQueryConfigWithStrategy<'many' | 'one'> | true,
+		protected config: MsSqlDBQueryConfigRoot<'many' | 'one'> | true,
 		protected mode: 'many' | 'first',
 	) {
 		super();

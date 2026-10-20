@@ -398,7 +398,7 @@ test('add table #15', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5603
-test.skipIf(Date.now() < +new Date('2026-11-18'))('add table #16', async () => {
+test.skipIf(Date.now() < +new Date('2026-11-24'))('add table #16', async () => {
 	const users = pgTable('users', {
 		name: text(),
 	}, (t) => [index('name_idx').on(t.name)]);

@@ -1,4 +1,4 @@
-import { aliasedTable, getOriginalColumnFromAlias } from '~/alias.ts';
+import { aliasedTable, aliasedTableSQL, getOriginalColumnFromAlias } from '~/alias.ts';
 import { CodecsCollection } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
@@ -15,7 +15,7 @@ import type {
 } from '~/relations.ts';
 import {
 	buildRqbColumns,
-	collectRelationalSubquery,
+	collectSubqueryAndUsedTables,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
 	makeJitRqbMapper,
@@ -28,10 +28,10 @@ import {
 import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
 import type { Name, Placeholder, Query, SQLChunk } from '~/sql/sql.ts';
 import { SQL, sql } from '~/sql/sql.ts';
-import { chunkKindOf, chunkKinds, isChunk } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk, unqualifyColumns } from '~/sql/sql.ts';
 import { ValueRows } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { getTableName, Table, TableColumns } from '~/table.ts';
+import { getTableName, Qualifier, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/singlestore.ts';
 import {
 	make$ReturningResponseMapper,
@@ -553,13 +553,7 @@ export class SingleStoreDialect {
 		});
 
 		const tableSql = (() => {
-			if (is(table, Table) && table[Table.Symbol.IsAlias]) {
-				return sql`${sql`${sql.identifier(table[Table.Symbol.Schema] ?? '')}.`.if(table[Table.Symbol.Schema])}${
-					sql.identifier(
-						table[Table.Symbol.OriginalName],
-					)
-				} ${sql.identifier(table[Table.Symbol.Name])}`;
-			}
+			if (is(table, Table) && table[Table.Symbol.IsAlias]) return aliasedTableSQL(table);
 
 			if (is(table, View) && table[ViewBaseConfig].isAlias) {
 				let fullName = sql`${sql.identifier(table[ViewBaseConfig].originalName)}`;
@@ -584,14 +578,10 @@ export class SingleStoreDialect {
 				const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : undefined;
 
 				if (is(table, SingleStoreTable)) {
-					const tableName = table[SingleStoreTable.Symbol.Name];
-					const tableSchema = table[SingleStoreTable.Symbol.Schema];
-					const origTableName = table[SingleStoreTable.Symbol.OriginalName];
-					const alias = tableName === origTableName ? undefined : joinMeta.alias;
 					joinsArray.push(
 						sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${
-							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
+							table[Table.Symbol.IsAlias] ? aliasedTableSQL(table) : table
+						}${onSql}`,
 					);
 				} else if (is(table, View)) {
 					const viewName = table[ViewBaseConfig].name;
@@ -710,15 +700,7 @@ export class SingleStoreDialect {
 				if (is(singleOrderBy, SingleStoreColumn)) {
 					orderByValues.push(sql.identifier(singleOrderBy.name));
 				} else if (is(singleOrderBy, SQL)) {
-					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
-						const chunk = singleOrderBy.queryChunks[i];
-
-						if (is(chunk, SingleStoreColumn)) {
-							singleOrderBy.queryChunks[i] = sql.identifier(chunk.name);
-						}
-					}
-
-					orderByValues.push(sql`${singleOrderBy}`);
+					orderByValues.push(sql`${unqualifyColumns(singleOrderBy)}`);
 				} else {
 					orderByValues.push(sql`${singleOrderBy}`);
 				}
@@ -858,17 +840,19 @@ export class SingleStoreDialect {
 		through,
 		nested,
 		withSubqueries,
+		usedTables,
 	}: SingleStoreBuildRelationalQueryConfig, collectTo: SQLChunk[]): Omit<BuildRelationalQueryResultWithOrder, 'sql'> {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
-		const subqueries: RelationalWithSubqueries = withSubqueries ?? new Map();
+		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map(), usedTables };
 		if (!currentDepth) {
-			collectRelationalSubquery(subqueries, table);
+			collectSubqueryAndUsedTables(collector, table);
 			table = aliasedTable(table, `d${currentDepth}`);
 		}
+		const tableRef = table[Qualifier];
 
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
@@ -878,11 +862,11 @@ export class SingleStoreDialect {
 			params,
 			tableConfig.relations,
 			schema,
-			subqueries,
+			collector,
 			relationWhere,
 		);
 		const order = params?.orderBy
-			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, subqueries)
+			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, collector)
 			: undefined;
 
 		const withParam = params ? (params as WithContainer).with : undefined;
@@ -899,7 +883,7 @@ export class SingleStoreDialect {
 
 		collectTo.push(commonStringChunks['select ']);
 		const hasColumns = buildRqbColumns(
-			table,
+			tableRef,
 			tableConfig.table[TableColumns],
 			selection,
 			!!nested,
@@ -952,8 +936,8 @@ export class SingleStoreDialect {
 			const join = withParam![k]!;
 			const relation = tableConfig.relations[k]!;
 			const isSingle = relation.relationType === 'one';
-			collectRelationalSubquery(subqueries, relation.targetTable);
-			collectRelationalSubquery(subqueries, relation.throughTable);
+			collectSubqueryAndUsedTables(collector, relation.targetTable);
+			collectSubqueryAndUsedTables(collector, relation.throughTable);
 
 			const targetTable = aliasedTable(
 				relation.targetTable,
@@ -983,7 +967,7 @@ export class SingleStoreDialect {
 				relationWhere: filter,
 				errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 				depth: currentDepth + 1,
-				withSubqueries: subqueries,
+				withSubqueries: collector,
 				isNestedMany: !isSingle,
 				through: throughTable ? { table: throughTable, condition: joinCondition! } : undefined,
 				nested: true,
@@ -1021,7 +1005,7 @@ export class SingleStoreDialect {
 		if (limit !== undefined) collectTo.push(commonStringChunks[' limit '], limit as SQLChunk);
 		if (offset !== undefined) collectTo.push(commonStringChunks[' offset '], offset as SQLChunk);
 
-		if (withIdx !== -1) collectTo[withIdx] = this.buildWithCTE([...subqueries.values()]);
+		if (withIdx !== -1) collectTo[withIdx] = this.buildWithCTE([...collector.subqueries.values()]);
 
 		return { selection, order };
 	}

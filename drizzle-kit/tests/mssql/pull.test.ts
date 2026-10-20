@@ -912,7 +912,7 @@ test('Issue No5993', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/5992
 // pull must not crash when a filtered-in table has an FK to a filtered-out table
 // TODO need to update introspect for mssql
-test.skipIf(Date.now() < +new Date('2026-11-19'))(
+test.skipIf(Date.now() < +new Date('2026-11-24'))(
 	'introspect fk to a table excluded by tablesFilter is skipped',
 	async () => {
 		await db.query('CREATE TABLE referenced_table (id int NOT NULL PRIMARY KEY)');

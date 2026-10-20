@@ -3,7 +3,7 @@ import {
 	defineRelations,
 	type ExtractTablesFromSchema,
 	type ExtractTablesWithRelations,
-	getTableName,
+	getCacheKey,
 	is,
 	type RelationsBuilder,
 	type RelationsBuilderConfig,
@@ -64,7 +64,7 @@ export class TestCache extends Cache {
 		const keysToDelete = new Set<string>();
 
 		for (const table of tablesArray) {
-			const tableName = is(table, Table) ? getTableName(table) : table as string;
+			const tableName = is(table, Table) ? getCacheKey(table) : table as string;
 			const keys = this.usedTablesPerKey[tableName] ?? [];
 			for (const key of keys) keysToDelete.add(key);
 		}
@@ -77,7 +77,7 @@ export class TestCache extends Cache {
 			for (const key of keysToDelete) {
 				await this.kv.delete(key);
 				for (const table of tablesArray) {
-					const tableName = is(table, Table) ? getTableName(table) : table as string;
+					const tableName = is(table, Table) ? getCacheKey(table) : table as string;
 					this.usedTablesPerKey[tableName] = [];
 				}
 			}

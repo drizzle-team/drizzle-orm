@@ -2,7 +2,7 @@ import { describe, it } from 'vitest';
 import { defineRelations } from '~/relations';
 import { drizzle, singleStoreCodecs } from '~/singlestore';
 import { alias, boolean, camelCase, castToText, int, QueryBuilder, serial, text, union } from '~/singlestore-core';
-import { asc, eq, exists, inArray, Param, sql } from '~/sql';
+import { asc, desc, eq, exists, inArray, Param, sql } from '~/sql';
 
 const testSchema = camelCase.schema('test');
 const users = camelCase.table('users', {
@@ -447,6 +447,23 @@ describe('singlestore to camel case', () => {
 				'select `firstName` from ((select `firstName` from `users`) union (select `firstName` from `users`)) `drizzle_union`',
 			params: [],
 		});
+	});
+
+	it('set operator - order by leaves passed sql intact', ({ expect }) => {
+		const order = desc(users.first_name);
+		const query = db
+			.select({ first_name: users.first_name })
+			.from(users)
+			.union(db.select({ first_name: users.first_name }).from(users))
+			.orderBy(order);
+
+		expect(query.toSQL().sql).toBe(
+			'select `firstName` from ((select `firstName` from `users`) union (select `firstName` from `users`) order by `firstName` desc) `drizzle_union`',
+		);
+		// Same SQL objects keep their qualifiers in other queries
+		expect(db.select({ first_name: users.first_name }).from(users).orderBy(order).toSQL().sql).toBe(
+			'select `firstName` from `users` order by `users`.`firstName` desc',
+		);
 	});
 
 	it('insert', ({ expect }) => {

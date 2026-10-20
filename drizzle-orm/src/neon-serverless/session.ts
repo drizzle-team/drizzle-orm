@@ -8,7 +8,7 @@ import {
 	types,
 } from '@neondatabase/serverless';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -70,10 +70,7 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 		mode: 'arrays' | 'objects' | 'raw',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): PgAsyncPreparedQuery<T> {
 		const queryName = typeof name === 'string'
