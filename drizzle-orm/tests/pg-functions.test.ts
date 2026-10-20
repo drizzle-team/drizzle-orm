@@ -229,13 +229,13 @@ describe('argument references', () => {
 		const query = dialect.sqlToQuery(fn.config.body);
 
 		expect(query.sql).toStrictEqual(
-			'SELECT "get_user.id", "get_user.count"',
+			'SELECT "get_user"."id", "get_user"."count"',
 		);
 		expect(query.params).toStrictEqual([]);
 	});
 
 	test('PgFunctionArgument omits SQL parentheses', () => {
-		const arg = new PgFunctionArgument('id', 'get_user.id');
+		const arg = new PgFunctionArgument('id', 'get_user.id', 'get_user');
 
 		expect(arg.shouldOmitSQLParens()).toBe(true);
 	});
@@ -250,7 +250,7 @@ describe('argument references', () => {
 
 		const query = dialect.sqlToQuery(fn.config.body);
 
-		expect(query.sql).toBe('SELECT "test_function.user-id"');
+		expect(query.sql).toBe('SELECT "test_function"."user-id"');
 	});
 
 	test('use function name rather than schema for qualification', () => {
@@ -267,7 +267,7 @@ describe('argument references', () => {
 
 		const query = dialect.sqlToQuery(fn.config.body);
 
-		expect(query.sql).toBe('SELECT "schema_fn.id"');
+		expect(query.sql).toBe('SELECT "schema_fn"."id"');
 	});
 
 	test('preserve declaration order', () => {
@@ -314,7 +314,7 @@ describe('declare references', () => {
 		const query = dialect.sqlToQuery(fn.config.body);
 
 		expect(query.sql).toStrictEqual(
-			'SELECT "sum_values.id", "total", "label"',
+			'SELECT "sum_values"."id", "total", "label"',
 		);
 		expect(query.params).toStrictEqual([]);
 	});

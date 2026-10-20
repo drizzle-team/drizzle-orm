@@ -307,9 +307,16 @@ export class PgFunctionArgument<
 	constructor(
 		readonly name: string,
 		readonly sqlName: string,
+		private readonly argumentFunctionName?: string,
 	) {}
 
 	getSQL(): SQL<InferPgFunctionColumnBuilder<TBuilder>> {
+		if (this.argumentFunctionName !== undefined) {
+			return sql<InferPgFunctionColumnBuilder<TBuilder>>`${sql.identifier(this.argumentFunctionName)}.${
+				sql.identifier(this.name)
+			}`;
+		}
+
 		return sql<InferPgFunctionColumnBuilder<TBuilder>>`${sql.identifier(this.sqlName)}`;
 	}
 
@@ -412,7 +419,11 @@ function buildFunctionArgumentReferences<
 	return Object.fromEntries(
 		Object.keys(args).map((name) => [
 			name,
-			new PgFunctionArgument(name, getPgFunctionArgumentSQLName(name, functionName)),
+			new PgFunctionArgument(
+				name,
+				getPgFunctionArgumentSQLName(name, functionName),
+				functionName,
+			),
 		]),
 	) as PgFunctionArgumentReferences<TArgs>;
 }
