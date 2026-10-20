@@ -112,7 +112,7 @@ export class SQLiteAsyncDeleteBase<
 			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
 			{
 				type: 'delete',
-				tables: usedTablesOf(this.config.table),
+				tables: () => usedTablesOf(this.config.table),
 			},
 		) as SQLiteAsyncDeletePrepare<this>;
 	}

@@ -1,5 +1,5 @@
 import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
@@ -67,10 +67,7 @@ export class SQLiteAsyncPreparedQuery<T extends SQLiteAsyncPreparedQueryConfig> 
 		// cache instance
 		protected cache: Cache | undefined,
 		// per query related metadata
-		protected queryMetadata: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		} | undefined,
+		protected queryMetadata: QueryMetadata | undefined,
 		// config that was passed through $withCache
 		protected cacheConfig: WithCacheConfig | undefined,
 		protected paramsInErrors: boolean | undefined,
@@ -295,10 +292,7 @@ export abstract class SQLiteAsyncSession<
 		prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): SQLiteAsyncPreparedQuery<SQLiteAsyncPreparedQueryConfig & { type: TResultKind }>;
 

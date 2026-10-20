@@ -8,6 +8,7 @@ import { View } from '~/view.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
 import { IsAlias, Table } from '../table.ts';
+import { CacheKey, Qualifier, TableName, TableSchema } from '../table.utils.ts';
 import { commonStringChunks, StringChunk } from './common-chunks.ts';
 
 /**
@@ -86,28 +87,6 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 	decoder: DriverValueDecoder<T, any> = noopDecoder;
 	/** @internal */
 	public shouldInlineParams = false;
-
-	/** @internal */
-	private _usedTables: string[] | undefined;
-	/** @internal */
-	get usedTables(): string[] {
-		if (this._usedTables) return this._usedTables;
-		this._usedTables = [];
-
-		for (let i = 0; i < this.queryChunks.length; ++i) {
-			const chunk = this.queryChunks[i]!;
-			if (is(chunk, Table)) {
-				const schemaName = chunk[Table.Symbol.Schema];
-
-				this._usedTables.push(
-					schemaName === undefined
-						? chunk[Table.Symbol.Name]
-						: schemaName + '.' + chunk[Table.Symbol.Name],
-				);
-			}
-		}
-		return this._usedTables;
-	}
 
 	constructor(readonly queryChunks: SQLChunk[]) {}
 
@@ -1053,6 +1032,26 @@ export function placeholder<TName extends string>(name: TName): Placeholder<TNam
 	return new Placeholder(name);
 }
 
+/**
+ * @internal
+ * Replaces top-level columns of `query` with their unqualified names (e.g. for `order by` of set operations) -
+ * returns a copy if any are present, never modifying `query` itself
+ */
+export function unqualifyColumns(query: SQL): SQL {
+	const source = query.queryChunks;
+	let chunks: SQLChunk[] | undefined;
+	for (let i = 0; i < source.length; ++i) {
+		const chunk = source[i];
+		if (is(chunk, Column)) (chunks ??= [...source])[i] = sql.identifier(chunk.name);
+	}
+	if (!chunks) return query;
+
+	const copy = new SQL(chunks);
+	copy.decoder = query.decoder;
+	copy.shouldInlineParams = query.shouldInlineParams;
+	return copy;
+}
+
 export function fillPlaceholders(params: unknown[], values: Record<string, unknown>): unknown[] {
 	const filled: unknown[] = new Array(params.length);
 
@@ -1100,13 +1099,78 @@ export function fillPlaceholders(params: unknown[], values: Record<string, unkno
 
 export type ColumnsSelection = Record<string, unknown>;
 
+/**
+ * @internal
+ *
+ * Adds cache key of every table referenced anywhere within `chunks` to `out`
+ */
+export function collectChunksUsedTables(chunks: readonly SQLChunk[], out: Set<string>): void {
+	for (let i = 0; i < chunks.length; ++i) {
+		const chunk = chunks[i];
+		const kind = chunkKindOf(chunk);
+		switch (kind) {
+			case chunkKinds.table: {
+				out.add((chunk as Table)[CacheKey]);
+				break;
+			}
+			case chunkKinds.sql: {
+				collectChunksUsedTables((chunk as SQL).queryChunks, out);
+				break;
+			}
+			case chunkKinds.param: {
+				const value = (chunk as { value: unknown }).value;
+				if (chunkKindOf(value) === chunkKinds.sql) collectChunksUsedTables((value as SQL).queryChunks, out);
+				break;
+			}
+			case chunkKinds.subquery: {
+				collectChunksUsedTables((chunk as Subquery)._.sql.queryChunks, out);
+				break;
+			}
+			case chunkKinds.valueRows: {
+				collectChunksUsedTables((chunk as { cells: SQLChunk[] }).cells, out);
+				break;
+			}
+			case chunkKinds.other:
+			case chunkKinds.aliased: {
+				if (Array.isArray(chunk)) collectChunksUsedTables(chunk, out);
+				else if (isSQLWrapper(chunk)) collectChunksUsedTables(chunk.getSQL().queryChunks, out);
+				break;
+			}
+		}
+	}
+}
+
 // Defined separately from the Column class to resolve circular dependency
 Column.prototype.getSQL = function() {
+	return new SQL([this]);
+};
+// Defined separately from the StringChunk class to resolve circular dependency
+StringChunk.prototype.getSQL = function() {
 	return new SQL([this]);
 };
 // Defined separately from the Subquery class to resolve circular dependency
 Subquery.prototype.getSQL = function() {
 	return new SQL([this]);
 };
+
+// `[Qualifier]` defined separately to resolve circular dependency
+function defineQualifier<T extends object>(prototype: T, build: (self: T) => SQLChunk): void {
+	Object.defineProperty(prototype, Qualifier, {
+		get(this: T) {
+			const value = build(this);
+			Object.defineProperty(this, Qualifier, { value, enumerable: false, configurable: true, writable: true });
+			return value;
+		},
+		configurable: true,
+	});
+}
+
+function qualifiedName(schema: string | undefined, name: string): SQL {
+	return new SQL(schema === undefined ? [new Name(name)] : [new Name(schema), commonStringChunks['.'], new Name(name)]);
+}
+
+defineQualifier(Table.prototype, (table) => qualifiedName(table[TableSchema], table[TableName]));
+defineQualifier(View.prototype, (view) => qualifiedName(view[ViewBaseConfig].schema, view[ViewBaseConfig].name));
+defineQualifier(Subquery.prototype, (subquery) => new Name(subquery._.alias));
 
 export type SQLEntity = SQL | SQLWrapper | SQL.Aliased | Table | View;

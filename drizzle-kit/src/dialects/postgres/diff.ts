@@ -28,7 +28,6 @@ import type {
 } from './ddl';
 import { createDDL, tableFromDDL } from './ddl';
 import { defaults, defaultsCommutative, isSerialType } from './grammar';
-import type { SnapshotStatement } from './snapshot-statements';
 import type { JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
 
@@ -83,7 +82,6 @@ export const ddlDiff = async (
 	keepGeneratedNames = true,
 ): Promise<{
 	statements: JsonStatement[];
-	snapshotStatements: SnapshotStatement[];
 	sqlStatements: string[];
 	groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[];
 	deltas: Delta[];
@@ -1133,11 +1131,10 @@ export const ddlDiff = async (
 	jsonStatements.push(...dropSequences);
 	jsonStatements.push(...dropSchemas);
 
-	const { groupedStatements, sqlStatements, snapshotStatements } = fromJson(jsonStatements);
+	const { groupedStatements, sqlStatements } = fromJson(jsonStatements);
 
 	return {
 		statements: jsonStatements,
-		snapshotStatements,
 		sqlStatements,
 		groupedStatements: groupedStatements,
 		deltas,

@@ -1,6 +1,7 @@
-import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '~/table.ts';
+import { CacheKey, IsAlias, OriginalName, Qualifier, Table, TableColumns, TableSchema } from '~/table.ts';
 import { View, type ViewConfig } from '~/view.ts';
 import { aliasedTable } from './alias.ts';
+import type { QueryMetadata, WithCacheConfig } from './cache/core/types.ts';
 import type { CodecsCollection, NormalizeArrayCodec, NormalizeCodec } from './codecs.ts';
 import type { AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
@@ -48,7 +49,7 @@ import {
 	type SQLGenerator,
 	type SQLWrapper,
 } from './sql/sql.ts';
-import { chunkKindOf, chunkKinds, isChunk } from './sql/sql.ts';
+import { chunkKindOf, chunkKinds, collectChunksUsedTables, isChunk } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import {
 	type Assume,
@@ -685,7 +686,8 @@ export type DBQueryConfig<
 
 export type RelationalQueryStrategy = 'basic' | 'optimized';
 
-export type DBQueryConfigWithStrategy<
+/** Config of root relational query, dialects omit options they don't support */
+export type DBQueryConfigRoot<
 	TRelationType extends 'one' | 'many' = 'one' | 'many',
 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
@@ -700,17 +702,19 @@ export type DBQueryConfigWithStrategy<
 	 * @default 'optimized'
 	 */
 	strategy?: RelationalQueryStrategy | undefined;
-};
-
-export type DBQueryConfigWithComment<
-	TRelationType extends 'one' | 'many' = 'one' | 'many',
-	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
-	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
-> = DBQueryConfigWithStrategy<TRelationType, TSchema, TTableConfig> & {
 	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
 	comment?: CommentInput | undefined;
+	/**
+	 * Cache query results, requires `cache` to be set in drizzle config
+	 *
+	 * - `true` - cache enabled for query
+	 * - `false` - cache disabled for query
+	 *
+	 * If cache's strategy is `all` - query is cached by default
+	 */
+	withCache?: boolean | undefined;
 };
 
 export type AnyDBQueryConfig = {
@@ -732,6 +736,7 @@ export type AnyDBQueryConfig = {
 	limit?: number | Placeholder | undefined;
 	comment?: CommentInput | undefined;
 	strategy?: RelationalQueryStrategy | undefined;
+	withCache?: boolean | undefined;
 };
 
 export interface TableRelationalConfig {
@@ -881,7 +886,7 @@ export interface RelationalThroughJoin {
 	condition: SQLChunk[];
 }
 
-export interface BuildRelationalQueryConfig<TQueryConfig = DBQueryConfigWithComment<'many'>> {
+export interface BuildRelationalQueryConfig<TQueryConfig = DBQueryConfigRoot<'many'>> {
 	schema: TablesRelationalConfig;
 	table: SchemaEntry;
 	tableConfig: TableRelationalConfig;
@@ -896,6 +901,12 @@ export interface BuildRelationalQueryConfig<TQueryConfig = DBQueryConfigWithComm
 	nested?: boolean;
 	withSubqueries?: RelationalWithSubqueries;
 	strategy?: RelationalQueryStrategy;
+	/**
+	 * Collects cache keys of tables query is built from, except for ones referenced in raw SQL - see {@link relationalQueryCacheMetadata}
+	 *
+	 * Root query only
+	 */
+	usedTables?: Set<string>;
 }
 
 export interface BuildRelationalQueryResult {
@@ -937,6 +948,42 @@ export interface BuildRelationalQueryResult {
 		})
 	)[];
 	sql: SQL;
+}
+
+/** @internal */
+export function relationalQueryUsedTablesInit(config: DBQueryConfigRoot | true): Set<string> | undefined {
+	return config !== true && config.withCache ? new Set() : undefined;
+}
+
+/** @internal */
+export function relationalQueryCacheMetadata(
+	config: DBQueryConfigRoot | true,
+	sql: SQL,
+	usedTables: Set<string> | undefined,
+	source: { _getQuery(usedTables: Set<string>): unknown },
+): QueryMetadata | undefined {
+	if (config !== true && config.withCache === false) return;
+
+	let collected: string[] | undefined;
+	return {
+		type: 'select',
+		tables: () => {
+			if (collected) return collected;
+
+			if (!usedTables) {
+				usedTables = new Set();
+				source._getQuery(usedTables);
+			}
+			collectChunksUsedTables(sql.queryChunks, usedTables);
+
+			return collected = [...usedTables];
+		},
+	};
+}
+
+/** @internal */
+export function relationalQueryCacheConfig(config: DBQueryConfigRoot | true): WithCacheConfig | undefined {
+	return config !== true && config.withCache ? { config: {}, enabled: true, autoInvalidate: true } : undefined;
 }
 
 export function mapRelationalRow(
@@ -1914,11 +1961,6 @@ export interface WithContainer {
 	with?: Record<string, boolean | AnyDBQueryConfig | undefined>;
 }
 
-export interface ColumnWithTSName {
-	column: Table | View | Column<any> | SQL | SQLWrapper | SQL.Aliased;
-	tsName: string;
-}
-
 export type RelationsOrder<TColumns extends FieldSelection> = {
 	[K in keyof TColumns]?: 'asc' | 'desc';
 };
@@ -2243,8 +2285,8 @@ export function relationsFilterToSQL(
 				}
 
 				if (withSubqueries) {
-					collectRelationalSubquery(withSubqueries, relation.targetTable);
-					collectRelationalSubquery(withSubqueries, relation.throughTable);
+					collectSubqueryAndUsedTables(withSubqueries, relation.targetTable);
+					collectSubqueryAndUsedTables(withSubqueries, relation.throughTable);
 				}
 
 				const targetTable = aliasedTable(relation.targetTable, `f${depth}`);
@@ -2436,8 +2478,8 @@ export function relationsOrderEntriesToSQL(
 		}
 
 		if (withSubqueries) {
-			collectRelationalSubquery(withSubqueries, relation.targetTable);
-			collectRelationalSubquery(withSubqueries, relation.throughTable);
+			collectSubqueryAndUsedTables(withSubqueries, relation.targetTable);
+			collectSubqueryAndUsedTables(withSubqueries, relation.throughTable);
 		}
 
 		const depth = source?.depth ?? 0;
@@ -2635,9 +2677,9 @@ function relationFieldIdentifier({ _: { column, key } }: RelationsBuilderColumnB
 function collectRelationFieldsEquality(
 	conditions: ConditionsCollector,
 	collectTo: SQLChunk[],
-	leftTable: SchemaEntry,
+	leftTable: SQLChunk,
 	leftField: RelationsBuilderColumnBase,
-	rightTable: SchemaEntry,
+	rightTable: SQLChunk,
 	rightField: RelationsBuilderColumnBase,
 ): void {
 	conditions.open();
@@ -2669,6 +2711,9 @@ export function relationToSQL(
 	joinConditionTo: SQLChunk[] = [],
 ): BuiltRelationFilters {
 	const whereTable = relation.isFilterReversed ? sourceTable : targetTable;
+	const sourceRef = sourceTable[Qualifier];
+	const targetRef = targetTable[Qualifier];
+	const throughRef = throughTable?.[Qualifier];
 	const filter = new ConditionsCollector(filterTo, commonStringChunks[') and (']);
 
 	if (relation.through) {
@@ -2680,7 +2725,7 @@ export function relationToSQL(
 		relationsFilterToSQL(whereTable, relation.where, {}, {}, undefined, 0, filterTo);
 		filter.close();
 		for (let i = 0; i < sourceColumns.length; ++i) {
-			collectRelationFieldsEquality(filter, filterTo, sourceTable, sourceColumns[i]!, throughTable!, source[i]!);
+			collectRelationFieldsEquality(filter, filterTo, sourceRef, sourceColumns[i]!, throughRef!, source[i]!);
 		}
 		filter.finish();
 
@@ -2689,9 +2734,9 @@ export function relationToSQL(
 			collectRelationFieldsEquality(
 				joinCondition,
 				joinConditionTo,
-				throughTable!,
+				throughRef!,
 				target[i]!,
-				targetTable,
+				targetRef,
 				targetColumns[i]!,
 			);
 		}
@@ -2702,7 +2747,7 @@ export function relationToSQL(
 
 	const { sourceColumns, targetColumns } = relation;
 	for (let i = 0; i < sourceColumns.length; ++i) {
-		collectRelationFieldsEquality(filter, filterTo, sourceTable, sourceColumns[i]!, targetTable, targetColumns[i]!);
+		collectRelationFieldsEquality(filter, filterTo, sourceRef, sourceColumns[i]!, targetRef, targetColumns[i]!);
 	}
 	filter.open();
 	relationsFilterToSQL(whereTable, relation.where, {}, {}, undefined, 0, filterTo);
@@ -2754,7 +2799,7 @@ interface RqbCustomColumn {
 
 function collectRqbFieldSelection(
 	collectTo: SQLChunk[],
-	table: SchemaEntry,
+	tableRef: SQLChunk,
 	name: string,
 	key: string,
 	codecs: CodecsCollection,
@@ -2766,11 +2811,11 @@ function collectRqbFieldSelection(
 			codecs.apply(
 				decoderColumn,
 				inJson ? 'castInJson' : 'cast',
-				new SQL([table, commonStringChunks['.'], sql.identifier(name)]),
+				new SQL([tableRef, commonStringChunks['.'], sql.identifier(name)]),
 			),
 		);
 	} else {
-		collectTo.push(table, commonStringChunks['.'], sql.identifier(name));
+		collectTo.push(tableRef, commonStringChunks['.'], sql.identifier(name));
 	}
 
 	collectTo.push(commonStringChunks[' as '], sql.identifier(key));
@@ -2778,7 +2823,7 @@ function collectRqbFieldSelection(
 
 /** Pushes field of table selected by relational query, adds it to `selection` */
 export function buildRqbColumn(
-	table: SchemaEntry,
+	tableRef: SQLChunk,
 	field: unknown,
 	key: string,
 	inJson: boolean,
@@ -2801,14 +2846,14 @@ export function buildRqbColumn(
 			? undefined
 			: codecs.codecsOf(field)[inJson ? 'castInJson' : 'cast'];
 		if (cast || (inJson && jsonSelectIdentifier)) {
-			const name = new SQL([table, commonStringChunks['.'], sql.identifier(field.name)]);
+			const name = new SQL([tableRef, commonStringChunks['.'], sql.identifier(field.name)]);
 			const casted = cast
 				? cast(name, dimensions!)
 				: jsonSelectIdentifier!.call(field, name, sql, dimensions);
 			collectTo.push(casted, commonStringChunks[' as '], sql.identifier(key));
 		} else {
 			collectTo.push(
-				table,
+				tableRef,
 				commonStringChunks['.'],
 				sql.identifier(field.name),
 				commonStringChunks[' as '],
@@ -2819,12 +2864,12 @@ export function buildRqbColumn(
 		decoderColumn = getColumnFromDecoder(field);
 		fieldType = 'SQL';
 
-		collectRqbFieldSelection(collectTo, table, key, key, codecs, decoderColumn, inJson);
+		collectRqbFieldSelection(collectTo, tableRef, key, key, codecs, decoderColumn, inJson);
 	} else if (isChunk(field, kind, chunkKinds.aliased)) {
 		decoderColumn = getColumnFromDecoder(field);
 		fieldType = 'SQL.Aliased';
 
-		collectRqbFieldSelection(collectTo, table, field.fieldAlias, key, codecs, decoderColumn, inJson);
+		collectRqbFieldSelection(collectTo, tableRef, field.fieldAlias, key, codecs, decoderColumn, inJson);
 	} else if (isChunk(field, kind, chunkKinds.subquery)) {
 		const innerField = Object.values(field._.selectedFields)[0];
 		const innerKind = chunkKindOf(innerField);
@@ -2841,12 +2886,12 @@ export function buildRqbColumn(
 		}
 		fieldType = 'Subquery';
 
-		collectRqbFieldSelection(collectTo, table, field._.alias, key, codecs, decoderColumn, inJson);
+		collectRqbFieldSelection(collectTo, tableRef, field._.alias, key, codecs, decoderColumn, inJson);
 	} else if (isSQLWrapper(field)) {
 		decoderColumn = getColumnFromDecoder(field);
 		fieldType = 'SQLWrapper';
 
-		collectRqbFieldSelection(collectTo, table, key, key, codecs, decoderColumn, inJson);
+		collectRqbFieldSelection(collectTo, tableRef, key, key, codecs, decoderColumn, inJson);
 	} else {
 		throw new DrizzleError({
 			message: field === undefined
@@ -2878,7 +2923,7 @@ export function buildRqbColumn(
 
 /** Pushes table's columns selected by relational query separated by commas, returns whether any were selected */
 export function buildRqbColumns(
-	table: SchemaEntry,
+	tableRef: SQLChunk,
 	columns: Record<string, unknown>,
 	selection: BuildRelationalQueryResult['selection'],
 	inJson: boolean,
@@ -2891,7 +2936,7 @@ export function buildRqbColumns(
 	if (!columnsConfig) {
 		for (const k of Object.keys(columns)) {
 			if (collectTo.length > start) collectTo.push(commonStringChunks[', ']);
-			buildRqbColumn(table, columns[k], k, inJson, selection, tableTsName, codecs, collectTo);
+			buildRqbColumn(tableRef, columns[k], k, inJson, selection, tableTsName, codecs, collectTo);
 		}
 
 		return true;
@@ -2905,7 +2950,7 @@ export function buildRqbColumns(
 
 		if (v) {
 			if (collectTo.length > start) collectTo.push(commonStringChunks[', ']);
-			buildRqbColumn(table, columns[k], k, inJson, selection, tableTsName, codecs, collectTo);
+			buildRqbColumn(tableRef, columns[k], k, inJson, selection, tableTsName, codecs, collectTo);
 		}
 	}
 
@@ -2914,23 +2959,33 @@ export function buildRqbColumns(
 			if (columnsConfig[k] === false) continue;
 
 			if (collectTo.length > start) collectTo.push(commonStringChunks[', ']);
-			buildRqbColumn(table, columns[k], k, inJson, selection, tableTsName, codecs, collectTo);
+			buildRqbColumn(tableRef, columns[k], k, inJson, selection, tableTsName, codecs, collectTo);
 		}
 	}
 
 	return collectTo.length > start;
 }
 
-// `Subquery` instances used in relational queries are collected into `WITH` on query's root level
-export type RelationalWithSubqueries = Map<string, Subquery>;
-export function collectRelationalSubquery(
+// `Subquery` instances used in relational queries are collected into `WITH` on query's root level, table cache keys are collected for cache invalidation
+export interface RelationalWithSubqueries {
+	subqueries: Map<string, Subquery>;
+	/** Cache keys of tables query is built from, collected only when query is cached */
+	usedTables?: Set<string>;
+}
+export function collectSubqueryAndUsedTables(
 	collector: RelationalWithSubqueries,
 	entity: SchemaEntry | undefined,
 ): void {
-	if (!isChunk(entity, chunkKindOf(entity), chunkKinds.subquery)) return;
+	const kind = chunkKindOf(entity);
+	if (collector.usedTables !== undefined && isChunk(entity, kind, chunkKinds.table)) {
+		collector.usedTables.add(entity[CacheKey]);
+		return;
+	}
+
+	if (!isChunk(entity, kind, chunkKinds.subquery)) return;
 
 	const name = entity._.alias;
-	const existing = collector.get(name);
+	const existing = collector.subqueries.get(name);
 
 	if (existing && existing._.sql !== entity._.sql) {
 		throw new DrizzleError({
@@ -2939,7 +2994,7 @@ export function collectRelationalSubquery(
 		});
 	}
 
-	collector.set(name, entity);
+	collector.subqueries.set(name, entity);
 }
 
 export function getTableAsAliasSQL(table: SchemaEntry, collectTo: SQLChunk[] = []): SQLChunk[] {
@@ -2950,7 +3005,7 @@ export function getTableAsAliasSQL(table: SchemaEntry, collectTo: SQLChunk[] = [
 
 	const schema = table[TableSchema];
 	if (schema) collectTo.push(sql.identifier(schema), commonStringChunks['.']);
-	collectTo.push(sql.identifier(table[OriginalName]), commonStringChunks[' as '], table);
+	collectTo.push(sql.identifier(table[OriginalName]), commonStringChunks[' as '], table[Qualifier]);
 
 	return collectTo;
 }

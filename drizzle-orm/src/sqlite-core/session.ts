@@ -1,4 +1,4 @@
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
@@ -76,10 +76,7 @@ export abstract class SQLiteSession<TRunResult = unknown, TRelations extends Any
 		prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): SQLitePreparedQuery;
 }

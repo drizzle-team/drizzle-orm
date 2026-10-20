@@ -1,12 +1,12 @@
 import { randomUUID } from 'crypto';
 import type { TypeOf } from 'zod';
 import { any, array as zodArray, boolean, enum as enumType, literal, number, object, record, string } from 'zod';
+import type { Footprint } from '../../commutativity/engine';
 import { normalizeDDL } from '../ddl-canonical';
 import { type Delta, parseEntityKey } from '../dialect';
 import { array, validator } from '../simpleValidator';
 import type { PostgresDDL, PostgresEntity } from './ddl';
 import { createDDL } from './ddl';
-import { type SnapshotStatement, snapshotStatementSchemas } from './snapshot-statements';
 
 const indexV2 = object({
 	name: string(),
@@ -554,14 +554,22 @@ const isDelta = (it: any): it is Delta => {
 		&& Object.keys(it.set).every((field) => Object.hasOwn(definitions[type], field));
 };
 
-export const isSnapshotStatement = (it: unknown): it is SnapshotStatement => {
-	const type = (it as { type?: unknown } | null)?.type;
-	return typeof type === 'string' && Object.hasOwn(snapshotStatementSchemas, type)
-		&& snapshotStatementSchemas[type as keyof typeof snapshotStatementSchemas].safeParse(it).success;
-};
+const isStringList = (it: unknown): it is string[] =>
+	Array.isArray(it) && it.every((value) => typeof value === 'string');
+const footprintFields = new Set(['statementType', 'statementTarget', 'writes', 'reads', 'sharedWrites', 'sqlHash']);
 
-// Checks the `statements` field of both snapshot types: the statements of the migration, in the order of its SQL.
-const statements = array(isSnapshotStatement);
+export const isFootprint = (it: any): it is Footprint =>
+	typeof it === 'object' && it !== null && !Array.isArray(it)
+	&& Object.keys(it).every((field) => footprintFields.has(field))
+	&& typeof it.statementType === 'string'
+	&& isStringList(it.statementTarget) && it.statementTarget.length >= 2
+	&& isStringList(it.writes)
+	&& (it.reads === undefined || isStringList(it.reads))
+	&& (it.sharedWrites === undefined || isStringList(it.sharedWrites))
+	&& (it.sqlHash === undefined || typeof it.sqlHash === 'string');
+
+// Checks the `footprints` field of both snapshot types: one footprint for each statement of the migration.
+const footprints = array(isFootprint);
 
 const baseValidator = validator({
 	type: ['base'],
@@ -576,7 +584,7 @@ const baseValidator = validator({
 		}
 		return res;
 	}),
-	statements,
+	footprints,
 });
 
 const diffValidator = validator({
@@ -586,7 +594,7 @@ const diffValidator = validator({
 	id: 'string',
 	prevIds: array((it) => typeof it === 'string'),
 	deltas: array(isDelta),
-	statements,
+	footprints,
 });
 
 export type PostgresBaseSnapshot = typeof baseValidator.shape;
@@ -625,7 +633,7 @@ export const stateDifference = (expected: PostgresDDL, reconstructed: PostgresDD
 export const toJsonBaseSnapshot = (
 	ddl: PostgresDDL,
 	prevIds: string[],
-	statements: SnapshotStatement[],
+	footprints: Footprint[],
 ): PostgresBaseSnapshot => {
 	return {
 		type: 'base',
@@ -633,7 +641,7 @@ export const toJsonBaseSnapshot = (
 		dialect: 'postgres',
 		id: randomUUID(),
 		prevIds,
-		statements,
+		footprints,
 		ddl: ddl.entities.list(),
 	};
 };

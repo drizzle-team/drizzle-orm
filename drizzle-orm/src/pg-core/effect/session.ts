@@ -3,7 +3,7 @@ import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/sql/SqlError';
 import { EffectCache, type EffectCacheShape } from '~/cache/core/cache-effect.ts';
 import { NoopCache, strategyFor } from '~/cache/core/cache.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { MigratorInitError } from '~/effect-core/errors.ts';
 import { EffectDrizzleQueryError, EffectTransactionRollbackError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
@@ -46,10 +46,7 @@ export class PgEffectPreparedQuery<
 		// cache instance
 		protected cache: EffectCacheShape,
 		// per query related metadata
-		protected queryMetadata: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		} | undefined,
+		protected queryMetadata: QueryMetadata | undefined,
 		// config that was passed through $withCache
 		protected cacheConfig: WithCacheConfig | undefined,
 		protected paramsInErrors: boolean | undefined,
@@ -162,10 +159,7 @@ export abstract class PgEffectSession<
 		mode: 'arrays' | 'objects' | 'raw',
 		name: string | boolean,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): PgEffectPreparedQuery<T, TEffectHKT>;
 

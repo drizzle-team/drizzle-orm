@@ -108,10 +108,11 @@ export class PgEffectSelectBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgEffectSelectPrepare<this, TEffectHKT> {
-		const { session, cacheConfig, usedTables } = this;
+		const { session, cacheConfig } = this;
 
 		const fieldsList = this._resolveSelection();
-		const query = this.dialect.sqlToQuery(this.getSQL(true));
+		const sequel = this.getSQL(true);
+		const query = this.dialect.sqlToQuery(sequel);
 		const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap);
 		const mapper = this.dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths);
 
@@ -120,7 +121,7 @@ export class PgEffectSelectBase<
 			'arrays',
 			name ?? generateName,
 			mapper,
-			{ type: 'select', tables: [...usedTables] },
+			{ type: 'select', tables: () => this.getUsedTables(sequel) },
 			cacheConfig,
 		);
 

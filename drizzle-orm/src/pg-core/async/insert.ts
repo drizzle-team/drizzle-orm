@@ -93,7 +93,7 @@ export class PgAsyncInsertBase<
 				shape ? 'objects' : fields ? 'arrays' : 'raw',
 				name ?? generateName,
 				mapper,
-				{ type: 'insert', tables: usedTablesOf(this.config.table) },
+				{ type: 'insert', tables: () => usedTablesOf(this.config.table) },
 				undefined,
 				shape,
 			);

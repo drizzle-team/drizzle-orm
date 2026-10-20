@@ -1,7 +1,7 @@
 import type { Client, CustomTypesConfig, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import pg from 'pg';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery } from '~/pg-core/async/session.ts';
@@ -68,10 +68,7 @@ export class NodePgSession<
 		mode: 'arrays' | 'objects' | 'raw',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	) {
 		const queryName = typeof name === 'string'

@@ -68,7 +68,7 @@ export class MySqlEffectUpdateBase<
 			undefined,
 			{
 				type: 'update',
-				tables: usedTablesOf(this.config.table),
+				tables: () => usedTablesOf(this.config.table),
 			},
 		) as MySqlEffectUpdatePrepare<this, TEffectHKT>;
 	}

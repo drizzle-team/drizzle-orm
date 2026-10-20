@@ -192,7 +192,7 @@ export class SingleStoreDeleteBase<
 			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 			{
 				type: 'delete',
-				tables: usedTablesOf(this.config.table),
+				tables: () => usedTablesOf(this.config.table),
 			},
 		) as SingleStoreDeletePrepare<this>;
 	}

@@ -13,6 +13,8 @@ const driversPackages = [
 	'@vercel/postgres',
 	'@neondatabase/serverless',
 	'@electric-sql/pglite',
+	'@aws/aurora-dsql-node-postgres-connector',
+	'@aws/aurora-dsql-postgresjs-connector',
 	// mysql drivers
 	'mysql2',
 	'@planetscale/database',
@@ -31,7 +33,6 @@ const driversPackages = [
 ];
 
 const external = [
-	'esbuild',
 	/^drizzle-orm\/?/,
 	...driversPackages,
 ];
@@ -124,7 +125,7 @@ async function buildDeclarations() {
 			'payload-mssql': './src/payload/mssql.ts',
 		},
 		outDir: TSDOWN_TEMP_DIR,
-		external: ['esbuild', 'drizzle-orm', ...driversPackages, /^drizzle-orm\/?/],
+		external: ['drizzle-orm', ...driversPackages, /^drizzle-orm\/?/],
 		dts: { emitDtsOnly: true },
 		format: ['cjs', 'es'],
 		logLevel: 'silent',

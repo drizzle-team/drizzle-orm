@@ -11,7 +11,7 @@ import { columnRow } from './folder-flow';
 // `snapshotValidator` on base and diff snapshots. `reconstruct` applies the deltas of each diff snapshot from the
 // base, and a merge applies the history of its other parents on top of its first parent, in folder-name order.
 // The tests also cover the delta rules of a merge, a missing parent, and the time to reconstruct 1000
-// snapshots. The validator must reject malformed deltas, statements and entity rows.
+// snapshots. The validator must reject malformed deltas, footprints and entity rows.
 
 const ddlOf = (table: string, columns: string[]) => {
 	const ddl = createDDL();
@@ -33,7 +33,7 @@ const base = (id: string, ddl: ReturnType<typeof createDDL>): PostgresBaseSnapsh
 	id,
 	prevIds: [originUUID],
 	ddl: ddl.entities.list(),
-	statements: [],
+	footprints: [],
 });
 
 const diff = (id: string, prevIds: string[], deltas: Delta[]): PostgresSnapshot => ({
@@ -43,7 +43,7 @@ const diff = (id: string, prevIds: string[], deltas: Delta[]): PostgresSnapshot 
 	id,
 	prevIds,
 	deltas,
-	statements: [],
+	footprints: [],
 });
 
 const historyOf = (...snapshots: PostgresSnapshot[]) => new Map(snapshots.map((it) => [it.id, it]));
@@ -241,7 +241,7 @@ describe('reconstruct', () => {
 			id: 's0',
 			prevIds: [originUUID],
 			ddl: state(),
-			statements: [],
+			footprints: [],
 		};
 		expect(first.ddl).toHaveLength(5501);
 		const history = historyOf(first);
@@ -305,15 +305,27 @@ describe('snapshotValidator', () => {
 		expect(valid(withDelta({ op: 'rename', key: 'tables\0["public","users"]' }))).toBe(false);
 	});
 
-	test('rejects a snapshot without statements, and a statement of an unknown kind', () => {
-		const { statements: _, ...withoutStatements } = base('a', users);
-		const renameTable = { type: 'rename_table', schema: 'public', from: 'users', to: 'accounts' };
+	test('rejects a snapshot without footprints, and a footprint with a missing or an unknown field', () => {
+		const { footprints: _, ...withoutFootprints } = base('a', users);
+		const withFootprint = (it: unknown) => ({ ...diff('b', ['a'], []), footprints: [it] });
+		const setDefault = {
+			statementType: 'alter_column',
+			statementTarget: ['column', 'public', 'users', 'id'],
+			writes: ['s|colprop|public.users.id.default'],
+			reads: ['n|tbl|public.users'],
+			sqlHash: '3f9a1c0e7b2d4a55',
+		};
+		const { writes: _writes, ...withoutWrites } = setDefault;
 
-		expect(valid(withoutStatements)).toBe(false);
-		expect(valid({ ...diff('b', ['a'], []), statements: undefined })).toBe(false);
-		expect(valid({ ...diff('b', ['a'], []), statements: [renameTable] })).toBe(true);
-		expect(valid({ ...diff('b', ['a'], []), statements: [{ ...renameTable, type: 'paint_table' }] })).toBe(false);
-		expect(valid({ ...diff('b', ['a'], []), statements: ['rename_table'] })).toBe(false);
+		expect(valid(withoutFootprints)).toBe(false);
+		expect(valid({ ...diff('b', ['a'], []), footprints: undefined })).toBe(false);
+		expect(valid(withFootprint(setDefault))).toBe(true);
+		expect(valid(withFootprint(withoutWrites))).toBe(false);
+		expect(valid(withFootprint({ ...setDefault, statementTarget: [] }))).toBe(false);
+		expect(valid(withFootprint({ ...setDefault, statementTarget: ['column'] }))).toBe(false);
+		expect(valid(withFootprint({ ...setDefault, reads: 'n|tbl|public.users' }))).toBe(false);
+		expect(valid(withFootprint({ ...setDefault, reason: 'a default' }))).toBe(false);
+		expect(valid(withFootprint('alter_column'))).toBe(false);
 	});
 
 	test('rejects a base with an invalid entity', () => {
@@ -326,7 +338,7 @@ describe('snapshotValidator', () => {
 		const file = (entity: string) =>
 			JSON.parse(
 				`{"type":"base","version":"9","dialect":"postgres","id":"a","prevIds":["${originUUID}"],"ddl":[${entity}],`
-					+ '"statements":[]}',
+					+ '"footprints":[]}',
 			);
 		const table = '"entityType":"tables","schema":"public","name":"users","isRlsEnabled":false';
 
@@ -341,7 +353,7 @@ describe('snapshotValidator', () => {
 		const file = (entity: string) =>
 			JSON.parse(
 				`{"type":"base","version":"9","dialect":"postgres","id":"a","prevIds":["${originUUID}"],"ddl":[${entity}],`
-					+ '"statements":[]}',
+					+ '"footprints":[]}',
 			);
 
 		expect(valid(file('{"entityType":["tables"],"schema":"public","name":"users","isRlsEnabled":false}'))).toBe(false);

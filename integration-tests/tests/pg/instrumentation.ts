@@ -11,7 +11,7 @@ import {
 	DrizzleConfig,
 	type ExtractTablesFromSchema,
 	type ExtractTablesWithRelations,
-	getTableName,
+	getCacheKey,
 	is,
 	type RelationsBuilder,
 	type RelationsBuilderConfig,
@@ -109,7 +109,7 @@ export class TestCache extends Cache {
 		const keysToDelete = new Set<string>();
 
 		for (const table of tablesArray) {
-			const tableName = is(table, Table) ? getTableName(table) : table as string;
+			const tableName = is(table, Table) ? getCacheKey(table) : table as string;
 			const keys = this.usedTablesPerKey[tableName] ?? [];
 			for (const key of keys) keysToDelete.add(key);
 		}
@@ -122,7 +122,7 @@ export class TestCache extends Cache {
 			for (const key of keysToDelete) {
 				await this.kv.delete(key);
 				for (const table of tablesArray) {
-					const tableName = is(table, Table) ? getTableName(table) : table as string;
+					const tableName = is(table, Table) ? getCacheKey(table) : table as string;
 					this.usedTablesPerKey[tableName] = [];
 				}
 			}
@@ -782,30 +782,33 @@ type Provider =
 	| ProvideForProxy
 	| ProvideForNetlifyDb;
 
-const testFor = (vendor: Vendor) => {
-	return base.extend<{
-		provider: Provider;
-		kit: {
-			client: any;
-			query: (sql: string, params?: any[]) => Promise<any[]>;
-			batch: (statements: string[]) => Promise<any>;
-			database: string | undefined;
-		};
-		peer: SnapshotPeer | undefined;
+export type PgTestFixtures = {
+	provider: Provider;
+	kit: {
 		client: any;
-		db: PgAsyncDatabase<any, typeof relations>;
-		push: (schema: any, params?: { log: 'statements' }) => Promise<void>;
-		createDB: {
-			<S extends PostgresSchema>(schema: S): PgAsyncDatabase<any, ReturnType<typeof defineRelations<S>>>;
-			<S extends PostgresSchema, TConfig extends AnyRelationsBuilderConfig>(
-				schema: S,
-				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
-				useJitMappers?: boolean,
-				paramsInErrors?: boolean,
-			): PgAsyncDatabase<any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
-		};
-		caches: { all: PgAsyncDatabase<any, typeof relations>; explicit: PgAsyncDatabase<any, typeof relations> };
-	}>({
+		query: (sql: string, params?: any[]) => Promise<any[]>;
+		batch: (statements: string[]) => Promise<any>;
+		database: string | undefined;
+	};
+	peer: SnapshotPeer | undefined;
+	client: any;
+	db: PgAsyncDatabase<any, typeof relations>;
+	push: (schema: any, params?: { log: 'statements' }) => Promise<void>;
+	createDB: {
+		<S extends PostgresSchema>(schema: S): PgAsyncDatabase<any, ReturnType<typeof defineRelations<S>>>;
+		<S extends PostgresSchema, TConfig extends AnyRelationsBuilderConfig>(
+			schema: S,
+			cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
+			useJitMappers?: boolean,
+			paramsInErrors?: boolean,
+			cache?: Cache,
+		): PgAsyncDatabase<any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
+	};
+	caches: { all: PgAsyncDatabase<any, typeof relations>; explicit: PgAsyncDatabase<any, typeof relations> };
+};
+
+const testFor = (vendor: Vendor) => {
+	return base.extend<PgTestFixtures>({
 		provider: [
 			// oxlint-disable-next-line no-empty-pattern
 			async ({}, use) => {
@@ -927,38 +930,63 @@ const testFor = (vendor: Vendor) => {
 					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
 					useJitMappers?: boolean,
 					paramsInErrors?: boolean,
+					cache?: Cache,
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
 					if (vendor === 'minipg-neon-ws') {
-						return drizzleMinipgNeonWs({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
+						return drizzleMinipgNeonWs({
+							client: kit.client as any,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+							cache,
+						});
 					}
 					if (vendor === 'minipg-neon-http') {
-						return drizzleMinipgNeonHttp({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
+						return drizzleMinipgNeonHttp({
+							client: kit.client as any,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+							cache,
+						});
 					}
 					if (vendor === 'http') {
-						return drizzleHttp({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
+						return drizzleHttp({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
 					}
 					if (vendor === 'neon-http') {
-						return drizzleNeonHttp({ client: kit.client, relations, jit: useJitMappers, paramsInErrors });
+						return drizzleNeonHttp({ client: kit.client, relations, jit: useJitMappers, paramsInErrors, cache });
 					}
 					if (vendor === 'neon-serverless') {
-						return drizzleNeonWs({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
+						return drizzleNeonWs({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
 					}
 					if (vendor === 'pglite') {
-						return drizzlePglite({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
+						return drizzlePglite({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
 					}
 					if (vendor === 'node-postgres') {
-						return drizzleNodePostgres({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
+						return drizzleNodePostgres({
+							client: kit.client as any,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+							cache,
+						});
 					}
 					if (vendor === 'postgres') {
-						return drizzlePostgres({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
+						return drizzlePostgres({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
 					}
 					if (vendor === 'postgresjs') {
-						return drizzlePostgresjs({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
+						return drizzlePostgresjs({
+							client: kit.client as any,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+							cache,
+						});
 					}
 					if (vendor === 'netlify-db') {
-						return drizzleNetlify({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
+						return drizzleNetlify({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
 					}
 
 					if (vendor === 'proxy') {
@@ -977,7 +1005,13 @@ const testFor = (vendor: Vendor) => {
 								throw e;
 							}
 						};
-						return drizzleProxy(proxyHandler, { relations, codecs: nodePgCodecs, jit: useJitMappers, paramsInErrors });
+						return drizzleProxy(proxyHandler, {
+							relations,
+							codecs: nodePgCodecs,
+							jit: useJitMappers,
+							paramsInErrors,
+							cache,
+						});
 					}
 					throw new Error();
 				};

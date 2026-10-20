@@ -58,6 +58,7 @@ import {
 import type { MySqlEffectDatabase } from 'drizzle-orm/mysql-core/effect/db';
 import { MySqlEffectSession } from 'drizzle-orm/mysql-core/effect/session';
 import {
+	AnyRelations,
 	EmptyRelations,
 	ExtractTablesFromSchema,
 	ExtractTablesWithRelations,
@@ -209,10 +210,13 @@ const runDeepNullification = (db: MySqlEffectDatabase<any, any, any>) =>
 export interface RunCommonEffectMySqlTestsOptions {
 	testLayer: Layer.Layer<DB | SqlClient, SqlError | ConfigError, never>;
 	MySqlDrizzle: {
-		make: (config?: any) => Effect.Effect<MySqlEffectDatabase<QueryEffectHKTBase, any, EmptyRelations>, never, any>;
-		makeWithDefaults: (
-			config?: any,
-		) => Effect.Effect<MySqlEffectDatabase<QueryEffectHKTBase, any, EmptyRelations>, never, any>;
+		// Methods: parameters checked bivariantly, so drivers requiring config (`effect-d1`) fit
+		make<TRelations extends AnyRelations = EmptyRelations>(
+			config?: { relations?: TRelations } & Record<string, any>,
+		): Effect.Effect<MySqlEffectDatabase<QueryEffectHKTBase, any, TRelations>, never, any>;
+		makeWithDefaults<TRelations extends AnyRelations = EmptyRelations>(
+			config?: { relations?: TRelations } & Record<string, any>,
+		): Effect.Effect<MySqlEffectDatabase<QueryEffectHKTBase, any, TRelations>, never, any>;
 		DefaultServices: Layer.Layer<any, never, any>;
 	};
 	createDB: <
@@ -2832,6 +2836,73 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 
 				expect(spyInvalidate).toHaveBeenCalledTimes(1);
 				expect(seen).toStrictEqual([['John']]);
+			}));
+
+		it.effect('Cache: relational query - withCache, used tables, invalidation', () =>
+			Effect.gen(function*() {
+				const baseCache = new TestCache('explicit');
+
+				const db = yield* MySqlDrizzle.make({ relations }).pipe(
+					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
+					Effect.provide(MySqlDrizzle.DefaultServices),
+				);
+
+				yield* push(db, { rqbUser, rqbPost });
+				const createdAt = new Date(120000);
+				yield* db.insert(rqbUser).values({ id: 1, name: 'John', createdAt });
+				yield* db.insert(rqbPost).values({ id: 1, userId: 1, content: 'First', createdAt });
+
+				using spyPut = vi.spyOn(baseCache, 'put');
+				using spyGet = vi.spyOn(baseCache, 'get');
+
+				const query = (withCache?: boolean) =>
+					db.query.rqbUser.findMany({
+						columns: { name: true },
+						with: { posts: { columns: { content: true }, orderBy: { id: 'asc' } } },
+						withCache,
+					});
+
+				yield* query();
+				expect(spyGet).toHaveBeenCalledTimes(0);
+
+				expect(yield* query(true)).toStrictEqual([{ name: 'John', posts: [{ content: 'First' }] }]);
+				expect(spyPut.mock.calls[0]![2]).toStrictEqual(['user_rqb_test', 'post_rqb_test']);
+
+				// Bypasses cache invalidation, cached result is served
+				yield* db.execute(sql`insert into ${rqbPost} values (2, 1, 'Unseen', now())`);
+				expect(yield* query(true)).toStrictEqual([{ name: 'John', posts: [{ content: 'First' }] }]);
+				expect(spyGet).toHaveBeenCalledTimes(2);
+				expect(spyPut).toHaveBeenCalledTimes(1);
+
+				yield* db.insert(rqbPost).values({ id: 3, userId: 1, content: 'Third', createdAt });
+				expect(yield* query(true)).toStrictEqual([{
+					name: 'John',
+					posts: [{ content: 'First' }, { content: 'Unseen' }, { content: 'Third' }],
+				}]);
+				expect(spyPut).toHaveBeenCalledTimes(2);
+			}));
+
+		it.effect('Cache: relational query - all strategy unless withCache: false', () =>
+			Effect.gen(function*() {
+				const baseCache = new TestCache('all');
+
+				const db = yield* MySqlDrizzle.make({ relations }).pipe(
+					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
+					Effect.provide(MySqlDrizzle.DefaultServices),
+				);
+
+				yield* push(db, { rqbUser });
+
+				using spyPut = vi.spyOn(baseCache, 'put');
+				using spyGet = vi.spyOn(baseCache, 'get');
+
+				yield* db.query.rqbUser.findMany({ withCache: false });
+				expect(spyGet).toHaveBeenCalledTimes(0);
+
+				yield* db.query.rqbUser.findFirst();
+				expect(spyGet).toHaveBeenCalledTimes(1);
+				expect(spyPut).toHaveBeenCalledTimes(1);
+				expect(spyPut.mock.calls[0]![2]).toStrictEqual(['user_rqb_test']);
 			}));
 
 		it.effect('Cache: no onMutate on failed write', () =>

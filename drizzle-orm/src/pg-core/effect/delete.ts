@@ -107,7 +107,7 @@ export class PgEffectDeleteBase<
 			fields ? 'arrays' : 'raw',
 			name ?? generateName,
 			mapper,
-			{ type: 'delete', tables: usedTablesOf(this.config.table) },
+			{ type: 'delete', tables: () => usedTablesOf(this.config.table) },
 		);
 
 		return preparedQuery;

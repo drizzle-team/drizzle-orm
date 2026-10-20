@@ -3,7 +3,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import type {
 	BuildQueryResult,
 	BuildRelationalQueryResult,
-	DBQueryConfigWithStrategy,
+	DBQueryConfigRoot,
 	RelationalRowsMapper,
 	TableRelationalConfig,
 	TablesRelationalConfig,
@@ -14,6 +14,12 @@ import { tracer } from '~/tracing.ts';
 import type { CockroachDialect } from '../dialect.ts';
 import type { CockroachPreparedQuery, CockroachSession, PreparedQueryConfig } from '../session.ts';
 import type { CockroachTable } from '../table.ts';
+
+export type CockroachDBQueryConfigRoot<
+	TRelationType extends 'one' | 'many' = 'one' | 'many',
+	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
+	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
+> = Omit<DBQueryConfigRoot<TRelationType, TSchema, TTableConfig>, 'comment' | 'withCache'>;
 
 export class RelationalQueryBuilder<
 	TSchema extends TablesRelationalConfig,
@@ -32,9 +38,9 @@ export class RelationalQueryBuilder<
 		private session: CockroachSession,
 	) {}
 
-	findMany<TConfig extends DBQueryConfigWithStrategy<'many', TSchema, TFields>>(
-		config?: DBQueryConfigWithStrategy<'many', TSchema, TFields> extends TConfig ? TConfig
-			: DBQueryConfigWithStrategy<'many', TSchema, TFields>,
+	findMany<TConfig extends CockroachDBQueryConfigRoot<'many', TSchema, TFields>>(
+		config?: CockroachDBQueryConfigRoot<'many', TSchema, TFields> extends TConfig ? TConfig
+			: CockroachDBQueryConfigRoot<'many', TSchema, TFields>,
 	): CockroachRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new CockroachRelationalQuery(
 			this.schema,
@@ -42,14 +48,14 @@ export class RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config as DBQueryConfigWithStrategy<'many'> | undefined ?? true,
+			config as CockroachDBQueryConfigRoot<'many'> | undefined ?? true,
 			'many',
 		);
 	}
 
-	findFirst<TConfig extends DBQueryConfigWithStrategy<'one', TSchema, TFields>>(
-		config?: DBQueryConfigWithStrategy<'one', TSchema, TFields> extends TConfig ? TConfig
-			: DBQueryConfigWithStrategy<'one', TSchema, TFields>,
+	findFirst<TConfig extends CockroachDBQueryConfigRoot<'one', TSchema, TFields>>(
+		config?: CockroachDBQueryConfigRoot<'one', TSchema, TFields> extends TConfig ? TConfig
+			: CockroachDBQueryConfigRoot<'one', TSchema, TFields>,
 	): CockroachRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return new CockroachRelationalQuery(
 			this.schema,
@@ -57,7 +63,7 @@ export class RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config as DBQueryConfigWithStrategy<'one'> | undefined ?? true,
+			config as CockroachDBQueryConfigRoot<'one'> | undefined ?? true,
 			'first',
 		);
 	}
@@ -82,7 +88,7 @@ export class CockroachRelationalQuery<TResult> extends QueryPromise<TResult>
 		protected tableConfig: TableRelationalConfig,
 		protected dialect: CockroachDialect,
 		protected session: CockroachSession,
-		protected config: DBQueryConfigWithStrategy<'many' | 'one'> | true,
+		protected config: CockroachDBQueryConfigRoot<'many' | 'one'> | true,
 		protected mode: 'many' | 'first',
 	) {
 		super();

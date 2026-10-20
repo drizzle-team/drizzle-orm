@@ -1,7 +1,7 @@
 import type { Connection as CallbackConnection, TypeCast } from 'mysql2';
 import type { Connection, FieldPacket, Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -60,10 +60,7 @@ export class MySql2Session<
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: AnyMySqlMapper,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): MySqlAsyncPreparedQuery<T> {
 		const { client } = this;

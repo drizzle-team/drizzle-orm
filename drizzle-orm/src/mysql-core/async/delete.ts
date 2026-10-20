@@ -57,7 +57,7 @@ export class MySqlAsyncDeleteBase<
 			undefined,
 			{
 				type: 'delete',
-				tables: usedTablesOf(this.config.table),
+				tables: () => usedTablesOf(this.config.table),
 			},
 		);
 	}

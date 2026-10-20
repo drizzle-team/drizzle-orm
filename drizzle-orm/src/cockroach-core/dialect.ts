@@ -20,13 +20,13 @@ import type {
 	AnyOne,
 	BuildRelationalQueryConfig,
 	BuildRelationalQueryResult,
-	DBQueryConfigWithComment,
+	DBQueryConfigRoot,
 	RelationalRowsMapperGenerator,
 	WithContainer,
 } from '~/relations.ts';
 import {
 	buildRqbColumns,
-	collectRelationalSubquery,
+	collectSubqueryAndUsedTables,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
 	makeJitRqbMapper,
@@ -38,9 +38,9 @@ import {
 } from '~/relations.ts';
 import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
 import { type Name, type Query, SQL, sql, type SQLChunk, ValueRows } from '~/sql/sql.ts';
-import { chunkKindOf, chunkKinds, isChunk } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk, unqualifyColumns } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { getTableName, Table, TableColumns } from '~/table.ts';
+import { getTableName, Qualifier, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/cockroach.ts';
 import {
 	makeDefaultQueryMapper,
@@ -751,15 +751,7 @@ export class CockroachDialect {
 				if (is(singleOrderBy, CockroachColumn)) {
 					orderByValues.push(sql.identifier(singleOrderBy.name));
 				} else if (is(singleOrderBy, SQL)) {
-					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
-						const chunk = singleOrderBy.queryChunks[i];
-
-						if (is(chunk, CockroachColumn)) {
-							singleOrderBy.queryChunks[i] = sql.identifier(chunk.name);
-						}
-					}
-
-					orderByValues.push(sql`${singleOrderBy}`);
+					orderByValues.push(sql`${unqualifyColumns(singleOrderBy)}`);
 				} else {
 					orderByValues.push(sql`${singleOrderBy}`);
 				}
@@ -921,11 +913,12 @@ export class CockroachDialect {
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
 		const isOptimized = (currentDepth ? strategy : params?.strategy) !== 'basic';
-		const subqueries: RelationalWithSubqueries = withSubqueries ?? new Map();
+		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map() };
 		if (!currentDepth) {
-			collectRelationalSubquery(subqueries, table);
+			collectSubqueryAndUsedTables(collector, table);
 			table = aliasedTable(table, `d${currentDepth}`);
 		}
+		const tableRef = table[Qualifier];
 
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
@@ -935,11 +928,11 @@ export class CockroachDialect {
 			params,
 			tableConfig.relations,
 			schema,
-			subqueries,
+			collector,
 			relationWhere,
 		);
 		const order = params?.orderBy
-			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, subqueries)
+			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, collector)
 			: undefined;
 
 		const withParam = params ? (params as WithContainer).with : undefined;
@@ -956,7 +949,7 @@ export class CockroachDialect {
 
 		collectTo.push(commonStringChunks['select ']);
 		const hasColumns = buildRqbColumns(
-			table,
+			tableRef,
 			tableConfig.table[TableColumns],
 			selection,
 			!!nested,
@@ -1001,7 +994,7 @@ export class CockroachDialect {
 		const isWrapped = withKeys.length > 0 && isOptimized && isLimitedFirst;
 
 		collectTo.push(commonStringChunks[' from ']);
-		if (isWrapped) collectTo.push(commonStringChunks['(select '], table, commonStringChunks['.* from ']);
+		if (isWrapped) collectTo.push(commonStringChunks['(select '], tableRef, commonStringChunks['.* from ']);
 		getTableAsAliasSQL(table, collectTo);
 		if (through) {
 			collectTo.push(commonStringChunks[' inner join ']);
@@ -1013,15 +1006,15 @@ export class CockroachDialect {
 			if (order) collectTo.push(commonStringChunks[' order by '], ...order);
 			if (limit !== undefined) collectTo.push(commonStringChunks[' limit '], limit as SQLChunk);
 			if (offset !== undefined) collectTo.push(commonStringChunks[' offset '], offset as SQLChunk);
-			collectTo.push(commonStringChunks[') as '], table);
+			collectTo.push(commonStringChunks[') as '], tableRef);
 		}
 
 		for (const k of withKeys) {
 			const join = withParam![k]!;
 			const relation = tableConfig.relations[k]!;
 			const isSingle = relation.relationType === 'one';
-			collectRelationalSubquery(subqueries, relation.targetTable);
-			collectRelationalSubquery(subqueries, relation.throughTable);
+			collectSubqueryAndUsedTables(collector, relation.targetTable);
+			collectSubqueryAndUsedTables(collector, relation.throughTable);
 
 			const targetTable = aliasedTable(relation.targetTable, `d${currentDepth + 1}`);
 			const throughTable = relation.throughTable
@@ -1035,12 +1028,12 @@ export class CockroachDialect {
 				table: targetTable,
 				mode: isSingle ? 'first' : 'many',
 				schema,
-				queryConfig: join as DBQueryConfigWithComment,
+				queryConfig: join as DBQueryConfigRoot,
 				tableConfig: schema[relation.targetTableName]!,
 				relationWhere: filter,
 				errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 				depth: currentDepth + 1,
-				withSubqueries: subqueries,
+				withSubqueries: collector,
 				strategy: currentDepth ? strategy : params?.strategy,
 				through: throughTable ? { table: throughTable, condition: joinCondition! } : undefined,
 				nested: true,
@@ -1067,7 +1060,7 @@ export class CockroachDialect {
 			if (offset !== undefined) collectTo.push(commonStringChunks[' offset '], offset as SQLChunk);
 		}
 
-		if (withIdx !== -1) collectTo[withIdx] = this.buildWithCTE([...subqueries.values()]);
+		if (withIdx !== -1) collectTo[withIdx] = this.buildWithCTE([...collector.subqueries.values()]);
 
 		return selection;
 	}

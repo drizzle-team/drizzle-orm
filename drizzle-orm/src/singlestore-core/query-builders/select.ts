@@ -27,7 +27,7 @@ import type { ColumnsSelection, Query } from '~/sql/sql.ts';
 import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { collectUsedTables } from '~/used-tables.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import {
 	applyMixins,
 	getTableColumns,
@@ -173,7 +173,6 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 	readonly session: SingleStoreSession | undefined;
 	protected dialect: SingleStoreDialect;
 	protected cacheConfig?: WithCacheConfig = undefined;
-	protected usedTables: Set<string> = new Set();
 
 	constructor(
 		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
@@ -203,12 +202,15 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
-		collectUsedTables(table, this.usedTables);
 	}
 
-	/** @internal */
-	getUsedTables() {
-		return [...this.usedTables];
+	/**
+	 * @internal
+	 * Collects every table query's SQL references - `from`, joins, CTEs, set operators, raw SQL & subqueries of fields, filters, etc.
+	 * @param sql - query's already built SQL, to avoid rebuilding it
+	 */
+	getUsedTables(sql: SQL = this.getSQL()) {
+		return usedTablesOf(sql);
 	}
 
 	private createJoin<
@@ -226,9 +228,6 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
-
-			// store all tables used in a query
-			collectUsedTables(table, this.usedTables);
 
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
@@ -959,12 +958,8 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 	as<TAlias extends string>(
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
-		const usedTables = new Set<string>();
-		collectUsedTables(this.config.table, usedTables);
-		if (this.config.joins) { for (const it of this.config.joins) collectUsedTables(it.table, usedTables); }
-
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias, false, usedTables),
+			new Subquery(this.getSQL(), this.config.fields, alias),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -1039,17 +1034,21 @@ export class SingleStoreSelectBase<
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
 		// Build query before accessing `fieldsFlat` - build mutates it
-		const query = this.dialect.sqlToQuery(this.getSQL(true));
+		const sequel = this.getSQL(true);
+		const query = this.dialect.sqlToQuery(sequel);
 		const fieldsList = this.config.fieldsFlat!;
 		const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap);
 
 		return this.session.prepareQuery<
 			SingleStorePreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
-		>(query, 'arrays', this.config.mapper ??= this.dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths), {
-			type: 'select',
-			tables: [...this.usedTables],
-		}, this.cacheConfig) as SingleStoreSelectPrepare<this>;
+		>(
+			query,
+			'arrays',
+			this.config.mapper ??= this.dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths),
+			{ type: 'select', tables: () => this.getUsedTables(sequel) },
+			this.cacheConfig,
+		) as SingleStoreSelectPrepare<this>;
 	}
 
 	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {

@@ -92,7 +92,7 @@ export class PgAsyncDeleteBase<
 				shape ? 'objects' : fields ? 'arrays' : 'raw',
 				name ?? generateName,
 				mapper,
-				{ type: 'delete', tables: usedTablesOf(this.config.table) },
+				{ type: 'delete', tables: () => usedTablesOf(this.config.table) },
 				undefined,
 				shape,
 			);

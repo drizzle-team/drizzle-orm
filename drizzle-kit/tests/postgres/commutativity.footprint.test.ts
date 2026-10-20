@@ -1,15 +1,36 @@
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
-import { toSnapshotStatements } from 'src/dialects/postgres/convertor';
 import type { Column, Privilege } from 'src/dialects/postgres/ddl';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { describe, expect, test } from 'vitest';
-import { build, check, col, fk, idx, pk, policy, privilege, unique } from './commutativity-statements';
+import {
+	build,
+	check,
+	col,
+	fk,
+	footprintsOfStatements,
+	idx,
+	pk,
+	policy,
+	privilege,
+	unique,
+} from './commutativity-statements';
 
-// Verifies the verdict of the facet rules of `postgresCommutativity` for a fixed list of branch pairs, each with
+// Verifies the verdict of the footprint rules of `postgresCommutativity` for a fixed list of branch pairs, each with
 // one or a few statements. The pairs cover renames, moves and drops of referenced objects, enum and column
 // changes, privileges, policies, foreign keys, and new objects whose names share one postgres namespace. The last
 // group checks when the same statement on both branches counts as one change. `S` builds the statements of the
 // pairs in `cases`.
+
+const identity = (name: string): Column['identity'] => ({
+	name,
+	type: 'always',
+	increment: null,
+	minValue: null,
+	maxValue: null,
+	startWith: null,
+	cache: null,
+	cycle: null,
+});
 
 const S = {
 	renameTable: (schema: string, from: string, to: string) => ({ type: 'rename_table', schema, from, to }),
@@ -55,7 +76,14 @@ const S = {
 		({
 			type: 'alter_column',
 			to: col(schema, table, name, extra),
-			diff: { schema, table, name, ...change, $left: col(schema, table, name) },
+			diff: {
+				schema,
+				table,
+				name,
+				...change,
+				$left: col(schema, table, name),
+				$right: col(schema, table, name, extra),
+			},
 		}) as any,
 	recreateColumn: (schema: string, table: string, name: string) =>
 		({ type: 'recreate_column', diff: { schema, table, name, $right: col(schema, table, name) } }) as any,
@@ -171,10 +199,9 @@ const S = {
 		({ type, policy: policy(schema, table, name, roles) }) as any,
 } satisfies Record<string, (...args: any[]) => JsonStatement>;
 
-// Tells whether the facet rules see a conflict between two branches. The rules read a statement in the form
-// that a snapshot stores, so `toSnapshotStatements` converts the statements first.
-async function conflicts(a: JsonStatement[], b: JsonStatement[]): Promise<boolean> {
-	return !!(await postgresCommutativity.getReasonsFromStatements(toSnapshotStatements(a), toSnapshotStatements(b)));
+// Tells whether the footprints of two branches conflict.
+function conflicts(a: JsonStatement[], b: JsonStatement[]): boolean {
+	return !!postgresCommutativity.findConflict(footprintsOfStatements(a), footprintsOfStatements(b));
 }
 
 type Case = { name: string; a: JsonStatement[]; b: JsonStatement[]; expect: 'conflict' | 'commute' };
@@ -434,7 +461,7 @@ const cases: Case[] = [
 		expect: 'commute',
 	},
 
-	// the facet paths of alter_column name each property that its SQL changes or needs
+	// the footprint of alter_column names each property that its SQL changes or needs
 	{
 		name: 'alter_column c NOT NULL ∥ alter_column c default commute',
 		a: [S.alterColumn('public', 'users', 'c')],
@@ -449,8 +476,8 @@ const cases: Case[] = [
 	},
 	{
 		name: 'alter_column c default ∥ alter_column c default conflict',
-		a: [S.alterColumn('public', 'users', 'c', {}, { default: { from: null, to: "'x'" } })],
-		b: [S.alterColumn('public', 'users', 'c', {}, { default: { from: null, to: "'y'" } })],
+		a: [S.alterColumn('public', 'users', 'c', { default: "'x'" }, { default: { from: null, to: "'x'" } })],
+		b: [S.alterColumn('public', 'users', 'c', { default: "'y'" }, { default: { from: null, to: "'y'" } })],
 		expect: 'conflict',
 	},
 	{
@@ -462,7 +489,11 @@ const cases: Case[] = [
 	{
 		name: 'alter_column c NOT NULL ∥ alter_column c identity (it needs NOT NULL) conflict',
 		a: [S.alterColumn('public', 'users', 'c', {}, { notNull: { from: true, to: false } })],
-		b: [S.alterColumn('public', 'users', 'c', {}, { identity: { from: null, to: { name: 'c_seq' } } })],
+		b: [
+			S.alterColumn('public', 'users', 'c', { identity: identity('c_seq') }, {
+				identity: { from: null, to: identity('c_seq') },
+			}),
+		],
 		expect: 'conflict',
 	},
 	{
@@ -517,7 +548,7 @@ const cases: Case[] = [
 		expect: 'conflict',
 	},
 
-	// the facet paths of a privilege statement name its table, its grantee, its privilege type and its grantor
+	// the footprint of a privilege statement names its table, its grantee, its privilege type and its grantor
 	{
 		name: 'grant SELECT ∥ grant INSERT (same table and role) commute',
 		a: [S.grant('public', 'users', 'r', 'SELECT')],
@@ -994,28 +1025,28 @@ const cases: Case[] = [
 	},
 ];
 
-describe('facet commutativity — curated scenarios (postgres)', () => {
+describe('footprint commutativity — curated scenarios (postgres)', () => {
 	test.each(cases)('$name', async ({ a, b, expect: want }) => {
-		expect(await conflicts(a, b)).toBe(want === 'conflict');
+		expect(conflicts(a, b)).toBe(want === 'conflict');
 	});
 });
 
-// The rules treat the same statement on two branches as one change only when its SQL can run a second time.
+// The rules treat the same statement on two branches as one change only when its SQL is idempotent.
 describe('the same statement on both branches', () => {
 	const conflictsWithItself = (statement: JsonStatement) => conflicts([statement], [structuredClone(statement)]);
 
 	test('a recreate_index commutes with itself', async () => {
-		expect(await conflictsWithItself(build('recreate_index'))).toBe(false);
+		expect(conflictsWithItself(build('recreate_index'))).toBe(false);
 	});
 
 	test('an alter_pk with its DROP CONSTRAINT commutes, and one without it conflicts', async () => {
-		expect(await conflictsWithItself(build('alter_pk'))).toBe(false);
-		expect(await conflictsWithItself({ ...build('alter_pk'), deleted: true } as JsonStatement)).toBe(true);
+		expect(conflictsWithItself(build('alter_pk'))).toBe(false);
+		expect(conflictsWithItself({ ...build('alter_pk'), deleted: true } as JsonStatement)).toBe(true);
 	});
 
 	test('a statement kind whose SQL fails on the second run conflicts', async () => {
-		expect(await conflictsWithItself(build('add_column'))).toBe(true);
-		expect(await conflictsWithItself(build('create_index'))).toBe(true);
-		expect(await conflictsWithItself(build('drop_table'))).toBe(true);
+		expect(conflictsWithItself(build('add_column'))).toBe(true);
+		expect(conflictsWithItself(build('create_index'))).toBe(true);
+		expect(conflictsWithItself(build('drop_table'))).toBe(true);
 	});
 });

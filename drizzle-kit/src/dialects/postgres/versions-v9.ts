@@ -1,13 +1,14 @@
+import type { Footprint } from '../../commutativity/engine';
 import { originUUID } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
 import { type Delta, delta, findRow, parseEntityKey } from '../dialect';
+import { footprintsOf } from './commutativity';
 import { createDDL, fromEntities, type PostgresDDL, type PostgresEntities, type PostgresEntity } from './ddl';
 import { ddlDiff } from './diff';
 import { defaultNameForPK } from './grammar';
 import { applyDeltas, KeyCollisionError, startingState } from './reconstruct';
 import type { PostgresSnapshot, PostgresSnapshotV8 } from './snapshot';
-import type { SnapshotStatement } from './snapshot-statements';
 
 const nameOf = (row: { schema?: string; table?: string; name?: string }) =>
 	[row.schema, row.table, row.name].filter(Boolean).join('.');
@@ -58,15 +59,15 @@ const resolversOfRenameDeltas = (state: PostgresDDL, deltas: Delta[]) => {
 		mockResolver<PostgresEntities[K]>(renames.get(type) ?? new Set());
 };
 
-// Builds the `statements` of a converted snapshot from its starting state `start` and its `deltas`. The rename
+// Builds the `footprints` of a converted snapshot from its starting state `start` and its `deltas`. The rename
 // deltas become the rename decisions. `keepGeneratedNames` is false, so a drop and a create of a constraint
-// stay two statements, as in the SQL that drizzle-kit wrote for the migration.
-const statementsOf = async (start: PostgresDDL, deltas: Delta[]): Promise<SnapshotStatement[]> => {
+// stay two footprints, as in the SQL that drizzle-kit wrote for the migration.
+const footprintsOfDeltas = async (start: PostgresDDL, deltas: Delta[]): Promise<Footprint[]> => {
 	// `ddlDiff` changes both states that it gets, so `from` and `to` are separate clones of `start`.
 	const from = start.clone();
 	const to = start.clone();
 	const resolverOf = resolversOfRenameDeltas(to, deltas);
-	const { snapshotStatements } = await ddlDiff(
+	const { groupedStatements } = await ddlDiff(
 		from,
 		to,
 		resolverOf('schemas'),
@@ -86,7 +87,7 @@ const statementsOf = async (start: PostgresDDL, deltas: Delta[]): Promise<Snapsh
 		undefined,
 		false,
 	);
-	return snapshotStatements;
+	return footprintsOf(groupedStatements);
 };
 
 // Thrown by `upToV9` when the branches of an old merge gave one name to two different entities. The combined
@@ -119,7 +120,7 @@ export const upToV9 = async (
 				type: 'base',
 				...header,
 				prevIds: [originUUID],
-				statements: await statementsOf(createDDL(), creates),
+				footprints: await footprintsOfDeltas(createDDL(), creates),
 				ddl: state.entities.list(),
 			});
 			continue;
@@ -164,7 +165,7 @@ export const upToV9 = async (
 			type: 'diff',
 			...header,
 			prevIds,
-			statements: await statementsOf(start, deltas),
+			footprints: await footprintsOfDeltas(start, deltas),
 			deltas,
 		});
 	}

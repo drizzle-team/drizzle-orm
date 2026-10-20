@@ -9,7 +9,7 @@ import type {
 	TypeCast,
 } from 'mysql2/promise';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -78,10 +78,7 @@ export class SingleStoreDriverSession<
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: AnySingleStoreMapper,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T> {
 		const { client } = this;

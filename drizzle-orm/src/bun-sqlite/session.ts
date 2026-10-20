@@ -1,6 +1,7 @@
 /// <reference types="bun-types" />
 
 import type { Changes, Database } from 'bun:sqlite';
+import type { QueryMetadata } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
@@ -55,10 +56,7 @@ export class SQLiteBunSession<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 	): SQLiteAsyncPreparedQuery<T & { run: SQLiteBunRunResult }> {
 		let stmt: ReturnType<typeof this.client.query>;
 		try {

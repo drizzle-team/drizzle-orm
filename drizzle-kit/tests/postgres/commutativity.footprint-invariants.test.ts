@@ -1,15 +1,14 @@
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
-import { toSnapshotStatements } from 'src/dialects/postgres/convertor';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { expect, test } from 'vitest';
-import { build, rows } from './commutativity-statements';
+import { build, footprintsOfStatements, rows } from './commutativity-statements';
 
-// Verifies that the facet rules of `postgresCommutativity` meet general invariants for every statement in
+// Verifies that the footprint rules of `postgresCommutativity` meet general invariants for every statement in
 // `commutativity-statements.ts`. Statements on different objects commute, two changes of one object conflict,
 // and the verdict does not depend on the order of the branches. A drop of a schema, a table, a column or an enum
 // conflicts with the statements that use that object, and so does a rename or a move of a table. Extra
 // statements on a branch never remove a conflict. The expected verdicts follow from what a conflict means, so a
-// change of the facet rules must not change them.
+// change of the footprint rules must not change them.
 
 const TYPES = Object.keys(rows());
 
@@ -64,10 +63,9 @@ const REFERENCES_COLUMN = new Set([
 	'recreate_fk',
 ]);
 
-// Tells whether the facet rules see a conflict between two branches. The rules read a statement in the form
-// that a snapshot stores, so `toSnapshotStatements` converts the statements first.
-async function conflicts(a: JsonStatement[], b: JsonStatement[]): Promise<boolean> {
-	return !!(await postgresCommutativity.getReasonsFromStatements(toSnapshotStatements(a), toSnapshotStatements(b)));
+// Tells whether the footprints of two branches conflict.
+function conflicts(a: JsonStatement[], b: JsonStatement[]): boolean {
+	return !!postgresCommutativity.findConflict(footprintsOfStatements(a), footprintsOfStatements(b));
 }
 
 // `build` starts the name of every object that a statement changes with the prefix `A` or `B`. Statements
@@ -86,34 +84,34 @@ const COL_REF_CASES = [...REFERENCES_COLUMN].map((t) => ({ t }));
 // whole matrix as one list — a per-block name filter can't split the count.
 
 test.each(PAIRS)('disjoint commute: $t1 ∥ $t2', async ({ t1, t2 }) => {
-	expect(await conflicts([build(t1, A)], [build(t2, B)])).toBe(false);
+	expect(conflicts([build(t1, A)], [build(t2, B)])).toBe(false);
 });
 
-// The rules can treat two equal statements as one change. The `marker` field makes `other` a separate change
-// of the same object, and two separate changes of one object must conflict.
+// Two footprints with one `sqlHash` are one change. Another `sqlHash` makes `other` a separate change of the
+// same object, and two separate changes of one object must conflict.
 test.each(SELF)('self-conflict: $t ∥ $t', async ({ t }) => {
-	const [statement] = toSnapshotStatements([build(t, A)]);
-	const other = Object.assign(structuredClone(statement), { marker: true });
+	const [footprint] = footprintsOfStatements([build(t, A)]);
+	const other = { ...footprint, ...(footprint.sqlHash && { sqlHash: 'other' }) };
 
-	expect(await postgresCommutativity.getReasonsFromStatements([statement], [other])).toBeDefined();
+	expect(postgresCommutativity.findConflict([footprint], [other])).toBeDefined();
 });
 
 test.each(PAIRS)('symmetric: $t1 ∥ $t2', async ({ t1, t2 }) => {
-	const ab = await conflicts([build(t1, A)], [build(t2, A)]);
-	const ba = await conflicts([build(t2, A)], [build(t1, A)]);
+	const ab = conflicts([build(t1, A)], [build(t2, A)]);
+	const ba = conflicts([build(t2, A)], [build(t1, A)]);
 	expect(ab).toBe(ba);
 });
 
 test.each(UNDER_TABLE_CASES)('drop_table dominates: $t', async ({ t }) => {
-	expect(await conflicts([build('drop_table', A)], [build(t, A)])).toBe(true);
+	expect(conflicts([build('drop_table', A)], [build(t, A)])).toBe(true);
 });
 
 test.each(IN_SCHEMA_CASES)('drop_schema dominates: $t', async ({ t }) => {
-	expect(await conflicts([build('drop_schema', A)], [build(t, A)])).toBe(true);
+	expect(conflicts([build('drop_schema', A)], [build(t, A)])).toBe(true);
 });
 
 test.each(COL_REF_CASES)('drop_column dominates: $t', async ({ t }) => {
-	expect(await conflicts([build('drop_column', A)], [build(t, A)])).toBe(true);
+	expect(conflicts([build('drop_column', A)], [build(t, A)])).toBe(true);
 });
 
 // strict commutativity: renaming/moving a table breaks every reference to it,
@@ -124,26 +122,26 @@ const NAMES_NO_TABLE = new Set(['drop_index', 'rename_index']);
 test.each(UNDER_TABLE_CASES.filter(({ t }) => t !== 'rename_table' && t !== 'move_table' && !NAMES_NO_TABLE.has(t)))(
 	'rename_table conflicts with reference: $t',
 	async ({ t }) => {
-		expect(await conflicts([build('rename_table', A)], [build(t, A)])).toBe(true);
+		expect(conflicts([build('rename_table', A)], [build(t, A)])).toBe(true);
 	},
 );
 test.each(UNDER_TABLE_CASES.filter(({ t }) => t !== 'rename_table' && t !== 'move_table'))(
 	'move_table conflicts with reference: $t',
 	async ({ t }) => {
-		expect(await conflicts([build('move_table', A)], [build(t, A)])).toBe(true);
+		expect(conflicts([build('move_table', A)], [build(t, A)])).toBe(true);
 	},
 );
 
 test('drop_enum dominates a column of that enum type', async () => {
-	expect(await conflicts([build('drop_enum', A)], [build('add_column:enum', A)])).toBe(true);
+	expect(conflicts([build('drop_enum', A)], [build('add_column:enum', A)])).toBe(true);
 });
 
 test('monotonicity: adding statements never removes a conflict', async () => {
 	// a known conflict: drop_table(A) ∥ add_column(A)
-	expect(await conflicts([build('drop_table', A)], [build('add_column', A)])).toBe(true);
+	expect(conflicts([build('drop_table', A)], [build('add_column', A)])).toBe(true);
 	// same conflict must persist when each branch carries extra disjoint work
 	expect(
-		await conflicts(
+		conflicts(
 			[build('drop_table', A), build('create_sequence', B)],
 			[build('add_column', A), build('create_view', B)],
 		),

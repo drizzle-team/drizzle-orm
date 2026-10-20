@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { integer, pgEnum, pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
-import { fromJson, toSnapshotStatements } from 'src/dialects/postgres/convertor';
+import { fromJson } from 'src/dialects/postgres/convertor';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
@@ -12,7 +12,7 @@ import matrixData from './commutativity-matrix.json';
 import { build, type NeededObject, rows } from './commutativity-statements';
 import { diff, prepareTestDatabase } from './mocks';
 
-// Verifies the facet rules of `postgresCommutativity` against a real database. A pair of branches commutes when
+// Verifies the footprint rules of `postgresCommutativity` against a real database. A pair of branches commutes when
 // postgres runs their SQL in both orders and both orders end at the same schema. The tests run the fork scenarios
 // of `commutativity-fixtures.ts`, column changes from the real diff, and every cell of `commutativity-matrix.json`.
 // A matrix cell where the rules and postgres disagree must be in `knownExceptions`. The database is PGlite, or
@@ -70,7 +70,7 @@ afterAll(async () => {
 	await clear?.();
 });
 
-describe('facet model vs a real database', () => {
+describe('footprint model vs a real database', () => {
 	test('report', async () => {
 		const parentSql = (await diff({}, parent, [])).sqlStatements;
 		const falseNegatives: string[] = [];
@@ -82,12 +82,9 @@ describe('facet model vs a real database', () => {
 			const ba = await applyBoth(parentSql, sb, sa);
 			const commutes = ab.ok && ba.ok && ab.hash === ba.hash;
 
-			const stA = (await diff(parent, mutations[a], [])).statements;
-			const stB = (await diff(parent, mutations[b], [])).statements;
-			const found = await postgresCommutativity.getReasonsFromStatements(
-				toSnapshotStatements(stA),
-				toSnapshotStatements(stB),
-			);
+			const footprintsA = (await diff(parent, mutations[a], [])).footprints;
+			const footprintsB = (await diff(parent, mutations[b], [])).footprints;
+			const found = postgresCommutativity.findConflict(footprintsA, footprintsB);
 			if (!found && !commutes) falseNegatives.push(name);
 		}
 
@@ -112,13 +109,12 @@ describe('the same change on two branches, against a real database', () => {
 		[from, to],
 	) => {
 		const base = (await diff({}, from, [])).sqlStatements;
-		const { sqlStatements, statements } = await diff(from, to, []);
-		const stored = toSnapshotStatements(statements);
+		const { sqlStatements, footprints } = await diff(from, to, []);
 
-		expect(stored.map((it) => it.type)).toStrictEqual(['alter_column']);
+		expect(footprints.map((it) => it.statementType)).toStrictEqual(['alter_column']);
 		expect(await applyBoth(base, sqlStatements, [])).toMatchObject({ ok: true });
 		expect(await applyBoth(base, sqlStatements, sqlStatements)).toMatchObject({ ok: false });
-		expect(await postgresCommutativity.getReasonsFromStatements(stored, structuredClone(stored))).toBeDefined();
+		expect(postgresCommutativity.findConflict(footprints, structuredClone(footprints))).toBeDefined();
 	});
 });
 
@@ -136,7 +132,7 @@ describe('changes of one column on two branches vs a real database', () => {
 	const expression = sql`'x'`;
 	const renameMood = ['public.mood->public.feeling'];
 
-	// `rules` is the expected verdict of the facet rules, and `postgres` is the expected verdict of the
+	// `rules` is the expected verdict of the footprint rules, and `postgres` is the expected verdict of the
 	// database. `true` means that the two changes commute.
 	const cases: {
 		name: string;
@@ -271,10 +267,7 @@ describe('changes of one column on two branches vs a real database', () => {
 
 		const ab = await applyBoth(baseSql, left.sqlStatements, right.sqlStatements);
 		const ba = await applyBoth(baseSql, right.sqlStatements, left.sqlStatements);
-		const found = await postgresCommutativity.getReasonsFromStatements(
-			toSnapshotStatements(left.statements),
-			toSnapshotStatements(right.statements),
-		);
+		const found = postgresCommutativity.findConflict(left.footprints, right.footprints);
 
 		expect({ rules: !found, postgres: ab.ok && ba.ok && ab.hash === ba.hash }).toStrictEqual({ rules, postgres });
 	});
