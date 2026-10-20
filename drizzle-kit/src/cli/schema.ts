@@ -4,7 +4,7 @@ import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { dialects } from '../utils/schemaValidator';
 import '../@types/utils';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
@@ -1261,9 +1261,14 @@ export const skills = command({
 	options: {},
 	subcommands: [skillsVersion],
 	handler: async () => {
-		const candidates = [resolve(__dirname, 'skills'), resolve(__dirname, '../../skills')];
-		const skillsDir = candidates.find((p) => existsSync(p));
-		if (!skillsDir) {
+		// Look for `package.json`'s folder and grab skills from there
+		// prevents build stucture changes from breaking skills' loading
+		let packageRoot = __dirname;
+		while (!existsSync(resolve(packageRoot, 'package.json')) && dirname(packageRoot) !== packageRoot) {
+			packageRoot = dirname(packageRoot);
+		}
+		const skillsDir = resolve(packageRoot, 'skills');
+		if (!existsSync(skillsDir)) {
 			process.stderr.write('Could not locate bundled skills directory.\n');
 			process.exit(1);
 		}
