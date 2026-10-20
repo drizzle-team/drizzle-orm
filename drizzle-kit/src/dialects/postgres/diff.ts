@@ -15,7 +15,6 @@ import type {
 	Enum,
 	ForeignKey,
 	Index,
-	IndexColumn,
 	Policy,
 	PostgresDDL,
 	PostgresEntities,
@@ -156,18 +155,6 @@ export const ddlDiff = async (
 
 	for (const rename of orMovedTables) {
 		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
-
-		// Applies the rename to the rows of `ddl2` that still name the old table. Drizzle Studio builds the new
-		// state from the form of one table and copies the rest, so the foreign keys of other tables and the
-		// policies of this table can keep the old name. A new state from schema files has no such rows.
-		ddl2.fks.update({
-			set: { schemaTo: rename.to.schema, tableTo: rename.to.name },
-			where: { schemaTo: rename.from.schema, tableTo: rename.from.name },
-		});
-		ddl2.entities.update({
-			set: { schema: rename.to.schema, table: rename.to.name },
-			where: { schema: rename.from.schema, table: rename.from.name },
-		});
 	}
 
 	// after table renames
@@ -195,23 +182,6 @@ export const ddlDiff = async (
 
 	for (const rename of columnRenames) {
 		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
-
-		// Applies the rename to the indexes and constraints of `ddl2` that still name the old column. The form
-		// of Drizzle Studio renames a column only in the column list. A new state from schema files has no such
-		// rows.
-		const newNameOf = (column: string) => column === rename.from.name ? rename.to.name : column;
-		const inTable = { schema: rename.to.schema, table: rename.to.table };
-		ddl2.indexes.update({
-			set: { columns: (it: IndexColumn) => it.isExpression ? it : { ...it, value: newNameOf(it.value) } },
-			where: inTable,
-		});
-		ddl2.pks.update({ set: { columns: newNameOf }, where: inTable });
-		ddl2.uniques.update({ set: { columns: newNameOf }, where: inTable });
-		ddl2.fks.update({ set: { columns: newNameOf }, where: inTable });
-		ddl2.fks.update({
-			set: { columnsTo: newNameOf },
-			where: { schemaTo: rename.to.schema, tableTo: rename.to.table },
-		});
 	}
 
 	if (keepGeneratedNames) {

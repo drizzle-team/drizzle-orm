@@ -5,7 +5,7 @@ import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames, sortCreateViews } from '../utils';
 import type { SchemaMetadata } from '../utils';
 import { fromJson } from './convertor';
-import type { Column, IndexColumn, SQLiteDDL, SqliteEntities } from './ddl';
+import type { Column, SQLiteDDL, SqliteEntities } from './ddl';
 import { tableFromDDL } from './ddl';
 import { defaultsCommutative } from './grammar';
 import type { JsonCreateViewStatement, JsonDropViewStatement, JsonStatement } from './statements';
@@ -50,11 +50,6 @@ export const ddlDiff = async (
 			set: { name: renamed.to.name },
 			where: { name: renamed.from.name },
 		});
-
-		// Sets the new table name in the foreign keys of `ddl2`. Drizzle Studio copies every table except the
-		// edited one from the old state, so the foreign keys of other tables can still name the old table.
-		// `ddl2` holds no table with the old name, so every such name is stale.
-		ddl2.fks.update({ set: { tableTo: renamed.to.name }, where: { tableTo: renamed.from.name } });
 	}
 
 	const columnsDiff = diff(ddl1, ddl2, 'columns').filter((it) =>
@@ -83,20 +78,6 @@ export const ddlDiff = async (
 			set: { name: rename.to.name },
 			where: { table: rename.from.table, name: rename.from.name },
 		});
-
-		// Sets the new column name in the indexes and the constraints of `ddl2`. The form of Drizzle Studio
-		// renames a column only in the column list, so these can still name the old column. `ddl2` holds no
-		// column with the old name in this table, so every such name is stale.
-		const newNameOf = (column: string) => column === rename.from.name ? rename.to.name : column;
-		const inTable = { table: rename.to.table };
-		ddl2.indexes.update({
-			set: { columns: (it: IndexColumn) => it.isExpression ? it : { ...it, value: newNameOf(it.value) } },
-			where: inTable,
-		});
-		ddl2.pks.update({ set: { columns: newNameOf }, where: inTable });
-		ddl2.uniques.update({ set: { columns: newNameOf }, where: inTable });
-		ddl2.fks.update({ set: { columns: newNameOf }, where: inTable });
-		ddl2.fks.update({ set: { columnsTo: newNameOf }, where: { tableTo: rename.to.table } });
 	}
 
 	const createdFilteredColumns = columnsToCreate.filter((it) => !it.generated || it.generated.type === 'virtual');
