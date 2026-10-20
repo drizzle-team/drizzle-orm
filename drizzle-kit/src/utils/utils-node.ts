@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs';
-import { getTsconfig } from 'get-tsconfig';
+import { createPathsMatcher, getTsconfig } from 'get-tsconfig';
 import { sync as globSync } from 'glob';
 import { dirname, join, resolve } from 'path';
 import { parse, pathToFileURL } from 'url';
@@ -141,6 +141,15 @@ const getAliasesForTsconfig = (baseDir: string): Record<string, string> | undefi
 	const tsconfigBaseUrl = tsconfig.config.compilerOptions?.baseUrl ?? '.';
 	const tsconfigDir = dirname(tsconfig.path);
 
+	// "paths" that come from an extended config (e.g. SvelteKit's generated `.svelte-kit/tsconfig.json`)
+	// are relative to that config, not to tsconfigDir. get-tsconfig keeps track of where they were declared
+	let pathsMatcher: ReturnType<typeof createPathsMatcher> = null;
+	try {
+		pathsMatcher = createPathsMatcher(tsconfig);
+	} catch {
+		// it throws on targets tsc rejects too (no leading "./" and no "baseUrl"), those resolve as before
+	}
+
 	const aliases = Object.fromEntries(
 		Object.entries(tsconfigPaths).flatMap(([key, values]) => {
 			const targets = (values ?? []).filter((value): value is string => Boolean(value));
@@ -162,13 +171,17 @@ const getAliasesForTsconfig = (baseDir: string): Record<string, string> | undefi
 			}
 
 			const aliasKey = key.endsWith('/*') ? key.slice(0, -1) : key;
-			const resolvedTargets = targets.map((target) => {
-				if (supportsTrailingWildcard) {
-					const targetPrefix = target.slice(0, -1);
-					return resolve(tsconfigDir, tsconfigBaseUrl, targetPrefix);
-				}
-				return resolve(tsconfigDir, tsconfigBaseUrl, target);
-			});
+			// for "#lib/*" this asks for "#lib/", the "*" matches the empty string
+			const matchedTargets = pathsMatcher?.(aliasKey) ?? [];
+			const resolvedTargets = matchedTargets.length > 0
+				? matchedTargets.map((target) => resolve(target))
+				: targets.map((target) => {
+					if (supportsTrailingWildcard) {
+						const targetPrefix = target.slice(0, -1);
+						return resolve(tsconfigDir, tsconfigBaseUrl, targetPrefix);
+					}
+					return resolve(tsconfigDir, tsconfigBaseUrl, target);
+				});
 
 			const selectedTarget = resolvedTargets.find((candidate) => existsSync(candidate)) ?? resolvedTargets[0]!;
 			return [[aliasKey, selectedTarget]];
