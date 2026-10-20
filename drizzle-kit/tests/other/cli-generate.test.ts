@@ -1,7 +1,9 @@
 import { test as brotest } from '@drizzle-team/brocli';
-import { unlinkSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, assert, expect, test } from 'vitest';
+import { afterEach, assert, expect, onTestFinished, test } from 'vitest';
+import { generate as sdkGenerate } from '../../src/cli-sdk';
 import { GenerateConfig } from '../../src/cli/commands/utils';
 import { HintsHandler } from '../../src/cli/hints';
 import { generate } from '../../src/cli/schema';
@@ -61,6 +63,7 @@ test('generate #1', async (t) => {
 
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -85,6 +88,7 @@ test('generate #2', async (t) => {
 
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -106,6 +110,7 @@ test('generate #3', async (t) => {
 
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -128,6 +133,7 @@ test('generate #4', async (t) => {
 
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -149,6 +155,7 @@ test('generate #5', async (t) => {
 
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -170,6 +177,7 @@ test('generate #7', async (t) => {
 
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -192,6 +200,7 @@ test('generate #8', async (t) => {
 
 		driver: 'expo',
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -213,6 +222,7 @@ test('generate #9', async (t) => {
 
 		driver: 'durable-sqlite',
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -238,6 +248,7 @@ test('generate #10', async (t) => {
 
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: false,
 		hints: expect.any(HintsHandler),
 	});
@@ -254,6 +265,7 @@ test('generate #10 tsconfig paths', async () => {
 		expect(res.options).toStrictEqual({
 			dialect: 'postgresql',
 			ignoreConflicts: false,
+			fixConflicts: false,
 			name: undefined,
 			custom: false,
 			breakpoints: true,
@@ -292,6 +304,7 @@ test('generate --explain', async (t) => {
 		bundle: false,
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		explain: true,
 		hints: expect.any(HintsHandler),
 	});
@@ -344,6 +357,24 @@ test('err #8', async (t) => {
 	assert.equal(res.type, 'error');
 });
 
+test('generate rejects --explain with --custom and writes nothing', async () => {
+	const out = mkdtempSync(join(tmpdir(), 'dk-generate-explain-custom-'));
+	onTestFinished(() => rmSync(out, { recursive: true, force: true }));
+
+	const result = await sdkGenerate({ dialect: 'postgresql', schema: 'schema.ts', out, explain: true, custom: true });
+
+	expect(result).toStrictEqual({
+		status: 'error',
+		error: {
+			code: 'unsupported_command_dialect_error',
+			command: 'generate',
+			option: 'explain',
+			conflictsWith: 'custom',
+		},
+	});
+	expect(readdirSync(out)).toStrictEqual([]);
+});
+
 // should point to test/cli
 const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
 test('validate config #1', async (t) => {
@@ -373,6 +404,7 @@ test('validate config #1', async (t) => {
 		out: 'drizzle',
 		driver: undefined,
 		ignoreConflicts: false,
+		fixConflicts: false,
 		name: undefined,
 		explain: false,
 		hints: expect.any(HintsHandler) as any,
@@ -414,6 +446,7 @@ test('validate config #2', async (t) => {
 		out: 'test',
 		driver: 'pglite',
 		ignoreConflicts: false,
+		fixConflicts: false,
 		name: undefined,
 		explain: false,
 		hints: expect.any(HintsHandler) as any,
@@ -481,6 +514,7 @@ test('validate config #5', async (t) => {
 		out: 'drizzle',
 		driver: 'd1-http',
 		ignoreConflicts: false,
+		fixConflicts: false,
 		name: undefined,
 		explain: false,
 		hints: expect.any(HintsHandler) as any,

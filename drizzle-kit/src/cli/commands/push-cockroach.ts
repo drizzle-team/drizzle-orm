@@ -186,6 +186,9 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], hints
 	}, quoteTable);
 
 	const filtered = jsonStatements.filter((it) => {
+		// discussion -
+		if (it.type === 'drop_view' && it.cause) return false;
+
 		/*
 			drizzle-kit push does not handle alternations of views definitions
 			just like with check constraints we can only reliably handle this with introduction of shadow db

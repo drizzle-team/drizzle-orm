@@ -47,47 +47,14 @@ export const ddlDiff = async (
 
 	for (const renamed of renamedTables) {
 		ddl1.tables.update({
-			set: {
-				name: renamed.to.name,
-			},
-			where: {
-				name: renamed.from.name,
-			},
+			set: { name: renamed.to.name },
+			where: { name: renamed.from.name },
 		});
 
-		ddl1.fks.update({
-			set: {
-				tableTo: renamed.to.name,
-			},
-			where: {
-				tableTo: renamed.from.name,
-			},
-		});
-		ddl2.fks.update({
-			set: {
-				tableTo: renamed.to.name,
-			},
-			where: {
-				tableTo: renamed.from.name,
-			},
-		});
-		ddl1.fks.update({
-			set: {
-				table: renamed.to.name,
-			},
-			where: {
-				table: renamed.from.name,
-			},
-		});
-
-		ddl1.entities.update({
-			set: {
-				table: renamed.to.name,
-			},
-			where: {
-				table: renamed.from.name,
-			},
-		});
+		// Sets the new table name in the foreign keys of `ddl2`. Drizzle Studio copies every table except the
+		// edited one from the old state, so the foreign keys of other tables can still name the old table.
+		// `ddl2` holds no table with the old name, so every such name is stale.
+		ddl2.fks.update({ set: { tableTo: renamed.to.name }, where: { tableTo: renamed.from.name } });
 	}
 
 	const columnsDiff = diff(ddl1, ddl2, 'columns').filter((it) =>
@@ -113,88 +80,23 @@ export const ddlDiff = async (
 
 	for (const rename of columnRenames) {
 		ddl1.columns.update({
-			set: {
-				name: rename.to.name,
-			},
-			where: {
-				table: rename.from.table,
-				name: rename.from.name,
-			},
+			set: { name: rename.to.name },
+			where: { table: rename.from.table, name: rename.from.name },
 		});
 
-		// DDL2 updates are needed for Drizzle Studio
-		const update1 = {
-			set: {
-				columns: (it: IndexColumn) => {
-					if (!it.isExpression && it.value === rename.from.name) {
-						return { ...it, value: rename.to.name };
-					}
-					return it;
-				},
-			},
-			where: {
-				table: rename.from.table,
-			},
-		} as const;
-
-		ddl1.indexes.update(update1);
-		ddl2.indexes.update(update1);
-
-		const update2 = {
-			set: {
-				columns: (it: string) => it === rename.from.name ? rename.to.name : it,
-			},
-			where: {
-				table: rename.from.table,
-			},
-		} as const;
-		ddl1.fks.update(update2);
-		ddl2.fks.update(update2);
-
-		const update3 = {
-			set: {
-				columnsTo: (it: string) => it === rename.from.name ? rename.to.name : it,
-			},
-			where: {
-				tableTo: rename.from.table,
-			},
-		} as const;
-		ddl1.fks.update(update3);
-		ddl2.fks.update(update3);
-
-		const update4 = {
-			set: {
-				columns: (it: string) => it === rename.from.name ? rename.to.name : it,
-			},
-			where: {
-				table: rename.from.table,
-			},
-		};
-		ddl1.pks.update(update4);
-		ddl2.pks.update(update4);
-
-		const update5 = {
-			set: {
-				columns: (it: string) => it === rename.from.name ? rename.to.name : it,
-			},
-			where: {
-				table: rename.from.table,
-			},
-		};
-		ddl1.uniques.update(update5);
-		ddl2.uniques.update(update5);
-
-		const update6 = {
-			set: {
-				value: rename.to.name,
-			},
-			where: {
-				table: rename.from.table,
-				value: rename.from.name,
-			},
-		} as const;
-		ddl1.checks.update(update6);
-		ddl2.checks.update(update6);
+		// Sets the new column name in the indexes and the constraints of `ddl2`. The form of Drizzle Studio
+		// renames a column only in the column list, so these can still name the old column. `ddl2` holds no
+		// column with the old name in this table, so every such name is stale.
+		const newNameOf = (column: string) => column === rename.from.name ? rename.to.name : column;
+		const inTable = { table: rename.to.table };
+		ddl2.indexes.update({
+			set: { columns: (it: IndexColumn) => it.isExpression ? it : { ...it, value: newNameOf(it.value) } },
+			where: inTable,
+		});
+		ddl2.pks.update({ set: { columns: newNameOf }, where: inTable });
+		ddl2.uniques.update({ set: { columns: newNameOf }, where: inTable });
+		ddl2.fks.update({ set: { columns: newNameOf }, where: inTable });
+		ddl2.fks.update({ set: { columnsTo: newNameOf }, where: { tableTo: rename.to.table } });
 	}
 
 	const createdFilteredColumns = columnsToCreate.filter((it) => !it.generated || it.generated.type === 'virtual');

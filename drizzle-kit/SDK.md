@@ -101,15 +101,19 @@ type CheckResponse = Awaited<ReturnType<typeof check>>;
 const response: CheckResponse = await check({
   dialect: 'postgresql',
   out: './drizzle',
+  schema: './src/db/schema.ts',
 });
 
 if (response.status === 'ok') {
   console.log(`Migrations folder is valid (${response.dialect})`);
+  for (const warning of response.warnings ?? []) console.warn(`${warning.kind}: ${warning.message}`);
 } else if (response.status === 'error') {
   console.error(`check failed (${response.error.code})`);
   process.exit(1);
 }
 ```
+
+For postgresql, `check` compares the schema with the migrations when it gets a schema path, from `schema` or from the config file. An `ok` response then can have `warnings`, each `{ kind, message }`. The kinds `schema_changed` and `merge_needed` mean that `generate` would write a migration: the schema differs from the migrations, or the branches of the folder need a merge migration. The kind `not_compared` means that the schema could not be loaded or compared. `warnings` is absent when there is nothing to report.
 
 ## Minimal `pull` example
 
@@ -127,7 +131,7 @@ const response: PullResponse = await pull({
 
 if (response.status === 'ok') {
   console.log(`Wrote ${response.schemaPath} and ${response.snapshotPath}`);
-  // `relationsPath` is present for every dialect except mssql; `migrationPath` only with `init: true`.
+  // `relationsPath` is present for every dialect except mssql; `migrationPath` only when `out` had no migrations yet.
   if ('relationsPath' in response) {
     console.log(`Relations: ${response.relationsPath}`);
   }
@@ -225,6 +229,15 @@ Notes:
 - `hints` is a raw `Hint[]` (the CLI `--hints` flag is the JSON-string form of the same array). For long hint sets, use `hintsFile` with a path to a JSON file instead.
 - A second `missing_hints` response after providing hints means the hint set was incomplete or invalid — see [JSON_CONTRACT.md Error codes](./JSON_CONTRACT.md#error-codes) for `invalid_hints` diagnostics.
 - The same flow applies to `push` — substitute `push` and its inferred `Awaited<ReturnType<typeof push>>` response everywhere.
+
+## Handling migration conflicts
+
+For postgresql, mysql, sqlite and turso, `generate` and `check` return an `error` envelope with `code: 'check_error'` and `kind: 'conflicts'` when two migration branches conflict. The other dialects have no branch check. For postgresql, `error.fix` lists the folders that `fixConflicts` would delete. Two options change this behavior:
+
+- `fixConflicts` (`generate` only, postgresql only) deletes the conflicting migrations and all their children, then generates one new migration. It is the SDK form of `--fix-conflicts`. With `explain: true`, it deletes nothing. If the folder has conflicts, the result has `fix` in place of `deleted_migrations`. Every database that ran a deleted migration must be reset.
+- `ignoreConflicts` (`generate` and `check`) skips the conflict error for mysql, sqlite and turso. `generate` writes the merge migration anyway, and `check` returns `ok`. It is the SDK form of `--ignore-conflicts`.
+
+`fixConflicts` with any dialect except postgresql, or `ignoreConflicts` with postgresql, returns `unsupported_command_dialect_error`. The full rules are in [JSON_CONTRACT.md `check` conflicts](./JSON_CONTRACT.md#check-conflicts).
 
 ## Cross-references
 

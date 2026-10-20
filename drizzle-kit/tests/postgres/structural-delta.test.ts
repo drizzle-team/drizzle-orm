@@ -1,0 +1,398 @@
+import { sql } from 'drizzle-orm';
+import {
+	check,
+	foreignKey,
+	index,
+	integer,
+	pgEnum,
+	pgMaterializedView,
+	pgPolicy,
+	pgRole,
+	pgSchema,
+	pgSequence,
+	pgTable,
+	pgView,
+	primaryKey,
+	text,
+	unique,
+	uniqueIndex,
+	varchar,
+} from 'drizzle-orm/pg-core';
+import { normalizeDDL } from 'src/dialects/ddl-canonical';
+import { delta } from 'src/dialects/dialect';
+import { createDDL } from 'src/dialects/postgres/ddl';
+import { describe, expect, test } from 'vitest';
+import { apply, diff, drizzleToDDL } from './mocks';
+
+// Verifies that `delta` and `apply` turn one postgres DDL state into another for every entity type, in both
+// directions, and that `apply` does not change its base state.
+// It also checks that every entity gets its own key, that `normalizeDDL` ignores the order of rows and fields,
+// and that `validate` rejects names that every object inherits.
+// The rename tests check the rename deltas from `ddl.rename` and `ddlDiff`, and how `apply` handles them.
+// The states come from drizzle schemas through `drizzleToDDL`, with no database.
+
+// A DDL instance (for delta/apply, which read the engine's identity generators) and its
+// materialized rows (for canonical comparison, which is identity-independent over the set).
+const ddlOf = (schema: any) => drizzleToDDL(schema).ddl;
+const rowsOf = (schema: any) => drizzleToDDL(schema).ddl.entities.list();
+// Two ddls are equal iff their canonical forms are — exact, no hashing.
+const eq = (a: any, b: any) =>
+	normalizeDDL(a.entities.list()).join('\n') === normalizeDDL(b.entities.list()).join('\n');
+
+/**
+ * Scenarios are keyed by ENTITY type, not statement type. Structural deltas do not
+ * know statements exist, so what has to be covered is the entity model — roughly a
+ * dozen shapes rather than 59 statement cases.
+ */
+const users = pgTable('users', { id: integer('id'), email: varchar('email') });
+const other = pgSchema('other');
+const mood = pgEnum('mood', ['ok', 'sad']);
+const mood3 = pgEnum('mood', ['ok', 'sad', 'happy']);
+const admin = pgRole('admin');
+
+const scenarios: Record<string, [any, any]> = {
+	'table added': [{ users }, { users, orders: pgTable('orders', { id: integer('id') }) }],
+	'table dropped': [{ users, orders: pgTable('orders', { id: integer('id') }) }, { users }],
+	'column added': [{ users }, {
+		users: pgTable('users', { id: integer('id'), email: varchar('email'), age: integer('age') }),
+	}],
+	'column altered (notNull)': [{ users }, {
+		users: pgTable('users', { id: integer('id'), email: varchar('email').notNull() }),
+	}],
+	'column type changed': [{ users }, { users: pgTable('users', { id: integer('id'), email: text('email') }) }],
+	'column default changed': [{ users }, {
+		users: pgTable('users', { id: integer('id'), email: varchar('email').default('x') }),
+	}],
+	'column generated added': [
+		{ users },
+		{ users: pgTable('users', { id: integer('id'), email: varchar('email').generatedAlwaysAs(sql`'x'`) }) },
+	],
+	'index added': [
+		{ users },
+		{ users: pgTable('users', { id: integer('id'), email: varchar('email') }, (t) => [index('ix').on(t.email)]) },
+	],
+	'unique index added': [
+		{ users },
+		{
+			users: pgTable('users', { id: integer('id'), email: varchar('email') }, (t) => [uniqueIndex('uix').on(t.email)]),
+		},
+	],
+	'pk added': [
+		{ users },
+		{
+			users: pgTable('users', { id: integer('id'), email: varchar('email') }, (t) => [primaryKey({ columns: [t.id] })]),
+		},
+	],
+	'unique constraint added': [
+		{ users },
+		{ users: pgTable('users', { id: integer('id'), email: varchar('email') }, (t) => [unique('uq').on(t.email)]) },
+	],
+	'check added': [
+		{ users },
+		{ users: pgTable('users', { id: integer('id'), email: varchar('email') }, (t) => [check('ck', sql`${t.id} > 0`)]) },
+	],
+	'fk added': [
+		{
+			users,
+			orders: pgTable('orders', { id: integer('id'), userId: integer('user_id') }),
+		},
+		{
+			users: pgTable('users', { id: integer('id').primaryKey(), email: varchar('email') }),
+			orders: pgTable('orders', { id: integer('id'), userId: integer('user_id') }, (t) => [
+				foreignKey({ columns: [t.userId], foreignColumns: [users.id], name: 'fk' }),
+			]),
+		},
+	],
+	'schema added': [{ users }, { users, other }],
+	'table moved to another schema': [
+		{ users, other },
+		{ other, moved: other.table('users', { id: integer('id'), email: varchar('email') }) },
+	],
+	'enum added': [{ users }, { users, mood }],
+	'enum values appended': [{ users, mood }, { users, mood: mood3 }],
+	'sequence added': [{ users }, { users, seq: pgSequence('seq', { startWith: 1 }) }],
+	'view added': [{ users }, { users, v: pgView('v').as((qb) => qb.select().from(users)) }],
+	'materialized view added': [
+		{ users },
+		{ users, mv: pgMaterializedView('mv').as((qb) => qb.select().from(users)) },
+	],
+	'role added': [{ users }, { users, admin }],
+	'policy added': [
+		{ users },
+		{
+			admin,
+			users: pgTable('users', { id: integer('id'), email: varchar('email') }, () => [
+				pgPolicy('pol', { for: 'select', to: admin }),
+			]),
+		},
+	],
+};
+
+describe('structural deltas round-trip every entity type', () => {
+	for (const [name, [from, to]] of Object.entries(scenarios)) {
+		test(name, () => {
+			const A = ddlOf(from);
+			const B = ddlOf(to);
+
+			// The delta must be non-trivial, or the scenario proves nothing.
+			const deltas = delta(A, B);
+			expect(deltas.length).toBeGreaterThan(0);
+
+			expect(normalizeDDL(apply(A, deltas).entities.list())).toStrictEqual(normalizeDDL(B.entities.list()));
+
+			// ...and backwards, which exercises `drop` and the reverse alters.
+			const back = delta(B, A);
+			expect(normalizeDDL(apply(B, back).entities.list())).toStrictEqual(normalizeDDL(A.entities.list()));
+
+			// apply is pure — the base is never mutated.
+			expect(eq(A, ddlOf(from))).toBe(true);
+		});
+	}
+});
+
+describe('entity identity is injective (no collisions)', () => {
+	// Every entity of a scenario must get its own key. `pushAll` returns CONFLICT when two rows share a key,
+	// so the status OK shows that the keys differ.
+	for (const [name, [from, to]] of Object.entries(scenarios)) {
+		test(name, () => {
+			expect(createDDL().entities.pushAll(rowsOf(from)).status).toBe('OK');
+			expect(createDDL().entities.pushAll(rowsOf(to)).status).toBe('OK');
+		});
+	}
+
+	test('a pk and a unique constraint sharing one name on one table', () => {
+		// Postgres shares a constraint namespace across pks/uniques/fks/checks, but the
+		// engine key includes entityType, so same-named different-typed constraints do NOT
+		// collide. Pinning that, since it is the nearest miss.
+		const t = pgTable('t', { id: integer('id') }, (x) => [
+			primaryKey({ name: 'same', columns: [x.id] }),
+			unique('same').on(x.id),
+		]);
+		expect(createDDL().entities.pushAll(rowsOf({ t })).status).toBe('OK');
+	});
+});
+
+describe('nameless entities (privileges) key off the whole row', () => {
+	// A grant has no name; the engine keys it by (schema, table, grantor, grantee, type).
+	// The alter delta must therefore take its key from the WHOLE new row ($right), not the
+	// bare alter row which only carries the changed field — this is the regression guard for
+	// that contract. If _diff ever stops attaching $right, this collapses and fails here.
+	test('a grantability change is a single, correctly-keyed alter', () => {
+		const A = createDDL();
+		A.privileges.push({
+			schema: 'public',
+			table: 't',
+			grantor: 'g1',
+			grantee: 'g2',
+			type: 'SELECT',
+			isGrantable: false,
+		});
+		const B = createDDL();
+		B.privileges.push({
+			schema: 'public',
+			table: 't',
+			grantor: 'g1',
+			grantee: 'g2',
+			type: 'SELECT',
+			isGrantable: true,
+		});
+
+		const d = delta(A, B);
+		expect(d).toHaveLength(1);
+		expect(d[0].op).toBe('alter');
+		expect((d[0] as any).set).toStrictEqual({ isGrantable: true });
+
+		expect(eq(apply(A, d), B)).toBe(true);
+		expect(eq(apply(B, delta(B, A)), A)).toBe(true);
+	});
+
+	test('two grants that differ only by grantee are distinct, not a collision', () => {
+		const A = createDDL();
+		A.privileges.push({
+			schema: 'public',
+			table: 't',
+			grantor: 'g1',
+			grantee: 'g2',
+			type: 'SELECT',
+			isGrantable: false,
+		});
+		A.privileges.push({
+			schema: 'public',
+			table: 't',
+			grantor: 'g1',
+			grantee: 'g3',
+			type: 'SELECT',
+			isGrantable: false,
+		});
+		expect(A.privileges.list().length).toBe(2);
+	});
+});
+
+describe('canonical form', () => {
+	test('depends on meaning, not on key or entity order', () => {
+		const a = rowsOf({ users });
+		// Same entities, reversed order, and every object's keys reversed too.
+		const shuffled = [...a].reverse().map((e) =>
+			Object.fromEntries(Object.entries(e).reverse()) as Record<string, any>
+		);
+		expect(normalizeDDL(shuffled)).toStrictEqual(normalizeDDL(a));
+	});
+
+	test('changes when any field changes', () => {
+		const a = rowsOf({ users });
+		const b = rowsOf({ users: pgTable('users', { id: integer('id'), email: varchar('email').notNull() }) });
+		expect(normalizeDDL(a)).not.toStrictEqual(normalizeDDL(b));
+	});
+});
+
+describe('validate', () => {
+	const table = { entityType: 'tables', schema: 'public', name: 'users', isRlsEnabled: false };
+
+	test('rejects an entity type that is a name every object inherits', () => {
+		const ddl = createDDL();
+
+		expect(ddl.entities.validate(table)).toBe(true);
+		for (const entityType of ['constructor', 'toString', '__proto__']) {
+			expect(ddl.entities.validate({ entityType })).toBe(false);
+		}
+	});
+
+	// `JSON.parse` makes `__proto__` an own field of the row. An object literal `{ __proto__: {} }` would set
+	// the prototype and add no field.
+	test('rejects a field that is a name every object inherits', () => {
+		const ddl = createDDL();
+
+		expect(ddl.tables.validate(table)).toBe(true);
+		for (const field of ['{"constructor":null}', '{"toString":{}}', '{"__proto__":{}}']) {
+			const row = { ...table, ...JSON.parse(field) };
+			expect(ddl.tables.validate(row)).toBe(false);
+			expect(ddl.entities.validate(row)).toBe(false);
+		}
+	});
+});
+
+const inUsers = { schema: 'public', table: 'users' };
+
+describe('ddlDiff deltas', () => {
+	test('renaming a table and a column gives two rename deltas', async () => {
+		const users = pgTable('users', { id: integer('id'), name: text('name') }, (t) => [
+			index('users_name_idx').on(t.name),
+		]);
+		const accounts = pgTable('accounts', { id: integer('id'), fullName: text('full_name') }, (t) => [
+			index('users_name_idx').on(t.fullName),
+		]);
+
+		const { deltas } = await diff({ users }, { accounts }, [
+			'public.users->public.accounts',
+			'public.accounts.name->public.accounts.full_name',
+		]);
+
+		expect(deltas).toStrictEqual([
+			{ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } },
+			{ op: 'rename', key: 'columns\0["public","accounts","name"]', set: { name: 'full_name' } },
+		]);
+	});
+});
+
+describe('rename deltas', () => {
+	const stateOf = () => ddlOf({ other, mood, users, items: other.table('items', { id: integer('id') }) });
+
+	// The columns of `users` follow the table rename through the edges, so they get no delta of their own.
+	test('a table rename gives one rename delta', () => {
+		const ddl = stateOf();
+
+		const renamed = ddl.rename(ddl.tables.one({ name: 'users' })!, { name: 'accounts' });
+
+		expect(renamed).toStrictEqual({ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } });
+	});
+
+	test('a column rename gives one rename delta', () => {
+		const ddl = stateOf();
+
+		const renamed = ddl.rename(ddl.columns.one({ ...inUsers, name: 'email' })!, { name: 'contact' });
+
+		expect(renamed).toStrictEqual({
+			op: 'rename',
+			key: 'columns\0["public","users","email"]',
+			set: { name: 'contact' },
+		});
+	});
+
+	test('an enum rename gives one rename delta', () => {
+		const ddl = stateOf();
+
+		const renamed = ddl.rename(ddl.enums.one({ name: 'mood' })!, { name: 'feeling' });
+
+		expect(renamed).toStrictEqual({ op: 'rename', key: 'enums\0["public","mood"]', set: { name: 'feeling' } });
+	});
+
+	test('a schema rename gives one rename delta', () => {
+		const ddl = stateOf();
+
+		const renamed = ddl.rename(ddl.schemas.one({ name: 'other' })!, { name: 'archive' });
+
+		expect(renamed).toStrictEqual({ op: 'rename', key: 'schemas\0["other"]', set: { name: 'archive' } });
+	});
+
+	test('the delta holds only the fields that change', () => {
+		const ddl = stateOf();
+
+		const renamed = ddl.rename(ddl.tables.one({ name: 'users' })!, { name: 'accounts', schema: 'public' });
+
+		expect(renamed).toStrictEqual({ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } });
+	});
+
+	test('the rename deltas, applied to the starting state, give the state after the renames', () => {
+		const start = stateOf();
+		const ddl = stateOf();
+		const deltas = [
+			ddl.rename(ddl.schemas.one({ name: 'other' })!, { name: 'archive' })!,
+			ddl.rename(ddl.tables.one({ name: 'users' })!, { name: 'accounts' })!,
+		];
+
+		expect(ddl.columns.list({ schema: 'archive' }).map((it) => it.table)).toStrictEqual(['items']);
+		expect(ddl.columns.list({ table: 'accounts' })).toHaveLength(2);
+		expect(eq(apply(start, deltas), ddl)).toBe(true);
+	});
+
+	test('a rename onto a taken key gives no delta and changes no entity', () => {
+		const ddl = ddlOf({ users, accounts: pgTable('accounts', { id: integer('id') }) });
+
+		expect(ddl.rename(ddl.tables.one({ name: 'users' })!, { name: 'accounts' })).toBeNull();
+		expect(ddl.tables.list().map((it) => it.name).sort()).toStrictEqual(['accounts', 'users']);
+	});
+
+	test('a rename of an entity that the state does not hold gives no delta', () => {
+		const ddl = stateOf();
+		const missing = { ...ddl.tables.one({ name: 'users' })!, name: 'missing' };
+
+		expect(ddl.rename(missing, { name: 'accounts' })).toBeNull();
+		expect(ddl.tables.one({ name: 'accounts' })).toBeNull();
+	});
+});
+
+describe('apply deltas to a state', () => {
+	test('a rename changes the renamed entity and, through the edges, the entities that reference it', () => {
+		const next = apply(ddlOf({ users }), [
+			{ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } },
+		]);
+		expect(next.tables.list().map((it) => it.name)).toStrictEqual(['accounts']);
+		expect(next.columns.list().map((it) => it.table)).toStrictEqual(['accounts', 'accounts']);
+	});
+
+	test('a rename onto a key that another entity holds throws and names both keys', () => {
+		const start = ddlOf({ users, accounts: pgTable('accounts', { id: integer('id') }) });
+		const renameUsers = [{ op: 'rename', key: 'tables\0["public","users"]', set: { name: 'accounts' } }] as const;
+
+		expect(() => apply(start, [...renameUsers])).toThrow(
+			'The rename delta moves tables ["public","users"] to ["public","accounts"], and another row of tables already '
+				+ 'has the key ["public","accounts"].',
+		);
+	});
+
+	test('a rename of a missing entity is skipped', () => {
+		const start = ddlOf({ users });
+		const next = apply(start, [{ op: 'rename', key: 'tables\0["public","orders"]', set: { name: 'x' } }]);
+		expect(eq(next, start)).toBe(true);
+	});
+});
