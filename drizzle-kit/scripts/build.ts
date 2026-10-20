@@ -13,6 +13,8 @@ const driversPackages = [
 	'@vercel/postgres',
 	'@neondatabase/serverless',
 	'@electric-sql/pglite',
+	/^@drizzle-team\/minipg(\/|$)/,
+	// dsql drivers
 	'@aws/aurora-dsql-node-postgres-connector',
 	'@aws/aurora-dsql-postgresjs-connector',
 	// mysql drivers

@@ -822,7 +822,7 @@ export const runPull = async (
 			migrate = db.migrate;
 			driverError = {
 				database: 'postgresql',
-				packages: ['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres'],
+				packages: ['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', '@drizzle-team/minipg'],
 				message: 'Failed to connect to or introspect the Postgres database',
 			};
 
@@ -834,7 +834,7 @@ export const runPull = async (
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(
 				'postgresql',
-				['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres'],
+				['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', '@drizzle-team/minipg'],
 				'Failed to connect to or introspect the Postgres database',
 			);
 		}
