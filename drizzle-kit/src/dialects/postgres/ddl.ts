@@ -497,7 +497,7 @@ export const interimToDDL = (
 		}
 	}
 
-	for (const it of schema.functions) {
+	for (const it of schema.functions ?? []) {
 		const res = ddl.functions.push(it, ['schema', 'name', 'identityArgs']);
 		if (res.status === 'CONFLICT') {
 			errors.push({
