@@ -1,8 +1,8 @@
 import { crudPolicy } from 'drizzle-orm/neon';
 import { getTableConfig, integer, pgPolicy, pgRole, pgTable } from 'drizzle-orm/pg-core';
-import { test } from 'vitest';
+import { expect, test } from 'vitest';
 
-test.skip('getTableConfig: policies', async () => {
+test('getTableConfig: policies', async () => {
 	const schema = pgTable('hhh', {
 		id: integer(),
 	}, () => [
@@ -12,5 +12,21 @@ test.skip('getTableConfig: policies', async () => {
 
 	const tc = getTableConfig(schema);
 
-	console.log(tc.policies);
+	expect(tc.policies.length).toEqual(5);
+
+	expect(tc.policies.map((p) => p.name)).toEqual([
+		'name',
+		'crud-users-policy-select',
+		'crud-users-policy-insert',
+		'crud-users-policy-update',
+		'crud-users-policy-delete',
+	]);
+
+	expect(tc.policies.map((p) => p.for)).toEqual([
+		undefined,
+		'select',
+		'insert',
+		'update',
+		'delete',
+	]);
 });
