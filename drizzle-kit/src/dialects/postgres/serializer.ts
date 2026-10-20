@@ -6,6 +6,16 @@ import { fromDrizzleSchema } from './drizzle';
 import type { PreparedPostgresSchema } from './drizzle';
 import { combinedState, type MigrationsFolder } from './folder';
 
+// Converts a drizzle schema to its state. generate, export and check all call it, so they agree on what the
+// schema is. `stage` names the step that gave the errors, and `ddl` is null when `fromDrizzleSchema` fails.
+export const stateOfSchema = (prepared: PreparedPostgresSchema) => {
+	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
+	const { schema, metadata, errors, warnings } = fromDrizzleSchema(prepared, () => true);
+	if (errors.length > 0) return { stage: 'schema' as const, ddl: null, metadata, errors, warnings };
+	const { ddl, errors: ddlErrors } = interimToDDL(schema);
+	return { stage: 'ddl' as const, ddl, metadata, errors: ddlErrors, warnings };
+};
+
 export const prepareSnapshot = (
 	migrations: MigrationsFolder,
 	prepared: PreparedPostgresSchema,
@@ -15,23 +25,14 @@ export const prepareSnapshot = (
 	metadata: SchemaMetadata;
 } => {
 	const ddlPrev = combinedState(migrations);
-
-	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
-	const { schema, metadata, errors, warnings } = fromDrizzleSchema(prepared, () => true);
+	const { ddl: ddlCur, metadata, errors, warnings } = stateOfSchema(prepared);
 
 	if (warnings.length > 0) {
 		humanLog(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
 	}
 
-	if (errors.length > 0) {
+	if (!ddlCur || errors.length > 0) {
 		humanLog(errors.map((it) => postgresSchemaError(it)).join('\n'));
-		process.exit(1);
-	}
-
-	const { ddl: ddlCur, errors: errors2 } = interimToDDL(schema);
-
-	if (errors2.length > 0) {
-		humanLog(errors2.map((it) => postgresSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 

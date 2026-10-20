@@ -121,6 +121,10 @@ describe('a delta that reaches a merge only through another parent', () => {
 		const files = flow.files('main');
 
 		expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
+		expect(await flow.schemaWarnings('main', { users: usersWithEmail })).toStrictEqual([{
+			kind: 'not_compared',
+			message: expect.stringContaining(`Cannot reconstruct the combined state at migration ${a}: `),
+		}]);
 		const error = await flow.generate('main', { users: usersWithEmail }).catch((e) => e);
 
 		expect(error.message).toBe(

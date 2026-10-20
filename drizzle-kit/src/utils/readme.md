@@ -14,7 +14,7 @@ drizzle-kit reconstructs the state with the installed version, so the result dep
 
 The format number changes only when the stored shape of a snapshot changes: its fields and their types. A change to the edges, the key functions, the engine code or the code that applies deltas is no new format, and existing folders are not converted.
 
-`generate` reconstructs every leaf before it writes, and `up` reconstructs when it converts an older folder. `check` and `migrate` reconstruct no state: they read the shape of the snapshots, the parent links and the stored footprints.
+`generate` reconstructs every leaf before it writes, and `up` reconstructs when it converts an older folder. `check` and `migrate` reconstruct no state: they read the shape of the snapshots, the parent links and the stored footprints. `check` with a schema path reconstructs a state to compare it with the schema, and a failed reconstruct there is a warning.
 
 ### Renames
 

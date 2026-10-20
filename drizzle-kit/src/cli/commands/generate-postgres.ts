@@ -18,12 +18,12 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../../dialects/postgres/ddl';
-import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
+import { createDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
-import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
+import { prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { SchemaSource } from '../../dialects/postgres/drizzle';
 import { leafFolders, readFolder, withoutMigrations } from '../../dialects/postgres/folder';
-import { prepareSnapshot } from '../../dialects/postgres/serializer';
+import { prepareSnapshot, stateOfSchema } from '../../dialects/postgres/serializer';
 import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
 import { originUUID } from '../../utils';
 import { outputFormat } from '../context';
@@ -146,25 +146,11 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 };
 
 export const handleExport = async (config: ExportConfig) => {
-	const res = await prepareFromSchemaFiles(config.filenames);
-	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
-	const { schema, metadata, errors, warnings } = fromDrizzleSchema(
-		res,
-		() => true,
-	);
+	const { stage, ddl, metadata, errors, warnings } = stateOfSchema(await prepareFromSchemaFiles(config.filenames));
 
-	if (errors.length > 0) {
+	if (!ddl || errors.length > 0) {
 		throw new CommandOutputCliError('export', errors.map((it) => postgresSchemaError(it)).join('\n'), {
-			stage: 'schema',
-			dialect: 'postgresql',
-		});
-	}
-
-	const { ddl, errors: errors2 } = interimToDDL(schema);
-
-	if (errors2.length > 0) {
-		throw new CommandOutputCliError('export', errors2.map((it) => postgresSchemaError(it)).join('\n'), {
-			stage: 'ddl',
+			stage,
 			dialect: 'postgresql',
 		});
 	}
