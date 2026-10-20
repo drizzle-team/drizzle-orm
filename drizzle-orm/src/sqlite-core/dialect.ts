@@ -209,7 +209,12 @@ export abstract class SQLiteDialect {
 				}
 			} else if (is(field, Column)) {
 				const tableName = field.table[Table.Symbol.Name];
-				if (field.columnType === 'SQLiteNumericBigInt') {
+				if (field.selectFromDb) {
+					const colRef = isSingleTable
+						? sql.identifier(this.casing.getColumnCasing(field))
+						: sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`;
+					chunk.push(sql`${field.selectFromDb(sql`${colRef}`)} as ${sql.identifier(this.casing.getColumnCasing(field))}`);
+				} else if (field.columnType === 'SQLiteNumericBigInt') {
 					if (isSingleTable) {
 						chunk.push(
 							sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
