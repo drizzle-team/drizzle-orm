@@ -11,8 +11,10 @@ import {
 	MsSqlView,
 } from 'drizzle-orm/mssql-core';
 import { loadModule } from '../../utils/utils-node';
-import { sqlToStr } from '../drizzle';
+import { findViewDependencies, sqlToStr } from '../drizzle';
 import type { EntityFilter } from '../pull-utils';
+import { entityKey } from '../utils';
+import type { EntityKey, SchemaMetadata } from '../utils';
 import type { DefaultConstraint, InterimSchema, MssqlEntities, Schema, SchemaError } from './ddl';
 import { defaultNameForDefault, defaultNameForFK, defaultNameForPK, defaultNameForUnique, typeFor } from './grammar';
 
@@ -43,6 +45,17 @@ export const defaultFromColumn = (
 	throw new Error(`unexpected default: ${column.getSQLType().toLowerCase()} ${column.default}`);
 };
 
+// key of a mssql view, see `findViewDependencies` in dialects/drizzle.ts
+// "is this one of my views, and if so, what's its key?"
+const viewKey = (chunk: unknown): EntityKey | null => {
+	if (!is(chunk, MsSqlView)) return null;
+
+	// aliased views keep the real view name in originalName
+	// an alias exists only in the ORM query
+	const config = getViewConfig(chunk);
+	return entityKey(config.schema ?? 'dbo', config.originalName);
+};
+
 export const fromDrizzleSchema = (
 	schema: {
 		schemas: MsSqlSchema[];
@@ -50,9 +63,10 @@ export const fromDrizzleSchema = (
 		views: MsSqlView[];
 	},
 	filter: EntityFilter,
-): { schema: InterimSchema; errors: SchemaError[] } => {
+): { schema: InterimSchema; metadata: SchemaMetadata; errors: SchemaError[] } => {
 	const dialect = new MsSqlDialect();
 	const errors: SchemaError[] = [];
+	const metadata: SchemaMetadata = { viewDependencies: new Map() };
 
 	const schemas = schema.schemas
 		.filter((x) => {
@@ -287,25 +301,8 @@ export const fromDrizzleSchema = (
 		}
 	}
 
-	for (
-		// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520
-		// When using `prepareFromSchemaFiles` to read schema files, views were returned in an unpredictable order
-		// (not in order that is was declared in schema.ts).
-		// This caused dependent views to appear before their dependencies,
-		// which breaks migration
-		const view of schema.views.sort((a, b) => {
-			const aConfig = getViewConfig(a);
-			const bConfig = getViewConfig(b);
-
-			// If a's fields include b, a depends on b → b comes first
-			if (aConfig.query?.queryChunks.includes(b)) return 1;
-
-			// If b's fields include a, b depends on a → a comes first
-			if (bConfig.query?.queryChunks.includes(a)) return -1;
-
-			return 0;
-		})
-	) {
+	// views are ordered by dependencies in diff.ts (`sortCreateViews`), using `metadata.viewDependencies`
+	for (const view of schema.views) {
 		const cfg = getViewConfig(view);
 		const {
 			isExisting,
@@ -351,9 +348,11 @@ export const fromDrizzleSchema = (
 			schemaBinding: schemaBinding ?? false, // default
 			viewMetadata: viewMetadata ?? false, // default
 		});
+
+		if (query) metadata.viewDependencies.set(entityKey(schema, name), findViewDependencies(query, viewKey));
 	}
 
-	return { schema: result, errors };
+	return { schema: result, metadata, errors };
 };
 
 export const prepareFromSchemaFiles = async (imports: string[]) => {

@@ -17,7 +17,9 @@ import {
 	MySqlView,
 } from 'drizzle-orm/mysql-core';
 import { loadModule } from '../../utils/utils-node';
-import { sqlToStr } from '../drizzle';
+import { findViewDependencies, sqlToStr } from '../drizzle';
+import { entityKey } from '../utils';
+import type { EntityKey, SchemaMetadata } from '../utils';
 import type { Column, InterimSchema } from './ddl';
 import { defaultNameForFK, nameForUnique, typeFor } from './grammar';
 
@@ -51,11 +53,22 @@ export const upper = <T extends string>(value: T | undefined): Uppercase<T> | nu
 	return value.toUpperCase() as Uppercase<T>;
 };
 
+// key of a mysql view (no schemas in mysql ddl), see `findViewDependencies` in dialects/drizzle.ts
+// "is this one of my views, and if so, what's its key?"
+const viewKey = (chunk: unknown): EntityKey | null => {
+	if (!is(chunk, MySqlView)) return null;
+
+	// aliased views keep the real view name in originalName
+	// an alias exists only in the ORM query
+	return entityKey(null, getViewConfig(chunk).originalName);
+};
+
 export const fromDrizzleSchema = (
 	tables: AnyMySqlTable[],
 	views: MySqlView[],
-): InterimSchema => {
+): { schema: InterimSchema; metadata: SchemaMetadata } => {
 	const dialect = new MySqlDialect();
+	const metadata: SchemaMetadata = { viewDependencies: new Map() };
 	const result: InterimSchema = {
 		tables: [],
 		columns: [],
@@ -246,25 +259,8 @@ export const fromDrizzleSchema = (
 		}
 	}
 
-	for (
-		// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520
-		// When using `prepareFromSchemaFiles` to read schema files, views were returned in an unpredictable order
-		// (not in order that is was declared in schema.ts).
-		// This caused dependent views to appear before their dependencies,
-		// which breaks migration
-		const view of views.sort((a, b) => {
-			const aConfig = getViewConfig(a);
-			const bConfig = getViewConfig(b);
-
-			// If a's fields include b, a depends on b → b comes first
-			if (aConfig.query?.queryChunks.includes(b)) return 1;
-
-			// If b's fields include a, b depends on a → a comes first
-			if (bConfig.query?.queryChunks.includes(a)) return -1;
-
-			return 0;
-		})
-	) {
+	// views are ordered by dependencies in diff.ts (`sortCreateViews`), using `metadata.viewDependencies`
+	for (const view of views) {
 		const cfg = getViewConfig(view);
 		const {
 			isExisting,
@@ -300,9 +296,11 @@ export const fromDrizzleSchema = (
 			algorithm: algorithm ?? 'undefined', // set default values
 			sqlSecurity: sqlSecurity ?? 'definer', // set default values
 		});
+
+		if (query) metadata.viewDependencies.set(entityKey(null, name), findViewDependencies(query, viewKey));
 	}
 
-	return result;
+	return { schema: result, metadata };
 };
 
 export const prepareFromSchemaFiles = async (imports: string[]) => {

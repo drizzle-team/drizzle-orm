@@ -1,3 +1,5 @@
+import { footprintsOf } from 'src/dialects/postgres/commutativity';
+import { fromJson } from 'src/dialects/postgres/convertor';
 import type {
 	CheckConstraint,
 	Column,
@@ -11,12 +13,12 @@ import type {
 import type { JsonRenameConstraint, JsonStatement } from 'src/dialects/postgres/statements';
 
 // Provides the statement catalog of the commutativity tests. `rows` holds one statement for each statement type,
-// and one for each variant that takes another facet path, with the objects that its SQL needs in the database.
+// and one for each variant that has another footprint, with the objects that its SQL needs in the database.
 // `build` returns the statement of one row, and helpers such as `col` and `idx` build the entities inside a
-// statement. These files use it: `commutativity.facet.test.ts`, `commutativity.facet-invariants.test.ts`,
+// statement. These files use it: `commutativity.footprint.test.ts`, `commutativity.footprint-invariants.test.ts`,
 // `commutativity.matrix-gen.test.ts` and `commutativity-groundtruth.pglite.test.ts`.
 
-// These functions build the entities inside a statement, for `rows` and for the facet tests. Each entity has
+// These functions build the entities inside a statement, for `rows` and for the footprint tests. Each entity has
 // the fields that a snapshot stores for it, so it has no `entityType`.
 export const col = (schema: string, table: string, name: string, extra: Partial<Column> = {}) =>
 	({
@@ -143,7 +145,7 @@ type Row = {
 };
 
 // The statements of the commutativity matrix, which the ground-truth test also runs on a database: one row for
-// each statement type, and one more for each variant of a type that has other facet paths. All rows target the
+// each statement type, and one more for each variant of a type that has another footprint. All rows target the
 // table s.t and its column c1, so that the matrix shows the most overlap. The name of every object that a row
 // creates, changes or drops starts with `prefix`, except the grantor `postgres` and the policy role `public`.
 export const rows = (prefix = ''): Record<string, Row> => {
@@ -180,7 +182,7 @@ export const rows = (prefix = ''): Record<string, Row> => {
 			table: { schema, name, isRlsEnabled: false, columns, pk: null, uniques: [], checks: [], policies: [] },
 		}) as any;
 	// Builds the `rename_constraint` row of one constraint kind. The catalog has one row for each kind, because
-	// the SQL is the same and the facet paths differ.
+	// the SQL is the same and the footprints differ.
 	const renameConstraint = (
 		entityType: JsonRenameConstraint['entityType'],
 		from: string,
@@ -204,7 +206,7 @@ export const rows = (prefix = ''): Record<string, Row> => {
 			isCreate: true,
 			statement: createTable(table, [col(schema, table, named('id')), enumColumn]),
 		},
-		// A new table with the name of the index `ix`, for the facet paths of the namespace that postgres shares
+		// A new table with the name of the index `ix`, for the nodes of the namespace that postgres shares
 		// between tables and indexes.
 		'create_table:ix': {
 			family: 'table',
@@ -325,7 +327,6 @@ export const rows = (prefix = ''): Record<string, Row> => {
 				type: 'recreate_index',
 				index: idx(schema, table, index, [column]),
 				diff: { schema, name: index, $left: idx(schema, table, index, [column]) },
-				shouldDrop: true,
 			} as any,
 		},
 
@@ -421,7 +422,7 @@ export const rows = (prefix = ''): Record<string, Row> => {
 			isCreate: true,
 			statement: { type: 'add_check', check: checkConstraint, columns: [column] },
 		},
-		// A new check constraint with the name of the unique constraint `uq`, for the facet paths of constraint names.
+		// A new check constraint with the name of the unique constraint `uq`, for the nodes of constraint names.
 		// A table keeps the names of both kinds in one namespace.
 		'add_check:uq': {
 			family: 'check',
@@ -612,7 +613,7 @@ export const rows = (prefix = ''): Record<string, Row> => {
 			isCreate: true,
 			statement: { type: 'create_policy', policy: tablePolicy },
 		},
-		// A variant of `create_policy` for the role `r`. The plain row uses `public`, and the facet rules skip
+		// A variant of `create_policy` for the role `r`. The plain row uses `public`, and the footprint rules skip
 		// `public` because it is a built-in role.
 		'create_policy:role': {
 			family: 'policy',
@@ -712,3 +713,7 @@ export function build(type: string, prefix = ''): JsonStatement {
 	if (!row) throw new Error(`no builder for ${type}`);
 	return row.statement;
 }
+
+// Builds the footprints that a snapshot stores for `statements`, from each statement and its SQL.
+export const footprintsOfStatements = (statements: JsonStatement[]) =>
+	footprintsOf(fromJson(statements).groupedStatements);

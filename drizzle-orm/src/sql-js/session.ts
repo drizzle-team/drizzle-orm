@@ -1,4 +1,5 @@
 import type { BindParams, Database } from 'sql.js';
+import type { QueryMetadata } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -47,10 +48,7 @@ export class SQLJsSession<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 	): SQLiteAsyncPreparedQuery<T & { run: SQLJsRunResult }> {
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {

@@ -1,4 +1,4 @@
-import { aliasedTable, getOriginalColumnFromAlias } from '~/alias.ts';
+import { aliasedTable, aliasedTableSQL, getOriginalColumnFromAlias } from '~/alias.ts';
 import { CodecsCollection } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
@@ -20,8 +20,8 @@ import {
 	type BuildRelationalQueryConfig,
 	type BuildRelationalQueryResult,
 	buildRqbColumns,
-	collectRelationalSubquery,
-	type DBQueryConfigWithComment,
+	collectSubqueryAndUsedTables,
+	type DBQueryConfigRoot,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
 	makeJitRqbMapper,
@@ -35,9 +35,9 @@ import {
 } from '~/relations.ts';
 import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
 import { type Name, type Query, SQL, sql, type SQLChunk, ValueRows } from '~/sql/sql.ts';
-import { chunkKindOf, chunkKinds, isChunk } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk, unqualifyColumns } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { getTableName, Table, TableColumns } from '~/table.ts';
+import { getTableName, Qualifier, Table, TableColumns } from '~/table.ts';
 import {
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
@@ -416,14 +416,10 @@ export class PgDialect {
 			const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : undefined;
 
 			if (is(table, PgTable)) {
-				const tableName = table[PgTable.Symbol.Name];
-				const tableSchema = table[PgTable.Symbol.Schema];
-				const origTableName = table[PgTable.Symbol.OriginalName];
-				const alias = tableName === origTableName ? undefined : joinMeta.alias;
 				joinsArray.push(
 					sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${
-						tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-					}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
+						table[Table.Symbol.IsAlias] ? aliasedTableSQL(table) : table
+					}${onSql}`,
 				);
 			} else if (is(table, View)) {
 				const viewName = table[ViewBaseConfig].name;
@@ -451,13 +447,7 @@ export class PgDialect {
 	private buildFromTable(
 		table: SQL | Subquery | PgViewBase | PgTable | undefined,
 	): SQL | Subquery | PgViewBase | PgTable | undefined {
-		if (is(table, Table) && table[Table.Symbol.IsAlias]) {
-			let fullName = sql`${sql.identifier(table[Table.Symbol.OriginalName])}`;
-			if (table[Table.Symbol.Schema]) {
-				fullName = sql`${sql.identifier(table[Table.Symbol.Schema]!)}.${fullName}`;
-			}
-			return sql`${fullName} ${sql.identifier(table[Table.Symbol.Name])}`;
-		}
+		if (is(table, Table) && table[Table.Symbol.IsAlias]) return aliasedTableSQL(table);
 
 		if (is(table, View) && table[ViewBaseConfig].isAlias) {
 			let fullName = sql`${sql.identifier(table[ViewBaseConfig].originalName)}`;
@@ -659,15 +649,7 @@ export class PgDialect {
 				if (is(singleOrderBy, PgColumn)) {
 					orderByValues.push(sql.identifier(singleOrderBy.name));
 				} else if (is(singleOrderBy, SQL)) {
-					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
-						const chunk = singleOrderBy.queryChunks[i];
-
-						if (is(chunk, PgColumn)) {
-							singleOrderBy.queryChunks[i] = sql.identifier(chunk.name);
-						}
-					}
-
-					orderByValues.push(sql`${singleOrderBy}`);
+					orderByValues.push(sql`${unqualifyColumns(singleOrderBy)}`);
 				} else {
 					orderByValues.push(sql`${singleOrderBy}`);
 				}
@@ -844,6 +826,7 @@ export class PgDialect {
 		through,
 		nested,
 		withSubqueries,
+		usedTables,
 		strategy,
 	}: BuildRelationalQueryConfig, collectTo: SQLChunk[]): BuildRelationalQueryResult['selection'] {
 		const selection: BuildRelationalQueryResult['selection'] = [];
@@ -852,11 +835,12 @@ export class PgDialect {
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
 		const isOptimized = (currentDepth ? strategy : params?.strategy) !== 'basic';
-		const subqueries: RelationalWithSubqueries = withSubqueries ?? new Map();
+		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map(), usedTables };
 		if (!currentDepth) {
-			collectRelationalSubquery(subqueries, table);
+			collectSubqueryAndUsedTables(collector, table);
 			table = aliasedTable(table, `d${currentDepth}`);
 		}
+		const tableRef = table[Qualifier];
 
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
@@ -866,11 +850,11 @@ export class PgDialect {
 			params,
 			tableConfig.relations,
 			schema,
-			subqueries,
+			collector,
 			relationWhere,
 		);
 		const order = params?.orderBy
-			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, subqueries)
+			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, collector)
 			: undefined;
 
 		const withParam = params ? (params as WithContainer).with : undefined;
@@ -887,7 +871,7 @@ export class PgDialect {
 
 		collectTo.push(commonStringChunks['select ']);
 		const hasColumns = buildRqbColumns(
-			table,
+			tableRef,
 			tableConfig.table[TableColumns],
 			selection,
 			!!nested,
@@ -934,7 +918,7 @@ export class PgDialect {
 		const isWrapped = withKeys.length > 0 && isOptimized && (isPaginatedFirst || hasRelationFilters);
 
 		collectTo.push(commonStringChunks[' from ']);
-		if (isWrapped) collectTo.push(commonStringChunks['(select '], table, commonStringChunks['.* from ']);
+		if (isWrapped) collectTo.push(commonStringChunks['(select '], tableRef, commonStringChunks['.* from ']);
 		getTableAsAliasSQL(table, collectTo);
 		if (through) {
 			collectTo.push(commonStringChunks[' inner join ']);
@@ -948,15 +932,15 @@ export class PgDialect {
 				if (limit !== undefined) collectTo.push(commonStringChunks[' limit '], limit as SQLChunk);
 				if (offset !== undefined) collectTo.push(commonStringChunks[' offset '], offset as SQLChunk);
 			}
-			collectTo.push(commonStringChunks[') as '], table);
+			collectTo.push(commonStringChunks[') as '], tableRef);
 		}
 
 		for (const k of withKeys) {
 			const join = withParam![k]!;
 			const relation = tableConfig.relations[k]!;
 			const isSingle = relation.relationType === 'one';
-			collectRelationalSubquery(subqueries, relation.targetTable);
-			collectRelationalSubquery(subqueries, relation.throughTable);
+			collectSubqueryAndUsedTables(collector, relation.targetTable);
+			collectSubqueryAndUsedTables(collector, relation.throughTable);
 
 			const targetTable = aliasedTable(
 				relation.targetTable,
@@ -981,12 +965,12 @@ export class PgDialect {
 				table: targetTable,
 				mode: isSingle ? 'first' : 'many',
 				schema,
-				queryConfig: join as DBQueryConfigWithComment,
+				queryConfig: join as DBQueryConfigRoot,
 				tableConfig: schema[relation.targetTableName]!,
 				relationWhere: filter,
 				errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 				depth: currentDepth + 1,
-				withSubqueries: subqueries,
+				withSubqueries: collector,
 				strategy: currentDepth ? strategy : params?.strategy,
 				through: throughTable ? { table: throughTable, condition: joinCondition! } : undefined,
 				nested: true,
@@ -1014,7 +998,7 @@ export class PgDialect {
 		}
 		if (config !== true && config?.comment) collectTo.push(commonStringChunks[' '], sql.comment(config.comment));
 
-		if (withIdx !== -1) collectTo[withIdx] = this.buildWithCTE([...subqueries.values()]);
+		if (withIdx !== -1) collectTo[withIdx] = this.buildWithCTE([...collector.subqueries.values()]);
 
 		return selection;
 	}

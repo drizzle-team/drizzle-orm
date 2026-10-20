@@ -17,6 +17,7 @@ import {
 import { tmpdir } from 'os';
 import { basename, dirname, join, relative } from 'path';
 import { checkHandler, checkSnapshots } from 'src/cli/commands/check';
+import { schemaWarnings as checkSchema } from 'src/cli/commands/check-postgres';
 import { handle } from 'src/cli/commands/generate-postgres';
 import { handle as pullHandle } from 'src/cli/commands/pull-postgres';
 import { upPgHandler } from 'src/cli/commands/up-postgres';
@@ -26,13 +27,11 @@ import { CheckCliError } from 'src/cli/errors';
 import { type Hint, HintsHandler, type RenameCreateHintKind } from 'src/cli/hints';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import type { Delta } from 'src/dialects/dialect';
-import { fromSnapshotStatements } from 'src/dialects/postgres/convertor';
 import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { fromDrizzleSchema, fromExports, SchemaSource } from 'src/dialects/postgres/drizzle';
 import { combinedState as folderCombinedState, readFolder, withoutMigrations } from 'src/dialects/postgres/folder';
 import { reconstruct, startingState } from 'src/dialects/postgres/reconstruct';
 import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
-import { BREAKPOINT } from 'src/utils';
 import { expect, onTestFinished, vi } from 'vitest';
 import { writeSnapshot } from '../other/check-fixtures';
 import { type PostgresSchema, push } from './mocks';
@@ -143,12 +142,7 @@ export const createFolderFlow = () => {
 
 	const sql = (branch: string, folder: string) => readFileSync(join(dirOf(branch), folder, 'migration.sql'), 'utf8');
 
-	const statements = (branch: string, folder: string) => snapshot(branch, folder).statements;
-
-	// Rebuilds the SQL of a migration from its stored statements, joined like migration.sql, so that a test can
-	// compare the two.
-	const statementsSql = (branch: string, folder: string) =>
-		fromSnapshotStatements(statements(branch, folder)).join(BREAKPOINT);
+	const footprints = (branch: string, folder: string) => snapshot(branch, folder).footprints;
 
 	const leaves = (branch: string) => {
 		const snapshots = folders(branch).map((folder) => ({ folder, ...snapshot(branch, folder) }));
@@ -258,6 +252,11 @@ export const createFolderFlow = () => {
 		}
 	};
 
+	// Returns the warnings that check gives when it compares `schema` with the migrations of the branch. The folder
+	// must pass check first.
+	const schemaWarnings = (branch: string, schema: PostgresSchema) =>
+		quietly(() => checkSchema(readFolder(dirOf(branch)), SchemaSource.fromSchema(fromExports(schema))));
+
 	const up = (branch: string) => quietly(async () => upPgHandler(dirOf(branch)));
 
 	const merge = (target: string, ...sources: string[]) => {
@@ -311,8 +310,7 @@ export const createFolderFlow = () => {
 		files,
 		snapshot,
 		sql,
-		statements,
-		statementsSql,
+		footprints,
 		leaves,
 		history,
 		state,
@@ -323,6 +321,7 @@ export const createFolderFlow = () => {
 		generate,
 		pull,
 		check,
+		schemaWarnings,
 		up,
 		merge,
 		seed,

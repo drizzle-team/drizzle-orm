@@ -18,15 +18,14 @@ import {
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
-import { toSnapshotStatement } from 'src/dialects/postgres/convertor';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
 import { expect, test } from 'vitest';
-import { build, rows } from './commutativity-statements';
+import { build, footprintsOfStatements, rows } from './commutativity-statements';
 import { diff } from './mocks';
 
-// Verifies that the committed `commutativity-matrix.json` matches the verdicts of the facet rules for every pair
+// Verifies that the committed `commutativity-matrix.json` matches the verdicts of the footprint rules for every pair
 // of statements in `commutativity-statements.ts`. It also verifies that each rename or move that the real diff
-// writes has a matrix row whose facet paths name the same kinds of nodes.
+// writes has a matrix row whose footprint names the same kinds of nodes.
 
 // The first test keeps `commutativity-matrix.json` equal to the verdicts of the rules, because the
 // ground-truth test checks that file against postgres. Rewrite the file after a rule change:
@@ -76,9 +75,9 @@ const verb = (type: string): string =>
 		? 'creates'
 		: 'changes';
 
-// The facet paths of a statement, for the impossible marks and the reason sentences.
-function facetSets(stmt: JsonStatement) {
-	const { writes, reads = [], sharedWrites = [] } = postgresCommutativity.buildFacetPaths(toSnapshotStatement(stmt));
+// The node lists of the footprint of a statement, for the impossible marks and the reason sentences.
+function nodeSets(statement: JsonStatement) {
+	const [{ writes, reads = [], sharedWrites = [] }] = footprintsOfStatements([statement]);
 	return {
 		writes: new Set<string>(writes),
 		reads: new Set<string>(reads),
@@ -86,13 +85,13 @@ function facetSets(stmt: JsonStatement) {
 	};
 }
 
-async function conflict(a: JsonStatement, b: JsonStatement): Promise<boolean> {
-	return !!(await postgresCommutativity.getReasonsFromStatements([toSnapshotStatement(a)], [toSnapshotStatement(b)]));
+function conflict(a: JsonStatement, b: JsonStatement): boolean {
+	return !!postgresCommutativity.findConflict(footprintsOfStatements([a]), footprintsOfStatements([b]));
 }
 
 async function generateMatrix() {
 	const stmts = TYPES.map((type) => catalog[type].statement);
-	const sets = stmts.map(facetSets);
+	const sets = stmts.map(nodeSets);
 
 	// `matrix` and `impossible` hold one string of 0 and 1 for each row.
 	const matrix: string[] = [];
@@ -127,7 +126,7 @@ async function generateMatrix() {
 	};
 
 	// `why` gives the reason sentences of a cell for the visualizer page, one for each shared node. A node can
-	// appear in several facets, so `seen` removes repeated sentences.
+	// appear in several node lists, so `seen` removes repeated sentences.
 	const why = (i: number, j: number): string[] => {
 		const A = sets[i], B = sets[j], out: string[] = [], seen = new Set<string>();
 		for (const k of new Set([...A.writes, ...B.writes, ...A.sharedWrites, ...B.sharedWrites])) {
@@ -152,7 +151,7 @@ async function generateMatrix() {
 		const row: number[] = [];
 		const irow: number[] = [];
 		for (let j = 0; j < TYPES.length; j++) {
-			const c = await conflict(stmts[i], stmts[j]);
+			const c = conflict(stmts[i], stmts[j]);
 			row.push(c ? 1 : 0);
 			let imp = 0;
 			if (c && i !== j) {
@@ -265,15 +264,15 @@ const rowOf = (statement: JsonStatement) =>
 	statement.type === 'rename_constraint' ? `${statement.type}:${statement.entityType}` : statement.type;
 const isRename = (statement: JsonStatement) =>
 	statement.type.startsWith('rename_') || statement.type.startsWith('move_');
-// The kinds of nodes (`pk`, `col`, etc.) that the facet paths of a statement name, so that the rename test can
+// The kinds of nodes (`pk`, `col`, etc.) that the footprint of a statement names, so that the rename test can
 // compare a matrix row with a real rename.
 const nodeKinds = (statement: JsonStatement) => {
-	const { writes, reads = [] } = postgresCommutativity.buildFacetPaths(toSnapshotStatement(statement));
+	const [{ writes, reads = [] }] = footprintsOfStatements([statement]);
 	const kinds = (keys: string[]) => [...new Set(keys.map((key) => key.split('|')[1]))].sort();
 	return { writes: kinds(writes), reads: kinds(reads) };
 };
 
-test('every rename that the diff writes has a matrix row whose facet paths name the same kinds of nodes', async () => {
+test('every rename that the diff writes has a matrix row whose footprint names the same kinds of nodes', async () => {
 	const seen = new Set<string>();
 	for (const [name, { renamed, hint }] of Object.entries(RENAMES)) {
 		const { statements } = await diff(schemaWith(), schemaWith(renamed), [hint]);
@@ -285,7 +284,7 @@ test('every rename that the diff writes has a matrix row whose facet paths name 
 			expect(TYPES, `the ${name} rename writes ${row}, which has no matrix row`).toContain(row);
 			expect(
 				nodeKinds(build(row)),
-				`the facet paths of matrix row ${row} and of the ${name} rename name other kinds of nodes`,
+				`the footprints of matrix row ${row} and of the ${name} rename name other kinds of nodes`,
 			)
 				.toEqual(nodeKinds(statement));
 		}

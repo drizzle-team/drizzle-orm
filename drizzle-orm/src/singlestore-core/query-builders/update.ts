@@ -244,7 +244,7 @@ export class SingleStoreUpdateBase<
 			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 			{
 				type: 'update',
-				tables: usedTablesOf(this.config.table),
+				tables: () => usedTablesOf(this.config.table),
 			},
 		) as SingleStoreUpdatePrepare<this>;
 	}

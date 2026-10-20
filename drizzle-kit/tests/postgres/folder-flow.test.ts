@@ -17,11 +17,11 @@ import {
 
 // Verifies the main flows of snapshot format 9 through the real `generate`, `check`, `up` and `pull` commands.
 // A linear history writes a base snapshot and then diff snapshots, and each snapshot stores the deltas and the
-// statements of its migration. `check` reads only the stored statements. Branches that commute merge into one
+// footprints of its migration. `check` reads only the stored footprints. Branches that commute merge into one
 // leaf, and branches that conflict stop `check` and `generate`. A hand-edited snapshot that does not
 // reconstruct stops `generate` with an error that names the migration folder. `migrate` and `pull` use PGlite.
 
-test('generate stores the statements of each migration, and a custom migration stores none', async () => {
+test('generate stores one footprint for each statement of a migration, and a custom migration stores none', async () => {
 	const flow = createFolderFlow();
 	const v1 = { users: pgTable('users', { id: integer() }) };
 	const v2 = {
@@ -34,22 +34,25 @@ test('generate stores the statements of each migration, and a custom migration s
 	const second = await flow.generate('main', v2);
 	const custom = await flow.generate('main', v2, { custom: true });
 
-	expect(flow.statements('main', first.folder)).toMatchObject([
-		{ type: 'create_table', table: { schema: 'public', name: 'users', columns: [{ name: 'id' }] } },
+	expect(flow.footprints('main', first.folder)).toMatchObject([
+		{ statementType: 'create_table', statementTarget: ['table', 'public', 'users'] },
 	]);
-	expect(flow.statements('main', second.folder)).toMatchObject([
-		{ type: 'add_column', column: { table: 'users', name: 'email' } },
-		{ type: 'alter_column', to: { table: 'users', name: 'id', notNull: true } },
-		{ type: 'create_index', index: { table: 'users', name: 'users_email_idx' } },
+	const footprints = flow.footprints('main', second.folder);
+	expect(footprints).toMatchObject([
+		{ statementType: 'add_column', statementTarget: ['column', 'public', 'users', 'email'] },
+		{
+			statementType: 'alter_column',
+			statementTarget: ['column', 'public', 'users', 'id'],
+			sqlHash: expect.any(String),
+		},
+		{ statementType: 'create_index', statementTarget: ['index', 'public', 'users', 'users_email_idx'] },
 	]);
-	expect(flow.statements('main', custom.folder)).toStrictEqual([]);
-	// `statementsSql` rebuilds the SQL from the stored statements. It must equal migration.sql, so the statements
-	// keep the order of the SQL and lose nothing.
-	expect(flow.statementsSql('main', first.folder)).toBe(flow.sql('main', first.folder));
-	expect(flow.statementsSql('main', second.folder)).toBe(flow.sql('main', second.folder));
+	// Only a statement whose SQL is idempotent has `sqlHash`.
+	expect(footprints[2]).not.toHaveProperty('sqlHash');
+	expect(flow.footprints('main', custom.folder)).toStrictEqual([]);
 });
 
-test('check takes its conflicts from the stored statements of the snapshots', async () => {
+test('check takes its conflicts from the stored footprints of the snapshots', async () => {
 	const { flow, folders } = await forkFlow({
 		base: { users: pgTable('users', { id: integer() }) },
 		branches: [
@@ -61,10 +64,25 @@ test('check takes its conflicts from the stored statements of the snapshots', as
 	expect(await flow.check('main')).toMatchObject({ status: 'conflicts' });
 
 	// After this edit, the deltas of both branches still add the same column. `check` passes because it reads
-	// only the stored `statements`.
-	flow.overwriteSnapshot('main', folder, JSON.stringify({ ...flow.snapshot('main', folder), statements: [] }));
+	// only the stored `footprints`.
+	flow.overwriteSnapshot('main', folder, JSON.stringify({ ...flow.snapshot('main', folder), footprints: [] }));
 
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
+});
+
+test('the same default on two branches passes check, and two different defaults or a later drop conflict', async () => {
+	const base = { users: pgTable('users', { age: integer() }) };
+	const withDefault = (value: number) => step({ users: pgTable('users', { age: integer().default(value) }) });
+
+	const same = await forkFlow({ base, branches: [[withDefault(18)], [withDefault(18)]] });
+	expect(await same.flow.check('main')).toStrictEqual({ status: 'passed' });
+
+	const different = await forkFlow({ base, branches: [[withDefault(18)], [withDefault(21)]] });
+	expect(await different.flow.check('main')).toMatchObject({ status: 'conflicts' });
+
+	// The equal defaults still meet the other changes of the branches: a drops the table after the default.
+	const dropped = await forkFlow({ base, branches: [[withDefault(18), step({})], [withDefault(18)]] });
+	expect(await dropped.flow.check('main')).toMatchObject({ status: 'conflicts' });
 });
 
 // The edit sets the type of users.id to bigint in the base snapshot. No check compares a reconstructed state
@@ -112,6 +130,23 @@ test('a leaf that does not reconstruct passes check and stops generate, and the 
 		expect(errorToEnvelope(error)).toStrictEqual(malformedEnvelope(folder));
 	}
 	expect(flow.files('main')).toStrictEqual(before);
+});
+
+test('check with a schema path warns that the schema was not compared when a leaf does not reconstruct', async () => {
+	const flow = createFolderFlow();
+	const accounts = pgTable('accounts', { id: integer() });
+	const v1 = { users: pgTable('users', { id: integer() }), accounts };
+	const v2 = { users: pgTable('users', { id: integer(), email: varchar() }), accounts };
+	await flow.generate('main', v1);
+	const { folder } = await flow.generate('main', v2);
+	flow.appendDeltas('main', folder, renameUsersTo('accounts'));
+
+	const warnings = await flow.schemaWarnings('main', v2);
+
+	expect(warnings).toStrictEqual([{
+		kind: 'not_compared',
+		message: expect.stringContaining(`The error: Cannot reconstruct the state of migration ${folder}: `),
+	}]);
 });
 
 test('generate stores one drop delta for a dropped table and for each of its columns, constraints and indexes', async () => {
@@ -198,7 +233,7 @@ test('generate --fix-conflicts does not reconstruct a leaf that the fix deletes'
 	expect(flow.state('main', folder)).toStrictEqual(schemaState(resolved));
 });
 
-test('a custom migration on two leaves lists both leaves as parents and stores no deltas and no statements', async () => {
+test('a custom migration on two leaves lists both leaves as parents and stores no deltas and no footprints', async () => {
 	const users = pgTable('users', { id: integer() });
 	const likes = pgTable('likes', { id: integer() });
 	const groups = pgTable('groups', { id: integer() });
@@ -213,7 +248,7 @@ test('a custom migration on two leaves lists both leaves as parents and stores n
 		type: 'diff',
 		prevIds: [newer, older].map((it) => flow.snapshot('main', it).id),
 		deltas: [],
-		statements: [],
+		footprints: [],
 	});
 	expect(flow.leaves('main')).toStrictEqual([folder]);
 	expect(flow.state('main', folder)).toStrictEqual(schemaState({ users, likes, groups }));
@@ -356,7 +391,7 @@ test('commands ask to run up on format 8 snapshots, and up converts them', async
 		id: 'p1',
 		prevIds: [ORIGIN],
 		ddl: [],
-		statements: [],
+		footprints: [],
 	});
 	expect(await flow.check('main')).toStrictEqual({ status: 'passed' });
 	const { folder } = await flow.generate('main', v1);
@@ -376,7 +411,10 @@ test('pull into an empty folder writes a base snapshot that generate continues',
 	const [pulled] = flow.folders('main');
 	const base = flow.snapshot('main', pulled);
 	expect(base).toMatchObject({ type: 'base', version: '9', dialect: 'postgres', prevIds: [ORIGIN] });
-	expect(base.statements).toMatchObject([{ type: 'create_table', table: { schema: 'public', name: 'users' } }]);
+	expect(base.footprints).toMatchObject([{
+		statementType: 'create_table',
+		statementTarget: ['table', 'public', 'users'],
+	}]);
 	expect(flow.state('main', pulled)).toStrictEqual(schemaState(v1));
 
 	const { folder } = await flow.generate('main', v2);
@@ -388,7 +426,7 @@ test('pull into an empty folder writes a base snapshot that generate continues',
 		dialect: 'postgres',
 		id: flow.snapshot('main', folder).id,
 		prevIds: [base.id],
-		statements: [expect.objectContaining({ type: 'add_column' })],
+		footprints: [expect.objectContaining({ statementType: 'add_column' })],
 		deltas: [expect.objectContaining({ op: 'create', row: expect.objectContaining({ name: 'email' }) })],
 	});
 	expect(flow.state('main', folder)).toStrictEqual(schemaState(v2));

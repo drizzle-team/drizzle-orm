@@ -30,9 +30,9 @@ import {
 	PgView as PgViewOld,
 } from 'orm044/pg-core';
 import { configMigrations } from 'src/cli/validations/common';
+import type { Footprint } from 'src/commutativity/engine';
 import { normalizeDDL } from 'src/dialects/ddl-canonical';
 import type { Delta } from 'src/dialects/dialect';
-import { fromSnapshotStatements, toSnapshotStatements } from 'src/dialects/postgres/convertor';
 import {
 	createDDL,
 	fromEntities,
@@ -74,9 +74,8 @@ import 'zx/globals';
 import { relationsToTypeScript } from 'src/cli/commands/pull-common';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
 import { extractPostgresExisting } from 'src/dialects/drizzle';
-import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
-import { isSnapshotStatement } from 'src/dialects/postgres/snapshot';
-import type { SnapshotStatement } from 'src/dialects/postgres/snapshot-statements';
+import { footprintsOf, postgresCommutativity } from 'src/dialects/postgres/commutativity';
+import { isFootprint } from 'src/dialects/postgres/snapshot';
 import { upToV8 } from 'src/dialects/postgres/versions';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/pgDiff';
@@ -149,6 +148,7 @@ export const drizzleToDDL = (
 
 	const {
 		schema: res,
+		metadata,
 		errors,
 		warnings,
 	} = fromDrizzleSchema(grouped, filter);
@@ -157,7 +157,7 @@ export const drizzleToDDL = (
 		throw new Error();
 	}
 
-	return { ...interimToDDL(res), existing };
+	return { ...interimToDDL(res), existing, metadata };
 };
 
 export const apply = (base: PostgresDDL, deltas: Delta[]) => applyDeltas(base.clone(), deltas);
@@ -169,13 +169,11 @@ const expectDeltasRebuildState = (parent: PostgresDDL, deltas: Delta[], next: Po
 		.toStrictEqual(normalizeDDL(next.entities.list()));
 };
 
-// Checks the stored statements in the form that a snapshot file holds, after a JSON round trip. Each one must
-// pass the snapshot validator, and together they must rebuild `sqlStatements`.
-const expectStatementsRebuildSql = (snapshotStatements: SnapshotStatement[], sqlStatements: string[]) => {
-	const stored: SnapshotStatement[] = JSON.parse(JSON.stringify(snapshotStatements));
-	expect(stored.filter((it) => !isSnapshotStatement(it)), 'stored statements that the validator rejects')
-		.toStrictEqual([]);
-	expect(fromSnapshotStatements(stored), 'the stored statements rebuild the SQL').toStrictEqual(sqlStatements);
+// Checks the footprints in the form that a snapshot file holds, after a JSON round trip. Each one must pass the
+// snapshot validator.
+const expectValidFootprints = (footprints: Footprint[]) => {
+	const stored: unknown[] = JSON.parse(JSON.stringify(footprints));
+	expect(stored.filter((it) => !isFootprint(it)), 'footprints that the validator rejects').toStrictEqual([]);
 };
 
 // 2 schemas -> 2 ddls -> diff
@@ -187,8 +185,8 @@ export const diff = async (
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as PostgresDDL, errors: [] }
 		: drizzleToDDL(left);
-	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
-		? { ddl: right as PostgresDDL, errors: [] }
+	const { ddl: ddl2, errors: err2, metadata } = 'entities' in right && '_' in right
+		? { ddl: right as PostgresDDL, errors: [], metadata: undefined }
 		: drizzleToDDL(right);
 
 	if (err1.length > 0 || err2.length > 0) {
@@ -198,7 +196,7 @@ export const diff = async (
 	const renames = new Set(renamesArr);
 
 	const parent = ddl1.clone();
-	const { sqlStatements, statements, snapshotStatements, groupedStatements, deltas } = await ddlDiff(
+	const { sqlStatements, statements, groupedStatements, deltas } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),
@@ -215,10 +213,12 @@ export const diff = async (
 		mockResolver(renames),
 		mockResolver(renames),
 		'default',
+		metadata,
 	);
 	expectDeltasRebuildState(parent, deltas, ddl2);
-	expectStatementsRebuildSql(snapshotStatements, sqlStatements);
-	return { sqlStatements, statements, groupedStatements, deltas, next: ddl2 };
+	const footprints = footprintsOf(groupedStatements);
+	expectValidFootprints(footprints);
+	return { sqlStatements, statements, footprints, groupedStatements, deltas, next: ddl2 };
 };
 
 // init schema flush to db -> introspect db to ddl -> compare ddl with destination schema
@@ -252,8 +252,8 @@ export const push = async (config: {
 		extensions: [],
 	};
 
-	const { ddl: ddl2, errors: err2, existing } = 'entities' in to && '_' in to
-		? { ddl: to as PostgresDDL, errors: [], existing: [] }
+	const { ddl: ddl2, errors: err2, existing, metadata } = 'entities' in to && '_' in to
+		? { ddl: to as PostgresDDL, errors: [], existing: [], metadata: undefined }
 		: drizzleToDDL(to, filterConfig);
 
 	const filter = prepareEntityFilter('postgresql', filterConfig, existing);
@@ -300,6 +300,7 @@ export const push = async (config: {
 		mockResolver(renames),
 		mockResolver(renames),
 		'push',
+		metadata,
 	);
 	expectDeltasRebuildState(parent, deltas, ddl2);
 
@@ -910,8 +911,8 @@ export async function conflictsFromSchema(
 		child2: SchemaShape;
 	},
 ) {
-	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
-	const { statements: st2 } = await diff(parent.schema, child2.schema, []);
+	const { footprints: footprints1 } = await diff(parent.schema, child1.schema, []);
+	const { footprints: footprints2 } = await diff(parent.schema, child2.schema, []);
 
-	return await postgresCommutativity.getReasonsFromStatements(toSnapshotStatements(st1), toSnapshotStatements(st2));
+	return postgresCommutativity.findConflict(footprints1, footprints2);
 }

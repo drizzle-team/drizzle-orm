@@ -104,7 +104,8 @@ export class MySqlEffectSelectBase<
 	declare readonly session: MySqlEffectSession<TEffectHKT, any, any>;
 
 	prepare(): MySqlEffectSelectPrepare<this, TEffectHKT> {
-		const query = this.dialect.sqlToQuery(this.getSQL(true));
+		const sequel = this.getSQL(true);
+		const query = this.dialect.sqlToQuery(sequel);
 		const fieldsList = this.config.fieldsFlat!;
 		const mapper = this.dialect.mapperGenerators.rows(
 			fieldsList,
@@ -113,10 +114,7 @@ export class MySqlEffectSelectBase<
 
 		const preparedQuery = this.session.prepareQuery<
 			MySqlPreparedQueryConfig & { execute: any }
-		>(query, 'arrays', mapper, {
-			type: 'select',
-			tables: [...this.usedTables],
-		}, this.cacheConfig);
+		>(query, 'arrays', mapper, { type: 'select', tables: () => this.getUsedTables(sequel) }, this.cacheConfig);
 
 		return preparedQuery as MySqlEffectSelectPrepare<this, TEffectHKT>;
 	}

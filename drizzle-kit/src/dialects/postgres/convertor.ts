@@ -1,73 +1,37 @@
+import '../../@types/utils';
 import { escapeSingleQuotes, type Simplify, wrapWith } from '../../utils';
-import { createDDL } from './ddl';
-import type { PostgresEntities } from './ddl';
-import {
-	builtinPolicyRoles,
-	defaultNameForPK,
-	defaults,
-	defaultToSQL,
-	isDefaultAction,
-	isSerialType,
-	mapSerialToInt,
-} from './grammar';
-import type { SnapshotStatement, StoredRow } from './snapshot-statements';
+import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, isSerialType, mapSerialToInt } from './grammar';
 import type { JsonStatement } from './statements';
 
-type StatementType = JsonStatement['type'];
-type StoredOf<TType extends StatementType> = Simplify<Omit<Extract<SnapshotStatement, { type: TType }>, 'type'>>;
-
-// Defines how a snapshot stores one statement kind and how that kind becomes SQL. `store` picks the fields
-// that the snapshot keeps. `convert` gets only these fields, so the SQL of a migration can be built again
-// from its snapshot, and a field that `store` does not keep is a type error in `convert`.
-export const convertor = <TType extends StatementType>(
+export const convertor = <
+	TType extends JsonStatement['type'],
+	TStatement extends Extract<JsonStatement, { type: TType }>,
+>(
 	type: TType,
-	store: (statement: Extract<JsonStatement, { type: TType }>) => StoredOf<TType>,
-	convert: (statement: StoredOf<TType>) => string | string[],
+	convertor: (statement: Simplify<Omit<TStatement, 'type'>>) => string | string[],
 ) => {
-	return { type, store, convert };
+	return {
+		type,
+		can: (st: JsonStatement) => {
+			return st.type === type;
+		},
+		convert: convertor,
+	};
 };
 
-const rowFields = Object.fromEntries(
-	Object.entries(createDDL()._.defs).map(([type, def]) => [type, Object.keys(def)]),
-) as Record<keyof PostgresEntities, string[]>;
-
-// Copies a row into a stored statement. The copy keeps only the fields that the DDL defines for `type`, so
-// the snapshot does not store `entityType` or the fields that the diff adds.
-const row = <K extends keyof PostgresEntities>(type: K, source: StoredRow<K>): StoredRow<K> =>
-	Object.fromEntries(rowFields[type].map((name) => [name, (source as Record<string, unknown>)[name]])) as StoredRow<K>;
-
-const inTable = ({ schema, table, name }: { schema: string; table: string; name: string }) => ({ schema, table, name });
-
-const inSchema = ({ schema, name }: { schema: string; name: string }) => ({ schema, name });
-const viewName = ({ schema, name, materialized }: StoredRow<'views'>) => ({ schema, name, materialized });
-
-const constraint = (it: { schema: string; table: string; name: string; columns: string[] }) => ({
-	...inTable(it),
-	columns: it.columns,
-});
-
-const uniqueness = ({ columns, isUnique, where }: StoredRow<'indexes'>) => ({
-	columns: columns.map(({ value, isExpression }) => ({ value, isExpression })),
-	isUnique,
-	where,
-});
-
-const createSchemaConvertor = convertor('create_schema', ({ name }) => ({ name }), (st) => {
+const createSchemaConvertor = convertor('create_schema', (st) => {
 	return `CREATE SCHEMA "${st.name}";\n`;
 });
 
-const dropSchemaConvertor = convertor('drop_schema', ({ name }) => ({ name }), (st) => {
+const dropSchemaConvertor = convertor('drop_schema', (st) => {
 	return `DROP SCHEMA "${st.name}";\n`;
 });
 
-const renameSchemaConvertor = convertor('rename_schema', ({ from, to }) => ({
-	from: { name: from.name },
-	to: { name: to.name },
-}), (st) => {
+const renameSchemaConvertor = convertor('rename_schema', (st) => {
 	return `ALTER SCHEMA "${st.from.name}" RENAME TO "${st.to.name}";\n`;
 });
 
-const createViewConvertor = convertor('create_view', ({ view }) => ({ view: row('views', view) }), (st) => {
+const createViewConvertor = convertor('create_view', (st) => {
 	const { definition, name: viewName, schema, with: withOption, materialized, withNoData, tablespace, using } = st.view;
 
 	const name = schema !== 'public' ? `"${schema}"."${viewName}"` : `"${viewName}"`;
@@ -93,37 +57,26 @@ const createViewConvertor = convertor('create_view', ({ view }) => ({ view: row(
 	return statement;
 });
 
-const dropViewConvertor = convertor('drop_view', ({ view }) => ({ view: viewName(view) }), (st) => {
+const dropViewConvertor = convertor('drop_view', (st) => {
 	const { name: viewName, schema, materialized } = st.view;
 	const name = schema !== 'public' ? `"${schema}"."${viewName}"` : `"${viewName}"`;
 	return `DROP${materialized ? ' MATERIALIZED' : ''} VIEW ${name};`;
 });
 
-const renameViewConvertor = convertor(
-	'rename_view',
-	({ from, to }) => ({ from: viewName(from), to: inSchema(to) }),
-	(st) => {
-		const materialized = st.from.materialized;
-		const nameFrom = st.from.schema !== 'public' ? `"${st.from.schema}"."${st.from.name}"` : `"${st.from.name}"`;
+const renameViewConvertor = convertor('rename_view', (st) => {
+	const materialized = st.from.materialized;
+	const nameFrom = st.from.schema !== 'public' ? `"${st.from.schema}"."${st.from.name}"` : `"${st.from.name}"`;
 
-		return `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW ${nameFrom} RENAME TO "${st.to.name}";`;
-	},
-);
+	return `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW ${nameFrom} RENAME TO "${st.to.name}";`;
+});
 
-const moveViewConvertor = convertor('move_view', ({ fromSchema, toSchema, view }) => ({
-	fromSchema,
-	toSchema,
-	view: { name: view.name, materialized: view.materialized },
-}), (st) => {
+const moveViewConvertor = convertor('move_view', (st) => {
 	const { fromSchema, toSchema, view } = st;
 	const from = fromSchema === 'public' ? `"${view.name}"` : `"${fromSchema}"."${view.name}"`;
 	return `ALTER${view.materialized ? ' MATERIALIZED' : ''} VIEW ${from} SET SCHEMA "${toSchema}";`;
 });
 
-const alterViewConvertor = convertor('alter_view', ({ view, diff }) => ({
-	view: viewName(view),
-	diff: { with: diff.with, tablespace: diff.tablespace, using: diff.using },
-}), (st) => {
+const alterViewConvertor = convertor('alter_view', (st) => {
 	const diff = st.diff;
 
 	const statements = [] as string[];
@@ -159,26 +112,8 @@ const alterViewConvertor = convertor('alter_view', ({ view, diff }) => ({
 	return statements;
 });
 
-const dropPolicySql = (policy: { schema: string; table: string; name: string }) => {
-	const tableNameWithSchema = policy.schema !== 'public'
-		? `"${policy.schema}"."${policy.table}"`
-		: `"${policy.table}"`;
-
-	return `DROP POLICY "${policy.name}" ON ${tableNameWithSchema};`;
-};
-
-const createTableConvertor = convertor('create_table', ({ table }) => ({
-	table: {
-		schema: table.schema,
-		name: table.name,
-		enablesRls: table.isRlsEnabled || table.policies.length > 0,
-		columns: table.columns.map((it) => row('columns', it)),
-		pk: table.pk && row('pks', table.pk),
-		uniques: table.uniques.map((it) => row('uniques', it)),
-		checks: table.checks.map((it) => row('checks', it)),
-	},
-}), (st) => {
-	const { schema, name, columns, pk, uniques, checks, enablesRls } = st.table;
+const createTableConvertor = convertor('create_table', (st) => {
+	const { schema, name, columns, pk, uniques, checks, policies, isRlsEnabled } = st.table;
 
 	const statements = [] as string[];
 	let statement = '';
@@ -275,7 +210,7 @@ const createTableConvertor = convertor('create_table', ({ table }) => ({
 	statement += `\n`;
 	statements.push(statement);
 
-	if (enablesRls) {
+	if (policies && policies.length > 0 || isRlsEnabled) {
 		statements.push(toggleRlsConvertor.convert({
 			isRlsEnabled: true,
 			name: st.table.name,
@@ -286,16 +221,14 @@ const createTableConvertor = convertor('create_table', ({ table }) => ({
 	return statements;
 });
 
-const dropTableConvertor = convertor('drop_table', ({ table }) => ({
-	table: { schema: table.schema, name: table.name, policies: table.policies.map(inTable) },
-}), (st) => {
+const dropTableConvertor = convertor('drop_table', (st) => {
 	const { name, schema, policies } = st.table;
 
 	const tableNameWithSchema = schema !== 'public'
 		? `"${schema}"."${name}"`
 		: `"${name}"`;
 
-	const droppedPolicies = policies.map(dropPolicySql);
+	const droppedPolicies = policies.map((policy) => dropPolicyConvertor.convert({ policy }) as string);
 
 	return [
 		...droppedPolicies,
@@ -303,7 +236,7 @@ const dropTableConvertor = convertor('drop_table', ({ table }) => ({
 	];
 });
 
-const renameTableConvertor = convertor('rename_table', ({ schema, from, to }) => ({ schema, from, to }), (st) => {
+const renameTableConvertor = convertor('rename_table', (st) => {
 	const schemaPrefix = st.schema !== 'public'
 		? `"${st.schema}".`
 		: '';
@@ -311,18 +244,13 @@ const renameTableConvertor = convertor('rename_table', ({ schema, from, to }) =>
 	return `ALTER TABLE ${schemaPrefix}"${st.from}" RENAME TO "${st.to}";`;
 });
 
-const moveTableConvertor = convertor('move_table', ({ name, from, to, indexNames }) => ({
-	name,
-	from,
-	to,
-	indexNames,
-}), (st) => {
+const moveTableConvertor = convertor('move_table', (st) => {
 	const from = st.from !== 'public' ? `"${st.from}"."${st.name}"` : `"${st.name}"`;
 
 	return `ALTER TABLE ${from} SET SCHEMA "${st.to}";\n`;
 });
 
-const addColumnSql = (st: { column: StoredRow<'columns'>; isPK: boolean; isCompositePK: boolean }) => {
+const addColumnConvertor = convertor('add_column', (st) => {
 	const { schema, table, name, identity, generated } = st.column;
 	const column = st.column;
 
@@ -378,16 +306,9 @@ const addColumnSql = (st: { column: StoredRow<'columns'>; isPK: boolean; isCompo
 	const generatedStatement = column.generated ? ` GENERATED ALWAYS AS (${column.generated.as}) STORED` : '';
 
 	return `ALTER TABLE ${tableNameWithSchema} ADD COLUMN "${name}" ${fixedType}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${identityStatement};`;
-};
+});
 
-// Writes ADD COLUMN without PRIMARY KEY (`isPK: false`), because the primary key of a new column has its own
-// statement, `add_pk` or `alter_pk`.
-const addColumnConvertor = convertor('add_column', ({ column, isCompositePK }) => ({
-	column: row('columns', column),
-	isCompositePK,
-}), (st) => addColumnSql({ ...st, isPK: false }));
-
-const dropColumnConvertor = convertor('drop_column', ({ column }) => ({ column: inTable(column) }), (st) => {
+const dropColumnConvertor = convertor('drop_column', (st) => {
 	const { schema, table, name } = st.column;
 
 	const tableNameWithSchema = schema !== 'public'
@@ -397,64 +318,38 @@ const dropColumnConvertor = convertor('drop_column', ({ column }) => ({ column: 
 	return `ALTER TABLE ${tableNameWithSchema} DROP COLUMN "${name}";`;
 });
 
-const renameColumnConvertor = convertor(
-	'rename_column',
-	({ from, to }) => ({ from: inTable(from), to: inTable(to) }),
-	(st) => {
-		const { table, schema } = st.from;
-		const tableNameWithSchema = schema !== 'public'
-			? `"${schema}"."${table}"`
-			: `"${table}"`;
+const renameColumnConvertor = convertor('rename_column', (st) => {
+	const { table, schema } = st.from;
+	const tableNameWithSchema = schema !== 'public'
+		? `"${schema}"."${table}"`
+		: `"${table}"`;
 
-		return `ALTER TABLE ${tableNameWithSchema} RENAME COLUMN "${st.from.name}" TO "${st.to.name}";`;
-	},
-);
+	return `ALTER TABLE ${tableNameWithSchema} RENAME COLUMN "${st.from.name}" TO "${st.to.name}";`;
+});
 
-const recreateColumnConvertor = convertor('recreate_column', ({ diff, isPK }) => ({
-	column: row('columns', diff.$right),
-	isPK,
-}), (st) => {
+const recreateColumnConvertor = convertor('recreate_column', (st) => {
 	// AlterTableAlterColumnSetExpressionConvertor
 	// AlterTableAlterColumnAlterGeneratedConvertor
 
-	const drop = dropColumnConvertor.convert({ column: st.column }) as string;
-	const add = addColumnSql({ column: st.column, isPK: st.isPK, isCompositePK: false });
+	const r = st.diff.$right;
+	const drop = dropColumnConvertor.convert({ column: r }) as string;
+	const add = addColumnConvertor.convert({ column: r, isPK: st.isPK, isCompositePK: false }) as string;
 
 	return [drop, add];
 });
 
-const recreateIndexConvertor = convertor('recreate_index', ({ index, diff, shouldDrop }) => ({
-	index: row('indexes', index),
-	shouldDrop,
-	old: uniqueness(diff.$left),
-}), (st) => {
+const recreateIndexConvertor = convertor('recreate_index', (st) => {
 	// AlterTableAlterColumnSetExpressionConvertor
 	// AlterTableAlterColumnAlterGeneratedConvertor
 
 	const res: string[] = [];
-	if (st.shouldDrop) res.push(dropIndexConvertor.convert({ index: st.index }) as string);
+	res.push(dropIndexConvertor.convert({ index: st.index }) as string);
 	res.push(createIndexConvertor.convert({ index: st.index }) as string);
 
 	return res;
 });
 
-const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasEnum, wasSerial, toSerial }) => ({
-	to: row('columns', to),
-	oldDefault: diff.$left.default,
-	isEnum,
-	wasEnum,
-	wasSerial,
-	toSerial,
-	diff: {
-		type: diff.type,
-		typeSchema: diff.typeSchema,
-		dimensions: diff.dimensions,
-		default: diff.default,
-		notNull: diff.notNull,
-		generated: diff.generated,
-		identity: diff.identity,
-	},
-}), (st) => {
+const alterColumnConvertor = convertor('alter_column', (st) => {
 	const { diff, to: column, isEnum, wasEnum, wasSerial, toSerial } = st;
 	const statements = [] as string[];
 
@@ -472,7 +367,7 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 	// name in another schema is another type. A new count of `dimensions` gets a plain cast. Postgres has no
 	// cast between most scalar types and their array types, so the user edits that USING clause.
 	const hasNewType = !!(diff.type || diff.typeSchema || diff.dimensions);
-	const recreateDefault = hasNewType && (isEnum || wasEnum || diff.dimensions) && st.oldDefault;
+	const recreateDefault = hasNewType && (isEnum || wasEnum || diff.dimensions) && diff.$left.default;
 	if (recreateDefault) {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
@@ -609,7 +504,7 @@ const alterColumnConvertor = convertor('alter_column', ({ diff, to, isEnum, wasE
 	return statements;
 });
 
-const createIndexConvertor = convertor('create_index', ({ index }) => ({ index: row('indexes', index) }), (st) => {
+const createIndexConvertor = convertor('create_index', (st) => {
 	const {
 		schema,
 		table,
@@ -651,9 +546,7 @@ const createIndexConvertor = convertor('create_index', ({ index }) => ({ index: 
 	return `CREATE ${indexPart}${concur} "${name}" ON ${key}${using} (${value})${withClause}${whereClause};`;
 });
 
-const dropIndexConvertor = convertor('drop_index', ({ index }) => ({
-	index: { ...inTable(index), ...uniqueness(index) },
-}), (st) => {
+const dropIndexConvertor = convertor('drop_index', (st) => {
 	const { schema } = st.index;
 
 	const key = schema !== 'public'
@@ -663,19 +556,13 @@ const dropIndexConvertor = convertor('drop_index', ({ index }) => ({
 	return `DROP INDEX ${key}"${st.index.name}";`;
 });
 
-const renameIndexConvertor = convertor('rename_index', ({ schema, table, from, to, columns }) => ({
-	schema,
-	table,
-	from,
-	to,
-	columns,
-}), (st) => {
+const renameIndexConvertor = convertor('rename_index', (st) => {
 	const key = st.schema !== 'public' ? `"${st.schema}"."${st.from}"` : `"${st.from}"`;
 
 	return `ALTER INDEX ${key} RENAME TO "${st.to}";`;
 });
 
-const addPrimaryKeyConvertor = convertor('add_pk', ({ pk }) => ({ pk: row('pks', pk) }), (st) => {
+const addPrimaryKeyConvertor = convertor('add_pk', (st) => {
 	const { pk } = st;
 	const key = pk.schema !== 'public'
 		? `"${pk.schema}"."${pk.table}"`
@@ -687,7 +574,7 @@ const addPrimaryKeyConvertor = convertor('add_pk', ({ pk }) => ({ pk: row('pks',
 	return `ALTER TABLE ${key} ADD CONSTRAINT "${pk.name}" PRIMARY KEY("${pk.columns.join('","')}");`;
 });
 
-const dropPrimaryKeyConvertor = convertor('drop_pk', ({ pk }) => ({ pk: constraint(pk) }), (st) => {
+const dropPrimaryKeyConvertor = convertor('drop_pk', (st) => {
 	const pk = st.pk;
 	const key = pk.schema !== 'public'
 		? `"${pk.schema}"."${pk.table}"`
@@ -696,37 +583,22 @@ const dropPrimaryKeyConvertor = convertor('drop_pk', ({ pk }) => ({ pk: constrai
 	return `ALTER TABLE ${key} DROP CONSTRAINT "${pk.name}";`;
 });
 
-const recreatePrimaryKeyConvertor = convertor('alter_pk', ({ pk, diff, deleted }) => ({
-	pk: row('pks', pk),
-	shouldDrop: !deleted,
-	oldColumns: diff.columns?.from ?? pk.columns,
-}), (it) => {
+const recreatePrimaryKeyConvertor = convertor('alter_pk', (it) => {
 	const st: string[] = [];
-	if (it.shouldDrop) st.push(dropPrimaryKeyConvertor.convert({ pk: it.pk }) as string);
+	if (!it.deleted) st.push(dropPrimaryKeyConvertor.convert({ pk: it.pk }) as string);
 	st.push(addPrimaryKeyConvertor.convert({ pk: it.pk }) as string);
 	return st;
 });
 
-const renameConstraintConvertor = convertor(
-	'rename_constraint',
-	({ entityType, schema, table, from, to, columns }) => ({
-		entityType,
-		schema,
-		table,
-		from,
-		to,
-		columns,
-	}),
-	(st) => {
-		const key = st.schema !== 'public'
-			? `"${st.schema}"."${st.table}"`
-			: `"${st.table}"`;
+const renameConstraintConvertor = convertor('rename_constraint', (st) => {
+	const key = st.schema !== 'public'
+		? `"${st.schema}"."${st.table}"`
+		: `"${st.table}"`;
 
-		return `ALTER TABLE ${key} RENAME CONSTRAINT "${st.from}" TO "${st.to}";`;
-	},
-);
+	return `ALTER TABLE ${key} RENAME CONSTRAINT "${st.from}" TO "${st.to}";`;
+});
 
-const createForeignKeyConvertor = convertor('create_fk', ({ fk }) => ({ fk: row('fks', fk) }), (st) => {
+const createForeignKeyConvertor = convertor('create_fk', (st) => {
 	const { schema, table, name, tableTo, columns, columnsTo, onDelete, onUpdate, schemaTo } = st.fk;
 
 	const onDeleteStatement = onDelete && !isDefaultAction(onDelete) ? ` ON DELETE ${onDelete}` : '';
@@ -745,7 +617,7 @@ const createForeignKeyConvertor = convertor('create_fk', ({ fk }) => ({ fk: row(
 	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
 });
 
-const recreateFKConvertor = convertor('recreate_fk', ({ fk }) => ({ fk: row('fks', fk) }), (st) => {
+const recreateFKConvertor = convertor('recreate_fk', (st) => {
 	const { fk } = st;
 
 	const key = fk.schema !== 'public'
@@ -775,7 +647,7 @@ const recreateFKConvertor = convertor('recreate_fk', ({ fk }) => ({ fk: row('fks
 	return sql;
 });
 
-const dropForeignKeyConvertor = convertor('drop_fk', ({ fk }) => ({ fk: constraint(fk) }), (st) => {
+const dropForeignKeyConvertor = convertor('drop_fk', (st) => {
 	const { schema, table, name } = st.fk;
 
 	const tableNameWithSchema = schema !== 'public'
@@ -785,10 +657,7 @@ const dropForeignKeyConvertor = convertor('drop_fk', ({ fk }) => ({ fk: constrai
 	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${name}";`;
 });
 
-const addCheckConvertor = convertor('add_check', ({ check, columns }) => ({
-	check: row('checks', check),
-	columns,
-}), (st) => {
+const addCheckConvertor = convertor('add_check', (st) => {
 	const { check } = st;
 	const tableNameWithSchema = check.schema !== 'public'
 		? `"${check.schema}"."${check.table}"`
@@ -796,10 +665,7 @@ const addCheckConvertor = convertor('add_check', ({ check, columns }) => ({
 	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${check.name}" CHECK (${check.value});`;
 });
 
-const dropCheckConvertor = convertor('drop_check', ({ check, columns }) => ({
-	check: inTable(check),
-	columns,
-}), (st) => {
+const dropCheckConvertor = convertor('drop_check', (st) => {
 	const { check } = st;
 	const tableNameWithSchema = check.schema !== 'public'
 		? `"${check.schema}"."${check.table}"`
@@ -807,12 +673,10 @@ const dropCheckConvertor = convertor('drop_check', ({ check, columns }) => ({
 	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${check.name}";`;
 });
 
-const recreateCheckConvertor = convertor('alter_check', ({ diff, newColumns, oldColumns }) => ({
-	check: row('checks', diff.$right),
-	newColumns,
-	oldColumns,
-}), (st) => {
-	const { check } = st;
+const recreateCheckConvertor = convertor('alter_check', (st) => {
+	const { diff } = st;
+
+	const check = diff.$right;
 
 	const key = check.schema !== 'public'
 		? `"${check.schema}"."${check.table}"`
@@ -824,7 +688,7 @@ const recreateCheckConvertor = convertor('alter_check', ({ diff, newColumns, old
 	return sql;
 });
 
-const addUniqueConvertor = convertor('add_unique', ({ unique }) => ({ unique: row('uniques', unique) }), (st) => {
+const addUniqueConvertor = convertor('add_unique', (st) => {
 	const { unique } = st;
 	const tableNameWithSchema = unique.schema !== 'public'
 		? `"${unique.schema}"."${unique.table}"`
@@ -834,7 +698,7 @@ const addUniqueConvertor = convertor('add_unique', ({ unique }) => ({ unique: ro
 	}("${unique.columns.join('","')}");`;
 });
 
-const dropUniqueConvertor = convertor('drop_unique', ({ unique }) => ({ unique: constraint(unique) }), (st) => {
+const dropUniqueConvertor = convertor('drop_unique', (st) => {
 	const { unique } = st;
 	const tableNameWithSchema = unique.schema !== 'public'
 		? `"${unique.schema}"."${unique.table}"`
@@ -842,19 +706,16 @@ const dropUniqueConvertor = convertor('drop_unique', ({ unique }) => ({ unique: 
 	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${unique.name}";`;
 });
 
-const alterUniqueConvertor = convertor('alter_unique', ({ diff }) => ({
-	from: constraint(diff.$left),
-	to: row('uniques', diff.$right),
-}), (st) => {
+const alterUniqueConvertor = convertor('alter_unique', (st) => {
 	const statements: string[] = [];
 
-	statements.push(dropUniqueConvertor.convert({ unique: st.from }) as string);
-	statements.push(addUniqueConvertor.convert({ unique: st.to }) as string);
+	statements.push(dropUniqueConvertor.convert({ unique: st.diff.$left }) as string);
+	statements.push(addUniqueConvertor.convert({ unique: st.diff.$right }) as string);
 
 	return statements;
 });
 
-const createEnumConvertor = convertor('create_enum', (st) => ({ enum: row('enums', st.enum) }), (st) => {
+const createEnumConvertor = convertor('create_enum', (st) => {
 	const { name, schema, values } = st.enum;
 	const enumNameWithSchema = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
 
@@ -865,39 +726,30 @@ const createEnumConvertor = convertor('create_enum', (st) => ({ enum: row('enums
 	return `CREATE TYPE ${enumNameWithSchema} AS ENUM${valuesStatement};`;
 });
 
-const dropEnumConvertor = convertor('drop_enum', (st) => ({ enum: inSchema(st.enum) }), (st) => {
+const dropEnumConvertor = convertor('drop_enum', (st) => {
 	const { name, schema } = st.enum;
 	const enumNameWithSchema = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
 	return `DROP TYPE ${enumNameWithSchema};`;
 });
 
-const renameEnumConvertor = convertor('rename_enum', ({ schema, from, to }) => ({ schema, from, to }), (st) => {
+const renameEnumConvertor = convertor('rename_enum', (st) => {
 	const from = st.schema !== 'public' ? `"${st.schema}"."${st.from}"` : `"${st.from}"`;
 	return `ALTER TYPE ${from} RENAME TO "${st.to}";`;
 });
 
-const moveEnumConvertor = convertor('move_enum', ({ from, to }) => ({
-	from: inSchema(from),
-	to: inSchema(to),
-}), (st) => {
+const moveEnumConvertor = convertor('move_enum', (st) => {
 	const { from, to } = st;
 
 	const enumNameWithSchema = from.schema !== 'public' ? `"${from.schema}"."${from.name}"` : `"${from.name}"`;
-	return `ALTER TYPE ${enumNameWithSchema} SET SCHEMA "${to.schema}";`;
+	return `ALTER TYPE ${enumNameWithSchema} SET SCHEMA "${to.schema || 'public'}";`;
 });
 
-const alterEnumConvertor = convertor('alter_enum', ({ to, diff }) => ({
-	to: inSchema(to),
-	added: diff.filter((it) => it.type === 'added').map(({ value, beforeValue }) => ({
-		value,
-		beforeValue: beforeValue ?? null,
-	})),
-}), (st) => {
-	const { added, to: e } = st;
+const alterEnumConvertor = convertor('alter_enum', (st) => {
+	const { diff, to: e } = st;
 	const key = e.schema !== 'public' ? `"${e.schema}"."${e.name}"` : `"${e.name}"`;
 
 	const statements = [] as string[];
-	for (const d of added) {
+	for (const d of diff.filter((it) => it.type === 'added')) {
 		if (d.beforeValue) {
 			statements.push(`ALTER TYPE ${key} ADD VALUE '${d.value}' BEFORE '${d.beforeValue}';`);
 		} else {
@@ -907,18 +759,7 @@ const alterEnumConvertor = convertor('alter_enum', ({ to, diff }) => ({
 	return statements;
 });
 
-const recreateEnumConvertor = convertor('recreate_enum', ({ to, columns }) => ({
-	to: row('enums', to),
-	columns: columns.map(({ schema, table, name, type, typeSchema, dimensions, default: { left, right } }) => ({
-		schema,
-		table,
-		name,
-		type,
-		typeSchema,
-		dimensions,
-		default: { left, right },
-	})),
-}), (st) => {
+const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 	const { to, columns } = st;
 	const statements: string[] = [];
 	for (const column of columns) {
@@ -956,9 +797,7 @@ const recreateEnumConvertor = convertor('recreate_enum', ({ to, columns }) => ({
 	return statements;
 });
 
-const createSequenceConvertor = convertor('create_sequence', ({ sequence }) => ({
-	sequence: row('sequences', sequence),
-}), (st) => {
+const createSequenceConvertor = convertor('create_sequence', (st) => {
 	const { name, schema, minValue, maxValue, incrementBy, startWith, cacheSize, cycle } = st.sequence;
 	const sequenceWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
 
@@ -969,26 +808,20 @@ const createSequenceConvertor = convertor('create_sequence', ({ sequence }) => (
 	}${cycle ? ` CYCLE` : ''};`;
 });
 
-const dropSequenceConvertor = convertor('drop_sequence', ({ sequence }) => ({ sequence: inSchema(sequence) }), (st) => {
+const dropSequenceConvertor = convertor('drop_sequence', (st) => {
 	const { name, schema } = st.sequence;
 	const sequenceWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
 	return `DROP SEQUENCE ${sequenceWithSchema};`;
 });
 
-const renameSequenceConvertor = convertor('rename_sequence', ({ from, to }) => ({
-	from: inSchema(from),
-	to: inSchema(to),
-}), (st) => {
+const renameSequenceConvertor = convertor('rename_sequence', (st) => {
 	const sequenceWithSchemaFrom = st.from.schema !== 'public'
 		? `"${st.from.schema}"."${st.from.name}"`
 		: `"${st.from.name}"`;
 	return `ALTER SEQUENCE ${sequenceWithSchemaFrom} RENAME TO "${st.to.name}";`;
 });
 
-const moveSequenceConvertor = convertor('move_sequence', ({ from, to }) => ({
-	from: inSchema(from),
-	to: inSchema(to),
-}), (st) => {
+const moveSequenceConvertor = convertor('move_sequence', (st) => {
 	const { from, to } = st;
 	const sequenceWithSchema = from.schema !== 'public'
 		? `"${from.schema}"."${from.name}"`
@@ -997,9 +830,7 @@ const moveSequenceConvertor = convertor('move_sequence', ({ from, to }) => ({
 	return `ALTER SEQUENCE ${sequenceWithSchema} SET SCHEMA ${seqSchemaTo};`;
 });
 
-const alterSequenceConvertor = convertor('alter_sequence', ({ sequence }) => ({
-	sequence: row('sequences', sequence),
-}), (st) => {
+const alterSequenceConvertor = convertor('alter_sequence', (st) => {
 	const { schema, name, incrementBy, minValue, maxValue, startWith, cacheSize, cycle } = st.sequence;
 
 	const sequenceWithSchema = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
@@ -1011,7 +842,7 @@ const alterSequenceConvertor = convertor('alter_sequence', ({ sequence }) => ({
 	}${cycle ? ` CYCLE` : ''};`;
 });
 
-const createRoleConvertor = convertor('create_role', ({ role }) => ({ role: row('roles', role) }), (st) => {
+const createRoleConvertor = convertor('create_role', (st) => {
 	const {
 		name,
 		superuser,
@@ -1040,32 +871,15 @@ const createRoleConvertor = convertor('create_role', ({ role }) => ({ role: row(
 	return `CREATE ROLE "${name}"${withClause};`;
 });
 
-const dropRoleConvertor = convertor('drop_role', ({ role }) => ({ role: { name: role.name } }), (st) => {
+const dropRoleConvertor = convertor('drop_role', (st) => {
 	return `DROP ROLE "${st.role.name}";`;
 });
 
-const renameRoleConvertor = convertor('rename_role', ({ from, to }) => ({
-	from: { name: from.name },
-	to: { name: to.name },
-}), (st) => {
+const renameRoleConvertor = convertor('rename_role', (st) => {
 	return `ALTER ROLE "${st.from.name}" RENAME TO "${st.to.name}";`;
 });
 
-const alterRoleConvertor = convertor('alter_role', ({ diff, role }) => ({
-	role: { name: role.name },
-	diff: {
-		superuser: diff.superuser,
-		createDb: diff.createDb,
-		createRole: diff.createRole,
-		inherit: diff.inherit,
-		canLogin: diff.canLogin,
-		replication: diff.replication,
-		bypassRls: diff.bypassRls,
-		connLimit: diff.connLimit,
-		password: diff.password,
-		validUntil: diff.validUntil,
-	},
-}), ({ diff, role }) => {
+const alterRoleConvertor = convertor('alter_role', ({ diff, role }) => {
 	const {
 		name,
 	} = role;
@@ -1133,9 +947,7 @@ const alterRoleConvertor = convertor('alter_role', ({ diff, role }) => ({
 	// }`};`;
 });
 
-const grantPrivilegeConvertor = convertor('grant_privilege', ({ privilege }) => ({
-	privilege: row('privileges', privilege),
-}), (st) => {
+const grantPrivilegeConvertor = convertor('grant_privilege', (st) => {
 	const { schema, table } = st.privilege;
 	const privilege = st.privilege;
 
@@ -1145,61 +957,52 @@ const grantPrivilegeConvertor = convertor('grant_privilege', ({ privilege }) => 
 	} TO "${privilege.grantee}"${privilege.isGrantable ? ' WITH GRANT OPTION' : ''};`;
 });
 
-const revokePrivilegeConvertor = convertor(
-	'revoke_privilege',
-	({ privilege: { schema, table, grantor, grantee, type } }) => ({
-		privilege: { schema, table, grantor, grantee, type },
-	}),
-	(st) => {
-		const { schema, table } = st.privilege;
-		const privilege = st.privilege;
+const revokePrivilegeConvertor = convertor('revoke_privilege', (st) => {
+	const { schema, table } = st.privilege;
+	const privilege = st.privilege;
 
-		return `REVOKE ${privilege.type} ON ${
-			schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`
-		} FROM "${privilege.grantee}";`;
-	},
-);
+	return `REVOKE ${privilege.type} ON ${
+		schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`
+	} FROM "${privilege.grantee}";`;
+});
 
-const regrantPrivilegeConvertor = convertor('regrant_privilege', ({ privilege }) => ({
-	privilege: row('privileges', privilege),
-}), (st) => {
+const regrantPrivilegeConvertor = convertor('regrant_privilege', (st) => {
 	const privilege = st.privilege;
 	const revokeStatement = revokePrivilegeConvertor.convert({ privilege }) as string;
 	const grantStatement = grantPrivilegeConvertor.convert({ privilege }) as string;
 	return [revokeStatement, grantStatement];
 });
 
-const createPolicyConvertor = convertor(
-	'create_policy',
-	({ policy }) => ({ policy: row('policies', policy) }),
-	(st) => {
-		const { schema, table } = st.policy;
-		const policy = st.policy;
+const createPolicyConvertor = convertor('create_policy', (st) => {
+	const { schema, table } = st.policy;
+	const policy = st.policy;
 
-		const tableNameWithSchema = schema !== 'public'
-			? `"${schema}"."${table}"`
-			: `"${table}"`;
+	const tableNameWithSchema = schema !== 'public'
+		? `"${schema}"."${table}"`
+		: `"${table}"`;
 
-		const usingPart = policy.using ? ` USING (${policy.using})` : '';
+	const usingPart = policy.using ? ` USING (${policy.using})` : '';
 
-		const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
+	const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
 
-		const policyToPart = policy.roles?.map((v) => builtinPolicyRoles.includes(v) ? v : `"${v}"`).join(', ');
+	const policyToPart = policy.roles?.map((v) =>
+		['current_user', 'current_role', 'session_user', 'public'].includes(v) ? v : `"${v}"`
+	).join(', ');
 
-		return `CREATE POLICY "${policy.name}" ON ${tableNameWithSchema} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${policyToPart}${usingPart}${withCheckPart};`;
-	},
-);
+	return `CREATE POLICY "${policy.name}" ON ${tableNameWithSchema} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${policyToPart}${usingPart}${withCheckPart};`;
+});
 
-const dropPolicyConvertor = convertor(
-	'drop_policy',
-	({ policy }) => ({ policy: inTable(policy) }),
-	(st) => dropPolicySql(st.policy),
-);
+const dropPolicyConvertor = convertor('drop_policy', (st) => {
+	const policy = st.policy;
 
-const renamePolicyConvertor = convertor('rename_policy', ({ from, to }) => ({
-	from: inTable(from),
-	to: inTable(to),
-}), (st) => {
+	const tableNameWithSchema = policy.schema !== 'public'
+		? `"${policy.schema}"."${policy.table}"`
+		: `"${policy.table}"`;
+
+	return `DROP POLICY "${policy.name}" ON ${tableNameWithSchema};`;
+});
+
+const renamePolicyConvertor = convertor('rename_policy', (st) => {
 	const { from, to } = st;
 
 	const tableNameWithSchema = to.schema !== 'public'
@@ -1209,44 +1012,36 @@ const renamePolicyConvertor = convertor('rename_policy', ({ from, to }) => ({
 	return `ALTER POLICY "${from.name}" ON ${tableNameWithSchema} RENAME TO "${to.name}";`;
 });
 
-const alterPolicyConvertor = convertor(
-	'alter_policy',
-	({ policy: { schema, table, name, roles, using, withCheck } }) => ({
-		policy: { schema, table, name, roles, using, withCheck },
-	}),
-	(st) => {
-		const { policy } = st;
+const alterPolicyConvertor = convertor('alter_policy', (st) => {
+	const { policy } = st;
 
-		const tableNameWithSchema = policy.schema !== 'public'
-			? `"${policy.schema}"."${policy.table}"`
-			: `"${policy.table}"`;
+	const tableNameWithSchema = policy.schema !== 'public'
+		? `"${policy.schema}"."${policy.table}"`
+		: `"${policy.table}"`;
 
-		const usingPart = policy.using
-			? ` USING (${policy.using})`
-			: '';
+	const usingPart = policy.using
+		? ` USING (${policy.using})`
+		: '';
 
-		const withCheckPart = policy.withCheck
-			? ` WITH CHECK (${policy.withCheck})`
-			: '';
+	const withCheckPart = policy.withCheck
+		? ` WITH CHECK (${policy.withCheck})`
+		: '';
 
-		const toClause = policy.roles?.map((v) => builtinPolicyRoles.includes(v) ? v : `"${v}"`).join(', ');
+	const toClause = policy.roles?.map((v) =>
+		['current_user', 'current_role', 'session_user', 'public'].includes(v) ? v : `"${v}"`
+	).join(', ');
 
-		return `ALTER POLICY "${policy.name}" ON ${tableNameWithSchema} TO ${toClause}${usingPart}${withCheckPart};`;
-	},
-);
+	return `ALTER POLICY "${policy.name}" ON ${tableNameWithSchema} TO ${toClause}${usingPart}${withCheckPart};`;
+});
 
-const recreatePolicy = convertor('recreate_policy', ({ policy }) => ({ policy: row('policies', policy) }), (st) => {
+const recreatePolicy = convertor('recreate_policy', (st) => {
 	return [
 		dropPolicyConvertor.convert({ policy: st.policy }) as string,
 		createPolicyConvertor.convert({ policy: st.policy }) as string,
 	];
 });
 
-const toggleRlsConvertor = convertor('alter_rls', ({ schema, name, isRlsEnabled }) => ({
-	schema,
-	name,
-	isRlsEnabled,
-}), (st) => {
+const toggleRlsConvertor = convertor('alter_rls', (st) => {
 	const { schema, name, isRlsEnabled } = st;
 
 	const tableNameWithSchema = schema !== 'public'
@@ -1256,102 +1051,90 @@ const toggleRlsConvertor = convertor('alter_rls', ({ schema, name, isRlsEnabled 
 	return `ALTER TABLE ${tableNameWithSchema} ${isRlsEnabled ? 'ENABLE' : 'DISABLE'} ROW LEVEL SECURITY;`;
 });
 
-// Finds the convertor of a statement by its `type`. The mapped type requires one entry for every statement
-// kind, so a new kind without a convertor is a type error.
-const convertors: { [TType in StatementType]: ReturnType<typeof convertor<TType>> } = {
-	create_schema: createSchemaConvertor,
-	drop_schema: dropSchemaConvertor,
-	rename_schema: renameSchemaConvertor,
-	create_view: createViewConvertor,
-	drop_view: dropViewConvertor,
-	rename_view: renameViewConvertor,
-	move_view: moveViewConvertor,
-	alter_view: alterViewConvertor,
-	create_table: createTableConvertor,
-	drop_table: dropTableConvertor,
-	rename_table: renameTableConvertor,
-	move_table: moveTableConvertor,
-	add_column: addColumnConvertor,
-	drop_column: dropColumnConvertor,
-	rename_column: renameColumnConvertor,
-	recreate_column: recreateColumnConvertor,
-	alter_column: alterColumnConvertor,
-	create_index: createIndexConvertor,
-	drop_index: dropIndexConvertor,
-	recreate_index: recreateIndexConvertor,
-	rename_index: renameIndexConvertor,
-	add_pk: addPrimaryKeyConvertor,
-	drop_pk: dropPrimaryKeyConvertor,
-	alter_pk: recreatePrimaryKeyConvertor,
-	create_fk: createForeignKeyConvertor,
-	recreate_fk: recreateFKConvertor,
-	drop_fk: dropForeignKeyConvertor,
-	add_check: addCheckConvertor,
-	drop_check: dropCheckConvertor,
-	alter_check: recreateCheckConvertor,
-	add_unique: addUniqueConvertor,
-	drop_unique: dropUniqueConvertor,
-	alter_unique: alterUniqueConvertor,
-	rename_constraint: renameConstraintConvertor,
-	create_enum: createEnumConvertor,
-	drop_enum: dropEnumConvertor,
-	rename_enum: renameEnumConvertor,
-	move_enum: moveEnumConvertor,
-	alter_enum: alterEnumConvertor,
-	recreate_enum: recreateEnumConvertor,
-	create_sequence: createSequenceConvertor,
-	drop_sequence: dropSequenceConvertor,
-	rename_sequence: renameSequenceConvertor,
-	move_sequence: moveSequenceConvertor,
-	alter_sequence: alterSequenceConvertor,
-	create_role: createRoleConvertor,
-	drop_role: dropRoleConvertor,
-	rename_role: renameRoleConvertor,
-	alter_role: alterRoleConvertor,
-	grant_privilege: grantPrivilegeConvertor,
-	revoke_privilege: revokePrivilegeConvertor,
-	regrant_privilege: regrantPrivilegeConvertor,
-	create_policy: createPolicyConvertor,
-	drop_policy: dropPolicyConvertor,
-	rename_policy: renamePolicyConvertor,
-	alter_policy: alterPolicyConvertor,
-	recreate_policy: recreatePolicy,
-	alter_rls: toggleRlsConvertor,
-};
-
-export const toSnapshotStatement = <TType extends StatementType>(
-	statement: Extract<JsonStatement, { type: TType }>,
-): Extract<SnapshotStatement, { type: TType }> => {
-	const stored = convertors[statement.type as TType].store(statement);
-	return { type: statement.type, ...stored } as unknown as Extract<SnapshotStatement, { type: TType }>;
-};
-
-export const toSnapshotStatements = (statements: JsonStatement[]): SnapshotStatement[] =>
-	statements.map((it) => toSnapshotStatement(it));
-
-const sqlOf = <TType extends StatementType>(statement: Extract<SnapshotStatement, { type: TType }>): string[] => {
-	const sql = convertors[statement.type as TType].convert(statement as unknown as StoredOf<TType>);
-	return typeof sql === 'string' ? [sql] : sql;
-};
-
-// Builds the SQL of a migration from the statements that its snapshot stores.
-export const fromSnapshotStatements = (statements: SnapshotStatement[]): string[] =>
-	statements.flatMap((it) => sqlOf(it));
+const convertors = [
+	createSchemaConvertor,
+	dropSchemaConvertor,
+	renameSchemaConvertor,
+	createViewConvertor,
+	dropViewConvertor,
+	renameViewConvertor,
+	moveViewConvertor,
+	alterViewConvertor,
+	createTableConvertor,
+	dropTableConvertor,
+	renameTableConvertor,
+	moveTableConvertor,
+	addColumnConvertor,
+	dropColumnConvertor,
+	renameColumnConvertor,
+	recreateColumnConvertor,
+	alterColumnConvertor,
+	createIndexConvertor,
+	dropIndexConvertor,
+	recreateIndexConvertor,
+	renameIndexConvertor,
+	addPrimaryKeyConvertor,
+	dropPrimaryKeyConvertor,
+	recreatePrimaryKeyConvertor,
+	createForeignKeyConvertor,
+	recreateFKConvertor,
+	dropForeignKeyConvertor,
+	addCheckConvertor,
+	dropCheckConvertor,
+	recreateCheckConvertor,
+	addUniqueConvertor,
+	dropUniqueConvertor,
+	alterUniqueConvertor,
+	renameConstraintConvertor,
+	createEnumConvertor,
+	dropEnumConvertor,
+	renameEnumConvertor,
+	moveEnumConvertor,
+	alterEnumConvertor,
+	recreateEnumConvertor,
+	createSequenceConvertor,
+	dropSequenceConvertor,
+	renameSequenceConvertor,
+	moveSequenceConvertor,
+	alterSequenceConvertor,
+	createRoleConvertor,
+	dropRoleConvertor,
+	renameRoleConvertor,
+	alterRoleConvertor,
+	grantPrivilegeConvertor,
+	revokePrivilegeConvertor,
+	regrantPrivilegeConvertor,
+	createPolicyConvertor,
+	dropPolicyConvertor,
+	renamePolicyConvertor,
+	alterPolicyConvertor,
+	recreatePolicy,
+	toggleRlsConvertor,
+];
 
 export function fromJson(
 	statements: JsonStatement[],
 ) {
-	const snapshotStatements = toSnapshotStatements(statements);
-	const grouped = statements.map((statement, idx) => ({
-		jsonStatement: statement,
-		sqlStatements: sqlOf(snapshotStatements[idx]),
-	}));
+	const grouped = statements
+		.map((statement) => {
+			const filtered = convertors.filter((it) => {
+				return it.can(statement);
+			});
 
-	return {
-		sqlStatements: grouped.flatMap((it) => it.sqlStatements),
+			const convertor = filtered.length === 1 ? filtered[0] : undefined;
+			if (!convertor) throw new Error(`No convertor for: ${statement.type} statement`);
+
+			const sqlStatements = convertor.convert(statement as any);
+			const statements = typeof sqlStatements === 'string' ? [sqlStatements] : sqlStatements;
+			return { jsonStatement: statement, sqlStatements: statements };
+		})
+		.filter((it) => it !== null);
+
+	const result = {
+		sqlStatements: grouped.map((it) => it.sqlStatements).flat(),
 		groupedStatements: grouped,
-		snapshotStatements,
 	};
+	return result;
 }
 
 // blog.yo1.dog/updating-enum-values-in-postgresql-the-safe-and-easy-way/

@@ -102,7 +102,7 @@ export const drizzleToDDL = (
 
 	const existing = extractCrdbExisting(schemas, views, materializedViews);
 	const filter = prepareEntityFilter('cockroach', filterConfig, existing);
-	const { schema: res, errors, warnings } = fromDrizzleSchema(
+	const { schema: res, metadata, errors, warnings } = fromDrizzleSchema(
 		{
 			schemas,
 			tables,
@@ -120,7 +120,7 @@ export const drizzleToDDL = (
 		throw new Error();
 	}
 
-	return { ...interimToDDL(res), existing };
+	return { ...interimToDDL(res), existing, metadata };
 };
 
 // 2 schemas -> 2 ddls -> diff
@@ -132,8 +132,8 @@ export const diff = async (
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as CockroachDDL, errors: [] }
 		: drizzleToDDL(left);
-	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
-		? { ddl: right as CockroachDDL, errors: [] }
+	const { ddl: ddl2, errors: err2, metadata } = 'entities' in right && '_' in right
+		? { ddl: right as CockroachDDL, errors: [], metadata: undefined }
 		: drizzleToDDL(right);
 
 	if (err1.length > 0 || err2.length > 0) {
@@ -157,6 +157,7 @@ export const diff = async (
 		mockResolver(renames),
 		mockResolver(renames),
 		'default',
+		metadata,
 	);
 	return { sqlStatements, statements, groupedStatements, next: ddl2 };
 };
@@ -200,8 +201,8 @@ export const push = async (
 
 	const migrations = configMigrations.parse(config.migrationsConfig);
 
-	const { ddl: ddl2, errors: err3, existing } = 'entities' in to && '_' in to
-		? { ddl: to as CockroachDDL, errors: [], existing: [] }
+	const { ddl: ddl2, errors: err3, existing, metadata } = 'entities' in to && '_' in to
+		? { ddl: to as CockroachDDL, errors: [], existing: [], metadata: undefined }
 		: drizzleToDDL(to, filterConfig);
 
 	const filter = prepareEntityFilter('cockroach', filterConfig, existing);
@@ -242,6 +243,7 @@ export const push = async (
 		mockResolver(renames),
 		mockResolver(renames),
 		'push',
+		metadata,
 	);
 
 	const hints = await runWithCliContext(

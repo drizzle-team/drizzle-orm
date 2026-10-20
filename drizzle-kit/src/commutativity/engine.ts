@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from 'fs';
-import { isDeepStrictEqual } from 'node:util';
 import { basename, dirname } from 'path';
 import { originUUID } from '../utils';
 import type { ConflictTarget, MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from './types';
@@ -21,26 +20,22 @@ export type ParsedSnapshotInput<TSnapshot extends SnapshotHeader = SnapshotHeade
 	snapshot: TSnapshot;
 };
 
-/**
- * Lists the nodes that one statement touches in a hierarchical namespace. `FacetCommutativity` compares these
- * nodes between two branches, and two statements conflict when the rules below say so:
- *  - `writes`        a write conflicts with a write or a read of the same node. For example, two branches that
- *                    add a column with one name, or a table rename and a new column of that table.
- *  - `reads`         a read conflicts only with a write. For example, two branches that add different columns
- *                    to one table both read the table, and they do not conflict.
- *  - `sharedWrites`  a shared write conflicts with a write or a read, and never with another shared write. Use it
- *                    for a fact that several objects guarantee. For example, a drop of a unique constraint and a
- *                    drop of a unique index on the same columns do not conflict, and either of them conflicts
- *                    with a new foreign key that reads the uniqueness of those columns.
- * Two equal statements on two branches pass through `isRepeatable`, not through `sharedWrites`, because a
- * shared write would let two different values of one property pass too.
- *
- * Keys are opaque strings minted by the dialect; the engine only compares them.
- */
-export type FacetPaths = {
+// What one statement writes, reads and shares, as lists of nodes, with the kind and the target of the statement
+// for the report. Two footprints of two branches conflict when one writes a node that the other writes, shares or
+// reads, or when one shares a node that the other reads. Two shared writes and two reads do not conflict. A shared
+// write is for a fact that several objects guarantee: a drop of a unique constraint and a drop of a unique index
+// on the same columns do not conflict, and either of them conflicts with a new foreign key that reads the
+// uniqueness of those columns.
+// `sqlHash` is set only for a statement whose SQL is idempotent. Two footprints with one
+// `sqlHash` are the same change on two branches, and they do not conflict with each other.
+// Nodes are opaque strings that the dialect builds; the engine only compares them.
+export type Footprint = {
+	statementType: string;
+	statementTarget: [kind: string, firstNamePart: string, ...restNameParts: string[]];
 	writes: string[];
 	reads?: string[];
 	sharedWrites?: string[];
+	sqlHash?: string;
 };
 
 type LeafFootprints<TStatement> = {
@@ -193,89 +188,28 @@ function composeMergeStatements<TStatement>(
 }
 
 export abstract class AbstractCommutativity<
-	TStatement extends { type: string },
+	TStatement,
 	TSnapshot extends { id: string; prevIds: string[] },
 > {
-	protected abstract describe(statement: TStatement): { description: string; target: ConflictTarget };
+	protected abstract describe(statement: TStatement): { description: string; target: ConflictTarget; action: string };
 
 	public abstract detectNonCommutative(
 		snapshots: string[] | ParsedSnapshotInput[],
 	): Promise<NonCommutativityReport>;
-
-	protected abstract generateLeafFootprints(statements: TStatement[]): LeafFootprints<TStatement>;
-
-	// Lets `isSameChange` accept two equal statements on two branches. A dialect returns true when the SQL of the
-	// statement gives the same result if it runs a second time.
-	protected isRepeatable(_statement: TStatement): boolean {
-		return false;
-	}
-
-	// Tells whether two statements of two branches are one change, so that they do not conflict. A footprint
-	// names only the object that a statement changes, so two equal statements always match.
-	private isSameChange(a: TStatement, b: TStatement): boolean {
-		return a.type === b.type && this.isRepeatable(a) && isDeepStrictEqual(a, b);
-	}
-
-	public async getReasonsFromStatements(aStatements: TStatement[], bStatements: TStatement[]) {
-		const branchAFootprints = this.generateLeafFootprints(aStatements);
-		const branchBFootprints = this.generateLeafFootprints(bStatements);
-
-		return this.findFootprintIntersections(
-			branchAFootprints.statementHashes,
-			branchAFootprints.conflictFootprints,
-			branchBFootprints.statementHashes,
-			branchBFootprints.conflictFootprints,
-		);
-	}
 
 	protected branchOf(
 		chain: MigrationNode[],
 		statement: TStatement,
 		source?: MigrationNode,
 	): UnifiedBranchConflict['branchA'] {
-		const { description, target } = this.describe(statement);
+		const { description, target, action } = this.describe(statement);
 		return {
 			chain,
 			statementDescription: source ? `${description} (${basename(source.path)})` : description,
 			target,
-			action: statement.type,
+			action,
 			...(source && { source }),
 		};
-	}
-
-	private findFootprintIntersections(
-		branchAHashes: Array<{ hash: string; statement: TStatement }>,
-		branchAConflicts: Array<{ hash: string; statement: TStatement }>,
-		branchBHashes: Array<{ hash: string; statement: TStatement }>,
-		branchBConflicts: Array<{ hash: string; statement: TStatement }>,
-	) {
-		const byHash = (conflicts: Array<{ hash: string; statement: TStatement }>) => {
-			const map = new Map<string, TStatement[]>();
-			for (const { hash, statement } of conflicts) {
-				const list = map.get(hash);
-				if (list) list.push(statement);
-				else map.set(hash, [statement]);
-			}
-			return map;
-		};
-		// Returns the first statement of `hashes` that conflicts with the other branch, and the last statement of
-		// the other branch with that hash. A pair that `isSameChange` accepts does not count.
-		const firstConflict = (
-			hashes: Array<{ hash: string; statement: TStatement }>,
-			conflicts: Map<string, TStatement[]>,
-		) => {
-			for (const { hash, statement } of hashes) {
-				const others = conflicts.get(hash) ?? [];
-				for (let idx = others.length - 1; idx >= 0; idx--) {
-					if (!this.isSameChange(statement, others[idx])) {
-						return { leftStatement: statement, rightStatement: others[idx] };
-					}
-				}
-			}
-		};
-
-		return firstConflict(branchAHashes, byHash(branchBConflicts))
-			?? firstConflict(branchBHashes, byHash(branchAConflicts));
 	}
 
 	protected buildSnapshotGraph(
@@ -308,59 +242,51 @@ export abstract class AbstractCommutativity<
 	}
 }
 
-export abstract class FacetCommutativity<
-	TStatement extends { type: string },
+const isSameChange = (a: Footprint, b: Footprint) =>
+	a.sqlHash !== undefined && a.statementType === b.statementType && a.sqlHash === b.sqlHash;
+
+// The new commutativity model, for dialects with format 9 snapshots. Each snapshot stores a `Footprint` for each
+// statement of its migration, and `check` compares the nodes of the footprints of two branches.
+// `ConflictListCommutativity` is the old model.
+export abstract class FootprintCommutativity<
 	TSnapshot extends { id: string; prevIds: string[] },
-> extends AbstractCommutativity<TStatement, TSnapshot> {
-	public abstract buildFacetPaths(statement: TStatement): FacetPaths;
-
-	/**
-	 * Facet-model footprints. Encodes a read/write lock per node so that
-	 * `findFootprintIntersections` (which matches produced-hashes of one branch
-	 * against conflict-hashes of the other) yields:
-	 *   write vs write  -> conflict   (two statements write the same node)
-	 *   write vs read   -> conflict   (a drop removes something that another statement reads)
-	 *   read  vs read   -> no conflict (both only read that the node exists)
-	 * A write contributes `key#w` to both lists; a read contributes `key#r` to
-	 * the produced list and `key#w` to the conflict list, so reads only ever
-	 * match against writes. A shared write contributes `key#w` to the produced
-	 * list only, so it matches a read or a write of the other branch, and never
-	 * another shared write.
-	 */
-	protected override generateLeafFootprints(statements: TStatement[]): LeafFootprints<TStatement> {
-		const statementHashes: Array<{ hash: string; statement: TStatement }> = [];
-		const conflictFootprints: Array<{ hash: string; statement: TStatement }> = [];
-
-		for (const statement of statements) {
-			const { writes, reads = [], sharedWrites = [] } = this.buildFacetPaths(statement);
-
-			for (const key of writes) {
-				statementHashes.push({ hash: `${key}#w`, statement });
-				conflictFootprints.push({ hash: `${key}#w`, statement });
+> extends AbstractCommutativity<Footprint, TSnapshot> {
+	// Returns a footprint of one branch and a footprint of the other branch that conflict, or undefined. A write or
+	// a shared write of one branch conflicts with a write or a read of the same node on the other branch, so the
+	// search runs in both directions to cover every case in `Footprint`.
+	public findConflict(a: Footprint[], b: Footprint[]) {
+		const firstConflict = (from: Footprint[], to: Footprint[]) => {
+			const touching = new Map<string, Footprint[]>();
+			for (const footprint of to) {
+				for (const node of [...footprint.writes, ...(footprint.reads ?? [])]) {
+					const list = touching.get(node);
+					if (list) list.push(footprint);
+					else touching.set(node, [footprint]);
+				}
 			}
-			for (const key of reads) {
-				statementHashes.push({ hash: `${key}#r`, statement });
-				conflictFootprints.push({ hash: `${key}#w`, statement });
+			for (const footprint of from) {
+				for (const node of [...footprint.writes, ...(footprint.sharedWrites ?? [])]) {
+					const others = touching.get(node) ?? [];
+					for (let idx = others.length - 1; idx >= 0; idx--) {
+						if (!isSameChange(footprint, others[idx])) return { left: footprint, right: others[idx] };
+					}
+				}
 			}
-			for (const key of sharedWrites) {
-				statementHashes.push({ hash: `${key}#w`, statement });
-			}
-		}
-
-		return { statementHashes, conflictFootprints };
+		};
+		return firstConflict(a, b) ?? firstConflict(b, a);
 	}
 
-	// Finds the conflicts between every pair of leaves, for a dialect whose snapshots store their statements. The
-	// branch of a leaf is the part of its history that the other leaf does not have. Every statement of the branch
-	// counts, so a change that a later snapshot of the same branch reverts still conflicts.
+	// Finds the conflicts between every pair of leaves. The branch of a leaf is the part of its history that the
+	// other leaf does not have. Every footprint of the branch counts, so a change that a later snapshot of the same
+	// branch reverts still conflicts.
 	protected async detectBranchConflicts(
 		nodes: Record<string, SnapshotNode<TSnapshot>>,
-		statementsOf: (id: string) => TStatement[],
+		footprintsOfSnapshot: (id: string) => Footprint[],
 	): Promise<NonCommutativityReport> {
 		const histories = new Map<string, Set<string>>();
-		const sources = new Map<TStatement, string>();
+		const sources = new Map<Footprint, string>();
 		for (const id of Object.keys(nodes)) {
-			for (const statement of statementsOf(id)) sources.set(statement, id);
+			for (const footprint of footprintsOfSnapshot(id)) sources.set(footprint, id);
 		}
 
 		const conflicts: UnifiedBranchConflict[] = [];
@@ -375,21 +301,21 @@ export abstract class FacetCommutativity<
 				const branchX = Object.keys(nodes).filter((id) => historyX.has(id) && !historyY.has(id));
 				const branchY = Object.keys(nodes).filter((id) => historyY.has(id) && !historyX.has(id));
 
-				const found = await this.getReasonsFromStatements(
-					branchX.flatMap((id) => statementsOf(id)),
-					branchY.flatMap((id) => statementsOf(id)),
+				const found = this.findConflict(
+					branchX.flatMap((id) => footprintsOfSnapshot(id)),
+					branchY.flatMap((id) => footprintsOfSnapshot(id)),
 				);
 				if (!found) continue;
 
-				// `found.leftStatement` can come from either branch. Its snapshot in `sources` tells which one.
-				const [statementX, statementY] = historyX.has(sources.get(found.leftStatement)!)
-					? [found.leftStatement, found.rightStatement]
-					: [found.rightStatement, found.leftStatement];
-				const describeLeafBranch = (branch: string[], statement: TStatement) => {
-					const sourceId = sources.get(statement)!;
+				// `found.left` can come from either branch. Its snapshot in `sources` tells which one.
+				const [footprintX, footprintY] = historyX.has(sources.get(found.left)!)
+					? [found.left, found.right]
+					: [found.right, found.left];
+				const describeLeafBranch = (branch: string[], footprint: Footprint) => {
+					const sourceId = sources.get(footprint)!;
 					return this.branchOf(
 						branch.map((id) => ({ id, path: nodes[id].folderPath })),
-						statement,
+						footprint,
 						{ id: sourceId, path: nodes[sourceId].folderPath },
 					);
 				};
@@ -397,8 +323,8 @@ export abstract class FacetCommutativity<
 				conflicts.push({
 					parentId: forkId ?? originUUID,
 					parentPath: forkId ? nodes[forkId].folderPath : undefined,
-					branchA: describeLeafBranch(branchX, statementX),
-					branchB: describeLeafBranch(branchY, statementY),
+					branchA: describeLeafBranch(branchX, footprintX),
+					branchB: describeLeafBranch(branchY, footprintY),
 				});
 			}
 		}
@@ -440,6 +366,9 @@ export type CommutativityStatementDefinitions<
 	>;
 };
 
+// The old commutativity model, for dialects whose snapshots store a full state. `check` diffs two snapshots to
+// get the statements, and each statement kind lists the statement kinds that it conflicts with. A dialect moves
+// to `FootprintCommutativity` when it gets format 9 snapshots.
 export abstract class ConflictListCommutativity<
 	TStatement extends { type: string },
 	TSnapshot extends { id: string; prevIds: string[] },
@@ -503,6 +432,7 @@ export abstract class ConflictListCommutativity<
 		return {
 			description: this.describeStatement(statement, info),
 			target: this.describeStatementTarget(statement, info),
+			action: statement.type,
 		};
 	}
 
@@ -685,7 +615,46 @@ export abstract class ConflictListCommutativity<
 		return [info.primary, ...info.ancestors, ...this.getImplicitAncestors(info.primary)];
 	}
 
-	protected override generateLeafFootprints(statements: TStatement[]): LeafFootprints<TStatement> {
+	public async getReasonsFromStatements(aStatements: TStatement[], bStatements: TStatement[]) {
+		const branchAFootprints = this.generateLeafFootprints(aStatements);
+		const branchBFootprints = this.generateLeafFootprints(bStatements);
+
+		return this.findFootprintIntersections(
+			branchAFootprints.statementHashes,
+			branchAFootprints.conflictFootprints,
+			branchBFootprints.statementHashes,
+			branchBFootprints.conflictFootprints,
+		);
+	}
+
+	private findFootprintIntersections(
+		branchAHashes: Array<{ hash: string; statement: TStatement }>,
+		branchAConflicts: Array<{ hash: string; statement: TStatement }>,
+		branchBHashes: Array<{ hash: string; statement: TStatement }>,
+		branchBConflicts: Array<{ hash: string; statement: TStatement }>,
+	) {
+		const branchAConflictByHash = new Map<string, TStatement>();
+		for (const c of branchAConflicts) branchAConflictByHash.set(c.hash, c.statement);
+
+		const branchBConflictByHash = new Map<string, TStatement>();
+		for (const c of branchBConflicts) branchBConflictByHash.set(c.hash, c.statement);
+
+		for (const a of branchAHashes) {
+			const match = branchBConflictByHash.get(a.hash);
+			if (match) {
+				return { leftStatement: a.statement, rightStatement: match };
+			}
+		}
+
+		for (const b of branchBHashes) {
+			const match = branchAConflictByHash.get(b.hash);
+			if (match) {
+				return { leftStatement: b.statement, rightStatement: match };
+			}
+		}
+	}
+
+	private generateLeafFootprints(statements: TStatement[]): LeafFootprints<TStatement> {
 		const statementHashes: Array<{ hash: string; statement: TStatement }> = [];
 		const conflictFootprints: Array<{ hash: string; statement: TStatement }> = [];
 

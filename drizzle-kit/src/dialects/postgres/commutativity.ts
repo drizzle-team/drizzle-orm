@@ -1,40 +1,39 @@
-import { FacetCommutativity, type FacetPaths, type ParsedSnapshotInput } from '../../commutativity/engine';
+import { createHash } from 'crypto';
+import { type Footprint, FootprintCommutativity, type ParsedSnapshotInput } from '../../commutativity/engine';
 import type { ConflictTarget } from '../../commutativity/types';
 import { type Column, type Index, type IndexColumn, privilegeTypes } from './ddl';
 import { builtinPolicyRoles, isSerialType } from './grammar';
 import type { PostgresSnapshot } from './snapshot';
-import type { SnapshotStatement } from './snapshot-statements';
+import type { JsonStatement } from './statements';
 
-// Returns the target that the report and the JSON output of `check` show for a statement. A constraint, a
-// policy and a privilege show their table. A role and a renamed index have the kind 'table' with their own name.
-function targetOf(statement: SnapshotStatement): ConflictTarget {
-	const tableOf = (child: { schema: string; table: string }): ConflictTarget => ({
-		kind: 'table',
-		name: child.table,
-		schema: child.schema,
-	});
-	const columnOf = (column: Pick<Column, 'schema' | 'table' | 'name'>): ConflictTarget => ({
-		kind: 'column',
-		name: column.name,
-		table: column.table,
-		schema: column.schema,
-	});
+// Returns the target that the report and the JSON output of `check` show for a statement, from the outer name to
+// the inner name. A constraint, a policy and a privilege show their table.
+function targetOf(statement: JsonStatement): Footprint['statementTarget'] {
+	type Target = Footprint['statementTarget'];
+	const tableOf = (child: { schema: string; table: string }): Target => ['table', child.schema, child.table];
+	const columnOf = (column: Pick<Column, 'schema' | 'table' | 'name'>): Target => [
+		'column',
+		column.schema,
+		column.table,
+		column.name,
+	];
 
 	switch (statement.type) {
 		case 'create_table':
 		case 'drop_table':
-			return { kind: 'table', name: statement.table.name, schema: statement.table.schema };
+			return ['table', statement.table.schema, statement.table.name];
 		case 'rename_table':
-			return { kind: 'table', name: statement.from, schema: statement.schema };
+			return ['table', statement.schema, statement.from];
 		case 'move_table':
-			return { kind: 'table', name: statement.name, schema: statement.from };
+			return ['table', statement.from, statement.name];
 		case 'alter_rls':
-			return { kind: 'table', name: statement.name, schema: statement.schema };
+			return ['table', statement.schema, statement.name];
 
 		case 'add_column':
 		case 'drop_column':
-		case 'recreate_column':
 			return columnOf(statement.column);
+		case 'recreate_column':
+			return columnOf(statement.diff.$right);
 		case 'alter_column':
 			return columnOf(statement.to);
 		case 'rename_column':
@@ -43,9 +42,9 @@ function targetOf(statement: SnapshotStatement): ConflictTarget {
 		case 'create_index':
 		case 'drop_index':
 		case 'recreate_index':
-			return { kind: 'index', name: statement.index.name, table: statement.index.table };
+			return ['index', statement.index.schema, statement.index.table, statement.index.name];
 		case 'rename_index':
-			return { kind: 'table', name: statement.from, schema: statement.schema };
+			return ['index', statement.schema, statement.table, statement.from];
 
 		case 'add_pk':
 		case 'drop_pk':
@@ -59,11 +58,12 @@ function targetOf(statement: SnapshotStatement): ConflictTarget {
 		case 'drop_unique':
 			return tableOf(statement.unique);
 		case 'alter_unique':
-			return tableOf(statement.to);
+			return tableOf(statement.diff.$right);
 		case 'add_check':
 		case 'drop_check':
-		case 'alter_check':
 			return tableOf(statement.check);
+		case 'alter_check':
+			return tableOf(statement.diff.$right);
 		case 'rename_constraint':
 			return tableOf(statement);
 		case 'create_policy':
@@ -76,62 +76,67 @@ function targetOf(statement: SnapshotStatement): ConflictTarget {
 
 		case 'create_enum':
 		case 'drop_enum':
-			return { kind: 'enum', name: statement.enum.name, schema: statement.enum.schema };
+			return ['enum', statement.enum.schema, statement.enum.name];
 		case 'rename_enum':
-			return { kind: 'enum', name: statement.from, schema: statement.schema };
+			return ['enum', statement.schema, statement.from];
 		case 'alter_enum':
 		case 'recreate_enum':
-			return { kind: 'enum', name: statement.to.name, schema: statement.to.schema };
+			return ['enum', statement.to.schema, statement.to.name];
 		case 'move_enum':
-			return { kind: 'enum', name: statement.from.name, schema: statement.from.schema };
+			return ['enum', statement.from.schema, statement.from.name];
 
 		case 'create_sequence':
 		case 'drop_sequence':
 		case 'alter_sequence':
-			return { kind: 'sequence', name: statement.sequence.name, schema: statement.sequence.schema };
+			return ['sequence', statement.sequence.schema, statement.sequence.name];
 		case 'rename_sequence':
-			return { kind: 'sequence', name: statement.from.name, schema: statement.from.schema };
 		case 'move_sequence':
-			return { kind: 'sequence', name: statement.from.name, schema: statement.from.schema };
+			return ['sequence', statement.from.schema, statement.from.name];
 
 		case 'create_view':
 		case 'drop_view':
 		case 'alter_view':
-			return { kind: 'view', name: statement.view.name, schema: statement.view.schema };
+			return ['view', statement.view.schema, statement.view.name];
 		case 'rename_view':
-			return { kind: 'view', name: statement.from.name, schema: statement.from.schema };
+			return ['view', statement.from.schema, statement.from.name];
 		case 'move_view':
-			return { kind: 'view', name: statement.view.name, schema: statement.fromSchema };
+			return ['view', statement.fromSchema, statement.view.name];
 
 		case 'create_schema':
 		case 'drop_schema':
-			return { kind: 'schema', name: statement.name };
+			return ['schema', statement.name];
 		case 'rename_schema':
-			return { kind: 'schema', name: statement.from.name };
+			return ['schema', statement.from.name];
 
 		case 'create_role':
 		case 'drop_role':
 		case 'alter_role':
-			return { kind: 'table', name: statement.role.name, schema: '' };
+			return ['role', statement.role.name];
 		case 'rename_role':
-			return { kind: 'table', name: statement.from.name, schema: '' };
+			return ['role', statement.from.name];
 
 		case 'grant_privilege':
 		case 'revoke_privilege':
 		case 'regrant_privilege':
-			return { kind: 'table', name: statement.privilege.table || '', schema: statement.privilege.schema || '' };
+			return ['table', statement.privilege.schema || '', statement.privilege.table || ''];
 	}
 }
+
+// Turns a stored target into the target of the report. The last name is the name of the target, and the names
+// before it are its schema and its table.
+const conflictTargetOf = ([kind, ...names]: Footprint['statementTarget']): ConflictTarget => {
+	const name = names[names.length - 1];
+	if (names.length === 3) return { kind, schema: names[0], table: names[1], name };
+	if (names.length === 2) return { kind, schema: names[0], name };
+	return { kind, name };
+};
 
 /**
  * Postgres-specific commutativity rules.
  *
- * `buildFacetPaths` decides which statements conflict. `targetOf` and `describe` feed only the report.
+ * `buildFootprint` decides which statements conflict. `targetOf` and `describe` feed only the report.
  */
-class PostgresCommutativity extends FacetCommutativity<
-	SnapshotStatement,
-	PostgresSnapshot
-> {
+class PostgresCommutativity extends FootprintCommutativity<PostgresSnapshot> {
 	private schemaLevelActions = new Set([
 		'create_table',
 		'drop_table',
@@ -164,19 +169,21 @@ class PostgresCommutativity extends FacetCommutativity<
 		'rename_role',
 	]);
 
-	protected override describe(statement: SnapshotStatement) {
-		const action = statement.type;
-		const target = targetOf(statement);
+	protected override describe(footprint: Footprint) {
+		const action = footprint.statementType;
+		const target = conflictTargetOf(footprint.statementTarget);
 
 		let description = `${action} on ${target.name} table`;
-		if (target.kind === 'index' || target.kind === 'column') {
+		if (target.kind === 'role') {
+			description = `${action}: ${target.name} role`;
+		} else if (target.kind === 'index' || target.kind === 'column') {
 			description = `${action}: ${target.name} on ${target.table} table`;
 		} else if (target.kind === 'schema') {
 			description = `${action}: ${target.name} schema`;
 		} else if (this.schemaLevelActions.has(action)) {
 			description = `${action}: ${target.name} in ${target.schema || 'schema'} schema`;
 		}
-		return { description, target };
+		return { description, target, action };
 	}
 
 	// ----------------------------------------------------------------------
@@ -186,7 +193,8 @@ class PostgresCommutativity extends FacetCommutativity<
 	// key, so children/cross-refs line up with the nodes drops remove.
 	// ----------------------------------------------------------------------
 
-	protected override isRepeatable(statement: SnapshotStatement): boolean {
+	// Tells whether the SQL of a statement is idempotent.
+	private isIdempotent(statement: JsonStatement): boolean {
 		switch (statement.type) {
 			// The SQL fails on the second run for a change of `identity`, for DROP EXPRESSION (`generated`), and
 			// when the column gets or loses its serial sequence. A change between two serial types keeps the
@@ -198,17 +206,16 @@ class PostgresCommutativity extends FacetCommutativity<
 				const isArrayConversion = !!dimensions && (dimensions.from === 0 || dimensions.to === 0);
 				return !dropsSequence && !statement.toSerial && !generated && !identity && !isArrayConversion;
 			}
-			// Without `shouldDrop`, the SQL has no DROP INDEX, and the second CREATE INDEX fails.
-			case 'recreate_index':
-				return statement.shouldDrop;
-			// Without `shouldDrop`, the SQL has no DROP CONSTRAINT, and the second ADD PRIMARY KEY fails.
+			// When the old primary key is already deleted, the SQL has no DROP CONSTRAINT, and the second ADD PRIMARY KEY
+			// fails.
 			case 'alter_pk':
-				return statement.shouldDrop;
-			// These statements give the same result on a second run. A `recreate_column` of a column with a
+				return !statement.deleted;
+			// The SQL of these statements is idempotent. A `recreate_column` of a column with a
 			// foreign key, an index or a unique constraint comes with a drop_fk, a create_fk, a create_index or an
-			// add_unique. `isRepeatable` cannot know that those run twice only next to the recreate, so the same
+			// add_unique. `isIdempotent` cannot know that those run twice only next to the recreate, so the same
 			// recreate of such a column on two branches still conflicts.
 			case 'recreate_column':
+			case 'recreate_index':
 			case 'recreate_fk':
 			case 'alter_unique':
 			case 'alter_check':
@@ -228,8 +235,22 @@ class PostgresCommutativity extends FacetCommutativity<
 		}
 	}
 
-	public override buildFacetPaths(statement: SnapshotStatement): FacetPaths {
-		// EXACT (strict) COMMUTATIVITY via three facets per node:
+	// Builds the footprint that a snapshot stores for a statement.
+	public buildFootprint(statement: JsonStatement, sql: string[]): Footprint {
+		return {
+			statementType: statement.type,
+			statementTarget: targetOf(statement),
+			...this.nodesOf(statement),
+			// 16 hex characters keep a snapshot short. Two different changes with one hash would pass `check` only
+			// when both are idempotent statements of one kind on the same nodes.
+			...(this.isIdempotent(statement) && {
+				sqlHash: createHash('sha256').update(sql.join('\n')).digest('hex').slice(0, 16),
+			}),
+		};
+	}
+
+	private nodesOf(statement: JsonStatement): Pick<Footprint, 'writes' | 'reads' | 'sharedWrites'> {
+		// EXACT (strict) COMMUTATIVITY via three nodes per object:
 		//   s|N  self       — written by EVERY structural op on N. Two ops on the same
 		//                     node collide here (add+drop, two alters, …).
 		//   n|N  name       — written by create/drop/rename/move (anything that changes
@@ -380,11 +401,14 @@ class PostgresCommutativity extends FacetCommutativity<
 				};
 			}
 			case 'recreate_column': // DROP + re-ADD the column: destroys & re-establishes it (cascading its
-				// indexes/constraints), so it writes existence like a create/drop, not just `self` like an alter
+			// indexes/constraints), so it writes existence like a create/drop, not just `self` like an alter
+			{
+				const column = s.diff.$right;
 				return {
-					writes: created('col', s.column.schema, s.column.table, s.column.name),
-					reads: [...underTable(s.column.schema, s.column.table), ...colEnum(s.column)],
+					writes: created('col', column.schema, column.table, column.name),
+					reads: [...underTable(column.schema, column.table), ...colEnum(column)],
 				};
+			}
 			case 'rename_column':
 				return {
 					writes: [
@@ -426,7 +450,7 @@ class PostgresCommutativity extends FacetCommutativity<
 						...underTable(s.index.schema, s.index.table),
 						...idxCols(s.index.columns, (c) => nref('col', s.index.schema, s.index.table, c)),
 					],
-					sharedWrites: indexUniqueness({ ...s.old, schema: s.index.schema, table: s.index.table }),
+					sharedWrites: indexUniqueness(s.diff.$left),
 				};
 			// A rename of the index works after a rename of its table or columns and fails after a drop of them.
 			// So the statement reads their existence with `indexHome` and `eref`.
@@ -464,7 +488,7 @@ class PostgresCommutativity extends FacetCommutativity<
 						...underTable(s.pk.schema, s.pk.table),
 						...s.pk.columns.map((c) => nref('col', s.pk.schema, s.pk.table, c)),
 					],
-					sharedWrites: [uniqueness(s.pk.schema, s.pk.table, s.oldColumns)],
+					sharedWrites: [uniqueness(s.pk.schema, s.pk.table, s.diff.columns?.from ?? s.pk.columns)],
 				};
 
 			// ---- foreign keys ----
@@ -508,16 +532,18 @@ class PostgresCommutativity extends FacetCommutativity<
 					],
 					sharedWrites: [uniqueness(s.unique.schema, s.unique.table, s.unique.columns)],
 				};
-			case 'alter_unique': // recreated as DROP $left + ADD $right: name-ref the new cols, existence-ref the old
+			case 'alter_unique': { // recreated as DROP $left + ADD $right: name-ref the new cols, existence-ref the old
+				const { $left: from, $right: to } = s.diff;
 				return {
-					writes: altered('uq', s.to.schema, s.to.table, s.to.name),
+					writes: altered('uq', to.schema, to.table, to.name),
 					reads: [
-						...underTable(s.to.schema, s.to.table),
-						...s.to.columns.map((c) => nref('col', s.to.schema, s.to.table, c)),
-						...s.from.columns.map((c) => eref('col', s.to.schema, s.to.table, c)),
+						...underTable(to.schema, to.table),
+						...to.columns.map((c) => nref('col', to.schema, to.table, c)),
+						...from.columns.map((c) => eref('col', to.schema, to.table, c)),
 					],
-					sharedWrites: [uniqueness(s.to.schema, s.to.table, s.from.columns)],
+					sharedWrites: [uniqueness(to.schema, to.table, from.columns)],
 				};
+			}
 
 			// ---- check constraints (columns come from parsing the CHECK expression) ----
 			case 'add_check': // `ADD CHECK (c > 0)` hardcodes the columns -> NAME refs
@@ -536,15 +562,17 @@ class PostgresCommutativity extends FacetCommutativity<
 						...s.columns.map((c) => eref('col', s.check.schema, s.check.table, c)),
 					],
 				};
-			case 'alter_check': // recreated as DROP old + ADD new: name-ref new expr cols, existence-ref old
+			case 'alter_check': { // recreated as DROP old + ADD new: name-ref new expr cols, existence-ref old
+				const check = s.diff.$right;
 				return {
-					writes: altered('ck', s.check.schema, s.check.table, s.check.name),
+					writes: altered('ck', check.schema, check.table, check.name),
 					reads: [
-						...underTable(s.check.schema, s.check.table),
-						...s.newColumns.map((c) => nref('col', s.check.schema, s.check.table, c)),
-						...s.oldColumns.map((c) => eref('col', s.check.schema, s.check.table, c)),
+						...underTable(check.schema, check.table),
+						...s.newColumns.map((c) => nref('col', check.schema, check.table, c)),
+						...s.oldColumns.map((c) => eref('col', check.schema, check.table, c)),
 					],
 				};
+			}
 
 			case 'rename_constraint': { // RENAME CONSTRAINT follows a column rename but is cascaded by a column drop -> EXISTENCE refs
 				const reads = [
@@ -736,20 +764,24 @@ class PostgresCommutativity extends FacetCommutativity<
 
 			default: {
 				// Exhaustiveness guard: `statement` is `never` here only when every
-				// SnapshotStatement type has an explicit case above. Adding a new statement
+				// JsonStatement type has an explicit case above. Adding a new statement
 				// type without handling it here is therefore a compile error — forcing
 				// its footprint to be declared rather than silently defaulted.
 				const unhandled: never = s;
-				throw new Error(`buildFacetPaths: unhandled statement type '${(unhandled as { type: string }).type}'`);
+				throw new Error(`buildFootprint: unhandled statement type '${(unhandled as { type: string }).type}'`);
 			}
 		}
 	}
 
 	public override async detectNonCommutative(snapshots: string[] | ParsedSnapshotInput[]) {
 		const nodes = this.buildSnapshotGraph(snapshots);
-		// A postgres snapshot stores the statements of its migration in `raw.statements`, so nothing is diffed.
-		return this.detectBranchConflicts(nodes, (id) => nodes[id].raw.statements);
+		// A postgres snapshot stores the footprints of its migration in `raw.footprints`, so nothing is diffed.
+		return this.detectBranchConflicts(nodes, (id) => nodes[id].raw.footprints);
 	}
 }
 
 export const postgresCommutativity = new PostgresCommutativity();
+
+// Builds the footprints that a snapshot stores, from each statement of a diff and its SQL.
+export const footprintsOf = (grouped: { jsonStatement: JsonStatement; sqlStatements: string[] }[]) =>
+	grouped.map((it) => postgresCommutativity.buildFootprint(it.jsonStatement, it.sqlStatements));

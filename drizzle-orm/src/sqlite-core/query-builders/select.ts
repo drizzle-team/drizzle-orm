@@ -21,7 +21,7 @@ import type { SubqueryWithSelection } from '~/sqlite-core/subquery.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { collectUsedTables } from '~/used-tables.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import { getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields, type ValueOrArray } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { View } from '~/view.ts';
@@ -174,7 +174,6 @@ export class SQLiteSelectBase<
 	protected session: SQLiteSession<any, any> | undefined;
 	protected dialect: SQLiteDialect;
 	protected cacheConfig?: WithCacheConfig = undefined;
-	protected usedTables: Set<string> = new Set();
 
 	constructor(
 		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
@@ -204,12 +203,15 @@ export class SQLiteSelectBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
-		collectUsedTables(table, this.usedTables);
 	}
 
-	/** @internal */
-	getUsedTables() {
-		return [...this.usedTables];
+	/**
+	 * @internal
+	 * Collects every table query's SQL references - `from`, joins, CTEs, set operators, raw SQL & subqueries of fields, filters, etc.
+	 * @param sql - query's already built SQL, to avoid rebuilding it
+	 */
+	getUsedTables(sql: SQL = this.getSQL()) {
+		return usedTablesOf(sql);
 	}
 
 	private createJoin<TJoinType extends JoinType>(
@@ -223,9 +225,6 @@ export class SQLiteSelectBase<
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
-
-			// store all tables used in a query
-			collectUsedTables(table, this.usedTables);
 
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
@@ -848,12 +847,8 @@ export class SQLiteSelectBase<
 	as<TAlias extends string>(
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
-		const usedTables = new Set<string>();
-		collectUsedTables(this.config.table, usedTables);
-		if (this.config.joins) { for (const it of this.config.joins) collectUsedTables(it.table, usedTables); }
-
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias, false, usedTables),
+			new Subquery(this.getSQL(), this.config.fields, alias),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}

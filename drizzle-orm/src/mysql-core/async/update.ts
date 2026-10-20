@@ -57,7 +57,7 @@ export class MySqlAsyncUpdateBase<
 			undefined,
 			{
 				type: 'update',
-				tables: usedTablesOf(this.config.table),
+				tables: () => usedTablesOf(this.config.table),
 			},
 		) as MySqlAsyncUpdatePrepare<this>;
 	}

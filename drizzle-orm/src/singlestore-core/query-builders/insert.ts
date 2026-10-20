@@ -311,7 +311,7 @@ export class SingleStoreInsertBase<
 			this.dialect.mapperGenerators.$returning(this.config.returning, generatedIds),
 			{
 				type: 'insert',
-				tables: usedTablesOf(this.config.table),
+				tables: () => usedTablesOf(this.config.table),
 			},
 		) as SingleStoreInsertPrepare<this, TReturning>;
 	}

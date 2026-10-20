@@ -9,13 +9,13 @@ import type {
 	AnyOne,
 	BuildRelationalQueryConfig,
 	BuildRelationalQueryResult,
-	DBQueryConfigWithComment,
+	DBQueryConfigRoot,
 	RelationalRowsMapperGenerator,
 	WithContainer,
 } from '~/relations.ts';
 import {
 	buildRqbColumns,
-	collectRelationalSubquery,
+	collectSubqueryAndUsedTables,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
 	makeJitRqbMapper,
@@ -27,10 +27,10 @@ import {
 } from '~/relations.ts';
 import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
 import { type Query, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
-import { chunkKindOf, chunkKinds, isChunk } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk, unqualifyColumns } from '~/sql/sql.ts';
 import { ValueRows } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { getTableName, Table, TableColumns } from '~/table.ts';
+import { getTableName, Qualifier, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mssql.ts';
 import {
 	makeDefaultQueryMapper,
@@ -819,15 +819,7 @@ export class MsSqlDialect {
 				if (is(orderByUnit, MsSqlColumn)) {
 					orderByValues.push(sql.identifier(orderByUnit.name));
 				} else if (is(orderByUnit, SQL)) {
-					for (let i = 0; i < orderByUnit.queryChunks.length; i++) {
-						const chunk = orderByUnit.queryChunks[i];
-
-						if (is(chunk, MsSqlColumn)) {
-							orderByUnit.queryChunks[i] = sql.identifier(chunk.name);
-						}
-					}
-
-					orderByValues.push(sql`${orderByUnit}`);
+					orderByValues.push(sql`${unqualifyColumns(orderByUnit)}`);
 				} else {
 					orderByValues.push(sql`${orderByUnit}`);
 				}
@@ -994,11 +986,12 @@ export class MsSqlDialect {
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
 		const isOptimized = (currentDepth ? strategy : params?.strategy) !== 'basic';
-		const subqueries: RelationalWithSubqueries = withSubqueries ?? new Map();
+		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map() };
 		if (!currentDepth) {
-			collectRelationalSubquery(subqueries, table);
+			collectSubqueryAndUsedTables(collector, table);
 			table = aliasedTable(table, `d${currentDepth}`);
 		}
+		const tableRef = table[Qualifier];
 
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
@@ -1008,11 +1001,11 @@ export class MsSqlDialect {
 			params,
 			tableConfig.relations,
 			schema,
-			subqueries,
+			collector,
 			relationWhere,
 		);
 		const order = params?.orderBy
-			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, subqueries, 'top')
+			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, collector, 'top')
 			: undefined;
 
 		if (offset !== undefined && !order) {
@@ -1043,7 +1036,7 @@ export class MsSqlDialect {
 		}
 		collectTo.push(commonStringChunks[' ']);
 		const hasColumns = buildRqbColumns(
-			table,
+			tableRef,
 			tableConfig.table[TableColumns],
 			selection,
 			!!nested,
@@ -1097,7 +1090,7 @@ export class MsSqlDialect {
 		const isWrapped = withKeys.length > 0 && isOptimized && useOffset;
 
 		collectTo.push(commonStringChunks[' from ']);
-		if (isWrapped) collectTo.push(commonStringChunks['(select '], table, commonStringChunks['.* from ']);
+		if (isWrapped) collectTo.push(commonStringChunks['(select '], tableRef, commonStringChunks['.* from ']);
 		getTableAsAliasSQL(table, collectTo);
 		if (through) {
 			collectTo.push(commonStringChunks[' inner join ']);
@@ -1110,7 +1103,7 @@ export class MsSqlDialect {
 			// Wrapped only when paginated with `offset`
 			collectTo.push(rqbChunks.offset, offset as SQLChunk, rqbChunks.rows);
 			if (limit !== undefined) collectTo.push(rqbChunks.fetchNext, limit as SQLChunk, rqbChunks.rowsOnly);
-			collectTo.push(commonStringChunks[') as '], table);
+			collectTo.push(commonStringChunks[') as '], tableRef);
 		}
 
 		for (let i = 0; i < withKeys.length; ++i) {
@@ -1118,8 +1111,8 @@ export class MsSqlDialect {
 			const join = withParam![k]!;
 			const relation = tableConfig.relations[k]!;
 			const isSingle = relation.relationType === 'one';
-			collectRelationalSubquery(subqueries, relation.targetTable);
-			collectRelationalSubquery(subqueries, relation.throughTable);
+			collectSubqueryAndUsedTables(collector, relation.targetTable);
+			collectSubqueryAndUsedTables(collector, relation.throughTable);
 
 			const targetTable = aliasedTable(relation.targetTable, `d${currentDepth + 1}`);
 			const throughTable = relation.throughTable
@@ -1133,12 +1126,12 @@ export class MsSqlDialect {
 				table: targetTable,
 				mode: isSingle ? 'first' : 'many',
 				schema,
-				queryConfig: join as DBQueryConfigWithComment,
+				queryConfig: join as DBQueryConfigRoot,
 				tableConfig: schema[relation.targetTableName]!,
 				relationWhere: filter,
 				errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 				depth: currentDepth + 1,
-				withSubqueries: subqueries,
+				withSubqueries: collector,
 				strategy: currentDepth ? strategy : params?.strategy,
 				through: throughTable ? { table: throughTable, condition: joinCondition! } : undefined,
 				nested: true,
@@ -1171,7 +1164,7 @@ export class MsSqlDialect {
 			}
 		}
 
-		if (withIdx !== -1) collectTo[withIdx] = this.buildWithCTE([...subqueries.values()]);
+		if (withIdx !== -1) collectTo[withIdx] = this.buildWithCTE([...collector.subqueries.values()]);
 
 		return selection;
 	}

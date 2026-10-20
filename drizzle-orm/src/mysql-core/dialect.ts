@@ -1,4 +1,4 @@
-import { aliasedTable, getOriginalColumnFromAlias } from '~/alias.ts';
+import { aliasedTable, aliasedTableSQL, getOriginalColumnFromAlias } from '~/alias.ts';
 import { CodecsCollection } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
@@ -8,14 +8,14 @@ import type {
 	AnyOne,
 	BuildRelationalQueryConfig,
 	BuildRelationalQueryResult,
-	DBQueryConfigWithComment,
+	DBQueryConfigRoot,
 	RelationalRowsMapperGenerator,
 	WithContainer,
 } from '~/relations.ts';
 import {
 	buildRqbColumns,
 	// AggregatedField,
-	collectRelationalSubquery,
+	collectSubqueryAndUsedTables,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
 	makeJitRqbMapper,
@@ -28,10 +28,10 @@ import {
 import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
 import { noopEncoder, SQL, sql } from '~/sql/sql.ts';
 import type { DriverValueEncoder, Name, Placeholder, Query, SQLChunk } from '~/sql/sql.ts';
-import { chunkKindOf, chunkKinds, isChunk } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk, unqualifyColumns } from '~/sql/sql.ts';
 import { ValueRows } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { getTableName, Table, TableColumns } from '~/table.ts';
+import { getTableName, Qualifier, Table, TableColumns } from '~/table.ts';
 import {
 	make$ReturningResponseMapper,
 	makeDefaultQueryMapper,
@@ -482,13 +482,7 @@ export class MySqlDialect {
 		});
 
 		const tableSql = (() => {
-			if (is(table, Table) && table[Table.Symbol.IsAlias]) {
-				return sql`${table[Table.Symbol.Schema] ? sql`${sql.identifier(table[Table.Symbol.Schema]!)}.` : undefined}${
-					sql.identifier(
-						table[Table.Symbol.OriginalName],
-					)
-				} ${sql.identifier(table[Table.Symbol.Name])}`;
-			}
+			if (is(table, Table) && table[Table.Symbol.IsAlias]) return aliasedTableSQL(table);
 
 			if (is(table, View) && table[ViewBaseConfig].isAlias) {
 				let fullName = sql`${sql.identifier(table[ViewBaseConfig].originalName)}`;
@@ -513,10 +507,7 @@ export class MySqlDialect {
 				const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : undefined;
 
 				if (is(table, MySqlTable)) {
-					const tableName = table[MySqlTable.Symbol.Name];
 					const tableSchema = table[MySqlTable.Symbol.Schema];
-					const origTableName = table[MySqlTable.Symbol.OriginalName];
-					const alias = tableName === origTableName ? undefined : joinMeta.alias;
 					const useIndexSql = this.buildIndex({
 						indexes: joinMeta.useIndex,
 						indexFor: 'USE',
@@ -529,13 +520,15 @@ export class MySqlDialect {
 						indexes: joinMeta.ignoreIndex,
 						indexFor: 'IGNORE',
 					});
-					joinsArray.push(
-						sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${
-							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-						}${sql.identifier(origTableName)}${useIndexSql}${forceIndexSql}${ignoreIndexSql}${
-							alias && sql` ${sql.identifier(alias)}`
-						}${onSql}`,
-					);
+					const indexSql = sql`${useIndexSql}${forceIndexSql}${ignoreIndexSql}`;
+					// Index hints go between table name and alias, so aliased table is rendered here instead of via `aliasedTableSQL`
+					// - aliased table chunk renders as its alias, keeping table within SQL for used tables collection
+					const tableSql = table[Table.Symbol.IsAlias]
+						? sql`${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
+							sql.identifier(table[MySqlTable.Symbol.OriginalName])
+						}${indexSql} ${table}`
+						: sql`${table}${indexSql}`;
+					joinsArray.push(sql`${new StringChunk(joinMeta.joinType)} join${lateralSql} ${tableSql}${onSql}`);
 				} else if (is(table, View)) {
 					const viewName = table[ViewBaseConfig].name;
 					const viewSchema = table[ViewBaseConfig].schema;
@@ -695,15 +688,7 @@ export class MySqlDialect {
 				if (is(singleOrderBy, MySqlColumn)) {
 					orderByValues.push(sql.identifier(singleOrderBy.name));
 				} else if (is(singleOrderBy, SQL)) {
-					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
-						const chunk = singleOrderBy.queryChunks[i];
-
-						if (is(chunk, MySqlColumn)) {
-							singleOrderBy.queryChunks[i] = sql.identifier(chunk.name);
-						}
-					}
-
-					orderByValues.push(sql`${singleOrderBy}`);
+					orderByValues.push(sql`${unqualifyColumns(singleOrderBy)}`);
 				} else {
 					orderByValues.push(sql`${singleOrderBy}`);
 				}
@@ -855,6 +840,7 @@ export class MySqlDialect {
 		through,
 		nested,
 		withSubqueries,
+		usedTables,
 		strategy,
 	}: MySqlBuildRelationalQueryConfig, collectTo: SQLChunk[]): BuildRelationalQueryResult['selection'] {
 		const selection: BuildRelationalQueryResult['selection'] = [];
@@ -863,11 +849,12 @@ export class MySqlDialect {
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
 		const isOptimized = (currentDepth ? strategy : params?.strategy) !== 'basic';
-		const subqueries: RelationalWithSubqueries = withSubqueries ?? new Map();
+		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map(), usedTables };
 		if (!currentDepth) {
-			collectRelationalSubquery(subqueries, table);
+			collectSubqueryAndUsedTables(collector, table);
 			table = aliasedTable(table, `d${currentDepth}`);
 		}
+		const tableRef = table[Qualifier];
 
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
@@ -877,11 +864,11 @@ export class MySqlDialect {
 			params,
 			tableConfig.relations,
 			schema,
-			subqueries,
+			collector,
 			relationWhere,
 		);
 		const order = params?.orderBy
-			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, subqueries)
+			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, collector)
 			: undefined;
 
 		const withParam = params ? (params as WithContainer).with : undefined;
@@ -898,7 +885,7 @@ export class MySqlDialect {
 
 		collectTo.push(commonStringChunks['select ']);
 		const hasColumns = buildRqbColumns(
-			table,
+			tableRef,
 			tableConfig.table[TableColumns],
 			selection,
 			!!nested,
@@ -942,7 +929,7 @@ export class MySqlDialect {
 			&& (!!order || (offset !== undefined && !hasRelationFilters));
 
 		collectTo.push(commonStringChunks[' from ']);
-		if (isWrapped) collectTo.push(commonStringChunks['(select '], table, commonStringChunks['.* from ']);
+		if (isWrapped) collectTo.push(commonStringChunks['(select '], tableRef, commonStringChunks['.* from ']);
 		getTableAsAliasSQL(table, collectTo);
 		if (through) {
 			collectTo.push(commonStringChunks[' inner join ']);
@@ -953,7 +940,7 @@ export class MySqlDialect {
 			if (where) collectTo.push(commonStringChunks[' where '], ...where);
 			if (order) collectTo.push(commonStringChunks[' order by '], ...order);
 			this.collectLimitOffset(collectTo, limit, offset);
-			collectTo.push(commonStringChunks[') as '], table);
+			collectTo.push(commonStringChunks[') as '], tableRef);
 		}
 
 		for (const k of withKeys) {
@@ -961,8 +948,8 @@ export class MySqlDialect {
 			const relation = tableConfig.relations[k];
 			if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
 			const isSingle = relation.relationType === 'one';
-			collectRelationalSubquery(subqueries, relation.targetTable);
-			collectRelationalSubquery(subqueries, relation.throughTable);
+			collectSubqueryAndUsedTables(collector, relation.targetTable);
+			collectSubqueryAndUsedTables(collector, relation.throughTable);
 
 			const targetTable = aliasedTable(
 				relation.targetTable,
@@ -987,12 +974,12 @@ export class MySqlDialect {
 				table: targetTable,
 				mode: isSingle ? 'first' : 'many',
 				schema,
-				queryConfig: join as DBQueryConfigWithComment,
+				queryConfig: join as DBQueryConfigRoot,
 				tableConfig: schema[relation.targetTableName]!,
 				relationWhere: filter,
 				errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 				depth: currentDepth + 1,
-				withSubqueries: subqueries,
+				withSubqueries: collector,
 				strategy: currentDepth ? strategy : params?.strategy,
 				isNestedMany: !isSingle,
 				through: throughTable ? { table: throughTable, condition: joinCondition! } : undefined,
@@ -1031,7 +1018,7 @@ export class MySqlDialect {
 		}
 		if (config !== true && config?.comment) collectTo.push(commonStringChunks[' '], sql.comment(config.comment));
 
-		if (withIdx !== -1) collectTo[withIdx] = this.buildWithCTE([...subqueries.values()]);
+		if (withIdx !== -1) collectTo[withIdx] = this.buildWithCTE([...collector.subqueries.values()]);
 
 		return selection;
 	}

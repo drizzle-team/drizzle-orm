@@ -1,7 +1,7 @@
 import type { SQLPluginResult, SQLQueryResult } from '@xata.io/client';
 import type { Cache } from '~/cache/core/index.ts';
 import { NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -52,10 +52,7 @@ export class XataHttpSession<TRelations extends AnyRelations> extends PgAsyncSes
 		mode: 'arrays' | 'objects' | 'raw',
 		_name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	) {
 		const executor = async (params?: unknown[]) => {

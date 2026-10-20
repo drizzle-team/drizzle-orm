@@ -1,5 +1,7 @@
 import { randomUUID } from 'crypto';
+import type { Footprint } from '../../commutativity/engine';
 import type { Delta } from '../../dialects/dialect';
+import { footprintsOf } from '../../dialects/postgres/commutativity';
 import type {
 	CheckConstraint,
 	Column,
@@ -16,14 +18,13 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../../dialects/postgres/ddl';
-import { createDDL, interimToDDL } from '../../dialects/postgres/ddl';
+import { createDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
-import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
+import { prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { SchemaSource } from '../../dialects/postgres/drizzle';
 import { leafFolders, readFolder, withoutMigrations } from '../../dialects/postgres/folder';
-import { prepareSnapshot } from '../../dialects/postgres/serializer';
+import { prepareSnapshot, stateOfSchema } from '../../dialects/postgres/serializer';
 import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
-import type { SnapshotStatement } from '../../dialects/postgres/snapshot-statements';
 import { originUUID } from '../../utils';
 import { outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
@@ -43,18 +44,18 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	if (fix && !config.fixConflicts) throw conflictError(report, fix);
 	const kept = withoutMigrations(stored, fix?.migrations ?? []);
 	const prepared = await config.schemaSource.load();
-	const { ddlCur, ddlPrev } = prepareSnapshot(kept, prepared);
+	const { ddlCur, ddlPrev, metadata } = prepareSnapshot(kept, prepared);
 	const prevIds = kept.leafIds;
 	const parentFolders = leafFolders(kept);
 
-	// Builds the snapshot of the new migration. `deltas` turn `ddlPrev` into `state`, and `statements` follow
+	// Builds the snapshot of the new migration. `deltas` turn `ddlPrev` into `state`, and `footprints` follow
 	// the order of the SQL.
-	const snapshotOf = (state: PostgresDDL, deltas: Delta[], statements: SnapshotStatement[]): PostgresSnapshot => {
+	const snapshotOf = (state: PostgresDDL, deltas: Delta[], footprints: Footprint[]): PostgresSnapshot => {
 		const header = { version: '9', dialect: 'postgres', id: randomUUID() } as const;
 		if (prevIds.length === 0) {
-			return { type: 'base', ...header, prevIds: [originUUID], statements, ddl: state.entities.list() };
+			return { type: 'base', ...header, prevIds: [originUUID], footprints, ddl: state.entities.list() };
 		}
-		return { type: 'diff', ...header, prevIds, statements, deltas };
+		return { type: 'diff', ...header, prevIds, footprints, deltas };
 	};
 
 	// Deletes the migrations of the conflict fix and lists them for the response. `handle` calls it after the
@@ -88,7 +89,7 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 
 	// `ddlDiff` changes `ddlPrev` and `ddlCur`. `snapshotOf` stores the changed `ddlCur`, because its auto-named
 	// constraints then have the names that the SQL leaves in the database.
-	const { sqlStatements, groupedStatements, statements, snapshotStatements, deltas } = await ddlDiff(
+	const { sqlStatements, groupedStatements, statements, deltas } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
 		resolver<Schema>('schema', config.hints),
@@ -105,6 +106,7 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 		resolver<PrimaryKey>('primary_key', config.hints),
 		resolver<ForeignKey>('foreign key', config.hints),
 		'default',
+		metadata,
 	);
 
 	if (config.hints.hasMissingHints()) {
@@ -114,7 +116,7 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	if (!config.explain) {
 		return {
 			...writeResult({
-				snapshot: snapshotOf(ddlCur, deltas, snapshotStatements),
+				snapshot: snapshotOf(ddlCur, deltas, footprintsOf(groupedStatements)),
 				sqlStatements,
 				outFolder,
 				name: config.name,
@@ -144,30 +146,16 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 };
 
 export const handleExport = async (config: ExportConfig) => {
-	const res = await prepareFromSchemaFiles(config.filenames);
-	// TODO: do we wan't to export everything or ignore .existing and respect entity filters in config
-	const { schema, errors, warnings } = fromDrizzleSchema(
-		res,
-		() => true,
-	);
+	const { stage, ddl, metadata, errors, warnings } = stateOfSchema(await prepareFromSchemaFiles(config.filenames));
 
-	if (errors.length > 0) {
+	if (!ddl || errors.length > 0) {
 		throw new CommandOutputCliError('export', errors.map((it) => postgresSchemaError(it)).join('\n'), {
-			stage: 'schema',
+			stage,
 			dialect: 'postgresql',
 		});
 	}
 
-	const { ddl, errors: errors2 } = interimToDDL(schema);
-
-	if (errors2.length > 0) {
-		throw new CommandOutputCliError('export', errors2.map((it) => postgresSchemaError(it)).join('\n'), {
-			stage: 'ddl',
-			dialect: 'postgresql',
-		});
-	}
-
-	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
+	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default', metadata);
 	return {
 		statements: sqlStatements,
 		warnings: warnings.map((it) => postgresSchemaWarning(it)),

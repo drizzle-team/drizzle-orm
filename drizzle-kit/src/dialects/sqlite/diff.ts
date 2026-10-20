@@ -2,7 +2,8 @@ import { prepareMigrationRenames } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
-import { groupDiffs, preserveEntityNames } from '../utils';
+import { groupDiffs, preserveEntityNames, sortCreateViews } from '../utils';
+import type { SchemaMetadata } from '../utils';
 import { fromJson } from './convertor';
 import type { Column, SQLiteDDL, SqliteEntities } from './ddl';
 import { tableFromDDL } from './ddl';
@@ -10,9 +11,14 @@ import { defaultsCommutative } from './grammar';
 import type { JsonCreateViewStatement, JsonDropViewStatement, JsonStatement } from './statements';
 import { prepareAddColumns, prepareRecreateColumn, prepareStatement } from './statements';
 
-export const ddlDiffDry = async (left: SQLiteDDL, right: SQLiteDDL, mode: 'push' | 'default') => {
+export const ddlDiffDry = async (
+	left: SQLiteDDL,
+	right: SQLiteDDL,
+	mode: 'push' | 'default',
+	$metadata?: SchemaMetadata,
+) => {
 	const empty = new Set<string>();
-	return ddlDiff(left, right, mockResolver(empty), mockResolver(empty), mode);
+	return ddlDiff(left, right, mockResolver(empty), mockResolver(empty), mode, $metadata);
 };
 
 export const ddlDiff = async (
@@ -21,6 +27,7 @@ export const ddlDiff = async (
 	tablesResolver: Resolver<SqliteEntities['tables']>,
 	columnsResolver: Resolver<Column>,
 	mode: 'push' | 'default',
+	$metadata?: SchemaMetadata,
 ): Promise<{
 	statements: JsonStatement[];
 	sqlStatements: string[];
@@ -304,7 +311,8 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropColumnsStatemets);
 
 	jsonStatements.push(...dropViews);
-	jsonStatements.push(...createViews);
+	// dependent views must be created after their dependencies, otherwise the migration breaks
+	jsonStatements.push(...sortCreateViews(createViews, $metadata?.viewDependencies));
 
 	const { sqlStatements, groupedStatements } = fromJson(jsonStatements);
 
