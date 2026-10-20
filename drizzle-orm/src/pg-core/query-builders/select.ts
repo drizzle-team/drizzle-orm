@@ -19,6 +19,7 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
+import { applyDefaultScopeToJoins, applyDefaultScopeToWhere } from '~/scope.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
@@ -777,6 +778,16 @@ export abstract class PgSelectQueryBuilderBase<
 		return this as any;
 	}
 
+	unscoped(): this {
+		this.config.unscoped = true;
+		return this;
+	}
+
+	withContext(context: any): this {
+		this.config.context = context;
+		return this;
+	}
+
 	/**
 	 * Adds a `having` clause to the query.
 	 *
@@ -983,7 +994,16 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildSelectQuery(this.config);
+		if (this.config.unscoped) {
+			return this.dialect.buildSelectQuery(this.config);
+		}
+		const where = applyDefaultScopeToWhere(this.config.table, this.config.where, this.config.context);
+		const joins = applyDefaultScopeToJoins(this.config.joins, this.config.context);
+		return this.dialect.buildSelectQuery({
+			...this.config,
+			where,
+			joins,
+		});
 	}
 
 	toSQL(): Query {

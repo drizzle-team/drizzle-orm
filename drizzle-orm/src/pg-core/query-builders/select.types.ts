@@ -55,6 +55,8 @@ export interface PgSelectConfig {
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
 	where?: SQL;
+	unscoped?: boolean;
+	context?: any;
 	having?: SQL;
 	table: PgTable | Subquery | PgViewBase | SQL;
 	limit?: number | Placeholder;
