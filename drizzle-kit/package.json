@@ -58,6 +58,11 @@
 	"peerDependencies": {
 		"drizzle-orm": ">=1.0.0-rc.5"
 	},
+	"peerDependenciesMeta": {
+		"drizzle-orm": {
+			"optional": true
+		}
+	},
 	"devDependencies": {
 		"@aws/aurora-dsql-node-postgres-connector": "^0.1.9",
 		"@aws/aurora-dsql-postgresjs-connector": "^0.3.1",
