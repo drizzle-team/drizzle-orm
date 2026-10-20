@@ -1782,61 +1782,50 @@ test('introspect view with table filter', async () => {
 	const schema1 = { table1, view1, table2, view2 };
 	await push({ db, to: schema1 });
 
-	let tables, views;
-	let filter = prepareEntityFilter(
-		'postgresql',
-		{
-			tables: ['table1'],
-			schemas: undefined,
-			entities: undefined,
-			extensions: undefined,
-		},
-		[],
-	);
-	({ tables, views } = await fromDatabaseForDrizzle(db, filter, () => {}, {
-		table: '__drizzle_migrations',
-		schema: 'drizzle',
-	}));
-	const expectedTables = [
-		{
-			entityType: 'tables',
-			schema: 'public',
-			name: 'table1',
-			isRlsEnabled: false,
-		},
-	];
-	expect(tables).toStrictEqual(expectedTables);
-	expect(views).toStrictEqual([]);
+	let filter = prepareEntityFilter('postgresql', {
+		tables: ['table1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
 
-	filter = prepareEntityFilter(
-		'postgresql',
-		{
-			tables: ['table1', 'view1'],
-			schemas: undefined,
-			entities: undefined,
-			extensions: undefined,
-		},
-		[],
-	);
-	({ tables, views } = await fromDatabaseForDrizzle(db, filter, () => {}, {
+	const res = await fromDatabaseForDrizzle(db, filter, () => {}, {
 		table: '__drizzle_migrations',
 		schema: 'drizzle',
-	}));
-	const expectedViews = [
-		{
-			entityType: 'views',
-			schema: 'public',
-			name: 'view1',
-			definition: 'SELECT column1 FROM table1',
-			with: null,
-			materialized: false,
-			tablespace: null,
-			using: null,
-			withNoData: null,
-		},
-	];
-	expect(tables).toStrictEqual(expectedTables);
-	expect(views).toStrictEqual(expectedViews);
+	});
+	const expectedTables = [{
+		entityType: 'tables',
+		schema: 'public',
+		name: 'table1',
+		isRlsEnabled: false,
+	}];
+	expect(res.tables).toStrictEqual(expectedTables);
+	expect(res.views).toStrictEqual([]);
+
+	filter = prepareEntityFilter('postgresql', {
+		tables: ['table1', 'view1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+
+	const res2 = await fromDatabaseForDrizzle(db, filter, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+	const expectedViews = [{
+		entityType: 'views',
+		schema: 'public',
+		name: 'view1',
+		definition: 'SELECT column1 FROM table1',
+		with: null,
+		materialized: false,
+		tablespace: null,
+		using: null,
+		withNoData: null,
+	}];
+	expect(res2.tables).toStrictEqual(expectedTables);
+	expect(res2.views).toStrictEqual(expectedViews);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4144
@@ -1858,47 +1847,36 @@ test.skipIf(Date.now() < +new Date('2026-11-24'))('introspect sequences with tab
 	const schema1 = { table1, table2 };
 	await push({ db, to: schema1 });
 
-	const filter = prepareEntityFilter(
-		'postgresql',
-		{
-			tables: ['!prefix_*'],
-			schemas: undefined,
-			entities: undefined,
-			extensions: undefined,
-		},
-		[],
-	);
-	const { tables, sequences } = await fromDatabaseForDrizzle(
-		db,
-		filter,
-		() => {},
-		{
-			table: '__drizzle_migrations',
-			schema: 'drizzle',
-		},
-	);
+	const filter = prepareEntityFilter('postgresql', {
+		tables: ['!prefix_*'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
 
-	expect(tables).toStrictEqual([
-		{
-			entityType: 'tables',
-			schema: 'public',
-			name: 'table1',
-			isRlsEnabled: false,
-		},
-	]);
-	expect(sequences).toBe([
-		{
-			entityType: 'sequences',
-			schema: 'public',
-			name: 'table1_column1_seq',
-			startWith: '1',
-			minValue: '1',
-			maxValue: '2147483647',
-			incrementBy: '1',
-			cycle: false,
-			cacheSize: 1,
-		},
-	]);
+	const { tables, sequences } = await fromDatabaseForDrizzle(db, filter, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+
+	expect(tables).toStrictEqual([{
+		entityType: 'tables',
+		schema: 'public',
+		name: 'table1',
+		isRlsEnabled: false,
+	}]);
+
+	expect(sequences).toBe([{
+		entityType: 'sequences',
+		schema: 'public',
+		name: 'table1_column1_seq',
+		startWith: '1',
+		minValue: '1',
+		maxValue: '2147483647',
+		incrementBy: '1',
+		cycle: false,
+		cacheSize: 1,
+	}]);
 	// 	console.log(await db.query(`select pg_get_serial_sequence('"public"."table1"', 'column1');`));
 	// 	console.log(await db.query(`select pg_get_serial_sequence('"public"."table2"', 'column1');`));
 	// 	console.log(

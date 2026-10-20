@@ -1035,7 +1035,6 @@ describe('commutativity integration (mysql)', () => {
 		// Branch Y: drop table u (conflicts with X's column/view touching u)
 		const Y = createDDL();
 		Y.tables.push({ name: 'p' });
-		// no table u -> implies drop vs X touching u
 
 		files.push(
 			writeTempSnapshot(tmp, '120_p_mix', p),

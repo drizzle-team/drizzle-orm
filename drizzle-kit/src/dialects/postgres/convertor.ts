@@ -1,3 +1,4 @@
+import '../../@types/utils';
 import { escapeSingleQuotes, type Simplify, wrapWith } from '../../utils';
 import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, isSerialType, mapSerialToInt } from './grammar';
 import type { JsonStatement } from './statements';
@@ -356,29 +357,43 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		? `"${column.schema}"."${column.table}"`
 		: `"${column.table}"`;
 
-	const recreateDefault = diff.type && (isEnum || wasEnum) && (diff.$left.default);
+	// When the column stops being generated, DROP EXPRESSION must run before the type and default statements
+	// below, because Postgres refuses a default and a USING clause for a generated column.
+	if (diff.generated && diff.generated.to === null) {
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP EXPRESSION;`);
+	}
+
+	// `hasNewType` decides if SET DATA TYPE runs. It counts a new `typeSchema`, because an enum with the same
+	// name in another schema is another type. A new count of `dimensions` gets a plain cast. Postgres has no
+	// cast between most scalar types and their array types, so the user edits that USING clause.
+	const hasNewType = !!(diff.type || diff.typeSchema || diff.dimensions);
+	const recreateDefault = hasNewType && (isEnum || wasEnum || diff.dimensions) && diff.$left.default;
 	if (recreateDefault) {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 
-	if (diff.type) {
+	if (hasNewType) {
 		const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
 		const textProxy = wasEnum && isEnum ? 'text::' : ''; // using enum1::text::enum2
+		// SERIAL is valid only in a new column, so SET DATA TYPE writes the integer type of a serial type
+		// (`isSerial`). A column that stays serial keeps its sequence and its default. The sequence keeps its
+		// integer type too, so a change from serial to bigserial does not change the maximum of the sequence.
+		const isSerial = isSerialType(column.type);
 		const suffix = isEnum
 			? ` USING "${column.name}"::${textProxy}${typeSchema}"${column.type}"${'[]'.repeat(column.dimensions)}`
-			: ` USING "${column.name}"::${toSerial ? mapSerialToInt(column.type) : column.type}${
+			: ` USING "${column.name}"::${isSerial ? mapSerialToInt(column.type) : column.type}${
 				'[]'.repeat(column.dimensions)
 			}`;
 
-		const type = diff.typeSchema?.to && diff.typeSchema.to !== 'public'
-			? `"${diff.typeSchema.to}"."${diff.type.to}"`
+		const type = typeSchema
+			? `${typeSchema}"${column.type}"`
 			: isEnum
-			? `"${diff.type.to}"`
-			: toSerial
-			? mapSerialToInt(diff.type.to)
-			: diff.type.to;
+			? `"${column.type}"`
+			: isSerial
+			? mapSerialToInt(column.type)
+			: column.type;
 
-		if (wasSerial) {
+		if (wasSerial && !isSerial) {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 			const sequenceKey = column.schema !== 'public'
 				? `"${column.schema}"."${column.table}_${column.name}_seq"`
@@ -402,9 +417,9 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		}
 
 		statements.push(
-			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${
-				'[]'.repeat(column.dimensions)
-			}${suffix};`,
+			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${'[]'.repeat(column.dimensions)}${
+				column.generated ? '' : suffix
+			};`,
 		);
 
 		if (recreateDefault && column.default) {
@@ -417,15 +432,11 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 	if (diff.default && !recreateDefault) {
 		if (diff.default.to) {
 			statements.push(
-				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(diff.$right)};`,
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`,
 			);
 		} else {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 		}
-	}
-
-	if (diff.generated && diff.generated.to === null) {
-		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP EXPRESSION;`);
 	}
 
 	if (diff.identity) {
@@ -940,9 +951,10 @@ const grantPrivilegeConvertor = convertor('grant_privilege', (st) => {
 	const { schema, table } = st.privilege;
 	const privilege = st.privilege;
 
+	// `GRANTED BY` not specified because it must be the current user (by default)
 	return `GRANT ${privilege.type} ON ${
 		schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`
-	} TO "${privilege.grantee}"${privilege.isGrantable ? ' WITH GRANT OPTION' : ''} GRANTED BY "${privilege.grantor}";`;
+	} TO "${privilege.grantee}"${privilege.isGrantable ? ' WITH GRANT OPTION' : ''};`;
 });
 
 const revokePrivilegeConvertor = convertor('revoke_privilege', (st) => {

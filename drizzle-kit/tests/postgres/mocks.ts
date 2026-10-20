@@ -30,6 +30,9 @@ import {
 	PgView as PgViewOld,
 } from 'orm044/pg-core';
 import { configMigrations } from 'src/cli/validations/common';
+import type { Footprint } from 'src/commutativity/engine';
+import { normalizeDDL } from 'src/dialects/ddl-canonical';
+import type { Delta } from 'src/dialects/dialect';
 import {
 	createDDL,
 	fromEntities,
@@ -45,6 +48,7 @@ import {
 	prepareFromSchemaFiles,
 	unwrapColumn,
 } from 'src/dialects/postgres/drizzle';
+import { applyDeltas } from 'src/dialects/postgres/reconstruct';
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
 import { PGlite } from '@electric-sql/pglite';
@@ -70,8 +74,8 @@ import 'zx/globals';
 import { relationsToTypeScript } from 'src/cli/commands/pull-common';
 import { EntitiesFilter, EntitiesFilterConfig } from 'src/cli/validations/common';
 import { extractPostgresExisting } from 'src/dialects/drizzle';
-import { postgresCommutativity } from 'src/dialects/postgres/commutativity';
-import { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
+import { footprintsOf, postgresCommutativity } from 'src/dialects/postgres/commutativity';
+import { isFootprint } from 'src/dialects/postgres/snapshot';
 import { upToV8 } from 'src/dialects/postgres/versions';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/pgDiff';
@@ -156,6 +160,22 @@ export const drizzleToDDL = (
 	return { ...interimToDDL(res), existing, metadata };
 };
 
+export const apply = (base: PostgresDDL, deltas: Delta[]) => applyDeltas(base.clone(), deltas);
+
+// Checks that the deltas from ddlDiff turn `parent` into `next`. ddlDiff mutates both of its states, so
+// `parent` must be a copy taken before the call.
+const expectDeltasRebuildState = (parent: PostgresDDL, deltas: Delta[], next: PostgresDDL) => {
+	expect(normalizeDDL(apply(parent, deltas).entities.list()), 'the deltas from ddlDiff rebuild the new state')
+		.toStrictEqual(normalizeDDL(next.entities.list()));
+};
+
+// Checks the footprints in the form that a snapshot file holds, after a JSON round trip. Each one must pass the
+// snapshot validator.
+const expectValidFootprints = (footprints: Footprint[]) => {
+	const stored: unknown[] = JSON.parse(JSON.stringify(footprints));
+	expect(stored.filter((it) => !isFootprint(it)), 'footprints that the validator rejects').toStrictEqual([]);
+};
+
 // 2 schemas -> 2 ddls -> diff
 export const diff = async (
 	left: PostgresSchema | PostgresDDL,
@@ -175,10 +195,10 @@ export const diff = async (
 
 	const renames = new Set(renamesArr);
 
-	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
+	const parent = ddl1.clone();
+	const { sqlStatements, statements, groupedStatements, deltas } = await ddlDiff(
 		ddl1,
 		ddl2,
-		mockResolver(renames),
 		mockResolver(renames),
 		mockResolver(renames),
 		mockResolver(renames),
@@ -195,7 +215,10 @@ export const diff = async (
 		'default',
 		metadata,
 	);
-	return { sqlStatements, statements, groupedStatements, next: ddl2 };
+	expectDeltasRebuildState(parent, deltas, ddl2);
+	const footprints = footprintsOf(groupedStatements);
+	expectValidFootprints(footprints);
+	return { sqlStatements, statements, footprints, groupedStatements, deltas, next: ddl2 };
 };
 
 // init schema flush to db -> introspect db to ddl -> compare ddl with destination schema
@@ -259,10 +282,10 @@ export const push = async (config: {
 	}
 
 	const renames = new Set(config.renames ?? []);
-	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
+	const parent = ddl1.clone();
+	const { sqlStatements, statements, groupedStatements, deltas } = await ddlDiff(
 		ddl1,
 		ddl2,
-		mockResolver(renames),
 		mockResolver(renames),
 		mockResolver(renames),
 		mockResolver(renames),
@@ -279,6 +302,7 @@ export const push = async (config: {
 		'push',
 		metadata,
 	);
+	expectDeltasRebuildState(parent, deltas, ddl2);
 
 	const hints = await runWithCliContext(
 		{ output: 'text', interactive: true },
@@ -308,7 +332,8 @@ export const push = async (config: {
 			);
 			const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 
-			const { sqlStatements, statements } = await ddlDiff(
+			const parent = ddl1.clone();
+			const { sqlStatements, statements, deltas } = await ddlDiff(
 				ddl1,
 				ddl2,
 				mockResolver(renames),
@@ -324,9 +349,9 @@ export const push = async (config: {
 				mockResolver(renames),
 				mockResolver(renames),
 				mockResolver(renames),
-				mockResolver(renames),
 				'push',
 			);
+			expectDeltasRebuildState(parent, deltas, ddl2);
 			if (sqlStatements.length > 0) {
 				console.error('---- subsequent push is not empty ----');
 				expect(sqlStatements.join('\n')).toBe('');
@@ -886,19 +911,8 @@ export async function conflictsFromSchema(
 		child2: SchemaShape;
 	},
 ) {
-	const { ddl: parentDDL } = drizzleToDDL(parent.schema);
+	const { footprints: footprints1 } = await diff(parent.schema, child1.schema, []);
+	const { footprints: footprints2 } = await diff(parent.schema, child2.schema, []);
 
-	const parentSnapshot = {
-		version: '8',
-		dialect: 'postgres',
-		id: parent.id,
-		prevIds: parent.prevId ? [parent.prevId] : [],
-		ddl: parentDDL.entities.list(),
-		renames: [],
-	} satisfies PostgresSnapshot;
-
-	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
-	const { statements: st2 } = await diff(parent.schema, child2.schema, []);
-
-	return await postgresCommutativity.getReasonsFromStatements(st1, st2, parentSnapshot);
+	return postgresCommutativity.findConflict(footprints1, footprints2);
 }

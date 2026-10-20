@@ -396,7 +396,10 @@ export const fromDrizzleSchema = (
 					}
 					: null;
 
-				const { baseColumn, dimensions, typeSchema, sqlType } = unwrapColumn(column);
+				const { baseColumn, typeSchema, sqlType } = unwrapColumn(column);
+				// Counts the brackets in `sqlType`, because a custom type can name an array type in its SQL type
+				// without `.array()`.
+				const dimensions = sqlType.match(/\[\d*\]/g)?.length ?? 0;
 				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
 
 				return {
@@ -404,7 +407,7 @@ export const fromDrizzleSchema = (
 					schema: schema,
 					table: tableName,
 					name,
-					type: sqlType.replaceAll('[]', ''),
+					type: sqlType.replace(/\[\d*\]/g, ''),
 					typeSchema: typeSchema ?? null,
 					dimensions: dimensions,
 					pk: column.primary,

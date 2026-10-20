@@ -1,14 +1,30 @@
+import type { Alter, IdFn } from '../dialect';
 import { create } from '../dialect';
 import { defaultNameForPK, defaultNameForUnique } from './grammar';
 
+// TODO: @AlexBlokh resolve
+const mssqlIdentity = {
+	schemas: (r) => JSON.stringify([r.name]),
+	tables: (r) => JSON.stringify([r.schema, r.name]),
+	columns: (r) => JSON.stringify([r.schema, r.table, r.name]),
+	pks: (r) => JSON.stringify([r.schema, r.table, r.name]),
+	fks: (r) => JSON.stringify([r.schema, r.table, r.name]),
+	indexes: (r) => JSON.stringify([r.schema, r.table, r.name]),
+	uniques: (r) => JSON.stringify([r.schema, r.table, r.name]),
+	checks: (r) => JSON.stringify([r.schema, r.table, r.name]),
+	defaults: (r) => JSON.stringify([r.schema, r.table, r.name]),
+	views: (r) => JSON.stringify([r.schema, r.name]),
+} satisfies Record<string, IdFn>;
+
 // old
-export const createDDLV1 = () => {
-	return create({
-		schemas: {},
-		tables: { schema: 'required' },
+export const createDDLV1 = () =>
+	create({
+		schemas: { name: 'string' },
+		tables: { schema: 'string', name: 'string' },
 		columns: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			type: 'string',
 			notNull: 'boolean',
 			generated: {
@@ -21,14 +37,16 @@ export const createDDLV1 = () => {
 			},
 		},
 		pks: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			nameExplicit: 'boolean',
 			columns: 'string[]',
 		},
 		fks: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			columns: 'string[]',
 			nameExplicit: 'boolean',
 			schemaTo: 'string',
@@ -38,49 +56,85 @@ export const createDDLV1 = () => {
 			onDelete: ['NO ACTION', 'CASCADE', 'SET NULL', 'SET DEFAULT'],
 		},
 		indexes: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			columns: 'string[]', // does not supported indexing expressions
 			isUnique: 'boolean',
 			where: 'string?',
 		},
 		uniques: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			nameExplicit: 'boolean',
 			columns: 'string[]',
 		},
 		checks: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			value: 'string',
 		},
 		defaults: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			column: 'string',
 			// this field will be required for name preserving
 			nameExplicit: 'boolean',
 			default: 'string?',
 		},
 		views: {
-			schema: 'required',
+			schema: 'string',
+			name: 'string',
 			definition: 'string',
 			encryption: 'boolean?',
 			schemaBinding: 'boolean?',
 			viewMetadata: 'boolean?',
 			checkOption: 'boolean?',
 		},
+	}, {
+		identity: mssqlIdentity,
+		edges: {
+			tables: [{ to: 'schemas', map: { name: 'schema' } }],
+			views: [{ to: 'schemas', map: { name: 'schema' } }],
+			columns: [{ to: 'tables', map: { schema: 'schema', name: 'table' } }],
+			checks: [{ to: 'tables', map: { schema: 'schema', name: 'table' } }],
+			pks: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{ to: 'columns', map: { schema: 'schema', table: 'table', name: { list: 'columns' } } },
+			],
+			uniques: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{ to: 'columns', map: { schema: 'schema', table: 'table', name: { list: 'columns' } } },
+			],
+			// V1 index columns are plain string[]
+			indexes: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{ to: 'columns', map: { schema: 'schema', table: 'table', name: { list: 'columns' } } },
+			],
+			defaults: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{ to: 'columns', map: { schema: 'schema', table: 'table', name: 'column' } },
+			],
+			fks: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{ to: 'columns', map: { schema: 'schema', table: 'table', name: { list: 'columns' } } },
+				{ to: 'tables', map: { schema: 'schemaTo', name: 'tableTo' } },
+				{ to: 'columns', map: { schema: 'schemaTo', table: 'tableTo', name: { list: 'columnsTo' } } },
+			],
+		},
 	});
-};
 
-export const createDDL = () => {
-	return create({
-		schemas: {},
-		tables: { schema: 'required' },
+export const createDDL = () =>
+	create({
+		schemas: { name: 'string' },
+		tables: { schema: 'string', name: 'string' },
 		columns: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			type: 'string',
 			notNull: 'boolean',
 			generated: {
@@ -93,14 +147,16 @@ export const createDDL = () => {
 			},
 		},
 		pks: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			nameExplicit: 'boolean',
 			columns: 'string[]',
 		},
 		fks: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			columns: 'string[]',
 			nameExplicit: 'boolean',
 			schemaTo: 'string',
@@ -110,8 +166,9 @@ export const createDDL = () => {
 			onDelete: ['NO ACTION', 'CASCADE', 'SET NULL', 'SET DEFAULT'],
 		},
 		indexes: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			// TODO add asc/desc: asc and desc feature exists in mssql
 			columns: [
 				{
@@ -123,44 +180,81 @@ export const createDDL = () => {
 			where: 'string?',
 		},
 		uniques: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			nameExplicit: 'boolean',
 			columns: 'string[]',
 		},
 		checks: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			value: 'string',
 		},
 		defaults: {
-			schema: 'required',
-			table: 'required',
+			schema: 'string',
+			table: 'string',
+			name: 'string',
 			column: 'string',
 			// this field will be required for name preserving
 			nameExplicit: 'boolean',
 			default: 'string?',
 		},
 		views: {
-			schema: 'required',
+			schema: 'string',
+			name: 'string',
 			definition: 'string',
 			encryption: 'boolean?',
 			schemaBinding: 'boolean?',
 			viewMetadata: 'boolean?',
 			checkOption: 'boolean?',
 		},
+	}, {
+		identity: mssqlIdentity,
+		edges: {
+			tables: [{ to: 'schemas', map: { name: 'schema' } }],
+			views: [{ to: 'schemas', map: { name: 'schema' } }],
+			columns: [{ to: 'tables', map: { schema: 'schema', name: 'table' } }],
+			checks: [{ to: 'tables', map: { schema: 'schema', name: 'table' } }],
+			pks: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{ to: 'columns', map: { schema: 'schema', table: 'table', name: { list: 'columns' } } },
+			],
+			uniques: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{ to: 'columns', map: { schema: 'schema', table: 'table', name: { list: 'columns' } } },
+			],
+			// current index columns are objects (the `value` slot), skipping expression entries
+			indexes: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{
+					to: 'columns',
+					map: { schema: 'schema', table: 'table', name: { list: 'columns', pick: 'value', skipWhen: 'isExpression' } },
+				},
+			],
+			defaults: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{ to: 'columns', map: { schema: 'schema', table: 'table', name: 'column' } },
+			],
+			fks: [
+				{ to: 'tables', map: { schema: 'schema', name: 'table' } },
+				{ to: 'columns', map: { schema: 'schema', table: 'table', name: { list: 'columns' } } },
+				{ to: 'tables', map: { schema: 'schemaTo', name: 'tableTo' } },
+				{ to: 'columns', map: { schema: 'schemaTo', table: 'tableTo', name: { list: 'columnsTo' } } },
+			],
+		},
 	});
-};
 
 export type MssqlDDLV1 = ReturnType<typeof createDDLV1>;
-export type MssqlEntitiesV1 = MssqlDDLV1['_']['types'];
+export type MssqlEntitiesV1 = NonNullable<MssqlDDLV1['$entities']>;
 export type MssqlEntityV1 = MssqlEntitiesV1[keyof MssqlEntitiesV1];
 
 export type MssqlDDL = ReturnType<typeof createDDL>;
 
-export type MssqlEntities = MssqlDDL['_']['types'];
+export type MssqlEntities = NonNullable<MssqlDDL['$entities']>;
 export type MssqlEntity = MssqlEntities[keyof MssqlEntities];
-export type DiffEntities = MssqlDDL['_']['diffs']['alter'];
+export type DiffEntities = { [K in keyof MssqlEntities]: Alter<MssqlEntities[K]> };
 
 export type Schema = MssqlEntities['schemas'];
 export type Table = MssqlEntities['tables'];

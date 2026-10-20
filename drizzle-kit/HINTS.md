@@ -218,7 +218,6 @@ Unmarked kinds apply to all dialects (`postgresql`, `mysql`, `sqlite`, `turso`, 
 - `sequence`²
 - `policy`²
 - `role`²
-- `privilege`²
 
 ¹ `postgresql`, `mssql`, `cockroach` only.
 
@@ -260,7 +259,6 @@ Each hint identifies an entity using an `entity`, `from`, or `to` tuple. The ari
 | `[name]` | `schema`, `role` | `["tenant_a"]` |
 | `[schema, name]` | `table`, `enum`, `sequence`, `view` | `["public", "users"]` |
 | `[schema, table, name]` | `column`, `default`, `policy`, `check`, `index`, `unique`, `primary_key`, `foreign key`, `add_not_null`¹ | `["public", "users", "email"]` |
-| `[grantor, grantee, schema, table, type]` | `privilege` | `["postgres", "app_user", "public", "users", "select"]` |
 
 ¹ `confirm_data_loss` only (`sqlite` / `turso`).
 

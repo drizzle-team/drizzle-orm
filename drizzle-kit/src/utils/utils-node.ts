@@ -5,6 +5,7 @@ import { sync as globSync } from 'glob';
 import { dirname, join, resolve } from 'path';
 import { parse, pathToFileURL } from 'url';
 import {
+	CheckCliError,
 	MigrationsOutdatedCliError,
 	SchemaFilesNotFoundCliError,
 	UnsupportedSnapshotVersionCliError,
@@ -221,7 +222,7 @@ const assertVersion = (
 };
 
 const postgresValidator = (snapshot: object): ValidationResult => {
-	const versionError = assertVersion(snapshot, 8);
+	const versionError = assertVersion(snapshot, 9);
 	if (versionError) return { status: versionError };
 
 	const res = pgSnapshotValidator.parse(snapshot);
@@ -287,6 +288,31 @@ const singlestoreValidator = (snapshot: object): ValidationResult => {
 	return { status: 'valid' };
 };
 
+export const assertSnapshotStatus = (snapshot: string, status: ValidationResult['status']) => {
+	switch (status) {
+		case 'valid':
+			return;
+		case 'unsupported':
+			throw new CheckCliError(
+				'unsupported',
+				`${snapshot} snapshot is of unsupported version, please update drizzle-kit`,
+				{ snapshot },
+			);
+		case 'nonLatest':
+			throw new CheckCliError(
+				'non_latest',
+				`${snapshot} is not of the latest version, please run "drizzle-kit up"`,
+				{ snapshot },
+			);
+		case 'malformed':
+			throw new CheckCliError(
+				'malformed',
+				`${snapshot} data is malformed. Restore the file from git, or fix the JSON in it by hand.`,
+				{ snapshot },
+			);
+	}
+};
+
 export const validatorForDialect = (
 	dialect: Dialect,
 ): (snapshot: object) => ValidationResult => {
@@ -321,7 +347,7 @@ export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
 
 	const result = snapshots.reduce(
 		(accum, it) => {
-			const raw = JSON.parse(readFileSync(`./${it}`).toString());
+			const raw = JSON.parse(readFileSync(it).toString());
 
 			accum.rawMap[it] = raw;
 
@@ -336,29 +362,16 @@ export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
 
 			if (res.status === 'nonLatest') {
 				accum.nonLatest.push(it);
-				return accum;
 			}
-
-			// only if latest version here
-			const idEntry = accum.idsMap[raw['prevId']] ?? {
-				parent: it,
-				snapshots: [],
-			};
-
-			idEntry.snapshots.push(it);
-			accum.idsMap[raw['prevId']] = idEntry;
 			return accum;
 		},
 		{
 			malformed: [],
 			nonLatest: [],
-			idToNameMap: {},
-			idsMap: {},
 			rawMap: {},
 		} as {
 			malformed: string[];
 			nonLatest: string[];
-			idsMap: Record<string, { parent: string; snapshots: string[] }>;
 			rawMap: Record<string, any>;
 		},
 	);

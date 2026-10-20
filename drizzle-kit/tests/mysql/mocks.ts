@@ -33,7 +33,6 @@ import { tsc } from '../utils';
 import 'zx/globals';
 import { relationsToTypeScript } from 'src/cli/commands/pull-common';
 import { mysqlCommutativity } from 'src/dialects/mysql/commutativity';
-import type { MysqlSnapshot } from 'src/dialects/mysql/snapshot';
 import { expect } from 'vitest';
 
 mkdirSync('tests/mysql/tmp', { recursive: true });
@@ -499,20 +498,8 @@ export async function conflictsFromSchema(
 		child2: SchemaShape;
 	},
 ) {
-	const { schema: parentInterim } = fromDrizzleSchema(Object.values(parent.schema), []);
-	const { ddl: parentDDL } = interimToDDL(parentInterim);
-
-	const parentSnapshot = {
-		version: '6',
-		dialect: 'mysql',
-		id: parent.id,
-		prevIds: parent.prevId ? [parent.prevId] : [],
-		ddl: parentDDL.entities.list(),
-		renames: [],
-	} satisfies MysqlSnapshot;
-
 	const { statements: st1 } = await diff(parent.schema, child1.schema, []);
 	const { statements: st2 } = await diff(parent.schema, child2.schema, []);
 
-	return await mysqlCommutativity.getReasonsFromStatements(st1, st2, parentSnapshot);
+	return await mysqlCommutativity.getReasonsFromStatements(st1, st2);
 }
