@@ -57,7 +57,7 @@ test('create table with check', async (t) => {
 );\n`);
 });
 
-test('add check contraint to existing table', async (t) => {
+test('add check constraint to existing table', async (t) => {
 	const from = {
 		users: mysqlTable('users', {
 			id: serial('id').primaryKey(),
@@ -90,7 +90,7 @@ test('add check contraint to existing table', async (t) => {
 	);
 });
 
-test('drop check contraint in existing table', async (t) => {
+test('drop check constraint in existing table', async (t) => {
 	const to = {
 		users: mysqlTable('users', {
 			id: serial('id').primaryKey(),
