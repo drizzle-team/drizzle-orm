@@ -1,0 +1,16 @@
+services:
+  aws-data-api:
+    image: koxudaxi/local-data-api:0.6.12
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      ENGINE: PostgreSQLJDBC
+      POSTGRES_HOST: host.docker.internal
+      POSTGRES_PORT: 55433
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      RESOURCE_ARN: arn:aws:rds:us-east-1:123456789012:cluster:dummy
+      SECRET_ARN: arn:aws:secretsmanager:us-east-1:123456789012:secret:dummy
+    ports:
+      - "8081:80"

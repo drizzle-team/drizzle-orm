@@ -2,6 +2,7 @@ import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
+	byteaFromPgHex,
 	castToText,
 	castToTextArr,
 	makeBoxArray,
@@ -21,7 +22,9 @@ import {
 } from '~/pg-core/codecs.ts';
 
 const byteaFromBlob = (v: Uint8Array | Buffer): Buffer => Buffer.from(v);
-const byteaFromPgHex = (v: string): Buffer => Buffer.from(v.slice(2), 'hex');
+// `inet::text` always appends netmask, while `inet` output omits it when it's full-width
+const inetFromText = (v: string): string =>
+	v.endsWith(v.includes(':') ? '/128' : '/32') ? v.slice(0, v.lastIndexOf('/')) : v;
 
 export const awsDataApiPgCodecs = refineGenericPgCodecs({
 	json: {
@@ -123,6 +126,8 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 		castParam: (name) => `${name}::inet`,
 		castArrayParam: (name, _column, dim) => `${name}::inet${'[]'.repeat(dim)}`,
+		normalize: inetFromText,
+		normalizeArray: arrayCompatNormalize(inetFromText),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	point: {
@@ -185,8 +190,8 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	char: {
-		castParam: (name) => `${name}::char`,
-		castArrayParam: (name, _column, dim) => `${name}::char${'[]'.repeat(dim)}`,
+		castParam: (name, column) => `${name}::${column.getSQLType()}`,
+		castArrayParam: (name, column, dim) => `${name}::${column.getSQLType()}${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	circle: {

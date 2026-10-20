@@ -69,7 +69,7 @@
 		"@aws-sdk/client-rds-data": "^3.556.0",
 		"@cloudflare/workers-types": "^4.20230518.0",
 		"@drizzle-team/brocli": "0.12.1",
-		"@drizzle-team/minipg": "0.4.1",
+		"@drizzle-team/minipg": "0.4.2",
 		"@duckdb/node-api": "1.5.0-r.1",
 		"@effect/sql": "^0.48.5",
 		"@electric-sql/pglite": "^0.5.8",

@@ -16,6 +16,7 @@ ALL_DIALECTS=(
   singlestore
   singlestore-many
   postgres-http-gateway
+  aws-data-api
 )
 
 _resolve_compose_file() {
@@ -34,6 +35,7 @@ _resolve_compose_file() {
     singlestore)      echo "singlestore.yml" ;;
     singlestore-many) echo "singlestore-many.yml" ;;
     postgres-http-gateway) echo "postgres-http-gateway.yml" ;;
+    aws-data-api)     echo "aws-data-api.yml" ;;
     *)
       echo "Unknown dialect '$1'. Valid dialects: ${ALL_DIALECTS[*]}" >&2
       return 1

@@ -841,6 +841,17 @@ export function base64ToUint8Array(base64: string): Uint8Array {
 	return bytes;
 }
 
+export function pgHexToUint8Array(hex: string): Uint8Array {
+	const len = (hex.length - 2) >> 1;
+	const bytes = new Uint8Array(len);
+
+	for (let i = 0; i < len; ++i) {
+		bytes[i] = Number.parseInt(hex.slice(2 + i * 2, 4 + i * 2), 16);
+	}
+
+	return bytes;
+}
+
 export type PartialWithUndefined<T> = {
 	[K in keyof T]?: T[K] | undefined;
 };

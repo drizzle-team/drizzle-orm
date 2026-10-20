@@ -15,7 +15,7 @@ import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
-import { getValueFromDataApi, toValueParam } from '../common/index.ts';
+import { getValueFromDataApi, toSqlParameter } from '../common/index.ts';
 
 export type AwsDataApiClient = RDSDataClient;
 
@@ -75,10 +75,7 @@ export class AwsDataApiSession<
 			const command = new ExecuteStatementCommand({
 				sql: query.sql,
 				parameters: params
-					? params.map((param, index) => ({
-						name: `${index + 1}`,
-						value: toValueParam(param),
-					}))
+					? params.map((param, index) => toSqlParameter(`${index + 1}`, param))
 					: [],
 				secretArn: this.options.secretArn,
 				resourceArn: this.options.resourceArn,

@@ -1,6 +1,8 @@
+import { ExecuteStatementCommand, RDSDataClient } from '@aws-sdk/client-rds-data';
 import { neon, neonConfig, type NeonQueryFunction, Pool as NeonPool } from '@neondatabase/serverless';
 
 import { createPool as createPostgresPool } from '@drizzle-team/minipg';
+import { createPool as createAuroraClient } from '@drizzle-team/minipg/aurora';
 import { client as createHttpClient } from '@drizzle-team/minipg/http';
 import { createPool as createMinipgNeonHttpClient } from '@drizzle-team/minipg/neon-http';
 import { createPool as createMinipgNeonWsPool } from '@drizzle-team/minipg/neon-ws';
@@ -17,6 +19,7 @@ import {
 	type RelationsBuilderConfig,
 	Table,
 } from 'drizzle-orm';
+import { drizzle as drizzleAwsDataApi } from 'drizzle-orm/aws-data-api/pg';
 import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import { drizzle as drizzleNeonHttp, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
@@ -39,6 +42,7 @@ import { drizzle as drizzleProxy } from 'drizzle-orm/pg-proxy';
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres';
 import { drizzle as drizzlePostgresjs } from 'drizzle-orm/postgres-js';
+import { drizzle as drizzleAurora } from 'drizzle-orm/postgres/aurora';
 import { drizzle as drizzleHttp } from 'drizzle-orm/postgres/http';
 import { drizzle as drizzleMinipgNeonHttp } from 'drizzle-orm/postgres/http/neon';
 import { drizzle as drizzleMinipgNeonWs } from 'drizzle-orm/postgres/neon-ws';
@@ -479,6 +483,65 @@ export const prepareNetlifyDb = async (db: string) => {
 	return { client, query, batch, database: db };
 };
 
+export const awsDataApiConfig = {
+	resourceArn: 'arn:aws:rds:us-east-1:123456789012:cluster:dummy',
+	secretArn: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:dummy',
+	region: 'us-east-1',
+	credentials: { accessKeyId: 'local', secretAccessKey: 'local' },
+};
+
+const prepareDataApiDatabase = async (db: string) => {
+	const endpoint = process.env['AWS_DATA_API_URL'];
+	if (!endpoint) throw new Error('AWS_DATA_API_URL is not set');
+
+	const url = new URL(process.env['PG_CONNECTION_STRING']!);
+	url.pathname = `/${db}`;
+
+	const admin = new ClientNodePostgres(url.toString());
+	await admin.connect();
+
+	await admin.query('drop schema if exists public, "mySchema" cascade;');
+	await admin.query('create schema public');
+	await admin.query('create schema "mySchema";');
+
+	const query = async (sql: string, params: any[] = []) => {
+		const res = await admin.query(sql, params);
+		return res.rows;
+	};
+
+	const batch = async (statements: string[]) => {
+		return Promise.all(statements.map((x) => admin.query(x))).then((results) => [results] as any);
+	};
+
+	return { endpoint, query, batch };
+};
+
+export const prepareAurora = async (db: string) => {
+	const { endpoint, query, batch } = await prepareDataApiDatabase(db);
+	const client = createAuroraClient({ ...awsDataApiConfig, database: db, endpoint });
+	// local-data-api opens its connection to a database on first use, which takes long enough to break timing assertions
+	await client.query('select 1');
+
+	return { client, query, batch, database: db };
+};
+
+export const prepareAwsDataApi = async (db: string) => {
+	const { endpoint, query, batch } = await prepareDataApiDatabase(db);
+	const { resourceArn: _, secretArn: __, ...rdsConfig } = awsDataApiConfig;
+	const client = new RDSDataClient({ ...rdsConfig, endpoint });
+	// local-data-api opens its connection to a database on first use, which takes long enough to break timing assertions
+	await client.send(
+		new ExecuteStatementCommand({
+			resourceArn: awsDataApiConfig.resourceArn,
+			secretArn: awsDataApiConfig.secretArn,
+			database: db,
+			sql: 'select 1',
+		}),
+	);
+
+	return { client, query, batch, database: db };
+};
+
 /** A second independent connection to the same database for transaction snapsot tests */
 export interface SnapshotPeer {
 	query: (sql: string) => Promise<any[]>;
@@ -522,6 +585,8 @@ const openPeer = async (vendor: Vendor, database: string | undefined): Promise<S
 };
 
 type Vendor =
+	| 'aurora'
+	| 'aws-data-api'
 	| 'http'
 	| 'minipg-neon-http'
 	| 'minipg-neon-ws'
@@ -757,6 +822,41 @@ export const provideForNetlifyDb = async () => {
 	return providerClosure(clients);
 };
 
+const recreateDatabases = async (dbs: string[]) => {
+	const url = process.env['PG_CONNECTION_STRING'];
+	if (!url) throw new Error();
+	const client = new ClientNodePostgres({ connectionString: url });
+	await client.connect();
+
+	for (const db of dbs) {
+		await client.query(`drop database if exists ${db} with (force)`);
+		await client.query(`create database ${db};`);
+	}
+	await client.end();
+};
+
+export const provideForAurora = async () => {
+	const dbs = ['db30', 'db31', 'db32', 'db33', 'db34'];
+	await recreateDatabases(dbs);
+
+	const clients = [];
+	for (const db of dbs) clients.push(await prepareAurora(db));
+
+	return providerClosure(clients);
+};
+
+export const provideForAwsDataApi = async () => {
+	const dbs = ['db35', 'db36', 'db37', 'db38', 'db39'];
+	await recreateDatabases(dbs);
+
+	const clients = [];
+	for (const db of dbs) clients.push(await prepareAwsDataApi(db));
+
+	return providerClosure(clients);
+};
+
+type ProviderAurora = Awaited<ReturnType<typeof provideForAurora>>;
+type ProviderAwsDataApi = Awaited<ReturnType<typeof provideForAwsDataApi>>;
 type ProviderHttp = Awaited<ReturnType<typeof provideForHttp>>;
 type ProviderMinipgNeonWs = Awaited<ReturnType<typeof provideForMinipgNeonWs>>;
 type ProviderMinipgNeonHttp = Awaited<ReturnType<typeof provideForMinipgNeonHttp>>;
@@ -770,6 +870,8 @@ type ProvideForProxy = Awaited<ReturnType<typeof provideForProxy>>;
 type ProvideForNetlifyDb = Awaited<ReturnType<typeof provideForNetlifyDb>>;
 
 type Provider =
+	| ProviderAurora
+	| ProviderAwsDataApi
 	| ProviderHttp
 	| ProviderMinipgNeonWs
 	| ProviderMinipgNeonHttp
@@ -812,7 +914,11 @@ const testFor = (vendor: Vendor) => {
 		provider: [
 			// oxlint-disable-next-line no-empty-pattern
 			async ({}, use) => {
-				const provider = vendor === 'http'
+				const provider = vendor === 'aurora'
+					? await provideForAurora()
+					: vendor === 'aws-data-api'
+					? await provideForAwsDataApi()
+					: vendor === 'http'
 					? await provideForHttp()
 					: vendor === 'minipg-neon-ws'
 					? await provideForMinipgNeonWs()
@@ -884,7 +990,17 @@ const testFor = (vendor: Vendor) => {
 					return;
 				}
 
-				const db = vendor === 'http'
+				const db = vendor === 'aurora'
+					? drizzleAurora({ client: kit.client as any, relations })
+					: vendor === 'aws-data-api'
+					? drizzleAwsDataApi({
+						client: kit.client as any,
+						database: kit.database!,
+						resourceArn: awsDataApiConfig.resourceArn,
+						secretArn: awsDataApiConfig.secretArn,
+						relations,
+					})
+					: vendor === 'http'
 					? drizzleHttp({ client: kit.client as any, relations })
 					: vendor === 'minipg-neon-ws'
 					? drizzleMinipgNeonWs({ client: kit.client as any, relations })
@@ -934,6 +1050,21 @@ const testFor = (vendor: Vendor) => {
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
+					if (vendor === 'aurora') {
+						return drizzleAurora({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
+					}
+					if (vendor === 'aws-data-api') {
+						return drizzleAwsDataApi({
+							client: kit.client as any,
+							database: kit.database!,
+							resourceArn: awsDataApiConfig.resourceArn,
+							secretArn: awsDataApiConfig.secretArn,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+							cache,
+						});
+					}
 					if (vendor === 'minipg-neon-ws') {
 						return drizzleMinipgNeonWs({
 							client: kit.client as any,
@@ -1046,8 +1177,17 @@ const testFor = (vendor: Vendor) => {
 
 				const config1 = { client: kit.client as any, relations, cache: new TestCache('all') };
 				const config2 = { client: kit.client as any, relations, cache: new TestCache('explicit') };
+				const dataApiConfig = {
+					database: kit.database!,
+					resourceArn: awsDataApiConfig.resourceArn,
+					secretArn: awsDataApiConfig.secretArn,
+				};
 
-				const db1 = vendor === 'http'
+				const db1 = vendor === 'aurora'
+					? drizzleAurora(config1) as any
+					: vendor === 'aws-data-api'
+					? drizzleAwsDataApi({ ...config1, ...dataApiConfig }) as any
+					: vendor === 'http'
 					? drizzleHttp(config1 as any) as any
 					: vendor === 'minipg-neon-ws'
 					? drizzleMinipgNeonWs(config1 as any) as any
@@ -1069,7 +1209,11 @@ const testFor = (vendor: Vendor) => {
 					? drizzleNetlify(config1)
 					: '' as never;
 
-				const db2 = vendor === 'http'
+				const db2 = vendor === 'aurora'
+					? drizzleAurora(config2) as any
+					: vendor === 'aws-data-api'
+					? drizzleAwsDataApi({ ...config2, ...dataApiConfig }) as any
+					: vendor === 'http'
 					? drizzleHttp(config2 as any) as any
 					: vendor === 'minipg-neon-ws'
 					? drizzleMinipgNeonWs(config2 as any) as any
@@ -1113,6 +1257,8 @@ export const pgliteTest = testFor('pglite');
 export const nodePostgresTest = testFor('node-postgres');
 export const postgresTest = testFor('postgres');
 export const postgresHttpTest = testFor('http');
+export const postgresAuroraTest = testFor('aurora');
+export const awsDataApiTest = testFor('aws-data-api');
 export const postgresNeonWsTest = testFor('minipg-neon-ws');
 export const postgresNeonHttpTest = testFor('minipg-neon-http');
 export const postgresjsTest = testFor('postgresjs');

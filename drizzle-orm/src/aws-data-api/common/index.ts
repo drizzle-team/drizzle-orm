@@ -1,4 +1,5 @@
-import type { Field } from '@aws-sdk/client-rds-data';
+import type { ArrayValue, Field, SqlParameter } from '@aws-sdk/client-rds-data';
+import { makePgArray } from '~/pg-core/array.ts';
 
 export function getValueFromDataApi(field: Field) {
 	if (field.stringValue !== undefined) {
@@ -21,26 +22,30 @@ export function getValueFromDataApi(field: Field) {
 	}
 
 	if (field.arrayValue !== undefined) {
-		if (field.arrayValue.stringValues !== undefined) {
-			return field.arrayValue.stringValues;
-		}
-		if (field.arrayValue.longValues !== undefined) {
-			return field.arrayValue.longValues;
-		}
-		if (field.arrayValue.doubleValues !== undefined) {
-			return field.arrayValue.doubleValues;
-		}
-		if (field.arrayValue.booleanValues !== undefined) {
-			return field.arrayValue.booleanValues;
-		}
-		if (field.arrayValue.arrayValues !== undefined) {
-			return field.arrayValue.arrayValues;
-		}
-
-		throw new Error('Unknown array type');
+		return getArrayFromDataApi(field.arrayValue);
 	}
 
 	throw new Error('Unknown type');
+}
+
+function getArrayFromDataApi(value: ArrayValue): unknown[] {
+	if (value.stringValues !== undefined) {
+		return value.stringValues;
+	}
+	if (value.longValues !== undefined) {
+		return value.longValues;
+	}
+	if (value.doubleValues !== undefined) {
+		return value.doubleValues;
+	}
+	if (value.booleanValues !== undefined) {
+		return value.booleanValues;
+	}
+	if (value.arrayValues !== undefined) {
+		return value.arrayValues.map(getArrayFromDataApi);
+	}
+
+	throw new Error('Unknown array type');
 }
 
 export function toValueParam(value: any): Field {
@@ -67,6 +72,26 @@ export function toValueParam(value: any): Field {
 	if ((typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) || value instanceof Uint8Array) {
 		return { blobValue: value };
 	}
+	if (Array.isArray(value)) {
+		return { stringValue: makePgArray(value) };
+	}
+	if (valueType === 'object') {
+		return { stringValue: JSON.stringify(value) };
+	}
 
 	throw new Error(`Unknown type for ${value}`);
+}
+
+export function toSqlParameter(name: string, value: any): SqlParameter {
+	const field = toValueParam(value);
+
+	// Objects that aren't bound to a json column have no cast to tell the type, so it has to be hinted instead
+	if (
+		value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)
+		&& field.stringValue !== undefined
+	) {
+		return { name, value: field, typeHint: 'JSON' };
+	}
+
+	return { name, value: field };
 }

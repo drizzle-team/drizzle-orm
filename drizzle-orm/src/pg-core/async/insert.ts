@@ -83,7 +83,7 @@ export class PgAsyncInsertBase<
 				? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, undefined)
 				: undefined;
 
-			const query = dialect.sqlToQuery(this.getSQL(!shape));
+			const query = dialect.sqlToQuery(this.getSQL(true));
 			const mapper = shape || !fields
 				? undefined
 				: this.dialect.mapperGenerators.rows(fields, undefined);
