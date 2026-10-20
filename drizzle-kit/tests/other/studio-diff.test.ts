@@ -133,7 +133,7 @@ test('postgres: change schema of a table', async () => {
 		['public.users->other.users'],
 	);
 
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" SET SCHEMA "other";']);
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" SET SCHEMA "other";\n']);
 });
 
 test('postgres: the constraints and the index of a table follow a renamed column', async () => {
@@ -166,7 +166,7 @@ test('postgres: the constraints and the index of a table follow a renamed column
 		['public.users.id->public.users.key'],
 	);
 
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" RENAME COLUMN "id" TO "key";\n']);
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" RENAME COLUMN "id" TO "key";']);
 });
 
 test('postgres: the foreign key of another table follows a renamed column', async () => {
