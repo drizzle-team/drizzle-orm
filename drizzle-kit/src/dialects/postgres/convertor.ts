@@ -1,4 +1,11 @@
+import type {
+	PgFunctionNullInput,
+	PgFunctionParallel,
+	PgFunctionSecurity,
+	PgFunctionVolatility,
+} from 'drizzle-orm/pg-core';
 import { escapeSingleQuotes, type Simplify, wrapWith } from '../../utils';
+import type { PostgresEntities } from './ddl';
 import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, isSerialType, mapSerialToInt } from './grammar';
 import type { JsonStatement } from './statements';
 
@@ -1038,6 +1045,219 @@ const toggleRlsConvertor = convertor('alter_rls', (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} ${isRlsEnabled ? 'ENABLE' : 'DISABLE'} ROW LEVEL SECURITY;`;
 });
 
+function volatilityToSQL(volatility: PgFunctionVolatility): string {
+	switch (volatility) {
+		case 'volatile':
+			return 'VOLATILE';
+		case 'stable':
+			return 'STABLE';
+		case 'immutable':
+			return 'IMMUTABLE';
+	}
+}
+
+function securityToSQL(security: PgFunctionSecurity): string {
+	switch (security) {
+		case 'definer':
+			return 'DEFINER';
+		case 'invoker':
+			return 'INVOKER';
+	}
+}
+
+function parallelToSQL(parallel: PgFunctionParallel): string {
+	switch (parallel) {
+		case 'unsafe':
+			return 'UNSAFE';
+		case 'restricted':
+			return 'RESTRICTED';
+		case 'safe':
+			return 'SAFE';
+	}
+}
+
+function nullInputToSQL(nullInput: PgFunctionNullInput): string {
+	switch (nullInput) {
+		case 'called':
+			return 'CALLED ON NULL INPUT';
+		case 'returned':
+			return 'RETURNS NULL ON NULL INPUT';
+		case 'strict':
+			return 'STRICT';
+	}
+}
+
+const quoteIdentifier = (value: string) => `"${value.replace(/"/g, '""')}"`;
+
+const quoteLiteral = (value: string) => `'${value.replace(/'/g, "''")}'`;
+
+// If the user provided a body with a delimter $function$, we need to escape it by adding a new delimiter $function_${index}$
+function quoteFunctionBody(body: string): string {
+	let index = 0;
+	let delimiter = '$function$';
+
+	while (body.includes(delimiter)) {
+		delimiter = `$function_${++index}$`;
+	}
+
+	return `${delimiter}\n${body}\n${delimiter}`;
+}
+
+function quoteConfigName(name: string): string {
+	// Check if the name is a valid configuration name
+	if (!/^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)*$/.test(name)) {
+		throw new Error(`Invalid configuration name: ${name}`);
+	}
+
+	// Split items like 'app.config' into 'app' and 'config' and quote each part
+	return name.split('.').map(quoteIdentifier).join('.');
+}
+
+function renderDeclarations(
+	declarations: PostgresEntities['functions']['args'],
+): string {
+	return declarations.map(({ name, type, default: defaultValue }) => {
+		const initialization = defaultValue !== null
+			? ` := ${defaultValue}`
+			: '';
+
+		return `\t${quoteIdentifier(name)} ${type}${initialization};`;
+	}).join('\n');
+}
+
+function renderFunctionBody(
+	fn: PostgresEntities['functions'],
+): string {
+	// Manual mode: preserve the entire user-provided body.
+	if (fn.declare === null) {
+		return quoteFunctionBody(fn.body);
+	}
+
+	// Structured declarations are only supported by PL/pgSQL.
+	if (fn.language !== 'plpgsql') {
+		throw new Error(
+			'Structured DECLARE blocks require LANGUAGE plpgsql',
+		);
+	}
+
+	const declarations = renderDeclarations(fn.declare.values);
+
+	const parts = [
+		declarations.length > 0
+			? `DECLARE\n${declarations}`
+			: null,
+		'BEGIN',
+		fn.body,
+		'END;',
+	];
+
+	return quoteFunctionBody(parts.filter((part) => part !== null).join('\n'));
+}
+
+function renderFunction(fn: PostgresEntities['functions'], type: 'create' | 'replace'): string {
+	const schema = fn.schema;
+	const name = fn.name;
+	const qualifiedName = `${quoteIdentifier(schema)}.${quoteIdentifier(name)}`;
+	const returns = fn.returns;
+	const language = fn.language;
+	const volatility = volatilityToSQL(fn.volatility);
+	const security = securityToSQL(fn.security);
+	const parallel = parallelToSQL(fn.parallel);
+	const nullInput = nullInputToSQL(fn.nullInput);
+
+	const body = renderFunctionBody(fn);
+
+	// Escape double quotes in arg names to prevent errors
+	const args = fn.args.map((arg) => {
+		const name = quoteIdentifier(arg.name);
+
+		// Add default value if it exists
+		const defaultSql = arg.default !== null
+			? ` DEFAULT ${arg.default}`
+			: '';
+
+		// Tab out for formatting and readability
+		return `\t${name} ${arg.type}${defaultSql}`;
+	}).join(',\n');
+
+	// Preserve empty search path to not update a search path where the user doesn't want to update it
+	let searchPath = '';
+	if (fn.searchPath !== null && fn.searchPath !== undefined) {
+		const values = fn.searchPath.values;
+
+		searchPath = values.length === 0
+			? "SET search_path TO ''"
+			: `SET search_path TO ${values.map(quoteIdentifier).join(', ')}`;
+	}
+
+	let configuration = fn.configuration.map((config) => {
+		return `SET ${quoteConfigName(config.name)} TO ${quoteLiteral(config.value)}`;
+	}).join('\n');
+
+	const keyword = type === 'create'
+		? 'CREATE FUNCTION'
+		: 'CREATE OR REPLACE FUNCTION';
+
+	const sql = [
+		`${keyword} ${qualifiedName}(${args ? `\n${args}\n` : ''})`,
+		`RETURNS ${returns}`,
+		`LANGUAGE ${language}`,
+		volatility,
+		nullInput,
+		`PARALLEL ${parallel}`,
+		`SECURITY ${security}`,
+		searchPath,
+		configuration,
+		`AS ${body};`,
+	].filter(Boolean);
+
+	return sql.join('\n');
+}
+
+function renderDropFunction(fn: PostgresEntities['functions']): string {
+	const qualifiedName = `${quoteIdentifier(fn.schema)}.${quoteIdentifier(fn.name)}`;
+	const identityArgs = fn.identityArgs.join(', ');
+
+	return `DROP FUNCTION ${qualifiedName}(${identityArgs});`;
+}
+
+const createFunctionConvertor = convertor('create_function', (st) => {
+	const { function: fn } = st;
+	return renderFunction(fn, 'create');
+});
+
+function returnsMatch(oldFunction: PostgresEntities['functions'], newFunction: PostgresEntities['functions']): boolean {
+	return oldFunction.returns === newFunction.returns;
+}
+
+function argsMatch(oldFunction: PostgresEntities['functions'], newFunction: PostgresEntities['functions']): boolean {
+	return oldFunction.args.length === newFunction.args.length
+		&& oldFunction.args.every(
+			(arg, index) => arg.name === newFunction.args[index]?.name,
+		);
+}
+
+const alterFunctionConvertor = convertor('alter_function', (st) => {
+	const { oldFunction, newFunction } = st;
+
+	let sql = '';
+	// Drop old function if return type or args change
+	if (!returnsMatch(oldFunction, newFunction) || !argsMatch(oldFunction, newFunction)) {
+		sql += renderDropFunction(oldFunction) + '\n';
+	}
+
+	// Only use `CREATE OR REPLACE FUNCTION` if no changes were made to the function.
+	if (sql === '') {
+		return renderFunction(newFunction, 'replace');
+	}
+
+	return sql + renderFunction(newFunction, 'create');
+});
+
+const dropFunctionConvertor = convertor('drop_function', (st) => {
+	return renderDropFunction(st.function);
+});
+
 const convertors = [
 	createSchemaConvertor,
 	dropSchemaConvertor,
@@ -1097,6 +1317,9 @@ const convertors = [
 	alterPolicyConvertor,
 	recreatePolicy,
 	toggleRlsConvertor,
+	createFunctionConvertor,
+	alterFunctionConvertor,
+	dropFunctionConvertor,
 ];
 
 export function fromJson(

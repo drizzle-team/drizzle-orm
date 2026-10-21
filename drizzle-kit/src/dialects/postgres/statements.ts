@@ -7,6 +7,7 @@ import type {
 	ForeignKey,
 	Index,
 	Policy,
+	PostgresEntities,
 	PrimaryKey,
 	Privilege,
 	Role,
@@ -384,6 +385,22 @@ export interface JsonAlterView {
 	view: View;
 }
 
+export interface JsonCreateFunction {
+	type: 'create_function';
+	function: PostgresEntities['functions'];
+}
+
+export interface JsonDropFunction {
+	type: 'drop_function';
+	function: PostgresEntities['functions'];
+}
+
+export interface JsonAlterFunction {
+	type: 'alter_function';
+	oldFunction: PostgresEntities['functions'];
+	newFunction: PostgresEntities['functions'];
+}
+
 export type JsonStatement =
 	| JsonCreateTable
 	| JsonDropTable
@@ -443,7 +460,10 @@ export type JsonStatement =
 	| JsonRenameView
 	| JsonDropValueFromEnum
 	| JsonAlterCheck
-	| JsonRecreateIndex;
+	| JsonRecreateIndex
+	| JsonCreateFunction
+	| JsonDropFunction
+	| JsonAlterFunction;
 
 export const prepareStatement = <
 	TType extends JsonStatement['type'],

@@ -66,6 +66,7 @@ export const fromDatabase = async (
 	const privileges: Privilege[] = [];
 	const views: View[] = [];
 	const viewColumns: ViewColumn[] = [];
+	const functions: PostgresEntities['functions'][] = [];
 
 	// type OP = {
 	// 	oid: number | string;
@@ -1182,6 +1183,7 @@ export const fromDatabase = async (
 	);
 
 	return {
+		functions,
 		schemas: resultSchemas,
 		tables: resultTables,
 		enums: resultEnums,
