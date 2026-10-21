@@ -60,7 +60,6 @@
 		"unicorn/consistent-function-scoping": "off",
 		"unicorn/prefer-type-error": "off",
 		"eqeqeq": "error",
-		"unicorn/no-instanceof-builtins": "error",
 		"unicorn/prefer-string-replace-all": "off",
 		"unicorn/no-process-exit": "off",
 		"unicorn/no-empty-file": "off",
@@ -68,15 +67,11 @@
 		"typescript/no-empty-interface": "off",
 		"typescript/no-unsafe-declaration-merging": "off",
 		"no-inner-declarations": "off",
-		"drizzle-internal/require-entity-kind": "error"
+		"drizzle-internal/require-entity-kind": "error",
+		"drizzle-internal/require-has-instance": "error",
+		"drizzle-internal/prefer-new-array": "error"
 	},
 	"overrides": [
-		{
-			"files": ["drizzle-orm/**/*"],
-			"rules": {
-				"drizzle-internal/no-instanceof": "error"
-			}
-		},
 		{
 			"files": [
 				"**/tests/**/*.ts",
@@ -89,7 +84,8 @@
 				"consistent-type-imports": "off",
 				"no-unused-vars": "off",
 				"no-unused-expressions": "off",
-				"drizzle-internal/require-entity-kind": "off"
+				"drizzle-internal/require-entity-kind": "off",
+				"drizzle-internal/require-has-instance": "off"
 			}
 		},
 		{
@@ -107,7 +103,8 @@
 		{
 			"files": ["drizzle-kit/**/*"],
 			"rules": {
-				"drizzle-internal/require-entity-kind": "off"
+				"drizzle-internal/require-entity-kind": "off",
+				"drizzle-internal/require-has-instance": "off"
 			}
 		}
 	],

@@ -4,6 +4,7 @@ import { eq, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import { drizzle as drizzlePostgres, type PostgresDatabase } from 'drizzle-orm/postgres';
+import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
@@ -226,4 +227,76 @@ test('distinguishes a present all-null row from an unavailable row version', asy
 		old: null,
 		new: { note: null },
 	}]);
+
+	const updated = await db.update(nullableRows).set({ note: null }).returning({ old: true, new: true });
+	expect(updated).toEqual([{ old: { note: null }, new: { note: null } }]);
+
+	const deleted = await db.delete(nullableRows).returning({ old: true, new: true });
+	expect(deleted).toEqual([{ old: { note: null }, new: null }]);
+});
+
+test('works with column-level privileges without access to system columns', async () => {
+	const role = sql.identifier(`pg18_returning_${randomUUID().replaceAll('-', '')}`);
+	const insertedAt = new Date('2026-01-01T00:00:00Z');
+	await db.execute(sql`create role ${role}`);
+	try {
+		await db.execute(sql`grant usage on schema public to ${role}`);
+		await db.execute(sql`
+			grant select(id, name, note, updated_at), insert(id, name, note, updated_at),
+			update(name, note, updated_at), delete on ${users} to ${role}
+		`);
+		await db.execute(sql`set role ${role}`);
+
+		const ordinary = await db.insert(users).values({
+			id: 1,
+			name: 'Jane',
+			note: null,
+			updatedAt: insertedAt,
+		}).returning();
+		expect(ordinary).toEqual([{ id: 1, name: 'Jane', note: null, updatedAt: insertedAt }]);
+
+		const updated = await db.update(users).set({ name: 'Janet' }).returning({ old: true, new: true });
+		expect(updated).toEqual([{
+			old: { id: 1, name: 'Jane', note: null, updatedAt: insertedAt },
+			new: { id: 1, name: 'Janet', note: null, updatedAt: insertedAt },
+		}]);
+
+		const inserted = await db.insert(users).values({
+			id: 2,
+			name: 'John',
+			note: null,
+			updatedAt: insertedAt,
+		}).returning({ old: true, new: true });
+		expect(inserted).toEqual([{
+			old: null,
+			new: { id: 2, name: 'John', note: null, updatedAt: insertedAt },
+		}]);
+
+		const deleted = await db.delete(users).where(eq(users.id, 2)).returning({ old: true, new: true });
+		expect(deleted).toEqual([{
+			old: { id: 2, name: 'John', note: null, updatedAt: insertedAt },
+			new: null,
+		}]);
+	} finally {
+		await db.execute(sql`reset role`);
+		await db.execute(sql`drop owned by ${role}`);
+		await db.execute(sql`drop role ${role}`);
+	}
+});
+
+test('omits undefined optional row versions from mutation results', async () => {
+	const insertedAt = new Date('2026-01-01T00:00:00Z');
+	const inserted = await db.insert(users).values({
+		id: 1,
+		name: 'Jane',
+		note: null,
+		updatedAt: insertedAt,
+	}).returning({ old: undefined, new: true });
+	expect(inserted).toEqual([{ new: { id: 1, name: 'Jane', note: null, updatedAt: insertedAt } }]);
+
+	const updated = await db.update(users).set({ name: 'Janet' }).returning({ old: true, new: undefined });
+	expect(updated).toEqual([{ old: { id: 1, name: 'Jane', note: null, updatedAt: insertedAt } }]);
+
+	const deleted = await db.delete(users).returning({ old: undefined, new: true });
+	expect(deleted).toEqual([{ new: null }]);
 });

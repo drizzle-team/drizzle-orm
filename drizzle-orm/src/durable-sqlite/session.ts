@@ -1,3 +1,4 @@
+import type { QueryMetadata } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -16,6 +17,7 @@ import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface SQLiteDOSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -47,10 +49,7 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyn
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 	): SQLiteAsyncPreparedQuery<T & { run: DurableSQLiteRunResult }> {
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {
@@ -67,7 +66,7 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyn
 					? this.client.sql.exec(query.sql, ...params)
 					: this.client.sql.exec(query.sql);
 
-				if (mode === 'objects') return res.one();
+				if (mode === 'objects') return res.next().value;
 
 				return res.raw().next().value;
 			},
@@ -75,14 +74,6 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyn
 				return params.length > 0
 					? this.client.sql.exec(query.sql, ...params)
 					: this.client.sql.exec(query.sql);
-			},
-			values: (params) => {
-				const res = params.length > 0
-					? this.client.sql.exec(query.sql, ...params)
-					: this.client.sql.exec(query.sql);
-
-				// @ts-ignore .raw().toArray() exists
-				return res.raw().toArray();
 			},
 		};
 
@@ -97,6 +88,7 @@ export class SQLiteDOSession<TRelations extends AnyRelations> extends SQLiteAsyn
 			undefined,
 			queryMetadata,
 			undefined,
+			this.options.paramsInErrors,
 		);
 	}
 

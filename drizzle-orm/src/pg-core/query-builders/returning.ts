@@ -21,7 +21,6 @@ export type PgReturningOldNewConfig = RequireAtLeastOne<{
 	new: true;
 }>;
 
-/** @internal */
 export type PgReturningOldNewConfigParam<TConfig extends PgReturningOldNewConfig> =
 	Exclude<keyof TConfig, keyof PgReturningOldNewConfig> extends never ? TConfig : never;
 
@@ -32,10 +31,12 @@ export type PgReturningOldNewResult<
 	TConfig extends PgReturningOldNewConfig,
 	TOldNullable extends boolean,
 	TNewNullable extends boolean,
-> = {
-	[K in Extract<keyof TConfig, 'old' | 'new'>]: K extends 'old' ? PgReturningRow<InferSelectModel<TTable>, TOldNullable>
-		: PgReturningRow<InferSelectModel<TTable>, TNewNullable>;
-};
+> = TConfig extends unknown ? {
+		[K in keyof TConfig as K extends 'old' | 'new' ? true extends TConfig[K] ? K : never : never]: K extends 'old'
+			? PgReturningRow<InferSelectModel<TTable>, TOldNullable>
+			: PgReturningRow<InferSelectModel<TTable>, TNewNullable>;
+	}
+	: never;
 
 /** @internal */
 export interface PgReturningOldNewSelection {
@@ -55,7 +56,7 @@ export function isPgReturningOldNewConfig(value: unknown): value is PgReturningO
 	}
 
 	for (const [key, field] of Object.entries(config)) {
-		if ((key !== 'old' && key !== 'new') || field !== true) {
+		if ((key !== 'old' && key !== 'new') || (field !== true && field !== undefined)) {
 			throw new Error(
 				'PostgreSQL OLD/NEW returning only supports the `old` and `new` whole-row fields',
 			);
@@ -100,16 +101,13 @@ export function buildPgReturningOldNewSelection(
 	}
 
 	if (config.old === true) {
-		returningWithPresence[oldPresenceField] = sql<boolean>`${sql.identifier(pgReturningOldAlias)}.${
-			sql.identifier('tableoid')
-		} is not null`
+		// Unlike IS NOT NULL, this also recognizes a present row with only NULL columns.
+		returningWithPresence[oldPresenceField] = sql<boolean>`${sql.identifier(pgReturningOldAlias)} is distinct from null`
 			.as(oldPresenceField);
 	}
 
 	if (config.new === true) {
-		returningWithPresence[newPresenceField] = sql<boolean>`${sql.identifier(pgReturningNewAlias)}.${
-			sql.identifier('tableoid')
-		} is not null`
+		returningWithPresence[newPresenceField] = sql<boolean>`${sql.identifier(pgReturningNewAlias)} is distinct from null`
 			.as(newPresenceField);
 	}
 

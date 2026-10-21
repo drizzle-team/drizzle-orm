@@ -5,6 +5,7 @@ import type {
 	Index,
 	InterimColumn,
 	InterimSchema,
+	MysqlDDL,
 	MysqlEntities,
 	PrimaryKey,
 	View,
@@ -13,6 +14,7 @@ import type {
 import { interimToDDL } from '../dialects/mysql/ddl';
 import { ddlDiff } from '../dialects/mysql/diff';
 import { fromDatabase as fd } from '../dialects/mysql/introspect';
+// import { ddlToTypeScript as dtt } from '../dialects/mysql/typescript';
 import { mockResolver } from '../utils/mocks';
 
 export type Interim<T> = Omit<T, 'entityType'>;
@@ -122,10 +124,18 @@ const fromInterims = ({
 	};
 };
 
-export const diffMySql = async (from: InterimStudioSchema, to: InterimStudioSchema, renamesArr: string[]) => {
-	const { ddl: ddl1 } = interimToDDL(fromInterims(from));
-	const { ddl: ddl2 } = interimToDDL(fromInterims(to));
+export const studioSchemaToDDL = (schema: InterimStudioSchema) => {
+	const interimSchema = fromInterims(schema);
+	const { ddl, errors } = interimToDDL(interimSchema);
 
+	if (errors.length > 0) {
+		throw new Error(errors.map((it) => JSON.stringify(it)).join('\n'));
+	}
+
+	return ddl;
+};
+
+export const diffMySql = async (ddl1: MysqlDDL, ddl2: MysqlDDL, renamesArr: string[]) => {
 	const renames = new Set(renamesArr);
 
 	const { sqlStatements, groupedStatements, statements } = await ddlDiff(
@@ -141,3 +151,9 @@ export const diffMySql = async (from: InterimStudioSchema, to: InterimStudioSche
 };
 
 export const fromDatabase = fd;
+
+// export const ddlToTypeScript = (schema: InterimStudioSchema) => {
+// 	const interimSchema = fromInterims(schema);
+// 	const { ddl } = interimToDDL(interimSchema);
+// 	return dtt(ddl, interimSchema.viewColumns, 'camel', 'mysql');
+// };

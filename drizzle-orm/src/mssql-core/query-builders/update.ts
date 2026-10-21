@@ -1,5 +1,5 @@
 import type { GetColumnData } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { MsSqlDialect } from '~/mssql-core/dialect.ts';
 import type {
 	AnyQueryResultHKT,
@@ -28,7 +28,7 @@ export interface MsSqlUpdateConfig {
 		inserted?: SelectedFieldsOrdered;
 		deleted?: SelectedFieldsOrdered;
 	};
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 }
 
 export type MsSqlUpdateSetSource<TTable extends MsSqlTable> =
@@ -88,6 +88,9 @@ export class MsSqlUpdateBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > {
 	static readonly [entityKind]: string = 'MsSqlUpdateBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly table: TTable;
@@ -294,12 +297,14 @@ export class MsSqlUpdateBase<
 		return this as any;
 	}
 
-	getSQL(): SQL {
-		return this.dialect.buildUpdateQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildUpdateQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	prepare(): MsSqlUpdatePrepare<this> {
@@ -307,7 +312,7 @@ export class MsSqlUpdateBase<
 		const fields = output.length ? output : undefined;
 
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+			this.dialect.sqlToQuery(this.getSQL(true)),
 			fields ? 'arrays' : 'raw',
 			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 		) as MsSqlUpdatePrepare<this>;
@@ -327,12 +332,6 @@ export class MsSqlUpdateBase<
 	};
 
 	iterator = this.createIterator();
-
-	/** @internal */
-	withoutSelectionCastCodecs() {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
-	}
 
 	$dynamic(): MsSqlUpdateDynamic<this> {
 		return this as any;

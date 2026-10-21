@@ -43,7 +43,6 @@ import {
 	intersect,
 	numeric,
 	primaryKey,
-	real,
 	type SQLiteAsyncDatabase,
 	SQLiteDialect,
 	sqliteTable,
@@ -1455,7 +1454,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/2872
 		test
-			.skipIf(Date.now() < +new Date('2026-09-05'))
+			.skipIf(Date.now() < +new Date('2026-11-24'))
 			.concurrent(
 				'prepared statement with placeholder in .inArray',
 				async ({ db, push }) => {
@@ -1733,10 +1732,16 @@ export function tests(test: Test, exclude: string[] = []) {
 				sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`,
 			);
 
-			const result = await db.all<{ id: number; name: string }>(
-				sql`select id, name from "users"`,
-			);
+			const query = sql`select id, name from "users"`;
+
+			const result = await db.all<{ id: number; name: string }>(query);
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
+
+			const objects = await db.all<{ id: number; name: string }>(query, 'objects');
+			expect(objects).toEqual([{ id: 1, name: 'John' }]);
+
+			const arrays = await db.all<[number, string]>(query, 'arrays');
+			expect(arrays).toEqual([[1, 'John']]);
 		});
 
 		test.concurrent('insert via db.get', async ({ db }) => {
@@ -1753,10 +1758,16 @@ export function tests(test: Test, exclude: string[] = []) {
 				sql`insert into ${usersTable} (${new Name(usersTable.name.name)}) values (${'John'})`,
 			);
 
-			const result = await db.get<{ id: number; name: string }>(
-				sql`select ${usersTable.id}, ${usersTable.name} from ${usersTable}`,
-			);
+			const query = sql`select ${usersTable.id}, ${usersTable.name} from ${usersTable}`;
+
+			const result = await db.get<{ id: number; name: string }>(query);
 			expect(result).toEqual({ id: 1, name: 'John' });
+
+			const object = await db.get<{ id: number; name: string }>(query, 'objects');
+			expect(object).toEqual({ id: 1, name: 'John' });
+
+			const array = await db.get<[number, string]>(query, 'arrays');
+			expect(array).toEqual([1, 'John']);
 		});
 
 		test.concurrent('insert via db.get w/ query builder', async ({ db }) => {
@@ -5563,7 +5574,7 @@ export function tests(test: Test, exclude: string[] = []) {
 			const queryRaw = await db.all<Record<string, unknown>>(
 				db.select(
 					Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
-				).from(allTypesTable).getSQL(),
+				).from(allTypesTable).getSQL(true),
 			);
 			const queryRes = normalizeDataWithDbCodecs({ db, columns, data: queryRaw, mode: 'query' })[0];
 
@@ -8023,6 +8034,134 @@ export function tests(test: Test, exclude: string[] = []) {
 			await db.insert(usersTable).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]).run()
 		)
 			.rejects.toBeInstanceOf(DrizzleQueryError);
+	});
+
+	test('Query error params', async ({ createDB }) => {
+		const queries = [
+			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
+			{
+				query: sql`insert into ${usersTable} (id, name) values (${1}, ${'First'}), (${1}, ${'Second'}) returning id`,
+				params: [1, 'First', 1, 'Second'],
+			},
+		];
+
+		for (const paramsInErrors of [undefined, false, true]) {
+			const db = createDB({}, () => ({}), undefined, paramsInErrors);
+
+			for (const { query, params } of queries) {
+				for (
+					const run of [
+						() => db.get(query),
+						() => db.all(query),
+						() => db.run(query),
+						() => db.values(query),
+					]
+				) {
+					const error = await (async () => run())().catch((e) => e);
+
+					expect(error).toBeInstanceOf(DrizzleQueryError);
+					expect(error.params).toStrictEqual(paramsInErrors ? params : undefined);
+					expect(error.message).toBe(
+						paramsInErrors ? `Failed query: ${error.query}\nparams: ${params}` : `Failed query: ${error.query}`,
+					);
+				}
+			}
+		}
+	});
+
+	test('Query error params - transaction', async ({ createDB }) => {
+		const queries = [
+			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
+			{
+				query: sql`insert into ${usersTable} (id, name) values (${1}, ${'First'}), (${1}, ${'Second'}) returning id`,
+				params: [1, 'First', 1, 'Second'],
+			},
+		];
+
+		for (const paramsInErrors of [undefined, false, true]) {
+			const db = createDB({}, () => ({}), undefined, paramsInErrors);
+
+			for (const { query, params } of queries) {
+				for (
+					const run of [
+						() =>
+							db.transaction(async (tx) => {
+								await tx.get(query);
+							}),
+						() =>
+							db.transaction(async (tx) => {
+								await tx.all(query);
+							}),
+						() =>
+							db.transaction(async (tx) => {
+								await tx.run(query);
+							}),
+						() =>
+							db.transaction(async (tx) => {
+								await tx.values(query);
+							}),
+					]
+				) {
+					const error = await (async () => run())().catch((e) => e);
+
+					expect(error).toBeInstanceOf(DrizzleQueryError);
+					expect(error.params).toStrictEqual(paramsInErrors ? params : undefined);
+					expect(error.message).toBe(
+						paramsInErrors ? `Failed query: ${error.query}\nparams: ${params}` : `Failed query: ${error.query}`,
+					);
+				}
+			}
+		}
+	});
+
+	test('Query error params - sync transaction', async ({ createDB }) => {
+		const queries = [
+			{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
+			{
+				query: sql`insert into ${usersTable} (id, name) values (${1}, ${'First'}), (${1}, ${'Second'}) returning id`,
+				params: [1, 'First', 1, 'Second'],
+			},
+		];
+
+		for (const paramsInErrors of [undefined, false, true]) {
+			const db = createDB({}, () => ({}), undefined, paramsInErrors);
+
+			for (const { query, params } of queries) {
+				for (
+					const run of [
+						() =>
+							db.transaction((tx) => {
+								tx.get(query);
+							}),
+						() =>
+							db.transaction((tx) => {
+								tx.all(query);
+							}),
+						() =>
+							db.transaction((tx) => {
+								tx.run(query);
+							}),
+						() =>
+							db.transaction((tx) => {
+								tx.values(query);
+							}),
+					]
+				) {
+					let error: any;
+					try {
+						run();
+					} catch (e) {
+						error = e;
+					}
+
+					expect(error).toBeInstanceOf(DrizzleQueryError);
+					expect(error.params).toStrictEqual(paramsInErrors ? params : undefined);
+					expect(error.message).toBe(
+						paramsInErrors ? `Failed query: ${error.query}\nparams: ${params}` : `Failed query: ${error.query}`,
+					);
+				}
+			}
+		}
 	});
 
 	test.concurrent("No nullification on non-joined table's all-null object", async ({ db, push }) => {

@@ -41,6 +41,11 @@ export class SingleStoreDate<T extends ColumnBaseConfig<'object date'>> extends 
 	getSQLType(): string {
 		return `date`;
 	}
+
+	override mapToDriverValue = (value: Date | string): string => {
+		if (typeof value === 'string') return value;
+		return value.toISOString().slice(0, 10);
+	};
 }
 
 export class SingleStoreDateStringBuilder extends SingleStoreColumnBuilder<{

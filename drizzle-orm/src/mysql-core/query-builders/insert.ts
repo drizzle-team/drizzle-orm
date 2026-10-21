@@ -108,6 +108,9 @@ export class MySqlInsertBuilder<
 	TBuilderHKT extends MySqlInsertHKTBase = MySqlInsertHKT,
 > {
 	static readonly [entityKind]: string = 'MySqlInsertBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private shouldIgnore = false;
 
@@ -167,8 +170,6 @@ export class MySqlInsertBuilder<
 				| SQL),
 	): MySqlInsertKind<TBuilderHKT, TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
-		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
-
 		if (!is(select, SQL)) {
 			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
 			const selected = Object.keys(select._.selectedFields);
@@ -323,6 +324,9 @@ export class MySqlInsertBase<
 	TExcludedMethods extends string = never,
 > implements SQLWrapper {
 	static readonly [entityKind]: string = 'MySqlInsert';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare protected $table: TTable;
 

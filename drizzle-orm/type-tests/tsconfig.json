@@ -4,7 +4,11 @@
 		"composite": false,
 		"noEmit": true,
 		"rootDir": "..",
-		"outDir": "./.cache"
+		"outDir": "./.cache",
+		"paths": {
+			"~/*": ["../src/*"],
+			"*": ["../*"]
+		}
 	},
 	"include": [".", "../src"],
 	"exclude": ["**/playground"]

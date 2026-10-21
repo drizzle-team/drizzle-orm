@@ -23,3 +23,8 @@ onlyBuiltDependencies:
   - ssh2
   - utf-8-validate
   - workerd
+
+peerDependencyRules:
+  allowedVersions:
+    # tsconfck (via vite-tsconfig-paths) still declares typescript ^5; it only reads tsconfig files
+    tsconfck>typescript: '6'

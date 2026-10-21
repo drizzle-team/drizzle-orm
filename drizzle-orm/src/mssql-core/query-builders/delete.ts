@@ -79,7 +79,7 @@ export interface MsSqlDeleteConfig {
 	where?: SQL | undefined;
 	table: MsSqlTable;
 	output?: SelectedFieldsOrdered;
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 }
 
 export type MsSqlDeletePrepare<T extends AnyMsSqlDeleteBase> = PreparedQueryKind<
@@ -206,19 +206,21 @@ export class MsSqlDeleteBase<
 		return this as any;
 	}
 
-	getSQL(): SQL {
-		return this.dialect.buildDeleteQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildDeleteQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	prepare(): MsSqlDeletePrepare<this> {
 		const fields = this.config.output;
 
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+			this.dialect.sqlToQuery(this.getSQL(true)),
 			fields ? 'arrays' : 'raw',
 			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 		) as MsSqlDeletePrepare<this>;
@@ -238,12 +240,6 @@ export class MsSqlDeleteBase<
 	};
 
 	iterator = this.createIterator();
-
-	/** @internal */
-	withoutSelectionCastCodecs() {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
-	}
 
 	$dynamic(): MsSqlDeleteDynamic<this> {
 		return this as any;

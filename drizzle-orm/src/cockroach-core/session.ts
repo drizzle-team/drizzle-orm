@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -14,6 +14,9 @@ export interface PreparedQueryConfig {
 
 export abstract class CockroachBasePreparedQuery implements PreparedQuery {
 	static readonly [entityKind]: string = 'CockroachBasePreparedQuery';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		protected query: Query,
@@ -43,6 +46,7 @@ export class CockroachPreparedQuery<T extends PreparedQueryConfig> extends Cockr
 		mapper: ((rows: any[]) => any) | undefined,
 		readonly mode: 'arrays' | 'objects' | 'raw',
 		protected logger: Logger,
+		protected paramsInErrors: boolean | undefined,
 	) {
 		super(query);
 		this.mapper = mapper;
@@ -58,7 +62,7 @@ export class CockroachPreparedQuery<T extends PreparedQueryConfig> extends Cockr
 				: fillPlaceholders(query.params, placeholderValues);
 			logger.logQuery(query.sql, params);
 			const res = executor(params).catch((e) => {
-				throw new DrizzleQueryError(query.sql, params, e as Error);
+				throw new DrizzleQueryError(query.sql, this.paramsInErrors ? params : undefined, e as Error);
 			});
 			if (!mapper) return res;
 
@@ -83,7 +87,7 @@ export class CockroachPreparedQuery<T extends PreparedQueryConfig> extends Cockr
 
 				// return await so tracer captures time accurately
 				return await executor(params).catch((e) => {
-					throw new DrizzleQueryError(query.sql, params, e as Error);
+					throw new DrizzleQueryError(query.sql, this.paramsInErrors ? params : undefined, e as Error);
 				});
 			});
 
@@ -105,6 +109,9 @@ export abstract class CockroachSession<
 	TRelations extends AnyRelations = EmptyRelations,
 > {
 	static readonly [entityKind]: string = 'CockroachSession';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(protected dialect: CockroachDialect) {}
 
@@ -183,7 +190,7 @@ export abstract class CockroachTransaction<
 	}
 
 	/** @internal */
-	getTransactionConfigSQL(config: CockroachTransactionConfig): SQL {
+	getTransactionConfigChunks(config: CockroachTransactionConfig): string[] {
 		const chunks: string[] = [];
 		if (config.isolationLevel) {
 			chunks.push(`isolation level ${config.isolationLevel}`);
@@ -194,11 +201,19 @@ export abstract class CockroachTransaction<
 		if (typeof config.deferrable === 'boolean') {
 			chunks.push(config.deferrable ? 'deferrable' : 'not deferrable');
 		}
-		return sql.raw(chunks.join(' '));
+		return chunks;
 	}
 
-	setTransaction(config: CockroachTransactionConfig): Promise<void> {
-		return this.session.execute(sql`set transaction ${this.getTransactionConfigSQL(config)}`);
+	/** @internal */
+	getTransactionConfigSQL(config: CockroachTransactionConfig): SQL {
+		return sql.raw(this.getTransactionConfigChunks(config).join(' '));
+	}
+
+	async setTransaction(config: CockroachTransactionConfig): Promise<void> {
+		const chunks = this.getTransactionConfigChunks(config);
+		if (chunks.length) {
+			await this.session.execute<void>(sql.raw(`set transaction ${chunks.join(' ')}`));
+		}
 	}
 
 	abstract override transaction<T>(
@@ -215,3 +230,5 @@ export interface CockroachQueryResultHKT {
 export type CockroachQueryResultKind<TKind extends CockroachQueryResultHKT, TRow> = (TKind & {
 	readonly row: TRow;
 })['type'];
+
+export type CockroachRawRow<TRow> = TRow extends 'unknown' ? Record<string, unknown> : TRow;

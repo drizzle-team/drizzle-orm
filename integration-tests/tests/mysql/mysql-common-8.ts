@@ -25,7 +25,6 @@ import {
 	bigint,
 	boolean,
 	customType,
-	datetime,
 	index,
 	int,
 	MySqlAsyncSession,
@@ -37,13 +36,11 @@ import {
 	serial,
 	text,
 	timestamp,
-	unionAll,
 	unique,
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
-import { expect } from 'vitest';
-import { expectTypeOf } from 'vitest';
+import { expect, expectTypeOf } from 'vitest';
 import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from './all-types';
 import type { Test } from './instrumentation';
 import { createUsersOnUpdateTable, createUserTable } from './schema2';
@@ -655,7 +652,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
-	test.skipIf(Date.now() < +new Date('2026-09-05')).concurrent(
+	test.skipIf(Date.now() < +new Date('2026-11-24')).concurrent(
 		'prepared statement sql.placeholder in .inArray',
 		async ({ db, push }) => {
 			const users = createUserTable('users_116');
@@ -674,7 +671,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/1415
 	test
-		.skipIf(Date.now() < +new Date('2026-09-05'))
+		.skipIf(Date.now() < +new Date('2026-11-24'))
 		.concurrent(
 			'prepared statement sql.placeholder in .inArray #2',
 			async ({ db, push, seed }) => {
@@ -1481,6 +1478,37 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			.rejects.toBeInstanceOf(DrizzleQueryError);
 	});
 
+	test.concurrent('Query error params', async ({ createDB }) => {
+		for (const paramsInErrors of [undefined, false, true]) {
+			const db = createDB({ paramsInErrors });
+
+			const error = await db.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`)
+				.catch((e) => e);
+
+			expect(error).toBeInstanceOf(DrizzleQueryError);
+			expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+			expect(error.message).toBe(
+				paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+			);
+		}
+	});
+
+	test.concurrent('Query error params - transaction', async ({ createDB }) => {
+		for (const paramsInErrors of [undefined, false, true]) {
+			const db = createDB({ paramsInErrors });
+
+			const error = await db.transaction(async (tx) => {
+				await tx.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`);
+			}).catch((e) => e);
+
+			expect(error).toBeInstanceOf(DrizzleQueryError);
+			expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+			expect(error.message).toBe(
+				paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+			);
+		}
+	});
+
 	test.concurrent('comments', async ({ createDB, push }) => {
 		const ctbl = mysqlTable('comments_test', (t) => ({
 			id: t.int('id').primaryKey(),
@@ -1675,7 +1703,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			json4: '5',
 			medint: 560,
 			smallint: 14,
-			time: '04:13:22',
+			time: '04:13:22.120',
 			timestamp: new Date(1741743161623),
 			timestampstr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
 			tinyint: 7,
@@ -1699,7 +1727,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		const queryRes = await session.objects<ExpectedType>(
 			db.select(
 				Object.fromEntries(Object.entries(getTableColumns(allTypesCodecsTable)).map(([k, v]) => [k, v.as(v.name)])),
-			).from(allTypesCodecsTable).getSQL(),
+			).from(allTypesCodecsTable).getSQL(true),
 		).then((e) =>
 			normalizeDataWithDbCodecs({
 				db,

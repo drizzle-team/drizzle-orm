@@ -1,6 +1,5 @@
 import type { ConnectionPool, IResult, Request } from 'mssql';
 import mssql from 'mssql';
-import { once } from 'node:events';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -27,6 +26,7 @@ export type MsSqlQueryResult<T extends unknown | unknown[] = any> = IResult<T>;
 
 export interface NodeMsSqlSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export class NodeMsSqlSession<
@@ -57,7 +57,7 @@ export class NodeMsSqlSession<
 
 		for (const [index, param] of params.entries()) {
 			// Avoid precision loss
-			if (param instanceof Date) request.input(`par${index}`, mssql.DateTime2(7), param); // oxlint-disable-line drizzle-internal/no-instanceof
+			if (param instanceof Date) request.input(`par${index}`, mssql.DateTime2(7), param);
 			else request.input(`par${index}`, param);
 		}
 
@@ -88,33 +88,11 @@ export class NodeMsSqlSession<
 
 			request.query(query.sql);
 
-			function dataListener() {
-				stream.pause();
-			}
-
-			stream.on('data', dataListener);
-
 			try {
-				const onEnd = once(stream, 'end');
-				const onError = once(stream, 'error');
-
-				while (true) {
-					stream.resume();
-					const row = await Promise.race([
-						onEnd,
-						onError,
-						new Promise((resolve) => stream.once('data', resolve)),
-					]);
-					if (row === undefined || (Array.isArray(row) && row.length === 0)) {
-						break;
-					}
-					if (row instanceof Error) { // oxlint-disable-line drizzle-internal/no-instanceof
-						throw row;
-					}
+				for await (const row of stream) {
 					yield row;
 				}
 			} finally {
-				stream.off('data', dataListener);
 				request.cancel();
 			}
 		};
@@ -126,6 +104,7 @@ export class NodeMsSqlSession<
 			mapper,
 			mode,
 			this.logger,
+			this.options.paramsInErrors,
 		) as PreparedQueryKind<NodeMsSqlPreparedQueryHKT, T>;
 	}
 
@@ -164,7 +143,7 @@ export class NodeMsSqlSession<
 			await mssqlTransaction.commit();
 			return result;
 		} catch (err) {
-			await mssqlTransaction.rollback();
+			await mssqlTransaction.rollback().catch(() => {});
 			throw err;
 		}
 	}
@@ -195,7 +174,7 @@ export class NodeMsSqlTransaction<
 			const result = await transaction(tx);
 			return result;
 		} catch (err) {
-			await tx.execute(sql.raw(`rollback transaction ${savepointName}`));
+			await tx.execute(sql.raw(`rollback transaction ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

@@ -19,7 +19,7 @@ import {
 	textToDate,
 	textToDateWithTz,
 } from '~/pg-core/codecs.ts';
-import { base64ToUint8Array } from '~/utils.ts';
+import { pgHexToUint8Array } from '~/utils.ts';
 
 export const pgliteCodecs = refineGenericPgCodecs({
 	// Otherwise outputs are inconsistent
@@ -56,9 +56,9 @@ export const pgliteCodecs = refineGenericPgCodecs({
 		normalizeArray: arrayCompatNormalize(Number),
 	},
 	bytea: {
-		normalizeInJson: typeof Buffer === 'undefined' ? base64ToUint8Array : genericPgCodecs.bytea?.normalizeInJson,
+		normalizeInJson: typeof Buffer === 'undefined' ? pgHexToUint8Array : genericPgCodecs.bytea?.normalizeInJson,
 		normalizeArrayInJson: typeof Buffer === 'undefined'
-			? arrayCompatNormalize(base64ToUint8Array)
+			? arrayCompatNormalize(pgHexToUint8Array)
 			: genericPgCodecs.bytea?.normalizeArrayInJson,
 		normalize: typeof Buffer === 'undefined'
 			? undefined

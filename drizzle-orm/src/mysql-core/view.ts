@@ -1,6 +1,6 @@
 import type { Casing } from '~/casing.ts';
 import type { BuildColumns, ColumnBuilderBase } from '~/column-builder.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -24,6 +24,9 @@ export class ViewBuilderCore<
 	TSchema extends string | undefined = undefined,
 > {
 	static readonly [entityKind]: string = 'MySqlViewBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly name: TConfig['name'];
@@ -93,7 +96,7 @@ export class ViewBuilder<
 					name: this.name,
 					schema: this.schema,
 					selectedFields: aliasedSelection,
-					query: qb.withoutSelectionCastCodecs().getSQL().inlineParams(),
+					query: qb.getSQL().inlineParams(),
 				},
 			}),
 			selectionProxy as any,

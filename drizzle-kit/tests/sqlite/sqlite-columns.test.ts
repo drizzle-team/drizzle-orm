@@ -699,7 +699,7 @@ test('drop autoincrement. drop column with data', async (t) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	expect(phints[0].hint).toStrictEqual("You're about to drop 'name' column(s) in a non-empty 'companies' table");
+	expect(phints[0].hint).toStrictEqual('You\'re about to delete non-empty "name" column in "companies" table');
 });
 
 test('drop autoincrement. drop column with data with pragma off', async (t) => {
@@ -752,7 +752,7 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	expect(phints[0].hint).toStrictEqual("You're about to drop 'name' column(s) in a non-empty 'companies' table");
+	expect(phints[0].hint).toStrictEqual('You\'re about to delete non-empty "name" column in "companies" table');
 });
 
 test('change autoincrement. other table references current', async (t) => {
@@ -1816,7 +1816,7 @@ test('issue #5564', async () => {
 	const users2 = sqliteTable('users', {
 		id: text('id').primaryKey(),
 		email: text('email').notNull(),
-		name: text('name').notNull(), // will change to .notNull() in next push
+		name: text('name').notNull(),
 	}, (t) => [
 		uniqueIndex('users_email_idx').on(t.email),
 	]);
@@ -1889,4 +1889,155 @@ test('issue #4809', async () => {
 	];
 	expect(pst).toStrictEqual(st0);
 	expect(hints).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6360
+test('Issue No6360', async () => {
+	const a1 = sqliteTable('a', {
+		id: text('id').primaryKey(),
+		user_id: text('user_id').notNull(),
+	});
+
+	const b1 = sqliteTable('b', {
+		id: text('id').primaryKey(),
+		user_id: text('user_id').notNull(),
+	});
+
+	const schema1 = { a1, b1 };
+
+	const a2 = sqliteTable('a', {
+		id: text('id').primaryKey(),
+		user_id: text('org_id').notNull(), // new name
+	});
+
+	const b2 = sqliteTable('b', {
+		id: text('id').primaryKey(),
+		user_id: text('user_id'), // dropped not null
+	});
+
+	const schema2 = { a2, b2 };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, [`a.user_id->a.org_id`]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({
+		db,
+		to: schema2,
+		renames: [`a.user_id->a.org_id`],
+	});
+
+	const st0 = [
+		'ALTER TABLE `a` RENAME COLUMN `user_id` TO `org_id`;',
+		`PRAGMA foreign_keys=OFF;`,
+		`CREATE TABLE \`__new_b\` (
+\t\`id\` text PRIMARY KEY,
+\t\`user_id\` text
+);\n`,
+		'INSERT INTO `__new_b`(`id`, `user_id`) SELECT `id`, `user_id` FROM `b`;',
+		'DROP TABLE `b`;',
+		'ALTER TABLE `__new_b` RENAME TO `b`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});
+
+test('drop column in a renamed table with data', async () => {
+	const schema1 = {
+		users: sqliteTable('users', { id: integer('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		accounts: sqliteTable('accounts', { id: integer('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.run(`INSERT INTO \`users\` ("name") VALUES ('drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: ['users->accounts'] });
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE `users` RENAME TO `accounts`;',
+		'ALTER TABLE `accounts` DROP COLUMN `name`;',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "name" column in "users" (would become "accounts") table` },
+	]);
+});
+
+test('added column not null and without default to a renamed table with data', async () => {
+	const schema1 = {
+		users: sqliteTable('users', { id: integer('id').primaryKey() }),
+	};
+	const schema2 = {
+		accounts: sqliteTable('accounts', { id: integer('id').primaryKey(), age: integer('age').notNull() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.run(`INSERT INTO \`users\` ("id") VALUES (1);`);
+
+	const { sqlStatements: pst, hints: phints, error } = await push({
+		db,
+		to: schema2,
+		renames: ['users->accounts'],
+		expectError: true,
+		force: true,
+	});
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE `users` RENAME TO `accounts`;',
+		'ALTER TABLE `accounts` ADD `age` integer NOT NULL;',
+	]);
+	expect(phints).toStrictEqual([{
+		hint:
+			`You're about to add not-null "age" column without default value to non-empty "users" (would become "accounts") table`,
+		statement: 'DELETE FROM "users" where true;',
+	}]);
+	expect(error).toBeNull();
+});
+
+test('drop autoincrement. drop column in a renamed table with data', async () => {
+	const schema1 = {
+		companies: sqliteTable('companies', {
+			id: integer('id').primaryKey({ autoIncrement: true }),
+			name: text('name'),
+		}),
+	};
+	const schema2 = {
+		accounts: sqliteTable('accounts', {
+			id: integer('id').primaryKey({ autoIncrement: false }),
+		}),
+	};
+
+	await push({ db, to: schema1 });
+	await db.run(`INSERT INTO \`companies\` ("id", "name") VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: ['companies->accounts'] });
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE `companies` RENAME TO `accounts`;',
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_accounts` (\n\t`id` integer PRIMARY KEY\n);\n',
+		'INSERT INTO `__new_accounts`(`id`) SELECT `id` FROM `accounts`;',
+		'DROP TABLE `accounts`;',
+		'ALTER TABLE `__new_accounts` RENAME TO `accounts`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "name" column in "companies" (would become "accounts") table` },
+	]);
+});
+
+test('drop column without values in a table with data', async () => {
+	const schema1 = {
+		users: sqliteTable('users', { id: integer('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		users: sqliteTable('users', { id: integer('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.run(`INSERT INTO \`users\` ("id") VALUES (1);`);
+
+	const { hints: phints } = await push({ db, to: schema2 });
+
+	expect(phints).toStrictEqual([]);
 });

@@ -1,10 +1,13 @@
-import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '~/table.ts';
+import { CacheKey, IsAlias, OriginalName, Qualifier, Table, TableColumns, TableSchema } from '~/table.ts';
 import { View, type ViewConfig } from '~/view.ts';
 import { aliasedTable } from './alias.ts';
+import type { QueryMetadata, WithCacheConfig } from './cache/core/types.ts';
 import type { CodecsCollection, NormalizeArrayCodec, NormalizeCodec } from './codecs.ts';
-import { type AnyColumn, Column } from './column.ts';
+import type { AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import { DrizzleError } from './errors.ts';
+import type { SelectResultFields } from './query-builders/select.types.ts';
+import { commonStringChunks, type StringChunk } from './sql/common-chunks.ts';
 import {
 	and,
 	arrayContained,
@@ -36,14 +39,18 @@ import {
 import {
 	type CommentInput,
 	type DriverValueDecoder,
+	isSQLWrapper,
+	type Name,
 	noopDecoder,
 	Placeholder,
 	SQL,
 	sql,
+	type SQLChunk,
+	type SQLGenerator,
 	type SQLWrapper,
-	StringChunk,
 } from './sql/sql.ts';
-import type { Subquery } from './subquery.ts';
+import { chunkKindOf, chunkKinds, collectChunksUsedTables, isChunk } from './sql/sql.ts';
+import { Subquery } from './subquery.ts';
 import {
 	type Assume,
 	type DrizzleTypeError,
@@ -54,18 +61,22 @@ import {
 	type ValueOrArray,
 } from './utils.ts';
 
-export type FilteredSchemaEntry = Table<any> | View<ViewConfig<FieldSelection>>;
+export type FilteredSchemaEntry =
+	| Table<any>
+	| View<ViewConfig<FieldSelection>>
+	| Subquery<string, FieldSelection>;
 
-export type SchemaEntry = Table<any> | View<ViewConfig<any>>;
+export type SchemaEntry = Table<any> | View<ViewConfig<any>> | Subquery<string, any>;
 
 export type Schema = Record<string, SchemaEntry>;
 
-export type GetTableViewColumns<T extends SchemaEntry> = T extends View<ViewConfig<any>> ? T['_']['selectedFields']
+export type GetTableViewColumns<T extends SchemaEntry> = T extends View<ViewConfig<any>> | Subquery<string, any>
+	? T['_']['selectedFields']
 	: T extends Table<any> ? T['_']['columns']
 	: never;
 
-export type GetTableViewFieldSelection<T extends SchemaEntry> = T extends View<ViewConfig<FieldSelection>>
-	? T['_']['selectedFields']
+export type GetTableViewFieldSelection<T extends SchemaEntry> = T extends
+	View<ViewConfig<FieldSelection>> | Subquery<string, FieldSelection> ? T['_']['selectedFields']
 	: T extends Table<any> ? T['_']['columns']
 	: never;
 
@@ -105,8 +116,6 @@ export function processRelations(tablesConfig: TablesRelationalConfig, tables: S
 				sourceTable,
 				through,
 				where,
-				sourceColumnTableNames,
-				targetColumnTableNames,
 			} = relation;
 			const relationPrintName = `relations -> ${tableConfig.name}: { ${relationFieldName}: r.${
 				is(relation, One) ? 'one' : 'many'
@@ -137,17 +146,17 @@ export function processRelations(tablesConfig: TablesRelationalConfig, tables: S
 					);
 				}
 
-				for (const sName of sourceColumnTableNames) {
-					if (sName !== sourceTableName) {
+				for (const { _: { tableName } } of sourceColumns) {
+					if (tableName !== sourceTableName) {
 						throw new Error(
-							`${relationPrintName}: all "from" columns must belong to table "${sourceTableName}", found column of table "${sName}"`,
+							`${relationPrintName}: all "from" columns must belong to table "${sourceTableName}", found column of table "${tableName}"`,
 						);
 					}
 				}
-				for (const tName of targetColumnTableNames) {
-					if (tName !== targetTableName) {
+				for (const { _: { tableName } } of targetColumns) {
+					if (tableName !== targetTableName) {
 						throw new Error(
-							`${relationPrintName}: all "to" columns must belong to table "${targetTableName}", found column of table "${tName}"`,
+							`${relationPrintName}: all "to" columns must belong to table "${targetTableName}", found column of table "${tableName}"`,
 						);
 					}
 				}
@@ -295,12 +304,16 @@ export abstract class Relation<
 	TTargetTableName extends string = string,
 > {
 	static readonly [entityKind]: string = 'RelationV2';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
 	declare readonly $brand: 'RelationV2';
 	declare public readonly relationType: 'many' | 'one';
 
 	fieldName!: string;
-	sourceColumns!: Column<any>[];
-	targetColumns!: Column<any>[];
+	sourceColumns!: RelationsBuilderColumnBase[];
+	targetColumns!: RelationsBuilderColumnBase[];
 	alias: string | undefined;
 	where!: AnyTableFilter | EmptyFilter;
 	sourceTable!: SchemaEntry;
@@ -311,11 +324,6 @@ export abstract class Relation<
 	};
 	throughTable?: SchemaEntry;
 	isFilterReversed?: boolean;
-
-	/** @internal */
-	sourceColumnTableNames: string[] = [];
-	/** @internal */
-	targetColumnTableNames: string[] = [];
 
 	constructor(
 		targetTable: SchemaEntry,
@@ -358,31 +366,32 @@ export class One<
 			this.where = EmptyFilter;
 		}
 
-		if (config?.from) {
-			this.sourceColumns = ((Array.isArray(config.from)
-				? config.from
-				: [config.from]) as RelationsBuilderColumnBase[]).map((it: RelationsBuilderColumnBase) => {
-					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
-					this.sourceColumnTableNames.push(it._.tableName);
-					return it._.column as Column;
-				});
+		const from = config?.from
+			? (Array.isArray(config.from) ? config.from : [config.from]) as RelationsBuilderColumnBase[]
+			: undefined;
+		const to = config?.to
+			? (Array.isArray(config.to) ? config.to : [config.to]) as RelationsBuilderColumnBase[]
+			: undefined;
+
+		if (from) {
+			for (const { _: { through } } of from) {
+				if (through) this.throughTable ??= tables[through._.tableName]! as SchemaEntry;
+			}
+
+			this.sourceColumns = from;
 		}
-		if (config?.to) {
-			this.targetColumns = (Array.isArray(config.to)
-				? config.to
-				: [config.to]).map((it: RelationsBuilderColumnBase) => {
-					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
-					this.targetColumnTableNames.push(it._.tableName);
-					return it._.column as Column;
-				});
+		if (to) {
+			for (const { _: { through } } of to) {
+				if (through) this.throughTable ??= tables[through._.tableName]! as SchemaEntry;
+			}
+
+			this.targetColumns = to;
 		}
 
 		if (this.throughTable) {
 			this.through = {
-				source: (Array.isArray(config?.from) ? config.from : config?.from ? [config.from] : []).map((
-					c,
-				) => c._.through!),
-				target: (Array.isArray(config?.to) ? config.to : config?.to ? [config.to] : []).map((c) => c._.through!),
+				source: from?.flatMap((c) => c._.through ?? []) ?? [],
+				target: to?.flatMap((c) => c._.through ?? []) ?? [],
 			};
 		}
 		this.optional = (config?.optional ?? true) as TOptional;
@@ -417,30 +426,31 @@ export class Many<TTargetTableName extends string> extends Relation<TTargetTable
 			this.where = EmptyFilter;
 		}
 
-		if (config?.from) {
-			this.sourceColumns = ((Array.isArray(config.from)
-				? config.from
-				: [config.from]) as RelationsBuilderColumnBase[]).map((it: RelationsBuilderColumnBase) => {
-					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
-					this.sourceColumnTableNames.push(it._.tableName);
-					return it._.column as Column;
-				});
+		const from = config?.from
+			? (Array.isArray(config.from) ? config.from : [config.from]) as RelationsBuilderColumnBase[]
+			: undefined;
+		const to = config?.to
+			? (Array.isArray(config.to) ? config.to : [config.to]) as RelationsBuilderColumnBase[]
+			: undefined;
+
+		if (from) {
+			for (const { _: { through } } of from) {
+				if (through) this.throughTable ??= tables[through._.tableName]! as SchemaEntry;
+			}
+
+			this.sourceColumns = from;
 		}
-		if (config?.to) {
-			this.targetColumns = (Array.isArray(config.to)
-				? config.to
-				: [config.to]).map((it: RelationsBuilderColumnBase) => {
-					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
-					this.targetColumnTableNames.push(it._.tableName);
-					return it._.column as Column;
-				});
+		if (to) {
+			for (const { _: { through } } of to) {
+				if (through) this.throughTable ??= tables[through._.tableName]! as SchemaEntry;
+			}
+
+			this.targetColumns = to;
 		}
 		if (this.throughTable) {
 			this.through = {
-				source: (Array.isArray(config?.from) ? config.from : config?.from ? [config.from] : []).map((
-					c,
-				) => c._.through!),
-				target: (Array.isArray(config?.to) ? config.to : config?.to ? [config.to] : []).map((c) => c._.through!),
+				source: from?.flatMap((c) => c._.through ?? []) ?? [],
+				target: to?.flatMap((c) => c._.through ?? []) ?? [],
 			};
 		}
 	}
@@ -450,6 +460,9 @@ export type AnyMany = Many<string>;
 
 export abstract class AggregatedField<T = unknown> implements SQLWrapper<T> {
 	static readonly [entityKind]: string = 'AggregatedField';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly $brand: 'AggregatedField';
 
@@ -478,8 +491,13 @@ export class Count extends AggregatedField<number> {
 	getSQL(): SQL<number> {
 		if (!this.query) {
 			if (!this.table) throw new Error('Table must be set before building aggregate field');
-			this.query = sql`select count(*) as ${sql.identifier('r')} from ${getTableAsAliasSQL(this.table)}`
-				.mapWith(Number);
+			this.query = new SQL(
+				getTableAsAliasSQL(this.table, [
+					commonStringChunks['select count(*) as '],
+					sql.identifier('r'),
+					commonStringChunks[' from '],
+				]),
+			).mapWith(Number);
 		}
 
 		return this.query;
@@ -565,6 +583,69 @@ export type DBQueryConfigOrderBy<TTable extends SchemaEntry, TColumns extends Fi
 	| DBQueryConfigOrderByCallback<TTable>
 	| DBQueryConfigOrderByObject<TColumns>;
 
+export type RelationsOrderDirection = 'asc' | 'desc';
+
+/**`first` takes the field of whichever related row the database returns first, the rest aggregate over all of them */
+export type RelationsOrderAggregate = 'min' | 'max' | 'count' | 'avg' | 'first';
+
+/** Order of rows by an aggregate over fields of rows of a `many` relation */
+export type RelationsAggregatedOrderDirection = `${RelationsOrderDirection}(${RelationsOrderAggregate})`;
+
+/** Order of rows by the number of rows of a `many` relation */
+export type RelationsCountOrderDirection = `${RelationsOrderDirection}(count)`;
+
+export type RelationsOrderColumns<
+	TColumns extends Record<string, unknown>,
+	TAggregated extends boolean = false,
+> = {
+	[K in keyof TColumns]?:
+		| (TAggregated extends true ? RelationsAggregatedOrderDirection : RelationsOrderDirection)
+		| undefined;
+};
+
+export type RelationsOrderRelations<
+	TTable extends TableRelationalConfig,
+	TSchema extends TablesRelationalConfig,
+	TAggregated extends boolean = false,
+	TRelations extends RelationsRecord = TTable['relations'],
+> = {
+	[K in keyof TRelations]?:
+		| RelationsOrderBy<
+			FindTargetTableInRelationalConfig<TSchema, TRelations[K]>,
+			TSchema,
+			// Everything under a `many` relation resolves to multiple rows
+			TAggregated extends true ? true : TRelations[K]['relationType'] extends 'one' ? false : true
+		>
+		| (TRelations[K]['relationType'] extends 'many' ? RelationsCountOrderDirection : never)
+		| undefined;
+};
+
+export type RelationsOrderBy<
+	TTable extends TableRelationalConfig,
+	TSchema extends TablesRelationalConfig,
+	TAggregated extends boolean = false,
+	TColumns extends FieldSelection = GetTableViewFieldSelection<TTable['table']>,
+> = TTable['relations'] extends Record<string, never> ? RelationsOrderColumns<TColumns, TAggregated>
+	:
+		& RelationsOrderColumns<TColumns, TAggregated>
+		& RelationsOrderRelations<TTable, TSchema, TAggregated>;
+
+export type AnyRelationsOrder = {
+	[K: string]:
+		| RelationsOrderDirection
+		| RelationsAggregatedOrderDirection
+		| RelationsCountOrderDirection
+		| AnyRelationsOrder
+		| undefined;
+};
+
+export type DBQueryConfigRelationsOrderBy<
+	TTable extends TableRelationalConfig,
+	TSchema extends TablesRelationalConfig,
+> =
+	| DBQueryConfigOrderByCallback<TTable['table']>
+	| RelationsOrderBy<TTable, TSchema>;
+
 export type DBQueryConfigWith<TSchema extends TablesRelationalConfig, TRelations extends RelationsRecord> = {
 	[K in keyof TRelations]?:
 		| boolean
@@ -594,7 +675,7 @@ export type DBQueryConfig<
 			| DBQueryConfigExtras<TTableConfig['table']>
 			| undefined;
 		orderBy?:
-			| DBQueryConfigOrderBy<TTableConfig['table'], GetTableViewFieldSelection<TTableConfig['table']>>
+			| DBQueryConfigRelationsOrderBy<TTableConfig, TSchema>
 			| undefined;
 		offset?: number | Placeholder | undefined;
 	}
@@ -603,22 +684,44 @@ export type DBQueryConfig<
 		}
 		: {});
 
-export type DBQueryConfigWithComment<
+export type RelationalQueryStrategy = 'basic' | 'optimized';
+
+/** Config of root relational query, dialects omit options they don't support */
+export type DBQueryConfigRoot<
 	TRelationType extends 'one' | 'many' = 'one' | 'many',
 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
 > = DBQueryConfig<TRelationType, TSchema, TTableConfig> & {
 	/**
+	 * Query build strategy
+	 *
+	 * - `optimized` - applies query optimizations based on presence of pagination, ordering & filters to avoid slow query plans. Conditions vary per dialect.
+	 * - `basic` - keeps original query shape regardless of conditions.
+	 * Use to opt out of `optimized` if the query refers to relations' subqueries from raw SQL in `where` or `orderBy` or causes performance issues
+	 *
+	 * @default 'optimized'
+	 */
+	strategy?: RelationalQueryStrategy | undefined;
+	/**
 	 * Attach [sqlcommenter](https://google.github.io/sqlcommenter) comment to a query
 	 */
 	comment?: CommentInput | undefined;
+	/**
+	 * Cache query results, requires `cache` to be set in drizzle config
+	 *
+	 * - `true` - cache enabled for query
+	 * - `false` - cache disabled for query
+	 *
+	 * If cache's strategy is `all` - query is cached by default
+	 */
+	withCache?: boolean | undefined;
 };
 
 export type AnyDBQueryConfig = {
 	columns?:
 		| DBQueryConfigColumns<GetTableViewFieldSelection<TableRelationalConfig['table']>>
 		| undefined;
-	where?: RelationsFilter<TableRelationalConfig, TablesRelationalConfig> | undefined;
+	where?: RelationsFilter<TableRelationalConfig, TablesRelationalConfig> | EmptyFilter;
 	extras?:
 		| DBQueryConfigExtras<TableRelationalConfig['table']>
 		| undefined;
@@ -626,11 +729,14 @@ export type AnyDBQueryConfig = {
 		| Record<string, AnyDBQueryConfig>
 		| undefined;
 	orderBy?:
-		| DBQueryConfigOrderBy<TableRelationalConfig['table'], GetTableViewFieldSelection<TableRelationalConfig['table']>>
+		| DBQueryConfigOrderByCallback<TableRelationalConfig['table']>
+		| AnyRelationsOrder
 		| undefined;
 	offset?: number | Placeholder | undefined;
 	limit?: number | Placeholder | undefined;
 	comment?: CommentInput | undefined;
+	strategy?: RelationalQueryStrategy | undefined;
+	withCache?: boolean | undefined;
 };
 
 export interface TableRelationalConfig {
@@ -735,14 +841,18 @@ export type InferRelationalQueryTableResult<
 	]: TRawSelection[K];
 };
 
+export type InferSchemaEntrySelectModel<TEntry extends SchemaEntry> = TEntry extends Subquery<string, any>
+	? SelectResultFields<TEntry['_']['selectedFields']>
+	: Assume<
+		TEntry,
+		{ $inferSelect: Record<string, unknown> }
+	>['$inferSelect'];
+
 export type BuildQueryResult<
 	TSchema extends TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig,
 	TFullSelection extends true | Record<string, unknown>,
-	TModel extends Record<string, unknown> = Assume<
-		TTableConfig['table'],
-		{ $inferSelect: Record<string, unknown> }
-	>['$inferSelect'],
+	TModel extends Record<string, unknown> = InferSchemaEntrySelectModel<TTableConfig['table']>,
 > = TFullSelection extends true | Record<string, never> ? TModel
 	: TFullSelection extends Record<string, unknown> ? Simplify<
 			& (InferRelationalQueryTableResult<
@@ -770,6 +880,34 @@ export type BuildQueryResult<
 				: {})
 		>
 	: never;
+
+export interface RelationalThroughJoin {
+	table: SchemaEntry;
+	condition: SQLChunk[];
+}
+
+export interface BuildRelationalQueryConfig<TQueryConfig = DBQueryConfigRoot<'many'>> {
+	schema: TablesRelationalConfig;
+	table: SchemaEntry;
+	tableConfig: TableRelationalConfig;
+	queryConfig?: TQueryConfig | true;
+	/** Filter of relation the query is built for */
+	relationWhere?: SQLChunk[];
+	mode: 'first' | 'many';
+	errorPath?: string;
+	depth?: number;
+	through?: RelationalThroughJoin;
+	/** Whether query is built for a relation of another query */
+	nested?: boolean;
+	withSubqueries?: RelationalWithSubqueries;
+	strategy?: RelationalQueryStrategy;
+	/**
+	 * Collects cache keys of tables query is built from, except for ones referenced in raw SQL - see {@link relationalQueryCacheMetadata}
+	 *
+	 * Root query only
+	 */
+	usedTables?: Set<string>;
+}
 
 export interface BuildRelationalQueryResult {
 	selection: (
@@ -805,11 +943,47 @@ export interface BuildRelationalQueryResult {
 			field: AggregatedField;
 			fieldType: 'AggregatedField';
 		} | {
-			field: Table | View;
+			field: SchemaEntry;
 			fieldType: 'Nested';
 		})
 	)[];
 	sql: SQL;
+}
+
+/** @internal */
+export function relationalQueryUsedTablesInit(config: DBQueryConfigRoot | true): Set<string> | undefined {
+	return config !== true && config.withCache ? new Set() : undefined;
+}
+
+/** @internal */
+export function relationalQueryCacheMetadata(
+	config: DBQueryConfigRoot | true,
+	sql: SQL,
+	usedTables: Set<string> | undefined,
+	source: { _getQuery(usedTables: Set<string>): unknown },
+): QueryMetadata | undefined {
+	if (config !== true && config.withCache === false) return;
+
+	let collected: string[] | undefined;
+	return {
+		type: 'select',
+		tables: () => {
+			if (collected) return collected;
+
+			if (!usedTables) {
+				usedTables = new Set();
+				source._getQuery(usedTables);
+			}
+			collectChunksUsedTables(sql.queryChunks, usedTables);
+
+			return collected = [...usedTables];
+		},
+	};
+}
+
+/** @internal */
+export function relationalQueryCacheConfig(config: DBQueryConfigRoot | true): WithCacheConfig | undefined {
+	return config !== true && config.withCache ? { config: {}, enabled: true, autoInvalidate: true } : undefined;
 }
 
 export function mapRelationalRow(
@@ -1356,6 +1530,9 @@ export function makeJitRqbMapper<T = unknown>(
 
 export class RelationsBuilderTable<TTableName extends string = string> {
 	static readonly [entityKind]: string = 'RelationsBuilderTable';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected readonly _: {
 		readonly name: TTableName;
@@ -1389,6 +1566,9 @@ export class RelationsBuilderColumn<
 	TTableName extends string = string,
 > implements RelationsBuilderColumnBase<TTableName> {
 	static readonly [entityKind]: string = 'RelationsBuilderColumn';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly _: {
 		readonly tableName: TTableName;
@@ -1422,6 +1602,9 @@ export class RelationsBuilderJunctionColumn<
 	TTableName extends string = string,
 > implements RelationsBuilderColumnBase<TTableName> {
 	static readonly [entityKind]: string = 'RelationsBuilderColumn';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly _: {
 		readonly tableName: TTableName;
@@ -1464,8 +1647,8 @@ export interface RelationFieldsFilterInternals<T> {
 	isNull?: true | EmptyFilter;
 	isNotNull?: true | EmptyFilter;
 	NOT?: RelationsFieldFilter<T> | EmptyFilter;
-	OR?: RelationsFieldFilter<T>[] | EmptyFilter;
-	AND?: RelationsFieldFilter<T>[] | EmptyFilter;
+	OR?: (RelationsFieldFilter<T> | EmptyFilter)[] | EmptyFilter;
+	AND?: (RelationsFieldFilter<T> | EmptyFilter)[] | EmptyFilter;
 }
 
 export type Primitive = string | number | bigint | boolean | symbol | null | undefined;
@@ -1475,16 +1658,15 @@ export type RelationsFieldFilter<T = unknown> =
 	| (
 		unknown extends T ? never : T extends Primitive ? T : never
 	)
-	// TODO: Bleeds into filters - discuss removal
 	| Placeholder;
 
 export interface RelationsFilterCommons<
 	TTable extends TableRelationalConfig = TableRelationalConfig,
 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
 > {
-	OR?: RelationsFilter<TTable, TSchema>[] | EmptyFilter;
+	OR?: (RelationsFilter<TTable, TSchema> | EmptyFilter)[] | EmptyFilter;
 	NOT?: RelationsFilter<TTable, TSchema> | EmptyFilter;
-	AND?: RelationsFilter<TTable, TSchema>[] | EmptyFilter;
+	AND?: (RelationsFilter<TTable, TSchema> | EmptyFilter)[] | EmptyFilter;
 	RAW?:
 		| SQLWrapper
 		| ((
@@ -1528,9 +1710,9 @@ export interface TableFilterCommons<
 	TTable extends SchemaEntry = SchemaEntry,
 	TColumns extends Record<string, unknown> = GetTableViewColumns<TTable>,
 > {
-	OR?: TableFilter<TTable, TColumns>[] | EmptyFilter;
+	OR?: (TableFilter<TTable, TColumns> | EmptyFilter)[] | EmptyFilter;
 	NOT?: TableFilter<TTable, TColumns> | EmptyFilter;
-	AND?: TableFilter<TTable, TColumns>[] | EmptyFilter;
+	AND?: (TableFilter<TTable, TColumns> | EmptyFilter)[] | EmptyFilter;
 	RAW?:
 		| SQLWrapper
 		| ((
@@ -1599,6 +1781,9 @@ export interface ManyFn<TTargetTable extends SchemaEntry, TTargetTableName exten
 
 export class RelationsHelperStatic<TTables extends Schema> {
 	static readonly [entityKind]: string = 'RelationsHelperStatic';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(tables: TTables) {
 		const one: Record<string, OneFn<TTables[string], string>> = {};
@@ -1620,12 +1805,16 @@ export class RelationsHelperStatic<TTables extends Schema> {
 
 	one: {
 		[K in keyof TTables]: TTables[K] extends FilteredSchemaEntry ? OneFn<TTables[K], K & string>
-			: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
+			: DrizzleTypeError<
+				'Views and subqueries with nested selections are not supported by the relational query builder'
+			>;
 	};
 
 	many: {
 		[K in keyof TTables]: TTables[K] extends FilteredSchemaEntry ? ManyFn<TTables[K], K & string>
-			: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
+			: DrizzleTypeError<
+				'Views and subqueries with nested selections are not supported by the relational query builder'
+			>;
 	};
 
 	/** @internal - to be reworked */
@@ -1649,7 +1838,7 @@ export type RelationsBuilderTables<TSchema extends Schema> = {
 			& RelationsBuilderColumns<TSchema[TTableName], TTableName & string>
 			& RelationsBuilderTable<TTableName & string>
 		)
-		: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
+		: DrizzleTypeError<'Views and subqueries with nested selections are not supported by the relational query builder'>;
 };
 
 export type RelationsBuilder<TSchema extends Schema> =
@@ -1702,7 +1891,7 @@ export function extractTablesFromSchema<TSchema extends Record<string, unknown>>
 	schema: TSchema,
 ): ExtractTablesFromSchema<TSchema> {
 	return Object.fromEntries(
-		Object.entries(schema).filter(([_, e]) => is(e, Table) || is(e, View)),
+		Object.entries(schema).filter(([_, e]) => is(e, Table) || is(e, View) || is(e, Subquery)),
 	) as ExtractTablesFromSchema<TSchema>;
 }
 
@@ -1772,11 +1961,6 @@ export interface WithContainer {
 	with?: Record<string, boolean | AnyDBQueryConfig | undefined>;
 }
 
-export interface ColumnWithTSName {
-	column: Table | View | Column<any> | SQL | SQLWrapper | SQL.Aliased;
-	tsName: string;
-}
-
 export type RelationsOrder<TColumns extends FieldSelection> = {
 	[K in keyof TColumns]?: 'asc' | 'desc';
 };
@@ -1786,34 +1970,104 @@ export type OrderBy = Exclude<AnyDBQueryConfig['orderBy'], undefined>;
 export type Extras = Exclude<AnyDBQueryConfig['extras'], undefined>;
 
 /** @internal */
-export function fieldSelectionToSQL(table: SchemaEntry, target: string) {
+export function fieldSelectionToSQL(table: SchemaEntry, target: string): Column | SQL {
 	const field = table[TableColumns][target];
+	const kind = chunkKindOf(field);
+	if (isChunk(field, kind, chunkKinds.column)) return field;
 
-	return field
-		? is(field, Column)
-			? field
-			: is(field, SQL.Aliased)
-			? sql`${table}.${sql.identifier(field.fieldAlias)}`
-			: sql`${table}.${sql.identifier(target)}`
-		: sql`${table}.${sql.identifier(target)}`;
+	return new SQL([
+		table,
+		commonStringChunks['.'],
+		sql.identifier(isChunk(field, kind, chunkKinds.aliased) ? field.fieldAlias : target),
+	]);
+}
+
+class ConditionsCollector {
+	static readonly [entityKind]: string = 'ConditionsCollector';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
+	private readonly start: number;
+	private count = 0;
+	private mark = 0;
+	private conditionStart = 0;
+
+	constructor(private readonly chunks: SQLChunk[], private readonly separator: StringChunk) {
+		this.start = chunks.length;
+		// Reserved for opening parentheses, filled once there are multiple conditions
+		chunks.push(undefined);
+	}
+
+	/** Must be called before pushing a condition's chunks */
+	open(): void {
+		this.mark = this.chunks.length;
+		if (this.count) this.chunks.push(this.separator);
+		this.conditionStart = this.chunks.length;
+	}
+
+	/** Must be called after pushing a condition's chunks, drops the condition if nothing was pushed */
+	close(): void {
+		if (this.chunks.length === this.conditionStart) {
+			this.chunks.length = this.mark;
+			return;
+		}
+
+		++this.count;
+	}
+
+	push(condition: SQLChunk): void {
+		if (condition === undefined) return;
+
+		if (this.count) this.chunks.push(this.separator);
+		this.chunks.push(condition);
+		++this.count;
+	}
+
+	pushChunks(condition: SQLChunk[] | undefined): void {
+		if (!condition?.length) return;
+
+		if (this.count) this.chunks.push(this.separator);
+		for (let i = 0; i < condition.length; ++i) this.chunks.push(condition[i]);
+		++this.count;
+	}
+
+	/** Returns whether any condition was collected, removes reserved chunk otherwise */
+	finish(): boolean {
+		if (!this.count) {
+			this.chunks.length = this.start;
+			return false;
+		}
+
+		if (this.count > 1) {
+			this.chunks[this.start] = commonStringChunks['(('];
+			this.chunks.push(commonStringChunks['))']);
+		}
+
+		return true;
+	}
 }
 
 function relationsFieldFilterToSQL(
 	column: SQLWrapper,
 	filter: RelationsFieldFilter<unknown> | EmptyFilter | undefined,
-): SQL | undefined {
+	collectTo: SQLChunk[] = [],
+): SQLChunk[] | undefined {
 	if (filter === EmptyFilter) return undefined;
 	if (filter === undefined) {
 		throw new Error(
 			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
 		);
 	}
-	if (typeof filter !== 'object' || is(filter, Placeholder)) return eq(column, filter);
+	if (typeof filter !== 'object' || is(filter, Placeholder)) {
+		collectTo.push(eq(column, filter));
+		return collectTo;
+	}
 
 	const entries = Object.entries(filter as RelationFieldsFilterInternals<unknown>);
 	if (!entries.length) return undefined;
 
-	const parts: (SQL | undefined)[] = [];
+	const conditions = new ConditionsCollector(collectTo, commonStringChunks[') and (']);
 	for (const [target, value] of entries) {
 		if (value === EmptyFilter) continue;
 		if (value === undefined) {
@@ -1824,42 +2078,38 @@ function relationsFieldFilterToSQL(
 
 		switch (target as keyof RelationFieldsFilterInternals<unknown>) {
 			case 'NOT': {
-				const res = relationsFieldFilterToSQL(column, value as RelationsFieldFilter<unknown>);
-				if (!res) continue;
-
-				parts.push(not(res));
-
-				continue;
-			}
-
-			case 'OR': {
-				if (!(value as RelationsFieldFilter<unknown>[]).length) {
-					throw new Error(
-						"Unexpected empty array in filters' 'OR' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
-					);
-				}
-
-				parts.push(
-					or(
-						...(value as AnyRelationsFilter[]).map((subFilter) => relationsFieldFilterToSQL(column, subFilter)),
-					)!,
-				);
+				conditions.open();
+				const notStart = collectTo.length;
+				collectTo.push(commonStringChunks['not (']);
+				relationsFieldFilterToSQL(column, value as RelationsFieldFilter<unknown>, collectTo);
+				if (collectTo.length === notStart + 1) collectTo.length = notStart;
+				else collectTo.push(commonStringChunks[')']);
+				conditions.close();
 
 				continue;
 			}
 
+			case 'OR':
 			case 'AND': {
-				if (!(value as RelationsFieldFilter<unknown>[]).length) {
+				const subFilters = value as RelationsFieldFilter<unknown>[];
+				if (!subFilters.length) {
 					throw new Error(
-						"Unexpected empty array in filters' 'AND' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
+						`Unexpected empty array in filters' '${target}' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.`,
 					);
 				}
 
-				parts.push(
-					and(
-						...(value as AnyRelationsFilter[]).map((subFilter) => relationsFieldFilterToSQL(column, subFilter)),
-					)!,
+				conditions.open();
+				const subConditions = new ConditionsCollector(
+					collectTo,
+					target === 'OR' ? commonStringChunks[') or ('] : commonStringChunks[') and ('],
 				);
+				for (const subFilter of subFilters) {
+					subConditions.open();
+					relationsFieldFilterToSQL(column, subFilter, collectTo);
+					subConditions.close();
+				}
+				subConditions.finish();
+				conditions.close();
 
 				continue;
 			}
@@ -1868,29 +2118,29 @@ function relationsFieldFilterToSQL(
 			case 'isNull': {
 				if (!value) continue;
 
-				parts.push(operators[target as 'isNull' | 'isNotNull'](column));
+				conditions.push(operators[target as 'isNull' | 'isNotNull'](column));
 
 				continue;
 			}
 
 			case 'in': {
-				parts.push(operators.inArray(column, value as any[] | Placeholder));
+				conditions.push(operators.inArray(column, value as any[] | Placeholder));
 
 				continue;
 			}
 
 			case 'notIn': {
-				parts.push(operators.notInArray(column, value as any[] | Placeholder));
+				conditions.push(operators.notInArray(column, value as any[] | Placeholder));
 
 				continue;
 			}
 
 			default: {
-				parts.push(
+				conditions.push(
 					(operators[target as keyof typeof operators] as ((col: SQLWrapper, data: any) => SQL | undefined))(
 						column,
 						value,
-					)!,
+					),
 				);
 
 				continue;
@@ -1898,39 +2148,61 @@ function relationsFieldFilterToSQL(
 		}
 	}
 
-	if (!parts.length) return undefined;
-
-	return and(...parts);
+	return conditions.finish() ? collectTo : undefined;
 }
+
+export type BuiltRelationsFilter = {
+	/** Chunks collection filter was pushed to, `undefined` if filter is empty */
+	sql: SQLChunk[] | undefined;
+	hasRelationFilters: boolean;
+};
 
 export function relationsFilterToSQL(
 	table: SchemaEntry,
 	filter: AnyRelationsFilter | AnyTableFilter | undefined | EmptyFilter,
-): SQL | undefined;
+): BuiltRelationsFilter;
 export function relationsFilterToSQL(
 	table: SchemaEntry,
 	filter: AnyRelationsFilter | AnyTableFilter | undefined | EmptyFilter,
 	tableRelations: RelationsRecord,
 	tablesRelations: TablesRelationalConfig,
+	withSubqueries: RelationalWithSubqueries | undefined,
 	depth?: number,
-): SQL | undefined;
+	collectTo?: SQLChunk[],
+): BuiltRelationsFilter;
 export function relationsFilterToSQL(
 	table: SchemaEntry,
 	filter: AnyRelationsFilter | AnyTableFilter | undefined | EmptyFilter,
 	tableRelations: RelationsRecord = {},
 	tablesRelations: TablesRelationalConfig = {},
+	withSubqueries?: RelationalWithSubqueries,
 	depth: number = 0,
-): SQL | undefined {
-	if (filter === EmptyFilter) return undefined;
+	collectTo: SQLChunk[] = [],
+): BuiltRelationsFilter {
+	if (filter === EmptyFilter) return { sql: undefined, hasRelationFilters: false };
 	if (filter === undefined) {
 		throw new Error(
 			`Unexpected 'undefined' in filter value. Use 'EmptyFilter' if you want the filter field to be skipped.`,
 		);
 	}
 	const entries = Object.entries(filter);
-	if (!entries.length) return undefined;
+	if (!entries.length) return { sql: undefined, hasRelationFilters: false };
 
-	const parts: (SQL | undefined)[] = [];
+	const conditions = new ConditionsCollector(collectTo, commonStringChunks[') and (']);
+	let hasRelationFilters = false;
+	const buildNested = (subFilter: AnyRelationsFilter) => {
+		const built = relationsFilterToSQL(
+			table,
+			subFilter,
+			tableRelations,
+			tablesRelations,
+			withSubqueries,
+			depth,
+			collectTo,
+		);
+		if (built.hasRelationFilters) hasRelationFilters = true;
+	};
+
 	for (const [target, value] of entries) {
 		if (value === EmptyFilter) continue;
 		if (value === undefined) {
@@ -1949,67 +2221,55 @@ export function relationsFilterToSQL(
 					: (value as SQLWrapper).getSQL();
 				if (processed === EmptyFilter) continue;
 
-				parts.push(processed);
+				conditions.push(processed);
+				hasRelationFilters = true;
 
 				continue;
 			}
-			case 'OR': {
-				if (!(value as AnyRelationsFilter[]).length) {
-					throw new Error(
-						"Unexpected empty array in filters' 'OR' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
-					);
-				}
-
-				parts.push(
-					or(
-						...(value as AnyRelationsFilter[]).map((subFilter) =>
-							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, depth)
-						),
-					)!,
-				);
-
-				continue;
-			}
+			case 'OR':
 			case 'AND': {
-				if (!(value as AnyRelationsFilter[]).length) {
+				const subFilters = value as AnyRelationsFilter[];
+				if (!subFilters.length) {
 					throw new Error(
-						"Unexpected empty array in filters' 'AND' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.",
+						`Unexpected empty array in filters' '${target}' section. Omit field or use 'EmptyFilter' if you want filter to be skipped.`,
 					);
 				}
 
-				parts.push(
-					and(
-						...(value as AnyRelationsFilter[]).map((subFilter) =>
-							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, depth)
-						),
-					)!,
+				conditions.open();
+				const subConditions = new ConditionsCollector(
+					collectTo,
+					target === 'OR' ? commonStringChunks[') or ('] : commonStringChunks[') and ('],
 				);
+				for (const subFilter of subFilters) {
+					subConditions.open();
+					buildNested(subFilter);
+					subConditions.close();
+				}
+				subConditions.finish();
+				conditions.close();
 
 				continue;
 			}
 			case 'NOT': {
-				const built = relationsFilterToSQL(
-					table,
-					value as AnyRelationsFilter,
-					tableRelations,
-					tablesRelations,
-					depth,
-				);
-				if (!built) continue;
-
-				parts.push(not(built));
+				conditions.open();
+				const notStart = collectTo.length;
+				collectTo.push(commonStringChunks['not (']);
+				buildNested(value as AnyRelationsFilter);
+				if (collectTo.length === notStart + 1) collectTo.length = notStart;
+				else collectTo.push(commonStringChunks[')']);
+				conditions.close();
 
 				continue;
 			}
 			default: {
 				if (Object.prototype.hasOwnProperty.call(table[TableColumns], target) && table[TableColumns][target]) {
-					const column = fieldSelectionToSQL(table, target);
-
-					const colFilter = relationsFieldFilterToSQL(
-						column,
+					conditions.open();
+					relationsFieldFilterToSQL(
+						fieldSelectionToSQL(table, target),
 						value as RelationsFieldFilter,
+						collectTo,
 					);
-					if (colFilter) parts.push(colFilter);
+					conditions.close();
 
 					continue;
 				}
@@ -2024,69 +2284,319 @@ export function relationsFilterToSQL(
 					});
 				}
 
+				if (withSubqueries) {
+					collectSubqueryAndUsedTables(withSubqueries, relation.targetTable);
+					collectSubqueryAndUsedTables(withSubqueries, relation.throughTable);
+				}
+
 				const targetTable = aliasedTable(relation.targetTable, `f${depth}`);
 				const throughTable = relation.throughTable ? aliasedTable(relation.throughTable, `ft${depth}`) : undefined;
 				const targetConfig = tablesRelations[relation.targetTableName]!;
-
 				const isExistsOnly = typeof value === 'boolean';
-				const subfilter = isExistsOnly ? undefined : relationsFilterToSQL(
-					targetTable,
-					value as AnyRelationsFilter,
-					targetConfig.relations,
-					tablesRelations,
-					depth + 1,
+
+				conditions.open();
+				const conditionStart = collectTo.length;
+				collectTo.push(
+					value ? commonStringChunks['exists (select * from '] : commonStringChunks['not exists (select * from '],
 				);
+				getTableAsAliasSQL(targetTable, collectTo);
+				if (throughTable) {
+					collectTo.push(commonStringChunks[' inner join ']);
+					getTableAsAliasSQL(throughTable, collectTo);
+					collectTo.push(commonStringChunks[' on ']);
+				}
+				const { filter: relationFilter } = relationToSQL(relation, table, targetTable, throughTable, [], collectTo);
 
-				if (!isExistsOnly && !subfilter) continue;
+				collectTo.push(commonStringChunks[' where ']);
+				const where = new ConditionsCollector(collectTo, commonStringChunks[') and (']);
+				where.pushChunks(relationFilter);
+				if (!isExistsOnly) {
+					where.open();
+					const subfilter = relationsFilterToSQL(
+						targetTable,
+						value as AnyRelationsFilter,
+						targetConfig.relations,
+						tablesRelations,
+						withSubqueries,
+						depth + 1,
+						collectTo,
+					);
+					where.close();
 
-				const {
-					filter: relationFilter,
-					joinCondition,
-				} = relationToSQL(relation, table, targetTable, throughTable);
-				const filter = and(
-					relationFilter,
-					subfilter,
-				);
-
-				const subquery = throughTable
-					? sql`(select * from ${getTableAsAliasSQL(targetTable)} inner join ${
-						getTableAsAliasSQL(throughTable)
-					} on ${joinCondition}${sql` where ${filter}`.if(filter)})`
-					: sql`(select * from ${getTableAsAliasSQL(targetTable)}${sql` where ${filter}`.if(filter)})`;
-				if (filter) parts.push((value ? exists : notExists)(subquery));
+					// Relation filter without conditions is skipped
+					if (!subfilter.sql) {
+						collectTo.length = conditionStart;
+						conditions.close();
+						continue;
+					}
+				}
+				where.finish();
+				collectTo.push(commonStringChunks[')']);
+				conditions.close();
+				hasRelationFilters = true;
 			}
 		}
 	}
 
-	return and(...parts)!;
+	return { sql: conditions.finish() ? collectTo : undefined, hasRelationFilters };
 }
 
+const relationsOrderAggregates: ReadonlySet<string> = new Set<RelationsOrderAggregate>([
+	'min',
+	'max',
+	'count',
+	'avg',
+	'first',
+]);
+
+export function parseRelationsOrderValue(
+	value: unknown,
+	path: string,
+): { direction: RelationsOrderDirection; aggregate?: RelationsOrderAggregate } {
+	if (typeof value !== 'string') {
+		throw new DrizzleError({
+			message: `Invalid order "${path}": expected a string, got ${value === null ? 'null' : typeof value}`,
+		});
+	}
+
+	const parts = value.split('(');
+	const direction = parts[0];
+	if (direction !== 'asc' && direction !== 'desc') {
+		throw new DrizzleError({
+			message: `Invalid order "${path}": unknown direction "${direction}" in "${value}", expected "asc" or "desc"`,
+		});
+	}
+	if (parts.length === 1) return { direction };
+
+	if (parts.length > 2 || !parts[1]!.endsWith(')')) {
+		throw new DrizzleError({
+			message:
+				`Invalid order "${path}": malformed value "${value}", expected "${direction}" or "${direction}(<aggregate>)"`,
+		});
+	}
+
+	const aggregate = parts[1]!.slice(0, -1);
+	if (!relationsOrderAggregates.has(aggregate)) {
+		throw new DrizzleError({
+			message: `Invalid order "${path}": unknown aggregate "${aggregate}" in "${value}", expected one of: ${
+				[...relationsOrderAggregates].join(', ')
+			}`,
+		});
+	}
+
+	return { direction, aggregate: aggregate as RelationsOrderAggregate };
+}
+
+export type RelationsOrderSource = {
+	/** Relations' tables between the ordered table and the field */
+	from: SQLChunk[];
+	filters: SQLChunk[][];
+	/** Whether there's a `many` relation on the way: fields have to be aggregated */
+	isAggregated: boolean;
+	depth: number;
+	path: string;
+};
+
+export function relationsOrderEntriesToSQL(
+	table: SchemaEntry,
+	orders: AnyRelationsOrder,
+	tableRelations: RelationsRecord,
+	tablesRelations: TablesRelationalConfig,
+	withSubqueries: RelationalWithSubqueries | undefined,
+	/** 'top' for MSSQL, 'limit' for rest */
+	singleRowLimit: 'limit' | 'top',
+	source: RelationsOrderSource | undefined,
+	collectTo: SQLChunk[],
+	/** Index of `collectTo` order starts at, orders after it are separated by commas */
+	start: number = collectTo.length,
+): SQLChunk[] {
+	for (const [target, value] of Object.entries(orders)) {
+		if (!value) continue;
+
+		const path = source ? `${source.path}.${target}` : target;
+
+		if (Object.prototype.hasOwnProperty.call(table[TableColumns], target) && table[TableColumns][target]) {
+			const { direction, aggregate } = parseRelationsOrderValue(value, path);
+			if (!!aggregate !== !!source?.isAggregated) {
+				throw new DrizzleError({
+					message: `Invalid order "${path}": expected ${
+						source?.isAggregated
+							? '"asc(<aggregate>)" or "desc(<aggregate>)", with aggregate being one of: min, max, count, avg, first'
+							: '"asc" or "desc"'
+					}, got "${value}"`,
+				});
+			}
+
+			const column = fieldSelectionToSQL(table, target);
+			if (collectTo.length > start) collectTo.push(commonStringChunks[', ']);
+			if (!source) {
+				collectTo.push(column, direction === 'asc' ? commonStringChunks[' asc'] : commonStringChunks[' desc']);
+				continue;
+			}
+
+			const isSingleRowLimited = !aggregate || aggregate === 'first';
+			collectTo.push(commonStringChunks['(select ']);
+			if (isSingleRowLimited) {
+				if (singleRowLimit === 'top') collectTo.push(commonStringChunks['top(1) ']);
+				collectTo.push(column);
+			} else {
+				collectTo.push(commonStringChunks[`${aggregate!}(`], column, commonStringChunks[')']);
+			}
+			collectTo.push(commonStringChunks[' from ']);
+			for (let i = 0; i < source.from.length; ++i) collectTo.push(source.from[i]);
+			const whereStart = collectTo.length;
+			collectTo.push(commonStringChunks[' where ']);
+			const where = new ConditionsCollector(collectTo, commonStringChunks[') and (']);
+			for (let i = 0; i < source.filters.length; ++i) where.pushChunks(source.filters[i]);
+			if (!where.finish()) collectTo.length = whereStart;
+			if (isSingleRowLimited && singleRowLimit === 'limit') collectTo.push(commonStringChunks[' limit 1']);
+			collectTo.push(
+				commonStringChunks[')'],
+				direction === 'asc' ? commonStringChunks[' asc'] : commonStringChunks[' desc'],
+			);
+
+			continue;
+		}
+
+		const relation = Object.prototype.hasOwnProperty.call(tableRelations, target)
+			? tableRelations[target]
+			: undefined;
+		if (!relation) {
+			// Should never trigger unless the types've been violated
+			throw new DrizzleError({ message: `Unknown relational order field: "${path}"` });
+		}
+		const count = relation.relationType === 'many' && typeof value === 'string'
+			? parseRelationsOrderValue(value, path)
+			: undefined;
+		const countDirection = count?.aggregate === 'count' ? count.direction : undefined;
+		if (typeof value !== 'object' && !countDirection) {
+			throw new DrizzleError({
+				message: `Invalid order "${path}": expected an object with fields of relation to order by${
+					relation.relationType === 'many' ? ', "asc(count)" or "desc(count)"' : ''
+				}, got "${value}"`,
+			});
+		}
+
+		if (withSubqueries) {
+			collectSubqueryAndUsedTables(withSubqueries, relation.targetTable);
+			collectSubqueryAndUsedTables(withSubqueries, relation.throughTable);
+		}
+
+		const depth = source?.depth ?? 0;
+		const targetTable = aliasedTable(relation.targetTable, `o${depth}`);
+		const throughTable = relation.throughTable ? aliasedTable(relation.throughTable, `ot${depth}`) : undefined;
+
+		const from: SQLChunk[] = source ? [...source.from, commonStringChunks[' cross join ']] : [];
+		getTableAsAliasSQL(targetTable, from);
+		if (throughTable) {
+			from.push(commonStringChunks[' inner join ']);
+			getTableAsAliasSQL(throughTable, from);
+			from.push(commonStringChunks[' on ']);
+		}
+		const { filter } = relationToSQL(relation, table, targetTable, throughTable, [], from);
+		const filters = source ? [...source.filters, filter] : [filter];
+
+		if (typeof value !== 'object') {
+			if (collectTo.length > start) collectTo.push(commonStringChunks[', ']);
+			collectTo.push(commonStringChunks['(select count(*) from ']);
+			for (let i = 0; i < from.length; ++i) collectTo.push(from[i]);
+			const whereStart = collectTo.length;
+			collectTo.push(commonStringChunks[' where ']);
+			const where = new ConditionsCollector(collectTo, commonStringChunks[') and (']);
+			for (let i = 0; i < filters.length; ++i) where.pushChunks(filters[i]);
+			if (!where.finish()) collectTo.length = whereStart;
+			collectTo.push(
+				commonStringChunks[')'],
+				countDirection === 'asc' ? commonStringChunks[' asc'] : commonStringChunks[' desc'],
+			);
+
+			continue;
+		}
+
+		relationsOrderEntriesToSQL(
+			targetTable,
+			value,
+			tablesRelations[relation.targetTableName]?.relations ?? {},
+			tablesRelations,
+			withSubqueries,
+			singleRowLimit,
+			{
+				from,
+				filters,
+				isAggregated: !!source?.isAggregated || relation.relationType === 'many',
+				depth: depth + 1,
+				path,
+			},
+			collectTo,
+			start,
+		);
+	}
+
+	return collectTo;
+}
+
+/** Returns chunks collection order was pushed to, `undefined` if order is empty */
 export function relationsOrderToSQL(
 	table: SchemaEntry,
 	orders: OrderBy,
-): SQL | undefined {
+): SQLChunk[] | undefined;
+export function relationsOrderToSQL(
+	table: SchemaEntry,
+	orders: OrderBy,
+	tableRelations: RelationsRecord,
+	tablesRelations: TablesRelationalConfig,
+	withSubqueries: RelationalWithSubqueries | undefined,
+	/** 'top' for MSSQL, 'limit' for rest */
+	singleRowLimit?: 'limit' | 'top',
+	collectTo?: SQLChunk[],
+): SQLChunk[] | undefined;
+export function relationsOrderToSQL(
+	table: SchemaEntry,
+	orders: OrderBy,
+	tableRelations: RelationsRecord = {},
+	tablesRelations: TablesRelationalConfig = {},
+	withSubqueries?: RelationalWithSubqueries,
+	/** 'top' for MSSQL, 'limit' for rest */
+	singleRowLimit: 'limit' | 'top' = 'limit',
+	collectTo: SQLChunk[] = [],
+): SQLChunk[] | undefined {
+	const start = collectTo.length;
+
 	if (typeof orders === 'function') {
 		const data = orders(table as any, orderByOperators);
 		if (!data) return undefined;
 
-		return is(data, SQL)
-			? data
-			: Array.isArray(data)
-			? data.length
-				? sql.join(data.map((o) => is(o, SQL) ? o : asc(o)), new StringChunk(`, `))
-				: undefined
-			: is(data, Column)
-			? asc(data)
-			: undefined;
+		const kind = chunkKindOf(data);
+		if (isChunk(data, kind, chunkKinds.sql)) {
+			collectTo.push(data);
+		} else if (Array.isArray(data)) {
+			for (let i = 0; i < data.length; ++i) {
+				if (i) collectTo.push(commonStringChunks[', ']);
+
+				const item = data[i];
+				collectTo.push(item);
+				if (chunkKindOf(item) !== chunkKinds.sql) collectTo.push(commonStringChunks[' asc']);
+			}
+		} else if (isChunk(data, kind, chunkKinds.column)) {
+			collectTo.push(data, commonStringChunks[' asc']);
+		}
+
+		return collectTo.length > start ? collectTo : undefined;
 	}
 
-	const entries = Object.entries(orders).filter(([_, value]) => value);
-	if (!entries.length) return undefined;
-
-	return sql.join(
-		entries.map(([target, value]) => (value === 'asc' ? asc : desc)(fieldSelectionToSQL(table, target))),
-		new StringChunk(`, `),
+	relationsOrderEntriesToSQL(
+		table,
+		orders,
+		tableRelations,
+		tablesRelations,
+		withSubqueries,
+		singleRowLimit,
+		undefined,
+		collectTo,
+		start,
 	);
+
+	return collectTo.length > start ? collectTo : undefined;
 }
 
 export function relationExtrasToSQL(
@@ -2094,8 +2604,13 @@ export function relationExtrasToSQL(
 	extras: Extras,
 	codecs?: CodecsCollection,
 	inJson?: boolean,
-) {
-	const subqueries: SQL[] = [];
+	collectTo: SQLChunk[] = [],
+): {
+	/** Chunks collection extras were pushed to, `undefined` if there are none */
+	sql: SQLChunk[] | undefined;
+	selection: BuildRelationalQueryResult['selection'];
+} {
+	const start = collectTo.length;
 	const selection: BuildRelationalQueryResult['selection'] = [];
 
 	for (
@@ -2108,11 +2623,20 @@ export function relationExtrasToSQL(
 		const column = codecs ? getColumnFromDecoder(subq) : undefined;
 		// Codec bypass for custom columns with enabled legacy JSON api
 		const query = column && (!inJson || !(<any> column).jsonSelectIdentifier)
-			? sql`${codecs!.apply(column, inJson ? 'castInJson' : 'cast', sql`(${subq})`)} as ${sql.identifier(key)}`
-			: sql`(${subq}) as ${sql.identifier(key)}`;
+			? new SQL([
+				codecs!.apply(
+					column,
+					inJson ? 'castInJson' : 'cast',
+					new SQL([commonStringChunks['('], subq, commonStringChunks[')']]),
+				),
+				commonStringChunks[' as '],
+				sql.identifier(key),
+			])
+			: new SQL([commonStringChunks['('], subq, commonStringChunks[') as '], sql.identifier(key)]);
 		query.decoder = subq.decoder;
 
-		subqueries.push(query);
+		if (collectTo.length > start) collectTo.push(commonStringChunks[', ']);
+		collectTo.push(query);
 		selection.push(
 			// Codec bypass for custom columns with enabled legacy JSON api
 			column && (!inJson || !(<any> column).mapFromJsonValue)
@@ -2132,14 +2656,50 @@ export function relationExtrasToSQL(
 	}
 
 	return {
-		sql: subqueries.length ? sql.join(subqueries, new StringChunk(`, `)) : undefined,
+		sql: collectTo.length > start ? collectTo : undefined,
 		selection,
 	};
 }
 
+function relationFieldIdentifier({ _: { column, key } }: RelationsBuilderColumnBase): Name {
+	const kind = chunkKindOf(column);
+
+	return sql.identifier(
+		isChunk(column, kind, chunkKinds.column)
+			? column.name
+			: isChunk(column, kind, chunkKinds.aliased)
+			? column.fieldAlias
+			: key,
+	);
+}
+
+/** Pushes `"left"."field" = "right"."field"` as a condition */
+function collectRelationFieldsEquality(
+	conditions: ConditionsCollector,
+	collectTo: SQLChunk[],
+	leftTable: SQLChunk,
+	leftField: RelationsBuilderColumnBase,
+	rightTable: SQLChunk,
+	rightField: RelationsBuilderColumnBase,
+): void {
+	conditions.open();
+	collectTo.push(
+		leftTable,
+		commonStringChunks['.'],
+		relationFieldIdentifier(leftField),
+		commonStringChunks[' = '],
+		rightTable,
+		commonStringChunks['.'],
+		relationFieldIdentifier(rightField),
+	);
+	conditions.close();
+}
+
 export interface BuiltRelationFilters {
-	filter?: SQL;
-	joinCondition?: SQL;
+	/** Chunks collection relation's filter was pushed to */
+	filter: SQLChunk[];
+	/** Chunks collection join condition of relation's junction table was pushed to */
+	joinCondition?: SQLChunk[];
 }
 
 export function relationToSQL(
@@ -2147,60 +2707,307 @@ export function relationToSQL(
 	sourceTable: SchemaEntry,
 	targetTable: SchemaEntry,
 	throughTable?: SchemaEntry,
+	filterTo: SQLChunk[] = [],
+	joinConditionTo: SQLChunk[] = [],
 ): BuiltRelationFilters {
+	const whereTable = relation.isFilterReversed ? sourceTable : targetTable;
+	const sourceRef = sourceTable[Qualifier];
+	const targetRef = targetTable[Qualifier];
+	const throughRef = throughTable?.[Qualifier];
+	const filter = new ConditionsCollector(filterTo, commonStringChunks[') and (']);
+
 	if (relation.through) {
-		const outerColumnWhere = relation.sourceColumns.map((s, i) => {
-			const t = relation.through!.source[i]!;
-
-			return eq(
-				sql`${sourceTable}.${sql.identifier(s.name)}`,
-				sql`${throughTable!}.${sql.identifier(is(t._.column, Column) ? t._.column.name : t._.key)}`,
-			);
-		});
-
-		const innerColumnWhere = relation.targetColumns.map((s, i) => {
-			const t = relation.through!.target[i]!;
-
-			return eq(
-				sql`${throughTable!}.${sql.identifier(is(t._.column, Column) ? t._.column.name : t._.key)}`,
-				sql`${targetTable}.${sql.identifier(s.name)}`,
-			);
-		});
-
-		return {
-			filter: and(
-				relationsFilterToSQL(relation.isFilterReversed ? sourceTable : targetTable, relation.where),
-				...outerColumnWhere,
-			),
-			joinCondition: and(...innerColumnWhere),
+		const { sourceColumns, targetColumns, through: { source, target } } = relation as Relation & {
+			through: NonNullable<Relation['through']>;
 		};
+
+		filter.open();
+		relationsFilterToSQL(whereTable, relation.where, {}, {}, undefined, 0, filterTo);
+		filter.close();
+		for (let i = 0; i < sourceColumns.length; ++i) {
+			collectRelationFieldsEquality(filter, filterTo, sourceRef, sourceColumns[i]!, throughRef!, source[i]!);
+		}
+		filter.finish();
+
+		const joinCondition = new ConditionsCollector(joinConditionTo, commonStringChunks[') and (']);
+		for (let i = 0; i < targetColumns.length; ++i) {
+			collectRelationFieldsEquality(
+				joinCondition,
+				joinConditionTo,
+				throughRef!,
+				target[i]!,
+				targetRef,
+				targetColumns[i]!,
+			);
+		}
+		joinCondition.finish();
+
+		return { filter: filterTo, joinCondition: joinConditionTo };
 	}
 
-	const columnWhere = relation.sourceColumns.map((s, i) => {
-		const t = relation.targetColumns[i]!;
+	const { sourceColumns, targetColumns } = relation;
+	for (let i = 0; i < sourceColumns.length; ++i) {
+		collectRelationFieldsEquality(filter, filterTo, sourceRef, sourceColumns[i]!, targetRef, targetColumns[i]!);
+	}
+	filter.open();
+	relationsFilterToSQL(whereTable, relation.where, {}, {}, undefined, 0, filterTo);
+	filter.close();
+	filter.finish();
 
-		return eq(
-			sql`${sourceTable}.${sql.identifier(s.name)}`,
-			sql`${targetTable}.${sql.identifier(t.name)}`,
-		);
-	});
-
-	const fullWhere = and(
-		...columnWhere,
-		relationsFilterToSQL(relation.isFilterReversed ? sourceTable : targetTable, relation.where),
-	)!;
-
-	return { filter: fullWhere };
+	return { filter: filterTo };
 }
 
-export function getTableAsAliasSQL(table: SchemaEntry) {
-	return sql`${
-		table[IsAlias]
-			? sql`${sql`${sql.identifier(table[TableSchema] ?? '')}.`.if(table[TableSchema])}${
-				sql.identifier(table[OriginalName])
-			} as ${table}`
-			: table
-	}`;
+/**
+ * @internal
+ * Pushes `where` of relational query: its own filter and filter of relation it's queried through
+ */
+export function relationalQueryWhereToSQL(
+	table: SchemaEntry,
+	params: { where?: unknown } | undefined,
+	tableRelations: RelationsRecord,
+	tablesRelations: TablesRelationalConfig,
+	withSubqueries: RelationalWithSubqueries,
+	relationWhere: SQLChunk[] | undefined,
+	collectTo: SQLChunk[] = [],
+): BuiltRelationsFilter {
+	const conditions = new ConditionsCollector(collectTo, commonStringChunks[') and (']);
+	let hasRelationFilters = false;
+	if (params && 'where' in params) {
+		conditions.open();
+		hasRelationFilters = relationsFilterToSQL(
+			table,
+			params.where as AnyRelationsFilter,
+			tableRelations,
+			tablesRelations,
+			withSubqueries,
+			0,
+			collectTo,
+		).hasRelationFilters;
+		conditions.close();
+	}
+	conditions.pushChunks(relationWhere);
+
+	return { sql: conditions.finish() ? collectTo : undefined, hasRelationFilters };
+}
+
+/** Legacy JSON api of custom columns */
+interface RqbCustomColumn {
+	readonly mapFromJsonValue?: (value: unknown) => unknown;
+	readonly jsonSelectIdentifier?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
+	readonly dimensions?: number;
+}
+
+function collectRqbFieldSelection(
+	collectTo: SQLChunk[],
+	tableRef: SQLChunk,
+	name: string,
+	key: string,
+	codecs: CodecsCollection,
+	decoderColumn: Column | undefined,
+	inJson: boolean,
+): void {
+	if (decoderColumn) {
+		collectTo.push(
+			codecs.apply(
+				decoderColumn,
+				inJson ? 'castInJson' : 'cast',
+				new SQL([tableRef, commonStringChunks['.'], sql.identifier(name)]),
+			),
+		);
+	} else {
+		collectTo.push(tableRef, commonStringChunks['.'], sql.identifier(name));
+	}
+
+	collectTo.push(commonStringChunks[' as '], sql.identifier(key));
+}
+
+/** Pushes field of table selected by relational query, adds it to `selection` */
+export function buildRqbColumn(
+	tableRef: SQLChunk,
+	field: unknown,
+	key: string,
+	inJson: boolean,
+	selection: BuildRelationalQueryResult['selection'],
+	tableTsName: string,
+	codecs: CodecsCollection,
+	collectTo: SQLChunk[],
+): void {
+	let decoderColumn: Column | undefined;
+	let subqueryDecoder: DriverValueDecoder<any, any> | undefined;
+	let fieldType: BuildRelationalQueryResult['selection'][number]['fieldType'];
+
+	const kind = chunkKindOf(field);
+	if (isChunk(field, kind, chunkKinds.column)) {
+		decoderColumn = field;
+		fieldType = 'Column';
+
+		const { jsonSelectIdentifier, dimensions } = field as Column & RqbCustomColumn;
+		const cast = inJson && jsonSelectIdentifier
+			? undefined
+			: codecs.codecsOf(field)[inJson ? 'castInJson' : 'cast'];
+		if (cast || (inJson && jsonSelectIdentifier)) {
+			const name = new SQL([tableRef, commonStringChunks['.'], sql.identifier(field.name)]);
+			const casted = cast
+				? cast(name, dimensions!)
+				: jsonSelectIdentifier!.call(field, name, sql, dimensions);
+			collectTo.push(casted, commonStringChunks[' as '], sql.identifier(key));
+		} else {
+			collectTo.push(
+				tableRef,
+				commonStringChunks['.'],
+				sql.identifier(field.name),
+				commonStringChunks[' as '],
+				sql.identifier(key),
+			);
+		}
+	} else if (isChunk(field, kind, chunkKinds.sql)) {
+		decoderColumn = getColumnFromDecoder(field);
+		fieldType = 'SQL';
+
+		collectRqbFieldSelection(collectTo, tableRef, key, key, codecs, decoderColumn, inJson);
+	} else if (isChunk(field, kind, chunkKinds.aliased)) {
+		decoderColumn = getColumnFromDecoder(field);
+		fieldType = 'SQL.Aliased';
+
+		collectRqbFieldSelection(collectTo, tableRef, field.fieldAlias, key, codecs, decoderColumn, inJson);
+	} else if (isChunk(field, kind, chunkKinds.subquery)) {
+		const innerField = Object.values(field._.selectedFields)[0];
+		const innerKind = chunkKindOf(innerField);
+
+		if (isChunk(innerField, innerKind, chunkKinds.column)) {
+			decoderColumn = innerField;
+			subqueryDecoder = innerField;
+		} else if (isChunk(innerField, innerKind, chunkKinds.aliased)) {
+			decoderColumn = getColumnFromDecoder(innerField);
+			subqueryDecoder = innerField.sql.decoder;
+		} else if (isChunk(innerField, innerKind, chunkKinds.sql)) {
+			decoderColumn = getColumnFromDecoder(innerField);
+			subqueryDecoder = innerField.decoder;
+		}
+		fieldType = 'Subquery';
+
+		collectRqbFieldSelection(collectTo, tableRef, field._.alias, key, codecs, decoderColumn, inJson);
+	} else if (isSQLWrapper(field)) {
+		decoderColumn = getColumnFromDecoder(field);
+		fieldType = 'SQLWrapper';
+
+		collectRqbFieldSelection(collectTo, tableRef, key, key, codecs, decoderColumn, inJson);
+	} else {
+		throw new DrizzleError({
+			message: field === undefined
+				? `Unknown column: "${tableTsName}"."${key}"`
+				: `Views and subqueries with nested selections are not supported by the relational query builder`,
+		});
+	}
+
+	selection.push(
+		(decoderColumn
+			? {
+				key,
+				field,
+				fieldType,
+				subqueryDecoder,
+				codec: !inJson || !(<RqbCustomColumn> decoderColumn).mapFromJsonValue
+					? codecs.get(decoderColumn, inJson ? 'normalizeInJson' : 'normalize')
+					: undefined,
+				arrayDimensions: (<RqbCustomColumn> decoderColumn).dimensions,
+			}
+			: {
+				key,
+				field,
+				fieldType,
+				subqueryDecoder,
+			}) as BuildRelationalQueryResult['selection'][number],
+	);
+}
+
+/** Pushes table's columns selected by relational query separated by commas, returns whether any were selected */
+export function buildRqbColumns(
+	tableRef: SQLChunk,
+	columns: Record<string, unknown>,
+	selection: BuildRelationalQueryResult['selection'],
+	inJson: boolean,
+	tableTsName: string,
+	codecs: CodecsCollection,
+	collectTo: SQLChunk[],
+	columnsConfig?: Record<string, boolean | undefined>,
+): boolean {
+	const start = collectTo.length;
+	if (!columnsConfig) {
+		for (const k of Object.keys(columns)) {
+			if (collectTo.length > start) collectTo.push(commonStringChunks[', ']);
+			buildRqbColumn(tableRef, columns[k], k, inJson, selection, tableTsName, codecs, collectTo);
+		}
+
+		return true;
+	}
+
+	let colSelectionMode: boolean | undefined;
+	for (const k of Object.keys(columnsConfig)) {
+		const v = columnsConfig[k];
+		if (v === undefined) continue;
+		colSelectionMode = colSelectionMode || v;
+
+		if (v) {
+			if (collectTo.length > start) collectTo.push(commonStringChunks[', ']);
+			buildRqbColumn(tableRef, columns[k], k, inJson, selection, tableTsName, codecs, collectTo);
+		}
+	}
+
+	if (colSelectionMode === false) {
+		for (const k of Object.keys(columns)) {
+			if (columnsConfig[k] === false) continue;
+
+			if (collectTo.length > start) collectTo.push(commonStringChunks[', ']);
+			buildRqbColumn(tableRef, columns[k], k, inJson, selection, tableTsName, codecs, collectTo);
+		}
+	}
+
+	return collectTo.length > start;
+}
+
+// `Subquery` instances used in relational queries are collected into `WITH` on query's root level, table cache keys are collected for cache invalidation
+export interface RelationalWithSubqueries {
+	subqueries: Map<string, Subquery>;
+	/** Cache keys of tables query is built from, collected only when query is cached */
+	usedTables?: Set<string>;
+}
+export function collectSubqueryAndUsedTables(
+	collector: RelationalWithSubqueries,
+	entity: SchemaEntry | undefined,
+): void {
+	const kind = chunkKindOf(entity);
+	if (collector.usedTables !== undefined && isChunk(entity, kind, chunkKinds.table)) {
+		collector.usedTables.add(entity[CacheKey]);
+		return;
+	}
+
+	if (!isChunk(entity, kind, chunkKinds.subquery)) return;
+
+	const name = entity._.alias;
+	const existing = collector.subqueries.get(name);
+
+	if (existing && existing._.sql !== entity._.sql) {
+		throw new DrizzleError({
+			message:
+				`Different subqueries with the same alias "${name}" are used in a single relational query - make sure every subquery in schema has a unique alias`,
+		});
+	}
+
+	collector.subqueries.set(name, entity);
+}
+
+export function getTableAsAliasSQL(table: SchemaEntry, collectTo: SQLChunk[] = []): SQLChunk[] {
+	if (!table[IsAlias]) {
+		collectTo.push(table);
+		return collectTo;
+	}
+
+	const schema = table[TableSchema];
+	if (schema) collectTo.push(sql.identifier(schema), commonStringChunks['.']);
+	collectTo.push(sql.identifier(table[OriginalName]), commonStringChunks[' as '], table[Qualifier]);
+
+	return collectTo;
 }
 
 export const EmptyFilter = Symbol.for('drizzle:EmptyFilter');

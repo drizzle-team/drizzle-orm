@@ -58,7 +58,7 @@ export interface MsSqlSelectConfig {
 	fields: Record<string, unknown>;
 	fieldsFlat?: SelectedFieldsOrdered;
 	mapper?: (raw: any) => any;
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 	where?: SQL;
 	having?: SQL;
 	table: MsSqlTable | Subquery | MsSqlViewBase | SQL;

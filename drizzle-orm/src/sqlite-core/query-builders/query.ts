@@ -1,17 +1,23 @@
-import { entityKind } from '~/entity.ts';
-import type {
-	BuildQueryResult,
-	BuildRelationalQueryResult,
-	DBQueryConfig,
-	RelationalRowsMapper,
-	TableRelationalConfig,
-	TablesRelationalConfig,
+import { entityKind, is } from '~/entity.ts';
+import {
+	type BuildQueryResult,
+	type BuildRelationalQueryResult,
+	type DBQueryConfigRoot,
+	relationalQueryUsedTablesInit,
+	type RelationalRowsMapper,
+	type TableRelationalConfig,
+	type TablesRelationalConfig,
 } from '~/relations.ts';
 import { type Query, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
-import type { KnownKeysOnly } from '~/utils.ts';
 import type { SQLiteDialect } from '../dialect.ts';
 import type { SQLiteSession } from '../session.ts';
 import type { SQLiteTable } from '../table.ts';
+
+export type SQLiteDBQueryConfigRoot<
+	TRelationType extends 'one' | 'many' = 'one' | 'many',
+	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
+	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
+> = Omit<DBQueryConfigRoot<TRelationType, TSchema, TTableConfig>, 'strategy' | 'comment'>;
 
 export interface SQLiteRelationalQueryHKTBase {
 	type: unknown;
@@ -40,7 +46,7 @@ export interface SQLiteRelationalQueryConstructor {
 		tableConfig: TableRelationalConfig,
 		dialect: SQLiteDialect,
 		session: SQLiteSession<any, any>,
-		config: DBQueryConfig<'many' | 'one'> | true,
+		config: SQLiteDBQueryConfigRoot<'many' | 'one'> | true,
 		queryMode: 'many' | 'first',
 		forbidJsonb: boolean | undefined,
 	): AnySQLiteRelationalQuery;
@@ -55,6 +61,9 @@ export class RelationalQueryBuilder<
 	TBuilderHKT extends SQLiteRelationalQueryHKTBase = SQLiteRelationalQueryHKT,
 > {
 	static readonly [entityKind]: string = 'SQLiteRelationalQueryBuilderV2';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		private mode: TMode,
@@ -67,8 +76,9 @@ export class RelationalQueryBuilder<
 		private builder: SQLiteRelationalQueryConstructor = SQLiteRelationalQuery,
 	) {}
 
-	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
+	findMany<TConfig extends SQLiteDBQueryConfigRoot<'many', TSchema, TFields>>(
+		config?: SQLiteDBQueryConfigRoot<'many', TSchema, TFields> extends TConfig ? TConfig
+			: SQLiteDBQueryConfigRoot<'many', TSchema, TFields>,
 	): SQLiteRelationalQueryKind<TBuilderHKT, TMode, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new this.builder(
 			this.mode,
@@ -77,14 +87,15 @@ export class RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config as DBQueryConfig<'many'> | undefined ?? true,
+			config as SQLiteDBQueryConfigRoot<'many'> | undefined ?? true,
 			'many',
 			this.forbidJsonb,
 		) as any;
 	}
 
-	findFirst<TConfig extends DBQueryConfig<'one', TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>,
+	findFirst<TConfig extends SQLiteDBQueryConfigRoot<'one', TSchema, TFields>>(
+		config?: SQLiteDBQueryConfigRoot<'one', TSchema, TFields> extends TConfig ? TConfig
+			: SQLiteDBQueryConfigRoot<'one', TSchema, TFields>,
 	): SQLiteRelationalQueryKind<TBuilderHKT, TMode, BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return new this.builder(
 			this.mode,
@@ -93,7 +104,7 @@ export class RelationalQueryBuilder<
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config as DBQueryConfig<'one'> | undefined ?? true,
+			config as SQLiteDBQueryConfigRoot<'one'> | undefined ?? true,
 			'first',
 			this.forbidJsonb,
 		) as any;
@@ -102,6 +113,9 @@ export class RelationalQueryBuilder<
 
 export class SQLiteRelationalQuery<THKT extends SQLiteRelationalQueryHKTBase, TResult> implements SQLWrapper {
 	static readonly [entityKind]: string = 'SQLiteRelationalQueryV2';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	protected mapper?: RelationalRowsMapper;
@@ -126,7 +140,7 @@ export class SQLiteRelationalQuery<THKT extends SQLiteRelationalQueryHKTBase, TR
 		protected tableConfig: TableRelationalConfig,
 		protected dialect: SQLiteDialect,
 		protected session: SQLiteSession<any, any>,
-		protected config: DBQueryConfig<'many' | 'one'> | true,
+		protected config: SQLiteDBQueryConfigRoot<'many' | 'one'> | true,
 		mode: 'many' | 'first',
 		protected forbidJsonb?: boolean,
 	) {
@@ -139,7 +153,8 @@ export class SQLiteRelationalQuery<THKT extends SQLiteRelationalQueryHKTBase, TR
 		return this._getQuery().sql;
 	}
 
-	protected _getQuery() {
+	/** @internal */
+	_getQuery(usedTables?: Set<string>) {
 		const jsonb = this.forbidJsonb ? sql`json` : sql`jsonb`;
 
 		return this.dialect.buildRelationalQuery({
@@ -149,15 +164,17 @@ export class SQLiteRelationalQuery<THKT extends SQLiteRelationalQueryHKTBase, TR
 			queryConfig: this.config,
 			mode: this.mode,
 			jsonb,
+			usedTables,
 		});
 	}
 
-	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query } {
-		const query = this._getQuery();
+	protected _toSQL(): { query: BuildRelationalQueryResult; builtQuery: Query; usedTables: Set<string> | undefined } {
+		const usedTables = relationalQueryUsedTablesInit(this.config);
+		const query = this._getQuery(usedTables);
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql);
 
-		return { query, builtQuery };
+		return { query, builtQuery, usedTables };
 	}
 
 	toSQL(): Query {

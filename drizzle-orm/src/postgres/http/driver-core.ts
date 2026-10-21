@@ -43,9 +43,6 @@ export function construct<
 ): PostgresHttpDatabase<TRelations> & {
 	$client: TClient;
 } {
-	const clientConfig = (<any> client).cfg ?? client;
-	if (config.codecs && clientConfig?.temporal) clientConfig.temporal = 'string';
-
 	const dialect = new PgDialect({
 		codecs: config.codecs ?? minipgShapeCodecs,
 		useJitMappers: jitCompatCheck(config.jit),
@@ -64,6 +61,7 @@ export function construct<
 	const session = new PostgresHttpSession(client, runBatch, dialect, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 
 	const db = new PostgresHttpDatabase(

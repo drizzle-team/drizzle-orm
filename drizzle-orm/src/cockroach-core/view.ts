@@ -16,6 +16,9 @@ export class DefaultViewBuilderCore<
 	TSchema extends string | undefined = undefined,
 > {
 	static readonly [entityKind]: string = 'CockroachDefaultViewBuilderCore';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly name: TConfig['name'];
@@ -61,7 +64,7 @@ export class ViewBuilder<
 					name: this.name,
 					schema: this.schema,
 					selectedFields: aliasedSelection,
-					query: qb.withoutSelectionCastCodecs().getSQL().inlineParams(),
+					query: qb.getSQL().inlineParams(),
 				},
 			}),
 			selectionProxy as any,
@@ -174,6 +177,9 @@ export class MaterializedViewBuilderCore<
 	TSchema extends string | undefined = undefined,
 > {
 	static readonly [entityKind]: string = 'CockroachMaterializedViewBuilderCore';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare _: {
 		readonly name: TConfig['name'];
@@ -231,7 +237,7 @@ export class MaterializedViewBuilder<
 					name: this.name,
 					schema: this.schema,
 					selectedFields: aliasedSelection,
-					query: qb.withoutSelectionCastCodecs().getSQL().inlineParams(),
+					query: qb.getSQL().inlineParams(),
 				},
 			}),
 			selectionProxy as any,

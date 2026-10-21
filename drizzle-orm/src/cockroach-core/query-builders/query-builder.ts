@@ -12,6 +12,9 @@ import type { SelectedFields } from './select.types.ts';
 
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'CockroachQueryBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private dialect: CockroachDialect | undefined;
 	private dialectConfig: CockroachDialectConfig | undefined;
@@ -33,7 +36,7 @@ export class QueryBuilder {
 				qb = qb(queryBuilder);
 			}
 
-			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
+			const sql = qb.getSQL();
 			return new Proxy(
 				new WithSubquery(
 					sql,

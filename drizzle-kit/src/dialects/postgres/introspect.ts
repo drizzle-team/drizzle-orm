@@ -111,7 +111,7 @@ export const fromDatabase = async (
 	});
 
 	const namespacesQuery = db.query<Namespace>(
-		`SELECT oid, nspname as name FROM pg_catalog.pg_namespace WHERE pg_catalog.has_schema_privilege(oid, 'USAGE') ORDER BY pg_catalog.lower(nspname)`,
+		`SELECT oid, nspname as name FROM pg_catalog.pg_namespace ORDER BY pg_catalog.lower(nspname)`,
 	)
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);
@@ -538,14 +538,21 @@ export const fromDatabase = async (
 			attnotnull AS "notNull",
 			CASE 
         		WHEN attndims > 0 THEN attndims
-        		WHEN t.typcategory = 'A' THEN 1  -- If it's an array type, default to 1 dimension
+        		-- An array type defaults to 1 dimension. A domain over an array and the vector types of the catalog are in this category too, and their type text has no brackets.
+        		WHEN t.typcategory = 'A' AND pg_catalog.format_type(atttypid, atttypmod) LIKE '%[]' THEN 1
         		ELSE 0
     		END as "dimensions",
 			atttypid as "typeId",
 			attgenerated::text as "generatedType", 
 			attidentity::text as "identityType",
 			pg_catalog.format_type(atttypid, atttypmod) as "type",
-			pg_catalog.pg_get_serial_sequence('"' OPERATOR(pg_catalog.||) "nspname" OPERATOR(pg_catalog.||) '"."' OPERATOR(pg_catalog.||) "relname" OPERATOR(pg_catalog.||) '"', "attname")::regclass::oid as "seqId"
+			(
+				SELECT d.objid FROM pg_catalog.pg_depend d
+				WHERE d.refobjid OPERATOR(pg_catalog.=) attr.attrelid
+					AND d.refobjsubid OPERATOR(pg_catalog.=) attr.attnum
+					AND d.objid IN (SELECT seqrelid FROM pg_catalog.pg_sequence)
+				LIMIT 1
+			) AS "seqId"
 		FROM
 			pg_catalog.pg_attribute attr
 			JOIN pg_catalog.pg_class cls ON cls.oid OPERATOR(pg_catalog.=) attr.attrelid
@@ -668,8 +675,6 @@ export const fromDatabase = async (
 	for (const privilege of privilegesList) {
 		privileges.push({
 			entityType: 'privileges',
-			// TODO: remove name and implement custom pk
-			name: `${privilege.grantor}_${privilege.grantee}_${privilege.schema}_${privilege.table}_${privilege.type}`,
 			grantor: privilege.grantor,
 			grantee: privilege.grantee,
 			schema: privilege.schema,
@@ -840,16 +845,8 @@ export const fromDatabase = async (
 	}
 
 	for (const fk of constraintsList.filter((it) => it.type === 'f')) {
-		const table = tablesList.find((it) => Number(it.oid) === Number(fk.tableId));
-		const tableTo = tablesList.find((it) => Number(it.oid) === Number(fk.tableToId));
-
-		if (!table || !tableTo) {
-			// this can happen if:
-			// 1. the foreign key points to a table to which the user does not have access
-			// 2. the foreign key points to a table that is not in the filtered list of tables (e.g., system tables)
-			// in both cases, we cannot resolve the foreign key, so we skip it
-			continue;
-		}
+		const table = tablesList.find((it) => Number(it.oid) === Number(fk.tableId))!;
+		const tableTo = tablesList.find((it) => Number(it.oid) === Number(fk.tableToId))!;
 
 		const columns = fk.columnsOrdinals.map((it) => {
 			const column = columnsList.find((column) =>

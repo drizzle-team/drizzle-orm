@@ -23,13 +23,32 @@ test('builds PostgreSQL 18 OLD/NEW returning clauses', () => {
 		);
 		expect(query.sql).toContain('"__drizzle_old"."id" as "__drizzle_old_0"');
 		expect(query.sql).toContain('"__drizzle_new"."id" as "__drizzle_new_0"');
-		expect(query.sql).toContain('"__drizzle_old"."tableoid" is not null as "__drizzle_old_present"');
-		expect(query.sql).toContain('"__drizzle_new"."tableoid" is not null as "__drizzle_new_present"');
+		expect(query.sql).toContain('"__drizzle_old" is distinct from null as "__drizzle_old_present"');
+		expect(query.sql).toContain('"__drizzle_new" is distinct from null as "__drizzle_new_present"');
+		expect(query.sql).not.toContain('tableoid');
 	}
 
 	const oldOnly = db.update(users).set({ name: 'Jane' }).returning({ old: true }).toSQL();
 	expect(oldOnly.sql).toContain('returning with (old as "__drizzle_old")');
 	expect(oldOnly.sql).not.toContain('new as "__drizzle_new"');
+});
+
+test.each(
+	[
+		{ old: true, new: undefined },
+		{ old: undefined, new: true },
+	] as const,
+)('accepts undefined optional OLD/NEW fields: %j', (fields) => {
+	expect(() => db.update(users).set({ name: 'Jane' }).returning(fields).toSQL()).not.toThrow();
+});
+
+test.each([
+	{ old: true, id: undefined },
+	{ old: true, new: false },
+])('rejects invalid OLD/NEW fields: %j', (fields) => {
+	expect(() => db.update(users).set({ name: 'Jane' }).returning(fields as any)).toThrowError(
+		'PostgreSQL OLD/NEW returning only supports the `old` and `new` whole-row fields',
+	);
 });
 
 test('maps unavailable row versions to null and hides presence fields', () => {

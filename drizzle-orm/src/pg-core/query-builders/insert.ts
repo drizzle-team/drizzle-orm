@@ -37,7 +37,7 @@ export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	columnList?: string[];
 	overridingSystemValue_?: boolean;
 	comment?: SQL;
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 }
 
 export type PgInsertValue<
@@ -127,6 +127,9 @@ export class PgInsertBuilder<
 	TBuilderHKT extends PgInsertHKTBase = PgInsertHKT,
 > {
 	static readonly [entityKind]: string = 'PgInsertBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		private table: TTable,
@@ -203,8 +206,6 @@ export class PgInsertBuilder<
 				| SQL),
 	): PgInsertKind<TBuilderHKT, TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
-		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
-
 		if (!is(select, SQL)) {
 			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
 			const selected = Object.keys(select._.selectedFields);
@@ -417,6 +418,9 @@ export class PgInsertBase<
 	SQLWrapper
 {
 	static readonly [entityKind]: string = 'PgInsert';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected config: PgInsertConfig<TTable>;
 
@@ -587,12 +591,14 @@ export class PgInsertBase<
 		return this as any;
 	}
 
-	getSQL(): SQL {
-		return this.dialect.buildInsertQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildInsertQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	/** @internal */
@@ -609,12 +615,6 @@ export class PgInsertBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
-	}
-
-	/** @internal */
-	withoutSelectionCastCodecs() {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
 	}
 
 	$dynamic(): PgInsertDynamic<this> {

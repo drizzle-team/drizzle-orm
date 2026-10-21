@@ -90,7 +90,7 @@ export async function migrate<TRelations extends AnyRelations>(
 
 		await session.run(sql`COMMIT`);
 	} catch (error) {
-		await session.run(sql`ROLLBACK`);
+		await session.run(sql`ROLLBACK`).catch(() => {});
 		throw error;
 	}
 }

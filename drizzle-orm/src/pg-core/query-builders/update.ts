@@ -64,7 +64,7 @@ export interface PgUpdateConfig {
 	shape?: any;
 	withList?: Subquery[];
 	comment?: SQL;
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 }
 
 export type PgUpdateSetSource<
@@ -97,6 +97,9 @@ export class PgUpdateBuilder<
 	TBuilderHKT extends PgUpdateHKTBase = PgUpdateHKT,
 > {
 	static readonly [entityKind]: string = 'PgUpdateBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly table: TTable;
@@ -477,6 +480,9 @@ export class PgUpdateBase<
 	TExcludedMethods extends string = never,
 > implements SQLWrapper {
 	static readonly [entityKind]: string = 'PgUpdate';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected config: PgUpdateConfig;
 	protected tableName: string | undefined;
@@ -713,12 +719,14 @@ export class PgUpdateBase<
 		return this as any;
 	}
 
-	getSQL(): SQL {
-		return this.dialect.buildUpdateQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildUpdateQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	/** @internal */
@@ -735,12 +743,6 @@ export class PgUpdateBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
-	}
-
-	/** @internal */
-	withoutSelectionCastCodecs() {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
 	}
 
 	$dynamic(): PgUpdateDynamic<this> {

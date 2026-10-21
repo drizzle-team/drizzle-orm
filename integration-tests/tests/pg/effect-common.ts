@@ -1,4 +1,4 @@
-import { assert, expect, expectTypeOf, it, Vitest } from '@effect/vitest';
+import { assert, expect, expectTypeOf, it, vi, Vitest } from '@effect/vitest';
 import {
 	and,
 	asc,
@@ -40,6 +40,7 @@ import {
 import type { PgEffectDatabase } from 'drizzle-orm/pg-core/effect/db';
 import { PgEffectSession } from 'drizzle-orm/pg-core/effect/session';
 import {
+	AnyRelations,
 	EmptyRelations,
 	ExtractTablesFromSchema,
 	ExtractTablesWithRelations,
@@ -53,8 +54,8 @@ import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
 import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
-import { SqlClient } from 'effect/unstable/sql/SqlClient';
-import { SqlError } from 'effect/unstable/sql/SqlError';
+import { SqlClient } from 'effect/sql/SqlClient';
+import { SqlError } from 'effect/sql/SqlError';
 import {
 	type AllTypes,
 	allTypesData,
@@ -63,6 +64,7 @@ import {
 	assertAllTypesUnions,
 	makeAllTypes,
 } from './all-types';
+import { TestCache } from './instrumentation';
 import { relations } from './relations';
 import { rqbPost, rqbUser } from './schema';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -188,10 +190,13 @@ const runDeepNullification = (db: PgEffectDatabase<any, any, any>) =>
 export interface RunCommonEffectPgTestsOptions {
 	testLayer: Layer.Layer<DB | SqlClient, SqlError, never>;
 	PgDrizzle: {
-		make: (config?: any) => Effect.Effect<PgEffectDatabase<QueryEffectHKTBase, any, EmptyRelations>, never, any>;
-		makeWithDefaults: (
-			config?: any,
-		) => Effect.Effect<PgEffectDatabase<QueryEffectHKTBase, any, EmptyRelations>, never, any>;
+		// Methods: parameters checked bivariantly, so drivers requiring config (`effect-d1`) fit
+		make<TRelations extends AnyRelations = EmptyRelations>(
+			config?: { relations?: TRelations } & Record<string, any>,
+		): Effect.Effect<PgEffectDatabase<QueryEffectHKTBase, any, TRelations>, never, any>;
+		makeWithDefaults<TRelations extends AnyRelations = EmptyRelations>(
+			config?: { relations?: TRelations } & Record<string, any>,
+		): Effect.Effect<PgEffectDatabase<QueryEffectHKTBase, any, TRelations>, never, any>;
 		DefaultServices: Layer.Layer<any, never, any>;
 	};
 	createDB: <
@@ -230,10 +235,10 @@ const failureMessage = (failure: unknown): string => {
 export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): void => {
 	const { testLayer, usedSchema, PgDrizzle, createDB, addTests, skipTests = [] } = opts;
 
-	it.layer(testLayer)('common', (it) => {
+	it.layer(testLayer)('common', (layerIt) => {
 		// Run setup before each test.
-		const _effect = it.effect;
-		const effect: typeof it.effect = Object.assign(
+		const _effect = layerIt.effect;
+		const effect: typeof layerIt.effect = Object.assign(
 			(testName: string, fn: () => Effect.Effect<any, any, any>, timeout?: number) =>
 				_effect(testName, () =>
 					Effect.andThen(
@@ -250,9 +255,11 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 						}),
 						fn(),
 					), timeout),
-			it.effect,
+			layerIt.effect,
 		);
-		Object.assign(it, { effect });
+		const it = new Proxy(layerIt, {
+			get: (target, property, receiver) => property === 'effect' ? effect : Reflect.get(target, property, receiver),
+		});
 
 		it.beforeEach(({ task, skip }) => {
 			if (skipTests.includes(task.name)) skip();
@@ -2478,6 +2485,128 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				expect(ops.some((o) => o.op === 'get')).toBe(true);
 			}));
 
+		it.effect('Cache: onMutate runs after the write is committed', () =>
+			Effect.gen(function*() {
+				const baseCache = new TestCache('explicit');
+
+				const db = yield* PgDrizzle.make({ relations }).pipe(
+					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
+					Effect.provide(PgDrizzle.DefaultServices),
+				);
+
+				const users = pgTable('users_cache_mutate_order', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+
+				yield* push(db, { users });
+
+				const context = yield* Effect.context<never>();
+				const run = (query: any) => Effect.runPromiseWith(context)(query);
+				const seen: string[][] = [];
+				using spyInvalidate = vi.spyOn(baseCache, 'onMutate').mockImplementation(async () => {
+					const rows = await run(db.select({ name: users.name }).from(users)) as { name: string }[];
+					seen.push(rows.map((r) => r.name));
+				});
+
+				yield* db.insert(users).values({ id: 1, name: 'John' });
+
+				expect(spyInvalidate).toHaveBeenCalledTimes(1);
+				expect(seen).toStrictEqual([['John']]);
+			}));
+
+		it.effect('Cache: relational query - withCache, used tables, invalidation', () =>
+			Effect.gen(function*() {
+				const baseCache = new TestCache('explicit');
+
+				const db = yield* PgDrizzle.make({ relations }).pipe(
+					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
+					Effect.provide(PgDrizzle.DefaultServices),
+				);
+
+				yield* push(db, { rqbUser, rqbPost });
+				const createdAt = new Date(120000);
+				yield* db.insert(rqbUser).values({ id: 1, name: 'John', createdAt });
+				yield* db.insert(rqbPost).values({ id: 1, userId: 1, content: 'First', createdAt });
+
+				using spyPut = vi.spyOn(baseCache, 'put');
+				using spyGet = vi.spyOn(baseCache, 'get');
+
+				const query = (withCache?: boolean) =>
+					db.query.rqbUser.findMany({
+						columns: { name: true },
+						with: { posts: { columns: { content: true }, orderBy: { id: 'asc' } } },
+						withCache,
+					});
+
+				yield* query();
+				expect(spyGet).toHaveBeenCalledTimes(0);
+
+				expect(yield* query(true)).toStrictEqual([{ name: 'John', posts: [{ content: 'First' }] }]);
+				expect(spyPut.mock.calls[0]![2]).toStrictEqual(['user_rqb_test', 'post_rqb_test']);
+
+				// Bypasses cache invalidation, cached result is served
+				yield* db.execute(sql`insert into ${rqbPost} values (2, 1, 'Unseen', now())`);
+				expect(yield* query(true)).toStrictEqual([{ name: 'John', posts: [{ content: 'First' }] }]);
+				expect(spyGet).toHaveBeenCalledTimes(2);
+				expect(spyPut).toHaveBeenCalledTimes(1);
+
+				yield* db.insert(rqbPost).values({ id: 3, userId: 1, content: 'Third', createdAt });
+				expect(yield* query(true)).toStrictEqual([{
+					name: 'John',
+					posts: [{ content: 'First' }, { content: 'Unseen' }, { content: 'Third' }],
+				}]);
+				expect(spyPut).toHaveBeenCalledTimes(2);
+			}));
+
+		it.effect('Cache: relational query - all strategy unless withCache: false', () =>
+			Effect.gen(function*() {
+				const baseCache = new TestCache('all');
+
+				const db = yield* PgDrizzle.make({ relations }).pipe(
+					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
+					Effect.provide(PgDrizzle.DefaultServices),
+				);
+
+				yield* push(db, { rqbUser });
+
+				using spyPut = vi.spyOn(baseCache, 'put');
+				using spyGet = vi.spyOn(baseCache, 'get');
+
+				yield* db.query.rqbUser.findMany({ withCache: false });
+				expect(spyGet).toHaveBeenCalledTimes(0);
+
+				yield* db.query.rqbUser.findFirst();
+				expect(spyGet).toHaveBeenCalledTimes(1);
+				expect(spyPut).toHaveBeenCalledTimes(1);
+				expect(spyPut.mock.calls[0]![2]).toStrictEqual(['user_rqb_test']);
+			}));
+
+		it.effect('Cache: no onMutate on failed write', () =>
+			Effect.gen(function*() {
+				const baseCache = new TestCache('explicit');
+
+				const db = yield* PgDrizzle.make({ relations }).pipe(
+					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
+					Effect.provide(PgDrizzle.DefaultServices),
+				);
+
+				const users = pgTable('users_cache_failed_write', {
+					id: integer('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+
+				yield* push(db, { users });
+				yield* db.insert(users).values({ id: 1, name: 'John' });
+
+				using spyInvalidate = vi.spyOn(baseCache, 'onMutate');
+
+				const res = yield* db.insert(users).values({ id: 1, name: 'Jane' }).pipe(Effect.result);
+
+				assert(Result.isFailure(res));
+				expect(spyInvalidate).toHaveBeenCalledTimes(0);
+			}));
+
 		it.effect('makeWithDefaults - convenience function that includes DefaultServices', () =>
 			Effect.gen(function*() {
 				const db = yield* PgDrizzle.makeWithDefaults({ relations });
@@ -2509,16 +2638,17 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					yield* db.insert(allTypesTable).values(allTypesData);
 					const session = (<any> db).session as PgEffectSession;
 
-					const queryRes = yield* session.objects<AllTypes>(db.select().from(allTypesTable).getSQL()).pipe(
-						Effect.map((e) =>
-							normalizeDataWithDbCodecs({
-								db,
-								columns: getColumns(allTypesTable),
-								data: e,
-								mode: 'query',
-							})[0]
-						),
-					);
+					const queryRes = yield* session.objects<AllTypes>(db.select().from(allTypesTable).getSQL(true))
+						.pipe(
+							Effect.map((e) =>
+								normalizeDataWithDbCodecs({
+									db,
+									columns: getColumns(allTypesTable),
+									data: e,
+									mode: 'query',
+								})[0]
+							),
+						);
 
 					const relDb = yield* createDB({ allTypesTable }, allTypesRelations);
 
@@ -5085,6 +5215,40 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					defMix3: 2,
 					defMix4: 1,
 				}]);
+			}));
+
+		it.effect('Query error params', () =>
+			Effect.gen(function*() {
+				for (const paramsInErrors of [undefined, false, true]) {
+					const db = yield* PgDrizzle.make({ paramsInErrors }).pipe(Effect.provide(PgDrizzle.DefaultServices));
+
+					const error: any = yield* db.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`).pipe(
+						Effect.flip,
+					);
+
+					expect(error._tag).toBe('EffectDrizzleQueryError');
+					expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+					expect(error.message).toBe(
+						paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+					);
+				}
+			}));
+
+		it.effect('Query error params - transaction', () =>
+			Effect.gen(function*() {
+				for (const paramsInErrors of [undefined, false, true]) {
+					const db = yield* PgDrizzle.make({ paramsInErrors }).pipe(Effect.provide(PgDrizzle.DefaultServices));
+
+					const error: any = yield* db.transaction((tx) =>
+						tx.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`)
+					).pipe(Effect.flip);
+
+					expect(error._tag).toBe('EffectDrizzleQueryError');
+					expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+					expect(error.message).toBe(
+						paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+					);
+				}
 			}));
 
 		addTests?.(it);

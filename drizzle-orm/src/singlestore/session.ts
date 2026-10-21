@@ -2,16 +2,14 @@ import type { Connection as CallbackConnection } from 'mysql2';
 import type {
 	Connection,
 	FieldPacket,
-	OkPacket,
 	Pool,
 	PoolConnection,
 	ResultSetHeader,
 	RowDataPacket,
 	TypeCast,
 } from 'mysql2/promise';
-import { once } from 'node:events';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -34,15 +32,16 @@ import type { Assume } from '~/utils.ts';
 
 export type SingleStoreDriverClient = Pool | Connection;
 
-export type SingleStoreRawQueryResult = [ResultSetHeader, FieldPacket[]];
-export type SingleStoreQueryResultType = RowDataPacket[][] | RowDataPacket[] | OkPacket | OkPacket[] | ResultSetHeader;
-export type SingleStoreQueryResult<
-	T = any,
-> = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
+export type SingleStoreRawQueryResult = [ResultSetHeader, undefined];
+export type SingleStoreRawExecuteResult =
+	| SingleStoreRawQueryResult
+	| [RowDataPacket[], FieldPacket[]]
+	| [(ResultSetHeader | RowDataPacket[])[], (FieldPacket[] | undefined)[]];
 
 export interface SingleStoreDriverSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 const typeCast: TypeCast = function(field, next) {
@@ -79,10 +78,7 @@ export class SingleStoreDriverSession<
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: AnySingleStoreMapper,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T> {
 		const { client } = this;
@@ -112,31 +108,25 @@ export class SingleStoreDriverSession<
 				rowsAsArray: mode === 'arrays',
 			}, params);
 			const stream = driverQuery.stream();
-
-			function dataListener() {
-				stream.pause();
-			}
-
-			stream.on('data', dataListener);
+			// mysql2 reports a connection lost mid-stream on the connection only, stream would never end
+			const onConnectionError = (err: Error) => stream.destroy(err);
+			conn.on('error', onConnectionError);
 
 			try {
-				const onEnd = once(stream, 'end');
-				const onError = once(stream, 'error');
-
-				while (true) {
-					stream.resume();
-
-					const row = await Promise.race([onEnd, onError, new Promise((resolve) => stream.once('data', resolve))]);
-					if (row === undefined || (Array.isArray(row) && row.length === 0)) {
-						break;
-					}
-					if (row instanceof Error) { // oxlint-disable-line drizzle-internal/no-instanceof
-						throw row;
-					}
+				for await (const row of stream.iterator({ destroyOnReturn: false })) {
 					yield row;
 				}
 			} finally {
-				stream.off('data', dataListener);
+				conn.off('error', onConnectionError);
+				if (!stream.readableEnded && !stream.destroyed) {
+					stream.resume();
+					await new Promise<void>((resolve) => {
+						stream.on('end', resolve);
+						stream.on('error', resolve);
+						stream.on('close', resolve);
+					});
+				}
+
 				if (isPool(client)) {
 					conn.end();
 				}
@@ -153,6 +143,7 @@ export class SingleStoreDriverSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		) as PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T>;
 	}
 
@@ -189,7 +180,7 @@ export class SingleStoreDriverSession<
 			await tx.execute(sql`commit`);
 			return result;
 		} catch (err) {
-			await tx.execute(sql`rollback`);
+			await tx.execute(sql`rollback`).catch(() => {});
 			throw err;
 		} finally {
 			if (isPool(this.client)) {
@@ -224,7 +215,7 @@ export class SingleStoreDriverTransaction<
 			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}
@@ -235,7 +226,9 @@ function isPool(client: SingleStoreDriverClient): client is Pool {
 }
 
 export interface SingleStoreDriverQueryResultHKT extends SingleStoreQueryResultHKT {
-	type: SingleStoreRawQueryResult;
+	type: [this['row']] extends [never] ? SingleStoreRawQueryResult
+		: [this['row']] extends ['unknown'] ? SingleStoreRawExecuteResult
+		: [this['row'][], FieldPacket[]];
 }
 
 export interface SingleStoreDriverPreparedQueryHKT extends SingleStorePreparedQueryHKT {

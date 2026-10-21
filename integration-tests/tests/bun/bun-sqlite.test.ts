@@ -10,10 +10,11 @@ import {
 	count,
 	countDistinct,
 	defineRelations,
+	DrizzleQueryError,
 	eq,
 	exists,
+	getCacheKey,
 	getTableColumns,
-	getTableName,
 	gt,
 	gte,
 	inArray,
@@ -320,7 +321,8 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 	const res1 = await db.select().from(users);
 
 	// second migration was not applied yet
-	expect((async () => await db.insert(users2).values({ name: 'John', email: '', age: 30 }))()).rejects.toThrowError();
+	await expect((async () => await db.insert(users2).values({ name: 'John', email: '', age: 30 }))()).rejects
+		.toThrowError();
 
 	// insert migration with earlier timestamp
 	mkdirSync(`${migrationDir}/20240202020202_second`, { recursive: true });
@@ -4358,7 +4360,7 @@ export class TestGlobalCache extends Cache {
 		const keysToDelete = new Set<string>();
 
 		for (const table of tablesArray) {
-			const tableName = is(table, Table) ? getTableName(table) : table as string;
+			const tableName = is(table, Table) ? getCacheKey(table) : table as string;
 			const keys = this.usedTablesPerKey[tableName] ?? [];
 			for (const key of keys) keysToDelete.add(key);
 		}
@@ -4371,7 +4373,7 @@ export class TestGlobalCache extends Cache {
 			for (const key of keysToDelete) {
 				await this.kv.delete(key);
 				for (const table of tablesArray) {
-					const tableName = is(table, Table) ? getTableName(table) : table as string;
+					const tableName = is(table, Table) ? getCacheKey(table) : table as string;
 					this.usedTablesPerKey[tableName] = [];
 				}
 			}
@@ -5257,4 +5259,92 @@ test('Default value priority', async () => {
 	});
 
 	await db.run(sql`DROP TABLE no_default_override`);
+});
+
+test('Query error params', async () => {
+	await db.run(sql`drop table if exists params_in_errors`);
+	await db.run(sql`create table params_in_errors (id integer primary key, name text not null)`);
+
+	const queries = [
+		{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
+		{
+			query: sql`insert into params_in_errors (id, name) values (${1}, ${'First'}), (${1}, ${'Second'}) returning id`,
+			params: [1, 'First', 1, 'Second'],
+		},
+	];
+
+	for (const paramsInErrors of [undefined, false, true]) {
+		const paramsDb = drizzle.sqlite({ client, paramsInErrors });
+
+		for (const { query, params } of queries) {
+			for (
+				const run of [
+					() => paramsDb.get(query),
+					() => paramsDb.all(query),
+					() => paramsDb.run(query),
+					() => paramsDb.values(query),
+				]
+			) {
+				const error = await (async () => run())().catch((e) => e);
+
+				expect(error).toBeInstanceOf(DrizzleQueryError);
+				expect(error.params).toStrictEqual(paramsInErrors ? params : undefined);
+				expect(error.message).toBe(
+					paramsInErrors ? `Failed query: ${error.query}\nparams: ${params}` : `Failed query: ${error.query}`,
+				);
+			}
+		}
+	}
+
+	await db.run(sql`drop table params_in_errors`);
+});
+
+test('Query error params - transaction', async () => {
+	await db.run(sql`drop table if exists params_in_errors`);
+	await db.run(sql`create table params_in_errors (id integer primary key, name text not null)`);
+
+	const queries = [
+		{ query: sql`select * from params_in_errors_missing where id = ${'S3CRET'}`, params: ['S3CRET'] },
+		{
+			query: sql`insert into params_in_errors (id, name) values (${1}, ${'First'}), (${1}, ${'Second'}) returning id`,
+			params: [1, 'First', 1, 'Second'],
+		},
+	];
+
+	for (const paramsInErrors of [undefined, false, true]) {
+		const paramsDb = drizzle.sqlite({ client, paramsInErrors });
+
+		for (const { query, params } of queries) {
+			for (
+				const run of [
+					() =>
+						paramsDb.transaction(async (tx) => {
+							await tx.get(query);
+						}),
+					() =>
+						paramsDb.transaction(async (tx) => {
+							await tx.all(query);
+						}),
+					() =>
+						paramsDb.transaction(async (tx) => {
+							await tx.run(query);
+						}),
+					() =>
+						paramsDb.transaction(async (tx) => {
+							await tx.values(query);
+						}),
+				]
+			) {
+				const error = await run().catch((e) => e);
+
+				expect(error).toBeInstanceOf(DrizzleQueryError);
+				expect(error.params).toStrictEqual(paramsInErrors ? params : undefined);
+				expect(error.message).toBe(
+					paramsInErrors ? `Failed query: ${error.query}\nparams: ${params}` : `Failed query: ${error.query}`,
+				);
+			}
+		}
+	}
+
+	await db.run(sql`drop table params_in_errors`);
 });

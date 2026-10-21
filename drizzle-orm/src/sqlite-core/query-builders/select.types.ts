@@ -74,7 +74,7 @@ export interface SQLiteSelectConfig {
 		limit?: number | Placeholder;
 		offset?: number | Placeholder;
 	}[];
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 }
 
 export type SQLiteSelectJoin<

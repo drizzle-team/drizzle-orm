@@ -1,8 +1,9 @@
 import type { SqliteClient } from '@effect/sql-sqlite-node/SqliteClient';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
+import type { StatementResultingChanges } from 'node:sqlite';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
@@ -23,11 +24,12 @@ export interface EffectSQLiteNodeQueryEffectHKT extends QueryEffectHKTBase {
 	readonly context: never;
 }
 
-export type EffectSQLiteNodeRunResult = unknown;
+export type EffectSQLiteNodeRunResult = StatementResultingChanges;
 
 export interface EffectSQLiteNodeSessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
+	paramsInErrors?: boolean;
 }
 
 export class EffectSQLiteNodeSession<TRelations extends AnyRelations>
@@ -50,10 +52,7 @@ export class EffectSQLiteNodeSession<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): SQLiteEffectPreparedQuery<T, EffectSQLiteNodeQueryEffectHKT> {
 		const executors: SQLiteEffectQueryExecutors = {
@@ -73,7 +72,6 @@ export class EffectSQLiteNodeSession<TRelations extends AnyRelations>
 				if (mode === 'objects') return q.withoutTransform.pipe(Effect.map((e) => e[0] ? { ...e[0] } : e[0]));
 				return q.withoutTransform.pipe(Effect.map((e) => e[0]));
 			},
-			values: (params) => this.client.unsafe(query.sql, params).values,
 			run: (params) => this.client.unsafe(query.sql, params).raw,
 		};
 
@@ -87,6 +85,7 @@ export class EffectSQLiteNodeSession<TRelations extends AnyRelations>
 			this.options.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

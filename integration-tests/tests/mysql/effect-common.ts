@@ -1,4 +1,4 @@
-import { assert, expect, expectTypeOf, it, Vitest } from '@effect/vitest';
+import { assert, expect, expectTypeOf, it, vi, Vitest } from '@effect/vitest';
 import {
 	asc,
 	eq,
@@ -58,6 +58,7 @@ import {
 import type { MySqlEffectDatabase } from 'drizzle-orm/mysql-core/effect/db';
 import { MySqlEffectSession } from 'drizzle-orm/mysql-core/effect/session';
 import {
+	AnyRelations,
 	EmptyRelations,
 	ExtractTablesFromSchema,
 	ExtractTablesWithRelations,
@@ -72,9 +73,10 @@ import * as Layer from 'effect/Layer';
 import * as Predicate from 'effect/Predicate';
 import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
-import { SqlClient } from 'effect/unstable/sql/SqlClient';
-import { SqlError } from 'effect/unstable/sql/SqlError';
+import { SqlClient } from 'effect/sql/SqlClient';
+import { SqlError } from 'effect/sql/SqlError';
 import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from './all-types';
+import { TestCache } from './instrumentation';
 import relations from './relations';
 import { rqbPost, rqbUser } from './schema';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -208,10 +210,13 @@ const runDeepNullification = (db: MySqlEffectDatabase<any, any, any>) =>
 export interface RunCommonEffectMySqlTestsOptions {
 	testLayer: Layer.Layer<DB | SqlClient, SqlError | ConfigError, never>;
 	MySqlDrizzle: {
-		make: (config?: any) => Effect.Effect<MySqlEffectDatabase<QueryEffectHKTBase, any, EmptyRelations>, never, any>;
-		makeWithDefaults: (
-			config?: any,
-		) => Effect.Effect<MySqlEffectDatabase<QueryEffectHKTBase, any, EmptyRelations>, never, any>;
+		// Methods: parameters checked bivariantly, so drivers requiring config (`effect-d1`) fit
+		make<TRelations extends AnyRelations = EmptyRelations>(
+			config?: { relations?: TRelations } & Record<string, any>,
+		): Effect.Effect<MySqlEffectDatabase<QueryEffectHKTBase, any, TRelations>, never, any>;
+		makeWithDefaults<TRelations extends AnyRelations = EmptyRelations>(
+			config?: { relations?: TRelations } & Record<string, any>,
+		): Effect.Effect<MySqlEffectDatabase<QueryEffectHKTBase, any, TRelations>, never, any>;
 		DefaultServices: Layer.Layer<any, never, any>;
 	};
 	createDB: <
@@ -294,7 +299,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					smallInt: smallint('small_int'),
 					real: real('real'),
 					text: text('text'),
-					time: time('time'),
+					time: time('time', { fsp: 3 }),
 					timestamp: timestamp('timestamp', {
 						mode: 'date',
 					}),
@@ -350,7 +355,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					},
 					medInt: 560,
 					smallInt: 14,
-					time: '04:13:22',
+					time: '04:13:22.120',
 					timestamp: new Date('2025-03-12T00:00:00.000Z'),
 					timestampStr: new Date('2025-03-12T00:00:00.000Z').toISOString().slice(0, 19).replace('T', ' '),
 					tinyInt: 7,
@@ -434,7 +439,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 						smallInt: 14,
 						real: 1.048596,
 						text: 'C4-',
-						time: '04:13:22',
+						time: '04:13:22.120',
 						timestamp: new Date('2025-03-12T00:00:00.000Z'),
 						timestampStr: '2025-03-12 00:00:00',
 						tinyInt: 7,
@@ -546,7 +551,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					json4: '5',
 					medint: 560,
 					smallint: 14,
-					time: '04:13:22',
+					time: '04:13:22.120',
 					timestamp: new Date(1741743161623),
 					timestampstr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
 					tinyint: 7,
@@ -572,7 +577,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 						Object.fromEntries(
 							Object.entries(getTableColumns(allTypesCodecsTable)).map(([k, v]) => [k, v.as(v.name)]),
 						),
-					).from(allTypesCodecsTable).getSQL(),
+					).from(allTypesCodecsTable).getSQL(true),
 				);
 				const queryRes = normalizeDataWithDbCodecs({
 					db,
@@ -613,6 +618,90 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 
 				const context = yield* Effect.context<never>();
 				yield* Effect.promise(() => assertAllTypesBounds(db as any, (query) => Effect.runPromiseWith(context)(query)));
+			}));
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/1442
+		it.effect('date and time columns keep UTC values regardless of process timezone', () =>
+			Effect.gen(function*() {
+				const datesTable = mysqlTable('dates_tz_1', {
+					id: int('id').primaryKey(),
+					date: date('date').notNull(),
+					dateStr: date('date_str', { mode: 'string' }).notNull(),
+					datetime: datetime('datetime', { fsp: 3 }).notNull(),
+					datetimeStr: datetime('datetime_str', { fsp: 3, mode: 'string' }).notNull(),
+					timestamp: timestamp('timestamp', { fsp: 3 }).notNull(),
+					timestampStr: timestamp('timestamp_str', { fsp: 3, mode: 'string' }).notNull(),
+					time: time('time', { fsp: 3 }).notNull(),
+					year: year('year').notNull(),
+				});
+				const db = yield* createDB({ datesTable }, (r) => ({
+					datesTable: { self: r.many.datesTable({ from: r.datesTable.id, to: r.datesTable.id }) },
+				}));
+
+				yield* push(db, { datesTable });
+
+				const startOfDay = new Date('2022-11-11T00:00:00.000Z');
+				const endOfDay = new Date('2022-11-11T23:59:59.999Z');
+				const rows = [{
+					id: 1,
+					date: new Date('2022-11-11'),
+					dateStr: '2022-11-11',
+					datetime: startOfDay,
+					datetimeStr: '2022-11-11 00:00:00.000',
+					timestamp: startOfDay,
+					timestampStr: '2022-11-11 00:00:00.000',
+					time: '00:00:00.000',
+					year: 2022,
+				}, {
+					id: 2,
+					date: new Date('2022-11-11'),
+					dateStr: '2022-11-11',
+					datetime: endOfDay,
+					datetimeStr: '2022-11-11 23:59:59.999',
+					timestamp: endOfDay,
+					timestampStr: '2022-11-11 23:59:59.999',
+					time: '23:59:59.999',
+					year: 2022,
+				}];
+
+				const originalTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+				yield* Effect.gen(function*() {
+					for (const tz of ['America/Los_Angeles', 'Pacific/Kiritimati']) {
+						process.env['TZ'] = tz;
+
+						yield* db.delete(datesTable);
+						yield* db.insert(datesTable).values(rows.map((row) => ({ ...row, date: row.datetime })));
+
+						const stored = yield* db.select({
+							id: datesTable.id,
+							date: sql<string>`cast(${datesTable.date} as char)`,
+							datetime: sql<string>`cast(${datesTable.datetime} as char)`,
+							timestamp: sql<string>`cast(${datesTable.timestamp} as char)`,
+						}).from(datesTable).orderBy(datesTable.id);
+						expect(stored, tz).toStrictEqual(
+							rows.map((row) => ({
+								id: row.id,
+								date: row.dateStr,
+								datetime: row.datetimeStr,
+								timestamp: row.timestampStr,
+							})),
+						);
+
+						expect(yield* db.select().from(datesTable).orderBy(datesTable.id), tz).toStrictEqual(rows);
+						expect(yield* db.select().from(datesTable).where(eq(datesTable.date, endOfDay)).orderBy(datesTable.id), tz)
+							.toStrictEqual(rows);
+						expect(yield* db.select().from(datesTable).where(eq(datesTable.datetime, endOfDay)), tz).toStrictEqual([
+							rows[1]!,
+						]);
+						expect(yield* db.select().from(datesTable).where(eq(datesTable.timestamp, startOfDay)), tz)
+							.toStrictEqual([rows[0]!]);
+
+						expect(yield* db.query.datesTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } }), tz)
+							.toStrictEqual(rows.map((row) => ({ ...row, self: [row] })));
+					}
+				}).pipe(Effect.ensuring(Effect.sync(() => {
+					process.env['TZ'] = originalTz;
+				})));
 			}));
 
 		it.effect('RQB v2 simple find first - no rows', () =>
@@ -2719,6 +2808,128 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				expect(ops.some((o) => o.op === 'get')).toBe(true);
 			}));
 
+		it.effect('Cache: onMutate runs after the write is committed', () =>
+			Effect.gen(function*() {
+				const baseCache = new TestCache('explicit');
+
+				const db = yield* MySqlDrizzle.make({ relations }).pipe(
+					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
+					Effect.provide(MySqlDrizzle.DefaultServices),
+				);
+
+				const users = mysqlTable('users_cache_mutate_order', {
+					id: int('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+
+				yield* push(db, { users });
+
+				const context = yield* Effect.context<never>();
+				const run = (query: any) => Effect.runPromiseWith(context)(query);
+				const seen: string[][] = [];
+				using spyInvalidate = vi.spyOn(baseCache, 'onMutate').mockImplementation(async () => {
+					const rows = await run(db.select({ name: users.name }).from(users)) as { name: string }[];
+					seen.push(rows.map((r) => r.name));
+				});
+
+				yield* db.insert(users).values({ id: 1, name: 'John' });
+
+				expect(spyInvalidate).toHaveBeenCalledTimes(1);
+				expect(seen).toStrictEqual([['John']]);
+			}));
+
+		it.effect('Cache: relational query - withCache, used tables, invalidation', () =>
+			Effect.gen(function*() {
+				const baseCache = new TestCache('explicit');
+
+				const db = yield* MySqlDrizzle.make({ relations }).pipe(
+					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
+					Effect.provide(MySqlDrizzle.DefaultServices),
+				);
+
+				yield* push(db, { rqbUser, rqbPost });
+				const createdAt = new Date(120000);
+				yield* db.insert(rqbUser).values({ id: 1, name: 'John', createdAt });
+				yield* db.insert(rqbPost).values({ id: 1, userId: 1, content: 'First', createdAt });
+
+				using spyPut = vi.spyOn(baseCache, 'put');
+				using spyGet = vi.spyOn(baseCache, 'get');
+
+				const query = (withCache?: boolean) =>
+					db.query.rqbUser.findMany({
+						columns: { name: true },
+						with: { posts: { columns: { content: true }, orderBy: { id: 'asc' } } },
+						withCache,
+					});
+
+				yield* query();
+				expect(spyGet).toHaveBeenCalledTimes(0);
+
+				expect(yield* query(true)).toStrictEqual([{ name: 'John', posts: [{ content: 'First' }] }]);
+				expect(spyPut.mock.calls[0]![2]).toStrictEqual(['user_rqb_test', 'post_rqb_test']);
+
+				// Bypasses cache invalidation, cached result is served
+				yield* db.execute(sql`insert into ${rqbPost} values (2, 1, 'Unseen', now())`);
+				expect(yield* query(true)).toStrictEqual([{ name: 'John', posts: [{ content: 'First' }] }]);
+				expect(spyGet).toHaveBeenCalledTimes(2);
+				expect(spyPut).toHaveBeenCalledTimes(1);
+
+				yield* db.insert(rqbPost).values({ id: 3, userId: 1, content: 'Third', createdAt });
+				expect(yield* query(true)).toStrictEqual([{
+					name: 'John',
+					posts: [{ content: 'First' }, { content: 'Unseen' }, { content: 'Third' }],
+				}]);
+				expect(spyPut).toHaveBeenCalledTimes(2);
+			}));
+
+		it.effect('Cache: relational query - all strategy unless withCache: false', () =>
+			Effect.gen(function*() {
+				const baseCache = new TestCache('all');
+
+				const db = yield* MySqlDrizzle.make({ relations }).pipe(
+					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
+					Effect.provide(MySqlDrizzle.DefaultServices),
+				);
+
+				yield* push(db, { rqbUser });
+
+				using spyPut = vi.spyOn(baseCache, 'put');
+				using spyGet = vi.spyOn(baseCache, 'get');
+
+				yield* db.query.rqbUser.findMany({ withCache: false });
+				expect(spyGet).toHaveBeenCalledTimes(0);
+
+				yield* db.query.rqbUser.findFirst();
+				expect(spyGet).toHaveBeenCalledTimes(1);
+				expect(spyPut).toHaveBeenCalledTimes(1);
+				expect(spyPut.mock.calls[0]![2]).toStrictEqual(['user_rqb_test']);
+			}));
+
+		it.effect('Cache: no onMutate on failed write', () =>
+			Effect.gen(function*() {
+				const baseCache = new TestCache('explicit');
+
+				const db = yield* MySqlDrizzle.make({ relations }).pipe(
+					Effect.provide(EffectCache.layerFromDrizzle(baseCache)),
+					Effect.provide(MySqlDrizzle.DefaultServices),
+				);
+
+				const users = mysqlTable('users_cache_failed_write', {
+					id: int('id').primaryKey(),
+					name: text('name').notNull(),
+				});
+
+				yield* push(db, { users });
+				yield* db.insert(users).values({ id: 1, name: 'John' });
+
+				using spyInvalidate = vi.spyOn(baseCache, 'onMutate');
+
+				const res = yield* db.insert(users).values({ id: 1, name: 'Jane' }).pipe(Effect.result);
+
+				assert(Result.isFailure(res));
+				expect(spyInvalidate).toHaveBeenCalledTimes(0);
+			}));
+
 		it.effect('makeWithDefaults - convenience function that includes DefaultServices', () =>
 			Effect.gen(function*() {
 				const db = yield* MySqlDrizzle.makeWithDefaults({ relations });
@@ -4566,6 +4777,40 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 					defMix3: 2,
 					defMix4: 1,
 				}]);
+			}));
+
+		it.effect('Query error params', () =>
+			Effect.gen(function*() {
+				for (const paramsInErrors of [undefined, false, true]) {
+					const db = yield* MySqlDrizzle.make({ paramsInErrors }).pipe(Effect.provide(MySqlDrizzle.DefaultServices));
+
+					const error: any = yield* db.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`).pipe(
+						Effect.flip,
+					);
+
+					expect(error._tag).toBe('EffectDrizzleQueryError');
+					expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+					expect(error.message).toBe(
+						paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+					);
+				}
+			}));
+
+		it.effect('Query error params - transaction', () =>
+			Effect.gen(function*() {
+				for (const paramsInErrors of [undefined, false, true]) {
+					const db = yield* MySqlDrizzle.make({ paramsInErrors }).pipe(Effect.provide(MySqlDrizzle.DefaultServices));
+
+					const error: any = yield* db.transaction((tx) =>
+						tx.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`)
+					).pipe(Effect.flip);
+
+					expect(error._tag).toBe('EffectDrizzleQueryError');
+					expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+					expect(error.message).toBe(
+						paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+					);
+				}
 			}));
 
 		addTests?.(it);

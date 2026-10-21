@@ -28,7 +28,7 @@ describe('drizzle-kit mcp stdio smoke', () => {
 	});
 
 	test.skipIf(skipDistTests || skipForMissingDist)(
-		'spawned drizzle-kit mcp connects, lists check/export/generate/pull/push/up tools, and prints version to stderr',
+		'spawned drizzle-kit mcp connects, lists check/export/fix_conflicts/generate/pull/push/up tools, and prints version to stderr',
 		async () => {
 			const stderrChunks: Buffer[] = [];
 
@@ -49,7 +49,15 @@ describe('drizzle-kit mcp stdio smoke', () => {
 			await client.connect(transport);
 
 			const { tools } = await client.listTools();
-			expect(tools.map((t) => t.name).sort()).toEqual(['check', 'export', 'generate', 'pull', 'push', 'up']);
+			expect(tools.map((t) => t.name).sort()).toEqual([
+				'check',
+				'export',
+				'fix_conflicts',
+				'generate',
+				'pull',
+				'push',
+				'up',
+			]);
 
 			await client.close();
 

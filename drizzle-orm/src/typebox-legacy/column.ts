@@ -15,7 +15,7 @@ import type { BigIntStringModeSchema, BufferSchema, JsonSchema } from './column.
 
 export const literalSchema = t.Union([t.String(), t.Number(), t.Boolean(), t.Null()]);
 export const jsonSchema: JsonSchema = t.Union([literalSchema, t.Array(t.Any()), t.Record(t.String(), t.Any())]) as any;
-TypeRegistry.Set('Buffer', (_, value) => value instanceof Buffer); // oxlint-disable-line no-instanceof-builtins drizzle-internal/no-instanceof
+TypeRegistry.Set('Buffer', (_, value) => value instanceof Buffer);
 export const bufferSchema: BufferSchema = { [Kind]: 'Buffer', type: 'buffer' } as any;
 
 export function mapEnumValues(values: string[]) {

@@ -1,12 +1,14 @@
 import type { SchemaForPull } from '../../cli/commands/pull-common';
+import type { Alter } from '../dialect';
 import { create } from '../dialect';
 import { nameForUnique } from './grammar';
 
-export const createDDL = () => {
-	return create({
-		tables: {},
+export const createDDL = () =>
+	create({
+		tables: { name: 'string' },
 		columns: {
-			table: 'required',
+			table: 'string',
+			name: 'string',
 			type: 'string',
 			notNull: 'boolean',
 			autoIncrement: 'boolean',
@@ -21,11 +23,13 @@ export const createDDL = () => {
 			},
 		},
 		pks: {
-			table: 'required',
+			table: 'string',
+			name: 'string',
 			columns: 'string[]',
 		},
 		fks: {
-			table: 'required',
+			table: 'string',
+			name: 'string',
 			columns: 'string[]',
 			tableTo: 'string',
 			columnsTo: 'string[]',
@@ -34,7 +38,8 @@ export const createDDL = () => {
 			nameExplicit: 'boolean',
 		},
 		indexes: {
-			table: 'required',
+			table: 'string',
+			name: 'string',
 			columns: [{
 				value: 'string',
 				isExpression: 'boolean',
@@ -46,23 +51,52 @@ export const createDDL = () => {
 			nameExplicit: 'boolean', // needed because uniques name can be not specified
 		},
 		checks: {
-			table: 'required',
+			table: 'string',
+			name: 'string',
 			value: 'string',
 		},
 		views: {
+			name: 'string',
 			definition: 'string',
 			algorithm: ['undefined', 'merge', 'temptable'],
 			sqlSecurity: ['definer', 'invoker'],
 			withCheckOption: ['local', 'cascaded', null],
 		},
+	}, {
+		identity: {
+			tables: (r) => JSON.stringify([r.name]),
+			columns: (r) => JSON.stringify([r.table, r.name]),
+			pks: (r) => JSON.stringify([r.table, r.name]),
+			fks: (r) => JSON.stringify([r.table, r.name]),
+			indexes: (r) => JSON.stringify([r.table, r.name]),
+			checks: (r) => JSON.stringify([r.table, r.name]),
+			views: (r) => JSON.stringify([r.name]),
+		},
+		edges: {
+			columns: [{ to: 'tables', map: { name: 'table' } }],
+			checks: [{ to: 'tables', map: { name: 'table' } }],
+			pks: [
+				{ to: 'tables', map: { name: 'table' } },
+				{ to: 'columns', map: { table: 'table', name: { list: 'columns' } } },
+			],
+			indexes: [
+				{ to: 'tables', map: { name: 'table' } },
+				{ to: 'columns', map: { table: 'table', name: { list: 'columns', pick: 'value', skipWhen: 'isExpression' } } },
+			],
+			fks: [
+				{ to: 'tables', map: { name: 'table' } },
+				{ to: 'columns', map: { table: 'table', name: { list: 'columns' } } },
+				{ to: 'tables', map: { name: 'tableTo' } },
+				{ to: 'columns', map: { table: 'tableTo', name: { list: 'columnsTo' } } },
+			],
+		},
 	});
-};
 
 export type MysqlDDL = ReturnType<typeof createDDL>;
 
-export type MysqlEntities = MysqlDDL['_']['types'];
+export type MysqlEntities = NonNullable<MysqlDDL['$entities']>;
 export type MysqlEntity = MysqlEntities[keyof MysqlEntities];
-export type DiffEntities = MysqlDDL['_']['diffs']['alter'];
+export type DiffEntities = { [K in keyof MysqlEntities]: Alter<MysqlEntities[K]> };
 
 export type Table = MysqlEntities['tables'];
 export type Column = MysqlEntities['columns'];

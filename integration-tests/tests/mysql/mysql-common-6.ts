@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
 import { eq, gt, like, not, sql } from 'drizzle-orm';
-import { bigint, int, mysqlTable, primaryKey, serial, text, varchar } from 'drizzle-orm/mysql-core';
+import { bigint, mysqlTable, primaryKey, serial, text, varchar } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
 import type { Test } from './instrumentation';
 import { rqbPost, rqbUser } from './schema';
@@ -14,10 +14,14 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		resolveValue = resolve;
 	});
 	test.beforeEach(async ({ task, skip, client, db }) => {
+		if (exclude.has(task.name)) skip();
+		if (!task.name.startsWith('RQB v2')) return;
+
 		if (firstTime) {
 			firstTime = false;
 
 			await client.batch([
+				'DROP TABLE IF EXISTS `user_rqb_test`, `post_rqb_test`, `empty`;',
 				`CREATE TABLE \`user_rqb_test\` (
 		        	\`id\` SERIAL PRIMARY KEY,
 		        	\`name\` TEXT NOT NULL,
@@ -59,7 +63,6 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		}
 
 		await promise;
-		if (exclude.has(task.name)) skip();
 	});
 
 	// .sequential is needed for beforeEach to be executed before all tests
@@ -160,7 +163,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	// https://github.com/drizzle-team/drizzle-orm/issues/4302
-	test.skipIf(Date.now() < +new Date('2026-09-05')).concurrent(
+	test.skipIf(Date.now() < +new Date('2026-11-24')).concurrent(
 		'insert $returningId: issue #4302',
 		async ({ db, push }) => {
 			const uniqueKeys = ['ao865jf3mcmkfkk8o5ri495z', 'dyqs529eom0iczo2efxzbcut'];

@@ -7489,7 +7489,9 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 
 			const session = (<any> db).session as CockroachSession;
 
-			const queryRes = await session.objects<AllTypes>(db.select().from(allTypesTable).getSQL()).then((e) =>
+			const queryRes = await session.objects<AllTypes>(db.select().from(allTypesTable).getSQL(true)).then((
+				e,
+			) =>
 				normalizeDataWithDbCodecs({
 					db,
 					columns: getColumns(allTypesTable),
@@ -7608,6 +7610,37 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 		test('Query error wrapping', async ({ cockroach: { db } }) => {
 			await expect(db.insert(users2Table).values([{ id: 1, name: 'First' }, { id: 1, name: 'Second' }]))
 				.rejects.toBeInstanceOf(DrizzleQueryError);
+		});
+
+		test('Query error params', async ({ createDB }) => {
+			for (const paramsInErrors of [undefined, false, true]) {
+				const db = createDB({}, () => ({}), undefined, paramsInErrors);
+
+				const error = await db.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`)
+					.catch((e) => e);
+
+				expect(error).toBeInstanceOf(DrizzleQueryError);
+				expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+				expect(error.message).toBe(
+					paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+				);
+			}
+		});
+
+		test('Query error params - transaction', async ({ createDB }) => {
+			for (const paramsInErrors of [undefined, false, true]) {
+				const db = createDB({}, () => ({}), undefined, paramsInErrors);
+
+				const error = await db.transaction(async (tx) => {
+					await tx.execute(sql`select * from params_in_errors_missing where id = ${'S3CRET'}`);
+				}).catch((e) => e);
+
+				expect(error).toBeInstanceOf(DrizzleQueryError);
+				expect(error.params).toStrictEqual(paramsInErrors ? ['S3CRET'] : undefined);
+				expect(error.message).toBe(
+					paramsInErrors ? `Failed query: ${error.query}\nparams: S3CRET` : `Failed query: ${error.query}`,
+				);
+			}
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/1603

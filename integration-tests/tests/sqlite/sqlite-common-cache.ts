@@ -1,7 +1,8 @@
 import { eq, sql } from 'drizzle-orm';
 import { alias, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { describe, expect, vi } from 'vitest';
+import { describe, expect, onTestFinished, vi } from 'vitest';
 import { Test } from './instrumentation';
+import { clear, rqbPost, rqbUser } from './schema';
 
 const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
@@ -118,6 +119,35 @@ export function tests(test: Test, exclude: string[] = []) {
 			expect(spyPut).toHaveBeenCalledTimes(0);
 			expect(spyGet).toHaveBeenCalledTimes(0);
 			expect(spyInvalidate).toHaveBeenCalledTimes(1);
+		});
+
+		test('write: onMutate runs after the write is committed', async ({ caches }) => {
+			const { explicit: db } = caches;
+
+			const seen: string[][] = [];
+			// @ts-expect-error
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate').mockImplementation(async () => {
+				const rows = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, 1));
+				seen.push(rows.map((r) => r.name));
+			});
+
+			await db.insert(usersTable).values({ id: 1, name: 'John' });
+
+			expect(spyInvalidate).toHaveBeenCalledTimes(1);
+			expect(seen).toStrictEqual([['John']]);
+		});
+
+		test('failed write: no onMutate', async ({ caches }) => {
+			const { explicit: db } = caches;
+
+			await db.insert(usersTable).values({ id: 1, name: 'John' });
+
+			// @ts-expect-error
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+			await expect(db.insert(usersTable).values({ id: 1, name: 'Jane' })).rejects.toThrow();
+
+			expect(spyInvalidate).toHaveBeenCalledTimes(0);
 		});
 
 		test('write + query all methods & verify data intergrity', async ({ caches }) => {
@@ -288,6 +318,172 @@ export function tests(test: Test, exclude: string[] = []) {
 			await db.$cache?.invalidate({ tags: ['custom'] });
 		});
 
+		test('relational: default global config - no cache should be hit', async ({ caches, push }) => {
+			const { explicit: db } = caches;
+
+			// Tables are shared with RQB tests that create them as is - must not outlive the test
+			await clear(db);
+			onTestFinished(() => clear(db));
+			await push({ rqbUser });
+
+			// @ts-expect-error
+			using spyPut = vi.spyOn(db.$cache, 'put');
+			// @ts-expect-error
+			using spyGet = vi.spyOn(db.$cache, 'get');
+			// @ts-expect-error
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+			await db.query.rqbUser.findMany();
+
+			expect(spyPut).toHaveBeenCalledTimes(0);
+			expect(spyGet).toHaveBeenCalledTimes(0);
+			expect(spyInvalidate).toHaveBeenCalledTimes(0);
+		});
+
+		test('relational: default global config + withCache: get, put', async ({ caches, push }) => {
+			const { explicit: db } = caches;
+
+			await clear(db);
+			onTestFinished(() => clear(db));
+			await push({ rqbUser });
+
+			// @ts-expect-error
+			using spyPut = vi.spyOn(db.$cache, 'put');
+			// @ts-expect-error
+			using spyGet = vi.spyOn(db.$cache, 'get');
+			// @ts-expect-error
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+			await db.query.rqbUser.findMany({ withCache: true });
+
+			expect(spyPut).toHaveBeenCalledTimes(1);
+			expect(spyGet).toHaveBeenCalledTimes(1);
+			expect(spyInvalidate).toHaveBeenCalledTimes(0);
+		});
+
+		test('relational: global: true - cache should be hit', async ({ caches, push }) => {
+			const { all: db } = caches;
+
+			await clear(db);
+			onTestFinished(() => clear(db));
+			await push({ rqbUser });
+
+			// @ts-expect-error
+			using spyPut = vi.spyOn(db.$cache, 'put');
+			// @ts-expect-error
+			using spyGet = vi.spyOn(db.$cache, 'get');
+			// @ts-expect-error
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+			await db.query.rqbUser.findFirst();
+
+			expect(spyPut).toHaveBeenCalledTimes(1);
+			expect(spyGet).toHaveBeenCalledTimes(1);
+			expect(spyInvalidate).toHaveBeenCalledTimes(0);
+		});
+
+		test('relational: global: true - withCache: false - no cache hit', async ({ caches, push }) => {
+			const { all: db } = caches;
+
+			await clear(db);
+			onTestFinished(() => clear(db));
+			await push({ rqbUser });
+
+			// @ts-expect-error
+			using spyPut = vi.spyOn(db.$cache, 'put');
+			// @ts-expect-error
+			using spyGet = vi.spyOn(db.$cache, 'get');
+			// @ts-expect-error
+			using spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+			await db.query.rqbUser.findMany({ withCache: false });
+
+			expect(spyPut).toHaveBeenCalledTimes(0);
+			expect(spyGet).toHaveBeenCalledTimes(0);
+			expect(spyInvalidate).toHaveBeenCalledTimes(0);
+		});
+
+		test('relational: relation tables - cache hit + invalidate', async ({ caches, push }) => {
+			const { explicit: db } = caches;
+
+			await clear(db);
+			onTestFinished(() => clear(db));
+			await push({ rqbUser, rqbPost });
+			const createdAt = new Date('2024-01-01T00:00:00.000Z');
+			await db.insert(rqbUser).values({ id: 1, name: 'John', createdAt });
+			await db.insert(rqbPost).values({ id: 1, userId: 1, content: 'First', createdAt });
+
+			// @ts-expect-error
+			using spyPut = vi.spyOn(db.$cache, 'put');
+			// @ts-expect-error
+			using spyGet = vi.spyOn(db.$cache, 'get');
+
+			const query = () =>
+				db.query.rqbUser.findMany({
+					columns: { name: true },
+					with: { posts: { columns: { content: true }, orderBy: { id: 'asc' } } },
+					withCache: true,
+				});
+
+			expect(await query()).toStrictEqual([{ name: 'John', posts: [{ content: 'First' }] }]);
+			expect(spyPut).toHaveBeenNthCalledWith(
+				1,
+				expect.any(String),
+				expect.anything(),
+				['user_rqb_test', 'post_rqb_test'],
+				false,
+				{},
+			);
+
+			// Bypasses cache invalidation, cached result is served
+			await db.run(sql`insert into ${rqbPost} values (2, 1, 'Unseen', 0)`);
+			expect(await query()).toStrictEqual([{ name: 'John', posts: [{ content: 'First' }] }]);
+			expect(spyGet).toHaveBeenCalledTimes(2);
+			expect(spyPut).toHaveBeenCalledTimes(1);
+
+			await db.insert(rqbPost).values({ id: 3, userId: 1, content: 'Third', createdAt });
+			expect(await query()).toStrictEqual([{
+				name: 'John',
+				posts: [{ content: 'First' }, { content: 'Unseen' }, { content: 'Third' }],
+			}]);
+			expect(spyPut).toHaveBeenCalledTimes(2);
+		});
+
+		test('relational: raw sql tables - invalidate', async ({ caches, push }) => {
+			const { explicit: db } = caches;
+
+			await clear(db);
+			onTestFinished(() => clear(db));
+			await push({ rqbUser });
+			await db.insert(rqbUser).values({ id: 1, name: 'John', createdAt: new Date('2024-01-01T00:00:00.000Z') });
+
+			// @ts-expect-error
+			using spyPut = vi.spyOn(db.$cache, 'put');
+
+			const query = () =>
+				db.query.rqbUser.findMany({
+					columns: { name: true },
+					where: {
+						RAW: (t) => sql`exists (select 1 from ${usersTable} where ${usersTable.name} = ${t.name})`,
+					},
+					withCache: true,
+				});
+
+			expect(await query()).toStrictEqual([]);
+			expect(spyPut).toHaveBeenNthCalledWith(
+				1,
+				expect.any(String),
+				expect.anything(),
+				['user_rqb_test', 'users'],
+				false,
+				{},
+			);
+
+			await db.insert(usersTable).values({ name: 'John' });
+			expect(await query()).toStrictEqual([{ name: 'John' }]);
+			expect(spyPut).toHaveBeenCalledTimes(2);
+		});
+
 		// check select used tables
 		test('check simple select used tables', ({ caches }) => {
 			const { explicit: db } = caches;
@@ -341,6 +537,25 @@ export function tests(test: Test, exclude: string[] = []) {
 
 			// @ts-expect-error
 			expect(db.select().from(sq).getUsedTables()).toStrictEqual(['users']);
+		});
+
+		test('used tables: ctes & query builders embedded into raw SQL keep their tables', ({ caches }) => {
+			const { explicit: db } = caches;
+			const usedTablesOf = (query: unknown): string[] => (query as any).getUsedTables();
+			const users = sqliteTable('cache_users', { id: integer().primaryKey() });
+			const posts = sqliteTable('cache_posts', { id: integer().primaryKey() });
+			const audit = sqliteTable('cache_audit', { id: integer().primaryKey() });
+
+			const cte = db.$with('cte').as(db.select().from(audit));
+			expect(usedTablesOf(db.with(cte).select().from(users))).toStrictEqual(['cache_audit', 'cache_users']);
+
+			const author = alias(users, 'author');
+			const inner = db.select({ id: author.id }).from(author).leftJoin(alias(posts, 'p'), sql`true`);
+			expect(usedTablesOf(db.select().from(sql`${audit} where exists (${inner})`))).toStrictEqual([
+				'cache_audit',
+				'cache_users',
+				'cache_posts',
+			]);
 		});
 	});
 }

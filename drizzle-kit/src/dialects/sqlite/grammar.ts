@@ -1,11 +1,9 @@
 import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
-import { escapeForTsLiteral } from '../utils';
+import { escapeForSqlTemplate, escapeForTsLiteral } from '../grammar';
 import type { Column, DiffEntities, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
-const namedCheckPattern = /CONSTRAINT\s+["'`[]?(\w+)["'`\]]?\s+CHECK\s*\((.*)\)/gi;
-const unnamedCheckPattern = /CHECK\s+\((.*)\)/gi;
 const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(WITH.+|SELECT.+)$`, 'is'); // 'i' for case-insensitive, 's' for dotall mode
 
 /**
@@ -135,7 +133,7 @@ export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
 		}
 
 		const check = Number(value);
-		if (Number.isNaN(check)) return `sql\`${value}\``; // unknown
+		if (Number.isNaN(check)) return `sql\`${escapeForSqlTemplate(value)}\``; // unknown
 		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return value;
 		return `${value}n`; // bigint
 	},
@@ -265,7 +263,7 @@ export const Text: SqlType = {
 	},
 	toTs: function(value: Column['default']) {
 		if (value === null) return '';
-		if (!value.startsWith("'")) return `sql\`${value}\``; // CURRENT_TIMESTAMP
+		if (!value.startsWith("'")) return `sql\`${escapeForSqlTemplate(value)}\``; // CURRENT_TIMESTAMP
 
 		try {
 			const parsed = parse(trimChar(value, "'"), (_, v) => {
@@ -447,22 +445,6 @@ export const parseDefault = (type: string, it: string): Column['default'] => {
 	return `(${it})`;
 };
 
-export const parseTableSQL = (rawSql: string) => {
-	const sql = stripSqlComments(rawSql);
-	const namedChecks = [...sql.matchAll(namedCheckPattern)].map((it) => {
-		const [_, name, value] = it;
-		return { name, value: value.trim() };
-	});
-	const unnamedChecks = [...sql.matchAll(unnamedCheckPattern)].map((it) => {
-		const [_, value] = it;
-		return { name: null, value: value.trim() };
-	}).filter((it) => !namedChecks.some((x) => x.value === it.value));
-
-	return {
-		checks: [...namedChecks, ...unnamedChecks],
-	};
-};
-
 export const parseViewSQL = (sql: string) => {
 	const match = sql.match(viewAsStatementRegex);
 	return match ? match[1] : null;
@@ -513,9 +495,102 @@ export const omitSystemTables = () => {
 	return true;
 };
 
+interface IParsedIndex {
+	/** column names and expressions of the index, in the order they were declared */
+	columns: string[];
+	/** predicate of a partial index */
+	where: string | null;
+}
+
+/**
+ * Parses `CREATE [UNIQUE] INDEX [name] ON [table] (<columns>) [WHERE <predicate>]`.
+ * `pragma_index_info` reports NULL as a name of an expression column, so the ddl
+ * is the only source of the expression itself
+ */
+export function parseSqliteIndex(rawSql: string): IParsedIndex {
+	const sql = stripSqlComments(rawSql).replace(/(\r\n|\n|\r)/gm, ' ');
+	const result: IParsedIndex = { columns: [], where: null };
+
+	let started = false; // the column list starts at the first paren of the statement
+	let depth = 0;
+	let quote: string | null = null;
+	let column = '';
+	let i = 0;
+
+	const push = () => {
+		const trimmed = column.trim();
+		if (trimmed) result.columns.push(trimmed);
+		column = '';
+	};
+
+	for (; i < sql.length; i++) {
+		const char = sql[i];
+
+		if (quote) {
+			if (started) column += char;
+			if (char !== quote) continue;
+			// handle doubled-quote escaping (e.g. "" inside a "..." identifier)
+			if (quote !== ']' && sql[i + 1] === quote) {
+				if (started) column += sql[i + 1];
+				i += 1;
+				continue;
+			}
+			quote = null;
+			continue;
+		}
+
+		if (char === "'" || char === '"' || char === '`' || char === '[') {
+			quote = char === '[' ? ']' : char;
+			if (started) column += char;
+			continue;
+		}
+
+		if (char === '(') {
+			depth += 1;
+			if (started) column += char;
+			started = true;
+			continue;
+		}
+
+		if (char === ')') {
+			depth -= 1;
+			if (depth === 0) {
+				push();
+				break;
+			}
+			column += char;
+			continue;
+		}
+
+		if (char === ',' && depth === 1) {
+			push();
+			continue;
+		}
+
+		if (started) column += char;
+	}
+
+	if (!started) return result; // not a valid CREATE INDEX statement
+
+	const where = sql.slice(i + 1).match(/^\s*WHERE\s+([\s\S]+?)\s*;?\s*$/i);
+	result.where = where ? where[1] : null;
+
+	return result;
+}
+
+/**
+ * Tells whether a key part of an index ddl is a plain reference to `column`, `\`code\``, `[code]`,
+ * `"code"` and `code` all reference the same column, while `code DESC` or `lower(code)` do not
+ */
+export const isColumnRef = (keyPart: string, column: string) => {
+	const unquoted = keyPart.replace(/^(?:\[|`|")/, '').replace(/(?:\]|`|")$/, '');
+	return unquoted.toLowerCase() === column.toLowerCase();
+};
+
 interface IParseResult {
 	uniques: { name: string | null; columns: string[] }[];
 	pk: { name: string | null; columns: string[] };
+	checks: { name: string | null; value: string }[];
 }
 
 /**
@@ -527,6 +602,7 @@ export function parseSqliteDdl(rawDdl: string): IParseResult {
 	const result: IParseResult = {
 		pk: { name: null, columns: [] },
 		uniques: [],
+		checks: [],
 	};
 
 	const cleanIdentifier = (identifier: string): string => {
@@ -545,6 +621,18 @@ export function parseSqliteDdl(rawDdl: string): IParseResult {
 	let tableBody = bodyMatch[1];
 
 	const ident = '(?:\\[[^\\]]+\\]|`[^`]+`|"[^"]+"|[\\w_]+)';
+
+	// find CHECK constraints (named + unnamed, table-level or inline) and strip them, like the
+	// UNIQUE/PK handling below, so the column split isn't confused by commas inside the expression.
+	// The nested `\(...\)` alternative tolerates parens in the expression (e.g. `length(trim(a)) > 0`).
+	const checkRegex = new RegExp(
+		`(?:CONSTRAINT\\s+(${ident})\\s+)?CHECK\\s*\\(((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*)\\)`,
+		'gi',
+	);
+	tableBody = tableBody.replace(checkRegex, (_match, name, value) => {
+		result.checks.push({ name: name ? cleanIdentifier(name) : null, value: value.trim() });
+		return '';
+	});
 
 	// find table level UNIQUE constraints
 	const uniqueConstraintRegex = new RegExp(`CONSTRAINT\\s+(${ident})\\s+UNIQUE\\s*\\(([^)]+)\\)`, 'gi');

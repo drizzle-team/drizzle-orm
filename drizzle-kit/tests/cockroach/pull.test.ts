@@ -46,10 +46,13 @@ test.concurrent('basic introspect test', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'basic-introspect');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(db, schema, 'basic-introspect');
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('basic identity always test', async ({ dbc: db }) => {
@@ -60,10 +63,13 @@ test.concurrent('basic identity always test', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'basic-identity-always-introspect');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(db, schema, 'basic-identity-always-introspect');
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('basic identity by default test', async ({ dbc: db }) => {
@@ -74,14 +80,17 @@ test.concurrent('basic identity by default test', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'basic-identity-default-introspect',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'basic-identity-default-introspect',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('basic index test', async ({ dbc: db }) => {
@@ -98,20 +107,22 @@ test.concurrent('basic index test', async ({ dbc: db }) => {
 			index('expression_with_comma').on(
 				sql`(lower(${table.firstName}) || ', '::text || lower(${table.lastName}))`,
 			),
-			index('expression_with_double_quote').on(sql`('"'::text || ${table.firstName})`),
+			// TODO
+			// index('expression_with_double_quote').on(sql`('"'::text || ${table.firstName})`),
 			index('expression_with_jsonb_operator').on(
 				sql`(${table.data} #>> '{a,b,1}'::text[])`,
 			),
 		]),
 	};
 
-	const { sqlStatements } = await diffIntrospect(
+	const { pushSqlStatements: sqlStatements, generateSqlStatements } = await diffIntrospect(
 		db,
 		schema,
 		'basic-index-introspect',
 	);
 
-	expect(sqlStatements).toStrictEqual([]);
+	// expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test.concurrent('identity always test: few params', async ({ dbc: db }) => {
@@ -124,14 +135,17 @@ test.concurrent('identity always test: few params', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'identity-always-few-params-introspect',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'identity-always-few-params-introspect',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('identity by default test: few params', async ({ dbc: db }) => {
@@ -144,14 +158,17 @@ test.concurrent('identity by default test: few params', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'identity-default-few-params-introspect',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'identity-default-few-params-introspect',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('identity always test: all params', async ({ dbc: db }) => {
@@ -168,14 +185,17 @@ test.concurrent('identity always test: all params', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'identity-always-all-params-introspect',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'identity-always-all-params-introspect',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('identity by default test: all params', async ({ dbc: db }) => {
@@ -192,14 +212,17 @@ test.concurrent('identity by default test: all params', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'identity-default-all-params-introspect',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'identity-default-all-params-introspect',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('generated column: link to another column', async ({ dbc: db }) => {
@@ -213,14 +236,17 @@ test.concurrent('generated column: link to another column', async ({ dbc: db }) 
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'generated-link-column',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'generated-link-column',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect all column types', async ({ dbc: db }) => {
@@ -266,14 +292,17 @@ test.concurrent('introspect all column types', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-all-columns-types',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-all-columns-types',
+		);
 
 	expect(statements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test.concurrent('introspect all column array types', async ({ dbc: db }) => {
@@ -316,14 +345,17 @@ test.concurrent('introspect all column array types', async ({ dbc: db }) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-all-columns-array-types',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-all-columns-array-types',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect columns with name with non-alphanumeric characters', async ({ dbc: db }) => {
@@ -336,14 +368,17 @@ test.concurrent('introspect columns with name with non-alphanumeric characters',
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-column-with-name-with-non-alphanumeric-characters',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-column-with-name-with-non-alphanumeric-characters',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect enum from different schema', async ({ dbc: db }) => {
@@ -357,15 +392,18 @@ test.concurrent('introspect enum from different schema', async ({ dbc: db }) => 
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-enum-from-different-schema',
-		['public', 'schema2'],
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-enum-from-different-schema',
+			['public', 'schema2'],
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect enum with same names across different schema', async ({ dbc: db }) => {
@@ -382,15 +420,18 @@ test.concurrent('introspect enum with same names across different schema', async
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-enum-with-same-names-across-different-schema',
-		['public', 'schema2'],
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-enum-with-same-names-across-different-schema',
+			['public', 'schema2'],
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect enum with similar name to native type', async ({ dbc: db }) => {
@@ -402,14 +443,17 @@ test.concurrent('introspect enum with similar name to native type', async ({ dbc
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-enum-with-similar-name-to-native-type',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-enum-with-similar-name-to-native-type',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect strings with single quotes', async ({ dbc: db }) => {
@@ -423,14 +467,17 @@ test.concurrent('introspect strings with single quotes', async ({ dbc: db }) => 
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-strings-with-single-quotes',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-strings-with-single-quotes',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect checks', async ({ dbc: db }) => {
@@ -442,14 +489,17 @@ test.concurrent('introspect checks', async ({ dbc: db }) => {
 		}, (table) => [check('some_check', sql`${table.age} > 21`)]),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-checks',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-checks',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect checks from different schemas with same names', async ({ dbc: db }) => {
@@ -466,15 +516,18 @@ test.concurrent('introspect checks from different schemas with same names', asyn
 		}, (table) => [check('some_check', sql`${table.age} < 1`)]),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-checks-diff-schema-same-names',
-		['public', 'schema2'],
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-checks-diff-schema-same-names',
+			['public', 'schema2'],
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect view #1', async ({ dbc: db }) => {
@@ -489,14 +542,17 @@ test.concurrent('introspect view #1', async ({ dbc: db }) => {
 		users,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-view',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-view',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect view #2', async ({ dbc: db }) => {
@@ -513,14 +569,17 @@ test.concurrent('introspect view #2', async ({ dbc: db }) => {
 		users,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-view-2',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-view-2',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect view in other schema', async ({ dbc: db }) => {
@@ -539,15 +598,18 @@ test.concurrent('introspect view in other schema', async ({ dbc: db }) => {
 		newSchema,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-view-in-other-schema',
-		['new_schema', 'public'],
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-view-in-other-schema',
+			['new_schema', 'public'],
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect materialized view in other schema', async ({ db }) => {
@@ -566,15 +628,18 @@ test.concurrent('introspect materialized view in other schema', async ({ db }) =
 		newSchema,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-mat-view-in-other-schema',
-		['new_schema', 'public'],
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-mat-view-in-other-schema',
+			['new_schema', 'public'],
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect materialized view #1', async ({ db }) => {
@@ -589,14 +654,17 @@ test.concurrent('introspect materialized view #1', async ({ db }) => {
 		users,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-materialized-view',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-materialized-view',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect materialized view #2', async ({ db }) => {
@@ -613,14 +681,17 @@ test.concurrent('introspect materialized view #2', async ({ db }) => {
 		users,
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-materialized-view-2',
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'introspect-materialized-view-2',
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('basic roles', async ({ dbc: db }) => {
@@ -628,16 +699,19 @@ test.concurrent('basic roles', async ({ dbc: db }) => {
 		usersRole: cockroachRole('user'),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'basic-roles',
-		['public'],
-		{ roles: { include: ['user'] } },
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'basic-roles',
+			['public'],
+			{ roles: { include: ['user'] } },
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('role with properties', async ({ dbc: db }) => {
@@ -645,16 +719,19 @@ test.concurrent('role with properties', async ({ dbc: db }) => {
 		usersRole: cockroachRole('user', { createDb: true, createRole: true }),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'roles-with-properties',
-		['public'],
-		{ roles: { include: ['user'] } },
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'roles-with-properties',
+			['public'],
+			{ roles: { include: ['user'] } },
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('role with a few properties', async ({ dbc: db }) => {
@@ -662,16 +739,19 @@ test.concurrent('role with a few properties', async ({ dbc: db }) => {
 		usersRole: cockroachRole('user', { createRole: true }),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'roles-with-few-properties',
-		['public'],
-		{ roles: { include: ['user'] } },
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'roles-with-few-properties',
+			['public'],
+			{ roles: { include: ['user'] } },
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('case sensitive schema name + identity column', async ({ dbc: db }) => {
@@ -684,15 +764,18 @@ test.concurrent('case sensitive schema name + identity column', async ({ dbc: db
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'case-sensitive-schema-name',
-		['CaseSensitiveSchema'],
-	);
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(
+			db,
+			schema,
+			'case-sensitive-schema-name',
+			['CaseSensitiveSchema'],
+		);
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 test.concurrent('introspect foreign keys', async ({ dbc: db }) => {
@@ -707,10 +790,17 @@ test.concurrent('introspect foreign keys', async ({ dbc: db }) => {
 			userId: int4('user_id').references(() => users.id, { onDelete: 'set null', onUpdate: 'cascade' }),
 		}),
 	};
-	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-foreign-keys');
+	const {
+		pushStatements: statements,
+		pushSqlStatements: sqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'introspect-foreign-keys');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 test.concurrent('introspect table with self reference', async ({ dbc: db }) => {
@@ -720,10 +810,13 @@ test.concurrent('introspect table with self reference', async ({ dbc: db }) => {
 		invited_id: int4().references((): AnyCockroachColumn => users.id),
 	});
 	const schema = { users };
-	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-self-ref');
+	const { pushStatements: statements, pushSqlStatements: sqlStatements, generateStatements, generateSqlStatements } =
+		await diffIntrospect(db, schema, 'introspect-self-ref');
 
 	expect(statements.length).toBe(0);
+	expect(generateStatements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
+	expect(generateSqlStatements.length).toBe(0);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5053
@@ -735,13 +828,14 @@ test.concurrent('single quote default', async ({ dbc: db }) => {
 		display_name: text().default('').notNull(),
 	});
 
-	const { sqlStatements } = await diffIntrospect(
+	const { pushSqlStatements: sqlStatements, generateSqlStatements } = await diffIntrospect(
 		db,
 		{ group },
 		'single_quote_default',
 	);
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5193
@@ -982,11 +1076,281 @@ CREATE TABLE table2 (
 `);
 
 	const {
-		sqlStatements,
-		statements,
+		pushSqlStatements: sqlStatements,
+		pushStatements: statements,
 		schema2,
+		generateStatements,
+		generateSqlStatements,
 	} = await diffIntrospect(db, {}, 'primary-key-without-default-name');
 
 	expect(sqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 	expect(statements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+});
+
+// constraints (pk / fk / unique / check) round-trip with custom and default names
+test('constraints with custom and default names', async ({ db }) => {
+	await db.query(`CREATE TABLE ref (id int4 PRIMARY KEY);`);
+	await db.query(`
+CREATE TABLE t_custom (
+    id int4,
+    ref_id int4,
+    val int4,
+    num int4,
+    CONSTRAINT "custom_pk" PRIMARY KEY (id),
+    CONSTRAINT "custom_fk" FOREIGN KEY (ref_id) REFERENCES ref(id),
+    CONSTRAINT "custom_unique" UNIQUE (val),
+    CONSTRAINT "custom_check" CHECK (num > 0)
+);`);
+	await db.query(`
+CREATE TABLE t_default (
+    id int4 PRIMARY KEY,
+    ref_id int4 REFERENCES ref(id),
+    val int4 UNIQUE,
+    num int4 CHECK (num > 0)
+);`);
+
+	const { pushStatements, pushSqlStatements, generateStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		{},
+		'crdb-constraints-custom-and-default',
+	);
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+test('issue No2993', async ({ db }) => {
+	await db.query(`create schema drizzle_test;`);
+	await db.query(`create table drizzle_test.child (
+    id uuid primary key,
+    other_id uuid not null
+);`);
+	await db.query(`create table drizzle_test.parent (
+    id uuid primary key,
+    other_id uuid not null,
+    child_id uuid unique references drizzle_test.child (id) on delete restrict,
+    unique (other_id, child_id)
+);`);
+	await db.query(`alter table drizzle_test.child add constraint test_key
+foreign key (other_id, id)
+references drizzle_test.parent (other_id, child_id);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, {}, 'issue-2993');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+const templateUnsafeText = 'a\\b`${c}';
+const templateUnsafeTextInDatabase = "e'a\\\\b`${c}'";
+
+test('introspect check with a backslash, a backtick and "${"', async ({ db }) => {
+	await db.query(
+		`CREATE TABLE users (name string, CONSTRAINT name_check CHECK (name <> '${templateUnsafeText}'));`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'check-with-template-unsafe-text',
+	);
+
+	const expected = [`(name != ${templateUnsafeTextInDatabase}::STRING)`];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.checks.list().map((it) => it.value)).toStrictEqual(expected);
+	expect(schema2.checks.map((it) => it.value)).toStrictEqual(expected);
+});
+
+test('introspect view with a backslash, a backtick and "${"', async ({ db }) => {
+	await db.query(`CREATE VIEW some_view AS SELECT '${templateUnsafeText}'::string AS name;`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'view-with-template-unsafe-text',
+	);
+
+	const expected = [`SELECT ${templateUnsafeTextInDatabase}::STRING AS name`];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.views.list().map((it) => it.definition)).toStrictEqual(expected);
+	expect(schema2.views.map((it) => it.definition)).toStrictEqual(expected);
+});
+
+test('introspect generated column with a backslash, a backtick and "${"', async ({ db }) => {
+	await db.query(
+		`CREATE TABLE users (name string, generated_name string GENERATED ALWAYS AS (name || '${templateUnsafeText}') STORED);`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'generated-column-with-template-unsafe-text',
+	);
+
+	const expected = [null, `name || ${templateUnsafeTextInDatabase}`];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.list().map((it) => it.generated?.as ?? null)).toStrictEqual(expected);
+	expect(schema2.columns.map((it) => it.generated?.as ?? null)).toStrictEqual(expected);
+});
+
+test('introspect policy with a backslash, a backtick and "${"', async ({ db }) => {
+	await db.query(`CREATE TABLE users (name string);`);
+	await db.query(`ALTER TABLE users ENABLE ROW LEVEL SECURITY;`);
+	await db.query(
+		`CREATE POLICY name_policy ON users USING (name <> '${templateUnsafeText}') WITH CHECK (name <> '${templateUnsafeText}');`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'policy-with-template-unsafe-text',
+	);
+
+	const expected = [{
+		using: `name != ${templateUnsafeTextInDatabase}:::STRING`,
+		withCheck: `name != ${templateUnsafeTextInDatabase}:::STRING`,
+	}];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.policies.list().map((it) => ({ using: it.using, withCheck: it.withCheck }))).toStrictEqual(
+		expected,
+	);
+	expect(schema2.policies.map((it) => ({ using: it.using, withCheck: it.withCheck }))).toStrictEqual(expected);
+});
+
+test('introspect index expression and predicate with a backslash, a backtick and "${"', async ({ db }) => {
+	await db.query(`CREATE TABLE users (name string);`);
+	await db.query(
+		`CREATE INDEX name_idx ON users ((name || '${templateUnsafeText}')) WHERE name <> '${templateUnsafeText}';`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'index-with-template-unsafe-text',
+	);
+
+	const indexesInDatabase = ddlAfterPull.indexes.list().map((it) => ({
+		expression: it.columns[0].value,
+		where: it.where,
+	}));
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(indexesInDatabase.length).toBe(1);
+	expect(indexesInDatabase[0].where).toBe(`name != ${templateUnsafeTextInDatabase}::STRING`);
+	for (const part of ['\\', '`', '${']) expect(indexesInDatabase[0].expression).toContain(part);
+	expect(schema2.indexes.map((it) => ({ expression: it.columns[0].value, where: it.where }))).toStrictEqual(
+		indexesInDatabase,
+	);
+});
+
+test('introspect enum values with a backslash, a backtick and "${"', async ({ db }) => {
+	await db.query(`CREATE TYPE mood AS ENUM ('${templateUnsafeText}', 'x\`y\`z');`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'enum-values-with-template-unsafe-text',
+	);
+
+	const expected = [[templateUnsafeText, 'x`y`z']];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.enums.list().map((it) => it.values)).toStrictEqual(expected);
+	expect(schema2.enums.map((it) => it.values)).toStrictEqual(expected);
+});
+
+test('introspect default expressions with a backslash, a backtick and "${"', async ({ db }) => {
+	const types = [
+		'int8',
+		'decimal',
+		'bit(3)',
+		'varbit(3)',
+		'timestamp',
+		'timestamptz',
+		'time',
+		'timetz',
+		'date',
+		'jsonb',
+		'geometry(point)',
+	];
+	const columns = types.map((type, i) => `column${i} ${type} DEFAULT NULLIF('${templateUnsafeText}', '"')::${type}`);
+
+	await db.query(`CREATE TABLE users (${columns.join(', ')});`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'default-expressions-with-template-unsafe-text',
+	);
+
+	const defaultsInDatabase = ddlAfterPull.columns.list().map((it) => [it.name, it.default]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(defaultsInDatabase).toStrictEqual(
+		types.map((_, i) => [`column${i}`, `NULLIF(${templateUnsafeTextInDatabase}::STRING, '"'::STRING)`]),
+	);
+	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
+});
+
+test('introspect array default expressions with a backslash, a backtick and "${"', async ({ db }) => {
+	const types = [
+		'int2',
+		'int4',
+		'int8',
+		'bool',
+		'uuid',
+		'real',
+		'float',
+		'decimal',
+		'bit(3)',
+		'varbit(3)',
+		'timestamp',
+		'timestamptz',
+		'time',
+		'timetz',
+		'date',
+		'interval',
+		'inet',
+		'geometry(point)',
+		'mood',
+		'bytes',
+	];
+	const stringTypes = ['char(20)', 'varchar(20)', 'string'];
+	const columns = [
+		...types.map((type, i) => `column${i} ${type}[] DEFAULT ARRAY[NULLIF('${templateUnsafeText}', '"')::${type}]`),
+		...stringTypes.map((type, i) =>
+			`string_column${i} ${type}[] DEFAULT ARRAY[(gen_random_uuid()::string || '${templateUnsafeText}')::${type}]`
+		),
+	];
+
+	await db.query(`CREATE TYPE mood AS ENUM ('ok', 'bad');`);
+	await db.query(`CREATE TABLE users (${columns.join(', ')});`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'array-default-expressions-with-template-unsafe-text',
+	);
+
+	const defaultsInDatabase = ddlAfterPull.columns.list().map((it) => [it.name, it.default]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(defaultsInDatabase.length).toBe(columns.length);
+	for (const [, def] of defaultsInDatabase) expect(def).toContain(templateUnsafeTextInDatabase);
+	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
 });

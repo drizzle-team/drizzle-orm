@@ -3,7 +3,7 @@ import {
 	defineRelations,
 	type ExtractTablesFromSchema,
 	type ExtractTablesWithRelations,
-	getTableName,
+	getCacheKey,
 	is,
 	type RelationsBuilder,
 	type RelationsBuilderConfig,
@@ -64,7 +64,7 @@ export class TestCache extends Cache {
 		const keysToDelete = new Set<string>();
 
 		for (const table of tablesArray) {
-			const tableName = is(table, Table) ? getTableName(table) : table as string;
+			const tableName = is(table, Table) ? getCacheKey(table) : table as string;
 			const keys = this.usedTablesPerKey[tableName] ?? [];
 			for (const key of keys) keysToDelete.add(key);
 		}
@@ -77,7 +77,7 @@ export class TestCache extends Cache {
 			for (const key of keysToDelete) {
 				await this.kv.delete(key);
 				for (const table of tablesArray) {
-					const tableName = is(table, Table) ? getTableName(table) : table as string;
+					const tableName = is(table, Table) ? getCacheKey(table) : table as string;
 					this.usedTablesPerKey[tableName] = [];
 				}
 			}
@@ -302,6 +302,7 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 				schema: S,
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 				useJitMappers?: boolean,
+				paramsInErrors?: boolean,
 			): SingleStoreDatabase<any, any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 		};
 		caches: {
@@ -384,11 +385,12 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 						helpers: RelationsBuilder<ExtractTablesFromSchema<S>>,
 					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
 					useJitMappers?: boolean,
+					paramsInErrors?: boolean,
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
 					if (vendor === 'singlestore') {
-						return drizzleSingleStore({ client: kit.client, relations, jit: useJitMappers });
+						return drizzleSingleStore({ client: kit.client, relations, jit: useJitMappers, paramsInErrors });
 					}
 
 					if (vendor === 'proxy') {
@@ -407,7 +409,12 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 								throw e;
 							}
 						};
-						return drizzleProxy(proxyHandler, { relations, jit: useJitMappers, codecs: singleStoreCodecs });
+						return drizzleProxy(proxyHandler, {
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+							codecs: singleStoreCodecs,
+						});
 					}
 					throw new Error();
 				};

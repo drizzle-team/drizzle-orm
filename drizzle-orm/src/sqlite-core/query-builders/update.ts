@@ -31,7 +31,7 @@ export interface SQLiteUpdateConfig {
 	joins: SQLiteSelectJoinConfig[];
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 }
 
 export type SQLiteUpdateSetSource<
@@ -64,6 +64,9 @@ export class SQLiteUpdateBuilder<
 	THKT extends SQLiteUpdateHKTBase = SQLiteUpdateQueryBuilderHKT,
 > {
 	static readonly [entityKind]: string = 'SQLiteUpdateBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly table: TTable;
@@ -276,6 +279,9 @@ export class SQLiteUpdateBase<
 	TExcludedMethods extends string = never,
 > implements SQLWrapper {
 	static readonly [entityKind]: string = 'SQLiteUpdate';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	config: SQLiteUpdateConfig;
@@ -448,18 +454,14 @@ export class SQLiteUpdateBase<
 		return this as any;
 	}
 
-	getSQL(): SQL {
-		return this.dialect.buildUpdateQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildUpdateQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
-	}
-
-	/** @internal */
-	withoutSelectionCastCodecs() {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	$dynamic(): SQLiteUpdateDynamic<this> {

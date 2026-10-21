@@ -1,5 +1,6 @@
 import { applyEffectWrapper, type QueryEffectHKTBase, type QueryEffectKind } from '~/effect-core/query-effect.ts';
 import { entityKind } from '~/entity.ts';
+import { relationalQueryCacheConfig, relationalQueryCacheMetadata } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SQLiteRelationalQuery, type SQLiteRelationalQueryHKTBase } from '~/sqlite-core/query-builders/query.ts';
 import type { PreparedQueryConfig } from '../session.ts';
@@ -32,7 +33,7 @@ export class SQLiteEffectRelationalQuery<TResult, TEffectHKT extends QueryEffect
 		PreparedQueryConfig & { type: unknown; all: TResult; get: TResult; execute: TResult },
 		TEffectHKT
 	> {
-		const { query, builtQuery } = this._toSQL();
+		const { query, builtQuery, usedTables } = this._toSQL();
 
 		const mapper = this.dialect.mapperGenerators.relationalRows({
 			isFirst: this.mode === 'first',
@@ -49,6 +50,8 @@ export class SQLiteEffectRelationalQuery<TResult, TEffectHKT extends QueryEffect
 			prepare,
 			'all',
 			mapper,
+			relationalQueryCacheMetadata(this.config, query.sql, usedTables, this),
+			relationalQueryCacheConfig(this.config),
 		) as SQLiteEffectPreparedQuery<
 			PreparedQueryConfig & { type: unknown; all: TResult; get: TResult; execute: TResult },
 			TEffectHKT

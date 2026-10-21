@@ -10,6 +10,9 @@ import type { SelectedFields } from './select.types.ts';
 
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'MsSqlQueryBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private dialect: MsSqlDialect | undefined;
 	private dialectConfig: MsSqlDialectConfig | undefined;
@@ -32,7 +35,7 @@ export class QueryBuilder {
 
 				return new Proxy(
 					new WithSubquery(
-						('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL(),
+						qb.getSQL(),
 						qb.getSelectedFields() as SelectedFields,
 						alias,
 						true,

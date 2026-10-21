@@ -1,4 +1,5 @@
 import type { Database, RunResult, Statement } from 'better-sqlite3';
+import type { QueryMetadata } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
@@ -18,6 +19,7 @@ import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface BetterSQLiteSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export type BetterSQLite3RunResult = RunResult;
@@ -47,16 +49,13 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 	): SQLiteAsyncPreparedQuery<T & { run: BetterSQLite3RunResult }> {
 		let stmt: Statement;
 		try {
 			stmt = this.client.prepare(query.sql);
 		} catch (e) {
-			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+			throw new DrizzleQueryError(query.sql, this.options.paramsInErrors ? query.params : undefined, e as Error);
 		}
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {
@@ -69,9 +68,6 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 			},
 			run: (params) => {
 				return stmt.run(...params as any[]);
-			},
-			values: (params) => {
-				return stmt.raw().all(...params as any[]);
 			},
 		};
 
@@ -86,6 +82,7 @@ export class BetterSQLiteSession<TRelations extends AnyRelations>
 			undefined,
 			queryMetadata,
 			undefined,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -129,7 +126,11 @@ export class BetterSQLiteTransaction<TRelations extends AnyRelations>
 			this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result as T;
 		} catch (err) {
-			this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			try {
+				this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			} catch {
+				// original error takes priority
+			}
 			throw err;
 		}
 	}

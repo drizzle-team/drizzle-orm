@@ -22,6 +22,7 @@ import { SQL, sql } from '~/sql/sql.ts';
 import type { ColumnsSelection, CommentInput, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import {
 	type Assume,
 	getTableColumns,
@@ -33,7 +34,6 @@ import {
 import { ViewBaseConfig } from '~/view-common.ts';
 import { View } from '~/view.ts';
 import { type PostgresType, unionsTypeTable } from '../codecs.ts';
-import { extractUsedTable } from '../utils.ts';
 import type {
 	AnyPgSelectQueryBuilder,
 	CheckTableLikeSelection,
@@ -76,6 +76,9 @@ export class PgSelectBuilder<
 	THKT extends PgSelectHKTBase = PgSelectHKT,
 > {
 	static readonly [entityKind]: string = 'PgSelectBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private fields: TSelection;
 	private session: PgSession | undefined;
@@ -237,7 +240,6 @@ export class PgSelectBase<
 	protected session: PgSession | undefined;
 	protected dialect: PgDialect;
 	protected cacheConfig?: WithCacheConfig;
-	protected usedTables: Set<string> = new Set();
 
 	constructor(
 		config: {
@@ -269,18 +271,15 @@ export class PgSelectBase<
 		} as this['_'];
 		this.tableName = getTableLikeName(config.table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
-
-		for (const item of extractUsedTable(config.table)) this.usedTables.add(item);
-
-		this.config.withList?.forEach((it) => {
-			const extracted = extractUsedTable(it);
-			for (const el of extracted) this.usedTables.add(el);
-		});
 	}
 
-	/** @internal */
-	getUsedTables() {
-		return [...this.usedTables];
+	/**
+	 * @internal
+	 * Collects every table query's SQL references - `from`, joins, CTEs, set operators, raw SQL & subqueries of fields, filters, etc.
+	 * @param sql - query's already built SQL, to avoid rebuilding it
+	 */
+	getUsedTables(sql: SQL = this.getSQL()) {
+		return usedTablesOf(sql);
 	}
 
 	private createJoin<
@@ -298,9 +297,6 @@ export class PgSelectBase<
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
-
-			// store all tables used in a query
-			for (const item of extractUsedTable(table)) this.usedTables.add(item);
 
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
@@ -1136,25 +1132,21 @@ export class PgSelectBase<
 		return config.setFieldsFlat ?? fieldsFlat;
 	}
 
-	getSQL(): SQL {
+	getSQL(withCastCodecs = false): SQL {
 		this._resolveSelection();
-		return this.dialect.buildSelectQuery(this.config);
+		return this.dialect.buildSelectQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 	as<TAlias extends string>(
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
-		const usedTables: string[] = [];
-		usedTables.push(...extractUsedTable(this.config.table));
-		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
-
 		return new Proxy(
-			new Subquery(this.withoutSelectionCastCodecs().getSQL(), this.config.fields, alias, false, [
-				...new Set(usedTables),
-			]),
+			new Subquery(this.getSQL(), this.config.fields, alias),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -1165,12 +1157,6 @@ export class PgSelectBase<
 			this.config.fields,
 			new SelectionProxyHandler({ alias: this.tableName, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as this['_']['selectedFields'];
-	}
-
-	/** @internal */
-	override withoutSelectionCastCodecs(): this {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
 	}
 
 	$dynamic(): PgSelectDynamic<this> {

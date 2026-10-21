@@ -1,5 +1,6 @@
 /* eslint-disable drizzle-internal/require-entity-kind */
 import { Column, getTableName, is, Table as DrizzleTableEntity } from 'drizzle-orm';
+import type { RelationsBuilderColumnBase } from 'drizzle-orm/relations';
 import { Relation } from 'drizzle-orm/relations';
 import type {
 	Column as SeedColumn,
@@ -38,14 +39,12 @@ export const transformFromDrizzleRelationsV2 = (
 		relationsConfig,
 		drizzleTables,
 		tables,
-		getDbToTsColumnNamesMap,
 		tableRelations,
 		knownRelations,
 	}: {
 		relationsConfig: SeedRelations;
 		drizzleTables: { [tsTableName: string]: DrizzleTable };
 		tables: Table[];
-		getDbToTsColumnNamesMap: (table: DrizzleTable) => { [dbColName: string]: string };
 		tableRelations: { [tableName: string]: RelationWithReferences[] };
 		knownRelations: RelationWithReferences[];
 	},
@@ -71,19 +70,15 @@ export const transformFromDrizzleRelationsV2 = (
 		return tsNameByDbName[getTableName(entry)];
 	};
 
-	const resolveColumnNames = (tsTableName: string, columns: unknown[] | undefined) => {
+	const resolveColumnNames = (columns: (RelationsBuilderColumnBase | undefined)[] | undefined) => {
 		if (columns === undefined || columns.length === 0) return;
 
-		const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleTables[tsTableName]!);
 		const columnNames: string[] = [];
-		for (const column of columns) {
-			// a relation may be defined over a sql expression of a view, which has no column to seed
-			if (!is(column, Column)) return;
+		for (const builderColumn of columns) {
+			// a relation may be defined over a sql expression of a view or subquery, which has no column to seed
+			if (builderColumn === undefined || !is(builderColumn._.column, Column)) return;
 
-			const tsColumnName = dbToTsColumnNamesMap[column.name];
-			if (tsColumnName === undefined) return;
-
-			columnNames.push(tsColumnName);
+			columnNames.push(builderColumn._.key);
 		}
 
 		return columnNames;
@@ -207,11 +202,8 @@ export const transformFromDrizzleRelationsV2 = (
 				) {
 					if (endTableName === undefined) continue;
 
-					const endColumnNames = resolveColumnNames(endTableName, endColumns);
-					const throughColumns = resolveColumnNames(
-						throughTableName,
-						junctionColumns.map((column) => column?._.column),
-					);
+					const endColumnNames = resolveColumnNames(endColumns);
+					const throughColumns = resolveColumnNames(junctionColumns);
 					if (
 						endColumnNames === undefined || throughColumns === undefined
 						|| throughColumns.length !== endColumnNames.length
@@ -230,8 +222,8 @@ export const transformFromDrizzleRelationsV2 = (
 
 			if (sourceTableName === undefined || targetTableName === undefined) continue;
 
-			const sourceColumns = resolveColumnNames(sourceTableName, drizzleRel.sourceColumns);
-			const targetColumns = resolveColumnNames(targetTableName, drizzleRel.targetColumns);
+			const sourceColumns = resolveColumnNames(drizzleRel.sourceColumns);
+			const targetColumns = resolveColumnNames(drizzleRel.targetColumns);
 			if (sourceColumns === undefined || targetColumns === undefined) continue;
 			if (sourceColumns.length !== targetColumns.length) continue;
 

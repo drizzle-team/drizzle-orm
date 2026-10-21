@@ -58,11 +58,14 @@ export type Setup = {
 	dialect: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore' | 'duckdb';
 	packageName:
 		| '@aws-sdk/client-rds-data'
+		| '@aws/aurora-dsql-node-postgres-connector'
+		| '@aws/aurora-dsql-postgresjs-connector'
 		| 'pglite'
 		| 'pg'
 		| 'postgres'
 		| '@vercel/postgres'
 		| '@neondatabase/serverless'
+		| '@drizzle-team/minipg'
 		| 'mysql2'
 		| '@planetscale/database'
 		| 'd1-http'
@@ -76,7 +79,7 @@ export type Setup = {
 		| 'duckdb'
 		| '@duckdb/node-api'
 		| 'node:sqlite';
-	driver?: 'aws-data-api' | 'd1-http' | 'd1' | 'turso' | 'pglite' | 'sqlite-cloud';
+	driver?: 'aws-data-api' | 'dsql' | 'd1-http' | 'd1' | 'turso' | 'pglite' | 'sqlite-cloud';
 	databaseName?: string; // for planetscale (driver remove database name from connection string)
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
@@ -326,6 +329,10 @@ export const drizzleForPostgres = async (
 			dbUrl = `aws-data-api://${credentials.database}/${credentials.secretArn}/${credentials.resourceArn}`;
 		} else if (driver === 'pglite') {
 			dbUrl = 'client' in credentials ? credentials.client.dataDir || 'pglite://custom-client' : credentials.url;
+		} else if (driver === 'dsql') {
+			dbUrl = 'url' in credentials
+				? credentials.url
+				: `dsql://${credentials.user}@${credentials.host}:${credentials.port}/${credentials.database}`;
 		} else {
 			assertUnreachable(driver);
 		}

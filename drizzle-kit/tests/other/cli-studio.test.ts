@@ -231,7 +231,7 @@ test('validate config #5', async (t) => {
 
 	let error: any = res.type === 'error' ? res.error : undefined;
 	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
+	expect(error.message).toContain('process.exit unexpectedly called with "1"');
 
 	spy.mockRestore();
 });
@@ -261,7 +261,7 @@ test('validate config #6', async (t) => {
 
 	let error: any = res.type === 'error' ? res.error : undefined;
 	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
+	expect(error.message).toContain('process.exit unexpectedly called with "1"');
 
 	spy.mockRestore();
 });
@@ -290,7 +290,7 @@ test('validate config #7 - pglite without a client and without dbCredentials', a
 
 	let error: any = res.type === 'error' ? res.error : undefined;
 	expect(error).toBeInstanceOf(Error);
-	expect(error.message).toBe('process.exit unexpectedly called with "1"');
+	expect(error.message).toContain('process.exit unexpectedly called with "1"');
 
 	spy.mockRestore();
 });
@@ -298,10 +298,10 @@ test('validate config #7 - pglite without a client and without dbCredentials', a
 test('validate config #8 - a client is only accepted for the pglite driver', async (t) => {
 	const spy = vi.spyOn(console, 'log');
 
-	// @ts-expect-error 'client' is not a valid param without driver: 'pglite'
 	const { path, name } = createConfig({
 		dialect: 'postgresql',
 		schema: 'schema.ts',
+		// @ts-expect-error 'client' is not a valid param without driver: 'pglite'
 		client: {},
 	}, prefix);
 

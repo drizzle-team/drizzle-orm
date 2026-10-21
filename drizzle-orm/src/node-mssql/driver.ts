@@ -1,5 +1,5 @@
 import type mssql from 'mssql';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MsSqlDatabase } from '~/mssql-core/db.ts';
@@ -14,10 +14,14 @@ import { NodeMsSqlSession } from './session.ts';
 
 export interface MsSqlDriverOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export class NodeMsSqlDriver {
 	static readonly [entityKind]: string = 'NodeMsSqlDriver';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		private client: NodeMsSqlClient,
@@ -31,6 +35,7 @@ export class NodeMsSqlDriver {
 	): NodeMsSqlSession<AnyRelations> {
 		return new NodeMsSqlSession(this.client, this.dialect, relations, {
 			logger: this.options.logger,
+			paramsInErrors: this.options.paramsInErrors,
 		});
 	}
 }
@@ -68,6 +73,7 @@ function construct<
 
 	const driver = new NodeMsSqlDriver(client as NodeMsSqlClient, dialect, {
 		logger,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const session = driver.createSession(relations);
 	const db = new MsSqlDatabase(dialect, session, relations) as NodeMsSqlDatabase<TRelations>;

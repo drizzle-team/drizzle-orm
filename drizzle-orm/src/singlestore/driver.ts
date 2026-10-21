@@ -1,7 +1,7 @@
 import { type Connection as CallbackConnection, createPool, type Pool as CallbackPool, type PoolOptions } from 'mysql2';
 import type { Connection, Pool } from 'mysql2/promise';
 import type { Cache } from '~/cache/core/cache.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -21,10 +21,14 @@ import { SingleStoreDriverSession } from './session.ts';
 export interface SingleStoreDriverOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class SingleStoreDriverDriver {
 	static readonly [entityKind]: string = 'SingleStoreDriverDriver';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		private client: SingleStoreDriverClient,
@@ -39,6 +43,7 @@ export class SingleStoreDriverDriver {
 		return new SingleStoreDriverSession(this.client, this.dialect, relations, {
 			logger: this.options.logger,
 			cache: this.options.cache,
+			paramsInErrors: this.options.paramsInErrors,
 		});
 	}
 }
@@ -81,6 +86,7 @@ function construct<
 	const driver = new SingleStoreDriverDriver(clientForInstance as SingleStoreDriverClient, dialect, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const session = driver.createSession(relations);
 	const db = new SingleStoreDriverDatabase(dialect, session, relations) as SingleStoreDriverDatabase<TRelations>;

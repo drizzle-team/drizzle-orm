@@ -1058,12 +1058,12 @@ export const parsePgVector = (v: string): number[] => {
 	return body.split(',').map(Number.parseFloat);
 };
 
+export const byteaFromPgHex = (v: string): Buffer => Buffer.from(v.slice(2), 'hex');
+
 export const genericPgCodecs = {
 	bytea: {
-		castInJson: (name) => sql`encode(${name}, 'base64')`,
-		castArrayInJson: arrayCompatCast((name) => sql`encode(${name}, 'base64')`),
-		normalizeInJson: (v: string) => Buffer.from(v, 'base64'),
-		normalizeArrayInJson: arrayCompatNormalize((v: string) => Buffer.from(v, 'base64')),
+		normalizeInJson: byteaFromPgHex,
+		normalizeArrayInJson: arrayCompatNormalize(byteaFromPgHex),
 	},
 	bigint: {
 		castInJson: castToText,

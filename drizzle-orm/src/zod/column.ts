@@ -18,7 +18,7 @@ export const jsonSchema: zod.ZodType<Json> = zod.union([
 	zod.record(zod.string(), zod.any()),
 	zod.array(zod.any()),
 ]);
-export const bufferSchema: zod.ZodType<Buffer> = zod.custom<Buffer>((v) => v instanceof Buffer); // oxlint-disable-line no-instanceof-builtins drizzle-internal/no-instanceof
+export const bufferSchema: zod.ZodType<Buffer> = zod.custom<Buffer>((v) => v instanceof Buffer);
 
 export function columnToSchema(
 	column: Column,

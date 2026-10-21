@@ -1,7 +1,8 @@
 import { PgliteClient } from '@effect/sql-pglite';
-import { assert, expect } from '@effect/vitest';
+import { assert, expect, expectTypeOf } from '@effect/vitest';
+import type { Results } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite-pgvector';
 import { postgis } from '@electric-sql/pglite-postgis';
-import { vector } from '@electric-sql/pglite/vector';
 import {
 	defineRelations,
 	ExtractTablesFromSchema,
@@ -66,6 +67,52 @@ runCommonEffectPgTests({
 	createDB,
 	usedSchema,
 	addTests: (it) => {
+		it.effect('raw db.execute type matches returned data', () =>
+			Effect.gen(function*() {
+				const db = yield* PgDrizzle.make().pipe(Effect.provide(PgDrizzle.DefaultServices));
+				const table = sql.identifier('raw_execute_types');
+
+				yield* db.execute<never>(sql`drop table if exists ${table}`);
+
+				// DDL
+				const created = yield* db.execute<never>(
+					sql`create table ${table} ("id" integer primary key, "name" text not null)`,
+				);
+				expectTypeOf(created).toEqualTypeOf<Results<never>>();
+				expect(created).toEqual({ rows: [], fields: [], affectedRows: 0, command: 'CREATE' });
+
+				// `insert` without returning
+				const inserted = yield* db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+				expectTypeOf(inserted).toEqualTypeOf<Results<never>>();
+				expect(inserted).toEqual({ rows: [], fields: [], affectedRows: 1, command: 'INSERT', rowCount: 1 });
+
+				// Simple select
+				const selected = yield* db.execute<{ id: number; name: string }>(
+					sql`select "id", "name" from ${table} order by "id"`,
+				);
+				expectTypeOf(selected).toEqualTypeOf<Results<{ id: number; name: string }>>();
+				expect(selected).toEqual({
+					rows: [{ id: 1, name: 'John' }],
+					fields: [expect.objectContaining({ name: 'id' }), expect.objectContaining({ name: 'name' })],
+					affectedRows: 0,
+					command: 'SELECT',
+					rowCount: 1,
+				});
+
+				// Any response
+				const any = yield* db.execute(sql`select "id", "name" from ${table} order by "id"`);
+				expectTypeOf(any).toEqualTypeOf<Results<Record<string, unknown>>>();
+				expect(any).toEqual({
+					rows: [{ id: 1, name: 'John' }],
+					fields: [expect.objectContaining({ name: 'id' }), expect.objectContaining({ name: 'name' })],
+					affectedRows: 0,
+					command: 'SELECT',
+					rowCount: 1,
+				});
+
+				yield* db.execute<never>(sql`drop table ${table}`);
+			}));
+
 		it.effect('execute', () =>
 			Effect.gen(function*() {
 				const db = yield* DB;

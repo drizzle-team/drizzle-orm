@@ -1,5 +1,5 @@
 import type { GetColumnData } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
@@ -16,9 +16,9 @@ import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import { type InferInsertModel, Table } from '~/table.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import { mapUpdateSet, type UpdateSet, type ValueOrArray } from '~/utils.ts';
 import type { SingleStoreColumn } from '../columns/common.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export interface SingleStoreUpdateConfig {
@@ -29,7 +29,7 @@ export interface SingleStoreUpdateConfig {
 	table: SingleStoreTable;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 }
 
 export type SingleStoreUpdateSetSource<
@@ -51,6 +51,9 @@ export class SingleStoreUpdateBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > {
 	static readonly [entityKind]: string = 'SingleStoreUpdateBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly table: TTable;
@@ -222,24 +225,26 @@ export class SingleStoreUpdateBase<
 		return this as any;
 	}
 
-	getSQL(): SQL {
-		return this.dialect.buildUpdateQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildUpdateQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	prepare(): SingleStoreUpdatePrepare<this> {
 		const { returning: fields } = this.config;
 
 		return this.session.prepareQuery(
-			this.dialect.sqlToQuery(this.getSQL()),
+			this.dialect.sqlToQuery(this.getSQL(true)),
 			fields ? 'arrays' : 'raw',
 			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 			{
 				type: 'update',
-				tables: extractUsedTable(this.config.table),
+				tables: () => usedTablesOf(this.config.table),
 			},
 		) as SingleStoreUpdatePrepare<this>;
 	}
@@ -256,12 +261,6 @@ export class SingleStoreUpdateBase<
 	};
 
 	iterator = this.createIterator();
-
-	/** @internal */
-	withoutSelectionCastCodecs() {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
-	}
 
 	$dynamic(): SingleStoreUpdateDynamic<this> {
 		return this as any;

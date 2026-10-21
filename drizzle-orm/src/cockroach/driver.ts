@@ -2,7 +2,7 @@ import pg, { type Pool, type PoolConfig } from 'pg';
 import { CockroachDatabase } from '~/cockroach-core/db.ts';
 import { CockroachDialect } from '~/cockroach-core/dialect.ts';
 import type { DrizzleCockroachConfig } from '~/cockroach-core/utils.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -13,10 +13,14 @@ import { NodeCockroachSession } from './session.ts';
 
 export interface CockroachDriverOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export class NodeCockroachDriver {
 	static readonly [entityKind]: string = 'NodeCockroachDriver';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		private client: NodeCockroachClient,
@@ -30,6 +34,7 @@ export class NodeCockroachDriver {
 	): NodeCockroachSession<AnyRelations> {
 		return new NodeCockroachSession(this.client, this.dialect, relations, {
 			logger: this.options.logger,
+			paramsInErrors: this.options.paramsInErrors,
 		});
 	}
 }
@@ -64,6 +69,7 @@ function construct<
 
 	const driver = new NodeCockroachDriver(client, dialect, {
 		logger,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const session = driver.createSession(relations);
 	const db = new NodeCockroachDatabase(dialect, session, relations) as NodeCockroachDatabase<TRelations>;

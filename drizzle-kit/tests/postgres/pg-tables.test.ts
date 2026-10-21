@@ -7,6 +7,8 @@ import {
 	geometry,
 	index,
 	integer,
+	pgMaterializedView,
+	pgPolicy,
 	PgSchema,
 	pgSchema,
 	pgTable,
@@ -22,6 +24,11 @@ import {
 	varchar,
 	vector,
 } from 'drizzle-orm/pg-core';
+import { stripAnsi } from 'hanji/utils';
+import { suggestions } from 'src/cli/commands/push-postgres';
+import { runWithCliContext } from 'src/cli/context';
+import { HintsHandler } from 'src/cli/hints';
+import { prepareStatement } from 'src/dialects/postgres/statements';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -391,7 +398,7 @@ test('add table #15', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5603
-test.skipIf(Date.now() < +new Date('2026-09-05'))('add table #16', async () => {
+test.skipIf(Date.now() < +new Date('2026-11-24'))('add table #16', async () => {
 	const users = pgTable('users', {
 		name: text(),
 	}, (t) => [index('name_idx').on(t.name)]);
@@ -1646,4 +1653,417 @@ test('Issue #4790', async () => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6256
+test('#6256: push re-diffs composite FK, expression index and empty text[] default', async () => {
+	const parent = pgTable('parent', {
+		id: text('id').primaryKey(),
+		projectId: text('project_id').notNull(),
+	}, (t) => [unique('parent_id_project_uq').on(t.id, t.projectId)]);
+
+	const child = pgTable('child', {
+		id: text('id').primaryKey(),
+		projectId: text('project_id').notNull(),
+		threadId: text('thread_id'),
+		actorId: text('actor_id').notNull(),
+		scope: text('scope').notNull(),
+		revokedAt: timestamp('revoked_at'),
+		memberType: text('member_type').notNull(),
+		tags: text('tags').array().notNull().default([]),
+	}, (t) => [
+		foreignKey({
+			columns: [t.threadId, t.projectId],
+			foreignColumns: [parent.id, parent.projectId],
+			name: 'child_thread_project_fk',
+		}),
+		uniqueIndex('child_live_actor_idx')
+			.on(t.projectId, t.actorId, t.scope, sql`coalesce(${t.threadId}, '')`)
+			.where(sql`${t.revokedAt} IS NULL AND ${t.memberType} = 'agent'`),
+	]);
+
+	const to = { parent, child };
+
+	await push({ db, to, ignoreSubsequent: true });
+	const { sqlStatements } = await push({ db, to, ignoreSubsequent: true });
+
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+const folder = pgSchema('folder');
+const moved = (inFolder: boolean, extra: (t: any) => any[] = () => [], withRls = false) => {
+	const columns = { id: integer(), ownerId: integer() };
+	const create = inFolder ? (withRls ? folder.table.withRLS : folder.table) : (withRls ? pgTable.withRLS : pgTable);
+	return (create as typeof pgTable)('users', columns, extra);
+};
+const owners = pgTable('owners', { id: integer().primaryKey() });
+const reader = () => pgPolicy('readers', { for: 'select' });
+const writer = () => pgPolicy('writers', { for: 'insert' });
+const ownerKey = (t: any) => [foreignKey({ name: 'owner_fk', columns: [t.ownerId], foreignColumns: [owners.id] })];
+
+// Each `sql` starts with the move, because the statements about `users` name the table in its new schema.
+test.each([
+	{
+		name: 'a drop of one of its policies',
+		from: moved(false, () => [reader(), writer()]),
+		to: moved(true, () => [reader()]),
+		sql: ['ALTER TABLE "users" SET SCHEMA "folder";\n', 'DROP POLICY "writers" ON "folder"."users";'],
+	},
+	{
+		name: 'a drop of its last policy',
+		from: moved(false, () => [reader()]),
+		to: moved(true),
+		sql: [
+			'ALTER TABLE "users" SET SCHEMA "folder";\n',
+			'DROP POLICY "readers" ON "folder"."users";',
+			'ALTER TABLE "folder"."users" DISABLE ROW LEVEL SECURITY;',
+		],
+	},
+	{
+		name: 'its first policy',
+		from: moved(false),
+		to: moved(true, () => [reader()]),
+		sql: [
+			'ALTER TABLE "users" SET SCHEMA "folder";\n',
+			'ALTER TABLE "folder"."users" ENABLE ROW LEVEL SECURITY;',
+			'CREATE POLICY "readers" ON "folder"."users" AS PERMISSIVE FOR SELECT TO public;',
+		],
+	},
+	{
+		name: 'the row level security flag',
+		from: moved(false),
+		to: moved(true, undefined, true),
+		sql: ['ALTER TABLE "users" SET SCHEMA "folder";\n', 'ALTER TABLE "folder"."users" ENABLE ROW LEVEL SECURITY;'],
+	},
+	{
+		name: 'a drop of its foreign key',
+		from: moved(false, ownerKey),
+		to: moved(true),
+		sql: ['ALTER TABLE "users" SET SCHEMA "folder";\n', 'ALTER TABLE "folder"."users" DROP CONSTRAINT "owner_fk";'],
+	},
+])('a table move together with $name writes SQL that runs', async ({ from, to, sql }) => {
+	const renames = ['public.users->folder.users'];
+
+	const { sqlStatements: st } = await diff({ folder, owners, users: from }, { folder, owners, users: to }, renames);
+	await push({ db, to: { folder, owners, users: from } });
+	const { sqlStatements: pst } = await push({ db, to: { folder, owners, users: to }, renames });
+
+	expect(st).toStrictEqual(sql);
+	expect(pst).toStrictEqual(sql);
+});
+
+// The drop of `users_old` must run before the move, because `users_pkey` moves with `users` into `folder`,
+// and `users_old` still holds a primary key with that name.
+test('a table move into a schema where a dropped table holds the name of its primary key writes SQL that runs', async () => {
+	const usersInFolder = folder.table('users', { id: integer().primaryKey() });
+	const from = {
+		folder,
+		old: folder.table('users_old', { id: integer() }, (t) => [primaryKey({ name: 'users_pkey', columns: [t.id] })]),
+		users: pgTable('users', { id: integer().primaryKey() }),
+	};
+	const renames = ['public.users->folder.users'];
+
+	const { sqlStatements: st } = await diff(from, { folder, users: usersInFolder }, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: { folder, users: usersInFolder }, renames });
+
+	const st0 = ['DROP TABLE "folder"."users_old";', 'ALTER TABLE "users" SET SCHEMA "folder";\n'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('drop column in a renamed table with data', async () => {
+	const schema1 = {
+		users: pgTable('users', { id: integer('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		accounts: pgTable('accounts', { id: integer('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "users" ("id", "name") VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['public.users->public.accounts'],
+	});
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE "users" RENAME TO "accounts";',
+		'ALTER TABLE "accounts" DROP COLUMN "name";',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "name" column in "users" (would become "accounts") table` },
+	]);
+});
+
+test('drop column in a table with data that moves to another schema', async () => {
+	const app = pgSchema('app');
+	const schema1 = {
+		app,
+		users: pgTable('users', { id: integer('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		app,
+		users: app.table('users', { id: integer('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "users" ("id", "name") VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['public.users->app.users'],
+	});
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE "users" SET SCHEMA "app";\n',
+		'ALTER TABLE "app"."users" DROP COLUMN "name";',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "name" column in "users" (would become "app"."users") table` },
+	]);
+});
+
+test('drop column in a table with data in a renamed schema', async () => {
+	const before = pgSchema('before');
+	const after = pgSchema('after');
+	const schema1 = {
+		before,
+		users: before.table('users', { id: integer('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		after,
+		users: after.table('users', { id: integer('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "before"."users" ("id", "name") VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: ['before->after'] });
+
+	expect(pst).toStrictEqual([
+		'ALTER SCHEMA "before" RENAME TO "after";\n',
+		'ALTER TABLE "after"."users" DROP COLUMN "name";',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "name" column in "before"."users" (would become "after"."users") table` },
+	]);
+});
+
+test('drop column in a table with data that is renamed and moves to another schema', async () => {
+	const app = pgSchema('app');
+	const schema1 = {
+		app,
+		users: pgTable('users', { id: integer('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		app,
+		accounts: app.table('accounts', { id: integer('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "users" ("id", "name") VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['public.users->app.accounts'],
+	});
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE "users" RENAME TO "accounts";',
+		'ALTER TABLE "accounts" SET SCHEMA "app";\n',
+		'ALTER TABLE "app"."accounts" DROP COLUMN "name";',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "name" column in "users" (would become "app"."accounts") table` },
+	]);
+});
+
+test('drop column in a renamed table with data in a renamed schema', async () => {
+	const before = pgSchema('before');
+	const after = pgSchema('after');
+	const schema1 = {
+		before,
+		users: before.table('users', { id: integer('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		after,
+		accounts: after.table('accounts', { id: integer('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "before"."users" ("id", "name") VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['before->after', 'after.users->after.accounts'],
+	});
+
+	expect(pst).toStrictEqual([
+		'ALTER SCHEMA "before" RENAME TO "after";\n',
+		'ALTER TABLE "after"."users" RENAME TO "accounts";',
+		'ALTER TABLE "after"."accounts" DROP COLUMN "name";',
+	]);
+	expect(phints).toStrictEqual([
+		{
+			hint:
+				`You're about to delete non-empty "name" column in "before"."users" (would become "after"."accounts") table`,
+		},
+	]);
+});
+
+test('drop primary key in a renamed table with data', async () => {
+	const schema1 = {
+		users: pgTable('users', { id: integer('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		accounts: pgTable('accounts', { id: integer('id').notNull(), name: text('name') }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "users" ("id", "name") VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['public.users->public.accounts'],
+	});
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE "users" RENAME TO "accounts";',
+		'ALTER TABLE "accounts" DROP CONSTRAINT "users_pkey";',
+	]);
+	expect(phints.map((it) => ({ ...it, hint: stripAnsi(it.hint) }))).toStrictEqual([{
+		hint:
+			`You're about to drop the primary key of "users" (would become "accounts") table. The statements may fail, and the table may lose its primary key`,
+	}]);
+});
+
+test('drop materialized view with data in a renamed schema', async () => {
+	const before = pgSchema('before');
+	const after = pgSchema('after');
+	const schema1 = {
+		before,
+		users: before.table('users', { id: integer('id').primaryKey() }),
+		view: before.materializedView('view', { id: integer('id') }).as(sql`SELECT "id" FROM "before"."users"`),
+	};
+	const schema2 = {
+		after,
+		users: after.table('users', { id: integer('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "before"."users" ("id") VALUES (1);`);
+	await db.query(`REFRESH MATERIALIZED VIEW "before"."view";`);
+
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: ['before->after'] });
+
+	expect(pst).toStrictEqual([
+		'ALTER SCHEMA "before" RENAME TO "after";\n',
+		'DROP MATERIALIZED VIEW "after"."view";',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "before"."view" materialized view` },
+	]);
+});
+
+test('drop primary key with an implicit name in a renamed table with data', async () => {
+	await db.query(`CREATE TABLE "orders" ("id" integer CONSTRAINT "orders_custom_pk" PRIMARY KEY);`);
+	await db.query(`INSERT INTO "orders" ("id") VALUES (1);`);
+
+	const hints = await runWithCliContext({ output: 'text', interactive: true }, () =>
+		suggestions(db, [
+			prepareStatement('rename_table', { schema: 'public', from: 'orders', to: 'purchases' }),
+			prepareStatement('drop_pk', {
+				pk: {
+					entityType: 'pks',
+					schema: 'public',
+					table: 'purchases',
+					name: 'purchases_pkey',
+					nameExplicit: false,
+					columns: ['id'],
+				},
+			}),
+		], new HintsHandler()));
+
+	for (const it of hints) {
+		if (it.statement) await db.query(it.statement);
+	}
+
+	const primaryKeys = await db.query(
+		`select conname from pg_constraint where conrelid = '"orders"'::regclass and contype = 'p';`,
+	);
+	expect(hints).toHaveLength(1);
+	expect(primaryKeys).toStrictEqual([]);
+});
+
+test('drop column without values in a table with data', async () => {
+	const schema1 = {
+		users: pgTable('users', { id: integer('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		users: pgTable('users', { id: integer('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "users" ("id") VALUES (1);`);
+
+	const { hints: phints } = await push({ db, to: schema2 });
+
+	expect(phints).toStrictEqual([]);
+});
+
+test('drop table with data in a renamed schema', async () => {
+	const before = pgSchema('before');
+	const after = pgSchema('after');
+	const schema1 = {
+		before,
+		users: before.table('users', { id: integer('id').primaryKey() }),
+	};
+	const schema2 = { after };
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "before"."users" ("id") VALUES (1);`);
+
+	const { hints: phints } = await push({ db, to: schema2, renames: ['before->after'] });
+
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "before"."users" table` },
+	]);
+});
+
+test('drop materialized view with data when a renamed table takes its name', async () => {
+	const users = pgTable('users', { id: integer('id').primaryKey() });
+	const schema1 = {
+		users,
+		accounts: pgTable('accounts', { id: integer('id').primaryKey() }),
+		report: pgMaterializedView('report', { id: integer('id') }).as(sql`SELECT "id" FROM "users"`),
+	};
+	const schema2 = {
+		users,
+		report: pgTable('report', { id: integer('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "users" ("id") VALUES (1);`);
+	await db.query(`REFRESH MATERIALIZED VIEW "report";`);
+
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['public.accounts->public.report'],
+	});
+
+	expect(pst).toStrictEqual([
+		'DROP MATERIALIZED VIEW "report";',
+		'ALTER TABLE "accounts" RENAME TO "report";',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "report" materialized view` },
+	]);
 });

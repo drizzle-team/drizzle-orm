@@ -1,6 +1,6 @@
 import type { Row, RowList, Sql, TransactionSql } from 'postgres';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -15,6 +15,7 @@ import type { Assume } from '~/utils.ts';
 export interface PostgresJsSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class PostgresJsSession<TSQL extends Sql, TRelations extends AnyRelations>
@@ -42,10 +43,7 @@ export class PostgresJsSession<TSQL extends Sql, TRelations extends AnyRelations
 		mode: 'arrays' | 'objects' | 'raw',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	) {
 		const executor = async (params?: unknown[]) => {
@@ -73,6 +71,7 @@ export class PostgresJsSession<TSQL extends Sql, TRelations extends AnyRelations
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 	override transaction<T>(
@@ -130,6 +129,10 @@ export class PostgresJsTransaction<
 	}
 }
 
+export type PostgresJsRawExecuteResult = RowList<Record<string, unknown>[]> | RowList<Record<string, unknown>[]>[];
+
 export interface PostgresJsQueryResultHKT extends PgQueryResultHKT {
-	type: RowList<Assume<this['row'], Row>[]>;
+	type: [this['row']] extends [never] ? RowList<never[]>
+		: [this['row']] extends ['unknown'] ? PostgresJsRawExecuteResult
+		: RowList<Assume<this['row'], Row>[]>;
 }

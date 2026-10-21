@@ -1,6 +1,6 @@
 import type { Connection, FullResult, Tx } from '@tidbcloud/serverless';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -9,10 +9,12 @@ import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { MySqlPreparedQueryConfig, MySqlQueryResultHKT, MySqlTransactionConfig } from '~/mysql-core/session.ts';
 import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
+import type { Simplify } from '~/utils.ts';
 
 export interface TiDBServerlessSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 function tidbBeginOptions(
@@ -66,10 +68,7 @@ export class TiDBServerlessSession<
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (response: Record<string, unknown>[] | unknown[][] | { insertId: number; affectedRows: number }) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): MySqlAsyncPreparedQuery<T> {
 		const { client } = this;
@@ -104,6 +103,7 @@ export class TiDBServerlessSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -129,7 +129,7 @@ export class TiDBServerlessSession<
 			await nativeTx.commit();
 			return result;
 		} catch (err) {
-			await nativeTx.rollback();
+			await nativeTx.rollback().catch(() => {});
 			throw err;
 		}
 	}
@@ -168,12 +168,17 @@ export class TiDBServerlessTransaction<
 			await tx.execute(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`));
+			await tx.execute(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}
 }
 
+export type TiDBServerlessQueryResult<TRow> = Simplify<Omit<FullResult, 'rows'> & { rows: TRow[] | null }>;
+
 export interface TiDBServerlessQueryResultHKT extends MySqlQueryResultHKT {
-	type: FullResult;
+	// `never` - no rows (`insert`, `update` & `delete` without returning), `'unknown'` - any response, otherwise - rows of given shape
+	type: [this['row']] extends [never] ? TiDBServerlessQueryResult<never>
+		: [this['row']] extends ['unknown'] ? FullResult
+		: TiDBServerlessQueryResult<this['row']>;
 }
