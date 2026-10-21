@@ -1,4 +1,4 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 
 export interface CockroachRoleConfig {
 	createDb?: boolean;
@@ -7,13 +7,14 @@ export interface CockroachRoleConfig {
 
 export class CockroachRole implements CockroachRoleConfig {
 	static readonly [entityKind]: string = 'CockroachRole';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	_existing?: boolean;
 
-	/** @internal */
 	readonly createDb: CockroachRoleConfig['createDb'];
-	/** @internal */
 	readonly createRole: CockroachRoleConfig['createRole'];
 
 	constructor(

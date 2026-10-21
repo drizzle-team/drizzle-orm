@@ -12,13 +12,13 @@ const query = sql`select ${users.id}, ${users.class} from ${users} where ${inArr
 }`;
 
 const all = await db.all(query);
-Expect<Equal<unknown[], typeof all>>;
+Expect<Equal<Record<string, unknown>[], typeof all>>;
 
 const allValuesTyped = await db.values<[number, 'A' | 'B' | 'C']>(query);
 Expect<Equal<[number, 'A' | 'B' | 'C'][], typeof allValuesTyped>>;
 
 const allObjects = await db.all(query);
-Expect<Equal<unknown[], typeof allObjects>>;
+Expect<Equal<Record<string, unknown>[], typeof allObjects>>;
 
 const allObjectsTyped = await db.all<{ id: number; class: 'A' | 'B' | 'C' }>(query);
 Expect<Equal<{ id: number; class: 'A' | 'B' | 'C' }[], typeof allObjectsTyped>>;

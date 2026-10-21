@@ -1,5 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
+import { relationalQueryCacheConfig, relationalQueryCacheMetadata } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { tracer } from '~/tracing.ts';
 import { applyMixins } from '~/utils.ts';
@@ -27,13 +28,13 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 			const { dialect } = this;
 			const isFirst = this.mode === 'first';
 
-			const { query, builtQuery } = this._toSQL();
-			const shape = dialect.shapeGenerator?.(
+			const { query, builtQuery, usedTables } = this._toSQL();
+			const shape = this.shape ??= dialect.shapeGenerator?.(
 				{ type: 'relational', fields: query.selection },
 				undefined,
 			);
 
-			const mapper = shape
+			const mapper = this.mapper ??= shape
 				? (isFirst ? (rows: any[]) => rows[0] : undefined)
 				: dialect.mapperGenerators.relationalRows({
 					isFirst,
@@ -49,9 +50,8 @@ export class PgAsyncRelationalQuery<TResult> extends PgRelationalQuery<PgAsyncRe
 				shape ? 'objects' : 'arrays',
 				name ?? generateName,
 				mapper,
-				// TODO: implement cache
-				undefined,
-				undefined,
+				relationalQueryCacheMetadata(this.config, query.sql, usedTables, this),
+				relationalQueryCacheConfig(this.config),
 				shape,
 			);
 		});

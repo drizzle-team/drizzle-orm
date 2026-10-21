@@ -15,6 +15,8 @@ import { Redacted } from 'effect';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
+import type { ResultSetHeader } from 'mysql2/promise';
+import { expectTypeOf } from 'vitest';
 import { DB, runCommonEffectMySqlTests } from '../effect-common';
 import relations from '../relations';
 import { usersMigratorTable } from '../schema2';
@@ -71,6 +73,52 @@ runCommonEffectMySqlTests({
 	MySqlDrizzle: MySqlDrizzle,
 	createDB,
 	addTests: (it) => {
+		it.effect(
+			'raw db.execute type matches returned data',
+			() =>
+				Effect.gen(function*() {
+					const db = yield* MySqlDrizzle.make();
+					const table = sql.identifier('raw_execute_types');
+
+					yield* db.execute<never>(sql`drop table if exists ${table}`);
+
+					// DDL
+					const created = yield* db.execute<never>(
+						sql`create table ${table} (\`id\` int primary key, \`name\` text not null)`,
+					);
+					expectTypeOf(created).toEqualTypeOf<ResultSetHeader>();
+					expect(created).toEqual(expect.objectContaining({ affectedRows: 0 }));
+
+					// `insert` without returning
+					const inserted = yield* db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+					expectTypeOf(inserted).toEqualTypeOf<ResultSetHeader>();
+					expect(inserted).toEqual(expect.objectContaining({ affectedRows: 1 }));
+
+					// Simple select
+					const selected = yield* db.execute<{ id: number; name: string }>(sql`select \`id\`, \`name\` from ${table}`);
+					expectTypeOf(selected).toEqualTypeOf<{ id: number; name: string }[]>();
+					expect(selected).toEqual([{ id: 1, name: 'John' }]);
+
+					// Multi-statement (requires `disablePreparedStatements: true`)
+					const multi = yield* db.execute(
+						sql`insert into ${table} values (2, 'Jane'); select \`id\`, \`name\` from ${table}`,
+					);
+					expectTypeOf(multi).toEqualTypeOf<MySqlDrizzle.EffectMysql2RawExecuteResult>();
+					expect(multi).toEqual([
+						expect.objectContaining({ affectedRows: 1 }),
+						[{ id: 1, name: 'John' }, { id: 2, name: 'Jane' }],
+					]);
+
+					yield* db.execute<never>(sql`drop table ${table}`);
+				}).pipe(
+					Effect.provide(MySqlDrizzle.DefaultServices),
+					Effect.provide(MysqlClient.layer({
+						url: Redacted.make(process.env['MYSQL_CONNECTION_STRING']!),
+						disablePreparedStatements: true,
+					})),
+				),
+		);
+
 		it.effect(
 			'migrator',
 			() =>

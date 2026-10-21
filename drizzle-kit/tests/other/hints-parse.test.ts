@@ -28,12 +28,6 @@ const validRenameHints = [
 	{ type: 'rename', kind: 'role', from: ['app_user'] as const, to: ['app_runtime'] as const },
 	{
 		type: 'rename',
-		kind: 'privilege',
-		from: ['alice', 'bob', 'public', 'orders', 'SELECT'] as const,
-		to: ['alice', 'bob', 'public', 'orders_v2', 'SELECT'] as const,
-	},
-	{
-		type: 'rename',
 		kind: 'check',
 		from: ['public', 'orders', 'orders_check'] as const,
 		to: ['public', 'orders', 'orders_v2_check'] as const,
@@ -73,7 +67,6 @@ const validCreateHints = [
 	{ type: 'create', kind: 'view', entity: ['public', 'active_orders'] as const },
 	{ type: 'create', kind: 'policy', entity: ['public', 'orders', 'orders_policy'] as const },
 	{ type: 'create', kind: 'role', entity: ['app_user'] as const },
-	{ type: 'create', kind: 'privilege', entity: ['alice', 'bob', 'public', 'orders', 'SELECT'] as const },
 	{ type: 'create', kind: 'check', entity: ['public', 'orders', 'orders_check'] as const },
 	{ type: 'create', kind: 'index', entity: ['public', 'orders', 'orders_idx'] as const },
 	{ type: 'create', kind: 'unique', entity: ['public', 'orders', 'orders_unique'] as const },

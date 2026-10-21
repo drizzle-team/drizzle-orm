@@ -1,5 +1,11 @@
+import { ExecuteStatementCommand, RDSDataClient } from '@aws-sdk/client-rds-data';
 import { neon, neonConfig, type NeonQueryFunction, Pool as NeonPool } from '@neondatabase/serverless';
 
+import { createPool as createPostgresPool } from '@drizzle-team/minipg';
+import { createPool as createAuroraClient } from '@drizzle-team/minipg/aurora';
+import { client as createHttpClient } from '@drizzle-team/minipg/http';
+import { createPool as createMinipgNeonHttpClient } from '@drizzle-team/minipg/neon-http';
+import { createPool as createMinipgNeonWsPool } from '@drizzle-team/minipg/neon-ws';
 import { PGlite } from '@electric-sql/pglite';
 import {
 	type AnyRelationsBuilderConfig,
@@ -7,12 +13,13 @@ import {
 	DrizzleConfig,
 	type ExtractTablesFromSchema,
 	type ExtractTablesWithRelations,
-	getTableName,
+	getCacheKey,
 	is,
 	type RelationsBuilder,
 	type RelationsBuilderConfig,
 	Table,
 } from 'drizzle-orm';
+import { drizzle as drizzleAwsDataApi } from 'drizzle-orm/aws-data-api/pg';
 import { Cache, type MutationOption } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import { drizzle as drizzleNeonHttp, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
@@ -35,8 +42,11 @@ import { drizzle as drizzleProxy } from 'drizzle-orm/pg-proxy';
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres';
 import { drizzle as drizzlePostgresjs } from 'drizzle-orm/postgres-js';
+import { drizzle as drizzleAurora } from 'drizzle-orm/postgres/aurora';
+import { drizzle as drizzleHttp } from 'drizzle-orm/postgres/http';
+import { drizzle as drizzleMinipgNeonHttp } from 'drizzle-orm/postgres/http/neon';
+import { drizzle as drizzleMinipgNeonWs } from 'drizzle-orm/postgres/neon-ws';
 import Keyv from 'keyv';
-import { createPool as createPostgresPool } from 'minipg';
 import { Client as ClientNodePostgres, types as typesNodePostgres } from 'pg';
 import postgres from 'postgres';
 import { test as base } from 'vitest';
@@ -103,7 +113,7 @@ export class TestCache extends Cache {
 		const keysToDelete = new Set<string>();
 
 		for (const table of tablesArray) {
-			const tableName = is(table, Table) ? getTableName(table) : table as string;
+			const tableName = is(table, Table) ? getCacheKey(table) : table as string;
 			const keys = this.usedTablesPerKey[tableName] ?? [];
 			for (const key of keys) keysToDelete.add(key);
 		}
@@ -116,7 +126,7 @@ export class TestCache extends Cache {
 			for (const key of keysToDelete) {
 				await this.kv.delete(key);
 				for (const table of tablesArray) {
-					const tableName = is(table, Table) ? getTableName(table) : table as string;
+					const tableName = is(table, Table) ? getCacheKey(table) : table as string;
 					this.usedTablesPerKey[tableName] = [];
 				}
 			}
@@ -204,14 +214,29 @@ export const _push = async (
 	}
 };
 
+/**
+ * Reset potentially broken by previous test runs schemas on hosted dbs
+ */
+const resetSchemas = async (run: (sql: string) => Promise<any[]>) => {
+	const schemas = await run(
+		`select nspname from pg_namespace where nspname not in ('information_schema', 'neon_auth') and nspname !~ '^pg_'`,
+	);
+
+	for (const schema of schemas) {
+		const name = String(Object.values(schema)[0]).replaceAll('"', '""');
+		await run(`drop schema if exists "${name}" cascade`);
+	}
+
+	await run('create schema public');
+	await run('create schema "mySchema"');
+};
+
 export const prepareNeonHttpClient = async (db: string) => {
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
 	const client = neon(url.toString());
 
-	await client('drop schema if exists public, "mySchema" cascade;');
-	await client('create schema public');
-	await client('create schema "mySchema";');
+	await resetSchemas(async (sql) => await client(sql) as any[]);
 	await client(`SET TIME ZONE 'UTC';`);
 
 	const query = async (sql: string, params: any[] = []) => {
@@ -226,14 +251,45 @@ export const prepareNeonHttpClient = async (db: string) => {
 	return { client, query, batch, database: db };
 };
 
+export const prepareHttpClient = async (db: string) => {
+	const gateway = process.env['PG_HTTP_GATEWAY_URL'];
+	if (!gateway) throw new Error('PG_HTTP_GATEWAY_URL is not set');
+
+	const url = new URL(process.env['PG_CONNECTION_STRING']!);
+	url.pathname = `/${db}`;
+	const connectionString = url.toString();
+
+	const client = createHttpClient({
+		url: gateway,
+		fetch: ((input: any, init: any) => {
+			const headers = new Headers(init?.headers);
+			headers.set('Neon-Connection-String', connectionString);
+			return fetch(input, { ...init, headers });
+		}) as any,
+	});
+
+	await client.query('drop schema if exists public, "mySchema" cascade;', []);
+	await client.query('create schema public', []);
+	await client.query('create schema "mySchema";', []);
+
+	const query = async (sql: string, params: any[] = []) => {
+		const res = await client.query(sql, params, { mode: 'object' });
+		return res.rows as any[];
+	};
+
+	const batch = async (statements: string[]) => {
+		return client.batch(statements.map((sql) => ({ sql }))).then((results) => [results] as any);
+	};
+
+	return { client, query, batch, database: db };
+};
+
 export const prepareNeonWsClient = async (db: string) => {
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
 	const client = new NeonPool({ connectionString: url.toString(), max: 1 });
 
-	await client.query('drop schema if exists public, "mySchema" cascade;');
-	await client.query('create schema public');
-	await client.query('create schema "mySchema";');
+	await resetSchemas(async (sql) => (await client.query(sql)).rows);
 	await client.query(`SET TIME ZONE 'UTC';`);
 
 	const query = async (sql: string, params: any[] = []) => {
@@ -243,6 +299,46 @@ export const prepareNeonWsClient = async (db: string) => {
 
 	const batch = async (statements: string[]) => {
 		return Promise.all(statements.map((x) => client.query(x))).then((results) => [results] as any);
+	};
+
+	return { client, query, batch, database: db };
+};
+
+export const prepareMinipgNeonWsClient = async (db: string) => {
+	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
+	url.pathname = `/${db}`;
+	const client = createMinipgNeonWsPool({ url: url.toString(), max: 1 });
+
+	await resetSchemas(async (sql) => (await client.query(sql)).rows as any[]);
+	await client.query(`SET TIME ZONE 'UTC';`);
+
+	const query = async (sql: string, params: any[] = []) => {
+		const res = await client.query(sql, params);
+		return res.rows as any[];
+	};
+
+	const batch = async (statements: string[]) => {
+		return Promise.all(statements.map((x) => client.query(x))).then((results) => [results] as any);
+	};
+
+	return { client, query, batch, database: db };
+};
+
+export const prepareMinipgNeonHttpClient = async (db: string) => {
+	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
+	url.pathname = `/${db}`;
+	const client = createMinipgNeonHttpClient({ url: url.toString() });
+
+	await resetSchemas(async (sql) => (await client.query(sql, [])).rows as any[]);
+	await client.query(`SET TIME ZONE 'UTC';`, []);
+
+	const query = async (sql: string, params: any[] = []) => {
+		const res = await client.query(sql, params, { mode: 'object' });
+		return res.rows as any[];
+	};
+
+	const batch = async (statements: string[]) => {
+		return client.transaction(statements.map((sql) => ({ sql }))).then((results) => [results] as any);
 	};
 
 	return { client, query, batch, database: db };
@@ -294,7 +390,7 @@ export const preparePostgres = async (db: string) => {
 	url.pathname = `/${db}`;
 	if (!url) throw new Error();
 
-	const client = createPostgresPool({ url: url.toString(), max: 1, temporal: 'string' });
+	const client = createPostgresPool({ url: url.toString(), max: 1 });
 
 	await client.query('drop schema if exists public, "mySchema" cascade;');
 	await client.query('create schema public');
@@ -372,9 +468,7 @@ export const prepareNetlifyDb = async (db: string) => {
 		}),
 	};
 
-	await client.pool.query('drop schema if exists public, "mySchema" cascade;');
-	await client.pool.query('create schema public');
-	await client.pool.query('create schema "mySchema";');
+	await resetSchemas(async (sql) => (await client.pool.query(sql)).rows);
 	await client.pool.query(`SET TIME ZONE 'UTC';`);
 
 	const query = async (sql: string, params: any[] = []) => {
@@ -389,6 +483,65 @@ export const prepareNetlifyDb = async (db: string) => {
 	return { client, query, batch, database: db };
 };
 
+export const awsDataApiConfig = {
+	resourceArn: 'arn:aws:rds:us-east-1:123456789012:cluster:dummy',
+	secretArn: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:dummy',
+	region: 'us-east-1',
+	credentials: { accessKeyId: 'local', secretAccessKey: 'local' },
+};
+
+const prepareDataApiDatabase = async (db: string) => {
+	const endpoint = process.env['AWS_DATA_API_URL'];
+	if (!endpoint) throw new Error('AWS_DATA_API_URL is not set');
+
+	const url = new URL(process.env['PG_CONNECTION_STRING']!);
+	url.pathname = `/${db}`;
+
+	const admin = new ClientNodePostgres(url.toString());
+	await admin.connect();
+
+	await admin.query('drop schema if exists public, "mySchema" cascade;');
+	await admin.query('create schema public');
+	await admin.query('create schema "mySchema";');
+
+	const query = async (sql: string, params: any[] = []) => {
+		const res = await admin.query(sql, params);
+		return res.rows;
+	};
+
+	const batch = async (statements: string[]) => {
+		return Promise.all(statements.map((x) => admin.query(x))).then((results) => [results] as any);
+	};
+
+	return { endpoint, query, batch };
+};
+
+export const prepareAurora = async (db: string) => {
+	const { endpoint, query, batch } = await prepareDataApiDatabase(db);
+	const client = createAuroraClient({ ...awsDataApiConfig, database: db, endpoint });
+	// local-data-api opens its connection to a database on first use, which takes long enough to break timing assertions
+	await client.query('select 1');
+
+	return { client, query, batch, database: db };
+};
+
+export const prepareAwsDataApi = async (db: string) => {
+	const { endpoint, query, batch } = await prepareDataApiDatabase(db);
+	const { resourceArn: _, secretArn: __, ...rdsConfig } = awsDataApiConfig;
+	const client = new RDSDataClient({ ...rdsConfig, endpoint });
+	// local-data-api opens its connection to a database on first use, which takes long enough to break timing assertions
+	await client.send(
+		new ExecuteStatementCommand({
+			resourceArn: awsDataApiConfig.resourceArn,
+			secretArn: awsDataApiConfig.secretArn,
+			database: db,
+			sql: 'select 1',
+		}),
+	);
+
+	return { client, query, batch, database: db };
+};
+
 /** A second independent connection to the same database for transaction snapsot tests */
 export interface SnapshotPeer {
 	query: (sql: string) => Promise<any[]>;
@@ -398,10 +551,13 @@ export interface SnapshotPeer {
 const openPeer = async (vendor: Vendor, database: string | undefined): Promise<SnapshotPeer | undefined> => {
 	if (vendor === 'pglite' || database === undefined) return undefined;
 
-	const hosted = vendor === 'neon-serverless' || vendor === 'netlify-db';
+	const hosted = vendor === 'neon-serverless' || vendor === 'netlify-db' || vendor === 'minipg-neon-ws'
+		|| vendor === 'minipg-neon-http';
 	const url = new URL(
 		process.env[
-			vendor === 'netlify-db' ? 'NETLIFY_DB_URL' : vendor === 'neon-serverless'
+			vendor === 'netlify-db'
+				? 'NETLIFY_DB_URL'
+				: vendor === 'neon-serverless' || vendor === 'minipg-neon-ws' || vendor === 'minipg-neon-http'
 				? 'NEON_CONNECTION_STRING'
 				: 'PG_CONNECTION_STRING'
 		]!,
@@ -429,6 +585,11 @@ const openPeer = async (vendor: Vendor, database: string | undefined): Promise<S
 };
 
 type Vendor =
+	| 'aurora'
+	| 'aws-data-api'
+	| 'http'
+	| 'minipg-neon-http'
+	| 'minipg-neon-ws'
 	| 'neon-http'
 	| 'neon-serverless'
 	| 'pglite'
@@ -548,6 +709,54 @@ export const provideForPostgres = async () => {
 	return providerClosure(clients);
 };
 
+export const provideForMinipgNeonWs = async () => {
+	const clients = [
+		await prepareMinipgNeonWsClient('db5'),
+		await prepareMinipgNeonWsClient('db6'),
+		await prepareMinipgNeonWsClient('db7'),
+		await prepareMinipgNeonWsClient('db8'),
+		await prepareMinipgNeonWsClient('db9'),
+	];
+
+	return providerClosure(clients);
+};
+
+/** Shares db0-db4 with {@link providerForNeonHttp} - see {@link provideForMinipgNeonWs} */
+export const provideForMinipgNeonHttp = async () => {
+	const clients = [
+		await prepareMinipgNeonHttpClient('db0'),
+		await prepareMinipgNeonHttpClient('db1'),
+		await prepareMinipgNeonHttpClient('db2'),
+		await prepareMinipgNeonHttpClient('db3'),
+		await prepareMinipgNeonHttpClient('db4'),
+	];
+
+	return providerClosure(clients);
+};
+
+export const provideForHttp = async () => {
+	const url = process.env['PG_CONNECTION_STRING'];
+	if (!url) throw new Error();
+	const client = new ClientNodePostgres({ connectionString: url });
+	client.connect();
+
+	for (const db of ['db20', 'db21', 'db22', 'db23', 'db24']) {
+		await client.query(`drop database if exists ${db}`);
+		await client.query(`create database ${db};`);
+	}
+	await client.end();
+
+	const clients = [
+		await prepareHttpClient('db20'),
+		await prepareHttpClient('db21'),
+		await prepareHttpClient('db22'),
+		await prepareHttpClient('db23'),
+		await prepareHttpClient('db24'),
+	];
+
+	return providerClosure(clients);
+};
+
 export const provideForPostgresjs = async () => {
 	const url = process.env['PG_CONNECTION_STRING'];
 	if (!url) throw new Error();
@@ -613,6 +822,44 @@ export const provideForNetlifyDb = async () => {
 	return providerClosure(clients);
 };
 
+const recreateDatabases = async (dbs: string[]) => {
+	const url = process.env['PG_CONNECTION_STRING'];
+	if (!url) throw new Error();
+	const client = new ClientNodePostgres({ connectionString: url });
+	await client.connect();
+
+	for (const db of dbs) {
+		await client.query(`drop database if exists ${db} with (force)`);
+		await client.query(`create database ${db};`);
+	}
+	await client.end();
+};
+
+export const provideForAurora = async () => {
+	const dbs = ['db30', 'db31', 'db32', 'db33', 'db34'];
+	await recreateDatabases(dbs);
+
+	const clients = [];
+	for (const db of dbs) clients.push(await prepareAurora(db));
+
+	return providerClosure(clients);
+};
+
+export const provideForAwsDataApi = async () => {
+	const dbs = ['db35', 'db36', 'db37', 'db38', 'db39'];
+	await recreateDatabases(dbs);
+
+	const clients = [];
+	for (const db of dbs) clients.push(await prepareAwsDataApi(db));
+
+	return providerClosure(clients);
+};
+
+type ProviderAurora = Awaited<ReturnType<typeof provideForAurora>>;
+type ProviderAwsDataApi = Awaited<ReturnType<typeof provideForAwsDataApi>>;
+type ProviderHttp = Awaited<ReturnType<typeof provideForHttp>>;
+type ProviderMinipgNeonWs = Awaited<ReturnType<typeof provideForMinipgNeonWs>>;
+type ProviderMinipgNeonHttp = Awaited<ReturnType<typeof provideForMinipgNeonHttp>>;
 type ProviderNeonHttp = Awaited<ReturnType<typeof providerForNeonHttp>>;
 type ProviderNeonWs = Awaited<ReturnType<typeof providerForNeonWs>>;
 type ProvideForPglite = Awaited<ReturnType<typeof provideForPglite>>;
@@ -623,6 +870,11 @@ type ProvideForProxy = Awaited<ReturnType<typeof provideForProxy>>;
 type ProvideForNetlifyDb = Awaited<ReturnType<typeof provideForNetlifyDb>>;
 
 type Provider =
+	| ProviderAurora
+	| ProviderAwsDataApi
+	| ProviderHttp
+	| ProviderMinipgNeonWs
+	| ProviderMinipgNeonHttp
 	| ProviderNeonHttp
 	| ProviderNeonWs
 	| ProvideForPglite
@@ -632,33 +884,47 @@ type Provider =
 	| ProvideForProxy
 	| ProvideForNetlifyDb;
 
-const testFor = (vendor: Vendor) => {
-	return base.extend<{
-		provider: Provider;
-		kit: {
-			client: any;
-			query: (sql: string, params?: any[]) => Promise<any[]>;
-			batch: (statements: string[]) => Promise<any>;
-			database: string | undefined;
-		};
-		peer: SnapshotPeer | undefined;
+export type PgTestFixtures = {
+	provider: Provider;
+	kit: {
 		client: any;
-		db: PgAsyncDatabase<any, typeof relations>;
-		push: (schema: any, params?: { log: 'statements' }) => Promise<void>;
-		createDB: {
-			<S extends PostgresSchema>(schema: S): PgAsyncDatabase<any, ReturnType<typeof defineRelations<S>>>;
-			<S extends PostgresSchema, TConfig extends AnyRelationsBuilderConfig>(
-				schema: S,
-				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
-				useJitMappers?: boolean,
-			): PgAsyncDatabase<any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
-		};
-		caches: { all: PgAsyncDatabase<any, typeof relations>; explicit: PgAsyncDatabase<any, typeof relations> };
-	}>({
+		query: (sql: string, params?: any[]) => Promise<any[]>;
+		batch: (statements: string[]) => Promise<any>;
+		database: string | undefined;
+	};
+	peer: SnapshotPeer | undefined;
+	client: any;
+	db: PgAsyncDatabase<any, typeof relations>;
+	push: (schema: any, params?: { log: 'statements' }) => Promise<void>;
+	createDB: {
+		<S extends PostgresSchema>(schema: S): PgAsyncDatabase<any, ReturnType<typeof defineRelations<S>>>;
+		<S extends PostgresSchema, TConfig extends AnyRelationsBuilderConfig>(
+			schema: S,
+			cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
+			useJitMappers?: boolean,
+			paramsInErrors?: boolean,
+			cache?: Cache,
+		): PgAsyncDatabase<any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
+	};
+	caches: { all: PgAsyncDatabase<any, typeof relations>; explicit: PgAsyncDatabase<any, typeof relations> };
+};
+
+const testFor = (vendor: Vendor) => {
+	return base.extend<PgTestFixtures>({
 		provider: [
 			// oxlint-disable-next-line no-empty-pattern
 			async ({}, use) => {
-				const provider = vendor === 'neon-http'
+				const provider = vendor === 'aurora'
+					? await provideForAurora()
+					: vendor === 'aws-data-api'
+					? await provideForAwsDataApi()
+					: vendor === 'http'
+					? await provideForHttp()
+					: vendor === 'minipg-neon-ws'
+					? await provideForMinipgNeonWs()
+					: vendor === 'minipg-neon-http'
+					? await provideForMinipgNeonHttp()
+					: vendor === 'neon-http'
 					? await providerForNeonHttp()
 					: vendor === 'neon-serverless'
 					? await providerForNeonWs()
@@ -724,7 +990,23 @@ const testFor = (vendor: Vendor) => {
 					return;
 				}
 
-				const db = vendor === 'neon-http'
+				const db = vendor === 'aurora'
+					? drizzleAurora({ client: kit.client as any, relations })
+					: vendor === 'aws-data-api'
+					? drizzleAwsDataApi({
+						client: kit.client as any,
+						database: kit.database!,
+						resourceArn: awsDataApiConfig.resourceArn,
+						secretArn: awsDataApiConfig.secretArn,
+						relations,
+					})
+					: vendor === 'http'
+					? drizzleHttp({ client: kit.client as any, relations })
+					: vendor === 'minipg-neon-ws'
+					? drizzleMinipgNeonWs({ client: kit.client as any, relations })
+					: vendor === 'minipg-neon-http'
+					? drizzleMinipgNeonHttp({ client: kit.client as any, relations })
+					: vendor === 'neon-http'
 					? drizzleNeonHttp({ client: kit.client as any, relations })
 					: vendor === 'neon-serverless'
 					? drizzleNeonWs({ client: kit.client as any, relations })
@@ -763,29 +1045,79 @@ const testFor = (vendor: Vendor) => {
 						helpers: RelationsBuilder<ExtractTablesFromSchema<S>>,
 					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
 					useJitMappers?: boolean,
+					paramsInErrors?: boolean,
+					cache?: Cache,
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
+					if (vendor === 'aurora') {
+						return drizzleAurora({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
+					}
+					if (vendor === 'aws-data-api') {
+						return drizzleAwsDataApi({
+							client: kit.client as any,
+							database: kit.database!,
+							resourceArn: awsDataApiConfig.resourceArn,
+							secretArn: awsDataApiConfig.secretArn,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+							cache,
+						});
+					}
+					if (vendor === 'minipg-neon-ws') {
+						return drizzleMinipgNeonWs({
+							client: kit.client as any,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+							cache,
+						});
+					}
+					if (vendor === 'minipg-neon-http') {
+						return drizzleMinipgNeonHttp({
+							client: kit.client as any,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+							cache,
+						});
+					}
+					if (vendor === 'http') {
+						return drizzleHttp({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
+					}
 					if (vendor === 'neon-http') {
-						return drizzleNeonHttp({ client: kit.client, relations, jit: useJitMappers });
+						return drizzleNeonHttp({ client: kit.client, relations, jit: useJitMappers, paramsInErrors, cache });
 					}
 					if (vendor === 'neon-serverless') {
-						return drizzleNeonWs({ client: kit.client as any, relations, jit: useJitMappers });
+						return drizzleNeonWs({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
 					}
 					if (vendor === 'pglite') {
-						return drizzlePglite({ client: kit.client as any, relations, jit: useJitMappers });
+						return drizzlePglite({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
 					}
 					if (vendor === 'node-postgres') {
-						return drizzleNodePostgres({ client: kit.client as any, relations, jit: useJitMappers });
+						return drizzleNodePostgres({
+							client: kit.client as any,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+							cache,
+						});
 					}
 					if (vendor === 'postgres') {
-						return drizzlePostgres({ client: kit.client as any, relations, jit: useJitMappers });
+						return drizzlePostgres({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
 					}
 					if (vendor === 'postgresjs') {
-						return drizzlePostgresjs({ client: kit.client as any, relations, jit: useJitMappers });
+						return drizzlePostgresjs({
+							client: kit.client as any,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+							cache,
+						});
 					}
 					if (vendor === 'netlify-db') {
-						return drizzleNetlify({ client: kit.client as any, relations, jit: useJitMappers });
+						return drizzleNetlify({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors, cache });
 					}
 
 					if (vendor === 'proxy') {
@@ -804,7 +1136,13 @@ const testFor = (vendor: Vendor) => {
 								throw e;
 							}
 						};
-						return drizzleProxy(proxyHandler, { relations, codecs: nodePgCodecs, jit: useJitMappers });
+						return drizzleProxy(proxyHandler, {
+							relations,
+							codecs: nodePgCodecs,
+							jit: useJitMappers,
+							paramsInErrors,
+							cache,
+						});
 					}
 					throw new Error();
 				};
@@ -839,8 +1177,23 @@ const testFor = (vendor: Vendor) => {
 
 				const config1 = { client: kit.client as any, relations, cache: new TestCache('all') };
 				const config2 = { client: kit.client as any, relations, cache: new TestCache('explicit') };
+				const dataApiConfig = {
+					database: kit.database!,
+					resourceArn: awsDataApiConfig.resourceArn,
+					secretArn: awsDataApiConfig.secretArn,
+				};
 
-				const db1 = vendor === 'neon-http'
+				const db1 = vendor === 'aurora'
+					? drizzleAurora(config1) as any
+					: vendor === 'aws-data-api'
+					? drizzleAwsDataApi({ ...config1, ...dataApiConfig }) as any
+					: vendor === 'http'
+					? drizzleHttp(config1 as any) as any
+					: vendor === 'minipg-neon-ws'
+					? drizzleMinipgNeonWs(config1 as any) as any
+					: vendor === 'minipg-neon-http'
+					? drizzleMinipgNeonHttp(config1 as any) as any
+					: vendor === 'neon-http'
 					? drizzleNeonHttp(config1)
 					: vendor === 'neon-serverless'
 					? drizzleNeonWs(config1)
@@ -856,7 +1209,17 @@ const testFor = (vendor: Vendor) => {
 					? drizzleNetlify(config1)
 					: '' as never;
 
-				const db2 = vendor === 'neon-http'
+				const db2 = vendor === 'aurora'
+					? drizzleAurora(config2) as any
+					: vendor === 'aws-data-api'
+					? drizzleAwsDataApi({ ...config2, ...dataApiConfig }) as any
+					: vendor === 'http'
+					? drizzleHttp(config2 as any) as any
+					: vendor === 'minipg-neon-ws'
+					? drizzleMinipgNeonWs(config2 as any) as any
+					: vendor === 'minipg-neon-http'
+					? drizzleMinipgNeonHttp(config2 as any) as any
+					: vendor === 'neon-http'
 					? drizzleNeonHttp(config2)
 					: vendor === 'neon-serverless'
 					? drizzleNeonWs(config2)
@@ -893,6 +1256,11 @@ export const neonWsTest = testFor('neon-serverless');
 export const pgliteTest = testFor('pglite');
 export const nodePostgresTest = testFor('node-postgres');
 export const postgresTest = testFor('postgres');
+export const postgresHttpTest = testFor('http');
+export const postgresAuroraTest = testFor('aurora');
+export const awsDataApiTest = testFor('aws-data-api');
+export const postgresNeonWsTest = testFor('minipg-neon-ws');
+export const postgresNeonHttpTest = testFor('minipg-neon-http');
 export const postgresjsTest = testFor('postgresjs');
 export const netlifyDbTest = testFor('netlify-db');
 export const proxyTest = testFor('proxy').extend<{ simulator: ServerSimulator }>({

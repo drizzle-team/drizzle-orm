@@ -42,8 +42,17 @@ function parseEnvelope(raw) {
 
 function renderClean(envelope) {
 	const dialect = envelope.dialect ?? 'your migrations';
-	return `### ✅ No migration conflicts\n\n`
-		+ `\`drizzle-kit check\` found no conflicting migrations for \`${dialect}\`.`;
+	const clean = `\`drizzle-kit check\` found no conflicting migrations for \`${dialect}\`.`;
+	const warnings = (Array.isArray(envelope.warnings) ? envelope.warnings : [])
+		.map((warning) => warning?.message)
+		.filter((message) => typeof message === 'string' && message.length > 0);
+	if (warnings.length === 0) return `### ✅ No migration conflicts\n\n${clean}`;
+
+	// Builds `items` as HTML so that Markdown does not change the file patterns and error text in a `message`.
+	// A blank line in a `message` would end the HTML block, so each newline becomes `<br>`.
+	const items = warnings.map((message) => `<li>${htmlEscape(message).replace(/\r?\n/g, '<br>')}</li>`);
+	return `### ⚠️ No migration conflicts, ${warnings.length} warning${warnings.length === 1 ? '' : 's'}\n\n`
+		+ `${clean}\n\n<ul>${items.join('')}</ul>`;
 }
 
 const ACTION_VERBS = {

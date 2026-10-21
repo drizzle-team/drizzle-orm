@@ -1,7 +1,7 @@
 import { integer, pgEnum, pgSchema, pgTable, serial, text, uuid, varchar } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import type { TestDatabase } from './mocks';
-import { diff, prepareTestDatabase, push } from './mocks';
+import { diff, drizzleToDDL, prepareTestDatabase, push } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
@@ -475,6 +475,53 @@ test('enums #17', async () => {
 	const st0 = [`ALTER TYPE "enum1" SET SCHEMA "schema";`];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+test('a column that switches to a new enum with the same name in another schema writes SQL that runs', async () => {
+	const schema = pgSchema('schema');
+	const values = ['value1', 'value2'] as const;
+	const enum1 = pgEnum('enum1', values);
+	const enum2 = schema.enum('enum1', values);
+	const from = { schema, enum1, table: pgTable('table', { column: enum1('column').default('value1') }) };
+	const to = { schema, enum2, table: pgTable('table', { column: enum2('column').default('value1') }) };
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	await db.query(`INSERT INTO "table" VALUES ('value2');`);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		`CREATE TYPE "schema"."enum1" AS ENUM('value1', 'value2');`,
+		'ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;',
+		'ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "schema"."enum1" USING "column"::text::"schema"."enum1";',
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value1'::"schema"."enum1";`,
+		'DROP TYPE "enum1";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect((await push({ db, to })).sqlStatements).toStrictEqual([]);
+});
+
+// The test sets `typeSchema` to null in the old state, because `up` writes null there for a snapshot of an
+// older format. Such a snapshot stores no schema for the enum of a column.
+test('an enum move writes no column statement when the old state names no schema for the type', async () => {
+	const schema = pgSchema('schema');
+	const tables = (enum1: ReturnType<typeof pgEnum>) => ({
+		schema,
+		enum1,
+		table: pgTable('table', { column: enum1('column') }),
+	});
+	const from = tables(pgEnum('enum1', ['value1']));
+	const to = tables(schema.enum('enum1', ['value1']));
+	const { ddl: old } = drizzleToDDL(from);
+	old.columns.update({ set: { typeSchema: null }, where: { table: 'table', name: 'column' } });
+
+	const { sqlStatements: st } = await diff(old, to, ['public.enum1->schema.enum1']);
+	await push({ db, to: from });
+	for (const statement of st) await db.query(statement);
+
+	expect(st).toStrictEqual(['ALTER TYPE "enum1" SET SCHEMA "schema";']);
+	expect((await push({ db, to })).sqlStatements).toStrictEqual([]);
 });
 
 test('enums #18', async () => {
@@ -2490,7 +2537,7 @@ test('drop enum', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4982
 // enhancement
-test.skipIf(Date.now() < +new Date('2026-08-05'))(
+test.skipIf(Date.now() < +new Date('2026-11-24'))(
 	'alter enum values; enum value is column default; table with data',
 	async () => {
 		enum AppStatus1 {

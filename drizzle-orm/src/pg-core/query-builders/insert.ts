@@ -7,7 +7,7 @@ import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, CommentInput, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL, sql } from '~/sql/sql.ts';
+import { SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
 import { getTableName, Table } from '~/table.ts';
@@ -19,7 +19,7 @@ import type { PgUpdateSetSource } from './update.ts';
 
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[] | TypedQueryBuilder<PgInsertSelection<TTable>> | SQL;
+	values: Record<string, unknown>[] | TypedQueryBuilder<PgInsertSelection<TTable>> | SQL;
 	withList?: Subquery[];
 	onConflict?: SQL;
 	returningFields?: SelectedFieldsFlat;
@@ -29,7 +29,7 @@ export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	columnList?: string[];
 	overridingSystemValue_?: boolean;
 	comment?: SQL;
-	ignoreSelectionCastCodecs?: boolean;
+	useSelectionCastCodecs?: boolean;
 }
 
 export type PgInsertValue<
@@ -119,6 +119,9 @@ export class PgInsertBuilder<
 	TBuilderHKT extends PgInsertHKTBase = PgInsertHKT,
 > {
 	static readonly [entityKind]: string = 'PgInsertBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		private table: TTable,
@@ -148,23 +151,9 @@ export class PgInsertBuilder<
 			throw new Error('values() must be called with at least one value');
 		}
 
-		const mappedValues = Array.from<Record<string, Param | SQL>>({ length: values.length });
-		for (let i = 0; i < values.length; ++i) {
-			const entry = values[i]!;
-
-			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[Table.Symbol.Columns];
-			for (const colKey of Object.keys(entry)) {
-				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue as any, cols[colKey]);
-			}
-
-			mappedValues[i] = result;
-		}
-
 		const builder = new this.builder(
 			this.table,
-			mappedValues,
+			values,
 			this.session,
 			this.dialect,
 			this.withList,
@@ -209,8 +198,6 @@ export class PgInsertBuilder<
 				| SQL),
 	): PgInsertKind<TBuilderHKT, TTable, TQueryResult> {
 		const select = typeof selectQuery === 'function' ? selectQuery(new QueryBuilder()) : selectQuery;
-		if ('withoutSelectionCastCodecs' in select) select.withoutSelectionCastCodecs();
-
 		if (!is(select, SQL)) {
 			const insertCols = Object.keys(this.table[Table.Symbol.Columns]);
 			const selected = Object.keys(select._.selectedFields);
@@ -404,6 +391,9 @@ export class PgInsertBase<
 	SQLWrapper
 {
 	static readonly [entityKind]: string = 'PgInsert';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected config: PgInsertConfig<TTable>;
 
@@ -453,6 +443,7 @@ export class PgInsertBase<
 			undefined,
 			this.dialect.codecs,
 		);
+		this.config.shape = undefined;
 		return this as any;
 	}
 
@@ -554,12 +545,14 @@ export class PgInsertBase<
 		return this as any;
 	}
 
-	getSQL(): SQL {
-		return this.dialect.buildInsertQuery(this.config);
+	getSQL(withCastCodecs = false): SQL {
+		return this.dialect.buildInsertQuery(
+			withCastCodecs ? { ...this.config, useSelectionCastCodecs: true } : this.config,
+		);
 	}
 
-	toSQL(): Query {
-		return this.dialect.sqlToQuery(this.getSQL());
+	toSQL(withCastCodecs = true): Query {
+		return this.dialect.sqlToQuery(this.getSQL(withCastCodecs));
 	}
 
 	/** @internal */
@@ -576,12 +569,6 @@ export class PgInsertBase<
 				)
 				: undefined
 		) as this['_']['selectedFields'];
-	}
-
-	/** @internal */
-	withoutSelectionCastCodecs() {
-		this.config.ignoreSelectionCastCodecs = true;
-		return this;
 	}
 
 	$dynamic(): PgInsertDynamic<this> {

@@ -89,6 +89,7 @@ function construct<
 		logger: logger,
 		cache: config.cache,
 		transactionCodecs: config.transactionCodecs ?? netlifyDbTransactionCodecs,
+		paramsInErrors: config.paramsInErrors,
 	});
 
 	types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);

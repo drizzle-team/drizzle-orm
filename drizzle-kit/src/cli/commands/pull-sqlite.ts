@@ -34,6 +34,7 @@ export const handle = async (
 		table: string;
 		schema: string;
 	},
+	init: boolean,
 	db?: Awaited<ReturnType<typeof connectToSQLite>>,
 ) => {
 	if (!db) {
@@ -86,6 +87,7 @@ export const handle = async (
 			renames,
 			outFolder: out,
 			breakpoints,
+			init,
 			type: 'introspect',
 			snapshots,
 		}));

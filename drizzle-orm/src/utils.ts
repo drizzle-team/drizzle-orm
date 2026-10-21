@@ -1,3 +1,4 @@
+import { View } from '~/view.ts';
 import type { Cache } from './cache/core/cache.ts';
 import type { CodecsCollection } from './codecs.ts';
 import type { AnyColumn } from './column.ts';
@@ -7,7 +8,7 @@ import type { Logger } from './logger.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
 import type { AnyRelations, EmptyRelations } from './relations.ts';
-import { Param, SQL, View } from './sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk, Param, SQL } from './sql/sql.ts';
 import type { DriverValueDecoder, SQLWrapper } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
@@ -56,7 +57,7 @@ function nullablePathTargets(
 	const targets: {
 		key: string;
 		leaves: number[];
-	}[] = Array.from({ length: nullableObjectPaths.length });
+	}[] = new Array(nullableObjectPaths.length);
 
 	for (let i = 0; i < nullableObjectPaths.length; ++i) {
 		const key = nullableObjectPaths[i]!;
@@ -87,7 +88,7 @@ function makeJitQueryMapperInner(
 	// top-level key -> the c-ids of every leaf nested under it, so a nullable group can test them all at once.
 	const descendantIds: Record<string, string[]> = {};
 	const nullableKeys = new Set(nullableObjectPaths ?? []);
-	const decodes = Array.from<string>({ length: columns.length });
+	const decodes = new Array<string>(columns.length);
 
 	for (let idx = 0; idx < columns.length; ++idx) {
 		const { field, fieldType, path, codec, arrayDimensions } = columns[idx]!;
@@ -191,7 +192,7 @@ export function makeJitQueryMapper<TResult>(
 	const internals = `\t"use strict";
 	const { columns } = this;
 	const { length } = rows;
-	const mapped = Array.from({ length });
+	const mapped = new Array(length);
 	${makeJitQueryMapperInner(columns, nullableObjectPaths)}
 	return mapped;
 	//# sourceURL=drizzle:jit-query-mapper`;
@@ -236,7 +237,7 @@ export function makeDefaultQueryMapper<TResult>(
 	columns: SelectedFieldsOrdered<AnyColumn>,
 	nullableObjectPaths: string[] | undefined,
 ): RowsMapper<TResult> {
-	const interpretedData: (((v: any) => any) | undefined)[] = Array.from({ length: columns.length });
+	const interpretedData: (((v: any) => any) | undefined)[] = new Array(columns.length);
 	for (let i = 0; i < columns.length; ++i) {
 		const { field, fieldType, codec, arrayDimensions } = columns[i]!;
 
@@ -273,7 +274,7 @@ export function makeDefaultQueryMapper<TResult>(
 
 	return ((rows) => {
 		const { length: rowLength } = rows;
-		const output: TResult[] = Array.from({ length: rowLength });
+		const output: TResult[] = new Array(rowLength);
 		for (let j = 0; j < rowLength; ++j) {
 			const row = rows[j]!;
 
@@ -485,10 +486,9 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 }
 
 export function getColumnFromDecoder(source: SQL | SQL.Aliased | SQLWrapper): Column | undefined {
-	const query = source.getSQL();
+	const { decoder } = source.getSQL();
 
-	if (is(query.decoder, Column)) return query.decoder;
-	return undefined;
+	return isChunk(decoder, chunkKindOf(decoder), chunkKinds.column) ? decoder : undefined;
 }
 
 export function haveSameKeys(left: Record<string, unknown>, right: Record<string, unknown>) {
@@ -510,22 +510,25 @@ export function haveSameKeys(left: Record<string, unknown>, right: Record<string
 
 /** @internal */
 export function mapUpdateSet(table: Table, values: Record<string, unknown>): UpdateSet {
-	const entries: [string, UpdateSet[string]][] = Object.entries(values)
-		.filter(([, value]) => value !== undefined)
-		.map(([key, value]) => {
-			// eslint-disable-next-line unicorn/prefer-ternary
-			if (is(value, SQL) || is(value, Column)) {
-				return [key, value];
-			} else {
-				return [key, new Param(value, table[Table.Symbol.Columns][key])];
-			}
-		});
+	const entries = Object.entries(values).filter(([, value]) => value !== undefined);
 
 	if (entries.length === 0) {
 		throw new Error('No values to set');
 	}
 
-	return Object.fromEntries(entries);
+	const mapped: [string, UpdateSet[string]][] = new Array(entries.length);
+	for (let i = 0; i < entries.length; ++i) {
+		const [key, value] = entries[i]!;
+		// eslint-disable-next-line unicorn/prefer-ternary
+		const kind = chunkKindOf(value);
+		if (isChunk(value, kind, chunkKinds.sql) || isChunk(value, kind, chunkKinds.column)) {
+			mapped[i] = [key, value];
+		} else {
+			mapped[i] = [key, new Param(value, table[Table.Symbol.Columns][key])];
+		}
+	}
+
+	return Object.fromEntries(mapped);
 }
 
 export type UpdateSet = Record<string, SQL | Param | AnyColumn | null | undefined>;
@@ -625,11 +628,12 @@ export function getColumns<T extends Table | View | Subquery>(
 
 /** @internal */
 export function getTableLikeName(table: TableLike): string | undefined {
-	return is(table, Subquery)
+	const kind = chunkKindOf(table);
+	return isChunk(table, kind, chunkKinds.subquery)
 		? table._.alias
-		: is(table, View)
+		: isChunk(table, kind, chunkKinds.view)
 		? table[ViewBaseConfig].name
-		: is(table, SQL)
+		: isChunk(table, kind, chunkKinds.sql)
 		? undefined
 		: table[Table.Symbol.IsAlias]
 		? table[Table.Symbol.Name]
@@ -642,16 +646,18 @@ export type ColumnsWithTable<
 	TColumns extends AnyColumn<{ tableName: TTableName }>[],
 > = { [Key in keyof TColumns]: AnyColumn<{ tableName: TForeignTableName }> };
 
-export interface DrizzleConfig<
-	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelationConfigs extends AnyRelations = EmptyRelations,
-> {
+export interface DrizzleConfig<TRelationConfigs extends AnyRelations = EmptyRelations> {
 	logger?: boolean | Logger | undefined;
-	schema?: TSchema | undefined;
 	relations?: TRelationConfigs | undefined;
 	cache?: Cache | undefined;
 	jit?: boolean | undefined;
+	/** Put query params in `DrizzleQueryError` instances
+	 *
+	 * @default false
+	 */
+	paramsInErrors?: boolean | undefined;
 }
+
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
 	: DrizzleTypeError<
@@ -684,18 +690,6 @@ export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Keys extends 
 	? Required<Pick<T, Keys>> & Partial<Omit<T, Keys>>
 	: never;
 
-type ExpectedConfigShape = {
-	logger?: boolean | {
-		logQuery(query: string, params: unknown[]): void;
-	} | undefined;
-	schema?: Record<string, never> | undefined;
-	relations?: AnyRelations | undefined;
-};
-
-// If this errors, you must update config shape checker function with new config specs
-const _: DrizzleConfig<any, any> = {} as ExpectedConfigShape;
-const __: ExpectedConfigShape = {} as DrizzleConfig;
-
 export function isConfig(data: any): boolean {
 	if (typeof data !== 'object' || data === null) return false;
 
@@ -707,13 +701,6 @@ export function isConfig(data: any): boolean {
 			type !== 'boolean' && (type !== 'object' || typeof data['logger']['logQuery'] !== 'function')
 			&& type !== 'undefined'
 		) return false;
-
-		return true;
-	}
-
-	if ('schema' in data) {
-		const type = typeof data['schema'];
-		if (type !== 'object' && type !== 'undefined') return false;
 
 		return true;
 	}
@@ -739,6 +726,13 @@ export function isConfig(data: any): boolean {
 		return true;
 	}
 
+	if ('paramsInErrors' in data) {
+		const type = typeof data['paramsInErrors'];
+		if (type !== 'boolean' && type !== 'undefined') return false;
+
+		return true;
+	}
+
 	if ('jit' in data) {
 		const type = typeof data['jit'];
 		if (type !== 'boolean' && type !== 'undefined') return false;
@@ -747,7 +741,7 @@ export function isConfig(data: any): boolean {
 	}
 
 	if ('codecs' in data) {
-		const type = typeof data['connection'];
+		const type = typeof data['codecs'];
 		if (type !== 'object' && type !== 'undefined') return false;
 
 		return true;
@@ -761,6 +755,19 @@ export function isConfig(data: any): boolean {
 export type NeonAuthToken = string | (() => string | Promise<string>);
 
 export const textDecoder = typeof TextDecoder === 'undefined' ? null : new TextDecoder();
+
+export function memoizeEscape(escape: (name: string) => string, limit = 4096): (name: string) => string {
+	const cache = new Map<string, string>();
+	return (name) => {
+		let escaped = cache.get(name);
+		if (escaped === undefined) {
+			if (cache.size >= limit) cache.clear();
+			escaped = escape(name);
+			cache.set(name, escaped);
+		}
+		return escaped;
+	};
+}
 
 export function assertUnreachable(_x: never | undefined): never {
 	throw new Error("Didn't expect to get here");
@@ -793,11 +800,6 @@ export type RemoveNeverElements<T extends any[]> = T extends [infer First, ...in
 	? IsNever<First> extends true ? RemoveNeverElements<Rest>
 	: [First, ...RemoveNeverElements<Rest>]
 	: [];
-
-export type HasBaseColumn<TColumn> = TColumn extends { _: { baseColumn: Column | undefined } }
-	? IsNever<TColumn['_']['baseColumn']> extends false ? true
-	: false
-	: false;
 
 export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { [K in TEnumValues[number]]: K };
 
@@ -834,6 +836,17 @@ export function base64ToUint8Array(base64: string): Uint8Array {
 
 	for (let i = 0; i < len; ++i) {
 		bytes[i] = binary.charCodeAt(i);
+	}
+
+	return bytes;
+}
+
+export function pgHexToUint8Array(hex: string): Uint8Array {
+	const len = (hex.length - 2) >> 1;
+	const bytes = new Uint8Array(len);
+
+	for (let i = 0; i < len; ++i) {
+		bytes[i] = Number.parseInt(hex.slice(2 + i * 2, 4 + i * 2), 16);
 	}
 
 	return bytes;

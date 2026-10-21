@@ -1,4 +1,5 @@
 import type { SQLiteDatabase, SQLiteRunResult } from 'expo-sqlite';
+import type { QueryMetadata } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -17,6 +18,7 @@ import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface ExpoSQLiteSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export type ExpoSQLiteRunResult = SQLiteRunResult;
@@ -46,10 +48,7 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 	): SQLiteAsyncPreparedQuery<T & { run: ExpoSQLiteRunResult }> {
 		const executors: SQLiteQueryExecutors<'sync'> = {
 			all: (params) => {
@@ -84,14 +83,6 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 					stmt.finalizeSync();
 				}
 			},
-			values: (params) => {
-				const stmt = this.client.prepareSync(query.sql);
-				try {
-					return stmt.executeForRawResultSync(params as any[]).getAllSync();
-				} finally {
-					stmt.finalizeSync();
-				}
-			},
 		};
 
 		return new SQLiteAsyncPreparedQuery(
@@ -105,6 +96,7 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 			undefined,
 			queryMetadata,
 			undefined,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -121,7 +113,11 @@ export class ExpoSQLiteSession<TRelations extends AnyRelations>
 			this.run(sql`commit`);
 			return result;
 		} catch (err) {
-			this.run(sql`rollback`);
+			try {
+				this.run(sql`rollback`);
+			} catch {
+				// original error takes priority
+			}
 			throw err;
 		}
 	}
@@ -152,7 +148,11 @@ export class ExpoSQLiteTransaction<
 			this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result as T;
 		} catch (err) {
-			this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			try {
+				this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			} catch {
+				// original error takes priority
+			}
 			throw err;
 		}
 	}

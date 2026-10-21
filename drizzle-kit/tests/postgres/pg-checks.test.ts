@@ -274,3 +274,18 @@ test('Issue No6010', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+test('a check rename on one table keeps the change of a check with the same name on another table', async () => {
+	const tables = (first: string, minimum: number) => ({
+		users: pgTable('users', { age: integer() }, (t) => [check(first, sql`${t.age} > 0`)]),
+		pets: pgTable('pets', { age: integer() }, (t) => [check('age_check', sql.raw(`"age" > ${minimum}`))]),
+	});
+	const renames = ['public.users.age_check->public.users.adult_check'];
+
+	const { sqlStatements: st } = await diff(tables('age_check', 0), tables('adult_check', 5), renames);
+
+	expect(st).toStrictEqual([
+		'ALTER TABLE "users" RENAME CONSTRAINT "age_check" TO "adult_check";',
+		'ALTER TABLE "pets" DROP CONSTRAINT "age_check", ADD CONSTRAINT "age_check" CHECK ("age" > 5);',
+	]);
+});

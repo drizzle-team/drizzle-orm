@@ -2,7 +2,7 @@
 
 import type { SavepointSQL, SQL as BunSQL, TransactionSQL } from 'bun';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -14,6 +14,7 @@ import type { Query } from '~/sql/sql.ts';
 export interface BunMySqlSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 export class BunMySqlSession<
@@ -40,10 +41,7 @@ export class BunMySqlSession<
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (response: Record<string, unknown>[] | unknown[][] | { insertId: number; affectedRows: number }) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): MySqlAsyncPreparedQuery<T> {
 		const { client } = this;
@@ -70,6 +68,7 @@ export class BunMySqlSession<
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -158,6 +157,12 @@ export class BunMySqlTransaction<
 	}
 }
 
+export type BunMySqlRawExecuteResult =
+	| (Record<string, unknown>[] & Record<string, unknown>)
+	| (Record<string, unknown>[] & Record<string, unknown>)[];
+
 export interface BunMySqlQueryResultHKT extends MySqlQueryResultHKT {
-	type: Record<string, unknown>[] & Record<string, unknown>;
+	type: [this['row']] extends [never] ? [] & Record<string, unknown>
+		: [this['row']] extends ['unknown'] ? BunMySqlRawExecuteResult
+		: this['row'][] & Record<string, unknown>;
 }

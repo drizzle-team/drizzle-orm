@@ -1,8 +1,33 @@
+import type { View } from '~/view.ts';
 import type { Column, Columns, GetColumnData } from './column.ts';
-import { entityKind } from './entity.ts';
+import { entityKind, is } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
-import type { View } from './sql/sql.ts';
-import { TableName } from './table.utils.ts';
+import type { SQLChunk } from './sql/sql.ts';
+import {
+	BaseName,
+	CacheKey,
+	ExtraConfigBuilder,
+	ExtraConfigColumns,
+	IsAlias,
+	OriginalName,
+	Qualifier,
+	TableColumns,
+	TableName,
+	TableSchema,
+} from './table.utils.ts';
+
+/** @internal */
+export {
+	BaseName,
+	CacheKey,
+	ExtraConfigBuilder,
+	ExtraConfigColumns,
+	IsAlias,
+	OriginalName,
+	Qualifier,
+	TableColumns,
+	TableSchema,
+} from './table.utils.ts';
 import type { Simplify, Update } from './utils.ts';
 
 export interface TableConfig<TColumns extends Columns = Columns> {
@@ -10,32 +35,12 @@ export interface TableConfig<TColumns extends Columns = Columns> {
 	schema: string | undefined;
 	columns: TColumns;
 	dialect: string;
+	isAlias: boolean;
 }
 
 export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<TableConfig>> = Required<
 	Update<T, TUpdate>
 >;
-
-/** @internal */
-export const TableSchema = Symbol.for('drizzle:Schema');
-
-/** @internal */
-export const TableColumns = Symbol.for('drizzle:Columns');
-
-/** @internal */
-export const ExtraConfigColumns = Symbol.for('drizzle:ExtraConfigColumns');
-
-/** @internal */
-export const OriginalName = Symbol.for('drizzle:OriginalName');
-
-/** @internal */
-export const BaseName = Symbol.for('drizzle:BaseName');
-
-/** @internal */
-export const IsAlias = Symbol.for('drizzle:IsAlias');
-
-/** @internal */
-export const ExtraConfigBuilder = Symbol.for('drizzle:ExtraConfigBuilder');
 
 const IsDrizzleTable = Symbol.for('drizzle:IsDrizzleTable');
 
@@ -45,10 +50,14 @@ export interface TableTypeConfig<T extends TableConfig> {
 	readonly schema: T['schema'];
 	readonly columns: T['columns'];
 	readonly dialect: T['dialect'];
+	readonly isAlias: T['isAlias'];
 }
 
 export class Table<out T extends TableConfig = TableConfig> {
 	static readonly [entityKind]: string = 'Table';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: TableTypeConfig<T>;
 
@@ -62,6 +71,7 @@ export class Table<out T extends TableConfig = TableConfig> {
 		BaseName: BaseName as typeof BaseName,
 		IsAlias: IsAlias as typeof IsAlias,
 		ExtraConfigBuilder: ExtraConfigBuilder as typeof ExtraConfigBuilder,
+		CacheKey: CacheKey as typeof CacheKey,
 	};
 
 	/**
@@ -91,6 +101,16 @@ export class Table<out T extends TableConfig = TableConfig> {
 	 */
 	[BaseName]: string;
 
+	/**
+	 * @internal
+	 * Table's identity in the query cache's invalidation index - its actual name (`schema.name`, or `name`
+	 * when unscoped), matching {@link getTableUniqueName} of non-aliased tables
+	 */
+	[CacheKey]: string;
+
+	/** @internal */
+	declare readonly [Qualifier]: SQLChunk;
+
 	/** @internal */
 	[IsAlias] = false;
 
@@ -104,6 +124,7 @@ export class Table<out T extends TableConfig = TableConfig> {
 		this[TableName] = this[OriginalName] = name;
 		this[TableSchema] = schema;
 		this[BaseName] = baseName;
+		this[CacheKey] = schema ? `${schema}.${name}` : name;
 	}
 }
 
@@ -130,16 +151,44 @@ export function isTable(table: unknown): table is Table {
  */
 export type AnyTable<TPartial extends Partial<TableConfig>> = Table<UpdateTableConfig<TableConfig, TPartial>>;
 
-export function getTableName<T extends Table>(table: T): T['_']['name'] {
+export function getTableName<T extends Table | View>(table: T): T['_']['name'] {
 	return table[TableName];
+}
+
+export function getTableSchema<T extends Table | View>(table: T): T['_']['schema'] {
+	return table[TableSchema];
+}
+
+export function isTableAlias<T extends Table | View>(table: T): T['_']['isAlias'] {
+	return table[IsAlias];
 }
 
 export function getTableUniqueName<
 	T extends Table | View,
-	TResult extends string = T extends Table ? T['_']['schema'] extends undefined ? `public.${T['_']['name']}`
-		: `${T['_']['schema']}.${T['_']['name']}`
-		// Views don't have type-level schema names, to be added
-		: `${string}.${T['_']['name']}`,
+	TResult extends string = T['_']['isAlias'] extends true ? T['_']['name']
+		: T['_']['schema'] extends undefined ? T['_']['name']
+		: `${T['_']['schema']}.${T['_']['name']}`,
+>(
+	table: T,
+): TResult {
+	return (table[IsAlias] || table[TableSchema] === undefined
+		? table[TableName]
+		: `${table[TableSchema]}.${table[TableName]}`) as TResult;
+}
+
+export function getCacheKey(table: Table): string {
+	return table[CacheKey];
+}
+
+/**
+ * Compatibility for _relations, to be removed
+ *
+ * @internal
+ */
+export function getLegacyTableUniqueName<
+	T extends Table | View,
+	TResult extends string = T['_']['schema'] extends undefined ? `public.${T['_']['name']}`
+		: `${T['_']['schema']}.${T['_']['name']}`,
 >(
 	table: T,
 ): TResult {

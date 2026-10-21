@@ -9,34 +9,33 @@ export type DrizzleEntityClass<T> =
 	& ((abstract new(...args: any[]) => T) | (new(...args: any[]) => T))
 	& DrizzleEntity;
 
+const kindsByConstructor = new WeakMap<object, Set<string>>();
+function collectKinds(ctor: object): Set<string> {
+	const kinds = new Set<string>();
+	for (let cls: any = ctor; cls; cls = Object.getPrototypeOf(cls)) {
+		if (entityKind in cls) kinds.add(cls[entityKind]);
+	}
+	kindsByConstructor.set(ctor, kinds);
+	return kinds;
+}
+
+const nativeHasInstance = Function.prototype[Symbol.hasInstance];
 export function is<T extends DrizzleEntityClass<any>>(value: any, type: T): value is InstanceType<T> {
-	if (!value || typeof value !== 'object') {
-		return false;
-	}
+	// `instanceof` would loop back to `is` due to `Symbol.hasInstance` redefinitions
+	if (nativeHasInstance.call(type, value)) return true;
+	if (value === null || typeof value !== 'object') return false;
 
-	if (value instanceof type) { // oxlint-disable-line drizzle-internal/no-instanceof
-		return true;
-	}
+	const ctor = Object.getPrototypeOf(value)?.constructor;
+	if (typeof ctor !== 'function') return false;
 
-	if (!Object.prototype.hasOwnProperty.call(type, entityKind)) {
-		throw new Error(
-			`Class "${
-				type.name ?? '<unknown>'
-			}" doesn't look like a Drizzle entity. If this is incorrect and the class is provided by Drizzle, please report this as a bug.`,
-		);
-	}
+	return (kindsByConstructor.get(ctor) ?? collectKinds(ctor)).has(type[entityKind]);
+}
 
-	let cls = Object.getPrototypeOf(value)?.constructor;
-	if (cls) {
-		// Traverse the prototype chain to find the entityKind
-		while (cls) {
-			if (entityKind in cls && cls[entityKind] === type[entityKind]) {
-				return true;
-			}
+export function entityKindsOf(value: unknown): Set<string> | undefined {
+	if (value === null || typeof value !== 'object') return undefined;
 
-			cls = Object.getPrototypeOf(cls);
-		}
-	}
+	const ctor = Object.getPrototypeOf(value)?.constructor;
+	if (typeof ctor !== 'function') return undefined;
 
-	return false;
+	return kindsByConstructor.get(ctor) ?? collectKinds(ctor);
 }

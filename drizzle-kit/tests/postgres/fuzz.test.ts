@@ -1,0 +1,242 @@
+import { randomUUID } from 'crypto';
+import { foreignKey, integer, pgSchema, pgTable } from 'drizzle-orm/pg-core';
+import { mkdirSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { prepareSnapshotFolderName } from 'src/cli/commands/generate-common';
+import { errorToEnvelope } from 'src/cli/errors';
+import { normalizeDDL } from 'src/dialects/ddl-canonical';
+import { fromEntities } from 'src/dialects/postgres/ddl';
+import { ddlDiff } from 'src/dialects/postgres/diff';
+import { reconstruct } from 'src/dialects/postgres/reconstruct';
+import type { PostgresSnapshotV8 } from 'src/dialects/postgres/snapshot';
+import { withStateKeyNames } from 'src/dialects/postgres/versions-v9';
+import { originUUID, prepareMigrationRenames } from 'src/utils';
+import { mockResolver } from 'src/utils/mocks';
+import { expect, test } from 'vitest';
+import { createFolderFlow, createFormat8Flow, schemaState, tempDir } from './folder-flow';
+import {
+	applyOps,
+	checkProperty,
+	createIds,
+	emptyModel,
+	generateHistory,
+	generateOps,
+	type Op,
+	type Random,
+	renameDecisions,
+	replayHistory,
+	runHistory,
+	shrinkHistory,
+	type Step,
+	toDDL,
+	toRenameString,
+	toSchema,
+	withoutOne,
+} from './fuzz';
+import { diff, drizzleToDDL, type PostgresSchema } from './mocks';
+
+// Verifies three properties on random schemas and on random migration histories with forks and merges: the
+// deltas of `ddlDiff` rebuild the new state, every snapshot reconstructs to its schema, and `up` keeps every
+// state of a format 8 folder or refuses the whole folder.
+// Case n uses seed 20260928 + n. FUZZ_SEED sets another first seed or "random", and FUZZ_RUNS sets the number
+// of cases for each property, for example: FUZZ_SEED=random FUZZ_RUNS=300 pnpm vitest run tests/postgres/fuzz.test.ts
+// A failure prints the seed of the failing case and the smallest case that still fails.
+
+type Pair = { before: Op[]; after: Op[] };
+
+const generatePair = (random: Random): Pair => {
+	const nextId = createIds();
+	const empty = emptyModel();
+	const { ops: before, model } = generateOps(random, nextId, [empty], empty, 10 + random.int(15));
+	const { ops: after } = generateOps(random, nextId, [model], model, 2 + random.int(7));
+	return { before, after };
+};
+
+const shrinkPair = ({ before, after }: Pair): Pair[] => [
+	...withoutOne(after).map((ops) => ({ before, after: ops })),
+	...withoutOne(before).map((ops) => ({ before: ops, after })),
+];
+
+// Builds the two DDL states of a pair and the rename decisions between them, in the mockResolver format.
+const statesOf = ({ before, after }: Pair) => {
+	const from = applyOps(emptyModel(), before);
+	const to = applyOps(from, after);
+	return { left: toDDL(from)!, right: toDDL(to)!, renames: renameDecisions(from, to, after).map(toRenameString) };
+};
+
+type ResolvedRename = Record<'from' | 'to', { entityType: string; schema?: string; table?: string; name: string }>;
+
+// The resolver arguments of ddlDiff, which record every resolved rename in `resolved`. mockResolver keeps no
+// state between calls, so one resolver fills every argument.
+const renameResolvers = (renames: string[], resolved: ResolvedRename[]) => {
+	const mock = mockResolver<any>(new Set(renames));
+	const same: typeof mock = async (it) => {
+		const result = await mock(it);
+		resolved.push(...result.renamedOrMoved);
+		return result;
+	};
+	return [same, same, same, same, same, same, same, same, same, same, same, same, same] as const;
+};
+
+test('the deltas of ddlDiff reconstruct the new state', async () => {
+	await checkProperty({
+		runs: 300,
+		generate: generatePair,
+		shrink: shrinkPair,
+		check: async (pair) => {
+			const { left, right, renames } = statesOf(pair);
+			// `diff` applies the deltas to a copy of `left` and fails when the result differs from `right`.
+			await diff(left, right, renames);
+		},
+	});
+});
+
+const historyProperty = (runs: number, check: (steps: Step[]) => Promise<void>) =>
+	checkProperty({
+		runs,
+		generate: (random) => generateHistory(random, 8 + random.int(8)),
+		shrink: shrinkHistory,
+		check,
+	});
+
+// Clears the generated names before two states are compared. After a table or column rename, Postgres and the
+// reconstructed state keep the generated names of the constraints, and the schema file derives new names.
+const withoutGeneratedNames = (state: string[]) =>
+	normalizeDDL(state.map((it) => JSON.parse(it)).map((it) => (it.nameExplicit === false ? { ...it, name: '' } : it)));
+
+test('every snapshot of a history with forks and merges rebuilds to its schema, and combined states repeat', async () => {
+	await historyProperty(40, async (steps) => {
+		const { flow, branches, written } = await runHistory(steps);
+		const combined = new Map<string, string[]>();
+		for (const branch of branches) {
+			for (const folder of flow.folders(branch)) {
+				const expected = schemaState(toSchema(written.get(folder)!.model));
+				expect(withoutGeneratedNames(flow.state(branch, folder)), `the state of ${folder} on branch ${branch}`)
+					.toStrictEqual(withoutGeneratedNames(expected));
+			}
+			for (const folder of flow.folders(branch)) {
+				if (flow.snapshot(branch, folder).prevIds.length < 2) continue;
+				const state = flow.combinedState(branch, folder);
+				expect(flow.combinedState(branch, folder), `the combined state of ${folder}`).toStrictEqual(state);
+				// One merge folder can be on several branches with other snapshots next to it. `combined` checks that
+				// the combined state of the merge is the same on every branch.
+				expect(state, `the combined state of ${folder} on branch ${branch}`).toStrictEqual(
+					combined.get(folder) ?? state,
+				);
+				combined.set(folder, state);
+			}
+		}
+	});
+});
+
+// Writes the folder that drizzle-kit 1.0.0-rc.4 wrote for the history: the full state after ddlDiff, the
+// rename strings and every leaf as a parent. All branches share one folder. A merge starts from its newest
+// leaf, as rc.4 did with --ignore-conflicts.
+const writeFormat8Folder = async (steps: Step[], dir: string) => {
+	const folders = new Map<string, string[]>([['main', []]]);
+	const snapshots = new Map<string, PostgresSnapshotV8>();
+	let time = Date.UTC(2026, 0, 1, 12, 0, 0);
+	await replayHistory(steps, async (step, start, next, sources) => {
+		if (step.type === 'fork') {
+			folders.set(step.branch, [...folders.get(step.from)!]);
+			return;
+		}
+		const own = [...new Set([step.branch, ...sources].flatMap((it) => folders.get(it)!))].sort();
+		folders.set(step.branch, own);
+		const parents = new Set(own.flatMap((it) => snapshots.get(it)!.prevIds));
+		const leaves = own.filter((it) => !parents.has(snapshots.get(it)!.id));
+		const latest = snapshots.get(leaves.at(-1)!);
+		const prevIds = leaves.length ? leaves.map((it) => snapshots.get(it)!.id) : [originUUID];
+		let snapshot: PostgresSnapshotV8;
+		if (step.type === 'custom') {
+			if (!latest) return;
+			snapshot = { ...latest, id: randomUUID(), prevIds, renames: [] };
+		} else {
+			const to = toDDL(next)!;
+			const renames = renameDecisions(start, next, step.ops).map(toRenameString);
+			const from = fromEntities(structuredClone(latest?.ddl ?? []));
+			const resolved: ResolvedRename[] = [];
+			const result = await ddlDiff(from, to, ...renameResolvers(renames, resolved), 'default');
+			if (result.sqlStatements.length === 0) return;
+			snapshot = {
+				version: '8',
+				dialect: 'postgres',
+				id: randomUUID(),
+				prevIds,
+				ddl: to.entities.list(),
+				// The filter drops the rename of an enum that only moved to another schema, because format 8 has no
+				// rename string for such a move.
+				renames: prepareMigrationRenames(
+					resolved.filter((it) => it.from.entityType !== 'enums' || it.from.name !== it.to.name),
+				),
+			};
+		}
+		time += 1000;
+		const folder = `${prepareSnapshotFolderName(time)}_${step.branch}`;
+		snapshots.set(folder, snapshot);
+		own.push(folder);
+		mkdirSync(join(dir, folder));
+		writeFileSync(join(dir, folder, 'snapshot.json'), JSON.stringify(snapshot, null, 2));
+		writeFileSync(join(dir, folder, 'migration.sql'), '');
+	});
+	return snapshots;
+};
+
+test('up rebuilds every state of a format 8 folder, or refuses a merge of two entities with one name', async () => {
+	let refusals = 0;
+	await historyProperty(40, async (steps) => {
+		const dir = tempDir('dk-fuzz-format-8-');
+		const originals = await writeFormat8Folder(steps, dir);
+		const flow = createFolderFlow();
+		flow.seed('main', dir);
+		const before = flow.files('main');
+		const refusal = await flow.up('main').then(() => null, (e: Error) => e);
+		if (refusal) {
+			// rc.4 could merge branches that gave one name to two entities. up refuses such a folder.
+			expect(refusal.message).toContain('Two migrations gave one name to two different entities.');
+			expect(errorToEnvelope(refusal)).toMatchObject({ error: { command: 'up', kind: 'history' } });
+			expect(flow.files('main')).toStrictEqual(before);
+			refusals += 1;
+			return;
+		}
+		for (const [folder, original] of originals) {
+			const state = reconstruct(flow.history('main'), flow.snapshot('main', folder).id);
+			expect(flow.state('main', folder), `the state of ${folder}`).toStrictEqual(
+				normalizeDDL(fromEntities(withStateKeyNames(original.ddl, state)).entities.list()),
+			);
+		}
+	});
+	// Most histories must still convert, or the property checks nothing.
+	expect(refusals).toBeLessThan(10);
+});
+
+test('up keeps a generated constraint name that a format 8 merge got from its newest leaf', async () => {
+	const users = pgTable('users', { id: integer().notNull() });
+	const withKey = (name: string) =>
+		pgTable(name, { id: integer().notNull() }, (t) => [foreignKey({ columns: [t.id], foreignColumns: [t.id] })]);
+	const archive = pgSchema('archive');
+	const rowsOf = (schema: PostgresSchema) => drizzleToDDL(schema).ddl.entities.list();
+	// rc.4 diffed this merge from leaf b, which has no foreign key, so the foreign key got a name from the new
+	// table `people`. The combined state has the foreign key of leaf a, with a name from the old table `users`.
+	const merge = rowsOf({ people: withKey('people'), archive });
+	const flow = createFormat8Flow([
+		{ folder: '20260101120001_main', id: 'main', prevIds: [originUUID], ddl: rowsOf({ users }) },
+		{ folder: '20260101120002_a', id: 'a', prevIds: ['main'], ddl: rowsOf({ users: withKey('users') }) },
+		{ folder: '20260101120003_b', id: 'b', prevIds: ['main'], ddl: rowsOf({ users, archive }) },
+		{
+			folder: '20260101120004_merge',
+			id: 'merge',
+			prevIds: ['a', 'b'],
+			ddl: merge,
+			renames: ['public.users->public.people'],
+		},
+	]);
+
+	await flow.up('main');
+
+	const state = flow.state('main', '20260101120004_merge');
+	expect(state).toStrictEqual(normalizeDDL(merge));
+	expect(state.filter((it) => it.includes('"fks"')).map((it) => JSON.parse(it).name)).toStrictEqual([
+		'people_id_people_id_fkey',
+	]);
+});

@@ -252,6 +252,33 @@ test('advanced index test', async () => {
 	]);
 });
 
+test('index on an ARRAY expression + a second expression', async () => {
+	await db.query('CREATE TABLE humans (first_name text, last_name text);');
+	await db.query(
+		'CREATE INDEX humans_name_array_idx ON humans ((ARRAY[lower(first_name), upper(first_name)]), lower(last_name));',
+	);
+
+	const { indexes } = await fromDatabase(db, () => true);
+
+	// the comma inside ARRAY[...] must not split the expression in two
+	expect(indexes[0]?.columns).toStrictEqual([
+		{
+			asc: true,
+			isExpression: true,
+			nullsFirst: false,
+			opclass: null,
+			value: 'ARRAY[lower(first_name), upper(first_name)]',
+		},
+		{
+			asc: true,
+			isExpression: true,
+			nullsFirst: false,
+			opclass: null,
+			value: 'lower(last_name)',
+		},
+	]);
+});
+
 test('identity always test: few params', async () => {
 	const schema = {
 		users: pgTable('users', {
@@ -899,7 +926,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-08-05'))('introspect view #4', async () => {
+test.skipIf(Date.now() < +new Date('2026-11-24'))('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -918,17 +945,13 @@ test.skipIf(Date.now() < +new Date('2026-08-05'))('introspect view #4', async ()
 	} = await diffIntrospect(db, schema, 'introspect-view-4');
 
 	throw Error('');
-	expect(pushStatements).toStrictEqual([]);
-	expect(generateStatements).toStrictEqual([]);
-	expect(pushSqlStatements).toStrictEqual([]);
-	expect(generateSqlStatements).toStrictEqual([]);
 	// TODO: we need to check actual types generated;
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-08-05'))('introspect view #5', async () => {
+test.skipIf(Date.now() < +new Date('2026-11-24'))('introspect view #5', async () => {
 	const applications = pgTable('applications', {
 		applicationId: serial('application_id').primaryKey(),
 		studentId: integer('student_id').references(() => students.studentId),
@@ -1759,68 +1782,57 @@ test('introspect view with table filter', async () => {
 	const schema1 = { table1, view1, table2, view2 };
 	await push({ db, to: schema1 });
 
-	let tables, views;
-	let filter = prepareEntityFilter(
-		'postgresql',
-		{
-			tables: ['table1'],
-			schemas: undefined,
-			entities: undefined,
-			extensions: undefined,
-		},
-		[],
-	);
-	({ tables, views } = await fromDatabaseForDrizzle(db, filter, () => {}, {
-		table: '__drizzle_migrations',
-		schema: 'drizzle',
-	}));
-	const expectedTables = [
-		{
-			entityType: 'tables',
-			schema: 'public',
-			name: 'table1',
-			isRlsEnabled: false,
-		},
-	];
-	expect(tables).toStrictEqual(expectedTables);
-	expect(views).toStrictEqual([]);
+	let filter = prepareEntityFilter('postgresql', {
+		tables: ['table1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
 
-	filter = prepareEntityFilter(
-		'postgresql',
-		{
-			tables: ['table1', 'view1'],
-			schemas: undefined,
-			entities: undefined,
-			extensions: undefined,
-		},
-		[],
-	);
-	({ tables, views } = await fromDatabaseForDrizzle(db, filter, () => {}, {
+	const res = await fromDatabaseForDrizzle(db, filter, () => {}, {
 		table: '__drizzle_migrations',
 		schema: 'drizzle',
-	}));
-	const expectedViews = [
-		{
-			entityType: 'views',
-			schema: 'public',
-			name: 'view1',
-			definition: 'SELECT column1 FROM table1',
-			with: null,
-			materialized: false,
-			tablespace: null,
-			using: null,
-			withNoData: null,
-		},
-	];
-	expect(tables).toStrictEqual(expectedTables);
-	expect(views).toStrictEqual(expectedViews);
+	});
+	const expectedTables = [{
+		entityType: 'tables',
+		schema: 'public',
+		name: 'table1',
+		isRlsEnabled: false,
+	}];
+	expect(res.tables).toStrictEqual(expectedTables);
+	expect(res.views).toStrictEqual([]);
+
+	filter = prepareEntityFilter('postgresql', {
+		tables: ['table1', 'view1'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
+
+	const res2 = await fromDatabaseForDrizzle(db, filter, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+	const expectedViews = [{
+		entityType: 'views',
+		schema: 'public',
+		name: 'view1',
+		definition: 'SELECT column1 FROM table1',
+		with: null,
+		materialized: false,
+		tablespace: null,
+		using: null,
+		withNoData: null,
+	}];
+	expect(res2.tables).toStrictEqual(expectedTables);
+	expect(res2.views).toStrictEqual(expectedViews);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4144
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(Date.now() < +new Date('2026-08-05'))('introspect sequences with table filter', async () => {
+test.skipIf(Date.now() < +new Date('2026-11-24'))('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
@@ -1835,47 +1847,36 @@ test.skipIf(Date.now() < +new Date('2026-08-05'))('introspect sequences with tab
 	const schema1 = { table1, table2 };
 	await push({ db, to: schema1 });
 
-	const filter = prepareEntityFilter(
-		'postgresql',
-		{
-			tables: ['!prefix_*'],
-			schemas: undefined,
-			entities: undefined,
-			extensions: undefined,
-		},
-		[],
-	);
-	const { tables, sequences } = await fromDatabaseForDrizzle(
-		db,
-		filter,
-		() => {},
-		{
-			table: '__drizzle_migrations',
-			schema: 'drizzle',
-		},
-	);
+	const filter = prepareEntityFilter('postgresql', {
+		tables: ['!prefix_*'],
+		schemas: undefined,
+		entities: undefined,
+		extensions: undefined,
+	}, []);
 
-	expect(tables).toStrictEqual([
-		{
-			entityType: 'tables',
-			schema: 'public',
-			name: 'table1',
-			isRlsEnabled: false,
-		},
-	]);
-	expect(sequences).toBe([
-		{
-			entityType: 'sequences',
-			schema: 'public',
-			name: 'table1_column1_seq',
-			startWith: '1',
-			minValue: '1',
-			maxValue: '2147483647',
-			incrementBy: '1',
-			cycle: false,
-			cacheSize: 1,
-		},
-	]);
+	const { tables, sequences } = await fromDatabaseForDrizzle(db, filter, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+
+	expect(tables).toStrictEqual([{
+		entityType: 'tables',
+		schema: 'public',
+		name: 'table1',
+		isRlsEnabled: false,
+	}]);
+
+	expect(sequences).toBe([{
+		entityType: 'sequences',
+		schema: 'public',
+		name: 'table1_column1_seq',
+		startWith: '1',
+		minValue: '1',
+		maxValue: '2147483647',
+		incrementBy: '1',
+		cycle: false,
+		cacheSize: 1,
+	}]);
 	// 	console.log(await db.query(`select pg_get_serial_sequence('"public"."table1"', 'column1');`));
 	// 	console.log(await db.query(`select pg_get_serial_sequence('"public"."table2"', 'column1');`));
 	// 	console.log(
@@ -2144,6 +2145,53 @@ test('functional index', async () => {
 			schema: 'public',
 			table: 'table1',
 			where: '((normalized_address IS NOT NULL) AND (state IS NOT NULL))',
+			with: '',
+		},
+	]);
+});
+
+test('compound indexe', async () => {
+	const peopleTable = pgTable(
+		'people',
+		{
+			id: bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+			firstName: text('first_name'),
+		},
+		(t) => [
+			index('people_name_array_idx')
+				.on(sql.raw('(ARRAY[lower(first_name), upper(first_name)])')),
+		],
+	);
+
+	const { pushSqlStatements, generateSqlStatements, schema2 } = await diffIntrospect(
+		db,
+		{ peopleTable },
+		'compound_index',
+	);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(schema2.indexes).toStrictEqual([
+		{
+			columns: [
+				{
+					asc: true,
+					isExpression: true,
+					nullsFirst: false,
+					opclass: null,
+					value: 'ARRAY[lower(first_name), upper(first_name)]',
+				},
+			],
+			concurrently: false,
+			entityType: 'indexes',
+			forPK: false,
+			forUnique: false,
+			isUnique: false,
+			method: 'btree',
+			name: 'people_name_array_idx',
+			nameExplicit: true,
+			schema: 'public',
+			table: 'people',
+			where: null,
 			with: '',
 		},
 	]);
@@ -2439,7 +2487,7 @@ test('issue No4655. Problem with backslash in check constraint + custom type', a
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5329
-test('introspect policies with schemaFilter', async (t) => {
+test('introspect policies with schemaFilter', async () => {
 	const role = pgRole('owner');
 	const schema1 = {
 		role,
@@ -2470,7 +2518,7 @@ test('introspect policies with schemaFilter', async (t) => {
 	expect(generateStatements).toStrictEqual([]);
 });
 // https://github.com/drizzle-team/drizzle-orm/issues/5329
-test('introspect policies without schemaFilter', async (t) => {
+test('introspect policies without schemaFilter', async () => {
 	const role = pgRole('owner');
 	const schema1 = {
 		role,
@@ -2809,19 +2857,23 @@ CREATE INDEX "idx_19612_cnst_full_name_idx" ON "public"."constructor" USING btre
 	expect(pushStatements).toStrictEqual([]);
 });
 
-// when user does not have permissions, introspection should not fail
+// when user does not have permissions, introspection should not fail and should return all entities
 // https://github.com/drizzle-team/drizzle-orm/issues/5568
 test('non-admin', async () => {
-	const newSchema = pgSchema('schema_not_for_non_admin');
+	const schemaNotForNonAdmin = pgSchema('schema_not_for_non_admin');
+	const tableNotForNonAdmin = schemaNotForNonAdmin.table('table_not_for_non_admin', {
+		id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+	});
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
 			name: text('name'),
+			fkOnSchemaNotForNonAdmin: integer('fk_on_schema_not_for_non_admin').references(
+				() => tableNotForNonAdmin.id,
+			),
 		}),
-		schemaNotForNonAdmin: newSchema,
-		tableNotForNonAdmin: newSchema.table('table_not_for_non_admin', {
-			id: integer('id'),
-		}),
+		schemaNotForNonAdmin,
+		tableNotForNonAdmin,
 	};
 
 	await push({ db, to: schema });
@@ -2829,14 +2881,305 @@ test('non-admin', async () => {
 	await db.query(`CREATE ROLE "non-admin" LOGIN PASSWORD 'password';`);
 	await db.query(`SET ROLE "non-admin";`);
 
-	const { tables } = await fromDatabase(db);
+	const { schemas, tables, fks } = await fromDatabase(db);
 
+	expect(schemas).toStrictEqual([
+		{
+			entityType: 'schemas',
+			name: 'public',
+		},
+		{
+			entityType: 'schemas',
+			name: 'schema_not_for_non_admin',
+		},
+	]);
 	expect(tables).toStrictEqual([
 		{
 			entityType: 'tables',
 			schema: 'public',
 			name: 'users',
 			isRlsEnabled: false,
+		},
+		{
+			entityType: 'tables',
+			schema: 'schema_not_for_non_admin',
+			name: 'table_not_for_non_admin',
+			isRlsEnabled: false,
+		},
+	]);
+	expect(fks.length).toBe(1);
+});
+
+const introspectAsAdminAndUser = async (grants: string[] = []) => {
+	await db.query(`CREATE ROLE "user" LOGIN PASSWORD 'password';`);
+	for (const grant of grants) await db.query(grant);
+
+	const { privileges: _p1, ...asAdmin } = await fromDatabase(db);
+	await db.query(`SET ROLE "user";`);
+	const { privileges: _p2, ...asUser } = await fromDatabase(db);
+	await db.query(`RESET ROLE;`);
+
+	return { asAdmin, asUser };
+};
+
+test('non-admin: no usage on schema', async () => {
+	const restricted = pgSchema('restricted');
+	const status = restricted.enum('status', ['active', 'inactive']);
+	const seq = restricted.sequence('seq', { startWith: 10, increment: 2 });
+	const table = restricted.table('table', {
+		id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+		serial: serial('serial'),
+		status: status('status').default('active'),
+		email: text('email').unique(),
+		age: integer('age'),
+	}, (t) => [
+		index('table_age_idx').on(t.age),
+		check('table_age_check', sql`${t.age} > 0`),
+	]);
+	const view = restricted.view('view').as((qb) => qb.select().from(table));
+	const mView = restricted.materializedView('m_view').as((qb) => qb.select().from(table));
+
+	await push({ db, to: { restricted, status, seq, table, view, mView } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser();
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.tables.map((it) => `${it.schema}.${it.name}`)).toStrictEqual(['restricted.table']);
+	expect(asUser.enums.map((it) => it.name)).toStrictEqual(['status']);
+	expect(asUser.sequences.map((it) => it.name)).toStrictEqual(['seq']);
+	expect(asUser.columns.find((it) => it.name === 'id')!.identity).not.toBeNull();
+	expect(asUser.views.map((it) => it.name)).toStrictEqual(['m_view', 'view']);
+});
+
+test('non-admin: usage on schema, no privileges on table', async () => {
+	const restricted = pgSchema('restricted');
+	const table = restricted.table('table', {
+		id: integer('id').primaryKey().generatedByDefaultAsIdentity(),
+		serial: serial('serial'),
+		name: text('name').notNull().default('name'),
+	}, (t) => [uniqueIndex('table_name_idx').on(t.name)]);
+
+	await push({ db, to: { restricted, table } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser([
+		`GRANT USAGE ON SCHEMA "restricted" TO "user";`,
+	]);
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.tables.length).toBe(1);
+	expect(asUser.columns.map((it) => it.name)).toStrictEqual(['id', 'serial', 'name']);
+});
+
+test('non-admin: column-level privileges only', async () => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+		name: text('name'),
+		secret: text('secret'),
+	});
+
+	await push({ db, to: { users } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser([
+		`REVOKE ALL ON TABLE "users" FROM PUBLIC;`,
+		`GRANT SELECT ("id", "name") ON TABLE "users" TO "user";`,
+	]);
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.columns.map((it) => it.name)).toStrictEqual(['id', 'name', 'secret']);
+});
+
+test('non-admin: no access to sequences', async () => {
+	const restricted = pgSchema('restricted');
+	const seq = restricted.sequence('seq', { startWith: 100, minValue: 100, maxValue: 1000, cycle: true, cache: 5 });
+	const publicSeq = pgSequence('public_seq', { increment: 3 });
+	const users = pgTable('users', {
+		id: bigserial('id', { mode: 'number' }).primaryKey(),
+		small: smallserial('small'),
+		identity: bigint('identity', { mode: 'number' }).generatedAlwaysAsIdentity({ startWith: 5, increment: 5 }),
+	});
+
+	await push({ db, to: { restricted, seq, publicSeq, users } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser([
+		`REVOKE ALL ON SEQUENCE "public_seq" FROM PUBLIC;`,
+		`REVOKE ALL ON ALL SEQUENCES IN SCHEMA "public" FROM PUBLIC;`,
+	]);
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.sequences.map((it) => it.name).sort()).toStrictEqual(['public_seq', 'seq']);
+	expect(asUser.columns.find((it) => it.name === 'identity')!.identity).not.toBeNull();
+});
+
+test('non-admin: column type from schema without access', async () => {
+	const restricted = pgSchema('restricted');
+	const mood = restricted.enum('mood', ['sad', 'happy']);
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+		mood: mood('mood').default('happy'),
+		moods: mood('moods').array(),
+	});
+
+	await push({ db, to: { restricted, mood, users } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser();
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.columns.filter((it) => it.typeSchema === 'restricted').map((it) => it.name)).toStrictEqual([
+		'mood',
+		'moods',
+	]);
+});
+
+test('non-admin: views referencing tables without access', async () => {
+	const restricted = pgSchema('restricted');
+	const secret = restricted.table('secret', {
+		id: integer('id').primaryKey(),
+		value: text('value'),
+	});
+	const view = pgView('view').as((qb) => qb.select().from(secret));
+	const mView = pgMaterializedView('m_view').with({ fillfactor: 50 }).as((qb) =>
+		qb.select({ id: secret.id }).from(secret)
+	);
+
+	await push({ db, to: { restricted, secret, view, mView } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser([
+		`REVOKE ALL ON TABLE "view" FROM PUBLIC;`,
+		`REVOKE ALL ON TABLE "m_view" FROM PUBLIC;`,
+	]);
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.views.map((it) => it.name)).toStrictEqual(['m_view', 'view']);
+	expect(asUser.views.every((it) => it.definition)).toBe(true);
+});
+
+test('non-admin: foreign keys between schemas without access', async () => {
+	const restrictedA = pgSchema('restricted_a');
+	const restrictedB = pgSchema('restricted_b');
+	const parent = restrictedA.table('parent', {
+		id: integer('id').primaryKey(),
+		code: text('code').unique(),
+	});
+	const child = restrictedB.table('child', {
+		id: integer('id').primaryKey(),
+		parentId: integer('parent_id').references(() => parent.id, { onDelete: 'cascade' }),
+		parentCode: text('parent_code'),
+	}, (t) => [
+		foreignKey({ columns: [t.parentCode], foreignColumns: [parent.code] }).onUpdate('set null'),
+	]);
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+		childId: integer('child_id').references(() => child.id),
+	});
+
+	await push({ db, to: { restrictedA, restrictedB, parent, child, users } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser([
+		`GRANT USAGE ON SCHEMA "restricted_b" TO "user";`,
+	]);
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.fks.map((it) => `${it.schema}.${it.table} -> ${it.schemaTo}.${it.tableTo}`).sort())
+		.toStrictEqual([
+			'public.users -> restricted_b.child',
+			'restricted_b.child -> restricted_a.parent',
+			'restricted_b.child -> restricted_a.parent',
+		]);
+});
+
+test('non-admin: rls policies on table without access', async () => {
+	const restricted = pgSchema('restricted');
+	const role = pgRole('app_user');
+	const table = restricted.table('table', {
+		id: integer('id').primaryKey(),
+		ownerId: integer('owner_id'),
+	}, () => [
+		pgPolicy('select_own', { as: 'permissive', for: 'select', to: role, using: sql`owner_id = 1` }),
+		pgPolicy('insert_any', { as: 'restrictive', for: 'insert', to: 'public', withCheck: sql`true` }),
+	]).enableRLS();
+
+	await push({ db, to: { restricted, role, table }, entities: { roles: { include: ['app_user'] } } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser();
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.tables[0]!.isRlsEnabled).toBe(true);
+	expect(asUser.policies.map((it) => it.name).sort()).toStrictEqual(['insert_any', 'select_own']);
+});
+
+test('non-admin: public schema without usage', async () => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+		name: text('name'),
+	}, (t) => [index('users_name_idx').on(t.name)]);
+
+	await push({ db, to: { users } });
+
+	const { asAdmin, asUser } = await introspectAsAdminAndUser([
+		`REVOKE ALL ON SCHEMA "public" FROM PUBLIC;`,
+	]);
+
+	expect(asUser).toStrictEqual(asAdmin);
+	expect(asUser.tables.map((it) => it.name)).toStrictEqual(['users']);
+	expect(asUser.indexes.map((it) => it.name).sort()).toStrictEqual(['users_name_idx', 'users_pkey']);
+});
+
+test('filtered out table referenced by fk', async () => {
+	const other = pgSchema('other');
+	const teams = other.table('teams', {
+		id: integer('id').primaryKey(),
+	});
+	const orgs = pgTable('orgs', {
+		id: integer('id').primaryKey(),
+	});
+	const users = pgTable('users', {
+		id: integer('id').primaryKey(),
+		orgId: integer('org_id').references(() => orgs.id),
+		teamId: integer('team_id').references(() => teams.id, { onDelete: 'cascade' }),
+	});
+
+	await push({ db, to: { other, teams, orgs, users } });
+
+	// `orgs` is left out by the tables filter, `other.teams` by the schemas filter
+	const filter = prepareEntityFilter(
+		'postgresql',
+		{
+			tables: ['users'],
+			schemas: ['public'],
+			entities: undefined,
+			extensions: undefined,
+		},
+		[],
+	);
+	const { tables, fks } = await fromDatabase(db, filter);
+
+	expect(tables.map((it) => `${it.schema}.${it.name}`)).toStrictEqual(['public.users']);
+	expect(fks).toStrictEqual([
+		{
+			entityType: 'fks',
+			schema: 'public',
+			table: 'users',
+			name: 'users_org_id_orgs_id_fkey',
+			nameExplicit: true,
+			columns: ['org_id'],
+			schemaTo: 'public',
+			tableTo: 'orgs',
+			columnsTo: ['id'],
+			onUpdate: 'NO ACTION',
+			onDelete: 'NO ACTION',
+		},
+		{
+			entityType: 'fks',
+			schema: 'public',
+			table: 'users',
+			name: 'users_team_id_teams_id_fkey',
+			nameExplicit: true,
+			columns: ['team_id'],
+			schemaTo: 'other',
+			tableTo: 'teams',
+			columnsTo: ['id'],
+			onUpdate: 'NO ACTION',
+			onDelete: 'CASCADE',
 		},
 	]);
 });
@@ -3112,6 +3455,8 @@ test('issue #5413', async () => {
 	]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6025
+// https://github.com/drizzle-team/drizzle-orm/issues/1549
 test('primary key with non default name', async () => {
 	await db.query(`
 CREATE TABLE table1 (
@@ -3135,4 +3480,772 @@ CREATE TABLE table2 (
 	expect(generateStatements).toStrictEqual([]);
 	expect(pushSqlStatements).toStrictEqual([]);
 	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// constraints (pk / fk / unique / check) round-trip with custom and default names
+test('constraints with custom and default names', async () => {
+	await db.query(`CREATE TABLE "ref" ("id" integer PRIMARY KEY);`);
+	await db.query(`
+CREATE TABLE "t_custom" (
+	"id" integer,
+	"ref_id" integer,
+	"val" integer,
+	"num" integer,
+	CONSTRAINT "custom_pk" PRIMARY KEY ("id"),
+	CONSTRAINT "custom_fk" FOREIGN KEY ("ref_id") REFERENCES "ref"("id"),
+	CONSTRAINT "custom_unique" UNIQUE ("val"),
+	CONSTRAINT "custom_check" CHECK ("num" > 0)
+);`);
+	await db.query(`
+CREATE TABLE "t_default" (
+	"id" integer PRIMARY KEY,
+	"ref_id" integer REFERENCES "ref"("id"),
+	"val" integer UNIQUE,
+	"num" integer CHECK ("num" > 0)
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, {}, 'constraints-custom-and-default');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3736
+test('issue No3736', async () => {
+	await db.query(`CREATE TABLE "keyfigures" (
+	"id" integer NOT NULL,
+	"comp_uuid" uuid NOT NULL,
+	"year" varchar(255) NOT NULL
+);`);
+
+	await db.query(`CREATE INDEX "keyfigures__comp_uuid_idx" ON "keyfigures" USING btree ("comp_uuid" uuid_ops);`);
+	await db.query(
+		`CREATE INDEX "keyfigures__comp_uuid_year_idx" ON "keyfigures" USING btree ("comp_uuid" uuid_ops,"year" text_ops);`,
+	);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue 3736');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.indexes.list().map((it) => it.columns)).toStrictEqual([
+		[
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null,
+				value: 'comp_uuid',
+			},
+		],
+		[
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null, // default op class
+				value: 'comp_uuid',
+			},
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null, // default op class
+				value: 'year',
+			},
+		],
+	]);
+	expect(schema2.indexes.map((it) => it.columns)).toStrictEqual([
+		[
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null,
+				value: 'comp_uuid',
+			},
+		],
+		[
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null,
+				value: 'comp_uuid',
+			},
+			{
+				asc: true,
+				isExpression: false,
+				nullsFirst: false,
+				opclass: null,
+				value: 'year',
+			},
+		],
+	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3250
+test('issue No3250', async () => {
+	await db.query(`CREATE TABLE users (
+    "id" SERIAL PRIMARY KEY,
+    "username" TEXT NOT NULL,
+    account_type varchar(64) DEFAULT NULL::character varying NULL
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue 3250');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.list({ name: 'account_type' })).toStrictEqual([
+		{
+			default: 'NULL',
+			dimensions: 0,
+			entityType: 'columns',
+			generated: null,
+			identity: null,
+			name: 'account_type',
+			notNull: false,
+			schema: 'public',
+			table: 'users',
+			type: 'varchar(64)',
+			typeSchema: null,
+		},
+	]);
+	expect(schema2.columns.find((it) => it.name === 'account_type')).toStrictEqual(
+		{
+			default: 'NULL',
+			dimensions: 0,
+			entityType: 'columns',
+			generated: null,
+			identity: null,
+			name: 'account_type',
+			notNull: false,
+			pk: false,
+			pkName: null,
+			schema: 'public',
+			table: 'users',
+			type: 'varchar(64)',
+			typeSchema: null,
+			unique: false,
+			uniqueName: null,
+			uniqueNullsNotDistinct: false,
+		},
+	);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3820
+test('issue No3820', async () => {
+	await db.query(`CREATE TABLE "Guru" (
+	"id" int8 primary key generated by default as identity
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, {}, 'issue-3820');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2993
+test('issue No2993', async () => {
+	await db.query(`create schema drizzle_test;`);
+	await db.query(`create table drizzle_test.child (
+    id uuid primary key,
+    other_id uuid not null
+);`);
+	await db.query(`create table drizzle_test.parent (
+    id uuid primary key,
+    other_id uuid not null,
+    child_id uuid unique references drizzle_test.child (id) on delete restrict,
+    unique (other_id, child_id)
+);`);
+	await db.query(`alter table drizzle_test.child add constraint test_key
+foreign key (other_id, id)
+references drizzle_test.parent (other_id, child_id);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, {}, 'issue-2993');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2965
+test('Issue No2965', async () => {
+	await db.query(`create table "table" (
+    id uuid primary key,
+    other_id jsonb default jsonb_build_array(10, 'Hi', true)
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+	} = await diffIntrospect(db, {}, 'issue-2965');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.one({ name: 'other_id' })).toStrictEqual({
+		default: "jsonb_build_array(10, 'Hi', true)",
+		dimensions: 0,
+		entityType: 'columns',
+		generated: null,
+		identity: null,
+		name: 'other_id',
+		notNull: false,
+		schema: 'public',
+		table: 'table',
+		type: 'jsonb',
+		typeSchema: null,
+	});
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2595
+test('Issue No 2595', async () => {
+	await db.query(`CREATE TABLE "table" (
+			id varchar(20)[] 
+		);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+	} = await diffIntrospect(db, {}, 'issue-2595');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.one({ name: 'id' })).toStrictEqual({
+		default: null,
+		dimensions: 1,
+		entityType: 'columns',
+		generated: null,
+		identity: null,
+		name: 'id',
+		notNull: false,
+		schema: 'public',
+		table: 'table',
+		type: 'varchar(20)',
+		typeSchema: null,
+	});
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2069
+test('Issue No2069', async () => {
+	await db.query(`create table "table" (
+		 ref_icon character varying(255) COLLATE pg_catalog."default" DEFAULT 'activity'::character varying
+	);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+	} = await diffIntrospect(db, {}, 'issue-2069');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.one({ name: 'ref_icon' })).toStrictEqual({
+		default: "'activity'",
+		dimensions: 0,
+		entityType: 'columns',
+		generated: null,
+		identity: null,
+		name: 'ref_icon',
+		notNull: false,
+		schema: 'public',
+		table: 'table',
+		type: 'varchar(255)',
+		typeSchema: null,
+	});
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3446
+test('Issue No3446', async () => {
+	await db.query(`create table "table" (
+		 ref_icon bytea
+	);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue-3446');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.list()).toStrictEqual([{
+		default: null,
+		dimensions: 0,
+		entityType: 'columns',
+		generated: null,
+		identity: null,
+		name: 'ref_icon',
+		notNull: false,
+		schema: 'public',
+		table: 'table',
+		type: 'bytea',
+		typeSchema: null,
+	}]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6214
+// TODO revise this when "NOT VALID" feature is supported
+test.skipIf(Date.now() < +new Date('2026-11-24'))('Issue No6214', async () => {
+	await db.query(`CREATE TABLE documents (
+  id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  version integer NOT NULL
+);`);
+
+	await db.query(`ALTER TABLE documents
+  ADD CONSTRAINT documents_version_check
+  CHECK (version >= 0) NOT VALID;`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue-6214');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.checks.list()).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6105
+test('Issue No6105', async () => {
+	await db.query(`CREATE ROLE neon_service`);
+	await db.query(`CREATE ROLE cloud_admin`);
+	await db.query(`CREATE ROLE zenith_admin`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue-6105', undefined, {
+		roles: { provider: 'neon', exclude: ['postgres', 'superuser'] },
+	});
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.roles.list()).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6074
+test('Issue No6074', async () => {
+	await db.query(`CREATE TABLE "CallLog" ("CallID" TEXT PRIMARY KEY);`);
+	await db.query(`CREATE TABLE "Subset" (
+  "CallID" TEXT PRIMARY KEY REFERENCES "CallLog"("CallID")
+);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'issue-6074');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.roles.list()).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/5626
+test('Issue No5626', async () => {
+	await db.query(`CREATE TABLE "table" (
+		checkpoint_ns TEXT NOT NULL DEFAULT ''
+		);`);
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+		ddlAfterPull,
+	} = await diffIntrospect(db, {}, 'issue-5626');
+
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.list()).toStrictEqual([
+		{
+			default: "''",
+			dimensions: 0,
+			entityType: 'columns',
+			generated: null,
+			identity: null,
+			name: 'checkpoint_ns',
+			notNull: true,
+			schema: 'public',
+			table: 'table',
+			type: 'text',
+			typeSchema: null,
+		},
+	]);
+});
+
+test(`PlanetScale's Neki internal schema #1`, async () => {
+	await db.query('create schema __neki;'); // internal schema
+	await db.query('create table __neki.users (id int);');
+
+	await db.query('create schema dev;');
+
+	await db.query('create table users (id int);');
+
+	const {
+		generateSqlStatements,
+		generateStatements,
+		pushSqlStatements,
+		pushStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'neki_internal_schema', ['public']);
+
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(ddlAfterPull.schemas.list()).toStrictEqual([]); // public is stripped
+	expect(ddlAfterPull.tables.list()).toStrictEqual([{
+		schema: 'public',
+		name: 'users',
+		entityType: 'tables',
+		isRlsEnabled: false,
+	}]);
+
+	expect(schema2.schemas).toStrictEqual([]); // public is stripped
+	expect(schema2.tables).toStrictEqual([{
+		schema: 'public',
+		name: 'users',
+		entityType: 'tables',
+		isRlsEnabled: false,
+	}]);
+});
+test(`PlanetScale's Neki internal schema #2`, async () => {
+	await db.query('create schema __neki;'); // internal schema
+	await db.query('create table __neki.users (id int);');
+
+	await db.query('create schema dev;');
+
+	await db.query('create table users (id int);');
+
+	const {
+		generateSqlStatements,
+		generateStatements,
+		pushSqlStatements,
+		pushStatements,
+		ddlAfterPull,
+		schema2,
+	} = await diffIntrospect(db, {}, 'neki_internal_schema-2');
+
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(pushStatements).toStrictEqual([]);
+	expect(ddlAfterPull.schemas.list()).toStrictEqual([
+		{
+			entityType: 'schemas',
+			name: 'dev',
+		},
+	]); // public is stripped
+	expect(ddlAfterPull.tables.list()).toStrictEqual([{
+		schema: 'public',
+		name: 'users',
+		entityType: 'tables',
+		isRlsEnabled: false,
+	}]);
+
+	expect(schema2.schemas).toStrictEqual([{
+		entityType: 'schemas',
+		name: 'dev',
+	}]); // public is stripped
+	expect(schema2.tables).toStrictEqual([{
+		schema: 'public',
+		name: 'users',
+		entityType: 'tables',
+		isRlsEnabled: false,
+	}]);
+});
+
+const templateUnsafeText = 'a\\b`${c}';
+
+test('introspect check with a backslash, a backtick and "${"', async () => {
+	await db.query(
+		`CREATE TABLE users (name text, CONSTRAINT name_check CHECK (name <> '${templateUnsafeText}'));`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'check-with-template-unsafe-text',
+	);
+
+	const expected = [`(name <> '${templateUnsafeText}'::text)`];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.checks.list().map((it) => it.value)).toStrictEqual(expected);
+	expect(schema2.checks.map((it) => it.value)).toStrictEqual(expected);
+});
+
+test('introspect view with a backslash, a backtick and "${"', async () => {
+	await db.query(`CREATE VIEW some_view AS SELECT '${templateUnsafeText}'::text AS name;`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'view-with-template-unsafe-text',
+	);
+
+	const expected = [`SELECT '${templateUnsafeText}'::text AS name`];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.views.list().map((it) => it.definition)).toStrictEqual(expected);
+	expect(schema2.views.map((it) => it.definition)).toStrictEqual(expected);
+});
+
+test('introspect generated column with a backslash, a backtick and "${"', async () => {
+	await db.query(
+		`CREATE TABLE users (name text, generated_name text GENERATED ALWAYS AS (name || '${templateUnsafeText}') STORED);`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'generated-column-with-template-unsafe-text',
+	);
+
+	const expected = [null, `(name || '${templateUnsafeText}'::text)`];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.columns.list().map((it) => it.generated?.as ?? null)).toStrictEqual(expected);
+	expect(schema2.columns.map((it) => it.generated?.as ?? null)).toStrictEqual(expected);
+});
+
+test('introspect policy with a backslash, a backtick and "${"', async () => {
+	await db.query(`CREATE TABLE users (name text);`);
+	await db.query(`ALTER TABLE users ENABLE ROW LEVEL SECURITY;`);
+	await db.query(
+		`CREATE POLICY name_policy ON users USING (name <> '${templateUnsafeText}') WITH CHECK (name <> '${templateUnsafeText}');`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'policy-with-template-unsafe-text',
+	);
+
+	const expected = [{
+		using: `(name <> '${templateUnsafeText}'::text)`,
+		withCheck: `(name <> '${templateUnsafeText}'::text)`,
+	}];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.policies.list().map((it) => ({ using: it.using, withCheck: it.withCheck }))).toStrictEqual(
+		expected,
+	);
+	expect(schema2.policies.map((it) => ({ using: it.using, withCheck: it.withCheck }))).toStrictEqual(expected);
+});
+
+test('introspect index expression and predicate with a backslash, a backtick and "${"', async () => {
+	await db.query(`CREATE TABLE users (name text);`);
+	await db.query(
+		`CREATE INDEX name_idx ON users ((name || '${templateUnsafeText}')) WHERE name <> '${templateUnsafeText}';`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'index-with-template-unsafe-text',
+	);
+
+	const expected = [{
+		expression: `(name || '${templateUnsafeText}'::text)`,
+		where: `(name <> '${templateUnsafeText}'::text)`,
+	}];
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(ddlAfterPull.indexes.list().map((it) => ({ expression: it.columns[0].value, where: it.where })))
+		.toStrictEqual(expected);
+	expect(schema2.indexes.map((it) => ({ expression: it.columns[0].value, where: it.where }))).toStrictEqual(expected);
+});
+
+test('introspect default expressions with a backslash, a backtick and "${"', async () => {
+	const types = [
+		'smallint',
+		'integer',
+		'bigint',
+		'char(20)',
+		'varchar(20)',
+		'text',
+		'json',
+		'jsonb',
+		'time',
+		'time with time zone',
+		'date',
+		'timestamp',
+		'timestamp with time zone',
+		'bit(3)',
+		'point',
+		'line',
+	];
+	const columns = types.map((type, i) => `column${i} ${type} DEFAULT NULLIF('${templateUnsafeText}', '')::${type}`);
+
+	await db.query(
+		`CREATE FUNCTION "uuid_${templateUnsafeText}"() RETURNS uuid LANGUAGE sql AS 'SELECT gen_random_uuid()';`,
+	);
+	await db.query(`CREATE TABLE users (${columns.join(', ')}, id uuid DEFAULT "uuid_${templateUnsafeText}"());`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'default-expressions-with-template-unsafe-text',
+	);
+
+	const defaultsInDatabase = ddlAfterPull.columns.list().map((it) => [it.name, it.default]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(defaultsInDatabase.length).toBe(types.length + 1);
+	for (const [, def] of defaultsInDatabase) expect(def).toContain(templateUnsafeText);
+	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
+});
+
+test('introspect array default expressions with a backslash, a backtick and "${"', async () => {
+	const types = [
+		'smallint',
+		'integer',
+		'bigint',
+		'numeric',
+		'real',
+		'double precision',
+		'boolean',
+		'char(20)',
+		'varchar(20)',
+		'text',
+		'json',
+		'jsonb',
+		'time',
+		'time with time zone',
+		'date',
+		'timestamp',
+		'timestamp with time zone',
+		'uuid',
+		'interval',
+		'inet',
+		'cidr',
+		'macaddr',
+		'macaddr8',
+		'vector(3)',
+		'halfvec(3)',
+		'sparsevec(3)',
+		'bit(3)',
+		'point',
+		'line',
+		'mood',
+		'box',
+	];
+	const columns = types.map((type, i) =>
+		`column${i} ${type}[] DEFAULT ARRAY[NULLIF('${templateUnsafeText}', '')::${type}]`
+	);
+
+	await db.query(`CREATE TYPE mood AS ENUM ('ok', 'bad');`);
+	await db.query(`CREATE TABLE users (${columns.join(', ')});`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'array-default-expressions-with-template-unsafe-text',
+	);
+
+	const defaultsInDatabase = ddlAfterPull.columns.list().map((it) => [it.name, it.default]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(defaultsInDatabase.length).toBe(types.length);
+	for (const [, def] of defaultsInDatabase) expect(def).toContain(templateUnsafeText);
+	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
+});
+
+test('introspect json array defaults with a backslash, a backtick and "${"', async () => {
+	const json = JSON.stringify({ key: templateUnsafeText });
+	const arrayLiteral = `{"${json.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"}`;
+	await db.query(
+		`CREATE TABLE users (column1 json[] DEFAULT '${arrayLiteral}', column2 jsonb[] DEFAULT '${arrayLiteral}');`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'json-array-defaults-with-template-unsafe-text',
+	);
+
+	const defaultsInDatabase = ddlAfterPull.columns.list().map((it) => [it.name, it.default]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	expect(defaultsInDatabase[0]).toStrictEqual(['column1', `'${arrayLiteral}'`]);
+	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
 });

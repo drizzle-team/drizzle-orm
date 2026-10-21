@@ -21,8 +21,9 @@ import {
 	notLike,
 	or,
 } from '~/sql/expressions/index.ts';
-import { type InferSelectViewModel, param, sql } from '~/sql/sql.ts';
+import { param, sql } from '~/sql/sql.ts';
 import { alias } from '~/sqlite-core/alias.ts';
+import type { InferViewSelectModel } from '~/view.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
@@ -675,7 +676,7 @@ Expect<
 		>
 	>;
 	Expect<Equal<typeof result, typeof newYorkersWithSubquery.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof newYorkersWithSubquery>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof newYorkersWithSubquery>[]>>;
 }
 
 {
@@ -864,5 +865,5 @@ Expect<
 		}[]>
 	>;
 	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
-	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
+	Expect<Equal<typeof result, InferViewSelectModel<typeof view>[]>>;
 }

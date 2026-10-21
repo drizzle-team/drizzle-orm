@@ -42,6 +42,7 @@ function construct<
 	const session = new BunSQLSession(client, dialect, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new BunSQLDatabase(dialect, session, relations, false, true) as BunSQLDatabase<TRelations>;
 	(<any> db).$client = client;

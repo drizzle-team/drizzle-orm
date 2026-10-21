@@ -1,37 +1,111 @@
-import * as V1 from '~/_relations.ts';
-import {
-	aliasedTable,
-	aliasedTableColumn,
-	getOriginalColumnFromAlias,
-	mapColumnsInAliasedSQLToAlias,
-	mapColumnsInSQLToAlias,
-} from '~/alias.ts';
+import { aliasedTable, getOriginalColumnFromAlias } from '~/alias.ts';
+import { CodecsCollection } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MigrationConfig, MigrationMeta, MigratorInitFailResponse } from '~/migrator.ts';
 import { getMigrationsToRun } from '~/migrator.utils.ts';
-import { Param, type Query, SQL, sql, type SQLChunk, View } from '~/sql/sql.ts';
-import { Subquery } from '~/subquery.ts';
-import { getTableName, getTableUniqueName, Table } from '~/table.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type {
+	AnyOne,
+	BuildRelationalQueryConfig,
+	BuildRelationalQueryResult,
+	DBQueryConfigRoot,
+	RelationalRowsMapperGenerator,
+	WithContainer,
+} from '~/relations.ts';
+import {
+	buildRqbColumns,
+	collectSubqueryAndUsedTables,
+	getTableAsAliasSQL,
+	makeDefaultRqbMapper,
+	makeJitRqbMapper,
+	relationalQueryWhereToSQL,
+	type RelationalWithSubqueries,
+	relationExtrasToSQL,
+	relationsOrderToSQL,
+	relationToSQL,
+} from '~/relations.ts';
+import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
+import { type Query, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk, unqualifyColumns } from '~/sql/sql.ts';
+import { ValueRows } from '~/sql/sql.ts';
+import type { Subquery } from '~/subquery.ts';
+import { getTableName, Qualifier, Table, TableColumns } from '~/table.ts';
 import { upgradeIfNeeded } from '~/up-migrations/mssql.ts';
-import type { UpdateSet } from '~/utils.ts';
-import { and, DrizzleError, eq, type Name, ViewBaseConfig } from '../index.ts';
+import {
+	makeDefaultQueryMapper,
+	makeJitQueryMapper,
+	memoizeEscape,
+	type RowsMapperGenerator,
+	type UpdateSet,
+} from '~/utils.ts';
+import { View } from '~/view.ts';
+import { DrizzleError, type Name, ViewBaseConfig } from '../index.ts';
+import { type MsSqlCodecs, type MsSqlType, resolveMsSqlTypeAlias } from './codecs.ts';
 import { MsSqlColumn } from './columns/common.ts';
 import type { MsSqlDeleteConfig } from './query-builders/delete.ts';
 import type { MsSqlInsertConfig } from './query-builders/insert.ts';
-import type { MsSqlSelectConfig, SelectedFieldsOrdered } from './query-builders/select.types.ts';
+import type {
+	AnyMsSqlSelectQueryBuilder,
+	MsSqlSelectConfig,
+	SelectedFieldsOrdered,
+} from './query-builders/select.types.ts';
 import type { MsSqlUpdateConfig } from './query-builders/update.ts';
 import type { MsSqlSession } from './session.ts';
 import { MsSqlTable } from './table.ts';
-import { MsSqlViewBase } from './view-base.ts';
+import type { MsSqlViewBase } from './view-base.ts';
 
-// Will add codecs here, do not remove
-export interface MsSqlDialectConfig {}
+export interface MsSqlDialectConfig {
+	useJitMappers?: boolean;
+	codecs?: MsSqlCodecs;
+}
+
+const escapeMsSqlName = memoizeEscape((name) => `[${name.replace(/\]/g, ']]')}]`);
+// Stored separately - differ per dialect
+const rqbChunks = {
+	select: new StringChunk('select'),
+	top: new StringChunk(' top('),
+	offset: new StringChunk(' offset '),
+	rows: new StringChunk(' rows'),
+	fetchNext: new StringChunk(' fetch next '),
+	rowsOnly: new StringChunk(' rows only'),
+	jsonQueryOpen: new StringChunk('json_query('),
+	jsonQueryCoalesceOpen: new StringChunk('json_query(coalesce('),
+	coalesceOpen: new StringChunk('coalesce('),
+	jsonOneClose: new StringChunk('.[j] as '),
+	jsonOneNestedClose: new StringChunk('.[j]) as '),
+	jsonManyClose: new StringChunk(`.[j], '[]') as `),
+	jsonManyNestedClose: new StringChunk(`.[j], '[]')) as `),
+	applyOpen: new StringChunk(' outer apply ('),
+	forJsonOne: new StringChunk(' for json path, include_null_values, without_array_wrapper) '),
+	forJsonMany: new StringChunk(' for json path, include_null_values) '),
+	applyColumn: new StringChunk('([j])'),
+} as const;
 
 export class MsSqlDialect {
 	static readonly [entityKind]: string = 'MsSqlDialect';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
-	constructor(_config?: MsSqlDialectConfig) {}
+	readonly codecs: CodecsCollection<MsSqlType>;
+	readonly mapperGenerators: {
+		rows: RowsMapperGenerator;
+		relationalRows: RelationalRowsMapperGenerator;
+	};
+
+	constructor(config?: MsSqlDialectConfig) {
+		this.codecs = new CodecsCollection<MsSqlType>(resolveMsSqlTypeAlias, config?.codecs);
+		this.mapperGenerators = config?.useJitMappers
+			? {
+				rows: makeJitQueryMapper,
+				relationalRows: makeJitRqbMapper,
+			}
+			: {
+				rows: makeDefaultQueryMapper,
+				relationalRows: makeDefaultRqbMapper,
+			};
+	}
 
 	async migrate(
 		migrations: MigrationMeta[],
@@ -143,7 +217,7 @@ export class MsSqlDialect {
 	}
 
 	escapeName(name: string): string {
-		return `[${name.replace(/\]/g, ']]')}]`;
+		return escapeMsSqlName(name);
 	}
 
 	escapeParam(_num: number): string {
@@ -154,9 +228,29 @@ export class MsSqlDialect {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
 
-	buildDeleteQuery({ table, where, output }: MsSqlDeleteConfig): SQL {
+	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
+		if (!queries?.length) return undefined;
+
+		const queriesLen = queries.length;
+		const withSqlChunks: SQLChunk[] = new Array(queriesLen + 1);
+		let writeIdx = 0;
+		withSqlChunks[writeIdx++] = commonStringChunks['with '];
+
+		for (let i = 0; i < queriesLen; ++i) {
+			const w = queries[i]!;
+			withSqlChunks[writeIdx++] = (i < queriesLen - 1)
+				? sql`${sql.identifier(w._.alias)} as (${w._.sql}), `
+				: sql`${sql.identifier(w._.alias)} as (${w._.sql}) `;
+		}
+
+		return new SQL(withSqlChunks);
+	}
+
+	buildDeleteQuery({ table, where, output, useSelectionCastCodecs }: MsSqlDeleteConfig): SQL {
 		const outputSql = output
-			? sql` output ${this.buildSelectionOutput(output, { type: 'DELETED' })}`
+			? sql` output ${
+				this.buildSelectionOutput(output, { type: 'DELETED', ignoreCastCodecs: !useSelectionCastCodecs })
+			}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -173,27 +267,27 @@ export class MsSqlDialect {
 				|| tableColumns[colName]?.onUpdateFn !== undefined,
 		);
 
-		const setSize = columnNames.length;
-		return sql.join(
-			columnNames.flatMap((colName, i) => {
-				const col = tableColumns[colName]!;
+		const setLength = columnNames.length;
+		const setArr: SQLChunk[] = new Array(setLength);
 
-				let value;
-				if (set[colName] !== undefined) {
-					value = set[colName];
-				} else {
-					const updateRes = col.onUpdateFn?.();
-					value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
-				}
+		for (let i = 0; i < columnNames.length; ++i) {
+			const colName = columnNames[i]!;
+			const col = tableColumns[colName]!;
 
-				const res = sql`${sql.identifier(col.name)} = ${value}`;
+			let value;
+			if (set[colName] !== undefined) {
+				value = set[colName];
+			} else {
+				const updateRes = col.onUpdateFn?.();
+				value = is(updateRes, SQL) ? updateRes : sql.param(updateRes, col);
+			}
 
-				if (i < setSize - 1) {
-					return [res, sql.raw(', ')];
-				}
-				return [res];
-			}),
-		);
+			setArr[i] = i < setLength - 1
+				? sql`${sql.identifier(col.name)} = ${value}, `
+				: sql`${sql.identifier(col.name)} = ${value}`;
+		}
+
+		return new SQL(setArr);
 		// const setEntries = Object.entries(set);
 		//
 		// const setSize = setEntries.length;
@@ -210,7 +304,7 @@ export class MsSqlDialect {
 		// );
 	}
 
-	buildUpdateQuery({ table, set, where, output }: MsSqlUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, output, useSelectionCastCodecs }: MsSqlUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
 		const outputSql = sql``;
@@ -220,14 +314,20 @@ export class MsSqlDialect {
 
 			if (output.inserted) {
 				outputSql.append(
-					this.buildSelectionOutput(output.inserted, { type: 'INSERTED' }),
+					this.buildSelectionOutput(output.inserted, {
+						type: 'INSERTED',
+						ignoreCastCodecs: !useSelectionCastCodecs,
+					}),
 				);
 			}
 
 			if (output.deleted) {
 				if (output.inserted) outputSql.append(sql`, `); // add space if both are present
 				outputSql.append(
-					this.buildSelectionOutput(output.deleted, { type: 'DELETED' }),
+					this.buildSelectionOutput(output.deleted, {
+						type: 'DELETED',
+						ignoreCastCodecs: !useSelectionCastCodecs,
+					}),
 				);
 			}
 		}
@@ -250,15 +350,17 @@ export class MsSqlDialect {
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
-		{ isSingleTable = false, table }: {
+		{ isSingleTable = false, ignoreCastCodecs = false, table }: {
 			isSingleTable?: boolean;
+			ignoreCastCodecs?: boolean;
 			table?: MsSqlTable | MsSqlViewBase | SQL | Subquery;
 		} = {},
 	): SQL {
 		const { length: columnsLen } = fields;
 		const chunks: SQLChunk[] = [];
+		const tableKind = chunkKindOf(table);
 		const tableName = table
-			? is(table, SQL) || is(table, Subquery)
+			? isChunk(table, tableKind, chunkKinds.sql) || isChunk(table, tableKind, chunkKinds.subquery)
 				? undefined
 				: (table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
 					? table[Table.Symbol.Name]
@@ -266,36 +368,36 @@ export class MsSqlDialect {
 			: undefined;
 
 		for (let i = 0; i < columnsLen; ++i) {
-			const { field, fieldType } = fields[i]!;
+			const { field, codecOverride, column, fieldType } = fields[i]!;
+			const override = codecOverride as MsSqlType | undefined;
 
 			switch (fieldType) {
 				case 'Column': {
+					let name: Name | Column;
 					if (isSingleTable) {
-						chunks.push(
-							field.isAlias
-								? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
-								: sql.identifier(field.name),
-						);
+						name = field.isAlias
+							? sql.identifier(getOriginalColumnFromAlias(field).name)
+							: sql.identifier(field.name);
 					} else {
-						chunks.push(
-							field.isAlias
-								? sql`${getOriginalColumnFromAlias(field)} as ${field}`
-								: field,
-						);
+						name = field.isAlias ? getOriginalColumnFromAlias(field) : field;
 					}
+
+					const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name, override);
+					chunks.push(field.isAlias ? sql`${casted} as ${field}` : casted);
 
 					break;
 				}
 				case 'SQL.Aliased': {
 					if (field.isSelectionField) {
-						if (!isSingleTable && field.origin !== undefined) {
-							chunks.push(sql.identifier(field.origin), sql.raw('.'));
-						}
-						chunks.push(sql.identifier(field.fieldAlias));
+						const query = !isSingleTable && field.origin !== undefined
+							? sql`${sql.identifier(field.origin)}.${sql.identifier(field.fieldAlias)}`
+							: sql.identifier(field.fieldAlias);
+						if (column && !ignoreCastCodecs) chunks.push(this.codecs.apply(column, 'cast', query, override));
+						else chunks.push(query);
 					} else {
 						if (isSingleTable && tableName !== undefined) {
 							const { queryChunks } = field.sql;
-							const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+							const newChunks: SQLChunk[] = new Array(queryChunks.length);
 							let abort = false;
 
 							for (let i = 0; i < queryChunks.length; ++i) {
@@ -317,14 +419,21 @@ export class MsSqlDialect {
 							}
 
 							if (abort) {
-								chunks.push(field.sql);
+								chunks.push(
+									column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+								);
 							} else {
 								const newSql = new SQL(newChunks);
+
 								if (field.sql.shouldInlineParams) newSql.inlineParams();
-								chunks.push(newSql);
+								chunks.push(
+									column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql,
+								);
 							}
 						} else {
-							chunks.push(field.sql);
+							chunks.push(
+								column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field.sql, override) : field.sql,
+							);
 						}
 
 						chunks.push(sql` as ${sql.identifier(field.fieldAlias)}`);
@@ -335,7 +444,7 @@ export class MsSqlDialect {
 				case 'SQL': {
 					if (isSingleTable && tableName !== undefined) {
 						const { queryChunks } = field;
-						const newChunks: SQLChunk[] = Array.from({ length: queryChunks.length });
+						const newChunks: SQLChunk[] = new Array(queryChunks.length);
 						let abort = false;
 
 						for (let i = 0; i < queryChunks.length; ++i) {
@@ -357,21 +466,26 @@ export class MsSqlDialect {
 						}
 
 						if (abort) {
-							chunks.push(field);
+							chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
 						} else {
 							const newSql = new SQL(newChunks);
 							if (field.shouldInlineParams) newSql.inlineParams();
-							chunks.push(newSql);
+							chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', newSql, override) : newSql);
 						}
-					} else chunks.push(field);
+					} else chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
 
 					break;
 				}
 				case 'Subquery': {
 					if (!field._.isWith) {
-						chunks.push(sql`(${field._.sql}) ${sql.identifier(field._.alias)}`);
+						const inner = sql`(${field._.sql})`;
+						chunks.push(
+							sql`${column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', inner, override) : inner} ${
+								sql.identifier(field._.alias)
+							}`,
+						);
 					} else {
-						chunks.push(field);
+						chunks.push(column && !ignoreCastCodecs ? this.codecs.apply(column, 'cast', field, override) : field);
 					}
 
 					break;
@@ -379,7 +493,7 @@ export class MsSqlDialect {
 			}
 
 			if (i < columnsLen - 1) {
-				chunks.push(sql`, `);
+				chunks.push(commonStringChunks[', ']);
 			}
 		}
 
@@ -388,32 +502,32 @@ export class MsSqlDialect {
 
 	private buildSelectionOutput(
 		fields: SelectedFieldsOrdered,
-		{ type }: { type: 'INSERTED' | 'DELETED' },
+		{ type, ignoreCastCodecs = false }: { type: 'INSERTED' | 'DELETED'; ignoreCastCodecs?: boolean },
 	): SQL {
 		const { length: columnsLen } = fields;
 		const chunks: SQLChunk[] = [];
 
 		for (let i = 0; i < columnsLen; ++i) {
-			const { field, fieldType } = fields[i]!;
+			const { field, fieldType, column, codecOverride } = fields[i]!;
+			const override = codecOverride as MsSqlType | undefined;
 
 			switch (fieldType) {
 				case 'Column': {
-					chunks.push(
-						sql.join([
-							sql.raw(`${type}.`),
-							field.isAlias
-								? sql`${sql.identifier(getOriginalColumnFromAlias(field).name)} as ${field}`
-								: sql.identifier(field.name),
-						]),
-					);
+					const name = sql`${new StringChunk(`${type}.`)}${
+						sql.identifier(field.isAlias ? getOriginalColumnFromAlias(field).name : field.name)
+					}`;
+					const casted = ignoreCastCodecs ? name : this.codecs.apply(field, 'cast', name, override);
+
+					chunks.push(field.isAlias ? sql`${casted} as ${field}` : casted);
 
 					break;
 				}
 				case 'SQL.Aliased': {
 					if (field.isSelectionField) {
-						chunks.push(
-							sql.join([sql.raw(`${type}.`), sql.identifier(field.fieldAlias)]),
-						);
+						const query = sql`${new StringChunk(`${type}.`)}${sql.identifier(field.fieldAlias)}`;
+
+						if (column && !ignoreCastCodecs) chunks.push(this.codecs.apply(column, 'cast', query, override));
+						else chunks.push(query);
 					} else {
 						const query = field.sql;
 
@@ -422,7 +536,7 @@ export class MsSqlDialect {
 								query.queryChunks.map((c) => {
 									if (is(c, MsSqlColumn)) {
 										return sql.join([
-											sql.raw(`${type}.`),
+											new StringChunk(`${type}.`),
 											sql.identifier(c.name),
 										]);
 									}
@@ -444,7 +558,7 @@ export class MsSqlDialect {
 							query.queryChunks.map((c) => {
 								if (is(c, MsSqlColumn)) {
 									return sql.join([
-										sql.raw(`${type}.`),
+										new StringChunk(`${type}.`),
 										sql.identifier(c.name),
 									]);
 								}
@@ -458,7 +572,7 @@ export class MsSqlDialect {
 			}
 
 			if (i < columnsLen - 1) {
-				chunks.push(sql`, `);
+				chunks.push(commonStringChunks[', ']);
 			}
 		}
 
@@ -480,22 +594,25 @@ export class MsSqlDialect {
 		offset,
 		distinct,
 		setOperators,
+		useSelectionCastCodecs,
 	}: MsSqlSelectConfig): SQL {
 		if (!fieldsFlat) {
 			throw new Error('Select query builder must be provided with `fieldsFlat` on `buildSelectQuery` invocation');
 		}
 		const fieldsList = fieldsFlat;
+
+		const tableKind = chunkKindOf(table);
+		const ownTableName = isChunk(table, tableKind, chunkKinds.subquery)
+			? table._.alias
+			: isChunk(table, tableKind, chunkKinds.view)
+			? table[ViewBaseConfig].name
+			: isChunk(table, tableKind, chunkKinds.sql)
+			? undefined
+			: getTableName(table);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
-				&& getTableName(f.field.table)
-					!== (is(table, Subquery)
-						? table._.alias
-						: is(table, MsSqlViewBase)
-						? table[ViewBaseConfig].name
-						: is(table, SQL)
-						? undefined
-						: getTableName(table))
+				&& getTableName(f.field.table) !== ownTableName
 				&& !((table) =>
 					joins?.some(
 						({ alias }) =>
@@ -518,24 +635,17 @@ export class MsSqlDialect {
 
 		const isSingleTable = !joins || joins.length === 0;
 
-		let withSql: SQL | undefined;
-		if (withList?.length) {
-			const withSqlChunks = [sql`with `];
-			for (const [i, w] of withList.entries()) {
-				withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
-				if (i < withList.length - 1) {
-					withSqlChunks.push(sql`, `);
-				}
-			}
-			withSqlChunks.push(sql` `);
-			withSql = sql.join(withSqlChunks);
-		}
+		const withSql = this.buildWithCTE(withList);
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
 		const topSql = top ? sql` top(${top})` : undefined;
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable, table });
+		const selection = this.buildSelection(fieldsList, {
+			isSingleTable,
+			table,
+			ignoreCastCodecs: !useSelectionCastCodecs || setOperators.length > 0,
+		});
 
 		const tableSql = (() => {
 			if (
@@ -564,15 +674,18 @@ export class MsSqlDialect {
 			return table;
 		})();
 
-		const joinsArray: SQL[] = [];
+		const joinsArray: SQLChunk[] = [];
 
 		if (joins) {
 			for (const [index, joinMeta] of joins.entries()) {
 				if (index === 0) {
-					joinsArray.push(sql` `);
+					joinsArray.push(commonStringChunks[' ']);
 				}
 				const table = joinMeta.table;
-				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
+				const joinKeyword = joinMeta.lateral
+					? new StringChunk(joinMeta.joinType === 'left' ? 'outer apply' : 'cross apply')
+					: new StringChunk(`${joinMeta.joinType} join`);
+				const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : undefined;
 
 				if (is(table, MsSqlTable)) {
 					const tableName = table[MsSqlTable.Symbol.Name];
@@ -580,9 +693,9 @@ export class MsSqlDialect {
 					const origTableName = table[MsSqlTable.Symbol.OriginalName];
 					const alias = tableName === origTableName ? undefined : joinMeta.alias;
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
-							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						sql`${joinKeyword} ${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
+							sql.identifier(origTableName)
+						}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else if (is(table, View)) {
 					const viewName = table[ViewBaseConfig].name;
@@ -590,22 +703,22 @@ export class MsSqlDialect {
 					const origViewName = table[ViewBaseConfig].originalName;
 					const alias = viewName === origViewName ? undefined : joinMeta.alias;
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
-							viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
-						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						sql`${joinKeyword} ${viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined}${
+							sql.identifier(origViewName)
+						}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else {
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table} on ${joinMeta.on}`,
+						sql`${joinKeyword} ${table}${onSql}`,
 					);
 				}
 				if (index < joins.length - 1) {
-					joinsArray.push(sql` `);
+					joinsArray.push(commonStringChunks[' ']);
 				}
 			}
 		}
 
-		const joinsSql = sql.join(joinsArray);
+		const joinsSql = new SQL(joinsArray);
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
@@ -613,12 +726,12 @@ export class MsSqlDialect {
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
-			orderBySql = sql` order by ${sql.join(orderBy, sql`, `)}`;
+			orderBySql = sql` order by ${sql.join(orderBy, commonStringChunks[', '])}`;
 		}
 
 		let groupBySql;
 		if (groupBy && groupBy.length > 0) {
-			groupBySql = sql` group by ${sql.join(groupBy, sql`, `)}`;
+			groupBySql = sql` group by ${sql.join(groupBy, commonStringChunks[', '])}`;
 		}
 
 		const offsetSql = offset === undefined ? undefined : sql` offset ${offset} rows`;
@@ -627,7 +740,7 @@ export class MsSqlDialect {
 
 		let forSQL: SQL | undefined;
 		if (_for && _for.mode === 'json') {
-			forSQL = sql` for json ${sql.raw(_for.type)}${
+			forSQL = sql` for json ${new StringChunk(_for.type)}${
 				_for.options?.root
 					? sql` root(${sql.identifier(_for.options.root)})`
 					: undefined
@@ -642,7 +755,7 @@ export class MsSqlDialect {
 			sql`${withSql}select${distinctSql}${topSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${offsetSql}${fetchSql}${forSQL}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, setOperators);
+			return this.buildSetOperations(finalQuery, fieldsList, useSelectionCastCodecs, setOperators);
 		}
 
 		return finalQuery;
@@ -650,35 +763,52 @@ export class MsSqlDialect {
 
 	buildSetOperations(
 		leftSelect: SQL,
+		outputSelection: SelectedFieldsOrdered,
+		useSelectionCastCodecs: boolean | undefined,
 		setOperators: MsSqlSelectConfig['setOperators'],
 	): SQL {
-		const [setOperator, ...rest] = setOperators;
+		const lastIdx = setOperators.length - 1;
+		let tailSql: SQL | undefined;
 
-		if (!setOperator) {
-			throw new Error('Cannot pass undefined values to any set operator');
+		for (let i = 0; i <= lastIdx; ++i) {
+			const setOperator = setOperators[i]!;
+
+			const hoistTail = useSelectionCastCodecs && i === lastIdx;
+			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator, omitTail: hoistTail });
+			if (hoistTail) tailSql = this.buildSetOperationTail(setOperator);
 		}
 
-		if (rest.length === 0) {
-			return this.buildSetOperationQuery({ leftSelect, setOperator });
-		}
-
-		// Some recursive magic here
-		return this.buildSetOperations(
-			this.buildSetOperationQuery({ leftSelect, setOperator }),
-			rest,
-		);
+		return !useSelectionCastCodecs ? leftSelect : sql`select ${
+			this.buildSelection(
+				outputSelection.map((field) => {
+					if (field.fieldType === 'SQL.Aliased') {
+						const ref = field.field.clone();
+						ref.isSelectionField = true;
+						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
+					}
+					if (field.fieldType === 'Column' && field.field.isAlias) {
+						const ref = new SQL.Aliased(sql`${sql.identifier(field.field.name)}`, field.field.name);
+						ref.isSelectionField = true;
+						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
+					}
+					if (field.fieldType === 'Subquery') {
+						const ref = new SQL.Aliased(sql`${field.field.getSQL()}`, field.field._.alias);
+						ref.isSelectionField = true;
+						return { ...field, field: ref, fieldType: 'SQL.Aliased' };
+					}
+					return field;
+				}),
+				{
+					isSingleTable: true,
+					ignoreCastCodecs: !useSelectionCastCodecs,
+				},
+			)
+		} from (${leftSelect}) ${sql.identifier('drizzle_union')}${tailSql}`;
 	}
 
-	buildSetOperationQuery({
-		leftSelect,
-		setOperator: { type, isAll, rightSelect, fetch, orderBy, offset },
-	}: {
-		leftSelect: SQL;
-		setOperator: MsSqlSelectConfig['setOperators'][number];
-	}): SQL {
-		const leftChunk = sql`(${leftSelect.getSQL()}) `;
-		const rightChunk = sql`(${rightSelect.getSQL()})`;
-
+	buildSetOperationTail(
+		{ orderBy, offset, fetch }: MsSqlSelectConfig['setOperators'][number],
+	): SQL | undefined {
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
 			const orderByValues: (SQL<unknown> | Name)[] = [];
@@ -689,86 +819,125 @@ export class MsSqlDialect {
 				if (is(orderByUnit, MsSqlColumn)) {
 					orderByValues.push(sql.identifier(orderByUnit.name));
 				} else if (is(orderByUnit, SQL)) {
-					for (let i = 0; i < orderByUnit.queryChunks.length; i++) {
-						const chunk = orderByUnit.queryChunks[i];
-
-						if (is(chunk, MsSqlColumn)) {
-							orderByUnit.queryChunks[i] = sql.identifier(chunk.name);
-						}
-					}
-
-					orderByValues.push(sql`${orderByUnit}`);
+					orderByValues.push(sql`${unqualifyColumns(orderByUnit)}`);
 				} else {
 					orderByValues.push(sql`${orderByUnit}`);
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)} `;
+			orderBySql = sql` order by ${sql.join(orderByValues, commonStringChunks[', '])}`;
 		}
 
 		const offsetSql = offset === undefined ? undefined : sql` offset ${offset} rows`;
 
 		const fetchSql = fetch === undefined ? undefined : sql` fetch next ${fetch} rows only`;
 
-		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
+		if (orderBySql === undefined && offsetSql === undefined && fetchSql === undefined) return undefined;
 
-		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${offsetSql}${fetchSql}`;
+		return sql`${orderBySql}${offsetSql}${fetchSql}`;
 	}
 
-	buildInsertQuery({ table, values, output, columnList }: MsSqlInsertConfig): SQL {
-		// const isSingleValue = values.length === 1;
-		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
+	buildSetOperationQuery({
+		leftSelect,
+		setOperator,
+		omitTail,
+	}: {
+		leftSelect: SQL;
+		setOperator: MsSqlSelectConfig['setOperators'][number];
+		omitTail?: boolean;
+	}): SQL {
+		const { type, isAll, rightSelect } = setOperator;
+		const leftChunk = sql`(${leftSelect.getSQL()}) `;
+		const rightChunk = sql`(${rightSelect.getSQL()})`;
+
+		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
+		const tailSql = omitTail ? undefined : this.buildSetOperationTail(setOperator);
+
+		return sql`${leftChunk}${operatorChunk}${rightChunk}${tailSql}`;
+	}
+
+	buildInsertQuery(
+		{ table, values: valuesOrSelect, output, columnList, select, useSelectionCastCodecs }: MsSqlInsertConfig,
+	): SQL {
 		const columns: Record<string, MsSqlColumn> = table[Table.Symbol.Columns];
-		const colEntries: [string, MsSqlColumn][] = columnList
+		const colEntries: [string, MsSqlColumn][] = select && !is(valuesOrSelect, SQL)
+			? Object
+				.keys((valuesOrSelect as TypedQueryBuilder<any>).getSelectedFields())
+				.map((key) => [key, columns[key]!] as [string, MsSqlColumn])
+			: columnList
 			? columnList.map((name) => [name, columns[name]!] as [string, MsSqlColumn])
 			: Object.entries(columns).filter(
 				([_, col]) => !col.shouldDisableInsert(),
 			);
 
-		const insertOrder = colEntries.map(([, column]) => sql.identifier(column.name));
-
-		for (const [valueIndex, value] of values.entries()) {
-			const valueList: (SQLChunk | SQL)[] = [];
-			for (const [fieldName, col] of colEntries) {
-				const colValue = value[fieldName];
-				if (
-					colValue === undefined
-					|| (is(colValue, Param) && colValue.value === undefined)
-				) {
-					if (col.defaultFn !== undefined) {
-						const defaultFnResult = col.defaultFn();
-						const defaultValue = is(defaultFnResult, SQL)
-							? defaultFnResult
-							: sql.param(defaultFnResult, col);
-						valueList.push(defaultValue);
-					} else if (!col.default && col.onUpdateFn !== undefined) {
-						const onUpdateFnResult = col.onUpdateFn();
-						const newValue = is(onUpdateFnResult, SQL)
-							? onUpdateFnResult
-							: sql.param(onUpdateFnResult, col);
-						valueList.push(newValue);
-					} else {
-						valueList.push(sql`default`);
-					}
-				} else {
-					valueList.push(colValue);
-				}
-			}
-			valuesSqlList.push(valueList);
-			if (valueIndex < values.length - 1) {
-				valuesSqlList.push(sql`, `);
-			}
+		if (colEntries.length === 0 && !select && (valuesOrSelect as Record<string, unknown>[]).length > 1) {
+			throw new DrizzleError({
+				message: `Cannot insert ${(valuesOrSelect as Record<string, unknown>[]).length} rows into "${
+					table[Table.Symbol.Name]
+				}": it has no insertable columns, so only a single all-defaults row can be inserted per statement`,
+			});
 		}
 
-		const valuesSql = insertOrder.length === 0 ? undefined : sql.join(valuesSqlList);
+		const insertOrderArr: SQLChunk[] = new Array(colEntries.length * 2 + 1);
+		let orderWriteIdx = 0;
+		insertOrderArr[orderWriteIdx++] = commonStringChunks['('];
+		for (let i = 0; i < colEntries.length; ++i) {
+			const [, { name }] = colEntries[i]!;
+			insertOrderArr[orderWriteIdx++] = sql.identifier(name);
+
+			if (i < colEntries.length - 1) insertOrderArr[orderWriteIdx++] = commonStringChunks[', '];
+		}
+		insertOrderArr[orderWriteIdx++] = commonStringChunks[')'];
+		const insertOrder = new SQL(insertOrderArr);
+
+		let valuesSqlList: SQLChunk[];
+
+		if (select) {
+			valuesSqlList = [(valuesOrSelect as AnyMsSqlSelectQueryBuilder | SQL).getSQL()];
+		} else {
+			const values = valuesOrSelect as Record<string, unknown>[];
+
+			const cells: unknown[] = new Array(values.length * colEntries.length);
+			let writeIdx = 0;
+
+			for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
+				const value = values[valueIndex]!;
+
+				for (let i = 0; i < colEntries.length; ++i) {
+					const [fieldName, col] = colEntries[i]!;
+					const colValue = value[fieldName];
+					if (colValue === undefined) {
+						if (col.defaultFn !== undefined) {
+							cells[writeIdx++] = col.defaultFn();
+						} else if (!col.default && col.onUpdateFn !== undefined) {
+							cells[writeIdx++] = col.onUpdateFn();
+						} else {
+							cells[writeIdx++] = commonStringChunks['default'];
+						}
+					} else {
+						cells[writeIdx++] = colValue;
+					}
+				}
+			}
+
+			valuesSqlList = [new ValueRows(cells, colEntries.map(([, col]) => col))];
+		}
 
 		const outputSql = output
-			? sql` output ${this.buildSelectionOutput(output, { type: 'INSERTED' })}`
+			? sql` output ${
+				this.buildSelectionOutput(output, { type: 'INSERTED', ignoreCastCodecs: !useSelectionCastCodecs })
+			}`
 			: undefined;
 
-		return sql`insert into ${table} ${
-			insertOrder.length === 0 ? sql`default` : insertOrder
-		}${outputSql} values ${valuesSql}`;
+		if (select) {
+			return sql`insert into ${table} ${insertOrder}${outputSql} ${new SQL(valuesSqlList)}`;
+		}
+
+		if (colEntries.length === 0) {
+			return sql`insert into ${table}${outputSql} default values`;
+		}
+
+		return sql`insert into ${table} ${insertOrder}${outputSql} values ${new SQL(valuesSqlList)}`;
 	}
 
 	sqlToQuery(
@@ -779,333 +948,224 @@ export class MsSqlDialect {
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
+			codecs: this.codecs,
 			invokeSource,
 		});
 		return res;
 	}
 
-	buildRelationalQuery({
-		fullSchema,
+	buildRelationalQuery(
+		config: Omit<BuildRelationalQueryConfig, 'through'>,
+	): BuildRelationalQueryResult {
+		const chunks: SQLChunk[] = [];
+		const selection = this.collectRelationalQuery(config, chunks);
+
+		return {
+			sql: new SQL(chunks),
+			selection,
+		};
+	}
+
+	private collectRelationalQuery({
 		schema,
-		tableNamesMap,
 		table,
 		tableConfig,
 		queryConfig: config,
-		tableAlias,
-		nestedQueryRelation,
-		joinOn,
-	}: {
-		fullSchema: Record<string, unknown>;
-		schema: V1.TablesRelationalConfig;
-		tableNamesMap: Record<string, string>;
-		table: MsSqlTable;
-		tableConfig: V1.TableRelationalConfig;
-		queryConfig: true | V1.DBQueryConfig<'many', true>;
-		tableAlias: string;
-		nestedQueryRelation?: V1.Relation;
-		joinOn?: SQL;
-	}): V1.BuildRelationalQueryResult<MsSqlTable, MsSqlColumn> {
-		let selection: V1.BuildRelationalQueryResult<
-			MsSqlTable,
-			MsSqlColumn
-		>['selection'] = [];
-		let limit,
-			offset,
-			orderBy: MsSqlSelectConfig['orderBy'] = [],
-			where;
+		relationWhere,
+		mode,
+		errorPath,
+		depth,
+		through,
+		nested,
+		withSubqueries,
+		strategy,
+	}: BuildRelationalQueryConfig, collectTo: SQLChunk[]): BuildRelationalQueryResult['selection'] {
+		const selection: BuildRelationalQueryResult['selection'] = [];
+		const isSingle = mode === 'first';
+		const params = config === true ? undefined : config;
+		const currentPath = errorPath ?? '';
+		const currentDepth = depth ?? 0;
+		const isOptimized = (currentDepth ? strategy : params?.strategy) !== 'basic';
+		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map() };
+		if (!currentDepth) {
+			collectSubqueryAndUsedTables(collector, table);
+			table = aliasedTable(table, `d${currentDepth}`);
+		}
+		const tableRef = table[Qualifier];
 
-		if (config === true) {
-			const selectionEntries = Object.entries(tableConfig.columns);
-			selection = selectionEntries.map(([key, value]) => ({
-				dbKey: value.name,
-				tsKey: key,
-				field: aliasedTableColumn(value as MsSqlColumn, tableAlias),
-				relationTableTsKey: undefined,
-				isJson: false,
-				selection: [],
-			}));
-		} else {
-			const aliasedColumns = Object.fromEntries(
-				Object.entries(tableConfig.columns).map(([key, value]) => [
-					key,
-					aliasedTableColumn(value, tableAlias),
-				]),
+		const limit = isSingle ? 1 : params?.limit;
+		const offset = params?.offset;
+
+		const { sql: where } = relationalQueryWhereToSQL(
+			table,
+			params,
+			tableConfig.relations,
+			schema,
+			collector,
+			relationWhere,
+		);
+		const order = params?.orderBy
+			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, collector, 'top')
+			: undefined;
+
+		if (offset !== undefined && !order) {
+			throw new DrizzleError({
+				message: `Table "${tableConfig.name}"${
+					currentPath ? ` ("${currentPath}")` : ''
+				} uses "offset" without "orderBy". SQL Server only accepts "offset" as part of an "order by" clause.`,
+			});
+		}
+
+		const withParam = params ? (params as WithContainer).with : undefined;
+		const withKeys: string[] = [];
+		if (withParam) {
+			for (const key of Object.keys(withParam)) {
+				if (withParam[key]) withKeys.push(key);
+			}
+		}
+
+		const useOffset = offset !== undefined;
+
+		// Reserved for `with` clause, filled once all subqueries are collected
+		const withIdx = currentDepth ? -1 : collectTo.length;
+		if (!currentDepth) collectTo.push(undefined);
+
+		collectTo.push(rqbChunks.select);
+		if (!useOffset && limit !== undefined) {
+			collectTo.push(rqbChunks.top, limit as SQLChunk, commonStringChunks[')']);
+		}
+		collectTo.push(commonStringChunks[' ']);
+		const hasColumns = buildRqbColumns(
+			tableRef,
+			tableConfig.table[TableColumns],
+			selection,
+			!!nested,
+			tableConfig.name,
+			this.codecs,
+			collectTo,
+			params?.columns,
+		);
+		let selected = hasColumns ? 1 : 0;
+		if (params?.extras) {
+			const mark = collectTo.length;
+			if (selected) collectTo.push(commonStringChunks[', ']);
+			const extras = relationExtrasToSQL(table, params.extras, this.codecs, nested, collectTo);
+			selection.push(...extras.selection);
+			if (extras.sql) ++selected;
+			else collectTo.length = mark;
+		}
+		const applyAliases: Name[] = new Array(withKeys.length);
+		for (let i = 0; i < withKeys.length; ++i) {
+			const k = withKeys[i]!;
+			const relation = tableConfig.relations[k];
+			if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
+
+			const applyAlias = applyAliases[i] = sql.identifier(`r${currentDepth}_${i}`);
+			if (selected++) collectTo.push(commonStringChunks[', ']);
+			collectTo.push(
+				relation.relationType === 'one'
+					? nested ? rqbChunks.jsonQueryOpen : undefined
+					: nested
+					? rqbChunks.jsonQueryCoalesceOpen
+					: rqbChunks.coalesceOpen,
+				applyAlias,
+				relation.relationType === 'one'
+					? nested ? rqbChunks.jsonOneNestedClose : rqbChunks.jsonOneClose
+					: nested
+					? rqbChunks.jsonManyNestedClose
+					: rqbChunks.jsonManyClose,
+				sql.identifier(k),
+			);
+		}
+
+		if (!selected) {
+			throw new DrizzleError({
+				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
+			});
+		}
+
+		// Optimize slow queries caused by planner applying pagination or filters after building relations
+		// `offset` isn't pushed below `outer apply`: relations would get built for skipped rows as well.
+		// Paginating the table in a derived table first restricts applies to the rows that are actually returned
+		const isWrapped = withKeys.length > 0 && isOptimized && useOffset;
+
+		collectTo.push(commonStringChunks[' from ']);
+		if (isWrapped) collectTo.push(commonStringChunks['(select '], tableRef, commonStringChunks['.* from ']);
+		getTableAsAliasSQL(table, collectTo);
+		if (through) {
+			collectTo.push(commonStringChunks[' inner join ']);
+			getTableAsAliasSQL(through.table, collectTo);
+			collectTo.push(commonStringChunks[' on '], ...through.condition);
+		}
+		if (isWrapped) {
+			if (where) collectTo.push(commonStringChunks[' where '], ...where);
+			if (order) collectTo.push(commonStringChunks[' order by '], ...order);
+			// Wrapped only when paginated with `offset`
+			collectTo.push(rqbChunks.offset, offset as SQLChunk, rqbChunks.rows);
+			if (limit !== undefined) collectTo.push(rqbChunks.fetchNext, limit as SQLChunk, rqbChunks.rowsOnly);
+			collectTo.push(commonStringChunks[') as '], tableRef);
+		}
+
+		for (let i = 0; i < withKeys.length; ++i) {
+			const k = withKeys[i]!;
+			const join = withParam![k]!;
+			const relation = tableConfig.relations[k]!;
+			const isSingle = relation.relationType === 'one';
+			collectSubqueryAndUsedTables(collector, relation.targetTable);
+			collectSubqueryAndUsedTables(collector, relation.throughTable);
+
+			const targetTable = aliasedTable(relation.targetTable, `d${currentDepth + 1}`);
+			const throughTable = relation.throughTable
+				? (aliasedTable(relation.throughTable, `tr${currentDepth}`))
+				: undefined;
+
+			const { filter, joinCondition } = relationToSQL(relation, table, targetTable, throughTable);
+
+			collectTo.push(rqbChunks.applyOpen);
+			const innerSelection = this.collectRelationalQuery({
+				table: targetTable,
+				mode: isSingle ? 'first' : 'many',
+				schema,
+				queryConfig: join as DBQueryConfigRoot,
+				tableConfig: schema[relation.targetTableName]!,
+				relationWhere: filter,
+				errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
+				depth: currentDepth + 1,
+				withSubqueries: collector,
+				strategy: currentDepth ? strategy : params?.strategy,
+				through: throughTable ? { table: throughTable, condition: joinCondition! } : undefined,
+				nested: true,
+			}, collectTo);
+			collectTo.push(
+				isSingle ? rqbChunks.forJsonOne : rqbChunks.forJsonMany,
+				applyAliases[i],
+				rqbChunks.applyColumn,
 			);
 
-			if (config.where) {
-				const whereSql = typeof config.where === 'function'
-					? config.where(aliasedColumns, V1.getOperators())
-					: config.where;
-				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
-			}
-
-			const fieldsSelection: {
-				tsKey: string;
-				value: MsSqlColumn | SQL.Aliased;
-			}[] = [];
-			let selectedColumns: string[] = [];
-
-			// Figure out which columns to select
-			if (config.columns) {
-				let isIncludeMode = false;
-
-				for (const [field, value] of Object.entries(config.columns)) {
-					if (value === undefined) {
-						continue;
-					}
-
-					if (field in tableConfig.columns) {
-						if (!isIncludeMode && value === true) {
-							isIncludeMode = true;
-						}
-						selectedColumns.push(field);
-					}
-				}
-
-				if (selectedColumns.length > 0) {
-					selectedColumns = isIncludeMode
-						? selectedColumns.filter((c) => config.columns?.[c] === true)
-						: Object.keys(tableConfig.columns).filter(
-							(key) => !selectedColumns.includes(key),
-						);
-				}
-			} else {
-				// Select all columns if selection is not specified
-				selectedColumns = Object.keys(tableConfig.columns);
-			}
-
-			for (const field of selectedColumns) {
-				const column = tableConfig.columns[field]! as MsSqlColumn;
-				fieldsSelection.push({ tsKey: field, value: column });
-			}
-
-			let selectedRelations: {
-				tsKey: string;
-				queryConfig: true | V1.DBQueryConfig<'many', false>;
-				relation: V1.Relation;
-			}[] = [];
-
-			// Figure out which relations to select
-			if (config.with) {
-				selectedRelations = Object.entries(config.with)
-					.filter(
-						(
-							entry,
-						): entry is [(typeof entry)[0], NonNullable<(typeof entry)[1]>] => !!entry[1],
-					)
-					.map(([tsKey, queryConfig]) => ({
-						tsKey,
-						queryConfig,
-						relation: tableConfig.relations[tsKey]!,
-					}));
-			}
-
-			let extras;
-
-			// Figure out which extras to select
-			if (config.extras) {
-				extras = typeof config.extras === 'function'
-					? config.extras(aliasedColumns, { sql })
-					: config.extras;
-				for (const [tsKey, value] of Object.entries(extras)) {
-					fieldsSelection.push({
-						tsKey,
-						value: mapColumnsInAliasedSQLToAlias(value, tableAlias),
-					});
-				}
-			}
-
-			// Transform `fieldsSelection` into `selection`
-			// `fieldsSelection` shouldn't be used after this point
-			for (const { tsKey, value } of fieldsSelection) {
-				selection.push({
-					dbKey: is(value, SQL.Aliased)
-						? value.fieldAlias
-						: tableConfig.columns[tsKey]!.name,
-					tsKey,
-					field: is(value, Column)
-						? aliasedTableColumn(value, tableAlias)
-						: value,
-					relationTableTsKey: undefined,
-					isJson: false,
-					selection: [],
-				});
-			}
-
-			let orderByOrig = typeof config.orderBy === 'function'
-				? config.orderBy(aliasedColumns, V1.getOrderByOperators())
-				: (config.orderBy ?? []);
-			if (!Array.isArray(orderByOrig)) {
-				orderByOrig = [orderByOrig];
-			}
-			orderBy = orderByOrig.map((orderByValue) => {
-				if (is(orderByValue, Column)) {
-					return aliasedTableColumn(orderByValue, tableAlias) as MsSqlColumn;
-				}
-				return mapColumnsInSQLToAlias(orderByValue, tableAlias);
-			});
-
-			limit = config.limit;
-			offset = config.offset;
-
-			// Process all relations
-			for (
-				const {
-					tsKey: selectedRelationTsKey,
-					queryConfig: selectedRelationConfigValue,
-					relation,
-				} of selectedRelations
-			) {
-				const normalizedRelation = V1.normalizeRelation(
-					schema,
-					tableNamesMap,
-					relation,
-				);
-				const relationTableName = getTableUniqueName(relation.referencedTable);
-				const relationTableTsName = tableNamesMap[relationTableName]!;
-				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
-				const joinOn = and(
-					...normalizedRelation.fields.map((field, i) =>
-						eq(
-							aliasedTableColumn(
-								normalizedRelation.references[i]!,
-								relationTableAlias,
-							),
-							aliasedTableColumn(field, tableAlias),
-						)
-					),
-				);
-				const builtRelation = this.buildRelationalQuery({
-					fullSchema,
-					schema,
-					tableNamesMap,
-					table: fullSchema[relationTableTsName] as MsSqlTable,
-					tableConfig: schema[relationTableTsName]!,
-					queryConfig: is(relation, V1.One)
-						? selectedRelationConfigValue === true
-							? { limit: 1 }
-							: { ...selectedRelationConfigValue, limit: 1 }
-						: selectedRelationConfigValue,
-					tableAlias: relationTableAlias,
-					joinOn,
-					nestedQueryRelation: relation,
-				});
-				let fieldSql = sql`(${builtRelation.sql} for json auto, include_null_values)${
-					nestedQueryRelation
-						? sql` as ${sql.identifier(relationTableAlias)}`
-						: undefined
-				}`;
-				if (is(relation, V1.Many)) {
-					fieldSql = sql`${fieldSql}`;
-				}
-				const field = fieldSql.as(selectedRelationTsKey);
-				selection.push({
-					dbKey: selectedRelationTsKey,
-					tsKey: selectedRelationTsKey,
-					field,
-					relationTableTsKey: relationTableTsName,
-					isJson: true,
-					selection: builtRelation.selection,
-				});
-			}
-		}
-
-		if (selection.length === 0) {
-			throw new DrizzleError({
-				message:
-					`No fields selected for table "${tableConfig.tsName}" ("${tableAlias}"). You need to have at least one item in "columns", "with" or "extras". If you need to select all columns, omit the "columns" key or set it to undefined.`,
+			selection.push({
+				field: targetTable,
+				fieldType: 'Nested',
+				key: k,
+				selection: innerSelection,
+				isArray: !isSingle,
+				isOptional: ((relation as AnyOne).optional ?? false)
+					|| (join !== true && !!(join as Exclude<typeof join, boolean | undefined>).where),
 			});
 		}
 
-		let result;
-
-		where = and(joinOn, where);
-
-		if (nestedQueryRelation) {
-			let field = sql`${
-				sql.join(
-					selection.map((sel) => {
-						return is(sel.field, MsSqlColumn)
-							? sql.identifier(sel.field.name)
-							: is(sel.field, SQL.Aliased)
-							? sel.isJson
-								? sel.field.sql
-								: sql`${sel.field.sql} as ${sql.identifier(sel.field.fieldAlias)}`
-							: sel.field;
-					}),
-					sql`, `,
-				)
-			}`;
-			if (is(nestedQueryRelation, V1.Many)) {
-				field = sql`${field}`;
-			}
-			const nestedSelection = [
-				{
-					dbKey: 'data',
-					tsKey: 'data',
-					field,
-					isJson: true,
-					relationTableTsKey: tableConfig.tsName,
-					selection,
-				},
-			];
-
-			result = aliasedTable(table, tableAlias);
-
-			const top = offset ? undefined : (limit ?? undefined);
-			const fetch = offset && limit ? limit : undefined;
-
-			// Mssql required order by to be present in the query if using offset and fetch(limit)
-			// With order by 1, the query will be ordered by the first column in the selection
-			if (orderBy.length === 0 && offset !== undefined && fetch !== undefined) {
-				orderBy = [sql`1`];
-			}
-
-			result = this.buildSelectQuery({
-				table: is(result, MsSqlTable)
-					? result
-					: new Subquery(result, {}, tableAlias),
-				fields: {},
-				fieldsFlat: nestedSelection.map(({ field }) => {
-					const mapped = is(field, Column) ? aliasedTableColumn(field, tableAlias) : field;
-					const fieldType = is(mapped, Column) ? 'Column' : is(mapped, SQL.Aliased) ? 'SQL.Aliased' : 'SQL';
-					return { path: [], field: mapped, fieldType } as SelectedFieldsOrdered[number];
-				}),
-				where,
-				top,
-				offset,
-				fetch,
-				orderBy,
-				setOperators: [],
-			});
+		if (isWrapped) {
+			if (order) collectTo.push(commonStringChunks[' order by '], ...order);
 		} else {
-			const top = offset ? undefined : (limit ?? undefined);
-			const fetch = offset && limit ? limit : undefined;
-
-			if (orderBy.length === 0 && offset !== undefined && fetch !== undefined) {
-				orderBy = [sql`1`];
+			if (where) collectTo.push(commonStringChunks[' where '], ...where);
+			if (order) collectTo.push(commonStringChunks[' order by '], ...order);
+			if (useOffset) {
+				collectTo.push(rqbChunks.offset, offset as SQLChunk, rqbChunks.rows);
+				if (limit !== undefined) collectTo.push(rqbChunks.fetchNext, limit as SQLChunk, rqbChunks.rowsOnly);
 			}
-			result = this.buildSelectQuery({
-				table: aliasedTable(table, tableAlias),
-				fields: {},
-				fieldsFlat: selection.map(({ field }) => {
-					const mapped = is(field, Column) ? aliasedTableColumn(field, tableAlias) : field;
-					const fieldType = is(mapped, Column) ? 'Column' : is(mapped, SQL.Aliased) ? 'SQL.Aliased' : 'SQL';
-					return { path: [], field: mapped, fieldType } as SelectedFieldsOrdered[number];
-				}),
-				where,
-				top,
-				offset,
-				fetch,
-				orderBy,
-				setOperators: [],
-			});
 		}
 
-		return {
-			tableTsKey: tableConfig.tsName,
-			sql: result,
-			selection,
-		};
+		if (withIdx !== -1) collectTo[withIdx] = this.buildWithCTE([...collector.subqueries.values()]);
+
+		return selection;
 	}
 }

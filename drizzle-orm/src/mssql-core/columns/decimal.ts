@@ -33,6 +33,9 @@ export class MsSqlDecimal<T extends ColumnBaseConfig<'string numeric'>>
 {
 	static override readonly [entityKind]: string = 'MsSqlDecimal';
 
+	/** @internal */
+	override readonly codec = 'decimal';
+
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
 
@@ -81,6 +84,9 @@ export class MsSqlDecimalNumber<T extends ColumnBaseConfig<'number'>>
 	extends MsSqlColumnWithIdentity<T, MsSqlDecimalConfig>
 {
 	static override readonly [entityKind]: string = 'MsSqlDecimalNumber';
+
+	/** @internal */
+	override readonly codec = 'decimal:number';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
@@ -135,6 +141,9 @@ export class MsSqlDecimalBigInt<T extends ColumnBaseConfig<'bigint int64'>>
 	extends MsSqlColumnWithIdentity<T, MsSqlDecimalConfig>
 {
 	static override readonly [entityKind]: string = 'MsSqlDecimalBigInt';
+
+	/** @internal */
+	override readonly codec = 'decimal:bigint';
 
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;

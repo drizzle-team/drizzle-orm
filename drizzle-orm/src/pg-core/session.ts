@@ -1,5 +1,5 @@
-import type { WithCacheConfig } from '~/cache/core/types.ts';
-import { entityKind } from '~/entity.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/index.ts';
 import type { PgDialect } from './dialect.ts';
@@ -10,6 +10,9 @@ export interface PreparedQueryConfig {
 
 export abstract class PgBasePreparedQuery implements PreparedQuery {
 	static readonly [entityKind]: string = 'PgBasePreparedQuery';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		protected query: Query,
@@ -40,6 +43,9 @@ export type PgTransactionConfig =
 
 export abstract class PgSession {
 	static readonly [entityKind]: string = 'PgSession';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(protected dialect: PgDialect) {}
 
@@ -48,10 +54,7 @@ export abstract class PgSession {
 		mode: 'arrays' | 'objects' | 'raw',
 		name: string | boolean,
 		mapper: ((rows: unknown[]) => any) | undefined,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 		/** Usef for driver-side mapping if supported by driver & compatible */
 		driverShape?: unknown,
@@ -71,3 +74,5 @@ export interface PgQueryResultHKT {
 export type PgQueryResultKind<TKind extends PgQueryResultHKT, TRow> = (TKind & {
 	readonly row: TRow;
 })['type'];
+
+export type PgRawRow<TRow> = TRow extends 'unknown' ? Record<string, unknown> : TRow;

@@ -1,9 +1,9 @@
 import mssql from 'mssql';
 import { describe, it } from 'vitest';
-import { relations } from '~/_relations';
-import { alias, bit, camelCase, int, text, union } from '~/mssql-core';
-import { drizzle } from '~/node-mssql';
-import { asc, eq, sql } from '~/sql';
+import { alias, bit, camelCase, castToText, int, QueryBuilder, text, union } from '~/mssql-core';
+import { drizzle, nodeMssqlCodecs } from '~/node-mssql';
+import { defineRelations } from '~/relations';
+import { asc, desc, eq, exists, inArray, Param, sql } from '~/sql';
 
 const testSchema = camelCase.schema('test');
 const users = camelCase.table('users', {
@@ -18,29 +18,68 @@ const users = camelCase.table('users', {
 	// Test that custom aliases remain
 	age: int('AGE'),
 });
-const usersRelations = relations(users, ({ one }) => ({
-	developers: one(developers),
-}));
+
 const developers = testSchema.table('developers', {
 	// TODO: Investigate reasons for existence of next commented line
 	// user_id: int().primaryKey().primaryKey().references('name1', () => users.id),
 	user_id: int().primaryKey().primaryKey().references(() => users.id),
 	uses_drizzle_orm: bit().notNull(),
 });
-const developersRelations = relations(developers, ({ one }) => ({
-	user: one(users, {
-		fields: [developers.user_id],
-		references: [users.id],
-	}),
-}));
-const devs = alias(developers, 'devs');
-const schema = { users, usersRelations, developers, developersRelations };
 
-const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }), schema });
+const devs = alias(developers, 'devs');
+const db = drizzle({ client: new mssql.ConnectionPool({ server: '' }) });
+
+const projects = camelCase.table('projects', {
+	id: int().primaryKey(),
+	developer_id: int(),
+	project_name: text(),
+});
+
+const usersView = camelCase.view('users_view').as((qb) =>
+	qb.select({ id: users.id, first_name: users.first_name, last_name: users.last_name }).from(users)
+);
+
+const staff = new QueryBuilder().select({
+	id: users.id,
+	first_name: users.first_name,
+	role: sql<string>`upper(${users.last_name})`.as('user_role'),
+}).from(users).as('staff_members');
+
+const rqbRelations = defineRelations({ users, developers, projects, staff, usersView }, (r) => ({
+	users: {
+		developers: r.one.developers({ from: r.users.id, to: r.developers.user_id }),
+	},
+	developers: {
+		user: r.one.users({ from: r.developers.user_id, to: r.users.id }),
+		projects: r.many.projects({ from: r.developers.user_id, to: r.projects.developer_id }),
+		member: r.one.staff({ from: r.developers.user_id, to: r.staff.role }),
+		viewUser: r.one.usersView({ from: r.developers.user_id, to: r.usersView.id }),
+	},
+	projects: {
+		developer: r.one.developers({ from: r.projects.developer_id, to: r.developers.user_id }),
+	},
+	staff: {
+		developers: r.many.developers({ from: r.staff.id, to: r.developers.user_id }),
+	},
+	usersView: {
+		developers: r.many.developers({ from: r.usersView.id, to: r.developers.user_id }),
+	},
+}));
+const rqbDb = drizzle({ client: new mssql.ConnectionPool({ server: '' }), relations: rqbRelations });
 
 const fullName = sql`${users.first_name} || ' ' || ${users.last_name}`.as('name');
 
 describe('mssql to camel case', () => {
+	it('unicode column names', ({ expect }) => {
+		const unicode = camelCase.table('unicode', {
+			칼럼명: text(),
+		});
+
+		expect(db.select().from(unicode).toSQL().sql).toEqual(
+			'select [칼럼명] from [unicode]',
+		);
+	});
+
 	it('qualifier preservation for sql fields', ({ expect }) => {
 		const a = camelCase.table('a', { id: int('id').primaryKey(), cId: int().notNull() });
 		const b = camelCase.table('b', { id: int('id').primaryKey(), cId: int().notNull(), label: text() });
@@ -67,6 +106,428 @@ describe('mssql to camel case', () => {
 		expect(query.toSQL()).toEqual({
 			sql:
 				"select [sq].[id], [sq].[name] from [users] left join (select [id], [firstName] || ' ' || [lastName] as [name] from [users]) [sq] on [users].[id] = [sq].[id]",
+			params: [],
+		});
+	});
+
+	it('relational query over a subquery source', ({ expect }) => {
+		const query = rqbDb.query.staff.findMany({
+			columns: { id: true, role: true },
+			where: { role: { like: 'A%' } },
+			orderBy: { first_name: 'asc' },
+			with: { developers: true },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with [staff_members] as (select [id], [firstName], upper([lastName]) as [user_role] from [users]) select [d0].[id] as [id], [d0].[user_role] as [role], coalesce([r0_0].[j], '[]') as [developers] from [staff_members] as [d0] outer apply (select [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm] from [test].[developers] as [d1] where [d0].[id] = [d1].[userId] for json path, include_null_values) [r0_0]([j]) where [d0].[user_role] like @par0 order by [d0].[firstName] asc",
+			params: ['A%'],
+		});
+	});
+
+	it("relational query joining on a subquery's aliased sql field", ({ expect }) => {
+		const query = rqbDb.query.developers.findMany({ with: { member: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with [staff_members] as (select [id], [firstName], upper([lastName]) as [user_role] from [users]) select [d0].[userId] as [user_id], [d0].[usesDrizzleOrm] as [uses_drizzle_orm], [r0_0].[j] as [member] from [test].[developers] as [d0] outer apply (select top(@par0) [d1].[id] as [id], [d1].[firstName] as [first_name], [d1].[user_role] as [role] from [staff_members] as [d1] where [d0].[userId] = [d1].[user_role] for json path, include_null_values, without_array_wrapper) [r0_0]([j])',
+			params: [1],
+		});
+	});
+
+	it('relational query - table, single level (find many)', ({ expect }) => {
+		const query = rqbDb.query.users.findMany({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[lastName] as [last_name], [d0].[AGE] as [age] from [users] as [d0]',
+			params: [],
+		});
+	});
+
+	it('relational query - table, single level (find first)', ({ expect }) => {
+		const query = rqbDb.query.users.findFirst({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select top(@par0) [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[lastName] as [last_name], [d0].[AGE] as [age] from [users] as [d0]',
+			params: [1],
+		});
+	});
+
+	it('relational query - table, nested (find many)', ({ expect }) => {
+		const query = rqbDb.query.users.findMany({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[lastName] as [last_name], [d0].[AGE] as [age], [r0_0].[j] as [developers] from [users] as [d0] outer apply (select top(@par0) [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm] from [test].[developers] as [d1] where [d0].[id] = [d1].[userId] for json path, include_null_values, without_array_wrapper) [r0_0]([j])',
+			params: [1],
+		});
+	});
+
+	it('relational query - table, nested (find first)', ({ expect }) => {
+		const query = rqbDb.query.users.findFirst({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select top(@par0) [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[lastName] as [last_name], [d0].[AGE] as [age], [r0_0].[j] as [developers] from [users] as [d0] outer apply (select top(@par1) [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm] from [test].[developers] as [d1] where [d0].[id] = [d1].[userId] for json path, include_null_values, without_array_wrapper) [r0_0]([j])',
+			params: [1, 1],
+		});
+	});
+
+	it('relational query - table, deeply nested (find many)', ({ expect }) => {
+		const query = rqbDb.query.users.findMany({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[lastName] as [last_name], [d0].[AGE] as [age], [r0_0].[j] as [developers] from [users] as [d0] outer apply (select top(@par0) [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm], json_query(coalesce([r1_0].[j], '[]')) as [projects] from [test].[developers] as [d1] outer apply (select [d2].[id] as [id], [d2].[developerId] as [developer_id], [d2].[projectName] as [project_name] from [projects] as [d2] where [d1].[userId] = [d2].[developerId] for json path, include_null_values) [r1_0]([j]) where [d0].[id] = [d1].[userId] for json path, include_null_values, without_array_wrapper) [r0_0]([j])",
+			params: [1],
+		});
+	});
+
+	it('relational query - table, deeply nested (find first)', ({ expect }) => {
+		const query = rqbDb.query.users.findFirst({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select top(@par0) [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[lastName] as [last_name], [d0].[AGE] as [age], [r0_0].[j] as [developers] from [users] as [d0] outer apply (select top(@par1) [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm], json_query(coalesce([r1_0].[j], '[]')) as [projects] from [test].[developers] as [d1] outer apply (select [d2].[id] as [id], [d2].[developerId] as [developer_id], [d2].[projectName] as [project_name] from [projects] as [d2] where [d1].[userId] = [d2].[developerId] for json path, include_null_values) [r1_0]([j]) where [d0].[id] = [d1].[userId] for json path, include_null_values, without_array_wrapper) [r0_0]([j])",
+			params: [1, 1],
+		});
+	});
+
+	it('relational query - view, single level (find first)', ({ expect }) => {
+		const query = rqbDb.query.usersView.findFirst({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select top(@par0) [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[lastName] as [last_name] from [users_view] as [d0]',
+			params: [1],
+		});
+	});
+
+	it('relational query - view, nested (find many)', ({ expect }) => {
+		const query = rqbDb.query.usersView.findMany({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[lastName] as [last_name], coalesce([r0_0].[j], '[]') as [developers] from [users_view] as [d0] outer apply (select [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm] from [test].[developers] as [d1] where [d0].[id] = [d1].[userId] for json path, include_null_values) [r0_0]([j])",
+			params: [],
+		});
+	});
+
+	it('relational query - mixed table -> table -> view (find many)', ({ expect }) => {
+		const query = rqbDb.query.projects.findMany({
+			with: { developer: { with: { viewUser: true, member: true } } },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with [staff_members] as (select [id], [firstName], upper([lastName]) as [user_role] from [users]) select [d0].[id] as [id], [d0].[developerId] as [developer_id], [d0].[projectName] as [project_name], [r0_0].[j] as [developer] from [projects] as [d0] outer apply (select top(@par0) [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm], json_query([r1_0].[j]) as [viewUser], json_query([r1_1].[j]) as [member] from [test].[developers] as [d1] outer apply (select top(@par1) [d2].[id] as [id], [d2].[firstName] as [first_name], [d2].[lastName] as [last_name] from [users_view] as [d2] where [d1].[userId] = [d2].[id] for json path, include_null_values, without_array_wrapper) [r1_0]([j]) outer apply (select top(@par2) [d2].[id] as [id], [d2].[firstName] as [first_name], [d2].[user_role] as [role] from [staff_members] as [d2] where [d1].[userId] = [d2].[user_role] for json path, include_null_values, without_array_wrapper) [r1_1]([j]) where [d0].[developerId] = [d1].[userId] for json path, include_null_values, without_array_wrapper) [r0_0]([j])',
+			params: [1, 1, 1],
+		});
+	});
+
+	it('relational query - mixed view -> table -> table (find first)', ({ expect }) => {
+		const query = rqbDb.query.usersView.findFirst({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select top(@par0) [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[lastName] as [last_name], coalesce([r0_0].[j], '[]') as [developers] from [users_view] as [d0] outer apply (select [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm], json_query(coalesce([r1_0].[j], '[]')) as [projects] from [test].[developers] as [d1] outer apply (select [d2].[id] as [id], [d2].[developerId] as [developer_id], [d2].[projectName] as [project_name] from [projects] as [d2] where [d1].[userId] = [d2].[developerId] for json path, include_null_values) [r1_0]([j]) where [d0].[id] = [d1].[userId] for json path, include_null_values) [r0_0]([j])",
+			params: [1],
+		});
+	});
+
+	it('relational query - subquery, single level (find many)', ({ expect }) => {
+		const query = rqbDb.query.staff.findMany({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with [staff_members] as (select [id], [firstName], upper([lastName]) as [user_role] from [users]) select [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[user_role] as [role] from [staff_members] as [d0]',
+			params: [],
+		});
+	});
+
+	it('relational query - subquery, single level (find first)', ({ expect }) => {
+		const query = rqbDb.query.staff.findFirst({});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with [staff_members] as (select [id], [firstName], upper([lastName]) as [user_role] from [users]) select top(@par0) [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[user_role] as [role] from [staff_members] as [d0]',
+			params: [1],
+		});
+	});
+
+	it('relational query - subquery, nested (find many)', ({ expect }) => {
+		const query = rqbDb.query.staff.findMany({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with [staff_members] as (select [id], [firstName], upper([lastName]) as [user_role] from [users]) select [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[user_role] as [role], coalesce([r0_0].[j], '[]') as [developers] from [staff_members] as [d0] outer apply (select [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm] from [test].[developers] as [d1] where [d0].[id] = [d1].[userId] for json path, include_null_values) [r0_0]([j])",
+			params: [],
+		});
+	});
+
+	it('relational query - subquery, nested (find first)', ({ expect }) => {
+		const query = rqbDb.query.staff.findFirst({ with: { developers: true } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with [staff_members] as (select [id], [firstName], upper([lastName]) as [user_role] from [users]) select top(@par0) [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[user_role] as [role], coalesce([r0_0].[j], '[]') as [developers] from [staff_members] as [d0] outer apply (select [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm] from [test].[developers] as [d1] where [d0].[id] = [d1].[userId] for json path, include_null_values) [r0_0]([j])",
+			params: [1],
+		});
+	});
+
+	it('relational query - subquery, deeply nested (find many)', ({ expect }) => {
+		const query = rqbDb.query.staff.findMany({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with [staff_members] as (select [id], [firstName], upper([lastName]) as [user_role] from [users]) select [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[user_role] as [role], coalesce([r0_0].[j], '[]') as [developers] from [staff_members] as [d0] outer apply (select [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm], json_query(coalesce([r1_0].[j], '[]')) as [projects] from [test].[developers] as [d1] outer apply (select [d2].[id] as [id], [d2].[developerId] as [developer_id], [d2].[projectName] as [project_name] from [projects] as [d2] where [d1].[userId] = [d2].[developerId] for json path, include_null_values) [r1_0]([j]) where [d0].[id] = [d1].[userId] for json path, include_null_values) [r0_0]([j])",
+			params: [],
+		});
+	});
+
+	it('relational query - subquery, deeply nested (find first)', ({ expect }) => {
+		const query = rqbDb.query.staff.findFirst({ with: { developers: { with: { projects: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with [staff_members] as (select [id], [firstName], upper([lastName]) as [user_role] from [users]) select top(@par0) [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[user_role] as [role], coalesce([r0_0].[j], '[]') as [developers] from [staff_members] as [d0] outer apply (select [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm], json_query(coalesce([r1_0].[j], '[]')) as [projects] from [test].[developers] as [d1] outer apply (select [d2].[id] as [id], [d2].[developerId] as [developer_id], [d2].[projectName] as [project_name] from [projects] as [d2] where [d1].[userId] = [d2].[developerId] for json path, include_null_values) [r1_0]([j]) where [d0].[id] = [d1].[userId] for json path, include_null_values) [r0_0]([j])",
+			params: [1],
+		});
+	});
+
+	it('relational query - mixed table -> subquery -> table (find many)', ({ expect }) => {
+		const query = rqbDb.query.developers.findMany({ with: { member: { with: { developers: true } } } });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with [staff_members] as (select [id], [firstName], upper([lastName]) as [user_role] from [users]) select [d0].[userId] as [user_id], [d0].[usesDrizzleOrm] as [uses_drizzle_orm], [r0_0].[j] as [member] from [test].[developers] as [d0] outer apply (select top(@par0) [d1].[id] as [id], [d1].[firstName] as [first_name], [d1].[user_role] as [role], json_query(coalesce([r1_0].[j], '[]')) as [developers] from [staff_members] as [d1] outer apply (select [d2].[userId] as [user_id], [d2].[usesDrizzleOrm] as [uses_drizzle_orm] from [test].[developers] as [d2] where [d1].[id] = [d2].[userId] for json path, include_null_values) [r1_0]([j]) where [d0].[userId] = [d1].[user_role] for json path, include_null_values, without_array_wrapper) [r0_0]([j])",
+			params: [1],
+		});
+	});
+
+	it('relational query - mixed subquery -> table -> view (find first)', ({ expect }) => {
+		const query = rqbDb.query.staff.findFirst({
+			with: { developers: { with: { viewUser: true } } },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with [staff_members] as (select [id], [firstName], upper([lastName]) as [user_role] from [users]) select top(@par0) [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[user_role] as [role], coalesce([r0_0].[j], '[]') as [developers] from [staff_members] as [d0] outer apply (select [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm], json_query([r1_0].[j]) as [viewUser] from [test].[developers] as [d1] outer apply (select top(@par1) [d2].[id] as [id], [d2].[firstName] as [first_name], [d2].[lastName] as [last_name] from [users_view] as [d2] where [d1].[userId] = [d2].[id] for json path, include_null_values, without_array_wrapper) [r1_0]([j]) where [d0].[id] = [d1].[userId] for json path, include_null_values) [r0_0]([j])",
+			params: [1, 1],
+		});
+	});
+
+	it('relational query - table, nested + orderBy + limit', ({ expect }) => {
+		const query = rqbDb.query.users.findMany({
+			orderBy: { first_name: 'asc' },
+			limit: 2,
+			with: { developers: true },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select top(@par0) [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[lastName] as [last_name], [d0].[AGE] as [age], [r0_0].[j] as [developers] from [users] as [d0] outer apply (select top(@par1) [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm] from [test].[developers] as [d1] where [d0].[id] = [d1].[userId] for json path, include_null_values, without_array_wrapper) [r0_0]([j]) order by [d0].[firstName] asc',
+			params: [2, 1],
+		});
+	});
+
+	it('relational query - table, nested + orderBy + limit + offset', ({ expect }) => {
+		const query = rqbDb.query.users.findMany({
+			orderBy: { first_name: 'asc' },
+			limit: 2,
+			offset: 4,
+			with: { developers: true },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[lastName] as [last_name], [d0].[AGE] as [age], [r0_0].[j] as [developers] from (select [d0].* from [users] as [d0] order by [d0].[firstName] asc offset @par0 rows fetch next @par1 rows only) as [d0] outer apply (select top(@par2) [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm] from [test].[developers] as [d1] where [d0].[id] = [d1].[userId] for json path, include_null_values, without_array_wrapper) [r0_0]([j]) order by [d0].[firstName] asc',
+			params: [4, 2, 1],
+		});
+	});
+
+	it('relational query - schema table, deeply nested + orderBy + offset on every level', ({ expect }) => {
+		const query = rqbDb.query.developers.findMany({
+			orderBy: { user_id: 'desc' },
+			limit: 3,
+			offset: 6,
+			with: {
+				projects: { orderBy: { project_name: 'asc' }, limit: 2, offset: 1, with: { developer: true } },
+			},
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select [d0].[userId] as [user_id], [d0].[usesDrizzleOrm] as [uses_drizzle_orm], coalesce([r0_0].[j], '[]') as [projects] from (select [d0].* from [test].[developers] as [d0] order by [d0].[userId] desc offset @par0 rows fetch next @par1 rows only) as [d0] outer apply (select [d1].[id] as [id], [d1].[developerId] as [developer_id], [d1].[projectName] as [project_name], json_query([r1_0].[j]) as [developer] from (select [d1].* from [projects] as [d1] where [d0].[userId] = [d1].[developerId] order by [d1].[projectName] asc offset @par2 rows fetch next @par3 rows only) as [d1] outer apply (select top(@par4) [d2].[userId] as [user_id], [d2].[usesDrizzleOrm] as [uses_drizzle_orm] from [test].[developers] as [d2] where [d1].[developerId] = [d2].[userId] for json path, include_null_values, without_array_wrapper) [r1_0]([j]) order by [d1].[projectName] asc for json path, include_null_values) [r0_0]([j]) order by [d0].[userId] desc",
+			params: [6, 3, 1, 2, 1],
+		});
+	});
+
+	it('relational query - subquery, nested + orderBy + offset', ({ expect }) => {
+		const query = rqbDb.query.staff.findMany({
+			orderBy: { role: 'asc' },
+			offset: 4,
+			with: { developers: true },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"with [staff_members] as (select [id], [firstName], upper([lastName]) as [user_role] from [users]) select [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[user_role] as [role], coalesce([r0_0].[j], '[]') as [developers] from (select [d0].* from [staff_members] as [d0] order by [d0].[user_role] asc offset @par0 rows) as [d0] outer apply (select [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm] from [test].[developers] as [d1] where [d0].[id] = [d1].[userId] for json path, include_null_values) [r0_0]([j]) order by [d0].[user_role] asc",
+			params: [4],
+		});
+	});
+
+	it('relational query - basic strategy, table, nested + where + orderBy + limit + offset', ({ expect }) => {
+		const query = rqbDb.query.users.findMany({
+			strategy: 'basic',
+			where: { first_name: { like: 'A%' }, developers: { uses_drizzle_orm: true } },
+			orderBy: { first_name: 'asc' },
+			limit: 2,
+			offset: 4,
+			with: { developers: true },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[lastName] as [last_name], [d0].[AGE] as [age], [r0_0].[j] as [developers] from [users] as [d0] outer apply (select top(@par0) [d1].[userId] as [user_id], [d1].[usesDrizzleOrm] as [uses_drizzle_orm] from [test].[developers] as [d1] where [d0].[id] = [d1].[userId] for json path, include_null_values, without_array_wrapper) [r0_0]([j]) where (([d0].[firstName] like @par1) and (exists (select * from [test].[developers] as [f0] where (([d0].[id] = [f0].[userId]) and ([f0].[usesDrizzleOrm] = @par2))))) order by [d0].[firstName] asc offset @par3 rows fetch next @par4 rows only',
+			params: [1, 'A%', true, 4, 2],
+		});
+	});
+
+	it('relational query - basic strategy, schema table, deeply nested + orderBy + limit + offset on every level', ({ expect }) => {
+		const query = rqbDb.query.developers.findMany({
+			strategy: 'basic',
+			orderBy: { user_id: 'desc' },
+			limit: 3,
+			offset: 1,
+			with: {
+				projects: { orderBy: { project_name: 'asc' }, limit: 2, offset: 1, with: { developer: true } },
+			},
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select [d0].[userId] as [user_id], [d0].[usesDrizzleOrm] as [uses_drizzle_orm], coalesce([r0_0].[j], '[]') as [projects] from [test].[developers] as [d0] outer apply (select [d1].[id] as [id], [d1].[developerId] as [developer_id], [d1].[projectName] as [project_name], json_query([r1_0].[j]) as [developer] from [projects] as [d1] outer apply (select top(@par0) [d2].[userId] as [user_id], [d2].[usesDrizzleOrm] as [uses_drizzle_orm] from [test].[developers] as [d2] where [d1].[developerId] = [d2].[userId] for json path, include_null_values, without_array_wrapper) [r1_0]([j]) where [d0].[userId] = [d1].[developerId] order by [d1].[projectName] asc offset @par1 rows fetch next @par2 rows only for json path, include_null_values) [r0_0]([j]) order by [d0].[userId] desc offset @par3 rows fetch next @par4 rows only",
+			params: [1, 1, 2, 1, 3],
+		});
+	});
+
+	it('relational query - basic strategy, table, nested + orderBy relation + limit + offset (find first)', ({ expect }) => {
+		const query = rqbDb.query.developers.findFirst({
+			strategy: 'basic',
+			orderBy: { projects: { id: 'desc(count)' }, user_id: 'asc' },
+			offset: 1,
+			with: { projects: true },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select [d0].[userId] as [user_id], [d0].[usesDrizzleOrm] as [uses_drizzle_orm], coalesce([r0_0].[j], '[]') as [projects] from [test].[developers] as [d0] outer apply (select [d1].[id] as [id], [d1].[developerId] as [developer_id], [d1].[projectName] as [project_name] from [projects] as [d1] where [d0].[userId] = [d1].[developerId] for json path, include_null_values) [r0_0]([j]) order by (select count([o0].[id]) from [projects] as [o0] where [d0].[userId] = [o0].[developerId]) desc, [d0].[userId] asc offset @par0 rows fetch next @par1 rows only",
+			params: [1, 1],
+		});
+	});
+
+	it('relational query - table, orderBy field of a single relation', ({ expect }) => {
+		const query = rqbDb.query.users.findMany({
+			orderBy: { developers: { uses_drizzle_orm: 'desc' }, first_name: 'asc' },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[lastName] as [last_name], [d0].[AGE] as [age] from [users] as [d0] order by (select top(1) [o0].[usesDrizzleOrm] from [test].[developers] as [o0] where [d0].[id] = [o0].[userId]) desc, [d0].[firstName] asc',
+			params: [],
+		});
+	});
+
+	it('relational query - table, orderBy aggregates of a many relation + limit + offset, nested', ({ expect }) => {
+		const query = rqbDb.query.developers.findMany({
+			orderBy: { projects: { project_name: 'asc(min)', id: 'desc(count)' }, user_id: 'asc' },
+			limit: 3,
+			offset: 1,
+			with: { projects: true },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select [d0].[userId] as [user_id], [d0].[usesDrizzleOrm] as [uses_drizzle_orm], coalesce([r0_0].[j], '[]') as [projects] from (select [d0].* from [test].[developers] as [d0] order by (select min([o0].[projectName]) from [projects] as [o0] where [d0].[userId] = [o0].[developerId]) asc, (select count([o0].[id]) from [projects] as [o0] where [d0].[userId] = [o0].[developerId]) desc, [d0].[userId] asc offset @par0 rows fetch next @par1 rows only) as [d0] outer apply (select [d1].[id] as [id], [d1].[developerId] as [developer_id], [d1].[projectName] as [project_name] from [projects] as [d1] where [d0].[userId] = [d1].[developerId] for json path, include_null_values) [r0_0]([j]) order by (select min([o0].[projectName]) from [projects] as [o0] where [d0].[userId] = [o0].[developerId]) asc, (select count([o0].[id]) from [projects] as [o0] where [d0].[userId] = [o0].[developerId]) desc, [d0].[userId] asc",
+			params: [1, 3],
+		});
+	});
+
+	it('relational query - table, orderBy first row of a many relation', ({ expect }) => {
+		const query = rqbDb.query.developers.findMany({
+			orderBy: { projects: { project_name: 'desc(first)', developer: { user: { first_name: 'asc(first)' } } } },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select [d0].[userId] as [user_id], [d0].[usesDrizzleOrm] as [uses_drizzle_orm] from [test].[developers] as [d0] order by (select top(1) [o0].[projectName] from [projects] as [o0] where [d0].[userId] = [o0].[developerId]) desc, (select top(1) [o2].[firstName] from [projects] as [o0] cross join [test].[developers] as [o1] cross join [users] as [o2] where (([d0].[userId] = [o0].[developerId]) and ([o0].[developerId] = [o1].[userId]) and ([o1].[userId] = [o2].[id]))) asc',
+			params: [],
+		});
+	});
+
+	it('relational query - table, orderBy number of rows of a many relation', ({ expect }) => {
+		const query = rqbDb.query.developers.findMany({
+			orderBy: { projects: 'desc(count)', member: { developers: 'asc(count)' }, user_id: 'asc' },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with [staff_members] as (select [id], [firstName], upper([lastName]) as [user_role] from [users]) select [d0].[userId] as [user_id], [d0].[usesDrizzleOrm] as [uses_drizzle_orm] from [test].[developers] as [d0] order by (select count(*) from [projects] as [o0] where [d0].[userId] = [o0].[developerId]) desc, (select count(*) from [staff_members] as [o0] cross join [test].[developers] as [o1] where (([d0].[userId] = [o0].[user_role]) and ([o0].[id] = [o1].[userId]))) asc, [d0].[userId] asc',
+			params: [],
+		});
+	});
+
+	it('relational query - table, orderBy fields of nested relations', ({ expect }) => {
+		const query = rqbDb.query.projects.findMany({
+			orderBy: { developer: { user: { last_name: 'asc' }, projects: { project_name: 'desc(max)', id: 'asc(avg)' } } },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'select [d0].[id] as [id], [d0].[developerId] as [developer_id], [d0].[projectName] as [project_name] from [projects] as [d0] order by (select top(1) [o1].[lastName] from [test].[developers] as [o0] cross join [users] as [o1] where (([d0].[developerId] = [o0].[userId]) and ([o0].[userId] = [o1].[id]))) asc, (select max([o1].[projectName]) from [test].[developers] as [o0] cross join [projects] as [o1] where (([d0].[developerId] = [o0].[userId]) and ([o0].[userId] = [o1].[developerId]))) desc, (select avg([o1].[id]) from [test].[developers] as [o0] cross join [projects] as [o1] where (([d0].[developerId] = [o0].[userId]) and ([o0].[userId] = [o1].[developerId]))) asc',
+			params: [],
+		});
+	});
+
+	it('relational query - table, orderBy field of a subquery relation', ({ expect }) => {
+		const query = rqbDb.query.developers.findMany({
+			orderBy: { member: { role: 'asc', first_name: 'desc' } },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with [staff_members] as (select [id], [firstName], upper([lastName]) as [user_role] from [users]) select [d0].[userId] as [user_id], [d0].[usesDrizzleOrm] as [uses_drizzle_orm] from [test].[developers] as [d0] order by (select top(1) [o0].[user_role] from [staff_members] as [o0] where [d0].[userId] = [o0].[user_role]) asc, (select top(1) [o0].[firstName] from [staff_members] as [o0] where [d0].[userId] = [o0].[user_role]) desc',
+			params: [],
+		});
+	});
+
+	it('relational query - subquery, orderBy aggregate of a many relation', ({ expect }) => {
+		const query = rqbDb.query.staff.findMany({
+			orderBy: { developers: { uses_drizzle_orm: 'desc(max)', user: { first_name: 'asc(min)' } }, role: 'desc' },
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'with [staff_members] as (select [id], [firstName], upper([lastName]) as [user_role] from [users]) select [d0].[id] as [id], [d0].[firstName] as [first_name], [d0].[user_role] as [role] from [staff_members] as [d0] order by (select max([o0].[usesDrizzleOrm]) from [test].[developers] as [o0] where [d0].[id] = [o0].[userId]) desc, (select min([o1].[firstName]) from [test].[developers] as [o0] cross join [users] as [o1] where (([d0].[id] = [o0].[userId]) and ([o0].[userId] = [o1].[id]))) asc, [d0].[user_role] desc',
+			params: [],
+		});
+	});
+
+	it('relational query - table, nested relation ordered by fields of its relations', ({ expect }) => {
+		const query = rqbDb.query.developers.findMany({
+			with: {
+				projects: {
+					orderBy: { developer: { user: { first_name: 'desc' }, projects: { id: 'asc(count)' } }, id: 'asc' },
+				},
+			},
+		});
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				"select [d0].[userId] as [user_id], [d0].[usesDrizzleOrm] as [uses_drizzle_orm], coalesce([r0_0].[j], '[]') as [projects] from [test].[developers] as [d0] outer apply (select [d1].[id] as [id], [d1].[developerId] as [developer_id], [d1].[projectName] as [project_name] from [projects] as [d1] where [d0].[userId] = [d1].[developerId] order by (select top(1) [o1].[firstName] from [test].[developers] as [o0] cross join [users] as [o1] where (([d1].[developerId] = [o0].[userId]) and ([o0].[userId] = [o1].[id]))) desc, (select count([o1].[id]) from [test].[developers] as [o0] cross join [projects] as [o1] where (([d1].[developerId] = [o0].[userId]) and ([o0].[userId] = [o1].[developerId]))) asc, [d1].[id] asc for json path, include_null_values) [r0_0]([j])",
 			params: [],
 		});
 	});
@@ -140,7 +601,8 @@ describe('mssql to camel case', () => {
 			.union(db.select({ firstName: users.first_name }).from(users));
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select [firstName] from [users]) union (select [firstName] from [users])',
+			sql:
+				'select [firstName] from ((select [firstName] from [users]) union (select [firstName] from [users])) [drizzle_union]',
 			params: [],
 		});
 	});
@@ -152,9 +614,27 @@ describe('mssql to camel case', () => {
 		);
 
 		expect(query.toSQL()).toEqual({
-			sql: '(select [firstName] from [users]) union (select [firstName] from [users])',
+			sql:
+				'select [firstName] from ((select [firstName] from [users]) union (select [firstName] from [users])) [drizzle_union]',
 			params: [],
 		});
+	});
+
+	it('set operator - order by leaves passed sql intact', ({ expect }) => {
+		const order = desc(users.first_name);
+		const query = db
+			.select({ first_name: users.first_name })
+			.from(users)
+			.union(db.select({ first_name: users.first_name }).from(users))
+			.orderBy(order);
+
+		expect(query.toSQL().sql).toBe(
+			'select [firstName] from ((select [firstName] from [users]) union (select [firstName] from [users])) [drizzle_union] order by [firstName] desc',
+		);
+		// Same SQL objects keep their qualifiers in other queries
+		expect(db.select({ first_name: users.first_name }).from(users).orderBy(order).toSQL().sql).toBe(
+			'select [firstName] from [users] order by [users].[firstName] desc',
+		);
 	});
 
 	it('insert', ({ expect }) => {
@@ -300,6 +780,136 @@ describe('mssql to camel case', () => {
 		expect(query.toSQL()).toEqual({
 			sql: 'delete from [users] output DELETED.[firstName], DELETED.[AGE] as [usersAge] where [users].[id] = @par0',
 			params: [1],
+		});
+	});
+
+	describe('selection casts', () => {
+		const castCodecs = { ...nodeMssqlCodecs, int: { ...nodeMssqlCodecs.int, cast: castToText } };
+		const castDb = drizzle({ client: new mssql.ConnectionPool({ server: '' }), codecs: castCodecs });
+		const casts = camelCase.table('casts', { cast_value: int() });
+		const castTargets = camelCase.table('cast_targets', { target_id: text() });
+		const castSubquery = () => castDb.select({ cast_value: casts.cast_value }).from(casts).as('sq');
+
+		it(`Cast respects alias config`, ({ expect }) => {
+			expect(castDb.select({ c: casts.cast_value }).from(casts).toSQL().sql).toEqual(
+				'select cast([castValue] as varchar(max)) from [casts]',
+			);
+			expect(castDb.select({ c: casts.cast_value.as('alias') }).from(casts).toSQL().sql).toEqual(
+				'select cast([castValue] as varchar(max)) as [alias] from [casts]',
+			);
+		});
+
+		it(`Cast applied to selected subquery depending on it's selection`, ({ expect }) => {
+			expect(castDb.select({ x: castSubquery() }).from(castTargets).toSQL().sql).toEqual(
+				'select cast((select [castValue] from [casts]) as varchar(max)) [sq] from [cast_targets]',
+			);
+		});
+
+		it('Nested queries ignore casts', ({ expect }) => {
+			const outer = castDb.select({ x: castSubquery() }).from(castTargets).as('outer');
+
+			expect(castDb.select().from(outer).toSQL().sql).toEqual(
+				'select cast((select [castValue] from [casts]) as varchar(max)) [sq] from (select (select [castValue] from [casts]) [sq] from [cast_targets]) [outer]',
+			);
+		});
+
+		it('Queries in operators ignore casts', ({ expect }) => {
+			const inner = () => castDb.select({ cast_value: casts.cast_value }).from(casts);
+
+			expect(castDb.select({ x: casts.cast_value }).from(casts).where(eq(casts.cast_value, inner())).toSQL().sql)
+				.toEqual(
+					'select cast([castValue] as varchar(max)) from [casts] where [casts].[castValue] = (select [castValue] from [casts])',
+				);
+			expect(castDb.select({ x: casts.cast_value }).from(casts).where(inArray(casts.cast_value, inner())).toSQL().sql)
+				.toEqual(
+					'select cast([castValue] as varchar(max)) from [casts] where [casts].[castValue] in (select [castValue] from [casts])',
+				);
+			expect(castDb.select({ x: casts.cast_value }).from(casts).where(exists(inner())).toSQL().sql)
+				.toEqual(
+					'select cast([castValue] as varchar(max)) from [casts] where exists (select [castValue] from [casts])',
+				);
+		});
+
+		it(`Column as decoder applies cast`, ({ expect }) => {
+			expect(
+				castDb.select({
+					x: sql`${casts.cast_value}`.mapWith(casts.cast_value),
+					y: sql`${casts.cast_value}`.mapWith(casts.cast_value).as('y'),
+				}).from(casts).toSQL().sql,
+			)
+				.toEqual('select cast([castValue] as varchar(max)), cast([castValue] as varchar(max)) as [y] from [casts]');
+		});
+
+		it(`Cast doesn't bleed params into selection`, ({ expect }) => {
+			// Regression test for pre-existing issue
+			const query = castDb.select({ x: castSubquery() }).from(castTargets).toSQL();
+
+			expect(query.params).toEqual([]);
+			expect(query.sql).not.toMatch(/\$\d|\?|@par/);
+		});
+
+		it(`No double spaces in union's 'order by' `, ({ expect }) => {
+			const branch = () => castDb.select({ x: casts.cast_value }).from(casts);
+			const query = branch()
+				.unionAll(branch())
+				.orderBy(sql`1`);
+
+			expect(query.toSQL().sql).toEqual(
+				'select cast([castValue] as varchar(max)) from ((select [castValue] from [casts]) union all (select [castValue] from [casts])) [drizzle_union] order by 1',
+			);
+			expect(query.toSQL().sql).not.toContain('order by 1  ');
+		});
+	});
+
+	describe('param casts', () => {
+		const paramCodecs = {
+			...nodeMssqlCodecs,
+			int: {
+				...nodeMssqlCodecs.int,
+				castParam: (name: string) => `cast(${name} as int)`,
+				normalizeParam: (value: number) => value * 10,
+			},
+		};
+		const paramDb = drizzle({ client: new mssql.ConnectionPool({ server: '' }), codecs: paramCodecs });
+		const paramValues = camelCase.table('params', { param_value: int() });
+
+		it('Param codecs are applied to bound params', ({ expect }) => {
+			expect(paramDb.select().from(paramValues).where(eq(paramValues.param_value, 1)).toSQL()).toEqual({
+				sql: 'select [paramValue] from [params] where [params].[paramValue] = cast(@par0 as int)',
+				params: [10],
+			});
+		});
+
+		it(`castParam isn't applied to inlined params`, ({ expect }) => {
+			const query = paramDb.select().from(paramValues).where(eq(paramValues.param_value, 1).inlineParams()).toSQL();
+
+			expect(query).toEqual({
+				sql: 'select [paramValue] from [params] where [params].[paramValue] = 1',
+				params: [],
+			});
+			expect(query.sql).not.toContain('cast(');
+		});
+
+		it(`normalizeParam isn't applied to inlined params`, ({ expect }) => {
+			const query = paramDb.select().from(paramValues).where(eq(paramValues.param_value, 7).inlineParams()).toSQL();
+
+			expect(query).toEqual({
+				sql: 'select [paramValue] from [params] where [params].[paramValue] = 7',
+				params: [],
+			});
+
+			expect(query.sql).not.toContain('70');
+		});
+
+		it('Placeholder params are still cast when params are inlined', ({ expect }) => {
+			const placeholder = new Param(sql.placeholder('value'), paramValues.param_value);
+			const query = paramDb
+				.select()
+				.from(paramValues)
+				.where(sql`${paramValues.param_value} = ${placeholder}`.inlineParams())
+				.toSQL();
+
+			expect(query.sql).toEqual('select [paramValue] from [params] where [params].[paramValue] = cast(@par0 as int)');
 		});
 	});
 });

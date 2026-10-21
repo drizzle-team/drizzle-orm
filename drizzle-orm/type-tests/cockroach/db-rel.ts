@@ -1,50 +1,72 @@
 import pg from 'pg';
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import { drizzle } from '~/cockroach/index.ts';
-import { sql } from '~/sql/sql.ts';
-import * as schema from './tables-rel.ts';
+import { defineRelations } from '~/relations.ts';
+import { cities, comments, posts, users } from './tables-rel.ts';
 
 const { Pool } = pg;
 
+const relations = defineRelations({ cities, comments, posts, users }, (r) => ({
+	users: {
+		city: r.one.cities({ from: r.users.cityId, to: r.cities.id, optional: false }),
+		posts: r.many.posts({ from: r.users.id, to: r.posts.authorId }),
+	},
+	posts: {
+		author: r.one.users({ from: r.posts.authorId, to: r.users.id, optional: false }),
+		comments: r.many.comments({ from: r.posts.id, to: r.comments.postId }),
+	},
+	comments: {
+		post: r.one.posts({ from: r.comments.postId, to: r.posts.id, optional: false }),
+	},
+	cities: {
+		users: r.many.users({ from: r.cities.id, to: r.users.cityId }),
+	},
+}));
+
 const pdb = new Pool({ connectionString: process.env['COCKROACH_CONNECTION_STRING'] });
-const db = drizzle({ client: pdb, schema });
+const db = drizzle({ client: pdb, relations });
 
 {
-	const result = await db._query.users.findMany({
-		where: (users, { sql }) => sql`char_length(${users.name} > 1)`,
-		limit: sql.placeholder('l'),
-		orderBy: (users, { asc, desc }) => [asc(users.name), desc(users.id)],
+	const result = await db.query.users.findMany();
+
+	Expect<
+		Equal<{
+			id: number;
+			name: string;
+			cityId: number;
+			homeCityId: number | null;
+			createdAt: Date;
+		}[], typeof result>
+	>();
+}
+
+{
+	const result = await db.query.users.findFirst();
+
+	Expect<
+		Equal<
+			{
+				id: number;
+				name: string;
+				cityId: number;
+				homeCityId: number | null;
+				createdAt: Date;
+			} | undefined,
+			typeof result
+		>
+	>();
+}
+
+{
+	// nested `with`, column selection and a `one` relation
+	const result = await db.query.users.findMany({
+		columns: { id: true, name: true },
 		with: {
+			city: { columns: { name: true } },
 			posts: {
-				where: (posts, { sql }) => sql`char_length(${posts.title} > 1)`,
-				limit: sql.placeholder('l'),
-				columns: {
-					id: false,
-					title: undefined,
-				},
+				columns: { title: true },
 				with: {
-					author: true,
-					comments: {
-						where: (comments, { sql }) => sql`char_length(${comments.text} > 1)`,
-						limit: sql.placeholder('l'),
-						columns: {
-							text: true,
-						},
-						with: {
-							author: {
-								columns: {
-									id: undefined,
-								},
-								with: {
-									city: {
-										with: {
-											users: true,
-										},
-									},
-								},
-							},
-						},
-					},
+					comments: { columns: { text: true } },
 				},
 			},
 		},
@@ -54,69 +76,23 @@ const db = drizzle({ client: pdb, schema });
 		Equal<{
 			id: number;
 			name: string;
-			cityId: number;
-			homeCityId: number | null;
-			createdAt: Date;
+			city: { name: string };
 			posts: {
 				title: string;
-				authorId: number | null;
-				comments: {
-					text: string;
-					author: {
-						city: {
-							id: number;
-							name: string;
-							users: {
-								id: number;
-								name: string;
-								cityId: number;
-								homeCityId: number | null;
-								createdAt: Date;
-							}[];
-						};
-					} | null;
-				}[];
-				author: {
-					id: number;
-					name: string;
-					cityId: number;
-					homeCityId: number | null;
-					createdAt: Date;
-				} | null;
+				comments: { text: string }[];
 			}[];
 		}[], typeof result>
-	>;
+	>();
 }
 
 {
-	const result = await db._query.users.findMany({
-		columns: {
-			id: true,
-			name: true,
-		},
-		with: {
-			posts: {
-				columns: {
-					authorId: true,
-				},
-				extras: {
-					lower: sql<string>`lower(${schema.posts.title})`.as('lower_name'),
-				},
-			},
-		},
+	const result = await db.query.posts.findMany({
+		columns: { id: true },
+		where: { title: { like: 'a%' } },
+		orderBy: { id: 'desc' },
+		limit: 10,
+		offset: 5,
 	});
 
-	Expect<
-		Equal<
-			{
-				id: number;
-				name: string;
-				posts: {
-					authorId: number | null;
-					lower: string;
-				}[];
-			}[],
-			typeof result
-		>
-	>;
+	Expect<Equal<{ id: number }[], typeof result>>();
 }

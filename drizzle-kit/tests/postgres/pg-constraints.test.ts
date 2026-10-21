@@ -2232,14 +2232,9 @@ test('fk multistep #4', async () => {
 
 test('unique multistep #3', async () => {
 	await db.query(`CREATE TABLE "users" ("id" integer CONSTRAINT "id_uniq" UNIQUE);`);
-	const interim = await fromDatabase(db);
-	const { ddl: ddl1 } = interimToDDL(interim);
-	const { ddl: ddl2 } = interimToDDL(interim);
-
-	ddl2.tables.update({
-		set: { name: 'users2' },
-		where: { name: 'users' },
-	});
+	const { ddl: ddl1 } = interimToDDL(await fromDatabase(db));
+	await db.query(`alter table users rename to users2`);
+	const { ddl: ddl2 } = interimToDDL(await fromDatabase(db));
 
 	const { sqlStatements: st1 } = await diff(ddl1, ddl2, ['public.users->public.users2']);
 	expect(st1).toStrictEqual(['ALTER TABLE "users" RENAME TO "users2";']);
@@ -2774,4 +2769,85 @@ test('issue #5955', async () => {
 	expect(pst2).toStrictEqual([
 		'ALTER TABLE "customer_category_assignment" ADD CONSTRAINT "uq_customer_category_assignment" UNIQUE("customer_id","category_id");',
 	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6193
+// https://github.com/drizzle-team/drizzle-orm/issues/6078
+test('Issue No6193. order in composite pks', async () => {
+	const to = {
+		table: pgTable('table', {
+			service: text('service').notNull(),
+			day: text('day').notNull(),
+			count: integer('count').notNull().default(0),
+			updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+		}, (t) => [primaryKey({ columns: [t.service, t.day] })]),
+	};
+
+	const { sqlStatements: st1 } = await diff({}, to, []);
+	const { sqlStatements: pst1 } = await push({ db, to: to });
+
+	const st0 = [
+		`CREATE TABLE \"table\" (
+\t\"service\" text,
+\t\"day\" text,
+\t\"count\" integer DEFAULT 0 NOT NULL,
+\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL,
+\tCONSTRAINT \"table_pkey\" PRIMARY KEY(\"service\",\"day\")
+);\n`,
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});
+
+test('a foreign key rename on one table keeps the change of a foreign key with the same name on another table', async () => {
+	const tables = (first: string, onDelete: 'no action' | 'cascade') => {
+		const owners = pgTable('owners', { id: integer().primaryKey() });
+		const reference = (name: string) => (t: any) => [
+			foreignKey({ name, columns: [t.ownerId], foreignColumns: [owners.id] }),
+		];
+		return {
+			owners,
+			cats: pgTable('cats', { ownerId: integer() }, reference(first)),
+			dogs: pgTable('dogs', { ownerId: integer() }, (t) => [
+				foreignKey({ name: 'owner_fk', columns: [t.ownerId], foreignColumns: [owners.id] }).onDelete(onDelete),
+			]),
+		};
+	};
+	const renames = ['public.cats.owner_fk->public.cats.keeper_fk'];
+
+	const { sqlStatements: st } = await diff(tables('owner_fk', 'no action'), tables('keeper_fk', 'cascade'), renames);
+	await push({ db, to: tables('owner_fk', 'no action') });
+	const { sqlStatements: pst } = await push({ db, to: tables('keeper_fk', 'cascade'), renames });
+
+	const st0 = [
+		'ALTER TABLE "cats" RENAME CONSTRAINT "owner_fk" TO "keeper_fk";',
+		'ALTER TABLE "dogs" DROP CONSTRAINT "owner_fk", ADD CONSTRAINT "owner_fk" FOREIGN KEY ("ownerId") REFERENCES "owners"("id") ON DELETE CASCADE;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6386
+test('Issue No6368', async () => {
+	const chunks = pgTable(
+		'chunk',
+		{ itemId: text('item_id').notNull(), kind: text().notNull(), text: text().notNull() },
+		(t) => [
+			uniqueIndex('chunk_item_kind_md5_uniq').on(t.itemId, t.kind, sql`md5(${t.text})`),
+		],
+	);
+
+	const { sqlStatements: st1 } = await diff({}, { chunks }, []);
+	const { sqlStatements: pst1 } = await push({ db, to: { chunks } });
+
+	const st0 = [
+		`CREATE TABLE \"chunk\" (
+\t"item_id" text NOT NULL,
+\t"kind" text NOT NULL,
+\t"text" text NOT NULL
+);\n`,
+		'CREATE UNIQUE INDEX "chunk_item_kind_md5_uniq" ON "chunk" ("item_id","kind",md5("text"));',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
 });

@@ -3,6 +3,7 @@ import {
 	cockroachSchema,
 	cockroachTable,
 	cockroachView,
+	customType,
 	int4,
 	text,
 	varchar,
@@ -464,6 +465,82 @@ test.concurrent('enums #17', async ({ db }) => {
 	const st0 = [`ALTER TYPE "enum1" SET SCHEMA "schema";`];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+test.concurrent('a column that switches to a new enum with the same name in another schema writes SQL that runs', async ({ db }) => {
+	const schema = cockroachSchema('schema');
+	const values = ['value1', 'value2'] as const;
+	const enum1 = cockroachEnum('enum1', values);
+	const enum2 = schema.enum('enum1', values);
+	const from = { schema, enum1, table: cockroachTable('table', { column: enum1('column').default('value1') }) };
+	const to = { schema, enum2, table: cockroachTable('table', { column: enum2('column').default('value1') }) };
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	await db.query(`INSERT INTO "table" VALUES ('value2');`);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		`CREATE TYPE "schema"."enum1" AS ENUM('value1', 'value2');`,
+		'ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;',
+		'ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "schema"."enum1" USING "column"::text::"schema"."enum1";',
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value1'::"schema"."enum1";`,
+		'DROP TYPE "enum1";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(await db.query('SELECT "column"::text FROM "table";')).toStrictEqual([{ column: 'value2' }]);
+});
+
+test.concurrent('a column that switches to another enum of the same schema writes SQL that runs', async ({ db }) => {
+	const schema = cockroachSchema('schema');
+	const enum1 = schema.enum('enum1', ['value1', 'value2']);
+	const enum2 = schema.enum('enum2', ['value1', 'value2']);
+	const from = { schema, enum1, enum2, table: cockroachTable('table', { column: enum1('column') }) };
+	const to = { schema, enum1, enum2, table: cockroachTable('table', { column: enum2('column') }) };
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		'ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "schema"."enum2" USING "column"::text::"schema"."enum2";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test.concurrent('a column with a default that switches to another enum in another schema writes SQL that runs', async ({ db }) => {
+	const schema = cockroachSchema('schema');
+	const other = cockroachSchema('other');
+	const enum1 = schema.enum('enum1', ['value1', 'value2']);
+	const enum2 = other.enum('enum2', ['value1', 'value2']);
+	const from = { schema, other, enum1, enum2, table: cockroachTable('table', { status: enum1().default('value1') }) };
+	const to = { schema, other, enum1, enum2, table: cockroachTable('table', { status: enum2().default('value1') }) };
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
+		'ALTER TABLE "table" ALTER COLUMN "status" DROP DEFAULT;',
+		'ALTER TABLE "table" ALTER COLUMN "status" SET DATA TYPE "other"."enum2" USING "status"::text::"other"."enum2";',
+		`ALTER TABLE "table" ALTER COLUMN "status" SET DEFAULT 'value1'::"other"."enum2";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// The column of `named` has no type schema, and the column of `en` has the type schema `public`.
+// The diff must still see one type in both columns.
+test.concurrent('a column of a custom type that names an enum equals a column of that enum', async () => {
+	const en = cockroachEnum('en', ['a']);
+	const named = customType<{ data: string }>({ dataType: () => 'en' });
+	const withEnum = { en, t: cockroachTable('t', { c: en() }) };
+	const withCustomType = { en, t: cockroachTable('t', { c: named() }) };
+
+	expect((await diff(withEnum, withCustomType, [])).sqlStatements).toStrictEqual([]);
+	expect((await diff(withCustomType, withEnum, [])).sqlStatements).toStrictEqual([]);
 });
 
 test.concurrent('enums #18', async ({ db }) => {
@@ -1082,7 +1159,7 @@ test.concurrent('column is array enum with custom size type with default value. 
 	const from = {
 		enum1,
 		table: cockroachTable('table', {
-			column: enum1('test_column').array(3).default(['value2']),
+			column: enum1('test_column').array().default(['value2']),
 		}),
 	};
 
@@ -1090,7 +1167,7 @@ test.concurrent('column is array enum with custom size type with default value. 
 	const to = {
 		enum2,
 		table: cockroachTable('table', {
-			column: enum2('test_column').array(3).default(['value2']),
+			column: enum2('test_column').array().default(['value2']),
 		}),
 	};
 
@@ -1120,7 +1197,7 @@ test.concurrent('column is array enum with custom size type. shuffle enum', asyn
 	const from = {
 		enum1,
 		table: cockroachTable('table', {
-			column: enum1('test_column').array(3),
+			column: enum1('test_column').array(),
 		}),
 	};
 
@@ -1128,7 +1205,7 @@ test.concurrent('column is array enum with custom size type. shuffle enum', asyn
 	const to = {
 		enum2,
 		table: cockroachTable('table', {
-			column: enum2('test_column').array(3),
+			column: enum2('test_column').array(),
 		}),
 	};
 
@@ -1239,7 +1316,7 @@ test.concurrent('column is array enum type with custom size with default value. 
 		schema,
 		enum1,
 		table: schema.table('table', {
-			column: enum1('test_column').array(3).default(['value2']),
+			column: enum1('test_column').array().default(['value2']),
 		}),
 	};
 
@@ -1248,7 +1325,7 @@ test.concurrent('column is array enum type with custom size with default value. 
 		schema,
 		enum2,
 		table: schema.table('table', {
-			column: enum2('test_column').array(3).default(['value2']),
+			column: enum2('test_column').array().default(['value2']),
 		}),
 	};
 
@@ -1278,7 +1355,7 @@ test.concurrent('column is array enum type with custom size. custom schema. shuf
 		schema,
 		enum1,
 		table: schema.table('table', {
-			column: enum1('test_column').array(3),
+			column: enum1('test_column').array(),
 		}),
 	};
 
@@ -1287,7 +1364,7 @@ test.concurrent('column is array enum type with custom size. custom schema. shuf
 		schema,
 		enum2,
 		table: schema.table('table', {
-			column: enum2('test_column').array(3),
+			column: enum2('test_column').array(),
 		}),
 	};
 
@@ -1477,14 +1554,14 @@ test.concurrent('change data type from array standart type with custom size to a
 	const from = {
 		enum1,
 		table: cockroachTable('table', {
-			column: varchar('test_column').array(3).default(['value2']),
+			column: varchar('test_column').array().default(['value2']),
 		}),
 	};
 
 	const to = {
 		enum1,
 		table: cockroachTable('table', {
-			column: enum1('test_column').array(3).default(['value3']),
+			column: enum1('test_column').array().default(['value3']),
 		}),
 	};
 
@@ -1508,14 +1585,14 @@ test.concurrent('change data type from array standart type with custom size to a
 	const from = {
 		enum1,
 		table: cockroachTable('table', {
-			column: varchar('test_column').array(2),
+			column: varchar('test_column').array(),
 		}),
 	};
 
 	const to = {
 		enum1,
 		table: cockroachTable('table', {
-			column: enum1('test_column').array(2),
+			column: enum1('test_column').array(),
 		}),
 	};
 
@@ -1670,14 +1747,14 @@ test.concurrent('change data type from array enum with custom size type to array
 	const from = {
 		enum1,
 		table: cockroachTable('table', {
-			column: enum1('test_column').array(2),
+			column: enum1('test_column').array(),
 		}),
 	};
 
 	const to = {
 		enum1,
 		table: cockroachTable('table', {
-			column: varchar('test_column').array(2),
+			column: varchar('test_column').array(),
 		}),
 	};
 
@@ -1737,14 +1814,14 @@ test.concurrent('change data type from array enum type with custom size to array
 	const from = {
 		enum1,
 		table: cockroachTable('table', {
-			column: enum1('test_column').array(3).default(['value2']),
+			column: enum1('test_column').array().default(['value2']),
 		}),
 	};
 
 	const to = {
 		enum1,
 		table: cockroachTable('table', {
-			column: varchar('test_column').array(3).default(['value2']),
+			column: varchar('test_column').array().default(['value2']),
 		}),
 	};
 
@@ -1854,13 +1931,13 @@ test.concurrent('change data type from standart type to standart type. columns a
 test.concurrent('change data type from standart type to standart type. columns are arrays with custom sizes', async ({ db }) => {
 	const from = {
 		table: cockroachTable('table', {
-			test_column: varchar('test_column').array(2),
+			test_column: varchar('test_column').array(),
 		}),
 	};
 
 	const to = {
 		table: cockroachTable('table', {
-			test_column: text('test_column').array(2),
+			test_column: text('test_column').array(),
 		}),
 	};
 
@@ -1912,13 +1989,13 @@ test.concurrent('change data type from standart type to standart type. columns a
 test.concurrent('change data type from standart type to standart type. columns are arrays with custom sizes.column has default', async ({ db }) => {
 	const from = {
 		table: cockroachTable('table', {
-			column: varchar('test_column').array(2).default(['hello']),
+			column: varchar('test_column').array().default(['hello']),
 		}),
 	};
 
 	const to = {
 		table: cockroachTable('table', {
-			column: text('test_column').array(2).default(['hello']),
+			column: text('test_column').array().default(['hello']),
 		}),
 	};
 

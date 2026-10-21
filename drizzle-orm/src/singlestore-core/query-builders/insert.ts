@@ -12,19 +12,19 @@ import type {
 	SingleStoreSession,
 } from '~/singlestore-core/session.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
-import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL, sql } from '~/sql/sql.ts';
+import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferModelFromColumns } from '~/table.ts';
 import { Table } from '~/table.ts';
+import { usedTablesOf } from '~/used-tables.ts';
 import { type DrizzleTypeError, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnySingleStoreColumn, SingleStoreColumn } from '../columns/common.ts';
-import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 import type { SingleStoreUpdateSetSource } from './update.ts';
 
 export interface SingleStoreInsertConfig<TTable extends SingleStoreTable = SingleStoreTable> {
 	table: TTable;
-	values: Record<string, Param | SQL>[];
+	values: Record<string, unknown>[];
 	ignore: boolean;
 	onConflict?: SQL;
 	returning?: SelectedFieldsOrdered;
@@ -63,6 +63,9 @@ export class SingleStoreInsertBuilder<
 	TColumnList extends string[] | 'all' = 'all',
 > {
 	static readonly [entityKind]: string = 'SingleStoreInsertBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private shouldIgnore = false;
 
@@ -91,19 +94,9 @@ export class SingleStoreInsertBuilder<
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
-		const mappedValues = values.map((entry) => {
-			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[Table.Symbol.Columns];
-			for (const colKey of Object.keys(entry)) {
-				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue as any, cols[colKey]);
-			}
-			return result;
-		});
-
 		return new SingleStoreInsertBase(
 			this.table,
-			mappedValues,
+			values,
 			this.shouldIgnore,
 			this.session,
 			this.dialect,
@@ -294,11 +287,14 @@ export class SingleStoreInsertBase<
 				returning.push({ field: value, fieldType: 'Column', path: [key] });
 			}
 		}
-		this.config.returning = orderSelectedFields<SingleStoreColumn>(this.config.table[Table.Symbol.Columns]);
+		this.config.returning = orderSelectedFields<SingleStoreColumn>(
+			this.config.table[Table.Symbol.Columns],
+			undefined,
+			this.dialect.codecs,
+		);
 		return this as any;
 	}
 
-	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildInsertQuery(this.config).sql;
 	}
@@ -311,13 +307,11 @@ export class SingleStoreInsertBase<
 		const { sql, generatedIds } = this.dialect.buildInsertQuery(this.config);
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(sql),
-			undefined,
-			undefined,
-			generatedIds,
-			this.config.returning,
+			'raw',
+			this.dialect.mapperGenerators.$returning(this.config.returning, generatedIds),
 			{
-				type: 'delete',
-				tables: extractUsedTable(this.config.table),
+				type: 'insert',
+				tables: () => usedTablesOf(this.config.table),
 			},
 		) as SingleStoreInsertPrepare<this, TReturning>;
 	}

@@ -1,12 +1,11 @@
 import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
-import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
+import { CockroachColumn, type CockroachColumnBaseConfig, CockroachColumnBuilder } from './common.ts';
 
 export class CockroachVarcharBuilder<
 	TEnum extends [string, ...string[]],
-> extends CockroachColumnWithArrayBuilder<
+> extends CockroachColumnBuilder<
 	{
 		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
 		data: TEnum[number];
@@ -35,9 +34,12 @@ export class CockroachVarcharBuilder<
 }
 
 export class CockroachVarchar<
-	T extends ColumnBaseConfig<'string' | 'string enum'>,
-> extends CockroachColumn<T, { length: number | undefined; enumValues: T['enumValues'] }> {
+	T extends CockroachColumnBaseConfig<'string' | 'string enum'>,
+> extends CockroachColumn<'string' | 'string enum', T, { length: number | undefined; enumValues: T['enumValues'] }> {
 	static override readonly [entityKind]: string = 'CockroachVarchar';
+
+	/** @internal */
+	override readonly codec = 'varchar';
 
 	override readonly enumValues = this.config.enumValues;
 

@@ -37,8 +37,10 @@ import {
 } from 'drizzle-orm/pg-core';
 import { assertUnreachable } from '../../utils';
 import { loadModule } from '../../utils/utils-node';
+import { findViewDependencies } from '../drizzle';
 import type { EntityFilter } from '../pull-utils';
-import { getOrNull } from '../utils';
+import { entityKey, getOrNull } from '../utils';
+import type { EntityKey, SchemaMetadata } from '../utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -204,6 +206,20 @@ export const defaultFromColumn = (
 	return grammarType.defaultFromDrizzle(def);
 };
 
+// key of a pg view or materialized view, see `findViewDependencies` in dialects/drizzle.ts
+// "is this one of my views, and if so, what's its key?"
+const viewKey = (chunk: unknown): EntityKey | null => {
+	const config = isPgView(chunk)
+		? getViewConfig(chunk)
+		: isPgMaterializedView(chunk)
+		? getMaterializedViewConfig(chunk)
+		: null;
+
+	// aliased views keep the real view name in originalName
+	// an alias exists only in the ORM query
+	return config ? entityKey(config.schema ?? 'public', config.originalName) : null;
+};
+
 /*
 	We map drizzle entities into interim schema entities,
 	so that both Drizzle Kit and Drizzle Studio are able to share
@@ -227,12 +243,14 @@ export const fromDrizzleSchema = (
 	filter: EntityFilter,
 ): {
 	schema: InterimSchema;
+	metadata: SchemaMetadata;
 	errors: SchemaError[];
 	warnings: SchemaWarning[];
 } => {
 	const dialect = new PgDialect();
 	const errors: SchemaError[] = [];
 	const warnings: SchemaWarning[] = [];
+	const metadata: SchemaMetadata = { viewDependencies: new Map() };
 
 	const res: InterimSchema = {
 		indexes: [],
@@ -378,7 +396,10 @@ export const fromDrizzleSchema = (
 					}
 					: null;
 
-				const { baseColumn, dimensions, typeSchema, sqlType } = unwrapColumn(column);
+				const { baseColumn, typeSchema, sqlType } = unwrapColumn(column);
+				// Counts the brackets in `sqlType`, because a custom type can name an array type in its SQL type
+				// without `.array()`.
+				const dimensions = sqlType.match(/\[\d*\]/g)?.length ?? 0;
 				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
 
 				return {
@@ -386,7 +407,7 @@ export const fromDrizzleSchema = (
 					schema: schema,
 					table: tableName,
 					name,
-					type: sqlType.replaceAll('[]', ''),
+					type: sqlType.replace(/\[\d*\]/g, ''),
 					typeSchema: typeSchema ?? null,
 					dimensions: dimensions,
 					pk: column.primary,
@@ -640,23 +661,7 @@ export const fromDrizzleSchema = (
 		});
 	}
 
-	const combinedViews = [...schema.views, ...schema.matViews].sort((a, b) => {
-		// this sort fixes this issue: https://github.com/drizzle-team/drizzle-orm/issues/4520
-		// When using `prepareFromSchemaFiles` to read schema files, views were returned in an unpredictable order
-		// (not in order that is was declared in schema.ts).
-		// This caused dependent views to appear before their dependencies,
-		// which breaks migration
-		const aConfig = is(a, PgView) ? getViewConfig(a) : getMaterializedViewConfig(a);
-		const bConfig = is(b, PgView) ? getViewConfig(b) : getMaterializedViewConfig(b);
-
-		// If a's fields include b, a depends on b -> b comes first
-		if (aConfig.query?.queryChunks.includes(b)) return 1;
-
-		// If b's fields include a, b depends on a -> a comes first
-		if (bConfig.query?.queryChunks.includes(a)) return -1;
-
-		return 0;
-	}).map((it) => {
+	const combinedViews = [...schema.views, ...schema.matViews].map((it) => {
 		if (is(it, PgView)) {
 			return {
 				...getViewConfig(it),
@@ -764,6 +769,8 @@ export const fromDrizzleSchema = (
 			tablespace: tablespace ?? null,
 			using: using ?? null,
 		});
+
+		metadata.viewDependencies.set(entityKey(viewSchema, viewName), findViewDependencies(query!, viewKey));
 	}
 
 	res.enums = schema.enums.map<Enum>((e) => {
@@ -777,6 +784,7 @@ export const fromDrizzleSchema = (
 
 	return {
 		schema: res,
+		metadata,
 		errors,
 		warnings,
 	};

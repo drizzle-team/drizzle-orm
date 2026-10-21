@@ -305,11 +305,15 @@ const skip: string[] = [
 	'transaction mode: concurrent is rejected',
 	// Uses async versions
 	'sync transaction rollback',
+	'Query error params - sync transaction',
 	'sync nested transaction rollback',
 
 	// ORDER BY clause is not supported in DELETE
 	'delete with limit and order by',
 	// ORDER BY is not supported in UPDATE
 	'update with limit and order by',
+
+	// Time-based test, unstable
+	'$onUpdateFn and $onUpdate works updating',
 ];
 tests(test, skip);

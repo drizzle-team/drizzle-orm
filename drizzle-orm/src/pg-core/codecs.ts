@@ -994,7 +994,7 @@ export const arrayCompatNormalize = (normalize: NormalizeCodec) => {
 export const arrayCompatNormalizeInput = (normalize: NormalizeCodec, transformToPgArray = false) => {
 	const loop: NormalizeArrayCodec = (value, arrayDimensions): any => {
 		const innerDimensions = arrayDimensions - 1;
-		const out = Array.from({ length: value.length });
+		const out = new Array(value.length);
 		if (arrayDimensions > 1) {
 			for (let i = 0; i < (value as unknown[][]).length; ++i) {
 				out[i] = loop((value as unknown[][])[i]!, innerDimensions);
@@ -1058,12 +1058,12 @@ export const parsePgVector = (v: string): number[] => {
 	return body.split(',').map(Number.parseFloat);
 };
 
+export const byteaFromPgHex = (v: string): Buffer => Buffer.from(v.slice(2), 'hex');
+
 export const genericPgCodecs = {
 	bytea: {
-		castInJson: (name) => sql`encode(${name}, 'base64')`,
-		castArrayInJson: arrayCompatCast((name) => sql`encode(${name}, 'base64')`),
-		normalizeInJson: (v: string) => Buffer.from(v, 'base64'),
-		normalizeArrayInJson: arrayCompatNormalize((v: string) => Buffer.from(v, 'base64')),
+		normalizeInJson: byteaFromPgHex,
+		normalizeArrayInJson: arrayCompatNormalize(byteaFromPgHex),
 	},
 	bigint: {
 		castInJson: castToText,

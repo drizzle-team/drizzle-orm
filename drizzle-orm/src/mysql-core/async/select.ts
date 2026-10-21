@@ -103,19 +103,17 @@ export class MySqlAsyncSelectBase<
 
 	prepare(): MySqlAsyncSelectPrepare<this> {
 		// Build query before accessing `fieldsFlat` - build mutates it
-		const query = this.dialect.sqlToQuery(this.getSQL());
+		const sequel = this.getSQL(true);
+		const query = this.dialect.sqlToQuery(sequel);
 		const fieldsList = this.config.fieldsFlat!;
-		const mapper = this.dialect.mapperGenerators.rows(
+		const mapper = this.config.mapper ??= this.dialect.mapperGenerators.rows(
 			fieldsList,
 			resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap),
 		);
 
 		const preparedQuery = this.session.prepareQuery<
 			MySqlPreparedQueryConfig & { execute: TResult[] }
-		>(query, 'arrays', mapper, {
-			type: 'select',
-			tables: [...this.usedTables],
-		}, this.cacheConfig);
+		>(query, 'arrays', mapper, { type: 'select', tables: () => this.getUsedTables(sequel) }, this.cacheConfig);
 
 		return preparedQuery as MySqlAsyncSelectPrepare<this>;
 	}

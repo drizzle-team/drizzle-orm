@@ -251,7 +251,7 @@ export const fromDatabase = async (
 		const columnDefault: string | undefined = column.COLUMN_DEFAULT ?? undefined;
 		const dbCollation: string = column.COLLATION_NAME;
 		const dbCharSet: string = column.CHARACTER_SET_NAME;
-		const geenratedExpression: string = column.GENERATION_EXPRESSION;
+		const generatedExpression: string = column.GENERATION_EXPRESSION;
 
 		const extra = column.EXTRA ?? '';
 		// const isDefaultAnExpression = extra.includes('DEFAULT_GENERATED'); // 'auto_increment', ''
@@ -306,9 +306,9 @@ export const fromDatabase = async (
 			onUpdateNow,
 			onUpdateNowFsp,
 			default: def,
-			generated: geenratedExpression
+			generated: generatedExpression
 				? {
-					as: geenratedExpression,
+					as: generatedExpression,
 					type: extra === 'VIRTUAL GENERATED' ? 'virtual' : 'stored',
 				}
 				: null,

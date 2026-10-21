@@ -101,26 +101,29 @@ export class PgAsyncSelectBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgAsyncSelectPrepare<this> {
-		const { session, dialect, cacheConfig, usedTables, config, joinsNotNullableMap } = this;
+		const { session, dialect, cacheConfig, config, joinsNotNullableMap } = this;
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const fieldsList = this._resolveSelection();
 			const nullableObjectPaths = resolveNullableObjectPaths(fieldsList, joinsNotNullableMap);
 
-			const shape = dialect.shapeGenerator?.(
+			const shape = config.shape ??= dialect.shapeGenerator?.(
 				{ type: 'plain', fields: fieldsList },
 				nullableObjectPaths,
 			);
 
-			const query = config.tagged ? dialect._sqlToQuery(this.getSQL()) : dialect.sqlToQuery(this.getSQL());
-			const mapper = shape ? undefined : dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths);
+			const sequel = this.getSQL(true);
+			const query = config.tagged ? dialect._sqlToQuery(sequel) : dialect.sqlToQuery(sequel);
+			const mapper = shape
+				? undefined
+				: (config.mapper ??= dialect.mapperGenerators.rows(fieldsList, nullableObjectPaths));
 
 			const preparedQuery = session.prepareQuery<PreparedQueryConfig & { execute: any }>(
 				query,
 				shape ? 'objects' : 'arrays',
 				name ?? generateName,
 				mapper,
-				{ type: 'select', tables: [...usedTables] },
+				{ type: 'select', tables: () => this.getUsedTables(sequel) },
 				cacheConfig,
 				shape,
 			);

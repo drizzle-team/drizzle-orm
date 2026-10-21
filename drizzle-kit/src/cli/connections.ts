@@ -1,10 +1,11 @@
 /// <reference types="@cloudflare/workers-types" />
-import type { PGlite } from '@electric-sql/pglite';
+import type { Decoder } from '@drizzle-team/minipg';
 import type { SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import { DrizzleQueryError, is } from 'drizzle-orm';
 import type { AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
+import type { SqliteProxyExecutors } from 'drizzle-orm/sqlite-proxy';
 import type { config } from 'mssql';
 import type { Connection, ConnectionConfig, Query } from 'mysql2';
 import net from 'net';
@@ -18,7 +19,7 @@ import type { DB, Proxy, SQLiteDB } from '../utils';
 import { normaliseSQLiteUrl } from '../utils/utils-node';
 import { JSONB } from '../utils/when-json-met-bigint';
 import type { ProxyParams } from './commands/studio';
-import { ConnectionStringDatabaseCliError, DatabaseDriverCliError } from './errors';
+import { ConnectionStringDatabaseCliError, DatabaseDriverCliError, RequiredEitherPackagesCliError } from './errors';
 import { assertPackages, checkPackage, QueryError } from './utils';
 import type { DuckDbCredentials } from './validations/duckdb';
 import type { LibSQLCredentials } from './validations/libsql';
@@ -41,20 +42,20 @@ const normalisePGliteUrl = (it: string) => {
 };
 
 export const preparePostgresDB = async (
-	credentials: PostgresCredentials | {
-		driver: 'pglite';
-		client: PGlite;
-	},
+	credentials: PostgresCredentials,
 ): Promise<
 	DB & {
 		packageName:
 			| '@aws-sdk/client-rds-data'
+			| '@aws/aurora-dsql-node-postgres-connector'
+			| '@aws/aurora-dsql-postgresjs-connector'
 			| 'pglite'
 			| 'pg'
 			| 'postgres'
 			| '@vercel/postgres'
 			| '@neondatabase/serverless'
-			| 'bun';
+			| 'bun'
+			| '@drizzle-team/minipg';
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
 		benchmarkProxy?: BenchmarkProxy;
@@ -64,93 +65,172 @@ export const preparePostgresDB = async (
 	if ('driver' in credentials) {
 		const { driver } = credentials;
 		if (driver === 'aws-data-api') {
-			assertPackages('@aws-sdk/client-rds-data');
-			const { RDSDataClient } = await import(
-				'@aws-sdk/client-rds-data'
-			);
-			const { AwsDataApiSession, drizzle } = await import(
-				'drizzle-orm/aws-data-api/pg'
-			);
-			const { migrate } = await import('drizzle-orm/aws-data-api/pg/migrator');
-			const { PgDialect } = await import('drizzle-orm/pg-core');
+			if (await checkPackage('@aws-sdk/client-rds-data')) {
+				const { RDSDataClient } = await import(
+					'@aws-sdk/client-rds-data'
+				);
+				const { AwsDataApiSession, drizzle, AwsPgDialect } = await import(
+					'drizzle-orm/aws-data-api/pg'
+				);
+				const { migrate } = await import('drizzle-orm/aws-data-api/pg/migrator');
 
-			const config: AwsDataApiSessionOptions = {
-				database: credentials.database,
-				resourceArn: credentials.resourceArn,
-				secretArn: credentials.secretArn,
-			};
-			const rdsClient = new RDSDataClient();
-			const session = new AwsDataApiSession(
-				rdsClient,
-				new PgDialect(),
-				{},
-				config,
-				undefined,
-			);
-
-			const db = drizzle({ client: rdsClient, ...config });
-			const migrateFn = async (config: MigrationConfig) => {
-				return migrate(db, config);
-			};
-
-			const query = async (sql: string, params: any[]): Promise<any[]> => {
-				const prepared = session.prepareQuery<
-					PreparedQueryConfig & {
-						execute: any[];
-					}
-				>(
-					{ sql, params: params ?? [] },
-					'objects',
-					false,
+				const config: AwsDataApiSessionOptions = {
+					database: credentials.database,
+					resourceArn: credentials.resourceArn,
+					secretArn: credentials.secretArn,
+				};
+				const rdsClient = new RDSDataClient();
+				const session = new AwsDataApiSession(
+					rdsClient,
+					new AwsPgDialect(),
+					{},
+					config,
 					undefined,
 				);
 
-				return prepared.execute().catch((e) => {
-					// * AwsDataApiSession wraps all errors into DrizzleQueryError, so we need to check the cause
-					if (e instanceof DrizzleQueryError && e.cause instanceof Error) {
-						throw new QueryError(e.cause, sql, params);
-					}
-					throw new QueryError(e, sql, params);
-				});
-			};
-			const proxy = async (params: ProxyParams) => {
-				const prepared = session.prepareQuery<
-					PreparedQueryConfig & {
-						execute: unknown[];
-					}
-				>(
-					{
-						sql: params.sql,
-						params: params.params ?? [],
+				const db = drizzle({ client: rdsClient, ...config });
+				const migrateFn = async (config: MigrationConfig) => {
+					return migrate(db, config);
+				};
+
+				const query = async (sql: string, params: any[]): Promise<any[]> => {
+					const prepared = session.prepareQuery<
+						PreparedQueryConfig & {
+							execute: any[];
+						}
+					>(
+						{ sql, params: params ?? [] },
+						'objects',
+						false,
+						undefined,
+					);
+
+					return prepared.execute().catch((e) => {
+						// * AwsDataApiSession wraps all errors into DrizzleQueryError, so we need to check the cause
+						if (is(e, DrizzleQueryError) && e.cause instanceof Error) {
+							throw new QueryError(e.cause, sql, params);
+						}
+						throw new QueryError(e, sql, params);
+					});
+				};
+				const proxy = async (params: ProxyParams) => {
+					const prepared = session.prepareQuery<
+						PreparedQueryConfig & {
+							execute: unknown[];
+						}
+					>(
+						{
+							sql: params.sql,
+							params: params.params ?? [],
+						},
+						params.mode === 'array' ? 'arrays' : 'objects',
+						false,
+						undefined,
+					);
+
+					return prepared.execute().catch((e) => {
+						// * AwsDataApiSession wraps all errors into DrizzleQueryError, so we need to check the cause
+						if (is(e, DrizzleQueryError) && e.cause instanceof Error) {
+							throw new QueryError(e.cause, params.sql, params.params || []);
+						}
+						throw new QueryError(e, params.sql, params.params || []);
+					});
+				};
+				const transactionProxy: TransactionProxy = async (_queries) => {
+					throw new Error('Transaction not supported');
+				};
+
+				return {
+					packageName: '@aws-sdk/client-rds-data',
+					query,
+					proxy,
+					transactionProxy,
+					migrate: migrateFn,
+				};
+			}
+
+			if (await checkPackage('@drizzle-team/minipg')) {
+				humanLog(withStyle.info(`Using '@drizzle-team/minipg' driver for database querying`));
+				const { createPool } = await import('@drizzle-team/minipg/aurora');
+				const { drizzle } = await import('drizzle-orm/postgres/aurora');
+				const { migrate } = await import('drizzle-orm/postgres/aurora/migrator');
+
+				const client = createPool({
+					database: credentials.database,
+					resourceArn: credentials.resourceArn,
+					secretArn: credentials.secretArn,
+					temporal: 'string',
+					types: {
+						20: (val) => val.toString('utf8'),
+						1016: (val) =>
+							JSON.parse(
+								val.toString('utf8').replace(/-?\d+/g, '"$&"').replace(/NULL/g, 'null').replace(/{/g, '[').replace(
+									/}/g,
+									']',
+								),
+							),
+						114: (val) => JSONB.parse(val.toString('utf8')),
+						3802: (val) => JSONB.parse(val.toString('utf8')),
 					},
-					params.mode === 'array' ? 'arrays' : 'objects',
-					false,
-					undefined,
-				);
-
-				return prepared.execute().catch((e) => {
-					// * AwsDataApiSession wraps all errors into DrizzleQueryError, so we need to check the cause
-					if (is(e, DrizzleQueryError) && e.cause instanceof Error) {
-						throw new QueryError(e.cause, params.sql, params.params || []);
-					}
-					throw new QueryError(e, params.sql, params.params || []);
 				});
-			};
-			const transactionProxy: TransactionProxy = async (_queries) => {
-				throw new Error('Transaction not supported');
-			};
 
-			return {
-				packageName: '@aws-sdk/client-rds-data',
-				query,
-				proxy,
-				transactionProxy,
-				migrate: migrateFn,
-			};
+				const db = drizzle({ client });
+				const migrateFn = async (config: MigrationConfig) => {
+					return migrate(db, config);
+				};
+
+				const query = async (sql: string, params?: any[]) => {
+					const result = await client.query(sql, params ?? [], { mode: 'object' }).catch((e) => {
+						throw new QueryError(e, sql, params || []);
+					});
+					return result.rows as any[];
+				};
+
+				const proxy: Proxy = async (params) => {
+					const result = await client.query(params.sql, params.params ?? [], {
+						mode: params.mode as 'object',
+					}).catch((e) => {
+						throw new QueryError(e, params.sql, params.params || []);
+					});
+					return result.rows;
+				};
+
+				const transactionProxy: TransactionProxy = async (queries) => {
+					const results: any[] = [];
+					try {
+						await client.transaction(async (tx) => {
+							for (const query of queries) {
+								const result = await tx.query(query.sql, [], { mode: 'object' });
+								results.push(result.rows);
+							}
+						});
+					} catch (error) {
+						results.push(error as Error);
+					}
+					return results;
+				};
+
+				return {
+					packageName: '@drizzle-team/minipg',
+					query,
+					proxy,
+					transactionProxy,
+					migrate: migrateFn,
+				};
+			}
+
+			throw new RequiredEitherPackagesCliError(['@aws-sdk/client-rds-data', '@drizzle-team/minipg']);
 		}
 
 		if (driver === 'pglite') {
 			assertPackages('@electric-sql/pglite');
+			if (!('client' in credentials)) {
+				humanLog(
+					withStyle.info(
+						`Drizzle Kit creates a PGlite instance from "url", so no extensions are loaded. If your database uses extensions, provide your own PGlite instance via the 'client' param in the drizzle config.`,
+					),
+				);
+			}
 			const { PGlite, types } = await import('@electric-sql/pglite');
 			const { drizzle } = await import('drizzle-orm/pglite');
 			const { migrate } = await import('drizzle-orm/pglite/migrator');
@@ -213,6 +293,206 @@ export const preparePostgresDB = async (
 				transactionProxy,
 				migrate: migrateFn,
 			};
+		}
+
+		if (driver === 'dsql') {
+			if (await checkPackage('@aws/aurora-dsql-node-postgres-connector')) {
+				humanLog(withStyle.info(`Using '@aws/aurora-dsql-node-postgres-connector' driver for database querying`));
+
+				const { AuroraDSQLPool } = await import('@aws/aurora-dsql-node-postgres-connector');
+				const { drizzle } = await import('drizzle-orm/node-postgres/dsql');
+				const { migrate } = await import('drizzle-orm/node-postgres/dsql/migrator');
+
+				const ssl = 'ssl' in credentials
+					? credentials.ssl === 'prefer'
+							|| credentials.ssl === 'require'
+							|| credentials.ssl === 'allow'
+						? { rejectUnauthorized: false }
+						: credentials.ssl === 'verify-full'
+						? {}
+						: credentials.ssl
+					: {};
+
+				const configPart = {
+					customCredentialsProvider: credentials.customCredentialsProvider,
+					region: credentials.region,
+					max: 1,
+				};
+				const dsqlPool = 'url' in credentials
+					? new AuroraDSQLPool({ connectionString: credentials.url, ...configPart })
+					: new AuroraDSQLPool({ ...credentials, ssl, ...configPart });
+
+				const drzl = drizzle({ client: dsqlPool });
+				const migrateFn = async (config: MigrationConfig) => {
+					return migrate(drzl, config);
+				};
+
+				// pg is required peer dep for the "@aws/aurora-dsql-node-postgres-connector" package
+				const { default: pg } = await import('pg');
+				// Override pg default date parsers
+				const types: { getTypeParser: typeof pg.types.getTypeParser } = {
+					// @ts-ignore
+					getTypeParser: (typeId, format) => {
+						if (typeId === pg.types.builtins.TIMESTAMPTZ) {
+							return (val: any) => val;
+						}
+						if (typeId === pg.types.builtins.TIMESTAMP) {
+							return (val: any) => val;
+						}
+						if (typeId === pg.types.builtins.DATE) {
+							return (val: any) => val;
+						}
+						if (typeId === pg.types.builtins.INTERVAL) {
+							return (val: any) => val;
+						}
+						if (typeId === pg.types.builtins.JSON || typeId === pg.types.builtins.JSONB) {
+							return (val: any) => JSONB.parse(val);
+						}
+						// @ts-ignore
+						return pg.types.getTypeParser(typeId, format);
+					},
+				};
+				const query = async (sql: string, params?: any[]) => {
+					const result = await dsqlPool.query({
+						text: sql,
+						values: params ?? [],
+						types,
+					}).catch((e) => {
+						throw new QueryError(e, sql, params || []);
+					});
+					return result.rows;
+				};
+
+				const proxy: Proxy = async (params) => {
+					const result = await dsqlPool.query({
+						text: params.sql,
+						values: params.params,
+						...(params.mode === 'array' && { rowMode: 'array' }),
+						types,
+					}).catch((e) => {
+						throw new QueryError(e, params.sql, params.params || []);
+					});
+					return result.rows;
+				};
+
+				const transactionProxy: TransactionProxy = async (queries) => {
+					const results: any[] = [];
+					const tx = await dsqlPool.connect();
+					try {
+						await tx.query('BEGIN');
+						for (const query of queries) {
+							const result = await tx.query({
+								text: query.sql,
+								types,
+							});
+							results.push(result.rows);
+						}
+						await tx.query('COMMIT');
+					} catch (error) {
+						await tx.query('ROLLBACK');
+						results.push(error as Error);
+					} finally {
+						tx.release();
+					}
+					return results;
+				};
+
+				return {
+					packageName: '@aws/aurora-dsql-node-postgres-connector',
+					query,
+					proxy,
+					transactionProxy,
+					migrate: migrateFn,
+				};
+			}
+
+			if (await checkPackage('@aws/aurora-dsql-postgresjs-connector')) {
+				humanLog(withStyle.info(`Using '@aws/aurora-dsql-postgresjs-connector' driver for database querying`));
+
+				const { auroraDSQLPostgres } = await import('@aws/aurora-dsql-postgresjs-connector');
+				const { drizzle } = await import('drizzle-orm/postgres-js/dsql');
+				const { migrate } = await import('drizzle-orm/postgres-js/dsql/migrator');
+
+				const ssl = 'ssl' in credentials
+					? credentials.ssl === 'prefer'
+							|| credentials.ssl === 'require'
+							|| credentials.ssl === 'allow'
+						? { rejectUnauthorized: false }
+						: credentials.ssl === 'verify-full'
+						? {}
+						: credentials.ssl
+					: {};
+
+				const configPart = {
+					customCredentialsProvider: credentials.customCredentialsProvider,
+					region: credentials.region,
+					profile: credentials.profile,
+					max: 1,
+				};
+				const dsqlPool = 'url' in credentials
+					? auroraDSQLPostgres(credentials.url, configPart)
+					: auroraDSQLPostgres({ ...credentials, ssl, ...configPart });
+
+				const transparentParser = (val: any) => val;
+
+				// Override postgres.js default date parsers: https://github.com/porsager/postgres/discussions/761
+				for (const type of ['1184', '1082', '1083', '1114']) {
+					dsqlPool.options.parsers[type as any] = transparentParser;
+					dsqlPool.options.serializers[type as any] = transparentParser;
+				}
+				dsqlPool.options.serializers['114'] = transparentParser;
+				dsqlPool.options.serializers['3802'] = transparentParser;
+
+				const drzl = drizzle({ client: dsqlPool });
+				const migrateFn = async (config: MigrationConfig) => {
+					return migrate(drzl, config);
+				};
+
+				const query = async (sql: string, params?: any[]) => {
+					const result = await dsqlPool.unsafe(sql, params ?? []).catch((e) => {
+						throw new QueryError(e, sql, params || []);
+					});
+					return result as any[];
+				};
+
+				const proxy: Proxy = async (params) => {
+					if (params.mode === 'array') {
+						return dsqlPool.unsafe(params.sql, params.params).values().catch((e) => {
+							throw new QueryError(e, params.sql, params.params || []);
+						});
+					}
+					return dsqlPool.unsafe(params.sql, params.params).catch((e) => {
+						throw new QueryError(e, params.sql, params.params || []);
+					});
+				};
+
+				const transactionProxy: TransactionProxy = async (queries) => {
+					const results: any[] = [];
+					try {
+						await dsqlPool.begin(async (sql) => {
+							for (const query of queries) {
+								const result = await sql.unsafe(query.sql);
+								results.push(result);
+							}
+						});
+					} catch (error) {
+						results.push(error as Error);
+					}
+					return results;
+				};
+
+				return {
+					packageName: '@aws/aurora-dsql-postgresjs-connector',
+					query,
+					proxy,
+					transactionProxy,
+					migrate: migrateFn,
+				};
+			}
+
+			throw new RequiredEitherPackagesCliError([
+				'@aws/aurora-dsql-node-postgres-connector, @aws/aurora-dsql-postgresjs-connector',
+			]);
 		}
 
 		assertUnreachable(driver);
@@ -800,10 +1080,91 @@ export const preparePostgresDB = async (
 		return { packageName: 'bun', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
+	if (await checkPackage('@drizzle-team/minipg')) {
+		const { createPool, parseConnectionString } = await import('@drizzle-team/minipg');
+		const { drizzle } = await import('drizzle-orm/postgres');
+		const { migrate } = await import('drizzle-orm/postgres/migrator');
+
+		const ssl = 'ssl' in credentials
+			? credentials.ssl === 'prefer'
+					|| credentials.ssl === 'require'
+					|| credentials.ssl === 'allow'
+				? 'require' as const
+				: credentials.ssl
+			: undefined;
+
+		const config = {
+			...('url' in credentials ? { url: credentials.url } : { ...credentials, ssl }),
+			max: 1,
+			temporal: 'string' as const,
+			// Match node-postgres type parsing
+			types: {
+				20: (val) => val.toString('utf8'),
+				1016: (val) =>
+					JSON.parse(
+						val.toString('utf8').replace(/-?\d+/g, '"$&"').replace(/NULL/g, 'null').replace(/{/g, '[').replace(
+							/}/g,
+							']',
+						),
+					),
+				114: (val) => JSONB.parse(val.toString('utf8')),
+				3802: (val) => JSONB.parse(val.toString('utf8')),
+			} satisfies Record<number, Decoder>,
+		};
+
+		const host = 'url' in credentials ? parseConnectionString(credentials.url).host : credentials.host;
+		const isNeon = !!host && /\.neon\.tech$/i.test(host);
+
+		humanLog(
+			withStyle.info(`Using '@drizzle-team/minipg'${isNeon ? ' (neon-ws)' : ''} driver for database querying`),
+		);
+		const client = isNeon
+			? (await import('@drizzle-team/minipg/neon-ws')).createPool({ ...config, webSocketConstructor: ws })
+			: createPool(config);
+
+		const db = drizzle({ client });
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(db, config);
+		};
+
+		const query = async (sql: string, params?: any[]) => {
+			const result = await client.query(sql, params ?? [], { mode: 'object' }).catch((e) => {
+				throw new QueryError(e, sql, params || []);
+			});
+			return result.rows as any[];
+		};
+
+		const proxy: Proxy = async (params) => {
+			const result = await client.query(params.sql, params.params ?? [], {
+				mode: params.mode === 'array' ? 'array' : 'object',
+			}).catch((e) => {
+				throw new QueryError(e, params.sql, params.params || []);
+			});
+			return result.rows;
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: any[] = [];
+			try {
+				await client.transaction(async (tx) => {
+					for (const query of queries) {
+						const result = await tx.query(query.sql, [], { mode: 'object' });
+						results.push(result.rows);
+					}
+				});
+			} catch (error) {
+				results.push(error as Error);
+			}
+			return results;
+		};
+
+		return { packageName: '@drizzle-team/minipg', query, proxy, transactionProxy, migrate: migrateFn };
+	}
+
 	throw new DatabaseDriverCliError(
 		'postgresql',
-		['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres'],
-		"To connect to Postgres database - please install either of 'pg', 'postgres', 'bun', '@neondatabase/serverless' or '@vercel/postgres' drivers\nFor the 'bun' driver, run your script using: bun --bun",
+		['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', '@drizzle-team/minipg'],
+		"To connect to Postgres database - please install either of 'pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres' or '@drizzle-team/minipg' drivers\nFor the 'bun' driver, run your script using: bun --bun",
 		"For the 'bun' driver, run your script using: bun --bun",
 	);
 };
@@ -1779,15 +2140,13 @@ export const connectToSQLite = async (
 					errors: { code: number; message: string }[];
 				};
 
-			const remoteCallback: Parameters<typeof drizzle>[0] = async (
-				sql,
-				params,
-				method,
-			) => {
+			const remoteRequest = async (
+				sql: string,
+				params: any[],
+				endpoint: 'raw' | 'query',
+			): Promise<any[]> => {
 				const res = await fetch(
-					`https://api.cloudflare.com/client/v4/accounts/${credentials.accountId}/d1/database/${credentials.databaseId}/${
-						method === 'values' ? 'raw' : 'query'
-					}`,
+					`https://api.cloudflare.com/client/v4/accounts/${credentials.accountId}/d1/database/${credentials.databaseId}/${endpoint}`,
 					{
 						method: 'POST',
 						body: JSON.stringify({ sql, params }),
@@ -1811,11 +2170,15 @@ export const connectToSQLite = async (
 				}
 
 				const result = data.result[0].results;
-				const rows = Array.isArray(result) ? result : result.rows;
+				return Array.isArray(result) ? result : result.rows;
+			};
 
-				return {
-					rows,
-				};
+			const executors: SqliteProxyExecutors = {
+				all: (sql: string, params: any[], rowMode?: 'array' | 'object') =>
+					remoteRequest(sql, params, rowMode === 'object' ? 'query' : 'raw'),
+				get: (sql: string, params: any[], rowMode?: 'array' | 'object') =>
+					remoteRequest(sql, params, rowMode === 'object' ? 'query' : 'raw').then((rows) => rows[0]),
+				run: (sql, params) => remoteRequest(sql, params, 'query'),
 			};
 
 			const remoteBatchCallback = async (
@@ -1854,7 +2217,7 @@ export const connectToSQLite = async (
 				};
 			};
 
-			const drzl = drizzle(remoteCallback);
+			const drzl = drizzle(executors);
 			const migrateFn = async (config: MigrationConfig) => {
 				return migrate(
 					drzl,
@@ -1869,11 +2232,10 @@ export const connectToSQLite = async (
 			};
 
 			const query = async <T>(sql: string, params?: any[]) => {
-				const res = await remoteCallback(sql, params || [], 'all');
-				return res.rows as T[];
+				return await executors.all(sql, params || [], 'object') as T[];
 			};
 			const run = async (query: string) => {
-				await remoteCallback(query, [], 'run');
+				await executors.run(query, []);
 			};
 			const batch = async (queries: string[]) => {
 				await remoteBatchCallback(queries.map((sql) => ({ sql })));
@@ -1884,13 +2246,7 @@ export const connectToSQLite = async (
 					params.params || [],
 					'd1-http',
 				);
-				const result = await remoteCallback(
-					params.sql,
-					preparedParams,
-					params.mode === 'array' ? 'values' : 'all',
-				);
-
-				return result.rows;
+				return executors.all(params.sql, preparedParams, params.mode === 'array' ? 'array' : 'object');
 			};
 			const transactionProxy: TransactionProxy = async (queries) => {
 				const result = await remoteBatchCallback(queries);
