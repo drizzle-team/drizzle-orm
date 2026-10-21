@@ -1,4 +1,4 @@
-import { splitSqlType, trimDefaultValueSuffix } from 'src/dialects/postgres/grammar';
+import { parseCheckDefinition, splitSqlType, trimDefaultValueSuffix } from 'src/dialects/postgres/grammar';
 import { expect, test } from 'vitest';
 
 test.each([
@@ -81,4 +81,26 @@ test('to default array', () => {
 	// expect.soft(toDefaultArray([{ key: 'one' }, { key: 'two' }], 1, (it) => JSON.stringify(it))).toBe(
 	// 	`{{"key":"one"},{"key":"two"}}`,
 	// );
+});
+
+// `pg_get_constraintdef()` wraps the expression twice and appends trailing
+// modifiers, so the closing `))` is not always at the end of the definition.
+test.each([
+	['CHECK ((version >= 0))', 'version >= 0'],
+	['CHECK ((version >= 0)) NOT VALID', 'version >= 0'],
+	['CHECK ((version >= 0)) NO INHERIT', 'version >= 0'],
+	['CHECK ((version >= 0)) NO INHERIT NOT VALID', 'version >= 0'],
+	['CHECK (version >= 0)', 'version >= 0'],
+	[`CHECK (((email)::text <> 'test@gmail.com'::text))`, `(email)::text <> 'test@gmail.com'::text`],
+	['CHECK (((age > 21) AND (age < 100)))', '(age > 21) AND (age < 100)'],
+	['CHECK (((age > 21) AND (age < 100))) NOT VALID', '(age > 21) AND (age < 100)'],
+	// a parenthesis inside a literal or a quoted identifier is not a delimiter
+	[`CHECK (((label)::text <> ') NOT VALID'::text))`, `(label)::text <> ') NOT VALID'::text`],
+	[`CHECK (((note)::text <> 'it''s ()'::text))`, `(note)::text <> 'it''s ()'::text`],
+	['CHECK (("odd)name" > 0))', '"odd)name" > 0'],
+	// nothing recognisable: hand it back rather than truncate it
+	['FOREIGN KEY (a) REFERENCES b(c)', 'FOREIGN KEY (a) REFERENCES b(c)'],
+	['CHECK (version >= 0', 'CHECK (version >= 0'],
+])('parseCheckDefinition(%s)', (definition, expected) => {
+	expect(parseCheckDefinition(definition)).toBe(expected);
 });
