@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
-import { existsSync, rmSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import * as fs from 'node:fs/promises';
-import { rolldown } from 'rolldown';
+import { type OutputOptions, rolldown } from 'rolldown';
 import { build as tsdown } from 'tsdown';
 import pkg from '../package.json';
 import { readSkillsRevisionFromDisk } from './lib/read-skills-revision';
@@ -39,57 +39,107 @@ const external = [
 	...driversPackages,
 ];
 
-async function buildBundle(options: {
+const libraryEntries = {
+	index: './src/index.ts',
+	cli: './src/cli-sdk/index.ts',
+};
+
+const apiEntries = {
+	'api-postgres': './src/ext/api-postgres.ts',
+	'api-mysql': './src/ext/api-mysql.ts',
+	'api-sqlite': './src/ext/api-sqlite.ts',
+	'payload-postgres': './src/payload/postgres.ts',
+	'payload-mysql': './src/payload/mysql.ts',
+	'payload-sqlite': './src/payload/sqlite.ts',
+	'payload-mssql': './src/payload/mssql.ts',
+};
+
+async function buildBundles(options: {
 	name: string;
-	input: string;
-	outputName: string;
+	input: Record<string, string>;
 	format: 'cjs' | 'esm';
-	banner?: string;
+	entryFileNames: OutputOptions['entryFileNames'];
+	chunkFileNames: string;
+	banner?: OutputOptions['banner'];
+	define?: Record<string, string>;
 }) {
 	const build = await rolldown({
 		input: options.input,
 		platform: 'node',
 		external,
 		tsconfig: 'tsconfig.json',
+		transform: { define: options.define },
 	});
 
-	await build.write({
+	const { output } = await build.write({
 		dir: 'dist',
 		format: options.format,
-		entryFileNames: options.outputName,
-		codeSplitting: false,
+		entryFileNames: options.entryFileNames,
+		chunkFileNames: options.chunkFileNames,
 		banner: options.banner,
 	});
 
 	await build.close();
-	console.log(`  Built ${options.outputName}`);
+	console.log(`  Built ${options.name}`);
+
+	return output.map((it) => `dist/${it.fileName}`);
 }
 
-async function buildCli() {
-	const build = await rolldown({
-		input: './src/cli/index.ts',
-		platform: 'node',
-		external,
-		tsconfig: 'tsconfig.json',
-	});
+async function patchFiles(files: string[], patch: (content: string) => string) {
+	await Promise.all(
+		files.map(async (file) => {
+			const content = await fs.readFile(file, 'utf8');
+			const patched = patch(content);
+			if (patched !== content) await fs.writeFile(file, patched);
+		}),
+	);
+}
 
-	await build.write({
-		dir: 'dist',
+async function buildCjsCli() {
+	await buildBundles({
+		name: 'bin.cjs, cli.js',
+		input: { bin: './src/cli/index.ts', cli: libraryEntries.cli },
 		format: 'cjs',
-		entryFileNames: 'bin.cjs',
-		banner: '#!/usr/bin/env node',
-		codeSplitting: false,
+		entryFileNames: (chunk) => chunk.name === 'bin' ? 'bin.cjs' : '[name].js',
+		chunkFileNames: 'chunks/cli/[name]-[hash].js',
+		banner: (chunk) => chunk.isEntry && chunk.name === 'bin' ? '#!/usr/bin/env node' : '',
+		define: {
+			'process.env.DRIZZLE_KIT_VERSION': JSON.stringify(pkg.version),
+			'process.env.DRIZZLE_KIT_SKILLS_REVISION': JSON.stringify(readSkillsRevisionFromDisk('./skills')),
+		},
+	});
+}
+
+async function buildCjsIndex() {
+	await buildBundles({
+		name: 'index.js',
+		input: { index: libraryEntries.index },
+		format: 'cjs',
+		entryFileNames: '[name].js',
+		chunkFileNames: 'chunks/index/[name]-[hash].js',
+	});
+}
+
+async function buildCjsApi() {
+	const files = await buildBundles({
+		name: 'api-*.js, payload-*.js',
+		input: apiEntries,
+		format: 'cjs',
+		entryFileNames: '[name].js',
+		chunkFileNames: 'chunks/api/[name]-[hash].js',
 	});
 
-	await build.close();
+	await patchFiles(files, (content) => content.replace(/await import\(/g, 'require('));
+}
 
-	const binContent = await fs.readFile('dist/bin.cjs', 'utf8');
-	const patched = binContent
-		.replace(/process\.env\.DRIZZLE_KIT_VERSION/g, JSON.stringify(pkg.version))
-		.replace(/process\.env\.DRIZZLE_KIT_SKILLS_REVISION/g, JSON.stringify(readSkillsRevisionFromDisk('./skills')));
-	await fs.writeFile('dist/bin.cjs', patched);
-
-	console.log('  Built bin.cjs');
+async function buildEsm() {
+	await buildBundles({
+		name: '*.mjs',
+		input: { ...libraryEntries, ...apiEntries },
+		format: 'esm',
+		entryFileNames: '[name].mjs',
+		chunkFileNames: 'chunks/esm/[name]-[hash].mjs',
+	});
 }
 
 // tsdown's `emitDtsOnly: true` still emits chunked .js files alongside the
@@ -101,7 +151,7 @@ const TSDOWN_TEMP_DIR = './dist/__dts-temp';
 async function buildDeclarations() {
 	// Use tsdown for declaration bundling - it handles path resolution and creates bundled .d.ts files
 	await tsdown({
-		entry: { index: './src/index.ts', cli: './src/cli-sdk/index.ts' },
+		entry: libraryEntries,
 		outDir: TSDOWN_TEMP_DIR,
 		external: [...driversPackages, /^drizzle-orm\/?/],
 		dts: { emitDtsOnly: true },
@@ -117,15 +167,7 @@ async function buildDeclarations() {
 	});
 
 	await tsdown({
-		entry: {
-			'api-postgres': './src/ext/api-postgres.ts',
-			'api-mysql': './src/ext/api-mysql.ts',
-			'api-sqlite': './src/ext/api-sqlite.ts',
-			'payload-postgres': './src/payload/postgres.ts',
-			'payload-mysql': './src/payload/mysql.ts',
-			'payload-sqlite': './src/payload/sqlite.ts',
-			'payload-mssql': './src/payload/mssql.ts',
-		},
+		entry: apiEntries,
 		outDir: TSDOWN_TEMP_DIR,
 		external: ['drizzle-orm', ...driversPackages, /^drizzle-orm\/?/],
 		dts: { emitDtsOnly: true },
@@ -153,146 +195,20 @@ async function copyDeclarationsAndCleanTemp() {
 	rmSync(TSDOWN_TEMP_DIR, { recursive: true, force: true });
 }
 
-async function postProcessApiFiles() {
-	const apiFiles = [
-		'dist/api-postgres.js',
-		'dist/api-mysql.js',
-		'dist/api-sqlite.js',
-		'dist/payload-postgres.js',
-		'dist/payload-mysql.js',
-		'dist/payload-sqlite.js',
-		'dist/payload-mssql.js',
-	];
-	await Promise.all(
-		apiFiles.map(async (file) => {
-			if (existsSync(file)) {
-				const content = await fs.readFile(file, 'utf8');
-				await fs.writeFile(file, content.replace(/await import\(/g, 'require('));
-			}
-		}),
-	);
-}
-
 async function main() {
 	const startTime = Date.now();
 	rmSync('dist', { recursive: true, force: true });
 
 	await Promise.all([
-		buildCli(),
-		buildBundle({
-			name: 'index-cjs',
-			input: './src/index.ts',
-			outputName: 'index.js',
-			format: 'cjs',
-		}),
-		buildBundle({
-			name: 'index-esm',
-			input: './src/index.ts',
-			outputName: 'index.mjs',
-			format: 'esm',
-		}),
-		buildBundle({
-			name: 'api-postgres-cjs',
-			input: './src/ext/api-postgres.ts',
-			outputName: 'api-postgres.js',
-			format: 'cjs',
-		}),
-		buildBundle({
-			name: 'api-postgres-esm',
-			input: './src/ext/api-postgres.ts',
-			outputName: 'api-postgres.mjs',
-			format: 'esm',
-		}),
-		buildBundle({
-			name: 'api-mysql-cjs',
-			input: './src/ext/api-mysql.ts',
-			outputName: 'api-mysql.js',
-			format: 'cjs',
-		}),
-		buildBundle({
-			name: 'api-mysql-esm',
-			input: './src/ext/api-mysql.ts',
-			outputName: 'api-mysql.mjs',
-			format: 'esm',
-		}),
-		buildBundle({
-			name: 'api-sqlite-cjs',
-			input: './src/ext/api-sqlite.ts',
-			outputName: 'api-sqlite.js',
-			format: 'cjs',
-		}),
-		buildBundle({
-			name: 'api-sqlite-esm',
-			input: './src/ext/api-sqlite.ts',
-			outputName: 'api-sqlite.mjs',
-			format: 'esm',
-		}),
-		buildBundle({
-			name: 'cli-cjs',
-			input: './src/cli-sdk/index.ts',
-			outputName: 'cli.js',
-			format: 'cjs',
-		}),
-		buildBundle({
-			name: 'cli-esm',
-			input: './src/cli-sdk/index.ts',
-			outputName: 'cli.mjs',
-			format: 'esm',
-		}),
-		buildBundle({
-			name: 'payload-postgres-cjs',
-			input: './src/payload/postgres.ts',
-			outputName: 'payload-postgres.js',
-			format: 'cjs',
-		}),
-		buildBundle({
-			name: 'payload-postgres-esm',
-			input: './src/payload/postgres.ts',
-			outputName: 'payload-postgres.mjs',
-			format: 'esm',
-		}),
-		buildBundle({
-			name: 'payload-mysql-cjs',
-			input: './src/payload/mysql.ts',
-			outputName: 'payload-mysql.js',
-			format: 'cjs',
-		}),
-		buildBundle({
-			name: 'payload-mysql-esm',
-			input: './src/payload/mysql.ts',
-			outputName: 'payload-mysql.mjs',
-			format: 'esm',
-		}),
-		buildBundle({
-			name: 'payload-sqlite-cjs',
-			input: './src/payload/sqlite.ts',
-			outputName: 'payload-sqlite.js',
-			format: 'cjs',
-		}),
-		buildBundle({
-			name: 'payload-sqlite-esm',
-			input: './src/payload/sqlite.ts',
-			outputName: 'payload-sqlite.mjs',
-			format: 'esm',
-		}),
-		buildBundle({
-			name: 'payload-mssql-cjs',
-			input: './src/payload/mssql.ts',
-			outputName: 'payload-mssql.js',
-			format: 'cjs',
-		}),
-		buildBundle({
-			name: 'payload-mssql-esm',
-			input: './src/payload/mssql.ts',
-			outputName: 'payload-mssql.mjs',
-			format: 'esm',
-		}),
+		buildCjsCli(),
+		buildCjsIndex(),
+		buildCjsApi(),
+		buildEsm(),
 		buildDeclarations(),
 	]);
 
 	await copyDeclarationsAndCleanTemp();
 	await Promise.all([
-		postProcessApiFiles(),
 		fs.copyFile('package.json', 'dist/package.json'),
 		fs.cp('skills', 'dist/skills', { recursive: true }),
 	]);
