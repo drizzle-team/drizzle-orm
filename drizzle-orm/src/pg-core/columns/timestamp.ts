@@ -53,7 +53,7 @@ export class PgTimestamp extends PgColumn<'object date'> {
 
 	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
-		return value.toISOString();
+		return value.toISOString().replace(/^\+0*/, '');
 	};
 }
 
@@ -109,7 +109,7 @@ export class PgTimestampString extends PgColumn<'string timestamp'> {
 
 	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
-		return value.toISOString();
+		return value.toISOString().replace(/^\+0*/, '');
 	};
 }
 
