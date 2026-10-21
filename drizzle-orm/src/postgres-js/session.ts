@@ -30,6 +30,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
+		private prepare: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
 		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
@@ -50,7 +51,9 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 			if (!fields && !customResultMapper) {
 				return tracer.startActiveSpan('drizzle.driver.execute', () => {
 					return this.queryWithCache(query, params, async () => {
-						return await client.unsafe(query, params as any[]);
+						return await client.unsafe(query, params as any[], {
+							prepare: this.prepare,
+						});
 					});
 				});
 			}
@@ -61,7 +64,9 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 					'drizzle.query.params': JSON.stringify(params),
 				});
 				return this.queryWithCache(query, params, async () => {
-					return await client.unsafe(query, params as any[]).values();
+					return await client.unsafe(query, params as any[], {
+						prepare: this.prepare,
+					}).values();
 				});
 			});
 
@@ -87,7 +92,9 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 					'drizzle.query.params': JSON.stringify(params),
 				});
 				return this.queryWithCache(this.queryString, params, async () => {
-					return this.client.unsafe(this.queryString, params as any[]);
+					return this.client.unsafe(this.queryString, params as any[], {
+						prepare: this.prepare,
+					});
 				});
 			});
 		});
@@ -148,6 +155,7 @@ export class PostgresJsSession<
 			cacheConfig,
 			fields,
 			isResponseInArrayMode,
+			name !== undefined,
 			customResultMapper,
 		);
 	}
