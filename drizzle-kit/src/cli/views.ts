@@ -1630,6 +1630,7 @@ export type IntrospectStage =
 	| 'indexes'
 	| 'policies'
 	| 'checks'
+	| 'pks'
 	| 'fks'
 	| 'views';
 
@@ -1664,6 +1665,11 @@ export class IntrospectProgress extends TaskView {
 		indexes: {
 			count: 0,
 			name: 'indexes',
+			status: 'fetching',
+		},
+		pks: {
+			count: 0,
+			name: 'primary keys',
 			status: 'fetching',
 		},
 		fks: {
@@ -1748,6 +1754,7 @@ export class IntrospectProgress extends TaskView {
 		info += this.statusText(spin, this.state.columns);
 		info += this.hasEnums ? this.statusText(spin, this.state.enums) : '';
 		info += this.statusText(spin, this.state.indexes);
+		info += this.statusText(spin, this.state.pks);
 		info += this.statusText(spin, this.state.fks);
 		info += this.statusText(spin, this.state.policies);
 		info += this.statusText(spin, this.state.checks);
