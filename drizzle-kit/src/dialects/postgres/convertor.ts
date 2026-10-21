@@ -1121,7 +1121,7 @@ function renderDeclarations(
 			? ` := ${defaultValue}`
 			: '';
 
-		return `    ${quoteIdentifier(name)} ${type}${initialization};`;
+		return `\t${quoteIdentifier(name)} ${type}${initialization};`;
 	}).join('\n');
 }
 
