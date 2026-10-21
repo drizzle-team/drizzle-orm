@@ -54,6 +54,7 @@ import {
 	serial,
 	snakeCase,
 	text,
+	time,
 	timestamp,
 	union,
 	varchar,
@@ -3656,6 +3657,112 @@ export function tests(test: Test) {
 
 			expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
 			expect(rawRes).toStrictEqual([allTypesData]);
+		});
+
+		test('time zones are preserved', async ({ createDB, push }) => {
+			const tzTypes = pgTable('tz_types', {
+				id: integer('id').primaryKey(),
+				timetz: time('timetz', { withTimezone: true }).notNull(),
+				arrtimetz: time('arrtimetz', { withTimezone: true }).array().notNull(),
+				mtxtimetz: time('mtxtimetz', { withTimezone: true }).array('[][]').notNull(),
+				tstz: timestamp('tstz', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+				arrtstz: timestamp('arrtstz', { mode: 'string', withTimezone: true, precision: 6 }).array().notNull(),
+				mtxtstz: timestamp('mtxtstz', { mode: 'string', withTimezone: true, precision: 6 }).array('[][]').notNull(),
+				tstzdate: timestamp('tstzdate', { mode: 'date', withTimezone: true }).notNull(),
+				arrtstzdate: timestamp('arrtstzdate', { mode: 'date', withTimezone: true }).array().notNull(),
+			});
+
+			await push({ tzTypes });
+			const db = createDB({ tzTypes }, (r) => ({
+				tzTypes: { self: r.many.tzTypes({ from: r.tzTypes.id, to: r.tzTypes.id }) },
+			}));
+
+			await db.insert(tzTypes).values({
+				id: 1,
+				timetz: '12:00:00.5-02',
+				arrtimetz: ['12:00:00.5-02', '23:59:59+05:30'],
+				mtxtimetz: [['12:00:00.5-02'], ['23:59:59+05:30']],
+				tstz: '2022-01-01 12:00:00.123456+02',
+				arrtstz: ['2022-01-01 12:00:00.123456+02', '2022-06-01 00:00:00-05'],
+				mtxtstz: [['2022-01-01 12:00:00.123456+02'], ['2022-06-01 00:00:00-05']],
+				tstzdate: new Date('2022-01-01T10:00:00.123Z'),
+				arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
+			});
+
+			// `timestamptz` is stored as UTC and printed in the session time zone (documented behaviour: https://www.postgresql.org/docs/current/datatype-datetime.html#DATATYPE-DATETIME-INPUT-TIME-STAMPS),
+			// `timetz` stores and prints the offset it was given (implementation behavior, the docs don't state it)
+			const expected = {
+				id: 1,
+				timetz: '12:00:00.5-02',
+				arrtimetz: ['12:00:00.5-02', '23:59:59+05:30'],
+				mtxtimetz: [['12:00:00.5-02'], ['23:59:59+05:30']],
+				tstz: '2022-01-01 10:00:00.123456+00',
+				arrtstz: ['2022-01-01 10:00:00.123456+00', '2022-06-01 05:00:00+00'],
+				mtxtstz: [['2022-01-01 10:00:00.123456+00'], ['2022-06-01 05:00:00+00']],
+				tstzdate: new Date('2022-01-01T10:00:00.123Z'),
+				arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
+			};
+
+			expect(await db.select().from(tzTypes)).toStrictEqual([expected]);
+			expect(await db.query.tzTypes.findFirst({ with: { self: true } })).toStrictEqual({
+				...expected,
+				self: [expected],
+			});
+		});
+
+		test('time zones are preserved - non-UTC session', async ({ createDB, push }) => {
+			const tzTypes = pgTable('tz_types_session', {
+				id: integer('id').primaryKey(),
+				timetz: time('timetz', { withTimezone: true }).notNull(),
+				arrtimetz: time('arrtimetz', { withTimezone: true }).array().notNull(),
+				mtxtimetz: time('mtxtimetz', { withTimezone: true }).array('[][]').notNull(),
+				tstz: timestamp('tstz', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+				arrtstz: timestamp('arrtstz', { mode: 'string', withTimezone: true, precision: 6 }).array().notNull(),
+				mtxtstz: timestamp('mtxtstz', { mode: 'string', withTimezone: true, precision: 6 }).array('[][]').notNull(),
+				tstzdate: timestamp('tstzdate', { mode: 'date', withTimezone: true }).notNull(),
+				arrtstzdate: timestamp('arrtstzdate', { mode: 'date', withTimezone: true }).array().notNull(),
+			});
+
+			await push({ tzTypes });
+			const db = createDB({ tzTypes }, (r) => ({
+				tzTypes: { self: r.many.tzTypes({ from: r.tzTypes.id, to: r.tzTypes.id }) },
+			}));
+
+			// `timetz` output doesn't depend on session time zone, `timestamptz` output does
+			const expected = {
+				id: 1,
+				timetz: '12:00:00.5-02',
+				arrtimetz: ['12:00:00.5-02', '23:59:59+05:30'],
+				mtxtimetz: [['12:00:00.5-02'], ['23:59:59+05:30']],
+				tstz: '2022-01-01 00:00:00.123456-10',
+				arrtstz: ['2022-01-01 00:00:00.123456-10', '2022-05-31 19:00:00-10'],
+				mtxtstz: [['2022-01-01 00:00:00.123456-10'], ['2022-05-31 19:00:00-10']],
+				tstzdate: new Date('2022-01-01T10:00:00.123Z'),
+				arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
+			};
+
+			// `set local` keeps the setting within transaction, which also holds the session for pooled & stateless drivers
+			await db.transaction(async (tx) => {
+				await tx.execute(sql`set local time zone '-10'`);
+
+				await tx.insert(tzTypes).values({
+					id: 1,
+					timetz: '12:00:00.5-02',
+					arrtimetz: ['12:00:00.5-02', '23:59:59+05:30'],
+					mtxtimetz: [['12:00:00.5-02'], ['23:59:59+05:30']],
+					tstz: '2022-01-01 12:00:00.123456+02',
+					arrtstz: ['2022-01-01 12:00:00.123456+02', '2022-06-01 00:00:00-05'],
+					mtxtstz: [['2022-01-01 12:00:00.123456+02'], ['2022-06-01 00:00:00-05']],
+					tstzdate: new Date('2022-01-01T10:00:00.123Z'),
+					arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
+				});
+
+				expect(await tx.select().from(tzTypes)).toStrictEqual([expected]);
+				expect(await tx.query.tzTypes.findFirst({ with: { self: true } })).toStrictEqual({
+					...expected,
+					self: [expected],
+				});
+			});
 		});
 
 		test('raw jsons', async ({ db, push }) => {

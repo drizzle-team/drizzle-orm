@@ -359,7 +359,10 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		castArrayParam: (name, _column, dim) => `${name}::time${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
+	// Data API converts values with time zones to UTC dropping the offset, text keeps it
 	timetz: {
+		cast: castToText,
+		castArray: castToTextArr,
 		castParam: (name) => `${name}::timetz`,
 		castArrayParam: (name, _column, dim) => `${name}::timetz${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),

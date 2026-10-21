@@ -34,6 +34,7 @@ import {
 	primaryKey,
 	serial,
 	text,
+	time,
 	timestamp,
 	union,
 } from 'drizzle-orm/pg-core';
@@ -278,6 +279,105 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 
 				expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
 				expect(rawRes).toStrictEqual([allTypesData]);
+			}));
+
+		// @effect/sql-pg can't decode multidimensional arrays - skip mtx fields
+		it.effect('time zones are preserved', () =>
+			Effect.gen(function*() {
+				const tzTypes = pgTable('tz_types_ef', {
+					id: integer('id').primaryKey(),
+					timetz: time('timetz', { withTimezone: true }).notNull(),
+					arrtimetz: time('arrtimetz', { withTimezone: true }).array().notNull(),
+					tstz: timestamp('tstz', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+					arrtstz: timestamp('arrtstz', { mode: 'string', withTimezone: true, precision: 6 }).array().notNull(),
+					tstzdate: timestamp('tstzdate', { mode: 'date', withTimezone: true }).notNull(),
+					arrtstzdate: timestamp('arrtstzdate', { mode: 'date', withTimezone: true }).array().notNull(),
+				});
+
+				yield* push(yield* DB, { tzTypes });
+				const db = yield* createDB({ tzTypes }, (r) => ({
+					tzTypes: { self: r.many.tzTypes({ from: r.tzTypes.id, to: r.tzTypes.id }) },
+				}));
+
+				yield* db.insert(tzTypes).values({
+					id: 1,
+					timetz: '12:00:00.5-02',
+					arrtimetz: ['12:00:00.5-02', '23:59:59+05:30'],
+					tstz: '2022-01-01 12:00:00.123456+02',
+					arrtstz: ['2022-01-01 12:00:00.123456+02', '2022-06-01 00:00:00-05'],
+					tstzdate: new Date('2022-01-01T10:00:00.123Z'),
+					arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
+				});
+
+				// `timestamptz` is stored as UTC and printed in the session time zone (documented behaviour: https://www.postgresql.org/docs/current/datatype-datetime.html#DATATYPE-DATETIME-INPUT-TIME-STAMPS),
+				// `timetz` stores and prints the offset it was given (implementation behavior, the docs don't state it)
+				const expected = {
+					id: 1,
+					timetz: '12:00:00.5-02',
+					arrtimetz: ['12:00:00.5-02', '23:59:59+05:30'],
+					tstz: '2022-01-01 10:00:00.123456+00',
+					arrtstz: ['2022-01-01 10:00:00.123456+00', '2022-06-01 05:00:00+00'],
+					tstzdate: new Date('2022-01-01T10:00:00.123Z'),
+					arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
+				};
+
+				expect(yield* db.select().from(tzTypes)).toStrictEqual([expected]);
+				expect(yield* db.query.tzTypes.findFirst({ with: { self: true } })).toStrictEqual({
+					...expected,
+					self: [expected],
+				});
+			}));
+
+		it.effect('time zones are preserved - non-UTC session', () =>
+			Effect.gen(function*() {
+				const tzTypes = pgTable('tz_types_session_ef', {
+					id: integer('id').primaryKey(),
+					timetz: time('timetz', { withTimezone: true }).notNull(),
+					arrtimetz: time('arrtimetz', { withTimezone: true }).array().notNull(),
+					tstz: timestamp('tstz', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+					arrtstz: timestamp('arrtstz', { mode: 'string', withTimezone: true, precision: 6 }).array().notNull(),
+					tstzdate: timestamp('tstzdate', { mode: 'date', withTimezone: true }).notNull(),
+					arrtstzdate: timestamp('arrtstzdate', { mode: 'date', withTimezone: true }).array().notNull(),
+				});
+
+				yield* push(yield* DB, { tzTypes });
+				const db = yield* createDB({ tzTypes }, (r) => ({
+					tzTypes: { self: r.many.tzTypes({ from: r.tzTypes.id, to: r.tzTypes.id }) },
+				}));
+
+				// `timetz` output doesn't depend on session time zone, `timestamptz` output does
+				const expected = {
+					id: 1,
+					timetz: '12:00:00.5-02',
+					arrtimetz: ['12:00:00.5-02', '23:59:59+05:30'],
+					tstz: '2022-01-01 00:00:00.123456-10',
+					arrtstz: ['2022-01-01 00:00:00.123456-10', '2022-05-31 19:00:00-10'],
+					tstzdate: new Date('2022-01-01T10:00:00.123Z'),
+					arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
+				};
+
+				// `set local` keeps the setting within transaction, which also holds the session for pooled drivers
+				yield* db.transaction((tx) =>
+					Effect.gen(function*() {
+						yield* tx.execute(sql`set local time zone '-10'`);
+
+						yield* tx.insert(tzTypes).values({
+							id: 1,
+							timetz: '12:00:00.5-02',
+							arrtimetz: ['12:00:00.5-02', '23:59:59+05:30'],
+							tstz: '2022-01-01 12:00:00.123456+02',
+							arrtstz: ['2022-01-01 12:00:00.123456+02', '2022-06-01 00:00:00-05'],
+							tstzdate: new Date('2022-01-01T10:00:00.123Z'),
+							arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
+						});
+
+						expect(yield* tx.select().from(tzTypes)).toStrictEqual([expected]);
+						expect(yield* tx.query.tzTypes.findFirst({ with: { self: true } })).toStrictEqual({
+							...expected,
+							self: [expected],
+						});
+					})
+				);
 			}));
 
 		it.effect('RQB v2 simple find first - no rows', () =>
