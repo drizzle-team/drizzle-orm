@@ -3,7 +3,7 @@ import { describe, it } from 'vitest';
 import { relations } from '~/_relations';
 import { betterSQLite3Codecs, drizzle } from '~/better-sqlite3';
 import { defineRelations } from '~/relations';
-import { asc, eq, exists, inArray, Param, sql } from '~/sql';
+import { asc, eq, exists, inArray, isNull, Param, sql } from '~/sql';
 import { alias, castToText, integer, QueryBuilder, snakeCase, text, union } from '~/sqlite-core';
 
 const users = snakeCase.table('users', {
@@ -515,6 +515,20 @@ describe('sqlite to snake case', () => {
 		expect(query.toSQL()).toEqual({
 			sql:
 				'insert into "users" ("id", "first_name", "last_name", "AGE") values (null, ?, ?, ?) on conflict ("users"."first_name") do nothing returning "first_name", "AGE"',
+			params: ['John', 'Doe', 30],
+		});
+	});
+
+	it('insert (on conflict do nothing) with target where', ({ expect }) => {
+		const query = db
+			.insert(users)
+			.values({ firstName: 'John', lastName: 'Doe', age: 30 })
+			.onConflictDoNothing({ target: users.firstName, where: isNull(users.age) })
+			.returning({ firstName: users.firstName, age: users.age });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'insert into "users" ("id", "first_name", "last_name", "AGE") values (null, ?, ?, ?) on conflict ("users"."first_name") where ("users"."AGE" is null) do nothing returning "first_name", "AGE"',
 			params: ['John', 'Doe', 30],
 		});
 	});
