@@ -1,11 +1,12 @@
 import type { Casing } from '~/casing.ts';
 import type { BuildColumns, ColumnBuilderBase } from '~/column-builder.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
+import type { UpdateViewConfig, ViewConfig } from '~/view.ts';
 import type { SQLiteColumn } from './columns/common.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import { sqliteTableBase } from './table.ts';
@@ -22,6 +23,9 @@ export class ViewBuilderCore<
 	TConfig extends { name: string; columns?: unknown },
 > {
 	static readonly [entityKind]: string = 'SQLiteViewBuilderCore';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly name: TConfig['name'];
@@ -40,7 +44,15 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 
 	as<TSelection extends ColumnsSelection>(
 		qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
-	): SQLiteViewWithSelection<TName, false, AddAliasToSelection<TSelection, TName, 'sqlite'>> {
+	): SQLiteViewWithSelection<
+		{
+			name: TName;
+			schema: undefined;
+			existing: false;
+			isAlias: false;
+			selectedFields: AddAliasToSelection<TSelection, TName, 'sqlite'>;
+		}
+	> {
 		if (typeof qb === 'function') {
 			qb = qb(new QueryBuilder());
 		}
@@ -63,7 +75,15 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 				},
 			}),
 			selectionProxy as any,
-		) as SQLiteViewWithSelection<TName, false, AddAliasToSelection<TSelection, TName, 'sqlite'>>;
+		) as SQLiteViewWithSelection<
+			{
+				name: TName;
+				schema: undefined;
+				existing: false;
+				isAlias: false;
+				selectedFields: AddAliasToSelection<TSelection, TName, 'sqlite'>;
+			}
+		>;
 	}
 }
 
@@ -90,7 +110,15 @@ export class ManualViewBuilder<
 		>;
 	}
 
-	existing(): SQLiteViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'sqlite'>> {
+	existing(): SQLiteViewWithSelection<
+		{
+			name: TName;
+			schema: undefined;
+			existing: true;
+			isAlias: false;
+			selectedFields: BuildColumns<TName, TColumns, 'sqlite'>;
+		}
+	> {
 		return new Proxy(
 			new SQLiteView({
 				config: {
@@ -106,10 +134,28 @@ export class ManualViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as SQLiteViewWithSelection<TName, true, BuildColumns<TName, TColumns, 'sqlite'>>;
+		) as SQLiteViewWithSelection<
+			{
+				name: TName;
+				schema: undefined;
+				existing: true;
+				isAlias: false;
+				selectedFields: BuildColumns<TName, TColumns, 'sqlite'>;
+			}
+		>;
 	}
 
-	as(query: SQL): SQLiteViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'sqlite'>> {
+	as(
+		query: SQL,
+	): SQLiteViewWithSelection<
+		{
+			name: TName;
+			schema: undefined;
+			existing: false;
+			isAlias: false;
+			selectedFields: BuildColumns<TName, TColumns, 'sqlite'>;
+		}
+	> {
 		return new Proxy(
 			new SQLiteView({
 				config: {
@@ -125,21 +171,25 @@ export class ManualViewBuilder<
 				sqlAliasedBehavior: 'alias',
 				replaceOriginalName: true,
 			}),
-		) as SQLiteViewWithSelection<TName, false, BuildColumns<TName, TColumns, 'sqlite'>>;
+		) as SQLiteViewWithSelection<
+			{
+				name: TName;
+				schema: undefined;
+				existing: false;
+				isAlias: false;
+				selectedFields: BuildColumns<TName, TColumns, 'sqlite'>;
+			}
+		>;
 	}
 }
 
-export class SQLiteView<
-	TName extends string = string,
-	TExisting extends boolean = boolean,
-	TSelection extends ColumnsSelection = ColumnsSelection,
-> extends SQLiteViewBase<TName, TExisting, TSelection> {
+export class SQLiteView<T extends ViewConfig = ViewConfig> extends SQLiteViewBase<T> {
 	static override readonly [entityKind]: string = 'SQLiteView';
 
 	constructor({ config }: {
 		config: {
-			name: TName;
-			schema: string | undefined;
+			name: T['name'];
+			schema: T['schema'];
 			selectedFields: ColumnsSelection;
 			query: SQL | undefined;
 		};
@@ -148,11 +198,16 @@ export class SQLiteView<
 	}
 }
 
-export type SQLiteViewWithSelection<
-	TName extends string,
-	TExisting extends boolean,
-	TSelection extends ColumnsSelection,
-> = SQLiteView<TName, TExisting, TSelection> & TSelection;
+export type SQLiteViewWithSelection<T extends ViewConfig> = SQLiteView<T> & T['selectedFields'];
+
+/**
+ * Any SQLite view with a specified boundary, e.g. `AnySQLiteView<{ name: 'my_view' }>`.
+ *
+ * To describe any view with any config, use `SQLiteView` without type arguments.
+ */
+export type AnySQLiteView<TPartial extends Partial<ViewConfig> = {}> = SQLiteView<
+	UpdateViewConfig<ViewConfig, TPartial>
+>;
 
 export interface SQLiteViewFn {
 	<TName extends string>(name: TName): ViewBuilder<TName>;

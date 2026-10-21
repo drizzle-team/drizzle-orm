@@ -6,7 +6,7 @@ const isNonNullObjectWithToJSOnImplemented = <T>(
 
 // Number -> number & String -> string
 const toPrimitive = <T>(o: number | string | T) =>
-	o instanceof Number ? Number(o) : o instanceof String ? String(o) : o; // oxlint-disable-line no-instanceof-builtins drizzle-internal/no-instanceof
+	o instanceof Number ? Number(o) : o instanceof String ? String(o) : o;
 
 const quote = (() => {
 	const ESCAPABLE =
@@ -186,7 +186,7 @@ export const stringify = ((): Stringify => {
 		// If the space parameter is a string, it will be used as the indent string.
 		const primitive_space = toPrimitive(space);
 		gap = typeof primitive_space === `number` && primitive_space > 0
-			? Array.from({ length: primitive_space + 1 }).join(` `)
+			? new Array(primitive_space + 1).join(` `)
 			: typeof primitive_space !== `string`
 			? ``
 			: primitive_space.length > 10

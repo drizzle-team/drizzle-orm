@@ -923,9 +923,9 @@ test.concurrent('no diffs for all database types', async ({ dbc: db }) => {
 			column2: bool('column2'),
 			column3: boolean('column3').default(true).notNull(),
 			column4: boolean('column4'),
-			column5: bool('column5').default(true).notNull().array(),
+			column5: bool('column5').notNull().array(),
 			column6: bool('column6').array(),
-			column7: boolean('column7').default(true).notNull().array(),
+			column7: boolean('column7').notNull().array(),
 			column8: boolean('column8').array(),
 		}),
 
@@ -982,7 +982,7 @@ test.concurrent('no diffs for all database types', async ({ dbc: db }) => {
 		allBits: customSchema.table('all_bits', {
 			column1: bit('column1').default('1').notNull(),
 			column2: bit('column2', { length: 10 }),
-			column3: bit('column3').default('1').notNull().array(),
+			column3: bit('column3').notNull().array(),
 			column4: bit('column4', { length: 10 }).array(),
 			column5: varbit('column5').notNull(),
 			column6: varbit('column6', { length: 10 }),
@@ -1001,4 +1001,79 @@ test.concurrent('no diffs for all database types', async ({ dbc: db }) => {
 
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3826
+test.concurrent('Issue No3826. Renaming column and altering contraint on it', async ({ dbc: db }) => {
+	const schemaFrom = {
+		users: cockroachTable('users', {
+			id: text('id').primaryKey().notNull(),
+			phone_number: varchar('old_name', { length: 100 }).notNull(),
+			customer_id: text('customer_id').unique(),
+			avatar: text('avatar'),
+		}),
+	};
+
+	const schemaTo = {
+		users: cockroachTable('users', {
+			id: text('id').primaryKey().notNull(),
+			phone_number: varchar('new_name', { length: 100 }), // renamed + dropped not null
+			customer_id: text('customer_id').unique(),
+			avatar: text('avatar'),
+		}),
+	};
+
+	const renames = ['public.users.old_name->public.users.new_name'];
+	const { sqlStatements: st1 } = await diff(schemaFrom, schemaTo, renames);
+	await push({ db, to: schemaFrom });
+	const { sqlStatements: pst1 } = await push({ db, to: schemaTo, renames });
+
+	const st0 = [
+		`ALTER TABLE "users" RENAME COLUMN "old_name" TO "new_name";`,
+		'ALTER TABLE "users" ALTER COLUMN "new_name" DROP NOT NULL;',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6360
+test.concurrent('Issue No6360', async ({ db }) => {
+	const a1 = cockroachTable('a', {
+		id: text('id').primaryKey(),
+		user_id: text('user_id').notNull(),
+	});
+
+	const b1 = cockroachTable('b', {
+		id: text('id').primaryKey(),
+		user_id: text('user_id').notNull(),
+	});
+
+	const schema1 = { a1, b1 };
+
+	const a2 = cockroachTable('a', {
+		id: text('id').primaryKey(),
+		user_id: text('org_id').notNull(), // new name
+	});
+
+	const b2 = cockroachTable('b', {
+		id: text('id').primaryKey(),
+		user_id: text('user_id'), // dropped not null
+	});
+
+	const schema2 = { a2, b2 };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, [`public.a.user_id->public.a.org_id`]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({
+		db,
+		to: schema2,
+		renames: [`public.a.user_id->public.a.org_id`],
+	});
+
+	const st0 = [
+		`ALTER TABLE "a" RENAME COLUMN "user_id" TO "org_id";`,
+		`ALTER TABLE "b" ALTER COLUMN "user_id" DROP NOT NULL;`,
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
 });

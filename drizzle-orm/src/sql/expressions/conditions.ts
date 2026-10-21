@@ -1,33 +1,39 @@
-import { type AnyColumn, Column, type GetColumnData } from '~/column.ts';
+import type { AnyColumn, Column, GetColumnData } from '~/column.ts';
 import { is } from '~/entity.ts';
-import { Table } from '~/table.ts';
+import { commonStringChunks, type StringChunk } from '../common-chunks.ts';
 import {
+	chunkKindOf,
+	chunkKinds,
 	isDriverValueEncoder,
 	isSQLWrapper,
 	Param,
-	Placeholder,
+	type Placeholder,
 	SQL,
 	sql,
 	type SQLChunk,
 	type SQLWrapper,
-	StringChunk,
-	View,
 } from '../sql.ts';
 
 export function bindIfParam(value: unknown, column: SQLWrapper): SQLChunk {
-	if (
-		isDriverValueEncoder(column)
-		&& !isSQLWrapper(value)
-		&& !is(value, Param)
-		&& !is(value, Placeholder)
-		&& !is(value, Column)
-		&& !is(value, Table)
-		&& !is(value, View)
-	) {
-		return new Param(value, column);
+	if (isDriverValueEncoder(column) && !isSQLWrapper(value)) {
+		const kind = chunkKindOf(value);
+		if (
+			kind !== chunkKinds.param && kind !== chunkKinds.placeholder && kind !== chunkKinds.column
+			&& kind !== chunkKinds.table
+			&& kind !== chunkKinds.view
+		) {
+			return new Param(value, column);
+		}
 	}
 	return value as SQLChunk;
 }
+
+const checkColumnWithValue = (column: SQLWrapper, op: StringChunk, value: unknown) =>
+	new SQL([
+		column,
+		op,
+		bindIfParam(value, column),
+	]);
 
 export interface BinaryOperator {
 	<TColumn extends Column>(
@@ -59,9 +65,8 @@ export interface BinaryOperator {
  *
  * @see isNull for a way to test equality to NULL.
  */
-export const eq: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} = ${bindIfParam(right, left)}`;
-};
+export const eq: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
+	checkColumnWithValue(left, commonStringChunks[' = '], right);
 
 /**
  * Test that two values are not equal.
@@ -81,10 +86,27 @@ export const eq: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *
  * @see isNotNull for a way to test whether a value is not null.
  */
-export const ne: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} <> ${bindIfParam(right, left)}`;
-};
+export const ne: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
+	checkColumnWithValue(left, commonStringChunks[' <> '], right);
 
+const joinConditions = (conditions: SQLWrapper<unknown>[], separatorWithParenChunk: SQLChunk) => {
+	const chunks: SQLChunk[] = new Array(conditions.length * 2 + 1),
+		lastIdx = conditions.length - 1;
+
+	// ['((']
+	chunks[0] = commonStringChunks['(('];
+
+	for (let i = 0; i < lastIdx; i++) {
+		// [..., condition, ') and (']
+		chunks[i * 2 + 1] = conditions[i];
+		chunks[i * 2 + 2] = separatorWithParenChunk;
+	}
+	// [..., condition, '))']
+	chunks[lastIdx * 2 + 1] = conditions[lastIdx];
+	chunks[lastIdx * 2 + 2] = commonStringChunks['))'];
+
+	return new SQL(chunks);
+};
 /**
  * Combine a list of conditions with the `and` operator. Conditions
  * that are equal `undefined` are automatically ignored.
@@ -117,11 +139,7 @@ export function and(
 		return new SQL(conditions);
 	}
 
-	return new SQL([
-		new StringChunk('('),
-		sql.join(conditions.map((c) => sql`(${c})`), new StringChunk(' and ')),
-		new StringChunk(')'),
-	]);
+	return joinConditions(conditions, commonStringChunks[') and (']);
 }
 
 /**
@@ -156,11 +174,7 @@ export function or(
 		return new SQL(conditions);
 	}
 
-	return new SQL([
-		new StringChunk('('),
-		sql.join(conditions.map((c) => sql`(${c})`), new StringChunk(' or ')),
-		new StringChunk(')'),
-	]);
+	return joinConditions(conditions, commonStringChunks[') or (']);
 }
 
 /**
@@ -174,7 +188,8 @@ export function or(
  *   .where(not(inArray(cars.make, ['GM', 'Ford'])))
  * ```
  */
-export function not(condition: SQLWrapper): SQL {
+export function not(condition: SQLWrapper | undefined): SQL | undefined {
+	if (!condition) return undefined;
 	return is(condition, SQL) ? sql`not (${condition})` : sql`not ${condition}`;
 }
 
@@ -192,9 +207,8 @@ export function not(condition: SQLWrapper): SQL {
  *
  * @see gte for greater-than-or-equal
  */
-export const gt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} > ${bindIfParam(right, left)}`;
-};
+export const gt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
+	checkColumnWithValue(left, commonStringChunks[' > '], right);
 
 /**
  * Test that the first expression passed is greater than
@@ -212,9 +226,8 @@ export const gt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *
  * @see gt for a strictly greater-than condition
  */
-export const gte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} >= ${bindIfParam(right, left)}`;
-};
+export const gte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
+	checkColumnWithValue(left, commonStringChunks[' >= '], right);
 
 /**
  * Test that the first expression passed is less than
@@ -230,9 +243,8 @@ export const gte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *
  * @see lte for less-than-or-equal
  */
-export const lt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} < ${bindIfParam(right, left)}`;
-};
+export const lt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
+	checkColumnWithValue(left, commonStringChunks[' < '], right);
 
 /**
  * Test that the first expression passed is less than
@@ -248,9 +260,8 @@ export const lt: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  *
  * @see lt for a strictly less-than condition
  */
-export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
-	return sql`${left} <= ${bindIfParam(right, left)}`;
-};
+export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL =>
+	checkColumnWithValue(left, commonStringChunks[' <= '], right);
 
 /**
  * Test whether the first parameter, a column or expression,
@@ -284,12 +295,19 @@ export function inArray(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			return sql`false`;
+			return new SQL([
+				commonStringChunks['1 = 0'],
+			]);
 		}
-		return sql`${column} in ${values.map((v) => bindIfParam(v, column))}`;
+
+		return new SQL([
+			column,
+			commonStringChunks[' in '],
+			values.map((v) => bindIfParam(v, column)),
+		]);
 	}
 
-	return sql`${column} in ${bindIfParam(values, column)}`;
+	return checkColumnWithValue(column, commonStringChunks[' in '], values);
 }
 
 /**
@@ -325,12 +343,19 @@ export function notInArray(
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
-			return sql`true`;
+			return new SQL([
+				commonStringChunks['1 = 1'],
+			]);
 		}
-		return sql`${column} not in ${values.map((v) => bindIfParam(v, column))}`;
+
+		return new SQL([
+			column,
+			commonStringChunks[' not in '],
+			values.map((v) => bindIfParam(v, column)),
+		]);
 	}
 
-	return sql`${column} not in ${bindIfParam(values, column)}`;
+	return checkColumnWithValue(column, commonStringChunks[' not in '], values);
 }
 
 /**

@@ -201,7 +201,7 @@ test.concurrent('build query', async () => {
 		.toSQL();
 
 	expect(query).toEqual({
-		sql: `select \`id\`, \`name\` from \`table\` group by \`table\`.\`id\`, \`table\`.\`name\``,
+		sql: `select cast(\`id\` as char), \`name\` from \`table\` group by \`table\`.\`id\`, \`table\`.\`name\``,
 		params: [],
 	});
 });

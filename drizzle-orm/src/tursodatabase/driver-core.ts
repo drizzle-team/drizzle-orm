@@ -6,6 +6,7 @@ import { SQLiteAsyncDatabase } from '~/sqlite-core/async/db.ts';
 import { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleSQLiteConfig } from '~/sqlite-core/utils.ts';
 import { jitCompatCheck } from '~/utils.ts';
+import { tursoDatabaseCodecs } from './codecs.ts';
 import { TursoDatabaseSession } from './session.ts';
 
 export type TursoDatabaseRunResult = Awaited<ReturnType<StatementPromise['run']>>;
@@ -27,6 +28,7 @@ export function construct<TRelations extends AnyRelations = EmptyRelations>(
 	$client: DatabasePromise;
 } {
 	const dialect = new SQLiteDialect({
+		codecs: config.codecs ?? tursoDatabaseCodecs,
 		useJitMappers: jitCompatCheck(config.jit),
 	});
 	let logger;
@@ -36,7 +38,11 @@ export function construct<TRelations extends AnyRelations = EmptyRelations>(
 		logger = config.logger;
 	}
 	const relations = config.relations ?? {} as TRelations;
-	const session = new TursoDatabaseSession(client, dialect, relations, { logger, cache: config.cache });
+	const session = new TursoDatabaseSession(client, dialect, relations, {
+		logger,
+		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
+	});
 	const db = new TursoDatabaseDatabase('async', dialect, session, relations);
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;

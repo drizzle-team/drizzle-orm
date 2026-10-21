@@ -151,7 +151,7 @@ describe('checkHandler (sqlite)', () => {
 
 		expect(result.statements).toStrictEqual([]);
 		expect(result.nonCommutativityMessage).toContain(
-			'Non-commutative migrations detected',
+			'Conflicting migrations detected',
 		);
 	});
 
@@ -358,7 +358,7 @@ describe('rebase scenario (sqlite)', () => {
 		expect(new Set(result.leafIds)).toStrictEqual(new Set(['a1', 'pri1']));
 	});
 
-	test('rebase produces a non-commutative report when branches conflict on the same column', async () => {
+	test('rebase produces a conflict report when branches conflict on the same column', async () => {
 		const out = mkOut('dk-rebase-sqlite-');
 
 		snapshotPath(out, '0000_parent', makeSnapshot('p1', [ORIGIN], schemas.usersEmailWithText));
@@ -369,7 +369,7 @@ describe('rebase scenario (sqlite)', () => {
 
 		expect(result.statements).toStrictEqual([]);
 		expect(result.nonCommutativityMessage).toContain(
-			'Non-commutative migrations detected',
+			'Conflicting migrations detected',
 		);
 		expect(result.nonCommutativityMessage).toContain('users');
 	});

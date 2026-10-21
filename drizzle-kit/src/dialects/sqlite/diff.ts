@@ -2,17 +2,23 @@ import { prepareMigrationRenames } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
-import { groupDiffs, preserveEntityNames } from '../utils';
+import { groupDiffs, preserveEntityNames, sortCreateViews } from '../utils';
+import type { SchemaMetadata } from '../utils';
 import { fromJson } from './convertor';
-import type { Column, IndexColumn, SQLiteDDL, SqliteEntities } from './ddl';
+import type { Column, SQLiteDDL, SqliteEntities } from './ddl';
 import { tableFromDDL } from './ddl';
 import { defaultsCommutative } from './grammar';
 import type { JsonCreateViewStatement, JsonDropViewStatement, JsonStatement } from './statements';
 import { prepareAddColumns, prepareRecreateColumn, prepareStatement } from './statements';
 
-export const ddlDiffDry = async (left: SQLiteDDL, right: SQLiteDDL, mode: 'push' | 'default') => {
+export const ddlDiffDry = async (
+	left: SQLiteDDL,
+	right: SQLiteDDL,
+	mode: 'push' | 'default',
+	$metadata?: SchemaMetadata,
+) => {
 	const empty = new Set<string>();
-	return ddlDiff(left, right, mockResolver(empty), mockResolver(empty), mode);
+	return ddlDiff(left, right, mockResolver(empty), mockResolver(empty), mode, $metadata);
 };
 
 export const ddlDiff = async (
@@ -21,6 +27,7 @@ export const ddlDiff = async (
 	tablesResolver: Resolver<SqliteEntities['tables']>,
 	columnsResolver: Resolver<Column>,
 	mode: 'push' | 'default',
+	$metadata?: SchemaMetadata,
 ): Promise<{
 	statements: JsonStatement[];
 	sqlStatements: string[];
@@ -40,46 +47,8 @@ export const ddlDiff = async (
 
 	for (const renamed of renamedTables) {
 		ddl1.tables.update({
-			set: {
-				name: renamed.to.name,
-			},
-			where: {
-				name: renamed.from.name,
-			},
-		});
-
-		ddl1.fks.update({
-			set: {
-				tableTo: renamed.to.name,
-			},
-			where: {
-				tableTo: renamed.from.name,
-			},
-		});
-		ddl2.fks.update({
-			set: {
-				tableTo: renamed.to.name,
-			},
-			where: {
-				tableTo: renamed.from.name,
-			},
-		});
-		ddl1.fks.update({
-			set: {
-				table: renamed.to.name,
-			},
-			where: {
-				table: renamed.from.name,
-			},
-		});
-
-		ddl1.entities.update({
-			set: {
-				table: renamed.to.name,
-			},
-			where: {
-				table: renamed.from.name,
-			},
+			set: { name: renamed.to.name },
+			where: { name: renamed.from.name },
 		});
 	}
 
@@ -106,88 +75,9 @@ export const ddlDiff = async (
 
 	for (const rename of columnRenames) {
 		ddl1.columns.update({
-			set: {
-				name: rename.to.name,
-			},
-			where: {
-				table: rename.from.table,
-				name: rename.from.name,
-			},
+			set: { name: rename.to.name },
+			where: { table: rename.from.table, name: rename.from.name },
 		});
-
-		// DDL2 updates are needed for Drizzle Studio
-		const update1 = {
-			set: {
-				columns: (it: IndexColumn) => {
-					if (!it.isExpression && it.value === rename.from.name) {
-						it.value = rename.to.name;
-					}
-					return it;
-				},
-			},
-			where: {
-				table: rename.from.table,
-			},
-		} as const;
-
-		ddl1.indexes.update(update1);
-		ddl2.indexes.update(update1);
-
-		const update2 = {
-			set: {
-				columns: (it: string) => it === rename.from.name ? rename.to.name : it,
-			},
-			where: {
-				table: rename.from.table,
-			},
-		} as const;
-		ddl1.fks.update(update2);
-		ddl2.fks.update(update2);
-
-		const update3 = {
-			set: {
-				columnsTo: (it: string) => it === rename.from.name ? rename.to.name : it,
-			},
-			where: {
-				tableTo: rename.from.table,
-			},
-		} as const;
-		ddl1.fks.update(update3);
-		ddl2.fks.update(update3);
-
-		const update4 = {
-			set: {
-				columns: (it: string) => it === rename.from.name ? rename.to.name : it,
-			},
-			where: {
-				table: rename.from.table,
-			},
-		};
-		ddl1.pks.update(update4);
-		ddl2.pks.update(update4);
-
-		const update5 = {
-			set: {
-				columns: (it: string) => it === rename.from.name ? rename.to.name : it,
-			},
-			where: {
-				table: rename.from.table,
-			},
-		};
-		ddl1.uniques.update(update5);
-		ddl2.uniques.update(update5);
-
-		const update6 = {
-			set: {
-				value: rename.to.name,
-			},
-			where: {
-				table: rename.from.table,
-				value: rename.from.name,
-			},
-		} as const;
-		ddl1.checks.update(update6);
-		ddl2.checks.update(update6);
 	}
 
 	const createdFilteredColumns = columnsToCreate.filter((it) => !it.generated || it.generated.type === 'virtual');
@@ -329,7 +219,7 @@ export const ddlDiff = async (
 			prepareRecreateColumn(
 				it,
 				ddl2.columns.one({ table: it.table, name: it.name })!,
-				ddl2.fks.one({ table: it.table }),
+				ddl2.fks.one({ table: it.table, columns: [it.name] }),
 			)
 		);
 
@@ -421,7 +311,8 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropColumnsStatemets);
 
 	jsonStatements.push(...dropViews);
-	jsonStatements.push(...createViews);
+	// dependent views must be created after their dependencies, otherwise the migration breaks
+	jsonStatements.push(...sortCreateViews(createViews, $metadata?.viewDependencies));
 
 	const { sqlStatements, groupedStatements } = fromJson(jsonStatements);
 

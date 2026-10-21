@@ -11,7 +11,9 @@ import {
 	SQLiteView,
 } from 'drizzle-orm/sqlite-core';
 import { loadModule } from '../../utils/utils-node';
-import { sqlToStr } from '../drizzle';
+import { findViewDependencies, sqlToStr } from '../drizzle';
+import { entityKey } from '../utils';
+import type { EntityKey, SchemaMetadata } from '../utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -26,11 +28,22 @@ import type {
 } from './ddl';
 import { Int, nameForForeignKey, nameForPk, nameForUnique, transformOnUpdateDelete, typeFor } from './grammar';
 
+// key of a sqlite view (no schemas in sqlite ddl), see `findViewDependencies` in dialects/drizzle.ts
+// "is this one of my views, and if so, what's its key?"
+const viewKey = (chunk: unknown): EntityKey | null => {
+	if (!is(chunk, SQLiteView)) return null;
+
+	// aliased views keep the real view name in originalName
+	// an alias exists only in the ORM query
+	return entityKey(null, getViewConfig(chunk).originalName);
+};
+
 export const fromDrizzleSchema = (
 	dTables: AnySQLiteTable[],
 	dViews: SQLiteView[],
-): InterimSchema => {
+): { schema: InterimSchema; metadata: SchemaMetadata } => {
 	const dialect = new SQLiteDialect();
+	const metadata: SchemaMetadata = { viewDependencies: new Map() };
 	const tableConfigs = dTables.map((it) => ({ table: it, config: getTableConfig(it) }));
 	const tables: Table[] = tableConfigs.map((it) => {
 		return {
@@ -70,7 +83,7 @@ export const fromDrizzleSchema = (
 			const hasUniqueIndex = Boolean(it.config.indexes.find((item) => {
 				const i = item.config;
 				const column = i.columns.length === 1 ? i.columns[0] : null;
-				return column && !is(column, SQL) && column.name === name;
+				return column && !is(column, SQL) && column.name === name && i.unique;
 			}));
 
 			return {
@@ -194,20 +207,11 @@ export const fromDrizzleSchema = (
 		});
 	}).flat();
 
-	const views = dViews.sort((a, b) => {
-		// see in "./dialects/postgres/drizzle.ts" for more
-		const aConfig = getViewConfig(a);
-		const bConfig = getViewConfig(b);
-
-		// If a's fields include b, a depends on b → b comes first
-		if (aConfig.query?.queryChunks.includes(b)) return 1;
-
-		// If b's fields include a, b depends on a → a comes first
-		if (bConfig.query?.queryChunks.includes(a)) return -1;
-
-		return 0;
-	}).map((it) => {
+	// views are ordered by dependencies in diff.ts (`sortCreateViews`), using `metadata.viewDependencies`
+	const views = dViews.map((it) => {
 		const { name: viewName, isExisting, query } = getViewConfig(it);
+
+		if (query) metadata.viewDependencies.set(entityKey(null, viewName), findViewDependencies(query, viewKey));
 
 		return {
 			entityType: 'views',
@@ -218,7 +222,7 @@ export const fromDrizzleSchema = (
 		} satisfies View;
 	});
 
-	return { tables, columns, indexes, uniques, fks, pks, checks, views };
+	return { schema: { tables, columns, indexes, uniques, fks, pks, checks, views }, metadata };
 };
 
 export const fromExports = (exports: Record<string, unknown>) => {

@@ -1,5 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
+import { relationalQueryCacheConfig, relationalQueryCacheMetadata } from '~/relations.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SQLiteRelationalQuery, type SQLiteRelationalQueryHKTBase } from '~/sqlite-core/query-builders/query.ts';
 import { applyMixins, type Assume } from '~/utils.ts';
@@ -38,9 +39,9 @@ export class SQLiteAsyncRelationalQuery<TType extends 'sync' | 'async', TResult>
 	_prepare(
 		prepare = false,
 	): SQLiteAsyncPreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
-		const { query, builtQuery } = this._toSQL();
+		const { query, builtQuery, usedTables } = this._toSQL();
 
-		const mapper = this.dialect.mapperGenerators.relationalRows({
+		const mapper = this.mapper ??= this.dialect.mapperGenerators.relationalRows({
 			isFirst: this.mode === 'first',
 			parseJson: true,
 			parseJsonIfString: false,
@@ -56,6 +57,8 @@ export class SQLiteAsyncRelationalQuery<TType extends 'sync' | 'async', TResult>
 			// Do not use 'get' - mapper returns an item instead of an array, would break on session's destructuring; query itself is already limited to 1 item, so no performance overhead occurs.
 			'all',
 			mapper,
+			relationalQueryCacheMetadata(this.config, query.sql, usedTables, this),
+			relationalQueryCacheConfig(this.config),
 		) as SQLiteAsyncPreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }>;
 	}
 

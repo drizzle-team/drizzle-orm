@@ -1,5 +1,5 @@
 import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
@@ -43,12 +43,10 @@ export class MySqlAsyncPreparedQuery<T extends MySqlPreparedQueryConfig> extends
 		// cache instance
 		private cache: Cache | undefined,
 		// per query related metadata
-		private queryMetadata: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		} | undefined,
+		private queryMetadata: QueryMetadata | undefined,
 		// config that was passed through $withCache
 		private cacheConfig?: WithCacheConfig | undefined,
+		protected paramsInErrors?: boolean | undefined,
 	) {
 		super(query);
 		this.mapper = mapper;
@@ -76,19 +74,18 @@ export class MySqlAsyncPreparedQuery<T extends MySqlPreparedQueryConfig> extends
 
 		if (cacheStrat.type === 'skip') {
 			return query().catch((e) => {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+				throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
 			});
 		}
 
 		const cache = this.cache!;
 
-		// For mutate queries, we should query the database, wait for a response, and then perform invalidation
 		if (cacheStrat.type === 'invalidate') {
-			return Promise.all([
-				query(),
-				cache.onMutate({ tables: cacheStrat.tables }),
-			]).then((res) => res[0]).catch((e) => {
-				throw new DrizzleQueryError(queryString, params, e as Error);
+			return query().then(async (res) => {
+				await cache.onMutate({ tables: cacheStrat.tables });
+				return res;
+			}).catch((e) => {
+				throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
 			});
 		}
 
@@ -103,7 +100,7 @@ export class MySqlAsyncPreparedQuery<T extends MySqlPreparedQueryConfig> extends
 
 			if (fromCache === undefined) {
 				const result = await query().catch((e) => {
-					throw new DrizzleQueryError(queryString, params, e as Error);
+					throw new DrizzleQueryError(queryString, this.paramsInErrors ? params : undefined, e as Error);
 				});
 				// put actual key
 				await cache.put(
@@ -133,7 +130,7 @@ export class MySqlAsyncPreparedQuery<T extends MySqlPreparedQueryConfig> extends
 		logger.logQuery(sql, params);
 		const res = fastPath
 			? executor(params).catch((e) => {
-				throw new DrizzleQueryError(sql, params, e as Error);
+				throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
 			})
 			: this.queryWithCache(sql, params, () => executor(params));
 		if (!mapper) return res;
@@ -165,14 +162,14 @@ export class MySqlAsyncPreparedQuery<T extends MySqlPreparedQueryConfig> extends
 
 				return;
 			} catch (e) {
-				throw new DrizzleQueryError(sql, params, e as Error);
+				throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
 			}
 		}
 
 		// Fallback for compatibility between drivers
 		const rows = await (fastPath
 			? executor(params).catch((e) => {
-				throw new DrizzleQueryError(sql, params, e as Error);
+				throw new DrizzleQueryError(sql, this.paramsInErrors ? params : undefined, e as Error);
 			})
 			: this.queryWithCache(sql, params, () => executor(params)));
 
@@ -202,10 +199,7 @@ export abstract class MySqlAsyncSession<
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (rows: any) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): MySqlAsyncPreparedQuery<T>;
 

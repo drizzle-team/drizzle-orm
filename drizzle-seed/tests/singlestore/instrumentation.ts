@@ -27,7 +27,7 @@ const prepareTest = () => {
 				query: (sql: string, params: any[]) => Promise<any[]>;
 				batch: (statements: string[]) => Promise<void>;
 			};
-			db: SingleStoreDatabase<any, any, any, any>;
+			db: SingleStoreDatabase<any, any, any>;
 			push: (schema: any) => Promise<void>;
 		}
 	>({

@@ -284,3 +284,15 @@ export const newYorkersWithSubquery = mssqlView('new_yorkers_with_sq')
 		id4: int('id').$defaultFn(() => '1'),
 	});
 }
+
+{
+	// https://github.com/drizzle-team/drizzle-orm/issues/4294
+	const test = mssqlTable('test', {
+		id: text('id').primaryKey().unique(),
+		parentRef: text('parentRef').$type<string | null>(),
+	});
+
+	type InsertTest = typeof test.$inferInsert;
+
+	Expect<Equal<InsertTest, { id: string; parentRef?: string | null }>>;
+}

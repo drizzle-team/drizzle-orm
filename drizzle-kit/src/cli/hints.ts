@@ -1,11 +1,11 @@
 import { readFile } from 'fs/promises';
 import { z, type ZodIssue } from 'zod';
-import { InvalidHintsCliError, type JsonValue } from './errors';
+import { runWithCliContext } from './context';
+import { InvalidHintsCliError, type JsonValue, MissingHintsError } from './errors';
 
 const singleTupleSchema = z.tuple([z.string()]);
 const pairTupleSchema = z.tuple([z.string(), z.string()]);
 const tripleTupleSchema = z.tuple([z.string(), z.string(), z.string()]);
-const privilegeTupleSchema = z.tuple([z.string(), z.string(), z.string(), z.string(), z.string()]);
 
 const renameCreateEntitySchemas = [
 	{ kind: 'table', schema: pairTupleSchema },
@@ -17,7 +17,6 @@ const renameCreateEntitySchemas = [
 	{ kind: 'view', schema: pairTupleSchema },
 	{ kind: 'policy', schema: tripleTupleSchema },
 	{ kind: 'role', schema: singleTupleSchema },
-	{ kind: 'privilege', schema: privilegeTupleSchema },
 	{ kind: 'check', schema: tripleTupleSchema },
 	{ kind: 'index', schema: tripleTupleSchema },
 	{ kind: 'unique', schema: tripleTupleSchema },
@@ -299,7 +298,22 @@ export class HintsHandler {
 			unresolved: this.missingHints,
 		};
 	}
+
+	throwIfMissingHints(): void {
+		if (this.hasMissingHints()) {
+			throw new MissingHintsError(this.missingHints);
+		}
+	}
 }
+
+// The programmatic API has no terminal, so the resolvers must not prompt and must not print.
+export const runWithApiHints = async <T>(
+	raw: Hint[],
+	callback: (hints: HintsHandler) => Promise<T>,
+): Promise<T> => {
+	const hints = await HintsHandler.fromCli({ hints: raw });
+	return runWithCliContext({ output: 'json', interactive: false }, () => callback(hints));
+};
 
 function formatIssuePath(path: readonly (string | number)[]): string {
 	if (path.length === 0) {

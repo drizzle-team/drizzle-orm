@@ -1847,3 +1847,25 @@ $$;`);
 	expect(st2).toStrictEqual([]);
 	expect(pst2).toStrictEqual([]);
 });
+
+test('a policy rename on one table keeps the change of a policy with the same name on another table', async () => {
+	const tables = (first: ReturnType<typeof pgPolicy>, second: ReturnType<typeof pgPolicy>) => ({
+		users: pgTable('users', { id: integer() }, () => [first]),
+		posts: pgTable('posts', { id: integer() }, () => [second]),
+	});
+	const schema1 = tables(pgPolicy('readers', { for: 'select' }), pgPolicy('readers', { for: 'select' }));
+	const schema2 = tables(pgPolicy('viewers', { for: 'select' }), pgPolicy('readers', { for: 'delete' }));
+	const renames = ['public.users.readers->public.users.viewers'];
+
+	const { sqlStatements: st } = await diff(schema1, schema2, renames);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
+
+	const st0 = [
+		'ALTER POLICY "readers" ON "users" RENAME TO "viewers";',
+		'DROP POLICY "readers" ON "posts";',
+		'CREATE POLICY "readers" ON "posts" AS PERMISSIVE FOR DELETE TO public;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});

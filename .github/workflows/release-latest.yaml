@@ -96,6 +96,20 @@ jobs:
           --health-retries 5
         ports:
           - 55433:5432
+      postgres-http-gateway:
+        image: ghcr.io/drizzle-team/postgres-http-gateway:latest
+        env:
+          PGHOST: postgres
+          PGPORT: 5432
+          PGSSLMODE: disable
+          PORT: 8080
+        options: >-
+          --health-cmd "wget -qO- http://127.0.0.1:8080/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 8080:8080
       mysql:
         image: mysql:8
         env:
@@ -166,9 +180,16 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Required for packaging tests
+      - name: Pack drizzle-orm
+        if: matrix.shard == 'drizzle-orm'
+        working-directory: drizzle-orm
+        run: npm run pack
+
       - name: Run tests
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
+          PG_HTTP_GATEWAY_URL: http://localhost:8080/query
           PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
           PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
           MYSQL_CONNECTION_STRING: mysql://root:root@localhost:33306/drizzle
@@ -218,12 +239,12 @@ jobs:
             ;;
 
             neon-http)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts
+              pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts tests/pg/postgres-neon-http.test.ts tests/pg/postgres-neon-http-batch.test.ts
             ;;
 
             neon-serverless)
               docker compose -f docker-neon.yml up -d
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/neon-serverless.test.ts
+              pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/neon-serverless.test.ts tests/pg/postgres-neon-ws.test.ts
               docker compose -f docker-neon.yml down
             ;;
 
@@ -273,6 +294,9 @@ jobs:
                 --exclude tests/pg/neon-http.test.ts \
                 --exclude tests/pg/neon-http-batch.test.ts \
                 --exclude tests/pg/neon-serverless.test.ts \
+                --exclude tests/pg/postgres-neon-ws.test.ts \
+                --exclude tests/pg/postgres-neon-http.test.ts \
+                --exclude tests/pg/postgres-neon-http-batch.test.ts \
                 --exclude tests/cockroach \
                 --exclude tests/mssql \
                 --exclude tests/validators
@@ -451,6 +475,82 @@ jobs:
         env:
           ATTW_FORMAT: concise
 
+  publint-orm:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: pnpm/action-setup@v3
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          version: latest
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v4
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - uses: actions/cache@v4
+        name: Cache node_modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Check preconditions
+        id: checks
+        shell: bash
+        working-directory: drizzle-orm
+        run: |
+          old_version="$(jq -r .version package.json)"
+          version="$old_version-$(git rev-parse --short HEAD)"
+          npm version $version
+          tag="${{ github.ref_name }}"
+          is_version_published="$(npm view drizzle-orm versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
+
+          if [[ "$is_version_published" == "true" ]]; then
+            echo "\`drizzle-orm$version\` already published, adding tag \`$tag\`" >> $GITHUB_STEP_SUMMARY
+            npm dist-tag add drizzle-orm@$version $tag
+          else
+            {
+              echo "version=$version"
+              echo "tag=$tag"
+              echo "has_new_release=true"
+            } >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build
+        if: steps.checks.outputs.has_new_release == 'true'
+        run: pnpm build
+
+      - name: Pack
+        if: steps.checks.outputs.has_new_release == 'true'
+        working-directory: drizzle-orm
+        run: npm run pack
+
+      - name: Run publint
+        if: steps.checks.outputs.has_new_release == 'true'
+        working-directory: drizzle-orm
+        run: npx -y publint@0.3.21 package.tgz
+
   release:
     permissions:
       contents: write # for creating GitHub releases
@@ -459,6 +559,7 @@ jobs:
       - test
       - attw
       - attw-orm
+      - publint-orm
     strategy:
       fail-fast: false
       matrix:

@@ -44,7 +44,7 @@ const users = sqliteTable('users', {
 })
 
 const sqlite = new Database('sqlite.db');
-const db = drizzle(sqlite);
+const db = drizzle({ client: sqlite });
 
 const allUsers = db.select().from(users).all();
 ```
@@ -61,7 +61,7 @@ import { drizzle, BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
 
 const sqlite = new Database('sqlite.db');
-const db/*: BetterSQLite3Database*/ = drizzle(sqlite);
+const db/*: BetterSQLite3Database*/ = drizzle({ client: sqlite });
 const result = db.select().from(users).all()
 
 // bun js embedded sqlite connector
@@ -69,7 +69,7 @@ import { drizzle, BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import { Database } from 'bun:sqlite';
 
 const sqlite = new Database('nw.sqlite');
-const db/*: BunSQLiteDatabase*/ = drizzle(sqlite);
+const db/*: BunSQLiteDatabase*/ = drizzle({ client: sqlite });
 const result = db.select().from(users).all()
 
 // Cloudflare D1 connector
@@ -87,7 +87,7 @@ const sqlite = new Database('libsql://...'); // Remote server
 // or
 const sqlite = new Database('sqlite.db'); // Local file
 
-const db/*: LibSQLDatabase*/ = drizzle(sqlite);
+const db/*: LibSQLDatabase*/ = drizzle({ client: sqlite });
 const result = await db.select().from(users).all(); // pay attention this one is async
 
 // Custom Proxy HTTP driver
@@ -176,7 +176,7 @@ import { drizzle, BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
 
 const sqlite = new Database('sqlite.db');
-const db: BetterSQLite3Database = drizzle(sqlite);
+const db: BetterSQLite3Database = drizzle({ client: sqlite });
 
 const result: User[] = await db.select().from(users).all();
 
@@ -299,7 +299,7 @@ const users = sqliteTable('users', {
 });
 
 const sqlite = new Database('sqlite.db');
-const db = drizzle(sqlite);
+const db = drizzle({ client: sqlite });
 
 db.select().from(users).all();
 db.select().from(users).where(eq(users.id, 42)).get();
@@ -442,7 +442,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
 
 const sqlite = new Database('sqlite.db');
-const db = drizzle(sqlite);
+const db = drizzle({ client: sqlite });
 
 const users = sqliteTable('users', {
   id: integer('id').primaryKey(),
@@ -603,7 +603,7 @@ const users = sqliteTable('users', {
   cityId: integer('city_id').references(() => cities.id)
 });
 
-const db = drizzle(sqlite);
+const db = drizzle({ client: sqlite });
 
 const result = db.select().from(cities).leftJoin(users, eq(cities.id, users.cityId)).all();
 ```
@@ -851,7 +851,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import Database from 'better-sqlite3';
 
 const sqlite = new Database('sqlite.db');
-const db = drizzle(sqlite);
+const db = drizzle({ client: sqlite });
 
 // this will automatically run needed migrations on the database
 migrate(db, { migrationsFolder: './drizzle' });
@@ -888,7 +888,7 @@ To enable default query logging, just pass `{ logger: true }` to the `drizzle` f
 ```typescript
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
-const db = drizzle(sqlite, { logger: true });
+const db = drizzle({ client: sqlite, logger: true });
 ```
 
 You can change the logs destination by creating a `DefaultLogger` instance and providing a custom `writer` to it:
@@ -905,7 +905,7 @@ class MyLogWriter implements LogWriter {
 
 const logger = new DefaultLogger({ writer: new MyLogWriter() });
 
-const db = drizzle(sqlite, { logger });
+const db = drizzle({ client: sqlite, logger });
 ```
 
 You can also create a custom logger:
@@ -920,7 +920,7 @@ class MyLogger implements Logger {
   }
 }
 
-const db = drizzle(sqlite, { logger: new MyLogger() });
+const db = drizzle({ client: sqlite, logger: new MyLogger() });
 ```
 
 ## Table introspect API

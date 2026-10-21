@@ -2,6 +2,7 @@ export * from './alias.ts';
 export * from './async/index.ts';
 export * from './casing.ts';
 export * from './checks.ts';
+export * from './codecs.ts';
 export * from './columns/index.ts';
 export * from './dialect.ts';
 export * from './foreign-keys.ts';

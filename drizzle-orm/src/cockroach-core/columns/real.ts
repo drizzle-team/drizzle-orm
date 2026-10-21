@@ -1,9 +1,13 @@
 import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
+import {
+	CockroachColumn,
+	type CockroachColumnBaseConfig,
+	CockroachColumnBuilder,
+	type CockroachColumnBuilderRuntimeConfig,
+} from './common.ts';
 
-export class CockroachRealBuilder extends CockroachColumnWithArrayBuilder<
+export class CockroachRealBuilder extends CockroachColumnBuilder<
 	{
 		dataType: 'number float';
 		data: number;
@@ -29,23 +33,24 @@ export class CockroachRealBuilder extends CockroachColumnWithArrayBuilder<
 	}
 }
 
-export class CockroachReal<T extends ColumnBaseConfig<'number float'>> extends CockroachColumn<T> {
+export class CockroachReal<T extends CockroachColumnBaseConfig<'number float'>>
+	extends CockroachColumn<'number float', T>
+{
 	static override readonly [entityKind]: string = 'CockroachReal';
 
-	constructor(table: CockroachTable<any>, config: CockroachRealBuilder['config']) {
+	/** @internal */
+	override readonly codec = 'real';
+
+	constructor(
+		table: CockroachTable<any>,
+		config: CockroachColumnBuilderRuntimeConfig<T['data']> & { length: number | undefined },
+	) {
 		super(table, config);
 	}
 
 	getSQLType(): string {
 		return 'real';
 	}
-
-	override mapFromDriverValue = (value: string | number): number => {
-		if (typeof value === 'string') {
-			return Number.parseFloat(value);
-		}
-		return value;
-	};
 }
 
 export function real(name?: string) {

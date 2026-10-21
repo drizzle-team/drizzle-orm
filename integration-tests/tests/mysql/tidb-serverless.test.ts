@@ -1,9 +1,11 @@
+import type { FullResult } from '@tidbcloud/serverless';
 import { connect } from '@tidbcloud/serverless';
 import { sql } from 'drizzle-orm';
 import { getTableConfig } from 'drizzle-orm/mysql-core';
 import { drizzle } from 'drizzle-orm/tidb-serverless';
+import type { TiDBServerlessDatabase, TiDBServerlessQueryResult } from 'drizzle-orm/tidb-serverless';
 import { migrate } from 'drizzle-orm/tidb-serverless/migrator';
-import { describe, expect } from 'vitest';
+import { describe, expect, expectTypeOf } from 'vitest';
 import { tidbTest as test } from './instrumentation';
 import { tests } from './mysql-common';
 import { runTests as cacheTests } from './mysql-common-cache';
@@ -51,6 +53,11 @@ const skip = new Set([
 	'tc config for datetime',
 	'transaction',
 	'transaction with options (set isolationLevel)',
+	'transaction with options (isolationLevel read committed sees concurrent commits)',
+	'transaction with options (isolationLevel repeatable read hides concurrent commits)',
+	'transaction with options (accessMode read only)',
+	'transaction with options (withConsistentSnapshot)',
+	'transaction with options (withConsistentSnapshot combined with accessMode)',
 	'Insert all defaults in multiple rows',
 	'Insert all defaults in 1 row',
 	'$default with empty array',
@@ -76,6 +83,35 @@ const skip = new Set([
 
 tests(test, skip);
 cacheTests('mysql', test);
+
+test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
+	const db = fixtureDb as unknown as TiDBServerlessDatabase;
+	const table = sql.identifier('raw_execute_types');
+
+	await db.execute<never>(sql`drop table if exists ${table}`);
+
+	// DDL
+	const created = await db.execute<never>(sql`create table ${table} (\`id\` int primary key, \`name\` text not null)`);
+	expectTypeOf(created).toEqualTypeOf<TiDBServerlessQueryResult<never>>();
+	expect(created).toEqual(expect.objectContaining({ statement: expect.any(String) }));
+
+	// `insert` without returning
+	const inserted = await db.execute<never>(sql`insert into ${table} values (1, 'John')`);
+	expectTypeOf(inserted).toEqualTypeOf<TiDBServerlessQueryResult<never>>();
+	expect(inserted).toEqual(expect.objectContaining({ rowsAffected: 1 }));
+
+	// Simple select
+	const selected = await db.execute<{ id: number; name: string }>(sql`select \`id\`, \`name\` from ${table}`);
+	expectTypeOf(selected).toEqualTypeOf<TiDBServerlessQueryResult<{ id: number; name: string }>>();
+	expect(selected).toEqual(expect.objectContaining({ rows: [{ id: 1, name: 'John' }] }));
+
+	// Any response
+	const any = await db.execute(sql`select \`id\`, \`name\` from ${table}`);
+	expectTypeOf(any).toEqualTypeOf<FullResult>();
+	expect(any).toEqual(expect.objectContaining({ rows: [{ id: 1, name: 'John' }] }));
+
+	await db.execute<never>(sql`drop table ${table}`);
+});
 
 describe('migrator', () => {
 	test('migrator', async ({ db }) => {

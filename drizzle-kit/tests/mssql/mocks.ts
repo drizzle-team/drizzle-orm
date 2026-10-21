@@ -1,7 +1,7 @@
 import { is } from 'drizzle-orm';
 import { int, MsSqlColumnBuilder, MsSqlSchema, MsSqlTable, mssqlTable, MsSqlView } from 'drizzle-orm/mssql-core';
 import { configMigrations } from 'src/cli/validations/common';
-import { interimToDDL, MssqlDDL, SchemaError } from 'src/dialects/mssql/ddl';
+import { fromEntities, interimToDDL, MssqlDDL, SchemaError } from 'src/dialects/mssql/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mssql/diff';
 import { defaultFromColumn, fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mssql/drizzle';
 import { mockResolver } from 'src/utils/mocks';
@@ -54,7 +54,7 @@ export const drizzleToDDL = (
 
 	const existing = extractMssqlExisting(schemas, views);
 	const filter = prepareEntityFilter('mssql', filterConfig, existing);
-	const { schema: res, errors } = fromDrizzleSchema(
+	const { schema: res, metadata, errors } = fromDrizzleSchema(
 		{ schemas, tables, views },
 		filter,
 	);
@@ -63,7 +63,7 @@ export const drizzleToDDL = (
 		throw new Error();
 	}
 
-	return { ...interimToDDL(res), existing };
+	return { ...interimToDDL(res), existing, metadata };
 };
 
 // 2 schemas -> 2 ddls -> diff
@@ -75,7 +75,7 @@ export const diff = async (
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as MssqlDDL, errors: [] }
 		: drizzleToDDL(left);
-	const { ddl: ddl2, errors: err2 } = drizzleToDDL(right);
+	const { ddl: ddl2, errors: err2, metadata } = drizzleToDDL(right);
 
 	if (err1.length > 0 || err2.length > 0) {
 		throw new MockError([...err1, ...err2]);
@@ -97,6 +97,7 @@ export const diff = async (
 		mockResolver(renames), // fks
 		mockResolver(renames), // defaults
 		'default',
+		metadata,
 	);
 
 	return { sqlStatements, statements, groupedStatements, next: ddl2 };
@@ -107,12 +108,13 @@ export const diffIntrospect = async (
 	initSchema: MssqlDBSchema,
 	testName: string,
 	schemas: string[] = [],
+	tables: string[] = [],
 	entities?: EntitiesFilter,
 ) => {
 	const filterConfig: EntitiesFilterConfig = {
 		schemas,
 		entities,
-		tables: [],
+		tables,
 		extensions: [],
 	};
 
@@ -137,11 +139,6 @@ export const diffIntrospect = async (
 	writeFileSync(filePath, file.file);
 	await tsc(file.file);
 
-	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
-	if (typeCheckResult.exitCode !== 0) {
-		throw new Error(typeCheckResult.stderr || typeCheckResult.stdout);
-	}
-
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
 		filePath,
@@ -150,18 +147,49 @@ export const diffIntrospect = async (
 	const { schema: schema2, errors: e2 } = fromDrizzleSchema(response, filter);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 
+	if (e1.length > 0 || e2.length > 0 || e3.length > 0) {
+		throw new MockError([...e1, ...e2, ...e3]);
+	}
+
+	// we need to create copies, since first ddlDiffDry makes preserve entity names logic
+	const ddl1Copy = fromEntities(ddl1.entities.list());
+	const ddl2Copy = fromEntities(ddl2.entities.list());
+
 	const {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
+		sqlStatements: pushAfterFileSqlStatements,
+		statements: pushAfterFileStatements,
+		groupedStatements: pushAfterFileGroupedStatements,
 	} = await ddlDiffDry(ddl1, ddl2, 'push');
 
-	rmSync(`tests/mssql/tmp/${testName}.ts`);
+	if (pushAfterFileSqlStatements.length > 0) {
+		console.log(chalk.bgRed('After push: ') + '\n' + explain('mssql', pushAfterFileGroupedStatements, []));
+	}
+
+	const {
+		sqlStatements: generateAfterFileSqlStatements,
+		statements: generateAfterFileStatements,
+		groupedStatements: generateAfterFileGroupedStatements,
+	} = await ddlDiffDry(ddl1Copy, ddl2Copy, 'default');
+
+	if (generateAfterFileSqlStatements.length > 0) {
+		console.log(
+			chalk.bgRed('After generate: ') + '\n' + explain('mssql', generateAfterFileGroupedStatements, []),
+		);
+	}
+
+	if (
+		[...generateAfterFileSqlStatements, ...pushAfterFileSqlStatements].length === 0
+	) {
+		rmSync(`tests/mssql/tmp/${testName}.ts`);
+	}
 
 	return {
 		introspectDDL: ddl1,
 		fromFileDDL: ddl2,
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
+		pushSqlStatements: pushAfterFileSqlStatements,
+		pushStatements: pushAfterFileStatements,
+		generateSqlStatements: generateAfterFileSqlStatements,
+		generateStatements: generateAfterFileStatements,
 	};
 };
 
@@ -191,8 +219,8 @@ export const push = async (config: {
 		tables: [],
 		extensions: [],
 	};
-	const { ddl: ddl2, errors: err2, existing } = 'entities' in to && '_' in to
-		? { ddl: to as MssqlDDL, errors: [], existing: [] }
+	const { ddl: ddl2, errors: err2, existing, metadata } = 'entities' in to && '_' in to
+		? { ddl: to as MssqlDDL, errors: [], existing: [], metadata: undefined }
 		: drizzleToDDL(to, filterConfig);
 
 	const filter = prepareEntityFilter('mssql', filterConfig, existing);
@@ -230,6 +258,7 @@ export const push = async (config: {
 		mockResolver(renames), // fks
 		mockResolver(renames), // defaults
 		'push',
+		metadata,
 	);
 
 	const hints = await runWithCliContext(

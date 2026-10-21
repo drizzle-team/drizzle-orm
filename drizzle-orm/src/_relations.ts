@@ -1,4 +1,4 @@
-import { type AnyTable, getTableUniqueName, type InferModelFromColumns, Table } from '~/table.ts';
+import { type AnyTable, getLegacyTableUniqueName, type InferModelFromColumns, Table } from '~/table.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
 import { PrimaryKeyBuilder } from './pg-core/primary-keys.ts';
@@ -32,6 +32,9 @@ import type { Assume, ColumnsWithTable, Equal, Simplify, ValueOrArray } from './
 
 export abstract class Relation<TTableName extends string = string> {
 	static readonly [entityKind]: string = 'Relation';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly $brand: 'Relation';
 	readonly referencedTableName: TTableName;
@@ -53,6 +56,9 @@ export class Relations<
 	TConfig extends Record<string, Relation> = Record<string, Relation>,
 > {
 	static readonly [entityKind]: string = 'Relations';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly $brand: 'Relations';
 
@@ -444,7 +450,7 @@ export function extractTablesRelationalConfig<
 	const tablesConfig: TablesRelationalConfig = {};
 	for (const [key, value] of Object.entries(schema)) {
 		if (is(value, Table)) {
-			const dbName = getTableUniqueName(value);
+			const dbName = getLegacyTableUniqueName(value);
 			const bufferedRelations = relationsBuffer[dbName];
 			tableNamesMap[dbName] = key;
 			tablesConfig[key] = {
@@ -469,14 +475,15 @@ export function extractTablesRelationalConfig<
 
 			const extraConfig = value[Table.Symbol.ExtraConfigBuilder]?.((value as Table)[Table.Symbol.ExtraConfigColumns]);
 			if (extraConfig) {
-				for (const configEntry of Object.values(extraConfig)) {
+				const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) as any[] : Object.values(extraConfig);
+				for (const configEntry of extraValues) {
 					if (is(configEntry, PrimaryKeyBuilder)) {
 						tablesConfig[key]!.primaryKey.push(...configEntry.columns);
 					}
 				}
 			}
 		} else if (is(value, Relations)) {
-			const dbName = getTableUniqueName(value.table);
+			const dbName = getLegacyTableUniqueName(value.table);
 			const tableName = tableNamesMap[dbName];
 			const relations: Record<string, Relation> = value.config(
 				configHelpers(value.table),
@@ -575,7 +582,7 @@ export function normalizeRelation(
 		};
 	}
 
-	const referencedTableTsName = tableNamesMap[getTableUniqueName(relation.referencedTable)];
+	const referencedTableTsName = tableNamesMap[getLegacyTableUniqueName(relation.referencedTable)];
 	if (!referencedTableTsName) {
 		throw new Error(
 			`Table "${relation.referencedTable[Table.Symbol.Name]}" not found in schema`,
@@ -588,7 +595,7 @@ export function normalizeRelation(
 	}
 
 	const sourceTable = relation.sourceTable;
-	const sourceTableTsName = tableNamesMap[getTableUniqueName(sourceTable)];
+	const sourceTableTsName = tableNamesMap[getLegacyTableUniqueName(sourceTable)];
 	if (!sourceTableTsName) {
 		throw new Error(
 			`Table "${sourceTable[Table.Symbol.Name]}" not found in schema`,

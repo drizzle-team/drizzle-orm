@@ -9,7 +9,6 @@ import type {
 	UpdateDeleteAction,
 } from 'drizzle-orm/cockroach-core';
 import {
-	CockroachArray,
 	CockroachDialect,
 	CockroachEnumColumn,
 	CockroachGeometry,
@@ -30,7 +29,10 @@ import {
 } from 'drizzle-orm/cockroach-core';
 import { assertUnreachable } from '../../utils';
 import { loadModule } from '../../utils/utils-node';
+import { findViewDependencies } from '../drizzle';
 import type { EntityFilter } from '../pull-utils';
+import { entityKey } from '../utils';
+import type { EntityKey, SchemaMetadata } from '../utils';
 import type {
 	CheckConstraint,
 	CockroachEntities,
@@ -97,9 +99,9 @@ export const policyFrom = (policy: CockroachPolicy, dialect: CockroachDialect) =
 };
 
 export const unwrapColumn = (column: AnyCockroachColumn) => {
-	const { baseColumn, dimensions } = is(column, CockroachArray)
+	const { baseColumn, dimensions } = isLegacyArray(column)
 		? unwrapArray(column)
-		: { baseColumn: column, dimensions: 0 };
+		: { baseColumn: column, dimensions: column.dimensions ?? 0 /* Legacy column guard */ };
 
 	const isEnum = is(baseColumn, CockroachEnumColumn);
 	const typeSchema = isEnum ? baseColumn.enum.schema || 'public' : null;
@@ -122,12 +124,15 @@ export const unwrapColumn = (column: AnyCockroachColumn) => {
 	};
 };
 
+type LegacyArrayColumn = AnyCockroachColumn & { readonly baseColumn: AnyCockroachColumn };
+const isLegacyArray = (column: AnyCockroachColumn): column is LegacyArrayColumn => 'baseColumn' in column;
+
 export const unwrapArray = (
-	column: CockroachArray<any, any>,
+	column: LegacyArrayColumn,
 	dimensions: number = 1,
 ): { baseColumn: AnyCockroachColumn; dimensions: number } => {
 	const baseColumn = column.baseColumn;
-	if (is(baseColumn, CockroachArray)) return unwrapArray(baseColumn, dimensions + 1);
+	if (isLegacyArray(baseColumn)) return unwrapArray(baseColumn, dimensions + 1);
 
 	return { baseColumn, dimensions };
 };
@@ -185,6 +190,20 @@ export const defaultFromColumn = (
 	throw new Error(`Unhandled type: ${base.getSQLType()}`);
 };
 
+// key of a cockroach view or materialized view, see `findViewDependencies` in dialects/drizzle.ts
+// "is this one of my views, and if so, what's its key?"
+const viewKey = (chunk: unknown): EntityKey | null => {
+	const config = isCockroachView(chunk)
+		? getViewConfig(chunk)
+		: isCockroachMaterializedView(chunk)
+		? getMaterializedViewConfig(chunk)
+		: null;
+
+	// aliased views keep the real view name in originalName
+	// an alias exists only in the ORM query
+	return config ? entityKey(config.schema ?? 'public', config.originalName) : null;
+};
+
 /*
 	We map drizzle entities into interim schema entities,
 	so that both Drizzle Kit and Drizzle Studio are able to share
@@ -208,12 +227,14 @@ export const fromDrizzleSchema = (
 	filter: EntityFilter,
 ): {
 	schema: InterimSchema;
+	metadata: SchemaMetadata;
 	errors: SchemaError[];
 	warnings: SchemaWarning[];
 } => {
 	const dialect = new CockroachDialect();
 	const errors: SchemaError[] = [];
 	const warnings: SchemaWarning[] = [];
+	const metadata: SchemaMetadata = { viewDependencies: new Map() };
 
 	const res: InterimSchema = {
 		indexes: [],
@@ -354,7 +375,11 @@ export const fromDrizzleSchema = (
 					}
 					: null;
 
-				const { dimensions, sqlType, typeSchema, baseColumn } = unwrapColumn(column);
+				const { dimensions: arrayDimensions, sqlType, typeSchema, baseColumn } = unwrapColumn(column);
+				// `dimensions` counts the brackets of `sqlType` when `.array()` is absent, because a custom type
+				// can name an array type in its SQL type. Cockroach has no array of arrays, so `.array()` on such
+				// a custom type adds no dimension.
+				const dimensions = arrayDimensions || sqlType.split('[]').length - 1;
 
 				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
 
@@ -573,19 +598,8 @@ export const fromDrizzleSchema = (
 		});
 	}
 
-	const combinedViews = [...schema.views, ...schema.matViews].sort((a, b) => {
-		// see in "./dialects/postgres/drizzle.ts" for more
-		const aConfig = is(a, CockroachView) ? getViewConfig(a) : getMaterializedViewConfig(a);
-		const bConfig = is(b, CockroachView) ? getViewConfig(b) : getMaterializedViewConfig(b);
-
-		// If a's fields include b, a depends on b → b comes first
-		if (aConfig.query?.queryChunks.includes(b)) return 1;
-
-		// If b's fields include a, b depends on a → a comes first
-		if (bConfig.query?.queryChunks.includes(a)) return -1;
-
-		return 0;
-	}).map((it) => {
+	// views are ordered by dependencies in diff.ts (`sortCreateViews`), using `metadata.viewDependencies`
+	const combinedViews = [...schema.views, ...schema.matViews].map((it) => {
 		if (is(it, CockroachView)) {
 			return {
 				...getViewConfig(it),
@@ -615,6 +629,8 @@ export const fromDrizzleSchema = (
 			withNoData: withNoData ?? null,
 			materialized,
 		});
+
+		metadata.viewDependencies.set(entityKey(viewSchema, viewName), findViewDependencies(query!, viewKey));
 	}
 
 	res.enums = schema.enums.map<Enum>((e) => {
@@ -628,6 +644,7 @@ export const fromDrizzleSchema = (
 
 	return {
 		schema: res,
+		metadata,
 		errors,
 		warnings,
 	};

@@ -511,11 +511,11 @@ export const fromDatabase = async (
 		}
 
 		columnTypeMapped = columnTypeMapped
-			.replace('character varying', 'varchar')
-			.replace(' without time zone', '')
+			.replace(/\bcharacter varying\b/, 'varchar')
+			.replace(/ without time zone\b/, '')
 			// .replace(' with time zone', '')
 			// .replace("timestamp without time zone", "timestamp")
-			.replace('character', 'char');
+			.replace(/\bcharacter\b/, 'char');
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
@@ -599,12 +599,20 @@ export const fromDatabase = async (
 	}
 
 	for (const fk of constraintsList.filter((it) => it.type === 'FOREIGN KEY')) {
-		const table = tablesList.find((it) => it.oid === fk.tableId)!;
+		const table = tablesList.find((it) => it.oid === fk.tableId);
 		const schema = namespaces.find((it) => it.oid === fk.schemaId)!;
-		const tableTo = tablesList.find((it) => it.schema === schema.name && it.name === fk.tableToName)!;
+		const tableTo = tablesList.find((it) => it.schema === schema.name && it.name === fk.tableToName);
+
+		if (!table || !tableTo) {
+			// this can happen if:
+			// 1. the foreign key points to a table to which the user does not have access
+			// 2. the foreign key points to a table that is not in the filtered list of tables (e.g., system tables)
+			// in both cases, we cannot resolve the foreign key, so we skip it
+			continue;
+		}
 
 		const columns = fk.columnsNames.map((it) => {
-			const column = columnsList.find((column) => column.tableId === fk.tableId && column.name === it)!;
+			const column = columnsList.find((column) => column.tableId === table.oid && column.name === it)!;
 			return column.name;
 		});
 
@@ -812,10 +820,10 @@ export const fromDatabase = async (
 		}
 
 		columnTypeMapped = columnTypeMapped
-			.replace('character varying', 'varchar')
-			.replace(' without time zone', '')
+			.replace(/\bcharacter varying\b/, 'varchar')
+			.replace(/ without time zone\b/, '')
 			// .replace("timestamp without time zone", "timestamp")
-			.replace('character', 'char');
+			.replace(/\bcharacter\b/, 'char');
 
 		const typeDimensions = it.type.split('[]').length - 1;
 

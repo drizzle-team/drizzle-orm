@@ -34,6 +34,9 @@ export class SingleStoreDouble<T extends ColumnBaseConfig<'number double' | 'num
 {
 	static override readonly [entityKind]: string = 'SingleStoreDouble';
 
+	/** @internal */
+	override readonly codec = 'double';
+
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
 	readonly unsigned: boolean | undefined = this.config.unsigned;

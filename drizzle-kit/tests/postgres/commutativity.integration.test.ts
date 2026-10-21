@@ -40,7 +40,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 
 		const child1 = {
 			t: pgTable('t', (t) => ({
-				c: t.varchar().notNull(),
+				c: t.text(),
 			})),
 		};
 
@@ -176,7 +176,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 		expect(conflicts).not.toBeUndefined();
 	});
 
-	test('unique: create vs drop', async () => {
+	test('unique: adding one and dropping another is commutative', async () => {
 		const parent = {
 			t: pgTable('t', (t) => ({
 				c: t.varchar().unique(),
@@ -202,7 +202,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 			child2: { id: '3', prevId: '1', schema: child2 },
 		});
 
-		expect(conflicts).not.toBeUndefined();
+		expect(conflicts).toBeUndefined();
 	});
 
 	test('fk: recreate vs drop', async () => {
@@ -385,7 +385,7 @@ describe('conflict rule coverage (statement pairs)', () => {
 		});
 
 		expect(conflicts).not.toBeUndefined();
-		expect(conflicts?.leftStatement.type).toBe('alter_column');
-		expect(conflicts?.rightStatement.type).toBe('drop_table');
+		expect(conflicts?.left.statementType).toBe('drop_table');
+		expect(conflicts?.right.statementType).toBe('alter_column');
 	});
 });

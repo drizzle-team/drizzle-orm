@@ -4,14 +4,11 @@
 	"description": "Type performance tests for drizzle-orm",
 	"type": "module",
 	"scripts": {
-		"test": "vitest run",
-		"test:update": "vitest run --update",
-		"bench": "tsx benches/pg-columns.bench.ts",
-		"bench:beta": "tsx benches/beta/pg-columns.bench.ts",
+		"bench": "tsx test",
 		"build": "echo skip...",
-		"build:artifact": "pnpm run build",
+		"build:artifact": "echo skip...",
 		"pack": "echo skip...",
-		"pack:artifact": "pnpm run pack",
+		"pack:artifact": "echo skip...",
 		"test:types": "tsc --noEmit"
 	},
 	"keywords": [],
@@ -20,8 +17,7 @@
 	"private": true,
 	"devDependencies": {
 		"@ark/attest": "^0.56.0",
-		"tsx": "^4.19.0",
-		"vitest": "^2.1.8"
+		"tsx": "^4.19.0"
 	},
 	"dependencies": {
 		"drizzle-beta": "npm:drizzle-orm@1.0.0-beta.21",

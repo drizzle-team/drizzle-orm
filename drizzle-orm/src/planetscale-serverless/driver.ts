@@ -26,8 +26,6 @@ function construct<
 ): PlanetScaleDatabase<TRelations> & {
 	$client: TClient;
 } {
-	// Client is not Drizzle Object, so we can ignore this rule here
-	// oxlint-disable-next-line drizzle-internal/no-instanceof
 	if (!(client instanceof Client)) {
 		throw new Error(`Warning: You need to pass an instance of Client:
 
@@ -58,6 +56,7 @@ const db = drizzle({ client });
 	const session = new PlanetscaleSession(client, dialect, undefined, relations, {
 		logger,
 		cache: config.cache,
+		paramsInErrors: config.paramsInErrors,
 	});
 	const db = new PlanetScaleDatabase(
 		dialect,

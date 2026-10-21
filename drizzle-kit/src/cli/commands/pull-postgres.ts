@@ -3,6 +3,7 @@ import { writeFileSync } from 'fs';
 import type { TaskView } from 'hanji';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
+import { footprintsOf } from '../../dialects/postgres/commutativity';
 import type {
 	CheckConstraint,
 	Column,
@@ -12,7 +13,6 @@ import type {
 	Policy,
 	PostgresEntities,
 	PrimaryKey,
-	Privilege,
 	Role,
 	Schema,
 	Sequence,
@@ -21,14 +21,14 @@ import type {
 } from '../../dialects/postgres/ddl';
 import { createDDL, interimToDDL, postgresToRelationsPull } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
+import { assertHistory, readEntries } from '../../dialects/postgres/folder';
 import { fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
-import { toJsonSnapshot } from '../../dialects/postgres/snapshot';
+import { toJsonBaseSnapshot } from '../../dialects/postgres/snapshot';
 import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/typescript';
 import type { EntityFilter } from '../../dialects/pull-utils';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
 import { originUUID } from '../../utils';
 import type { DB } from '../../utils';
-import { prepareOutFolder } from '../../utils/utils-node';
 import type { preparePostgresDB } from '../connections';
 import { outputFormat } from '../context';
 import { CommandOutputCliError } from '../errors';
@@ -51,8 +51,13 @@ export const handle = async (
 		table: string;
 		schema: string;
 	},
+	init: boolean,
 	db?: Awaited<ReturnType<typeof preparePostgresDB>>,
 ) => {
+	const entries = readEntries(out);
+	assertHistory(entries);
+	const snapshots = entries.map((it) => it.path);
+
 	if (!db) {
 		const { preparePostgresDB } = await import('../connections');
 		db = await preparePostgresDB(credentials);
@@ -99,9 +104,8 @@ export const handle = async (
 
 	let snapshotPath: string;
 	let migrationPath: string | undefined;
-	const { snapshots } = prepareOutFolder(out);
 	if (snapshots.length === 0) {
-		const { sqlStatements, renames } = await ddlDiff(
+		const { sqlStatements, groupedStatements } = await ddlDiff(
 			createDDL(), // dry ddl
 			ddl2,
 			resolver<Schema>('schema'),
@@ -109,7 +113,6 @@ export const handle = async (
 			resolver<Sequence>('sequence'),
 			resolver<Policy>('policy'),
 			resolver<Role>('role'),
-			resolver<Privilege>('privilege'),
 			resolver<PostgresEntities['tables']>('table'),
 			resolver<Column>('column'),
 			resolver<View>('view'),
@@ -122,11 +125,11 @@ export const handle = async (
 		);
 
 		({ snapshotPath, migrationPath } = writeResult({
-			snapshot: toJsonSnapshot(ddl2, [originUUID], renames),
+			snapshot: toJsonBaseSnapshot(ddl2, [originUUID], footprintsOf(groupedStatements)),
 			sqlStatements,
-			renames,
 			outFolder: out,
 			breakpoints,
+			init,
 			type: 'introspect',
 			snapshots,
 		}));
