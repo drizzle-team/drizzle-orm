@@ -1083,6 +1083,12 @@ export const promptColumnsConflicts = async <T extends Named>(
 	do {
 		const created = newColumns[index];
 
+		// if there are no more missing columns to resolve, consider the rest of new columns as created
+		if (leftMissing.length === 0) {
+			result.created.push(...newColumns.slice(index));
+			break;
+		}
+
 		const renames: RenamePropmtItem<T>[] = leftMissing.map((it) => {
 			return { from: it, to: created };
 		});
@@ -1156,6 +1162,13 @@ export const promptNamedConflict = async <T extends Named>(
 	let leftMissing = [...missingItems];
 	do {
 		const created = newItems[index];
+
+		// if there are no more missing items to resolve, consider the rest of new items as created
+		if (leftMissing.length === 0) {
+			result.created.push(...newItems.slice(index));
+			break;
+		}
+
 		const renames: RenamePropmtItem<T>[] = leftMissing.map((it) => {
 			return { from: it, to: created };
 		});
@@ -1231,6 +1244,13 @@ export const promptNamedWithSchemasConflict = async <T extends NamedWithSchema>(
 	let leftMissing = [...missingItems];
 	do {
 		const created = newItems[index];
+
+		// if there are no more missing items to resolve, consider the rest of new items as created
+		if (leftMissing.length === 0) {
+			result.created.push(...newItems.slice(index));
+			break;
+		}
+
 		const renames: RenamePropmtItem<T>[] = leftMissing.map((it) => {
 			return { from: it, to: created };
 		});
@@ -1309,6 +1329,13 @@ export const promptSchemasConflict = async <T extends Named>(
 	let leftMissing = [...missingSchemas];
 	do {
 		const created = newSchemas[index];
+
+		// if there are no more missing schemas to resolve, consider the rest of new schemas as created
+		if (leftMissing.length === 0) {
+			result.created.push(...newSchemas.slice(index));
+			break;
+		}
+
 		const renames: RenamePropmtItem<T>[] = leftMissing.map((it) => {
 			return { from: it, to: created };
 		});
