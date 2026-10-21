@@ -145,6 +145,9 @@ export const ddlDiff = async (
 
 	const checksAlters = updates.filter((it) => it.entityType === 'checks');
 
+	// SQLite can't alter an index, so a changed one (e.g. index <-> uniqueIndex) is dropped and created again
+	const indexesAlters = updates.filter((it) => it.entityType === 'indexes');
+
 	const alteredColumns = updates.filter((it) => it.entityType === 'columns').filter((it) => {
 		if (it.notNull && ddl2.pks.one({ table: it.table, columns: [it.name] })) {
 			delete it.notNull;
@@ -231,12 +234,17 @@ export const ddlDiff = async (
 	const jsonCreateIndexes = [...jsonRecreateTables]
 		.map((it) => it.to.indexes)
 		.concat(indexesByTable.filter((it) => !setOfTablesToRecereate.has(it.table)).map((it) => it.inserted))
+		.concat([indexesAlters.filter((it) => !setOfTablesToRecereate.has(it.table)).map((it) => it.$right)])
 		.map((it) => it.map((index) => prepareStatement('create_index', { index })))
 		.flat();
 
 	const jsonDropIndexes = indexesByTable.map((it) =>
 		it.deleted.map((index) => prepareStatement('drop_index', { index }))
-	).flat();
+	).flat().concat(
+		indexesAlters.filter((it) => !setOfTablesToRecereate.has(it.table)).map((it) =>
+			prepareStatement('drop_index', { index: it.$left })
+		),
+	);
 	const jsonDropTables = deletedTables.map((it) => prepareStatement('drop_table', { tableName: it.name }));
 	const jsonRenameTables = renamedTables.map((it) =>
 		prepareStatement('rename_table', { from: it.from.name, to: it.to.name })
