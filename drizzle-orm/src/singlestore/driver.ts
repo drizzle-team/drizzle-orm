@@ -1,7 +1,7 @@
 import { type Connection as CallbackConnection, createPool, type Pool as CallbackPool, type PoolOptions } from 'mysql2';
 import type { Connection, Pool } from 'mysql2/promise';
 import type { Cache } from '~/cache/core/cache.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
@@ -26,6 +26,9 @@ export interface SingleStoreDriverOptions {
 
 export class SingleStoreDriverDriver {
 	static readonly [entityKind]: string = 'SingleStoreDriverDriver';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		private client: SingleStoreDriverClient,

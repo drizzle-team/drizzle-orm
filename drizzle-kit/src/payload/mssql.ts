@@ -141,7 +141,7 @@ export const pushSchema = async (
 
 	const prev = await fromDatabaseForDrizzle(db, filter, () => {}, migrations);
 
-	const { schema: cur } = fromDrizzleSchema(prepared, filter);
+	const { schema: cur, metadata } = fromDrizzleSchema(prepared, filter);
 
 	const { ddl: from } = interimToDDL(prev);
 	const { ddl: to } = interimToDDL(cur);
@@ -161,6 +161,7 @@ export const pushSchema = async (
 			resolver<ForeignKey>('foreign key', userHints, 'dbo'),
 			resolver<DefaultConstraint>('default', userHints, 'dbo'),
 			'push',
+			metadata,
 		);
 		// An unresolved rename is diffed as a drop plus a create, so a data loss check on it would report a false drop.
 		userHints.throwIfMissingHints();

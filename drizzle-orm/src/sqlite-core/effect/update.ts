@@ -110,7 +110,7 @@ export class SQLiteEffectUpdateBase<
 			this.config.returning ? this.dialect.mapperGenerators.rows(this.config.returning, undefined) : undefined,
 			{
 				type: 'update',
-				tables: usedTablesOf(this.config.table),
+				tables: () => usedTablesOf(this.config.table),
 			},
 		) as SQLiteEffectUpdatePrepare<this, TEffectHKT>;
 	}

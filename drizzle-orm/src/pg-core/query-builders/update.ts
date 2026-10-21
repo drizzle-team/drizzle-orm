@@ -89,6 +89,9 @@ export class PgUpdateBuilder<
 	TBuilderHKT extends PgUpdateHKTBase = PgUpdateHKT,
 > {
 	static readonly [entityKind]: string = 'PgUpdateBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly table: TTable;
@@ -447,6 +450,9 @@ export class PgUpdateBase<
 	TExcludedMethods extends string = never,
 > implements SQLWrapper {
 	static readonly [entityKind]: string = 'PgUpdate';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected config: PgUpdateConfig;
 	protected tableName: string | undefined;

@@ -11,6 +11,9 @@ import type { SelectedFields } from './select.types.ts';
 
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'SQLiteQueryBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private dialect: SQLiteDialect | undefined;
 	private dialectConfig: SQLiteDialectConfig | undefined;

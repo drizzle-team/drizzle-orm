@@ -1,5 +1,5 @@
 import { type Cache, NoopCache, strategyFor } from '~/cache/core/cache.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
@@ -49,6 +49,9 @@ export type PreparedQueryKind<
 
 export abstract class SingleStoreBasePreparedQuery<T extends SingleStorePreparedQueryConfig> implements PreparedQuery {
 	static readonly [entityKind]: string = 'SingleStoreBasePreparedQuery';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		protected query: Query,
@@ -86,10 +89,7 @@ export class SingleStorePreparedQuery<T extends SingleStorePreparedQueryConfig>
 		// cache instance
 		private cache: Cache | undefined,
 		// per query related metadata
-		private queryMetadata: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		} | undefined,
+		private queryMetadata: QueryMetadata | undefined,
 		// config that was passed through $withCache
 		private cacheConfig?: WithCacheConfig | undefined,
 		protected paramsInErrors?: boolean | undefined,
@@ -248,6 +248,9 @@ export abstract class SingleStoreSession<
 	TRelations extends AnyRelations = EmptyRelations,
 > {
 	static readonly [entityKind]: string = 'SingleStoreSession';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(protected dialect: SingleStoreDialect) {}
 
@@ -258,10 +261,7 @@ export abstract class SingleStoreSession<
 		query: Query,
 		mode: 'arrays' | 'objects' | 'raw',
 		mapper?: (rows: any) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<TPreparedQueryHKT, T>;
 

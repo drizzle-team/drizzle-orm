@@ -6,8 +6,8 @@ import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
-import { minipgShapeCodecs } from '../codecs.ts';
 import { buildShape } from '../shape.ts';
+import { minipgAuroraShapeCodecs } from './codecs.ts';
 import type { PostgresAuroraClient, PostgresAuroraQueryResultHKT } from './session.ts';
 import { PostgresAuroraSession } from './session.ts';
 
@@ -35,7 +35,7 @@ function construct<
 	$client: PostgresAuroraClient extends TClient ? AuroraClient : TClient;
 } {
 	const dialect = new PostgresAuroraDialect({
-		codecs: config.codecs ?? minipgShapeCodecs,
+		codecs: config.codecs ?? minipgAuroraShapeCodecs,
 		useJitMappers: jitCompatCheck(config.jit),
 		shapeGenerator: config.codecs ? undefined : buildShape,
 	});

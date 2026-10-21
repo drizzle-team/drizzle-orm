@@ -130,7 +130,7 @@ export class PgEffectUpdateBase<
 			fields ? 'arrays' : 'raw',
 			name ?? generateName,
 			mapper,
-			{ type: 'update', tables: usedTablesOf(this.config.table) },
+			{ type: 'update', tables: () => usedTablesOf(this.config.table) },
 		);
 
 		return preparedQuery;

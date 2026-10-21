@@ -67,7 +67,7 @@ export const handle = async (
 
 	const { schema: interimFromDB } = await introspect({ db, database, progress, filter, migrations });
 
-	const interimFromFiles = fromDrizzleSchema(res.tables, res.views);
+	const { schema: interimFromFiles, metadata } = fromDrizzleSchema(res.tables, res.views);
 
 	const { ddl: ddl1 } = interimToDDL(interimFromDB, 'pull');
 	const { ddl: ddl2, errors: errors1 } = interimToDDL(interimFromFiles);
@@ -86,6 +86,7 @@ export const handle = async (
 		resolver<Column>('column', hints),
 		resolver<View>('view', hints),
 		'push',
+		metadata,
 	);
 
 	if (hints.hasMissingHints()) {

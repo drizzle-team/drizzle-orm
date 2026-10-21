@@ -115,7 +115,7 @@ jobs:
           - shard: int:mysql
             dbs: [mysql]
           - shard: int:postgres
-            dbs: [postgres, postgres-http-gateway]
+            dbs: [postgres, postgres-http-gateway, aws-data-api]
           - shard: int:neon
             dbs: []
           - shard: int:sqlite
@@ -169,6 +169,7 @@ jobs:
             case "$db" in
               postgres)            compose_files+=("-f" "compose/postgres.yml") ;;
               postgres-http-gateway) compose_files+=("-f" "compose/postgres-http-gateway.yml") ;;
+              aws-data-api)        compose_files+=("-f" "compose/aws-data-api.yml") ;;
               postgres-postgis)    compose_files+=("-f" "compose/postgres-postgis.yml") ;;
               postgres-vector)     compose_files+=("-f" "compose/postgres-vector.yml") ;;
               mysql)               compose_files+=("-f" "compose/mysql.yml") ;;
@@ -217,6 +218,7 @@ jobs:
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
           PG_HTTP_GATEWAY_URL: http://localhost:8080/query
+          AWS_DATA_API_URL: http://localhost:8081
           PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
           PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
           POSTGIS_URL: postgres://postgres:postgres@localhost:54322/drizzle

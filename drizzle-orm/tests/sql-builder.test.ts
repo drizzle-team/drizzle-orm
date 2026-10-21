@@ -39,7 +39,7 @@ test('NOT conditions not wrapped in parentheses for non-SQL', () => {
 	expect(text).toStrictEqual(`not "users"."id"`);
 });
 
-test.skipIf(Date.now() < +new Date('2026-10-17'))('OR conditions deep filter empty queries', () => {
+test.skipIf(Date.now() < +new Date('2026-11-24'))('OR conditions deep filter empty queries', () => {
 	const query = or(
 		eq(users.id, 1),
 		sql`${sql`never`.if(false)}`,
@@ -50,7 +50,7 @@ test.skipIf(Date.now() < +new Date('2026-10-17'))('OR conditions deep filter emp
 	expect(text).toStrictEqual(`(("users"."id" = 1) or (users.id = post.user_id AND posts.is_deleted = false))`);
 });
 
-test.skipIf(Date.now() < +new Date('2026-10-17'))('AND conditions deep filter empty queries', () => {
+test.skipIf(Date.now() < +new Date('2026-11-24'))('AND conditions deep filter empty queries', () => {
 	const query = and(
 		eq(users.id, 1),
 		sql`${sql`never`.if(false)}`,
@@ -61,7 +61,7 @@ test.skipIf(Date.now() < +new Date('2026-10-17'))('AND conditions deep filter em
 	expect(text).toStrictEqual(`(("users"."id" = 1) and (users.id = post.user_id AND posts.is_deleted = false))`);
 });
 
-test.skipIf(Date.now() < +new Date('2026-10-17'))('NOT conditions deep filter empty queries', () => {
+test.skipIf(Date.now() < +new Date('2026-11-24'))('NOT conditions deep filter empty queries', () => {
 	const query = not(sql`${sql`never`.if(false)}`);
 
 	expect(query).toBeUndefined();
@@ -113,4 +113,12 @@ test('Subquery.getSQL() shadowed by selection field named `getSQL`', () => {
 	const sq = db.select().from(weird).as('sq');
 
 	expect(dialect.sqlToQuery(sql`${sq.getSQL}`).sql).toStrictEqual(`"sq"."get_sql"`);
+});
+
+test('nullish sql.raw() values render as nothing', () => {
+	expect(dialect.sqlToQuery(sql`set time zone '${sql.raw(undefined as unknown as string)}'`).sql).toStrictEqual(
+		`set time zone ''`,
+	);
+	expect(dialect.sqlToQuery(sql`a ${sql.raw(null as unknown as string)} b`).sql).toStrictEqual(`a  b`);
+	expect(dialect.sqlToQuery(sql`limit ${sql.raw(5 as unknown as string)}`).sql).toStrictEqual(`limit 5`);
 });

@@ -107,6 +107,9 @@ export class SQLiteInsertBuilder<
 	THKT extends SQLiteInsertHKTBase = SQLiteInsertQueryBuilderHKT,
 > {
 	static readonly [entityKind]: string = 'SQLiteInsertBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		protected table: TTable,
@@ -376,6 +379,9 @@ export class SQLiteInsertBase<
 	TExcludedMethods extends string = never,
 > implements SQLWrapper {
 	static readonly [entityKind]: string = 'SQLiteInsert';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	/** @internal */
 	config: SQLiteInsertConfig<TTable>;

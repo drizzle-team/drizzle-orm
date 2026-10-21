@@ -5,7 +5,7 @@ Drizzle Kit commands render their results in one of two output modes, selected w
 - `--output text` (the default) renders human-readable progress and results, including a human-readable report when a command needs decisions you haven't supplied.
 - `--output json` emits the single machine-readable JSON envelope documented in [`./JSON_CONTRACT.md`](./JSON_CONTRACT.md).
 
-Output format, interactivity, and hint resolution are three orthogonal axes. The output mode controls *how* results are rendered; interactivity controls *whether* the CLI may prompt; hints (`--hints` / `--hints-file`) supply decisions ahead of time so the CLI never has to ask.
+Output format, interactivity, and hint resolution are three orthogonal axes. The output mode controls *how* results are rendered; interactivity controls *whether* the CLI may prompt; hints (`--hints` / `--hints-file`) supply rename, create, and data-loss decisions ahead of time so the CLI does not ask about them. One interactive prompt can still appear: the `push` confirmation for data-loss items that no hint confirmed, which `--force` skips. [Interactivity](#interactivity) describes it.
 
 ## `--output text | json`
 
@@ -18,7 +18,7 @@ Output format, interactivity, and hint resolution are three orthogonal axes. The
 
 Connection-layer driver-selection chatter (the `Using '<driver>' driver for database querying` lines a connecting command prints while it picks a database driver) follows the same rule: under `--output json` it is suppressed so stdout stays a single JSON envelope, and under `--output text` it still prints as human progress.
 
-`check` is a no-hint, non-interactive gate, so it never reaches the missing-decisions path. Under `--output text` it keeps its current human output (`Everything's fine 🐶🔥` on success, the colorized conflict tree on non-commutativity); under `--output json` it emits the `ok` / `check_error` envelopes documented in [`./JSON_CONTRACT.md`](./JSON_CONTRACT.md).
+`check` is a no-hint, non-interactive gate, so it never reaches the missing-decisions path. Under `--output text` it keeps its current human output (`Everything's fine 🐶🔥` on success, the colorized conflict tree on conflicts); under `--output json` it emits the `ok` / `check_error` envelopes documented in [`./JSON_CONTRACT.md`](./JSON_CONTRACT.md). For postgresql, a warning about a schema that differs from the migrations prints in place of the success line under `--output text`, and it is in `warnings` of the `ok` envelope under `--output json`. The exit code stays `0`.
 
 `pull`, `up`, and `export` are likewise non-interactive (none of them ever reaches the missing-decisions path):
 
@@ -37,6 +37,10 @@ interactive = output === 'text' && !!process.stdin.isTTY
 `--output json` is therefore always non-interactive, regardless of whether stdin is a TTY. Under `--output text`, interactivity is determined solely by whether stdin is a TTY (`!process.stdin.isTTY` means non-interactive).
 
 When the CLI is non-interactive and a command reaches a decision it cannot resolve from your `--hints` / `--hints-file`, it does not prompt. Under `--output json` it returns a `missing_hints` envelope; under `--output text` it prints the missing-decisions report below.
+
+Before an interactive `push` runs data-loss statements, it asks one yes/no question about the items that no `confirm_data_loss` hint covers. If hints cover every item, `push` does not ask. `--force` skips the question.
+
+When postgres `generate` finds conflicting branches, it does not prompt. Without `--fix-conflicts` it returns `check_error` with `kind: "conflicts"`, and hints cannot change that. With `--fix-conflicts`, an `--explain` run deletes nothing. Under `--output text` it prints the planned statements and the folders that the fix would delete, and under `--output json` it returns them as `statements` and `fix`.
 
 ## Missing-decisions text report
 

@@ -1,5 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
+import { relationalQueryCacheConfig, relationalQueryCacheMetadata } from '~/relations.ts';
 import { applyMixins } from '~/utils.ts';
 import { MySqlRelationalQuery, type MySqlRelationalQueryHKTBase } from '../query-builders/query.ts';
 import type { MySqlPreparedQueryConfig } from '../session.ts';
@@ -18,7 +19,7 @@ export class MySqlAsyncRelationalQuery<TResult> extends MySqlRelationalQuery<MyS
 	declare protected session: MySqlAsyncSession;
 
 	prepare() {
-		const { query, builtQuery } = this._toSQL();
+		const { query, builtQuery, usedTables } = this._toSQL();
 		const mapper = this.mapper ??= this.dialect.mapperGenerators.relationalRows({
 			isFirst: this.mode === 'first',
 			parseJson: false,
@@ -32,6 +33,8 @@ export class MySqlAsyncRelationalQuery<TResult> extends MySqlRelationalQuery<MyS
 			builtQuery,
 			'arrays',
 			mapper,
+			relationalQueryCacheMetadata(this.config, query.sql, usedTables, this),
+			relationalQueryCacheConfig(this.config),
 		) as MySqlAsyncPreparedQuery<MySqlPreparedQueryConfig & { execute: TResult }>;
 	}
 

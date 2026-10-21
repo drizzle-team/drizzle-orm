@@ -8,7 +8,7 @@ import type { Logger } from './logger.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
 import type { AnyRelations, EmptyRelations } from './relations.ts';
-import { Param, SQL } from './sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk, Param, SQL } from './sql/sql.ts';
 import type { DriverValueDecoder, SQLWrapper } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
 import { getTableName, Table } from './table.ts';
@@ -486,10 +486,9 @@ export function orderSelectedFields<TColumn extends AnyColumn>(
 }
 
 export function getColumnFromDecoder(source: SQL | SQL.Aliased | SQLWrapper): Column | undefined {
-	const query = source.getSQL();
+	const { decoder } = source.getSQL();
 
-	if (is(query.decoder, Column)) return query.decoder;
-	return undefined;
+	return isChunk(decoder, chunkKindOf(decoder), chunkKinds.column) ? decoder : undefined;
 }
 
 export function haveSameKeys(left: Record<string, unknown>, right: Record<string, unknown>) {
@@ -521,7 +520,8 @@ export function mapUpdateSet(table: Table, values: Record<string, unknown>): Upd
 	for (let i = 0; i < entries.length; ++i) {
 		const [key, value] = entries[i]!;
 		// eslint-disable-next-line unicorn/prefer-ternary
-		if (is(value, SQL) || is(value, Column)) {
+		const kind = chunkKindOf(value);
+		if (isChunk(value, kind, chunkKinds.sql) || isChunk(value, kind, chunkKinds.column)) {
 			mapped[i] = [key, value];
 		} else {
 			mapped[i] = [key, new Param(value, table[Table.Symbol.Columns][key])];
@@ -628,11 +628,12 @@ export function getColumns<T extends Table | View | Subquery>(
 
 /** @internal */
 export function getTableLikeName(table: TableLike): string | undefined {
-	return is(table, Subquery)
+	const kind = chunkKindOf(table);
+	return isChunk(table, kind, chunkKinds.subquery)
 		? table._.alias
-		: is(table, View)
+		: isChunk(table, kind, chunkKinds.view)
 		? table[ViewBaseConfig].name
-		: is(table, SQL)
+		: isChunk(table, kind, chunkKinds.sql)
 		? undefined
 		: table[Table.Symbol.IsAlias]
 		? table[Table.Symbol.Name]
@@ -755,6 +756,19 @@ export type NeonAuthToken = string | (() => string | Promise<string>);
 
 export const textDecoder = typeof TextDecoder === 'undefined' ? null : new TextDecoder();
 
+export function memoizeEscape(escape: (name: string) => string, limit = 4096): (name: string) => string {
+	const cache = new Map<string, string>();
+	return (name) => {
+		let escaped = cache.get(name);
+		if (escaped === undefined) {
+			if (cache.size >= limit) cache.clear();
+			escaped = escape(name);
+			cache.set(name, escaped);
+		}
+		return escaped;
+	};
+}
+
 export function assertUnreachable(_x: never | undefined): never {
 	throw new Error("Didn't expect to get here");
 }
@@ -822,6 +836,17 @@ export function base64ToUint8Array(base64: string): Uint8Array {
 
 	for (let i = 0; i < len; ++i) {
 		bytes[i] = binary.charCodeAt(i);
+	}
+
+	return bytes;
+}
+
+export function pgHexToUint8Array(hex: string): Uint8Array {
+	const len = (hex.length - 2) >> 1;
+	const bytes = new Uint8Array(len);
+
+	for (let i = 0; i < len; ++i) {
+		bytes[i] = Number.parseInt(hex.slice(2 + i * 2, 4 + i * 2), 16);
 	}
 
 	return bytes;

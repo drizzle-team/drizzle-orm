@@ -71,6 +71,9 @@ export type CockroachUpdateSetSource<TTable extends CockroachTable> =
 
 export class CockroachUpdateBuilder<TTable extends CockroachTable, TQueryResult extends CockroachQueryResultHKT> {
 	static readonly [entityKind]: string = 'CockroachUpdateBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly table: TTable;

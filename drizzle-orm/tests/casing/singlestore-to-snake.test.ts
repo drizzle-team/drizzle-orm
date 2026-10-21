@@ -2,7 +2,7 @@ import { describe, it } from 'vitest';
 import { defineRelations } from '~/relations';
 import { drizzle, singleStoreCodecs } from '~/singlestore';
 import { alias, boolean, castToText, int, QueryBuilder, serial, snakeCase, text, union } from '~/singlestore-core';
-import { asc, eq, exists, inArray, Param, sql } from '~/sql';
+import { asc, desc, eq, exists, inArray, Param, sql } from '~/sql';
 
 const testSchema = snakeCase.schema('test');
 const users = snakeCase.table('users', {
@@ -447,6 +447,23 @@ describe('singlestore to snake case', () => {
 				'select `first_name` from ((select `first_name` from `users`) union (select `first_name` from `users`)) `drizzle_union`',
 			params: [],
 		});
+	});
+
+	it('set operator - order by leaves passed sql intact', ({ expect }) => {
+		const order = desc(users.firstName);
+		const query = db
+			.select({ firstName: users.firstName })
+			.from(users)
+			.union(db.select({ firstName: users.firstName }).from(users))
+			.orderBy(order);
+
+		expect(query.toSQL().sql).toBe(
+			'select `first_name` from ((select `first_name` from `users`) union (select `first_name` from `users`) order by `first_name` desc) `drizzle_union`',
+		);
+		// Same SQL objects keep their qualifiers in other queries
+		expect(db.select({ firstName: users.firstName }).from(users).orderBy(order).toSQL().sql).toBe(
+			'select `first_name` from `users` order by `users`.`first_name` desc',
+		);
 	});
 
 	it('insert', ({ expect }) => {

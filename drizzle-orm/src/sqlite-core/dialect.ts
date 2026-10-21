@@ -1,4 +1,4 @@
-import { aliasedTable, getOriginalColumnFromAlias } from '~/alias.ts';
+import { aliasedTable, aliasedTableSQL, getOriginalColumnFromAlias } from '~/alias.ts';
 import { CodecsCollection } from '~/codecs.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
@@ -7,29 +7,29 @@ import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import {
 	type AnyOne,
 	// AggregatedField,
+	type BuildRelationalQueryConfig,
 	type BuildRelationalQueryResult,
-	collectRelationalSubquery,
-	type ColumnWithTSName,
+	buildRqbColumns,
+	collectSubqueryAndUsedTables,
 	type DBQueryConfig,
 	getTableAsAliasSQL,
 	makeDefaultRqbMapper,
 	makeJitRqbMapper,
+	relationalQueryWhereToSQL,
 	type RelationalRowsMapperGenerator,
 	type RelationalWithSubqueries,
 	relationExtrasToSQL,
-	relationsFilterToSQL,
 	relationsOrderToSQL,
 	relationToSQL,
-	type SchemaEntry,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
 	type WithContainer,
 } from '~/relations.ts';
-import type { Name, Placeholder, SQLWrapper } from '~/sql/index.ts';
-import { and, isSQLWrapper } from '~/sql/index.ts';
-import { type DriverValueDecoder, Param, type Query, SQL, sql, type SQLChunk, StringChunk } from '~/sql/sql.ts';
+import { commonStringChunks, StringChunk } from '~/sql/common-chunks.ts';
+import type { Name, Placeholder } from '~/sql/index.ts';
+import { type Query, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
+import { chunkKindOf, chunkKinds, isChunk, unqualifyColumns } from '~/sql/sql.ts';
+import { ValueRows } from '~/sql/sql.ts';
 import { resolveSQLiteTypeAlias, resolveUnionType, type SQLiteCodecs, type SQLiteType } from '~/sqlite-core/codecs.ts';
-import { SQLiteColumn, type SQLiteCustomColumn } from '~/sqlite-core/columns/index.ts';
+import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
 import type {
 	AnySQLiteSelectQueryBuilder,
 	SQLiteDeleteConfig,
@@ -37,12 +37,12 @@ import type {
 	SQLiteUpdateConfig,
 } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
-import { Subquery } from '~/subquery.ts';
-import { getTableName, Table, TableColumns } from '~/table.ts';
+import type { Subquery } from '~/subquery.ts';
+import { getTableName, Qualifier, Table, TableColumns } from '~/table.ts';
 import {
-	getColumnFromDecoder,
 	makeDefaultQueryMapper,
 	makeJitQueryMapper,
+	memoizeEscape,
 	orderSelectedFields,
 	type RowsMapperGenerator,
 	type UpdateSet,
@@ -54,15 +54,35 @@ import type {
 	SQLiteSelectConfig,
 	SQLiteSelectJoinConfig,
 } from './query-builders/select.types.ts';
-import { SQLiteViewBase } from './view-base.ts';
+import type { SQLiteViewBase } from './view-base.ts';
 
 export interface SQLiteDialectConfig {
 	codecs?: SQLiteCodecs;
 	useJitMappers?: boolean;
 }
 
+const escapeSQLiteName = memoizeEscape((name) => `"${name.replace(/"/g, '""')}"`);
+// Stored separately - differ per dialect
+const rqbChunks = {
+	json: new StringChunk('json'),
+	object: new StringChunk('_object('),
+	groupArray: new StringChunk('_group_array(json_object('),
+	groupArrayClose: new StringChunk('))'),
+	relationFrom: new StringChunk(' as "r" from ('),
+	relationClose: new StringChunk(') as "t") as '),
+} as const;
+
+export interface SQLiteBuildRelationalQueryConfig
+	extends Omit<BuildRelationalQueryConfig<DBQueryConfig<'many'>>, 'strategy'>
+{
+	jsonb: SQL;
+}
+
 export class SQLiteDialect {
 	static readonly [entityKind]: string = 'SQLiteDialect';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	readonly codecs: CodecsCollection<SQLiteType>;
 	readonly mapperGenerators: {
@@ -84,7 +104,7 @@ export class SQLiteDialect {
 	}
 
 	escapeName(name: string): string {
-		return `"${name.replace(/"/g, '""')}"`;
+		return escapeSQLiteName(name);
 	}
 
 	escapeParam(_num: number): string {
@@ -101,7 +121,7 @@ export class SQLiteDialect {
 		const queriesLen = queries.length;
 		const withSqlChunks: SQLChunk[] = new Array(queriesLen + 1);
 		let writeIdx = 0;
-		withSqlChunks[writeIdx++] = new StringChunk('with ');
+		withSqlChunks[writeIdx++] = commonStringChunks['with '];
 
 		for (let i = 0; i < queriesLen; ++i) {
 			const w = queries[i]!;
@@ -187,7 +207,7 @@ export class SQLiteDialect {
 
 		const setSql = this.buildUpdateSet(table, set);
 
-		const fromSql = from && new SQL([new StringChunk(' from '), this.buildFromTable(from)]);
+		const fromSql = from && new SQL([commonStringChunks[' from '], this.buildFromTable(from)]);
 
 		const joinsSql = this.buildJoins(joins);
 
@@ -227,8 +247,9 @@ export class SQLiteDialect {
 	): SQL {
 		const { length: columnsLen } = fields;
 		const chunks: SQLChunk[] = [];
+		const tableKind = chunkKindOf(table);
 		const tableName = table
-			? is(table, SQL) || is(table, Subquery)
+			? isChunk(table, tableKind, chunkKinds.sql) || isChunk(table, tableKind, chunkKinds.subquery)
 				? undefined
 				: (table[Table.Symbol.IsAlias] || table[Table.Symbol.Schema] === undefined
 					? table[Table.Symbol.Name]
@@ -361,7 +382,7 @@ export class SQLiteDialect {
 			}
 
 			if (i < columnsLen - 1) {
-				chunks.push(new StringChunk(', '));
+				chunks.push(commonStringChunks[', ']);
 			}
 		}
 
@@ -380,24 +401,16 @@ export class SQLiteDialect {
 		if (joins) {
 			for (const [index, joinMeta] of joins.entries()) {
 				if (index === 0) {
-					joinsArray.push(new StringChunk(' '));
+					joinsArray.push(commonStringChunks[' ']);
 				}
 				const table = joinMeta.table;
 				const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : undefined;
 
 				if (is(table, SQLiteTable)) {
-					const tableName = table[SQLiteTable.Symbol.Name];
-					const tableSchema = table[SQLiteTable.Symbol.Schema];
-					const origTableName = table[SQLiteTable.Symbol.OriginalName];
-					const alias = tableName === origTableName ? undefined : joinMeta.alias;
 					joinsArray.push(
 						sql`${new StringChunk(joinMeta.joinType)} join ${
-							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-						}${
-							sql.identifier(
-								origTableName,
-							)
-						}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
+							table[Table.Symbol.IsAlias] ? aliasedTableSQL(table) : table
+						}${onSql}`,
 					);
 				} else {
 					joinsArray.push(
@@ -405,7 +418,7 @@ export class SQLiteDialect {
 					);
 				}
 				if (index < joins.length - 1) {
-					joinsArray.push(new StringChunk(' '));
+					joinsArray.push(commonStringChunks[' ']);
 				}
 			}
 		}
@@ -430,7 +443,7 @@ export class SQLiteDialect {
 				orderByList.push(orderByValue);
 
 				if (index < orderBy.length - 1) {
-					orderByList.push(new StringChunk(', '));
+					orderByList.push(commonStringChunks[', ']);
 				}
 			}
 		}
@@ -443,13 +456,7 @@ export class SQLiteDialect {
 	private buildFromTable(
 		table: SQL | Subquery | SQLiteViewBase | SQLiteTable | undefined,
 	): SQL | Subquery | SQLiteViewBase | SQLiteTable | undefined {
-		if (is(table, Table) && table[Table.Symbol.IsAlias]) {
-			return sql`${sql`${sql.identifier(table[Table.Symbol.Schema] ?? '')}.`.if(table[Table.Symbol.Schema])}${
-				sql.identifier(
-					table[Table.Symbol.OriginalName],
-				)
-			} ${sql.identifier(table[Table.Symbol.Name])}`;
-		}
+		if (is(table, Table) && table[Table.Symbol.IsAlias]) return aliasedTableSQL(table);
 
 		if (is(table, View) && table[ViewBaseConfig].isAlias) {
 			let fullName = sql`${sql.identifier(table[ViewBaseConfig].originalName)}`;
@@ -479,17 +486,19 @@ export class SQLiteDialect {
 		useSelectionCastCodecs,
 	}: SQLiteSelectConfig): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<SQLiteColumn>(fields, undefined, this.codecs);
+
+		const tableKind = chunkKindOf(table);
+		const ownTableName = isChunk(table, tableKind, chunkKinds.subquery)
+			? table._.alias
+			: isChunk(table, tableKind, chunkKinds.view)
+			? table[ViewBaseConfig].name
+			: isChunk(table, tableKind, chunkKinds.sql)
+			? undefined
+			: getTableName(table);
 		for (const f of fieldsList) {
 			if (
 				is(f.field, Column)
-				&& getTableName(f.field.table)
-					!== (is(table, Subquery)
-						? table._.alias
-						: is(table, SQLiteViewBase)
-						? table[ViewBaseConfig].name
-						: is(table, SQL)
-						? undefined
-						: getTableName(table))
+				&& getTableName(f.field.table) !== ownTableName
 				&& !((table) =>
 					joins?.some(
 						({ alias }) =>
@@ -536,7 +545,7 @@ export class SQLiteDialect {
 				groupByList.push(groupByValue);
 
 				if (index < groupBy.length - 1) {
-					groupByList.push(new StringChunk(', '));
+					groupByList.push(commonStringChunks[', ']);
 				}
 			}
 		}
@@ -641,21 +650,13 @@ export class SQLiteDialect {
 				if (is(singleOrderBy, SQLiteColumn)) {
 					orderByValues.push(sql.identifier(singleOrderBy.name));
 				} else if (is(singleOrderBy, SQL)) {
-					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
-						const chunk = singleOrderBy.queryChunks[i];
-
-						if (is(chunk, SQLiteColumn)) {
-							singleOrderBy.queryChunks[i] = sql.identifier(chunk.name);
-						}
-					}
-
-					orderByValues.push(sql`${singleOrderBy}`);
+					orderByValues.push(sql`${unqualifyColumns(singleOrderBy)}`);
 				} else {
 					orderByValues.push(sql`${singleOrderBy}`);
 				}
 			}
 
-			orderBySql = sql` order by ${sql.join(orderByValues, new StringChunk(', '))}`;
+			orderBySql = sql` order by ${sql.join(orderByValues, commonStringChunks[', '])}`;
 		}
 
 		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
@@ -693,75 +694,51 @@ export class SQLiteDialect {
 
 		const insertOrderArr: SQLChunk[] = new Array(colEntriesFiltered.length * 2 + 1);
 		let writeIdx = 0;
-		insertOrderArr[writeIdx++] = new StringChunk('(');
+		insertOrderArr[writeIdx++] = commonStringChunks['('];
 		for (let i = 0; i < colEntriesFiltered.length; ++i) {
 			const [, { name }] = colEntriesFiltered[i]!;
 			insertOrderArr[writeIdx++] = sql.identifier(name);
 
-			if (i < colEntriesFiltered.length - 1) insertOrderArr[writeIdx++] = new StringChunk(', ');
+			if (i < colEntriesFiltered.length - 1) insertOrderArr[writeIdx++] = commonStringChunks[', '];
 		}
-		insertOrderArr[writeIdx++] = new StringChunk(')');
+		insertOrderArr[writeIdx++] = commonStringChunks[')'];
 		const insertOrder = new SQL(insertOrderArr);
 
-		const valuesSqlList: SQLChunk[] = new Array(
-			select
-				? 1
-				: (colEntriesFiltered.length * 2 + 1) * (valuesOrSelect as Record<string, unknown>[]).length
-					+ (valuesOrSelect as Record<string, unknown>[]).length,
-		);
+		let valuesSqlList: SQLChunk[];
 
 		if (select) {
-			valuesSqlList[0] = (valuesOrSelect as AnySQLiteSelectQueryBuilder | SQL).getSQL();
+			valuesSqlList = [(valuesOrSelect as AnySQLiteSelectQueryBuilder | SQL).getSQL()];
 		} else {
 			const values = valuesOrSelect as Record<string, unknown>[];
+			const cells: unknown[] = new Array(values.length * colEntriesFiltered.length);
 
 			let writeIdx = 0;
-			valuesSqlList[writeIdx++] = new StringChunk('values ');
 
 			for (let valueIndex = 0; valueIndex < values.length; ++valueIndex) {
 				const value = values[valueIndex]!;
 
-				valuesSqlList[writeIdx++] = new StringChunk('(');
 				for (let i = 0; i < colEntriesFiltered.length; ++i) {
 					const [fieldName, col] = colEntriesFiltered[i]!;
 					const colValue = value[fieldName];
 					if (colValue === undefined) {
-						let defaultValue;
 						if (col.defaultFn !== undefined) {
-							const defaultFnResult = col.defaultFn();
-							defaultValue = is(defaultFnResult, SQL)
-								? defaultFnResult
-								: sql.param(defaultFnResult, col);
+							cells[writeIdx++] = col.defaultFn();
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (col.default !== null && col.default !== undefined) {
-							defaultValue = is(col.default, SQL)
-								? col.default
-								: sql.param(col.default, col);
+							cells[writeIdx++] = col.default;
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (col.onUpdateFn !== undefined) {
-							const onUpdateFnResult = col.onUpdateFn();
-							defaultValue = is(onUpdateFnResult, SQL)
-								? onUpdateFnResult
-								: sql.param(onUpdateFnResult, col);
+							cells[writeIdx++] = col.onUpdateFn();
 						} else {
-							defaultValue = new StringChunk('null');
+							cells[writeIdx++] = commonStringChunks['null'];
 						}
-						valuesSqlList[writeIdx++] = defaultValue;
 					} else {
-						valuesSqlList[writeIdx++] = is(colValue, SQL) ? colValue : new Param(colValue, col);
+						cells[writeIdx++] = colValue;
 					}
-
-					if (i < colEntriesFiltered.length - 1) {
-						valuesSqlList[writeIdx++] = new StringChunk(', ');
-					}
-				}
-
-				valuesSqlList[writeIdx++] = new StringChunk(')');
-
-				if (valueIndex < values.length - 1) {
-					valuesSqlList[writeIdx++] = new StringChunk(`, `);
 				}
 			}
+
+			valuesSqlList = [commonStringChunks['values '], new ValueRows(cells, colEntriesFiltered.map(([, col]) => col))];
 		}
 
 		const withSql = this.buildWithCTE(withList);
@@ -793,357 +770,188 @@ export class SQLiteDialect {
 		});
 	}
 
-	private buildRqbColumn(
-		table: SchemaEntry,
-		field: unknown,
-		key: string,
-		inJson: boolean,
-		selection: BuildRelationalQueryResult['selection'],
-		tableTsName: string,
-	) {
-		let decoderColumn: Column | undefined;
-		let subqueryDecoder: DriverValueDecoder<any, any> | undefined;
-		let fieldType: BuildRelationalQueryResult['selection'][number]['fieldType'];
-		let output: SQL;
+	buildRelationalQuery(
+		config: Omit<SQLiteBuildRelationalQueryConfig, 'through'>,
+	): BuildRelationalQueryResult {
+		const chunks: SQLChunk[] = [];
+		const selection = this.collectRelationalQuery(config, chunks);
 
-		if (is(field, Column)) {
-			decoderColumn = field;
-			fieldType = 'Column';
-
-			const name = sql`${table}.${sql.identifier(field.name)}`;
-			const casted = inJson && (<SQLiteCustomColumn<any>> field).jsonSelectIdentifier
-				? (<SQLiteCustomColumn<any>> field).jsonSelectIdentifier!(name, sql)
-				: this.codecs.apply(field, inJson ? 'castInJson' : 'cast', name);
-
-			output = sql`${casted} as ${sql.identifier(key)}`;
-		} else if (is(field, SQL)) {
-			decoderColumn = is(field.decoder, Column) ? field.decoder : undefined;
-			fieldType = 'SQL';
-
-			const q = sql`${table}.${sql.identifier(key)}`;
-			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
-				sql.identifier(key)
-			}`;
-		} else if (is(field, SQL.Aliased)) {
-			decoderColumn = is(field.sql.decoder, Column) ? field.sql.decoder : undefined;
-			fieldType = 'SQL.Aliased';
-
-			const q = sql`${table}.${sql.identifier(field.fieldAlias)}`;
-			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
-				sql.identifier(key)
-			}`;
-		} else if (is(field, Subquery)) {
-			const innerField = Object.values(field._.selectedFields)[0];
-
-			if (is(innerField, Column)) {
-				decoderColumn = innerField;
-				subqueryDecoder = innerField;
-			} else if (is(innerField, SQL.Aliased)) {
-				decoderColumn = getColumnFromDecoder(innerField);
-				subqueryDecoder = innerField.sql.decoder;
-			} else if (is(innerField, SQL)) {
-				decoderColumn = getColumnFromDecoder(innerField);
-				subqueryDecoder = innerField.decoder;
-			}
-			fieldType = 'Subquery';
-
-			const q = sql`${table}.${sql.identifier(field._.alias)}`;
-			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
-				sql.identifier(key)
-			}`;
-		} else if (isSQLWrapper(field)) {
-			const query = (field as SQLWrapper).getSQL();
-			decoderColumn = is(query.decoder, Column) ? query.decoder : undefined;
-			fieldType = 'SQLWrapper';
-
-			const q = sql`${table}.${sql.identifier(key)}`;
-			output = sql`${decoderColumn ? this.codecs.apply(decoderColumn, inJson ? 'castInJson' : 'cast', q) : q} as ${
-				sql.identifier(key)
-			}`;
-		} else {
-			throw new DrizzleError({
-				message: field === undefined
-					? `Unknown column: "${tableTsName}"."${key}"`
-					: `Views and subqueries with nested selections are not supported by the relational query builder`,
-			});
-		}
-
-		selection.push(
-			(decoderColumn
-				? {
-					key,
-					field,
-					fieldType,
-					subqueryDecoder,
-					codec: !inJson || !(<SQLiteCustomColumn<any>> decoderColumn).mapFromJsonValue
-						? this.codecs.get(decoderColumn, inJson ? 'normalizeInJson' : 'normalize')
-						: undefined,
-				}
-				: {
-					key,
-					field,
-					fieldType,
-					subqueryDecoder,
-				}) as BuildRelationalQueryResult['selection'][number],
-		);
-
-		return output;
+		return {
+			sql: new SQL(chunks),
+			selection,
+		};
 	}
 
-	private getSelectedTableColumns = (
-		table: SchemaEntry,
-		columns: Record<string, boolean | undefined>,
-	) => {
-		const selectedColumns: ColumnWithTSName[] = [];
-		const columnContainer = table[TableColumns];
-		const entries = Object.entries(columns);
-
-		let colSelectionMode: boolean | undefined;
-		for (const [k, v] of entries) {
-			if (v === undefined) continue;
-			colSelectionMode = colSelectionMode || v;
-
-			if (v) {
-				const column = columnContainer[k]!;
-
-				selectedColumns.push({
-					column: column as Column | SQL | SQLWrapper | SQL.Aliased,
-					tsName: k,
-				});
-			}
-		}
-
-		if (colSelectionMode === false) {
-			for (const [k, v] of Object.entries(columnContainer)) {
-				if (columns[k] === false) continue;
-
-				selectedColumns.push({
-					column: v as Column | SQL | SQLWrapper | SQL.Aliased | Table,
-					tsName: k,
-				});
-			}
-		}
-
-		return selectedColumns;
-	};
-
-	private buildColumns = (
-		table: SchemaEntry,
-		selection: BuildRelationalQueryResult['selection'],
-		inJson: boolean,
-		tableTsName: string,
-		config?: DBQueryConfig<'many'>,
-	) => {
-		if (!config?.columns) {
-			return sql.join(
-				Object.entries(table[TableColumns]).map(([k, v]) => {
-					return this.buildRqbColumn(table, v, k, inJson, selection, tableTsName);
-				}),
-				new StringChunk(', '),
-			);
-		}
-
-		const columnIdentifiers: SQL[] = [];
-
-		const selectedColumns = this.getSelectedTableColumns(
-			table,
-			config?.columns,
-		);
-
-		for (const { column, tsName } of selectedColumns) {
-			columnIdentifiers.push(this.buildRqbColumn(table, column, tsName, inJson, selection, tableTsName));
-		}
-
-		return columnIdentifiers.length
-			? sql.join(columnIdentifiers, new StringChunk(', '))
-			: undefined;
-	};
-
-	buildRelationalQuery({
+	private collectRelationalQuery({
 		schema,
 		table,
 		tableConfig,
 		queryConfig: config,
 		relationWhere,
 		mode,
-		isNested,
+		nested,
 		errorPath,
 		depth,
-		throughJoin,
+		through,
 		jsonb,
 		withSubqueries,
-	}: {
-		schema: TablesRelationalConfig;
-		table: SchemaEntry;
-		tableConfig: TableRelationalConfig;
-		queryConfig?: DBQueryConfig<'many'> | true;
-		relationWhere?: SQL;
-		mode: 'first' | 'many';
-		isNested?: boolean;
-		errorPath?: string;
-		depth?: number;
-		throughJoin?: SQL;
-		jsonb: SQL;
-		withSubqueries?: RelationalWithSubqueries;
-	}): BuildRelationalQueryResult {
+		usedTables,
+	}: SQLiteBuildRelationalQueryConfig, collectTo: SQLChunk[]): BuildRelationalQueryResult['selection'] {
 		const selection: BuildRelationalQueryResult['selection'] = [];
 		const isSingle = mode === 'first';
 		const params = config === true ? undefined : config;
 		const currentPath = errorPath ?? '';
 		const currentDepth = depth ?? 0;
-		const subqueries: RelationalWithSubqueries = withSubqueries ?? new Map();
+		const collector: RelationalWithSubqueries = withSubqueries ?? { subqueries: new Map(), usedTables };
 		if (!currentDepth) {
-			collectRelationalSubquery(subqueries, table);
+			collectSubqueryAndUsedTables(collector, table);
 			table = aliasedTable(table, `d${currentDepth}`);
 		}
+		const tableRef = table[Qualifier];
 
 		const limit = isSingle ? 1 : params?.limit;
 		const offset = params?.offset;
 
-		const columns = this.buildColumns(table, selection, !!isNested, tableConfig.name, params);
-
-		const filter = params && 'where' in params
-			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, subqueries)
-			: undefined;
-		const where: SQL | undefined = filter && relationWhere
-			? and(filter.sql, relationWhere)
-			: filter
-			? filter.sql
-			: relationWhere;
+		const { sql: where } = relationalQueryWhereToSQL(
+			table,
+			params,
+			tableConfig.relations,
+			schema,
+			collector,
+			relationWhere,
+		);
 		const order = params?.orderBy
-			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, subqueries)
+			? relationsOrderToSQL(table, params.orderBy, tableConfig.relations, schema, collector)
 			: undefined;
-		const extras = params?.extras
-			? relationExtrasToSQL(table, params.extras, this.codecs, !!isNested)
-			: undefined;
-		if (extras) selection.push(...extras.selection);
 
-		let joins: SQL | undefined;
-		switch (params) {
-			case undefined:
-				break;
-			default: {
-				const { with: withParam } = params as WithContainer;
-				if (!withParam) break;
-
-				const withEntries = Object.entries(withParam).filter(([_, v]) => v);
-				if (!withEntries.length) break;
-
-				const joinChunks: SQLChunk[] = new Array(withEntries.length * 2 - 1);
-				for (let readIdx = 0, writeIdx = 0; readIdx < withEntries.length; ++readIdx) {
-					const [k, join] = withEntries[readIdx]!;
-
-					const relation = tableConfig.relations[k];
-					if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
-					const isSingle = relation.relationType === 'one';
-					collectRelationalSubquery(subqueries, relation.targetTable);
-					collectRelationalSubquery(subqueries, relation.throughTable);
-
-					const targetTable = aliasedTable(
-						relation.targetTable,
-						`d${currentDepth + 1}`,
-					);
-					const throughTable = relation.throughTable
-						? aliasedTable(relation.throughTable, `tr${currentDepth}`)
-						: undefined;
-
-					const { filter, joinCondition } = relationToSQL(
-						relation,
-						table,
-						targetTable,
-						throughTable,
-					);
-
-					const throughJoin = throughTable
-						? sql` inner join ${getTableAsAliasSQL(throughTable)} on ${joinCondition!}`
-						: undefined;
-
-					const innerQuery = this.buildRelationalQuery({
-						table: targetTable,
-						mode: isSingle ? 'first' : 'many',
-						schema,
-						queryConfig: join as DBQueryConfig,
-						tableConfig: schema[relation.targetTableName]!,
-						relationWhere: filter,
-						isNested: true,
-						errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
-						depth: currentDepth + 1,
-						withSubqueries: subqueries,
-						throughJoin,
-						jsonb,
-					});
-
-					selection.push({
-						field: targetTable,
-						fieldType: 'Nested',
-						key: k,
-						selection: innerQuery.selection,
-						isArray: !isSingle,
-						isOptional: ((relation as AnyOne).optional ?? false)
-							|| (join !== true
-								&& !!(join as Exclude<typeof join, boolean | undefined>)
-									.where),
-					});
-
-					const jsonColumns = sql.join(
-						innerQuery.selection.map((s) => {
-							return sql`${new StringChunk(this.escapeString(s.key))}, ${
-								s.selection
-									? sql`${jsonb}(${sql.identifier(s.key)})`
-									: sql.identifier(s.key)
-							}`;
-						}),
-						new StringChunk(', '),
-					);
-
-					const json = isNested ? jsonb : sql`json`;
-
-					const joinQuery = isSingle
-						? sql`(select ${json}_object(${jsonColumns}) as ${sql.identifier('r')} from (${innerQuery.sql}) as ${
-							sql.identifier(
-								't',
-							)
-						}) as ${sql.identifier(k)}`
-						: sql`(select ${json}_group_array(json_object(${jsonColumns})) as ${
-							sql.identifier(
-								'r',
-							)
-						} from (${innerQuery.sql}) as ${sql.identifier('t')}) as ${sql.identifier(k)}`;
-
-					joinChunks[writeIdx++] = joinQuery;
-					if (readIdx < withEntries.length - 1) joinChunks[writeIdx++] = new StringChunk(', ');
-				}
-
-				joins = new SQL(joinChunks);
-
-				break;
+		const withParam = params ? (params as WithContainer).with : undefined;
+		const withKeys: string[] = [];
+		if (withParam) {
+			for (const key of Object.keys(withParam)) {
+				if (withParam[key]) withKeys.push(key);
 			}
 		}
 
-		const selectionArr = [columns, extras?.sql, joins].filter(
-			(e) => e !== undefined,
+		// Reserved for `with` clause, filled once all subqueries are collected
+		const withIdx = currentDepth ? -1 : collectTo.length;
+		if (!currentDepth) collectTo.push(undefined);
+
+		collectTo.push(commonStringChunks['select ']);
+		const hasColumns = buildRqbColumns(
+			tableRef,
+			tableConfig.table[TableColumns],
+			selection,
+			!!nested,
+			tableConfig.name,
+			this.codecs,
+			collectTo,
+			params?.columns,
 		);
-		if (!selectionArr.length) {
+		let selected = hasColumns ? 1 : 0;
+		if (params?.extras) {
+			const mark = collectTo.length;
+			if (selected) collectTo.push(commonStringChunks[', ']);
+			const extras = relationExtrasToSQL(table, params.extras, this.codecs, !!nested, collectTo);
+			selection.push(...extras.selection);
+			if (extras.sql) ++selected;
+			else collectTo.length = mark;
+		}
+
+		if (!selected && !withKeys.length) {
 			throw new DrizzleError({
 				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
 			});
 		}
-		const selectionSet = sql.join(selectionArr, new StringChunk(', '));
 
-		const withSql = currentDepth ? undefined : this.buildWithCTE([...subqueries.values()]);
-		const query = sql`${withSql}select ${selectionSet} from ${getTableAsAliasSQL(table)}${throughJoin}${
-			sql` where ${where}`.if(
-				where,
-			)
-		}${sql` order by ${order}`.if(order)}${sql` limit ${limit}`.if(limit !== undefined)}${
-			sql` offset ${offset}`.if(
-				offset !== undefined,
-			)
-		}`;
+		for (const k of withKeys) {
+			const join = withParam![k]!;
 
-		return {
-			sql: query,
-			selection,
-		};
+			const relation = tableConfig.relations[k];
+			if (!relation) throw new DrizzleError({ message: `Unknown relation "${tableConfig.name}" -> "${k}"` });
+			const isSingle = relation.relationType === 'one';
+			collectSubqueryAndUsedTables(collector, relation.targetTable);
+			collectSubqueryAndUsedTables(collector, relation.throughTable);
+
+			const targetTable = aliasedTable(
+				relation.targetTable,
+				`d${currentDepth + 1}`,
+			);
+			const throughTable = relation.throughTable
+				? aliasedTable(relation.throughTable, `tr${currentDepth}`)
+				: undefined;
+
+			const { filter, joinCondition } = relationToSQL(
+				relation,
+				table,
+				targetTable,
+				throughTable,
+			);
+
+			if (selected++) collectTo.push(commonStringChunks[', ']);
+			// Reserved for JSON of relation's fields, known once relation's query is built
+			const jsonIdx = collectTo.length;
+			collectTo.push(undefined, rqbChunks.relationFrom);
+			const innerSelection = this.collectRelationalQuery({
+				table: targetTable,
+				mode: isSingle ? 'first' : 'many',
+				schema,
+				queryConfig: join as DBQueryConfig,
+				tableConfig: schema[relation.targetTableName]!,
+				relationWhere: filter,
+				nested: true,
+				errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
+				depth: currentDepth + 1,
+				withSubqueries: collector,
+				through: throughTable ? { table: throughTable, condition: joinCondition! } : undefined,
+				jsonb,
+			}, collectTo);
+			collectTo.push(rqbChunks.relationClose, sql.identifier(k));
+
+			const jsonChunks: SQLChunk[] = [
+				commonStringChunks['(select '],
+				nested ? jsonb : rqbChunks.json,
+				isSingle ? rqbChunks.object : rqbChunks.groupArray,
+			];
+			for (let i = 0; i < innerSelection.length; ++i) {
+				const s = innerSelection[i]!;
+				if (i) jsonChunks.push(commonStringChunks[', ']);
+				jsonChunks.push(new StringChunk(this.escapeString(s.key)), commonStringChunks[', ']);
+				if (s.selection) {
+					jsonChunks.push(jsonb, commonStringChunks['('], sql.identifier(s.key), commonStringChunks[')']);
+				} else {
+					jsonChunks.push(sql.identifier(s.key));
+				}
+			}
+			jsonChunks.push(isSingle ? commonStringChunks[')'] : rqbChunks.groupArrayClose);
+			collectTo[jsonIdx] = new SQL(jsonChunks);
+
+			selection.push({
+				field: targetTable,
+				fieldType: 'Nested',
+				key: k,
+				selection: innerSelection,
+				isArray: !isSingle,
+				isOptional: ((relation as AnyOne).optional ?? false)
+					|| (join !== true
+						&& !!(join as Exclude<typeof join, boolean | undefined>)
+							.where),
+			});
+		}
+
+		collectTo.push(commonStringChunks[' from ']);
+		getTableAsAliasSQL(table, collectTo);
+		if (through) {
+			collectTo.push(commonStringChunks[' inner join ']);
+			getTableAsAliasSQL(through.table, collectTo);
+			collectTo.push(commonStringChunks[' on '], ...through.condition);
+		}
+		if (where) collectTo.push(commonStringChunks[' where '], ...where);
+		if (order) collectTo.push(commonStringChunks[' order by '], ...order);
+		if (limit !== undefined) collectTo.push(commonStringChunks[' limit '], limit as SQLChunk);
+		if (offset !== undefined) collectTo.push(commonStringChunks[' offset '], offset as SQLChunk);
+
+		if (withIdx !== -1) collectTo[withIdx] = this.buildWithCTE([...collector.subqueries.values()]);
+
+		return selection;
 	}
 }

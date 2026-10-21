@@ -1,5 +1,5 @@
 import type mssql from 'mssql';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MsSqlDatabase } from '~/mssql-core/db.ts';
@@ -19,6 +19,9 @@ export interface MsSqlDriverOptions {
 
 export class NodeMsSqlDriver {
 	static readonly [entityKind]: string = 'NodeMsSqlDriver';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	constructor(
 		private client: NodeMsSqlClient,

@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { gt, sql } from 'drizzle-orm';
 import { int, integer, sqliteTable, sqliteView } from 'drizzle-orm/sqlite-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
@@ -330,4 +330,73 @@ test('create 2 dependent views', async () => {
 	const { sqlStatements: pst2 } = await push({ db, to: schema });
 	expect(st2).toStrictEqual([]);
 	expect(pst2).toStrictEqual([]);
+});
+
+// topological sort test. existing view gets a new definition that reads a brand-new view
+test('topological sort test. existing view starts reading a new view', async () => {
+	const t = sqliteTable('t', { id: integer() });
+
+	const v2a = sqliteView('v2').as((qb) => qb.select().from(t));
+	const schema1 = { t, v2a };
+
+	const vNew = sqliteView('v_new').as((qb) => qb.select().from(t));
+	const v2b = sqliteView('v2').as((qb) => qb.select().from(vNew));
+	const schema2 = { t, v2b, vNew };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+	expect(st1).toStrictEqual([
+		'DROP VIEW `v2`;',
+		'CREATE VIEW `v_new` AS select "id" from "t";',
+		'CREATE VIEW `v2` AS select "id" from "v_new";',
+	]);
+	// push ignores definition changes
+	expect(pst1).toStrictEqual(['CREATE VIEW `v_new` AS select "id" from "t";']);
+});
+
+// sqlite allows dropping a view that other views depend on
+test('topological sort test. recreate view that another view depends on', async () => {
+	const t = sqliteTable('t', { id: integer() });
+
+	const v1a = sqliteView('v1').as((qb) => qb.select().from(t));
+	const v2a = sqliteView('v2').as((qb) => qb.select().from(v1a));
+	const schema1 = { t, v1a, v2a };
+
+	const v1b = sqliteView('v1').as((qb) => qb.select().from(t).where(gt(t.id, 0)));
+	const v2b = sqliteView('v2').as((qb) => qb.select().from(v1b));
+	const schema2 = { t, v1b, v2b };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+	expect(st1).toStrictEqual([
+		'DROP VIEW `v1`;',
+		'CREATE VIEW `v1` AS select "id" from "t" where "t"."id" > 0;',
+	]);
+	// push ignores definition changes
+	expect(pst1).toStrictEqual([]);
+});
+
+// sqlite allows dropping a view that other views depend on
+test('topological sort test. drop 2 dependent views', async () => {
+	const t = sqliteTable('t', { id: integer() });
+
+	const v1 = sqliteView('v1').as((qb) => qb.select().from(t));
+	const v2 = sqliteView('v2').as((qb) => qb.select().from(v1));
+	const schema1 = { t, v1, v2 };
+	const schema2 = { t };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+	const expectedSt1 = [
+		'DROP VIEW `v1`;',
+		'DROP VIEW `v2`;',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
 });

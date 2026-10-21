@@ -9,7 +9,7 @@ import {
 import type { CustomTypesConfig } from 'pg';
 import type { Cache } from '~/cache/core/cache.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
@@ -72,10 +72,7 @@ export class VercelPgSession<
 		mode: 'arrays' | 'objects' | 'raw',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	) {
 		const queryName = typeof name === 'string'
@@ -110,7 +107,7 @@ export class VercelPgSession<
 		transaction: (tx: VercelPgTransaction<TRelations>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
-		const poolClient = typeof this.client === 'function' || this.client instanceof VercelPool // oxlint-disable-line drizzle-internal/no-instanceof
+		const poolClient = typeof this.client === 'function' || this.client instanceof VercelPool
 			? await this.client.connect()
 			: undefined;
 		// pool detaches its own `error` listener from checked-out clients, so a connection dropped mid-transaction would crash the process

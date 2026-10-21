@@ -1,5 +1,5 @@
 import type { GetColumnData } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { AnyMySqlQueryResultHKT, MySqlQueryResultHKT } from '~/mysql-core/session.ts';
 import type { MySqlSession } from '~/mysql-core/session.ts';
@@ -50,6 +50,9 @@ export class MySqlUpdateBuilder<
 	TBuilderHKT extends MySqlUpdateHKTBase = MySqlUpdateHKT,
 > {
 	static readonly [entityKind]: string = 'MySqlUpdateBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly table: TTable;
@@ -162,6 +165,9 @@ export class MySqlUpdateBase<
 	TExcludedMethods extends string = never,
 > implements SQLWrapper {
 	static readonly [entityKind]: string = 'MySqlUpdate';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	protected config: MySqlUpdateConfig;
 

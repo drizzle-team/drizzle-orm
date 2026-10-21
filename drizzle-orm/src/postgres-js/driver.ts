@@ -25,7 +25,6 @@ function construct<
 	$client: Sql;
 } {
 	const transparentParser = (val: any) => val;
-	// oxlint-disable-next-line drizzle-internal/no-instanceof
 	const dateSerializer = (val: any) => (val instanceof Date ? val.toISOString() : val);
 
 	// Override postgres.js default timestamptz, timestamp, date, time parsers: https://github.com/porsager/postgres/discussions/761

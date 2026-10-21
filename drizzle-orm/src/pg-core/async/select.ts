@@ -101,7 +101,7 @@ export class PgAsyncSelectBase<
 
 	/** @internal */
 	_prepare(name?: string, generateName = false): PgAsyncSelectPrepare<this> {
-		const { session, dialect, cacheConfig, usedTables, config, joinsNotNullableMap } = this;
+		const { session, dialect, cacheConfig, config, joinsNotNullableMap } = this;
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const fieldsList = this._resolveSelection();
@@ -112,7 +112,7 @@ export class PgAsyncSelectBase<
 				nullableObjectPaths,
 			);
 
-			const sequel = this.getSQL(!shape);
+			const sequel = this.getSQL(true);
 			const query = config.tagged ? dialect._sqlToQuery(sequel) : dialect.sqlToQuery(sequel);
 			const mapper = shape
 				? undefined
@@ -123,7 +123,7 @@ export class PgAsyncSelectBase<
 				shape ? 'objects' : 'arrays',
 				name ?? generateName,
 				mapper,
-				{ type: 'select', tables: [...usedTables] },
+				{ type: 'select', tables: () => this.getUsedTables(sequel) },
 				cacheConfig,
 				shape,
 			);

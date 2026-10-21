@@ -1,8 +1,8 @@
 import type { Connection, PoolQuery, QueryResult, ShapeSpec } from '@drizzle-team/minipg';
 import { Pool } from '@drizzle-team/minipg';
-import type { BatchItem } from '~/batch';
+import type { BatchItem } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
@@ -44,10 +44,7 @@ export class PostgresSession<
 		mode: 'arrays' | 'objects' | 'raw',
 		name: string | boolean,
 		mapper: ((rows: any[]) => any) | undefined,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 		shape?: ShapeSpec,
 	) {
@@ -93,7 +90,7 @@ export class PostgresSession<
 		const builtQueries: PoolQuery[] = new Array(queries.length);
 
 		const q = this.client;
-		if (!(q instanceof Pool)) throw new Error('`batch` method is only supported on connection pools!'); // oxlint-disable-line no-instanceof-builtins drizzle-internal/no-instanceof
+		if (!(q instanceof Pool)) throw new Error('`batch` method is only supported on connection pools!');
 		for (let i = 0; i < queries.length; ++i) {
 			const query = queries[i]!;
 			const preparedQuery = query._prepare() as PostgresPreparedQuery<any>;
@@ -183,10 +180,7 @@ export class PostgresPreparedQuery<T extends PreparedQueryConfig> extends PgAsyn
 		// cache instance
 		cache: Cache | undefined,
 		// per query related metadata
-		queryMetadata: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		} | undefined,
+		queryMetadata: QueryMetadata | undefined,
 		// config that was passed through $withCache
 		cacheConfig: WithCacheConfig | undefined,
 		readonly shape?: ShapeSpec,

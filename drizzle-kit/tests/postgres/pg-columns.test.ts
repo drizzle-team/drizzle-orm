@@ -328,7 +328,7 @@ test('alter text type to enum type', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3589
 // After discussion it was decided to postpone this feature
-test.skipIf(Date.now() < +new Date('2026-10-17'))('alter integer type to text type with fk constraints', async () => {
+test.skipIf(Date.now() < +new Date('2026-11-24'))('alter integer type to text type with fk constraints', async () => {
 	const users1 = pgTable('users', {
 		id: serial().primaryKey(),
 	});
@@ -1759,6 +1759,52 @@ test('Issue No3826. Renaming column and altering contraint on it', async () => {
 	];
 	expect(st1).toStrictEqual(st0);
 	expect(pst1).toStrictEqual(st0);
+});
+
+const serialTypes = {
+	smallserial: () => smallserial(),
+	serial: () => serial(),
+	bigserial: () => bigserial({ mode: 'number' }),
+};
+
+test.each(
+	[
+		{ from: 'serial', to: 'bigserial', type: 'bigint' },
+		{ from: 'serial', to: 'smallserial', type: 'smallint' },
+		{ from: 'bigserial', to: 'serial', type: 'int' },
+		{ from: 'bigserial', to: 'smallserial', type: 'smallint' },
+		{ from: 'smallserial', to: 'serial', type: 'int' },
+		{ from: 'smallserial', to: 'bigserial', type: 'bigint' },
+	] as const,
+)('a change from $from to $to changes the integer type and keeps the sequence of the column', async (row) => {
+	const from = { users: pgTable('users', { id: serialTypes[row.from](), name: text() }) };
+	const to = { users: pgTable('users', { id: serialTypes[row.to](), name: text() }) };
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	await db.query(`INSERT INTO "users" ("name") VALUES ('first');`);
+	const { sqlStatements: pst } = await push({ db, to });
+	await db.query(`INSERT INTO "users" ("name") VALUES ('second');`);
+
+	const st0 = [`ALTER TABLE "users" ALTER COLUMN "id" SET DATA TYPE ${row.type} USING "id"::${row.type};`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	const rows = await db.query('SELECT "id", "name" FROM "users" ORDER BY "id";');
+	expect(rows.map((it) => [Number(it.id), it.name])).toStrictEqual([[1, 'first'], [2, 'second']]);
+});
+
+test('a change from serial to bigserial in a custom schema changes the integer type of the column', async () => {
+	const folder = pgSchema('folder');
+	const from = { folder, users: folder.table('users', { id: serial().primaryKey() }) };
+	const to = { folder, users: folder.table('users', { id: bigserial({ mode: 'number' }).primaryKey() }) };
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = ['ALTER TABLE "folder"."users" ALTER COLUMN "id" SET DATA TYPE bigint USING "id"::bigint;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6360

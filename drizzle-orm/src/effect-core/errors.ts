@@ -1,11 +1,15 @@
 import * as Schema from 'effect/Schema';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 
 export class EffectDrizzleError extends Schema.TaggedError<EffectDrizzleError>()('EffectDrizzleError', {
 	message: Schema.String,
 	cause: Schema.Unknown,
 }) {
 	static readonly [entityKind]: string = 'EffectDrizzleError';
+
+	static override [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 }
 
 export class EffectDrizzleQueryError extends Schema.TaggedError<EffectDrizzleQueryError>()('EffectDrizzleQueryError', {
@@ -14,6 +18,10 @@ export class EffectDrizzleQueryError extends Schema.TaggedError<EffectDrizzleQue
 	cause: Schema.Unknown,
 }) {
 	static readonly [entityKind]: string = 'EffectDrizzleQueryError';
+
+	static override [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	override get message() {
 		return this.params ? `Failed query: ${this.query}\nparams: ${this.params}` : `Failed query: ${this.query}`;
@@ -30,6 +38,10 @@ export class EffectTransactionRollbackError
 {
 	static readonly [entityKind]: string = 'EffectTransactionRollbackError';
 
+	static override [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
 	override readonly message = 'Rollback';
 }
 
@@ -37,4 +49,8 @@ export class MigratorInitError extends Schema.TaggedError<MigratorInitError>()('
 	exitCode: Schema.Literals(['databaseMigrations', 'localMigrations']),
 }) {
 	static readonly [entityKind]: string = 'MigratorInitError';
+
+	static override [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 }

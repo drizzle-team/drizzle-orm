@@ -1,5 +1,5 @@
 import type { GetColumnData } from '~/column.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
@@ -51,6 +51,9 @@ export class SingleStoreUpdateBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 > {
 	static readonly [entityKind]: string = 'SingleStoreUpdateBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: {
 		readonly table: TTable;
@@ -241,7 +244,7 @@ export class SingleStoreUpdateBase<
 			fields ? this.dialect.mapperGenerators.rows(fields, undefined) : undefined,
 			{
 				type: 'update',
-				tables: usedTablesOf(this.config.table),
+				tables: () => usedTablesOf(this.config.table),
 			},
 		) as SingleStoreUpdatePrepare<this>;
 	}

@@ -1,4 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
+import type { Decoder } from '@drizzle-team/minipg';
 import type { SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import { DrizzleQueryError, is } from 'drizzle-orm';
 import type { AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
@@ -53,7 +54,8 @@ export const preparePostgresDB = async (
 			| 'postgres'
 			| '@vercel/postgres'
 			| '@neondatabase/serverless'
-			| 'bun';
+			| 'bun'
+			| '@drizzle-team/minipg';
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
 		benchmarkProxy?: BenchmarkProxy;
@@ -63,88 +65,161 @@ export const preparePostgresDB = async (
 	if ('driver' in credentials) {
 		const { driver } = credentials;
 		if (driver === 'aws-data-api') {
-			assertPackages('@aws-sdk/client-rds-data');
-			const { RDSDataClient } = await import(
-				'@aws-sdk/client-rds-data'
-			);
-			const { AwsDataApiSession, drizzle, AwsPgDialect } = await import(
-				'drizzle-orm/aws-data-api/pg'
-			);
-			const { migrate } = await import('drizzle-orm/aws-data-api/pg/migrator');
+			if (await checkPackage('@aws-sdk/client-rds-data')) {
+				const { RDSDataClient } = await import(
+					'@aws-sdk/client-rds-data'
+				);
+				const { AwsDataApiSession, drizzle, AwsPgDialect } = await import(
+					'drizzle-orm/aws-data-api/pg'
+				);
+				const { migrate } = await import('drizzle-orm/aws-data-api/pg/migrator');
 
-			const config: AwsDataApiSessionOptions = {
-				database: credentials.database,
-				resourceArn: credentials.resourceArn,
-				secretArn: credentials.secretArn,
-			};
-			const rdsClient = new RDSDataClient();
-			const session = new AwsDataApiSession(
-				rdsClient,
-				new AwsPgDialect(),
-				{},
-				config,
-				undefined,
-			);
-
-			const db = drizzle({ client: rdsClient, ...config });
-			const migrateFn = async (config: MigrationConfig) => {
-				return migrate(db, config);
-			};
-
-			const query = async (sql: string, params: any[]): Promise<any[]> => {
-				const prepared = session.prepareQuery<
-					PreparedQueryConfig & {
-						execute: any[];
-					}
-				>(
-					{ sql, params: params ?? [] },
-					'objects',
-					false,
+				const config: AwsDataApiSessionOptions = {
+					database: credentials.database,
+					resourceArn: credentials.resourceArn,
+					secretArn: credentials.secretArn,
+				};
+				const rdsClient = new RDSDataClient();
+				const session = new AwsDataApiSession(
+					rdsClient,
+					new AwsPgDialect(),
+					{},
+					config,
 					undefined,
 				);
 
-				return prepared.execute().catch((e) => {
-					// * AwsDataApiSession wraps all errors into DrizzleQueryError, so we need to check the cause
-					if (e instanceof DrizzleQueryError && e.cause instanceof Error) {
-						throw new QueryError(e.cause, sql, params);
-					}
-					throw new QueryError(e, sql, params);
-				});
-			};
-			const proxy = async (params: ProxyParams) => {
-				const prepared = session.prepareQuery<
-					PreparedQueryConfig & {
-						execute: unknown[];
-					}
-				>(
-					{
-						sql: params.sql,
-						params: params.params ?? [],
+				const db = drizzle({ client: rdsClient, ...config });
+				const migrateFn = async (config: MigrationConfig) => {
+					return migrate(db, config);
+				};
+
+				const query = async (sql: string, params: any[]): Promise<any[]> => {
+					const prepared = session.prepareQuery<
+						PreparedQueryConfig & {
+							execute: any[];
+						}
+					>(
+						{ sql, params: params ?? [] },
+						'objects',
+						false,
+						undefined,
+					);
+
+					return prepared.execute().catch((e) => {
+						// * AwsDataApiSession wraps all errors into DrizzleQueryError, so we need to check the cause
+						if (is(e, DrizzleQueryError) && e.cause instanceof Error) {
+							throw new QueryError(e.cause, sql, params);
+						}
+						throw new QueryError(e, sql, params);
+					});
+				};
+				const proxy = async (params: ProxyParams) => {
+					const prepared = session.prepareQuery<
+						PreparedQueryConfig & {
+							execute: unknown[];
+						}
+					>(
+						{
+							sql: params.sql,
+							params: params.params ?? [],
+						},
+						params.mode === 'array' ? 'arrays' : 'objects',
+						false,
+						undefined,
+					);
+
+					return prepared.execute().catch((e) => {
+						// * AwsDataApiSession wraps all errors into DrizzleQueryError, so we need to check the cause
+						if (is(e, DrizzleQueryError) && e.cause instanceof Error) {
+							throw new QueryError(e.cause, params.sql, params.params || []);
+						}
+						throw new QueryError(e, params.sql, params.params || []);
+					});
+				};
+				const transactionProxy: TransactionProxy = async (_queries) => {
+					throw new Error('Transaction not supported');
+				};
+
+				return {
+					packageName: '@aws-sdk/client-rds-data',
+					query,
+					proxy,
+					transactionProxy,
+					migrate: migrateFn,
+				};
+			}
+
+			if (await checkPackage('@drizzle-team/minipg')) {
+				humanLog(withStyle.info(`Using '@drizzle-team/minipg' driver for database querying`));
+				const { createPool } = await import('@drizzle-team/minipg/aurora');
+				const { drizzle } = await import('drizzle-orm/postgres/aurora');
+				const { migrate } = await import('drizzle-orm/postgres/aurora/migrator');
+
+				const client = createPool({
+					database: credentials.database,
+					resourceArn: credentials.resourceArn,
+					secretArn: credentials.secretArn,
+					temporal: 'string',
+					types: {
+						20: (val) => val.toString('utf8'),
+						1016: (val) =>
+							JSON.parse(
+								val.toString('utf8').replace(/-?\d+/g, '"$&"').replace(/NULL/g, 'null').replace(/{/g, '[').replace(
+									/}/g,
+									']',
+								),
+							),
+						114: (val) => JSONB.parse(val.toString('utf8')),
+						3802: (val) => JSONB.parse(val.toString('utf8')),
 					},
-					params.mode === 'array' ? 'arrays' : 'objects',
-					false,
-					undefined,
-				);
-
-				return prepared.execute().catch((e) => {
-					// * AwsDataApiSession wraps all errors into DrizzleQueryError, so we need to check the cause
-					if (is(e, DrizzleQueryError) && e.cause instanceof Error) {
-						throw new QueryError(e.cause, params.sql, params.params || []);
-					}
-					throw new QueryError(e, params.sql, params.params || []);
 				});
-			};
-			const transactionProxy: TransactionProxy = async (_queries) => {
-				throw new Error('Transaction not supported');
-			};
 
-			return {
-				packageName: '@aws-sdk/client-rds-data',
-				query,
-				proxy,
-				transactionProxy,
-				migrate: migrateFn,
-			};
+				const db = drizzle({ client });
+				const migrateFn = async (config: MigrationConfig) => {
+					return migrate(db, config);
+				};
+
+				const query = async (sql: string, params?: any[]) => {
+					const result = await client.query(sql, params ?? [], { mode: 'object' }).catch((e) => {
+						throw new QueryError(e, sql, params || []);
+					});
+					return result.rows as any[];
+				};
+
+				const proxy: Proxy = async (params) => {
+					const result = await client.query(params.sql, params.params ?? [], {
+						mode: params.mode as 'object',
+					}).catch((e) => {
+						throw new QueryError(e, params.sql, params.params || []);
+					});
+					return result.rows;
+				};
+
+				const transactionProxy: TransactionProxy = async (queries) => {
+					const results: any[] = [];
+					try {
+						await client.transaction(async (tx) => {
+							for (const query of queries) {
+								const result = await tx.query(query.sql, [], { mode: 'object' });
+								results.push(result.rows);
+							}
+						});
+					} catch (error) {
+						results.push(error as Error);
+					}
+					return results;
+				};
+
+				return {
+					packageName: '@drizzle-team/minipg',
+					query,
+					proxy,
+					transactionProxy,
+					migrate: migrateFn,
+				};
+			}
+
+			throw new RequiredEitherPackagesCliError(['@aws-sdk/client-rds-data', '@drizzle-team/minipg']);
 		}
 
 		if (driver === 'pglite') {
@@ -1005,10 +1080,91 @@ export const preparePostgresDB = async (
 		return { packageName: 'bun', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
+	if (await checkPackage('@drizzle-team/minipg')) {
+		const { createPool, parseConnectionString } = await import('@drizzle-team/minipg');
+		const { drizzle } = await import('drizzle-orm/postgres');
+		const { migrate } = await import('drizzle-orm/postgres/migrator');
+
+		const ssl = 'ssl' in credentials
+			? credentials.ssl === 'prefer'
+					|| credentials.ssl === 'require'
+					|| credentials.ssl === 'allow'
+				? 'require' as const
+				: credentials.ssl
+			: undefined;
+
+		const config = {
+			...('url' in credentials ? { url: credentials.url } : { ...credentials, ssl }),
+			max: 1,
+			temporal: 'string' as const,
+			// Match node-postgres type parsing
+			types: {
+				20: (val) => val.toString('utf8'),
+				1016: (val) =>
+					JSON.parse(
+						val.toString('utf8').replace(/-?\d+/g, '"$&"').replace(/NULL/g, 'null').replace(/{/g, '[').replace(
+							/}/g,
+							']',
+						),
+					),
+				114: (val) => JSONB.parse(val.toString('utf8')),
+				3802: (val) => JSONB.parse(val.toString('utf8')),
+			} satisfies Record<number, Decoder>,
+		};
+
+		const host = 'url' in credentials ? parseConnectionString(credentials.url).host : credentials.host;
+		const isNeon = !!host && /\.neon\.tech$/i.test(host);
+
+		humanLog(
+			withStyle.info(`Using '@drizzle-team/minipg'${isNeon ? ' (neon-ws)' : ''} driver for database querying`),
+		);
+		const client = isNeon
+			? (await import('@drizzle-team/minipg/neon-ws')).createPool({ ...config, webSocketConstructor: ws })
+			: createPool(config);
+
+		const db = drizzle({ client });
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(db, config);
+		};
+
+		const query = async (sql: string, params?: any[]) => {
+			const result = await client.query(sql, params ?? [], { mode: 'object' }).catch((e) => {
+				throw new QueryError(e, sql, params || []);
+			});
+			return result.rows as any[];
+		};
+
+		const proxy: Proxy = async (params) => {
+			const result = await client.query(params.sql, params.params ?? [], {
+				mode: params.mode === 'array' ? 'array' : 'object',
+			}).catch((e) => {
+				throw new QueryError(e, params.sql, params.params || []);
+			});
+			return result.rows;
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: any[] = [];
+			try {
+				await client.transaction(async (tx) => {
+					for (const query of queries) {
+						const result = await tx.query(query.sql, [], { mode: 'object' });
+						results.push(result.rows);
+					}
+				});
+			} catch (error) {
+				results.push(error as Error);
+			}
+			return results;
+		};
+
+		return { packageName: '@drizzle-team/minipg', query, proxy, transactionProxy, migrate: migrateFn };
+	}
+
 	throw new DatabaseDriverCliError(
 		'postgresql',
-		['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres'],
-		"To connect to Postgres database - please install either of 'pg', 'postgres', 'bun', '@neondatabase/serverless' or '@vercel/postgres' drivers\nFor the 'bun' driver, run your script using: bun --bun",
+		['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', '@drizzle-team/minipg'],
+		"To connect to Postgres database - please install either of 'pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres' or '@drizzle-team/minipg' drivers\nFor the 'bun' driver, run your script using: bun --bun",
 		"For the 'bun' driver, run your script using: bun --bun",
 	);
 };

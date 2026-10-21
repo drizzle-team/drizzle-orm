@@ -3,7 +3,7 @@ import type { Results, Row } from '@electric-sql/pglite';
 import * as Effect from 'effect/Effect';
 import type { SqlError } from 'effect/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
@@ -50,10 +50,7 @@ export class EffectPgSession<
 		mode: 'arrays' | 'objects' | 'raw',
 		_name: string | boolean,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): PgEffectPreparedQuery<T, EffectPgQueryEffectHKT> {
 		const executor = (params?: unknown[]) => {

@@ -2,17 +2,23 @@ import { trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
-import { groupDiffs, preserveEntityNames } from '../utils';
+import { groupDiffs, preserveEntityNames, sortCreateViews } from '../utils';
+import type { SchemaMetadata } from '../utils';
 import { fromJson } from './convertor';
-import type { Column, DiffEntities, Index, MysqlDDL, Table, View } from './ddl';
+import type { Column, DiffEntities, MysqlDDL, Table, View } from './ddl';
 import { fullTableFromDDL } from './ddl';
-import { charSetAndCollationCommutative, commutative, defaultNameForFK } from './grammar';
+import { charSetAndCollationCommutative, commutative } from './grammar';
 import { prepareStatement } from './statements';
 import type { JsonStatement } from './statements';
 
-export const ddlDiffDry = async (from: MysqlDDL, to: MysqlDDL, mode: 'default' | 'push' = 'default') => {
+export const ddlDiffDry = async (
+	from: MysqlDDL,
+	to: MysqlDDL,
+	mode: 'default' | 'push' = 'default',
+	$metadata?: SchemaMetadata,
+) => {
 	const s = new Set<string>();
-	return ddlDiff(from, to, mockResolver(s), mockResolver(s), mockResolver(s), mode);
+	return ddlDiff(from, to, mockResolver(s), mockResolver(s), mockResolver(s), mode, $metadata);
 };
 
 export const ddlDiff = async (
@@ -22,6 +28,7 @@ export const ddlDiff = async (
 	columnsResolver: Resolver<Column>,
 	viewsResolver: Resolver<View>,
 	mode: 'default' | 'push',
+	$metadata?: SchemaMetadata,
 ): Promise<{
 	statements: JsonStatement[];
 	sqlStatements: string[];
@@ -37,64 +44,8 @@ export const ddlDiff = async (
 
 	for (const renamed of renamedTables) {
 		ddl1.tables.update({
-			set: {
-				name: renamed.to.name,
-			},
-			where: {
-				name: renamed.from.name,
-			},
-		});
-
-		const selfRefs = ddl1.fks.update({
-			set: {
-				table: renamed.to.name,
-				tableTo: renamed.to.name,
-			},
-			where: {
-				table: renamed.from.name,
-				tableTo: renamed.from.name,
-			},
-		});
-
-		const froms = ddl1.fks.update({
-			set: {
-				table: renamed.to.name,
-			},
-			where: {
-				table: renamed.from.name,
-			},
-		});
-
-		const tos = ddl1.fks.update({
-			set: {
-				tableTo: renamed.to.name,
-			},
-			where: {
-				tableTo: renamed.from.name,
-			},
-		});
-
-		// preserve name for foreign keys
-		const renamedFKs = [...selfRefs.data, ...froms.data, ...tos.data];
-		for (const fk of renamedFKs) {
-			const name = defaultNameForFK(fk);
-			ddl2.fks.update({
-				set: {
-					name: fk.name,
-				},
-				where: {
-					name: name,
-				},
-			});
-		}
-
-		ddl1.entities.update({
-			set: {
-				table: renamed.to.name,
-			},
-			where: {
-				table: renamed.from.name,
-			},
+			set: { name: renamed.to.name },
+			where: { name: renamed.from.name },
 		});
 	}
 
@@ -121,65 +72,9 @@ export const ddlDiff = async (
 
 	for (const rename of columnRenames) {
 		ddl1.columns.update({
-			set: {
-				name: rename.to.name,
-			},
-			where: {
-				table: rename.from.table,
-				name: rename.from.name,
-			},
+			set: { name: rename.to.name },
+			where: { table: rename.from.table, name: rename.from.name },
 		});
-
-		// DDL2 updates are needed for Drizzle Studio
-		const update1 = {
-			set: {
-				columns: (it: Index['columns'][number]) => {
-					if (!it.isExpression && it.value === rename.from.name) {
-						return { ...it, value: rename.to.name };
-					}
-					return it;
-				},
-			},
-			where: {
-				table: rename.from.table,
-			},
-		} as const;
-
-		ddl1.indexes.update(update1);
-		ddl2.indexes.update(update1);
-
-		const update2 = {
-			set: {
-				columns: (it: string) => it === rename.from.name ? rename.to.name : it,
-			},
-			where: {
-				table: rename.from.table,
-			},
-		} as const;
-		ddl1.fks.update(update2);
-		ddl2.fks.update(update2);
-
-		const update3 = {
-			set: {
-				columnsTo: (it: string) => it === rename.from.name ? rename.to.name : it,
-			},
-			where: {
-				tableTo: rename.from.table,
-			},
-		} as const;
-		ddl1.fks.update(update3);
-		ddl2.fks.update(update3);
-
-		const update4 = {
-			set: {
-				columns: (it: string) => it === rename.from.name ? rename.to.name : it,
-			},
-			where: {
-				table: rename.from.table,
-			},
-		};
-		ddl1.pks.update(update4);
-		ddl2.pks.update(update4);
 	}
 
 	preserveEntityNames(ddl1.fks, ddl2.fks, mode);
@@ -194,12 +89,8 @@ export const ddlDiff = async (
 
 	for (const rename of renamedViews) {
 		ddl1.views.update({
-			set: {
-				name: rename.to.name,
-			},
-			where: {
-				name: rename.from.name,
-			},
+			set: { name: rename.to.name },
+			where: { name: rename.from.name },
 		});
 	}
 
@@ -496,7 +387,11 @@ export const ddlDiff = async (
 			...createCheckStatements,
 
 			...dropColumnStatements,
-			...createViewStatements,
+			// dependent views must be created after their dependencies, otherwise the migration breaks
+			// but this will not help us when views are altered ("alter_view")
+			// "alter_view" does not drop and create, it alters through ddl, see drizzle-kit/tests/mysql/views.test.ts -> "topological sort test. existing view starts reading a new view" case
+			// but for created views we still sort in the correct order
+			...sortCreateViews(createViewStatements, $metadata?.viewDependencies),
 		]),
 	];
 

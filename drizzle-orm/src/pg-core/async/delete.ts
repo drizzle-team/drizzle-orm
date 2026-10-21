@@ -82,7 +82,7 @@ export class PgAsyncDeleteBase<
 				? config.shape ??= dialect.shapeGenerator?.({ type: 'plain', fields }, undefined)
 				: undefined;
 
-			const query = dialect.sqlToQuery(this.getSQL(!shape));
+			const query = dialect.sqlToQuery(this.getSQL(true));
 			const mapper = shape || !fields
 				? undefined
 				: this.dialect.mapperGenerators.rows(fields, undefined);
@@ -92,7 +92,7 @@ export class PgAsyncDeleteBase<
 				shape ? 'objects' : fields ? 'arrays' : 'raw',
 				name ?? generateName,
 				mapper,
-				{ type: 'delete', tables: usedTablesOf(this.config.table) },
+				{ type: 'delete', tables: () => usedTablesOf(this.config.table) },
 				undefined,
 				shape,
 			);

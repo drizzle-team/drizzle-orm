@@ -1,8 +1,33 @@
 import type { View } from '~/view.ts';
 import type { Column, Columns, GetColumnData } from './column.ts';
-import { entityKind } from './entity.ts';
+import { entityKind, is } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
-import { TableName } from './table.utils.ts';
+import type { SQLChunk } from './sql/sql.ts';
+import {
+	BaseName,
+	CacheKey,
+	ExtraConfigBuilder,
+	ExtraConfigColumns,
+	IsAlias,
+	OriginalName,
+	Qualifier,
+	TableColumns,
+	TableName,
+	TableSchema,
+} from './table.utils.ts';
+
+/** @internal */
+export {
+	BaseName,
+	CacheKey,
+	ExtraConfigBuilder,
+	ExtraConfigColumns,
+	IsAlias,
+	OriginalName,
+	Qualifier,
+	TableColumns,
+	TableSchema,
+} from './table.utils.ts';
 import type { Simplify, Update } from './utils.ts';
 
 export interface TableConfig<TColumns extends Columns = Columns> {
@@ -17,30 +42,6 @@ export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<Tab
 	Update<T, TUpdate>
 >;
 
-/** @internal */
-export const TableSchema = Symbol.for('drizzle:Schema');
-
-/** @internal */
-export const TableColumns = Symbol.for('drizzle:Columns');
-
-/** @internal */
-export const ExtraConfigColumns = Symbol.for('drizzle:ExtraConfigColumns');
-
-/** @internal */
-export const OriginalName = Symbol.for('drizzle:OriginalName');
-
-/** @internal */
-export const BaseName = Symbol.for('drizzle:BaseName');
-
-/** @internal */
-export const CacheKey = Symbol.for('drizzle:CacheKey');
-
-/** @internal */
-export const IsAlias = Symbol.for('drizzle:IsAlias');
-
-/** @internal */
-export const ExtraConfigBuilder = Symbol.for('drizzle:ExtraConfigBuilder');
-
 const IsDrizzleTable = Symbol.for('drizzle:IsDrizzleTable');
 
 export interface TableTypeConfig<T extends TableConfig> {
@@ -54,6 +55,9 @@ export interface TableTypeConfig<T extends TableConfig> {
 
 export class Table<out T extends TableConfig = TableConfig> {
 	static readonly [entityKind]: string = 'Table';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare readonly _: TableTypeConfig<T>;
 
@@ -99,10 +103,13 @@ export class Table<out T extends TableConfig = TableConfig> {
 
 	/**
 	 * @internal
-	 * This table's identity in the query cache's invalidation index (`schema.name`, or `name`
-	 * when unscoped). Computed once here so the per-query used-tables path never re-concatenates.
+	 * Table's identity in the query cache's invalidation index - its actual name (`schema.name`, or `name`
+	 * when unscoped), matching {@link getTableUniqueName} of non-aliased tables
 	 */
 	[CacheKey]: string;
+
+	/** @internal */
+	declare readonly [Qualifier]: SQLChunk;
 
 	/** @internal */
 	[IsAlias] = false;
@@ -117,7 +124,7 @@ export class Table<out T extends TableConfig = TableConfig> {
 		this[TableName] = this[OriginalName] = name;
 		this[TableSchema] = schema;
 		this[BaseName] = baseName;
-		this[CacheKey] = schema ? `${schema}.${baseName}` : baseName;
+		this[CacheKey] = schema ? `${schema}.${name}` : name;
 	}
 }
 
@@ -167,6 +174,10 @@ export function getTableUniqueName<
 	return (table[IsAlias] || table[TableSchema] === undefined
 		? table[TableName]
 		: `${table[TableSchema]}.${table[TableName]}`) as TResult;
+}
+
+export function getCacheKey(table: Table): string {
+	return table[CacheKey];
 }
 
 /**

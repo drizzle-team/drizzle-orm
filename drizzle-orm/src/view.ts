@@ -1,8 +1,7 @@
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { SelectResult } from '~/query-builders/select.types.ts';
-import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
-import { IsAlias, OriginalName, TableColumns, TableSchema } from '~/table.ts';
-import { TableName } from '~/table.utils.ts';
+import type { ColumnsSelection, SQL, SQLChunk } from '~/sql/sql.ts';
+import { IsAlias, OriginalName, Qualifier, TableColumns, TableName, TableSchema } from '~/table.utils.ts';
 import type { Equal, Update } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 
@@ -37,6 +36,9 @@ export type AnyView<TPartial extends Partial<ViewConfig>> = View<UpdateViewConfi
 
 export abstract class View<T extends ViewConfig = ViewConfig> {
 	static readonly [entityKind]: string = 'View';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	declare _: ViewTypeConfig<T>;
 
@@ -78,6 +80,9 @@ export abstract class View<T extends ViewConfig = ViewConfig> {
 	public get [TableColumns]() {
 		return (this[ViewBaseConfig].selectedFields) as any as Record<string, unknown>;
 	}
+
+	/** @internal */
+	declare readonly [Qualifier]: SQLChunk;
 
 	declare readonly $inferSelect: InferViewSelectModel<View<T>>;
 

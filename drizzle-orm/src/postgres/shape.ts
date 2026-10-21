@@ -70,6 +70,7 @@ const SHAPE_TYPES: Partial<Record<PostgresType, ShapeType>> = {
 	'point:tuple': ['point', 'tuple'],
 	line: ['line', 'abc'],
 	'line:tuple': ['line', 'tuple'],
+	box: ['box'],
 	vector: ['vector', 'array'],
 	halfvec: ['halfvec', 'array'],
 	sparsevec: ['sparsevec', 'string'],

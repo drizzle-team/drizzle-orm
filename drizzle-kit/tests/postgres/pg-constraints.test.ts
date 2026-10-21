@@ -2232,14 +2232,9 @@ test('fk multistep #4', async () => {
 
 test('unique multistep #3', async () => {
 	await db.query(`CREATE TABLE "users" ("id" integer CONSTRAINT "id_uniq" UNIQUE);`);
-	const interim = await fromDatabase(db);
-	const { ddl: ddl1 } = interimToDDL(interim);
-	const { ddl: ddl2 } = interimToDDL(interim);
-
-	ddl2.tables.update({
-		set: { name: 'users2' },
-		where: { name: 'users' },
-	});
+	const { ddl: ddl1 } = interimToDDL(await fromDatabase(db));
+	await db.query(`alter table users rename to users2`);
+	const { ddl: ddl2 } = interimToDDL(await fromDatabase(db));
 
 	const { sqlStatements: st1 } = await diff(ddl1, ddl2, ['public.users->public.users2']);
 	expect(st1).toStrictEqual(['ALTER TABLE "users" RENAME TO "users2";']);
@@ -2802,6 +2797,34 @@ test('Issue No6193. order in composite pks', async () => {
 	];
 	expect(st1).toStrictEqual(st0);
 	expect(pst1).toStrictEqual(st0);
+});
+
+test('a foreign key rename on one table keeps the change of a foreign key with the same name on another table', async () => {
+	const tables = (first: string, onDelete: 'no action' | 'cascade') => {
+		const owners = pgTable('owners', { id: integer().primaryKey() });
+		const reference = (name: string) => (t: any) => [
+			foreignKey({ name, columns: [t.ownerId], foreignColumns: [owners.id] }),
+		];
+		return {
+			owners,
+			cats: pgTable('cats', { ownerId: integer() }, reference(first)),
+			dogs: pgTable('dogs', { ownerId: integer() }, (t) => [
+				foreignKey({ name: 'owner_fk', columns: [t.ownerId], foreignColumns: [owners.id] }).onDelete(onDelete),
+			]),
+		};
+	};
+	const renames = ['public.cats.owner_fk->public.cats.keeper_fk'];
+
+	const { sqlStatements: st } = await diff(tables('owner_fk', 'no action'), tables('keeper_fk', 'cascade'), renames);
+	await push({ db, to: tables('owner_fk', 'no action') });
+	const { sqlStatements: pst } = await push({ db, to: tables('keeper_fk', 'cascade'), renames });
+
+	const st0 = [
+		'ALTER TABLE "cats" RENAME CONSTRAINT "owner_fk" TO "keeper_fk";',
+		'ALTER TABLE "dogs" DROP CONSTRAINT "owner_fk", ADD CONSTRAINT "owner_fk" FOREIGN KEY ("ownerId") REFERENCES "owners"("id") ON DELETE CASCADE;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6386
