@@ -9,6 +9,7 @@ import { usedTablesOf } from '~/used-tables.ts';
 import type { Assume } from '~/utils.ts';
 import type { PgInsertHKTBase } from '../query-builders/insert.ts';
 import { PgInsertBase } from '../query-builders/insert.ts';
+import { createPgReturningOldNewMapper } from '../query-builders/returning.ts';
 import type { PgEffectPreparedQuery, PgEffectSession } from './session.ts';
 
 export interface PgEffectInsertHKT<TEffectHKT extends QueryEffectHKTBase = QueryEffectHKTBase> extends PgInsertHKTBase {
@@ -93,7 +94,12 @@ export class PgEffectInsertBase<
 		const { returning: fields } = config;
 
 		const query = dialect.sqlToQuery(this.getSQL(true));
-		const mapper = fields
+		const mapper = config.returningOldNew && fields
+			? createPgReturningOldNewMapper(
+				this.dialect.mapperGenerators.rows(fields, undefined)!,
+				config.returningOldNew,
+			)
+			: fields
 			? this.dialect.mapperGenerators.rows(fields, undefined)
 			: undefined;
 

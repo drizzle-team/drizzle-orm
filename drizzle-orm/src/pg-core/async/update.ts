@@ -9,6 +9,7 @@ import type { Subquery } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
 import { usedTablesOf } from '~/used-tables.ts';
 import { applyMixins, type Assume, resolveNullableObjectPaths } from '~/utils.ts';
+import { createPgReturningOldNewMapper } from '../query-builders/returning.ts';
 import { type Join, PgUpdateBase, type PgUpdateHKTBase } from '../query-builders/update.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type { PgAsyncPreparedQuery, PgAsyncSession } from './session.ts';
@@ -112,7 +113,12 @@ export class PgAsyncUpdateBase<
 				: undefined;
 
 			const query = dialect.sqlToQuery(this.getSQL(true));
-			const mapper = shape || !fields
+			const mapper = config.returningOldNew && fields
+				? createPgReturningOldNewMapper(
+					shape ? undefined : this.dialect.mapperGenerators.rows(fields, undefined),
+					config.returningOldNew,
+				)
+				: shape || !fields
 				? undefined
 				: this.dialect.mapperGenerators.rows(fields, nullableObjectPaths);
 

@@ -41,6 +41,17 @@ const deleteReturningPartialStmt = db.delete(users).returning({
 const deleteReturningPartialPrepared = await deleteReturningPartialStmt.execute();
 Expect<Equal<{ myId: number; myHomeCity: number }[], typeof deleteReturningPartialPrepared>>;
 
+const deleteReturningOldNew = await db.delete(users).returning({ old: true, new: true });
+Expect<
+	Equal<
+		{ old: typeof users.$inferSelect; new: typeof users.$inferSelect | null }[],
+		typeof deleteReturningOldNew
+	>
+>;
+
+const deleteReturningOld = await db.delete(users).returning({ old: true });
+Expect<Equal<{ old: typeof users.$inferSelect }[], typeof deleteReturningOld>>;
+
 {
 	function dynamic<T extends PgDelete>(qb: T) {
 		return qb.where(sql``).returning();

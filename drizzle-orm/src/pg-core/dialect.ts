@@ -11,6 +11,11 @@ import type {
 	PgSelectJoinConfig,
 	PgUpdateConfig,
 } from '~/pg-core/query-builders/index.ts';
+import {
+	pgReturningNewAlias,
+	pgReturningOldAlias,
+	type PgReturningOldNewConfig,
+} from '~/pg-core/query-builders/returning.ts';
 import type { PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -144,6 +149,7 @@ export class PgDialect {
 		table,
 		where,
 		returning,
+		returningOldNew,
 		withList,
 		comment,
 		useSelectionCastCodecs,
@@ -151,8 +157,12 @@ export class PgDialect {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
-			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
+			? sql` returning${this.buildReturningOldNewAliases(returningOldNew)} ${
+				this.buildSelection(returning, {
+					isSingleTable: !returningOldNew,
+					ignoreCastCodecs: !useSelectionCastCodecs,
+					table,
+				})
 			}`
 			: undefined;
 
@@ -200,6 +210,7 @@ export class PgDialect {
 		set,
 		where,
 		returning,
+		returningOldNew,
 		withList,
 		from,
 		joins,
@@ -225,8 +236,12 @@ export class PgDialect {
 		const joinsSql = this.buildJoins(joins);
 
 		const returningSql = returning
-			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: !from, ignoreCastCodecs: !useSelectionCastCodecs, table })
+			? sql` returning${this.buildReturningOldNewAliases(returningOldNew)} ${
+				this.buildSelection(returning, {
+					isSingleTable: !returningOldNew && !from,
+					ignoreCastCodecs: !useSelectionCastCodecs,
+					table,
+				})
 			}`
 			: undefined;
 
@@ -235,6 +250,20 @@ export class PgDialect {
 		return sql`${withSql}update ${tableSql} set ${setSql}${fromSql}${joinsSql}${whereSql}${returningSql}${
 			comment !== undefined ? sql` ${comment}` : undefined
 		}`;
+	}
+
+	private buildReturningOldNewAliases(config: PgReturningOldNewConfig | undefined): SQL | undefined {
+		if (!config) {
+			return undefined;
+		}
+
+		if (config.old === true && config.new === true) {
+			return sql` with (old as ${sql.identifier(pgReturningOldAlias)}, new as ${sql.identifier(pgReturningNewAlias)})`;
+		}
+
+		return config.old === true
+			? sql` with (old as ${sql.identifier(pgReturningOldAlias)})`
+			: sql` with (new as ${sql.identifier(pgReturningNewAlias)})`;
 	}
 
 	/**
@@ -674,6 +703,7 @@ export class PgDialect {
 		values: valuesOrSelect,
 		onConflict,
 		returning,
+		returningOldNew,
 		withList,
 		select,
 		overridingSystemValue_,
@@ -750,8 +780,12 @@ export class PgDialect {
 		const valuesSql = new SQL(valuesSqlList);
 
 		const returningSql = returning
-			? sql` returning ${
-				this.buildSelection(returning, { isSingleTable: true, ignoreCastCodecs: !useSelectionCastCodecs, table })
+			? sql` returning${this.buildReturningOldNewAliases(returningOldNew)} ${
+				this.buildSelection(returning, {
+					isSingleTable: !returningOldNew,
+					ignoreCastCodecs: !useSelectionCastCodecs,
+					table,
+				})
 			}`
 			: undefined;
 
