@@ -145,7 +145,7 @@ export const ddlDiff = async (
 
 	const checksAlters = updates.filter((it) => it.entityType === 'checks');
 
-	// SQLite can't alter an index, so a changed one (e.g. index <-> uniqueIndex) is dropped and created again
+	// SQLite has no ALTER INDEX statement (https://sqlite.org/lang.html), so a changed index (e.g. index <-> uniqueIndex) is dropped and created again
 	const indexesAlters = updates.filter((it) => it.entityType === 'indexes');
 
 	const alteredColumns = updates.filter((it) => it.entityType === 'columns').filter((it) => {
