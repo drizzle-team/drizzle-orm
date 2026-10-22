@@ -31,9 +31,12 @@ import {
 	varchar,
 } from 'drizzle-orm/mssql-core';
 import fs from 'fs';
+import mssql from 'mssql';
+import { interimToDDL } from 'src/dialects/mssql/ddl';
 import { fromDatabaseForDrizzle } from 'src/dialects/mssql/introspect';
+import { ddlToTypeScript } from 'src/dialects/mssql/typescript';
 import type { DB } from 'src/utils';
-import { diffIntrospect, prepareTestDatabase, TestDatabase } from 'tests/mssql/mocks';
+import { diffIntrospect, parseMssqlUrl, prepareTestDatabase, TestDatabase } from 'tests/mssql/mocks';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
 // @vitest-environment-options {"max-concurrency":1}
@@ -1194,4 +1197,59 @@ test('introspect default expressions with a backslash, a backtick and "${"', asy
 		expected,
 	);
 	expect(Object.fromEntries(fromFileDDL.defaults.list().map((it) => [it.column, it.default]))).toStrictEqual(expected);
+});
+
+test('pull emits a plain column for a computed column whose definition is not visible', async () => {
+	// a dedicated pool keeps EXECUTE AS pinned to one session; db itself is
+	// bound to the test transaction and cannot see objects created here anyway
+	const params = parseMssqlUrl(process.env.MSSQL_CONNECTION_STRING!);
+	// new ConnectionPool rather than mssql.connect, which reuses the global
+	// pool already held by the test transaction
+	const admin = await new mssql.ConnectionPool({
+		...params,
+		database: 'drizzle',
+		pool: { max: 1 },
+	}).connect();
+
+	await admin.query(`CREATE TABLE dbo.computed_hidden (a NVARCHAR(3), c AS (a));`);
+	// WITHOUT LOGIN keeps the user out of server-level security; impersonating
+	// it drops VIEW DEFINITION so sys.computed_columns.definition reads NULL
+	await admin.query(`
+		CREATE USER limited_pull WITHOUT LOGIN;
+		GRANT SELECT ON dbo.computed_hidden TO limited_pull;
+		EXECUTE AS USER = 'limited_pull';
+	`);
+
+	const limitedDb: DB = {
+		query: async (query: string) => {
+			const res = await admin.query(query);
+			return res.recordset as any[];
+		},
+	};
+
+	try {
+		const res = await fromDatabaseForDrizzle(
+			limitedDb,
+			() => true,
+			() => {},
+			{ table: '__drizzle_migrations', schema: 'drizzle' },
+		);
+		const column = res.columns.find((it) => it.name === 'c');
+		expect(column).toBeDefined();
+		expect(column!.generated).toBeNull();
+
+		// the reported crash is downstream, in the TS schema writer calling
+		// escapeForSqlTemplate(null) on the missing expression
+		const { ddl } = interimToDDL(res);
+		const { file } = ddlToTypeScript(ddl, res.viewColumns, 'camel');
+		expect(file).toContain('c');
+		expect(file).not.toContain('generatedAlwaysAs');
+	} finally {
+		await admin.query(`
+			REVERT;
+			DROP TABLE IF EXISTS dbo.computed_hidden;
+			DROP USER IF EXISTS limited_pull;
+		`);
+		await admin.close();
+	}
 });
