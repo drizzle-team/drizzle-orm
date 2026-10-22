@@ -1,0 +1,7 @@
+{
+	"name": "tsconfig-paths-extends-fixture",
+	"private": true,
+	"imports": {
+		"#lib/*": "./src/lib/*"
+	}
+}

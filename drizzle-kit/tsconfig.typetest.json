@@ -21,6 +21,7 @@
 		"paths": {
 			"@/*": ["./tests/fixtures/tsconfig-paths/src/*"],
 			"@profile": ["./tests/fixtures/tsconfig-paths/src/profile/schema.ts"],
+			"#lib/*": ["./tests/fixtures/tsconfig-paths-extends/src/lib/*"],
 			"*": ["./*"]
 		},
 		"outDir": "dist",
