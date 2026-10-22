@@ -9,6 +9,7 @@ import type {
 } from '~/cockroach-core/session.ts';
 import { CockroachPreparedQuery, CockroachSession } from '~/cockroach-core/session.ts';
 import { entityKind } from '~/entity.ts';
+import { TransactionRollbackError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
@@ -127,7 +128,12 @@ export class NodeCockroachSession<
 
 		try {
 			const result = await transaction(tx);
-			await tx.execute(sql`commit`);
+			// COMMIT on an aborted transaction returns the ROLLBACK command
+			// tag without an error, which would silently discard the writes
+			const commitResult = await tx.execute(sql`commit`);
+			if ((commitResult as unknown as QueryResult).command !== 'COMMIT') {
+				throw new TransactionRollbackError();
+			}
 			return result;
 		} catch (error) {
 			// nothing to roll back on a dead connection; failed rollback must not mask the original error

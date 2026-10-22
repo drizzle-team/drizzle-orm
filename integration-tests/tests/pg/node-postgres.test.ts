@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { NodePgDatabase, NodePgRawExecuteResult } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -674,4 +674,22 @@ test('transaction rejects when pooled connection is dropped', async ({ kit, peer
 	} finally {
 		await pool.end();
 	}
+});
+
+test('transaction rejects when the server rolls back the commit', async ({ db }) => {
+	await db.execute(sql`drop table if exists tx_abort`);
+	await db.execute(sql`create table tx_abort (id serial primary key, code text unique)`);
+	await db.execute(sql`insert into tx_abort (code) values ('taken')`);
+
+	// the caught 23505 aborts the transaction; postgres answers the COMMIT
+	// with the ROLLBACK tag, which must not resolve the callback value
+	await expect(db.transaction(async (tx) => {
+		await tx.execute(sql`insert into tx_abort (code) values ('kept')`);
+		await tx.execute(sql`insert into tx_abort (code) values ('taken')`).catch(() => {});
+	})).rejects.toThrowError(TransactionRollbackError);
+
+	const { rows } = await db.execute(sql`select code from tx_abort`);
+	expect(rows.map((r) => r.code)).toEqual(['taken']);
+
+	await db.execute(sql`drop table tx_abort`);
 });
