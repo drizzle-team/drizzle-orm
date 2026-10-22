@@ -143,9 +143,14 @@ export function mapDriverError(error: unknown): DrizzleError {
 		return new UniqueConstraintError({ message, cause: error, table, column, constraint, detail, code });
 	}
 
-	if (codeStr === '23502' || (!codeStr && /null value in column "([^"]+)" violates not-null constraint/i.test(message))) {
+	if (
+		codeStr === '23502' ||
+		(!codeStr && /null value in column "([^"]+)" (?:of relation "[^"]+" )?violates not-null constraint/i.test(message)) ||
+		(!codeStr && /violates not-null constraint/i.test(message))
+	) {
 		if (!column) {
-			const colMatch = message.match(/column "([^"]+)" violates not-null constraint/i);
+			const colMatch = message.match(/column "([^"]+)" (?:of relation "[^"]+" )?violates not-null constraint/i) ||
+				message.match(/column "([^"]+)"/i);
 			if (colMatch) column = colMatch[1];
 		}
 		if (!table && typeof err.table === 'string') {
@@ -239,15 +244,21 @@ export function mapDriverError(error: unknown): DrizzleError {
 
 	// 3. SQLite Error Mapping
 	if (/UNIQUE constraint failed/i.test(message)) {
-		const match = message.match(/UNIQUE constraint failed:\s*([^,\s]+)(?:,\s*([^\s]+))?/i);
+		const match = message.match(/UNIQUE constraint failed:\s*([^\n\r]+)/i);
 		if (match) {
-			const target = match[1]!;
-			if (target.includes('.')) {
-				const [tbl, col] = target.split('.');
-				if (!table) table = tbl;
-				if (!column) column = col;
-			} else {
-				if (!column) column = target;
+			const rawTargets = match[1]!.split(',').map((s) => s.trim()).filter(Boolean);
+			const columns: string[] = [];
+			for (const target of rawTargets) {
+				if (target.includes('.')) {
+					const [tbl, col] = target.split('.');
+					if (!table && tbl) table = tbl;
+					if (col) columns.push(col);
+				} else {
+					columns.push(target);
+				}
+			}
+			if (columns.length > 0 && !column) {
+				column = columns.join(', ');
 			}
 		}
 		return new UniqueConstraintError({ message, cause: error, table, column, constraint, detail, code });
@@ -280,4 +291,16 @@ export function mapDriverError(error: unknown): DrizzleError {
 
 	// 4. Fallback / Passthrough
 	return new DrizzleError({ message, cause: error });
+}
+
+/**
+ * Wraps an async query execution or session operation, mapping any thrown driver errors
+ * into structured DrizzleConstraintError instances.
+ */
+export async function withDriverErrorMapping<T>(fn: () => Promise<T>): Promise<T> {
+	try {
+		return await fn();
+	} catch (error) {
+		throw mapDriverError(error);
+	}
 }

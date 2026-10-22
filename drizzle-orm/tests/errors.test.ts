@@ -7,6 +7,7 @@ import {
 	mapDriverError,
 	NotNullConstraintError,
 	UniqueConstraintError,
+	withDriverErrorMapping,
 } from '~/errors.ts';
 
 describe('Error Handling and Driver Error Mapping (#376)', () => {
@@ -51,6 +52,19 @@ describe('Error Handling and Driver Error Mapping (#376)', () => {
 				expect(error.table).toBe('users');
 				expect(error.column).toBe('name');
 				expect(error.code).toBe('23502');
+			}
+		});
+
+		test('maps PG 12+ code-less not-null message fallback with relation and column', () => {
+			const rawError = new Error('null value in column "username" of relation "accounts" violates not-null constraint');
+
+			const error = mapDriverError(rawError);
+
+			expect(error).toBeInstanceOf(NotNullConstraintError);
+			if (error instanceof NotNullConstraintError) {
+				expect(error.type).toBe('not_null');
+				expect(error.table).toBe('accounts');
+				expect(error.column).toBe('username');
 			}
 		});
 
@@ -178,6 +192,19 @@ describe('Error Handling and Driver Error Mapping (#376)', () => {
 			}
 		});
 
+		test('maps SQLite multi-column UNIQUE constraint failed', () => {
+			const rawError = new Error('UNIQUE constraint failed: accounts.email, accounts.tenant_id');
+
+			const error = mapDriverError(rawError);
+
+			expect(error).toBeInstanceOf(UniqueConstraintError);
+			if (error instanceof UniqueConstraintError) {
+				expect(error.type).toBe('unique');
+				expect(error.table).toBe('accounts');
+				expect(error.column).toBe('email, tenant_id');
+			}
+		});
+
 		test('maps NOT NULL constraint failed with regex table and column extraction', () => {
 			const rawError = new Error('NOT NULL constraint failed: profiles.avatar_url');
 
@@ -233,6 +260,30 @@ describe('Error Handling and Driver Error Mapping (#376)', () => {
 			const mapped = mapDriverError(existing);
 
 			expect(mapped).toBe(existing);
+		});
+	});
+
+	describe('withDriverErrorMapping wrapper helper', () => {
+		test('returns resolved value on successful execution', async () => {
+			const result = await withDriverErrorMapping(async () => {
+				return { success: true, count: 42 };
+			});
+			expect(result).toEqual({ success: true, count: 42 });
+		});
+
+		test('intercepts and maps driver error into typed DrizzleConstraintError', async () => {
+			expect.assertions(3);
+			try {
+				await withDriverErrorMapping(async () => {
+					throw { code: '23505', table: 'users', detail: 'Key (email)=(test@example.com) already exists.' };
+				});
+			} catch (err) {
+				expect(err).toBeInstanceOf(UniqueConstraintError);
+				if (err instanceof UniqueConstraintError) {
+					expect(err.table).toBe('users');
+					expect(err.column).toBe('email');
+				}
+			}
 		});
 	});
 });
