@@ -276,7 +276,11 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
-	timetz: { normalizeParamArray: (v) => makePgArray(v) },
+	timetz: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalizeParamArray: (v) => makePgArray(v),
+	},
 	tsmultirange: {
 		cast: castToText,
 		castArray: castToTextArr,

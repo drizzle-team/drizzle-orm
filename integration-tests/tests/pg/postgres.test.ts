@@ -1,6 +1,17 @@
 import { createPool } from '@drizzle-team/minipg';
-import { defineRelations, sql } from 'drizzle-orm';
-import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import { defineRelations, type RelationsBuilder, sql } from 'drizzle-orm';
+import {
+	boolean,
+	customType,
+	getTableConfig,
+	integer,
+	jsonb,
+	pgTable,
+	serial,
+	text,
+	time,
+	timestamp,
+} from 'drizzle-orm/pg-core';
 import { drizzle as drizzlePostgres, PostgresDatabase } from 'drizzle-orm/postgres';
 import { minipgCodecs } from 'drizzle-orm/postgres/codecs';
 import { migrate } from 'drizzle-orm/postgres/migrator';
@@ -739,6 +750,31 @@ describe('driver-specific', () => {
 
 		await assertAllTypesUnions(db, allTypesTable);
 		await assertAllTypesBounds(db);
+	});
+
+	test('timetz keeps offset', async ({ createDB, push }) => {
+		const times = pgTable('times', {
+			id: integer('id').primaryKey(),
+			time: time('time', { withTimezone: true }).notNull(),
+			arr: time('arr', { withTimezone: true }).array().notNull(),
+			mtx: time('mtx', { withTimezone: true }).array('[][]').notNull(),
+		});
+
+		await push({ times });
+		const shaped = createDB({ times });
+		const coded = drizzlePostgres({ client: (shaped as any).$client, codecs: minipgCodecs });
+
+		const value = {
+			id: 1,
+			time: '12:00:00.5-02',
+			arr: ['12:00:00.5-02', '23:59:59+05:30'],
+			mtx: [['12:00:00.5-02'], ['23:59:59+05:30']],
+		};
+		await shaped.insert(times).values(value);
+
+		for (const db of [shaped, coded]) {
+			expect(await db.select().from(times)).toStrictEqual([value]);
+		}
 	});
 });
 
