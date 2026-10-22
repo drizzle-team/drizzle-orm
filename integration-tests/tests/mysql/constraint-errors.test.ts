@@ -1,4 +1,5 @@
 import retry from 'async-retry';
+import { sql } from 'drizzle-orm';
 import {
 	DrizzleCheckConstraintError,
 	DrizzleForeignKeyConstraintError,
@@ -6,7 +7,7 @@ import {
 	DrizzleUniqueConstraintError,
 	isDrizzleConstraintError,
 } from 'drizzle-orm/errors';
-import { check, int, mysqlTable, serial, text } from 'drizzle-orm/mysql-core';
+import { check, int, mysqlTable, serial, varchar } from 'drizzle-orm/mysql-core';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
 import * as mysql from 'mysql2/promise';
@@ -20,20 +21,20 @@ let client: mysql.Connection;
 
 const usersTable = mysqlTable('constraint_users', {
 	id: serial('id').primaryKey(),
-	email: text('email').notNull().unique(),
-	name: text('name').notNull(),
+	email: varchar('email', { length: 255 }).notNull().unique(),
+	name: varchar('name', { length: 255 }).notNull(),
 	age: int('age').notNull(),
 }, (t) => [
 	check('constraint_users_age_positive', sql`${t.age} >= 0`),
 ]);
 
 const postsTable = mysqlTable('constraint_posts', {
-	id: serial('id').primaryKey(),
+	id: int('id').autoincrement().primaryKey(),
 });
 
 const commentsTable = mysqlTable('constraint_comments', {
 	id: serial('id').primaryKey(),
-	body: text('body').notNull(),
+	body: varchar('body', { length: 255 }).notNull(),
 	postId: int('post_id').notNull().references(() => postsTable.id),
 });
 
@@ -65,13 +66,13 @@ beforeAll(async () => {
 	db = drizzle(client, { logger: ENABLE_LOGGING });
 
 	await client.query(
-		'CREATE TABLE constraint_posts (id serial PRIMARY KEY)',
+		'CREATE TABLE constraint_posts (id int AUTO_INCREMENT PRIMARY KEY)',
 	);
 	await client.query(
 		`CREATE TABLE constraint_users (
 			id serial PRIMARY KEY,
-			email text NOT NULL UNIQUE,
-			name text NOT NULL,
+			email varchar(255) NOT NULL UNIQUE,
+			name varchar(255) NOT NULL,
 			age int NOT NULL,
 			CONSTRAINT constraint_users_age_positive CHECK (age >= 0)
 		)`,
@@ -144,7 +145,7 @@ test('check constraint violation is mapped as the error cause', async () => {
 
 test('errors still carry the failing query via DrizzleQueryError', async () => {
 	try {
-		await db.run(
+		await db.execute(
 			sql`INSERT INTO constraint_users (email, name, age) VALUES ('raw@example.com', 'Raw', -1)`,
 		);
 		expect.unreachable('expected a check constraint violation');

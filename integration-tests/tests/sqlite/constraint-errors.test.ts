@@ -117,11 +117,20 @@ test('check constraint violation is mapped as the error cause', async () => {
 });
 
 test('errors still carry the failing query via DrizzleQueryError', async () => {
+	const findConstraint = (error: unknown): unknown => {
+		let current = error;
+		while (current instanceof Error) {
+			if (isDrizzleConstraintError(current)) return current;
+			current = (current as { cause?: unknown }).cause;
+		}
+		return undefined;
+	};
+
 	try {
 		db.run(sql`INSERT INTO constraint_users (email, name, age) VALUES ('raw@example.com', 'Raw', -1)`);
 		expect.unreachable('expected a check constraint violation');
 	} catch (e) {
 		expect((e as Error).message).toContain('INSERT INTO constraint_users');
-		expect(isDrizzleConstraintError((e as { cause?: unknown }).cause)).toBe(true);
+		expect(isDrizzleConstraintError(findConstraint(e))).toBe(true);
 	}
 });

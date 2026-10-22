@@ -139,7 +139,7 @@ test('check constraint violation is mapped as the error cause', async () => {
 
 test('errors still carry the failing query via DrizzleQueryError', async () => {
 	try {
-		await db.run(sql`INSERT INTO constraint_users (email, name, age) VALUES ('raw@example.com', 'Raw', -1)`);
+		await db.execute(sql`INSERT INTO constraint_users (email, name, age) VALUES ('raw@example.com', 'Raw', -1)`);
 		expect.unreachable('expected a check constraint violation');
 	} catch (e) {
 		expect((e as Error).message).toContain('INSERT INTO constraint_users');
