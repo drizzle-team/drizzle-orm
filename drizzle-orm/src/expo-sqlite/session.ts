@@ -47,9 +47,8 @@ export class ExpoSQLiteSession<
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): ExpoSQLitePreparedQuery<T> {
-		const stmt = this.client.prepareSync(query.sql);
 		return new ExpoSQLitePreparedQuery(
-			stmt,
+			this.client,
 			query,
 			this.logger,
 			fields,
@@ -103,7 +102,7 @@ export class ExpoSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQue
 	static override readonly [entityKind]: string = 'ExpoSQLitePreparedQuery';
 
 	constructor(
-		private stmt: SQLiteStatement,
+		private client: SQLiteDatabase,
 		query: Query,
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
@@ -114,22 +113,46 @@ export class ExpoSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQue
 		super('sync', executeMethod, query);
 	}
 
+	/**
+	 * expo-sqlite frees a statement only when it is finalized or the database is closed,
+	 * so every execution prepares its own statement and finalizes it afterwards.
+	 */
+	private withStatement<TResult>(execute: (stmt: SQLiteStatement) => TResult): TResult {
+		const stmt = this.client.prepareSync(this.query.sql);
+		let result: TResult;
+		try {
+			result = execute(stmt);
+		} catch (err) {
+			try {
+				stmt.finalizeSync();
+			} catch {
+				// After a failed step, finalize repeats its error, and SQLite frees the statement anyway.
+				// The original error takes priority.
+			}
+			throw err;
+		}
+		stmt.finalizeSync();
+		return result;
+	}
+
 	run(placeholderValues?: Record<string, unknown>): SQLiteRunResult {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		const { changes, lastInsertRowId } = this.stmt.executeSync(params as any[]);
-		return {
-			changes,
-			lastInsertRowId,
-		};
+		return this.withStatement((stmt) => {
+			const { changes, lastInsertRowId } = stmt.executeSync(params as any[]);
+			return {
+				changes,
+				lastInsertRowId,
+			};
+		});
 	}
 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
-		const { fields, joinsNotNullableMap, query, logger, stmt, customResultMapper } = this;
+		const { fields, joinsNotNullableMap, query, logger, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
 			logger.logQuery(query.sql, params);
-			return stmt.executeSync(params as any[]).getAllSync();
+			return this.withStatement((stmt) => stmt.executeSync(params as any[]).getAllSync());
 		}
 
 		const rows = this.values(placeholderValues) as unknown[][];
@@ -143,9 +166,9 @@ export class ExpoSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQue
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
-		const { fields, stmt, joinsNotNullableMap, customResultMapper } = this;
+		const { fields, joinsNotNullableMap, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
-			return stmt.executeSync(params as any[]).getFirstSync();
+			return this.withStatement((stmt) => stmt.executeSync(params as any[]).getFirstSync());
 		}
 
 		const rows = this.values(placeholderValues) as unknown[][];
@@ -165,7 +188,7 @@ export class ExpoSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQue
 	values(placeholderValues?: Record<string, unknown>): T['values'] {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		return this.stmt.executeForRawResultSync(params as any[]).getAllSync();
+		return this.withStatement((stmt) => stmt.executeForRawResultSync(params as any[]).getAllSync());
 	}
 
 	/** @internal */
