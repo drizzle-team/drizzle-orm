@@ -1,4 +1,5 @@
 import { PgClient } from '@effect/sql-pg';
+import * as PgTypes from '@effect/sql-pg/PgTypes';
 import { assert, expect, expectTypeOf, it } from '@effect/vitest';
 import {
 	defineRelations,
@@ -11,7 +12,7 @@ import {
 } from 'drizzle-orm';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { migrate } from 'drizzle-orm/effect-postgres/migrator';
-import { getTableConfig, integer, pgEnum, pgTable, serial, text } from 'drizzle-orm/pg-core';
+import { bigint, bytea, getTableConfig, integer, pgEnum, pgTable, serial, text } from 'drizzle-orm/pg-core';
 import { PgEffectSession } from 'drizzle-orm/pg-core/effect/session';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
@@ -41,6 +42,17 @@ const connectionStr = Redacted.make(
 );
 const PgClientLive = PgClient.layer({
 	url: connectionStr,
+});
+
+// `int8` decoded as a string, like `node-postgres` does by default
+const int8AsStringTypes = PgTypes.makeRegistry();
+int8AsStringTypes.register<string>(PgTypes.OID.int8, {
+	decode: (bytes) => Result.succeed(new DataView(bytes.buffer, bytes.byteOffset, 8).getBigInt64(0).toString()),
+	encode: (value) => {
+		const bytes = new Uint8Array(8);
+		new DataView(bytes.buffer).setBigInt64(0, BigInt(value));
+		return Result.succeed(bytes);
+	},
 });
 
 const dbEffect = PgDrizzle.make({ relations }).pipe(Effect.provide(PgDrizzle.DefaultServices));
@@ -122,6 +134,72 @@ runCommonEffectPgTests({
 				);
 
 				yield* db.execute<never>(sql`drop table ${table}`);
+			}));
+
+		it.effect('bigint mode - client decoding int8 as string', () =>
+			Effect.gen(function*() {
+				const db = yield* PgDrizzle.make().pipe(Effect.provide(PgDrizzle.DefaultServices));
+				const bigints = pgTable('bigint_string_client', {
+					id: integer('id').primaryKey(),
+					big: bigint('big', { mode: 'bigint' }).notNull(),
+					arrbig: bigint('arrbig', { mode: 'bigint' }).$type<bigint | null>().array().notNull(),
+				});
+
+				yield* db.execute(sql`drop table if exists ${bigints}`);
+				yield* db.execute(
+					sql`create table ${bigints} ("id" integer primary key, "big" bigint not null, "arrbig" bigint[] not null)`,
+				);
+
+				yield* db.insert(bigints).values({ id: 1, big: 5n, arrbig: [1n, null, 9007199254740993n] });
+
+				expect(yield* db.select().from(bigints)).toStrictEqual([
+					{ id: 1, big: 5n, arrbig: [1n, null, 9007199254740993n] },
+				]);
+
+				yield* db.execute(sql`drop table ${bigints}`);
+			}).pipe(Effect.provide(PgClient.layer({ url: connectionStr, types: int8AsStringTypes }))));
+
+		it.effect('null array elements', () =>
+			Effect.gen(function*() {
+				const db = yield* PgDrizzle.make().pipe(Effect.provide(PgDrizzle.DefaultServices));
+				const nullElements = pgTable('null_array_elements', {
+					id: integer('id').primaryKey(),
+					arrbig: bigint('arrbig', { mode: 'bigint' }).$type<bigint | null>().array(),
+					arrtext: text('arrtext').$type<string | null>().array(),
+					arrbytea: bytea('arrbytea').$type<Buffer | null>().array(),
+				});
+
+				yield* db.execute(sql`drop table if exists ${nullElements}`);
+				yield* db.execute(
+					sql`create table ${nullElements} ("id" integer primary key, "arrbig" bigint[], "arrtext" text[], "arrbytea" bytea[])`,
+				);
+
+				// Written outside drizzle
+				yield* db.execute(
+					sql`insert into ${nullElements} ("id", "arrbig", "arrtext") values (1, '{NULL,5}', '{NULL,"NULL"}')`,
+				);
+				// Written through the array param codecs
+				yield* db.insert(nullElements).values({
+					id: 2,
+					arrbig: [null, 5n],
+					arrtext: [null, 'NULL'],
+					arrbytea: [null, Buffer.from([1, 255])],
+				});
+
+				expect(
+					yield* db.select({ id: nullElements.id, arrbig: nullElements.arrbig, arrtext: nullElements.arrtext })
+						.from(nullElements).orderBy(nullElements.id),
+				).toStrictEqual([
+					{ id: 1, arrbig: [null, 5n], arrtext: [null, 'NULL'] },
+					{ id: 2, arrbig: [null, 5n], arrtext: [null, 'NULL'] },
+				]);
+				// Read as text: the `bytea[]` result codec still runs `Buffer.from` on `NULL` elements (#6460)
+				expect(
+					yield* db.select({ arrbytea: sql<string | null>`${nullElements.arrbytea}::text` }).from(nullElements)
+						.orderBy(nullElements.id),
+				).toStrictEqual([{ arrbytea: null }, { arrbytea: '{NULL,"\\\\x01ff"}' }]);
+
+				yield* db.execute(sql`drop table ${nullElements}`);
 			}));
 
 		it.effect('all types - no multidimensional arrays', () =>
