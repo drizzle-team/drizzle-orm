@@ -437,9 +437,13 @@ WHERE obj.type in ('U', 'V')
 			pkName: pk ? pk.name : null,
 			notNull: !column.is_nullable && !column.is_identity,
 			isPK: pk ? true : false,
-			generated: column.is_computed
+			// sys.computed_columns.definition is NULL when the login lacks
+			// VIEW DEFINITION, so a computed column without a visible
+			// expression degrades to a regular column instead of crashing
+			// the generator on a null `as`
+			generated: column.is_computed && column.generated_always_definition !== null
 				? {
-					as: column.generated_always_definition!,
+					as: column.generated_always_definition,
 					type: column.generated_is_persisted ? 'persisted' : 'virtual',
 				}
 				: null,
