@@ -60,8 +60,8 @@ type Action =
 	| { type: 'migrated'; payload: true }
 	| { type: 'error'; payload: Error };
 
-export const useMigrations = (db: ExpoSQLiteDatabase<any>, migrations: {
-	journal: {
+export const useMigrations = (db: ExpoSQLiteDatabase<any, any>, migrations: {
+	journal?: {
 		entries: { idx: number; when: number; tag: string; breakpoints: boolean }[];
 	};
 	migrations: Record<string, string>;
