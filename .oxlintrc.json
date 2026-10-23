@@ -106,6 +106,15 @@
 				"drizzle-internal/require-entity-kind": "off",
 				"drizzle-internal/require-has-instance": "off"
 			}
+		},
+		{
+			"files": ["minipg/**/*"],
+			"rules": {
+				"eqeqeq": ["error", "always", { "null": "ignore" }],
+				"drizzle-internal/require-entity-kind": "off",
+				"drizzle-internal/require-has-instance": "off",
+				"drizzle-internal/prefer-new-array": "off"
+			}
 		}
 	],
 	"ignorePatterns": [
@@ -118,7 +127,6 @@
 		"**/*.cjs",
 		"**/playground",
 		"integration-tests/tests/prisma/*/client",
-		"integration-tests/tests/prisma/*/drizzle",
-		"minipg"
+		"integration-tests/tests/prisma/*/drizzle"
 	]
 }

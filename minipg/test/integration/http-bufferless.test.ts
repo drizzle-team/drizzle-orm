@@ -3,19 +3,23 @@
 // COPY_SIG): bundlers reorder imports, so the polyfill may install AFTER those modules evaluate.
 // The fix is guards, making import order irrelevant. This test deletes Buffer in a subprocess,
 // imports the entry, and runs a full client decode over REAL captured backend frames.
-import { test, expect, describe } from 'bun:test'
-import { testConnect, TEST_TIMEOUT } from '../helpers/db.ts'
+import { describe, expect, test } from 'bun:test';
+import { TEST_TIMEOUT, testConnect } from '../helpers/db.ts';
 
 describe('minipg/http without a global Buffer', () => {
-  test('entry imports, MiniBuffer installs, and a real pgwire body decodes end-to-end', async () => {
-    const c = await testConnect()
-    let body: Buffer
-    try {
-      const frames = await c.query(`select 9007199254740993::int8 as big, 'café 😀' as s, null::text as z`, [], { mode: 'wire' })
-      body = Buffer.concat(frames.map((f) => Buffer.from(f)))
-    } finally { c.end() }
+	test('entry imports, MiniBuffer installs, and a real pgwire body decodes end-to-end', async () => {
+		const c = await testConnect();
+		let body: Buffer;
+		try {
+			const frames = await c.query(`select 9007199254740993::int8 as big, 'café 😀' as s, null::text as z`, [], {
+				mode: 'wire',
+			});
+			body = Buffer.concat(frames.map((f) => Buffer.from(f)));
+		} finally {
+			await c.end();
+		}
 
-    const script = `
+		const script = `
       delete globalThis.Buffer // simulate Vercel Edge / browser: no Buffer before the entry loads
       const { client } = await import(${JSON.stringify(import.meta.dir + '/../../src/http.ts')})
       if (typeof globalThis.Buffer !== 'function') throw new Error('polyfill did not install')
@@ -26,12 +30,12 @@ describe('minipg/http without a global Buffer', () => {
       })
       const r = await db.query('select …', [], { mode: 'object' })
       console.log(JSON.stringify(r.rows[0]))
-    `
-    const proc = Bun.spawnSync(['bun', '-e', script])
-    const out = proc.stdout.toString().trim()
-    const err = proc.stderr.toString()
-    expect(err.includes('ReferenceError')).toBe(false)
-    expect(proc.exitCode).toBe(0)
-    expect(JSON.parse(out)).toEqual({ big: '9007199254740993', s: 'café 😀', z: null }) // int8:'string' -> JSON-safe
-  }, TEST_TIMEOUT)
-})
+    `;
+		const proc = Bun.spawnSync(['bun', '-e', script]);
+		const out = proc.stdout.toString().trim();
+		const err = proc.stderr.toString();
+		expect(err.includes('ReferenceError')).toBe(false);
+		expect(proc.exitCode).toBe(0);
+		expect(JSON.parse(out)).toEqual({ big: '9007199254740993', s: 'café 😀', z: null }); // int8:'string' -> JSON-safe
+	}, TEST_TIMEOUT);
+});

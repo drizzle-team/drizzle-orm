@@ -41,3 +41,13 @@ _Avoid_: head (outside the connection code), aborted query
 **Late cancel**:
 A cancel request that reaches the server after the canceled query has ended, so that it stops a later query in the same pipeline. That later query fails and is rolled back.
 _Avoid_: stray cancel, collateral cancel, misdirected cancel
+
+### Distribution
+
+**Standalone package**:
+minipg installed on its own, as `@drizzle-team/minipg`.
+_Avoid_: separate minipg, external minipg
+
+**Bundled copy**:
+The copy of minipg that ships inside the `drizzle-orm` package, so that ORM users get the driver without a second install. It can be older or newer than a standalone package in the same project.
+_Avoid_: embedded minipg, vendored minipg, inlined minipg

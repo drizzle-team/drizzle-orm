@@ -42,6 +42,18 @@
 			"outputs": [],
 			"outputLogs": "none"
 		},
+		"@drizzle-team/minipg#build": {
+			"inputs": [
+				"src/**/*.ts",
+				"package.json",
+				"tsconfig.json",
+				"tsdown.config.ts"
+			],
+			"outputs": [
+				"dist/**"
+			],
+			"outputLogs": "new-only"
+		},
 		"drizzle-orm#build": {
 			"inputs": [
 				"src/**/*.ts",

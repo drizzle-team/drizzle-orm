@@ -1,9 +1,9 @@
 // The MinipgTransport namespace for Node and Bun.
-import { nodeCancel, nodeTransport } from '../transport-node.ts'
-import * as Layer from 'effect/Layer'
-import { MinipgTransport } from './MinipgTransport.ts'
+import * as Layer from 'effect/Layer';
+import { nodeCancel, nodeTransport } from '../transport-node.ts';
+import { MinipgTransport } from './MinipgTransport.ts';
 
-export * from './MinipgTransport.ts'
+export * from './MinipgTransport.ts';
 
 /** Dials with node:net and node:tls, and cancels with an out-of-band CancelRequest. */
-export const layer = Layer.succeed(MinipgTransport, { connect: nodeTransport, cancel: nodeCancel })
+export const layer = Layer.succeed(MinipgTransport, { connect: nodeTransport, cancel: nodeCancel });
