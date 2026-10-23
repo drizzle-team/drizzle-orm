@@ -384,7 +384,8 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        package: [node16-cjs, node16-esm, bundler]
+        # drizzle-orm is ESM only, so node16-cjs (require of ESM) is not checked.
+        package: [node16-esm, bundler]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v6
@@ -427,6 +428,13 @@ jobs:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
+      # The oldest Node versions that can require() ESM without a flag, for the CommonJS check.
+      - uses: actions/setup-node@v6
+        with: { node-version: '20.19.0' }
+      - run: echo "NODE_20_19_BINARY=$(which node)" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v6
+        with: { node-version: '22.12.0' }
+      - run: echo "NODE_22_12_BINARY=$(which node)" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v6
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile --prefer-offline
