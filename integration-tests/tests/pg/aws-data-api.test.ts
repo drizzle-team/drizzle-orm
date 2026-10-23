@@ -845,7 +845,7 @@ describe('aws-data-api/pg', () => {
 			const result2 = await db.execute<{
 				id: number;
 				timestamp_string: string;
-			}>(sql`select "id", "timestamp_string"::text from ${table}`);
+			}>(sql`select * from ${table}`);
 
 			expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -876,7 +876,7 @@ describe('aws-data-api/pg', () => {
 			const result = await db.execute<{
 				id: number;
 				timestamp_string: string;
-			}>(sql`select "id", "timestamp_string"::text from ${table}`);
+			}>(sql`select * from ${table}`);
 
 			expect(result.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -909,7 +909,7 @@ describe('aws-data-api/pg', () => {
 			const result = await db.execute<{
 				id: number;
 				timestamp_string: string;
-			}>(sql`select "id", "timestamp_string"::text from ${table}`);
+			}>(sql`select * from ${table}`);
 
 			// 3. Compare both dates using orm mapping - Need to add 'Z' to tell JS that it is UTC
 			expect(new Date(result.rows[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
@@ -949,7 +949,7 @@ describe('aws-data-api/pg', () => {
 			const result2 = await db.execute<{
 				id: number;
 				timestamp_string: string;
-			}>(sql`select "id", "timestamp_string"::text from ${table}`);
+			}>(sql`select * from ${table}`);
 
 			// 3.1 Data API sends timestamptz in UTC without an offset
 			expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
@@ -989,7 +989,7 @@ describe('aws-data-api/pg', () => {
 			const result2 = await db.execute<{
 				id: number;
 				timestamp_string: string;
-			}>(sql`select "id", "timestamp_string"::text from ${table}`);
+			}>(sql`select * from ${table}`);
 
 			// 3.1 Data API sends timestamptz in UTC without an offset
 			expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456' }]);

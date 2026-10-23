@@ -62,7 +62,7 @@ test('insert + partial select', async () => {
 
 	const query = db.select({ distance: l2Distance(items.vector, [3, 1, 2]) }).from(items);
 
-	expect(query.toSQL()).toStrictEqual({ sql: 'select "vector" <-> $1 from "items"', params: ['[3,1,2]'] });
+	expect(query.toSQL(false)).toStrictEqual({ sql: 'select "vector" <-> $1 from "items"', params: ['[3,1,2]'] });
 
 	const response = await query;
 
@@ -90,7 +90,7 @@ test('insert + complex where', async () => {
 		.where(sql`${l2Distance(items.vector, [3, 1, 2])} < ${5}`)
 		.limit(5);
 
-	expect(query.toSQL()).toStrictEqual({
+	expect(query.toSQL(false)).toStrictEqual({
 		sql:
 			'select "id", "vector", "bit", "halfvec", "sparsevec" from "items" where "items"."vector" <-> $1 < $2 limit $3',
 		params: ['[3,1,2]', 5, 5],
@@ -137,7 +137,7 @@ test('insert + order by subquery', async () => {
 		.orderBy(l2Distance(items.vector, subquery))
 		.limit(5);
 
-	expect(query.toSQL()).toStrictEqual({
+	expect(query.toSQL(false)).toStrictEqual({
 		sql:
 			'select "id", "vector", "bit", "halfvec", "sparsevec" from "items" where not ("items"."id" = $1) order by "items"."vector" <-> (select "vector" from "items" where "items"."id" = $2) limit $3',
 		params: [1, 1, 5],
@@ -179,7 +179,7 @@ test('insert + select order by jaccard distance', async () => {
 
 	const bitQuery = db.select().from(items).orderBy(jaccardDistance(items.bit, '101')).limit(5);
 
-	expect(bitQuery.toSQL()).toStrictEqual({
+	expect(bitQuery.toSQL(false)).toStrictEqual({
 		params: [
 			'101',
 			5,
@@ -216,7 +216,7 @@ test('insert + select order by hamming distance', async () => {
 
 	const bitQuery = db.select().from(items).orderBy(hammingDistance(items.bit, '101')).limit(5);
 
-	expect(bitQuery.toSQL()).toStrictEqual({
+	expect(bitQuery.toSQL(false)).toStrictEqual({
 		params: [
 			'101',
 			5,
@@ -255,7 +255,7 @@ test('insert + select order by l2 distance', async () => {
 	const queryHalfvec = db.select().from(items).orderBy(l2Distance(items.halfvec, [3, 1, 2])).limit(5);
 	const querySparsevec = db.select().from(items).orderBy(l2Distance(items.sparsevec, '{1:3,3:1,5:2}/5')).limit(5);
 
-	expect(queryVector.toSQL()).toStrictEqual({
+	expect(queryVector.toSQL(false)).toStrictEqual({
 		params: [
 			'[3,1,2]',
 			5,
@@ -263,7 +263,7 @@ test('insert + select order by l2 distance', async () => {
 		sql: 'select "id", "vector", "bit", "halfvec", "sparsevec" from "items" order by "items"."vector" <-> $1 limit $2',
 	});
 
-	expect(queryHalfvec.toSQL()).toStrictEqual({
+	expect(queryHalfvec.toSQL(false)).toStrictEqual({
 		params: [
 			'[3,1,2]',
 			5,
@@ -271,7 +271,7 @@ test('insert + select order by l2 distance', async () => {
 		sql: 'select "id", "vector", "bit", "halfvec", "sparsevec" from "items" order by "items"."halfvec" <-> $1 limit $2',
 	});
 
-	expect(querySparsevec.toSQL()).toStrictEqual({
+	expect(querySparsevec.toSQL(false)).toStrictEqual({
 		params: [
 			'{1:3,3:1,5:2}/5',
 			5,
