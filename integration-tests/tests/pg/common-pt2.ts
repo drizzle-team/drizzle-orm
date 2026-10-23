@@ -69,6 +69,7 @@ import {
 	allTypesRelations,
 	allTypesTable,
 	assertAllTypesBounds,
+	assertAllTypesEmptyArrays,
 	assertAllTypesUnions,
 	makeAllTypes,
 } from './all-types';
@@ -3263,18 +3264,8 @@ export function tests(test: Test) {
 			const sub = alias(productionJobWithLocationView, 'p'); // if select from "productionJobWithLocationView" (not from alias), it works as expected
 
 			const query = db.select().from(sub);
-			expect(query.toSQL().sql).toStrictEqual(
-				(<{ dialect: PgDialect }> (<any> db)).dialect.sqlToQuery(
-					sql`select ${sql.identifier('id')}, ${sql.identifier('name')}, ${sql.identifier('location_id')}, ${
-						sql.identifier(
-							'tag_id',
-						)
-					}, ${sql.identifier('tag_created_at')} from ${sql.identifier('production_job_with_location')} ${
-						sql.identifier(
-							'p',
-						)
-					}`,
-				).sql,
+			expect(query.toSQL(false).sql).toStrictEqual(
+				'select "id", "name", "location_id", "tag_id", "tag_created_at" from "production_job_with_location" "p"',
 			);
 		});
 
@@ -3894,6 +3885,8 @@ export function tests(test: Test) {
 
 			await assertAllTypesUnions(db);
 			await assertAllTypesBounds(db);
+
+			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018

@@ -16,10 +16,18 @@ import {
 	parsePointTuple,
 	parsePointXY,
 	refineGenericPgCodecs,
+	textToDate,
+	textToDateWithTz,
 } from '~/pg-core/codecs.ts';
 
 export const bunSqlPgCodecs = refineGenericPgCodecs({
-	date: { normalizeParamArray: (v) => makePgArray(v) },
+	date: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: textToDate,
+		normalizeArray: arrayCompatNormalize(textToDate),
+		normalizeParamArray: (v) => makePgArray(v),
+	},
 	'date:string': {
 		cast: castToText,
 		castArray: castToTextArr,
@@ -29,8 +37,20 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
-	timestamp: { normalizeParamArray: (v) => makePgArray(v) },
-	timestamptz: { normalizeParamArray: (v) => makePgArray(v) },
+	timestamp: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: textToDateWithTz,
+		normalizeArray: arrayCompatNormalize(textToDateWithTz),
+		normalizeParamArray: (v) => makePgArray(v),
+	},
+	timestamptz: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: textToDate,
+		normalizeArray: arrayCompatNormalize(textToDate),
+		normalizeParamArray: (v) => makePgArray(v),
+	},
 	'timestamp:string': {
 		cast: castToText,
 		castArray: castToTextArr,
@@ -49,9 +69,15 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	bigint: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'bigint:number': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
@@ -62,11 +88,15 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	bigserial: {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'bigserial:number': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
@@ -76,12 +106,9 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 			value: any,
 			dimensions: number,
 		) => {
-			if (dimensions <= 1) {
-				if (value instanceof Int32Array) {
-					return Array.from(value) as any;
-				}
-				return value;
-			}
+			// Bun hands over the innermost level as `Int32Array` - an empty array of any dimensions is that level
+			if (value instanceof Int32Array) return Array.from(value) as any;
+			if (dimensions <= 1) return value;
 
 			const stack: { arr: any; depth: number }[] = [{ arr: value, depth: 1 }];
 
@@ -148,8 +175,16 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 	smallint: { normalizeParamArray: (v) => makePgArray(v) },
 	smallserial: { normalizeParamArray: (v) => makePgArray(v) },
 	text: { normalizeParamArray: (v) => makePgArray(v) },
-	time: { normalizeParamArray: (v) => makePgArray(v) },
-	timetz: { normalizeParamArray: (v) => makePgArray(v) },
+	time: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalizeParamArray: (v) => makePgArray(v),
+	},
+	timetz: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalizeParamArray: (v) => makePgArray(v),
+	},
 	tsmultirange: { normalizeParamArray: (v) => makePgArray(v) },
 	tsquery: { normalizeParamArray: (v) => makePgArray(v) },
 	tsrange: { normalizeParamArray: (v) => makePgArray(v) },
@@ -165,9 +200,17 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	json: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: JSON.parse,
+		normalizeArray: arrayCompatNormalize(JSON.parse),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	jsonb: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: JSON.parse,
+		normalizeArray: arrayCompatNormalize(JSON.parse),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	'geometry(point)': {
@@ -181,6 +224,7 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makeGeometryArray,
 	},
 	interval: {
+		cast: castToText,
 		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
@@ -204,16 +248,19 @@ export const bunSqlPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	numeric: {
+		cast: castToText,
 		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'numeric:number': {
+		cast: castToText,
 		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'numeric:bigint': {
+		cast: castToText,
 		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),

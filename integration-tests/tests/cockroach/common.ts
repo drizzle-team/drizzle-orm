@@ -103,6 +103,7 @@ import {
 	allTypesRelations,
 	allTypesTable,
 	assertAllTypesBounds,
+	assertAllTypesEmptyArrays,
 	assertAllTypesUnions,
 	makeAllTypes,
 } from './all-types';
@@ -7531,6 +7532,8 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 
 			await assertAllTypesUnions(db);
 			await assertAllTypesBounds(db);
+
+			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 		});
 
 		test('generated always columns', async ({ cockroach: { db } }) => {

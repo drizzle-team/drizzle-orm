@@ -7,7 +7,12 @@ import {
 	createUpdateSchema,
 	type GenericSchema,
 } from 'drizzle-orm/typebox-legacy';
-import { bigintStringModeSchema, jsonSchema, unsignedBigintStringModeSchema } from 'drizzle-orm/typebox-legacy/column';
+import {
+	bigintStringModeSchema,
+	bufferSchema,
+	jsonSchema,
+	unsignedBigintStringModeSchema,
+} from 'drizzle-orm/typebox-legacy/column';
 import { CONSTANTS } from 'drizzle-orm/utils';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
@@ -354,6 +359,12 @@ test('refine view - select', (tc) => {
 });
 
 test('all data types', (tc) => {
+	enum Letters {
+		A = 'a',
+		B = 'b',
+		C = 'c',
+	}
+
 	const table = mysqlTable('test', ({
 		bigint,
 		binary,
@@ -381,6 +392,10 @@ test('all data types', (tc) => {
 		longtext,
 		mediumtext,
 		tinytext,
+		blob,
+		tinyblob,
+		mediumblob,
+		longblob,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -433,6 +448,12 @@ test('all data types', (tc) => {
 		mediumtext2: mediumtext({ enum: ['a', 'b', 'c'] }).notNull(),
 		tinytext1: tinytext().notNull(),
 		tinytext2: tinytext({ enum: ['a', 'b', 'c'] }).notNull(),
+		blob1: blob().notNull(),
+		blob2: blob({ mode: 'string' }).notNull(),
+		tinyblob: tinyblob().notNull(),
+		mediumblob: mediumblob({ mode: 'string' }).notNull(),
+		longblob: longblob().notNull(),
+		enumObject: mysqlEnum(Letters).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -488,6 +509,12 @@ test('all data types', (tc) => {
 		mediumtext2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		tinytext1: t.String({ maxLength: CONSTANTS.INT8_UNSIGNED_MAX }),
 		tinytext2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		blob1: bufferSchema,
+		blob2: t.String({ maxLength: CONSTANTS.INT16_UNSIGNED_MAX }),
+		tinyblob: bufferSchema,
+		mediumblob: t.String({ maxLength: CONSTANTS.INT24_UNSIGNED_MAX }),
+		longblob: bufferSchema,
+		enumObject: t.Enum({ a: Letters.A, b: Letters.B, c: Letters.C }),
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();

@@ -26,7 +26,6 @@ function construct<
 ): BunSQLDatabase<TRelations> & {
 	$client: SQL;
 } {
-	client.options.bigint = true;
 	const dialect = new PgDialect({
 		useJitMappers: jitCompatCheck(config.jit),
 		codecs: config.codecs ?? bunSqlPgCodecs,
@@ -110,11 +109,6 @@ export namespace drizzle {
 	): BunSQLDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
-		return construct({
-			options: {
-				parsers: {},
-				serializers: {},
-			},
-		} as any, config) as any;
+		return construct({} as any, config) as any;
 	}
 }

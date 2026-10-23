@@ -416,6 +416,16 @@ test('refine view - select', (t) => {
 });
 
 test('all data types', (t) => {
+	enum Letters {
+		A = 'a',
+		B = 'b',
+		C = 'c',
+	}
+	type LettersValue = (typeof Letters)[keyof typeof Letters];
+	const enumObject = cockroachEnum('test_object', Letters);
+
+	const enum_ = cockroachEnum('test', ['a', 'b', 'c']);
+
 	const table = cockroachTable('test', ({
 		bigint,
 		bit,
@@ -442,6 +452,7 @@ test('all data types', (t) => {
 		uuid,
 		varchar,
 		vector,
+		varbit,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -481,6 +492,9 @@ test('all data types', (t) => {
 		varchar1: varchar({ length: 10 }).notNull(),
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		vector: vector({ dimensions: 3 }).notNull(),
+		varbit: varbit({ length: 5 }).notNull(),
+		enum: enum_().notNull(),
+		enumObject: enumObject().notNull(),
 		array: int4().array().notNull(),
 	}));
 
@@ -566,6 +580,9 @@ test('all data types', (t) => {
 		varchar1: s.String.check(s.isMaxLength(10)),
 		varchar2: s.Literals(['a', 'b', 'c']),
 		vector: s.Array(s.Number).check(s.isBetweenLength(3, 3)),
+		varbit: s.String.check(s.isPattern(/^[01]*$/), s.isMaxLength(5)),
+		enum: s.Literals(['a', 'b', 'c']),
+		enumObject: s.Literals<readonly [LettersValue, ...LettersValue[]]>([Letters.A, Letters.B, Letters.C]),
 		array: s.Array(int4Schema),
 	});
 

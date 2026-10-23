@@ -26,10 +26,10 @@ export const bunSqlMySqlCodecs = refineGenericMySqlCodecs({
 		normalize: Number,
 	},
 	'date:string': {
-		normalize: (value: Date) => value.toISOString().slice(0, -14),
+		cast: castToText,
 	},
 	'datetime:string': {
-		normalize: (value: Date) => value.toISOString().slice(0, -1).replace('T', ' '),
+		cast: castToText,
 	},
 	'timestamp:string': {
 		cast: castToText,
@@ -38,9 +38,11 @@ export const bunSqlMySqlCodecs = refineGenericMySqlCodecs({
 		cast: castToText,
 	},
 	'decimal:number': {
+		cast: castToText,
 		normalize: Number,
 	},
 	'decimal:bigint': {
+		cast: castToText,
 		normalize: BigInt,
 	},
 	float: {
@@ -64,5 +66,24 @@ export const bunSqlMySqlCodecs = refineGenericMySqlCodecs({
 	},
 	longblob: {
 		normalize: (value: Buffer) => value.toString('utf8'),
+	},
+	decimal: {
+		cast: castToText,
+	},
+	date: {
+		cast: castToText,
+		normalize: (value: string) => new Date(value),
+	},
+	datetime: {
+		cast: castToText,
+		normalize: (value: string) => new Date(value.replace(' ', 'T') + 'Z'),
+	},
+	timestamp: {
+		cast: castToText,
+		normalize: (value: string) => new Date(value + '+0000'),
+	},
+	json: {
+		cast: castToText,
+		normalize: JSON.parse,
 	},
 });

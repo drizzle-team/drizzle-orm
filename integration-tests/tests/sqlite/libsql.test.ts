@@ -1,14 +1,36 @@
+import { createClient } from '@libsql/client';
 import { sql } from 'drizzle-orm';
-import type { LibSQLDatabase } from 'drizzle-orm/libsql';
+import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import { getTableConfig, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
 import { randomString } from '~/utils';
-import { libSQLTest as test } from './instrumentation';
+import { allTypesData, allTypesInput, makeAllTypes } from './all-types';
+import { _push, libSQLTest as test } from './instrumentation';
 import relations from './relations';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
 import { tests as cacheTests } from './sqlite-common-cache';
+
+test('all types - client int modes', async () => {
+	// The client's integer mode must not leak into what the ORM returns
+	for (const intMode of ['bigint', 'string'] as const) {
+		const client = createClient({ url: ':memory:', intMode });
+		try {
+			const db = drizzle({ client });
+			const allTypesTable = makeAllTypes('all_types_int_mode');
+			await _push(async (query, params) => (await client.execute({ sql: query, args: params })).rows, {
+				allTypesTable,
+			});
+
+			await db.insert(allTypesTable).values(allTypesInput);
+
+			expect(await db.select().from(allTypesTable), intMode).toStrictEqual([allTypesData]);
+		} finally {
+			client.close();
+		}
+	}
+});
 
 test('migrator', async ({ db }) => {
 	await db.run(sql`drop table if exists another_users`);

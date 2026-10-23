@@ -32,6 +32,7 @@ import {
 	allTypesRelations,
 	allTypesTable,
 	assertAllTypesBounds,
+	assertAllTypesEmptyArrays,
 	assertAllTypesUnions,
 	makeAllTypes,
 } from './all-types';
@@ -1108,6 +1109,8 @@ describe('postgres/aurora', () => {
 
 			await assertAllTypesUnions(db);
 			await assertAllTypesBounds(db);
+
+			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 		});
 
 		// Validates functionality of base codecs provided to be overriden
@@ -1129,6 +1132,8 @@ describe('postgres/aurora', () => {
 
 			await assertAllTypesUnions(db, allTypesTable);
 			await assertAllTypesBounds(db);
+
+			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 		});
 	});
 

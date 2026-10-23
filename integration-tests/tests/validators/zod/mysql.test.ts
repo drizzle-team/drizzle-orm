@@ -2,7 +2,12 @@ import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, json, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import { CONSTANTS } from 'drizzle-orm/utils';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from 'drizzle-orm/zod';
-import { bigintStringModeSchema, jsonSchema, unsignedBigintStringModeSchema } from 'drizzle-orm/zod/column';
+import {
+	bigintStringModeSchema,
+	bufferSchema,
+	jsonSchema,
+	unsignedBigintStringModeSchema,
+} from 'drizzle-orm/zod/column';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod/v4';
@@ -344,6 +349,12 @@ test('refine view - select', (t) => {
 });
 
 test('all data types', (t) => {
+	enum Letters {
+		A = 'a',
+		B = 'b',
+		C = 'c',
+	}
+
 	const table = mysqlTable('test', ({
 		bigint,
 		binary,
@@ -371,6 +382,10 @@ test('all data types', (t) => {
 		longtext,
 		mediumtext,
 		tinytext,
+		blob,
+		tinyblob,
+		mediumblob,
+		longblob,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -423,6 +438,12 @@ test('all data types', (t) => {
 		mediumtext2: mediumtext({ enum: ['a', 'b', 'c'] }).notNull(),
 		tinytext1: tinytext().notNull(),
 		tinytext2: tinytext({ enum: ['a', 'b', 'c'] }).notNull(),
+		blob1: blob().notNull(),
+		blob2: blob({ mode: 'string' }).notNull(),
+		tinyblob: tinyblob().notNull(),
+		mediumblob: mediumblob({ mode: 'string' }).notNull(),
+		longblob: longblob().notNull(),
+		enumObject: mysqlEnum(Letters).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -478,6 +499,12 @@ test('all data types', (t) => {
 		mediumtext2: z.enum(['a', 'b', 'c']),
 		tinytext1: z.string().max(CONSTANTS.INT8_UNSIGNED_MAX),
 		tinytext2: z.enum(['a', 'b', 'c']),
+		blob1: bufferSchema,
+		blob2: z.string().max(CONSTANTS.INT16_UNSIGNED_MAX),
+		tinyblob: bufferSchema,
+		mediumblob: z.string().max(CONSTANTS.INT24_UNSIGNED_MAX),
+		longblob: bufferSchema,
+		enumObject: z.enum([Letters.A, Letters.B, Letters.C]),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();

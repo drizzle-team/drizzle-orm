@@ -385,6 +385,15 @@ test('refine view - select', (t) => {
 });
 
 test('all data types', (t) => {
+	enum Letters {
+		A = 'a',
+		B = 'b',
+		C = 'c',
+	}
+	const enumObject = cockroachEnum('test_object', Letters);
+
+	const enum_ = cockroachEnum('test', ['a', 'b', 'c']);
+
 	const table = cockroachTable('test', ({
 		bigint,
 		bit,
@@ -411,6 +420,7 @@ test('all data types', (t) => {
 		uuid,
 		varchar,
 		vector,
+		varbit,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -450,6 +460,9 @@ test('all data types', (t) => {
 		varchar1: varchar({ length: 10 }).notNull(),
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		vector: vector({ dimensions: 3 }).notNull(),
+		varbit: varbit({ length: 5 }).notNull(),
+		enum: enum_().notNull(),
+		enumObject: enumObject().notNull(),
 		array: int4().array().notNull(),
 	}));
 
@@ -493,6 +506,9 @@ test('all data types', (t) => {
 		varchar1: z.string().max(10),
 		varchar2: z.enum(['a', 'b', 'c']),
 		vector: z.array(z.number()).length(3),
+		varbit: z.string().regex(/^[01]*$/).max(5),
+		enum: z.enum(['a', 'b', 'c']),
+		enumObject: z.enum([Letters.A, Letters.B, Letters.C]),
 		array: z.array(int4Schema),
 	});
 

@@ -18,6 +18,8 @@ import {
 	parsePointXY,
 	type PgCodecs,
 	refineGenericPgCodecs,
+	textToDate,
+	textToDateWithTz,
 } from '~/pg-core/codecs.ts';
 
 const stringifyBigint = (value: bigint) => value.toString();
@@ -51,39 +53,57 @@ export const minipgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	bigint: {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
 		normalizeParam: stringifyBigint,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'bigint:number': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'bigint:string': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: String,
 		normalizeArray: arrayCompatNormalize(String),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	bigserial: {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
 		normalizeParam: stringifyBigint,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'bigserial:number': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	numeric: {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'numeric:number': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'numeric:bigint': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 		normalizeParamArray: (v) => makePgArray(v),
@@ -99,6 +119,10 @@ export const minipgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: arrayCompatNormalizeInput(bufferToPgHex, true),
 	},
 	date: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: textToDate,
+		normalizeArray: arrayCompatNormalize(textToDate),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'date:string': {
@@ -106,12 +130,28 @@ export const minipgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
-	time: { normalizeParamArray: (v) => makePgArray(v) },
-	timetz: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
+	time: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalizeParamArray: (v) => makePgArray(v),
+	},
+	timetz: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalizeParamArray: (v) => makePgArray(v),
+	},
 	timestamp: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: textToDateWithTz,
+		normalizeArray: arrayCompatNormalize(textToDateWithTz),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	timestamptz: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: textToDate,
+		normalizeArray: arrayCompatNormalize(textToDate),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'timestamp:string': {
@@ -124,7 +164,11 @@ export const minipgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
-	interval: { normalizeParamArray: (v) => makePgArray(v) },
+	interval: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalizeParamArray: (v) => makePgArray(v),
+	},
 	bool: {
 		normalizeParamArray: (v) => makePgArray(v),
 	},
@@ -170,10 +214,18 @@ export const minipgCodecs = refineGenericPgCodecs({
 	tsquery: { normalizeArray: (v) => parsePgArray(v), normalizeParamArray: (v) => makePgArray(v) },
 	uuid: { normalizeParamArray: (v) => makePgArray(v) },
 	json: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: JSON.parse,
+		normalizeArray: arrayCompatNormalize(JSON.parse),
 		normalizeParam: jsonStringify,
 		normalizeParamArray: arrayCompatNormalizeInput(jsonStringify, true),
 	},
 	jsonb: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: JSON.parse,
+		normalizeArray: arrayCompatNormalize(JSON.parse),
 		normalizeParam: jsonStringify,
 		normalizeParamArray: arrayCompatNormalizeInput(jsonStringify, true),
 	},

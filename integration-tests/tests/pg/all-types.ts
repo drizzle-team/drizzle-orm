@@ -396,6 +396,13 @@ export const allTypesData: AllTypes = {
 	arrvarchar: ['C4-', 'second'],
 };
 
+export const withEmptyArrays = <T extends Record<string, unknown>>(data: T): T =>
+	Object.fromEntries(
+		Object.entries(data).map(([key, value]) => [key, /^(arr|mtx)/.test(key) ? [] : value]),
+	) as T;
+
+export const allTypesEmptyArraysData = withEmptyArrays(allTypesData);
+
 export type RunQuery = (query: any) => Promise<any>;
 const awaitQuery: RunQuery = (query) => query;
 
@@ -1268,6 +1275,24 @@ export const boundsData: BoundsRow[] = [
 		numericNum: null,
 	},
 ];
+
+/** Replaces the table's contents with {@link allTypesEmptyArraysData} and reads it back, through RQB as well when given */
+export async function assertAllTypesEmptyArrays(
+	db: PgAsyncDatabase<any, any>,
+	allTypesTable: AllTypesTable = defaultAllTypesTable,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
+) {
+	await run(db.delete(allTypesTable));
+	await run(db.insert(allTypesTable).values(allTypesEmptyArraysData));
+
+	expect(await run(db.select().from(allTypesTable))).toStrictEqual([allTypesEmptyArraysData]);
+	if (rqb) {
+		expect(await run((<any> db).query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
+			...allTypesEmptyArraysData,
+			self: [allTypesEmptyArraysData],
+		});
+	}
+}
 
 export async function assertAllTypesBounds(
 	db: PgAsyncDatabase<any, any>,

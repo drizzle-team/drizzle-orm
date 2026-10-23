@@ -12,7 +12,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { CONSTANTS } from 'drizzle-orm/utils';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/valibot';
-import { bigintStringModeSchema, jsonSchema } from 'drizzle-orm/valibot/column';
+import { bigintStringModeSchema, bufferSchema, jsonSchema } from 'drizzle-orm/valibot/column';
 import type { TopLevelCondition } from 'json-rules-engine';
 import * as v from 'valibot';
 import { test } from 'vitest';
@@ -384,6 +384,15 @@ test('refine view - select', (t) => {
 });
 
 test('all data types', (t) => {
+	enum Letters {
+		A = 'a',
+		B = 'b',
+		C = 'c',
+	}
+	const enumObject = pgEnum('test_object', Letters);
+
+	const enum_ = pgEnum('test', ['a', 'b', 'c']);
+
 	const table = pgTable('test', ({
 		bigint,
 		bigserial,
@@ -416,6 +425,8 @@ test('all data types', (t) => {
 		uuid,
 		varchar,
 		vector,
+		bytea,
+		decimal,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -461,6 +472,10 @@ test('all data types', (t) => {
 		varchar1: varchar({ length: 10 }).notNull(),
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		vector: vector({ dimensions: 3 }).notNull(),
+		bytea: bytea().notNull(),
+		decimal: decimal({ mode: 'string' }).notNull(),
+		enum: enum_().notNull(),
+		enumObject: enumObject().notNull(),
 		array1: integer().array().notNull(),
 		array2: integer().array('[][]').notNull(),
 		array3: varchar({ length: 10 }).array('[][]').notNull(),
@@ -517,6 +532,10 @@ test('all data types', (t) => {
 		varchar1: v.pipe(v.string(), v.maxLength(10 as number)),
 		varchar2: v.enum({ a: 'a', b: 'b', c: 'c' }),
 		vector: v.pipe(v.array(v.number()), v.length(3 as number)),
+		bytea: bufferSchema,
+		decimal: v.string(),
+		enum: v.enum({ a: 'a', b: 'b', c: 'c' }),
+		enumObject: v.enum({ a: Letters.A, b: Letters.B, c: Letters.C }),
 		array1: v.array(integerSchema),
 		array2: v.array(v.array(integerSchema)),
 		array3: v.array(v.array(v.pipe(v.string(), v.maxLength(10 as number)))),

@@ -607,7 +607,7 @@ describe('[findFirst] read replicas postgres', () => {
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(1);
 		expect(query.toSQL().sql).toEqual(
-			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb" as "jsonb", "d0"."created_at" as "createdAt" from "users" as "d0" limit $1',
+			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb"::text as "jsonb", "d0"."created_at"::text as "createdAt" from "users" as "d0" limit $1',
 		);
 	});
 
@@ -693,7 +693,7 @@ describe('[findMany] read replicas postgres', () => {
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(spyPrimary).toHaveBeenCalledWith(obj);
 		expect(query.toSQL().sql).toEqual(
-			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb" as "jsonb", "d0"."created_at" as "createdAt" from "users" as "d0"',
+			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb"::text as "jsonb", "d0"."created_at"::text as "createdAt" from "users" as "d0"',
 		);
 	});
 
@@ -720,7 +720,7 @@ describe('[findMany] read replicas postgres', () => {
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(query1.toSQL().sql).toEqual(
-			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb" as "jsonb", "d0"."created_at" as "createdAt" from "users" as "d0"',
+			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb"::text as "jsonb", "d0"."created_at"::text as "createdAt" from "users" as "d0"',
 		);
 		expect(spyRead1).toHaveBeenCalledWith(obj1);
 
@@ -729,7 +729,7 @@ describe('[findMany] read replicas postgres', () => {
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead2).toHaveBeenCalledTimes(1);
 		expect(query2.toSQL().sql).toEqual(
-			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb" as "jsonb", "d0"."created_at" as "createdAt" from "users" as "d0"',
+			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb"::text as "jsonb", "d0"."created_at"::text as "createdAt" from "users" as "d0"',
 		);
 		expect(spyRead2).toHaveBeenCalledWith(obj2);
 	});
@@ -751,14 +751,14 @@ describe('[findMany] read replicas postgres', () => {
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledWith(obj1);
 		expect(query1.toSQL().sql).toEqual(
-			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb" as "jsonb", "d0"."created_at" as "createdAt" from "users" as "d0"',
+			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb"::text as "jsonb", "d0"."created_at"::text as "createdAt" from "users" as "d0"',
 		);
 
 		const query2 = db.$replica.query.usersTable.findMany(obj2);
 		expect(spyRead1).toHaveBeenCalledTimes(2);
 		expect(spyRead1).toHaveBeenNthCalledWith(2, obj2);
 		expect(query2.toSQL().sql).toEqual(
-			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb" as "jsonb", "d0"."created_at" as "createdAt" from "users" as "d0"',
+			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb"::text as "jsonb", "d0"."created_at"::text as "createdAt" from "users" as "d0"',
 		);
 	});
 
@@ -779,7 +779,7 @@ describe('[findMany] read replicas postgres', () => {
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyRead1).toHaveBeenCalledWith(obj1);
 		expect(query1.toSQL().sql).toEqual(
-			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb" as "jsonb", "d0"."created_at" as "createdAt" from "users" as "d0"',
+			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb"::text as "jsonb", "d0"."created_at"::text as "createdAt" from "users" as "d0"',
 		);
 
 		const query2 = db.query.usersTable.findMany(obj2);
@@ -788,7 +788,7 @@ describe('[findMany] read replicas postgres', () => {
 		expect(spyRead1).toHaveBeenCalledTimes(1);
 		expect(spyPrimary).toHaveBeenNthCalledWith(1, obj2);
 		expect(query2.toSQL().sql).toEqual(
-			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb" as "jsonb", "d0"."created_at" as "createdAt" from "users" as "d0"',
+			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb"::text as "jsonb", "d0"."created_at"::text as "createdAt" from "users" as "d0"',
 		);
 	});
 
@@ -814,7 +814,7 @@ describe('[findMany] read replicas postgres', () => {
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenCalledWith(obj1);
 		expect(query1.toSQL().sql).toEqual(
-			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb" as "jsonb", "d0"."created_at" as "createdAt" from "users" as "d0"',
+			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb"::text as "jsonb", "d0"."created_at"::text as "createdAt" from "users" as "d0"',
 		);
 
 		const query2 = db.$replica.query.usersTable.findMany(obj2);
@@ -822,7 +822,7 @@ describe('[findMany] read replicas postgres', () => {
 		expect(spyRead2).toHaveBeenCalledTimes(0);
 		expect(spyRead1).toHaveBeenNthCalledWith(2, obj2);
 		expect(query2.toSQL().sql).toEqual(
-			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb" as "jsonb", "d0"."created_at" as "createdAt" from "users" as "d0"',
+			'select "d0"."id" as "id", "d0"."name" as "name", "d0"."verified" as "verified", "d0"."jsonb"::text as "jsonb", "d0"."created_at"::text as "createdAt" from "users" as "d0"',
 		);
 	});
 });

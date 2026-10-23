@@ -27,9 +27,7 @@ export class PgTextBuilder<TEnum extends [string, ...string[]] = [string, ...str
 	}
 }
 
-export class PgText<TEnum extends [string, ...string[]] = [string, ...string[]]> extends PgColumn<
-	Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum'
-> {
+export class PgText extends PgColumn<'string' | 'string enum'> {
 	static override readonly [entityKind]: string = 'PgText';
 	override readonly enumValues;
 

@@ -13,7 +13,7 @@ import {
 	serial,
 	text,
 } from 'drizzle-orm/pg-core';
-import { bigintStringModeSchema, jsonSchema } from 'drizzle-orm/typebox-legacy';
+import { bigintStringModeSchema, bufferSchema, jsonSchema } from 'drizzle-orm/typebox-legacy';
 import {
 	createInsertSchema,
 	createSelectSchema,
@@ -390,6 +390,15 @@ test('refine view - select', (tc) => {
 });
 
 test('all data types', (tc) => {
+	enum Letters {
+		A = 'a',
+		B = 'b',
+		C = 'c',
+	}
+	const enumObject = pgEnum('test_object', Letters);
+
+	const enum_ = pgEnum('test', ['a', 'b', 'c']);
+
 	const table = pgTable('test', ({
 		bigint,
 		bigserial,
@@ -422,6 +431,8 @@ test('all data types', (tc) => {
 		uuid,
 		varchar,
 		vector,
+		bytea,
+		decimal,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -467,6 +478,10 @@ test('all data types', (tc) => {
 		varchar1: varchar({ length: 10 }).notNull(),
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		vector: vector({ dimensions: 3 }).notNull(),
+		bytea: bytea().notNull(),
+		decimal: decimal({ mode: 'string' }).notNull(),
+		enum: enum_().notNull(),
+		enumObject: enumObject().notNull(),
 		array1: integer().array().notNull(),
 		array2: integer().array('[][]').notNull(),
 		array3: varchar({ length: 10 }).array('[][]').notNull(),
@@ -518,6 +533,10 @@ test('all data types', (tc) => {
 		varchar1: t.String({ maxLength: 10 }),
 		varchar2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		vector: t.Array(t.Number(), { minItems: 3, maxItems: 3 }),
+		bytea: bufferSchema,
+		decimal: t.String(),
+		enum: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		enumObject: t.Enum({ a: Letters.A, b: Letters.B, c: Letters.C }),
 		array1: t.Array(integerSchema),
 		array2: t.Array(t.Array(integerSchema)),
 		array3: t.Array(t.Array(t.String({ maxLength: 10 }))),

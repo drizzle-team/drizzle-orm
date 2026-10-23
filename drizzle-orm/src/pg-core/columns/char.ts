@@ -30,14 +30,14 @@ export class PgCharBuilder<TEnum extends [string, ...string[]] = [string, ...str
 }
 
 export class PgChar<TEnum extends [string, ...string[]] = [string, ...string[]]>
-	extends PgColumn<Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum'>
+	extends PgColumn<'string' | 'string enum'>
 {
 	static override readonly [entityKind]: string = 'PgChar';
 
 	/** @internal */
 	override readonly codec = 'char';
 
-	override readonly enumValues: TEnum;
+	override readonly enumValues: TEnum | undefined;
 	private readonly setLength: boolean;
 
 	constructor(table: PgTable<any>, config: PgCharBuilder<TEnum>['config']) {

@@ -24,20 +24,36 @@ import { pgHexToUint8Array } from '~/utils.ts';
 
 export const effectPgliteCodecs = refineGenericPgCodecs({
 	bigint: {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
-	bigserial: { normalize: BigInt },
+	bigserial: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+	},
 	'bigint:string': {
 		cast: castToText,
 		castArray: castToTextArr,
 	},
 	'bigint:number': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 	},
-	'bigserial:number': { normalize: Number },
+	'bigserial:number': {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: Number,
+		normalizeArray: arrayCompatNormalize(Number),
+	},
 	date: {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: textToDate,
 		normalizeArray: arrayCompatNormalize(textToDate),
 	},
@@ -78,6 +94,8 @@ export const effectPgliteCodecs = refineGenericPgCodecs({
 		normalizeArray: arrayCompatNormalize(textToDateWithTz),
 	},
 	timestamptz: {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: textToDate,
 		normalizeArray: arrayCompatNormalize(textToDate),
 	},
@@ -90,10 +108,18 @@ export const effectPgliteCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 	},
 	json: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: JSON.parse,
+		normalizeArray: arrayCompatNormalize(JSON.parse),
 		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	jsonb: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: JSON.parse,
+		normalizeArray: arrayCompatNormalize(JSON.parse),
 		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
@@ -127,7 +153,11 @@ export const effectPgliteCodecs = refineGenericPgCodecs({
 	regprocedure: { normalizeParamArray: (v) => makePgArray(v) },
 	regrole: { normalizeParamArray: (v) => makePgArray(v) },
 	regtype: { normalizeParamArray: (v) => makePgArray(v) },
-	timetz: { normalizeParamArray: (v) => makePgArray(v) },
+	timetz: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalizeParamArray: (v) => makePgArray(v),
+	},
 	tsmultirange: { normalizeParamArray: (v) => makePgArray(v) },
 	tsquery: { normalizeParamArray: (v) => makePgArray(v) },
 	tsrange: { normalizeParamArray: (v) => makePgArray(v) },
@@ -153,10 +183,14 @@ export const effectPgliteCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'numeric:number': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 	},
 	'numeric:bigint': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
@@ -173,5 +207,17 @@ export const effectPgliteCodecs = refineGenericPgCodecs({
 	sparsevec: {
 		normalizeArray: (v) => parsePgArray(v),
 		normalizeParamArray: (v) => makePgArray(v),
+	},
+	numeric: {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	time: {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	interval: {
+		cast: castToText,
+		castArray: castToTextArr,
 	},
 });

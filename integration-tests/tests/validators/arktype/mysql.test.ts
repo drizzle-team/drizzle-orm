@@ -4,6 +4,7 @@ import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'driz
 import {
 	bigintNarrow,
 	bigintStringModeSchema,
+	bufferSchema,
 	jsonSchema,
 	unsignedBigintNarrow,
 	unsignedBigintStringModeSchema,
@@ -348,6 +349,12 @@ test('refine view - select', (t) => {
 });
 
 test('all data types', (t) => {
+	enum Letters {
+		A = 'a',
+		B = 'b',
+		C = 'c',
+	}
+
 	const table = mysqlTable('test', ({
 		bigint,
 		binary,
@@ -375,6 +382,10 @@ test('all data types', (t) => {
 		longtext,
 		mediumtext,
 		tinytext,
+		blob,
+		tinyblob,
+		mediumblob,
+		longblob,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -427,6 +438,12 @@ test('all data types', (t) => {
 		mediumtext2: mediumtext({ enum: ['a', 'b', 'c'] }).notNull(),
 		tinytext1: tinytext().notNull(),
 		tinytext2: tinytext({ enum: ['a', 'b', 'c'] }).notNull(),
+		blob1: blob().notNull(),
+		blob2: blob({ mode: 'string' }).notNull(),
+		tinyblob: tinyblob().notNull(),
+		mediumblob: mediumblob({ mode: 'string' }).notNull(),
+		longblob: longblob().notNull(),
+		enumObject: mysqlEnum(Letters).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -486,6 +503,12 @@ test('all data types', (t) => {
 		mediumtext2: type.enumerated('a', 'b', 'c'),
 		tinytext1: type.string.atMostLength(CONSTANTS.INT8_UNSIGNED_MAX),
 		tinytext2: type.enumerated('a', 'b', 'c'),
+		blob1: bufferSchema,
+		blob2: type.string.atMostLength(CONSTANTS.INT16_UNSIGNED_MAX),
+		tinyblob: bufferSchema,
+		mediumblob: type.string.atMostLength(CONSTANTS.INT24_UNSIGNED_MAX),
+		longblob: bufferSchema,
+		enumObject: type.enumerated(Letters.A, Letters.B, Letters.C),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
