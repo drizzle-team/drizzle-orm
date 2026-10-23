@@ -14,6 +14,8 @@ const ormPackageJson = resolve(import.meta.dirname, '../../../drizzle-orm/packag
 const envHints = {
 	PG_CONNECTION_STRING:
 		'Bring DBs up with `bash compose/dockers.sh up postgres` and export the connection string before running tests.',
+	NODE_20_19_BINARY: 'Export the path to a Node 20.19 binary before running tests.',
+	NODE_22_12_BINARY: 'Export the path to a Node 22.12 binary before running tests.',
 };
 
 // Outside CI, a missing variable skips the tests that need it. CI must run every test, so there it fails the run.
@@ -26,7 +28,14 @@ function hasEnv(...names: (keyof typeof envHints)[]): boolean {
 }
 
 const hasPostgres = hasEnv('PG_CONNECTION_STRING');
+const hasRequireNodeBinaries = hasEnv('NODE_20_19_BINARY', 'NODE_22_12_BINARY');
 const connectionString = process.env['PG_CONNECTION_STRING'];
+
+// Node can require() ESM without a flag from 20.19 and 22.12, the oldest versions in the ORM's engines range.
+const requireNodeBinaries: Record<string, string | undefined> = {
+	'20.19': process.env['NODE_20_19_BINARY'],
+	'22.12': process.env['NODE_22_12_BINARY'],
+};
 
 async function pack(packageDir: string, destination: string): Promise<string> {
 	const { stdout } = await exec('npm', ['pack', packageDir, '--json', '--pack-destination', destination]);
@@ -93,5 +102,12 @@ describe.skipIf(!hasPostgres)('packed drizzle-orm with standalone @drizzle-team/
 	test.for(Object.keys(runtimes))('drizzle-orm/postgres runs a query under %s', async (runtime) => {
 		const output = await runtimes[runtime]!(consumer());
 		expect(JSON.parse(output)).toEqual([{ value: 'ok' }]);
+	});
+
+	describe.skipIf(!hasRequireNodeBinaries)('require()', () => {
+		test.for(Object.keys(requireNodeBinaries))('loads drizzle-orm and runs a query under Node %s', async (version) => {
+			const output = await runScript(requireNodeBinaries[version]!, ['require.cjs'], consumer());
+			expect(JSON.parse(output)).toEqual([{ value: 'ok' }]);
+		});
 	});
 });
