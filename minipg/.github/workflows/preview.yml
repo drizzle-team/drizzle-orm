@@ -1,0 +1,89 @@
+# Publishes a preview build of every commit to pkg.pr.new.
+# Requires the pkg.pr.new GitHub App on this repository: https://github.com/apps/pkg-pr-new
+name: Preview release
+
+on:
+  push:
+    branches: ['**']
+    tags: ['!**']
+  pull_request:
+
+# checkout only; the PR comment is posted by the pkg.pr.new app, not this token
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+      # pkg-pr-new runs under node and shells out to `npm pack`.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - run: bun install --frozen-lockfile
+
+      # The Publish workflow's fast gate; the integration suite needs a live cluster and is too slow here.
+      - run: bun run typecheck
+      - run: bun run build
+      - run: bun test test/unit
+      - run: bun run verify:publish
+
+      # Run from the lockfile, never npx: the tool that uploads a build of this repo should
+      # be the version this repo pinned, not whatever latest resolves to at run time.
+      # --previewVersion prevents a preview shadowing the real npm release of the same version.
+      # continue-on-error: a pkg.pr.new outage must not fail a commit the gates above passed.
+      - name: Publish preview to pkg.pr.new
+        id: preview
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            bun run pkg-pr-new publish --json preview.json --previewVersion --comment=update --packageManager=bun,npm
+          else
+            bun run pkg-pr-new publish --json preview.json --previewVersion --comment=off --packageManager=bun,npm
+          fi
+
+      - name: Write install commands to the job summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "## Preview release"
+            echo
+            if [ "${{ steps.preview.outcome }}" != "success" ]; then
+              echo "Publishing to pkg.pr.new failed. The build and test gates above are unaffected —"
+              echo "this commit is still good, there is just no preview build for it."
+              echo
+              echo "If this persists, check that the pkg.pr.new GitHub App is installed on this repository."
+            elif [ -s preview.json ]; then
+              echo "Install this commit directly:"
+              echo
+              echo '```sh'
+              jq -r '.packages[] | "bun add \(.url)"' preview.json
+              echo '```'
+              echo
+              # The version is derived from the URL pkg-pr-new actually returned rather than
+              # reconstructed here — it abbreviates the commit hash itself, and guessing the
+              # length would print a version that does not exist.
+              echo "| Package | Version | URL |"
+              echo "| --- | --- | --- |"
+              jq -r '.packages[]
+                     | "| `\(.name)` | `0.0.0-preview-\(.url | split("@") | last)` | \(.url) |"' preview.json
+              echo
+              echo "Built from \`${GITHUB_SHA}\`. Preview builds expire and are not a release —"
+              echo "the version is rewritten to \`0.0.0-preview-<sha>\` so it can never be mistaken"
+              echo "for the npm build of the same number."
+            else
+              echo "pkg.pr.new reported success but produced no metadata, so there is no install URL to show."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
