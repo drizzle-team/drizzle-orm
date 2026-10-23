@@ -1,21 +1,16 @@
-import {
-	Collect,
-	CollectNullable,
-	type CustomMarker,
-	Json,
-	JsonArray,
-	type JsonMarker,
-	type JsonSpec,
-	Nullable,
-	type ShapeEntries,
-	type ShapeSpec,
-	type ShapeValue,
-	type TableShape,
-	Transform,
-	type TransformMarker,
-	type TypeSpec,
-} from '@drizzle-team/postgres';
-import { geometry as pgGeometry } from '@drizzle-team/postgres/geometry';
+import type {
+	CustomMarker,
+	JsonMarker,
+	JsonSpec,
+	ShapeEntries,
+	ShapeSpec,
+	ShapeValue,
+	TableShape,
+	TransformMarker,
+	TypeSpec,
+} from '#postgres';
+import { geometry as pgGeometry } from '#postgres/geometry';
+import { Collect, CollectNullable, Json, JsonArray, Nullable, Transform } from '#postgres/json';
 import { getOriginalColumnFromAlias } from '~/alias.ts';
 import { Column } from '~/column.ts';
 import { is } from '~/entity.ts';

@@ -353,6 +353,46 @@ test('PGlite #7', () => {
 	});
 });
 
+test('Drizzle Postgres client #1', () => {
+	const client = { query: () => {} };
+	expect(
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			client,
+		}),
+	).toStrictEqual({ client });
+});
+
+test('Drizzle Postgres client #2', () => {
+	expect(() => {
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			url: 'postgres://localhost:5432/db',
+			client: { query: () => {} },
+		});
+	}).toThrowError();
+});
+
+test('Drizzle Postgres client #3', () => {
+	expect(() => {
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			host: 'host',
+			database: 'database',
+			client: { query: () => {} },
+		});
+	}).toThrowError();
+});
+
+test('Drizzle Postgres client #4', () => {
+	expect(() => {
+		postgresCredentials.parse({
+			dialect: 'postgres',
+			client: 'postgres://localhost:5432/db',
+		});
+	}).toThrowError();
+});
+
 test('postgres #1', () => {
 	expect(
 		postgresCredentials.parse({
