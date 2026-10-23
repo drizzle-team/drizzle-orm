@@ -14,8 +14,8 @@ import {
 	Transform,
 	type TransformMarker,
 	type TypeSpec,
-} from '@drizzle-team/postgres';
-import { geometry as pgGeometry } from '@drizzle-team/postgres/geometry';
+} from '#postgres';
+import { geometry as pgGeometry } from '#postgres/geometry';
 import { getOriginalColumnFromAlias } from '~/alias.ts';
 import { Column } from '~/column.ts';
 import { is } from '~/entity.ts';

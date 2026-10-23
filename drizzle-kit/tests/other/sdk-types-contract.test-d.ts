@@ -1,6 +1,7 @@
 import type { PGlite } from '@electric-sql/pglite';
+import type { Pool } from 'drizzle-orm/postgres/client';
 import { expectTypeOf, test } from 'vitest';
-import type { Config } from '../../src';
+import { type Config, defineConfig } from '../../src';
 import type {
 	CheckOptions,
 	ExportOptions,
@@ -54,4 +55,19 @@ test('Config accepts a pglite client instead of dbCredentials', () => {
 		driver: 'pglite';
 		client: PGlite;
 	}>().toMatchTypeOf<Config>();
+});
+
+// Vitest also runs this file, so the value must exist at runtime.
+const pool = {} as Pool;
+
+test('defineConfig accepts a Drizzle Postgres Pool as dbCredentials.client', () => {
+	defineConfig({ dialect: 'postgresql', dbCredentials: { client: pool } });
+});
+
+test('defineConfig rejects dbCredentials.client combined with url', () => {
+	defineConfig({
+		dialect: 'postgresql',
+		// @ts-expect-error
+		dbCredentials: { client: pool, url: 'postgres://localhost:5432/db' },
+	});
 });

@@ -1,5 +1,5 @@
-import type { Connection, PoolQuery, QueryResult, ShapeSpec } from '@drizzle-team/postgres';
-import { Pool } from '@drizzle-team/postgres';
+import type { Connection, PoolQuery, QueryResult, ShapeSpec } from '#postgres';
+import { Pool } from '#postgres';
 import type { BatchItem } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
