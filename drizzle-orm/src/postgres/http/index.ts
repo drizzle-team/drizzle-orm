@@ -1,3 +1,4 @@
+export * from '#postgres/http';
 export * from './codecs.ts';
 export * from './driver-core.ts';
 export * from './driver.ts';

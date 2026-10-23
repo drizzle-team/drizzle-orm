@@ -144,9 +144,6 @@ importers:
       '@drizzle-team/brocli':
         specifier: 0.12.1
         version: 0.12.1
-      '@drizzle/postgres':
-        specifier: workspace:*
-        version: link:../postgres
       '@drizzle/test-utils':
         specifier: workspace:*
         version: link:../test-utils

@@ -32,8 +32,15 @@ const tarballPath = join(root, 'package.tgz');
 const RESOLUTION_MODES = ['node16-esm', 'bundler'] as const;
 const ALL_RESOLUTION_KINDS = ['node10', 'node16-cjs', 'node16-esm', 'bundler'] as const;
 
-// Root / flat-leaf / directory-index / deep-leaf — one of each shape.
-const REPRESENTATIVE_SUBPATHS = ['.', './alias', './pg-core', './pg-core/columns/all'];
+// Root / flat-leaf / directory-index / deep-leaf / bundled Drizzle Postgres root and subpath — one of each shape.
+const REPRESENTATIVE_SUBPATHS = [
+	'.',
+	'./alias',
+	'./pg-core',
+	'./pg-core/columns/all',
+	'./postgres/client',
+	'./postgres/client/geometry',
+];
 
 const BUILD_PACK_HINT =
 	`Missing built/packed artifact. Run \`bun --bun run scripts/build.ts && npm run pack\` in drizzle-orm/ first.`;
