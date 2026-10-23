@@ -1,0 +1,33 @@
+# NO-AWS test path: emulate the RDS Data API locally with koxudaxi/local-data-api over a throwaway Postgres.
+# It speaks the exact Data API HTTP shape (Execute / BatchExecute / Begin|Commit|RollbackTransaction) and
+# runs the SQL against the `db` container — so minipg/aurora is exercised end-to-end with no AWS account.
+#
+#   docker compose -f docker-compose.local-data-api.yml up -d
+#   # from the repo root, run the live suite against it (dummy ARNs/creds — the emulator ignores signing):
+#   AURORA_DATA_API_ENDPOINT=http://localhost:8080 \
+#   AURORA_RESOURCE_ARN='arn:aws:rds:us-east-1:123456789012:cluster:dummy' \
+#   AURORA_SECRET_ARN='arn:aws:secretsmanager:us-east-1:123456789012:secret:dummy' \
+#   AURORA_DATABASE=test AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local \
+#   bun run test:aurora:live
+#   docker compose -f docker-compose.local-data-api.yml down -v   # tear down
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: example
+      POSTGRES_DB: test
+    ports: ['55432:5432']
+  data-api:
+    image: koxudaxi/local-data-api
+    restart: unless-stopped
+    depends_on: [db]
+    environment:
+      ENGINE: PostgreSQLJDBC
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: example
+      RESOURCE_ARN: 'arn:aws:rds:us-east-1:123456789012:cluster:dummy'
+      SECRET_ARN: 'arn:aws:secretsmanager:us-east-1:123456789012:secret:dummy'
+    ports: ['8080:80']

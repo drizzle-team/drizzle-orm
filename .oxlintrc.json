@@ -118,6 +118,7 @@
 		"**/*.cjs",
 		"**/playground",
 		"integration-tests/tests/prisma/*/client",
-		"integration-tests/tests/prisma/*/drizzle"
+		"integration-tests/tests/prisma/*/drizzle",
+		"minipg"
 	]
 }

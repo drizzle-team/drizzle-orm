@@ -1,0 +1,10 @@
+{
+  "name": "minipg-aurora-test-infra",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Throwaway SST app that provisions a scale-to-zero Aurora + Data API cluster for testing minipg/aurora.",
+  "devDependencies": {
+    "sst": "^3"
+  }
+}

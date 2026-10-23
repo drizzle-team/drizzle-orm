@@ -1,0 +1,44 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@std/assert@1": "1.0.19",
+    "jsr:@std/internal@^1.0.12": "1.0.14"
+  },
+  "jsr": {
+    "@std/assert@1.0.19": {
+      "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/internal@1.0.14": {
+      "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+    }
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@arethetypeswrong/cli@~0.18.5",
+        "npm:@cloudflare/vitest-pool-workers@~0.5.2",
+        "npm:@mitata/counters@^0.0.8",
+        "npm:@types/bun@latest",
+        "npm:@types/pg@^8.20.0",
+        "npm:cli-highlight@^2.1.11",
+        "npm:drizzle-kit@~0.31.10",
+        "npm:drizzle-orm@~0.45.2",
+        "npm:effect@~4.0.5",
+        "npm:fast-check@^4.8.0",
+        "npm:mitata@^1.0.34",
+        "npm:pg@^8.22.0",
+        "npm:pkg-pr-new@0.0.88",
+        "npm:postgres@^3.4.9",
+        "npm:prettier@^3.9.1",
+        "npm:publint@~0.3.23",
+        "npm:tsdown@~0.22.3",
+        "npm:typescript@5",
+        "npm:vitest@~2.1.9",
+        "npm:wrangler@^3.90.0"
+      ]
+    }
+  }
+}
