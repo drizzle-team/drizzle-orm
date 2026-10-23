@@ -55,7 +55,7 @@ jobs:
         run: |
           echo "/home/alex/.volta/bin" >> $GITHUB_PATH
           echo "/home/alex/.bun/bin" >> $GITHUB_PATH
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: pnpm install --frozen-lockfile --prefer-offline
       - name: Compute version suffix
         id: meta
@@ -155,7 +155,7 @@ jobs:
         run: |
           echo "/home/alex/.volta/bin" >> $GITHUB_PATH
           echo "/home/alex/.bun/bin" >> $GITHUB_PATH
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Start DBs needed by shard (pre-warm)
@@ -319,7 +319,7 @@ jobs:
         run: |
           echo "/home/alex/.volta/bin" >> $GITHUB_PATH
           echo "/home/alex/.bun/bin" >> $GITHUB_PATH
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: pnpm install --frozen-lockfile --prefer-offline
       
       # Restore packages from local filesystem
@@ -353,7 +353,7 @@ jobs:
         run: |
           echo "/home/alex/.volta/bin" >> $GITHUB_PATH
           echo "/home/alex/.bun/bin" >> $GITHUB_PATH
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: pnpm install --frozen-lockfile --prefer-offline
       
       # Restore packages from local filesystem
@@ -387,7 +387,7 @@ jobs:
         run: |
           echo "/home/alex/.volta/bin" >> $GITHUB_PATH
           echo "/home/alex/.bun/bin" >> $GITHUB_PATH
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       
       # nuke, so npm can use OIDC
       - name: Remove temp npmrc

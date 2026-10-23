@@ -14,6 +14,13 @@ const postgresDir = resolve(import.meta.dirname, '../../../postgres');
 
 const connectionString = optionalEnv('PG_CONNECTION_STRING', composeHint('postgres'));
 
+// Node can require() ESM without a flag from 20.19 and 22.12, the oldest versions in the ORM's engines range.
+const requireNodeBinaries: Record<string, string | undefined> = {
+	'20.19': optionalEnv('NODE_20_19_BINARY', 'Export the path to a Node 20.19 binary before running tests.'),
+	'22.12': optionalEnv('NODE_22_12_BINARY', 'Export the path to a Node 22.12 binary before running tests.'),
+};
+const hasRequireNodeBinaries = Object.values(requireNodeBinaries).every(Boolean);
+
 async function pack(packageDir: string, destination: string): Promise<string> {
 	const { stdout } = await exec('npm', ['pack', packageDir, '--json', '--pack-destination', destination]);
 	// npm 12 prints an object keyed by package name, older npm prints an array.
@@ -87,5 +94,12 @@ describe.skipIf(!connectionString)('packed drizzle-orm with standalone @drizzle-
 	test.for(Object.keys(runtimes))('drizzle-orm/postgres runs a query under %s', async (runtime) => {
 		const output = await runtimes[runtime]!(consumer());
 		expect(JSON.parse(output)).toEqual([{ value: 'ok' }]);
+	});
+
+	describe.skipIf(!hasRequireNodeBinaries)('require()', () => {
+		test.for(Object.keys(requireNodeBinaries))('loads drizzle-orm and runs a query under Node %s', async (version) => {
+			const output = await runScript(requireNodeBinaries[version]!, ['require.cjs'], consumer());
+			expect(JSON.parse(output)).toEqual([{ value: 'ok' }]);
+		});
 	});
 });
