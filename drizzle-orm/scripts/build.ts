@@ -13,6 +13,10 @@ const entries = globSync('src/**/*.ts', { ignore: ['src/**/*.test.ts'] });
 async function writeManifest() {
 	// `--dual` swaps in the `import`/`require` exports.
 	const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'));
+	// `npm pack` keeps `workspace:` ranges, and they do not resolve outside this monorepo.
+	pkg.devDependencies = Object.fromEntries(
+		Object.entries<string>(pkg.devDependencies).filter(([, range]) => !range.startsWith('workspace:')),
+	);
 	if (dual) {
 		delete pkg.engines;
 		pkg.main = './index.cjs';

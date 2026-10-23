@@ -55,6 +55,9 @@
 			"outputLogs": "new-only"
 		},
 		"drizzle-orm#build": {
+			"dependsOn": [
+				"@drizzle-team/minipg#build"
+			],
 			"inputs": [
 				"src/**/*.ts",
 				"package.json",
@@ -173,6 +176,9 @@
 			"outputLogs": "none"
 		},
 		"drizzle-orm#build:artifact": {
+			"dependsOn": [
+				"@drizzle-team/minipg#build"
+			],
 			"inputs": [
 				"src/**/*.ts",
 				"package.json",

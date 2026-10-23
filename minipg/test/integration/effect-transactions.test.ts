@@ -81,8 +81,9 @@ describe('withTransaction', () => {
 			}));
 		})));
 		expect(Exit.isFailure(exit)).toBe(true);
-		const failure = Exit.isFailure(exit) ? exit.cause.reasons.find(Cause.isFailReason) : undefined;
-		expect(String((failure?.error as Error | undefined)?.message)).toMatch(/COMMIT rolled back/);
+		// Effect 4.0.0 turns a failed COMMIT into a defect, and later 4.x versions keep it as a failure.
+		const error = Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined;
+		expect(String((error as Error | undefined)?.message)).toMatch(/COMMIT rolled back/);
 		expect(await ids()).toEqual([]);
 	});
 

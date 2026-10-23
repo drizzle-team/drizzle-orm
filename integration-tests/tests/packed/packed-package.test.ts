@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -9,7 +10,11 @@ import { createTestHarness } from 'wrangler';
 const exec = promisify(execFile);
 
 const ormDist = resolve(import.meta.dirname, '../../../drizzle-orm/dist');
-const ormPackageJson = resolve(import.meta.dirname, '../../../drizzle-orm/package.json');
+const minipgDir = resolve(import.meta.dirname, '../../../minipg');
+const instanceofScript = resolve(import.meta.dirname, 'instanceof.js');
+const tsc = createRequire(import.meta.url).resolve('typescript/bin/tsc');
+// The consumer projects have no `@types/node` of their own, so tsc reads the one installed here.
+const nodeTypeRoots = resolve(import.meta.dirname, '../../node_modules/@types');
 
 const envHints = {
 	PG_CONNECTION_STRING:
@@ -37,6 +42,15 @@ const requireNodeBinaries: Record<string, string | undefined> = {
 	'22.12': process.env['NODE_22_12_BINARY'],
 };
 
+const bothDirections = { firstIsSecond: true, secondIsFirst: true };
+const instanceofInBothDirections = {
+	isSameClass: false,
+	Pool: bothDirections,
+	Connection: bothDirections,
+	PgError: bothDirections,
+	MyPool: { isFirstPool: true, isSecondPool: true, poolIsMyPool: false },
+};
+
 async function pack(packageDir: string, destination: string): Promise<string> {
 	const { stdout } = await exec('npm', ['pack', packageDir, '--json', '--pack-destination', destination]);
 	// npm 12 prints an object keyed by package name, older npm prints an array.
@@ -45,14 +59,24 @@ async function pack(packageDir: string, destination: string): Promise<string> {
 }
 
 // Copies a template to a temporary dir and installs the packages that `install` returns into it.
+// `versions` rewrites the version in the manifests of installed packages.
 // Returns a getter, because the dir exists only after `beforeAll` has run.
-function useConsumer(template: string, install: (consumer: string) => Promise<string[]>): () => string {
+function useConsumer(
+	template: string,
+	install: (consumer: string) => Promise<string[]>,
+	versions: Record<string, string> = {},
+): () => string {
 	let consumer: string | undefined;
 
 	beforeAll(async () => {
 		consumer = mkdtempSync(join(tmpdir(), `drizzle-${template}-`));
 		cpSync(resolve(import.meta.dirname, template), consumer, { recursive: true });
 		await exec('npm', ['install', '--no-audit', '--no-fund', ...await install(consumer)], { cwd: consumer });
+
+		for (const [name, version] of Object.entries(versions)) {
+			const manifest = join(consumer, 'node_modules', name, 'package.json');
+			writeFileSync(manifest, JSON.stringify({ ...JSON.parse(readFileSync(manifest, 'utf8')), version }));
+		}
 	}, 300_000);
 
 	afterAll(() => {
@@ -86,6 +110,25 @@ async function runWorker(cwd: string): Promise<string> {
 	}
 }
 
+async function typeCheck(file: string, cwd: string): Promise<string> {
+	const args = [
+		'--noEmit',
+		'--strict',
+		'--skipLibCheck',
+		'--module',
+		'nodenext',
+		'--target',
+		'es2022',
+		'--typeRoots',
+		nodeTypeRoots,
+		'--types',
+		'node',
+		file,
+	];
+	const { stdout } = await exec('node', [tsc, ...args], { cwd }).catch((error) => error);
+	return stdout;
+}
+
 const runtimes: Record<string, (cwd: string) => Promise<string>> = {
 	node: (cwd) => runScript('node', ['main.js'], cwd),
 	bun: (cwd) => runScript('bun', ['main.js'], cwd),
@@ -93,10 +136,16 @@ const runtimes: Record<string, (cwd: string) => Promise<string>> = {
 	workerd: runWorker,
 };
 
+function requireMinipgBuild() {
+	if (!existsSync(join(minipgDir, 'dist/index.js'))) {
+		throw new Error('minipg is not built. Run `pnpm --filter @drizzle-team/minipg build` before this test.');
+	}
+}
+
 describe.skipIf(!hasPostgres)('packed drizzle-orm with standalone @drizzle-team/minipg', () => {
 	const consumer = useConsumer('consumer', async (dir) => {
-		const minipgVersion = JSON.parse(readFileSync(ormPackageJson, 'utf8')).devDependencies['@drizzle-team/minipg'];
-		return [await pack(ormDist, dir), `@drizzle-team/minipg@${minipgVersion}`];
+		requireMinipgBuild();
+		return [await pack(ormDist, dir), await pack(minipgDir, dir)];
 	});
 
 	test.for(Object.keys(runtimes))('drizzle-orm/postgres runs a query under %s', async (runtime) => {
@@ -109,5 +158,29 @@ describe.skipIf(!hasPostgres)('packed drizzle-orm with standalone @drizzle-team/
 			const output = await runScript(requireNodeBinaries[version]!, ['require.cjs'], consumer());
 			expect(JSON.parse(output)).toEqual([{ value: 'ok' }]);
 		});
+	});
+});
+
+describe.skipIf(!hasPostgres)('two packed copies of @drizzle-team/minipg', () => {
+	const consumer = useConsumer(
+		'two-minipg-copies',
+		async (dir) => {
+			requireMinipgBuild();
+			cpSync(instanceofScript, join(dir, 'instanceof.js'));
+			const minipg = await pack(minipgDir, dir);
+			return [minipg, `minipg-copy@file:${minipg}`];
+		},
+		// TypeScript treats two packages with the same name and version as one package,
+		// so the copy gets another version, as a copy from another release would have.
+		{ 'minipg-copy': '0.0.0' },
+	);
+
+	test('instanceof works in both directions for Pool, Connection and PgError', async () => {
+		const output = await runScript('node', ['instanceof.js', '@drizzle-team/minipg', 'minipg-copy'], consumer());
+		expect(JSON.parse(output)).toEqual(instanceofInBothDirections);
+	});
+
+	test('a Pool and a Connection from one copy type-check as the other copy', async () => {
+		expect(await typeCheck('types.ts', consumer())).toBe('');
 	});
 });

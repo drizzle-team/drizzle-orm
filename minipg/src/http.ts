@@ -14,6 +14,7 @@
 // `int8: 'string'` (lossless and JSON-serialisable) or `'number'` (lossy) for that; per-column
 // shape targets always win over both.
 import './buffer-polyfill.ts'; // MUST be first: installs Buffer on runtimes without it (no-op elsewhere)
+import { addBrand } from './brand.ts';
 import { buildDecoders, type CodegenCol, INSTANT_OIDS, tagArrayCol } from './decode.ts';
 import { encodeJsonParams } from './encode.ts';
 import { parseErrorFields, PgError } from './errors.ts';
@@ -431,6 +432,8 @@ export class HttpClient {
 	/** No-op — HTTP holds no connection. Present for API symmetry. */
 	async end(): Promise<void> {/* nothing to close */}
 }
+
+addBrand(HttpClient, 'HttpClient');
 
 // 'buffer' mode without the wire driver: split one DataRow body into per-cell Buffers
 function parseDataRowCells(b: Buffer): (Buffer | null)[] {

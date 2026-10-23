@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { addBrand } from './brand.ts';
 import { PgError } from './errors.ts';
 import {
 	batchTransactions,
@@ -153,6 +154,8 @@ export class SlotInvalidatedError extends Error {
 	}
 }
 
+addBrand(SlotInvalidatedError, 'SlotInvalidatedError');
+
 /** `backfillTimeoutMs` elapsed before backfill resolved — no partial backfill is usable, so the
  *  session is abandoned straight to `onFatalError`, skipping the retry budget: retrying would
  *  rebuild the slot and let the next session's health check silently resume past an unread
@@ -163,6 +166,8 @@ export class BackfillTimeoutError extends Error {
 		super(`minipg: backfill did not resolve within ${ms}ms (backfillTimeoutMs) — the session is abandoned`);
 	}
 }
+
+addBrand(BackfillTimeoutError, 'BackfillTimeoutError');
 
 /** A durable slot is already held by another connection and `onSlotBusy` is `'error'` (default),
  *  or eviction was denied. Names the slot and holding PID, never the URL. */
@@ -177,6 +182,8 @@ export class SlotBusyError extends Error {
 	}
 }
 
+addBrand(SlotBusyError, 'SlotBusyError');
+
 /** A durable slot's health check reads `pg_replication_slots.wal_status`, added in PostgreSQL
  *  13 — this server lacks it (`42703`). Never heals with time, so it skips the retry loop rather
  *  than burning the budget on a bare column-does-not-exist error. `slot: 'temporary'` has no
@@ -189,6 +196,8 @@ export class UnsupportedServerVersionError extends Error {
 		);
 	}
 }
+
+addBrand(UnsupportedServerVersionError, 'UnsupportedServerVersionError');
 
 /** Lifecycle warnings the managed layer itself emits, on the same `onWarning` channel raw
  *  {@link ReplicationWarning} uses — raw warnings forward through untouched.
