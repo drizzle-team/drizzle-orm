@@ -4,6 +4,7 @@ packages:
   - drizzle-kit
   - drizzle-seed
   - integration-tests
+  - minipg
   - typeperf-test
   - eslint-plugin-drizzle
 
