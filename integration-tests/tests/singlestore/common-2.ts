@@ -1317,7 +1317,7 @@ export function tests(test: Test) {
 			const res = await db.select().from(datesTable);
 
 			const [rawSelect] = await db.execute(
-				sql`select \`datetime_utc\` from \`datestable\``,
+				sql`select cast(\`datetime_utc\` as char) as \`datetime_utc\` from \`datestable\``,
 			);
 			const selectedRow = (
 				rawSelect as unknown as [{ datetime_utc: string }]

@@ -1427,18 +1427,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		const sub = alias(productionJobWithLocationView, 'p'); // if select from "productionJobWithLocationView" (not from alias), it works as expected
 
 		const query = db.select().from(sub);
-		expect(query.toSQL().sql).toStrictEqual(
-			(<{ dialect: MySqlDialect }> (<any> db)).dialect.sqlToQuery(
-				sql`select ${sql.identifier('id')}, ${sql.identifier('name')}, ${sql.identifier('location_id')}, ${
-					sql.identifier(
-						'tag_id',
-					)
-				}, ${sql.identifier('tag_created_at')} from ${sql.identifier('production_job_with_location')} ${
-					sql.identifier(
-						'p',
-					)
-				}`,
-			).sql,
+		expect(query.toSQL(false).sql).toStrictEqual(
+			'select `id`, `name`, `location_id`, `tag_id`, `tag_created_at` from `production_job_with_location` `p`',
 		);
 	});
 

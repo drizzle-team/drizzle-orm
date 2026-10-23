@@ -312,7 +312,6 @@ beforeAll(async () => {
 			adapter: 'mysql',
 			// mysql8 defaults to caching_sha2_password; bun >=1.4 refuses the RSA key exchange without this
 			allowPublicKeyRetrieval: true,
-			bigint: true,
 		}).connect();
 		return client;
 	}, {
@@ -1706,7 +1705,7 @@ describe('common', () => {
 			time: '12:12:12',
 			datetime: new Date('2022-11-11'),
 			year: 2022,
-			datetimeAsString: '2022-11-11 12:12:12.000',
+			datetimeAsString: '2022-11-11 12:12:12',
 			timestamp: new Date('2022-11-11 12:12:12.123'),
 			timestampAsString: '2022-11-11 12:12:12.123',
 		}]);
@@ -3053,7 +3052,7 @@ describe('common', () => {
 		expect(res).toStrictEqual([{
 			datetimeUTC: dateUtc,
 			datetime: new Date('2022-11-11'),
-			datetimeAsString: '2022-11-11 12:12:12.000',
+			datetimeAsString: '2022-11-11 12:12:12',
 		}]);
 
 		await db.execute(sql`drop table if exists \`datestable\``);
@@ -5278,7 +5277,7 @@ describe('common', () => {
 				date: new Date('2025-03-12T00:00:00.000Z'),
 				dateStr: '2025-03-12',
 				datetime: new Date('2025-03-12T01:32:42.000Z'),
-				datetimeStr: '2025-03-12 01:32:41.000',
+				datetimeStr: '2025-03-12 01:32:41',
 				decimal: '47521',
 				decimalNum: 9007199254740991,
 				decimalBig: 5044565289845416380n,

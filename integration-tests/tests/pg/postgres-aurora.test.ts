@@ -32,6 +32,7 @@ import {
 	allTypesRelations,
 	allTypesTable,
 	assertAllTypesBounds,
+	assertAllTypesEmptyArrays,
 	assertAllTypesUnions,
 	makeAllTypes,
 } from './all-types';
@@ -759,7 +760,7 @@ describe('postgres/aurora', () => {
 			const result2 = await db.execute<{
 				id: number;
 				timestamp_string: string;
-			}>(sql`select * from ${table}`);
+			}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 			expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -792,7 +793,7 @@ describe('postgres/aurora', () => {
 			const result = await db.execute<{
 				id: number;
 				timestamp_string: string;
-			}>(sql`select * from ${table}`);
+			}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 			expect(result.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -827,7 +828,7 @@ describe('postgres/aurora', () => {
 			const result = await db.execute<{
 				id: number;
 				timestamp_string: string;
-			}>(sql`select * from ${table}`);
+			}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 			// 3. Compare both dates using orm mapping - Need to add 'Z' to tell JS that it is UTC
 			expect(new Date(result.rows[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
@@ -869,7 +870,7 @@ describe('postgres/aurora', () => {
 			const result2 = await db.execute<{
 				id: number;
 				timestamp_string: string;
-			}>(sql`select * from ${table}`);
+			}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 			// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 			expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
@@ -911,7 +912,7 @@ describe('postgres/aurora', () => {
 			const result2 = await db.execute<{
 				id: number;
 				timestamp_string: string;
-			}>(sql`select * from ${table}`);
+			}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 			// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 			expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
@@ -1012,7 +1013,7 @@ describe('postgres/aurora', () => {
 			const result2 = await db.execute<{
 				id: number;
 				timestamp_string: string;
-			}>(sql`select * from ${table}`);
+			}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 			// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 			expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
@@ -1060,7 +1061,7 @@ describe('postgres/aurora', () => {
 				const result2 = await tx.execute<{
 					id: number;
 					timestamp_string: string;
-				}>(sql`select * from ${table}`);
+				}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 				// 3.1 Data API sends timestamptz in UTC without an offset, raw queries have no text cast to preserve it
 				expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 10:00:00.123456+00' }]);
@@ -1108,6 +1109,8 @@ describe('postgres/aurora', () => {
 
 			await assertAllTypesUnions(db);
 			await assertAllTypesBounds(db);
+
+			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 		});
 
 		// Validates functionality of base codecs provided to be overriden
@@ -1129,6 +1132,8 @@ describe('postgres/aurora', () => {
 
 			await assertAllTypesUnions(db, allTypesTable);
 			await assertAllTypesBounds(db);
+
+			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 		});
 	});
 

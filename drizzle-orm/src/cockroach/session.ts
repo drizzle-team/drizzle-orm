@@ -1,4 +1,4 @@
-import type { Client, CustomTypesConfig, PoolClient, QueryResult, QueryResultRow } from 'pg';
+import type { Client, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import pg from 'pg';
 import type { CockroachDialect } from '~/cockroach-core/dialect.ts';
 import { CockroachTransaction } from '~/cockroach-core/index.ts';
@@ -15,30 +15,9 @@ import type { AnyRelations } from '~/relations.ts';
 import { type Query, sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 
-const { Pool, types } = pg;
+const { Pool } = pg;
 
 export type NodeCockroachClient = pg.Pool | PoolClient | Client;
-
-const noop = (val: any) => val;
-
-const typeConfig: CustomTypesConfig = {
-	getTypeParser: <CustomTypesConfig['getTypeParser']> ((typeId, format) => {
-		switch (typeId as number) {
-			case types.builtins.TIMESTAMPTZ:
-			case types.builtins.TIMESTAMP:
-			case types.builtins.DATE:
-			case types.builtins.INTERVAL:
-			case 1231: // numeric[]
-			case 1115: // timestamp[]
-			case 1185: // timestamp with timezone[]
-			case 1187: // interval[]
-			case 1182: // date[]
-				return noop;
-			default:
-				return types.getTypeParser(typeId, format);
-		}
-	}),
-};
 
 export interface NodeCockroachSessionOptions {
 	logger?: Logger;
@@ -79,7 +58,6 @@ export class NodeCockroachSession<
 				name: queryName,
 				rowMode: mode === 'arrays' ? 'array' : undefined as any,
 				text: query.sql,
-				types: typeConfig,
 			}, params).then((r) => mode === 'raw' ? r : r.rows);
 		};
 

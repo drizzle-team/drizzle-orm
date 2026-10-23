@@ -62,6 +62,7 @@ import {
 	allTypesData,
 	allTypesRelations,
 	assertAllTypesBounds,
+	assertAllTypesEmptyArrays,
 	assertAllTypesUnions,
 	makeAllTypes,
 } from './all-types';
@@ -2787,6 +2788,12 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					);
 					yield* Effect.promise(() =>
 						assertAllTypesBounds(relDb as any, (query) => Effect.runPromiseWith(context)(query))
+					);
+					yield* Effect.promise(() =>
+						assertAllTypesEmptyArrays(relDb as any, allTypesTable, {
+							run: (query) => Effect.runPromiseWith(context)(query),
+							rqb: true,
+						})
 					);
 				}),
 		);

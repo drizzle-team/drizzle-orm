@@ -29,14 +29,14 @@ export class PgVarcharBuilder<TEnum extends [string, ...string[]] = [string, ...
 }
 
 export class PgVarchar<TEnum extends [string, ...string[]] = [string, ...string[]]>
-	extends PgColumn<Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum'>
+	extends PgColumn<'string' | 'string enum'>
 {
 	static override readonly [entityKind]: string = 'PgVarchar';
 
 	/** @internal */
 	override readonly codec = 'varchar';
 
-	override readonly enumValues: TEnum;
+	override readonly enumValues: TEnum | undefined;
 
 	constructor(table: PgTable<any>, config: PgVarcharBuilder<TEnum>['config']) {
 		super(table, config as any);

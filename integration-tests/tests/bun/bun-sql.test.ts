@@ -97,7 +97,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
 import { PgQueryResultHKT } from 'drizzle-orm/pg-core/session';
-import { allTypesData, makeAllTypes } from '~/pg/all-types';
+import { allTypesData, makeAllTypes, withEmptyArrays } from '~/pg/all-types';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { normalizeDataWithDbCodecs } from '~/pg/utils';
 import { Expect } from '~/utils';
@@ -1908,7 +1908,7 @@ test('select all fields from subquery without alias', () => {
 test('select count()', async () => {
 	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
 
-	const res = await db.select({ count: sql`count(*)` }).from(usersTable);
+	const res = await db.select({ count: sql<string>`count(*)`.mapWith(BigInt) }).from(usersTable);
 
 	expect(res).toEqual([{ count: 2n }]);
 });
@@ -6082,6 +6082,24 @@ test('all types', async () => {
 	const rawRes = await db.select(bunAllTypesColumns).from(allTypesTable);
 
 	expect(rawRes).toStrictEqual([bunAllTypesData]);
+
+	// The client's own decoding settings must not leak into what the ORM returns
+	const bigintClient = new BunSQL(process.env['PG_CONNECTION_STRING']!, { max: 1, bigint: true });
+	const bigintDb = drizzle({ client: bigintClient });
+	const originalTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+	try {
+		for (const tz of ['America/Los_Angeles', 'Pacific/Kiritimati']) {
+			process.env['TZ'] = tz;
+
+			await bigintDb.delete(allTypesTable);
+			await bigintDb.insert(allTypesTable).values(bunAllTypesData as typeof allTypesData);
+
+			expect(await bigintDb.select(bunAllTypesColumns).from(allTypesTable)).toStrictEqual([bunAllTypesData]);
+		}
+	} finally {
+		process.env['TZ'] = originalTz;
+		await bigintClient.close();
+	}
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5287
@@ -6257,6 +6275,7 @@ test('all types ~codecs~', async () => {
 		uuid: uuid('uuid').notNull(),
 		varchar: varchar('varchar').notNull(),
 		arrint: integer('arrint').array().notNull(),
+		mtxint: integer('mtxint').array('[][]').notNull(),
 		arrbigint: bigint('arrbigint', {
 			mode: 'bigint',
 		}).array().notNull(),
@@ -6307,7 +6326,7 @@ test('all types ~codecs~', async () => {
 			mode: 'tuple',
 		}).array().notNull(),
 		arrreal: real('arrreal').array().notNull(),
-		// mtxreal: real('mtxreal').array('[][]'), // MULTIDIMENSIONAL ARRAYS NOT SUPPORTED YET BY DRIVER
+		mtxreal: real('mtxreal').array('[][]').notNull(),
 		arrsmallint: smallint('arrsmallint').array().notNull(),
 		arrtext: text('arrtext').array().notNull(),
 		arrtime: time('arrtime').array().notNull(),
@@ -6482,6 +6501,7 @@ test('all types ~codecs~', async () => {
 		uuid: string;
 		varchar: string;
 		arrint: number[];
+		mtxint: number[][];
 		arrbigint: bigint[];
 		arrbigintnum: number[];
 		arrbigintstr: string[];
@@ -6513,6 +6533,7 @@ test('all types ~codecs~', async () => {
 		arrnumericbig: bigint[];
 		arrpoint: { x: number; y: number }[];
 		arrpointtuple: [number, number][];
+		mtxreal: number[][];
 		arrreal: number[];
 		arrsmallint: number[];
 		arrtext: string[];
@@ -6570,6 +6591,7 @@ test('all types ~codecs~', async () => {
 		uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
 		varchar: 'C4-',
 		arrint: [621],
+		mtxint: [[1, 2], [3, 4]],
 		arrbigint: [5044565289845416380n],
 		arrbigintnum: [9007199254740991],
 		arrbigintstr: ['5044565289845416380'],
@@ -6604,6 +6626,7 @@ test('all types ~codecs~', async () => {
 		arrnumericbig: [5044565289845416380n],
 		arrpoint: [{ x: 24.5, y: 49.6 }],
 		arrpointtuple: [[24.5, 49.6]],
+		mtxreal: [[1.048596, 2.5], [-3.25, 4]],
 		arrreal: [1.048596],
 		arrsmallint: [10],
 		arrtext: ['TEXT STRING'],
@@ -7323,6 +7346,15 @@ test('all types ~codecs~', async () => {
 	]));
 
 	await assertAllTypesBounds(db);
+
+	const emptyArrays = withEmptyArrays(testData);
+	await db.delete(allTypesTable);
+	await db.insert(allTypesTable).values(emptyArrays);
+	expect(await db.select().from(allTypesTable)).toStrictEqual([emptyArrays]);
+	expect(await db.query.allTypesTable.findFirst({ with: { self: true } })).toStrictEqual({
+		...emptyArrays,
+		self: [emptyArrays],
+	});
 
 	await db.$client.close();
 });

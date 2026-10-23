@@ -1,12 +1,10 @@
 import {
 	type QueryResult,
 	type QueryResultRow,
-	types,
 	type VercelClient,
 	VercelPool,
 	type VercelPoolClient,
 } from '@vercel/postgres';
-import type { CustomTypesConfig } from 'pg';
 import type { Cache } from '~/cache/core/cache.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
@@ -27,26 +25,6 @@ export interface VercelPgSessionOptions {
 	cache?: Cache;
 	paramsInErrors?: boolean;
 }
-
-const noop = (val: any) => val;
-const typeConfig: CustomTypesConfig = {
-	getTypeParser: <CustomTypesConfig['getTypeParser']> ((typeId, format) => {
-		switch (typeId as number) {
-			case types.builtins.TIMESTAMPTZ:
-			case types.builtins.TIMESTAMP:
-			case types.builtins.DATE:
-			case types.builtins.INTERVAL:
-			case 1231: // numeric[]
-			case 1115: // timestamp[]
-			case 1185: // timestamp with timezone[]
-			case 1187: // interval[]
-			case 1182: // date[]
-				return noop;
-			default:
-				return types.getTypeParser(typeId, format);
-		}
-	}),
-};
 
 export class VercelPgSession<
 	TRelations extends AnyRelations,
@@ -86,7 +64,6 @@ export class VercelPgSession<
 				name: queryName,
 				rowMode: mode === 'arrays' ? 'array' : undefined as any,
 				text: query.sql,
-				types: typeConfig,
 			}, params).then((r) => mode === 'raw' ? r : r.rows);
 		};
 

@@ -1,21 +1,25 @@
-import { Name, sql } from 'drizzle-orm';
+import { Name, param, sql } from 'drizzle-orm';
+import { refineCodecs } from 'drizzle-orm/codecs';
 import {
+	arrayCompatNormalize,
 	boolean,
 	customType,
 	getTableConfig,
 	integer,
 	json,
 	jsonb,
+	line,
 	pgTable,
+	point,
 	serial,
 	text,
 	timestamp,
 } from 'drizzle-orm/pg-core';
-import { drizzle } from 'drizzle-orm/postgres-js';
+import { drizzle, postgresJsCodecs } from 'drizzle-orm/postgres-js';
 import type { PostgresJsDatabase, PostgresJsRawExecuteResult } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import type { RowList } from 'postgres';
+import postgres, { type RowList } from 'postgres';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
@@ -32,6 +36,81 @@ tests(test, [
 	'set json/jsonb fields with strings and retrieve with the ->> operator',
 	'set json/jsonb fields with strings and retrieve with the -> operator',
 ]);
+
+test('custom codecs for client with custom types (changelog example)', async ({ kit, push }) => {
+	type Line = [a: number, b: number, c: number];
+
+	const url = new URL(process.env['PG_CONNECTION_STRING']!);
+	url.pathname = `/${kit.database}`;
+	const client = postgres(url.toString(), {
+		max: 1,
+		onnotice: () => {},
+		types: {
+			// `point` (and `point[]`) is returned as `{ x, y }` instead of `(x,y)` text
+			point: {
+				to: 600,
+				from: [600],
+				// drizzle already encodes points to `(x,y)` text
+				serialize: (value: string) => value,
+				parse: (value: string) => {
+					const [x, y] = value.slice(1, -1).split(',').map(Number);
+					return { x, y };
+				},
+			},
+			// `line` (and `line[]`) is returned as `[a, b, c]` instead of `{a,b,c}` text, params are expected as `[a, b, c]`
+			line: {
+				to: 628,
+				from: [628],
+				serialize: ([a, b, c]: Line) => `{${a},${b},${c}}`,
+				parse: (value: string) => value.slice(1, -1).split(',').map(Number) as Line,
+			},
+		},
+	});
+	const toABC = ([a, b, c]: Line) => ({ a, b, c });
+	const db = drizzle({
+		client,
+		codecs: refineCodecs(postgresJsCodecs, {
+			// default `point` codecs parse `(x,y)` text - client's output is already final
+			point: { normalize: undefined, normalizeArray: undefined },
+			// `line({ mode: 'abc' })` columns
+			line: {
+				normalize: toABC,
+				normalizeArray: arrayCompatNormalize(toABC),
+				// drizzle encodes `{ a, b, c }` to `{a,b,c}` text - array params stay array literals, which `postgres.js` sends as is
+				normalizeParam: (value: string) => value.slice(1, -1).split(',').map(Number) as Line,
+			},
+		}),
+	});
+	const defaultDb = drizzle({ client });
+
+	const table = pgTable('custom_codecs_types', {
+		id: integer().primaryKey(),
+		point: point({ mode: 'xy' }).notNull(),
+		points: point({ mode: 'xy' }).array().notNull(),
+		line: line({ mode: 'abc' }).notNull(),
+		lines: line({ mode: 'abc' }).array().notNull(),
+	});
+	await push({ table });
+
+	try {
+		const row = {
+			id: 1,
+			point: { x: 1, y: 2 },
+			points: [{ x: 3, y: 4 }, { x: 5.5, y: -6 }],
+			line: { a: 1, b: 2, c: 3 },
+			lines: [{ a: 4, b: 5, c: 6 }, { a: 7.5, b: -8, c: 0 }],
+		};
+		await db.insert(table).values(row);
+
+		expect(await db.select().from(table)).toStrictEqual([row]);
+		expect(await db.select().from(table).where(sql`${table.line} = ${param(row.line, table.line)}`))
+			.toStrictEqual([row]);
+		await expect(defaultDb.select().from(table)).rejects.toThrow();
+		await expect(defaultDb.insert(table).values({ ...row, id: 2 })).rejects.toThrow();
+	} finally {
+		await client.end();
+	}
+});
 
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as PostgresJsDatabase;
@@ -254,7 +333,7 @@ describe('postgresjs', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect([...result2]).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -285,7 +364,7 @@ describe('postgresjs', () => {
 		const result = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect([...result]).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -318,7 +397,7 @@ describe('postgresjs', () => {
 		const result = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3. Compare both dates using orm mapping - Need to add 'Z' to tell JS that it is UTC
 		expect(new Date(result[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
@@ -358,7 +437,7 @@ describe('postgresjs', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect([...result2]).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
@@ -398,7 +477,7 @@ describe('postgresjs', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect([...result2]).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
@@ -444,7 +523,7 @@ describe('postgresjs', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 		expect([...result2]).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
@@ -491,7 +570,7 @@ describe('postgresjs', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect([...result2]).toEqual([{ id: 1, timestamp_string: '2022-01-01 00:00:00.123456-10' }]);
 

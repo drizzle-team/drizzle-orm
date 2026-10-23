@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/effect-schema';
-import { bigintStringModeSchema, jsonSchema } from 'drizzle-orm/effect-schema';
+import { bigintStringModeSchema, bufferSchema, jsonSchema } from 'drizzle-orm/effect-schema';
 import {
 	customType,
 	integer,
@@ -415,6 +415,16 @@ test('refine view - select', (t) => {
 });
 
 test('all data types', (t) => {
+	enum Letters {
+		A = 'a',
+		B = 'b',
+		C = 'c',
+	}
+	type LettersValue = (typeof Letters)[keyof typeof Letters];
+	const enumObject = pgEnum('test_object', Letters);
+
+	const enum_ = pgEnum('test', ['a', 'b', 'c']);
+
 	const table = pgTable('test', ({
 		bigint,
 		bigserial,
@@ -447,6 +457,8 @@ test('all data types', (t) => {
 		uuid,
 		varchar,
 		vector,
+		bytea,
+		decimal,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -492,6 +504,10 @@ test('all data types', (t) => {
 		varchar1: varchar({ length: 10 }).notNull(),
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		vector: vector({ dimensions: 3 }).notNull(),
+		bytea: bytea().notNull(),
+		decimal: decimal({ mode: 'string' }).notNull(),
+		enum: enum_().notNull(),
+		enumObject: enumObject().notNull(),
 		array1: integer().array().notNull(),
 		array2: integer().array('[][]').notNull(),
 		array3: varchar({ length: 10 }).array('[][]').notNull(),
@@ -579,6 +595,10 @@ test('all data types', (t) => {
 		varchar1: s.String.check(s.isMaxLength(10)),
 		varchar2: s.Literals(['a', 'b', 'c']),
 		vector: s.Array(s.Number).check(s.isBetweenLength(3, 3)),
+		bytea: bufferSchema,
+		decimal: s.String,
+		enum: s.Literals(['a', 'b', 'c']),
+		enumObject: s.Literals<readonly [LettersValue, ...LettersValue[]]>([Letters.A, Letters.B, Letters.C]),
 		array1: s.Array(integerSchema),
 		array2: s.Array(s.Array(integerSchema)),
 		array3: s.Array(s.Array(s.String.check(s.isMaxLength(10)))),

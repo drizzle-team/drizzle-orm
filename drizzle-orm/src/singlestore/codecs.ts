@@ -26,18 +26,23 @@ export const singleStoreCodecs = refineGenericSingleStoreCodecs({
 		normalize: (value: number) => value === 1,
 	},
 	date: {
+		cast: castToText,
 		normalize: (value: string) => new Date(value),
 	},
 	datetime: {
+		cast: castToText,
 		normalize: (value: string) => new Date(value.replace(' ', 'T') + 'Z'),
 	},
 	timestamp: {
+		cast: castToText,
 		normalize: (value: string) => new Date(value + '+0000'),
 	},
 	'decimal:number': {
+		cast: castToText,
 		normalize: Number,
 	},
 	'decimal:bigint': {
+		cast: castToText,
 		normalize: BigInt,
 	},
 	float: {
@@ -67,5 +72,24 @@ export const singleStoreCodecs = refineGenericSingleStoreCodecs({
 	},
 	vector_f64: {
 		normalize: vectorNormalizer('F64'),
+	},
+	decimal: {
+		cast: castToText,
+	},
+	'date:string': {
+		cast: castToText,
+	},
+	'datetime:string': {
+		cast: castToText,
+	},
+	'timestamp:string': {
+		cast: castToText,
+	},
+	time: {
+		cast: castToText,
+	},
+	json: {
+		cast: castToText,
+		normalize: JSON.parse,
 	},
 });

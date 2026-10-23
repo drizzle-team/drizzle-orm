@@ -358,6 +358,13 @@ test('refine view - select', (tc) => {
 });
 
 test('all data types', (tc) => {
+	enum Letters {
+		A = 'a',
+		B = 'b',
+		C = 'c',
+	}
+	type LettersValue = (typeof Letters)[keyof typeof Letters];
+
 	const table = mysqlTable('test', ({
 		bigint,
 		binary,
@@ -385,6 +392,10 @@ test('all data types', (tc) => {
 		longtext,
 		mediumtext,
 		tinytext,
+		blob,
+		tinyblob,
+		mediumblob,
+		longblob,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -437,6 +448,12 @@ test('all data types', (tc) => {
 		mediumtext2: mediumtext({ enum: ['a', 'b', 'c'] }).notNull(),
 		tinytext1: tinytext().notNull(),
 		tinytext2: tinytext({ enum: ['a', 'b', 'c'] }).notNull(),
+		blob1: blob().notNull(),
+		blob2: blob({ mode: 'string' }).notNull(),
+		tinyblob: tinyblob().notNull(),
+		mediumblob: mediumblob({ mode: 'string' }).notNull(),
+		longblob: longblob().notNull(),
+		enumObject: mysqlEnum(Letters).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -492,6 +509,12 @@ test('all data types', (tc) => {
 		mediumtext2: t.Enum(['a', 'b', 'c']),
 		tinytext1: t.String({ maxLength: CONSTANTS.INT8_UNSIGNED_MAX }),
 		tinytext2: t.Enum(['a', 'b', 'c']),
+		blob1: new TBuffer(),
+		blob2: t.String({ maxLength: CONSTANTS.INT16_UNSIGNED_MAX }),
+		tinyblob: new TBuffer(),
+		mediumblob: t.String({ maxLength: CONSTANTS.INT24_UNSIGNED_MAX }),
+		longblob: new TBuffer(),
+		enumObject: t.Enum<[LettersValue, ...LettersValue[]]>([Letters.A, Letters.B, Letters.C]),
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();

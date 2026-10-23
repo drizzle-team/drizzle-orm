@@ -9,6 +9,9 @@ import {
 
 // D1 returns blobs as `ArrayBuffer` on workerd and as a plain byte array on miniflare
 export const d1Codecs = refineSqliteCodecs({
+	integer: {
+		normalize: Number,
+	},
 	'integer:boolean': {
 		normalize: booleanFromInteger,
 	},

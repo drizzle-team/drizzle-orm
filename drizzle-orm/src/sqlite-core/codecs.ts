@@ -85,14 +85,22 @@ export const bytesFromUtf8 = utf8Encoder
 
 export const dateFromSeconds = (value: number): Date => new Date(value * 1000);
 export const dateFromMilliseconds = (value: number): Date => new Date(value);
+// Clients hand integers over as `number`, `bigint` (safe integers mode) or integer text (libsql `intMode: 'string'`)
+const integerText = /^-?\d+$/;
+const isStoredText = (value: number | bigint | string): value is string =>
+	typeof value === 'string' && !integerText.test(value);
+
 // Sqlite picks a storage class per row, so the two scenarios only separate on the value itself
-export const dateFromStoredSeconds = (value: number | string): Date =>
-	typeof value === 'string' ? new Date(value.replaceAll('"', '')) : new Date(value * 1000);
-export const dateFromStoredMilliseconds = (value: number | string): Date =>
-	typeof value === 'string' ? new Date(value.replaceAll('"', '')) : new Date(value);
-export const booleanFromInteger = (value: number): boolean => value === 1;
+export const dateFromStoredSeconds = (value: number | bigint | string): Date =>
+	isStoredText(value) ? new Date(value.replaceAll('"', '')) : new Date(Number(value) * 1000);
+export const dateFromStoredMilliseconds = (value: number | bigint | string): Date =>
+	isStoredText(value) ? new Date(value.replaceAll('"', '')) : new Date(Number(value));
+export const booleanFromInteger = (value: number | bigint | string): boolean => Number(value) === 1;
 
 export const genericSQLiteCodecs = {
+	integer: {
+		normalizeInJson: Number,
+	},
 	'integer:boolean': {
 		normalizeInJson: booleanFromInteger,
 	},

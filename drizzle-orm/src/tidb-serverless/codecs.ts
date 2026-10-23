@@ -29,18 +29,23 @@ export const tidbCodecs = refineGenericMySqlCodecs({
 		normalize: (value: number) => value === 1,
 	},
 	date: {
+		cast: castToText,
 		normalize: (value: string) => new Date(value),
 	},
 	datetime: {
+		cast: castToText,
 		normalize: (value: string) => new Date(value.replace(' ', 'T') + 'Z'),
 	},
 	timestamp: {
+		cast: castToText,
 		normalize: (value: string) => new Date(value + '+0000'),
 	},
 	'decimal:number': {
+		cast: castToText,
 		normalize: Number,
 	},
 	'decimal:bigint': {
+		cast: castToText,
 		normalize: BigInt,
 	},
 	binary: {
@@ -80,5 +85,24 @@ export const tidbCodecs = refineGenericMySqlCodecs({
 	},
 	'longblob:buffer': {
 		normalize: typeof Buffer === 'undefined' ? undefined : (value: Uint8Array) => Buffer.from(value),
+	},
+	decimal: {
+		cast: castToText,
+	},
+	'date:string': {
+		cast: castToText,
+	},
+	'datetime:string': {
+		cast: castToText,
+	},
+	'timestamp:string': {
+		cast: castToText,
+	},
+	time: {
+		cast: castToText,
+	},
+	json: {
+		cast: castToText,
+		normalize: JSON.parse,
 	},
 });
