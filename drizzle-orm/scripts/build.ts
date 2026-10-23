@@ -6,17 +6,32 @@ import * as fs from 'node:fs/promises';
 import { build as tsdown } from 'tsdown';
 import { emitDirIndexShims } from './emit-dir-index-shims.ts';
 
+// `--dual` adds the CommonJS output (`.cjs`, `.d.cts`) and source maps next to the ESM output.
+const dual = process.argv.includes('--dual');
 const entries = globSync('src/**/*.ts', { ignore: ['src/**/*.test.ts'] });
 
-async function copyPackageJson() {
-	// The published `exports` map is static (root + `"./*"` wildcard) and lives in package.json
-	// directly; this just carries it into the dist that gets packed. The wildcard's directory-index
-	// shims are the only dynamic piece — see emitDirIndexShims.
+async function writeManifest() {
+	// `--dual` swaps in the `import`/`require` exports.
 	const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'));
 	// `npm pack` keeps `workspace:` ranges, and they do not resolve outside this monorepo.
 	pkg.devDependencies = Object.fromEntries(
 		Object.entries<string>(pkg.devDependencies).filter(([, range]) => !range.startsWith('workspace:')),
 	);
+	if (dual) {
+		delete pkg.engines;
+		pkg.main = './index.cjs';
+		pkg.module = './index.js';
+		pkg.exports = {
+			'.': {
+				import: { types: './index.d.ts', default: './index.js' },
+				require: { types: './index.d.cts', default: './index.cjs' },
+			},
+			'./*': {
+				import: { types: './*.d.ts', default: './*.js' },
+				require: { types: './*.d.cts', default: './*.cjs' },
+			},
+		};
+	}
 	await fs.writeFile('dist.new/package.json', JSON.stringify(pkg, null, 2));
 }
 
@@ -29,12 +44,12 @@ async function main() {
 	await tsdown({
 		entry: entries,
 		outDir: './dist.new',
-		format: ['cjs', 'es'],
+		format: dual ? ['cjs', 'es'] : ['es'],
 		unbundle: true,
 		platform: 'node',
 		external: [/^[^./]/], // everything?
 		tsconfig: 'tsconfig.json',
-		sourcemap: true,
+		sourcemap: dual,
 		dts: true,
 		clean: false,
 		alias: {
@@ -48,12 +63,12 @@ async function main() {
 		},
 	});
 
-	await $`bun scripts/fix-imports.ts`.quiet();
+	await $`bun scripts/fix-imports.ts ${dual ? ['--dual'] : []}`.quiet();
 	await Promise.all([
 		fs.copyFile('../README.md', 'dist.new/README.md'),
-		copyPackageJson(),
+		writeManifest(),
 	]);
-	await emitDirIndexShims(entries, 'dist.new');
+	await emitDirIndexShims(entries, 'dist.new', dual);
 
 	rmSync('dist', { recursive: true, force: true });
 	renameSync('dist.new', 'dist');

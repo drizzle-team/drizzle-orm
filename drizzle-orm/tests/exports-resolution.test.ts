@@ -27,7 +27,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const tarballPath = join(root, 'package.tgz');
 
-const RESOLUTION_MODES = ['node16-cjs', 'node16-esm', 'bundler'] as const;
+// The package is ESM only. CommonJS callers load it through require(esm), which
+// attw reports under node16-cjs as `CJSResolvesToESM`, so that mode is not checked.
+const RESOLUTION_MODES = ['node16-esm', 'bundler'] as const;
 const ALL_RESOLUTION_KINDS = ['node10', 'node16-cjs', 'node16-esm', 'bundler'] as const;
 
 // Root / flat-leaf / directory-index / deep-leaf — one of each shape.
@@ -103,8 +105,8 @@ describe.skipIf(!ARTIFACTS_PRESENT)('no public subpath is dropped', () => {
 	// The full ~700-entrypoint sweep is the slow part of the suite; one mode is a
 	// sufficient coverage gate (every subpath must have a resolution), and the
 	// per-shape multi-mode behaviour is already covered by the representative probe.
-	test('every glob-derived entrypoint resolves under node16-cjs', async () => {
-		const mode = 'node16-cjs';
+	test('every glob-derived entrypoint resolves under node16-esm', async () => {
+		const mode = 'node16-esm';
 		const analysis = await checkPackage(pkg, { entrypoints: intendedSubpaths(), modes: modesFor(mode) });
 		const unresolved = problemsOf(analysis)
 			.filter((p): p is Extract<Problem, { kind: 'NoResolution' }> => p.kind === 'NoResolution')

@@ -13,30 +13,20 @@
 		"pack:artifact": "pnpm run pack",
 		"publish": "npm publish package.tgz"
 	},
-	"main": "./index.cjs",
-	"module": "./index.js",
+	"main": "./index.js",
 	"types": "./index.d.ts",
 	"exports": {
 		".": {
-			"import": {
-				"types": "./index.d.ts",
-				"default": "./index.js"
-			},
-			"require": {
-				"types": "./index.d.cts",
-				"default": "./index.cjs"
-			}
+			"types": "./index.d.ts",
+			"default": "./index.js"
 		},
 		"./*": {
-			"import": {
-				"types": "./*.d.ts",
-				"default": "./*.js"
-			},
-			"require": {
-				"types": "./*.d.cts",
-				"default": "./*.cjs"
-			}
+			"types": "./*.d.ts",
+			"default": "./*.js"
 		}
+	},
+	"engines": {
+		"node": "^20.19.0 || >=22.12.0"
 	},
 	"sideEffects": false,
 	"publishConfig": {

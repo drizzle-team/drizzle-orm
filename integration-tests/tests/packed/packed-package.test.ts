@@ -14,6 +14,10 @@ const postgresDir = resolve(import.meta.dirname, '../../../postgres');
 
 const connectionString = optionalEnv('PG_CONNECTION_STRING', composeHint('postgres'));
 
+// The Node that runs the consumer projects. CI sets it from the matrix of Node versions, because vitest
+// needs a newer Node than the oldest versions in the engines range.
+const consumerNode = process.env['CONSUMER_NODE'] || 'node';
+
 async function pack(packageDir: string, destination: string): Promise<string> {
 	const { stdout } = await exec('npm', ['pack', packageDir, '--json', '--pack-destination', destination]);
 	// npm 12 prints an object keyed by package name, older npm prints an array.
@@ -64,7 +68,7 @@ async function runWorker(cwd: string): Promise<string> {
 }
 
 const runtimes: Record<string, (cwd: string) => Promise<string>> = {
-	node: (cwd) => runScript('node', ['main.js'], cwd),
+	node: (cwd) => runScript(consumerNode, ['main.js'], cwd),
 	bun: (cwd) => runScript('bun', ['main.js'], cwd),
 	deno: (cwd) => runScript('deno', ['run', '--allow-all', 'main.js'], cwd),
 	workerd: runWorker,
@@ -86,6 +90,11 @@ describe.skipIf(!connectionString)('packed drizzle-orm with standalone @drizzle/
 
 	test.for(Object.keys(runtimes))('drizzle-orm/postgres runs a query under %s', async (runtime) => {
 		const output = await runtimes[runtime]!(consumer());
+		expect(JSON.parse(output)).toEqual([{ value: 'ok' }]);
+	});
+
+	test('require() loads drizzle-orm and runs a query', async () => {
+		const output = await runScript(consumerNode, ['require.cjs'], consumer());
 		expect(JSON.parse(output)).toEqual([{ value: 'ok' }]);
 	});
 });
