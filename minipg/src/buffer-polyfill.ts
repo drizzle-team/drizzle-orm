@@ -5,6 +5,7 @@
 //
 // MiniBuffer IS a Uint8Array (so it flows into Web WritableStream writes unchanged and gets index
 // access / iteration for free); multi-byte reads/writes go through a lazily-cached DataView.
+import { addBrand } from './brand.ts';
 
 const enc = new TextEncoder();
 const dec = new TextDecoder(); // utf8
@@ -168,6 +169,8 @@ export class MiniBuffer extends Uint8Array {
 		return dec.decode(sub); // utf8 (default)
 	}
 }
+
+addBrand(MiniBuffer, 'MiniBuffer');
 
 // Install as the global Buffer ONLY if the runtime lacks one. Idempotent + guarded, so importing this
 // on Node/Bun/Deno/CF (which have Buffer) is a harmless no-op — but those entries don't import it at all.

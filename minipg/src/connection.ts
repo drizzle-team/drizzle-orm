@@ -2,6 +2,7 @@
 // query protocol. One query in flight at a time (queries queue). No LISTEN/NOTIFY.
 import type { Duplex } from 'node:stream';
 import { md5Password, peerCertDer, type Scram, scramForChannel } from './auth.ts';
+import { addBrand } from './brand.ts';
 import { buildDecoders, decoderFor } from './decode.ts';
 import { BINARY_FAST, type CodegenCol, INSTANT_OIDS, tagArrayCol } from './decode.ts';
 import {
@@ -2879,3 +2880,5 @@ export class Connection {
 		} catch { /* */ }
 	}
 }
+
+addBrand(Connection, 'Connection');

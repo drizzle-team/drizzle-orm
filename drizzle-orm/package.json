@@ -267,7 +267,7 @@
 		"@aws/aurora-dsql-node-postgres-connector": "^0.1.9",
 		"@aws/aurora-dsql-postgresjs-connector": "^0.3.0",
 		"@cloudflare/workers-types": "^4.20251004.0",
-		"@drizzle-team/minipg": "0.4.2",
+		"@drizzle-team/minipg": "workspace:*",
 		"@effect/sql-d1": "4.0.0",
 		"@effect/sql-libsql": "4.0.0",
 		"@effect/sql-mysql2": "4.0.0",

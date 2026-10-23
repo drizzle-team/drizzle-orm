@@ -145,8 +145,8 @@ importers:
         specifier: 0.12.1
         version: 0.12.1
       '@drizzle-team/minipg':
-        specifier: 0.4.2
-        version: 0.4.2
+        specifier: workspace:*
+        version: link:../minipg
       '@duckdb/node-api':
         specifier: 1.5.0-r.1
         version: 1.5.0-r.1
@@ -371,8 +371,8 @@ importers:
         specifier: ^4.20251004.0
         version: 4.20251126.0
       '@drizzle-team/minipg':
-        specifier: 0.4.2
-        version: 0.4.2
+        specifier: workspace:*
+        version: link:../minipg
       '@effect/sql-d1':
         specifier: 4.0.0
         version: 4.0.0(effect@4.0.0)
@@ -663,8 +663,8 @@ importers:
         specifier: ^0.3.0
         version: 0.3.0(postgres@3.4.7)
       '@drizzle-team/minipg':
-        specifier: 0.4.2
-        version: 0.4.2
+        specifier: workspace:*
+        version: link:../minipg
       '@effect/sql-d1':
         specifier: 4.0.0
         version: 4.0.0(effect@4.0.0)
@@ -931,8 +931,8 @@ importers:
         specifier: ^2.1.11
         version: 2.1.11
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.0.6
+        version: 4.0.6
       fast-check:
         specifier: ^4.8.0
         version: 4.10.2
@@ -2021,10 +2021,6 @@ packages:
 
   '@drizzle-team/brocli@0.12.1':
     resolution: {integrity: sha512-yHwomvolVafvUXhy5TdiJVkuNCxXn+bKOs2aWiWEQh/5YaV97Oa/abJz3dmx7lxgIUsUlS1Jl4mEfvJPo3YsVw==}
-
-  '@drizzle-team/minipg@0.4.2':
-    resolution: {integrity: sha512-pSCO0XuPAr5WQyCqmzYsw/2R9evG35/zq8QEqrr2pT5aMCLRbIbvOEYNHbxN2QSrSw1PscC0WsPlTENsSHcYWw==}
-    engines: {node: '>=22.12'}
 
   '@duckdb/node-api@1.5.0-r.1':
     resolution: {integrity: sha512-VjvjqlCyqUJ22bydG/+9Jj5l0CEvx9QUn1SATBkKFY0+x6n4uHzt0kp/FKwXK9LNduXX6KCKtdF+6v5BcHScfA==}
@@ -6414,9 +6410,6 @@ packages:
 
   effect@4.0.0:
     resolution: {integrity: sha512-ooc1TG5t+FfzgYnFz2ff6BBKyZ7EwBRVXC7c4RhQUAD6/TZ2gTXXMeb4WX7a19ozQo4J73/QW+S00YAIresoMQ==}
-
-  effect@4.0.5:
-    resolution: {integrity: sha512-BY4/28NlpOd99yzmV741xbVGmp+1U7tks4oB7F/Png64bTa5tm5eCA6W0RiXsnuLDDoJpjfVSo4Dnq4BZb/89Q==}
 
   effect@4.0.6:
     resolution: {integrity: sha512-Tc3mkzuLR6t6P9dhLt0D2GrxYtmU5td4XEJEiXCmILz53IRIfJyHsKZWjTA3xEjiwpNTtXBgI4iqYPxMztBDrw==}
@@ -12328,8 +12321,6 @@ snapshots:
 
   '@drizzle-team/brocli@0.12.1': {}
 
-  '@drizzle-team/minipg@0.4.2': {}
-
   '@duckdb/node-api@1.5.0-r.1':
     dependencies:
       '@duckdb/node-bindings': 1.5.0-r.1
@@ -16869,8 +16860,6 @@ snapshots:
   ee-first@1.1.1: {}
 
   effect@4.0.0: {}
-
-  effect@4.0.5: {}
 
   effect@4.0.6: {}
 
