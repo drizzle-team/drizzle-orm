@@ -17,7 +17,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
-import type { Name, Placeholder } from '~/sql/index.ts';
+import type { Placeholder } from '~/sql/index.ts';
 import { and, eq } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
 import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
@@ -300,30 +300,18 @@ export abstract class SQLiteDialect {
 		return sql.join(joinsArray);
 	}
 
-	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
-		return typeof limit === 'object'
-				|| (typeof limit === 'number' && limit >= 0)
-			? sql` limit ${limit}`
-			: undefined;
+	private buildLimit(limit: number | Placeholder | undefined, offset?: number | Placeholder): SQL | undefined {
+		if (typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)) {
+			return sql` limit ${limit}`;
+		}
+		return offset !== undefined ? sql` limit -1` : undefined;
 	}
 
 	private buildOrderBy(
 		orderBy: (SQLiteColumn | SQL | SQL.Aliased)[] | undefined,
 	): SQL | undefined {
-		const orderByList: (SQLiteColumn | SQL | SQL.Aliased)[] = [];
-
-		if (orderBy) {
-			for (const [index, orderByValue] of orderBy.entries()) {
-				orderByList.push(orderByValue);
-
-				if (index < orderBy.length - 1) {
-					orderByList.push(sql`, `);
-				}
-			}
-		}
-
-		return orderByList.length > 0
-			? sql` order by ${sql.join(orderByList)}`
+		return orderBy && orderBy.length > 0
+			? sql` order by ${sql.join(orderBy, sql`, `)}`
 			: undefined;
 	}
 
@@ -421,18 +409,21 @@ export abstract class SQLiteDialect {
 
 		const orderBySql = this.buildOrderBy(orderBy);
 
-		const limitSql = this.buildLimit(limit);
+		const limitSql = this.buildLimit(limit, offset);
 
-		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+		const offsetSql = offset !== undefined ? sql` offset ${offset}` : undefined;
 
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
+			sql`select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
 
 		if (setOperators.length > 0) {
-			return this.buildSetOperations(finalQuery, setOperators);
+			const leftSelect = orderBySql || limitSql || offsetSql
+				? sql`select * from (${finalQuery})`
+				: finalQuery;
+			return sql`${withSql}${this.buildSetOperations(leftSelect, setOperators)}`;
 		}
 
-		return finalQuery;
+		return sql`${withSql}${finalQuery}`;
 	}
 
 	buildSetOperations(
@@ -445,13 +436,16 @@ export abstract class SQLiteDialect {
 			throw new Error('Cannot pass undefined values to any set operator');
 		}
 
+		const query = this.buildSetOperationQuery({ leftSelect, setOperator });
 		if (rest.length === 0) {
-			return this.buildSetOperationQuery({ leftSelect, setOperator });
+			return query;
 		}
 
-		// Some recursive magic here
+		const needsSubquery = setOperator.orderBy?.length
+			|| setOperator.limit !== undefined
+			|| setOperator.offset !== undefined;
 		return this.buildSetOperations(
-			this.buildSetOperationQuery({ leftSelect, setOperator }),
+			needsSubquery ? sql`select * from (${query})` : query,
 			rest,
 		);
 	}
@@ -463,48 +457,35 @@ export abstract class SQLiteDialect {
 		leftSelect: SQL;
 		setOperator: SQLiteSelectConfig['setOperators'][number];
 	}): SQL {
-		// SQLite doesn't support parenthesis in set operations
-		const leftChunk = sql`${leftSelect.getSQL()} `;
-		const rightChunk = sql`${rightSelect.getSQL()}`;
+		// A derived table preserves the right operand's grouping and local clauses in SQLite.
+		const rightSql = sql`select * from (${rightSelect.getSQL()})`;
 
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
-			const orderByValues: (SQL<unknown> | Name)[] = [];
-
-			// The next bit is necessary because the sql operator replaces ${table.column} with `table`.`column`
-			// which is invalid Sql syntax, Table from one of the SELECTs cannot be used in global ORDER clause
-			for (const singleOrderBy of orderBy) {
-				if (is(singleOrderBy, SQLiteColumn)) {
-					orderByValues.push(sql.identifier(singleOrderBy.name));
-				} else if (is(singleOrderBy, SQL)) {
-					for (let i = 0; i < singleOrderBy.queryChunks.length; i++) {
-						const chunk = singleOrderBy.queryChunks[i];
-
-						if (is(chunk, SQLiteColumn)) {
-							singleOrderBy.queryChunks[i] = sql.identifier(
-								this.casing.getColumnCasing(chunk),
-							);
-						}
-					}
-
-					orderByValues.push(sql`${singleOrderBy}`);
-				} else {
-					orderByValues.push(sql`${singleOrderBy}`);
+			// Compound ORDER BY references output columns without table qualifiers.
+			const mapOrderByChunk = (chunk: SQLChunk): SQLChunk => {
+				if (is(chunk, SQLiteColumn)) {
+					return sql.identifier(this.casing.getColumnCasing(chunk));
 				}
-			}
+				if (is(chunk, SQL)) {
+					return new SQL(chunk.queryChunks.map(mapOrderByChunk));
+				}
+				if (Array.isArray(chunk)) {
+					return chunk.map(mapOrderByChunk);
+				}
+				return chunk;
+			};
 
-			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)}`;
+			orderBySql = sql` order by ${sql.join(orderBy.map(mapOrderByChunk), sql`, `)}`;
 		}
 
-		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
-			? sql` limit ${limit}`
-			: undefined;
+		const limitSql = this.buildLimit(limit, offset);
 
-		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
+		const operatorSql = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
 
-		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+		const offsetSql = offset !== undefined ? sql` offset ${offset}` : undefined;
 
-		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`${leftSelect} ${operatorSql}${rightSql}${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({
@@ -526,12 +507,9 @@ export abstract class SQLiteDialect {
 
 		if (select) {
 			const select = valuesOrSelect as AnySQLiteSelectQueryBuilder | SQL;
-
-			if (is(select, SQL)) {
-				valuesSqlList.push(select);
-			} else {
-				valuesSqlList.push(select.getSQL());
-			}
+			const selectSql = is(select, SQL) ? select : select.getSQL();
+			// WHERE disambiguates UPSERT's ON from a join clause after INSERT ... SELECT.
+			valuesSqlList.push(onConflict?.length ? sql`select * from (${selectSql}) where true` : selectSql);
 		} else {
 			const values = valuesOrSelect as Record<string, Param | SQL>[];
 			valuesSqlList.push(sql.raw('values '));
