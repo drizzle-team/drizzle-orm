@@ -14,8 +14,8 @@ import {
 	Transform,
 	type TransformMarker,
 	type TypeSpec,
-} from '@drizzle-team/minipg';
-import { geometry as pgGeometry } from '@drizzle-team/minipg/geometry';
+} from '#minipg';
+import { geometry as pgGeometry } from '#minipg/geometry';
 import { getOriginalColumnFromAlias } from '~/alias.ts';
 import { Column } from '~/column.ts';
 import { is } from '~/entity.ts';

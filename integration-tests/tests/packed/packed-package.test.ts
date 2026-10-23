@@ -142,11 +142,8 @@ function requireMinipgBuild() {
 	}
 }
 
-describe.skipIf(!hasPostgres)('packed drizzle-orm with standalone @drizzle-team/minipg', () => {
-	const consumer = useConsumer('consumer', async (dir) => {
-		requireMinipgBuild();
-		return [await pack(ormDist, dir), await pack(minipgDir, dir)];
-	});
+describe.skipIf(!hasPostgres)('packed drizzle-orm with its bundled copy of minipg', () => {
+	const consumer = useConsumer('consumer', async (dir) => [await pack(ormDist, dir)]);
 
 	test.for(Object.keys(runtimes))('drizzle-orm/postgres runs a query under %s', async (runtime) => {
 		const output = await runtimes[runtime]!(consumer());
@@ -158,6 +155,56 @@ describe.skipIf(!hasPostgres)('packed drizzle-orm with standalone @drizzle-team/
 			const output = await runScript(requireNodeBinaries[version]!, ['require.cjs'], consumer());
 			expect(JSON.parse(output)).toEqual([{ value: 'ok' }]);
 		});
+	});
+
+	test('drizzle-orm/minipg and its subpaths expose the bundled copy', async () => {
+		const output = await runScript('node', ['minipg.js'], consumer());
+		expect(JSON.parse(output)).toEqual({
+			isPgError: true,
+			code: '22012',
+			point: { type: 'Point', coordinates: [1, 2] },
+		});
+	});
+
+	test('drizzle-orm/minipg/package.json gives the version of the bundled copy', async () => {
+		const { version } = JSON.parse(readFileSync(join(minipgDir, 'package.json'), 'utf8'));
+		const required = await runScript('node', ['-p', `require('drizzle-orm/minipg/package.json').version`], consumer());
+		const imported = await runScript('node', [
+			'--input-type=module',
+			'-e',
+			`import manifest from 'drizzle-orm/minipg/package.json' with { type: 'json' }; console.log(manifest.version);`,
+		], consumer());
+		expect({ required: required.trim(), imported: imported.trim() }).toEqual({ required: version, imported: version });
+	});
+});
+
+describe.skipIf(!hasPostgres)('packed drizzle-orm with the standalone @drizzle-team/minipg as client', () => {
+	const consumer = useConsumer(
+		'standalone-consumer',
+		async (dir) => {
+			requireMinipgBuild();
+			cpSync(instanceofScript, join(dir, 'instanceof.js'));
+			return [await pack(ormDist, dir), await pack(minipgDir, dir)];
+		},
+		// A user installs the standalone package to get a newer release than the bundled copy.
+		{ '@drizzle-team/minipg': '999.0.0' },
+	);
+
+	test('a standalone pool runs a query and a batch', async () => {
+		const output = await runScript('node', ['standalone.ts'], consumer());
+		expect(JSON.parse(output)).toEqual({
+			query: [{ value: 'ok' }],
+			batch: [[{ value: 1 }], [{ value: 2 }]],
+		});
+	});
+
+	test('a standalone pool type-checks as client', async () => {
+		expect(await typeCheck('standalone.ts', consumer())).toBe('');
+	});
+
+	test('instanceof works in both directions between the bundled copy and the standalone package', async () => {
+		const output = await runScript('node', ['instanceof.js', 'drizzle-orm/minipg', '@drizzle-team/minipg'], consumer());
+		expect(JSON.parse(output)).toEqual(instanceofInBothDirections);
 	});
 });
 
