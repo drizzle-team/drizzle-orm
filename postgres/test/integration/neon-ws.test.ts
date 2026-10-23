@@ -289,7 +289,9 @@ describe('channel_binding=require in a provider URL is relaxed, not fatal (offli
 		'it is RELAXED, not refused — @drizzle-team/postgres/cf and @drizzle-team/postgres/deno take the opposite path',
 		async () => {
 			const err = await connect({ url: NEON_URL, connectTimeout: 300, webSocketConstructor: opening() } as never).catch(
-				(e: Error) => e,
+				(
+					e: Error,
+				) => e,
 			) as Error;
 			expect(err.message).not.toMatch(/cannot be honoured/); // the cf/deno refusal message must NOT appear here
 		},

@@ -2,7 +2,7 @@
 // processQueue/startTask/finishTask + the inflight FIFO + outbound batch). Default on (depth 100);
 // `pipeline:false` gates to one-at-a-time. Read-only: only SELECTs, every connection is ended.
 import { describe, expect, test } from 'bun:test';
-import { caught, PgError, withConn } from '../../helpers/db.ts';
+import { PgError, withConn } from '../../helpers/db.ts';
 
 const nums = (n: number) => Array.from({ length: n }, (_, i) => i);
 

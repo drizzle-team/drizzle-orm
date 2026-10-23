@@ -26,6 +26,7 @@ interface TxMark {
 
 // The Vercel attachDatabasePool() surface (options.idleTimeoutMillis + on('release')) is grafted onto
 // every instance by compat/vercel.ts; this declaration merge puts it on Pool's TYPE.
+// oxlint-disable-next-line typescript/no-unsafe-declaration-merging -- compat/vercel.ts adds these members at runtime
 export interface Pool extends VercelPoolSurface {}
 
 // Errors that mean "this database will never come back on its own" — don't probe. Everything here needs
@@ -642,6 +643,7 @@ export class PoolQuery implements PromiseLike<QueryResult<never>> {
 	}
 
 	// PromiseLike surface: awaiting (or .then/.catch/.finally) forces execution via the standalone path.
+	// oxlint-disable-next-line unicorn/no-thenable -- pg-compatible queries must be awaitable
 	then<R1 = QueryResult<never>, R2 = never>(
 		onF?: ((v: QueryResult<never>) => R1 | PromiseLike<R1>) | null,
 		onR?: ((e: unknown) => R2 | PromiseLike<R2>) | null,

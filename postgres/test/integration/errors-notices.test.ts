@@ -571,7 +571,7 @@ describe('query() arg ergonomics', () => {
 			const err = await caught(() => conn.query('select $1', { id: 5 } as never));
 			expect((err as Error).message).toMatch(/params must be an array — pass options as the THIRD argument/);
 		} finally {
-			conn.end();
+			await conn.end();
 		}
 	});
 });

@@ -102,7 +102,7 @@ export async function signRequest(i: SignRequestInput): Promise<Record<string, s
 	const amzDate = i.amzDate ?? amzDateNow();
 	const payloadHash = await sha256Hex(i.body);
 	const toSign: Record<string, string> = {
-		...(i.headers ?? {}),
+		...i.headers,
 		host: u.host,
 		'x-amz-date': amzDate,
 		'x-amz-content-sha256': payloadHash,
@@ -120,7 +120,7 @@ export async function signRequest(i: SignRequestInput): Promise<Record<string, s
 		amzDate,
 	});
 	const out: Record<string, string> = {
-		...(i.headers ?? {}),
+		...i.headers,
 		'X-Amz-Date': amzDate,
 		'X-Amz-Content-Sha256': payloadHash,
 		Authorization: authorization,

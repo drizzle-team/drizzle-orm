@@ -88,7 +88,7 @@ describe('param-boundary injection (value is data, never SQL)', () => {
 
 	test('property: arbitrary nasty strings round-trip unchanged through $1::text', async () => {
 		await withConn(async (c) => {
-			const nasty = fc.stringMatching(/^[a-zA-Z0-9'";%$\\éÿ☃\-]*$/);
+			const nasty = fc.stringMatching(/^[a-zA-Z0-9'";%$\\éÿ☃-]*$/);
 			await fc.assert(
 				fc.asyncProperty(nasty, async (s) => {
 					const r = await c.query('select $1::text as v', [s]);
@@ -185,7 +185,9 @@ describe('prototype-pollution-safe key handling', () => {
 		await withConn(async (c) => {
 			const r = await c.query(`select 'a' as "toString", 'b' as "hasOwnProperty"`, [], { mode: 'object' });
 			const row = r.rows[0] as Record<string, unknown>;
+			// oxlint-disable-next-line typescript/unbound-method -- reads the column value that shadows the method
 			expect(row.toString as unknown).toBe('a');
+			// oxlint-disable-next-line typescript/unbound-method -- reads the column value that shadows the method
 			expect(row.hasOwnProperty as unknown).toBe('b');
 			expect(new Set(Object.keys(row))).toEqual(new Set(['toString', 'hasOwnProperty']));
 			expect(JSON.parse(JSON.stringify(row))).toEqual({ toString: 'a', hasOwnProperty: 'b' });

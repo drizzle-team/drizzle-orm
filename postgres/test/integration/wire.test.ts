@@ -29,7 +29,7 @@ describe("mode:'wire'", () => {
 			const obj = await c.query(`select 1 as a, 'hi' as b, null::text as n`, [], { mode: 'object' });
 			expect(obj.rows[0]).toEqual({ a: 1, b: 'hi', n: null });
 		} finally {
-			c.end();
+			await c.end();
 		}
 	}, TEST_TIMEOUT);
 
@@ -42,7 +42,7 @@ describe("mode:'wire'", () => {
 			expect(reparse(frames)[0]!.body.toString('latin1')).toContain('INSERT 0 1');
 			expect(tags(await c.query('', [], { mode: 'wire' }))).toEqual(['I']); // empty sql -> EmptyQueryResponse
 		} finally {
-			c.end();
+			await c.end();
 		}
 	}, TEST_TIMEOUT);
 
@@ -57,7 +57,7 @@ describe("mode:'wire'", () => {
 			expect(tags(await c.query('selec 1', [], { mode: 'wire' }))).toEqual(['E']);
 			expect((await c.query('select 41+1 as x', [], { mode: 'object' })).rows[0]).toEqual({ x: 42 });
 		} finally {
-			c.end();
+			await c.end();
 		}
 	}, TEST_TIMEOUT);
 
@@ -79,7 +79,7 @@ describe("mode:'wire'", () => {
 			const dOf = (fr: Uint8Array[]) => Buffer.from(reparse(fr).find((m) => m.type === 'D')!.body);
 			expect(dOf(again).equals(dOf(first))).toBe(true);
 		} finally {
-			c.end();
+			await c.end();
 		}
 	}, TEST_TIMEOUT);
 
@@ -100,8 +100,8 @@ describe("mode:'wire'", () => {
 				expect(parseRowDescription(reparse(healed)[0]!.body).map((f) => f.name)).toEqual(['a', 'b']);
 			} finally {
 				await c2.query(`drop table ${K}_ddl`).catch(() => {});
-				c.end();
-				c2.end();
+				await c.end();
+				await c2.end();
 			}
 		},
 		TEST_TIMEOUT,
@@ -119,7 +119,7 @@ describe("mode:'wire'", () => {
 			expect(tags(b)).toEqual(['T', 'E']);
 			expect(Buffer.concat(d.map((f) => Buffer.from(f))).toString('latin1')).toContain('third');
 		} finally {
-			c.end();
+			await c.end();
 		}
 	}, TEST_TIMEOUT);
 
@@ -146,7 +146,7 @@ describe("mode:'wire'", () => {
 				expect(n.rows[0]).toEqual({ n: 0 }); // nothing committed
 			} finally {
 				await c.query(`drop table ${K}_dc`).catch(() => {});
-				c.end();
+				await c.end();
 			}
 		},
 		TEST_TIMEOUT,
@@ -166,7 +166,7 @@ describe("mode:'wire'", () => {
 			);
 			expect((combo as Error).message).toMatch(/shape\/binary decode options don't apply/);
 		} finally {
-			c.end();
+			await c.end();
 		}
 	}, TEST_TIMEOUT);
 
@@ -189,7 +189,7 @@ describe("mode:'wire'", () => {
 					expect(cells[1]!.toString('utf8')).toBe(String(i));
 				});
 			} finally {
-				c.end();
+				await c.end();
 			}
 		},
 		TEST_TIMEOUT,
@@ -204,6 +204,6 @@ test("span coalescing: entry count is independent of row count ('nothing per mes
 		expect(msgs.filter((m) => m.type === 'D').length).toBe(1000); // one thousand rows…
 		expect(frames.length).toBeLessThan(10); // …a handful of contiguous runs (chunk-bounded, never row-bounded)
 	} finally {
-		c.end();
+		await c.end();
 	}
 }, TEST_TIMEOUT);
