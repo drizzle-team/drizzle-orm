@@ -1,7 +1,8 @@
 // bulkInsert (unnest + binary array params) end-to-end, plus array params on plain queries.
 // Requires `bun run test:setup`.
 import { describe, expect, test } from 'bun:test';
-import { caught, PgError, TEST_TIMEOUT, testPool, withConn } from '../helpers/db.ts';
+import type { PgError } from '../helpers/db.ts';
+import { caught, TEST_TIMEOUT, testPool, withConn } from '../helpers/db.ts';
 
 const K = `im_${process.pid}`;
 const COLS = { id: 'int8', name: 'text', qty: 'int4', price: 'float8', ok: 'bool', at: 'timestamptz' } as const;

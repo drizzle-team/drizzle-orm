@@ -66,6 +66,7 @@ describe('MiniBuffer writes match Buffer', () => {
 			['writeInt32BE', -70000, 5],
 			['writeUInt32BE', 0xcafebabe, 9],
 			['writeFloatBE', Math.fround(2.5), 13],
+			// oxlint-disable-next-line no-loss-of-precision -- String(1e-300) is '1e-300', so nothing is lost
 			['writeDoubleBE', 1e-300, 17],
 			['writeBigInt64BE', -42n, 25],
 		];

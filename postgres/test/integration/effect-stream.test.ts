@@ -5,7 +5,9 @@ import { SqlClient } from 'effect/sql/SqlClient';
 import { testPool } from '../helpers/db.ts';
 import { runTest } from '../helpers/effect.ts';
 
-const BIG = "select g, repeat('x', 100) as pad from generate_series(1, 10000000) g";
+// PostgreSQL returns rows one by one when generate_series is in the select list.
+// In FROM, it stores every row before it returns the first one.
+const BIG = "select generate_series(1, 10000000) as g, repeat('x', 100) as pad";
 
 const activity = async (applicationName: string): Promise<{ state: string; wait: string | null }[]> => {
 	const pool = testPool();

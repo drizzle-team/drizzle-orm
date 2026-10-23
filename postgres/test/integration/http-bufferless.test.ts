@@ -16,7 +16,7 @@ describe('@drizzle-team/postgres/http without a global Buffer', () => {
 			});
 			body = Buffer.concat(frames.map((f) => Buffer.from(f)));
 		} finally {
-			c.end();
+			await c.end();
 		}
 
 		const script = `

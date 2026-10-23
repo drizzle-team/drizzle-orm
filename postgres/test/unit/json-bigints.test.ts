@@ -4,6 +4,7 @@
 //   - json[]/jsonb[] elements honor jsonBigints (they used to be plain JSON.parse, lossy past 2^53);
 //   - the pure-JS buffer parser (runtimes without JSON.parse's context.source) gives the same results.
 import { afterEach, describe, expect, test } from 'bun:test';
+import type * as decode from '../../src/decode.ts';
 import { buildDecoders, jsonDecoder } from '../../src/decode.ts';
 
 const buf = (s: string) => Buffer.from(s, 'utf8');
@@ -99,7 +100,7 @@ describe('runtimes without JSON.parse context.source use the buffer parser', () 
 			((s: string, r?: (k: string, v: unknown) => unknown) =>
 				r ? realParse(s, (k, v) => r(k, v)) : realParse(s)) as typeof JSON.parse;
 		const fresh = '../../src/decode.ts?no-json-source'; // a variable: tsc can't resolve the ?query, Bun loads a new instance
-		return import(fresh) as Promise<typeof import('../../src/decode.ts')>;
+		return import(fresh) as Promise<typeof decode>;
 	}
 
 	test('scalar json and json[] elements', async () => {

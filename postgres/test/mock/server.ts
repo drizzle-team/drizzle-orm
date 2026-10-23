@@ -3,7 +3,7 @@
 // (mid-query kill, FATAL-then-close, hang, malformed bytes, restart window). No real PG.
 import net from 'node:net';
 import { Duplex, PassThrough } from 'node:stream';
-import type { ConnectConfig, PoolConfig } from '../../src/index.ts';
+import type { PoolConfig } from '../../src/index.ts';
 
 // ---- backend message builders ----
 const u16 = (n: number) => {

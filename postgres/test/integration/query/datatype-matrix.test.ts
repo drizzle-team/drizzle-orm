@@ -157,7 +157,7 @@ async function differential(sql: string, opts: Record<string, unknown>): Promise
 		expect(got.rows).toEqual(expected.rows);
 		return expected.rows[0] as Record<string, unknown>;
 	} finally {
-		wire.end();
+		await wire.end();
 	}
 }
 

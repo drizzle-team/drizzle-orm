@@ -41,3 +41,13 @@ _Avoid_: head (outside the connection code), aborted query
 **Late cancel**:
 A cancel request that reaches the server after the canceled query has ended, so that it stops a later query in the same pipeline. That later query fails and is rolled back.
 _Avoid_: stray cancel, collateral cancel, misdirected cancel
+
+### Distribution
+
+**Standalone package**:
+Drizzle Postgres installed on its own, as `@drizzle-team/postgres`.
+_Avoid_: separate Drizzle Postgres, external Drizzle Postgres
+
+**Bundled copy**:
+The copy of Drizzle Postgres that ships inside the `drizzle-orm` package, so that ORM users get the driver without a second install. It can be older or newer than a standalone package in the same project.
+_Avoid_: embedded Drizzle Postgres, vendored Drizzle Postgres, inlined Drizzle Postgres

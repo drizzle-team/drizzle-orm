@@ -1392,6 +1392,9 @@ describe('replication()', () => {
 			await holder.createSlot(slotName);
 			const holderGen = holder.start({ slot: slotName, publications: [`${K}_cdcevictpub`] });
 			const holderNext = holderGen.next(); // parks, but START_REPLICATION lands first -> active_pid is set
+			// The eviction rejects this promise before the test awaits it. Without a handler, Bun fails the test on
+			// the unhandled rejection; the await below still sees the error.
+			holderNext.catch(() => {});
 			await Bun.sleep(300);
 			const activeRow = await c.query(`select active from pg_replication_slots where slot_name = '${slotName}'`);
 			expect((activeRow.rows[0] as unknown[])[0]).toBe(true);

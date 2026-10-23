@@ -17,6 +17,7 @@ export function tlsOptions(ssl: TlsSsl, host: string): tls.ConnectionOptions {
 	const servername = isIP ? undefined : host;
 	let o: tls.ConnectionOptions;
 	if (ssl === true || ssl === 'require') o = { servername, rejectUnauthorized: false };
+	// oxlint-disable-next-line unicorn/no-useless-undefined -- the tls type of checkServerIdentity needs an Error or undefined result
 	else if (ssl === 'verify-ca') o = { servername, rejectUnauthorized: true, checkServerIdentity: () => undefined };
 	else if (ssl === 'verify-full') o = { servername, rejectUnauthorized: true };
 	else o = { servername, rejectUnauthorized: true, ...ssl };
