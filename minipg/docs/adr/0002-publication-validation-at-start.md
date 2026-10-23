@@ -1,0 +1,3 @@
+# A missing publication throws, an empty one warns
+
+When replication starts, a publication name that does not exist throws, because it is almost always a typo. A publication that exists but has no tables only warns and streams. `FOR ALL TABLES` over a database that has no tables yet is legitimate, and it picks up tables that are created after `start()`. An empty `publications` array throws: pgoutput has no wire form for it (`binary: 'auto'` emits `pubname in ()`, and `binary: false` gets `publication_names parameter missing`), so a warning would promise a stream that the server refuses to start.
