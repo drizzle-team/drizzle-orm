@@ -12,6 +12,9 @@ import type { SelectedFields } from './select.types.ts';
 
 export class QueryBuilder {
 	static readonly [entityKind]: string = 'PgQueryBuilder';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
 
 	private dialect: PgDialect | undefined;
 	private dialectConfig: PgDialectConfig | undefined;
@@ -33,14 +36,13 @@ export class QueryBuilder {
 				qb = qb(queryBuilder);
 			}
 
-			const sql = ('withoutSelectionCastCodecs' in qb ? qb.withoutSelectionCastCodecs() : qb).getSQL();
+			const sql = qb.getSQL();
 			return new Proxy(
 				new WithSubquery(
 					sql,
 					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
 					alias,
 					true,
-					sql.usedTables ?? [],
 				),
 				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 			) as any;

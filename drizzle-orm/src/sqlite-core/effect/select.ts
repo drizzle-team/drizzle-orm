@@ -10,7 +10,7 @@ import type { ColumnsSelection } from '~/sql/sql.ts';
 import { SQLiteSelectBase, type SQLiteSelectBuilder } from '~/sqlite-core/query-builders/select.ts';
 import type { SelectedFields, SQLiteSelectHKTBase } from '~/sqlite-core/query-builders/select.types.ts';
 import type { PreparedQueryConfig } from '~/sqlite-core/session.ts';
-import type { Assume } from '~/utils.ts';
+import { type Assume, resolveNullableObjectPaths } from '~/utils.ts';
 import type { SQLiteEffectPreparedQuery, SQLiteEffectSession } from './session.ts';
 
 export type SQLiteEffectSelectExecute<T extends AnySQLiteEffectSelect> = T['_']['result'];
@@ -109,9 +109,13 @@ export class SQLiteEffectSelectBase<
 	/** @internal */
 	_prepare(prepare = false): SQLiteEffectSelectPrepare<this, TEffectHKT> {
 		// Build query before accessing `fieldsFlat` - build mutates it
-		const query = this.dialect.sqlToQuery(this.getSQL());
+		const sequel = this.getSQL(true);
+		const query = this.dialect.sqlToQuery(sequel);
 		const fieldsList = this.config.fieldsFlat!;
-		const mapper = this.dialect.mapperGenerators.rows(fieldsList, this.joinsNotNullableMap);
+		const mapper = this.dialect.mapperGenerators.rows(
+			fieldsList,
+			resolveNullableObjectPaths(fieldsList, this.joinsNotNullableMap),
+		);
 
 		const preparedQuery = this.session.prepareQuery(
 			query,
@@ -119,10 +123,7 @@ export class SQLiteEffectSelectBase<
 			prepare,
 			'all',
 			mapper,
-			{
-				type: 'select',
-				tables: [...this.usedTables],
-			},
+			{ type: 'select', tables: () => this.getUsedTables(sequel) },
 			this.cacheConfig,
 		);
 		return preparedQuery as ReturnType<this['prepare']>;

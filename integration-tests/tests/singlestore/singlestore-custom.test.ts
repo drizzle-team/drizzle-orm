@@ -21,10 +21,9 @@ import { migrate } from 'drizzle-orm/singlestore/migrator';
 import * as mysql2 from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { toLocalDate } from '~/utils';
 import relations from './relations';
 
-type TestSingleStoreDB = SingleStoreDriverDatabase<any, typeof relations>;
+type TestSingleStoreDB = SingleStoreDriverDatabase<typeof relations>;
 declare module 'vitest' {
 	interface TestContext {
 		singlestore: {
@@ -33,7 +32,7 @@ declare module 'vitest' {
 	}
 }
 
-let db: SingleStoreDriverDatabase<never, typeof relations>;
+let db: SingleStoreDriverDatabase<typeof relations>;
 let client: mysql2.Connection;
 
 beforeAll(async () => {
@@ -559,27 +558,29 @@ test('full join with alias', async (ctx) => {
 	await db.execute(sql`drop table if exists ${users}`);
 	await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
 
-	const customers = alias(users, 'customer');
+	try {
+		const customers = alias(users, 'customer');
 
-	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
-	const result = await db
-		.select().from(users)
-		.leftJoin(customers, eq(customers.id, 11))
-		.where(eq(users.id, 10))
-		.orderBy(asc(users.id));
+		await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+		const result = await db
+			.select().from(users)
+			.leftJoin(customers, eq(customers.id, 11))
+			.where(eq(users.id, 10))
+			.orderBy(asc(users.id));
 
-	expect(result).toEqual([{
-		users: {
-			id: 10,
-			name: 'Ivan',
-		},
-		customer: {
-			id: 11,
-			name: 'Hans',
-		},
-	}]);
-
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([{
+			users: {
+				id: 10,
+				name: 'Ivan',
+			},
+			customer: {
+				id: 11,
+				name: 'Hans',
+			},
+		}]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('select from alias', async (ctx) => {
@@ -595,29 +596,31 @@ test('select from alias', async (ctx) => {
 	await db.execute(sql`drop table if exists ${users}`);
 	await db.execute(sql`create table ${users} (id serial primary key, name text not null)`);
 
-	const user = alias(users, 'user');
-	const customers = alias(users, 'customer');
+	try {
+		const user = alias(users, 'user');
+		const customers = alias(users, 'customer');
 
-	await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
-	const result = await db
-		.select()
-		.from(user)
-		.leftJoin(customers, eq(customers.id, 11))
-		.where(eq(user.id, 10))
-		.orderBy(asc(user.id));
+		await db.insert(users).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
+		const result = await db
+			.select()
+			.from(user)
+			.leftJoin(customers, eq(customers.id, 11))
+			.where(eq(user.id, 10))
+			.orderBy(asc(user.id));
 
-	expect(result).toEqual([{
-		user: {
-			id: 10,
-			name: 'Ivan',
-		},
-		customer: {
-			id: 11,
-			name: 'Hans',
-		},
-	}]);
-
-	await db.execute(sql`drop table ${users}`);
+		expect(result).toEqual([{
+			user: {
+				id: 10,
+				name: 'Ivan',
+			},
+			customer: {
+				id: 11,
+				name: 'Hans',
+			},
+		}]);
+	} finally {
+		await db.execute(sql`drop table if exists ${users}`);
+	}
 });
 
 test('insert with spaces', async (ctx) => {
@@ -692,25 +695,27 @@ test('prepared statement with placeholder in .where', async (ctx) => {
 });
 
 test('migrator', async (ctx) => {
-	const { db } = ctx.singlestore;
+	try {
+		const { db } = ctx.singlestore;
 
-	await db.execute(sql`drop table if exists cities_migration`);
-	await db.execute(sql`drop table if exists users_migration`);
-	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists __drizzle_migrations`);
+		await db.execute(sql`drop table if exists cities_migration`);
+		await db.execute(sql`drop table if exists users_migration`);
+		await db.execute(sql`drop table if exists users12`);
+		await db.execute(sql`drop table if exists __drizzle_migrations`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/singlestore' });
+		await migrate(db, { migrationsFolder: './drizzle2/singlestore' });
 
-	await db.insert(usersMigratorTable).values({ id: 1, name: 'John', email: 'email' });
+		await db.insert(usersMigratorTable).values({ id: 1, name: 'John', email: 'email' });
 
-	const result = await db.select().from(usersMigratorTable);
+		const result = await db.select().from(usersMigratorTable);
 
-	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
-
-	await db.execute(sql`drop table cities_migration`);
-	await db.execute(sql`drop table users_migration`);
-	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table __drizzle_migrations`);
+		expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
+	} finally {
+		await db.execute(sql`drop table if exists cities_migration`);
+		await db.execute(sql`drop table if exists users_migration`);
+		await db.execute(sql`drop table if exists users12`);
+		await db.execute(sql`drop table if exists __drizzle_migrations`);
+	}
 });
 
 test('insert via db.execute + select via db.execute', async (ctx) => {
@@ -729,7 +734,7 @@ test('insert via db.execute + select via db.execute', async (ctx) => {
 test('insert via db.execute w/ query builder', async (ctx) => {
 	const { db } = ctx.singlestore;
 
-	const inserted = await db.execute(
+	const inserted = await db.execute<never>(
 		db.insert(usersTable).values({ name: 'John' }),
 	);
 	expect(inserted[0].affectedRows).toBe(1);
@@ -757,7 +762,7 @@ test('insert + select all possible dates', async (ctx) => {
 	expect(res[0]?.datetimeAsString).toBeTypeOf('string');
 
 	expect(res).toEqual([{
-		date: toLocalDate(new Date('2022-11-11')),
+		date: new Date('2022-11-11'),
 		dateAsString: '2022-11-11',
 		time: '12:12:12',
 		datetime: new Date('2022-11-11'),

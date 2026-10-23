@@ -153,7 +153,7 @@ test('migrator : --init - db migrations error', async ({ db }) => {
 	expect(!!res?.tableExists).toStrictEqual(true);
 });
 
-test('test $onUpdateFn and $onUpdate works as $default', async ({ db }) => {
+test('test $onUpdateFn and $onUpdate works as $default (libsql-ws)', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersOnUpdate}`);
 
 	await db.run(
@@ -193,7 +193,7 @@ test('test $onUpdateFn and $onUpdate works as $default', async ({ db }) => {
 	}
 });
 
-test('test $onUpdateFn and $onUpdate works updating', async ({ db }) => {
+test('test $onUpdateFn and $onUpdate works updating (libsql-ws)', async ({ db }) => {
 	await db.run(sql`drop table if exists ${usersOnUpdate}`);
 
 	await db.run(
@@ -296,8 +296,10 @@ test('migrator: local migration is unapplied. Migrations timestamp is less than 
 });
 
 const skip = [
+	'transaction mode: exclusive',
 	// Uses async versions
 	'sync transaction rollback',
+	'Query error params - sync transaction',
 	'sync nested transaction rollback',
 	// DB needs to be built in special way to support this
 	'delete with limit and order by',

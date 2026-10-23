@@ -13,7 +13,7 @@ import { CONSTANTS } from '~/utils.ts';
 
 export const literalSchema = type.string.or(type.number).or(type.boolean).or(type.null);
 export const jsonSchema = literalSchema.or(type.unknown.as<any>().array()).or(type.object.as<Record<string, any>>());
-export const bufferSchema = type.unknown.narrow((value) => value instanceof Buffer).as<Buffer>().describe( // oxlint-disable-line no-instanceof-builtins drizzle-internal/no-instanceof
+export const bufferSchema = type.unknown.narrow((value) => value instanceof Buffer).as<Buffer>().describe(
 	'a Buffer instance',
 );
 
@@ -235,17 +235,6 @@ function arrayColumnToSchema(
 			const length = column.length;
 			// TODO - INT64 number range
 			return length ? type.bigint.array().exactlyLength(length) : type.bigint.array();
-		}
-		case 'basecolumn': {
-			// CockroachDB/GEL style: has a separate baseColumn
-			const baseColumn = (<{ baseColumn?: Column }> column).baseColumn;
-			if (baseColumn) {
-				const length = column.length;
-				const schema = columnToSchema(baseColumn).array();
-				if (length) return schema.exactlyLength(length);
-				return schema;
-			}
-			return type.unknown.array();
 		}
 		default: {
 			return type.unknown.array();

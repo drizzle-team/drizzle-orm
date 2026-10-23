@@ -1,6 +1,7 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
 	camelCase,
+	cockroachPolicy,
 	cockroachSchema,
 	cockroachTable,
 	cockroachTableCreator,
@@ -15,6 +16,7 @@ import {
 	uniqueIndex,
 	vector,
 } from 'drizzle-orm/cockroach-core';
+import { stripAnsi } from 'hanji/utils';
 import { expect } from 'vitest';
 import { diff, push, test } from './mocks';
 
@@ -1152,7 +1154,7 @@ test.concurrent('push after migrate with custom migrations table #1', async ({ d
 	};
 
 	const { sqlStatements: st2 } = await diff({}, to, []);
-	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig, log: 'statements' });
+	const { sqlStatements: pst2 } = await push({ db, to, migrationsConfig });
 	const expectedSt2 = [
 		'CREATE TABLE "table1" (\n\t"col1" int4\n);\n',
 	];
@@ -1236,4 +1238,217 @@ test.concurrent('push after migrate with custom migrations table #4', async ({ d
 	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// In the tests below, the statement that moves or renames `users` runs first, because the other statements
+// name the table by its new schema and name.
+const folder = cockroachSchema('folder');
+const moved = (inFolder: boolean, extra: (t: any) => any[] = () => [], withRls = false) => {
+	const columns = { id: int4(), ownerId: int4() };
+	const create = inFolder
+		? (withRls ? folder.table.withRLS : folder.table)
+		: (withRls ? cockroachTable.withRLS : cockroachTable);
+	return (create as typeof cockroachTable)('users', columns, extra);
+};
+const owners = cockroachTable('owners', { id: int4().primaryKey() });
+const reader = () => cockroachPolicy('readers', { for: 'select' });
+const writer = () => cockroachPolicy('writers', { for: 'insert' });
+const ownerKey = (t: any) => [foreignKey({ name: 'owner_fk', columns: [t.ownerId], foreignColumns: [owners.id] })];
+
+test.for([
+	{
+		name: 'a drop of one of its policies',
+		from: moved(false, () => [reader(), writer()]),
+		to: moved(true, () => [reader()]),
+		expected: ['ALTER TABLE "users" SET SCHEMA "folder";\n', 'DROP POLICY "writers" ON "folder"."users";'],
+	},
+	{
+		name: 'a drop of its last policy',
+		from: moved(false, () => [reader()]),
+		to: moved(true),
+		expected: [
+			'ALTER TABLE "users" SET SCHEMA "folder";\n',
+			'ALTER TABLE "folder"."users" DISABLE ROW LEVEL SECURITY;',
+			'DROP POLICY "readers" ON "folder"."users";',
+		],
+	},
+	{
+		name: 'its first policy',
+		from: moved(false),
+		to: moved(true, () => [reader()]),
+		expected: [
+			'ALTER TABLE "users" SET SCHEMA "folder";\n',
+			'ALTER TABLE "folder"."users" ENABLE ROW LEVEL SECURITY;',
+			'CREATE POLICY "readers" ON "folder"."users" AS PERMISSIVE FOR SELECT TO public;',
+		],
+	},
+	{
+		name: 'the row level security flag',
+		from: moved(false),
+		to: moved(true, undefined, true),
+		expected: [
+			'ALTER TABLE "users" SET SCHEMA "folder";\n',
+			'ALTER TABLE "folder"."users" ENABLE ROW LEVEL SECURITY;',
+		],
+	},
+	{
+		name: 'a drop of its foreign key',
+		from: moved(false, ownerKey),
+		to: moved(true),
+		expected: [
+			'ALTER TABLE "users" SET SCHEMA "folder";\n',
+			'ALTER TABLE "folder"."users" DROP CONSTRAINT "owner_fk";',
+		],
+	},
+])('a table move together with $name writes SQL that runs', async ({ from, to, expected }, { db }) => {
+	const renames = ['public.users->folder.users'];
+
+	const { sqlStatements: st } = await diff({ folder, owners, users: from }, { folder, owners, users: to }, renames);
+	await push({ db, to: { folder, owners, users: from } });
+	const { sqlStatements: pst } = await push({ db, to: { folder, owners, users: to }, renames });
+
+	expect(st).toStrictEqual(expected);
+	expect(pst).toStrictEqual(expected);
+});
+
+test('a table move together with a drop of its foreign key and of the referenced table writes SQL that runs', async ({ db }) => {
+	const from = { folder, owners, users: moved(false, ownerKey) };
+	const to = { folder, users: moved(true) };
+	const renames = ['public.users->folder.users'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = [
+		'ALTER TABLE "users" SET SCHEMA "folder";\n',
+		'ALTER TABLE "folder"."users" DROP CONSTRAINT "owner_fk";',
+		'DROP TABLE "owners";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('a table rename together with the row level security flag writes SQL that runs', async ({ db }) => {
+	const from = { users: cockroachTable('users', { id: int4() }) };
+	const to = { users: cockroachTable.withRLS('people', { id: int4() }) };
+	const renames = ['public.users->public.people'];
+
+	const { sqlStatements: st } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0 = ['ALTER TABLE "users" RENAME TO "people";', 'ALTER TABLE "people" ENABLE ROW LEVEL SECURITY;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test.concurrent('drop column in a renamed table with data', async ({ dbc: db }) => {
+	const schema1 = {
+		users: cockroachTable('users', { id: int4('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		accounts: cockroachTable('accounts', { id: int4('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "users" ("id", "name") VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['public.users->public.accounts'],
+	});
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE "users" RENAME TO "accounts";',
+		'ALTER TABLE "accounts" DROP COLUMN "name";',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "name" column in "users" (would become "accounts") table` },
+	]);
+});
+
+test.concurrent('drop column in a table with data that moves to another schema', async ({ dbc: db }) => {
+	const app = cockroachSchema('app');
+	const schema1 = {
+		app,
+		users: cockroachTable('users', { id: int4('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		app,
+		users: app.table('users', { id: int4('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "users" ("id", "name") VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['public.users->app.users'],
+	});
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE "users" SET SCHEMA "app";\n',
+		'ALTER TABLE "app"."users" DROP COLUMN "name";',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "name" column in "users" (would become "app"."users") table` },
+	]);
+});
+
+test.concurrent('drop column in a table with data in a renamed schema', async ({ dbc: db }) => {
+	const before = cockroachSchema('before');
+	const after = cockroachSchema('after');
+	const schema1 = {
+		before,
+		users: before.table('users', { id: int4('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		after,
+		users: after.table('users', { id: int4('id').primaryKey() }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "before"."users" ("id", "name") VALUES (1, 'drizzle');`);
+
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: ['before->after'] });
+
+	expect(pst).toStrictEqual([
+		'ALTER SCHEMA "before" RENAME TO "after";\n',
+		'ALTER TABLE "after"."users" DROP COLUMN "name";',
+	]);
+	expect(phints).toStrictEqual([
+		{ hint: `You're about to delete non-empty "name" column in "before"."users" (would become "after"."users") table` },
+	]);
+});
+
+test.concurrent('drop primary key in a renamed table with data', async ({ dbc: db }) => {
+	const schema1 = {
+		users: cockroachTable('users', { id: int4('id').primaryKey(), name: text('name') }),
+	};
+	const schema2 = {
+		accounts: cockroachTable('accounts', { id: int4('id').notNull(), name: text('name') }),
+	};
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "users" ("id", "name") VALUES (1, 'drizzle');`);
+
+	// The table still has a primary key after the drop in CockroachDB, so the second push of the helper is not empty.
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+		renames: ['public.users->public.accounts'],
+		ignoreSubsequent: true,
+	});
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE "users" RENAME TO "accounts";',
+		'ALTER TABLE "accounts" DROP CONSTRAINT "users_pkey";',
+	]);
+	expect(phints.map((it) => ({ ...it, hint: stripAnsi(it.hint) }))).toStrictEqual([{
+		hint:
+			`You're about to drop the primary key of "users" (would become "accounts") table. The statements may fail, and the table may lose its primary key`,
+	}]);
 });

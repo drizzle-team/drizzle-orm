@@ -1,4 +1,5 @@
 import type { DatabaseSync, SQLInputValue, StatementResultingChanges } from 'node:sqlite';
+import type { QueryMetadata } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
@@ -18,6 +19,7 @@ import type { DrizzleTypeError } from '~/utils.ts';
 
 export interface NodeSQLiteSessionOptions {
 	logger?: Logger;
+	paramsInErrors?: boolean;
 }
 
 export type NodeSQLiteRunResult = StatementResultingChanges;
@@ -47,16 +49,13 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 	): SQLiteAsyncPreparedQuery<T & { run: NodeSQLiteRunResult }> {
 		let stmt: ReturnType<typeof this.client.prepare>;
 		try {
 			stmt = this.client.prepare(query.sql);
 		} catch (e) {
-			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+			throw new DrizzleQueryError(query.sql, this.options.paramsInErrors ? query.params : undefined, e as Error);
 		}
 
 		const executors: SQLiteQueryExecutors<'sync'> = {
@@ -80,10 +79,6 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 				stmt.setReturnArrays(false);
 				return stmt.run(...params as SQLInputValue[]);
 			},
-			values: (params) => {
-				stmt.setReturnArrays(true);
-				return stmt.all(...params as SQLInputValue[]);
-			},
 		};
 
 		return new SQLiteAsyncPreparedQuery(
@@ -97,6 +92,7 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 			undefined,
 			queryMetadata,
 			undefined,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -104,6 +100,8 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 		transaction: (tx: NodeSQLiteTransaction<TRelations>) => T,
 		config: SQLiteTransactionConfig = {},
 	): T {
+		if (config?.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
+
 		const tx = new NodeSQLiteTransaction('sync', this.dialect, this, this.relations);
 		this.run(sql.raw(`begin${config.behavior ? ` ${config.behavior}` : ''}`));
 		try {
@@ -111,7 +109,11 @@ export class NodeSQLiteSession<TRelations extends AnyRelations>
 			this.run(sql`commit`);
 			return result;
 		} catch (err) {
-			this.run(sql`rollback`);
+			try {
+				this.run(sql`rollback`);
+			} catch {
+				// original error takes priority
+			}
 			throw err;
 		}
 	}
@@ -142,7 +144,11 @@ export class NodeSQLiteTransaction<TRelations extends AnyRelations>
 			tx.run(sql.raw(`release savepoint ${savepointName}`));
 			return result as T;
 		} catch (err) {
-			tx.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			try {
+				tx.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			} catch {
+				// original error takes priority
+			}
 			throw err;
 		}
 	}

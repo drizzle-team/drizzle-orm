@@ -1,3 +1,4 @@
+import type { ColumnBuilderRuntimeConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table.ts';
@@ -29,7 +30,7 @@ export class MySqlDate<T extends ColumnBaseConfig<'object date'>> extends MySqlC
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlDateBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']>,
 	) {
 		super(table, config);
 	}
@@ -37,6 +38,11 @@ export class MySqlDate<T extends ColumnBaseConfig<'object date'>> extends MySqlC
 	getSQLType(): string {
 		return `date`;
 	}
+
+	override mapToDriverValue = (value: Date | string): string => {
+		if (typeof value === 'string') return value;
+		return value.toISOString().slice(0, 10);
+	};
 }
 
 export class MySqlDateStringBuilder extends MySqlColumnBuilder<{
@@ -67,7 +73,7 @@ export class MySqlDateString<T extends ColumnBaseConfig<'string date'>> extends 
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlDateStringBuilder['config'],
+		config: ColumnBuilderRuntimeConfig<T['data']>,
 	) {
 		super(table, config);
 	}

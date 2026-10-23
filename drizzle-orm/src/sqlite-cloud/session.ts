@@ -1,6 +1,6 @@
 import type { Database, SQLiteCloudRow, SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import type { Logger } from '~/logger.ts';
@@ -21,6 +21,7 @@ import type { SQLiteCloudRunResult } from './driver.ts';
 export interface SQLiteCloudSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	paramsInErrors?: boolean;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -50,17 +51,14 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): SQLiteAsyncPreparedQuery<T & { run: SQLiteCloudRunResult }> {
 		let stmt: ReturnType<typeof this.client.prepare>;
 		try {
 			stmt = this.client.prepare(query.sql);
 		} catch (e) {
-			throw new DrizzleQueryError(query.sql, query.params, e as Error);
+			throw new DrizzleQueryError(query.sql, this.options.paramsInErrors ? query.params : undefined, e as Error);
 		}
 
 		const executors: SQLiteQueryExecutors<'async'> = {
@@ -109,15 +107,6 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 					});
 				});
 			},
-			values: (params) => {
-				return new Promise<any>((resolve, reject) => {
-					(params.length ? stmt.bind(...params) : stmt).all((e: Error | null, d: SQLiteCloudRowset) => {
-						if (e) return reject(e);
-
-						return (resolve(d.map((v) => v.getData())));
-					});
-				});
-			},
 		};
 
 		return new SQLiteAsyncPreparedQuery(
@@ -131,6 +120,7 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 			this.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 
@@ -146,6 +136,8 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 			this,
 			this.relations,
 		);
+		if (config?.behavior === 'concurrent') throw new Error('Concurrent transactions are not supported by driver');
+
 		await tx.run(sql`BEGIN${sql` ${sql.raw(config?.behavior ?? '')}`.if(config?.behavior)} TRANSACTION`);
 
 		try {
@@ -153,7 +145,7 @@ export class SQLiteCloudSession<TRelations extends AnyRelations>
 			await tx.run(sql`COMMIT`);
 			return result;
 		} catch (err) {
-			await tx.run(sql`ROLLBACK`);
+			await tx.run(sql`ROLLBACK`).catch(() => {});
 			throw err;
 		}
 	}
@@ -181,7 +173,7 @@ export class SQLiteCloudTransaction<TRelations extends AnyRelations>
 			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
 			return result;
 		} catch (err) {
-			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`)).catch(() => {});
 			throw err;
 		}
 	}

@@ -1,8 +1,8 @@
 import type { SqliteClient } from '@effect/sql-sqlite-bun/SqliteClient';
 import * as Effect from 'effect/Effect';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type { SqlError } from 'effect/sql/SqlError';
 import type { EffectCacheShape } from '~/cache/core/cache-effect.ts';
-import type { WithCacheConfig } from '~/cache/core/types.ts';
+import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import type { EffectDrizzleQueryError } from '~/effect-core/errors.ts';
 import type { EffectLoggerShape } from '~/effect-core/logger.ts';
 import type { QueryEffectHKTBase } from '~/effect-core/query-effect.ts';
@@ -23,11 +23,12 @@ export interface EffectSQLiteBunQueryEffectHKT extends QueryEffectHKTBase {
 	readonly context: never;
 }
 
-export type EffectSQLiteBunRunResult = unknown;
+export type EffectSQLiteBunRunResult = [];
 
 export interface EffectSQLiteBunSessionOptions {
 	logger: EffectLoggerShape;
 	cache: EffectCacheShape;
+	paramsInErrors?: boolean;
 }
 
 export class EffectSQLiteBunSession<TRelations extends AnyRelations>
@@ -50,10 +51,7 @@ export class EffectSQLiteBunSession<TRelations extends AnyRelations>
 		_prepare: boolean,
 		executeMethod?: SQLiteExecuteMethod,
 		mapper?: (rows: any[]) => any,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
+		queryMetadata?: QueryMetadata,
 		cacheConfig?: WithCacheConfig,
 	): SQLiteEffectPreparedQuery<T, EffectSQLiteBunQueryEffectHKT> {
 		const executors: SQLiteEffectQueryExecutors = {
@@ -69,7 +67,6 @@ export class EffectSQLiteBunSession<TRelations extends AnyRelations>
 				if (mode === 'arrays') return q.values.pipe(Effect.map((e) => e[0]));
 				return q.withoutTransform.pipe(Effect.map((e) => e[0]));
 			},
-			values: (params) => this.client.unsafe(query.sql, params).values,
 			run: (params) => this.client.unsafe(query.sql, params).raw,
 		};
 
@@ -83,6 +80,7 @@ export class EffectSQLiteBunSession<TRelations extends AnyRelations>
 			this.options.cache,
 			queryMetadata,
 			cacheConfig,
+			this.options.paramsInErrors,
 		);
 	}
 

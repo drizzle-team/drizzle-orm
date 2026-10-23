@@ -30,6 +30,12 @@ async function processFile(file: string, ext: string) {
 		(_, prefix, importPath, suffix) => prefix + fixImportPath(importPath, file, ext) + suffix,
 	);
 
+	// Handle: import "path" - side-effect-only imports
+	code = code.replace(
+		/(import\s+["'])([^"']+)(["'])/g,
+		(_, prefix, importPath, suffix) => prefix + fixImportPath(importPath, file, ext) + suffix,
+	);
+
 	// Handle: require("path")
 	code = code.replace(
 		/(require\s*\(\s*["'])([^"']+)(["']\s*\))/g,

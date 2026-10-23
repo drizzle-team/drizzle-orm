@@ -18,15 +18,15 @@
 		"noErrorTruncation": true,
 		"isolatedModules": true,
 		"sourceMap": true,
-		"baseUrl": ".",
 		"paths": {
-			"@/*": ["tests/fixtures/tsconfig-paths/src/*"],
-			"@profile": ["tests/fixtures/tsconfig-paths/src/profile/schema.ts"]
+			"@/*": ["./tests/fixtures/tsconfig-paths/src/*"],
+			"@profile": ["./tests/fixtures/tsconfig-paths/src/profile/schema.ts"],
+			"*": ["./*"]
 		},
 		"outDir": "dist",
 		"noEmit": true,
 		"typeRoots": ["node_modules/@types", "src/@types"]
 	},
 	"include": ["src", "dev", "tests", "drizzle.config.ts", "test.ts"],
-	"exclude": ["node_modules"]
+	"exclude": ["node_modules", "tests/**/tmp"]
 }

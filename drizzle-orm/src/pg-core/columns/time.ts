@@ -35,7 +35,7 @@ export class PgTime extends PgColumn<'string time'> {
 	static override readonly [entityKind]: string = 'PgTime';
 
 	/** @internal */
-	override readonly codec = 'time';
+	override readonly codec: 'time' | 'timetz';
 
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
@@ -44,6 +44,7 @@ export class PgTime extends PgColumn<'string time'> {
 		super(table, config);
 		this.withTimezone = config.withTimezone;
 		this.precision = config.precision;
+		this.codec = this.withTimezone ? 'timetz' : 'time';
 	}
 
 	getSQLType(): string {
