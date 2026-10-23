@@ -712,7 +712,7 @@ test('cdc stop: idempotent, settles the in-flight handler, acks what completed',
 	expect(p1).toBe(p2); // idempotent: the second call returns the exact first promise
 
 	let resolved = false;
-	p1.then(() => {
+	void p1.then(() => {
 		resolved = true;
 	});
 	await Bun.sleep(30);
@@ -1128,7 +1128,7 @@ test('cdc recreate: 55006 on the drop polls and retries on the same connection',
 					? [errFrame('55006', 'replication slot "durable_drop55006" is active for PID 111'), ready()]
 					: [ready()];
 			}
-			return undefined;
+			return;
 		},
 	});
 	let fatalErr: Error | undefined;
@@ -1167,7 +1167,7 @@ test('cdc recreate: 42704 on the drop means already gone and the create proceeds
 			if (sql.startsWith('DROP_REPLICATION_SLOT')) {
 				return [errFrame('42704', 'replication slot "durable_drop42704" does not exist'), ready()];
 			}
-			return undefined;
+			return;
 		},
 	});
 	const backfillInfos: { isReconnect: boolean }[] = [];
@@ -1493,7 +1493,7 @@ test('cdc 42704: a slot-acquisition error during start() maps to SlotInvalidated
 				startCalls++;
 				return [errFrame('42704', 'replication slot "durable_gone" does not exist'), ready()];
 			}
-			return undefined;
+			return;
 		},
 	});
 	let fatalErr: Error | undefined;
@@ -1572,7 +1572,7 @@ test('cdc already gone: pg_terminate_backend returning f continues the eviction 
 					? [rowDesc(healthCols), dataRow(['t', '63139', 'reserved', '0/10', '0/8']), ready()]
 					: [rowDesc(healthCols), dataRow(['f', null, 'reserved', '0/10', '0/8']), ready()];
 			}
-			return undefined;
+			return;
 		},
 	});
 	const warnings: CdcWarning[] = [];
@@ -1611,7 +1611,7 @@ test('cdc eviction poll absent: the slot vanishing mid-poll raises SlotInvalidat
 			if (sql.startsWith('select active,')) {
 				return [rowDesc(healthCols), dataRow(['t', '99001', 'reserved', '0/10', '0/8']), ready()];
 			}
-			return undefined;
+			return;
 		},
 	});
 	let fatalErr: Error | undefined;
@@ -1655,7 +1655,7 @@ test('cdc eviction denied: 42501 goes fatal without a retry or a further poll', 
 			if (sql.startsWith('select active,')) {
 				return [rowDesc(healthCols), dataRow(['t', '63139', 'reserved', '0/10', '0/8']), ready()];
 			}
-			return undefined;
+			return;
 		},
 	});
 	let fatalErr: Error | undefined;
@@ -1818,7 +1818,7 @@ test('cdc 55006: object_in_use after eviction retries the session instead of fai
 				startCallsSession0++;
 				return [errFrame('55006', 'replication slot "durable_55006" is active for PID 24680'), ready()];
 			}
-			return undefined;
+			return;
 		},
 	});
 
@@ -1875,7 +1875,7 @@ test('cdc eviction deadline: an active slot that never clears raises SlotBusyErr
 			if (sql.startsWith('select active,')) {
 				return [rowDesc(healthCols), dataRow(['t', '55221', 'reserved', '0/10', '0/8']), ready()];
 			}
-			return undefined;
+			return;
 		},
 	});
 
@@ -2151,7 +2151,7 @@ test('cdc eviction rounds are capped — a rival that keeps re-acquiring the slo
 			if (sql.startsWith('select active,')) {
 				return [rowDesc(healthCols), dataRow(['t', '77777', 'reserved', '0/10', '0/8']), ready()];
 			}
-			return undefined;
+			return;
 		},
 	});
 	let fatalErr: Error | undefined;

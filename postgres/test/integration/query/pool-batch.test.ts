@@ -1,7 +1,8 @@
 // Domain: "pool lazy query API" — pool.query() is a lazy thenable, pool.execute() is eager, and
 // pool.batch() runs a set pipelined (one connection) or concurrently (fan-out). Read-only SELECTs.
 import { describe, expect, test } from 'bun:test';
-import { caught, PgError, testPool } from '../../helpers/db.ts';
+import type { PgError } from '../../helpers/db.ts';
+import { caught, testPool } from '../../helpers/db.ts';
 
 const cell = (r: { rows: unknown[] }, k: string) => (r.rows[0] as Record<string, unknown>)[k];
 

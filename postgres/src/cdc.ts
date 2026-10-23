@@ -408,11 +408,12 @@ export function replicate(opts: ReplicateOptions): ReplicateHandle {
 		e instanceof SlotInvalidatedError && e.cause !== 'system-changed' && opts.onSlotInvalidated === 'recreate';
 	// The consumer's own signal behaves exactly like calling stop() — same teardown, same
 	// idempotency, never onFatalError. Removed in doStop() to avoid leaking this listener.
+	// stop() never rejects: doStop() catches everything it awaits.
 	const onConsumerAbort = (): void => {
-		stop();
+		void stop();
 	};
 	opts.signal?.addEventListener('abort', onConsumerAbort, { once: true });
-	if (opts.signal?.aborted) stop(); // already aborted before replicate() was even called
+	if (opts.signal?.aborted) void stop(); // already aborted before replicate() was even called
 
 	// S8: tear down and fire onFatalError exactly once. Every give-up path (permanent error,
 	// retryDelayMs returning null) funnels through here so there is one way to reach onFatalError.

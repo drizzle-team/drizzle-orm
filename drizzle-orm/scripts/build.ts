@@ -13,6 +13,10 @@ async function copyPackageJson() {
 	// directly; this just carries it into the dist that gets packed. The wildcard's directory-index
 	// shims are the only dynamic piece — see emitDirIndexShims.
 	const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'));
+	// `npm pack` keeps `workspace:` ranges, and they do not resolve outside this monorepo.
+	pkg.devDependencies = Object.fromEntries(
+		Object.entries<string>(pkg.devDependencies).filter(([, range]) => !range.startsWith('workspace:')),
+	);
 	await fs.writeFile('dist.new/package.json', JSON.stringify(pkg, null, 2));
 }
 

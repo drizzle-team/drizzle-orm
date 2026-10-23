@@ -9,7 +9,8 @@
 // backends (other suites run concurrently with the default 'drizzle-postgres' app name).
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import type { Connection } from '../../src/index.ts';
-import { caught, PgError, testConnect, testPool } from '../helpers/db.ts';
+import type { PgError } from '../helpers/db.ts';
+import { caught, testConnect, testPool } from '../helpers/db.ts';
 
 let uid = 0;
 const appName = () => `pooltest_${process.pid}_${Date.now()}_${uid++}`;
@@ -717,15 +718,13 @@ describe('multiple pools & config isolation', () => {
 
 	test('using a pool does not mutate the passed config object', async () => {
 		const cfg = {
-			...({
-				host: '127.0.0.1',
-				port: 54329,
-				user: 'postgres',
-				password: 'postgres',
-				database: 'testdb',
-				max: 2,
-				applicationName: appName(),
-			}),
+			host: '127.0.0.1',
+			port: 54329,
+			user: 'postgres',
+			password: 'postgres',
+			database: 'testdb',
+			max: 2,
+			applicationName: appName(),
 		};
 		const snapshot = JSON.stringify(cfg);
 		const { createPool } = await import('../../src/index.ts');

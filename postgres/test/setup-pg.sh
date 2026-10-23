@@ -79,11 +79,14 @@ EOF
   openssl req -new -x509 -days 3650 -nodes -text -subj "/CN=localhost" \
     -out "$PGDATA/server.crt" -keyout "$PGDATA/server.key" >/dev/null 2>&1
   chmod 600 "$PGDATA/server.key"
+  # A query whose planner cost passes 500000 is compiled with JIT. The first compile loads LLVM, which
+  # takes several seconds on a CI runner, so a test with a large query waits that long for its first row.
   cat >> "$PGDATA/postgresql.conf" <<EOF
 ssl = on
 ssl_cert_file = 'server.crt'
 ssl_key_file = 'server.key'
 wal_level = logical
+jit = off
 EOF
 
   pg_ctl -D "$PGDATA" -o "-p $PGPORT -k $SOCK -c listen_addresses=127.0.0.1" -l "$PGDATA/server.log" -w start
@@ -139,6 +142,7 @@ ALTER SYSTEM SET ssl = 'on';
 ALTER SYSTEM SET ssl_cert_file = 'server.crt';
 ALTER SYSTEM SET ssl_key_file = 'server.key';
 ALTER SYSTEM SET wal_level = 'logical';
+ALTER SYSTEM SET jit = 'off';
 SQL
   docker restart "$CONTAINER" >/dev/null
   wait_ready

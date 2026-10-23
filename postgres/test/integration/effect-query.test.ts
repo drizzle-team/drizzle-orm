@@ -72,7 +72,8 @@ describe('DrizzlePostgresClient.query', () => {
 			{ maxConnections: 1 },
 		);
 		const reason = Exit.isFailure(result.failed)
-			? (result.failed.cause.reasons.find(Cause.isFailReason)?.error as { reason: { _tag: string } }).reason._tag
+			? (result.failed.cause.reasons.find(Cause.isFailReason)?.error as { reason: { _tag: string } } | undefined)
+				?.reason._tag
 			: undefined;
 		expect(reason).toBe('UnknownError');
 		expect(Exit.isFailure(result.timedOut)).toBe(true);

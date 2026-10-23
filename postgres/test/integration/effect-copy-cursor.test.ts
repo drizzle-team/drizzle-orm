@@ -86,7 +86,11 @@ describe('copyFrom and copyTo', () => {
 				const client = yield* DrizzlePostgresClient.DrizzlePostgresClient;
 				const chunks = yield* Stream.runCollect(
 					Stream.take(
-						client.copyTo("copy (select g, repeat('x', 100) from generate_series(1, 10000000) g) to stdout"),
+						// PostgreSQL returns rows one by one when generate_series is in the select list.
+						// In FROM, it stores every row before it returns the first one.
+						client.copyTo(
+							"copy (select generate_series(1, 10000000) as g, repeat('x', 100)) to stdout",
+						),
 						1,
 					),
 				);

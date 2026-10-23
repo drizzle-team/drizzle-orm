@@ -312,7 +312,9 @@ export function* copyRowsBinary(
 					encs[c]!(w, v);
 				} catch (e) {
 					if (e !== MISMATCH) throw e;
-					throw new TypeError(`copy: row ${r}, column "${names[c]}" — value is incompatible with its declared type`);
+					throw new TypeError(`copy: row ${r}, column "${names[c]}" — value is incompatible with its declared type`, {
+						cause: e,
+					});
 				}
 			}
 		}

@@ -26,7 +26,7 @@ describe('rawParams()', () => {
 			], { mode: 'object' });
 			expect(r.rows[0]).toEqual(normal.rows[0]);
 		} finally {
-			c.end();
+			await c.end();
 		}
 	}, TEST_TIMEOUT);
 
@@ -50,7 +50,7 @@ describe('rawParams()', () => {
 			});
 			expect(all.rows[0]).toEqual({ a: 300n, b: -7 });
 		} finally {
-			c.end();
+			await c.end();
 		}
 	}, TEST_TIMEOUT);
 
@@ -64,7 +64,7 @@ describe('rawParams()', () => {
 			expect(new Parser().push(stream).map((m) => m.type)).toEqual(['T', 'D', 'C']);
 			expect(stream.toString('latin1')).toContain('gateway-bytes');
 		} finally {
-			c.end();
+			await c.end();
 		}
 	}, TEST_TIMEOUT);
 
@@ -82,7 +82,7 @@ describe('rawParams()', () => {
 			);
 			expect((bad as Error).message).toMatch(/binary|format|insufficient/i);
 		} finally {
-			c.end();
+			await c.end();
 		}
 	}, TEST_TIMEOUT);
 });

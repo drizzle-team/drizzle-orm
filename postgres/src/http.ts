@@ -133,6 +133,7 @@ export class HttpClient {
 		const h: Record<string, string> = {
 			'Content-Type': 'application/json',
 			// EXPLICIT: any Accept mentioning json flips the gateway to casual (decoded JSON) mode
+			// The httpostgres gateway defines this media type.
 			Accept: 'application/vnd.minipg.pgwire',
 		};
 		const t = typeof this.cfg.token === 'function' ? await this.cfg.token() : this.cfg.token;

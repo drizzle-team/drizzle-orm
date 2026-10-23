@@ -61,7 +61,7 @@ async function compliant(sql: string, opts: AnyOpts): Promise<void> {
 			);
 		expect(got.rows).toEqual(expected.rows);
 	} finally {
-		wire.end();
+		await wire.end();
 	}
 }
 

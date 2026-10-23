@@ -260,6 +260,7 @@ export const fromPool = Effect.fnUntraced(
 			Effect.withSpan(effect, spanName, spanOptions(operation, text));
 
 		const metrics = config.metrics === true;
+		// oxlint-disable-next-line typescript/no-useless-default-assignment -- JavaScript callers can omit both
 		const query = ((sql: string, params: Params = [], options: QueryOptions = {}) =>
 			traced(
 				'query',
@@ -377,12 +378,21 @@ export const fromPool = Effect.fnUntraced(
 		const all = <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>) =>
 			Effect.all(effects, { concurrency: 'unbounded' });
 		const batch = <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>) => withTransaction(all(effects));
+		// Effect.all interrupts the other statements when one fails, and an interrupt cancels the running one
+		// on the server. Each pipeline statement commits on its own, so all of them run to the end, and the
+		// first failure in statement order is the result.
+		const allSettled = <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>) =>
+			Effect.flatMap(
+				Effect.all(Array.from(effects, (effect) => Effect.exit(effect)), { concurrency: 'unbounded' }),
+				(exits) => Effect.all(exits),
+			);
 		const pipeline = <A, E, R>(effects: Iterable<Effect.Effect<A, E, R>>) =>
 			Effect.flatMap(Effect.serviceOption(client.transactionService), (tx) =>
 				Option.isSome(tx)
-					? all(effects)
+					? allSettled(effects)
 					: Effect.scoped(
-						Effect.flatMap(poolConnection, (conn) => Effect.provideService(all(effects), pipelineConnection, conn)),
+						Effect.flatMap(poolConnection, (conn) =>
+							Effect.provideService(allSettled(effects), pipelineConnection, conn)),
 					));
 
 		return Object.assign(client, {

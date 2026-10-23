@@ -32,6 +32,12 @@ const insert = (id: number) =>
 		const sql = yield* SqlClient;
 		yield* sql`insert into ${sql(T)} values (${id})`;
 	});
+// Still running when the statement before it fails.
+const slowInsert = (id: number) =>
+	Effect.gen(function*() {
+		const sql = yield* SqlClient;
+		yield* sql`insert into ${sql(T)} select ${id} from pg_sleep(0.3)`;
+	});
 const backendPid = Effect.gen(function*() {
 	const sql = yield* SqlClient;
 	const [row] = yield* sql<{ pid: number }>`select pg_backend_pid() as pid`;
@@ -69,7 +75,7 @@ describe('pipeline', () => {
 	test('a failed statement does not undo the others', async () => {
 		const exit = await runTest(Effect.exit(Effect.gen(function*() {
 			const client = yield* DrizzlePostgresClient.DrizzlePostgresClient;
-			return yield* client.pipeline([insert(1), insert(2), insert(1), insert(3)]);
+			return yield* client.pipeline([insert(1), insert(2), insert(1), slowInsert(3)]);
 		})));
 		expect(Exit.isFailure(exit)).toBe(true);
 		expect(await ids()).toEqual([1, 2, 3]);

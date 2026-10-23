@@ -1,12 +1,9 @@
 // Runnable Drizzle Postgres examples against the local test cluster.
 // Start the cluster once with `bun run test:setup`, then: bun index.ts
-import { Json, Pool } from './src/index.ts';
+import { Pool } from './src/index.ts';
 import type { Plugin } from './src/plugin.ts';
 
-const sqlLog: Plugin = {
-	name: 'sql-log',
-	onQueryStart: (i) => void console.log('→', i.sql, i.prepared ? '(reuse)' : ''),
-};
+const sqlLog: Plugin = { name: 'sql-log', onQueryStart: (i) => console.log('→', i.sql, i.prepared ? '(reuse)' : '') };
 const c = new Pool({
 	path: '/tmp/postgres_sock/.s.PGSQL.54329',
 	user: 'postgres',

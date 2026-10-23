@@ -231,7 +231,7 @@ describe('copyTo — COPY … TO STDOUT raw byte relay', () => {
 			expect(await it.result).toEqual({ command: 'COPY', rowCount: 1000 });
 			expect((await c.query('select 7::int4 as x', [], { mode: 'object' })).rows[0]).toEqual({ x: 7 }); // connection reusable
 		} finally {
-			c.end();
+			await c.end();
 		}
 	}, TEST_TIMEOUT);
 
@@ -261,8 +261,8 @@ describe('copyTo — COPY … TO STDOUT raw byte relay', () => {
 		} finally {
 			await src.query('drop table if exists cto_src').catch(() => {});
 			await dst.query('drop table if exists cto_dst').catch(() => {});
-			src.end();
-			dst.end();
+			await src.end();
+			await dst.end();
 		}
 	}, TEST_TIMEOUT);
 
@@ -281,7 +281,7 @@ describe('copyTo — COPY … TO STDOUT raw byte relay', () => {
 			await expect(it.result).rejects.toThrow();
 			expect((await c.query('select 1::int4 as x')).rows.length).toBe(1); // connection survives
 		} finally {
-			c.end();
+			await c.end();
 		}
 	}, TEST_TIMEOUT);
 
@@ -297,7 +297,7 @@ describe('copyTo — COPY … TO STDOUT raw byte relay', () => {
 			expect(first).not.toBeNull();
 			expect((await c.query('select 42::int4 as x', [], { mode: 'object' })).rows[0]).toEqual({ x: 42 });
 		} finally {
-			c.end();
+			await c.end();
 		}
 	}, TEST_TIMEOUT);
 
@@ -308,7 +308,7 @@ describe('copyTo — COPY … TO STDOUT raw byte relay', () => {
 			for await (const _ of c.copyTo('copy (select g from generate_series(1, 20000) g) to stdout')) break;
 			expect((await c.query('commit')).command).toBe('COMMIT');
 		} finally {
-			c.end();
+			await c.end();
 		}
 	}, TEST_TIMEOUT);
 });

@@ -15,7 +15,7 @@ async function wireBody(...sqls: string[]): Promise<Buffer> {
 		for (const sql of sqls) for (const f of await c.query(sql, [], { mode: 'wire' })) parts.push(Buffer.from(f));
 		return Buffer.concat(parts);
 	} finally {
-		c.end();
+		await c.end();
 	}
 }
 const frame = (tag: string, body: Buffer): Buffer => {

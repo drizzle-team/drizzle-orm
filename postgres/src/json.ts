@@ -509,12 +509,7 @@ const SKIPOBJEND =
 // multiple/nested markers can share one function scope. ----
 
 // Assign the value at the cursor into `target`, advancing jp. Nested markers recurse inline.
-function inlineValue(
-	field: string | JsonMarker | TransformMarker,
-	target: string,
-	type: 'json' | 'jsonb',
-	ctx: { n: number },
-): string {
+function inlineValue(field: string | JsonMarker | TransformMarker, target: string, ctx: { n: number }): string {
 	if (isTransformMarker(field)) field = field.type; // decode the base type; the fn runs post-decode via the transform walk
 	if (isJsonMarker(field)) {
 		if (!specHasPrecision(field.spec)) { // nested shape with no exact value -> JSON.parse its sub-slice
@@ -532,7 +527,7 @@ function inlineValue(
 		const id = ctx.n++, F = `_jrd${id}`, A = `_ja${id}`, EL = `_jel${id}`, C = `_jac${id}`;
 		return `${SKIPWS} if (jb[jp] === 110) { ${target} = null; jp += 4 } else { const ${F} = () => { jp++; const ${A} = []; ${SKIPWS} `
 			+ `if (jb[jp] === 93) { jp++ } else { while (jp < je) { let ${EL} = null; ${SKIPWS} `
-			+ `if (jb[jp] === 91) { ${EL} = ${F}() } else { ${inlineValue(elemField, EL, type, ctx)}; } ${A}.push(${EL}); `
+			+ `if (jb[jp] === 91) { ${EL} = ${F}() } else { ${inlineValue(elemField, EL, ctx)}; } ${A}.push(${EL}); `
 			+ `${SKIPWS} const ${C} = jb[jp]; if (${C} === 44) { jp++; continue } if (${C} === 93) { jp++; break } break } } return ${A} }; ${target} = ${F}(); }`;
 	}
 	const tt = temporalTarget(pg, js);
@@ -604,7 +599,7 @@ function inlineObject(spec: JsonSpec, type: 'json' | 'jsonb', target: string, ct
 				? `${SKIPSTR} ${SKIPWS} jp++; ${SKIPWS}`
 				: `${SKIPWS} jp++; ${SKIPWS} ${SKIPSTR} ${SKIPWS} jp++; ${SKIPWS}`,
 		);
-		fields.push(`${inlineValue(field, vs[di]!, type, ctx)};`);
+		fields.push(`${inlineValue(field, vs[di]!, ctx)};`);
 	});
 	return `${SKIPWS} if (jb[jp] === 110) { ${target} = null; jp += 4 } else { jp++; let ${
 		vs.map((v) => `${v} = null`).join(', ')

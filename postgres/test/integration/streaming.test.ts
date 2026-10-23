@@ -295,7 +295,9 @@ describe('streaming :: early break / cancel / drain semantics', () => {
 		await withConn(async (c) => {
 			const pid = c.backendKey!.pid;
 			let n = 0;
-			for await (const _ of c.stream('select g from generate_series(1, 100000000) g')) {
+			// PostgreSQL returns rows one by one when generate_series is in the select list.
+			// In FROM, it stores every row before it returns the first one.
+			for await (const _ of c.stream('select generate_series(1, 100000000) as g')) {
 				if (++n === 10) break;
 			}
 			await withConn(async (observer) => {

@@ -1,9 +1,5 @@
 node_modules
 
-# issue-cache local data
-issue-cache/.pgdata/
-issue-cache/corpus.json
-issue-cache/*.jsonl
 .DS_Store
 
 # local test postgres
@@ -24,3 +20,6 @@ sst-env.d.ts
 
 # README examples written by test/integration/effect-readme.test.ts
 test/.readme-examples/
+
+# deno test writes this file
+deno.lock

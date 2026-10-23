@@ -371,6 +371,7 @@ describe('sslmode named strings (live cluster, self-signed cert)', () => {
 					ca: SERVER_CA,
 					rejectUnauthorized: true,
 					servername: 'wrong.example',
+					// oxlint-disable-next-line unicorn/no-useless-undefined -- the tls type of checkServerIdentity needs an Error or undefined result
 					checkServerIdentity: () => undefined,
 				},
 			});
@@ -540,7 +541,7 @@ describe('SCRAM channel binding (SCRAM-SHA-256-PLUS, tls-server-end-point)', () 
 	describe('require over a CUSTOM socket transport', () => {
 		// plain TCP -> SSLRequest -> 'S' -> tls.connect on the same socket: what any self-TLS transport does
 		const starttls = () =>
-			new Promise<import('node:tls').TLSSocket>((resolve, reject) => {
+			new Promise<tls.TLSSocket>((resolve, reject) => {
 				const { host, port } = TEST_CONFIG as { host: string; port: number };
 				const raw = net.connect({ host, port }, () => {
 					const req = Buffer.alloc(8);

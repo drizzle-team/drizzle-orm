@@ -2,7 +2,8 @@
 // isolation options, nested SAVEPOINTs, and pipelining inside a transaction. Writes go to CONNECTION-
 // SCOPED temp tables; every connection/pool is ended.
 import { describe, expect, test } from 'bun:test';
-import { caught, PgError, testPool, withConn } from '../../helpers/db.ts';
+import type { PgError } from '../../helpers/db.ts';
+import { caught, testPool, withConn } from '../../helpers/db.ts';
 
 const cell = (r: { rows: unknown[] }, k: string) => (r.rows[0] as Record<string, unknown>)[k];
 const count = async (

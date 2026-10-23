@@ -1,3 +1,4 @@
+// oxlint-disable-next-line typescript/triple-slash-reference -- SST generates these types and loads them through this reference
 /// <reference path="./.sst/platform/config.d.ts" />
 
 // SST v3 app: a scale-to-zero Aurora Serverless v2 PostgreSQL cluster with the RDS Data API enabled, for

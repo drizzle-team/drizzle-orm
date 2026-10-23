@@ -225,7 +225,7 @@ for (const s of SCENARIOS) {
 	const parsed = (JSON.parse(big.toString('utf8')) as any).id;
 	console.log(
 		`\nprecision: raw='${shaped}'  vs  JSON.parse=${parsed}  (JSON.parse ${
-			shaped === '9007199254740993' && parsed !== 9007199254740993 ? 'LOSES' : ''
+			shaped === '9007199254740993' && String(parsed) !== shaped ? 'LOSES' : ''
 		} the low digits)\n`,
 	);
 }
