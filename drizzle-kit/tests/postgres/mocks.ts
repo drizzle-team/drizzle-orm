@@ -8,6 +8,7 @@ import {
 	PgDialect,
 	PgEnum,
 	PgEnumObject,
+	PgFunction,
 	PgMaterializedView,
 	PgPolicy,
 	PgRole,
@@ -136,8 +137,9 @@ export const drizzleToDDL = (
 	const policies = Object.values(schema).filter((it) => is(it, PgPolicy)) as PgPolicy[];
 	const views = Object.values(schema).filter((it) => isPgView(it)) as PgView[];
 	const materializedViews = Object.values(schema).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
+	const functions = Object.values(schema).filter((it) => is(it, PgFunction)) as PgFunction[];
 
-	const grouped = { schemas, tables, enums, sequences, roles, policies, views, matViews: materializedViews };
+	const grouped = { schemas, tables, enums, sequences, roles, policies, views, matViews: materializedViews, functions };
 
 	const existing = extractPostgresExisting(schemas, views, materializedViews);
 	const filter = prepareEntityFilter('postgresql', filtersConfig, existing);
