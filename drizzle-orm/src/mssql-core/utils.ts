@@ -1,6 +1,6 @@
 import { is } from '~/entity.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { Table } from '~/table.ts';
+import { Comment, Table } from '~/table.ts';
 import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
@@ -31,6 +31,7 @@ export function getTableConfig(table: MsSqlTable) {
 	const baseName = table[Table.Symbol.BaseName];
 
 	const extraConfigBuilder = table[MsSqlTable.Symbol.ExtraConfigBuilder];
+	let comment: string | undefined;
 
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[MsSqlTable.Symbol.Columns]);
@@ -46,6 +47,8 @@ export function getTableConfig(table: MsSqlTable) {
 				primaryKeys.push(builder.build(table));
 			} else if (is(builder, ForeignKeyBuilder)) {
 				foreignKeys.push(builder.build(table));
+			} else if (is(builder, Comment)) {
+				comment = builder.value;
 			} else {
 				throwUnknownExtraConfigValue(name, builder);
 			}
@@ -62,6 +65,7 @@ export function getTableConfig(table: MsSqlTable) {
 		name,
 		schema,
 		baseName,
+		comment,
 	};
 }
 

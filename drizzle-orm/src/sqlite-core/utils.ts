@@ -1,6 +1,6 @@
 import { is } from '~/entity.ts';
 import type { AnyRelations } from '~/relations.ts';
-import { Table } from '~/table.ts';
+import { Comment, Table } from '~/table.ts';
 import { throwUnknownExtraConfigValue } from '~/table.utils.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
@@ -28,6 +28,7 @@ export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 	const name = table[Table.Symbol.Name];
 
 	const extraConfigBuilder = table[SQLiteTable.Symbol.ExtraConfigBuilder];
+	let comment: string | undefined;
 
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[SQLiteTable.Symbol.Columns]);
@@ -43,6 +44,8 @@ export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 				primaryKeys.push(builder.build(table));
 			} else if (is(builder, ForeignKeyBuilder)) {
 				foreignKeys.push(builder.build(table));
+			} else if (is(builder, Comment)) {
+				comment = builder.value;
 			} else {
 				throwUnknownExtraConfigValue(name, builder);
 			}
@@ -57,6 +60,7 @@ export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 		primaryKeys,
 		uniqueConstraints,
 		name,
+		comment,
 	};
 }
 

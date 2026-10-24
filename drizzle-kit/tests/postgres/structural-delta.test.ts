@@ -246,7 +246,7 @@ describe('canonical form', () => {
 });
 
 describe('validate', () => {
-	const table = { entityType: 'tables', schema: 'public', name: 'users', isRlsEnabled: false };
+	const table = { entityType: 'tables', schema: 'public', name: 'users', isRlsEnabled: false, comment: null };
 
 	test('rejects an entity type that is a name every object inherits', () => {
 		const ddl = createDDL();

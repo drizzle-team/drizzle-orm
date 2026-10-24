@@ -88,6 +88,7 @@ export const fromDrizzleSchema = (
 			entityType: 'tables',
 			schema: config.schema ?? 'dbo',
 			name: config.name,
+			comment: config.comment ?? null,
 		} satisfies MssqlEntities['tables'];
 	});
 
@@ -189,6 +190,7 @@ export const fromDrizzleSchema = (
 				isPK: column.primary,
 				isUnique: column.isUnique,
 				uniqueName: column.uniqueName ?? null,
+				comment: column.comment ?? null,
 			});
 
 			if (typeof column.default !== 'undefined') {

@@ -85,6 +85,7 @@ export const columnRow = (table: string, name: string, type = 'integer', notNull
 	default: null,
 	generated: null,
 	identity: null,
+	comment: null,
 });
 
 export const schemaState = (schema: PostgresSchema) => {

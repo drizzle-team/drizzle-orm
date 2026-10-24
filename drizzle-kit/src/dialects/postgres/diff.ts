@@ -789,8 +789,30 @@ export const ddlDiff = async (
 		}
 	}
 
+	const jsonCommentOnTables = alters
+		.filter((it) => it.entityType === 'tables' && it.comment && it.comment.from !== it.comment.to)
+		.map((it) => {
+			return prepareStatement('comment_on_table', {
+				schema: it.schema,
+				table: it.name,
+				comment: it.comment!.to ?? null,
+			});
+		});
+
+	const jsonCommentOnColumns = columnAlters
+		.filter((it) => it.comment && it.comment.from !== it.comment.to)
+		.map((it) => {
+			return prepareStatement('comment_on_column', {
+				schema: it.schema,
+				table: it.table,
+				column: it.name,
+				comment: it.comment!.to ?? null,
+			});
+		});
+
 	const jsonAlterColumns = columnAlters.filter((it) => !(it.generated && it.generated.to !== null))
 		.filter((it) => {
+			if (it.comment) delete it.comment;
 			// if column is of type enum we're about to recreate - we will reset default anyway
 			if (
 				it.default
@@ -1048,6 +1070,7 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropFKs.filter((it) => isMoved(it.fk)));
 	jsonStatements.push(...jsonAlterRlsStatements);
 	jsonStatements.push(...jsonRenameColumnsStatements);
+	jsonStatements.push(...jsonCommentOnTables);
 
 	jsonStatements.push(...jsonDropUniqueConstraints);
 	jsonStatements.push(...jsonDropCheckConstraints);
@@ -1069,6 +1092,7 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropColumnsStatemets);
 	jsonStatements.push(...jsonAlteredPKs);
 	jsonStatements.push(...jsonAlterColumns);
+	jsonStatements.push(...jsonCommentOnColumns);
 
 	jsonStatements.push(...jsonRecreateIndex);
 
