@@ -37,6 +37,7 @@ const table = (name: string, schema = 'public') =>
 		checks: [],
 		policies: [],
 		isRlsEnabled: false,
+		comment: null,
 	}) satisfies Table;
 
 const column = (tableName: string, name: string, schema = 'public', overrides: Partial<Column> = {}) =>
@@ -51,6 +52,7 @@ const column = (tableName: string, name: string, schema = 'public', overrides: P
 		default: null,
 		generated: null,
 		identity: null,
+		comment: null,
 		entityType: 'columns' as const,
 		...overrides,
 	}) satisfies Column;

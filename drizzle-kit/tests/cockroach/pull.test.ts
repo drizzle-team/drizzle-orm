@@ -917,6 +917,7 @@ test('pull after migrate with custom migrations table #1', async ({ db }) => {
 			isRlsEnabled: false,
 			name: 'users',
 			schema: 'drizzle',
+			comment: null,
 		},
 		{
 			columns: [
@@ -970,6 +971,7 @@ test('pull after migrate with custom migrations table #2', async ({ db }) => {
 			isRlsEnabled: false,
 			name: 'users',
 			schema: 'public',
+			comment: null,
 		},
 		{
 			columns: [
@@ -1033,12 +1035,14 @@ test('pull after migrate with custom migrations table #3', async ({ db }) => {
 			isRlsEnabled: false,
 			name: 'users',
 			schema: 'custom',
+			comment: null,
 		},
 		{
 			entityType: 'tables',
 			isRlsEnabled: false,
 			name: 'users',
 			schema: 'public',
+			comment: null,
 		},
 		{
 			columns: [

@@ -43,7 +43,7 @@ export const upToV2 = (it: Record<string, any>): SingleStoreSnapshot => {
 	const ddl = createDDL();
 
 	for (const table of Object.values(json.tables)) {
-		ddl.tables.push({ name: table.name });
+		ddl.tables.push({ name: table.name, comment: null });
 
 		for (const column of Object.values(table.columns)) {
 			let def = typeof column.default === 'undefined' ? null : String(column.default);
@@ -73,6 +73,7 @@ export const upToV2 = (it: Record<string, any>): SingleStoreSnapshot => {
 				charSet: null,
 				collation: null,
 				onUpdateNowFsp: null,
+				comment: null,
 			});
 		}
 	}

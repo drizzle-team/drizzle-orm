@@ -54,6 +54,7 @@ export interface PgColumnBuilderRuntimeConfig<TData> {
 	generated: GeneratedColumnConfig<TData> | undefined;
 	generatedIdentity: GeneratedIdentityConfig | undefined;
 	dimensions?: PgArrayDimension;
+	comment: string | undefined;
 }
 
 // TODO: remove isAutoincrement and hasRuntimeDefault
@@ -199,6 +200,7 @@ export abstract class PgColumnBuilder<
 			defaultFn: undefined,
 			onUpdateFn: undefined,
 			generatedIdentity: undefined,
+			comment: undefined,
 		} as PgColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 	}
 
@@ -286,6 +288,14 @@ export abstract class PgColumnBuilder<
 		this.config.primaryKey = true;
 		this.config.notNull = true;
 		return this as SetIsPrimaryKey<this>;
+	}
+
+	/**
+	 * Adds a comment to the column definition.
+	 */
+	comment(text: string): this {
+		this.config.comment = text;
+		return this;
 	}
 
 	/** @internal Sets the name of the column to the key within the table definition if a name was not given. */

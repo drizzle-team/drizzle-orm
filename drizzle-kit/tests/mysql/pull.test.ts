@@ -758,7 +758,7 @@ test('introspect view with table filter', async () => {
 		() => {},
 		{ schema: 'drizzle', table: '__drizzle_migrations' },
 	));
-	const expectedTables = [{ entityType: 'tables', name: 'table1' }];
+	const expectedTables = [{ entityType: 'tables', name: 'table1', comment: null }];
 	expect(tables).toStrictEqual(expectedTables);
 	expect(views).toStrictEqual([]);
 
@@ -767,6 +767,7 @@ test('introspect view with table filter', async () => {
 		schemas: undefined,
 		entities: undefined,
 		extensions: undefined,
+		comment: null,
 	}, []);
 	({ tables, views } = await fromDatabaseForDrizzle(
 		db,
@@ -838,6 +839,7 @@ test('pull after migrate with custom migrations table #1', async () => {
 		{
 			entityType: 'tables',
 			name: 'users',
+			comment: null,
 		},
 		{
 			columns: [
@@ -880,6 +882,7 @@ test('pull after migrate with custom migrations table #2', async () => {
 		{
 			entityType: 'tables',
 			name: 'users',
+			comment: null,
 		},
 		{
 			columns: [
@@ -1097,10 +1100,12 @@ CREATE USER 'ghost_user'@'%' IDENTIFIED BY 'temp123';`);
 		{
 			entityType: 'tables',
 			name: 'base_table',
+			comment: null,
 		},
 		{
 			entityType: 'tables',
 			name: 'my_table',
+			comment: null,
 		},
 		{
 			autoIncrement: false,
@@ -1115,6 +1120,7 @@ CREATE USER 'ghost_user'@'%' IDENTIFIED BY 'temp123';`);
 			onUpdateNowFsp: null,
 			table: 'base_table',
 			type: 'int',
+			comment: null,
 		},
 		{
 			autoIncrement: false,
@@ -1129,6 +1135,7 @@ CREATE USER 'ghost_user'@'%' IDENTIFIED BY 'temp123';`);
 			onUpdateNowFsp: null,
 			table: 'base_table',
 			type: 'varchar(50)',
+			comment: null,
 		},
 		{
 			autoIncrement: true,
@@ -1143,6 +1150,7 @@ CREATE USER 'ghost_user'@'%' IDENTIFIED BY 'temp123';`);
 			onUpdateNowFsp: null,
 			table: 'my_table',
 			type: 'int',
+			comment: null,
 		},
 		{
 			autoIncrement: false,
@@ -1157,6 +1165,7 @@ CREATE USER 'ghost_user'@'%' IDENTIFIED BY 'temp123';`);
 			onUpdateNowFsp: null,
 			table: 'my_table',
 			type: 'int',
+			comment: null,
 		},
 		{
 			columns: [

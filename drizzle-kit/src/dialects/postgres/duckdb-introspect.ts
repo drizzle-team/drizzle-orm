@@ -182,6 +182,7 @@ export const fromDatabase = async (
 			schema: trimChar(table.schema, "'"),
 			name: table.name,
 			isRlsEnabled: false,
+			comment: null,
 		});
 	}
 
@@ -556,6 +557,7 @@ export const fromDatabase = async (
 			pkName: pk !== null ? pk.name : null,
 			generated: null,
 			identity: null,
+			comment: null,
 		});
 	}
 

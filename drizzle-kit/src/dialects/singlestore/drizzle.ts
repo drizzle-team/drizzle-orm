@@ -61,6 +61,7 @@ export const fromDrizzleSchema = (
 		result.tables.push({
 			entityType: 'tables',
 			name: tableName,
+			comment: getTableConfig(table).comment || null,
 		});
 
 		for (const column of columns) {
@@ -101,6 +102,7 @@ export const fromDrizzleSchema = (
 				isPK: column.primary,
 				isUnique: column.isUnique,
 				default: defaultFromColumn(column),
+				comment: column.comment || null,
 			});
 		}
 

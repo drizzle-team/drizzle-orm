@@ -181,7 +181,9 @@ export function validateRow(data: any, def: Def, deep = false): boolean {
 			if (!Array.isArray(data[k]) || !data[k].every((e: any) => typeof e === 'string')) return false;
 		} else if (typeof f === 'string') {
 			const nullable = f.endsWith('?');
-			if (data[k] === null) {
+			if (data[k] === undefined) {
+				if (!nullable) return false;
+			} else if (data[k] === null) {
 				if (!nullable) return false;
 			} else if (typeof data[k] !== nonNullableType(f)) return false;
 		} else if (Array.isArray(f)) {

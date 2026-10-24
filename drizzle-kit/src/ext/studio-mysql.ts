@@ -26,6 +26,7 @@ export type InterimTable = {
 	checks: Interim<CheckConstraint>[];
 	pks: Interim<PrimaryKey>[];
 	fks: Interim<ForeignKey>[];
+	comment?: string | null;
 };
 
 export type InterimView = {
@@ -49,6 +50,7 @@ const fromInterims = ({
 	const tbls: MysqlEntities['tables'][] = tables.map((it) => ({
 		entityType: 'tables',
 		name: it.name,
+		comment: it.comment ?? null,
 	}));
 	const columns: InterimColumn[] = tables
 		.map((table) => {
