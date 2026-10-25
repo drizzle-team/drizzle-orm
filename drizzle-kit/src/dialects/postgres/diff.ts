@@ -71,6 +71,37 @@ export function normalizeFunctionReturn(returns: string): string {
 	);
 }
 
+const quotePgName = (value: string) => `"${value.replace(/"/g, '""')}"`;
+
+const qualifiedTableName = (schema: string, name: string) => `${quotePgName(schema)}.${quotePgName(name)}`;
+
+const stripArrayDimensions = (type: string) => type.replace(/(\[\])+$/, '');
+
+export function functionSignatureDependsOnTable(
+	fn: PostgresEntities['functions'],
+	ddl: PostgresDDL,
+): boolean {
+	const tableNames = new Set(
+		ddl.tables.list().map((table) => qualifiedTableName(table.schema, table.name)),
+	);
+
+	const typeReferencesTable = (type: string): boolean => {
+		const base = stripArrayDimensions(type.trim());
+		if (/%TYPE/i.test(base)) return true;
+		return tableNames.has(base);
+	};
+
+	const returns = fn.returns.trim();
+	if (/^SETOF\s+/i.test(returns)) {
+		const inner = returns.replace(/^SETOF\s+/i, '').trim();
+		if (typeReferencesTable(inner)) return true;
+	}
+
+	if (typeReferencesTable(returns)) return true;
+
+	return fn.args.some((arg) => typeReferencesTable(arg.type));
+}
+
 const normalizeFunctionForDiff = (fn: PostgresEntities['functions']) => ({
 	...fn,
 	args: fn.args.map((arg) => ({
@@ -737,13 +768,35 @@ export const ddlDiff = async (
 		or they get automatically deleted when table is deleted
 	*/
 
-	const jsonCreateFunctions = createdFunctions.map((it) => prepareStatement('create_function', { function: it }));
+	const functionDependsOnTable = (fn: PostgresEntities['functions']) => functionSignatureDependsOnTable(fn, ddl2);
+
+	const jsonCreateFunctionsEarly = createdFunctions
+		.filter((it) => !functionDependsOnTable(it))
+		.map((it) => prepareStatement('create_function', { function: it }));
+	const jsonCreateFunctionsLate = createdFunctions
+		.filter((it) => functionDependsOnTable(it))
+		.map((it) => prepareStatement('create_function', { function: it }));
 	const jsonDropFunctions = deletedFunctions.map((it) => prepareStatement('drop_function', { function: it }));
-	const jsonAlterFunctions = alteredFunctions.map((it) => {
-		const oldFunction = it.$left as PostgresEntities['functions'];
-		const newFunction = it.$right as PostgresEntities['functions'];
-		return prepareStatement('alter_function', { oldFunction, newFunction });
-	});
+	const jsonAlterFunctionsEarly = alteredFunctions
+		.filter((it) => !functionDependsOnTable(it.$right as PostgresEntities['functions']))
+		.map((it) => {
+			const oldFunction = it.$left as PostgresEntities['functions'];
+			const newFunction = it.$right as PostgresEntities['functions'];
+			return prepareStatement('alter_function', { oldFunction, newFunction });
+		});
+	const jsonAlterFunctionsLate = alteredFunctions
+		.filter((it) => functionDependsOnTable(it.$right as PostgresEntities['functions']))
+		.map((it) => {
+			const oldFunction = it.$left as PostgresEntities['functions'];
+			const newFunction = it.$right as PostgresEntities['functions'];
+			return prepareStatement('alter_function', { oldFunction, newFunction });
+		});
+
+	const jsonEarlyFunctionStatements: JsonStatement[] = [];
+	if (jsonCreateFunctionsEarly.length > 0 || jsonAlterFunctionsEarly.length > 0) {
+		jsonEarlyFunctionStatements.push(prepareStatement('set_check_function_bodies', { off: true }));
+	}
+	jsonEarlyFunctionStatements.push(...jsonCreateFunctionsEarly, ...jsonAlterFunctionsEarly);
 
 	const tablesFilter = (type: 'deleted' | 'created') => {
 		return (it: { schema: string; table: string }) => {
@@ -1301,7 +1354,11 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonGrantPrivileges);
 	jsonStatements.push(...jsonAlterPrivileges);
 
+	jsonStatements.push(...jsonEarlyFunctionStatements);
+
 	jsonStatements.push(...createTables);
+	jsonStatements.push(...jsonCreateFunctionsLate);
+	jsonStatements.push(...jsonAlterFunctionsLate);
 
 	jsonStatements.push(...jsonDropViews);
 	jsonStatements.push(...jsonRenameViews);
@@ -1351,9 +1408,6 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonCreatedCheckConstraints);
 
 	jsonStatements.push(...jsonAlterCheckConstraints);
-
-	jsonStatements.push(...jsonCreateFunctions);
-	jsonStatements.push(...jsonAlterFunctions);
 
 	jsonStatements.push(...createViews);
 

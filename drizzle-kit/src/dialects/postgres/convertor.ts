@@ -1224,6 +1224,10 @@ function renderDropFunction(fn: PostgresEntities['functions']): string {
 	return `DROP FUNCTION ${qualifiedName}(${identityArgs});`;
 }
 
+const setCheckFunctionBodiesConvertor = convertor('set_check_function_bodies', (st) => {
+	return `SET check_function_bodies = ${st.off ? 'off' : 'on'};\n`;
+});
+
 const createFunctionConvertor = convertor('create_function', (st) => {
 	const { function: fn } = st;
 	return renderFunction(fn, 'create');
@@ -1320,6 +1324,7 @@ const convertors = [
 	alterPolicyConvertor,
 	recreatePolicy,
 	toggleRlsConvertor,
+	setCheckFunctionBodiesConvertor,
 	createFunctionConvertor,
 	alterFunctionConvertor,
 	dropFunctionConvertor,

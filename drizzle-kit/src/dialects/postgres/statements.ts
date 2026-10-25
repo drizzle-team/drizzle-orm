@@ -401,6 +401,11 @@ export interface JsonAlterFunction {
 	newFunction: PostgresEntities['functions'];
 }
 
+export interface JsonSetCheckFunctionBodies {
+	type: 'set_check_function_bodies';
+	off: boolean;
+}
+
 export type JsonStatement =
 	| JsonCreateTable
 	| JsonDropTable
@@ -463,7 +468,8 @@ export type JsonStatement =
 	| JsonRecreateIndex
 	| JsonCreateFunction
 	| JsonDropFunction
-	| JsonAlterFunction;
+	| JsonAlterFunction
+	| JsonSetCheckFunctionBodies;
 
 export const prepareStatement = <
 	TType extends JsonStatement['type'],
