@@ -272,6 +272,235 @@ export const fromDatabase = async (
 		throw err;
 	});
 
+	const volatilityMap = {
+		v: 'volatile',
+		s: 'stable',
+		i: 'immutable',
+	} as const;
+
+	const parallelMap = {
+		u: 'unsafe',
+		r: 'restricted',
+		s: 'safe',
+	} as const;
+
+	type FunctionListItem = {
+		// Basic function information
+		oid: string;
+		schema: string;
+		name: string;
+		language: string;
+		kind: 'f';
+
+		// Args information
+		arg_names: string[] | null;
+		arg_types: string[];
+		num_args: number;
+		num_default_args: number; // use this with the num_args to get first arg with default
+		default_args_expr: string | null;
+
+		// Return information, only using the pg_calculated_return unless something arises that needs to use the other fields to calculate
+		return_type: string;
+		arg_modes: ('i' | 'o' | 'b' | 'v' | 't')[] | null;
+		is_set: boolean;
+		pg_calculated_return: string;
+
+		// Attribute information
+		volatile_mode: keyof typeof volatilityMap;
+		is_security_definer: boolean;
+		is_strict: boolean;
+		parallel_mode: keyof typeof parallelMap;
+		config: Record<string, string>;
+
+		// Function body
+		body: string;
+		has_sql_body: boolean;
+
+		// Misc information
+		has_transform: boolean;
+	};
+
+	const functionsList = filteredNamespacesStringForSQL
+		? await db.query<FunctionListItem>(`
+SELECT
+  -- Basic function information
+  fn.oid::text AS "oid", -- some unique id may not be useful
+  namespace.nspname AS "schema",
+  fn.proname AS "name",
+  lang.lanname AS "language",
+  fn.prokind AS "kind",
+  
+  -- Args information
+  fn.proargnames AS "arg_names",
+  ARRAY(
+    SELECT pg_catalog.format_type(arg.type_oid, NULL)
+    FROM unnest(fn.proargtypes::oid[])
+        WITH ORDINALITY AS arg(type_oid, position)
+    ORDER BY arg.position
+  ) AS "arg_types",
+  fn.pronargs AS "num_args",
+  fn.pronargdefaults AS "num_default_args",
+  pg_catalog.pg_get_expr(fn.proargdefaults, 0) AS "default_args_expr",
+
+  -- Return information
+  pg_catalog.format_type(fn.prorettype, NULL) AS "return_type",
+  fn.proargmodes AS "arg_modes",
+  fn.proretset AS "is_set",
+  pg_catalog.pg_get_function_result(fn.oid) AS "pg_calculated_return",
+
+  -- Attribute information
+  fn.provolatile AS "volatile_mode",
+  fn.prosecdef AS "is_security_definer",
+  fn.proisstrict AS "is_strict",
+  fn.proparallel AS "parallel_mode",
+  COALESCE(
+    (
+      SELECT jsonb_object_agg(
+          config.option_name,
+          config.option_value
+      )
+      FROM pg_catalog.pg_options_to_table(fn.proconfig) AS config
+    ),
+    '{}'::jsonb
+  ) AS "config",
+
+  -- Function body
+  fn.prosrc AS "body",
+  (fn.prosqlbody IS NOT NULL) AS "has_sql_body",
+
+  -- Misc
+  COALESCE(cardinality(fn.protrftypes), 0) > 0 AS "has_transform"
+
+FROM pg_catalog.pg_proc AS fn
+JOIN pg_catalog.pg_namespace AS namespace
+  ON namespace.oid = fn.pronamespace
+JOIN pg_catalog.pg_language AS lang
+    ON lang.oid = fn.prolang
+WHERE fn.prokind = 'f'
+AND namespace.nspname IN (${filteredNamespacesStringForSQL})
+`).then((rows) => {
+			queryCallback('functions', rows, null);
+			return rows;
+		}).catch((error) => {
+			queryCallback('functions', [], error);
+			throw error;
+		})
+		: [];
+
+	for (const fn of functionsList) {
+		if (fn.kind !== 'f') {
+			throw new Error(`Function ${fn.schema}.${fn.name} is not a function`);
+		}
+
+		if (fn.has_transform) {
+			throw new Error(`Function ${fn.schema}.${fn.name} has a transform, not supported`);
+		}
+
+		if (fn.has_sql_body) {
+			throw new Error(`Function ${fn.schema}.${fn.name} declaration format not supported`);
+		}
+
+		let body = '';
+		let declare = null;
+		if (fn.language === 'sql') {
+			body = fn.body;
+		} else if (fn.language === 'plpgsql') {
+			body = fn.body; // TODO: Extract declare out of this body so .declare() defined functions match (or update parser to match them after built body)
+		} else {
+			throw new Error(`Unsupported language for ${fn.schema}.${fn.name}`);
+		}
+
+		functions.push({
+			entityType: 'functions',
+			schema: fn.schema,
+			functionName: fn.name,
+			name: fn.name,
+			identityArgs: fn.arg_types,
+			args: (() => {
+				const args = [];
+				const firstDefaultIndex = fn.num_args - fn.num_default_args;
+
+				if (fn.arg_modes?.some((mode) => mode !== 'i' && mode !== 't')) {
+					throw new Error(`Unsupported argument mode for ${fn.schema}.${fn.name}`);
+				}
+
+				const inputNames = fn.arg_modes
+					? fn.arg_names?.filter((_, i) => fn.arg_modes![i] === 'i') ?? []
+					: fn.arg_names ?? [];
+
+				if (inputNames.length !== fn.num_args || fn.arg_types.length !== fn.num_args) {
+					throw new Error(
+						`Invalid argument count for ${fn.schema}.${fn.name}`,
+					);
+				}
+
+				// TODO: Create a better expression splitter that handles more then this function
+				const defaultArgs = splitExpressions(fn.default_args_expr);
+
+				if (defaultArgs.length !== fn.num_default_args) {
+					throw new Error(`Expected ${fn.num_default_args} default arguments, but got ${defaultArgs.length}`);
+				}
+
+				for (let i = 0; i < fn.num_args; i++) {
+					const name = inputNames[i];
+
+					if (name === undefined || name === null || name === '') {
+						throw new Error(
+							`Unnamed argument at index ${i} in ${fn.schema}.${fn.name} not supported`,
+						);
+					}
+
+					const type = fn.arg_types[i];
+
+					const defaultExpr = i < firstDefaultIndex ? null : defaultArgs[i - firstDefaultIndex];
+
+					args.push({
+						name,
+						type,
+						default: defaultExpr,
+					});
+				}
+				return args; // TODO: Confirm this is normalized
+			})(),
+			declare,
+			returns: fn.pg_calculated_return, // TODO: Confirm this is normalized
+			language: fn.language,
+			volatility: volatilityMap[fn.volatile_mode],
+			security: fn.is_security_definer ? 'definer' : 'invoker',
+			nullInput: fn.is_strict ? 'strict' : 'called',
+			parallel: parallelMap[fn.parallel_mode],
+			searchPath: (() => {
+				const searchPath = fn.config['search_path'];
+
+				if (searchPath === undefined) {
+					return null;
+				}
+
+				if (searchPath.trim() === '' || searchPath.trim() === '""') {
+					return { values: [] };
+				}
+
+				const values = splitExpressions(searchPath).map((part) => {
+					const value = part.trim();
+
+					// Remove SQL identifier quotes and unescape embedded quotes
+					if (value.startsWith('"') && value.endsWith('"')) {
+						return value.slice(1, -1).replace(/""/g, '"');
+					}
+
+					return value.toLowerCase();
+				});
+
+				return { values };
+			})(),
+			configuration: Object.entries(fn.config)
+				.filter(([name]) => name !== 'search_path')
+				.sort(([a], [b]) => a.localeCompare(b))
+				.map(([name, value]) => ({ name, value })),
+			body,
+		});
+	}
+
 	type EnumListItem = {
 		oid: number | string;
 		name: string;
@@ -1166,6 +1395,7 @@ export const fromDatabase = async (
 
 	const resultSchemas = schemas.filter((x) => filter({ type: 'schema', name: x.name }));
 	const resultTables = tables.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));
+	const resultFunctions = functions.filter((x) => resultSchemas.some((s) => s.name === x.schema));
 	const resultEnums = enums.filter((x) => resultSchemas.some((s) => s.name === x.schema));
 	const resultColumns = columns.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
 	const resultIndexes = indexes.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
@@ -1183,7 +1413,7 @@ export const fromDatabase = async (
 	);
 
 	return {
-		functions,
+		functions: resultFunctions,
 		schemas: resultSchemas,
 		tables: resultTables,
 		enums: resultEnums,
