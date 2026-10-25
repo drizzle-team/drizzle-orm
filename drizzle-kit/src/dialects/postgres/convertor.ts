@@ -6,6 +6,7 @@ import type {
 } from 'drizzle-orm/pg-core';
 import { escapeSingleQuotes, type Simplify, wrapWith } from '../../utils';
 import type { PostgresEntities } from './ddl';
+import { normalizeFunctionReturn } from './diff';
 import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, isSerialType, mapSerialToInt } from './grammar';
 import type { JsonStatement } from './statements';
 
@@ -1229,7 +1230,7 @@ const createFunctionConvertor = convertor('create_function', (st) => {
 });
 
 function returnsMatch(oldFunction: PostgresEntities['functions'], newFunction: PostgresEntities['functions']): boolean {
-	return oldFunction.returns === newFunction.returns;
+	return normalizeFunctionReturn(oldFunction.returns) === normalizeFunctionReturn(newFunction.returns);
 }
 
 function argsMatch(oldFunction: PostgresEntities['functions'], newFunction: PostgresEntities['functions']): boolean {

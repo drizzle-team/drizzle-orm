@@ -58,12 +58,27 @@ const normalizeFunctionBody = (body: string) =>
 		.replace(/\r\n/g, '\n')
 		.replace(/^\n+|\n+$/g, '');
 
+// TODO: Make this SQL name aware
+export function normalizeFunctionReturn(returns: string): string {
+	if (!/^TABLE\s*\(/i.test(returns)) {
+		return returns;
+	}
+
+	// Normalize quoted lowercase output-column identifiers
+	return returns.replace(
+		/([,(]\s*)"([a-z_][a-z0-9_$]*)"(?=\s)/g,
+		'$1$2',
+	);
+}
+
 const normalizeFunctionForDiff = (fn: PostgresEntities['functions']) => ({
 	...fn,
 	args: fn.args.map((arg) => ({
 		...arg,
 		default: normalizeFunctionDefault(arg.default, arg.type),
 	})),
+
+	returns: normalizeFunctionReturn(fn.returns),
 
 	declare: null,
 	body: normalizeFunctionBody(renderFunctionSource(fn)),
