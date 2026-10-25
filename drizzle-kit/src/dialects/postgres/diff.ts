@@ -7,7 +7,7 @@ import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { isEqual } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
-import { fromJson } from './convertor';
+import { fromJson, renderFunctionSource } from './convertor';
 import type {
 	CheckConstraint,
 	Column,
@@ -53,12 +53,20 @@ function normalizeFunctionDefault(
 	return literal;
 }
 
+const normalizeFunctionBody = (body: string) =>
+	body
+		.replace(/\r\n/g, '\n')
+		.replace(/^\n+|\n+$/g, '');
+
 const normalizeFunctionForDiff = (fn: PostgresEntities['functions']) => ({
 	...fn,
 	args: fn.args.map((arg) => ({
 		...arg,
 		default: normalizeFunctionDefault(arg.default, arg.type),
 	})),
+
+	declare: null,
+	body: normalizeFunctionBody(renderFunctionSource(fn)),
 });
 
 export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode: 'default' | 'push') => {

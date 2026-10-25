@@ -1128,30 +1128,7 @@ function renderDeclarations(
 function renderFunctionBody(
 	fn: PostgresEntities['functions'],
 ): string {
-	// Manual mode: preserve the entire user-provided body.
-	if (fn.declare === null) {
-		return quoteFunctionBody(fn.body);
-	}
-
-	// Structured declarations are only supported by PL/pgSQL.
-	if (fn.language !== 'plpgsql') {
-		throw new Error(
-			'Structured DECLARE blocks require LANGUAGE plpgsql',
-		);
-	}
-
-	const declarations = renderDeclarations(fn.declare.values);
-
-	const parts = [
-		declarations.length > 0
-			? `DECLARE\n${declarations}`
-			: null,
-		'BEGIN',
-		fn.body,
-		'END;',
-	];
-
-	return quoteFunctionBody(parts.filter((part) => part !== null).join('\n'));
+	return quoteFunctionBody(renderFunctionSource(fn));
 }
 
 function renderFunction(fn: PostgresEntities['functions'], type: 'create' | 'replace'): string {
@@ -1212,6 +1189,31 @@ function renderFunction(fn: PostgresEntities['functions'], type: 'create' | 'rep
 	].filter(Boolean);
 
 	return sql.join('\n');
+}
+
+export function renderFunctionSource(
+	fn: PostgresEntities['functions'],
+): string {
+	if (fn.declare === null) {
+		return fn.body;
+	}
+
+	if (fn.language !== 'plpgsql') {
+		throw new Error(
+			'Structured DECLARE blocks require LANGUAGE plpgsql',
+		);
+	}
+
+	const declarations = renderDeclarations(fn.declare.values);
+
+	return [
+		declarations.length > 0
+			? `DECLARE\n${declarations}`
+			: null,
+		'BEGIN',
+		fn.body,
+		'END;',
+	].filter((part) => part !== null).join('\n');
 }
 
 function renderDropFunction(fn: PostgresEntities['functions']): string {
