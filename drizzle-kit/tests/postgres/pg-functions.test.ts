@@ -77,7 +77,6 @@ test('create function #1', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn1]);
@@ -121,7 +120,6 @@ test('create function #2', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn2]);
@@ -165,7 +163,6 @@ test('overload functions', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn2]);
@@ -227,7 +224,6 @@ test('change arg name', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([argChange]);
@@ -270,7 +266,6 @@ test('default arguments', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn3]);
@@ -348,7 +343,6 @@ test('plpgsql function', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn4]);
@@ -402,7 +396,6 @@ test('setof function', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn5]);
@@ -452,7 +445,6 @@ test('table function', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn6]);
@@ -499,7 +491,6 @@ test('uuid array function', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn7]);
@@ -558,7 +549,6 @@ test('jsonb function', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn8]);
@@ -620,7 +610,6 @@ test('enum function', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st.slice(1)).toStrictEqual([fn9]);
@@ -640,7 +629,7 @@ const fn10 = `CREATE FUNCTION "public"."make_coordinate"(
 	"x" integer,
 	"y" integer
 )
-RETURNS coordinate
+RETURNS "public"."coordinate"
 LANGUAGE sql
 IMMUTABLE
 CALLED ON NULL INPUT
@@ -653,7 +642,7 @@ $function$;`;
 test('composite type function', async () => {
 	const coordinate = customType<{ data: { x: number; y: number } }>({
 		dataType() {
-			return 'coordinate';
+			return '"public"."coordinate"';
 		},
 	});
 
@@ -677,7 +666,6 @@ test('composite type function', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn10]);
@@ -734,7 +722,6 @@ test('table function', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st.slice(1)).toStrictEqual([fn11]);
@@ -781,7 +768,6 @@ test('safe constant function', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn12]);
@@ -824,7 +810,6 @@ test('configured constant function', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn13]);
@@ -881,7 +866,6 @@ test('plpgsql function, declare, array variable', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn14]);
@@ -947,7 +931,6 @@ END;`
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st.slice(1)).toStrictEqual([fn15]);
@@ -958,16 +941,6 @@ END;`
 	const result = await client.query(`SELECT * FROM filtered_items(1);`);
 	expect(result.rows).toStrictEqual([{ item_id: 1, item_label: 'Item 1' }]);
 });
-
-// CREATE OR REPLACE FUNCTION fn_tests.emit_notice(a_message text DEFAULT 'test')
-// RETURNS void
-// LANGUAGE plpgsql
-// VOLATILE
-// AS $function$
-// BEGIN
-//     RAISE NOTICE 'Function test: %', a_message;
-// END;
-// $function$;
 
 const fn16 = `CREATE FUNCTION "public"."emit_notice"(
 	"a_message" text DEFAULT 'test'
@@ -1002,7 +975,6 @@ test('plpgsql function, raise notice, void return', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn16]);
@@ -1069,7 +1041,6 @@ END;`
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st.slice(1)).toStrictEqual([fn17]);
@@ -1130,7 +1101,6 @@ test('delimiter in function body', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn18]);
@@ -1167,7 +1137,6 @@ test('intentionally forcast delimter', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn19]);
@@ -1210,7 +1179,6 @@ test('odd name', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn20]);
@@ -1250,7 +1218,6 @@ test('record return', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn21]);
@@ -1320,7 +1287,6 @@ test('dynamic sql and formatting', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st.slice(1)).toStrictEqual([fn22]);
@@ -1362,7 +1328,6 @@ test('read catalog configuration', async () => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
-		ignoreSubsequent: true,
 	});
 
 	expect(st).toStrictEqual([fn23]);
@@ -1615,7 +1580,6 @@ describe('attribute drift', async () => {
 		const { sqlStatements: pst } = await push({
 			db,
 			to,
-			ignoreSubsequent: true,
 		});
 
 		expect(st).toStrictEqual([atttributeDriftBaseFn]);
@@ -1636,7 +1600,6 @@ describe('attribute drift', async () => {
 		const { sqlStatements: pst } = await push({
 			db,
 			to,
-			ignoreSubsequent: true,
 		});
 
 		expect(st).toStrictEqual([
@@ -1859,7 +1822,6 @@ describe('nested $$', async () => {
 		const { sqlStatements: pst } = await push({
 			db,
 			to,
-			ignoreSubsequent: true,
 		});
 
 		expect(st).toStrictEqual([fn18]);
@@ -1885,7 +1847,6 @@ describe('nested $$', async () => {
 		const { sqlStatements: pst } = await push({
 			db,
 			to,
-			ignoreSubsequent: true,
 		});
 
 		expect(st).toStrictEqual([fn19]);
