@@ -342,7 +342,7 @@ SELECT
   ARRAY(
     SELECT
         CASE
-            WHEN typ.typtype = 'e' THEN
+            WHEN typ.typtype IN ('e', 'c') THEN
                 pg_catalog.format(
                     '"%s"."%s"',
                     replace(type_ns.nspname, '"', '""'),
@@ -367,7 +367,7 @@ SELECT
   fn.proargmodes AS "arg_modes",
   fn.proretset AS "is_set",
   CASE
-    WHEN ret_type.typtype = 'e'
+    WHEN ret_type.typtype IN ('e', 'c')
         AND NOT COALESCE('t' = ANY(fn.proargmodes), false)
     THEN
         (CASE WHEN fn.proretset THEN 'SETOF ' ELSE '' END) ||
