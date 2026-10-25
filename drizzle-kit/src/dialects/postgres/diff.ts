@@ -5,6 +5,7 @@ import { diffStringArrays } from '../../utils/sequence-matcher';
 import { parse } from '../../utils/when-json-met-bigint';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
+import { isEqual } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
 import type {
@@ -30,6 +31,35 @@ import { createDDL, tableFromDDL } from './ddl';
 import { defaults, defaultsCommutative, isSerialType } from './grammar';
 import type { JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
+
+function normalizeFunctionDefault(
+	expression: string | null,
+	argType: string,
+): string | null {
+	if (expression === null) return null;
+
+	const match = expression.trim().match(
+		/^(NULL|'(?:''|[^'])*')\s*::\s*(.+)$/i,
+	);
+
+	if (!match) return expression;
+
+	const [, literal, castType] = match;
+
+	if (castType.trim().toLowerCase() !== argType.trim().toLowerCase()) {
+		return expression;
+	}
+
+	return literal;
+}
+
+const normalizeFunctionForDiff = (fn: PostgresEntities['functions']) => ({
+	...fn,
+	args: fn.args.map((arg) => ({
+		...arg,
+		default: normalizeFunctionDefault(arg.default, arg.type),
+	})),
+});
 
 export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode: 'default' | 'push') => {
 	const mocks = new Set<string>();
@@ -474,7 +504,17 @@ export const ddlDiff = async (
 
 	const createdFunctions = functionsDiff.filter((it) => it.$diffType === 'create');
 	const deletedFunctions = functionsDiff.filter((it) => it.$diffType === 'drop');
-	const alteredFunctions = functionsDiff.filter((it) => it.$diffType === 'alter');
+	const alteredFunctions = functionsDiff.filter((it) => it.$diffType === 'alter').filter((it) => {
+		const left = normalizeFunctionForDiff(
+			it.$left as PostgresEntities['functions'],
+		);
+
+		const right = normalizeFunctionForDiff(
+			it.$right as PostgresEntities['functions'],
+		);
+
+		return !isEqual(left, right);
+	});
 
 	const diffChecks = diff(ddl1, ddl2, 'checks');
 	const groupedChecksDiff = groupDiffs(diffChecks);

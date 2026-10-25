@@ -749,7 +749,7 @@ const ignoreChanges: Record<keyof Common | 'entityType', true> = {
 	table: true,
 };
 
-function isEqual(a: any, b: any): boolean {
+export function isEqual(a: any, b: any): boolean {
 	if (typeof a !== typeof b) return false;
 
 	if (Array.isArray(a) && Array.isArray(b)) {
