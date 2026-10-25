@@ -377,6 +377,7 @@ JOIN pg_catalog.pg_namespace AS namespace
 JOIN pg_catalog.pg_language AS lang
     ON lang.oid = fn.prolang
 WHERE fn.prokind = 'f'
+AND lang.lanname IN ('sql', 'plpgsql')
 AND namespace.nspname IN (${filteredNamespacesStringForSQL})
 `).then((rows) => {
 			queryCallback('functions', rows, null);
