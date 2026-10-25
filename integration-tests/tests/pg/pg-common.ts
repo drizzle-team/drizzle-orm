@@ -603,6 +603,18 @@ export function tests() {
 			]);
 		}
 
+		async function setupDeleteUsingTest(db: PgDatabase<PgQueryResultHKT>) {
+			await db.insert(citiesTable).values([
+				{ id: 1, name: 'New York', state: '' },
+				{ id: 2, name: 'Berlin', state: '' },
+			]);
+
+			await db.insert(users2Table).values([
+				{ name: 'Peter', cityId: 1 },
+				{ name: 'Maria', cityId: 2 },
+			]);
+		}
+
 		test('table configs: unique third param', async () => {
 			const cities1Table = pgTable('cities1', {
 				id: serial('id').primaryKey(),
@@ -930,6 +942,77 @@ export function tests() {
 			});
 
 			expect(users).toEqual([{ id: 1, name: 'John' }]);
+		});
+
+		test('delete with using table', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await setupDeleteUsingTest(db);
+
+			// delete all users with city name 'New York'
+			const users = await db.delete(users2Table)
+				.using(citiesTable)
+				.where(
+					and(
+						eq(users2Table.cityId, citiesTable.id),
+						eq(citiesTable.name, 'New York'),
+					),
+				)
+				.returning({
+					name: users2Table.name,
+					cityName: citiesTable.name,
+				});
+
+			expect(users).toEqual([{ name: 'Peter', cityName: 'New York' }]);
+		});
+
+		test('delete with using subquery', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await setupDeleteUsingTest(db);
+
+			const subquery = db.select().from(citiesTable).as('cities');
+
+			// delete all users with city name 'New York'
+			const users = await db.delete(users2Table)
+				.using(subquery)
+				.where(
+					and(
+						eq(users2Table.cityId, subquery.id),
+						eq(subquery.name, 'New York'),
+					),
+				)
+				.returning({
+					name: users2Table.name,
+					cityName: subquery.name,
+				});
+
+			expect(users).toEqual([{ name: 'Peter', cityName: 'New York' }]);
+		});
+
+		test('delete with using multiple tables', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await setupDeleteUsingTest(db);
+
+			const subquery = db.select().from(citiesTable).as('cities2');
+
+			// delete all users with city name 'New York'
+			const users = await db.delete(users2Table)
+				.using([citiesTable, subquery])
+				.where(
+					and(
+						eq(users2Table.cityId, subquery.id),
+						eq(citiesTable.name, 'New York'),
+						eq(subquery.name, 'New York'),
+					),
+				)
+				.returning({
+					name: users2Table.name,
+					cityName: subquery.name,
+				});
+
+			expect(users).toEqual([{ name: 'Peter', cityName: 'New York' }]);
 		});
 
 		test('insert + select', async (ctx) => {
