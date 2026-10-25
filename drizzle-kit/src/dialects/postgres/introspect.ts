@@ -272,6 +272,8 @@ export const fromDatabase = async (
 		throw err;
 	});
 
+	// Functions
+
 	const volatilityMap = {
 		v: 'volatile',
 		s: 'stable',
@@ -319,6 +321,11 @@ export const fromDatabase = async (
 		// Misc information
 		has_transform: boolean;
 	};
+
+	const normalizeFunctionBody = (body: string) =>
+		body
+			.replace(/\r\n/g, '\n')
+			.replace(/^\n+|\n+$/g, '');
 
 	const functionsList = filteredNamespacesStringForSQL
 		? await db.query<FunctionListItem>(`
@@ -410,6 +417,7 @@ AND namespace.nspname IN (${filteredNamespacesStringForSQL})
 		} else {
 			throw new Error(`Unsupported language for ${fn.schema}.${fn.name}`);
 		}
+		body = normalizeFunctionBody(body);
 
 		functions.push({
 			entityType: 'functions',
