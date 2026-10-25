@@ -340,9 +340,22 @@ SELECT
   -- Args information
   fn.proargnames AS "arg_names",
   ARRAY(
-    SELECT pg_catalog.format_type(arg.type_oid, NULL)
+    SELECT
+        CASE
+            WHEN typ.typtype = 'e' THEN
+                pg_catalog.format(
+                    '"%s"."%s"',
+                    replace(type_ns.nspname, '"', '""'),
+                    replace(typ.typname, '"', '""')
+                )
+            ELSE pg_catalog.format_type(arg.type_oid, NULL)
+        END
     FROM unnest(fn.proargtypes::oid[])
         WITH ORDINALITY AS arg(type_oid, position)
+    JOIN pg_catalog.pg_type AS typ
+        ON typ.oid = arg.type_oid
+    JOIN pg_catalog.pg_namespace AS type_ns
+        ON type_ns.oid = typ.typnamespace
     ORDER BY arg.position
   ) AS "arg_types",
   fn.pronargs AS "num_args",
@@ -353,7 +366,18 @@ SELECT
   pg_catalog.format_type(fn.prorettype, NULL) AS "return_type",
   fn.proargmodes AS "arg_modes",
   fn.proretset AS "is_set",
-  pg_catalog.pg_get_function_result(fn.oid) AS "pg_calculated_return",
+  CASE
+    WHEN ret_type.typtype = 'e'
+        AND NOT COALESCE('t' = ANY(fn.proargmodes), false)
+    THEN
+        (CASE WHEN fn.proretset THEN 'SETOF ' ELSE '' END) ||
+        pg_catalog.format(
+            '"%s"."%s"',
+            replace(ret_ns.nspname, '"', '""'),
+            replace(ret_type.typname, '"', '""')
+        )
+    ELSE pg_catalog.pg_get_function_result(fn.oid)
+  END AS "pg_calculated_return",
 
   -- Attribute information
   fn.provolatile AS "volatile_mode",
@@ -383,6 +407,10 @@ JOIN pg_catalog.pg_namespace AS namespace
   ON namespace.oid = fn.pronamespace
 JOIN pg_catalog.pg_language AS lang
     ON lang.oid = fn.prolang
+JOIN pg_catalog.pg_type AS ret_type
+    ON ret_type.oid = fn.prorettype
+JOIN pg_catalog.pg_namespace AS ret_ns
+    ON ret_ns.oid = ret_type.typnamespace
 WHERE fn.prokind = 'f'
 AND lang.lanname IN ('sql', 'plpgsql')
 AND namespace.nspname IN (${filteredNamespacesStringForSQL})
