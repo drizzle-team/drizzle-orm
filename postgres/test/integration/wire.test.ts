@@ -6,7 +6,7 @@
 import { describe, expect, test } from 'bun:test';
 import { connect, PgError } from '../../src/index.ts';
 import { parseDataRow, Parser, parseRowDescription } from '../../src/protocol.ts';
-import { caught, TEST_CONFIG, TEST_TIMEOUT, testConnect } from '../helpers/db.ts';
+import { caught, TEST_CONFIG, TEST_TIMEOUT, testConnect, testPooledConnect } from '../helpers/db.ts';
 
 const K = `wire_${process.pid}`;
 // reassemble the runs and parse them with the SAME parser a socket client uses
@@ -153,7 +153,7 @@ describe("mode:'wire'", () => {
 	);
 
 	test('connection-level failures still REJECT: timeout, and wire+shape/binary are refused', async () => {
-		const c = await testConnect();
+		const c = await testPooledConnect();
 		try {
 			const err = await caught(() => c.query('select pg_sleep(2)', [], { mode: 'wire', timeout: 60 }));
 			expect(err).toBeInstanceOf(Error);

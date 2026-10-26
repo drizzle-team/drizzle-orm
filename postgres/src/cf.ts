@@ -55,10 +55,10 @@ export const cfTransport = {
 		const socket = await openSocket(c);
 		return duplexFromWeb(socket.readable, socket.writable);
 	},
-	cancel: async (c: TransportTarget, key: { pid: number; secret: number }) => {
+	cancel: async (c: TransportTarget, key: { pid: number; secret: number }, isQueryRunning: () => boolean) => {
 		const socket = await openSocket(c);
 		try {
-			await sendCancelRequest(socket.readable, socket.writable, key);
+			await sendCancelRequest(socket.readable, socket.writable, key, isQueryRunning);
 		} finally {
 			socket.close().catch(() => {/* already closed */});
 		}
@@ -69,7 +69,7 @@ registerDefaultTransport(cfTransport.connect, cfTransport.cancel);
 
 const NO_BINDING =
 	'the cloudflare:sockets Socket in workerd exposes no certificate API (only close/closed/opened/readable/startTls/writable)';
-export async function connect(config: string | ConnectConfig = {}): Promise<Connection> {
+export async function connect(config: string | ConnectConfig = {}): Promise<Connection<{ pooled: false }>> {
 	const c = typeof config === 'string' ? { url: config } : config;
 	return coreConnect({ ...refuseChannelBinding(c, 'cf', NO_BINDING), transport: cfTransport });
 }

@@ -6,10 +6,11 @@
 // Grounded in Connection.stream in src/connection.ts: a hand-rolled
 // AsyncIterableIterator (NOT a Node Readable, NO server-side cursor). Backpressure
 // is TCP socket.pause()/resume() with hysteresis (pause when buf>HWM, resume when
-// buf<HWM/2). Early return() sends a CancelRequest, so the server stops producing rows.
+// buf<HWM/2). On a pooled connection, early return() sends a CancelRequest, so the server stops
+// producing rows. A single connection reads the rest of the result and drops it.
 import { describe, expect, test } from 'bun:test';
 import fc from 'fast-check';
-import { caught, PgError, testConnect, withConn } from '../helpers/db.ts';
+import { caught, PgError, testConnect, withConn, withPooledConn } from '../helpers/db.ts';
 
 // ---- internal-shape accessors (private fields reached for white-box assertions) ----
 type SockSpy = { socket: { pause: () => unknown; resume: () => unknown } };
@@ -291,8 +292,8 @@ describe('streaming :: early break / cancel / drain semantics', () => {
 		});
 	});
 
-	test('early break stops the query on the server, and the same backend serves the next query', async () => {
-		await withConn(async (c) => {
+	test('a pooled early break stops the query on the server, and the same backend serves the next query', async () => {
+		await withPooledConn(async (c) => {
 			const pid = c.backendKey!.pid;
 			let n = 0;
 			// PostgreSQL returns rows one by one when generate_series is in the select list.

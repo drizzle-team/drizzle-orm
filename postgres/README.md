@@ -63,6 +63,32 @@ and `numeric[]` yields exact strings. Arrays whose element type has a per-databa
 still arrive as the raw `{…}` literal; declare a `shape` for those. To opt back out for a
 given type, override its array OID in `types` (e.g. `types: { 1007: (b) => b.toString() }`).
 
+## Canceling queries
+
+`timeout` (milliseconds) and `signal` (an `AbortSignal`) cancel a query on a pooled connection: from
+`createPool`, `pool.acquire()`, `pool.connect()` or a `pool.transaction()` callback. The pool opens a
+second connection to the server and sends a CancelRequest on it, because the protocol accepts a cancel
+only as the first packet of a new connection. That connection dials the IP address of the session, so
+DNS cannot send the cancel to another server. With a `socket` factory, it dials `host`, because that
+socket can lead to a proxy or a bastion host. If the query has ended before the cancel is written,
+nothing is sent. The type of a `pool.transaction()` callback argument is plain `Connection`, so that
+`transaction()` works on a `Pool | Connection` value.
+
+```js
+import { createPool } from '@drizzle-team/postgres'
+
+const pool = createPool({ host: '127.0.0.1', port: 54329, user: 'postgres', password: 'postgres', database: 'testdb' })
+await pool.query('select pg_sleep(10)', [], { timeout: 1000 }) // rejects with code QUERY_TIMEOUT
+```
+
+A single connection from `connect()` cannot cancel. Its types do not accept `timeout` or `signal`, and
+a query that passes them anyway rejects before anything is sent, with code `CANCEL_NEEDS_POOL`. An early
+`break` out of `stream()` or `copyTo()` cancels the query on a pooled connection. On a single connection,
+and inside a transaction, the driver reads the rest of the result and drops it.
+
+The HTTP clients (`/http`, `/neon-http`, `/aurora`) accept `timeout` and `signal` on every client. They
+stop the client from waiting for the response. The service decides whether the query stops.
+
 ## Runtimes
 
 The root import picks its TCP transport from the runtime, so the same line works everywhere:
