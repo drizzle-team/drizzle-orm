@@ -256,7 +256,8 @@ export type UnsupportedSchemaChangeMeta =
 	| { kind: 'drop_pk_dependency'; table: string; columns: string[]; blocking_fks: string[] }
 	| { kind: 'fk_target_not_unique'; table: string; columns: string[]; table_to: string; columns_to: string[] }
 	| { kind: 'rename_blocked_by_check_constraint'; schema: string; table: string; from: string; to: string }
-	| { kind: 'rename_schema_unsupported'; from: string; to: string; dialect: 'mssql' };
+	| { kind: 'rename_schema_unsupported'; from: string; to: string; dialect: 'mssql' }
+	| { kind: 'dsql_unsupported'; issues: { statement: string; entity: string; reason: string }[] };
 
 export class UnsupportedSchemaChangeError extends DrizzleCliError {
 	override readonly meta: UnsupportedSchemaChangeMeta;
@@ -293,6 +294,11 @@ function defaultMessage(meta: UnsupportedSchemaChangeMeta): string {
 			return `Cannot rename '${meta.schema}.${meta.table}.${meta.from}' to '${meta.to}': column is used in a check constraint`;
 		case 'rename_schema_unsupported':
 			return `Cannot rename schema '${meta.from}' to '${meta.to}': ${meta.dialect} does not support schema rename`;
+		case 'dsql_unsupported':
+			return [
+				'Aurora DSQL does not support these schema changes:',
+				...meta.issues.map((it) => `- ${it.statement} ${it.entity}: ${it.reason}`),
+			].join('\n');
 		// exhaustive: adding a kind here forces the new branch above
 		default: {
 			const _: never = meta;
