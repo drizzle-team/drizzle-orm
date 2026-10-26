@@ -7,8 +7,8 @@ import { Pool } from './pool.ts';
 import type { ConnectConfig, PoolConfig } from './types.ts';
 
 /** Open and authenticate a single connection. Accepts a config or a `postgres://…` connection string. */
-export async function connect(config: string | ConnectConfig = {}): Promise<Connection> {
-	const conn = new Connection(typeof config === 'string' ? { url: config } : config);
+export async function connect(config: string | ConnectConfig = {}): Promise<Connection<{ pooled: false }>> {
+	const conn = new Connection<{ pooled: false }>(typeof config === 'string' ? { url: config } : config);
 	await conn.connect();
 	return conn;
 }

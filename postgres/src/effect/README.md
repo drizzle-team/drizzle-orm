@@ -62,8 +62,13 @@ await Effect.runPromise(Effect.gen(function* () {
 A custom transport has a `connect(config, signal)` function that resolves to a connected socket.
 If `config.ssl` is set, the socket must already be TLS-negotiated, because the connection does not
 negotiate TLS itself. When `signal` aborts, `connect` must destroy the socket. A transport can also
-have a `cancel` function. Without it, a canceled query closes its connection. This one dials plain
-TCP, so it refuses `ssl`, and it sends no cancel requests:
+have a `cancel(config, key, isQueryRunning)` function. Without it, a canceled query closes its
+connection. `cancel` opens a new connection to the server and writes a CancelRequest on it. It must
+call `isQueryRunning()` just before the write and skip the write if it returns false. False means
+that the query has ended, and the request would stop a later query. `config.address` holds the IP
+address of the server, from the `remoteAddress` of the socket that `connect` returned. If it is
+set, dial it instead of `config.host`. It is missing when that socket has no `remoteAddress`. This
+transport dials plain TCP, so it refuses `ssl`, and it sends no cancel requests:
 
 ```ts
 import net from 'node:net'
