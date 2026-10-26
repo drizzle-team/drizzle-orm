@@ -19,6 +19,8 @@ declare const Deno: {
 } | undefined;
 
 interface DenoConn extends WebByteStream {
+	/** `hostname` is the IP address of the peer; a unix socket has none. */
+	readonly remoteAddr: { hostname?: string };
 	close(): void;
 }
 

@@ -126,7 +126,8 @@ it('exposes the whole core API, with its own connect/createPool', async () => {
 
 // Without a cancel request, the server keeps running pg_sleep(5), so the next query waits about 5 s for it.
 it('a timeout cancels the query on the server, and the same backend serves the next query', async () => {
-	const db = await connect(CFG);
+	const pool = createPool({ ...CFG, max: 1 });
+	const db = await pool.acquire();
 	try {
 		const pid = db.backendKey!.pid;
 		const t0 = Date.now();
@@ -135,6 +136,16 @@ it('a timeout cancels the query on the server, and the same backend serves the n
 		const r = await db.query('select pg_backend_pid() as pid', [], { mode: 'object' });
 		expect(Date.now() - t0).toBeLessThan(3000);
 		expect((r.rows[0] as { pid: number }).pid).toBe(pid);
+	} finally {
+		await pool.end();
+	}
+});
+
+it('a single connection rejects timeout and signal', async () => {
+	const db = await connect(CFG);
+	try {
+		const err = await db.query('select 1', [], { timeout: 200 } as never).then(() => null, (e: Error) => e);
+		expect((err as { code?: string } | null)?.code).toBe('CANCEL_NEEDS_POOL');
 	} finally {
 		await db.end();
 	}

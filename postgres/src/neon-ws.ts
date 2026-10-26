@@ -175,7 +175,7 @@ function neonSocket(config: NeonConnectConfig): () => Promise<Duplex> {
 
 /** Open and authenticate a single connection to Neon over its WebSocket proxy. Accepts a config or a
  *  `postgres://…neon.tech/db?sslmode=require` connection string. */
-export function connect(config: string | NeonConnectConfig = {}): Promise<Connection> {
+export function connect(config: string | NeonConnectConfig = {}): Promise<Connection<{ pooled: false }>> {
 	const c: NeonConnectConfig = typeof config === 'string' ? { url: config } : config;
 	return coreConnect({ ...relaxChannelBinding(c), ssl: false, socket: neonSocket(c) });
 }

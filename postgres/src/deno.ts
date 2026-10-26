@@ -20,7 +20,7 @@ async function openConnection(c: TransportTarget) {
 	}
 	// unix socket (?host=/var/run/postgresql) — never TLS, same as the node transport
 	if (c.path) return Deno.connect({ transport: 'unix', path: c.path });
-	const conn = await Deno.connect({ hostname: c.host, port: c.port });
+	const conn = await Deno.connect({ hostname: c.address ?? c.host, port: c.port });
 	if (!c.ssl) return conn;
 	const sslObj = typeof c.ssl === 'object' ? (c.ssl as { ca?: unknown; servername?: string }) : undefined;
 	const caCerts = certList(sslObj?.ca);
@@ -37,12 +37,12 @@ async function openConnection(c: TransportTarget) {
 export const denoTransport = {
 	connect: async (c: TransportTarget) => {
 		const conn = await openConnection(c);
-		return duplexFromWeb(conn.readable, conn.writable);
+		return Object.assign(duplexFromWeb(conn.readable, conn.writable), { remoteAddress: conn.remoteAddr.hostname });
 	},
-	cancel: async (c: TransportTarget, key: { pid: number; secret: number }) => {
+	cancel: async (c: TransportTarget, key: { pid: number; secret: number }, isQueryRunning: () => boolean) => {
 		const conn = await openConnection(c);
 		try {
-			await sendCancelRequest(conn.readable, conn.writable, key);
+			await sendCancelRequest(conn.readable, conn.writable, key, isQueryRunning);
 		} finally {
 			try {
 				conn.close();
@@ -62,7 +62,7 @@ function certList(ca: unknown): string[] | undefined {
 
 const NO_BINDING =
 	'Deno.TlsConn exposes only handshake(), and node:tls under Deno returns a certificate with no raw DER';
-export async function connect(config: string | ConnectConfig = {}): Promise<Connection> {
+export async function connect(config: string | ConnectConfig = {}): Promise<Connection<{ pooled: false }>> {
 	const c = typeof config === 'string' ? { url: config } : config;
 	return coreConnect({ ...refuseChannelBinding(c, 'deno', NO_BINDING), transport: denoTransport });
 }

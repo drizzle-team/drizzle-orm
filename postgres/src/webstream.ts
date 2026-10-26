@@ -52,12 +52,14 @@ export async function negotiateSslRequest(readable: unknown, writable: unknown):
 }
 
 /** Sends a CancelRequest and waits until the server closes the connection, which it does only after it
- *  has signaled the backend. */
+ *  has signaled the backend. Sends nothing when the query has ended. */
 export async function sendCancelRequest(
 	readable: unknown,
 	writable: unknown,
 	key: { pid: number; secret: number },
+	isQueryRunning: () => boolean,
 ): Promise<void> {
+	if (!isQueryRunning()) return;
 	const reader = (readable as { getReader(): ByteReader }).getReader();
 	const writer = (writable as { getWriter(): ByteWriter }).getWriter();
 	try {

@@ -151,6 +151,19 @@ export class MockPgServer {
 	setMode(m: FaultMode): void {
 		this.mode = m;
 	}
+	/** End every hung query with a normal result, as if it had finished on its own. */
+	finishHung(): void {
+		for (const c of this.conns) {
+			if (!c.hung) continue;
+			c.hung = false;
+			const r = this.handler('', []) as MockResult;
+			c.socket.write(Buffer.concat([
+				...(r.rows ?? []).map((row) => B.dataRow(row)),
+				B.commandComplete(`SELECT ${r.rows?.length ?? 0}`),
+				B.ready('I'),
+			]));
+		}
+	}
 	/** While false, new TCP connections are refused (destroyed on accept) — simulates a down/restarting server. */
 	setAvailable(v: boolean): void {
 		this.available = v;

@@ -7,7 +7,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { addBrand } from './brand.ts';
 import { installVercelCompat, type VercelPoolSurface } from './compat/vercel.ts';
-import { Connection, isUntrustedCertificate } from './connection.ts';
+import { type Connection, createPooledConnection, isUntrustedCertificate } from './connection.ts';
 import type { TxFn } from './connection.ts';
 import { Cursor, type CursorOptions } from './cursor.ts';
 import type { PoolConfig, QueryOptions, QueryResult, TxOptions } from './types.ts';
@@ -182,7 +182,7 @@ export class Pool {
 		return this.als.run({ active: false }, async () => await fn());
 	}
 
-	async acquire(): Promise<Connection> {
+	async acquire(): Promise<Connection<{ pooled: true }>> {
 		if (this.closed) throw new Error('pool is closed');
 		// Every pool op funnels through acquire(), so ONE check covers query/execute/batch/pipeline/
 		// cursor/connect/bulk*/copy* and nested transaction().
@@ -217,8 +217,8 @@ export class Pool {
 
 	// At max: park until someone releases. Bounded by acquireTimeoutMillis so exhaustion surfaces as a
 	// loud, self-describing error instead of an unbounded hang.
-	private waitForFree(): Promise<Connection> {
-		return new Promise<Connection>((resolve, reject) => {
+	private waitForFree(): Promise<Connection<{ pooled: true }>> {
+		return new Promise<Connection<{ pooled: true }>>((resolve, reject) => {
 			if (this.acquireMs <= 0) {
 				this.waiters.push({ resolve, reject });
 				return;
@@ -263,16 +263,16 @@ export class Pool {
 			+ ' while the first is still held) — use the `tx` handle passed to the callback instead.';
 	}
 
-	private async open(connectTimeout?: number): Promise<Connection> {
+	private async open(connectTimeout?: number): Promise<Connection<{ pooled: true }>> {
 		// Pooled connections are fragile: the POOL owns reconnection (its breaker), so a
 		// dead member is evicted, not self-reconnecting. Disable Connection-level reconnect.
 		// The constructor validates config BEFORE any I/O (bad connection string, an impossible
 		// channel_binding combo, a NUL in `options`), so whatever it throws will throw identically on
 		// every retry — mark it fatal so the breaker fails fast with the real message instead of
 		// reporting a database that is "not recovering".
-		let conn: Connection;
+		let conn: Connection<{ pooled: true }>;
 		try {
-			conn = new Connection({
+			conn = createPooledConnection({
 				...this.cfg,
 				reconnect: false,
 				...(connectTimeout === undefined ? {} : { connectTimeout }),
@@ -554,7 +554,7 @@ export class Pool {
 	}
 
 	/** Check out a dedicated connection (e.g. for a transaction). `release()` is idempotent. */
-	async connect(): Promise<{ client: Connection; release: () => void }> {
+	async connect(): Promise<{ client: Connection<{ pooled: true }>; release: () => void }> {
 		const client = await this.acquire();
 		return { client, release: () => this.release(client) };
 	}

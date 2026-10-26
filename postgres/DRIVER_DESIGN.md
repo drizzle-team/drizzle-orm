@@ -63,7 +63,7 @@ await pool.end()
 | `raw` | `Buffer` (one per row) | none — raw `DataRow` body | passthrough / proxying |
 | `stream()` | per-row (mode-shaped) | as above | large results, backpressure |
 
-`stream()` applies **TCP backpressure**: it pauses the socket when the consumer falls `highWaterMark` rows behind and resumes on drain; an early `break` cancels and drains so the connection stays usable.
+`stream()` applies **TCP backpressure**: it pauses the socket when the consumer falls `highWaterMark` rows behind and resumes on drain; an early `break` drains so the connection stays usable, and on a pooled connection it also cancels the query.
 
 ### Decoding policy (precision-safe by default)
 

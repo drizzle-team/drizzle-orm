@@ -58,6 +58,7 @@ export type { ShapeMapper } from './shape.ts';
 export type { PgType, ShapeEntries, ShapeSpec, ShapeValue, TypeSpec } from './spec.ts';
 export type {
 	ConnectConfig,
+	ConnectionTypeConfig,
 	Decoder,
 	Field,
 	PoolConfig,

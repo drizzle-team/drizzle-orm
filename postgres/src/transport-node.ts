@@ -89,17 +89,26 @@ export function nodeTransport(cfg: TransportTarget, signal: AbortSignal): Promis
 
 /** Out-of-band CancelRequest on a fresh throwaway connection (mirrors SSL negotiation). Resolves when
  *  the server closes that connection, which it does only after it has signaled the backend. */
-export function nodeCancel(cfg: TransportTarget, key: { pid: number; secret: number }): Promise<void> {
+export function nodeCancel(
+	cfg: TransportTarget,
+	key: { pid: number; secret: number },
+	isQueryRunning: () => boolean,
+): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
 		const cancel = W.cancelRequest(key.pid, key.secret);
 		const send = (s: net.Socket | tls.TLSSocket) => {
+			if (!isQueryRunning()) {
+				resolve();
+				return s.destroy();
+			}
 			try {
 				s.write(cancel);
 			} catch (e) {
 				reject(e);
 			}
 		};
-		const plain = net.connect(cfg.path ? { path: cfg.path } : { host: cfg.host, port: cfg.port }, () => {
+		const host = cfg.address ?? cfg.host; // TLS below still checks the certificate against cfg.host
+		const plain = net.connect(cfg.path ? { path: cfg.path } : { host, port: cfg.port }, () => {
 			if (!cfg.ssl || cfg.path) return send(plain); // like nodeTransport: no SSL on a unix socket
 			plain.write(W.sslRequest());
 			plain.once('data', (b: Buffer) => {

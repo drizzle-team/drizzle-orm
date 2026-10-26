@@ -47,7 +47,9 @@ import {
 	type ShapeSpec,
 } from './spec.ts';
 import type {
+	CancelOptions,
 	ConnectConfig,
+	ConnectionTypeConfig,
 	Decoder,
 	Field,
 	PostgresSocket,
@@ -85,7 +87,7 @@ type ConnState = 'idle' | 'connecting' | 'ready' | 'reconnecting' | 'closed';
 // statically imports node:net/tls (which don't exist on workerd). A config.transport or config.socket
 // takes precedence over it: the cf and Deno entries and the Effect entry point dial that way.
 type TransportFactory = (cfg: NormalizedConfig, signal: AbortSignal) => Promise<Duplex>;
-type CancelFn = (cfg: NormalizedConfig, key: { pid: number; secret: number }) => Promise<void>;
+type CancelFn = NonNullable<Transport['cancel']>;
 let defaultTransport: TransportFactory | null = null;
 let defaultCancel: CancelFn | null = null;
 export function registerDefaultTransport(transport: TransportFactory, cancel: CancelFn): void {
@@ -239,7 +241,9 @@ function mergeResults(rs: QueryResult<never>[]): QueryResult<never> {
 }
 
 /** The callback run inside begin()/transaction(), given the transaction-scoped connection. */
-export type TxFn<T> = (tx: Connection) => T | Promise<T>;
+export type TxFn<T, Config extends ConnectionTypeConfig = ConnectionTypeConfig> = (
+	tx: Connection<Config>,
+) => T | Promise<T>;
 
 // Build the `BEGIN …` statement from TxOptions. String form is sanitized (letters/spaces only) like
 // postgres.js; the object form composes the standard clauses. Values are a fixed vocabulary, so safe.
@@ -294,10 +298,23 @@ export function isUntrustedCertificate(err: unknown): boolean {
 		&& !/Expired|NotValidYet/.test(message);
 }
 
-// head: the canceled query until it ends. isConfirmed: the server closed the cancel connection, so the
-// backend already has the signal. hasFailed: the cancel connection errored, so its delivery is unknown.
+// A CancelRequest needs a second connection to the server, so only a connection that a pool opened
+// sends one.
+const pooledConnections = new WeakSet<Connection>();
+const cancelNeedsPoolError = () =>
+	Object.assign(
+		new Error(
+			'Canceling a query needs a pooled connection. Create the connection with createPool, or remove timeout and signal.',
+		),
+		{ code: 'CANCEL_NEEDS_POOL' },
+	);
+
+// head: the canceled query until it ends. isSkipped: the head ended before the transport wrote the
+// request, so nothing was sent. isConfirmed: the server closed the cancel connection, so the backend
+// already has the signal. hasFailed: the cancel connection errored, so its delivery is unknown.
 interface PendingCancel {
 	head: Task | null;
+	isSkipped: boolean;
 	isConfirmed: boolean;
 	hasFailed: boolean;
 	timer?: ReturnType<typeof setTimeout>;
@@ -421,7 +438,7 @@ function makeRow(
 	}
 }
 
-export class Connection {
+export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConfig> {
 	readonly cfg: NormalizedConfig;
 	state: ConnState = 'idle';
 	serverParams: Record<string, string> = {};
@@ -1498,8 +1515,14 @@ export class Connection {
 		} // query now in flight (the batch is flushed by processQueue)
 	}
 
-	// Arm an AbortSignal on a task. Returns true if it was already aborted (and settled now).
+	// Arm an AbortSignal on a task. Returns true if the task was settled now: its signal was already
+	// aborted, or it asks for a cancel that this connection cannot send.
 	private armSignal(task: Task): boolean {
+		if (!this.canCancel(task)) {
+			task.settled = true;
+			this.rejectTask(task, cancelNeedsPoolError());
+			return true;
+		}
 		const sig = task.signal;
 		if (!sig) return false;
 		const settle = (r: Error) => {
@@ -1515,6 +1538,14 @@ export class Connection {
 		sig.addEventListener('abort', onAbort, { once: true });
 		task.signalCleanup = () => sig.removeEventListener('abort', onAbort);
 		return false;
+	}
+
+	private get isPooled(): boolean {
+		return pooledConnections.has(this);
+	}
+
+	private canCancel(opts: { timeout?: number; signal?: AbortSignal }): boolean {
+		return this.isPooled || (opts.timeout == null && opts.signal === undefined);
 	}
 
 	// Cancel a task: settle the caller immediately, and if it's in flight, send an
@@ -1556,16 +1587,25 @@ export class Connection {
 		if (!key || !cancel) return;
 		// Two cancels in flight cannot be told apart, so the connection is not reused after the second one.
 		if (this.pendingCancel) this.isRetiring = true;
-		const pending: PendingCancel = { head, isConfirmed: false, hasFailed: false };
+		const pending: PendingCancel = { head, isSkipped: false, isConfirmed: false, hasFailed: false };
 		this.pendingCancel = pending;
+		const { host, port, path, ssl, connectTimeout } = this.cfg;
+		// A socket from a `socket` factory can lead to a proxy or a bastion host, so its peer is not the server.
+		const address = this.cfg.socket ? undefined : (this.socket as { remoteAddress?: string } | null)?.remoteAddress;
+		const target = { host, port, path, ssl, connectTimeout, ...(address ? { address } : {}) };
+		const isQueryRunning = () => {
+			pending.isSkipped = this.pendingCancel !== pending || pending.head === null;
+			return !pending.isSkipped;
+		};
 		// A cancel that is still open after connectTimeout counts as failed, so the connection retires
 		// instead of waiting for the OS to give up on the cancel socket.
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		const deadline = new Promise<never>((_, reject) => {
 			timer = setTimeout(() => reject(new Error('cancel request timed out')), this.cfg.connectTimeout);
 		});
-		Promise.race([cancel(this.cfg, key), deadline]).finally(() => clearTimeout(timer)).then(
+		Promise.race([cancel(target, key, isQueryRunning), deadline]).finally(() => clearTimeout(timer)).then(
 			() => {
+				if (pending.isSkipped) return this.skipCancel(pending);
 				pending.isConfirmed = true;
 				if (this.pendingCancel === pending && !pending.head) this.resolveCanceledHead(pending);
 			},
@@ -1588,6 +1628,14 @@ export class Connection {
 			this.cancelDone = { promise, resolve };
 		}
 		return this.cancelDone.promise;
+	}
+
+	// Nothing was sent, so no later query can be stopped, and the connection is safe to reuse.
+	private skipCancel(pending: PendingCancel): void {
+		if (this.pendingCancel !== pending || this.isRetiring) return;
+		if (this.lateCancel?.pending === pending) this.lateCancel = null;
+		this.clearPendingCancel();
+		this.processQueue();
 	}
 
 	private clearPendingCancel(): void {
@@ -1887,9 +1935,7 @@ export class Connection {
 			name?: string;
 			metrics?: boolean | 'ms' | 'us';
 			debug?: boolean;
-			timeout?: number;
-			signal?: AbortSignal;
-		},
+		} & CancelOptions<Config>,
 	): Promise<QueryResult<Record<string, unknown>>>;
 	query(
 		sql: string,
@@ -1901,12 +1947,10 @@ export class Connection {
 			mode?: 'array';
 			metrics?: boolean | 'ms' | 'us';
 			debug?: boolean;
-			timeout?: number;
-			signal?: AbortSignal;
 			trace?: boolean;
 			shape?: ShapeSpec | ShapeMapper;
 			binary?: boolean;
-		},
+		} & CancelOptions<Config>,
 	): Promise<QueryResult<unknown[]>>;
 	query(
 		sql: string,
@@ -1918,12 +1962,10 @@ export class Connection {
 			mode: 'object';
 			metrics?: boolean | 'ms' | 'us';
 			debug?: boolean;
-			timeout?: number;
-			signal?: AbortSignal;
 			trace?: boolean;
 			shape?: ShapeSpec | ShapeMapper;
 			binary?: boolean;
-		},
+		} & CancelOptions<Config>,
 	): Promise<QueryResult<Record<string, unknown>>>;
 	// 'wire': the statement's raw backend messages ({T,D,C,E,I}, framing intact) as CONTIGUOUS RUNS —
 	// concatenate the entries to get the byte stream; entry count scales with socket chunks, not rows.
@@ -1936,10 +1978,8 @@ export class Connection {
 			params?: readonly ParamType[];
 			mode: 'wire';
 			metrics?: boolean | 'ms' | 'us';
-			timeout?: number;
-			signal?: AbortSignal;
 			trace?: boolean;
-		},
+		} & CancelOptions<Config>,
 	): Promise<Uint8Array[]>;
 	query(
 		sql: string,
@@ -1951,11 +1991,9 @@ export class Connection {
 			mode: 'buffer';
 			metrics?: boolean | 'ms' | 'us';
 			debug?: boolean;
-			timeout?: number;
-			signal?: AbortSignal;
 			trace?: boolean;
 			binary?: boolean;
-		},
+		} & CancelOptions<Config>,
 	): Promise<QueryResult<(Buffer | null)[]>>;
 	query(
 		sql: string,
@@ -1967,11 +2005,9 @@ export class Connection {
 			mode: 'raw';
 			metrics?: boolean | 'ms' | 'us';
 			debug?: boolean;
-			timeout?: number;
-			signal?: AbortSignal;
 			trace?: boolean;
 			binary?: boolean;
-		},
+		} & CancelOptions<Config>,
 	): Promise<QueryResult<Buffer>>;
 	// impl return is `any` ONLY to satisfy every overload (QueryResult<T> shapes + wire's Uint8Array[]);
 	// all callers go through the typed overloads above.
@@ -1987,6 +2023,7 @@ export class Connection {
 			}
 		}
 		if (opts.snapshot) {
+			if (!this.canCancel(opts)) return Promise.reject(cancelNeedsPoolError());
 			// snapshot-pinned one-shot: BEGIN + SET SNAPSHOT + query + COMMIT fired back-to-back so
 			// they PIPELINE (one round trip, contiguous in the dispatch queue). A failed query
 			// aborts the tx, which turns the trailing COMMIT into a rollback — always cleaned up.
@@ -2089,11 +2126,9 @@ export class Connection {
 		opts: {
 			mode?: 'array' | 'object';
 			metrics?: boolean | 'ms' | 'us';
-			timeout?: number;
-			signal?: AbortSignal;
 			debug?: boolean;
 			trace?: boolean;
-		} = {},
+		} & CancelOptions<Config> = {},
 	): Promise<QueryResult<never>> {
 		const p = new Promise<QueryResult<never>>((resolve, reject) => {
 			if (this.state === 'closed') return reject(new Error('connection is closed'));
@@ -2157,10 +2192,8 @@ export class Connection {
 			atomic?: boolean;
 			defaults?: boolean;
 			metrics?: boolean | 'ms' | 'us';
-			timeout?: number;
-			signal?: AbortSignal;
 			onProgress?: (p: BulkProgress) => void;
-		} = {},
+		} & CancelOptions<Config> = {},
 	): Promise<QueryResult<never>> {
 		const names = Object.keys(columns);
 		if (names.length === 0) return Promise.reject(new Error('bulkInsert: columns must not be empty'));
@@ -2246,10 +2279,8 @@ export class Connection {
 			chunk?: number;
 			atomic?: boolean;
 			metrics?: boolean | 'ms' | 'us';
-			timeout?: number;
-			signal?: AbortSignal;
 			onProgress?: (p: BulkProgress) => void;
-		},
+		} & CancelOptions<Config>,
 	): Promise<QueryResult<never>> {
 		const names = Object.keys(columns);
 		if (names.length === 0) return Promise.reject(new Error('bulkUpdate: columns must not be empty'));
@@ -2318,6 +2349,7 @@ export class Connection {
 			end: number,
 		) => { sql: string; params: unknown[]; name: string | undefined; oids: readonly number[] | undefined },
 	): Promise<QueryResult<never>> {
+		if (!this.canCancel(opts)) return Promise.reject(cancelNeedsPoolError());
 		const t0 = performance.now();
 		const onProgress = opts.onProgress;
 		const track = onProgress ? { rows: 0, affected: 0, bytes: 0, chunk: 0 } : null;
@@ -2347,7 +2379,7 @@ export class Connection {
 			metrics: boolean | 'ms' | 'us' | undefined,
 		): Promise<QueryResult<never>> => {
 			const c = makeChunk(start, end);
-			return this.query(c.sql, c.params, {
+			return (this as Connection).query(c.sql, c.params, {
 				name: c.name,
 				params: c.oids,
 				timeout: opts.timeout,
@@ -2421,7 +2453,7 @@ export class Connection {
 	copyFrom(
 		sql: string,
 		source: CopySource,
-		opts: { metrics?: boolean | 'ms' | 'us'; timeout?: number; signal?: AbortSignal } = {},
+		opts: { metrics?: boolean | 'ms' | 'us' } & CancelOptions<Config> = {},
 	): Promise<QueryResult<never>> {
 		return new Promise<QueryResult<never>>((resolve, reject) => {
 			if (this.state === 'closed') return reject(new Error('connection is closed'));
@@ -2461,13 +2493,12 @@ export class Connection {
 			chunk?: number;
 			atomic?: boolean;
 			metrics?: boolean | 'ms' | 'us';
-			timeout?: number;
-			signal?: AbortSignal;
 			onProgress?: (p: BulkProgress) => void;
-		} = {},
+		} & CancelOptions<Config> = {},
 	): Promise<QueryResult<never>> {
 		const names = Object.keys(columns);
 		if (names.length === 0) return Promise.reject(new Error('copyMany: columns must not be empty'));
+		if (!this.canCancel(opts)) return Promise.reject(cancelNeedsPoolError());
 		let oids: number[];
 		try {
 			oids = names.map((n) => paramTypeOid(columns[n]!));
@@ -2503,7 +2534,7 @@ export class Connection {
 		};
 		const chunk = opts.chunk ?? 0; // default: ONE COPY statement (optimal throughput at every scale)
 		if (chunk <= 0 || rows.length <= chunk) {
-			const p = this.copyFrom(sql, enc(rows), cOpts);
+			const p = (this as Connection).copyFrom(sql, enc(rows), cOpts);
 			return onProgress
 				? p.then((r) => {
 					report(rows.length, r, 1);
@@ -2519,7 +2550,7 @@ export class Connection {
 			for (let i = 0; i < rows.length; i += chunk) {
 				try {
 					const part = rows.slice(i, i + chunk);
-					const r = await this.copyFrom(sql, enc(part), cOpts);
+					const r = await (this as Connection).copyFrom(sql, enc(part), cOpts);
 					rs.push(r);
 					inserted += r.rowCount ?? 0;
 					report(part.length, r, nChunks);
@@ -2556,18 +2587,18 @@ export class Connection {
 	 *  with the callback's return value — or ROLLBACKs and rethrows if it throws. A begin() while already in
 	 *  a transaction nests via SAVEPOINT (partial rollback). `transaction()` is an alias. Queries issued
 	 *  concurrently inside (e.g. Promise.all) pipeline on this one connection. */
-	begin<T>(fn: TxFn<T>): Promise<T>;
-	begin<T>(options: TxOptions, fn: TxFn<T>): Promise<T>;
-	begin<T>(a: TxOptions | TxFn<T>, b?: TxFn<T>): Promise<T> {
+	begin<T>(fn: TxFn<T, Config>): Promise<T>;
+	begin<T>(options: TxOptions, fn: TxFn<T, Config>): Promise<T>;
+	begin<T>(a: TxOptions | TxFn<T, Config>, b?: TxFn<T, Config>): Promise<T> {
 		return typeof a === 'function' ? this.runTx(undefined, a) : this.runTx(a, b!);
 	}
-	transaction<T>(fn: TxFn<T>): Promise<T>;
-	transaction<T>(options: TxOptions, fn: TxFn<T>): Promise<T>;
-	transaction<T>(a: TxOptions | TxFn<T>, b?: TxFn<T>): Promise<T> {
+	transaction<T>(fn: TxFn<T, Config>): Promise<T>;
+	transaction<T>(options: TxOptions, fn: TxFn<T, Config>): Promise<T>;
+	transaction<T>(a: TxOptions | TxFn<T, Config>, b?: TxFn<T, Config>): Promise<T> {
 		return typeof a === 'function' ? this.runTx(undefined, a) : this.runTx(a, b!);
 	}
 
-	private async runTx<T>(options: TxOptions | undefined, fn: TxFn<T>): Promise<T> {
+	private async runTx<T>(options: TxOptions | undefined, fn: TxFn<T, Config>): Promise<T> {
 		if (this.inTransaction) {
 			// nested: a SAVEPOINT (options don't apply — the outermost BEGIN already set the tx's isolation/mode)
 			const sp = `postgres_sp_${++this.spCounter}`;
@@ -2624,7 +2655,7 @@ export class Connection {
 	stream<Row = unknown[]>(
 		sql: string,
 		params: readonly unknown[] = [],
-		opts: StreamOptions = {},
+		opts: StreamOptions & CancelOptions<Config> = {},
 	): AsyncIterableIterator<Row> {
 		// oxlint-disable-next-line typescript/no-this-alias -- the iterator's own methods rebind `this`
 		const self = this;
@@ -2695,8 +2726,9 @@ export class Connection {
 			},
 			return(): Promise<IteratorResult<Row>> {
 				t.cancelled = true;
-				// A cancel inside a transaction would abort the transaction, so there the rest is read and dropped.
-				if (!done && !err && !self.inTransaction) {
+				// A cancel inside a transaction would abort the transaction, and a single connection cannot cancel.
+				// In both cases the rest is read and dropped.
+				if (!done && !err && !self.inTransaction && self.isPooled) {
 					self.cancelTask(t, Object.assign(new Error('stream closed early'), { name: 'AbortError' }));
 				}
 				if (paused) {
@@ -2719,14 +2751,15 @@ export class Connection {
 	 *  boundary-agnostic); nothing is decoded, so memory stays bounded regardless of table size.
 	 *  Buffered bytes above `highWaterMark` (default 512KB) pause the socket where the transport
 	 *  supports pause/resume (node does); `result` resolves with the final 'COPY n' tag. Runs SOLO
-	 *  on the connection like copyFrom — pool users should check a connection out. break/return()
-	 *  cancels the COPY like timeout/signal do (CancelRequest where the transport has one, else the
-	 *  grace-timer teardown). Inside a transaction, where a cancel would abort the transaction, it
-	 *  detaches instead: the remaining frames are dropped as they arrive while the server finishes the
-	 *  copy. COPY accepts no $n params — any dynamic values must be inlined with care. */
+	 *  on the connection like copyFrom — pool users should check a connection out. On a pooled
+	 *  connection, break/return() cancels the COPY like timeout/signal do (CancelRequest where the
+	 *  transport has one, else the grace-timer teardown). On a single connection or inside a
+	 *  transaction, it ends without a cancel. The driver drops the remaining frames while the server
+	 *  finishes the copy. A single connection cannot cancel, and a cancel inside a transaction would
+	 *  abort the transaction. COPY accepts no $n params — any dynamic values must be inlined with care. */
 	copyTo(
 		sql: string,
-		opts: { timeout?: number; signal?: AbortSignal; highWaterMark?: number } = {},
+		opts: { highWaterMark?: number } & CancelOptions<Config> = {},
 	): AsyncIterableIterator<Uint8Array> & { result: Promise<{ command: string | null; rowCount: number | null }> } {
 		// oxlint-disable-next-line typescript/no-this-alias -- the iterator's own methods rebind `this`
 		const self = this;
@@ -2833,7 +2866,7 @@ export class Connection {
 				buffered = 0;
 				resume();
 				done = true; // later 'd' frames are dropped in handle()
-				if (isRunning && !self.inTransaction) {
+				if (isRunning && !self.inTransaction && self.isPooled) {
 					self.cancelTask(t, Object.assign(new Error('copy closed early'), { name: 'AbortError' }));
 				}
 				return Promise.resolve({ value: undefined as never, done: true });
@@ -2886,3 +2919,10 @@ export class Connection {
 }
 
 addBrand(Connection, 'Connection');
+
+/** Creates a connection that a pool owns. Only such a connection cancels its queries. */
+export function createPooledConnection(config: ConnectConfig): Connection<{ pooled: true }> {
+	const conn = new Connection<{ pooled: true }>(config);
+	pooledConnections.add(conn);
+	return conn;
+}

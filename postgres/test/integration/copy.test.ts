@@ -1,7 +1,7 @@
 // COPY FROM STDIN: copyFrom (raw source, simple protocol, solo gating) and copyMany
 // (binary/text row encoding). Requires `bun run test:setup`.
 import { describe, expect, test } from 'bun:test';
-import { caught, PgError, TEST_TIMEOUT, testConnect, testPool, withConn } from '../helpers/db.ts';
+import { caught, PgError, TEST_TIMEOUT, testConnect, testPool, withConn, withPooledConn } from '../helpers/db.ts';
 
 const K = `cp_${process.pid}`;
 const COLS = { id: 'int8', name: 'text', qty: 'int4', price: 'float8', ok: 'bool', at: 'timestamptz' } as const;
@@ -95,7 +95,7 @@ describe('copyFrom (raw source)', () => {
 
 describe('copyFrom abort with a stalled source', () => {
 	test('aborting ends the COPY at once, and the same connection serves the next query', async () => {
-		await withConn(async (c) => {
+		await withPooledConn(async (c) => {
 			await c.query(`create temp table ${K}_stall(a int4)`);
 			async function* stalled(): AsyncGenerator<string> {
 				yield '1\n';
