@@ -1,4 +1,11 @@
-import { UnsupportedCommandCliError, UnsupportedSchemaChangeError } from '../../cli/errors';
+import {
+	DsqlAsyncJobError,
+	DsqlInvalidObjectsError,
+	UnsupportedCommandCliError,
+	UnsupportedSchemaChangeError,
+} from '../../cli/errors';
+import type { DB } from '../../utils';
+import type { EntityFilter } from '../pull-utils';
 import type { Column, Index, PostgresDDL, Role, Sequence, Table } from './ddl';
 import type { JsonStatement } from './statements';
 
@@ -436,4 +443,316 @@ export const assertDsqlBreakpoints = (command: 'generate' | 'pull', breakpoints:
 		"Aurora DSQL runs one DDL statement per transaction, so `breakpoints` must stay enabled with driver 'dsql'",
 		{ dialect: 'postgresql', option: 'breakpoints' },
 	);
+};
+
+const OCC_CODES = ['OC000', 'OC001', '40001'];
+
+// DSQL reports a conflict with another transaction as SQLSTATE 40001 with OC000 or OC001 in the message.
+// kit wraps driver errors in `QueryError`, so the code can be a few causes deep.
+export const isDsqlOcc = (error: unknown): boolean => {
+	let it = error as { code?: unknown; message?: unknown; cause?: unknown } | null | undefined;
+	for (let depth = 0; depth < 8 && it; depth++) {
+		if (typeof it.code === 'string' && OCC_CODES.includes(it.code)) return true;
+		if (typeof it.message === 'string' && /\((OC000|OC001)\)/.test(it.message)) return true;
+		it = it.cause as typeof it;
+	}
+	return false;
+};
+
+// A dropped connection while waiting on a job, for example after a server restart, leaves the job running.
+// postgres.js reports a closed connection with codes of its own, and node-postgres without a code.
+const isConnectionError = (error: unknown): boolean => {
+	let it = error as { code?: unknown; message?: unknown; cause?: unknown } | null | undefined;
+	for (let depth = 0; depth < 8 && it; depth++) {
+		const code = typeof it.code === 'string' ? it.code : '';
+		if (
+			code.startsWith('08') || code === '57P01' || code === 'XX000' || code === 'ECONNRESET' || code === 'EPIPE'
+			|| code === 'ETIMEDOUT' || code === 'CONNECTION_CLOSED' || code === 'CONNECT_TIMEOUT'
+		) return true;
+		if (typeof it.message === 'string' && it.message.startsWith('Connection terminated')) return true;
+		it = it.cause as typeof it;
+	}
+	return false;
+};
+
+const ATTEMPTS = 5;
+// A wait or a read of a job only reads, and the job runs on, so it outlasts more conflicts than a statement.
+const WAIT_ATTEMPTS = 20;
+
+type RunOptions = { sleep?: (ms: number) => Promise<void> };
+
+const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const withRetry = async <T>(
+	fn: () => Promise<T>,
+	retryable: (error: unknown) => boolean,
+	opts: RunOptions,
+	attempts = ATTEMPTS,
+): Promise<T> => {
+	const sleep = opts.sleep ?? defaultSleep;
+	for (let attempt = 1;; attempt++) {
+		try {
+			return await fn();
+		} catch (error) {
+			if (attempt >= attempts || !retryable(error)) throw error;
+			await sleep(Math.min(1000, 25 * 2 ** attempt) * (0.5 + Math.random()));
+		}
+	}
+};
+
+const quote = (name: string) => `"${name.replaceAll('"', '""')}"`;
+
+const errorMessage = (error: unknown) => {
+	let it = error as { message?: unknown; cause?: unknown } | null | undefined;
+	while (it && typeof it.message !== 'string') it = it.cause as typeof it;
+	return typeof it?.message === 'string' ? it.message : String(error);
+};
+
+type Job = {
+	status: string;
+	job_type: string;
+	object_name: string;
+	details: string | null;
+	class_id: string;
+	object_id: string;
+};
+
+type JobResult = { succeeded: true } | { succeeded: false; job?: Job; readError?: unknown };
+
+const transient = (e: unknown) => isDsqlOcc(e) || isConnectionError(e);
+
+// `sys.wait_for_job` returns false when the job fails, but also when the wait ends before the job does, and a
+// wait can fail while the job runs on. Only `sys.jobs` tells them apart, and a job that still runs must not be
+// treated as failed, because dropping its index cancels the build.
+const waitForJob = async (db: DB, jobId: string, opts: RunOptions): Promise<JobResult> => {
+	const sleep = opts.sleep ?? defaultSleep;
+	for (;;) {
+		let waitError: unknown;
+		try {
+			const [result] = await withRetry(
+				() => db.query<{ succeeded: boolean }>('CALL sys.wait_for_job($1)', [jobId]),
+				transient,
+				opts,
+				WAIT_ATTEMPTS,
+			);
+			if (result?.succeeded === true) return { succeeded: true };
+		} catch (error) {
+			waitError = error;
+		}
+
+		let job: Job | undefined;
+		try {
+			[job] = await withRetry(
+				() =>
+					db.query<Job>(
+						'SELECT status, job_type, object_name, details, class_id, object_id FROM sys.jobs WHERE job_id = $1',
+						[jobId],
+					),
+				transient,
+				opts,
+				WAIT_ATTEMPTS,
+			);
+		} catch (readError) {
+			if (waitError) throw waitError;
+			return { succeeded: false, readError };
+		}
+
+		if (!job) {
+			if (waitError) throw waitError;
+			return { succeeded: false };
+		}
+		if (job.status === 'completed') return { succeeded: true };
+		if (job.status === 'failed') return { succeeded: false, job };
+		await sleep(1000);
+	}
+};
+
+// Finds the object of a failed job from its catalog class and object id, and the statement that drops it.
+const dropStatementFor = async (db: DB, classId: number, objectId: string, opts: RunOptions) => {
+	const retryable = (e: unknown) => isDsqlOcc(e) || isConnectionError(e);
+	if (classId === 1259) {
+		const [index] = await withRetry(
+			() =>
+				db.query<{ schema: string; name: string }>(
+					`SELECT n.nspname AS "schema", c.relname AS "name" FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.oid = $1::oid`,
+					[objectId],
+				),
+			retryable,
+			opts,
+			WAIT_ATTEMPTS,
+		);
+		return index
+			? {
+				drop: `DROP INDEX IF EXISTS ${quote(index.schema)}.${quote(index.name)};`,
+				name: `${quote(index.schema)}.${quote(index.name)}`,
+			}
+			: null;
+	}
+	if (classId === 2606) {
+		const [constraint] = await withRetry(
+			() =>
+				db.query<{ schema: string; table: string; name: string }>(
+					`SELECT n.nspname AS "schema", t.relname AS "table", con.conname AS "name" FROM pg_catalog.pg_constraint con JOIN pg_catalog.pg_class t ON t.oid = con.conrelid JOIN pg_catalog.pg_namespace n ON n.oid = t.relnamespace WHERE con.oid = $1::oid`,
+					[objectId],
+				),
+			retryable,
+			opts,
+			WAIT_ATTEMPTS,
+		);
+		return constraint
+			? {
+				drop: `ALTER TABLE ${quote(constraint.schema)}.${quote(constraint.table)} DROP CONSTRAINT IF EXISTS ${
+					quote(constraint.name)
+				};`,
+				name: `${quote(constraint.name)} on ${quote(constraint.schema)}.${quote(constraint.table)}`,
+			}
+			: null;
+	}
+	return null;
+};
+
+const failJob = async (
+	db: DB,
+	jobId: string,
+	sql: string,
+	result: { job?: Job; readError?: unknown },
+	opts: RunOptions,
+): Promise<never> => {
+	const { job } = result;
+	let leftBehind = job?.object_name ?? 'the object of the job';
+	let cleanupError = result.readError === undefined ? undefined : errorMessage(result.readError);
+	if (job) {
+		try {
+			const target = await dropStatementFor(db, Number(job.class_id), String(job.object_id), opts);
+			if (target) {
+				leftBehind = target.name;
+				await withRetry(() => db.query(target.drop), isDsqlOcc, opts);
+			}
+		} catch (error) {
+			cleanupError = errorMessage(error);
+		}
+	}
+
+	throw new DsqlAsyncJobError({
+		job_id: jobId,
+		job_type: job?.job_type ?? 'unknown',
+		object_name: job?.object_name ?? 'unknown',
+		details: job?.details ?? 'no details',
+		sql,
+		...(cleanupError !== undefined && { cleanup_error: cleanupError }),
+	}, leftBehind);
+};
+
+// CREATE INDEX ASYNC and ALTER TABLE ASYNC return the id of the job they start. Other statements, for example
+// an insert that returns a `job_id` column, start no job.
+const startsJob = (sql: string) => /\b(INDEX|TABLE)\s+ASYNC\b/i.test(sql);
+
+// Runs statements on Aurora DSQL one by one. A statement that fails with an OCC conflict didn't commit, so it
+// runs again. A statement that starts an async job (CREATE INDEX ASYNC, ALTER TABLE ASYNC) is followed by a
+// wait for that job, which is never resubmitted. A failed job leaves an invalid index or an unvalidated
+// constraint, which introspection can't tell from a complete one, so it is dropped before the error is thrown.
+export const runDsqlStatements = async (
+	db: DB,
+	statements: string[],
+	opts: RunOptions & { log?: (sql: string) => void } = {},
+) => {
+	for (const statement of statements) {
+		opts.log?.(statement);
+		const rows = await withRetry(() => db.query<{ job_id?: string }>(statement), isDsqlOcc, opts);
+		const jobId = startsJob(statement) ? rows[0]?.job_id : undefined;
+		if (!jobId) continue;
+		const result = await waitForJob(db, jobId, opts);
+		if (!result.succeeded) await failJob(db, jobId, statement, result, opts);
+	}
+};
+
+type InvalidObject = {
+	kind: 'index' | 'constraint';
+	schema: string;
+	table: string;
+	name: string;
+	class_id: number | string;
+	oid: number | string;
+};
+
+const invalidObjects = async (
+	db: DB,
+	filter: EntityFilter,
+	migrations: { schema: string; table: string },
+	opts: RunOptions,
+) => {
+	const rows = await withRetry(
+		() =>
+			db.query<InvalidObject>(`
+				SELECT 'index' AS "kind", n.nspname AS "schema", t.relname AS "table", c.relname AS "name",
+					1259 AS "class_id", c.oid AS "oid"
+				FROM pg_catalog.pg_index i
+				JOIN pg_catalog.pg_class c ON c.oid = i.indexrelid
+				JOIN pg_catalog.pg_class t ON t.oid = i.indrelid
+				JOIN pg_catalog.pg_namespace n ON n.oid = t.relnamespace
+				WHERE NOT i.indisvalid
+				UNION ALL
+				SELECT 'constraint' AS "kind", n.nspname AS "schema", t.relname AS "table", con.conname AS "name",
+					2606 AS "class_id", con.oid AS "oid"
+				FROM pg_catalog.pg_constraint con
+				JOIN pg_catalog.pg_class t ON t.oid = con.conrelid
+				JOIN pg_catalog.pg_namespace n ON n.oid = t.relnamespace
+				WHERE NOT con.convalidated
+			`),
+		(e) => isDsqlOcc(e) || isConnectionError(e),
+		opts,
+		WAIT_ATTEMPTS,
+	);
+	return rows.filter((it) =>
+		!(it.schema === migrations.schema && it.table === migrations.table)
+		&& filter({ type: 'table', schema: it.schema, name: it.table })
+	);
+};
+
+// A failed or interrupted async job leaves an invalid index or an unvalidated constraint, which introspection
+// reads as complete. Waits for the jobs that are still running, and fails if anything stays invalid.
+export const assertNoInvalidDsqlObjects = async (
+	db: DB,
+	filter: EntityFilter,
+	migrations: { schema: string; table: string },
+	opts: RunOptions = {},
+) => {
+	const found = await invalidObjects(db, filter, migrations, opts);
+	if (found.length === 0) return;
+
+	const jobs = await withRetry(
+		() =>
+			db.query<{ job_id: string; class_id: number | string; object_id: number | string }>(
+				`SELECT job_id, class_id, object_id FROM sys.jobs WHERE status IN ('submitted', 'processing')`,
+			),
+		(e) => isDsqlOcc(e) || isConnectionError(e),
+		opts,
+		WAIT_ATTEMPTS,
+	);
+	for (const job of jobs) {
+		const pending = found.some((it) =>
+			Number(it.class_id) === Number(job.class_id) && String(it.oid) === String(job.object_id)
+		);
+		if (pending) await waitForJob(db, job.job_id, opts);
+	}
+
+	const left = await invalidObjects(db, filter, migrations, opts);
+	if (left.length === 0) return;
+	const names = (kind: InvalidObject['kind']) =>
+		left.filter((it) => it.kind === kind).map((it) => `${it.schema}.${it.table}.${it.name}`);
+	throw new DsqlInvalidObjectsError({ indexes: names('index'), constraints: names('constraint') });
+};
+
+// Aurora DSQL can fail even a catalog read with an OCC conflict while another transaction changes the schema,
+// so introspection retries it.
+export const withDsqlOccRetry = <T extends DB>(db: T, opts: RunOptions = {}): T => {
+	return {
+		...db,
+		query: (sql: string, params?: any[]) => withRetry(() => db.query(sql, params), isDsqlOcc, opts, WAIT_ATTEMPTS),
+	};
+};
+
+// Aurora DSQL creates and owns these roles, so drizzle-kit never manages them.
+export const dsqlEntityFilter = (filter: EntityFilter): EntityFilter => {
+	return (it) => !(it.type === 'role' && DSQL_SYSTEM_ROLES.includes(it.name)) && filter(it);
 };

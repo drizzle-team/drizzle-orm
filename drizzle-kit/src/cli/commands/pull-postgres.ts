@@ -21,7 +21,13 @@ import type {
 } from '../../dialects/postgres/ddl';
 import { createDDL, interimToDDL, postgresToRelationsPull } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
-import { assertDsqlBreakpoints, toDsql } from '../../dialects/postgres/dsql';
+import {
+	assertDsqlBreakpoints,
+	assertNoInvalidDsqlObjects,
+	dsqlEntityFilter,
+	toDsql,
+	withDsqlOccRetry,
+} from '../../dialects/postgres/dsql';
 import { assertHistory, readEntries } from '../../dialects/postgres/folder';
 import { fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
 import { toJsonBaseSnapshot } from '../../dialects/postgres/snapshot';
@@ -68,7 +74,12 @@ export const handle = async (
 	}
 
 	const text = outputFormat() === 'text';
-	const entityFilter = prepareEntityFilter('postgresql', filtersConfig, []);
+	const filter = prepareEntityFilter('postgresql', filtersConfig, []);
+	const entityFilter = isDsql ? dsqlEntityFilter(filter) : filter;
+	if (isDsql) {
+		await assertNoInvalidDsqlObjects(db, entityFilter, migrations);
+		db = withDsqlOccRetry(db);
+	}
 
 	let res: Awaited<ReturnType<typeof fromDatabaseForDrizzle>>;
 	if (text) {

@@ -20,6 +20,13 @@ import { interimToDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema } from '../../dialects/postgres/drizzle';
 import type { SchemaSource } from '../../dialects/postgres/drizzle';
+import {
+	assertNoInvalidDsqlObjects,
+	dsqlEntityFilter,
+	runDsqlStatements,
+	toDsql,
+	withDsqlOccRetry,
+} from '../../dialects/postgres/dsql';
 import type { JsonStatement } from '../../dialects/postgres/statements';
 import { prepareEntityFilter } from '../../dialects/pull-utils';
 import type { DB } from '../../utils';
@@ -66,11 +73,14 @@ export const handle = async (
 	const { preparePostgresDB } = await import('../connections');
 	const { introspect } = await import('./pull-postgres');
 
-	const db = await preparePostgresDB(credentials);
+	const isDsql = 'driver' in credentials && credentials.driver === 'dsql';
+	const connection = await preparePostgresDB(credentials);
+	const db = isDsql ? withDsqlOccRetry(connection) : connection;
 	const res = await schemaSource.load();
 
 	const existing = extractPostgresExisting(res.schemas, res.views, res.matViews);
-	const entityFilter = prepareEntityFilter('postgresql', filters, existing);
+	const filter = prepareEntityFilter('postgresql', filters, existing);
+	const entityFilter = isDsql ? dsqlEntityFilter(filter) : filter;
 
 	const { schema: schemaTo, metadata, errors, warnings } = fromDrizzleSchema(res, entityFilter);
 
@@ -84,6 +94,8 @@ export const handle = async (
 			dialect: 'postgresql',
 		});
 	}
+
+	if (isDsql) await assertNoInvalidDsqlObjects(connection, entityFilter, migrations);
 
 	const progress = json
 		? new EmptyProgressView()
@@ -108,7 +120,7 @@ export const handle = async (
 	}
 
 	// const blanks = new Set<string>();
-	const { sqlStatements, statements: jsonStatements, groupedStatements } = await ddlDiff(
+	const diffResult = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Schema>('schema', hints),
@@ -131,6 +143,10 @@ export const handle = async (
 	if (hints.hasMissingHints()) {
 		return hints.toResponse();
 	}
+
+	const { sqlStatements, statements: jsonStatements, groupedStatements } = isDsql
+		? toDsql(diffResult, ddl2)
+		: diffResult;
 
 	if (sqlStatements.length === 0) {
 		if (!json) {
@@ -167,10 +183,16 @@ export const handle = async (
 
 	const lossStatements = dataLossHints.map((x) => x.statement).filter((x) => typeof x !== 'undefined');
 
-	for (const statement of [...lossStatements, ...sqlStatements]) {
-		if (verbose) humanLog(highlightSQL(statement));
+	if (isDsql) {
+		await runDsqlStatements(connection, [...lossStatements, ...sqlStatements], {
+			log: verbose ? (statement) => humanLog(highlightSQL(statement)) : undefined,
+		});
+	} else {
+		for (const statement of [...lossStatements, ...sqlStatements]) {
+			if (verbose) humanLog(highlightSQL(statement));
 
-		await db.query(statement);
+			await db.query(statement);
+		}
 	}
 
 	if (!json) {

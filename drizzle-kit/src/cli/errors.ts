@@ -268,6 +268,55 @@ export class UnsupportedSchemaChangeError extends DrizzleCliError {
 	}
 }
 
+export type DsqlAsyncJobMeta = {
+	job_id: string;
+	job_type: string;
+	object_name: string;
+	details: string;
+	sql: string;
+	cleanup_error?: string;
+};
+
+// An Aurora DSQL async job (an index build or a constraint validation) failed after its statement returned.
+export class DsqlAsyncJobError extends DrizzleCliError {
+	override readonly meta: DsqlAsyncJobMeta;
+
+	constructor(meta: DsqlAsyncJobMeta, leftBehind?: string) {
+		super(
+			'dsql_async_job_failed',
+			[
+				`Aurora DSQL job ${meta.job_id} (${meta.job_type} of ${meta.object_name}) failed: ${meta.details}`,
+				`Statement: ${meta.sql}`,
+				meta.cleanup_error
+					? `Dropping the object failed, so ${leftBehind} is left behind: ${meta.cleanup_error}`
+					: 'The object was dropped. The statements before it stay applied, so if it replaced an index or constraint, the table now has neither. Fix the data and run the command again',
+			].join('\n'),
+			meta as DrizzleCliErrorMeta,
+		);
+		this.meta = meta;
+	}
+}
+
+// Indexes and constraints that Aurora DSQL never finished building or validating. They look complete to
+// introspection, so drizzle-kit refuses to diff against them.
+export class DsqlInvalidObjectsError extends DrizzleCliError {
+	override readonly meta: { indexes: string[]; constraints: string[] };
+
+	constructor(meta: { indexes: string[]; constraints: string[] }) {
+		super(
+			'dsql_invalid_objects',
+			[
+				'Aurora DSQL has indexes or constraints whose build or validation failed or never finished.',
+				...meta.indexes.map((it) => `- index ${it}`),
+				...meta.constraints.map((it) => `- constraint ${it}`),
+				'Drop them, fix the data and run the command again',
+			].join('\n'),
+			meta,
+		);
+		this.meta = meta;
+	}
+}
+
 export const errorToEnvelope = (e: unknown) => {
 	if (e instanceof DrizzleCliError) {
 		return { status: 'error' as const, error: { code: e.code, ...e.meta } };

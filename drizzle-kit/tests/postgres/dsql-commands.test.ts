@@ -1,4 +1,5 @@
 import { test as brotest } from '@drizzle-team/brocli';
+import { PGlite } from '@electric-sql/pglite';
 import { sql } from 'drizzle-orm';
 import { integer, pgTable, serial, uuid } from 'drizzle-orm/pg-core';
 import { index } from 'drizzle-orm/pg-core';
@@ -7,12 +8,25 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { exportSql } from 'src/cli-sdk/export';
-import { errorToEnvelope, UnsupportedCommandCliError, UnsupportedSchemaChangeError } from 'src/cli/errors';
+import {
+	DsqlInvalidObjectsError,
+	errorToEnvelope,
+	UnsupportedCommandCliError,
+	UnsupportedSchemaChangeError,
+} from 'src/cli/errors';
 import { HintsHandler } from 'src/cli/hints';
 import { exportRaw } from 'src/cli/schema';
 import { fromExports, SchemaSource } from 'src/dialects/postgres/drizzle';
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
+import type { DB } from 'src/utils';
+import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { prepareTestDatabase, type TestDatabase } from './mocks';
+
+// push connects through `preparePostgresDB`, so its tests hand it their own database here.
+const connection = vi.hoisted(() => ({ db: undefined as unknown }));
+vi.mock('src/cli/connections', async (importOriginal) => ({
+	...(await importOriginal<typeof import('src/cli/connections')>()),
+	preparePostgresDB: async () => connection.db,
+}));
 
 const runWithCliContext = async <T>(
 	context: { output: 'text' | 'json'; interactive: boolean },
@@ -184,19 +198,23 @@ describe('pull', () => {
 		await _.clear();
 	});
 
-	const pull = async (breakpoints: boolean) => {
+	const pull = async (
+		breakpoints: boolean,
+		entities?: unknown,
+		db: DB = _.db,
+		out = mkdtempSync(join(tmpdir(), 'drizzle-kit-dsql-pull-')),
+	) => {
 		const { handle } = await import('src/cli/commands/pull-postgres');
-		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-dsql-pull-'));
 		const res = await runWithCliContext({ output: 'json', interactive: false }, () =>
 			handle(
 				'camel',
 				out,
 				breakpoints,
 				{ driver: 'dsql', url: 'postgresql://admin@localhost/postgres' },
-				{ tables: undefined, schemas: undefined, entities: undefined, extensions: undefined } as never,
+				{ tables: undefined, schemas: undefined, entities, extensions: undefined } as never,
 				{ schema: 'drizzle', table: '__drizzle_migrations' },
 				false,
-				_.db as never,
+				db as never,
 			));
 		return { res, out };
 	};
@@ -210,6 +228,38 @@ describe('pull', () => {
 		expect(migrationSql(out)).toContain('CREATE INDEX ASYNC "users_age_idx" ON "users" ("age");');
 	});
 
+	test('leaves the DSQL system roles out of the pulled schema', async () => {
+		await _.db.query('CREATE ROLE "admin";');
+		await _.db.query('CREATE ROLE "app_user" WITH LOGIN;');
+
+		const { out } = await pull(true, { roles: { include: ['admin', 'app_user'] } });
+
+		const schemaTs = readFileSync(join(out, 'schema.ts'), 'utf8');
+		expect(schemaTs).toContain('pgRole("app_user", { canLogin: true })');
+		expect(schemaTs).not.toContain('pgRole("admin"');
+		expect(migrationSql(out)).not.toContain('"admin"');
+	});
+
+	test('refuses to pull while an index is invalid', async () => {
+		await _.db.query('CREATE TABLE "users" ("id" uuid PRIMARY KEY, "age" integer);');
+		await _.db.query('CREATE INDEX "users_age_idx" ON "users" ("age");');
+		await _.db.query(`UPDATE pg_index SET indisvalid = false WHERE indexrelid = '"users_age_idx"'::regclass;`);
+		// No DSQL job is running.
+		const db: DB = {
+			query: (sql, params) => sql.includes('FROM sys.jobs') ? Promise.resolve([]) : _.db.query(sql, params),
+		};
+		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-dsql-pull-'));
+
+		const error = await pull(true, undefined, db, out).catch((e) => e);
+
+		expect(error).toBeInstanceOf(DsqlInvalidObjectsError);
+		expect((error as DsqlInvalidObjectsError).meta).toStrictEqual({
+			indexes: ['public.users.users_age_idx'],
+			constraints: [],
+		});
+		expect(readdirSync(out)).toStrictEqual([]);
+	});
+
 	test('rejects breakpoints false with driver dsql', async () => {
 		const error = await pull(false).catch((e) => e);
 
@@ -219,5 +269,87 @@ describe('pull', () => {
 			dialect: 'postgresql',
 			option: 'breakpoints',
 		});
+	});
+});
+
+describe('push', () => {
+	// PGlite with DSQL's async job protocol: `CREATE INDEX ASYNC` builds the index and returns a job id, every job
+	// succeeds, and no job is running.
+	const dsqlLike = async (setup: string[]) => {
+		const client = new PGlite();
+		for (const it of setup) await client.query(it);
+		const queries: string[] = [];
+		const db: DB = {
+			query: async (sql, params) => {
+				queries.push(sql);
+				if (/^CREATE (UNIQUE )?INDEX ASYNC /.test(sql)) {
+					await client.query(sql.replace(' ASYNC ', ' '));
+					return [{ job_id: 'j1' }] as never[];
+				}
+				if (sql.startsWith('CALL sys.wait_for_job(')) return [{ succeeded: true }] as never[];
+				if (sql.includes('FROM sys.jobs')) return [];
+				return (await client.query(sql, params)).rows as never[];
+			},
+		};
+		connection.db = db;
+		return { client, queries };
+	};
+
+	const push = async (schema: Record<string, unknown>) => {
+		const { handle } = await import('src/cli/commands/push-postgres');
+		return runWithCliContext({ output: 'json', interactive: false }, () =>
+			handle(
+				SchemaSource.fromSchema(fromExports(schema)),
+				false,
+				{ driver: 'dsql', url: 'postgresql://admin@localhost/postgres' },
+				{ tables: undefined, schemas: undefined, entities: undefined, extensions: undefined } as never,
+				false,
+				false,
+				{ schema: 'drizzle', table: '__drizzle_migrations' },
+				new HintsHandler(),
+			));
+	};
+
+	test('runs the DSQL SQL and waits for its job', async () => {
+		const { queries } = await dsqlLike(['CREATE TABLE "users" ("id" uuid PRIMARY KEY, "age" integer);']);
+
+		const res = await push(indexed);
+
+		expect(res).toStrictEqual({ status: 'ok', dialect: 'postgresql' });
+		const index = queries.indexOf('CREATE INDEX ASYNC "users_age_idx" ON "users" ("age");');
+		expect(index).toBeGreaterThan(-1);
+		expect(queries[index + 1]).toBe('CALL sys.wait_for_job($1)');
+	});
+
+	test('rejects an unsupported change before running any SQL', async () => {
+		const { queries } = await dsqlLike([]);
+
+		const error = await push({ users: pgTable('users', { id: serial().primaryKey() }) }).catch((e) => e);
+
+		expect(error).toBeInstanceOf(UnsupportedSchemaChangeError);
+		expect((error as UnsupportedSchemaChangeError).meta).toMatchObject({ kind: 'dsql_unsupported' });
+		expect(queries.filter((it) => it.startsWith('CREATE'))).toStrictEqual([]);
+	});
+
+	test('refuses to run while an index is invalid', async () => {
+		const { queries } = await dsqlLike([
+			'CREATE TABLE "users" ("id" uuid PRIMARY KEY, "age" integer);',
+			'CREATE INDEX "users_age_idx" ON "users" ("age");',
+			`UPDATE pg_index SET indisvalid = false WHERE indexrelid = '"users_age_idx"'::regclass;`,
+		]);
+
+		// The schema adds a column, so a push that ran past the check would change the table.
+		const error = await push({
+			users: pgTable('users', { id: uuid().primaryKey(), age: integer(), extra: integer() }, (t) => [
+				index('users_age_idx').on(t.age),
+			]),
+		}).catch((e) => e);
+
+		expect(error).toBeInstanceOf(DsqlInvalidObjectsError);
+		expect((error as DsqlInvalidObjectsError).meta).toStrictEqual({
+			indexes: ['public.users.users_age_idx'],
+			constraints: [],
+		});
+		expect(queries.filter((it) => /^(CREATE|ALTER|DROP)/.test(it))).toStrictEqual([]);
 	});
 });
