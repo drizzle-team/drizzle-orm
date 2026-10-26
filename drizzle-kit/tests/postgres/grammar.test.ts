@@ -1,4 +1,9 @@
-import { splitSqlType, trimDefaultValueSuffix } from 'src/dialects/postgres/grammar';
+import {
+	checkValueFromDefinition,
+	indexMethodFromAccessMethod,
+	splitSqlType,
+	trimDefaultValueSuffix,
+} from 'src/dialects/postgres/grammar';
 import { expect, test } from 'vitest';
 
 test.each([
@@ -81,4 +86,22 @@ test('to default array', () => {
 	// expect.soft(toDefaultArray([{ key: 'one' }, { key: 'two' }], 1, (it) => JSON.stringify(it))).toBe(
 	// 	`{{"key":"one"},{"key":"two"}}`,
 	// );
+});
+
+test.each([
+	['CHECK ((age > 21))', '(age > 21)'],
+	['CHECK ((a < 100)) NOT VALID', '(a < 100)'],
+	['CHECK (((a > 0) AND (b > 0))) NOT VALID', '((a > 0) AND (b > 0))'],
+	['NOT CHECK', 'NOT CHECK'],
+])('checkValueFromDefinition(%s)', (definition, expected) => {
+	expect(checkValueFromDefinition(definition)).toBe(expected);
+});
+
+test.each([
+	['btree_index', 'btree'],
+	['btree', 'btree'],
+	['hash', 'hash'],
+	['gin', 'gin'],
+])('indexMethodFromAccessMethod(%s)', (accessMethod, expected) => {
+	expect(indexMethodFromAccessMethod(accessMethod)).toBe(expected);
 });

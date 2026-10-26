@@ -23,7 +23,9 @@ import type {
 	ViewColumn,
 } from './ddl';
 import {
+	checkValueFromDefinition,
 	defaultForColumn,
+	indexMethodFromAccessMethod,
 	isSerialExpression,
 	isSystemNamespace,
 	parseOnType,
@@ -887,7 +889,7 @@ export const fromDatabase = async (
 			schema: schema.name,
 			table: table.name,
 			name: check.name,
-			value: check.definition.startsWith('CHECK (') ? check.definition.slice(7, -1) : check.definition,
+			value: checkValueFromDefinition(check.definition),
 		});
 	}
 	progressCallback('checks', checks.length, 'done');
@@ -1056,7 +1058,7 @@ export const fromDatabase = async (
 			table: table.name,
 			name: idx.name,
 			nameExplicit: true,
-			method: idx.accessMethod,
+			method: indexMethodFromAccessMethod(idx.accessMethod),
 			isUnique: metadata.isUnique,
 			with: idx.with?.join(', ') ?? '',
 			where: metadata.where,

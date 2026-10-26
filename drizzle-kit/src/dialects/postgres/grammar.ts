@@ -1732,6 +1732,17 @@ export const splitSqlType = (sqlType: string) => {
 	return { type, options };
 };
 
+// `pg_get_constraintdef` returns `CHECK (<expr>)`, followed by ` NOT VALID` while the constraint is unvalidated.
+export const checkValueFromDefinition = (definition: string) => {
+	const value = definition.endsWith(' NOT VALID') ? definition.slice(0, -' NOT VALID'.length) : definition;
+	return value.startsWith('CHECK (') ? value.slice(7, -1) : value;
+};
+
+// Aurora DSQL reports its btree indexes with the `btree_index` access method.
+export const indexMethodFromAccessMethod = (accessMethod: string) => {
+	return accessMethod === 'btree_index' ? 'btree' : accessMethod;
+};
+
 export const vectorOps = [
 	'vector_l2_ops',
 	'vector_ip_ops',
