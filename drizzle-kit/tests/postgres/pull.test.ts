@@ -1399,6 +1399,28 @@ test('role with properties', async () => {
 	expect(generateSqlStatements).toStrictEqual([]);
 });
 
+test('role with login', async () => {
+	const schema = {
+		usersRole: pgRole('user', { canLogin: true }),
+	};
+
+	const {
+		pushStatements,
+		pushSqlStatements,
+		generateStatements,
+		generateSqlStatements,
+	} = await diffIntrospect(db, schema, 'role-with-login', ['public'], {
+		roles: { include: ['user'] },
+	});
+
+	const [role] = await db.query<{ rolcanlogin: boolean }>(`SELECT rolcanlogin FROM pg_roles WHERE rolname = 'user'`);
+	expect(role!.rolcanlogin).toBe(true);
+	expect(pushStatements).toStrictEqual([]);
+	expect(generateStatements).toStrictEqual([]);
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
 test('role with a few properties', async () => {
 	const schema = {
 		usersRole: pgRole('user', { inherit: false, createRole: true }),

@@ -1,6 +1,7 @@
 import { entityKind, is } from '~/entity.ts';
 
 export interface PgRoleConfig {
+	canLogin?: boolean;
 	createDb?: boolean;
 	createRole?: boolean;
 	inherit?: boolean;
@@ -15,6 +16,7 @@ export class PgRole implements PgRoleConfig {
 	/** @internal */
 	_existing?: boolean;
 
+	readonly canLogin: PgRoleConfig['canLogin'];
 	readonly createDb: PgRoleConfig['createDb'];
 	readonly createRole: PgRoleConfig['createRole'];
 	readonly inherit: PgRoleConfig['inherit'];
@@ -24,6 +26,7 @@ export class PgRole implements PgRoleConfig {
 		config?: PgRoleConfig,
 	) {
 		if (config) {
+			this.canLogin = config.canLogin;
 			this.createDb = config.createDb;
 			this.createRole = config.createRole;
 			this.inherit = config.inherit;
