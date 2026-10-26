@@ -124,6 +124,7 @@ export type GenerateConfig<S extends AnySchemaSource = AnySchemaSource> = {
 
 export type ExportConfig = {
 	dialect: Dialect;
+	driver?: Driver;
 	sql: boolean;
 	filenames: string[];
 	output: 'text' | 'json';
@@ -192,6 +193,7 @@ export const prepareExportConfig = async (
 		config?: string;
 		schema?: string;
 		dialect?: Dialect;
+		driver?: Driver;
 		sql?: boolean;
 	},
 	from: 'config' | 'cli',
@@ -200,7 +202,7 @@ export const prepareExportConfig = async (
 		? await drizzleConfigFromFile(options.config, true)
 		: options;
 
-	const { schema, dialect } = config;
+	const { schema, dialect, driver } = config;
 	const sql = options.sql ?? (config as { sql?: boolean }).sql ?? true;
 
 	if (!schema || !dialect) {
@@ -217,6 +219,7 @@ export const prepareExportConfig = async (
 	const fileNames = prepareFilenames(schema);
 	return {
 		dialect: dialect,
+		...(driver && { driver }),
 		sql: sql,
 		filenames: fileNames,
 	};

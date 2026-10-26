@@ -22,6 +22,7 @@ import { createDDL } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { SchemaSource } from '../../dialects/postgres/drizzle';
+import { assertDsqlBreakpoints, toDsql } from '../../dialects/postgres/dsql';
 import { leafFolders, readFolder, withoutMigrations } from '../../dialects/postgres/folder';
 import { prepareSnapshot, stateOfSchema } from '../../dialects/postgres/serializer';
 import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
@@ -38,6 +39,7 @@ import type { ExportConfig, GenerateConfig } from './utils';
 export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	const { out: outFolder } = config;
 	const json = outputFormat() === 'json';
+	if (config.driver === 'dsql') assertDsqlBreakpoints('generate', config.breakpoints);
 
 	const stored = readFolder(outFolder);
 	const { report, fix } = await checkSnapshots(stored.files, 'postgresql');
@@ -89,7 +91,7 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 
 	// `ddlDiff` changes `ddlPrev` and `ddlCur`. `snapshotOf` stores the changed `ddlCur`, because its auto-named
 	// constraints then have the names that the SQL leaves in the database.
-	const { sqlStatements, groupedStatements, statements, deltas } = await ddlDiff(
+	const diffResult = await ddlDiff(
 		ddlPrev,
 		ddlCur,
 		resolver<Schema>('schema', config.hints),
@@ -112,6 +114,10 @@ export const handle = async (config: GenerateConfig<SchemaSource>) => {
 	if (config.hints.hasMissingHints()) {
 		return config.hints.toResponse();
 	}
+
+	const { sqlStatements, groupedStatements, statements, deltas } = config.driver === 'dsql'
+		? toDsql(diffResult, ddlCur)
+		: diffResult;
 
 	if (!config.explain) {
 		return {
@@ -155,7 +161,8 @@ export const handleExport = async (config: ExportConfig) => {
 		});
 	}
 
-	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default', metadata);
+	const diffResult = await ddlDiffDry(createDDL(), ddl, 'default', metadata);
+	const { sqlStatements } = config.driver === 'dsql' ? toDsql(diffResult, ddl) : diffResult;
 	return {
 		statements: sqlStatements,
 		warnings: warnings.map((it) => postgresSchemaWarning(it)),

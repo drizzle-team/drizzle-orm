@@ -1,4 +1,4 @@
-import { UnsupportedSchemaChangeError } from '../../cli/errors';
+import { UnsupportedCommandCliError, UnsupportedSchemaChangeError } from '../../cli/errors';
 import type { Column, Index, PostgresDDL, Role, Sequence, Table } from './ddl';
 import type { JsonStatement } from './statements';
 
@@ -425,4 +425,15 @@ export const toDsql = <
 	}));
 
 	return { ...result, groupedStatements, sqlStatements: groupedStatements.flatMap((it) => it.sqlStatements) };
+};
+
+// Aurora DSQL runs one DDL statement per transaction, and the migrator runs each breakpoint chunk as one
+// statement.
+export const assertDsqlBreakpoints = (command: 'generate' | 'pull', breakpoints: boolean) => {
+	if (breakpoints) return;
+	throw new UnsupportedCommandCliError(
+		command,
+		"Aurora DSQL runs one DDL statement per transaction, so `breakpoints` must stay enabled with driver 'dsql'",
+		{ dialect: 'postgresql', option: 'breakpoints' },
+	);
 };
