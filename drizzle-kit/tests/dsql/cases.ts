@@ -178,7 +178,6 @@ export const dsqlCases = (s: string) => {
 						num1000: numeric({ precision: 1000, scale: -1000 }),
 						r: real(),
 						dp: doublePrecision(),
-						f53: float({ precision: 53 }),
 						gen: integer().generatedAlwaysAs(sql`1 + 1`),
 					}),
 				},
