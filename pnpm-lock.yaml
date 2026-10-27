@@ -349,11 +349,11 @@ importers:
   drizzle-orm:
     dependencies:
       '@types/mssql':
-        specifier: ^9.1.4
+        specifier: '>=9.1.4'
         version: 9.1.8
       mssql:
-        specifier: ^11.0.1
-        version: 11.0.1
+        specifier: '>=11.0.1'
+        version: 12.1.1
     devDependencies:
       '@arktype/attest':
         specifier: ^0.46.0
