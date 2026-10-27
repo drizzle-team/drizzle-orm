@@ -181,7 +181,7 @@ export abstract class SQLiteDialect {
 	): SQL {
 		const columnsLen = fields.length;
 
-		const chunks = fields.flatMap(({ field }, i) => {
+		const chunks = fields.flatMap(({ field, path }, i) => {
 			const chunk: SQLChunk[] = [];
 
 			if (is(field, SQL.Aliased) && field.isSelectionField) {
@@ -209,24 +209,35 @@ export abstract class SQLiteDialect {
 				}
 			} else if (is(field, Column)) {
 				const tableName = field.table[Table.Symbol.Name];
+				const columnName = this.casing.getColumnCasing(field);
 				if (field.columnType === 'SQLiteNumericBigInt') {
 					if (isSingleTable) {
 						chunk.push(
-							sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+							sql`cast(${sql.identifier(columnName)} as text)`,
 						);
 					} else {
 						chunk.push(
-							sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+							sql`cast(${sql.identifier(tableName)}.${sql.identifier(columnName)} as text)`,
 						);
 					}
 				} else {
 					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+						chunk.push(sql.identifier(columnName));
 					} else {
 						chunk.push(
-							sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`,
+							sql`${sql.identifier(tableName)}.${sql.identifier(columnName)}`,
 						);
 					}
+				}
+				// Alias selected columns so drivers that return object rows (notably
+				// D1 `batch()`, which converts ROWS_AND_COLUMNS → objects) keep distinct
+				// keys when the same column name appears more than once (e.g. join on id).
+				// mapResultRow still maps by ordinal position; aliases only need to be unique.
+				const selectionKey = path.length > 1 ? path.join('_') : path[0];
+				if (selectionKey && selectionKey !== columnName) {
+					chunk.push(sql` as ${sql.identifier(selectionKey)}`);
+				} else if (selectionKey && !isSingleTable) {
+					chunk.push(sql` as ${sql.identifier(`${tableName}_${columnName}`)}`);
 				}
 			} else if (is(field, Subquery)) {
 				const entries = Object.entries(field._.selectedFields) as [
