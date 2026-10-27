@@ -37,7 +37,7 @@ A token-based pipeline is not worth building. Classic tokens no longer exist. Gr
 | An internal module removed (`dist/connection.{js,d.ts}`) | misses | misses | catches | catches |
 | An internal `.js` removed, its `.d.ts` kept | misses | misses | misses | catches |
 
-- **pack-check** owns what no tool covers: the allowlist of packed paths (no `.map` files), and orphaned `dist/*.js` files that have no `src/*.ts`.
+- **pack-check** owns what no tool covers: the allowlist of packed paths (no `.map` files), orphaned `dist/*.js` files that have no `src/*.ts`, and `private` or `protected` members in a `.d.ts` file. Two copies of Drizzle Postgres in one project are only compatible in types when the declarations have no such members, and the build removes them.
 - **publint --strict** checks the exports map: `types` before `import`, `./` prefixes, and files excluded by `files`.
 - **attw** must run with `--profile esm-only`. Without it, every subpath reports false positives for node10 resolution and CommonJS consumers.
 - **smoke-pack** installs the tarball and imports every subpath. It runs under Node, because Bun resolves `exports` more permissively and would hide errors that Node users hit. `./cf` is expected to fail with `ERR_UNSUPPORTED_ESM_URL_SCHEME`, because it imports `cloudflare:sockets`. The check pins that exact code, so a broken exports map still fails.

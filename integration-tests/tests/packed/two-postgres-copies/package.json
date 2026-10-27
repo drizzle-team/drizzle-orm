@@ -1,0 +1,5 @@
+{
+	"name": "postgres-two-copies-consumer",
+	"private": true,
+	"type": "module"
+}
