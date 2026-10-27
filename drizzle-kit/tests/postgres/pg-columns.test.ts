@@ -1848,3 +1848,14 @@ test('Issue No6360', async () => {
 	expect(st1).toStrictEqual(st0);
 	expect(pst1).toStrictEqual(st0);
 });
+
+// Postgres stores a char without a length as character(1), so introspection reads it back as char(1).
+test('a char without a length matches char(1) on the next push', async () => {
+	const to = {
+		users: pgTable('users', { id: integer().primaryKey(), code: char() }),
+	};
+
+	const { sqlStatements: st } = await push({ db, to });
+
+	expect(st).toStrictEqual([`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY,\n\t"code" char\n);\n`]);
+});
