@@ -266,6 +266,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				});
 
 				const db = yield* DB;
+				yield* db.run(sql`drop table if exists ${table}`);
 				yield* push(db, { table });
 
 				const { input, output } = jsonRows(['jsonText', 'jsonBlob']);

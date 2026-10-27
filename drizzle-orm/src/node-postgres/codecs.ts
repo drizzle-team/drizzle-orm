@@ -119,16 +119,12 @@ export const nodePgCodecs = refineGenericPgCodecs({
 		cast: castToText,
 		castArray: castToTextArr,
 	},
-	// driver handles objects, other types need to be stringified
 	json: {
 		cast: castToText,
 		castArray: castToTextArr,
 		normalize: JSON.parse,
 		normalizeArray: arrayCompatNormalize(JSON.parse),
-		normalizeParam: (v) =>
-			typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date) && !(v instanceof Uint8Array)
-				? v
-				: JSON.stringify(v),
+		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	jsonb: {
@@ -136,10 +132,7 @@ export const nodePgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 		normalize: JSON.parse,
 		normalizeArray: arrayCompatNormalize(JSON.parse),
-		normalizeParam: (v) =>
-			typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date) && !(v instanceof Uint8Array)
-				? v
-				: JSON.stringify(v),
+		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	enum: {

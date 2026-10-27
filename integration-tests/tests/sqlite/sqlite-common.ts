@@ -5605,6 +5605,7 @@ export function tests(test: Test, exclude: string[] = []) {
 				jsonText: text('jsonText', { mode: 'json' }),
 				jsonBlob: blob('jsonBlob', { mode: 'json' }),
 			});
+			await db.run(sql`drop table if exists ${table}`);
 			await push({ table });
 
 			const { input, output } = jsonRows(['jsonText', 'jsonBlob']);
