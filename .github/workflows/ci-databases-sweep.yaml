@@ -1,0 +1,38 @@
+name: Sweep CI databases
+
+# Each test job drops its hosted databases at the end. This deletes the ones that a job left behind
+# when its drop step did not run or failed.
+on:
+  schedule:
+    # GitHub delays scheduled runs at busy times, and the start of every hour is one of them.
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+        with: { run_install: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: '24', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile --prefer-offline --filter integration-tests...
+      - name: Delete hosted databases older than one day
+        working-directory: integration-tests
+        env:
+          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
+          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
+          PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
+          PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
+          PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
+          SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
+          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
+          TURSO_ORG: ${{ secrets.TURSO_ORG }}
+          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
+        run: pnpm exec tsx scripts/ci-databases.ts sweep neon netlify planetscale sqlitecloud turso
