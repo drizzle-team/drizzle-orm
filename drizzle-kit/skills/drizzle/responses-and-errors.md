@@ -42,6 +42,8 @@ The canonical subset surfacing from `generate` and `push`. `code` is the discrim
 | `unsupported_schema_change`         | the diff would emit DDL the target dialect cannot execute (see variants below)      | `kind`, plus per-variant keys                                   |
 | `check_error`                       | a command that reads the migrations folder found a snapshot-integrity problem or unreported branch conflicts (see below) | `kind: 'unsupported'\|'malformed'\|'non_latest'\|'order'\|'conflicts'`, `snapshot?`, `parentId?`, `parentSnapshot?`, `baseSnapshot?`, `conflicts?`, `details?` |
 | `query_error`                       | runtime SQL against the live DB threw                                               | `sql`, `params`                                                 |
+| `dsql_async_job_failed`             | `push` with `driver: 'dsql'`: an index build or constraint validation job failed; the failed object is dropped unless `cleanup_error` is set | `job_id`, `job_type`, `object_name`, `details`, `sql`, `cleanup_error?` |
+| `dsql_invalid_objects`              | `push` or `pull` with `driver: 'dsql'` found indexes or constraints that were never built or validated | `indexes`, `constraints`                                        |
 | `internal_error`                    | uncaught exception escaped the run boundary — likely a bug to report                | `message`                                                       |
 | `config_validation_error`           | `drizzle.config.ts` failed shape validation                                         | `issues?` (zod-style records)                                   |
 | `config_file_not_found_error`       | config path did not resolve to a file                                               | `path`                                                          |
@@ -68,6 +70,7 @@ Ordering above is roughly most-likely-first from `generate` / `push`. Other code
 | `fk_target_not_unique`               | mysql, singlestore | `kind`, `table`, `columns`, `table_to`, `columns_to`            |
 | `rename_blocked_by_check_constraint` | mssql              | `kind`, `schema`, `table`, `from`, `to`                         |
 | `rename_schema_unsupported`          | mssql              | `kind`, `from`, `to`, `dialect: 'mssql'`                        |
+| `dsql_unsupported`                   | postgresql (driver `dsql`) | `kind`, `issues: { statement, entity, reason }[]`      |
 
 When fired:
 
@@ -75,6 +78,7 @@ When fired:
 - `fk_target_not_unique` — `CREATE FOREIGN KEY` is rejected because the referenced columns on `table_to` are neither UNIQUE nor a PRIMARY KEY. Add a UNIQUE on `columns_to` first.
 - `rename_blocked_by_check_constraint` — `sp_rename` of `schema.table.from` is rejected because the column appears in a CHECK constraint. Drop the constraint, rename, recreate the constraint.
 - `rename_schema_unsupported` — MSSQL does not support schema rename at all. Recreate the schema and move objects manually, or keep the old schema name.
+- `dsql_unsupported` — with `driver: 'dsql'`, `generate`, `export`, `pull` and `push` found changes Aurora DSQL can't make, such as a `serial` column, an enum or a descending index key. `issues` lists every one, with the diff statement type, the schema-qualified entity and the reason. Change the schema as the reason says, then retry.
 
 ## Check errors
 
