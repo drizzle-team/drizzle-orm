@@ -55,6 +55,7 @@ import {
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
 import { describe, expect, expectTypeOf } from 'vitest';
+import { jsonRows, parseStoredJson } from '~/json-values';
 import type { Equal } from '~/utils';
 import { Expect } from '~/utils';
 import type { AllTypes } from './all-types';
@@ -5596,6 +5597,29 @@ export function tests(test: Test, exclude: string[] = []) {
 
 			await assertAllTypesUnions(db as any);
 			await assertAllTypesBounds(db as any);
+		});
+
+		test.concurrent('all types ~json~', async ({ db, push }) => {
+			const table = sqliteTable('all_types_json', {
+				id: integer('id').primaryKey(),
+				jsonText: text('jsonText', { mode: 'json' }),
+				jsonBlob: blob('jsonBlob', { mode: 'json' }),
+			});
+			await push({ table });
+
+			const { input, output } = jsonRows(['jsonText', 'jsonBlob']);
+
+			await db.insert(table).values(input);
+
+			// json text as the database stores it, read without decoding
+			const stored = await db.select({
+				id: table.id,
+				jsonText: sql<string>`cast(${table.jsonText} as text)`,
+				jsonBlob: sql<string>`cast(${table.jsonBlob} as text)`,
+			}).from(table).orderBy(table.id);
+
+			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+			expect(parseStoredJson(stored)).toStrictEqual(output);
 		});
 	});
 

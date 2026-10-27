@@ -49,7 +49,7 @@ function construct<
 
 	const dialect = new PgDialect({
 		useJitMappers: jitCompatCheck(config.jit),
-		codecs: config.codecs ?? postgresJsCodecs,
+		codecs: config.codecs ?? postgresJsCodecs(client),
 	});
 	let logger;
 	if (config.logger === true) {
@@ -132,6 +132,7 @@ export namespace drizzle {
 			options: {
 				serializers: {},
 			},
+			json: (value: unknown) => value,
 		} as any, config) as any;
 	}
 }

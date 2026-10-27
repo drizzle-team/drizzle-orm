@@ -97,6 +97,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
 import { PgQueryResultHKT } from 'drizzle-orm/pg-core/session';
+import { jsonRows, parseStoredJson } from '~/json-values';
 import { allTypesData, makeAllTypes, withEmptyArrays } from '~/pg/all-types';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { normalizeDataWithDbCodecs } from '~/pg/utils';
@@ -1395,6 +1396,13 @@ test('Insert all defaults in multiple rows', async () => {
 	expect(res).toEqual([{ id: 1, name: 'Dan', state: null }, { id: 2, name: 'Dan', state: null }]);
 });
 
+const jsonParam = (value: unknown) =>
+	typeof db.$client.json === 'function'
+		? db.$client.json(value)
+		: db.$client.options.prepare === false
+		? JSON.stringify(value)
+		: expect.objectContaining({ value });
+
 test('build query insert with onConflict do update', async () => {
 	const query = db
 		.insert(usersTable)
@@ -1405,7 +1413,7 @@ test('build query insert with onConflict do update', async () => {
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do update set "name" = $3',
-		params: ['John', ['foo', 'bar'], 'John1'],
+		params: ['John', jsonParam(['foo', 'bar']), 'John1'],
 	});
 });
 
@@ -1419,7 +1427,7 @@ test('build query insert with onConflict do update / multiple columns', async ()
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
-		params: ['John', ['foo', 'bar'], 'John1'],
+		params: ['John', jsonParam(['foo', 'bar']), 'John1'],
 	});
 });
 
@@ -1433,7 +1441,7 @@ test('build query insert with onConflict do nothing', async () => {
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
-		params: ['John', ['foo', 'bar']],
+		params: ['John', jsonParam(['foo', 'bar'])],
 	});
 });
 
@@ -1447,7 +1455,7 @@ test('build query insert with onConflict do nothing + target', async () => {
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
-		params: ['John', ['foo', 'bar']],
+		params: ['John', jsonParam(['foo', 'bar'])],
 	});
 });
 
@@ -4195,7 +4203,7 @@ test('mySchema :: build query insert with onConflict do update / multiple column
 	expect(query).toEqual({
 		sql:
 			'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
-		params: ['John', ['foo', 'bar'], 'John1'],
+		params: ['John', jsonParam(['foo', 'bar']), 'John1'],
 	});
 });
 
@@ -4208,7 +4216,7 @@ test('mySchema :: build query insert with onConflict do nothing + target', async
 	expect(query).toEqual({
 		sql:
 			'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
-		params: ['John', ['foo', 'bar']],
+		params: ['John', jsonParam(['foo', 'bar'])],
 	});
 });
 
@@ -6073,15 +6081,11 @@ test('all types', async () => {
 		);
 	`);
 
-	// Driver can't handle numbers in json fields
-	const { json2: _json2, jsonb2: _jsonb2, ...bunAllTypesData } = allTypesData;
-	const { json2: _c1, jsonb2: _c2, ...bunAllTypesColumns } = getTableColumns(allTypesTable);
+	await db.insert(allTypesTable).values(allTypesData);
 
-	await db.insert(allTypesTable).values(bunAllTypesData as typeof allTypesData);
+	const rawRes = await db.select().from(allTypesTable);
 
-	const rawRes = await db.select(bunAllTypesColumns).from(allTypesTable);
-
-	expect(rawRes).toStrictEqual([bunAllTypesData]);
+	expect(rawRes).toStrictEqual([allTypesData]);
 
 	// The client's own decoding settings must not leak into what the ORM returns
 	const bigintClient = new BunSQL(process.env['PG_CONNECTION_STRING']!, { max: 1, bigint: true });
@@ -6092,9 +6096,9 @@ test('all types', async () => {
 			process.env['TZ'] = tz;
 
 			await bigintDb.delete(allTypesTable);
-			await bigintDb.insert(allTypesTable).values(bunAllTypesData as typeof allTypesData);
+			await bigintDb.insert(allTypesTable).values(allTypesData);
 
-			expect(await bigintDb.select(bunAllTypesColumns).from(allTypesTable)).toStrictEqual([bunAllTypesData]);
+			expect(await bigintDb.select().from(allTypesTable)).toStrictEqual([allTypesData]);
 		}
 	} finally {
 		process.env['TZ'] = originalTz;
@@ -7357,6 +7361,36 @@ test('all types ~codecs~', async () => {
 	});
 
 	await db.$client.close();
+});
+
+test('all types ~json~', async () => {
+	const table = pgTable('all_types_json', {
+		id: integer('id').primaryKey(),
+		json: json('json'),
+		jsonb: jsonb('jsonb'),
+		arrjson: json('arrjson').array(),
+		arrjsonb: jsonb('arrjsonb').array(),
+	});
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(
+		sql`create table ${table} (id integer primary key, json json, jsonb jsonb, arrjson json[], arrjsonb jsonb[])`,
+	);
+
+	const { input, output } = jsonRows(['json', 'jsonb'], ['arrjson', 'arrjsonb']);
+
+	await db.insert(table).values(input);
+
+	// json text as the database stores it, read without decoding
+	const stored = await db.select({
+		id: table.id,
+		json: sql<string>`${table.json}::text`,
+		jsonb: sql<string>`${table.jsonb}::text`,
+		arrjson: sql<string>`array_to_json(${table.arrjson})::text`,
+		arrjsonb: sql<string>`array_to_json(${table.arrjsonb})::text`,
+	}).from(table).orderBy(table.id);
+
+	expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+	expect(parseStoredJson(stored)).toStrictEqual(output);
 });
 
 test('Query error wrapping', async () => {

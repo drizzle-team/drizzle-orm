@@ -75,6 +75,7 @@ import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
 import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
+import { jsonRows, parseStoredJson } from '~/json-values';
 import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from './all-types';
 import { TestCache } from './instrumentation';
 import relations from './relations';
@@ -618,6 +619,30 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 
 				const context = yield* Effect.context<never>();
 				yield* Effect.promise(() => assertAllTypesBounds(db as any, (query) => Effect.runPromiseWith(context)(query)));
+			}));
+
+		it.effect('all types ~json~', () =>
+			Effect.gen(function*() {
+				const table = mysqlTable('all_types_json', {
+					id: int('id').primaryKey(),
+					json: json('json'),
+				});
+
+				const db = yield* DB;
+				yield* push(db, { table });
+
+				const { input, output } = jsonRows(['json']);
+
+				yield* db.insert(table).values(input);
+
+				// json text as the database stores it, read without decoding
+				const stored = yield* db.select({
+					id: table.id,
+					json: sql<string>`cast(${table.json} as char)`,
+				}).from(table).orderBy(table.id);
+
+				expect(yield* db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+				expect(parseStoredJson(stored)).toStrictEqual(output);
 			}));
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/1442

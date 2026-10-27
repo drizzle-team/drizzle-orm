@@ -62,6 +62,7 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import Keyv from 'keyv';
+import { jsonRows, parseStoredJson } from '~/json-values';
 import type { Equal } from '~/utils';
 import { Expect } from '~/utils';
 import type { AllTypes } from '../sqlite/all-types';
@@ -3909,6 +3910,30 @@ describe('common', () => {
 
 		await assertAllTypesUnions(db as any, allTypesTable);
 		await assertAllTypesBounds(db as any);
+	});
+
+	test('all types ~json~', async () => {
+		const table = sqliteTable('all_types_json', {
+			id: integer('id').primaryKey(),
+			jsonText: text('jsonText', { mode: 'json' }),
+			jsonBlob: blob('jsonBlob', { mode: 'json' }),
+		});
+		await db.run(sql`drop table if exists ${table}`);
+		await db.run(sql`create table ${table} (id integer primary key, jsonText text, jsonBlob blob)`);
+
+		const { input, output } = jsonRows(['jsonText', 'jsonBlob']);
+
+		await db.insert(table).values(input);
+
+		// json text as the database stores it, read without decoding
+		const stored = await db.select({
+			id: table.id,
+			jsonText: sql<string>`cast(${table.jsonText} as text)`,
+			jsonBlob: sql<string>`cast(${table.jsonBlob} as text)`,
+		}).from(table).orderBy(table.id);
+
+		expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+		expect(parseStoredJson(stored)).toStrictEqual(output);
 	});
 });
 

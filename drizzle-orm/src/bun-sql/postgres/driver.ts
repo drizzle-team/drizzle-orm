@@ -28,7 +28,7 @@ function construct<
 } {
 	const dialect = new PgDialect({
 		useJitMappers: jitCompatCheck(config.jit),
-		codecs: config.codecs ?? bunSqlPgCodecs,
+		codecs: config.codecs ?? bunSqlPgCodecs(client),
 	});
 	let logger;
 	if (config.logger === true) {
@@ -109,6 +109,6 @@ export namespace drizzle {
 	): BunSQLDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
-		return construct({} as any, config) as any;
+		return construct({ json: (value: unknown) => value } as any, config) as any;
 	}
 }

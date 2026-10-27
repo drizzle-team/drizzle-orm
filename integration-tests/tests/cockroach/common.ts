@@ -95,6 +95,7 @@ import {
 } from 'drizzle-orm/cockroach-core';
 import { v4 as uuidV4 } from 'uuid';
 import { afterAll, afterEach, beforeEach, describe, expect, expectTypeOf } from 'vitest';
+import { jsonRows, parseStoredJson } from '~/json-values';
 import { Expect } from '~/utils';
 import {
 	type AllTypes,
@@ -7534,6 +7535,27 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			await assertAllTypesBounds(db);
 
 			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
+		});
+
+		test('all types ~json~', async ({ db, push }) => {
+			const table = cockroachTable('all_types_json', {
+				id: int4('id').primaryKey(),
+				jsonb: jsonb('jsonb'),
+			});
+			await push({ table });
+
+			const { input, output } = jsonRows(['jsonb']);
+
+			await db.insert(table).values(input);
+
+			// json text as the database stores it, read without decoding
+			const stored = await db.select({
+				id: table.id,
+				jsonb: sql<string>`${table.jsonb}::text`,
+			}).from(table).orderBy(table.id);
+
+			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+			expect(parseStoredJson(stored)).toStrictEqual(output);
 		});
 
 		test('generated always columns', async ({ cockroach: { db } }) => {

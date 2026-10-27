@@ -61,7 +61,9 @@ import {
 } from 'drizzle-orm/pg-core';
 import { PgliteDatabase } from 'drizzle-orm/pglite';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 import { describe, expect, expectTypeOf } from 'vitest';
+import { jsonRows, parseStoredJson } from '~/json-values';
 import {
 	type AllTypes,
 	allTypesData,
@@ -1387,7 +1389,10 @@ export function tests(test: Test) {
 						'insert into "mySchema_15"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
 					params: [
 						'John',
-						is(db, PgliteDatabase) || is(db, PostgresJsDatabase)
+						// `postgres-js` json params are wrapped with client's `json(value)`
+						is(db, PostgresJsDatabase)
+							? postgres('').json(['foo', 'bar'])
+							: is(db, PgliteDatabase)
 							? ['foo', 'bar']
 							: JSON.stringify(['foo', 'bar']),
 						'John1',
@@ -1421,7 +1426,10 @@ export function tests(test: Test) {
 						'insert into "mySchema_16"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
 					params: [
 						'John',
-						is(db, PgliteDatabase) || is(db, PostgresJsDatabase)
+						// `postgres-js` json params are wrapped with client's `json(value)`
+						is(db, PostgresJsDatabase)
+							? postgres('').json(['foo', 'bar'])
+							: is(db, PgliteDatabase)
 							? ['foo', 'bar']
 							: JSON.stringify(['foo', 'bar']),
 					],
@@ -3887,6 +3895,33 @@ export function tests(test: Test) {
 			await assertAllTypesBounds(db);
 
 			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
+		});
+
+		test.concurrent('all types ~json~', async ({ db, push }) => {
+			const table = pgTable('all_types_json', {
+				id: integer('id').primaryKey(),
+				json: json('json'),
+				jsonb: jsonb('jsonb'),
+				arrjson: json('arrjson').array(),
+				arrjsonb: jsonb('arrjsonb').array(),
+			});
+			await push({ table });
+
+			const { input, output } = jsonRows(['json', 'jsonb'], ['arrjson', 'arrjsonb']);
+
+			await db.insert(table).values(input);
+
+			// json text as the database stores it, read without decoding
+			const stored = await db.select({
+				id: table.id,
+				json: sql<string>`${table.json}::text`,
+				jsonb: sql<string>`${table.jsonb}::text`,
+				arrjson: sql<string>`array_to_json(${table.arrjson})::text`,
+				arrjsonb: sql<string>`array_to_json(${table.arrjsonb})::text`,
+			}).from(table).orderBy(table.id);
+
+			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+			expect(parseStoredJson(stored)).toStrictEqual(output);
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018

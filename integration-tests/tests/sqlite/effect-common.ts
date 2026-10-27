@@ -48,6 +48,7 @@ import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
 import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
+import { jsonRows, parseStoredJson } from '~/json-values';
 import type { AllTypes } from './all-types';
 import { allTypesData, allTypesInput, assertAllTypesBounds, assertAllTypesUnions, makeAllTypes } from './all-types';
 import { TestCache } from './instrumentation';
@@ -254,6 +255,32 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 
 				yield* Effect.promise(() => assertAllTypesUnions(db as any, allTypesTable, run));
 				yield* Effect.promise(() => assertAllTypesBounds(db as any, run));
+			}));
+
+		it.effect('all types ~json~', () =>
+			Effect.gen(function*() {
+				const table = sqliteTable('all_types_json', {
+					id: integer('id').primaryKey(),
+					jsonText: text('jsonText', { mode: 'json' }),
+					jsonBlob: blob('jsonBlob', { mode: 'json' }),
+				});
+
+				const db = yield* DB;
+				yield* push(db, { table });
+
+				const { input, output } = jsonRows(['jsonText', 'jsonBlob']);
+
+				yield* db.insert(table).values(input);
+
+				// json text as the database stores it, read without decoding
+				const stored = yield* db.select({
+					id: table.id,
+					jsonText: sql<string>`cast(${table.jsonText} as text)`,
+					jsonBlob: sql<string>`cast(${table.jsonBlob} as text)`,
+				}).from(table).orderBy(table.id);
+
+				expect(yield* db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+				expect(parseStoredJson(stored)).toStrictEqual(output);
 			}));
 
 		it.effect('RQB v2 simple find first - no rows', () =>

@@ -69,7 +69,7 @@ test('custom codecs for client with custom types (changelog example)', async ({ 
 	const toABC = ([a, b, c]: Line) => ({ a, b, c });
 	const db = drizzle({
 		client,
-		codecs: refineCodecs(postgresJsCodecs, {
+		codecs: refineCodecs(postgresJsCodecs(client), {
 			// default `point` codecs parse `(x,y)` text - client's output is already final
 			point: { normalize: undefined, normalizeArray: undefined },
 			// `line({ mode: 'abc' })` columns

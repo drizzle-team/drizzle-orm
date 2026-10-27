@@ -95,6 +95,7 @@ import {
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import Keyv from 'keyv';
 import { v4 as uuid } from 'uuid';
+import { jsonRows, parseStoredJson } from '~/json-values';
 import { normalizeDataWithDbCodecs } from '~/mysql/utils';
 import { type Equal, Expect } from '~/utils';
 import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from '../mysql/all-types';
@@ -6357,6 +6358,28 @@ test('all types ~codecs~', async () => {
 	await assertAllTypesUnions(db, allTypesCodecsTable);
 
 	await assertAllTypesBounds(db);
+});
+
+test('all types ~json~', async () => {
+	const table = mysqlTable('all_types_json', {
+		id: int('id').primaryKey(),
+		json: json('json'),
+	});
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(sql`create table ${table} (id int primary key, json json)`);
+
+	const { input, output } = jsonRows(['json']);
+
+	await db.insert(table).values(input);
+
+	// json text as the database stores it, read without decoding
+	const stored = await db.select({
+		id: table.id,
+		json: sql<string>`cast(${table.json} as char)`,
+	}).from(table).orderBy(table.id);
+
+	expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+	expect(parseStoredJson(stored)).toStrictEqual(output);
 });
 
 test('Mappers: correct mappers enabled', async () => {

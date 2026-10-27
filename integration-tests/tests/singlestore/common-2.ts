@@ -70,6 +70,7 @@ import {
 } from 'drizzle-orm/singlestore-core';
 import { dotProduct, euclideanDistance } from 'drizzle-orm/singlestore-core/expressions';
 import { describe, expect, expectTypeOf } from 'vitest';
+import { jsonRows, parseStoredJson } from '~/json-values';
 import { Expect } from '../utils';
 import type { Equal } from '../utils';
 import {
@@ -3396,6 +3397,27 @@ export function tests(test: Test) {
 
 			await assertAllTypesUnions(db);
 			await assertAllTypesBounds(db);
+		});
+
+		test.concurrent('all types ~json~', async ({ db, push }) => {
+			const table = singlestoreTable('all_types_json', {
+				id: int('id').primaryKey(),
+				json: json('json'),
+			});
+			await push({ table });
+
+			const { input, output } = jsonRows(['json']);
+
+			await db.insert(table).values(input);
+
+			// json text as the database stores it, read without decoding
+			const stored = await db.select({
+				id: table.id,
+				json: sql<string>`cast(${table.json} as char)`,
+			}).from(table).orderBy(table.id);
+
+			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+			expect(parseStoredJson(stored)).toStrictEqual(output);
 		});
 
 		test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
