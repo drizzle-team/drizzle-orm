@@ -2934,7 +2934,7 @@ export const genericMySqlCodecs = {
 	},
 	'tinyblob:buffer': {
 		castInJson: (name) => sql`to_base64(${name})`,
-		normalizeInJson: (value: string) => Buffer.from(value, 'base64'),
+		normalizeInJson: (value: string): Buffer => Buffer.from(value, 'base64'),
 	},
 	blob: {
 		castInJson: (name) => sql`to_base64(${name})`,
@@ -2942,7 +2942,7 @@ export const genericMySqlCodecs = {
 	},
 	'blob:buffer': {
 		castInJson: (name) => sql`to_base64(${name})`,
-		normalizeInJson: (value: string) => Buffer.from(value, 'base64'),
+		normalizeInJson: (value: string): Buffer => Buffer.from(value, 'base64'),
 	},
 	mediumblob: {
 		castInJson: (name) => sql`to_base64(${name})`,
@@ -2950,7 +2950,7 @@ export const genericMySqlCodecs = {
 	},
 	'mediumblob:buffer': {
 		castInJson: (name) => sql`to_base64(${name})`,
-		normalizeInJson: (value: string) => Buffer.from(value, 'base64'),
+		normalizeInJson: (value: string): Buffer => Buffer.from(value, 'base64'),
 	},
 	longblob: {
 		castInJson: (name) => sql`to_base64(${name})`,
@@ -2958,7 +2958,7 @@ export const genericMySqlCodecs = {
 	},
 	'longblob:buffer': {
 		castInJson: (name) => sql`to_base64(${name})`,
-		normalizeInJson: (value: string) => Buffer.from(value, 'base64'),
+		normalizeInJson: (value: string): Buffer => Buffer.from(value, 'base64'),
 	},
 } as const satisfies MySqlCodecs;
 
