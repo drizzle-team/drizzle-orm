@@ -2,6 +2,7 @@
 // (text + binary plans from cached ParameterDescription OIDs), the JIT Bind encoder, COPY
 // FROM row encoding (text + binary), and the PG array-literal writers. The decode direction
 // lives in decode.ts; ELEM_OID (array OID -> element OID) is shared from there.
+import { addBrand } from './brand.ts';
 import { ELEM_OID } from './decode.ts';
 import { type ParamsEncoder, W, Writer } from './protocol.ts'; // protocol.ts only type-imports from here -> no runtime cycle
 
@@ -173,6 +174,7 @@ class ElemMismatch extends TypeError {
 		super('array element does not fit the declared element type');
 	}
 }
+addBrand(ElemMismatch, 'ElemMismatch');
 const MISMATCH = new ElemMismatch(); // singleton: thrown/caught on the fallback path only, no stack use
 
 type ElemEnc = (w: Writer, v: unknown) => void; // writes int32 len + payload; throws MISMATCH if v doesn't fit

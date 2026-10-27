@@ -9,6 +9,7 @@
 //   for await (const e of repl.start({ slot: slot.slot, publications: ['pub'] })) { … repl.ack(e.endLsn) }
 import type { Duplex } from 'node:stream';
 import { md5Password, parseSaslMechanisms, peerCertDer, type Scram, scramForChannel } from './auth.ts';
+import { addBrand } from './brand.ts';
 import { getDefaultTransport, type NormalizedConfig } from './connection.ts';
 import { buildDecoders } from './decode.ts';
 import {
@@ -220,6 +221,8 @@ export class ReplicationStreamEnded extends Error {
 	}
 }
 
+addBrand(ReplicationStreamEnded, 'ReplicationStreamEnded');
+
 /** A `CommandComplete`/`ReadyForQuery` frame arrived during copy mode without a preceding server
  *  `CopyDone` (`'c'`) — `START_REPLICATION` was accepted but streaming never began. The one known
  *  cause: PostgreSQL BUG #18754 (open PG14-18) — a second `START_REPLICATION` on one walsender
@@ -233,6 +236,8 @@ export class ReplicationSessionSpent extends Error {
 	}
 }
 
+addBrand(ReplicationSessionSpent, 'ReplicationSessionSpent');
+
 /** No message — not even a keepalive — arrived for `receiveTimeoutMs`: the connection is presumed
  *  dead. The slot keeps retaining WAL; reconnect and `start()` again, raising `receiveTimeoutMs` if this fires on a healthy link. */
 export class ReplicationReceiveTimeout extends Error {
@@ -243,6 +248,8 @@ export class ReplicationReceiveTimeout extends Error {
 		);
 	}
 }
+
+addBrand(ReplicationReceiveTimeout, 'ReplicationReceiveTimeout');
 
 // Postgres restricts slot names to [a-z0-9_]{1,63} (ReplicationSlotValidateName) so the name can
 // double as a directory name on every OS — rejecting beats escaping (no escape form the walsender grammar accepts).
@@ -260,6 +267,9 @@ export class InvalidSlotName extends Error {
 		);
 	}
 }
+
+addBrand(InvalidSlotName, 'InvalidSlotName');
+
 const checkSlot = (s: string): string => {
 	if (!SLOT_NAME.test(s)) throw new InvalidSlotName(s);
 	return s;
@@ -278,6 +288,8 @@ export class ReplicationBusy extends Error {
 	}
 }
 
+addBrand(ReplicationBusy, 'ReplicationBusy');
+
 /** A named publication in `start()`'s publications list does not exist right now — caught by an
  *  unconditional catalog probe before `START_REPLICATION` is sent, since pgoutput itself only
  *  reports this lazily (PG14-17) or not at all (PG18). See {@link StartOptions.publications} for
@@ -293,6 +305,8 @@ export class PublicationMissing extends Error {
 	}
 }
 
+addBrand(PublicationMissing, 'PublicationMissing');
+
 /** `start({ publications: [] })` — no publication to subscribe. There is no wire form for this:
  *  pgoutput reads an empty `publication_names` list as absent. A publication that EXISTS but
  *  publishes no tables is a different, legal case — it warns (see {@link ReplicationWarning}) and streams. */
@@ -303,6 +317,8 @@ export class PublicationEmpty extends Error {
 	}
 }
 
+addBrand(PublicationEmpty, 'PublicationEmpty');
+
 /** A `start({ shapes })` entry could not be resolved: a duplicate `schema.table`, a rejected type
  *  or decode target, or a `Collect()` group (can't apply to a single replication row). Thrown
  *  before `CREATE_REPLICATION_SLOT` is sent — a deterministic consumer bug, not one that retries away. */
@@ -312,6 +328,8 @@ export class InvalidReplicationShape extends Error {
 		super(message);
 	}
 }
+
+addBrand(InvalidReplicationShape, 'InvalidReplicationShape');
 
 /** A non-fatal condition detected before or during the stream — the library's only warning channel
  *  (see {@link StartOptions.onWarning}).
@@ -1300,6 +1318,8 @@ export class ReplicationConnection {
 		w?.(); // wake a parked next() so an in-flight start() iterator finishes NOW
 	}
 }
+
+addBrand(ReplicationConnection, 'ReplicationConnection');
 
 /** `done:false` carries no commit fields — reading them requires narrowing to `done:true`, so a
  *  mid-transaction ack is a compile error rather than a runtime mistake. */

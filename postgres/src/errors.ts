@@ -1,5 +1,7 @@
 // PostgreSQL ErrorResponse / NoticeResponse field decoding.
 // Field bytes: https://www.postgresql.org/docs/current/protocol-error-fields.html
+import { addBrand } from './brand.ts';
+
 const FIELD: Record<string, string> = {
 	S: 'severityLocal',
 	V: 'severity',
@@ -52,6 +54,8 @@ export class PgError extends Error {
 		Object.assign(this, fields);
 	}
 }
+
+addBrand(PgError, 'PgError');
 
 /** Parse the body of an 'E'/'N' message: a run of (code-byte + cstring), terminated by \0. */
 export function parseErrorFields(body: Buffer): PgErrorFields {

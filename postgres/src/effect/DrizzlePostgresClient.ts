@@ -29,6 +29,7 @@ import type { Custom, Fragment } from 'effect/sql/Statement';
 import * as Statement from 'effect/sql/Statement';
 import * as Stream from 'effect/Stream';
 import type { ConnectionOptions } from 'node:tls';
+import { addBrand } from '../brand.ts';
 import type { Connection } from '../connection.ts';
 import { Cursor, type CursorOptions } from '../cursor.ts';
 import type { RawParams } from '../encode.ts';
@@ -237,6 +238,7 @@ export const fromPool = Effect.fnUntraced(
 			releaseSavepoint: (name) => `RELEASE SAVEPOINT ${name}`,
 			spanAttributes,
 			transformRows,
+			driver: 'drizzle-postgres',
 		});
 
 		const scopedConnection = Effect.flatMap(
@@ -490,6 +492,7 @@ class ConnectionImpl implements SqlConnection {
 			: rows;
 	}
 }
+addBrand(ConnectionImpl, 'ConnectionImpl');
 
 const annotateMetrics = <A extends QueryResult<unknown> | Uint8Array[], E>(effect: Effect.Effect<A, E>) =>
 	Effect.tap(
@@ -503,6 +506,7 @@ const annotateMetrics = <A extends QueryResult<unknown> | Uint8Array[], E>(effec
 class SourceFailure {
 	constructor(readonly error: unknown) {}
 }
+addBrand(SourceFailure, 'SourceFailure');
 
 /** Postgres answers COMMIT with the ROLLBACK tag when the transaction was already aborted. */
 const commit = (conn: SqlConnection) =>
