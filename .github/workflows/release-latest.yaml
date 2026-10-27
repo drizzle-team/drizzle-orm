@@ -261,7 +261,8 @@ jobs:
               pnpm test:types
               pnpm --stream vitest --reporter=verbose --silent=false run\
               --exclude tests/cockroach \
-              --exclude tests/mssql
+              --exclude tests/mssql \
+              --exclude tests/dsql
             ;;
 
             drizzle-kit-cockroach)

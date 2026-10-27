@@ -209,7 +209,9 @@ Structured error responses with `status: "error"` use a `code` field to identify
 
 | `code` | meta shape | applicable dialects | when emitted |
 |--------|------------|---------------------|--------------|
-| `unsupported_schema_change` | see [unsupported_schema_change variants](#unsupported_schema_change) | `mysql`, `mssql`, `singlestore` | The schema diff would emit a DDL operation that the target dialect cannot execute or rejects (per `meta.kind`) |
+| `unsupported_schema_change` | see [unsupported_schema_change variants](#unsupported_schema_change) | `mysql`, `mssql`, `singlestore`, `postgresql` (driver `dsql`) | The schema diff would emit a DDL operation that the target dialect cannot execute or rejects (per `meta.kind`) |
+| `dsql_async_job_failed` | `job_id`, `job_type`, `object_name`, `details`, `sql`, `cleanup_error?` | `postgresql` (driver `dsql`) | `push` ran a statement that started an Aurora DSQL async job (`CREATE INDEX ASYNC` or `ALTER TABLE ASYNC … VALIDATE CONSTRAINT`), and the job failed, for example on duplicate keys or rows that break a check. `details` is DSQL's reason. The invalid index or unvalidated constraint is dropped and the remaining statements don't run; `cleanup_error` is set when that drop failed. |
+| `dsql_invalid_objects` | `indexes`, `constraints` | `postgresql` (driver `dsql`) | `push` or `pull` found indexes or constraints that Aurora DSQL never finished building or validating, after waiting for the jobs that were still running. Each entry is `schema.table.name`. |
 | `invalid_hints` | see [invalid_hints variants](#invalid_hints) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | Hints payload could not be loaded, parsed, validated, or applied — see [`invalid_hints`](#invalid_hints) below |
 | `unsupported_command_dialect_error` | `command`, `dialect?`, `option?`, `conflictsWith?` | all | The command, or one of its options, cannot run with this dialect or with another option. `option` names the rejected option. `conflictsWith` names the other option when the two cannot be used together, as `generate` does for `--explain` with `--custom`. |
 | `check_error` | see [`check` outcomes](#check) | `postgresql`, `mysql`, `sqlite`, `turso`, `mssql`, `cockroach`, `singlestore` | A command that reads the migrations folder found a snapshot-integrity problem (`kind: 'unsupported' \| 'malformed' \| 'non_latest' \| 'order'`, carries `snapshot`, and for a broken postgres history also `parentId`, `parentSnapshot` or `baseSnapshot`) or unreported branch conflicts (`kind: 'conflicts'`, carries `conflicts` + `details`). See [`check`](#check) below. |
@@ -219,7 +221,7 @@ The example payloads in each variant sub-table show only the `error` object; the
 
 ### `unsupported_schema_change`
 
-`unsupported_schema_change` is emitted by several different push handlers when the schema diff would produce a DDL operation that the target dialect cannot execute or rejects. The `meta.kind` discriminator selects which of the four variants the response carries; the rest of the meta object follows the variant.
+`unsupported_schema_change` is emitted by several different push handlers when the schema diff would produce a DDL operation that the target dialect cannot execute or rejects. With driver `dsql`, `generate`, `export`, `pull` and `push` emit it too, before any SQL is written or executed. The `meta.kind` discriminator selects which of the five variants the response carries; the rest of the meta object follows the variant.
 
 | `meta.kind` | Meta keys | Dialect(s) | When it fires |
 |-------------|-----------|------------|---------------|
@@ -227,6 +229,7 @@ The example payloads in each variant sub-table show only the `error` object; the
 | `fk_target_not_unique` | `kind`, `table`, `columns`, `table_to`, `columns_to` | `mysql`, `singlestore` | `CREATE FOREIGN KEY` would be rejected because the referenced columns are neither unique nor a primary key |
 | `rename_blocked_by_check_constraint` | `kind`, `schema`, `table`, `from`, `to` | `mssql` | `sp_rename` of a column would be rejected because the column appears in a `CHECK` constraint |
 | `rename_schema_unsupported` | `kind`, `from`, `to`, `dialect` | `mssql` | A `rename_schema` operation was requested — MSSQL does not support schema rename at all |
+| `dsql_unsupported` | `kind`, `issues` (`{ statement, entity, reason }[]`) | `postgresql` (driver `dsql`) | The diff has changes Aurora DSQL can't make, for example a `serial` column, an enum or `CREATE INDEX` with a sort order. `issues` lists every one: `statement` is the diff statement type, `entity` the schema-qualified object and `reason` why DSQL rejects it |
 
 Examples:
 
@@ -288,6 +291,23 @@ Examples:
       "to": "analytics",
       "dialect": "mssql"
     }
+  }
+}
+```
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "unsupported_schema_change",
+    "kind": "dsql_unsupported",
+    "issues": [
+      {
+        "statement": "create_table",
+        "entity": "public.users.id",
+        "reason": "Aurora DSQL doesn't support serial types. Use uuid or bigint().generatedAlwaysAsIdentity() instead"
+      }
+    ]
   }
 }
 ```

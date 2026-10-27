@@ -8,9 +8,11 @@ import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
 import { tests } from './common';
 import { nodePgDsqlTest as test } from './instrumentation';
+import { migratorJobTests } from './migrator-jobs';
 import { usersMigratorTable } from './schema';
 
 tests(test, []);
+migratorJobTests(test, migrate);
 
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as NodePgDsqlDatabase;

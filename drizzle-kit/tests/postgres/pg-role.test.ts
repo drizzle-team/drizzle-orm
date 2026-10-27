@@ -197,6 +197,40 @@ test('alter createdb in role', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('create role with login', async () => {
+	const schema = {
+		manager: pgRole('manager', { canLogin: true }),
+	};
+
+	const { sqlStatements: st } = await diff({}, schema, []);
+	const { sqlStatements: pst } = await push({ db, to: schema, entities: { roles: { include: ['manager'] } } });
+
+	const st0 = ['CREATE ROLE "manager" WITH LOGIN;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('alter login in role', async () => {
+	const schema1 = {
+		manager: pgRole('manager'),
+	};
+	const schema2 = {
+		manager: pgRole('manager', { canLogin: true }),
+	};
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+	const { sqlStatements: st2 } = await diff(schema2, schema1, []);
+
+	await push({ db, to: schema1, entities: { roles: { include: ['manager'] } } });
+	const { sqlStatements: pst1 } = await push({ db, to: schema2, entities: { roles: { include: ['manager'] } } });
+	const { sqlStatements: pst2 } = await push({ db, to: schema1, entities: { roles: { include: ['manager'] } } });
+
+	expect(st1).toStrictEqual(['ALTER ROLE "manager" WITH LOGIN;']);
+	expect(pst1).toStrictEqual(['ALTER ROLE "manager" WITH LOGIN;']);
+	expect(st2).toStrictEqual(['ALTER ROLE "manager" WITH NOLOGIN;']);
+	expect(pst2).toStrictEqual(['ALTER ROLE "manager" WITH NOLOGIN;']);
+});
+
 test('alter createrole in role', async (t) => {
 	const schema1 = {
 		manager: pgRole('manager'),

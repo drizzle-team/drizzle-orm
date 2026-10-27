@@ -1192,6 +1192,7 @@ export const exportOptions = {
 	sql: boolean('sql').default(true).desc('Generate as sql'),
 	config: optionConfig,
 	dialect: optionDialect,
+	driver: optionDriver,
 	schema: string().desc('Path to a schema file or folder'),
 	output: optionOutput,
 } as const satisfies Record<string, GenericBuilderInternals>;
@@ -1204,7 +1205,7 @@ export const prepareExport = async (opts: ExportOptionsInput) => {
 		'export',
 		opts,
 		['sql', 'output'],
-		['dialect', 'schema'],
+		['dialect', 'driver', 'schema'],
 	);
 	const config = { ...(await prepareExportConfig(opts, from)), output };
 	return config;

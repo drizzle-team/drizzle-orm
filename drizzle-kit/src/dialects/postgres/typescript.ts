@@ -322,6 +322,7 @@ export const ddlToTypeScript = (
 		const identifier = withCasing(it.name, casing);
 		rolesNameToTsKey[it.name] = identifier;
 		const params = {
+			...(it.canLogin ? { canLogin: true } : {}),
 			...(it.createDb ? { createDb: true } : {}),
 			...(it.createRole ? { createRole: true } : {}),
 			...(it.inherit ? {} : { inherit: false }),
