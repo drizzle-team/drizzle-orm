@@ -20,6 +20,7 @@
 // arrayValue parameters, so a raw JS array is sent as a PG '{…}' literal string. Array RESULTS arrive as
 // typed arrayValue lists that cannot carry NULL elements — the Data API drops them, so a decoded array
 // silently loses its NULLs (a limitation of the wire format, not recoverable client-side).
+import { addBrand } from './brand.ts';
 import { buildDecoders } from './decode.ts';
 import { type CodegenCol, INSTANT_OIDS, tagArrayCol } from './decode.ts';
 import { arrayLiteral } from './encode.ts';
@@ -683,6 +684,8 @@ export class AuroraClient {
 	/** No-op — the Data API holds no connection. Present for API symmetry. */
 	async end(): Promise<void> {/* nothing to close */}
 }
+
+addBrand(AuroraClient, 'AuroraClient');
 
 function beginOptions(o: TxOptions): string {
 	if (typeof o === 'string') {

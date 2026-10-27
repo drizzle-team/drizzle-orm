@@ -8,6 +8,7 @@
 //   for await (const row of cur) { … }          // rows; cur.batches() for batches; cur.next() for batch|null
 //   const rows = await cur.all()                 // drain everything into one array
 //   await cur.close()                            // early termination (idempotent)
+import { addBrand } from './brand.ts';
 import type { Connection } from './connection.ts';
 import type { ShapeMapper } from './shape.ts';
 import type { ShapeSpec } from './spec.ts';
@@ -241,3 +242,5 @@ export class Cursor<Row = Record<string, unknown>> implements AsyncIterable<Row>
 		}
 	}
 }
+
+addBrand(Cursor, 'Cursor');

@@ -5,6 +5,7 @@
 // recovering database. Dead idle connections are evicted on checkout; open transactions
 // are rolled back before reuse. In-flight queries are never silently replayed.
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { addBrand } from './brand.ts';
 import { installVercelCompat, type VercelPoolSurface } from './compat/vercel.ts';
 import { Connection, isUntrustedCertificate } from './connection.ts';
 import type { TxFn } from './connection.ts';
@@ -610,6 +611,8 @@ export class Pool {
 	}
 }
 
+addBrand(Pool, 'Pool');
+
 /** A lazy, awaitable query returned by `pool.query(...)`. Nothing runs until you `await` it, call
  *  `.execute()`, or pass it to `pool.batch(...)`. Execution is memoized — awaiting more than once runs
  *  it once. Standalone (`await` / `.execute()`) it checks out its own connection; `pool.batch(...)` runs
@@ -657,4 +660,7 @@ export class PoolQuery implements PromiseLike<QueryResult<never>> {
 		return this.execute().finally(fn);
 	}
 }
+
+addBrand(PoolQuery, 'PoolQuery');
+
 type Runner = (s: string, p: unknown[], o: QueryOptions) => Promise<QueryResult<never>>;
