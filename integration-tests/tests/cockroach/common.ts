@@ -96,6 +96,7 @@ import {
 import { v4 as uuidV4 } from 'uuid';
 import { afterAll, afterEach, beforeEach, describe, expect, expectTypeOf } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
+import { expectRecentTime } from '~/recent-time';
 import { Expect } from '~/utils';
 import {
 	type AllTypes,
@@ -633,7 +634,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			const result = await db.select().from(usersTable);
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(result[0]!.createdAt, now);
 			expect(result).toEqual([
 				{
 					id: 1,
@@ -868,7 +869,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 				.returning();
 
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(users[0]!.createdAt, now);
 			expect(users).toEqual([
 				{
 					id: 1,
@@ -904,7 +905,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 				.returning();
 
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(users[0]!.createdAt, now);
 			expect(users).toEqual([
 				{
 					id: 1,
@@ -4957,7 +4958,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			const result = await db.select().from(usersMySchemaTable);
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(result[0]!.createdAt, now);
 			expect(result).toEqual([
 				{
 					id: 1,
@@ -5087,7 +5088,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 				.returning();
 
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(users[0]!.createdAt, now);
 			expect(users).toEqual([
 				{
 					id: 1,

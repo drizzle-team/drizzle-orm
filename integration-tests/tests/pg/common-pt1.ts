@@ -26,6 +26,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
 import { describe, expect } from 'vitest';
+import { expectRecentTime } from '~/recent-time';
 import type { Test } from './instrumentation';
 
 const dnStaff = pgTable('dn_staff', {
@@ -142,7 +143,7 @@ export function tests(test: Test) {
 			const result = await db.select().from(users);
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(5000);
+			expectRecentTime(result[0]!.createdAt, now, 5000);
 			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
@@ -377,7 +378,7 @@ export function tests(test: Test) {
 				.returning();
 
 			expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(usersResult[0]!.createdAt, now);
 			expect(usersResult).toEqual([
 				{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 			]);
@@ -404,7 +405,7 @@ export function tests(test: Test) {
 				.returning().execute({ name: 'Jane' });
 
 			expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(usersResult[0]!.createdAt, now);
 			expect(usersResult).toEqual([
 				{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 			]);
@@ -448,7 +449,7 @@ export function tests(test: Test) {
 			const usersResult = await db.delete(users).where(eq(users.name, 'John')).returning();
 
 			expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(usersResult[0]!.createdAt, now);
 			expect(usersResult).toEqual([
 				{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 			]);
