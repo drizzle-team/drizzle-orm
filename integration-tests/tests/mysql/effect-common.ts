@@ -76,6 +76,7 @@ import * as Result from 'effect/Result';
 import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
 import { jsonRows, parseStoredJson } from '~/json-values';
+import { expectRecentTime } from '~/recent-time';
 import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from './all-types';
 import { TestCache } from './instrumentation';
 import relations from './relations';
@@ -1924,7 +1925,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				const usersResult = yield* db.select().from(users);
 
 				expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(1000);
+				expectRecentTime(usersResult[0]!.createdAt, now, 1000);
 				expect(usersResult).toEqual([
 					{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 				]);
@@ -1973,7 +1974,7 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				yield* db.delete(users).where(eq(users.name, 'John'));
 
 				expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(1000);
+				expectRecentTime(usersResult[0]!.createdAt, now, 1000);
 				expect(usersResult).toEqual([
 					{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 				]);

@@ -49,6 +49,7 @@ import * as Result from 'effect/Result';
 import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
 import { jsonRows, parseStoredJson } from '~/json-values';
+import { expectRecentTime } from '~/recent-time';
 import type { AllTypes } from './all-types';
 import { allTypesData, allTypesInput, assertAllTypesBounds, assertAllTypesUnions, makeAllTypes } from './all-types';
 import { TestCache } from './instrumentation';
@@ -1458,7 +1459,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 					.returning();
 
 				expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+				expectRecentTime(usersResult[0]!.createdAt, now);
 				expect(usersResult).toEqual([
 					{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 				]);
@@ -1508,7 +1509,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				const usersResult = yield* db.delete(users).where(eq(users.name, 'John')).returning();
 
 				expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+				expectRecentTime(usersResult[0]!.createdAt, now);
 				expect(usersResult).toEqual([
 					{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 				]);

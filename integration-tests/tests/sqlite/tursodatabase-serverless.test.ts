@@ -314,6 +314,6 @@ const skip: string[] = [
 	'update with limit and order by',
 
 	// Time-based test, unstable
-	'$onUpdateFn and $onUpdate works updating',
+	'test $onUpdateFn and $onUpdate works updating',
 ];
 tests(test, skip);

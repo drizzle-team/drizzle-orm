@@ -64,6 +64,7 @@ import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
+import { expectRecentTime } from '~/recent-time';
 import {
 	type AllTypes,
 	allTypesData,
@@ -881,7 +882,7 @@ export function tests(test: Test) {
 			const result = await db.select().from(users);
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(result[0]!.createdAt, now);
 			expect(result).toEqual([
 				{
 					id: 1,
