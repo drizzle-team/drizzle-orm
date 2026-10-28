@@ -93,6 +93,7 @@ import {
 	varbit,
 	varchar,
 } from 'drizzle-orm/cockroach-core';
+import { concat, substring } from 'drizzle-orm/cockroach-core/expressions';
 import { v4 as uuidV4 } from 'uuid';
 import { afterAll, afterEach, beforeEach, describe, expect, expectTypeOf } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
@@ -9670,6 +9671,119 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 				defMix2: 2,
 				defMix3: 2,
 				defMix4: 1,
+			}]);
+		});
+
+		test('concat, substring expressions', async ({ db, push }) => {
+			const users = cockroachTable('expr_concat_substring', {
+				id: int4('id').primaryKey(),
+				first: text('first').notNull(),
+				last: text('last').notNull(),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values([{ id: 1, first: 'Johnathan', last: 'Doe' }, {
+				id: 2,
+				first: 'Jane',
+				last: 'Roe',
+			}]);
+
+			const res = await db.select({
+				withString: concat(users.first, '!'),
+				withColumn: concat(users.first, users.last),
+				withSql: concat(users.first, sql`'.'`),
+				from: substring(users.first, { from: 3 }),
+				for: substring(users.first, { for: 2 }),
+				fromFor: substring(users.first, { from: 2, for: 3 }),
+				fromSql: substring(users.first, { from: sql`${users.id} * 1.5` }),
+				forSql: substring(users.first, { for: users.id }),
+				fromForSql: substring(users.first, { from: sql`${users.id} * 1.5`, for: users.id }),
+				bigFrom: substring(users.first, { from: 9223372036854775807n }),
+				bigFor: substring(users.first, { from: 2, for: 9223372036854775807n }),
+				regexp: substring(users.first, { fromPattern: 'a(.)' }),
+				escaped: substring(users.first, { fromPattern: 'a#w', escape: '#' }),
+				regexpSql: substring(users.first, { fromPattern: sql`'a' || '(.)'` }),
+				escapedSql: substring(users.first, { fromPattern: sql`'a' || '#w'`, escape: sql`'#'` }),
+			}).from(users).orderBy(users.id);
+
+			expect(res).toStrictEqual([
+				{
+					withString: 'Johnathan!',
+					withColumn: 'JohnathanDoe',
+					withSql: 'Johnathan.',
+					from: 'hnathan',
+					for: 'Jo',
+					fromFor: 'ohn',
+					fromSql: 'ohnathan',
+					forSql: 'J',
+					fromForSql: 'o',
+					bigFrom: '',
+					bigFor: 'ohnathan',
+					regexp: 't',
+					escaped: 'at',
+					regexpSql: 't',
+					escapedSql: 'at',
+				},
+				{
+					withString: 'Jane!',
+					withColumn: 'JaneRoe',
+					withSql: 'Jane.',
+					from: 'ne',
+					for: 'Ja',
+					fromFor: 'ane',
+					fromSql: 'ne',
+					forSql: 'Ja',
+					fromForSql: 'ne',
+					bigFrom: '',
+					bigFor: 'ane',
+					regexp: 'n',
+					escaped: 'an',
+					regexpSql: 'n',
+					escapedSql: 'an',
+				},
+			]);
+
+			const filtered = await db.select({ id: users.id }).from(users).where(
+				and(eq(concat(users.first, ' Doe'), 'Johnathan Doe'), eq(substring(users.first, { from: 1, for: 4 }), 'John')),
+			);
+
+			expect(filtered).toStrictEqual([{ id: 1 }]);
+
+			const prepared = db.select({
+				withString: concat(users.first, sql.placeholder('suffix')),
+				from: substring(users.first, { from: sql.placeholder('from') }),
+				for: substring(users.first, { for: sql.placeholder('for') }),
+				fromFor: substring(users.first, { from: sql.placeholder('from'), for: sql.placeholder('for') }),
+				bigFrom: substring(users.first, { from: sql.placeholder('bigFrom') }),
+				bigFor: substring(users.first, { from: sql.placeholder('from'), for: sql.placeholder('bigFor') }),
+				regexp: substring(users.first, { fromPattern: sql.placeholder('pattern') }),
+				escaped: substring(users.first, {
+					fromPattern: sql.placeholder('escapedPattern'),
+					escape: sql.placeholder('escape'),
+				}),
+			}).from(users).where(eq(users.id, 1)).prepare('expr_concat_substring_prepared');
+
+			expect(
+				await prepared.execute({
+					suffix: '!',
+					from: 2,
+					for: 3,
+					bigFrom: 9223372036854775807n,
+					bigFor: 9223372036854775807n,
+					pattern: 'a(.)',
+					escapedPattern: 'a#w',
+					escape: '#',
+				}),
+			).toStrictEqual([{
+				withString: 'Johnathan!',
+				from: 'ohnathan',
+				for: 'Joh',
+				fromFor: 'ohn',
+				bigFrom: '',
+				bigFor: 'ohnathan',
+				regexp: 't',
+				escaped: 'at',
 			}]);
 		});
 	});

@@ -54,6 +54,7 @@ import {
 	unique,
 	varchar,
 } from 'drizzle-orm/mssql-core';
+import { concat, substring } from 'drizzle-orm/mssql-core/expressions';
 import { drizzle, type NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { migrate } from 'drizzle-orm/node-mssql/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
@@ -8055,5 +8056,81 @@ test('Default value priority', async ({ db }) => {
 		defMix2: 2,
 		defMix3: 2,
 		defMix4: 1,
+	}]);
+});
+
+test('concat, substring expressions', async ({ db, push }) => {
+	const users = mssqlTable('expr_concat_substring', {
+		id: int('id').primaryKey(),
+		first: varchar('first', { length: 30 }).notNull(),
+		last: varchar('last', { length: 30 }).notNull(),
+	});
+
+	await push({ users });
+
+	await db.insert(users).values([{ id: 1, first: 'Johnathan', last: 'Doe' }, { id: 2, first: 'Jane', last: 'Roe' }]);
+
+	const res = await db.select({
+		withString: concat(users.first, '!'),
+		withColumn: concat(users.first, users.last),
+		withSql: concat(users.first, sql`'.'`),
+		withBigint: concat(users.first, 9223372036854775807n),
+		variadic: concat(users.first, ' ', users.last, ' #', users.id),
+		from: substring(users.first, 3, 100),
+		for: substring(users.first, 1, 2),
+		fromFor: substring(users.first, 2, 3),
+		fromForSql: substring(users.first, sql`${users.id} + 1`, users.id),
+	}).from(users).orderBy(users.id);
+
+	expect(res).toStrictEqual([
+		{
+			withString: 'Johnathan!',
+			withColumn: 'JohnathanDoe',
+			withSql: 'Johnathan.',
+			withBigint: 'Johnathan9223372036854775807',
+			variadic: 'Johnathan Doe #1',
+			from: 'hnathan',
+			for: 'Jo',
+			fromFor: 'ohn',
+			fromForSql: 'o',
+		},
+		{
+			withString: 'Jane!',
+			withColumn: 'JaneRoe',
+			withSql: 'Jane.',
+			withBigint: 'Jane9223372036854775807',
+			variadic: 'Jane Roe #2',
+			from: 'ne',
+			for: 'Ja',
+			fromFor: 'ane',
+			fromForSql: 'ne',
+		},
+	]);
+
+	const filtered = await db.select({ id: users.id }).from(users).where(
+		and(eq(concat(users.first, ' Doe'), 'Johnathan Doe'), eq(substring(users.first, 1, 4), 'John')),
+	);
+
+	expect(filtered).toStrictEqual([{ id: 1 }]);
+
+	const prepared = db.select({
+		withString: concat(users.first, sql.placeholder('suffix')),
+		variadic: concat(sql.placeholder('prefix'), users.first, sql.placeholder('number'), sql.placeholder('bigint')),
+		fromFor: substring(users.first, sql.placeholder('from'), sql.placeholder('for')),
+	}).from(users).where(eq(users.id, 1)).prepare();
+
+	expect(
+		await prepared.execute({
+			suffix: '!',
+			prefix: '#',
+			number: 1,
+			bigint: 9223372036854775807n,
+			from: 2,
+			for: 3,
+		}),
+	).toStrictEqual([{
+		withString: 'Johnathan!',
+		variadic: '#Johnathan19223372036854775807',
+		fromFor: 'ohn',
 	}]);
 });

@@ -54,6 +54,7 @@ import {
 	unique,
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
+import { concat, substring } from 'drizzle-orm/sqlite-core/expressions';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import type { Equal } from '~/utils';
@@ -5622,6 +5623,93 @@ export function tests(test: Test, exclude: string[] = []) {
 			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
 			expect(parseStoredJson(stored)).toStrictEqual(output);
 		});
+
+		test.concurrent('concat, substring expressions', async ({ db, push }) => {
+			const users = sqliteTable('expr_concat_substring', {
+				id: integer('id').primaryKey(),
+				first: text('first').notNull(),
+				last: text('last').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${users}`);
+			await push({ users });
+
+			await db.insert(users).values([{ id: 1, first: 'Johnathan', last: 'Doe' }, {
+				id: 2,
+				first: 'Jane',
+				last: 'Roe',
+			}]);
+
+			const res = await db.select({
+				withString: concat(users.first, '!'),
+				withColumn: concat(users.first, users.last),
+				withSql: concat(users.first, sql`'.'`),
+				from: substring(users.first, 3),
+				for: substring(users.first, 1, 2),
+				fromFor: substring(users.first, 2, 3),
+				fromSql: substring(users.first, sql`${users.id} + 1`),
+				fromForSql: substring(users.first, sql`${users.id} + 1`, users.id),
+				bigFrom: substring(users.first, 9223372036854775807n),
+				bigFor: substring(users.first, 2, 9223372036854775807n),
+			}).from(users).orderBy(users.id);
+
+			expect(res).toStrictEqual([
+				{
+					withString: 'Johnathan!',
+					withColumn: 'JohnathanDoe',
+					withSql: 'Johnathan.',
+					from: 'hnathan',
+					for: 'Jo',
+					fromFor: 'ohn',
+					fromSql: 'ohnathan',
+					fromForSql: 'o',
+					bigFrom: '',
+					bigFor: 'ohnathan',
+				},
+				{
+					withString: 'Jane!',
+					withColumn: 'JaneRoe',
+					withSql: 'Jane.',
+					from: 'ne',
+					for: 'Ja',
+					fromFor: 'ane',
+					fromSql: 'ne',
+					fromForSql: 'ne',
+					bigFrom: '',
+					bigFor: 'ane',
+				},
+			]);
+
+			const filtered = await db.select({ id: users.id }).from(users).where(
+				and(eq(concat(users.first, ' Doe'), 'Johnathan Doe'), eq(substring(users.first, 1, 4), 'John')),
+			);
+
+			expect(filtered).toStrictEqual([{ id: 1 }]);
+
+			const prepared = db.select({
+				withString: concat(users.first, sql.placeholder('suffix')),
+				from: substring(users.first, sql.placeholder('from')),
+				fromFor: substring(users.first, sql.placeholder('from'), sql.placeholder('for')),
+				bigFrom: substring(users.first, sql.placeholder('bigFrom')),
+				bigFor: substring(users.first, sql.placeholder('from'), sql.placeholder('bigFor')),
+			}).from(users).where(eq(users.id, 1)).prepare();
+
+			expect(
+				await prepared.execute({
+					suffix: '!',
+					from: 2,
+					for: 3,
+					bigFrom: 9223372036854775807n,
+					bigFor: 9223372036854775807n,
+				}),
+			).toStrictEqual([{
+				withString: 'Johnathan!',
+				from: 'ohnathan',
+				fromFor: 'ohn',
+				bigFrom: '',
+				bigFor: 'ohnathan',
+			}]);
+		});
 	});
 
 	test.concurrent('sql.identifier escape', async () => {
@@ -8748,5 +8836,95 @@ export function tests(test: Test, exclude: string[] = []) {
 			sql:
 				'select "d0"."id" as "id", "d0"."message" as "message", "d0"."created_at" as "createdAt" from "log" as "d0" limit ? offset ?',
 		});
+	});
+}
+
+// libsql's SQLite 3.45.1 truncates `substr` arguments to 32 bits, so int64-range cases are commented out
+export function libsqlConcatSubstringTest(test: Test) {
+	test.concurrent('concat, substring expressions - libsql', async ({ db, push }) => {
+		const users = sqliteTable('expr_concat_substring_libsql', {
+			id: integer('id').primaryKey(),
+			first: text('first').notNull(),
+			last: text('last').notNull(),
+		});
+
+		await db.run(sql`drop table if exists ${users}`);
+		await push({ users });
+
+		await db.insert(users).values([{ id: 1, first: 'Johnathan', last: 'Doe' }, {
+			id: 2,
+			first: 'Jane',
+			last: 'Roe',
+		}]);
+
+		const res = await db.select({
+			withString: concat(users.first, '!'),
+			withColumn: concat(users.first, users.last),
+			withSql: concat(users.first, sql`'.'`),
+			from: substring(users.first, 3),
+			for: substring(users.first, 1, 2),
+			fromFor: substring(users.first, 2, 3),
+			fromSql: substring(users.first, sql`${users.id} + 1`),
+			fromForSql: substring(users.first, sql`${users.id} + 1`, users.id),
+			// bigFrom: substring(users.first, 9223372036854775807n),
+			// bigFor: substring(users.first, 2, 9223372036854775807n),
+		}).from(users).orderBy(users.id);
+
+		expect(res).toStrictEqual([
+			{
+				withString: 'Johnathan!',
+				withColumn: 'JohnathanDoe',
+				withSql: 'Johnathan.',
+				from: 'hnathan',
+				for: 'Jo',
+				fromFor: 'ohn',
+				fromSql: 'ohnathan',
+				fromForSql: 'o',
+				// bigFrom: '',
+				// bigFor: 'ohnathan',
+			},
+			{
+				withString: 'Jane!',
+				withColumn: 'JaneRoe',
+				withSql: 'Jane.',
+				from: 'ne',
+				for: 'Ja',
+				fromFor: 'ane',
+				fromSql: 'ne',
+				fromForSql: 'ne',
+				// bigFrom: '',
+				// bigFor: 'ane',
+			},
+		]);
+
+		const filtered = await db.select({ id: users.id }).from(users).where(
+			and(eq(concat(users.first, ' Doe'), 'Johnathan Doe'), eq(substring(users.first, 1, 4), 'John')),
+		);
+
+		expect(filtered).toStrictEqual([{ id: 1 }]);
+
+		const prepared = db.select({
+			withString: concat(users.first, sql.placeholder('suffix')),
+			from: substring(users.first, sql.placeholder('from')),
+			fromFor: substring(users.first, sql.placeholder('from'), sql.placeholder('for')),
+			// bigFrom: substring(users.first, sql.placeholder('bigFrom')),
+			// bigFor: substring(users.first, sql.placeholder('from'), sql.placeholder('bigFor')),
+		}).from(users).where(eq(users.id, 1)).prepare();
+
+		expect(
+			await prepared.execute({
+				suffix: '!',
+				from: 2,
+				for: 3,
+				// bigFrom: 9223372036854775807n,
+				// bigFor: 9223372036854775807n,
+			}),
+		).toStrictEqual([{
+			withString: 'Johnathan!',
+			from: 'ohnathan',
+			fromFor: 'ohn',
+			// bigFrom: '',
+			// bigFor: 'ohnathan',
+		}]);
 	});
 }

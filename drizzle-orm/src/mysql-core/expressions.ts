@@ -1,25 +1,23 @@
-import { bindIfParam } from '~/sql/expressions/index.ts';
-import type { Placeholder, SQL, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
+import type { Placeholder, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
 import type { MySqlColumn } from './columns/index.ts';
 
 export * from '~/sql/expressions/index.ts';
 
-export function concat(column: MySqlColumn | SQL.Aliased, value: string | Placeholder | SQLWrapper): SQL {
-	return sql`${column} || ${bindIfParam(value, column)}`;
+export type ConcatValue = string | number | bigint | Placeholder | SQLWrapper;
+
+export function concat(...values: [ConcatValue, ConcatValue, ...ConcatValue[]]): SQL {
+	return sql`concat(${sql.join(values.map((value) => sql`${value}`), sql`, `)})`;
 }
 
 export function substring(
 	column: MySqlColumn | SQL.Aliased,
-	{ from, for: _for }: { from?: number | Placeholder | SQLWrapper; for?: number | Placeholder | SQLWrapper },
+	{ from, for: _for }: {
+		from: number | bigint | Placeholder | SQLWrapper;
+		for?: number | bigint | Placeholder | SQLWrapper;
+	},
 ): SQL {
-	const chunks: SQLChunk[] = [sql`substring(`, column];
-	if (from !== undefined) {
-		chunks.push(sql` from `, bindIfParam(from, column));
-	}
-	if (_for !== undefined) {
-		chunks.push(sql` for `, bindIfParam(_for, column));
-	}
-	chunks.push(sql`)`);
-	return sql.join(chunks);
+	return _for === undefined
+		? sql`substring(${column} from ${from})`
+		: sql`substring(${column} from ${from} for ${_for})`;
 }

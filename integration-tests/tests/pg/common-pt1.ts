@@ -25,6 +25,7 @@ import {
 	uuid,
 } from 'drizzle-orm/pg-core';
 import type { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
+import { concat, substring } from 'drizzle-orm/pg-core/expressions';
 import { describe, expect } from 'vitest';
 import type { Test } from './instrumentation';
 
@@ -2706,6 +2707,104 @@ export function tests(test: Test) {
 				jsonData: { some: 'data' },
 			}, {
 				jsonData: JSON.stringify({ some: 'data' }),
+			}]);
+		});
+
+		test.concurrent('concat, substring expressions', async ({ db, push }) => {
+			const users = pgTable('expr_concat_substring', {
+				id: integer('id').primaryKey(),
+				first: text('first').notNull(),
+				last: text('last').notNull(),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values([{ id: 1, first: 'Johnathan', last: 'Doe' }, {
+				id: 2,
+				first: 'Jane',
+				last: 'Roe',
+			}]);
+
+			const res = await db.select({
+				withString: concat(users.first, '!'),
+				withColumn: concat(users.first, users.last),
+				withSql: concat(users.first, sql`'.'`),
+				from: substring(users.first, { from: 3 }),
+				for: substring(users.first, { for: 2 }),
+				fromFor: substring(users.first, { from: 2, for: 3 }),
+				fromSql: substring(users.first, { from: sql`${users.id} * 1.5` }),
+				forSql: substring(users.first, { for: users.id }),
+				fromForSql: substring(users.first, { from: sql`${users.id} * 1.5`, for: users.id }),
+				regexp: substring(users.first, { fromPattern: 'a(.)' }),
+				similar: substring(users.first, { similar: '%#"J_#"%', escape: '#' }),
+				regexpSql: substring(users.first, { fromPattern: sql`'a' || '(.)'` }),
+				similarSql: substring(users.first, { similar: sql`'%#"J' || '_#"%'`, escape: sql`'#'` }),
+			}).from(users).orderBy(users.id);
+
+			expect(res).toStrictEqual([
+				{
+					withString: 'Johnathan!',
+					withColumn: 'JohnathanDoe',
+					withSql: 'Johnathan.',
+					from: 'hnathan',
+					for: 'Jo',
+					fromFor: 'ohn',
+					fromSql: 'ohnathan',
+					forSql: 'J',
+					fromForSql: 'o',
+					regexp: 't',
+					similar: 'Jo',
+					regexpSql: 't',
+					similarSql: 'Jo',
+				},
+				{
+					withString: 'Jane!',
+					withColumn: 'JaneRoe',
+					withSql: 'Jane.',
+					from: 'ne',
+					for: 'Ja',
+					fromFor: 'ane',
+					fromSql: 'ne',
+					forSql: 'Ja',
+					fromForSql: 'ne',
+					regexp: 'n',
+					similar: 'Ja',
+					regexpSql: 'n',
+					similarSql: 'Ja',
+				},
+			]);
+
+			const filtered = await db.select({ id: users.id }).from(users).where(
+				and(eq(concat(users.first, ' Doe'), 'Johnathan Doe'), eq(substring(users.first, { from: 1, for: 4 }), 'John')),
+			);
+
+			expect(filtered).toStrictEqual([{ id: 1 }]);
+
+			const prepared = db.select({
+				withString: concat(users.first, sql.placeholder('suffix')),
+				from: substring(users.first, { from: sql.placeholder('from') }),
+				for: substring(users.first, { for: sql.placeholder('for') }),
+				fromFor: substring(users.first, { from: sql.placeholder('from'), for: sql.placeholder('for') }),
+				regexp: substring(users.first, { fromPattern: sql.placeholder('pattern') }),
+				similar: substring(users.first, { similar: sql.placeholder('similar'), escape: sql.placeholder('escape') }),
+			}).from(users).where(eq(users.id, 1)).prepare('expr_concat_substring_prepared');
+
+			expect(
+				await prepared.execute({
+					suffix: '!',
+					from: 2,
+					for: 3,
+					pattern: 'a(.)',
+					similar: '%#"J_#"%',
+					escape: '#',
+				}),
+			).toStrictEqual([{
+				withString: 'Johnathan!',
+				from: 'ohnathan',
+				for: 'Joh',
+				fromFor: 'ohn',
+				regexp: 't',
+				similar: 'Jo',
 			}]);
 		});
 	});

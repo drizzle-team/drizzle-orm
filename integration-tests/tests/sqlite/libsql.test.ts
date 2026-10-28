@@ -9,7 +9,7 @@ import { randomString } from '~/utils';
 import { allTypesData, allTypesInput, makeAllTypes } from './all-types';
 import { _push, libSQLTest as test } from './instrumentation';
 import relations from './relations';
-import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
+import { anotherUsersMigratorTable, libsqlConcatSubstringTest, tests, usersMigratorTable } from './sqlite-common';
 import { tests as cacheTests } from './sqlite-common-cache';
 
 test('all types - client int modes', async () => {
@@ -244,7 +244,10 @@ const skip = [
 	// DB needs to be built in special way to support this
 	'delete with limit and order by',
 	'update with limit and order by',
+	// libsql's SQLite 3.45.1 truncates `substr` arguments to 32 bits
+	'concat, substring expressions',
 ];
 
 cacheTests(test, skip);
 tests(test, skip);
+libsqlConcatSubstringTest(test);

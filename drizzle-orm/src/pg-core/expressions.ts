@@ -1,24 +1,52 @@
 import type { PgColumn } from '~/pg-core/columns/index.ts';
-import { bindIfParam } from '~/sql/expressions/index.ts';
 import type { Placeholder, SQL, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
 
 export * from '~/sql/expressions/index.ts';
 
 export function concat(column: PgColumn | SQL.Aliased, value: string | Placeholder | SQLWrapper): SQL {
-	return sql`${column} || ${bindIfParam(value, column)}`;
+	return sql`${column} || ${value}`;
 }
 
+export type SubstringPosition = number | Placeholder | SQLWrapper;
+export type SubstringPattern = string | Placeholder | SQLWrapper;
+
+/** `substring(string from start for count)` */
 export function substring(
 	column: PgColumn | SQL.Aliased,
-	{ from, for: _for }: { from?: number | Placeholder | SQLWrapper; for?: number | Placeholder | SQLWrapper },
+	options: { from: SubstringPosition; for?: SubstringPosition } | { from?: SubstringPosition; for: SubstringPosition },
+): SQL;
+/** `substring(string from pattern)` - POSIX regular expression */
+export function substring(column: PgColumn | SQL.Aliased, options: { fromPattern: SubstringPattern }): SQL;
+/** `substring(string similar pattern escape escape)` - SQL regular expression */
+export function substring(
+	column: PgColumn | SQL.Aliased,
+	options: { similar: SubstringPattern; escape: SubstringPattern },
+): SQL;
+export function substring(
+	column: PgColumn | SQL.Aliased,
+	options: {
+		from?: SubstringPosition;
+		for?: SubstringPosition;
+		fromPattern?: SubstringPattern;
+		similar?: SubstringPattern;
+		escape?: SubstringPattern;
+	},
 ): SQL {
-	const chunks: SQLChunk[] = [sql`substring(`, column];
-	if (from !== undefined) {
-		chunks.push(sql` from `, bindIfParam(from, column));
+	if (options.similar !== undefined) {
+		return sql`substring(${column} similar ${options.similar} escape ${options.escape})`;
 	}
-	if (_for !== undefined) {
-		chunks.push(sql` for `, bindIfParam(_for, column));
+	if (options.fromPattern !== undefined) {
+		return sql`substring(${column} from ${options.fromPattern})`;
+	}
+
+	// Untyped `from` param resolves to the `substring(text from pattern)` regex overload
+	const chunks: SQLChunk[] = [sql`substring(`, column];
+	if (options.from !== undefined) {
+		chunks.push(sql` from (${options.from})::integer`);
+	}
+	if (options.for !== undefined) {
+		chunks.push(sql` for ${options.for}`);
 	}
 	chunks.push(sql`)`);
 	return sql.join(chunks);
