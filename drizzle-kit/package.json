@@ -92,7 +92,7 @@
 		"@types/json-diff": "^1.0.3",
 		"@types/micromatch": "^4.0.9",
 		"@types/minimatch": "^5.1.2",
-		"@types/mssql": "^9.1.4",
+		"@types/mssql": "^9.1.11",
 		"@types/node": "^24.7.2",
 		"@types/pg": "^8.10.7",
 		"@types/pluralize": "^0.0.33",

@@ -214,8 +214,8 @@ importers:
         specifier: ^5.1.2
         version: 5.1.2
       '@types/mssql':
-        specifier: ^9.1.4
-        version: 9.1.8
+        specifier: ^9.1.11
+        version: 9.1.11
       '@types/node':
         specifier: ^24.7.2
         version: 24.10.1
@@ -347,13 +347,6 @@ importers:
         version: 8.8.5
 
   drizzle-orm:
-    dependencies:
-      '@types/mssql':
-        specifier: '>=9.1.4'
-        version: 9.1.8
-      mssql:
-        specifier: '>=11.0.1'
-        version: 12.1.1
     devDependencies:
       '@arktype/attest':
         specifier: ^0.46.0
@@ -454,6 +447,9 @@ importers:
       '@types/better-sqlite3':
         specifier: ^9.6.0
         version: 9.6.0
+      '@types/mssql':
+        specifier: ^9.1.11
+        version: 9.1.11
       '@types/node':
         specifier: ^25.4.0
         version: 25.5.0
@@ -496,6 +492,9 @@ importers:
       glob:
         specifier: ^11.0.1
         version: 11.1.0
+      mssql:
+        specifier: ^11.0.1
+        version: 11.0.1
       mysql2:
         specifier: ^3.14.1
         version: 3.14.1
@@ -558,8 +557,8 @@ importers:
         specifier: ^3.3.31
         version: 3.3.47
       '@types/mssql':
-        specifier: ^9.1.4
-        version: 9.1.8
+        specifier: ^9.1.11
+        version: 9.1.11
       '@types/node':
         specifier: ^22.5.4
         version: 22.19.1
@@ -859,8 +858,8 @@ importers:
         specifier: ^3.3.18
         version: 3.3.47
       '@types/mssql':
-        specifier: ^9.1.4
-        version: 9.1.8
+        specifier: ^9.1.11
+        version: 9.1.11
       '@types/node':
         specifier: ^25.4.0
         version: 25.5.0
@@ -911,7 +910,7 @@ importers:
     dependencies:
       drizzle-beta:
         specifier: npm:drizzle-orm@1.0.0-beta.21
-        version: drizzle-orm@1.0.0-beta.21(42400240d8a85ce913417420fd384116)
+        version: drizzle-orm@1.0.0-beta.21(df0f7a529d1f31ed6c6f43f7476996b9)
       drizzle-seed:
         specifier: workspace:../drizzle-seed/dist
         version: link:../drizzle-seed/dist
@@ -3878,8 +3877,8 @@ packages:
   '@types/minimatch@5.1.2':
     resolution: {integrity: sha512-K0VQKziLUWkVKiRVrx4a40iPaxTUefQmjtkQofBkYRcoaaL/8rhwDWww9qWbrgicNOgnpIsMxyNIUM4+n6dUIA==}
 
-  '@types/mssql@9.1.8':
-    resolution: {integrity: sha512-mt9h5jWj+DYE5jxnKaWSV/GqDf9FV52XYVk6T3XZF69noEe+JJV6MKirii48l81+cjmAkSq+qeKX+k61fHkYrQ==}
+  '@types/mssql@9.1.11':
+    resolution: {integrity: sha512-vcujgrDbDezCxNDO4KY6gjwduLYOKfrexpRUwhoysRvcXZ3+IgZ/PMYFDgh8c3cQIxZ6skAwYo+H6ibMrBWPjQ==}
 
   '@types/node@18.19.130':
     resolution: {integrity: sha512-GRaXQx6jGfL8sKfaIDD6OupbIHBr9jv7Jnaml9tB7l4v068PAOXqfcujMMo5PhbIs6ggR1XODELqahT2R8v0fg==}
@@ -6254,10 +6253,6 @@ packages:
 
   iconv-lite@0.6.3:
     resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
-    engines: {node: '>=0.10.0'}
-
-  iconv-lite@0.7.0:
-    resolution: {integrity: sha512-cf6L2Ds3h57VVmkZe+Pn+5APsT7FpqJtEhhieDCvrE2MK5Qk9MyffgQyuxQTm6BChfeZNtcOLHp9IcWRVcIcBQ==}
     engines: {node: '>=0.10.0'}
 
   iconv-lite@0.7.2:
@@ -13366,7 +13361,7 @@ snapshots:
 
   '@types/minimatch@5.1.2': {}
 
-  '@types/mssql@9.1.8':
+  '@types/mssql@9.1.11':
     dependencies:
       '@types/node': 24.10.1
       tarn: 3.0.2
@@ -14831,9 +14826,9 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
-  drizzle-orm@1.0.0-beta.21(42400240d8a85ce913417420fd384116):
+  drizzle-orm@1.0.0-beta.21(df0f7a529d1f31ed6c6f43f7476996b9):
     dependencies:
-      '@types/mssql': 9.1.8
+      '@types/mssql': 9.1.11
       mssql: 12.1.1
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.940.0
@@ -16032,10 +16027,6 @@ snapshots:
   husky@9.1.7: {}
 
   iconv-lite@0.6.3:
-    dependencies:
-      safer-buffer: 2.1.2
-
-  iconv-lite@0.7.0:
     dependencies:
       safer-buffer: 2.1.2
 
@@ -18760,7 +18751,7 @@ snapshots:
       '@js-joda/core': 5.6.5
       '@types/node': 24.10.1
       bl: 6.1.5
-      iconv-lite: 0.7.0
+      iconv-lite: 0.7.3
       js-md4: 0.3.2
       native-duplexpair: 1.0.0
       sprintf-js: 1.1.3

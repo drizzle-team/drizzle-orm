@@ -83,7 +83,7 @@
 		"@types/async-retry": "^1.4.8",
 		"@types/better-sqlite3": "^9.6.0",
 		"@types/dockerode": "^3.3.31",
-		"@types/mssql": "^9.1.4",
+		"@types/mssql": "^9.1.11",
 		"@types/node": "^22.5.4",
 		"@types/pg": "^8.11.6",
 		"@types/uuid": "^10.0.0",
