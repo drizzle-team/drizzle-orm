@@ -1695,6 +1695,139 @@ export function tests(test: Test) {
 			expect(result.length).toBeGreaterThan(0);
 		});
 
+		test.concurrent('pagination: limit', async ({ db, push }) => {
+			const items = pgTable('pagination_1', { id: integer('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(query().limit(0).toSQL()).toStrictEqual({
+				sql: 'select "id" from "pagination_1" order by "pagination_1"."id" limit $1',
+				params: [0],
+			});
+			expect(await query().limit(0)).toStrictEqual([]);
+			expect(await query().limit(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(5)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().limit(10)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+		});
+
+		test.concurrent('pagination: offset', async ({ db, push }) => {
+			const items = pgTable('pagination_2', { id: integer('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(query().offset(0).toSQL()).toStrictEqual({
+				sql: 'select "id" from "pagination_2" order by "pagination_2"."id" offset $1',
+				params: [0],
+			});
+			expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().offset(5)).toStrictEqual([]);
+			expect(await query().offset(10)).toStrictEqual([]);
+		});
+
+		test.concurrent('pagination: limit with offset', async ({ db, push }) => {
+			const items = pgTable('pagination_3', { id: integer('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(query().limit(0).offset(0).toSQL()).toStrictEqual({
+				sql: 'select "id" from "pagination_3" order by "pagination_3"."id" limit $1 offset $2',
+				params: [0, 0],
+			});
+			expect(await query().limit(0).offset(0)).toStrictEqual([]);
+			expect(await query().limit(0).offset(2)).toStrictEqual([]);
+			expect(await query().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(2).offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+			expect(await query().limit(2).offset(4)).toStrictEqual([{ id: 5 }]);
+			expect(await query().limit(2).offset(5)).toStrictEqual([]);
+			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+		});
+
+		test.concurrent('pagination: placeholders', async ({ db, push }) => {
+			const items = pgTable('pagination_4', { id: integer('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			const limitStmt = query().limit(sql.placeholder('limit')).prepare('pagination_4_limit');
+			expect(await limitStmt.execute({ limit: 0 })).toStrictEqual([]);
+			expect(await limitStmt.execute({ limit: 2 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+
+			const offsetStmt = query().offset(sql.placeholder('offset')).prepare('pagination_4_offset');
+			expect(await offsetStmt.execute({ offset: 0 })).toStrictEqual([
+				{ id: 1 },
+				{ id: 2 },
+				{ id: 3 },
+				{ id: 4 },
+				{ id: 5 },
+			]);
+			expect(await offsetStmt.execute({ offset: 3 })).toStrictEqual([{ id: 4 }, { id: 5 }]);
+
+			const stmt = query().limit(sql.placeholder('limit')).offset(sql.placeholder('offset')).prepare(
+				'pagination_4_limit_offset',
+			);
+			expect(await stmt.execute({ limit: 0, offset: 0 })).toStrictEqual([]);
+			expect(await stmt.execute({ limit: 0, offset: 2 })).toStrictEqual([]);
+			expect(await stmt.execute({ limit: 2, offset: 0 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await stmt.execute({ limit: 2, offset: 2 })).toStrictEqual([{ id: 3 }, { id: 4 }]);
+		});
+
+		test.concurrent('pagination: set operations', async ({ db, push }) => {
+			const items = pgTable('pagination_5', { id: integer('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () =>
+				db.select({ id: items.id }).from(items).where(lt(items.id, 4)).union(
+					db.select({ id: items.id }).from(items).where(gte(items.id, 3)),
+				).orderBy(items.id);
+
+			expect(query().offset(0).toSQL()).toStrictEqual({
+				sql:
+					'select "id" from ((select "id" from "pagination_5" where "pagination_5"."id" < $1) union (select "id" from "pagination_5" where "pagination_5"."id" >= $2) order by "id" offset $3) "drizzle_union"',
+				params: [4, 3, 0],
+			});
+			expect(await query().limit(0)).toStrictEqual([]);
+			expect(await query().limit(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+			expect(await query().limit(0).offset(0)).toStrictEqual([]);
+			expect(await query().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(2).offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+
+			const stmt = query().limit(sql.placeholder('limit')).offset(sql.placeholder('offset')).prepare(
+				'pagination_5_limit_offset',
+			);
+			expect(await stmt.execute({ limit: 0, offset: 0 })).toStrictEqual([]);
+			expect(await stmt.execute({ limit: 2, offset: 0 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await stmt.execute({ limit: 2, offset: 3 })).toStrictEqual([{ id: 4 }, { id: 5 }]);
+		});
+
+		test.concurrent('pagination: subquery fenced with offset 0', async ({ db, push }) => {
+			const items = pgTable('pagination_6', { id: integer('id').primaryKey(), kind: text('kind').notNull() });
+			await push({ items });
+			await db.insert(items).values([
+				{ id: 1, kind: 'email' },
+				{ id: 2, kind: 'sms' },
+				{ id: 3, kind: 'email' },
+			]);
+
+			const candidates = db.select({ id: items.id }).from(items).where(eq(items.kind, 'email')).offset(0).as(
+				'candidates',
+			);
+			const query = db.select({ id: items.id }).from(items).innerJoin(candidates, eq(candidates.id, items.id))
+				.orderBy(items.id);
+
+			expect(query.toSQL()).toStrictEqual({
+				sql:
+					'select "pagination_6"."id" from "pagination_6" inner join (select "id" from "pagination_6" where "pagination_6"."kind" = $1 offset $2) "candidates" on "candidates"."id" = "pagination_6"."id" order by "pagination_6"."id"',
+				params: ['email', 0],
+			});
+			expect(await query).toStrictEqual([{ id: 1 }, { id: 3 }]);
+		});
+
 		test.concurrent('Object keys as column names', async ({ db, push }) => {
 			// Tests the following:
 			// Column with required config

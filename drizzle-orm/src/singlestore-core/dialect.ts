@@ -618,7 +618,7 @@ export class SingleStoreDialect {
 
 		const limitSql = this.buildLimit(limit);
 
-		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+		const offsetSql = offset === undefined ? undefined : sql` offset ${offset}`;
 
 		let lockingClausesSql;
 		if (lockingClause) {
@@ -647,9 +647,15 @@ export class SingleStoreDialect {
 		useSelectionCastCodecs: boolean | undefined,
 		setOperators: SingleStoreSelectConfig['setOperators'],
 	): SQL {
-		for (let i = 0; i < setOperators.length; ++i) {
+		const lastIdx = setOperators.length - 1;
+		let tailSql: SQL | undefined;
+
+		for (let i = 0; i <= lastIdx; ++i) {
 			const setOperator = setOperators[i]!;
-			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator });
+
+			const hoistTail = useSelectionCastCodecs && i === lastIdx;
+			leftSelect = this.buildSetOperationQuery({ leftSelect, setOperator, omitTail: hoistTail });
+			if (hoistTail) tailSql = this.buildSetOperationTail(setOperator);
 		}
 
 		return !useSelectionCastCodecs ? leftSelect : sql`select ${
@@ -677,19 +683,35 @@ export class SingleStoreDialect {
 					ignoreCastCodecs: !useSelectionCastCodecs,
 				},
 			)
-		} from (${leftSelect}) ${sql.identifier('drizzle_union')}`;
+		} from (${leftSelect}) ${sql.identifier('drizzle_union')}${tailSql}`;
 	}
 
 	buildSetOperationQuery({
 		leftSelect,
-		setOperator: { type, isAll, rightSelect, limit, orderBy, offset },
+		setOperator,
+		omitTail,
 	}: {
 		leftSelect: SQL;
 		setOperator: SingleStoreSelectConfig['setOperators'][number];
+		omitTail?: boolean;
 	}): SQL {
+		const { type, isAll, rightSelect } = setOperator;
 		const leftChunk = sql`(${leftSelect.getSQL()}) `;
 		const rightChunk = sql`(${rightSelect.getSQL()})`;
 
+		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
+		const setOperationSql = sql`${leftChunk}${operatorChunk}${rightChunk}`;
+
+		const tailSql = omitTail ? undefined : this.buildSetOperationTail(setOperator);
+		if (tailSql === undefined) return setOperationSql;
+
+		// SingleStore doesn't accept `order by` / `limit` / `offset` right after a parenthesized set operation
+		return sql`select * from (${setOperationSql}) ${sql.identifier('drizzle_union')}${tailSql}`;
+	}
+
+	buildSetOperationTail(
+		{ orderBy, limit, offset }: SingleStoreSelectConfig['setOperators'][number],
+	): SQL | undefined {
 		let orderBySql;
 		if (orderBy && orderBy.length > 0) {
 			const orderByValues: (SQL<unknown> | Name)[] = [];
@@ -713,11 +735,11 @@ export class SingleStoreDialect {
 			? sql` limit ${limit}`
 			: undefined;
 
-		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
+		const offsetSql = offset === undefined ? undefined : sql` offset ${offset}`;
 
-		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+		if (orderBySql === undefined && limitSql === undefined && offsetSql === undefined) return undefined;
 
-		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`${orderBySql}${limitSql}${offsetSql}`;
 	}
 
 	buildInsertQuery({

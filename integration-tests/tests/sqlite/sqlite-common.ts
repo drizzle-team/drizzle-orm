@@ -5339,6 +5339,85 @@ export function tests(test: Test, exclude: string[] = []) {
 			expect(users.length).toBeGreaterThan(0);
 		});
 
+		// SQLite only accepts `offset` after `limit`, so every offset here comes with a limit
+		test.concurrent('pagination: limit', async ({ db, push }) => {
+			const items = sqliteTable('pagination_1', { id: integer('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(query().limit(0).toSQL()).toStrictEqual({
+				sql: 'select "id" from "pagination_1" order by "pagination_1"."id" limit ?',
+				params: [0],
+			});
+			expect(await query().limit(0)).toStrictEqual([]);
+			expect(await query().limit(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(5)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().limit(10)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+		});
+
+		test.concurrent('pagination: limit with offset', async ({ db, push }) => {
+			const items = sqliteTable('pagination_2', { id: integer('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(query().limit(2).offset(0).toSQL()).toStrictEqual({
+				sql: 'select "id" from "pagination_2" order by "pagination_2"."id" limit ? offset ?',
+				params: [2, 0],
+			});
+			expect(await query().limit(0).offset(0)).toStrictEqual([]);
+			expect(await query().limit(0).offset(2)).toStrictEqual([]);
+			expect(await query().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(2).offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+			expect(await query().limit(2).offset(4)).toStrictEqual([{ id: 5 }]);
+			expect(await query().limit(2).offset(5)).toStrictEqual([]);
+			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+		});
+
+		test.concurrent('pagination: placeholders', async ({ db, push }) => {
+			const items = sqliteTable('pagination_3', { id: integer('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			const limitStmt = query().limit(sql.placeholder('limit')).prepare();
+			expect(await limitStmt.all({ limit: 0 })).toStrictEqual([]);
+			expect(await limitStmt.all({ limit: 2 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+
+			const stmt = query().limit(sql.placeholder('limit')).offset(sql.placeholder('offset')).prepare();
+			expect(await stmt.all({ limit: 0, offset: 0 })).toStrictEqual([]);
+			expect(await stmt.all({ limit: 0, offset: 2 })).toStrictEqual([]);
+			expect(await stmt.all({ limit: 2, offset: 0 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await stmt.all({ limit: 2, offset: 2 })).toStrictEqual([{ id: 3 }, { id: 4 }]);
+		});
+
+		test.concurrent('pagination: set operations', async ({ db, push }) => {
+			const items = sqliteTable('pagination_4', { id: integer('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () =>
+				db.select({ id: items.id }).from(items).where(lt(items.id, 4)).union(
+					db.select({ id: items.id }).from(items).where(gte(items.id, 3)),
+				).orderBy(items.id);
+
+			expect(query().limit(2).offset(0).toSQL()).toStrictEqual({
+				sql:
+					'select "id" from (select "id" from "pagination_4" where "pagination_4"."id" < ? union select "id" from "pagination_4" where "pagination_4"."id" >= ? order by "id" limit ? offset ?) "drizzle_union"',
+				params: [4, 3, 2, 0],
+			});
+			expect(await query().limit(0)).toStrictEqual([]);
+			expect(await query().limit(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(0).offset(0)).toStrictEqual([]);
+			expect(await query().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(2).offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+
+			const stmt = query().limit(sql.placeholder('limit')).offset(sql.placeholder('offset')).prepare();
+			expect(await stmt.all({ limit: 0, offset: 0 })).toStrictEqual([]);
+			expect(await stmt.all({ limit: 2, offset: 0 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await stmt.all({ limit: 2, offset: 3 })).toStrictEqual([{ id: 4 }, { id: 5 }]);
+		});
+
 		test.concurrent('column.as', async ({ db }) => {
 			const users = sqliteTable('users_column_as', {
 				id: int('id').primaryKey(),
