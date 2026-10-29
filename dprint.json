@@ -25,7 +25,7 @@
 		"rollup.config-*.mjs",
 		"integration-tests/tests/prisma/*/client",
 		"integration-tests/tests/prisma/*/drizzle",
-		"minipg"
+		"postgres"
 	],
 	"plugins": [
 		"https://unpkg.com/@dprint/typescript@0.91.1/plugin.wasm",

@@ -1,7 +1,7 @@
-import { client as createHttpClient } from '@drizzle-team/minipg/http';
+import { client as createHttpClient } from '@drizzle-team/postgres/http';
 import { defineRelations, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { minipgCodecs } from 'drizzle-orm/postgres/codecs';
+import { postgresCodecs } from 'drizzle-orm/postgres/codecs';
 import { drizzle as drizzleHttp, type PostgresHttpDatabase } from 'drizzle-orm/postgres/http';
 import { migrate } from 'drizzle-orm/postgres/http/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
@@ -609,7 +609,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute + select via db.execute', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_1', {
+		const usersTable = pgTable('users_execute_raw_postgres_1', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -630,7 +630,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute + returning', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_2', {
+		const usersTable = pgTable('users_execute_raw_postgres_2', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -651,7 +651,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute w/ query builder', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_3', {
+		const usersTable = pgTable('users_execute_raw_postgres_3', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -693,7 +693,7 @@ describe('driver-specific', () => {
 		await push({ en, allTypesTable });
 
 		const relations = defineRelations({ allTypesTable }, allTypesRelations);
-		const db = drizzleHttp({ client: (base as any).$client, relations, codecs: minipgCodecs });
+		const db = drizzleHttp({ client: (base as any).$client, relations, codecs: postgresCodecs });
 		await db.insert(allTypesTable).values(allTypesData);
 
 		const [flat] = await db.select().from(allTypesTable);

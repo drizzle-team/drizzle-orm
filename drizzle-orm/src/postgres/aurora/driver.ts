@@ -1,4 +1,4 @@
-import { type AuroraClient, type AuroraConfig, createPool } from '@drizzle-team/minipg/aurora';
+import { type AuroraClient, type AuroraConfig, createPool } from '@drizzle-team/postgres/aurora';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
@@ -7,7 +7,7 @@ import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
 import { buildShape } from '../shape.ts';
-import { minipgAuroraShapeCodecs } from './codecs.ts';
+import { postgresAuroraShapeCodecs } from './codecs.ts';
 import type { PostgresAuroraClient, PostgresAuroraQueryResultHKT } from './session.ts';
 import { PostgresAuroraSession } from './session.ts';
 
@@ -35,7 +35,7 @@ function construct<
 	$client: PostgresAuroraClient extends TClient ? AuroraClient : TClient;
 } {
 	const dialect = new PostgresAuroraDialect({
-		codecs: config.codecs ?? minipgAuroraShapeCodecs,
+		codecs: config.codecs ?? postgresAuroraShapeCodecs,
 		useJitMappers: jitCompatCheck(config.jit),
 		shapeGenerator: config.codecs ? undefined : buildShape,
 	});
