@@ -7,12 +7,12 @@ import {
 	type PgCodecs,
 	type PostgresType,
 } from '~/pg-core/codecs.ts';
-import { minipgCodecs, minipgShapeCodecs } from '../codecs.ts';
+import { postgresCodecs, postgresShapeCodecs } from '../codecs.ts';
 
-/** Variant of {@link minipgCodecs} for AWS Data API, which has no array type for binary values,
+/** Variant of {@link postgresCodecs} for AWS Data API, which has no array type for binary values,
  * so `bytea[]` comes back empty unless selected as text; converts values with time zones to UTC dropping the offset
  */
-export const minipgAuroraCodecs: PgCodecs = refineCodecs<PostgresType>(minipgCodecs, {
+export const postgresAuroraCodecs: PgCodecs = refineCodecs<PostgresType>(postgresCodecs, {
 	bytea: {
 		castArray: castToTextArr,
 		normalizeArray: arrayCompatNormalize(byteaFromPgHex),
@@ -20,11 +20,11 @@ export const minipgAuroraCodecs: PgCodecs = refineCodecs<PostgresType>(minipgCod
 	timetz: { cast: castToText, castArray: castToTextArr, normalizeArray: undefined },
 });
 
-/** Variant of {@link minipgShapeCodecs} for AWS Data API, see {@link minipgAuroraCodecs}
+/** Variant of {@link postgresShapeCodecs} for AWS Data API, see {@link postgresAuroraCodecs}
  *
  * Useless for overrides or on their own
  */
-export const minipgAuroraShapeCodecs: PgCodecs = refineCodecs<PostgresType>(minipgShapeCodecs, {
+export const postgresAuroraShapeCodecs: PgCodecs = refineCodecs<PostgresType>(postgresShapeCodecs, {
 	bytea: { castArray: castToTextArr },
 	// Data API's own formatting fails on `timestamptz` values with 5+ digit years or seconds-precision offsets,
 	// drops the `BC` suffix of `timestamp`s with fractional seconds and cuts `time` to milliseconds, text keeps them

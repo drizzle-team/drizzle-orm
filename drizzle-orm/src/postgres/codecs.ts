@@ -33,7 +33,7 @@ const jsonStringify = (value: any) => JSON.stringify(value);
  *
  * Assumes the default type config
  */
-export const minipgCodecs = refineGenericPgCodecs({
+export const postgresCodecs = refineGenericPgCodecs({
 	smallint: {
 		normalizeParamArray: (v) => makePgArray(v),
 	},
@@ -287,7 +287,7 @@ export const minipgCodecs = refineGenericPgCodecs({
  *
  * Useless for overrides or on their own
  */
-export const minipgShapeCodecs: PgCodecs = {
+export const postgresShapeCodecs: PgCodecs = {
 	json: { normalizeParam: jsonStringify, normalizeParamArray: arrayCompatNormalizeInput(jsonStringify, true) },
 	jsonb: { normalizeParam: jsonStringify, normalizeParamArray: arrayCompatNormalizeInput(jsonStringify, true) },
 	bytea: {

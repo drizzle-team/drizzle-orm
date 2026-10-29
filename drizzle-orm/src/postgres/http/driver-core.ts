@@ -6,7 +6,7 @@ import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
-import { minipgShapeCodecs } from '../codecs.ts';
+import { postgresShapeCodecs } from '../codecs.ts';
 import { buildShape } from '../shape.ts';
 import type {
 	PostgresHttpBatchOptions,
@@ -44,7 +44,7 @@ export function construct<
 	$client: TClient;
 } {
 	const dialect = new PgDialect({
-		codecs: config.codecs ?? minipgShapeCodecs,
+		codecs: config.codecs ?? postgresShapeCodecs,
 		useJitMappers: jitCompatCheck(config.jit),
 		// Shape generator is statically linked to own set of codecs
 		// Overriden codecs are impossible to determine shape for

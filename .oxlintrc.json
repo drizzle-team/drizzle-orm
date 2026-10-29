@@ -119,6 +119,6 @@
 		"**/playground",
 		"integration-tests/tests/prisma/*/client",
 		"integration-tests/tests/prisma/*/drizzle",
-		"minipg"
+		"postgres"
 	]
 }
