@@ -1848,3 +1848,71 @@ test('Issue No6360', async () => {
 	expect(st1).toStrictEqual(st0);
 	expect(pst1).toStrictEqual(st0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4178
+test('Issue 4178', async () => {
+	const from = {
+		usersTable: pgTable('users', {
+			id: integer().primaryKey().generatedAlwaysAsIdentity(),
+			username: varchar({ length: 255 }).notNull().unique(),
+			email: varchar({ length: 255 }).notNull().unique(),
+		}),
+	};
+
+	const to = {
+		usersTable: pgTable('users', {
+			id: bigint({ mode: 'number' }).primaryKey(),
+			username: varchar({ length: 255 }).notNull().unique(),
+			email: varchar({ length: 255 }).notNull().unique(),
+		}),
+	};
+
+	const { sqlStatements: st1 } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst1 } = await push({
+		db,
+		to: to,
+	});
+
+	const st0 = [
+		'ALTER TABLE "users" ALTER COLUMN "id" DROP IDENTITY;',
+		'ALTER TABLE "users" ALTER COLUMN "id" SET DATA TYPE bigint USING "id"::bigint;',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});
+
+// DROP IDENTITY keeps NOT NULL on the column, so a nullable column needs DROP NOT NULL as well
+test('remove identity from nullable column', async () => {
+	const from = {
+		usersTable: pgTable('users', {
+			id: integer().generatedAlwaysAsIdentity(),
+			name: text(),
+		}),
+	};
+
+	const to = {
+		usersTable: pgTable('users', {
+			id: integer(),
+			name: text(),
+		}),
+	};
+
+	const { sqlStatements: st1 } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst1 } = await push({
+		db,
+		to: to,
+	});
+
+	const st0 = [
+		'ALTER TABLE "users" ALTER COLUMN "id" DROP IDENTITY;',
+		'ALTER TABLE "users" ALTER COLUMN "id" DROP NOT NULL;',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+
+	// the column is nullable now, so the schema has nothing left to push
+	const { sqlStatements: pst2 } = await push({ db, to });
+	expect(pst2).toStrictEqual([]);
+});

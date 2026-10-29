@@ -657,7 +657,7 @@ const createTablePolicies = (
 		});
 
 		const tuples = [];
-		if (it.as === 'RESTRICTIVE') tuples.push(['as', `"${it.as.toLowerCase}"`]);
+		if (it.as === 'RESTRICTIVE') tuples.push(['as', `"${it.as.toLowerCase()}"`]);
 		if (it.for !== 'ALL') tuples.push(['for', `"${it.for.toLowerCase()}"`]);
 		if (!(mappedItTo.length === 1 && mappedItTo[0] === '"public"')) {
 			tuples.push(['to', `[${mappedItTo.map((x) => `${x}`).join(', ')}]`]);
