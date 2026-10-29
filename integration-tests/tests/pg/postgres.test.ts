@@ -1,4 +1,4 @@
-import { createPool } from '@drizzle-team/minipg';
+import { createPool } from '@drizzle-team/postgres';
 import { defineRelations, type RelationsBuilder, sql } from 'drizzle-orm';
 import {
 	boolean,
@@ -13,7 +13,7 @@ import {
 	timestamp,
 } from 'drizzle-orm/pg-core';
 import { drizzle as drizzlePostgres, PostgresDatabase } from 'drizzle-orm/postgres';
-import { minipgCodecs } from 'drizzle-orm/postgres/codecs';
+import { postgresCodecs } from 'drizzle-orm/postgres/codecs';
 import { migrate } from 'drizzle-orm/postgres/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect, expectTypeOf } from 'vitest';
@@ -304,7 +304,7 @@ describe('migrator', () => {
 		await db.execute(sql`drop table if exists ${users2}`);
 
 		// create migration directory
-		const migrationDir = './migrations/minipg';
+		const migrationDir = './migrations/postgres';
 		if (existsSync(migrationDir)) rmSync(migrationDir, { recursive: true });
 		mkdirSync(migrationDir, { recursive: true });
 
@@ -655,7 +655,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute + select via db.execute', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_1', {
+		const usersTable = pgTable('users_execute_raw_postgres_1', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -676,7 +676,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute + returning', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_2', {
+		const usersTable = pgTable('users_execute_raw_postgres_2', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -697,7 +697,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute w/ query builder', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_3', {
+		const usersTable = pgTable('users_execute_raw_postgres_3', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -742,7 +742,7 @@ describe('driver-specific', () => {
 		await push({ en, allTypesTable });
 
 		const relations = defineRelations({ allTypesTable }, allTypesRelations);
-		const db = drizzlePostgres({ client: (base as any).$client, relations, codecs: minipgCodecs });
+		const db = drizzlePostgres({ client: (base as any).$client, relations, codecs: postgresCodecs });
 		await db.insert(allTypesTable).values(allTypesData);
 
 		const [flat] = await db.select().from(allTypesTable);
@@ -767,7 +767,7 @@ describe('driver-specific', () => {
 
 		await push({ times });
 		const shaped = createDB({ times });
-		const coded = drizzlePostgres({ client: (shaped as any).$client, codecs: minipgCodecs });
+		const coded = drizzlePostgres({ client: (shaped as any).$client, codecs: postgresCodecs });
 
 		const value = {
 			id: 1,
@@ -785,7 +785,7 @@ describe('driver-specific', () => {
 
 describe('transaction snapshot', () => {
 	test('isolates the transaction', async ({ db, peer }) => {
-		await assertSnapshotIsolatesTransaction(db, peer!, expect, 'minipg');
+		await assertSnapshotIsolatesTransaction(db, peer!, expect, 'drizzle-postgres');
 	});
 
 	test('rejects a malformed id', async ({ db }) => {
@@ -793,6 +793,6 @@ describe('transaction snapshot', () => {
 	});
 
 	test('does not let the id inject SQL', async ({ db }) => {
-		await assertSnapshotIdNotInjectable(db, expect, 'minipg');
+		await assertSnapshotIdNotInjectable(db, expect, 'drizzle-postgres');
 	});
 });

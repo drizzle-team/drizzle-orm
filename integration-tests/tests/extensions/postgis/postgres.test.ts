@@ -1,4 +1,4 @@
-import type { Pool } from '@drizzle-team/minipg';
+import type { Pool } from '@drizzle-team/postgres';
 import { requireEnv } from '@drizzle-team/test-utils';
 import { defineRelations, eq, sql } from 'drizzle-orm';
 import { bigserial, customType, geometry, integer, line, pgTable, point } from 'drizzle-orm/pg-core';

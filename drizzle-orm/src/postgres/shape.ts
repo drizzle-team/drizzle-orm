@@ -14,8 +14,8 @@ import {
 	Transform,
 	type TransformMarker,
 	type TypeSpec,
-} from '@drizzle-team/minipg';
-import { geometry as pgGeometry } from '@drizzle-team/minipg/geometry';
+} from '@drizzle-team/postgres';
+import { geometry as pgGeometry } from '@drizzle-team/postgres/geometry';
 import { getOriginalColumnFromAlias } from '~/alias.ts';
 import { Column } from '~/column.ts';
 import { is } from '~/entity.ts';
@@ -76,7 +76,7 @@ const SHAPE_TYPES: Partial<Record<PostgresType, ShapeType>> = {
 	sparsevec: ['sparsevec', 'string'],
 };
 
-/** Types minipg decodes only through a registry marker, which carries no spec string to name it by. */
+/** Types Drizzle Postgres decodes only through a registry marker, which carries no spec string to name it by. */
 const CUSTOM_MARKERS: Partial<Record<PostgresType, { scalar: CustomMarker; array: CustomMarker }>> = {
 	'geometry(point)': {
 		scalar: pgGeometry('xy'),
