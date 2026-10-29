@@ -45,8 +45,9 @@ export function substring(
 	if (options.from !== undefined) {
 		chunks.push(sql` from (${options.from})::integer`);
 	}
+	// RDS sends values as longavlue, lack of cast points function to nonexistent `for bigint` overload
 	if (options.for !== undefined) {
-		chunks.push(sql` for ${options.for}`);
+		chunks.push(sql` for (${options.for})::integer`);
 	}
 	chunks.push(sql`)`);
 	return sql.join(chunks);

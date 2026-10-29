@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { expect } from 'vitest';
 import { tursoDatabaseServerlessTest as test } from './instrumentation';
 import relations from './relations';
-import { tests } from './sqlite-common';
+import { libsqlConcatSubstringTest, tests } from './sqlite-common';
 
 export const usersMigratorTable = sqliteTable('users12', {
 	id: integer('id').primaryKey(),
@@ -315,5 +315,9 @@ const skip: string[] = [
 
 	// Time-based test, unstable
 	'test $onUpdateFn and $onUpdate works updating',
+
+	// libsql's SQLite 3.45.1 truncates `substr` arguments to 32 bits
+	'concat, substring expressions',
 ];
 tests(test, skip);
+libsqlConcatSubstringTest(test);
