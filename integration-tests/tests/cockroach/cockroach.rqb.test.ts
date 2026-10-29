@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { composeHint, requireEnv, retry } from '@drizzle-team/test-utils';
 import { defineRelations, DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
 import type { NodeCockroachDatabase } from 'drizzle-orm/cockroach';
 import { drizzle } from 'drizzle-orm/cockroach';
@@ -35,35 +36,18 @@ declare module 'vitest' {
 let db: NodeCockroachDatabase<typeof relations> & { $client: Pool };
 
 beforeAll(async () => {
-	const connectionString = process.env['COCKROACH_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error(
-			'COCKROACH_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up cockroach` and export the connection string before running tests.',
-		);
-	}
+	const connectionString = requireEnv('COCKROACH_CONNECTION_STRING', composeHint('cockroach'));
 
-	const sleep = 250;
-	let timeLeft = 5000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
+	db = await retry(async () => {
+		const attemptDb = drizzle(connectionString, { relations, logger: ENABLE_LOGGING });
 		try {
-			db = drizzle(connectionString, { relations, logger: ENABLE_LOGGING });
-			await db.execute(sql`select 1`);
-			connected = true;
-			break;
+			await attemptDb.execute(sql`select 1`);
 		} catch (e) {
-			lastError = e;
-			await db?.$client.end().catch(() => {});
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
+			await attemptDb.$client.end().catch(() => {});
+			throw e;
 		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to CockroachDB');
-		await db?.$client.end().catch(console.error);
-		throw lastError;
-	}
+		return attemptDb;
+	}, { interval: 250, timeout: 5000 });
 });
 
 afterAll(async () => {

@@ -12,4 +12,4 @@ export function expectSchemaShape<T extends Type<any, any>>(t: TestContext, expe
 
 export const expectEnumValues = expectSchemaShape;
 
-export function Expect<_ extends true>() {}
+export { Expect } from '@drizzle-team/test-utils';

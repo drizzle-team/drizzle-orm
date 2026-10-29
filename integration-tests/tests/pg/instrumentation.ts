@@ -6,6 +6,7 @@ import { createPool as createAuroraClient } from '@drizzle-team/minipg/aurora';
 import { client as createHttpClient } from '@drizzle-team/minipg/http';
 import { createPool as createMinipgNeonHttpClient } from '@drizzle-team/minipg/neon-http';
 import { createPool as createMinipgNeonWsPool } from '@drizzle-team/minipg/neon-ws';
+import { createProvider, requireEnv } from '@drizzle-team/test-utils';
 import { PGlite } from '@electric-sql/pglite';
 import {
 	type AnyRelationsBuilderConfig,
@@ -244,8 +245,7 @@ export const prepareNeonHttpClient = async (name: string) => {
 };
 
 export const prepareHttpClient = async (db: string) => {
-	const gateway = process.env['PG_HTTP_GATEWAY_URL'];
-	if (!gateway) throw new Error('PG_HTTP_GATEWAY_URL is not set');
+	const gateway = requireEnv('PG_HTTP_GATEWAY_URL');
 
 	const url = new URL(process.env['PG_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
@@ -487,8 +487,7 @@ export const awsDataApiConfig = {
 };
 
 const prepareDataApiDatabase = async (db: string) => {
-	const endpoint = process.env['AWS_DATA_API_URL'];
-	if (!endpoint) throw new Error('AWS_DATA_API_URL is not set');
+	const endpoint = requireEnv('AWS_DATA_API_URL');
 
 	const url = new URL(process.env['PG_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
@@ -595,24 +594,6 @@ type Vendor =
 	| 'proxy'
 	| 'netlify-db';
 
-const providerClosure = async <T>(items: T[]) => {
-	return async () => {
-		while (true) {
-			const c = items.shift();
-			if (!c) {
-				await new Promise((resolve) => setTimeout(resolve, 50));
-				continue;
-			}
-			return {
-				...c,
-				release: () => {
-					items.push(c);
-				},
-			};
-		}
-	};
-};
-
 export const providerForNeonHttp = async () => {
 	const clients = [
 		await prepareNeonHttpClient('db0'),
@@ -622,7 +603,7 @@ export const providerForNeonHttp = async () => {
 		await prepareNeonHttpClient('db4'),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const providerForNeonWs = async () => {
@@ -634,7 +615,7 @@ export const providerForNeonWs = async () => {
 		await prepareNeonWsClient('db9'),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const provideForPglite = async () => {
@@ -646,7 +627,7 @@ export const provideForPglite = async () => {
 		await preparePglite(),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const provideForNodePostgres = async () => {
@@ -674,7 +655,7 @@ export const provideForNodePostgres = async () => {
 		await prepareNodePostgres('db4'),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const provideForPostgres = async () => {
@@ -702,7 +683,7 @@ export const provideForPostgres = async () => {
 		await preparePostgres('db4'),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const provideForMinipgNeonWs = async () => {
@@ -714,7 +695,7 @@ export const provideForMinipgNeonWs = async () => {
 		await prepareMinipgNeonWsClient('db9'),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 /** Shares db0-db4 with {@link providerForNeonHttp} - see {@link provideForMinipgNeonWs} */
@@ -727,7 +708,7 @@ export const provideForMinipgNeonHttp = async () => {
 		await prepareMinipgNeonHttpClient('db4'),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const provideForHttp = async () => {
@@ -750,7 +731,7 @@ export const provideForHttp = async () => {
 		await prepareHttpClient('db24'),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const provideForPostgresjs = async () => {
@@ -777,7 +758,7 @@ export const provideForPostgresjs = async () => {
 		await preparePostgresjs('db4'),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const provideForProxy = async () => {
@@ -793,14 +774,11 @@ export const provideForProxy = async () => {
 		await prepareProxy('db0'),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const provideForNetlifyDb = async () => {
-	const url = process.env['NETLIFY_DB_URL']!;
-	if (!url) {
-		throw new Error('NETLIFY_DB_URL is not defined');
-	}
+	const url = requireEnv('NETLIFY_DB_URL');
 
 	// WebSocket constructor for Node.js < 22
 	if (!neonConfig.webSocketConstructor && typeof WebSocket === 'undefined') {
@@ -815,7 +793,7 @@ export const provideForNetlifyDb = async () => {
 		await prepareNetlifyDb('db14'),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 const recreateDatabases = async (dbs: string[]) => {
@@ -838,7 +816,7 @@ export const provideForAurora = async () => {
 	const clients = [];
 	for (const db of dbs) clients.push(await prepareAurora(db));
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const provideForAwsDataApi = async () => {
@@ -848,7 +826,7 @@ export const provideForAwsDataApi = async () => {
 	const clients = [];
 	for (const db of dbs) clients.push(await prepareAwsDataApi(db));
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 type ProviderAurora = Awaited<ReturnType<typeof provideForAurora>>;

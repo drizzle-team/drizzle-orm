@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { AuroraDSQLPool } from '@aws/aurora-dsql-node-postgres-connector';
+import { retry } from '@drizzle-team/test-utils';
 import { defineRelations, DrizzleError, eq, type SQL, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type NodePgDsqlDatabase } from 'drizzle-orm/node-postgres/dsql';
 import { alias, pgTable } from 'drizzle-orm/pg-core';
@@ -40,27 +41,11 @@ let client: AuroraDSQLPool;
 beforeAll(async () => {
 	const connectionString = dsqlUrl();
 
-	const sleep = 250;
-	let timeLeft = 5000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = new AuroraDSQLPool({ connectionString, max: 1 });
-			await client.query('select 1');
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Aurora DSQL');
-		await client?.end().catch(console.error);
-		throw lastError;
-	}
+	client = await retry(async () => {
+		const pool = new AuroraDSQLPool({ connectionString, max: 1 });
+		await pool.query('select 1');
+		return pool;
+	}, { interval: 250, timeout: 5000 });
 	db = drizzle({ client, relations, logger: ENABLE_LOGGING });
 });
 

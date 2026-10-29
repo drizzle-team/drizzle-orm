@@ -1,0 +1,19 @@
+{
+	"name": "@drizzle-team/test-utils",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"build": "echo skip...",
+		"build:artifact": "echo skip...",
+		"pack": "echo skip...",
+		"pack:artifact": "echo skip...",
+		"test:types": "tsc"
+	},
+	"devDependencies": {
+		"@types/node": "^25.4.0"
+	}
+}

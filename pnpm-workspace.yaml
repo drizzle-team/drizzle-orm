@@ -6,6 +6,7 @@ packages:
   - integration-tests
   - typeperf-test
   - eslint-plugin-drizzle
+  - test-utils
 
 onlyBuiltDependencies:
   - '@contrast/fn-inspect'

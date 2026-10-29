@@ -1,3 +1,4 @@
+import { composeHint, requireEnv, retry } from '@drizzle-team/test-utils';
 import { sql } from 'drizzle-orm';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
@@ -214,35 +215,14 @@ const createAllGeneratorsTables = async () => {
 };
 
 beforeAll(async () => {
-	const connectionString = process.env['MYSQL_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error(
-			'MYSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mysql` and export the connection string before running tests.',
-		);
-	}
+	const connectionString = requireEnv('MYSQL_CONNECTION_STRING', composeHint('mysql'));
 
-	const sleep = 1000;
-	let timeLeft = 40000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = await createConnection(connectionString);
-			await client.connect();
-			db = drizzle({ client });
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to MySQL');
-		await client?.end().catch(console.error);
-		throw lastError;
-	}
+	client = await retry(async () => {
+		const connection = await createConnection(connectionString);
+		await connection.connect();
+		return connection;
+	}, { interval: 1000, timeout: 40000 });
+	db = drizzle({ client });
 
 	await createNorthwindTables();
 	await createAllDataTypesTable();

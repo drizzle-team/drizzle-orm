@@ -1,3 +1,4 @@
+import { requireEnv } from '@drizzle-team/test-utils';
 import { drizzle } from 'drizzle-orm/cockroach';
 import type { CockroachDatabase } from 'drizzle-orm/cockroach-core';
 import { Client } from 'pg';
@@ -34,8 +35,7 @@ const prepareTest = () => {
 		client: [
 			// oxlint-disable-next-line
 			async ({}, use) => {
-				const envurl = process.env['COCKROACH_CONNECTION_STRING'];
-				if (!envurl) throw new Error('No cockroach url provided');
+				const envurl = requireEnv('COCKROACH_CONNECTION_STRING');
 
 				const client = new Client(envurl);
 				await client.connect();

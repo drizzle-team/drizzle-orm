@@ -1,7 +1,7 @@
+import { parseMssqlUrl, requireEnv } from '@drizzle-team/test-utils';
 import { drizzle, MsSqlDatabase } from 'drizzle-orm/node-mssql';
 import mssql from 'mssql';
 import { test as base } from 'vitest';
-import { parseMssqlUrl } from './utils';
 
 const _push = async (
 	query: (sql: string, params: any[]) => Promise<any[]>,
@@ -34,8 +34,7 @@ const prepareTest = () => {
 		client: [
 			// oxlint-disable-next-line
 			async ({}, use) => {
-				const envurl = process.env['MSSQL_CONNECTION_STRING'];
-				if (!envurl) throw new Error('No mssql url provided');
+				const envurl = requireEnv('MSSQL_CONNECTION_STRING');
 
 				const options = parseMssqlUrl(envurl);
 				const client = await mssql.connect(options);

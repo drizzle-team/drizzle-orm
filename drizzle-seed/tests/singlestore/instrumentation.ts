@@ -1,3 +1,4 @@
+import { requireEnv } from '@drizzle-team/test-utils';
 import type { AnyMySql2Connection } from 'drizzle-orm/mysql2';
 import { drizzle, SingleStoreDatabase } from 'drizzle-orm/singlestore';
 import { createConnection } from 'mysql2/promise';
@@ -34,8 +35,7 @@ const prepareTest = () => {
 		client: [
 			// oxlint-disable-next-line
 			async ({}, use) => {
-				const envurl = process.env['SINGLESTORE_CONNECTION_STRING'];
-				if (!envurl) throw new Error('No singlestore url provided');
+				const envurl = requireEnv('SINGLESTORE_CONNECTION_STRING');
 				const client = await createConnection({
 					uri: envurl,
 					supportBigNumbers: true,

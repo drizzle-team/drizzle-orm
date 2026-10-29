@@ -1,3 +1,4 @@
+import { composeHint, requireEnv } from '@drizzle-team/test-utils';
 import { is } from 'drizzle-orm';
 import {
 	AnyCockroachColumn,
@@ -613,12 +614,7 @@ const prepareClient = async (url: string, n: string, tx: boolean) => {
 };
 
 export const prepareTestDatabase = async (): Promise<TestDatabaseKit> => {
-	const envUrl = process.env.COCKROACH_CONNECTION_STRING;
-	if (!envUrl) {
-		throw new Error(
-			'COCKROACH_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up cockroach` and export the connection string before running tests.',
-		);
-	}
+	const envUrl = requireEnv('COCKROACH_CONNECTION_STRING', composeHint('cockroach'));
 
 	let url: string;
 	// Support multiple connection strings separated by ';'

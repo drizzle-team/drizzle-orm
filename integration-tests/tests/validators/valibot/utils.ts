@@ -40,4 +40,4 @@ export function expectEnumValues<T extends v.EnumSchema<any, undefined>>(t: Test
 	};
 }
 
-export function Expect<_ extends true>() {}
+export { Expect } from '@drizzle-team/test-utils';

@@ -1,3 +1,4 @@
+import { parseMssqlUrl, requireEnv } from '@drizzle-team/test-utils';
 import { is } from 'drizzle-orm';
 import { int, MsSqlColumnBuilder, MsSqlSchema, MsSqlTable, mssqlTable, MsSqlView } from 'drizzle-orm/mssql-core';
 import { configMigrations } from 'src/cli/validations/common';
@@ -445,28 +446,11 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	return res;
 };
 
-export function parseMssqlUrl(urlString: string) {
-	const url = new URL(urlString);
-	return {
-		user: url.username,
-		password: url.password,
-		server: url.hostname,
-		port: parseInt(url.port, 10),
-		database: url.pathname.replace(/^\//, ''),
-		options: {
-			encrypt: url.searchParams.get('encrypt') === 'true',
-			trustServerCertificate: url.searchParams.get('trustServerCertificate') === 'true',
-		},
-	};
-}
-
 export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase> => {
-	const url = process.env.MSSQL_CONNECTION_STRING;
-	if (!url) {
-		throw new Error(
-			'MSSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mssql` and export the connection string (e.g. `mssql://SA:drizzle123PASSWORD!@127.0.0.1:1433?encrypt=true&trustServerCertificate=true`) before running tests.',
-		);
-	}
+	const url = requireEnv(
+		'MSSQL_CONNECTION_STRING',
+		'Bring DBs up with `bash compose/dockers.sh up mssql` and export the connection string (e.g. `mssql://SA:drizzle123PASSWORD!@127.0.0.1:1433?encrypt=true&trustServerCertificate=true`) before running tests.',
+	);
 	const params = parseMssqlUrl(url);
 
 	try {

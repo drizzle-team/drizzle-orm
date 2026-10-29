@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { composeHint, requireEnv, retry } from '@drizzle-team/test-utils';
 import { defineRelations, DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
 import { alias, int, mysqlTable, snakeCase, time } from 'drizzle-orm/mysql-core';
 import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2';
@@ -36,34 +37,17 @@ let db: MySql2Database<typeof relations>;
 let client: mysql.Connection;
 
 beforeAll(async () => {
-	const connectionString = process.env['MYSQL_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error(
-			'MYSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mysql` and export the connection string before running tests.',
-		);
-	}
+	const connectionString = requireEnv('MYSQL_CONNECTION_STRING', composeHint('mysql'));
 
-	const sleep = 1000;
-	let timeLeft = 30000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = await mysql.createConnection({ uri: connectionString, supportBigNumbers: true, bigNumberStrings: true });
-			await client.connect();
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to MySQL');
-		await client?.end().catch(console.error);
-		throw lastError;
-	}
+	client = await retry(async () => {
+		const connection = await mysql.createConnection({
+			uri: connectionString,
+			supportBigNumbers: true,
+			bigNumberStrings: true,
+		});
+		await connection.connect();
+		return connection;
+	}, { interval: 1000, timeout: 30000 });
 	db = drizzle({ client, relations, logger: ENABLE_LOGGING });
 });
 

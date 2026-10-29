@@ -1,3 +1,4 @@
+import { requireEnv } from '@drizzle-team/test-utils';
 import type { MySqlAsyncDatabase } from 'drizzle-orm/mysql-core';
 import type { AnyMySql2Connection } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
@@ -35,8 +36,7 @@ const prepareTest = () => {
 		client: [
 			// oxlint-disable-next-line
 			async ({}, use) => {
-				const envurl = process.env['MYSQL_CONNECTION_STRING'];
-				if (!envurl) throw new Error('No mysql url provided');
+				const envurl = requireEnv('MYSQL_CONNECTION_STRING');
 				const client = await createConnection({
 					uri: envurl,
 					supportBigNumbers: true,

@@ -1,3 +1,4 @@
+import { requireEnv } from '@drizzle-team/test-utils';
 import { MysqlClient } from '@effect/sql-mysql2';
 import { expect } from '@effect/vitest';
 import {
@@ -21,10 +22,8 @@ import { DB, runCommonEffectMySqlTests } from '../effect-common';
 import relations from '../relations';
 import { usersMigratorTable } from '../schema2';
 
-if (!process.env['MYSQL_CONNECTION_STRING']) throw new Error('`MYSQL_CONNECTION_STRING` not set!');
-
 const MySqlClientLive = MysqlClient.layer({
-	url: Redacted.make(process.env['MYSQL_CONNECTION_STRING']!),
+	url: Redacted.make(requireEnv('MYSQL_CONNECTION_STRING')),
 });
 
 const dbEffect = MySqlDrizzle.make({ relations }).pipe(Effect.provide(MySqlDrizzle.DefaultServices));

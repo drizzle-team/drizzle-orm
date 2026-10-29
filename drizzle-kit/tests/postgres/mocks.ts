@@ -1,3 +1,4 @@
+import { requireEnv } from '@drizzle-team/test-utils';
 import { is } from 'drizzle-orm';
 import {
 	isPgEnum,
@@ -736,14 +737,11 @@ export const preparePgVersionTestDatabase = async (
 ): Promise<TestDatabase<any>> => {
 	let envURL: string | undefined;
 	if (version === '16') {
-		envURL = process.env.PG16_URL;
-		if (!envURL) throw new Error('PG16_URL is not set');
+		envURL = requireEnv('PG16_URL');
 	} else if (version === '17') {
-		envURL = process.env.PG17_URL;
-		if (!envURL) throw new Error('PG17_URL is not set');
+		envURL = requireEnv('PG17_URL');
 	} else if (version === '18') {
-		envURL = process.env.PG18_URL;
-		if (!envURL) throw new Error('PG18_URL is not set');
+		envURL = requireEnv('PG18_URL');
 	}
 
 	if (!envURL) {

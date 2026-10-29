@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { composeHint, requireEnv, retry } from '@drizzle-team/test-utils';
 import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
 import { alias, bigint, int, singlestoreTable } from 'drizzle-orm/singlestore-core';
@@ -35,38 +36,17 @@ let db: SingleStoreDriverDatabase<typeof relations>;
 let client: mysql.Connection;
 
 beforeAll(async () => {
-	const connectionString = process.env['SINGLESTORE_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error(
-			'SINGLESTORE_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up singlestore` and export the connection string before running tests.',
-		);
-	}
+	const connectionString = requireEnv('SINGLESTORE_CONNECTION_STRING', composeHint('singlestore'));
 
-	const sleep = 1000;
-	let timeLeft = 30000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = await mysql.createConnection({
-				uri: connectionString,
-				supportBigNumbers: true,
-				bigNumberStrings: true,
-			});
-			await client.connect();
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to MySQL');
-		await client?.end().catch(console.error);
-		throw lastError;
-	}
+	client = await retry(async () => {
+		const connection = await mysql.createConnection({
+			uri: connectionString,
+			supportBigNumbers: true,
+			bigNumberStrings: true,
+		});
+		await connection.connect();
+		return connection;
+	}, { interval: 1000, timeout: 30000 });
 	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle_rqb;`);
 	await client.changeUser({ database: 'drizzle_rqb' });
 	db = drizzle({ client, relations, logger: ENABLE_LOGGING });
