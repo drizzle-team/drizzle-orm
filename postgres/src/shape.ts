@@ -13,35 +13,38 @@
 //   })
 //   user.$printMapper()              // prints the generated decoder
 //   const rows = user(dataRowBodies) // decode an array of DataRow bodies -> rows[]
-import { compileResultSet, type CodegenCol } from './decode.ts'
-import { buildDecoders } from './decode.ts'
-import { shapeCols, type ShapeSpec, type ShapeOf, type ShapeEntries } from './spec.ts'
+import { type CodegenCol, compileResultSet } from './decode.ts';
+import { buildDecoders } from './decode.ts';
+import { shapeCols, type ShapeEntries, type ShapeOf, type ShapeSpec } from './spec.ts';
 
-export type { ShapeSpec }
+export type { ShapeSpec };
 export interface ShapeMapper {
-  /** Decode all DataRow bodies of a result set into rows (object or array per `mode`). */
-  (rows: Buffer[]): unknown[]
-  /** The generated mapper source (the JIT mapper over the whole result set). */
-  readonly $source: string
-  /** The resolved columns (name + OID + overrides). */
-  readonly $cols: ReadonlyArray<CodegenCol>
-  /** Return the generated mapper source (for pretty/colorize/inspection). */
-  $mapper(): string
-  /** Print the generated mapper to stdout. */
-  $printMapper(): void
+	/** Decode all DataRow bodies of a result set into rows (object or array per `mode`). */
+	(rows: Buffer[]): unknown[];
+	/** The generated mapper source (the JIT mapper over the whole result set). */
+	readonly $source: string;
+	/** The resolved columns (name + OID + overrides). */
+	readonly $cols: ReadonlyArray<CodegenCol>;
+	/** Return the generated mapper source (for pretty/colorize/inspection). */
+	$mapper(): string;
+	/** Print the generated mapper to stdout. */
+	$printMapper(): void;
 }
 
 /** Build a callable, codegen-compiled whole-result-set mapper from a declared shape.
  *  Generic over the column names so editors autocomplete each value to the known type list. */
-export function Shape<K extends string>(spec: ShapeOf<K> | ShapeEntries, mode: 'object' | 'array' = 'object'): ShapeMapper {
-  const cols: CodegenCol[] = shapeCols(spec as ShapeSpec)
-  const mapper = compileResultSet(cols, mode, buildDecoders())
-  const fn = ((rows: Buffer[]) => mapper(rows)) as ShapeMapper
-  Object.defineProperties(fn, {
-    $source: { value: mapper.source, enumerable: false },
-    $cols: { value: cols, enumerable: false },
-    $mapper: { value: () => mapper.source, enumerable: false },
-    $printMapper: { value: () => console.log(mapper.source), enumerable: false },
-  })
-  return fn
+export function Shape<K extends string>(
+	spec: ShapeOf<K> | ShapeEntries,
+	mode: 'object' | 'array' = 'object',
+): ShapeMapper {
+	const cols: CodegenCol[] = shapeCols(spec as ShapeSpec);
+	const mapper = compileResultSet(cols, mode, buildDecoders());
+	const fn = ((rows: Buffer[]) => mapper(rows)) as ShapeMapper;
+	Object.defineProperties(fn, {
+		$source: { value: mapper.source, enumerable: false },
+		$cols: { value: cols, enumerable: false },
+		$mapper: { value: () => mapper.source, enumerable: false },
+		$printMapper: { value: () => console.log(mapper.source), enumerable: false },
+	});
+	return fn;
 }

@@ -9,9 +9,9 @@
 // The package root picks its file by export condition (package.json): `workerd` -> ./cf.ts,
 // `deno` -> ./deno.ts, `node` / `bun` -> this file. There is NO default: a target with no TCP
 // (browser, edge-light) fails to resolve the root at build time instead of failing at connect.
-import { registerDefaultTransport } from './connection.ts'
-import { nodeTransport, nodeCancel } from './transport-node.ts'
+import { registerDefaultTransport } from './connection.ts';
+import { nodeCancel, nodeTransport } from './transport-node.ts';
 
-registerDefaultTransport(nodeTransport, nodeCancel)
+registerDefaultTransport(nodeTransport, nodeCancel);
 
-export * from './core.ts'
+export * from './core.ts';
