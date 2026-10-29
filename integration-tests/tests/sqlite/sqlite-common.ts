@@ -5342,6 +5342,7 @@ export function tests(test: Test, exclude: string[] = []) {
 		// SQLite only accepts `offset` after `limit`, so every offset here comes with a limit
 		test.concurrent('pagination: limit', async ({ db, push }) => {
 			const items = sqliteTable('pagination_1', { id: integer('id').primaryKey() });
+			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
 			await push({ items });
 			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
@@ -5358,6 +5359,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		test.concurrent('pagination: limit with offset', async ({ db, push }) => {
 			const items = sqliteTable('pagination_2', { id: integer('id').primaryKey() });
+			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
 			await push({ items });
 			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
@@ -5377,6 +5379,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		test.concurrent('pagination: placeholders', async ({ db, push }) => {
 			const items = sqliteTable('pagination_3', { id: integer('id').primaryKey() });
+			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
 			await push({ items });
 			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
@@ -5394,6 +5397,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 		test.concurrent('pagination: set operations', async ({ db, push }) => {
 			const items = sqliteTable('pagination_4', { id: integer('id').primaryKey() });
+			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
 			await push({ items });
 			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 			const query = () =>

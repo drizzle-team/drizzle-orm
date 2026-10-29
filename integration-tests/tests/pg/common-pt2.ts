@@ -1698,10 +1698,12 @@ export function tests(test: Test) {
 		test.concurrent('pagination: limit', async ({ db, push }) => {
 			const items = pgTable('pagination_1', { id: integer('id').primaryKey() });
 			await push({ items });
+			// Data API drivers render their own placeholders, the base dialect keeps `$N`
+			const dialect = new PgDialect();
 			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
 
-			expect(query().limit(0).toSQL()).toStrictEqual({
+			expect(dialect.sqlToQuery(query().limit(0).getSQL(true))).toStrictEqual({
 				sql: 'select "id" from "pagination_1" order by "pagination_1"."id" limit $1',
 				params: [0],
 			});
@@ -1714,10 +1716,11 @@ export function tests(test: Test) {
 		test.concurrent('pagination: offset', async ({ db, push }) => {
 			const items = pgTable('pagination_2', { id: integer('id').primaryKey() });
 			await push({ items });
+			const dialect = new PgDialect();
 			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
 
-			expect(query().offset(0).toSQL()).toStrictEqual({
+			expect(dialect.sqlToQuery(query().offset(0).getSQL(true))).toStrictEqual({
 				sql: 'select "id" from "pagination_2" order by "pagination_2"."id" offset $1',
 				params: [0],
 			});
@@ -1730,10 +1733,11 @@ export function tests(test: Test) {
 		test.concurrent('pagination: limit with offset', async ({ db, push }) => {
 			const items = pgTable('pagination_3', { id: integer('id').primaryKey() });
 			await push({ items });
+			const dialect = new PgDialect();
 			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
 
-			expect(query().limit(0).offset(0).toSQL()).toStrictEqual({
+			expect(dialect.sqlToQuery(query().limit(0).offset(0).getSQL(true))).toStrictEqual({
 				sql: 'select "id" from "pagination_3" order by "pagination_3"."id" limit $1 offset $2',
 				params: [0, 0],
 			});
@@ -1778,13 +1782,14 @@ export function tests(test: Test) {
 		test.concurrent('pagination: set operations', async ({ db, push }) => {
 			const items = pgTable('pagination_5', { id: integer('id').primaryKey() });
 			await push({ items });
+			const dialect = new PgDialect();
 			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
 			const query = () =>
 				db.select({ id: items.id }).from(items).where(lt(items.id, 4)).union(
 					db.select({ id: items.id }).from(items).where(gte(items.id, 3)),
 				).orderBy(items.id);
 
-			expect(query().offset(0).toSQL()).toStrictEqual({
+			expect(dialect.sqlToQuery(query().offset(0).getSQL(true))).toStrictEqual({
 				sql:
 					'select "id" from ((select "id" from "pagination_5" where "pagination_5"."id" < $1) union (select "id" from "pagination_5" where "pagination_5"."id" >= $2) order by "id" offset $3) "drizzle_union"',
 				params: [4, 3, 0],
@@ -1808,6 +1813,7 @@ export function tests(test: Test) {
 		test.concurrent('pagination: subquery fenced with offset 0', async ({ db, push }) => {
 			const items = pgTable('pagination_6', { id: integer('id').primaryKey(), kind: text('kind').notNull() });
 			await push({ items });
+			const dialect = new PgDialect();
 			await db.insert(items).values([
 				{ id: 1, kind: 'email' },
 				{ id: 2, kind: 'sms' },
@@ -1820,7 +1826,7 @@ export function tests(test: Test) {
 			const query = db.select({ id: items.id }).from(items).innerJoin(candidates, eq(candidates.id, items.id))
 				.orderBy(items.id);
 
-			expect(query.toSQL()).toStrictEqual({
+			expect(dialect.sqlToQuery(query.getSQL(true))).toStrictEqual({
 				sql:
 					'select "pagination_6"."id" from "pagination_6" inner join (select "id" from "pagination_6" where "pagination_6"."kind" = $1 offset $2) "candidates" on "candidates"."id" = "pagination_6"."id" order by "pagination_6"."id"',
 				params: ['email', 0],
