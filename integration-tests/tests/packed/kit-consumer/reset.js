@@ -1,4 +1,4 @@
-import { connect } from 'drizzle-orm/postgres/client';
+import { connect } from 'drizzle-orm/postgres';
 
 const connection = await connect(process.env.PG_CONNECTION_STRING);
 try {

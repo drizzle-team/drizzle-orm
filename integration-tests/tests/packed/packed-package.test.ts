@@ -145,7 +145,7 @@ describe.skipIf(!connectionString)('packed drizzle-orm with its bundled copy of 
 		});
 	});
 
-	test('drizzle-orm/postgres/client and its subpaths expose the bundled copy', async () => {
+	test('drizzle-orm/postgres and drizzle-orm/postgres/client/geometry expose the bundled copy', async () => {
 		const output = await runScript('node', ['postgres.js'], consumer());
 		expect(JSON.parse(output)).toEqual({
 			isPgError: true,
@@ -183,8 +183,8 @@ describe.skipIf(!connectionString)('packed drizzle-kit with packed drizzle-orm a
 	const consumer = useConsumer('kit-consumer', async (dir) => [await pack(ormDist, dir), await pack(kitDist, dir)]);
 
 	function expectPostgresPushAndPull({ push, pull, pulledSchema }: Awaited<ReturnType<typeof pushAndPull>>) {
-		expect(push).toContain(`Using 'drizzle-orm/postgres/client' driver`);
-		expect(pull).toContain(`Using 'drizzle-orm/postgres/client' driver`);
+		expect(push).toContain(`Using 'drizzle-orm/postgres' driver`);
+		expect(pull).toContain(`Using 'drizzle-orm/postgres' driver`);
 		expect(pulledSchema).toContain('packed_kit');
 		expect(pulledSchema).toContain('users');
 	}
@@ -193,7 +193,7 @@ describe.skipIf(!connectionString)('packed drizzle-kit with packed drizzle-orm a
 		expect(existsSync(join(consumer(), 'node_modules/@drizzle-team/postgres'))).toBe(false);
 	});
 
-	test('drizzle-kit push and pull connect through drizzle-orm/postgres/client', async () => {
+	test('drizzle-kit push and pull connect through drizzle-orm/postgres', async () => {
 		expectPostgresPushAndPull(await pushAndPull(consumer(), 'node'));
 	});
 
@@ -216,7 +216,7 @@ describe.skipIf(!connectionString)(
 			const { push, pull, pulledSchema } = await pushAndPull(consumer(), 'node', 'client.config.ts');
 			expect(push).toContain('Using the Drizzle Postgres pool from dbCredentials.client');
 			expect(pull).toContain('Using the Drizzle Postgres pool from dbCredentials.client');
-			expect(push).not.toContain(`Using 'drizzle-orm/postgres/client' driver`);
+			expect(push).not.toContain(`Using 'drizzle-orm/postgres' driver`);
 			expect(pulledSchema).toContain('packed_kit');
 			expect(pulledSchema).toContain('users');
 		});
@@ -247,10 +247,15 @@ describe.skipIf(!connectionString)('packed drizzle-orm with the standalone @driz
 		expect(await typeCheck('standalone.ts', consumer())).toBe('');
 	});
 
+	test('drizzle-orm/postgres/core loads no pool or connection of the bundled copy', async () => {
+		const loaded: string[] = JSON.parse(await runScript('node', ['bundled-modules.js'], consumer()));
+		expect(loaded.filter((url) => /\/(pool|connection)\.js$/.test(url))).toEqual([]);
+	});
+
 	test('instanceof works in both directions between the bundled copy and the standalone package', async () => {
 		const output = await runScript(
 			'node',
-			['instanceof.js', 'drizzle-orm/postgres/client', '@drizzle-team/postgres'],
+			['instanceof.js', 'drizzle-orm/postgres', '@drizzle-team/postgres'],
 			consumer(),
 		);
 		expect(JSON.parse(output)).toEqual(instanceofInBothDirections);

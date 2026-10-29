@@ -1,5 +1,4 @@
-import type { Connection, PoolQuery, QueryResult, ShapeSpec } from '#postgres';
-import { Pool } from '#postgres';
+import type { Connection, Pool, PoolQuery, QueryResult, ShapeSpec } from '#postgres';
 import type { BatchItem } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
@@ -13,6 +12,12 @@ import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Simplify } from '~/utils.ts';
 export type PostgresClient = Pool | Connection;
+
+// Checks the client's brand instead of `instanceof Pool`, which would load the bundled client for a pool
+// from the standalone package.
+const poolBrand = Symbol.for('@drizzle-team/postgres:Pool');
+const isPool = (client: PostgresClient): client is Pool =>
+	(client as unknown as Record<symbol, unknown>)[poolBrand] === true;
 
 export interface PostgresSessionOptions {
 	logger?: Logger;
@@ -90,7 +95,7 @@ export class PostgresSession<
 		const builtQueries: PoolQuery[] = new Array(queries.length);
 
 		const q = this.client;
-		if (!(q instanceof Pool)) throw new Error('`batch` method is only supported on connection pools!');
+		if (!isPool(q)) throw new Error('`batch` method is only supported on connection pools!');
 		for (let i = 0; i < queries.length; ++i) {
 			const query = queries[i]!;
 			const preparedQuery = query._prepare() as PostgresPreparedQuery<any>;

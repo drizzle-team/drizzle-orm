@@ -4,7 +4,7 @@ import { DrizzleQueryError, is } from 'drizzle-orm';
 import type { AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
-import type { Decoder, Pool } from 'drizzle-orm/postgres/client';
+import type { Decoder, Pool } from 'drizzle-orm/postgres';
 import type { SqliteProxyExecutors } from 'drizzle-orm/sqlite-proxy';
 import type { config } from 'mssql';
 import type { Connection, ConnectionConfig, Query } from 'mysql2';
@@ -35,6 +35,16 @@ import type { PostgresCredentials } from './validations/postgres';
 import type { SingleStoreCredentials } from './validations/singlestore';
 import type { SqliteCredentials } from './validations/sqlite';
 import { error, humanLog } from './views';
+
+// Older drizzle-orm releases already have `drizzle-orm/postgres` but no bundled client in it. Only a release
+// that bundles the client exports `createPool` from there.
+const hasBundledClient = async (): Promise<boolean> => {
+	try {
+		return typeof (await import('drizzle-orm/postgres')).createPool === 'function';
+	} catch {
+		return false;
+	}
+};
 
 const ms = (a: bigint, b: bigint) => Number(b - a) / 1_000_000;
 
@@ -197,9 +207,9 @@ export const preparePostgresDB = async (
 				};
 			}
 
-			if (await checkPackage('drizzle-orm/postgres/client')) {
-				humanLog(withStyle.info(`Using 'drizzle-orm/postgres/client' driver for database querying`));
-				const { createPool } = await import('drizzle-orm/postgres/client/aurora');
+			if (await hasBundledClient()) {
+				humanLog(withStyle.info(`Using 'drizzle-orm/postgres' driver for database querying`));
+				const { createPool } = await import('drizzle-orm/postgres/aurora');
 				const { drizzle } = await import('drizzle-orm/postgres/aurora');
 				const { migrate } = await import('drizzle-orm/postgres/aurora/migrator');
 
@@ -270,7 +280,7 @@ export const preparePostgresDB = async (
 			throw new DatabaseDriverCliError(
 				'postgresql',
 				['@aws-sdk/client-rds-data', 'drizzle-orm'],
-				"No AWS Data API driver was found, and the installed 'drizzle-orm' does not include the bundled Drizzle Postgres driver ('drizzle-orm/postgres/client')\nTo connect through AWS Data API - please upgrade 'drizzle-orm', or install '@aws-sdk/client-rds-data'",
+				"No AWS Data API driver was found, and the installed 'drizzle-orm' does not include the bundled Drizzle Postgres driver ('drizzle-orm/postgres')\nTo connect through AWS Data API - please upgrade 'drizzle-orm', or install '@aws-sdk/client-rds-data'",
 			);
 		}
 
@@ -551,20 +561,20 @@ export const preparePostgresDB = async (
 	}
 
 	if ('client' in credentials) {
-		if (!(await checkPackage('drizzle-orm/postgres/client'))) {
+		if (!(await hasBundledClient())) {
 			throw new DatabaseDriverCliError(
 				'postgresql',
 				['drizzle-orm'],
-				"The installed 'drizzle-orm' does not include the bundled Drizzle Postgres driver ('drizzle-orm/postgres/client'), so Drizzle Kit cannot use 'dbCredentials.client'\nTo pass a Drizzle Postgres Pool as 'dbCredentials.client' - please upgrade 'drizzle-orm'",
+				"The installed 'drizzle-orm' does not include the bundled Drizzle Postgres driver ('drizzle-orm/postgres'), so Drizzle Kit cannot use 'dbCredentials.client'\nTo pass a Drizzle Postgres Pool as 'dbCredentials.client' - please upgrade 'drizzle-orm'",
 			);
 		}
-		const { Pool } = await import('drizzle-orm/postgres/client');
+		const { Pool } = await import('drizzle-orm/postgres');
 		if (!(credentials.client instanceof Pool)) {
 			throw new ConfigConnectionCliError(
 				'postgresql',
 				['client'],
 				error(
-					`dbCredentials.client is not a Drizzle Postgres Pool. Pass a Pool from '@drizzle-team/postgres' or 'drizzle-orm/postgres/client' as 'dbCredentials.client'`,
+					`dbCredentials.client is not a Drizzle Postgres Pool. Pass a Pool from '@drizzle-team/postgres' or 'drizzle-orm/postgres' as 'dbCredentials.client'`,
 				),
 			);
 		}
@@ -1154,8 +1164,8 @@ export const preparePostgresDB = async (
 		return { packageName: 'bun', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
-	if (await checkPackage('drizzle-orm/postgres/client')) {
-		const { createPool, parseConnectionString } = await import('drizzle-orm/postgres/client');
+	if (await hasBundledClient()) {
+		const { createPool, parseConnectionString } = await import('drizzle-orm/postgres');
 
 		const ssl = 'ssl' in credentials
 			? credentials.ssl === 'prefer'
@@ -1188,10 +1198,10 @@ export const preparePostgresDB = async (
 		const isNeon = !!host && /\.neon\.tech$/i.test(host);
 
 		humanLog(
-			withStyle.info(`Using 'drizzle-orm/postgres/client'${isNeon ? ' (neon-ws)' : ''} driver for database querying`),
+			withStyle.info(`Using 'drizzle-orm/postgres'${isNeon ? ' (neon-ws)' : ''} driver for database querying`),
 		);
 		const client = isNeon
-			? (await import('drizzle-orm/postgres/client/neon-ws')).createPool({ ...config, webSocketConstructor: ws })
+			? (await import('drizzle-orm/postgres/neon-ws')).createPool({ ...config, webSocketConstructor: ws })
 			: createPool(config);
 
 		return prepareDrizzlePostgresDB(client);
@@ -1200,7 +1210,7 @@ export const preparePostgresDB = async (
 	throw new DatabaseDriverCliError(
 		'postgresql',
 		['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', 'drizzle-orm'],
-		"No Postgres driver was found, and the installed 'drizzle-orm' does not include the bundled Drizzle Postgres driver ('drizzle-orm/postgres/client')\nTo connect to Postgres database - please upgrade 'drizzle-orm', or install either of 'pg', 'postgres', 'bun', '@neondatabase/serverless' or '@vercel/postgres' drivers\nFor the 'bun' driver, run your script using: bun --bun",
+		"No Postgres driver was found, and the installed 'drizzle-orm' does not include the bundled Drizzle Postgres driver ('drizzle-orm/postgres')\nTo connect to Postgres database - please upgrade 'drizzle-orm', or install either of 'pg', 'postgres', 'bun', '@neondatabase/serverless' or '@vercel/postgres' drivers\nFor the 'bun' driver, run your script using: bun --bun",
 		"For the 'bun' driver, run your script using: bun --bun",
 	);
 };

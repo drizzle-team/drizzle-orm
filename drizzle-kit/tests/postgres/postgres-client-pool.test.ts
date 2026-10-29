@@ -14,7 +14,7 @@ import {
 	time,
 	timestamp,
 } from 'drizzle-orm/pg-core';
-import { createPool } from 'drizzle-orm/postgres/client';
+import { createPool } from 'drizzle-orm/postgres';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, relative } from 'path';

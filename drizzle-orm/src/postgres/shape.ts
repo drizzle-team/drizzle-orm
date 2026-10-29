@@ -1,19 +1,13 @@
-import {
-	Collect,
-	CollectNullable,
-	type CustomMarker,
-	Json,
-	JsonArray,
-	type JsonMarker,
-	type JsonSpec,
-	Nullable,
-	type ShapeEntries,
-	type ShapeSpec,
-	type ShapeValue,
-	type TableShape,
-	Transform,
-	type TransformMarker,
-	type TypeSpec,
+import type {
+	CustomMarker,
+	JsonMarker,
+	JsonSpec,
+	ShapeEntries,
+	ShapeSpec,
+	ShapeValue,
+	TableShape,
+	TransformMarker,
+	TypeSpec,
 } from '#postgres';
 import { geometry as pgGeometry } from '#postgres/geometry';
 import { getOriginalColumnFromAlias } from '~/alias.ts';
@@ -27,6 +21,7 @@ import { type DriverValueDecoder, noopDecoder } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 import { getColumnFromDecoder, getColumns, orderSelectedFields } from '~/utils.ts';
 import type { View } from '~/view.ts';
+import { Collect, CollectNullable, Json, JsonArray, Nullable, Transform } from './markers.ts';
 
 type ShapeType = [element: string, as?: string];
 

@@ -12,8 +12,8 @@ const entries = globSync('src/**/*.ts', { ignore: ['src/**/*.test.ts'] });
 const postgresDir = '../postgres';
 
 async function writeManifest() {
-	// `--dual` swaps in the `import`/`require` exports. The `#postgres` imports and the `./postgres/client` exports
-	// are built from Drizzle Postgres's `exports`.
+	// `--dual` swaps in the `import`/`require` exports. The `#postgres` imports and the `./postgres/client`
+	// exports are built from Drizzle Postgres's `exports`.
 	const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'));
 	const postgres = JSON.parse(await fs.readFile(`${postgresDir}/package.json`, 'utf8'));
 	// `npm pack` keeps `workspace:` ranges, and they do not resolve outside this monorepo.

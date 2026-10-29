@@ -1,4 +1,4 @@
-import { connect, PgError } from 'drizzle-orm/postgres/client';
+import { connect, PgError } from 'drizzle-orm/postgres';
 import { parseEwkbHex } from 'drizzle-orm/postgres/client/geometry';
 
 const connection = await connect(process.env.PG_CONNECTION_STRING);

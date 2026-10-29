@@ -1,5 +1,5 @@
 import type { PGlite } from '@electric-sql/pglite';
-import type { Pool } from 'drizzle-orm/postgres/client';
+import type { Pool } from 'drizzle-orm/postgres';
 import type { ConnectionOptions } from 'tls';
 import type { TypeOf } from 'zod';
 import { boolean, coerce, custom, literal, object, string, undefined as zUndefined, union } from 'zod';
@@ -133,7 +133,7 @@ export const printConfigConnectionIssues = (
 					? `dbCredentials.client cannot be combined with ${
 						conflicting.map((field) => `'${field}'`).join(', ')
 					}. Remove dbCredentials.client to let Drizzle Kit connect with these params, or remove these params to use your postgres Pool`
-					: `dbCredentials.client is not a Drizzle Postgres Pool. Pass a Pool from '@drizzle-team/postgres' or 'drizzle-orm/postgres/client' as 'dbCredentials.client'`,
+					: `dbCredentials.client is not a Drizzle Postgres Pool. Pass a Pool from '@drizzle-team/postgres' or 'drizzle-orm/postgres' as 'dbCredentials.client'`,
 			),
 		);
 	}

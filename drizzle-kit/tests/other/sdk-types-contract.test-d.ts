@@ -1,5 +1,5 @@
 import type { PGlite } from '@electric-sql/pglite';
-import type { Pool } from 'drizzle-orm/postgres/client';
+import type { Pool } from 'drizzle-orm/postgres';
 import { expectTypeOf, test } from 'vitest';
 import { type Config, defineConfig } from '../../src';
 import type {

@@ -1,6 +1,6 @@
 import { createPool } from '@drizzle-team/postgres';
 import { sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/postgres';
+import { drizzle } from 'drizzle-orm/postgres/core';
 
 const client = createPool(process.env['PG_CONNECTION_STRING']!);
 const db = drizzle({ client });

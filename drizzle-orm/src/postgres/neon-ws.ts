@@ -63,3 +63,5 @@ export namespace drizzle {
 		return construct({} as any, config) as any;
 	}
 }
+
+export * from '#postgres/neon-ws';

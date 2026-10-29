@@ -1,4 +1,4 @@
-import type { Pool } from 'drizzle-orm/postgres/client';
+import type { Pool } from 'drizzle-orm/postgres';
 import { expect, test } from 'vitest';
 import { preparePostgresDB } from '../../src/cli/connections';
 
