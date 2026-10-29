@@ -26,6 +26,11 @@ import {
 import type { Column, DiffEntities, PostgresEntities } from './ddl';
 import type { Import } from './typescript';
 
+// a constant default is stored as one quoted literal ('...'::type, the cast is trimmed on introspect),
+// anything else (function call, operator, cast of an expression) is an expression
+// works only for string types - text, macaddr, uuid, etc.
+const isQuotedLiteral = (value: string) => /^'(?:[^']|'')*'$/s.test(value);
+
 export interface SqlType {
 	is(type: string): boolean;
 	drizzleImport(): Import;
@@ -63,9 +68,9 @@ export const SmallInt: SqlType = {
 	toTs: (_, value) => {
 		if (!value) return { default: '' };
 
-		const check = Number(value);
+		const { value: def } = numberForTs(value);
 
-		return { default: Number.isNaN(check) ? `sql\`${escapeForSqlTemplate(value)}\`` : value };
+		return { default: def };
 	},
 	toArrayTs: (_, value) => {
 		if (!value) return { default: '' };
@@ -142,7 +147,14 @@ export const Numeric: SqlType = {
 	},
 	defaultFromIntrospect: (value) => {
 		// 10.123, but '9223372036854775807'
-		return `'${trimChar(value, "'")}'`;
+		const trimmed = trimChar(value, "'");
+
+		// for expressions like numeric DEFAULT (random() * 10)
+		// it is saved to TS file as sql``, which when is read stores in ddl plain expression without ''
+		// https://github.com/drizzle-team/drizzle-orm/issues/6495
+		if (isNaN(Number(trimmed))) return value;
+
+		return `'${trimmed}'`;
 	},
 	defaultArrayFromIntrospect: (value) => {
 		return value;
@@ -203,7 +215,12 @@ export const Real: SqlType = {
 	defaultArrayFromIntrospect: (value) => {
 		return value as string;
 	},
-	toTs: (_, value) => ({ default: value ?? '' }),
+	toTs: (_, value) => {
+		if (!value) return { default: '' };
+
+		const { value: def } = numberForTs(value);
+		return { default: def };
+	},
 	toArrayTs: (_, value) => {
 		if (!value) return { default: '' };
 
@@ -248,7 +265,15 @@ export const Boolean: SqlType = {
 	defaultArrayFromIntrospect: (value) => {
 		return value as string;
 	},
-	toTs: (_, value) => ({ default: value ?? '' }),
+	toTs: (_, value) => {
+		if (!value) return { default: '' };
+
+		if (value !== 'true' && value !== 'false') {
+			return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
+		}
+
+		return { default: value ?? '' };
+	},
 	toArrayTs: (_, value) => {
 		if (!value) return { default: '' };
 
@@ -299,9 +324,11 @@ export const Char: SqlType = {
 		const [length] = parseParams(type);
 		if (length) options['length'] = Number(length);
 		if (!value) return { options, default: '' };
-		if (!value.startsWith("'") && !value.endsWith("'")) {
+
+		if (!isQuotedLiteral(value)) {
 			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
+
 		const escaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(value, "'")));
 		return { options, default: escaped };
 	},
@@ -830,7 +857,7 @@ export const Uuid: SqlType = {
 
 		value = trimChar(value, "'");
 		if (value === 'gen_random_uuid()') return { options, default: '.defaultRandom()' };
-		if (!value.startsWith("'") && !value.endsWith("'") && value.endsWith('()')) {
+		if (!isQuotedLiteral(value)) {
 			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
 		return { options, default: `"${trimChar(value, "'")}"` };
@@ -886,6 +913,10 @@ export const Interval: SqlType = {
 
 		if (!value) return { options, default: '' };
 
+		if (!isQuotedLiteral(value)) {
+			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
+		}
+
 		return { options, default: `"${trimChar(value, "'")}"` };
 	},
 	toArrayTs: (type, value) => {
@@ -937,6 +968,11 @@ export const Inet: SqlType = {
 	},
 	toTs: (_, value) => {
 		if (!value) return { default: '' };
+
+		if (!isQuotedLiteral(value)) {
+			return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
+		}
+
 		return { default: `"${trimChar(value, "'")}"` };
 	},
 	toArrayTs: (_, value) => {
@@ -981,6 +1017,11 @@ export const Cidr: SqlType = {
 	},
 	toTs: (_, value) => {
 		if (!value) return { default: '' };
+
+		if (!isQuotedLiteral(value)) {
+			return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
+		}
+
 		return { default: `"${trimChar(value, "'")}"` };
 	},
 	toArrayTs: (_, value) => {
@@ -1023,6 +1064,11 @@ export const MacAddr: SqlType = {
 	},
 	toTs: (_, value) => {
 		if (!value) return { default: '' };
+
+		if (!isQuotedLiteral(value)) {
+			return { default: `sql\`${escapeForSqlTemplate(value)}\`` };
+		}
+
 		return { default: `"${trimChar(value, "'")}"` };
 	},
 	toArrayTs: (_, value) => {

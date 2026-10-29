@@ -12,6 +12,8 @@ import * as s03 from './snapshots/schema03';
 import * as s03new from './snapshots/schema03new';
 import * as s06 from './snapshots/schema06';
 import * as s06new from './snapshots/schema06new';
+import * as s07 from './snapshots/schema07';
+import * as s07new from './snapshots/schema07new';
 
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
@@ -139,3 +141,14 @@ test('s06. the first diff after the upgrade keeps a column of a built-in type th
 	]);
 	expect((await push({ db, to: withoutValue() })).sqlStatements).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/pull/6443
+// v7 stored checks and index `where` with table-qualified columns ("docs"."rank") and index `with` joined by ',',
+// generate renders bare columns and ', ', so the first generate after `drizzle-kit up` recreated those indexes and checks
+test.skipIf(Date.now() < +new Date('2026-11-13'))(
+	's07. index with options, partial indexes and checks referencing columns',
+	async () => {
+		const res = await diffSnapshotV7(db, s07new, s07);
+		expect(res.all).toStrictEqual([]);
+	},
+);
