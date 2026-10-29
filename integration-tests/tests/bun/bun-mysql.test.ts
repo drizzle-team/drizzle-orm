@@ -1,5 +1,6 @@
 /// <reference types="bun-types" />
 
+import { composeHint, requireEnv } from '@drizzle-team/test-utils';
 import retry from 'async-retry';
 import { SQL } from 'bun';
 import { afterAll, beforeAll, beforeEach, describe, expect, expectTypeOf, spyOn, test } from 'bun:test';
@@ -301,12 +302,7 @@ const CONNECT_RETRIES = 240;
 const CONNECT_TIMEOUT = CONNECT_RETRIES * CONNECT_RETRY_INTERVAL;
 
 beforeAll(async () => {
-	const connectionString = process.env['MYSQL_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error(
-			'MYSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mysql` and export the connection string before running tests.',
-		);
-	}
+	const connectionString = requireEnv('MYSQL_CONNECTION_STRING', composeHint('mysql'));
 	client = await retry(async () => {
 		client = await new SQL({
 			url: connectionString,

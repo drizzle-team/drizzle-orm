@@ -1,3 +1,4 @@
+import { requireEnv, retry } from '@drizzle-team/test-utils';
 import { is } from 'drizzle-orm';
 import { SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { mkdirSync, writeFileSync } from 'fs';
@@ -166,43 +167,30 @@ export type TestDatabase = {
 };
 
 export const prepareTestDatabase = async (): Promise<TestDatabase> => {
-	const url = process.env.MYSQL_CONNECTION_STRING;
-	if (!url) {
-		throw new Error(
-			'MYSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up singlestore` and export the connection string before running tests (the singlestore mocks read MYSQL_CONNECTION_STRING — swap the .env line per .env.example).',
-		);
-	}
+	const url = requireEnv(
+		'MYSQL_CONNECTION_STRING',
+		'Bring DBs up with `bash compose/dockers.sh up singlestore` and export the connection string before running tests (the singlestore mocks read MYSQL_CONNECTION_STRING — swap the .env line per .env.example).',
+	);
 
-	const sleep = 1000;
-	let timeLeft = 20000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			const client: Connection = await createConnection(url);
-			await client.connect();
-			const db = {
-				query: async (sql: string, params: any[]) => {
-					const [res] = await client.query(sql);
-					return res as any[];
-				},
-			};
-			connected = true;
-			const close = async () => {
-				await client?.end().catch(console.error);
-			};
-			const clear = async () => {
-				await client.query(`drop database if exists \`drizzle\`;`);
-				await client.query(`create database \`drizzle\`;`);
-				await client.query(`use \`drizzle\`;`);
-			};
-			return { db, close, clear, client };
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
+	const client = await retry(async () => {
+		const connection: Connection = await createConnection(url);
+		await connection.connect();
+		return connection;
+	}, { interval: 1000, timeout: 20000 });
 
-	throw new Error();
+	const db = {
+		query: async (sql: string, params: any[]) => {
+			const [res] = await client.query(sql);
+			return res as any[];
+		},
+	};
+	const close = async () => {
+		await client?.end().catch(console.error);
+	};
+	const clear = async () => {
+		await client.query(`drop database if exists \`drizzle\`;`);
+		await client.query(`create database \`drizzle\`;`);
+		await client.query(`use \`drizzle\`;`);
+	};
+	return { db, close, clear, client };
 };

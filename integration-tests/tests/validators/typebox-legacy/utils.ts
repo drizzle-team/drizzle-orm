@@ -31,4 +31,4 @@ export function expectEnumValues<T extends t.TEnum<any>>(t: TestContext, expecte
 	};
 }
 
-export function Expect<_ extends true>() {}
+export { Expect } from '@drizzle-team/test-utils';

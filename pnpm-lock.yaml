@@ -147,6 +147,9 @@ importers:
       '@drizzle-team/minipg':
         specifier: 0.4.2
         version: 0.4.2
+      '@drizzle-team/test-utils':
+        specifier: workspace:*
+        version: link:../test-utils
       '@duckdb/node-api':
         specifier: 1.5.0-r.1
         version: 1.5.0-r.1
@@ -366,6 +369,9 @@ importers:
       '@drizzle-team/minipg':
         specifier: 0.4.2
         version: 0.4.2
+      '@drizzle-team/test-utils':
+        specifier: workspace:*
+        version: link:../test-utils
       '@effect/sql-d1':
         specifier: 4.0.0
         version: 4.0.0(effect@4.0.0)
@@ -541,6 +547,9 @@ importers:
       '@arethetypeswrong/cli':
         specifier: ^0.16.1
         version: 0.16.4
+      '@drizzle-team/test-utils':
+        specifier: workspace:*
+        version: link:../test-utils
       '@electric-sql/pglite':
         specifier: ^0.5.8
         version: 0.5.8
@@ -836,6 +845,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20241004.0
         version: 4.20251126.0
+      '@drizzle-team/test-utils':
+        specifier: workspace:*
+        version: link:../test-utils
       '@libsql/client':
         specifier: ^0.10.0
         version: 0.10.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
@@ -905,6 +917,12 @@ importers:
       zx:
         specifier: ^8.3.2
         version: 8.8.5
+
+  test-utils:
+    devDependencies:
+      '@types/node':
+        specifier: ^25.4.0
+        version: 25.5.0
 
   typeperf-test:
     dependencies:

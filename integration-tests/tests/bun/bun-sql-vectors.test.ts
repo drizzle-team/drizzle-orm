@@ -1,3 +1,4 @@
+import { composeHint, requireEnv } from '@drizzle-team/test-utils';
 import { SQL as BunSQL } from 'bun';
 import { beforeAll, beforeEach, expect, test } from 'bun:test';
 import { defineRelations, eq, hammingDistance, jaccardDistance, l2Distance, not, sql } from 'drizzle-orm';
@@ -33,12 +34,7 @@ const seed = {
 const expected = { id: 1, ...seed };
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_VECTOR_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error(
-			'PG_VECTOR_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up postgres-vector` and export the connection string before running tests.',
-		);
-	}
+	const connectionString = requireEnv('PG_VECTOR_CONNECTION_STRING', composeHint('postgres-vector'));
 	const connClient = new BunSQL(connectionString, { max: 1 });
 	await connClient.unsafe(`select 1`);
 

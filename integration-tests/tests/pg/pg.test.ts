@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { composeHint, requireEnv, retry } from '@drizzle-team/test-utils';
 import { defineRelations, DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { alias, pgTable } from 'drizzle-orm/pg-core';
@@ -38,34 +39,13 @@ let db: NodePgDatabase<typeof relations>;
 let client: pg.Client;
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error(
-			'PG_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up postgres` and export the connection string before running tests.',
-		);
-	}
+	const connectionString = requireEnv('PG_CONNECTION_STRING', composeHint('postgres'));
 
-	const sleep = 250;
-	let timeLeft = 5000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = new Client(connectionString);
-			await client.connect();
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to Postgres');
-		await client?.end().catch(console.error);
-		throw lastError;
-	}
+	client = await retry(async () => {
+		const pgClient = new Client(connectionString);
+		await pgClient.connect();
+		return pgClient;
+	}, { interval: 250, timeout: 5000 });
 	db = drizzle({ client, relations, logger: ENABLE_LOGGING });
 });
 

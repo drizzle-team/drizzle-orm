@@ -1,3 +1,4 @@
+import { composeHint, requireEnv, retry } from '@drizzle-team/test-utils';
 import { is } from 'drizzle-orm';
 import { int, MySqlColumnBuilder, MySqlSchema, MySqlTable, mysqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
@@ -418,46 +419,32 @@ export type TestDatabase = {
 };
 
 export const prepareTestDatabase = async (): Promise<TestDatabase> => {
-	const url = process.env['MYSQL_CONNECTION_STRING'];
-	if (!url) {
-		throw new Error(
-			'MYSQL_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up mysql` and export the connection string before running tests.',
-		);
-	}
+	const url = requireEnv('MYSQL_CONNECTION_STRING', composeHint('mysql'));
 
-	const sleep = 1000;
-	let timeLeft = 20000;
-	do {
-		try {
-			const client: Connection = await createConnection(url);
-			await client.connect();
+	const client = await retry(async () => {
+		const connection: Connection = await createConnection(url);
+		await connection.connect();
+		return connection;
+	}, { interval: 1000, timeout: 20000 });
 
-			const db = {
-				query: async (sql: string, params: any[]) => {
-					const [res] = await client.query(sql).catch((e: Error) => {
-						const error = new Error(`query error: ${sql}\n\n${e.message}`);
-						throw error;
-					});
-					return res as any[];
-				},
-			};
-			const close = async () => {
-				await client?.end().catch(console.error);
-			};
-			const clear = async () => {
-				await client.query(`drop database if exists \`drizzle\`;`);
-				await client.query(`create database \`drizzle\`;`);
-				await client.query(`use \`drizzle\`;`);
-			};
-			return { db, close, clear, db_url: url, client };
-		} catch (e) {
-			console.error(e);
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-
-	throw new Error();
+	const db = {
+		query: async (sql: string, params: any[]) => {
+			const [res] = await client.query(sql).catch((e: Error) => {
+				const error = new Error(`query error: ${sql}\n\n${e.message}`);
+				throw error;
+			});
+			return res as any[];
+		},
+	};
+	const close = async () => {
+		await client?.end().catch(console.error);
+	};
+	const clear = async () => {
+		await client.query(`drop database if exists \`drizzle\`;`);
+		await client.query(`create database \`drizzle\`;`);
+		await client.query(`use \`drizzle\`;`);
+	};
+	return { db, close, clear, db_url: url, client };
 };
 
 export const diffSnapshotV5 = async (db: DB, schema: MysqlSchema, oldSchema: MysqlSchemaOld) => {

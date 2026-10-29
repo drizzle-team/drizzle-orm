@@ -1,3 +1,4 @@
+import { requireEnv } from '@drizzle-team/test-utils';
 import { defineRelations, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -33,8 +34,7 @@ const relations = defineRelations({ items }, (r) => ({
 }));
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_POSTGIS_CONNECTION_STRING'];
-	if (!connectionString) throw new Error('PG_POSTGIS_CONNECTION_STRING is not set in env variables');
+	const connectionString = requireEnv('PG_POSTGIS_CONNECTION_STRING');
 
 	client = new Client(connectionString);
 	await client.connect();

@@ -1,3 +1,4 @@
+import { createProvider, requireEnv } from '@drizzle-team/test-utils';
 import { type Client as LibSQLClient, createClient, type InArgs, type InStatement } from '@libsql/client';
 import {
 	createClient as createHttpClient,
@@ -533,63 +534,38 @@ export const prepareNodeSQLite = async () => {
 	return { client, all, run, batch };
 };
 
-const providerClosure = async <T>(items: T[]) => {
-	return async () => {
-		while (true) {
-			const c = items.shift();
-			if (!c) {
-				await new Promise((resolve) => setTimeout(resolve, 50));
-				continue;
-			}
-			return {
-				...c,
-				release: () => {
-					items.push(c);
-				},
-			};
-		}
-	};
-};
-
 // No token needed for a local url; simple ':memory:' fails on transaction tests
 const LOCAL_LIBSQL_URL = 'file::memory:?cache=shared';
 
 export const providerForSQLiteCloud = async () => {
-	const url = process.env['SQLITE_MANY_CLOUD_CONNECTION_STRING'];
-	if (url === undefined) throw new Error('SQLITE_MANY_CLOUD_CONNECTION_STRING is not set.');
+	const url = requireEnv('SQLITE_MANY_CLOUD_CONNECTION_STRING');
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(uris.map(async (urlI) => await prepareSQLiteCloudClient(urlI)));
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const providerForTursoDatabase = async () => {
 	const clients = [prepareTursoDatabaseClient()];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const providerForTursoDatabaseSync = async () => {
 	const clients = [prepareTursoDatabaseSyncClient()];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const providerForTursoDatabaseServerless = async () => {
-	const url = process.env['TURSODATABASE_REMOTE_URL'];
-	const authToken = process.env['TURSODATABASE_REMOTE_TOKEN'];
-	if (!url) {
-		throw new Error('TURSODATABASE_REMOTE_URL is not set.');
-	}
-	if (!authToken) {
-		throw new Error('TURSODATABASE_REMOTE_TOKEN is not set.');
-	}
+	const url = requireEnv('TURSODATABASE_REMOTE_URL');
+	const authToken = requireEnv('TURSODATABASE_REMOTE_TOKEN');
 	const uris = url.split(';').filter((val) => val !== '');
 	const tokens = authToken.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(
 		uris.map(async (urlI, i) => await prepareTursoDatabaseServerlessClient(urlI, tokens[i])),
 	);
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const providerForLibSQL = async () => {
@@ -598,23 +574,20 @@ export const providerForLibSQL = async () => {
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(uris.map(async (urlI) => await prepareLibSQLClient(urlI, authToken)));
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 export const providerForLibSQLWs = async () => {
-	const url = process.env['LIBSQL_REMOTE_MANY_URL'];
+	const url = requireEnv('LIBSQL_REMOTE_MANY_URL');
 	const authToken = process.env['LIBSQL_REMOTE_TOKEN'];
-	if (url === undefined) {
-		throw new Error('LIBSQL_REMOTE_MANY_URL is not set.');
-	}
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(uris.map(async (urlI) => await prepareLibSQLWsClient(urlI, authToken)));
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 export const providerForLibSQLSqlite3 = async () => {
 	const clients = [prepareLibSQLSqlite3Client(LOCAL_LIBSQL_URL)];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const providerForLibSQLNode = async () => {
@@ -623,39 +596,36 @@ export const providerForLibSQLNode = async () => {
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(uris.map(async (urlI) => await prepareLibSQLNodeClient(urlI, authToken)));
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 export const providerForLibSQLHttp = async () => {
-	const url = process.env['LIBSQL_REMOTE_MANY_URL'];
+	const url = requireEnv('LIBSQL_REMOTE_MANY_URL');
 	const authToken = process.env['LIBSQL_REMOTE_TOKEN'];
-	if (url === undefined) {
-		throw new Error('LIBSQL_REMOTE_MANY_URL is not set.');
-	}
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(uris.map(async (urlI) => await prepareLibSQLHttpClient(urlI, authToken)));
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const providerForBetterSqlite3 = async () => {
 	const clients = [prepareBetterSqlite3Client()];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 export const providerForD1 = async () => {
 	const clients = [await prepareD1Client()];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 export const providerForSqlJs = async () => {
 	const clients = [await prepareSqlJs()];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 export const providerForNodeSQLite = async () => {
 	const clients = [await prepareNodeSQLite()];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 type ProviderForSQLiteCloud = Awaited<ReturnType<typeof providerForSQLiteCloud>>;

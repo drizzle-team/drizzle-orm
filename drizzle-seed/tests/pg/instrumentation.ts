@@ -1,3 +1,4 @@
+import { createProvider, requireEnv } from '@drizzle-team/test-utils';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite-pgvector';
 import { drizzle as drizzleNodePostgres } from 'drizzle-orm/node-postgres';
@@ -40,8 +41,7 @@ export const preparePglite = async () => {
 };
 
 export const prepareNodePostgres = async (db: string = 'drizzle') => {
-	const envUrl = process.env['PG_POSTGIS_CONNECTION_STRING'];
-	if (!envUrl) throw new Error('PG_POSTGIS_CONNECTION_STRING env is not set.');
+	const envUrl = requireEnv('PG_POSTGIS_CONNECTION_STRING');
 	const url = new URL(envUrl);
 	url.pathname = `/${db}`;
 
@@ -63,30 +63,12 @@ export const prepareNodePostgres = async (db: string = 'drizzle') => {
 	return { client, query, batch };
 };
 
-const providerClosure = async <T>(items: T[]) => {
-	return async () => {
-		while (true) {
-			const c = items.shift();
-			if (!c) {
-				await new Promise((resolve) => setTimeout(resolve, 50));
-				continue;
-			}
-			return {
-				...c,
-				release: () => {
-					items.push(c);
-				},
-			};
-		}
-	};
-};
-
 export const provideForPglite = async () => {
 	const clients = [
 		await preparePglite(),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const provideForNodePostgres = async () => {
@@ -94,7 +76,7 @@ export const provideForNodePostgres = async () => {
 		await prepareNodePostgres(),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 type ProvideForPglite = Awaited<ReturnType<typeof provideForPglite>>;
