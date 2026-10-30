@@ -1,0 +1,16 @@
+{
+  // Worker config for the vitest-pool-workers runtime. nodejs_compat supplies Buffer / node:crypto /
+  // node:stream so the existing minipg/cf adapter runs unmodified; cloudflare:sockets provides raw TCP.
+  "name": "minipg-cf-test",
+  "compatibility_date": "2024-09-23",
+  "compatibility_flags": ["nodejs_compat"],
+  // Local Hyperdrive binding: in dev, `localConnectionString` points the binding at our local cluster.
+  // env.HYPERDRIVE then exposes host/port/user/password/database that route (via Miniflare) to it.
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "a0000000000000000000000000000000",
+      "localConnectionString": "postgres://postgres:postgres@127.0.0.1:54329/testdb"
+    }
+  ]
+}

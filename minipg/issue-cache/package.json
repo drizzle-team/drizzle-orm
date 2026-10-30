@@ -1,0 +1,16 @@
+{
+  "name": "issue-cache",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local PGlite cache of postgres.js + node-postgres issues and comments",
+  "scripts": {
+    "load:issues": "node load-issues.mjs",
+    "fetch:comments": "node fetch-comments.mjs",
+    "q": "node q.mjs"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.2.17",
+    "@huggingface/transformers": "^4.2.0"
+  }
+}
