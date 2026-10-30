@@ -1,191 +1,191 @@
 {
-  "name": "@drizzle-team/postgres",
-  "version": "0.4.3",
-  "description": "A minimal, dependency-free PostgreSQL driver for Node, Bun, Deno, and Cloudflare Workers.",
-  "type": "module",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/drizzle-team/postgres.git"
-  },
-  "homepage": "https://github.com/drizzle-team/postgres#readme",
-  "bugs": {
-    "url": "https://github.com/drizzle-team/postgres/issues"
-  },
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
-  },
-  "keywords": [
-    "postgres",
-    "postgresql",
-    "pg",
-    "database",
-    "driver",
-    "cloudflare-workers",
-    "hyperdrive",
-    "deno",
-    "bun",
-    "edge"
-  ],
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "workerd": "./dist/cf.js",
-      "deno": "./dist/deno.js",
-      "bun": "./dist/index.js",
-      "node": "./dist/index.js"
-    },
-    "./core": {
-      "types": "./dist/core.d.ts",
-      "default": "./dist/core.js"
-    },
-    "./node": {
-      "types": "./dist/node.d.ts",
-      "default": "./dist/node.js"
-    },
-    "./deno": {
-      "types": "./dist/deno.d.ts",
-      "default": "./dist/deno.js"
-    },
-    "./cf": {
-      "types": "./dist/cf.d.ts",
-      "default": "./dist/cf.js"
-    },
-    "./replication": {
-      "types": "./dist/replication.d.ts",
-      "default": "./dist/replication.js"
-    },
-    "./cdc": {
-      "types": "./dist/cdc.d.ts",
-      "default": "./dist/cdc.js"
-    },
-    "./neon-ws": {
-      "types": "./dist/neon-ws.d.ts",
-      "default": "./dist/neon-ws.js"
-    },
-    "./neon-http": {
-      "types": "./dist/neon-http.d.ts",
-      "default": "./dist/neon-http.js"
-    },
-    "./http": {
-      "types": "./dist/http.d.ts",
-      "default": "./dist/http.js"
-    },
-    "./geometry": {
-      "types": "./dist/geometry.d.ts",
-      "default": "./dist/geometry.js"
-    },
-    "./aurora": {
-      "types": "./dist/aurora.d.ts",
-      "default": "./dist/aurora.js"
-    },
-    "./telemetry": {
-      "types": "./dist/telemetry.d.ts",
-      "default": "./dist/telemetry.js"
-    },
-    "./buffer-polyfill": {
-      "types": "./dist/buffer-polyfill.d.ts",
-      "default": "./dist/buffer-polyfill.js"
-    },
-    "./effect": {
-      "types": "./dist/effect/index.d.ts",
-      "workerd": "./dist/effect/cf.js",
-      "deno": "./dist/effect/deno.js",
-      "bun": "./dist/effect/index.js",
-      "node": "./dist/effect/index.js"
-    },
-    "./effect/node": {
-      "types": "./dist/effect/node.d.ts",
-      "default": "./dist/effect/node.js"
-    },
-    "./effect/cf": {
-      "types": "./dist/effect/cf.d.ts",
-      "default": "./dist/effect/cf.js"
-    },
-    "./effect/deno": {
-      "types": "./dist/effect/deno.d.ts",
-      "default": "./dist/effect/deno.js"
-    },
-    "./effect/core": {
-      "types": "./dist/effect/core.d.ts",
-      "default": "./dist/effect/core.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "engines": {
-    "node": ">=22.12"
-  },
-  "peerDependencies": {
-    "effect": "~4.0.5"
-  },
-  "peerDependenciesMeta": {
-    "effect": {
-      "optional": true
-    }
-  },
-  "scripts": {
-    "build": "bun node_modules/.bin/tsdown",
-    "prepublishOnly": "bun run typecheck && bun run build && bun run verify:publish",
-    "verify:publish": "node scripts/verify-publish.mjs",
-    "typecheck": "tsc --noEmit",
-    "test": "bun test test/unit test/integration",
-    "test:unit": "bun test test/unit",
-    "test:integration": "bun test test/integration",
-    "test:slow": "SLOW_TESTS=1 bun test test/integration/replication.test.ts -t 'idle managed'",
-    "test:cf": "vitest run --config test/cf/vitest.config.ts",
-    "test:neon-ws": "bun test test/integration/neon-ws.test.ts",
-    "test:neon-http": "bun test test/integration/neon-http.test.ts test/integration/neon-http-parity.test.ts",
-    "test:aurora": "bun test test/unit/aurora.test.ts",
-    "test:aurora:live": "bun test test/integration/aurora.test.ts test/integration/aurora-parity.test.ts",
-    "test:query": "bun test test/integration/query",
-    "test:query:interp": "DRIZZLE_POSTGRES_VARIANT=interpreted bun run test:query",
-    "test:query:both": "bun run test:query && bun run test:query:interp",
-    "test:smoke": "bun test/smoke.ts",
-    "test:setup": "bash test/setup-pg.sh",
-    "bench": "bun bench/drivers.bench.ts",
-    "bench:micro": "bun bench/micro.bench.ts",
-    "bench:overhead": "bun bench/overhead.bench.ts",
-    "bench:json": "bun bench/json-decode.bench.ts",
-    "bench:json-shape": "bun bench/json-shape.bench.ts",
-    "demo:codegen": "bun codegen-demo.ts",
-    "bench:decode-vs": "bun bench/decode-vs.bench.ts",
-    "bench:parity": "bun bench/decode-parity.ts",
-    "bench:float": "bun bench/float-decode.bench.ts",
-    "bench:temporal": "bun bench/temporal-decode.bench.ts",
-    "bench:binary": "bun bench/binary-vs-text.bench.ts",
-    "bench:pertype": "bun bench/per-type-decode.bench.ts",
-    "bench:chunks": "bun bench/chunks.bench.ts",
-    "bench:mapper-dispatch": "bun bench/mapper-dispatch.bench.ts",
-    "bench:query-decode": "bun bench/query-decode.bench.ts",
-    "db:pull": "drizzle-kit pull",
-    "db:studio": "drizzle-kit studio"
-  },
-  "devDependencies": {
-    "@arethetypeswrong/cli": "^0.18.5",
-    "@cloudflare/vitest-pool-workers": "^0.5.2",
-    "@mitata/counters": "^0.0.8",
-    "@types/bun": "latest",
-    "@types/pg": "^8.20.0",
-    "cli-highlight": "^2.1.11",
-    "drizzle-kit": "^0.31.10",
-    "drizzle-orm": "^0.45.2",
-    "effect": "~4.0.5",
-    "fast-check": "^4.8.0",
-    "mitata": "^1.0.34",
-    "pg": "^8.22.0",
-    "pkg-pr-new": "0.0.88",
-    "postgres": "^3.4.9",
-    "prettier": "^3.9.1",
-    "publint": "^0.3.23",
-    "tsdown": "^0.22.3",
-    "typescript": "^5",
-    "vitest": "~2.1.9",
-    "wrangler": "^3.90.0"
-  }
+	"name": "@drizzle-team/postgres",
+	"version": "0.4.3",
+	"description": "A minimal, dependency-free PostgreSQL driver for Node, Bun, Deno, and Cloudflare Workers.",
+	"type": "module",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/drizzle-team/postgres.git"
+	},
+	"homepage": "https://github.com/drizzle-team/postgres#readme",
+	"bugs": {
+		"url": "https://github.com/drizzle-team/postgres/issues"
+	},
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
+	"keywords": [
+		"postgres",
+		"postgresql",
+		"pg",
+		"database",
+		"driver",
+		"cloudflare-workers",
+		"hyperdrive",
+		"deno",
+		"bun",
+		"edge"
+	],
+	"main": "./dist/index.js",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"workerd": "./dist/cf.js",
+			"deno": "./dist/deno.js",
+			"bun": "./dist/index.js",
+			"node": "./dist/index.js"
+		},
+		"./core": {
+			"types": "./dist/core.d.ts",
+			"default": "./dist/core.js"
+		},
+		"./node": {
+			"types": "./dist/node.d.ts",
+			"default": "./dist/node.js"
+		},
+		"./deno": {
+			"types": "./dist/deno.d.ts",
+			"default": "./dist/deno.js"
+		},
+		"./cf": {
+			"types": "./dist/cf.d.ts",
+			"default": "./dist/cf.js"
+		},
+		"./replication": {
+			"types": "./dist/replication.d.ts",
+			"default": "./dist/replication.js"
+		},
+		"./cdc": {
+			"types": "./dist/cdc.d.ts",
+			"default": "./dist/cdc.js"
+		},
+		"./neon-ws": {
+			"types": "./dist/neon-ws.d.ts",
+			"default": "./dist/neon-ws.js"
+		},
+		"./neon-http": {
+			"types": "./dist/neon-http.d.ts",
+			"default": "./dist/neon-http.js"
+		},
+		"./http": {
+			"types": "./dist/http.d.ts",
+			"default": "./dist/http.js"
+		},
+		"./geometry": {
+			"types": "./dist/geometry.d.ts",
+			"default": "./dist/geometry.js"
+		},
+		"./aurora": {
+			"types": "./dist/aurora.d.ts",
+			"default": "./dist/aurora.js"
+		},
+		"./telemetry": {
+			"types": "./dist/telemetry.d.ts",
+			"default": "./dist/telemetry.js"
+		},
+		"./buffer-polyfill": {
+			"types": "./dist/buffer-polyfill.d.ts",
+			"default": "./dist/buffer-polyfill.js"
+		},
+		"./effect": {
+			"types": "./dist/effect/index.d.ts",
+			"workerd": "./dist/effect/cf.js",
+			"deno": "./dist/effect/deno.js",
+			"bun": "./dist/effect/index.js",
+			"node": "./dist/effect/index.js"
+		},
+		"./effect/node": {
+			"types": "./dist/effect/node.d.ts",
+			"default": "./dist/effect/node.js"
+		},
+		"./effect/cf": {
+			"types": "./dist/effect/cf.d.ts",
+			"default": "./dist/effect/cf.js"
+		},
+		"./effect/deno": {
+			"types": "./dist/effect/deno.d.ts",
+			"default": "./dist/effect/deno.js"
+		},
+		"./effect/core": {
+			"types": "./dist/effect/core.d.ts",
+			"default": "./dist/effect/core.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"engines": {
+		"node": ">=22.12"
+	},
+	"peerDependencies": {
+		"effect": "~4.0.5"
+	},
+	"peerDependenciesMeta": {
+		"effect": {
+			"optional": true
+		}
+	},
+	"scripts": {
+		"build": "bun node_modules/.bin/tsdown",
+		"prepublishOnly": "bun run typecheck && bun run build && bun run verify:publish",
+		"verify:publish": "node scripts/verify-publish.mjs",
+		"typecheck": "tsc --noEmit",
+		"test": "bun test test/unit test/integration",
+		"test:unit": "bun test test/unit",
+		"test:integration": "bun test test/integration",
+		"test:slow": "SLOW_TESTS=1 bun test test/integration/replication.test.ts -t 'idle managed'",
+		"test:cf": "vitest run --config test/cf/vitest.config.ts",
+		"test:neon-ws": "bun test test/integration/neon-ws.test.ts",
+		"test:neon-http": "bun test test/integration/neon-http.test.ts test/integration/neon-http-parity.test.ts",
+		"test:aurora": "bun test test/unit/aurora.test.ts",
+		"test:aurora:live": "bun test test/integration/aurora.test.ts test/integration/aurora-parity.test.ts",
+		"test:query": "bun test test/integration/query",
+		"test:query:interp": "DRIZZLE_POSTGRES_VARIANT=interpreted bun run test:query",
+		"test:query:both": "bun run test:query && bun run test:query:interp",
+		"test:smoke": "bun test/smoke.ts",
+		"test:setup": "bash test/setup-pg.sh",
+		"bench": "bun bench/drivers.bench.ts",
+		"bench:micro": "bun bench/micro.bench.ts",
+		"bench:overhead": "bun bench/overhead.bench.ts",
+		"bench:json": "bun bench/json-decode.bench.ts",
+		"bench:json-shape": "bun bench/json-shape.bench.ts",
+		"demo:codegen": "bun codegen-demo.ts",
+		"bench:decode-vs": "bun bench/decode-vs.bench.ts",
+		"bench:parity": "bun bench/decode-parity.ts",
+		"bench:float": "bun bench/float-decode.bench.ts",
+		"bench:temporal": "bun bench/temporal-decode.bench.ts",
+		"bench:binary": "bun bench/binary-vs-text.bench.ts",
+		"bench:pertype": "bun bench/per-type-decode.bench.ts",
+		"bench:chunks": "bun bench/chunks.bench.ts",
+		"bench:mapper-dispatch": "bun bench/mapper-dispatch.bench.ts",
+		"bench:query-decode": "bun bench/query-decode.bench.ts",
+		"db:pull": "drizzle-kit pull",
+		"db:studio": "drizzle-kit studio"
+	},
+	"devDependencies": {
+		"@arethetypeswrong/cli": "^0.18.5",
+		"@cloudflare/vitest-pool-workers": "^0.5.2",
+		"@mitata/counters": "^0.0.8",
+		"@types/bun": "latest",
+		"@types/pg": "^8.20.0",
+		"cli-highlight": "^2.1.11",
+		"drizzle-kit": "^0.31.10",
+		"drizzle-orm": "^0.45.2",
+		"effect": "~4.0.5",
+		"fast-check": "^4.8.0",
+		"mitata": "^1.0.34",
+		"pg": "^8.22.0",
+		"pkg-pr-new": "0.0.88",
+		"postgres": "^3.4.9",
+		"prettier": "^3.9.1",
+		"publint": "^0.3.23",
+		"tsdown": "^0.22.3",
+		"typescript": "^5",
+		"vitest": "~2.1.9",
+		"wrangler": "^3.90.0"
+	}
 }

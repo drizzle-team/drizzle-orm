@@ -21,7 +21,11 @@ import {
 	uniqueIndex,
 	uuid,
 } from 'drizzle-orm/pg-core';
-import { drizzle as drizzleAurora, postgresAuroraCodecs, type PostgresAuroraDatabase } from 'drizzle-orm/postgres/aurora';
+import {
+	drizzle as drizzleAurora,
+	postgresAuroraCodecs,
+	type PostgresAuroraDatabase,
+} from 'drizzle-orm/postgres/aurora';
 import { migrate } from 'drizzle-orm/postgres/aurora/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect, expectTypeOf } from 'vitest';
