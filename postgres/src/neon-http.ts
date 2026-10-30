@@ -11,6 +11,7 @@
 // Constraints (stateless HTTP): no interactive `begin(fn)` (use `transaction([...])` for an atomic batch,
 // or @drizzle-team/postgres/neon-ws for interactive tx), no LISTEN/COPY/cursors, no prepared-statement reuse, no binary
 // wire format (text decode only). `$1` placeholders — same as the wire driver.
+import { addBrand } from './brand.ts';
 import { buildDecoders } from './decode.ts';
 import { type CodegenCol, INSTANT_OIDS, tagArrayCol } from './decode.ts';
 import { defaultDecoders } from './decode.ts';
@@ -186,6 +187,7 @@ class RowBuf {
 		return this.buf.subarray(0, this.pos);
 	}
 }
+addBrand(RowBuf, 'RowBuf');
 
 interface NeonField {
 	name: string;
@@ -500,6 +502,8 @@ export class NeonHttpClient {
 	/** No-op — HTTP holds no connection. Present for API symmetry. */
 	async end(): Promise<void> {/* nothing to close */}
 }
+
+addBrand(NeonHttpClient, 'NeonHttpClient');
 
 /** Create a Neon HTTP client. Accepts a connection string or a config object. */
 export async function connect(config: string | NeonHttpConfig = {}): Promise<NeonHttpClient> {

@@ -3,6 +3,8 @@
 //   node scripts/pack-check.mjs <path-to-tgz>
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const tgz = process.argv[2];
 if (!tgz) {
@@ -37,8 +39,20 @@ const orphans = entries
 		return !fs.existsSync(p.replace(/^dist\//, 'src/').replace(/\.js$/, '.ts'));
 	});
 
+// Classes with private or protected members are not compatible between two copies of Drizzle Postgres.
+const extracted = fs.mkdtempSync(path.join(os.tmpdir(), 'postgres-pack-check-'));
+execFileSync('tar', ['-xzf', tgz, '-C', extracted]);
+const privateMembers = entries.filter((p) => p.endsWith('.d.ts')).flatMap((p) =>
+	fs.readFileSync(path.join(extracted, 'package', p), 'utf8').split('\n')
+		.map((line, index) => ({ line, index }))
+		.filter(({ line }) => /^\s*(?:private|protected)\s/.test(line))
+		.map(({ line, index }) => `${p}:${index + 1}: ${line.trim()}`)
+);
+fs.rmSync(extracted, { recursive: true, force: true });
+
 const problems = [
 	...badRoot.map((p) => `unexpected root/path entry: ${p}`),
+	...privateMembers.map((p) => `private or protected member in a published declaration: ${p}`),
 	...maps.map((p) => `source map shipped: ${p}`),
 	...orphans.map((p) => `orphaned dist file, no matching src: ${p}`),
 	...missing.map((r) => `missing required entry: ${r}`),

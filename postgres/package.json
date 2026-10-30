@@ -80,6 +80,14 @@
 			"types": "./dist/geometry.d.ts",
 			"default": "./dist/geometry.js"
 		},
+		"./json": {
+			"types": "./dist/json.d.ts",
+			"default": "./dist/json.js"
+		},
+		"./brand": {
+			"types": "./dist/brand.d.ts",
+			"default": "./dist/brand.js"
+		},
 		"./aurora": {
 			"types": "./dist/aurora.d.ts",
 			"default": "./dist/aurora.js"
@@ -123,7 +131,7 @@
 		"node": ">=22.12"
 	},
 	"peerDependencies": {
-		"effect": "~4.0.5"
+		"effect": "^4.0.6"
 	},
 	"peerDependenciesMeta": {
 		"effect": {
@@ -172,7 +180,7 @@
 		"@types/bun": "latest",
 		"@types/pg": "^8.20.0",
 		"cli-highlight": "^2.1.11",
-		"effect": "4.0.5",
+		"effect": "4.0.6",
 		"fast-check": "^4.8.0",
 		"mitata": "^1.0.34",
 		"pg": "^8.22.0",

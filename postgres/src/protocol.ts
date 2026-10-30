@@ -1,5 +1,6 @@
 // PostgreSQL frontend/backend wire protocol v3 — message framing only.
 // No I/O here: writers return Buffers; Parser turns socket bytes into messages.
+import { addBrand } from './brand.ts';
 import type { EncodedParam } from './encode.ts';
 import type { Field } from './types.ts';
 
@@ -219,6 +220,7 @@ export class Writer {
 		this.off = off;
 	} // …and roll back to it if that serialization throws midway
 }
+addBrand(Writer, 'Writer');
 
 export function writeParse(w: Writer, name: string, sql: string, paramOids?: readonly number[]): void {
 	guardNul(sql, 'query text');
@@ -392,6 +394,7 @@ export class Parser {
 		return out;
 	}
 }
+addBrand(Parser, 'Parser');
 
 /** Decode a RowDescription ('T') body into field descriptors. */
 export function parseRowDescription(body: Buffer): Field[] {

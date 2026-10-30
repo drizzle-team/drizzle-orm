@@ -5,7 +5,7 @@
 > without notice.
 
 A minimal, dependency-free PostgreSQL driver for Node, Bun, Deno, and Cloudflare Workers. It
-covers the wire protocol directly and ships as ESM only, with 18 subpath entry points for
+covers the wire protocol directly and ships as ESM only, with 20 subpath entry points for
 each supported runtime and adapter.
 
 ## Install

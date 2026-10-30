@@ -1,6 +1,7 @@
 import { composeHint, optionalEnv } from '@drizzle-team/test-utils';
 import { execFile } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -11,6 +12,10 @@ const exec = promisify(execFile);
 
 const ormDist = resolve(import.meta.dirname, '../../../drizzle-orm/dist');
 const postgresDir = resolve(import.meta.dirname, '../../../postgres');
+const instanceofScript = resolve(import.meta.dirname, 'instanceof.js');
+const tsc = createRequire(import.meta.url).resolve('typescript/bin/tsc');
+// The consumer projects have no `@types/node` of their own, so tsc reads the one installed here.
+const nodeTypeRoots = resolve(import.meta.dirname, '../../node_modules/@types');
 
 const connectionString = optionalEnv('PG_CONNECTION_STRING', composeHint('postgres'));
 
@@ -21,6 +26,16 @@ const requireNodeBinaries: Record<string, string | undefined> = {
 };
 const hasRequireNodeBinaries = Object.values(requireNodeBinaries).every(Boolean);
 
+const bothDirections = { firstIsSecond: true, secondIsFirst: true };
+const instanceofInBothDirections = {
+	isSameClass: false,
+	Pool: bothDirections,
+	Connection: bothDirections,
+	PgError: bothDirections,
+	MyPool: { isFirstPool: true, isSecondPool: true, poolIsMyPool: false },
+	unbranded: [],
+};
+
 async function pack(packageDir: string, destination: string): Promise<string> {
 	const { stdout } = await exec('npm', ['pack', packageDir, '--json', '--pack-destination', destination]);
 	// npm 12 prints an object keyed by package name, older npm prints an array.
@@ -29,14 +44,24 @@ async function pack(packageDir: string, destination: string): Promise<string> {
 }
 
 // Copies a template to a temporary dir and installs the packages that `install` returns into it.
+// `versions` rewrites the version in the manifests of installed packages.
 // Returns a getter, because the dir exists only after `beforeAll` has run.
-function useConsumer(template: string, install: (consumer: string) => Promise<string[]>): () => string {
+function useConsumer(
+	template: string,
+	install: (consumer: string) => Promise<string[]>,
+	versions: Record<string, string> = {},
+): () => string {
 	let consumer: string | undefined;
 
 	beforeAll(async () => {
 		consumer = mkdtempSync(join(tmpdir(), `drizzle-${template}-`));
 		cpSync(resolve(import.meta.dirname, template), consumer, { recursive: true });
 		await exec('npm', ['install', '--no-audit', '--no-fund', ...await install(consumer)], { cwd: consumer });
+
+		for (const [name, version] of Object.entries(versions)) {
+			const manifest = join(consumer, 'node_modules', name, 'package.json');
+			writeFileSync(manifest, JSON.stringify({ ...JSON.parse(readFileSync(manifest, 'utf8')), version }));
+		}
 	}, 300_000);
 
 	afterAll(() => {
@@ -70,6 +95,25 @@ async function runWorker(cwd: string): Promise<string> {
 	}
 }
 
+async function typeCheck(file: string, cwd: string): Promise<string> {
+	const args = [
+		'--noEmit',
+		'--strict',
+		'--skipLibCheck',
+		'--module',
+		'nodenext',
+		'--target',
+		'es2022',
+		'--typeRoots',
+		nodeTypeRoots,
+		'--types',
+		'node',
+		file,
+	];
+	const { stdout } = await exec('node', [tsc, ...args], { cwd }).catch((error) => error);
+	return stdout;
+}
+
 const runtimes: Record<string, (cwd: string) => Promise<string>> = {
 	node: (cwd) => runScript('node', ['main.js'], cwd),
 	bun: (cwd) => runScript('bun', ['main.js'], cwd),
@@ -101,5 +145,31 @@ describe.skipIf(!connectionString)('packed drizzle-orm with standalone @drizzle-
 			const output = await runScript(requireNodeBinaries[version]!, ['require.cjs'], consumer());
 			expect(JSON.parse(output)).toEqual([{ value: 'ok' }]);
 		});
+	});
+});
+
+describe.skipIf(!connectionString)('two packed copies of @drizzle-team/postgres', () => {
+	const consumer = useConsumer(
+		'two-postgres-copies',
+		async (dir) => {
+			requirePostgresBuild();
+			cpSync(instanceofScript, join(dir, 'instanceof.js'));
+			const postgres = await pack(postgresDir, dir);
+			return [postgres, `postgres-copy@file:${postgres}`];
+		},
+		// TypeScript treats two packages with the same name and version as one package,
+		// so the copy gets another version, as a copy from another release would have.
+		{ 'postgres-copy': '0.0.0' },
+	);
+
+	test('instanceof works in both directions for every exported class', async () => {
+		const output = await runScript('node', ['instanceof.js', '@drizzle-team/postgres', 'postgres-copy'], consumer());
+		const { exportedClasses, ...result } = JSON.parse(output);
+		expect(result).toEqual(instanceofInBothDirections);
+		expect(exportedClasses).toBeGreaterThanOrEqual(22);
+	});
+
+	test('a Pool and a Connection from one copy type-check as the other copy', async () => {
+		expect(await typeCheck('types.ts', consumer())).toBe('');
 	});
 });

@@ -145,9 +145,14 @@ export interface TransformMarker {
 	readonly type: TypeSpec;
 	readonly fn: (v: never) => unknown;
 }
-let __xformId = 0;
+// The id is part of a connection's mapper cache key, so it must be unique across every copy of this
+// package in the process (the standalone one and the one bundled in drizzle-orm), not only within one copy.
+const transformIdKey = Symbol.for('@drizzle-team/postgres:transformId');
 export function Transform<T extends TypeSpec, R>(type: T, fn: (v: never) => R): TransformMarker {
-	return { __transform: true, id: __xformId++, type, fn: fn as (v: never) => unknown };
+	const ids = globalThis as unknown as Record<symbol, number | undefined>;
+	const id = ids[transformIdKey] ?? 0;
+	ids[transformIdKey] = id + 1;
+	return { __transform: true, id, type, fn: fn as (v: never) => unknown };
 }
 export const isTransformMarker = (x: unknown): x is TransformMarker =>
 	typeof x === 'object' && x !== null && (x as { __transform?: unknown }).__transform === true;

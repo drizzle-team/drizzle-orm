@@ -155,7 +155,7 @@ importers:
         version: 1.5.0-r.1
       '@effect/sql':
         specifier: ^0.48.5
-        version: 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5))(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5)
+        version: 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6))(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6)
       '@electric-sql/pglite':
         specifier: ^0.5.8
         version: 0.5.8
@@ -942,8 +942,8 @@ importers:
         specifier: ^2.1.11
         version: 2.1.11
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.0.6
+        version: 4.0.6
       fast-check:
         specifier: ^4.8.0
         version: 4.10.2
@@ -987,7 +987,7 @@ importers:
     dependencies:
       drizzle-beta:
         specifier: npm:drizzle-orm@1.0.0-beta.21
-        version: drizzle-orm@1.0.0-beta.21(2936b306b5a4bc63c6f0967a948b83fb)
+        version: drizzle-orm@1.0.0-beta.21(299663ac89549d2c0d9648148b63aa00)
       drizzle-seed:
         specifier: workspace:../drizzle-seed/dist
         version: link:../drizzle-seed/dist
@@ -6421,8 +6421,8 @@ packages:
   effect@4.0.0:
     resolution: {integrity: sha512-ooc1TG5t+FfzgYnFz2ff6BBKyZ7EwBRVXC7c4RhQUAD6/TZ2gTXXMeb4WX7a19ozQo4J73/QW+S00YAIresoMQ==}
 
-  effect@4.0.5:
-    resolution: {integrity: sha512-BY4/28NlpOd99yzmV741xbVGmp+1U7tks4oB7F/Png64bTa5tm5eCA6W0RiXsnuLDDoJpjfVSo4Dnq4BZb/89Q==}
+  effect@4.0.6:
+    resolution: {integrity: sha512-Tc3mkzuLR6t6P9dhLt0D2GrxYtmU5td4XEJEiXCmILz53IRIfJyHsKZWjTA3xEjiwpNTtXBgI4iqYPxMztBDrw==}
 
   electron-to-chromium@1.5.260:
     resolution: {integrity: sha512-ov8rBoOBhVawpzdre+Cmz4FB+y66Eqrk6Gwqd8NGxuhv99GQ8XqMAr351KEkOt7gukXWDg6gJWEMKgL2RLMPtA==}
@@ -12358,15 +12358,15 @@ snapshots:
       '@duckdb/node-bindings-win32-arm64': 1.5.0-r.1
       '@duckdb/node-bindings-win32-x64': 1.5.0-r.1
 
-  '@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5)':
+  '@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6)':
     dependencies:
-      '@effect/platform': 0.93.5(effect@4.0.5)
-      effect: 4.0.5
+      '@effect/platform': 0.93.5(effect@4.0.6)
+      effect: 4.0.6
       uuid: 11.1.0
 
-  '@effect/platform@0.93.5(effect@4.0.5)':
+  '@effect/platform@0.93.5(effect@4.0.6)':
     dependencies:
-      effect: 4.0.5
+      effect: 4.0.6
       find-my-way-ts: 0.1.6
       msgpackr: 1.11.9
       multipasta: 0.2.7
@@ -12391,12 +12391,12 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
-  '@effect/sql-pg@0.49.7(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5))(@effect/platform@0.93.5(effect@4.0.5))(@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5))(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5))(effect@4.0.5)':
+  '@effect/sql-pg@0.49.7(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6))(@effect/platform@0.93.5(effect@4.0.6))(@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6))(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6))(effect@4.0.6)':
     dependencies:
-      '@effect/experimental': 0.57.8(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5)
-      '@effect/platform': 0.93.5(effect@4.0.5)
-      '@effect/sql': 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5))(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5)
-      effect: 4.0.5
+      '@effect/experimental': 0.57.8(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6)
+      '@effect/platform': 0.93.5(effect@4.0.6)
+      '@effect/sql': 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6))(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6)
+      effect: 4.0.6
       pg: 8.22.0
       pg-connection-string: 2.9.1
       pg-cursor: 2.21.0(pg@8.22.0)
@@ -12432,11 +12432,11 @@ snapshots:
       '@effect/wa-sqlite': 0.1.2
       effect: 4.0.0
 
-  '@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5))(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5)':
+  '@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6))(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6)':
     dependencies:
-      '@effect/experimental': 0.57.8(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5)
-      '@effect/platform': 0.93.5(effect@4.0.5)
-      effect: 4.0.5
+      '@effect/experimental': 0.57.8(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6)
+      '@effect/platform': 0.93.5(effect@4.0.6)
+      effect: 4.0.6
       uuid: 11.1.0
 
   '@effect/vitest@4.0.0(effect@4.0.0)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))':
@@ -13005,7 +13005,7 @@ snapshots:
       resolve: 1.22.11
       resolve-from: 5.0.0
       resolve.exports: 2.0.3
-      semver: 7.7.4
+      semver: 7.8.5
       send: 0.19.1
       slugify: 1.6.6
       source-map-support: 0.5.21
@@ -13015,7 +13015,7 @@ snapshots:
       terminal-link: 2.1.1
       undici: 6.22.0
       wrap-ansi: 7.0.0
-      ws: 8.18.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      ws: 8.21.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
     optionalDependencies:
       react-native: 0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
     transitivePeerDependencies:
@@ -13081,7 +13081,7 @@ snapshots:
       resolve: 1.22.11
       resolve-from: 5.0.0
       resolve.exports: 2.0.3
-      semver: 7.7.4
+      semver: 7.8.5
       send: 0.19.1
       slugify: 1.6.6
       source-map-support: 0.5.21
@@ -13091,7 +13091,7 @@ snapshots:
       terminal-link: 2.1.1
       undici: 6.22.0
       wrap-ansi: 7.0.0
-      ws: 8.18.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      ws: 8.21.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
     optionalDependencies:
       react-native: 0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
     transitivePeerDependencies:
@@ -13158,7 +13158,7 @@ snapshots:
       resolve: 1.22.11
       resolve-from: 5.0.0
       resolve.exports: 2.0.3
-      semver: 7.7.4
+      semver: 7.8.5
       send: 0.19.1
       slugify: 1.6.6
       source-map-support: 0.5.21
@@ -13168,7 +13168,7 @@ snapshots:
       terminal-link: 2.1.1
       undici: 6.22.0
       wrap-ansi: 7.0.0
-      ws: 8.18.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      ws: 8.21.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
     optionalDependencies:
       react-native: 0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3)
     transitivePeerDependencies:
@@ -13195,7 +13195,7 @@ snapshots:
       getenv: 2.0.0
       glob: 10.5.0
       resolve-from: 5.0.0
-      semver: 7.7.4
+      semver: 7.8.5
       slash: 3.0.0
       slugify: 1.6.6
       xcode: 3.0.1
@@ -13217,7 +13217,7 @@ snapshots:
       require-from-string: 2.0.2
       resolve-from: 5.0.0
       resolve-workspace-root: 2.0.0
-      semver: 7.7.4
+      semver: 7.8.5
       slugify: 1.6.6
       sucrase: 3.35.0
     transitivePeerDependencies:
@@ -13268,7 +13268,7 @@ snapshots:
       minimatch: 9.0.5
       p-limit: 3.1.0
       resolve-from: 5.0.0
-      semver: 7.7.4
+      semver: 7.8.5
     transitivePeerDependencies:
       - supports-color
 
@@ -13281,7 +13281,7 @@ snapshots:
       parse-png: 2.1.0
       resolve-from: 5.0.0
       resolve-global: 1.0.0
-      semver: 7.7.4
+      semver: 7.8.5
       temp-dir: 2.0.0
       unique-string: 2.0.0
 
@@ -13292,7 +13292,7 @@ snapshots:
 
   '@expo/mcp-tunnel@0.1.0(@modelcontextprotocol/sdk@1.29.0(zod@3.25.1))(bufferutil@4.0.8)(utf-8-validate@6.0.3)':
     dependencies:
-      ws: 8.18.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      ws: 8.21.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       zod: 3.25.76
       zod-to-json-schema: 3.25.2(zod@3.25.76)
     optionalDependencies:
@@ -13303,7 +13303,7 @@ snapshots:
 
   '@expo/mcp-tunnel@0.1.0(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(bufferutil@4.0.8)(utf-8-validate@6.0.3)':
     dependencies:
-      ws: 8.18.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      ws: 8.21.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       zod: 3.25.76
       zod-to-json-schema: 3.25.2(zod@3.25.76)
     optionalDependencies:
@@ -13315,7 +13315,7 @@ snapshots:
 
   '@expo/mcp-tunnel@0.1.0(@modelcontextprotocol/sdk@1.29.0(zod@4.3.4))(bufferutil@4.0.8)(utf-8-validate@6.0.3)':
     dependencies:
-      ws: 8.18.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
+      ws: 8.21.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       zod: 3.25.76
       zod-to-json-schema: 3.25.2(zod@3.25.76)
     optionalDependencies:
@@ -13467,7 +13467,7 @@ snapshots:
       debug: 4.4.3
       expo: 54.0.25(@babel/core@7.28.5)(@modelcontextprotocol/sdk@1.29.0(zod@3.25.1))(bufferutil@4.0.8)(react-native@0.82.1(@babel/core@7.28.5)(@types/react@18.3.27)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)
       resolve-from: 5.0.0
-      semver: 7.7.4
+      semver: 7.8.5
       xml2js: 0.6.0
     transitivePeerDependencies:
       - supports-color
@@ -13483,7 +13483,7 @@ snapshots:
       debug: 4.4.3
       expo: 54.0.25(@babel/core@7.28.5)(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(bufferutil@4.0.8)(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)
       resolve-from: 5.0.0
-      semver: 7.7.4
+      semver: 7.8.5
       xml2js: 0.6.0
     transitivePeerDependencies:
       - supports-color
@@ -13500,7 +13500,7 @@ snapshots:
       debug: 4.4.3
       expo: 54.0.25(@babel/core@7.28.5)(@modelcontextprotocol/sdk@1.29.0(zod@4.3.4))(bufferutil@4.0.8)(react-native@0.82.1(@babel/core@7.28.5)(bufferutil@4.0.8)(react@18.3.1)(utf-8-validate@6.0.3))(react@18.3.1)(utf-8-validate@6.0.3)
       resolve-from: 5.0.0
-      semver: 7.7.4
+      semver: 7.8.5
       xml2js: 0.6.0
     transitivePeerDependencies:
       - supports-color
@@ -14177,7 +14177,7 @@ snapshots:
   '@napi-rs/wasm-runtime@1.1.1':
     dependencies:
       '@emnapi/core': 1.8.1
-      '@emnapi/runtime': 1.8.1
+      '@emnapi/runtime': 1.11.3
       '@tybys/wasm-util': 0.10.1
     optional: true
 
@@ -14452,7 +14452,7 @@ snapshots:
       metro: 0.83.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       metro-config: 0.83.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       metro-core: 0.83.3
-      semver: 7.7.4
+      semver: 7.8.5
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -16799,15 +16799,15 @@ snapshots:
       sql.js: 1.13.0
       sqlite3: 5.1.7
 
-  drizzle-orm@1.0.0-beta.21(2936b306b5a4bc63c6f0967a948b83fb):
+  drizzle-orm@1.0.0-beta.21(299663ac89549d2c0d9648148b63aa00):
     dependencies:
       '@types/mssql': 9.1.11
       mssql: 12.1.1
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.940.0
       '@cloudflare/workers-types': 5.20261019.1
-      '@effect/sql': 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5))(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5)
-      '@effect/sql-pg': 0.49.7(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5))(@effect/platform@0.93.5(effect@4.0.5))(@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5))(@effect/platform@0.93.5(effect@4.0.5))(effect@4.0.5))(effect@4.0.5)
+      '@effect/sql': 0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6))(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6)
+      '@effect/sql-pg': 0.49.7(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6))(@effect/platform@0.93.5(effect@4.0.6))(@effect/sql@0.48.5(@effect/experimental@0.57.8(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6))(@effect/platform@0.93.5(effect@4.0.6))(effect@4.0.6))(effect@4.0.6)
       '@electric-sql/pglite': 0.5.8
       '@libsql/client': 0.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       '@libsql/client-wasm': 0.10.0
@@ -16859,7 +16859,7 @@ snapshots:
 
   effect@4.0.0: {}
 
-  effect@4.0.5: {}
+  effect@4.0.6: {}
 
   electron-to-chromium@1.5.260: {}
 
@@ -17834,7 +17834,7 @@ snapshots:
       '@petamoriken/float16': 3.9.3
       debug: 4.4.3
       env-paths: 3.0.0
-      semver: 7.7.4
+      semver: 7.8.5
       shell-quote: 1.8.3
       which: 4.0.0
     transitivePeerDependencies:
@@ -19455,7 +19455,7 @@ snapshots:
     dependencies:
       hosted-git-info: 7.0.2
       proc-log: 4.2.0
-      semver: 7.7.4
+      semver: 7.8.5
       validate-npm-package-name: 5.0.1
 
   npm-run-path@5.3.0:
@@ -20106,7 +20106,7 @@ snapshots:
       react-refresh: 0.14.2
       regenerator-runtime: 0.13.11
       scheduler: 0.26.0
-      semver: 7.7.4
+      semver: 7.8.5
       stacktrace-parser: 0.1.11
       whatwg-fetch: 3.6.20
       ws: 6.2.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
@@ -20154,7 +20154,7 @@ snapshots:
       react-refresh: 0.14.2
       regenerator-runtime: 0.13.11
       scheduler: 0.26.0
-      semver: 7.7.4
+      semver: 7.8.5
       stacktrace-parser: 0.1.11
       whatwg-fetch: 3.6.20
       ws: 6.2.3(bufferutil@4.0.8)(utf-8-validate@6.0.3)
