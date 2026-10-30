@@ -95,7 +95,6 @@ export function nodeCancel(cfg: TransportTarget, key: { pid: number; secret: num
 		const send = (s: net.Socket | tls.TLSSocket) => {
 			try {
 				s.write(cancel);
-				s.end();
 			} catch (e) {
 				reject(e);
 			}
