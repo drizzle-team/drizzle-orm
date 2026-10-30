@@ -94,10 +94,10 @@ jobs:
           echo "packages=$selected" >> "$GITHUB_OUTPUT"
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile --prefer-offline
       - name: Compute version suffix
@@ -196,10 +196,10 @@ jobs:
          
     name: ${{ matrix.shard }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile --prefer-offline
 
@@ -253,7 +253,7 @@ jobs:
           compose/wait.sh ${{ join(matrix.dbs, ' ') }}
 
       - name: Download build-dist (compiled JS)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: build-dist
           path: .
@@ -261,7 +261,7 @@ jobs:
       # Required for packaging tests
       - name: Download packed tarballs
         if: matrix.shard == 'orm'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: packages
           path: .
@@ -391,16 +391,16 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
       - name: Download package tarball
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: packages
           path: ./artifacts
@@ -418,18 +418,19 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        package: [node16-cjs, node16-esm, bundler]
+        # drizzle-orm is ESM only, so node16-cjs (require of ESM) is not checked.
+        package: [node16-esm, bundler]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm fetch && pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
       - name: Download drizzle-orm tarball
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: packages
           path: ./artifacts
@@ -444,10 +445,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: '24' }
       - name: Download drizzle-orm tarball
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: packages
           path: ./artifacts
@@ -459,10 +460,17 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
-      - uses: actions/setup-node@v6
+      # The oldest Node versions that can require() ESM without a flag, for the CommonJS check.
+      - uses: actions/setup-node@v7
+        with: { node-version: '20.19.0' }
+      - run: echo "NODE_20_19_BINARY=$(which node)" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v7
+        with: { node-version: '22.12.0' }
+      - run: echo "NODE_22_12_BINARY=$(which node)" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v7
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
@@ -477,7 +485,7 @@ jobs:
           chmod +x compose/wait.sh
           compose/wait.sh postgres
       - name: Download build-dist (compiled JS)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: build-dist
           path: .
@@ -495,13 +503,13 @@ jobs:
         if: github.event_name != 'pull_request'
         run: echo "Not a pull request — skills revision gate does not apply"
       - if: github.event_name == 'pull_request'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - if: github.event_name == 'pull_request'
         uses: pnpm/action-setup@v6
         with: { run_install: false }
       - if: github.event_name == 'pull_request'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with: { node-version: '24', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - name: Skills revision gate
         if: github.event_name == 'pull_request'
@@ -530,10 +538,10 @@ jobs:
       matrix:
         package: ${{ fromJson(needs.prepare.outputs.publish_matrix) }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # don't specify registry url, so there's no .npmrc config file
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: '24' }
       
       # nuke, so npm can use OIDC
@@ -556,7 +564,7 @@ jobs:
           fi
           echo "//npm.pkg.github.com/:_authToken=$GH_PACKAGES_TOKEN" >> "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
       - name: Download package tarball
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: packages
           path: ./artifacts
