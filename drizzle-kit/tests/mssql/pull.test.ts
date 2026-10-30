@@ -1235,11 +1235,13 @@ test('Issue 6423', async () => {
 // certificate user (C), asymmetric key user (K), application role (A), custom role (R) and fixed role (R)
 test('introspect schemas owned by any principal type', async () => {
 	await db.query(`CREATE USER no_login_user WITHOUT LOGIN;`);
-	await db.query(`CREATE CERTIFICATE cert ENCRYPTION BY PASSWORD = 'password123123' WITH SUBJECT = 'cert';`);
+	await db.query(`CREATE CERTIFICATE cert ENCRYPTION BY PASSWORD = 'password1#!23123' WITH SUBJECT = 'cert';`);
 	await db.query(`CREATE USER cert_user FROM CERTIFICATE cert;`);
-	await db.query(`CREATE ASYMMETRIC KEY asym_key WITH ALGORITHM = RSA_2048 ENCRYPTION BY PASSWORD = 'password123123';`);
+	await db.query(
+		`CREATE ASYMMETRIC KEY asym_key WITH ALGORITHM = RSA_2048 ENCRYPTION BY PASSWORD = 'password1#!23123';`,
+	);
 	await db.query(`CREATE USER key_user FROM ASYMMETRIC KEY asym_key;`);
-	await db.query(`CREATE APPLICATION ROLE app_role WITH PASSWORD = 'password123123';`);
+	await db.query(`CREATE APPLICATION ROLE app_role WITH PASSWORD = 'password1#!23123';`);
 	await db.query(`CREATE ROLE app_owner;`);
 	await db.query(`CREATE SCHEMA by_user AUTHORIZATION no_login_user;`);
 	await db.query(`CREATE SCHEMA by_cert_user AUTHORIZATION cert_user;`);
