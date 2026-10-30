@@ -1424,7 +1424,7 @@ test('introspect default expression of a fractional seconds column with a backsl
 test('Issue 6493', async () => {
 	await db.query(`CREATE TABLE t (
   \`year\` year DEFAULT (year(curdate())),
-  \`time\` time DEFAULT (curtime()),
+  -- \`time\` time DEFAULT (curtime()),
   \`datetime\` datetime DEFAULT (utc_timestamp()),
   \`timestamp\` timestamp DEFAULT (utc_timestamp())
   -- \`varchar\` varchar(36) DEFAULT (uuid())

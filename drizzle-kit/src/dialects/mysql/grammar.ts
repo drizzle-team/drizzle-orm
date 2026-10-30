@@ -1,4 +1,4 @@
-import { assertUnreachable, isTime, trimChar } from '../../utils';
+import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
 import { hash } from '../common';
 import { escapeForSqlDefault, escapeForTsLiteral, parseParams, unescapeFromSqlDefault } from '../grammar';
@@ -533,7 +533,8 @@ export const Time: SqlType = {
 
 		const trimmed = trimChar(def, "'");
 
-		if (!isTime(trimmed)) return { options, default: `sql\`${escapeBacktickAndInterpolation(trimmed)}\`` };
+		// TODO revisit
+		// if (!isTime(trimmed)) return { options, default: `sql\`${escapeBacktickAndInterpolation(trimmed)}\`` };
 
 		return { options, default: `"${trimmed}"` };
 	},

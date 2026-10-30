@@ -650,7 +650,7 @@ test('dropped, added unique index', async (t) => {
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
-		`DROP INDEX IF EXISTS \`customers_address_unique\`;`,
+		`DROP INDEX \`customers_address_unique\`;`,
 		`CREATE UNIQUE INDEX \`customers_is_confirmed_unique\` ON \`customers\` (\`is_confirmed\`);`,
 	];
 	expect(st).toStrictEqual(st0);

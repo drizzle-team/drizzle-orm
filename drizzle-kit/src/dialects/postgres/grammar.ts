@@ -855,11 +855,16 @@ export const Uuid: SqlType = {
 		const options: any = {};
 		if (!value) return { options, default: '' };
 
-		value = trimChar(value, "'");
+		// Do not trim here
+		// all expressions are without '' already
+		// just check for expression
+
 		if (value === 'gen_random_uuid()') return { options, default: '.defaultRandom()' };
+
 		if (!isQuotedLiteral(value)) {
 			return { options, default: `sql\`${escapeForSqlTemplate(value)}\`` };
 		}
+
 		return { options, default: `"${trimChar(value, "'")}"` };
 	},
 	toArrayTs: (type, value) => {
