@@ -8,5 +8,11 @@
 		}
 	},
 	"include": ["tests", "type-tests"],
-	"exclude": ["**/playground", "**/.sst", "tests/prisma/*/client/**/*.js", "tests/mysql/instrumentation.ts"]
+	"exclude": [
+		"**/playground",
+		"**/.sst",
+		"tests/prisma/*/client/**/*.js",
+		"tests/mysql/instrumentation.ts",
+		"tests/packed/*/**"
+	]
 }

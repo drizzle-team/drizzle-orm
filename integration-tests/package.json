@@ -18,6 +18,7 @@
 		"test:other": "vitest run tests/utils tests/extensions tests/table-extra-config",
 		"test:seeder": "vitest run tests/seeder",
 		"test:imports": "vitest run tests/imports",
+		"test:packed": "vitest --reporter=verbose --silent=false run tests/packed",
 		"test:dsql": "vitest --reporter=verbose --silent=false run tests/dsql/"
 	},
 	"keywords": [],
@@ -49,6 +50,7 @@
 		"ts-node": "^10.9.2",
 		"tsx": "^4.14.0",
 		"vite-tsconfig-paths": "^4.3.2",
+		"wrangler": "4.148.0",
 		"zx": "^8.3.2"
 	},
 	"dependencies": {
