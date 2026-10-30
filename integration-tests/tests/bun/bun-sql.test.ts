@@ -1,3 +1,4 @@
+import { composeHint, requireEnv } from '@drizzle-team/test-utils';
 import { SQL as BunSQL } from 'bun';
 import { afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, test } from 'bun:test';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -231,12 +232,7 @@ const { allTypesTable } = makeAllTypes('all_types', 'en');
 let db: BunSQLDatabase<typeof relations> & { $client: BunSQL };
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error(
-			'PG_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up postgres` and export the connection string before running tests.',
-		);
-	}
+	const connectionString = requireEnv('PG_CONNECTION_STRING', composeHint('postgres'));
 	const connClient = new BunSQL(connectionString, { max: 1 });
 	await connClient.unsafe(`select 1`);
 

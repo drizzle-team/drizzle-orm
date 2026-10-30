@@ -1,9 +1,4 @@
-// shut up eslint you cannot possibly comprehend what's happening here
-// eslint-disable-next-line @typescript-eslint/no-empty-function, @typescript-eslint/no-unused-vars
-export function Expect<T extends true>() {}
-
-export type Equal<X, Y extends X> = (<T>() => T extends X ? 1 : 2) extends (<T>() => T extends Y ? 1 : 2) ? true
-	: false;
+export { type Equal, Expect } from '@drizzle-team/test-utils';
 
 export const randomString = () => {
 	const chars: string[] = new Array(10);

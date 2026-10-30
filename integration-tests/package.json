@@ -26,6 +26,7 @@
 	"private": true,
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20241004.0",
+		"@drizzle-team/test-utils": "workspace:*",
 		"@libsql/client": "^0.10.0",
 		"@neondatabase/serverless": "0.10.0",
 		"@originjs/vite-plugin-commonjs": "^1.0.3",

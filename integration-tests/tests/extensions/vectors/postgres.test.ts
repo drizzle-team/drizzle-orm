@@ -1,4 +1,5 @@
 import type { Pool } from '@drizzle-team/minipg';
+import { requireEnv } from '@drizzle-team/test-utils';
 import { defineRelations, eq, hammingDistance, jaccardDistance, l2Distance, not, sql } from 'drizzle-orm';
 import { bigserial, bit, customType, halfvec, integer, pgTable, sparsevec, vector } from 'drizzle-orm/pg-core';
 import type { PostgresDatabase } from 'drizzle-orm/postgres';
@@ -27,8 +28,7 @@ const relations = defineRelations({ items }, (r) => ({
 }));
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_VECTOR_CONNECTION_STRING'];
-	if (!connectionString) throw new Error('PG_VECTOR_CONNECTION_STRING is not set in env variables');
+	const connectionString = requireEnv('PG_VECTOR_CONNECTION_STRING');
 
 	db = drizzle(connectionString, { logger: ENABLE_LOGGING, relations });
 

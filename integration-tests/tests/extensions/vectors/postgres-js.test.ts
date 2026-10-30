@@ -1,3 +1,4 @@
+import { requireEnv } from '@drizzle-team/test-utils';
 import {
 	defineRelations,
 	desc,
@@ -59,8 +60,7 @@ const _push = async (
 let push: (schema: any, options?: { log: 'statements' }) => Promise<void>;
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_VECTOR_CONNECTION_STRING'];
-	if (!connectionString) throw new Error('PG_VECTOR_CONNECTION_STRING is not set in env variables');
+	const connectionString = requireEnv('PG_VECTOR_CONNECTION_STRING');
 
 	client = postgres(connectionString, {
 		max: 1,

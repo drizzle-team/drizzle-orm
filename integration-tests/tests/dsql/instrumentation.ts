@@ -1,5 +1,6 @@
 import { AuroraDSQLClient } from '@aws/aurora-dsql-node-postgres-connector';
 import { auroraDSQLPostgres } from '@aws/aurora-dsql-postgresjs-connector';
+import { createProvider } from '@drizzle-team/test-utils';
 import {
 	type AnyRelationsBuilderConfig,
 	defineRelations,
@@ -202,30 +203,12 @@ type Vendor =
 	| 'node-postgres-dsql'
 	| 'postgres-js-dsql';
 
-const providerClosure = async <T>(items: T[]) => {
-	return async () => {
-		while (true) {
-			const c = items.shift();
-			if (!c) {
-				await new Promise((resolve) => setTimeout(resolve, 50));
-				continue;
-			}
-			return {
-				...c,
-				release: () => {
-					items.push(c);
-				},
-			};
-		}
-	};
-};
-
 export const provideForNodePgDsql = async () => {
 	const clients = [
 		await prepareNodePgDsql(),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const provideForPostgresJsDsql = async () => {
@@ -233,7 +216,7 @@ export const provideForPostgresJsDsql = async () => {
 		await preparePostgresJsDsql(),
 	];
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 type ProvideForNodePgDsql = Awaited<ReturnType<typeof provideForNodePgDsql>>;

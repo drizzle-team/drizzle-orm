@@ -1,3 +1,4 @@
+import { composeHint, requireEnv } from '@drizzle-team/test-utils';
 import { SQL as BunSQL } from 'bun';
 import { beforeAll, beforeEach, expect, test } from 'bun:test';
 import { defineRelations, sql } from 'drizzle-orm';
@@ -28,12 +29,7 @@ const relations = defineRelations({ items }, (r) => ({
 let db: BunSQLDatabase<typeof relations>;
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_POSTGIS_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error(
-			'PG_POSTGIS_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up postgres-postgis` and export the connection string before running tests.',
-		);
-	}
+	const connectionString = requireEnv('PG_POSTGIS_CONNECTION_STRING', composeHint('postgres-postgis'));
 	const connClient = new BunSQL(connectionString, { max: 1 });
 	await connClient.unsafe(`select 1`);
 

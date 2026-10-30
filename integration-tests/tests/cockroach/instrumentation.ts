@@ -1,3 +1,4 @@
+import { composeHint, requireEnv } from '@drizzle-team/test-utils';
 import { defineRelations } from 'drizzle-orm';
 import type { NodeCockroachDatabase } from 'drizzle-orm/cockroach';
 import { drizzle } from 'drizzle-orm/cockroach';
@@ -11,13 +12,7 @@ import { Pool } from 'pg';
 import { test as base } from 'vitest';
 
 export function requireCockroachConnectionString(): string {
-	const url = process.env['COCKROACH_CONNECTION_STRING'];
-	if (!url) {
-		throw new Error(
-			'COCKROACH_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up cockroach` and export the connection string before running tests.',
-		);
-	}
-	return url;
+	return requireEnv('COCKROACH_CONNECTION_STRING', composeHint('cockroach'));
 }
 
 type CockroachSchema = Record<string, unknown>;

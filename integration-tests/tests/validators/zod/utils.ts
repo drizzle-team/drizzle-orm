@@ -33,4 +33,4 @@ export function expectEnumValues<T extends z.ZodEnum<any>>(t: TestContext, expec
 	};
 }
 
-export function Expect<_ extends true>() {}
+export { Expect } from '@drizzle-team/test-utils';

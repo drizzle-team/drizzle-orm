@@ -160,6 +160,11 @@
 			"outputs": [],
 			"outputLogs": "none"
 		},
+		"@drizzle-team/test-utils#build:artifact": {
+			"inputs": [],
+			"outputs": [],
+			"outputLogs": "none"
+		},
 		"drizzle-orm#build:artifact": {
 			"inputs": [
 				"src/**/*.ts",
