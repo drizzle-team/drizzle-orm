@@ -7,7 +7,7 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as nodeDriver from '../../src/index.ts';
-import type { ConnectConfig, PoolConfig } from '../../src/index.ts';
+import type { ConnectConfig, Pool, PoolConfig } from '../../src/index.ts';
 import * as neonWsDriver from '../../src/neon-ws.ts';
 
 export const VARIANT: 'jit' | 'interpreted' = process.env.DRIZZLE_POSTGRES_VARIANT === 'interpreted'
@@ -56,12 +56,40 @@ export const SERVER_CA_PATH = join(dirname(fileURLToPath(import.meta.url)), '..'
 export const testConnect = (o: Partial<ConnectConfig> = {}) => connect({ ...TEST_CONFIG, decode: VARIANT, ...o });
 export const testPool = (o: Partial<PoolConfig> = {}) => createPool({ ...TEST_CONFIG, decode: VARIANT, ...o });
 
+/** A connection checked out of its own pool, so it can cancel queries. `end()` also ends the pool. */
+export const testPooledConnect = (o: Partial<PoolConfig> = {}) => acquireFromOwnPool(testPool({ max: 1, ...o }));
+
+/** Checks a connection out of `pool`, which nothing else uses. `end()` also ends the pool. */
+export async function acquireFromOwnPool(pool: Pool) {
+	const conn = await pool.acquire();
+	const endConnection = conn.end.bind(conn);
+	return Object.assign(conn, {
+		end: async () => {
+			await endConnection();
+			await pool.end();
+		},
+	});
+}
+
 /** Run `fn` with a fresh connection that is always ended afterwards. */
 export async function withConn<T>(
 	fn: (c: Awaited<ReturnType<typeof connect>>) => Promise<T>,
 	o: Partial<ConnectConfig> = {},
 ): Promise<T> {
 	const c = await testConnect(o);
+	try {
+		return await fn(c);
+	} finally {
+		await c.end();
+	}
+}
+
+/** Run `fn` with a fresh pooled connection that is always ended afterwards, with its pool. */
+export async function withPooledConn<T>(
+	fn: (c: Awaited<ReturnType<typeof testPooledConnect>>) => Promise<T>,
+	o: Partial<PoolConfig> = {},
+): Promise<T> {
+	const c = await testPooledConnect(o);
 	try {
 		return await fn(c);
 	} finally {

@@ -16,7 +16,8 @@ import { assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
 // only the edge entry ships src/buffer-polyfill.ts.)
 import { Buffer } from 'node:buffer';
 (globalThis as { Buffer?: unknown }).Buffer ??= Buffer;
-import { connect, createPool, replication } from '../../src/deno.ts';
+import { createPool as createCorePool } from '../../src/core.ts';
+import { connect, createPool, denoTransport, replication, type TransportTarget } from '../../src/deno.ts';
 
 const HOST = Deno.env.get('PGTEST_HOST') ?? '127.0.0.1';
 const PORT = Number(Deno.env.get('PGTEST_PORT') ?? 54329);
@@ -176,7 +177,8 @@ Deno.test('prefer and disable still connect normally', async () => {
 
 // Without a cancel request, the server keeps running pg_sleep(5), so the next query waits about 5 s for it.
 Deno.test('a timeout cancels the query on the server, and the same backend serves the next query', async () => {
-	const db = await connect(URL_);
+	const pool = createPool({ url: URL_, max: 1 });
+	const db = await pool.acquire();
 	try {
 		const pid = db.backendKey!.pid;
 		const t0 = Date.now();
@@ -187,6 +189,40 @@ Deno.test('a timeout cancels the query on the server, and the same backend serve
 			throw new Error(`the next query waited ${Date.now() - t0} ms, so the cancel did not stop the sleep`);
 		}
 		assertEquals((r.rows[0] as { pid: number }).pid, pid);
+	} finally {
+		await pool.end();
+	}
+});
+
+// The pool's host name does not resolve, so the cancel reaches the server only through the IP address
+// of the session. The Deno entry replaces a `transport` option with its own, so this pool comes from
+// the core entry.
+Deno.test('the cancel connection dials the IP address of the session', async () => {
+	const transport = {
+		connect: (target: TransportTarget, signal: AbortSignal) => denoTransport.connect({ ...target, host: HOST }, signal),
+		cancel: denoTransport.cancel,
+	};
+	const pool = createCorePool({ url: URL_, host: 'db.invalid', max: 1, transport });
+	const db = await pool.acquire();
+	try {
+		const pid = db.backendKey!.pid;
+		const t0 = Date.now();
+		await db.query('select pg_sleep(5)', [], { timeout: 200 }).catch(() => {});
+		const r = await db.query('select pg_backend_pid() as pid', [], { mode: 'object' });
+		if (Date.now() - t0 >= 3000) {
+			throw new Error(`the next query waited ${Date.now() - t0} ms, so the cancel did not stop the sleep`);
+		}
+		assertEquals((r.rows[0] as { pid: number }).pid, pid);
+	} finally {
+		await pool.end();
+	}
+});
+
+Deno.test('a single connection rejects timeout and signal', async () => {
+	const db = await connect(URL_);
+	try {
+		const err = await db.query('select 1', [], { timeout: 200 } as never).then(() => null, (e: Error) => e);
+		assertEquals((err as { code?: string } | null)?.code, 'CANCEL_NEEDS_POOL');
 	} finally {
 		await db.end();
 	}

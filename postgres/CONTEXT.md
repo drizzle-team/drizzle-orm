@@ -34,6 +34,14 @@ _Avoid_: concurrent, fan-out
 
 ### Canceling queries
 
+**Pooled connection**:
+A connection that a pool opened and hands out, through `pool.acquire()`, `pool.connect()` or a transaction callback. Only a pooled connection cancels queries.
+_Avoid_: pool client, checked-out connection
+
+**Single connection**:
+A connection from `connect()`. It cannot cancel a query, so it rejects `timeout` and `signal`.
+_Avoid_: standalone connection, direct connection
+
 **Canceled query**:
 A query that timed out or whose abort signal fired while it was running on the server. The driver asks the server to stop it.
 _Avoid_: head (outside the connection code), aborted query

@@ -20,17 +20,37 @@ export interface PostgresSocket {
 	resume?(): unknown;
 	destroy?(err?: Error): unknown;
 	setKeepAlive?(enable: boolean, initialDelayMs?: number): unknown;
+	/** The IP address of the peer. If a transport opened the socket, a cancel request dials it; see
+	 *  `TransportTarget.address`. */
+	readonly remoteAddress?: string;
 }
 
 /** How a connection dials the server and cancels a running query. `connect` resolves to a connected,
- *  TLS-negotiated socket. `cancel` sends an out-of-band CancelRequest and resolves once the server has
- *  closed that connection; without `cancel`, a canceled query falls back to closing its socket. */
+ *  TLS-negotiated socket. `cancel` opens a new connection to the server, sends an out-of-band
+ *  CancelRequest on it, and resolves once the server has closed that connection. Without `cancel`, a
+ *  canceled query falls back to closing its socket.
+ *
+ *  `cancel` must call `isQueryRunning()` on the open cancel connection, just before it writes the
+ *  CancelRequest. If it returns false, the canceled query has ended, and `cancel` must close the
+ *  connection without writing, because the request would stop a later query. A `cancel` that ignores
+ *  `isQueryRunning` sends the request even after the query has ended. */
 export interface Transport {
 	connect(config: TransportTarget, signal: AbortSignal): Promise<PostgresSocket>;
-	cancel?(config: TransportTarget, key: { pid: number; secret: number }): Promise<void>;
+	cancel?(
+		config: TransportTarget,
+		key: { pid: number; secret: number },
+		isQueryRunning: () => boolean,
+	): Promise<void>;
 }
 /** The connection settings that a transport reads, after the URL and the defaults apply. */
-export type TransportTarget = Pick<NormalizedConfig, 'host' | 'port' | 'path' | 'ssl' | 'connectTimeout'>;
+export type TransportTarget = Pick<NormalizedConfig, 'host' | 'port' | 'path' | 'ssl' | 'connectTimeout'> & {
+	/** For `cancel` only: the IP address of the server that runs the query, taken from the
+	 *  `remoteAddress` of the socket that `connect` returned. Dial it instead of `host`, so that DNS cannot
+	 *  send the cancel to another server. TLS still checks the certificate against `host`. It is missing
+	 *  when that socket reports no `remoteAddress`, and when the config has a `socket` factory, because
+	 *  such a socket can lead to a proxy. Then dial `host`. */
+	address?: string;
+};
 import type { NormalizedConfig } from './connection.ts';
 import type { Plugin, QueryMetrics } from './plugin.ts';
 import type { ShapeMapper } from './shape.ts';
@@ -220,6 +240,23 @@ export type TxOptions =
 		deferrable?: boolean;
 	};
 
+/** What kind of connection a `Connection` is. `pooled: true` comes from a pool and can cancel its
+ *  queries; `pooled: false` comes from `connect()` and cannot. A field added later must be optional,
+ *  and the code that reads it must apply a default. */
+export interface ConnectionTypeConfig {
+	pooled: boolean;
+}
+
+/** `timeout` and `signal` as a connection of this kind accepts them. */
+export type CancelOptions<Config extends ConnectionTypeConfig = ConnectionTypeConfig> = Config['pooled'] extends false
+	? {
+		/** Canceling a query needs a pooled connection. Create the connection with `createPool`. */
+		timeout?: never;
+		/** Canceling a query needs a pooled connection. Create the connection with `createPool`. */
+		signal?: never;
+	}
+	: Pick<QueryOptions, 'timeout' | 'signal'>;
+
 export interface QueryOptions {
 	/** Reuse a server-side prepared statement under this name (parse once, bind many). */
 	name?: string;
@@ -252,12 +289,13 @@ export interface QueryOptions {
 	/** Attach the resolved decode plan to the result as `.debug` — statement name, jit/interpreted, the
 	 *  generated JIT mapper source, and the per-column text/binary format we picked. For inspection/tuning. */
 	debug?: boolean;
-	/** Cancel the query (out-of-band CancelRequest) after this many milliseconds. If the query ends
+	/** Cancel the query (out-of-band CancelRequest) after this many milliseconds. Needs a pooled
+	 *  connection: one from `connect()` rejects it with code `CANCEL_NEEDS_POOL`. If the query ends
 	 *  before the request arrives, the request can stop the next pipelined query. That query fails with
 	 *  57014 and `isLateCancel: true`. */
 	timeout?: number;
-	/** Cancel the query when this AbortSignal fires. A late cancel can stop the next pipelined query,
-	 *  as described for `timeout`. */
+	/** Cancel the query when this AbortSignal fires. Needs a pooled connection, and a late cancel can
+	 *  stop the next pipelined query, as described for `timeout`. */
 	signal?: AbortSignal;
 	/** Repropagate error to preserve link to original call stack */
 	trace?: boolean;
