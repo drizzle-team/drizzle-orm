@@ -19,7 +19,7 @@ export interface CockroachPolicyConfig {
 	withCheck?: SQL;
 }
 
-export class CockroachPolicy implements CockroachPolicyConfig {
+export class CockroachPolicy {
 	static readonly [entityKind]: string = 'CockroachPolicy';
 	static [Symbol.hasInstance](value: unknown): boolean {
 		return is(value, this);

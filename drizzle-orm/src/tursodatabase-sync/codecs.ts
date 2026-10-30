@@ -7,6 +7,9 @@ import {
 } from '~/sqlite-core/codecs.ts';
 
 export const tursoDatabaseSyncCodecs = refineSqliteCodecs({
+	integer: {
+		normalize: Number,
+	},
 	'integer:boolean': {
 		normalize: booleanFromInteger,
 	},

@@ -93,8 +93,11 @@ import {
 	varbit,
 	varchar,
 } from 'drizzle-orm/cockroach-core';
+import { concat, substring } from 'drizzle-orm/cockroach-core/expressions';
 import { v4 as uuidV4 } from 'uuid';
 import { afterAll, afterEach, beforeEach, describe, expect, expectTypeOf } from 'vitest';
+import { jsonRows, parseStoredJson } from '~/json-values';
+import { expectRecentTime } from '~/recent-time';
 import { Expect } from '~/utils';
 import {
 	type AllTypes,
@@ -103,6 +106,7 @@ import {
 	allTypesRelations,
 	allTypesTable,
 	assertAllTypesBounds,
+	assertAllTypesEmptyArrays,
 	assertAllTypesUnions,
 	makeAllTypes,
 } from './all-types';
@@ -631,7 +635,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			const result = await db.select().from(usersTable);
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(result[0]!.createdAt, now);
 			expect(result).toEqual([
 				{
 					id: 1,
@@ -866,7 +870,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 				.returning();
 
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(users[0]!.createdAt, now);
 			expect(users).toEqual([
 				{
 					id: 1,
@@ -902,7 +906,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 				.returning();
 
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(users[0]!.createdAt, now);
 			expect(users).toEqual([
 				{
 					id: 1,
@@ -4955,7 +4959,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			const result = await db.select().from(usersMySchemaTable);
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(result[0]!.createdAt, now);
 			expect(result).toEqual([
 				{
 					id: 1,
@@ -5085,7 +5089,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 				.returning();
 
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(users[0]!.createdAt, now);
 			expect(users).toEqual([
 				{
 					id: 1,
@@ -5507,6 +5511,139 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			const users = await db.select().from(usersTable).limit(-1);
 
 			expect(users.length).toBeGreaterThan(0);
+		});
+
+		test('pagination: limit', async ({ db, push }) => {
+			const items = cockroachTable('pagination_1', { id: int4('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(query().limit(0).toSQL()).toStrictEqual({
+				sql: 'select "id" from "pagination_1" order by "pagination_1"."id" limit $1',
+				params: [0],
+			});
+			expect(await query().limit(0)).toStrictEqual([]);
+			expect(await query().limit(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(5)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().limit(10)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+		});
+
+		test('pagination: offset', async ({ db, push }) => {
+			const items = cockroachTable('pagination_2', { id: int4('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(query().offset(0).toSQL()).toStrictEqual({
+				sql: 'select "id" from "pagination_2" order by "pagination_2"."id" offset $1',
+				params: [0],
+			});
+			expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().offset(5)).toStrictEqual([]);
+			expect(await query().offset(10)).toStrictEqual([]);
+		});
+
+		test('pagination: limit with offset', async ({ db, push }) => {
+			const items = cockroachTable('pagination_3', { id: int4('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(query().limit(0).offset(0).toSQL()).toStrictEqual({
+				sql: 'select "id" from "pagination_3" order by "pagination_3"."id" limit $1 offset $2',
+				params: [0, 0],
+			});
+			expect(await query().limit(0).offset(0)).toStrictEqual([]);
+			expect(await query().limit(0).offset(2)).toStrictEqual([]);
+			expect(await query().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(2).offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+			expect(await query().limit(2).offset(4)).toStrictEqual([{ id: 5 }]);
+			expect(await query().limit(2).offset(5)).toStrictEqual([]);
+			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+		});
+
+		test('pagination: placeholders', async ({ db, push }) => {
+			const items = cockroachTable('pagination_4', { id: int4('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			const limitStmt = query().limit(sql.placeholder('limit')).prepare('pagination_4_limit');
+			expect(await limitStmt.execute({ limit: 0 })).toStrictEqual([]);
+			expect(await limitStmt.execute({ limit: 2 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+
+			const offsetStmt = query().offset(sql.placeholder('offset')).prepare('pagination_4_offset');
+			expect(await offsetStmt.execute({ offset: 0 })).toStrictEqual([
+				{ id: 1 },
+				{ id: 2 },
+				{ id: 3 },
+				{ id: 4 },
+				{ id: 5 },
+			]);
+			expect(await offsetStmt.execute({ offset: 3 })).toStrictEqual([{ id: 4 }, { id: 5 }]);
+
+			const stmt = query().limit(sql.placeholder('limit')).offset(sql.placeholder('offset')).prepare(
+				'pagination_4_limit_offset',
+			);
+			expect(await stmt.execute({ limit: 0, offset: 0 })).toStrictEqual([]);
+			expect(await stmt.execute({ limit: 0, offset: 2 })).toStrictEqual([]);
+			expect(await stmt.execute({ limit: 2, offset: 0 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await stmt.execute({ limit: 2, offset: 2 })).toStrictEqual([{ id: 3 }, { id: 4 }]);
+		});
+
+		test('pagination: set operations', async ({ db, push }) => {
+			const items = cockroachTable('pagination_5', { id: int4('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () =>
+				db.select({ id: items.id }).from(items).where(lt(items.id, 4)).union(
+					db.select({ id: items.id }).from(items).where(gte(items.id, 3)),
+				).orderBy(items.id);
+
+			expect(query().offset(0).toSQL()).toStrictEqual({
+				sql:
+					'select "id" from ((select "id" from "pagination_5" where "pagination_5"."id" < $1) union (select "id" from "pagination_5" where "pagination_5"."id" >= $2)) "drizzle_union" order by "id" offset $3',
+				params: [4, 3, 0],
+			});
+			expect(await query().limit(0)).toStrictEqual([]);
+			expect(await query().limit(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+			expect(await query().limit(0).offset(0)).toStrictEqual([]);
+			expect(await query().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(2).offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+
+			const stmt = query().limit(sql.placeholder('limit')).offset(sql.placeholder('offset')).prepare(
+				'pagination_5_limit_offset',
+			);
+			expect(await stmt.execute({ limit: 0, offset: 0 })).toStrictEqual([]);
+			expect(await stmt.execute({ limit: 2, offset: 0 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await stmt.execute({ limit: 2, offset: 3 })).toStrictEqual([{ id: 4 }, { id: 5 }]);
+		});
+
+		test('pagination: subquery fenced with offset 0', async ({ db, push }) => {
+			const items = cockroachTable('pagination_6', { id: int4('id').primaryKey(), kind: text('kind').notNull() });
+			await push({ items });
+			await db.insert(items).values([
+				{ id: 1, kind: 'email' },
+				{ id: 2, kind: 'sms' },
+				{ id: 3, kind: 'email' },
+			]);
+
+			const candidates = db.select({ id: items.id }).from(items).where(eq(items.kind, 'email')).offset(0).as(
+				'candidates',
+			);
+			const query = db.select({ id: items.id }).from(items).innerJoin(candidates, eq(candidates.id, items.id))
+				.orderBy(items.id);
+
+			expect(query.toSQL()).toStrictEqual({
+				sql:
+					'select "pagination_6"."id" from "pagination_6" inner join (select "id" from "pagination_6" where "pagination_6"."kind" = $1 offset $2) "candidates" on "candidates"."id" = "pagination_6"."id" order by "pagination_6"."id"',
+				params: ['email', 0],
+			});
+			expect(await query).toStrictEqual([{ id: 1 }, { id: 3 }]);
 		});
 
 		test('Object keys as column names', async ({ cockroach: { db } }) => {
@@ -7531,6 +7668,29 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 
 			await assertAllTypesUnions(db);
 			await assertAllTypesBounds(db);
+
+			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
+		});
+
+		test('all types ~json~', async ({ db, push }) => {
+			const table = cockroachTable('all_types_json', {
+				id: int4('id').primaryKey(),
+				jsonb: jsonb('jsonb'),
+			});
+			await push({ table });
+
+			const { input, output } = jsonRows(['jsonb']);
+
+			await db.insert(table).values(input);
+
+			// json text as the database stores it, read without decoding
+			const stored = await db.select({
+				id: table.id,
+				jsonb: sql<string>`${table.jsonb}::text`,
+			}).from(table).orderBy(table.id);
+
+			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+			expect(parseStoredJson(stored)).toStrictEqual(output);
 		});
 
 		test('generated always columns', async ({ cockroach: { db } }) => {
@@ -9645,6 +9805,119 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 				defMix2: 2,
 				defMix3: 2,
 				defMix4: 1,
+			}]);
+		});
+
+		test('concat, substring expressions', async ({ db, push }) => {
+			const users = cockroachTable('expr_concat_substring', {
+				id: int4('id').primaryKey(),
+				first: text('first').notNull(),
+				last: text('last').notNull(),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values([{ id: 1, first: 'Johnathan', last: 'Doe' }, {
+				id: 2,
+				first: 'Jane',
+				last: 'Roe',
+			}]);
+
+			const res = await db.select({
+				withString: concat(users.first, '!'),
+				withColumn: concat(users.first, users.last),
+				withSql: concat(users.first, sql`'.'`),
+				from: substring(users.first, { from: 3 }),
+				for: substring(users.first, { for: 2 }),
+				fromFor: substring(users.first, { from: 2, for: 3 }),
+				fromSql: substring(users.first, { from: sql`${users.id} * 1.5` }),
+				forSql: substring(users.first, { for: users.id }),
+				fromForSql: substring(users.first, { from: sql`${users.id} * 1.5`, for: users.id }),
+				bigFrom: substring(users.first, { from: 9223372036854775807n }),
+				bigFor: substring(users.first, { from: 2, for: 9223372036854775807n }),
+				regexp: substring(users.first, { fromPattern: 'a(.)' }),
+				escaped: substring(users.first, { fromPattern: 'a#w', escape: '#' }),
+				regexpSql: substring(users.first, { fromPattern: sql`'a' || '(.)'` }),
+				escapedSql: substring(users.first, { fromPattern: sql`'a' || '#w'`, escape: sql`'#'` }),
+			}).from(users).orderBy(users.id);
+
+			expect(res).toStrictEqual([
+				{
+					withString: 'Johnathan!',
+					withColumn: 'JohnathanDoe',
+					withSql: 'Johnathan.',
+					from: 'hnathan',
+					for: 'Jo',
+					fromFor: 'ohn',
+					fromSql: 'ohnathan',
+					forSql: 'J',
+					fromForSql: 'o',
+					bigFrom: '',
+					bigFor: 'ohnathan',
+					regexp: 't',
+					escaped: 'at',
+					regexpSql: 't',
+					escapedSql: 'at',
+				},
+				{
+					withString: 'Jane!',
+					withColumn: 'JaneRoe',
+					withSql: 'Jane.',
+					from: 'ne',
+					for: 'Ja',
+					fromFor: 'ane',
+					fromSql: 'ne',
+					forSql: 'Ja',
+					fromForSql: 'ne',
+					bigFrom: '',
+					bigFor: 'ane',
+					regexp: 'n',
+					escaped: 'an',
+					regexpSql: 'n',
+					escapedSql: 'an',
+				},
+			]);
+
+			const filtered = await db.select({ id: users.id }).from(users).where(
+				and(eq(concat(users.first, ' Doe'), 'Johnathan Doe'), eq(substring(users.first, { from: 1, for: 4 }), 'John')),
+			);
+
+			expect(filtered).toStrictEqual([{ id: 1 }]);
+
+			const prepared = db.select({
+				withString: concat(users.first, sql.placeholder('suffix')),
+				from: substring(users.first, { from: sql.placeholder('from') }),
+				for: substring(users.first, { for: sql.placeholder('for') }),
+				fromFor: substring(users.first, { from: sql.placeholder('from'), for: sql.placeholder('for') }),
+				bigFrom: substring(users.first, { from: sql.placeholder('bigFrom') }),
+				bigFor: substring(users.first, { from: sql.placeholder('from'), for: sql.placeholder('bigFor') }),
+				regexp: substring(users.first, { fromPattern: sql.placeholder('pattern') }),
+				escaped: substring(users.first, {
+					fromPattern: sql.placeholder('escapedPattern'),
+					escape: sql.placeholder('escape'),
+				}),
+			}).from(users).where(eq(users.id, 1)).prepare('expr_concat_substring_prepared');
+
+			expect(
+				await prepared.execute({
+					suffix: '!',
+					from: 2,
+					for: 3,
+					bigFrom: 9223372036854775807n,
+					bigFor: 9223372036854775807n,
+					pattern: 'a(.)',
+					escapedPattern: 'a#w',
+					escape: '#',
+				}),
+			).toStrictEqual([{
+				withString: 'Johnathan!',
+				from: 'ohnathan',
+				for: 'Joh',
+				fromFor: 'ohn',
+				bigFrom: '',
+				bigFor: 'ohnathan',
+				regexp: 't',
+				escaped: 'at',
 			}]);
 		});
 	});

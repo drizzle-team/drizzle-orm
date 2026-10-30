@@ -1516,3 +1516,48 @@ test('generated as string: add table with column with virtual generated constrai
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/pull/6066
+test('generated as callback: change virtual generated constraint on a table with a foreign key', async () => {
+	const customers = sqliteTable('customers', {
+		id: int('id').primaryKey(),
+	});
+
+	const from = {
+		customers,
+		lineItems: sqliteTable('line_items', {
+			id: int('id').primaryKey(),
+			customerId: int('customer_id').references(() => customers.id, { onDelete: 'cascade' }),
+			amountCents: int('amount_cents'),
+			amount: text('amount').generatedAlwaysAs(
+				(): SQL => sql`${from.lineItems.amountCents}`,
+			),
+		}),
+	};
+	const to = {
+		customers,
+		lineItems: sqliteTable('line_items', {
+			id: int('id').primaryKey(),
+			customerId: int('customer_id').references(() => customers.id, { onDelete: 'cascade' }),
+			amountCents: int('amount_cents'),
+			amount: text('amount').generatedAlwaysAs(
+				(): SQL => sql`${to.lineItems.amountCents} || 'hello'`,
+			),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	// The foreign key belongs to `customer_id`; it must not be re-emitted on the
+	// regenerated `amount` column, which would create a bogus constraint that
+	// rejects every insert.
+	const st0: string[] = [
+		'ALTER TABLE `line_items` DROP COLUMN `amount`;',
+		'ALTER TABLE `line_items` ADD `amount` text GENERATED ALWAYS AS ("amount_cents" || \'hello\') VIRTUAL;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});

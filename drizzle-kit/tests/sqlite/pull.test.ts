@@ -1401,3 +1401,26 @@ test('introspect default expression of a text column with a backslash, a backtic
 	expect(ddlAfterPull.columns.one({ table: 'users', name: 'tag' })?.default).toBe(expression);
 	expect(ddlFromPulledTsSchema.columns.one({ table: 'users', name: 'tag' })?.default).toBe(expression);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6493
+test('Issue 6493', async () => {
+	const sqlite = new Database(':memory:');
+	const db = dbFrom(sqlite);
+
+	await db.run(`CREATE TABLE t (
+  id integer PRIMARY KEY,
+  created_at datetime DEFAULT CURRENT_TIMESTAMP,
+  \`numeric\` numeric DEFAULT (abs(-5)),
+  \`real\` real DEFAULT (julianday('now')),
+  score real DEFAULT (random())
+);`);
+
+	const { pushSqlStatements, generateSqlStatements } = await diffAfterPull(
+		sqlite,
+		{},
+		'issue-6493-expressions',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});

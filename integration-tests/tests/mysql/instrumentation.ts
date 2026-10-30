@@ -102,12 +102,6 @@ class ServerSimulator {
 					sql,
 					values: params,
 					rowsAsArray: true,
-					typeCast: function(field: any, next: any) {
-						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-							return field.string();
-						}
-						return next();
-					},
 				});
 
 				return { data: result[0] as any };
@@ -119,12 +113,6 @@ class ServerSimulator {
 				const result = await this.db.query({
 					sql,
 					values: params,
-					typeCast: function(field: any, next: any) {
-						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-							return field.string();
-						}
-						return next();
-					},
 				});
 
 				return { data: result as any };

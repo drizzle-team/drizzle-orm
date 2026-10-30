@@ -160,7 +160,12 @@ export const Real: SqlType = {
 		return value;
 	},
 	toTs: function(value: Column['default']): string {
-		return value ?? '';
+		if (!value) return '';
+
+		const check = Number(value);
+
+		if (Number.isNaN(check)) return `sql\`${value}\``; // unknown
+		return value;
 	},
 };
 
@@ -210,7 +215,7 @@ export const Numeric: SqlType = {
 		if (!value) return '';
 		const check = Number(value);
 
-		if (Number.isNaN(check)) return value; // unknown
+		if (Number.isNaN(check)) return { def: `sql\`${value}\`` }; // unknown
 		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) {
 			return { def: value, options: { mode: 'number' } };
 		}

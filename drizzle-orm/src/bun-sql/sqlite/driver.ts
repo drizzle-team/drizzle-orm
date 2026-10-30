@@ -107,11 +107,6 @@ export namespace drizzle {
 	): BunSQLiteDatabase<TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
-		return construct({
-			options: {
-				parsers: {},
-				serializers: {},
-			},
-		} as any, config) as any;
+		return construct({} as any, config) as any;
 	}
 }

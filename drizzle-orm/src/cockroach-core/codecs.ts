@@ -105,8 +105,7 @@ export const arrayCompatNormalize = (normalize: NormalizeCodec) => {
 
 export const parseArrayAndNormalize = (normalize: NormalizeCodec, delim?: string): NormalizeArrayCodec => {
 	const codec = arrayCompatNormalize(normalize);
-	return (value, arrayDimensions) =>
-		codec(typeof value === 'string' ? parseCockroachArray(value, delim) : value, arrayDimensions);
+	return (value, arrayDimensions) => codec(parseCockroachArray(value, delim), arrayDimensions);
 };
 
 export const parseGeometryArrayAndNormalize = (normalize: NormalizeCodec): NormalizeArrayCodec =>

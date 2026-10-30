@@ -49,8 +49,10 @@ export const fromDatabase = async (
 	SELECT s.name as schema_name, s.schema_id as schema_id
 	FROM sys.schemas s
 	JOIN sys.database_principals p ON s.principal_id = p.principal_id
-	WHERE p.type IN ('S', 'U')  -- Only SQL users and Windows users
-	  AND s.name NOT IN ('guest', 'INFORMATION_SCHEMA', 'sys')
+	-- Owner type is not filtered: user schemas can be owned by any principal, Entra users (E) and groups (X),
+	-- application roles (A), custom roles (R) and even fixed roles (CREATE SCHEMA s AUTHORIZATION db_owner)
+	WHERE NOT (p.is_fixed_role = 1 AND s.name = p.name)  -- built-in db_owner ... db_denydatawriter, each owned by the fixed role of the same name
+	  AND s.name NOT IN ('guest', 'INFORMATION_SCHEMA', 'sys')  -- built-in schemas owned by users
 	ORDER BY lower(s.name);
 	`).then((rows) => {
 		queryCallback('schemas', rows, null);

@@ -47,7 +47,7 @@ import { drizzle as drizzleHttp } from 'drizzle-orm/postgres/http';
 import { drizzle as drizzleMinipgNeonHttp } from 'drizzle-orm/postgres/http/neon';
 import { drizzle as drizzleMinipgNeonWs } from 'drizzle-orm/postgres/neon-ws';
 import Keyv from 'keyv';
-import { Client as ClientNodePostgres, types as typesNodePostgres } from 'pg';
+import { Client as ClientNodePostgres } from 'pg';
 import postgres from 'postgres';
 import { test as base } from 'vitest';
 import ws from 'ws';
@@ -136,19 +136,7 @@ export class TestCache extends Cache {
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
-	constructor(private db: ClientNodePostgres) {
-		const types = typesNodePostgres;
-
-		types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-		types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-		types.setTypeParser(types.builtins.DATE, (val) => val);
-		types.setTypeParser(types.builtins.INTERVAL, (val) => val);
-		types.setTypeParser(1231 as (typeof types.builtins)[keyof typeof types.builtins], (val) => val);
-		types.setTypeParser(1115 as (typeof types.builtins)[keyof typeof types.builtins], (val) => val);
-		types.setTypeParser(1185 as (typeof types.builtins)[keyof typeof types.builtins], (val) => val);
-		types.setTypeParser(1187 as (typeof types.builtins)[keyof typeof types.builtins], (val) => val);
-		types.setTypeParser(1182 as (typeof types.builtins)[keyof typeof types.builtins], (val) => val);
-	}
+	constructor(private db: ClientNodePostgres) {}
 
 	async query(sql: string, params: any[], method: 'all' | 'execute') {
 		if (method === 'all') {

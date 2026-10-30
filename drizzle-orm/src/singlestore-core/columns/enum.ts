@@ -36,7 +36,7 @@ export class SingleStoreEnumColumnBuilder<TEnum extends [string, ...string[]]> e
 	}
 }
 
-export class SingleStoreEnumColumn<T extends ColumnBaseConfig<'string enum'>>
+export class SingleStoreEnumColumn<T extends ColumnBaseConfig<'string enum'> & { enumValues: [string, ...string[]] }>
 	extends SingleStoreColumn<T, { enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'SingleStoreEnumColumn';

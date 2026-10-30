@@ -20,6 +20,12 @@ import {
 } from '~/pg-core/codecs.ts';
 import { pgHexToUint8Array } from '~/utils.ts';
 
+const bytesToPgHex = (value: Uint8Array): string => {
+	let hex = '\\x';
+	for (const byte of value) hex += byte.toString(16).padStart(2, '0');
+	return hex;
+};
+
 export const effectPgCodecs = refineGenericPgCodecs({
 	bit: {
 		cast: castToText,
@@ -27,11 +33,17 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	date: {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: textToDate,
 		normalizeArray: arrayCompatNormalize(textToDate),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
-	'date:string': { normalizeParamArray: (v) => makePgArray(v) },
+	'date:string': {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalizeParamArray: (v) => makePgArray(v),
+	},
 	'geometry(point)': {
 		cast: castToText,
 		castArray: castToTextArr,
@@ -101,6 +113,8 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	timestamptz: {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: textToDate,
 		normalizeArray: arrayCompatNormalize(textToDate),
 		normalizeParamArray: (v) => makePgArray(v),
@@ -116,10 +130,18 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	json: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: JSON.parse,
+		normalizeArray: arrayCompatNormalize(JSON.parse),
 		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	jsonb: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: JSON.parse,
+		normalizeArray: arrayCompatNormalize(JSON.parse),
 		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
@@ -332,40 +354,60 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalizeArray: typeof Buffer === 'undefined'
 			? undefined
 			: arrayCompatNormalize((v: Uint8Array) => Buffer.from(v)),
+		normalizeParamArray: arrayCompatNormalizeInput(bytesToPgHex, true),
 	},
 	enum: {
 		cast: castToText,
 		castArray: castToTextArr,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
-	numeric: { normalizeParamArray: (v) => makePgArray(v) },
+	numeric: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalizeParamArray: (v) => makePgArray(v),
+	},
 	'numeric:number': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'numeric:bigint': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'bigint:number': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'bigint:string': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: String,
 		normalizeArray: arrayCompatNormalize(String),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
-	'bigserial:number': { normalize: Number },
+	'bigserial:number': {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: Number,
+		normalizeArray: arrayCompatNormalize(Number),
+		normalizeParamArray: (v) => makePgArray(v),
+	},
 	// Binary `float4` is widened to float64
 	float4: {
 		cast: castToText,
 		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
+		normalizeParamArray: (v) => makePgArray(v),
 	},
 	uuid: { normalizeParamArray: (v) => makePgArray(v) },
 	halfvec: {
@@ -387,4 +429,28 @@ export const effectPgCodecs = refineGenericPgCodecs({
 		normalizeArray: arrayCompatNormalize(parsePgVector),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
+	bigint: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+		normalizeParamArray: (v) => makePgArray(v),
+	},
+	bigserial: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
+		normalizeParamArray: (v) => makePgArray(v),
+	},
+	// `@effect/sql-pg` can't infer an element type for an empty JS array - array literals are typed by the server
+	bool: { normalizeParamArray: (v) => makePgArray(v) },
+	char: { normalizeParamArray: (v) => makePgArray(v) },
+	varchar: { normalizeParamArray: (v) => makePgArray(v) },
+	text: { normalizeParamArray: (v) => makePgArray(v) },
+	smallint: { normalizeParamArray: (v) => makePgArray(v) },
+	int: { normalizeParamArray: (v) => makePgArray(v) },
+	smallserial: { normalizeParamArray: (v) => makePgArray(v) },
+	serial: { normalizeParamArray: (v) => makePgArray(v) },
+	float8: { normalizeParamArray: (v) => makePgArray(v) },
 });

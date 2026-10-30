@@ -1,4 +1,4 @@
-import { type HTTPQueryOptions, neon, Pool, types } from '@neondatabase/serverless';
+import { type HTTPQueryOptions, neon, Pool } from '@neondatabase/serverless';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -91,16 +91,6 @@ function construct<
 		transactionCodecs: config.transactionCodecs ?? netlifyDbTransactionCodecs,
 		paramsInErrors: config.paramsInErrors,
 	});
-
-	types.setTypeParser(types.builtins.TIMESTAMPTZ, (val) => val);
-	types.setTypeParser(types.builtins.TIMESTAMP, (val) => val);
-	types.setTypeParser(types.builtins.DATE, (val) => val);
-	types.setTypeParser(types.builtins.INTERVAL, (val) => val);
-	types.setTypeParser(1231, (val) => val);
-	types.setTypeParser(1115, (val) => val);
-	types.setTypeParser(1185, (val) => val);
-	types.setTypeParser(1187, (val) => val);
-	types.setTypeParser(1182, (val) => val);
 
 	const db = new NetlifyDbDatabase(
 		dialect,

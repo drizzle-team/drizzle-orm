@@ -54,7 +54,9 @@ import {
 	unique,
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
+import { concat, substring } from 'drizzle-orm/sqlite-core/expressions';
 import { describe, expect, expectTypeOf } from 'vitest';
+import { jsonRows, parseStoredJson } from '~/json-values';
 import type { Equal } from '~/utils';
 import { Expect } from '~/utils';
 import type { AllTypes } from './all-types';
@@ -5337,6 +5339,89 @@ export function tests(test: Test, exclude: string[] = []) {
 			expect(users.length).toBeGreaterThan(0);
 		});
 
+		// SQLite only accepts `offset` after `limit`, so every offset here comes with a limit
+		test.concurrent('pagination: limit', async ({ db, push }) => {
+			const items = sqliteTable('pagination_1', { id: integer('id').primaryKey() });
+			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(query().limit(0).toSQL()).toStrictEqual({
+				sql: 'select "id" from "pagination_1" order by "pagination_1"."id" limit ?',
+				params: [0],
+			});
+			expect(await query().limit(0)).toStrictEqual([]);
+			expect(await query().limit(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(5)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().limit(10)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+		});
+
+		test.concurrent('pagination: limit with offset', async ({ db, push }) => {
+			const items = sqliteTable('pagination_2', { id: integer('id').primaryKey() });
+			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(query().limit(2).offset(0).toSQL()).toStrictEqual({
+				sql: 'select "id" from "pagination_2" order by "pagination_2"."id" limit ? offset ?',
+				params: [2, 0],
+			});
+			expect(await query().limit(0).offset(0)).toStrictEqual([]);
+			expect(await query().limit(0).offset(2)).toStrictEqual([]);
+			expect(await query().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(2).offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+			expect(await query().limit(2).offset(4)).toStrictEqual([{ id: 5 }]);
+			expect(await query().limit(2).offset(5)).toStrictEqual([]);
+			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+		});
+
+		test.concurrent('pagination: placeholders', async ({ db, push }) => {
+			const items = sqliteTable('pagination_3', { id: integer('id').primaryKey() });
+			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			const limitStmt = query().limit(sql.placeholder('limit')).prepare();
+			expect(await limitStmt.all({ limit: 0 })).toStrictEqual([]);
+			expect(await limitStmt.all({ limit: 2 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+
+			const stmt = query().limit(sql.placeholder('limit')).offset(sql.placeholder('offset')).prepare();
+			expect(await stmt.all({ limit: 0, offset: 0 })).toStrictEqual([]);
+			expect(await stmt.all({ limit: 0, offset: 2 })).toStrictEqual([]);
+			expect(await stmt.all({ limit: 2, offset: 0 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await stmt.all({ limit: 2, offset: 2 })).toStrictEqual([{ id: 3 }, { id: 4 }]);
+		});
+
+		test.concurrent('pagination: set operations', async ({ db, push }) => {
+			const items = sqliteTable('pagination_4', { id: integer('id').primaryKey() });
+			await db.run(sql`DROP TABLE IF EXISTS ${items}`);
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () =>
+				db.select({ id: items.id }).from(items).where(lt(items.id, 4)).union(
+					db.select({ id: items.id }).from(items).where(gte(items.id, 3)),
+				).orderBy(items.id);
+
+			expect(query().limit(2).offset(0).toSQL()).toStrictEqual({
+				sql:
+					'select "id" from (select "id" from "pagination_4" where "pagination_4"."id" < ? union select "id" from "pagination_4" where "pagination_4"."id" >= ? order by "id" limit ? offset ?) "drizzle_union"',
+				params: [4, 3, 2, 0],
+			});
+			expect(await query().limit(0)).toStrictEqual([]);
+			expect(await query().limit(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(0).offset(0)).toStrictEqual([]);
+			expect(await query().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(2).offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+
+			const stmt = query().limit(sql.placeholder('limit')).offset(sql.placeholder('offset')).prepare();
+			expect(await stmt.all({ limit: 0, offset: 0 })).toStrictEqual([]);
+			expect(await stmt.all({ limit: 2, offset: 0 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await stmt.all({ limit: 2, offset: 3 })).toStrictEqual([{ id: 4 }, { id: 5 }]);
+		});
+
 		test.concurrent('column.as', async ({ db }) => {
 			const users = sqliteTable('users_column_as', {
 				id: int('id').primaryKey(),
@@ -5596,6 +5681,117 @@ export function tests(test: Test, exclude: string[] = []) {
 
 			await assertAllTypesUnions(db as any);
 			await assertAllTypesBounds(db as any);
+		});
+
+		test.concurrent('all types ~json~', async ({ db, push }) => {
+			const table = sqliteTable('all_types_json', {
+				id: integer('id').primaryKey(),
+				jsonText: text('jsonText', { mode: 'json' }),
+				jsonBlob: blob('jsonBlob', { mode: 'json' }),
+			});
+			await db.run(sql`drop table if exists ${table}`);
+			await push({ table });
+
+			const { input, output } = jsonRows(['jsonText', 'jsonBlob']);
+
+			await db.insert(table).values(input);
+
+			// json text as the database stores it, read without decoding
+			const stored = await db.select({
+				id: table.id,
+				jsonText: sql<string>`cast(${table.jsonText} as text)`,
+				jsonBlob: sql<string>`cast(${table.jsonBlob} as text)`,
+			}).from(table).orderBy(table.id);
+
+			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+			expect(parseStoredJson(stored)).toStrictEqual(output);
+		});
+
+		test.concurrent('concat, substring expressions', async ({ db, push }) => {
+			const users = sqliteTable('expr_concat_substring', {
+				id: integer('id').primaryKey(),
+				first: text('first').notNull(),
+				last: text('last').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${users}`);
+			await push({ users });
+
+			await db.insert(users).values([{ id: 1, first: 'Johnathan', last: 'Doe' }, {
+				id: 2,
+				first: 'Jane',
+				last: 'Roe',
+			}]);
+
+			const res = await db.select({
+				withString: concat(users.first, '!'),
+				withColumn: concat(users.first, users.last),
+				withSql: concat(users.first, sql`'.'`),
+				from: substring(users.first, 3),
+				for: substring(users.first, 1, 2),
+				fromFor: substring(users.first, 2, 3),
+				fromSql: substring(users.first, sql`${users.id} + 1`),
+				fromForSql: substring(users.first, sql`${users.id} + 1`, users.id),
+				bigFrom: substring(users.first, 9223372036854775807n),
+				bigFor: substring(users.first, 2, 9223372036854775807n),
+			}).from(users).orderBy(users.id);
+
+			expect(res).toStrictEqual([
+				{
+					withString: 'Johnathan!',
+					withColumn: 'JohnathanDoe',
+					withSql: 'Johnathan.',
+					from: 'hnathan',
+					for: 'Jo',
+					fromFor: 'ohn',
+					fromSql: 'ohnathan',
+					fromForSql: 'o',
+					bigFrom: '',
+					bigFor: 'ohnathan',
+				},
+				{
+					withString: 'Jane!',
+					withColumn: 'JaneRoe',
+					withSql: 'Jane.',
+					from: 'ne',
+					for: 'Ja',
+					fromFor: 'ane',
+					fromSql: 'ne',
+					fromForSql: 'ne',
+					bigFrom: '',
+					bigFor: 'ane',
+				},
+			]);
+
+			const filtered = await db.select({ id: users.id }).from(users).where(
+				and(eq(concat(users.first, ' Doe'), 'Johnathan Doe'), eq(substring(users.first, 1, 4), 'John')),
+			);
+
+			expect(filtered).toStrictEqual([{ id: 1 }]);
+
+			const prepared = db.select({
+				withString: concat(users.first, sql.placeholder('suffix')),
+				from: substring(users.first, sql.placeholder('from')),
+				fromFor: substring(users.first, sql.placeholder('from'), sql.placeholder('for')),
+				bigFrom: substring(users.first, sql.placeholder('bigFrom')),
+				bigFor: substring(users.first, sql.placeholder('from'), sql.placeholder('bigFor')),
+			}).from(users).where(eq(users.id, 1)).prepare();
+
+			expect(
+				await prepared.execute({
+					suffix: '!',
+					from: 2,
+					for: 3,
+					bigFrom: 9223372036854775807n,
+					bigFor: 9223372036854775807n,
+				}),
+			).toStrictEqual([{
+				withString: 'Johnathan!',
+				from: 'ohnathan',
+				fromFor: 'ohn',
+				bigFrom: '',
+				bigFor: 'ohnathan',
+			}]);
 		});
 	});
 
@@ -8723,5 +8919,95 @@ export function tests(test: Test, exclude: string[] = []) {
 			sql:
 				'select "d0"."id" as "id", "d0"."message" as "message", "d0"."created_at" as "createdAt" from "log" as "d0" limit ? offset ?',
 		});
+	});
+}
+
+// libsql's SQLite 3.45.1 truncates `substr` arguments to 32 bits, so int64-range cases are commented out
+export function libsqlConcatSubstringTest(test: Test) {
+	test.concurrent('concat, substring expressions - libsql', async ({ db, push }) => {
+		const users = sqliteTable('expr_concat_substring_libsql', {
+			id: integer('id').primaryKey(),
+			first: text('first').notNull(),
+			last: text('last').notNull(),
+		});
+
+		await db.run(sql`drop table if exists ${users}`);
+		await push({ users });
+
+		await db.insert(users).values([{ id: 1, first: 'Johnathan', last: 'Doe' }, {
+			id: 2,
+			first: 'Jane',
+			last: 'Roe',
+		}]);
+
+		const res = await db.select({
+			withString: concat(users.first, '!'),
+			withColumn: concat(users.first, users.last),
+			withSql: concat(users.first, sql`'.'`),
+			from: substring(users.first, 3),
+			for: substring(users.first, 1, 2),
+			fromFor: substring(users.first, 2, 3),
+			fromSql: substring(users.first, sql`${users.id} + 1`),
+			fromForSql: substring(users.first, sql`${users.id} + 1`, users.id),
+			// bigFrom: substring(users.first, 9223372036854775807n),
+			// bigFor: substring(users.first, 2, 9223372036854775807n),
+		}).from(users).orderBy(users.id);
+
+		expect(res).toStrictEqual([
+			{
+				withString: 'Johnathan!',
+				withColumn: 'JohnathanDoe',
+				withSql: 'Johnathan.',
+				from: 'hnathan',
+				for: 'Jo',
+				fromFor: 'ohn',
+				fromSql: 'ohnathan',
+				fromForSql: 'o',
+				// bigFrom: '',
+				// bigFor: 'ohnathan',
+			},
+			{
+				withString: 'Jane!',
+				withColumn: 'JaneRoe',
+				withSql: 'Jane.',
+				from: 'ne',
+				for: 'Ja',
+				fromFor: 'ane',
+				fromSql: 'ne',
+				fromForSql: 'ne',
+				// bigFrom: '',
+				// bigFor: 'ane',
+			},
+		]);
+
+		const filtered = await db.select({ id: users.id }).from(users).where(
+			and(eq(concat(users.first, ' Doe'), 'Johnathan Doe'), eq(substring(users.first, 1, 4), 'John')),
+		);
+
+		expect(filtered).toStrictEqual([{ id: 1 }]);
+
+		const prepared = db.select({
+			withString: concat(users.first, sql.placeholder('suffix')),
+			from: substring(users.first, sql.placeholder('from')),
+			fromFor: substring(users.first, sql.placeholder('from'), sql.placeholder('for')),
+			// bigFrom: substring(users.first, sql.placeholder('bigFrom')),
+			// bigFor: substring(users.first, sql.placeholder('from'), sql.placeholder('bigFor')),
+		}).from(users).where(eq(users.id, 1)).prepare();
+
+		expect(
+			await prepared.execute({
+				suffix: '!',
+				from: 2,
+				for: 3,
+				// bigFrom: 9223372036854775807n,
+				// bigFor: 9223372036854775807n,
+			}),
+		).toStrictEqual([{
+			withString: 'Johnathan!',
+			from: 'ohnathan',
+			fromFor: 'ohn',
+			// bigFrom: '',
+			// bigFor: 'ohnathan',
+		}]);
 	});
 }

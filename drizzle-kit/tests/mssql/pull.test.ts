@@ -1195,3 +1195,90 @@ test('introspect default expressions with a backslash, a backtick and "${"', asy
 	);
 	expect(Object.fromEntries(fromFileDDL.defaults.list().map((it) => [it.column, it.default]))).toStrictEqual(expected);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6423
+test('Issue 6423', async () => {
+	await db.query(
+		`CREATE TABLE [dbo].[Staff]
+(
+    [StaffId] INT NOT NULL IDENTITY(0, 1),
+        CONSTRAINT [PK_Staff_StaffId] PRIMARY KEY ([StaffId]), 
+    [LastName] VARCHAR(50) NOT NULL,
+    [FirstName] VARCHAR(50) NOT NULL,
+    [ModifiedBy] INT NOT NULL,
+        CONSTRAINT [FK_Staff_Staff_ModifiedBy] FOREIGN KEY ([ModifiedBy]) REFERENCES [dbo].[Staff]([StaffId]), 
+)`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, fromFileDDL, introspectDDL } = await diffIntrospect(
+		db,
+		{},
+		'issue-6423.identity-seed=0',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+
+	expect(fromFileDDL.columns.one({ name: 'StaffId' })?.identity).toStrictEqual({
+		increment: 1,
+		seed: 0,
+	});
+	expect(introspectDDL.columns.one({ name: 'StaffId' })?.identity).toStrictEqual({
+		increment: 1,
+		seed: 0,
+	});
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6357
+// Windows users (U) and groups (G) need an existing Windows account and
+// Entra users (E) and groups (X) need Azure, so the test covers every owner type available locally: SQL user (S),
+// certificate user (C), asymmetric key user (K), application role (A), custom role (R) and fixed role (R)
+test('introspect schemas owned by any principal type', async () => {
+	await db.query(`CREATE USER no_login_user WITHOUT LOGIN;`);
+	await db.query(`CREATE CERTIFICATE cert ENCRYPTION BY PASSWORD = 'password1#!23123' WITH SUBJECT = 'cert';`);
+	await db.query(`CREATE USER cert_user FROM CERTIFICATE cert;`);
+	await db.query(
+		`CREATE ASYMMETRIC KEY asym_key WITH ALGORITHM = RSA_2048 ENCRYPTION BY PASSWORD = 'password1#!23123';`,
+	);
+	await db.query(`CREATE USER key_user FROM ASYMMETRIC KEY asym_key;`);
+	await db.query(`CREATE APPLICATION ROLE app_role WITH PASSWORD = 'password1#!23123';`);
+	await db.query(`CREATE ROLE app_owner;`);
+	await db.query(`CREATE SCHEMA by_user AUTHORIZATION no_login_user;`);
+	await db.query(`CREATE SCHEMA by_cert_user AUTHORIZATION cert_user;`);
+	await db.query(`CREATE SCHEMA by_key_user AUTHORIZATION key_user;`);
+	await db.query(`CREATE SCHEMA by_app_role AUTHORIZATION app_role;`);
+	await db.query(`CREATE SCHEMA by_role AUTHORIZATION app_owner;`);
+	await db.query(`CREATE SCHEMA by_db_owner AUTHORIZATION db_owner;`);
+	await db.query(`CREATE TABLE by_app_role.a_items (id INT);`);
+	await db.query(`CREATE TABLE by_cert_user.b_items (id INT);`);
+	await db.query(`CREATE TABLE by_db_owner.c_items (id INT);`);
+	await db.query(`CREATE TABLE by_key_user.d_items (id INT);`);
+	await db.query(`CREATE TABLE by_role.e_items (id INT);`);
+	await db.query(`CREATE TABLE by_user.f_items (id INT);`);
+
+	const { schemas, tables } = await fromDatabaseForDrizzle(
+		db,
+		() => true,
+		() => {},
+		{
+			table: '__drizzle_migrations',
+			schema: 'drizzle',
+		},
+	);
+
+	// built-in db_owner ... db_denydatawriter schemas are not introspected
+	expect([...schemas, ...tables]).toStrictEqual([
+		{ entityType: 'schemas', name: 'by_app_role' },
+		{ entityType: 'schemas', name: 'by_cert_user' },
+		{ entityType: 'schemas', name: 'by_db_owner' },
+		{ entityType: 'schemas', name: 'by_key_user' },
+		{ entityType: 'schemas', name: 'by_role' },
+		{ entityType: 'schemas', name: 'by_user' },
+		{ entityType: 'tables', name: 'a_items', schema: 'by_app_role' },
+		{ entityType: 'tables', name: 'b_items', schema: 'by_cert_user' },
+		{ entityType: 'tables', name: 'c_items', schema: 'by_db_owner' },
+		{ entityType: 'tables', name: 'd_items', schema: 'by_key_user' },
+		{ entityType: 'tables', name: 'e_items', schema: 'by_role' },
+		{ entityType: 'tables', name: 'f_items', schema: 'by_user' },
+	]);
+});

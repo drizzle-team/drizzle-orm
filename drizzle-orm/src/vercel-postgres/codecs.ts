@@ -21,18 +21,30 @@ import {
 
 export const vercelPgCodecs = refineGenericPgCodecs({
 	bigint: {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
 	'bigint:number': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 	},
+	'bigint:string': {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
 	bigserial: {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
 	'bigserial:number': {
+		cast: castToText,
+		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 	},
@@ -40,40 +52,57 @@ export const vercelPgCodecs = refineGenericPgCodecs({
 		normalizeArray: (v) => parsePgArray(v),
 	},
 	numeric: {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	'numeric:number': {
+		cast: castToText,
 		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 	},
 	'numeric:bigint': {
+		cast: castToText,
 		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
 	date: {
+		cast: castToText,
 		castArray: castToTextArr,
 		normalize: textToDate,
 		normalizeArray: arrayCompatNormalize(textToDate),
 	},
 	'date:string': {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	time: {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	timetz: {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	timestamp: {
+		cast: castToText,
 		castArray: castToTextArr,
 		normalize: textToDateWithTz,
 		normalizeArray: arrayCompatNormalize(textToDateWithTz),
 	},
 	timestamptz: {
+		cast: castToText,
 		castArray: castToTextArr,
 		normalize: textToDate,
 		normalizeArray: arrayCompatNormalize(textToDate),
 	},
 	'timestamp:string': {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	'timestamptz:string': {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	'geometry(point)': {
@@ -87,15 +116,23 @@ export const vercelPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: makeGeometryArray,
 	},
 	interval: {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
-	// driver handles objects, other types need to be stringified
 	json: {
-		normalizeParam: (v) => typeof v === 'object' && !Array.isArray(v) ? v : JSON.stringify(v),
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: JSON.parse,
+		normalizeArray: arrayCompatNormalize(JSON.parse),
+		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	jsonb: {
-		normalizeParam: (v) => typeof v === 'object' && !Array.isArray(v) ? v : JSON.stringify(v),
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: JSON.parse,
+		normalizeArray: arrayCompatNormalize(JSON.parse),
+		normalizeParam: (v) => JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	enum: {

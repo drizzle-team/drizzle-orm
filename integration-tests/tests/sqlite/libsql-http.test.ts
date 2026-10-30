@@ -7,7 +7,13 @@ import { expect } from 'vitest';
 import { randomString } from '~/utils';
 import { libSQLHttpTest as test } from './instrumentation';
 import relations from './relations';
-import { anotherUsersMigratorTable, tests, usersMigratorTable, usersOnUpdate } from './sqlite-common';
+import {
+	anotherUsersMigratorTable,
+	libsqlConcatSubstringTest,
+	tests,
+	usersMigratorTable,
+	usersOnUpdate,
+} from './sqlite-common';
 
 test('migrator', async ({ db }) => {
 	await db.run(sql`drop table if exists another_users`);
@@ -306,6 +312,9 @@ const skip = [
 	// DB needs to be built in special way to support this
 	'delete with limit and order by',
 	'update with limit and order by',
+	// libsql's SQLite 3.45.1 truncates `substr` arguments to 32 bits
+	'concat, substring expressions',
 ];
 
 tests(test, skip);
+libsqlConcatSubstringTest(test);

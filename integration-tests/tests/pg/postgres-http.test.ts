@@ -13,6 +13,7 @@ import {
 	allTypesRelations,
 	allTypesTable,
 	assertAllTypesBounds,
+	assertAllTypesEmptyArrays,
 	assertAllTypesUnions,
 	makeAllTypes,
 } from './all-types';
@@ -425,7 +426,7 @@ describe('driver-specific', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -455,7 +456,7 @@ describe('driver-specific', () => {
 		const result = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -486,7 +487,7 @@ describe('driver-specific', () => {
 		const result = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 		expect(new Date(result.rows[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
 
 		await db.execute(sql`drop table if exists ${table}`);
@@ -520,7 +521,7 @@ describe('driver-specific', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
 
@@ -557,7 +558,7 @@ describe('driver-specific', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
 
@@ -598,7 +599,7 @@ describe('driver-specific', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
 
@@ -682,6 +683,8 @@ describe('driver-specific', () => {
 
 		await assertAllTypesUnions(db);
 		await assertAllTypesBounds(db);
+
+		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 	});
 
 	test('all types ~codecs~ override', async ({ createDB, push }) => {
@@ -701,5 +704,7 @@ describe('driver-specific', () => {
 
 		await assertAllTypesUnions(db, allTypesTable);
 		await assertAllTypesBounds(db);
+
+		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 	});
 });

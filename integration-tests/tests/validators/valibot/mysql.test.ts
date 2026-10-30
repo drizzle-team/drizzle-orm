@@ -2,7 +2,12 @@ import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import { CONSTANTS } from 'drizzle-orm/utils';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/valibot';
-import { bigintStringModeSchema, jsonSchema, unsignedBigintStringModeSchema } from 'drizzle-orm/valibot/column';
+import {
+	bigintStringModeSchema,
+	bufferSchema,
+	jsonSchema,
+	unsignedBigintStringModeSchema,
+} from 'drizzle-orm/valibot/column';
 import type { TopLevelCondition } from 'json-rules-engine';
 import * as v from 'valibot';
 import { test } from 'vitest';
@@ -365,6 +370,12 @@ test('refine view - select', (t) => {
 });
 
 test('all data types', (t) => {
+	enum Letters {
+		A = 'a',
+		B = 'b',
+		C = 'c',
+	}
+
 	const table = mysqlTable('test', ({
 		bigint,
 		binary,
@@ -392,6 +403,10 @@ test('all data types', (t) => {
 		longtext,
 		mediumtext,
 		tinytext,
+		blob,
+		tinyblob,
+		mediumblob,
+		longblob,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -444,6 +459,12 @@ test('all data types', (t) => {
 		mediumtext2: mediumtext({ enum: ['a', 'b', 'c'] }).notNull(),
 		tinytext1: tinytext().notNull(),
 		tinytext2: tinytext({ enum: ['a', 'b', 'c'] }).notNull(),
+		blob1: blob().notNull(),
+		blob2: blob({ mode: 'string' }).notNull(),
+		tinyblob: tinyblob().notNull(),
+		mediumblob: mediumblob({ mode: 'string' }).notNull(),
+		longblob: longblob().notNull(),
+		enumObject: mysqlEnum(Letters).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -499,6 +520,12 @@ test('all data types', (t) => {
 		mediumtext2: v.enum({ a: 'a', b: 'b', c: 'c' }),
 		tinytext1: v.pipe(v.string(), v.maxLength(CONSTANTS.INT8_UNSIGNED_MAX)),
 		tinytext2: v.enum({ a: 'a', b: 'b', c: 'c' }),
+		blob1: bufferSchema,
+		blob2: v.pipe(v.string(), v.maxLength(CONSTANTS.INT16_UNSIGNED_MAX)),
+		tinyblob: bufferSchema,
+		mediumblob: v.pipe(v.string(), v.maxLength(CONSTANTS.INT24_UNSIGNED_MAX)),
+		longblob: bufferSchema,
+		enumObject: v.enum({ a: Letters.A, b: Letters.B, c: Letters.C }),
 	});
 	// @ts-ignore - TODO: Remake type checks for new columns
 	expectSchemaShape(t, expected).from(result);

@@ -126,7 +126,7 @@ test('all date and time columns without timezone first case mode string', async 
 	const result2 = await db.execute<{
 		id: number;
 		timestamp_string: string;
-	}>(sql`select * from ${table}`);
+	}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 	expect(result2).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -157,7 +157,7 @@ test('all date and time columns without timezone second case mode string', async
 	const result = await db.execute<{
 		id: number;
 		timestamp_string: string;
-	}>(sql`select * from ${table}`);
+	}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 	expect(result).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -190,7 +190,7 @@ test('all date and time columns without timezone third case mode date', async ({
 	const result = await db.execute<{
 		id: number;
 		timestamp_string: string;
-	}>(sql`select * from ${table}`);
+	}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 	// 3. Compare both dates using orm mapping - Need to add 'Z' to tell JS that it is UTC
 	expect(new Date(result[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
@@ -230,7 +230,7 @@ test('test mode string for timestamp with timezone', async ({ db }) => {
 	const result2 = await db.execute<{
 		id: number;
 		timestamp_string: string;
-	}>(sql`select * from ${table}`);
+	}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 	// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 	expect(result2).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
@@ -270,7 +270,7 @@ test('test mode date for timestamp with timezone', async ({ db }) => {
 	const result2 = await db.execute<{
 		id: number;
 		timestamp_string: string;
-	}>(sql`select * from ${table}`);
+	}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 	// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 	expect(result2).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
@@ -316,7 +316,7 @@ test('test mode string for timestamp with timezone in UTC timezone', async ({ db
 	const result2 = await db.execute<{
 		id: number;
 		timestamp_string: string;
-	}>(sql`select * from ${table}`);
+	}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 	// 3.1 Notice that postgres will return the date in UTC, but it is exactlt the same
 	expect(result2).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
@@ -363,7 +363,7 @@ test('test mode string for timestamp with timezone in different timezone', async
 	const result2 = await db.execute<{
 		id: number;
 		timestamp_string: string;
-	}>(sql`select * from ${table}`);
+	}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 	expect(result2).toEqual([{ id: 1, timestamp_string: '2022-01-01 00:00:00.123456-10' }]);
 

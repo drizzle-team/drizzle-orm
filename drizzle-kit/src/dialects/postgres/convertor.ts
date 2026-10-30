@@ -363,6 +363,12 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP EXPRESSION;`);
 	}
 
+	// dropping identity should come first
+	// than everything else
+	if (diff.identity && diff.identity.to === null) {
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP IDENTITY;`);
+	}
+
 	// `hasNewType` decides if SET DATA TYPE runs. It counts a new `typeSchema`, because an enum with the same
 	// name in another schema is another type. A new count of `dimensions` gets a plain cast. Postgres has no
 	// cast between most scalar types and their array types, so the user edits that USING clause.
@@ -461,9 +467,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 					`SELECT setval('${column.identity.name}'::regclass, (SELECT COALESCE(MAX(id), 1) FROM ${key}), false);`,
 				);
 			}
-		} else if (diff.identity.to === null) {
-			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP IDENTITY;`);
-		} else {
+		} else if (diff.identity.to !== null) {
 			const { from, to } = diff.identity;
 
 			if (from.type !== to.type) {

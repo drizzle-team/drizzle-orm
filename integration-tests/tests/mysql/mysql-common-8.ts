@@ -27,6 +27,7 @@ import {
 	customType,
 	index,
 	int,
+	json,
 	MySqlAsyncSession,
 	MySqlDialect,
 	mysqlEnum,
@@ -41,6 +42,7 @@ import {
 } from 'drizzle-orm/mysql-core';
 import { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
 import { expect, expectTypeOf } from 'vitest';
+import { jsonRows, parseStoredJson } from '~/json-values';
 import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from './all-types';
 import type { Test } from './instrumentation';
 import { createUsersOnUpdateTable, createUserTable } from './schema2';
@@ -1427,18 +1429,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		const sub = alias(productionJobWithLocationView, 'p'); // if select from "productionJobWithLocationView" (not from alias), it works as expected
 
 		const query = db.select().from(sub);
-		expect(query.toSQL().sql).toStrictEqual(
-			(<{ dialect: MySqlDialect }> (<any> db)).dialect.sqlToQuery(
-				sql`select ${sql.identifier('id')}, ${sql.identifier('name')}, ${sql.identifier('location_id')}, ${
-					sql.identifier(
-						'tag_id',
-					)
-				}, ${sql.identifier('tag_created_at')} from ${sql.identifier('production_job_with_location')} ${
-					sql.identifier(
-						'p',
-					)
-				}`,
-			).sql,
+		expect(query.toSQL(false).sql).toStrictEqual(
+			'select `id`, `name`, `location_id`, `tag_id`, `tag_created_at` from `production_job_with_location` `p`',
 		);
 	});
 
@@ -1773,6 +1765,27 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		}
 
 		await assertAllTypesBounds(db);
+	});
+
+	test.concurrent('all types ~json~', async ({ db, push }) => {
+		const table = mysqlTable('all_types_json', {
+			id: int('id').primaryKey(),
+			json: json('json'),
+		});
+		await push({ table });
+
+		const { input, output } = jsonRows(['json']);
+
+		await db.insert(table).values(input);
+
+		// json text as the database stores it, read without decoding
+		const stored = await db.select({
+			id: table.id,
+			json: sql<string>`cast(${table.json} as char)`,
+		}).from(table).orderBy(table.id);
+
+		expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+		expect(parseStoredJson(stored)).toStrictEqual(output);
 	});
 
 	test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {

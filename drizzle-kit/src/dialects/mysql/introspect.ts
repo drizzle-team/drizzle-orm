@@ -464,7 +464,9 @@ export const fromDatabase = async (
 			tc.CONSTRAINT_NAME, 
 			cc.CHECK_CLAUSE
 		FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
-		JOIN INFORMATION_SCHEMA.CHECK_CONSTRAINTS cc ON tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
+		JOIN INFORMATION_SCHEMA.CHECK_CONSTRAINTS cc
+			ON tc.CONSTRAINT_SCHEMA = cc.CONSTRAINT_SCHEMA
+			AND tc.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
 		WHERE tc.CONSTRAINT_SCHEMA = '${schema}'
 			AND tc.CONSTRAINT_TYPE = 'CHECK';
 	`).then((rows) => {
@@ -534,7 +536,7 @@ export const fromDatabase = async (
 
 		const sqlSecurity = view.SECURITY_TYPE.toLowerCase() as 'definer' | 'invoker';
 
-		const [createSqlStatement] = await db.query(`SHOW CREATE VIEW \`${name}\`;`);
+		const [createSqlStatement] = await db.query(`SHOW CREATE VIEW  \`${schema}\`.\`${name}\`;`);
 		const algorithmMatch = createSqlStatement['Create View'].match(/ALGORITHM=([^ ]+)/);
 		const algorithm = algorithmMatch ? algorithmMatch[1].toLowerCase() : null;
 

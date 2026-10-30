@@ -48,6 +48,8 @@ import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
 import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
+import { jsonRows, parseStoredJson } from '~/json-values';
+import { expectRecentTime } from '~/recent-time';
 import type { AllTypes } from './all-types';
 import { allTypesData, allTypesInput, assertAllTypesBounds, assertAllTypesUnions, makeAllTypes } from './all-types';
 import { TestCache } from './instrumentation';
@@ -254,6 +256,33 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 
 				yield* Effect.promise(() => assertAllTypesUnions(db as any, allTypesTable, run));
 				yield* Effect.promise(() => assertAllTypesBounds(db as any, run));
+			}));
+
+		it.effect('all types ~json~', () =>
+			Effect.gen(function*() {
+				const table = sqliteTable('all_types_json', {
+					id: integer('id').primaryKey(),
+					jsonText: text('jsonText', { mode: 'json' }),
+					jsonBlob: blob('jsonBlob', { mode: 'json' }),
+				});
+
+				const db = yield* DB;
+				yield* db.run(sql`drop table if exists ${table}`);
+				yield* push(db, { table });
+
+				const { input, output } = jsonRows(['jsonText', 'jsonBlob']);
+
+				yield* db.insert(table).values(input);
+
+				// json text as the database stores it, read without decoding
+				const stored = yield* db.select({
+					id: table.id,
+					jsonText: sql<string>`cast(${table.jsonText} as text)`,
+					jsonBlob: sql<string>`cast(${table.jsonBlob} as text)`,
+				}).from(table).orderBy(table.id);
+
+				expect(yield* db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+				expect(parseStoredJson(stored)).toStrictEqual(output);
 			}));
 
 		it.effect('RQB v2 simple find first - no rows', () =>
@@ -1430,7 +1459,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 					.returning();
 
 				expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+				expectRecentTime(usersResult[0]!.createdAt, now);
 				expect(usersResult).toEqual([
 					{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 				]);
@@ -1480,7 +1509,7 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				const usersResult = yield* db.delete(users).where(eq(users.name, 'John')).returning();
 
 				expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+				expectRecentTime(usersResult[0]!.createdAt, now);
 				expect(usersResult).toEqual([
 					{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 				]);

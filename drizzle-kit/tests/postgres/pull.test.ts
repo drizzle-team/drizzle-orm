@@ -4249,3 +4249,43 @@ test('introspect json array defaults with a backslash, a backtick and "${"', asy
 	expect(defaultsInDatabase[0]).toStrictEqual(['column1', `'${arrayLiteral}'`]);
 	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6495
+test('Issue 6495. Numeric defaults', async () => {
+	await db.query(`CREATE TABLE "t" (
+"price" numeric DEFAULT (random() * 10),
+	"amount" bigint DEFAULT (random() * 10)
+);`);
+
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		{},
+		'issue-6495-numeric-default',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6493
+test('Issue 6493', async () => {
+	await db.query(`CREATE TABLE "t" (
+		"r" real DEFAULT random(),
+		"dp" double precision DEFAULT random(),
+  		"b" boolean DEFAULT (random() > 0.5),
+  		"uuid" uuid DEFAULT md5(random()::text)::uuid,
+  		"interval" interval DEFAULT age(now()),
+  		"inet" inet DEFAULT inet_client_addr(),
+  		"cidr" cidr DEFAULT network(inet_client_addr()),
+  		"macaddr" macaddr DEFAULT trunc('08:00:2b:01:02:03'::macaddr)
+	);`);
+
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		{},
+		'issue-6493-expressions',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});

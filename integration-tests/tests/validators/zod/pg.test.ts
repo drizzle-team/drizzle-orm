@@ -14,7 +14,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { CONSTANTS } from 'drizzle-orm/utils';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from 'drizzle-orm/zod';
-import { bigintStringModeSchema, jsonSchema } from 'drizzle-orm/zod/column';
+import { bigintStringModeSchema, bufferSchema, jsonSchema } from 'drizzle-orm/zod/column';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod/v4';
@@ -386,6 +386,15 @@ test('refine view - select', (t) => {
 });
 
 test('all data types', (t) => {
+	enum Letters {
+		A = 'a',
+		B = 'b',
+		C = 'c',
+	}
+	const enumObject = pgEnum('test_object', Letters);
+
+	const enum_ = pgEnum('test', ['a', 'b', 'c']);
+
 	const table = pgTable('test', ({
 		bigint,
 		bigserial,
@@ -418,6 +427,8 @@ test('all data types', (t) => {
 		uuid,
 		varchar,
 		vector,
+		bytea,
+		decimal,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -463,6 +474,10 @@ test('all data types', (t) => {
 		varchar1: varchar({ length: 10 }).notNull(),
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		vector: vector({ dimensions: 3 }).notNull(),
+		bytea: bytea().notNull(),
+		decimal: decimal({ mode: 'string' }).notNull(),
+		enum: enum_().notNull(),
+		enumObject: enumObject().notNull(),
 		array1: integer().array().notNull(),
 		array2: integer().array('[][]').notNull(),
 		array3: varchar({ length: 10 }).array('[][]').notNull(),
@@ -514,6 +529,10 @@ test('all data types', (t) => {
 		varchar1: z.string().max(10),
 		varchar2: z.enum(['a', 'b', 'c']),
 		vector: z.array(z.number()).length(3),
+		bytea: bufferSchema,
+		decimal: z.string(),
+		enum: z.enum(['a', 'b', 'c']),
+		enumObject: z.enum([Letters.A, Letters.B, Letters.C]),
 		array1: z.array(integerSchema),
 		array2: z.array(z.array(integerSchema)),
 		array3: z.array(z.array(z.string().max(10))),
@@ -571,6 +590,27 @@ test('type coercion - mixed', (t) => {
 	const expected = z.object({
 		timestamp: z.coerce.date<Date>(),
 		integer: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - select from factory without coercion', (t) => {
+	const table = pgTable('test', {
+		c1: integer(),
+		c2: integer().notNull(),
+		c3: integer().notNull(),
+	});
+
+	const { createSelectSchema } = createSchemaFactory({ zodInstance: z });
+	const result = createSelectSchema(table, {
+		c2: (schema) => schema.lte(1000),
+		c3: z.string().transform(Number),
+	});
+	const expected = z.object({
+		c1: integerNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();

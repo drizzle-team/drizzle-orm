@@ -1,12 +1,30 @@
 import { sql } from 'drizzle-orm';
-import type { NodeSQLiteDatabase } from 'drizzle-orm/node-sqlite';
+import { drizzle, type NodeSQLiteDatabase } from 'drizzle-orm/node-sqlite';
 import { migrate } from 'drizzle-orm/node-sqlite/migrator';
 import { getTableConfig, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
+import { DatabaseSync } from 'node:sqlite';
 import { expect } from 'vitest';
-import { nodeSQLiteTest as test } from './instrumentation';
+import { allTypesData, allTypesInput, makeAllTypes } from './all-types';
+import { _push, nodeSQLiteTest as test } from './instrumentation';
 import relations from './relations';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
+
+test('all types - client reading bigints', async () => {
+	// The client's integer mode must not leak into what the ORM returns
+	const client = new DatabaseSync(':memory:', { readBigInts: true });
+	try {
+		const db = drizzle({ client });
+		const allTypesTable = makeAllTypes('all_types_read_bigints');
+		await _push(async (query, params) => client.prepare(query).all(...params) as any[], { allTypesTable });
+
+		db.insert(allTypesTable).values(allTypesInput).run();
+
+		expect(db.select().from(allTypesTable).all()).toStrictEqual([allTypesData]);
+	} finally {
+		client.close();
+	}
+});
 
 test('migrator', async ({ db }) => {
 	db.run(sql`drop table if exists another_users`);

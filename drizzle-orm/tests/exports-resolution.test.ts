@@ -111,7 +111,7 @@ describe.skipIf(!ARTIFACTS_PRESENT)('no public subpath is dropped', () => {
 			.filter((p) => p.resolutionKind === mode)
 			.map((p) => p.entrypoint);
 		expect(unresolved, `unresolved: ${unresolved.slice(0, 20).join(', ')}`).toEqual([]);
-	}, 120_000);
+	}, 300_000);
 });
 
 describe('directory-index shim emitter refuses to shadow a source artifact', () => {

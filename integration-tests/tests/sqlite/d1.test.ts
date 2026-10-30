@@ -254,6 +254,8 @@ const skip = [
 
 	// .run() includes time data, strict comparison fails, otherwise functional
 	'write + query all methods & verify data intergrity',
+	// Type 'bigint' not supported; unaliased selections with equal names overwrite each other (see #528)
+	'concat, substring expressions',
 ];
 cacheTests(test, skip);
 tests(test, skip);

@@ -21,18 +21,23 @@ export const mysql2Codecs = refineGenericMySqlCodecs({
 		normalize: (value: number) => value === 1,
 	},
 	date: {
+		cast: castToText,
 		normalize: (value: string) => new Date(value),
 	},
 	datetime: {
+		cast: castToText,
 		normalize: (value: string) => new Date(value.replace(' ', 'T') + 'Z'),
 	},
 	timestamp: {
+		cast: castToText,
 		normalize: (value: string) => new Date(value + '+0000'),
 	},
 	'decimal:number': {
+		cast: castToText,
 		normalize: Number,
 	},
 	'decimal:bigint': {
+		cast: castToText,
 		normalize: BigInt,
 	},
 	float: {
@@ -56,5 +61,24 @@ export const mysql2Codecs = refineGenericMySqlCodecs({
 	},
 	longblob: {
 		normalize: (value: Buffer) => value.toString('utf8'),
+	},
+	decimal: {
+		cast: castToText,
+	},
+	'date:string': {
+		cast: castToText,
+	},
+	'datetime:string': {
+		cast: castToText,
+	},
+	'timestamp:string': {
+		cast: castToText,
+	},
+	time: {
+		cast: castToText,
+	},
+	json: {
+		cast: castToText,
+		normalize: JSON.parse,
 	},
 });

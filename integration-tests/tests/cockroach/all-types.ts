@@ -242,6 +242,28 @@ export type RunQuery = (query: any) => Promise<any>;
 const awaitQuery: RunQuery = (query) => query;
 
 const defaultAllTypesTable = allTypesTable;
+
+export const allTypesEmptyArraysData: AllTypes = Object.fromEntries(
+	Object.entries(allTypesData).map(([key, value]) => [key, key.startsWith('arr') ? [] : value]),
+) as AllTypes;
+
+export async function assertAllTypesEmptyArrays(
+	db: CockroachDatabase<any, any>,
+	allTypesTable: AllTypesTable = defaultAllTypesTable,
+	{ rqb = false }: { rqb?: boolean } = {},
+) {
+	await db.delete(allTypesTable);
+	await db.insert(allTypesTable).values(allTypesEmptyArraysData);
+
+	expect(await db.select().from(allTypesTable)).toStrictEqual([allTypesEmptyArraysData]);
+	if (rqb) {
+		expect(await (<any> db).query.allTypesTable.findFirst({ with: { self: true } })).toStrictEqual({
+			...allTypesEmptyArraysData,
+			self: [allTypesEmptyArraysData],
+		});
+	}
+}
+
 export async function assertAllTypesUnions(
 	db: CockroachDatabase<any, any>,
 	allTypesTable: AllTypesTable = defaultAllTypesTable,

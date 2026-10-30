@@ -7,7 +7,7 @@ import { expect } from 'vitest';
 import { randomString } from '~/utils';
 import { libSQLNodeTest as test } from './instrumentation';
 import relations from './relations';
-import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
+import { anotherUsersMigratorTable, libsqlConcatSubstringTest, tests, usersMigratorTable } from './sqlite-common';
 
 test('migrator', async ({ db }) => {
 	await db.run(sql`drop table if exists another_users`);
@@ -220,6 +220,9 @@ const skip = [
 	'sync transaction rollback',
 	'Query error params - sync transaction',
 	'sync nested transaction rollback',
+	// libsql's SQLite 3.45.1 truncates `substr` arguments to 32 bits
+	'concat, substring expressions',
 ];
 
 tests(test, skip);
+libsqlConcatSubstringTest(test);

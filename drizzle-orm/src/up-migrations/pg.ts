@@ -1,6 +1,5 @@
 import type { BatchItem } from '~/batch.ts';
 import type { MigrationMeta } from '~/migrator.ts';
-import type { NeonHttpDatabase } from '~/neon-http/driver.ts';
 import type { PgAsyncDatabase } from '~/pg-core/async/db.ts';
 import type { PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgQueryResultHKT } from '~/pg-core/session.ts';
@@ -109,7 +108,9 @@ const upToV1 = async (
 			}
 		});
 	} else if (mode === 'batch') {
-		const database = db as NeonHttpDatabase;
+		const database = db as PgAsyncDatabase<PgQueryResultHKT, any> & {
+			batch(batch: [BatchItem<'pg'>, ...BatchItem<'pg'>[]]): Promise<unknown>;
+		};
 
 		await database.batch(
 			sqls.map((s) => database.execute(s)) as unknown as [BatchItem<'pg'>, ...BatchItem<'pg'>[]],
