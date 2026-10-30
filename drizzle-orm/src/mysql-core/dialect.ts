@@ -565,9 +565,9 @@ export class MySqlDialect {
 		const limitSql = this.buildLimit(limit);
 
 		// Binary protocol bug bypass
-		const offsetSql = offset
-			? sql` offset ${sql.param(offset, this.paginationEncoder)}`
-			: undefined;
+		const offsetSql = offset === undefined
+			? undefined
+			: sql` offset ${sql.param(offset, this.paginationEncoder)}`;
 
 		const useIndexSql = this.buildIndex({ indexes: useIndex, indexFor: 'USE' });
 
@@ -704,9 +704,9 @@ export class MySqlDialect {
 		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
 
 		// Binary protocol bug bypass
-		const offsetSql = offset
-			? sql` offset ${sql.param(offset, this.paginationEncoder)}`
-			: undefined;
+		const offsetSql = offset === undefined
+			? undefined
+			: sql` offset ${sql.param(offset, this.paginationEncoder)}`;
 
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}

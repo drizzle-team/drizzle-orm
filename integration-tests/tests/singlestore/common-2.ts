@@ -2689,6 +2689,73 @@ export function tests(test: Test) {
 			expect(users.length).toBeGreaterThan(0);
 		});
 
+		// SingleStore only accepts `offset` after `limit`, so every offset here comes with a limit
+		test.concurrent('pagination: limit', async ({ db, push }) => {
+			const items = singlestoreTable('pagination_1', { id: int('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(query().limit(0).toSQL()).toStrictEqual({
+				sql: 'select `id` from `pagination_1` order by `pagination_1`.`id` limit ?',
+				params: [0],
+			});
+			expect(await query().limit(0)).toStrictEqual([]);
+			expect(await query().limit(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(5)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().limit(10)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+		});
+
+		test.concurrent('pagination: limit with offset', async ({ db, push }) => {
+			const items = singlestoreTable('pagination_2', { id: int('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(query().limit(2).offset(0).toSQL()).toStrictEqual({
+				sql: 'select `id` from `pagination_2` order by `pagination_2`.`id` limit ? offset ?',
+				params: [2, 0],
+			});
+			expect(await query().limit(0).offset(0)).toStrictEqual([]);
+			expect(await query().limit(0).offset(2)).toStrictEqual([]);
+			expect(await query().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(2).offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+			expect(await query().limit(2).offset(4)).toStrictEqual([{ id: 5 }]);
+			expect(await query().limit(2).offset(5)).toStrictEqual([]);
+			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+		});
+
+		test.concurrent('pagination: set operations', async ({ db, push }) => {
+			const items = singlestoreTable('pagination_4', { id: int('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () =>
+				db.select({ id: items.id }).from(items).where(lt(items.id, 4)).union(
+					db.select({ id: items.id }).from(items).where(gte(items.id, 3)),
+				).orderBy(items.id);
+
+			expect(query().limit(2).offset(0).toSQL()).toStrictEqual({
+				sql:
+					'select `id` from ((select `id` from `pagination_4` where `pagination_4`.`id` < ?) union (select `id` from `pagination_4` where `pagination_4`.`id` >= ?)) `drizzle_union` order by `id` limit ? offset ?',
+				params: [4, 3, 2, 0],
+			});
+			expect(await query().limit(0)).toStrictEqual([]);
+			expect(await query().limit(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(0).offset(0)).toStrictEqual([]);
+			expect(await query().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(2).offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+
+			const chained = () =>
+				union(
+					db.select({ id: items.id }).from(items).where(lt(items.id, 2)),
+					db.select({ id: items.id }).from(items).where(eq(items.id, 3)),
+					db.select({ id: items.id }).from(items).where(gte(items.id, 4)),
+				).orderBy(items.id);
+			expect(await chained().limit(0).offset(0)).toStrictEqual([]);
+			expect(await chained().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 3 }]);
+			expect(await chained().limit(2).offset(2)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+		});
+
 		test.concurrent('sql operator as cte', async ({ db }) => {
 			const users = singlestoreTable('users', {
 				id: serial('id').primaryKey(),

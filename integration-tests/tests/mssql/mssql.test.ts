@@ -16,6 +16,7 @@ import {
 	inArray,
 	isNull,
 	like,
+	lt,
 	makeDefaultQueryMapper,
 	makeDefaultRqbMapper,
 	makeJitQueryMapper,
@@ -7313,6 +7314,105 @@ test('select offset', async ({ db }) => {
 
 	expect(res.length).toBe(1);
 	expect(res).toStrictEqual([{ id: 1, name: 'city1' }]);
+});
+
+// MSSQL only accepts `offset` after `order by`, and `fetch` only after `offset` with at least one row
+test('pagination: top', async ({ db }) => {
+	await db.insert(citiesTable).values([1, 2, 3, 4, 5].map((id) => ({ id, name: `city${id}` })));
+
+	expect(db.select({ id: citiesTable.id }).top(0).from(citiesTable).toSQL()).toStrictEqual({
+		sql: 'select top(@par0) [id] from [cities]',
+		params: [0],
+	});
+	expect(await db.select({ id: citiesTable.id }).top(0).from(citiesTable)).toStrictEqual([]);
+	expect(await db.select({ id: citiesTable.id }).top(2).from(citiesTable).orderBy(citiesTable.id)).toStrictEqual([
+		{ id: 1 },
+		{ id: 2 },
+	]);
+	expect(await db.select({ id: citiesTable.id }).top(10).from(citiesTable).orderBy(citiesTable.id)).toStrictEqual([
+		{ id: 1 },
+		{ id: 2 },
+		{ id: 3 },
+		{ id: 4 },
+		{ id: 5 },
+	]);
+});
+
+test('pagination: offset', async ({ db }) => {
+	await db.insert(citiesTable).values([1, 2, 3, 4, 5].map((id) => ({ id, name: `city${id}` })));
+	const query = () => db.select({ id: citiesTable.id }).from(citiesTable).orderBy(citiesTable.id);
+
+	expect(query().offset(0).toSQL()).toStrictEqual({
+		sql: 'select [id] from [cities] order by [cities].[id] offset @par0 rows',
+		params: [0],
+	});
+	expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+	expect(await query().offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }, { id: 5 }]);
+	expect(await query().offset(5)).toStrictEqual([]);
+	expect(await query().offset(10)).toStrictEqual([]);
+});
+
+test('pagination: offset with fetch', async ({ db }) => {
+	await db.insert(citiesTable).values([1, 2, 3, 4, 5].map((id) => ({ id, name: `city${id}` })));
+	const query = () => db.select({ id: citiesTable.id }).from(citiesTable).orderBy(citiesTable.id);
+
+	expect(query().offset(0).fetch(2).toSQL()).toStrictEqual({
+		sql: 'select [id] from [cities] order by [cities].[id] offset @par0 rows fetch next @par1 rows only',
+		params: [0, 2],
+	});
+	expect(await query().offset(0).fetch(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+	expect(await query().offset(2).fetch(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+	expect(await query().offset(4).fetch(2)).toStrictEqual([{ id: 5 }]);
+	expect(await query().offset(5).fetch(2)).toStrictEqual([]);
+	expect(await query().offset(3).fetch(10)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+});
+
+test('pagination: placeholders', async ({ db }) => {
+	await db.insert(citiesTable).values([1, 2, 3, 4, 5].map((id) => ({ id, name: `city${id}` })));
+	const query = () => db.select({ id: citiesTable.id }).from(citiesTable).orderBy(citiesTable.id);
+
+	const topStmt = db.select({ id: citiesTable.id }).top(sql.placeholder('top')).from(citiesTable).orderBy(
+		citiesTable.id,
+	).prepare();
+	expect(await topStmt.execute({ top: 0 })).toStrictEqual([]);
+	expect(await topStmt.execute({ top: 2 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+
+	const offsetStmt = query().offset(sql.placeholder('offset')).prepare();
+	expect(await offsetStmt.execute({ offset: 0 })).toStrictEqual([
+		{ id: 1 },
+		{ id: 2 },
+		{ id: 3 },
+		{ id: 4 },
+		{ id: 5 },
+	]);
+	expect(await offsetStmt.execute({ offset: 3 })).toStrictEqual([{ id: 4 }, { id: 5 }]);
+
+	const stmt = query().offset(sql.placeholder('offset')).fetch(sql.placeholder('fetch')).prepare();
+	expect(await stmt.execute({ offset: 0, fetch: 2 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+	expect(await stmt.execute({ offset: 2, fetch: 2 })).toStrictEqual([{ id: 3 }, { id: 4 }]);
+	expect(await stmt.execute({ offset: 5, fetch: 2 })).toStrictEqual([]);
+});
+
+test('pagination: set operations', async ({ db }) => {
+	await db.insert(citiesTable).values([1, 2, 3, 4, 5].map((id) => ({ id, name: `city${id}` })));
+	const query = () =>
+		db.select({ id: citiesTable.id }).from(citiesTable).where(lt(citiesTable.id, 4)).union(
+			db.select({ id: citiesTable.id }).from(citiesTable).where(gte(citiesTable.id, 3)),
+		).orderBy(citiesTable.id);
+
+	expect(query().offset(0).toSQL()).toStrictEqual({
+		sql:
+			'select [id] from ((select [id] from [cities] where [cities].[id] < @par0) union (select [id] from [cities] where [cities].[id] >= @par1)) [drizzle_union] order by [id] offset @par2 rows',
+		params: [4, 3, 0],
+	});
+	expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+	expect(await query().offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+	expect(await query().offset(0).fetch(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+	expect(await query().offset(2).fetch(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+
+	const stmt = query().offset(sql.placeholder('offset')).fetch(sql.placeholder('fetch')).prepare();
+	expect(await stmt.execute({ offset: 0, fetch: 2 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+	expect(await stmt.execute({ offset: 3, fetch: 2 })).toStrictEqual([{ id: 4 }, { id: 5 }]);
 });
 
 test('select offset prepared query', async ({ db }) => {
