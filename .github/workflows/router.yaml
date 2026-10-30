@@ -13,6 +13,13 @@ on:
         type: string
         default: 'all'
 
+# A new push to a PR cancels the run of the previous head before any job starts. The cancel in the
+# called workflows needs a free runner first, and on a busy organization that can take hours.
+# Manual runs get a group of their own, so a release is never canceled.
+concurrency:
+  group: router-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   switch:
     runs-on: ubuntu-24.04
@@ -65,6 +72,12 @@ jobs:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
       GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+      PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
+      PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
+      PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
+      TURSO_ORG: ${{ secrets.TURSO_ORG }}
+      TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
+      TURSO_GROUP: ${{ secrets.TURSO_GROUP }}
 
   run-latest:
     needs: switch
@@ -84,3 +97,9 @@ jobs:
       SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
       SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
+      PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
+      PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
+      TURSO_ORG: ${{ secrets.TURSO_ORG }}
+      TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
+      TURSO_GROUP: ${{ secrets.TURSO_GROUP }}

@@ -219,7 +219,11 @@ const resetSchemas = async (run: (sql: string) => Promise<any[]>) => {
 	await run('create schema "mySchema"');
 };
 
-export const prepareNeonHttpClient = async (db: string) => {
+// CI gives each job its own copies of the hosted databases, and this prefix names them.
+const hostedDatabase = (name: string) => `${process.env['CI_DATABASE_PREFIX'] ?? ''}${name}`;
+
+export const prepareNeonHttpClient = async (name: string) => {
+	const db = hostedDatabase(name);
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
 	const client = neon(url.toString());
@@ -272,7 +276,8 @@ export const prepareHttpClient = async (db: string) => {
 	return { client, query, batch, database: db };
 };
 
-export const prepareNeonWsClient = async (db: string) => {
+export const prepareNeonWsClient = async (name: string) => {
+	const db = hostedDatabase(name);
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
 	const client = new NeonPool({ connectionString: url.toString(), max: 1 });
@@ -292,7 +297,8 @@ export const prepareNeonWsClient = async (db: string) => {
 	return { client, query, batch, database: db };
 };
 
-export const prepareMinipgNeonWsClient = async (db: string) => {
+export const prepareMinipgNeonWsClient = async (name: string) => {
+	const db = hostedDatabase(name);
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
 	const client = createMinipgNeonWsPool({ url: url.toString(), max: 1 });
@@ -312,7 +318,8 @@ export const prepareMinipgNeonWsClient = async (db: string) => {
 	return { client, query, batch, database: db };
 };
 
-export const prepareMinipgNeonHttpClient = async (db: string) => {
+export const prepareMinipgNeonHttpClient = async (name: string) => {
+	const db = hostedDatabase(name);
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
 	const client = createMinipgNeonHttpClient({ url: url.toString() });
@@ -442,7 +449,8 @@ export const prepareProxy = async (db: string) => {
 	return { client, query, batch, database: db };
 };
 
-export const prepareNetlifyDb = async (db: string) => {
+export const prepareNetlifyDb = async (name: string) => {
+	const db = hostedDatabase(name);
 	const url = new URL(process.env['NETLIFY_DB_URL']!);
 	url.pathname = `/${db}`;
 	const conStr = url.toString();

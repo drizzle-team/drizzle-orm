@@ -42,6 +42,18 @@ on:
         required: true
       GH_PACKAGES_TOKEN:
         required: false
+      PLANETSCALE_ORG:
+        required: false
+      PLANETSCALE_SERVICE_TOKEN_ID:
+        required: false
+      PLANETSCALE_SERVICE_TOKEN:
+        required: false
+      TURSO_ORG:
+        required: false
+      TURSO_API_TOKEN:
+        required: false
+      TURSO_GROUP:
+        required: false
 
 concurrency:
   group: feature-${{ github.workflow }}-${{ github.ref }}
@@ -81,6 +93,7 @@ jobs:
           fi
           echo "packages=$selected" >> "$GITHUB_OUTPUT"
       - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.4.4 }
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
@@ -111,18 +124,13 @@ jobs:
             drizzle-seed/package.tgz
             eslint-plugin-drizzle/package.tgz
 
-      # Tiny marker so other jobs can wait without failing
-      - name: Upload build-ready marker
-        run: mkdir -p .gh && echo "ok" > .gh/build-ready
-      - uses: actions/upload-artifact@v7
-        with:
-          name: build-ready
-          path: .gh/build-ready
       - name: test:types & lint
         run: pnpm test:types-lint
 
   test:
-    # NOTE: no 'needs: [prepare]' on purpose — start early, warm DBs, then wait for artifacts
+    # The organization runs at most 20 jobs at once. A test job that started before prepare and only
+    # waited would hold a runner that prepare needs, so it starts after prepare.
+    needs: [prepare]
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
@@ -141,10 +149,13 @@ jobs:
             dbs: [postgres, postgres-http-gateway, aws-data-api]
           - shard: int:neon
             dbs: []
+            cloud: [neon, netlify]
           - shard: int:sqlite
             dbs: []
+            cloud: [sqlitecloud]
           - shard: int:turso-serverless
             dbs: []
+            cloud: [turso]
           - shard: int:other
             dbs: [mysql, postgres, postgres-postgis, postgres-vector]
           - shard: int:seeder
@@ -153,6 +164,7 @@ jobs:
             dbs: []
           - shard: int:planetscale
             dbs: []
+            cloud: [planetscale]
           - shard: int:cockroach
             dbs: [cockroach]
           - shard: int:cockroach-rqb
@@ -191,6 +203,25 @@ jobs:
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile --prefer-offline
 
+      # Fork PRs get no secrets and skip the hosted databases.
+      - name: Create this job's hosted databases
+        id: hosted-databases
+        if: ${{ matrix.cloud && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        working-directory: integration-tests
+        env:
+          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
+          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
+          PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
+          PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
+          PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
+          SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
+          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
+          TURSO_ORG: ${{ secrets.TURSO_ORG }}
+          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
+          TURSO_GROUP: ${{ secrets.TURSO_GROUP }}
+        run: pnpm exec tsx scripts/ci-databases.ts create --job "${{ matrix.shard }}" ${{ join(matrix.cloud, ' ') }}
+
       - name: Start DBs needed by shard (pre-warm)
         if: ${{ matrix.dbs && join(matrix.dbs, ',') != '' }}
         shell: bash
@@ -221,25 +252,6 @@ jobs:
           chmod +x compose/wait.sh
           compose/wait.sh ${{ join(matrix.dbs, ' ') }}
 
-      - name: Wait for 'prepare' to finish (poll artifact)
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          run_id="${{ github.run_id }}"
-          repo="${{ github.repository }}"
-          echo "Waiting for 'build-ready' artifact from prepare job in run $run_id..."
-          for i in $(seq 1 120); do
-            artifacts_json="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${repo}/actions/runs/${run_id}/artifacts")"
-            echo "$artifacts_json" | jq -e '.artifacts[] | select(.name=="build-ready")' >/dev/null 2>&1 && { echo "build-ready found"; break; }
-            echo "…still waiting ($i/120)"
-            sleep 5
-          done
-
       - name: Download build-dist (compiled JS)
         uses: actions/download-artifact@v4
         with:
@@ -257,6 +269,7 @@ jobs:
       # No `pnpm build` here — we reuse dist to save time
 
       - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.4.4 }
       - name: Run tests
         env:
           PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
@@ -291,6 +304,11 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          if [[ -f "$RUNNER_TEMP/ci-databases.env" ]]; then
+            set +x
+            source "$RUNNER_TEMP/ci-databases.env"
+            set -x
+          fi
           if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
             export SKIP_EXTERNAL_DB_TESTS=1
           fi
@@ -352,6 +370,22 @@ jobs:
             *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
           esac
 
+      - name: Drop this job's hosted databases
+        if: ${{ always() && steps.hosted-databases.outcome != 'skipped' }}
+        working-directory: integration-tests
+        env:
+          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
+          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
+          PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
+          PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
+          PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
+          SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
+          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
+          TURSO_ORG: ${{ secrets.TURSO_ORG }}
+          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
+        run: pnpm exec tsx scripts/ci-databases.ts drop
+
   attw:
     needs: [prepare]
     runs-on: ubuntu-24.04
@@ -364,6 +398,7 @@ jobs:
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.4.4 }
       - name: Download package tarball
         uses: actions/download-artifact@v4
         with:
@@ -392,6 +427,7 @@ jobs:
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm fetch && pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.4.4 }
       - name: Download drizzle-orm tarball
         uses: actions/download-artifact@v4
         with:
