@@ -1,16 +1,17 @@
 {
 	"name": "@drizzle-team/postgres",
-	"version": "0.4.3",
+	"version": "0.4.4",
 	"description": "A minimal, dependency-free PostgreSQL driver for Node, Bun, Deno, and Cloudflare Workers.",
 	"type": "module",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/drizzle-team/postgres.git"
+		"url": "git+https://github.com/drizzle-team/drizzle-orm.git",
+		"directory": "postgres"
 	},
-	"homepage": "https://github.com/drizzle-team/postgres#readme",
+	"homepage": "https://github.com/drizzle-team/drizzle-orm/tree/main/postgres#readme",
 	"bugs": {
-		"url": "https://github.com/drizzle-team/postgres/issues"
+		"url": "https://github.com/drizzle-team/drizzle-orm/issues"
 	},
 	"publishConfig": {
 		"access": "public",
@@ -130,7 +131,7 @@
 		}
 	},
 	"scripts": {
-		"build": "bun node_modules/.bin/tsdown",
+		"build": "tsdown",
 		"prepublishOnly": "bun run typecheck && bun run build && bun run verify:publish",
 		"verify:publish": "node scripts/verify-publish.mjs",
 		"typecheck": "tsc --noEmit",
@@ -162,9 +163,7 @@
 		"bench:pertype": "bun bench/per-type-decode.bench.ts",
 		"bench:chunks": "bun bench/chunks.bench.ts",
 		"bench:mapper-dispatch": "bun bench/mapper-dispatch.bench.ts",
-		"bench:query-decode": "bun bench/query-decode.bench.ts",
-		"db:pull": "drizzle-kit pull",
-		"db:studio": "drizzle-kit studio"
+		"bench:query-decode": "bun bench/query-decode.bench.ts"
 	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.18.5",
@@ -173,9 +172,7 @@
 		"@types/bun": "latest",
 		"@types/pg": "^8.20.0",
 		"cli-highlight": "^2.1.11",
-		"drizzle-kit": "^0.31.10",
-		"drizzle-orm": "^0.45.2",
-		"effect": "~4.0.5",
+		"effect": "4.0.5",
 		"fast-check": "^4.8.0",
 		"mitata": "^1.0.34",
 		"pg": "^8.22.0",

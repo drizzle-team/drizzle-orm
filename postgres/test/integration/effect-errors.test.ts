@@ -128,7 +128,7 @@ describe('SqlError reasons', () => {
 				yield* sql.withTransaction(Effect.gen(function*() {
 					yield* sql`set transaction isolation level repeatable read`;
 					yield* sql.unsafe(`select qty from ${T} where id = 2`);
-					yield* Effect.promise(() => other.query(`update ${T} set qty = qty + 1 where id = 2`).then(() => undefined));
+					yield* Effect.promise(() => other.query(`update ${T} set qty = qty + 1 where id = 2`).then(() => {}));
 					yield* sql.unsafe(`update ${T} set qty = qty + 1 where id = 2`);
 				}));
 			}));
@@ -145,7 +145,7 @@ describe('SqlError reasons', () => {
 				const sql = yield* SqlClient;
 				const conn = yield* sql.reserve;
 				const [row] = yield* conn.executeValues('select pg_backend_pid()', []);
-				yield* Effect.promise(() => killer.query('select pg_terminate_backend($1)', [row![0]]).then(() => undefined));
+				yield* Effect.promise(() => killer.query('select pg_terminate_backend($1)', [row![0]]).then(() => {}));
 				yield* conn.executeValues('select 1', []);
 			})));
 			expect(err.reason._tag).toBe('ConnectionError');

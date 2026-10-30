@@ -1,6 +1,6 @@
 // Pure unit tests for tlsOptions(): the sslmode -> tls.connect option resolution. No network.
 import { describe, expect, test } from 'bun:test';
-import tls from 'node:tls';
+import type tls from 'node:tls';
 import { tlsOptions } from '../../src/transport-node.ts';
 
 describe('tlsOptions: sslmode -> tls.connect options', () => {

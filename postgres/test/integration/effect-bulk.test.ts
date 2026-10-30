@@ -58,7 +58,7 @@ describe('bulk writes', () => {
 			return yield* client.bulkInsert(T, COLUMNS, [[1, 'a'], [1, 'b']]);
 		})));
 		const reason = Exit.isFailure(exit)
-			? (exit.cause.reasons.find(Cause.isFailReason)?.error as { reason: { _tag: string } }).reason._tag
+			? (exit.cause.reasons.find(Cause.isFailReason)?.error as { reason: { _tag: string } } | undefined)?.reason._tag
 			: undefined;
 		expect(reason).toBe('UniqueViolation');
 	});

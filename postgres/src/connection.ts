@@ -2625,6 +2625,7 @@ export class Connection {
 		params: readonly unknown[] = [],
 		opts: StreamOptions = {},
 	): AsyncIterableIterator<Row> {
+		// oxlint-disable-next-line typescript/no-this-alias -- the iterator's own methods rebind `this`
 		const self = this;
 		const buf: Row[] = [];
 		let waiting: { resolve: (r: IteratorResult<Row>) => void; reject: (e: Error) => void } | null = null;
@@ -2726,6 +2727,7 @@ export class Connection {
 		sql: string,
 		opts: { timeout?: number; signal?: AbortSignal; highWaterMark?: number } = {},
 	): AsyncIterableIterator<Uint8Array> & { result: Promise<{ command: string | null; rowCount: number | null }> } {
+		// oxlint-disable-next-line typescript/no-this-alias -- the iterator's own methods rebind `this`
 		const self = this;
 		let chunks: Buffer[] = [];
 		let buffered = 0;

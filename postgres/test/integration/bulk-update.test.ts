@@ -1,7 +1,8 @@
 // bulkUpdate (unnest-join by key + binary array params + adaptive chunking + atomic modes).
 // Requires `bun run test:setup`.
 import { describe, expect, test } from 'bun:test';
-import { caught, PgError, TEST_TIMEOUT, testPool, withConn } from '../helpers/db.ts';
+import type { PgError } from '../helpers/db.ts';
+import { caught, TEST_TIMEOUT, testPool, withConn } from '../helpers/db.ts';
 
 const K = `bu_${process.pid}`;
 const COLS = { id: 'int8', name: 'text', qty: 'int4', price: 'float8' } as const;

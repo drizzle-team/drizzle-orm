@@ -1,7 +1,8 @@
 // Binary param encoding (prepared reuse + declared paramTypes) and the pipelined
 // named-statement burst fix (42P05). Requires `bun run test:setup`.
 import { describe, expect, test } from 'bun:test';
-import { caught, PgError, TEST_TIMEOUT, withConn } from '../helpers/db.ts';
+import type { PgError } from '../helpers/db.ts';
+import { caught, TEST_TIMEOUT, withConn } from '../helpers/db.ts';
 
 const K = `bp_${process.pid}`;
 

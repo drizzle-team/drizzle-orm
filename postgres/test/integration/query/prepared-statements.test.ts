@@ -4,7 +4,8 @@
 // Grounded in src/connection.ts (startTask / handle) — see DOMAIN NOTES.
 // Requires a running cluster: `bun run test:setup`. public.t is READ-ONLY.
 import { describe, expect, test } from 'bun:test';
-import { caught, PgError, TEST_TIMEOUT, testConnect, testPool, withConn } from '../../helpers/db.ts';
+import type { PgError } from '../../helpers/db.ts';
+import { caught, TEST_TIMEOUT, testConnect, testPool, withConn } from '../../helpers/db.ts';
 
 // Unique per-process prefix so concurrently-running suites never collide on
 // statement names visible in pg_prepared_statements (names are per-session, but

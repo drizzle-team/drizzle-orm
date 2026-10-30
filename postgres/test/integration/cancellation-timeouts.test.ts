@@ -9,7 +9,8 @@
 import { describe, expect, test } from 'bun:test';
 import net from 'node:net';
 import { Connection } from '../../src/index.ts';
-import { caught, PgError, TEST_CONFIG, testConnect } from '../helpers/db.ts';
+import type { PgError } from '../helpers/db.ts';
+import { caught, TEST_CONFIG, testConnect } from '../helpers/db.ts';
 
 // A raw-TCP stub: accepts connections and (optionally) runs `onConn` per socket.
 function stubServer(onConn?: (sock: net.Socket) => void): Promise<{ port: number; close: () => Promise<void> }> {

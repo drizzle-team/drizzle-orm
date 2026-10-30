@@ -536,7 +536,7 @@ describe('startup parameters: options + per-session timeouts (R4)', () => {
 			expect(await show(c, 'statement_timeout')).toBe('4500ms');
 			expect(await show(c, 'search_path')).toBe('r4test');
 		} finally {
-			c.end();
+			await c.end();
 		}
 	});
 
@@ -555,7 +555,7 @@ describe('startup parameters: options + per-session timeouts (R4)', () => {
 		try {
 			expect(await show(c, 'search_path')).toBe('r4url');
 		} finally {
-			c.end();
+			await c.end();
 		}
 	});
 
@@ -585,7 +585,7 @@ describe('channel_binding (SCRAM without channel binding)', () => {
 		try {
 			expect((await c.query('select 1 as ok', [], { mode: 'object' })).rows[0]).toEqual({ ok: 1 });
 		} finally {
-			c.end();
+			await c.end();
 		}
 	});
 	test('an unknown channel_binding value fails URL parsing like libpq', async () => {

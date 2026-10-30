@@ -89,7 +89,7 @@ describe('otel() plugin (mock tracer)', () => {
 			startSpan(name: string, opts?: { attributes?: Record<string, unknown> }) {
 				const s = {
 					name,
-					attrs: { ...(opts?.attributes ?? {}) },
+					attrs: { ...opts?.attributes },
 					ended: false,
 					status: undefined as any,
 					exceptions: [] as unknown[],
@@ -188,7 +188,7 @@ describe('multiple plugins compose', () => {
 			spans: [] as any[],
 			startSpan(_n: string, o?: any) {
 				const s = {
-					attrs: { ...(o?.attributes ?? {}) },
+					attrs: { ...o?.attributes },
 					ended: false,
 					setAttributes(a: any) {
 						Object.assign(this.attrs, a);
