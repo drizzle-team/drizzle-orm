@@ -1,4 +1,4 @@
-import type { QueryResult, ShapeSpec } from '@drizzle-team/postgres';
+import type { QueryResult, ShapeSpec } from '#postgres';
 import type { BatchItem } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';

@@ -1,4 +1,4 @@
-import type { Pool } from '@drizzle-team/postgres';
+import type { Pool } from '#postgres';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';

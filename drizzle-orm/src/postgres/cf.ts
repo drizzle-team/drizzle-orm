@@ -1,4 +1,4 @@
-import { createPool, type Pool, type PoolConfig } from '@drizzle-team/postgres/cf';
+import { createPool, type Pool, type PoolConfig } from '#postgres/cf';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { construct, type PostgresDatabase } from './driver-core.ts';
@@ -63,3 +63,5 @@ export namespace drizzle {
 		return construct({} as any, config) as any;
 	}
 }
+
+export * from '#postgres/cf';
