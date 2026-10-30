@@ -144,7 +144,7 @@ importers:
       '@drizzle-team/brocli':
         specifier: 0.12.1
         version: 0.12.1
-      '@drizzle-team/minipg':
+      '@drizzle-team/postgres':
         specifier: 0.4.2
         version: 0.4.2
       '@drizzle-team/test-utils':
@@ -366,7 +366,7 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20251004.0
         version: 4.20251126.0
-      '@drizzle-team/minipg':
+      '@drizzle-team/postgres':
         specifier: 0.4.2
         version: 0.4.2
       '@drizzle-team/test-utils':
@@ -670,7 +670,7 @@ importers:
       '@aws/aurora-dsql-postgresjs-connector':
         specifier: ^0.3.0
         version: 0.3.0(postgres@3.4.7)
-      '@drizzle-team/minipg':
+      '@drizzle-team/postgres':
         specifier: 0.4.2
         version: 0.4.2
       '@effect/sql-d1':
@@ -1846,7 +1846,7 @@ packages:
   '@drizzle-team/brocli@0.12.1':
     resolution: {integrity: sha512-yHwomvolVafvUXhy5TdiJVkuNCxXn+bKOs2aWiWEQh/5YaV97Oa/abJz3dmx7lxgIUsUlS1Jl4mEfvJPo3YsVw==}
 
-  '@drizzle-team/minipg@0.4.2':
+  '@drizzle-team/postgres@0.4.2':
     resolution: {integrity: sha512-pSCO0XuPAr5WQyCqmzYsw/2R9evG35/zq8QEqrr2pT5aMCLRbIbvOEYNHbxN2QSrSw1PscC0WsPlTENsSHcYWw==}
     engines: {node: '>=22.12'}
 
@@ -10890,7 +10890,7 @@ snapshots:
 
   '@drizzle-team/brocli@0.12.1': {}
 
-  '@drizzle-team/minipg@0.4.2': {}
+  '@drizzle-team/postgres@0.4.2': {}
 
   '@duckdb/node-api@1.5.0-r.1':
     dependencies:

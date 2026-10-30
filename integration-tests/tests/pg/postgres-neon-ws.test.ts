@@ -1,8 +1,8 @@
-import { createPool as createNeonWsPool } from '@drizzle-team/minipg/neon-ws';
+import { createPool as createNeonWsPool } from '@drizzle-team/postgres/neon-ws';
 import { defineRelations, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import type { PostgresDatabase } from 'drizzle-orm/postgres';
-import { minipgCodecs } from 'drizzle-orm/postgres/codecs';
+import { postgresCodecs } from 'drizzle-orm/postgres/codecs';
 import { migrate } from 'drizzle-orm/postgres/migrator';
 import { drizzle as drizzleNeonWs } from 'drizzle-orm/postgres/neon-ws';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
@@ -589,7 +589,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute + select via db.execute', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_1', {
+		const usersTable = pgTable('users_execute_raw_postgres_1', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -610,7 +610,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute + returning', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_2', {
+		const usersTable = pgTable('users_execute_raw_postgres_2', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -631,7 +631,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute w/ query builder', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_3', {
+		const usersTable = pgTable('users_execute_raw_postgres_3', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -676,7 +676,7 @@ describe('driver-specific', () => {
 		await push({ en, allTypesTable });
 
 		const relations = defineRelations({ allTypesTable }, allTypesRelations);
-		const db = drizzleNeonWs({ client: (base as any).$client, relations, codecs: minipgCodecs });
+		const db = drizzleNeonWs({ client: (base as any).$client, relations, codecs: postgresCodecs });
 		await db.insert(allTypesTable).values(allTypesData);
 
 		const [flat] = await db.select().from(allTypesTable);

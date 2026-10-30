@@ -1,5 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
-import type { Decoder } from '@drizzle-team/minipg';
+import type { Decoder } from '@drizzle-team/postgres';
 import type { SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import { DrizzleQueryError, is } from 'drizzle-orm';
 import type { AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
@@ -55,7 +55,7 @@ export const preparePostgresDB = async (
 			| '@vercel/postgres'
 			| '@neondatabase/serverless'
 			| 'bun'
-			| '@drizzle-team/minipg';
+			| '@drizzle-team/postgres';
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
 		benchmarkProxy?: BenchmarkProxy;
@@ -149,9 +149,9 @@ export const preparePostgresDB = async (
 				};
 			}
 
-			if (await checkPackage('@drizzle-team/minipg')) {
-				humanLog(withStyle.info(`Using '@drizzle-team/minipg' driver for database querying`));
-				const { createPool } = await import('@drizzle-team/minipg/aurora');
+			if (await checkPackage('@drizzle-team/postgres')) {
+				humanLog(withStyle.info(`Using '@drizzle-team/postgres' driver for database querying`));
+				const { createPool } = await import('@drizzle-team/postgres/aurora');
 				const { drizzle } = await import('drizzle-orm/postgres/aurora');
 				const { migrate } = await import('drizzle-orm/postgres/aurora/migrator');
 
@@ -211,7 +211,7 @@ export const preparePostgresDB = async (
 				};
 
 				return {
-					packageName: '@drizzle-team/minipg',
+					packageName: '@drizzle-team/postgres',
 					query,
 					proxy,
 					transactionProxy,
@@ -219,7 +219,7 @@ export const preparePostgresDB = async (
 				};
 			}
 
-			throw new RequiredEitherPackagesCliError(['@aws-sdk/client-rds-data', '@drizzle-team/minipg']);
+			throw new RequiredEitherPackagesCliError(['@aws-sdk/client-rds-data', '@drizzle-team/postgres']);
 		}
 
 		if (driver === 'pglite') {
@@ -1080,8 +1080,8 @@ export const preparePostgresDB = async (
 		return { packageName: 'bun', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
-	if (await checkPackage('@drizzle-team/minipg')) {
-		const { createPool, parseConnectionString } = await import('@drizzle-team/minipg');
+	if (await checkPackage('@drizzle-team/postgres')) {
+		const { createPool, parseConnectionString } = await import('@drizzle-team/postgres');
 		const { drizzle } = await import('drizzle-orm/postgres');
 		const { migrate } = await import('drizzle-orm/postgres/migrator');
 
@@ -1116,10 +1116,10 @@ export const preparePostgresDB = async (
 		const isNeon = !!host && /\.neon\.tech$/i.test(host);
 
 		humanLog(
-			withStyle.info(`Using '@drizzle-team/minipg'${isNeon ? ' (neon-ws)' : ''} driver for database querying`),
+			withStyle.info(`Using '@drizzle-team/postgres'${isNeon ? ' (neon-ws)' : ''} driver for database querying`),
 		);
 		const client = isNeon
-			? (await import('@drizzle-team/minipg/neon-ws')).createPool({ ...config, webSocketConstructor: ws })
+			? (await import('@drizzle-team/postgres/neon-ws')).createPool({ ...config, webSocketConstructor: ws })
 			: createPool(config);
 
 		const db = drizzle({ client });
@@ -1158,13 +1158,13 @@ export const preparePostgresDB = async (
 			return results;
 		};
 
-		return { packageName: '@drizzle-team/minipg', query, proxy, transactionProxy, migrate: migrateFn };
+		return { packageName: '@drizzle-team/postgres', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	throw new DatabaseDriverCliError(
 		'postgresql',
-		['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', '@drizzle-team/minipg'],
-		"To connect to Postgres database - please install either of 'pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres' or '@drizzle-team/minipg' drivers\nFor the 'bun' driver, run your script using: bun --bun",
+		['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', '@drizzle-team/postgres'],
+		"To connect to Postgres database - please install either of 'pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres' or '@drizzle-team/postgres' drivers\nFor the 'bun' driver, run your script using: bun --bun",
 		"For the 'bun' driver, run your script using: bun --bun",
 	);
 };

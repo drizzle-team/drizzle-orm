@@ -1,5 +1,5 @@
-import type { QueryResult, ShapeSpec } from '@drizzle-team/minipg';
-import type { AuroraClient } from '@drizzle-team/minipg/aurora';
+import type { QueryResult, ShapeSpec } from '@drizzle-team/postgres';
+import type { AuroraClient } from '@drizzle-team/postgres/aurora';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';

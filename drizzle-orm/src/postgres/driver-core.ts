@@ -1,4 +1,4 @@
-import type { Pool } from '@drizzle-team/minipg';
+import type { Pool } from '@drizzle-team/postgres';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -7,7 +7,7 @@ import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
-import { minipgShapeCodecs } from './codecs.ts';
+import { postgresShapeCodecs } from './codecs.ts';
 import type { PostgresClient, PostgresQueryResultHKT } from './session.ts';
 import { PostgresSession } from './session.ts';
 import { buildShape } from './shape.ts';
@@ -38,7 +38,7 @@ export function construct<
 	$client: PostgresClient extends TClient ? Pool : TClient;
 } {
 	const dialect = new PgDialect({
-		codecs: config.codecs ?? minipgShapeCodecs,
+		codecs: config.codecs ?? postgresShapeCodecs,
 		useJitMappers: jitCompatCheck(config.jit),
 		// Shape generator is statically linked to own set of codecs
 		// Overriden codecs are impossible to determine shape for
