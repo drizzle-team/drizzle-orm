@@ -216,6 +216,29 @@ function sqliteTableBase<
 	return table;
 }
 
+export function sqliteTableWithSchema<
+	TTableName extends string,
+	TSchemaName extends string | undefined,
+	TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
+>(
+	name: TTableName,
+	columns: TColumnsMap | ((columnTypes: SQLiteColumnBuilders) => TColumnsMap),
+	extraConfig:
+		| ((
+			self: BuildColumns<TTableName, TColumnsMap, 'sqlite'>,
+		) => SQLiteTableExtraConfig | SQLiteTableExtraConfigValue[])
+		| undefined,
+	schema: TSchemaName,
+	baseName = name,
+): SQLiteTableWithColumns<{
+	name: TTableName;
+	schema: TSchemaName;
+	columns: BuildColumns<TTableName, TColumnsMap, 'sqlite'>;
+	dialect: 'sqlite';
+}> {
+	return sqliteTableBase(name, columns, extraConfig, schema, baseName);
+}
+
 export const sqliteTable: SQLiteTableFn = (name, columns, extraConfig) => {
 	return sqliteTableBase(name, columns, extraConfig);
 };
