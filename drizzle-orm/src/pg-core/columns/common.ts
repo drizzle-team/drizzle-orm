@@ -30,6 +30,10 @@ export interface ReferenceConfig {
 	};
 }
 
+export interface PgGeneratedColumnConfig {
+	mode?: 'virtual' | 'stored';
+}
+
 export interface PgColumnBuilderBase<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TTypeConfig extends object = object,
@@ -83,13 +87,13 @@ export abstract class PgColumnBuilder<
 		return this;
 	}
 
-	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL)): HasGenerated<this, {
+	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: PgGeneratedColumnConfig): HasGenerated<this, {
 		type: 'always';
 	}> {
 		this.config.generated = {
 			as,
 			type: 'always',
-			mode: 'stored',
+			mode: config?.mode ?? 'stored',
 		};
 		return this as HasGenerated<this, {
 			type: 'always';
