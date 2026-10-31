@@ -17,10 +17,20 @@ body:
         - label: I have verified that the bug I'm about to report hasn't been filed before.
           required: true
 
+  - type: textarea
+    id: system-info
+    attributes:
+      label: System Info
+      description: Output of `npx envinfo --system --binaries --npmPackages "{drizzle*,typescript}"`
+      render: shell
+      placeholder: System, Binaries, Packages
+    validations:
+      required: true
+
   - type: input
     attributes:
       label: What version of `drizzle-orm` are you using?
-      description: You can check the version by opening the `package.json` file in your project.
+      description: You can get the resolved version from the above `envinfo` command.
       placeholder: 0.0.0
     validations:
       required: true
@@ -28,7 +38,7 @@ body:
   - type: input
     attributes:
       label: What version of `drizzle-kit` are you using?
-      description: You can check the version by opening the `package.json` file in your project.
+      description: You can get the resolved version from the above `envinfo` command.
       placeholder: 0.0.0
     validations:
       required: true
