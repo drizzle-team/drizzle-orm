@@ -37,13 +37,13 @@ export const authOtp = pgTable("auth_otp", {
 It will generate:
 
 ```SQL
-CREATE TABLE IF NOT EXISTS auth_otp (
+CREATE TABLE auth_otp (
  "id" SERIAL PRIMARY KEY,
  "phone" character varying(256),
  "user_id" INT
 );
 
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE users (
  "id" SERIAL PRIMARY KEY,
  "full_name" character varying(256)
 );
@@ -54,7 +54,7 @@ EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 
-CREATE INDEX IF NOT EXISTS users_full_name_index ON users (full_name);
+CREATE INDEX users_full_name_index ON users (full_name);
 ```
 
 ### Installation & configuration
