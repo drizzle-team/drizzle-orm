@@ -48,8 +48,8 @@ export function countDistinct(expression: SQLWrapper): SQL<number> {
  *
  * @see avgDistinct to get the average of all non-null and non-duplicate values in `expression`
  */
-export function avg(expression: SQLWrapper): SQL<string | null> {
-	return sql`avg(${expression})`.mapWith(String);
+export function avg(expression: SQLWrapper): SQL<number | null> {
+	return sql`avg(${expression})`.mapWith(Number);
 }
 
 /**
@@ -64,8 +64,8 @@ export function avg(expression: SQLWrapper): SQL<string | null> {
  *
  * @see avg to get the average of all non-null values in `expression`, including duplicates
  */
-export function avgDistinct(expression: SQLWrapper): SQL<string | null> {
-	return sql`avg(distinct ${expression})`.mapWith(String);
+export function avgDistinct(expression: SQLWrapper): SQL<number | null> {
+	return sql`avg(distinct ${expression})`.mapWith(Number);
 }
 
 /**
@@ -80,8 +80,8 @@ export function avgDistinct(expression: SQLWrapper): SQL<string | null> {
  *
  * @see sumDistinct to get the sum of all non-null and non-duplicate values in `expression`
  */
-export function sum(expression: SQLWrapper): SQL<string | null> {
-	return sql`sum(${expression})`.mapWith(String);
+export function sum(expression: SQLWrapper): SQL<number | null> {
+	return sql`sum(${expression})`.mapWith(Number);
 }
 
 /**
@@ -96,8 +96,8 @@ export function sum(expression: SQLWrapper): SQL<string | null> {
  *
  * @see sum to get the sum of all non-null values in `expression`, including duplicates
  */
-export function sumDistinct(expression: SQLWrapper): SQL<string | null> {
-	return sql`sum(distinct ${expression})`.mapWith(String);
+export function sumDistinct(expression: SQLWrapper): SQL<number | null> {
+	return sql`sum(distinct ${expression})`.mapWith(Number);
 }
 
 /**
