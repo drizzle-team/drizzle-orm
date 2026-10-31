@@ -272,7 +272,7 @@ function stringColumnToSchema(
 	>['coerce'],
 ): zod.ZodType {
 	if (isColumnType<PgUUID<ColumnBaseConfig<'string', 'PgUUID'>>>(column, ['PgUUID'])) {
-		return z.uuid();
+		return z.guid();
 	}
 
 	let max: number | undefined;
