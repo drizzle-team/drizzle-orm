@@ -675,3 +675,39 @@ test('transaction rejects when pooled connection is dropped', async ({ kit, peer
 		await pool.end();
 	}
 });
+
+test('failed begin on transaction does not return client to the pool', async ({ kit, peer }) => {
+	const url = new URL(process.env['PG_CONNECTION_STRING']!);
+	url.pathname = `/${kit.database}`;
+	const pool = new Pool({ connectionString: url.toString(), max: 1, query_timeout: 1000 });
+	const db = drizzle({ client: pool });
+
+	try {
+		await peer!.query('drop table if exists begin_timeout_probe');
+		await peer!.query('create table begin_timeout_probe (id text primary key)');
+
+		// `begin` response arrives past its own `query_timeout`, but within the next query's
+		const client = await pool.connect();
+		client.release();
+		const stream = (client as any).connection.stream;
+		const { emit } = stream;
+		const held: any[][] = [];
+		stream.emit = (event: string, ...args: any[]) => {
+			if (event !== 'data') return emit.call(stream, event, ...args);
+			held.push(args);
+			return true;
+		};
+		setTimeout(() => {
+			stream.emit = emit;
+			for (const args of held) stream.emit('data', ...args);
+		}, 1500);
+
+		await expect(db.transaction(async () => {})).rejects.toThrow('Failed query: begin');
+
+		await pool.query(`insert into begin_timeout_probe (id) values ('1')`);
+		expect(await peer!.query('select id from begin_timeout_probe')).toEqual([{ id: '1' }]);
+	} finally {
+		await pool.end();
+		await peer!.query('drop table if exists begin_timeout_probe');
+	}
+});

@@ -158,10 +158,10 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 			connectionError ??= e;
 		};
 		poolClient.on('error', onConnectionError);
-		const release = () => {
+		const release = (failure?: Error) => {
 			// broken client is destroyed by the pool, listener stays to absorb any trailing errors
 			if (!connectionError) poolClient.off('error', onConnectionError);
-			poolClient.release(connectionError ?? rollbackError);
+			poolClient.release(connectionError ?? rollbackError ?? failure);
 		};
 		const dialect = new PgDialect({
 			useJitMappers: this.options.useJitMappers,
@@ -184,7 +184,8 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 		try {
 			await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
 		} catch (e) {
-			release();
+			// `begin` may still reach the server after failing on the client, session state is unknown so the client must not be reused
+			release(e as Error);
 			throw e;
 		}
 

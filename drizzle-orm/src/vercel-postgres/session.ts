@@ -94,11 +94,11 @@ export class VercelPgSession<
 			connectionError ??= e;
 		};
 		poolClient?.on('error', onConnectionError);
-		const release = () => {
+		const release = (failure?: Error) => {
 			if (!poolClient) return;
 			// broken client is destroyed by the pool, listener stays to absorb any trailing errors
 			if (!connectionError) poolClient.off('error', onConnectionError);
-			poolClient.release(connectionError ?? rollbackError);
+			poolClient.release(connectionError ?? rollbackError ?? failure);
 		};
 		const session = poolClient
 			? new VercelPgSession(poolClient, this.dialect, this.relations, this.options)
@@ -110,8 +110,16 @@ export class VercelPgSession<
 			undefined,
 			false,
 		);
+
 		try {
 			await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
+		} catch (e) {
+			// `begin` may still reach the server after failing on the client, session state is unknown so the client must not be reused
+			release(e as Error);
+			throw e;
+		}
+
+		try {
 			if (typeof config?.snapshot === 'string') {
 				await tx.execute(tx.setTransactionSnapshotSQL(config.snapshot));
 			}

@@ -86,11 +86,11 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 			connectionError ??= e;
 		};
 		poolClient?.on('error', onConnectionError);
-		const release = () => {
+		const release = (failure?: Error) => {
 			if (!poolClient) return;
 			// broken client is destroyed by the pool, listener stays to absorb any trailing errors
 			if (!connectionError) poolClient.off('error', onConnectionError);
-			poolClient.release(connectionError ?? rollbackError);
+			poolClient.release(connectionError ?? rollbackError ?? failure);
 		};
 		const session = poolClient
 			? new NeonSession(poolClient, this.dialect, this.relations, this.options)
@@ -106,7 +106,8 @@ export class NeonSession<TRelations extends AnyRelations> extends PgAsyncSession
 		try {
 			await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
 		} catch (e) {
-			release();
+			// `begin` may still reach the server after failing on the client, session state is unknown so the client must not be reused
+			release(e as Error);
 			throw e;
 		}
 
