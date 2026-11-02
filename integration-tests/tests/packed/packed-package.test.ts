@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createTestHarness } from 'wrangler';
+import { readSkillsRevisionFromDisk } from '../../../drizzle-kit/scripts/lib/read-skills-revision';
 
 const exec = promisify(execFile);
 
@@ -150,12 +151,13 @@ describe.skipIf(!connectionString)('packed drizzle-orm with its bundled copy of 
 	});
 });
 
+const kitBin = 'node_modules/drizzle-kit/bin.js';
+
 async function pushAndPull(cwd: string, config = 'drizzle.config.ts') {
-	const kit = join(cwd, 'node_modules/drizzle-kit/bin.cjs');
 	await runScript(consumerNode, ['reset.js'], cwd);
 	rmSync(join(cwd, 'drizzle'), { recursive: true, force: true });
-	const push = await runScript(consumerNode, [kit, 'push', '--config', config], cwd);
-	const pull = await runScript(consumerNode, [kit, 'pull', '--config', config], cwd);
+	const push = await runScript(consumerNode, [kitBin, 'push', '--config', config], cwd);
+	const pull = await runScript(consumerNode, [kitBin, 'pull', '--config', config], cwd);
 	return { push, pull, pulledSchema: readFileSync(join(cwd, 'drizzle/schema.ts'), 'utf8') };
 }
 
@@ -176,6 +178,34 @@ describe.skipIf(!connectionString)('packed drizzle-kit with packed drizzle-orm a
 	test('drizzle-kit push and pull connect through drizzle-orm/postgres', async () => {
 		expectPostgresPushAndPull(await pushAndPull(consumer()));
 	});
+
+	test('require() loads drizzle-kit/api-postgres and generates a migration', async () => {
+		const output = await runScript(consumerNode, ['require.cjs'], consumer());
+		expect(JSON.parse(output)).toEqual([expect.stringContaining('CREATE TABLE "users"')]);
+	});
+
+	test('a CommonJS config that requires drizzle-orm reports the Node range without require(esm)', async () => {
+		const failure = await exec(
+			consumerNode,
+			['--no-experimental-require-module', kitBin, 'generate', '--config', 'require-esm.config.cjs'],
+			{ cwd: consumer() },
+		).catch((error) => error);
+		const kitPackage = JSON.parse(readFileSync(join(consumer(), 'node_modules/drizzle-kit/package.json'), 'utf8'));
+		expect(`${failure.stdout ?? ''}${failure.stderr ?? ''}`).toContain(
+			`drizzle-kit requires Node.js ${kitPackage.engines.node}`,
+		);
+	});
+
+	test('drizzle-kit skills version prints the revision of the shipped skills', async () => {
+		const revision = readSkillsRevisionFromDisk(join(consumer(), 'node_modules/drizzle-kit/skills'));
+		expect(await runScript(consumerNode, [kitBin, 'skills', 'version'], consumer())).toBe(`${revision}\n`);
+	});
+
+	test('drizzle-kit skills installs the shipped skills', async () => {
+		// Without a TTY, the skills CLI installs without a prompt only when it detects an agent.
+		await exec(consumerNode, [kitBin, 'skills'], { cwd: consumer(), env: { ...process.env, AI_AGENT: 'opencode' } });
+		expect(existsSync(join(consumer(), '.agents/skills/drizzle/SKILL.md'))).toBe(true);
+	}, 180_000);
 });
 
 describe.skipIf(!connectionString)(

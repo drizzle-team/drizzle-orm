@@ -3,8 +3,8 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseSkillsRevision, readSkillsRevisionFromDisk } from './lib/read-skills-revision';
 
-const REPO_ROOT = resolve(__dirname, '..', '..');
-const SKILLS_DIR = resolve(__dirname, '..', 'skills');
+const REPO_ROOT = resolve(import.meta.dirname, '..', '..');
+const SKILLS_DIR = resolve(import.meta.dirname, '..', 'skills');
 const UMBRELLA_RELPATH = 'drizzle-kit/skills/drizzle/SKILL.md';
 
 const sh = (cmd: string, args: string[]) => spawnSync(cmd, args, { cwd: REPO_ROOT, encoding: 'utf8' });

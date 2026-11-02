@@ -359,7 +359,6 @@ jobs:
     strategy:
       matrix:
         package:
-          - drizzle-kit
           - drizzle-seed
           - drizzle-typebox
           - eslint-plugin-drizzle
@@ -439,10 +438,13 @@ jobs:
           ATTW_FORMAT: concise
 
 
-  attw-orm:
+  attw-esm:
     strategy:
       matrix:
-        shard:
+        package:
+          - drizzle-orm
+          - drizzle-kit
+        mode:
           - node16-esm
           - bundler
     runs-on: ubuntu-22.04
@@ -487,8 +489,8 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
 
-      - name: Check preconditions
-        id: checks
+      - name: Check drizzle-orm preconditions
+        if: matrix.package == 'drizzle-orm'
         shell: bash
         working-directory: drizzle-orm
         run: |
@@ -502,26 +504,35 @@ jobs:
             echo "\`drizzle-orm$version\` already published, adding tag \`$tag\`" >> $GITHUB_STEP_SUMMARY
             npm dist-tag add drizzle-orm@$version $tag
           else
-            {
-              echo "version=$version"
-              echo "tag=$tag"
-              echo "has_new_release=true"
-            } >> $GITHUB_OUTPUT
+            echo "HAS_NEW_RELEASE=true" >> $GITHUB_ENV
+          fi
+
+      - name: Check drizzle-kit preconditions
+        if: matrix.package == 'drizzle-kit'
+        shell: bash
+        working-directory: drizzle-kit
+        run: |
+          latest="$(npm view --json drizzle-kit dist-tags.latest | jq -r)"
+          version="$(jq -r .version package.json)"
+          is_version_published="$(npm view drizzle-kit versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
+
+          if [[ "$is_version_published" == "false" && "$latest" != "$version" ]]; then
+            echo "HAS_NEW_RELEASE=true" >> $GITHUB_ENV
           fi
 
       - name: Build
-        if: steps.checks.outputs.has_new_release == 'true'
+        if: env.HAS_NEW_RELEASE == 'true'
         run: pnpm build
-      
+
       - name: Pack
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: drizzle-orm
+        if: env.HAS_NEW_RELEASE == 'true'
+        working-directory: ${{ matrix.package }}
         run: npm run pack
-  
+
       - name: Run @arethetypeswrong/cli
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: drizzle-orm
-        run: bun --bun run ../attw-fork/src/run.ts package.tgz ${{ matrix.shard }}
+        if: env.HAS_NEW_RELEASE == 'true'
+        working-directory: ${{ matrix.package }}
+        run: bun --bun run ../attw-fork/src/run.ts package.tgz ${{ matrix.mode }}
         env:
           ATTW_FORMAT: concise
 
@@ -712,7 +723,7 @@ jobs:
     needs:
       - test
       - attw
-      - attw-orm
+      - attw-esm
       - publint-orm
       - packed-orm
     strategy:

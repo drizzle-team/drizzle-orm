@@ -406,19 +406,19 @@ jobs:
           path: ./artifacts
       - name: Run @arethetypeswrong/cli
         run: |
-          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-kit/package.tgz
           bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-seed/package.tgz
           bun --bun run ./attw-fork/src/run.ts ./artifacts/eslint-plugin-drizzle/package.tgz
         env:
           ATTW_FORMAT: concise
 
-  attw-orm:
+  attw-esm:
     needs: [prepare]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       matrix:
-        package: [node16-esm, bundler]
+        package: [drizzle-orm, drizzle-kit]
+        mode: [node16-esm, bundler]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -428,14 +428,14 @@ jobs:
       - run: pnpm fetch && pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
-      - name: Download drizzle-orm tarball
+      - name: Download package tarballs
         uses: actions/download-artifact@v8
         with:
           name: packages
           path: ./artifacts
       - name: Run @arethetypeswrong/cli
-        working-directory: drizzle-orm
-        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-orm/package.tgz ${{ matrix.package }}
+        working-directory: ${{ matrix.package }}
+        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/${{ matrix.package }}/package.tgz ${{ matrix.mode }}
         env:
           ATTW_FORMAT: concise
 
@@ -521,7 +521,7 @@ jobs:
           pnpm skills:revision:check
 
   release:
-    needs: [test, prepare, attw, attw-orm, publint-orm, packed-orm, skills-revision-gate]
+    needs: [test, prepare, attw, attw-esm, publint-orm, packed-orm, skills-revision-gate]
     # workflow_dispatch only: this job holds `id-token: write` and is the sole path to
     # the publish step, so PR/push events must never enter it — that would both expose
     # OIDC minting to untrusted PR code and auto-publish on push.

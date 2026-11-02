@@ -5,6 +5,7 @@ import { renderWithTask } from 'hanji';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { dialects } from '../utils/schemaValidator';
 import '../@types/utils';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
@@ -1321,12 +1322,8 @@ export const skills = command({
 	options: {},
 	subcommands: [skillsVersion],
 	handler: async () => {
-		// Look for `package.json`'s folder and grab skills from there
-		// prevents build stucture changes from breaking skills' loading
-		let packageRoot = __dirname;
-		while (!existsSync(resolve(packageRoot, 'package.json')) && dirname(packageRoot) !== packageRoot) {
-			packageRoot = dirname(packageRoot);
-		}
+		// The export of the package itself gives its root, in the published layout and in this tree.
+		const packageRoot = dirname(fileURLToPath(import.meta.resolve('drizzle-kit')));
 		const skillsDir = resolve(packageRoot, 'skills');
 		if (!existsSync(skillsDir)) {
 			process.stderr.write('Could not locate bundled skills directory.\n');
