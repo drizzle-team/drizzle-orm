@@ -66,7 +66,10 @@ import {
 	allTypesRelations,
 	assertAllTypesBounds,
 	assertAllTypesEmptyArrays,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	makeAllTypes,
 } from './all-types';
 import { TestCache } from './instrumentation';
@@ -2784,7 +2787,10 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 							),
 						);
 
-					const relDb = yield* createDB({ allTypesTable }, allTypesRelations);
+					const relDb = yield* createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+						...allTypesRelations(r),
+						...boundsRelations(r),
+					}));
 
 					const { relationRes, rootRes } = yield* session.objects<AllTypes & { self: AllTypes[] }>(
 						relDb.query.allTypesTable.findFirst({
@@ -2820,7 +2826,13 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 						assertAllTypesUnions(relDb as any, allTypesTable, (query) => Effect.runPromiseWith(context)(query))
 					);
 					yield* Effect.promise(() =>
-						assertAllTypesBounds(relDb as any, (query) => Effect.runPromiseWith(context)(query))
+						assertAllTypesBounds(relDb as any, { run: (query) => Effect.runPromiseWith(context)(query), rqb: true })
+					);
+					yield* Effect.promise(() =>
+						assertAllTypesTemporalBounds(relDb as any, {
+							run: (query) => Effect.runPromiseWith(context)(query),
+							rqb: true,
+						})
 					);
 					yield* Effect.promise(() =>
 						assertAllTypesEmptyArrays(relDb as any, allTypesTable, {

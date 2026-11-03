@@ -12,7 +12,10 @@ import {
 	allTypesRelations,
 	allTypesTable as allTypesCodecsTable,
 	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	createAllTypes,
 	dropAllTypes,
 	makeAllTypes,
@@ -902,6 +905,7 @@ test('all types', async () => {
 
 		await assertAllTypesUnions(db as any, allTypesTable);
 		await assertAllTypesBounds(db as any);
+		await assertAllTypesTemporalBounds(db as any);
 	} finally {
 		await db.run(sql.raw(dropAllTypes('all_types')));
 	}
@@ -909,7 +913,13 @@ test('all types', async () => {
 
 test('all types ~codecs~', async () => {
 	const allTypesTable = allTypesCodecsTable;
-	const cdcsDb = drizzle({ client, relations: defineRelations({ allTypesTable }, allTypesRelations) });
+	const cdcsDb = drizzle({
+		client,
+		relations: defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
+			...allTypesRelations(r),
+			...boundsRelations(r),
+		})),
+	});
 
 	await cdcsDb.run(sql.raw(dropAllTypes('all_types_cdcs')));
 	await cdcsDb.run(sql.raw(createAllTypes('all_types_cdcs')));
@@ -943,7 +953,8 @@ test('all types ~codecs~', async () => {
 		expect(rootRes).toStrictEqual(allTypesData);
 
 		await assertAllTypesUnions(cdcsDb as any);
-		await assertAllTypesBounds(cdcsDb as any);
+		await assertAllTypesBounds(cdcsDb as any, { rqb: true });
+		await assertAllTypesTemporalBounds(cdcsDb as any, { rqb: true });
 	} finally {
 		await cdcsDb.run(sql.raw(dropAllTypes('all_types_cdcs')));
 	}

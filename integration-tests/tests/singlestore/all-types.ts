@@ -560,7 +560,7 @@ export const boundsData: BoundsRow[] = [
 
 export async function assertAllTypesBounds(
 	db: SingleStoreDriverDatabase<any>,
-	run: RunQuery = awaitQuery,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
 ) {
 	await run(db.execute(sql.raw(dropBounds())));
 	await run(db.execute(sql.raw(createBounds())));
@@ -573,7 +573,165 @@ export async function assertAllTypesBounds(
 		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<BoundsRow[]>();
 
 		expect(await run(query)).toStrictEqual(boundsData);
+		if (rqb) {
+			expect(
+				await run((<any> db).query.boundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
+			).toStrictEqual(boundsData.map((row) => ({ ...row, self: [row] })));
+		}
 	} finally {
 		await run(db.execute(sql.raw(dropBounds())));
 	}
 }
+
+const TEMPORAL_TABLE = 'all_types_temporal_bounds';
+
+export const temporalBoundsTable = singlestoreTable(TEMPORAL_TABLE, {
+	id: int('id').primaryKey(),
+	date: date('date', { mode: 'date' }),
+	dateStr: date('date_str', { mode: 'string' }),
+	datetime: datetime('datetime', { mode: 'date' }),
+	datetimeStr: datetime('datetime_str', { mode: 'string' }),
+	timestamp: timestamp('timestamp', { mode: 'date' }),
+	timestampStr: timestamp('timestamp_str', { mode: 'string' }),
+	time: time('time'),
+	year: year('year'),
+});
+
+export type TemporalBoundsRow = {
+	id: number;
+	date: Date | null;
+	dateStr: string | null;
+	datetime: Date | null;
+	datetimeStr: string | null;
+	timestamp: Date | null;
+	timestampStr: string | null;
+	time: string | null;
+	year: number | null;
+};
+
+export const createTemporalBounds = (tableName: string = TEMPORAL_TABLE) =>
+	`create table \`${tableName}\` (
+		\`id\` int primary key,
+		\`date\` date,
+		\`date_str\` date,
+		\`datetime\` datetime(6),
+		\`datetime_str\` datetime(6),
+		\`timestamp\` timestamp(6) null,
+		\`timestamp_str\` timestamp(6) null,
+		\`time\` time,
+		\`year\` year
+	)`;
+
+export const dropTemporalBounds = (tableName: string = TEMPORAL_TABLE) => `drop table if exists \`${tableName}\``;
+
+/*
+	`date` / `datetime` - years 1000 - 9999, anything earlier is rejected
+	`timestamp` - 1970-01-01 00:00:01 - 2038-01-19 03:14:07.999999 UTC, anything outside is silently stored as the zero date
+	`time` - an interval of ±838:59:59
+	`year` - 1901 - 2155.
+	Fractional precision can only be 0 or 6.
+*/
+export const temporalBoundsData: TemporalBoundsRow[] = [
+	{
+		id: 1,
+		date: new Date('1970-01-01T00:00:00.000Z'),
+		dateStr: '1970-01-01',
+		datetime: new Date('1970-01-01T00:00:00.000Z'),
+		datetimeStr: '1970-01-01 00:00:00.000000',
+		timestamp: new Date('1970-01-01T00:00:01.000Z'),
+		timestampStr: '1970-01-01 00:00:01.000000',
+		time: '00:00:00',
+		year: 1901,
+	},
+	{
+		id: 2,
+		date: new Date('1969-12-31T00:00:00.000Z'),
+		dateStr: '1969-12-31',
+		datetime: new Date('1969-12-31T23:59:59.999Z'),
+		datetimeStr: '1969-12-31 23:59:59.999999',
+		timestamp: new Date('2038-01-19T03:14:07.999Z'),
+		timestampStr: '2038-01-19 03:14:07.999999',
+		time: '838:59:59',
+		year: 2155,
+	},
+	{
+		id: 3,
+		date: new Date('2024-02-29T00:00:00.000Z'),
+		dateStr: '2024-02-29',
+		datetime: new Date('2024-02-29T12:34:56.789Z'),
+		datetimeStr: '2024-02-29 12:34:56.789000',
+		timestamp: new Date('2024-02-29T12:34:56.789Z'),
+		timestampStr: '2024-02-29 12:34:56.789000',
+		time: '-838:59:59',
+		year: 2024,
+	},
+	{
+		id: 4,
+		date: new Date('1000-01-01T00:00:00.000Z'),
+		dateStr: '1000-01-01',
+		datetime: new Date('1000-01-01T00:00:00.000Z'),
+		datetimeStr: '1000-01-01 00:00:00.000000',
+		timestamp: null,
+		timestampStr: null,
+		time: null,
+		year: null,
+	},
+	{
+		id: 5,
+		date: new Date('9999-12-31T00:00:00.000Z'),
+		dateStr: '9999-12-31',
+		datetime: new Date('9999-12-31T23:59:59.999Z'),
+		datetimeStr: '9999-12-31 23:59:59.999999',
+		timestamp: null,
+		timestampStr: null,
+		time: null,
+		year: null,
+	},
+	{
+		id: 6,
+		date: null,
+		dateStr: null,
+		datetime: null,
+		datetimeStr: null,
+		timestamp: null,
+		timestampStr: null,
+		time: null,
+		year: null,
+	},
+];
+
+export async function assertAllTypesTemporalBounds(
+	db: SingleStoreDriverDatabase<any>,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
+) {
+	await run(db.execute(sql.raw(dropTemporalBounds())));
+	await run(db.execute(sql.raw(createTemporalBounds())));
+
+	try {
+		await run(db.insert(temporalBoundsTable).values(temporalBoundsData));
+
+		// pinned on the builder rather than on the awaited value, because `run` erases the type
+		const query = db.select().from(temporalBoundsTable).orderBy(temporalBoundsTable.id);
+		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<TemporalBoundsRow[]>();
+
+		expect(await run(query)).toStrictEqual(temporalBoundsData);
+		if (rqb) {
+			expect(
+				await run((<any> db).query.temporalBoundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
+			).toStrictEqual(temporalBoundsData.map((row) => ({ ...row, self: [row] })));
+		}
+	} finally {
+		await run(db.execute(sql.raw(dropTemporalBounds())));
+	}
+}
+
+export const boundsSchema = { boundsTable, temporalBoundsTable };
+
+export const boundsRelations = (r: RelationsBuilder<typeof boundsSchema>) => ({
+	boundsTable: {
+		self: r.many.boundsTable({ from: r.boundsTable.id, to: r.boundsTable.id }),
+	},
+	temporalBoundsTable: {
+		self: r.many.temporalBoundsTable({ from: r.temporalBoundsTable.id, to: r.temporalBoundsTable.id }),
+	},
+});

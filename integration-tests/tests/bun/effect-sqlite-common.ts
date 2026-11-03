@@ -63,6 +63,7 @@ import {
 	allTypesData,
 	allTypesInput,
 	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
 	makeAllTypes,
 } from '../sqlite/all-types';
@@ -264,7 +265,8 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				const run = (query: any) => Effect.runPromiseWith(context)(query);
 
 				yield* Effect.promise(() => assertAllTypesUnions(db as any, allTypesTable, run));
-				yield* Effect.promise(() => assertAllTypesBounds(db as any, run));
+				yield* Effect.promise(() => assertAllTypesBounds(db as any, { run }));
+				yield* Effect.promise(() => assertAllTypesTemporalBounds(db as any, { run }));
 			}));
 
 		it.effect('all types ~json~', () =>

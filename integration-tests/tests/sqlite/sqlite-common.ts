@@ -67,7 +67,10 @@ import {
 	allTypesRelations,
 	allTypesTable as allTypesCodecsTable,
 	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	dropAllTypes,
 	makeAllTypes,
 } from './all-types';
@@ -5804,11 +5807,15 @@ export function tests(test: Test, exclude: string[] = []) {
 
 			await assertAllTypesUnions(db, allTypesTable);
 			await assertAllTypesBounds(db);
+			await assertAllTypesTemporalBounds(db);
 		});
 
 		test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
 			const allTypesTable = allTypesCodecsTable;
-			const db = createDB({ allTypesTable }, allTypesRelations);
+			const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+				...allTypesRelations(r),
+				...boundsRelations(r),
+			}));
 
 			await db.run(sql.raw(dropAllTypes('all_types_cdcs')));
 			await push({ allTypesTable });
@@ -5841,7 +5848,8 @@ export function tests(test: Test, exclude: string[] = []) {
 			expect(rootRes).toStrictEqual(allTypesData);
 
 			await assertAllTypesUnions(db as any);
-			await assertAllTypesBounds(db as any);
+			await assertAllTypesBounds(db as any, { rqb: true });
+			await assertAllTypesTemporalBounds(db as any, { rqb: true });
 		});
 
 		test.concurrent('all types ~json~', async ({ db, push }) => {

@@ -43,7 +43,14 @@ import {
 import { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
 import { expect, expectTypeOf } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
-import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from './all-types';
+import {
+	allTypesCodecsTable,
+	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
+	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
+} from './all-types';
 import type { Test } from './instrumentation';
 import { createUsersOnUpdateTable, createUserTable } from './schema2';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -1695,7 +1702,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 	test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
 		const db = createDB({
-			schema: { allTypesTable: allTypesCodecsTable },
+			schema: { allTypesTable: allTypesCodecsTable, ...boundsSchema },
 			cb: (r) => ({
 				allTypesTable: {
 					self: r.many.allTypesTable({
@@ -1703,6 +1710,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 						to: r.allTypesTable.serial,
 					}),
 				},
+				...boundsRelations(r),
 			}),
 		});
 		await push({ allTypesCodecsTable });
@@ -1828,7 +1836,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				self: true,
 			},
 		}).getSQL();
-		if (!is(db, TiDBServerlessDatabase)) {
+		const rqb = !is(db, TiDBServerlessDatabase);
+		if (rqb) {
 			const { relationRes, rootRes } = await session.objects(relationSQL).then((e) => {
 				const [{ self: relationRaw, ...rootRaw }] = e as [Record<string, any>];
 
@@ -1852,7 +1861,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			expect(rootRes).toStrictEqual(testData);
 		}
 
-		await assertAllTypesBounds(db);
+		await assertAllTypesBounds(db, { rqb });
+		await assertAllTypesTemporalBounds(db, { rqb });
 	});
 
 	test.concurrent('all types ~json~', async ({ db, push }) => {

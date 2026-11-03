@@ -51,7 +51,14 @@ import { SqlError } from 'effect/sql/SqlError';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import { expectRecentTime } from '~/recent-time';
 import type { AllTypes } from './all-types';
-import { allTypesData, allTypesInput, assertAllTypesBounds, assertAllTypesUnions, makeAllTypes } from './all-types';
+import {
+	allTypesData,
+	allTypesInput,
+	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
+	assertAllTypesUnions,
+	makeAllTypes,
+} from './all-types';
 import { TestCache } from './instrumentation';
 import relations from './relations';
 import { rqbPost, rqbUser } from './schema';
@@ -255,7 +262,8 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				const run = (query: any) => Effect.runPromiseWith(context)(query);
 
 				yield* Effect.promise(() => assertAllTypesUnions(db as any, allTypesTable, run));
-				yield* Effect.promise(() => assertAllTypesBounds(db as any, run));
+				yield* Effect.promise(() => assertAllTypesBounds(db as any, { run }));
+				yield* Effect.promise(() => assertAllTypesTemporalBounds(db as any, { run }));
 			}));
 
 		it.effect('all types ~json~', () =>

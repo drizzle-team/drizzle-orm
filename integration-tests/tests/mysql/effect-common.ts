@@ -77,7 +77,14 @@ import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import { expectRecentTime } from '~/recent-time';
-import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from './all-types';
+import {
+	allTypesCodecsTable,
+	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
+	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
+} from './all-types';
 import { TestCache } from './instrumentation';
 import relations from './relations';
 import { rqbPost, rqbUser } from './schema';
@@ -466,13 +473,14 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 
 		it.effect('all types ~codecs~', () =>
 			Effect.gen(function*() {
-				const db = yield* createDB({ allTypesTable: allTypesCodecsTable }, (r) => ({
+				const db = yield* createDB({ allTypesTable: allTypesCodecsTable, ...boundsSchema }, (r) => ({
 					allTypesTable: {
 						self: r.many.allTypesTable({
 							from: r.allTypesTable.serial,
 							to: r.allTypesTable.serial,
 						}),
 					},
+					...boundsRelations(r),
 				}));
 				yield* push(db, { allTypesCodecsTable });
 
@@ -619,7 +627,12 @@ export const runCommonEffectMySqlTests = (opts: RunCommonEffectMySqlTestsOptions
 				);
 
 				const context = yield* Effect.context<never>();
-				yield* Effect.promise(() => assertAllTypesBounds(db as any, (query) => Effect.runPromiseWith(context)(query)));
+				yield* Effect.promise(() =>
+					assertAllTypesBounds(db as any, { run: (query) => Effect.runPromiseWith(context)(query), rqb: true })
+				);
+				yield* Effect.promise(() =>
+					assertAllTypesTemporalBounds(db as any, { run: (query) => Effect.runPromiseWith(context)(query), rqb: true })
+				);
 			}));
 
 		it.effect('all types ~json~', () =>

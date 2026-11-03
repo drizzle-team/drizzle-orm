@@ -15,8 +15,12 @@ import {
 	allTypesTable,
 	assertAllTypesBounds,
 	assertAllTypesEmptyArrays,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	makeAllTypes,
+	temporalBoundsDataMinipg,
 } from './all-types';
 import { tests } from './common';
 import { postgresNeonHttpTest as test } from './instrumentation';
@@ -34,6 +38,7 @@ const skips = [
 	'RQB v2 transaction find many - placeholders',
 	'transaction with options (set isolationLevel)',
 	'time zones are preserved - non-UTC session',
+	'all types ~codecs~ - non-UTC session',
 	'transaction with options (accessMode read only)',
 	'transaction with options (deferrable)',
 	'transaction with an empty options object',
@@ -718,6 +723,9 @@ describe('driver-specific', () => {
 
 		await assertAllTypesUnions(db);
 		await assertAllTypesBounds(db);
+		await assertAllTypesTemporalBounds(db, {
+			data: Date.now() < +new Date('2026-11-24') ? temporalBoundsDataMinipg : undefined,
+		});
 
 		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 	});
@@ -729,7 +737,10 @@ describe('driver-specific', () => {
 		const base = createDB({ allTypesTable }, allTypesRelations);
 		await push({ en, allTypesTable });
 
-		const relations = defineRelations({ allTypesTable }, allTypesRelations);
+		const relations = defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
+			...allTypesRelations(r),
+			...boundsRelations(r),
+		}));
 		const db = drizzleNeonHttp({ client: (base as any).$client, relations, codecs: minipgCodecs });
 		await db.insert(allTypesTable).values(allTypesData);
 
@@ -740,7 +751,8 @@ describe('driver-specific', () => {
 		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 		await assertAllTypesUnions(db, allTypesTable);
-		await assertAllTypesBounds(db);
+		await assertAllTypesBounds(db, { rqb: true });
+		await assertAllTypesTemporalBounds(db, { rqb: true });
 
 		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 	});

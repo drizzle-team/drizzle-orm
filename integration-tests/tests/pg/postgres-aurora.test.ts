@@ -33,8 +33,12 @@ import {
 	allTypesTable,
 	assertAllTypesBounds,
 	assertAllTypesEmptyArrays,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	makeAllTypes,
+	temporalBoundsDataMinipg,
 } from './all-types';
 import { tests } from './common';
 import { awsDataApiConfig, postgresAuroraTest as test } from './instrumentation';
@@ -1109,6 +1113,9 @@ describe('postgres/aurora', () => {
 
 			await assertAllTypesUnions(db);
 			await assertAllTypesBounds(db);
+			await assertAllTypesTemporalBounds(db, {
+				data: Date.now() < +new Date('2026-11-24') ? temporalBoundsDataMinipg : undefined,
+			});
 
 			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 		});
@@ -1120,7 +1127,10 @@ describe('postgres/aurora', () => {
 			const base = createDB({ allTypesTable }, allTypesRelations);
 			await push({ en, allTypesTable });
 
-			const relations = defineRelations({ allTypesTable }, allTypesRelations);
+			const relations = defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
+				...allTypesRelations(r),
+				...boundsRelations(r),
+			}));
 			const db = drizzleAurora({ client: (base as any).$client, relations, codecs: minipgAuroraCodecs });
 			await db.insert(allTypesTable).values(allTypesData);
 
@@ -1131,7 +1141,8 @@ describe('postgres/aurora', () => {
 			expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 			await assertAllTypesUnions(db, allTypesTable);
-			await assertAllTypesBounds(db);
+			await assertAllTypesBounds(db, { rqb: true });
+			await assertAllTypesTemporalBounds(db, { rqb: true });
 
 			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 		});

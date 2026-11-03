@@ -102,7 +102,13 @@ import { allTypesData, makeAllTypes, withEmptyArrays } from '~/pg/all-types';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { normalizeDataWithDbCodecs } from '~/pg/utils';
 import { Expect } from '~/utils';
-import { assertAllTypesBounds } from '../pg/all-types';
+import {
+	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
+	assertAllTypesTemporalBoundsInSessionTimeZones,
+	boundsRelations,
+	boundsSchema,
+} from '../pg/all-types';
 import { relations } from '../pg/relations';
 import {
 	assertMalformedSnapshotRejected,
@@ -6353,13 +6359,14 @@ test('all types ~codecs~', async () => {
 	});
 
 	const db = drizzle(process.env['PG_CONNECTION_STRING']!, {
-		relations: defineRelations({ allTypesTable }, (r) => ({
+		relations: defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
 			allTypesTable: {
 				self: r.many.allTypesTable({
 					from: r.allTypesTable.serial,
 					to: r.allTypesTable.serial,
 				}),
 			},
+			...boundsRelations(r),
 		})),
 	});
 
@@ -7349,7 +7356,8 @@ test('all types ~codecs~', async () => {
 		},
 	]));
 
-	await assertAllTypesBounds(db);
+	await assertAllTypesBounds(db, { rqb: true });
+	await assertAllTypesTemporalBounds(db, { rqb: true });
 
 	const emptyArrays = withEmptyArrays(testData);
 	await db.delete(allTypesTable);
@@ -8503,6 +8511,14 @@ test('time zones are preserved', async () => {
 
 	expect(await db.select().from(tzTypes)).toStrictEqual([expected]);
 	expect(await db.query.tzTypes.findFirst({ with: { self: true } })).toStrictEqual({ ...expected, self: [expected] });
+});
+
+test('all types ~codecs~ - non-UTC session', async () => {
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, {
+		relations: defineRelations({ ...boundsSchema }, boundsRelations),
+	});
+
+	await assertAllTypesTemporalBoundsInSessionTimeZones(db, { rqb: true });
 });
 
 test('time zones are preserved - non-UTC session', async () => {

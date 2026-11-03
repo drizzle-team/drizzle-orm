@@ -5,6 +5,7 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
+	defineRelations,
 	desc,
 	DrizzleError,
 	DrizzleQueryError,
@@ -67,7 +68,10 @@ import {
 	allTypesData,
 	allTypesTable as allTypesCodecsTable,
 	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	createAllTypes,
 	makeAllTypes,
 } from './all-types';
@@ -530,7 +534,7 @@ test('all types', async ({ db, push }) => {
 });
 
 test('all types ~codecs~', async ({ client }) => {
-	const db = drizzle({ client: client as any, relations: {} as any });
+	const db = drizzle({ client: client as any, relations: defineRelations(boundsSchema, boundsRelations) });
 
 	await db.execute(sql`drop table if exists [all_types_codecs]`);
 	await db.execute(sql.raw(createAllTypes('all_types_codecs')));
@@ -543,7 +547,8 @@ test('all types ~codecs~', async ({ client }) => {
 		expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
 		expect(rawRes).toStrictEqual([allTypesData]);
 
-		await assertAllTypesBounds(db);
+		await assertAllTypesBounds(db, { rqb: true });
+		await assertAllTypesTemporalBounds(db, { rqb: true });
 	} finally {
 		await db.execute(sql`drop table if exists [all_types_codecs]`);
 	}

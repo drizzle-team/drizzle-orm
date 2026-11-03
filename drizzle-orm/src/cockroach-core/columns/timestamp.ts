@@ -2,7 +2,7 @@ import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.t
 import { entityKind } from '~/entity.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { CockroachColumn, type CockroachColumnBaseConfig, type CockroachColumnBuilderRuntimeConfig } from './common.ts';
-import { CockroachDateColumnBaseBuilder } from './date.common.ts';
+import { CockroachDateColumnBaseBuilder, dateToTimestampText } from './date.common.ts';
 
 export class CockroachTimestampBuilder extends CockroachDateColumnBaseBuilder<
 	{
@@ -59,7 +59,7 @@ export class CockroachTimestamp<T extends CockroachColumnBaseConfig<'object date
 
 	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
-		return value.toISOString();
+		return dateToTimestampText(value);
 	};
 }
 
@@ -118,7 +118,7 @@ export class CockroachTimestampString<T extends CockroachColumnBaseConfig<'strin
 
 	override mapToDriverValue = (value: Date | string): string => {
 		if (typeof value === 'string') return value;
-		return value.toISOString();
+		return dateToTimestampText(value);
 	};
 }
 

@@ -98,7 +98,14 @@ import { v4 as uuid } from 'uuid';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import { normalizeDataWithDbCodecs } from '~/mysql/utils';
 import { type Equal, Expect } from '~/utils';
-import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from '../mysql/all-types';
+import {
+	allTypesCodecsTable,
+	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
+	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
+} from '../mysql/all-types';
 
 export const rqbUser = mysqlTable('user_rqb_test', {
 	id: serial().primaryKey().notNull(),
@@ -6192,13 +6199,14 @@ test('sql operator as cte', async () => {
 test('all types ~codecs~', async () => {
 	const db = drizzle({
 		client,
-		relations: defineRelations({ allTypesTable: allTypesCodecsTable }, (r) => ({
+		relations: defineRelations({ allTypesTable: allTypesCodecsTable, ...boundsSchema }, (r) => ({
 			allTypesTable: {
 				self: r.many.allTypesTable({
 					from: r.allTypesTable.serial,
 					to: r.allTypesTable.serial,
 				}),
 			},
+			...boundsRelations(r),
 		})),
 	});
 
@@ -6357,7 +6365,8 @@ test('all types ~codecs~', async () => {
 
 	await assertAllTypesUnions(db, allTypesCodecsTable);
 
-	await assertAllTypesBounds(db);
+	await assertAllTypesBounds(db, { rqb: true });
+	await assertAllTypesTemporalBounds(db, { rqb: true });
 });
 
 test('all types ~json~', async () => {

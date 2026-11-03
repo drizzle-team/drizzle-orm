@@ -26,7 +26,10 @@ import {
 	AllTypes,
 	allTypesData,
 	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	makeAllTypesColumns,
 	withEmptyArrays,
 } from './all-types';
@@ -210,13 +213,14 @@ runCommonEffectPgTests({
 					),
 				);
 
-				const relDb = yield* createDB({ allTypesTable }, (r) => ({
+				const relDb = yield* createDB({ allTypesTable, ...boundsSchema }, (r) => ({
 					allTypesTable: {
 						self: r.many.allTypesTable({
 							from: r.allTypesTable.serial,
 							to: r.allTypesTable.serial,
 						}),
 					},
+					...boundsRelations(r),
 				}));
 
 				const { relationRes, rootRes } = yield* session.objects<AllTypesNoMtx & { self: AllTypesNoMtx[] }>(
@@ -253,7 +257,13 @@ runCommonEffectPgTests({
 					assertAllTypesUnions(relDb as any, allTypesTable as any, (query) => Effect.runPromiseWith(context)(query))
 				);
 				yield* Effect.promise(() =>
-					assertAllTypesBounds(relDb as any, (query) => Effect.runPromiseWith(context)(query))
+					assertAllTypesBounds(relDb as any, { run: (query) => Effect.runPromiseWith(context)(query), rqb: true })
+				);
+				yield* Effect.promise(() =>
+					assertAllTypesTemporalBounds(relDb as any, {
+						run: (query) => Effect.runPromiseWith(context)(query),
+						rqb: true,
+					})
 				);
 
 				const emptyArrays = withEmptyArrays(allTypesDataNoMtx);

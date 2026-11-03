@@ -55,6 +55,7 @@ const skips = [
 	'RQB v2 transaction find many - placeholders',
 	'transaction with options (set isolationLevel)',
 	'time zones are preserved - non-UTC session',
+	'all types ~codecs~ - non-UTC session',
 	'transaction with options (accessMode read only)',
 	'transaction with options (deferrable)',
 	'transaction with an empty options object',

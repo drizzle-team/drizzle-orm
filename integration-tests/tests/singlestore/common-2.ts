@@ -80,7 +80,10 @@ import {
 	allTypesRelations,
 	allTypesTable,
 	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	makeAllTypes,
 } from './all-types';
 import type { Test } from './instrumentation';
@@ -3446,10 +3449,14 @@ export function tests(test: Test) {
 
 			await assertAllTypesUnions(db, allTypesTable);
 			await assertAllTypesBounds(db);
+			await assertAllTypesTemporalBounds(db);
 		});
 
 		test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
-			const db = createDB({ allTypesTable }, allTypesRelations);
+			const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+				...allTypesRelations(r),
+				...boundsRelations(r),
+			}));
 			await push({ allTypesTable });
 
 			await db.insert(allTypesTable).values(allTypesData);
@@ -3498,7 +3505,8 @@ export function tests(test: Test) {
 			expect(rootRes).toStrictEqual(allTypesData);
 
 			await assertAllTypesUnions(db);
-			await assertAllTypesBounds(db);
+			await assertAllTypesBounds(db, { rqb: true });
+			await assertAllTypesTemporalBounds(db, { rqb: true });
 		});
 
 		test.concurrent('all types ~json~', async ({ db, push }) => {

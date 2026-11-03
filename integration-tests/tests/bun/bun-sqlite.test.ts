@@ -70,6 +70,7 @@ import {
 	allTypesData,
 	allTypesInput,
 	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
 	createAllTypes,
 	dropAllTypes,
@@ -3910,6 +3911,7 @@ describe('common', () => {
 
 		await assertAllTypesUnions(db as any, allTypesTable);
 		await assertAllTypesBounds(db as any);
+		await assertAllTypesTemporalBounds(db as any);
 	});
 
 	test('all types ~json~', async () => {

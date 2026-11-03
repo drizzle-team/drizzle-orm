@@ -60,6 +60,7 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import { PgliteDatabase } from 'drizzle-orm/pglite';
+import { PostgresDatabase } from 'drizzle-orm/postgres';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { describe, expect, expectTypeOf } from 'vitest';
@@ -73,8 +74,13 @@ import {
 	allTypesTable,
 	assertAllTypesBounds,
 	assertAllTypesEmptyArrays,
+	assertAllTypesTemporalBounds,
+	assertAllTypesTemporalBoundsInSessionTimeZones,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	makeAllTypes,
+	temporalBoundsDataMinipg,
 } from './all-types';
 import type { Test } from './instrumentation';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -3984,7 +3990,10 @@ export function tests(test: Test) {
 		});
 
 		test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
-			const db = createDB({ allTypesTable }, allTypesRelations);
+			const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+				...allTypesRelations(r),
+				...boundsRelations(r),
+			}));
 			await push({ en: allTypesEnum, allTypesTable });
 
 			await db.insert(allTypesTable).values(allTypesData);
@@ -4032,9 +4041,21 @@ export function tests(test: Test) {
 			expect(rootRes).toStrictEqual(allTypesData);
 
 			await assertAllTypesUnions(db);
-			await assertAllTypesBounds(db);
+			await assertAllTypesBounds(db, { rqb: true });
+			await assertAllTypesTemporalBounds(db, { rqb: true });
 
 			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
+		});
+
+		test('all types ~codecs~ - non-UTC session', async ({ createDB }) => {
+			const db = createDB({ ...boundsSchema }, boundsRelations);
+
+			const minipgIssues = is(db, PostgresDatabase) && Date.now() < +new Date('2026-11-24');
+
+			await assertAllTypesTemporalBoundsInSessionTimeZones(db, {
+				rqb: !minipgIssues,
+				data: minipgIssues ? temporalBoundsDataMinipg : undefined,
+			});
 		});
 
 		test.concurrent('all types ~json~', async ({ db, push }) => {

@@ -108,7 +108,11 @@ import {
 	allTypesTable,
 	assertAllTypesBounds,
 	assertAllTypesEmptyArrays,
+	assertAllTypesTemporalBounds,
+	assertAllTypesTemporalBoundsInSessionTimeZones,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	makeAllTypes,
 } from './all-types';
 import { requireCockroachConnectionString, test as base } from './instrumentation';
@@ -7544,6 +7548,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 
 			await assertAllTypesUnions(db, allTypesTable);
 			await assertAllTypesBounds(db);
+			await assertAllTypesTemporalBounds(db);
 		});
 
 		test('Column as decoder applies codecs', async ({ createDB, push }) => {
@@ -7846,7 +7851,10 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 		});
 
 		test('all types ~codecs~', async ({ createDB, push }) => {
-			const db = createDB({ allTypesTable }, allTypesRelations);
+			const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+				...allTypesRelations(r),
+				...boundsRelations(r),
+			}));
 			await push({ en: allTypesEnum, allTypesTable });
 
 			await db.insert(allTypesTable).values(allTypesData);
@@ -7894,9 +7902,16 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			expect(rootRes).toStrictEqual(allTypesData);
 
 			await assertAllTypesUnions(db);
-			await assertAllTypesBounds(db);
+			await assertAllTypesBounds(db, { rqb: true });
+			await assertAllTypesTemporalBounds(db, { rqb: true });
 
 			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
+		});
+
+		test('all types ~codecs~ - non-UTC session', async ({ createDB }) => {
+			const db = createDB({ ...boundsSchema }, boundsRelations);
+
+			await assertAllTypesTemporalBoundsInSessionTimeZones(db, { rqb: true });
 		});
 
 		test('all types ~json~', async ({ db, push }) => {
