@@ -1648,6 +1648,12 @@ export const temporalBoundsDataMinipg: TemporalBoundsRow[] = temporalBoundsData.
 	return row;
 });
 
+// TODO: remove after driver-side fixes
+// transports delivering scalars as text (http, Data API) decode them with the same text parser as array elements
+export const temporalBoundsDataMinipgText: TemporalBoundsRow[] = temporalBoundsDataMinipg.map((row) =>
+	row.id === 14 ? { ...row, date: null, timestamp: null, timestampTz: null } : row
+);
+
 export const boundsSchema = { boundsTable, temporalBoundsTable };
 
 export const boundsRelations = (r: RelationsBuilder<typeof boundsSchema>) => ({

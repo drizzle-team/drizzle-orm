@@ -26,6 +26,12 @@ export const minipgAuroraCodecs: PgCodecs = refineCodecs<PostgresType>(minipgCod
  */
 export const minipgAuroraShapeCodecs: PgCodecs = refineCodecs<PostgresType>(minipgShapeCodecs, {
 	bytea: { castArray: castToTextArr },
+	// Data API's own formatting fails on `timestamptz` values with 5+ digit years or seconds-precision offsets,
+	// drops the `BC` suffix of `timestamp`s with fractional seconds and cuts `time` to milliseconds, text keeps them
+	time: { cast: castToText, castArray: castToTextArr },
+	timestamp: { cast: castToText, castArray: castToTextArr },
+	'timestamp:string': { cast: castToText, castArray: castToTextArr },
+	timestamptz: { cast: castToText, castArray: castToTextArr },
 	'timestamptz:string': { cast: castToText, castArray: castToTextArr },
 	timetz: { cast: castToText, castArray: castToTextArr },
 });

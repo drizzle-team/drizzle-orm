@@ -20,7 +20,7 @@ import {
 	boundsRelations,
 	boundsSchema,
 	makeAllTypes,
-	temporalBoundsDataMinipg,
+	temporalBoundsDataMinipgText,
 } from './all-types';
 import { tests } from './common';
 import { postgresNeonHttpTest as test } from './instrumentation';
@@ -724,7 +724,7 @@ describe('driver-specific', () => {
 		await assertAllTypesUnions(db);
 		await assertAllTypesBounds(db);
 		await assertAllTypesTemporalBounds(db, {
-			data: Date.now() < +new Date('2026-11-24') ? temporalBoundsDataMinipg : undefined,
+			data: Date.now() < +new Date('2026-11-24') ? temporalBoundsDataMinipgText : undefined,
 		});
 
 		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });

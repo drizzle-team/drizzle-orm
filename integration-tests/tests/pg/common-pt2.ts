@@ -62,6 +62,7 @@ import {
 import { PgliteDatabase } from 'drizzle-orm/pglite';
 import { PostgresDatabase } from 'drizzle-orm/postgres';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { PostgresAuroraDatabase } from 'drizzle-orm/postgres/aurora';
 import postgres from 'postgres';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
@@ -81,6 +82,7 @@ import {
 	boundsSchema,
 	makeAllTypes,
 	temporalBoundsDataMinipg,
+	temporalBoundsDataMinipgText,
 } from './all-types';
 import type { Test } from './instrumentation';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -4050,11 +4052,15 @@ export function tests(test: Test) {
 		test('all types ~codecs~ - non-UTC session', async ({ createDB }) => {
 			const db = createDB({ ...boundsSchema }, boundsRelations);
 
-			const minipgIssues = is(db, PostgresDatabase) && Date.now() < +new Date('2026-11-24');
+			let minipgData: typeof temporalBoundsDataMinipg | undefined;
+			if (Date.now() < +new Date('2026-11-24')) {
+				if (is(db, PostgresDatabase)) minipgData = temporalBoundsDataMinipg;
+				if (is(db, PostgresAuroraDatabase)) minipgData = temporalBoundsDataMinipgText;
+			}
 
 			await assertAllTypesTemporalBoundsInSessionTimeZones(db, {
-				rqb: !minipgIssues,
-				data: minipgIssues ? temporalBoundsDataMinipg : undefined,
+				rqb: !minipgData,
+				data: minipgData,
 			});
 		});
 

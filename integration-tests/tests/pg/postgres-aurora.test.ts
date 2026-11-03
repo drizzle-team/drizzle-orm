@@ -38,7 +38,7 @@ import {
 	boundsRelations,
 	boundsSchema,
 	makeAllTypes,
-	temporalBoundsDataMinipg,
+	temporalBoundsDataMinipgText,
 } from './all-types';
 import { tests } from './common';
 import { awsDataApiConfig, postgresAuroraTest as test } from './instrumentation';
@@ -464,7 +464,7 @@ describe('postgres/aurora', () => {
 			expect(recordsQuery).toStrictEqual({
 				params: ['CANCELED', 'CLOSED'],
 				sql:
-					'select "d0"."id" as "id", "d0"."created_on" as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in (:p1, :p2)))))) as "activeJobs" from "candidates" as "d0"',
+					'select "d0"."id" as "id", "d0"."created_on"::text as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in (:p1, :p2)))))) as "activeJobs" from "candidates" as "d0"',
 			});
 		});
 	});
@@ -1114,7 +1114,7 @@ describe('postgres/aurora', () => {
 			await assertAllTypesUnions(db);
 			await assertAllTypesBounds(db);
 			await assertAllTypesTemporalBounds(db, {
-				data: Date.now() < +new Date('2026-11-24') ? temporalBoundsDataMinipg : undefined,
+				data: Date.now() < +new Date('2026-11-24') ? temporalBoundsDataMinipgText : undefined,
 			});
 
 			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
