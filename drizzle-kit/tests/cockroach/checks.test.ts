@@ -268,7 +268,7 @@ test.concurrent('check renames that swap a name between two tables keep the chan
 });
 
 // In cockroach the unique constraint `b` is an index, and a check shares one namespace with the indexes of
-// its table. So `DROP INDEX "b"` must run before the check gets the name `b`.
+// its table. So the drop of the index `b` must run before the check gets the name `b`.
 test.concurrent('a check rename to the name of a dropped unique constraint writes SQL that runs', async ({ db }) => {
 	const from = {
 		users: cockroachTable('users', { age: int4() }, (t) => [unique('b').on(t.age), check('a', sql`${t.age} > 21`)]),
@@ -280,7 +280,7 @@ test.concurrent('a check rename to the name of a dropped unique constraint write
 	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to, renames });
 
-	const st0 = ['DROP INDEX "b" CASCADE;', 'ALTER TABLE "users" RENAME CONSTRAINT "a" TO "b";'];
+	const st0 = ['DROP INDEX "public"."users"@"b" CASCADE;', 'ALTER TABLE "users" RENAME CONSTRAINT "a" TO "b";'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });

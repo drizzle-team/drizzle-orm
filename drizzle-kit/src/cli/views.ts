@@ -1032,23 +1032,22 @@ export const postgresSchemaError = (error: PostgresSchemaError): string => {
 };
 
 export const cockroachSchemaError = (error: CockroachSchemaError): string => {
-	if (error.type === 'constraint_name_duplicate') {
-		const { name, schema, table } = error;
-		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
-		const constraintName = chalk.underline.blue(`'${name}'`);
-		return withStyle.errorWarning(
-			`There's a duplicate constraint name ${constraintName} in ${tableName} table`,
-		);
-	}
-
 	if (error.type === 'index_duplicate') {
-		// check for index names duplicates
 		const { schema, table, name } = error;
 		const sch = chalk.underline.blue(`"${schema}"`);
 		const idx = chalk.underline.blue(`'${name}'`);
 		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
 		return withStyle.errorWarning(
 			`There's a duplicate index name ${idx} in ${sch} schema in ${tableName}`,
+		);
+	}
+
+	if (error.type === 'constraint_name_duplicate') {
+		const { name, schema, table } = error;
+		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
+		const constraintName = chalk.underline.blue(`'${name}'`);
+		return withStyle.errorWarning(
+			`There's a duplicate constraint name ${constraintName} in ${tableName} table`,
 		);
 	}
 

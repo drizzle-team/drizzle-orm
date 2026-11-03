@@ -114,7 +114,9 @@ export function createDrizzleMcpServer(): McpServer {
 				+ '"drizzle-kit generate --fix-conflicts", use the fix_conflicts tool instead.',
 			inputSchema: z.object({
 				...generateInput,
-				ignoreConflicts: z.boolean().optional().describe('Ignore existing snapshot conflicts (not for postgresql)'),
+				ignoreConflicts: z.boolean().optional().describe(
+					'Ignore existing snapshot conflicts (not for postgresql or cockroach)',
+				),
 			}),
 			outputSchema: looseEnvelopeSchema,
 			annotations: { destructiveHint: false },
@@ -125,7 +127,7 @@ export function createDrizzleMcpServer(): McpServer {
 	server.registerTool(
 		'fix_conflicts',
 		{
-			description: 'For postgresql only. Delete the migrations that check reports as conflicting, with all '
+			description: 'For postgresql and cockroach. Delete the migrations that check reports as conflicting, with all '
 				+ 'their children, then generate one new migration from the schema. '
 				+ 'This is a destructive operation. Every database that ran a deleted migration must be reset. '
 				+ 'The check_error response for '
@@ -185,7 +187,7 @@ export function createDrizzleMcpServer(): McpServer {
 				config: z.string().optional().describe(
 					'Custom config file path — relative to the drizzle-kit working directory, or absolute.',
 				),
-				ignoreConflicts: z.boolean().optional().describe('Skip conflict checks (not for postgresql)'),
+				ignoreConflicts: z.boolean().optional().describe('Skip conflict checks (not for postgresql or cockroach)'),
 			}),
 			outputSchema: looseEnvelopeSchema,
 			annotations: { readOnlyHint: true, idempotentHint: true },

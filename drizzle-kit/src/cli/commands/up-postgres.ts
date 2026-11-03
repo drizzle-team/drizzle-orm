@@ -30,7 +30,7 @@ const conversionError = (name: string, reason: string, next: string, meta: Recor
 
 // Reports a migration that would sort before its parent after the move out of a journal folder. The migration
 // folders do not exist yet, so the message names the journal entries. The JSON output matches `folderOrderError`.
-const journalOrderError = (file: { name: string; path: string }, parent: { name: string; path: string }) =>
+export const journalOrderError = (file: { name: string; path: string }, parent: { name: string; path: string }) =>
 	new CheckCliError(
 		'order',
 		`After drizzle-kit up moves the migrations into folders, migration ${file.name} sorts before its parent `

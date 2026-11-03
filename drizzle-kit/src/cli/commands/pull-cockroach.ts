@@ -3,6 +3,7 @@ import { writeFileSync } from 'fs';
 import type { TaskView } from 'hanji';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
+import { footprintsOf } from '../../dialects/cockroach/commutativity';
 import type {
 	CheckConstraint,
 	CockroachEntities,
@@ -94,7 +95,7 @@ export const handle = async (
 	let migrationPath: string | undefined;
 	const { snapshots } = prepareOutFolder(out);
 	if (snapshots.length === 0) {
-		const { sqlStatements, renames } = await ddlDiff(
+		const { sqlStatements, groupedStatements } = await ddlDiff(
 			createDDL(), // dry ddl
 			ddl2,
 			resolver<Schema>('schema'),
@@ -112,9 +113,8 @@ export const handle = async (
 		);
 
 		({ snapshotPath, migrationPath } = writeResult({
-			snapshot: toJsonSnapshot(ddl2, [originUUID], renames),
+			snapshot: toJsonSnapshot(ddl2, [originUUID], footprintsOf(groupedStatements)),
 			sqlStatements,
-			renames,
 			init,
 			outFolder: out,
 			breakpoints,

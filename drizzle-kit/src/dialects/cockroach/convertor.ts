@@ -1,4 +1,5 @@
 import { escapeSingleQuotes, type Simplify } from '../../utils';
+import type { Index } from './ddl';
 import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction } from './grammar';
 import type { JsonStatement } from './statements';
 
@@ -379,33 +380,26 @@ const createIndexConvertor = convertor('create_index', (st) => {
 	return statement;
 });
 
+// Cockroach names an index by its schema, its table and its name, so a drop names the table too.
+const qualifiedIndex = (index: Pick<Index, 'schema' | 'table' | 'name'>) =>
+	`"${index.schema}"."${index.table}"@"${index.name}"`;
+
 const dropIndexConvertor = convertor('drop_index', (st) => {
 	const { index } = st;
-
 	const cascade = index.isUnique ? ' CASCADE' : '';
-
-	const key = index.schema !== 'public'
-		? `"${index.schema}".`
-		: '';
-	const table = st.isNameShared ? `"${index.table}"@` : '';
-
-	return `DROP INDEX ${key}${table}"${st.index.name}"${cascade};`;
+	return `DROP INDEX ${qualifiedIndex(index)}${cascade};`;
 });
 
 const recreateIndexConvertor = convertor('recreate_index', (st) => {
 	const { diff } = st;
-	// `isNameShared` is false because the index renames and the index drops run before this statement. At this
-	// point only one table of the schema holds the name of this index.
-	const drop = dropIndexConvertor.convert({ index: diff.$right, isNameShared: false }) as string;
+	const drop = dropIndexConvertor.convert({ index: diff.$right }) as string;
 	const create = createIndexConvertor.convert({ index: diff.$right, newTable: false }) as string;
 	return [drop, create];
 });
 
 const renameIndexConvertor = convertor('rename_index', (st) => {
-	const key = st.schema !== 'public' ? `"${st.schema}".` : '';
-	const table = st.isNameShared ? `"${st.table}"@` : '';
-
-	return `ALTER INDEX ${key}${table}"${st.from}" RENAME TO "${st.to}";`;
+	const qualified = qualifiedIndex({ schema: st.schema, table: st.table, name: st.from });
+	return `ALTER INDEX ${qualified} RENAME TO "${st.to}";`;
 });
 
 const addPrimaryKeyConvertor = convertor('add_pk', (st) => {

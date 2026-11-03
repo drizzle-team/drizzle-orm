@@ -234,7 +234,7 @@ const postgresValidator = (snapshot: object): ValidationResult => {
 };
 
 const cockroachSnapshotValidator = (snapshot: object): ValidationResult => {
-	const versionError = assertVersion(snapshot, 1);
+	const versionError = assertVersion(snapshot, 2);
 	if (versionError) return { status: versionError };
 
 	const res = cockroachValidator.parse(snapshot);

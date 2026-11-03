@@ -76,7 +76,7 @@ test.concurrent('dropping basic index', async ({ dbc: db }) => {
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
-	const st0 = [`DROP INDEX "users_name_id_index";`];
+	const st0 = [`DROP INDEX "public"."users"@"users_name_id_index";`];
 
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -119,32 +119,32 @@ test.concurrent('altering indexes', async ({ dbc: db }) => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	expect(st).toStrictEqual([
-		'DROP INDEX "changeName";',
-		'DROP INDEX "removeColumn";',
+		'DROP INDEX "public"."users"@"changeName";',
+		'DROP INDEX "public"."users"@"removeColumn";',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
-		'DROP INDEX "addColumn";',
+		'DROP INDEX "public"."users"@"addColumn";',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
-		'DROP INDEX "removeExpression";',
+		'DROP INDEX "public"."users"@"removeExpression";',
 		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
-		'DROP INDEX "changeExpression";',
+		'DROP INDEX "public"."users"@"changeExpression";',
 		'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
-		'DROP INDEX "changeUsing";',
+		'DROP INDEX "public"."users"@"changeUsing";',
 		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
 		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
 	]);
 
 	// for push we ignore change of index expressions
 	expect(pst).toStrictEqual([
-		'DROP INDEX "changeName";',
-		'DROP INDEX "addColumn";',
+		'DROP INDEX "public"."users"@"changeName";',
+		'DROP INDEX "public"."users"@"addColumn";',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
-		'DROP INDEX "changeUsing";',
+		'DROP INDEX "public"."users"@"changeUsing";',
 		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
-		'DROP INDEX "removeColumn";',
+		'DROP INDEX "public"."users"@"removeColumn";',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
-		'DROP INDEX "removeExpression";',
+		'DROP INDEX "public"."users"@"removeExpression";',
 		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
-		// 'DROP INDEX "changeExpression";',
+		// 'DROP INDEX "public"."users"@"changeExpression";',
 		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
 		// 'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
 	]);
@@ -229,15 +229,15 @@ test.concurrent('Indexes properties that should not trigger push changes', async
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	expect(st).toStrictEqual([
-		'DROP INDEX "changeExpression";',
+		'DROP INDEX "public"."users"@"changeExpression";',
 		'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
-		'DROP INDEX "indx2";',
+		'DROP INDEX "public"."users"@"indx2";',
 		'CREATE INDEX "indx2" ON "users" ("name" DESC) WHERE false;',
-		'DROP INDEX "indx4";',
+		'DROP INDEX "public"."users"@"indx4";',
 		'CREATE INDEX "indx4" ON "users" (lower(id));',
 	]);
 	expect(pst).toStrictEqual([
-		'DROP INDEX "indx2";',
+		'DROP INDEX "public"."users"@"indx2";',
 		'CREATE INDEX "indx2" ON "users" ("name" DESC) WHERE false;',
 	]);
 });
@@ -292,32 +292,32 @@ test.concurrent('indexes #0', async ({ dbc: db }) => {
 	});
 
 	expect(st).toStrictEqual([
-		'DROP INDEX "changeName";',
-		'DROP INDEX "removeColumn";',
+		'DROP INDEX "public"."users"@"changeName";',
+		'DROP INDEX "public"."users"@"removeColumn";',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
-		'DROP INDEX "addColumn";',
+		'DROP INDEX "public"."users"@"addColumn";',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
-		'DROP INDEX "removeExpression";',
+		'DROP INDEX "public"."users"@"removeExpression";',
 		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
-		'DROP INDEX "changeExpression";',
+		'DROP INDEX "public"."users"@"changeExpression";',
 		'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
-		'DROP INDEX "changeUsing";',
+		'DROP INDEX "public"."users"@"changeUsing";',
 		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
 		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
 	]);
 
 	// for push we ignore change of index expressions
 	expect(pst).toStrictEqual([
-		'DROP INDEX "changeName";',
-		'DROP INDEX "addColumn";',
+		'DROP INDEX "public"."users"@"changeName";',
+		'DROP INDEX "public"."users"@"addColumn";',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
-		'DROP INDEX "changeUsing";',
+		'DROP INDEX "public"."users"@"changeUsing";',
 		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
-		'DROP INDEX "removeColumn";',
+		'DROP INDEX "public"."users"@"removeColumn";',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
-		'DROP INDEX "removeExpression";',
+		'DROP INDEX "public"."users"@"removeExpression";',
 		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
-		// 'DROP INDEX "changeExpression";',
+		// 'DROP INDEX "public"."users"@"changeExpression";',
 		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
 		// 'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
 	]);
@@ -353,16 +353,16 @@ test.concurrent('index #2', async ({ dbc: db }) => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	expect(st).toStrictEqual([
-		'DROP INDEX "indx1";',
+		'DROP INDEX "public"."users"@"indx1";',
 		'CREATE INDEX "indx1" ON "users" ("name" DESC) WHERE false;',
-		'DROP INDEX "indx3";',
+		'DROP INDEX "public"."users"@"indx3";',
 		'CREATE INDEX "indx3" ON "users" (lower("name"));',
 		'CREATE INDEX "indx4" ON "users" (lower(name));',
 	]);
 	expect(pst).toStrictEqual([
-		'DROP INDEX "indx1";',
+		'DROP INDEX "public"."users"@"indx1";',
 		// TODO: we ignore columns changes during 'push', we should probably tell user about it in CLI?
-		// 'DROP INDEX "indx3";',
+		// 'DROP INDEX "public"."users"@"indx3";',
 		'CREATE INDEX "indx1" ON "users" ("name" DESC) WHERE false;',
 		'CREATE INDEX "indx4" ON "users" (lower(name));',
 		// 'CREATE INDEX "indx3" ON "users" (lower("name"));',
@@ -468,15 +468,17 @@ test('indexes #5', async ({ dbc: db }) => {
 });
 
 // The `renames` below swap the index names, so both tables have an index `second_idx` after the first rename.
-// Cockroach refuses that name as ambiguous, so the second rename names the table `dogs`.
+// Every statement names the table of its index, so the second rename reaches the index of `dogs`.
 const folder = cockroachSchema('folder');
 
 test.concurrent.for([
-	{ name: 'the public schema', schema: 'public', prefix: '' },
-	{ name: 'another schema', schema: 'folder', prefix: '"folder".' },
+	{ name: 'the public schema', schema: 'public' },
+	{ name: 'another schema', schema: 'folder' },
 ])(
 	'index renames that swap a name between two tables of $name keep the changes of both indexes',
-	async ({ schema, prefix }, { db }) => {
+	async ({ schema }, { db }) => {
+		const prefix = `"${schema}".`;
+		const createPrefix = schema === 'public' ? '' : prefix;
 		const table = (schema === 'folder' ? folder.table : cockroachTable) as typeof cockroachTable;
 		const tables = (catsIndex: string, dogsIndex: string, hasSecondColumn: boolean) => {
 			const on = (name: string) => (t: any) => [hasSecondColumn ? index(name).on(t.id, t.name) : index(name).on(t.id)];
@@ -498,12 +500,12 @@ test.concurrent.for([
 		const { sqlStatements: pst } = await push({ db, to, renames });
 
 		const st0 = [
-			`ALTER INDEX ${prefix}"first_idx" RENAME TO "second_idx";`,
+			`ALTER INDEX ${prefix}"cats"@"first_idx" RENAME TO "second_idx";`,
 			`ALTER INDEX ${prefix}"dogs"@"second_idx" RENAME TO "first_idx";`,
-			`DROP INDEX ${prefix}"second_idx";`,
-			`CREATE INDEX "second_idx" ON ${prefix}"cats" ("id","name");`,
-			`DROP INDEX ${prefix}"first_idx";`,
-			`CREATE INDEX "first_idx" ON ${prefix}"dogs" ("id","name");`,
+			`DROP INDEX ${prefix}"cats"@"second_idx";`,
+			`CREATE INDEX "second_idx" ON ${createPrefix}"cats" ("id","name");`,
+			`DROP INDEX ${prefix}"dogs"@"first_idx";`,
+			`CREATE INDEX "first_idx" ON ${createPrefix}"dogs" ("id","name");`,
 		];
 		expect(st).toStrictEqual(st0);
 		expect(pst).toStrictEqual(st0);
@@ -511,8 +513,8 @@ test.concurrent.for([
 );
 
 test.concurrent.for([
-	{ name: 'an index', create: index, drop: 'DROP INDEX "cats"@"name_idx";' },
-	{ name: 'a unique index', create: uniqueIndex, drop: 'DROP INDEX "cats"@"name_idx" CASCADE;' },
+	{ name: 'an index', create: index, drop: 'DROP INDEX "public"."cats"@"name_idx";' },
+	{ name: 'a unique index', create: uniqueIndex, drop: 'DROP INDEX "public"."cats"@"name_idx" CASCADE;' },
 ])(
 	'a drop of $name whose name an index of another table takes writes SQL that runs',
 	async ({ create, drop }, { db }) => {
@@ -531,7 +533,7 @@ test.concurrent.for([
 		await push({ db, to: from });
 		const { sqlStatements: pst } = await push({ db, to, renames });
 
-		const st0 = ['ALTER INDEX "other_idx" RENAME TO "name_idx";', drop];
+		const st0 = ['ALTER INDEX "public"."dogs"@"other_idx" RENAME TO "name_idx";', drop];
 		expect(st).toStrictEqual(st0);
 		expect(pst).toStrictEqual(st0);
 	},
@@ -552,15 +554,15 @@ test.concurrent('a rename of a unique index whose name a new table takes writes 
 
 	const st0 = [
 		'CREATE TABLE "dogs" (\n\t"id" int4,\n\tCONSTRAINT "name_idx" UNIQUE("id")\n);\n',
-		'ALTER INDEX "cats"@"name_idx" RENAME TO "other_idx";',
+		'ALTER INDEX "public"."cats"@"name_idx" RENAME TO "other_idx";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
 
-// In cockroach the primary key `x` of `dogs` owns an index with the name `x`.
-// So `ALTER INDEX "x"` is ambiguous, and the rename must name the table `cats`.
-test.concurrent('an index rename names its table when the primary key of another table has the name', async ({ db }) => {
+// In cockroach the primary key `x` of `dogs` owns an index with the name `x`, so a rename that named only the
+// index would be ambiguous. The rename names the table of the index, so it reaches the index of `cats`.
+test.concurrent('an index rename names its table when another table has an index with the same name', async ({ db }) => {
 	const dogs = cockroachTable('dogs', { id: int4() }, (t) => [primaryKey({ name: 'x', columns: [t.id] })]);
 	const cats = (name: string) => cockroachTable('cats', { id: int4() }, (t) => [index(name).on(t.id)]);
 	const renames = ['public.cats.x->public.cats.y'];
@@ -569,7 +571,7 @@ test.concurrent('an index rename names its table when the primary key of another
 	await push({ db, to: { dogs, cats: cats('x') } });
 	const { sqlStatements: pst } = await push({ db, to: { dogs, cats: cats('y') }, renames });
 
-	const st0 = ['ALTER INDEX "cats"@"x" RENAME TO "y";'];
+	const st0 = ['ALTER INDEX "public"."cats"@"x" RENAME TO "y";'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
