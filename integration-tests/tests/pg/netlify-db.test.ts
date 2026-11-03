@@ -893,6 +893,8 @@ test('failed begin on transaction does not return client to the pool', async ({ 
 		};
 		setTimeout(() => {
 			stream.emit = emit;
+			// discarded client has no query to receive the response, replaying it would throw
+			if ((client as any)._ending) return;
 			for (const args of held) stream.emit('data', ...args);
 		}, 1500);
 

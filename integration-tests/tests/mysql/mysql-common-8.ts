@@ -462,6 +462,94 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		},
 	);
 
+	test.concurrent('insert with onDuplicate on unique key', async ({ db, push }) => {
+		const table = mysqlTable('on_duplicate_unique', {
+			id: serial('id').primaryKey(),
+			email: varchar('email', { length: 255 }).notNull().unique(),
+			name: text('name').notNull(),
+		});
+		await push({ table });
+
+		await db.insert(table).values({ email: 'john@example.com', name: 'John' });
+		await db
+			.insert(table)
+			.values({ email: 'john@example.com', name: 'Jane' })
+			.onDuplicateKeyUpdate({ set: { name: 'Updated' } });
+
+		expect(await db.select().from(table)).toStrictEqual([{ id: 1, email: 'john@example.com', name: 'Updated' }]);
+	});
+
+	test.concurrent('insert with onDuplicate multiple rows', async ({ db, push }) => {
+		const users = createUserTable('on_duplicate_many');
+		await push({ users });
+
+		await db.insert(users).values({ id: 1, name: 'John' });
+		await db
+			.insert(users)
+			.values([{ id: 1, name: 'John1' }, { id: 2, name: 'Jane' }])
+			.onDuplicateKeyUpdate({ set: { name: sql`values(${sql.identifier(users.name.name)})` } });
+
+		const res = await db.select({ id: users.id, name: users.name }).from(users).orderBy(users.id);
+
+		expect(res).toStrictEqual([{ id: 1, name: 'John1' }, { id: 2, name: 'Jane' }]);
+	});
+
+	test.concurrent('insert with onDuplicate sql expression', async ({ db, push }) => {
+		const table = mysqlTable('on_duplicate_expression', {
+			id: int('id').primaryKey(),
+			count: int('count').notNull(),
+		});
+		await push({ table });
+
+		await db.insert(table).values({ id: 1, count: 1 });
+		await db
+			.insert(table)
+			.values({ id: 1, count: 1 })
+			.onDuplicateKeyUpdate({ set: { count: sql`${table.count} + 1` } });
+
+		expect(await db.select().from(table)).toStrictEqual([{ id: 1, count: 2 }]);
+	});
+
+	test.concurrent('insert with onDuplicate no-op', async ({ db, push }) => {
+		const users = createUserTable('on_duplicate_noop');
+		await push({ users });
+
+		await db.insert(users).values({ id: 1, name: 'John' });
+		await db
+			.insert(users)
+			.values({ id: 1, name: 'Jane' })
+			.onDuplicateKeyUpdate({ set: { id: sql`id` } });
+
+		const res = await db.select({ id: users.id, name: users.name }).from(users);
+
+		expect(res).toStrictEqual([{ id: 1, name: 'John' }]);
+	});
+
+	test.concurrent('insert with onDuplicate and ignore', async ({ db, push }) => {
+		const users = createUserTable('on_duplicate_ignore');
+		await push({ users });
+
+		await db.insert(users).values({ id: 1, name: 'John' });
+		await db
+			.insert(users)
+			.ignore()
+			.values({ id: 1, name: 'Jane' })
+			.onDuplicateKeyUpdate({ set: { name: 'Updated' } });
+
+		const res = await db.select({ id: users.id, name: users.name }).from(users);
+
+		expect(res).toStrictEqual([{ id: 1, name: 'Updated' }]);
+	});
+
+	test.concurrent('insert with onDuplicate and $returningId throws in dynamic query', async ({ db }) => {
+		const table = mysqlTable('on_duplicate_returning_id', { id: int('id').primaryKey() });
+		const message = '`$returningId` cannot be used with `onDuplicateKeyUpdate`';
+		const insert = () => db.insert(table).values({ id: 1 }).$dynamic();
+
+		expect(() => insert().onDuplicateKeyUpdate({ set: { id: 2 } }).$returningId()).toThrowError(message);
+		expect(() => insert().$returningId().onDuplicateKeyUpdate({ set: { id: 2 } })).toThrowError(message);
+	});
+
 	test.concurrent('insert conflict', async ({ db, push }) => {
 		const users = createUserTable('users_99');
 		await push({ users });

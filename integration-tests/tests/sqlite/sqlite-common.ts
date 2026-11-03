@@ -11,6 +11,7 @@ import {
 	exists,
 	getColumns,
 	getTableColumns,
+	getTableName,
 	gt,
 	gte,
 	inArray,
@@ -3037,6 +3038,130 @@ export function tests(test: Test, exclude: string[] = []) {
 				expect(res).toEqual([{ id: 1 }, { id: 2 }]);
 			},
 		);
+
+		test.concurrent('insert with onConflict do update + targetWhere', async ({ db }) => {
+			const table = sqliteTable('on_conflict_target_where', {
+				id: integer('id').primaryKey(),
+				email: text('email').notNull(),
+				note: text('note'),
+				deletedAt: integer('deleted_at'),
+			});
+
+			await db.run(sql`drop table if exists ${table}`);
+			await db.run(
+				sql`create table ${table} (id integer primary key, email text not null, note text, deleted_at integer)`,
+			);
+			await db.run(
+				sql`create unique index ${
+					sql.identifier(`${getTableName(table)}_email_idx`)
+				} on ${table} (email) where deleted_at is null`,
+			);
+
+			await db.insert(table).values({ id: 1, email: 'john@example.com', deletedAt: 1 }).run();
+			await db.insert(table).values({ id: 2, email: 'john@example.com' }).run();
+
+			await db.insert(table).values({ id: 3, email: 'john@example.com' }).onConflictDoUpdate({
+				target: table.email,
+				targetWhere: isNull(table.deletedAt),
+				set: { note: 'Updated' },
+			}).run();
+
+			expect(await db.select({ id: table.id, note: table.note }).from(table).orderBy(table.id).all()).toEqual([
+				{ id: 1, note: null },
+				{ id: 2, note: 'Updated' },
+			]);
+		});
+
+		test.concurrent('insert with onConflict do update + setWhere', async ({ db }) => {
+			const table = sqliteTable('on_conflict_set_where', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				version: integer('version').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${table}`);
+			await db.run(sql`create table ${table} (id integer primary key, name text not null, version integer not null)`);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]).run();
+
+			await db.insert(table).values([{ id: 1, name: 'John1', version: 3 }, { id: 2, name: 'Jane1', version: 3 }])
+				.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' }, setWhere: eq(table.version, 1) }).run();
+
+			expect(await db.select().from(table).orderBy(table.id).all()).toEqual([
+				{ id: 1, name: 'Updated', version: 1 },
+				{ id: 2, name: 'Jane', version: 2 },
+			]);
+		});
+
+		test.concurrent('insert with onConflict do update + where and targetWhere/setWhere throws', async ({ db }) => {
+			const table = sqliteTable('on_conflict_throws', { id: integer('id').primaryKey(), name: text('name').notNull() });
+			const message = 'You cannot use both "where" and "targetWhere"/"setWhere" at the same time';
+			const insert = () => db.insert(table).values({ id: 1, name: 'John' });
+			const where = eq(table.id, 1);
+
+			expect(() => insert().onConflictDoUpdate({ target: table.id, set: { name: 'Jane' }, where, targetWhere: where }))
+				.toThrowError(message);
+			expect(() => insert().onConflictDoUpdate({ target: table.id, set: { name: 'Jane' }, where, setWhere: where }))
+				.toThrowError(message);
+		});
+
+		test.concurrent('insert with onConflict returning', async ({ db }) => {
+			const table = sqliteTable('on_conflict_returning', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				version: integer('version').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${table}`);
+			await db.run(sql`create table ${table} (id integer primary key, name text not null, version integer not null)`);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]).run();
+
+			expect(
+				await db.insert(table).values({ id: 1, name: 'Skipped', version: 3 }).onConflictDoNothing().returning().all(),
+			).toEqual([]);
+			expect(
+				await db.insert(table).values({ id: 1, name: 'Updated', version: 3 }).onConflictDoUpdate({
+					target: table.id,
+					set: { name: 'Updated' },
+				}).returning({ id: table.id, name: table.name }).all(),
+			).toEqual([{ id: 1, name: 'Updated' }]);
+			expect(
+				await db.insert(table).values({ id: 2, name: 'Filtered', version: 3 }).onConflictDoUpdate({
+					target: table.id,
+					set: { name: 'Filtered' },
+					setWhere: eq(table.version, 1),
+				}).returning().all(),
+			).toEqual([]);
+			expect(
+				await db.insert(table).values({ id: 3, name: 'Inserted', version: 3 }).onConflictDoNothing().returning({
+					id: table.id,
+				}).all(),
+			).toEqual([{ id: 3 }]);
+		});
+
+		test.concurrent('insert with onConflict do update + excluded', async ({ db }) => {
+			const table = sqliteTable('on_conflict_excluded', {
+				id: integer('id').primaryKey(),
+				name: text('name').notNull(),
+				version: integer('version').notNull(),
+			});
+
+			await db.run(sql`drop table if exists ${table}`);
+			await db.run(sql`create table ${table} (id integer primary key, name text not null, version integer not null)`);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]).run();
+
+			await db.insert(table).values([{ id: 1, name: 'John1', version: 3 }, { id: 3, name: 'Bruce', version: 3 }])
+				.onConflictDoUpdate({ target: table.id, set: { name: sql`excluded.${sql.identifier(table.name.name)}` } })
+				.run();
+
+			expect(await db.select().from(table).orderBy(table.id).all()).toEqual([
+				{ id: 1, name: 'John1', version: 1 },
+				{ id: 2, name: 'Jane', version: 2 },
+				{ id: 3, name: 'Bruce', version: 3 },
+			]);
+		});
 
 		test.concurrent('insert with onConflict do update', async ({ db }) => {
 			await db.insert(usersTable).values({ id: 1, name: 'John' }).run();

@@ -2505,6 +2505,40 @@ export function tests(test: Test) {
 			expect(result).toStrictEqual([{ id: 1 }]);
 		});
 
+		test.concurrent('insert $returningId: serial as id, not first column', async ({ db }) => {
+			const usersTableDefNotFirstColumn = singlestoreTable('users2_returning_id_not_first', {
+				name: text('name').notNull(),
+				id: serial('id').primaryKey(),
+			});
+
+			await db.execute(sql`drop table if exists ${usersTableDefNotFirstColumn}`);
+			await db.execute(
+				sql`create table ${usersTableDefNotFirstColumn} (\`name\` text not null, \`id\` serial primary key)`,
+			);
+
+			const result = await db.insert(usersTableDefNotFirstColumn).values({ name: 'John' }).$returningId();
+
+			expectTypeOf(result).toEqualTypeOf<{
+				id: number;
+			}[]>();
+
+			expect(result).toStrictEqual([{ id: 1 }]);
+		});
+
+		test.concurrent('insert $returningId: serial as id, not first column, $default on other column', async ({ db }) => {
+			const usersTableDefFn = singlestoreTable('users2_returning_id_default_fn', {
+				name: text('name').notNull().$defaultFn(() => 'John'),
+				id: serial('id').primaryKey(),
+			});
+
+			await db.execute(sql`drop table if exists ${usersTableDefFn}`);
+			await db.execute(sql`create table ${usersTableDefFn} (\`name\` text not null, \`id\` serial primary key)`);
+
+			const result = await db.insert(usersTableDefFn).values({ name: 'Jane' }).$returningId();
+
+			expect(result).toStrictEqual([{ id: 1 }]);
+		});
+
 		test.concurrent(
 			'insert $returningId: serial as id, batch insert',
 			async ({ db }) => {

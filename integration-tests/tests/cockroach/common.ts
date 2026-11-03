@@ -15,6 +15,7 @@ import {
 	exists,
 	getColumns,
 	getTableColumns,
+	getTableName,
 	gt,
 	gte,
 	ilike,
@@ -1762,6 +1763,232 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 				.where(eq(usersTable.id, 1));
 
 			expect(res).toEqual([{ id: 1, name: 'John' }]);
+		});
+
+		test('insert with onConflict do nothing + composite target', async ({ cockroach: { db } }) => {
+			const table = cockroachTable('on_conflict_nothing_composite', {
+				a: int4('a').notNull(),
+				b: int4('b').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (a integer not null, b integer not null, name text not null, primary key (a, b))`,
+			);
+
+			await db.insert(table).values({ a: 1, b: 1, name: 'John' });
+
+			await db.insert(table).values([{ a: 1, b: 1, name: 'Jane' }, { a: 1, b: 2, name: 'Jane' }]).onConflictDoNothing({
+				target: [table.a, table.b],
+			});
+
+			expect(await db.select().from(table).orderBy(table.b)).toEqual([
+				{ a: 1, b: 1, name: 'John' },
+				{ a: 1, b: 2, name: 'Jane' },
+			]);
+		});
+
+		test('insert with onConflict do nothing + target + where', async ({ cockroach: { db } }) => {
+			const table = cockroachTable('on_conflict_nothing_where', {
+				id: int4('id').primaryKey(),
+				email: text('email').notNull(),
+				note: text('note'),
+				deletedAt: int4('deleted_at'),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id integer primary key, email text not null, note text, deleted_at integer)`,
+			);
+			await db.execute(
+				sql`create unique index ${
+					sql.identifier(`${getTableName(table)}_email_idx`)
+				} on ${table} (email) where deleted_at is null`,
+			);
+
+			await db.insert(table).values({ id: 1, email: 'john@example.com', deletedAt: 1 });
+			await db.insert(table).values({ id: 2, email: 'john@example.com' });
+
+			await db.insert(table).values({ id: 3, email: 'john@example.com' }).onConflictDoNothing({
+				target: table.email,
+				where: isNull(table.deletedAt),
+			});
+
+			expect(await db.select({ id: table.id }).from(table).orderBy(table.id)).toEqual([{ id: 1 }, { id: 2 }]);
+		});
+
+		test('insert with onConflict do update + composite target', async ({ cockroach: { db } }) => {
+			const table = cockroachTable('on_conflict_update_composite', {
+				a: int4('a').notNull(),
+				b: int4('b').notNull(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (a integer not null, b integer not null, name text not null, primary key (a, b))`,
+			);
+
+			await db.insert(table).values({ a: 1, b: 1, name: 'John' });
+
+			await db.insert(table).values({ a: 1, b: 1, name: 'Jane' }).onConflictDoUpdate({
+				target: [table.a, table.b],
+				set: { name: 'Updated' },
+			});
+
+			expect(await db.select().from(table)).toEqual([{ a: 1, b: 1, name: 'Updated' }]);
+		});
+
+		test('insert with onConflict do update + targetWhere', async ({ cockroach: { db } }) => {
+			const table = cockroachTable('on_conflict_target_where', {
+				id: int4('id').primaryKey(),
+				email: text('email').notNull(),
+				note: text('note'),
+				deletedAt: int4('deleted_at'),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id integer primary key, email text not null, note text, deleted_at integer)`,
+			);
+			await db.execute(
+				sql`create unique index ${
+					sql.identifier(`${getTableName(table)}_email_idx`)
+				} on ${table} (email) where deleted_at is null`,
+			);
+
+			await db.insert(table).values({ id: 1, email: 'john@example.com', deletedAt: 1 });
+			await db.insert(table).values({ id: 2, email: 'john@example.com' });
+
+			await db.insert(table).values({ id: 3, email: 'john@example.com' }).onConflictDoUpdate({
+				target: table.email,
+				targetWhere: isNull(table.deletedAt),
+				set: { note: 'Updated' },
+			});
+
+			expect(await db.select({ id: table.id, note: table.note }).from(table).orderBy(table.id)).toEqual([
+				{ id: 1, note: null },
+				{ id: 2, note: 'Updated' },
+			]);
+		});
+
+		test('insert with onConflict do update + setWhere', async ({ cockroach: { db } }) => {
+			const table = cockroachTable('on_conflict_set_where', {
+				id: int4('id').primaryKey(),
+				name: text('name').notNull(),
+				version: int4('version').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id integer primary key, name text not null, version integer not null)`,
+			);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]);
+
+			await db.insert(table).values([{ id: 1, name: 'John1', version: 3 }, { id: 2, name: 'Jane1', version: 3 }])
+				.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' }, setWhere: eq(table.version, 1) });
+
+			expect(await db.select().from(table).orderBy(table.id)).toEqual([
+				{ id: 1, name: 'Updated', version: 1 },
+				{ id: 2, name: 'Jane', version: 2 },
+			]);
+		});
+
+		test('insert with onConflict do update + where', async ({ cockroach: { db } }) => {
+			const table = cockroachTable('on_conflict_where', {
+				id: int4('id').primaryKey(),
+				name: text('name').notNull(),
+				version: int4('version').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id integer primary key, name text not null, version integer not null)`,
+			);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]);
+
+			await db.insert(table).values([{ id: 1, name: 'John1', version: 3 }, { id: 2, name: 'Jane1', version: 3 }])
+				.onConflictDoUpdate({ target: table.id, set: { name: 'Updated' }, where: eq(table.version, 1) });
+
+			expect(await db.select().from(table).orderBy(table.id)).toEqual([
+				{ id: 1, name: 'Updated', version: 1 },
+				{ id: 2, name: 'Jane', version: 2 },
+			]);
+		});
+
+		test('insert with onConflict do update + where and targetWhere/setWhere throws', async ({ cockroach: { db } }) => {
+			const table = cockroachTable('on_conflict_throws', { id: int4('id').primaryKey(), name: text('name').notNull() });
+			const message = 'You cannot use both "where" and "targetWhere"/"setWhere" at the same time';
+			const insert = () => db.insert(table).values({ id: 1, name: 'John' });
+			const where = eq(table.id, 1);
+
+			expect(() => insert().onConflictDoUpdate({ target: table.id, set: { name: 'Jane' }, where, targetWhere: where }))
+				.toThrowError(message);
+			expect(() => insert().onConflictDoUpdate({ target: table.id, set: { name: 'Jane' }, where, setWhere: where }))
+				.toThrowError(message);
+		});
+
+		test('insert with onConflict returning', async ({ cockroach: { db } }) => {
+			const table = cockroachTable('on_conflict_returning', {
+				id: int4('id').primaryKey(),
+				name: text('name').notNull(),
+				version: int4('version').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id integer primary key, name text not null, version integer not null)`,
+			);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]);
+
+			expect(await db.insert(table).values({ id: 1, name: 'Skipped', version: 3 }).onConflictDoNothing().returning())
+				.toEqual([]);
+			expect(
+				await db.insert(table).values({ id: 1, name: 'Updated', version: 3 }).onConflictDoUpdate({
+					target: table.id,
+					set: { name: 'Updated' },
+				}).returning({ id: table.id, name: table.name }),
+			).toEqual([{ id: 1, name: 'Updated' }]);
+			expect(
+				await db.insert(table).values({ id: 2, name: 'Filtered', version: 3 }).onConflictDoUpdate({
+					target: table.id,
+					set: { name: 'Filtered' },
+					setWhere: eq(table.version, 1),
+				}).returning(),
+			).toEqual([]);
+			expect(
+				await db.insert(table).values({ id: 3, name: 'Inserted', version: 3 }).onConflictDoNothing().returning({
+					id: table.id,
+				}),
+			).toEqual([{ id: 3 }]);
+		});
+
+		test('insert with onConflict do update + excluded', async ({ cockroach: { db } }) => {
+			const table = cockroachTable('on_conflict_excluded', {
+				id: int4('id').primaryKey(),
+				name: text('name').notNull(),
+				version: int4('version').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table}`);
+			await db.execute(
+				sql`create table ${table} (id integer primary key, name text not null, version integer not null)`,
+			);
+
+			await db.insert(table).values([{ id: 1, name: 'John', version: 1 }, { id: 2, name: 'Jane', version: 2 }]);
+
+			await db.insert(table).values([{ id: 1, name: 'John1', version: 3 }, { id: 3, name: 'Bruce', version: 3 }])
+				.onConflictDoUpdate({ target: table.id, set: { name: sql`excluded.${sql.identifier(table.name.name)}` } });
+
+			expect(await db.select().from(table).orderBy(table.id)).toEqual([
+				{ id: 1, name: 'John1', version: 1 },
+				{ id: 2, name: 'Jane', version: 2 },
+				{ id: 3, name: 'Bruce', version: 3 },
+			]);
 		});
 
 		test('left join (flat object fields)', async ({ cockroach: { db } }) => {
