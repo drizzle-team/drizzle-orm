@@ -29,6 +29,18 @@ on:
         required: true
       TURBO_TOKEN: 
         required: true
+      PLANETSCALE_ORG:
+        required: false
+      PLANETSCALE_SERVICE_TOKEN_ID:
+        required: false
+      PLANETSCALE_SERVICE_TOKEN:
+        required: false
+      TURSO_ORG:
+        required: false
+      TURSO_API_TOKEN:
+        required: false
+      TURSO_GROUP:
+        required: false
 
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
@@ -177,6 +189,28 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Create this job's hosted databases
+        id: hosted-databases
+        if: ${{ contains(fromJSON('["planetscale", "neon-http", "neon-serverless", "other"]'), matrix.shard) }}
+        working-directory: integration-tests
+        env:
+          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
+          PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
+          PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
+          PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
+          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
+          TURSO_ORG: ${{ secrets.TURSO_ORG }}
+          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
+          TURSO_GROUP: ${{ secrets.TURSO_GROUP }}
+        run: |
+          case "${{ matrix.shard }}" in
+            planetscale) providers=planetscale ;;
+            neon-http|neon-serverless) providers=neon ;;
+            other) providers=turso ;;
+          esac
+          pnpm exec tsx scripts/ci-databases.ts create --job "${{ matrix.shard }}" "$providers"
+
       - name: Build
         run: pnpm build
 
@@ -213,6 +247,9 @@ jobs:
           SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
         working-directory: integration-tests
         run: |
+          if [[ -f "$RUNNER_TEMP/ci-databases.env" ]]; then
+            source "$RUNNER_TEMP/ci-databases.env"
+          fi
           case ${{ matrix.shard }} in
 
             planetscale)
@@ -304,6 +341,20 @@ jobs:
 
           esac
 
+      - name: Drop this job's hosted databases
+        if: ${{ always() && steps.hosted-databases.outcome != 'skipped' }}
+        working-directory: integration-tests
+        env:
+          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
+          PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
+          PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
+          PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
+          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
+          TURSO_ORG: ${{ secrets.TURSO_ORG }}
+          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
+        run: pnpm exec tsx scripts/ci-databases.ts drop
+
   attw:
     strategy:
       matrix:
@@ -353,6 +404,7 @@ jobs:
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.4.4 }
 
       - name: Check preconditions
         id: checks
@@ -436,6 +488,7 @@ jobs:
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.4.4 }
 
       - name: Check preconditions
         id: checks
