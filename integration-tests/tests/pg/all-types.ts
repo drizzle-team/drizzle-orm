@@ -1369,6 +1369,9 @@ export const dropTemporalBounds = (tableName: string = TEMPORAL_TABLE) => `drop 
 	- 4714-11-24 BC, the earliest value postgres holds, and the BC leap day 0001-02-29 BC
 	- 1880, printed with seconds-precision LMT offsets in non-UTC sessions (`+02:02:04` in `Europe/Kyiv`)
 	- 1-digit fractions (`.5`), and 6-digit ones in `timestamp_tz` (see `fillTemporalBounds`)
+	- values outside 1714 - 2285, where int64 microseconds since 2000 no longer fit a double exactly: `.999999` and
+	  `.789999` round up into the next millisecond (`9999-12-31 23:59:59.999999` -> year 10000), whole milliseconds
+	  past 4283 / before 284 BC and whole seconds past 10000 round down below it
 */
 export const temporalBoundsData: TemporalBoundsRow[] = [
 	{
@@ -1536,10 +1539,87 @@ export const temporalBoundsData: TemporalBoundsRow[] = [
 		time: null,
 		arrTimestampTz: [new Date('1880-01-01T00:00:00.000Z')],
 	},
+	{
+		id: 16,
+		date: new Date('2300-06-15T00:00:00.000Z'),
+		dateStr: '2300-06-15',
+		timestamp: new Date('2300-06-15T12:34:56.789Z'),
+		timestampTz: new Date('2300-06-15T12:34:56.789Z'),
+		timestampStr: '2300-06-15 12:34:56.789999',
+		timestampTzStr: '2300-06-15 12:34:56.789999+00',
+		time: null,
+		arrTimestampTz: [new Date('2300-06-15T12:34:56.789Z')],
+	},
+	{
+		id: 17,
+		date: new Date('2999-12-31T00:00:00.000Z'),
+		dateStr: '2999-12-31',
+		timestamp: new Date('2999-12-31T23:59:59.999Z'),
+		timestampTz: new Date('2999-12-31T23:59:59.999Z'),
+		timestampStr: '2999-12-31 23:59:59.999999',
+		timestampTzStr: '2999-12-31 23:59:59.999999+00',
+		time: null,
+		arrTimestampTz: [new Date('2999-12-31T23:59:59.999Z')],
+	},
+	{
+		id: 18,
+		date: new Date('1500-01-01T00:00:00.000Z'),
+		dateStr: '1500-01-01',
+		timestamp: new Date('1500-01-01T00:00:00.999Z'),
+		timestampTz: new Date('1500-01-01T00:00:00.999Z'),
+		timestampStr: '1500-01-01 00:00:00.999999',
+		timestampTzStr: '1500-01-01 00:00:00.999999+00',
+		time: null,
+		arrTimestampTz: [new Date('1500-01-01T00:00:00.999Z')],
+	},
+	{
+		id: 19,
+		date: new Date('6000-03-15T00:00:00.000Z'),
+		dateStr: '6000-03-15',
+		timestamp: new Date('6000-03-15T10:20:30.125Z'),
+		timestampTz: new Date('6000-03-15T10:20:30.125Z'),
+		timestampStr: '6000-03-15 10:20:30.125',
+		timestampTzStr: '6000-03-15 10:20:30.125+00',
+		time: null,
+		arrTimestampTz: [new Date('6000-03-15T10:20:30.125Z')],
+	},
+	{
+		id: 20,
+		date: new Date('-000999-07-01T00:00:00.000Z'),
+		dateStr: '1000-07-01 BC',
+		timestamp: new Date('-000999-07-01T08:00:00.001Z'),
+		timestampTz: new Date('-000999-07-01T08:00:00.001Z'),
+		timestampStr: '1000-07-01 08:00:00.001 BC',
+		timestampTzStr: '1000-07-01 08:00:00.001+00 BC',
+		time: null,
+		arrTimestampTz: [new Date('-000999-07-01T08:00:00.001Z')],
+	},
+	{
+		id: 21,
+		date: new Date('+050000-01-01T00:00:00.000Z'),
+		dateStr: '50000-01-01',
+		timestamp: new Date('+050000-01-01T00:00:02.000Z'),
+		timestampTz: new Date('+050000-01-01T00:00:02.000Z'),
+		timestampStr: '50000-01-01 00:00:02',
+		timestampTzStr: '50000-01-01 00:00:02+00',
+		time: null,
+		arrTimestampTz: [new Date('+050000-01-01T00:00:02.000Z')],
+	},
+	{
+		id: 22,
+		date: new Date('+200000-06-01T00:00:00.000Z'),
+		dateStr: '200000-06-01',
+		timestamp: new Date('+200000-06-01T12:00:08.000Z'),
+		timestampTz: new Date('+200000-06-01T12:00:08.000Z'),
+		timestampStr: '200000-06-01 12:00:08',
+		timestampTzStr: '200000-06-01 12:00:08+00',
+		time: null,
+		arrTimestampTz: [new Date('+200000-06-01T12:00:08.000Z')],
+	},
 ];
 
 /**
- * Fills the temporal bounds table; `timestamp_tz` values then get 567 microseconds added, so they're printed with
+ * Fills the temporal bounds table; `timestamp_tz` values then get 999 microseconds added, so they're printed with
  * 6 fractional digits that have to be truncated, not rounded, to milliseconds on decoding
  */
 async function fillTemporalBounds(db: PgAsyncDatabase<any, any>, run: RunQuery, data: TemporalBoundsRow[]) {
@@ -1547,7 +1627,7 @@ async function fillTemporalBounds(db: PgAsyncDatabase<any, any>, run: RunQuery, 
 	await run(
 		db.execute(
 			sql.raw(
-				`update "${TEMPORAL_TABLE}" set "timestamp_tz" = "timestamp_tz" + interval '567 microseconds' where "timestamp_tz" is not null`,
+				`update "${TEMPORAL_TABLE}" set "timestamp_tz" = "timestamp_tz" + interval '999 microseconds' where "timestamp_tz" is not null`,
 			),
 		),
 	);
@@ -1637,16 +1717,6 @@ export async function assertAllTypesTemporalBoundsInSessionTimeZones(
 		await db.execute(sql.raw(dropTemporalBounds()));
 	}
 }
-
-// TODO: remove after driver-side fixes
-export const temporalBoundsDataMinipg: TemporalBoundsRow[] = temporalBoundsData.map((row) => {
-	// 275760-09-13, the last instant a `Date` holds: `NaN` with sub-millisecond digits (binary scalars),
-	// or with a positive offset (array elements in non-UTC sessions)
-	if (row.id === 8) return { ...row, timestampTz: null, arrTimestampTz: null };
-	// 0001-02-29 BC: shifted to March 1 in array elements
-	if (row.id === 14) return { ...row, arrTimestampTz: null };
-	return row;
-});
 
 export const boundsSchema = { boundsTable, temporalBoundsTable };
 

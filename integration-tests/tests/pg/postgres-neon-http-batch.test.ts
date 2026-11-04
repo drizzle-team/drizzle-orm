@@ -4,7 +4,7 @@ import { type AnyPgColumn, integer, pgTable, primaryKey, serial, text, timestamp
 import type { PostgresHttpDatabase, PostgresHttpQueryResult } from 'drizzle-orm/postgres/http';
 import { drizzle } from 'drizzle-orm/postgres/http/neon';
 import { describe, expect, expectTypeOf, test as base } from 'vitest';
-import { _push, prepareMinipgNeonHttpClient } from './instrumentation';
+import { _push, preparePostgresNeonHttpClient } from './instrumentation';
 
 export const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
@@ -123,7 +123,7 @@ const test = base.extend<{ db: PostgresHttpDatabase<typeof relations> }>({
 	db: [
 		// oxlint-disable-next-line no-empty-pattern
 		async ({}, use) => {
-			const { client, query } = await prepareMinipgNeonHttpClient(DATABASE);
+			const { client, query } = await preparePostgresNeonHttpClient(DATABASE);
 			await _push(query, schema);
 
 			const db = drizzle({ client, relations });

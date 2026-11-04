@@ -1,4 +1,4 @@
-import { createPool as createAuroraClient } from '@drizzle-team/minipg/aurora';
+import { createPool as createAuroraClient } from '@drizzle-team/postgres/aurora';
 import { and, defineRelations, eq, getColumns, inArray, not, type RelationsBuilder, sql } from 'drizzle-orm';
 import {
 	boolean,
@@ -21,7 +21,11 @@ import {
 	uniqueIndex,
 	uuid,
 } from 'drizzle-orm/pg-core';
-import { drizzle as drizzleAurora, minipgAuroraCodecs, type PostgresAuroraDatabase } from 'drizzle-orm/postgres/aurora';
+import {
+	drizzle as drizzleAurora,
+	postgresAuroraCodecs,
+	type PostgresAuroraDatabase,
+} from 'drizzle-orm/postgres/aurora';
 import { migrate } from 'drizzle-orm/postgres/aurora/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect, expectTypeOf } from 'vitest';
@@ -38,7 +42,6 @@ import {
 	boundsRelations,
 	boundsSchema,
 	makeAllTypes,
-	temporalBoundsDataMinipg,
 } from './all-types';
 import { tests } from './common';
 import { awsDataApiConfig, postgresAuroraTest as test } from './instrumentation';
@@ -464,7 +467,7 @@ describe('postgres/aurora', () => {
 			expect(recordsQuery).toStrictEqual({
 				params: ['CANCELED', 'CLOSED'],
 				sql:
-					'select "d0"."id" as "id", "d0"."created_on" as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in (:p1, :p2)))))) as "activeJobs" from "candidates" as "d0"',
+					'select "d0"."id" as "id", "d0"."created_on"::text as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in (:p1, :p2)))))) as "activeJobs" from "candidates" as "d0"',
 			});
 		});
 	});
@@ -1084,7 +1087,7 @@ describe('postgres/aurora', () => {
 
 			await push({ times });
 			const shaped = createDB({ times });
-			const coded = drizzleAurora({ client: (shaped as any).$client, codecs: minipgAuroraCodecs });
+			const coded = drizzleAurora({ client: (shaped as any).$client, codecs: postgresAuroraCodecs });
 
 			const value = {
 				id: 1,
@@ -1101,7 +1104,10 @@ describe('postgres/aurora', () => {
 
 		// Can't test shapes via generic codecs test
 		test('all types ~shapes~', async ({ createDB, push }) => {
-			const db = createDB({ allTypesTable }, allTypesRelations);
+			const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+				...allTypesRelations(r),
+				...boundsRelations(r),
+			}));
 			await push({ en: allTypesEnum, allTypesTable });
 			await db.insert(allTypesTable).values(allTypesData);
 
@@ -1112,10 +1118,8 @@ describe('postgres/aurora', () => {
 			expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 			await assertAllTypesUnions(db);
-			await assertAllTypesBounds(db);
-			await assertAllTypesTemporalBounds(db, {
-				data: Date.now() < +new Date('2026-11-24') ? temporalBoundsDataMinipg : undefined,
-			});
+			await assertAllTypesBounds(db, { rqb: true });
+			await assertAllTypesTemporalBounds(db, { rqb: true });
 
 			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 		});
@@ -1131,7 +1135,7 @@ describe('postgres/aurora', () => {
 				...allTypesRelations(r),
 				...boundsRelations(r),
 			}));
-			const db = drizzleAurora({ client: (base as any).$client, relations, codecs: minipgAuroraCodecs });
+			const db = drizzleAurora({ client: (base as any).$client, relations, codecs: postgresAuroraCodecs });
 			await db.insert(allTypesTable).values(allTypesData);
 
 			const [flat] = await db.select().from(allTypesTable);

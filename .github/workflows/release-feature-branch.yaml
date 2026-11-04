@@ -94,10 +94,10 @@ jobs:
           echo "packages=$selected" >> "$GITHUB_OUTPUT"
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile --prefer-offline
       - name: Compute version suffix
@@ -196,10 +196,10 @@ jobs:
          
     name: ${{ matrix.shard }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile --prefer-offline
 
@@ -253,7 +253,7 @@ jobs:
           compose/wait.sh ${{ join(matrix.dbs, ' ') }}
 
       - name: Download build-dist (compiled JS)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: build-dist
           path: .
@@ -261,7 +261,7 @@ jobs:
       # Required for packaging tests
       - name: Download packed tarballs
         if: matrix.shard == 'orm'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: packages
           path: .
@@ -391,51 +391,51 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
       - name: Download package tarball
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: packages
           path: ./artifacts
       - name: Run @arethetypeswrong/cli
         run: |
-          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-kit/package.tgz
           bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-seed/package.tgz
           bun --bun run ./attw-fork/src/run.ts ./artifacts/eslint-plugin-drizzle/package.tgz
         env:
           ATTW_FORMAT: concise
 
-  attw-orm:
+  attw-esm:
     needs: [prepare]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       matrix:
-        package: [node16-cjs, node16-esm, bundler]
+        package: [drizzle-orm, drizzle-kit]
+        mode: [node16-esm, bundler]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - run: pnpm fetch && pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
-      - name: Download drizzle-orm tarball
-        uses: actions/download-artifact@v4
+      - name: Download package tarballs
+        uses: actions/download-artifact@v8
         with:
           name: packages
           path: ./artifacts
       - name: Run @arethetypeswrong/cli
-        working-directory: drizzle-orm
-        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-orm/package.tgz ${{ matrix.package }}
+        working-directory: ${{ matrix.package }}
+        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/${{ matrix.package }}/package.tgz ${{ matrix.mode }}
         env:
           ATTW_FORMAT: concise
 
@@ -444,15 +444,56 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: '24' }
       - name: Download drizzle-orm tarball
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: packages
           path: ./artifacts
       - name: Run publint
         run: npx -y publint@0.3.21 ./artifacts/drizzle-orm/package.tgz
+
+  packed-orm:
+    needs: [prepare]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        # The consumer projects run on each of these versions. 20.19.0 and 22.12.0 are the oldest versions in the
+        # engines range, where require() of ESM works without a flag. vitest needs a newer Node, so it runs on Node 24.
+        node-version: ['20.19.0', '22.12.0', 'lts/*', 'latest']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with: { run_install: false }
+      - uses: actions/setup-node@v7
+        with: { node-version: '${{ matrix.node-version }}' }
+      - run: echo "CONSUMER_NODE=$(which node)" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v7
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile --prefer-offline
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.4.4 }
+      - uses: denoland/setup-deno@v2
+        with: { deno-version: v2.x }
+      - name: Start Postgres
+        shell: bash
+        run: |
+          set -euxo pipefail
+          docker compose -f compose/postgres.yml up -d
+          chmod +x compose/wait.sh
+          compose/wait.sh postgres
+      - name: Download build-dist (compiled JS)
+        uses: actions/download-artifact@v8
+        with:
+          name: build-dist
+          path: .
+      - name: Run packed package test
+        working-directory: integration-tests
+        env:
+          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
+        run: pnpm --stream test:packed
 
   skills-revision-gate:
     runs-on: ubuntu-24.04
@@ -462,13 +503,13 @@ jobs:
         if: github.event_name != 'pull_request'
         run: echo "Not a pull request — skills revision gate does not apply"
       - if: github.event_name == 'pull_request'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - if: github.event_name == 'pull_request'
         uses: pnpm/action-setup@v6
         with: { run_install: false }
       - if: github.event_name == 'pull_request'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with: { node-version: '24', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
       - name: Skills revision gate
         if: github.event_name == 'pull_request'
@@ -480,7 +521,7 @@ jobs:
           pnpm skills:revision:check
 
   release:
-    needs: [test, prepare, attw, attw-orm, publint-orm, skills-revision-gate]
+    needs: [test, prepare, attw, attw-esm, publint-orm, packed-orm, skills-revision-gate]
     # workflow_dispatch only: this job holds `id-token: write` and is the sole path to
     # the publish step, so PR/push events must never enter it — that would both expose
     # OIDC minting to untrusted PR code and auto-publish on push.
@@ -497,10 +538,10 @@ jobs:
       matrix:
         package: ${{ fromJson(needs.prepare.outputs.publish_matrix) }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # don't specify registry url, so there's no .npmrc config file
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: '24' }
       
       # nuke, so npm can use OIDC
@@ -523,7 +564,7 @@ jobs:
           fi
           echo "//npm.pkg.github.com/:_authToken=$GH_PACKAGES_TOKEN" >> "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
       - name: Download package tarball
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: packages
           path: ./artifacts

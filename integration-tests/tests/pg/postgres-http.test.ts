@@ -1,7 +1,7 @@
-import { client as createHttpClient } from '@drizzle-team/minipg/http';
+import { client as createHttpClient } from '@drizzle-team/postgres/http';
 import { defineRelations, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { minipgCodecs } from 'drizzle-orm/postgres/codecs';
+import { postgresCodecs } from 'drizzle-orm/postgres/codecs';
 import { drizzle as drizzleHttp, type PostgresHttpDatabase } from 'drizzle-orm/postgres/http';
 import { migrate } from 'drizzle-orm/postgres/http/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
@@ -19,7 +19,6 @@ import {
 	boundsRelations,
 	boundsSchema,
 	makeAllTypes,
-	temporalBoundsDataMinipg,
 } from './all-types';
 import { tests } from './common';
 import { postgresHttpTest as test } from './instrumentation';
@@ -614,7 +613,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute + select via db.execute', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_1', {
+		const usersTable = pgTable('users_execute_raw_postgres_1', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -635,7 +634,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute + returning', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_2', {
+		const usersTable = pgTable('users_execute_raw_postgres_2', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -656,7 +655,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute w/ query builder', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_3', {
+		const usersTable = pgTable('users_execute_raw_postgres_3', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -676,7 +675,10 @@ describe('driver-specific', () => {
 	});
 
 	test('all types ~shapes~', async ({ createDB, push }) => {
-		const db = createDB({ allTypesTable }, allTypesRelations);
+		const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+			...allTypesRelations(r),
+			...boundsRelations(r),
+		}));
 		await push({ en: allTypesEnum, allTypesTable });
 		await db.insert(allTypesTable).values(allTypesData);
 
@@ -687,10 +689,8 @@ describe('driver-specific', () => {
 		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 		await assertAllTypesUnions(db);
-		await assertAllTypesBounds(db);
-		await assertAllTypesTemporalBounds(db, {
-			data: Date.now() < +new Date('2026-11-24') ? temporalBoundsDataMinipg : undefined,
-		});
+		await assertAllTypesBounds(db, { rqb: true });
+		await assertAllTypesTemporalBounds(db, { rqb: true });
 
 		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 	});
@@ -704,7 +704,7 @@ describe('driver-specific', () => {
 			...allTypesRelations(r),
 			...boundsRelations(r),
 		}));
-		const db = drizzleHttp({ client: (base as any).$client, relations, codecs: minipgCodecs });
+		const db = drizzleHttp({ client: (base as any).$client, relations, codecs: postgresCodecs });
 		await db.insert(allTypesTable).values(allTypesData);
 
 		const [flat] = await db.select().from(allTypesTable);

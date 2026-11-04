@@ -65,7 +65,7 @@ export type Setup = {
 		| 'postgres'
 		| '@vercel/postgres'
 		| '@neondatabase/serverless'
-		| '@drizzle-team/minipg'
+		| '@drizzle-team/postgres'
 		| 'mysql2'
 		| '@planetscale/database'
 		| 'd1-http'
@@ -338,6 +338,8 @@ export const drizzleForPostgres = async (
 		}
 	} else if ('url' in credentials) {
 		dbUrl = credentials.url;
+	} else if ('client' in credentials) {
+		dbUrl = 'postgres://custom-client';
 	} else {
 		dbUrl =
 			`postgresql://${credentials.user}:${credentials.password}@${credentials.host}:${credentials.port}/${credentials.database}`;

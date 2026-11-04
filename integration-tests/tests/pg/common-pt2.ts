@@ -60,7 +60,6 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import { PgliteDatabase } from 'drizzle-orm/pglite';
-import { PostgresDatabase } from 'drizzle-orm/postgres';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { describe, expect, expectTypeOf } from 'vitest';
@@ -80,7 +79,6 @@ import {
 	boundsRelations,
 	boundsSchema,
 	makeAllTypes,
-	temporalBoundsDataMinipg,
 } from './all-types';
 import type { Test } from './instrumentation';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -4050,12 +4048,7 @@ export function tests(test: Test) {
 		test('all types ~codecs~ - non-UTC session', async ({ createDB }) => {
 			const db = createDB({ ...boundsSchema }, boundsRelations);
 
-			const minipgIssues = is(db, PostgresDatabase) && Date.now() < +new Date('2026-11-24');
-
-			await assertAllTypesTemporalBoundsInSessionTimeZones(db, {
-				rqb: !minipgIssues,
-				data: minipgIssues ? temporalBoundsDataMinipg : undefined,
-			});
+			await assertAllTypesTemporalBoundsInSessionTimeZones(db, { rqb: true });
 		});
 
 		test.concurrent('all types ~json~', async ({ db, push }) => {
