@@ -178,7 +178,7 @@ describe.skipIf(!baseUrl)('a Drizzle Postgres pool passed as dbCredentials.clien
 		const out = join(outDir, name);
 		mkdirSync(out);
 		const db = await preparePostgresDB(credentials as never);
-		expect(db.packageName).toBe('@drizzle/postgres');
+		expect(db.packageName).toBe('@drizzle-team/postgres');
 		await runWithCliContext(
 			{ output: 'json', interactive: false },
 			() => pull('camel', out, true, credentials as never, filters, migrations, false, db),

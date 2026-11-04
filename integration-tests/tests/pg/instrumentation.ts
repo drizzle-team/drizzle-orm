@@ -1,11 +1,11 @@
 import { ExecuteStatementCommand, RDSDataClient } from '@aws-sdk/client-rds-data';
 import { neon, neonConfig, type NeonQueryFunction, Pool as NeonPool } from '@neondatabase/serverless';
 
-import { createPool as createPostgresPool } from '@drizzle/postgres';
-import { createPool as createAuroraClient } from '@drizzle/postgres/aurora';
-import { client as createHttpClient } from '@drizzle/postgres/http';
-import { createPool as createPostgresNeonHttpClient } from '@drizzle/postgres/neon-http';
-import { createPool as createPostgresNeonWsPool } from '@drizzle/postgres/neon-ws';
+import { createPool as createPostgresPool } from '@drizzle-team/postgres';
+import { createPool as createAuroraClient } from '@drizzle-team/postgres/aurora';
+import { client as createHttpClient } from '@drizzle-team/postgres/http';
+import { createPool as createPostgresNeonHttpClient } from '@drizzle-team/postgres/neon-http';
+import { createPool as createPostgresNeonWsPool } from '@drizzle-team/postgres/neon-ws';
 import { createProvider, requireEnv } from '@drizzle/test-utils';
 import { PGlite } from '@electric-sql/pglite';
 import {

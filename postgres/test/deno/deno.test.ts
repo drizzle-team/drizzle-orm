@@ -1,4 +1,4 @@
-// @drizzle/postgres/deno under REAL Deno — `bun run test:deno` (needs the local cluster from `bun run test:setup`).
+// @drizzle-team/postgres/deno under REAL Deno — `bun run test:deno` (needs the local cluster from `bun run test:setup`).
 // Kept out of `bun test test/**` because only Deno can run it, the same way test/cf needs workerd.
 //
 // What this pins down, all of which was broken:
@@ -141,7 +141,7 @@ Deno.test('sslmode=require in the url performs the SSLRequest dance, then startT
 // Deno.startTls returns a stream, never the peer certificate — Deno.TlsConn exposes only handshake(), and
 // node:tls under Deno hands back {subject, subjectaltname} with no raw DER. So SCRAM's tls-server-end-point
 // cannot be computed on this transport by anyone. This entry dials ANY Postgres, so `require` is refused
-// with that reason rather than quietly downgraded to an unbound session. (@drizzle/postgres/neon-ws relaxes it to
+// with that reason rather than quietly downgraded to an unbound session. (@drizzle-team/postgres/neon-ws relaxes it to
 // 'prefer' instead: it points at one provider whose URLs always carry the parameter and whose own drivers
 // ignore it — @neondatabase/serverless always picks plain SCRAM-SHA-256 with the gs2 header `n,,`.)
 Deno.test('channel_binding=require is refused up front, naming the Deno limit', async () => {
@@ -150,7 +150,7 @@ Deno.test('channel_binding=require is refused up front, naming the Deno limit', 
 	assertStringIncludes(err.message, 'channel_binding=require cannot be honoured');
 	assertStringIncludes(err.message, 'Deno.TlsConn'); // says WHY, not just "unsupported"
 	assertStringIncludes(err.message, '`channel_binding=prefer`'); // …and what to do instead,
-	assertStringIncludes(err.message, '`@drizzle/postgres/node`'); // …or where to go for a bound connection
+	assertStringIncludes(err.message, '`@drizzle-team/postgres/node`'); // …or where to go for a bound connection
 	assertEquals((err as unknown as { fatal?: boolean }).fatal, true); // a pool must not retry this
 });
 

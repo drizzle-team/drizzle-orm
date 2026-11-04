@@ -53,7 +53,7 @@ _Avoid_: stray cancel, collateral cancel, misdirected cancel
 ### Distribution
 
 **Standalone package**:
-Drizzle Postgres installed on its own, as `@drizzle/postgres`.
+Drizzle Postgres installed on its own, as `@drizzle-team/postgres`.
 _Avoid_: separate Drizzle Postgres, external Drizzle Postgres
 
 **Bundled copy**:

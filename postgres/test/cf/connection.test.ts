@@ -1,4 +1,4 @@
-// Real-workerd test for the @drizzle/postgres/cf adapter (nodejs_compat path). Verifies the pieces that our
+// Real-workerd test for the @drizzle-team/postgres/cf adapter (nodejs_compat path). Verifies the pieces that our
 // Node-based simulation can't: cloudflare:sockets connect(), SCRAM auth via nodejs_compat node:crypto,
 // Buffer, and — the open question — Duplex.from({readable,writable}) under workerd's node:stream.
 //
@@ -81,7 +81,7 @@ it('`channel_binding=require` is refused up front, naming the workerd limit', as
 	// cloudflare:sockets owns the TLS session and its Socket exposes no certificate API, so SCRAM's
 	// tls-server-end-point cannot be computed here by anyone. This entry dials ANY Postgres, so a caller
 	// who asked for binding is told it is impossible rather than silently downgraded to an unbound session.
-	// (@drizzle/postgres/neon-ws relaxes instead — one provider, whose own drivers ignore the parameter.)
+	// (@drizzle-team/postgres/neon-ws relaxes instead — one provider, whose own drivers ignore the parameter.)
 	let err: Error | null = null;
 	try {
 		await connect('postgres://postgres:postgres@127.0.0.1:54329/testdb?channel_binding=require');
@@ -92,7 +92,7 @@ it('`channel_binding=require` is refused up front, naming the workerd limit', as
 	expect(err!.message).toMatch(/channel_binding=require cannot be honoured/);
 	expect(err!.message).toMatch(/cloudflare:sockets/); // says WHY, not just "unsupported"
 	expect(err!.message).toContain('`channel_binding=prefer`'); // …and what to do instead,
-	expect(err!.message).toContain('`@drizzle/postgres/node`'); // …or where to go for a bound connection
+	expect(err!.message).toContain('`@drizzle-team/postgres/node`'); // …or where to go for a bound connection
 	expect((err as unknown as { fatal?: boolean }).fatal).toBe(true); // a pool must not retry this
 });
 

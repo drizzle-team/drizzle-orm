@@ -1,6 +1,6 @@
-// @drizzle/postgres/neon-http DECODE PARITY — proves the HTTP driver decodes every type identically to the wire
+// @drizzle-team/postgres/neon-http DECODE PARITY — proves the HTTP driver decodes every type identically to the wire
 // driver, by running each query through BOTH transports against the SAME Neon backend and asserting the
-// decoded rows match. The wire driver (@drizzle/postgres/node over TCP+TLS) is the oracle. All queries are stateless
+// decoded rows match. The wire driver (@drizzle-team/postgres/node over TCP+TLS) is the oracle. All queries are stateless
 // single statements (no temp tables — HTTP has no cross-request session); enum/composite/domain use
 // catalog DDL, which DOES persist over HTTP.
 //
@@ -70,7 +70,7 @@ const MATRIX: Array<{ name: string; sql: string }> = [
 	},
 ];
 
-d('@drizzle/postgres/neon-http decode parity vs the wire driver (same Neon backend)', () => {
+d('@drizzle-team/postgres/neon-http decode parity vs the wire driver (same Neon backend)', () => {
 	let http: NeonHttpClient;
 	let wire: Connection;
 
@@ -131,7 +131,7 @@ d('@drizzle/postgres/neon-http decode parity vs the wire driver (same Neon backe
 });
 
 // Config + shape machinery flows through the HTTP client the same as the wire driver.
-d('@drizzle/postgres/neon-http config & shape decode', () => {
+d('@drizzle-team/postgres/neon-http config & shape decode', () => {
 	test('jsonBigints:"bigint" preserves oversized ints inside jsonb', async () => {
 		const db = await httpConnect({ url: URL!, jsonBigints: 'bigint' });
 		try {

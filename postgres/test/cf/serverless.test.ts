@@ -1,4 +1,4 @@
-// Real-workerd tests for the serverless driver entries (@drizzle/postgres/neon-ws, /neon-http, /aurora). Confirms
+// Real-workerd tests for the serverless driver entries (@drizzle-team/postgres/neon-ws, /neon-http, /aurora). Confirms
 // they actually run on the Cloudflare Workers runtime — global WebSocket / fetch / crypto.subtle,
 // nodejs_compat (Buffer / node:stream), and the interpreted decode fallback (workerd has no eval, so the
 // 'auto' mapper must pick the interpreted path). Neon URLs are injected as bindings by vitest.config.ts.
@@ -13,7 +13,7 @@ const E = env as Record<string, string | undefined>;
 const WS_URL = E.NEON_WS_URL || undefined;
 const HTTP_URL = E.NEON_HTTP_URL || undefined;
 
-describe('@drizzle/postgres/neon-ws on workerd', () => {
+describe('@drizzle-team/postgres/neon-ws on workerd', () => {
 	it.runIf(!!WS_URL)('connects over WebSocket, queries, decodes (interpreted)', async () => {
 		const db = await connectWs(WS_URL!);
 		try {
@@ -25,7 +25,7 @@ describe('@drizzle/postgres/neon-ws on workerd', () => {
 	});
 });
 
-describe('@drizzle/postgres/neon-http on workerd', () => {
+describe('@drizzle-team/postgres/neon-http on workerd', () => {
 	it.runIf(!!HTTP_URL)('fetches + decodes (int8->BigInt, numeric->string) via interpreted mapper', async () => {
 		const db = await connectHttp(HTTP_URL!);
 		const r = await db.query('select 1 as n, $1::int8 as big, $2::numeric as num', ['9223372036854775807', '10.50'], {
@@ -36,7 +36,7 @@ describe('@drizzle/postgres/neon-http on workerd', () => {
 	});
 });
 
-describe('@drizzle/postgres/aurora on workerd (no live endpoint needed)', () => {
+describe('@drizzle-team/postgres/aurora on workerd (no live endpoint needed)', () => {
 	it('SigV4 via crypto.subtle matches the AWS vector', async () => {
 		const r = await signV4({
 			method: 'GET',

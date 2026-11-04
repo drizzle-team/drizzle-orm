@@ -150,7 +150,7 @@ runtimes that can't hold a walsender anyway).
     and Debezium only gets away with it via correlation headers a driver has no place
     inventing. Pulse keeps the split; with a declared key it shrinks to checking one flag.
 
-### C. Managed CDC session (`@drizzle/postgres/cdc` subpath or sibling package)
+### C. Managed CDC session (`@drizzle-team/postgres/cdc` subpath or sibling package)
 
 The consumer-facing shape, roughly:
 

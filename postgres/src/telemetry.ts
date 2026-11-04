@@ -1,4 +1,4 @@
-// Telemetry plugins — `import { otel, sentry } from '@drizzle/postgres/telemetry'`.
+// Telemetry plugins — `import { otel, sentry } from '@drizzle-team/postgres/telemetry'`.
 // Explicit, no monkey-patching: `connect({ plugins: [otel()] })`. Each factory returns a Plugin that
 // turns the driver's per-query lifecycle into spans/metrics. The OTel/Sentry SDKs are OPTIONAL: they
 // are lazily resolved at runtime (so this module has no hard dependency), or you can inject the
@@ -42,7 +42,7 @@ export function otel(opts: { tracer?: TracerLike; captureText?: boolean } = {}):
 		: (optionalRequire('@opentelemetry/api') as { trace?: { getTracer?(n: string): TracerLike } } | undefined);
 	const tracer: TracerLike | undefined = opts.tracer ?? api?.trace?.getTracer?.('@drizzle/postgres');
 	if (!tracer) {
-		throw new Error('@drizzle/postgres/telemetry: otel() needs @opentelemetry/api installed (or pass { tracer })');
+		throw new Error('@drizzle-team/postgres/telemetry: otel() needs @opentelemetry/api installed (or pass { tracer })');
 	}
 	const withText = opts.captureText ?? true;
 	return {
@@ -78,7 +78,7 @@ export function otel(opts: { tracer?: TracerLike; captureText?: boolean } = {}):
 export function sentry(opts: { client?: SentryLike; captureText?: boolean } = {}): Plugin {
 	const S: SentryLike | undefined = opts.client ?? (optionalRequire('@sentry/node') as SentryLike | undefined);
 	if (!S) {
-		throw new Error('@drizzle/postgres/telemetry: sentry() needs @sentry/node installed (or pass { client })');
+		throw new Error('@drizzle-team/postgres/telemetry: sentry() needs @sentry/node installed (or pass { client })');
 	}
 	const withText = opts.captureText ?? true;
 	return {

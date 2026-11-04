@@ -1,4 +1,4 @@
-// Behaviour that must hold IDENTICALLY on every stateless entry (@drizzle/postgres/http, /neon-http, /aurora).
+// Behaviour that must hold IDENTICALLY on every stateless entry (@drizzle-team/postgres/http, /neon-http, /aurora).
 // Each entry carries its own copy of this plumbing, so these tests exist to catch the copies drifting —
 // which is exactly how the bugs below shipped:
 //   - http combined `timeout` + `signal` with AbortSignal.any (Node 20.3+, package says node >= 18), so
@@ -33,18 +33,18 @@ const neonDb = () => neonClient({ url: 'postgres://u:p@ep-x.region.aws.neon.tech
 const auroraDb = () => auroraConnect({ ...AURORA, fetch: hangingFetch });
 
 describe('`timeout` is honored on every entry', () => {
-	test('@drizzle/postgres/http', async () => {
+	test('@drizzle-team/postgres/http', async () => {
 		const err = await httpDb().query('select 1', [], { timeout: 10 }).catch((e) => e) as Error;
 		expect(err).toBeInstanceOf(Error);
 	});
 
-	test('@drizzle/postgres/neon-http', async () => {
+	test('@drizzle-team/postgres/neon-http', async () => {
 		const err = await neonDb().query('select 1', [], { timeout: 10 }).catch((e) => e) as Error;
 		expect(err).toBeInstanceOf(Error);
 	});
 
 	// aurora typed `timeout` on every query overload but never read it — the option did nothing
-	test('@drizzle/postgres/aurora (was declared but ignored)', async () => {
+	test('@drizzle-team/postgres/aurora (was declared but ignored)', async () => {
 		const db = await auroraDb();
 		const err = await db.query('select 1', [bind.int(1)], { timeout: 10 }).catch((e) => e) as Error;
 		expect(err).toBeInstanceOf(Error);
@@ -63,7 +63,7 @@ describe('timeout + signal combine without AbortSignal.any (Node 18 compatibilit
 		}
 	};
 
-	test('@drizzle/postgres/http still times out when BOTH are passed', async () => {
+	test('@drizzle-team/postgres/http still times out when BOTH are passed', async () => {
 		const err = await withoutAbortSignalAny(() =>
 			httpDb().query('select 1', [], { timeout: 10, signal: new AbortController().signal }).catch((e) => e)
 		) as Error;
@@ -71,7 +71,7 @@ describe('timeout + signal combine without AbortSignal.any (Node 18 compatibilit
 		expect((err as { code?: string }).code).toBe('QUERY_TIMEOUT'); // tagged, so it is distinguishable from an external abort
 	});
 
-	test('@drizzle/postgres/neon-http and /aurora too', async () => {
+	test('@drizzle-team/postgres/neon-http and /aurora too', async () => {
 		const neon = await withoutAbortSignalAny(() =>
 			neonDb().query('select 1', [], { timeout: 10, signal: new AbortController().signal }).catch((e) => e)
 		) as Error;
@@ -110,9 +110,9 @@ describe('transaction-control SQL is rejected identically, with each entry namin
 		for (const sql of REJECTED) {
 			for (
 				const [name, run] of [
-					['@drizzle/postgres/http', () => httpDb().query(sql)],
-					['@drizzle/postgres/neon-http', () => neonDb().query(sql)],
-					['@drizzle/postgres/aurora', () => aurora.query(sql)],
+					['@drizzle-team/postgres/http', () => httpDb().query(sql)],
+					['@drizzle-team/postgres/neon-http', () => neonDb().query(sql)],
+					['@drizzle-team/postgres/aurora', () => aurora.query(sql)],
 				] as const
 			) {
 				const err = await (run() as Promise<unknown>).catch((e: Error) => e) as Error;
@@ -163,7 +163,7 @@ function neonStub(
 	return neonClient({ url: 'postgres://u:p@ep-x.region.aws.neon.tech/db', fetch: fetchImpl, ...cfg });
 }
 
-// A transport decides how bytes are MOVED, never what a value decodes to. @drizzle/postgres/http used to default
+// A transport decides how bytes are MOVED, never what a value decodes to. @drizzle-team/postgres/http used to default
 // int8 to 'string' while the wire driver, neon-http and aurora all produced BigInt — so the same query
 // returned a different JS type depending on which entry the app imported.
 describe('decode defaults are identical across the HTTP entries', () => {
@@ -187,7 +187,7 @@ describe('decode defaults are identical across the HTTP entries', () => {
 	];
 	const neonFields = cols.map((c) => ({ name: c.name, dataTypeID: c.oid })); // the same columns as neon reports them
 
-	test('@drizzle/postgres/http defaults: int8 -> BigInt (scalar AND array), numeric -> string, temporal -> Date', async () => {
+	test('@drizzle-team/postgres/http defaults: int8 -> BigInt (scalar AND array), numeric -> string, temporal -> Date', async () => {
 		const r = await httpStub(wireResult(cols, [row])).query('select …', [], { mode: 'object' }) as {
 			rows: Record<string, unknown>[];
 		};
@@ -200,7 +200,7 @@ describe('decode defaults are identical across the HTTP entries', () => {
 		expect(r.rows[0]!.b).toBe(true);
 	});
 
-	test('@drizzle/postgres/neon-http produces the identical values from the identical OIDs', async () => {
+	test('@drizzle-team/postgres/neon-http produces the identical values from the identical OIDs', async () => {
 		const r = await neonStub(neonFields, [row]).query('select …', [], { mode: 'object' }) as {
 			rows: Record<string, unknown>[];
 		};
@@ -218,7 +218,7 @@ describe('decode defaults are identical across the HTTP entries', () => {
 			mode: 'object',
 		}) as { rows: Record<string, unknown>[] };
 		expect(h.rows[0]!.ts).toBe('2024-01-02 03:04:05+00');
-		expect(h.rows[0]!.tss).toEqual(['2024-01-02 03:04:05+00']); // was left as Date[] on @drizzle/postgres/http
+		expect(h.rows[0]!.tss).toEqual(['2024-01-02 03:04:05+00']); // was left as Date[] on @drizzle-team/postgres/http
 		const n = await neonStub(neonFields, [row], { temporal: 'string' }).query('select …', [], { mode: 'object' }) as {
 			rows: Record<string, unknown>[];
 		};

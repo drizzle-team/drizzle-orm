@@ -1,4 +1,4 @@
-// Drizzle Postgres for Cloudflare Workers — `import { connect, createPool } from '@drizzle/postgres/cf'`.
+// Drizzle Postgres for Cloudflare Workers — `import { connect, createPool } from '@drizzle-team/postgres/cf'`.
 // Also what the ROOT entry resolves to under the `workerd` export condition (package.json), so it
 // exposes the whole public API: its own connect/createPool plus everything in ./api.ts.
 // Uses Cloudflare's raw-TCP `connect()` from 'cloudflare:sockets'. Requires the `nodejs_compat`
@@ -31,7 +31,7 @@ async function openSocket(c: TransportTarget) {
 	// depending on its version: `opened` rejects with a generic "internal error", or `closed` settles
 	// while `opened` stays pending forever. Race them, and name the TLS step in both cases.
 	const handshakeFailed = (e: unknown): never => {
-		throw new Error(`@drizzle/postgres/cf: TLS handshake failed during startTls — ${(e as Error)?.message ?? e}`, {
+		throw new Error(`@drizzle-team/postgres/cf: TLS handshake failed during startTls — ${(e as Error)?.message ?? e}`, {
 			cause: e,
 		});
 	};
@@ -40,7 +40,7 @@ async function openSocket(c: TransportTarget) {
 		secure.closed.then(
 			() => {
 				throw new Error(
-					'@drizzle/postgres/cf: TLS handshake failed — connection closed during startTls (untrusted certificate?)',
+					'@drizzle-team/postgres/cf: TLS handshake failed — connection closed during startTls (untrusted certificate?)',
 				);
 			},
 			handshakeFailed,

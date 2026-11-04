@@ -67,7 +67,7 @@ async function main() {
 
 	if (!existsSync(`${postgresDir}/dist`)) {
 		throw new Error(
-			'Drizzle Postgres is not built. Run `pnpm --filter @drizzle/postgres build`, then build the ORM again.',
+			'Drizzle Postgres is not built. Run `pnpm --filter @drizzle-team/postgres build`, then build the ORM again.',
 		);
 	}
 

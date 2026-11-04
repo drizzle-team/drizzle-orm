@@ -1,4 +1,4 @@
-import { createPool as createAuroraClient } from '@drizzle/postgres/aurora';
+import { createPool as createAuroraClient } from '@drizzle-team/postgres/aurora';
 import { and, defineRelations, eq, getColumns, inArray, not, type RelationsBuilder, sql } from 'drizzle-orm';
 import {
 	boolean,

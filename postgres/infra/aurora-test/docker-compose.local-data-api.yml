@@ -1,6 +1,6 @@
 # NO-AWS test path: emulate the RDS Data API locally with koxudaxi/local-data-api over a throwaway Postgres.
 # It speaks the exact Data API HTTP shape (Execute / BatchExecute / Begin|Commit|RollbackTransaction) and
-# runs the SQL against the `db` container — so @drizzle/postgres/aurora is exercised end-to-end with no AWS account.
+# runs the SQL against the `db` container — so @drizzle-team/postgres/aurora is exercised end-to-end with no AWS account.
 #
 #   docker compose -f docker-compose.local-data-api.yml up -d
 #   # from the repo root, run the live suite against it (dummy ARNs/creds — the emulator ignores signing):

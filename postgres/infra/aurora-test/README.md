@@ -1,6 +1,6 @@
-# @drizzle/postgres/aurora — test infrastructure
+# @drizzle-team/postgres/aurora — test infrastructure
 
-Two ways to run the live suite (`bun run test:aurora:live`) for `@drizzle/postgres/aurora`. The test file
+Two ways to run the live suite (`bun run test:aurora:live`) for `@drizzle-team/postgres/aurora`. The test file
 (`test/integration/aurora.test.ts`) is endpoint-agnostic, so it runs unchanged against either.
 
 ## A) No AWS — local emulator (fastest, free)

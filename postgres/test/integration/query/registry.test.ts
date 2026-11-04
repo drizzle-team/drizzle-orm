@@ -46,7 +46,7 @@ describe('defineType registry', () => {
 		});
 	}, TEST_TIMEOUT);
 
-	test('@drizzle/postgres/geometry is a registry customer: same machinery end to end', async () => {
+	test('@drizzle-team/postgres/geometry is a registry customer: same machinery end to end', async () => {
 		await withConn(async (c) => {
 			const PT = '0101000020E6100000000000000000F03F0000000000000040'; // SRID=4326 POINT(1 2)
 			const LINE = '010200000002000000' + '0000000000000000'.repeat(2) + '000000000000F03F'.repeat(2); // LINESTRING(0 0,1 1)

@@ -1246,9 +1246,9 @@ export class ReplicationConnection {
 				const prev = bySql.get(sql);
 				if (prev) {
 					throw new Error(
-						`@drizzle/postgres: replication shape for ${info.schema}.${info.table}: ${
-							JSON.stringify(prev.name)
-						} and ${JSON.stringify(sc.name)} both map to column ${JSON.stringify(sql)}`,
+						`@drizzle/postgres: replication shape for ${info.schema}.${info.table}: ${JSON.stringify(prev.name)} and ${
+							JSON.stringify(sc.name)
+						} both map to column ${JSON.stringify(sql)}`,
 					);
 				}
 				bySql.set(sql, sc);

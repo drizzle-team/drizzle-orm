@@ -23,13 +23,13 @@ export async function negotiateSslRequest(readable: unknown, writable: unknown):
 		await writer.write(W.sslRequest());
 		const { value, done } = await reader.read();
 		if (done || !value || value.byteLength === 0) {
-			throw new Error('@drizzle/postgres/cf: connection closed during the SSLRequest exchange');
+			throw new Error('@drizzle-team/postgres/cf: connection closed during the SSLRequest exchange');
 		}
 		const b = value[0]!;
 		if (b === 0x4e) {
 			throw Object.assign(
 				new Error(
-					"@drizzle/postgres/cf: server refused TLS ('N' to SSLRequest) — sslmode=require cannot proceed (is ssl enabled server-side?)",
+					"@drizzle-team/postgres/cf: server refused TLS ('N' to SSLRequest) — sslmode=require cannot proceed (is ssl enabled server-side?)",
 				),
 				{ fatal: true },
 			); // 'N'
@@ -37,13 +37,13 @@ export async function negotiateSslRequest(readable: unknown, writable: unknown):
 		if (b !== 0x53) {
 			throw Object.assign(
 				new Error(
-					`@drizzle/postgres/cf: unexpected SSLRequest reply 0x${b.toString(16)} — not a Postgres server?`,
+					`@drizzle-team/postgres/cf: unexpected SSLRequest reply 0x${b.toString(16)} — not a Postgres server?`,
 				),
 				{ fatal: true },
 			); // not 'S'
 		}
 		if (value.byteLength > 1) {
-			throw new Error('@drizzle/postgres/cf: unexpected data after the SSLRequest reply — refusing to upgrade'); // nothing may be buffered past 'S'
+			throw new Error('@drizzle-team/postgres/cf: unexpected data after the SSLRequest reply — refusing to upgrade'); // nothing may be buffered past 'S'
 		}
 	} finally {
 		reader.releaseLock();
@@ -80,7 +80,7 @@ import { Duplex } from 'node:stream';
 export function duplexFromWeb(readable: unknown, writable: unknown): Duplex {
 	// Hand-rolled rather than Duplex.from({ readable, writable }): that overload is Node-only — Deno's
 	// node:stream compat rejects it outright (ERR_INVALID_ARG_TYPE, surfacing as the baffling "Cannot read
-	// properties of undefined (reading 'endsWith')"), which made @drizzle/postgres/deno fail on EVERY connect. The
+	// properties of undefined (reading 'endsWith')"), which made @drizzle-team/postgres/deno fail on EVERY connect. The
 	// explicit bridge below uses nothing but the Web Streams API and the Duplex constructor.
 	const reader = (readable as { getReader(): ByteReader }).getReader();
 	const writer = (writable as { getWriter(): ByteWriter }).getWriter();

@@ -1,4 +1,4 @@
-import { createPool as createNeonHttpClient } from '@drizzle/postgres/neon-http';
+import { createPool as createNeonHttpClient } from '@drizzle-team/postgres/neon-http';
 import { defineRelations, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { postgresCodecs } from 'drizzle-orm/postgres/codecs';

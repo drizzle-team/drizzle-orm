@@ -26,8 +26,8 @@
 		}
 	},
 	"imports": {
-		"#postgres": "@drizzle/postgres",
-		"#postgres/*": "@drizzle/postgres/*"
+		"#postgres": "@drizzle-team/postgres",
+		"#postgres/*": "@drizzle-team/postgres/*"
 	},
 	"engines": {
 		"node": "^20.19.0 || >=22.12.0"
@@ -267,7 +267,7 @@
 		"@aws/aurora-dsql-node-postgres-connector": "^0.1.9",
 		"@aws/aurora-dsql-postgresjs-connector": "^0.3.0",
 		"@cloudflare/workers-types": "^4.20251004.0",
-		"@drizzle/postgres": "workspace:*",
+		"@drizzle-team/postgres": "workspace:*",
 		"@drizzle/test-utils": "workspace:*",
 		"@effect/sql-d1": "4.0.0",
 		"@effect/sql-libsql": "4.0.0",

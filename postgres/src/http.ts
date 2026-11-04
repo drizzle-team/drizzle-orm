@@ -1,4 +1,4 @@
-// Drizzle Postgres for the httpostgres gateway — `import { client } from '@drizzle/postgres/http'`.
+// Drizzle Postgres for the httpostgres gateway — `import { client } from '@drizzle-team/postgres/http'`.
 //
 // Speaks the gateway protocol (httpostgres PROTOCOL.md): POST /query with a JSON request, and the
 // RESPONSE BODY IS the Postgres wire stream — {T, D, C, E, I} frames byte-for-byte as the backend
@@ -118,11 +118,11 @@ export class HttpClient {
 
 	constructor(config: HttpConfig) {
 		if (!config.url) {
-			throw new Error('@drizzle/postgres/http: config.url (the gateway /query endpoint) is required');
+			throw new Error('@drizzle-team/postgres/http: config.url (the gateway /query endpoint) is required');
 		}
 		this.cfg = config;
 		const f = config.fetch ?? globalThis.fetch;
-		if (!f) throw new Error('@drizzle/postgres/http: no fetch available — pass { fetch }');
+		if (!f) throw new Error('@drizzle-team/postgres/http: no fetch available — pass { fetch }');
 		this.fetchImpl = f;
 		this.decoders = buildDecoders(config.types, config.jsonBigints);
 		this.mapperFactory = buildMapperFactory(config.decode);
@@ -169,7 +169,7 @@ export class HttpClient {
 		const ct = res.headers.get('content-type') ?? '';
 		if (!ct.includes('vnd.minipg.pgwire')) {
 			throw new Error(
-				`@drizzle/postgres/http: unexpected response content-type ${
+				`@drizzle-team/postgres/http: unexpected response content-type ${
 					JSON.stringify(ct || '(none)')
 				} — expected application/vnd.minipg.pgwire (is the url the gateway's /query endpoint?)`,
 			);
@@ -180,7 +180,7 @@ export class HttpClient {
 			const e = msgs.find((m) => m.type === 'E');
 			throw e
 				? new PgError(parseErrorFields(e.body))
-				: new Error(`@drizzle/postgres/http: HTTP ${res.status} ${res.statusText}`);
+				: new Error(`@drizzle-team/postgres/http: HTTP ${res.status} ${res.statusText}`);
 		}
 		return msgs;
 	}
@@ -240,7 +240,7 @@ export class HttpClient {
 				case 'S':
 				case 'Z':
 					throw new Error(
-						`@drizzle/postgres/http: connection-level frame '${m.type}' in the response — the gateway must never forward it; refusing to parse`,
+						`@drizzle-team/postgres/http: connection-level frame '${m.type}' in the response — the gateway must never forward it; refusing to parse`,
 					);
 				default:
 					break; // unknown tags are ignored (forward-compatible)
@@ -295,7 +295,7 @@ export class HttpClient {
 		if (!fields) {
 			if (r.rows.length > 0) {
 				throw new Error(
-					'@drizzle/postgres/http: rows arrived with no RowDescription and no cached descriptor — desc elision desync (the gateway omitted T for a statement this client never saw)',
+					'@drizzle-team/postgres/http: rows arrived with no RowDescription and no cached descriptor — desc elision desync (the gateway omitted T for a statement this client never saw)',
 				);
 			}
 			return { rows: [], columns: [], rowCount: r.rowCount, command: r.command };
@@ -310,7 +310,7 @@ export class HttpClient {
 		const tx = TX_SQL.exec(sql);
 		if (tx) {
 			throw new Error(
-				`@drizzle/postgres/http: "${
+				`@drizzle-team/postgres/http: "${
 					tx[1]!.toUpperCase()
 				}" is transaction control — the GATEWAY owns the transaction boundary; use batch([...], { isolation }) for atomicity`,
 			);
@@ -329,7 +329,7 @@ export class HttpClient {
 		const oids = resolveParamTypes(types); // local validation: a typo fails HERE with Drizzle Postgres's error, not a gateway round-trip
 		if (types.length !== nParams) {
 			throw new Error(
-				`@drizzle/postgres/http: ${nParams} param value(s) but ${types.length} type(s) declared for ${
+				`@drizzle-team/postgres/http: ${nParams} param value(s) but ${types.length} type(s) declared for ${
 					JSON.stringify(sql.slice(0, 40))
 				}`,
 			);
@@ -361,7 +361,7 @@ export class HttpClient {
 		if (trailing) throw trailing;
 		if (results.length !== 1) {
 			throw new Error(
-				`@drizzle/postgres/http: expected 1 result, got ${results.length} — refusing to mis-attribute`,
+				`@drizzle-team/postgres/http: expected 1 result, got ${results.length} — refusing to mis-attribute`,
 			);
 		}
 		return this.decode(results[0]!, sql, opts.mode, opts.shape);
@@ -391,7 +391,7 @@ export class HttpClient {
 		if (firstErr) throw firstErr;
 		if (results.length !== queries.length) {
 			throw new Error(
-				`@drizzle/postgres/http: ${queries.length} statements but ${results.length} results — refusing to mis-attribute`,
+				`@drizzle-team/postgres/http: ${queries.length} statements but ${results.length} results — refusing to mis-attribute`,
 			);
 		}
 		return results.map((r, i) => this.decode(r, queries[i]!.sql, queries[i]!.mode, queries[i]!.shape));
@@ -420,7 +420,7 @@ export class HttpClient {
 		if (trailing) throw trailing; // impossible in autocommit mode — protocol desync if it happens
 		if (results.length !== queries.length) {
 			throw new Error(
-				`@drizzle/postgres/http: ${queries.length} statements but ${results.length} results — refusing to mis-attribute`,
+				`@drizzle-team/postgres/http: ${queries.length} statements but ${results.length} results — refusing to mis-attribute`,
 			);
 		}
 		return results.map((r, i) => {

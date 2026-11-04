@@ -1,4 +1,4 @@
-import type { Connection, Pool } from '@drizzle/postgres';
+import type { Connection, Pool } from '@drizzle-team/postgres';
 import type * as copy from 'postgres-copy';
 
 declare const pool: Pool;

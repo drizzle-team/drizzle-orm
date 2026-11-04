@@ -2,7 +2,7 @@
 // matter (int8 across the 2^53 fence, float specials, numeric NaN/2^100, BC dates), an ARRAY of
 // each aliased type (with a NULL element), and a rich JSON payload of mixed inner types.
 // DIFFERENTIAL against both drivers: each SELECT runs through the WIRE driver and through
-// @drizzle/postgres/http fed the statement's own mode:'wire' capture; rows must deep-equal — WITHOUT a shape
+// @drizzle-team/postgres/http fed the statement's own mode:'wire' capture; rows must deep-equal — WITHOUT a shape
 // (catalog defaults) and WITH one (aliases + targets). Lives in query/ so DRIZZLE_POSTGRES_VARIANT also runs
 // the whole matrix under the interpreted engine. A third check pins shape-alias decode ≡ default
 // decode for scalar columns (the binary-upgrade value-identity contract).

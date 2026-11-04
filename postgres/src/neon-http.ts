@@ -1,4 +1,4 @@
-// Drizzle Postgres for Neon over HTTP — `import { connect, createPool } from '@drizzle/postgres/neon-http'`.
+// Drizzle Postgres for Neon over HTTP — `import { connect, createPool } from '@drizzle-team/postgres/neon-http'`.
 //
 // Neon's SQL-over-HTTP endpoint runs ONE SQL statement (or an atomic batch) per fetch — no persistent
 // connection, ideal for serverless/edge. It is NOT the Postgres wire protocol: the request is JSON
@@ -9,7 +9,7 @@
 // temporal→Date, json…) with no JSON.parse of the hot data and near-zero transient allocation.
 //
 // Constraints (stateless HTTP): no interactive `begin(fn)` (use `transaction([...])` for an atomic batch,
-// or @drizzle/postgres/neon-ws for interactive tx), no LISTEN/COPY/cursors, no prepared-statement reuse, no binary
+// or @drizzle-team/postgres/neon-ws for interactive tx), no LISTEN/COPY/cursors, no prepared-statement reuse, no binary
 // wire format (text decode only). `$1` placeholders — same as the wire driver.
 import { addBrand } from './brand.ts';
 import { buildDecoders } from './decode.ts';
@@ -241,7 +241,7 @@ export class NeonHttpClient {
 		const r = resolveUrl(c as { url?: string }) as NeonHttpConfig;
 		const host = r.host ?? process.env.PGHOST;
 		if (!host) {
-			throw new Error('@drizzle/postgres/neon-http: no host — pass a Neon connection string (url) or { host }');
+			throw new Error('@drizzle-team/postgres/neon-http: no host — pass a Neon connection string (url) or { host }');
 		}
 		this.connString = c.url ?? buildConnString(r);
 		this.endpoint = typeof c.fetchEndpoint === 'function'
@@ -251,7 +251,7 @@ export class NeonHttpClient {
 		const f = c.fetch ?? globalThis.fetch;
 		if (!f) {
 			throw new Error(
-				'@drizzle/postgres/neon-http: no fetch available — pass { fetch } (global fetch exists on Node ≥18, Bun, Deno, CF, browsers)',
+				'@drizzle-team/postgres/neon-http: no fetch available — pass { fetch } (global fetch exists on Node ≥18, Bun, Deno, CF, browsers)',
 			);
 		}
 		this.fetchImpl = f;
@@ -298,7 +298,7 @@ export class NeonHttpClient {
 			const e = parsed as { message?: string; code?: string } | undefined;
 			if (e && (e.message || e.code)) throw new PgError(e as never);
 			throw new Error(
-				`@drizzle/postgres/neon-http: HTTP ${res.status} ${res.statusText}${
+				`@drizzle-team/postgres/neon-http: HTTP ${res.status} ${res.statusText}${
 					parsed ? ' — ' + JSON.stringify(parsed) : ''
 				}`,
 			);
@@ -454,9 +454,9 @@ export class NeonHttpClient {
 		const tx = TX_SQL.exec(query);
 		if (tx) {
 			throw new Error(
-				`@drizzle/postgres/neon-http: "${
+				`@drizzle-team/postgres/neon-http: "${
 					tx[1]!.toUpperCase()
-				}" does NOTHING over stateless HTTP — every query() runs in its OWN session, so hand-rolled BEGIN…COMMIT gives zero atomicity with no error; use transaction([...]) for an atomic batch, or @drizzle/postgres/neon-ws for interactive transactions`,
+				}" does NOTHING over stateless HTTP — every query() runs in its OWN session, so hand-rolled BEGIN…COMMIT gives zero atomicity with no error; use transaction([...]) for an atomic batch, or @drizzle-team/postgres/neon-ws for interactive transactions`,
 			);
 		}
 		const res = await this.post({ query, params: encodeParams(params) }, await this.headers(), this.signalFor(opts));
@@ -465,18 +465,18 @@ export class NeonHttpClient {
 
 	/** Run a set of queries as ONE ATOMIC transaction in a single request (BEGIN…COMMIT server-side, or
 	 *  ROLLBACK on any error). Results in input order. This is the transaction primitive for stateless HTTP;
-	 *  the interactive `begin(fn)` form is not available (use @drizzle/postgres/neon-ws for that). */
+	 *  the interactive `begin(fn)` form is not available (use @drizzle-team/postgres/neon-ws for that). */
 	async transaction(queries: NeonTxQuery[], opts: NeonTxOptions = {}): Promise<QueryResult[]> {
 		if (typeof queries === 'function') {
 			throw new Error(
-				'@drizzle/postgres/neon-http: interactive transaction(fn) is not available over stateless HTTP — pass an ARRAY of queries for an atomic batch, or use @drizzle/postgres/neon-ws for interactive transactions',
+				'@drizzle-team/postgres/neon-http: interactive transaction(fn) is not available over stateless HTTP — pass an ARRAY of queries for an atomic batch, or use @drizzle-team/postgres/neon-ws for interactive transactions',
 			);
 		}
 		for (const q of queries) {
 			const tx = TX_SQL.exec(q.sql);
 			if (tx) {
 				throw new Error(
-					`@drizzle/postgres/neon-http: "${
+					`@drizzle-team/postgres/neon-http: "${
 						tx[1]!.toUpperCase()
 					}" inside transaction([...]) — the batch is ALREADY wrapped in BEGIN…COMMIT server-side; a nested one would silently break its atomicity`,
 				);

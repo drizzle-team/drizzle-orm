@@ -1,4 +1,4 @@
-// Import-resolution smoke test for the packed @drizzle/postgres tarball.
+// Import-resolution smoke test for the packed @drizzle-team/postgres tarball.
 // Installs the tarball into a scratch dir and dynamic-imports every subpath
 // export from there, under node — Bun's resolver is more permissive and would
 // mask exports-map bugs that break Node consumers.
@@ -14,7 +14,7 @@ if (!tgz) {
 	process.exit(2);
 }
 
-const PKG = '@drizzle/postgres';
+const PKG = '@drizzle-team/postgres';
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'postgres-smoke-'));
 process.on('exit', () => fs.rmSync(scratch, { recursive: true, force: true }));

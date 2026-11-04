@@ -1,5 +1,5 @@
 {
-	"name": "@drizzle/postgres",
+	"name": "@drizzle-team/postgres",
 	"version": "0.4.4",
 	"description": "A minimal, dependency-free PostgreSQL driver for Node, Bun, Deno, and Cloudflare Workers.",
 	"type": "module",

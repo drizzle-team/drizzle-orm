@@ -1,6 +1,6 @@
 # Releasing Drizzle Postgres
 
-How `@drizzle/postgres` gets published, what the pre-publish checks catch, and why CI provisions Postgres the way it does. Drizzle Postgres lives in the `postgres` folder of the drizzle-orm monorepo. Its workflows are in the monorepo's `.github/workflows`: `postgres-ci.yml` (the test gates, run for pull requests and pushes that change `postgres/`), `postgres-publish.yml` (manual release) and `postgres-preview.yml` (pkg.pr.new previews). The facts below were checked on 2026-08-11.
+How `@drizzle-team/postgres` gets published, what the pre-publish checks catch, and why CI provisions Postgres the way it does. Drizzle Postgres lives in the `postgres` folder of the drizzle-orm monorepo. Its workflows are in the monorepo's `.github/workflows`: `postgres-ci.yml` (the test gates, run for pull requests and pushes that change `postgres/`), `postgres-publish.yml` (manual release) and `postgres-preview.yml` (pkg.pr.new previews). The facts below were checked on 2026-08-11.
 
 To release, bump `version` in `postgres/package.json`, merge it, and run the Drizzle Postgres publish workflow from the Actions tab. It fails early if that version is already on npm, then runs every job of `postgres-ci.yml` before it publishes.
 

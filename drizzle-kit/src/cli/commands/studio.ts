@@ -65,7 +65,7 @@ export type Setup = {
 		| 'postgres'
 		| '@vercel/postgres'
 		| '@neondatabase/serverless'
-		| '@drizzle/postgres'
+		| '@drizzle-team/postgres'
 		| 'mysql2'
 		| '@planetscale/database'
 		| 'd1-http'

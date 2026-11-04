@@ -112,7 +112,7 @@ function effectiveChannelBinding(config: ConnectConfig): ConnectConfig['channelB
  *
  *  This is exactly what Neon's own drivers do: `@neondatabase/serverless` always selects plain
  *  `SCRAM-SHA-256` and hardcodes the gs2 header `n,,` (`c=biws`), and never reads `channel_binding` out of
- *  the connection string at all. Relaxed, @drizzle/postgres/neon-ws puts the identical bytes on the wire.
+ *  the connection string at all. Relaxed, @drizzle-team/postgres/neon-ws puts the identical bytes on the wire.
  *
  *  Only for the Neon entries — a general-purpose transport that cannot bind should say so; see
  *  `refuseChannelBinding`. `disable`/`prefer` pass through untouched. */
@@ -126,7 +126,7 @@ export function relaxChannelBinding<T extends ConnectConfig>(
 
 /** Refuse `channel_binding=require` on a transport that cannot compute tls-server-end-point, naming the
  *  runtime limit that makes it impossible. Unlike the Neon entries — which point at one provider whose own
- *  drivers ignore the parameter — @drizzle/postgres/cf and @drizzle/postgres/deno dial any Postgres, so a caller who asked for
+ *  drivers ignore the parameter — @drizzle-team/postgres/cf and @drizzle-team/postgres/deno dial any Postgres, so a caller who asked for
  *  binding gets told it cannot happen rather than being silently downgraded.
  *
  *  Thrown from the entry function, before a Pool exists, so it surfaces immediately; `fatal` keeps the
@@ -136,7 +136,7 @@ export function refuseChannelBinding<T extends ConnectConfig>(config: T, entry: 
 	throw Object.assign(
 		new Error(
 			`postgres/${entry}: channel_binding=require cannot be honoured — ${limit}, so SCRAM's tls-server-end-point cannot be computed. `
-				+ 'Use `channel_binding=prefer` (or drop the parameter) to connect unbound, or `@drizzle/postgres/node` for a bound connection.',
+				+ 'Use `channel_binding=prefer` (or drop the parameter) to connect unbound, or `@drizzle-team/postgres/node` for a bound connection.',
 		),
 		{ fatal: true },
 	);
