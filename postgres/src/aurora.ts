@@ -1,4 +1,4 @@
-// Drizzle Postgres for AWS Aurora Serverless — the RDS Data API — `import { connect, createPool, bind } from '@drizzle/postgres/aurora'`.
+// Drizzle Postgres for AWS Aurora Serverless — the RDS Data API — `import { connect, createPool, bind } from '@drizzle-team/postgres/aurora'`.
 //
 // The Data API is a stateless HTTPS+JSON service (NOT the Postgres wire protocol): one SigV4-signed POST
 // per statement, DB credentials held server-side in Secrets Manager. This driver signs requests with a
@@ -378,7 +378,7 @@ export class AuroraClient {
 
 	constructor(config: AuroraConfig) {
 		if (!config.resourceArn || !config.secretArn) {
-			throw new Error('@drizzle/postgres/aurora: resourceArn and secretArn are required');
+			throw new Error('@drizzle-team/postgres/aurora: resourceArn and secretArn are required');
 		}
 		this.resourceArn = config.resourceArn;
 		this.secretArn = config.secretArn;
@@ -389,11 +389,11 @@ export class AuroraClient {
 		this.signOverride = config.sign;
 		if (!this.credentials && !this.signOverride) {
 			throw new Error(
-				'@drizzle/postgres/aurora: no AWS credentials — pass { credentials } or set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, or provide { sign }',
+				'@drizzle-team/postgres/aurora: no AWS credentials — pass { credentials } or set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, or provide { sign }',
 			);
 		}
 		const f = config.fetch ?? globalThis.fetch;
-		if (!f) throw new Error('@drizzle/postgres/aurora: no fetch available — pass { fetch }');
+		if (!f) throw new Error('@drizzle-team/postgres/aurora: no fetch available — pass { fetch }');
 		this.fetchImpl = f;
 		this.maxRetries = config.maxRetries ?? 5;
 		this.temporal = config.temporal ?? 'date';
@@ -461,7 +461,7 @@ export class AuroraClient {
 				const clean = message.replace(/^Database error code:\s*-?\d+\.\s*Message:\s*/i, '').replace(/^ERROR:\s*/, '');
 				throw Object.assign(new PgError({ message: clean }), { awsErrorType: errType });
 			}
-			throw Object.assign(new Error(`@drizzle/postgres/aurora: ${errType || 'HTTP ' + res.status} — ${message}`), {
+			throw Object.assign(new Error(`@drizzle-team/postgres/aurora: ${errType || 'HTTP ' + res.status} — ${message}`), {
 				code: errType,
 			});
 		}
@@ -511,7 +511,7 @@ export class AuroraClient {
 		const cols = this.planCols(meta, shape);
 		if (shape && cols.length !== meta.length) {
 			throw new Error(
-				`@drizzle/postgres/aurora: shape declares ${cols.length} column(s) but the statement returned ${meta.length} (${
+				`@drizzle-team/postgres/aurora: shape declares ${cols.length} column(s) but the statement returned ${meta.length} (${
 					meta.map((c) => c.label ?? c.name).join(', ')
 				}) — a shape is positional, so a mismatch would decode the wrong column`,
 			);
@@ -588,7 +588,7 @@ export class AuroraClient {
 		const tx = TX_SQL.exec(sql);
 		if (tx) {
 			throw new Error(
-				`@drizzle/postgres/aurora: "${
+				`@drizzle-team/postgres/aurora: "${
 					tx[1]!.toUpperCase()
 				}" bypasses the Data API's transaction threading — outside begin() each statement auto-commits (a textual BEGIN silently does nothing), and inside begin() it would desync the threaded transactionId; use begin(fn)/transaction(fn)`,
 			);
@@ -617,7 +617,7 @@ export class AuroraClient {
 		const tx = TX_SQL.exec(sql);
 		if (tx) {
 			throw new Error(
-				`@drizzle/postgres/aurora: "${
+				`@drizzle-team/postgres/aurora: "${
 					tx[1]!.toUpperCase()
 				}" bypasses the Data API's transaction threading — use begin(fn)/transaction(fn)`,
 			);

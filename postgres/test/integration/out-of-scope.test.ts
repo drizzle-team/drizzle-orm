@@ -279,7 +279,7 @@ describe('runtime parity — Bun (primary)', () => {
 });
 
 describe('pure net/tls/crypto surface (static-import audit of src/)', () => {
-	// The opt-in per-runtime adapters (@drizzle/postgres/node|deno|cf) are the SANCTIONED boundary for
+	// The opt-in per-runtime adapters (@drizzle-team/postgres/node|deno|cf) are the SANCTIONED boundary for
 	// runtime-specific transports (the Deno global, cloudflare:sockets), so they're excluded from the
 	// core-purity audit; .d.ts files hold only erased type declarations.
 	const RUNTIME_ENTRIES = new Set(['node.ts', 'deno.ts', 'cf.ts']);

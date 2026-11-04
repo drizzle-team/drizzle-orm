@@ -125,7 +125,7 @@ describe('arrayLiteral', () => {
 	});
 });
 
-// The HTTP transports' JSON-request encoding (@drizzle/postgres/http + @drizzle/postgres/neon-http). An array used to be
+// The HTTP transports' JSON-request encoding (@drizzle-team/postgres/http + @drizzle-team/postgres/neon-http). An array used to be
 // JSON.stringify'd here — '["a","b"]' — which Postgres rejects with 22P02 malformed array literal.
 describe('encodeJsonParam / encodeJsonParams (HTTP request encoding)', () => {
 	test('encodeJsonParam matches the wire encoder for arrays, objects, bytea, Date and BigInt', () => {

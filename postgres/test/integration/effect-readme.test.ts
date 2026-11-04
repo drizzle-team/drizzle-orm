@@ -20,9 +20,9 @@ for (const [i, code] of examples.entries()) {
 		writeFileSync(
 			file,
 			code
-				.replaceAll("'@drizzle/postgres/effect/core'", `'${root}src/effect/core.ts'`)
-				.replaceAll("'@drizzle/postgres/effect'", `'${root}src/effect/index.ts'`)
-				.replaceAll("'@drizzle/postgres'", `'${root}src/index.ts'`),
+				.replaceAll("'@drizzle-team/postgres/effect/core'", `'${root}src/effect/core.ts'`)
+				.replaceAll("'@drizzle-team/postgres/effect'", `'${root}src/effect/index.ts'`)
+				.replaceAll("'@drizzle-team/postgres'", `'${root}src/index.ts'`),
 		);
 		try {
 			const proc = Bun.spawn(['bun', file], { stdout: 'pipe', stderr: 'pipe' });

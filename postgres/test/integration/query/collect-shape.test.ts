@@ -178,7 +178,7 @@ describe('Collect / Transform / Nullable', () => {
 			v: 'vector:array',
 			vf: 'vector:f32',
 			g: geometry('geojson'),
-			gh: geometry(), // @drizzle/postgres/geometry markers (PostGIS left core)
+			gh: geometry(), // @drizzle-team/postgres/geometry markers (PostGIS left core)
 		});
 		const row = r[0] as Record<string, unknown>;
 		expect(row.p).toEqual({ x: 1.5, y: 2.5 });

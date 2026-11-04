@@ -1,5 +1,5 @@
 // Runtime-agnostic core entry — connect/createPool + the public API, with NO node:net/tls transport
-// baked in (so it loads on workerd/Deno/edge). The node transport is added by ./index.ts (@drizzle/postgres/node);
+// baked in (so it loads on workerd/Deno/edge). The node transport is added by ./index.ts (@drizzle-team/postgres/node);
 // other runtimes import THIS module and supply config.transport or config.socket. connect() without
 // either throws.
 import { Connection } from './connection.ts';

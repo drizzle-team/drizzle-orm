@@ -1,4 +1,4 @@
-// @drizzle/postgres/aurora — live end-to-end test over the RDS Data API. Runs UNCHANGED against either:
+// @drizzle-team/postgres/aurora — live end-to-end test over the RDS Data API. Runs UNCHANGED against either:
 //   - a real Aurora Serverless v2 cluster (Data API enabled), OR
 //   - koxudaxi/local-data-api (a Docker emulator over a local Postgres — no AWS account/cost).
 //
@@ -26,7 +26,7 @@ function cfg(): AuroraConfig {
 	};
 }
 
-d('@drizzle/postgres/aurora over the RDS Data API', () => {
+d('@drizzle-team/postgres/aurora over the RDS Data API', () => {
 	let db: AuroraClient;
 	beforeAll(async () => {
 		db = await connect(cfg());

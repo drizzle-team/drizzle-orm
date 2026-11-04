@@ -1,4 +1,4 @@
-// Probe: does @drizzle/postgres/cf work through a Cloudflare Hyperdrive binding? Runs in real workerd; the
+// Probe: does @drizzle-team/postgres/cf work through a Cloudflare Hyperdrive binding? Runs in real workerd; the
 // `HYPERDRIVE` binding is configured (test/cf/wrangler.jsonc) with a localConnectionString pointing at
 // our local cluster, so Miniflare exposes env.HYPERDRIVE.{host,port,user,password,database} that route
 // to it — the same shape a production Hyperdrive binding has. Requires `bun run test:setup`.

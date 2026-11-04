@@ -1,4 +1,4 @@
-// Validates the file listing of a packed npm tarball for @drizzle/postgres.
+// Validates the file listing of a packed npm tarball for @drizzle-team/postgres.
 // Runs under node against the tarball's actual bytes, not a second pack.
 //   node scripts/pack-check.mjs <path-to-tgz>
 import { execFileSync } from 'node:child_process';

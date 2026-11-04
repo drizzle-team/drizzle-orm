@@ -2,7 +2,7 @@
 /// <reference path="./.sst/platform/config.d.ts" />
 
 // SST v3 app: a scale-to-zero Aurora Serverless v2 PostgreSQL cluster with the RDS Data API enabled, for
-// testing @drizzle/postgres/aurora. Uses the account's DEFAULT VPC (FREE) instead of provisioning a new SST Vpc (which
+// testing @drizzle-team/postgres/aurora. Uses the account's DEFAULT VPC (FREE) instead of provisioning a new SST Vpc (which
 // adds a ~$0.50/mo CloudMap namespace). Aurora requires a VPC, but the Data API is reached over the public
 // AWS endpoint, so any subnets work. Idle cost ≈ $0: `min: "0 ACU"` auto-pauses after 5 min of no activity.
 //

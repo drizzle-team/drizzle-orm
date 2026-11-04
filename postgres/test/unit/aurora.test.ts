@@ -1,4 +1,4 @@
-// @drizzle/postgres/aurora — OFFLINE unit tests (no live cluster). Covers the whole flow with an injected fetch:
+// @drizzle-team/postgres/aurora — OFFLINE unit tests (no live cluster). Covers the whole flow with an injected fetch:
 //   - SigV4 signer vs AWS's documented signing vector (src/sigv4.ts)
 //   - bind() -> Data API SqlParameters
 //   - Field -> JS decode with full wire parity (via the shared compiled mapper)
@@ -131,7 +131,7 @@ describe('query: request shaping + Field decode parity', () => {
 		expect(req.body.parameters).toEqual([{ name: 'p1', value: { longValue: 1 } }]);
 		expect(req.body.resultSetOptions).toEqual({ longReturnType: 'STRING', decimalReturnType: 'STRING' });
 
-		// decode parity (identical to @drizzle/postgres/node)
+		// decode parity (identical to @drizzle-team/postgres/node)
 		const row = r.rows[0] as Record<string, unknown>;
 		expect(row.id).toBe(9223372036854775807n);
 		expect(row.cnt).toBe(42);

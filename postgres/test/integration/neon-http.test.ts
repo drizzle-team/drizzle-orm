@@ -1,4 +1,4 @@
-// @drizzle/postgres/neon-http — real Neon SQL-over-HTTP test. Verifies the fetch transport + the raw-response
+// @drizzle-team/postgres/neon-http — real Neon SQL-over-HTTP test. Verifies the fetch transport + the raw-response
 // byte-scan → synthetic DataRow → shared compiled-mapper decode path (full type fidelity with no
 // JSON.parse of the hot data), plus atomic batch transactions and PgError mapping.
 //
@@ -15,7 +15,7 @@ const URL = process.env.NEON_HTTP_URL;
 const d = describe.skipIf(!URL);
 const TBL = 'postgres_http_test';
 
-d('@drizzle/postgres/neon-http over the Neon SQL-over-HTTP endpoint', () => {
+d('@drizzle-team/postgres/neon-http over the Neon SQL-over-HTTP endpoint', () => {
 	let db: NeonHttpClient;
 	beforeAll(async () => {
 		db = await connect(URL!);
@@ -184,8 +184,8 @@ function neonStub(
 	return { db: neonClient({ url: 'postgres://u:p@ep-x.region.aws.neon.tech/db', fetch: fetchImpl, ...cfg }), calls };
 }
 
-describe('@drizzle/postgres/neon-http: column plan + param encoding (offline)', () => {
-	test('@drizzle/postgres/neon-http: unknown columns resolve from fields[].dataTypeID', async () => {
+describe('@drizzle-team/postgres/neon-http: column plan + param encoding (offline)', () => {
+	test('@drizzle-team/postgres/neon-http: unknown columns resolve from fields[].dataTypeID', async () => {
 		const { db } = neonStub(
 			[{ name: 'count', dataTypeID: 23 }, { name: 'j', dataTypeID: 3802 }, { name: 'tags', dataTypeID: 1009 }],
 			[['2', '{"k":1}', '{a,b}']],
@@ -194,17 +194,17 @@ describe('@drizzle/postgres/neon-http: column plan + param encoding (offline)', 
 		expect(r.rows[0]).toEqual({ count: 2, j: { k: 1 }, tags: ['a', 'b'] });
 	});
 
-	test('@drizzle/postgres/neon-http: array params are array literals', async () => {
+	test('@drizzle-team/postgres/neon-http: array params are array literals', async () => {
 		const { db, calls } = neonStub([{ name: 'n', dataTypeID: 23 }], [['1']]);
 		await db.query('select $1', [['abc', 'def']]);
 		expect(calls[0]!.body.params).toEqual(['{"abc","def"}']);
 	});
 });
 
-// Like @drizzle/postgres/neon-ws, this entry is RELAXED about `channel_binding` — and here it is not even a policy
+// Like @drizzle-team/postgres/neon-ws, this entry is RELAXED about `channel_binding` — and here it is not even a policy
 // choice: there is no SASL exchange over SQL-over-HTTP at all. The connection string is forwarded verbatim
 // in the Neon-Connection-String header, so the parameter is Neon's to interpret at its own endpoint,
-// exactly as @neondatabase/serverless's HTTP client does. (@drizzle/postgres/cf and @drizzle/postgres/deno REFUSE `require`,
+// exactly as @neondatabase/serverless's HTTP client does. (@drizzle-team/postgres/cf and @drizzle-team/postgres/deno REFUSE `require`,
 // because those speak the wire protocol and would otherwise silently authenticate unbound.)
 describe('channel_binding on the HTTP entry (offline)', () => {
 	const NEON_URL = 'postgresql://u:p@ep-test.region.aws.neon.tech/verceldb?sslmode=require&channel_binding=require';

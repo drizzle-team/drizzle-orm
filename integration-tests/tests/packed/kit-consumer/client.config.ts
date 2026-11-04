@@ -1,4 +1,4 @@
-import { Pool } from '@drizzle/postgres';
+import { Pool } from '@drizzle-team/postgres';
 import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({

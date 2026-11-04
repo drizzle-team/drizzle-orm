@@ -1,4 +1,4 @@
-# @drizzle/postgres
+# @drizzle-team/postgres
 
 > [!WARNING]
 > Internal Drizzle Team package. Not supported for outside use. Breaking changes can land
@@ -11,15 +11,15 @@ each supported runtime and adapter.
 ## Install
 
 ```bash
-pnpm add @drizzle/postgres
+pnpm add @drizzle-team/postgres
 ```
 
 ```bash
-npm install @drizzle/postgres
+npm install @drizzle-team/postgres
 ```
 
 ```bash
-bun add @drizzle/postgres
+bun add @drizzle-team/postgres
 ```
 
 ## Usage
@@ -36,7 +36,7 @@ either with `DRIZZLE_POSTGRES_PG_MODE=native|docker`; remove the container with 
 Any other Postgres works too — point the config below at it.
 
 ```js
-import { connect } from '@drizzle/postgres'
+import { connect } from '@drizzle-team/postgres'
 
 const db = await connect({
   host: '127.0.0.1',
@@ -75,7 +75,7 @@ nothing is sent. The type of a `pool.transaction()` callback argument is plain `
 `transaction()` works on a `Pool | Connection` value.
 
 ```js
-import { createPool } from '@drizzle/postgres'
+import { createPool } from '@drizzle-team/postgres'
 
 const pool = createPool({ host: '127.0.0.1', port: 54329, user: 'postgres', password: 'postgres', database: 'testdb' })
 await pool.query('select pg_sleep(10)', [], { timeout: 1000 }) // rejects with code QUERY_TIMEOUT
@@ -93,7 +93,7 @@ stop the client from waiting for the response. The service decides whether the q
 
 The root import picks its TCP transport from the runtime, so the same line works everywhere:
 
-| Runtime | `@drizzle/postgres` resolves to | Transport |
+| Runtime | `@drizzle-team/postgres` resolves to | Transport |
 |---|---|---|
 | Node, Bun | the Node entry | `node:net` / `node:tls` |
 | Deno | the Deno entry | `Deno.connect` / `Deno.startTls` |
@@ -108,14 +108,14 @@ effect. Deno reads only `ssl.ca` and `ssl.servername` and ignores the other `ssl
 The choice is made once, by the `exports` conditions in `package.json`, when the module is
 resolved or bundled. There is no fallback on purpose: a target with no TCP (a browser bundle, the
 Vercel Edge runtime) fails to resolve the root import at build time. Use
-`@drizzle/postgres/http`, `/neon-http` or `/neon-ws` there.
+`@drizzle-team/postgres/http`, `/neon-http` or `/neon-ws` there.
 
 To force a transport, or when a bundler does not apply runtime conditions, import the explicit
-entry: `@drizzle/postgres/node`, `/cf` or `/deno`. Each exposes the same API as the root.
+entry: `@drizzle-team/postgres/node`, `/cf` or `/deno`. Each exposes the same API as the root.
 `/core` has no transport at all; pass `config.transport` or `config.socket`.
 
 ## Effect
 
-`@drizzle/postgres/effect` implements Effect's `SqlClient` on top of the Drizzle Postgres pool, and its layers
+`@drizzle-team/postgres/effect` implements Effect's `SqlClient` on top of the Drizzle Postgres pool, and its layers
 include the transport of each runtime. See [src/effect/README.md](src/effect/README.md) for
 setup, runtimes and examples.

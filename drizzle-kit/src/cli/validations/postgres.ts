@@ -133,7 +133,7 @@ export const printConfigConnectionIssues = (
 					? `dbCredentials.client cannot be combined with ${
 						conflicting.map((field) => `'${field}'`).join(', ')
 					}. Remove dbCredentials.client to let Drizzle Kit connect with these params, or remove these params to use your postgres Pool`
-					: `dbCredentials.client is not a Drizzle Postgres Pool. Pass a Pool from '@drizzle/postgres' or 'drizzle-orm/postgres' as 'dbCredentials.client'`,
+					: `dbCredentials.client is not a Drizzle Postgres Pool. Pass a Pool from '@drizzle-team/postgres' or 'drizzle-orm/postgres' as 'dbCredentials.client'`,
 			),
 		);
 	}

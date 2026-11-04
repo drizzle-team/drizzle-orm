@@ -1,5 +1,5 @@
 // AWS Signature Version 4 request signing — pure WebCrypto (crypto.subtle), ZERO dependencies. Runs on
-// Node 18+, Bun, Deno, Cloudflare Workers, and browsers. Used by @drizzle/postgres/aurora to sign RDS Data API calls.
+// Node 18+, Bun, Deno, Cloudflare Workers, and browsers. Used by @drizzle-team/postgres/aurora to sign RDS Data API calls.
 // (Only the classic SigV4 HMAC-SHA256 flow — not SigV4a/ECDSA, which the Data API doesn't require.)
 
 export interface AwsCredentials {

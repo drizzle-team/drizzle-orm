@@ -11,7 +11,7 @@ registerHooks({
 	},
 });
 
-const { createPool } = await import('@drizzle/postgres');
+const { createPool } = await import('@drizzle-team/postgres');
 const { sql } = await import('drizzle-orm');
 const { drizzle } = await import('drizzle-orm/postgres/core');
 

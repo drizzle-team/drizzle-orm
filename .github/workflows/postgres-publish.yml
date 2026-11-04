@@ -1,4 +1,4 @@
-# This filename must be registered on npmjs.com as the trusted publisher for @drizzle/postgres.
+# This filename must be registered on npmjs.com as the trusted publisher for @drizzle-team/postgres.
 # Renaming it requires updating the npmjs.com record the same day, or publishes fail
 # with E404. `npm publish` must stay in this file: in a reusable workflow, npm checks
 # the caller's filename.
@@ -56,5 +56,5 @@ jobs:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false
-      - run: pnpm install --frozen-lockfile --filter @drizzle/postgres
+      - run: pnpm install --frozen-lockfile --filter @drizzle-team/postgres
       - run: npm publish

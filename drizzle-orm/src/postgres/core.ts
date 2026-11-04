@@ -4,7 +4,7 @@ import { construct, type PostgresDatabase } from './driver-core.ts';
 import type { PostgresClient } from './session.ts';
 
 // Takes only a client and loads no pool or connection of the bundled client, so a pool or connection from the
-// standalone `@drizzle/postgres` package is the only copy of the client in the bundle and at runtime.
+// standalone `@drizzle-team/postgres` package is the only copy of the client in the bundle and at runtime.
 export function drizzle<
 	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends PostgresClient = PostgresClient,

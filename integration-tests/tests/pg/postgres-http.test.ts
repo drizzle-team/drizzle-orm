@@ -1,4 +1,4 @@
-import { client as createHttpClient } from '@drizzle/postgres/http';
+import { client as createHttpClient } from '@drizzle-team/postgres/http';
 import { defineRelations, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { postgresCodecs } from 'drizzle-orm/postgres/codecs';

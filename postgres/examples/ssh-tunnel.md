@@ -12,7 +12,7 @@ each reconnect.
 import { readFileSync } from 'node:fs'
 import type { Duplex } from 'node:stream'
 import { Client as SSH } from 'ssh2'      // npm i ssh2  (a peer of YOUR app, not of postgres)
-import { connect } from '@drizzle/postgres'
+import { connect } from '@drizzle-team/postgres'
 
 // 1. Open the SSH connection to the bastion.
 const ssh = new SSH()

@@ -96,7 +96,7 @@ const prepareDrizzlePostgresDB = async (client: Pool) => {
 		return results;
 	};
 
-	return { packageName: '@drizzle/postgres' as const, query, proxy, transactionProxy, migrate: migrateFn };
+	return { packageName: '@drizzle-team/postgres' as const, query, proxy, transactionProxy, migrate: migrateFn };
 };
 
 export const preparePostgresDB = async (
@@ -113,7 +113,7 @@ export const preparePostgresDB = async (
 			| '@vercel/postgres'
 			| '@neondatabase/serverless'
 			| 'bun'
-			| '@drizzle/postgres';
+			| '@drizzle-team/postgres';
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
 		benchmarkProxy?: BenchmarkProxy;
@@ -269,7 +269,7 @@ export const preparePostgresDB = async (
 				};
 
 				return {
-					packageName: '@drizzle/postgres',
+					packageName: '@drizzle-team/postgres',
 					query,
 					proxy,
 					transactionProxy,
@@ -574,7 +574,7 @@ export const preparePostgresDB = async (
 				'postgresql',
 				['client'],
 				error(
-					`dbCredentials.client is not a Drizzle Postgres Pool. Pass a Pool from '@drizzle/postgres' or 'drizzle-orm/postgres' as 'dbCredentials.client'`,
+					`dbCredentials.client is not a Drizzle Postgres Pool. Pass a Pool from '@drizzle-team/postgres' or 'drizzle-orm/postgres' as 'dbCredentials.client'`,
 				),
 			);
 		}
