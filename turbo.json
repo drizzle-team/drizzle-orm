@@ -42,7 +42,22 @@
 			"outputs": [],
 			"outputLogs": "none"
 		},
+		"@drizzle/postgres#build": {
+			"inputs": [
+				"src/**/*.ts",
+				"package.json",
+				"tsconfig.json",
+				"tsdown.config.ts"
+			],
+			"outputs": [
+				"dist/**"
+			],
+			"outputLogs": "new-only"
+		},
 		"drizzle-orm#build": {
+			"dependsOn": [
+				"@drizzle/postgres#build"
+			],
 			"inputs": [
 				"src/**/*.ts",
 				"package.json",
@@ -160,7 +175,21 @@
 			"outputs": [],
 			"outputLogs": "none"
 		},
+		"@drizzle/test-utils#build:artifact": {
+			"inputs": [],
+			"outputs": [],
+			"outputLogs": "none"
+		},
+		"@drizzle/postgres#build:artifact": {
+			"dependsOn": [
+				"@drizzle/postgres#build"
+			],
+			"outputs": []
+		},
 		"drizzle-orm#build:artifact": {
+			"dependsOn": [
+				"@drizzle/postgres#build"
+			],
 			"inputs": [
 				"src/**/*.ts",
 				"package.json",

@@ -13,30 +13,24 @@
 		"pack:artifact": "pnpm run pack",
 		"publish": "npm publish package.tgz"
 	},
-	"main": "./index.cjs",
-	"module": "./index.js",
+	"main": "./index.js",
 	"types": "./index.d.ts",
 	"exports": {
 		".": {
-			"import": {
-				"types": "./index.d.ts",
-				"default": "./index.js"
-			},
-			"require": {
-				"types": "./index.d.cts",
-				"default": "./index.cjs"
-			}
+			"types": "./index.d.ts",
+			"default": "./index.js"
 		},
 		"./*": {
-			"import": {
-				"types": "./*.d.ts",
-				"default": "./*.js"
-			},
-			"require": {
-				"types": "./*.d.cts",
-				"default": "./*.cjs"
-			}
+			"types": "./*.d.ts",
+			"default": "./*.js"
 		}
+	},
+	"imports": {
+		"#postgres": "@drizzle/postgres",
+		"#postgres/*": "@drizzle/postgres/*"
+	},
+	"engines": {
+		"node": "^20.19.0 || >=22.12.0"
 	},
 	"sideEffects": false,
 	"publishConfig": {
@@ -72,7 +66,6 @@
 		"@aws/aurora-dsql-postgresjs-connector": ">=0.3.0",
 		"@aws-sdk/client-rds-data": ">=3",
 		"@cloudflare/workers-types": ">=4",
-		"@drizzle-team/minipg": ">=0.4.4",
 		"@effect/sql-d1": ">=4.0.0",
 		"@effect/sql-libsql": ">=4.0.0",
 		"@effect/sql-mysql2": ">=4.0.0",
@@ -266,9 +259,6 @@
 		},
 		"zod": {
 			"optional": true
-		},
-		"@drizzle-team/minipg": {
-			"optional": true
 		}
 	},
 	"devDependencies": {
@@ -277,7 +267,8 @@
 		"@aws/aurora-dsql-node-postgres-connector": "^0.1.9",
 		"@aws/aurora-dsql-postgresjs-connector": "^0.3.0",
 		"@cloudflare/workers-types": "^4.20251004.0",
-		"@drizzle-team/minipg": "0.4.4",
+		"@drizzle/postgres": "workspace:*",
+		"@drizzle/test-utils": "workspace:*",
 		"@effect/sql-d1": "4.0.0",
 		"@effect/sql-libsql": "4.0.0",
 		"@effect/sql-mysql2": "4.0.0",

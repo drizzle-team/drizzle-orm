@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs';
 import { getTsconfig } from 'get-tsconfig';
 import { sync as globSync } from 'glob';
-import { dirname, join, resolve } from 'path';
+import { dirname, extname, isAbsolute, join, resolve } from 'path';
 import { parse, pathToFileURL } from 'url';
 import {
 	CheckCliError,
@@ -449,40 +449,34 @@ export const loadModule = async <T = unknown>(
 		return defaultExport ? (mod?.default ?? mod) : mod;
 	}
 
-	const [major, minor] = process.versions.node.split('.').map(Number);
-	const supportsModuleRegister = (major === 18 && minor >= 19)
-		|| (major === 20 && minor >= 6)
-		|| major >= 21;
-
-	if (!supportsModuleRegister) {
-		console.error(
-			`Node.js ${process.version} does not support the required module.register() API.`,
-		);
-		console.error(`Please upgrade to Node.js v18.19+, v20.6+, or v21+.`);
-		process.exit(1);
-	}
-
-	const path = require('path');
-	const absoluteModulePath = path.isAbsolute(modulePath)
-		? modulePath
-		: path.resolve(modulePath);
-	const ext = path.extname(modulePath);
+	const absoluteModulePath = isAbsolute(modulePath) ? modulePath : resolve(modulePath);
+	const ext = extname(modulePath);
 	const isTS = ext === '.ts' || ext === '.mts' || ext === '.cts';
 
-	if (isTS) {
-		const baseDir = path.dirname(absoluteModulePath);
-		const aliases = getAliasesForTsconfig(baseDir);
-		// oxlint-disable-next-line consistent-type-imports
-		const { createJiti } = require('jiti') as typeof import('jiti');
-		const jiti = createJiti(baseDir, {
-			interopDefault: true,
-			alias: aliases,
-			requireCache: false,
-		});
-		const mod = await jiti.import<any>(absoluteModulePath);
+	try {
+		if (isTS) {
+			const baseDir = dirname(absoluteModulePath);
+			const aliases = getAliasesForTsconfig(baseDir);
+			const { createJiti } = await import('jiti');
+			const jiti = createJiti(baseDir, {
+				interopDefault: true,
+				alias: aliases,
+				requireCache: false,
+			});
+			const mod = await jiti.import<any>(absoluteModulePath);
+			return defaultExport ? (mod?.default ?? mod) : mod;
+		}
+		const mod = await import(pathToFileURL(absoluteModulePath).href);
 		return defaultExport ? (mod?.default ?? mod) : mod;
+	} catch (error) {
+		// Node throws `ERR_REQUIRE_ESM` only when require(esm) is off, and its own message does not say which
+		// Node version to use.
+		if (!(error instanceof Error && 'code' in error && error.code === 'ERR_REQUIRE_ESM')) throw error;
+		throw new Error(
+			`Loading ${modulePath} failed because this Node version cannot require() an ESM module. `
+				+ `drizzle-kit requires Node.js ${process.env.DRIZZLE_KIT_NODE_RANGE}, and this Node version is `
+				+ `${process.version}. Upgrade Node.js to a version in that range.`,
+			{ cause: error },
+		);
 	}
-	const fileUrl = pathToFileURL(absoluteModulePath).href;
-	const mod = await import(fileUrl);
-	return defaultExport ? (mod?.default ?? mod) : mod;
 };

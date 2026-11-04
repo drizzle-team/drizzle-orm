@@ -4,7 +4,8 @@ import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { dialects } from '../utils/schemaValidator';
 import '../@types/utils';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
@@ -822,7 +823,7 @@ export const runPull = async (
 			migrate = db.migrate;
 			driverError = {
 				database: 'postgresql',
-				packages: ['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', '@drizzle-team/minipg'],
+				packages: ['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', 'drizzle-orm'],
 				message: 'Failed to connect to or introspect the Postgres database',
 			};
 
@@ -834,7 +835,7 @@ export const runPull = async (
 			if (isTypedCliError(e)) throw e;
 			throw new DatabaseDriverCliError(
 				'postgresql',
-				['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', '@drizzle-team/minipg'],
+				['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', 'drizzle-orm'],
 				'Failed to connect to or introspect the Postgres database',
 			);
 		}
@@ -1321,9 +1322,10 @@ export const skills = command({
 	options: {},
 	subcommands: [skillsVersion],
 	handler: async () => {
-		const candidates = [resolve(__dirname, 'skills'), resolve(__dirname, '../../skills')];
-		const skillsDir = candidates.find((p) => existsSync(p));
-		if (!skillsDir) {
+		// The export of the package itself gives its root, in the published layout and in this tree.
+		const packageRoot = dirname(fileURLToPath(import.meta.resolve('drizzle-kit')));
+		const skillsDir = resolve(packageRoot, 'skills');
+		if (!existsSync(skillsDir)) {
 			process.stderr.write('Could not locate bundled skills directory.\n');
 			process.exit(1);
 		}
