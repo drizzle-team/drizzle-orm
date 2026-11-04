@@ -1,4 +1,4 @@
-// R4 regression: @drizzle/postgres/http must work on runtimes with NO global Buffer — the polyfill's entire
+// R4 regression: @drizzle-team/postgres/http must work on runtimes with NO global Buffer — the polyfill's entire
 // audience. The trap is module-EVAL-time Buffer touches (decode.ts feature probes, encode.ts
 // COPY_SIG): bundlers reorder imports, so the polyfill may install AFTER those modules evaluate.
 // The fix is guards, making import order irrelevant. This test deletes Buffer in a subprocess,
@@ -6,7 +6,7 @@
 import { describe, expect, test } from 'bun:test';
 import { TEST_TIMEOUT, testConnect } from '../helpers/db.ts';
 
-describe('@drizzle/postgres/http without a global Buffer', () => {
+describe('@drizzle-team/postgres/http without a global Buffer', () => {
 	test('entry imports, MiniBuffer installs, and a real pgwire body decodes end-to-end', async () => {
 		const c = await testConnect();
 		let body: Buffer;

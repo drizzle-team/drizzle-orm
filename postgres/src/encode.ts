@@ -686,7 +686,7 @@ export const isRawParams = (x: unknown): x is RawParams =>
 /** JS value -> JSON-transportable text parameter (the HTTP protocols' request encoding — mirrors the
  *  wire driver's semantics: bytea as \x hex, Date ISO, BigInt decimal string, ARRAYS as a PG '{…}'
  *  literal (encodeParam/encodeValueInto do the same — NOT JSON), other objects as JSON text).
- *  Shared by @drizzle/postgres/neon-http and @drizzle/postgres/http.
+ *  Shared by @drizzle-team/postgres/neon-http and @drizzle-team/postgres/http.
  *
  *  `declaredOid` is the param's DECLARED type when the caller pinned one (`types: [...]`): a declared
  *  json/jsonb wins over the value's shape, so a JS array bound to a json param goes out as JSON text —

@@ -360,7 +360,7 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20251004.0
         version: 4.20251126.0
-      '@drizzle/postgres':
+      '@drizzle-team/postgres':
         specifier: workspace:*
         version: link:../postgres
       '@drizzle/test-utils':
@@ -664,7 +664,7 @@ importers:
       '@aws/aurora-dsql-postgresjs-connector':
         specifier: ^0.3.0
         version: 0.3.0(postgres@3.4.7)
-      '@drizzle/postgres':
+      '@drizzle-team/postgres':
         specifier: workspace:*
         version: link:../postgres
       '@effect/sql-d1':

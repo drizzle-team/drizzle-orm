@@ -51,7 +51,7 @@ describe('parseConnectionString (no connection)', () => {
 
 describe('relaxChannelBinding (no connection): a transport that owns its TLS cannot honour `require`', () => {
 	// SCRAM channel binding hashes the SERVER CERTIFICATE, which only the node TLS transport hands back.
-	// On @drizzle/postgres/neon-ws, /cf and /deno no caller can satisfy `require` — and Neon prints
+	// On @drizzle-team/postgres/neon-ws, /cf and /deno no caller can satisfy `require` — and Neon prints
 	// `?sslmode=require&channel_binding=require` on every connection string it issues, so rejecting it
 	// rejected the provider's own default URL. Those entries relax it to 'prefer' before Connection sees it.
 	test("`require` from the URL becomes an EXPLICIT 'prefer' (explicit wins over the url in resolveUrl)", () => {

@@ -1,4 +1,4 @@
-// @drizzle/postgres/aurora DECODE PARITY — every type's DEFAULT decode must match the wire driver's. Each value is
+// @drizzle-team/postgres/aurora DECODE PARITY — every type's DEFAULT decode must match the wire driver's. Each value is
 // selected through BOTH transports against the SAME Postgres (aurora via the Data API, wire over TCP
 // straight to the database behind it), and the decoded values must be identical. The wire driver is the
 // oracle. One column per query, so a single drifting type can't mask another.
@@ -138,7 +138,7 @@ const MATRIX: Record<string, string[]> = {
 	],
 };
 
-d('@drizzle/postgres/aurora decode parity vs the wire driver (same backend)', () => {
+d('@drizzle-team/postgres/aurora decode parity vs the wire driver (same backend)', () => {
 	let wire: Connection;
 	let wireString: Connection;
 	let aurora: AuroraClient;

@@ -2,7 +2,7 @@
 // A project can hold two copies, so an object from one copy must also work with the other copy.
 // `packed-package.test.ts` runs this script in a consumer project and compares the JSON that it prints.
 //
-// Usage: PG_CONNECTION_STRING=postgres://... node instanceof.js @drizzle/postgres postgres-copy
+// Usage: PG_CONNECTION_STRING=postgres://... node instanceof.js @drizzle-team/postgres postgres-copy
 const [firstName, secondName] = process.argv.slice(2);
 const [first, second] = await Promise.all([import(firstName), import(secondName)]);
 

@@ -1,7 +1,7 @@
 // Minimal Buffer polyfill over Uint8Array, for runtimes that DON'T ship Buffer (Vercel Edge, browsers).
 // It implements exactly the surface the driver uses. Installed as `globalThis.Buffer` only when Buffer
 // is absent, so the core code is unchanged and buffer-aware runtimes (Node/Bun/Deno/CF-nodejs_compat)
-// pay ZERO — this module is imported ONLY by the edge entry, never by @drizzle/postgres/node|deno|cf.
+// pay ZERO — this module is imported ONLY by the edge entry, never by @drizzle-team/postgres/node|deno|cf.
 //
 // MiniBuffer IS a Uint8Array (so it flows into Web WritableStream writes unchanged and gets index
 // access / iteration for free); multi-byte reads/writes go through a lazily-cached DataView.

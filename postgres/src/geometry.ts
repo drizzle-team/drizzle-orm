@@ -1,8 +1,8 @@
-// PostGIS types for Drizzle Postgres — a REGISTRY module (`@drizzle/postgres/geometry`), not core: PostGIS is a
+// PostGIS types for Drizzle Postgres — a REGISTRY module (`@drizzle-team/postgres/geometry`), not core: PostGIS is a
 // PostgreSQL extension with per-database OIDs, so its types are defineType() entries whose
 // markers you use directly in shapes. Core carries no PostGIS knowledge.
 //
-//   import { geometry, geography, box2d, box3d } from '@drizzle/postgres/geometry'
+//   import { geometry, geography, box2d, box3d } from '@drizzle-team/postgres/geometry'
 //   query(sql, [], { shape: { g: geometry('geojson'), gs: geometry.array('geojson'), b: box2d('xy') } })
 //
 // Bare usage (geometry()) yields the raw EWKB hex / 'BOX(…)' text (explicit-only parsing).
@@ -112,7 +112,7 @@ const ewkbPointCoords = (s: string): number[] => {
 	const geo = parseEwkbHex(s);
 	if (geo.type !== 'Point') {
 		throw new Error(
-			`@drizzle/postgres/geometry: :xy/:tuple expect a Point geometry, got ${
+			`@drizzle-team/postgres/geometry: :xy/:tuple expect a Point geometry, got ${
 				geo.type || 'an empty geometry'
 			} — use :geojson for mixed geometry columns`,
 		);

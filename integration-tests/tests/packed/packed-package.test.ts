@@ -123,7 +123,7 @@ const runtimes: Record<string, (cwd: string) => Promise<string>> = {
 function requirePostgresBuild() {
 	if (!existsSync(join(postgresDir, 'dist/index.js'))) {
 		throw new Error(
-			'Drizzle Postgres is not built. Run `pnpm --filter @drizzle/postgres build` before this test.',
+			'Drizzle Postgres is not built. Run `pnpm --filter @drizzle-team/postgres build` before this test.',
 		);
 	}
 }
@@ -171,8 +171,8 @@ describe.skipIf(!connectionString)('packed drizzle-kit with packed drizzle-orm a
 		expect(pulledSchema).toContain('users');
 	}
 
-	test('the standalone @drizzle/postgres is not installed', () => {
-		expect(existsSync(join(consumer(), 'node_modules/@drizzle/postgres'))).toBe(false);
+	test('the standalone @drizzle-team/postgres is not installed', () => {
+		expect(existsSync(join(consumer(), 'node_modules/@drizzle-team/postgres'))).toBe(false);
 	});
 
 	test('drizzle-kit push and pull connect through drizzle-orm/postgres', async () => {
@@ -227,7 +227,7 @@ describe.skipIf(!connectionString)(
 	},
 );
 
-describe.skipIf(!connectionString)('packed drizzle-orm with the standalone @drizzle/postgres as client', () => {
+describe.skipIf(!connectionString)('packed drizzle-orm with the standalone @drizzle-team/postgres as client', () => {
 	const consumer = useConsumer(
 		'standalone-consumer',
 		async (dir) => {
@@ -236,7 +236,7 @@ describe.skipIf(!connectionString)('packed drizzle-orm with the standalone @driz
 			return [await pack(ormDist, dir), await pack(postgresDir, dir)];
 		},
 		// A user installs the standalone package to get a newer release than the bundled copy.
-		{ '@drizzle/postgres': '999.0.0' },
+		{ '@drizzle-team/postgres': '999.0.0' },
 	);
 
 	test('a standalone pool runs a query and a batch', async () => {
@@ -259,7 +259,7 @@ describe.skipIf(!connectionString)('packed drizzle-orm with the standalone @driz
 	test('instanceof works in both directions between the bundled copy and the standalone package', async () => {
 		const output = await runScript(
 			'node',
-			['instanceof.js', 'drizzle-orm/postgres/client', '@drizzle/postgres'],
+			['instanceof.js', 'drizzle-orm/postgres/client', '@drizzle-team/postgres'],
 			consumer(),
 		);
 		const { exportedClasses, ...result } = JSON.parse(output);
@@ -268,7 +268,7 @@ describe.skipIf(!connectionString)('packed drizzle-orm with the standalone @driz
 	});
 });
 
-describe.skipIf(!connectionString)('two packed copies of @drizzle/postgres', () => {
+describe.skipIf(!connectionString)('two packed copies of @drizzle-team/postgres', () => {
 	const consumer = useConsumer(
 		'two-postgres-copies',
 		async (dir) => {
@@ -283,7 +283,7 @@ describe.skipIf(!connectionString)('two packed copies of @drizzle/postgres', () 
 	);
 
 	test('instanceof works in both directions for every exported class', async () => {
-		const output = await runScript('node', ['instanceof.js', '@drizzle/postgres', 'postgres-copy'], consumer());
+		const output = await runScript('node', ['instanceof.js', '@drizzle-team/postgres', 'postgres-copy'], consumer());
 		const { exportedClasses, ...result } = JSON.parse(output);
 		expect(result).toEqual(instanceofInBothDirections);
 		expect(exportedClasses).toBeGreaterThanOrEqual(22);

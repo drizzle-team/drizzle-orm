@@ -41,7 +41,7 @@ jobs:
           node-version: '24'
           package-manager-cache: false
 
-      - run: pnpm install --frozen-lockfile --filter @drizzle/postgres
+      - run: pnpm install --frozen-lockfile --filter @drizzle-team/postgres
 
       # The unit gate of postgres-ci.yml; the integration suite needs a live cluster and is too slow here.
       - run: bun run typecheck

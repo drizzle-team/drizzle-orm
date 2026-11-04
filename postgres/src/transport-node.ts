@@ -1,6 +1,6 @@
 // The node:net/node:tls transport, kept OUT of the shared core so the core module graph never imports
 // them — runtimes that provide their own socket (Cloudflare via cloudflare:sockets, Deno, etc.) never
-// pull node:tls, which doesn't exist on workerd even with nodejs_compat. The Node entry (@drizzle/postgres/node)
+// pull node:tls, which doesn't exist on workerd even with nodejs_compat. The Node entry (@drizzle-team/postgres/node)
 // registers this as the default transport via registerDefaultTransport(); the cf and Deno entries register their own.
 import net from 'node:net';
 import type { Duplex } from 'node:stream';
@@ -38,7 +38,7 @@ export function nodeTransport(cfg: TransportTarget, signal: AbortSignal): Promis
 		return Promise.reject(
 			Object.assign(
 				new Error(
-					"@drizzle/postgres: the node TCP transport cannot run on Cloudflare Workers — import from '@drizzle/postgres/cf' (cloudflare:sockets); the root entry only routes there when the bundler applies the `workerd` export condition",
+					"@drizzle/postgres: the node TCP transport cannot run on Cloudflare Workers — import from '@drizzle-team/postgres/cf' (cloudflare:sockets); the root entry only routes there when the bundler applies the `workerd` export condition",
 				),
 				{ fatal: true },
 			),

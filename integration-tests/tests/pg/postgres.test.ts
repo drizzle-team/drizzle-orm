@@ -1,4 +1,4 @@
-import { createPool } from '@drizzle/postgres';
+import { createPool } from '@drizzle-team/postgres';
 import { defineRelations, type RelationsBuilder, sql } from 'drizzle-orm';
 import {
 	boolean,

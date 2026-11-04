@@ -1,4 +1,4 @@
-// @drizzle/postgres/neon-ws — real Neon WebSocket-proxy transport test. Verifies the pieces our other transports
+// @drizzle-team/postgres/neon-ws — real Neon WebSocket-proxy transport test. Verifies the pieces our other transports
 // can't: connecting a `wss://<host>/v2` WebSocket, the WebSocket->Duplex bridge, SCRAM-SHA-256 auth over
 // the tunnel (no channel binding), and full protocol parity (prepared statements, pipelining, transactions).
 //
@@ -16,7 +16,7 @@ import type { Connection, Pool } from '../../src/neon-ws.ts';
 const URL = process.env.NEON_WS_URL;
 const d = describe.skipIf(!URL);
 
-d('@drizzle/postgres/neon-ws over the Neon WebSocket proxy', () => {
+d('@drizzle-team/postgres/neon-ws over the Neon WebSocket proxy', () => {
 	let c: Connection;
 	beforeAll(async () => {
 		c = await connect(URL!);
@@ -231,7 +231,7 @@ describe('connect failures keep the WebSocket error (offline — a fake WebSocke
 // connect() threw before dialing anything and pool.query() spent the full acquire timeout reporting a
 // database that was "not recovering". No caller could satisfy the parameter on this transport, so it is
 // relaxed to 'prefer' instead of being fatal.
-// This entry RELAXES `require` to 'prefer' — it is deliberately different from @drizzle/postgres/cf and @drizzle/postgres/deno,
+// This entry RELAXES `require` to 'prefer' — it is deliberately different from @drizzle-team/postgres/cf and @drizzle-team/postgres/deno,
 // which refuse it. The reason is that this one points at a single provider: Neon prints
 // `?sslmode=require&channel_binding=require` on every connection string it issues, and its own drivers
 // ignore the parameter — @neondatabase/serverless always selects plain SCRAM-SHA-256 and hardcodes the
@@ -286,7 +286,7 @@ describe('channel_binding=require in a provider URL is relaxed, not fatal (offli
 	}, 10000);
 
 	test(
-		'it is RELAXED, not refused — @drizzle/postgres/cf and @drizzle/postgres/deno take the opposite path',
+		'it is RELAXED, not refused — @drizzle-team/postgres/cf and @drizzle-team/postgres/deno take the opposite path',
 		async () => {
 			const err = await connect({ url: NEON_URL, connectTimeout: 300, webSocketConstructor: opening() } as never).catch(
 				(

@@ -1,4 +1,4 @@
-// Drizzle Postgres for Deno — `import { connect, createPool } from '@drizzle/postgres/deno'`.
+// Drizzle Postgres for Deno — `import { connect, createPool } from '@drizzle-team/postgres/deno'`.
 // Also what the ROOT entry resolves to under the `deno` export condition (package.json), so it
 // exposes the whole public API: its own connect/createPool plus everything in ./api.ts.
 // Same driver, Deno's TCP transport: Deno.connect (plus Deno.startTls for the SSLRequest upgrade —
@@ -15,7 +15,7 @@ import { duplexFromWeb, negotiateSslRequest, sendCancelRequest } from './webstre
 async function openConnection(c: TransportTarget) {
 	if (typeof Deno === 'undefined' || !Deno) {
 		throw new Error(
-			'@drizzle/postgres/deno: the Deno global is not available (run under Deno, or use @drizzle/postgres/node)',
+			'@drizzle-team/postgres/deno: the Deno global is not available (run under Deno, or use @drizzle-team/postgres/node)',
 		);
 	}
 	// unix socket (?host=/var/run/postgresql) — never TLS, same as the node transport
@@ -28,7 +28,7 @@ async function openConnection(c: TransportTarget) {
 	// node transport does (needed when dialing by IP a cert issued for a hostname).
 	const tlsHost = sslObj?.servername ?? c.host;
 	// Postgres has NO implicit TLS: Deno.connectTls would send a ClientHello where the server expects a
-	// startup packet. Do the SSLRequest dance first, then upgrade the SAME socket (as @drizzle/postgres/cf does).
+	// startup packet. Do the SSLRequest dance first, then upgrade the SAME socket (as @drizzle-team/postgres/cf does).
 	await negotiateSslRequest(conn.readable, conn.writable);
 	return Deno.startTls(conn, caCerts ? { hostname: tlsHost, caCerts } : { hostname: tlsHost });
 }

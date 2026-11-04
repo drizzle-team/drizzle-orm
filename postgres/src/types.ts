@@ -150,11 +150,11 @@ export interface ConnectConfig {
 	 *
 	 *  Entries that own their TLS cannot reach the certificate, and split two ways on what to do with
 	 *  'require':
-	 *   - @drizzle/postgres/neon-ws and @drizzle/postgres/neon-http RELAX it to 'prefer'. They point at one provider whose URLs
+	 *   - @drizzle-team/postgres/neon-ws and @drizzle-team/postgres/neon-http RELAX it to 'prefer'. They point at one provider whose URLs
 	 *     always carry `?channel_binding=require`, and whose own drivers ignore it —
 	 *     `@neondatabase/serverless` always picks plain SCRAM-SHA-256 with the gs2 header `n,,`. Refusing
 	 *     would reject Neon's own default connection string; relaxed, Drizzle Postgres sends the identical bytes.
-	 *   - @drizzle/postgres/cf and @drizzle/postgres/deno REFUSE it, naming the runtime limit (workerd's Socket and Deno's
+	 *   - @drizzle-team/postgres/cf and @drizzle-team/postgres/deno REFUSE it, naming the runtime limit (workerd's Socket and Deno's
 	 *     TlsConn expose no certificate API). Those dial any Postgres, so a caller who asked for binding
 	 *     is told it cannot happen instead of being quietly downgraded. */
 	channelBinding?: 'disable' | 'prefer' | 'require';
@@ -224,7 +224,7 @@ export interface ConnectConfig {
 	/** Dials and cancels with this transport instead of the one that the Node entry registers for the
 	 *  whole process. A `socket` still takes precedence for dialing. */
 	transport?: Transport;
-	/** Telemetry/observability plugins (e.g. otel()/sentry() from '@drizzle/postgres/telemetry'). They subscribe
+	/** Telemetry/observability plugins (e.g. otel()/sentry() from '@drizzle-team/postgres/telemetry'). They subscribe
 	 *  to query + connection lifecycle hooks; enabling any plugin turns on per-query timing capture. */
 	plugins?: Plugin[];
 }

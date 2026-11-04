@@ -1,5 +1,5 @@
 // Proves the multi-runtime transport seam: the driver runs over an injected WHATWG-Web-stream duplex
-// (what @drizzle/postgres/deno and @drizzle/postgres/cf provide) — not just a native net.Socket. We simulate it in Node/Bun
+// (what @drizzle-team/postgres/deno and @drizzle-team/postgres/cf provide) — not just a native net.Socket. We simulate it in Node/Bun
 // by taking a real TCP socket to the cluster, converting it to Web streams (Duplex.toWeb) and back
 // (Duplex.from) so chunks arrive as Uint8Array, exercising the onData Buffer-view coercion + binary
 // decode over a non-native transport. Requires the local cluster (`bun run test:setup`).

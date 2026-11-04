@@ -1,4 +1,4 @@
-// @drizzle/postgres/http SHAPE COMPLIANCE vs the wire driver: the same query + the same shape must decode to
+// @drizzle-team/postgres/http SHAPE COMPLIANCE vs the wire driver: the same query + the same shape must decode to
 // deep-equal rows over both transports. Differential by construction — the http client is fed a
 // REAL mode:'wire' capture of the very statement (that capture IS the gateway body), so any
 // divergence in the shape grammar, targets, markers, or defaults fails here. This also crosses the
@@ -65,7 +65,7 @@ async function compliant(sql: string, opts: AnyOpts): Promise<void> {
 	}
 }
 
-describe('@drizzle/postgres/http decodes shapes EXACTLY like the wire driver', () => {
+describe('@drizzle-team/postgres/http decodes shapes EXACTLY like the wire driver', () => {
 	test('scalar TypeSpec targets (int8/numeric/temporal/float4/uuid/bytea/bool/json)', async () => {
 		await compliant(
 			`select 9007199254740993::int8 as a, 9007199254740993::int8 as b, 9007199254740993::int8 as c,
@@ -143,7 +143,7 @@ describe('@drizzle/postgres/http decodes shapes EXACTLY like the wire driver', (
 		});
 	}, TEST_TIMEOUT);
 
-	test('registry markers: defineType + @drizzle/postgres/geometry', async () => {
+	test('registry markers: defineType + @drizzle-team/postgres/geometry', async () => {
 		// registry decode is NAME-driven (sentinel oids) — the real column type is irrelevant, so the
 		// EWKB rides as ::text and no PostGIS install is needed (same trick as the query-suite tests)
 		await compliant(

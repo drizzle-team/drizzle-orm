@@ -1,6 +1,6 @@
 # Drizzle Postgres for Effect
 
-`@drizzle/postgres/effect` implements Effect's `SqlClient` on top of the Drizzle Postgres pool. Effect
+`@drizzle-team/postgres/effect` implements Effect's `SqlClient` on top of the Drizzle Postgres pool. Effect
 core then gives you statement spans, transactions, savepoints and typed `SqlError`s. It needs
 `effect` 4.0.x as a peer dependency.
 
@@ -9,7 +9,7 @@ core then gives you statement spans, transactions, savepoints and typed `SqlErro
 ```ts
 import { Effect, Redacted } from 'effect'
 import { SqlClient } from 'effect/sql/SqlClient'
-import { DrizzlePostgresClient } from '@drizzle/postgres/effect'
+import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect'
 
 const Database = DrizzlePostgresClient.layer({ url: Redacted.make('postgres://postgres:postgres@127.0.0.1:54329/testdb') })
 
@@ -28,10 +28,10 @@ that you import it for.
 
 ## Runtimes
 
-`@drizzle/postgres/effect` picks its entry with the same `exports` conditions as the root
+`@drizzle-team/postgres/effect` picks its entry with the same `exports` conditions as the root
 import, so the code above runs unchanged on every runtime. It has no fallback either:
 
-| Runtime | `@drizzle/postgres/effect` resolves to | The pool dials with |
+| Runtime | `@drizzle-team/postgres/effect` resolves to | The pool dials with |
 |---|---|---|
 | Node, Bun | `/effect/node` | `node:net` / `node:tls` |
 | Deno | `/effect/deno` | `Deno.connect` / `Deno.startTls` |
@@ -47,8 +47,8 @@ table directly.
 ```ts
 import { Effect, Layer, Redacted } from 'effect'
 import { SqlClient } from 'effect/sql/SqlClient'
-import { DrizzlePostgresClient } from '@drizzle/postgres/effect/core'
-import { DrizzlePostgresTransport } from '@drizzle/postgres/effect'
+import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect/core'
+import { DrizzlePostgresTransport } from '@drizzle-team/postgres/effect'
 
 const Database = DrizzlePostgresClient.layer({ url: Redacted.make('postgres://postgres:postgres@127.0.0.1:54329/testdb') })
   .pipe(Layer.provide(DrizzlePostgresTransport.layer))
@@ -74,7 +74,7 @@ transport dials plain TCP, so it refuses `ssl`, and it sends no cancel requests:
 import net from 'node:net'
 import { Effect, Layer, Redacted } from 'effect'
 import { SqlClient } from 'effect/sql/SqlClient'
-import { DrizzlePostgresClient, DrizzlePostgresTransport } from '@drizzle/postgres/effect/core'
+import { DrizzlePostgresClient, DrizzlePostgresTransport } from '@drizzle-team/postgres/effect/core'
 
 const PlainTcp = Layer.succeed(DrizzlePostgresTransport.DrizzlePostgresTransport, {
   connect: (config, signal) => new Promise((resolve, reject) => {
@@ -106,7 +106,7 @@ A missing or invalid value fails the layer with a `ConfigError`:
 ```ts
 import { Config, ConfigProvider, Effect, Layer } from 'effect'
 import { SqlClient } from 'effect/sql/SqlClient'
-import { DrizzlePostgresClient } from '@drizzle/postgres/effect'
+import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect'
 
 const Database = DrizzlePostgresClient.layerConfig({
   url: Config.Redacted('DATABASE_URL'),
@@ -135,8 +135,8 @@ layer's scope closes:
 ```ts
 import { Effect } from 'effect'
 import { SqlClient } from 'effect/sql/SqlClient'
-import { createPool } from '@drizzle/postgres'
-import { DrizzlePostgresClient } from '@drizzle/postgres/effect/core'
+import { createPool } from '@drizzle-team/postgres'
+import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect/core'
 
 const pool = createPool('postgres://postgres:postgres@127.0.0.1:54329/testdb')
 
@@ -157,8 +157,8 @@ stays open. Pipe the client into `DrizzlePostgresClient.layerFrom` to get a laye
 ```ts
 import { Effect } from 'effect'
 import { SqlClient } from 'effect/sql/SqlClient'
-import { createPool } from '@drizzle/postgres'
-import { DrizzlePostgresClient } from '@drizzle/postgres/effect/core'
+import { createPool } from '@drizzle-team/postgres'
+import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect/core'
 
 // The pool ends when the layer's scope closes.
 const Database = DrizzlePostgresClient.fromPool({
@@ -183,7 +183,7 @@ scope closes. Like `@effect/sql-pg`, it needs `Reactivity` in context:
 ```ts
 import { Effect, Redacted } from 'effect'
 import * as Reactivity from 'effect/reactivity/Reactivity'
-import { DrizzlePostgresClient } from '@drizzle/postgres/effect'
+import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect'
 
 const n = await Effect.runPromise(Effect.gen(function* () {
   const client = yield* DrizzlePostgresClient.make({ url: Redacted.make('postgres://postgres:postgres@127.0.0.1:54329/testdb') })
@@ -201,7 +201,7 @@ console.log(n) // 1
 
 ```ts
 import { Effect, Redacted } from 'effect'
-import { DrizzlePostgresClient } from '@drizzle/postgres/effect'
+import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect'
 
 const Database = DrizzlePostgresClient.layer({ url: Redacted.make('postgres://postgres:postgres@127.0.0.1:54329/testdb') })
 
@@ -222,7 +222,7 @@ await Effect.runPromise(Effect.gen(function* () {
 ```ts
 import { Effect, Redacted } from 'effect'
 import { SqlClient } from 'effect/sql/SqlClient'
-import { DrizzlePostgresClient } from '@drizzle/postgres/effect'
+import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect'
 
 const Database = DrizzlePostgresClient.layer({ url: Redacted.make('postgres://postgres:postgres@127.0.0.1:54329/testdb') })
 
@@ -267,7 +267,7 @@ them run on the transaction's connection:
 ```ts
 import { Effect, Redacted } from 'effect'
 import { SqlClient } from 'effect/sql/SqlClient'
-import { DrizzlePostgresClient } from '@drizzle/postgres/effect'
+import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect'
 
 const Database = DrizzlePostgresClient.layer({ url: Redacted.make('postgres://postgres:postgres@127.0.0.1:54329/testdb') })
 const columns = { id: 'int4', name: 'text' } as const
@@ -297,7 +297,7 @@ batches from a server-side cursor on its own connection, `copyFrom`, which takes
 ```ts
 import { Effect, Redacted, Stream } from 'effect'
 import { SqlClient } from 'effect/sql/SqlClient'
-import { DrizzlePostgresClient } from '@drizzle/postgres/effect'
+import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect'
 
 const Database = DrizzlePostgresClient.layer({ url: Redacted.make('postgres://postgres:postgres@127.0.0.1:54329/testdb') })
 
@@ -325,7 +325,7 @@ await Effect.runPromise(Effect.gen(function* () {
 
 ```ts
 import { Effect, Redacted, Stream } from 'effect'
-import { DrizzlePostgresClient } from '@drizzle/postgres/effect'
+import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect'
 
 const Database = DrizzlePostgresClient.layer({ url: Redacted.make('postgres://postgres:postgres@127.0.0.1:54329/testdb') })
 
@@ -350,7 +350,7 @@ A failed statement fails with a `SqlError`. Its `reason` follows the SQLSTATE ta
 ```ts
 import { Effect, Redacted } from 'effect'
 import { SqlClient } from 'effect/sql/SqlClient'
-import { DrizzlePostgresClient } from '@drizzle/postgres/effect'
+import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect'
 
 const Database = DrizzlePostgresClient.layer({ url: Redacted.make('postgres://postgres:postgres@127.0.0.1:54329/testdb') })
 
@@ -374,7 +374,7 @@ no timings. With the option off, the driver collects no timings.
 ```ts
 import { Effect, Redacted } from 'effect'
 import { SqlClient } from 'effect/sql/SqlClient'
-import { DrizzlePostgresClient } from '@drizzle/postgres/effect'
+import { DrizzlePostgresClient } from '@drizzle-team/postgres/effect'
 
 const Database = DrizzlePostgresClient.layer({
   url: Redacted.make('postgres://postgres:postgres@127.0.0.1:54329/testdb'),

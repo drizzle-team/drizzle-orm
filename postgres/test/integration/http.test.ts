@@ -1,4 +1,4 @@
-// @drizzle/postgres/http — the httpostgres gateway client. No gateway needed here: mode:'wire' against the
+// @drizzle-team/postgres/http — the httpostgres gateway client. No gateway needed here: mode:'wire' against the
 // real cluster produces EXACTLY the bytes the gateway would forward (that is the whole protocol),
 // so a stub fetch serving wire captures gives end-to-end tests over real backend frames.
 import { describe, expect, test } from 'bun:test';
@@ -58,7 +58,7 @@ const httpStub = (body: Buffer, cfg: Partial<Parameters<typeof client>[0]> = {})
 	return { db: client({ url: 'https://gw.example/query', fetch: fetchImpl, ...cfg }), calls };
 };
 
-describe('@drizzle/postgres/http', () => {
+describe('@drizzle-team/postgres/http', () => {
 	test('decode parity over real backend frames: int8 -> BigInt, exactly as every other entry', async () => {
 		const body = await wireBody(
 			`select 9007199254740993::int8 as big, 'café' as s, 10.50::numeric as n, null::text as z`,
@@ -195,8 +195,8 @@ describe('@drizzle/postgres/http', () => {
 
 // A shape's 'unknown' (oid 0) column means "use the OID the server reports". This client took the
 // shape's columns verbatim and never merged the RowDescription, so count(*) decoded as the string "2".
-describe("@drizzle/postgres/http: shape 'unknown' resolves against the reported field types", () => {
-	test('@drizzle/postgres/http: count(*)::int8, an int4 aggregate and a json -> field decode by the SERVER-reported OID', async () => {
+describe("@drizzle-team/postgres/http: shape 'unknown' resolves against the reported field types", () => {
+	test('@drizzle-team/postgres/http: count(*)::int8, an int4 aggregate and a json -> field decode by the SERVER-reported OID', async () => {
 		const { db } = httpStub(wireResult(
 			[{ name: 'count', oid: 20 }, { name: 'usersCount', oid: 23 }, { name: 'jsonNumberField', oid: 114 }, {
 				name: 'jsonStringField',
@@ -210,7 +210,7 @@ describe("@drizzle/postgres/http: shape 'unknown' resolves against the reported 
 		expect(r.rows[0]).toEqual({ count: 2n, usersCount: 7, jsonNumberField: 123, jsonStringField: 'test' }); // count(*) is int8 -> BigInt, as on every entry
 	});
 
-	test('@drizzle/postgres/http: int8/temporal/array handling still applies to a column that arrived as unknown', async () => {
+	test('@drizzle-team/postgres/http: int8/temporal/array handling still applies to a column that arrived as unknown', async () => {
 		const body = wireResult([{ name: 'big', oid: 20 }, { name: 'ts', oid: 1184 }, { name: 'tags', oid: 1009 }], [[
 			'9007199254740993',
 			'2024-01-02 03:04:05+00',
@@ -229,7 +229,7 @@ describe("@drizzle/postgres/http: shape 'unknown' resolves against the reported 
 		expect((r2.rows[0] as { big: string }).big).toBe('9007199254740993');
 	});
 
-	test('@drizzle/postgres/http: a shape column with a DECLARED type still wins over the reported OID', async () => {
+	test('@drizzle-team/postgres/http: a shape column with a DECLARED type still wins over the reported OID', async () => {
 		const { db } = httpStub(wireResult([{ name: 'n', oid: 25 }], [['42']]));
 		const r = await db.query('select …', [], { shape: { n: 'int4' } });
 		expect(r.rows[0]).toEqual({ n: 42 });
@@ -237,11 +237,11 @@ describe("@drizzle/postgres/http: shape 'unknown' resolves against the reported 
 });
 
 // Array params must go out as a PG array literal '{"a","b"}', not JSON '["a","b"]' (22P02).
-describe('@drizzle/postgres/http: array params and int8 opt-outs', () => {
+describe('@drizzle-team/postgres/http: array params and int8 opt-outs', () => {
 	const int8Cols = [{ name: 'big', oid: 20 }, { name: 'bigs', oid: 1016 }]; // int8, int8[]
 	const int8Row = ['9007199254740993', '{1,9007199254740993}'];
 
-	test('@drizzle/postgres/http: query/batch/pipeline all send a PG array literal; declared jsonb sends JSON', async () => {
+	test('@drizzle-team/postgres/http: query/batch/pipeline all send a PG array literal; declared jsonb sends JSON', async () => {
 		const body = wireResult([{ name: 'n', oid: 23 }], [['1']]);
 		const q = httpStub(body);
 		await q.db.query('select $1', [['abc', 'def']]);

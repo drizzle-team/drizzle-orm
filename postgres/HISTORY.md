@@ -68,10 +68,10 @@ The JIT and interpreted engines were then unified: **one driver, one seam** — 
 
 ## Phase 6 — Serverless drivers (Jul 5–6)
 
-- **`@drizzle/postgres/neon-ws`:** Neon's WS proxy tunnels the real wire protocol → pure `config.socket` transport, ZERO core changes — prepared statements, pipelining, transactions all work. Facts pinned from Neon's own source: `wss://<host>/v2`, no SSLRequest, plain SCRAM. 465 tests pass over a live WAN tunnel. Found Neon virtualizes `backendKey.pid`.
-- **`@drizzle/postgres/neon-http`:** not wire protocol — a new query client that still **reuses the compiled mapper** by byte-scanning the raw HTTP response into synthetic DataRows: **4.13ms / 24KB alloc** per 5000-row decode vs 8.66ms / 1.30MB naive JSON.parse (~2× faster, ~54× less alloc). Full-suite audit: zero decode bugs; a dedicated cross-transport parity suite asserts HTTP ≡ wire decode.
-- **`@drizzle/postgres/aurora`** (RDS Data API): zero-dep hand-rolled SigV4 via WebCrypto (proven against AWS vectors), `bind()` param API, per-cell Field variants converted to PG text and fed through the same mapper — int8 above 2⁵³ exact via `longReturnType=STRING`. Validated offline (mock fetch), against the local-data-api Docker emulator, and against **real deployed AWS Aurora** (then torn down).
-- **Verified on real workerd** (`@drizzle/postgres/cf`): SCRAM, streaming, binary typed queries, Hyperdrive binding.
+- **`@drizzle-team/postgres/neon-ws`:** Neon's WS proxy tunnels the real wire protocol → pure `config.socket` transport, ZERO core changes — prepared statements, pipelining, transactions all work. Facts pinned from Neon's own source: `wss://<host>/v2`, no SSLRequest, plain SCRAM. 465 tests pass over a live WAN tunnel. Found Neon virtualizes `backendKey.pid`.
+- **`@drizzle-team/postgres/neon-http`:** not wire protocol — a new query client that still **reuses the compiled mapper** by byte-scanning the raw HTTP response into synthetic DataRows: **4.13ms / 24KB alloc** per 5000-row decode vs 8.66ms / 1.30MB naive JSON.parse (~2× faster, ~54× less alloc). Full-suite audit: zero decode bugs; a dedicated cross-transport parity suite asserts HTTP ≡ wire decode.
+- **`@drizzle-team/postgres/aurora`** (RDS Data API): zero-dep hand-rolled SigV4 via WebCrypto (proven against AWS vectors), `bind()` param API, per-cell Field variants converted to PG text and fed through the same mapper — int8 above 2⁵³ exact via `longReturnType=STRING`. Validated offline (mock fetch), against the local-data-api Docker emulator, and against **real deployed AWS Aurora** (then torn down).
+- **Verified on real workerd** (`@drizzle-team/postgres/cf`): SCRAM, streaming, binary typed queries, Hyperdrive binding.
 
 ## Phase 7 — The insert ladder (Jul 5–7)
 

@@ -1,6 +1,6 @@
-// src/webstream.ts — the Web-streams plumbing @drizzle/postgres/cf and @drizzle/postgres/deno share, unit-tested over plain
+// src/webstream.ts — the Web-streams plumbing @drizzle-team/postgres/cf and @drizzle-team/postgres/deno share, unit-tested over plain
 // Web streams (no workerd, no Deno needed):
-//   - the Postgres STARTTLS exchange @drizzle/postgres/cf performs before startTls(): SSLRequest bytes out, one-byte
+//   - the Postgres STARTTLS exchange @drizzle-team/postgres/cf performs before startTls(): SSLRequest bytes out, one-byte
 //     reply in, fail closed on everything that isn't a bare 'S';
 //   - duplexFromWeb, the Web-streams -> Node-Duplex bridge both entries hand the core as their transport.
 // The workerd side (real cloudflare:sockets) is covered in test/cf; the Deno side in test/deno.
@@ -23,7 +23,7 @@ function fakeSocket(...replies: Uint8Array[]) {
 	return { readable, writable, written };
 }
 
-describe('@drizzle/postgres/cf STARTTLS negotiation', () => {
+describe('@drizzle-team/postgres/cf STARTTLS negotiation', () => {
 	test("sends the exact 8-byte SSLRequest and accepts a bare 'S'", async () => {
 		const s = fakeSocket(new Uint8Array([0x53]));
 		await negotiateSslRequest(s.readable, s.writable);

@@ -11,7 +11,7 @@ import path from 'node:path';
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'postgres-verify-'));
 process.on('exit', () => fs.rmSync(tmp, { recursive: true, force: true }));
 execFileSync('npm', ['pack', '--pack-destination', tmp], { stdio: 'inherit' });
-// scoped names flatten: @drizzle/postgres -> drizzle-team-postgres-<version>.tgz
+// scoped names flatten: @drizzle-team/postgres -> drizzle-team-postgres-<version>.tgz
 const tgz = path.join(tmp, fs.readdirSync(tmp).find((f) => f.endsWith('.tgz')));
 
 const bin = (name) => path.join(process.cwd(), 'node_modules', '.bin', name);

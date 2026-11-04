@@ -83,7 +83,7 @@ import type { ShapeMapper } from './shape.ts';
 
 type ConnState = 'idle' | 'connecting' | 'ready' | 'reconnecting' | 'closed';
 
-// The node:net/tls transport is registered here by the Node entry (@drizzle/postgres/node) so the core never
+// The node:net/tls transport is registered here by the Node entry (@drizzle-team/postgres/node) so the core never
 // statically imports node:net/tls (which don't exist on workerd). A config.transport or config.socket
 // takes precedence over it: the cf and Deno entries and the Effect entry point dial that way.
 type TransportFactory = (cfg: NormalizedConfig, signal: AbortSignal) => Promise<Duplex>;
@@ -777,7 +777,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				return this.failAttempt(
 					Object.assign(
 						new Error(
-							'no transport: import from @drizzle/postgres/node (net/tls), or pass config.transport or config.socket',
+							'no transport: import from @drizzle-team/postgres/node (net/tls), or pass config.transport or config.socket',
 						),
 						{ fatal: true },
 					),

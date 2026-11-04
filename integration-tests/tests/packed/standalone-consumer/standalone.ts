@@ -1,4 +1,4 @@
-import { createPool } from '@drizzle/postgres';
+import { createPool } from '@drizzle-team/postgres';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres/core';
 

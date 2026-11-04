@@ -1,4 +1,4 @@
-// Drizzle Postgres for Neon over WebSocket — `import { connect, createPool } from '@drizzle/postgres/neon-ws'`.
+// Drizzle Postgres for Neon over WebSocket — `import { connect, createPool } from '@drizzle-team/postgres/neon-ws'`.
 //
 // Neon's serverless WebSocket proxy tunnels the REAL PostgreSQL wire protocol over a `wss://<host>/v2`
 // WebSocket, so Drizzle Postgres speaks unmodified Postgres to it: prepared statements, pipelining, transactions,
@@ -109,7 +109,7 @@ function duplexFromWebSocket(ws: WSLike): Duplex {
 		// nobody is listening yet. Pre-open the duplex has no owner: the connect promise has not resolved
 		// with it, so the core has attached nothing. There the rejection carries the cause instead.
 		if (duplex.listenerCount('error') === 0) duplex.destroy();
-		else duplex.destroy(withCause('@drizzle/postgres/neon-ws: websocket error', wsErrorCause(ev)));
+		else duplex.destroy(withCause('@drizzle-team/postgres/neon-ws: websocket error', wsErrorCause(ev)));
 	});
 	return duplex;
 }
@@ -123,7 +123,7 @@ function neonSocket(config: NeonConnectConfig): () => Promise<Duplex> {
 	const WS = config.webSocketConstructor ?? (globalThis as { WebSocket?: WebSocketCtor }).WebSocket;
 	if (!WS) {
 		throw new Error(
-			"@drizzle/postgres/neon-ws: no WebSocket constructor available — on Node < 22 pass { webSocketConstructor } (e.g. the 'ws' package)",
+			"@drizzle-team/postgres/neon-ws: no WebSocket constructor available — on Node < 22 pass { webSocketConstructor } (e.g. the 'ws' package)",
 		);
 	}
 	const secure = config.secure ?? true;
@@ -149,7 +149,7 @@ function neonSocket(config: NeonConnectConfig): () => Promise<Duplex> {
 			ws.addEventListener('error', (ev) => {
 				if (settled) return;
 				settled = true;
-				reject(withCause(`@drizzle/postgres/neon-ws: failed to open WebSocket to ${url}`, wsErrorCause(ev)));
+				reject(withCause(`@drizzle-team/postgres/neon-ws: failed to open WebSocket to ${url}`, wsErrorCause(ev)));
 			});
 			// A socket that closes WITHOUT ever emitting 'error' (some proxies just hang up) would otherwise
 			// leave this promise pending until connectTimeout — settle it here with the close code instead.
@@ -158,7 +158,7 @@ function neonSocket(config: NeonConnectConfig): () => Promise<Duplex> {
 				settled = true;
 				reject(
 					new Error(
-						`@drizzle/postgres/neon-ws: WebSocket to ${url} closed before opening (code ${ev?.code ?? 'unknown'}${
+						`@drizzle-team/postgres/neon-ws: WebSocket to ${url} closed before opening (code ${ev?.code ?? 'unknown'}${
 							ev?.reason ? `: ${ev.reason}` : ''
 						})`,
 					),

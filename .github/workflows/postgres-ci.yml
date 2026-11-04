@@ -35,7 +35,7 @@ jobs:
         with:
           node-version: '24'
           package-manager-cache: false
-      - run: pnpm install --frozen-lockfile --filter @drizzle/postgres
+      - run: pnpm install --frozen-lockfile --filter @drizzle-team/postgres
       - run: bun run typecheck
       - run: bun run build
       - run: bun test test/unit
@@ -56,7 +56,7 @@ jobs:
           PGBIN=$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)
           echo "$PGBIN" >> "$GITHUB_PATH"
           "$PGBIN/postgres" --version
-      - run: pnpm install --frozen-lockfile --filter @drizzle/postgres
+      - run: pnpm install --frozen-lockfile --filter @drizzle-team/postgres
       - run: bash test/setup-pg.sh
       - run: bun test test/integration --timeout 20000
         env:
@@ -85,7 +85,7 @@ jobs:
           PGBIN=$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)
           echo "$PGBIN" >> "$GITHUB_PATH"
           "$PGBIN/postgres" --version
-      - run: pnpm install --frozen-lockfile --filter @drizzle/postgres
+      - run: pnpm install --frozen-lockfile --filter @drizzle-team/postgres
       # A range would keep the locked version, so install the newest exact match.
       - run: pnpm add --save-dev "effect@$(npm view 'effect@${{ matrix.effect }}' version --json | jq -r 'if type == "array" then .[-1] else . end')"
       - run: pnpm list effect
@@ -115,7 +115,7 @@ jobs:
           PGBIN=$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)
           echo "$PGBIN" >> "$GITHUB_PATH"
           "$PGBIN/postgres" --version
-      - run: pnpm install --frozen-lockfile --filter @drizzle/postgres
+      - run: pnpm install --frozen-lockfile --filter @drizzle-team/postgres
       - run: bash test/setup-pg.sh
       - run: deno test --no-check --allow-net --allow-env --allow-read --allow-sys test/deno/deno.test.ts test/deno/effect.test.ts
       - if: failure()
@@ -140,7 +140,7 @@ jobs:
           PGBIN=$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)
           echo "$PGBIN" >> "$GITHUB_PATH"
           "$PGBIN/postgres" --version
-      - run: pnpm install --frozen-lockfile --filter @drizzle/postgres
+      - run: pnpm install --frozen-lockfile --filter @drizzle-team/postgres
       - run: bash test/setup-pg.sh
       - run: bun run test:cf
       - if: failure()

@@ -552,7 +552,7 @@ upsert(e.new)
 
 ## Tier 3 — Managed CDC session
 
-A subpath export, `@drizzle/postgres/cdc`. The raw API stays untouched underneath. This is the layer where reconnects, slots, and the snapshot window stop being the consumer's homework.
+A subpath export, `@drizzle-team/postgres/cdc`. The raw API stays untouched underneath. This is the layer where reconnects, slots, and the snapshot window stop being the consumer's homework.
 
 ### 3.0 Shape
 

@@ -1,4 +1,4 @@
-import { createPool as createNeonWsPool } from '@drizzle/postgres/neon-ws';
+import { createPool as createNeonWsPool } from '@drizzle-team/postgres/neon-ws';
 import { defineRelations, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import type { PostgresDatabase } from 'drizzle-orm/postgres';

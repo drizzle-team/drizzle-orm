@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import type { Pool } from '@drizzle/postgres';
+import type { Pool } from '@drizzle-team/postgres';
 import { composeHint, requireEnv, retry } from '@drizzle/test-utils';
 import { defineRelations, DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
 import { alias, pgTable } from 'drizzle-orm/pg-core';
