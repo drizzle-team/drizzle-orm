@@ -1,5 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import { and, defineRelations, eq, inArray, not, sql } from 'drizzle-orm';
+import { and, defineRelations, eq, exists, inArray, not, sql } from 'drizzle-orm';
 import type { AnyPgColumn, PgColumnBuilder } from 'drizzle-orm/pg-core';
 import {
 	bigint,
@@ -1545,5 +1545,46 @@ export function tests(test: Test) {
 		const res2 = await db.select().from(corrupt_jsonb_demo);
 
 		expect(res2).toStrictEqual([{ id: 1, data: { a: 1 } }]);
+	});
+
+	// https://github.com/drizzle-team/drizzle-orm/issues/6580
+	test.concurrent('issue 6580. correlated exists with root table column from RAW callback', async ({ createDB, push }) => {
+		const rootTable = pgTable('root_table_6580_callback', {
+			id: uuid().primaryKey(),
+			relatedId: uuid('related_id').notNull(),
+		});
+		const accountTable = pgTable('account_table_6580_callback', {
+			id: uuid().primaryKey(),
+			rootId: uuid('root_id').notNull(),
+			provider: text().notNull(),
+		});
+
+		await push({ rootTable, accountTable });
+		const db = createDB({ rootTable, accountTable });
+
+		const rootId = '550e8400-e29b-41d4-a716-446655440000';
+		await db.insert(rootTable).values([
+			{ id: rootId, relatedId: rootId },
+			{ id: '550e8400-e29b-41d4-a716-446655440001', relatedId: rootId },
+		]);
+		await db.insert(accountTable).values({
+			id: '550e8400-e29b-41d4-a716-446655440002',
+			rootId,
+			provider: 'github',
+		});
+
+		const result = await db.query.rootTable.findFirst({
+			where: {
+				id: rootId,
+				RAW: (root) =>
+					exists(
+						db.select({ id: accountTable.id }).from(accountTable).where(
+							and(eq(accountTable.provider, 'github'), eq(accountTable.rootId, root.id)),
+						),
+					),
+			},
+		});
+
+		expect(result).toStrictEqual({ id: rootId, relatedId: rootId });
 	});
 }
