@@ -35,6 +35,7 @@
 // why `type` is declared here.
 import { type CustomMarker, isCustomMarker } from './registry.ts';
 import type { ShapeEntries, ShapeOf, ShapeSpec, TypeSpec } from './spec.ts'; // type-only (erased): typed value union + generic mapped form
+import { instantFromString, instantSnippet } from './temporal.ts';
 
 export interface JsonMarker {
 	readonly __json: 'object' | 'array';
@@ -354,9 +355,12 @@ export function specNeedsWalk(spec: JsonSpec): boolean {
 	return false;
 }
 
-// ISO string -> epoch ms. A naive date-TIME (no 'Z'/offset) is read as UTC (append 'Z') so it matches the
-// jit fast-ISO path; a tz-aware datetime and a date-only value go straight to Date.parse.
+// ISO string -> epoch ms. PG's to_json temporal text (any year width, ' BC', seconds offsets) goes through the
+// shared wire parser (src/temporal.ts; naive = UTC, like the jit scanner); anything else (a hand-written
+// JSON string) falls back to Date.parse, still reading a naive date-TIME as UTC (append 'Z').
 function isoEpoch(s: string): number {
+	const ms = instantFromString(s);
+	if (ms !== undefined) return ms;
 	if (s.length > 10 && s.charCodeAt(s.length - 1) !== 90) {
 		const tail = s.slice(10); // time (+ maybe offset); the date's dashes are already excluded
 		if (tail.indexOf('+') === -1 && tail.indexOf('-') === -1) return Date.parse(s + 'Z');
@@ -563,18 +567,13 @@ function inlineValue(field: string | JsonMarker | TransformMarker, target: strin
 	}
 }
 
-// :ms / :date — fast fixed-format ISO byte-parse (naive time = UTC, matching the wire temporal
-// convention), falling back to Date.parse for anything not matching YYYY-MM-DD[T ]HH:MM:SS[.f][±HH:MM|Z].
+// :ms / :date — byte-parse PG's to_json temporal text with the shared wire parser (src/temporal.ts: any year
+// width, ' BC', seconds offsets, naive = UTC), falling back to Date.parse for anything else.
 function inlineEpoch(target: string, js: 'ms' | 'date', ctx: { n: number }): string {
-	const id = ctx.n++, S = `_ss${id}`, E = `_se${id}`, P = `_ep${id}`;
+	const id = ctx.n++, S = `_ss${id}`, E = `_se${id}`, P = `_ep${id}`, K = `_ok${id}`;
 	return `if (jb[jp] === 110) { ${target} = null; jp += 4 } else { `
-		+ `jp++; const ${S} = jp; while (jp < je && jb[jp] !== 34) jp++; const ${E} = jp; jp++; let ${P}; `
-		+ `if (${E} - ${S} >= 19 && jb[${S} + 4] === 45 && jb[${S} + 7] === 45 && (jb[${S} + 10] === 84 || jb[${S} + 10] === 32) && jb[${S} + 13] === 58) { `
-		+ `const _p = ${S}; const _Y=(jb[_p]-48)*1000+(jb[_p+1]-48)*100+(jb[_p+2]-48)*10+(jb[_p+3]-48), _Mo=(jb[_p+5]-48)*10+(jb[_p+6]-48), _D=(jb[_p+8]-48)*10+(jb[_p+9]-48); `
-		+ `const _H=(jb[_p+11]-48)*10+(jb[_p+12]-48), _Mi=(jb[_p+14]-48)*10+(jb[_p+15]-48), _Sc=(jb[_p+17]-48)*10+(jb[_p+18]-48); `
-		+ `let _q=_p+19, _ms=0; if (jb[_q]===46){ _q++; let _f=0,_k=0; while(_k<3&&jb[_q]>=48&&jb[_q]<=57){_f=_f*10+(jb[_q]-48);_q++;_k++} while(_k<3){_f*=10;_k++} _ms=_f; while(_q<${E}&&jb[_q]>=48&&jb[_q]<=57)_q++ } `
-		+ `let _off=0; const _sg=jb[_q]; if(_sg===43||_sg===45){ _q++; const _oh=(jb[_q]-48)*10+(jb[_q+1]-48); _q+=2; let _om=0,_os=0; if(jb[_q]===58){_q++;_om=(jb[_q]-48)*10+(jb[_q+1]-48);_q+=2; if(jb[_q]===58){_q++;_os=(jb[_q]-48)*10+(jb[_q+1]-48);_q+=2}} _off=(_sg===45?-1:1)*((_oh*60+_om)*60+_os)*1000 } `
-		+ `${P} = Date.UTC(_Y,_Mo-1,_D,_H,_Mi,_Sc,_ms); if (_Y <= 99) { const _dd = new Date(${P}); _dd.setUTCFullYear(_Y); ${P} = _dd.getTime() } ${P} -= _off; } else { ${P} = Date.parse(jb.toString('utf8', ${S}, ${E})) } `
+		+ `jp++; const ${S} = jp; while (jp < je && jb[jp] !== 34) jp++; const ${E} = jp; jp++; let ${P}, ${K}; `
+		+ `${instantSnippet('jb', S, E, P, K)} if (!${K}) ${P} = Date.parse(jb.toString('utf8', ${S}, ${E})); `
 		+ `${target} = ${js === 'date' ? `new Date(${P})` : P}; }`;
 }
 
