@@ -30,7 +30,6 @@ import {
 	boundsRelations,
 	boundsSchema,
 	makeAllTypes,
-	temporalBoundsDataMinipg,
 } from './all-types';
 import { tests } from './common';
 import { postgresTest as test } from './instrumentation';
@@ -722,7 +721,10 @@ describe('driver-specific', () => {
 
 	// Can't test shapes via generic codecs test
 	test('all types ~shapes~', async ({ createDB, push }) => {
-		const db = createDB({ allTypesTable }, allTypesRelations);
+		const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+			...allTypesRelations(r),
+			...boundsRelations(r),
+		}));
 		await push({ en: allTypesEnum, allTypesTable });
 		await db.insert(allTypesTable).values(allTypesData);
 
@@ -733,10 +735,8 @@ describe('driver-specific', () => {
 		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 		await assertAllTypesUnions(db);
-		await assertAllTypesBounds(db);
-		await assertAllTypesTemporalBounds(db, {
-			data: Date.now() < +new Date('2026-11-24') ? temporalBoundsDataMinipg : undefined,
-		});
+		await assertAllTypesBounds(db, { rqb: true });
+		await assertAllTypesTemporalBounds(db, { rqb: true });
 
 		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 	});

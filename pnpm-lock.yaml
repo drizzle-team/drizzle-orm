@@ -145,8 +145,8 @@ importers:
         specifier: 0.12.1
         version: 0.12.1
       '@drizzle-team/minipg':
-        specifier: 0.4.2
-        version: 0.4.2
+        specifier: 0.4.4
+        version: 0.4.4(effect@4.0.0)
       '@duckdb/node-api':
         specifier: 1.5.0-r.1
         version: 1.5.0-r.1
@@ -364,8 +364,8 @@ importers:
         specifier: ^4.20251004.0
         version: 4.20251126.0
       '@drizzle-team/minipg':
-        specifier: 0.4.2
-        version: 0.4.2
+        specifier: 0.4.4
+        version: 0.4.4(effect@4.0.0)
       '@effect/sql-d1':
         specifier: 4.0.0
         version: 4.0.0(effect@4.0.0)
@@ -662,8 +662,8 @@ importers:
         specifier: ^0.3.0
         version: 0.3.0(postgres@3.4.7)
       '@drizzle-team/minipg':
-        specifier: 0.4.2
-        version: 0.4.2
+        specifier: 0.4.4
+        version: 0.4.4(effect@4.0.0)
       '@effect/sql-d1':
         specifier: 4.0.0
         version: 4.0.0(effect@4.0.0)
@@ -1828,9 +1828,14 @@ packages:
   '@drizzle-team/brocli@0.12.1':
     resolution: {integrity: sha512-yHwomvolVafvUXhy5TdiJVkuNCxXn+bKOs2aWiWEQh/5YaV97Oa/abJz3dmx7lxgIUsUlS1Jl4mEfvJPo3YsVw==}
 
-  '@drizzle-team/minipg@0.4.2':
-    resolution: {integrity: sha512-pSCO0XuPAr5WQyCqmzYsw/2R9evG35/zq8QEqrr2pT5aMCLRbIbvOEYNHbxN2QSrSw1PscC0WsPlTENsSHcYWw==}
+  '@drizzle-team/minipg@0.4.4':
+    resolution: {integrity: sha512-/0gI44Gy9HjSdklhww27ZvYHm2Zo8FPKNx+o3ZJ/7dGt9aaogATYUDimQbCNT/c+FRWxXapnd+Ou8OzSDC33eQ==}
     engines: {node: '>=22.12'}
+    peerDependencies:
+      effect: ~4.0.5
+    peerDependenciesMeta:
+      effect:
+        optional: true
 
   '@duckdb/node-api@1.5.0-r.1':
     resolution: {integrity: sha512-VjvjqlCyqUJ22bydG/+9Jj5l0CEvx9QUn1SATBkKFY0+x6n4uHzt0kp/FKwXK9LNduXX6KCKtdF+6v5BcHScfA==}
@@ -10872,7 +10877,9 @@ snapshots:
 
   '@drizzle-team/brocli@0.12.1': {}
 
-  '@drizzle-team/minipg@0.4.2': {}
+  '@drizzle-team/minipg@0.4.4(effect@4.0.0)':
+    optionalDependencies:
+      effect: 4.0.0
 
   '@duckdb/node-api@1.5.0-r.1':
     dependencies:

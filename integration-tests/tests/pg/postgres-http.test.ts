@@ -19,7 +19,6 @@ import {
 	boundsRelations,
 	boundsSchema,
 	makeAllTypes,
-	temporalBoundsDataMinipgText,
 } from './all-types';
 import { tests } from './common';
 import { postgresHttpTest as test } from './instrumentation';
@@ -676,7 +675,10 @@ describe('driver-specific', () => {
 	});
 
 	test('all types ~shapes~', async ({ createDB, push }) => {
-		const db = createDB({ allTypesTable }, allTypesRelations);
+		const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+			...allTypesRelations(r),
+			...boundsRelations(r),
+		}));
 		await push({ en: allTypesEnum, allTypesTable });
 		await db.insert(allTypesTable).values(allTypesData);
 
@@ -687,10 +689,8 @@ describe('driver-specific', () => {
 		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 		await assertAllTypesUnions(db);
-		await assertAllTypesBounds(db);
-		await assertAllTypesTemporalBounds(db, {
-			data: Date.now() < +new Date('2026-11-24') ? temporalBoundsDataMinipgText : undefined,
-		});
+		await assertAllTypesBounds(db, { rqb: true });
+		await assertAllTypesTemporalBounds(db, { rqb: true });
 
 		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 	});

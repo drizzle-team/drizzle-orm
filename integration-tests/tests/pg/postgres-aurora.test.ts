@@ -38,7 +38,6 @@ import {
 	boundsRelations,
 	boundsSchema,
 	makeAllTypes,
-	temporalBoundsDataMinipgText,
 } from './all-types';
 import { tests } from './common';
 import { awsDataApiConfig, postgresAuroraTest as test } from './instrumentation';
@@ -1101,7 +1100,10 @@ describe('postgres/aurora', () => {
 
 		// Can't test shapes via generic codecs test
 		test('all types ~shapes~', async ({ createDB, push }) => {
-			const db = createDB({ allTypesTable }, allTypesRelations);
+			const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+				...allTypesRelations(r),
+				...boundsRelations(r),
+			}));
 			await push({ en: allTypesEnum, allTypesTable });
 			await db.insert(allTypesTable).values(allTypesData);
 
@@ -1112,10 +1114,8 @@ describe('postgres/aurora', () => {
 			expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 			await assertAllTypesUnions(db);
-			await assertAllTypesBounds(db);
-			await assertAllTypesTemporalBounds(db, {
-				data: Date.now() < +new Date('2026-11-24') ? temporalBoundsDataMinipgText : undefined,
-			});
+			await assertAllTypesBounds(db, { rqb: true });
+			await assertAllTypesTemporalBounds(db, { rqb: true });
 
 			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 		});
