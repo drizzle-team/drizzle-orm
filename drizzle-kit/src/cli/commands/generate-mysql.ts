@@ -29,6 +29,12 @@ export const suggestions = (
 		if (statement.type === 'create_fk' && statement.cause !== 'alter_pk') {
 			const { columnsTo, table, tableTo, columns } = statement.fk;
 
+			// https://github.com/drizzle-team/drizzle-orm/issues/6534
+			// tableTo is not exported, but still we should not block generate or push
+			// because we do not know if column is unique or not
+			const tableToExist = ddl2.tables.one({ name: tableTo });
+			if (!tableToExist) continue;
+
 			const indexes = ddl2.indexes.list({ isUnique: true, table: tableTo });
 			const pk = ddl2.pks.one({ table: tableTo });
 
