@@ -1477,7 +1477,14 @@ describe('pull json envelopes', () => {
 		await client.close();
 	});
 
-	test('a real connection failure never leaks the configured credentials into the error envelope', async () => {
+	// TODO
+	// comment author: AlexSherman
+	// this was initially created by Dan Kochetov
+	// but after sync with AlexBlokh and Dan Kochetov it was decided to pass
+	// full error from pull
+	// Not sure if we need to keep this test or remove
+	// Maybe will be revised later
+	test.skip('a real connection failure never leaks the configured credentials into the error envelope', async () => {
 		// The CLI holds the password and host in its config; an unreachable database makes the real
 		// driver fail to connect, and the database_driver_error envelope must echo back neither.
 		const password = 'S3NT1NEL_pw_a9F2';

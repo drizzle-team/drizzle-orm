@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync } from 'fs';
 import { getTsconfig } from 'get-tsconfig';
-import { sync as globSync } from 'glob';
+import glob from 'glob';
 import { dirname, extname, isAbsolute, join, resolve } from 'path';
 import { parse, pathToFileURL } from 'url';
 import {
@@ -30,7 +30,7 @@ export const prepareFilenames = (path: string | string[]) => {
 	const skippedFiles: string[] = [];
 
 	const result = path.reduce((result, cur) => {
-		const globbed = globSync(`${prefix}${cur}`);
+		const globbed = glob.sync(`${prefix}${cur}`);
 
 		for (const it of globbed) {
 			const stats = lstatSync(it);

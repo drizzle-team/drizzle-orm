@@ -837,6 +837,8 @@ export const runPull = async (
 				'postgresql',
 				['pg', 'postgres', 'bun', '@neondatabase/serverless', '@vercel/postgres', 'drizzle-orm'],
 				'Failed to connect to or introspect the Postgres database',
+				undefined,
+				{ cause: e },
 			);
 		}
 	} else if (dialect === 'mysql') {
@@ -858,6 +860,8 @@ export const runPull = async (
 				'mysql',
 				['mysql2', 'bun', '@planetscale/database'],
 				'Failed to connect to or introspect the MySQL database',
+				undefined,
+				{ cause: e },
 			);
 		}
 	} else if (dialect === 'sqlite') {
@@ -879,6 +883,8 @@ export const runPull = async (
 				'sqlite',
 				['better-sqlite3', 'bun', '@libsql/client', '@tursodatabase/database', 'node:sqlite'],
 				'Failed to connect to or introspect the SQLite database',
+				undefined,
+				{ cause: e },
 			);
 		}
 	} else if (dialect === 'turso') {
@@ -900,6 +906,8 @@ export const runPull = async (
 				'turso',
 				['@libsql/client', '@tursodatabase/database', '@tursodatabase/serverless'],
 				'Failed to connect to or introspect the Turso database',
+				undefined,
+				{ cause: e },
 			);
 		}
 	} else if (dialect === 'singlestore') {
@@ -921,6 +929,8 @@ export const runPull = async (
 				'singlestore',
 				['mysql2'],
 				'Failed to connect to or introspect the SingleStore database',
+				undefined,
+				{ cause: e },
 			);
 		}
 	} else if (dialect === 'mssql') {
@@ -942,6 +952,8 @@ export const runPull = async (
 				'mssql',
 				['mssql'],
 				'Failed to connect to or introspect the MsSQL database',
+				undefined,
+				{ cause: e },
 			);
 		}
 	} else if (dialect === 'cockroach') {
@@ -963,6 +975,8 @@ export const runPull = async (
 				'cockroach',
 				['pg'],
 				'Failed to connect to or introspect the Cockroach database',
+				undefined,
+				{ cause: e },
 			);
 		}
 	} else {
@@ -991,7 +1005,13 @@ export const runPull = async (
 			error = await migrate!(migrateInput);
 		} catch (e) {
 			if (isTypedCliError(e)) throw e;
-			throw new DatabaseDriverCliError(driverError!.database, driverError!.packages, driverError!.message);
+			throw new DatabaseDriverCliError(
+				driverError!.database,
+				driverError!.packages,
+				driverError!.message,
+				undefined,
+				{ cause: e },
+			);
 		}
 
 		if (error) {
