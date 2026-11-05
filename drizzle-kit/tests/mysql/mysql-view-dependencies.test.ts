@@ -3,6 +3,7 @@ import { alias, getViewConfig, int, mysqlTable, mysqlView, QueryBuilder } from '
 import type { MySqlView } from 'drizzle-orm/mysql-core';
 import { fromDrizzleSchema } from 'src/dialects/mysql/drizzle';
 import { entityKey } from 'src/dialects/utils';
+import { needToPostpone } from 'tests/utils';
 import { expect, test } from 'vitest';
 
 const table = mysqlTable('t', { id: int() });
@@ -113,7 +114,7 @@ test('view dependencies: existing parent view', () => {
 
 // TODO all below are enhancement
 // joined views are written as plain identifiers by mysql dialect, the view object is not in the sql tree
-test.skipIf(Date.now() < +new Date('2026-11-13'))('view dependencies: joined view is not detected', () => {
+test.skipIf(needToPostpone)('view dependencies: joined view is not detected', () => {
 	const target = mysqlView(viewName).as((qb) =>
 		qb.select({ id: table.id }).from(table).leftJoin(view1, eq(view1.id, table.id))
 	);
@@ -121,12 +122,12 @@ test.skipIf(Date.now() < +new Date('2026-11-13'))('view dependencies: joined vie
 	expect(dependenciesOf(target)).toStrictEqual([entityKey(null, getViewConfig(view1).name)]);
 });
 // aliased views in from are written as plain identifiers by mysql dialect
-test.skipIf(Date.now() < +new Date('2026-11-13'))('view dependencies: aliased view is not detected', () => {
+test.skipIf(needToPostpone)('view dependencies: aliased view is not detected', () => {
 	const target = mysqlView(viewName).as((qb) => qb.select().from(alias(view1, 'x')));
 
 	expect(dependenciesOf(target)).toStrictEqual([entityKey(null, getViewConfig(view1).name)]);
 });
-test.skipIf(Date.now() < +new Date('2026-11-13'))(
+test.skipIf(needToPostpone)(
 	'view dependencies: plain text name in raw sql is not detected',
 	() => {
 		const target = mysqlView(viewName, { id: int() }).as(sql`select * from \`v1\``);

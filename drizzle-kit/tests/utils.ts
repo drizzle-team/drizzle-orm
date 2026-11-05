@@ -18,8 +18,9 @@ const options = {
 	noEmit: true,
 	skipLibCheck: true,
 	target: ts.ScriptTarget.ES2020,
-	module: ts.ModuleKind.NodeNext,
-	moduleResolution: ts.ModuleResolutionKind.NodeNext,
+	// The generated relations import the schema without a file extension, which NodeNext rejects in an ESM package.
+	module: ts.ModuleKind.Preserve,
+	moduleResolution: ts.ModuleResolutionKind.Bundler,
 	// typescript@6 no longer auto-includes `@types/*`
 	types: ['node'],
 };
@@ -100,3 +101,5 @@ export const tsc = makeTSC2(options).tsc2;
 // 		throw new Error(typeCheckResult.stderr || typeCheckResult.stdout);
 // 	}
 // };
+
+export const needToPostpone = Date.now() < +new Date('2026-11-13');

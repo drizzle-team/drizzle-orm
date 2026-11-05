@@ -1345,3 +1345,33 @@ test('changing a column type records a `type_change` confirm_data_loss missing h
 		},
 	]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6534
+// the referenced table is not exported, so generate can not check that the referenced columns are unique
+test('Issue No6534. generate fk to a table that is not exported', async () => {
+	const accounts = mysqlTable('accounts', {
+		id: bigint({ mode: 'number' }).autoincrement().primaryKey(),
+	});
+
+	const schema1 = {
+		wallets: mysqlTable('wallets', {
+			id: bigint({ mode: 'number' }).autoincrement().primaryKey(),
+		}),
+	};
+
+	const schema2 = {
+		wallets: mysqlTable('wallets', {
+			id: bigint({ mode: 'number' }).autoincrement().primaryKey(),
+			owner: bigint({ mode: 'number' }).references(() => accounts.id),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: st, suggestion } = await diff(n1, schema2, []);
+
+	expect(suggestion.errors).toStrictEqual([]);
+	expect(st).toStrictEqual([
+		'ALTER TABLE `wallets` ADD `owner` bigint;',
+		'ALTER TABLE `wallets` ADD CONSTRAINT `wallets_owner_accounts_id_fkey` FOREIGN KEY (`owner`) REFERENCES `accounts`(`id`);',
+	]);
+});

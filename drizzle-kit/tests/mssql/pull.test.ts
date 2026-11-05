@@ -32,8 +32,10 @@ import {
 } from 'drizzle-orm/mssql-core';
 import fs from 'fs';
 import { fromDatabaseForDrizzle } from 'src/dialects/mssql/introspect';
+import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import type { DB } from 'src/utils';
 import { diffIntrospect, prepareTestDatabase, TestDatabase } from 'tests/mssql/mocks';
+import { needToPostpone } from 'tests/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
 // @vitest-environment-options {"max-concurrency":1}
@@ -911,8 +913,7 @@ test('Issue No5993', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5992
 // pull must not crash when a filtered-in table has an FK to a filtered-out table
-// TODO need to update introspect for mssql
-test.skipIf(Date.now() < +new Date('2026-11-24'))(
+test(
 	'introspect fk to a table excluded by tablesFilter is skipped',
 	async () => {
 		await db.query('CREATE TABLE referenced_table (id int NOT NULL PRIMARY KEY)');
@@ -921,29 +922,36 @@ test.skipIf(Date.now() < +new Date('2026-11-24'))(
 			'ALTER TABLE parent_table ADD CONSTRAINT FK_parent_referenced FOREIGN KEY (child_id) REFERENCES referenced_table(id)',
 		);
 
-		const {
-			pushSqlStatements: sqlStatements,
-			pushStatements: statements,
-			fromFileDDL,
-			introspectDDL,
-			generateStatements,
-			generateSqlStatements,
-		} = await diffIntrospect(
+		const entityFilter = prepareEntityFilter('mssql', {
+			tables: 'parent_table',
+			schemas: undefined,
+			entities: undefined,
+			extensions: undefined,
+		}, []);
+		const schema = await fromDatabaseForDrizzle(
 			db,
-			{},
-			'#5992',
-			[],
-			['parent_table'],
+			entityFilter,
+			() => {},
+			{
+				table: '__drizzle_migrations',
+				schema: 'drizzle',
+			},
 		);
 
-		expect(sqlStatements).toStrictEqual([]);
-		expect(generateSqlStatements).toStrictEqual([]);
-		expect(statements).toStrictEqual([]);
-		expect(generateStatements).toStrictEqual([]);
-		expect(fromFileDDL.fks.list()).toStrictEqual([]);
-		expect(fromFileDDL.tables.list().map((it) => it.name)).toStrictEqual(['parent_table']);
-		expect(introspectDDL.fks.list()).toStrictEqual([]);
-		expect(introspectDDL.tables.list().map((it) => it.name)).toStrictEqual(['parent_table']);
+		expect(schema.tables.map((it) => it.name)).toStrictEqual(['parent_table']);
+		expect(schema.fks).toStrictEqual([{
+			table: 'parent_table',
+			tableTo: 'referenced_table',
+			columns: ['child_id'],
+			columnsTo: ['id'],
+			onDelete: 'NO ACTION',
+			onUpdate: 'NO ACTION',
+			schema: 'dbo',
+			schemaTo: 'dbo',
+			entityType: 'fks',
+			nameExplicit: true,
+			name: 'FK_parent_referenced',
+		}]);
 	},
 );
 test('introspect fk is kept when both tables pass tablesFilter', async () => {
@@ -1281,4 +1289,34 @@ test('introspect schemas owned by any principal type', async () => {
 		{ entityType: 'tables', name: 'e_items', schema: 'by_role' },
 		{ entityType: 'tables', name: 'f_items', schema: 'by_user' },
 	]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6564
+test.skipIf(needToPostpone)('Issue No 6564', async () => {
+	await db.query(`create table t (id int primary key, a nvarchar(3), c as (a))`);
+
+	// the test runs in a transaction, so the user without VIEW DEFINITION is impersonated on the same connection,
+	// a new connection would not see the uncommitted table
+	await db.query(`create user no_view_definition without login`);
+	await db.query(`grant select on t to no_view_definition`);
+	await db.query(`execute as user = 'no_view_definition'`);
+
+	try {
+		const res = await db.query(`select HAS_PERMS_BY_NAME(DB_NAME(), 'DATABASE', 'VIEW DEFINITION')`);
+		expect(res).toStrictEqual([{ '': 0 }]);
+
+		const { pushSqlStatements, generateSqlStatements, fromFileDDL, introspectDDL } = await diffIntrospect(
+			db,
+			{},
+			'issue-6564',
+		);
+
+		expect(pushSqlStatements).toStrictEqual([]);
+		expect(generateSqlStatements).toStrictEqual([]);
+		expect(fromFileDDL.columns.list()).toStrictEqual([]);
+		expect(introspectDDL.columns.list()).toStrictEqual([]);
+	} finally {
+		// revert execute as user = 'no_view_definition'
+		await db.query(`revert`);
+	}
 });

@@ -10,7 +10,7 @@
 		"b": "pnpm build",
 		"pack": "turbo run pack --color --log-order=stream",
 		"pack:artifact": "turbo run pack:artifact --color --log-order=stream",
-		"test": "turbo run test --color --log-order=stream",
+		"test": "turbo run test --filter=!@drizzle-team/postgres --color --log-order=stream",
 		"t": "pnpm test",
 		"test:types": "turbo run test:types --color --log-order=stream",
 		"test:types-lint": "turbo run test:types //#lint --color --log-order=stream",

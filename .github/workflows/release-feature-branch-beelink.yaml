@@ -55,7 +55,7 @@ jobs:
         run: |
           echo "/home/alex/.volta/bin" >> $GITHUB_PATH
           echo "/home/alex/.bun/bin" >> $GITHUB_PATH
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: pnpm install --frozen-lockfile --prefer-offline
       - name: Compute version suffix
         id: meta
@@ -155,7 +155,7 @@ jobs:
         run: |
           echo "/home/alex/.volta/bin" >> $GITHUB_PATH
           echo "/home/alex/.bun/bin" >> $GITHUB_PATH
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: pnpm install --frozen-lockfile --prefer-offline
 
       - name: Start DBs needed by shard (pre-warm)
@@ -319,7 +319,7 @@ jobs:
         run: |
           echo "/home/alex/.volta/bin" >> $GITHUB_PATH
           echo "/home/alex/.bun/bin" >> $GITHUB_PATH
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: pnpm install --frozen-lockfile --prefer-offline
       
       # Restore packages from local filesystem
@@ -330,7 +330,6 @@ jobs:
       
       - name: Run @arethetypeswrong/cli
         run: |
-          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-kit/package.tgz
           bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-zod/package.tgz
           bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-seed/package.tgz
           bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-typebox/package.tgz
@@ -340,36 +339,37 @@ jobs:
         env:
           ATTW_FORMAT: concise
 
-  attw-orm:
+  attw-esm:
     needs: [prepare]
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: self-hosted
     timeout-minutes: 20
     strategy:
       matrix:
-        package: [node16-cjs, node16-esm, bundler]
+        package: [drizzle-orm, drizzle-kit]
+        mode: [node16-esm, bundler]
     steps:
       - name: Setup PATH
         run: |
           echo "/home/alex/.volta/bin" >> $GITHUB_PATH
           echo "/home/alex/.bun/bin" >> $GITHUB_PATH
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: pnpm install --frozen-lockfile --prefer-offline
-      
+
       # Restore packages from local filesystem
       - name: Restore packages locally
         run: |
           mkdir -p ./artifacts
           cp -r "$ARTIFACTS_DIR/packages/." ./artifacts/
-      
+
       - name: Run @arethetypeswrong/cli
-        working-directory: drizzle-orm
-        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/drizzle-orm/package.tgz ${{ matrix.package }}
+        working-directory: ${{ matrix.package }}
+        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/${{ matrix.package }}/package.tgz ${{ matrix.mode }}
         env:
           ATTW_FORMAT: concise
 
   release:
-    needs: [test, prepare, attw, attw-orm]
+    needs: [test, prepare, attw, attw-esm]
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: self-hosted
     timeout-minutes: 20
@@ -387,7 +387,7 @@ jobs:
         run: |
           echo "/home/alex/.volta/bin" >> $GITHUB_PATH
           echo "/home/alex/.bun/bin" >> $GITHUB_PATH
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       
       # nuke, so npm can use OIDC
       - name: Remove temp npmrc

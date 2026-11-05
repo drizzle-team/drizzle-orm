@@ -1477,7 +1477,14 @@ describe('pull json envelopes', () => {
 		await client.close();
 	});
 
-	test('a real connection failure never leaks the configured credentials into the error envelope', async () => {
+	// TODO
+	// comment author: AlexSherman
+	// this was initially created by Dan Kochetov
+	// but after sync with AlexBlokh and Dan Kochetov it was decided to pass
+	// full error from pull
+	// Not sure if we need to keep this test or remove
+	// Maybe will be revised later
+	test.skip('a real connection failure never leaks the configured credentials into the error envelope', async () => {
 		// The CLI holds the password and host in its config; an unreachable database makes the real
 		// driver fail to connect, and the database_driver_error envelope must echo back neither.
 		const password = 'S3NT1NEL_pw_a9F2';
@@ -1499,6 +1506,27 @@ describe('pull json envelopes', () => {
 		expect(serialized).not.toContain(password);
 		expect(serialized).not.toContain('127.0.0.1');
 		expect(serialized).not.toContain('query_error');
+	});
+
+	test('pull crashes with the cause', async () => {
+		const password = 'S3NT1NEL_pw_a9F2';
+		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-pull-driver-error-'));
+		const runPull = await importRunPull();
+		const { errorToEnvelope } = await import('../../src/cli/errors');
+
+		const caught = await runWithCliContext(
+			{ output: 'json', interactive: false },
+			() =>
+				runPull!({ ...baseConfig(out), credentials: { url: `postgresql://app:${password}@127.0.0.1:1/none` } })
+					.then(() => null, (err) => err),
+		);
+
+		expect(caught).toMatchObject({ code: 'database_driver_error' });
+
+		const serialized = JSON.stringify(errorToEnvelope(caught));
+		expect(serialized).toContain('database_driver_error');
+		expect(serialized).toContain('cause');
+		expect(serialized).toContain('QueryError: connect ECONNREFUSED 127.0.0.1:1');
 	});
 
 	test('json mode emits only the envelope and never constructs IntrospectProgress', async () => {

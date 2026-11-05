@@ -36,6 +36,7 @@ import {
 	uuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
+import { needToPostpone } from 'tests/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, preparePostgisTestDatabase, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -328,7 +329,7 @@ test('alter text type to enum type', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3589
 // After discussion it was decided to postpone this feature
-test.skipIf(Date.now() < +new Date('2026-11-24'))('alter integer type to text type with fk constraints', async () => {
+test.skipIf(needToPostpone)('alter integer type to text type with fk constraints', async () => {
 	const users1 = pgTable('users', {
 		id: serial().primaryKey(),
 	});

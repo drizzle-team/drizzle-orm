@@ -152,18 +152,17 @@ jobs:
         ports:
           - 26257:26257
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '20.19'
           registry-url: 'https://registry.npmjs.org'
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v6
         name: Install pnpm
         id: pnpm-install
         with:
-          version: latest
           run_install: false
 
       - name: Get pnpm store directory
@@ -172,7 +171,7 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Setup pnpm cache
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
@@ -180,7 +179,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Cache node_modules
         with:
           path: node_modules
@@ -336,7 +335,8 @@ jobs:
                 --exclude tests/pg/postgres-neon-http-batch.test.ts \
                 --exclude tests/cockroach \
                 --exclude tests/mssql \
-                --exclude tests/validators
+                --exclude tests/validators \
+                --exclude tests/packed
             ;;
 
           esac
@@ -359,24 +359,22 @@ jobs:
     strategy:
       matrix:
         package:
-          - drizzle-kit
           - drizzle-seed
           - drizzle-typebox
           - eslint-plugin-drizzle
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '18.18'
           registry-url: 'https://registry.npmjs.org'
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v6
         name: Install pnpm
         id: pnpm-install
         with:
-          version: latest
           run_install: false
 
       - name: Get pnpm store directory
@@ -385,7 +383,7 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Setup pnpm cache
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
@@ -393,7 +391,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Cache node_modules
         with:
           path: node_modules
@@ -440,27 +438,28 @@ jobs:
           ATTW_FORMAT: concise
 
 
-  attw-orm:
+  attw-esm:
     strategy:
       matrix:
-        shard:
-          - node16-cjs
+        package:
+          - drizzle-orm
+          - drizzle-kit
+        mode:
           - node16-esm
           - bundler
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v6
         name: Install pnpm
         id: pnpm-install
         with:
-          version: latest
           run_install: false
 
       - name: Get pnpm store directory
@@ -469,7 +468,7 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Setup pnpm cache
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
@@ -477,7 +476,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Cache node_modules
         with:
           path: node_modules
@@ -490,8 +489,8 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
 
-      - name: Check preconditions
-        id: checks
+      - name: Check drizzle-orm preconditions
+        if: matrix.package == 'drizzle-orm'
         shell: bash
         working-directory: drizzle-orm
         run: |
@@ -505,44 +504,52 @@ jobs:
             echo "\`drizzle-orm$version\` already published, adding tag \`$tag\`" >> $GITHUB_STEP_SUMMARY
             npm dist-tag add drizzle-orm@$version $tag
           else
-            {
-              echo "version=$version"
-              echo "tag=$tag"
-              echo "has_new_release=true"
-            } >> $GITHUB_OUTPUT
+            echo "HAS_NEW_RELEASE=true" >> $GITHUB_ENV
+          fi
+
+      - name: Check drizzle-kit preconditions
+        if: matrix.package == 'drizzle-kit'
+        shell: bash
+        working-directory: drizzle-kit
+        run: |
+          latest="$(npm view --json drizzle-kit dist-tags.latest | jq -r)"
+          version="$(jq -r .version package.json)"
+          is_version_published="$(npm view drizzle-kit versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
+
+          if [[ "$is_version_published" == "false" && "$latest" != "$version" ]]; then
+            echo "HAS_NEW_RELEASE=true" >> $GITHUB_ENV
           fi
 
       - name: Build
-        if: steps.checks.outputs.has_new_release == 'true'
+        if: env.HAS_NEW_RELEASE == 'true'
         run: pnpm build
-      
+
       - name: Pack
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: drizzle-orm
+        if: env.HAS_NEW_RELEASE == 'true'
+        working-directory: ${{ matrix.package }}
         run: npm run pack
-  
+
       - name: Run @arethetypeswrong/cli
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: drizzle-orm
-        run: bun --bun run ../attw-fork/src/run.ts package.tgz ${{ matrix.shard }}
+        if: env.HAS_NEW_RELEASE == 'true'
+        working-directory: ${{ matrix.package }}
+        run: bun --bun run ../attw-fork/src/run.ts package.tgz ${{ matrix.mode }}
         env:
           ATTW_FORMAT: concise
 
   publint-orm:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v6
         name: Install pnpm
         id: pnpm-install
         with:
-          version: latest
           run_install: false
 
       - name: Get pnpm store directory
@@ -551,7 +558,7 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Setup pnpm cache
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
@@ -559,7 +566,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Cache node_modules
         with:
           path: node_modules
@@ -604,6 +611,111 @@ jobs:
         working-directory: drizzle-orm
         run: npx -y publint@0.3.21 package.tgz
 
+  packed-orm:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        # The consumer projects run on each of these versions. 20.19.0 and 22.12.0 are the oldest versions in the
+        # engines range, where require() of ESM works without a flag. vitest needs a newer Node, so it runs on Node 22.
+        node-version: ['20.19.0', '22.12.0', 'lts/*', 'latest']
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: drizzle
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 55433:5432
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '${{ matrix.node-version }}'
+      - run: echo "CONSUMER_NODE=$(which node)" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: pnpm/action-setup@v6
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v6
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - uses: actions/cache@v6
+        name: Cache node_modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.4.4 }
+
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Check preconditions
+        id: checks
+        shell: bash
+        working-directory: drizzle-orm
+        run: |
+          old_version="$(jq -r .version package.json)"
+          version="$old_version-$(git rev-parse --short HEAD)"
+          npm version $version
+          tag="${{ github.ref_name }}"
+          is_version_published="$(npm view drizzle-orm versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
+
+          if [[ "$is_version_published" == "true" ]]; then
+            echo "\`drizzle-orm$version\` already published, adding tag \`$tag\`" >> $GITHUB_STEP_SUMMARY
+            npm dist-tag add drizzle-orm@$version $tag
+          else
+            {
+              echo "version=$version"
+              echo "tag=$tag"
+              echo "has_new_release=true"
+            } >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build
+        if: steps.checks.outputs.has_new_release == 'true'
+        run: pnpm build
+
+      - name: Run packed package test
+        if: steps.checks.outputs.has_new_release == 'true'
+        working-directory: integration-tests
+        env:
+          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
+        run: pnpm --stream test:packed
+
   release:
     permissions:
       contents: write # for creating GitHub releases
@@ -611,8 +723,9 @@ jobs:
     needs:
       - test
       - attw
-      - attw-orm
+      - attw-esm
       - publint-orm
+      - packed-orm
     strategy:
       fail-fast: false
       matrix:
@@ -623,17 +736,16 @@ jobs:
           - eslint-plugin-drizzle
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # don't specify registry url, so there's no .npmrc config file
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: '24' }
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v6
         name: Install pnpm
         id: pnpm-install
         with:
-          version: latest
           run_install: false
 
       - name: Get pnpm store directory
@@ -642,7 +754,7 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Setup pnpm cache
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
@@ -650,7 +762,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         name: Cache node_modules
         with:
           path: node_modules
@@ -716,7 +828,7 @@ jobs:
           # curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
 
       - name: Create GitHub release for ORM package
-        uses: actions/github-script@v6
+        uses: actions/github-script@v9
         if: matrix.package == 'drizzle-orm' && steps.checks.outputs.has_new_release == 'true'
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -748,7 +860,7 @@ jobs:
             }
 
       - name: Create GitHub release for KIT package
-        uses: actions/github-script@v6
+        uses: actions/github-script@v9
         if: matrix.package == 'drizzle-kit' && steps.checks.outputs.has_new_release == 'true'
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
