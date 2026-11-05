@@ -7276,7 +7276,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
-					population: number;
+					population: number | null;
 					name: string;
 				}[]
 			>();
@@ -7317,7 +7317,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
-					cityName: string;
+					cityName: string | null;
 					name: string;
 				}[]
 			>();
