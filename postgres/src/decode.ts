@@ -16,6 +16,14 @@ import { extAt, extLeafFor } from './geo.ts';
 import { buildJsonWalk, genJsonParsers, type JsonMarker, type JsonPlan, type JsTarget, specNeedsWalk } from './json.ts';
 import { parseJsonBuffer } from './jsonparse.ts';
 import { customAt, customDelimFor, customLeafFor } from './registry.ts';
+import {
+	BIN_TS_MS_EXPR,
+	binTimestampMs,
+	instantFromBytes,
+	instantFromString,
+	instantSnippet,
+	PG_EPOCH_MS,
+} from './temporal.ts';
 import type { Decoder } from './types.ts';
 
 // ---------------------------------------------------------------------------------------------
@@ -171,84 +179,9 @@ const byteaLeaf: Leaf = (
 	s,
 ) => (s.charCodeAt(0) === 92 && s.charCodeAt(1) === 120 ? Buffer.from(s.slice(2), 'hex') : Buffer.from(s, 'utf8')); // '\x' hex
 
-/** ms-since-epoch from a PG temporal text element — a STRING port of the interpreted tsParse (same field parse,
- *  bare +00 offset, year<=99 fixup) so array Date values are bit-identical to the scalar timestamp path. */
-function parseInstantMs(s: string): number {
-	if (s === 'infinity' || s === '-infinity') return NaN; // PG ±infinity has no JS Date -> Invalid Date (matches the binary scalar)
-	let e = s.length, bc = false;
-	if (e >= 3 && s.charCodeAt(e - 1) === 67 && s.charCodeAt(e - 2) === 66 && s.charCodeAt(e - 3) === 32) {
-		bc = true;
-		e -= 3;
-	} // strip a trailing ' BC'
-	let p = 0;
-	let Y = 0;
-	for (; p < e; p++) {
-		const c = s.charCodeAt(p);
-		if (c < 48 || c > 57) break;
-		Y = Y * 10 + (c - 48);
-	}
-	p++;
-	const Mo = (s.charCodeAt(p) - 48) * 10 + (s.charCodeAt(p + 1) - 48);
-	p += 3;
-	const D = (s.charCodeAt(p) - 48) * 10 + (s.charCodeAt(p + 1) - 48);
-	p += 2;
-	let H = 0, Mi = 0, S = 0, ms = 0, off = 0;
-	if (p < e && s.charCodeAt(p) === 32) {
-		p++;
-		H = (s.charCodeAt(p) - 48) * 10 + (s.charCodeAt(p + 1) - 48);
-		p += 3;
-		Mi = (s.charCodeAt(p) - 48) * 10 + (s.charCodeAt(p + 1) - 48);
-		p += 3;
-		S = (s.charCodeAt(p) - 48) * 10 + (s.charCodeAt(p + 1) - 48);
-		p += 2;
-		if (p < e && s.charCodeAt(p) === 46) {
-			p++;
-			let f = 0, k = 0;
-			for (; p < e && k < 3; p++) {
-				const c = s.charCodeAt(p);
-				if (c < 48 || c > 57) break;
-				f = f * 10 + (c - 48);
-				k++;
-			}
-			while (k < 3) {
-				f *= 10;
-				k++;
-			}
-			ms = f;
-			while (p < e) {
-				const c = s.charCodeAt(p);
-				if (c < 48 || c > 57) break;
-				p++;
-			}
-		}
-		if (p < e && (s.charCodeAt(p) === 43 || s.charCodeAt(p) === 45)) {
-			const sg = s.charCodeAt(p) === 45 ? -1 : 1;
-			p++;
-			const th = (s.charCodeAt(p) - 48) * 10 + (s.charCodeAt(p + 1) - 48);
-			p += 2;
-			let tm = 0, tsc = 0;
-			if (p < e && s.charCodeAt(p) === 58) {
-				p++;
-				tm = (s.charCodeAt(p) - 48) * 10 + (s.charCodeAt(p + 1) - 48);
-				p += 2;
-				if (p < e && s.charCodeAt(p) === 58) {
-					p++;
-					tsc = (s.charCodeAt(p) - 48) * 10 + (s.charCodeAt(p + 1) - 48);
-					p += 2;
-				}
-			}
-			off = sg * ((th * 60 + tm) * 60 + tsc) * 1000;
-		} // LMT offsets carry SECONDS (named tz, pre-standard/BC dates)
-	}
-	const year = bc ? 1 - Y : Y; // PG 'N BC' -> proleptic/astronomical year 1-N (44 BC -> -43, 1 BC -> 0)
-	let ems = Date.UTC(year, Mo - 1, D, H, Mi, S, ms);
-	if (year >= 0 && year <= 99) {
-		const d = new Date(ems);
-		d.setUTCFullYear(year);
-		ems = d.getTime();
-	} // Date.UTC remaps 0-99 to 1900+
-	return ems - off;
-}
+/** ms-since-epoch from a PG temporal text element (src/temporal.ts) so array Date values are bit-identical
+ *  to the scalar timestamp path. ±infinity and non-ISO text -> NaN (Invalid Date). */
+const parseInstantMs = (s: string): number => instantFromString(s) ?? NaN;
 
 /** Element OID (+ optional element :target) -> leaf decoder, mirroring the scalar pickText/defaultJs defaults. */
 function elemLeafFor(elemOid: number, js?: string): Leaf {
@@ -526,29 +459,12 @@ const f64FromBytes = (v: string) =>
 // (fastest + lossless). date/timestamp/timestamptz can map to a JS Date or epoch-ms number; naive
 // (no-offset) values are treated as UTC, timestamptz applies its offset. Direct field parse from
 // bytes -> Date.UTC (2-4x faster than new Date(text) AND correct — new Date parses no-tz as LOCAL).
-// ms = first 3 fractional digits (micros truncated; Date is ms-only). Years < 100 / BC: use string.
+// ms = first 3 fractional digits (micros truncated; Date is ms-only). Parser: src/temporal.ts.
 export const INSTANT_OIDS = new Set([1082, 1114, 1184]); // date, timestamp, timestamptz
 const tsFromBytes = (v: string, kind: 'date' | 'ms') =>
-	`{ let p = o, e = o + l;
-      if (b[p] === 105 || (b[p] === 45 && b[p + 1] === 105)) { ${
-		kind === 'date' ? `${v} = new Date(NaN)` : `${v} = NaN`
-	} } else {
-      let bc = false; if (l >= 3 && b[e - 1] === 67 && b[e - 2] === 66 && b[e - 3] === 32) { bc = true; e -= 3 }
-      let Y = 0; for (; p < e; p++) { const c = b[p]; if (c < 48 || c > 57) break; Y = Y * 10 + (c - 48) } p++;
-      const Mo = (b[p] - 48) * 10 + (b[p + 1] - 48); p += 3;
-      const D = (b[p] - 48) * 10 + (b[p + 1] - 48); p += 2;
-      let H = 0, Mi = 0, S = 0, ms = 0, off = 0;
-      if (p < e && b[p] === 32) { p++;
-        H = (b[p] - 48) * 10 + (b[p + 1] - 48); p += 3;
-        Mi = (b[p] - 48) * 10 + (b[p + 1] - 48); p += 3;
-        S = (b[p] - 48) * 10 + (b[p + 1] - 48); p += 2;
-        if (p < e && b[p] === 46) { p++; let f = 0, k = 0; for (; p < e && k < 3; p++) { const c = b[p]; if (c < 48 || c > 57) break; f = f * 10 + (c - 48); k++ } while (k < 3) { f *= 10; k++ } ms = f; while (p < e) { const c = b[p]; if (c < 48 || c > 57) break; p++ } }
-        if (p < e && (b[p] === 43 || b[p] === 45)) { const sg = b[p] === 45 ? -1 : 1; p++; const th = (b[p] - 48) * 10 + (b[p + 1] - 48); p += 2; let tm = 0, tsc = 0; if (p < e && b[p] === 58) { p++; tm = (b[p] - 48) * 10 + (b[p + 1] - 48); p += 2; if (p < e && b[p] === 58) { p++; tsc = (b[p] - 48) * 10 + (b[p + 1] - 48); p += 2 } } off = sg * ((th * 60 + tm) * 60 + tsc) * 1000 }
-      }
-      const yy = bc ? 1 - Y : Y;
-      let ems = Date.UTC(yy, Mo - 1, D, H, Mi, S, ms); if (yy >= 0 && yy <= 99) { const dd = new Date(ems); dd.setUTCFullYear(yy); ems = dd.getTime() } ems -= off; ${
+	`{ let ems, ok; ${instantSnippet('b', 'o', 'o + l', 'ems', 'ok')} if (!ok) ems = NaN; ${
 		kind === 'date' ? `${v} = new Date(ems)` : `${v} = ems`
-	} } }`;
+	} }`;
 
 // The natural JS target for a wire OID (before any per-column override).
 export function defaultJs(oid: number): 'number' | 'string' | 'bool' | 'json' | 'bytea' | 'helper' {
@@ -639,9 +555,8 @@ function inlineSnippet(oid: number, v: string, js?: Target): [string, string] | 
 // int8, timestamp (int64 µs since 2000 -> the integer directly), bytea. numeric/arrays/json/jsonb are
 // NOT supported in binary (complex format, or no benefit) — request text. uuid works but text is faster
 // (PG ships it pre-formatted), so prefer text there too. `js` still picks date/epoch/number.
-const PG_EPOCH_MS = 946684800000; // 2000-01-01 UTC in unix ms
 // int64 read, NO BigInt: signed hi from a manual shift, unsigned lo (>>> 0), value = hi*2^32 + lo.
-// Exact for |value| < 2^53 (int8 magnitudes below that, timestamp µs until ~year 2255).
+// Exact for |value| < 2^53 (int8 magnitudes below that). Timestamps use BIN_TS_MS_EXPR instead (exact to the ms everywhere).
 const RD64 =
 	'const hi = (b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3], lo = ((b[o + 4] << 24) | (b[o + 5] << 16) | (b[o + 6] << 8) | b[o + 7]) >>> 0';
 function binarySnippet(oid: number, v: string, js?: Target): [string, string] | null {
@@ -670,7 +585,7 @@ function binarySnippet(oid: number, v: string, js?: Target): [string, string] | 
 			return [`${v} = b.readDoubleBE(o)`, 'float8 bin (exact)'];
 		case 1114:
 		case 1184: { // timestamp/timestamptz: int64 µs since 2000-01-01 (no BigInt). Default -> Date.
-			const ms = `Math.floor((hi * 4294967296 + lo) / 1000) + ${PG_EPOCH_MS}`;
+			const ms = BIN_TS_MS_EXPR;
 			return js === 'ms'
 				? [`{ ${RD64}; ${v} = ${ms} }`, 'timestamp bin :ms']
 				: [`{ ${RD64}; ${v} = new Date(${ms}) }`, 'timestamp bin :date'];
@@ -1066,84 +981,8 @@ const txtF64: CellDecoder = (b, o, l) => {
 const txtF4Precise: CellDecoder = (b, o, l) => Math.fround(txtF64(b, o, l) as number); // float4:precise -> exact stored f32
 
 // temporal :date/:ms (direct field parse -> Date.UTC; naive = UTC, tz applies offset; micros -> ms).
-// Mirrors parseInstantMs exactly: ±infinity -> NaN, trailing ' BC' -> astronomical year 1-N.
-function tsParse(b: Buffer, o: number, l: number): number {
-	if (b[o] === 105 || (b[o] === 45 && b[o + 1] === 105)) return NaN; // 'infinity' / '-infinity'
-	let p = o;
-	let e = o + l;
-	let bc = false;
-	if (l >= 3 && b[e - 1] === 67 && b[e - 2] === 66 && b[e - 3] === 32) {
-		bc = true;
-		e -= 3;
-	} // strip ' BC'
-	let Y = 0;
-	for (; p < e; p++) {
-		const c = b[p]!;
-		if (c < 48 || c > 57) break;
-		Y = Y * 10 + (c - 48);
-	}
-	p++;
-	const Mo = (b[p]! - 48) * 10 + (b[p + 1]! - 48);
-	p += 3;
-	const D = (b[p]! - 48) * 10 + (b[p + 1]! - 48);
-	p += 2;
-	let H = 0, Mi = 0, S = 0, ms = 0, off = 0;
-	if (p < e && b[p] === 32) {
-		p++;
-		H = (b[p]! - 48) * 10 + (b[p + 1]! - 48);
-		p += 3;
-		Mi = (b[p]! - 48) * 10 + (b[p + 1]! - 48);
-		p += 3;
-		S = (b[p]! - 48) * 10 + (b[p + 1]! - 48);
-		p += 2;
-		if (p < e && b[p] === 46) {
-			p++;
-			let f = 0, k = 0;
-			for (; p < e && k < 3; p++) {
-				const c = b[p]!;
-				if (c < 48 || c > 57) break;
-				f = f * 10 + (c - 48);
-				k++;
-			}
-			while (k < 3) {
-				f *= 10;
-				k++;
-			}
-			ms = f;
-			while (p < e) {
-				const c = b[p]!;
-				if (c < 48 || c > 57) break;
-				p++;
-			}
-		}
-		if (p < e && (b[p] === 43 || b[p] === 45)) {
-			const sg = b[p] === 45 ? -1 : 1;
-			p++;
-			const th = (b[p]! - 48) * 10 + (b[p + 1]! - 48);
-			p += 2;
-			let tm = 0, tsc = 0;
-			if (p < e && b[p] === 58) {
-				p++;
-				tm = (b[p]! - 48) * 10 + (b[p + 1]! - 48);
-				p += 2;
-				if (p < e && b[p] === 58) {
-					p++;
-					tsc = (b[p]! - 48) * 10 + (b[p + 1]! - 48);
-					p += 2;
-				}
-			}
-			off = sg * ((th * 60 + tm) * 60 + tsc) * 1000;
-		}
-	}
-	const year = bc ? 1 - Y : Y; // PG 'N BC' -> astronomical year 1-N (44 BC -> -43, 1 BC -> 0)
-	let ems = Date.UTC(year, Mo - 1, D, H, Mi, S, ms);
-	if (year >= 0 && year <= 99) {
-		const d = new Date(ems);
-		d.setUTCFullYear(year);
-		ems = d.getTime();
-	} // Date.UTC remaps years 0-99 to 1900+Y; undo it BEFORE applying the tz offset
-	return ems - off;
-}
+// Same parser as the JIT snippet and parseInstantMs (src/temporal.ts): ±infinity / non-ISO -> NaN.
+const tsParse = (b: Buffer, o: number, l: number): number => instantFromBytes(b, o, l) ?? NaN;
 const tsDate: CellDecoder = (b, o, l) => new Date(tsParse(b, o, l));
 const tsEpoch: CellDecoder = (b, o, l) => tsParse(b, o, l);
 
@@ -1165,8 +1004,8 @@ const binInt8Str: CellDecoder = (b, o) => {
 	return n >= -9007199254740991 && n <= 9007199254740991 ? '' + n : b.readBigInt64BE(o).toString();
 };
 const binInt8BigInt: CellDecoder = (b, o) => b.readBigInt64BE(o);
-const binTsEpoch: CellDecoder = (b, o) => Math.floor(rd64(b, o) / 1000) + PG_EPOCH_MS;
-const binTsDate: CellDecoder = (b, o) => new Date(Math.floor(rd64(b, o) / 1000) + PG_EPOCH_MS);
+const binTsEpoch: CellDecoder = (b, o) => binTimestampMs(b, o);
+const binTsDate: CellDecoder = (b, o) => new Date(binTimestampMs(b, o));
 const binDateEpoch: CellDecoder = (b, o) => b.readInt32BE(o) * 86400000 + PG_EPOCH_MS;
 const binDateDate: CellDecoder = (b, o) => new Date(b.readInt32BE(o) * 86400000 + PG_EPOCH_MS);
 const binBytea: CellDecoder = (b, o, l) => {
