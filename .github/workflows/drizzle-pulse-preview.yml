@@ -1,0 +1,101 @@
+# Publishes a preview build of every Drizzle Pulse commit to pkg.pr.new.
+# Requires the pkg.pr.new GitHub App on this repository: https://github.com/apps/pkg-pr-new
+name: drizzle-pulse preview release
+
+on:
+  push:
+    branches: ['**']
+    tags: ['!**']
+    paths:
+      - 'drizzle-pulse/**'
+      - '.github/workflows/drizzle-pulse-preview.yml'
+  pull_request:
+    paths:
+      - 'drizzle-pulse/**'
+      - '.github/workflows/drizzle-pulse-preview.yml'
+
+# The token only checks out the code. The pkg.pr.new app posts the PR comment.
+permissions:
+  contents: read
+
+concurrency:
+  group: drizzle-pulse-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: drizzle-pulse
+
+jobs:
+  preview:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      # pkg-pr-new runs under node and shells out to a packer.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - run: pnpm install --frozen-lockfile --filter 'drizzle-pulse...' --filter 'drizzle-orm...'
+        working-directory: .
+      - run: pnpm build:orm
+        working-directory: .
+
+      # The unit gate of drizzle-pulse-ci.yml; the integration suite needs a live database and is too slow here.
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm test:types
+      - run: pnpm verify:publish
+
+      # Run from the lockfile, never npx: the tool that uploads a build of this package should
+      # be the version this repository pinned, not whatever latest resolves to at run time.
+      # --previewVersion prevents a preview shadowing the real npm release of the same version.
+      # continue-on-error: a pkg.pr.new outage must not fail a commit the gates above passed.
+      - name: Publish preview to pkg.pr.new
+        id: preview
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            pnpm exec pkg-pr-new publish --json preview.json --previewVersion --comment=update --packageManager=pnpm,npm
+          else
+            pnpm exec pkg-pr-new publish --json preview.json --previewVersion --comment=off --packageManager=pnpm,npm
+          fi
+
+      - name: Write install commands to the job summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "## Preview release"
+            echo
+            if [ "${{ steps.preview.outcome }}" != "success" ]; then
+              echo "Publishing to pkg.pr.new failed. The build and test steps above passed,"
+              echo "so only the preview build of this commit is missing."
+              echo
+              echo "If this persists, check that the pkg.pr.new GitHub App is installed on this repository."
+            elif [ -s preview.json ]; then
+              echo "Install this commit directly:"
+              echo
+              echo '```sh'
+              jq -r '.packages[] | "pnpm add \(.url)"' preview.json
+              echo '```'
+              echo
+              echo "| Package | Version | URL |"
+              echo "| --- | --- | --- |"
+              jq -r '.packages[]
+                     | "| `\(.name)` | `0.0.0-preview-\(.url | split("@") | last)` | \(.url) |"' preview.json
+              echo
+              echo "Built from \`${GITHUB_SHA}\`. Preview builds expire and are not a release."
+              echo "The version is rewritten to \`0.0.0-preview-<sha>\` so it can never be mistaken"
+              echo "for the npm build of the same number."
+            else
+              echo "pkg.pr.new reported success but produced no metadata, so there is no install URL to show."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

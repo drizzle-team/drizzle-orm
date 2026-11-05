@@ -118,6 +118,7 @@
 		}
 	],
 	"ignorePatterns": [
+		"drizzle-pulse",
 		"node_modules",
 		"dist",
 		"dist-dts",

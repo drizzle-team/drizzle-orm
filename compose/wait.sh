@@ -40,6 +40,7 @@ for db in "$@"; do
     aws-data-api)         wait_tcp 127.0.0.1 8081  "aws-data-api" ;;
     postgres-postgis)     wait_tcp 127.0.0.1 54322 "postgres" ;;
     postgres-vector)      wait_tcp 127.0.0.1 54321 "postgres" ;;
+    pulse)                wait_tcp 127.0.0.1 5433  "pulse" ;;
     postgres18)           wait_tcp 127.0.0.1 54325 "postgres" ;;
     postgres17)           wait_tcp 127.0.0.1 54324 "postgres" ;;
     postgres16)           wait_tcp 127.0.0.1 54323 "postgres" ;;
