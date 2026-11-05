@@ -1508,6 +1508,27 @@ describe('pull json envelopes', () => {
 		expect(serialized).not.toContain('query_error');
 	});
 
+	test('pull crashes with the cause', async () => {
+		const password = 'S3NT1NEL_pw_a9F2';
+		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-pull-driver-error-'));
+		const runPull = await importRunPull();
+		const { errorToEnvelope } = await import('../../src/cli/errors');
+
+		const caught = await runWithCliContext(
+			{ output: 'json', interactive: false },
+			() =>
+				runPull!({ ...baseConfig(out), credentials: { url: `postgresql://app:${password}@127.0.0.1:1/none` } })
+					.then(() => null, (err) => err),
+		);
+
+		expect(caught).toMatchObject({ code: 'database_driver_error' });
+
+		const serialized = JSON.stringify(errorToEnvelope(caught));
+		expect(serialized).toContain('database_driver_error');
+		expect(serialized).toContain('cause');
+		expect(serialized).toContain('QueryError: connect ECONNREFUSED 127.0.0.1:1');
+	});
+
 	test('json mode emits only the envelope and never constructs IntrospectProgress', async () => {
 		const client = new PGlite();
 
