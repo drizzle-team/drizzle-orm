@@ -55,7 +55,7 @@ importers:
         version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.25)(tsx@4.20.6)(typescript@6.0.3)(unrun@0.2.32)
       tsup:
         specifier: ^8.3.5
-        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@6.0.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.6)(tsx@4.20.6)(typescript@6.0.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.10.5
         version: 4.20.6
@@ -67,10 +67,10 @@ importers:
         version: 6.0.3
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@6.0.3)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
+        version: 4.3.2(typescript@6.0.3)(vite@7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
       vitest:
         specifier: 5.0.0
-        version: 5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
+        version: 5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
 
   attw-fork:
     dependencies:
@@ -270,9 +270,6 @@ importers:
       get-port:
         specifier: ^6.1.2
         version: 6.1.2
-      get-tsconfig:
-        specifier: ^4.13.6
-        version: 4.13.6
       glob:
         specifier: ^8.1.0
         version: 8.1.0
@@ -283,8 +280,8 @@ importers:
         specifier: ^4.7.9
         version: 4.10.7
       jiti:
-        specifier: ^2.6.1
-        version: 2.6.1
+        specifier: ^2.7.0
+        version: 2.7.0
       json-diff:
         specifier: 1.0.6
         version: 1.0.6
@@ -618,7 +615,7 @@ importers:
         version: 10.0.0
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@6.0.3)(vite@7.2.4(@types/node@22.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
+        version: 4.3.2(typescript@6.0.3)(vite@7.2.4(@types/node@22.19.1)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
       zod:
         specifier: ^4.0.0
         version: 4.3.4
@@ -696,7 +693,7 @@ importers:
         version: 4.0.0(@effect/wa-sqlite@0.1.2)(effect@4.0.0)
       '@effect/vitest':
         specifier: 4.0.0
-        version: 4.0.0(effect@4.0.0)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))
+        version: 4.0.0(effect@4.0.0)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))
       '@electric-sql/pglite':
         specifier: 0.5.8
         version: 0.5.8
@@ -907,7 +904,7 @@ importers:
         version: 4.20.6
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@6.0.3)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
+        version: 4.3.2(typescript@6.0.3)(vite@7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
       wrangler:
         specifier: 4.148.0
         version: 4.148.0(@cloudflare/workers-types@4.20251126.0)(@types/node@25.5.0)(bufferutil@4.0.8)(utf-8-validate@6.0.3)
@@ -4415,6 +4412,7 @@ packages:
   '@smithy/core@3.34.1':
     resolution: {integrity: sha512-dLcOUxz8YCv1RZUMKq6GbyUf95pLbrqh34bPvpCZ1+CByFF31BEAFewZjsGCnVsZTKdThNENfGyAgk2TJqVwSw==}
     engines: {node: '>=18.0.0'}
+    deprecated: Deprecated due to a bug in custom logger data redaction. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/credential-provider-imds@4.2.5':
     resolution: {integrity: sha512-BZwotjoZWn9+36nimwm/OLIcVe+KYRwzMjfhd4QT7QxPm9WY0HiOV8t/Wlh+HVUif0SBVV7ksq8//hPaBC/okQ==}
@@ -4515,6 +4513,7 @@ packages:
   '@smithy/smithy-client@4.9.8':
     resolution: {integrity: sha512-8xgq3LgKDEFoIrLWBho/oYKyWByw9/corz7vuh1upv7ZBm0ZMjGYBhbn6v643WoIqA9UTcx5A5htEp/YatUwMA==}
     engines: {node: '>=18.0.0'}
+    deprecated: Deprecated due to a bug in custom logger data redaction. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/types@4.18.0':
     resolution: {integrity: sha512-CgB6HHWer/vrKps24ulRIbpcpb7K4xAU7SkZ7YHzBPlwHsvsrCJFEXK421s+cJzX+ZrqtA/TuU5w1HzI7k9N8A==}
@@ -7550,8 +7549,8 @@ packages:
   jimp-compact@0.16.1:
     resolution: {integrity: sha512-dZ6Ra7u1G8c4Letq/B5EzAxj4tLFHL+cGtdpR+PVm4yzPDj+lCk+AbivWt1eOM+ikzkowtyV7qSqX6qr3t71Ww==}
 
-  jiti@2.6.1:
-    resolution: {integrity: sha512-ekilCSN1jwRvIbgeg/57YFh8qQDNbwDb9xT/qu2DAHbFFZUicIl4ygVaAvzveMhMVr3LnpSKTNnwt8PoOfmKhQ==}
+  jiti@2.7.0:
+    resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
 
   jmespath@0.16.0:
@@ -12434,10 +12433,10 @@ snapshots:
       effect: 4.0.6
       uuid: 11.1.0
 
-  '@effect/vitest@4.0.0(effect@4.0.0)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))':
+  '@effect/vitest@4.0.0(effect@4.0.0)(vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)))':
     dependencies:
       effect: 4.0.0
-      vitest: 5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
+      vitest: 5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
 
   '@effect/wa-sqlite@0.1.2': {}
 
@@ -15473,14 +15472,14 @@ snapshots:
     optionalDependencies:
       vite: 5.4.21(@types/node@25.5.0)(lightningcss@1.30.2)(terser@5.44.1)
 
-  '@vitest/mocker@5.0.0(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))':
+  '@vitest/mocker@5.0.0(vite@7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.0.0
       estree-walker: 3.0.3
       magic-string: 1.3.1
     optionalDependencies:
-      vite: 7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)
+      vite: 7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)
 
   '@vitest/pretty-format@2.1.9':
     dependencies:
@@ -18361,7 +18360,7 @@ snapshots:
 
   jimp-compact@0.16.1: {}
 
-  jiti@2.6.1: {}
+  jiti@2.7.0: {}
 
   jmespath@0.16.0: {}
 
@@ -19837,11 +19836,11 @@ snapshots:
 
   possible-typed-array-names@1.1.0: {}
 
-  postcss-load-config@6.0.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(yaml@2.9.0):
+  postcss-load-config@6.0.1(jiti@2.7.0)(postcss@8.5.6)(tsx@4.20.6)(yaml@2.9.0):
     dependencies:
       lilconfig: 3.1.3
     optionalDependencies:
-      jiti: 2.6.1
+      jiti: 2.7.0
       postcss: 8.5.6
       tsx: 4.20.6
       yaml: 2.9.0
@@ -21211,7 +21210,7 @@ snapshots:
 
   tslib@2.8.1: {}
 
-  tsup@8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(typescript@6.0.3)(yaml@2.9.0):
+  tsup@8.5.1(jiti@2.7.0)(postcss@8.5.6)(tsx@4.20.6)(typescript@6.0.3)(yaml@2.9.0):
     dependencies:
       bundle-require: 5.1.0(esbuild@0.27.0)
       cac: 6.7.14
@@ -21222,7 +21221,7 @@ snapshots:
       fix-dts-default-cjs-exports: 1.0.1
       joycon: 3.1.1
       picocolors: 1.1.1
-      postcss-load-config: 6.0.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.20.6)(yaml@2.9.0)
+      postcss-load-config: 6.0.1(jiti@2.7.0)(postcss@8.5.6)(tsx@4.20.6)(yaml@2.9.0)
       resolve-from: 5.0.0
       rollup: 4.53.3
       source-map: 0.7.6
@@ -21486,24 +21485,24 @@ snapshots:
       - supports-color
       - terser
 
-  vite-tsconfig-paths@4.3.2(typescript@6.0.3)(vite@7.2.4(@types/node@22.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)):
+  vite-tsconfig-paths@4.3.2(typescript@6.0.3)(vite@7.2.4(@types/node@22.19.1)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)):
     dependencies:
       debug: 4.4.3
       globrex: 0.1.2
       tsconfck: 3.1.6(typescript@6.0.3)
     optionalDependencies:
-      vite: 7.2.4(@types/node@22.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)
+      vite: 7.2.4(@types/node@22.19.1)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)
     transitivePeerDependencies:
       - supports-color
       - typescript
 
-  vite-tsconfig-paths@4.3.2(typescript@6.0.3)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)):
+  vite-tsconfig-paths@4.3.2(typescript@6.0.3)(vite@7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)):
     dependencies:
       debug: 4.4.3
       globrex: 0.1.2
       tsconfck: 3.1.6(typescript@6.0.3)
     optionalDependencies:
-      vite: 7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)
+      vite: 7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)
     transitivePeerDependencies:
       - supports-color
       - typescript
@@ -21519,7 +21518,7 @@ snapshots:
       lightningcss: 1.30.2
       terser: 5.44.1
 
-  vite@7.2.4(@types/node@22.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0):
+  vite@7.2.4(@types/node@22.19.1)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0):
     dependencies:
       esbuild: 0.25.12
       fdir: 6.5.0(picomatch@4.0.7)
@@ -21530,14 +21529,14 @@ snapshots:
     optionalDependencies:
       '@types/node': 22.19.1
       fsevents: 2.3.3
-      jiti: 2.6.1
+      jiti: 2.7.0
       lightningcss: 1.30.2
       terser: 5.44.1
       tsx: 4.20.6
       yaml: 2.9.0
     optional: true
 
-  vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0):
+  vite@7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0):
     dependencies:
       esbuild: 0.25.12
       fdir: 6.5.0(picomatch@4.0.7)
@@ -21548,7 +21547,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 25.5.0
       fsevents: 2.3.3
-      jiti: 2.6.1
+      jiti: 2.7.0
       lightningcss: 1.30.2
       terser: 5.44.1
       tsx: 4.20.6
@@ -21589,10 +21588,10 @@ snapshots:
       - supports-color
       - terser
 
-  vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)):
+  vitest@5.0.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(vite@7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.0(vite@7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
+      '@vitest/mocker': 5.0.0(vite@7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0))
       chai: 6.2.2
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
@@ -21603,7 +21602,7 @@ snapshots:
       tinybench: 6.1.4
       tinyexec: 1.3.0
       tinyglobby: 0.2.17
-      vite: 7.2.4(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)
+      vite: 7.2.4(@types/node@25.5.0)(jiti@2.7.0)(lightningcss@1.30.2)(terser@5.44.1)(tsx@4.20.6)(yaml@2.9.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.0
