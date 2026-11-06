@@ -20,25 +20,25 @@
  */
 /** @internal */
 export function parseLsn(lsn: string): bigint {
-  const parts = lsn.split('/');
-  const hi = parts[0];
-  const lo = parts[1];
-  if (
-    parts.length !== 2 ||
-    !hi ||
-    !lo ||
-    !/^[0-9a-fA-F]+$/.test(hi) ||
-    !/^[0-9a-fA-F]+$/.test(lo)
-  ) {
-    throw new Error(`Invalid LSN "${lsn}": expected "hex/hex" (e.g. "0/16B2D30")`);
-  }
-  return (BigInt(`0x${hi}`) << 32n) | BigInt(`0x${lo}`);
+	const parts = lsn.split('/');
+	const hi = parts[0];
+	const lo = parts[1];
+	if (
+		parts.length !== 2
+		|| !hi
+		|| !lo
+		|| !/^[0-9a-fA-F]+$/.test(hi)
+		|| !/^[0-9a-fA-F]+$/.test(lo)
+	) {
+		throw new Error(`Invalid LSN "${lsn}": expected "hex/hex" (e.g. "0/16B2D30")`);
+	}
+	return (BigInt(`0x${hi}`) << 32n) | BigInt(`0x${lo}`);
 }
 
 /** @internal */
 export function compareLsn(a: string, b: string): -1 | 0 | 1 {
-  const pa = parseLsn(a);
-  const pb = parseLsn(b);
-  if (pa === pb) return 0;
-  return pa < pb ? -1 : 1;
+	const pa = parseLsn(a);
+	const pb = parseLsn(b);
+	if (pa === pb) return 0;
+	return pa < pb ? -1 : 1;
 }

@@ -1,21 +1,21 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "lib": ["ES2022", "DOM"],
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "forceConsistentCasingInFileNames": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "types": ["bun-types", "node", "pg"],
-    // drizzle-orm/zod declares its types against zod/v4 from its own zod install. Pointing that
-    // specifier at this package's zod keeps one copy of the zod types in the program.
-    "paths": { "zod/v4": ["../node_modules/zod/v4/index.d.cts"] }
-  },
-  "include": ["./**/*"],
-  "exclude": ["node_modules"]
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"lib": ["ES2022", "DOM"],
+		"strict": true,
+		"noUncheckedIndexedAccess": true,
+		"noImplicitOverride": true,
+		"forceConsistentCasingInFileNames": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"resolveJsonModule": true,
+		"types": ["bun-types", "node", "pg"],
+		// drizzle-orm/zod declares its types against zod/v4 from its own zod install. Pointing that
+		// specifier at this package's zod keeps one copy of the zod types in the program.
+		"paths": { "zod/v4": ["../node_modules/zod/v4/index.d.cts"] }
+	},
+	"include": ["./**/*"],
+	"exclude": ["node_modules"]
 }

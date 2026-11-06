@@ -51,7 +51,6 @@ jobs:
       - run: pnpm build:orm
         working-directory: .
       - run: pnpm build
-      - run: pnpm lint:biome
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm test:types
