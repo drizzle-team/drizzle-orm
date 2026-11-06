@@ -100,10 +100,12 @@ function generateIdentityParams(column: Column) {
 	const identity = column.identity;
 
 	const tuples = [];
-	if (identity.seed) {
+	// guard againts 0
+	if (typeof identity.seed !== 'undefined') {
 		tuples.push(['seed', identity.seed]);
 	}
-	if (identity.increment) {
+	// guard againts 0
+	if (typeof identity.increment !== 'undefined') {
 		tuples.push(['increment', identity.increment]);
 	}
 

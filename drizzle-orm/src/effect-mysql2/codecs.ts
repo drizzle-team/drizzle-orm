@@ -20,9 +20,11 @@ export const effectMysql2Codecs = refineGenericMySqlCodecs({
 		normalize: (value: number) => value === 1,
 	},
 	'decimal:number': {
+		cast: castToText,
 		normalize: Number,
 	},
 	'decimal:bigint': {
+		cast: castToText,
 		normalize: BigInt,
 	},
 	float: {
@@ -69,5 +71,12 @@ export const effectMysql2Codecs = refineGenericMySqlCodecs({
 	},
 	longblob: {
 		normalize: (value: Buffer) => value.toString('utf8'),
+	},
+	decimal: {
+		cast: castToText,
+	},
+	json: {
+		cast: castToText,
+		normalize: JSON.parse,
 	},
 });

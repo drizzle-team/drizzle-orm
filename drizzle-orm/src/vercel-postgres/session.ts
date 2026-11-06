@@ -1,12 +1,10 @@
 import {
 	type QueryResult,
 	type QueryResultRow,
-	types,
 	type VercelClient,
 	VercelPool,
 	type VercelPoolClient,
 } from '@vercel/postgres';
-import type { CustomTypesConfig } from 'pg';
 import type { Cache } from '~/cache/core/cache.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
@@ -27,26 +25,6 @@ export interface VercelPgSessionOptions {
 	cache?: Cache;
 	paramsInErrors?: boolean;
 }
-
-const noop = (val: any) => val;
-const typeConfig: CustomTypesConfig = {
-	getTypeParser: <CustomTypesConfig['getTypeParser']> ((typeId, format) => {
-		switch (typeId as number) {
-			case types.builtins.TIMESTAMPTZ:
-			case types.builtins.TIMESTAMP:
-			case types.builtins.DATE:
-			case types.builtins.INTERVAL:
-			case 1231: // numeric[]
-			case 1115: // timestamp[]
-			case 1185: // timestamp with timezone[]
-			case 1187: // interval[]
-			case 1182: // date[]
-				return noop;
-			default:
-				return types.getTypeParser(typeId, format);
-		}
-	}),
-};
 
 export class VercelPgSession<
 	TRelations extends AnyRelations,
@@ -86,7 +64,6 @@ export class VercelPgSession<
 				name: queryName,
 				rowMode: mode === 'arrays' ? 'array' : undefined as any,
 				text: query.sql,
-				types: typeConfig,
 			}, params).then((r) => mode === 'raw' ? r : r.rows);
 		};
 
@@ -117,11 +94,11 @@ export class VercelPgSession<
 			connectionError ??= e;
 		};
 		poolClient?.on('error', onConnectionError);
-		const release = () => {
+		const release = (failure?: Error) => {
 			if (!poolClient) return;
 			// broken client is destroyed by the pool, listener stays to absorb any trailing errors
 			if (!connectionError) poolClient.off('error', onConnectionError);
-			poolClient.release(connectionError ?? rollbackError);
+			poolClient.release(connectionError ?? rollbackError ?? failure);
 		};
 		const session = poolClient
 			? new VercelPgSession(poolClient, this.dialect, this.relations, this.options)
@@ -133,8 +110,16 @@ export class VercelPgSession<
 			undefined,
 			false,
 		);
+
 		try {
 			await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
+		} catch (e) {
+			// `begin` may still reach the server after failing on the client, session state is unknown so the client must not be reused
+			release(e as Error);
+			throw e;
+		}
+
+		try {
 			if (typeof config?.snapshot === 'string') {
 				await tx.execute(tx.setTransactionSnapshotSQL(config.snapshot));
 			}

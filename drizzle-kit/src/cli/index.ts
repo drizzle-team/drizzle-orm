@@ -159,6 +159,9 @@ const main = async () => {
 
 					if (e instanceof DrizzleCliError) {
 						humanError(e.humanMessage);
+						// `pull` command case
+						if (e.cause) console.error(e.cause);
+
 						return true;
 					}
 

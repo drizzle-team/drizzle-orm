@@ -23,7 +23,7 @@ export interface EffectSQLiteDoQueryEffectHKT extends QueryEffectHKTBase {
 	readonly context: never;
 }
 
-export type EffectSQLiteDoRunResult = [];
+export type EffectSQLiteDoRunResult = readonly Record<string, unknown>[];
 
 export interface EffectSQLiteDOSessionOptions {
 	logger: EffectLoggerShape;

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'dotenv/config';
 import {
+	and,
 	asc,
 	avg,
 	avgDistinct,
@@ -68,8 +69,9 @@ import {
 	vector,
 	year,
 } from 'drizzle-orm/singlestore-core';
-import { dotProduct, euclideanDistance } from 'drizzle-orm/singlestore-core/expressions';
+import { concat, dotProduct, euclideanDistance, substring } from 'drizzle-orm/singlestore-core/expressions';
 import { describe, expect, expectTypeOf } from 'vitest';
+import { jsonRows, parseStoredJson } from '~/json-values';
 import { Expect } from '../utils';
 import type { Equal } from '../utils';
 import {
@@ -78,7 +80,10 @@ import {
 	allTypesRelations,
 	allTypesTable,
 	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	makeAllTypes,
 } from './all-types';
 import type { Test } from './instrumentation';
@@ -1317,7 +1322,7 @@ export function tests(test: Test) {
 			const res = await db.select().from(datesTable);
 
 			const [rawSelect] = await db.execute(
-				sql`select \`datetime_utc\` from \`datestable\``,
+				sql`select cast(\`datetime_utc\` as char) as \`datetime_utc\` from \`datestable\``,
 			);
 			const selectedRow = (
 				rawSelect as unknown as [{ datetime_utc: string }]
@@ -2503,6 +2508,40 @@ export function tests(test: Test) {
 			expect(result).toStrictEqual([{ id: 1 }]);
 		});
 
+		test.concurrent('insert $returningId: serial as id, not first column', async ({ db }) => {
+			const usersTableDefNotFirstColumn = singlestoreTable('users2_returning_id_not_first', {
+				name: text('name').notNull(),
+				id: serial('id').primaryKey(),
+			});
+
+			await db.execute(sql`drop table if exists ${usersTableDefNotFirstColumn}`);
+			await db.execute(
+				sql`create table ${usersTableDefNotFirstColumn} (\`name\` text not null, \`id\` serial primary key)`,
+			);
+
+			const result = await db.insert(usersTableDefNotFirstColumn).values({ name: 'John' }).$returningId();
+
+			expectTypeOf(result).toEqualTypeOf<{
+				id: number;
+			}[]>();
+
+			expect(result).toStrictEqual([{ id: 1 }]);
+		});
+
+		test.concurrent('insert $returningId: serial as id, not first column, $default on other column', async ({ db }) => {
+			const usersTableDefFn = singlestoreTable('users2_returning_id_default_fn', {
+				name: text('name').notNull().$defaultFn(() => 'John'),
+				id: serial('id').primaryKey(),
+			});
+
+			await db.execute(sql`drop table if exists ${usersTableDefFn}`);
+			await db.execute(sql`create table ${usersTableDefFn} (\`name\` text not null, \`id\` serial primary key)`);
+
+			const result = await db.insert(usersTableDefFn).values({ name: 'Jane' }).$returningId();
+
+			expect(result).toStrictEqual([{ id: 1 }]);
+		});
+
 		test.concurrent(
 			'insert $returningId: serial as id, batch insert',
 			async ({ db }) => {
@@ -2685,6 +2724,73 @@ export function tests(test: Test) {
 			const users = await db.select().from(usersTable).limit(-1);
 
 			expect(users.length).toBeGreaterThan(0);
+		});
+
+		// SingleStore only accepts `offset` after `limit`, so every offset here comes with a limit
+		test.concurrent('pagination: limit', async ({ db, push }) => {
+			const items = singlestoreTable('pagination_1', { id: int('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(query().limit(0).toSQL()).toStrictEqual({
+				sql: 'select `id` from `pagination_1` order by `pagination_1`.`id` limit ?',
+				params: [0],
+			});
+			expect(await query().limit(0)).toStrictEqual([]);
+			expect(await query().limit(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(5)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().limit(10)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+		});
+
+		test.concurrent('pagination: limit with offset', async ({ db, push }) => {
+			const items = singlestoreTable('pagination_2', { id: int('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(query().limit(2).offset(0).toSQL()).toStrictEqual({
+				sql: 'select `id` from `pagination_2` order by `pagination_2`.`id` limit ? offset ?',
+				params: [2, 0],
+			});
+			expect(await query().limit(0).offset(0)).toStrictEqual([]);
+			expect(await query().limit(0).offset(2)).toStrictEqual([]);
+			expect(await query().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(2).offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+			expect(await query().limit(2).offset(4)).toStrictEqual([{ id: 5 }]);
+			expect(await query().limit(2).offset(5)).toStrictEqual([]);
+			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+		});
+
+		test.concurrent('pagination: set operations', async ({ db, push }) => {
+			const items = singlestoreTable('pagination_4', { id: int('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () =>
+				db.select({ id: items.id }).from(items).where(lt(items.id, 4)).union(
+					db.select({ id: items.id }).from(items).where(gte(items.id, 3)),
+				).orderBy(items.id);
+
+			expect(query().limit(2).offset(0).toSQL()).toStrictEqual({
+				sql:
+					'select `id` from ((select `id` from `pagination_4` where `pagination_4`.`id` < ?) union (select `id` from `pagination_4` where `pagination_4`.`id` >= ?)) `drizzle_union` order by `id` limit ? offset ?',
+				params: [4, 3, 2, 0],
+			});
+			expect(await query().limit(0)).toStrictEqual([]);
+			expect(await query().limit(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(0).offset(0)).toStrictEqual([]);
+			expect(await query().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(2).offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+
+			const chained = () =>
+				union(
+					db.select({ id: items.id }).from(items).where(lt(items.id, 2)),
+					db.select({ id: items.id }).from(items).where(eq(items.id, 3)),
+					db.select({ id: items.id }).from(items).where(gte(items.id, 4)),
+				).orderBy(items.id);
+			expect(await chained().limit(0).offset(0)).toStrictEqual([]);
+			expect(await chained().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 3 }]);
+			expect(await chained().limit(2).offset(2)).toStrictEqual([{ id: 4 }, { id: 5 }]);
 		});
 
 		test.concurrent('sql operator as cte', async ({ db }) => {
@@ -3106,7 +3212,7 @@ export function tests(test: Test) {
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
-					population: number;
+					population: number | null;
 					name: string;
 				}[]
 			>();
@@ -3162,7 +3268,7 @@ export function tests(test: Test) {
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
-					cityName: string;
+					cityName: string | null;
 					name: string;
 				}[]
 			>();
@@ -3343,10 +3449,14 @@ export function tests(test: Test) {
 
 			await assertAllTypesUnions(db, allTypesTable);
 			await assertAllTypesBounds(db);
+			await assertAllTypesTemporalBounds(db);
 		});
 
 		test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
-			const db = createDB({ allTypesTable }, allTypesRelations);
+			const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+				...allTypesRelations(r),
+				...boundsRelations(r),
+			}));
 			await push({ allTypesTable });
 
 			await db.insert(allTypesTable).values(allTypesData);
@@ -3395,7 +3505,29 @@ export function tests(test: Test) {
 			expect(rootRes).toStrictEqual(allTypesData);
 
 			await assertAllTypesUnions(db);
-			await assertAllTypesBounds(db);
+			await assertAllTypesBounds(db, { rqb: true });
+			await assertAllTypesTemporalBounds(db, { rqb: true });
+		});
+
+		test.concurrent('all types ~json~', async ({ db, push }) => {
+			const table = singlestoreTable('all_types_json', {
+				id: int('id').primaryKey(),
+				json: json('json'),
+			});
+			await push({ table });
+
+			const { input, output } = jsonRows(['json']);
+
+			await db.insert(table).values(input);
+
+			// json text as the database stores it, read without decoding
+			const stored = await db.select({
+				id: table.id,
+				json: sql<string>`cast(${table.json} as char)`,
+			}).from(table).orderBy(table.id);
+
+			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+			expect(parseStoredJson(stored)).toStrictEqual(output);
 		});
 
 		test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {
@@ -4977,6 +5109,103 @@ export function tests(test: Test) {
 					},
 				],
 			);
+		});
+
+		test.concurrent('concat, substring expressions', async ({ db, push }) => {
+			const users = singlestoreTable('expr_concat_substring', {
+				id: int('id').primaryKey(),
+				first: text('first').notNull(),
+				last: text('last').notNull(),
+			});
+
+			await push({ users });
+
+			await db.insert(users).values([{ id: 1, first: 'Johnathan', last: 'Doe' }, {
+				id: 2,
+				first: 'Jane',
+				last: 'Roe',
+			}]);
+
+			const res = await db.select({
+				withString: concat(users.first, '!'),
+				withColumn: concat(users.first, users.last),
+				withSql: concat(users.first, sql`'.'`),
+				withBigint: concat(users.first, 9223372036854775807n),
+				variadic: concat(users.first, ' ', users.last, ' #', users.id),
+				from: substring(users.first, { from: 3 }),
+				for: substring(users.first, { from: 1, for: 2 }),
+				fromFor: substring(users.first, { from: 2, for: 3 }),
+				fromSql: substring(users.first, { from: sql`${users.id} + 1` }),
+				fromForSql: substring(users.first, { from: sql`${users.id} + 1`, for: users.id }),
+				bigFrom: substring(users.first, { from: 9223372036854775807n }),
+				bigFor: substring(users.first, { from: 2, for: 9223372036854775807n }),
+			}).from(users).orderBy(users.id);
+
+			expect(res).toStrictEqual([
+				{
+					withString: 'Johnathan!',
+					withColumn: 'JohnathanDoe',
+					withSql: 'Johnathan.',
+					withBigint: 'Johnathan9223372036854775807',
+					variadic: 'Johnathan Doe #1',
+					from: 'hnathan',
+					for: 'Jo',
+					fromFor: 'ohn',
+					fromSql: 'ohnathan',
+					fromForSql: 'o',
+					bigFrom: '',
+					bigFor: 'ohnathan',
+				},
+				{
+					withString: 'Jane!',
+					withColumn: 'JaneRoe',
+					withSql: 'Jane.',
+					withBigint: 'Jane9223372036854775807',
+					variadic: 'Jane Roe #2',
+					from: 'ne',
+					for: 'Ja',
+					fromFor: 'ane',
+					fromSql: 'ne',
+					fromForSql: 'ne',
+					bigFrom: '',
+					bigFor: 'ane',
+				},
+			]);
+
+			const filtered = await db.select({ id: users.id }).from(users).where(
+				and(eq(concat(users.first, ' Doe'), 'Johnathan Doe'), eq(substring(users.first, { from: 1, for: 4 }), 'John')),
+			);
+
+			expect(filtered).toStrictEqual([{ id: 1 }]);
+
+			const prepared = db.select({
+				withString: concat(users.first, sql.placeholder('suffix')),
+				variadic: concat(sql.placeholder('prefix'), users.first, sql.placeholder('number'), sql.placeholder('bigint')),
+				from: substring(users.first, { from: sql.placeholder('from') }),
+				fromFor: substring(users.first, { from: sql.placeholder('from'), for: sql.placeholder('for') }),
+				bigFrom: substring(users.first, { from: sql.placeholder('bigFrom') }),
+				bigFor: substring(users.first, { from: sql.placeholder('from'), for: sql.placeholder('bigFor') }),
+			}).from(users).where(eq(users.id, 1)).prepare();
+
+			expect(
+				await prepared.execute({
+					suffix: '!',
+					prefix: '#',
+					number: 1,
+					bigint: 9223372036854775807n,
+					from: 2,
+					for: 3,
+					bigFrom: 9223372036854775807n,
+					bigFor: 9223372036854775807n,
+				}),
+			).toStrictEqual([{
+				withString: 'Johnathan!',
+				variadic: '#Johnathan19223372036854775807',
+				from: 'ohnathan',
+				fromFor: 'ohn',
+				bigFrom: '',
+				bigFor: 'ohnathan',
+			}]);
 		});
 	});
 }

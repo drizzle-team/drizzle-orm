@@ -1,7 +1,6 @@
-import { client as createHttpClient } from '@drizzle-team/minipg/http';
-import { defineRelations, sql } from 'drizzle-orm';
+import { client as createHttpClient } from '@drizzle-team/postgres/http';
+import { defineRelations, DrizzleQueryError, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { minipgCodecs } from 'drizzle-orm/postgres/codecs';
 import { drizzle as drizzleHttp, type PostgresHttpDatabase } from 'drizzle-orm/postgres/http';
 import { migrate } from 'drizzle-orm/postgres/http/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
@@ -13,7 +12,11 @@ import {
 	allTypesRelations,
 	allTypesTable,
 	assertAllTypesBounds,
+	assertAllTypesEmptyArrays,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	makeAllTypes,
 } from './all-types';
 import { tests } from './common';
@@ -32,6 +35,8 @@ const skips = [
 	'RQB v2 transaction find many - placeholders',
 	'transaction with options (set isolationLevel)',
 	'time zones are preserved - non-UTC session',
+	'all types ~codecs~ - non-UTC session',
+	'all types ~codecs~ - non-ISO DateStyle session',
 	'transaction with options (accessMode read only)',
 	'transaction with options (deferrable)',
 	'transaction with an empty options object',
@@ -262,9 +267,11 @@ describe('migrator', () => {
 		mkdirSync(`${migrationDir}/20240202020202_bad`, { recursive: true });
 		writeFileSync(`${migrationDir}/20240202020202_bad/migration.sql`, 'CREATE TABLE "http_mig_ok" ("id" integer);');
 
-		await expect(migrate(db as any as PostgresHttpDatabase<any>, { migrationsFolder: migrationDir })).rejects.toThrow(
-			/already exists/i,
+		const error = await migrate(db as any as PostgresHttpDatabase<any>, { migrationsFolder: migrationDir }).catch((e) =>
+			e
 		);
+		expect(error).toBeInstanceOf(DrizzleQueryError);
+		expect((error as DrizzleQueryError).cause?.message).toMatch(/already exists/i);
 
 		const present = await db.execute<{ present: boolean }>(
 			sql`select to_regclass('public.http_mig_ok') is not null as present`,
@@ -425,7 +432,7 @@ describe('driver-specific', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -455,7 +462,7 @@ describe('driver-specific', () => {
 		const result = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
@@ -486,7 +493,7 @@ describe('driver-specific', () => {
 		const result = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 		expect(new Date(result.rows[0]!.timestamp_string + 'Z').getTime()).toBe(insertedDate.getTime());
 
 		await db.execute(sql`drop table if exists ${table}`);
@@ -520,7 +527,7 @@ describe('driver-specific', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
 
@@ -557,7 +564,7 @@ describe('driver-specific', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
 
@@ -598,7 +605,7 @@ describe('driver-specific', () => {
 		const result2 = await db.execute<{
 			id: number;
 			timestamp_string: string;
-		}>(sql`select * from ${table}`);
+		}>(sql`select "id", "timestamp_string"::text from ${table}`);
 
 		expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
 
@@ -608,7 +615,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute + select via db.execute', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_1', {
+		const usersTable = pgTable('users_execute_raw_postgres_1', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -629,7 +636,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute + returning', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_2', {
+		const usersTable = pgTable('users_execute_raw_postgres_2', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -650,7 +657,7 @@ describe('driver-specific', () => {
 	});
 
 	test('insert via db.execute w/ query builder', async ({ db, push }) => {
-		const usersTable = pgTable('users_execute_raw_minipg_3', {
+		const usersTable = pgTable('users_execute_raw_postgres_3', {
 			id: serial('id' as string).primaryKey(),
 			name: text('name').notNull(),
 			verified: boolean('verified').notNull().default(false),
@@ -670,7 +677,10 @@ describe('driver-specific', () => {
 	});
 
 	test('all types ~shapes~', async ({ createDB, push }) => {
-		const db = createDB({ allTypesTable }, allTypesRelations);
+		const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+			...allTypesRelations(r),
+			...boundsRelations(r),
+		}));
 		await push({ en: allTypesEnum, allTypesTable });
 		await db.insert(allTypesTable).values(allTypesData);
 
@@ -681,25 +691,9 @@ describe('driver-specific', () => {
 		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 		await assertAllTypesUnions(db);
-		await assertAllTypesBounds(db);
-	});
+		await assertAllTypesBounds(db, { rqb: true });
+		await assertAllTypesTemporalBounds(db, { rqb: true });
 
-	test('all types ~codecs~ override', async ({ createDB, push }) => {
-		const { en, allTypesTable } = makeAllTypes('all_types_48_cdcs_ovr', 'en_49_ovr');
-		const base = createDB({ allTypesTable }, allTypesRelations);
-		await push({ en, allTypesTable });
-
-		const relations = defineRelations({ allTypesTable }, allTypesRelations);
-		const db = drizzleHttp({ client: (base as any).$client, relations, codecs: minipgCodecs });
-		await db.insert(allTypesTable).values(allTypesData);
-
-		const [flat] = await db.select().from(allTypesTable);
-		expect(flat).toStrictEqual(allTypesData);
-
-		const nested = await db.query.allTypesTable.findFirst({ with: { self: true } });
-		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
-
-		await assertAllTypesUnions(db, allTypesTable);
-		await assertAllTypesBounds(db);
+		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 	});
 });

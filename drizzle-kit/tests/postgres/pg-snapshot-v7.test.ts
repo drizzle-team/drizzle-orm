@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import { fromEntities } from 'src/dialects/postgres/ddl';
 import { upToV8 } from 'src/dialects/postgres/versions';
 import { serializePg } from 'src/legacy/postgres-v7/serializer';
+import { needToPostpone } from 'tests/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, diffSnapshotV7, drizzleToDDL, prepareTestDatabase, push, TestDatabase } from './mocks';
 import * as s01 from './snapshots/schema01';
@@ -12,6 +13,8 @@ import * as s03 from './snapshots/schema03';
 import * as s03new from './snapshots/schema03new';
 import * as s06 from './snapshots/schema06';
 import * as s06new from './snapshots/schema06new';
+import * as s07 from './snapshots/schema07';
+import * as s07new from './snapshots/schema07new';
 
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
@@ -139,3 +142,14 @@ test('s06. the first diff after the upgrade keeps a column of a built-in type th
 	]);
 	expect((await push({ db, to: withoutValue() })).sqlStatements).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/pull/6443
+// v7 stored checks and index `where` with table-qualified columns ("docs"."rank") and index `with` joined by ',',
+// generate renders bare columns and ', ', so the first generate after `drizzle-kit up` recreated those indexes and checks
+test.skipIf(needToPostpone)(
+	's07. index with options, partial indexes and checks referencing columns',
+	async () => {
+		const res = await diffSnapshotV7(db, s07new, s07);
+		expect(res.all).toStrictEqual([]);
+	},
+);

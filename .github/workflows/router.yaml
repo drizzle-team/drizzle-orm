@@ -13,6 +13,13 @@ on:
         type: string
         default: 'all'
 
+# A new push to a PR cancels the run of the previous head before any job starts. The cancel in the
+# called workflows needs a free runner first, and on a busy organization that can take hours.
+# Manual runs get a group of their own, so a release is never canceled.
+concurrency:
+  group: router-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   switch:
     runs-on: ubuntu-24.04
@@ -44,7 +51,14 @@ jobs:
 
   run-feature:
     needs: switch
-    if: needs.switch.outputs.target == 'feature'
+    # In a PR stack, only the top PR runs CI: it contains the commits of every PR below it, and
+    # merging it merges the whole stack. When the top PR closes, the PR below gets no event. A
+    # re-run uses the old payload and skips again, so close and reopen that PR to start CI.
+    if: >-
+      needs.switch.outputs.target == 'feature' && (
+        github.event.pull_request.stack == null ||
+        github.event.pull_request.stack.position == github.event.pull_request.stack.size
+      )
     uses: ./.github/workflows/release-feature-branch.yaml
     with:
       publish_to_github: ${{ inputs.publish_to_github == true }}
@@ -65,6 +79,12 @@ jobs:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
       GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+      PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
+      PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
+      PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
+      TURSO_ORG: ${{ secrets.TURSO_ORG }}
+      TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
+      TURSO_GROUP: ${{ secrets.TURSO_GROUP }}
 
   run-latest:
     needs: switch
@@ -84,3 +104,21 @@ jobs:
       SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
       SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
+      PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
+      PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
+      TURSO_ORG: ${{ secrets.TURSO_ORG }}
+      TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
+      TURSO_GROUP: ${{ secrets.TURSO_GROUP }}
+
+  # Branch protection requires only this job. It waits for every job in the called workflows,
+  # so new jobs there need no settings change. A skipped job counts as a pass, because the
+  # router skips one of the two pipelines on every run and skips stacked PRs below the top one.
+  ci-passed:
+    needs: [switch, run-feature, run-latest]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fail if a pipeline job failed or was canceled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1

@@ -1,4 +1,4 @@
-import type { Connection as CallbackConnection, TypeCast } from 'mysql2';
+import type { Connection as CallbackConnection } from 'mysql2';
 import type { Connection, FieldPacket, Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
@@ -29,13 +29,6 @@ export interface MySql2SessionOptions {
 	cache?: Cache;
 	paramsInErrors?: boolean;
 }
-
-const typeCast: TypeCast = function(field, next) {
-	if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-		return field.string();
-	}
-	return next();
-};
 
 export class MySql2Session<
 	TRelations extends AnyRelations,
@@ -68,7 +61,6 @@ export class MySql2Session<
 		const executor = async (params: any[] = []) => {
 			const raw = client.query<any[]>({
 				sql: query.sql,
-				typeCast,
 				rowsAsArray: mode === 'arrays',
 			}, params);
 			if (mode !== 'raw') return raw.then((data) => data[0]);
@@ -86,7 +78,6 @@ export class MySql2Session<
 			}).connection;
 			const driverQuery = conn.query({
 				sql: query.sql,
-				typeCast,
 				rowsAsArray: mode === 'arrays',
 			}, params);
 			const stream = driverQuery.stream();

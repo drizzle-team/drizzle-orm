@@ -191,7 +191,7 @@ const createIndex = convertor('create_index', (st) => {
 });
 
 const dropIndex = convertor('drop_index', (st) => {
-	return `DROP INDEX IF EXISTS \`${st.index.name}\`;`;
+	return `DROP INDEX \`${st.index.name}\`;`;
 });
 
 const recreateTable = convertor('recreate_table', (st) => {

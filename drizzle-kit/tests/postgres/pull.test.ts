@@ -48,6 +48,7 @@ import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/postgres/intr
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { DB } from 'src/utils';
 import { diffIntrospect, prepareTestDatabase, push, TestDatabase } from 'tests/postgres/mocks';
+import { needToPostpone } from 'tests/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
 // @vitest-environment-options {"max-concurrency":1}
@@ -926,7 +927,7 @@ test('introspect view #3', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-11-24'))('introspect view #4', async () => {
+test.skipIf(needToPostpone)('introspect view #4', async () => {
 	const table = pgTable('table', {
 		column1: text().notNull(),
 		column2: text(),
@@ -951,7 +952,7 @@ test.skipIf(Date.now() < +new Date('2026-11-24'))('introspect view #4', async ()
 // https://github.com/drizzle-team/drizzle-orm/issues/4262
 // postopone
 // Need to write discussion/guide on this and add ts comment in typescript file
-test.skipIf(Date.now() < +new Date('2026-11-24'))('introspect view #5', async () => {
+test.skipIf(needToPostpone)('introspect view #5', async () => {
 	const applications = pgTable('applications', {
 		applicationId: serial('application_id').primaryKey(),
 		studentId: integer('student_id').references(() => students.studentId),
@@ -1832,7 +1833,7 @@ test('introspect view with table filter', async () => {
 // this does not look like a bug
 // sequences are separete entities
 // entity filter for sequences ??
-test.skipIf(Date.now() < +new Date('2026-11-24'))('introspect sequences with table filter', async () => {
+test.skipIf(needToPostpone)('introspect sequences with table filter', async () => {
 	// can filter sequences with select pg_get_serial_sequence('"schema_name"."table_name"', 'column_name')
 
 	// const seq1 = pgSequence('seq1');
@@ -3842,7 +3843,7 @@ test('Issue No3446', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/6214
 // TODO revise this when "NOT VALID" feature is supported
-test.skipIf(Date.now() < +new Date('2026-11-24'))('Issue No6214', async () => {
+test.skipIf(needToPostpone)('Issue No6214', async () => {
 	await db.query(`CREATE TABLE documents (
   id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   version integer NOT NULL
@@ -4248,4 +4249,78 @@ test('introspect json array defaults with a backslash, a backtick and "${"', asy
 	expect(generateSqlStatements).toStrictEqual([]);
 	expect(defaultsInDatabase[0]).toStrictEqual(['column1', `'${arrayLiteral}'`]);
 	expect(schema2.columns.map((it) => [it.name, it.default])).toStrictEqual(defaultsInDatabase);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6495
+test('Issue 6495. Numeric defaults', async () => {
+	await db.query(`CREATE TABLE "t" (
+"price" numeric DEFAULT (random() * 10),
+	"amount" bigint DEFAULT (random() * 10)
+);`);
+
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		{},
+		'issue-6495-numeric-default',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6493
+test('Issue 6493', async () => {
+	await db.query(`CREATE TABLE "t" (
+		"r" real DEFAULT random(),
+		"dp" double precision DEFAULT random(),
+  		"b" boolean DEFAULT (random() > 0.5),
+  		"uuid" uuid DEFAULT md5(random()::text)::uuid,
+  		"interval" interval DEFAULT age(now()),
+  		"inet" inet DEFAULT inet_client_addr(),
+  		"cidr" cidr DEFAULT network(inet_client_addr()),
+  		"macaddr" macaddr DEFAULT trunc('08:00:2b:01:02:03'::macaddr)
+	);`);
+
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		{},
+		'issue-6493-expressions',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6590
+test.skipIf(needToPostpone)('Issue No6590 #1', async () => {
+	await db.query(`create table t (a int, name text);`);
+	await db.query(`create index t_lower_desc_idx on t (lower(name) desc nulls last);`);
+	await db.query(`create index t_lower_pattern_idx on t (lower(name) text_pattern_ops);`);
+	await db.query(`create index t_lower_trgm_idx on t using gin (lower(name) gin_trgm_ops);`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'issue-6590-indexes-expressions',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	// expect(ddlAfterPull.indexes.list().map((it) => [it.name, it.columns, it.method])).toStrictEqual();
+	// expect(schema2.indexes.map((it) => [it.name, it.columns])).toStrictEqual();
+});
+// https://github.com/drizzle-team/drizzle-orm/issues/6590
+test.skipIf(needToPostpone)('Issue No6590 #2', async () => {
+	await db.query(`create table t (tags varchar[] default ARRAY[]::varchar[]);`);
+
+	const { pushSqlStatements, generateSqlStatements, ddlAfterPull, schema2 } = await diffIntrospect(
+		db,
+		{},
+		'issue-6590-array-default',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+	// expect(ddlAfterPull.columns.list().map((it) => [it.name, it.default])).toStrictEqual();
+	// expect(schema2.indexes.map((it) => [it.name, it.columns])).toStrictEqual();
 });

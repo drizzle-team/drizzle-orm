@@ -481,7 +481,7 @@ export const Timestamp: SqlType = {
 			return { options, default: '.defaultNow()' };
 		}
 
-		if (trimmed.includes('now(') || trimmed.includes('CURRENT_TIMESTAMP(')) {
+		if (trimmed.includes('now(') || trimmed.includes('CURRENT_TIMESTAMP(') || isNaN(new Date(trimmed).getTime())) {
 			return { options, default: `sql\`${escapeBacktickAndInterpolation(trimmed)}\`` };
 		}
 
@@ -504,7 +504,7 @@ export const DateTime: SqlType = {
 		if (!def) return { options, default: '' };
 		const trimmed = trimChar(def, "'");
 
-		if (trimmed.includes('now') || trimmed.includes('CURRENT_TIMESTAMP')) {
+		if (trimmed.includes('now') || trimmed.includes('CURRENT_TIMESTAMP') || isNaN(new Date(trimmed).getTime())) {
 			return { options, default: `sql\`${escapeBacktickAndInterpolation(trimmed)}\`` };
 		}
 
@@ -532,6 +532,10 @@ export const Time: SqlType = {
 		if (!def) return { options, default: '' };
 
 		const trimmed = trimChar(def, "'");
+
+		// TODO revisit
+		// if (!isTime(trimmed)) return { options, default: `sql\`${escapeBacktickAndInterpolation(trimmed)}\`` };
+
 		return { options, default: `"${trimmed}"` };
 	},
 };
@@ -574,6 +578,9 @@ export const Year: SqlType = {
 		if (fsp) options['fsp'] = Number(fsp);
 
 		if (!def) return { options, default: '' };
+
+		if (!new RegExp('^d{4}$').test(def)) return { options, default: `sql\`${escapeBacktickAndInterpolation(def)}\`` };
+
 		return { options, default: `${def}` };
 	},
 };

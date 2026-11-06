@@ -128,7 +128,7 @@ export const configCommonSchema = object({
 	verbose: boolean().optional().default(false),
 	driver: driver.optional(),
 	dbCredentials: any().optional(),
-	client: any().optional(), // PGlite
+	client: any().optional(), // PGlite instance or Drizzle Postgres Pool
 }).passthrough();
 
 export type CliConfig = TypeOf<typeof configCommonSchema> & {

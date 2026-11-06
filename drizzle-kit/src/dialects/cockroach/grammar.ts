@@ -765,6 +765,11 @@ export const Uuid: SqlType = {
 		if (value === 'gen_random_uuid()') {
 			return { options, default: '.defaultRandom()' };
 		}
+
+		// uuid_generate_v4 is an alias for gen_random_uuid
+		if (value === 'uuid_generate_v4()') {
+			return { options, default: `sql\`${value}\`` };
+		}
 		return { options, default: `"${trimChar(value, "'")}"` };
 	},
 	toArrayTs: (type, value) => {

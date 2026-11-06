@@ -2,8 +2,11 @@ import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
+	castToEpochMs,
+	castToJsonText,
 	castToText,
 	castToTextArr,
+	epochMsToDate,
 	genericPgCodecs,
 	makeGeometryArray,
 	parseGeometryArrayAndNormalize,
@@ -16,8 +19,8 @@ import {
 	parsePointTuple,
 	parsePointXY,
 	refineGenericPgCodecs,
-	textToDate,
-	textToDateWithTz,
+	textToDateArray,
+	textToDateWithTzArray,
 } from '~/pg-core/codecs.ts';
 import { pgHexToUint8Array } from '~/utils.ts';
 
@@ -43,10 +46,10 @@ export const pgliteCodecs = refineGenericPgCodecs({
 	},
 	// Otherwise outputs are inconsistent
 	bigserial: {
-		normalize: BigInt,
-		normalizeArray: arrayCompatNormalize(BigInt),
 		cast: castToText,
 		castArray: castToTextArr,
+		normalize: BigInt,
+		normalizeArray: arrayCompatNormalize(BigInt),
 	},
 	// Otherwise outputs are inconsistent
 	'bigserial:number': {
@@ -68,38 +71,53 @@ export const pgliteCodecs = refineGenericPgCodecs({
 			: arrayCompatNormalize((v: Uint8Array) => Buffer.from(v)),
 	},
 	interval: {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	date: {
-		castArray: castToTextArr,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateArray,
 	},
 	'date:string': {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	timestamp: {
-		castArray: castToTextArr,
-		normalize: textToDateWithTz,
-		normalizeArray: arrayCompatNormalize(textToDateWithTz),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateWithTzArray,
 	},
 	timestamptz: {
-		castArray: castToTextArr,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateArray,
 	},
 	'timestamp:string': {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	'timestamptz:string': {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	json: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: JSON.parse,
+		normalizeArray: arrayCompatNormalize(JSON.parse),
 		// Driver handles objects, other types need to be stringified
 		normalizeParam: (v) => typeof v === 'object' ? v : JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
 	},
 	jsonb: {
+		cast: castToText,
+		castArray: castToTextArr,
+		normalize: JSON.parse,
+		normalizeArray: arrayCompatNormalize(JSON.parse),
 		// Driver handles objects, other types need to be stringified
 		normalizeParam: (v) => typeof v === 'object' ? v : JSON.stringify(v),
 		normalizeParamArray: arrayCompatNormalizeInput((v) => JSON.stringify(v), true),
@@ -109,14 +127,17 @@ export const pgliteCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	numeric: {
+		cast: castToText,
 		castArray: castToTextArr,
 	},
 	'numeric:number': {
+		cast: castToText,
 		castArray: castToTextArr,
 		normalize: Number,
 		normalizeArray: arrayCompatNormalize(Number),
 	},
 	'numeric:bigint': {
+		cast: castToText,
 		castArray: castToTextArr,
 		normalize: BigInt,
 		normalizeArray: arrayCompatNormalize(BigInt),
@@ -170,5 +191,13 @@ export const pgliteCodecs = refineGenericPgCodecs({
 		castParam: (name) => `${name}::sparsevec`,
 		castArrayParam: (name, _column, dimensions) => `${name}::sparsevec${'[]'.repeat(dimensions)}`,
 		normalizeParamArray: (v) => makePgArray(v),
+	},
+	time: {
+		cast: castToText,
+		castArray: castToTextArr,
+	},
+	timetz: {
+		cast: castToText,
+		castArray: castToTextArr,
 	},
 });

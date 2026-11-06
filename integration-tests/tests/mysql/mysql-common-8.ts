@@ -27,6 +27,7 @@ import {
 	customType,
 	index,
 	int,
+	json,
 	MySqlAsyncSession,
 	MySqlDialect,
 	mysqlEnum,
@@ -41,7 +42,15 @@ import {
 } from 'drizzle-orm/mysql-core';
 import { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
 import { expect, expectTypeOf } from 'vitest';
-import { allTypesCodecsTable, assertAllTypesBounds, assertAllTypesUnions } from './all-types';
+import { jsonRows, parseStoredJson } from '~/json-values';
+import {
+	allTypesCodecsTable,
+	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
+	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
+} from './all-types';
 import type { Test } from './instrumentation';
 import { createUsersOnUpdateTable, createUserTable } from './schema2';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -459,6 +468,94 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			expect(res).toStrictEqual([{ id: 1, name: 'John1' }]);
 		},
 	);
+
+	test.concurrent('insert with onDuplicate on unique key', async ({ db, push }) => {
+		const table = mysqlTable('on_duplicate_unique', {
+			id: serial('id').primaryKey(),
+			email: varchar('email', { length: 255 }).notNull().unique(),
+			name: text('name').notNull(),
+		});
+		await push({ table });
+
+		await db.insert(table).values({ email: 'john@example.com', name: 'John' });
+		await db
+			.insert(table)
+			.values({ email: 'john@example.com', name: 'Jane' })
+			.onDuplicateKeyUpdate({ set: { name: 'Updated' } });
+
+		expect(await db.select().from(table)).toStrictEqual([{ id: 1, email: 'john@example.com', name: 'Updated' }]);
+	});
+
+	test.concurrent('insert with onDuplicate multiple rows', async ({ db, push }) => {
+		const users = createUserTable('on_duplicate_many');
+		await push({ users });
+
+		await db.insert(users).values({ id: 1, name: 'John' });
+		await db
+			.insert(users)
+			.values([{ id: 1, name: 'John1' }, { id: 2, name: 'Jane' }])
+			.onDuplicateKeyUpdate({ set: { name: sql`values(${sql.identifier(users.name.name)})` } });
+
+		const res = await db.select({ id: users.id, name: users.name }).from(users).orderBy(users.id);
+
+		expect(res).toStrictEqual([{ id: 1, name: 'John1' }, { id: 2, name: 'Jane' }]);
+	});
+
+	test.concurrent('insert with onDuplicate sql expression', async ({ db, push }) => {
+		const table = mysqlTable('on_duplicate_expression', {
+			id: int('id').primaryKey(),
+			count: int('count').notNull(),
+		});
+		await push({ table });
+
+		await db.insert(table).values({ id: 1, count: 1 });
+		await db
+			.insert(table)
+			.values({ id: 1, count: 1 })
+			.onDuplicateKeyUpdate({ set: { count: sql`${table.count} + 1` } });
+
+		expect(await db.select().from(table)).toStrictEqual([{ id: 1, count: 2 }]);
+	});
+
+	test.concurrent('insert with onDuplicate no-op', async ({ db, push }) => {
+		const users = createUserTable('on_duplicate_noop');
+		await push({ users });
+
+		await db.insert(users).values({ id: 1, name: 'John' });
+		await db
+			.insert(users)
+			.values({ id: 1, name: 'Jane' })
+			.onDuplicateKeyUpdate({ set: { id: sql`id` } });
+
+		const res = await db.select({ id: users.id, name: users.name }).from(users);
+
+		expect(res).toStrictEqual([{ id: 1, name: 'John' }]);
+	});
+
+	test.concurrent('insert with onDuplicate and ignore', async ({ db, push }) => {
+		const users = createUserTable('on_duplicate_ignore');
+		await push({ users });
+
+		await db.insert(users).values({ id: 1, name: 'John' });
+		await db
+			.insert(users)
+			.ignore()
+			.values({ id: 1, name: 'Jane' })
+			.onDuplicateKeyUpdate({ set: { name: 'Updated' } });
+
+		const res = await db.select({ id: users.id, name: users.name }).from(users);
+
+		expect(res).toStrictEqual([{ id: 1, name: 'Updated' }]);
+	});
+
+	test.concurrent('insert with onDuplicate and $returningId throws in dynamic query', async ({ db }) => {
+		const table = mysqlTable('on_duplicate_returning_id', { id: int('id').primaryKey() });
+		const message = '`$returningId` cannot be used with `onDuplicateKeyUpdate`';
+		const insert = () => db.insert(table).values({ id: 1 }).$dynamic();
+
+		expect(() => insert().onDuplicateKeyUpdate({ set: { id: 2 } }).$returningId()).toThrowError(message);
+		expect(() => insert().$returningId().onDuplicateKeyUpdate({ set: { id: 2 } })).toThrowError(message);
+	});
 
 	test.concurrent('insert conflict', async ({ db, push }) => {
 		const users = createUserTable('users_99');
@@ -1427,18 +1524,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 		const sub = alias(productionJobWithLocationView, 'p'); // if select from "productionJobWithLocationView" (not from alias), it works as expected
 
 		const query = db.select().from(sub);
-		expect(query.toSQL().sql).toStrictEqual(
-			(<{ dialect: MySqlDialect }> (<any> db)).dialect.sqlToQuery(
-				sql`select ${sql.identifier('id')}, ${sql.identifier('name')}, ${sql.identifier('location_id')}, ${
-					sql.identifier(
-						'tag_id',
-					)
-				}, ${sql.identifier('tag_created_at')} from ${sql.identifier('production_job_with_location')} ${
-					sql.identifier(
-						'p',
-					)
-				}`,
-			).sql,
+		expect(query.toSQL(false).sql).toStrictEqual(
+			'select `id`, `name`, `location_id`, `tag_id`, `tag_created_at` from `production_job_with_location` `p`',
 		);
 	});
 
@@ -1615,7 +1702,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 	test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
 		const db = createDB({
-			schema: { allTypesTable: allTypesCodecsTable },
+			schema: { allTypesTable: allTypesCodecsTable, ...boundsSchema },
 			cb: (r) => ({
 				allTypesTable: {
 					self: r.many.allTypesTable({
@@ -1623,6 +1710,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 						to: r.allTypesTable.serial,
 					}),
 				},
+				...boundsRelations(r),
 			}),
 		});
 		await push({ allTypesCodecsTable });
@@ -1748,7 +1836,8 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				self: true,
 			},
 		}).getSQL();
-		if (!is(db, TiDBServerlessDatabase)) {
+		const rqb = !is(db, TiDBServerlessDatabase);
+		if (rqb) {
 			const { relationRes, rootRes } = await session.objects(relationSQL).then((e) => {
 				const [{ self: relationRaw, ...rootRaw }] = e as [Record<string, any>];
 
@@ -1772,7 +1861,29 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 			expect(rootRes).toStrictEqual(testData);
 		}
 
-		await assertAllTypesBounds(db);
+		await assertAllTypesBounds(db, { rqb });
+		await assertAllTypesTemporalBounds(db, { rqb });
+	});
+
+	test.concurrent('all types ~json~', async ({ db, push }) => {
+		const table = mysqlTable('all_types_json', {
+			id: int('id').primaryKey(),
+			json: json('json'),
+		});
+		await push({ table });
+
+		const { input, output } = jsonRows(['json']);
+
+		await db.insert(table).values(input);
+
+		// json text as the database stores it, read without decoding
+		const stored = await db.select({
+			id: table.id,
+			json: sql<string>`cast(${table.json} as char)`,
+		}).from(table).orderBy(table.id);
+
+		expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+		expect(parseStoredJson(stored)).toStrictEqual(output);
 	});
 
 	test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {

@@ -1,4 +1,4 @@
-import { type AuroraClient, type AuroraConfig, createPool } from '@drizzle-team/minipg/aurora';
+import { type AuroraClient, type AuroraConfig, createPool } from '#postgres/aurora';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgAsyncDatabase } from '~/pg-core/async/db.ts';
@@ -6,8 +6,8 @@ import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
-import { buildShape } from '../shape.ts';
-import { minipgAuroraShapeCodecs } from './codecs.ts';
+import { createShapeGenerator } from '../shape.ts';
+import { postgresAuroraShapeCodecs } from './codecs.ts';
 import type { PostgresAuroraClient, PostgresAuroraQueryResultHKT } from './session.ts';
 import { PostgresAuroraSession } from './session.ts';
 
@@ -34,10 +34,11 @@ function construct<
 ): PostgresAuroraDatabase<TRelations> & {
 	$client: PostgresAuroraClient extends TClient ? AuroraClient : TClient;
 } {
+	const codecs = config.codecs ?? postgresAuroraShapeCodecs;
 	const dialect = new PostgresAuroraDialect({
-		codecs: config.codecs ?? minipgAuroraShapeCodecs,
+		codecs,
 		useJitMappers: jitCompatCheck(config.jit),
-		shapeGenerator: config.codecs ? undefined : buildShape,
+		shapeGenerator: createShapeGenerator(codecs),
 	});
 	let logger;
 	if (config.logger === true) {

@@ -25,6 +25,7 @@ import {
 	except,
 	getMaterializedViewConfig,
 	integer,
+	json,
 	jsonb,
 	numeric,
 	PgDialect,
@@ -57,12 +58,18 @@ import * as Ref from 'effect/Ref';
 import * as Result from 'effect/Result';
 import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
+import { jsonRows, parseStoredJson } from '~/json-values';
+import { expectRecentTime } from '~/recent-time';
 import {
 	type AllTypes,
 	allTypesData,
 	allTypesRelations,
 	assertAllTypesBounds,
+	assertAllTypesEmptyArrays,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	makeAllTypes,
 } from './all-types';
 import { TestCache } from './instrumentation';
@@ -279,6 +286,36 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 
 				expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
 				expect(rawRes).toStrictEqual([allTypesData]);
+			}));
+
+		it.effect('all types ~json~', () =>
+			Effect.gen(function*() {
+				const table = pgTable('all_types_json', {
+					id: integer('id').primaryKey(),
+					json: json('json'),
+					jsonb: jsonb('jsonb'),
+					arrjson: json('arrjson').array(),
+					arrjsonb: jsonb('arrjsonb').array(),
+				});
+
+				const db = yield* DB;
+				yield* push(db, { table });
+
+				const { input, output } = jsonRows(['json', 'jsonb'], ['arrjson', 'arrjsonb']);
+
+				yield* db.insert(table).values(input);
+
+				// json text as the database stores it, read without decoding
+				const stored = yield* db.select({
+					id: table.id,
+					json: sql<string>`${table.json}::text`,
+					jsonb: sql<string>`${table.jsonb}::text`,
+					arrjson: sql<string>`array_to_json(${table.arrjson})::text`,
+					arrjsonb: sql<string>`array_to_json(${table.arrjsonb})::text`,
+				}).from(table).orderBy(table.id);
+
+				expect(yield* db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+				expect(parseStoredJson(stored)).toStrictEqual(output);
 			}));
 
 		// @effect/sql-pg can't decode multidimensional arrays - skip mtx fields
@@ -1673,7 +1710,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					.returning();
 
 				expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+				expectRecentTime(usersResult[0]!.createdAt, now);
 				expect(usersResult).toEqual([
 					{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 				]);
@@ -1721,7 +1758,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				const usersResult = yield* db.delete(users).where(eq(users.name, 'John')).returning();
 
 				expect(usersResult[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(usersResult[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+				expectRecentTime(usersResult[0]!.createdAt, now);
 				expect(usersResult).toEqual([
 					{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: usersResult[0]!.createdAt },
 				]);
@@ -2738,7 +2775,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					yield* db.insert(allTypesTable).values(allTypesData);
 					const session = (<any> db).session as PgEffectSession;
 
-					const queryRes = yield* session.objects<AllTypes>(db.select().from(allTypesTable).getSQL(true))
+					const queryRes = yield* session.arrays<unknown[]>(db.select().from(allTypesTable).getSQL(true))
 						.pipe(
 							Effect.map((e) =>
 								normalizeDataWithDbCodecs({
@@ -2750,7 +2787,10 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 							),
 						);
 
-					const relDb = yield* createDB({ allTypesTable }, allTypesRelations);
+					const relDb = yield* createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+						...allTypesRelations(r),
+						...boundsRelations(r),
+					}));
 
 					const { relationRes, rootRes } = yield* session.objects<AllTypes & { self: AllTypes[] }>(
 						relDb.query.allTypesTable.findFirst({
@@ -2786,7 +2826,19 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 						assertAllTypesUnions(relDb as any, allTypesTable, (query) => Effect.runPromiseWith(context)(query))
 					);
 					yield* Effect.promise(() =>
-						assertAllTypesBounds(relDb as any, (query) => Effect.runPromiseWith(context)(query))
+						assertAllTypesBounds(relDb as any, { run: (query) => Effect.runPromiseWith(context)(query), rqb: true })
+					);
+					yield* Effect.promise(() =>
+						assertAllTypesTemporalBounds(relDb as any, {
+							run: (query) => Effect.runPromiseWith(context)(query),
+							rqb: true,
+						})
+					);
+					yield* Effect.promise(() =>
+						assertAllTypesEmptyArrays(relDb as any, allTypesTable, {
+							run: (query) => Effect.runPromiseWith(context)(query),
+							rqb: true,
+						})
 					);
 				}),
 		);

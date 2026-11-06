@@ -238,7 +238,7 @@ export type MySqlInsertReturning<T extends AnyMySqlInsert> = T extends any ? MyS
 			T['_']['excludedMethods']
 		>,
 		T['_']['dynamic'],
-		'$returningId'
+		'$returningId' | 'onDuplicateKeyUpdate'
 	>
 	: never;
 
@@ -372,13 +372,25 @@ export class MySqlInsertBase<
 	 */
 	onDuplicateKeyUpdate(
 		config: MySqlInsertOnDuplicateKeyUpdateConfig<this>,
-	): MySqlInsertWithout<this, TDynamic, 'onDuplicateKeyUpdate'> {
+	): MySqlInsertWithout<this, TDynamic, 'onDuplicateKeyUpdate' | '$returningId'> {
+		if (this.config.returning) {
+			throw new Error(
+				"`$returningId` cannot be used with `onDuplicateKeyUpdate`: updated rows' ids are not reported by the database.",
+			);
+		}
+
 		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
 		this.config.onConflict = sql`update ${setSql}`;
 		return this as any;
 	}
 
 	$returningId(): MySqlInsertReturning<this> {
+		if (this.config.onConflict) {
+			throw new Error(
+				"`$returningId` cannot be used with `onDuplicateKeyUpdate`: updated rows' ids are not reported by the database.",
+			);
+		}
+
 		const returning: SelectedFieldsOrdered = [];
 		for (const [key, value] of Object.entries(this.config.table[Table.Symbol.Columns])) {
 			if (value.primary) {

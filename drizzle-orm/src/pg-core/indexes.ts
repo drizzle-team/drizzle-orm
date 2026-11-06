@@ -103,7 +103,7 @@ export type PgIndexOpClass =
 	| 'bit_hamming_ops'
 	| 'bit_jaccard_ops'
 	| 'halfvec_l2_ops'
-	| 'sparsevec_l2_op'
+	| 'sparsevec_l2_ops'
 	| (string & {});
 
 export class IndexBuilderOn {

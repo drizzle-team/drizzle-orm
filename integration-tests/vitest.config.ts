@@ -13,12 +13,11 @@ export default defineConfig({
 			'tests/singlestore/**/*.test.ts',
 			...(process.env['SKIP_EXTERNAL_DB_TESTS']
 				? [
-					'tests/relational/mysql.planetscale.test.ts',
-					'tests/relational/mysql.planetscale-v1.test.ts',
+					'tests/mysql/planetscale.test.ts',
+					'tests/mysql/mysql.planetscale.test.ts',
 					'tests/pg/neon-serverless.test.ts',
 					'tests/pg/netlify-db.test.ts',
 					'tests/mysql/tidb-serverless.test.ts',
-					'tests/mysql/mysql-planetscale.test.ts',
 					'tests/sqlite/libsql.test.ts',
 					'tests/sqlite/libsql-http.test.ts',
 					'tests/sqlite/libsql-node.test.ts',
@@ -31,7 +30,6 @@ export default defineConfig({
 					'tests/pg/postgres-neon-ws.test.ts',
 					'tests/pg/postgres-neon-http.test.ts',
 					'tests/pg/postgres-neon-http-batch.test.ts',
-					'tests/pg/netlify-db.test.ts',
 					'tests/sqlite/sqlite-cloud.test.ts',
 					'tests/dsql/node-postgres.test.ts',
 					'tests/dsql/postgres-js.test.ts',
@@ -52,8 +50,6 @@ export default defineConfig({
 				: []),
 			'tests/pg/awsdatapi.test.ts',
 			'tests/awsdatapi.alltypes.test.ts',
-			'tests/relational/vercel.test.ts',
-			'tests/relational/vercel-v1.test.ts',
 			// Have a strange "invalid SQL: ERROR: must be owner of schema public" error. Will need to check with xata team
 			'tests/pg/xata-http.test.ts',
 			// todo: remove
@@ -63,7 +59,6 @@ export default defineConfig({
 			'tests/sqlite/libsql-ws.test.ts',
 			'tests/sqlite/libsql-http.test.ts',
 			'js-tests/driver-init/module/planetscale.test.mjs',
-			'js-tests/driver-init/module/planetscale.test.cjs',
 			'js-tests/driver-init/commonjs/planetscale.test.cjs',
 		],
 		typecheck: {

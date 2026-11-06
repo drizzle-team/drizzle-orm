@@ -1,6 +1,11 @@
 import { sql } from 'drizzle-orm';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/effect-schema';
-import { bigintStringModeSchema, jsonSchema, unsignedBigintStringModeSchema } from 'drizzle-orm/effect-schema';
+import {
+	bigintStringModeSchema,
+	bufferSchema,
+	jsonSchema,
+	unsignedBigintStringModeSchema,
+} from 'drizzle-orm/effect-schema';
 import { customType, int, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import { CONSTANTS } from 'drizzle-orm/utils';
 import { Schema as s } from 'effect';
@@ -376,6 +381,13 @@ test('refine view - select', (t) => {
 });
 
 test('all data types', (t) => {
+	enum Letters {
+		A = 'a',
+		B = 'b',
+		C = 'c',
+	}
+	type LettersValue = (typeof Letters)[keyof typeof Letters];
+
 	const table = mysqlTable('test', ({
 		bigint,
 		binary,
@@ -403,6 +415,10 @@ test('all data types', (t) => {
 		longtext,
 		mediumtext,
 		tinytext,
+		blob,
+		tinyblob,
+		mediumblob,
+		longblob,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -455,6 +471,12 @@ test('all data types', (t) => {
 		mediumtext2: mediumtext({ enum: ['a', 'b', 'c'] }).notNull(),
 		tinytext1: tinytext().notNull(),
 		tinytext2: tinytext({ enum: ['a', 'b', 'c'] }).notNull(),
+		blob1: blob().notNull(),
+		blob2: blob({ mode: 'string' }).notNull(),
+		tinyblob: tinyblob().notNull(),
+		mediumblob: mediumblob({ mode: 'string' }).notNull(),
+		longblob: longblob().notNull(),
+		enumObject: mysqlEnum(Letters).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -576,6 +598,12 @@ test('all data types', (t) => {
 		mediumtext2: s.Literals(['a', 'b', 'c']),
 		tinytext1: s.String.check(s.isMaxLength(CONSTANTS.INT8_UNSIGNED_MAX)),
 		tinytext2: s.Literals(['a', 'b', 'c']),
+		blob1: bufferSchema,
+		blob2: s.String.check(s.isMaxLength(CONSTANTS.INT16_UNSIGNED_MAX)),
+		tinyblob: bufferSchema,
+		mediumblob: s.String.check(s.isMaxLength(CONSTANTS.INT24_UNSIGNED_MAX)),
+		longblob: bufferSchema,
+		enumObject: s.Literals<readonly [LettersValue, ...LettersValue[]]>([Letters.A, Letters.B, Letters.C]),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();

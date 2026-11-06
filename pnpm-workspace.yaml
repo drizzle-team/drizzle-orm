@@ -4,8 +4,10 @@ packages:
   - drizzle-kit
   - drizzle-seed
   - integration-tests
+  - postgres
   - typeperf-test
   - eslint-plugin-drizzle
+  - test-utils
 
 onlyBuiltDependencies:
   - '@contrast/fn-inspect'

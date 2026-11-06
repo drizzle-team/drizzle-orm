@@ -1,3 +1,4 @@
+import { requireEnv } from '@drizzle/test-utils';
 import { Client } from '@planetscale/database';
 import { connect, type Connection } from '@tidbcloud/serverless';
 import {
@@ -102,12 +103,6 @@ class ServerSimulator {
 					sql,
 					values: params,
 					rowsAsArray: true,
-					typeCast: function(field: any, next: any) {
-						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-							return field.string();
-						}
-						return next();
-					},
 				});
 
 				return { data: result[0] as any };
@@ -119,12 +114,6 @@ class ServerSimulator {
 				const result = await this.db.query({
 					sql,
 					values: params,
-					typeCast: function(field: any, next: any) {
-						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-							return field.string();
-						}
-						return next();
-					},
 				});
 
 				return { data: result as any };
@@ -258,8 +247,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 			// oxlint-disable-next-line
 			async ({}, use) => {
 				if (vendor === 'mysql' || vendor === 'mysql-proxy') {
-					const envurl = process.env['MYSQL_CONNECTION_STRING'];
-					if (!envurl) throw new Error('No mysql url provided');
+					const envurl = requireEnv('MYSQL_CONNECTION_STRING');
 					const client = await createConnection({
 						uri: envurl,
 						supportBigNumbers: true,
@@ -283,8 +271,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 				}
 
 				if (vendor === 'planetscale') {
-					const envurl = process.env['PLANETSCALE_CONNECTION_STRING'];
-					if (!envurl) throw new Error('No mysql url provided');
+					const envurl = requireEnv('PLANETSCALE_CONNECTION_STRING');
 					const client = new Client({ url: envurl });
 
 					const query = async (sql: string, params: any[] = []) => {
@@ -323,10 +310,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 				}
 
 				if (vendor === 'tidb') {
-					const connectionString = process.env['TIDB_CONNECTION_STRING'];
-					if (!connectionString) {
-						throw new Error('TIDB_CONNECTION_STRING is not set');
-					}
+					const connectionString = requireEnv('TIDB_CONNECTION_STRING');
 
 					const tmpClient = connect({ url: connectionString });
 					await tmpClient.execute('drop database if exists ci;');

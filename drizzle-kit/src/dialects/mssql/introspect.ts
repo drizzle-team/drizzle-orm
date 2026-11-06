@@ -49,8 +49,10 @@ export const fromDatabase = async (
 	SELECT s.name as schema_name, s.schema_id as schema_id
 	FROM sys.schemas s
 	JOIN sys.database_principals p ON s.principal_id = p.principal_id
-	WHERE p.type IN ('S', 'U')  -- Only SQL users and Windows users
-	  AND s.name NOT IN ('guest', 'INFORMATION_SCHEMA', 'sys')
+	-- Owner type is not filtered: user schemas can be owned by any principal, Entra users (E) and groups (X),
+	-- application roles (A), custom roles (R) and even fixed roles (CREATE SCHEMA s AUTHORIZATION db_owner)
+	WHERE NOT (p.is_fixed_role = 1 AND s.name = p.name)  -- built-in db_owner ... db_denydatawriter, each owned by the fixed role of the same name
+	  AND s.name NOT IN ('guest', 'INFORMATION_SCHEMA', 'sys')  -- built-in schemas owned by users
 	ORDER BY lower(s.name);
 	`).then((rows) => {
 		queryCallback('schemas', rows, null);
@@ -60,16 +62,14 @@ export const fromDatabase = async (
 		throw error;
 	});
 
-	const filteredSchemas = introspectedSchemas.filter((it) => filter({ type: 'schema', name: it.schema_name }));
-
 	schemas.push(
-		...filteredSchemas.filter((it) => it.schema_name !== 'dbo').map<Schema>((it) => ({
+		...introspectedSchemas.filter((it) => it.schema_name !== 'dbo').map<Schema>((it) => ({
 			entityType: 'schemas',
 			name: it.schema_name,
 		})),
 	);
 
-	const filteredSchemaIds = filteredSchemas.map((it) => it.schema_id);
+	const schemaIds = introspectedSchemas.map((it) => it.schema_id);
 
 	const tablesList = await db
 		.query<{
@@ -84,7 +84,7 @@ export const fromDatabase = async (
 FROM 
     sys.tables
 WHERE 
-	schema_id IN (${filteredSchemaIds.join(', ')})
+	schema_id IN (${schemaIds.join(', ')})
 	AND sys.tables.is_ms_shipped = 0
 ORDER BY lower(name);
 `).then((rows) => {
@@ -113,7 +113,7 @@ modules.is_schema_bound as schema_binding
 FROM 
 sys.views views
 LEFT JOIN sys.sql_modules modules on modules.object_id = views.object_id
-WHERE views.schema_id IN (${filteredSchemaIds.join(', ')})
+WHERE views.schema_id IN (${schemaIds.join(', ')})
 	  AND views.is_ms_shipped = 0
 ORDER BY lower(views.name);
 `).then((rows) => {
@@ -124,20 +124,14 @@ ORDER BY lower(views.name);
 			throw error;
 		});
 
-	const filteredTables = tablesList.filter((it) => {
-		const schema = filteredSchemas.find((schema) => schema.schema_id === it.schema_id)!;
+	const filteredTables = tablesList.map((it) => {
+		const schema = introspectedSchemas.find((schema) => schema.schema_id === it.schema_id)!;
 
-		if (!filter({ type: 'table', schema: schema.schema_name, name: it.name })) return false;
-		return true;
-	})
-		.map((it) => {
-			const schema = filteredSchemas.find((schema) => schema.schema_id === it.schema_id)!;
-
-			return {
-				...it,
-				schema: schema.schema_name,
-			};
-		});
+		return {
+			...it,
+			schema: schema.schema_name,
+		};
+	});
 
 	const filteredTableIds = filteredTables.map((it) => it.object_id);
 	const filteredViewIds = viewsList.map((it) => it.object_id);
@@ -145,7 +139,7 @@ ORDER BY lower(views.name);
 
 	if (filteredViewIds.length === 0 && filteredTableIds.length === 0) {
 		return {
-			schemas,
+			schemas: schemas.filter((x) => filter({ type: 'schema', name: x.name })),
 			tables: [],
 			columns: [],
 			pks: [],
@@ -246,7 +240,7 @@ SELECT
  FROM 
 sys.foreign_keys fk
 LEFT JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
-WHERE fk.schema_id IN (${filteredSchemaIds.join(', ')})
+WHERE fk.schema_id IN (${schemaIds.join(', ')})
 ORDER BY lower(fk.name);
  	`).then((rows) => {
 		queryCallback('fks', rows, null);
@@ -380,7 +374,7 @@ WHERE obj.type in ('U', 'V')
 		const table = filteredTables.find((it) => it.object_id === column.table_object_id);
 		if (!table) continue; // skip if no table found
 
-		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
+		const schema = introspectedSchemas.find((it) => it.schema_id === table.schema_id)!;
 		const precision = column.precision;
 		const scale = column.scale;
 		const bytesLength = column.max_length_bytes;
@@ -483,10 +477,9 @@ WHERE obj.type in ('U', 'V')
 	});
 
 	for (const unique of groupedUniqueConstraints) {
-		const table = filteredTables.find((it) => it.object_id === unique.table_id);
-		if (!table) continue;
+		const table = filteredTables.find((it) => it.object_id === unique.table_id)!;
 
-		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
+		const schema = introspectedSchemas.find((it) => it.schema_id === table.schema_id)!;
 
 		const columns = unique.column_ids.map((it) => {
 			const column = columnsList.find((column) =>
@@ -506,10 +499,9 @@ WHERE obj.type in ('U', 'V')
 	}
 
 	for (const pk of groupedPrimaryKeys) {
-		const table = filteredTables.find((it) => it.object_id === pk.table_id);
-		if (!table) continue;
+		const table = filteredTables.find((it) => it.object_id === pk.table_id)!;
 
-		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
+		const schema = introspectedSchemas.find((it) => it.schema_id === table.schema_id)!;
 
 		const columns = pk.column_ids.map((it) => {
 			const column = columnsList.find((column) => column.table_object_id === pk.table_id && column.column_id === it)!;
@@ -527,10 +519,9 @@ WHERE obj.type in ('U', 'V')
 	}
 
 	for (const index of groupedIndexes) {
-		const table = filteredTables.find((it) => it.object_id === index.table_id);
-		if (!table) continue;
+		const table = filteredTables.find((it) => it.object_id === index.table_id)!;
 
-		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
+		const schema = introspectedSchemas.find((it) => it.schema_id === table.schema_id)!;
 
 		const columns = index.column_ids.map((it) => {
 			const column = columnsList.find((column) =>
@@ -580,15 +571,11 @@ WHERE obj.type in ('U', 'V')
 
 	foreignKeysCount = groupedFkCostraints.length;
 	for (const fk of groupedFkCostraints) {
-		const tableFrom = filteredTables.find((it) => it.object_id === fk.parent_table_id);
-		if (!tableFrom) continue;
-		const schemaFrom = filteredSchemas.find((it) => it.schema_id === fk.schema_id)!;
+		const tableFrom = filteredTables.find((it) => it.object_id === fk.parent_table_id)!;
+		const schemaFrom = introspectedSchemas.find((it) => it.schema_id === fk.schema_id)!;
 
-		// TODO need to discuss
-		// the referenced table can be outside the tablesFilter. In that case the FK target can not be
-		// resolved, so skip it instead
 		const tableTo = filteredTables.find((it) => it.object_id === fk.reference_table_id)!;
-		const schemaTo = filteredSchemas.find((it) => it.schema_id === tableTo.schema_id)!;
+		const schemaTo = introspectedSchemas.find((it) => it.schema_id === tableTo.schema_id)!;
 
 		const columns = fk.columns.parent_column_ids.map((it) => {
 			const column = columnsList.find((column) =>
@@ -621,10 +608,9 @@ WHERE obj.type in ('U', 'V')
 
 	checksCount = checkConstraintList.length;
 	for (const check of checkConstraintList) {
-		const table = filteredTables.find((it) => it.object_id === check.parent_table_id);
-		if (!table) continue;
+		const table = filteredTables.find((it) => it.object_id === check.parent_table_id)!;
 
-		const schema = filteredSchemas.find((it) => it.schema_id === check.schema_id)!;
+		const schema = introspectedSchemas.find((it) => it.schema_id === check.schema_id)!;
 
 		checks.push({
 			entityType: 'checks',
@@ -636,10 +622,9 @@ WHERE obj.type in ('U', 'V')
 	}
 
 	for (const defaultConstraint of defaultsConstraintList) {
-		const table = filteredTables.find((it) => it.object_id === defaultConstraint.parent_table_id);
-		if (!table) continue;
+		const table = filteredTables.find((it) => it.object_id === defaultConstraint.parent_table_id)!;
 
-		const schema = filteredSchemas.find((it) => it.schema_id === defaultConstraint.schema_id)!;
+		const schema = introspectedSchemas.find((it) => it.schema_id === defaultConstraint.schema_id)!;
 		const column = columnsList.find((it) =>
 			it.column_id === defaultConstraint.parent_column_id && it.table_object_id === defaultConstraint.parent_table_id
 		)!;
@@ -662,11 +647,7 @@ WHERE obj.type in ('U', 'V')
 
 	viewsCount = viewsList.length;
 	for (const view of viewsList) {
-		const viewName = view.name;
-		const viewSchema = filteredSchemas.find((it) => it.schema_id === view.schema_id);
-		if (!viewSchema) continue;
-
-		if (!filter({ type: 'table', schema: viewSchema.schema_name, name: viewName })) continue;
+		const viewSchema = introspectedSchemas.find((it) => it.schema_id === view.schema_id)!;
 		tableCount += 1;
 
 		const encryption = view.definition === null;
@@ -708,18 +689,32 @@ WHERE obj.type in ('U', 'V')
 	progressCallback('checks', checksCount, 'done');
 	progressCallback('views', viewsCount, 'done');
 
+	const resultSchemas = schemas.filter((x) => filter({ type: 'schema', name: x.name }));
+	const resultTables = tables.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));
+	const resultColumns = columns.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultDefaults = defaults.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultIndexes = indexes.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultPKs = pks.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultFKs = fks.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultUniques = uniques.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultChecks = checks.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
+	const resultViews = views.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));
+	const resultViewColumns = viewColumns.filter((x) =>
+		resultViews.some((v) => v.schema === x.schema && v.name === x.view)
+	);
+
 	return {
-		schemas,
-		tables,
-		columns,
-		defaults,
-		indexes,
-		pks,
-		fks,
-		uniques,
-		checks,
-		views,
-		viewColumns,
+		schemas: resultSchemas,
+		tables: resultTables,
+		columns: resultColumns,
+		defaults: resultDefaults,
+		indexes: resultIndexes,
+		pks: resultPKs,
+		fks: resultFKs,
+		uniques: resultUniques,
+		checks: resultChecks,
+		views: resultViews,
+		viewColumns: resultViewColumns,
 	} satisfies InterimSchema;
 };
 

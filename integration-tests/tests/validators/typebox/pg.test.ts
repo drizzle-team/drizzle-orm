@@ -393,6 +393,16 @@ test('refine view - select', (tc) => {
 });
 
 test('all data types', (tc) => {
+	enum Letters {
+		A = 'a',
+		B = 'b',
+		C = 'c',
+	}
+	type LettersValue = (typeof Letters)[keyof typeof Letters];
+	const enumObject = pgEnum('test_object', Letters);
+
+	const enum_ = pgEnum('test', ['a', 'b', 'c']);
+
 	const table = pgTable('test', ({
 		bigint,
 		bigserial,
@@ -425,6 +435,8 @@ test('all data types', (tc) => {
 		uuid,
 		varchar,
 		vector,
+		bytea,
+		decimal,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -470,6 +482,10 @@ test('all data types', (tc) => {
 		varchar1: varchar({ length: 10 }).notNull(),
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		vector: vector({ dimensions: 3 }).notNull(),
+		bytea: bytea().notNull(),
+		decimal: decimal({ mode: 'string' }).notNull(),
+		enum: enum_().notNull(),
+		enumObject: enumObject().notNull(),
 		array1: integer().array().notNull(),
 		array2: integer().array('[][]').notNull(),
 		array3: varchar({ length: 10 }).array('[][]').notNull(),
@@ -521,6 +537,10 @@ test('all data types', (tc) => {
 		varchar1: t.String({ maxLength: 10 }),
 		varchar2: t.Enum(['a', 'b', 'c']),
 		vector: t.Array(t.Number(), { minItems: 3, maxItems: 3 }),
+		bytea: new TBuffer(),
+		decimal: t.String(),
+		enum: t.Enum(['a', 'b', 'c']),
+		enumObject: t.Enum<[LettersValue, ...LettersValue[]]>([Letters.A, Letters.B, Letters.C]),
 		array1: t.Array(integerSchema),
 		array2: t.Array(t.Array(integerSchema)),
 		array3: t.Array(t.Array(t.String({ maxLength: 10 }))),

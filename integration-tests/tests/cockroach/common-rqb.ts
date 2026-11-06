@@ -1388,6 +1388,8 @@ export function tests() {
 		}));
 
 		const recordsQuery = db.query.candidates.findMany({
+			// `created_on` would be selected through the driver's own cast codec - not what's tested here
+			columns: { createdOn: false },
 			extras: {
 				activeJobs: db
 					.$count(
@@ -1412,7 +1414,7 @@ export function tests() {
 				'CLOSED',
 			],
 			sql:
-				'select "d0"."id" as "id", "d0"."created_on" as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in ($1, $2)))))) as "activeJobs" from "candidates" as "d0"',
+				'select "d0"."id" as "id", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in ($1, $2)))))) as "activeJobs" from "candidates" as "d0"',
 		});
 	});
 }
