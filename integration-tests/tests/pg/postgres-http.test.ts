@@ -1,7 +1,6 @@
 import { client as createHttpClient } from '@drizzle-team/postgres/http';
 import { defineRelations, DrizzleQueryError, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { postgresCodecs } from 'drizzle-orm/postgres/codecs';
 import { drizzle as drizzleHttp, type PostgresHttpDatabase } from 'drizzle-orm/postgres/http';
 import { migrate } from 'drizzle-orm/postgres/http/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
@@ -37,6 +36,7 @@ const skips = [
 	'transaction with options (set isolationLevel)',
 	'time zones are preserved - non-UTC session',
 	'all types ~codecs~ - non-UTC session',
+	'all types ~codecs~ - non-ISO DateStyle session',
 	'transaction with options (accessMode read only)',
 	'transaction with options (deferrable)',
 	'transaction with an empty options object',
@@ -691,31 +691,6 @@ describe('driver-specific', () => {
 		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 		await assertAllTypesUnions(db);
-		await assertAllTypesBounds(db, { rqb: true });
-		await assertAllTypesTemporalBounds(db, { rqb: true });
-
-		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
-	});
-
-	test('all types ~codecs~ override', async ({ createDB, push }) => {
-		const { en, allTypesTable } = makeAllTypes('all_types_48_cdcs_ovr', 'en_49_ovr');
-		const base = createDB({ allTypesTable }, allTypesRelations);
-		await push({ en, allTypesTable });
-
-		const relations = defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
-			...allTypesRelations(r),
-			...boundsRelations(r),
-		}));
-		const db = drizzleHttp({ client: (base as any).$client, relations, codecs: postgresCodecs });
-		await db.insert(allTypesTable).values(allTypesData);
-
-		const [flat] = await db.select().from(allTypesTable);
-		expect(flat).toStrictEqual(allTypesData);
-
-		const nested = await db.query.allTypesTable.findFirst({ with: { self: true } });
-		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
-
-		await assertAllTypesUnions(db, allTypesTable);
 		await assertAllTypesBounds(db, { rqb: true });
 		await assertAllTypesTemporalBounds(db, { rqb: true });
 

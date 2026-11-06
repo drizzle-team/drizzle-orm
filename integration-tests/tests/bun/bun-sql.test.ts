@@ -106,9 +106,10 @@ import { Expect } from '~/utils';
 import {
 	assertAllTypesBounds,
 	assertAllTypesTemporalBounds,
-	assertAllTypesTemporalBoundsInSessionTimeZones,
+	assertAllTypesTemporalBoundsInSessions,
 	boundsRelations,
 	boundsSchema,
+	sessionDateStyles,
 } from '../pg/all-types';
 import { relations } from '../pg/relations';
 import {
@@ -6648,7 +6649,9 @@ test('all types ~codecs~', async () => {
 
 	await db.insert(allTypesTable).values(testData);
 
-	const queryRes = await db.execute<ExpectedType>(db.select().from(allTypesTable).getSQL(true)).then((e) =>
+	const queryRes = await (<any> db).session.arrays(db.select().from(allTypesTable).getSQL(true)).then((
+		e: unknown[][],
+	) =>
 		normalizeDataWithDbCodecs({
 			db,
 			columns: getColumns(allTypesTable),
@@ -8514,7 +8517,16 @@ test('all types ~codecs~ - non-UTC session', async () => {
 		relations: defineRelations({ ...boundsSchema }, boundsRelations),
 	});
 
-	await assertAllTypesTemporalBoundsInSessionTimeZones(db, { rqb: true });
+	await assertAllTypesTemporalBoundsInSessions(db, { rqb: true });
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6496
+test('all types ~codecs~ - non-ISO DateStyle session', async () => {
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, {
+		relations: defineRelations({ ...boundsSchema }, boundsRelations),
+	});
+
+	await assertAllTypesTemporalBoundsInSessions(db, { rqb: true, sessions: sessionDateStyles });
 });
 
 test('time zones are preserved - non-UTC session', async () => {

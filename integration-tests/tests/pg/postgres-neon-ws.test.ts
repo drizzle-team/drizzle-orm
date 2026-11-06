@@ -2,7 +2,6 @@ import { createPool as createNeonWsPool } from '@drizzle-team/postgres/neon-ws';
 import { defineRelations, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import type { PostgresDatabase } from 'drizzle-orm/postgres';
-import { postgresCodecs } from 'drizzle-orm/postgres/codecs';
 import { migrate } from 'drizzle-orm/postgres/migrator';
 import { drizzle as drizzleNeonWs } from 'drizzle-orm/postgres/neon-ws';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
@@ -669,33 +668,6 @@ describe('driver-specific', () => {
 		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 		await assertAllTypesUnions(db);
-		await assertAllTypesBounds(db, { rqb: true });
-		await assertAllTypesTemporalBounds(db, { rqb: true });
-
-		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
-	});
-
-	// Validates functionality of base codecs provided to be overriden
-	// this disables driver shape generator and falls back to mappers
-	test('all types ~codecs~ override', async ({ createDB, push }) => {
-		const { en, allTypesTable } = makeAllTypes('all_types_48_cdcs_ovr', 'en_49_ovr');
-		const base = createDB({ allTypesTable }, allTypesRelations);
-		await push({ en, allTypesTable });
-
-		const relations = defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
-			...allTypesRelations(r),
-			...boundsRelations(r),
-		}));
-		const db = drizzleNeonWs({ client: (base as any).$client, relations, codecs: postgresCodecs });
-		await db.insert(allTypesTable).values(allTypesData);
-
-		const [flat] = await db.select().from(allTypesTable);
-		expect(flat).toStrictEqual(allTypesData);
-
-		const nested = await db.query.allTypesTable.findFirst({ with: { self: true } });
-		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
-
-		await assertAllTypesUnions(db, allTypesTable);
 		await assertAllTypesBounds(db, { rqb: true });
 		await assertAllTypesTemporalBounds(db, { rqb: true });
 

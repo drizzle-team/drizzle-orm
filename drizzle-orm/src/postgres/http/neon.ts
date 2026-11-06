@@ -7,8 +7,8 @@ import { PgDialect } from '~/pg-core/dialect.ts';
 import type { DrizzlePgConfig } from '~/pg-core/utils.ts';
 import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { jitCompatCheck } from '~/utils.ts';
-import { postgresShapeCodecs } from '../codecs.ts';
-import { buildShape } from '../shape.ts';
+import { postgresHttpShapeCodecs } from '../codecs.ts';
+import { createShapeGenerator } from '../shape.ts';
 import { PostgresNeonHttpSession } from './neon-session.ts';
 import type { PostgresHttpBatchOptions, PostgresHttpQueryResultHKT, PostgresHttpRequestOptions } from './session.ts';
 
@@ -58,12 +58,11 @@ function construct<
 ): PostgresNeonHttpDatabase<TRelations> & {
 	$client: TClient;
 } {
+	const codecs = config.codecs ?? postgresHttpShapeCodecs;
 	const dialect = new PgDialect({
-		codecs: config.codecs ?? postgresShapeCodecs,
+		codecs,
 		useJitMappers: jitCompatCheck(config.jit),
-		// Shape generator is statically linked to own set of codecs
-		// Overriden codecs are impossible to determine shape for
-		shapeGenerator: config.codecs ? undefined : buildShape,
+		shapeGenerator: createShapeGenerator(codecs),
 	});
 	let logger;
 	if (config.logger === true) {

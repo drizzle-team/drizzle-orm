@@ -10,7 +10,7 @@ import { jitCompatCheck } from '~/utils.ts';
 import { postgresShapeCodecs } from './codecs.ts';
 import type { PostgresBatchOptions, PostgresClient, PostgresQueryResultHKT } from './session.ts';
 import { PostgresSession } from './session.ts';
-import { buildShape } from './shape.ts';
+import { createShapeGenerator } from './shape.ts';
 
 export class PostgresDatabase<
 	TRelations extends AnyRelations = EmptyRelations,
@@ -69,12 +69,11 @@ export function construct<
 ): PostgresDatabase<TRelations> & {
 	$client: PostgresClient extends TClient ? Pool : TClient;
 } {
+	const codecs = config.codecs ?? postgresShapeCodecs;
 	const dialect = new PgDialect({
-		codecs: config.codecs ?? postgresShapeCodecs,
+		codecs,
 		useJitMappers: jitCompatCheck(config.jit),
-		// Shape generator is statically linked to own set of codecs
-		// Overriden codecs are impossible to determine shape for
-		shapeGenerator: config.codecs ? undefined : buildShape,
+		shapeGenerator: createShapeGenerator(codecs),
 	});
 	let logger;
 	if (config.logger === true) {

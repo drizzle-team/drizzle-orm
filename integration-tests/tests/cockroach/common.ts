@@ -109,11 +109,12 @@ import {
 	assertAllTypesBounds,
 	assertAllTypesEmptyArrays,
 	assertAllTypesTemporalBounds,
-	assertAllTypesTemporalBoundsInSessionTimeZones,
+	assertAllTypesTemporalBoundsInSessions,
 	assertAllTypesUnions,
 	boundsRelations,
 	boundsSchema,
 	makeAllTypes,
+	sessionDateStyles,
 } from './all-types';
 import { requireCockroachConnectionString, test as base } from './instrumentation';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -7911,7 +7912,14 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 		test('all types ~codecs~ - non-UTC session', async ({ createDB }) => {
 			const db = createDB({ ...boundsSchema }, boundsRelations);
 
-			await assertAllTypesTemporalBoundsInSessionTimeZones(db, { rqb: true });
+			await assertAllTypesTemporalBoundsInSessions(db, { rqb: true });
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/6496
+		test('all types ~codecs~ - DMY / MDY DateStyle session', async ({ createDB }) => {
+			const db = createDB({ ...boundsSchema }, boundsRelations);
+
+			await assertAllTypesTemporalBoundsInSessions(db, { rqb: true, sessions: sessionDateStyles });
 		});
 
 		test('all types ~json~', async ({ db, push }) => {

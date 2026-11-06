@@ -21,11 +21,7 @@ import {
 	uniqueIndex,
 	uuid,
 } from 'drizzle-orm/pg-core';
-import {
-	drizzle as drizzleAurora,
-	postgresAuroraCodecs,
-	type PostgresAuroraDatabase,
-} from 'drizzle-orm/postgres/aurora';
+import { drizzle as drizzleAurora, type PostgresAuroraDatabase } from 'drizzle-orm/postgres/aurora';
 import { migrate } from 'drizzle-orm/postgres/aurora/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect, expectTypeOf } from 'vitest';
@@ -64,6 +60,8 @@ const skips = [
 	'issue #4169',
 	// Default client has no codecs, uses shapes instead
 	'all types ~codecs~',
+	// Data API's JDBC driver rejects `DateStyle`s that don't begin with ISO, so it never reads non-ISO text
+	'all types ~codecs~ - non-ISO DateStyle session',
 ];
 
 const stringTemporalDb = (database: string) =>
@@ -1087,7 +1085,6 @@ describe('postgres/aurora', () => {
 
 			await push({ times });
 			const shaped = createDB({ times });
-			const coded = drizzleAurora({ client: (shaped as any).$client, codecs: postgresAuroraCodecs });
 
 			const value = {
 				id: 1,
@@ -1097,9 +1094,7 @@ describe('postgres/aurora', () => {
 			};
 			await shaped.insert(times).values(value);
 
-			for (const db of [shaped, coded]) {
-				expect(await db.select().from(times)).toStrictEqual([value]);
-			}
+			expect(await shaped.select().from(times)).toStrictEqual([value]);
 		});
 
 		// Can't test shapes via generic codecs test
@@ -1118,33 +1113,6 @@ describe('postgres/aurora', () => {
 			expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 			await assertAllTypesUnions(db);
-			await assertAllTypesBounds(db, { rqb: true });
-			await assertAllTypesTemporalBounds(db, { rqb: true });
-
-			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
-		});
-
-		// Validates functionality of base codecs provided to be overriden
-		// this disables driver shape generator and falls back to mappers
-		test('all types ~codecs~ override', async ({ createDB, push }) => {
-			const { en, allTypesTable } = makeAllTypes('all_types_48_cdcs_ovr', 'en_49_ovr');
-			const base = createDB({ allTypesTable }, allTypesRelations);
-			await push({ en, allTypesTable });
-
-			const relations = defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
-				...allTypesRelations(r),
-				...boundsRelations(r),
-			}));
-			const db = drizzleAurora({ client: (base as any).$client, relations, codecs: postgresAuroraCodecs });
-			await db.insert(allTypesTable).values(allTypesData);
-
-			const [flat] = await db.select().from(allTypesTable);
-			expect(flat).toStrictEqual(allTypesData);
-
-			const nested = await db.query.allTypesTable.findFirst({ with: { self: true } });
-			expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
-
-			await assertAllTypesUnions(db, allTypesTable);
 			await assertAllTypesBounds(db, { rqb: true });
 			await assertAllTypesTemporalBounds(db, { rqb: true });
 

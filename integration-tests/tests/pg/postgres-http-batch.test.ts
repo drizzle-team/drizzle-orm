@@ -1,4 +1,4 @@
-import { defineRelations, DrizzleQueryError, eq, sql } from 'drizzle-orm';
+import { defineRelations, DrizzleQueryError, eq, inArray, sql } from 'drizzle-orm';
 import { relations as oldRels } from 'drizzle-orm/_relations';
 import { type AnyPgColumn, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { drizzle, type PostgresHttpDatabase, type PostgresHttpQueryResult } from 'drizzle-orm/postgres/http';
@@ -699,7 +699,8 @@ describe('parallel', () => {
 		await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }]);
 
 		const response = await db.parallel([
-			db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).orderBy(usersTable.id),
+			db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).where(inArray(usersTable.id, [1, 2]))
+				.orderBy(usersTable.id),
 			db.insert(usersTable).values({ id: 3, name: 'Jane' }).returning({ id: usersTable.id }),
 			db.update(usersTable).set({ verified: 1 }).where(eq(usersTable.id, 1)),
 			db.query.usersTable.findFirst({ columns: { id: true, name: true }, where: { id: 2 } }),

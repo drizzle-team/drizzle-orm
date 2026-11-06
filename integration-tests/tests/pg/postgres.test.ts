@@ -13,7 +13,6 @@ import {
 	timestamp,
 } from 'drizzle-orm/pg-core';
 import { drizzle as drizzlePostgres, PostgresDatabase } from 'drizzle-orm/postgres';
-import { postgresCodecs } from 'drizzle-orm/postgres/codecs';
 import { migrate } from 'drizzle-orm/postgres/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect, expectTypeOf } from 'vitest';
@@ -26,10 +25,12 @@ import {
 	assertAllTypesBounds,
 	assertAllTypesEmptyArrays,
 	assertAllTypesTemporalBounds,
+	assertAllTypesTemporalBoundsInSessions,
 	assertAllTypesUnions,
 	boundsRelations,
 	boundsSchema,
 	makeAllTypes,
+	sessionDateStyles,
 } from './all-types';
 import { tests } from './common';
 import { postgresTest as test } from './instrumentation';
@@ -741,33 +742,6 @@ describe('driver-specific', () => {
 		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 	});
 
-	// Validates functionality of base codecs provided to be overriden
-	// this disables driver shape generator and falls back to mappers
-	test('all types ~codecs~ override', async ({ createDB, push }) => {
-		const { en, allTypesTable } = makeAllTypes('all_types_48_cdcs_ovr', 'en_49_ovr');
-		const base = createDB({ allTypesTable }, allTypesRelations);
-		await push({ en, allTypesTable });
-
-		const relations = defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
-			...allTypesRelations(r),
-			...boundsRelations(r),
-		}));
-		const db = drizzlePostgres({ client: (base as any).$client, relations, codecs: postgresCodecs });
-		await db.insert(allTypesTable).values(allTypesData);
-
-		const [flat] = await db.select().from(allTypesTable);
-		expect(flat).toStrictEqual(allTypesData);
-
-		const nested = await db.query.allTypesTable.findFirst({ with: { self: true } });
-		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
-
-		await assertAllTypesUnions(db, allTypesTable);
-		await assertAllTypesBounds(db, { rqb: true });
-		await assertAllTypesTemporalBounds(db, { rqb: true });
-
-		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
-	});
-
 	test('timetz keeps offset', async ({ createDB, push }) => {
 		const times = pgTable('times', {
 			id: integer('id').primaryKey(),
@@ -778,7 +752,6 @@ describe('driver-specific', () => {
 
 		await push({ times });
 		const shaped = createDB({ times });
-		const coded = drizzlePostgres({ client: (shaped as any).$client, codecs: postgresCodecs });
 
 		const value = {
 			id: 1,
@@ -788,9 +761,7 @@ describe('driver-specific', () => {
 		};
 		await shaped.insert(times).values(value);
 
-		for (const db of [shaped, coded]) {
-			expect(await db.select().from(times)).toStrictEqual([value]);
-		}
+		expect(await shaped.select().from(times)).toStrictEqual([value]);
 	});
 });
 

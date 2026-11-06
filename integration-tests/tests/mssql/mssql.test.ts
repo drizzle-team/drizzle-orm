@@ -69,6 +69,7 @@ import {
 	allTypesTable as allTypesCodecsTable,
 	assertAllTypesBounds,
 	assertAllTypesTemporalBounds,
+	assertAllTypesTemporalBoundsInSessionDateFormats,
 	assertAllTypesUnions,
 	boundsRelations,
 	boundsSchema,
@@ -552,6 +553,13 @@ test('all types ~codecs~', async ({ client }) => {
 	} finally {
 		await db.execute(sql`drop table if exists [all_types_codecs]`);
 	}
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6496
+test('all types ~codecs~ - non-default DATEFORMAT session', async ({ client }) => {
+	const db = drizzle({ client: client as any, relations: defineRelations(boundsSchema, boundsRelations) });
+
+	await assertAllTypesTemporalBoundsInSessionDateFormats(db, { rqb: true });
 });
 
 test('all types ~codecs~ set operations', async ({ client }) => {
