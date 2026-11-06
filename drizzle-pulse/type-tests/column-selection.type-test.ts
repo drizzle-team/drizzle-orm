@@ -4,17 +4,17 @@ import type { ApplyColumns, InferColumnSelection } from '../src/server/pulse-typ
 type Row = { id: number; name: string; email: string; password: string };
 
 expectTypeOf<ApplyColumns<Row, { name: true; email: true }>>().toEqualTypeOf<{
-  name: string;
-  email: string;
+	name: string;
+	email: string;
 }>();
 expectTypeOf<ApplyColumns<Row, { password: false }>>().toEqualTypeOf<{
-  id: number;
-  name: string;
-  email: string;
+	id: number;
+	name: string;
+	email: string;
 }>();
 expectTypeOf<ApplyColumns<Row, Record<never, never>>>().toEqualTypeOf<Row>();
 expectTypeOf<ApplyColumns<Row, { name: true; password: false }>>().toEqualTypeOf<{
-  name: string;
+	name: string;
 }>();
 
 expectTypeOf<InferColumnSelection<{ name: true; email: true }>>().toEqualTypeOf<'name' | 'email'>();

@@ -9,11 +9,11 @@ import { orders, ordersByStatusArgsSchema } from './fixtures/minimal-orders/sche
 declare const sourceDb: PulseSourceDb;
 
 export const ordersByStatus = pulse(orders)
-  .args(ordersByStatusArgsSchema)
-  .query((ctx) => ctx.query({ status: ctx.args.status }));
+	.args(ordersByStatusArgsSchema)
+	.query((ctx) => ctx.query({ status: ctx.args.status }));
 
 export const runtime = createRuntime({
-  queries: { ordersByStatus },
-  databaseUrl: 'postgres://unused',
-  sourceDb,
+	queries: { ordersByStatus },
+	databaseUrl: 'postgres://unused',
+	sourceDb,
 });

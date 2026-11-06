@@ -21,88 +21,87 @@ let handleReady: Promise<void>;
 let stopCalls = 0;
 
 mock.module('drizzle-orm/postgres/cdc', () => ({
-  ...realCdc,
-  replicate: (opts: ReplicateOpts) => {
-    captured = opts;
-    return {
-      stop: async () => {
-        stopCalls++;
-      },
-      ready: handleReady,
-    };
-  },
+	...realCdc,
+	replicate: (opts: ReplicateOpts) => {
+		captured = opts;
+		return {
+			stop: async () => {
+				stopCalls++;
+			},
+			ready: handleReady,
+		};
+	},
 }));
 
 afterAll(() => {
-  mock.module('drizzle-orm/postgres/cdc', () => realCdc);
+	mock.module('drizzle-orm/postgres/cdc', () => realCdc);
 });
 
 describe('runtime reconnect edge', () => {
-  test('the rebaseline round fires when a stream re-opens, not on the first one', async () => {
-    // pull:false: no events tables and no store, so the backfill callback's only job here
-    // is the collection rebaseline round this test observes.
-    const runtime = makePulseRuntime({ pull: false });
-    // rebaselineCollections pins the exported snapshot in an admin transaction before firing the
-    // round; the store is normally opened by start(), which this test bypasses.
-    (runtime as any).store = {
-      getDb: () => ({
-        transaction: async (fn: (tx: unknown) => Promise<void>) =>
-          fn({ execute: async () => ({ rows: [] }) }),
-      }),
-    };
-    let fired = 0;
-    runtime.onReconnect(() => {
-      fired++;
-    });
+	test('the rebaseline round fires when a stream re-opens, not on the first one', async () => {
+		// pull:false: no events tables and no store, so the backfill callback's only job here
+		// is the collection rebaseline round this test observes.
+		const runtime = makePulseRuntime({ pull: false });
+		// rebaselineCollections pins the exported snapshot in an admin transaction before firing the
+		// round; the store is normally opened by start(), which this test bypasses.
+		(runtime as any).store = {
+			getDb: () => ({
+				transaction: async (fn: (tx: unknown) => Promise<void>) => fn({ execute: async () => ({ rows: [] }) }),
+			}),
+		};
+		let fired = 0;
+		runtime.onReconnect(() => {
+			fired++;
+		});
 
-    let resolveReady!: () => void;
-    handleReady = new Promise<void>((res) => {
-      resolveReady = res;
-    });
+		let resolveReady!: () => void;
+		handleReady = new Promise<void>((res) => {
+			resolveReady = res;
+		});
 
-    // openSession is the private seam that builds the replicate() options; awaiting it settles
-    // once the mocked driver's ready promise resolves.
-    const opening = (runtime as any).openSession();
-    const opts = captured;
-    if (!opts?.backfill) throw new Error('replicate() was called without a backfill callback');
+		// openSession is the private seam that builds the replicate() options; awaiting it settles
+		// once the mocked driver's ready promise resolves.
+		const opening = (runtime as any).openSession();
+		const opts = captured;
+		if (!opts?.backfill) throw new Error('replicate() was called without a backfill callback');
 
-    // A temporary slot is recreated per session, so every stream open arrives as a backfill.
-    const window = {
-      snapshot: 'snap-1',
-      streamStartLsn: '0/1000000',
-      isReconnect: false,
-      signal: new AbortController().signal,
-    };
+		// A temporary slot is recreated per session, so every stream open arrives as a backfill.
+		const window = {
+			snapshot: 'snap-1',
+			streamStartLsn: '0/1000000',
+			isReconnect: false,
+			signal: new AbortController().signal,
+		};
 
-    await opts.backfill(window);
+		await opts.backfill(window);
 
-    // openSession settles on ready, not on backfill completing. A Promise.race against an
-    // already-resolved sentinel cannot show this: .then() costs a microtask tick, so the
-    // sentinel wins even when opening has settled. Flush the queue and read the flag instead.
-    let opened = false;
-    void opening.then(() => {
-      opened = true;
-    });
-    await new Promise((resolve) => setImmediate(resolve));
-    expect(opened).toBe(false);
+		// openSession settles on ready, not on backfill completing. A Promise.race against an
+		// already-resolved sentinel cannot show this: .then() costs a microtask tick, so the
+		// sentinel wins even when opening has settled. Flush the queue and read the flag instead.
+		let opened = false;
+		void opening.then(() => {
+			opened = true;
+		});
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(opened).toBe(false);
 
-    resolveReady();
-    await opening;
-    expect(fired).toBe(0);
+		resolveReady();
+		await opening;
+		expect(fired).toBe(0);
 
-    await opts.backfill({ ...window, snapshot: 'snap-2', isReconnect: true });
-    expect(fired).toBe(1);
-  });
+		await opts.backfill({ ...window, snapshot: 'snap-2', isReconnect: true });
+		expect(fired).toBe(1);
+	});
 
-  test('a rejected ready stops the session and openSession rejects with the same error', async () => {
-    // A real first-connect failure fails bootstrap() before a session ever exists, so this path
-    // is only reachable against the mock.
-    stopCalls = 0;
-    handleReady = Promise.reject(new Error('connect refused'));
+	test('a rejected ready stops the session and openSession rejects with the same error', async () => {
+		// A real first-connect failure fails bootstrap() before a session ever exists, so this path
+		// is only reachable against the mock.
+		stopCalls = 0;
+		handleReady = Promise.reject(new Error('connect refused'));
 
-    const runtime = makePulseRuntime({ pull: false });
+		const runtime = makePulseRuntime({ pull: false });
 
-    await expect((runtime as any).openSession()).rejects.toThrow('connect refused');
-    expect(stopCalls).toBe(1);
-  });
+		await expect((runtime as any).openSession()).rejects.toThrow('connect refused');
+		expect(stopCalls).toBe(1);
+	});
 });

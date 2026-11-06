@@ -12,7 +12,6 @@
 	"markdown": {},
 	"includes": ["**/*.{ts,tsx,js,jsx,cjs,mjs,json}"],
 	"excludes": [
-		"drizzle-pulse",
 		"**/node_modules",
 		"drizzle-kit/tests/postgres/procedures/fixtures",
 		"dist",

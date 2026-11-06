@@ -1,162 +1,162 @@
 import { expectTypeOf } from 'bun:test';
 import { pulse } from '../src/index.js';
 import type { PulseBuilder } from '../src/server/pulse-builder.js';
-import { driverSchema, statusSchema, orders as typeTestOrders } from './fixtures.js';
+import { driverSchema, orders as typeTestOrders, statusSchema } from './fixtures.js';
 
 type TypeTestOrderRow = {
-  id: number;
-  driverId: number | null;
-  pickup: string;
-  dropoff: string;
-  price: number;
-  status: 'requested' | 'accepted' | 'completed' | 'cancelled';
-  acceptedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
+	id: number;
+	driverId: number | null;
+	pickup: string;
+	dropoff: string;
+	price: number;
+	status: 'requested' | 'accepted' | 'completed' | 'cancelled';
+	acceptedAt: Date | null;
+	createdAt: Date;
+	updatedAt: Date;
 };
 
 type TypeTestOrderStatus = TypeTestOrderRow['status'];
 
 const filteredQuery = pulse(typeTestOrders)
-  .query()
-  .args(statusSchema)
-  .query((ctx) => ctx.query({ status: ctx.args.status }));
+	.query()
+	.args(statusSchema)
+	.query((ctx) => ctx.query({ status: ctx.args.status }));
 const operatorFilterQuery = pulse(typeTestOrders).query((ctx) =>
-  ctx.query({
-    price: { gte: 10, lte: 50 },
-    status: { in: ['requested', 'accepted'] },
-    acceptedAt: { isNull: true },
-  }),
+	ctx.query({
+		price: { gte: 10, lte: 50 },
+		status: { in: ['requested', 'accepted'] },
+		acceptedAt: { isNull: true },
+	})
 );
 const equalityOperatorFilterQuery = pulse(typeTestOrders).query((ctx) =>
-  ctx.query({
-    id: { eq: 42 },
-    status: { ne: 'cancelled' },
-  }),
+	ctx.query({
+		id: { eq: 42 },
+		status: { ne: 'cancelled' },
+	})
 );
 const boundedOperatorFilterQuery = pulse(typeTestOrders).query((ctx) =>
-  ctx.query({
-    price: { gt: 10, lt: 20 },
-    id: { gte: 1, lte: 100 },
-  }),
+	ctx.query({
+		price: { gt: 10, lt: 20 },
+		id: { gte: 1, lte: 100 },
+	})
 );
 const deepLogicalFilterQuery = pulse(typeTestOrders).query((ctx) =>
-  ctx.query({
-    AND: [
-      {
-        OR: [
-          { status: { eq: 'requested' } },
-          {
-            NOT: {
-              AND: [{ acceptedAt: { isNotNull: true } }, { driverId: { isNotNull: true } }],
-            },
-          },
-        ],
-      },
-      { price: { gte: 1 } },
-    ],
-  }),
+	ctx.query({
+		AND: [
+			{
+				OR: [
+					{ status: { eq: 'requested' } },
+					{
+						NOT: {
+							AND: [{ acceptedAt: { isNotNull: true } }, { driverId: { isNotNull: true } }],
+						},
+					},
+				],
+			},
+			{ price: { gte: 1 } },
+		],
+	})
 );
 const logicalFilterQuery = pulse(typeTestOrders).query((ctx) =>
-  ctx.query({
-    AND: [
-      { status: 'requested' },
-      { OR: [{ driverId: { isNull: true } }, { driverId: { isNotNull: true } }] },
-    ],
-  }),
+	ctx.query({
+		AND: [
+			{ status: 'requested' },
+			{ OR: [{ driverId: { isNull: true } }, { driverId: { isNotNull: true } }] },
+		],
+	})
 );
 const notFilterQuery = pulse(typeTestOrders).query((ctx) =>
-  ctx.query({
-    NOT: {
-      OR: [{ status: 'cancelled' }, { acceptedAt: { isNotNull: true } }],
-    },
-  }),
+	ctx.query({
+		NOT: {
+			OR: [{ status: 'cancelled' }, { acceptedAt: { isNotNull: true } }],
+		},
+	})
 );
 const argsDrivenFilterQuery = pulse(typeTestOrders)
-  .query()
-  .args(driverSchema)
-  .query((ctx) =>
-    ctx.query({
-      AND: [{ driverId: ctx.args.driverId }, { price: { gt: 0 } }],
-    }),
-  );
+	.query()
+	.args(driverSchema)
+	.query((ctx) =>
+		ctx.query({
+			AND: [{ driverId: ctx.args.driverId }, { price: { gt: 0 } }],
+		})
+	);
 const nullableColumnFilterQuery = pulse(typeTestOrders).query((ctx) =>
-  ctx.query({
-    OR: [{ driverId: { isNull: true } }, { acceptedAt: { isNull: true } }],
-  }),
+	ctx.query({
+		OR: [{ driverId: { isNull: true } }, { acceptedAt: { isNull: true } }],
+	})
 );
 
 expectTypeOf(filteredQuery).toEqualTypeOf<
-  PulseBuilder<
-    typeof typeTestOrders,
-    Record<never, boolean>,
-    { status: TypeTestOrderStatus },
-    TypeTestOrderRow
-  >
+	PulseBuilder<
+		typeof typeTestOrders,
+		Record<never, boolean>,
+		{ status: TypeTestOrderStatus },
+		TypeTestOrderRow
+	>
 >();
 expectTypeOf(operatorFilterQuery).toEqualTypeOf<
-  PulseBuilder<
-    typeof typeTestOrders,
-    Record<never, boolean>,
-    Record<never, never>,
-    TypeTestOrderRow
-  >
+	PulseBuilder<
+		typeof typeTestOrders,
+		Record<never, boolean>,
+		Record<never, never>,
+		TypeTestOrderRow
+	>
 >();
 expectTypeOf(equalityOperatorFilterQuery).toEqualTypeOf<
-  PulseBuilder<
-    typeof typeTestOrders,
-    Record<never, boolean>,
-    Record<never, never>,
-    TypeTestOrderRow
-  >
+	PulseBuilder<
+		typeof typeTestOrders,
+		Record<never, boolean>,
+		Record<never, never>,
+		TypeTestOrderRow
+	>
 >();
 expectTypeOf(boundedOperatorFilterQuery).toEqualTypeOf<
-  PulseBuilder<
-    typeof typeTestOrders,
-    Record<never, boolean>,
-    Record<never, never>,
-    TypeTestOrderRow
-  >
+	PulseBuilder<
+		typeof typeTestOrders,
+		Record<never, boolean>,
+		Record<never, never>,
+		TypeTestOrderRow
+	>
 >();
 expectTypeOf(deepLogicalFilterQuery).toEqualTypeOf<
-  PulseBuilder<
-    typeof typeTestOrders,
-    Record<never, boolean>,
-    Record<never, never>,
-    TypeTestOrderRow
-  >
+	PulseBuilder<
+		typeof typeTestOrders,
+		Record<never, boolean>,
+		Record<never, never>,
+		TypeTestOrderRow
+	>
 >();
 expectTypeOf(logicalFilterQuery).toEqualTypeOf<
-  PulseBuilder<
-    typeof typeTestOrders,
-    Record<never, boolean>,
-    Record<never, never>,
-    TypeTestOrderRow
-  >
+	PulseBuilder<
+		typeof typeTestOrders,
+		Record<never, boolean>,
+		Record<never, never>,
+		TypeTestOrderRow
+	>
 >();
 expectTypeOf(notFilterQuery).toEqualTypeOf<
-  PulseBuilder<
-    typeof typeTestOrders,
-    Record<never, boolean>,
-    Record<never, never>,
-    TypeTestOrderRow
-  >
+	PulseBuilder<
+		typeof typeTestOrders,
+		Record<never, boolean>,
+		Record<never, never>,
+		TypeTestOrderRow
+	>
 >();
 expectTypeOf(argsDrivenFilterQuery).toEqualTypeOf<
-  PulseBuilder<
-    typeof typeTestOrders,
-    Record<never, boolean>,
-    { driverId: number },
-    TypeTestOrderRow
-  >
+	PulseBuilder<
+		typeof typeTestOrders,
+		Record<never, boolean>,
+		{ driverId: number },
+		TypeTestOrderRow
+	>
 >();
 expectTypeOf(nullableColumnFilterQuery).toEqualTypeOf<
-  PulseBuilder<
-    typeof typeTestOrders,
-    Record<never, boolean>,
-    Record<never, never>,
-    TypeTestOrderRow
-  >
+	PulseBuilder<
+		typeof typeTestOrders,
+		Record<never, boolean>,
+		Record<never, never>,
+		TypeTestOrderRow
+	>
 >();
 
 // @ts-expect-error unknown filter column
@@ -196,12 +196,12 @@ pulse(typeTestOrders).query((ctx) => ctx.query({ driverId: null }));
 // @ts-expect-error nullable columns must use isNull instead of raw null
 pulse(typeTestOrders).query((ctx) => ctx.query({ acceptedAt: null }));
 void pulse(typeTestOrders)
-  .query()
-  .args(driverSchema)
-  // @ts-expect-error args property does not exist on driver args
-  .query((ctx) => ctx.query({ driverId: ctx.args.status }));
+	.query()
+	.args(driverSchema)
+	// @ts-expect-error args property does not exist on driver args
+	.query((ctx) => ctx.query({ driverId: ctx.args.status }));
 void pulse(typeTestOrders)
-  .query()
-  .args(driverSchema)
-  // @ts-expect-error args type is wrong for driverId
-  .query((ctx) => ctx.query({ driverId: { eq: `${ctx.args.driverId}` } }));
+	.query()
+	.args(driverSchema)
+	// @ts-expect-error args type is wrong for driverId
+	.query((ctx) => ctx.query({ driverId: { eq: `${ctx.args.driverId}` } }));

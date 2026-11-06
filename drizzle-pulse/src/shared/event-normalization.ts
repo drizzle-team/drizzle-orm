@@ -17,16 +17,16 @@ import type { PgColumn } from 'drizzle-orm/pg-core';
  * Returns `null` when all column values are absent (all-undefined event).
  */
 export function extractRow(
-  rawEvent: Record<string, unknown>,
-  columns: Record<string, PgColumn>,
-  keyPrefix = '',
+	rawEvent: Record<string, unknown>,
+	columns: Record<string, PgColumn>,
+	keyPrefix = '',
 ): Record<string, unknown> | null {
-  const row: Record<string, unknown> = {};
-  for (const queryKey of Object.keys(columns)) {
-    const value = rawEvent[`${keyPrefix}${queryKey}`];
-    if (value !== undefined) {
-      row[queryKey] = value;
-    }
-  }
-  return Object.keys(row).length > 0 ? row : null;
+	const row: Record<string, unknown> = {};
+	for (const queryKey of Object.keys(columns)) {
+		const value = rawEvent[`${keyPrefix}${queryKey}`];
+		if (value !== undefined) {
+			row[queryKey] = value;
+		}
+	}
+	return Object.keys(row).length > 0 ? row : null;
 }
