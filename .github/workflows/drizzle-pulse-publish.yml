@@ -1,0 +1,86 @@
+# Release order: @drizzle-team/postgres 0.5.0, then drizzle-orm 1.0.0-rc.6, then drizzle-pulse.
+# The preflight job fails if one of the peer floors is not on npm yet.
+#
+# This filename must be registered on npmjs.com as the trusted publisher for drizzle-pulse.
+# Renaming it requires updating the npmjs.com record the same day, or publishes fail
+# with E404. `npm publish` must stay in this file: in a reusable workflow, npm checks
+# the caller's filename.
+name: drizzle-pulse publish
+
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+concurrency:
+  group: drizzle-pulse-publish
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: drizzle-pulse
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Fail if version already published
+        run: |
+          set -euo pipefail
+          PKG=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "$PKG@$VERSION" version >/dev/null 2>&1; then
+            echo "::error::$PKG@$VERSION is already on npm. Bump the version in drizzle-pulse/package.json."
+            exit 1
+          fi
+      # Check the floor version itself. A range such as ^1.0.0-rc.6 also matches preview builds
+      # like 1.0.0-rc.5-ab785fc, so a range query passes before the release exists.
+      - name: Fail if a required peer release is not on npm
+        run: |
+          set -euo pipefail
+          for PEER in drizzle-orm @drizzle-team/postgres; do
+            RANGE=$(node -p "require('./package.json').peerDependencies['$PEER']")
+            FLOOR=$(echo "$RANGE" | sed -E 's/^(\^|>=)//')
+            if ! npm view "$PEER@$FLOOR" version >/dev/null 2>&1; then
+              echo "::error::$PEER@$FLOOR is not on npm yet. Publish it before drizzle-pulse."
+              exit 1
+            fi
+          done
+
+  gates:
+    uses: ./.github/workflows/drizzle-pulse-ci.yml
+
+  publish:
+    needs: [preflight, gates]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile --filter 'drizzle-pulse...' --filter 'drizzle-orm...'
+        working-directory: .
+      # The build of Drizzle Pulse imports drizzle-orm from drizzle-orm/dist.
+      - run: pnpm build:orm
+        working-directory: .
+      # pnpm pack replaces the workspace: ranges in the tarball manifest. npm publish does not.
+      - name: Pack and publish
+        run: |
+          set -euo pipefail
+          pnpm pack --pack-destination "$RUNNER_TEMP"
+          VERSION=$(node -p "require('./package.json').version")
+          npm publish "$RUNNER_TEMP/drizzle-pulse-$VERSION.tgz" --tag latest
