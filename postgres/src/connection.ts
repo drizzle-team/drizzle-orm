@@ -531,8 +531,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	// so naming always wins. The common (uniform) case is 1-2 statements; only a pathological per-row-varying
 	// batch accrues one statement per distinct chunk SQL. (On a transaction pooler query() drops names anyway.)
 	private valuesMeta = new Map<string, string>();
-	private mapperCache = new Map<string, RowMapper>(); // per-shape row mappers (standard + typed queries)
-	private mapperFactory: RowMapperFactory; // interpreted or jit, chosen once from config.decode
+	private mapperFactory: RowMapperFactory; // interpreted or jit, chosen once from config.decode; caches per column plan
 	// query-builder fast path: a chunks array (tagged template / builder) has stable identity, so cache
 	private scramState?: Scram;
 
@@ -1129,22 +1128,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	private getMapper(cols: CodegenCol[], mode: ResultMode): RowMapper | undefined {
 		if (mode !== 'array' && mode !== 'object') return undefined;
 		cols = this.resolveCols(cols);
-		// NB: encode the whole json marker (its declared shape), not just "has json" — two shapes that differ
-		// only inside a Json()/JsonArray() must get different mappers, else the first one is wrongly reused.
-		const key = mode + '|'
-			+ cols.map((c) =>
-				`${c.name}:${c.oid}:${c.format ?? 't'}:${c.js ?? ''}:${c.json ? JSON.stringify(c.json) : ''}:${
-					c.array ? 'a' + c.array.elem + (c.array.js ?? '') : ''
-				}:${c.path ? c.path.join('.') : ''}:${
-					c.groupNullable ? c.groupNullable.map((x) => (x ? '1' : '0')).join('') : ''
-				}:${c.nullable ? 'n' : ''}:${c.xformId ?? ''}`
-			).join(',');
-		let m = this.mapperCache.get(key);
-		if (!m) {
-			m = this.mapperFactory(cols, mode, this.cfg.decoders);
-			this.mapperCache.set(key, m);
-		}
-		return m;
+		return this.mapperFactory(cols, mode, this.cfg.decoders);
 	}
 
 	private dataRow(body: Buffer): void {
