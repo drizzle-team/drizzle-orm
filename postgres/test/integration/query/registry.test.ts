@@ -65,6 +65,29 @@ describe('defineType registry', () => {
 		});
 	}, TEST_TIMEOUT);
 
+	test('a declared type wins over a config.types override of its real OID', async () => {
+		const mood = defineType('mood', { ascii: true, targets: { upper: (s) => s.toUpperCase() } });
+		await withConn(async (c) => {
+			await c.query('drop type if exists postgres_test_mood');
+			await c.query(`create type postgres_test_mood as enum ('happy')`);
+			try {
+				const oids = await c.query(
+					`select 'postgres_test_mood'::regtype::oid::int4 s, 'postgres_test_mood[]'::regtype::oid::int4 a`,
+				);
+				const [scalar, array] = oids.rows[0] as number[];
+				const override = () => 'override';
+				await withConn(async (o) => {
+					const r = await o.query(`select 'happy'::postgres_test_mood m, '{happy}'::postgres_test_mood[] ms`, [], {
+						shape: { m: mood('upper'), ms: mood.array('upper') },
+					});
+					expect(r.rows).toEqual([{ m: 'HAPPY', ms: ['HAPPY'] }]);
+				}, { types: { [scalar!]: override, [array!]: override } });
+			} finally {
+				await c.query('drop type postgres_test_mood');
+			}
+		});
+	}, TEST_TIMEOUT);
+
 	test('loud errors: unknown target at marker creation; markers inside Json() rejected', async () => {
 		expect(() => complex('nope' as never)).toThrow(/has no target "nope"/);
 		await withConn(async (c) => {
