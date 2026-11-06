@@ -2,7 +2,8 @@ import { prepareMigrationRenames } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import { diffStringArrays } from '../../utils/sequence-matcher';
 import type { Resolver } from '../common';
-import { diff } from '../dialect';
+import { type Delta, delta, diff, type Row } from '../dialect';
+import { checkColumns } from '../grammar';
 import { groupDiffs, preserveEntityNames, sortCreateViews } from '../utils';
 import type { SchemaMetadata } from '../utils';
 import { fromJson } from './convertor';
@@ -30,8 +31,6 @@ import type {
 	JsonStatement,
 } from './statements';
 import { prepareStatement } from './statements';
-
-type IndexName = Pick<Index, 'schema' | 'table' | 'name'>;
 
 export const ddlDiffDry = async (
 	ddlFrom: CockroachDDL,
@@ -80,11 +79,21 @@ export const ddlDiff = async (
 	sqlStatements: string[];
 	groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[];
 	renames: string[];
+	deltas: Delta[];
 }> => {
 	const ddl1Copy = createDDL();
 	for (const entity of ddl1.entities.list()) {
 		ddl1Copy.entities.push(entity);
 	}
+
+	// Applies each rename or move that the user confirms to `ddl1` and keeps its delta in `renameDeltas` for the
+	// snapshot. The same `ddl1.rename` call changes the state and builds the delta, so the stored delta gives the
+	// same state when a later command loads the snapshot.
+	const renameDeltas: Delta[] = [];
+	const applyRename = (from: Row, set: Row) => {
+		const renamed = ddl1.rename(from, set);
+		if (renamed) renameDeltas.push(renamed);
+	};
 
 	const schemasDiff = diff(ddl1, ddl2, 'schemas');
 	const { created: createdSchemas, deleted: deletedSchemas, renamedOrMoved: renamedSchemas } = await schemasResolver({
@@ -93,10 +102,7 @@ export const ddlDiff = async (
 	});
 
 	for (const rename of renamedSchemas) {
-		ddl1.schemas.update({
-			set: { name: rename.to.name },
-			where: { name: rename.from.name },
-		});
+		applyRename(rename.from, { name: rename.to.name });
 	}
 
 	const enumsDiff = diff(ddl1, ddl2, 'enums');
@@ -109,16 +115,10 @@ export const ddlDiff = async (
 	const movedEnums = renamedOrMovedEnums.filter((it) => it.from.schema !== it.to.schema);
 
 	for (const rename of renamedEnums) {
-		ddl1.enums.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
-		});
+		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
 	}
 	for (const move of movedEnums) {
-		ddl1.enums.update({
-			set: { schema: move.to.schema },
-			where: { name: move.from.name, schema: move.from.schema },
-		});
+		applyRename(move.from, { schema: move.to.schema });
 	}
 
 	const sequencesDiff = diff(ddl1, ddl2, 'sequences');
@@ -132,10 +132,7 @@ export const ddlDiff = async (
 	const movedSequences = renamedOrMovedSequences.filter((it) => it.from.schema !== it.to.schema);
 
 	for (const it of renamedOrMovedSequences) {
-		ddl1.sequences.update({
-			set: { name: it.to.name, schema: it.to.schema },
-			where: { name: it.from.name, schema: it.from.schema },
-		});
+		applyRename(it.from, { name: it.to.name, schema: it.to.schema });
 	}
 
 	const rolesDiff = diff(ddl1, ddl2, 'roles');
@@ -156,10 +153,7 @@ export const ddlDiff = async (
 	const movedTables = orMovedTables.filter((it) => it.from.schema !== it.to.schema);
 
 	for (const rename of orMovedTables) {
-		ddl1.tables.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema },
-		});
+		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
 	}
 
 	const columnsDiff = diff(ddl1, ddl2, 'columns');
@@ -178,10 +172,7 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of columnRenames) {
-		ddl1.columns.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
-		});
+		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
 	}
 
 	preserveEntityNames(ddl1.fks, ddl2.fks, mode);
@@ -206,10 +197,7 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of checkRenames) {
-		ddl1.checks.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
-		});
+		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
 	}
 
 	const diffIndexes = diff(ddl1, ddl2, 'indexes');
@@ -229,16 +217,8 @@ export const ddlDiff = async (
 		indexesRenames.push(...renamedOrMoved);
 	}
 
-	// `indexesBeforeRenames` keeps the index names that the database has, for the `isNameShared` check below.
-	// It holds copies because the renames below change the rows of `ddl1` in place. A primary key owns an index
-	// with its name, so the list holds the primary keys too.
-	const indexesBeforeRenames: IndexName[] = [...ddl1.indexes.list(), ...ddl1.pks.list()].map((it) => ({ ...it }));
-
 	for (const rename of indexesRenames) {
-		ddl1.indexes.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
-		});
+		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
 	}
 
 	const diffPKs = diff(ddl1, ddl2, 'pks');
@@ -256,10 +236,7 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of pksRenames) {
-		ddl1.pks.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
-		});
+		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
 	}
 
 	const diffFKs = diff(ddl1, ddl2, 'fks');
@@ -277,10 +254,7 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of fksRenames) {
-		ddl1.fks.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
-		});
+		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
 	}
 
 	const policiesDiff = diff(ddl1, ddl2, 'policies');
@@ -302,10 +276,7 @@ export const ddlDiff = async (
 	}
 
 	for (const rename of policyRenames) {
-		ddl1.policies.update({
-			set: { name: rename.to.name, schema: rename.to.schema },
-			where: { name: rename.from.name, schema: rename.from.schema, table: rename.from.table },
-		});
+		applyRename(rename.from, { name: rename.to.name, schema: rename.to.schema });
 	}
 
 	const viewsDiff = diff(ddl1, ddl2, 'views');
@@ -319,13 +290,13 @@ export const ddlDiff = async (
 	const movedViews = renamedOrMovedViews.filter((it) => it.from.schema !== it.to.schema);
 
 	for (const it of renamedOrMovedViews) {
-		ddl1.views.update({
-			set: { name: it.to.name, schema: it.to.schema },
-			where: { name: it.from.name, schema: it.from.schema },
-		});
+		applyRename(it.from, { name: it.to.name, schema: it.to.schema });
 	}
 
-	const alters = diff.alters(ddl1, ddl2);
+	// `delta(ddl1, ddl2, all)` must run before the statement code below deletes fields from the alter rows.
+	const all = diff.all(ddl1, ddl2);
+	const deltas: Delta[] = [...renameDeltas, ...delta(ddl1, ddl2, all)];
+	const alters = all.filter((it): it is Extract<typeof it, { $diffType: 'alter' }> => it.$diffType === 'alter');
 
 	const jsonStatements: JsonStatement[] = [];
 
@@ -361,35 +332,19 @@ export const ddlDiff = async (
 			return !(newTable && forCreateTable);
 		});
 
-	// `isNameShared` tells an index rename or an index drop to name its table. In the middle of a migration, two
-	// tables of a schema can hold the same index name, and Cockroach refuses such a name as ambiguous.
-	// `indexesInDatabase` follows the renames, then the drops. It starts with the unique constraints that
-	// `CREATE TABLE` creates.
-	let indexesInDatabase: IndexName[] = [
-		...indexesBeforeRenames.filter(tablesFilter('deleted')),
-		...indexesCreates.filter((it) => !jsonCreateIndexes.some((st) => st.index === it)),
-	];
-	const isSameIndex = (a: IndexName, b: IndexName) => a.schema === b.schema && a.table === b.table && a.name === b.name;
-	const isNameShared = (index: IndexName) =>
-		indexesInDatabase.some((it) => it.schema === index.schema && it.name === index.name && it.table !== index.table);
-
-	const jsonRenameIndexes = indexesRenames.map((r) => {
-		const statement = prepareStatement('rename_index', {
+	const jsonRenameIndexes = indexesRenames.map((r) =>
+		prepareStatement('rename_index', {
 			schema: r.to.schema,
 			table: r.to.table,
 			from: r.from.name,
 			to: r.to.name,
-			isNameShared: isNameShared(r.from),
-		});
-		indexesInDatabase = [...indexesInDatabase.filter((it) => !isSameIndex(it, r.from)), r.to];
-		return statement;
-	});
+			columns: r.from.columns.filter((c) => !c.isExpression).map((c) => c.value),
+		})
+	);
 
-	const jsonDropIndexes = indexesDeletes.filter(tablesFilter('deleted')).map((index) => {
-		const statement = prepareStatement('drop_index', { index, isNameShared: isNameShared(index) });
-		indexesInDatabase = indexesInDatabase.filter((it) => !isSameIndex(it, index));
-		return statement;
-	});
+	const jsonDropIndexes = indexesDeletes.filter(tablesFilter('deleted')).map((index) =>
+		prepareStatement('drop_index', { index })
+	);
 
 	const indexesAlters = alters.filter((it): it is DiffEntities['indexes'] => {
 		if (it.entityType !== 'indexes') return false;
@@ -469,10 +424,12 @@ export const ddlDiff = async (
 
 	const jsonRenamePrimaryKey = pksRenames.map((it) => {
 		return prepareStatement('rename_constraint', {
+			entityType: 'pks',
 			schema: it.to.schema,
 			table: it.to.table,
 			from: it.from.name,
 			to: it.to.name,
+			columns: it.to.columns,
 		});
 	});
 
@@ -484,18 +441,28 @@ export const ddlDiff = async (
 		})
 	);
 
+	const columnsOfCheck = (value: string, ddl: CockroachDDL, schema: string, table: string): string[] =>
+		checkColumns(value, ddl.columns.list({ schema, table }).map((c) => c.name));
 	const jsonCreatedCheckConstraints = checkCreates.filter(tablesFilter('created')).map((it) =>
-		prepareStatement('add_check', { check: it })
+		prepareStatement('add_check', {
+			check: it,
+			columns: columnsOfCheck(it.value, ddl2, it.schema, it.table),
+		})
 	);
 	const jsonDropCheckConstraints = checkDeletes.filter(tablesFilter('deleted')).map((it) =>
-		prepareStatement('drop_check', { check: it })
+		prepareStatement('drop_check', {
+			check: it,
+			columns: columnsOfCheck(it.value, ddl1, it.schema, it.table),
+		})
 	);
 	const jsonRenameChecks = checkRenames.map((it) =>
 		prepareStatement('rename_constraint', {
+			entityType: 'checks',
 			schema: it.to.schema,
 			table: it.to.table,
 			from: it.from.name,
 			to: it.to.name,
+			columns: columnsOfCheck(it.to.value, ddl2, it.to.schema, it.to.table),
 		})
 	);
 
@@ -569,15 +536,22 @@ export const ddlDiff = async (
 
 	const jsonRenameFks = fksRenames.map((it) =>
 		prepareStatement('rename_constraint', {
+			entityType: 'fks',
 			schema: it.to.schema,
 			table: it.to.table,
 			from: it.from.name,
 			to: it.to.name,
+			columns: it.to.columns,
 		})
 	);
 
 	const jsonAlterCheckConstraints = alteredChecks.filter((it) => it.value && mode !== 'push').map((it) =>
-		prepareStatement('alter_check', { check: it.$right, diff: it })
+		prepareStatement('alter_check', {
+			check: it.$right,
+			diff: it,
+			newColumns: columnsOfCheck(it.$right.value, ddl2, it.schema, it.table),
+			oldColumns: columnsOfCheck(it.$left.value, ddl1, it.schema, it.table),
+		})
 	);
 	const jsonCreatePoliciesStatements = policyCreates.map((it) => prepareStatement('create_policy', { policy: it }));
 	const jsonDropPoliciesStatements = policyDeletes.map((it) => prepareStatement('drop_policy', { policy: it }));
@@ -993,5 +967,6 @@ export const ddlDiff = async (
 		sqlStatements,
 		groupedStatements: groupedStatements,
 		renames: renames,
+		deltas,
 	};
 };

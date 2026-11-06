@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { dialects } from '../utils/schemaValidator';
 import '../@types/utils';
 import type { MigrationConfig, MigratorInitFailResponse } from 'drizzle-orm/migrator';
-import { readFolder } from '../dialects/postgres/folder';
+import { deltaFormatOf } from '../folder/registry';
 import { assertUnreachable } from '../utils';
 import { assertV3OutFolder, prepareFilenames } from '../utils/utils-node';
 import { assertConflictOptions, checkHandler, checkSnapshots, conflictError } from './commands/check';
@@ -113,10 +113,11 @@ export const runGenerate = async (
 	const dialect = config.dialect;
 	assertConflictOptions('generate', dialect, config);
 
-	// Postgres skips `checkHandler`, which throws on a conflict. The postgres `handle` checks the folder itself,
-	// because it can delete the conflicting migrations and then generate.
-	if (dialect === 'postgresql') {
-		const { handle } = await import('./commands/generate-postgres');
+	// A dialect with the delta format skips `checkHandler`, which throws on a conflict. Its handler checks the
+	// folder itself, because it can delete the conflicting migrations and then generate.
+	const format = deltaFormatOf(dialect);
+	if (format) {
+		const { handle } = await format.generate();
 		return await handle(config as Parameters<typeof handle>[0]);
 	}
 
@@ -153,7 +154,8 @@ export const runGenerate = async (
 			},
 		);
 	}
-	assertUnreachable(dialect);
+	// A dialect with the delta format returned above, and postgresql is the only one of them.
+	assertUnreachable(dialect as Exclude<typeof dialect, 'postgresql'>);
 };
 
 export const preparePush = async (opts: PushOptionsInput) => {
@@ -344,7 +346,7 @@ const optionDriver = string()
 	.desc('Database driver');
 
 const optionIgnoreConflicts = boolean('ignore-conflicts').desc(
-	'Skip the conflict checks (not for postgresql)',
+	'Skip the conflict checks (not for postgresql or cockroach)',
 );
 const optionHints = string().desc('Inline JSON array of hints');
 const optionHintsFile = string('hints-file').desc('Path to a JSON file containing a hints array');
@@ -363,7 +365,7 @@ export const generateOptions = {
 		.default(false),
 	ignoreConflicts: optionIgnoreConflicts,
 	fixConflicts: boolean('fix-conflicts').desc(
-		'Delete the conflicting migrations and their children, then generate one new migration (postgresql only)',
+		'Delete the conflicting migrations and their children, then generate one new migration (postgresql and cockroach)',
 	),
 	explain: boolean()
 		.desc('Print the planned SQL changes (dry run)')
@@ -613,20 +615,18 @@ export const runCheck = async (
 	const { out, dialect, schema, ignoreConflicts } = config;
 	assertConflictOptions('check', dialect, { ignoreConflicts });
 	let warnings: CheckWarning[] = [];
-	if (dialect === 'postgresql') {
-		// Postgres skips `checkHandler`, because `schemaWarnings` needs the `stored` folder that the check read.
-		const stored = readFolder(out);
+	const format = deltaFormatOf(dialect);
+	if (format) {
+		// A delta-format dialect skips `checkHandler`, because `schemaWarnings` needs the `stored` folder that
+		// the check read.
+		const stored = format.readFolder(out);
 		const { report, fix } = await checkSnapshots(stored.files, dialect);
 		if (fix) throw conflictError(report, fix);
 
 		// `stored` passed the check here. A schema that differs from `stored` adds `warnings`, and `check` still
 		// succeeds.
-		if (schema) {
-			const { schemaWarnings } = await import('./commands/check-postgres');
-			const { SchemaSource } = await import('../dialects/postgres/drizzle');
-			warnings = await schemaWarnings(stored, {
-				load: async () => SchemaSource.fromFilenames(prepareFilenames(schema)).load(),
-			});
+		if (schema && format.schemaWarnings) {
+			warnings = await format.schemaWarnings(stored, prepareFilenames(schema));
 		}
 	} else {
 		await checkHandler(out, dialect, ignoreConflicts);
@@ -681,7 +681,7 @@ export const runUp = async (
 	} else if (dialect === 'singlestore') {
 		upgraded = upSinglestoreHandler(out);
 	} else if (dialect === 'cockroach') {
-		upgraded = upCockroachHandler(out);
+		upgraded = await upCockroachHandler(out);
 	} else if (dialect === 'mssql') {
 		upgraded = upMssqlHandler(out);
 	} else if (dialect === 'duckdb') {

@@ -85,7 +85,7 @@ When fired:
 | `unsupported` | `kind`, `snapshot`       | a snapshot was written by a newer drizzle-kit and cannot be read       |
 | `malformed`   | `kind`, `snapshot`, `parentId?`, `baseSnapshot?` | a snapshot cannot be read, or the postgres history of the folder is broken (cases below) |
 | `non_latest`  | `kind`, `snapshot`       | a snapshot is in an older format; run `drizzle-kit up`                 |
-| `order`       | `kind`, `snapshot`, `parentSnapshot` | postgres only: the folder of `snapshot` sorts before the folder of its parent `parentSnapshot`, so migrate could run it first; rename the folder of `snapshot` so that it sorts after the parent folder |
+| `order`       | `kind`, `snapshot`, `parentSnapshot` | postgres and cockroach: the folder of `snapshot` sorts before the folder of its parent `parentSnapshot`, so migrate could run it first; rename the folder of `snapshot` so that it sorts after the parent folder |
 | `conflicts`   | `kind`, `conflicts`, `details`, `fix?` | branches in the migrations folder do not commute |
 
 For the integrity kinds, `snapshot` is the path of the snapshot file that has the problem. `malformed` has these cases:
@@ -94,11 +94,11 @@ For the integrity kinds, `snapshot` is the path of the snapshot file that has th
 | --- | --- | --- |
 | none | the file at `snapshot` is not valid JSON (for example because git left conflict markers in it), has no string `id`, or has no `prevIds` array | restore the file from git, or fix the JSON |
 | none | the file at `snapshot` is valid JSON but does not match the snapshot format of its dialect | restore the file from git |
-| none | postgres only: the history of `snapshot` reaches no base snapshot, because the first migration folder is gone | restore the first migration folder from git, or delete the migration of `snapshot` and every later migration, then run `generate` again |
-| `parentId` | postgres only: the parent with that id is missing from the folder | restore the missing migration folder from git, or delete the migration of `snapshot` and every later migration, then run `generate` again |
-| `baseSnapshot` | postgres only: the folder has two base snapshots, at `snapshot` and at `baseSnapshot`, because two git branches each started from an empty folder | delete one of the two migration folders together with every migration that follows it, then run `generate` again |
-| none | postgres only, and only from `generate`: the migration of `snapshot` is a leaf that does not reconstruct, because a delta in its history throws; `check` and `migrate` pass on this folder | restore the migration folder from git, or delete the migration of `snapshot` and every later migration, then run `generate` again |
-| none | postgres only, and only from `generate`: every leaf reconstructs, and their combined state does not, because a delta of the migration of `snapshot` gives one key to a second entity; `check` and `migrate` pass on this folder | restore the migration folder from git, or delete the migration of `snapshot` and every later migration, then run `generate` again |
+| none | postgres and cockroach: the history of `snapshot` reaches no base snapshot, because the first migration folder is gone | restore the first migration folder from git, or delete the migration of `snapshot` and every later migration, then run `generate` again |
+| `parentId` | postgres and cockroach: the parent with that id is missing from the folder | restore the missing migration folder from git, or delete the migration of `snapshot` and every later migration, then run `generate` again |
+| `baseSnapshot` | postgres and cockroach: the folder has two base snapshots, at `snapshot` and at `baseSnapshot`, because two git branches each started from an empty folder | delete one of the two migration folders together with every migration that follows it, then run `generate` again |
+| none | postgres and cockroach, and only from `generate`: the migration of `snapshot` is a leaf that does not reconstruct, because a delta in its history throws; `check` and `migrate` pass on this folder | restore the migration folder from git, or delete the migration of `snapshot` and every later migration, then run `generate` again |
+| none | postgres and cockroach, and only from `generate`: every leaf reconstructs, and their combined state does not, because a delta of the migration of `snapshot` gives one key to a second entity; `check` and `migrate` pass on this folder | restore the migration folder from git, or delete the migration of `snapshot` and every later migration, then run `generate` again |
 
 The cases without an extra key differ in the file at `snapshot`, so read that file to tell them apart. Under `--output text`, the message names the case and the fix. [migrations.md](migrations.md) explains the migrations folder, base and diff snapshots, and these fixes in more detail.
 

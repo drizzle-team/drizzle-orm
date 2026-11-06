@@ -1824,3 +1824,7 @@ export const typeFor = (type: string, isEnum: boolean): SqlType => {
 	if (Inet.is(type)) return Inet;
 	return Custom;
 };
+
+// Keywords that a policy can list in place of a role. The convertor writes them without quotes, and the
+// conflict check skips them, because no schema can rename or drop them.
+export const builtinPolicyRoles = ['current_user', 'current_role', 'session_user', 'public'];

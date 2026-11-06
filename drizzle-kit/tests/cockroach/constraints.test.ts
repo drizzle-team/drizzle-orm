@@ -171,7 +171,7 @@ test.concurrent('unique #8', async ({ dbc: db }) => {
 	});
 
 	const st0 = [
-		`DROP INDEX "unique_name" CASCADE;`,
+		`DROP INDEX "public"."users"@"unique_name" CASCADE;`,
 		'CREATE UNIQUE INDEX "unique_name2" ON "users" ("name");',
 	];
 	expect(st).toStrictEqual(st0);
@@ -204,7 +204,7 @@ test.concurrent('unique #9', async ({ dbc: db }) => {
 	});
 
 	const st0 = [
-		`ALTER INDEX "unique_name" RENAME TO "unique_name2";`,
+		`ALTER INDEX "public"."users"@"unique_name" RENAME TO "unique_name2";`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -241,7 +241,7 @@ test.concurrent('unique #10', async ({ dbc: db }) => {
 
 	const st0 = [
 		`ALTER TABLE "users" RENAME COLUMN "email" TO "email2";`,
-		`ALTER INDEX "unique_name" RENAME TO "unique_name2";`,
+		`ALTER INDEX "public"."users"@"unique_name" RENAME TO "unique_name2";`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -281,8 +281,8 @@ test.concurrent('unique #11', async ({ dbc: db }) => {
 	});
 
 	const st0 = [
-		'ALTER INDEX "unique_name" RENAME TO "unique_name2";',
-		`DROP INDEX "unique_email" CASCADE;`,
+		'ALTER INDEX "public"."users"@"unique_name" RENAME TO "unique_name2";',
+		`DROP INDEX "public"."users"@"unique_email" CASCADE;`,
 		`CREATE UNIQUE INDEX "unique_email2" ON "users" ("email");`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -376,7 +376,7 @@ test.concurrent('unique #13', async ({ dbc: db }) => {
 	});
 
 	const st20 = [
-		'DROP INDEX "users_email_key" CASCADE;',
+		'DROP INDEX "public"."users2"@"users_email_key" CASCADE;',
 	];
 	expect(st2).toStrictEqual(st20);
 	expect(pst2).toStrictEqual(st20);
@@ -428,7 +428,7 @@ test.concurrent('unique multistep #1', async ({ dbc: db }) => {
 	const { sqlStatements: st4 } = await diff(n3, sch3, []);
 	const { sqlStatements: pst4 } = await push({ db, to: sch3 });
 
-	const e3 = ['DROP INDEX "users_name_key" CASCADE;'];
+	const e3 = ['DROP INDEX "public"."users2"@"users_name_key" CASCADE;'];
 
 	expect(pst4).toStrictEqual(e3);
 	expect(st4).toStrictEqual(e3);
@@ -495,8 +495,8 @@ test.concurrent('unique multistep #2', async ({ dbc: db }) => {
 
 	const { sqlStatements: st5 } = await diff(n4, sch4, []);
 	const { sqlStatements: pst5 } = await push({ db, to: sch4 });
-	expect(st5).toStrictEqual(['DROP INDEX "users_name_key" CASCADE;']);
-	expect(pst5).toStrictEqual(['DROP INDEX "users_name_key" CASCADE;']);
+	expect(st5).toStrictEqual(['DROP INDEX "public"."users2"@"users_name_key" CASCADE;']);
+	expect(pst5).toStrictEqual(['DROP INDEX "public"."users2"@"users_name_key" CASCADE;']);
 });
 
 test.concurrent('unique multistep #3', async ({ dbc: db }) => {
@@ -549,7 +549,7 @@ test.concurrent('unique multistep #3', async ({ dbc: db }) => {
 	const { sqlStatements: pst4 } = await push({ db, to: sch3 });
 
 	const e4 = [
-		'DROP INDEX "users_name_key" CASCADE;',
+		'DROP INDEX "public"."users2"@"users_name_key" CASCADE;',
 		'CREATE UNIQUE INDEX "name_unique" ON "users2" ("name2");',
 	];
 	expect(st4).toStrictEqual(e4);
@@ -563,8 +563,8 @@ test.concurrent('unique multistep #3', async ({ dbc: db }) => {
 
 	const { sqlStatements: st5 } = await diff(n4, sch4, []);
 	const { sqlStatements: pst5 } = await push({ db, to: sch4 });
-	expect(st5).toStrictEqual(['DROP INDEX "name_unique" CASCADE;']);
-	expect(pst5).toStrictEqual(['DROP INDEX "name_unique" CASCADE;']);
+	expect(st5).toStrictEqual(['DROP INDEX "public"."users2"@"name_unique" CASCADE;']);
+	expect(pst5).toStrictEqual(['DROP INDEX "public"."users2"@"name_unique" CASCADE;']);
 });
 
 test.concurrent('unique multistep #4', async ({ dbc: db }) => {
@@ -619,8 +619,8 @@ test.concurrent('unique multistep #4', async ({ dbc: db }) => {
 	const { sqlStatements: st4, next: n4 } = await diff(n3, sch3, renames2);
 	const { sqlStatements: pst4 } = await push({ db, to: sch3, renames: renames2 });
 
-	expect(st4).toStrictEqual(['ALTER INDEX "users_name_key" RENAME TO "name_unique";']);
-	expect(pst4).toStrictEqual(['ALTER INDEX "users_name_key" RENAME TO "name_unique";']);
+	expect(st4).toStrictEqual(['ALTER INDEX "public"."users2"@"users_name_key" RENAME TO "name_unique";']);
+	expect(pst4).toStrictEqual(['ALTER INDEX "public"."users2"@"users_name_key" RENAME TO "name_unique";']);
 
 	const sch4 = {
 		users: cockroachTable('users2', {
@@ -630,8 +630,8 @@ test.concurrent('unique multistep #4', async ({ dbc: db }) => {
 
 	const { sqlStatements: st5 } = await diff(n4, sch4, []);
 	const { sqlStatements: pst5 } = await push({ db, to: sch4 });
-	expect(st5).toStrictEqual(['DROP INDEX "name_unique" CASCADE;']);
-	expect(pst5).toStrictEqual(['DROP INDEX "name_unique" CASCADE;']);
+	expect(st5).toStrictEqual(['DROP INDEX "public"."users2"@"name_unique" CASCADE;']);
+	expect(pst5).toStrictEqual(['DROP INDEX "public"."users2"@"name_unique" CASCADE;']);
 });
 
 test.concurrent('index multistep #1', async ({ dbc: db }) => {
@@ -686,8 +686,8 @@ test.concurrent('index multistep #1', async ({ dbc: db }) => {
 	const { sqlStatements: st4 } = await diff(n3, sch3, []);
 	const { sqlStatements: pst4 } = await push({ db, to: sch3 });
 
-	expect(st4).toStrictEqual(['DROP INDEX "users_name_index";']);
-	expect(pst4).toStrictEqual(['DROP INDEX "users_name_index";']);
+	expect(st4).toStrictEqual(['DROP INDEX "public"."users2"@"users_name_index";']);
+	expect(pst4).toStrictEqual(['DROP INDEX "public"."users2"@"users_name_index";']);
 });
 
 test.concurrent('index multistep #2', async ({ dbc: db }) => {
@@ -737,7 +737,7 @@ test.concurrent('index multistep #2', async ({ dbc: db }) => {
 	const { sqlStatements: pst3 } = await push({ db, to: sch3 });
 
 	const e3 = [
-		'DROP INDEX "users_name_index";',
+		'DROP INDEX "public"."users2"@"users_name_index";',
 		'CREATE INDEX "name2_idx" ON "users2" ("name2");',
 	];
 	expect(st3).toStrictEqual(e3);
@@ -751,8 +751,8 @@ test.concurrent('index multistep #2', async ({ dbc: db }) => {
 
 	const { sqlStatements: st4 } = await diff(n3, sch4, []);
 	const { sqlStatements: pst4 } = await push({ db, to: sch4 });
-	expect(st4).toStrictEqual(['DROP INDEX "name2_idx";']);
-	expect(pst4).toStrictEqual(['DROP INDEX "name2_idx";']);
+	expect(st4).toStrictEqual(['DROP INDEX "public"."users2"@"name2_idx";']);
+	expect(pst4).toStrictEqual(['DROP INDEX "public"."users2"@"name2_idx";']);
 });
 
 test.concurrent('index multistep #3', async ({ dbc: db }) => {
@@ -804,8 +804,8 @@ test.concurrent('index multistep #3', async ({ dbc: db }) => {
 	const { sqlStatements: st3, next: n3 } = await diff(n2, sch3, renames2);
 	const { sqlStatements: pst3 } = await push({ db, to: sch3, renames: renames2 });
 
-	expect(st3).toStrictEqual(['ALTER INDEX "users_name_index" RENAME TO "name2_idx";']);
-	expect(pst3).toStrictEqual(['ALTER INDEX "users_name_index" RENAME TO "name2_idx";']);
+	expect(st3).toStrictEqual(['ALTER INDEX "public"."users2"@"users_name_index" RENAME TO "name2_idx";']);
+	expect(pst3).toStrictEqual(['ALTER INDEX "public"."users2"@"users_name_index" RENAME TO "name2_idx";']);
 
 	const sch4 = {
 		users: cockroachTable('users2', {
@@ -815,8 +815,8 @@ test.concurrent('index multistep #3', async ({ dbc: db }) => {
 
 	const { sqlStatements: st4 } = await diff(n3, sch4, []);
 	const { sqlStatements: pst4 } = await push({ db, to: sch4 });
-	expect(st4).toStrictEqual(['DROP INDEX "name2_idx";']);
-	expect(pst4).toStrictEqual(['DROP INDEX "name2_idx";']);
+	expect(st4).toStrictEqual(['DROP INDEX "public"."users2"@"name2_idx";']);
+	expect(pst4).toStrictEqual(['DROP INDEX "public"."users2"@"name2_idx";']);
 });
 
 test.concurrent('index multistep #3', async ({ dbc: db }) => {
@@ -866,7 +866,7 @@ test.concurrent('index multistep #3', async ({ dbc: db }) => {
 	const { sqlStatements: pst3 } = await push({ db, to: sch3 });
 
 	const e3 = [
-		'DROP INDEX "users_name_index";',
+		'DROP INDEX "public"."users2"@"users_name_index";',
 		'CREATE INDEX "name2_idx" ON "users2" ("name2");',
 	];
 	expect(st3).toStrictEqual(e3);
@@ -881,8 +881,8 @@ test.concurrent('index multistep #3', async ({ dbc: db }) => {
 	const { sqlStatements: st4 } = await diff(n3, sch4, []);
 	const { sqlStatements: pst4 } = await push({ db, to: sch4 });
 
-	expect(st4).toStrictEqual(['DROP INDEX "name2_idx";']);
-	expect(pst4).toStrictEqual(['DROP INDEX "name2_idx";']);
+	expect(st4).toStrictEqual(['DROP INDEX "public"."users2"@"name2_idx";']);
+	expect(pst4).toStrictEqual(['DROP INDEX "public"."users2"@"name2_idx";']);
 });
 
 test.concurrent('pk #1', async ({ dbc: db }) => {
@@ -1662,7 +1662,7 @@ test('fk multistep #4', async ({ dbc: db }) => {
 	expect(pst2).toStrictEqual(expectedSt2);
 });
 
-test.concurrent('unique duplicate name', async ({ dbc: db }) => {
+test.concurrent('one unique constraint name on two tables of one schema', async ({ dbc: db }) => {
 	const from = {
 		users: cockroachTable('users', {
 			name: varchar({ length: 255 }),
@@ -1686,8 +1686,13 @@ test.concurrent('unique duplicate name', async ({ dbc: db }) => {
 
 	await push({ db, to: from });
 
-	await expect(diff(from, to, [])).rejects.toThrowError();
-	await expect(push({ db, to })).rejects.toThrowError();
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to });
+
+	expect(st).toStrictEqual([
+		'CREATE UNIQUE INDEX "test" ON "users" ("name");',
+		'CREATE UNIQUE INDEX "test" ON "users2" ("name");',
+	]);
 });
 
 test.concurrent('pk duplicate name', async ({ dbc: db }) => {
@@ -1947,7 +1952,7 @@ test('index in other schema', async ({ dbc: db }) => {
 	const { sqlStatements: st2, next: n2 } = await diff(n1, schema2, []);
 	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
 	const expectedSt2 = [
-		`DROP INDEX "common"."filesystems_directories_filesystemId_index";`,
+		`DROP INDEX "common"."filesystems_directories"@"filesystems_directories_filesystemId_index";`,
 	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
@@ -2013,8 +2018,8 @@ test.concurrent('primary key renames that swap a name between two tables keep th
 	expect(pst).toStrictEqual(st0);
 });
 
-// After the first rename, both tables have an index `key_b`. Cockroach refuses that name as ambiguous,
-// so the second statement names the table: `"dogs"@"key_b"`.
+// After the first rename, both tables have an index `key_b`. Every statement names the table of its index,
+// so the second rename reaches the index of `dogs`.
 test.concurrent.for([
 	{ name: 'a unique constraint', constraint: (name: string) => (t: any) => [unique(name).on(t.id)] },
 	{ name: 'an index', constraint: (name: string) => (t: any) => [index(name).on(t.id)] },
@@ -2029,7 +2034,10 @@ test.concurrent.for([
 	await push({ db, to: tables('key_a', 'key_b') });
 	const { sqlStatements: pst } = await push({ db, to: tables('key_b', 'key_c'), renames });
 
-	const st0 = ['ALTER INDEX "key_a" RENAME TO "key_b";', 'ALTER INDEX "dogs"@"key_b" RENAME TO "key_c";'];
+	const st0 = [
+		'ALTER INDEX "public"."cats"@"key_a" RENAME TO "key_b";',
+		'ALTER INDEX "public"."dogs"@"key_b" RENAME TO "key_c";',
+	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });

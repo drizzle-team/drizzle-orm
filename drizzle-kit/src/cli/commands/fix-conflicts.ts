@@ -3,8 +3,15 @@ import { rmSync } from 'fs';
 import { dirname } from 'path';
 import type { ParsedSnapshotInput } from '../../commutativity/engine';
 import type { NonCommutativityReport } from '../../commutativity/types';
-import { postgresCommutativity } from '../../dialects/postgres/commutativity';
-import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
+import type { Delta } from '../../dialects/dialect';
+
+// The fields of a delta-format snapshot that a conflict fix reads.
+export type FixableSnapshot = { id: string; prevIds: string[]; type: 'base' | 'diff'; deltas?: Delta[] };
+
+// What a conflict fix needs from a dialect: the check that it repeats on the remaining migrations.
+type ConflictChecker = {
+	detectNonCommutative: (snapshots: ParsedSnapshotInput<FixableSnapshot>[]) => Promise<NonCommutativityReport>;
+};
 
 // The migration folders that the conflict fix deletes, in folder-name order. `customMigrations` lists the
 // deleted custom migrations, that is the diff snapshots with no deltas, because the fix loses their SQL.
@@ -14,8 +21,9 @@ export type ConflictFix = { migrations: string[]; customMigrations: string[] };
 // `inputs`. The check reports one conflict for each pair of leaves, so the loop deletes the migrations of the
 // reported statements with all their children, and then checks the rest again.
 export const planConflictFix = async (
-	inputs: ParsedSnapshotInput<PostgresSnapshot>[],
+	inputs: ParsedSnapshotInput<FixableSnapshot>[],
 	report: NonCommutativityReport,
+	commutativity: ConflictChecker,
 ): Promise<ConflictFix> => {
 	const children = new Map<string, string[]>();
 	for (const { snapshot } of inputs) {
@@ -32,7 +40,7 @@ export const planConflictFix = async (
 			removed.add(id);
 			stack.push(...(children.get(id) ?? []));
 		}
-		({ conflicts } = await postgresCommutativity.detectNonCommutative(
+		({ conflicts } = await commutativity.detectNonCommutative(
 			inputs.filter((it) => !removed.has(it.snapshot.id)),
 		));
 	}
@@ -41,7 +49,7 @@ export const planConflictFix = async (
 	return {
 		migrations: deleted.map((it) => dirname(it.path)),
 		customMigrations: deleted
-			.filter(({ snapshot }) => snapshot.type === 'diff' && snapshot.deltas.length === 0)
+			.filter(({ snapshot }) => snapshot.type === 'diff' && (snapshot.deltas ?? []).length === 0)
 			.map((it) => dirname(it.path)),
 	};
 };

@@ -14,7 +14,7 @@ Flag surface:
 - `--dialect`, `--schema`, `--out` — override the corresponding `defineConfig` fields.
 - `--output json` — switches stdout to one JSON line carrying the envelope and is always non-interactive. Use it for agent / CI / scripted contexts. Under the default `--output text` the CLI prompts only on a TTY and otherwise prints the missing-decisions report (exit 2).
 - `--explain` — dry-run mode. Returns planned SQL statements and computed hints instead of writing a migration file. With `--fix-conflicts`, it deletes nothing, and the result also has `fix`: the folders that the fix would delete. It cannot be used with `--custom`, and `generate` rejects that pair with `unsupported_command_dialect_error`.
-- `--fix-conflicts` — postgresql only. When branches in the migrations folder conflict, deletes the conflicting migrations and their children, then generates one new migration. Over MCP, call the `fix_conflicts` tool instead. [migrations.md](migrations.md) explains when that is safe.
+- `--fix-conflicts` — postgresql and cockroach only. When branches in the migrations folder conflict, deletes the conflicting migrations and their children, then generates one new migration. Over MCP, call the `fix_conflicts` tool instead. [migrations.md](migrations.md) explains when that is safe.
 - `--hints` — inline JSON array of hint resolutions (see [hints.md](hints.md)).
 - `--hints-file` — same payload as `--hints`, read from a JSON file. Use for long hint sets.
 

@@ -223,17 +223,23 @@ export interface JsonRecreateFK {
 export interface JsonAddCheck {
 	type: 'add_check';
 	check: CheckConstraint;
+	// The columns that the CHECK expression names, so that a drop or a rename of one of them conflicts.
+	columns: string[];
 }
 
 export interface JsonDropCheck {
 	type: 'drop_check';
 	check: CheckConstraint;
+	columns: string[];
 }
 
 export interface JsonAlterCheck {
 	type: 'alter_check';
 	check: CheckConstraint;
 	diff: DiffEntities['checks'];
+	// The columns of the new expression, and the columns of the old one.
+	newColumns: string[];
+	oldColumns: string[];
 }
 
 export interface JsonAddPrimaryKey {
@@ -248,10 +254,13 @@ export interface JsonDropPrimaryKey {
 
 export interface JsonRenameConstraint {
 	type: 'rename_constraint';
+	entityType: 'pks' | 'checks' | 'fks';
 	schema: string;
 	table: string;
 	from: string;
 	to: string;
+	// The columns of the renamed constraint, so that a drop of one of them can conflict with the rename.
+	columns: string[];
 }
 
 export interface JsonAlterPrimaryKey {
@@ -289,7 +298,6 @@ export interface JsonAlterTableSetNewSchema {
 export interface JsonDropIndex {
 	type: 'drop_index';
 	index: Index;
-	isNameShared: boolean;
 }
 
 export interface JsonRenameIndex {
@@ -298,7 +306,8 @@ export interface JsonRenameIndex {
 	table: string;
 	from: string;
 	to: string;
-	isNameShared: boolean;
+	// The columns of the renamed index, so that a drop of one of them can conflict with the rename.
+	columns: string[];
 }
 
 export interface JsonRenameColumn {
