@@ -1,8 +1,8 @@
-import { defineRelations, eq, sql } from 'drizzle-orm';
+import { defineRelations, DrizzleQueryError, eq, sql } from 'drizzle-orm';
 import { relations as oldRels } from 'drizzle-orm/_relations';
 import { type AnyPgColumn, integer, pgTable, primaryKey, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import type { PostgresHttpDatabase, PostgresHttpQueryResult } from 'drizzle-orm/postgres/http';
-import { drizzle } from 'drizzle-orm/postgres/http/neon';
+import type { PostgresHttpQueryResult } from 'drizzle-orm/postgres/http';
+import { drizzle, type PostgresNeonHttpDatabase } from 'drizzle-orm/postgres/http/neon';
 import { describe, expect, expectTypeOf, test as base } from 'vitest';
 import { _push, preparePostgresNeonHttpClient } from './instrumentation';
 
@@ -119,7 +119,7 @@ export const relations = defineRelations(schema);
 
 const DATABASE = 'db6';
 
-const test = base.extend<{ db: PostgresHttpDatabase<typeof relations> }>({
+const test = base.extend<{ db: PostgresNeonHttpDatabase<typeof relations> }>({
 	db: [
 		// oxlint-disable-next-line no-empty-pattern
 		async ({}, use) => {
@@ -132,6 +132,16 @@ const test = base.extend<{ db: PostgresHttpDatabase<typeof relations> }>({
 		{ scope: 'file' },
 	],
 });
+
+const expectQueryError = (error: unknown, query: string, code: string) => {
+	expect(error).toBeInstanceOf(DrizzleQueryError);
+	expect((error as DrizzleQueryError).query).toBe(query);
+	expect((error as DrizzleQueryError).cause).toMatchObject({ code });
+};
+
+type Settled<T> = PromiseFulfilledResult<T> | { status: 'rejected'; reason: DrizzleQueryError };
+
+const orphanPost = { id: 1, content: 'orphan', ownerId: 9999 };
 
 describe('batch', () => {
 	test.beforeEach(async ({ db }) => {
@@ -504,4 +514,73 @@ describe('batch', () => {
 			db.batch([db.insert(usersTable).values({ id: 2, name: 'Nope' })], { readOnly: true }),
 		).rejects.toThrow(/read-only|read only/i);
 	});
+});
+
+describe('parallel', () => {
+	test.beforeEach(async ({ db }) => {
+		await db.execute(
+			`truncate table users, groups, users_to_groups, posts, comments, comment_likes RESTART IDENTITY CASCADE;`,
+		);
+	});
+
+	test('api example', async ({ db }) => {
+		await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }]);
+
+		const response = await db.parallel([
+			db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable).orderBy(usersTable.id),
+			db.insert(usersTable).values({ id: 3, name: 'Jane' }).returning({ id: usersTable.id }),
+			db.update(usersTable).set({ verified: 1 }).where(eq(usersTable.id, 1)),
+			db.query.usersTable.findFirst({ columns: { id: true, name: true }, where: { id: 2 } }),
+			db.execute<{ one: number }>(sql`select 1 as one`),
+		]);
+
+		expectTypeOf(response).toEqualTypeOf<[
+			Settled<{ id: number; name: string }[]>,
+			Settled<{ id: number }[]>,
+			Settled<PostgresHttpQueryResult<never>>,
+			Settled<{ id: number; name: string } | undefined>,
+			Settled<PostgresHttpQueryResult<{ one: number }>>,
+		]>();
+
+		expect(response.length).eq(5);
+		expect(response[0]).toEqual({
+			status: 'fulfilled',
+			value: [{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }],
+		});
+		expect(response[1]).toEqual({ status: 'fulfilled', value: [{ id: 3 }] });
+		expect(response[2]).toMatchObject({ status: 'fulfilled', value: { rows: [], rowCount: 1 } });
+		expect(response[3]).toEqual({ status: 'fulfilled', value: { id: 2, name: 'Dan' } });
+		expect(response[4]).toMatchObject({ status: 'fulfilled', value: { rows: [{ one: 1 }] } });
+
+		expect(
+			await db.select({ id: usersTable.id, verified: usersTable.verified }).from(usersTable).orderBy(usersTable.id),
+		).toEqual([
+			{ id: 1, verified: 1 },
+			{ id: 2, verified: 0 },
+			{ id: 3, verified: 0 },
+		]);
+	});
+
+	test('never rejects: failures come back as rejected entries, the rest still commit', async ({ db }) => {
+		const failing = db.insert(postsTable).values(orphanPost);
+		const response = await db.parallel([
+			failing,
+			db.execute(sql`select pg_sleep(0.2)`),
+			db.insert(usersTable).values({ id: 1, name: 'Survivor' }).returning({ id: usersTable.id }),
+			db.execute(sql`select 1/0`),
+		]);
+
+		expect(response.map((r) => r.status)).toEqual(['rejected', 'fulfilled', 'fulfilled', 'rejected']);
+		if (response[0].status === 'rejected') expectTypeOf(response[0].reason).toEqualTypeOf<DrizzleQueryError>();
+		expectQueryError(response[0].status === 'rejected' && response[0].reason, failing.toSQL().sql, '23503');
+		expect(response[2]).toEqual({ status: 'fulfilled', value: [{ id: 1 }] });
+		expectQueryError(response[3].status === 'rejected' && response[3].reason, 'select 1/0', '22012');
+
+		expect(await db.select({ name: usersTable.name }).from(usersTable)).toEqual([{ name: 'Survivor' }]);
+	});
+});
+
+test('no pipeline: Neon can only run a set inside a transaction', ({ db }) => {
+	expectTypeOf(db).not.toHaveProperty('pipeline');
+	expect('pipeline' in db).toBe(false);
 });

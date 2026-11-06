@@ -15,6 +15,7 @@ import {
 	encodeValueInto,
 	isRawParams,
 	type RawParams,
+	setTransactionSnapshotSql,
 } from './encode.ts';
 import { parseErrorFields, PgError } from './errors.ts';
 import { buildMapperFactory, isEvalAvailable, type RowMapper, type RowMapperFactory } from './mapper.ts';
@@ -2618,6 +2619,9 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		}
 		await this.query(beginClause(options));
 		try {
+			if (typeof options === 'object' && options.snapshot != null) {
+				await this.query(setTransactionSnapshotSql(options.snapshot));
+			}
 			const r = await fn(this);
 			await this.query('commit');
 			return r;

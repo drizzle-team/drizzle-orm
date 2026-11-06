@@ -46,6 +46,8 @@ export class PgError extends Error {
 	constraint?: string;
 	/** A cancel request for an earlier query in the pipeline most likely stopped this query. */
 	isLateCancel?: boolean;
+	/** Set by `batch()`: the position, in the set passed in, of the query that failed. */
+	failedQueryIndex?: number;
 	[k: string]: unknown;
 
 	constructor(fields: PgErrorFields) {

@@ -1,5 +1,5 @@
 import { client as createHttpClient } from '@drizzle-team/postgres/http';
-import { defineRelations, sql } from 'drizzle-orm';
+import { defineRelations, DrizzleQueryError, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
 import { postgresCodecs } from 'drizzle-orm/postgres/codecs';
 import { drizzle as drizzleHttp, type PostgresHttpDatabase } from 'drizzle-orm/postgres/http';
@@ -267,9 +267,11 @@ describe('migrator', () => {
 		mkdirSync(`${migrationDir}/20240202020202_bad`, { recursive: true });
 		writeFileSync(`${migrationDir}/20240202020202_bad/migration.sql`, 'CREATE TABLE "http_mig_ok" ("id" integer);');
 
-		await expect(migrate(db as any as PostgresHttpDatabase<any>, { migrationsFolder: migrationDir })).rejects.toThrow(
-			/already exists/i,
+		const error = await migrate(db as any as PostgresHttpDatabase<any>, { migrationsFolder: migrationDir }).catch((e) =>
+			e
 		);
+		expect(error).toBeInstanceOf(DrizzleQueryError);
+		expect((error as DrizzleQueryError).cause?.message).toMatch(/already exists/i);
 
 		const present = await db.execute<{ present: boolean }>(
 			sql`select to_regclass('public.http_mig_ok') is not null as present`,

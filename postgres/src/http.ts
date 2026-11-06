@@ -16,15 +16,13 @@
 import './buffer-polyfill.ts'; // MUST be first: installs Buffer on runtimes without it (no-op elsewhere)
 import { addBrand } from './brand.ts';
 import { buildDecoders, type CodegenCol, INSTANT_OIDS, tagArrayCol } from './decode.ts';
-import { encodeJsonParams } from './encode.ts';
+import { encodeJsonParams, setTransactionSnapshotSql } from './encode.ts';
 import { parseErrorFields, PgError } from './errors.ts';
 import { buildMapperFactory, type RowMapperFactory } from './mapper.ts';
 import { Parser, parseRowDescription, type RawMessage } from './protocol.ts';
 import type { ShapeMapper } from './shape.ts';
 import { mergeUnknownCols, type ParamType, resolveParamTypes, shapeCols, type ShapeSpec } from './spec.ts';
-import type { Decoder, Field, QueryResult, ResultMode } from './types.ts';
-
-type Isolation = 'serializable' | 'repeatable read' | 'read committed' | 'read uncommitted';
+import type { BatchOptions, Decoder, Field, QueryResult, ResultMode } from './types.ts';
 
 export interface HttpConfig {
 	/** The gateway's query endpoint, e.g. 'https://db.example.com/query'. */
@@ -65,16 +63,14 @@ export interface HttpBatchQuery {
 	shape?: ShapeSpec | ShapeMapper;
 }
 
-export interface HttpBatchOptions {
-	isolation?: Isolation;
-	readOnly?: boolean;
-	deferrable?: boolean;
+export type HttpBatchOptions = BatchOptions & {
 	timeout?: number;
 	signal?: AbortSignal;
-}
+};
 
 /** pipeline(): per-statement outcomes — statement i failed while the others committed (autocommit). */
-export type HttpPipelineResult = { status: 'fulfilled'; value: QueryResult } | { status: 'rejected'; reason: PgError };
+/** One statement's outcome from `pipeline()` — the same shape `parallel()` returns. */
+export type HttpPipelineResult = PromiseSettledResult<QueryResult>;
 
 // Transaction control never belongs in a statement: the GATEWAY owns the BEGIN…COMMIT boundary
 // (batch mode), and a smuggled COMMIT would end it early. Mirrors the gateway's own rejection.
@@ -375,20 +371,38 @@ export class HttpClient {
 			this.guard(q.sql);
 			return this.checkTypes(q.types, (q.params ?? []).length, q.sql);
 		});
+		// the snapshot import has to be the transaction's first statement: it rides as statement 0
+		const head = opts.snapshot != null ? [{ sql: setTransactionSnapshotSql(opts.snapshot), params: [] }] : [];
 		const body: Record<string, unknown> = {
 			mode: 'batch',
-			queries: queries.map((q, i) => ({
-				sql: q.sql,
-				params: encodeJsonParams(q.params ?? [], oids[i]),
-				...(q.types ? { types: q.types } : {}),
-			})),
+			queries: [
+				...head,
+				...queries.map((q, i) => ({
+					sql: q.sql,
+					params: encodeJsonParams(q.params ?? [], oids[i]),
+					...(q.types ? { types: q.types } : {}),
+				})),
+			],
 		};
 		if (opts.isolation) body.isolation = opts.isolation;
 		if (opts.readOnly != null) body.readOnly = opts.readOnly;
 		if (opts.deferrable != null) body.deferrable = opts.deferrable;
-		const { results, trailing } = this.split(await this.post(body, opts), queries.map((q) => q.sql));
-		const firstErr = results.find((r) => r.error)?.error ?? trailing; // stream order puts the root cause first (25P02s follow it)
-		if (firstErr) throw firstErr;
+		const sqls = [...head.map((q) => q.sql), ...queries.map((q) => q.sql)];
+		const split = this.split(await this.post(body, opts), sqls);
+		const { trailing } = split;
+		const results = split.results.slice(head.length);
+		// The snapshot import failing belongs to no query
+		const headError = split.results.slice(0, head.length).find((r) => r.error)?.error;
+		if (headError) throw headError;
+		// stream order puts the root cause first (25P02s follow it). A statement's error carries its index;
+		// a trailing one (COMMIT: deferred constraint, serializable 40001) belongs to no statement.
+		const failedQueryIndex = results.findIndex((r) => r.error);
+		if (failedQueryIndex !== -1) {
+			const err = results[failedQueryIndex]!.error!;
+			err.failedQueryIndex = failedQueryIndex;
+			throw err;
+		}
+		if (trailing) throw trailing;
 		if (results.length !== queries.length) {
 			throw new Error(
 				`@drizzle-team/postgres/http: ${queries.length} statements but ${results.length} results — refusing to mis-attribute`,
@@ -398,12 +412,12 @@ export class HttpClient {
 	}
 
 	/** Pipelined, NO transaction: each statement autocommits, so statement i can fail while the others
-	 *  committed — the full per-statement outcome array is returned (never a whole-call rejection for
-	 *  a statement error). */
+	 *  committed. Never rejects for a statement error: returns one `Promise.allSettled`-style outcome per
+	 *  statement, in input order — the same shape as `parallel()`. */
 	async pipeline(
 		queries: HttpBatchQuery[],
 		opts: { timeout?: number; signal?: AbortSignal } = {},
-	): Promise<HttpPipelineResult[]> {
+	): Promise<PromiseSettledResult<QueryResult>[]> {
 		const oids = queries.map((q) => {
 			this.guard(q.sql);
 			return this.checkTypes(q.types, (q.params ?? []).length, q.sql);
@@ -434,6 +448,26 @@ export class HttpClient {
 				return { status: 'rejected' as const, reason: e as PgError };
 			}
 		});
+	}
+
+	/** Concurrent, NO transaction: each statement is its OWN request (and autocommit), all in flight at
+	 *  once. Never rejects for a statement error: waits for every request and returns one
+	 *  `Promise.allSettled`-style outcome per statement, in input order. */
+	parallel(
+		queries: HttpBatchQuery[],
+		opts: { timeout?: number; signal?: AbortSignal } = {},
+	): Promise<PromiseSettledResult<QueryResult>[]> {
+		return Promise.allSettled(
+			queries.map((q) =>
+				this.query(q.sql, q.params ?? [], {
+					mode: q.mode,
+					shape: q.shape,
+					types: q.types,
+					timeout: opts.timeout,
+					signal: opts.signal,
+				})
+			),
+		);
 	}
 
 	/** No-op — HTTP holds no connection. Present for API symmetry. */

@@ -10,7 +10,7 @@ import { installVercelCompat, type VercelPoolSurface } from './compat/vercel.ts'
 import { type Connection, createPooledConnection, isUntrustedCertificate } from './connection.ts';
 import type { TxFn } from './connection.ts';
 import { Cursor, type CursorOptions } from './cursor.ts';
-import type { PoolConfig, QueryOptions, QueryResult, TxOptions } from './types.ts';
+import type { BatchOptions, PoolConfig, QueryOptions, QueryResult, TxOptions } from './types.ts';
 import { resolveUrl } from './url.ts';
 
 interface Waiter {
@@ -479,28 +479,36 @@ export class Pool {
 
 	/** Run a set of `query()` objects as ONE ATOMIC transaction on a single connection: BEGIN, pipeline
 	 *  them, COMMIT — or ROLLBACK and reject if ANY fails (all-or-nothing). Results in input order. Reach
-	 *  for pipeline() when the queries are independent (no atomicity), or parallel() to fan out. */
-	batch(queries: PoolQuery[]): Promise<QueryResult<never>[]> {
-		return this.begin((tx) => Promise.all(queries.map((q) => q.runOn(tx))));
+	 *  for pipeline() when the queries are independent (no atomicity), or parallel() to fan out.
+	 *  `options` configure the transaction, as for `begin(options, fn)` (isolation, readOnly, deferrable,
+	 *  snapshot).
+	 *  A query's own error carries `failedQueryIndex` (its position in `queries`); an error from BEGIN or
+	 *  COMMIT (e.g. a deferred constraint) belongs to no query and has none. */
+	batch(queries: PoolQuery[], options?: BatchOptions): Promise<QueryResult<never>[]> {
+		const run: TxFn<QueryResult<never>[]> = (tx) => Promise.all(queries.map((q, i) => runIndexed(q, tx, i)));
+		return options ? this.begin(options, run) : this.begin(run);
 	}
 
 	/** Pipeline a set of queries on ONE connection with NO transaction: sent back-to-back (~1 round trip),
-	 *  results in input order, each its OWN autocommit — a failure rejects that query but does NOT roll back
-	 *  the others (they've already committed). Use batch() when you need all-or-nothing atomicity. */
-	async pipeline(queries: PoolQuery[]): Promise<QueryResult<never>[]> {
+	 *  each its OWN autocommit — a failure does NOT roll back the others. Use batch() when you need
+	 *  all-or-nothing atomicity. Never rejects for a query error: waits for every query and resolves with one
+	 *  `Promise.allSettled`-style entry per query, in input order — the same shape as `parallel()`. */
+	async pipeline(queries: PoolQuery[]): Promise<PromiseSettledResult<QueryResult<never>>[]> {
 		const conn = await this.acquire();
 		try {
-			return await Promise.all(queries.map((q) => q.runOn(conn)));
+			return await Promise.allSettled(queries.map((q) => q.runOn(conn)));
 		} finally {
 			this.release(conn);
 		}
 	}
 
-	/** Run a set of queries concurrently, FANNED OUT across connections (parallel backends), results in
-	 *  input order. Best when queries are independent and you have connections to spare — parallelizes
-	 *  server-side execution, at the cost of N connections. */
-	parallel(queries: PoolQuery[]): Promise<QueryResult<never>[]> {
-		return Promise.all(queries); // each PoolQuery self-acquires its own connection
+	/** Run a set of queries concurrently, FANNED OUT across connections (parallel backends). Best when
+	 *  queries are independent and you have connections to spare — parallelizes server-side execution, at
+	 *  the cost of N connections. No atomicity, and it NEVER rejects: it waits for every query to settle and
+	 *  resolves with one `Promise.allSettled`-style entry per query, in input order — `{ status: 'fulfilled',
+	 *  value }` for a result or `{ status: 'rejected', reason }` for that query's error. */
+	parallel(queries: PoolQuery[]): Promise<PromiseSettledResult<QueryResult<never>>[]> {
+		return Promise.allSettled(queries); // each PoolQuery self-acquires its own connection
 	}
 
 	/** Batch-insert via unnest on one checked-out connection — see Connection.bulkInsert. */
@@ -612,6 +620,15 @@ export class Pool {
 }
 
 addBrand(Pool, 'Pool');
+
+function runIndexed(query: PoolQuery, conn: Connection, index: number): Promise<QueryResult<never>> {
+	return query.runOn(conn).catch((e: unknown) => {
+		if (typeof e === 'object' && e !== null && (e as { failedQueryIndex?: number }).failedQueryIndex === undefined) {
+			(e as { failedQueryIndex?: number }).failedQueryIndex = index;
+		}
+		throw e;
+	});
+}
 
 /** A lazy, awaitable query returned by `pool.query(...)`. Nothing runs until you `await` it, call
  *  `.execute()`, or pass it to `pool.batch(...)`. Execution is memoized — awaiting more than once runs

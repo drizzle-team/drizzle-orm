@@ -194,6 +194,60 @@ describe('@drizzle-team/postgres/neon-http: column plan + param encoding (offlin
 		expect(r.rows[0]).toEqual({ count: 2, j: { k: 1 }, tags: ['a', 'b'] });
 	});
 
+	test('@drizzle-team/postgres/neon-http: parallel sends one request per statement and settles every one', async () => {
+		const calls: string[] = [];
+		const fetchImpl = (async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+			const { query } = JSON.parse(init!.body as string) as { query: string };
+			calls.push(query);
+			if (query === 'bad') throw new TypeError('network down');
+			const fields = [{ name: query, dataTypeID: 23 }];
+			return new Response(JSON.stringify({ command: 'SELECT', rowCount: 1, fields, rows: [['7']] }), {
+				status: 200,
+				headers: { 'Content-Type': 'application/json' },
+			});
+		}) as typeof fetch;
+		const db = neonClient({ url: 'postgres://u:p@ep-x.region.aws.neon.tech/db', fetch: fetchImpl });
+		const rs = await db.parallel([{ sql: 'a', mode: 'object' }, { sql: 'bad' }, { sql: 'c', mode: 'object' }]);
+		expect(calls.sort()).toEqual(['a', 'bad', 'c']);
+		expect(rs.map((r) => r.status)).toEqual(['fulfilled', 'rejected', 'fulfilled']);
+		expect((rs[0] as PromiseFulfilledResult<{ rows: unknown[] }>).value.rows).toEqual([{ a: 7 }]);
+		expect(((rs[1] as PromiseRejectedResult).reason as Error).message).toBe('network down');
+		expect((rs[2] as PromiseFulfilledResult<{ rows: unknown[] }>).value.rows).toEqual([{ c: 7 }]);
+	});
+
+	test('@drizzle-team/postgres/neon-http: transaction snapshot rides first, its result is dropped', async () => {
+		const sent: { headers: Record<string, string>; queries: { query: string }[] }[] = [];
+		const fetchImpl = (async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+			const { queries } = JSON.parse(init!.body as string) as { queries: { query: string }[] };
+			sent.push({ headers: init!.headers as Record<string, string>, queries });
+			const results = queries.map((q, i) => ({
+				command: i === 0 ? 'SET' : 'SELECT',
+				rowCount: i === 0 ? null : 1,
+				fields: i === 0 ? [] : [{ name: 'n', dataTypeID: 23 }],
+				rows: i === 0 ? [] : [[String(i)]],
+			}));
+			return new Response(JSON.stringify({ results }), {
+				status: 200,
+				headers: { 'Content-Type': 'application/json' },
+			});
+		}) as typeof fetch;
+		const db = neonClient({ url: 'postgres://u:p@ep-x.region.aws.neon.tech/db', fetch: fetchImpl });
+		const rs = await db.transaction([{ sql: 'select 1 as n', mode: 'object' }, {
+			sql: 'select 2 as n',
+			mode: 'object',
+		}], {
+			snapshot: "00000003-0000001B-1'",
+			isolation: 'repeatable read',
+		});
+		expect(rs.map((r) => r.rows) as unknown).toEqual([[{ n: 1 }], [{ n: 2 }]]);
+		expect(sent[0]!.queries.map((q) => q.query)).toEqual([
+			"set transaction snapshot '00000003-0000001B-1'''",
+			'select 1 as n',
+			'select 2 as n',
+		]);
+		expect(sent[0]!.headers['Neon-Batch-Isolation-Level']).toBe('RepeatableRead');
+	});
+
 	test('@drizzle-team/postgres/neon-http: array params are array literals', async () => {
 		const { db, calls } = neonStub([{ name: 'n', dataTypeID: 23 }], [['1']]);
 		await db.query('select $1', [['abc', 'def']]);
