@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-pulse",
-	"version": "0.5.0",
+	"version": "0.6.0",
 	"description": "Type-safe realtime SDK for Drizzle",
 	"type": "module",
 	"license": "Apache-2.0",
@@ -77,11 +77,9 @@
 		"verify:publish": "pnpm lint:publish && pnpm check:types && node scripts/pack-check.mjs"
 	},
 	"peerDependencies": {
-		"@drizzle-team/postgres": ">=0.4.0",
-		"drizzle-orm": "^1.0.0-rc.5",
+		"drizzle-orm": "^1.0.0-rc.6",
 		"hono": "^4.6.0",
-		"react": ">=18.0.0",
-		"zod": "^4.0.0"
+		"react": ">=18.0.0"
 	},
 	"peerDependenciesMeta": {
 		"hono": {

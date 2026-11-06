@@ -1,3 +1,4 @@
+# drizzle-pulse-publish.yml calls this workflow as its release gate.
 name: drizzle-pulse CI
 
 on:
@@ -24,6 +25,7 @@ on:
       - 'drizzle-orm/tsconfig.json'
       - 'tsconfig.json'
       - '.github/workflows/drizzle-pulse-ci.yml'
+  workflow_call:
 
 permissions:
   contents: read
