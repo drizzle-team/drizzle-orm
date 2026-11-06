@@ -69,7 +69,7 @@ export class PulseRegistry<TQueries extends AnyPulseBuilders> {
 			args,
 			auth,
 		}) ?? null;
-		const { queryFn, ...rest } = registryQuery;
+		const { queryFn: _queryFn, ...rest } = registryQuery;
 		return { ...rest, where };
 	}
 }

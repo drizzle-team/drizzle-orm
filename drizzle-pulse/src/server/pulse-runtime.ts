@@ -478,7 +478,7 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 	}
 
 	async stop(): Promise<void> {
-		for (const listener of [...this.stopListeners]) {
+		for (const listener of Array.from(this.stopListeners)) {
 			try {
 				listener();
 			} catch (err) {
@@ -852,7 +852,7 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 
 	private async handleFatal(error: Error): Promise<void> {
 		this.logError('Replication failed permanently:', error);
-		for (const listener of [...this.terminalErrorListeners]) {
+		for (const listener of Array.from(this.terminalErrorListeners)) {
 			try {
 				listener(error);
 			} catch (err) {

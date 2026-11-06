@@ -4,7 +4,7 @@ import type { ResolvedPulseQuery } from '../types.js';
 import { buildWhereClausePredicate } from './drizzle-utils.js';
 import { getQueryColumnKey } from './pulse-types.js';
 
-// biome-ignore lint/suspicious/noExplicitAny: any pg driver
+// The second argument is any so that every pg driver is accepted.
 export type PulseSourceDb = PgAsyncDatabase<PgQueryResultHKT, any>;
 
 type SelectQueryConfig = Pick<

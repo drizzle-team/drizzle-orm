@@ -51,7 +51,7 @@ export function usePulseQuery<TResult extends WithPk<Record<string, unknown>>>(
 		void queryRef.current.loadMore();
 	}, []);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies(descriptorKey): a new descriptor identity must produce a new callback so the effect below destroys and re-creates the subscription
+	// descriptorKey is a dependency on purpose: a new descriptor identity must produce a new callback so the effect below destroys and re-creates the subscription
 	const initializeSubscription = useCallback(() => {
 		const query = new PulseQuery<TResult>(descriptorRef.current, {
 			onStateChange: (nextState) => {

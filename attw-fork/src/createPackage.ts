@@ -1,5 +1,4 @@
 /* eslint-disable unicorn/no-array-callback-reference */
-/* eslint-disable drizzle-internal/require-entity-kind */
 import { untar } from '@andrewbranch/untar.js';
 import { Gunzip } from 'fflate';
 import { major, maxSatisfying, minor, valid, validRange } from 'semver';

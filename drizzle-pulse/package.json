@@ -74,9 +74,7 @@
 		"test:integration": "cd tests && DATABASE_URL=\"${DATABASE_URL:-postgresql://postgres:postgres@localhost:5433/postgres}\" bun test --timeout 20000",
 		"lint:publish": "publint --strict",
 		"check:types": "attw --pack --profile esm-only",
-		"verify:publish": "pnpm lint:publish && pnpm check:types && node scripts/pack-check.mjs",
-		"lint:biome": "biome ci .",
-		"format:biome": "biome format --write ."
+		"verify:publish": "pnpm lint:publish && pnpm check:types && node scripts/pack-check.mjs"
 	},
 	"peerDependencies": {
 		"@drizzle-team/postgres": ">=0.4.0",
@@ -98,7 +96,6 @@
 	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.18.4",
-		"@biomejs/biome": "2.4.4",
 		"@drizzle-team/postgres": "workspace:*",
 		"@types/node": "^20.11.30",
 		"@types/pg": "8.15.6",

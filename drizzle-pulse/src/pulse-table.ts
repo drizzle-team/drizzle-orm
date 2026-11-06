@@ -83,7 +83,6 @@ export class PulseTable<TTable extends PgTable = PgTable> {
 	query(
 		fn?: (
 			ctx: PulseQueryContext<
-				// biome-ignore lint/suspicious/noExplicitAny: permissive collection-level args, see comment above
 				any,
 				InferSelectModel<TTable>
 			>,

@@ -50,7 +50,6 @@ const table = pgTable('test', {
 	}),
 });
 
-// oxlint-disable-next-line unicorn/no-useless-undefined
 const returnUndefined = () => undefined;
 
 const renderDialect = new PgDialect();

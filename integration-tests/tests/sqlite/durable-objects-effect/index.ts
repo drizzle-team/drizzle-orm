@@ -343,7 +343,6 @@ const setupAggregateFunctionsTest = (db: Db) =>
 		]);
 	});
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
 export class MyDurableObject extends DurableObject {
 	private db!: Db;
 	private runtime!: ManagedRuntime.ManagedRuntime<
