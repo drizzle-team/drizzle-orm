@@ -34,6 +34,7 @@ function buildPulseQuery(query: AnyPulseBuilder): PulseRegistryQuery {
 	};
 }
 
+// oxlint-disable-next-line drizzle-internal/require-entity-kind -- Pulse classes are not Drizzle entities.
 export class PulseRegistry<TQueries extends AnyPulseBuilders> {
 	readonly $client!: PulseClientContract<TQueries>;
 	private readonly pulseQueries: Record<string, PulseRegistryQuery>;
@@ -69,7 +70,7 @@ export class PulseRegistry<TQueries extends AnyPulseBuilders> {
 			args,
 			auth,
 		}) ?? null;
-		const { queryFn, ...rest } = registryQuery;
+		const { queryFn: _queryFn, ...rest } = registryQuery;
 		return { ...rest, where };
 	}
 }

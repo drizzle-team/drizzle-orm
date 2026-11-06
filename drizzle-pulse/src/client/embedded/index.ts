@@ -47,6 +47,7 @@ type AnyRow = TapRow;
 // PulseCollection — a full-set merge core fed tap-direct (no HTTP wire protocol).
 // ---------------------------------------------------------------------------
 
+// oxlint-disable-next-line drizzle-internal/require-entity-kind -- Pulse classes are not Drizzle entities.
 export class PulseCollection<TRow> {
 	private disposed = false;
 	private readonly onChangeListeners = new Set<(change: PulseCollectionChange<TRow>) => void>();
@@ -124,12 +125,12 @@ export function createPulseClient<TQueries extends AnyPulseBuilders>(
 ): EmbeddedPulseClient<TQueries> {
 	return new Proxy({} as EmbeddedPulseClient<TQueries>, {
 		get(_target, prop: string | symbol) {
-			if (typeof prop !== 'string') return undefined;
+			if (typeof prop !== 'string') return;
 			// Returning a function for `then` makes the proxy an accidental thenable:
 			// `await client` / `Promise.resolve(client)` would invoke `then(resolve, reject)`,
 			// which resolves to the "Unknown query" rejection of an ignored promise instead of
 			// settling the awaiting promise — a silent hang rather than a throw.
-			if (prop === 'then') return undefined;
+			if (prop === 'then') return;
 			// async so every failure — unknown query, stopped runtime, args validation inside
 			// resolve() — surfaces as a rejection of the returned promise, never a sync throw.
 			return async (...callArgs: unknown[]) => {

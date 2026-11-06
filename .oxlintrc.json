@@ -108,7 +108,7 @@
 			}
 		},
 		{
-			"files": ["postgres/**/*"],
+			"files": ["postgres/**/*", "drizzle-pulse/**/*"],
 			"rules": {
 				"eqeqeq": ["error", "always", { "null": "ignore" }],
 				"drizzle-internal/require-entity-kind": "off",
@@ -118,7 +118,6 @@
 		}
 	],
 	"ignorePatterns": [
-		"drizzle-pulse",
 		"node_modules",
 		"dist",
 		"dist-dts",

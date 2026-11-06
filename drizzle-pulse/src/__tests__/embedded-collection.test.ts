@@ -46,7 +46,7 @@ describe('embedded client — user-facing error paths', () => {
 
 	test('an unknown query name rejects', async () => {
 		const runtime = makeMockRuntime();
-		runtime.registry = { ...runtime.registry, getPulseQuery: () => undefined };
+		runtime.registry = { ...runtime.registry, getPulseQuery: () => void 0 };
 		const client = makeClient(runtime);
 		await expect(client.nope()).rejects.toThrow('Unknown query: "nope"');
 	});
