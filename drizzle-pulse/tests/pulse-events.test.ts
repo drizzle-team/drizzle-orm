@@ -97,7 +97,7 @@ describe('createPulseEvents', () => {
 		expect(log[0]!.event.pk).toBe(inserted!.id);
 		expect(log[0]!.lsn).toMatch(LSN_PATTERN);
 
-		// UPDATE out of filter (accepted -> completed): matchesNew=false
+		// UPDATE out of filter (accepted -> completed): the row leaves the result
 		await processDbOperations([
 			db.update(orders).set({ status: 'completed' }).where(eq(orders.id, inserted!.id)),
 		]);
@@ -106,9 +106,8 @@ describe('createPulseEvents', () => {
 			EVENTS_WAIT_FOR_TIMEOUT_MS,
 			EVENTS_WAIT_FOR_POLL_INTERVAL_MS,
 		);
-		expect(log[1]!.event.op).toBe('update');
-		expect(log[1]!.event.matchesNew).toBe(false);
-		expect(log[1]!.event.old_row.id).toBe(inserted!.id);
+		expect(log[1]!.event.op).toBe('delete');
+		expect(log[1]!.event.oldRow.id).toBe(inserted!.id);
 
 		// A second matching row, then delete it.
 		const { results: r2 } = await processDbOperations([
@@ -280,11 +279,15 @@ describe('createPulseEvents', () => {
 	});
 
 	test('the .limit() and .transform() queries throw synchronously at subscription creation', () => {
-		const events = createPulseEvents(runtime);
-		expect(() => events.ordersByStatusLimited({ status: 'accepted' }, () => {})).toThrow(
+		// The types already hide these queries, so the cast reaches them the way untyped JavaScript would.
+		const events = createPulseEvents(runtime) as unknown as Record<
+			string,
+			(args: unknown, callback: () => void) => () => void
+		>;
+		expect(() => events['ordersByStatusLimited']!({ status: 'accepted' }, () => {})).toThrow(
 			/\.limit\(\)/,
 		);
-		expect(() => events.ordersByStatusTransformed({ status: 'accepted' }, () => {})).toThrow(
+		expect(() => events['ordersByStatusTransformed']!({ status: 'accepted' }, () => {})).toThrow(
 			/\.transform\(\)/,
 		);
 	});

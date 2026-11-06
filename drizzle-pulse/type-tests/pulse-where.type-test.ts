@@ -1,6 +1,5 @@
 import { expectTypeOf } from 'bun:test';
-import { pulse } from '../src/index.js';
-import type { PulseBuilder } from '../src/server/pulse-builder.js';
+import { pulse, type PulseBuilder } from '../src/index.js';
 import { driverSchema, orders as typeTestOrders, statusSchema } from './fixtures.js';
 
 type TypeTestOrderRow = {
@@ -91,6 +90,7 @@ expectTypeOf(filteredQuery).toEqualTypeOf<
 		typeof typeTestOrders,
 		Record<never, boolean>,
 		{ status: TypeTestOrderStatus },
+		{ status: TypeTestOrderStatus },
 		TypeTestOrderRow
 	>
 >();
@@ -98,6 +98,7 @@ expectTypeOf(operatorFilterQuery).toEqualTypeOf<
 	PulseBuilder<
 		typeof typeTestOrders,
 		Record<never, boolean>,
+		Record<never, never>,
 		Record<never, never>,
 		TypeTestOrderRow
 	>
@@ -107,6 +108,7 @@ expectTypeOf(equalityOperatorFilterQuery).toEqualTypeOf<
 		typeof typeTestOrders,
 		Record<never, boolean>,
 		Record<never, never>,
+		Record<never, never>,
 		TypeTestOrderRow
 	>
 >();
@@ -114,6 +116,7 @@ expectTypeOf(boundedOperatorFilterQuery).toEqualTypeOf<
 	PulseBuilder<
 		typeof typeTestOrders,
 		Record<never, boolean>,
+		Record<never, never>,
 		Record<never, never>,
 		TypeTestOrderRow
 	>
@@ -123,6 +126,7 @@ expectTypeOf(deepLogicalFilterQuery).toEqualTypeOf<
 		typeof typeTestOrders,
 		Record<never, boolean>,
 		Record<never, never>,
+		Record<never, never>,
 		TypeTestOrderRow
 	>
 >();
@@ -130,6 +134,7 @@ expectTypeOf(logicalFilterQuery).toEqualTypeOf<
 	PulseBuilder<
 		typeof typeTestOrders,
 		Record<never, boolean>,
+		Record<never, never>,
 		Record<never, never>,
 		TypeTestOrderRow
 	>
@@ -139,6 +144,7 @@ expectTypeOf(notFilterQuery).toEqualTypeOf<
 		typeof typeTestOrders,
 		Record<never, boolean>,
 		Record<never, never>,
+		Record<never, never>,
 		TypeTestOrderRow
 	>
 >();
@@ -147,6 +153,7 @@ expectTypeOf(argsDrivenFilterQuery).toEqualTypeOf<
 		typeof typeTestOrders,
 		Record<never, boolean>,
 		{ driverId: number },
+		{ driverId: number },
 		TypeTestOrderRow
 	>
 >();
@@ -154,6 +161,7 @@ expectTypeOf(nullableColumnFilterQuery).toEqualTypeOf<
 	PulseBuilder<
 		typeof typeTestOrders,
 		Record<never, boolean>,
+		Record<never, never>,
 		Record<never, never>,
 		TypeTestOrderRow
 	>

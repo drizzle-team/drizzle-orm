@@ -2,9 +2,9 @@
  * Integration proof: bootstrap() self-provisions the publication for both pull modes.
  * PulseRuntime.provision() (the same bootstrap path start() runs, minus the replication stream)
  * creates the publication owning exactly the registered sources and keeps its membership in
- * sync (adding new sources, un-pulsing removed ones). REPLICA IDENTITY handling is mode-
- * independent: FULL is forced on every registered source, restored after drift, and reset to
- * DEFAULT on un-pulse. Each scenario builds its own standalone database and drops it in a
+ * sync (adding new sources, un-pulsing removed ones). start() only adds members. REPLICA
+ * IDENTITY handling is mode-independent: FULL is forced on every registered source, restored
+ * after drift, and reset to DEFAULT on un-pulse. Each scenario builds its own standalone database and drops it in a
  * finally block, so the publication/schema it creates go with the database.
  */
 
@@ -12,6 +12,7 @@ import { describe, expect, test } from 'bun:test';
 import { integer, pgTable, serial } from 'drizzle-orm/pg-core';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { pulse } from 'drizzle-pulse';
+import { createRuntime, provision } from 'drizzle-pulse/embedded';
 import { createPulseRegistry, LogLevel, PulseRuntime } from 'drizzle-pulse/server';
 import postgres from 'postgres';
 import { orders } from './fixtures/minimal-orders/schema.js';
@@ -239,6 +240,63 @@ describe('bootstrap: publication + replica identity self-provisioning', () => {
 			await s.sql.unsafe('ALTER TABLE "orders" REPLICA IDENTITY USING INDEX "orders_status_uq"');
 			await makeRuntime(s, 'identconv2', 'orders', false).provision();
 			expect(await replicaIdentity(s.sql, 'orders')).toBe('f');
+		} finally {
+			await teardown(s);
+		}
+	});
+
+	test('start() adds its tables but keeps the members that another runtime added', async () => {
+		const s = await setupBareScenario('nostartprune');
+		const pubName = 'pulse_pub_nostartprune';
+		try {
+			await provision({
+				queries: { orders: pulse(orders).query(), extras: pulse(extras).query() },
+				databaseUrl: s.databaseUrl,
+				wal: { publicationName: pubName },
+			});
+			await s.sql.unsafe(`ALTER PUBLICATION ${pubName} DROP TABLE "orders"`);
+
+			const runtime = createRuntime({
+				queries: { orders: pulse(orders).query() },
+				databaseUrl: s.databaseUrl,
+				sourceDb: drizzle({ client: s.sourceSql }),
+				wal: { publicationName: pubName, slotName: 'pulse_slot_nostartprune' },
+				logLevel: LogLevel.Error,
+			});
+			try {
+				await runtime.start();
+			} finally {
+				await runtime.stop();
+			}
+
+			expect(await members(s.sql, pubName)).toEqual(['public.extras', 'public.orders']);
+			expect(await replicaIdentity(s.sql, 'extras')).toBe('f');
+		} finally {
+			await teardown(s);
+		}
+	});
+
+	test('standalone provision() drops the tables that are no longer registered', async () => {
+		const s = await setupBareScenario('standalone');
+		const pubName = 'pulse_pub_standalone';
+		try {
+			await provision({
+				queries: { orders: pulse(orders).query(), extras: pulse(extras).query() },
+				databaseUrl: s.databaseUrl,
+				wal: { publicationName: pubName },
+			});
+			expect(await members(s.sql, pubName)).toEqual(['public.extras', 'public.orders']);
+			expect(await replicaIdentity(s.sql, 'extras')).toBe('f');
+
+			await provision({
+				queries: { orders: pulse(orders).query() },
+				databaseUrl: s.databaseUrl,
+				wal: { publicationName: pubName },
+			});
+
+			expect(await members(s.sql, pubName)).toEqual(['public.orders']);
+			expect(await replicaIdentity(s.sql, 'orders')).toBe('f');
+			expect(await replicaIdentity(s.sql, 'extras')).not.toBe('f');
 		} finally {
 			await teardown(s);
 		}

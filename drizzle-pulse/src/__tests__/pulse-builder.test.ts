@@ -206,9 +206,16 @@ describe('pulse(table) — collection-first construction', () => {
 	});
 
 	test('pulse(table).query(fn) seeds queryFn directly (collection-level spelling)', () => {
-		const query = pulse(testTable).query((ctx) => ctx.query({ status: ctx.args.status }));
+		const query = pulse(testTable).query((ctx) => ctx.query({ status: 'active' }));
 		expect(query).toBeInstanceOf(PulseBuilder);
 		expect(query.config.queryFn).toBeDefined();
+	});
+
+	test('.args() after a where-function throws', () => {
+		const query = pulse(testTable).query((ctx) => ctx.query({ status: 'active' }));
+		expect(() => query.args(z.object({ status: z.string() }))).toThrow(
+			'.args() must come before .query(fn)',
+		);
 	});
 
 	test('pulse(table).query() rejects a table with a composite (multi-column) primary key', () => {
@@ -294,7 +301,8 @@ describe('createPulseRegistry — derived-queries-only contract', () => {
 		// Collection-level spelling: no `.args()` is ever chained, matching the pattern
 		// pulse-table.ts's doc-comment describes and the one flagged as unsafe.
 		const registry = createPulseRegistry({
-			ordersByTenant: pulse(testTable).query((ctx) => ctx.query({ status: ctx.args.status })),
+			// The cast reads args the way untyped JavaScript would.
+			ordersByTenant: pulse(testTable).query((ctx) => ctx.query({ status: (ctx.args as { status?: string }).status })),
 		});
 
 		// Attacker-controlled JSON straight off an HTTP body, shaped as an operator

@@ -1,7 +1,7 @@
 import { asc, desc } from 'drizzle-orm';
 import type { PgAsyncDatabase, PgQueryResultHKT, PgTable } from 'drizzle-orm/pg-core';
+import { buildWhereClausePredicate } from '../shared/drizzle-utils.js';
 import type { ResolvedPulseQuery } from '../types.js';
-import { buildWhereClausePredicate } from './drizzle-utils.js';
 import { getQueryColumnKey } from './pulse-types.js';
 
 // The second argument is any so that every pg driver is accepted.

@@ -15,9 +15,9 @@ import type {
 	SubscribeResponse,
 } from '../shared/protocol-types.js';
 
+import { buildWhereClausePredicate } from '../shared/drizzle-utils.js';
 import type { PulseAuthContext, PulseWireEvent, ResolvedPulseQuery, WhereClause } from '../types.js';
 import { formatCursor, parseCursor } from './cursor.js';
-import { buildWhereClausePredicate } from './drizzle-utils.js';
 import type { AnyPulseBuilders, PulseRegistry } from './pulse-registry.js';
 import type { PulseSourceDb } from './pulse-sql.js';
 import { buildSelectQuery } from './pulse-sql.js';

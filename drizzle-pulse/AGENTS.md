@@ -186,7 +186,6 @@ type EmbeddedPulseClient, EmbeddedPulseEvents
 type PulseCollectionOptions, PulseCollectionChange, PulseRow
 type PulseEventsCallback, PulseEventsOptions
 type PulseEvent, PulseInsertEvent, PulseUpdateEvent, PulseDeleteEvent
-type PulseAuthContext
 ```
 
 `buildEventsTable` moved off the root (its only cross-package consumer, drizzle-kit, is gone) and

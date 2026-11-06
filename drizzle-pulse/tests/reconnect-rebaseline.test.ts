@@ -180,9 +180,10 @@ describe('Reconnect rebaseline', () => {
 			// observes exactly what the stream delivers, when it delivers it.
 			const events = createPulseEvents(runtime);
 			let delivered = 0;
+			let resyncs = 0;
 			const unsubFeed = events.ordersByStatus({ status: 'accepted' }, () => {
 				delivered++;
-			});
+			}, { onResync: () => resyncs++ });
 
 			await scenario.sql.unsafe(
 				`INSERT INTO "orders" (driver_id, status, price) VALUES (1, 'accepted', 10)`,
@@ -231,6 +232,8 @@ describe('Reconnect rebaseline', () => {
 			expect(epochAfter).not.toBe(epochBefore);
 
 			expect(terminalError).toBeNull();
+			// The recreated slot cannot replay the outage, so the CDC event stream is told once.
+			expect(resyncs).toBe(1);
 
 			// Delivery resumes once the stream opens.
 			await scenario.sql.unsafe(

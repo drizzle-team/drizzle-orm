@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { getColumns } from 'drizzle-orm';
 import { integer, PgDialect, pgTable, serial, text } from 'drizzle-orm/pg-core';
-import { buildWhereClausePredicate } from '../server/drizzle-utils.js';
+import { buildWhereClausePredicate } from '../shared/drizzle-utils.js';
 import type { WhereClause } from '../types.js';
 
 const ordersTable = pgTable('orders', {

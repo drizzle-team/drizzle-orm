@@ -134,7 +134,7 @@ describe('Embedded Collection', () => {
 		expect(changes[0]!.state).toBe(collection.list());
 		expect(collection.list()).toHaveLength(1);
 
-		// UPDATE out of filter (accepted -> completed): matchesNew=false
+		// UPDATE out of filter (accepted -> completed): the row leaves the result
 		await processDbOperations([
 			db.update(orders).set({ status: 'completed' }).where(eq(orders.id, inserted!.id)),
 		]);
@@ -145,8 +145,8 @@ describe('Embedded Collection', () => {
 			COLLECTION_WAIT_FOR_POLL_INTERVAL_MS,
 		);
 		const updateEvt = changes[1]!.events[0];
-		expect(updateEvt.op).toBe('update');
-		expect(updateEvt.matchesNew).toBe(false);
+		expect(updateEvt.op).toBe('delete');
+		expect(updateEvt.oldRow.id).toBe(inserted!.id);
 		expect(changes[1]!.lsn).toMatch(LSN_PATTERN);
 		expect(collection.list()).toHaveLength(0);
 		expect(changes[1]!.state).toBe(collection.list());
@@ -265,8 +265,9 @@ describe('Embedded Collection', () => {
 	// The registry keeps a `.limit(2)` query definition precisely so this rejection
 	// is exercised against a real runtime, not just unit-mocked.
 	test('embedded collections reject .limit() queries at creation', async () => {
-		const client = createPulseClient(runtime);
-		await expect(client.ordersByStatusLimited({ status: 'accepted' })).rejects.toThrow(
+		// The types already hide this query, so the cast reaches it the way untyped JavaScript would.
+		const client = createPulseClient(runtime) as unknown as Record<string, (args: unknown) => Promise<unknown>>;
+		await expect(client['ordersByStatusLimited']!({ status: 'accepted' })).rejects.toThrow(
 			/\.limit\(\)/,
 		);
 	});

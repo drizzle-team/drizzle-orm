@@ -76,22 +76,16 @@ export class PulseTable<TTable extends PgTable = PgTable> {
 	constructor(readonly table: TTable) {}
 
 	/**
-	 * `ctx.args` is `any` here so `pulse(t).query(({ args }) => ...)` can read args before a
-	 * schema is chained; runtime-safe because `resolve()` substitutes `{}` for a schemaless
-	 * query. For fully-typed args, chain `pulse(t).args(schema).query(fn)`.
+	 * Starts a builder chain, optionally with the where-function. `ctx.args` is empty here; to
+	 * read typed arguments, chain `pulse(t).args(schema).query(fn)`.
 	 */
 	query(
-		fn?: (
-			ctx: PulseQueryContext<
-				any,
-				InferSelectModel<TTable>
-			>,
-		) => WhereClause | null,
+		fn?: (ctx: PulseQueryContext<Record<never, never>, InferSelectModel<TTable>>) => WhereClause | null,
 	): PulseBuilder<
 		TTable,
 		Record<never, boolean>,
 		Record<never, never>,
-		ColumnsSelection<TTable, Record<never, boolean>>
+		Record<never, never>
 	> {
 		const columns = getColumns(this.table);
 		const pkColumn = getPulsePkColumn(this.table);
@@ -118,8 +112,8 @@ export class PulseTable<TTable extends PgTable = PgTable> {
 		return new PulseBuilder(config);
 	}
 
-	/** Start a builder chain with a typed args schema — `pulse(t).args(schema).query(fn)`. */
-	args<TNewArgs>(schema: z.ZodType<TNewArgs>) {
+	/** Starts a builder chain with a typed arguments schema: `pulse(t).args(schema).query(fn)`. */
+	args<TSchema extends z.ZodType>(schema: TSchema) {
 		return this.query().args(schema);
 	}
 

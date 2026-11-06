@@ -1,3 +1,4 @@
+export { QueryDescriptor } from '../types.js';
 export { createPulseClient } from './create-client.js';
 export {
 	type CreatePulseQueryOptions,
