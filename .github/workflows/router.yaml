@@ -110,3 +110,15 @@ jobs:
       TURSO_ORG: ${{ secrets.TURSO_ORG }}
       TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
       TURSO_GROUP: ${{ secrets.TURSO_GROUP }}
+
+  # Branch protection requires only this job. It waits for every job in the called workflows,
+  # so new jobs there need no settings change. A skipped job counts as a pass, because the
+  # router skips one of the two pipelines on every run and skips stacked PRs below the top one.
+  ci-passed:
+    needs: [switch, run-feature, run-latest]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fail if a pipeline job failed or was canceled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
