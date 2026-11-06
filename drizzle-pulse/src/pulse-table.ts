@@ -1,10 +1,10 @@
 import type { InferModelFromColumns, InferSelectModel } from 'drizzle-orm';
 import { getColumns } from 'drizzle-orm';
 import { getTableConfig, type PgColumn, type PgTable } from 'drizzle-orm/pg-core';
-import type { z } from 'zod';
 import { PulseBuilder } from './server/pulse-builder.js';
 import type { ColumnsSelection, PulseQueryConfig, PulseQueryContext, QueryFn } from './server/pulse-types.js';
 import { getQualifiedTableName } from './shared/qualified-table-name.js';
+import type { StandardSchemaV1 } from './shared/standard-schema.js';
 import type { WhereClause } from './types.js';
 
 const SUPPORTED_PK_SQL_TYPES = new Set([
@@ -72,27 +72,34 @@ export function getPulsePkColumn(table: PgTable): PgColumn {
 	return pkColumn;
 }
 
+type AllRowsQuery<TTable extends PgTable> = PulseBuilder<
+	TTable,
+	Record<never, boolean>,
+	Record<never, never>,
+	Record<never, never>
+>;
+
+/**
+ * A Pulse table is also the query for all rows of the table, so it can be passed to the
+ * runtime as is. Each chain call returns a new query definition and leaves the table unchanged.
+ */
 export class PulseTable<TTable extends PgTable = PgTable> {
+	readonly _!: AllRowsQuery<TTable>['_'];
+
 	constructor(readonly table: TTable) {}
 
+	/** @internal The primary key is checked here, when the runtime reads the query. */
+	get config(): AllRowsQuery<TTable>['config'] {
+		return this.query().config;
+	}
+
 	/**
-	 * `ctx.args` is `any` here so `pulse(t).query(({ args }) => ...)` can read args before a
-	 * schema is chained; runtime-safe because `resolve()` substitutes `{}` for a schemaless
-	 * query. For fully-typed args, chain `pulse(t).args(schema).query(fn)`.
+	 * Starts a builder chain, optionally with the where-function. `ctx.args` is empty here; to
+	 * read typed arguments, chain `pulse(t).args(schema).query(fn)`.
 	 */
 	query(
-		fn?: (
-			ctx: PulseQueryContext<
-				any,
-				InferSelectModel<TTable>
-			>,
-		) => WhereClause | null,
-	): PulseBuilder<
-		TTable,
-		Record<never, boolean>,
-		Record<never, never>,
-		ColumnsSelection<TTable, Record<never, boolean>>
-	> {
+		fn?: (ctx: PulseQueryContext<Record<never, never>, InferSelectModel<TTable>>) => WhereClause | null,
+	): AllRowsQuery<TTable> {
 		const columns = getColumns(this.table);
 		const pkColumn = getPulsePkColumn(this.table);
 
@@ -118,8 +125,8 @@ export class PulseTable<TTable extends PgTable = PgTable> {
 		return new PulseBuilder(config);
 	}
 
-	/** Start a builder chain with a typed args schema — `pulse(t).args(schema).query(fn)`. */
-	args<TNewArgs>(schema: z.ZodType<TNewArgs>) {
+	/** Starts a builder chain with a typed arguments schema: `pulse(t).args(schema).query(fn)`. */
+	args<TSchema extends StandardSchemaV1>(schema: TSchema) {
 		return this.query().args(schema);
 	}
 

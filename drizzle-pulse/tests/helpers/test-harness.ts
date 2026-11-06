@@ -1,7 +1,7 @@
 import type { PgTable } from 'drizzle-orm/pg-core';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import type { QueryDescriptor } from 'drizzle-pulse';
+import type { QueryDescriptor } from 'drizzle-pulse/client';
 import { createPulseClient, PulseQuery } from 'drizzle-pulse/client';
 import {
 	type AnyQueries,

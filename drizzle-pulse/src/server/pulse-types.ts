@@ -1,8 +1,8 @@
 import type { InferSelectModel, Simplify } from 'drizzle-orm';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
-import type { z } from 'zod';
+import type { StandardSchemaV1 } from '../shared/standard-schema.js';
 import type { PulseAuthContext, QueryDescriptor, WhereClause, WhereCondition } from '../types.js';
-import type { PulseBuilder } from './pulse-builder.js';
+import type { AnyPulseBuilder } from './pulse-registry.js';
 
 export type ApplyColumns<
 	TRow extends Record<string, unknown>,
@@ -35,6 +35,10 @@ export type ColumnsSelection<
 export interface PulseQueryContext<TArgs, TRow extends Record<string, unknown>> {
 	query: (where: WhereCondition<TRow>) => WhereClause;
 	args: TArgs;
+	/**
+	 * Only the HTTP server fills it. In embedded mode `userId` is always `null`. It is not part
+	 * of the stability promise and can change before v1.
+	 */
 	auth: PulseAuthContext;
 }
 
@@ -70,7 +74,7 @@ export type PulseQueryConfig<
 	readonly pkColumn: PgColumn;
 	readonly columns: Record<string, PgColumn>;
 	readonly selectedColumns: Record<string, PgColumn>;
-	readonly argsSchema: z.ZodType<TArgs> | null;
+	readonly argsSchema: StandardSchemaV1<unknown, TArgs> | null;
 	readonly queryFn: QueryFn<TArgs, InferSelectModel<TTable>> | null;
 	readonly transformFn: PulseTransformFn<Record<string, unknown>, TResult> | null;
 	readonly order: 'asc' | 'desc' | null;
@@ -79,18 +83,10 @@ export type PulseQueryConfig<
 
 export type PulseClientContract<TShapes extends Record<string, unknown>> = Simplify<
 	{
-		[K in keyof TShapes]: TShapes[K] extends PulseBuilder<
-			infer TTable,
-			infer TColumns,
-			infer TArgs,
-			infer TResult
-		>
-			? TTable extends PgTable
-				? TColumns extends Record<string, boolean>
-					? [keyof TArgs] extends [never] ? () => QueryDescriptor<Simplify<WithPk<TResult>>>
-					: (args: TArgs) => QueryDescriptor<Simplify<WithPk<TResult>>>
-				: never
-			: never
+		[K in keyof TShapes]: TShapes[K] extends AnyPulseBuilder
+			? [keyof TShapes[K]['_']['argsInput']] extends [never]
+				? () => QueryDescriptor<Simplify<WithPk<TShapes[K]['_']['result']>>>
+			: (args: TShapes[K]['_']['argsInput']) => QueryDescriptor<Simplify<WithPk<TShapes[K]['_']['result']>>>
 			: never;
 	}
 >;

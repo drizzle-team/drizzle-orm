@@ -15,7 +15,7 @@ import {
 	sql,
 } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
-import { hasOperatorKey, isPlainObject, type OperatorObject, parseWhereClause } from '../shared/filter-ast.js';
+import { hasOperatorKey, isPlainObject, type OperatorObject, parseWhereClause } from './filter-ast.js';
 
 import type { WhereClause } from '../types.js';
 

@@ -106,6 +106,8 @@ describe('Reconnect rebaseline', () => {
 
 			const changes: Array<{ events: readonly unknown[]; lsn: string }> = [];
 			collection.onChange((c) => changes.push(c));
+			const resyncs: Array<{ state: readonly unknown[]; lsn: string }> = [];
+			collection.onResync((r) => resyncs.push(r));
 
 			await scenario.sql.unsafe(
 				`INSERT INTO "orders" (driver_id, status, price) VALUES (1, 'accepted', 10)`,
@@ -124,11 +126,11 @@ describe('Reconnect rebaseline', () => {
 			proxy.dropClient();
 
 			// waitFor timeout 10000ms — the backoff makes the old 2000ms timeouts too tight.
-			await waitFor(() => changes.length === changesBeforeReconnect + 1, 10000);
+			await waitFor(() => resyncs.length === 1, 10000);
 
-			const rebaselineChange = changes[changesBeforeReconnect]!;
-			expect(rebaselineChange.events).toEqual([]);
-			expect(rebaselineChange.lsn).toMatch(LSN_PATTERN);
+			expect(changes.length).toBe(changesBeforeReconnect);
+			expect(resyncs[0]!.state.length).toBe(2);
+			expect(resyncs[0]!.lsn).toMatch(LSN_PATTERN);
 
 			expect(collection.list().length).toBe(2);
 			expect(new Set(collection.list().map((r) => r.id)).size).toBe(2);
@@ -180,9 +182,10 @@ describe('Reconnect rebaseline', () => {
 			// observes exactly what the stream delivers, when it delivers it.
 			const events = createPulseEvents(runtime);
 			let delivered = 0;
+			let resyncs = 0;
 			const unsubFeed = events.ordersByStatus({ status: 'accepted' }, () => {
 				delivered++;
-			});
+			}, { onResync: () => resyncs++ });
 
 			await scenario.sql.unsafe(
 				`INSERT INTO "orders" (driver_id, status, price) VALUES (1, 'accepted', 10)`,
@@ -231,6 +234,8 @@ describe('Reconnect rebaseline', () => {
 			expect(epochAfter).not.toBe(epochBefore);
 
 			expect(terminalError).toBeNull();
+			// The recreated slot cannot replay the outage, so the CDC event stream is told once.
+			expect(resyncs).toBe(1);
 
 			// Delivery resumes once the stream opens.
 			await scenario.sql.unsafe(

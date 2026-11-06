@@ -206,9 +206,16 @@ describe('pulse(table) — collection-first construction', () => {
 	});
 
 	test('pulse(table).query(fn) seeds queryFn directly (collection-level spelling)', () => {
-		const query = pulse(testTable).query((ctx) => ctx.query({ status: ctx.args.status }));
+		const query = pulse(testTable).query((ctx) => ctx.query({ status: 'active' }));
 		expect(query).toBeInstanceOf(PulseBuilder);
 		expect(query.config.queryFn).toBeDefined();
+	});
+
+	test('.args() after a where-function throws', () => {
+		const query = pulse(testTable).query((ctx) => ctx.query({ status: 'active' }));
+		expect(() => query.args(z.object({ status: z.string() }))).toThrow(
+			'.args() must come before .query(fn)',
+		);
 	});
 
 	test('pulse(table).query() rejects a table with a composite (multi-column) primary key', () => {
@@ -290,11 +297,26 @@ describe('createPulseRegistry — derived-queries-only contract', () => {
 		expect(query.order).toBe('asc');
 	});
 
+	test('a Pulse table passed as a query matches every row, like .query() without a function', () => {
+		const registry = createPulseRegistry({ allOrders: pulse(testTable) });
+
+		const query = registry.resolve('allOrders', undefined, { userId: null });
+
+		expect(query.where).toBeNull();
+		expect(Object.keys(query.selectedColumns).length).toBe(4);
+		expect(query.order).toBe('asc');
+	});
+
+	test('a Pulse table of a table without a primary key throws when the registry reads it', () => {
+		expect(() => createPulseRegistry({ broken: pulse(compositePkTable) })).toThrowError('has multiple primary keys');
+	});
+
 	test('resolve() substitutes an empty object for args on a schemaless query — client-supplied operator payloads never reach queryFn', () => {
 		// Collection-level spelling: no `.args()` is ever chained, matching the pattern
 		// pulse-table.ts's doc-comment describes and the one flagged as unsafe.
 		const registry = createPulseRegistry({
-			ordersByTenant: pulse(testTable).query((ctx) => ctx.query({ status: ctx.args.status })),
+			// The cast reads args the way untyped JavaScript would.
+			ordersByTenant: pulse(testTable).query((ctx) => ctx.query({ status: (ctx.args as { status?: string }).status })),
 		});
 
 		// Attacker-controlled JSON straight off an HTTP body, shaped as an operator
@@ -321,5 +343,51 @@ describe('createPulseRegistry — derived-queries-only contract', () => {
 		expect(query.where).toEqual({ status: 'active' });
 
 		expect(() => registry.resolve('ordersByStatus', { status: { isNotNull: true } }, { userId: null })).toThrow();
+	});
+
+	const scoreSchema = {
+		'~standard': {
+			version: 1 as const,
+			vendor: 'hand-written',
+			validate: (value: unknown) => {
+				const score = (value as { score?: unknown }).score;
+				return typeof score === 'string'
+					? { value: { score: Number(score) } }
+					: { issues: [{ message: 'Expected a string', path: ['score'] }] };
+			},
+			types: undefined as unknown as { input: { score: string }; output: { score: number } },
+		},
+	};
+
+	test('resolve() passes the output of any Standard Schema to the where-function', () => {
+		const registry = createPulseRegistry({
+			byScore: pulse(testTable).args(scoreSchema).query((ctx) => ctx.query({ score: ctx.args.score })),
+		});
+
+		expect(registry.resolve('byScore', { score: '7' }, { userId: null }).where).toEqual({ score: 7 });
+	});
+
+	test('resolve() throws the issue messages of a Standard Schema for invalid args', () => {
+		const registry = createPulseRegistry({
+			byScore: pulse(testTable).args(scoreSchema).query((ctx) => ctx.query({ score: ctx.args.score })),
+		});
+
+		expect(() => registry.resolve('byScore', { score: 7 }, { userId: null })).toThrow(
+			'Invalid arguments for query "byScore": score: Expected a string',
+		);
+	});
+
+	test('resolve() rejects a schema that validates asynchronously', () => {
+		const asyncSchema = {
+			'~standard': {
+				...scoreSchema['~standard'],
+				validate: async (value: unknown) => ({ value: value as { score: number } }),
+			},
+		};
+		const registry = createPulseRegistry({ byScore: pulse(testTable).args(asyncSchema).query(() => null) });
+
+		expect(() => registry.resolve('byScore', { score: '7' }, { userId: null })).toThrow(
+			/asynchronous validation/,
+		);
 	});
 });

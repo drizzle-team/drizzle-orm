@@ -9,10 +9,8 @@
  * This module is value-imported by the embedded entrypoint; it must import nothing.
  */
 
-// Hand-rolled and staying that way — this module is value-imported by the embedded
-// entrypoint, which the platform-imports guard bans Drizzle Postgres from reaching. Server-side modules
-// (e.g. pulse-runtime.ts) use Drizzle Postgres's own lsnFromString instead; this shared module serves the
-// client/shared paths and intentionally never will, for platform purity.
+// Hand-rolled: the client entrypoints must not reach the Postgres driver (the platform-imports
+// guard checks this), and the runtime must not load the bundled driver when it has a `client` pool.
 
 /**
  * Precondition: `lsn` matches the Postgres wire form "hex/hex". Throws on any other shape —

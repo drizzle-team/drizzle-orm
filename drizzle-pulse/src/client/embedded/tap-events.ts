@@ -2,8 +2,8 @@ import type { PendingWalEvent } from '../../server/pulse-runtime.js';
 import { extractRow } from '../../shared/event-normalization.js';
 import { evaluateCondition } from '../../shared/filter-ast.js';
 import { projectEmbeddedRows } from '../../shared/projection.js';
-import type { PulseEvent } from '../../shared/pulse-events.js';
 import type { ResolvedPulseQuery } from '../../types.js';
+import type { PulseEvent } from './pulse-events.js';
 
 // Must stay free of drizzle-orm/pg-core VALUE imports (bare `drizzle-orm` only): both
 // createPulseClient's collections and createPulseEvents value-import buildTapEvent, and
@@ -12,52 +12,32 @@ import type { ResolvedPulseQuery } from '../../types.js';
 export type TapRow = Record<string, unknown>;
 
 /**
- * Builds a `PulseEvent` from a decoded WAL event, or `null` when the event should not be
- * delivered at all. Insert is gated on `query.where` matching the new row. Update/delete carry
- * a full old tuple (the runtime forces REPLICA IDENTITY FULL on every source), so `query.where`
- * is evaluated against both sides: an event neither side matches was never visible to this
- * subscriber and is suppressed. Each side of a delivered update is included only when that
- * side matches the WHERE — the non-matching side ships as an empty object with the event's
- * `pk` field carrying the identity — so out-of-scope column data (the new row of a
- * membership removal, the old row of a membership entry) never reaches the subscriber.
+ * Builds a query-relative `PulseEvent` from a decoded WAL event, or `null` when the row is not
+ * in the query result before or after the change. Update and delete carry a full old tuple
+ * (the runtime forces REPLICA IDENTITY FULL on every source), so `query.where` is evaluated
+ * on both sides. An update that makes a row match is an insert, and an update that makes it
+ * stop matching is a delete. A side that does not match is never delivered, so column data
+ * outside the query's scope never reaches the subscriber.
  */
 export function buildTapEvent(
 	event: PendingWalEvent,
 	query: ResolvedPulseQuery,
 ): PulseEvent<TapRow> | null {
-	// Delete events carry an empty `row` object (not null); extractRow returns null when
-	// every column is absent, so the delete case falls out of this call for free.
+	// A delete's `row` is `{}`, which extractRow turns into null.
 	const newRow = extractRow(event.row, query.columns);
 	const oldRow = event.oldRow ? extractRow(event.oldRow, query.columns) : null;
 
-	const matchesNew = newRow ? evaluateCondition(query.where, newRow) : false;
-	const matchesOld = oldRow ? evaluateCondition(query.where, oldRow) : false;
+	const matchedNew = newRow && evaluateCondition(query.where, newRow)
+		? projectEmbeddedRows([newRow], query)[0] ?? null
+		: null;
+	const matchedOld = oldRow && evaluateCondition(query.where, oldRow)
+		? projectEmbeddedRows([oldRow], query)[0] ?? null
+		: null;
 
-	if (event.op === 'insert') {
-		if (!matchesNew || !newRow) return null;
-		const [projected] = projectEmbeddedRows([newRow], query);
-		if (!projected) return null;
-		return { op: 'insert', row: projected.row, pk: projected.pk };
+	if (matchedNew && matchedOld) {
+		return { op: 'update', row: matchedNew.row, oldRow: matchedOld.row, pk: matchedNew.pk };
 	}
-
-	if (event.op === 'update') {
-		if (!matchesNew && !matchesOld) return null;
-		const projectedNew = newRow ? projectEmbeddedRows([newRow], query)[0] : null;
-		const projectedOld = oldRow ? projectEmbeddedRows([oldRow], query)[0] : null;
-		const fallback = projectedNew ?? projectedOld;
-		if (!fallback) return null;
-		return {
-			op: 'update',
-			row: matchesNew && projectedNew ? projectedNew.row : {},
-			old_row: matchesOld && projectedOld ? projectedOld.row : {},
-			pk: fallback.pk,
-			matchesNew,
-		};
-	}
-
-	// delete
-	if (!oldRow || !matchesOld) return null;
-	const [projected] = projectEmbeddedRows([oldRow], query);
-	if (!projected) return null;
-	return { op: 'delete', old_row: projected.row, pk: projected.pk };
+	if (matchedNew) return { op: 'insert', row: matchedNew.row, pk: matchedNew.pk };
+	if (matchedOld) return { op: 'delete', oldRow: matchedOld.row, pk: matchedOld.pk };
+	return null;
 }

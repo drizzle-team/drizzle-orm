@@ -1,14 +1,17 @@
 import type { PgTable } from 'drizzle-orm/pg-core';
 import { getPulsePkColumn } from '../pulse-table.js';
+import type { StandardSchemaV1 } from '../shared/standard-schema.js';
 import type { PulseAuthContext, PulseRegistryQuery, ResolvedPulseQuery, WhereClause } from '../types.js';
-import type { PulseBuilder } from './pulse-builder.js';
+import type { PulseBuilder, PulseBuilderFlags } from './pulse-builder.js';
 import type { PulseClientContract } from './pulse-types.js';
 
 export type AnyPulseBuilder = PulseBuilder<
 	PgTable,
 	Record<string, boolean>,
-	unknown,
-	Record<string, unknown>
+	any,
+	any,
+	Record<string, unknown>,
+	PulseBuilderFlags
 >;
 
 export type AnyPulseBuilders = Record<string, AnyPulseBuilder>;
@@ -32,6 +35,24 @@ function buildPulseQuery(query: AnyPulseBuilder): PulseRegistryQuery {
 		hasTransform: config.transformFn !== null,
 		transformRows: (rows: Record<string, unknown>[]) => config.transformFn ? config.transformFn(rows) : rows,
 	};
+}
+
+function validateArgs(queryName: string, schema: StandardSchemaV1, rawArgs: unknown): unknown {
+	const result = schema['~standard'].validate(rawArgs);
+	// resolve() is synchronous because a CDC event stream opens synchronously.
+	if (result instanceof Promise) {
+		throw new Error(
+			`The arguments schema of query "${queryName}" uses asynchronous validation, which Pulse does not support. Use a schema that validates synchronously.`,
+		);
+	}
+	if (result.issues) {
+		const messages = result.issues.map((issue) => {
+			const path = issue.path?.map((segment) => String(typeof segment === 'object' ? segment.key : segment)).join('.');
+			return path ? `${path}: ${issue.message}` : issue.message;
+		});
+		throw new Error(`Invalid arguments for query "${queryName}": ${messages.join('; ')}`);
+	}
+	return result.value;
 }
 
 export class PulseRegistry<TQueries extends AnyPulseBuilders> {
@@ -63,7 +84,7 @@ export class PulseRegistry<TQueries extends AnyPulseBuilders> {
 		// `.args()` — a queryFn that reads `ctx.args` without declaring a schema would
 		// otherwise let attacker-controlled JSON reach buildColumnFilterPredicate as
 		// operator-shaped filters. Queries that need args MUST chain `.args(schema)`.
-		const args = registryQuery.argsSchema ? registryQuery.argsSchema.parse(rawArgs) : {};
+		const args = registryQuery.argsSchema ? validateArgs(name, registryQuery.argsSchema, rawArgs) : {};
 		const where = registryQuery.queryFn?.({
 			query: (clause: WhereClause) => clause,
 			args,

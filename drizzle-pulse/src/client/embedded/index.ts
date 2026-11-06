@@ -1,12 +1,12 @@
 import type { AnyPulseBuilders } from '../../server/pulse-registry.js';
 import type { BaselineSnapshot, PendingWalEvent, PulseRuntime } from '../../server/pulse-runtime.js';
-import type { PulseClientContract } from '../../server/pulse-types.js';
 import { compareLsn } from '../../shared/lsn.js';
 import { projectEmbeddedRows } from '../../shared/projection.js';
-import type { PulseEvent } from '../../shared/pulse-events.js';
+import type { PulseEvent as PulseMergeEvent } from '../../shared/pulse-events.js';
 import { PulseMergeCore } from '../../shared/pulse-merge-core.js';
 import { getQualifiedTableName } from '../../shared/qualified-table-name.js';
-import type { PulseAuthContext, QueryDescriptor } from '../../types.js';
+import type { EmbeddedQueryName, EmbeddedRow } from './events.js';
+import type { PulseEvent } from './pulse-events.js';
 import { buildTapEvent, type TapRow } from './tap-events.js';
 
 export type { EmbeddedPulseEvents, PulseEventsCallback, PulseEventsOptions } from './events.js';
@@ -15,10 +15,6 @@ export { createPulseEvents } from './events.js';
 // ---------------------------------------------------------------------------
 // Public type surface
 // ---------------------------------------------------------------------------
-
-export interface PulseCollectionOptions {
-	auth?: PulseAuthContext;
-}
 
 export interface PulseCollectionChange<T> {
 	events: readonly PulseEvent<T>[];
@@ -29,19 +25,23 @@ export interface PulseCollectionChange<T> {
 export type PulseRow<C> = C extends Promise<infer P> ? PulseRow<P> : C extends PulseCollection<infer R> ? R : never;
 
 export type EmbeddedPulseClient<TQueries extends AnyPulseBuilders> = {
-	[K in keyof PulseClientContract<TQueries>]: PulseClientContract<TQueries>[K] extends (
-		...args: infer A
-	) => QueryDescriptor<infer R>
-		// R is the wire contract shape and includes $pk (QueryDescriptor is created with
-		// WithPk<TResult>). Embedded rows carry no $pk — identity lives in the merge core's
-		// entries and in each event's pk field — so the wire-only key is stripped here.
-		? (
-			...args: [...A, options?: PulseCollectionOptions]
-		) => Promise<PulseCollection<Omit<R, '$pk'>>>
-		: never;
+	[K in EmbeddedQueryName<TQueries>]: [keyof TQueries[K]['_']['argsInput']] extends [never]
+		? () => Promise<PulseCollection<EmbeddedRow<TQueries[K]>>>
+		: (args: TQueries[K]['_']['argsInput']) => Promise<PulseCollection<EmbeddedRow<TQueries[K]>>>;
 };
 
 type AnyRow = TapRow;
+
+function toMergeEvent(event: PulseEvent<AnyRow>): PulseMergeEvent<AnyRow> {
+	switch (event.op) {
+		case 'insert':
+			return event;
+		case 'update':
+			return { op: 'update', row: event.row, old_row: event.oldRow, pk: event.pk, matchesNew: true };
+		case 'delete':
+			return { op: 'delete', old_row: event.oldRow, pk: event.pk };
+	}
+}
 
 // ---------------------------------------------------------------------------
 // PulseCollection — a full-set merge core fed tap-direct (no HTTP wire protocol).
@@ -51,12 +51,20 @@ export class PulseCollection<TRow> {
 	private disposed = false;
 	private readonly onChangeListeners = new Set<(change: PulseCollectionChange<TRow>) => void>();
 	private readonly onErrorListeners = new Set<(error: Error) => void>();
+	private readonly onResyncListeners = new Set<(resync: { state: readonly TRow[]; lsn: string }) => void>();
+
+	private constructor(
+		private readonly core: PulseMergeCore<TRow & Record<string, unknown>>,
+		private readonly teardown: () => void,
+	) {}
 
 	/** @internal */
-	constructor(
-		private readonly core: PulseMergeCore<TRow & Record<string, unknown>>,
-		private readonly teardown: () => void = () => {},
-	) {}
+	static create<TRow>(
+		core: PulseMergeCore<TRow & Record<string, unknown>>,
+		teardown: () => void = () => {},
+	): PulseCollection<TRow> {
+		return new PulseCollection(core, teardown);
+	}
 
 	/** @internal */
 	get isDisposed(): boolean {
@@ -75,6 +83,15 @@ export class PulseCollection<TRow> {
 	onError(listener: (error: Error) => void): () => void {
 		this.onErrorListeners.add(listener);
 		return () => this.onErrorListeners.delete(listener);
+	}
+
+	/**
+	 * Fires after a reconnect, when the collection has loaded its rows again. The changes from
+	 * the time without a connection are unknown, so `onChange` does not fire for them.
+	 */
+	onResync(listener: (resync: { state: readonly TRow[]; lsn: string }) => void): () => void {
+		this.onResyncListeners.add(listener);
+		return () => this.onResyncListeners.delete(listener);
 	}
 
 	dispose(): void {
@@ -98,6 +115,19 @@ export class PulseCollection<TRow> {
 				listener(change);
 			} catch (e) {
 				console.error('[PulseCollection] onChange error:', e);
+			}
+		}
+	}
+
+	/** @internal */
+	fireOnResync(lsn: string): void {
+		if (this.disposed) return;
+		const resync = { state: this.core.data as readonly TRow[], lsn };
+		for (const listener of this.onResyncListeners) {
+			try {
+				listener(resync);
+			} catch (e) {
+				console.error('[PulseCollection] onResync error:', e);
 			}
 		}
 	}
@@ -136,33 +166,19 @@ export function createPulseClient<TQueries extends AnyPulseBuilders>(
 				const pulseQuery = runtime.registry.getPulseQuery(prop);
 				if (!pulseQuery) throw new Error(`Unknown query: "${prop}"`);
 				if (!runtime.isRunning) {
-					throw new Error('PulseCollection can only be created after runtime.start()');
+					throw new Error('A live collection can only be opened after runtime.start()');
 				}
 				if (pulseQuery.hasTransform) {
-					throw new Error('Queries with .transform() are not supported in the embedded client');
+					throw new Error('Live collections and CDC event streams do not support queries with .transform()');
 				}
 				if (pulseQuery.limit !== null) {
-					throw new Error('Queries with .limit() are not supported in the embedded client');
+					throw new Error('Live collections and CDC event streams do not support queries with .limit()');
 				}
 
-				// Split the optional trailing PulseCollectionOptions from query args.
-				// Args queries: (queryArgs, options?) — options is callArgs[1].
-				// No-args queries: (options?) — options is callArgs[0].
-				let rawArgs: unknown;
-				let options: PulseCollectionOptions | undefined;
-
-				if (pulseQuery.argsSchema !== null) {
-					rawArgs = callArgs[0];
-					options = callArgs[1] as PulseCollectionOptions | undefined;
-				} else {
-					rawArgs = {};
-					options = callArgs[0] as PulseCollectionOptions | undefined;
-				}
-
-				const auth: PulseAuthContext = options?.auth ?? { userId: null };
-				// resolve() validates args and yields the source table + auth-scoped WHERE — the
-				// same gate must scope both the baseline read and every tapped event below.
-				const query = runtime.registry.resolve(prop, rawArgs, auth);
+				const rawArgs = pulseQuery.argsSchema !== null ? callArgs[0] : {};
+				// resolve() validates args and yields the source table and WHERE. The same WHERE must
+				// scope both the baseline read and every tapped event below.
+				const query = runtime.registry.resolve(prop, rawArgs, { userId: null });
 				const tableKey = getQualifiedTableName(query.table);
 
 				const core = new PulseMergeCore<AnyRow>({ order: query.order });
@@ -182,7 +198,7 @@ export function createPulseClient<TQueries extends AnyPulseBuilders>(
 				function applyEvent(walEvent: PendingWalEvent, lsn: string): void {
 					const event = buildTapEvent(walEvent, query);
 					if (!event) return;
-					const mutated = core.applyEvents([event]);
+					const mutated = core.applyEvents([toMergeEvent(event)]);
 					if (mutated) collection.fireOnChange([event], lsn);
 				}
 
@@ -249,7 +265,7 @@ export function createPulseClient<TQueries extends AnyPulseBuilders>(
 				}
 
 				const unsubs: Array<() => void> = [];
-				collection = new PulseCollection(core, () => {
+				collection = PulseCollection.create(core, () => {
 					for (const unsub of unsubs) unsub();
 				});
 
@@ -263,7 +279,7 @@ export function createPulseClient<TQueries extends AnyPulseBuilders>(
 								const watermark = await runHandshake(snapshot, true);
 								if (watermark === null) return; // superseded by a newer reconnect handshake
 								if (collection.isDisposed) return;
-								collection.fireOnChange([], watermark);
+								collection.fireOnResync(watermark);
 							} catch (err) {
 								if (collection.isDisposed) return;
 								collection.fireOnError(err instanceof Error ? err : new Error(String(err)));
@@ -283,7 +299,7 @@ export function createPulseClient<TQueries extends AnyPulseBuilders>(
 					initError = err;
 				}
 				if (collection.isDisposed) {
-					throw new Error('PulseCollection was disposed before the initial sync completed');
+					throw new Error('The live collection was disposed before the initial sync completed');
 				}
 				if (initError !== undefined) {
 					collection.dispose();

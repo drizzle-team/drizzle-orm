@@ -1,9 +1,11 @@
 import { desc, eq, getColumns, sql } from 'drizzle-orm';
 import { getTableConfig, type PgTable } from 'drizzle-orm/pg-core';
-import { lsnFromString, type ReplicationEvent, type TableShape, type TransactionBatch } from 'drizzle-orm/postgres';
-import { replicate, type ReplicateHandle } from 'drizzle-orm/postgres/cdc';
+import type { Pool, ReplicationEvent, TableShape, TransactionBatch } from 'drizzle-orm/postgres';
+import type { ReplicateHandle } from 'drizzle-orm/postgres/cdc';
+import { isBrand } from 'drizzle-orm/postgres/client/brand';
 import { buildShape } from 'drizzle-orm/postgres/shape';
 import { createHash } from 'node:crypto';
+import { parseLsn } from '../shared/lsn.js';
 import { getQualifiedTableName } from '../shared/qualified-table-name.js';
 import type { ResolvedPulseQuery } from '../types.js';
 import { emitEventsTableDdl } from './events-table-ddl.js';
@@ -20,7 +22,16 @@ type RuntimeLifecycleListener = () => void;
 type ReconnectListener = (snapshot: BaselineSnapshot | null) => Promise<void> | void;
 
 export type PulseRuntimeWalConfig = {
+	/**
+	 * The publication that the runtime reads changes from (default `drizzle_pulse`). The runtime
+	 * owns its table list: start adds the registered source tables, and provisioning also drops
+	 * the tables that are no longer registered.
+	 */
 	publicationName?: string;
+	/**
+	 * The replication slot name (default `drizzle_pulse`). In embedded mode it is the prefix of
+	 * a temporary slot, so it must be at most 54 characters.
+	 */
 	slotName?: string;
 };
 
@@ -33,20 +44,49 @@ export enum LogLevel {
 	Debug = 3,
 }
 
-/** Fired once per (table, op) group of each transaction the runtime applies, plus once per
- * collection on a reconnect rebaseline. */
+/**
+ * Fired once per (table, op) group of each transaction the runtime applies, and once per
+ * collection on rebaseline.
+ */
 export type TelemetryEvent = {
 	schema: string;
 	table: string;
 	op: 'insert' | 'update' | 'delete' | 'rebaseline';
 	rowCount: number;
-	committedAt: number;
-	appliedAt: number;
+	/** The commit time on the database host, in epoch microseconds. */
+	committedAtMicros: number;
+	/**
+	 * The time this process applied the commit, in epoch microseconds. On rebaseline it equals
+	 * `committedAtMicros`.
+	 */
+	appliedAtMicros: number;
 	commitLsn: string;
 };
 
-export type PulseRuntimeConfig = {
-	databaseUrl: string;
+/** The database connection of a runtime: `databaseUrl` or `client`, not both. */
+export type PulseConnectionConfig =
+	| {
+		/**
+		 * The URL of a database with `wal_level=logical`. Pulse creates its admin pool and its
+		 * replication connection from this URL with the Drizzle Postgres driver that `drizzle-orm`
+		 * bundles, and closes them on `stop()`.
+		 */
+		databaseUrl: string;
+		client?: undefined;
+	}
+	| {
+		/**
+		 * A Drizzle Postgres pool, from `drizzle-orm/postgres` or `@drizzle-team/postgres`, used in
+		 * place of `databaseUrl`. Pulse runs its admin queries on this pool and opens its replication
+		 * connection with `client.replicate()`, which uses the connection settings of the pool. The
+		 * database must have `wal_level=logical`, and the role needs the `REPLICATION` attribute.
+		 * Pulse does not create connections with the bundled driver, and it does not close this pool.
+		 */
+		client: Pool;
+		databaseUrl?: undefined;
+	};
+
+export type PulseRuntimeConfig = PulseConnectionConfig & {
 	/**
 	 * The app's own drizzle connection; baseline and query reads run on it to keep its session
 	 * context (RLS, search_path) — except the post-reconnect rebaseline, which reads the exported
@@ -72,8 +112,10 @@ export type PulseRuntimeConfig = {
 		};
 	wal?: PulseRuntimeWalConfig;
 	logLevel?: LogLevel;
-	/** Fires once per (table, op) group of each transaction the runtime applies, plus once per
-	 * collection on a reconnect rebaseline. */
+	/**
+	 * Fires once per (table, op) group of each transaction the runtime applies, and once per
+	 * collection on rebaseline.
+	 */
 	telemetry?: (event: TelemetryEvent) => void;
 };
 
@@ -225,6 +267,11 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 		readonly registry: PulseRegistry<TQueries>,
 		private readonly config: PulseRuntimeConfig,
 	) {
+		if (config.client !== undefined && !isBrand(config.client, 'Pool')) {
+			throw new TypeError(
+				'The `client` option is not a Drizzle Postgres pool. Pass a pool from `createPool()` of `drizzle-orm/postgres` or `@drizzle-team/postgres`.',
+			);
+		}
 		const wal = this.config.wal ?? {};
 		this.publicationName = wal.publicationName ?? DEFAULT_PUBLICATION_NAME;
 		this.slotName = wal.slotName ?? DEFAULT_SLOT_NAME;
@@ -396,7 +443,7 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 	 * watermark read nor the race above applies. A collection materialized mid-run has no exported
 	 * snapshot to read and takes the watermark path below.
 	 *
-	 * Note: the snapshot is read on a connection checked out of the admin pool (`databaseUrl`), not
+	 * Note: the snapshot is read on a connection checked out of the admin pool, not
 	 * the app's `sourceDb` session — so this path does not carry sourceDb's session context (RLS,
 	 * search_path). The resolve-time auth-scoped WHERE is what enforces row scoping here, not RLS.
 	 */
@@ -434,7 +481,7 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 			const table = tableConfig.name;
 			const rowCount = rows.length;
 			// Recovered rows have no single commit clock, so the latency delta reads zero by construction.
-			const appliedAt = Math.round((performance.timeOrigin + performance.now()) * 1000);
+			const appliedAtMicros = Math.round((performance.timeOrigin + performance.now()) * 1000);
 			queueMicrotask(() => {
 				try {
 					telemetry({
@@ -443,8 +490,8 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 						op: 'rebaseline',
 						rowCount,
 						commitLsn: watermark,
-						committedAt: appliedAt,
-						appliedAt,
+						committedAtMicros: appliedAtMicros,
+						appliedAtMicros,
 					});
 				} catch (err) {
 					this.logError('telemetry callback error:', err);
@@ -461,10 +508,10 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 			return;
 		}
 
-		this.store ??= new PulseStore(this.config.databaseUrl, this.eventsSchema);
+		this.store ??= await this.openStore();
 
 		try {
-			await this.bootstrap();
+			await this.bootstrap({ prune: false });
 			await this.openSession();
 		} catch (error) {
 			// Mirrors stop()'s pool teardown so a failed guard doesn't leak connections — callers
@@ -503,7 +550,8 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 	 * Brings this runtime's events tables and their bookkeeping in line with the live database
 	 * without opening a replication stream: runs the same schema path as {@link start} —
 	 * create/recreate diverged events tables, sweep orphans, rotate epochs — over a short-lived
-	 * admin connection, then closes it. Call from a deploy/migration step to provision
+	 * admin connection, then closes it. Unlike {@link start}, it also drops the tables that are
+	 * no longer registered from the publication and resets their replica identity to DEFAULT. Call from a deploy/migration step to provision
 	 * infrastructure ahead of booting the listener. On any unmet precondition it throws and rolls
 	 * the whole transaction back instead of provisioning partially.
 	 */
@@ -516,9 +564,9 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 				'provision() must run before start() — it closes its admin connection when it returns',
 			);
 		}
-		this.store ??= new PulseStore(this.config.databaseUrl, this.eventsSchema);
+		this.store ??= await this.openStore();
 		try {
-			await this.bootstrap();
+			await this.bootstrap({ prune: true });
 		} finally {
 			const store = this.store;
 			this.store = null;
@@ -529,13 +577,14 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 	// Boot-time provisioning, wrapped in one transaction under a schema-scoped advisory lock.
 	// wal_level is the only precondition the runtime can't fix, so it stays an assert;
 	// everything else pulse self-provisions: REPLICA IDENTITY FULL on each source, then the
-	// publication (create it owning exactly the sources, or — unless it's FOR ALL TABLES — diff
-	// its membership, adding registered sources and un-pulsing members that no longer are). Then
+	// publication (create it owning exactly the sources, or, unless it's FOR ALL TABLES, add
+	// the registered sources that are missing, and with `prune` also un-pulse the members that are
+	// no longer registered). Then
 	// it brings the events tables and their pulse_meta bookkeeping in line with the sources
 	// (create/recreate on DDL-hash divergence, drop orphans), rotating an epoch on every recreate.
 	// Any throw rolls the whole transaction back, so a database it can't fully provision is left
 	// untouched. Runtime-owned events-table DDL: the app no longer migrates these tables.
-	private async bootstrap(): Promise<void> {
+	private async bootstrap({ prune }: { prune: boolean }): Promise<void> {
 		const adminDb = this.getPulseStore().getDb();
 		const { pulseMeta } = this.getPulseStore();
 		const eventsSchema = this.eventsSchema;
@@ -656,7 +705,9 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 				// Un-pulse members no longer registered: DROP from the publication, THEN reset REPLICA
 				// IDENTITY (a member row implies the table still exists — pg_publication_tables joins
 				// pg_class, so a dropped table has already left membership on its own).
-				for (const member of members) {
+				// Only provisioning prunes: two runtimes that share a publication must not remove each
+				// other's tables on start.
+				for (const member of prune ? members : []) {
 					if (registeredNames.has(member.name)) continue;
 					await execAssumingGrant(
 						`ALTER PUBLICATION ${pubIdent} DROP TABLE ${member.quoted}`,
@@ -774,8 +825,7 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 	private async openSession(): Promise<void> {
 		const durable = this.pullEnabled;
 
-		const session = replicate({
-			url: this.config.databaseUrl,
+		const session = this.getPulseStore().replicate({
 			// pull:true keeps a durable slot so a disconnected consumer resumes where it left off.
 			// pull:false takes a fresh random-suffixed temporary slot per session: nothing durable to
 			// resume into, and a crashed process can never leak a WAL-retaining slot. The configured
@@ -819,7 +869,7 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 				// recreate verdict has the driver drop and recreate the slot and re-enter through
 				// backfill.
 				const watermark = await this.getPulseStore().getStreamWatermark(this.slotName);
-				if (watermark === null || lsnFromString(watermark) < lsnFromString(confirmedFlush)) {
+				if (watermark === null || parseLsn(watermark) < parseLsn(confirmedFlush)) {
 					return 'recreate';
 				}
 				await this.ensureBaselines();
@@ -988,7 +1038,7 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 		// double-apply. Returning still acks, so the server stops resending.
 		if (
 			this.lastPersistedCommitLsn !== null
-			&& lsnFromString(batch.commitLsn) <= lsnFromString(this.lastPersistedCommitLsn)
+			&& parseLsn(batch.commitLsn) <= parseLsn(this.lastPersistedCommitLsn)
 		) {
 			return;
 		}
@@ -1015,13 +1065,13 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 
 		const telemetry = this.config.telemetry;
 		if (telemetry && wireCounts.size > 0) {
-			const appliedAt = Math.round((performance.timeOrigin + performance.now()) * 1000);
-			const committedAt = batch.commitTimeUs;
+			const appliedAtMicros = Math.round((performance.timeOrigin + performance.now()) * 1000);
+			const committedAtMicros = batch.commitTimeUs;
 			const commitLsn = batch.commitLsn;
 			queueMicrotask(() => {
 				for (const group of wireCounts.values()) {
 					try {
-						telemetry({ ...group, committedAt, appliedAt, commitLsn });
+						telemetry({ ...group, committedAtMicros, appliedAtMicros, commitLsn });
 					} catch (err) {
 						this.logError('telemetry callback error:', err);
 					}
@@ -1126,6 +1176,13 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 		}
 
 		tx.events.push({ ...base, op: 'update', pkValue, row, oldRow });
+	}
+
+	// Loads the bundled driver only when there is no client pool.
+	private async openStore(): Promise<PulseStore> {
+		if (this.config.client !== undefined) return new PulseStore(this.config.client, false, this.eventsSchema);
+		const { createPool } = await import('drizzle-orm/postgres');
+		return new PulseStore(createPool(this.config.databaseUrl), true, this.eventsSchema);
 	}
 
 	private getPulseStore(): PulseStore {

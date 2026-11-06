@@ -1,7 +1,8 @@
 import { eq, getColumns, sql } from 'drizzle-orm';
 import { pgSchema, type PgTable, text, uuid } from 'drizzle-orm/pg-core';
-import { type Connection, createPool, type Pool } from 'drizzle-orm/postgres';
-import { drizzle } from 'drizzle-orm/postgres';
+import type { Connection, Pool } from 'drizzle-orm/postgres';
+import type { ReplicateHandle, ReplicateOptions } from 'drizzle-orm/postgres/cdc';
+import { drizzle } from 'drizzle-orm/postgres/core';
 import type { PendingWalEvent } from './pulse-runtime.js';
 
 type DbHandle = ReturnType<typeof drizzle>;
@@ -31,14 +32,17 @@ function buildMetaTables(eventsSchema: string) {
 type MetaTables = ReturnType<typeof buildMetaTables>;
 
 export class PulseStore {
-	private readonly pool: Pool;
 	private readonly db: DbHandle;
 	readonly pulseMeta: MetaTables['pulseMeta'];
 	readonly pulseStream: MetaTables['pulseStream'];
 
-	constructor(databaseUrl: string, eventsSchema: string) {
-		this.pool = createPool(databaseUrl);
-		this.db = drizzle({ client: this.pool });
+	// `end()` closes the pool only when `ownsPool` is true.
+	constructor(
+		private readonly pool: Pool,
+		private readonly ownsPool: boolean,
+		eventsSchema: string,
+	) {
+		this.db = drizzle({ client: pool });
 		({ pulseMeta: this.pulseMeta, pulseStream: this.pulseStream } = buildMetaTables(eventsSchema));
 	}
 
@@ -47,7 +51,11 @@ export class PulseStore {
 	}
 
 	async end(): Promise<void> {
-		await this.pool.end();
+		if (this.ownsPool) await this.pool.end();
+	}
+
+	replicate(options: Omit<ReplicateOptions, 'url'>): ReplicateHandle {
+		return this.pool.replicate(options);
 	}
 
 	checkout(): Promise<{ client: Connection; release: () => void }> {

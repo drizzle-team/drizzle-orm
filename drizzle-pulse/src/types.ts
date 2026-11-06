@@ -1,6 +1,7 @@
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { PullClient } from './client/create-client.js';
 import type { PulseEvent } from './shared/pulse-events.js';
+import type { StandardSchemaV1 } from './shared/standard-schema.js';
 
 /** Column filter operators */
 export type ColumnOperators<V> = {
@@ -10,7 +11,7 @@ export type ColumnOperators<V> = {
 	gte?: V;
 	lt?: V;
 	lte?: V;
-	in?: V[];
+	in?: readonly V[];
 	isNull?: true;
 	isNotNull?: true;
 };
@@ -78,6 +79,10 @@ type NotWhereClause = {
 
 export type WhereClause = ColumnWhereClause | AndWhereClause | OrWhereClause | NotWhereClause;
 
+/**
+ * The user that a query runs for. Only the HTTP server fills it. It is not part of the
+ * stability promise and can change before v1.
+ */
 export interface PulseAuthContext {
 	userId: number | null;
 }
@@ -90,7 +95,7 @@ export interface PulseRegistryQuery {
 	readonly allowedColumnNames: ReadonlySet<string>;
 	readonly order: 'asc' | 'desc';
 	readonly limit: number | null;
-	readonly argsSchema: { parse: (input: unknown) => unknown } | null;
+	readonly argsSchema: StandardSchemaV1 | null;
 	readonly queryFn:
 		| ((ctx: {
 			query: (where: WhereClause) => WhereClause;
