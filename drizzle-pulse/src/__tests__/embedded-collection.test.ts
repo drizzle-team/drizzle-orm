@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { createPulseClient, type PulseCollection, type PulseCollectionOptions } from '../client/embedded/index.js';
+import { createPulseClient, type PulseCollection } from '../client/embedded/index.js';
 import { asRuntime, makeMockRuntime } from './mock-runtime.js';
 
 // ---------------------------------------------------------------------------
@@ -16,7 +16,7 @@ type TestRow = Record<string, unknown>;
 // assertions get the real PulseCollection surface instead of `any`.
 function makeClient(runtime: ReturnType<typeof makeMockRuntime>) {
 	return createPulseClient(asRuntime(runtime)) as unknown as {
-		orders: (options?: PulseCollectionOptions) => Promise<PulseCollection<TestRow>>;
+		orders: () => Promise<PulseCollection<TestRow>>;
 		nope: () => Promise<PulseCollection<TestRow>>;
 	};
 }
@@ -185,7 +185,7 @@ describe('embedded client — tap-direct handshake', () => {
 		const changes: any[] = [];
 		collection.onChange((c: any) => changes.push(c));
 
-		// UPDATE out of filter: accepted -> completed (matchesNew=false; membership removes the row)
+		// UPDATE out of filter: accepted -> completed. The row leaves the result.
 		runtime.emitTap(
 			tableKey,
 			'update',
@@ -194,8 +194,9 @@ describe('embedded client — tap-direct handshake', () => {
 			'0/300',
 		);
 		expect(collection.list()).toHaveLength(0);
-		expect(changes[0]!.events[0].op).toBe('update');
-		expect(changes[0]!.events[0].matchesNew).toBe(false);
+		expect(changes[0]!.events).toEqual([
+			{ op: 'delete', oldRow: { id: 1, status: 'accepted', price: 10 }, pk: 1 },
+		]);
 
 		// INSERT another matching row, then DELETE it.
 		runtime.emitTap(tableKey, 'insert', { id: 2, status: 'accepted', price: 20 }, null, '0/400');

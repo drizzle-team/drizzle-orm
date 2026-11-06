@@ -10,7 +10,7 @@ export type ColumnOperators<V> = {
 	gte?: V;
 	lt?: V;
 	lte?: V;
-	in?: V[];
+	in?: readonly V[];
 	isNull?: true;
 	isNotNull?: true;
 };
@@ -78,6 +78,10 @@ type NotWhereClause = {
 
 export type WhereClause = ColumnWhereClause | AndWhereClause | OrWhereClause | NotWhereClause;
 
+/**
+ * The user that a query runs for. Only the HTTP server fills it. It is not part of the
+ * stability promise and can change before v1.
+ */
 export interface PulseAuthContext {
 	userId: number | null;
 }

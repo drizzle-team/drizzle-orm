@@ -3,7 +3,6 @@ import {
 	createPulseClient,
 	type EmbeddedPulseClient,
 	type PulseCollection,
-	type PulseCollectionOptions,
 	type PulseRow,
 } from '../src/client/embedded/index.js';
 import { pulse } from '../src/index.js';
@@ -42,10 +41,10 @@ expectTypeOf<typeof client>().toEqualTypeOf<
 >();
 
 // ---------------------------------------------------------------------------
-// Call shapes mirror PulseClientContract
+// Call shapes
 // ---------------------------------------------------------------------------
 
-// Args query: (args, options?) → Promise<PulseCollection<FullRow>>. Embedded rows carry no
+// Args query: (args) → Promise<PulseCollection<FullRow>>. Embedded rows carry no
 // $pk — the wire-only identity key is stripped from the contract shape.
 const withArgsPromise = client.withArgs({ status: 'requested' });
 expectTypeOf(withArgsPromise).toMatchTypeOf<
@@ -64,7 +63,7 @@ expectTypeOf(withArgsPromise).toMatchTypeOf<
 	>
 >();
 
-// No-args query: (options?) → Promise<PulseCollection<FullRow>>
+// No-args query: () → Promise<PulseCollection<FullRow>>
 // Asserted via list()'s row shape rather than the collection type itself: PulseCollection
 // carries an @internal `core` field (stripped from the published .d.ts by stripInternal)
 // whose private innards make different PulseCollection<T> instantiations non-comparable at
@@ -98,19 +97,12 @@ expectTypeOf<PulseRow<Awaited<typeof withArgsPromise>>>().toEqualTypeOf<WithArgs
 expectTypeOf<PulseRow<string>>().toEqualTypeOf<never>();
 
 // ---------------------------------------------------------------------------
-// Trailing PulseCollectionOptions is accepted
+// Opening a live collection takes no options
 // ---------------------------------------------------------------------------
 
-// The trailing options slot is exactly PulseCollectionOptions (args query: slot 1).
-expectTypeOf<Parameters<typeof client.withArgs>[1]>().toEqualTypeOf<
-	PulseCollectionOptions | undefined
->();
-
-// Optional auth context accepted on args query
+// @ts-expect-error there is no trailing options argument
 client.withArgs({ status: 'accepted' }, { auth: { userId: 7 } });
-// Options alone (no userId)
-client.withArgs({ status: 'accepted' }, {});
-// No-args query also accepts options
+// @ts-expect-error there is no options argument
 client.noArgs({ auth: { userId: null } });
 
 // ---------------------------------------------------------------------------
@@ -119,9 +111,6 @@ client.noArgs({ auth: { userId: null } });
 
 // @ts-expect-error args query requires the first positional arg
 client.withArgs();
-
-// @ts-expect-error passing a non-options object (unknown property) to the options slot of a no-args query
-client.noArgs({ driverId: 42 });
 
 // Verify that a selected-columns registry also infers correctly.
 const selectedQueries = {

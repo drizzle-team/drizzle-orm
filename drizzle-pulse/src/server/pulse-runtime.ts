@@ -20,7 +20,16 @@ type RuntimeLifecycleListener = () => void;
 type ReconnectListener = (snapshot: BaselineSnapshot | null) => Promise<void> | void;
 
 export type PulseRuntimeWalConfig = {
+	/**
+	 * The publication that the runtime reads changes from (default `drizzle_pulse`). The runtime
+	 * owns its table list: start adds the registered source tables, and provisioning also drops
+	 * the tables that are no longer registered.
+	 */
 	publicationName?: string;
+	/**
+	 * The replication slot name (default `drizzle_pulse`). In embedded mode it is the prefix of
+	 * a temporary slot, so it must be at most 54 characters.
+	 */
 	slotName?: string;
 };
 
@@ -33,15 +42,22 @@ export enum LogLevel {
 	Debug = 3,
 }
 
-/** Fired once per (table, op) group of each transaction the runtime applies, plus once per
- * collection on a reconnect rebaseline. */
+/**
+ * Fired once per (table, op) group of each transaction the runtime applies, and once per
+ * collection on rebaseline.
+ */
 export type TelemetryEvent = {
 	schema: string;
 	table: string;
 	op: 'insert' | 'update' | 'delete' | 'rebaseline';
 	rowCount: number;
-	committedAt: number;
-	appliedAt: number;
+	/** The commit time on the database host, in epoch microseconds. */
+	committedAtMicros: number;
+	/**
+	 * The time this process applied the commit, in epoch microseconds. On rebaseline it equals
+	 * `committedAtMicros`.
+	 */
+	appliedAtMicros: number;
 	commitLsn: string;
 };
 
@@ -72,8 +88,10 @@ export type PulseRuntimeConfig = {
 		};
 	wal?: PulseRuntimeWalConfig;
 	logLevel?: LogLevel;
-	/** Fires once per (table, op) group of each transaction the runtime applies, plus once per
-	 * collection on a reconnect rebaseline. */
+	/**
+	 * Fires once per (table, op) group of each transaction the runtime applies, and once per
+	 * collection on rebaseline.
+	 */
 	telemetry?: (event: TelemetryEvent) => void;
 };
 
@@ -435,7 +453,7 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 			const table = tableConfig.name;
 			const rowCount = rows.length;
 			// Recovered rows have no single commit clock, so the latency delta reads zero by construction.
-			const appliedAt = Math.round((performance.timeOrigin + performance.now()) * 1000);
+			const appliedAtMicros = Math.round((performance.timeOrigin + performance.now()) * 1000);
 			queueMicrotask(() => {
 				try {
 					telemetry({
@@ -444,8 +462,8 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 						op: 'rebaseline',
 						rowCount,
 						commitLsn: watermark,
-						committedAt: appliedAt,
-						appliedAt,
+						committedAtMicros: appliedAtMicros,
+						appliedAtMicros,
 					});
 				} catch (err) {
 					this.logError('telemetry callback error:', err);
@@ -465,7 +483,7 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 		this.store ??= new PulseStore(this.config.databaseUrl, this.eventsSchema);
 
 		try {
-			await this.bootstrap();
+			await this.bootstrap({ prune: false });
 			await this.openSession();
 		} catch (error) {
 			// Mirrors stop()'s pool teardown so a failed guard doesn't leak connections — callers
@@ -504,7 +522,8 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 	 * Brings this runtime's events tables and their bookkeeping in line with the live database
 	 * without opening a replication stream: runs the same schema path as {@link start} —
 	 * create/recreate diverged events tables, sweep orphans, rotate epochs — over a short-lived
-	 * admin connection, then closes it. Call from a deploy/migration step to provision
+	 * admin connection, then closes it. Unlike {@link start}, it also drops the tables that are
+	 * no longer registered from the publication and resets their replica identity to DEFAULT. Call from a deploy/migration step to provision
 	 * infrastructure ahead of booting the listener. On any unmet precondition it throws and rolls
 	 * the whole transaction back instead of provisioning partially.
 	 */
@@ -519,7 +538,7 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 		}
 		this.store ??= new PulseStore(this.config.databaseUrl, this.eventsSchema);
 		try {
-			await this.bootstrap();
+			await this.bootstrap({ prune: true });
 		} finally {
 			const store = this.store;
 			this.store = null;
@@ -530,13 +549,14 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 	// Boot-time provisioning, wrapped in one transaction under a schema-scoped advisory lock.
 	// wal_level is the only precondition the runtime can't fix, so it stays an assert;
 	// everything else pulse self-provisions: REPLICA IDENTITY FULL on each source, then the
-	// publication (create it owning exactly the sources, or — unless it's FOR ALL TABLES — diff
-	// its membership, adding registered sources and un-pulsing members that no longer are). Then
+	// publication (create it owning exactly the sources, or, unless it's FOR ALL TABLES, add
+	// the registered sources that are missing, and with `prune` also un-pulse the members that are
+	// no longer registered). Then
 	// it brings the events tables and their pulse_meta bookkeeping in line with the sources
 	// (create/recreate on DDL-hash divergence, drop orphans), rotating an epoch on every recreate.
 	// Any throw rolls the whole transaction back, so a database it can't fully provision is left
 	// untouched. Runtime-owned events-table DDL: the app no longer migrates these tables.
-	private async bootstrap(): Promise<void> {
+	private async bootstrap({ prune }: { prune: boolean }): Promise<void> {
 		const adminDb = this.getPulseStore().getDb();
 		const { pulseMeta } = this.getPulseStore();
 		const eventsSchema = this.eventsSchema;
@@ -657,7 +677,9 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 				// Un-pulse members no longer registered: DROP from the publication, THEN reset REPLICA
 				// IDENTITY (a member row implies the table still exists — pg_publication_tables joins
 				// pg_class, so a dropped table has already left membership on its own).
-				for (const member of members) {
+				// Only provisioning prunes: two runtimes that share a publication must not remove each
+				// other's tables on start.
+				for (const member of prune ? members : []) {
 					if (registeredNames.has(member.name)) continue;
 					await execAssumingGrant(
 						`ALTER PUBLICATION ${pubIdent} DROP TABLE ${member.quoted}`,
@@ -1016,13 +1038,13 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
 
 		const telemetry = this.config.telemetry;
 		if (telemetry && wireCounts.size > 0) {
-			const appliedAt = Math.round((performance.timeOrigin + performance.now()) * 1000);
-			const committedAt = batch.commitTimeUs;
+			const appliedAtMicros = Math.round((performance.timeOrigin + performance.now()) * 1000);
+			const committedAtMicros = batch.commitTimeUs;
 			const commitLsn = batch.commitLsn;
 			queueMicrotask(() => {
 				for (const group of wireCounts.values()) {
 					try {
-						telemetry({ ...group, committedAt, appliedAt, commitLsn });
+						telemetry({ ...group, committedAtMicros, appliedAtMicros, commitLsn });
 					} catch (err) {
 						this.logError('telemetry callback error:', err);
 					}

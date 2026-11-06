@@ -1,42 +1,55 @@
-import type { AnyPulseBuilders } from '../../server/pulse-registry.js';
+import type { Simplify } from 'drizzle-orm';
+import type { AnyPulseBuilder, AnyPulseBuilders } from '../../server/pulse-registry.js';
 import type { PulseRuntime } from '../../server/pulse-runtime.js';
-import type { PulseClientContract } from '../../server/pulse-types.js';
-import type { PulseEvent } from '../../shared/pulse-events.js';
+import { buildWhereClausePredicate } from '../../shared/drizzle-utils.js';
 import { getQualifiedTableName } from '../../shared/qualified-table-name.js';
-import type { PulseAuthContext, QueryDescriptor } from '../../types.js';
+import type { PulseEvent } from './pulse-events.js';
 import { buildTapEvent, type TapRow } from './tap-events.js';
 
 // Must stay free of merge-core/collection value imports: there is no baseline and
-// no state to reconcile here, only a WHERE-filtered tap. Value imports limited to ./tap-events.js
-// and bare drizzle-orm; platform-imports.test.ts enforces purity across the embedded graph.
+// no state to reconcile here, only a WHERE-filtered tap. Value imports limited to ./tap-events.js,
+// src/shared and bare drizzle-orm. platform-imports.test.ts enforces purity across the embedded graph.
+
+/** The names of the queries that a live collection or a CDC event stream can open. */
+export type EmbeddedQueryName<TQueries extends AnyPulseBuilders> = {
+	[K in keyof TQueries]: TQueries[K]['_']['flags']['transformed'] extends true ? never
+		: TQueries[K]['_']['flags']['limited'] extends true ? never
+		: K;
+}[keyof TQueries];
+
+export type EmbeddedRow<TQuery extends AnyPulseBuilder> = Simplify<TQuery['_']['result']>;
 
 /**
- * Called with each tapped event in WAL commit order. Delivery is **at-least-once**: a
- * disconnect between the tap emit and the replication slot's per-message acknowledge replays
- * the same commit again after reconnect, and this surface has no baseline/dedup to absorb it
- * (unlike `PulseCollection`, which dedups the replay via its merge core's pk map). Consumers
- * with side effects keyed off `lsn` should treat `(pk, lsn)` — or `lsn` alone for single-event
- * transactions — as an idempotency key.
+ * Called with each event in WAL commit order.
+ *
+ * A disconnect between the delivery and the slot acknowledge can deliver the same commit
+ * again after the reconnect, so use `(pk, lsn)` as an idempotency key for side effects.
+ *
+ * In embedded mode each reconnect takes a new temporary replication slot. Changes committed
+ * while the connection was down are not delivered, and `onResync` fires instead.
  */
 export type PulseEventsCallback<TRow> = (event: PulseEvent<TRow>, lsn: string) => void;
 
 export interface PulseEventsOptions {
-	auth?: PulseAuthContext;
+	/**
+	 * Fires after a reconnect when the changes committed during the outage were not delivered.
+	 * Reload any state that you build from the events.
+	 */
+	onResync?: () => void;
+	/** Fires when replication fails permanently. The CDC event stream is closed after this call. */
+	onError?: (error: Error) => void;
 }
 
 export type EmbeddedPulseEvents<TQueries extends AnyPulseBuilders> = {
-	[K in keyof PulseClientContract<TQueries>]: PulseClientContract<TQueries>[K] extends (
-		...args: infer A
-	) => QueryDescriptor<infer R>
-		? A extends [] ? (callback: PulseEventsCallback<Omit<R, '$pk'>>, options?: PulseEventsOptions) => () => void
-		: (
-			...args: [
-				...A,
-				callback: PulseEventsCallback<Omit<R, '$pk'>>,
-				options?: PulseEventsOptions,
-			]
+	[K in EmbeddedQueryName<TQueries>]: [keyof TQueries[K]['_']['argsInput']] extends [never] ? (
+			callback: PulseEventsCallback<EmbeddedRow<TQueries[K]>>,
+			options?: PulseEventsOptions,
 		) => () => void
-		: never;
+		: (
+			args: TQueries[K]['_']['argsInput'],
+			callback: PulseEventsCallback<EmbeddedRow<TQueries[K]>>,
+			options?: PulseEventsOptions,
+		) => () => void;
 };
 
 // ---------------------------------------------------------------------------
@@ -57,13 +70,13 @@ export function createPulseEvents<TQueries extends AnyPulseBuilders>(
 				const pulseQuery = runtime.registry.getPulseQuery(prop);
 				if (!pulseQuery) throw new Error(`Unknown query: "${prop}"`);
 				if (!runtime.isRunning) {
-					throw new Error('PulseEvents subscription can only be created after runtime.start()');
+					throw new Error('A CDC event stream can only be opened after runtime.start()');
 				}
 				if (pulseQuery.hasTransform) {
-					throw new Error('Queries with .transform() are not supported in the embedded client');
+					throw new Error('Live collections and CDC event streams do not support queries with .transform()');
 				}
 				if (pulseQuery.limit !== null) {
-					throw new Error('Queries with .limit() are not supported in the embedded client');
+					throw new Error('Live collections and CDC event streams do not support queries with .limit()');
 				}
 
 				// Split (rawArgs?, callback, options?) the same way collections split (rawArgs?, options?).
@@ -83,17 +96,16 @@ export function createPulseEvents<TQueries extends AnyPulseBuilders>(
 
 				if (typeof callback !== 'function') {
 					throw new Error(
-						`createPulseEvents: expected a callback function, got ${typeof callback}`,
+						`The CDC event stream for query "${prop}" needs a callback function, but got ${typeof callback}`,
 					);
 				}
 
-				const auth: PulseAuthContext = options?.auth ?? { userId: null };
-				// resolve() validates args and yields the auth-scoped WHERE. buildTapEvent always gates
-				// inserts on it; updates/deletes are gated too when the old tuple is fully evaluable
-				// (RID FULL, or pull:true), otherwise delivered with an empty row — the event's pk
-				// carries the identity — so membership stays correct without leaking out-of-scope
-				// column data (see tap-events.ts).
-				const query = runtime.registry.resolve(prop, rawArgs, auth);
+				// resolve() validates the args and yields the WHERE that buildTapEvent evaluates on
+				// both sides of every change.
+				const query = runtime.registry.resolve(prop, rawArgs, { userId: null });
+				// The stream never builds SQL, so this call only rejects a WHERE on a column outside
+				// `.columns()`, with the error that a live collection gives when it opens.
+				buildWhereClausePredicate(query.where, query.columns, query.allowedColumnNames);
 				const tableKey = getQualifiedTableName(query.table);
 
 				// The WAL listener processes pgoutput messages sequentially and the emitter dispatches
@@ -105,14 +117,24 @@ export function createPulseEvents<TQueries extends AnyPulseBuilders>(
 					callback(event, lsn);
 				});
 
+				const unsubs = [tapUnsub];
+				const onResync = options?.onResync;
+				if (onResync) {
+					unsubs.push(runtime.onReconnect((snapshot) => {
+						// A null snapshot means the slot resumed and replays the outage, so nothing is lost.
+						if (snapshot !== null) onResync();
+					}));
+				}
+				const onError = options?.onError;
+				if (onError) unsubs.push(runtime.onTerminalError((error) => onError(error)));
+
 				let detached = false;
 				const detach = (): void => {
 					if (detached) return;
 					detached = true;
-					tapUnsub();
-					stopUnsub();
+					for (const unsub of unsubs) unsub();
 				};
-				const stopUnsub = runtime.onStop(() => detach());
+				unsubs.push(runtime.onStop(() => detach()));
 
 				return detach;
 			};

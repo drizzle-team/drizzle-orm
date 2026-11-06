@@ -171,7 +171,8 @@ describe('pull: false — embedded-only runtime writes nothing to events tables'
 
 			await s.sql.unsafe(`UPDATE "orders" SET status = 'completed' WHERE id = $1`, [insertedId]);
 			await waitFor(() => collection.list().length === 0 && eventLog.length === 2);
-			expect(eventLog[1]?.op).toBe('update');
+			// The row leaves the query result, so the event is a delete.
+			expect(eventLog[1]?.op).toBe('delete');
 
 			await s.sql.unsafe(
 				`INSERT INTO "orders" (driver_id, status, price) VALUES (1, 'accepted', 20)`,
@@ -195,7 +196,7 @@ describe('pull: false — embedded-only runtime writes nothing to events tables'
 		}
 	});
 
-	test('wire-shape pin: the pull:false delete event is exactly { op, old_row, pk } with a full old_row, and updates carry matchesNew with no old-match flag', async () => {
+	test('event shape pin: the pull:false update carries full row and oldRow, and the delete is exactly { op, oldRow, pk } with a full oldRow', async () => {
 		const s = await setupPullFalseScenario('wireshape');
 		try {
 			await s.runtime.start();
@@ -217,18 +218,19 @@ describe('pull: false — embedded-only runtime writes nothing to events tables'
 			await s.sql.unsafe(`UPDATE "orders" SET price = 20 WHERE id = $1`, [insertedId]);
 			await waitFor(() => captured.length === 2);
 			const updateEvent = captured[1] as Record<string, unknown>;
-			expect(updateEvent).toHaveProperty('matchesNew');
-			expect(updateEvent).not.toHaveProperty('matchesOld');
+			expect(Object.keys(updateEvent).sort()).toEqual(['oldRow', 'op', 'pk', 'row']);
+			expect((updateEvent.row as Record<string, unknown>).price).toBe(20);
+			expect((updateEvent.oldRow as Record<string, unknown>).price).toBe(10);
 
-			// REPLICA IDENTITY FULL means the delete's old_row carries the query's full projected
+			// REPLICA IDENTITY FULL means the delete's oldRow carries the query's full projected
 			// row, same as under pull:true. Any future field addition/removal on this shape must
 			// consciously edit this pin.
 			await s.sql.unsafe(`DELETE FROM "orders" WHERE id = $1`, [insertedId]);
 			await waitFor(() => captured.length === 3);
 			const deleteEvent = captured[2] as Record<string, unknown>;
-			expect(Object.keys(deleteEvent).sort()).toEqual(['old_row', 'op', 'pk']);
+			expect(Object.keys(deleteEvent).sort()).toEqual(['oldRow', 'op', 'pk']);
 			expect(deleteEvent.pk).toBe(insertedId);
-			const oldRow = deleteEvent.old_row as Record<string, unknown>;
+			const oldRow = deleteEvent.oldRow as Record<string, unknown>;
 			expect(Object.keys(oldRow).sort()).toEqual([
 				'createdAt',
 				'driverId',

@@ -47,9 +47,9 @@ describe('drizzle-pulse/embedded — telemetry', () => {
 
 			const event = received[0]!;
 			expect(Object.keys(event).sort()).toEqual([
-				'appliedAt',
+				'appliedAtMicros',
 				'commitLsn',
-				'committedAt',
+				'committedAtMicros',
 				'op',
 				'rowCount',
 				'schema',
@@ -60,14 +60,14 @@ describe('drizzle-pulse/embedded — telemetry', () => {
 			expect(event.table).toBe('orders');
 			expect(event.rowCount).toBe(1);
 			expect(event.commitLsn).toMatch(/^[0-9A-F]+\/[0-9A-F]+$/i);
-			expect(Number.isInteger(event.committedAt)).toBe(true);
-			expect(Number.isInteger(event.appliedAt)).toBe(true);
-			expect(event.committedAt).toBeGreaterThan(0);
+			expect(Number.isInteger(event.committedAtMicros)).toBe(true);
+			expect(Number.isInteger(event.appliedAtMicros)).toBe(true);
+			expect(event.committedAtMicros).toBeGreaterThan(0);
 			// Two different clocks (database host vs. app host) — generous bound, not a precision check.
-			expect(Math.abs(event.appliedAt - event.committedAt)).toBeLessThan(60_000_000);
+			expect(Math.abs(event.appliedAtMicros - event.committedAtMicros)).toBeLessThan(60_000_000);
 			// Pins the UNIT: a millisecond value or a PG-epoch value both blow this bound; only a
 			// correct epoch-microsecond value stays within it.
-			expect(Math.abs(event.committedAt - Date.now() * 1000)).toBeLessThan(60_000_000);
+			expect(Math.abs(event.committedAtMicros - Date.now() * 1000)).toBeLessThan(60_000_000);
 
 			// Two rows in one transaction collapse into a single grouped event with rowCount 2.
 			await scenario.sql.unsafe(
@@ -195,11 +195,11 @@ describe('drizzle-pulse/embedded — telemetry', () => {
 			expect(rebaseline.schema).toBe('public');
 			expect(rebaseline.table).toBe('orders');
 			expect(rebaseline.commitLsn).toMatch(/^[0-9A-F]+\/[0-9A-F]+$/i);
-			expect(rebaseline.committedAt).toBe(rebaseline.appliedAt);
+			expect(rebaseline.committedAtMicros).toBe(rebaseline.appliedAtMicros);
 			expect(Object.keys(rebaseline).sort()).toEqual([
-				'appliedAt',
+				'appliedAtMicros',
 				'commitLsn',
-				'committedAt',
+				'committedAtMicros',
 				'op',
 				'rowCount',
 				'schema',

@@ -1,6 +1,5 @@
 import { expectTypeOf } from 'bun:test';
-import { pulse } from '../src/pulse-table.js';
-import type { PulseBuilder } from '../src/server/pulse-builder.js';
+import { pulse, type PulseAuthContext, type PulseBuilder, PulseTable } from '../src/index.js';
 import { orders, statusSchema } from './fixtures.js';
 
 type OrderRow = {
@@ -15,51 +14,79 @@ type OrderRow = {
 	updatedAt: Date;
 };
 
-// Spelling A (user-canonical): collection-level query fn reads args before `.args()` seeds
-// the schema anywhere in the chain — args is intentionally permissive here (see pulse-table.ts).
-const spellingA = pulse(orders)
-	.query(({ query, args, auth }) => {
-		expectTypeOf(auth).not.toBeAny();
-		return query({ status: args.status });
-	})
-	.args(statusSchema);
-expectTypeOf(spellingA).toEqualTypeOf<
-	PulseBuilder<
-		typeof orders,
-		Record<never, boolean>,
-		{ status: 'requested' | 'accepted' | 'completed' | 'cancelled' },
-		OrderRow
-	>
+// A where-function set on the Pulse table has no arguments: `ctx.args` is empty.
+const tableLevelQuery = pulse(orders).query(({ query, args, auth }) => {
+	expectTypeOf(args).toEqualTypeOf<Record<never, never>>();
+	expectTypeOf(auth).toEqualTypeOf<PulseAuthContext>();
+	// @ts-expect-error args has no fields without a schema
+	void args.status;
+	return query({ status: 'accepted' });
+});
+expectTypeOf(tableLevelQuery).toEqualTypeOf<
+	PulseBuilder<typeof orders, Record<never, boolean>, Record<never, never>, Record<never, never>, OrderRow>
 >();
 
-// Spelling B (fully-typed args): `.args()` seeds the schema on the builder before the
-// builder-level `.query()` runs, so `ctx.args.status` is the real narrowed union type,
-// not the permissive `any` from the collection-level fn above.
-const spellingB = pulse(orders)
-	.query()
+// `.args()` before `.query(fn)` gives the where-function typed arguments.
+const argsFirst = pulse(orders)
 	.args(statusSchema)
 	.order('desc')
-	.limit(5)
 	.query((ctx) => {
 		expectTypeOf(ctx.args.status).toEqualTypeOf<
 			'requested' | 'accepted' | 'completed' | 'cancelled'
 		>();
 		return ctx.query({ status: ctx.args.status });
 	});
-expectTypeOf(spellingB).toEqualTypeOf<
+expectTypeOf(argsFirst).toEqualTypeOf<
 	PulseBuilder<
 		typeof orders,
 		Record<never, boolean>,
 		{ status: 'requested' | 'accepted' | 'completed' | 'cancelled' },
+		{ status: 'requested' | 'accepted' | 'completed' | 'cancelled' },
 		OrderRow
 	>
 >();
+
+// `.args()` after `.query(fn)` still compiles, but it throws at runtime.
+expectTypeOf(pulse(orders).query(() => null).args).toBeFunction();
+
+// The shortcut methods on the Pulse table start the same chain as `.query()`.
+expectTypeOf(pulse(orders)).toEqualTypeOf<PulseTable<typeof orders>>();
+expectTypeOf(pulse(orders).columns({ id: true })._.result).toEqualTypeOf<{ id: number }>();
+expectTypeOf(pulse(orders).order('asc')).toEqualTypeOf<typeof bareQueryForShortcuts>();
+expectTypeOf(pulse(orders).limit(1)).toEqualTypeOf<
+	PulseBuilder<
+		typeof orders,
+		Record<never, boolean>,
+		Record<never, never>,
+		Record<never, never>,
+		OrderRow,
+		{ transformed: false; limited: true }
+	>
+>();
+expectTypeOf(pulse(orders).transform((rows) => rows.map((row) => ({ id: row.id })))).toEqualTypeOf<
+	PulseBuilder<
+		typeof orders,
+		Record<never, boolean>,
+		Record<never, never>,
+		Record<never, never>,
+		{ id: number },
+		{ transformed: true; limited: false }
+	>
+>();
+declare const bareQueryForShortcuts: PulseBuilder<
+	typeof orders,
+	Record<never, boolean>,
+	Record<never, never>,
+	Record<never, never>,
+	OrderRow
+>;
 
 // Bare `pulse(orders).query()` compiles and is assignable where a PulseBuilder is expected.
 const bareQuery = pulse(orders).query();
 const asBuilder: PulseBuilder<
 	typeof orders,
 	Record<never, boolean>,
+	Record<never, never>,
 	Record<never, never>,
 	OrderRow
 > = bareQuery;

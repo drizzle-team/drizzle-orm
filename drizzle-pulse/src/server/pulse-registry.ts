@@ -1,14 +1,16 @@
 import type { PgTable } from 'drizzle-orm/pg-core';
 import { getPulsePkColumn } from '../pulse-table.js';
 import type { PulseAuthContext, PulseRegistryQuery, ResolvedPulseQuery, WhereClause } from '../types.js';
-import type { PulseBuilder } from './pulse-builder.js';
+import type { PulseBuilder, PulseBuilderFlags } from './pulse-builder.js';
 import type { PulseClientContract } from './pulse-types.js';
 
 export type AnyPulseBuilder = PulseBuilder<
 	PgTable,
 	Record<string, boolean>,
-	unknown,
-	Record<string, unknown>
+	any,
+	any,
+	Record<string, unknown>,
+	PulseBuilderFlags
 >;
 
 export type AnyPulseBuilders = Record<string, AnyPulseBuilder>;

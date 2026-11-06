@@ -158,7 +158,7 @@ describe('Startup bootstrap (self-provisioning)', () => {
 		}
 	});
 
-	test('(d) pulse-owned FOR TABLE publication: start() adds the registered source and un-pulses foreign members', async () => {
+	test('(d) pulse-owned FOR TABLE publication: start() adds the registered source and keeps the other members', async () => {
 		const ctx = await setupGuardScenario('d');
 		const publicationName = `guard_pub_d_${randomSuffix()}`;
 		const slotName = `guard_slot_d_${randomSuffix()}`;
@@ -168,7 +168,7 @@ describe('Startup bootstrap (self-provisioning)', () => {
 			await setReplicaIdentityFull(ctx.sql);
 			await ctx.sql.unsafe('CREATE TABLE "users" ("id" serial PRIMARY KEY)');
 			// A FOR TABLE publication missing the pulsed table but carrying an unregistered one.
-			// pulse owns the publication: bootstrap() ADDs orders and un-pulses (DROPs) users.
+			// start() ADDs orders and keeps users: only provisioning drops members.
 			await ctx.sql.unsafe(`CREATE PUBLICATION ${publicationName} FOR TABLE "users"`);
 
 			const registry = createPulseRegistry({ orders: pulse(orders).query() });
@@ -182,7 +182,7 @@ describe('Startup bootstrap (self-provisioning)', () => {
 
 			await runtime.start();
 			expect(runtime.isRunning).toBe(true);
-			expect(await publicationMembers(ctx.sql, publicationName)).toEqual(['public.orders']);
+			expect(await publicationMembers(ctx.sql, publicationName)).toEqual(['public.orders', 'public.users']);
 
 			await runtime.stop();
 			expect(runtime.isRunning).toBe(false);
