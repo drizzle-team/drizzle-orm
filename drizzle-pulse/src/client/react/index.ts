@@ -1,1 +1,1 @@
-export { type UsePulseQueryResult, usePulseQuery } from './use-pulse-query.js';
+export { usePulseQuery, type UsePulseQueryResult } from './use-pulse-query.js';

@@ -22,42 +22,42 @@ export type TapRow = Record<string, unknown>;
  * membership removal, the old row of a membership entry) never reaches the subscriber.
  */
 export function buildTapEvent(
-  event: PendingWalEvent,
-  query: ResolvedPulseQuery,
+	event: PendingWalEvent,
+	query: ResolvedPulseQuery,
 ): PulseEvent<TapRow> | null {
-  // Delete events carry an empty `row` object (not null); extractRow returns null when
-  // every column is absent, so the delete case falls out of this call for free.
-  const newRow = extractRow(event.row, query.columns);
-  const oldRow = event.oldRow ? extractRow(event.oldRow, query.columns) : null;
+	// Delete events carry an empty `row` object (not null); extractRow returns null when
+	// every column is absent, so the delete case falls out of this call for free.
+	const newRow = extractRow(event.row, query.columns);
+	const oldRow = event.oldRow ? extractRow(event.oldRow, query.columns) : null;
 
-  const matchesNew = newRow ? evaluateCondition(query.where, newRow) : false;
-  const matchesOld = oldRow ? evaluateCondition(query.where, oldRow) : false;
+	const matchesNew = newRow ? evaluateCondition(query.where, newRow) : false;
+	const matchesOld = oldRow ? evaluateCondition(query.where, oldRow) : false;
 
-  if (event.op === 'insert') {
-    if (!matchesNew || !newRow) return null;
-    const [projected] = projectEmbeddedRows([newRow], query);
-    if (!projected) return null;
-    return { op: 'insert', row: projected.row, pk: projected.pk };
-  }
+	if (event.op === 'insert') {
+		if (!matchesNew || !newRow) return null;
+		const [projected] = projectEmbeddedRows([newRow], query);
+		if (!projected) return null;
+		return { op: 'insert', row: projected.row, pk: projected.pk };
+	}
 
-  if (event.op === 'update') {
-    if (!matchesNew && !matchesOld) return null;
-    const projectedNew = newRow ? projectEmbeddedRows([newRow], query)[0] : null;
-    const projectedOld = oldRow ? projectEmbeddedRows([oldRow], query)[0] : null;
-    const fallback = projectedNew ?? projectedOld;
-    if (!fallback) return null;
-    return {
-      op: 'update',
-      row: matchesNew && projectedNew ? projectedNew.row : {},
-      old_row: matchesOld && projectedOld ? projectedOld.row : {},
-      pk: fallback.pk,
-      matchesNew,
-    };
-  }
+	if (event.op === 'update') {
+		if (!matchesNew && !matchesOld) return null;
+		const projectedNew = newRow ? projectEmbeddedRows([newRow], query)[0] : null;
+		const projectedOld = oldRow ? projectEmbeddedRows([oldRow], query)[0] : null;
+		const fallback = projectedNew ?? projectedOld;
+		if (!fallback) return null;
+		return {
+			op: 'update',
+			row: matchesNew && projectedNew ? projectedNew.row : {},
+			old_row: matchesOld && projectedOld ? projectedOld.row : {},
+			pk: fallback.pk,
+			matchesNew,
+		};
+	}
 
-  // delete
-  if (!oldRow || !matchesOld) return null;
-  const [projected] = projectEmbeddedRows([oldRow], query);
-  if (!projected) return null;
-  return { op: 'delete', old_row: projected.row, pk: projected.pk };
+	// delete
+	if (!oldRow || !matchesOld) return null;
+	const [projected] = projectEmbeddedRows([oldRow], query);
+	if (!projected) return null;
+	return { op: 'delete', old_row: projected.row, pk: projected.pk };
 }

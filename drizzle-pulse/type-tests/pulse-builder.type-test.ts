@@ -6,15 +6,15 @@ import type { QueryDescriptor } from '../src/types.js';
 import { driverSchema, orders, statusSchema } from './fixtures.js';
 
 type OrderRow = {
-  id: number;
-  driverId: number | null;
-  pickup: string;
-  dropoff: string;
-  price: number;
-  status: 'requested' | 'accepted' | 'completed' | 'cancelled';
-  acceptedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
+	id: number;
+	driverId: number | null;
+	pickup: string;
+	dropoff: string;
+	price: number;
+	status: 'requested' | 'accepted' | 'completed' | 'cancelled';
+	acceptedAt: Date | null;
+	createdAt: Date;
+	updatedAt: Date;
 };
 
 const defaultQuery = pulse(orders).query();
@@ -23,41 +23,41 @@ const excludeColumnsQuery = pulse(orders).query().columns({ price: false, accept
 const statusArgsQuery = pulse(orders).query().args(statusSchema);
 const replacedArgsQuery = pulse(orders).query().args(statusSchema).args(driverSchema);
 const transformedQuery = pulse(orders)
-  .query()
-  .transform((rows) => {
-    const rowsCheck: OrderRow[] = rows;
-    return rowsCheck;
-  });
+	.query()
+	.transform((rows) => {
+		const rowsCheck: OrderRow[] = rows;
+		return rowsCheck;
+	});
 void pulse(orders).query().order('asc');
 void pulse(orders).query().order('desc');
 void pulse(orders).query().limit(10);
 const noArgsQuery = pulse(orders).query((_ctx) => null);
 const fullChainQuery = pulse(orders)
-  .query()
-  .columns({ id: true, status: true, price: true })
-  .args(statusSchema)
-  .order('desc')
-  .limit(20)
-  .query((ctx) => ctx.query({ status: ctx.args.status }));
+	.query()
+	.columns({ id: true, status: true, price: true })
+	.args(statusSchema)
+	.order('desc')
+	.limit(20)
+	.query((ctx) => ctx.query({ status: ctx.args.status }));
 const defaultRegistry = createPulseRegistry({ allOrders: defaultQuery });
 
 expectTypeOf(defaultQuery).toEqualTypeOf<
-  PulseBuilder<typeof orders, Record<never, boolean>, Record<never, never>, OrderRow>
+	PulseBuilder<typeof orders, Record<never, boolean>, Record<never, never>, OrderRow>
 >();
 expectTypeOf(defaultQuery._.result).toEqualTypeOf<OrderRow>();
 expectTypeOf<ReturnType<typeof defaultRegistry.$client.allOrders>>().toEqualTypeOf<
-  QueryDescriptor<{
-    id: number;
-    driverId: number | null;
-    pickup: string;
-    dropoff: string;
-    price: number;
-    status: 'requested' | 'accepted' | 'completed' | 'cancelled';
-    acceptedAt: Date | null;
-    createdAt: Date;
-    updatedAt: Date;
-    $pk: unknown;
-  }>
+	QueryDescriptor<{
+		id: number;
+		driverId: number | null;
+		pickup: string;
+		dropoff: string;
+		price: number;
+		status: 'requested' | 'accepted' | 'completed' | 'cancelled';
+		acceptedAt: Date | null;
+		createdAt: Date;
+		updatedAt: Date;
+		$pk: unknown;
+	}>
 >();
 
 type IncludeResult = typeof includeColumnsQuery._.result;
@@ -75,36 +75,36 @@ type _ExcludeNoPrice = ExcludeResult['price'];
 type _ExcludeNoAcceptedAt = ExcludeResult['acceptedAt'];
 
 expectTypeOf(statusArgsQuery).toEqualTypeOf<
-  PulseBuilder<
-    typeof orders,
-    Record<never, boolean>,
-    { status: 'requested' | 'accepted' | 'completed' | 'cancelled' },
-    OrderRow
-  >
+	PulseBuilder<
+		typeof orders,
+		Record<never, boolean>,
+		{ status: 'requested' | 'accepted' | 'completed' | 'cancelled' },
+		OrderRow
+	>
 >();
 expectTypeOf(replacedArgsQuery).toEqualTypeOf<
-  PulseBuilder<typeof orders, Record<never, boolean>, { driverId: number }, OrderRow>
+	PulseBuilder<typeof orders, Record<never, boolean>, { driverId: number }, OrderRow>
 >();
 
 expectTypeOf(transformedQuery).toEqualTypeOf<
-  PulseBuilder<typeof orders, Record<never, boolean>, Record<never, never>, OrderRow>
+	PulseBuilder<typeof orders, Record<never, boolean>, Record<never, never>, OrderRow>
 >();
 
 const transformedShapeQuery = pulse(orders)
-  .query()
-  .transform((rows) => rows.map((row) => ({ id: row.id, statusLabel: row.status.toUpperCase() })));
+	.query()
+	.transform((rows) => rows.map((row) => ({ id: row.id, statusLabel: row.status.toUpperCase() })));
 expectTypeOf(transformedShapeQuery._.result).toEqualTypeOf<{
-  id: number;
-  statusLabel: string;
+	id: number;
+	statusLabel: string;
 }>();
 
 const transformedRegistry = createPulseRegistry({ transformedShapeQuery });
 expectTypeOf<ReturnType<typeof transformedRegistry.$client.transformedShapeQuery>>().toEqualTypeOf<
-  QueryDescriptor<{
-    id: number;
-    statusLabel: string;
-    $pk: unknown;
-  }>
+	QueryDescriptor<{
+		id: number;
+		statusLabel: string;
+		$pk: unknown;
+	}>
 >();
 
 // @ts-expect-error invalid order direction
@@ -115,23 +115,23 @@ pulse(orders).query().limit('10');
 type FullChainResult = typeof fullChainQuery._.result;
 expectTypeOf<FullChainResult['id']>().toEqualTypeOf<number>();
 expectTypeOf<FullChainResult['status']>().toEqualTypeOf<
-  'requested' | 'accepted' | 'completed' | 'cancelled'
+	'requested' | 'accepted' | 'completed' | 'cancelled'
 >();
 expectTypeOf<FullChainResult['price']>().toEqualTypeOf<number>();
 // @ts-expect-error pickup not selected
 type _FullChainNoPickup = FullChainResult['pickup'];
 
 expectTypeOf(defaultQuery).toEqualTypeOf<
-  PulseBuilder<typeof orders, Record<never, boolean>, Record<never, never>, OrderRow>
+	PulseBuilder<typeof orders, Record<never, boolean>, Record<never, never>, OrderRow>
 >();
 expectTypeOf(statusArgsQuery).toEqualTypeOf<
-  PulseBuilder<
-    typeof orders,
-    Record<never, boolean>,
-    { status: 'requested' | 'accepted' | 'completed' | 'cancelled' },
-    OrderRow
-  >
+	PulseBuilder<
+		typeof orders,
+		Record<never, boolean>,
+		{ status: 'requested' | 'accepted' | 'completed' | 'cancelled' },
+		OrderRow
+	>
 >();
 expectTypeOf(noArgsQuery).toEqualTypeOf<
-  PulseBuilder<typeof orders, Record<never, boolean>, Record<never, never>, OrderRow>
+	PulseBuilder<typeof orders, Record<never, boolean>, Record<never, never>, OrderRow>
 >();

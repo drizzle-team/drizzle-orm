@@ -1,10 +1,10 @@
 import { expectTypeOf } from 'bun:test';
 import {
-  createPulseClient,
-  type EmbeddedPulseClient,
-  type PulseCollection,
-  type PulseCollectionOptions,
-  type PulseRow,
+	createPulseClient,
+	type EmbeddedPulseClient,
+	type PulseCollection,
+	type PulseCollectionOptions,
+	type PulseRow,
 } from '../src/client/embedded/index.js';
 import { pulse } from '../src/index.js';
 import { createPulseRegistry } from '../src/server/pulse-registry.js';
@@ -16,9 +16,9 @@ import { driverSchema, orders, statusSchema } from './fixtures.js';
 // ---------------------------------------------------------------------------
 
 const withArgs = pulse(orders)
-  .query()
-  .args(statusSchema)
-  .query((ctx) => ctx.query({ status: ctx.args.status }));
+	.query()
+	.args(statusSchema)
+	.query((ctx) => ctx.query({ status: ctx.args.status }));
 const noArgs = pulse(orders).query();
 
 // Compile check only: the builders must satisfy createPulseRegistry's constraints.
@@ -38,7 +38,7 @@ declare const runtime: PulseRuntime<{ withArgs: typeof withArgs; noArgs: typeof 
 const client = createPulseClient(runtime);
 
 expectTypeOf<typeof client>().toEqualTypeOf<
-  EmbeddedPulseClient<{ withArgs: typeof withArgs; noArgs: typeof noArgs }>
+	EmbeddedPulseClient<{ withArgs: typeof withArgs; noArgs: typeof noArgs }>
 >();
 
 // ---------------------------------------------------------------------------
@@ -49,19 +49,19 @@ expectTypeOf<typeof client>().toEqualTypeOf<
 // $pk — the wire-only identity key is stripped from the contract shape.
 const withArgsPromise = client.withArgs({ status: 'requested' });
 expectTypeOf(withArgsPromise).toMatchTypeOf<
-  Promise<
-    PulseCollection<{
-      id: number;
-      driverId: number | null;
-      pickup: string;
-      dropoff: string;
-      price: number;
-      status: 'requested' | 'accepted' | 'completed' | 'cancelled';
-      acceptedAt: Date | null;
-      createdAt: Date;
-      updatedAt: Date;
-    }>
-  >
+	Promise<
+		PulseCollection<{
+			id: number;
+			driverId: number | null;
+			pickup: string;
+			dropoff: string;
+			price: number;
+			status: 'requested' | 'accepted' | 'completed' | 'cancelled';
+			acceptedAt: Date | null;
+			createdAt: Date;
+			updatedAt: Date;
+		}>
+	>
 >();
 
 // No-args query: (options?) → Promise<PulseCollection<FullRow>>
@@ -72,10 +72,10 @@ expectTypeOf(withArgsPromise).toMatchTypeOf<
 // typechecks against source. list()'s return type has no such entanglement.
 declare const noArgsCollection: Awaited<ReturnType<typeof client.noArgs>>;
 expectTypeOf(noArgsCollection.list()[0]).toMatchTypeOf<
-  | {
-      id: number;
-    }
-  | undefined
+	| {
+		id: number;
+	}
+	| undefined
 >();
 
 // ---------------------------------------------------------------------------
@@ -86,7 +86,7 @@ expectTypeOf(noArgsCollection.list()[0]).toMatchTypeOf<
 type WithArgsRow = PulseRow<typeof withArgsPromise>;
 expectTypeOf<WithArgsRow['id']>().toEqualTypeOf<number>();
 expectTypeOf<WithArgsRow['status']>().toEqualTypeOf<
-  'requested' | 'accepted' | 'completed' | 'cancelled'
+	'requested' | 'accepted' | 'completed' | 'cancelled'
 >();
 // @ts-expect-error $pk is stripped from embedded rows
 type _NoPk = WithArgsRow['$pk'];
@@ -103,7 +103,7 @@ expectTypeOf<PulseRow<string>>().toEqualTypeOf<never>();
 
 // The trailing options slot is exactly PulseCollectionOptions (args query: slot 1).
 expectTypeOf<Parameters<typeof client.withArgs>[1]>().toEqualTypeOf<
-  PulseCollectionOptions | undefined
+	PulseCollectionOptions | undefined
 >();
 
 // Optional auth context accepted on args query
@@ -125,16 +125,16 @@ client.noArgs({ driverId: 42 });
 
 // Verify that a selected-columns registry also infers correctly.
 const selectedQueries = {
-  byStatus: pulse(orders)
-    .query()
-    .columns({ id: true, status: true })
-    .args(statusSchema)
-    .query((ctx) => ctx.query({ status: ctx.args.status })),
-  byDriver: pulse(orders)
-    .query()
-    .columns({ id: true, driverId: true })
-    .args(driverSchema)
-    .query((ctx) => ctx.query({ driverId: ctx.args.driverId })),
+	byStatus: pulse(orders)
+		.query()
+		.columns({ id: true, status: true })
+		.args(statusSchema)
+		.query((ctx) => ctx.query({ status: ctx.args.status })),
+	byDriver: pulse(orders)
+		.query()
+		.columns({ id: true, driverId: true })
+		.args(driverSchema)
+		.query((ctx) => ctx.query({ driverId: ctx.args.driverId })),
 };
 declare const selectedRuntime: PulseRuntime<typeof selectedQueries>;
 const selectedClient = createPulseClient(selectedRuntime);
@@ -142,7 +142,7 @@ const selectedClient = createPulseClient(selectedRuntime);
 type ByStatusResult = PulseRow<ReturnType<typeof selectedClient.byStatus>>;
 expectTypeOf<ByStatusResult['id']>().toEqualTypeOf<number>();
 expectTypeOf<ByStatusResult['status']>().toEqualTypeOf<
-  'requested' | 'accepted' | 'completed' | 'cancelled'
+	'requested' | 'accepted' | 'completed' | 'cancelled'
 >();
 // @ts-expect-error pickup is not in the selected columns
 type _NoPickup = ByStatusResult['pickup'];

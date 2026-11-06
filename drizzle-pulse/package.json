@@ -1,119 +1,116 @@
 {
-  "name": "drizzle-pulse",
-  "version": "0.5.0",
-  "description": "Type-safe realtime SDK for Drizzle",
-  "type": "module",
-  "license": "Apache-2.0",
-  "author": "Dan Kochetov",
-  "homepage": "https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-pulse#readme",
-  "bugs": "https://github.com/drizzle-team/drizzle-orm/issues",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/drizzle-team/drizzle-orm.git",
-    "directory": "drizzle-pulse"
-  },
-  "keywords": [
-    "drizzle",
-    "drizzle-orm",
-    "postgres",
-    "postgresql",
-    "pulse",
-    "wal",
-    "logical-replication",
-    "live-query",
-    "typescript",
-    "esm"
-  ],
-  "engines": {
-    "node": ">=20"
-  },
-  "sideEffects": [
-    "./dist/shared/superjson.js"
-  ],
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
-    "./client": {
-      "types": "./dist/client/index.d.ts",
-      "default": "./dist/client/index.js"
-    },
-    "./client/react": {
-      "types": "./dist/client/react/index.d.ts",
-      "default": "./dist/client/react/index.js"
-    },
-    "./client/embedded": {
-      "types": "./dist/client/embedded/index.d.ts",
-      "default": "./dist/client/embedded/index.js"
-    },
-    "./embedded": {
-      "types": "./dist/embedded/index.d.ts",
-      "default": "./dist/embedded/index.js"
-    },
-    "./server": {
-      "types": "./dist/server/index.d.ts",
-      "default": "./dist/server/index.js"
-    },
-    "./server/hono": {
-      "types": "./dist/server/hono.d.ts",
-      "default": "./dist/server/hono.js"
-    },
-    "./package.json": "./package.json"
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "tsc",
-    "prepack": "rm -rf dist && tsc",
-    "typecheck": "tsc --noEmit && tsc --noEmit --project src/__tests__/tsconfig.json && tsc --noEmit --project tests/tsconfig.json && tsc --project tests/tsconfig.portability.json",
-    "test": "bun test src",
-    "test:types": "tsc --noEmit --project type-tests/tsconfig.json",
-    "test:integration": "cd tests && DATABASE_URL=\"${DATABASE_URL:-postgresql://postgres:postgres@localhost:5433/postgres}\" bun test --timeout 20000",
-    "lint:publish": "publint --strict",
-    "check:types": "attw --pack --profile esm-only",
-    "verify:publish": "pnpm lint:publish && pnpm check:types && node scripts/pack-check.mjs",
-    "lint:biome": "biome ci .",
-    "format:biome": "biome format --write ."
-  },
-  "peerDependencies": {
-    "@drizzle-team/postgres": ">=0.4.0",
-    "drizzle-orm": "^1.0.0-rc.5",
-    "hono": "^4.6.0",
-    "react": ">=18.0.0",
-    "zod": "^4.0.0"
-  },
-  "peerDependenciesMeta": {
-    "hono": {
-      "optional": true
-    },
-    "react": {
-      "optional": true
-    }
-  },
-  "dependencies": {
-    "superjson": "^2.2.6"
-  },
-  "devDependencies": {
-    "@arethetypeswrong/cli": "^0.18.4",
-    "@biomejs/biome": "2.4.4",
-    "@drizzle-team/postgres": "workspace:*",
-    "@types/node": "^20.11.30",
-    "@types/pg": "8.15.6",
-    "@types/react": "^18.2.0",
-    "bun-types": "^1.3.8",
-    "drizzle-orm": "workspace:../drizzle-orm/dist",
-    "fast-check": "^3.23.2",
-    "hono": "^4.6.0",
-    "pg": "8.16.3",
-    "pkg-pr-new": "0.0.88",
-    "postgres": "3.4.7",
-    "publint": "^0.3.21",
-    "react": "^18.2.0",
-    "typescript": "^5.9.3",
-    "zod": "^4.3.6"
-  }
+	"name": "drizzle-pulse",
+	"version": "0.5.0",
+	"description": "Type-safe realtime SDK for Drizzle",
+	"type": "module",
+	"license": "Apache-2.0",
+	"author": "Dan Kochetov",
+	"homepage": "https://github.com/drizzle-team/drizzle-orm/tree/main/drizzle-pulse#readme",
+	"bugs": "https://github.com/drizzle-team/drizzle-orm/issues",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/drizzle-team/drizzle-orm.git",
+		"directory": "drizzle-pulse"
+	},
+	"keywords": [
+		"drizzle",
+		"drizzle-orm",
+		"postgres",
+		"postgresql",
+		"pulse",
+		"wal",
+		"logical-replication",
+		"live-query",
+		"typescript",
+		"esm"
+	],
+	"engines": {
+		"node": ">=20"
+	},
+	"sideEffects": [
+		"./dist/shared/superjson.js"
+	],
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./client": {
+			"types": "./dist/client/index.d.ts",
+			"default": "./dist/client/index.js"
+		},
+		"./client/react": {
+			"types": "./dist/client/react/index.d.ts",
+			"default": "./dist/client/react/index.js"
+		},
+		"./client/embedded": {
+			"types": "./dist/client/embedded/index.d.ts",
+			"default": "./dist/client/embedded/index.js"
+		},
+		"./embedded": {
+			"types": "./dist/embedded/index.d.ts",
+			"default": "./dist/embedded/index.js"
+		},
+		"./server": {
+			"types": "./dist/server/index.d.ts",
+			"default": "./dist/server/index.js"
+		},
+		"./server/hono": {
+			"types": "./dist/server/hono.d.ts",
+			"default": "./dist/server/hono.js"
+		},
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsc",
+		"prepack": "rm -rf dist && tsc",
+		"typecheck": "tsc --noEmit && tsc --noEmit --project src/__tests__/tsconfig.json && tsc --noEmit --project tests/tsconfig.json && tsc --project tests/tsconfig.portability.json",
+		"test": "bun test src",
+		"test:types": "tsc --noEmit --project type-tests/tsconfig.json",
+		"test:integration": "cd tests && DATABASE_URL=\"${DATABASE_URL:-postgresql://postgres:postgres@localhost:5433/postgres}\" bun test --timeout 20000",
+		"lint:publish": "publint --strict",
+		"check:types": "attw --pack --profile esm-only",
+		"verify:publish": "pnpm lint:publish && pnpm check:types && node scripts/pack-check.mjs"
+	},
+	"peerDependencies": {
+		"@drizzle-team/postgres": ">=0.4.0",
+		"drizzle-orm": "^1.0.0-rc.5",
+		"hono": "^4.6.0",
+		"react": ">=18.0.0",
+		"zod": "^4.0.0"
+	},
+	"peerDependenciesMeta": {
+		"hono": {
+			"optional": true
+		},
+		"react": {
+			"optional": true
+		}
+	},
+	"dependencies": {
+		"superjson": "^2.2.6"
+	},
+	"devDependencies": {
+		"@arethetypeswrong/cli": "^0.18.4",
+		"@drizzle-team/postgres": "workspace:*",
+		"@types/node": "^20.11.30",
+		"@types/pg": "8.15.6",
+		"@types/react": "^18.2.0",
+		"bun-types": "^1.3.8",
+		"drizzle-orm": "workspace:../drizzle-orm/dist",
+		"fast-check": "^3.23.2",
+		"hono": "^4.6.0",
+		"pg": "8.16.3",
+		"pkg-pr-new": "0.0.88",
+		"postgres": "3.4.7",
+		"publint": "^0.3.21",
+		"react": "^18.2.0",
+		"typescript": "^5.9.3",
+		"zod": "^4.3.6"
+	}
 }

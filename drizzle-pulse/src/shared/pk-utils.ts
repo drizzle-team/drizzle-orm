@@ -14,8 +14,8 @@
  */
 /** @internal */
 export function comparePkValues(left: unknown, right: unknown): number {
-  if (left === right) return 0;
-  return (left as string | number) < (right as string | number) ? -1 : 1;
+	if (left === right) return 0;
+	return (left as string | number) < (right as string | number) ? -1 : 1;
 }
 
 /**
@@ -23,7 +23,7 @@ export function comparePkValues(left: unknown, right: unknown): number {
  */
 /** @internal */
 export function isPkComparable(value: unknown): value is string | number {
-  return typeof value === 'string' || typeof value === 'number';
+	return typeof value === 'string' || typeof value === 'number';
 }
 
 /**
@@ -38,22 +38,22 @@ export function isPkComparable(value: unknown): value is string | number {
  */
 /** @internal */
 export function isInsertPrepend(
-  order: 'asc' | 'desc',
-  pkValue: unknown,
-  rangeStart: unknown | null,
-  rangeEnd: unknown | null,
+	order: 'asc' | 'desc',
+	pkValue: unknown,
+	rangeStart: unknown | null,
+	rangeEnd: unknown | null,
 ): boolean {
-  if (rangeStart === null || rangeEnd === null) {
-    return true;
-  }
+	if (rangeStart === null || rangeEnd === null) {
+		return true;
+	}
 
-  if (!isPkComparable(pkValue)) {
-    return false;
-  }
+	if (!isPkComparable(pkValue)) {
+		return false;
+	}
 
-  if (order === 'desc') {
-    return comparePkValues(pkValue, rangeEnd as string | number) > 0;
-  }
+	if (order === 'desc') {
+		return comparePkValues(pkValue, rangeEnd as string | number) > 0;
+	}
 
-  return comparePkValues(pkValue, rangeStart as string | number) < 0;
+	return comparePkValues(pkValue, rangeStart as string | number) < 0;
 }
