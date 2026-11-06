@@ -5,6 +5,7 @@ packages:
   - drizzle-seed
   - integration-tests
   - postgres
+  - drizzle-pulse
   - typeperf-test
   - eslint-plugin-drizzle
   - test-utils
