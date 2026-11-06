@@ -48,8 +48,8 @@ export function createPulseEvents<TQueries extends AnyPulseBuilders>(
 ): EmbeddedPulseEvents<TQueries> {
 	return new Proxy({} as EmbeddedPulseEvents<TQueries>, {
 		get(_target, prop: string | symbol) {
-			if (typeof prop !== 'string') return undefined;
-			if (prop === 'then') return undefined;
+			if (typeof prop !== 'string') return;
+			if (prop === 'then') return;
 			// Synchronous: materialization failures (unknown query, stopped runtime, .transform()/
 			// .limit() rejections, args validation inside resolve()) throw immediately — there is
 			// no baseline to await, so nothing here is asynchronous.

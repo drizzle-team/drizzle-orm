@@ -26,7 +26,7 @@ function makeEvents(runtime: ReturnType<typeof makeMockRuntime>) {
 describe('createPulseEvents — sync rejection paths', () => {
 	test('an unknown query name throws synchronously', () => {
 		const runtime = makeMockRuntime();
-		runtime.registry = { ...runtime.registry, getPulseQuery: () => undefined };
+		runtime.registry = { ...runtime.registry, getPulseQuery: () => void 0 };
 		const events = makeEvents(runtime);
 		expect(() => events.nope(() => {})).toThrow('Unknown query: "nope"');
 	});
