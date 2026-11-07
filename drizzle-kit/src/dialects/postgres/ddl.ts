@@ -17,7 +17,17 @@ export const privilegeTypes = [
 export const createDDL = () => {
 	return create({
 		schemas: { name: 'string' },
-		tables: { schema: 'string', name: 'string', isRlsEnabled: 'boolean' },
+		tables: {
+			schema: 'string',
+			name: 'string',
+			isRlsEnabled: 'boolean',
+			partitionBy: 'string?',
+			partitionOf: {
+				schema: 'string',
+				table: 'string',
+				bound: 'string',
+			},
+		},
 		enums: {
 			schema: 'string',
 			name: 'string',

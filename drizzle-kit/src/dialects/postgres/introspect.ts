@@ -176,6 +176,11 @@ export const fromDatabase = async (
 		rlsEnabled: boolean;
 		tablespaceid: number | string;
 		definition: string | null;
+
+		partitionBy: string | null; // partitioned table definition (e.g. PARTITION BY RANGE (column1, column2))
+		partitionOfSchema: string | null; // schema of the parent table if this table is a partition
+		partitionOf: string | null; // name of the parent table if this table is a partition
+		partitionBound: string | null; // partition bound definition (e.g. FOR VALUES FROM (1) TO (10))
 	};
 	progressCallback('tables', 0, 'fetching');
 	const tablesList = filteredNamespacesStringForSQL
@@ -194,14 +199,31 @@ export const fromDatabase = async (
 					WHEN relkind OPERATOR(pg_catalog.=) 'v' OR relkind OPERATOR(pg_catalog.=) 'm'
 						THEN pg_catalog.pg_get_viewdef(pg_class.oid, true)
 					ELSE null
-				END as "definition"
+				END as "definition",
+				CASE
+					WHEN relkind OPERATOR(pg_catalog.=) 'p'
+						THEN pg_catalog.pg_get_partkeydef(pg_class.oid)
+					ELSE null
+				END as "partitionBy",
+				parent_ns.nspname AS "partitionOfSchema",
+				parent.relname AS "partitionOf",
+				CASE
+					WHEN relispartition
+						THEN pg_catalog.pg_get_expr(pg_class.relpartbound, pg_class.oid)
+					ELSE null
+				END as "partitionBound"
 			FROM
 				pg_catalog.pg_class
 			JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) relnamespace
+			LEFT JOIN pg_catalog.pg_inherits inh
+				ON inh.inhrelid OPERATOR(pg_catalog.=) pg_class.oid
+				AND pg_class.relispartition
+			LEFT JOIN pg_catalog.pg_class parent ON parent.oid OPERATOR(pg_catalog.=) inh.inhparent
+			LEFT JOIN pg_catalog.pg_namespace parent_ns ON parent_ns.oid OPERATOR(pg_catalog.=) parent.relnamespace
 			WHERE
-				relkind IN ('r', 'p', 'v', 'm')
-				AND nspname IN (${filteredNamespacesStringForSQL})
-			ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
+				pg_class.relkind IN ('r', 'p', 'v', 'm')
+				AND pg_namespace.nspname IN (${filteredNamespacesStringForSQL})
+			ORDER BY pg_catalog.lower(pg_namespace.nspname), pg_catalog.lower(pg_class.relname);
 		`).then((rows) => {
 				queryCallback('tables', rows, null);
 				return rows;
@@ -234,6 +256,10 @@ export const fromDatabase = async (
 			schema: trimChar(table.schema, "'"),
 			name: table.name,
 			isRlsEnabled: table.rlsEnabled,
+			partitionBy: table.partitionBy,
+			partitionOf: table.partitionOf
+				? { schema: table.partitionOfSchema!, table: table.partitionOf, bound: table.partitionBound! }
+				: null,
 		});
 	}
 	progressCallback('tables', tables.length, 'done');
@@ -596,7 +622,7 @@ export const fromDatabase = async (
 
 	// lookups are built once, `.find` per column is quadratic and stalls on databases with many columns
 	// the first match is kept, same as `.find`
-	const indexBy = <T, K>(list: T[], key: (it: T) => K) => {
+	const mapBy = <T, K>(list: T[], key: (it: T) => K) => {
 		const map = new Map<K, T>();
 		for (const it of list) {
 			const k = key(it);
@@ -604,23 +630,23 @@ export const fromDatabase = async (
 		}
 		return map;
 	};
-	const columnKey = (tableId: number | string, ordinality: number) => `${Number(tableId)}:${ordinality}`;
+	const columnPosition = (tableId: number | string, ordinality: number) => `${Number(tableId)}:${ordinality}`;
 
-	const tablesById = indexBy(tablesList, (it) => Number(it.oid));
-	const viewsById = indexBy(viewsList, (it) => Number(it.oid));
-	const namespacesById = indexBy(namespaces, (it) => Number(it.oid));
-	const sequencesById = indexBy(sequencesList, (it) => Number(it.oid));
-	const dependsById = indexBy(dependList, (it) => Number(it.oid));
-	const serialsByColumn = indexBy(serialsList, (it) => columnKey(it.tableId, it.ordinality));
-	const defaultsByColumn = indexBy(defaultsList, (it) => columnKey(it.tableId, it.ordinality));
-	const columnsByKey = indexBy(columnsList, (it) => columnKey(it.tableId, it.ordinality));
-	const singleColumnConstraints = (type: 'u' | 'p') =>
-		indexBy(
+	const tablesById = mapBy(tablesList, (it) => Number(it.oid));
+	const viewsById = mapBy(viewsList, (it) => Number(it.oid));
+	const namespacesById = mapBy(namespaces, (it) => Number(it.oid));
+	const sequencesById = mapBy(sequencesList, (it) => Number(it.oid));
+	const dependsById = mapBy(dependList, (it) => Number(it.oid));
+	const serialsByPosition = mapBy(serialsList, (it) => columnPosition(it.tableId, it.ordinality));
+	const defaultsByPosition = mapBy(defaultsList, (it) => columnPosition(it.tableId, it.ordinality));
+	const columnsByPosition = mapBy(columnsList, (it) => columnPosition(it.tableId, it.ordinality));
+	const singleColumnConstraintsByPosition = (type: 'u' | 'p') =>
+		mapBy(
 			constraintsList.filter((it) => it.type === type && it.columnsOrdinals.length === 1),
-			(it) => columnKey(it.tableId, it.columnsOrdinals[0]),
+			(it) => columnPosition(it.tableId, it.columnsOrdinals[0]),
 		);
-	const uniquesByColumn = singleColumnConstraints('u');
-	const pksByColumn = singleColumnConstraints('p');
+	const uniquesByPosition = singleColumnConstraintsByPosition('u');
+	const pksByPosition = singleColumnConstraintsByPosition('p');
 	const uniqueIndexIds = new Set(constraintsList.filter((it) => it.type === 'u').map((it) => Number(it.indexId)));
 	const pkIndexIds = new Set(constraintsList.filter((it) => it.type === 'p').map((it) => Number(it.indexId)));
 
@@ -739,7 +765,7 @@ export const fromDatabase = async (
 			continue;
 		}
 
-		const expr = serialsByColumn.get(columnKey(column.tableId, column.ordinality));
+		const expr = serialsByPosition.get(columnPosition(column.tableId, column.ordinality));
 
 		if (expr) {
 			const table = tablesById.get(Number(column.tableId))!;
@@ -770,7 +796,7 @@ export const fromDatabase = async (
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
-		const columnDefault = defaultsByColumn.get(columnKey(column.tableId, column.ordinality));
+		const columnDefault = defaultsByPosition.get(columnPosition(column.tableId, column.ordinality));
 
 		const defaultValue = defaultForColumn(
 			columnTypeMapped,
@@ -779,8 +805,8 @@ export const fromDatabase = async (
 			Boolean(enumType),
 		);
 
-		const unique = uniquesByColumn.get(columnKey(column.tableId, column.ordinality)) ?? null;
-		const pk = pksByColumn.get(columnKey(column.tableId, column.ordinality)) ?? null;
+		const unique = uniquesByPosition.get(columnPosition(column.tableId, column.ordinality)) ?? null;
+		const pk = pksByPosition.get(columnPosition(column.tableId, column.ordinality)) ?? null;
 
 		const sequence = column.seqId
 			? sequencesById.get(Number(column.seqId))
@@ -825,7 +851,7 @@ export const fromDatabase = async (
 		const schema = namespacesById.get(Number(unique.schemaId))!;
 
 		const columns = unique.columnsOrdinals.map((it) => {
-			const column = columnsByKey.get(columnKey(unique.tableId, it))!;
+			const column = columnsByPosition.get(columnPosition(unique.tableId, it))!;
 			return column.name;
 		});
 
@@ -845,7 +871,7 @@ export const fromDatabase = async (
 		const schema = namespacesById.get(Number(pk.schemaId))!;
 
 		const columns = pk.columnsOrdinals.map((it) => {
-			const column = columnsByKey.get(columnKey(pk.tableId, it))!;
+			const column = columnsByPosition.get(columnPosition(pk.tableId, it))!;
 			return column.name;
 		});
 
@@ -864,12 +890,12 @@ export const fromDatabase = async (
 		const tableTo = tablesById.get(Number(fk.tableToId))!;
 
 		const columns = fk.columnsOrdinals.map((it) => {
-			const column = columnsByKey.get(columnKey(table.oid, it))!;
+			const column = columnsByPosition.get(columnPosition(table.oid, it))!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columnsToOrdinals.map((it) => {
-			const column = columnsByKey.get(columnKey(tableTo.oid, it))!;
+			const column = columnsByPosition.get(columnPosition(tableTo.oid, it))!;
 			return column.name;
 		});
 
@@ -1029,7 +1055,7 @@ export const fromDatabase = async (
 				});
 				k += 1;
 			} else {
-				const column = columnsByKey.get(columnKey(metadata.tableId, ordinal));
+				const column = columnsByPosition.get(columnPosition(metadata.tableId, ordinal));
 				if (!column) throw new Error(`missing column: ${metadata.tableId}:${ordinal}`);
 
 				// ! options and opclass can be undefined when index have "INCLUDE" columns (columns from "INCLUDE" don't have options and opclass)
