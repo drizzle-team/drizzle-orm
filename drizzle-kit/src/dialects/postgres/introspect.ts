@@ -188,33 +188,33 @@ export const fromDatabase = async (
 			.query<TableListItem>(`
 			SELECT
 				pg_class.oid,
-				nspname as "schema",
-				relname AS "name",
-				relkind::text AS "kind",
-				relam as "accessMethod",
-				reloptions::text[] as "options",
-				reltablespace as "tablespaceid",
-				relrowsecurity AS "rlsEnabled",
+				pg_namespace.nspname as "schema",
+				pg_class.relname AS "name",
+				pg_class.relkind::text AS "kind",
+				pg_class.relam as "accessMethod",
+				pg_class.reloptions::text[] as "options",
+				pg_class.reltablespace as "tablespaceid",
+				pg_class.relrowsecurity AS "rlsEnabled",
 				CASE
-					WHEN relkind OPERATOR(pg_catalog.=) 'v' OR relkind OPERATOR(pg_catalog.=) 'm'
+					WHEN pg_class.relkind OPERATOR(pg_catalog.=) 'v' OR pg_class.relkind OPERATOR(pg_catalog.=) 'm'
 						THEN pg_catalog.pg_get_viewdef(pg_class.oid, true)
 					ELSE null
 				END as "definition",
 				CASE
-					WHEN relkind OPERATOR(pg_catalog.=) 'p'
+					WHEN pg_class.relkind OPERATOR(pg_catalog.=) 'p'
 						THEN pg_catalog.pg_get_partkeydef(pg_class.oid)
 					ELSE null
 				END as "partitionBy",
 				parent_ns.nspname AS "partitionOfSchema",
 				parent.relname AS "partitionOf",
 				CASE
-					WHEN relispartition
+					WHEN pg_class.relispartition
 						THEN pg_catalog.pg_get_expr(pg_class.relpartbound, pg_class.oid)
 					ELSE null
 				END as "partitionBound"
 			FROM
 				pg_catalog.pg_class
-			JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) relnamespace
+			JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) pg_class.relnamespace
 			LEFT JOIN pg_catalog.pg_inherits inh
 				ON inh.inhrelid OPERATOR(pg_catalog.=) pg_class.oid
 				AND pg_class.relispartition
