@@ -1,0 +1,4 @@
+input.ts:9:11 error TSPG013: procedure name 'Foo' collides with 'foo' — unquoted PostgreSQL identifiers fold to lowercase
+  procedure('Foo', { msg: 'text' }, (ctx) => {
+            ^^^^^
+  hint: the later CREATE OR REPLACE would silently replace the earlier procedure; rename one of them

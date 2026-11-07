@@ -57,10 +57,14 @@
 		"skills:revision:check": "tsx scripts/check-skills-revision.ts"
 	},
 	"peerDependencies": {
-		"drizzle-orm": ">=1.0.0-rc.5"
+		"drizzle-orm": ">=1.0.0-rc.5",
+		"oxc-parser": ">=0.140.0"
 	},
 	"peerDependenciesMeta": {
 		"drizzle-orm": {
+			"optional": true
+		},
+		"oxc-parser": {
 			"optional": true
 		}
 	},
@@ -124,6 +128,7 @@
 		"node-fetch": "^3.3.2",
 		"ohm-js": "^17.1.0",
 		"orm044": "npm:drizzle-orm@0.44.1",
+		"oxc-parser": "^0.140.0",
 		"pg": "^8.11.5",
 		"pluralize": "^8.0.0",
 		"postgres": "^3.4.4",

@@ -1,0 +1,4 @@
+input.ts:7:3 error TSPG018: cannot reassign 'threshold' — it is interpolated into the pending cursor 'rows'
+    threshold = threshold + 1
+    ^^^^^^^^^
+  hint: the query reads the value when the loop runs; iterate the cursor first, or reorder the assignment

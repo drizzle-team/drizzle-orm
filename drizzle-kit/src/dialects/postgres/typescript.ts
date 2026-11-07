@@ -23,6 +23,8 @@ import type {
 } from './ddl';
 import { tableFromDDL } from './ddl';
 import { defaultNameForFK, defaultNameForIdentitySequence, defaultNameForPK, defaults, typeFor } from './grammar';
+import { withCallee } from './procedures/decompile';
+import { pullProcedure } from './procedures/model';
 
 // TODO: omit defaults opclass... improvement
 const imports = [
@@ -434,6 +436,20 @@ export const ddlToTypeScript = (
 		})
 		.join('\n\n');
 
+	// Only procedures that decompile exactly reach this point (pull drops the rest from the DDL).
+	const procedureStatements = ddl.procedures.list()
+		.map((it) => pullProcedure(it))
+		.map((it) => {
+			if (!it.ok) return `// procedure "${it.def.schema}"."${it.def.name}" was not pulled: ${it.reason}`;
+			const schemaVar = schemas[it.def.schema];
+			if (!schemaVar) imports.add('procedure');
+			if (it.usesPgError) imports.add('PgError');
+			for (const alias of it.typeAliases) imports.add(alias);
+			const ts = schemaVar ? withCallee(it.ts, `${schemaVar}.procedure`) : it.ts;
+			return `export const ${withCasing(paramNameFor(it.def.name, schemaVar), casing)} = ${ts};`;
+		})
+		.join('\n\n');
+
 	const uniquePgImports = [...imports];
 
 	const importsTs = `import { ${
@@ -451,6 +467,7 @@ import { sql } from "drizzle-orm"\n\n`;
 	decalrations += tableStatements.join('\n\n');
 	decalrations += '\n';
 	decalrations += viewsStatements;
+	if (procedureStatements) decalrations += `\n\n${procedureStatements}\n`;
 
 	const file = importsTs + decalrations;
 

@@ -1,4 +1,4 @@
-import { getTableName, is, SQL } from 'drizzle-orm';
+import { entityKind, getTableName, is, SQL } from 'drizzle-orm';
 import { Relations } from 'drizzle-orm/_relations';
 import type {
 	AnyPgColumn,
@@ -72,6 +72,7 @@ import {
 	trimDefaultValueSuffix,
 	typeFor,
 } from './grammar';
+import { compileProcedureFiles, type ProcedureDef } from './procedures/model';
 
 export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 	const mappedTo = !policy.to
@@ -239,6 +240,10 @@ export const fromDrizzleSchema = (
 		policies: PgPolicy[];
 		views: PgView[];
 		matViews: PgMaterializedView[];
+		procedures?: ProcedureEntity[];
+		/** Compiled from the schema files; undefined when the schema was not loaded from files. */
+		compiledProcedures?: ProcedureDef[];
+		procedureErrors?: string[];
 	},
 	filter: EntityFilter,
 ): {
@@ -268,6 +273,7 @@ export const fromDrizzleSchema = (
 		tables: [],
 		viewColumns: [],
 		views: [],
+		procedures: [],
 	};
 
 	res.schemas = schema.schemas
@@ -675,6 +681,18 @@ export const fromDrizzleSchema = (
 		}
 	});
 
+	for (const message of schema.procedureErrors ?? []) {
+		errors.push({ type: 'procedure_compile_error', message });
+	}
+	if (schema.compiledProcedures) {
+		for (const it of schema.compiledProcedures) {
+			if (!filter({ type: 'schema', name: it.schema })) continue;
+			res.procedures.push({ entityType: 'procedures', ...it });
+		}
+	} else if (schema.procedures && schema.procedures.length > 0) {
+		errors.push({ type: 'procedure_source_unavailable', names: schema.procedures.map((it) => it.name) });
+	}
+
 	for (const view of combinedViews) {
 		if (view.isExisting || !filter({ type: 'table', schema: view.schema ?? 'public', name: view.name })) continue;
 
@@ -800,9 +818,14 @@ export const fromExports = (exports: Record<string, unknown>) => {
 	const views: PgView[] = [];
 	const matViews: PgMaterializedView[] = [];
 	const relations: Relations[] = [];
+	const procedures: ProcedureEntity[] = [];
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
+		if (isProcedureEntity(t)) {
+			procedures.push(t);
+			return;
+		}
 		if (isPgEnum(t)) {
 			enums.push(t);
 			return;
@@ -850,8 +873,22 @@ export const fromExports = (exports: Record<string, unknown>) => {
 		roles,
 		policies,
 		relations,
+		procedures,
 	};
 };
+
+/**
+ * A `procedure()` declaration (drizzle-orm's `PgProcedure`), detected by entity kind so drizzle-kit
+ * keeps working with drizzle-orm versions that do not have procedures.
+ */
+export interface ProcedureEntity {
+	name: string;
+	schema: string | undefined;
+}
+
+const isProcedureEntity = (value: unknown): value is ProcedureEntity =>
+	typeof value === 'object' && value !== null
+	&& (value.constructor as { [entityKind]?: string } | undefined)?.[entityKind] === 'PgProcedure';
 
 export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const tables: AnyPgTable[] = [];
@@ -863,12 +900,18 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const policies: PgPolicy[] = [];
 	const matViews: PgMaterializedView[] = [];
 	const relations: Relations[] = [];
+	const procedures: ProcedureEntity[] = [];
+	const procedureFiles: Parameters<typeof compileProcedureFiles>[0] = [];
 
 	for (let i = 0; i < imports.length; i++) {
 		const it = imports[i];
 
 		const i0: Record<string, unknown> = await loadModule(it);
 		const prepared = fromExports(i0);
+		procedures.push(...prepared.procedures);
+		if (prepared.procedures.length > 0) {
+			procedureFiles.push({ path: it, exports: i0, exported: prepared.procedures });
+		}
 
 		tables.push(...prepared.tables);
 		enums.push(...prepared.enums);
@@ -891,10 +934,22 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		roles,
 		policies,
 		relations,
+		procedures,
+		// Procedure bodies are compiled from their TypeScript source — only possible here, where the files are known.
+		...(procedureFiles.length > 0
+			? await compileProcedureFiles(procedureFiles, (path) => loadModule(path)).then((it) => ({
+				compiledProcedures: it.procedures,
+				procedureErrors: it.errors,
+			}))
+			: { compiledProcedures: [] as ProcedureDef[], procedureErrors: [] as string[] }),
 	};
 };
 
-export type PreparedPostgresSchema = Awaited<ReturnType<typeof prepareFromSchemaFiles>>;
+export type PreparedPostgresSchema = ReturnType<typeof fromExports> & {
+	/** Only schemas loaded from files have them: procedures compile from their TypeScript source. */
+	compiledProcedures?: ProcedureDef[];
+	procedureErrors?: string[];
+};
 
 // Decouples the schema's origin (compiled `.ts` files vs. a supplied prebuilt schema) from its consumers.
 export interface SchemaSource {

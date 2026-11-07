@@ -1,0 +1,4 @@
+input.ts:5:10 error TSPG012: 'x' is used before its declaration
+    notice(x)
+           ^
+  hint: declarations hoist into the DECLARE block, but tspgc keeps TypeScript order — move the declaration above this use

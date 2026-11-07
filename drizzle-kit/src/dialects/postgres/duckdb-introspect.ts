@@ -114,6 +114,7 @@ export const fromDatabase = async (
 			policies,
 			views,
 			viewColumns,
+			procedures: [],
 		} satisfies InterimSchema;
 	}
 
@@ -888,5 +889,6 @@ export const fromDatabase = async (
 		policies,
 		views,
 		viewColumns,
+		procedures: [],
 	} satisfies InterimSchema;
 };
