@@ -182,6 +182,8 @@ export const fromDatabase = async (
 			schema: trimChar(table.schema, "'"),
 			name: table.name,
 			isRlsEnabled: false,
+			partitionBy: null,
+			partitionOf: null,
 		});
 	}
 

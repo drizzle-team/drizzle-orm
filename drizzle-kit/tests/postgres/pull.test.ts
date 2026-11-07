@@ -1660,6 +1660,8 @@ test('introspect partitioned tables with indexes', async () => {
 			schema: 'public',
 			entityType: 'tables',
 			isRlsEnabled: false,
+			partitionBy: 'RANGE (logdate)',
+			partitionOf: null,
 		} satisfies (typeof tables)[number],
 	]);
 	expect(indexes).toStrictEqual([
