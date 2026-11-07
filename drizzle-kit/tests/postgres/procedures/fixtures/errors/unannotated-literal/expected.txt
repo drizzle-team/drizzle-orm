@@ -1,0 +1,4 @@
+input.ts:5:13 error TSPG003: a bare numeric literal is ambiguous — is it int or numeric?
+    const x = 1
+              ^
+  hint: annotate the declaration: const x: int = 1 (or numeric)

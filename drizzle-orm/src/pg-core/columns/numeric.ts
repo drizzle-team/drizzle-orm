@@ -171,6 +171,9 @@ export type PgNumericConfig<T extends 'string' | 'number' | 'bigint' = 'string' 
 	| { precision?: number; scale: number; mode?: T }
 	| { precision?: number; scale?: number; mode: T };
 
+/** Procedure annotation type (SQL numeric, number-mode) — see `procedure`. */
+export type numeric = number;
+
 export function numeric<TMode extends 'string' | 'number' | 'bigint'>(
 	config?: PgNumericConfig<TMode>,
 ): Equal<TMode, 'number'> extends true ? PgNumericNumberBuilder

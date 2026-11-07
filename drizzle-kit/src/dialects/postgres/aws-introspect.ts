@@ -1174,6 +1174,7 @@ export const fromDatabase = async (
 		policies,
 		views,
 		viewColumns,
+		procedures: [],
 	} satisfies InterimSchema;
 };
 

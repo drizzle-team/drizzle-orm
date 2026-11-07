@@ -97,6 +97,10 @@ export const handle = async (
 		migrations,
 	);
 
+	// drizzle-kit manages procedures only once the schema declares one with `procedure()`. Before that, the
+	// procedures in the database are left alone instead of being dropped as "removed from the schema".
+	if (schemaTo.procedures.length === 0) schemaFrom.procedures = [];
+
 	const { ddl: ddl1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2, errors: errors1 } = interimToDDL(schemaTo);
 

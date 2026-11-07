@@ -127,6 +127,7 @@
 		"**/*.cjs",
 		"**/playground",
 		"integration-tests/tests/prisma/*/client",
-		"integration-tests/tests/prisma/*/drizzle"
+		"integration-tests/tests/prisma/*/drizzle",
+		"drizzle-kit/tests/postgres/procedures/fixtures/errors"
 	]
 }

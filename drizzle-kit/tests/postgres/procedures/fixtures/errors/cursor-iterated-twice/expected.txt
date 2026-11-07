@@ -1,0 +1,4 @@
+input.ts:9:22 error TSPG004: cursor 'rows' has already been iterated
+    for (const row2 of rows) {
+                       ^^^^
+  hint: a cursor is single-pass — bind a second sql`...`.many() if you need to scan again

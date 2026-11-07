@@ -1,0 +1,4 @@
+input.ts:6:7 error TSPG021: 'total' must be initialized
+    let total: int
+        ^^^^^^^^^^
+  hint: locals are declared in the hoisted DECLARE block and assigned here; an unassigned local would be NULL

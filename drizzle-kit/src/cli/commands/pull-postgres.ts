@@ -23,6 +23,7 @@ import { createDDL, interimToDDL, postgresToRelationsPull } from '../../dialects
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { assertHistory, readEntries } from '../../dialects/postgres/folder';
 import { fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
+import { pullProcedure } from '../../dialects/postgres/procedures/model';
 import { toJsonBaseSnapshot } from '../../dialects/postgres/snapshot';
 import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/typescript';
 import type { EntityFilter } from '../../dialects/pull-utils';
@@ -35,6 +36,7 @@ import { CommandOutputCliError } from '../errors';
 import { resolver } from '../prompts';
 import type { EntitiesFilterConfig } from '../validations/common';
 import type { Casing } from '../validations/common';
+import { withStyle } from '../validations/outputs';
 import type { PostgresCredentials } from '../validations/postgres';
 import type { IntrospectStage, IntrospectStatus } from '../views';
 import { humanLog, IntrospectProgress } from '../views';
@@ -83,6 +85,14 @@ export const handle = async (
 		));
 	} else {
 		res = await fromDatabaseForDrizzle(db, entityFilter, () => {}, migrations);
+	}
+
+	// A procedure is pulled only when its source compiles back to the exact database definition. The rest stay
+	// out of the schema and the snapshot, so a later generate does not drop them as "removed".
+	const skippedProcedures = res.procedures.map(pullProcedure).filter((it) => !it.ok);
+	res.procedures = res.procedures.filter((it) => !skippedProcedures.some((s) => s.def === it));
+	for (const it of skippedProcedures) {
+		humanLog(withStyle.warning(`Procedure "${it.def.schema}"."${it.def.name}" was not pulled: ${it.reason}`));
 	}
 
 	const { ddl: ddl2, errors } = interimToDDL(res);

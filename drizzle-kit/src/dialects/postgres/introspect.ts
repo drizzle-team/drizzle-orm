@@ -15,6 +15,7 @@ import type {
 	PostgresEntities,
 	PrimaryKey,
 	Privilege,
+	Procedure,
 	Role,
 	Schema,
 	Sequence,
@@ -31,6 +32,7 @@ import {
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
 	wrapRecord,
 } from './grammar';
+import { canonicalParams } from './procedures/model';
 
 // TODO: tables/schema/entities -> filter: (entity: {type: ... , metadata: ... }) => boolean;
 // TODO: since we by default only introspect public
@@ -1167,6 +1169,10 @@ export const fromDatabase = async (
 	}
 	progressCallback('views', views.length, 'done');
 
+	const procedures = filteredNamespacesStringForSQL
+		? await introspectProcedures(db, filteredNamespacesStringForSQL)
+		: [];
+
 	const resultSchemas = schemas.filter((x) => filter({ type: 'schema', name: x.name }));
 	const resultTables = tables.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));
 	const resultEnums = enums.filter((x) => resultSchemas.some((s) => s.name === x.schema));
@@ -1201,7 +1207,48 @@ export const fromDatabase = async (
 		policies: resultPolicies,
 		views: resultViews,
 		viewColumns: resultViewColumns,
+		procedures: procedures.filter((x) => resultSchemas.some((s) => s.name === x.schema)),
 	} satisfies InterimSchema;
+};
+
+/**
+ * Procedures (`prokind = 'p'`) in the given namespaces, in the canonical form `procedure()` compiles to.
+ * Procedures drizzle cannot manage are left out, so they are never altered or dropped: overloaded names
+ * (the DSL has one signature per name) and parameter lists outside the DSL (OUT/INOUT results that are not
+ * `DEFAULT NULL`, VARIADIC, non-literal defaults, ...).
+ */
+const introspectProcedures = async (db: DB, namespacesSQL: string): Promise<Procedure[]> => {
+	const rows = await db.query<{ schema: string; name: string; args: string; body: string; language: string }>(`
+		SELECT n.nspname AS "schema", p.proname AS "name", pg_get_function_arguments(p.oid) AS "args",
+			p.prosrc AS "body", l.lanname AS "language"
+		FROM pg_catalog.pg_proc p
+		JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+		JOIN pg_catalog.pg_language l ON l.oid = p.prolang
+		WHERE p.prokind = 'p' AND n.nspname IN (${namespacesSQL})
+		ORDER BY n.nspname, p.proname;
+	`);
+	const overloads = new Map<string, number>();
+	for (const r of rows) overloads.set(`${r.schema}.${r.name}`, (overloads.get(`${r.schema}.${r.name}`) ?? 0) + 1);
+
+	const result: Procedure[] = [];
+	for (const r of rows) {
+		if (overloads.get(`${r.schema}.${r.name}`)! > 1) continue;
+		let params: string;
+		try {
+			params = canonicalParams(r.args);
+		} catch {
+			continue;
+		}
+		result.push({
+			entityType: 'procedures',
+			schema: r.schema,
+			name: r.name,
+			params,
+			body: r.body,
+			language: r.language,
+		});
+	}
+	return result;
 };
 
 export const fromDatabaseForDrizzle = async (

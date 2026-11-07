@@ -1,0 +1,7 @@
+input.ts:7:5 error TSPG001: break outside a loop
+      break
+      ^^^^^
+
+input.ts:9:3 error TSPG001: continue outside a loop
+    continue
+    ^^^^^^^^
