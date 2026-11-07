@@ -1,6 +1,6 @@
 import camelcase from 'camelcase';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
-import { type DB, splitExpressions, trimChar } from '../../utils';
+import { type DB, mapBy, splitExpressions, trimChar } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
 import { filterMigrationsSchema } from '../utils';
 import type {
@@ -620,16 +620,6 @@ export const fromDatabase = async (
 			columnsQuery,
 		]);
 
-	// lookups are built once, `.find` per column is quadratic and stalls on databases with many columns
-	// the first match is kept, same as `.find`
-	const mapBy = <T, K>(list: T[], key: (it: T) => K) => {
-		const map = new Map<K, T>();
-		for (const it of list) {
-			const k = key(it);
-			if (!map.has(k)) map.set(k, it);
-		}
-		return map;
-	};
 	const columnPosition = (tableId: number | string, ordinality: number) => `${Number(tableId)}:${ordinality}`;
 
 	const tablesById = mapBy(tablesList, (it) => Number(it.oid));
