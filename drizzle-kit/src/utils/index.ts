@@ -1,4 +1,3 @@
-import type { ProxyParams } from '../cli/commands/studio';
 import type { Dialect } from './schemaValidator';
 
 export const originUUID = '00000000-0000-0000-0000-000000000000';
@@ -26,6 +25,12 @@ export const mapEntries = <T>(
 	return result;
 };
 
+export type ProxyParams = {
+	sql: string;
+	params?: any[];
+	mode: 'array' | 'object';
+	method: 'values' | 'get' | 'all' | 'run' | 'execute';
+};
 export type Proxy = (params: ProxyParams) => Promise<any[]>;
 export type TransactionProxy = (queries: { sql: string; method?: ProxyParams['method'] }[]) => Promise<any[]>;
 export type QueriesTimings = {
