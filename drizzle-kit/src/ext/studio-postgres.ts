@@ -38,6 +38,12 @@ export type InterimTable = {
 	pks: Interim<PrimaryKey>[];
 	fks: Interim<ForeignKey>[];
 	isRlsEnabled: boolean;
+	partitionBy: string | null;
+	partitionOf: {
+		schema: string;
+		table: string;
+		bound: string;
+	} | null;
 };
 
 export type InterimView = {
@@ -74,6 +80,8 @@ const fromInterims = ({
 		name: it.name,
 		schema: it.schema,
 		isRlsEnabled: it.isRlsEnabled,
+		partitionBy: it.partitionBy,
+		partitionOf: it.partitionOf,
 	}));
 	const columns: InterimColumn[] = tables
 		.map((table) => {

@@ -1,6 +1,6 @@
 import camelcase from 'camelcase';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
-import { type DB, splitExpressions, trimChar } from '../../utils';
+import { type DB, mapBy, splitExpressions, trimChar } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
 import type {
 	CheckConstraint,
@@ -168,32 +168,55 @@ export const fromDatabase = async (
 		rlsEnabled: boolean;
 		tablespaceid: string;
 		definition: string | null;
+
+		partitionBy: string | null; // partitioned table definition (e.g. PARTITION BY RANGE (column1, column2))
+		partitionOfSchema: string | null; // schema of the parent table if this table is a partition
+		partitionOf: string | null; // name of the parent table if this table is a partition
+		partitionBound: string | null; // partition bound definition (e.g. FOR VALUES FROM (1) TO (10))
 	};
+	progressCallback('tables', 0, 'fetching');
 	const tablesList = filteredNamespacesStringForSQL
 		? await db
 			.query<TableListItem>(`
-                SELECT
-                    pg_class.oid,
-                    nspname as "schema",
-                    relname AS "name",
-                    relkind::text AS "kind",
-                    relam as "accessMethod",
-                    reloptions::text[] as "options",
-                    reltablespace as "tablespaceid",
-                    relrowsecurity AS "rlsEnabled",
-                    CASE
-                        WHEN relkind OPERATOR(pg_catalog.=) 'v' OR relkind OPERATOR(pg_catalog.=) 'm'
-                            THEN pg_catalog.pg_get_viewdef(pg_class.oid, true)
-                        ELSE null
-                    END AS "definition"
-                FROM
-                    pg_catalog.pg_class
-				JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) relnamespace
-                WHERE
-                    relkind IN ('r', 'p', 'v', 'm')
-                    AND nspname IN (${filteredNamespacesStringForSQL})
-                ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
-	`).then((rows) => {
+			SELECT
+				pg_class.oid,
+				pg_namespace.nspname as "schema",
+				pg_class.relname AS "name",
+				pg_class.relkind::text AS "kind",
+				pg_class.relam as "accessMethod",
+				pg_class.reloptions::text[] as "options",
+				pg_class.reltablespace as "tablespaceid",
+				pg_class.relrowsecurity AS "rlsEnabled",
+				CASE
+					WHEN pg_class.relkind OPERATOR(pg_catalog.=) 'v' OR pg_class.relkind OPERATOR(pg_catalog.=) 'm'
+						THEN pg_catalog.pg_get_viewdef(pg_class.oid, true)
+					ELSE null
+				END as "definition",
+				CASE
+					WHEN pg_class.relkind OPERATOR(pg_catalog.=) 'p'
+						THEN pg_catalog.pg_get_partkeydef(pg_class.oid)
+					ELSE null
+				END as "partitionBy",
+				parent_ns.nspname AS "partitionOfSchema",
+				parent.relname AS "partitionOf",
+				CASE
+					WHEN pg_class.relispartition
+						THEN pg_catalog.pg_get_expr(pg_class.relpartbound, pg_class.oid)
+					ELSE null
+				END as "partitionBound"
+			FROM
+				pg_catalog.pg_class
+			JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) pg_class.relnamespace
+			LEFT JOIN pg_catalog.pg_inherits inh
+				ON inh.inhrelid OPERATOR(pg_catalog.=) pg_class.oid
+				AND pg_class.relispartition
+			LEFT JOIN pg_catalog.pg_class parent ON parent.oid OPERATOR(pg_catalog.=) inh.inhparent
+			LEFT JOIN pg_catalog.pg_namespace parent_ns ON parent_ns.oid OPERATOR(pg_catalog.=) parent.relnamespace
+			WHERE
+				pg_class.relkind IN ('r', 'p', 'v', 'm')
+				AND pg_namespace.nspname IN (${filteredNamespacesStringForSQL})
+			ORDER BY pg_catalog.lower(pg_namespace.nspname), pg_catalog.lower(pg_class.relname);
+		`).then((rows) => {
 				queryCallback('tables', rows, null);
 				return rows;
 			}).catch((error) => {
@@ -202,7 +225,13 @@ export const fromDatabase = async (
 			})
 		: [] as TableListItem[];
 
-	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
+	const viewsList = tablesList.filter((it) => {
+		if (!((it.kind === 'v' || it.kind === 'm') && filter({ type: 'table', schema: it.schema, name: it.name }))) {
+			return false;
+		}
+		it.schema = trimChar(it.schema, '"'); // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
+		return true;
+	});
 
 	const filteredTables = tablesList.filter((it) => {
 		if (!((it.kind === 'r' || it.kind === 'p') && filter({ type: 'table', schema: it.schema, name: it.name }))) {
@@ -225,8 +254,13 @@ export const fromDatabase = async (
 			schema: trimChar(table.schema, "'"),
 			name: table.name,
 			isRlsEnabled: table.rlsEnabled,
+			partitionBy: table.partitionBy,
+			partitionOf: table.partitionOf
+				? { schema: table.partitionOfSchema!, table: table.partitionOf, bound: table.partitionBound! }
+				: null,
 		});
 	}
+	progressCallback('tables', tables.length, 'done');
 
 	const dependQuery = db.query<{
 		oid: string;
@@ -520,16 +554,28 @@ export const fromDatabase = async (
                 attname AS "name",
                 attnum AS "ordinality",
                 attnotnull AS "notNull",
-                attndims as "dimensions",
+                CASE
+                    WHEN attndims > 0 THEN attndims
+                    -- An array type defaults to 1 dimension. A domain over an array and the vector types of the catalog are in this category too, and their type text has no brackets.
+                    WHEN t.typcategory = 'A' AND pg_catalog.format_type(atttypid, atttypmod) LIKE '%[]' THEN 1
+                    ELSE 0
+                END as "dimensions",
                 atttypid as "typeId",
                 attgenerated::text as "generatedType", 
                 attidentity::text as "identityType",
                 pg_catalog.format_type(atttypid, atttypmod) as "type",
-                pg_catalog.pg_get_serial_sequence('"' OPERATOR(pg_catalog.||) "nspname" OPERATOR(pg_catalog.||) '"."' OPERATOR(pg_catalog.||) "relname" OPERATOR(pg_catalog.||) '"', "attname")::regclass::oid as "seqId"
+                (
+                    SELECT d.objid FROM pg_catalog.pg_depend d
+                    WHERE d.refobjid OPERATOR(pg_catalog.=) attr.attrelid
+                        AND d.refobjsubid OPERATOR(pg_catalog.=) attr.attnum
+                        AND d.objid IN (SELECT seqrelid FROM pg_catalog.pg_sequence)
+                    LIMIT 1
+                ) AS "seqId"
             FROM
                 pg_catalog.pg_attribute attr
             JOIN pg_catalog.pg_class cls ON cls.oid OPERATOR(pg_catalog.=) attr.attrelid
             JOIN pg_catalog.pg_namespace nsp ON nsp.oid OPERATOR(pg_catalog.=) cls.relnamespace
+            JOIN pg_catalog.pg_type t ON t.oid OPERATOR(pg_catalog.=) attr.atttypid
             WHERE
             ${filterByTableAndViewIds ? ` attrelid IN ${filterByTableAndViewIds}` : 'false'}
                 AND attnum OPERATOR(pg_catalog.>) 0
@@ -565,6 +611,27 @@ export const fromDatabase = async (
 			constraintsQuery,
 			columnsQuery,
 		]);
+
+	// lookups are built once, `.find` per column is quadratic and stalls on databases with many columns
+	const columnPosition = (tableId: string | number, ordinality: number) => `${tableId}:${ordinality}`;
+
+	const tablesById = mapBy(tablesList, (it) => it.oid);
+	const viewsById = mapBy(viewsList, (it) => it.oid);
+	const namespacesById = mapBy(namespaces, (it) => it.oid);
+	const sequencesById = mapBy(sequencesList, (it) => Number(it.oid));
+	const dependsById = mapBy(dependList, (it) => it.oid);
+	const serialsByPosition = mapBy(serialsList, (it) => columnPosition(it.tableId, it.ordinality));
+	const defaultsByPosition = mapBy(defaultsList, (it) => columnPosition(it.tableId, it.ordinality));
+	const columnsByPosition = mapBy(columnsList, (it) => columnPosition(it.tableId, it.ordinality));
+	const singleColumnConstraintsByPosition = (type: 'u' | 'p') =>
+		mapBy(
+			constraintsList.filter((it) => it.type === type && it.columnsOrdinals.length === 1),
+			(it) => columnPosition(it.tableId, it.columnsOrdinals[0]),
+		);
+	const uniquesByPosition = singleColumnConstraintsByPosition('u');
+	const pksByPosition = singleColumnConstraintsByPosition('p');
+	const uniqueIndexIds = new Set(constraintsList.filter((it) => it.type === 'u').map((it) => it.indexId));
+	const pkIndexIds = new Set(constraintsList.filter((it) => it.type === 'p').map((it) => it.indexId));
 
 	const groupedEnums = enumsList.reduce((acc, it) => {
 		if (!(it.oid in acc)) {
@@ -603,15 +670,8 @@ export const fromDatabase = async (
 		});
 	}
 
-	let columnsCount = 0;
-	let indexesCount = 0;
-	let foreignKeysCount = 0;
-	let tableCount = 0;
-	let checksCount = 0;
-	let viewsCount = 0;
-
 	for (const seq of sequencesList) {
-		const depend = dependList.find((it) => it.oid === seq.oid);
+		const depend = dependsById.get(seq.oid);
 
 		if (depend && (depend.deptype === 'a' || depend.deptype === 'i')) {
 			// TODO: add type field to sequence in DDL
@@ -643,7 +703,7 @@ export const fromDatabase = async (
 			name: dbRole.rolname,
 			superuser: dbRole.rolsuper,
 			inherit: dbRole.rolinherit,
-			createRole: dbRole.rolcreatedb,
+			createRole: dbRole.rolcreaterole,
 			createDb: dbRole.rolcreatedb,
 			canLogin: dbRole.rolcanlogin,
 			replication: dbRole.rolreplication,
@@ -666,7 +726,11 @@ export const fromDatabase = async (
 		});
 	}
 
+	// JSON keeps schema and name apart, so no pair of names can collide
+	const filteredTableKeys = new Set(filteredTables.map((it) => JSON.stringify([it.schema, it.name])));
 	for (const it of policiesList) {
+		if (!filteredTableKeys.has(JSON.stringify([it.schema, it.table]))) continue;
+
 		policies.push({
 			entityType: 'policies',
 			schema: it.schema,
@@ -680,7 +744,7 @@ export const fromDatabase = async (
 		});
 	}
 
-	progressCallback('policies', policiesList.length, 'done');
+	progressCallback('policies', policies.length, 'done');
 
 	type DBColumn = (typeof columnsList)[number];
 
@@ -692,12 +756,10 @@ export const fromDatabase = async (
 			continue;
 		}
 
-		const expr = serialsList.find(
-			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
-		);
+		const expr = serialsByPosition.get(columnPosition(column.tableId, column.ordinality));
 
 		if (expr) {
-			const table = tablesList.find((it) => it.oid === column.tableId)!;
+			const table = tablesById.get(column.tableId)!;
 
 			const isSerial = isSerialExpression(expr.expression, table.schema);
 			column.type = isSerial ? type === 'bigint' ? 'bigserial' : type === 'integer' ? 'serial' : 'smallserial' : type;
@@ -705,7 +767,7 @@ export const fromDatabase = async (
 	}
 
 	for (const column of columnsList.filter((x) => x.kind === 'r' || x.kind === 'p')) {
-		const table = tablesList.find((it) => it.oid === column.tableId)!;
+		const table = tablesById.get(column.tableId)!;
 
 		// supply enums
 		const enumType = column.typeId in groupedEnums
@@ -714,24 +776,19 @@ export const fromDatabase = async (
 			? groupedArrEnums[column.typeId]
 			: null;
 
-		let columnTypeMapped = enumType ? enumType.name : column.type.replace('[]', '');
-
-		if (columnTypeMapped.startsWith('numeric(')) {
-			columnTypeMapped = columnTypeMapped.replace(',', ', ');
-		}
+		let columnTypeMapped = enumType ? enumType.name : column.type.replaceAll('[]', '');
 
 		columnTypeMapped = columnTypeMapped
 			.replace(/\bcharacter varying\b/, 'varchar')
 			.replace(/ without time zone\b/, '')
 			// .replace(' with time zone', '')
 			// .replace("timestamp without time zone", "timestamp")
-			.replace(/\bcharacter\b/, 'char');
+			.replace(/\bcharacter\b/, 'char')
+			.replace(/\bgeometry\(Point\b/, 'geometry(point');
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
-		const columnDefault = defaultsList.find(
-			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
-		);
+		const columnDefault = defaultsByPosition.get(columnPosition(column.tableId, column.ordinality));
 
 		const defaultValue = defaultForColumn(
 			columnTypeMapped,
@@ -740,21 +797,12 @@ export const fromDatabase = async (
 			Boolean(enumType),
 		);
 
-		const unique = constraintsList.find((it) => {
-			return it.type === 'u' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
-				&& it.columnsOrdinals.includes(column.ordinality);
-		}) ?? null;
-
-		const pk = constraintsList.find((it) => {
-			return it.type === 'p' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
-				&& it.columnsOrdinals.includes(column.ordinality);
-		}) ?? null;
+		const unique = uniquesByPosition.get(columnPosition(column.tableId, column.ordinality)) ?? null;
+		const pk = pksByPosition.get(columnPosition(column.tableId, column.ordinality)) ?? null;
 
 		const sequence = column.seqId
-			? sequencesList.find((it) => Number(it.oid) === Number(column.seqId))
+			? sequencesById.get(Number(column.seqId))
 			: null;
-
-		columnTypeMapped += '[]'.repeat(column.dimensions);
 
 		columns.push({
 			entityType: 'columns',
@@ -789,12 +837,14 @@ export const fromDatabase = async (
 		});
 	}
 
+	progressCallback('columns', columns.length, 'done');
+
 	for (const unique of constraintsList.filter((it) => it.type === 'u')) {
-		const table = tablesList.find((it) => it.oid === unique.tableId)!;
-		const schema = namespaces.find((it) => it.oid === unique.schemaId)!;
+		const table = tablesById.get(unique.tableId)!;
+		const schema = namespacesById.get(unique.schemaId)!;
 
 		const columns = unique.columnsOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId === unique.tableId && column.ordinality === it)!;
+			const column = columnsByPosition.get(columnPosition(unique.tableId, it))!;
 			return column.name;
 		});
 
@@ -810,11 +860,11 @@ export const fromDatabase = async (
 	}
 
 	for (const pk of constraintsList.filter((it) => it.type === 'p')) {
-		const table = tablesList.find((it) => it.oid === pk.tableId)!;
-		const schema = namespaces.find((it) => it.oid === pk.schemaId)!;
+		const table = tablesById.get(pk.tableId)!;
+		const schema = namespacesById.get(pk.schemaId)!;
 
 		const columns = pk.columnsOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId === pk.tableId && column.ordinality === it)!;
+			const column = columnsByPosition.get(columnPosition(pk.tableId, it))!;
 			return column.name;
 		});
 
@@ -829,8 +879,8 @@ export const fromDatabase = async (
 	}
 
 	for (const fk of constraintsList.filter((it) => it.type === 'f')) {
-		const table = tablesList.find((it) => it.oid === fk.tableId);
-		const tableTo = tablesList.find((it) => it.oid === fk.tableToId);
+		const table = tablesById.get(fk.tableId);
+		const tableTo = tablesById.get(fk.tableToId);
 
 		if (!table || !tableTo) {
 			// this can happen if:
@@ -841,12 +891,12 @@ export const fromDatabase = async (
 		}
 
 		const columns = fk.columnsOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId === table.oid && column.ordinality === it)!;
+			const column = columnsByPosition.get(columnPosition(table.oid, it))!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columnsToOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId === tableTo.oid && column.ordinality === it)!;
+			const column = columnsByPosition.get(columnPosition(tableTo.oid, it))!;
 			return column.name;
 		});
 
@@ -865,25 +915,29 @@ export const fromDatabase = async (
 		});
 	}
 
+	progressCallback('fks', fks.length, 'done');
+
 	for (const check of constraintsList.filter((it) => it.type === 'c')) {
-		const table = tablesList.find((it) => it.oid === check.tableId)!;
-		const schema = namespaces.find((it) => it.oid === check.schemaId)!;
+		const table = tablesById.get(check.tableId)!;
+		const schema = namespacesById.get(check.schemaId)!;
 
 		checks.push({
 			entityType: 'checks',
 			schema: schema.name,
 			table: table.name,
 			name: check.name,
-			value: check.definition,
+			value: check.definition.startsWith('CHECK (') ? check.definition.slice(7, -1) : check.definition,
 		});
 	}
+
+	progressCallback('checks', checks.length, 'done');
 
 	type IndexMetadata = {
 		tableId: number;
 		expression: string | null;
 		where: string;
 		columnOrdinals: number[];
-		opclasses: { oid: number; name: string; default: boolean }[];
+		opclasses: { oid: number; access_method_name: string; op_class_name: string; default: boolean }[];
 		options: number[];
 		isUnique: boolean;
 		isPrimary: boolean;
@@ -921,7 +975,8 @@ export const fromDatabase = async (
 			SELECT
 			  pg_catalog.json_build_object(
 				'oid', opclass.oid,
-				'name', pg_am.amname,
+				'access_method_name', pg_am.amname,
+				'op_class_name', pg_opclass.opcname,
 				'default', pg_opclass.opcdefault
 			  )
 			FROM
@@ -951,12 +1006,12 @@ export const fromDatabase = async (
 		const metadata = JSON.parse(idx.metadata) as IndexMetadata;
 
 		// filter for drizzle only?
-		const forUnique = metadata.isUnique && constraintsList.some((x) => x.type === 'u' && x.indexId === idx.oid);
-		const forPK = metadata.isPrimary && constraintsList.some((x) => x.type === 'p' && x.indexId === idx.oid);
+		const forUnique = metadata.isUnique && uniqueIndexIds.has(idx.oid);
+		const forPK = metadata.isPrimary && pkIndexIds.has(idx.oid);
 
 		const expr = splitExpressions(metadata.expression);
 
-		const table = tablesList.find((it) => it.oid === String(metadata.tableId))!;
+		const table = tablesById.get(String(metadata.tableId))!;
 
 		const nonColumnsCount = metadata.columnOrdinals.reduce((acc, it) => {
 			if (it === 0) acc += 1;
@@ -985,7 +1040,7 @@ export const fromDatabase = async (
 				| { type: 'expression'; value: string }
 				| { type: 'column'; value: DBColumn }
 			)
-			& { options: (typeof opts)[number]; opclass: { name: string; default: boolean } }
+			& { options: (typeof opts)[number]; opclass: { op_class_name: string; default: boolean } }
 		)[];
 
 		let k = 0;
@@ -1000,14 +1055,12 @@ export const fromDatabase = async (
 				});
 				k += 1;
 			} else {
-				const column = columnsList.find((column) => {
-					return column.tableId === String(metadata.tableId) && column.ordinality === ordinal;
-				});
+				const column = columnsByPosition.get(columnPosition(String(metadata.tableId), ordinal));
 				if (!column) throw new Error(`missing column: ${metadata.tableId}:${ordinal}`);
 
 				// ! options and opclass can be undefined when index have "INCLUDE" columns (columns from "INCLUDE" don't have options and opclass)
 				const options = opts[i] as typeof opts[number] | undefined;
-				const opclass = metadata.opclasses[i] as { name: string; default: boolean } | undefined;
+				const opclass = metadata.opclasses[i] as { op_class_name: string; default: boolean } | undefined;
 				if (options && opclass) {
 					res.push({
 						type: 'column',
@@ -1024,7 +1077,7 @@ export const fromDatabase = async (
 				asc: !it.options.descending,
 				nullsFirst: it.options.nullsFirst,
 				opclass: it.opclass.default ? null : {
-					name: it.opclass.name,
+					name: it.opclass.op_class_name,
 					default: it.opclass.default,
 				},
 				isExpression: it.type === 'expression',
@@ -1049,13 +1102,10 @@ export const fromDatabase = async (
 		});
 	}
 
-	progressCallback('columns', columnsCount, 'fetching');
-	progressCallback('checks', checksCount, 'fetching');
-	progressCallback('indexes', indexesCount, 'fetching');
-	progressCallback('tables', tableCount, 'done');
+	progressCallback('indexes', indexes.length, 'done');
 
 	for (const it of columnsList.filter((x) => x.kind === 'm' || x.kind === 'v')) {
-		const view = viewsList.find((x) => x.oid === it.tableId)!;
+		const view = viewsById.get(it.tableId)!;
 
 		const enumType = it.typeId in groupedEnums
 			? groupedEnums[it.typeId]
@@ -1063,38 +1113,36 @@ export const fromDatabase = async (
 			? groupedArrEnums[it.typeId]
 			: null;
 
+		const typeDimensions = it.type.split('[]').length - 1;
+
 		let columnTypeMapped = enumType ? enumType.name : it.type.replace('[]', '');
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 		if (columnTypeMapped.startsWith('numeric(')) {
 			columnTypeMapped = columnTypeMapped.replace(',', ', ');
 		}
 
-		columnTypeMapped += '[]'.repeat(it.dimensions);
-
 		columnTypeMapped = columnTypeMapped
 			.replace(/\bcharacter varying\b/, 'varchar')
 			.replace(/ without time zone\b/, '')
 			// .replace("timestamp without time zone", "timestamp")
-			.replace(/\bcharacter\b/, 'char');
+			.replace(/\bcharacter\b/, 'char')
+			.replace('geometry(Point)', 'geometry(point)');
 
-		const typeDimensions = it.type.split('[]').length - 1;
+		columnTypeMapped += '[]'.repeat(it.dimensions);
 
 		viewColumns.push({
 			schema: view.schema,
 			view: view.name,
 			name: it.name,
 			type: columnTypeMapped,
+			typeDimensions,
 			notNull: it.notNull,
 			dimensions: it.dimensions,
-			typeDimensions,
 			typeSchema: enumType ? enumType.schema : null,
 		});
 	}
 
 	for (const view of viewsList) {
-		if (!filter({ type: 'table', schema: view.schema, name: view.name })) continue;
-		tableCount += 1;
-
 		const accessMethod = view.accessMethod === '0' ? null : ams.find((it) => it.oid === view.accessMethod);
 		const tablespace = view.tablespaceid === '0' ? null : tablespaces.find((it) => it.oid === view.tablespaceid)!.name;
 
@@ -1151,12 +1199,7 @@ export const fromDatabase = async (
 		});
 	}
 
-	// TODO: update counts!
-	progressCallback('columns', columnsCount, 'done');
-	progressCallback('indexes', indexesCount, 'done');
-	progressCallback('fks', foreignKeysCount, 'done');
-	progressCallback('checks', checksCount, 'done');
-	progressCallback('views', viewsCount, 'done');
+	progressCallback('views', views.length, 'done');
 
 	return {
 		schemas,
