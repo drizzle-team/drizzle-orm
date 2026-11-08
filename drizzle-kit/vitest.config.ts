@@ -71,13 +71,13 @@ export default defineConfig({
 		// Test files run one after another, unless a CI shard whose files each have a database of their own sets
 		// KIT_FILE_PARALLELISM=1 (.github/ci/run-shard.sh): PGlite in-process, a database per worker (PostGIS), or a
 		// server per worker (cockroach-many). Not with one shared server: the setups drop and recreate a database
-		// named drizzle, and drop every role. At most 4 workers on CI (KIT_MAX_WORKERS), so a job leaves CPU to the
-		// other runner instances on the machine.
+		// named drizzle, and drop every role. At most 2 workers on CI (KIT_MAX_WORKERS), so a job leaves CPU and memory
+		// to the other runner instances on the machine.
 		fileParallelism: process.env['KIT_FILE_PARALLELISM'] === '1',
 		maxWorkers: process.env['KIT_MAX_WORKERS']
 			? Number(process.env['KIT_MAX_WORKERS'])
 			: process.env['CI']
-			? 4
+			? 2
 			: undefined,
 	},
 	plugins: [tsconfigPaths()],
