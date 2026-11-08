@@ -6,14 +6,25 @@
 services:
   neon-postgres:
     image: postgres:17-alpine
-    # The Neon suites run their files and tests in parallel, each test in a database of its own.
-    command: postgres -c max_connections=300
+    # The proxy authenticates every /sql request itself: it opens a new connection here to read the role's SCRAM
+    # secret, checks the client's password with PBKDF2 at that secret's iteration count, then opens another new
+    # connection to run the query (HTTP pooling is opt-in). Its image is a debug build, so at Postgres' default
+    # 4096 iterations that cost ~200 ms per query. Hence, for this local test server only:
+    #   - scram_iterations=1, and neon-init.sql re-hashes the password with it: the client check is one HMAC;
+    #   - trust: the proxy's own connections skip SCRAM. The proxy still checks its clients' passwords; the port is
+    #     published on 127.0.0.1 only, for the Netlify suite's direct (node-postgres) driver.
+    command: postgres -c max_connections=300 -c scram_iterations=1
     mem_limit: 2g
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
       POSTGRES_DB: main
       TZ: UTC
+    volumes:
+      - ./neon-init.sql:/docker-entrypoint-initdb.d/neon-init.sql:ro
+    ports:
+      - "127.0.0.1:54327:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d main"]
       interval: 2s

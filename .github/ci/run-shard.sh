@@ -49,8 +49,8 @@ case "$shard" in
 	# local proxy is a debug build, and running them in parallel overloaded it (60 s hook timeouts).
 	int:neon)
 		NEON_LOCAL=1 \
-			NEON_CONNECTION_STRING=postgres://postgres:postgres@db.localtest.me:5432/main \
-			NETLIFY_DB_URL=postgres://postgres:postgres@db.localtest.me:5432/main \
+			NEON_CONNECTION_STRING=postgres://postgres:postgres@db.localtest.me:54327/main \
+			NETLIFY_DB_URL=postgres://postgres:postgres@db.localtest.me:54327/main \
 			pnpm --stream test:neon
 		;;
 	int:mysql) pnpm --stream test:mysql ;;
