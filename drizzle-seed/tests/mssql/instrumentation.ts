@@ -1,4 +1,4 @@
-import { parseMssqlUrl, requireEnv } from '@drizzle/test-utils';
+import { parseMssqlUrl, requireEnv, workerDatabaseName } from '@drizzle/test-utils';
 import { drizzle, MsSqlDatabase } from 'drizzle-orm/node-mssql';
 import mssql from 'mssql';
 import { test as base } from 'vitest';
@@ -37,9 +37,10 @@ const prepareTest = () => {
 				const envurl = requireEnv('MSSQL_CONNECTION_STRING');
 
 				const options = parseMssqlUrl(envurl);
-				// A database of this run's own, connected to directly: `use` on a pool switches only the connection that
-				// ran it. On a self-hosted machine every job's tests share one server: DRIZZLE_TEST_DB_PREFIX names it.
-				const database = `${process.env['DRIZZLE_TEST_DB_PREFIX'] ?? ''}drizzle`;
+				// A database of this worker's own (test files run side by side), connected to directly: `use` on a pool
+				// switches only the connection that ran it. On a self-hosted machine every job's tests share one server;
+				// DRIZZLE_TEST_DB_PREFIX names the job's.
+				const database = workerDatabaseName();
 				const admin = await new mssql.ConnectionPool(options).connect();
 				await admin.query(
 					`if db_id(N'${database}') is not null begin alter database [${database}] set single_user with rollback immediate; drop database [${database}]; end; create database [${database}]; alter database [${database}] set parameterization forced;`,

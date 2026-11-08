@@ -54,7 +54,9 @@ test.afterEach(async ({ db }) => {
 });
 
 test('basic seed test', async ({ db }) => {
-	await seed(db, schema, { count: 10000 });
+	// Not 10000 like the other dialects: SQL Server takes 2100 parameters per statement, so 24 columns make 87-row
+	// inserts at ~50 ms each (the driver's and the server's parameter handling), and 10000 rows took 44 s on CI.
+	await seed(db, schema, { count: 1000 });
 
 	const allDataTypes = await db.select().from(schema.allDataTypes);
 
