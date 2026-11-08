@@ -41,7 +41,9 @@ export const createClient = async () => {
 	);
 	const params = parseMssqlUrl(url);
 
-	const url2 = `Server=localhost,${params.port};User Id=SA;Password=drizzle123PASSWORD!;TrustServerCertificate=True;`;
+	// The same server as MSSQL_CONNECTION_STRING, whose host CI sets to the container's IP.
+	const url2 =
+		`Server=${params.server},${params.port};User Id=SA;Password=drizzle123PASSWORD!;TrustServerCertificate=True;`;
 
 	// A database of the test file's own, dropped when it finishes. On a self-hosted machine every job's files share
 	// one server, and DRIZZLE_TEST_DB_PREFIX names this job's, so the job's end drops those a failed file left.

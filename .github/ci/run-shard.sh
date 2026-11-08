@@ -98,7 +98,18 @@ run_shard() {
 		kit:postgres:commutativity)
 			cd ../drizzle-kit && KIT_POSTGRES_SUITE=commutativity PG_VERSION=18 pnpm --stream vitest run postgres/commutativity
 			;;
-		kit:cockroach) cd ../drizzle-kit && pnpm --stream run test:cockroach ;;
+		# Three test files at once, each worker on a cockroach-many server of its own (tests/cockroach/mocks.ts picks it
+		# by VITEST_POOL_ID; the setup drops every role, which belongs to the whole server). CockroachDB DDL mostly
+		# waits on schema change jobs, not CPU: 218 s of tests this way, 309 s one file at a time.
+		kit:cockroach)
+			cd ../drizzle-kit
+			local i port_var urls=""
+			for i in 0 1 2; do
+				port_var="DRIZZLE_PORT_COCKROACH_MANY$i"
+				urls="${urls}postgresql://root@$(drizzle_addr cockroach-many "cockroach$i" 26257 "${!port_var}")/defaultdb?sslmode=disable;"
+			done
+			COCKROACH_CONNECTION_STRING="$urls" KIT_FILE_PARALLELISM=1 KIT_MAX_WORKERS=3 pnpm --stream run test:cockroach
+			;;
 		kit:mssql) cd ../drizzle-kit && pnpm --stream run test:mssql ;;
 		validators) pnpm --stream vitest --reporter=verbose --silent=false run tests/validators ;;
 		orm | seed) (cd "../drizzle-$shard" && pnpm --stream test --reporter=verbose --silent=false) ;;

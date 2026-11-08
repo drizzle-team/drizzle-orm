@@ -3668,6 +3668,8 @@ describe('common', () => {
 		const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
 		const initial = await db.select({ updatedAt }).from(usersOnUpdate);
 
+		// The timestamps have millisecond precision: insert and update in the same millisecond look unchanged.
+		await new Promise((resolve) => setTimeout(resolve, 10));
 		await db.update(usersOnUpdate).set({ name: 'Angel', uppercaseName: null }).where(eq(usersOnUpdate.id, 1));
 
 		const justDates = await db.select({ updatedAt }).from(usersOnUpdate);
