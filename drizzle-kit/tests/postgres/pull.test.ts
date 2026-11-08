@@ -1691,6 +1691,72 @@ test('introspect partitioned tables with indexes', async () => {
 	]);
 });
 
+test('introspect partitionBy and partitionOf of tables', async () => {
+	await db.query(`CREATE SCHEMA "archive";`);
+	await db.query(`
+		CREATE TABLE measurement (
+			city_id int not null,
+			logdate date not null
+		) PARTITION BY RANGE (logdate);
+	`);
+	await db.query(`
+		CREATE TABLE measurement_2024 PARTITION OF measurement
+			FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
+	`);
+	await db.query(`CREATE TABLE "archive"."measurement_rest" PARTITION OF measurement DEFAULT;`);
+	await db.query(`
+		CREATE TABLE measurement_2025 PARTITION OF measurement
+			FOR VALUES FROM ('2025-01-01') TO ('2026-01-01')
+			PARTITION BY LIST (city_id);
+	`);
+	await db.query(`CREATE TABLE measurement_2025_city_1 PARTITION OF measurement_2025 FOR VALUES IN (1);`);
+	await db.query(`CREATE TABLE users (id int);`);
+
+	const { tables } = await fromDatabase(db);
+
+	const table = (
+		schema: string,
+		name: string,
+		partition: Pick<(typeof tables)[number], 'partitionBy' | 'partitionOf'>,
+	) =>
+		({
+			entityType: 'tables',
+			schema,
+			name,
+			isRlsEnabled: false,
+			...partition,
+		}) satisfies (typeof tables)[number];
+
+	expect(tables).toStrictEqual([
+		table('archive', 'measurement_rest', {
+			partitionBy: null,
+			partitionOf: { schema: 'public', table: 'measurement', bound: 'DEFAULT' },
+		}),
+		table('public', 'measurement', { partitionBy: 'RANGE (logdate)', partitionOf: null }),
+		table('public', 'measurement_2024', {
+			partitionBy: null,
+			partitionOf: {
+				schema: 'public',
+				table: 'measurement',
+				bound: "FOR VALUES FROM ('2024-01-01') TO ('2025-01-01')",
+			},
+		}),
+		table('public', 'measurement_2025', {
+			partitionBy: 'LIST (city_id)',
+			partitionOf: {
+				schema: 'public',
+				table: 'measurement',
+				bound: "FOR VALUES FROM ('2025-01-01') TO ('2026-01-01')",
+			},
+		}),
+		table('public', 'measurement_2025_city_1', {
+			partitionBy: null,
+			partitionOf: { schema: 'public', table: 'measurement_2025', bound: 'FOR VALUES IN (1)' },
+		}),
+		table('public', 'users', { partitionBy: null, partitionOf: null }),
+	]);
+});
+
 test('default sequence nextval', async () => {
 	const seqOrgCode = pgSequence('seq_org_code', {
 		startWith: '1000',
@@ -1801,6 +1867,8 @@ test('introspect view with table filter', async () => {
 		schema: 'public',
 		name: 'table1',
 		isRlsEnabled: false,
+		partitionBy: null,
+		partitionOf: null,
 	}];
 	expect(res.tables).toStrictEqual(expectedTables);
 	expect(res.views).toStrictEqual([]);
@@ -1867,6 +1935,8 @@ test.skipIf(needToPostpone)('introspect sequences with table filter', async () =
 		schema: 'public',
 		name: 'table1',
 		isRlsEnabled: false,
+		partitionBy: null,
+		partitionOf: null,
 	}]);
 
 	expect(sequences).toBe([{
@@ -2056,6 +2126,8 @@ test('introspect enum within schema', async () => {
 			schema: 'public',
 			name: 'table1',
 			isRlsEnabled: false,
+			partitionBy: null,
+			partitionOf: null,
 		},
 	]);
 	expect(enums).toStrictEqual([]);
@@ -2283,6 +2355,8 @@ test('pull after migrate with custom migrations table #1', async () => {
 		{
 			entityType: 'tables',
 			isRlsEnabled: false,
+			partitionBy: null,
+			partitionOf: null,
 			name: 'users',
 			schema: 'drizzle',
 		},
@@ -2338,6 +2412,8 @@ test('pull after migrate with custom migrations table #2', async () => {
 		{
 			entityType: 'tables',
 			isRlsEnabled: false,
+			partitionBy: null,
+			partitionOf: null,
 			name: 'users',
 			schema: 'public',
 		},
@@ -2403,12 +2479,16 @@ test('pull after migrate with custom migrations table #3', async () => {
 		{
 			entityType: 'tables',
 			isRlsEnabled: false,
+			partitionBy: null,
+			partitionOf: null,
 			name: 'users',
 			schema: 'custom',
 		},
 		{
 			entityType: 'tables',
 			isRlsEnabled: false,
+			partitionBy: null,
+			partitionOf: null,
 			name: 'users',
 			schema: 'public',
 		},
@@ -2902,12 +2982,16 @@ test('non-admin', async () => {
 			schema: 'public',
 			name: 'users',
 			isRlsEnabled: false,
+			partitionBy: null,
+			partitionOf: null,
 		},
 		{
 			entityType: 'tables',
 			schema: 'schema_not_for_non_admin',
 			name: 'table_not_for_non_admin',
 			isRlsEnabled: false,
+			partitionBy: null,
+			partitionOf: null,
 		},
 	]);
 	expect(fks.length).toBe(1);

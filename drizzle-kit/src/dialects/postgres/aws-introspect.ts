@@ -11,12 +11,12 @@ import type {
 	InterimIndex,
 	InterimSchema,
 	Policy,
-	PostgresEntities,
 	PrimaryKey,
 	Privilege,
 	Role,
 	Schema,
 	Sequence,
+	TableWithPartition,
 	UniqueConstraint,
 	View,
 	ViewColumn,
@@ -44,10 +44,14 @@ export const fromDatabase = async (
 		rows: Record<string, unknown>[],
 		error: Error | null,
 	) => void = () => {},
-): Promise<InterimSchema> => {
+): Promise<
+	InterimSchema & {
+		tables: TableWithPartition[];
+	}
+> => {
 	const schemas: Schema[] = [];
 	const enums: Enum[] = [];
-	const tables: PostgresEntities['tables'][] = [];
+	const tables: TableWithPartition[] = [];
 	const columns: InterimColumn[] = [];
 	const indexes: InterimIndex[] = [];
 	const pks: PrimaryKey[] = [];

@@ -234,8 +234,6 @@ describe('reconstruct', () => {
 					schema: 'public',
 					name: table,
 					isRlsEnabled: false,
-					partitionBy: null,
-					partitionOf: null,
 				},
 				...columns.map((it) => columnRow(table, it.name, 'integer', it.notNull)),
 			]),

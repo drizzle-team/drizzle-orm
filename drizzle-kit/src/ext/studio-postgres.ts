@@ -9,7 +9,6 @@ import type {
 	InterimSchema,
 	Policy,
 	PostgresDDL,
-	PostgresEntities,
 	PrimaryKey,
 	Privilege,
 	Role,
@@ -75,7 +74,7 @@ const fromInterims = ({
 	sequences,
 	views,
 }: InterimStudioSchema): InterimSchema => {
-	const tbls: PostgresEntities['tables'][] = tables.map((it) => ({
+	const tbls: InterimSchema['tables'] = tables.map((it) => ({
 		entityType: 'tables',
 		name: it.name,
 		schema: it.schema,

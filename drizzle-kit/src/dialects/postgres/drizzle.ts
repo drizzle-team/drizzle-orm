@@ -325,8 +325,6 @@ export const fromDrizzleSchema = (
 			schema,
 			name: config.name,
 			isRlsEnabled,
-			partitionBy: null,
-			partitionOf: null,
 		} satisfies PostgresEntities['tables'];
 	});
 

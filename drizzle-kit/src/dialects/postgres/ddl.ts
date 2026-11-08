@@ -21,12 +21,6 @@ export const createDDL = () => {
 			schema: 'string',
 			name: 'string',
 			isRlsEnabled: 'boolean',
-			partitionBy: 'string?',
-			partitionOf: {
-				schema: 'string',
-				table: 'string',
-				bound: 'string',
-			},
 		},
 		enums: {
 			schema: 'string',
@@ -337,6 +331,15 @@ export interface InterimSchema {
 	views: View[];
 	viewColumns: ViewColumn[];
 }
+
+export type TableWithPartition = PostgresEntities['tables'] & {
+	partitionBy: string | null;
+	partitionOf: {
+		schema: string;
+		table: string;
+		bound: string;
+	} | null;
+};
 
 export function postgresToRelationsPull(schema: PostgresDDL): SchemaForPull {
 	return Object.values(schema.tables.list()).map((table) => {
