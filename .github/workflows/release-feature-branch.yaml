@@ -388,7 +388,9 @@ jobs:
         working-directory: integration-tests
         run: |
           source ../compose/ports.sh
-          PG_CONNECTION_STRING="postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES}/drizzle" pnpm --stream test:packed
+          # This job's database (dockers.sh created it): on a self-hosted machine the Postgres server is shared, and
+          # the packed-orm jobs of other Node versions push and pull the same tables at the same time.
+          PG_CONNECTION_STRING="postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES}/${DRIZZLE_TEST_DB_PREFIX}drizzle" pnpm --stream test:packed
       - name: Stop Postgres
         if: ${{ always() && runner.environment == 'self-hosted' }}
         run: bash compose/dockers.sh down postgres
