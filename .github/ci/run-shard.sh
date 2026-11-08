@@ -45,10 +45,18 @@ case "$shard" in
 	# Uses local Postgres; hosted providers are excluded by the test config/script.
 	int:postgres) pnpm --stream test:postgres ;;
 	# Neon's proxy over a local Postgres (compose/neon.yml); the test setup switches the drivers to it for this host.
+	# Locally every file and provider has databases of its own, so all files run at once (one vitest run instead of
+	# test:neon's two) with 8 concurrent tests each, matching LOCAL_NEON_POOL_SIZE. NEON_LOCAL=1 makes any request
+	# that is not for the local proxy throw.
 	int:neon)
-		NEON_CONNECTION_STRING=postgres://postgres:postgres@db.localtest.me:5432/main \
+		NEON_LOCAL=1 \
+			NEON_CONNECTION_STRING=postgres://postgres:postgres@db.localtest.me:5432/main \
 			NETLIFY_DB_URL=postgres://postgres:postgres@db.localtest.me:5432/main \
-			pnpm --stream test:neon
+			pnpm --stream vitest --reporter=verbose --silent=false run --passWithNoTests \
+			--fileParallelism --maxWorkers=7 --maxConcurrency=8 \
+			tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts tests/pg/neon-serverless.test.ts \
+			tests/pg/netlify-db.test.ts tests/pg/postgres-neon-ws.test.ts tests/pg/postgres-neon-http.test.ts \
+			tests/pg/postgres-neon-http-batch.test.ts
 		;;
 	int:mysql) pnpm --stream test:mysql ;;
 	int:tidb) if external; then pnpm --stream vitest --reporter=verbose --silent=false tests/mysql/tidb; fi ;;

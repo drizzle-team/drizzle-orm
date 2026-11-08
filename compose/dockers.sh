@@ -54,7 +54,9 @@ _compose() {
 
 _up_one() {
   local dialect="$1"
-  _compose "$dialect" up -d --wait --wait-timeout 120
+  # Readiness is compose/wait.sh's probe from the host, not `up --wait`: some images' own healthchecks call
+  # tools they do not ship (nc in cockroach and azure-sql-edge), so those containers never report healthy.
+  _compose "$dialect" up -d
   bash compose/wait.sh "$dialect"
 }
 

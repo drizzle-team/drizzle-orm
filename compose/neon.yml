@@ -6,7 +6,9 @@
 services:
   neon-postgres:
     image: postgres:17-alpine
-    mem_limit: 1g
+    # The Neon suites run their files and tests in parallel, each test in a database of its own.
+    command: postgres -c max_connections=300
+    mem_limit: 2g
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

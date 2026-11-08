@@ -83,6 +83,50 @@ if (isLocalNeon(process.env['NEON_CONNECTION_STRING']) || isLocalNeon(process.en
 	neonConfig.useSecureWebSocket = false;
 }
 
+// NEON_LOCAL=1 (set by .github/ci/run-shard.sh for int:neon): fail loudly instead of quietly reaching Neon's cloud.
+// Every Neon driver goes through fetch or a WebSocket, so both only accept the local proxy's host.
+if (process.env['NEON_LOCAL']) {
+	for (const name of ['NEON_CONNECTION_STRING', 'NETLIFY_DB_URL']) {
+		const value = process.env[name];
+		if (value && !isLocalNeon(value)) {
+			throw new Error(`NEON_LOCAL is set, but ${name} does not point at the local Neon proxy (${LOCAL_NEON_HOST})`);
+		}
+	}
+	const assertLocalNeon = (target: unknown) => {
+		const raw = target instanceof Request ? target.url : String(target);
+		const host = new URL(raw.includes('://') ? raw : `ws://${raw}`).hostname;
+		if (host !== LOCAL_NEON_HOST) {
+			throw new Error(`NEON_LOCAL is set, but a Neon driver connected to ${host} instead of ${LOCAL_NEON_HOST}`);
+		}
+	};
+	const realFetch = globalThis.fetch;
+	globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+		assertLocalNeon(input); // rejects the returned promise, as a failing fetch does
+		return realFetch(input, init);
+	}) as typeof fetch;
+	const localOnly = <T extends new(...args: any[]) => object>(Base: T) =>
+		class extends Base {
+			constructor(...args: any[]) {
+				assertLocalNeon(args[0]);
+				super(...args);
+			}
+		};
+	neonConfig.webSocketConstructor = localOnly(ws) as unknown as typeof ws;
+	if (typeof globalThis.WebSocket !== 'undefined') globalThis.WebSocket = localOnly(globalThis.WebSocket);
+	console.info(`NEON_LOCAL: every Neon driver goes through the local proxy at ${LOCAL_NEON_HOST}:4444`);
+}
+
+/**
+ * The databases a Neon provider hands to concurrent tests. On Neon, CI creates a fixed set (the given names). The
+ * local proxy creates any on demand, so locally each provider gets its own, larger set: more tests run at once
+ * (with vitest's --max-concurrency raised to match) and no two providers or files ever share a database.
+ */
+const LOCAL_NEON_POOL_SIZE = 8;
+const neonPoolDatabases = (provider: string, hosted: string[], connectionString: string | undefined) =>
+	isLocalNeon(connectionString)
+		? [...new Array(LOCAL_NEON_POOL_SIZE).keys()].map((i) => `${provider}_${i}`)
+		: hosted;
+
 // The local proxy sits on a plain Postgres, so a test's database is created on first use: suites and concurrent
 // workers each get their own, whatever their names. On Neon itself CI creates them through the API.
 const ensuredLocalNeonDatabases = new Set<string>();
@@ -653,25 +697,21 @@ type Vendor =
 	| 'netlify-db';
 
 export const providerForNeonHttp = async () => {
-	const clients = [
-		await prepareNeonHttpClient('db0'),
-		await prepareNeonHttpClient('db1'),
-		await prepareNeonHttpClient('db2'),
-		await prepareNeonHttpClient('db3'),
-		await prepareNeonHttpClient('db4'),
-	];
+	const clients = await Promise.all(
+		neonPoolDatabases('neon_http', ['db0', 'db1', 'db2', 'db3', 'db4'], process.env['NEON_CONNECTION_STRING']).map((
+			name,
+		) => prepareNeonHttpClient(name)),
+	);
 
 	return createProvider(clients);
 };
 
 export const providerForNeonWs = async () => {
-	const clients = [
-		await prepareNeonWsClient('db5'),
-		await prepareNeonWsClient('db6'),
-		await prepareNeonWsClient('db7'),
-		await prepareNeonWsClient('db8'),
-		await prepareNeonWsClient('db9'),
-	];
+	const clients = await Promise.all(
+		neonPoolDatabases('neon_ws', ['db5', 'db6', 'db7', 'db8', 'db9'], process.env['NEON_CONNECTION_STRING']).map((
+			name,
+		) => prepareNeonWsClient(name)),
+	);
 
 	return createProvider(clients);
 };
@@ -745,26 +785,20 @@ export const provideForPostgres = async () => {
 };
 
 export const provideForPostgresNeonWs = async () => {
-	const clients = [
-		await preparePostgresNeonWsClient('db5'),
-		await preparePostgresNeonWsClient('db6'),
-		await preparePostgresNeonWsClient('db7'),
-		await preparePostgresNeonWsClient('db8'),
-		await preparePostgresNeonWsClient('db9'),
-	];
+	const clients = await Promise.all(
+		neonPoolDatabases('postgres_neon_ws', ['db5', 'db6', 'db7', 'db8', 'db9'], process.env['NEON_CONNECTION_STRING'])
+			.map((name) => preparePostgresNeonWsClient(name)),
+	);
 
 	return createProvider(clients);
 };
 
 /** Shares db0-db4 with {@link providerForNeonHttp} - see {@link provideForPostgresNeonWs} */
 export const provideForPostgresNeonHttp = async () => {
-	const clients = [
-		await preparePostgresNeonHttpClient('db0'),
-		await preparePostgresNeonHttpClient('db1'),
-		await preparePostgresNeonHttpClient('db2'),
-		await preparePostgresNeonHttpClient('db3'),
-		await preparePostgresNeonHttpClient('db4'),
-	];
+	const clients = await Promise.all(
+		neonPoolDatabases('postgres_neon_http', ['db0', 'db1', 'db2', 'db3', 'db4'], process.env['NEON_CONNECTION_STRING'])
+			.map((name) => preparePostgresNeonHttpClient(name)),
+	);
 
 	return createProvider(clients);
 };
@@ -843,13 +877,11 @@ export const provideForNetlifyDb = async () => {
 		neonConfig.webSocketConstructor = ws;
 	}
 
-	const clients = [
-		await prepareNetlifyDb('db10'),
-		await prepareNetlifyDb('db11'),
-		await prepareNetlifyDb('db12'),
-		await prepareNetlifyDb('db13'),
-		await prepareNetlifyDb('db14'),
-	];
+	const clients = await Promise.all(
+		neonPoolDatabases('netlify', ['db10', 'db11', 'db12', 'db13', 'db14'], process.env['NETLIFY_DB_URL']).map((name) =>
+			prepareNetlifyDb(name)
+		),
+	);
 
 	return createProvider(clients);
 };
