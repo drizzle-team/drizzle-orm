@@ -83,3 +83,22 @@ export DRIZZLE_PORT_TURSO2="$(_port 8092 28)"
 export DRIZZLE_PORT_TURSO3="$(_port 8093 29)"
 export DRIZZLE_PORT_TURSO4="$(_port 8094 30)"
 export DRIZZLE_PORT_PLANETSCALE="$(_port 3900 31)"
+
+# host:port where this machine reaches a compose service's container port, for connection strings.
+#   drizzle_addr <dialect> <service> <container port> <published port>
+# On CI the container's own IP: a published port goes through Docker's port-forwarding proxy, which took a Postgres
+# query 53 us against 13 us direct (pgbench, from a container on the host network as the runners are). Runners on
+# the machine that runs Docker (GitHub-hosted, or containers on its host network) reach container IPs. Locally, and
+# when the container is not running, the published port on localhost.
+drizzle_addr() {
+	local cid ip
+	if [ -n "${CI:-}" ]; then
+		cid="$(docker ps -q --filter "label=com.docker.compose.project=$(drizzle_project "$1")" \
+			--filter "label=com.docker.compose.service=$2" 2>/dev/null | head -n 1)"
+		if [ -n "$cid" ]; then
+			ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$cid" 2>/dev/null)"
+			if [ -n "$ip" ]; then echo "$ip:$3"; return; fi
+		fi
+	fi
+	echo "localhost:$4"
+}

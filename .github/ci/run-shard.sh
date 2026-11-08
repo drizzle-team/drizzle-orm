@@ -11,30 +11,31 @@
 set -euo pipefail
 
 shards="${1:?usage: run-shard.sh <shard>[+<shard>...]}"
-# Host ports of the databases compose/dockers.sh started (shifted by CI_PORT_OFFSET on a self-hosted runner instance).
+# Addresses of the databases compose/dockers.sh started: on CI their containers' own IPs (drizzle_addr), elsewhere
+# the published ports (shifted by CI_PORT_OFFSET on a self-hosted runner instance).
 # shellcheck source=compose/ports.sh
 source "$(dirname "$0")/../../compose/ports.sh"
 cd "$(dirname "$0")/../../integration-tests"
 
 # On a self-hosted machine the Postgres, PostGIS and pgvector servers are shared, and this job's databases on them
 # carry DRIZZLE_TEST_DB_PREFIX (compose/ports.sh); empty elsewhere.
-: "${PG_CONNECTION_STRING:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES}/${DRIZZLE_TEST_DB_PREFIX}drizzle}"
-: "${PG_HTTP_GATEWAY_URL:=http://localhost:${DRIZZLE_PORT_HTTP_GATEWAY}/query}"
-: "${AWS_DATA_API_URL:=http://localhost:${DRIZZLE_PORT_AWS_DATA_API}}"
-: "${PG_VECTOR_CONNECTION_STRING:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_VECTOR}/${DRIZZLE_TEST_DB_PREFIX}drizzle}"
-: "${PG_POSTGIS_CONNECTION_STRING:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGIS}/${DRIZZLE_TEST_DB_PREFIX}drizzle}"
-: "${PG18_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES18}/drizzle}"
-: "${PG17_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES17}/drizzle}"
-: "${PG16_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES16}/drizzle}"
-: "${POSTGIS_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGIS}/${DRIZZLE_TEST_DB_PREFIX}drizzle}"
-: "${MYSQL_CONNECTION_STRING:=mysql://root:mysql@localhost:${DRIZZLE_PORT_MYSQL}/drizzle}"
+: "${PG_CONNECTION_STRING:=postgres://postgres:postgres@$(drizzle_addr postgres postgres 5432 "$DRIZZLE_PORT_POSTGRES")/${DRIZZLE_TEST_DB_PREFIX}drizzle}"
+: "${PG_HTTP_GATEWAY_URL:=http://$(drizzle_addr postgres-http-gateway postgres-http-gateway 8080 "$DRIZZLE_PORT_HTTP_GATEWAY")/query}"
+: "${AWS_DATA_API_URL:=http://$(drizzle_addr aws-data-api aws-data-api 80 "$DRIZZLE_PORT_AWS_DATA_API")}"
+: "${PG_VECTOR_CONNECTION_STRING:=postgres://postgres:postgres@$(drizzle_addr postgres-vector postgres-vector 5432 "$DRIZZLE_PORT_VECTOR")/${DRIZZLE_TEST_DB_PREFIX}drizzle}"
+: "${PG_POSTGIS_CONNECTION_STRING:=postgres://postgres:postgres@$(drizzle_addr postgres-postgis postgres-postgis 5432 "$DRIZZLE_PORT_POSTGIS")/${DRIZZLE_TEST_DB_PREFIX}drizzle}"
+: "${PG18_URL:=postgres://postgres:postgres@$(drizzle_addr postgres18 postgres 5432 "$DRIZZLE_PORT_POSTGRES18")/drizzle}"
+: "${PG17_URL:=postgres://postgres:postgres@$(drizzle_addr postgres17 postgres 5432 "$DRIZZLE_PORT_POSTGRES17")/drizzle}"
+: "${PG16_URL:=postgres://postgres:postgres@$(drizzle_addr postgres16 postgres 5432 "$DRIZZLE_PORT_POSTGRES16")/drizzle}"
+: "${POSTGIS_URL:=postgres://postgres:postgres@$(drizzle_addr postgres-postgis postgres-postgis 5432 "$DRIZZLE_PORT_POSTGIS")/${DRIZZLE_TEST_DB_PREFIX}drizzle}"
+: "${MYSQL_CONNECTION_STRING:=mysql://root:mysql@$(drizzle_addr mysql mysql 3306 "$DRIZZLE_PORT_MYSQL")/drizzle}"
 # compose/planetscale.yml's simulator; is-config.test.ts (int:other) only builds a client from it.
-: "${PLANETSCALE_CONNECTION_STRING:=http://root:planetscale@127.0.0.1:${DRIZZLE_PORT_PLANETSCALE}}"
+: "${PLANETSCALE_CONNECTION_STRING:=http://root:planetscale@$(drizzle_addr planetscale planetscale-mysql 3900 "$DRIZZLE_PORT_PLANETSCALE")}"
 # In memory, as in local runs: a database file costs an fsync per write, which on a runner whose work folder is a
 # shared volume made the three libsql suites take ~15 minutes between them.
 : "${LIBSQL_URL:=file::memory:?cache=shared}"
-: "${COCKROACH_CONNECTION_STRING:=postgresql://root@127.0.0.1:${DRIZZLE_PORT_COCKROACH}/defaultdb?sslmode=disable}"
-: "${MSSQL_CONNECTION_STRING:=mssql://SA:drizzle123PASSWORD!@localhost:${DRIZZLE_PORT_MSSQL}?encrypt=true&trustServerCertificate=true}"
+: "${COCKROACH_CONNECTION_STRING:=postgresql://root@$(drizzle_addr cockroach cockroach 26257 "$DRIZZLE_PORT_COCKROACH")/defaultdb?sslmode=disable}"
+: "${MSSQL_CONNECTION_STRING:=mssql://SA:drizzle123PASSWORD!@$(drizzle_addr mssql mssql 1433 "$DRIZZLE_PORT_MSSQL")?encrypt=true&trustServerCertificate=true}"
 : "${TEST_CONFIG_PATH_PREFIX:=./tests/cli/}"
 # Dates in UTC, as on GitHub-hosted runners: drivers that send local time (tedious for SQL Server) put boundary
 # values such as 9999-12-31T23:59:59.997Z out of the type's range on a machine ahead of UTC.
@@ -79,8 +80,10 @@ run_shard() {
 		# Against this job's own Turso servers (compose/turso.yml), which take no auth token: one per concurrent test.
 		int:turso-serverless)
 			urls="" tokens=""
-			for port in "$DRIZZLE_PORT_TURSO" "$DRIZZLE_PORT_TURSO1" "$DRIZZLE_PORT_TURSO2" "$DRIZZLE_PORT_TURSO3" "$DRIZZLE_PORT_TURSO4"; do
-				urls="${urls}http://127.0.0.1:${port};" tokens="${tokens}local;"
+			local i port_var
+			for i in 0 1 2 3 4; do
+				port_var="DRIZZLE_PORT_TURSO$([ "$i" = 0 ] || echo "$i")"
+				urls="${urls}http://$(drizzle_addr turso "turso$i" 8080 "${!port_var}");" tokens="${tokens}local;"
 			done
 			TURSODATABASE_REMOTE_URL="$urls" TURSODATABASE_REMOTE_TOKEN="$tokens" \
 				pnpm --stream vitest --reporter=verbose --silent=false --test-timeout=200000 --hook-timeout=200000 \
