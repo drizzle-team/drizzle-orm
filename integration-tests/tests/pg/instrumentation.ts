@@ -77,6 +77,11 @@ const isLocalNeon = (connectionString: string | undefined) =>
 	!!connectionString && new URL(connectionString).hostname === LOCAL_NEON_HOST;
 const localNeonFetchEndpoint = (host: string) => `http://${host}:4444/sql`;
 const localNeonWsProxy = (host: string) => `${host}:4444/v1`;
+/** What drizzle's own Neon clients need to reach the local proxy (empty for real Neon). Tests that create such a client themselves spread these in. */
+export const localNeonWsOptions = (connectionString: string) =>
+	isLocalNeon(connectionString) ? { wsProxy: localNeonWsProxy, secure: false } : {};
+export const localNeonHttpOptions = (connectionString: string) =>
+	isLocalNeon(connectionString) ? { fetchEndpoint: localNeonFetchEndpoint } : {};
 if (isLocalNeon(process.env['NEON_CONNECTION_STRING']) || isLocalNeon(process.env['NETLIFY_DB_URL'])) {
 	neonConfig.fetchEndpoint = localNeonFetchEndpoint;
 	neonConfig.wsProxy = localNeonWsProxy;
@@ -92,11 +97,21 @@ if (process.env['NEON_LOCAL']) {
 			throw new Error(`NEON_LOCAL is set, but ${name} does not point at the local Neon proxy (${LOCAL_NEON_HOST})`);
 		}
 	}
+	// Host and port: a client that kept its cloud defaults (wss://db.localtest.me/v2) would otherwise only fail
+	// with an opaque handshake error.
 	const assertLocalNeon = (target: unknown) => {
 		const raw = target instanceof Request ? target.url : String(target);
-		const host = new URL(raw.includes('://') ? raw : `ws://${raw}`).hostname;
-		if (host !== LOCAL_NEON_HOST) {
-			throw new Error(`NEON_LOCAL is set, but a Neon driver connected to ${host} instead of ${LOCAL_NEON_HOST}`);
+		const url = new URL(raw.includes('://') ? raw : `ws://${raw}`);
+		if (url.hostname !== LOCAL_NEON_HOST) {
+			throw new Error(
+				`NEON_LOCAL is set, but a Neon driver connected to ${url.hostname} instead of ${LOCAL_NEON_HOST}`,
+			);
+		}
+		if (url.port !== '4444') {
+			throw new Error(
+				`NEON_LOCAL is set, but a Neon driver connected to ${url.origin} instead of the local proxy on port 4444 — `
+					+ 'pass localNeonWsOptions()/localNeonHttpOptions() to clients created outside instrumentation.ts',
+			);
 		}
 	};
 	const realFetch = globalThis.fetch;
@@ -124,13 +139,16 @@ if (process.env['NEON_LOCAL']) {
 const localNeonDatabase = (driver: string, name: string, connectionString: string | undefined) =>
 	isLocalNeon(connectionString) ? `${driver}_${name}` : name;
 
-/**
- * The databases a provider hands to concurrent tests. On Neon CI creates a fixed set (the given names); locally the
- * pool is larger, matching the --maxConcurrency the local int:neon run uses.
- */
-const LOCAL_NEON_POOL_SIZE = 8;
+/** The databases a provider hands to concurrent tests: the hosted names on Neon, per-driver local ones otherwise. */
 const neonPoolDatabases = (hosted: string[], connectionString: string | undefined) =>
-	isLocalNeon(connectionString) ? [...new Array(LOCAL_NEON_POOL_SIZE).keys()].map((i) => `pool${i}`) : hosted;
+	isLocalNeon(connectionString) ? hosted.map((_, i) => `pool${i}`) : hosted;
+
+/** Prepares a provider's clients one after another, as the providers always did. */
+const prepareSequentially = async <T>(names: string[], prepare: (name: string) => Promise<T>) => {
+	const clients: T[] = [];
+	for (const name of names) clients.push(await prepare(name));
+	return clients;
+};
 
 // The local proxy sits on a plain Postgres, so a test's database is created on first use: suites and concurrent
 // workers each get their own, whatever their names. On Neon itself CI creates them through the API.
@@ -402,7 +420,7 @@ export const preparePostgresNeonWsClient = async (name: string) => {
 	const client = createPostgresNeonWsPool({
 		url: url.toString(),
 		max: 1,
-		...(isLocalNeon(url.toString()) && { wsProxy: localNeonWsProxy, secure: false }),
+		...localNeonWsOptions(url.toString()),
 	});
 
 	await resetSchemas(async (sql) => (await client.query(sql)).rows as any[]);
@@ -427,7 +445,7 @@ export const preparePostgresNeonHttpClient = async (name: string) => {
 	await ensureLocalNeonDatabase(url);
 	const client = createPostgresNeonHttpClient({
 		url: url.toString(),
-		...(isLocalNeon(url.toString()) && { fetchEndpoint: localNeonFetchEndpoint }),
+		...localNeonHttpOptions(url.toString()),
 	});
 
 	await resetSchemas(async (sql) => (await client.query(sql, [])).rows as any[]);
@@ -702,20 +720,18 @@ type Vendor =
 	| 'netlify-db';
 
 export const providerForNeonHttp = async () => {
-	const clients = await Promise.all(
-		neonPoolDatabases(['db0', 'db1', 'db2', 'db3', 'db4'], process.env['NEON_CONNECTION_STRING']).map((
-			name,
-		) => prepareNeonHttpClient(name)),
+	const clients = await prepareSequentially(
+		neonPoolDatabases(['db0', 'db1', 'db2', 'db3', 'db4'], process.env['NEON_CONNECTION_STRING']),
+		prepareNeonHttpClient,
 	);
 
 	return createProvider(clients);
 };
 
 export const providerForNeonWs = async () => {
-	const clients = await Promise.all(
-		neonPoolDatabases(['db5', 'db6', 'db7', 'db8', 'db9'], process.env['NEON_CONNECTION_STRING']).map((
-			name,
-		) => prepareNeonWsClient(name)),
+	const clients = await prepareSequentially(
+		neonPoolDatabases(['db5', 'db6', 'db7', 'db8', 'db9'], process.env['NEON_CONNECTION_STRING']),
+		prepareNeonWsClient,
 	);
 
 	return createProvider(clients);
@@ -790,9 +806,9 @@ export const provideForPostgres = async () => {
 };
 
 export const provideForPostgresNeonWs = async () => {
-	const clients = await Promise.all(
-		neonPoolDatabases(['db5', 'db6', 'db7', 'db8', 'db9'], process.env['NEON_CONNECTION_STRING'])
-			.map((name) => preparePostgresNeonWsClient(name)),
+	const clients = await prepareSequentially(
+		neonPoolDatabases(['db5', 'db6', 'db7', 'db8', 'db9'], process.env['NEON_CONNECTION_STRING']),
+		preparePostgresNeonWsClient,
 	);
 
 	return createProvider(clients);
@@ -800,9 +816,9 @@ export const provideForPostgresNeonWs = async () => {
 
 /** Shares db0-db4 with {@link providerForNeonHttp} - see {@link provideForPostgresNeonWs} */
 export const provideForPostgresNeonHttp = async () => {
-	const clients = await Promise.all(
-		neonPoolDatabases(['db0', 'db1', 'db2', 'db3', 'db4'], process.env['NEON_CONNECTION_STRING'])
-			.map((name) => preparePostgresNeonHttpClient(name)),
+	const clients = await prepareSequentially(
+		neonPoolDatabases(['db0', 'db1', 'db2', 'db3', 'db4'], process.env['NEON_CONNECTION_STRING']),
+		preparePostgresNeonHttpClient,
 	);
 
 	return createProvider(clients);
@@ -882,10 +898,9 @@ export const provideForNetlifyDb = async () => {
 		neonConfig.webSocketConstructor = ws;
 	}
 
-	const clients = await Promise.all(
-		neonPoolDatabases(['db10', 'db11', 'db12', 'db13', 'db14'], process.env['NETLIFY_DB_URL']).map((name) =>
-			prepareNetlifyDb(name)
-		),
+	const clients = await prepareSequentially(
+		neonPoolDatabases(['db10', 'db11', 'db12', 'db13', 'db14'], process.env['NETLIFY_DB_URL']),
+		prepareNetlifyDb,
 	);
 
 	return createProvider(clients);
