@@ -1,0 +1,36 @@
+name: Share build
+description: >-
+  Publishes prepare's build output (every workspace package's dist plus .tsbuildinfo) to the jobs that test it.
+  GitHub-hosted: the build-dist artifact. Self-hosted: a tar on the machine's own disk, because the jobs that use
+  it run on that same machine; uploading ~150 MB to GitHub only for each of them to download it again is waste.
+  Pairs with .github/actions/fetch-build.
+
+runs:
+  using: composite
+  steps:
+    - if: runner.environment != 'self-hosted'
+      uses: actions/upload-artifact@v7
+      with:
+        name: build-dist
+        # The workspace's own output only: consumers install their own node_modules, and the dist folders inside
+        # it made up ~130 MB of the ~146 MB this artifact used to be.
+        path: |
+          **/dist
+          **/*.tsbuildinfo
+          !**/node_modules/**
+
+    - if: runner.environment == 'self-hosted'
+      shell: bash
+      run: |
+        set -euo pipefail
+        root="${CI_LOCAL_ARTIFACTS_DIR:-/opt/runners/cache/artifacts}"
+        dir="$root/$GITHUB_RUN_ID"
+        mkdir -p "$dir"
+        # Runs' directories are only needed while the run lasts.
+        find "$root" -mindepth 1 -maxdepth 1 -type d -mmin +720 -exec rm -rf {} + 2>/dev/null || true
+        # The workspace's own output; consumers install their own node_modules.
+        find . -path '*/node_modules' -prune -o -path ./.git -prune \
+          -o \( -type d -name dist -print -prune \) -o \( -type f -name '*.tsbuildinfo' -print \) > "$dir/build-dist.files"
+        tar -cf "$dir/build-dist.tar.tmp" -T "$dir/build-dist.files"
+        mv "$dir/build-dist.tar.tmp" "$dir/build-dist.tar" # fetch-build waits for the finished file
+        echo "build-dist: $(wc -l < "$dir/build-dist.files") paths, $(du -h "$dir/build-dist.tar" | cut -f1) in $dir"

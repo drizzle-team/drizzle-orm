@@ -8,6 +8,10 @@ inputs:
   names:
     description: Space-separated artifact names to wait for.
     required: true
+  local:
+    description: "'true': wait for share-build's files on this machine instead of GitHub artifacts (self-hosted)."
+    required: false
+    default: 'false'
   timeout-minutes:
     description: Give up after this long. Counted from this step, which jobs reach after their own setup.
     required: false
@@ -20,6 +24,7 @@ runs:
       env:
         GH_TOKEN: ${{ github.token }}
         NAMES: ${{ inputs.names }}
+        LOCAL: ${{ inputs.local }}
         TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
       run: |
         set -euo pipefail
@@ -28,7 +33,11 @@ runs:
         gh_api() { curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$1"; }
         deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
         while :; do
-          have=$(gh_api "$api/artifacts?per_page=100" | jq -r '.artifacts[].name' 2>/dev/null || true)
+          if [[ "$LOCAL" == true ]]; then
+            have=$(ls "${CI_LOCAL_ARTIFACTS_DIR:-/opt/runners/cache/artifacts}/$GITHUB_RUN_ID" 2>/dev/null | sed -n 's/\.tar$//p' || true)
+          else
+            have=$(gh_api "$api/artifacts?per_page=100" | jq -r '.artifacts[].name' 2>/dev/null || true)
+          fi
           missing=""
           for name in $NAMES; do grep -qxF "$name" <<<"$have" || missing="$missing $name"; done
           if [ -z "$missing" ]; then echo "Ready: $NAMES"; exit 0; fi

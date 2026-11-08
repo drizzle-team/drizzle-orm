@@ -1,0 +1,24 @@
+name: Fetch build
+description: >-
+  Waits for prepare's build output and unpacks it into the workspace: the build-dist artifact on GitHub-hosted
+  runners, the local tar that .github/actions/share-build wrote on a self-hosted machine. Fails at once when
+  prepare fails. Needs `actions: read`.
+
+runs:
+  using: composite
+  steps:
+    - name: Wait for prepare's build-dist
+      uses: ./.github/actions/wait-for-prepare
+      with:
+        names: build-dist
+        local: ${{ runner.environment == 'self-hosted' }}
+
+    - if: runner.environment != 'self-hosted'
+      uses: actions/download-artifact@v8
+      with:
+        name: build-dist
+        path: .
+
+    - if: runner.environment == 'self-hosted'
+      shell: bash
+      run: tar -xf "${CI_LOCAL_ARTIFACTS_DIR:-/opt/runners/cache/artifacts}/$GITHUB_RUN_ID/build-dist.tar"

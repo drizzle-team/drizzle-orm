@@ -112,13 +112,8 @@ jobs:
         run: echo "suffix=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
       - name: Build all
         run: pnpm build:artifact
-      - name: Upload build-dist
-        uses: actions/upload-artifact@v7
-        with:
-          name: build-dist
-          path: |
-            **/dist
-            **/*.tsbuildinfo
+      - name: Share build-dist
+        uses: ./.github/actions/share-build
       - name: Pack
         run: pnpm pack:artifact
       - uses: actions/upload-artifact@v7
@@ -245,14 +240,8 @@ jobs:
         if: ${{ matrix.dbs && join(matrix.dbs, ',') != '' }}
         run: bash compose/dockers.sh up ${{ join(matrix.dbs, ' ') }}
 
-      - name: Wait for prepare's build-dist
-        uses: ./.github/actions/wait-for-prepare
-        with: { names: build-dist }
-      - name: Download build-dist (compiled JS)
-        uses: actions/download-artifact@v8
-        with:
-          name: build-dist
-          path: .
+      - name: Fetch build-dist (compiled JS)
+        uses: ./.github/actions/fetch-build
 
       # Required for packaging tests
       - name: Wait for prepare's packages
@@ -415,14 +404,8 @@ jobs:
         with: { deno-version: v2.x }
       - name: Start Postgres
         run: bash compose/dockers.sh up postgres
-      - name: Wait for prepare's build-dist
-        uses: ./.github/actions/wait-for-prepare
-        with: { names: build-dist }
-      - name: Download build-dist (compiled JS)
-        uses: actions/download-artifact@v8
-        with:
-          name: build-dist
-          path: .
+      - name: Fetch build-dist (compiled JS)
+        uses: ./.github/actions/fetch-build
       - name: Run packed package test
         working-directory: integration-tests
         run: |
