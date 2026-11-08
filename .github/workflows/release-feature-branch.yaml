@@ -219,10 +219,6 @@ jobs:
           PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
           PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
           PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
-          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
-          TURSO_ORG: ${{ secrets.TURSO_ORG }}
-          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
-          TURSO_GROUP: ${{ secrets.TURSO_GROUP }}
         run: pnpm exec tsx scripts/ci-databases.ts create --job "${{ matrix.shard }}" ${{ join(matrix.cloud, ' ') }}
 
       # One compose project per dialect: postgres16/17/18.yml all name their service `postgres`, so merging them
@@ -259,10 +255,6 @@ jobs:
           TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
           XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
           XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
-          LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
-          LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
-          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
-          TURSODATABASE_REMOTE_TOKEN: ${{ secrets.TURSODATABASE_REMOTE_TOKEN }}
           NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
         run: bash .github/ci/run-shard.sh "${{ matrix.shard }}"
 
@@ -276,9 +268,6 @@ jobs:
           PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
           PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
           PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
-          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
-          TURSO_ORG: ${{ secrets.TURSO_ORG }}
-          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
         run: pnpm exec tsx scripts/ci-databases.ts drop
 
       # GitHub-hosted runners discard the VM; a self-hosted one keeps containers running between jobs.
@@ -336,7 +325,7 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
       - uses: ./.github/actions/pnpm-store
-      - run: pnpm fetch && pnpm install --frozen-lockfile --prefer-offline
+      - run: pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
       - name: Wait for prepare's packages

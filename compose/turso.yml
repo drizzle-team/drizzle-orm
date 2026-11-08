@@ -1,9 +1,35 @@
 # Turso's open-source server (sqld): the Hrana HTTP and WebSocket protocols Turso Cloud serves, for the
-# @tursodatabase/serverless and @libsql/client remote suites. Each CI job starts its own, so its database is empty.
+# @tursodatabase/serverless and @libsql/client remote suites. Each CI job starts its own, so its databases are empty.
+# Five, one per concurrent test: the suites run test.concurrent with a database each from the pool of URLs, and
+# tests sharing one database waited seconds for each other's writes (SQLite takes one writer at a time).
 services:
-  turso:
+  turso0:
     image: ghcr.io/tursodatabase/libsql-server:latest
     network_mode: bridge
-    mem_limit: 512m
+    mem_limit: 256m
     ports:
       - "${DRIZZLE_PORT_TURSO:-8090}:8080"
+  turso1:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    network_mode: bridge
+    mem_limit: 256m
+    ports:
+      - "${DRIZZLE_PORT_TURSO1:-8091}:8080"
+  turso2:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    network_mode: bridge
+    mem_limit: 256m
+    ports:
+      - "${DRIZZLE_PORT_TURSO2:-8092}:8080"
+  turso3:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    network_mode: bridge
+    mem_limit: 256m
+    ports:
+      - "${DRIZZLE_PORT_TURSO3:-8093}:8080"
+  turso4:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    network_mode: bridge
+    mem_limit: 256m
+    ports:
+      - "${DRIZZLE_PORT_TURSO4:-8094}:8080"

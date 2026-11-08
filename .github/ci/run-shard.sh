@@ -65,9 +65,13 @@ case "$shard" in
 	int:cockroach-rqb) pnpm --stream test:cockroach-rqb ;;
 	int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
 	int:sqlite) pnpm --stream test:sqlite ;;
-	# Against this job's own Turso server (compose/turso.yml), which takes no auth token.
+	# Against this job's own Turso servers (compose/turso.yml), which take no auth token: one per concurrent test.
 	int:turso-serverless)
-		TURSODATABASE_REMOTE_URL="http://127.0.0.1:${DRIZZLE_PORT_TURSO}" TURSODATABASE_REMOTE_TOKEN=local \
+		urls="" tokens=""
+		for port in "$DRIZZLE_PORT_TURSO" "$DRIZZLE_PORT_TURSO1" "$DRIZZLE_PORT_TURSO2" "$DRIZZLE_PORT_TURSO3" "$DRIZZLE_PORT_TURSO4"; do
+			urls="${urls}http://127.0.0.1:${port};" tokens="${tokens}local;"
+		done
+		TURSODATABASE_REMOTE_URL="$urls" TURSODATABASE_REMOTE_TOKEN="$tokens" \
 			pnpm --stream vitest --reporter=verbose --silent=false --test-timeout=200000 --hook-timeout=200000 \
 			run tests/sqlite/tursodatabase-serverless.test.ts
 		;;
