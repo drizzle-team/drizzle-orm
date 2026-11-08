@@ -117,15 +117,20 @@ if (process.env['NEON_LOCAL']) {
 }
 
 /**
- * The databases a Neon provider hands to concurrent tests. On Neon, CI creates a fixed set (the given names). The
- * local proxy creates any on demand, so locally each provider gets its own, larger set: more tests run at once
- * (with vitest's --max-concurrency raised to match) and no two providers or files ever share a database.
+ * Locally all these databases live in one Postgres server behind the proxy, created on first use, so each driver
+ * gets databases of its own whatever name a suite asks for: files that run in parallel never share one (the
+ * neon-http and postgres-neon-http batch suites both ask for db6). On Neon the names are the hosted ones.
+ */
+const localNeonDatabase = (driver: string, name: string, connectionString: string | undefined) =>
+	isLocalNeon(connectionString) ? `${driver}_${name}` : name;
+
+/**
+ * The databases a provider hands to concurrent tests. On Neon CI creates a fixed set (the given names); locally the
+ * pool is larger, matching the --maxConcurrency the local int:neon run uses.
  */
 const LOCAL_NEON_POOL_SIZE = 8;
-const neonPoolDatabases = (provider: string, hosted: string[], connectionString: string | undefined) =>
-	isLocalNeon(connectionString)
-		? [...new Array(LOCAL_NEON_POOL_SIZE).keys()].map((i) => `${provider}_${i}`)
-		: hosted;
+const neonPoolDatabases = (hosted: string[], connectionString: string | undefined) =>
+	isLocalNeon(connectionString) ? [...new Array(LOCAL_NEON_POOL_SIZE).keys()].map((i) => `pool${i}`) : hosted;
 
 // The local proxy sits on a plain Postgres, so a test's database is created on first use: suites and concurrent
 // workers each get their own, whatever their names. On Neon itself CI creates them through the API.
@@ -314,7 +319,7 @@ const resetSchemas = async (run: (sql: string) => Promise<any[]>) => {
 const hostedDatabase = (name: string) => `${process.env['CI_DATABASE_PREFIX'] ?? ''}${name}`;
 
 export const prepareNeonHttpClient = async (name: string) => {
-	const db = hostedDatabase(name);
+	const db = hostedDatabase(localNeonDatabase('neon_http', name, process.env['NEON_CONNECTION_STRING']));
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
 	await ensureLocalNeonDatabase(url);
@@ -368,7 +373,7 @@ export const prepareHttpClient = async (db: string) => {
 };
 
 export const prepareNeonWsClient = async (name: string) => {
-	const db = hostedDatabase(name);
+	const db = hostedDatabase(localNeonDatabase('neon_ws', name, process.env['NEON_CONNECTION_STRING']));
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
 	await ensureLocalNeonDatabase(url);
@@ -390,7 +395,7 @@ export const prepareNeonWsClient = async (name: string) => {
 };
 
 export const preparePostgresNeonWsClient = async (name: string) => {
-	const db = hostedDatabase(name);
+	const db = hostedDatabase(localNeonDatabase('postgres_neon_ws', name, process.env['NEON_CONNECTION_STRING']));
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
 	await ensureLocalNeonDatabase(url);
@@ -416,7 +421,7 @@ export const preparePostgresNeonWsClient = async (name: string) => {
 };
 
 export const preparePostgresNeonHttpClient = async (name: string) => {
-	const db = hostedDatabase(name);
+	const db = hostedDatabase(localNeonDatabase('postgres_neon_http', name, process.env['NEON_CONNECTION_STRING']));
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
 	await ensureLocalNeonDatabase(url);
@@ -551,7 +556,7 @@ export const prepareProxy = async (db: string) => {
 };
 
 export const prepareNetlifyDb = async (name: string) => {
-	const db = hostedDatabase(name);
+	const db = hostedDatabase(localNeonDatabase('netlify', name, process.env['NETLIFY_DB_URL']));
 	const url = new URL(process.env['NETLIFY_DB_URL']!);
 	url.pathname = `/${db}`;
 	await ensureLocalNeonDatabase(url);
@@ -698,7 +703,7 @@ type Vendor =
 
 export const providerForNeonHttp = async () => {
 	const clients = await Promise.all(
-		neonPoolDatabases('neon_http', ['db0', 'db1', 'db2', 'db3', 'db4'], process.env['NEON_CONNECTION_STRING']).map((
+		neonPoolDatabases(['db0', 'db1', 'db2', 'db3', 'db4'], process.env['NEON_CONNECTION_STRING']).map((
 			name,
 		) => prepareNeonHttpClient(name)),
 	);
@@ -708,7 +713,7 @@ export const providerForNeonHttp = async () => {
 
 export const providerForNeonWs = async () => {
 	const clients = await Promise.all(
-		neonPoolDatabases('neon_ws', ['db5', 'db6', 'db7', 'db8', 'db9'], process.env['NEON_CONNECTION_STRING']).map((
+		neonPoolDatabases(['db5', 'db6', 'db7', 'db8', 'db9'], process.env['NEON_CONNECTION_STRING']).map((
 			name,
 		) => prepareNeonWsClient(name)),
 	);
@@ -786,7 +791,7 @@ export const provideForPostgres = async () => {
 
 export const provideForPostgresNeonWs = async () => {
 	const clients = await Promise.all(
-		neonPoolDatabases('postgres_neon_ws', ['db5', 'db6', 'db7', 'db8', 'db9'], process.env['NEON_CONNECTION_STRING'])
+		neonPoolDatabases(['db5', 'db6', 'db7', 'db8', 'db9'], process.env['NEON_CONNECTION_STRING'])
 			.map((name) => preparePostgresNeonWsClient(name)),
 	);
 
@@ -796,7 +801,7 @@ export const provideForPostgresNeonWs = async () => {
 /** Shares db0-db4 with {@link providerForNeonHttp} - see {@link provideForPostgresNeonWs} */
 export const provideForPostgresNeonHttp = async () => {
 	const clients = await Promise.all(
-		neonPoolDatabases('postgres_neon_http', ['db0', 'db1', 'db2', 'db3', 'db4'], process.env['NEON_CONNECTION_STRING'])
+		neonPoolDatabases(['db0', 'db1', 'db2', 'db3', 'db4'], process.env['NEON_CONNECTION_STRING'])
 			.map((name) => preparePostgresNeonHttpClient(name)),
 	);
 
@@ -878,7 +883,7 @@ export const provideForNetlifyDb = async () => {
 	}
 
 	const clients = await Promise.all(
-		neonPoolDatabases('netlify', ['db10', 'db11', 'db12', 'db13', 'db14'], process.env['NETLIFY_DB_URL']).map((name) =>
+		neonPoolDatabases(['db10', 'db11', 'db12', 'db13', 'db14'], process.env['NETLIFY_DB_URL']).map((name) =>
 			prepareNetlifyDb(name)
 		),
 	);

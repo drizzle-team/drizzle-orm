@@ -1066,18 +1066,19 @@ export function tests(test: Test) {
 
 				await push({ users });
 
-				const now = Date.now();
-
+				const before = Date.now();
 				await db.insert(users).values({ name: 'John' });
 				const result = await db
 					.delete(users)
 					.where(eq(users.name, 'John'))
 					.returning();
+				const after = Date.now();
 
 				expect(result[0]!.createdAt).toBeInstanceOf(Date);
-				expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(
-					300,
-				);
+				// The database sets created_at during the insert: between the client's clock before it and after the
+				// returning query, give or take 300 ms of clock skew. Comparing with `before` alone fails on slow drivers.
+				expect(result[0]!.createdAt.getTime()).toBeGreaterThanOrEqual(before - 300);
+				expect(result[0]!.createdAt.getTime()).toBeLessThanOrEqual(after + 300);
 				expect(result).toEqual([
 					{
 						id: 1,
