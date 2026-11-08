@@ -71,12 +71,14 @@ export type PostgresSchema = Record<
 neonConfig.webSocketConstructor = ws;
 
 // compose/neon.yml runs Neon's proxy over a local Postgres, reached as host db.localtest.me: HTTP and WebSocket
-// in plain text on port 4444. Connection strings with that host switch every Neon driver to it.
+// in plain text on port 4444 (NEON_LOCAL_PROXY_PORT on a shifted CI runner instance). Connection strings with that host
+// switch every Neon driver to it.
 const LOCAL_NEON_HOST = 'db.localtest.me';
 const isLocalNeon = (connectionString: string | undefined) =>
 	!!connectionString && new URL(connectionString).hostname === LOCAL_NEON_HOST;
-const localNeonFetchEndpoint = (host: string) => `http://${host}:4444/sql`;
-const localNeonWsProxy = (host: string) => `${host}:4444/v1`;
+const LOCAL_NEON_PROXY_PORT = process.env['NEON_LOCAL_PROXY_PORT'] ?? '4444';
+const localNeonFetchEndpoint = (host: string) => `http://${host}:${LOCAL_NEON_PROXY_PORT}/sql`;
+const localNeonWsProxy = (host: string) => `${host}:${LOCAL_NEON_PROXY_PORT}/v1`;
 /** What drizzle's own Neon clients need to reach the local proxy (empty for real Neon). Tests that create such a client themselves spread these in. */
 export const localNeonWsOptions = (connectionString: string) =>
 	isLocalNeon(connectionString) ? { wsProxy: localNeonWsProxy, secure: false } : {};
@@ -107,9 +109,9 @@ if (process.env['NEON_LOCAL']) {
 				`NEON_LOCAL is set, but a Neon driver connected to ${url.hostname} instead of ${LOCAL_NEON_HOST}`,
 			);
 		}
-		if (url.port !== '4444') {
+		if (url.port !== LOCAL_NEON_PROXY_PORT) {
 			throw new Error(
-				`NEON_LOCAL is set, but a Neon driver connected to ${url.origin} instead of the local proxy on port 4444 — `
+				`NEON_LOCAL is set, but a Neon driver connected to ${url.origin} instead of the local proxy on port ${LOCAL_NEON_PROXY_PORT} — `
 					+ 'pass localNeonWsOptions()/localNeonHttpOptions() to clients created outside instrumentation.ts',
 			);
 		}
@@ -128,7 +130,9 @@ if (process.env['NEON_LOCAL']) {
 		};
 	neonConfig.webSocketConstructor = localOnly(ws) as unknown as typeof ws;
 	if (typeof globalThis.WebSocket !== 'undefined') globalThis.WebSocket = localOnly(globalThis.WebSocket);
-	console.info(`NEON_LOCAL: every Neon driver goes through the local proxy at ${LOCAL_NEON_HOST}:4444`);
+	console.info(
+		`NEON_LOCAL: every Neon driver goes through the local proxy at ${LOCAL_NEON_HOST}:${LOCAL_NEON_PROXY_PORT}`,
+	);
 }
 
 /**

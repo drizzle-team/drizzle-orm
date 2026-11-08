@@ -24,7 +24,7 @@ services:
     volumes:
       - ./neon-init.sql:/docker-entrypoint-initdb.d/neon-init.sql:ro
     ports:
-      - "127.0.0.1:54327:5432"
+      - "127.0.0.1:${DRIZZLE_PORT_NEON_POSTGRES:-54327}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d main"]
       interval: 2s
@@ -38,7 +38,7 @@ services:
     environment:
       PG_CONNECTION_STRING: postgres://postgres:postgres@neon-postgres:5432/main
     ports:
-      - "4444:4444"
+      - "${DRIZZLE_PORT_NEON_PROXY:-4444}:4444"
     depends_on:
       neon-postgres:
         condition: service_healthy

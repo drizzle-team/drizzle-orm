@@ -9,7 +9,7 @@ services:
       MSSQL_MEMORY_LIMIT_MB: "2048"
       TZ: UTC
     ports:
-      - "1433:1433"
+      - "${DRIZZLE_PORT_MSSQL:-1433}:1433"
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 1433"]
       interval: 2s

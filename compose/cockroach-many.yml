@@ -4,8 +4,8 @@ services:
     mem_limit: 3g
     command: start-single-node --insecure --store=type=mem,size=2GiB
     ports:
-      - "26260:26257"
-      - "18081:8080" # web console
+      - "${DRIZZLE_PORT_COCKROACH_MANY0:-26260}:26257"
+      - "${DRIZZLE_PORT_COCKROACH_MANY0_CONSOLE:-18081}:8080" # web console
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 26257"]
       interval: 2s
@@ -17,8 +17,8 @@ services:
     mem_limit: 3g
     command: start-single-node --insecure --store=type=mem,size=2GiB
     ports:
-      - "26261:26257"
-      - "18082:8080" # web console
+      - "${DRIZZLE_PORT_COCKROACH_MANY1:-26261}:26257"
+      - "${DRIZZLE_PORT_COCKROACH_MANY1_CONSOLE:-18082}:8080" # web console
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 26257"]
       interval: 2s
@@ -30,8 +30,8 @@ services:
     mem_limit: 3g
     command: start-single-node --insecure --store=type=mem,size=2GiB
     ports:
-      - "26262:26257"
-      - "18083:8080" # web console
+      - "${DRIZZLE_PORT_COCKROACH_MANY2:-26262}:26257"
+      - "${DRIZZLE_PORT_COCKROACH_MANY2_CONSOLE:-18083}:8080" # web console
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 26257"]
       interval: 2s

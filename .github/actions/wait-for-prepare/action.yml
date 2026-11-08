@@ -23,17 +23,19 @@ runs:
         TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
       run: |
         set -euo pipefail
-        api="repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+        # curl + jq rather than gh: self-hosted runners do not necessarily have the GitHub CLI.
+        api="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+        gh_api() { curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$1"; }
         deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
         while :; do
-          have=$(gh api "$api/artifacts?per_page=100" --jq '.artifacts[].name' 2>/dev/null || true)
+          have=$(gh_api "$api/artifacts?per_page=100" | jq -r '.artifacts[].name' 2>/dev/null || true)
           missing=""
           for name in $NAMES; do grep -qxF "$name" <<<"$have" || missing="$missing $name"; done
           if [ -z "$missing" ]; then echo "Ready: $NAMES"; exit 0; fi
 
           # In a called workflow the job is named "<caller job> / prepare".
-          state=$(gh api "$api/attempts/${GITHUB_RUN_ATTEMPT}/jobs?per_page=100" \
-            --jq '[.jobs[] | select(.name == "prepare" or (.name | endswith("/ prepare")))][0].conclusion // ""' 2>/dev/null || true)
+          state=$(gh_api "$api/attempts/${GITHUB_RUN_ATTEMPT}/jobs?per_page=100" \
+            | jq -r '[.jobs[] | select(.name == "prepare" or (.name | endswith("/ prepare")))][0].conclusion // ""' 2>/dev/null || true)
           case "$state" in
             failure|cancelled|timed_out|skipped) echo "::error::prepare finished with '$state'; its artifacts will not come"; exit 1 ;;
             # It may have finished right after the artifact check above: check once more before failing.

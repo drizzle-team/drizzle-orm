@@ -5,7 +5,7 @@ services:
       ROOT_PASSWORD: singlestore
       TZ: UTC
     ports:
-      - "3308:3306"
+      - "${DRIZZLE_PORT_SINGLESTORE_MANY0:-3308}:3306"
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 3306"]
       interval: 2s
@@ -18,7 +18,7 @@ services:
       ROOT_PASSWORD: singlestore
       TZ: UTC
     ports:
-      - "3309:3306"
+      - "${DRIZZLE_PORT_SINGLESTORE_MANY1:-3309}:3306"
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 3306"]
       interval: 2s
@@ -31,7 +31,7 @@ services:
       ROOT_PASSWORD: singlestore
       TZ: UTC
     ports:
-      - "3310:3306"
+      - "${DRIZZLE_PORT_SINGLESTORE_MANY2:-3310}:3306"
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 3306"]
       interval: 2s
@@ -44,7 +44,7 @@ services:
       ROOT_PASSWORD: singlestore
       TZ: UTC
     ports:
-      - "3311:3306"
+      - "${DRIZZLE_PORT_SINGLESTORE_MANY3:-3311}:3306"
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 3306"]
       interval: 2s

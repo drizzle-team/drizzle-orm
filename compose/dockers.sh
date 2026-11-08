@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Host ports and project names; CI_PORT_OFFSET gives a self-hosted runner instance its own set.
+# shellcheck source=compose/ports.sh
+source "$(dirname "${BASH_SOURCE[0]}")/ports.sh"
+
 ALL_DIALECTS=(
   postgres
   postgres16
@@ -49,7 +53,7 @@ _compose() {
   local dialect="$1"; shift
   local file
   file="$(_resolve_compose_file "$dialect")"
-  docker compose -p "drizzle-${dialect}" -f "compose/${file}" "$@"
+  docker compose -p "drizzle-${dialect}${DRIZZLE_COMPOSE_SUFFIX}" -f "compose/${file}" "$@"
 }
 
 _up_one() {

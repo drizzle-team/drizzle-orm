@@ -7,23 +7,26 @@
 set -euo pipefail
 
 shard="${1:?usage: run-shard.sh <shard>}"
+# Host ports of the databases compose/dockers.sh started (shifted by CI_PORT_OFFSET on a self-hosted runner instance).
+# shellcheck source=compose/ports.sh
+source "$(dirname "$0")/../../compose/ports.sh"
 cd "$(dirname "$0")/../../integration-tests"
 
-: "${PG_CONNECTION_STRING:=postgres://postgres:postgres@localhost:55433/drizzle}"
-: "${PG_HTTP_GATEWAY_URL:=http://localhost:8080/query}"
-: "${AWS_DATA_API_URL:=http://localhost:8081}"
-: "${PG_VECTOR_CONNECTION_STRING:=postgres://postgres:postgres@localhost:54321/drizzle}"
-: "${PG_POSTGIS_CONNECTION_STRING:=postgres://postgres:postgres@localhost:54322/drizzle}"
-: "${PG18_URL:=postgres://postgres:postgres@localhost:54325/drizzle}"
-: "${PG17_URL:=postgres://postgres:postgres@localhost:54324/drizzle}"
-: "${PG16_URL:=postgres://postgres:postgres@localhost:54323/drizzle}"
-: "${POSTGIS_URL:=postgres://postgres:postgres@localhost:54322/drizzle}"
-: "${MYSQL_CONNECTION_STRING:=mysql://root:mysql@localhost:3306/drizzle}"
+: "${PG_CONNECTION_STRING:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES}/drizzle}"
+: "${PG_HTTP_GATEWAY_URL:=http://localhost:${DRIZZLE_PORT_HTTP_GATEWAY}/query}"
+: "${AWS_DATA_API_URL:=http://localhost:${DRIZZLE_PORT_AWS_DATA_API}}"
+: "${PG_VECTOR_CONNECTION_STRING:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_VECTOR}/drizzle}"
+: "${PG_POSTGIS_CONNECTION_STRING:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGIS}/drizzle}"
+: "${PG18_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES18}/drizzle}"
+: "${PG17_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES17}/drizzle}"
+: "${PG16_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES16}/drizzle}"
+: "${POSTGIS_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGIS}/drizzle}"
+: "${MYSQL_CONNECTION_STRING:=mysql://root:mysql@localhost:${DRIZZLE_PORT_MYSQL}/drizzle}"
 : "${LIBSQL_URL:=file:local.db}"
-: "${SINGLESTORE_CONNECTION_STRING:=singlestore://root:singlestore@localhost:33307/}"
-: "${SINGLESTORE_MANY_CONNECTION_STRING:=singlestore://root:singlestore@localhost:3308/;singlestore://root:singlestore@localhost:3309/;singlestore://root:singlestore@localhost:3310/;singlestore://root:singlestore@localhost:3311/}"
-: "${COCKROACH_CONNECTION_STRING:=postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable}"
-: "${MSSQL_CONNECTION_STRING:=mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true}"
+: "${SINGLESTORE_CONNECTION_STRING:=singlestore://root:singlestore@localhost:${DRIZZLE_PORT_SINGLESTORE}/}"
+: "${SINGLESTORE_MANY_CONNECTION_STRING:=singlestore://root:singlestore@localhost:${DRIZZLE_PORT_SINGLESTORE_MANY0}/;singlestore://root:singlestore@localhost:${DRIZZLE_PORT_SINGLESTORE_MANY1}/;singlestore://root:singlestore@localhost:${DRIZZLE_PORT_SINGLESTORE_MANY2}/;singlestore://root:singlestore@localhost:${DRIZZLE_PORT_SINGLESTORE_MANY3}/}"
+: "${COCKROACH_CONNECTION_STRING:=postgresql://root@127.0.0.1:${DRIZZLE_PORT_COCKROACH}/defaultdb?sslmode=disable}"
+: "${MSSQL_CONNECTION_STRING:=mssql://SA:drizzle123PASSWORD!@localhost:${DRIZZLE_PORT_MSSQL}?encrypt=true&trustServerCertificate=true}"
 : "${TEST_CONFIG_PATH_PREFIX:=./tests/cli/}"
 export PG_CONNECTION_STRING PG_HTTP_GATEWAY_URL AWS_DATA_API_URL PG_VECTOR_CONNECTION_STRING PG_POSTGIS_CONNECTION_STRING \
 	PG18_URL PG17_URL PG16_URL POSTGIS_URL MYSQL_CONNECTION_STRING LIBSQL_URL SINGLESTORE_CONNECTION_STRING \
@@ -48,9 +51,9 @@ case "$shard" in
 	# NEON_LOCAL=1 makes any request that is not for the local proxy throw. Files run one after another: the
 	# local proxy is a debug build, and running them in parallel overloaded it (60 s hook timeouts).
 	int:neon)
-		NEON_LOCAL=1 \
-			NEON_CONNECTION_STRING=postgres://postgres:postgres@db.localtest.me:54327/main \
-			NETLIFY_DB_URL=postgres://postgres:postgres@db.localtest.me:54327/main \
+		NEON_LOCAL=1 NEON_LOCAL_PROXY_PORT="$DRIZZLE_PORT_NEON_PROXY" \
+			NEON_CONNECTION_STRING=postgres://postgres:postgres@db.localtest.me:${DRIZZLE_PORT_NEON_POSTGRES}/main \
+			NETLIFY_DB_URL=postgres://postgres:postgres@db.localtest.me:${DRIZZLE_PORT_NEON_POSTGRES}/main \
 			pnpm --stream test:neon
 		;;
 	int:mysql) pnpm --stream test:mysql ;;
@@ -66,10 +69,14 @@ case "$shard" in
 		fi
 		;;
 	kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
-	kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
-	kit:postgres18) cd ../drizzle-kit && PG_VERSION=18 pnpm --stream run test:postgres ;;
-	kit:postgres17) cd ../drizzle-kit && PG_VERSION=17 pnpm --stream run test:postgres ;;
-	kit:postgres16) cd ../drizzle-kit && PG_VERSION=16 pnpm --stream run test:postgres ;;
+	# The commutativity suite runs once, in kit:postgres:commutativity, against the latest stable Postgres (18).
+	kit:postgres) cd ../drizzle-kit && KIT_POSTGRES_SUITE=main pnpm --stream run test:postgres ;;
+	kit:postgres18) cd ../drizzle-kit && KIT_POSTGRES_SUITE=main PG_VERSION=18 pnpm --stream run test:postgres ;;
+	kit:postgres17) cd ../drizzle-kit && KIT_POSTGRES_SUITE=main PG_VERSION=17 pnpm --stream run test:postgres ;;
+	kit:postgres16) cd ../drizzle-kit && KIT_POSTGRES_SUITE=main PG_VERSION=16 pnpm --stream run test:postgres ;;
+	kit:postgres:commutativity)
+		cd ../drizzle-kit && KIT_POSTGRES_SUITE=commutativity PG_VERSION=18 pnpm --stream vitest run postgres/commutativity
+		;;
 	kit:cockroach) cd ../drizzle-kit && pnpm --stream run test:cockroach ;;
 	kit:mssql) cd ../drizzle-kit && pnpm --stream run test:mssql ;;
 	validators) pnpm --stream vitest --reporter=verbose --silent=false run tests/validators ;;

@@ -5,7 +5,7 @@ services:
       ROOT_PASSWORD: singlestore
       TZ: UTC
     ports:
-      - "33307:3306"
+      - "${DRIZZLE_PORT_SINGLESTORE:-33307}:3306"
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 3306"]
       interval: 2s

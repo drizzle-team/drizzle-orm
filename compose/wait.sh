@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=compose/ports.sh
+source "$(dirname "${BASH_SOURCE[0]}")/ports.sh"
+
 wait_tcp() {
   host="$1"; port="$2"; name="$3"; tries="${4:-120}"
   for i in $(seq 1 "$tries"); do
@@ -16,7 +19,7 @@ wait_tcp() {
 
 wait_till_ready() {
   service="$1"; name="$2"; tries="${3:-120}"
-  cid="$(docker ps -q --filter "label=com.docker.compose.service=$service" | head -n 1)"
+  cid="$(docker ps -q --filter "label=com.docker.compose.service=$service" --filter "label=com.docker.compose.project=drizzle-${service}${DRIZZLE_COMPOSE_SUFFIX}" | head -n 1)"
   if [ -z "$cid" ]; then
     echo "No running container for compose service '$service'; skipping healthcheck wait" >&2
     return 0
@@ -35,29 +38,31 @@ wait_till_ready() {
 
 for db in "$@"; do
   case "$db" in
-    postgres)             wait_tcp 127.0.0.1 55433 "postgres" ;;
-    postgres-http-gateway) wait_tcp 127.0.0.1 8080  "postgres-http-gateway" ;;
-    aws-data-api)         wait_tcp 127.0.0.1 8081  "aws-data-api" ;;
-    neon)                 wait_tcp 127.0.0.1 4444  "neon-proxy" ;;
-    postgres-postgis)     wait_tcp 127.0.0.1 54322 "postgres" ;;
-    postgres-vector)      wait_tcp 127.0.0.1 54321 "postgres" ;;
-    postgres18)           wait_tcp 127.0.0.1 54325 "postgres" ;;
-    postgres17)           wait_tcp 127.0.0.1 54324 "postgres" ;;
-    postgres16)           wait_tcp 127.0.0.1 54323 "postgres" ;;
-    mariadb)              wait_tcp 127.0.0.1 33306 "mariadb" ;;
-    mysql)                wait_tcp 127.0.0.1 3306  "mysql"; wait_till_ready mysql "mysql" ;;
-    singlestore)          wait_tcp 127.0.0.1 33307 "singlestore" ;;
+    postgres)             wait_tcp 127.0.0.1 "$DRIZZLE_PORT_POSTGRES" "postgres" ;;
+    postgres-http-gateway) wait_tcp 127.0.0.1 "$DRIZZLE_PORT_HTTP_GATEWAY" "postgres-http-gateway" ;;
+    aws-data-api)         wait_tcp 127.0.0.1 "$DRIZZLE_PORT_AWS_DATA_API" "aws-data-api" ;;
+    neon)                 wait_tcp 127.0.0.1 "$DRIZZLE_PORT_NEON_PROXY" "neon-proxy" ;;
+    postgres-postgis)     wait_tcp 127.0.0.1 "$DRIZZLE_PORT_POSTGIS" "postgres" ;;
+    postgres-vector)      wait_tcp 127.0.0.1 "$DRIZZLE_PORT_VECTOR" "postgres" ;;
+    postgres18)           wait_tcp 127.0.0.1 "$DRIZZLE_PORT_POSTGRES18" "postgres" ;;
+    postgres17)           wait_tcp 127.0.0.1 "$DRIZZLE_PORT_POSTGRES17" "postgres" ;;
+    postgres16)           wait_tcp 127.0.0.1 "$DRIZZLE_PORT_POSTGRES16" "postgres" ;;
+    mariadb)              wait_tcp 127.0.0.1 "$DRIZZLE_PORT_MARIADB" "mariadb" ;;
+    mysql)                wait_tcp 127.0.0.1 "$DRIZZLE_PORT_MYSQL" "mysql"; wait_till_ready mysql "mysql" ;;
+    singlestore)          wait_tcp 127.0.0.1 "$DRIZZLE_PORT_SINGLESTORE" "singlestore" ;;
     singlestore-many)
       # loop through 5 ports (33307–33311)
-      for i in $(seq 3308 3311); do
-        wait_tcp 127.0.0.1 "$i" "singlestore-$((i-3308))"
+      for i in 0 1 2 3; do
+        port_var="DRIZZLE_PORT_SINGLESTORE_MANY$i"
+        wait_tcp 127.0.0.1 "${!port_var}" "singlestore-$i"
       done
       ;;
-    mssql)                wait_tcp 127.0.0.1 1433  "mssql" ;;
-    cockroach)            wait_tcp 127.0.0.1 26257 "cockroach" ;;
+    mssql)                wait_tcp 127.0.0.1 "$DRIZZLE_PORT_MSSQL" "mssql" ;;
+    cockroach)            wait_tcp 127.0.0.1 "$DRIZZLE_PORT_COCKROACH" "cockroach" ;;
     cockroach-many)
-      for i in $(seq 26260 26262); do
-        wait_tcp 127.0.0.1 "$i" "cockroach-$((i-26260))"
+      for i in 0 1 2; do
+        port_var="DRIZZLE_PORT_COCKROACH_MANY$i"
+        wait_tcp 127.0.0.1 "${!port_var}" "cockroach-$i"
       done
       ;;
     *) echo "Unknown db '$db'" >&2; exit 1 ;;

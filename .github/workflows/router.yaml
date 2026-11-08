@@ -25,7 +25,37 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       target: ${{ steps.route.outputs.target }}
+      runner: ${{ steps.runner.outputs.runner }}
     steps:
+      # The pipeline runs on the self-hosted machine when one of its runners is online, on GitHub-hosted runners
+      # otherwise. Fork pull requests always run GitHub-hosted: a self-hosted runner would execute their code.
+      # Listing runners needs a token with read access to the organization's self-hosted runners
+      # (secrets.CI_RUNNERS_TOKEN); without it everything runs GitHub-hosted.
+      - name: Pick runner
+        id: runner
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.CI_RUNNERS_TOKEN }}
+          LABEL: ${{ vars.SELF_HOSTED_RUNNER_LABEL || 'beelink' }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          hosted='"ubuntu-24.04"'
+          pick() { echo "runner=$1" >> "$GITHUB_OUTPUT"; echo "Runner: $1 ($2)"; }
+          if [[ "$GITHUB_EVENT_NAME" == pull_request && "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]]; then
+            pick "$hosted" 'fork pull request'; exit 0
+          fi
+          if [[ -z "$TOKEN" ]]; then pick "$hosted" 'no CI_RUNNERS_TOKEN'; exit 0; fi
+          online=0
+          for path in "orgs/${GITHUB_REPOSITORY_OWNER}/actions/runners" "repos/${GITHUB_REPOSITORY}/actions/runners"; do
+            n=$(curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Accept: application/vnd.github+json' "${GITHUB_API_URL}/${path}?per_page=100" \
+              | jq --arg label "$LABEL" '[.runners[] | select(.status == "online" and any(.labels[]; .name == $label))] | length' 2>/dev/null || echo 0)
+            online=$((online + ${n:-0}))
+          done
+          if (( online > 0 )); then
+            pick "$(jq -cn --arg label "$LABEL" '["self-hosted", $label]')" "$online '$LABEL' runner(s) online"
+          else
+            pick "$hosted" "no '$LABEL' runner online"
+          fi
       - name: Route release
         id: route
         shell: bash
@@ -63,6 +93,7 @@ jobs:
     with:
       publish_to_github: ${{ inputs.publish_to_github == true }}
       packages: ${{ inputs.packages || 'all' }}
+      runner: ${{ needs.switch.outputs.runner || '"ubuntu-24.04"' }}
     secrets:
       PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
       NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}

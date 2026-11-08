@@ -11,6 +11,11 @@ on:
         description: 'Comma-separated list of packages to publish, or "all"'
         type: string
         default: 'all'
+      runner:
+        # The router picks the self-hosted machine when it is online (see router.yaml), GitHub-hosted otherwise.
+        description: 'runs-on for every job but release, as JSON: "ubuntu-24.04" or a list of self-hosted labels'
+        type: string
+        default: '"ubuntu-24.04"'
     secrets:
       PLANETSCALE_CONNECTION_STRING:
         required: true
@@ -61,7 +66,7 @@ concurrency:
 
 jobs:
   prepare:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 25
     outputs:
       publish_matrix: ${{ steps.publish-matrix.outputs.packages }}
@@ -132,7 +137,7 @@ jobs:
     # The jobs below start beside prepare rather than after it: they install, start their databases and then
     # wait for prepare's artifacts, so that setup overlaps the build. The organization runs at most 20 jobs at
     # once, and they are more than that; queued after this short delay, they never take the runner prepare needs.
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 2
     steps:
       - run: sleep 10
@@ -140,7 +145,7 @@ jobs:
   test:
     needs: [prepare-head-start]
     permissions: { contents: read, actions: read }
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -193,6 +198,8 @@ jobs:
             dbs: [postgres, postgres-postgis, postgres17]
           - shard: kit:postgres16
             dbs: [postgres, postgres-postgis, postgres16]
+          - shard: kit:postgres:commutativity
+            dbs: [postgres18]
           - shard: kit:cockroach
             dbs: [cockroach]
           - shard: kit:mssql
@@ -205,6 +212,7 @@ jobs:
     name: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v7
+      - uses: ./.github/actions/runner-slot
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
       - uses: actions/setup-node@v7
@@ -296,10 +304,15 @@ jobs:
           TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
         run: pnpm exec tsx scripts/ci-databases.ts drop
 
+      # GitHub-hosted runners discard the VM; a self-hosted one keeps containers running between jobs.
+      - name: Stop this job's databases
+        if: ${{ always() && runner.environment == 'self-hosted' && matrix.dbs && join(matrix.dbs, ',') != '' }}
+        run: bash compose/dockers.sh down ${{ join(matrix.dbs, ' ') }}
+
   attw:
     needs: [prepare-head-start]
     permissions: { contents: read, actions: read }
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
@@ -329,7 +342,7 @@ jobs:
   attw-esm:
     needs: [prepare-head-start]
     permissions: { contents: read, actions: read }
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 20
     strategy:
       matrix:
@@ -361,7 +374,7 @@ jobs:
 
   publint-orm:
     needs: [prepare]
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 10
     steps:
       - uses: actions/setup-node@v7
@@ -377,7 +390,7 @@ jobs:
   packed-orm:
     needs: [prepare-head-start]
     permissions: { contents: read, actions: read }
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 20
     strategy:
       matrix:
@@ -386,6 +399,7 @@ jobs:
         node-version: ['20.19.0', '22.12.0', 'lts/*', 'latest']
     steps:
       - uses: actions/checkout@v7
+      - uses: ./.github/actions/runner-slot
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
       - uses: actions/setup-node@v7
@@ -400,12 +414,7 @@ jobs:
       - uses: denoland/setup-deno@v2
         with: { deno-version: v2.x }
       - name: Start Postgres
-        shell: bash
-        run: |
-          set -euxo pipefail
-          docker compose -f compose/postgres.yml up -d
-          chmod +x compose/wait.sh
-          compose/wait.sh postgres
+        run: bash compose/dockers.sh up postgres
       - name: Wait for prepare's build-dist
         uses: ./.github/actions/wait-for-prepare
         with: { names: build-dist }
@@ -416,12 +425,15 @@ jobs:
           path: .
       - name: Run packed package test
         working-directory: integration-tests
-        env:
-          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
-        run: pnpm --stream test:packed
+        run: |
+          source ../compose/ports.sh
+          PG_CONNECTION_STRING="postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES}/drizzle" pnpm --stream test:packed
+      - name: Stop Postgres
+        if: ${{ always() && runner.environment == 'self-hosted' }}
+        run: bash compose/dockers.sh down postgres
 
   skills-revision-gate:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 5
     steps:
       - name: Skip on non-pull-request events
@@ -455,6 +467,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # Always GitHub-hosted: npm provenance (OIDC) is only issued there.
     permissions: { contents: read, id-token: write }
     
     # force empty so npm can use OIDC

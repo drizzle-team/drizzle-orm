@@ -7,7 +7,7 @@ services:
       MARIADB_DATABASE: drizzle
       TZ: UTC
     ports:
-      - "33306:3306"
+      - "${DRIZZLE_PORT_MARIADB:-33306}:3306"
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 2s
