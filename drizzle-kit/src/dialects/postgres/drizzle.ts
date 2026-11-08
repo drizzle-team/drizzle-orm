@@ -72,7 +72,8 @@ import {
 	trimDefaultValueSuffix,
 	typeFor,
 } from './grammar';
-import { compileProcedureFiles, type ProcedureDef, unsupportedProcedureKey } from './procedures/model';
+import { compileProcedureFiles } from './procedures/compile-schema';
+import { type ProcedureDef, unsupportedProcedureKey } from './procedures/model';
 
 export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 	const mappedTo = !policy.to
