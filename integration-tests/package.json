@@ -4,7 +4,7 @@
 	"description": "",
 	"type": "module",
 	"scripts": {
-		"test:types": "cross-env NODE_OPTIONS=--max-old-space-size=8192 tsc && cd type-tests/join-nodenext && tsc && cd ../../type-tests-no-strict-null-checks && tsc",
+		"test:types": "tsc7 && cd type-tests/join-nodenext && tsc7 && cd ../../type-tests-no-strict-null-checks && tsc7",
 		"test": "pnpm test:vitest",
 		"test:vitest": "vitest run --printConsoleTrace=true --silent=false --pass-with-no-tests",
 		"test:data-api": "sst shell vitest run tests/pg/awsdatapi.test.ts",
@@ -44,7 +44,6 @@
 		"@upstash/redis": "^1.34.3",
 		"ava": "^5.3.0",
 		"bun-types": "^1.4.4",
-		"cross-env": "^7.0.3",
 		"import-in-the-middle": "^1.13.1",
 		"keyv": "^5.2.3",
 		"ts-node": "^10.9.2",

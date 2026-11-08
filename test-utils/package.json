@@ -12,7 +12,7 @@
 		"build:artifact": "echo skip...",
 		"pack": "echo skip...",
 		"pack:artifact": "echo skip...",
-		"test:types": "tsc"
+		"test:types": "tsc7"
 	},
 	"devDependencies": {
 		"@types/node": "^25.4.0",

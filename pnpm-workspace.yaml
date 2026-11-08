@@ -8,6 +8,7 @@ packages:
   - typeperf-test
   - eslint-plugin-drizzle
   - test-utils
+  - tsc7
 
 # pnpm runs dependency build scripts only for packages listed here: true runs them, false skips them
 # without warning. A dependency with a build script missing from this list fails the install.

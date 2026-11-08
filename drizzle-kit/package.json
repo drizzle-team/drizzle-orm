@@ -43,7 +43,7 @@
 		"migrate:old": "drizzle-kit generate:mysql",
 		"cli": "tsx ./src/cli/index.ts",
 		"test": "TEST_CONFIG_PATH_PREFIX=./tests/cli/ vitest run",
-		"test:types": "pnpm tsc -p ./tsconfig.typetest.json",
+		"test:types": "tsc7 -p ./tsconfig.typetest.json",
 		"build": "bun --bun run scripts/build.ts",
 		"build:artifact": "pnpm run build",
 		"pack": "cp package.json README.md dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",

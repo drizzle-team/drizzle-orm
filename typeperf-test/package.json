@@ -9,7 +9,7 @@
 		"build:artifact": "echo skip...",
 		"pack": "echo skip...",
 		"pack:artifact": "echo skip...",
-		"test:types": "tsc --noEmit"
+		"test:types": "tsc7 --noEmit"
 	},
 	"keywords": [],
 	"author": "Drizzle Team",

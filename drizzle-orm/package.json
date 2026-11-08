@@ -7,7 +7,7 @@
 		"build": "bun --bun run scripts/build.ts",
 		"build:artifact": "pnpm build",
 		"b": "pnpm build",
-		"test:types": "cd type-tests && tsc",
+		"test:types": "cd type-tests && tsc7",
 		"test": "vitest run",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"pack:artifact": "pnpm run pack",

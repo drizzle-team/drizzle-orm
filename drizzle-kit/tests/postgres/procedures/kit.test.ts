@@ -1,4 +1,4 @@
-import { freshPGlite } from '@drizzle/test-utils/pglite';
+import { borrowPGlite, returnPGlite } from '@drizzle/test-utils/pglite';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle as drizzleProxy } from 'drizzle-orm/pg-proxy';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -301,17 +301,17 @@ const procedureNames = async (client: PGlite) =>
 		.rows.map((it) => it.name);
 
 test('push command: database procedures are left alone while the schema declares none', async () => {
-	const client = await freshPGlite();
+	const client = await borrowPGlite();
 	await client.query(`CREATE PROCEDURE "native"(a integer) LANGUAGE sql AS $$ SELECT 1 $$`);
 
 	await pushCommand(client, tables);
 
 	expect(await procedureNames(client)).toStrictEqual(['native']);
-	await client.close();
+	await returnPGlite(client);
 });
 
 test('push command: procedures declared unsupported are kept', async () => {
-	const client = await freshPGlite();
+	const client = await borrowPGlite();
 	await client.query(`CREATE PROCEDURE "native"(a integer) LANGUAGE sql AS $$ SELECT 1 $$`);
 
 	await pushCommand(
@@ -321,17 +321,17 @@ test('push command: procedures declared unsupported are kept', async () => {
 	);
 
 	expect(await procedureNames(client)).toStrictEqual(['native', 'transfer']);
-	await client.close();
+	await returnPGlite(client);
 });
 
 test('push command: once the schema declares procedures, undeclared ones are dropped', async () => {
-	const client = await freshPGlite();
+	const client = await borrowPGlite();
 	await client.query(`CREATE PROCEDURE "native"(a integer) LANGUAGE sql AS $$ SELECT 1 $$`);
 
 	await pushCommand(client, tables + guarded);
 
 	expect(await procedureNames(client)).toStrictEqual(['transfer']);
-	await client.close();
+	await returnPGlite(client);
 });
 
 const tenantSchema = `

@@ -1,4 +1,4 @@
-import { freshPGlite } from '@drizzle/test-utils/pglite';
+import { borrowPGlite, returnPGlite } from '@drizzle/test-utils/pglite';
 import BetterSqlite3 from 'better-sqlite3';
 import { afterEach, expect, test, vi } from 'vitest';
 import { HintsHandler } from '../../src/cli/hints';
@@ -38,7 +38,7 @@ afterEach(() => {
 });
 
 test('push postgres under text + non-TTY resolves a non-empty drop to missing_hints instead of reaching the prompt', async () => {
-	const client = await freshPGlite();
+	const client = await borrowPGlite();
 	await client.query('CREATE TABLE orders (id integer);');
 	await client.query('INSERT INTO orders (id) VALUES (1);');
 
@@ -62,7 +62,7 @@ test('push postgres under text + non-TTY resolves a non-empty drop to missing_hi
 		],
 	});
 
-	await client.close();
+	await returnPGlite(client);
 });
 
 test('push sqlite under text + non-TTY resolves a non-empty drop to missing_hints instead of reaching the prompt', async () => {
