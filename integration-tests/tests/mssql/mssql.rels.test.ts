@@ -187,9 +187,9 @@ const createFixture = async (db: NodeMsSqlDatabase<any>) => {
 
 let resetFixture: () => Promise<void>;
 
-test.beforeEach(async ({ db }) => {
+test.beforeEach(async ({ db, client }) => {
 	resetFixture ??= fixtureReset(
-		async (query) => (await db.$client.query(query)).recordset ?? [],
+		async (query) => (await client.query(query)).recordset ?? [],
 		() => createFixture(db),
 	);
 	await resetFixture();

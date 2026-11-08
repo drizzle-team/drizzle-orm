@@ -4,7 +4,11 @@ services:
     network_mode: bridge
     # Test data only: no forced disk writes, which on a busy CI machine make every commit and CREATE DATABASE wait.
     command: postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off
-    mem_limit: 1g
+    mem_limit: 1536m
+    # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
+    # all day. Memory counts against mem_limit.
+    tmpfs:
+      - /var/lib/postgresql:size=512m
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

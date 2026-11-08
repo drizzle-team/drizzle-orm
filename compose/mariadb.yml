@@ -3,8 +3,12 @@ services:
     image: mariadb:11.8
     network_mode: bridge
     # Test data only: no forced disk writes or binary log.
-    command: --innodb-flush-log-at-trx-commit=0 --sync-binlog=0 --innodb-doublewrite=OFF
-    mem_limit: 2g
+    command: --innodb-flush-log-at-trx-commit=0 --sync-binlog=0 --innodb-doublewrite=OFF --innodb-log-file-size=16M
+    mem_limit: 3g
+    # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
+    # all day. Memory counts against mem_limit.
+    tmpfs:
+      - /var/lib/mysql:size=1g
     environment:
       MARIADB_ROOT_PASSWORD: mariadb
       MARIADB_DATABASE: drizzle

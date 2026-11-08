@@ -8,8 +8,12 @@ services:
     network_mode: bridge
     # Test data only: no forced disk writes or binary log. The simulator opens a connection per client session,
     # so a busy suite needs more than MySQL's default 151.
-    command: --innodb-flush-log-at-trx-commit=0 --sync-binlog=0 --skip-log-bin --innodb-doublewrite=OFF --max-connections=2000
-    mem_limit: 2g
+    command: --innodb-flush-log-at-trx-commit=0 --sync-binlog=0 --skip-log-bin --innodb-doublewrite=OFF --max-connections=2000 --innodb-redo-log-capacity=16M
+    mem_limit: 3g
+    # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
+    # all day. Memory counts against mem_limit.
+    tmpfs:
+      - /var/lib/mysql:size=1g
     environment:
       MYSQL_ROOT_PASSWORD: planetscale
       MYSQL_DATABASE: planetscale

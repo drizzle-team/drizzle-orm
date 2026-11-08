@@ -6,30 +6,50 @@ services:
   turso0:
     image: ghcr.io/tursodatabase/libsql-server:latest
     network_mode: bridge
-    mem_limit: 256m
+    mem_limit: 384m
+    # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
+    # all day. Memory counts against mem_limit.
+    tmpfs:
+      - /var/lib/sqld:size=128m
     ports:
       - "${DRIZZLE_PORT_TURSO:-8090}:8080"
   turso1:
     image: ghcr.io/tursodatabase/libsql-server:latest
     network_mode: bridge
-    mem_limit: 256m
+    mem_limit: 384m
+    # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
+    # all day. Memory counts against mem_limit.
+    tmpfs:
+      - /var/lib/sqld:size=128m
     ports:
       - "${DRIZZLE_PORT_TURSO1:-8091}:8080"
   turso2:
     image: ghcr.io/tursodatabase/libsql-server:latest
     network_mode: bridge
-    mem_limit: 256m
+    mem_limit: 384m
+    # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
+    # all day. Memory counts against mem_limit.
+    tmpfs:
+      - /var/lib/sqld:size=128m
     ports:
       - "${DRIZZLE_PORT_TURSO2:-8092}:8080"
   turso3:
     image: ghcr.io/tursodatabase/libsql-server:latest
     network_mode: bridge
-    mem_limit: 256m
+    mem_limit: 384m
+    # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
+    # all day. Memory counts against mem_limit.
+    tmpfs:
+      - /var/lib/sqld:size=128m
     ports:
       - "${DRIZZLE_PORT_TURSO3:-8093}:8080"
   turso4:
     image: ghcr.io/tursodatabase/libsql-server:latest
     network_mode: bridge
-    mem_limit: 256m
+    mem_limit: 384m
+    # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
+    # all day. Memory counts against mem_limit.
+    tmpfs:
+      - /var/lib/sqld:size=128m
     ports:
       - "${DRIZZLE_PORT_TURSO4:-8094}:8080"

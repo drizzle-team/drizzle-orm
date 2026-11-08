@@ -29,7 +29,11 @@ services:
         exec docker-entrypoint.sh "$$@"
       - --
     command: postgres -c max_connections=300 -c scram_iterations=1 -c fsync=off -c synchronous_commit=off -c full_page_writes=off
-    mem_limit: 2g
+    mem_limit: 3g
+    # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
+    # all day. Memory counts against mem_limit.
+    tmpfs:
+      - /var/lib/postgresql/data:size=1g
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

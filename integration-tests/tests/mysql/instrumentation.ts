@@ -295,7 +295,7 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 								...item,
 								// A test may have switched the connection to another database (`use drizzle1`).
 								release: async () => {
-									await item.client.query(`use ${item.database};`).catch(() => {});
+									await (item.client as mysql.Connection).query(`use ${item.database};`).catch(() => {});
 									item.release();
 								},
 							};

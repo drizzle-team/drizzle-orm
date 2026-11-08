@@ -120,10 +120,26 @@ _recreate_job_database() {
   return 1
 }
 
+# This job's databases on a shared Postgres server: the main one and those the tests created, all named with
+# DRIZZLE_TEST_DB_PREFIX. Dropped when the job ends, as the server keeps its data in memory.
+_drop_job_databases() {
+  local dialect="$1" cid db
+  case "$dialect" in postgres|postgres-vector|postgres-postgis) ;; *) return 0 ;; esac
+  cid="$(docker ps -q --filter "label=com.docker.compose.project=$(drizzle_project "$dialect")" | head -n 1)"
+  [ -n "$cid" ] || return 0
+  for db in $(docker exec "$cid" psql -U postgres -d postgres -Atc \
+    "select datname from pg_database where starts_with(datname, '${DRIZZLE_TEST_DB_PREFIX}')"); do
+    docker exec "$cid" psql -U postgres -d postgres -q -c "drop database if exists \"$db\" with (force)" || true
+  done
+}
+
 _down_one() {
   local dialect="$1"
-  # Shared servers stay up for the next job; its database is recreated when that job starts.
-  if drizzle_is_shared "$dialect"; then return 0; fi
+  # Shared servers stay up for the next job; only this job's databases go.
+  if drizzle_is_shared "$dialect"; then
+    _drop_job_databases "$dialect"
+    return 0
+  fi
   _compose "$dialect" down -v
 }
 
