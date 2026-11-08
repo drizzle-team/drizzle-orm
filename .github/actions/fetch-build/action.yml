@@ -23,6 +23,6 @@ runs:
       shell: bash
       run: |
         dir="$HOME/.cache/drizzle-ci/artifacts/$GITHUB_RUN_ID"
-        # Hardlinks to the tree share-build unpacked: no data written. Unpacked as before when the work folder is on
-        # another filesystem than the cache, where hardlinks cannot reach.
-        cp -alf "$dir/tree/." . 2>/dev/null || tar -xf "$dir/build-dist.tar"
+        # Hardlinks to the tree share-build copied: no data written. Copied when the work folder is on another
+        # filesystem than the cache, where hardlinks cannot reach.
+        cp -alf "$dir/tree/." . 2>/dev/null || cp -af "$dir/tree/." .

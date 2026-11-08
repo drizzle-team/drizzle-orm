@@ -31,12 +31,11 @@ runs:
         # The workspace's own output; consumers install their own node_modules.
         find . -path '*/node_modules' -prune -o -path ./.git -prune \
           -o \( -type d -name dist -print -prune \) -o \( -type f -name '*.tsbuildinfo' -print \) > "$dir/build-dist.files"
-        tar -cf "$dir/build-dist.tar.tmp" -T "$dir/build-dist.files"
-        # Unpacked once here as well, for fetch-build to hardlink into each job's workspace: ~20 jobs each unpacking
+        # Copied once into the cache, for fetch-build to hardlink into each job's workspace: ~20 jobs each unpacking
         # ~150 MB wrote ~3 GB to the machine's disk at the start of every run. Fresh files that nothing writes to
-        # again, unlike this workspace's, which the next build here replaces.
+        # again, unlike this workspace's, which the next build here replaces. Streamed through tar, not kept as one.
         rm -rf "$dir/tree.tmp" && mkdir "$dir/tree.tmp"
-        tar -xf "$dir/build-dist.tar.tmp" -C "$dir/tree.tmp"
+        tar -cf - -T "$dir/build-dist.files" | tar -xf - -C "$dir/tree.tmp"
         mv "$dir/tree.tmp" "$dir/tree"
-        mv "$dir/build-dist.tar.tmp" "$dir/build-dist.tar" # last: fetch-build waits for this file
-        echo "build-dist: $(wc -l < "$dir/build-dist.files") paths, $(du -h "$dir/build-dist.tar" | cut -f1) in $dir"
+        touch "$dir/build-dist.ready" # last: wait-for-prepare waits for this file
+        echo "build-dist: $(wc -l < "$dir/build-dist.files") paths, $(du -sh "$dir/tree" | cut -f1) in $dir/tree"
