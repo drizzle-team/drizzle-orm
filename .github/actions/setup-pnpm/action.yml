@@ -1,7 +1,7 @@
 name: Set up pnpm
 description: >-
   Puts the pnpm that package.json's packageManager names on PATH, from pnpm's standalone release archive (pnpm 11
-  or later). The archive is unpacked once per version under CI_TOOLS_DIR (default ~/.cache/drizzle-ci/tools), so a
+  or later). The archive is unpacked once per version under ~/.cache/drizzle-ci/tools, so a
   self-hosted machine downloads each version once for all its runner instances; a GitHub-hosted runner downloads
   it once per job, one file. Replaces pnpm/action-setup, which installs a bootstrap pnpm with `npm ci` and then
   downloads the packageManager version again, both into runner.temp, emptied after every job.
@@ -28,7 +28,7 @@ runs:
           Linux-X64)   asset=pnpm-linux-x64 ;;
           *) echo "::error::No pnpm build for $RUNNER_OS-$RUNNER_ARCH"; exit 1 ;;
         esac
-        root="${CI_TOOLS_DIR:-$HOME/.cache/drizzle-ci/tools}/pnpm"
+        root="$HOME/.cache/drizzle-ci/tools/pnpm"
         dir="$root/$version"
         if [ ! -x "$dir/pnpm" ]; then
           mkdir -p "$root"

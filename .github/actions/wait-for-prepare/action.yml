@@ -34,7 +34,7 @@ runs:
         deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
         while :; do
           if [[ "$LOCAL" == true ]]; then
-            have=$(ls "${CI_LOCAL_ARTIFACTS_DIR:-$HOME/.cache/drizzle-ci/artifacts}/$GITHUB_RUN_ID" 2>/dev/null | sed -n 's/\.tar$//p' || true)
+            have=$(ls "$HOME/.cache/drizzle-ci/artifacts/$GITHUB_RUN_ID" 2>/dev/null | sed -n 's/\.tar$//p' || true)
           else
             have=$(gh_api "$api/artifacts?per_page=100" | jq -r '.artifacts[].name' 2>/dev/null || true)
           fi

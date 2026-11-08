@@ -23,7 +23,7 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        root="${CI_LOCAL_ARTIFACTS_DIR:-$HOME/.cache/drizzle-ci/artifacts}"
+        root="$HOME/.cache/drizzle-ci/artifacts"
         dir="$root/$GITHUB_RUN_ID"
         mkdir -p "$dir"
         # Runs' directories are only needed while the run lasts.

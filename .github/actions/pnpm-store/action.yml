@@ -25,12 +25,12 @@ runs:
     - if: runner.environment == 'self-hosted'
       shell: bash
       run: |
-        store="${CI_PNPM_STORE_DIR:-$HOME/.cache/drizzle-ci/pnpm-store}"
+        store="$HOME/.cache/drizzle-ci/pnpm-store"
         echo "pnpm_config_store_dir=$store" >> "$GITHUB_ENV"
-        # Hardlinks rather than pnpm's default on APFS, a copy-on-write clone per file: a link is one metadata
-        # entry, and node_modules is ~1,800 packages relinked by up to 20 jobs at once. Needs the store and the
-        # runners' work folders on one volume (both under $HOME). Nothing edits files inside node_modules, which
-        # a hardlink would write through to the store.
+        # Hardlinks rather than a copy or clone per file: a link is one metadata entry, and node_modules is ~1,800
+        # packages linked by many jobs at once. Needs the store (~/.cache/drizzle-ci) and the runners' work folders on
+        # one filesystem; in runner containers, mount one volume for both. Nothing edits files inside
+        # node_modules, which a hardlink would write through to the store.
         echo "pnpm_config_package_import_method=hardlink" >> "$GITHUB_ENV"
         echo "pnpm store: $store (hardlinks)"
 

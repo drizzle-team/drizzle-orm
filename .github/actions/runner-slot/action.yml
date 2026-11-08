@@ -2,7 +2,7 @@ name: Runner slot
 description: >-
   On a self-hosted runner, gives this runner instance its own database ports and compose projects
   (CI_PORT_OFFSET, read by compose/ports.sh), so jobs that run side by side on one machine never share a
-  database. The slot is the number the instance's name ends with (alexs-mbp-07 -> 7), and ports shift by 100 per
+  database. The slot is the number the instance's name ends with (orb-7 -> 7), and ports shift by 100 per
   slot. Slots run 1-99 and never 0: offset 0 is the default ports and compose project names a developer's own
   `compose/dockers.sh up` uses on the same machine, which a job's `down -v` would otherwise wipe. Names without a
   number fail rather than silently share. Does nothing on GitHub-hosted runners, which give every job its own VM.
@@ -15,7 +15,7 @@ runs:
       run: |
         set -euo pipefail
         if [[ ! "$RUNNER_NAME" =~ ([0-9]+)$ ]]; then
-          echo "::error::Self-hosted runner '$RUNNER_NAME' has no number at the end of its name; name the instances <name>-01 .. <name>-99 so their databases get separate ports"
+          echo "::error::Self-hosted runner '$RUNNER_NAME' has no number at the end of its name; name the instances <name>-1 .. <name>-99 so their databases get separate ports"
           exit 1
         fi
         slot=$((10#${BASH_REMATCH[1]}))
