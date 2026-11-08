@@ -100,8 +100,10 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-        with: { run_install: false, dest: '${{ runner.temp }}/setup-pnpm' }
+        # Self-hosted: keep node_modules between jobs; setup-pnpm removes everything else untracked.
+        with:
+          clean: ${{ runner.environment != 'self-hosted' }}
+      - uses: ./.github/actions/setup-pnpm
       - uses: actions/setup-node@v7
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
       - uses: ./.github/actions/pnpm-store
@@ -207,9 +209,11 @@ jobs:
     name: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v7
+        # Self-hosted: keep node_modules between jobs; setup-pnpm removes everything else untracked.
+        with:
+          clean: ${{ runner.environment != 'self-hosted' }}
       - uses: ./.github/actions/runner-slot
-      - uses: pnpm/action-setup@v6
-        with: { run_install: false, dest: '${{ runner.temp }}/setup-pnpm' }
+      - uses: ./.github/actions/setup-pnpm
       - uses: actions/setup-node@v7
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
       - uses: ./.github/actions/pnpm-store
@@ -305,8 +309,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-        with: { run_install: false, dest: '${{ runner.temp }}/setup-pnpm' }
+        # Self-hosted: keep node_modules between jobs; setup-pnpm removes everything else untracked.
+        with:
+          clean: ${{ runner.environment != 'self-hosted' }}
+      - uses: ./.github/actions/setup-pnpm
       - uses: actions/setup-node@v7
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
       - uses: ./.github/actions/pnpm-store
@@ -339,8 +345,10 @@ jobs:
         mode: [node16-esm, bundler]
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-        with: { run_install: false, dest: '${{ runner.temp }}/setup-pnpm' }
+        # Self-hosted: keep node_modules between jobs; setup-pnpm removes everything else untracked.
+        with:
+          clean: ${{ runner.environment != 'self-hosted' }}
+      - uses: ./.github/actions/setup-pnpm
       - uses: actions/setup-node@v7
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
       - uses: ./.github/actions/pnpm-store
@@ -388,9 +396,11 @@ jobs:
         node-version: ['20.19.0', '22.12.0', 'lts/*', 'latest']
     steps:
       - uses: actions/checkout@v7
+        # Self-hosted: keep node_modules between jobs; setup-pnpm removes everything else untracked.
+        with:
+          clean: ${{ runner.environment != 'self-hosted' }}
       - uses: ./.github/actions/runner-slot
-      - uses: pnpm/action-setup@v6
-        with: { run_install: false, dest: '${{ runner.temp }}/setup-pnpm' }
+      - uses: ./.github/actions/setup-pnpm
       - uses: actions/setup-node@v7
         with: { node-version: '${{ matrix.node-version }}' }
       - run: echo "CONSUMER_NODE=$(which node)" >> "$GITHUB_ENV"
@@ -424,10 +434,9 @@ jobs:
         run: echo "Not a pull request — skills revision gate does not apply"
       - if: github.event_name == 'pull_request'
         uses: actions/checkout@v7
-        with: { fetch-depth: 0 }
+        with: { fetch-depth: 0, clean: "${{ runner.environment != 'self-hosted' }}" }
       - if: github.event_name == 'pull_request'
-        uses: pnpm/action-setup@v6
-        with: { run_install: false, dest: '${{ runner.temp }}/setup-pnpm' }
+        uses: ./.github/actions/setup-pnpm
       - if: github.event_name == 'pull_request'
         uses: actions/setup-node@v7
         with: { node-version: '24' }

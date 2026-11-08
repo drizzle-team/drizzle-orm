@@ -18,15 +18,21 @@ runs:
   steps:
     # A self-hosted machine keeps one pnpm store for all its runner instances and jobs, so it is warm after the
     # first install and native builds come from its side-effects cache; restoring a 740 MB archive into it from
-    # several jobs at once would only race. The store has to be named here: pnpm's default is $PNPM_HOME/store,
-    # and pnpm/action-setup points PNPM_HOME into the job's runner.temp, which is emptied after every job.
-    # pnpm writes the store content-addressed and atomically, so concurrent installs can share it.
+    # several jobs at once would only race. The store is named here rather than left at pnpm's default,
+    # $PNPM_HOME/store, because setup-pnpm gives every pnpm version its own PNPM_HOME, and an update of pnpm
+    # should not start from an empty store. pnpm writes the store content-addressed and atomically, so
+    # concurrent installs can share it.
     - if: runner.environment == 'self-hosted'
       shell: bash
       run: |
         store="${CI_PNPM_STORE_DIR:-$HOME/.cache/drizzle-ci/pnpm-store}"
-        echo "npm_config_store_dir=$store" >> "$GITHUB_ENV"
-        echo "pnpm store: $store"
+        echo "pnpm_config_store_dir=$store" >> "$GITHUB_ENV"
+        # Hardlinks rather than pnpm's default on APFS, a copy-on-write clone per file: a link is one metadata
+        # entry, and node_modules is ~1,800 packages relinked by up to 20 jobs at once. Needs the store and the
+        # runners' work folders on one volume (both under $HOME). Nothing edits files inside node_modules, which
+        # a hardlink would write through to the store.
+        echo "pnpm_config_package_import_method=hardlink" >> "$GITHUB_ENV"
+        echo "pnpm store: $store (hardlinks)"
 
     # GitHub-hosted runners start empty.
     - id: store
