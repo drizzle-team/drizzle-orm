@@ -1,3 +1,4 @@
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle as drizzleProxy } from 'drizzle-orm/pg-proxy';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -13,7 +14,6 @@ import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { tsc } from 'tests/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { freshPGlite } from '../../pglite';
 import { diff, prepareTestDatabase, push, type TestDatabase } from '../mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
