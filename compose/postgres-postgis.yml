@@ -6,11 +6,12 @@ services:
     # Test data only: no forced disk writes, which on a busy CI machine make every commit and CREATE DATABASE wait.
     # max_connections and memory for a self-hosted machine, where every runner instance's job shares this server.
     command: postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off -c max_connections=1000
-    mem_limit: 3g
+    mem_limit: 5g
     # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
-    # all day. Memory counts against mem_limit.
+    # all day. Memory counts against mem_limit; the size is a ceiling, used only as data is written (the write-ahead
+    # log alone may reach 1 GB).
     tmpfs:
-      - /var/lib/postgresql/data:size=2g
+      - /var/lib/postgresql/data:size=4g
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

@@ -17,11 +17,14 @@ const exportSubpaths = [
 type ImportCheck = { name: string; args: string[] };
 
 // Resolves with an error message, or with undefined when the process exits with code 0.
-// The 5s limit catches an import that hangs, for example one that keeps the event loop open.
+// The limit catches an import that hangs, for example one that keeps the event loop open. 30 s, not less: on a busy
+// CI machine, entry points that compile WebAssembly (effect-sqlite-wasm) took over 5 s to load.
+const TIMEOUT_MS = 30_000;
 function runNode(args: string[]): Promise<string | undefined> {
 	return new Promise((resolve) => {
-		execFile('node', args, { timeout: 5000 }, (error, _stdout, stderr) => {
-			resolve(error ? `${error.message}\n${stderr}` : undefined);
+		execFile('node', args, { timeout: TIMEOUT_MS }, (error, _stdout, stderr) => {
+			if (!error) return resolve(undefined);
+			resolve(error.killed ? `timed out after ${TIMEOUT_MS} ms (killed)` : `${error.message}\n${stderr}`);
 		});
 	});
 }

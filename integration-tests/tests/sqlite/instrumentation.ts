@@ -24,7 +24,7 @@ import {
 import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
 import { Database as SqliteCloudDatabase, SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import { Database as TursoDatabase } from '@tursodatabase/database';
-import { connect } from '@tursodatabase/serverless';
+import { connect, type Connection as TursoServerlessConnection } from '@tursodatabase/serverless';
 import { Database as TursoDatabaseSync } from '@tursodatabase/sync';
 import type BetterSqlite3 from 'better-sqlite3';
 import Client from 'better-sqlite3';
@@ -785,6 +785,10 @@ const testFor = (
 			async ({ provider }, use) => {
 				const { client, batch, all, run, release } = await provider();
 				await use({ client: client, all, run, batch });
+				// The serverless driver keeps a stream open on the server between requests, and the server drops streams
+				// left idle: a client starts the next test on a fresh session, or that test's first request can fail with
+				// HTTP 400 on a busy machine.
+				if (vendor === 'tursodatabase-serverless') await (client as TursoServerlessConnection).reconnect();
 				release();
 			},
 			{ scope: 'test' },
