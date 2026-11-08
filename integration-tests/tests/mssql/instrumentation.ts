@@ -39,16 +39,18 @@ export const createClient = async () => {
 		'MSSQL_CONNECTION_STRING',
 		'Bring DBs up with `bash compose/dockers.sh up mssql` and export the connection string (e.g. `mssql://SA:drizzle123PASSWORD!@127.0.0.1:1433?encrypt=true&trustServerCertificate=true`) before running tests.',
 	);
-	const close = () => Promise.resolve();
 	const params = parseMssqlUrl(url);
 
 	const url2 = `Server=localhost,${params.port};User Id=SA;Password=drizzle123PASSWORD!;TrustServerCertificate=True;`;
 
-	const client = await mssql.connect(params);
 	const id = `db${randomUUID().split('-')[0]}`;
-	await client.query('select 1');
-	await client.query(`create database ${id}`);
-	await client.query(`use ${id}`);
+	const admin = await new mssql.ConnectionPool(params).connect();
+	await admin.query(`create database ${id}`);
+	await admin.close();
+	// Connected to the test's database itself: `use` would switch only the pool connection that ran it, and a
+	// query on any other connection the pool opens would run in master.
+	const client = await new mssql.ConnectionPool({ ...params, database: id }).connect();
+	const close = () => client.close();
 	const db = drizzle({ client, relations });
 	return { client, close, url, url2, db };
 };

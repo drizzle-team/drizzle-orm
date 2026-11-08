@@ -74,7 +74,9 @@ wait_log() {
   dialect="$1"; service="$2"; pattern="$3"; tries="${4:-180}"
   cid="$(docker ps -q --filter "label=com.docker.compose.project=$(drizzle_project "$dialect")" --filter "label=com.docker.compose.service=$service" | head -n 1)"
   for i in $(seq 1 "$tries"); do
-    if docker logs "$cid" 2>&1 | grep -q "$pattern"; then echo "$service: $pattern"; return 0; fi
+    # Not `docker logs | grep -q`: grep exits at the first match, docker logs then fails writing to the closed pipe,
+    # and with pipefail a found line reads as not found.
+    if grep -q "$pattern" <<<"$(docker logs "$cid" 2>&1)"; then echo "$service: $pattern"; return 0; fi
     sleep 1
   done
   echo "Timed out waiting for '$pattern' in $service's log" >&2

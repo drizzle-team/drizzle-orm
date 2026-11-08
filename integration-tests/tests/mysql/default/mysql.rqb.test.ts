@@ -5,6 +5,7 @@ import { alias, int, mysqlTable, snakeCase, time } from 'drizzle-orm/mysql-core'
 import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2';
 import * as mysql from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
+import { fixtureReset } from '../fixture-reset';
 import relations from '../mysql.relations';
 import {
 	allTypesTable,
@@ -55,31 +56,29 @@ afterAll(async () => {
 	await client?.end().catch(console.error);
 });
 
-beforeEach(async (ctx) => {
-	ctx.mysqlDbV2 = db;
-	ctx.mysqlClient = client;
+// Built once and reset between tests (fixtureReset); built again only when a test changed it.
+const createFixture = async () => {
+	await db.execute(sql`drop table if exists \`users\``);
+	await db.execute(sql`drop view if exists \`rqb_users_view\``);
+	await db.execute(sql`drop table if exists \`rqb_test_schema\`.\`users\``);
+	await db.execute(sql`drop view if exists \`rqb_test_schema\`.\`users_sch_view\``);
+	await db.execute(sql`drop table if exists \`groups\``);
+	await db.execute(sql`drop table if exists \`rqb_test_schema\`.\`groups\``);
+	await db.execute(sql`drop table if exists \`users_to_groups\``);
+	await db.execute(sql`drop table if exists \`rqb_test_schema\`.\`users_to_groups\``);
+	await db.execute(sql`drop table if exists \`posts\``);
+	await db.execute(sql`drop table if exists \`rqb_test_schema\`.\`posts\``);
+	await db.execute(sql`drop table if exists \`comments\``);
+	await db.execute(sql`drop table if exists \`comment_likes\``);
+	await db.execute(sql`drop table if exists \`all_types\``);
+	await db.execute(sql`drop table if exists \`custom_types\``);
+	await db.execute(sql`drop table if exists \`course_offerings\``);
+	await db.execute(sql`drop table if exists \`student_grades\``);
+	await db.execute(sql`drop table if exists \`students\``);
 
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`users\``);
-	await ctx.mysqlDbV2.execute(sql`drop view if exists \`rqb_users_view\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`rqb_test_schema\`.\`users\``);
-	await ctx.mysqlDbV2.execute(sql`drop view if exists \`rqb_test_schema\`.\`users_sch_view\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`groups\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`rqb_test_schema\`.\`groups\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`users_to_groups\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`rqb_test_schema\`.\`users_to_groups\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`posts\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`rqb_test_schema\`.\`posts\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`comments\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`comment_likes\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`all_types\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`custom_types\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`course_offerings\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`student_grades\``);
-	await ctx.mysqlDbV2.execute(sql`drop table if exists \`students\``);
+	await db.execute(sql`create schema if not exists \`rqb_test_schema\``);
 
-	await ctx.mysqlDbV2.execute(sql`create schema if not exists \`rqb_test_schema\``);
-
-	await ctx.mysqlDbV2.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE \`users\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
@@ -89,7 +88,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE \`rqb_test_schema\`.\`users\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
@@ -99,7 +98,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE \`groups\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
@@ -108,7 +107,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE \`rqb_test_schema\`.\`groups\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
@@ -117,7 +116,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE \`users_to_groups\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
@@ -126,7 +125,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE \`rqb_test_schema\`.\`users_to_groups\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
@@ -135,7 +134,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE \`posts\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
@@ -145,7 +144,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE \`rqb_test_schema\`.\`posts\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
@@ -155,21 +154,21 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await db.execute(
 		sql`
 			CREATE ALGORITHM = undefined
 			SQL SECURITY definer
 			VIEW \`rqb_test_schema\`.\`users_sch_view\` AS (select \`rqb_test_schema\`.\`users\`.\`id\`, \`rqb_test_schema\`.\`users\`.\`name\`, \`rqb_test_schema\`.\`users\`.\`verified\`, \`rqb_test_schema\`.\`users\`.\`invited_by\`, \`rqb_test_schema\`.\`posts\`.\`content\`, \`rqb_test_schema\`.\`posts\`.\`created_at\`, (select count(*) from \`rqb_test_schema\`.\`users\` as \`count_source\` where \`rqb_test_schema\`.\`users\`.\`id\` <> 2) as \`count\` from \`rqb_test_schema\`.\`users\` left join \`rqb_test_schema\`.\`posts\` on \`rqb_test_schema\`.\`users\`.\`id\` = \`rqb_test_schema\`.\`posts\`.\`owner_id\`);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await db.execute(
 		sql`
 			CREATE ALGORITHM = undefined
 			SQL SECURITY definer
 			VIEW \`rqb_users_view\` AS (select \`users\`.\`id\`, \`users\`.\`name\`, \`users\`.\`verified\`, \`users\`.\`invited_by\`, \`posts\`.\`content\`, \`posts\`.\`created_at\`, (select count(*) from \`users\` as \`count_source\` where \`users\`.\`id\` <> 2) as \`count\` from \`users\` left join \`posts\` on \`users\`.\`id\` = \`posts\`.\`owner_id\`);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE \`comments\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
@@ -180,7 +179,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE \`comment_likes\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
@@ -190,7 +189,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE \`course_offerings\` (
 				\`course_id\` integer NOT NULL,
@@ -199,7 +198,7 @@ beforeEach(async (ctx) => {
 			)	
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE \`student_grades\` (
 				\`student_id\` integer NOT NULL,
@@ -210,7 +209,7 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
-	await ctx.mysqlDbV2.execute(
+	await db.execute(
 		sql`
 			CREATE TABLE \`students\` (
 				\`student_id\` serial PRIMARY KEY NOT NULL,
@@ -218,6 +217,15 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
+};
+
+let resetFixture: () => Promise<void>;
+
+beforeEach(async (ctx) => {
+	ctx.mysqlDbV2 = db;
+	ctx.mysqlClient = client;
+	resetFixture ??= fixtureReset(client, ['', 'rqb_test_schema'], createFixture);
+	await resetFixture();
 });
 
 test('[Find Many] Get users with posts', async (t) => {

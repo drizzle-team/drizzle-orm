@@ -24,6 +24,8 @@ cd "$(dirname "$0")/../../integration-tests"
 : "${PG16_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES16}/drizzle}"
 : "${POSTGIS_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGIS}/${DRIZZLE_TEST_DB_PREFIX}drizzle}"
 : "${MYSQL_CONNECTION_STRING:=mysql://root:mysql@localhost:${DRIZZLE_PORT_MYSQL}/drizzle}"
+# compose/planetscale.yml's simulator; is-config.test.ts (int:other) only builds a client from it.
+: "${PLANETSCALE_CONNECTION_STRING:=http://root:planetscale@127.0.0.1:${DRIZZLE_PORT_PLANETSCALE}}"
 # In memory, as in local runs: a database file costs an fsync per write, which on a runner whose work folder is a
 # shared volume made the three libsql suites take ~15 minutes between them.
 : "${LIBSQL_URL:=file::memory:?cache=shared}"
@@ -34,7 +36,7 @@ cd "$(dirname "$0")/../../integration-tests"
 # values such as 9999-12-31T23:59:59.997Z out of the type's range on a machine ahead of UTC.
 export TZ=UTC
 export PG_CONNECTION_STRING PG_HTTP_GATEWAY_URL AWS_DATA_API_URL PG_VECTOR_CONNECTION_STRING PG_POSTGIS_CONNECTION_STRING \
-	PG18_URL PG17_URL PG16_URL POSTGIS_URL MYSQL_CONNECTION_STRING LIBSQL_URL \
+	PG18_URL PG17_URL PG16_URL POSTGIS_URL MYSQL_CONNECTION_STRING PLANETSCALE_CONNECTION_STRING LIBSQL_URL \
 	COCKROACH_CONNECTION_STRING MSSQL_CONNECTION_STRING TEST_CONFIG_PATH_PREFIX
 
 # Per-job hosted databases (scripts/ci-databases.ts create) write their connection strings here.
@@ -62,7 +64,7 @@ case "$shard" in
 	int:tidb) if external; then pnpm --stream vitest --reporter=verbose --silent=false tests/mysql/tidb; fi ;;
 	# Against this job's own PlanetScale HTTP API simulator over MySQL (compose/planetscale.yml).
 	int:planetscale)
-		PLANETSCALE_CONNECTION_STRING="http://root:planetscale@127.0.0.1:${DRIZZLE_PORT_PLANETSCALE}" pnpm --stream test:planetscale
+		pnpm --stream test:planetscale
 		;;
 	int:cockroach) pnpm --stream test:cockroach ;;
 	int:cockroach-rqb) pnpm --stream test:cockroach-rqb ;;
