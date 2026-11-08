@@ -16,13 +16,17 @@ inputs:
 runs:
   using: composite
   steps:
+    # A self-hosted machine keeps its pnpm store between jobs, so it is already warm; restoring a 740 MB archive
+    # into that store from several jobs at once would only race. GitHub-hosted runners start empty.
     - id: store
+      if: runner.environment != 'self-hosted'
       shell: bash
       run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
     # Checks which cache exists without downloading it. A changed lockfile misses the exact key and matches the
     # newest store under the prefix, so pnpm install only fetches and builds the difference.
     - id: lookup
+      if: runner.environment != 'self-hosted'
       uses: actions/cache/restore@v6
       with:
         path: ${{ steps.store.outputs.path }}
@@ -31,7 +35,7 @@ runs:
         lookup-only: true
 
     # A store exists for this branch or its base: restore it, never save.
-    - if: inputs.save != 'true' && steps.lookup.outputs.cache-matched-key != ''
+    - if: runner.environment != 'self-hosted' && inputs.save != 'true' && steps.lookup.outputs.cache-matched-key != ''
       uses: actions/cache/restore@v6
       with:
         path: ${{ steps.store.outputs.path }}
@@ -40,7 +44,7 @@ runs:
 
     # Base branches (cache-seed.yaml), and pull requests with no store at all, so their next run is not cold:
     # restores what there is and saves the store after the job when the exact key missed.
-    - if: inputs.save == 'true' || steps.lookup.outputs.cache-matched-key == ''
+    - if: runner.environment != 'self-hosted' && (inputs.save == 'true' || steps.lookup.outputs.cache-matched-key == '')
       uses: actions/cache@v6
       with:
         path: ${{ steps.store.outputs.path }}

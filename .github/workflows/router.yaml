@@ -45,11 +45,20 @@ jobs:
             pick "$hosted" 'fork pull request'; exit 0
           fi
           if [[ -z "$TOKEN" ]]; then pick "$hosted" 'no CI_RUNNERS_TOKEN'; exit 0; fi
+          # Org runners first; the repo's own (which need repository Administration: Read) only if that lookup fails.
           online=0
           for path in "orgs/${GITHUB_REPOSITORY_OWNER}/actions/runners" "repos/${GITHUB_REPOSITORY}/actions/runners"; do
-            n=$(curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Accept: application/vnd.github+json' "${GITHUB_API_URL}/${path}?per_page=100" \
-              | jq --arg label "$LABEL" '[.runners[] | select(.status == "online" and any(.labels[]; .name == $label))] | length' 2>/dev/null || echo 0)
+            # Say why a lookup failed: a wrong token type (e.g. a runner registration token) looks like "offline" otherwise.
+            code=$(curl -sS -o runners.json -w '%{http_code}' -H "Authorization: Bearer $TOKEN" \
+              -H 'Accept: application/vnd.github+json' "${GITHUB_API_URL}/${path}?per_page=100" || echo 000)
+            if [[ "$code" != 200 ]]; then
+              echo "::warning::GET /$path returned HTTP $code: $(jq -r '.message // empty' runners.json 2>/dev/null)"
+              continue
+            fi
+            echo "GET /$path: $(jq '.runners | length' runners.json) runner(s), $(jq -c '[.runners[] | {name, status, labels: [.labels[].name]}]' runners.json)"
+            n=$(jq --arg label "$LABEL" '[.runners[] | select(.status == "online" and any(.labels[]; .name == $label))] | length' runners.json)
             online=$((online + ${n:-0}))
+            break
           done
           if (( online > 0 )); then
             pick "$(jq -cn --arg label "$LABEL" '["self-hosted", $label]')" "$online '$LABEL' runner(s) online"
