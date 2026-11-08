@@ -144,32 +144,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - shard: int:mysql
-            dbs: [mysql]
+          # Short shards share a job (.github/ci/run-shard.sh runs a+b in turn): each job's setup costs ~20 s, and a
+          # self-hosted machine runs only as many jobs at once as it has runner instances.
+          - shard: int:mysql+int:planetscale
+            dbs: [mysql, planetscale]
           - shard: int:postgres
             dbs: [postgres, postgres-http-gateway, aws-data-api]
           - shard: int:neon
             dbs: [neon]
-          - shard: int:sqlite
-            dbs: []
-          - shard: int:turso-serverless
+          - shard: int:sqlite+int:turso-serverless
             dbs: [turso]
-          - shard: int:other
+          - shard: int:other+int:imports+validators
             dbs: [mysql, postgres, postgres-postgis, postgres-vector]
-          - shard: int:seeder
-            dbs: [mysql, postgres]
-          - shard: int:imports
-            dbs: []
-          - shard: int:planetscale
-            dbs: [planetscale]
-          - shard: int:cockroach
+          - shard: int:cockroach+int:cockroach-rqb
             dbs: [cockroach]
-          - shard: int:cockroach-rqb
-            dbs: [cockroach]
-          - shard: int:bun
-            dbs: [postgres, postgres-vector, postgres-postgis, mysql]
-          - shard: int:mssql
-            dbs: [mssql]
+          - shard: int:bun+int:seeder+int:mssql
+            dbs: [postgres, postgres-vector, postgres-postgis, mysql, mssql]
           - shard: orm
             dbs: []
           - shard: kit:other
@@ -190,8 +180,6 @@ jobs:
             dbs: [mssql]
           - shard: seed
             dbs: [cockroach, mysql, mssql, postgres-postgis]
-          - shard: validators
-            dbs: []
          
     name: ${{ matrix.shard }}
     steps:
@@ -295,45 +283,28 @@ jobs:
         with:
           name: packages
           path: ./artifacts
+      # Every check in one job: each takes about a second, against ~15 s for a job's setup, and a self-hosted machine
+      # runs only as many jobs at once as it has runner instances. All run; the step fails if any did.
       - name: Run @arethetypeswrong/cli
         run: |
-          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-seed/package.tgz
-          bun --bun run ./attw-fork/src/run.ts ./artifacts/eslint-plugin-drizzle/package.tgz
-        env:
-          ATTW_FORMAT: concise
-
-  attw-esm:
-    needs: [prepare-head-start]
-    permissions: { contents: read, actions: read }
-    runs-on: ${{ fromJSON(inputs.runner) }}
-    timeout-minutes: 20
-    strategy:
-      matrix:
-        package: [drizzle-orm, drizzle-kit]
-        mode: [node16-esm, bundler]
-    steps:
-      - uses: actions/checkout@v7
-        # Self-hosted: keep node_modules between jobs; setup-pnpm removes everything else untracked.
-        with:
-          clean: ${{ runner.environment != 'self-hosted' }}
-      - uses: ./.github/actions/setup-pnpm
-      - uses: actions/setup-node@v7
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
-      - uses: ./.github/actions/pnpm-store
-      - run: pnpm install --frozen-lockfile --prefer-offline
-      - uses: oven-sh/setup-bun@v2
-        with: { bun-version: 1.4.4 }
-      - name: Wait for prepare's packages
-        uses: ./.github/actions/wait-for-prepare
-        with: { names: packages }
-      - name: Download package tarballs
-        uses: actions/download-artifact@v8
-        with:
-          name: packages
-          path: ./artifacts
-      - name: Run @arethetypeswrong/cli
-        working-directory: ${{ matrix.package }}
-        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/${{ matrix.package }}/package.tgz ${{ matrix.mode }}
+          failed=()
+          check() {
+            local status=0
+            echo "::group::attw $*"
+            bun --bun run "$@" || status=$?
+            echo "::endgroup::"
+            return "$status"
+          }
+          check ./attw-fork/src/run.ts ./artifacts/drizzle-seed/package.tgz || failed+=(drizzle-seed)
+          check ./attw-fork/src/run.ts ./artifacts/eslint-plugin-drizzle/package.tgz || failed+=(eslint-plugin-drizzle)
+          # drizzle-orm and drizzle-kit per resolution mode, from the package's own dir.
+          for package in drizzle-orm drizzle-kit; do
+            for mode in node16-esm bundler; do
+              (cd "$package" && check ../attw-fork/src/run.ts "../artifacts/$package/package.tgz" "$mode") \
+                || failed+=("$package $mode")
+            done
+          done
+          if ((${#failed[@]})); then printf '::error::attw failed: %s\n' "${failed[@]}"; exit 1; fi
         env:
           ATTW_FORMAT: concise
 
@@ -388,6 +359,11 @@ jobs:
         working-directory: integration-tests
         run: |
           source ../compose/ports.sh
+          # The test npm-installs the packed tarballs into fresh consumer projects, five times per job: on a self-hosted
+          # machine from one npm cache that all runner instances share (concurrent installs are safe on it), taken
+          # before the registry.
+          if [ "$RUNNER_ENVIRONMENT" = self-hosted ]; then export npm_config_cache="$HOME/.cache/drizzle-ci/npm"; fi
+          export npm_config_prefer_offline=true
           # This job's database (dockers.sh created it): on a self-hosted machine the Postgres server is shared, and
           # the packed-orm jobs of other Node versions push and pull the same tables at the same time.
           PG_CONNECTION_STRING="postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES}/${DRIZZLE_TEST_DB_PREFIX}drizzle" pnpm --stream test:packed
@@ -422,7 +398,7 @@ jobs:
           pnpm skills:revision:check
 
   release:
-    needs: [test, prepare, attw, attw-esm, publint-orm, packed-orm, skills-revision-gate]
+    needs: [test, prepare, attw, publint-orm, packed-orm, skills-revision-gate]
     # workflow_dispatch only: this job holds `id-token: write` and is the sole path to
     # the publish step, so PR/push events must never enter it — that would both expose
     # OIDC minting to untrusted PR code and auto-publish on push.

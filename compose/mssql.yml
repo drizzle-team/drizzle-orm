@@ -8,6 +8,11 @@ services:
     # its files with O_DIRECT, which tmpfs supports since Linux 6.6.
     tmpfs:
       - /var/opt/mssql:size=8g
+      # The image's other volumes: its extensibility service (launchpadd) logs here every second. Each declared
+      # volume path needs a mount of its own, or Docker puts a volume on disk there.
+      - /var/opt/mssql-extensibility:size=256m
+      - /var/opt/mssql-extensibility/data:size=256m
+      - /var/opt/mssql-extensibility/log:size=256m
     environment:
       ACCEPT_EULA: "1"
       MSSQL_SA_PASSWORD: "drizzle123PASSWORD!"

@@ -35,12 +35,31 @@ const instanceofInBothDirections = {
 	unbranded: [],
 };
 
-async function pack(packageDir: string, destination: string): Promise<string> {
-	const { stdout } = await exec('npm', ['pack', packageDir, '--json', '--pack-destination', destination]);
-	// npm 12 prints an object keyed by package name, older npm prints an array.
-	const [packed] = Object.values<{ filename: string }>(JSON.parse(stdout));
-	return join(destination, packed!.filename);
+// Each package is packed once per run, into one dir, and every consumer installs that tarball: the consumers packed
+// drizzle-orm five times, @drizzle-team/postgres three and drizzle-kit twice.
+const packDir = mkdtempSync(join(tmpdir(), 'drizzle-packed-'));
+const packs = new Map<string, Promise<string>>();
+function pack(packageDir: string): Promise<string> {
+	let packed = packs.get(packageDir);
+	if (!packed) {
+		packed = exec('npm', ['pack', packageDir, '--json', '--pack-destination', packDir]).then(({ stdout }) => {
+			// npm 12 prints an object keyed by package name, older npm prints an array.
+			const [file] = Object.values<{ filename: string }>(JSON.parse(stdout));
+			return join(packDir, file!.filename);
+		});
+		packs.set(packageDir, packed);
+	}
+	return packed;
 }
+afterAll(() => rmSync(packDir, { recursive: true, force: true }));
+
+// The consumers' setups start together when the file starts, and each describe waits for its own: one npm install
+// after another took most of this file's time. Only with a database: without one, the describes that use a consumer
+// skip, and each consumer is set up by its describe, if at all.
+const setups: (() => Promise<void>)[] = [];
+beforeAll(() => {
+	if (connectionString) { for (const start of setups) void start(); }
+});
 
 // Copies a template to a temporary dir and installs the packages that `install` returns into it.
 // `versions` rewrites the version in the manifests of installed packages.
@@ -51,17 +70,26 @@ function useConsumer(
 	versions: Record<string, string> = {},
 ): () => string {
 	let consumer: string | undefined;
+	let ready: Promise<void> | undefined;
 
-	beforeAll(async () => {
-		consumer = mkdtempSync(join(tmpdir(), `drizzle-${template}-`));
-		cpSync(resolve(import.meta.dirname, template), consumer, { recursive: true });
-		await exec('npm', ['install', '--no-audit', '--no-fund', ...await install(consumer)], { cwd: consumer });
+	const start = () => {
+		ready ??= (async () => {
+			consumer = mkdtempSync(join(tmpdir(), `drizzle-${template}-`));
+			cpSync(resolve(import.meta.dirname, template), consumer, { recursive: true });
+			await exec('npm', ['install', '--no-audit', '--no-fund', ...await install(consumer)], { cwd: consumer });
 
-		for (const [name, version] of Object.entries(versions)) {
-			const manifest = join(consumer, 'node_modules', name, 'package.json');
-			writeFileSync(manifest, JSON.stringify({ ...JSON.parse(readFileSync(manifest, 'utf8')), version }));
-		}
-	}, 300_000);
+			for (const [name, version] of Object.entries(versions)) {
+				const manifest = join(consumer, 'node_modules', name, 'package.json');
+				writeFileSync(manifest, JSON.stringify({ ...JSON.parse(readFileSync(manifest, 'utf8')), version }));
+			}
+		})();
+		// Its describe reports a failure; until then it is not an unhandled rejection.
+		ready.catch(() => {});
+		return ready;
+	};
+	setups.push(start);
+
+	beforeAll(() => start(), 300_000);
 
 	afterAll(() => {
 		if (consumer) rmSync(consumer, { recursive: true, force: true });
@@ -129,7 +157,7 @@ function requirePostgresBuild() {
 }
 
 describe.skipIf(!connectionString)('packed drizzle-orm with its bundled copy of postgres', () => {
-	const consumer = useConsumer('consumer', async (dir) => [await pack(ormDist, dir)]);
+	const consumer = useConsumer('consumer', async () => [await pack(ormDist)]);
 
 	test.for(Object.keys(runtimes))('drizzle-orm/postgres runs a query under %s', async (runtime) => {
 		const output = await runtimes[runtime]!(consumer());
@@ -162,7 +190,7 @@ async function pushAndPull(cwd: string, config = 'drizzle.config.ts') {
 }
 
 describe.skipIf(!connectionString)('packed drizzle-kit with packed drizzle-orm and no other driver', () => {
-	const consumer = useConsumer('kit-consumer', async (dir) => [await pack(ormDist, dir), await pack(kitDist, dir)]);
+	const consumer = useConsumer('kit-consumer', async () => [await pack(ormDist), await pack(kitDist)]);
 
 	function expectPostgresPushAndPull({ push, pull, pulledSchema }: Awaited<ReturnType<typeof pushAndPull>>) {
 		expect(push).toContain(`Using 'drizzle-orm/postgres' driver`);
@@ -211,9 +239,9 @@ describe.skipIf(!connectionString)('packed drizzle-kit with packed drizzle-orm a
 describe.skipIf(!connectionString)(
 	'packed drizzle-kit with a standalone Drizzle Postgres pool as dbCredentials.client',
 	() => {
-		const consumer = useConsumer('kit-consumer', async (dir) => {
+		const consumer = useConsumer('kit-consumer', async () => {
 			requirePostgresBuild();
-			return [await pack(ormDist, dir), await pack(kitDist, dir), await pack(postgresDir, dir)];
+			return [await pack(ormDist), await pack(kitDist), await pack(postgresDir)];
 		});
 
 		test('drizzle-kit push and pull query through the pool from dbCredentials.client', async () => {
@@ -233,7 +261,7 @@ describe.skipIf(!connectionString)('packed drizzle-orm with the standalone @driz
 		async (dir) => {
 			requirePostgresBuild();
 			cpSync(instanceofScript, join(dir, 'instanceof.js'));
-			return [await pack(ormDist, dir), await pack(postgresDir, dir)];
+			return [await pack(ormDist), await pack(postgresDir)];
 		},
 		// A user installs the standalone package to get a newer release than the bundled copy.
 		{ '@drizzle-team/postgres': '999.0.0' },
@@ -274,7 +302,7 @@ describe.skipIf(!connectionString)('two packed copies of @drizzle-team/postgres'
 		async (dir) => {
 			requirePostgresBuild();
 			cpSync(instanceofScript, join(dir, 'instanceof.js'));
-			const postgres = await pack(postgresDir, dir);
+			const postgres = await pack(postgresDir);
 			return [postgres, `postgres-copy@file:${postgres}`];
 		},
 		// TypeScript treats two packages with the same name and version as one package,
