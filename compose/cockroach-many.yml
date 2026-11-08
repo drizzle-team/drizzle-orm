@@ -1,6 +1,7 @@
 services:
   cockroach0:
     image: cockroachdb/cockroach:v25.2.0
+    network_mode: bridge
     mem_limit: 3g
     command: start-single-node --insecure --store=type=mem,size=2GiB
     ports:
@@ -14,6 +15,7 @@ services:
 
   cockroach1:
     image: cockroachdb/cockroach:v25.2.0
+    network_mode: bridge
     mem_limit: 3g
     command: start-single-node --insecure --store=type=mem,size=2GiB
     ports:
@@ -27,6 +29,7 @@ services:
 
   cockroach2:
     image: cockroachdb/cockroach:v25.2.0
+    network_mode: bridge
     mem_limit: 3g
     command: start-single-node --insecure --store=type=mem,size=2GiB
     ports:

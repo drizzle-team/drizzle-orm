@@ -2,6 +2,7 @@ services:
   postgres-http-gateway:
     image: ghcr.io/drizzle-team/postgres-http-gateway:latest
     platform: linux/amd64 # no arm64 build: ARM hosts (Apple silicon, OrbStack runners) run it emulated
+    network_mode: bridge
     mem_limit: 256m
 
     extra_hosts:

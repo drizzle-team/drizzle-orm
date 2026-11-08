@@ -1,6 +1,7 @@
 services:
   mysql:
     image: mysql:8
+    network_mode: bridge
     mem_limit: 2g
     environment:
       MYSQL_ROOT_PASSWORD: mysql

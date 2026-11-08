@@ -22,6 +22,7 @@ ALL_DIALECTS=(
   postgres-http-gateway
   aws-data-api
   neon
+  turso
 )
 
 _resolve_compose_file() {
@@ -42,6 +43,7 @@ _resolve_compose_file() {
     postgres-http-gateway) echo "postgres-http-gateway.yml" ;;
     aws-data-api)     echo "aws-data-api.yml" ;;
     neon)             echo "neon.yml" ;;
+    turso)            echo "turso.yml" ;;
     *)
       echo "Unknown dialect '$1'. Valid dialects: ${ALL_DIALECTS[*]}" >&2
       return 1

@@ -1,6 +1,7 @@
 services:
   mariadb:
     image: mariadb:11.8
+    network_mode: bridge
     mem_limit: 2g
     environment:
       MARIADB_ROOT_PASSWORD: mariadb

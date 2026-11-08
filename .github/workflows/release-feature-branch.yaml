@@ -37,10 +37,6 @@ on:
         required: true
       TURSODATABASE_REMOTE_TOKEN:
         required: true
-      SQLITE_CLOUD_CONNECTION_STRING:
-        required: true
-      SQLITE_MANY_CLOUD_CONNECTION_STRING:
-        required: true
       TURBO_TOKEN:
         required: true
       NETLIFY_DB_URL:
@@ -156,10 +152,8 @@ jobs:
             dbs: [neon]
           - shard: int:sqlite
             dbs: []
-            cloud: [sqlitecloud]
           - shard: int:turso-serverless
-            dbs: []
-            cloud: [turso]
+            dbs: [turso]
           - shard: int:other
             dbs: [mysql, postgres, postgres-postgis, postgres-vector]
           - shard: int:seeder
@@ -225,7 +219,6 @@ jobs:
           PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
           PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
           PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
-          SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
           TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
           TURSO_ORG: ${{ secrets.TURSO_ORG }}
           TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
@@ -270,8 +263,6 @@ jobs:
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
           TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
           TURSODATABASE_REMOTE_TOKEN: ${{ secrets.TURSODATABASE_REMOTE_TOKEN }}
-          SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
-          SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
           NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
         run: bash .github/ci/run-shard.sh "${{ matrix.shard }}"
 
@@ -285,7 +276,6 @@ jobs:
           PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
           PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
           PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
-          SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
           TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
           TURSO_ORG: ${{ secrets.TURSO_ORG }}
           TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}

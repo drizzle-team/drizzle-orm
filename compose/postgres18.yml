@@ -1,6 +1,7 @@
 services:
   postgres:
     image: pgvector/pgvector:pg18
+    network_mode: bridge
     mem_limit: 1g
     environment:
       POSTGRES_USER: postgres

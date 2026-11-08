@@ -31,8 +31,7 @@ jobs:
           PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
           PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
           PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
-          SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
           TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
           TURSO_ORG: ${{ secrets.TURSO_ORG }}
           TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
-        run: pnpm exec tsx scripts/ci-databases.ts sweep neon netlify planetscale sqlitecloud turso
+        run: pnpm exec tsx scripts/ci-databases.ts sweep neon netlify planetscale turso

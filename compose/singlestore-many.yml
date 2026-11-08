@@ -2,6 +2,7 @@ services:
   singlestore0:
     image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
     platform: linux/amd64 # no arm64 build: ARM hosts (Apple silicon, OrbStack runners) run it emulated
+    network_mode: bridge
     environment:
       ROOT_PASSWORD: singlestore
       TZ: UTC
@@ -16,6 +17,7 @@ services:
   singlestore1:
     image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
     platform: linux/amd64 # no arm64 build: ARM hosts (Apple silicon, OrbStack runners) run it emulated
+    network_mode: bridge
     environment:
       ROOT_PASSWORD: singlestore
       TZ: UTC
@@ -30,6 +32,7 @@ services:
   singlestore2:
     image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
     platform: linux/amd64 # no arm64 build: ARM hosts (Apple silicon, OrbStack runners) run it emulated
+    network_mode: bridge
     environment:
       ROOT_PASSWORD: singlestore
       TZ: UTC
@@ -44,6 +47,7 @@ services:
   singlestore3:
     image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
     platform: linux/amd64 # no arm64 build: ARM hosts (Apple silicon, OrbStack runners) run it emulated
+    network_mode: bridge
     environment:
       ROOT_PASSWORD: singlestore
       TZ: UTC

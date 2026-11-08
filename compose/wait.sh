@@ -87,6 +87,7 @@ for db in "$@"; do
     postgres-http-gateway) wait_tcp 127.0.0.1 "$DRIZZLE_PORT_HTTP_GATEWAY" "postgres-http-gateway" ;;
     aws-data-api)         wait_tcp 127.0.0.1 "$DRIZZLE_PORT_AWS_DATA_API" "aws-data-api" ;;
     neon)                 wait_tcp 127.0.0.1 "$DRIZZLE_PORT_NEON_PROXY" "neon-proxy" ;;
+    turso)                wait_tcp 127.0.0.1 "$DRIZZLE_PORT_TURSO" "turso" ;;
     postgres-postgis)     wait_tcp 127.0.0.1 "$DRIZZLE_PORT_POSTGIS" "postgres" ;;
     postgres-vector)      wait_tcp 127.0.0.1 "$DRIZZLE_PORT_VECTOR" "postgres" ;;
     postgres18)           wait_tcp 127.0.0.1 "$DRIZZLE_PORT_POSTGRES18" "postgres" ;;

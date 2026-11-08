@@ -6,6 +6,7 @@
 services:
   neon-postgres:
     image: postgres:17-alpine
+    network_mode: bridge
     # The proxy authenticates every /sql request itself: it opens a new connection here to read the role's SCRAM
     # secret, checks the client's password with PBKDF2 at that secret's iteration count, then opens another new
     # connection to run the query (HTTP pooling is opt-in). Its image is a debug build, so at Postgres' default
@@ -36,6 +37,8 @@ services:
       TZ: UTC
     ports:
       - "127.0.0.1:${DRIZZLE_PORT_NEON_POSTGRES:-54327}:5432"
+      # The proxy's port: it runs in this container's network namespace (network_mode below).
+      - "${DRIZZLE_PORT_NEON_PROXY:-4444}:4444"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d main"]
       interval: 2s
@@ -46,10 +49,10 @@ services:
     # main, pinned: a third-party image that runs in CI.
     image: ghcr.io/timowilhelm/local-neon-http-proxy@sha256:cd2ae14edf2feafbc3330492de5c80506f77274c3bd013154cdef697bdeb768a
     mem_limit: 512m
+    # Shares neon-postgres' network namespace, so it reaches Postgres on localhost and needs no compose network.
+    network_mode: service:neon-postgres
     environment:
-      PG_CONNECTION_STRING: postgres://postgres:postgres@neon-postgres:5432/main
-    ports:
-      - "${DRIZZLE_PORT_NEON_PROXY:-4444}:4444"
+      PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/main
     depends_on:
       neon-postgres:
         condition: service_healthy

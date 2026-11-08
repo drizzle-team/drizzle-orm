@@ -1,6 +1,7 @@
 services:
   mssql:
     image: mcr.microsoft.com/azure-sql-edge:latest
+    network_mode: bridge
     mem_limit: 3g
     environment:
       ACCEPT_EULA: "1"

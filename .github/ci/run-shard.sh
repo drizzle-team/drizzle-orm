@@ -22,7 +22,9 @@ cd "$(dirname "$0")/../../integration-tests"
 : "${PG16_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES16}/drizzle}"
 : "${POSTGIS_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGIS}/drizzle}"
 : "${MYSQL_CONNECTION_STRING:=mysql://root:mysql@localhost:${DRIZZLE_PORT_MYSQL}/drizzle}"
-: "${LIBSQL_URL:=file:local.db}"
+# In memory, as in local runs: a database file costs an fsync per write, which on a runner whose work folder is a
+# shared volume made the three libsql suites take ~15 minutes between them.
+: "${LIBSQL_URL:=file::memory:?cache=shared}"
 : "${COCKROACH_CONNECTION_STRING:=postgresql://root@127.0.0.1:${DRIZZLE_PORT_COCKROACH}/defaultdb?sslmode=disable}"
 : "${MSSQL_CONNECTION_STRING:=mssql://SA:drizzle123PASSWORD!@localhost:${DRIZZLE_PORT_MSSQL}?encrypt=true&trustServerCertificate=true}"
 : "${TEST_CONFIG_PATH_PREFIX:=./tests/cli/}"
@@ -58,10 +60,10 @@ case "$shard" in
 	int:cockroach-rqb) pnpm --stream test:cockroach-rqb ;;
 	int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
 	int:sqlite) pnpm --stream test:sqlite ;;
+	# Against this job's own Turso server (compose/turso.yml), which takes no auth token.
 	int:turso-serverless)
-		if external; then
-			pnpm --stream vitest --reporter=verbose --silent=false --test-timeout=200000 --hook-timeout=200000 run tests/sqlite/tursodatabase-serverless.test.ts
-		fi
+		TURSODATABASE_REMOTE_URL="http://localhost:${DRIZZLE_PORT_TURSO}" TURSODATABASE_REMOTE_TOKEN=local \
+			pnpm --stream vitest --reporter=verbose --silent=false run tests/sqlite/tursodatabase-serverless.test.ts
 		;;
 	kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
 	# The commutativity suite runs once, in kit:postgres:commutativity, against the latest stable Postgres (18).
