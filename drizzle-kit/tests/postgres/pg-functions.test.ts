@@ -43,6 +43,9 @@ beforeEach(async () => {
 	await _.clear();
 });
 
+const checkFunctionBodiesOff = 'SET check_function_bodies = off;\n';
+const earlyFnMigration = (...sql: string[]) => [checkFunctionBodiesOff, ...sql];
+
 const fn1 = `CREATE FUNCTION "public"."add_numbers"(
 	"a" integer,
 	"b" integer
@@ -79,8 +82,8 @@ test('create function #1', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn1]);
-	expect(pst).toStrictEqual([fn1]);
+	expect(st).toStrictEqual(earlyFnMigration(fn1));
+	expect(pst).toStrictEqual(earlyFnMigration(fn1));
 
 	const result = await client.query(`SELECT add_numbers(1, 2);`);
 	expect(result.rows).toStrictEqual([{ add_numbers: 3 }]);
@@ -122,8 +125,8 @@ test('create function #2', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn2]);
-	expect(pst).toStrictEqual([fn2]);
+	expect(st).toStrictEqual(earlyFnMigration(fn2));
+	expect(pst).toStrictEqual(earlyFnMigration(fn2));
 
 	const result = await client.query(`SELECT add_numbers(1.0, 2.0);`);
 	expect(result.rows).toStrictEqual([{ add_numbers: '3.0' }]);
@@ -165,8 +168,8 @@ test('overload functions', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn2]);
-	expect(pst).toStrictEqual([fn1, fn2]);
+	expect(st).toStrictEqual(earlyFnMigration(fn2));
+	expect(pst).toStrictEqual(earlyFnMigration(fn1, fn2));
 
 	const result = await client.query(`SELECT add_numbers(1, 2);`);
 	expect(result.rows).toStrictEqual([{ add_numbers: 3 }]);
@@ -226,8 +229,8 @@ test('change arg name', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([argChange]);
-	expect(pst).toStrictEqual([argChange.split('\n').slice(1).join('\n')]); // DB doesn't include the DROP FUNCTION statement
+	expect(st).toStrictEqual(earlyFnMigration(argChange));
+	expect(pst).toStrictEqual(earlyFnMigration(argChange.split('\n').slice(1).join('\n'))); // DB doesn't include the DROP FUNCTION statement
 
 	const result = await client.query(`SELECT add_numbers(1, 2);`);
 	expect(result.rows).toStrictEqual([{ add_numbers: 3 }]);
@@ -268,8 +271,8 @@ test('default arguments', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn3]);
-	expect(pst).toStrictEqual([fn3]);
+	expect(st).toStrictEqual(earlyFnMigration(fn3));
+	expect(pst).toStrictEqual(earlyFnMigration(fn3));
 
 	const result = await client.query(`SELECT greet();`);
 	expect(result.rows).toStrictEqual([{ greet: 'Hello, guest' }]);
@@ -345,8 +348,8 @@ test('plpgsql function', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn4]);
-	expect(pst).toStrictEqual([fn4]);
+	expect(st).toStrictEqual(earlyFnMigration(fn4));
+	expect(pst).toStrictEqual(earlyFnMigration(fn4));
 
 	const result = await client.query(`SELECT clamp_number(50);`);
 	expect(result.rows).toStrictEqual([{ clamp_number: 50 }]);
@@ -398,8 +401,8 @@ test('setof function', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn5]);
-	expect(pst).toStrictEqual([fn5]);
+	expect(st).toStrictEqual(earlyFnMigration(fn5));
+	expect(pst).toStrictEqual(earlyFnMigration(fn5));
 
 	const result = await client.query(`SELECT * FROM number_series(1, 5);`);
 	expect(result.rows).toStrictEqual([{ number_series: 1 }, { number_series: 2 }, { number_series: 3 }, {
@@ -447,8 +450,8 @@ test('table function', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn6]);
-	expect(pst).toStrictEqual([fn6]);
+	expect(st).toStrictEqual(earlyFnMigration(fn6));
+	expect(pst).toStrictEqual(earlyFnMigration(fn6));
 
 	const result = await client.query(`SELECT * FROM split_label('Hello World');`);
 	expect(result.rows).toStrictEqual([{ part: 'Hello', value: '5' }, { part: 'World', value: '5' }]);
@@ -493,8 +496,8 @@ test('uuid array function', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn7]);
-	expect(pst).toStrictEqual([fn7]);
+	expect(st).toStrictEqual(earlyFnMigration(fn7));
+	expect(pst).toStrictEqual(earlyFnMigration(fn7));
 
 	const result = await client.query(
 		`SELECT * FROM to_uuid_array(ARRAY['123e4567-e89b-12d3-a456-426614174000'::uuid, '123e4567-e89b-12d3-a456-426614174001'::uuid]);`,
@@ -551,8 +554,8 @@ test('jsonb function', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn8]);
-	expect(pst).toStrictEqual([fn8]);
+	expect(st).toStrictEqual(earlyFnMigration(fn8));
+	expect(pst).toStrictEqual(earlyFnMigration(fn8));
 
 	const asJson = (value: string | Record<string, unknown>) => typeof value === 'string' ? JSON.parse(value) : value;
 
@@ -612,8 +615,8 @@ test('enum function', async () => {
 		to,
 	});
 
-	expect(st.slice(1)).toStrictEqual([fn9]);
-	expect(pst.slice(1)).toStrictEqual([fn9]);
+	expect(st.slice(2)).toStrictEqual([fn9]);
+	expect(pst.slice(2)).toStrictEqual([fn9]);
 
 	const result = await client.query(`SELECT next_item_status('active');`);
 	expect(result.rows).toStrictEqual([{ next_item_status: 'inactive' }]);
@@ -668,8 +671,8 @@ test('composite type function', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn10]);
-	expect(pst).toStrictEqual([fn10]);
+	expect(st).toStrictEqual(earlyFnMigration(fn10));
+	expect(pst).toStrictEqual(earlyFnMigration(fn10));
 
 	const result = await client.query(`SELECT * FROM make_coordinate(1, 2);`);
 	expect(result.rows).toStrictEqual([{ x: 1, y: 2 }]);
@@ -740,6 +743,45 @@ test('table function', async () => {
 	}]);
 });
 
+test('creates functions before tables that default to them', async () => {
+	const table1 = pgTable('table_1', {
+		id: integer(),
+	});
+
+	const doSomething = pgFunction('do_something', {
+		args: {},
+		returns: text(),
+	})
+		.language('sql')
+		.stable()
+		.as(() => sql`\tSELECT 'Hello'`);
+
+	const table2 = pgTable('table_2', {
+		id: integer(),
+		description: text().default(sql`do_something()`),
+	});
+
+	const to = { table1, doSomething, table2 };
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const fnIdx = st.findIndex((statement) => statement.includes('CREATE FUNCTION "public"."do_something"'));
+	const table2Idx = st.findIndex((statement) => statement.includes('CREATE TABLE "table_2"'));
+
+	expect(st[0]).toBe(checkFunctionBodiesOff);
+	expect(fnIdx).toBeGreaterThanOrEqual(0);
+	expect(table2Idx).toBeGreaterThan(fnIdx);
+	expect(pst).toStrictEqual(st);
+
+	await client.query(`INSERT INTO table_2 (id) VALUES (1);`);
+	const result = await client.query(`SELECT description FROM table_2 WHERE id = 1;`);
+	expect(result.rows).toStrictEqual([{ description: 'Hello' }]);
+});
+
 const fn12 = `CREATE FUNCTION "public"."safe_constant"()
 RETURNS integer
 LANGUAGE sql
@@ -770,8 +812,8 @@ test('safe constant function', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn12]);
-	expect(pst).toStrictEqual([fn12]);
+	expect(st).toStrictEqual(earlyFnMigration(fn12));
+	expect(pst).toStrictEqual(earlyFnMigration(fn12));
 
 	const result = await client.query(`SELECT safe_constant();`);
 	expect(result.rows).toStrictEqual([{ safe_constant: 42 }]);
@@ -812,8 +854,8 @@ test('configured constant function', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn13]);
-	expect(pst).toStrictEqual([fn13]);
+	expect(st).toStrictEqual(earlyFnMigration(fn13));
+	expect(pst).toStrictEqual(earlyFnMigration(fn13));
 
 	const result = await client.query(`SELECT configured_constant();`);
 	expect(result.rows).toStrictEqual([{ configured_constant: 7 }]);
@@ -868,8 +910,8 @@ test('plpgsql function, declare, array variable', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn14]);
-	expect(pst).toStrictEqual([fn14]);
+	expect(st).toStrictEqual(earlyFnMigration(fn14));
+	expect(pst).toStrictEqual(earlyFnMigration(fn14));
 
 	const result = await client.query(`SELECT total_lengths('{Hello,World}');`);
 	expect(result.rows).toStrictEqual([{ total_lengths: 10 }]);
@@ -933,8 +975,10 @@ END;`
 		to,
 	});
 
-	expect(st.slice(1)).toStrictEqual([fn15]);
-	expect(pst.slice(1)).toStrictEqual([fn15]);
+	expect(st.slice(0, 2)).toStrictEqual(earlyFnMigration(fn15));
+	expect(st.at(2)).toMatch(/^CREATE TABLE "items"/);
+	expect(pst.slice(0, 2)).toStrictEqual(earlyFnMigration(fn15));
+	expect(pst.at(2)).toMatch(/^CREATE TABLE "items"/);
 
 	await client.query(`INSERT INTO items (label, quantity) VALUES ('Item 1', 1);`);
 
@@ -977,8 +1021,8 @@ test('plpgsql function, raise notice, void return', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn16]);
-	expect(pst).toStrictEqual([fn16]);
+	expect(st).toStrictEqual(earlyFnMigration(fn16));
+	expect(pst).toStrictEqual(earlyFnMigration(fn16));
 
 	const notices: string[] = [];
 	const result = await client.query(`SELECT emit_notice('Hello, World!');`, [], {
@@ -1043,8 +1087,10 @@ END;`
 		to,
 	});
 
-	expect(st.slice(1)).toStrictEqual([fn17]);
-	expect(pst.slice(1)).toStrictEqual([fn17]);
+	expect(st.slice(0, 2)).toStrictEqual(earlyFnMigration(fn17));
+	expect(st.at(2)).toMatch(/^CREATE TABLE "items"/);
+	expect(pst.slice(0, 2)).toStrictEqual(earlyFnMigration(fn17));
+	expect(pst.at(2)).toMatch(/^CREATE TABLE "items"/);
 
 	await client.query(
 		`CREATE TRIGGER "items_stamp_item" BEFORE INSERT ON "items" FOR EACH ROW EXECUTE FUNCTION "public"."stamp_item"();`,
@@ -1103,8 +1149,8 @@ test('delimiter in function body', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn18]);
-	expect(pst).toStrictEqual([fn18]);
+	expect(st).toStrictEqual(earlyFnMigration(fn18));
+	expect(pst).toStrictEqual(earlyFnMigration(fn18));
 
 	const result = await client.query(`SELECT literal_delimiter();`);
 	expect(result.rows).toStrictEqual([{ literal_delimiter: '$function$ appears inside this body' }]);
@@ -1139,8 +1185,8 @@ test('intentionally forcast delimter', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn19]);
-	expect(pst).toStrictEqual([fn19]);
+	expect(st).toStrictEqual(earlyFnMigration(fn19));
+	expect(pst).toStrictEqual(earlyFnMigration(fn19));
 
 	const result = await client.query(`SELECT intentionally_forcast_delimter();`);
 	expect(result.rows).toStrictEqual([{
@@ -1181,8 +1227,8 @@ test('odd name', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn20]);
-	expect(pst).toStrictEqual([fn20]);
+	expect(st).toStrictEqual(earlyFnMigration(fn20));
+	expect(pst).toStrictEqual(earlyFnMigration(fn20));
 
 	const result = await client.query(`SELECT "odd""name"('Hello, World!');`);
 	expect(result.rows).toStrictEqual([{ 'odd"name': 'Hello, World!' }]);
@@ -1220,8 +1266,8 @@ test('record return', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn21]);
-	expect(pst).toStrictEqual([fn21]);
+	expect(st).toStrictEqual(earlyFnMigration(fn21));
+	expect(pst).toStrictEqual(earlyFnMigration(fn21));
 
 	const result = await client.query(`SELECT * FROM make_record(1) as r(number integer, description text);`);
 	expect(result.rows).toStrictEqual([{ number: 1, description: '1' }]);
@@ -1289,8 +1335,10 @@ test('dynamic sql and formatting', async () => {
 		to,
 	});
 
-	expect(st.slice(1)).toStrictEqual([fn22]);
-	expect(pst.slice(1)).toStrictEqual([fn22]);
+	expect(st.slice(0, 2)).toStrictEqual(earlyFnMigration(fn22));
+	expect(st.at(2)).toMatch(/^CREATE TABLE "items"/);
+	expect(pst.slice(0, 2)).toStrictEqual(earlyFnMigration(fn22));
+	expect(pst.at(2)).toMatch(/^CREATE TABLE "items"/);
 
 	await client.query(`INSERT INTO items (label, quantity) VALUES ('Item 1', 1);`);
 	await client.query(`INSERT INTO items (label, quantity) VALUES ('Item 2', 2);`);
@@ -1330,8 +1378,8 @@ test('read catalog configuration', async () => {
 		to,
 	});
 
-	expect(st).toStrictEqual([fn23]);
-	expect(pst).toStrictEqual([fn23]);
+	expect(st).toStrictEqual(earlyFnMigration(fn23));
+	expect(pst).toStrictEqual(earlyFnMigration(fn23));
 
 	const result = await client.query(`SELECT empty_path_settings();`);
 	expect(result.rows).toStrictEqual([{ empty_path_settings: '""' }]);
@@ -1441,7 +1489,7 @@ describe('overload identity', () => {
 
 		const { sqlStatements: st } = await diff({}, to, []);
 
-		expect(st).toStrictEqual([fn24, fn25]);
+		expect(st).toStrictEqual(earlyFnMigration(fn24, fn25));
 	});
 
 	it('adds only the new overload when the first identity already exists', async () => {
@@ -1450,7 +1498,7 @@ describe('overload identity', () => {
 
 		const { sqlStatements: st } = await diff(from, to, []);
 
-		expect(st).toStrictEqual([fn25]);
+		expect(st).toStrictEqual(earlyFnMigration(fn25));
 	});
 
 	it('replaces the function in place when identity is unchanged', async () => {
@@ -1459,7 +1507,7 @@ describe('overload identity', () => {
 
 		const { sqlStatements: st } = await diff(from, to, []);
 
-		expect(st).toStrictEqual([fn24Replace]);
+		expect(st).toStrictEqual(earlyFnMigration(fn24Replace));
 	});
 });
 
@@ -1504,7 +1552,7 @@ describe('drop and create on identity changes', () => {
 
 		const { sqlStatements: st } = await diff({}, to, []);
 
-		expect(st).toStrictEqual([fn24]);
+		expect(st).toStrictEqual(earlyFnMigration(fn24));
 	});
 
 	it('drops the old function and creates the new one when the export is replaced', async () => {
@@ -1513,7 +1561,7 @@ describe('drop and create on identity changes', () => {
 
 		const { sqlStatements: st } = await diff(from, to, []);
 
-		expect(st).toStrictEqual([fn25, fn24Drop]);
+		expect(st).toStrictEqual(earlyFnMigration(fn25, fn24Drop));
 	});
 
 	it('drops and recreates when argument names change', async () => {
@@ -1522,7 +1570,7 @@ describe('drop and create on identity changes', () => {
 
 		const { sqlStatements: st } = await diff(from, to, []);
 
-		expect(st).toStrictEqual([`${fn24Drop}\n${fn24UpdatedArgs}`]);
+		expect(st).toStrictEqual(earlyFnMigration(`${fn24Drop}\n${fn24UpdatedArgs}`));
 	});
 });
 
@@ -1582,8 +1630,8 @@ describe('attribute drift', async () => {
 			to,
 		});
 
-		expect(st).toStrictEqual([atttributeDriftBaseFn]);
-		expect(pst).toStrictEqual([atttributeDriftBaseFn]);
+		expect(st).toStrictEqual(earlyFnMigration(atttributeDriftBaseFn));
+		expect(pst).toStrictEqual(earlyFnMigration(atttributeDriftBaseFn));
 
 		const result = await client.query(`SELECT base_function('Hello, World!');`);
 		expect(result.rows).toStrictEqual([{ base_function: 'Hello, World!' }]);
@@ -1602,18 +1650,18 @@ describe('attribute drift', async () => {
 			to,
 		});
 
-		expect(st).toStrictEqual([
+		expect(st).toStrictEqual(earlyFnMigration(
 			atttributeDriftBaseFn.replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION').replace(
 				'\tRETURN "base_function"."a_text"::text;',
 				'\tRETURN upper("base_function"."a_text")::text;',
 			),
-		]);
-		expect(pst).toStrictEqual([
+		));
+		expect(pst).toStrictEqual(earlyFnMigration(
 			atttributeDriftBaseFn.replace(
 				'\tRETURN "base_function"."a_text"::text;',
 				'\tRETURN upper("base_function"."a_text")::text;',
 			),
-		]);
+		));
 
 		const result = await client.query(`SELECT base_function('Hello, World!');`);
 		expect(result.rows).toStrictEqual([{ base_function: 'HELLO, WORLD!' }]);
@@ -1628,9 +1676,9 @@ describe('attribute drift', async () => {
 
 		const { sqlStatements: st } = await diff(from, to, []);
 
-		expect(st).toStrictEqual([
+		expect(st).toStrictEqual(earlyFnMigration(
 			atttributeDriftBaseFn.replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION').replace('VOLATILE', 'STABLE'),
-		]);
+		));
 	});
 
 	it('creates or replaces the function when security changes', async () => {
@@ -1642,12 +1690,12 @@ describe('attribute drift', async () => {
 
 		const { sqlStatements: st } = await diff(from, to, []);
 
-		expect(st).toStrictEqual([
+		expect(st).toStrictEqual(earlyFnMigration(
 			atttributeDriftBaseFn.replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION').replace(
 				'SECURITY INVOKER',
 				'SECURITY DEFINER',
 			),
-		]);
+		));
 	});
 
 	it('creates or replaces the function when null input changes', async () => {
@@ -1659,12 +1707,12 @@ describe('attribute drift', async () => {
 
 		const { sqlStatements: st1 } = await diff(from1, to1, []);
 
-		expect(st1).toStrictEqual([
+		expect(st1).toStrictEqual(earlyFnMigration(
 			atttributeDriftBaseFn.replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION').replace(
 				'CALLED ON NULL INPUT',
 				'RETURNS NULL ON NULL INPUT',
 			),
-		]);
+		));
 
 		const fnBefore2 = fnAfter1;
 		const fnAfter2 = baseFunction.strict().as((f) => sql`\tRETURN ${f.args.a_text}::text;`);
@@ -1674,12 +1722,12 @@ describe('attribute drift', async () => {
 
 		const { sqlStatements: st2 } = await diff(from2, to2, []);
 
-		expect(st2).toStrictEqual([
+		expect(st2).toStrictEqual(earlyFnMigration(
 			atttributeDriftBaseFn.replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION').replace(
 				'CALLED ON NULL INPUT',
 				'STRICT',
 			),
-		]);
+		));
 	});
 
 	it('creates or replaces the function when parallel changes', async () => {
@@ -1691,12 +1739,12 @@ describe('attribute drift', async () => {
 
 		const { sqlStatements: st1 } = await diff(from1, to1, []);
 
-		expect(st1).toStrictEqual([
+		expect(st1).toStrictEqual(earlyFnMigration(
 			atttributeDriftBaseFn.replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION').replace(
 				'PARALLEL UNSAFE',
 				'PARALLEL SAFE',
 			),
-		]);
+		));
 
 		const fnBefore2 = fnAfter1;
 		const fnAfter2 = baseFunction.parallelRestricted().as((f) => sql`\tRETURN ${f.args.a_text}::text;`);
@@ -1706,12 +1754,12 @@ describe('attribute drift', async () => {
 
 		const { sqlStatements: st2 } = await diff(from2, to2, []);
 
-		expect(st2).toStrictEqual([
+		expect(st2).toStrictEqual(earlyFnMigration(
 			atttributeDriftBaseFn.replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION').replace(
 				'PARALLEL UNSAFE',
 				'PARALLEL RESTRICTED',
 			),
-		]);
+		));
 	});
 
 	it('creates or replaces the function when search path changes', async () => {
@@ -1723,12 +1771,12 @@ describe('attribute drift', async () => {
 
 		const { sqlStatements: st1 } = await diff(from1, to1, []);
 
-		expect(st1).toStrictEqual([
+		expect(st1).toStrictEqual(earlyFnMigration(
 			atttributeDriftBaseFn.replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION').replace(
 				'SECURITY INVOKER',
 				'SECURITY INVOKER\nSET search_path TO "public"',
 			),
-		]);
+		));
 
 		const fnBefore2 = fnAfter1;
 		const fnAfter2 = baseFunction.searchPath('public', 'other').as((f) => sql`\tRETURN ${f.args.a_text}::text;`);
@@ -1738,12 +1786,12 @@ describe('attribute drift', async () => {
 
 		const { sqlStatements: st2 } = await diff(from2, to2, []);
 
-		expect(st2).toStrictEqual([
+		expect(st2).toStrictEqual(earlyFnMigration(
 			atttributeDriftBaseFn.replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION').replace(
 				'SECURITY INVOKER',
 				'SECURITY INVOKER\nSET search_path TO "public", "other"',
 			),
-		]);
+		));
 	});
 
 	it('creates or replaces the function when configuration changes', async () => {
@@ -1757,12 +1805,12 @@ describe('attribute drift', async () => {
 
 		const { sqlStatements: st1 } = await diff(from1, to1, []);
 
-		expect(st1).toStrictEqual([
+		expect(st1).toStrictEqual(earlyFnMigration(
 			atttributeDriftBaseFn.replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION').replace(
 				'SECURITY INVOKER',
 				'SECURITY INVOKER\nSET "application_name" TO \'my_app\'',
 			),
-		]);
+		));
 
 		const fnBefore2 = fnAfter1;
 		const fnAfter2 = baseFunction.setConfig('query_timeout', 10000).as((f) => sql`\tRETURN ${f.args.a_text}::text;`);
@@ -1772,12 +1820,12 @@ describe('attribute drift', async () => {
 
 		const { sqlStatements: st2 } = await diff(from2, to2, []);
 
-		expect(st2).toStrictEqual([
+		expect(st2).toStrictEqual(earlyFnMigration(
 			atttributeDriftBaseFn.replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION').replace(
 				'SECURITY INVOKER',
 				'SECURITY INVOKER\nSET "application_name" TO \'my_app\'\nSET "query_timeout" TO \'10000\'',
 			),
-		]);
+		));
 	});
 });
 
@@ -1824,8 +1872,8 @@ describe('nested $$', async () => {
 			to,
 		});
 
-		expect(st).toStrictEqual([fn18]);
-		expect(pst).toStrictEqual([fn18]);
+		expect(st).toStrictEqual(earlyFnMigration(fn18));
+		expect(pst).toStrictEqual(earlyFnMigration(fn18));
 
 		const result = await client.query(`SELECT literal_delimiter();`);
 		expect(result.rows).toStrictEqual([{ literal_delimiter: '$function$ appears inside this body' }]);
@@ -1849,8 +1897,8 @@ describe('nested $$', async () => {
 			to,
 		});
 
-		expect(st).toStrictEqual([fn19]);
-		expect(pst).toStrictEqual([fn19]);
+		expect(st).toStrictEqual(earlyFnMigration(fn19));
+		expect(pst).toStrictEqual(earlyFnMigration(fn19));
 
 		const result = await client.query(`SELECT intentionally_forcast_delimter();`);
 		expect(result.rows).toStrictEqual([{
@@ -1938,5 +1986,5 @@ test('multiple functions', async () => {
 
 	const { sqlStatements: st } = await diff({}, to, []);
 
-	expect(st).toStrictEqual([multipleFnTextArgs, multipleFnIntArgs, multipleFnBoolArgs]);
+	expect(st).toStrictEqual(earlyFnMigration(multipleFnTextArgs, multipleFnIntArgs, multipleFnBoolArgs));
 });
