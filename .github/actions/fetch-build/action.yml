@@ -21,4 +21,4 @@ runs:
 
     - if: runner.environment == 'self-hosted'
       shell: bash
-      run: tar -xf "${CI_LOCAL_ARTIFACTS_DIR:-/opt/runners/cache/artifacts}/$GITHUB_RUN_ID/build-dist.tar"
+      run: tar -xf "${CI_LOCAL_ARTIFACTS_DIR:-$HOME/.cache/drizzle-ci/artifacts}/$GITHUB_RUN_ID/build-dist.tar"

@@ -36,7 +36,7 @@ jobs:
         shell: bash
         env:
           TOKEN: ${{ secrets.CI_RUNNERS_TOKEN }}
-          LABEL: ${{ vars.SELF_HOSTED_RUNNER_LABEL || 'beelink' }}
+          LABEL: ${{ vars.SELF_HOSTED_RUNNER_LABEL || 'macOS' }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           hosted='"ubuntu-24.04"'
