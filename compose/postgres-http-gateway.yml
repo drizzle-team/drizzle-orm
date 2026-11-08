@@ -1,6 +1,7 @@
 services:
   postgres-http-gateway:
     image: ghcr.io/drizzle-team/postgres-http-gateway:latest
+    mem_limit: 256m
 
     extra_hosts:
       - "host.docker.internal:host-gateway"

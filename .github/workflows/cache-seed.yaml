@@ -1,0 +1,39 @@
+name: Seed CI caches
+
+# A cache is scoped to the branch that saves it, and a pull request can read only its own caches and
+# those of its base branch. CI runs on pull requests only, so without this workflow base branches hold
+# no caches, and every new pull request downloads Bun and the whole pnpm store cold, in every job.
+# This saves both on the base branches that pull requests target:
+#   - Bun: oven-sh/setup-bun caches the binary under a key derived from its download URL, and saves it
+#     only on a miss. Keep bun-version in step with the CI workflows, or the keys differ.
+#   - pnpm store: .github/actions/pnpm-store, which pull requests only restore.
+on:
+  push:
+    branches: [main, 'rc*']
+  # GitHub evicts a cache that nothing read for 7 days. Scheduled runs use the default branch.
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cache-seed-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  seed:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.4.4 }
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with: { run_install: false }
+      - uses: actions/setup-node@v7
+        with: { node-version: '24' }
+      - uses: ./.github/actions/pnpm-store
+        with: { save: 'true' }
+      - run: pnpm install --frozen-lockfile --prefer-offline

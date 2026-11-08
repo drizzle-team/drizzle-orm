@@ -1,6 +1,7 @@
 services:
   aws-data-api:
     image: koxudaxi/local-data-api:0.6.12
+    mem_limit: 1g
 
     extra_hosts:
       - "host.docker.internal:host-gateway"

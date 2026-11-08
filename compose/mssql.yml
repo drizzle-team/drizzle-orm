@@ -1,9 +1,12 @@
 services:
   mssql:
     image: mcr.microsoft.com/azure-sql-edge:latest
+    mem_limit: 3g
     environment:
       ACCEPT_EULA: "1"
       MSSQL_SA_PASSWORD: "drizzle123PASSWORD!"
+      # SQL Server otherwise grows its buffer pool towards most of the host RAM; mem_limit leaves it headroom.
+      MSSQL_MEMORY_LIMIT_MB: "2048"
       TZ: UTC
     ports:
       - "1433:1433"

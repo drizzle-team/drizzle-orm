@@ -1,0 +1,35 @@
+name: pnpm store cache
+description: >-
+  Restores the pnpm store. Pull requests only restore it: a cache is scoped to the branch that saves it,
+  and a ~740 MB store saved by every pull request kept the repository at its 10 GB cache limit, which
+  evicted the base-branch caches every pull request should share. Base branches save it in
+  cache-seed.yaml (save: 'true'). Needs pnpm on PATH (pnpm/action-setup) and a checkout.
+
+inputs:
+  save:
+    description: Also save the store when the key missed. Only cache-seed.yaml sets it.
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - id: store
+      shell: bash
+      run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+    # A changed lockfile misses the exact key and falls back to the newest store of the base branch,
+    # so pnpm install only fetches the difference.
+    - if: inputs.save != 'true'
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ steps.store.outputs.path }}
+        key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: pnpm-store-${{ runner.os }}-${{ runner.arch }}-
+
+    - if: inputs.save == 'true'
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.store.outputs.path }}
+        key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: pnpm-store-${{ runner.os }}-${{ runner.arch }}-

@@ -1,6 +1,7 @@
 services: 
   postgres-postgis:
     image: postgis/postgis:16-3.4
+    mem_limit: 1g
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

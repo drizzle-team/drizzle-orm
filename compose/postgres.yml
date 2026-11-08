@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:17-alpine # change to 18-alpine when ready
+    mem_limit: 1g
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

@@ -98,7 +98,8 @@ jobs:
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
       - uses: actions/setup-node@v7
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
+      - uses: ./.github/actions/pnpm-store
       - run: pnpm install --frozen-lockfile --prefer-offline
       - name: Compute version suffix
         id: meta
@@ -200,7 +201,8 @@ jobs:
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
       - uses: actions/setup-node@v7
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
+      - uses: ./.github/actions/pnpm-store
       - run: pnpm install --frozen-lockfile --prefer-offline
 
       # Fork PRs get no secrets and skip the hosted databases.
@@ -395,7 +397,8 @@ jobs:
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
       - uses: actions/setup-node@v7
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
+      - uses: ./.github/actions/pnpm-store
       - run: pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
@@ -424,7 +427,8 @@ jobs:
       - uses: pnpm/action-setup@v6
         with: { run_install: false }
       - uses: actions/setup-node@v7
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
+      - uses: ./.github/actions/pnpm-store
       - run: pnpm fetch && pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
@@ -471,7 +475,8 @@ jobs:
         with: { node-version: '${{ matrix.node-version }}' }
       - run: echo "CONSUMER_NODE=$(which node)" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v7
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
+      - uses: ./.github/actions/pnpm-store
       - run: pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
@@ -510,7 +515,9 @@ jobs:
         with: { run_install: false }
       - if: github.event_name == 'pull_request'
         uses: actions/setup-node@v7
-        with: { node-version: '24', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+        with: { node-version: '24' }
+      - if: github.event_name == 'pull_request'
+        uses: ./.github/actions/pnpm-store
       - name: Skills revision gate
         if: github.event_name == 'pull_request'
         working-directory: drizzle-kit

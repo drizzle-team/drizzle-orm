@@ -1,10 +1,11 @@
 services:
   cockroach0:
     image: cockroachdb/cockroach:v25.2.0
+    mem_limit: 3g
     command: start-single-node --insecure --store=type=mem,size=2GiB
     ports:
       - "26260:26257"
-      - "8081:8080"
+      - "18081:8080" # web console
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 26257"]
       interval: 2s
@@ -13,10 +14,11 @@ services:
 
   cockroach1:
     image: cockroachdb/cockroach:v25.2.0
+    mem_limit: 3g
     command: start-single-node --insecure --store=type=mem,size=2GiB
     ports:
       - "26261:26257"
-      - "8082:8080"
+      - "18082:8080" # web console
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 26257"]
       interval: 2s
@@ -25,10 +27,11 @@ services:
 
   cockroach2:
     image: cockroachdb/cockroach:v25.2.0
+    mem_limit: 3g
     command: start-single-node --insecure --store=type=mem,size=2GiB
     ports:
       - "26262:26257"
-      - "8083:8080"
+      - "18083:8080" # web console
     healthcheck:
       test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 26257"]
       interval: 2s
