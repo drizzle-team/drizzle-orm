@@ -1,3 +1,4 @@
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import { PGlite } from '@electric-sql/pglite';
 import { is } from 'drizzle-orm';
 import { PgRole } from 'drizzle-orm/pg-core';
@@ -34,7 +35,6 @@ import { reconstruct, startingState } from 'src/dialects/postgres/reconstruct';
 import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import { expect, onTestFinished, vi } from 'vitest';
 import { writeSnapshot } from '../other/check-fixtures';
-import { freshPGlite } from '../pglite';
 import { type PostgresSchema, push } from './mocks';
 
 // This file holds helpers that run the real postgres CLI commands on temporary migrations folders.

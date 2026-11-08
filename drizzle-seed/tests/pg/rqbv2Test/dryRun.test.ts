@@ -1,4 +1,4 @@
-import { PGlite } from '@electric-sql/pglite';
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import { sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { boolean, foreignKey, integer, pgTable, text, varchar } from 'drizzle-orm/pg-core';
@@ -62,7 +62,7 @@ const cyclicDdl = [
 ];
 
 const makeDb = async (ddl: typeof acyclicDdl, relations?: any) => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 	const db = relations === undefined ? drizzle({ client }) : drizzle({ client, relations });
 	for (const query of ddl) await db.execute(query);
 

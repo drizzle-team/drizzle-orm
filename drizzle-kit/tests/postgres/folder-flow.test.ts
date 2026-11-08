@@ -1,9 +1,9 @@
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import { PGlite } from '@electric-sql/pglite';
 import { index, integer, pgTable, primaryKey, text, unique, varchar } from 'drizzle-orm/pg-core';
 import { errorToEnvelope } from 'src/cli/errors';
 import { expect, onTestFinished, test } from 'vitest';
 import { ORIGIN } from '../other/check-fixtures';
-import { freshPGlite } from '../pglite';
 import {
 	columnRow,
 	createFolderFlow,

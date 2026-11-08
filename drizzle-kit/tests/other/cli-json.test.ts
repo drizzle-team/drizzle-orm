@@ -1,3 +1,4 @@
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import { PGlite } from '@electric-sql/pglite';
 import { createClient as createLibsqlClient } from '@libsql/client';
 import BetterSqlite3 from 'better-sqlite3';
@@ -19,7 +20,6 @@ import {
 	fromExports as sqliteFromExports,
 	SchemaSource as SqliteSchemaSource,
 } from '../../src/dialects/sqlite/drizzle';
-import { freshPGlite } from '../pglite';
 import {
 	ORIGIN as _ORIGIN,
 	stageConflict as _stageConflict,

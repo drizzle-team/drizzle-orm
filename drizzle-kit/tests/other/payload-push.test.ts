@@ -1,3 +1,4 @@
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import type { Database } from 'better-sqlite3';
 import BetterSqlite3 from 'better-sqlite3';
 import { integer, pgTable } from 'drizzle-orm/pg-core';
@@ -6,7 +7,6 @@ import { integer as sqliteInteger, sqliteTable, text as sqliteText } from 'drizz
 import { pushSchema as pgPush } from 'src/ext/api-postgres';
 import { pushSchema as sqlitePush } from 'src/payload/sqlite';
 import { expect, test } from 'vitest';
-import { freshPGlite } from '../pglite';
 
 // This file must not import `tests/sqlite/mocks`. That module loads `zx/globals`, and `pushSchema` must work in a
 // process that does not have those globals.

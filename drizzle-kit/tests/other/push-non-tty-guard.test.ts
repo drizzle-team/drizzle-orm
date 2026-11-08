@@ -1,3 +1,4 @@
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import BetterSqlite3 from 'better-sqlite3';
 import { afterEach, expect, test, vi } from 'vitest';
 import { HintsHandler } from '../../src/cli/hints';
@@ -6,7 +7,6 @@ import {
 	fromExports as sqliteFromExports,
 	SchemaSource as SqliteSchemaSource,
 } from '../../src/dialects/sqlite/drizzle';
-import { freshPGlite } from '../pglite';
 
 const runWithCliContext = async <T>(
 	context: { output: 'text' | 'json'; interactive: boolean },

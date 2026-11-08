@@ -4,7 +4,8 @@
 	"private": true,
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./pglite": "./src/pglite.ts"
 	},
 	"scripts": {
 		"build": "echo skip...",
@@ -14,6 +15,15 @@
 		"test:types": "tsc"
 	},
 	"devDependencies": {
-		"@types/node": "^25.4.0"
+		"@types/node": "^25.4.0",
+		"@electric-sql/pglite": "^0.5.15"
+	},
+	"peerDependencies": {
+		"@electric-sql/pglite": "*"
+	},
+	"peerDependenciesMeta": {
+		"@electric-sql/pglite": {
+			"optional": true
+		}
 	}
 }

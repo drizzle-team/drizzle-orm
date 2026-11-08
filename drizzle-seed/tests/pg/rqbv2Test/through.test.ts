@@ -1,4 +1,4 @@
-import { PGlite } from '@electric-sql/pglite';
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import type { SQL } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
@@ -19,7 +19,7 @@ const relationShapes = (schema: { [key: string]: PgTable }, relations: AnyRelati
 		);
 
 const createDb = async (ddl: SQL[], relations: AnyRelations) => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 	const db = drizzle({ client, relations });
 	for (const query of ddl) await db.execute(query);
 

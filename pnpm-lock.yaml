@@ -1132,6 +1132,9 @@ importers:
 
   test-utils:
     devDependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.5.15
+        version: 0.5.15
       '@types/node':
         specifier: ^25.4.0
         version: 25.5.0

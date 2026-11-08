@@ -1,3 +1,4 @@
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import { integer, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -6,7 +7,6 @@ import { errorToEnvelope } from 'src/cli/errors';
 import { prepareOutFolder } from 'src/utils/utils-node';
 import { expect, onTestFinished, test } from 'vitest';
 import { ORIGIN, writeSnapshot } from '../other/check-fixtures';
-import { freshPGlite } from '../pglite';
 import { createFolderFlow, forkFlow, schemaState, step, tempDir } from './folder-flow';
 
 // Verifies how the postgres commands handle a damaged migrations folder. A deleted middle or first migration,
