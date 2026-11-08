@@ -1,6 +1,7 @@
 services:
   singlestore:
     image: ghcr.io/singlestore-labs/singlestoredb-dev:0.2.67
+    platform: linux/amd64 # no arm64 build: ARM hosts (Apple silicon, OrbStack runners) run it emulated
     environment:
       ROOT_PASSWORD: singlestore
       TZ: UTC

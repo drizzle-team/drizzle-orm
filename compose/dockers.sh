@@ -58,6 +58,12 @@ _compose() {
 
 _up_one() {
   local dialect="$1"
+  # A CI runner slot (CI_PORT_OFFSET set) first removes what a canceled or killed job on the same slot left
+  # behind: its containers keep the ports, and its networks use up Docker's address pools, which every runner on
+  # the machine shares. Never locally, where the default projects hold a developer's data.
+  if [ "$CI_PORT_OFFSET" -ne 0 ]; then
+    _compose "$dialect" down -v --remove-orphans >/dev/null 2>&1 || true
+  fi
   # Readiness is compose/wait.sh's probe from the host, not `up --wait`: some images' own healthchecks call
   # tools they do not ship (nc in cockroach and azure-sql-edge), so those containers never report healthy.
   _compose "$dialect" up -d

@@ -1,6 +1,7 @@
 services: 
   postgres-postgis:
     image: postgis/postgis:16-3.4
+    platform: linux/amd64 # no arm64 build: ARM hosts (Apple silicon, OrbStack runners) run it emulated
     mem_limit: 1g
     environment:
       POSTGRES_USER: postgres
