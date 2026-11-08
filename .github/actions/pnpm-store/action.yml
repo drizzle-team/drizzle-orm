@@ -16,8 +16,19 @@ inputs:
 runs:
   using: composite
   steps:
-    # A self-hosted machine keeps its pnpm store between jobs, so it is already warm; restoring a 740 MB archive
-    # into that store from several jobs at once would only race. GitHub-hosted runners start empty.
+    # A self-hosted machine keeps one pnpm store for all its runner instances and jobs, so it is warm after the
+    # first install and native builds come from its side-effects cache; restoring a 740 MB archive into it from
+    # several jobs at once would only race. The store has to be named here: pnpm's default is $PNPM_HOME/store,
+    # and pnpm/action-setup points PNPM_HOME into the job's runner.temp, which is emptied after every job.
+    # pnpm writes the store content-addressed and atomically, so concurrent installs can share it.
+    - if: runner.environment == 'self-hosted'
+      shell: bash
+      run: |
+        store="${CI_PNPM_STORE_DIR:-$HOME/.cache/drizzle-ci/pnpm-store}"
+        echo "npm_config_store_dir=$store" >> "$GITHUB_ENV"
+        echo "pnpm store: $store"
+
+    # GitHub-hosted runners start empty.
     - id: store
       if: runner.environment != 'self-hosted'
       shell: bash
