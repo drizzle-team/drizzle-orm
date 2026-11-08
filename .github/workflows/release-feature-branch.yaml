@@ -328,11 +328,6 @@ jobs:
     permissions: { contents: read, actions: read }
     runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 20
-    strategy:
-      matrix:
-        # The consumer projects run on each of these versions. 20.19.0 and 22.12.0 are the oldest versions in the
-        # engines range, where require() of ESM works without a flag. vitest needs a newer Node, so it runs on Node 24.
-        node-version: ['20.19.0', '22.12.0', 'lts/*', 'latest']
     steps:
       - uses: actions/checkout@v7
         # Self-hosted: keep node_modules between jobs; setup-pnpm removes everything else untracked.
@@ -340,9 +335,23 @@ jobs:
           clean: ${{ runner.environment != 'self-hosted' }}
       - uses: ./.github/actions/runner-slot
       - uses: ./.github/actions/setup-pnpm
+      # The consumer projects run on each of these Nodes, in one job: the test packs and installs once, runs once what
+      # needs no consumer Node, and once on each version what does (CONSUMER_NODES). 20.19.0 and 22.12.0 are the
+      # oldest versions in the engines range, where require() of ESM works without a flag.
       - uses: actions/setup-node@v7
-        with: { node-version: '${{ matrix.node-version }}' }
-      - run: echo "CONSUMER_NODE=$(which node)" >> "$GITHUB_ENV"
+        with: { node-version: '20.19.0' }
+      - run: echo "$(node --version)=$(which node)" >> "$RUNNER_TEMP/consumer-nodes"
+      - uses: actions/setup-node@v7
+        with: { node-version: '22.12.0' }
+      - run: echo "$(node --version)=$(which node)" >> "$RUNNER_TEMP/consumer-nodes"
+      - uses: actions/setup-node@v7
+        with: { node-version: 'lts/*' }
+      - run: echo "$(node --version)=$(which node)" >> "$RUNNER_TEMP/consumer-nodes"
+      - uses: actions/setup-node@v7
+        with: { node-version: 'latest' }
+      - run: echo "$(node --version)=$(which node)" >> "$RUNNER_TEMP/consumer-nodes"
+      - run: echo "CONSUMER_NODES=$(paste -sd ';' "$RUNNER_TEMP/consumer-nodes")" >> "$GITHUB_ENV"
+      # vitest needs a newer Node than the oldest versions.
       - uses: actions/setup-node@v7
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
       - uses: ./.github/actions/pnpm-store
@@ -359,13 +368,13 @@ jobs:
         working-directory: integration-tests
         run: |
           source ../compose/ports.sh
-          # The test npm-installs the packed tarballs into fresh consumer projects, five times per job: on a self-hosted
+          # The test npm-installs the packed tarballs into five fresh consumer projects: on a self-hosted
           # machine from one npm cache that all runner instances share (concurrent installs are safe on it), taken
           # before the registry.
           if [ "$RUNNER_ENVIRONMENT" = self-hosted ]; then export npm_config_cache="$HOME/.cache/drizzle-ci/npm"; fi
           export npm_config_prefer_offline=true
-          # This job's database (dockers.sh created it): on a self-hosted machine the Postgres server is shared, and
-          # the packed-orm jobs of other Node versions push and pull the same tables at the same time.
+          # This job's database (dockers.sh created it): on a self-hosted machine the Postgres server is shared with
+          # other jobs.
           PG_CONNECTION_STRING="postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES}/${DRIZZLE_TEST_DB_PREFIX}drizzle" pnpm --stream test:packed
       - name: Stop Postgres
         if: ${{ always() && runner.environment == 'self-hosted' }}

@@ -21,9 +21,16 @@ const nodeTypeRoots = resolve(import.meta.dirname, '../../node_modules/@types');
 
 const connectionString = optionalEnv('PG_CONNECTION_STRING', composeHint('postgres'));
 
-// The Node that runs the consumer projects. CI sets it from the matrix of Node versions, because vitest
-// needs a newer Node than the oldest versions in the engines range.
-const consumerNode = process.env['CONSUMER_NODE'] || 'node';
+// The Nodes that run the consumer projects, as `<version>=<path>` joined by `;`: CI sets up the oldest versions in
+// the engines range and the newest, and vitest itself runs on another, newer than the oldest. The packing, the
+// installs and the tests that run no consumer Node run once; the tests that do, once on each version.
+const consumerNodes = (process.env['CONSUMER_NODES'] ?? `${process.version}=${process.env['CONSUMER_NODE'] || 'node'}`)
+	.split(';')
+	.filter(Boolean)
+	.map((entry) => {
+		const [version, path] = entry.split('=');
+		return { version: version!, path: path! };
+	});
 
 const bothDirections = { firstIsSecond: true, secondIsFirst: true };
 const instanceofInBothDirections = {
@@ -142,7 +149,9 @@ async function typeCheck(file: string, cwd: string): Promise<string> {
 }
 
 const runtimes: Record<string, (cwd: string) => Promise<string>> = {
-	node: (cwd) => runScript(consumerNode, ['main.js'], cwd),
+	...Object.fromEntries(
+		consumerNodes.map(({ version, path }) => [`node ${version}`, (cwd: string) => runScript(path, ['main.js'], cwd)]),
+	),
 	bun: (cwd) => runScript('bun', ['main.js'], cwd),
 	deno: (cwd) => runScript('deno', ['run', '--allow-all', 'main.js'], cwd),
 	workerd: runWorker,
@@ -164,28 +173,31 @@ describe.skipIf(!connectionString)('packed drizzle-orm with its bundled copy of 
 		expect(JSON.parse(output)).toEqual([{ value: 'ok' }]);
 	});
 
-	test('require() loads drizzle-orm and runs a query', async () => {
-		const output = await runScript(consumerNode, ['require.cjs'], consumer());
+	test.for(consumerNodes)('require() loads drizzle-orm and runs a query on Node $version', async ({ path }) => {
+		const output = await runScript(path, ['require.cjs'], consumer());
 		expect(JSON.parse(output)).toEqual([{ value: 'ok' }]);
 	});
 
-	test('drizzle-orm/postgres and drizzle-orm/postgres/client/geometry expose the bundled copy', async () => {
-		const output = await runScript(consumerNode, ['postgres.js'], consumer());
-		expect(JSON.parse(output)).toEqual({
-			isPgError: true,
-			code: '22012',
-			point: { type: 'Point', coordinates: [1, 2] },
-		});
-	});
+	test.for(consumerNodes)(
+		'drizzle-orm/postgres and drizzle-orm/postgres/client/geometry expose the bundled copy on Node $version',
+		async ({ path }) => {
+			const output = await runScript(path, ['postgres.js'], consumer());
+			expect(JSON.parse(output)).toEqual({
+				isPgError: true,
+				code: '22012',
+				point: { type: 'Point', coordinates: [1, 2] },
+			});
+		},
+	);
 });
 
 const kitBin = 'node_modules/drizzle-kit/bin.js';
 
-async function pushAndPull(cwd: string, config = 'drizzle.config.ts') {
-	await runScript(consumerNode, ['reset.js'], cwd);
+async function pushAndPull(node: string, cwd: string, config = 'drizzle.config.ts') {
+	await runScript(node, ['reset.js'], cwd);
 	rmSync(join(cwd, 'drizzle'), { recursive: true, force: true });
-	const push = await runScript(consumerNode, [kitBin, 'push', '--config', config], cwd);
-	const pull = await runScript(consumerNode, [kitBin, 'pull', '--config', config], cwd);
+	const push = await runScript(node, [kitBin, 'push', '--config', config], cwd);
+	const pull = await runScript(node, [kitBin, 'pull', '--config', config], cwd);
 	return { push, pull, pulledSchema: readFileSync(join(cwd, 'drizzle/schema.ts'), 'utf8') };
 }
 
@@ -203,35 +215,47 @@ describe.skipIf(!connectionString)('packed drizzle-kit with packed drizzle-orm a
 		expect(existsSync(join(consumer(), 'node_modules/@drizzle-team/postgres'))).toBe(false);
 	});
 
-	test('drizzle-kit push and pull connect through drizzle-orm/postgres', async () => {
-		expectPostgresPushAndPull(await pushAndPull(consumer()));
-	});
+	test.for(consumerNodes)(
+		'drizzle-kit push and pull connect through drizzle-orm/postgres on Node $version',
+		async ({ path }) => {
+			expectPostgresPushAndPull(await pushAndPull(path, consumer()));
+		},
+	);
 
-	test('require() loads drizzle-kit/api-postgres and generates a migration', async () => {
-		const output = await runScript(consumerNode, ['require.cjs'], consumer());
-		expect(JSON.parse(output)).toEqual([expect.stringContaining('CREATE TABLE "users"')]);
-	});
+	test.for(consumerNodes)(
+		'require() loads drizzle-kit/api-postgres and generates a migration on Node $version',
+		async ({ path }) => {
+			const output = await runScript(path, ['require.cjs'], consumer());
+			expect(JSON.parse(output)).toEqual([expect.stringContaining('CREATE TABLE "users"')]);
+		},
+	);
 
-	test('a CommonJS config that requires drizzle-orm reports the Node range without require(esm)', async () => {
-		const failure = await exec(
-			consumerNode,
-			['--no-experimental-require-module', kitBin, 'generate', '--config', 'require-esm.config.cjs'],
-			{ cwd: consumer() },
-		).catch((error) => error);
-		const kitPackage = JSON.parse(readFileSync(join(consumer(), 'node_modules/drizzle-kit/package.json'), 'utf8'));
-		expect(`${failure.stdout ?? ''}${failure.stderr ?? ''}`).toContain(
-			`drizzle-kit requires Node.js ${kitPackage.engines.node}`,
-		);
-	});
+	test.for(consumerNodes)(
+		'a CommonJS config that requires drizzle-orm reports the Node range without require(esm) on Node $version',
+		async ({ path }) => {
+			const failure = await exec(
+				path,
+				['--no-experimental-require-module', kitBin, 'generate', '--config', 'require-esm.config.cjs'],
+				{ cwd: consumer() },
+			).catch((error) => error);
+			const kitPackage = JSON.parse(readFileSync(join(consumer(), 'node_modules/drizzle-kit/package.json'), 'utf8'));
+			expect(`${failure.stdout ?? ''}${failure.stderr ?? ''}`).toContain(
+				`drizzle-kit requires Node.js ${kitPackage.engines.node}`,
+			);
+		},
+	);
 
-	test('drizzle-kit skills version prints the revision of the shipped skills', async () => {
-		const revision = readSkillsRevisionFromDisk(join(consumer(), 'node_modules/drizzle-kit/skills'));
-		expect(await runScript(consumerNode, [kitBin, 'skills', 'version'], consumer())).toBe(`${revision}\n`);
-	});
+	test.for(consumerNodes)(
+		'drizzle-kit skills version prints the revision of the shipped skills on Node $version',
+		async ({ path }) => {
+			const revision = readSkillsRevisionFromDisk(join(consumer(), 'node_modules/drizzle-kit/skills'));
+			expect(await runScript(path, [kitBin, 'skills', 'version'], consumer())).toBe(`${revision}\n`);
+		},
+	);
 
-	test('drizzle-kit skills installs the shipped skills', async () => {
+	test.for(consumerNodes)('drizzle-kit skills installs the shipped skills on Node $version', async ({ path }) => {
 		// Without a TTY, the skills CLI installs without a prompt only when it detects an agent.
-		await exec(consumerNode, [kitBin, 'skills'], { cwd: consumer(), env: { ...process.env, AI_AGENT: 'opencode' } });
+		await exec(path, [kitBin, 'skills'], { cwd: consumer(), env: { ...process.env, AI_AGENT: 'opencode' } });
 		expect(existsSync(join(consumer(), '.agents/skills/drizzle/SKILL.md'))).toBe(true);
 	}, 180_000);
 });
@@ -244,14 +268,17 @@ describe.skipIf(!connectionString)(
 			return [await pack(ormDist), await pack(kitDist), await pack(postgresDir)];
 		});
 
-		test('drizzle-kit push and pull query through the pool from dbCredentials.client', async () => {
-			const { push, pull, pulledSchema } = await pushAndPull(consumer(), 'client.config.ts');
-			expect(push).toContain('Using the Drizzle Postgres pool from dbCredentials.client');
-			expect(pull).toContain('Using the Drizzle Postgres pool from dbCredentials.client');
-			expect(push).not.toContain(`Using 'drizzle-orm/postgres' driver`);
-			expect(pulledSchema).toContain('packed_kit');
-			expect(pulledSchema).toContain('users');
-		});
+		test.for(consumerNodes)(
+			'drizzle-kit push and pull query through the pool from dbCredentials.client on Node $version',
+			async ({ path }) => {
+				const { push, pull, pulledSchema } = await pushAndPull(path, consumer(), 'client.config.ts');
+				expect(push).toContain('Using the Drizzle Postgres pool from dbCredentials.client');
+				expect(pull).toContain('Using the Drizzle Postgres pool from dbCredentials.client');
+				expect(push).not.toContain(`Using 'drizzle-orm/postgres' driver`);
+				expect(pulledSchema).toContain('packed_kit');
+				expect(pulledSchema).toContain('users');
+			},
+		);
 	},
 );
 
