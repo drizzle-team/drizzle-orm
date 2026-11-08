@@ -269,6 +269,38 @@ export function procedure<TParams extends PgProcedureParams, TReturn extends PgP
 	return procedureWithSchema(name, params, body, undefined);
 }
 
+/** The call signature of {@link procedure} (and of `pgSchema(...).procedure`). */
+export type PgProcedureFn = <TParams extends PgProcedureParams, TReturn extends PgProcedureReturn = void>(
+	name: string,
+	params: TParams,
+	body: PgProcedureBody<TParams, TReturn>,
+) => PgProcedure<TParams, TReturn>;
+
+/**
+ * A procedure drizzle-kit cannot represent as `procedure(...)` source — e.g. `LANGUAGE sql`, OUT parameters,
+ * overloaded names or constructs outside the DSL. `drizzle-kit pull` emits one per such procedure, holding its
+ * definition as the database reports it. drizzle-kit never compiles, creates, alters or drops it: declaring it
+ * only records that the procedure exists and is managed outside drizzle.
+ */
+export class PgUnsupportedProcedure {
+	static readonly [entityKind]: string = 'PgUnsupportedProcedure';
+	static [Symbol.hasInstance](value: unknown): boolean {
+		return is(value, this);
+	}
+
+	constructor(readonly definition: string) {}
+}
+
+/**
+ * Marks a procedure drizzle-kit should leave alone; see {@link PgUnsupportedProcedure}. The schema and name are
+ * read from the definition (`CREATE [OR REPLACE] PROCEDURE schema.name(...)`).
+ */
+procedure.unsupported = (definition: string): PgUnsupportedProcedure => new PgUnsupportedProcedure(definition);
+
+export function isPgUnsupportedProcedure(obj: unknown): obj is PgUnsupportedProcedure {
+	return is(obj, PgUnsupportedProcedure);
+}
+
 /** @internal */
 export function procedureWithSchema<TParams extends PgProcedureParams, TReturn extends PgProcedureReturn = void>(
 	name: string,

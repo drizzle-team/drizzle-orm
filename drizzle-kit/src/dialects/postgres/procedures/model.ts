@@ -124,6 +124,60 @@ export async function compileProcedureFiles(
 /** Unquoted procedure names fold to lowercase, so the declared name matches the compiled one folded. */
 const procedureKey = (schema: string | undefined, name: string) => `${schema ?? 'public'}.${name.toLowerCase()}`;
 
+// ── unsupported procedures ───────────────────────────────────────────────────
+
+/** A procedure drizzle-kit cannot represent as `procedure(...)` source; pulled as `procedure.unsupported(...)`. */
+export interface UnsupportedProcedure {
+	schema: string;
+	name: string;
+	/** A full CREATE PROCEDURE statement. */
+	definition: string;
+	/** What exactly is not supported — printed above the pulled declaration. */
+	reason: string;
+}
+
+const IDENT_PART = String.raw`(?:"((?:[^"]|"")+)"|([A-Za-z_][A-Za-z0-9_$]*))`;
+const DEFINITION_HEADER = new RegExp(
+	String.raw`^\s*CREATE\s+(?:OR\s+REPLACE\s+)?PROCEDURE\s+(?:${IDENT_PART}\s*\.\s*)?${IDENT_PART}\s*\(`,
+	'i',
+);
+
+/**
+ * The (schema, name) a `procedure.unsupported(definition)` declares, read from its CREATE PROCEDURE header.
+ * Unquoted names fold to lowercase; an unqualified name is in public. Undefined when the header is unreadable.
+ */
+export function unsupportedProcedureKey(definition: string): { schema: string; name: string } | undefined {
+	const m = definition.match(DEFINITION_HEADER);
+	if (!m) return undefined;
+	const ident = (quoted: string | undefined, bare: string | undefined) =>
+		quoted !== undefined ? quoted.replaceAll('""', '"') : bare?.toLowerCase();
+	return { schema: ident(m[1], m[2]) ?? 'public', name: ident(m[3], m[4])! };
+}
+
+/**
+ * What pull does with introspected procedures: the ones that decompile exactly become `procedure(...)` source;
+ * the rest join the already-unsupported ones (overloads, foreign parameter lists) as `procedure.unsupported(...)`.
+ */
+export function splitPulledProcedures<T extends ProcedureDef>(
+	procedures: T[],
+	unsupported: UnsupportedProcedure[] = [],
+	/** The database's own definitions (`schema.name` → `pg_get_functiondef()`), shown for unsupported ones. */
+	definitions: Record<string, string> = {},
+): { supported: T[]; unsupported: UnsupportedProcedure[] } {
+	const supported: T[] = [];
+	const all = [...unsupported];
+	for (const it of procedures) {
+		const pulled = pullProcedure(it);
+		if (pulled.ok) supported.push(it);
+		else {
+			const definition = definitions[`${it.schema}.${it.name}`] ?? createProcedureSql(it);
+			all.push({ schema: it.schema, name: it.name, definition, reason: pulled.reason });
+		}
+	}
+	all.sort((a, b) => a.schema.localeCompare(b.schema) || a.name.localeCompare(b.name));
+	return { supported, unsupported: all };
+}
+
 // ── pull ─────────────────────────────────────────────────────────────────────
 
 export type PulledProcedure =

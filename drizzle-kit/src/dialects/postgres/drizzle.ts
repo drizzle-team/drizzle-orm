@@ -72,7 +72,7 @@ import {
 	trimDefaultValueSuffix,
 	typeFor,
 } from './grammar';
-import { compileProcedureFiles, type ProcedureDef } from './procedures/model';
+import { compileProcedureFiles, type ProcedureDef, unsupportedProcedureKey } from './procedures/model';
 
 export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 	const mappedTo = !policy.to
@@ -241,6 +241,7 @@ export const fromDrizzleSchema = (
 		views: PgView[];
 		matViews: PgMaterializedView[];
 		procedures?: ProcedureEntity[];
+		unsupportedProcedures?: UnsupportedProcedureEntity[];
 		/** Compiled from the schema files; undefined when the schema was not loaded from files. */
 		compiledProcedures?: ProcedureDef[];
 		procedureErrors?: string[];
@@ -692,6 +693,14 @@ export const fromDrizzleSchema = (
 	} else if (schema.procedures && schema.procedures.length > 0) {
 		errors.push({ type: 'procedure_source_unavailable', names: schema.procedures.map((it) => it.name) });
 	}
+	for (const it of schema.unsupportedProcedures ?? []) {
+		const key = unsupportedProcedureKey(it.definition);
+		if (!key) {
+			errors.push({ type: 'procedure_unsupported_invalid', definition: it.definition.slice(0, 80) });
+		} else if (res.procedures.some((p) => p.schema === key.schema && p.name === key.name)) {
+			errors.push({ type: 'procedure_name_duplicate', schema: key.schema, name: key.name });
+		}
+	}
 
 	for (const view of combinedViews) {
 		if (view.isExisting || !filter({ type: 'table', schema: view.schema ?? 'public', name: view.name })) continue;
@@ -819,11 +828,16 @@ export const fromExports = (exports: Record<string, unknown>) => {
 	const matViews: PgMaterializedView[] = [];
 	const relations: Relations[] = [];
 	const procedures: ProcedureEntity[] = [];
+	const unsupportedProcedures: UnsupportedProcedureEntity[] = [];
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
 		if (isProcedureEntity(t)) {
 			procedures.push(t);
+			return;
+		}
+		if (entityKindOf(t) === 'PgUnsupportedProcedure') {
+			unsupportedProcedures.push(t as UnsupportedProcedureEntity);
 			return;
 		}
 		if (isPgEnum(t)) {
@@ -874,6 +888,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 		policies,
 		relations,
 		procedures,
+		unsupportedProcedures,
 	};
 };
 
@@ -886,9 +901,17 @@ export interface ProcedureEntity {
 	schema: string | undefined;
 }
 
-const isProcedureEntity = (value: unknown): value is ProcedureEntity =>
+/** A `procedure.unsupported(definition)` declaration (drizzle-orm's `PgUnsupportedProcedure`). */
+export interface UnsupportedProcedureEntity {
+	definition: string;
+}
+
+const entityKindOf = (value: unknown): string | undefined =>
 	typeof value === 'object' && value !== null
-	&& (value.constructor as { [entityKind]?: string } | undefined)?.[entityKind] === 'PgProcedure';
+		? (value.constructor as { [entityKind]?: string } | undefined)?.[entityKind]
+		: undefined;
+
+const isProcedureEntity = (value: unknown): value is ProcedureEntity => entityKindOf(value) === 'PgProcedure';
 
 export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const tables: AnyPgTable[] = [];
@@ -901,6 +924,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const matViews: PgMaterializedView[] = [];
 	const relations: Relations[] = [];
 	const procedures: ProcedureEntity[] = [];
+	const unsupportedProcedures: UnsupportedProcedureEntity[] = [];
 	const procedureFiles: Parameters<typeof compileProcedureFiles>[0] = [];
 
 	for (let i = 0; i < imports.length; i++) {
@@ -909,6 +933,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		const i0: Record<string, unknown> = await loadModule(it);
 		const prepared = fromExports(i0);
 		procedures.push(...prepared.procedures);
+		unsupportedProcedures.push(...prepared.unsupportedProcedures);
 		if (prepared.procedures.length > 0) {
 			procedureFiles.push({ path: it, exports: i0, exported: prepared.procedures });
 		}
@@ -935,6 +960,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		policies,
 		relations,
 		procedures,
+		unsupportedProcedures,
 		// Procedure bodies are compiled from their TypeScript source — only possible here, where the files are known.
 		...(procedureFiles.length > 0
 			? await compileProcedureFiles(procedureFiles, (path) => loadModule(path)).then((it) => ({

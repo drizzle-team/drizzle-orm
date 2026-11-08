@@ -67,3 +67,9 @@ const called = effectDb.call(transfer, { from: 1, amount: 30 });
 Expect<Equal<{ newBalance: number | bigint | string; note: string }, Effect.Success<typeof called>>>();
 // @ts-expect-error - required argument missing
 effectDb.call(transfer, { from: 1 });
+
+// Procedures drizzle-kit leaves alone: just the definition, never callable.
+const legacy = procedure.unsupported('CREATE OR REPLACE PROCEDURE public.legacy() LANGUAGE sql AS $$ SELECT 1 $$');
+Expect<Equal<string, typeof legacy.definition>>();
+// @ts-expect-error - unsupported procedures are not callable through db.call
+db.call(legacy);
