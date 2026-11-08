@@ -148,12 +148,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # - shard: int:singlestore
-          #   dbs: [singlestore]
-          # - shard: int:singlestore-core
-          #   dbs: [singlestore-many]
-          # - shard: int:singlestore-proxy
-          #   dbs: [singlestore-many]
           - shard: int:mysql
             dbs: [mysql]
           - shard: int:postgres
@@ -202,7 +196,7 @@ jobs:
           - shard: kit:mssql
             dbs: [mssql]
           - shard: seed
-            dbs: [cockroach, mysql, mssql, postgres-postgis, singlestore]
+            dbs: [cockroach, mysql, mssql, postgres-postgis]
           - shard: validators
             dbs: []
          

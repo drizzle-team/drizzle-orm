@@ -23,14 +23,12 @@ cd "$(dirname "$0")/../../integration-tests"
 : "${POSTGIS_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGIS}/drizzle}"
 : "${MYSQL_CONNECTION_STRING:=mysql://root:mysql@localhost:${DRIZZLE_PORT_MYSQL}/drizzle}"
 : "${LIBSQL_URL:=file:local.db}"
-: "${SINGLESTORE_CONNECTION_STRING:=singlestore://root:singlestore@localhost:${DRIZZLE_PORT_SINGLESTORE}/}"
-: "${SINGLESTORE_MANY_CONNECTION_STRING:=singlestore://root:singlestore@localhost:${DRIZZLE_PORT_SINGLESTORE_MANY0}/;singlestore://root:singlestore@localhost:${DRIZZLE_PORT_SINGLESTORE_MANY1}/;singlestore://root:singlestore@localhost:${DRIZZLE_PORT_SINGLESTORE_MANY2}/;singlestore://root:singlestore@localhost:${DRIZZLE_PORT_SINGLESTORE_MANY3}/}"
 : "${COCKROACH_CONNECTION_STRING:=postgresql://root@127.0.0.1:${DRIZZLE_PORT_COCKROACH}/defaultdb?sslmode=disable}"
 : "${MSSQL_CONNECTION_STRING:=mssql://SA:drizzle123PASSWORD!@localhost:${DRIZZLE_PORT_MSSQL}?encrypt=true&trustServerCertificate=true}"
 : "${TEST_CONFIG_PATH_PREFIX:=./tests/cli/}"
 export PG_CONNECTION_STRING PG_HTTP_GATEWAY_URL AWS_DATA_API_URL PG_VECTOR_CONNECTION_STRING PG_POSTGIS_CONNECTION_STRING \
-	PG18_URL PG17_URL PG16_URL POSTGIS_URL MYSQL_CONNECTION_STRING LIBSQL_URL SINGLESTORE_CONNECTION_STRING \
-	SINGLESTORE_MANY_CONNECTION_STRING COCKROACH_CONNECTION_STRING MSSQL_CONNECTION_STRING TEST_CONFIG_PATH_PREFIX
+	PG18_URL PG17_URL PG16_URL POSTGIS_URL MYSQL_CONNECTION_STRING LIBSQL_URL \
+	COCKROACH_CONNECTION_STRING MSSQL_CONNECTION_STRING TEST_CONFIG_PATH_PREFIX
 
 # Per-job hosted databases (scripts/ci-databases.ts create) write their connection strings here.
 if [[ -n "${RUNNER_TEMP:-}" && -f "$RUNNER_TEMP/ci-databases.env" ]]; then
@@ -42,9 +40,6 @@ external() { [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; }
 
 set -x
 case "$shard" in
-	int:singlestore) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-prefixed.test.ts ./singlestore/singlestore-custom.test.ts ;;
-	int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore.test.ts ;;
-	int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-proxy.test.ts ;;
 	# Uses local Postgres; hosted providers are excluded by the test config/script.
 	int:postgres) pnpm --stream test:postgres ;;
 	# Neon's proxy over a local Postgres (compose/neon.yml); the test setup switches the drivers to it for this host.

@@ -36,6 +36,51 @@ wait_till_ready() {
   return 1
 }
 
+# Docker's port forwarding accepts a connection on the published port as soon as the container starts, before the
+# database inside listens (always so for CI runners that reach a shared Docker through its socket), so a port check
+# from here proves nothing about the server. This waits until every published port of the dialect's containers is in
+# LISTEN inside the container's own network namespace: database images listen on TCP only for the final server,
+# after their init scripts ran against a socket-only one.
+# A container's /proc/net/<table>: through the image's own cat, or busybox's in the container's network namespace
+# for images without one. Empty when the table does not exist (tcp6 with IPv6 off).
+proc_net() {
+  docker exec "$1" cat "/proc/net/$2" 2>/dev/null \
+    || docker run --rm --network "container:$1" busybox:1.37 cat "/proc/net/$2" 2>/dev/null || true
+}
+
+wait_listening() {
+  dialect="$1"; tries="${2:-180}"
+  project="drizzle-${dialect}${DRIZZLE_COMPOSE_SUFFIX}"
+  for cid in $(docker ps -q --filter "label=com.docker.compose.project=$project"); do
+    name="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.service"}}' "$cid")"
+    for port in $(docker port "$cid" | sed -n 's#^\([0-9]*\)/tcp.*#\1#p' | sort -u); do
+      hex="$(printf '%04X' "$port")"
+      for i in $(seq 1 "$tries"); do
+        tcp="$(proc_net "$cid" tcp; proc_net "$cid" tcp6)"
+        if awk -v p=":$hex" '$2 ~ p"$" && $4 == "0A" { found = 1 } END { exit !found }' <<<"$tcp"; then
+          echo "$name listens on $port in its container"
+          continue 2
+        fi
+        sleep 1
+      done
+      echo "Timed out waiting for $name to listen on $port" >&2
+      return 1
+    done
+  done
+}
+
+# Waits for a line in a compose service's log.
+wait_log() {
+  dialect="$1"; service="$2"; pattern="$3"; tries="${4:-180}"
+  cid="$(docker ps -q --filter "label=com.docker.compose.project=drizzle-${dialect}${DRIZZLE_COMPOSE_SUFFIX}" --filter "label=com.docker.compose.service=$service" | head -n 1)"
+  for i in $(seq 1 "$tries"); do
+    if docker logs "$cid" 2>&1 | grep -q "$pattern"; then echo "$service: $pattern"; return 0; fi
+    sleep 1
+  done
+  echo "Timed out waiting for '$pattern' in $service's log" >&2
+  return 1
+}
+
 for db in "$@"; do
   case "$db" in
     postgres)             wait_tcp 127.0.0.1 "$DRIZZLE_PORT_POSTGRES" "postgres" ;;
@@ -57,7 +102,8 @@ for db in "$@"; do
         wait_tcp 127.0.0.1 "${!port_var}" "singlestore-$i"
       done
       ;;
-    mssql)                wait_tcp 127.0.0.1 "$DRIZZLE_PORT_MSSQL" "mssql" ;;
+    # SQL Server listens a moment before it has recovered its system databases; logins fail until then.
+    mssql)                wait_tcp 127.0.0.1 "$DRIZZLE_PORT_MSSQL" "mssql"; wait_log mssql mssql "Recovery is complete" ;;
     cockroach)            wait_tcp 127.0.0.1 "$DRIZZLE_PORT_COCKROACH" "cockroach" ;;
     cockroach-many)
       for i in 0 1 2; do
@@ -67,4 +113,5 @@ for db in "$@"; do
       ;;
     *) echo "Unknown db '$db'" >&2; exit 1 ;;
   esac
+  wait_listening "$db"
 done
