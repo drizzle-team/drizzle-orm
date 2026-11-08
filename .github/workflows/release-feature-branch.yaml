@@ -157,8 +157,7 @@ jobs:
           - shard: int:postgres
             dbs: [postgres, postgres-http-gateway, aws-data-api]
           - shard: int:neon
-            dbs: []
-            cloud: [neon, netlify]
+            dbs: [neon]
           - shard: int:sqlite
             dbs: []
             cloud: [sqlitecloud]
@@ -232,35 +231,11 @@ jobs:
           TURSO_GROUP: ${{ secrets.TURSO_GROUP }}
         run: pnpm exec tsx scripts/ci-databases.ts create --job "${{ matrix.shard }}" ${{ join(matrix.cloud, ' ') }}
 
+      # One compose project per dialect: postgres16/17/18.yml all name their service `postgres`, so merging them
+      # into one project left a single container.
       - name: Start DBs needed by shard (pre-warm)
         if: ${{ matrix.dbs && join(matrix.dbs, ',') != '' }}
-        shell: bash
-        run: |
-          set -euxo pipefail
-          
-          compose_files=()
-          for db in ${{ join(matrix.dbs, ' ') }}; do
-            case "$db" in
-              postgres)            compose_files+=("-f" "compose/postgres.yml") ;;
-              postgres-http-gateway) compose_files+=("-f" "compose/postgres-http-gateway.yml") ;;
-              aws-data-api)        compose_files+=("-f" "compose/aws-data-api.yml") ;;
-              postgres-postgis)    compose_files+=("-f" "compose/postgres-postgis.yml") ;;
-              postgres-vector)     compose_files+=("-f" "compose/postgres-vector.yml") ;;
-              postgres18)          compose_files+=("-f" "compose/postgres18.yml") ;;
-              postgres17)          compose_files+=("-f" "compose/postgres17.yml") ;;
-              postgres16)          compose_files+=("-f" "compose/postgres16.yml") ;;
-              mysql)               compose_files+=("-f" "compose/mysql.yml") ;;
-              singlestore)         compose_files+=("-f" "compose/singlestore.yml") ;;
-              singlestore-many)    compose_files+=("-f" "compose/singlestore-many.yml") ;;
-              mssql)               compose_files+=("-f" "compose/mssql.yml") ;;
-              cockroach)           compose_files+=("-f" "compose/cockroach.yml") ;;
-              *) echo "Unknown db '$db'"; exit 1 ;;
-            esac
-          done
-          docker compose "${compose_files[@]}" up -d
-
-          chmod +x compose/wait.sh
-          compose/wait.sh ${{ join(matrix.dbs, ' ') }}
+        run: bash compose/dockers.sh up ${{ join(matrix.dbs, ' ') }}
 
       - name: Wait for prepare's build-dist
         uses: ./.github/actions/wait-for-prepare
@@ -289,103 +264,21 @@ jobs:
         with: { bun-version: 1.4.4 }
       - name: Run tests
         env:
-          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
-          PG_HTTP_GATEWAY_URL: http://localhost:8080/query
-          AWS_DATA_API_URL: http://localhost:8081
-          PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
-          PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
-          PG18_URL: postgres://postgres:postgres@localhost:54325/drizzle
-          PG17_URL: postgres://postgres:postgres@localhost:54324/drizzle
-          PG16_URL: postgres://postgres:postgres@localhost:54323/drizzle
-          POSTGIS_URL: postgres://postgres:postgres@localhost:54322/drizzle
-          MYSQL_CONNECTION_STRING: mysql://root:mysql@localhost:3306/drizzle
+          # Fork pull requests get no secrets: skip the shards that need hosted databases.
+          SKIP_EXTERNAL_DB_TESTS: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && '1' || '' }}
           PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
           TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
           XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
           XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
-          LIBSQL_URL: file:local.db
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
           TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
           TURSODATABASE_REMOTE_TOKEN: ${{ secrets.TURSODATABASE_REMOTE_TOKEN }}
-          SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
-          SINGLESTORE_MANY_CONNECTION_STRING: singlestore://root:singlestore@localhost:3308/;singlestore://root:singlestore@localhost:3309/;singlestore://root:singlestore@localhost:3310/;singlestore://root:singlestore@localhost:3311/
-          COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
-          MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true
-          TEST_CONFIG_PATH_PREFIX: ./tests/cli/
           SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
           SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
           NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
-        working-directory: integration-tests
-        shell: bash
-        run: |
-          set -euxo pipefail
-          if [[ -f "$RUNNER_TEMP/ci-databases.env" ]]; then
-            set +x
-            source "$RUNNER_TEMP/ci-databases.env"
-            set -x
-          fi
-          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
-            export SKIP_EXTERNAL_DB_TESTS=1
-          fi
-          case ${{ matrix.shard }} in
-            int:singlestore) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-prefixed.test.ts ./singlestore/singlestore-custom.test.ts ;;
-            int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore.test.ts ;;
-            int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-proxy.test.ts ;;
-            int:postgres)
-              # Uses local Postgres; hosted providers are excluded by the test config/script.
-              pnpm --stream test:postgres
-            ;;
-            int:neon)
-              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream test:neon
-              fi
-            ;;
-            int:mysql)
-              pnpm --stream test:mysql
-            ;;
-            int:tidb)
-              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream vitest --reporter=verbose --silent=false tests/mysql/tidb
-              fi
-            ;;
-            int:planetscale)
-              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream test:planetscale
-              fi
-            ;;
-            int:cockroach) pnpm --stream test:cockroach ;;
-            int:cockroach-rqb) pnpm --stream test:cockroach-rqb ;;
-            int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
-            int:sqlite) pnpm --stream test:sqlite ;;
-            int:turso-serverless) 
-              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream vitest --reporter=verbose --silent=false --test-timeout=200000 --hook-timeout=200000 run tests/sqlite/tursodatabase-serverless.test.ts 
-              fi
-            ;;
-            kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
-            kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
-            kit:postgres18) cd ../drizzle-kit && PG_VERSION=18 pnpm --stream run test:postgres ;;
-            kit:postgres17) cd ../drizzle-kit && PG_VERSION=17 pnpm --stream run test:postgres ;;
-            kit:postgres16) cd ../drizzle-kit && PG_VERSION=16 pnpm --stream run test:postgres ;;
-            kit:cockroach) cd ../drizzle-kit && pnpm --stream run test:cockroach ;;
-            kit:mssql) cd ../drizzle-kit && pnpm --stream run test:mssql ;;
-            validators)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/validators
-            ;;
-            orm|seed)
-              (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
-            ;;
-            
-            int:bun)  bun test ./tests/bun/ ;;
-
-            int:seeder) pnpm --stream test:seeder ;;
-            int:imports) pnpm --stream test:imports ;;
-            int:other) pnpm --stream test:other ;;
-
-            *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
-          esac
+        run: bash .github/ci/run-shard.sh "${{ matrix.shard }}"
 
       - name: Drop this job's hosted databases
         if: ${{ always() && steps.hosted-databases.outcome != 'skipped' }}

@@ -1,0 +1,31 @@
+# Neon's own proxy over a local Postgres: the Neon serverless drivers' HTTP (/sql) and WebSocket (/v1) protocols
+# on localhost:4444, so the Neon test suites run without the network. Connection strings use the host
+# db.localtest.me (public DNS for 127.0.0.1), which the proxy routes by; the test setup switches the drivers to
+# this endpoint for that host and creates each test's database on first use (tests/pg/instrumentation.ts).
+# https://github.com/TimoWilhelm/local-neon-http-proxy
+services:
+  neon-postgres:
+    image: postgres:17-alpine
+    mem_limit: 1g
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: main
+      TZ: UTC
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d main"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  neon-proxy:
+    # main, pinned: a third-party image that runs in CI.
+    image: ghcr.io/timowilhelm/local-neon-http-proxy@sha256:cd2ae14edf2feafbc3330492de5c80506f77274c3bd013154cdef697bdeb768a
+    mem_limit: 512m
+    environment:
+      PG_CONNECTION_STRING: postgres://postgres:postgres@neon-postgres:5432/main
+    ports:
+      - "4444:4444"
+    depends_on:
+      neon-postgres:
+        condition: service_healthy

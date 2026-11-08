@@ -70,6 +70,52 @@ export type PostgresSchema = Record<
 
 neonConfig.webSocketConstructor = ws;
 
+// compose/neon.yml runs Neon's proxy over a local Postgres, reached as host db.localtest.me: HTTP and WebSocket
+// in plain text on port 4444. Connection strings with that host switch every Neon driver to it.
+const LOCAL_NEON_HOST = 'db.localtest.me';
+const isLocalNeon = (connectionString: string | undefined) =>
+	!!connectionString && new URL(connectionString).hostname === LOCAL_NEON_HOST;
+const localNeonFetchEndpoint = (host: string) => `http://${host}:4444/sql`;
+const localNeonWsProxy = (host: string) => `${host}:4444/v1`;
+if (isLocalNeon(process.env['NEON_CONNECTION_STRING']) || isLocalNeon(process.env['NETLIFY_DB_URL'])) {
+	neonConfig.fetchEndpoint = localNeonFetchEndpoint;
+	neonConfig.wsProxy = localNeonWsProxy;
+	neonConfig.useSecureWebSocket = false;
+}
+
+// The local proxy sits on a plain Postgres, so a test's database is created on first use: suites and concurrent
+// workers each get their own, whatever their names. On Neon itself CI creates them through the API.
+const ensuredLocalNeonDatabases = new Set<string>();
+const ensureLocalNeonDatabase = async (url: URL) => {
+	if (!isLocalNeon(url.toString())) return;
+	const database = decodeURIComponent(url.pathname.slice(1));
+	if (!database || ensuredLocalNeonDatabases.has(database)) return;
+
+	const admin = new URL(url);
+	admin.pathname = '/main';
+	const pool = new NeonPool({ connectionString: admin.toString(), max: 1 });
+	try {
+		for (let attempt = 1;; attempt++) {
+			try {
+				await pool.query(`CREATE DATABASE "${database.replaceAll('"', '""')}"`);
+				break;
+			} catch (error) {
+				const code = (error as { code?: string }).code;
+				if (code === '42P04') break; // duplicate_database: another worker created it first
+				// object_in_use: concurrent CREATE DATABASE commands can briefly contend for template1
+				if (code === '55006' && attempt < 10) {
+					await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
+					continue;
+				}
+				throw error;
+			}
+		}
+	} finally {
+		await pool.end();
+	}
+	ensuredLocalNeonDatabases.add(database);
+};
+
 // TODO: @L-Mario564 we need this rule only for drizzle-orm package
 // oxlint-disable-next-line drizzle-internal/require-entity-kind
 export class TestCache extends Cache {
@@ -227,6 +273,7 @@ export const prepareNeonHttpClient = async (name: string) => {
 	const db = hostedDatabase(name);
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
+	await ensureLocalNeonDatabase(url);
 	const client = neon(url.toString());
 
 	await resetSchemas(async (sql) => await client(sql) as any[]);
@@ -280,6 +327,7 @@ export const prepareNeonWsClient = async (name: string) => {
 	const db = hostedDatabase(name);
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
+	await ensureLocalNeonDatabase(url);
 	const client = new NeonPool({ connectionString: url.toString(), max: 1 });
 
 	await resetSchemas(async (sql) => (await client.query(sql)).rows);
@@ -301,7 +349,12 @@ export const preparePostgresNeonWsClient = async (name: string) => {
 	const db = hostedDatabase(name);
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
-	const client = createPostgresNeonWsPool({ url: url.toString(), max: 1 });
+	await ensureLocalNeonDatabase(url);
+	const client = createPostgresNeonWsPool({
+		url: url.toString(),
+		max: 1,
+		...(isLocalNeon(url.toString()) && { wsProxy: localNeonWsProxy, secure: false }),
+	});
 
 	await resetSchemas(async (sql) => (await client.query(sql)).rows as any[]);
 	await client.query(`SET TIME ZONE 'UTC';`);
@@ -322,7 +375,11 @@ export const preparePostgresNeonHttpClient = async (name: string) => {
 	const db = hostedDatabase(name);
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${db}`;
-	const client = createPostgresNeonHttpClient({ url: url.toString() });
+	await ensureLocalNeonDatabase(url);
+	const client = createPostgresNeonHttpClient({
+		url: url.toString(),
+		...(isLocalNeon(url.toString()) && { fetchEndpoint: localNeonFetchEndpoint }),
+	});
 
 	await resetSchemas(async (sql) => (await client.query(sql, [])).rows as any[]);
 	await client.query(`SET TIME ZONE 'UTC';`, []);
@@ -453,6 +510,7 @@ export const prepareNetlifyDb = async (name: string) => {
 	const db = hostedDatabase(name);
 	const url = new URL(process.env['NETLIFY_DB_URL']!);
 	url.pathname = `/${db}`;
+	await ensureLocalNeonDatabase(url);
 	const conStr = url.toString();
 	const client: ServerlessDrizzleClient = {
 		driver: 'serverless',

@@ -38,6 +38,7 @@ for db in "$@"; do
     postgres)             wait_tcp 127.0.0.1 55433 "postgres" ;;
     postgres-http-gateway) wait_tcp 127.0.0.1 8080  "postgres-http-gateway" ;;
     aws-data-api)         wait_tcp 127.0.0.1 8081  "aws-data-api" ;;
+    neon)                 wait_tcp 127.0.0.1 4444  "neon-proxy" ;;
     postgres-postgis)     wait_tcp 127.0.0.1 54322 "postgres" ;;
     postgres-vector)      wait_tcp 127.0.0.1 54321 "postgres" ;;
     postgres18)           wait_tcp 127.0.0.1 54325 "postgres" ;;
@@ -59,7 +60,6 @@ for db in "$@"; do
         wait_tcp 127.0.0.1 "$i" "cockroach-$((i-26260))"
       done
       ;;
-    neon)                 wait_tcp 127.0.0.1 5446  "neon-serverless" ;;
     *) echo "Unknown db '$db'" >&2; exit 1 ;;
   esac
 done

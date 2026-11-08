@@ -17,6 +17,7 @@ ALL_DIALECTS=(
   singlestore-many
   postgres-http-gateway
   aws-data-api
+  neon
 )
 
 _resolve_compose_file() {
@@ -36,6 +37,7 @@ _resolve_compose_file() {
     singlestore-many) echo "singlestore-many.yml" ;;
     postgres-http-gateway) echo "postgres-http-gateway.yml" ;;
     aws-data-api)     echo "aws-data-api.yml" ;;
+    neon)             echo "neon.yml" ;;
     *)
       echo "Unknown dialect '$1'. Valid dialects: ${ALL_DIALECTS[*]}" >&2
       return 1
@@ -79,10 +81,17 @@ cmd_up() {
   else
     _validate_all "$@"
   fi
-  local dialect
+  # Dialects start in parallel; up returns once every one is healthy, and fails if any did not come up.
+  local dialect pids=() failed=0
   for dialect in "$@"; do
-    _up_one "$dialect"
+    _up_one "$dialect" &
+    pids+=("$!")
   done
+  local pid
+  for pid in "${pids[@]}"; do
+    wait "$pid" || failed=1
+  done
+  return "$failed"
 }
 
 cmd_down() {
@@ -131,7 +140,7 @@ cmd_help() {
 Usage: bash compose/dockers.sh <subcommand> [<dialect> ...]
 
 Subcommands:
-  up    [<dialect> ...]   Start dialect(s) via docker compose, then gate on compose/wait.sh.
+  up    [<dialect> ...]   Start dialect(s) in parallel via docker compose, then gate on compose/wait.sh.
                           With no args, starts every supported dialect.
   down  [<dialect> ...]   Tear down dialect(s) with 'down -v' (volumes wiped).
                           With no args, tears down every supported dialect.
