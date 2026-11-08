@@ -800,12 +800,17 @@ export class PgEffectDatabase<
 	call<TProcedure extends PgProcedure<any, any>>(
 		procedure: TProcedure,
 		...args: PgProcedureCallParams<TProcedure>
-	): Effect.Effect<TProcedure['_']['result'], TEffectHKT['error'], TEffectHKT['context']> {
-		const query = procedure.getCallSQL((args[0] ?? {}) as Record<string, unknown>);
-		return Effect.map(
-			this.execute<Record<string, unknown>>(query, 'objects'),
-			(rows) => rows[0] as TProcedure['_']['result'],
+	): PgEffectRaw<TProcedure['_']['result'], TEffectHKT> {
+		const sequel = procedure.getCallSQL((args[0] ?? {}) as Record<string, unknown>);
+		const builtQuery = this.dialect.sqlToQuery(sequel);
+		// CALL yields one row of the INOUT result parameters, or none for a procedure that returns nothing.
+		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: TProcedure['_']['result'] }>(
+			builtQuery,
+			'objects',
+			false,
+			(rows) => rows[0],
 		);
+		return new PgEffectRaw(prepared, sequel, builtQuery);
 	}
 
 	transaction<A, E, R>(

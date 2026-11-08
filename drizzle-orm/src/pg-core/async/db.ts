@@ -778,13 +778,20 @@ export class BasePgAsyncDatabase<
 	 * const { newBalance } = await db.call(transfer, { from: 1, to: 2, amount: 30 });
 	 * ```
 	 */
-	async call<TProcedure extends PgProcedure<any, any>>(
+	call<TProcedure extends PgProcedure<any, any>>(
 		procedure: TProcedure,
 		...args: PgProcedureCallParams<TProcedure>
-	): Promise<TProcedure['_']['result']> {
-		const query = procedure.getCallSQL((args[0] ?? {}) as Record<string, unknown>);
-		const rows = await this.execute<Record<string, unknown>>(query, 'objects');
-		return rows[0] as TProcedure['_']['result'];
+	): PgAsyncRaw<TProcedure['_']['result']> {
+		const sequel = procedure.getCallSQL((args[0] ?? {}) as Record<string, unknown>);
+		const builtQuery = this.dialect.sqlToQuery(sequel);
+		// CALL yields one row of the INOUT result parameters, or none for a procedure that returns nothing.
+		const prepared = this.session.prepareQuery<PreparedQueryConfig & { execute: TProcedure['_']['result'] }>(
+			builtQuery,
+			'objects',
+			false,
+			(rows) => rows[0],
+		);
+		return new PgAsyncRaw(prepared, sequel, builtQuery);
 	}
 }
 
