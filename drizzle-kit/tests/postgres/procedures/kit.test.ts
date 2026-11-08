@@ -8,7 +8,7 @@ import { interimToDDL } from 'src/dialects/postgres/ddl';
 import { ddlDiffDry } from 'src/dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles, SchemaSource } from 'src/dialects/postgres/drizzle';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
-import { pullProcedure } from 'src/dialects/postgres/procedures/model';
+import { pullProcedure, splitPulledProcedures } from 'src/dialects/postgres/procedures/model';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { tsc } from 'tests/utils';
@@ -200,9 +200,14 @@ const pull = async () => {
 		schema: 'drizzle',
 		table: '__drizzle_migrations',
 	});
-	schema.procedures = schema.procedures.filter((it) => pullProcedure(it).ok);
+	const { supported, unsupported } = splitPulledProcedures(
+		schema.procedures,
+		schema.unsupportedProcedures,
+		schema.procedureDefinitions,
+	);
+	schema.procedures = supported;
 	const { ddl } = interimToDDL(schema);
-	return { ddl, file: ddlToTypeScript(ddl, schema.viewColumns, 'camel').file };
+	return { ddl, unsupported, file: ddlToTypeScript(ddl, schema.viewColumns, 'camel', unsupported).file };
 };
 
 test('pull: pulled procedures compile back to the same definitions', async () => {
@@ -216,14 +221,54 @@ test('pull: pulled procedures compile back to the same definitions', async () =>
 	expect(sqlStatements).toStrictEqual([]);
 });
 
-test('pull: procedures outside the DSL are left out', async () => {
+test('pull: procedures outside the DSL are pulled as unsupported, with the reason', async () => {
 	await db.query(`CREATE PROCEDURE "native"(a integer) LANGUAGE sql AS $$ SELECT 1 $$`);
+	await db.query(`CREATE PROCEDURE "twice"(a integer) LANGUAGE plpgsql AS $$ BEGIN END $$`);
+	await db.query(`CREATE PROCEDURE "twice"(a text) LANGUAGE plpgsql AS $$ BEGIN END $$`);
+	// INOUT without DEFAULT NULL is outside the DSL; the body exercises template-literal escaping.
+	await db.query(
+		'CREATE PROCEDURE "weird"(INOUT x integer) LANGUAGE plpgsql AS $$ BEGIN RAISE NOTICE \'`${x}` \\\\ done\'; END $$',
+	);
 
 	const pulled = await pull();
 
 	expect(pulled.ddl.procedures.list()).toStrictEqual([]);
-	expect(pullProcedure({ schema: 'public', name: 'native', params: 'a integer', body: ' SELECT 1 ', language: 'sql' }))
-		.toMatchObject({ ok: false, reason: 'LANGUAGE sql — only plpgsql is supported' });
+	expect(pulled.unsupported.map((it) => [it.name, it.reason])).toStrictEqual([
+		['native', 'LANGUAGE sql — only plpgsql is supported'],
+		['twice', 'overloaded name — procedure() declares one signature per name'],
+		['twice', 'overloaded name — procedure() declares one signature per name'],
+		['weird', 'INOUT parameters must be DEFAULT NULL result parameters'],
+	]);
+	expect(pulled.file).toContain(
+		'// procedure "public"."native" is not supported: LANGUAGE sql — only plpgsql is supported\n'
+			+ 'export const native = procedure.unsupported(`CREATE OR REPLACE PROCEDURE public.native(IN a integer)',
+	);
+	expect(pulled.file).toContain('export const twice = procedure.unsupported(');
+	expect(pulled.file).toContain('export const twice2 = procedure.unsupported(');
+	await tsc(pulled.file);
+
+	// The pulled file loads back with the exact definitions, and they are not part of the diffed schema.
+	const file = path.join(tmpDir, `schema_${process.pid}_${fileCounter++}.ts`);
+	writeFileSync(file, pulled.file);
+	const { weird, native } = await import(file);
+	expect(weird.definition).toBe(pulled.unsupported.find((it) => it.name === 'weird')!.definition);
+	expect(native.definition).toContain('LANGUAGE sql');
+	const { sqlStatements } = await ddlDiffDry(pulled.ddl, await schemaDDL(pulled.file), 'push');
+	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('procedure.unsupported: unreadable definitions and double declarations are schema errors', async () => {
+	const unreadable = await loadSchema(`
+import { procedure } from 'drizzle-orm/pg-core';
+export const x = procedure.unsupported('SELECT 1');
+`);
+	expect(unreadable.errors).toStrictEqual([{ type: 'procedure_unsupported_invalid', definition: 'SELECT 1' }]);
+
+	const twice = await loadSchema(
+		tables + guarded
+			+ `export const legacy = procedure.unsupported('CREATE PROCEDURE public.transfer() LANGUAGE sql AS $$ $$');\n`,
+	);
+	expect(twice.errors).toStrictEqual([{ type: 'procedure_name_duplicate', schema: 'public', name: 'transfer' }]);
 });
 
 const pushCommand = async (client: PGlite, source: string) => {
@@ -256,6 +301,20 @@ test('push command: database procedures are left alone while the schema declares
 	await pushCommand(client, tables);
 
 	expect(await procedureNames(client)).toStrictEqual(['native']);
+	await client.close();
+});
+
+test('push command: procedures declared unsupported are kept', async () => {
+	const client = new PGlite();
+	await client.query(`CREATE PROCEDURE "native"(a integer) LANGUAGE sql AS $$ SELECT 1 $$`);
+
+	await pushCommand(
+		client,
+		tables + guarded
+			+ `export const native = procedure.unsupported(\`CREATE OR REPLACE PROCEDURE public.native(a integer) LANGUAGE sql AS $$ SELECT 1 $$\`);\n`,
+	);
+
+	expect(await procedureNames(client)).toStrictEqual(['native', 'transfer']);
 	await client.close();
 });
 

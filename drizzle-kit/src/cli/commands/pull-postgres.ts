@@ -23,7 +23,7 @@ import { createDDL, interimToDDL, postgresToRelationsPull } from '../../dialects
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { assertHistory, readEntries } from '../../dialects/postgres/folder';
 import { fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
-import { pullProcedure } from '../../dialects/postgres/procedures/model';
+import { splitPulledProcedures } from '../../dialects/postgres/procedures/model';
 import { toJsonBaseSnapshot } from '../../dialects/postgres/snapshot';
 import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/typescript';
 import type { EntityFilter } from '../../dialects/pull-utils';
@@ -87,16 +87,17 @@ export const handle = async (
 		res = await fromDatabaseForDrizzle(db, entityFilter, () => {}, migrations);
 	}
 
-	// TODO: do not drop unsupported procedures from the pulled schema. Emit them as an explicit opaque entity,
-	// e.g. `procedure.unsupported(sql`...`)` holding the raw definition, with a comment above it saying what
-	// exactly is not supported (LANGUAGE sql, OUT parameters, a construct outside the DSL, ...). drizzle-kit would
-	// then fetch and track them, but never compile, alter or drop them.
-	// A procedure is pulled only when its source compiles back to the exact database definition. The rest stay
-	// out of the schema and the snapshot, so a later generate does not drop them as "removed".
-	const skippedProcedures = res.procedures.map(pullProcedure).filter((it) => !it.ok);
-	res.procedures = res.procedures.filter((it) => !skippedProcedures.some((s) => s.def === it));
-	for (const it of skippedProcedures) {
-		humanLog(withStyle.warning(`Procedure "${it.def.schema}"."${it.def.name}" was not pulled: ${it.reason}`));
+	// A procedure becomes `procedure(...)` source only when it compiles back to the exact database definition.
+	// The rest are pulled as `procedure.unsupported(...)`: declared, so the schema says they exist, but never
+	// compiled, altered or dropped — and kept out of the snapshot, which only holds procedures drizzle manages.
+	const { supported, unsupported: unsupportedProcedures } = splitPulledProcedures(
+		res.procedures,
+		res.unsupportedProcedures,
+		res.procedureDefinitions,
+	);
+	res.procedures = supported;
+	for (const it of unsupportedProcedures) {
+		humanLog(withStyle.warning(`Procedure "${it.schema}"."${it.name}" is pulled as unsupported: ${it.reason}`));
 	}
 
 	const { ddl: ddl2, errors } = interimToDDL(res);
@@ -107,7 +108,7 @@ export const handle = async (
 		});
 	}
 
-	const ts = postgresSchemaToTypeScript(ddl2, res.viewColumns, casing);
+	const ts = postgresSchemaToTypeScript(ddl2, res.viewColumns, casing, unsupportedProcedures);
 	const relationsTs = relationsToTypeScript(postgresToRelationsPull(ddl2), casing);
 
 	const schemaFile = join(out, 'schema.ts');

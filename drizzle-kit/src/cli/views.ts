@@ -1038,6 +1038,14 @@ export const postgresSchemaError = (error: PostgresSchemaError): string => {
 		return withStyle.errorWarning(`Procedures failed to compile:\n\n${error.message}`);
 	}
 
+	if (error.type === 'procedure_unsupported_invalid') {
+		return withStyle.errorWarning(
+			`procedure.unsupported() needs a CREATE PROCEDURE statement naming the procedure, got: ${
+				chalk.underline.blue(error.definition)
+			}`,
+		);
+	}
+
 	if (error.type === 'procedure_source_unavailable') {
 		const names = error.names.map((it) => chalk.underline.blue(`'${it}'`)).join(', ');
 		return withStyle.errorWarning(

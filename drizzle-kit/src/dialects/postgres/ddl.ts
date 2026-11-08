@@ -2,6 +2,7 @@ import type { SchemaForPull } from '../../cli/commands/pull-common';
 import type { Alter } from '../dialect';
 import { create } from '../dialect';
 import { defaultNameForPK, defaultNameForUnique } from './grammar';
+import type { UnsupportedProcedure } from './procedures/model';
 
 export const privilegeTypes = [
 	'ALL',
@@ -344,6 +345,10 @@ export interface InterimSchema {
 	views: View[];
 	viewColumns: ViewColumn[];
 	procedures: Procedure[];
+	/** Procedures drizzle cannot manage; pull emits them as `procedure.unsupported(...)`. Never diffed. */
+	unsupportedProcedures?: UnsupportedProcedure[];
+	/** `pg_get_functiondef()` of every introspected procedure, keyed `schema.name` — what pull shows for unsupported ones. */
+	procedureDefinitions?: Record<string, string>;
 }
 
 export type TableWithPartition = PostgresEntities['tables'] & {
@@ -504,6 +509,12 @@ interface ProcedureCompileError {
 	message: string;
 }
 
+/** A `procedure.unsupported(definition)` whose CREATE PROCEDURE header cannot be read. */
+interface ProcedureUnsupportedInvalid {
+	type: 'procedure_unsupported_invalid';
+	definition: string;
+}
+
 /** Procedures in a schema that was not loaded from files — the compiler needs their TypeScript source. */
 interface ProcedureSourceUnavailable {
 	type: 'procedure_source_unavailable';
@@ -514,6 +525,7 @@ export type SchemaError =
 	| ProcedureDuplicate
 	| ProcedureCompileError
 	| ProcedureSourceUnavailable
+	| ProcedureUnsupportedInvalid
 	| EnumValuesDuplicate
 	| SchemaDuplicate
 	| EnumDuplicate

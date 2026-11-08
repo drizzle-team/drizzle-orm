@@ -33,7 +33,7 @@ import {
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
 	wrapRecord,
 } from './grammar';
-import { canonicalParams } from './procedures/model';
+import { canonicalParams, type UnsupportedProcedure } from './procedures/model';
 
 // TODO: tables/schema/entities -> filter: (entity: {type: ... , metadata: ... }) => boolean;
 // TODO: since we by default only introspect public
@@ -1168,9 +1168,9 @@ export const fromDatabase = async (
 	}
 	progressCallback('views', views.length, 'done');
 
-	const procedures = filteredNamespacesStringForSQL
+	const { procedures, unsupportedProcedures, definitions: procedureDefinitions } = filteredNamespacesStringForSQL
 		? await introspectProcedures(db, filteredNamespacesStringForSQL)
-		: [];
+		: { procedures: [], unsupportedProcedures: [], definitions: {} };
 
 	const resultSchemas = schemas.filter((x) => filter({ type: 'schema', name: x.name }));
 	const resultTables = tables.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));
@@ -1212,38 +1212,56 @@ export const fromDatabase = async (
 		views: resultViews,
 		viewColumns: resultViewColumns,
 		procedures: procedures.filter((x) => resultSchemas.some((s) => s.name === x.schema)),
+		unsupportedProcedures: unsupportedProcedures.filter((x) => resultSchemas.some((s) => s.name === x.schema)),
+		procedureDefinitions,
 	} satisfies InterimSchema;
 };
 
 /**
  * Procedures (`prokind = 'p'`) in the given namespaces, in the canonical form `procedure()` compiles to.
- * Procedures drizzle cannot manage are left out, so they are never altered or dropped: overloaded names
- * (the DSL has one signature per name) and parameter lists outside the DSL (OUT/INOUT results that are not
- * `DEFAULT NULL`, VARIADIC, non-literal defaults, ...).
+ * Procedures drizzle cannot manage are returned separately with their definition, never diffed: overloaded
+ * names (the DSL has one signature per name) and parameter lists outside the DSL (OUT/INOUT results that are
+ * not `DEFAULT NULL`, VARIADIC, non-literal defaults, ...).
  */
-const introspectProcedures = async (db: DB, namespacesSQL: string): Promise<Procedure[]> => {
-	const rows = await db.query<{ schema: string; name: string; args: string; body: string; language: string }>(`
+const introspectProcedures = async (
+	db: DB,
+	namespacesSQL: string,
+): Promise<
+	{ procedures: Procedure[]; unsupportedProcedures: UnsupportedProcedure[]; definitions: Record<string, string> }
+> => {
+	const rows = await db.query<
+		{ schema: string; name: string; args: string; body: string; language: string; definition: string }
+	>(`
 		SELECT n.nspname AS "schema", p.proname AS "name", pg_get_function_arguments(p.oid) AS "args",
-			p.prosrc AS "body", l.lanname AS "language"
+			p.prosrc AS "body", l.lanname AS "language", pg_get_functiondef(p.oid) AS "definition"
 		FROM pg_catalog.pg_proc p
 		JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
 		JOIN pg_catalog.pg_language l ON l.oid = p.prolang
 		WHERE p.prokind = 'p' AND n.nspname IN (${namespacesSQL})
-		ORDER BY n.nspname, p.proname;
+		ORDER BY n.nspname, p.proname, pg_get_function_identity_arguments(p.oid);
 	`);
 	const overloads = new Map<string, number>();
 	for (const r of rows) overloads.set(`${r.schema}.${r.name}`, (overloads.get(`${r.schema}.${r.name}`) ?? 0) + 1);
 
-	const result: Procedure[] = [];
+	const procedures: Procedure[] = [];
+	const unsupportedProcedures: UnsupportedProcedure[] = [];
+	const definitions: Record<string, string> = {};
 	for (const r of rows) {
-		if (overloads.get(`${r.schema}.${r.name}`)! > 1) continue;
+		definitions[`${r.schema}.${r.name}`] = r.definition.trim();
+		const unsupported = (reason: string) =>
+			unsupportedProcedures.push({ schema: r.schema, name: r.name, definition: r.definition.trim(), reason });
+		if (overloads.get(`${r.schema}.${r.name}`)! > 1) {
+			unsupported('overloaded name — procedure() declares one signature per name');
+			continue;
+		}
 		let params: string;
 		try {
 			params = canonicalParams(r.args);
-		} catch {
+		} catch (error) {
+			unsupported(error instanceof Error ? error.message.split('\n')[0]! : String(error));
 			continue;
 		}
-		result.push({
+		procedures.push({
 			entityType: 'procedures',
 			schema: r.schema,
 			name: r.name,
@@ -1252,7 +1270,7 @@ const introspectProcedures = async (db: DB, namespacesSQL: string): Promise<Proc
 			language: r.language,
 		});
 	}
-	return result;
+	return { procedures, unsupportedProcedures, definitions };
 };
 
 export const fromDatabaseForDrizzle = async (

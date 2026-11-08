@@ -24,7 +24,7 @@ import type {
 import { tableFromDDL } from './ddl';
 import { defaultNameForFK, defaultNameForIdentitySequence, defaultNameForPK, defaults, typeFor } from './grammar';
 import { withCallee } from './procedures/decompile';
-import { pullProcedure } from './procedures/model';
+import { pullProcedure, type UnsupportedProcedure } from './procedures/model';
 
 // TODO: omit defaults opclass... improvement
 const imports = [
@@ -225,6 +225,7 @@ export const ddlToTypeScript = (
 	ddl: PostgresDDL,
 	columnsForViews: ViewColumn[],
 	casing: Casing,
+	unsupportedProcedures: UnsupportedProcedure[] = [],
 ) => {
 	const tableFn = `pgTable`;
 	for (const fk of ddl.fks.list()) {
@@ -436,19 +437,34 @@ export const ddlToTypeScript = (
 		})
 		.join('\n\n');
 
-	// Only procedures that decompile exactly reach this point (pull drops the rest from the DDL).
-	const procedureStatements = ddl.procedures.list()
-		.map((it) => pullProcedure(it))
-		.map((it) => {
+	// Procedure variable names: overloads of an unsupported procedure share their SQL name.
+	const procedureNames = new Set<string>();
+	const procedureVar = (schema: string, name: string) => {
+		const base = withCasing(paramNameFor(name, schemas[schema]), casing);
+		let candidate = base;
+		for (let i = 2; procedureNames.has(candidate); i++) candidate = `${base}${i}`;
+		procedureNames.add(candidate);
+		return candidate;
+	};
+
+	// Only procedures that decompile exactly reach the DDL (pull passes the rest in as unsupported).
+	const procedureStatements = [
+		...ddl.procedures.list().map((it) => pullProcedure(it)).map((it) => {
 			if (!it.ok) return `// procedure "${it.def.schema}"."${it.def.name}" was not pulled: ${it.reason}`;
 			const schemaVar = schemas[it.def.schema];
 			if (!schemaVar) imports.add('procedure');
 			if (it.usesPgError) imports.add('PgError');
 			for (const alias of it.typeAliases) imports.add(alias);
 			const ts = schemaVar ? withCallee(it.ts, `${schemaVar}.procedure`) : it.ts;
-			return `export const ${withCasing(paramNameFor(it.def.name, schemaVar), casing)} = ${ts};`;
-		})
-		.join('\n\n');
+			return `export const ${procedureVar(it.def.schema, it.def.name)} = ${ts};`;
+		}),
+		...unsupportedProcedures.map((it) => {
+			imports.add('procedure');
+			const definition = it.definition.replaceAll('\\', '\\\\').replaceAll('`', '\\`').replaceAll('${', '\\${');
+			return `// procedure "${it.schema}"."${it.name}" is not supported: ${it.reason}\n`
+				+ `export const ${procedureVar(it.schema, it.name)} = procedure.unsupported(\`${definition}\`);`;
+		}),
+	].join('\n\n');
 
 	const uniquePgImports = [...imports];
 
