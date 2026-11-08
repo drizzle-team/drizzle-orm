@@ -13,6 +13,7 @@ import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
 import { tsc } from 'tests/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { freshPGlite } from '../../pglite';
 import { diff, prepareTestDatabase, push, type TestDatabase } from '../mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
@@ -300,7 +301,7 @@ const procedureNames = async (client: PGlite) =>
 		.rows.map((it) => it.name);
 
 test('push command: database procedures are left alone while the schema declares none', async () => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 	await client.query(`CREATE PROCEDURE "native"(a integer) LANGUAGE sql AS $$ SELECT 1 $$`);
 
 	await pushCommand(client, tables);
@@ -310,7 +311,7 @@ test('push command: database procedures are left alone while the schema declares
 });
 
 test('push command: procedures declared unsupported are kept', async () => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 	await client.query(`CREATE PROCEDURE "native"(a integer) LANGUAGE sql AS $$ SELECT 1 $$`);
 
 	await pushCommand(
@@ -324,7 +325,7 @@ test('push command: procedures declared unsupported are kept', async () => {
 });
 
 test('push command: once the schema declares procedures, undeclared ones are dropped', async () => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 	await client.query(`CREATE PROCEDURE "native"(a integer) LANGUAGE sql AS $$ SELECT 1 $$`);
 
 	await pushCommand(client, tables + guarded);

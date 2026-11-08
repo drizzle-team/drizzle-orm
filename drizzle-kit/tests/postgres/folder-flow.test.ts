@@ -4,6 +4,7 @@ import { index, integer, pgTable, primaryKey, text, unique, varchar } from 'driz
 import { errorToEnvelope } from 'src/cli/errors';
 import { expect, onTestFinished, test } from 'vitest';
 import { ORIGIN } from '../other/check-fixtures';
+import { freshPGlite } from '../pglite';
 import {
 	columnRow,
 	createFolderFlow,
