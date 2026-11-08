@@ -1,13 +1,15 @@
 name: pnpm store cache
 description: >-
-  Restores the pnpm store. Pull requests only restore it: a cache is scoped to the branch that saves it,
-  and a ~740 MB store saved by every pull request kept the repository at its 10 GB cache limit, which
-  evicted the base-branch caches every pull request should share. Base branches save it in
-  cache-seed.yaml (save: 'true'). Needs pnpm on PATH (pnpm/action-setup) and a checkout.
+  Restores the pnpm store, including pnpm's side-effects cache, so native modules (sqlite3, better-sqlite3,
+  cpu-features, ...) are not built again. A cache is scoped to the branch that saves it: a pull request reads
+  its own caches and its base branch's. Pull requests save a store only when neither exists — a ~740 MB store
+  saved by every pull request kept the repository at its 10 GB cache limit, which evicted the base-branch
+  caches all of them should share. Base branches save it in cache-seed.yaml (save: 'true').
+  Needs pnpm on PATH (pnpm/action-setup) and a checkout.
 
 inputs:
   save:
-    description: Also save the store when the key missed. Only cache-seed.yaml sets it.
+    description: Always save the store when the exact key missed. Only cache-seed.yaml sets it.
     required: false
     default: 'false'
 
@@ -18,16 +20,27 @@ runs:
       shell: bash
       run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
-    # A changed lockfile misses the exact key and falls back to the newest store of the base branch,
-    # so pnpm install only fetches the difference.
-    - if: inputs.save != 'true'
+    # Checks which cache exists without downloading it. A changed lockfile misses the exact key and matches the
+    # newest store under the prefix, so pnpm install only fetches and builds the difference.
+    - id: lookup
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ steps.store.outputs.path }}
+        key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: pnpm-store-${{ runner.os }}-${{ runner.arch }}-
+        lookup-only: true
+
+    # A store exists for this branch or its base: restore it, never save.
+    - if: inputs.save != 'true' && steps.lookup.outputs.cache-matched-key != ''
       uses: actions/cache/restore@v6
       with:
         path: ${{ steps.store.outputs.path }}
         key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
         restore-keys: pnpm-store-${{ runner.os }}-${{ runner.arch }}-
 
-    - if: inputs.save == 'true'
+    # Base branches (cache-seed.yaml), and pull requests with no store at all, so their next run is not cold:
+    # restores what there is and saves the store after the job when the exact key missed.
+    - if: inputs.save == 'true' || steps.lookup.outputs.cache-matched-key == ''
       uses: actions/cache@v6
       with:
         path: ${{ steps.store.outputs.path }}

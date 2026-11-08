@@ -128,10 +128,18 @@ jobs:
       - name: test:types & lint
         run: pnpm test:types-lint
 
+  prepare-head-start:
+    # The jobs below start beside prepare rather than after it: they install, start their databases and then
+    # wait for prepare's artifacts, so that setup overlaps the build. The organization runs at most 20 jobs at
+    # once, and they are more than that; queued after this short delay, they never take the runner prepare needs.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: sleep 10
+
   test:
-    # The organization runs at most 20 jobs at once. A test job that started before prepare and only
-    # waited would hold a runner that prepare needs, so it starts after prepare.
-    needs: [prepare]
+    needs: [prepare-head-start]
+    permissions: { contents: read, actions: read }
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
@@ -254,6 +262,9 @@ jobs:
           chmod +x compose/wait.sh
           compose/wait.sh ${{ join(matrix.dbs, ' ') }}
 
+      - name: Wait for prepare's build-dist
+        uses: ./.github/actions/wait-for-prepare
+        with: { names: build-dist }
       - name: Download build-dist (compiled JS)
         uses: actions/download-artifact@v8
         with:
@@ -261,6 +272,10 @@ jobs:
           path: .
 
       # Required for packaging tests
+      - name: Wait for prepare's packages
+        if: matrix.shard == 'orm'
+        uses: ./.github/actions/wait-for-prepare
+        with: { names: packages }
       - name: Download packed tarballs
         if: matrix.shard == 'orm'
         uses: actions/download-artifact@v8
@@ -389,7 +404,8 @@ jobs:
         run: pnpm exec tsx scripts/ci-databases.ts drop
 
   attw:
-    needs: [prepare]
+    needs: [prepare-head-start]
+    permissions: { contents: read, actions: read }
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -402,6 +418,9 @@ jobs:
       - run: pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
+      - name: Wait for prepare's packages
+        uses: ./.github/actions/wait-for-prepare
+        with: { names: packages }
       - name: Download package tarball
         uses: actions/download-artifact@v8
         with:
@@ -415,7 +434,8 @@ jobs:
           ATTW_FORMAT: concise
 
   attw-esm:
-    needs: [prepare]
+    needs: [prepare-head-start]
+    permissions: { contents: read, actions: read }
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -432,6 +452,9 @@ jobs:
       - run: pnpm fetch && pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
+      - name: Wait for prepare's packages
+        uses: ./.github/actions/wait-for-prepare
+        with: { names: packages }
       - name: Download package tarballs
         uses: actions/download-artifact@v8
         with:
@@ -459,7 +482,8 @@ jobs:
         run: npx -y publint@0.3.21 ./artifacts/drizzle-orm/package.tgz
 
   packed-orm:
-    needs: [prepare]
+    needs: [prepare-head-start]
+    permissions: { contents: read, actions: read }
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -489,6 +513,9 @@ jobs:
           docker compose -f compose/postgres.yml up -d
           chmod +x compose/wait.sh
           compose/wait.sh postgres
+      - name: Wait for prepare's build-dist
+        uses: ./.github/actions/wait-for-prepare
+        with: { names: build-dist }
       - name: Download build-dist (compiled JS)
         uses: actions/download-artifact@v8
         with:

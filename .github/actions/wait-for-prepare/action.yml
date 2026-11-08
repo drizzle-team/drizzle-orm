@@ -1,0 +1,47 @@
+name: Wait for prepare's artifacts
+description: >-
+  Jobs start beside prepare (after the prepare-head-start delay) so their installs and database containers
+  overlap the build; this waits until prepare has uploaded the named artifacts of this run. Fails at once when
+  prepare fails or is canceled, instead of waiting out the timeout. Needs `actions: read`.
+
+inputs:
+  names:
+    description: Space-separated artifact names to wait for.
+    required: true
+  timeout-minutes:
+    description: Give up after this long. Counted from this step, which jobs reach after their own setup.
+    required: false
+    default: '5'
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        NAMES: ${{ inputs.names }}
+        TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+      run: |
+        set -euo pipefail
+        api="repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+        deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
+        while :; do
+          have=$(gh api "$api/artifacts?per_page=100" --jq '.artifacts[].name' 2>/dev/null || true)
+          missing=""
+          for name in $NAMES; do grep -qxF "$name" <<<"$have" || missing="$missing $name"; done
+          if [ -z "$missing" ]; then echo "Ready: $NAMES"; exit 0; fi
+
+          # In a called workflow the job is named "<caller job> / prepare".
+          state=$(gh api "$api/attempts/${GITHUB_RUN_ATTEMPT}/jobs?per_page=100" \
+            --jq '[.jobs[] | select(.name == "prepare" or (.name | endswith("/ prepare")))][0].conclusion // ""' 2>/dev/null || true)
+          case "$state" in
+            failure|cancelled|timed_out|skipped) echo "::error::prepare finished with '$state'; its artifacts will not come"; exit 1 ;;
+            # It may have finished right after the artifact check above: check once more before failing.
+            success)
+              if [ -n "${checked_after_success:-}" ]; then echo "::error::prepare succeeded without uploading:$missing"; exit 1; fi
+              checked_after_success=1; continue ;;
+          esac
+          if [ "$(date +%s)" -ge "$deadline" ]; then echo "::error::Timed out waiting for:$missing"; exit 1; fi
+          echo "Waiting for:$missing"
+          sleep 5
+        done
