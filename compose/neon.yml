@@ -12,6 +12,7 @@ services:
     # connection to run the query (HTTP pooling is opt-in). Its image is a debug build, so at Postgres' default
     # 4096 iterations that cost ~200 ms per query. Hence, for this local test server only:
     #   - scram_iterations=1, and an init script re-hashes the password with it: the client check is one HMAC;
+    #   - fsync and synchronous commit off: test data only.
     #   - trust: the proxy's own connections skip SCRAM. The proxy still checks its clients' passwords; the port is
     #     published on 127.0.0.1 only, for the Netlify suite's direct (node-postgres) driver.
     # The init script is written by the entrypoint rather than bind-mounted: CI runners in containers start these
@@ -27,7 +28,7 @@ services:
         SQL
         exec docker-entrypoint.sh "$$@"
       - --
-    command: postgres -c max_connections=300 -c scram_iterations=1
+    command: postgres -c max_connections=300 -c scram_iterations=1 -c fsync=off -c synchronous_commit=off -c full_page_writes=off
     mem_limit: 2g
     environment:
       POSTGRES_USER: postgres

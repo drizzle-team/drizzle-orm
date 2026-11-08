@@ -2,6 +2,8 @@ services:
   mysql:
     image: mysql:8
     network_mode: bridge
+    # Test data only: no forced disk writes or binary log.
+    command: --innodb-flush-log-at-trx-commit=0 --sync-binlog=0 --skip-log-bin --innodb-doublewrite=OFF
     mem_limit: 2g
     environment:
       MYSQL_ROOT_PASSWORD: mysql

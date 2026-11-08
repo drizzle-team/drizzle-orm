@@ -3,6 +3,8 @@ services:
     image: postgis/postgis:16-3.4
     platform: linux/amd64 # no arm64 build: ARM hosts (Apple silicon, OrbStack runners) run it emulated
     network_mode: bridge
+    # Test data only: no forced disk writes, which on a busy CI machine make every commit and CREATE DATABASE wait.
+    command: postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off
     mem_limit: 1g
     environment:
       POSTGRES_USER: postgres

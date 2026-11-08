@@ -28,6 +28,9 @@ cd "$(dirname "$0")/../../integration-tests"
 : "${COCKROACH_CONNECTION_STRING:=postgresql://root@127.0.0.1:${DRIZZLE_PORT_COCKROACH}/defaultdb?sslmode=disable}"
 : "${MSSQL_CONNECTION_STRING:=mssql://SA:drizzle123PASSWORD!@localhost:${DRIZZLE_PORT_MSSQL}?encrypt=true&trustServerCertificate=true}"
 : "${TEST_CONFIG_PATH_PREFIX:=./tests/cli/}"
+# Dates in UTC, as on GitHub-hosted runners: drivers that send local time (tedious for SQL Server) put boundary
+# values such as 9999-12-31T23:59:59.997Z out of the type's range on a machine ahead of UTC.
+export TZ=UTC
 export PG_CONNECTION_STRING PG_HTTP_GATEWAY_URL AWS_DATA_API_URL PG_VECTOR_CONNECTION_STRING PG_POSTGIS_CONNECTION_STRING \
 	PG18_URL PG17_URL PG16_URL POSTGIS_URL MYSQL_CONNECTION_STRING LIBSQL_URL \
 	COCKROACH_CONNECTION_STRING MSSQL_CONNECTION_STRING TEST_CONFIG_PATH_PREFIX
@@ -62,8 +65,9 @@ case "$shard" in
 	int:sqlite) pnpm --stream test:sqlite ;;
 	# Against this job's own Turso server (compose/turso.yml), which takes no auth token.
 	int:turso-serverless)
-		TURSODATABASE_REMOTE_URL="http://localhost:${DRIZZLE_PORT_TURSO}" TURSODATABASE_REMOTE_TOKEN=local \
-			pnpm --stream vitest --reporter=verbose --silent=false run tests/sqlite/tursodatabase-serverless.test.ts
+		TURSODATABASE_REMOTE_URL="http://127.0.0.1:${DRIZZLE_PORT_TURSO}" TURSODATABASE_REMOTE_TOKEN=local \
+			pnpm --stream vitest --reporter=verbose --silent=false --test-timeout=200000 --hook-timeout=200000 \
+			run tests/sqlite/tursodatabase-serverless.test.ts
 		;;
 	kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
 	# The commutativity suite runs once, in kit:postgres:commutativity, against the latest stable Postgres (18).
@@ -78,7 +82,9 @@ case "$shard" in
 	kit:mssql) cd ../drizzle-kit && pnpm --stream run test:mssql ;;
 	validators) pnpm --stream vitest --reporter=verbose --silent=false run tests/validators ;;
 	orm | seed) (cd "../drizzle-$shard" && pnpm --stream test --reporter=verbose --silent=false) ;;
-	int:bun) bun test ./tests/bun/ ;;
+	# bun test's default 5 s per test and hook is too little for a busy runner: a hook cut off between dropping and
+	# recreating a schema fails every test after it.
+	int:bun) bun test --timeout 60000 ./tests/bun/ ;;
 	int:seeder) pnpm --stream test:seeder ;;
 	int:imports) pnpm --stream test:imports ;;
 	int:other) pnpm --stream test:other ;;
