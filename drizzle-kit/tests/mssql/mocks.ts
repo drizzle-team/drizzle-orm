@@ -452,6 +452,8 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 		'Bring DBs up with `bash compose/dockers.sh up mssql` and export the connection string (e.g. `mssql://SA:drizzle123PASSWORD!@127.0.0.1:1433?encrypt=true&trustServerCertificate=true`) before running tests.',
 	);
 	const params = parseMssqlUrl(url);
+	// On a self-hosted machine every job's tests share one server: DRIZZLE_TEST_DB_PREFIX names this job's database.
+	const database = `${process.env['DRIZZLE_TEST_DB_PREFIX'] ?? ''}drizzle`;
 
 	try {
 		const client = await mssql.connect({
@@ -461,9 +463,9 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 		});
 
 		await client.query(`use [master];`);
-		await client.query(`drop database if exists [drizzle];`);
-		await client.query(`create database [drizzle];`);
-		await client.query(`use [drizzle];`);
+		await client.query(`drop database if exists [${database}];`);
+		await client.query(`create database [${database}];`);
+		await client.query(`use [${database}];`);
 
 		let transaction: mssql.Transaction | null = null;
 		let req: mssql.Request | null = null;
@@ -485,6 +487,11 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 			if (transaction) {
 				await transaction.rollback().catch((e) => {});
 			}
+			await client
+				.query(
+					`use [master]; alter database [${database}] set single_user with rollback immediate; drop database [${database}];`,
+				)
+				.catch(console.error);
 			await client?.close().catch(console.error);
 		};
 
@@ -502,9 +509,9 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 			}
 
 			await client.query(`use [master];`);
-			await client.query(`drop database if exists [drizzle];`);
-			await client.query(`create database [drizzle];`);
-			await client.query(`use [drizzle];`);
+			await client.query(`drop database if exists [${database}];`);
+			await client.query(`create database [${database}];`);
+			await client.query(`use [${database}];`);
 		};
 		return { db, close, clear, client };
 	} catch (e) {

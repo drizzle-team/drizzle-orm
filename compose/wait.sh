@@ -113,7 +113,12 @@ for db in "$@"; do
       done
       ;;
     # SQL Server listens a moment before it has recovered its system databases; logins fail until then.
-    mssql)                wait_tcp 127.0.0.1 "$DRIZZLE_PORT_MSSQL" "mssql"; wait_log mssql mssql "Recovery is complete" ;;
+    mssql)
+      wait_tcp 127.0.0.1 "$DRIZZLE_PORT_MSSQL" "mssql"
+      # The shared server of a self-hosted machine runs for days, and its log is capped (compose/mssql.yml), so the
+      # line from its start rotates out: a query tells instead.
+      if drizzle_is_shared mssql; then node compose/mssql.mjs ready; else wait_log mssql mssql "Recovery is complete"; fi
+      ;;
     cockroach)            wait_tcp 127.0.0.1 "$DRIZZLE_PORT_COCKROACH" "cockroach" ;;
     cockroach-many)
       for i in 0 1 2; do

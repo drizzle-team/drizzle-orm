@@ -43,14 +43,25 @@ export const createClient = async () => {
 
 	const url2 = `Server=localhost,${params.port};User Id=SA;Password=drizzle123PASSWORD!;TrustServerCertificate=True;`;
 
-	const id = `db${randomUUID().split('-')[0]}`;
+	// A database of the test file's own, dropped when it finishes. On a self-hosted machine every job's files share
+	// one server, and DRIZZLE_TEST_DB_PREFIX names this job's, so the job's end drops those a failed file left.
+	const id = `${process.env['DRIZZLE_TEST_DB_PREFIX'] ?? ''}db${randomUUID().split('-')[0]}`;
 	const admin = await new mssql.ConnectionPool(params).connect();
-	await admin.query(`create database ${id}`);
+	await admin.query(`create database [${id}]`);
 	await admin.close();
 	// Connected to the test's database itself: `use` would switch only the pool connection that ran it, and a
 	// query on any other connection the pool opens would run in master.
 	const client = await new mssql.ConnectionPool({ ...params, database: id }).connect();
-	const close = () => client.close();
+	const close = async () => {
+		await client.close();
+		const dropper = await new mssql.ConnectionPool(params).connect();
+		try {
+			// Rolls back and closes what a test left connected (a pool of its own, an open transaction).
+			await dropper.query(`alter database [${id}] set single_user with rollback immediate; drop database [${id}];`);
+		} finally {
+			await dropper.close();
+		}
+	};
 	const db = drizzle({ client, relations });
 	return { client, close, url, url2, db };
 };

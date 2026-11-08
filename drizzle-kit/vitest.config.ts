@@ -68,11 +68,12 @@ export default defineConfig({
 		testTimeout: 100000,
 		hookTimeout: 100000,
 		maxConcurrency: 5,
-		// Test files run one after another, unless a CI shard whose files each have a database of their own sets
-		// KIT_FILE_PARALLELISM=1 (.github/ci/run-shard.sh): PGlite in-process, a database per worker (PostGIS), or a
-		// server per worker (cockroach-many). Not with one shared server: the setups drop and recreate a database
-		// named drizzle, and drop every role. At most 2 workers on CI (KIT_MAX_WORKERS), so a job leaves CPU and memory
-		// to the other runner instances on the machine.
+		// Test files run one after another. KIT_FILE_PARALLELISM=1 runs them side by side, for a run whose files each
+		// have a database of their own: PGlite in-process, a database per worker (PostGIS), or a server per worker
+		// (several ;-separated COCKROACH_CONNECTION_STRINGs, as cockroach-many serves). Not with one shared server: the
+		// setups drop and recreate a database named drizzle, and drop every role. CI does not set it: on a machine
+		// whose CPUs every runner instance's job already keeps busy, the workers only competed (kit:postgres and
+		// kit:cockroach took 30-40% longer with 2-3). At most 2 workers on CI (KIT_MAX_WORKERS) when set.
 		fileParallelism: process.env['KIT_FILE_PARALLELISM'] === '1',
 		maxWorkers: process.env['KIT_MAX_WORKERS']
 			? Number(process.env['KIT_MAX_WORKERS'])

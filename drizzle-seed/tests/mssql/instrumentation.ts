@@ -37,8 +37,15 @@ const prepareTest = () => {
 				const envurl = requireEnv('MSSQL_CONNECTION_STRING');
 
 				const options = parseMssqlUrl(envurl);
-				const client = await mssql.connect(options);
-				await client.connect();
+				// A database of this run's own, connected to directly: `use` on a pool switches only the connection that
+				// ran it. On a self-hosted machine every job's tests share one server: DRIZZLE_TEST_DB_PREFIX names it.
+				const database = `${process.env['DRIZZLE_TEST_DB_PREFIX'] ?? ''}drizzle`;
+				const admin = await new mssql.ConnectionPool(options).connect();
+				await admin.query(
+					`if db_id(N'${database}') is not null begin alter database [${database}] set single_user with rollback immediate; drop database [${database}]; end; create database [${database}];`,
+				);
+				await admin.close();
+				const client = await new mssql.ConnectionPool({ ...options, database }).connect();
 
 				const query = async (sql: string, params: any[] = []) => {
 					const request = client.request();
@@ -53,12 +60,13 @@ const prepareTest = () => {
 					return client.query(statements.map((x) => x.endsWith(';') ? x : `${x};`).join('\n')).then(() => '' as any);
 				};
 
-				await client.query('drop database if exists drizzle;');
-				await client.query('create database drizzle;');
-				await client.query('use drizzle;');
-
 				await use({ client, query, batch });
 				await client.close();
+				const dropper = await new mssql.ConnectionPool(options).connect();
+				await dropper.query(
+					`alter database [${database}] set single_user with rollback immediate; drop database [${database}];`,
+				);
+				await dropper.close();
 			},
 			{ scope: 'worker' },
 		],

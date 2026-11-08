@@ -69,7 +69,7 @@ _up_one() {
   # A CI runner slot (CI_PORT_OFFSET set) first removes what a canceled or killed job on the same slot left
   # behind: its containers keep the ports. Never locally, where the default projects hold a developer's data.
   if [ "$CI_PORT_OFFSET" -ne 0 ]; then
-    _compose "$dialect" down -v --remove-orphans >/dev/null 2>&1 || true
+    _compose "$dialect" down -v --remove-orphans --timeout 0 >/dev/null 2>&1 || true
   fi
   # Readiness is compose/wait.sh's probe from the host, not `up --wait`: some images' own healthchecks call
   # tools they do not ship (nc in cockroach and azure-sql-edge), so those containers never report healthy.
@@ -124,6 +124,11 @@ _recreate_job_database() {
 # DRIZZLE_TEST_DB_PREFIX. Dropped when the job ends, as the server keeps its data in memory.
 _drop_job_databases() {
   local dialect="$1" cid db
+  if [ "$dialect" = mssql ]; then
+    # Its tests drop their databases when they finish; this catches those a failed or killed file left.
+    node compose/mssql.mjs drop-prefixed "$DRIZZLE_TEST_DB_PREFIX" || true
+    return 0
+  fi
   case "$dialect" in postgres|postgres-vector|postgres-postgis) ;; *) return 0 ;; esac
   cid="$(docker ps -q --filter "label=com.docker.compose.project=$(drizzle_project "$dialect")" | head -n 1)"
   [ -n "$cid" ] || return 0
@@ -140,7 +145,9 @@ _down_one() {
     _drop_job_databases "$dialect"
     return 0
   fi
-  _compose "$dialect" down -v
+  # No grace period: the data is throwaway, in memory. SQL Server and CockroachDB took Docker's default 10 s to stop,
+  # which every job using them waited at its end.
+  _compose "$dialect" down -v --timeout 0
 }
 
 _ps_one() {

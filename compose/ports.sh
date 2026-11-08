@@ -26,9 +26,10 @@ else
 	export DRIZZLE_TEST_DB_PREFIX="s$((CI_PORT_OFFSET / 100))_"
 fi
 
-# Servers whose tests keep to databases of their own. Not the postgres16/17/18 servers: drizzle-kit's tests drop
-# every role on those, and roles belong to the whole server.
-DRIZZLE_SHARED_DIALECTS=(postgres postgres-postgis postgres-vector postgres-http-gateway aws-data-api)
+# Servers whose tests keep to databases of their own. Not the postgres16/17/18 or CockroachDB servers: drizzle-kit's
+# tests drop every role on those, and roles belong to the whole server. Not MySQL: its databases are its schemas,
+# and drizzle-kit's pull tests expect one named drizzle.
+DRIZZLE_SHARED_DIALECTS=(postgres postgres-postgis postgres-vector postgres-http-gateway aws-data-api mssql)
 
 drizzle_is_shared() {
 	[ "$CI_PORT_OFFSET" -ne 0 ] || return 1
@@ -68,7 +69,7 @@ export DRIZZLE_PORT_SINGLESTORE_MANY0="$(_port 3308 14)"
 export DRIZZLE_PORT_SINGLESTORE_MANY1="$(_port 3309 15)"
 export DRIZZLE_PORT_SINGLESTORE_MANY2="$(_port 3310 16)"
 export DRIZZLE_PORT_SINGLESTORE_MANY3="$(_port 3311 17)"
-export DRIZZLE_PORT_MSSQL="$(_port 1433 18)"
+export DRIZZLE_PORT_MSSQL="$(_port 1433 18 shared)"
 export DRIZZLE_PORT_COCKROACH="$(_port 26257 19)"
 export DRIZZLE_PORT_COCKROACH_CONSOLE="$(_port 18080 20)"
 export DRIZZLE_PORT_COCKROACH_MANY0="$(_port 26260 21)"
