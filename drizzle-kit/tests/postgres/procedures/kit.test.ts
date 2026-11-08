@@ -1,5 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
-import { drizzle } from 'drizzle-orm/pglite';
+import { drizzle as drizzleProxy } from 'drizzle-orm/pg-proxy';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { runWithCliContext } from 'src/cli/context';
@@ -60,6 +60,12 @@ export const transfer = procedure('transfer', { from: 'bigint', to: 'bigint', am
 `;
 
 const guarded = transfer(' AND ${accounts.balance} >= ${args.amount}');
+
+/**
+ * A drizzle instance over the test database's own connection. In PG_VERSION runs that connection holds an open
+ * transaction with everything `push` created, so a separate client (or the mocks' PGlite `client`) cannot see it.
+ */
+const orm = () => drizzleProxy(async (sql, params) => ({ rows: await db.query(sql, params) }));
 
 let _: TestDatabase;
 let db: TestDatabase['db'];
@@ -177,15 +183,14 @@ test('db.call: typed CALL returns the body record', async () => {
 	const file = path.join(tmpDir, `schema_${process.pid}_${fileCounter++}.ts`);
 	writeFileSync(file, tables + guarded);
 	const { transfer: proc } = await import(file);
-	const orm = drizzle({ client: _.client });
+	const result = await orm().call(proc, { from: 1, to: 2, amount: 30 });
 
-	const result = await orm.call(proc, { from: 1, to: 2, amount: 30 });
-
-	// No codecs run on CALL results: numeric arrives as the driver's string.
-	expect(result).toStrictEqual({ newBalance: '70' });
-	// Drivers' errors arrive wrapped in DrizzleQueryError; the RAISE is its cause.
-	await expect(orm.call(proc, { from: 1, to: 2, amount: 1000 })).rejects.toMatchObject({
-		cause: { message: 'insufficient funds', code: 'P0001' },
+	// No codecs run on CALL results: values are the driver's own (numeric is a string on both drivers).
+	expect(Object.keys(result)).toStrictEqual(['newBalance']);
+	expect(Number(result.newBalance)).toBe(70);
+	// Drivers' errors arrive wrapped in DrizzleQueryError; the RAISE is in its cause.
+	await expect(orm().call(proc, { from: 1, to: 2, amount: 1000 })).rejects.toMatchObject({
+		cause: { message: expect.stringContaining('insufficient funds') },
 	});
 });
 
@@ -361,7 +366,8 @@ test('schema procedure: push, db.call and pull round trip', async () => {
 	const file = path.join(tmpDir, `schema_${process.pid}_${fileCounter++}.ts`);
 	writeFileSync(file, tenantSchema);
 	const { bump } = await import(file);
-	expect(await drizzle({ client: _.client }).call(bump, { id: 1 })).toStrictEqual({ n: 42 }); // raw driver value: PGlite parses int8 itself
+	const bumped = await orm().call(bump, { id: 1 });
+	expect(Number(bumped.n)).toBe(42); // a raw driver value: PGlite parses int8 into a number, node-postgres keeps a string
 
 	const pulled = await pull();
 	expect(pulled.file).toContain(`export const bumpInTenant = tenant.procedure('bump', {`);
