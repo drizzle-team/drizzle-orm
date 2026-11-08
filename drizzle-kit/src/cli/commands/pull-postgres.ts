@@ -87,6 +87,10 @@ export const handle = async (
 		res = await fromDatabaseForDrizzle(db, entityFilter, () => {}, migrations);
 	}
 
+	// TODO: do not drop unsupported procedures from the pulled schema. Emit them as an explicit opaque entity,
+	// e.g. `procedure.unsupported(sql`...`)` holding the raw definition, with a comment above it saying what
+	// exactly is not supported (LANGUAGE sql, OUT parameters, a construct outside the DSL, ...). drizzle-kit would
+	// then fetch and track them, but never compile, alter or drop them.
 	// A procedure is pulled only when its source compiles back to the exact database definition. The rest stay
 	// out of the schema and the snapshot, so a later generate does not drop them as "removed".
 	const skippedProcedures = res.procedures.map(pullProcedure).filter((it) => !it.ok);
