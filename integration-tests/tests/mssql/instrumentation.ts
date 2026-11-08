@@ -50,6 +50,8 @@ export const createClient = async () => {
 	const id = `${process.env['DRIZZLE_TEST_DB_PREFIX'] ?? ''}db${randomUUID().split('-')[0]}`;
 	const admin = await new mssql.ConnectionPool(params).connect();
 	await admin.query(`create database [${id}]`);
+	// Plan reuse for drizzle-kit's introspection queries (push), whose literal id lists differ on every call.
+	await admin.query(`alter database [${id}] set parameterization forced`);
 	await admin.close();
 	// Connected to the test's database itself: `use` would switch only the pool connection that ran it, and a
 	// query on any other connection the pool opens would run in master.

@@ -51,6 +51,42 @@ services:
       timeout: 3s
       retries: 30
 
+  # Between the proxy and Postgres: the proxy opens a new Postgres connection for every HTTP request, two with
+  # its password lookup, which is a backend process forked per query (5,000 for one test file). pgbouncer takes those
+  # connections without forking and keeps the backends behind them alive; a connection closed by the proxy gets
+  # DISCARD ALL and is reused. Session mode, so a request's connection is its own until it closes.
+  neon-pgbouncer:
+    # Pinned: a third-party image that runs in CI (edoburu/pgbouncer, PgBouncer 1.26.1).
+    image: edoburu/pgbouncer@sha256:8638aa563607256d3c7440437534195f1066a92b68015d89ae9d6b935b444a6d
+    # Shares neon-postgres' network namespace, so it reaches Postgres on localhost and needs no compose network.
+    network_mode: service:neon-postgres
+    mem_limit: 128m
+    # Its own config rather than the image's: every client becomes the postgres user (auth_type any needs one; the
+    # tests use no other), so no password check here: Postgres trusts local connections, and the proxy checks
+    # its clients. Written by the entrypoint, not bind-mounted: CI runners in containers start this through the
+    # host's Docker, which cannot see their files.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        cat > /tmp/pgbouncer.ini <<'INI'
+        [databases]
+        * = host=127.0.0.1 port=5432 user=postgres
+        [pgbouncer]
+        listen_addr = 127.0.0.1
+        listen_port = 6432
+        unix_socket_dir = /tmp
+        auth_type = any
+        pool_mode = session
+        max_client_conn = 2000
+        default_pool_size = 50
+        ignore_startup_parameters = extra_float_digits,options
+        INI
+        exec pgbouncer /tmp/pgbouncer.ini
+    depends_on:
+      neon-postgres:
+        condition: service_healthy
+
   neon-proxy:
     # main, pinned: a third-party image that runs in CI.
     image: ghcr.io/timowilhelm/local-neon-http-proxy@sha256:cd2ae14edf2feafbc3330492de5c80506f77274c3bd013154cdef697bdeb768a
@@ -58,7 +94,24 @@ services:
     # Shares neon-postgres' network namespace, so it reaches Postgres on localhost and needs no compose network.
     network_mode: service:neon-postgres
     environment:
-      PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/main
+      PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:6432/main # through pgbouncer
+    # The image's start.sh, plus the proxy's rate limiters raised: they allow ~300 connections per second per
+    # endpoint, which the test suites exceed once pgbouncer makes each one cheap (5,000 requests in 5 s).
+    entrypoint: # replaces the image's ./start.sh entrypoint
+      - bash
+      - -c
+      - |
+        cd /app
+        until psql -Atq "$$PG_CONNECTION_STRING" -c 'select 1' >/dev/null 2>&1; do sleep 0.2; done
+        psql -Atx "$$PG_CONNECTION_STRING" \
+          -c "CREATE SCHEMA IF NOT EXISTS neon_control_plane" \
+          -c "CREATE TABLE IF NOT EXISTS neon_control_plane.endpoints (endpoint_id VARCHAR(255) PRIMARY KEY, allowed_ips VARCHAR(255))"
+        ./neon-proxy -c server.pem -k server.key --auth-backend=postgres --auth-endpoint="$$PG_CONNECTION_STRING" --wss=0.0.0.0:4445 \
+          --endpoint-rps-limit=1000000@1s --wake-compute-limit=1000000@1s &
+        caddy run --config ./Caddyfile --adapter caddyfile &
+        wait -n
     depends_on:
       neon-postgres:
         condition: service_healthy
+      neon-pgbouncer:
+        condition: service_started

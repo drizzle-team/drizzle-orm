@@ -465,6 +465,9 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 		await client.query(`use [master];`);
 		await client.query(`drop database if exists [${database}];`);
 		await client.query(`create database [${database}];`);
+		// Plans reused across the introspection queries, whose literal id lists differ on every call: SQL Server
+		// otherwise compiles each anew, 14 ms for the columns query against 2 ms to run it.
+		await client.query(`alter database [${database}] set parameterization forced;`);
 		await client.query(`use [${database}];`);
 
 		let transaction: mssql.Transaction | null = null;
@@ -511,6 +514,7 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 			await client.query(`use [master];`);
 			await client.query(`drop database if exists [${database}];`);
 			await client.query(`create database [${database}];`);
+			await client.query(`alter database [${database}] set parameterization forced;`);
 			await client.query(`use [${database}];`);
 		};
 		return { db, close, clear, client };

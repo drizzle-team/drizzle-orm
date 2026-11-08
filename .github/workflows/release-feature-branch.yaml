@@ -128,12 +128,12 @@ jobs:
 
   prepare-head-start:
     # The jobs below start beside prepare rather than after it: they install, start their databases and then
-    # wait for prepare's artifacts, so that setup overlaps the build. The organization runs at most 20 jobs at
-    # once, and they are more than that; queued after this short delay, they never take the runner prepare needs.
+    # wait for prepare's artifacts, so that setup overlaps the build. Runners are fewer than jobs; queued after
+    # this delay, they never take the runner prepare needs. A second is enough for prepare to be assigned first.
     runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 2
     steps:
-      - run: sleep 10
+      - run: sleep 1
 
   test:
     needs: [prepare-head-start]

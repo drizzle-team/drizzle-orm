@@ -42,7 +42,7 @@ const prepareTest = () => {
 				const database = `${process.env['DRIZZLE_TEST_DB_PREFIX'] ?? ''}drizzle`;
 				const admin = await new mssql.ConnectionPool(options).connect();
 				await admin.query(
-					`if db_id(N'${database}') is not null begin alter database [${database}] set single_user with rollback immediate; drop database [${database}]; end; create database [${database}];`,
+					`if db_id(N'${database}') is not null begin alter database [${database}] set single_user with rollback immediate; drop database [${database}]; end; create database [${database}]; alter database [${database}] set parameterization forced;`,
 				);
 				await admin.close();
 				const client = await new mssql.ConnectionPool({ ...options, database }).connect();
