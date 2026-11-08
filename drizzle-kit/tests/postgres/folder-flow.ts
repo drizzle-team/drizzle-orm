@@ -34,6 +34,7 @@ import { reconstruct, startingState } from 'src/dialects/postgres/reconstruct';
 import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import { expect, onTestFinished, vi } from 'vitest';
 import { writeSnapshot } from '../other/check-fixtures';
+import { freshPGlite } from '../pglite';
 import { type PostgresSchema, push } from './mocks';
 
 // This file holds helpers that run the real postgres CLI commands on temporary migrations folders.
@@ -290,7 +291,7 @@ export const createFolderFlow = () => {
 	// Returns the statements that push still needs after migrate. An empty list means the database matches
 	// `schema`.
 	const migrate = async (branch: string, schema: PostgresSchema) => {
-		const client = new PGlite();
+		const client = await freshPGlite();
 		try {
 			await migrateFolder(drizzle({ client }), { migrationsFolder: dirOf(branch) });
 			const db = { query: async (query: string, params?: any[]) => (await client.query<any>(query, params)).rows };

@@ -278,7 +278,7 @@
 		"@effect/sql-sqlite-do": "4.0.0",
 		"@effect/sql-sqlite-node": "4.0.0",
 		"@effect/sql-sqlite-wasm": "4.0.0",
-		"@electric-sql/pglite": "^0.5.8",
+		"@electric-sql/pglite": "^0.5.15",
 		"@libsql/client": "^0.10.0",
 		"@libsql/client-wasm": "^0.10.0",
 		"@miniflare/d1": "^2.14.4",

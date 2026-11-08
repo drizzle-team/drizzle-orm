@@ -1,4 +1,3 @@
-import { PGlite } from '@electric-sql/pglite';
 import { integer, pgTable, text, varchar } from 'drizzle-orm/pg-core';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -7,6 +6,7 @@ import { errorToEnvelope } from 'src/cli/errors';
 import { prepareOutFolder } from 'src/utils/utils-node';
 import { expect, onTestFinished, test } from 'vitest';
 import { ORIGIN, writeSnapshot } from '../other/check-fixtures';
+import { freshPGlite } from '../pglite';
 import { createFolderFlow, forkFlow, schemaState, step, tempDir } from './folder-flow';
 
 // Verifies how the postgres commands handle a damaged migrations folder. A deleted middle or first migration,
@@ -36,7 +36,7 @@ test('deleting a middle migration stops every command with the missing parent an
 	// `up` does not throw for this broken folder, because it converts only older formats and does not check
 	// the history of format 9 snapshots.
 	expect(await flow.up('main')).toStrictEqual([]);
-	const client = new PGlite();
+	const client = await freshPGlite();
 	onTestFinished(() => client.close());
 	await expect(flow.pull('main', client)).rejects.toThrow(message);
 	expect(flow.folders('main')).toStrictEqual(['20260101120001_main', '20260101120003_main']);
@@ -81,7 +81,7 @@ test('a second base snapshot stops check, generate and pull, and the error names
 		+ 'together with every migration that follows it, then run generate again.';
 	await expect(flow.check('main')).rejects.toThrow(message);
 	await expect(flow.generate('main', v1)).rejects.toThrow(message);
-	const client = new PGlite();
+	const client = await freshPGlite();
 	onTestFinished(() => client.close());
 	await expect(flow.pull('main', client)).rejects.toThrow(message);
 	expect(errorToEnvelope(await flow.check('main').catch((e) => e))).toStrictEqual({

@@ -50,6 +50,7 @@ import { DB } from 'src/utils';
 import { diffIntrospect, prepareTestDatabase, push, TestDatabase } from 'tests/postgres/mocks';
 import { needToPostpone } from 'tests/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { freshPGlite } from '../pglite';
 
 // @vitest-environment-options {"max-concurrency":1}
 
@@ -167,7 +168,7 @@ test('basic identity by default test', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3240
 test('basic index test', async () => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 
 	const schema = {
 		users: pgTable(

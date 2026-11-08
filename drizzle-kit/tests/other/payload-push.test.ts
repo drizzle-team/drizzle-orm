@@ -1,4 +1,3 @@
-import { PGlite } from '@electric-sql/pglite';
 import type { Database } from 'better-sqlite3';
 import BetterSqlite3 from 'better-sqlite3';
 import { integer, pgTable } from 'drizzle-orm/pg-core';
@@ -7,6 +6,7 @@ import { integer as sqliteInteger, sqliteTable, text as sqliteText } from 'drizz
 import { pushSchema as pgPush } from 'src/ext/api-postgres';
 import { pushSchema as sqlitePush } from 'src/payload/sqlite';
 import { expect, test } from 'vitest';
+import { freshPGlite } from '../pglite';
 
 // This file must not import `tests/sqlite/mocks`. That module loads `zx/globals`, and `pushSchema` must work in a
 // process that does not have those globals.
@@ -101,7 +101,7 @@ test('sqlite push with a table rename hint asks to confirm a dropped column of t
 });
 
 test('postgres push of a renamed table asks for a hint and keeps the rows with a rename hint', async () => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 	await client.exec('CREATE TABLE "a" ("id" integer PRIMARY KEY); INSERT INTO "a" VALUES (1);');
 	const db = drizzle({ client });
 	const schema = { b: pgTable('b', { id: integer('id').primaryKey() }) };
@@ -121,7 +121,7 @@ test('postgres push of a renamed table asks for a hint and keeps the rows with a
 });
 
 test('postgres push that drops a non-empty table asks for a data loss confirmation', async () => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 	await client.exec('CREATE TABLE "a" ("id" integer PRIMARY KEY); INSERT INTO "a" VALUES (1);');
 	const db = drizzle({ client });
 

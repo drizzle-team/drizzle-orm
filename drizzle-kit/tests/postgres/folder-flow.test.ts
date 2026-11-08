@@ -3,6 +3,7 @@ import { index, integer, pgTable, primaryKey, text, unique, varchar } from 'driz
 import { errorToEnvelope } from 'src/cli/errors';
 import { expect, onTestFinished, test } from 'vitest';
 import { ORIGIN } from '../other/check-fixtures';
+import { freshPGlite } from '../pglite';
 import {
 	columnRow,
 	createFolderFlow,
@@ -401,7 +402,7 @@ test('commands ask to run up on format 8 snapshots, and up converts them', async
 
 test('pull into an empty folder writes a base snapshot that generate continues', async () => {
 	const flow = createFolderFlow();
-	const client = new PGlite();
+	const client = await freshPGlite();
 	onTestFinished(() => client.close());
 	await client.exec('CREATE TABLE "users" ("id" integer);');
 	const v1 = { users: pgTable('users', { id: integer() }) };

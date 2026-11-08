@@ -19,6 +19,7 @@ import {
 	fromExports as sqliteFromExports,
 	SchemaSource as SqliteSchemaSource,
 } from '../../src/dialects/sqlite/drizzle';
+import { freshPGlite } from '../pglite';
 import {
 	ORIGIN as _ORIGIN,
 	stageConflict as _stageConflict,
@@ -98,7 +99,7 @@ afterEach(() => {
 });
 
 test('push throws a structured command_output_error for a duplicate-name schema in json mode', async () => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 
 	// Two exported tables map to the same physical name, so the real ddl mapper raises a
 	// `table_name_duplicate` SchemaError that the push handler wraps as command_output_error.
@@ -132,7 +133,7 @@ test('push throws a structured command_output_error for a duplicate-name schema 
 });
 
 test('push postgres explain emits structured json payload in json mode', async () => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 	await client.query('CREATE TABLE users (name text);');
 
 	const schema = pgFromExports({ users: pgTable('users', { name: pgText().notNull() }) });
@@ -336,7 +337,7 @@ test('generate sqlite custom emits json payload in json mode', async () => {
 });
 
 test('push postgres schema warnings do not leak to stdout in json mode', async () => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 
 	// A standalone policy that is never linked to a table makes the real schema reader
 	// emit a `policy_not_linked` warning; the empty diff still resolves to no_changes.
@@ -369,7 +370,7 @@ test('push postgres schema warnings do not leak to stdout in json mode', async (
 });
 
 test('push postgres emits missing_hints for unresolved schema rename in json mode', async () => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 	await client.query('CREATE SCHEMA prev_schema;');
 
 	const schema = pgFromExports({ next_schema: pgSchema('next_schema') });
@@ -400,7 +401,7 @@ test('push postgres emits missing_hints for unresolved schema rename in json mod
 });
 
 test('push postgres orders rename hint resolves create_or_rename and applies changes in json mode', async () => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 	await client.query('CREATE TABLE orders (id integer);');
 
 	const schema = pgFromExports({ orders1: pgTable('orders1', { id: pgInteger() }) });
@@ -434,7 +435,7 @@ test('push postgres orders rename hint resolves create_or_rename and applies cha
 
 describe('push postgres confirm_data_loss[view] in json mode', () => {
 	test('emits missing_hints when unresolved', async () => {
-		const client = new PGlite();
+		const client = await freshPGlite();
 		await client.query('CREATE TABLE base (id integer);');
 		await client.query('INSERT INTO base (id) VALUES (1);');
 		await client.query('CREATE MATERIALIZED VIEW user_stats AS SELECT id FROM base;');
@@ -454,7 +455,7 @@ describe('push postgres confirm_data_loss[view] in json mode', () => {
 	});
 
 	test('applies matching hint and runs to ok', async () => {
-		const client = new PGlite();
+		const client = await freshPGlite();
 		await client.query('CREATE TABLE base (id integer);');
 		await client.query('INSERT INTO base (id) VALUES (1);');
 		await client.query('CREATE MATERIALIZED VIEW user_stats AS SELECT id FROM base;');
@@ -478,7 +479,7 @@ describe('push postgres confirm_data_loss[view] in json mode', () => {
 
 describe('push postgres confirm_data_loss[schema] in json mode', () => {
 	test('emits missing_hints when unresolved', async () => {
-		const client = new PGlite();
+		const client = await freshPGlite();
 		await client.query('CREATE SCHEMA analytics;');
 		await client.query('CREATE TABLE analytics.events (id integer);');
 
@@ -497,7 +498,7 @@ describe('push postgres confirm_data_loss[schema] in json mode', () => {
 	});
 
 	test('applies matching hint and runs to ok', async () => {
-		const client = new PGlite();
+		const client = await freshPGlite();
 		await client.query('CREATE SCHEMA analytics;');
 		await client.query('CREATE TABLE analytics.events (id integer);');
 
@@ -520,7 +521,7 @@ describe('push postgres confirm_data_loss[schema] in json mode', () => {
 
 describe('push postgres confirm_data_loss[primary_key] in json mode', () => {
 	test('emits missing_hints when unresolved', async () => {
-		const client = new PGlite();
+		const client = await freshPGlite();
 		await client.query('CREATE TABLE users (id integer NOT NULL, CONSTRAINT users_pkey PRIMARY KEY (id));');
 		await client.query('INSERT INTO users (id) VALUES (1);');
 
@@ -544,7 +545,7 @@ describe('push postgres confirm_data_loss[primary_key] in json mode', () => {
 	});
 
 	test('applies matching hint and runs to ok', async () => {
-		const client = new PGlite();
+		const client = await freshPGlite();
 		await client.query('CREATE TABLE users (id integer NOT NULL, CONSTRAINT users_pkey PRIMARY KEY (id));');
 		await client.query('INSERT INTO users (id) VALUES (1);');
 
@@ -569,7 +570,7 @@ describe('push postgres confirm_data_loss[primary_key] in json mode', () => {
 
 describe('push postgres add_unique in json mode', () => {
 	test('proceeds without a confirm and applies the constraint', async () => {
-		const client = new PGlite();
+		const client = await freshPGlite();
 		await client.query('CREATE TABLE users (id integer, email text);');
 		await client.query("INSERT INTO users (id, email) VALUES (1, 'a@b.com');");
 
@@ -1431,7 +1432,7 @@ describe('pull json envelopes', () => {
 	});
 
 	test('ok manifest (fresh) surfaces every path with migrationPath present', async () => {
-		const client = new PGlite();
+		const client = await freshPGlite();
 
 		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-pull-ok-fresh-'));
 		const runPull = await importRunPull();
@@ -1456,7 +1457,7 @@ describe('pull json envelopes', () => {
 	});
 
 	test('ok manifest (pre-existing snapshot) omits migrationPath', async () => {
-		const client = new PGlite();
+		const client = await freshPGlite();
 
 		const out = mkdtempSync(join(tmpdir(), 'drizzle-kit-pull-ok-existing-'));
 		const latestSnapshot = stageSnapshot(out, '0000_x');
@@ -1530,7 +1531,7 @@ describe('pull json envelopes', () => {
 	});
 
 	test('json mode emits only the envelope and never constructs IntrospectProgress', async () => {
-		const client = new PGlite();
+		const client = await freshPGlite();
 
 		const introspectProgress = vi.fn();
 		vi.doMock('../../src/cli/views', async () => {

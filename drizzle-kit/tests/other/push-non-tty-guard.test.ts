@@ -1,4 +1,3 @@
-import { PGlite } from '@electric-sql/pglite';
 import BetterSqlite3 from 'better-sqlite3';
 import { afterEach, expect, test, vi } from 'vitest';
 import { HintsHandler } from '../../src/cli/hints';
@@ -7,6 +6,7 @@ import {
 	fromExports as sqliteFromExports,
 	SchemaSource as SqliteSchemaSource,
 } from '../../src/dialects/sqlite/drizzle';
+import { freshPGlite } from '../pglite';
 
 const runWithCliContext = async <T>(
 	context: { output: 'text' | 'json'; interactive: boolean },
@@ -38,7 +38,7 @@ afterEach(() => {
 });
 
 test('push postgres under text + non-TTY resolves a non-empty drop to missing_hints instead of reaching the prompt', async () => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 	await client.query('CREATE TABLE orders (id integer);');
 	await client.query('INSERT INTO orders (id) VALUES (1);');
 
