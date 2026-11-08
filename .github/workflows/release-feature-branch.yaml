@@ -170,7 +170,7 @@ jobs:
           - shard: kit:postgres:commutativity
             dbs: []
           - shard: kit:cockroach
-            dbs: [cockroach]
+            dbs: [cockroach-many]
           - shard: kit:mssql
             dbs: [mssql]
           - shard: seed
