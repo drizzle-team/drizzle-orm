@@ -15,8 +15,6 @@ export default defineConfig({
 			'tests/sqlite/sqlite-cloud.test.ts',
 			...(process.env['SKIP_EXTERNAL_DB_TESTS']
 				? [
-					'tests/mysql/planetscale.test.ts',
-					'tests/mysql/mysql.planetscale.test.ts',
 					'tests/pg/neon-serverless.test.ts',
 					'tests/pg/netlify-db.test.ts',
 					'tests/mysql/tidb-serverless.test.ts',

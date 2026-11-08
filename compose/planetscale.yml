@@ -1,0 +1,34 @@
+# PlanetScale's HTTP API (what @planetscale/database speaks) over a local MySQL, so the PlanetScale suites run
+# without the network: ps-http-sim, an unofficial simulator by a PlanetScale engineer.
+# https://github.com/mattrobenolt/ps-http-sim
+# Clients connect with { url: 'http://root:planetscale@localhost:3900' }: an http:// url, as `host` forces https.
+services:
+  planetscale-mysql:
+    image: mysql:8
+    network_mode: bridge
+    # Test data only: no forced disk writes or binary log. The simulator opens a connection per client session,
+    # so a busy suite needs more than MySQL's default 151.
+    command: --innodb-flush-log-at-trx-commit=0 --sync-binlog=0 --skip-log-bin --innodb-doublewrite=OFF --max-connections=2000
+    mem_limit: 2g
+    environment:
+      MYSQL_ROOT_PASSWORD: planetscale
+      MYSQL_DATABASE: planetscale
+      TZ: UTC
+    ports:
+      # The simulator's port: it runs in this container's network namespace (network_mode below).
+      - "${DRIZZLE_PORT_PLANETSCALE:-3900}:3900"
+
+  planetscale:
+    # Pinned: a third-party image that runs in CI.
+    image: ghcr.io/mattrobenolt/ps-http-sim@sha256:fb624c2f615cd53910be07a5c6a62ddf54936a2e1c7322c8398fa2b5dd601c41
+    # Shares planetscale-mysql's network namespace, so it reaches MySQL on localhost and needs no compose network.
+    network_mode: service:planetscale-mysql
+    mem_limit: 256m
+    command:
+      - -listen-port=3900
+      - -mysql-addr=127.0.0.1
+      - -mysql-dbname=planetscale
+      - -mysql-max-rows=100000
+      - -mysql-idle-timeout=1s # sessions' connections close soon after their last query, not after the default 10 s
+      - -log-level=warn
+    restart: on-failure # MySQL takes a few seconds to accept connections the first time

@@ -87,6 +87,9 @@ for db in "$@"; do
     postgres-http-gateway) wait_tcp 127.0.0.1 "$DRIZZLE_PORT_HTTP_GATEWAY" "postgres-http-gateway" ;;
     aws-data-api)         wait_tcp 127.0.0.1 "$DRIZZLE_PORT_AWS_DATA_API" "aws-data-api" ;;
     neon)                 wait_tcp 127.0.0.1 "$DRIZZLE_PORT_NEON_PROXY" "neon-proxy" ;;
+    # The simulator answers before MySQL does; MySQL's own port is not published, so its log tells: its final
+    # server (after the init scripts' socket-only one) reports port 3306.
+    planetscale)          wait_tcp 127.0.0.1 "$DRIZZLE_PORT_PLANETSCALE" "planetscale"; wait_log planetscale planetscale-mysql "ready for connections.*port: 3306" ;;
     turso)
       for port in "$DRIZZLE_PORT_TURSO" "$DRIZZLE_PORT_TURSO1" "$DRIZZLE_PORT_TURSO2" "$DRIZZLE_PORT_TURSO3" "$DRIZZLE_PORT_TURSO4"; do
         wait_tcp 127.0.0.1 "$port" "turso"

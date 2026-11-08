@@ -60,7 +60,10 @@ case "$shard" in
 		;;
 	int:mysql) pnpm --stream test:mysql ;;
 	int:tidb) if external; then pnpm --stream vitest --reporter=verbose --silent=false tests/mysql/tidb; fi ;;
-	int:planetscale) if external; then pnpm --stream test:planetscale; fi ;;
+	# Against this job's own PlanetScale HTTP API simulator over MySQL (compose/planetscale.yml).
+	int:planetscale)
+		PLANETSCALE_CONNECTION_STRING="http://root:planetscale@127.0.0.1:${DRIZZLE_PORT_PLANETSCALE}" pnpm --stream test:planetscale
+		;;
 	int:cockroach) pnpm --stream test:cockroach ;;
 	int:cockroach-rqb) pnpm --stream test:cockroach-rqb ;;
 	int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;

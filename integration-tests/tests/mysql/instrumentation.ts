@@ -278,11 +278,10 @@ const prepareTest = (vendor: 'mysql' | 'planetscale' | 'tidb' | 'mysql-proxy') =
 						return client.execute(sql, params).then((x) => x.rows);
 					};
 
+					// In order: each execute is its own session, so run together a DROP could land after a CREATE.
 					const batch = async (statements: string[]) => {
-						const queries = statements.map((x) => {
-							return client.execute(x);
-						});
-						return Promise.all(queries).then(() => '' as any);
+						for (const statement of statements) await client.execute(statement);
+						return '' as any;
 					};
 
 					const tables =

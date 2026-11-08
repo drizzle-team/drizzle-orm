@@ -23,6 +23,7 @@ ALL_DIALECTS=(
   aws-data-api
   neon
   turso
+  planetscale
 )
 
 _resolve_compose_file() {
@@ -44,6 +45,7 @@ _resolve_compose_file() {
     aws-data-api)     echo "aws-data-api.yml" ;;
     neon)             echo "neon.yml" ;;
     turso)            echo "turso.yml" ;;
+    planetscale)      echo "planetscale.yml" ;;
     *)
       echo "Unknown dialect '$1'. Valid dialects: ${ALL_DIALECTS[*]}" >&2
       return 1

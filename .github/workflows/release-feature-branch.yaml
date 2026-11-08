@@ -161,8 +161,7 @@ jobs:
           - shard: int:imports
             dbs: []
           - shard: int:planetscale
-            dbs: []
-            cloud: [planetscale]
+            dbs: [planetscale]
           - shard: int:cockroach
             dbs: [cockroach]
           - shard: int:cockroach-rqb
@@ -215,10 +214,6 @@ jobs:
         env:
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
           NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
-          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
-          PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
-          PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
-          PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
         run: pnpm exec tsx scripts/ci-databases.ts create --job "${{ matrix.shard }}" ${{ join(matrix.cloud, ' ') }}
 
       # One compose project per dialect: postgres16/17/18.yml all name their service `postgres`, so merging them
@@ -250,7 +245,6 @@ jobs:
         env:
           # Fork pull requests get no secrets: skip the shards that need hosted databases.
           SKIP_EXTERNAL_DB_TESTS: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && '1' || '' }}
-          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
           TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
           XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
@@ -264,10 +258,6 @@ jobs:
         env:
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
           NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
-          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
-          PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
-          PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
-          PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
         run: pnpm exec tsx scripts/ci-databases.ts drop
 
       # GitHub-hosted runners discard the VM; a self-hosted one keeps containers running between jobs.
