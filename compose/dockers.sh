@@ -207,6 +207,17 @@ cmd_logs() {
   _compose "$1" logs --tail=200 -f
 }
 
+# The last lines of each container's log, for a CI job that failed.
+cmd_logs_dump() {
+  _validate_all "$@"
+  local dialect
+  for dialect in "$@"; do
+    echo "::group::$dialect logs"
+    _compose "$dialect" logs --tail=300 --no-color --timestamps || true
+    echo "::endgroup::"
+  done
+}
+
 cmd_wait() {
   if [ "$#" -lt 1 ]; then
     echo "Usage: bash compose/dockers.sh wait <dialect> [<dialect> ...]" >&2
@@ -226,6 +237,7 @@ Subcommands:
                           With no args, tears down every supported dialect.
   ps    [<dialect> ...]   Show containers for dialect(s). No args -> all.
   logs  <dialect>         Tail logs for one dialect (docker compose logs --tail=200 -f).
+  logs-dump <dialect> ... Print the last 300 log lines of each dialect's containers and exit (CI failures).
   wait  <dialect> ...     Probe TCP readiness via compose/wait.sh.
   help                    Show this message.
 
@@ -255,6 +267,7 @@ main() {
     down)             cmd_down ${args[@]+"${args[@]}"} ;;
     ps)               cmd_ps ${args[@]+"${args[@]}"} ;;
     logs)             cmd_logs ${args[@]+"${args[@]}"} ;;
+    logs-dump)        cmd_logs_dump ${args[@]+"${args[@]}"} ;;
     wait)             cmd_wait ${args[@]+"${args[@]}"} ;;
     help|-h|--help)   cmd_help ;;
     *)

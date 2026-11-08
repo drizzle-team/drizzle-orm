@@ -24,7 +24,11 @@ import {
 import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
 import { Database as SqliteCloudDatabase, SQLiteCloudRowset } from '@sqlitecloud/drivers';
 import { Database as TursoDatabase } from '@tursodatabase/database';
-import { connect, type Connection as TursoServerlessConnection } from '@tursodatabase/serverless';
+import {
+	connect,
+	type Connection as TursoServerlessConnection,
+	DatabaseError as TursoServerlessDatabaseError,
+} from '@tursodatabase/serverless';
 import { Database as TursoDatabaseSync } from '@tursodatabase/sync';
 import type BetterSqlite3 from 'better-sqlite3';
 import Client from 'better-sqlite3';
@@ -297,20 +301,35 @@ export const prepareTursoDatabaseServerlessClient = (url: string, authToken: str
 		authToken,
 	});
 
-	const all = async (sql: string, params: any[] = []) => {
-		const stmt = await client.prepare(sql);
-		return stmt.all(params) as any;
+	// The connection's requests share one stream on the server, named by a token that each response replaces. The
+	// server answers HTTP 400 to a token it no longer knows (a stream it dropped, or one a concurrent request moved
+	// on), and the driver then starts a new stream: the request is retried once on it.
+	const onStream = async <T>(request: () => Promise<T>): Promise<T> => {
+		try {
+			return await request();
+		} catch (error) {
+			if (!(error instanceof TursoServerlessDatabaseError && error.message.includes('status: 400'))) throw error;
+			return request();
+		}
 	};
 
-	const run = async (sql: string, params: any[] = []) => {
-		const stmt = await client.prepare(sql);
-		return stmt.run(params) as any;
-	};
+	const all = (sql: string, params: any[] = []) =>
+		onStream(async () => {
+			const stmt = await client.prepare(sql);
+			return stmt.all(params) as any;
+		});
 
+	const run = (sql: string, params: any[] = []) =>
+		onStream(async () => {
+			const stmt = await client.prepare(sql);
+			return stmt.run(params) as any;
+		});
+
+	// In order, not at once: concurrent requests on one stream reuse its token.
 	const batch = async (statements: string[]) => {
-		return Promise.all(
-			statements.map((x) => run(x)),
-		).then((results) => [results] as any);
+		const results = [];
+		for (const statement of statements) results.push(await run(statement));
+		return [results] as any;
 	};
 
 	return { client, all, run, batch };

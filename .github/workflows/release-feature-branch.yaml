@@ -185,7 +185,7 @@ jobs:
           - shard: kit:postgres:commutativity
             dbs: [postgres18]
           - shard: kit:cockroach
-            dbs: [cockroach]
+            dbs: [cockroach-many]
           - shard: kit:mssql
             dbs: [mssql]
           - shard: seed
@@ -259,6 +259,11 @@ jobs:
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
           NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
         run: pnpm exec tsx scripts/ci-databases.ts drop
+
+      # Before they stop: the servers' side of a failure (an error a driver reported only as an HTTP status).
+      - name: Database logs
+        if: ${{ failure() && matrix.dbs && join(matrix.dbs, ',') != '' }}
+        run: bash compose/dockers.sh logs-dump ${{ join(matrix.dbs, ' ') }}
 
       # GitHub-hosted runners discard the VM; a self-hosted one keeps containers running between jobs.
       - name: Stop this job's databases

@@ -82,14 +82,21 @@ case "$shard" in
 		;;
 	kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
 	# The commutativity suite runs once, in kit:postgres:commutativity, against the latest stable Postgres (18).
-	kit:postgres) cd ../drizzle-kit && KIT_POSTGRES_SUITE=main pnpm --stream run test:postgres ;;
+	# PGlite in-process for each file, and a PostGIS database for each worker: the files can run side by side.
+	kit:postgres) cd ../drizzle-kit && KIT_POSTGRES_SUITE=main KIT_FILE_PARALLELISM=1 pnpm --stream run test:postgres ;;
 	kit:postgres18) cd ../drizzle-kit && KIT_POSTGRES_SUITE=main PG_VERSION=18 pnpm --stream run test:postgres ;;
 	kit:postgres17) cd ../drizzle-kit && KIT_POSTGRES_SUITE=main PG_VERSION=17 pnpm --stream run test:postgres ;;
 	kit:postgres16) cd ../drizzle-kit && KIT_POSTGRES_SUITE=main PG_VERSION=16 pnpm --stream run test:postgres ;;
 	kit:postgres:commutativity)
 		cd ../drizzle-kit && KIT_POSTGRES_SUITE=commutativity PG_VERSION=18 pnpm --stream vitest run postgres/commutativity
 		;;
-	kit:cockroach) cd ../drizzle-kit && pnpm --stream run test:cockroach ;;
+	# One of the three cockroach-many servers for each worker (tests/cockroach/mocks.ts picks it by VITEST_POOL_ID):
+	# the setup drops every role, which belongs to the whole server.
+	kit:cockroach)
+		cd ../drizzle-kit
+		COCKROACH_CONNECTION_STRING="$(for i in 0 1 2; do port_var="DRIZZLE_PORT_COCKROACH_MANY$i"; printf 'postgresql://root@127.0.0.1:%s/defaultdb?sslmode=disable;' "${!port_var}"; done)" \
+			KIT_FILE_PARALLELISM=1 KIT_MAX_WORKERS=3 pnpm --stream run test:cockroach
+		;;
 	kit:mssql) cd ../drizzle-kit && pnpm --stream run test:mssql ;;
 	validators) pnpm --stream vitest --reporter=verbose --silent=false run tests/validators ;;
 	orm | seed) (cd "../drizzle-$shard" && pnpm --stream test --reporter=verbose --silent=false) ;;
