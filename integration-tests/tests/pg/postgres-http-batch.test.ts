@@ -4,7 +4,7 @@ import { type AnyPgColumn, integer, pgTable, primaryKey, serial, text, timestamp
 import { drizzle, type PostgresHttpDatabase, type PostgresHttpQueryResult } from 'drizzle-orm/postgres/http';
 import { Client as ClientNodePostgres } from 'pg';
 import { describe, expect, expectTypeOf, test as base } from 'vitest';
-import { _push, prepareHttpClient } from './instrumentation';
+import { _push, prepareHttpClient, recreateDatabases, testDatabase } from './instrumentation';
 
 export const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
@@ -117,7 +117,7 @@ export const schema = {
 
 export const relations = defineRelations(schema);
 
-const DATABASE = 'db25';
+const DATABASE = testDatabase('db25');
 
 /** A wire connection string to the database the gateway serves */
 const databaseUrl = (database: string) => {
@@ -130,11 +130,8 @@ const test = base.extend<{ db: PostgresHttpDatabase<typeof relations> }>({
 	db: [
 		// oxlint-disable-next-line no-empty-pattern
 		async ({}, use) => {
-			const admin = new ClientNodePostgres({ connectionString: process.env['PG_CONNECTION_STRING'] });
-			await admin.connect();
-			await admin.query(`drop database if exists ${DATABASE}`);
-			await admin.query(`create database ${DATABASE};`);
-			await admin.end();
+			// With force: the HTTP gateway may still hold connections to it from an earlier run.
+			await recreateDatabases([DATABASE]);
 
 			const { client, query } = await prepareHttpClient(DATABASE);
 			await _push(query, schema);

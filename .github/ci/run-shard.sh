@@ -12,15 +12,17 @@ shard="${1:?usage: run-shard.sh <shard>}"
 source "$(dirname "$0")/../../compose/ports.sh"
 cd "$(dirname "$0")/../../integration-tests"
 
-: "${PG_CONNECTION_STRING:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES}/drizzle}"
+# On a self-hosted machine the Postgres, PostGIS and pgvector servers are shared, and this job's databases on them
+# carry DRIZZLE_TEST_DB_PREFIX (compose/ports.sh); empty elsewhere.
+: "${PG_CONNECTION_STRING:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES}/${DRIZZLE_TEST_DB_PREFIX}drizzle}"
 : "${PG_HTTP_GATEWAY_URL:=http://localhost:${DRIZZLE_PORT_HTTP_GATEWAY}/query}"
 : "${AWS_DATA_API_URL:=http://localhost:${DRIZZLE_PORT_AWS_DATA_API}}"
-: "${PG_VECTOR_CONNECTION_STRING:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_VECTOR}/drizzle}"
-: "${PG_POSTGIS_CONNECTION_STRING:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGIS}/drizzle}"
+: "${PG_VECTOR_CONNECTION_STRING:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_VECTOR}/${DRIZZLE_TEST_DB_PREFIX}drizzle}"
+: "${PG_POSTGIS_CONNECTION_STRING:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGIS}/${DRIZZLE_TEST_DB_PREFIX}drizzle}"
 : "${PG18_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES18}/drizzle}"
 : "${PG17_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES17}/drizzle}"
 : "${PG16_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGRES16}/drizzle}"
-: "${POSTGIS_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGIS}/drizzle}"
+: "${POSTGIS_URL:=postgres://postgres:postgres@localhost:${DRIZZLE_PORT_POSTGIS}/${DRIZZLE_TEST_DB_PREFIX}drizzle}"
 : "${MYSQL_CONNECTION_STRING:=mysql://root:mysql@localhost:${DRIZZLE_PORT_MYSQL}/drizzle}"
 # In memory, as in local runs: a database file costs an fsync per write, which on a runner whose work folder is a
 # shared volume made the three libsql suites take ~15 minutes between them.

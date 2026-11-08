@@ -754,59 +754,17 @@ export const provideForPglite = async () => {
 };
 
 export const provideForNodePostgres = async () => {
-	const url = process.env['PG_CONNECTION_STRING'];
-	if (!url) throw new Error();
-	const client = new ClientNodePostgres({ connectionString: url });
-	client.connect();
+	const dbs = ['db0', 'db1', 'db2', 'db3', 'db4'].map(testDatabase);
+	await recreateDatabases(dbs);
 
-	await client.query(`drop database if exists db0`);
-	await client.query(`drop database if exists db1`);
-	await client.query(`drop database if exists db2`);
-	await client.query(`drop database if exists db3`);
-	await client.query(`drop database if exists db4`);
-	await client.query('create database db0;');
-	await client.query('create database db1;');
-	await client.query('create database db2;');
-	await client.query('create database db3;');
-	await client.query('create database db4;');
-
-	const clients = [
-		await prepareNodePostgres('db0'),
-		await prepareNodePostgres('db1'),
-		await prepareNodePostgres('db2'),
-		await prepareNodePostgres('db3'),
-		await prepareNodePostgres('db4'),
-	];
-
-	return createProvider(clients);
+	return createProvider(await prepareSequentially(dbs, prepareNodePostgres));
 };
 
 export const provideForPostgres = async () => {
-	const url = process.env['PG_CONNECTION_STRING'];
-	if (!url) throw new Error();
-	const client = new ClientNodePostgres({ connectionString: url });
-	client.connect();
+	const dbs = ['db0', 'db1', 'db2', 'db3', 'db4'].map(testDatabase);
+	await recreateDatabases(dbs);
 
-	await client.query(`drop database if exists db0`);
-	await client.query(`drop database if exists db1`);
-	await client.query(`drop database if exists db2`);
-	await client.query(`drop database if exists db3`);
-	await client.query(`drop database if exists db4`);
-	await client.query('create database db0;');
-	await client.query('create database db1;');
-	await client.query('create database db2;');
-	await client.query('create database db3;');
-	await client.query('create database db4;');
-
-	const clients = [
-		await preparePostgres('db0'),
-		await preparePostgres('db1'),
-		await preparePostgres('db2'),
-		await preparePostgres('db3'),
-		await preparePostgres('db4'),
-	];
-
-	return createProvider(clients);
+	return createProvider(await prepareSequentially(dbs, preparePostgres));
 };
 
 export const provideForPostgresNeonWs = async () => {
@@ -829,69 +787,24 @@ export const provideForPostgresNeonHttp = async () => {
 };
 
 export const provideForHttp = async () => {
-	const url = process.env['PG_CONNECTION_STRING'];
-	if (!url) throw new Error();
-	const client = new ClientNodePostgres({ connectionString: url });
-	client.connect();
+	const dbs = ['db20', 'db21', 'db22', 'db23', 'db24'].map(testDatabase);
+	await recreateDatabases(dbs);
 
-	for (const db of ['db20', 'db21', 'db22', 'db23', 'db24']) {
-		await client.query(`drop database if exists ${db}`);
-		await client.query(`create database ${db};`);
-	}
-	await client.end();
-
-	const clients = [
-		await prepareHttpClient('db20'),
-		await prepareHttpClient('db21'),
-		await prepareHttpClient('db22'),
-		await prepareHttpClient('db23'),
-		await prepareHttpClient('db24'),
-	];
-
-	return createProvider(clients);
+	return createProvider(await prepareSequentially(dbs, prepareHttpClient));
 };
 
 export const provideForPostgresjs = async () => {
-	const url = process.env['PG_CONNECTION_STRING'];
-	if (!url) throw new Error();
-	const client = postgres(url, { max: 1, onnotice: () => {} });
+	const dbs = ['db0', 'db1', 'db2', 'db3', 'db4'].map(testDatabase);
+	await recreateDatabases(dbs);
 
-	await client`drop database if exists db0`;
-	await client`drop database if exists db1`;
-	await client`drop database if exists db2`;
-	await client`drop database if exists db3`;
-	await client`drop database if exists db4`;
-	await client`create database db0;`;
-	await client`create database db1;`;
-	await client`create database db2;`;
-	await client`create database db3;`;
-	await client`create database db4;`;
-
-	const clients = [
-		await preparePostgresjs('db0'),
-		await preparePostgresjs('db1'),
-		await preparePostgresjs('db2'),
-		await preparePostgresjs('db3'),
-		await preparePostgresjs('db4'),
-	];
-
-	return createProvider(clients);
+	return createProvider(await prepareSequentially(dbs, preparePostgresjs));
 };
 
 export const provideForProxy = async () => {
-	const url = process.env['PG_CONNECTION_STRING'];
-	if (!url) throw new Error();
-	const client = new ClientNodePostgres({ connectionString: url });
-	client.connect();
+	const dbs = ['db0'].map(testDatabase);
+	await recreateDatabases(dbs);
 
-	await client.query(`drop database if exists db0`);
-	await client.query('create database db0;');
-
-	const clients = [
-		await prepareProxy('db0'),
-	];
-
-	return createProvider(clients);
+	return createProvider(await prepareSequentially(dbs, prepareProxy));
 };
 
 export const provideForNetlifyDb = async () => {
@@ -910,7 +823,15 @@ export const provideForNetlifyDb = async () => {
 	return createProvider(clients);
 };
 
-const recreateDatabases = async (dbs: string[]) => {
+/**
+ * A test database's name on the Postgres server PG_CONNECTION_STRING names. CI runner instances share one long-lived
+ * server, so .github/ci/run-shard.sh sets DRIZZLE_TEST_DB_PREFIX to one per instance and concurrent jobs never meet;
+ * unset (local runs) the names are as written.
+ */
+export const testDatabase = (name: string) => `${process.env['DRIZZLE_TEST_DB_PREFIX'] ?? ''}${name}`;
+
+/** Drops and creates the databases, so each run starts from empty ones whatever an earlier run left. */
+export const recreateDatabases = async (dbs: string[]) => {
 	const url = process.env['PG_CONNECTION_STRING'];
 	if (!url) throw new Error();
 	const client = new ClientNodePostgres({ connectionString: url });
@@ -924,23 +845,17 @@ const recreateDatabases = async (dbs: string[]) => {
 };
 
 export const provideForAurora = async () => {
-	const dbs = ['db30', 'db31', 'db32', 'db33', 'db34'];
+	const dbs = ['db30', 'db31', 'db32', 'db33', 'db34'].map(testDatabase);
 	await recreateDatabases(dbs);
 
-	const clients = [];
-	for (const db of dbs) clients.push(await prepareAurora(db));
-
-	return createProvider(clients);
+	return createProvider(await prepareSequentially(dbs, prepareAurora));
 };
 
 export const provideForAwsDataApi = async () => {
-	const dbs = ['db35', 'db36', 'db37', 'db38', 'db39'];
+	const dbs = ['db35', 'db36', 'db37', 'db38', 'db39'].map(testDatabase);
 	await recreateDatabases(dbs);
 
-	const clients = [];
-	for (const db of dbs) clients.push(await prepareAwsDataApi(db));
-
-	return createProvider(clients);
+	return createProvider(await prepareSequentially(dbs, prepareAwsDataApi));
 };
 
 type ProviderAurora = Awaited<ReturnType<typeof provideForAurora>>;

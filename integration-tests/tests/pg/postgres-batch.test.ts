@@ -4,7 +4,7 @@ import { type AnyPgColumn, integer, pgTable, primaryKey, serial, text, timestamp
 import { drizzle, type PostgresDatabase, type PostgresQueryResult } from 'drizzle-orm/postgres';
 import { Client as ClientNodePostgres } from 'pg';
 import { describe, expect, expectTypeOf, test as base } from 'vitest';
-import { _push, preparePostgres } from './instrumentation';
+import { _push, preparePostgres, recreateDatabases, testDatabase } from './instrumentation';
 
 export const usersTable = pgTable('users', {
 	id: serial('id').primaryKey(),
@@ -117,7 +117,7 @@ export const schema = {
 
 export const relations = defineRelations(schema);
 
-const DATABASE = 'db2';
+const DATABASE = testDatabase('db2');
 
 /** A connection string to the suite's database */
 const databaseUrl = (database: string) => {
@@ -130,6 +130,7 @@ const test = base.extend<{ db: PostgresDatabase<typeof relations> }>({
 	db: [
 		// oxlint-disable-next-line no-empty-pattern
 		async ({}, use) => {
+			await recreateDatabases([DATABASE]);
 			const { client, query } = await preparePostgres(DATABASE);
 			await _push(query, schema);
 

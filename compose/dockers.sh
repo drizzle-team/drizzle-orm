@@ -55,14 +55,17 @@ _compose() {
   local dialect="$1"; shift
   local file
   file="$(_resolve_compose_file "$dialect")"
-  docker compose -p "drizzle-${dialect}${DRIZZLE_COMPOSE_SUFFIX}" -f "compose/${file}" "$@"
+  docker compose -p "$(drizzle_project "$dialect")" -f "compose/${file}" "$@"
 }
 
 _up_one() {
   local dialect="$1"
+  if drizzle_is_shared "$dialect"; then
+    _up_shared "$dialect"
+    return
+  fi
   # A CI runner slot (CI_PORT_OFFSET set) first removes what a canceled or killed job on the same slot left
-  # behind: its containers keep the ports, and its networks use up Docker's address pools, which every runner on
-  # the machine shares. Never locally, where the default projects hold a developer's data.
+  # behind: its containers keep the ports. Never locally, where the default projects hold a developer's data.
   if [ "$CI_PORT_OFFSET" -ne 0 ]; then
     _compose "$dialect" down -v --remove-orphans >/dev/null 2>&1 || true
   fi
@@ -72,8 +75,53 @@ _up_one() {
   bash compose/wait.sh "$dialect"
 }
 
+# A server all runner instances share (compose/ports.sh): started by the first job that needs it and left running.
+# `up -d` leaves a running container as it is, so for every later job this is a check, not a start. Jobs that
+# start it at the same moment race to create the container; the losers' `up` fails and their retry finds it.
+_up_shared() {
+  local dialect="$1" attempt
+  for attempt in 1 2 3 4 5; do
+    _compose "$dialect" up -d --no-recreate >/dev/null 2>&1 && break
+    [ "$attempt" -eq 5 ] && { _compose "$dialect" up -d --no-recreate; return 1; }
+    sleep $((attempt * 2))
+  done
+  bash compose/wait.sh "$dialect"
+  _recreate_job_database "$dialect"
+}
+
+# This job's database on a shared Postgres server, the one run-shard.sh's connection strings name: dropped and
+# created, so the job starts from an empty one whatever the slot's last job left. The PostGIS server's comes from
+# its template_postgis, with the extensions its image installs.
+_recreate_job_database() {
+  local dialect="$1" template="" cid db attempt err
+  case "$dialect" in
+    postgres|postgres-vector) ;;
+    postgres-postgis) template=" template template_postgis" ;;
+    *) return 0 ;;
+  esac
+  db="${DRIZZLE_TEST_DB_PREFIX}drizzle"
+  err="$(mktemp)"
+  cid="$(docker ps -q --filter "label=com.docker.compose.project=$(drizzle_project "$dialect")" | head -n 1)"
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    # 55006 (object_in_use): other jobs copying the same template at that moment; it clears in milliseconds.
+    if docker exec "$cid" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q \
+      -c "drop database if exists \"$db\" with (force)" -c "create database \"$db\"$template" 2>"$err"; then
+      echo "$dialect: database $db recreated"
+      rm -f "$err"
+      return 0
+    fi
+    grep -q "being accessed by other users" "$err" || { cat "$err" >&2; rm -f "$err"; return 1; }
+    sleep 0.$attempt
+  done
+  cat "$err" >&2
+  rm -f "$err"
+  return 1
+}
+
 _down_one() {
   local dialect="$1"
+  # Shared servers stay up for the next job; its database is recreated when that job starts.
+  if drizzle_is_shared "$dialect"; then return 0; fi
   _compose "$dialect" down -v
 }
 

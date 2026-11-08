@@ -19,7 +19,7 @@ wait_tcp() {
 
 wait_till_ready() {
   service="$1"; name="$2"; tries="${3:-120}"
-  cid="$(docker ps -q --filter "label=com.docker.compose.service=$service" --filter "label=com.docker.compose.project=drizzle-${service}${DRIZZLE_COMPOSE_SUFFIX}" | head -n 1)"
+  cid="$(docker ps -q --filter "label=com.docker.compose.service=$service" --filter "label=com.docker.compose.project=$(drizzle_project "$service")" | head -n 1)"
   if [ -z "$cid" ]; then
     echo "No running container for compose service '$service'; skipping healthcheck wait" >&2
     return 0
@@ -50,7 +50,7 @@ proc_net() {
 
 wait_listening() {
   dialect="$1"; tries="${2:-180}"
-  project="drizzle-${dialect}${DRIZZLE_COMPOSE_SUFFIX}"
+  project="$(drizzle_project "$dialect")"
   for cid in $(docker ps -q --filter "label=com.docker.compose.project=$project"); do
     name="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.service"}}' "$cid")"
     for port in $(docker port "$cid" | sed -n 's#^\([0-9]*\)/tcp.*#\1#p' | sort -u); do
@@ -72,7 +72,7 @@ wait_listening() {
 # Waits for a line in a compose service's log.
 wait_log() {
   dialect="$1"; service="$2"; pattern="$3"; tries="${4:-180}"
-  cid="$(docker ps -q --filter "label=com.docker.compose.project=drizzle-${dialect}${DRIZZLE_COMPOSE_SUFFIX}" --filter "label=com.docker.compose.service=$service" | head -n 1)"
+  cid="$(docker ps -q --filter "label=com.docker.compose.project=$(drizzle_project "$dialect")" --filter "label=com.docker.compose.service=$service" | head -n 1)"
   for i in $(seq 1 "$tries"); do
     if docker logs "$cid" 2>&1 | grep -q "$pattern"; then echo "$service: $pattern"; return 0; fi
     sleep 1

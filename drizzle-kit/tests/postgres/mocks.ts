@@ -749,16 +749,17 @@ export const preparePgVersionTestDatabase = async (
 	}
 
 	const parsed = new URL(envURL);
+	// The database POSTGIS_URL names: CI jobs that share one PostGIS server each have their own.
+	const database = decodeURIComponent(parsed.pathname.slice(1)) || 'drizzle';
 	parsed.pathname = '/postgres';
 
 	const adminUrl = parsed.toString();
 	const admin = new Client({ connectionString: adminUrl });
 	await admin.connect();
-	await admin!.query(`DROP DATABASE IF EXISTS drizzle;`);
-	await admin!.query(`CREATE DATABASE drizzle;`);
+	await admin!.query(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE);`);
+	await admin!.query(`CREATE DATABASE "${database}";`);
 	await admin.end();
 
-	// envURL should have drizzle set as database
 	const pgClient = new Client({ connectionString: envURL });
 	await pgClient.connect();
 	await pgClient!.query(`DROP ACCESS METHOD IF EXISTS drizzle_heap;`);
