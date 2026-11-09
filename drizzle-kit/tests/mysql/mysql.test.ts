@@ -2227,7 +2227,7 @@ test('create table with datetime .onUpdateNow() diff variations', async () => {
 		+ '\t`col2` datetime(1) ON UPDATE CURRENT_TIMESTAMP(1),' + '\n'
 		+ '\t`col3` datetime(3) ON UPDATE CURRENT_TIMESTAMP(3),' + '\n'
 		+ '\t`col4` datetime(6) ON UPDATE CURRENT_TIMESTAMP(6),' + '\n'
-		+ '\t`col5` datetime,' + '\n'
+		+ '\t`col5` datetime ON UPDATE CURRENT_TIMESTAMP,' + '\n'
 		+ '\t`col6` datetime ON UPDATE CURRENT_TIMESTAMP' + '\n'
 		+ ');\n',
 	]);
@@ -2399,4 +2399,32 @@ test('change column type in a renamed table', async () => {
 		hint:
 			"You're about to change `name` column type in `users` (would become `accounts`) table from varchar(255) to text",
 	}]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6632
+test('Issue No6632', async () => {
+	const schema1 = {
+		onUpdateRepro: mysqlTable('on_update_repro', {
+			ts_string: timestamp({ mode: 'date' }).defaultNow().onUpdateNow().notNull(),
+			ts_date: timestamp({ mode: 'date' }).defaultNow().onUpdateNow().notNull(),
+			dt_string: datetime({ mode: 'date' }).defaultNow().onUpdateNow().notNull(),
+			dt_date: datetime({ mode: 'date' }).defaultNow().onUpdateNow().notNull(),
+		}),
+	};
+
+	const schema2 = {
+		onUpdateRepro: mysqlTable('on_update_repro', {
+			ts_string: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(), // only mode changed
+			ts_date: timestamp({ mode: 'date' }).defaultNow().onUpdateNow().notNull(),
+			dt_string: datetime({ mode: 'string' }).defaultNow().onUpdateNow().notNull(), // only mode changed
+			dt_date: datetime({ mode: 'date' }).defaultNow().onUpdateNow().notNull(),
+		}),
+	};
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+	expect(st1).toStrictEqual([]);
+	expect(pst1).toStrictEqual([]);
 });
