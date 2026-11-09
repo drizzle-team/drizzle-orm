@@ -238,7 +238,7 @@ describe('runDsqlStatements', () => {
 			sql: CREATE_INDEX,
 		});
 		expect(error.message.split('\n')[2]).toBe(
-			'The object was dropped. The statements before it stay applied, so if it replaced an index or constraint, the table now has neither. Fix the data and run the command again',
+			'The object was dropped, and the statements before it stay applied. If one of them dropped an index or constraint, that one is gone too. Fix the data and run the command again',
 		);
 		expect(remaining()).toBe(0);
 	});

@@ -109,6 +109,20 @@ export const dsqlCases = (s: string) => {
 
 	const validate = (table: string, name: string) => `ALTER TABLE ASYNC ${q(table)} VALIDATE CONSTRAINT "${name}";`;
 
+	// Wide tables for the key column limit: integer columns c1..cN, and the first `n` of them as keys.
+	const columnNames = (n: number) => {
+		const names: string[] = new Array(n);
+		for (let i = 0; i < n; i++) names[i] = `c${i + 1}`;
+		return names;
+	};
+	const wideColumns = (count: number) => Object.fromEntries(columnNames(count).map((it) => [it, integer().notNull()]));
+	const firstColumns = (t: Record<string, any>, n: number) => columnNames(n).map((it) => t[it]) as [any, ...any[]];
+	// The unique constraint of these cases uses the last `n` columns, so it's a different key from the primary key.
+	const lastColumns = (t: Record<string, any>, count: number, n: number) =>
+		columnNames(count).slice(count - n).map((it) => t[it]) as [any, ...any[]];
+	const wideColumnsSql = (count: number) => columnNames(count).map((it) => `"${it}" integer`).join(', ');
+	const columnList = (n: number) => columnNames(n).map((it) => `"${it}"`).join(', ');
+
 	const reject = (statement: JsonStatement['type'], entity: string, reason: string): Issue => ({
 		statement,
 		entity,
@@ -514,6 +528,71 @@ export const dsqlCases = (s: string) => {
 					sqlstate: '0A000',
 					message: 'datatype jsonb is not supported in a key',
 				},
+			},
+			{
+				name: 'create a table with 8 key columns in its primary key and unique constraint',
+				from: { schema },
+				to: {
+					schema,
+					t: schema.table('wide8', wideColumns(9), (t) => [
+						primaryKey({ columns: firstColumns(t, 8) }),
+						unique('wide8_u').on(...lastColumns(t, 9, 8)),
+					]),
+				},
+			},
+			{
+				name: 'reject more than 8 key columns in a primary key or unique constraint',
+				from: { schema },
+				to: {
+					schema,
+					t: schema.table('wide9', wideColumns(10), (t) => [
+						primaryKey({ columns: firstColumns(t, 9) }),
+						unique('wide9_u').on(...lastColumns(t, 10, 9)),
+					]),
+				},
+				issues: [
+					reject('create_table', `${s}.wide9.wide9_pkey`, DSQL_REASONS.keyColumns),
+					reject('create_table', `${s}.wide9.wide9_u`, DSQL_REASONS.keyColumns),
+				],
+				canary: {
+					setup: [],
+					ok: `CREATE TABLE ${q('cn_wide_pk8')} (${wideColumnsSql(8)}, PRIMARY KEY (${columnList(8)}))`,
+					rejected: `CREATE TABLE ${q('cn_wide_pk9')} (${wideColumnsSql(9)}, PRIMARY KEY (${columnList(9)}))`,
+					sqlstate: '54011',
+					message: 'more than 8 column keys in an index are not supported',
+				},
+			},
+			{
+				name: 'create a table with a unique constraint that DSQL keeps beside the primary key',
+				from: { schema },
+				to: {
+					schema,
+					extra: schema.table('pk_u_extra', {
+						a: integer().notNull(),
+						b: integer().notNull(),
+						c: integer(),
+					}, (t) => [primaryKey({ columns: [t.a, t.b] }), unique('pk_u_extra_u').on(t.a, t.b)]),
+					reversed: schema.table('pk_u_rev', {
+						a: integer().notNull(),
+						b: integer().notNull(),
+					}, (t) => [primaryKey({ columns: [t.a, t.b] }), unique('pk_u_rev_u').on(t.b, t.a)]),
+				},
+			},
+			{
+				name: 'reject a unique constraint over the primary key of a table with no other columns',
+				from: { schema },
+				to: {
+					schema,
+					single: schema.table('pk_u1', { id: uuid().primaryKey().unique() }),
+					composite: schema.table('pk_u2', {
+						a: integer().notNull(),
+						b: integer().notNull(),
+					}, (t) => [primaryKey({ columns: [t.a, t.b] }), unique('pk_u2_u').on(t.a, t.b)]),
+				},
+				issues: [
+					reject('create_table', `${s}.pk_u1.pk_u1_id_key`, DSQL_REASONS.uniquePrimaryKey),
+					reject('create_table', `${s}.pk_u2.pk_u2_u`, DSQL_REASONS.uniquePrimaryKey),
+				],
 			},
 			{
 				name: 'reject row-level security on a new table',
@@ -1018,6 +1097,31 @@ export const dsqlCases = (s: string) => {
 					message: 'specifying sort order not supported for index keys',
 				},
 			},
+			{
+				name: 'create an index with 8 key columns',
+				from: { schema, t: schema.table('wide_idx8', wideColumns(9)) },
+				to: {
+					schema,
+					t: schema.table('wide_idx8', wideColumns(9), (t) => [index('wide_idx8_idx').on(...firstColumns(t, 8))]),
+				},
+				sql: [`CREATE INDEX ASYNC "wide_idx8_idx" ON ${q('wide_idx8')} (${columnList(8).replaceAll(', ', ',')});`],
+			},
+			{
+				name: 'reject an index with more than 8 key columns',
+				from: { schema, t: schema.table('wide_idx9', wideColumns(9)) },
+				to: {
+					schema,
+					t: schema.table('wide_idx9', wideColumns(9), (t) => [index('wide_idx9_idx').on(...firstColumns(t, 9))]),
+				},
+				issues: [reject('create_index', `${s}.wide_idx9.wide_idx9_idx`, DSQL_REASONS.keyColumns)],
+				canary: {
+					setup: [`CREATE TABLE ${q('cn_wide_idx')} (${wideColumnsSql(9)})`],
+					ok: `CREATE INDEX ASYNC "cn_wide_idx_8" ON ${q('cn_wide_idx')} (${columnList(8)})`,
+					rejected: `CREATE INDEX ASYNC "cn_wide_idx_9" ON ${q('cn_wide_idx')} (${columnList(9)})`,
+					sqlstate: '54011',
+					message: 'more than 8 column keys in an index are not supported',
+				},
+			},
 		],
 		recreate_index: [
 			{
@@ -1035,8 +1139,9 @@ export const dsqlCases = (s: string) => {
 					]),
 				},
 				sql: [
+					`CREATE INDEX ASYNC "reidx_idx_dsql_new" ON ${q('reidx')} ("a") WHERE "b" > 0;`,
 					`DROP INDEX IF EXISTS "${s}"."reidx_idx";`,
-					`CREATE INDEX ASYNC "reidx_idx" ON ${q('reidx')} ("a") WHERE "b" > 0;`,
+					`ALTER INDEX "${s}"."reidx_idx_dsql_new" RENAME TO "reidx_idx";`,
 				],
 			},
 			{
@@ -1214,12 +1319,12 @@ export const dsqlCases = (s: string) => {
 			from: { schema, parent: parent(), child: child() },
 			to: { schema, parent: parent(), child: child('cascade') },
 			sql: [
-				`ALTER TABLE ${
-					q('child')
-				} DROP CONSTRAINT IF EXISTS "child_parent_fk", ADD CONSTRAINT "child_parent_fk" FOREIGN KEY ("parent_id") REFERENCES ${
+				`ALTER TABLE ${q('child')} ADD CONSTRAINT "child_parent_fk_dsql_new" FOREIGN KEY ("parent_id") REFERENCES ${
 					q('parent')
 				}("id") ON DELETE CASCADE NOT VALID;`,
-				validate('child', 'child_parent_fk'),
+				validate('child', 'child_parent_fk_dsql_new'),
+				`ALTER TABLE ${q('child')} DROP CONSTRAINT IF EXISTS "child_parent_fk";`,
+				`ALTER TABLE ${q('child')} RENAME CONSTRAINT "child_parent_fk_dsql_new" TO "child_parent_fk";`,
 			],
 		}],
 		drop_fk: [{
@@ -1303,10 +1408,10 @@ export const dsqlCases = (s: string) => {
 				]),
 			},
 			sql: [
-				`ALTER TABLE ${
-					q('altchk')
-				} DROP CONSTRAINT IF EXISTS "altchk_a_check", ADD CONSTRAINT "altchk_a_check" CHECK ("a" > 1) NOT VALID;`,
-				validate('altchk', 'altchk_a_check'),
+				`ALTER TABLE ${q('altchk')} ADD CONSTRAINT "altchk_a_check_dsql_new" CHECK ("a" > 1) NOT VALID;`,
+				validate('altchk', 'altchk_a_check_dsql_new'),
+				`ALTER TABLE ${q('altchk')} DROP CONSTRAINT IF EXISTS "altchk_a_check";`,
+				`ALTER TABLE ${q('altchk')} RENAME CONSTRAINT "altchk_a_check_dsql_new" TO "altchk_a_check";`,
 			],
 		}],
 		drop_check: [{

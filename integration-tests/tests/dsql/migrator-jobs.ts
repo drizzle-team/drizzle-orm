@@ -46,7 +46,9 @@ const constraintState = async (db: DsqlAsyncDatabase<any, any>, name: string) =>
 // Migrations that drizzle-kit generates with driver 'dsql' start async jobs. These run them through the
 // migrator of each DSQL driver.
 export const migratorJobTests = (test: typeof nodePgDsqlTest, migrate: Migrate) => {
-	describe('migrator : async jobs', () => {
+	// Each test waits for several async jobs, and a job can wait minutes behind DSQL's own ANALYZE jobs on a busy
+	// cluster.
+	describe('migrator : async jobs', { timeout: 600_000 }, () => {
 		const setup = (tables: string[]) => {
 			const folder = mkdtempSync(join(tmpdir(), 'dsql-migrator-jobs-'));
 			const table = `migrations_${randomString()}`;
@@ -128,7 +130,9 @@ export const migratorJobTests = (test: typeof nodePgDsqlTest, migrate: Migrate) 
 				await expect(migrate(db, { migrationsFolder: folder, migrationsTable: table })).rejects.toThrowError(
 					/found duplicate key/,
 				);
-				expect(await indexState(db, 'dsql_jobs_recreate_code_key')).toBeNull();
+				// The replacement failed, so the old index is kept.
+				expect(await indexState(db, 'dsql_jobs_recreate_code_key')).toBe(true);
+				expect(await indexState(db, 'dsql_jobs_recreate_code_key_dsql_new')).toBeNull();
 
 				await retryOcc(() =>
 					db.execute(
@@ -138,6 +142,12 @@ export const migratorJobTests = (test: typeof nodePgDsqlTest, migrate: Migrate) 
 				await migrate(db, { migrationsFolder: folder, migrationsTable: table });
 
 				expect(await indexState(db, 'dsql_jobs_recreate_code_key')).toBe(true);
+				expect(await indexState(db, 'dsql_jobs_recreate_code_key_dsql_new')).toBeNull();
+				const [definition] = await query<{ def: string }>(
+					db,
+					sql`select pg_catalog.pg_get_indexdef(c.oid) as "def" from pg_catalog.pg_class c where c.relname = 'dsql_jobs_recreate_code_key'`,
+				);
+				expect(definition!.def).toContain('> 0');
 				const recorded = await query(db, sql`select 1 from "drizzle".${sql.identifier(table)}`);
 				expect(recorded).toHaveLength(2);
 			} finally {

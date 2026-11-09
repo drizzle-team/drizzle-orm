@@ -6,7 +6,7 @@ import {
 } from '../../cli/errors';
 import type { DB } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
-import type { Column, Index, PostgresDDL, Role, Sequence, Table } from './ddl';
+import type { Column, ForeignKey, Index, PostgresDDL, Role, Sequence, Table } from './ddl';
 import type { JsonStatement } from './statements';
 
 export const DSQL_SYSTEM_ROLES = ['admin', 'dbowner'];
@@ -38,6 +38,9 @@ export const DSQL_REASONS = {
 	indexConcurrently: "Aurora DSQL builds every index asynchronously and doesn't support .concurrently()",
 	indexWith: "Aurora DSQL doesn't support index storage parameters",
 	keyType: (type: string) => `Aurora DSQL doesn't support ${type} in an index, primary key or unique constraint`,
+	keyColumns: 'Aurora DSQL supports at most 8 key columns in an index, primary key or unique constraint',
+	uniquePrimaryKey:
+		"Aurora DSQL drops a unique constraint over the primary key's columns when the table has no other columns, since the primary key covers it. Remove the unique constraint",
 	rls: "Aurora DSQL doesn't support row-level security",
 	policy: "Aurora DSQL doesn't support policies",
 	materializedView: "Aurora DSQL doesn't support materialized views",
@@ -50,6 +53,12 @@ export type DsqlIssue = { statement: JsonStatement['type']; entity: string; reas
 type Issue = { entity: string; reason: string };
 
 const NON_KEY_TYPES = ['bytea', 'json', 'jsonb', 'interval', 'time with time zone'];
+
+// DSQL rejects an index, primary key or unique constraint with more key columns (SQLSTATE 54011).
+const MAX_KEY_COLUMNS = 8;
+
+// DSQL refuses more indexes on a table, its primary key and unique constraints included (SQLSTATE 54000).
+const MAX_INDEXES = 24;
 
 // The interval fields Postgres accepts.
 const INTERVAL =
@@ -188,6 +197,7 @@ const indexIssues = (index: Index, ddl: PostgresDDL): Issue[] => {
 	if (index.method !== 'btree') reasons.push(DSQL_REASONS.indexMethod);
 	if (index.concurrently) reasons.push(DSQL_REASONS.indexConcurrently);
 	if (index.with) reasons.push(DSQL_REASONS.indexWith);
+	if (index.columns.length > MAX_KEY_COLUMNS) reasons.push(DSQL_REASONS.keyColumns);
 	for (const it of index.columns.filter((it) => !it.isExpression)) {
 		const column = ddl.columns.one({ schema: index.schema, table: index.table, name: it.value });
 		const type = keyTypeOf(column);
@@ -197,10 +207,28 @@ const indexIssues = (index: Index, ddl: PostgresDDL): Issue[] => {
 };
 
 const keyIssues = (table: Table, name: string, columns: string[]): Issue[] => {
-	return columns.flatMap((it) => {
-		const type = keyTypeOf(table.columns.find((column) => column.name === it) ?? null);
-		return type ? [{ entity: `${table.schema}.${table.name}.${name}`, reason: DSQL_REASONS.keyType(type) }] : [];
-	});
+	const entity = `${table.schema}.${table.name}.${name}`;
+	return [
+		...(columns.length > MAX_KEY_COLUMNS ? [{ entity, reason: DSQL_REASONS.keyColumns }] : []),
+		...columns.flatMap((it) => {
+			const type = keyTypeOf(table.columns.find((column) => column.name === it) ?? null);
+			return type ? [{ entity, reason: DSQL_REASONS.keyType(type) }] : [];
+		}),
+	];
+};
+
+// Postgres doesn't create a unique constraint that matches the primary key, INCLUDE columns too. DSQL includes
+// every other column in the primary key, so they match only when the table has no other columns. The next push
+// then tries to add the unique constraint to an existing table, which DSQL refuses.
+const uniquePrimaryKeyIssues = (table: Table): Issue[] => {
+	const pk = table.pk;
+	if (!pk || !table.columns.every((it) => pk.columns.includes(it.name))) return [];
+	return table.uniques
+		.filter((it) =>
+			!it.nullsNotDistinct && it.columns.length === pk.columns.length
+			&& it.columns.every((column, i) => column === pk.columns[i])
+		)
+		.map((it) => ({ entity: `${table.schema}.${table.name}.${it.name}`, reason: DSQL_REASONS.uniquePrimaryKey }));
 };
 
 const roleOptions = (role: Partial<Role>): string[] => {
@@ -256,6 +284,7 @@ const rules: Rules = {
 		...table.columns.flatMap(columnIssues),
 		...(table.pk ? keyIssues(table, table.pk.name, table.pk.columns) : []),
 		...table.uniques.flatMap((it) => keyIssues(table, it.name, it.columns)),
+		...uniquePrimaryKeyIssues(table),
 		...(table.isRlsEnabled || table.policies.length > 0
 			? always(`${table.schema}.${table.name}`, DSQL_REASONS.rls)
 			: []),
@@ -373,42 +402,124 @@ const asyncIndex = (sql: string, type: JsonStatement['type']) => {
 
 const notValid = (sql: string, type: JsonStatement['type']) => rewrite(type, sql, /;$/, ' NOT VALID;');
 
-const dropIfExists = (sql: string, type: JsonStatement['type'], from: RegExp, to: string) => {
-	return rewrite(type, sql, from, to);
+const IDENTIFIER_BYTES = 63;
+const REPLACEMENT_SUFFIX = '_dsql_new';
+
+// The name a replacement index or constraint is built under, before it takes over the old name. Postgres
+// truncates identifiers to 63 bytes, so a long name is shortened to keep the suffix.
+export const replacementName = (name: string) => {
+	const encoder = new TextEncoder();
+	const chars = Array.from(name);
+	while (encoder.encode(chars.join('') + REPLACEMENT_SUFFIX).length > IDENTIFIER_BYTES) chars.pop();
+	return chars.join('') + REPLACEMENT_SUFFIX;
 };
 
-const render = (st: JsonStatement, sql: string[]): string[] => {
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Beta drops the old index or constraint before it adds the new one. On DSQL the new one is built or
+// validated by an async job after that, so a failed job would leave the table with neither. The new one is
+// built under a temporary name instead, and replaces the old one only once it is valid. A failed job then
+// drops only the replacement.
+// A foreign key depends on the unique index of the columns it references, so that index can't be dropped while
+// the foreign key exists (SQLSTATE 2BP01), and replacing it fails either way.
+const referencedByForeignKey = (index: Index, fks: ForeignKey[], ddl: PostgresDDL) => {
+	if (!index.isUnique || index.where || index.columns.some((it) => it.isExpression)) return false;
+	const columns = new Set(index.columns.map((it) => it.value));
+	const same = (it: string[]) => it.length === columns.size && it.every((column) => columns.has(column));
+	// Postgres binds a foreign key to the oldest unique index that matches. DSQL can't add a primary key or unique
+	// constraint to an existing table, so one over the same columns is older than the index and takes the foreign key.
+	const table = { schema: index.schema, table: index.table };
+	if ([ddl.pks.one(table), ...ddl.uniques.list(table)].some((it) => it && same(it.columns))) return false;
+	return fks.some((fk) => fk.schemaTo === index.schema && fk.tableTo === index.table && same(fk.columnsTo));
+};
+
+// The indexes of a table when its indexes are recreated, with its primary key and unique constraints. `ddlDiff`
+// drops indexes and constraints before that, and creates new ones after it.
+const indexCountAtIndexRecreate = (statements: JsonStatement[], ddl: PostgresDDL) => {
+	const key = (it: { schema: string; name: string }) => JSON.stringify([it.schema, it.name]);
+	const created = new Set(statements.flatMap((st) => st.type === 'create_index' ? [key(st.index)] : []));
+	return (schema: string, table: string) =>
+		ddl.indexes.list({ schema, table }).filter((it) => !created.has(key(it))).length
+		+ ddl.uniques.list({ schema, table }).length + (ddl.pks.one({ schema, table }) ? 1 : 0);
+};
+
+type RenderContext = { fks: ForeignKey[]; indexCount: (schema: string, table: string) => number; ddl: PostgresDDL };
+
+// The foreign keys that exist when an index is recreated. `ddlDiff` drops foreign keys before that, and creates
+// and recreates them after it, so a recreated foreign key still has its old definition then.
+const foreignKeysAtIndexRecreate = (statements: JsonStatement[], ddl: PostgresDDL) => {
+	const key = (fk: ForeignKey) => JSON.stringify([fk.schema, fk.table, fk.name]);
+	const later = new Set<string>();
+	const old: ForeignKey[] = [];
+	for (const st of statements) {
+		if (st.type === 'create_fk') later.add(key(st.fk));
+		if (st.type === 'recreate_fk') {
+			later.add(key(st.fk));
+			old.push(st.diff.$left);
+		}
+	}
+	return [...ddl.fks.list().filter((fk) => !later.has(key(fk))), ...old];
+};
+
+const replaceIndex = (st: Extract<JsonStatement, { type: 'recreate_index' }>, sql: string[], ctx: RenderContext) => {
+	const [drop, create, ...rest] = sql;
+	if (rest.length > 0 || !drop || !create) throw new Error(`expected beta's recreate_index SQL: ${sql}`);
+	const { schema, table, name } = st.index;
+	// Keep beta's order when the replacement can't be built beside the old index: a foreign key that depends on
+	// the old one fails the drop before anything changes, and a table with 24 indexes has no room for it.
+	if (referencedByForeignKey(st.diff.$left, ctx.fks, ctx.ddl) || ctx.indexCount(schema, table) >= MAX_INDEXES) {
+		return [rewrite(st.type, drop, /^DROP INDEX /, 'DROP INDEX IF EXISTS '), asyncIndex(create, st.type)];
+	}
+	const tmp = replacementName(name);
+	const prefix = schema !== 'public' ? `"${schema}".` : '';
+	// Sliced rather than replaced, because a `$` in the name would be a pattern in a replacement string.
+	const head = new RegExp(`^CREATE (UNIQUE )?INDEX "${escapeRegExp(name)}" `).exec(create);
+	if (!head) throw new Error(`expected beta's ${st.type} SQL to create "${name}": ${create}`);
+	return [
+		`CREATE ${head[1] ?? ''}INDEX ASYNC "${tmp}" ${create.slice(head[0].length)}`,
+		rewrite(st.type, drop, /^DROP INDEX /, 'DROP INDEX IF EXISTS '),
+		`ALTER INDEX ${prefix}"${tmp}" RENAME TO "${name}";`,
+	];
+};
+
+const replaceConstraint = (
+	type: JsonStatement['type'],
+	sql: string[],
+	{ schema, table, name }: { schema: string; table: string; name: string },
+) => {
+	const [statement, ...rest] = sql;
+	const key = tableKey(schema, table);
+	const prefix = `ALTER TABLE ${key} DROP CONSTRAINT "${name}", ADD CONSTRAINT "${name}" `;
+	if (rest.length > 0 || !statement?.startsWith(prefix) || !statement.endsWith(';')) {
+		throw new Error(`expected beta's ${type} SQL to start with ${prefix}: ${sql}`);
+	}
+	const definition = statement.slice(prefix.length, -1);
+	const tmp = replacementName(name);
+	return [
+		`ALTER TABLE ${key} ADD CONSTRAINT "${tmp}" ${definition} NOT VALID;`,
+		validateConstraint(schema, table, tmp),
+		`ALTER TABLE ${key} DROP CONSTRAINT IF EXISTS "${name}";`,
+		`ALTER TABLE ${key} RENAME CONSTRAINT "${tmp}" TO "${name}";`,
+	];
+};
+
+const render = (st: JsonStatement, sql: string[], ctx: RenderContext): string[] => {
 	switch (st.type) {
 		case 'create_index':
 			return sql.map((it) => asyncIndex(it, st.type));
-		case 'recreate_index': {
-			const [drop, create, ...rest] = sql;
-			if (rest.length > 0 || !drop || !create) throw new Error(`expected beta's recreate_index SQL: ${sql}`);
-			return [dropIfExists(drop, st.type, /^DROP INDEX /, 'DROP INDEX IF EXISTS '), asyncIndex(create, st.type)];
-		}
+		case 'recreate_index':
+			return replaceIndex(st, sql, ctx);
 		case 'create_fk':
 			return [...sql.map((it) => notValid(it, st.type)), validateConstraint(st.fk.schema, st.fk.table, st.fk.name)];
 		case 'recreate_fk':
-			return [
-				...sql.map((it) =>
-					notValid(dropIfExists(it, st.type, / DROP CONSTRAINT "/, ' DROP CONSTRAINT IF EXISTS "'), st.type)
-				),
-				validateConstraint(st.fk.schema, st.fk.table, st.fk.name),
-			];
+			return replaceConstraint(st.type, sql, st.fk);
 		case 'add_check':
 			return [
 				...sql.map((it) => notValid(it, st.type)),
 				validateConstraint(st.check.schema, st.check.table, st.check.name),
 			];
-		case 'alter_check': {
-			const check = st.diff.$right;
-			return [
-				...sql.map((it) =>
-					notValid(dropIfExists(it, st.type, / DROP CONSTRAINT "/, ' DROP CONSTRAINT IF EXISTS "'), st.type)
-				),
-				validateConstraint(check.schema, check.table, check.name),
-			];
-		}
+		case 'alter_check':
+			return replaceConstraint(st.type, sql, st.diff.$right);
 		default:
 			return sql;
 	}
@@ -426,9 +537,14 @@ export const toDsql = <
 	const issues = dsqlIssues(result.statements, ddl);
 	if (issues.length > 0) throw new UnsupportedSchemaChangeError({ kind: 'dsql_unsupported', issues });
 
+	const ctx: RenderContext = {
+		fks: foreignKeysAtIndexRecreate(result.statements, ddl),
+		indexCount: indexCountAtIndexRecreate(result.statements, ddl),
+		ddl,
+	};
 	const groupedStatements = result.groupedStatements.map((it) => ({
 		jsonStatement: it.jsonStatement,
-		sqlStatements: render(it.jsonStatement, it.sqlStatements),
+		sqlStatements: render(it.jsonStatement, it.sqlStatements, ctx),
 	}));
 
 	return { ...result, groupedStatements, sqlStatements: groupedStatements.flatMap((it) => it.sqlStatements) };

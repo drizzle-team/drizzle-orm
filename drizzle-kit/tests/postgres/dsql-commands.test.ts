@@ -135,8 +135,9 @@ describe('generate', () => {
 		const folders = readdirSync(out).filter((it) => existsSync(join(out, it, 'snapshot.json'))).sort();
 		const snapshot = JSON.parse(readFileSync(join(out, folders.at(-1)!, 'snapshot.json'), 'utf8'));
 		const dsqlSql = [
+			'CREATE INDEX ASYNC "users_age_idx_dsql_new" ON "users" ("age") WHERE "age" > 0;',
 			'DROP INDEX IF EXISTS "users_age_idx";',
-			'CREATE INDEX ASYNC "users_age_idx" ON "users" ("age") WHERE "age" > 0;',
+			'ALTER INDEX "users_age_idx_dsql_new" RENAME TO "users_age_idx";',
 		];
 		expect(migrationSqlOf(out, folders.at(-1)!)).toContain(dsqlSql.join('--> statement-breakpoint\n'));
 		expect(snapshot.footprints).toContainEqual(expect.objectContaining({

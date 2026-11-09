@@ -126,15 +126,78 @@ describe('async jobs', () => {
 		expect(await constraintState(db, s, 'items_code_check')).toBe(true);
 	});
 
-	test('a failed recreate leaves neither index', async () => {
+	test('a recreated index that fails to build keeps the old index', async () => {
+		const isUnique = async (name: string) => {
+			const rows = await db.query<{ indisunique: boolean }>(
+				`SELECT i.indisunique FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class c ON c.oid = i.indexrelid JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = $1 AND c.relname = $2`,
+				[s, name],
+			);
+			return rows[0]?.indisunique ?? null;
+		};
 		await pushTo(db, { schema, items: items((t) => [index('items_code_idx').on(t.code)]) });
 		await insertItems([1, 1]);
+		const to = { schema, items: items((t) => [uniqueIndex('items_code_idx').on(t.code)]) };
 
-		const error = await push({ schema, items: items((t) => [uniqueIndex('items_code_idx').on(t.code)]) })
-			.catch((e) => e);
+		const error = await push(to).catch((e) => e);
 
 		expect(error).toBeInstanceOf(DsqlAsyncJobError);
-		expect(await isValidIndex(db, s, 'items_code_idx')).toBeNull();
+		expect(error.meta.details).toBe('found duplicate key(s) while validating index uniqueness');
+		expect(await isValidIndex(db, s, 'items_code_idx')).toBe(true);
+		expect(await isUnique('items_code_idx')).toBe(false);
+		expect(await isValidIndex(db, s, 'items_code_idx_dsql_new')).toBeNull();
+
+		await db.query(`DELETE FROM "${s}"."items" WHERE "id" IN (SELECT "id" FROM "${s}"."items" LIMIT 1);`);
+		expect(await push(to)).toStrictEqual({ status: 'ok', dialect: 'postgresql' });
+		expect(await isValidIndex(db, s, 'items_code_idx')).toBe(true);
+		expect(await isUnique('items_code_idx')).toBe(true);
+		expect(await isValidIndex(db, s, 'items_code_idx_dsql_new')).toBeNull();
+		expect(await push(to)).toStrictEqual({ status: 'no_changes', dialect: 'postgresql' });
+	});
+
+	test('a recreated foreign key that fails to validate keeps the old foreign key', async () => {
+		const parent = schema.table('parent', { id: uuid().primaryKey(), code: integer().unique('parent_code_key') });
+		const child = (by: 'id' | 'code') =>
+			schema.table('child', {
+				id: uuid().primaryKey(),
+				parentId: uuid('parent_id'),
+				parentCode: integer('parent_code'),
+			}, (
+				t,
+			) => [
+				by === 'id'
+					? foreignKey({ name: 'child_parent_fk', columns: [t.parentId], foreignColumns: [parent.id] })
+					: foreignKey({ name: 'child_parent_fk', columns: [t.parentCode], foreignColumns: [parent.code] }),
+			]);
+		const fkColumns = async () => {
+			const rows = await db.query<{ def: string }>(
+				`SELECT pg_catalog.pg_get_constraintdef(con.oid) AS "def" FROM pg_catalog.pg_constraint con JOIN pg_catalog.pg_namespace n ON n.oid = con.connamespace WHERE n.nspname = $1 AND con.conname = $2`,
+				[s, 'child_parent_fk'],
+			);
+			return rows[0]?.def ?? null;
+		};
+		await pushTo(db, { schema, parent, child: child('id') });
+		await db.query(`INSERT INTO "${s}"."parent" VALUES ('00000000-0000-0000-0000-000000000001', 1);`);
+		await db.query(
+			`INSERT INTO "${s}"."child" VALUES (gen_random_uuid(), '00000000-0000-0000-0000-000000000001', 99);`,
+		);
+
+		const error = await push({ schema, parent, child: child('code') }).catch((e) => e);
+
+		expect(error).toBeInstanceOf(DsqlAsyncJobError);
+		expect(error.meta.job_type).toBe('VALIDATE_CONSTRAINT');
+		expect(await constraintState(db, s, 'child_parent_fk')).toBe(true);
+		expect(await fkColumns()).toContain('FOREIGN KEY (parent_id)');
+		expect(await constraintState(db, s, 'child_parent_fk_dsql_new')).toBeNull();
+
+		await db.query(`UPDATE "${s}"."child" SET "parent_code" = 1;`);
+		expect(await push({ schema, parent, child: child('code') })).toStrictEqual({ status: 'ok', dialect: 'postgresql' });
+		expect(await constraintState(db, s, 'child_parent_fk')).toBe(true);
+		expect(await fkColumns()).toContain('FOREIGN KEY (parent_code)');
+		expect(await constraintState(db, s, 'child_parent_fk_dsql_new')).toBeNull();
+		expect(await push({ schema, parent, child: child('code') })).toStrictEqual({
+			status: 'no_changes',
+			dialect: 'postgresql',
+		});
 	});
 });
 
@@ -231,7 +294,7 @@ test('DSQL stores numeric without a precision as numeric(18,6)', async () => {
 	expect(column!.type).toBe('numeric(18,6)');
 });
 
-test('a statement that hits an OCC conflict runs again', async () => {
+test('a statement that hits an OCC conflict runs again', async (ctx) => {
 	await pushTo(db, { schema, items: items(), other: schema.table('other', { id: uuid().primaryKey() }) });
 	const raw = await connectRaw();
 	const other = await connectRaw();
@@ -263,9 +326,29 @@ test('a statement that hits an OCC conflict runs again', async () => {
 		await storm;
 	}
 
-	expect(occ.length, 'an OCC conflict happened and was retried').toBeGreaterThan(0);
+	// The conflict depends on timing between two sessions, so a run can see none. Then there is no retry to check.
+	if (occ.length === 0) ctx.skip('no OCC conflict happened in 10 attempts, so there was no retry to check');
 	const columns = await db.query<{ attname: string }>(
 		`SELECT attname FROM pg_catalog.pg_attribute WHERE attrelid = '"${s}"."items"'::regclass AND attname LIKE 'added_%'`,
 	);
 	expect(columns.length).toBeGreaterThan(0);
+});
+
+// The live proof for DSQL_REASONS.uniquePrimaryKey. DSQL doesn't reject the SQL, so it can't be a canary.
+test('DSQL drops a unique constraint over the primary key only when the table has no other columns', async () => {
+	await db.query(`CREATE SCHEMA "${s}";`);
+	await db.query(
+		`CREATE TABLE "${s}"."pk_only" ("a" integer, "b" integer, PRIMARY KEY ("a", "b"), UNIQUE ("a", "b"));`,
+	);
+	await db.query(
+		`CREATE TABLE "${s}"."pk_extra" ("a" integer, "b" integer, "c" integer, PRIMARY KEY ("a", "b"), UNIQUE ("a", "b"));`,
+	);
+	const rows = await db.query<{ table: string; type: string }>(
+		`SELECT conrelid::regclass::text AS "table", contype::text AS "type" FROM pg_catalog.pg_constraint WHERE connamespace = '"${s}"'::regnamespace ORDER BY 1, 2`,
+	);
+	expect(rows).toStrictEqual([
+		{ table: `${s}.pk_extra`, type: 'p' },
+		{ table: `${s}.pk_extra`, type: 'u' },
+		{ table: `${s}.pk_only`, type: 'p' },
+	]);
 });

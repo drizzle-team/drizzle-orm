@@ -309,7 +309,7 @@ test('drops a failed index, records nothing and reports the reason', async () =>
 	expect(error.message).toContain('found duplicate key(s) while validating index uniqueness');
 	expect(error.message).toContain(CREATE_INDEX);
 	expect(error.message).toContain(
-		'The failed object was dropped. If the migration replaced an index or constraint, it dropped the old one first, so the table now has neither.',
+		'The failed object was dropped. If the migration dropped an index or constraint before it, that one is gone too.',
 	);
 	expect(remaining()).toBe(0);
 	expect(recorded(calls)).toHaveLength(0);
