@@ -187,7 +187,8 @@ export const filterMigrationsSchema = (
 
 export const batchQuery = async <T>(
 	db: DB,
-	getSQL: (params: { limit: number; cursor: T | undefined }) => string,
+	// the cursor holds names, so it goes in `params`: the meaning of `\\` in a string literal depends on the sql mode
+	getQuery: (params: { limit: number; cursor: T | undefined }) => { sql: string; params: unknown[] },
 	callback: (count: number) => void,
 	batchSize: number = 100_000,
 ): Promise<T[]> => {
@@ -195,7 +196,8 @@ export const batchQuery = async <T>(
 	let cursor: T | undefined;
 
 	while (true) {
-		const batch = await db.query(getSQL({ limit: batchSize, cursor }).trim());
+		const { sql, params } = getQuery({ limit: batchSize, cursor });
+		const batch = await db.query(sql.trim(), params);
 
 		if (batch.length === 0) {
 			break;

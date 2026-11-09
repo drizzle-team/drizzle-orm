@@ -9,9 +9,6 @@ import { parseDefaultValue } from './grammar';
 // * For consistency with MariaDB, we need to use uppercase for column names in SELECT queries,
 // * because MySQL returns them in uppercase, and MariaDB in the same case as defined (usually lowercase).
 
-// mysql treats both `'` and `\` as escape characters inside string literals
-const literal = (value: string) => `'${value.replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
-
 export const fromDatabaseForDrizzle = async (
 	db: DB,
 	schema: string,
@@ -89,12 +86,14 @@ export const fromDatabase = async (
 
 	// TODO revise: perfomance_schema contains 'users' table
 	// * lower(TABLE_NAME) is used to sort tables case-insensitively
+	// * BINARY TABLE_NAME keeps the order unique for names that differ only by case, in any collation of the column
 	progressCallback('tables', 0, 'fetching');
 	const tablesAndViews = await batchQuery<
 		{ TABLE_NAME: string; TABLE_TYPE: 'BASE TABLE' | 'VIEW'; CREATE_TIME: string }
 	>(
 		db,
-		({ limit, cursor }) => `
+		({ limit, cursor }) => ({
+			sql: `
 			SELECT
 				TABLE_NAME, 
 				TABLE_TYPE,
@@ -103,15 +102,23 @@ export const fromDatabase = async (
 			WHERE TABLE_SCHEMA = '${schema}'
 				AND CREATE_TIME IS NOT NULL
 				${
-			cursor
-				? `AND (CREATE_TIME > ${literal(cursor.CREATE_TIME)} OR (CREATE_TIME = ${
-					literal(cursor.CREATE_TIME)
-				} AND lower(TABLE_NAME) > ${literal(cursor.TABLE_NAME.toLowerCase())}))`
-				: ''
-		}
-			ORDER BY CREATE_TIME, lower(TABLE_NAME)
+				cursor
+					? `AND (CREATE_TIME > ? OR (CREATE_TIME = ? AND (lower(TABLE_NAME) > ? OR (lower(TABLE_NAME) = ? AND BINARY TABLE_NAME > ?))))`
+					: ''
+			}
+			ORDER BY CREATE_TIME, lower(TABLE_NAME), BINARY TABLE_NAME
 			LIMIT ${limit}
 		`,
+			params: cursor
+				? [
+					cursor.CREATE_TIME,
+					cursor.CREATE_TIME,
+					cursor.TABLE_NAME.toLowerCase(),
+					cursor.TABLE_NAME.toLowerCase(),
+					cursor.TABLE_NAME,
+				]
+				: [],
+		}),
 		(count) => {
 			progressCallback('tables', count, 'fetching');
 		},
@@ -149,24 +156,23 @@ export const fromDatabase = async (
 		NON_UNIQUE: number;
 		EXPRESSION: string | null | undefined; // MariaDB doesn't have this column, so we use * in query and handle it in code
 		SEQ_IN_INDEX: number;
-	}>(db, ({ limit, cursor }) => `
+	}>(db, ({ limit, cursor }) => ({
+		sql: `
 		SELECT
 			*
 		FROM INFORMATION_SCHEMA.STATISTICS
 		WHERE INFORMATION_SCHEMA.STATISTICS.TABLE_SCHEMA = '${schema}' 
 			AND INFORMATION_SCHEMA.STATISTICS.INDEX_NAME != 'PRIMARY'
 			${
-		cursor
-			? `AND (TABLE_NAME > ${literal(cursor.TABLE_NAME)} OR (TABLE_NAME = ${
-				literal(cursor.TABLE_NAME)
-			} AND (INDEX_NAME > ${literal(cursor.INDEX_NAME)} OR (INDEX_NAME = ${
-				literal(cursor.INDEX_NAME)
-			} AND SEQ_IN_INDEX > ${cursor.SEQ_IN_INDEX}))))`
-			: ''
-	}
+			cursor
+				? `AND (TABLE_NAME > ? OR (TABLE_NAME = ? AND (INDEX_NAME > ? OR (INDEX_NAME = ? AND SEQ_IN_INDEX > ${cursor.SEQ_IN_INDEX}))))`
+				: ''
+		}
 		ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX
 		LIMIT ${limit};
-	`, (count) => {
+	`,
+		params: cursor ? [cursor.TABLE_NAME, cursor.TABLE_NAME, cursor.INDEX_NAME, cursor.INDEX_NAME] : [],
+	}), (count) => {
 		progressCallback('indexes', count, 'fetching');
 	}, batchSizes.indexes).then((rows) => {
 		const filtered = rows.filter((it) => tableNames.has(it.TABLE_NAME));
@@ -240,7 +246,8 @@ export const fromDatabase = async (
 			ORDINAL_POSITION: number;
 		}>(
 			db,
-			({ limit, cursor }) => `
+			({ limit, cursor }) => ({
+				sql: `
 			SELECT
 				TABLE_NAME,
 				COLUMN_NAME,
@@ -257,15 +264,15 @@ export const fromDatabase = async (
 			WHERE TABLE_SCHEMA = '${schema}'
 				AND TABLE_NAME IN (${tableNamesSQL})
 				${
-				cursor
-					? `AND (TABLE_NAME > ${literal(cursor.TABLE_NAME)} OR (TABLE_NAME = ${
-						literal(cursor.TABLE_NAME)
-					} AND ORDINAL_POSITION > ${cursor.ORDINAL_POSITION}))`
-					: ''
-			}
+					cursor
+						? `AND (TABLE_NAME > ? OR (TABLE_NAME = ? AND ORDINAL_POSITION > ${cursor.ORDINAL_POSITION}))`
+						: ''
+				}
 			ORDER BY TABLE_NAME, ORDINAL_POSITION
 			LIMIT ${limit}
 		`,
+				params: cursor ? [cursor.TABLE_NAME, cursor.TABLE_NAME] : [],
+			}),
 			(count) => {
 				progressCallback('columns', count, 'fetching');
 			},
@@ -372,7 +379,8 @@ export const fromDatabase = async (
 		TABLE_NAME: string;
 		COLUMN_NAME: string;
 		ORDINAL_POSITION: number;
-	}>(db, ({ limit, cursor }) => `
+	}>(db, ({ limit, cursor }) => ({
+		sql: `
 		SELECT
 			CONSTRAINT_NAME,
 			TABLE_NAME,
@@ -382,15 +390,15 @@ export const fromDatabase = async (
 		WHERE CONSTRAINT_NAME='PRIMARY'
 			AND TABLE_SCHEMA = '${schema}'
 			${
-		cursor
-			? `AND (TABLE_NAME > ${literal(cursor.TABLE_NAME)} OR (TABLE_NAME = ${
-				literal(cursor.TABLE_NAME)
-			} AND ORDINAL_POSITION > ${cursor.ORDINAL_POSITION}))`
-			: ''
-	}
+			cursor
+				? `AND (TABLE_NAME > ? OR (TABLE_NAME = ? AND ORDINAL_POSITION > ${cursor.ORDINAL_POSITION}))`
+				: ''
+		}
 		ORDER BY TABLE_NAME, ORDINAL_POSITION
 		LIMIT ${limit}
-	`, (count) => {
+	`,
+		params: cursor ? [cursor.TABLE_NAME, cursor.TABLE_NAME] : [],
+	}), (count) => {
 		progressCallback('pks', count, 'fetching');
 	}, batchSizes.pks).then((rows) => {
 		queryCallback('pks', rows, null);
@@ -440,7 +448,8 @@ export const fromDatabase = async (
 		UPDATE_RULE: string;
 		DELETE_RULE: string;
 		ORDINAL_POSITION: number;
-	}>(db, ({ limit, cursor }) => `
+	}>(db, ({ limit, cursor }) => ({
+		sql: `
 		SELECT
 			kcu.TABLE_SCHEMA,
 			kcu.TABLE_NAME,
@@ -458,17 +467,15 @@ export const fromDatabase = async (
 			AND kcu.CONSTRAINT_NAME != 'PRIMARY' 
 			AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
 			${
-		cursor
-			? `AND (kcu.TABLE_NAME > ${literal(cursor.TABLE_NAME)} OR (kcu.TABLE_NAME = ${
-				literal(cursor.TABLE_NAME)
-			} AND (kcu.CONSTRAINT_NAME > ${literal(cursor.CONSTRAINT_NAME)} OR (kcu.CONSTRAINT_NAME = ${
-				literal(cursor.CONSTRAINT_NAME)
-			} AND kcu.ORDINAL_POSITION > ${cursor.ORDINAL_POSITION}))))`
-			: ''
-	}
+			cursor
+				? `AND (kcu.TABLE_NAME > ? OR (kcu.TABLE_NAME = ? AND (kcu.CONSTRAINT_NAME > ? OR (kcu.CONSTRAINT_NAME = ? AND kcu.ORDINAL_POSITION > ${cursor.ORDINAL_POSITION}))))`
+				: ''
+		}
 		ORDER BY kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION
 		LIMIT ${limit}
-	`, (count) => {
+	`,
+		params: cursor ? [cursor.TABLE_NAME, cursor.TABLE_NAME, cursor.CONSTRAINT_NAME, cursor.CONSTRAINT_NAME] : [],
+	}), (count) => {
 		progressCallback('fks', count, 'fetching');
 	}, batchSizes.fks).then((rows) => {
 		queryCallback('fks', rows, null);
@@ -568,17 +575,19 @@ export const fromDatabase = async (
 		SECURITY_TYPE: string;
 	}>(
 		db,
-		({ limit, cursor }) =>
-			`SELECT
+		({ limit, cursor }) => ({
+			sql: `SELECT
 				TABLE_NAME,
 				VIEW_DEFINITION,
 				CHECK_OPTION,
 				SECURITY_TYPE
 			FROM INFORMATION_SCHEMA.VIEWS
 			WHERE TABLE_SCHEMA = '${schema}'
-				${cursor ? `AND TABLE_NAME > ${literal(cursor.TABLE_NAME)}` : ''}
+				${cursor ? `AND TABLE_NAME > ?` : ''}
 			ORDER BY TABLE_NAME
 			LIMIT ${limit}`,
+			params: cursor ? [cursor.TABLE_NAME] : [],
+		}),
 		(count) => {
 			progressCallback('views', count, 'fetching');
 		},
