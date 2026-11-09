@@ -1,4 +1,4 @@
-import { createPool } from '@drizzle-team/postgres';
+import { connect, createPool } from '@drizzle-team/postgres';
 import { defineRelations, type RelationsBuilder, sql } from 'drizzle-orm';
 import {
 	boolean,
@@ -35,6 +35,7 @@ import {
 } from './all-types';
 import { tests } from './common';
 import { postgresTest as test } from './instrumentation';
+import { type BulkDrizzle, bulkTests } from './postgres-bulk';
 import { usersMigratorTable, usersTable } from './schema';
 import {
 	assertMalformedSnapshotRejected,
@@ -43,6 +44,18 @@ import {
 } from './snapshot';
 
 tests(test, ['all types ~codecs~']);
+
+bulkTests(test, { name: 'pool', drizzle: drizzlePostgres as BulkDrizzle });
+bulkTests(test, {
+	name: 'conn',
+	drizzle: drizzlePostgres as BulkDrizzle,
+	client: async (kit) => {
+		const url = new URL(process.env['PG_CONNECTION_STRING']!);
+		url.pathname = `/${kit.database}`;
+		const client = await connect(url.toString());
+		return { client, close: () => client.end() };
+	},
+});
 
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
 	const db = fixtureDb as unknown as PostgresDatabase;
