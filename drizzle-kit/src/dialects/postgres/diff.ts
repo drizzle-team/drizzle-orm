@@ -447,7 +447,7 @@ export const ddlDiff = async (
 			column: it,
 			// if pk existed before and new column now has pk, this will trigger alter_pk, that will automatically add pk
 			// this flag is needed for column recreation (generated)
-			// see tests: "drizzle-kit/tests/postgres/pg-constraints.versions.test.ts" => "remove/add pk" and below
+			// see tests: "drizzle-kit/tests/postgres/pg-constraints.test.ts" => "remove/add pk" and below
 			isPK: false, // ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
 			isCompositePK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } }) !== null,
 		})

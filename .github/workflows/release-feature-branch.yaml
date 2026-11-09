@@ -166,14 +166,9 @@ jobs:
             dbs: [mysql]
           - shard: kit:postgres
             dbs: [postgres, postgres-postgis]
-          - shard: kit:postgres18
-            dbs: [postgres, postgres-postgis, postgres18]
-          - shard: kit:postgres17
-            dbs: [postgres, postgres-postgis, postgres17]
-          - shard: kit:postgres16
-            dbs: [postgres, postgres-postgis, postgres16]
+          # The postgres tests run on PGlite only (drizzle-kit/tests/postgres/README.md).
           - shard: kit:postgres:commutativity
-            dbs: [postgres18]
+            dbs: []
           - shard: kit:cockroach
             dbs: [cockroach-many]
           - shard: kit:mssql

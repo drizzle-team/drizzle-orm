@@ -90,7 +90,7 @@ run_shard() {
 				run tests/sqlite/tursodatabase-serverless.test.ts
 			;;
 		kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
-		# The commutativity suite runs once, in kit:postgres:commutativity, against the latest stable Postgres (18).
+		# The commutativity suite runs in kit:postgres:commutativity, beside this shard. Both run on PGlite.
 		# A GitHub-hosted job has the 4 CPUs of its runner to itself, so the PGlite files run side by side there. On
 		# the self-hosted machine, the jobs of all runner instances keep the CPUs busy, and more workers only compete.
 		kit:postgres)
@@ -98,11 +98,15 @@ run_shard() {
 			if [[ "${RUNNER_ENVIRONMENT:-}" == github-hosted ]]; then export KIT_FILE_PARALLELISM=1 KIT_MAX_WORKERS=3; fi
 			KIT_POSTGRES_SUITE=main pnpm --stream run test:postgres
 			;;
+		# Only the *.versions.test.ts files, against one server. The matrix lists these shards only while such files
+		# exist (drizzle-kit/tests/postgres/README.md).
 		kit:postgres18) cd ../drizzle-kit && KIT_POSTGRES_SUITE=main PG_VERSION=18 pnpm --stream run test:postgres ;;
 		kit:postgres17) cd ../drizzle-kit && KIT_POSTGRES_SUITE=main PG_VERSION=17 pnpm --stream run test:postgres ;;
 		kit:postgres16) cd ../drizzle-kit && KIT_POSTGRES_SUITE=main PG_VERSION=16 pnpm --stream run test:postgres ;;
 		kit:postgres:commutativity)
-			cd ../drizzle-kit && KIT_POSTGRES_SUITE=commutativity PG_VERSION=18 pnpm --stream vitest run postgres/commutativity
+			cd ../drizzle-kit
+			if [[ "${RUNNER_ENVIRONMENT:-}" == github-hosted ]]; then export KIT_FILE_PARALLELISM=1 KIT_MAX_WORKERS=3; fi
+			KIT_POSTGRES_SUITE=commutativity pnpm --stream vitest run postgres/commutativity
 			;;
 		# Three test files at once, each worker on a cockroach-many server of its own (tests/cockroach/mocks.ts picks it
 		# by VITEST_POOL_ID; the setup drops every role, which belongs to the whole server). CockroachDB DDL mostly

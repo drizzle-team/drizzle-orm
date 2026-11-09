@@ -1,14 +1,13 @@
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
-// With PG_VERSION, only the postgres test files that use the server of that version run: the files named
-// *.versions.test.ts (see tests/postgres/README.md). The other files give the same result on every version, so they
-// run once, in the PGlite shard (no PG_VERSION).
+// With PG_VERSION, only the postgres test files named *.versions.test.ts run, against the server of that version
+// (see tests/postgres/README.md). No such file exists today, so CI runs the postgres tests on PGlite only.
 const versionedPostgresTests = ['tests/postgres/*.versions.test.ts'];
 
-// CI runs the commutativity suite once, in its own shard (kit:postgres:commutativity) against the latest stable
-// Postgres, instead of in every kit:postgres shard. .github/ci/run-shard.sh sets KIT_POSTGRES_SUITE for those
-// shards; without it (local runs) the postgres suite is complete.
+// CI runs the commutativity suite in its own shard (kit:postgres:commutativity), beside kit:postgres.
+// .github/ci/run-shard.sh sets KIT_POSTGRES_SUITE for those shards. Without it (local runs), the postgres suite is
+// complete.
 const commutativityTests = ['tests/postgres/commutativity*.test.ts'];
 const postgresSuite = process.env['KIT_POSTGRES_SUITE'];
 

@@ -1,8 +1,8 @@
 # Postgres tests
 
-CI runs the Postgres tests on PGlite, and again on each supported Postgres server (16, 17 and 18). On a server, only the test files named `*.versions.test.ts` run. The other files give the same result on every version, so they run once, on PGlite.
+CI runs the Postgres tests once, on PGlite. A comparison of every test on PGlite and on Postgres 16, 17 and 18 gave the same results, so a run on each server adds nothing. Run that comparison again before you update PGlite or add a Postgres version to CI.
 
-If a test file uses `prepareTestDatabase`, or reads `PG_VERSION`, name it `<name>.versions.test.ts`. Otherwise, name it `<name>.test.ts`.
+Some tests can exist only because Postgres versions behave differently. Name such a file `<name>.versions.test.ts`. With `PG_VERSION` set, vitest runs only these files, against the server of that version. To run them in CI, add the `kit:postgres16`, `kit:postgres17` and `kit:postgres18` shards to the test matrix in `.github/workflows/release-feature-branch.yaml`. `.github/ci/run-shard.sh` already has their commands.
 
 To run the versioned files against one server, start that server and PostGIS from the repository root:
 
