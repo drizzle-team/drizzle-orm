@@ -90,12 +90,7 @@ export type Setup = {
 	schemaFiles?: SchemaFile[];
 };
 
-export type ProxyParams = {
-	sql: string;
-	params?: any[];
-	mode: 'array' | 'object';
-	method: 'values' | 'get' | 'all' | 'run' | 'execute';
-};
+export type { ProxyParams } from '../../utils';
 
 export const preparePgSchema = async (path: string | string[]) => {
 	const imports = prepareFilenames(path);
