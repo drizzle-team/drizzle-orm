@@ -1320,3 +1320,49 @@ test.skipIf(needToPostpone)('Issue No 6564', async () => {
 		await db.query(`revert`);
 	}
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6410
+test('Issue 6410', async () => {
+	await db.query(`CREATE SCHEMA [Lookup];`);
+	await db.query(
+		`CREATE TABLE [Lookup].[Color]
+(
+    [ColorId] VARCHAR(10) NOT NULL,
+        CONSTRAINT [PK_Color_ColorId] PRIMARY KEY ([ColorId]), 
+    [Name] VARCHAR(100) NOT NULL,
+        CONSTRAINT [CK_Color_Name_not_blank_string] CHECK (LEN([Name]) > 0), 
+        CONSTRAINT [UQ_Color_Name] UNIQUE ([Name]), 
+ )`,
+	);
+
+	const { pushSqlStatements, generateSqlStatements, fromFileDDL, introspectDDL } = await diffIntrospect(
+		db,
+		{},
+		'issue-6410',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
+
+	const expectedUnique = {
+		columns: [
+			'Name',
+		],
+		entityType: 'uniques',
+		name: 'UQ_Color_Name',
+		nameExplicit: true,
+		schema: 'Lookup',
+		table: 'Color',
+	};
+	const expectedCheck = {
+		entityType: 'checks',
+		name: 'CK_Color_Name_not_blank_string',
+		schema: 'Lookup',
+		table: 'Color',
+		value: '(len([Name])>(0))',
+	};
+	expect(fromFileDDL.uniques.one({ name: 'UQ_Color_Name' })).toStrictEqual(expectedUnique);
+	expect(fromFileDDL.checks.one({ name: 'CK_Color_Name_not_blank_string' })).toStrictEqual(expectedCheck);
+	expect(introspectDDL.uniques.one({ name: 'UQ_Color_Name' })).toStrictEqual(expectedUnique);
+	expect(introspectDDL.checks.one({ name: 'CK_Color_Name_not_blank_string' })).toStrictEqual(expectedCheck);
+});
