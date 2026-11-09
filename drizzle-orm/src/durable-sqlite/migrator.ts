@@ -50,14 +50,12 @@ export function migrate<TRelations extends AnyRelations>(
 ): void | MigratorInitFailResponse {
 	const migrations = readMigrationFiles(config);
 
-	return db.transaction((tx) => {
-		try {
-			const migrationsTable = '__drizzle_migrations';
+	const migrationsTable = '__drizzle_migrations';
 
-			const { newDb } = upgradeSyncIfNeeded(migrationsTable, db.session, migrations);
+	const { newDb } = upgradeSyncIfNeeded(migrationsTable, db.session, migrations);
 
-			if (newDb) {
-				const migrationTableCreate = sql`
+	if (newDb) {
+		const migrationTableCreate = sql`
 				CREATE TABLE IF NOT EXISTS ${sql.identifier(migrationsTable)} (
 					id INTEGER PRIMARY KEY,
 					hash text NOT NULL,
@@ -66,55 +64,50 @@ export function migrate<TRelations extends AnyRelations>(
 					applied_at TEXT
 				)
 			`;
-				db.run(migrationTableCreate);
+		db.run(migrationTableCreate);
+	}
+
+	const dbMigrations = (db.values<[number, string, string, string | null]>(
+		sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
+	)).map(([id, hash, created_at, name]) => ({ id, hash, created_at, name }));
+
+	if (config.init) {
+		if (dbMigrations.length) {
+			return { exitCode: 'databaseMigrations' as const };
+		}
+
+		if (migrations.length > 1) {
+			return { exitCode: 'localMigrations' as const };
+		}
+
+		const [migration] = migrations;
+
+		if (!migration) return;
+
+		db.run(
+			sql`insert into ${
+				sql.identifier(migrationsTable)
+			} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
+				new Date().toISOString()
+			})`,
+		);
+
+		return;
+	}
+
+	const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
+	db.transaction((tx) => {
+		for (const migration of migrationsToRun) {
+			for (const stmt of migration.sql) {
+				tx.run(sql.raw(stmt));
 			}
-
-			const dbMigrations = (db.values<[number, string, string, string | null]>(
-				sql`SELECT id, hash, created_at, name FROM ${sql.identifier(migrationsTable)}`,
-			)).map(([id, hash, created_at, name]) => ({ id, hash, created_at, name }));
-
-			if (config.init) {
-				if (dbMigrations.length) {
-					return { exitCode: 'databaseMigrations' as const };
-				}
-
-				if (migrations.length > 1) {
-					return { exitCode: 'localMigrations' as const };
-				}
-
-				const [migration] = migrations;
-
-				if (!migration) return;
-
-				db.run(
-					sql`insert into ${
-						sql.identifier(migrationsTable)
-					} ("hash", "created_at", "name", "applied_at") values(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
-						new Date().toISOString()
-					})`,
-				);
-
-				return;
-			}
-
-			const migrationsToRun = getMigrationsToRun({ localMigrations: migrations, dbMigrations });
-			for (const migration of migrationsToRun) {
-				for (const stmt of migration.sql) {
-					db.run(sql.raw(stmt));
-				}
-				db.run(
-					sql`INSERT INTO ${
-						sql.identifier(migrationsTable)
-					} ("hash", "created_at", "name", "applied_at") VALUES(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
-						new Date().toISOString()
-					})`,
-				);
-			}
-
-			return;
-		} catch (error: any) {
-			tx.rollback();
-			throw error;
+			tx.run(
+				sql`INSERT INTO ${
+					sql.identifier(migrationsTable)
+				} ("hash", "created_at", "name", "applied_at") VALUES(${migration.hash}, ${migration.folderMillis}, ${migration.name}, ${
+					new Date().toISOString()
+				})`,
+			);
 		}
 	});
 }
