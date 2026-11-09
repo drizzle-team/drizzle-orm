@@ -100,7 +100,7 @@ Examples:
 }
 ```
 
-When `generate --fix-conflicts` (postgresql only) deletes migrations, the `ok` or `no_changes` envelope also has `deleted_migrations`: the migration folders that the fix deleted. `no_changes` then means that the remaining migrations already matched the schema, so the fix wrote no new migration. If some of them were custom migrations, `deleted_custom_migrations` lists those folders too. If the folder has no conflict, the fix deletes nothing, and the envelope has no `deleted_migrations`. With `--explain`, the fix deletes nothing. If the folder has conflicts, the envelope has `fix` in place of `deleted_migrations`. See [`--explain` in JSON mode](#--explain-in-json-mode) and [`check` conflicts](#check-conflicts).
+When `generate --fix-conflicts` (postgresql and cockroach) deletes migrations, the `ok` or `no_changes` envelope also has `deleted_migrations`: the migration folders that the fix deleted. `no_changes` then means that the remaining migrations already matched the schema, so the fix wrote no new migration. If some of them were custom migrations, `deleted_custom_migrations` lists those folders too. If the folder has no conflict, the fix deletes nothing, and the envelope has no `deleted_migrations`. With `--explain`, the fix deletes nothing. If the folder has conflicts, the envelope has `fix` in place of `deleted_migrations`. See [`--explain` in JSON mode](#--explain-in-json-mode) and [`check` conflicts](#check-conflicts).
 
 `generate --output json --explain` and `push --output json --explain` success (non-empty diff):
 
@@ -355,7 +355,7 @@ Examples:
 
 When the diff is empty, `push --output json --explain` and `generate --output json --explain` return `status: "no_changes"` instead of this payload.
 
-`generate --fix-conflicts --explain` (postgresql only) deletes nothing. The statements are the ones that the new migration would hold after the fix. If the folder has conflicts, the `ok` payload and the `no_changes` envelope also have `fix`, with the same shape as `fix` in the [`check` conflicts](#check-conflicts) error: `migrations` lists the folders that the fix would delete, and `customMigrations` lists the custom migrations among them. If the folder has no conflict, the result has no `fix`.
+`generate --fix-conflicts --explain` (postgresql and cockroach) deletes nothing. The statements are the ones that the new migration would hold after the fix. If the folder has conflicts, the `ok` payload and the `no_changes` envelope also have `fix`, with the same shape as `fix` in the [`check` conflicts](#check-conflicts) error: `migrations` lists the folders that the fix would delete, and `customMigrations` lists the custom migrations among them. If the folder has no conflict, the result has no `fix`.
 
 `generate` rejects `--explain` together with `--custom`, because a custom migration has no SQL to explain. The error has `code: "unsupported_command_dialect_error"` and the meta `{ command: "generate", option: "explain", conflictsWith: "custom" }`, and `generate` writes nothing.
 
@@ -421,7 +421,7 @@ Each folder name must sort after the names of all its parents, because migrate r
 
 ### Snapshot formats per dialect
 
-Only postgres uses snapshot format 9. The other dialects store the full schema state in every snapshot.
+Postgres uses snapshot format 9 and cockroach uses snapshot format 2. The other dialects store the full schema state in every snapshot.
 
 | dialect | `version` | content |
 | --- | --- | --- |
@@ -430,9 +430,9 @@ Only postgres uses snapshot format 9. The other dialects store the full schema s
 | `sqlite`, `turso` | `"7"` | full state |
 | `mssql` | `"2"` | full state |
 | `singlestore` | `"2"` | full state |
-| `cockroach` | `"1"` | full state |
+| `cockroach` | `"2"` | base and diff snapshots, described below |
 
-A full-state snapshot has the shape `{ version, dialect, id, prevIds, ddl, renames }`. `ddl` holds every entity of the schema after the migration. `renames` lists the renames of that migration as `"<old name>-><new name>"` strings.
+A full-state snapshot has the shape `{ version, dialect, id, prevIds, ddl, renames }`. `ddl` holds every entity of the schema after the migration. `renames` lists the renames of that migration as `"<old name>-><new name>"` strings. A cockroach folder from an older drizzle-kit has this shape with version `"1"`, and `up` converts it to format 2.
 
 ### Postgres snapshot format 9
 
@@ -634,6 +634,42 @@ Example: a base, a column add, a column rename with a `NOT NULL` change, and a m
 
 Format 8, the postgres format before format 9, stored the full state in every snapshot: `{ version: "8", dialect: "postgres", id, prevIds, ddl, renames }`.
 
+### Cockroach snapshot format 2
+
+Cockroach uses the same base, diff and merge snapshots as postgres format 9, with `version: "2"`, `dialect: "cockroach"` and cockroach entities:
+
+```typescript
+type BaseSnapshot = {
+  type: 'base';
+  version: '2';
+  dialect: 'cockroach';
+  id: string;
+  prevIds: ['00000000-0000-0000-0000-000000000000'];
+  footprints: Footprint[];
+  ddl: Entity[];
+};
+
+type DiffSnapshot = {
+  type: 'diff';
+  version: '2';
+  dialect: 'cockroach';
+  id: string;
+  prevIds: string[]; // at least one parent
+  footprints: Footprint[];
+  deltas: Delta[];
+};
+```
+
+A merge snapshot is a diff snapshot with every leaf of its fork in `prevIds`, the leaf with the newest folder name first. The `deltas` of a merge start from the combined state, so they hold only the change of the merge. `footprints`, `deltas` and the base `ddl` have the same shape as in format 9, and `up` computes them when it converts a format 1 folder. A cockroach entity has the same `entityType` field and the same key form as a postgres entity, with the cockroach entity types: `schemas`, `tables`, `enums`, `columns`, `indexes`, `fks`, `pks`, `checks`, `sequences`, `roles`, `policies` and `views`.
+
+The cockroach statements that the footprints describe carry three fields that postgres does not need:
+
+- `rename_constraint` has `entityType` (`pks`, `checks` or `fks`) and `columns`, the columns of the renamed constraint.
+- `rename_index` has `columns`, the columns of the renamed index.
+- `add_check`, `drop_check` and `alter_check` have `columns`; `alter_check` has `newColumns` and `oldColumns`.
+
+Cockroach index names are per table. Every statement that drops or renames an index writes the schema, the table and the index, as `"schema"."table"@"index"`, so the SQL stays valid after a merge that adds the same index name to another table. The schema validator accepts one index name on two tables of a schema, and it still rejects two indexes with one name on the same table.
+
 ## `check`
 
 `drizzle-kit check --output json` validates the migrations folder — snapshot integrity plus conflicts between branches — and emits one of three envelopes. For postgresql, it also compares the schema with the migrations and reports a difference as a warning in the `ok` envelope. It never prompts and takes no hints. The `check()` SDK export returns the same envelopes verbatim.
@@ -698,7 +734,7 @@ When a snapshot fails integrity validation, `check` emits an `error` envelope wi
 - `unsupported`: the snapshot was written by a Drizzle Kit version that this binary cannot read.
 - `malformed`: the snapshot cannot be read, or its postgres history is broken. The cases are listed below.
 - `non_latest`: the snapshot is in an older format. Run `drizzle-kit up`.
-- `order`: postgres only. A migration folder sorts before the folder of one of its parents. `parentSnapshot` is the path of the parent's `snapshot.json`.
+- `order`: postgres and cockroach. A migration folder sorts before the folder of one of its parents. `parentSnapshot` is the path of the parent's `snapshot.json`.
 
 `snapshot` is the path of the snapshot file that has the problem.
 
@@ -748,7 +784,7 @@ For the snapshot history, deleting the newest migration folder is safe, and so i
 
 ### `check` conflicts
 
-When the branches do not commute, `check` emits an `error` envelope with `code: "check_error"`, `kind: "conflicts"`, a `conflicts` count, a `details` array and, for postgresql, a `fix` object, and exits with code `1`. For the other dialects, `--ignore-conflicts` turns this error into an `ok` envelope:
+When the branches do not commute, `check` emits an `error` envelope with `code: "check_error"`, `kind: "conflicts"`, a `conflicts` count, a `details` array and, for postgresql and cockroach, a `fix` object, and exits with code `1`. For the other dialects, `--ignore-conflicts` turns this error into an `ok` envelope:
 
 ```json
 {
@@ -794,7 +830,7 @@ Key semantics:
   - `parentId`: the id of the fork point, the newest snapshot in the history of both leaves. It is the origin id `00000000-0000-0000-0000-000000000000` when the two leaves have no common snapshot.
   - `parentPath`: the folder of the fork point, present only when the conflict has one.
   - `branches`: always a two-element array, one entry for each branch. Each entry is `{ leafId, leafPath, statementDescription, target, action }`. `leafId` and `leafPath` are the id and the folder of the last migration in that branch (`null` when the branch is empty). `statementDescription` describes the conflicting statement. `target` is `{ kind, name, schema?, table? }` for the entity that the statement changes, and `action` is the statement type.
-- `fix`: postgresql only. `migrations` lists the folders that `generate --fix-conflicts` deletes, in folder-name order: the migrations that hold the conflicting statements that check reports, on both branches, and all their children. Check reports one conflict for each pair of branches, so the fix checks the rest again and repeats until no conflict is left. A migration that conflicts only with a deleted migration stays. `customMigrations` lists the custom migrations among them (diff snapshots with `deltas: []`), whose SQL the fix loses.
+- `fix`: postgresql and cockroach. `migrations` lists the folders that `generate --fix-conflicts` deletes, in folder-name order: the migrations that hold the conflicting statements that check reports, on both branches, and all their children. Check reports one conflict for each pair of branches, so the fix checks the rest again and repeats until no conflict is left. A migration that conflicts only with a deleted migration stays. `customMigrations` lists the custom migrations among them (diff snapshots with `deltas: []`), whose SQL the fix loses.
 
 For postgres, `check` compares every pair of leaves. A leaf's branch is the set of snapshots in its history that are missing from the other leaf's history. `check` reads the stored `footprints` of each snapshot in a branch, and compares every footprint of one branch with every footprint of the other. A change and its later reversal on the same branch still count, and `statementDescription` ends with the folder that the statement comes from. A merge snapshot adds only the footprints of its own change. Two equal statements on two branches are one change, and no conflict, when their SQL is idempotent: for example `SET NOT NULL` on one column in both branches. Two different changes of one object conflict, and so do two equal statements whose SQL fails on a second run, such as a new column. A `DISABLE ROW LEVEL SECURITY` on one branch also conflicts with a new policy for the same table on the other branch. This SQL runs in either order, but postgres does not enforce a policy on a table without row level security. For `mysql`, `sqlite` and `turso`, `check` compares the full state at each fork parent with the full state of each leaf below it. The other dialects have no branch check.
 

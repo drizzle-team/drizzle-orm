@@ -290,18 +290,18 @@ interface ViewDuplicate {
 	name: string;
 }
 
-interface IndexWithoutName {
-	type: 'index_no_name';
-	schema: string;
-	table: string;
-	sql: string;
-}
-
 interface IndexDuplicate {
 	type: 'index_duplicate';
 	schema: string;
 	table: string;
 	name: string;
+}
+
+interface IndexWithoutName {
+	type: 'index_no_name';
+	schema: string;
+	table: string;
+	sql: string;
 }
 
 interface PgVectorIndexNoOp {
@@ -402,9 +402,11 @@ export const interimToDDL = (
 
 	for (const it of schema.indexes) {
 		const { forPK: _, ...rest } = it;
-		const isConflictNamePerSchema = ddl.indexes.one({ schema: it.schema, name: it.name });
+		// Cockroach allows one index name on two tables of a schema, so only a second index of the same name on
+		// the same table is a duplicate.
+		const isConflictOnTable = ddl.indexes.one({ schema: it.schema, table: it.table, name: it.name });
 
-		if (isConflictNamePerSchema) {
+		if (isConflictOnTable) {
 			errors.push({
 				type: 'index_duplicate',
 				schema: it.schema,

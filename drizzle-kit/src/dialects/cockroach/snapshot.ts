@@ -1,9 +1,10 @@
 import { randomUUID } from 'crypto';
 import type { TypeOf } from 'zod';
 import { any, boolean, enum as enumType, literal, number, object, record, string } from 'zod';
-import { originUUID } from '../../utils';
+import type { Footprint } from '../../commutativity/engine';
+import { deltaFormatValidators } from '../../folder/delta-format';
 import { array, validator } from '../simpleValidator';
-import type { CockroachDDL } from './ddl';
+import type { CockroachDDL, CockroachEntity } from './ddl';
 import { createDDL } from './ddl';
 import { defaults } from './grammar';
 
@@ -209,35 +210,53 @@ export type CockroachSchema = TypeOf<typeof cockroachSchema>;
 export type Index = TypeOf<typeof index>;
 export type Column = TypeOf<typeof column>;
 
-export const toJsonSnapshot = (ddl: CockroachDDL, prevIds: string[], renames: string[]): CockroachSnapshot => {
-	return { dialect: 'cockroach', id: randomUUID(), prevIds, version: '1', ddl: ddl.entities.list(), renames };
-};
-
-const ddl = createDDL();
-export const snapshotValidator = validator({
+// The snapshots of format 1 store the full state and the rename strings of their migration. `up` reads them
+// and writes format 2.
+export const snapshotValidatorV1 = validator({
 	version: ['1'],
 	dialect: ['cockroach'],
 	id: 'string',
 	prevIds: array<string>((_) => true),
-	ddl: array((it) => {
-		const res = ddl.entities.validate(it);
-		if (!res) {
-			console.error(JSON.stringify(it));
-		}
-		return res;
-	}),
+	ddl: array((it) => ddl.entities.validate(it)),
 	renames: array<string>((_) => true),
 });
 
-export type CockroachSnapshot = typeof snapshotValidator.shape;
+export type CockroachSnapshotV1 = typeof snapshotValidatorV1.shape;
 
-export const drySnapshot = snapshotValidator.strict(
-	{
-		version: '1',
+const ddl = createDDL();
+const definitions = ddl._.defs;
+const format = deltaFormatValidators({
+	version: '2',
+	dialect: 'cockroach',
+	hasEntityType: (type) => Object.hasOwn(definitions, type),
+	hasEntityField: (type, field) => Object.hasOwn(definitions[type], field),
+	validateEntity: (row): row is CockroachEntity => ddl.entities.validate(row),
+});
+
+export type CockroachBaseSnapshot = typeof format.baseValidator.shape;
+export type CockroachDiffSnapshot = typeof format.diffValidator.shape;
+// A merge snapshot is a diff snapshot with several parents, so it needs no shape of its own.
+export type CockroachSnapshot = CockroachBaseSnapshot | CockroachDiffSnapshot;
+
+export const snapshotValidator = {
+	parse: (it: unknown) =>
+		(it as { type?: unknown } | null)?.type === 'diff'
+			? format.diffValidator.parse(it)
+			: format.baseValidator.parse(it),
+};
+
+export const toJsonSnapshot = (
+	ddl: CockroachDDL,
+	prevIds: string[],
+	footprints: Footprint[],
+): CockroachBaseSnapshot => {
+	return {
+		type: 'base',
+		version: '2',
 		dialect: 'cockroach',
-		id: originUUID,
-		prevIds: [],
-		ddl: [],
-		renames: [],
-	} satisfies CockroachSnapshot,
-);
+		id: randomUUID(),
+		prevIds,
+		footprints,
+		ddl: ddl.entities.list(),
+	};
+};

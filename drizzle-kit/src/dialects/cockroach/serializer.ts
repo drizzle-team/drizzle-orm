@@ -1,84 +1,39 @@
 import { cockroachSchemaError, cockroachSchemaWarning, humanLog } from '../../cli/views';
-import { findLeafSnapshotIds } from '../../utils/utils-node';
 import type { SchemaMetadata } from '../utils';
 import type { CockroachDDL } from './ddl';
-import { createDDL, interimToDDL } from './ddl';
+import { interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
-import type { CockroachSnapshot } from './snapshot';
-import { drySnapshot, snapshotValidator } from './snapshot';
+import { type CockroachMigrationsFolder, combinedState } from './folder';
+
+// Converts a cockroach schema to its state. generate and export both call it, so they agree on what the schema
+// is. `stage` names the step that gave the errors, and `ddl` is null when `fromDrizzleSchema` fails.
+export const stateOfSchema = (prepared: Awaited<ReturnType<typeof prepareFromSchemaFiles>>) => {
+	// TODO: do we want to export everything or ignore .existing and respect entity filters in config
+	const { schema, metadata, errors, warnings } = fromDrizzleSchema(prepared, () => true);
+	if (errors.length > 0) return { stage: 'schema' as const, ddl: null, metadata, errors, warnings };
+	const { ddl, errors: ddlErrors } = interimToDDL(schema);
+	return { stage: 'ddl' as const, ddl, metadata, errors: ddlErrors, warnings };
+};
 
 export const prepareSnapshot = async (
-	snapshots: string[],
+	migrations: CockroachMigrationsFolder,
 	filenames: string[],
 ): Promise<{
 	ddlPrev: CockroachDDL;
 	ddlCur: CockroachDDL;
 	metadata: SchemaMetadata;
-	snapshot: CockroachSnapshot;
-	snapshotPrev: CockroachSnapshot;
-	custom: CockroachSnapshot;
 }> => {
-	const { readFileSync } = await import('fs');
-	const { randomUUID } = await import('crypto');
-	const prevSnapshot = snapshots.length === 0
-		? drySnapshot
-		: snapshotValidator.strict(
-			JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()),
-		);
-
-	const ddlPrev = createDDL();
-	for (const entry of prevSnapshot.ddl) {
-		ddlPrev.entities.push(entry);
-	}
-
-	const res = await prepareFromSchemaFiles(filenames);
-
-	// TODO: do we want to export everything or ignore .existing and respect entity filters in config
-	const { schema, metadata, errors, warnings } = fromDrizzleSchema(
-		res,
-		() => true,
-	);
+	const ddlPrev = combinedState(migrations);
+	const { ddl: ddlCur, metadata, errors, warnings } = stateOfSchema(await prepareFromSchemaFiles(filenames));
 
 	if (warnings.length > 0) {
 		humanLog(warnings.map((it) => cockroachSchemaWarning(it)).join('\n\n'));
 	}
 
-	if (errors.length > 0) {
+	if (!ddlCur || errors.length > 0) {
 		humanLog(errors.map((it) => cockroachSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
-	const { ddl: ddlCur, errors: errors2 } = interimToDDL(schema);
-
-	if (errors2.length > 0) {
-		humanLog(errors2.map((it) => cockroachSchemaError(it)).join('\n'));
-		process.exit(1);
-	}
-
-	const id = randomUUID();
-	const prevIds = snapshots.length === 0 ? [prevSnapshot.id] : findLeafSnapshotIds(snapshots);
-
-	const snapshot = {
-		version: '1',
-		dialect: 'cockroach',
-		id,
-		prevIds,
-		ddl: ddlCur.entities.list(),
-		renames: [],
-	} satisfies CockroachSnapshot;
-
-	const {
-		id: _ignoredId,
-		prevIds: _ignoredPrevIds,
-		...prevRest
-	} = prevSnapshot;
-
-	// that's for custom migrations, when we need new IDs, but old snapshot
-	const custom: CockroachSnapshot = {
-		id,
-		prevIds,
-		...prevRest,
-	};
-
-	return { ddlPrev, ddlCur, metadata, snapshot, snapshotPrev: prevSnapshot, custom };
+	return { ddlPrev, ddlCur, metadata };
 };

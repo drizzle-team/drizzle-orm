@@ -5,6 +5,7 @@ import { diffStringArrays } from '../../utils/sequence-matcher';
 import { parse } from '../../utils/when-json-met-bigint';
 import type { Resolver } from '../common';
 import { type Delta, delta, diff, type Row } from '../dialect';
+import { checkColumns } from '../grammar';
 import { groupDiffs, preserveEntityNames, sortCreateViews } from '../utils';
 import type { SchemaMetadata } from '../utils';
 import { fromJson } from './convertor';
@@ -581,24 +582,13 @@ export const ddlDiff = async (
 		});
 	});
 
-	// columns a check references, found by keeping only expression identifiers that
-	// are real columns of the table (so a keyword/function is never mistaken for one)
-	const checkColumns = (value: string, ddl: PostgresDDL, schema: string, table: string): string[] => {
-		const names = new Set(ddl.columns.list({ schema, table }).map((c) => c.name));
-		const found = new Set<string>();
-		const re = /"([^"]+)"|([A-Za-z_][A-Za-z0-9_$]*)/g;
-		let m: RegExpExecArray | null;
-		while ((m = re.exec(value ?? '')) !== null) {
-			const id = m[1] ?? m[2];
-			if (names.has(id)) found.add(id);
-		}
-		return [...found];
-	};
+	const columnsOfCheck = (value: string, ddl: PostgresDDL, schema: string, table: string): string[] =>
+		checkColumns(value, ddl.columns.list({ schema, table }).map((c) => c.name));
 	const jsonCreatedCheckConstraints = checkCreates.filter(tablesFilter('created')).map((it) =>
-		prepareStatement('add_check', { check: it, columns: checkColumns(it.value, ddl2, it.schema, it.table) })
+		prepareStatement('add_check', { check: it, columns: columnsOfCheck(it.value, ddl2, it.schema, it.table) })
 	);
 	const jsonDropCheckConstraints = checkDeletes.filter(tablesFilter('deleted')).map((it) =>
-		prepareStatement('drop_check', { check: it, columns: checkColumns(it.value, ddl1, it.schema, it.table) })
+		prepareStatement('drop_check', { check: it, columns: columnsOfCheck(it.value, ddl1, it.schema, it.table) })
 	);
 	const jsonRenamedCheckConstraints = checkRenames.map((it) =>
 		prepareStatement('rename_constraint', {
@@ -607,7 +597,7 @@ export const ddlDiff = async (
 			table: it.to.table,
 			from: it.from.name,
 			to: it.to.name,
-			columns: checkColumns(it.to.value, ddl2, it.to.schema, it.to.table),
+			columns: columnsOfCheck(it.to.value, ddl2, it.to.schema, it.to.table),
 		})
 	);
 
@@ -641,8 +631,8 @@ export const ddlDiff = async (
 
 	const jsonAlterCheckConstraints: JsonAlterCheck[] = [];
 	alteredChecks.filter((it) => it.value).forEach((it) => {
-		const prevColumns = checkColumns(it.$left.value, ddl1, it.schema, it.table);
-		const newColumns = checkColumns(it.$right.value, ddl2, it.schema, it.table);
+		const prevColumns = columnsOfCheck(it.$left.value, ddl1, it.schema, it.table);
+		const newColumns = columnsOfCheck(it.$right.value, ddl2, it.schema, it.table);
 
 		// if column was dropped and this column was in check value
 		// we need only create new check instead

@@ -15,6 +15,9 @@ tests/**/tmp/
 !MCP.md
 !OUTPUT_MODES.md
 !HINTS.md
+!CONTEXT.md
+!docs
+docs/reviews/
 
 !.eslint
 !.gitignore

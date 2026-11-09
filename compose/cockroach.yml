@@ -6,7 +6,7 @@ services:
       - "26257:26257"
       - "8080:8080"
     healthcheck:
-      test: ["CMD", "bash", "-lc", "nc -z 127.0.0.1 26257"]
+      test: ["CMD", "cockroach", "sql", "--insecure", "--host=localhost:26257", "-e", "SELECT 1"]
       interval: 2s
       timeout: 3s
       retries: 60

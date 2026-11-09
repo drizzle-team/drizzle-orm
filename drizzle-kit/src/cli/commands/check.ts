@@ -3,13 +3,12 @@ import { readFileSync } from 'fs';
 import { getCommutativityDialect } from '../../commutativity';
 import type { ParsedSnapshotInput, SnapshotHeader } from '../../commutativity/engine';
 import type { MigrationNode, NonCommutativityReport, UnifiedBranchConflict } from '../../commutativity/types';
-import { readFolder } from '../../dialects/postgres/folder';
-import type { PostgresSnapshot } from '../../dialects/postgres/snapshot';
+import { deltaFormatOf, usesDeltaFormat } from '../../folder/registry';
 import type { Dialect } from '../../utils/schemaValidator';
 import { assertSnapshotStatus, prepareOutFolder, validatorForDialect } from '../../utils/utils-node';
 import { CheckCliError, UnsupportedCommandCliError } from '../errors';
 import { humanLog } from '../views';
-import { type ConflictFix, describeConflictFix, planConflictFix } from './fix-conflicts';
+import { type ConflictFix, describeConflictFix, type FixableSnapshot, planConflictFix } from './fix-conflicts';
 
 export type CheckHandlerResult = {
 	statements: unknown[];
@@ -143,19 +142,19 @@ export const assertConflictOptions = (
 	dialect: Dialect,
 	options: { ignoreConflicts?: boolean; fixConflicts?: boolean },
 ) => {
-	if (dialect === 'postgresql' && options.ignoreConflicts) {
+	if (usesDeltaFormat(dialect) && options.ignoreConflicts) {
 		throw new UnsupportedCommandCliError(
 			command,
-			'--ignore-conflicts is not supported for postgresql. '
+			`--ignore-conflicts is not supported for ${dialect}. `
 				+ 'To delete the conflicting migrations and generate one new migration, run:\n'
 				+ '  drizzle-kit generate --fix-conflicts',
 			{ dialect, option: 'ignore-conflicts' },
 		);
 	}
-	if (dialect !== 'postgresql' && options.fixConflicts) {
+	if (!usesDeltaFormat(dialect) && options.fixConflicts) {
 		throw new UnsupportedCommandCliError(
 			command,
-			`--fix-conflicts is supported only for postgresql. For ${dialect}, resolve the conflicts by hand, `
+			`--fix-conflicts is not supported for ${dialect}. Resolve the conflicts by hand, `
 				+ 'or run generate with --ignore-conflicts to write the merge anyway.',
 			{ dialect, option: 'fix-conflicts' },
 		);
@@ -163,7 +162,8 @@ export const assertConflictOptions = (
 };
 
 const readSnapshots = (out: string, dialect: Dialect): ParsedSnapshotInput[] => {
-	if (dialect === 'postgresql') return readFolder(out).files;
+	const format = deltaFormatOf(dialect);
+	if (format) return format.readFolder(out).files as ParsedSnapshotInput[];
 
 	const { snapshots } = prepareOutFolder(out);
 	const validator = validatorForDialect(dialect);
@@ -212,19 +212,24 @@ export const checkHandler = async (
 	return emptyResult();
 };
 
-// The result of `checkSnapshots`. `fix` is set only for postgresql, and only when `report` has conflicts.
+// The result of `checkSnapshots`. `fix` is set only for a dialect with the delta format, and only when
+// `report` has conflicts.
 export type SnapshotCheck = { report: NonCommutativityReport; fix?: ConflictFix };
 
-// Checks the branches of a migrations folder for conflicts, and plans a fix for postgresql. `inputs` are the
-// valid snapshots of the folder, in folder-name order.
+// Checks the branches of a migrations folder for conflicts, and plans a fix for a dialect with the delta format.
+// `inputs` are the valid snapshots of the folder, in folder-name order.
 export const checkSnapshots = async (inputs: ParsedSnapshotInput[], dialect: Dialect): Promise<SnapshotCheck> => {
 	const commutativity = getCommutativityDialect(dialect);
 	if (!commutativity) return { report: { conflicts: [], leafNodes: [] } };
 
 	const report = await commutativity.detectNonCommutative(inputs);
-	if (dialect !== 'postgresql' || report.conflicts.length === 0) return { report };
-	// The cast of `inputs` is safe, because the postgres validator accepted each input.
-	return { report, fix: await planConflictFix(inputs as ParsedSnapshotInput<PostgresSnapshot>[], report) };
+	const format = deltaFormatOf(dialect);
+	if (!format || report.conflicts.length === 0) return { report };
+	// The cast of `inputs` is safe, because the folder loader accepted each input.
+	return {
+		report,
+		fix: await planConflictFix(inputs as ParsedSnapshotInput<FixableSnapshot>[], report, format.commutativity),
+	};
 };
 
 export const conflictError = (report: NonCommutativityReport, fix?: ConflictFix) => {

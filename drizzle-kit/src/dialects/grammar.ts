@@ -35,3 +35,17 @@ export const numberForTs = (value: string): { mode: 'number' | 'bigint'; value: 
 export const parseParams = (type: string) => {
 	return type.match(/\(((?:\d+(?:\s*,\s*\d+)*)|max)\)/i)?.[1].split(',').map((x) => x.trim()) ?? [];
 };
+
+// The columns that a CHECK expression references. Only names that are real columns of the table count, so a
+// keyword, a type name or a function is never mistaken for a column.
+export const checkColumns = (value: string, columnNames: Iterable<string>): string[] => {
+	const names = new Set(columnNames);
+	const found = new Set<string>();
+	const re = /"([^"]+)"|([A-Za-z_][A-Za-z0-9_$]*)/g;
+	let match: RegExpExecArray | null;
+	while ((match = re.exec(value ?? '')) !== null) {
+		const name = match[1] ?? match[2];
+		if (names.has(name)) found.add(name);
+	}
+	return [...found];
+};
