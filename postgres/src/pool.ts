@@ -477,16 +477,21 @@ export class Pool {
 		return new PoolQuery(this, sql, params, opts).execute();
 	}
 
-	/** Run a set of `query()` objects as ONE ATOMIC transaction on a single connection: BEGIN, pipeline
-	 *  them, COMMIT — or ROLLBACK and reject if ANY fails (all-or-nothing). Results in input order. Reach
-	 *  for pipeline() when the queries are independent (no atomicity), or parallel() to fan out.
+	/** Run a set of `query()` objects as ONE ATOMIC transaction on a single connection, in ONE round trip:
+	 *  BEGIN, the queries and COMMIT are pipelined back-to-back in a single socket write — or the transaction
+	 *  rolls back and the call rejects if ANY fails (all-or-nothing). Results in input order. Reach for
+	 *  pipeline() when the queries are independent (no atomicity), or parallel() to fan out.
 	 *  `options` configure the transaction, as for `begin(options, fn)` (isolation, readOnly, deferrable,
 	 *  snapshot).
-	 *  A query's own error carries `failedQueryIndex` (its position in `queries`); an error from BEGIN or
-	 *  COMMIT (e.g. a deferred constraint) belongs to no query and has none. */
-	batch(queries: PoolQuery[], options?: BatchOptions): Promise<QueryResult<never>[]> {
-		const run: TxFn<QueryResult<never>[]> = (tx) => Promise.all(queries.map((q, i) => runIndexed(q, tx, i)));
-		return options ? this.begin(options, run) : this.begin(run);
+	 *  A query's own error carries `failedQueryIndex` (its position in `queries`); an error from the snapshot
+	 *  import or COMMIT (e.g. a deferred constraint) belongs to no query and has none. */
+	async batch(queries: PoolQuery[], options?: BatchOptions): Promise<QueryResult<never>[]> {
+		const conn = await this.acquire(); // the txGuard check lives in acquire(), as for every pool op
+		try {
+			return await conn.pipelinedTransaction(options, (c) => queries.map((q, i) => runIndexed(q, c, i)));
+		} finally {
+			this.release(conn); // rolls back defensively if the connection somehow stayed in a transaction
+		}
 	}
 
 	/** Pipeline a set of queries on ONE connection with NO transaction: sent back-to-back (~1 round trip),
@@ -633,7 +638,7 @@ function runIndexed(query: PoolQuery, conn: Connection, index: number): Promise<
 /** A lazy, awaitable query returned by `pool.query(...)`. Nothing runs until you `await` it, call
  *  `.execute()`, or pass it to `pool.batch(...)`. Execution is memoized — awaiting more than once runs
  *  it once. Standalone (`await` / `.execute()`) it checks out its own connection; `pool.batch(...)` runs
- *  it on a shared connection via `runOn` so a set pipelines on one connection. */
+ *  it on a shared connection via `runOn` so a set pipelines on one connection, BEGIN and COMMIT included. */
 export class PoolQuery implements PromiseLike<QueryResult<never>> {
 	private promise?: Promise<QueryResult<never>>;
 	constructor(private pool: Pool, private sql: string, private params: unknown[], private opts: QueryOptions) {}
@@ -657,7 +662,8 @@ export class PoolQuery implements PromiseLike<QueryResult<never>> {
 		})());
 	}
 
-	/** Run on an ALREADY checked-out connection (pool.batch uses this to pipeline a set on one connection). */
+	/** Run on an ALREADY checked-out connection (pool.batch uses this to pipeline a set on one connection).
+	 *  Enqueues synchronously — pool.batch relies on that to keep the set contiguous between BEGIN and COMMIT. */
 	runOn(conn: Connection): Promise<QueryResult<never>> {
 		return (this.promise ??= (conn.query as unknown as Runner)(this.sql, this.params, this.opts));
 	}

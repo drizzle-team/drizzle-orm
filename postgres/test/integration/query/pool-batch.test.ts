@@ -62,6 +62,35 @@ describe('pool.batch (atomic transaction) / pipeline (one conn) / parallel (fan-
 		}
 	});
 
+	test('batch is ONE round trip: BEGIN, the queries and COMMIT leave in a single socket write', async () => {
+		const pool = testPool({ max: 1 });
+		try {
+			const conn = await pool.acquire(); // the one connection every op on this pool reuses
+			await conn.query('select 1'); // past startup, so the counters below measure the batch alone
+			const writes = conn.stats.writes;
+			pool.release(conn);
+
+			const rs = await pool.batch([
+				pool.query('select $1::int as n', [0], { mode: 'object' }),
+				pool.query('select $1::int as n', [1], { mode: 'object' }),
+				pool.query('select $1::int as n', [2], { mode: 'object' }),
+			]);
+			rs.forEach((r, i) => expect(cell(r, 'n')).toBe(i));
+			expect(conn.stats.writes).toBe(writes + 1); // begin + 3 queries + commit: one socket write
+			expect(conn.stats.maxInflight).toBeGreaterThanOrEqual(5); // all five were in flight together
+			expect(conn.inTransaction).toBe(false); // COMMIT went out with the set — nothing left open
+
+			// the failing shape is still a single write: the aborted tx turns the trailing COMMIT into a ROLLBACK
+			const before = conn.stats.writes;
+			const e = await caught(() => pool.batch([pool.query('select 1'), pool.query('select 1/0')]));
+			expect((e as PgError).code).toBe('22012');
+			expect(conn.stats.writes).toBe(before + 1);
+			expect(conn.inTransaction).toBe(false);
+		} finally {
+			await pool.end();
+		}
+	});
+
 	test('batch is ATOMIC but pipeline is NOT: a failing member rolls back a batch, not a pipeline', async () => {
 		const pool = testPool();
 		const cnt = async () =>
@@ -92,6 +121,36 @@ describe('pool.batch (atomic transaction) / pipeline (one conn) / parallel (fan-
 		} finally {
 			await pool.execute('drop table if exists pb_atomic');
 			await pool.end();
+		}
+	});
+
+	test('batch stays ATOMIC when a member fails CLIENT-side and never reaches the server', async () => {
+		// A NUL byte can't be encoded into a text param, so the statement is rejected before it is sent; the
+		// pre-queued COMMIT would otherwise commit its siblings. Pipelining on: the failure is synchronous
+		// (counted as unsent). Pipelining off: the statement is serialized LATER, behind the queued COMMIT,
+		// and flips its batch group — both end with ROLLBACK on the wire.
+		for (const pipeline of [true, false]) {
+			const pool = testPool({ max: 1, pipeline });
+			await pool.execute('create table pb_client_fail(v text)');
+			try {
+				const e = await caught(() =>
+					pool.batch([
+						pool.query('insert into pb_client_fail values ($1)', ['before']),
+						pool.query('insert into pb_client_fail values ($1)', ['bad\0byte']),
+						pool.query('insert into pb_client_fail values ($1)', ['after']),
+					])
+				);
+				expect(e).toBeInstanceOf(Error);
+				expect((e as PgError).failedQueryIndex).toBe(1);
+				const { rows } = await pool.execute('select count(*)::int as n from pb_client_fail', [], { mode: 'object' });
+				expect(rows[0] as unknown).toEqual({ n: 0 }); // neither sibling persisted
+				const conn = await pool.acquire();
+				expect(conn.inTransaction).toBe(false); // the ROLLBACK closed it; nothing for release() to clean up
+				pool.release(conn);
+			} finally {
+				await pool.execute('drop table if exists pb_client_fail');
+				await pool.end();
+			}
 		}
 	});
 

@@ -48,6 +48,7 @@ import {
 	type ShapeSpec,
 } from './spec.ts';
 import type {
+	BatchOptions,
 	CancelOptions,
 	ConnectConfig,
 	ConnectionTypeConfig,
@@ -334,8 +335,19 @@ interface TaskPerf {
 	metrics?: QueryMetrics;
 }
 
+/** Shared marker of the statements of one pipelinedTransaction(). A member that never reaches the wire
+ *  (client-side encode failure, pre-aborted signal, …) can't abort the server-side transaction, so it
+ *  flips `failed` and the group's trailing COMMIT is serialized as ROLLBACK instead — the batch stays atomic. */
+interface BatchGroup {
+	failed: boolean;
+}
+
+const NO_STATEMENTS: Promise<never>[] = []; // shared empty body for a batch whose issue() threw
+
 interface Task {
 	sql: string;
+	group?: BatchGroup | null; // the pipelinedTransaction() this statement belongs to (null: none)
+	groupEnd?: boolean; // this is the group's trailing COMMIT
 	params: readonly unknown[];
 	name?: string | undefined;
 	mode: ResultMode;
@@ -501,6 +513,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	private socket: Duplex | null = null;
 	private parser = new Parser();
 	private queue: Task[] = [];
+	private batchGroup: BatchGroup | null = null; // set while pipelinedTransaction() issues its statements: query() tags each task with it
+	private batchTail = false; // set while pipelinedTransaction() issues its trailing COMMIT
 	private inflight: Task[] = []; // in-flight FIFO (oldest→newest); the backend replies in this order, so the
 	// head (inflight[0]) is the task currently receiving results. length ≤ pipelineDepth
 	private outbuf = new Writer(); // outbound batch: pipelined tasks serialize here, flushed once per dispatch pass
@@ -1369,6 +1383,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		if (t.perf) t.perf.tStart = performance.now(); // execution begins (queue wait ends here)
 		const w = this.outbuf;
 		const mark = w.mark();
+		// Serialized after every sibling (FIFO), so by now each of them has either hit the wire or failed to.
+		if (t.groupEnd && t.group!.failed) t.sql = 'rollback'; // a sibling never went out: don't commit the rest
 		let parsedName: string | undefined // this task wrote a NAMED Parse (recorded in parseInflight only once the whole task serialized)
 		;
 		try {
@@ -1494,6 +1510,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			if (t.perf) t.perf.sent = w.mark() - mark; // bytes this query contributed to the batch
 		} catch (e) {
 			w.rewind(mark); // discard this task's partial bytes; earlier batched tasks stay intact
+			if (t.group) t.group.failed = true; // its batch must not commit without it
 			this.rejectTask(t, e as Error);
 			return;
 		}
@@ -2082,6 +2099,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				signal: opts.signal,
 				debug: opts.debug,
 				paramTypes: opts.params && resolveParamTypes(opts.params),
+				group: this.batchGroup,
+				groupEnd: this.batchTail,
 			};
 			if (mode === 'wire') {
 				if (opts.shape || opts.binary) {
@@ -2597,6 +2616,79 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	transaction<T>(options: TxOptions, fn: TxFn<T, Config>): Promise<T>;
 	transaction<T>(a: TxOptions | TxFn<T, Config>, b?: TxFn<T, Config>): Promise<T> {
 		return typeof a === 'function' ? this.runTx(undefined, a) : this.runTx(a, b!);
+	}
+
+	/** @internal The engine behind `pool.batch`: a whole transaction in ONE round trip. BEGIN (built from
+	 *  `options`, plus `set transaction snapshot` when one is given), every statement `issue` enqueues, and
+	 *  COMMIT are dispatched back-to-back in the SAME tick, so under pipelining they leave in a single socket
+	 *  write and settle on a single round trip — where begin() pays three (await BEGIN, run the body, await
+	 *  COMMIT). Atomic exactly like begin(): a failing statement aborts the transaction, every statement behind
+	 *  it fails with 25P02, and the trailing COMMIT becomes a ROLLBACK server-side — nothing is left open. A
+	 *  statement that never reaches the wire (client-side encode failure, …) can't abort anything server-side,
+	 *  so its group flips `failed` and the trailing COMMIT is serialized as ROLLBACK instead (see BatchGroup).
+	 *  Rejects with the first rejection to fire: statements settle in wire order, so a 25P02 fallout never
+	 *  masks the error that caused it, and a failed snapshot import or COMMIT (e.g. a deferred constraint)
+	 *  surfaces as itself. Resolves with the statements' results, in order. `issue` MUST enqueue synchronously:
+	 *  a statement issued after an `await` lands behind COMMIT, outside the transaction. With pipelining off
+	 *  (depth 1: transaction poolers) the same sequence runs gated, one statement per round trip.
+	 *  Allocation-lean by design (batches are hot): no Promise.allSettled records or intermediate arrays — one
+	 *  results array, one shared rejection handler, and one `then` per statement. */
+	pipelinedTransaction<T>(
+		options: BatchOptions | undefined,
+		issue: (conn: Connection<Config>) => Promise<T>[],
+	): Promise<T[]> {
+		if (this.inTransaction) {
+			return Promise.reject(new Error('batch needs a fresh transaction — the connection is already inside one'));
+		}
+		const group: BatchGroup = { failed: false };
+		const begin = this.query(beginClause(options)) as Promise<unknown>;
+		const snap = options?.snapshot != null
+			? this.query(setTransactionSnapshotSql(options.snapshot)) as Promise<unknown>
+			: null;
+		// Statements rejected before they are even queued (closed connection, bad params, pre-aborted signal)
+		// leave no task behind to flip the group, so count what issue() actually got onto the queue.
+		const before = this.queue.length + this.inflight.length;
+		let body: Promise<T>[];
+		let failed = false, firstError: unknown;
+		this.batchGroup = group; // query() tags every task issued from here on with the group …
+		try {
+			body = issue(this);
+		} catch (e) {
+			body = NO_STATEMENTS;
+			failed = true;
+			firstError = e;
+		}
+		if (failed || this.queue.length + this.inflight.length - before !== body.length) group.failed = true;
+		this.batchTail = true; // … and the next one as its trailing COMMIT
+		const tail = this.query('commit') as Promise<unknown>;
+		this.batchGroup = null;
+		this.batchTail = false;
+
+		const results = new Array<T>(body.length);
+		return new Promise<T[]>((resolve, reject) => {
+			let pending = body.length + (snap ? 3 : 2);
+			const done = (): void => {
+				if (--pending !== 0) return;
+				if (failed) reject(firstError);
+				else resolve(results);
+			};
+			const onError = (e: unknown): void => {
+				if (!failed) { // first to fire = earliest in wire order (an already-rejected statement fires first, as it should)
+					failed = true;
+					firstError = e;
+				}
+				done();
+			};
+			begin.then(done, onError);
+			if (snap) snap.then(done, onError);
+			for (let i = 0; i < body.length; i++) {
+				body[i]!.then((v) => {
+					results[i] = v;
+					done();
+				}, onError);
+			}
+			tail.then(done, onError);
+		});
 	}
 
 	private async runTx<T>(options: TxOptions | undefined, fn: TxFn<T, Config>): Promise<T> {
