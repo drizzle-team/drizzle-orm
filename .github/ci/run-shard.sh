@@ -123,6 +123,15 @@ run_shard() {
 	esac
 }
 
+# How busy the machine is. On a self-hosted runner the load average and the CPU pressure (PSI: the share of the time
+# in which runnable tasks waited for a CPU) are the whole machine's, so a slow job can be told from a slow machine.
+machine_load() {
+	local pressure=""
+	[ -r /proc/pressure/cpu ] && pressure=", cpu pressure: $(head -n1 /proc/pressure/cpu)"
+	echo "machine: $(nproc) cpus, loadavg $(cut -d' ' -f1-3 /proc/loadavg)$pressure"
+}
+
+machine_load
 failed=()
 IFS='+' read -ra shard_list <<<"$shards"
 for shard in "${shard_list[@]}"; do
@@ -133,6 +142,7 @@ for shard in "${shard_list[@]}"; do
 	if ! wait "$!"; then failed+=("$shard"); fi
 	echo "::endgroup::"
 done
+machine_load
 if ((${#failed[@]})); then
 	echo "::error::Failed shards: ${failed[*]}"
 	exit 1
