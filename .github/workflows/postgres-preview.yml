@@ -58,11 +58,18 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            bun run pkg-pr-new publish --json preview.json --previewVersion --comment=update --packageManager=bun,npm
-          else
-            bun run pkg-pr-new publish --json preview.json --previewVersion --comment=off --packageManager=bun,npm
-          fi
+          if [ "${{ github.event_name }}" = "pull_request" ]; then comment=update; else comment=off; fi
+          # The pkg.pr.new server knows a run only after GitHub delivers the workflow_run webhook to it. When that
+          # webhook comes late, the check answers "There is no workflow defined" (HTTP 404), so try again after a
+          # pause. A webhook that never comes needs a re-run of the job.
+          for attempt in 1 2 3 4; do
+            if bun run pkg-pr-new publish --json preview.json --previewVersion --comment="$comment" --packageManager=bun,npm 2>&1 | tee publish.log; then
+              exit 0
+            fi
+            if ! grep -q 'There is no workflow defined' publish.log || [ "$attempt" = 4 ]; then exit 1; fi
+            echo "pkg.pr.new does not know this run yet (attempt $attempt of 4). Trying again in 20 s."
+            sleep 20
+          done
 
       - name: Write install commands to the job summary
         if: always()

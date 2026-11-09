@@ -27,8 +27,8 @@ jobs:
       target: ${{ steps.route.outputs.target }}
       runner: ${{ steps.runner.outputs.runner }}
     steps:
-      # The pipeline runs on the self-hosted machine when one of its runners is online, on GitHub-hosted runners
-      # otherwise. Fork pull requests always run GitHub-hosted: a self-hosted runner would execute their code.
+      # The pipeline runs on the self-hosted machine when one of its runners is online and no older run uses the
+      # machine, on GitHub-hosted runners otherwise. Fork pull requests always run GitHub-hosted: a self-hosted runner would execute their code.
       # Listing runners needs a token with read access to the organization's self-hosted runners
       # (secrets.CI_RUNNERS_TOKEN); without it everything runs GitHub-hosted.
       - name: Pick runner
@@ -36,6 +36,7 @@ jobs:
         shell: bash
         env:
           TOKEN: ${{ secrets.CI_RUNNERS_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           LABEL: ${{ vars.SELF_HOSTED_RUNNER_LABEL || 'Linux' }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
@@ -60,11 +61,25 @@ jobs:
             online=$((online + ${n:-0}))
             break
           done
-          if (( online > 0 )); then
-            pick "$(jq -cn --arg label "$LABEL" '["self-hosted", $label]')" "$online '$LABEL' runner(s) online"
-          else
-            pick "$hosted" "no '$LABEL' runner online"
-          fi
+          if (( online == 0 )); then pick "$hosted" "no '$LABEL' runner online"; exit 0; fi
+
+          # One pipeline at a time on the self-hosted machine. A run takes the machine only when no older run of
+          # this workflow still uses it, or still chooses its runner. Otherwise it runs on GitHub-hosted runners
+          # at the same time. "Older" makes the oldest run win when two runs start together.
+          gh_api() { curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/$1"; }
+          created=$(gh_api "actions/runs/${GITHUB_RUN_ID}" | jq -r .created_at)
+          older=$(gh_api "actions/workflows/router.yaml/runs?status=in_progress&per_page=100" \
+            | jq -r --arg created "$created" --argjson id "$GITHUB_RUN_ID" \
+              '.workflow_runs[] | select(.id != $id and .created_at < $created) | .id')
+          for run in $older; do
+            gh_api "actions/runs/$run/jobs?per_page=100" > jobs.json
+            uses_machine=$(jq --arg label "$LABEL" '[.jobs[] | select(.status != "completed" and any(.labels[]; . == "self-hosted") and any(.labels[]; . == $label))] | length' jobs.json)
+            choosing=$(jq '[.jobs[] | select(.name == "switch" and .status != "completed")] | length' jobs.json)
+            if (( uses_machine > 0 || choosing > 0 )); then
+              pick "$hosted" "older run $run uses the self-hosted machine"; exit 0
+            fi
+          done
+          pick "$(jq -cn --arg label "$LABEL" '["self-hosted", $label]')" "$online '$LABEL' runner(s) online and free"
       - name: Route release
         id: route
         shell: bash

@@ -1,34 +1,10 @@
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
-// Postgres tests whose result does not depend on PG_VERSION: pure logic, or their own in-process PGlite (the
-// migration-folder flows, merge-pairs alone takes ~2 min). They run once, in the PGlite shard (kit:postgres), not
-// again in kit:postgres16/17/18, which select a real Postgres server through PG_VERSION. A test that uses that
-// server (prepareTestDatabase) must not be listed here; a version-independent one that is missing only runs more often.
-const versionIndependentPostgresTests = [
-	'tests/postgres/api-format9.test.ts',
-	'tests/postgres/check-branches.test.ts',
-	'tests/postgres/check-schema.test.ts',
-	'tests/postgres/commutativity.footprint-invariants.test.ts',
-	'tests/postgres/commutativity.footprint.test.ts',
-	'tests/postgres/commutativity.integration.test.ts',
-	'tests/postgres/commutativity.matrix-gen.test.ts',
-	'tests/postgres/ddl-refs.test.ts',
-	'tests/postgres/delta-rules.test.ts',
-	'tests/postgres/fix-conflicts.test.ts',
-	'tests/postgres/folder-flow.test.ts',
-	'tests/postgres/folder-integrity.test.ts',
-	'tests/postgres/fuzz.test.ts',
-	'tests/postgres/grammar.test.ts',
-	'tests/postgres/merge-flow.test.ts',
-	'tests/postgres/merge-pairs.test.ts',
-	'tests/postgres/pg-view-dependencies.test.ts',
-	'tests/postgres/postgres-client-pool.test.ts',
-	'tests/postgres/rename-flow.test.ts',
-	'tests/postgres/snapshot.test.ts',
-	'tests/postgres/structural-delta.test.ts',
-	'tests/postgres/up-format9.test.ts',
-];
+// With PG_VERSION, only the postgres test files that use the server of that version run: the files named
+// *.versions.test.ts (see tests/postgres/README.md). The other files give the same result on every version, so they
+// run once, in the PGlite shard (no PG_VERSION).
+const versionedPostgresTests = ['tests/postgres/*.versions.test.ts'];
 
 // CI runs the commutativity suite once, in its own shard (kit:postgres:commutativity) against the latest stable
 // Postgres, instead of in every kit:postgres shard. .github/ci/run-shard.sh sets KIT_POSTGRES_SUITE for those
@@ -38,7 +14,7 @@ const postgresSuite = process.env['KIT_POSTGRES_SUITE'];
 
 export default defineConfig({
 	test: {
-		include: [
+		include: process.env['PG_VERSION'] && postgresSuite !== 'commutativity' ? versionedPostgresTests : [
 			'tests/**/*.test.ts',
 			'tests/**/*.test-d.ts',
 			// Need to test it first before pushing changes
@@ -58,7 +34,6 @@ export default defineConfig({
 			'tests/gel/**/*.test.ts',
 			// 'tests/cockroach/',
 			...(postgresSuite === 'main' ? commutativityTests : []),
-			...(process.env['PG_VERSION'] && postgresSuite !== 'commutativity' ? versionIndependentPostgresTests : []),
 		],
 
 		typecheck: {
@@ -71,8 +46,9 @@ export default defineConfig({
 		// have a database of their own: PGlite in-process, a database per worker (PostGIS), or a server per worker
 		// (several ;-separated COCKROACH_CONNECTION_STRINGs, as cockroach-many serves). Not with one shared server: the
 		// setups drop and recreate a database named drizzle, and drop every role. kit:cockroach sets it on CI, where
-		// its DDL mostly waits on CockroachDB; kit:postgres does not: PGlite is CPU work, and on a machine whose CPUs every
-		// runner instance's job keeps busy its workers only competed. At most 2 workers on CI (KIT_MAX_WORKERS) when set.
+		// its DDL mostly waits on CockroachDB. kit:postgres sets it on GitHub-hosted runners only: PGlite is CPU work, and
+		// on the self-hosted machine, whose CPUs the jobs of every runner instance keep busy, its workers only competed.
+		// At most 2 workers on CI unless KIT_MAX_WORKERS is set.
 		fileParallelism: process.env['KIT_FILE_PARALLELISM'] === '1',
 		maxWorkers: process.env['KIT_MAX_WORKERS']
 			? Number(process.env['KIT_MAX_WORKERS'])

@@ -12,7 +12,7 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 
-// Provides the fork scenarios of `commutativity-groundtruth.pglite.test.ts`: the schema `parent` at the fork
+// Provides the fork scenarios of `commutativity-groundtruth.versions.test.ts`: the schema `parent` at the fork
 // point, one whole branch schema for each entry of `mutations`, and every unordered pair of branches in `PAIRS`.
 // The real diff writes the statements and the SQL of each branch from these schemas.
 

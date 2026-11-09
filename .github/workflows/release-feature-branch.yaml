@@ -194,16 +194,6 @@ jobs:
       - uses: ./.github/actions/pnpm-store
       - run: pnpm install --frozen-lockfile --prefer-offline
 
-      # Fork PRs get no secrets and skip the hosted databases.
-      - name: Create this job's hosted databases
-        id: hosted-databases
-        if: ${{ matrix.cloud && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        working-directory: integration-tests
-        env:
-          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
-          NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
-        run: pnpm exec tsx scripts/ci-databases.ts create --job "${{ matrix.shard }}" ${{ join(matrix.cloud, ' ') }}
-
       # One compose project per dialect: postgres16/17/18.yml all name their service `postgres`, so merging them
       # into one project left a single container.
       - name: Start DBs needed by shard (pre-warm)
@@ -239,14 +229,6 @@ jobs:
           XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
           NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
         run: bash .github/ci/run-shard.sh "${{ matrix.shard }}"
-
-      - name: Drop this job's hosted databases
-        if: ${{ always() && steps.hosted-databases.outcome != 'skipped' }}
-        working-directory: integration-tests
-        env:
-          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
-          NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
-        run: pnpm exec tsx scripts/ci-databases.ts drop
 
       # Before they stop: the servers' side of a failure (an error a driver reported only as an HTTP status).
       - name: Database logs

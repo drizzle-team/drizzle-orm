@@ -1199,7 +1199,7 @@ test('no diff for all column types', async () => {
 	expect(pst2).toStrictEqual([]);
 });
 
-// TODO: remove this test after transfering all helpful .default(...) to pg-defaults.test.ts
+// TODO: remove this test after transfering all helpful .default(...) to pg-defaults.versions.test.ts
 test('no diff for all column array types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
