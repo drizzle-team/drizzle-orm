@@ -1,3 +1,4 @@
+import { composeHint, requireEnv } from '@drizzle/test-utils';
 import { SQL as BunSQL } from 'bun';
 import { afterEach, beforeAll, beforeEach, describe, expect, expectTypeOf, test } from 'bun:test';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -97,11 +98,19 @@ import {
 } from 'drizzle-orm/pg-core';
 import { PgAsyncDatabase } from 'drizzle-orm/pg-core/async/db';
 import { PgQueryResultHKT } from 'drizzle-orm/pg-core/session';
-import { allTypesData, makeAllTypes } from '~/pg/all-types';
+import { jsonRows, parseStoredJson } from '~/json-values';
+import { allTypesData, makeAllTypes, withEmptyArrays } from '~/pg/all-types';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { normalizeDataWithDbCodecs } from '~/pg/utils';
 import { Expect } from '~/utils';
-import { assertAllTypesBounds } from '../pg/all-types';
+import {
+	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
+	assertAllTypesTemporalBoundsInSessions,
+	boundsRelations,
+	boundsSchema,
+	sessionDateStyles,
+} from '../pg/all-types';
 import { relations } from '../pg/relations';
 import {
 	assertMalformedSnapshotRejected,
@@ -230,12 +239,7 @@ const { allTypesTable } = makeAllTypes('all_types', 'en');
 let db: BunSQLDatabase<typeof relations> & { $client: BunSQL };
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_CONNECTION_STRING'];
-	if (!connectionString) {
-		throw new Error(
-			'PG_CONNECTION_STRING is not set. Bring DBs up with `bash compose/dockers.sh up postgres` and export the connection string before running tests.',
-		);
-	}
+	const connectionString = requireEnv('PG_CONNECTION_STRING', composeHint('postgres'));
 	const connClient = new BunSQL(connectionString, { max: 1 });
 	await connClient.unsafe(`select 1`);
 
@@ -1395,6 +1399,13 @@ test('Insert all defaults in multiple rows', async () => {
 	expect(res).toEqual([{ id: 1, name: 'Dan', state: null }, { id: 2, name: 'Dan', state: null }]);
 });
 
+const jsonParam = (value: unknown) =>
+	typeof db.$client.json === 'function'
+		? db.$client.json(value)
+		: db.$client.options.prepare === false
+		? JSON.stringify(value)
+		: expect.objectContaining({ value });
+
 test('build query insert with onConflict do update', async () => {
 	const query = db
 		.insert(usersTable)
@@ -1405,7 +1416,7 @@ test('build query insert with onConflict do update', async () => {
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do update set "name" = $3',
-		params: ['John', ['foo', 'bar'], 'John1'],
+		params: ['John', jsonParam(['foo', 'bar']), 'John1'],
 	});
 });
 
@@ -1419,7 +1430,7 @@ test('build query insert with onConflict do update / multiple columns', async ()
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
-		params: ['John', ['foo', 'bar'], 'John1'],
+		params: ['John', jsonParam(['foo', 'bar']), 'John1'],
 	});
 });
 
@@ -1433,7 +1444,7 @@ test('build query insert with onConflict do nothing', async () => {
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict do nothing',
-		params: ['John', ['foo', 'bar']],
+		params: ['John', jsonParam(['foo', 'bar'])],
 	});
 });
 
@@ -1447,7 +1458,7 @@ test('build query insert with onConflict do nothing + target', async () => {
 	expect(query).toEqual({
 		sql:
 			'insert into "users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
-		params: ['John', ['foo', 'bar']],
+		params: ['John', jsonParam(['foo', 'bar'])],
 	});
 });
 
@@ -1908,7 +1919,7 @@ test('select all fields from subquery without alias', () => {
 test('select count()', async () => {
 	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
 
-	const res = await db.select({ count: sql`count(*)` }).from(usersTable);
+	const res = await db.select({ count: sql<string>`count(*)`.mapWith(BigInt) }).from(usersTable);
 
 	expect(res).toEqual([{ count: 2n }]);
 });
@@ -4195,7 +4206,7 @@ test('mySchema :: build query insert with onConflict do update / multiple column
 	expect(query).toEqual({
 		sql:
 			'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
-		params: ['John', ['foo', 'bar'], 'John1'],
+		params: ['John', jsonParam(['foo', 'bar']), 'John1'],
 	});
 });
 
@@ -4208,7 +4219,7 @@ test('mySchema :: build query insert with onConflict do nothing + target', async
 	expect(query).toEqual({
 		sql:
 			'insert into "mySchema"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
-		params: ['John', ['foo', 'bar']],
+		params: ['John', jsonParam(['foo', 'bar'])],
 	});
 });
 
@@ -6073,15 +6084,29 @@ test('all types', async () => {
 		);
 	`);
 
-	// Driver can't handle numbers in json fields
-	const { json2: _json2, jsonb2: _jsonb2, ...bunAllTypesData } = allTypesData;
-	const { json2: _c1, jsonb2: _c2, ...bunAllTypesColumns } = getTableColumns(allTypesTable);
+	await db.insert(allTypesTable).values(allTypesData);
 
-	await db.insert(allTypesTable).values(bunAllTypesData as typeof allTypesData);
+	const rawRes = await db.select().from(allTypesTable);
 
-	const rawRes = await db.select(bunAllTypesColumns).from(allTypesTable);
+	expect(rawRes).toStrictEqual([allTypesData]);
 
-	expect(rawRes).toStrictEqual([bunAllTypesData]);
+	// The client's own decoding settings must not leak into what the ORM returns
+	const bigintClient = new BunSQL(process.env['PG_CONNECTION_STRING']!, { max: 1, bigint: true });
+	const bigintDb = drizzle({ client: bigintClient });
+	const originalTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+	try {
+		for (const tz of ['America/Los_Angeles', 'Pacific/Kiritimati']) {
+			process.env['TZ'] = tz;
+
+			await bigintDb.delete(allTypesTable);
+			await bigintDb.insert(allTypesTable).values(allTypesData);
+
+			expect(await bigintDb.select().from(allTypesTable)).toStrictEqual([allTypesData]);
+		}
+	} finally {
+		process.env['TZ'] = originalTz;
+		await bigintClient.close();
+	}
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/5287
@@ -6257,6 +6282,7 @@ test('all types ~codecs~', async () => {
 		uuid: uuid('uuid').notNull(),
 		varchar: varchar('varchar').notNull(),
 		arrint: integer('arrint').array().notNull(),
+		mtxint: integer('mtxint').array('[][]').notNull(),
 		arrbigint: bigint('arrbigint', {
 			mode: 'bigint',
 		}).array().notNull(),
@@ -6307,7 +6333,7 @@ test('all types ~codecs~', async () => {
 			mode: 'tuple',
 		}).array().notNull(),
 		arrreal: real('arrreal').array().notNull(),
-		// mtxreal: real('mtxreal').array('[][]'), // MULTIDIMENSIONAL ARRAYS NOT SUPPORTED YET BY DRIVER
+		mtxreal: real('mtxreal').array('[][]').notNull(),
 		arrsmallint: smallint('arrsmallint').array().notNull(),
 		arrtext: text('arrtext').array().notNull(),
 		arrtime: time('arrtime').array().notNull(),
@@ -6330,13 +6356,14 @@ test('all types ~codecs~', async () => {
 	});
 
 	const db = drizzle(process.env['PG_CONNECTION_STRING']!, {
-		relations: defineRelations({ allTypesTable }, (r) => ({
+		relations: defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
 			allTypesTable: {
 				self: r.many.allTypesTable({
 					from: r.allTypesTable.serial,
 					to: r.allTypesTable.serial,
 				}),
 			},
+			...boundsRelations(r),
 		})),
 	});
 
@@ -6482,6 +6509,7 @@ test('all types ~codecs~', async () => {
 		uuid: string;
 		varchar: string;
 		arrint: number[];
+		mtxint: number[][];
 		arrbigint: bigint[];
 		arrbigintnum: number[];
 		arrbigintstr: string[];
@@ -6513,6 +6541,7 @@ test('all types ~codecs~', async () => {
 		arrnumericbig: bigint[];
 		arrpoint: { x: number; y: number }[];
 		arrpointtuple: [number, number][];
+		mtxreal: number[][];
 		arrreal: number[];
 		arrsmallint: number[];
 		arrtext: string[];
@@ -6570,6 +6599,7 @@ test('all types ~codecs~', async () => {
 		uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
 		varchar: 'C4-',
 		arrint: [621],
+		mtxint: [[1, 2], [3, 4]],
 		arrbigint: [5044565289845416380n],
 		arrbigintnum: [9007199254740991],
 		arrbigintstr: ['5044565289845416380'],
@@ -6604,6 +6634,7 @@ test('all types ~codecs~', async () => {
 		arrnumericbig: [5044565289845416380n],
 		arrpoint: [{ x: 24.5, y: 49.6 }],
 		arrpointtuple: [[24.5, 49.6]],
+		mtxreal: [[1.048596, 2.5], [-3.25, 4]],
 		arrreal: [1.048596],
 		arrsmallint: [10],
 		arrtext: ['TEXT STRING'],
@@ -6618,7 +6649,9 @@ test('all types ~codecs~', async () => {
 
 	await db.insert(allTypesTable).values(testData);
 
-	const queryRes = await db.execute<ExpectedType>(db.select().from(allTypesTable).getSQL(true)).then((e) =>
+	const queryRes = await (<any> db).session.arrays(db.select().from(allTypesTable).getSQL(true)).then((
+		e: unknown[][],
+	) =>
 		normalizeDataWithDbCodecs({
 			db,
 			columns: getColumns(allTypesTable),
@@ -7322,9 +7355,49 @@ test('all types ~codecs~', async () => {
 		},
 	]));
 
-	await assertAllTypesBounds(db);
+	await assertAllTypesBounds(db, { rqb: true });
+	await assertAllTypesTemporalBounds(db, { rqb: true });
+
+	const emptyArrays = withEmptyArrays(testData);
+	await db.delete(allTypesTable);
+	await db.insert(allTypesTable).values(emptyArrays);
+	expect(await db.select().from(allTypesTable)).toStrictEqual([emptyArrays]);
+	expect(await db.query.allTypesTable.findFirst({ with: { self: true } })).toStrictEqual({
+		...emptyArrays,
+		self: [emptyArrays],
+	});
 
 	await db.$client.close();
+});
+
+test('all types ~json~', async () => {
+	const table = pgTable('all_types_json', {
+		id: integer('id').primaryKey(),
+		json: json('json'),
+		jsonb: jsonb('jsonb'),
+		arrjson: json('arrjson').array(),
+		arrjsonb: jsonb('arrjsonb').array(),
+	});
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(
+		sql`create table ${table} (id integer primary key, json json, jsonb jsonb, arrjson json[], arrjsonb jsonb[])`,
+	);
+
+	const { input, output } = jsonRows(['json', 'jsonb'], ['arrjson', 'arrjsonb']);
+
+	await db.insert(table).values(input);
+
+	// json text as the database stores it, read without decoding
+	const stored = await db.select({
+		id: table.id,
+		json: sql<string>`${table.json}::text`,
+		jsonb: sql<string>`${table.jsonb}::text`,
+		arrjson: sql<string>`array_to_json(${table.arrjson})::text`,
+		arrjsonb: sql<string>`array_to_json(${table.arrjsonb})::text`,
+	}).from(table).orderBy(table.id);
+
+	expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+	expect(parseStoredJson(stored)).toStrictEqual(output);
 });
 
 test('Query error wrapping', async () => {
@@ -8374,6 +8447,153 @@ test('Mappers: deep nullification - jit', async () => {
 	const jitDb = drizzle(process.env['PG_CONNECTION_STRING']!, { jit: true });
 	await setupDeepTables(jitDb);
 	await runDeepNullification(jitDb);
+});
+
+test('time zones are preserved', async () => {
+	const tzTypes = pgTable('tz_types', {
+		id: integer('id').primaryKey(),
+		timetz: time('timetz', { withTimezone: true }).notNull(),
+		arrtimetz: time('arrtimetz', { withTimezone: true }).array().notNull(),
+		mtxtimetz: time('mtxtimetz', { withTimezone: true }).array('[][]').notNull(),
+		tstz: timestamp('tstz', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+		arrtstz: timestamp('arrtstz', { mode: 'string', withTimezone: true, precision: 6 }).array().notNull(),
+		mtxtstz: timestamp('mtxtstz', { mode: 'string', withTimezone: true, precision: 6 }).array('[][]').notNull(),
+		tstzdate: timestamp('tstzdate', { mode: 'date', withTimezone: true }).notNull(),
+		arrtstzdate: timestamp('arrtstzdate', { mode: 'date', withTimezone: true }).array().notNull(),
+	});
+
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, {
+		relations: defineRelations({ tzTypes }, (r) => ({
+			tzTypes: { self: r.many.tzTypes({ from: r.tzTypes.id, to: r.tzTypes.id }) },
+		})),
+	});
+
+	await db.execute(sql`
+		create table "tz_types" (
+			"id" integer primary key,
+			"timetz" time with time zone not null,
+			"arrtimetz" time with time zone[] not null,
+			"mtxtimetz" time with time zone[][] not null,
+			"tstz" timestamp(6) with time zone not null,
+			"arrtstz" timestamp(6) with time zone[] not null,
+			"mtxtstz" timestamp(6) with time zone[][] not null,
+			"tstzdate" timestamp with time zone not null,
+			"arrtstzdate" timestamp with time zone[] not null
+		)
+	`);
+
+	await db.insert(tzTypes).values({
+		id: 1,
+		timetz: '12:00:00.5-02',
+		arrtimetz: ['12:00:00.5-02', '23:59:59+05:30'],
+		mtxtimetz: [['12:00:00.5-02'], ['23:59:59+05:30']],
+		tstz: '2022-01-01 12:00:00.123456+02',
+		arrtstz: ['2022-01-01 12:00:00.123456+02', '2022-06-01 00:00:00-05'],
+		mtxtstz: [['2022-01-01 12:00:00.123456+02'], ['2022-06-01 00:00:00-05']],
+		tstzdate: new Date('2022-01-01T10:00:00.123Z'),
+		arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
+	});
+
+	// `timestamptz` is stored as UTC and printed in the session time zone (documented behaviour: https://www.postgresql.org/docs/current/datatype-datetime.html#DATATYPE-DATETIME-INPUT-TIME-STAMPS),
+	// `timetz` stores and prints the offset it was given (implementation behavior, the docs don't state it)
+	const expected = {
+		id: 1,
+		timetz: '12:00:00.5-02',
+		arrtimetz: ['12:00:00.5-02', '23:59:59+05:30'],
+		mtxtimetz: [['12:00:00.5-02'], ['23:59:59+05:30']],
+		tstz: '2022-01-01 10:00:00.123456+00',
+		arrtstz: ['2022-01-01 10:00:00.123456+00', '2022-06-01 05:00:00+00'],
+		mtxtstz: [['2022-01-01 10:00:00.123456+00'], ['2022-06-01 05:00:00+00']],
+		tstzdate: new Date('2022-01-01T10:00:00.123Z'),
+		arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
+	};
+
+	expect(await db.select().from(tzTypes)).toStrictEqual([expected]);
+	expect(await db.query.tzTypes.findFirst({ with: { self: true } })).toStrictEqual({ ...expected, self: [expected] });
+});
+
+test('all types ~codecs~ - non-UTC session', async () => {
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, {
+		relations: defineRelations({ ...boundsSchema }, boundsRelations),
+	});
+
+	await assertAllTypesTemporalBoundsInSessions(db, { rqb: true });
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6496
+test('all types ~codecs~ - non-ISO DateStyle session', async () => {
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, {
+		relations: defineRelations({ ...boundsSchema }, boundsRelations),
+	});
+
+	await assertAllTypesTemporalBoundsInSessions(db, { rqb: true, sessions: sessionDateStyles });
+});
+
+test('time zones are preserved - non-UTC session', async () => {
+	const tzTypes = pgTable('tz_types_session', {
+		id: integer('id').primaryKey(),
+		timetz: time('timetz', { withTimezone: true }).notNull(),
+		arrtimetz: time('arrtimetz', { withTimezone: true }).array().notNull(),
+		mtxtimetz: time('mtxtimetz', { withTimezone: true }).array('[][]').notNull(),
+		tstz: timestamp('tstz', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+		arrtstz: timestamp('arrtstz', { mode: 'string', withTimezone: true, precision: 6 }).array().notNull(),
+		mtxtstz: timestamp('mtxtstz', { mode: 'string', withTimezone: true, precision: 6 }).array('[][]').notNull(),
+		tstzdate: timestamp('tstzdate', { mode: 'date', withTimezone: true }).notNull(),
+		arrtstzdate: timestamp('arrtstzdate', { mode: 'date', withTimezone: true }).array().notNull(),
+	});
+
+	const db = drizzle(process.env['PG_CONNECTION_STRING']!, {
+		relations: defineRelations({ tzTypes }, (r) => ({
+			tzTypes: { self: r.many.tzTypes({ from: r.tzTypes.id, to: r.tzTypes.id }) },
+		})),
+	});
+
+	await db.execute(sql`
+		create table "tz_types_session" (
+			"id" integer primary key,
+			"timetz" time with time zone not null,
+			"arrtimetz" time with time zone[] not null,
+			"mtxtimetz" time with time zone[][] not null,
+			"tstz" timestamp(6) with time zone not null,
+			"arrtstz" timestamp(6) with time zone[] not null,
+			"mtxtstz" timestamp(6) with time zone[][] not null,
+			"tstzdate" timestamp with time zone not null,
+			"arrtstzdate" timestamp with time zone[] not null
+		)
+	`);
+
+	// `timetz` output doesn't depend on session time zone, `timestamptz` output does
+	const expected = {
+		id: 1,
+		timetz: '12:00:00.5-02',
+		arrtimetz: ['12:00:00.5-02', '23:59:59+05:30'],
+		mtxtimetz: [['12:00:00.5-02'], ['23:59:59+05:30']],
+		tstz: '2022-01-01 00:00:00.123456-10',
+		arrtstz: ['2022-01-01 00:00:00.123456-10', '2022-05-31 19:00:00-10'],
+		mtxtstz: [['2022-01-01 00:00:00.123456-10'], ['2022-05-31 19:00:00-10']],
+		tstzdate: new Date('2022-01-01T10:00:00.123Z'),
+		arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
+	};
+
+	// `set local` keeps the setting within transaction, which also holds the session for pooled drivers
+	await db.transaction(async (tx) => {
+		await tx.execute(sql`set local time zone '-10'`);
+
+		await tx.insert(tzTypes).values({
+			id: 1,
+			timetz: '12:00:00.5-02',
+			arrtimetz: ['12:00:00.5-02', '23:59:59+05:30'],
+			mtxtimetz: [['12:00:00.5-02'], ['23:59:59+05:30']],
+			tstz: '2022-01-01 12:00:00.123456+02',
+			arrtstz: ['2022-01-01 12:00:00.123456+02', '2022-06-01 00:00:00-05'],
+			mtxtstz: [['2022-01-01 12:00:00.123456+02'], ['2022-06-01 00:00:00-05']],
+			tstzdate: new Date('2022-01-01T10:00:00.123Z'),
+			arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
+		});
+
+		expect(await tx.select().from(tzTypes)).toStrictEqual([expected]);
+		expect(await tx.query.tzTypes.findFirst({ with: { self: true } })).toStrictEqual({ ...expected, self: [expected] });
+	});
 });
 
 describe('transaction config', () => {

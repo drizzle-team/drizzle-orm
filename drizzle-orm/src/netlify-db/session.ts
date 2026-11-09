@@ -1,5 +1,5 @@
-import type { CustomTypesConfig, FullQueryResults, NeonQueryPromise, Pool, PoolClient } from '@neondatabase/serverless';
-import { neonConfig, types } from '@neondatabase/serverless';
+import type { FullQueryResults, NeonQueryPromise, Pool, PoolClient } from '@neondatabase/serverless';
+import { neonConfig } from '@neondatabase/serverless';
 import type { BatchItem } from '~/batch.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
@@ -158,10 +158,10 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 			connectionError ??= e;
 		};
 		poolClient.on('error', onConnectionError);
-		const release = () => {
+		const release = (failure?: Error) => {
 			// broken client is destroyed by the pool, listener stays to absorb any trailing errors
 			if (!connectionError) poolClient.off('error', onConnectionError);
-			poolClient.release(connectionError ?? rollbackError);
+			poolClient.release(connectionError ?? rollbackError ?? failure);
 		};
 		const dialect = new PgDialect({
 			useJitMappers: this.options.useJitMappers,
@@ -184,7 +184,8 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 		try {
 			await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
 		} catch (e) {
-			release();
+			// `begin` may still reach the server after failing on the client, session state is unknown so the client must not be reused
+			release(e as Error);
 			throw e;
 		}
 
@@ -208,26 +209,6 @@ export class NetlifyDbSession<TRelations extends AnyRelations>
 		}
 	}
 }
-
-const noop = (val: any) => val;
-const typeConfig: CustomTypesConfig = {
-	getTypeParser: <CustomTypesConfig['getTypeParser']> ((typeId, format) => {
-		switch (typeId as number) {
-			case types.builtins.TIMESTAMPTZ:
-			case types.builtins.TIMESTAMP:
-			case types.builtins.DATE:
-			case types.builtins.INTERVAL:
-			case 1231: // numeric[]
-			case 1115: // timestamp[]
-			case 1185: // timestamp with timezone[]
-			case 1187: // interval[]
-			case 1182: // date[]
-				return noop;
-			default:
-				return types.getTypeParser(typeId, format as any);
-		}
-	}),
-};
 
 /**
  * Internal WebSocket-based session used only within transactions.
@@ -272,7 +253,6 @@ export class NetlifyDbWsSession<TRelations extends AnyRelations>
 				name: queryName,
 				rowMode: mode === 'arrays' ? 'array' : undefined as any,
 				text: query.sql,
-				types: typeConfig,
 			}, params).then((r) => mode === 'raw' ? r : r.rows);
 		};
 

@@ -1,4 +1,5 @@
 import { PgClient } from '@effect/sql-pg';
+import * as PgTypes from '@effect/sql-pg/PgTypes';
 import { assert, expect, expectTypeOf, it } from '@effect/vitest';
 import {
 	defineRelations,
@@ -11,7 +12,7 @@ import {
 } from 'drizzle-orm';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { migrate } from 'drizzle-orm/effect-postgres/migrator';
-import { getTableConfig, integer, pgEnum, pgTable, serial, text } from 'drizzle-orm/pg-core';
+import { bigint, getTableConfig, integer, pgEnum, pgTable, serial, text } from 'drizzle-orm/pg-core';
 import { PgEffectSession } from 'drizzle-orm/pg-core/effect/session';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
@@ -21,7 +22,17 @@ import * as Result from 'effect/Result';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { Client as PgPeerClient } from 'pg';
 import { randomString } from '~/utils';
-import { AllTypes, allTypesData, assertAllTypesBounds, assertAllTypesUnions, makeAllTypesColumns } from './all-types';
+import {
+	AllTypes,
+	allTypesData,
+	assertAllTypesBounds,
+	assertAllTypesTemporalBounds,
+	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
+	makeAllTypesColumns,
+	withEmptyArrays,
+} from './all-types';
 import { DB, push, runCommonEffectPgTests } from './effect-common';
 import { relations } from './relations';
 import { usersMigratorTable } from './schema';
@@ -76,6 +87,46 @@ runCommonEffectPgTests({
 	// @effect/sql-pg can't decode multidimensional arrays
 	skipTests: ['all types', 'all types ~codecs~'],
 	addTests: (it) => {
+		// https://github.com/drizzle-team/drizzle-orm/issues/6566
+		it.effect('empty array params and bigint mode with int8 decoded as text', () =>
+			Effect.gen(function*() {
+				const types = PgTypes.makeRegistry();
+				types.register<string>(PgTypes.OID.int8, {
+					decode: (b) => Result.succeed(new DataView(b.buffer, b.byteOffset, 8).getBigInt64(0).toString()),
+					encode: (v) => {
+						const b = new Uint8Array(8);
+						new DataView(b.buffer).setBigInt64(0, BigInt(v));
+						return Result.succeed(b);
+					},
+				});
+
+				const items = pgTable('items_6566', {
+					id: serial().primaryKey(),
+					tags: text().array().notNull(),
+					ids: integer().array().notNull(),
+					bigB: bigint({ mode: 'bigint' }).notNull(),
+				});
+
+				yield* Effect.gen(function*() {
+					const db = yield* PgDrizzle.make().pipe(Effect.provide(PgDrizzle.DefaultServices));
+					yield* db.execute(sql`drop table if exists ${items}`);
+					yield* db.execute(
+						sql`create table ${items} (id serial primary key, tags text[] not null, ids integer[] not null, "bigB" bigint not null)`,
+					);
+
+					yield* db.insert(items).values({ tags: ['a'], ids: [1], bigB: 5n });
+					yield* db.insert(items).values({ tags: [], ids: [], bigB: 5n });
+					yield* db.update(items).set({ tags: [], ids: [] }).where(sql`${items.id} = 1`);
+
+					expect(yield* db.select().from(items).orderBy(items.id)).toStrictEqual([
+						{ id: 1, tags: [], ids: [], bigB: 5n },
+						{ id: 2, tags: [], ids: [], bigB: 5n },
+					]);
+
+					yield* db.execute(sql`drop table ${items}`);
+				}).pipe(Effect.provide(PgClient.layer({ url: connectionStr, types })));
+			}));
+
 		it.effect('raw db.execute type matches returned data', () =>
 			Effect.gen(function*() {
 				const db = yield* PgDrizzle.make().pipe(Effect.provide(PgDrizzle.DefaultServices));
@@ -149,7 +200,7 @@ runCommonEffectPgTests({
 				yield* db.insert(allTypesTable).values(allTypesDataNoMtx);
 				const session = (<any> db).session as PgEffectSession;
 
-				const queryRes = yield* session.objects<AllTypesNoMtx>(
+				const queryRes = yield* session.arrays<unknown[]>(
 					db.select().from(allTypesTable).getSQL(true),
 				).pipe(
 					Effect.map((e) =>
@@ -162,13 +213,14 @@ runCommonEffectPgTests({
 					),
 				);
 
-				const relDb = yield* createDB({ allTypesTable }, (r) => ({
+				const relDb = yield* createDB({ allTypesTable, ...boundsSchema }, (r) => ({
 					allTypesTable: {
 						self: r.many.allTypesTable({
 							from: r.allTypesTable.serial,
 							to: r.allTypesTable.serial,
 						}),
 					},
+					...boundsRelations(r),
 				}));
 
 				const { relationRes, rootRes } = yield* session.objects<AllTypesNoMtx & { self: AllTypesNoMtx[] }>(
@@ -205,8 +257,23 @@ runCommonEffectPgTests({
 					assertAllTypesUnions(relDb as any, allTypesTable as any, (query) => Effect.runPromiseWith(context)(query))
 				);
 				yield* Effect.promise(() =>
-					assertAllTypesBounds(relDb as any, (query) => Effect.runPromiseWith(context)(query))
+					assertAllTypesBounds(relDb as any, { run: (query) => Effect.runPromiseWith(context)(query), rqb: true })
 				);
+				yield* Effect.promise(() =>
+					assertAllTypesTemporalBounds(relDb as any, {
+						run: (query) => Effect.runPromiseWith(context)(query),
+						rqb: true,
+					})
+				);
+
+				const emptyArrays = withEmptyArrays(allTypesDataNoMtx);
+				yield* db.delete(allTypesTable);
+				yield* db.insert(allTypesTable).values(emptyArrays);
+				expect(yield* db.select().from(allTypesTable)).toStrictEqual([emptyArrays]);
+				expect(yield* relDb.query.allTypesTable.findFirst({ with: { self: true } })).toStrictEqual({
+					...emptyArrays,
+					self: [emptyArrays],
+				});
 			}));
 
 		it.effect('transaction snapshot: isolates the transaction', () =>

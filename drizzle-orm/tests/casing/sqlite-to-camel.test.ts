@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { describe, it } from 'vitest';
 import { betterSQLite3Codecs, drizzle } from '~/better-sqlite3';
 import { defineRelations } from '~/relations';
-import { asc, desc, eq, exists, inArray, Param, sql } from '~/sql';
+import { asc, desc, eq, exists, inArray, isNull, Param, sql } from '~/sql';
 import { alias, camelCase, castToText, integer, QueryBuilder, text, union } from '~/sqlite-core';
 
 const users = camelCase.table('users', {
@@ -514,6 +514,20 @@ describe('sqlite to camel case', () => {
 		expect(query.toSQL()).toEqual({
 			sql:
 				'insert into "users" ("id", "firstName", "lastName", "AGE") values (null, ?, ?, ?) on conflict ("users"."firstName") do nothing returning "firstName", "AGE"',
+			params: ['John', 'Doe', 30],
+		});
+	});
+
+	it('insert (on conflict do nothing) with target where', ({ expect }) => {
+		const query = db
+			.insert(users)
+			.values({ first_name: 'John', last_name: 'Doe', age: 30 })
+			.onConflictDoNothing({ target: users.first_name, where: isNull(users.age) })
+			.returning({ first_name: users.first_name, age: users.age });
+
+		expect(query.toSQL()).toEqual({
+			sql:
+				'insert into "users" ("id", "firstName", "lastName", "AGE") values (null, ?, ?, ?) on conflict ("users"."firstName") where ("users"."AGE" is null) do nothing returning "firstName", "AGE"',
 			params: ['John', 'Doe', 30],
 		});
 	});

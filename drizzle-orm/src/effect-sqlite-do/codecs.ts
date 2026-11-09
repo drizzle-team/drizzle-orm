@@ -8,6 +8,9 @@ import {
 } from '~/sqlite-core/codecs.ts';
 
 export const effectSQLiteDoCodecs = refineSqliteCodecs({
+	integer: {
+		normalize: Number,
+	},
 	'integer:boolean': {
 		normalize: booleanFromInteger,
 	},

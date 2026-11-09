@@ -994,8 +994,8 @@ await db
 			{
 				id: number;
 				class: 'A' | 'C';
-				cityCount: number;
-				lastCityId: number;
+				cityCount: number | null;
+				lastCityId: number | null;
 			}[],
 			typeof result
 		>
@@ -1009,7 +1009,7 @@ await db
 	Expect<
 		Equal<
 			{
-				cityCount: number;
+				cityCount: number | null;
 			}[],
 			typeof result
 		>
@@ -1022,7 +1022,7 @@ await db
 		Equal<
 			{
 				id: number;
-				cityCount: number;
+				cityCount: number | null;
 			}[],
 			typeof result
 		>

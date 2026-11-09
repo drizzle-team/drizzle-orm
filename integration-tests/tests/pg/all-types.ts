@@ -396,6 +396,13 @@ export const allTypesData: AllTypes = {
 	arrvarchar: ['C4-', 'second'],
 };
 
+export const withEmptyArrays = <T extends Record<string, unknown>>(data: T): T =>
+	Object.fromEntries(
+		Object.entries(data).map(([key, value]) => [key, /^(arr|mtx)/.test(key) ? [] : value]),
+	) as T;
+
+export const allTypesEmptyArraysData = withEmptyArrays(allTypesData);
+
 export type RunQuery = (query: any) => Promise<any>;
 const awaitQuery: RunQuery = (query) => query;
 
@@ -1269,9 +1276,27 @@ export const boundsData: BoundsRow[] = [
 	},
 ];
 
+/** Replaces the table's contents with {@link allTypesEmptyArraysData} and reads it back, through RQB as well when given */
+export async function assertAllTypesEmptyArrays(
+	db: PgAsyncDatabase<any, any>,
+	allTypesTable: AllTypesTable = defaultAllTypesTable,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
+) {
+	await run(db.delete(allTypesTable));
+	await run(db.insert(allTypesTable).values(allTypesEmptyArraysData));
+
+	expect(await run(db.select().from(allTypesTable))).toStrictEqual([allTypesEmptyArraysData]);
+	if (rqb) {
+		expect(await run((<any> db).query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
+			...allTypesEmptyArraysData,
+			self: [allTypesEmptyArraysData],
+		});
+	}
+}
+
 export async function assertAllTypesBounds(
 	db: PgAsyncDatabase<any, any>,
-	run: RunQuery = awaitQuery,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
 ) {
 	await run(db.execute(sql.raw(dropBounds())));
 	await run(db.execute(sql.raw(createBounds())));
@@ -1283,7 +1308,443 @@ export async function assertAllTypesBounds(
 		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<BoundsRow[]>();
 
 		expect(await run(query)).toStrictEqual(boundsData);
+		if (rqb) {
+			expect(
+				await run((<any> db).query.boundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
+			).toStrictEqual(boundsData.map((row) => ({ ...row, self: [row] })));
+		}
 	} finally {
 		await run(db.execute(sql.raw(dropBounds())));
 	}
 }
+
+const TEMPORAL_TABLE = 'all_types_temporal_bounds';
+
+export const temporalBoundsTable = pgTable(TEMPORAL_TABLE, {
+	id: integer('id').primaryKey(),
+	date: date('date', { mode: 'date' }),
+	dateStr: date('date_str', { mode: 'string' }),
+	timestamp: timestamp('timestamp', { mode: 'date', precision: 3 }),
+	timestampTz: timestamp('timestamp_tz', { mode: 'date', precision: 6, withTimezone: true }),
+	timestampStr: timestamp('timestamp_str', { mode: 'string', precision: 6 }),
+	timestampTzStr: timestamp('timestamp_tz_str', { mode: 'string', precision: 6, withTimezone: true }),
+	time: time('time', { precision: 6 }),
+	arrTimestampTz: timestamp('arr_timestamp_tz', { mode: 'date', precision: 3, withTimezone: true }).array(),
+});
+
+export type TemporalBoundsRow = {
+	id: number;
+	date: Date | null;
+	dateStr: string | null;
+	timestamp: Date | null;
+	timestampTz: Date | null;
+	timestampStr: string | null;
+	timestampTzStr: string | null;
+	time: string | null;
+	arrTimestampTz: Date[] | null;
+};
+
+export const createTemporalBounds = (tableName: string = TEMPORAL_TABLE) =>
+	`create table "${tableName}" (
+		"id" integer primary key,
+		"date" date,
+		"date_str" date,
+		"timestamp" timestamp(3),
+		"timestamp_tz" timestamp(6) with time zone,
+		"timestamp_str" timestamp(6),
+		"timestamp_tz_str" timestamp(6) with time zone,
+		"time" time(6),
+		"arr_timestamp_tz" timestamp(3) with time zone[]
+	)`;
+
+export const dropTemporalBounds = (tableName: string = TEMPORAL_TABLE) => `drop table if exists "${tableName}"`;
+
+/*
+	- the epoch and the millisecond before it (negative epoch offsets)
+	- years 1 and 99, which non-ISO date parsing reads as two-digit years (0099 -> 1999)
+	- 9999 / 10000, where `toISOString` switches to the expanded `+0YYYYY` year form postgres rejects
+	- the last instant a JS `Date` can hold (postgres goes on to 294276 AD)
+	- year 1 BC, which `toISOString` writes as year `0000` and postgres prints with a `BC` suffix
+	- 2 BC and earlier, which `toISOString` writes as negative `-0YYYYY` years
+	- 4714-11-24 BC, the earliest value postgres holds, and the BC leap day 0001-02-29 BC
+	- 1880, printed with seconds-precision LMT offsets in non-UTC sessions (`+02:02:04` in `Europe/Kyiv`)
+	- 1-digit fractions (`.5`), and 6-digit ones in `timestamp_tz` (see `fillTemporalBounds`)
+	- values outside 1714 - 2285, where int64 microseconds since 2000 no longer fit a double exactly: `.999999` and
+	  `.789999` round up into the next millisecond (`9999-12-31 23:59:59.999999` -> year 10000), whole milliseconds
+	  past 4283 / before 284 BC and whole seconds past 10000 round down below it
+*/
+export const temporalBoundsData: TemporalBoundsRow[] = [
+	{
+		id: 1,
+		date: new Date('1970-01-01T00:00:00.000Z'),
+		dateStr: '1970-01-01',
+		timestamp: new Date('1970-01-01T00:00:00.000Z'),
+		timestampTz: new Date('1970-01-01T00:00:00.000Z'),
+		timestampStr: '1970-01-01 00:00:00',
+		timestampTzStr: '1970-01-01 00:00:00+00',
+		time: '00:00:00',
+		arrTimestampTz: [new Date('1970-01-01T00:00:00.000Z')],
+	},
+	{
+		id: 2,
+		date: new Date('1969-12-31T00:00:00.000Z'),
+		dateStr: '1969-12-31',
+		timestamp: new Date('1969-12-31T23:59:59.999Z'),
+		timestampTz: new Date('1969-12-31T23:59:59.999Z'),
+		timestampStr: '1969-12-31 23:59:59.999999',
+		timestampTzStr: '1969-12-31 23:59:59.999999+00',
+		time: '23:59:59.999999',
+		arrTimestampTz: [new Date('1969-12-31T23:59:59.999Z')],
+	},
+	{
+		id: 3,
+		date: new Date('2024-02-29T00:00:00.000Z'),
+		dateStr: '2024-02-29',
+		timestamp: new Date('2024-02-29T12:34:56.500Z'),
+		timestampTz: new Date('2024-02-29T12:34:56.789Z'),
+		timestampStr: '2024-02-29 12:34:56.789',
+		timestampTzStr: '2024-02-29 12:34:56.789+00',
+		time: '24:00:00',
+		arrTimestampTz: [new Date('2024-02-29T12:34:56.789Z'), new Date('1970-01-01T00:00:00.000Z')],
+	},
+	{
+		id: 4,
+		date: new Date('0001-01-01T00:00:00.000Z'),
+		dateStr: '0001-01-01',
+		timestamp: new Date('0001-01-01T00:00:00.500Z'),
+		timestampTz: new Date('0001-01-01T00:00:00.000Z'),
+		timestampStr: '0001-01-01 00:00:00',
+		timestampTzStr: '0001-01-01 00:00:00+00',
+		time: null,
+		arrTimestampTz: [new Date('0001-01-01T00:00:00.000Z')],
+	},
+	{
+		id: 5,
+		date: new Date('0099-12-31T00:00:00.000Z'),
+		dateStr: '0099-12-31',
+		timestamp: new Date('0099-12-31T23:59:59.999Z'),
+		timestampTz: new Date('0099-12-31T23:59:59.999Z'),
+		timestampStr: '0099-12-31 23:59:59.999999',
+		timestampTzStr: '0099-12-31 23:59:59.999999+00',
+		time: null,
+		arrTimestampTz: [new Date('0099-12-31T23:59:59.999Z')],
+	},
+	{
+		id: 6,
+		date: new Date('9999-12-31T00:00:00.000Z'),
+		dateStr: '9999-12-31',
+		timestamp: new Date('9999-12-31T23:59:59.999Z'),
+		timestampTz: new Date('9999-12-31T23:59:59.999Z'),
+		timestampStr: '9999-12-31 23:59:59.999999',
+		timestampTzStr: '9999-12-31 23:59:59.999999+00',
+		time: null,
+		arrTimestampTz: [new Date('9999-12-31T23:59:59.999Z')],
+	},
+	{
+		id: 7,
+		date: new Date('+010000-01-01T00:00:00.000Z'),
+		dateStr: '10000-01-01',
+		timestamp: new Date('+010000-01-01T00:00:00.000Z'),
+		timestampTz: new Date('+010000-01-01T00:00:00.000Z'),
+		timestampStr: '10000-01-01 00:00:00',
+		timestampTzStr: '10000-01-01 00:00:00+00',
+		time: null,
+		arrTimestampTz: [new Date('+010000-01-01T00:00:00.000Z'), new Date('+059009-01-01T00:00:00.000Z')],
+	},
+	{
+		id: 8,
+		date: new Date('+275760-09-13T00:00:00.000Z'),
+		dateStr: '275760-09-13',
+		timestamp: new Date('+275760-09-13T00:00:00.000Z'),
+		timestampTz: new Date('+275760-09-13T00:00:00.000Z'),
+		timestampStr: '275760-09-13 00:00:00',
+		timestampTzStr: '275760-09-13 00:00:00+00',
+		time: null,
+		arrTimestampTz: [new Date('+275760-09-13T00:00:00.000Z')],
+	},
+	{
+		id: 9,
+		date: new Date('0000-01-01T00:00:00.000Z'),
+		dateStr: '0001-01-01 BC',
+		timestamp: new Date('0000-01-01T00:00:00.000Z'),
+		timestampTz: new Date('0000-01-01T00:00:00.000Z'),
+		timestampStr: '0001-01-01 00:00:00 BC',
+		timestampTzStr: '0001-01-01 00:00:00+00 BC',
+		time: null,
+		arrTimestampTz: [new Date('0000-01-01T00:00:00.000Z')],
+	},
+	{
+		id: 10,
+		date: null,
+		dateStr: 'infinity',
+		timestamp: null,
+		timestampTz: null,
+		timestampStr: '-infinity',
+		timestampTzStr: 'infinity',
+		time: null,
+		arrTimestampTz: [],
+	},
+	{
+		id: 11,
+		date: null,
+		dateStr: null,
+		timestamp: null,
+		timestampTz: null,
+		timestampStr: null,
+		timestampTzStr: null,
+		time: null,
+		arrTimestampTz: null,
+	},
+	{
+		id: 12,
+		date: new Date('-000001-12-31T00:00:00.000Z'),
+		dateStr: '0002-12-31 BC',
+		timestamp: new Date('-000001-12-31T23:59:59.999Z'),
+		timestampTz: new Date('-000001-12-31T23:59:59.999Z'),
+		timestampStr: '0002-12-31 23:59:59.999 BC',
+		timestampTzStr: '0002-12-31 23:59:59.999+00 BC',
+		time: null,
+		arrTimestampTz: [new Date('-000001-12-31T23:59:59.999Z')],
+	},
+	{
+		id: 13,
+		date: new Date('-004713-11-24T00:00:00.000Z'),
+		dateStr: '4714-11-24 BC',
+		timestamp: new Date('-004713-11-24T00:00:00.000Z'),
+		timestampTz: new Date('-004713-11-24T00:00:00.000Z'),
+		timestampStr: '4714-11-24 00:00:00 BC',
+		timestampTzStr: '4714-11-24 00:00:00+00 BC',
+		time: null,
+		arrTimestampTz: [new Date('-004713-11-24T00:00:00.000Z')],
+	},
+	{
+		id: 14,
+		date: new Date('0000-02-29T00:00:00.000Z'),
+		dateStr: '0001-02-29 BC',
+		timestamp: new Date('0000-02-29T12:00:00.000Z'),
+		timestampTz: new Date('0000-02-29T12:00:00.000Z'),
+		timestampStr: '0001-02-29 12:00:00 BC',
+		timestampTzStr: '0001-02-29 12:00:00+00 BC',
+		time: null,
+		arrTimestampTz: [new Date('0000-02-29T12:00:00.000Z')],
+	},
+	{
+		id: 15,
+		date: new Date('1880-01-01T00:00:00.000Z'),
+		dateStr: '1880-01-01',
+		timestamp: new Date('1880-01-01T00:00:00.000Z'),
+		timestampTz: new Date('1880-01-01T00:00:00.000Z'),
+		timestampStr: '1880-01-01 00:00:00',
+		timestampTzStr: '1880-01-01 00:00:00+00',
+		time: null,
+		arrTimestampTz: [new Date('1880-01-01T00:00:00.000Z')],
+	},
+	{
+		id: 16,
+		date: new Date('2300-06-15T00:00:00.000Z'),
+		dateStr: '2300-06-15',
+		timestamp: new Date('2300-06-15T12:34:56.789Z'),
+		timestampTz: new Date('2300-06-15T12:34:56.789Z'),
+		timestampStr: '2300-06-15 12:34:56.789999',
+		timestampTzStr: '2300-06-15 12:34:56.789999+00',
+		time: null,
+		arrTimestampTz: [new Date('2300-06-15T12:34:56.789Z')],
+	},
+	{
+		id: 17,
+		date: new Date('2999-12-31T00:00:00.000Z'),
+		dateStr: '2999-12-31',
+		timestamp: new Date('2999-12-31T23:59:59.999Z'),
+		timestampTz: new Date('2999-12-31T23:59:59.999Z'),
+		timestampStr: '2999-12-31 23:59:59.999999',
+		timestampTzStr: '2999-12-31 23:59:59.999999+00',
+		time: null,
+		arrTimestampTz: [new Date('2999-12-31T23:59:59.999Z')],
+	},
+	{
+		id: 18,
+		date: new Date('1500-01-01T00:00:00.000Z'),
+		dateStr: '1500-01-01',
+		timestamp: new Date('1500-01-01T00:00:00.999Z'),
+		timestampTz: new Date('1500-01-01T00:00:00.999Z'),
+		timestampStr: '1500-01-01 00:00:00.999999',
+		timestampTzStr: '1500-01-01 00:00:00.999999+00',
+		time: null,
+		arrTimestampTz: [new Date('1500-01-01T00:00:00.999Z')],
+	},
+	{
+		id: 19,
+		date: new Date('6000-03-15T00:00:00.000Z'),
+		dateStr: '6000-03-15',
+		timestamp: new Date('6000-03-15T10:20:30.125Z'),
+		timestampTz: new Date('6000-03-15T10:20:30.125Z'),
+		timestampStr: '6000-03-15 10:20:30.125',
+		timestampTzStr: '6000-03-15 10:20:30.125+00',
+		time: null,
+		arrTimestampTz: [new Date('6000-03-15T10:20:30.125Z')],
+	},
+	{
+		id: 20,
+		date: new Date('-000999-07-01T00:00:00.000Z'),
+		dateStr: '1000-07-01 BC',
+		timestamp: new Date('-000999-07-01T08:00:00.001Z'),
+		timestampTz: new Date('-000999-07-01T08:00:00.001Z'),
+		timestampStr: '1000-07-01 08:00:00.001 BC',
+		timestampTzStr: '1000-07-01 08:00:00.001+00 BC',
+		time: null,
+		arrTimestampTz: [new Date('-000999-07-01T08:00:00.001Z')],
+	},
+	{
+		id: 21,
+		date: new Date('+050000-01-01T00:00:00.000Z'),
+		dateStr: '50000-01-01',
+		timestamp: new Date('+050000-01-01T00:00:02.000Z'),
+		timestampTz: new Date('+050000-01-01T00:00:02.000Z'),
+		timestampStr: '50000-01-01 00:00:02',
+		timestampTzStr: '50000-01-01 00:00:02+00',
+		time: null,
+		arrTimestampTz: [new Date('+050000-01-01T00:00:02.000Z')],
+	},
+	{
+		id: 22,
+		date: new Date('+200000-06-01T00:00:00.000Z'),
+		dateStr: '200000-06-01',
+		timestamp: new Date('+200000-06-01T12:00:08.000Z'),
+		timestampTz: new Date('+200000-06-01T12:00:08.000Z'),
+		timestampStr: '200000-06-01 12:00:08',
+		timestampTzStr: '200000-06-01 12:00:08+00',
+		time: null,
+		arrTimestampTz: [new Date('+200000-06-01T12:00:08.000Z')],
+	},
+];
+
+/**
+ * Fills the temporal bounds table; `timestamp_tz` values then get 999 microseconds added, so they're printed with
+ * 6 fractional digits that have to be truncated, not rounded, to milliseconds on decoding
+ */
+async function fillTemporalBounds(db: PgAsyncDatabase<any, any>, run: RunQuery, data: TemporalBoundsRow[]) {
+	await run(db.insert(temporalBoundsTable).values(data));
+	await run(
+		db.execute(
+			sql.raw(
+				`update "${TEMPORAL_TABLE}" set "timestamp_tz" = "timestamp_tz" + interval '999 microseconds' where "timestamp_tz" is not null`,
+			),
+		),
+	);
+}
+
+export async function assertAllTypesTemporalBounds(
+	db: PgAsyncDatabase<any, any>,
+	{ run = awaitQuery, rqb = false, data = temporalBoundsData }: {
+		run?: RunQuery;
+		rqb?: boolean;
+		/** Replaces {@link temporalBoundsData}, e.g. to exclude values a driver is known to misdecode */
+		data?: TemporalBoundsRow[];
+	} = {},
+) {
+	await run(db.execute(sql.raw(dropTemporalBounds())));
+	await run(db.execute(sql.raw(createTemporalBounds())));
+
+	try {
+		await fillTemporalBounds(db, run, data);
+
+		const query = db.select().from(temporalBoundsTable).orderBy(temporalBoundsTable.id);
+		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<TemporalBoundsRow[]>();
+
+		expect(await run(query)).toStrictEqual(data);
+		if (rqb) {
+			expect(
+				await run((<any> db).query.temporalBoundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
+			).toStrictEqual(data.map((row) => ({ ...row, self: [row] })));
+		}
+	} finally {
+		await run(db.execute(sql.raw(dropTemporalBounds())));
+	}
+}
+
+export type TemporalSession = { timeZone: string; dateStyle?: string };
+
+export const sessionTimeZones: TemporalSession[] = [
+	{ timeZone: 'Europe/Kyiv' },
+	{ timeZone: 'Asia/Kathmandu' },
+	{ timeZone: 'America/St_Johns' },
+];
+
+/** https://github.com/drizzle-team/drizzle-orm/issues/6496 */
+export const sessionDateStyles: TemporalSession[] = [
+	{ timeZone: 'Asia/Tokyo', dateStyle: 'SQL, DMY' },
+	{ timeZone: 'UTC', dateStyle: 'SQL, MDY' },
+	{ timeZone: 'America/St_Johns', dateStyle: 'Postgres, DMY' },
+	{ timeZone: 'Europe/Kyiv', dateStyle: 'German' },
+];
+
+export async function assertAllTypesTemporalBoundsInSessions(
+	db: PgAsyncDatabase<any, any>,
+	{ rqb = false, data = temporalBoundsData, sessions = sessionTimeZones }: {
+		rqb?: boolean;
+		/** Replaces {@link temporalBoundsData}, e.g. to exclude values a driver is known to misdecode */
+		data?: TemporalBoundsRow[];
+		sessions?: TemporalSession[];
+	} = {},
+) {
+	const table = temporalBoundsTable;
+	const columns = { id: true, date: true, timestamp: true, timestampTz: true, arrTimestampTz: true } as const;
+	const expected = data.map(({ id, date, timestamp, timestampTz, arrTimestampTz }) => ({
+		id,
+		date,
+		timestamp,
+		timestampTz,
+		arrTimestampTz,
+	}));
+
+	await db.execute(sql.raw(dropTemporalBounds()));
+	await db.execute(sql.raw(createTemporalBounds()));
+
+	try {
+		for (const { timeZone, dateStyle } of sessions) {
+			const label = dateStyle === undefined ? timeZone : `${timeZone}, ${dateStyle}`;
+			// `set local` keeps the setting within transaction, which also holds the session for pooled drivers
+			await db.transaction(async (tx) => {
+				await tx.execute(sql.raw(`set local time zone '${timeZone}'`));
+				if (dateStyle !== undefined) await tx.execute(sql.raw(`set local datestyle = '${dateStyle}'`));
+
+				await tx.delete(table);
+				await fillTemporalBounds(<any> tx, awaitQuery, data);
+
+				expect(
+					await tx.select({
+						id: table.id,
+						date: table.date,
+						timestamp: table.timestamp,
+						timestampTz: table.timestampTz,
+						arrTimestampTz: table.arrTimestampTz,
+					}).from(table).orderBy(table.id),
+					label,
+				).toStrictEqual(expected);
+				if (rqb) {
+					expect(
+						await (<any> tx).query.temporalBoundsTable.findMany({
+							columns,
+							orderBy: { id: 'asc' },
+							with: { self: { columns } },
+						}),
+						label,
+					).toStrictEqual(expected.map((row) => ({ ...row, self: [row] })));
+				}
+			});
+		}
+	} finally {
+		await db.execute(sql.raw(dropTemporalBounds()));
+	}
+}
+
+export const boundsSchema = { boundsTable, temporalBoundsTable };
+
+export const boundsRelations = (r: RelationsBuilder<typeof boundsSchema>) => ({
+	boundsTable: {
+		self: r.many.boundsTable({ from: r.boundsTable.id, to: r.boundsTable.id }),
+	},
+	temporalBoundsTable: {
+		self: r.many.temporalBoundsTable({ from: r.temporalBoundsTable.id, to: r.temporalBoundsTable.id }),
+	},
+});

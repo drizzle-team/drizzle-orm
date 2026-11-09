@@ -757,6 +757,72 @@ export function tests(test: Test) {
 			expect(res).toEqual([{ id: 1, name: 'John1' }]);
 		});
 
+		test.concurrent('insert with onDuplicate multiple rows', async ({ db }) => {
+			const table = singlestoreTable('on_duplicate_many', {
+				id: int('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table};`);
+			await db.execute(sql`create table ${table} (\`id\` int primary key, \`name\` text not null);`);
+
+			await db.insert(table).values({ id: 1, name: 'John' });
+			await db
+				.insert(table)
+				.values([{ id: 1, name: 'John1' }, { id: 2, name: 'Jane' }])
+				.onDuplicateKeyUpdate({ set: { name: sql`values(${sql.identifier(table.name.name)})` } });
+
+			expect(await db.select().from(table).orderBy(table.id)).toEqual([{ id: 1, name: 'John1' }, {
+				id: 2,
+				name: 'Jane',
+			}]);
+		});
+
+		test.concurrent('insert with onDuplicate sql expression', async ({ db }) => {
+			const table = singlestoreTable('on_duplicate_expression', {
+				id: int('id').primaryKey(),
+				count: int('count').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table};`);
+			await db.execute(sql`create table ${table} (\`id\` int primary key, \`count\` int not null);`);
+
+			await db.insert(table).values({ id: 1, count: 1 });
+			await db
+				.insert(table)
+				.values({ id: 1, count: 1 })
+				.onDuplicateKeyUpdate({ set: { count: sql`${table.count} + 1` } });
+
+			expect(await db.select().from(table).orderBy(table.id)).toEqual([{ id: 1, count: 2 }]);
+		});
+
+		test.concurrent('insert with onDuplicate no-op', async ({ db }) => {
+			const table = singlestoreTable('on_duplicate_noop', {
+				id: int('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${table};`);
+			await db.execute(sql`create table ${table} (\`id\` int primary key, \`name\` text not null);`);
+
+			await db.insert(table).values({ id: 1, name: 'John' });
+			await db
+				.insert(table)
+				.values({ id: 1, name: 'Jane' })
+				.onDuplicateKeyUpdate({ set: { id: sql`id` } });
+
+			expect(await db.select().from(table).orderBy(table.id)).toEqual([{ id: 1, name: 'John' }]);
+		});
+
+		test.concurrent('insert with onDuplicate and $returningId throws in dynamic query', async ({ db }) => {
+			const table = singlestoreTable('on_duplicate_returning_id', { id: int('id').primaryKey() });
+			const message = '`$returningId` cannot be used with `onDuplicateKeyUpdate`';
+			const insert = () => db.insert(table).values({ id: 1 }).$dynamic();
+
+			expect(() => insert().onDuplicateKeyUpdate({ set: { id: 2 } }).$returningId()).toThrowError(message);
+			expect(() => insert().$returningId().onDuplicateKeyUpdate({ set: { id: 2 } })).toThrowError(message);
+		});
+
 		test.concurrent('insert conflict', async ({ db }) => {
 			await db.insert(usersTable)
 				.values({ id: 1, name: 'John' });

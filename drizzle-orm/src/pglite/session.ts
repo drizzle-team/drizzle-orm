@@ -1,5 +1,4 @@
-import type { ParserOptions, PGlite, Results, Row, Transaction } from '@electric-sql/pglite';
-import { types } from '@electric-sql/pglite';
+import type { PGlite, Results, Row, Transaction } from '@electric-sql/pglite';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
@@ -13,23 +12,6 @@ import { type Query, sql } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
 
 export type PgliteClient = PGlite;
-
-const parsers: ParserOptions = {
-	[types.TIMESTAMP]: (value) => value,
-	[types.TIMESTAMPTZ]: (value) => value,
-	[types.INTERVAL]: (value) => value,
-	[types.DATE]: (value) => value,
-	// numeric[]
-	[1231]: (value) => value,
-	// timestamp[]
-	[1115]: (value) => value,
-	// timestamp with timezone[]
-	[1185]: (value) => value,
-	// interval[]
-	[1187]: (value) => value,
-	// date[]
-	[1182]: (value) => value,
-};
 
 export interface PgliteSessionOptions {
 	logger?: Logger;
@@ -65,7 +47,6 @@ export class PgliteSession<TRelations extends AnyRelations> extends PgAsyncSessi
 		const executor = async (params?: unknown[]) => {
 			return this.client.query(query.sql, params, {
 				rowMode: mode === 'arrays' ? 'array' : 'object',
-				parsers,
 			}).then((r) => mode === 'raw' ? r : r.rows);
 		};
 

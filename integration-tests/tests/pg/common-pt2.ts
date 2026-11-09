@@ -54,13 +54,17 @@ import {
 	serial,
 	snakeCase,
 	text,
+	time,
 	timestamp,
 	union,
 	varchar,
 } from 'drizzle-orm/pg-core';
 import { PgliteDatabase } from 'drizzle-orm/pglite';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 import { describe, expect, expectTypeOf } from 'vitest';
+import { jsonRows, parseStoredJson } from '~/json-values';
+import { expectRecentTime } from '~/recent-time';
 import {
 	type AllTypes,
 	allTypesData,
@@ -68,8 +72,14 @@ import {
 	allTypesRelations,
 	allTypesTable,
 	assertAllTypesBounds,
+	assertAllTypesEmptyArrays,
+	assertAllTypesTemporalBounds,
+	assertAllTypesTemporalBoundsInSessions,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	makeAllTypes,
+	sessionDateStyles,
 } from './all-types';
 import type { Test } from './instrumentation';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -877,7 +887,7 @@ export function tests(test: Test) {
 			const result = await db.select().from(users);
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(300);
+			expectRecentTime(result[0]!.createdAt, now);
 			expect(result).toEqual([
 				{
 					id: 1,
@@ -1385,7 +1395,10 @@ export function tests(test: Test) {
 						'insert into "mySchema_15"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id","name") do update set "name" = $3',
 					params: [
 						'John',
-						is(db, PgliteDatabase) || is(db, PostgresJsDatabase)
+						// `postgres-js` json params are wrapped with client's `json(value)`
+						is(db, PostgresJsDatabase)
+							? postgres('').json(['foo', 'bar'])
+							: is(db, PgliteDatabase)
 							? ['foo', 'bar']
 							: JSON.stringify(['foo', 'bar']),
 						'John1',
@@ -1419,7 +1432,10 @@ export function tests(test: Test) {
 						'insert into "mySchema_16"."users" ("id", "name", "verified", "jsonb", "created_at") values (default, $1, default, $2, default) on conflict ("id") do nothing',
 					params: [
 						'John',
-						is(db, PgliteDatabase) || is(db, PostgresJsDatabase)
+						// `postgres-js` json params are wrapped with client's `json(value)`
+						is(db, PostgresJsDatabase)
+							? postgres('').json(['foo', 'bar'])
+							: is(db, PgliteDatabase)
 							? ['foo', 'bar']
 							: JSON.stringify(['foo', 'bar']),
 					],
@@ -1682,6 +1698,145 @@ export function tests(test: Test) {
 			const result = await db.select().from(users).limit(-1);
 
 			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test.concurrent('pagination: limit', async ({ db, push }) => {
+			const items = pgTable('pagination_1', { id: integer('id').primaryKey() });
+			await push({ items });
+			// Data API drivers render their own placeholders, the base dialect keeps `$N`
+			const dialect = new PgDialect();
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(dialect.sqlToQuery(query().limit(0).getSQL(true))).toStrictEqual({
+				sql: 'select "id" from "pagination_1" order by "pagination_1"."id" limit $1',
+				params: [0],
+			});
+			expect(await query().limit(0)).toStrictEqual([]);
+			expect(await query().limit(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(5)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().limit(10)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+		});
+
+		test.concurrent('pagination: offset', async ({ db, push }) => {
+			const items = pgTable('pagination_2', { id: integer('id').primaryKey() });
+			await push({ items });
+			const dialect = new PgDialect();
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(dialect.sqlToQuery(query().offset(0).getSQL(true))).toStrictEqual({
+				sql: 'select "id" from "pagination_2" order by "pagination_2"."id" offset $1',
+				params: [0],
+			});
+			expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().offset(5)).toStrictEqual([]);
+			expect(await query().offset(10)).toStrictEqual([]);
+		});
+
+		test.concurrent('pagination: limit with offset', async ({ db, push }) => {
+			const items = pgTable('pagination_3', { id: integer('id').primaryKey() });
+			await push({ items });
+			const dialect = new PgDialect();
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			expect(dialect.sqlToQuery(query().limit(0).offset(0).getSQL(true))).toStrictEqual({
+				sql: 'select "id" from "pagination_3" order by "pagination_3"."id" limit $1 offset $2',
+				params: [0, 0],
+			});
+			expect(await query().limit(0).offset(0)).toStrictEqual([]);
+			expect(await query().limit(0).offset(2)).toStrictEqual([]);
+			expect(await query().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(2).offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+			expect(await query().limit(2).offset(4)).toStrictEqual([{ id: 5 }]);
+			expect(await query().limit(2).offset(5)).toStrictEqual([]);
+			expect(await query().limit(10).offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+		});
+
+		test.concurrent('pagination: placeholders', async ({ db, push }) => {
+			const items = pgTable('pagination_4', { id: integer('id').primaryKey() });
+			await push({ items });
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () => db.select({ id: items.id }).from(items).orderBy(items.id);
+
+			const limitStmt = query().limit(sql.placeholder('limit')).prepare('pagination_4_limit');
+			expect(await limitStmt.execute({ limit: 0 })).toStrictEqual([]);
+			expect(await limitStmt.execute({ limit: 2 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+
+			const offsetStmt = query().offset(sql.placeholder('offset')).prepare('pagination_4_offset');
+			expect(await offsetStmt.execute({ offset: 0 })).toStrictEqual([
+				{ id: 1 },
+				{ id: 2 },
+				{ id: 3 },
+				{ id: 4 },
+				{ id: 5 },
+			]);
+			expect(await offsetStmt.execute({ offset: 3 })).toStrictEqual([{ id: 4 }, { id: 5 }]);
+
+			const stmt = query().limit(sql.placeholder('limit')).offset(sql.placeholder('offset')).prepare(
+				'pagination_4_limit_offset',
+			);
+			expect(await stmt.execute({ limit: 0, offset: 0 })).toStrictEqual([]);
+			expect(await stmt.execute({ limit: 0, offset: 2 })).toStrictEqual([]);
+			expect(await stmt.execute({ limit: 2, offset: 0 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await stmt.execute({ limit: 2, offset: 2 })).toStrictEqual([{ id: 3 }, { id: 4 }]);
+		});
+
+		test.concurrent('pagination: set operations', async ({ db, push }) => {
+			const items = pgTable('pagination_5', { id: integer('id').primaryKey() });
+			await push({ items });
+			const dialect = new PgDialect();
+			await db.insert(items).values([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			const query = () =>
+				db.select({ id: items.id }).from(items).where(lt(items.id, 4)).union(
+					db.select({ id: items.id }).from(items).where(gte(items.id, 3)),
+				).orderBy(items.id);
+
+			expect(dialect.sqlToQuery(query().offset(0).getSQL(true))).toStrictEqual({
+				sql:
+					'select "id" from ((select "id" from "pagination_5" where "pagination_5"."id" < $1) union (select "id" from "pagination_5" where "pagination_5"."id" >= $2) order by "id" offset $3) "drizzle_union"',
+				params: [4, 3, 0],
+			});
+			expect(await query().limit(0)).toStrictEqual([]);
+			expect(await query().limit(2)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]);
+			expect(await query().offset(3)).toStrictEqual([{ id: 4 }, { id: 5 }]);
+			expect(await query().limit(0).offset(0)).toStrictEqual([]);
+			expect(await query().limit(2).offset(0)).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await query().limit(2).offset(2)).toStrictEqual([{ id: 3 }, { id: 4 }]);
+
+			const stmt = query().limit(sql.placeholder('limit')).offset(sql.placeholder('offset')).prepare(
+				'pagination_5_limit_offset',
+			);
+			expect(await stmt.execute({ limit: 0, offset: 0 })).toStrictEqual([]);
+			expect(await stmt.execute({ limit: 2, offset: 0 })).toStrictEqual([{ id: 1 }, { id: 2 }]);
+			expect(await stmt.execute({ limit: 2, offset: 3 })).toStrictEqual([{ id: 4 }, { id: 5 }]);
+		});
+
+		test.concurrent('pagination: subquery fenced with offset 0', async ({ db, push }) => {
+			const items = pgTable('pagination_6', { id: integer('id').primaryKey(), kind: text('kind').notNull() });
+			await push({ items });
+			const dialect = new PgDialect();
+			await db.insert(items).values([
+				{ id: 1, kind: 'email' },
+				{ id: 2, kind: 'sms' },
+				{ id: 3, kind: 'email' },
+			]);
+
+			const candidates = db.select({ id: items.id }).from(items).where(eq(items.kind, 'email')).offset(0).as(
+				'candidates',
+			);
+			const query = db.select({ id: items.id }).from(items).innerJoin(candidates, eq(candidates.id, items.id))
+				.orderBy(items.id);
+
+			expect(dialect.sqlToQuery(query.getSQL(true))).toStrictEqual({
+				sql:
+					'select "pagination_6"."id" from "pagination_6" inner join (select "id" from "pagination_6" where "pagination_6"."kind" = $1 offset $2) "candidates" on "candidates"."id" = "pagination_6"."id" order by "pagination_6"."id"',
+				params: ['email', 0],
+			});
+			expect(await query).toStrictEqual([{ id: 1 }, { id: 3 }]);
 		});
 
 		test.concurrent('Object keys as column names', async ({ db, push }) => {
@@ -3262,18 +3417,8 @@ export function tests(test: Test) {
 			const sub = alias(productionJobWithLocationView, 'p'); // if select from "productionJobWithLocationView" (not from alias), it works as expected
 
 			const query = db.select().from(sub);
-			expect(query.toSQL().sql).toStrictEqual(
-				(<{ dialect: PgDialect }> (<any> db)).dialect.sqlToQuery(
-					sql`select ${sql.identifier('id')}, ${sql.identifier('name')}, ${sql.identifier('location_id')}, ${
-						sql.identifier(
-							'tag_id',
-						)
-					}, ${sql.identifier('tag_created_at')} from ${sql.identifier('production_job_with_location')} ${
-						sql.identifier(
-							'p',
-						)
-					}`,
-				).sql,
+			expect(query.toSQL(false).sql).toStrictEqual(
+				'select "id", "name", "location_id", "tag_id", "tag_created_at" from "production_job_with_location" "p"',
 			);
 		});
 
@@ -3387,7 +3532,7 @@ export function tests(test: Test) {
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
-					population: number;
+					population: number | null;
 					name: string;
 				}[]
 			>();
@@ -3442,7 +3587,7 @@ export function tests(test: Test) {
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
-					cityName: string;
+					cityName: string | null;
 					name: string;
 				}[]
 			>();
@@ -3658,6 +3803,112 @@ export function tests(test: Test) {
 			expect(rawRes).toStrictEqual([allTypesData]);
 		});
 
+		test('time zones are preserved', async ({ createDB, push }) => {
+			const tzTypes = pgTable('tz_types', {
+				id: integer('id').primaryKey(),
+				timetz: time('timetz', { withTimezone: true }).notNull(),
+				arrtimetz: time('arrtimetz', { withTimezone: true }).array().notNull(),
+				mtxtimetz: time('mtxtimetz', { withTimezone: true }).array('[][]').notNull(),
+				tstz: timestamp('tstz', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+				arrtstz: timestamp('arrtstz', { mode: 'string', withTimezone: true, precision: 6 }).array().notNull(),
+				mtxtstz: timestamp('mtxtstz', { mode: 'string', withTimezone: true, precision: 6 }).array('[][]').notNull(),
+				tstzdate: timestamp('tstzdate', { mode: 'date', withTimezone: true }).notNull(),
+				arrtstzdate: timestamp('arrtstzdate', { mode: 'date', withTimezone: true }).array().notNull(),
+			});
+
+			await push({ tzTypes });
+			const db = createDB({ tzTypes }, (r) => ({
+				tzTypes: { self: r.many.tzTypes({ from: r.tzTypes.id, to: r.tzTypes.id }) },
+			}));
+
+			await db.insert(tzTypes).values({
+				id: 1,
+				timetz: '12:00:00.5-02',
+				arrtimetz: ['12:00:00.5-02', '23:59:59+05:30'],
+				mtxtimetz: [['12:00:00.5-02'], ['23:59:59+05:30']],
+				tstz: '2022-01-01 12:00:00.123456+02',
+				arrtstz: ['2022-01-01 12:00:00.123456+02', '2022-06-01 00:00:00-05'],
+				mtxtstz: [['2022-01-01 12:00:00.123456+02'], ['2022-06-01 00:00:00-05']],
+				tstzdate: new Date('2022-01-01T10:00:00.123Z'),
+				arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
+			});
+
+			// `timestamptz` is stored as UTC and printed in the session time zone (documented behaviour: https://www.postgresql.org/docs/current/datatype-datetime.html#DATATYPE-DATETIME-INPUT-TIME-STAMPS),
+			// `timetz` stores and prints the offset it was given (implementation behavior, the docs don't state it)
+			const expected = {
+				id: 1,
+				timetz: '12:00:00.5-02',
+				arrtimetz: ['12:00:00.5-02', '23:59:59+05:30'],
+				mtxtimetz: [['12:00:00.5-02'], ['23:59:59+05:30']],
+				tstz: '2022-01-01 10:00:00.123456+00',
+				arrtstz: ['2022-01-01 10:00:00.123456+00', '2022-06-01 05:00:00+00'],
+				mtxtstz: [['2022-01-01 10:00:00.123456+00'], ['2022-06-01 05:00:00+00']],
+				tstzdate: new Date('2022-01-01T10:00:00.123Z'),
+				arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
+			};
+
+			expect(await db.select().from(tzTypes)).toStrictEqual([expected]);
+			expect(await db.query.tzTypes.findFirst({ with: { self: true } })).toStrictEqual({
+				...expected,
+				self: [expected],
+			});
+		});
+
+		test('time zones are preserved - non-UTC session', async ({ createDB, push }) => {
+			const tzTypes = pgTable('tz_types_session', {
+				id: integer('id').primaryKey(),
+				timetz: time('timetz', { withTimezone: true }).notNull(),
+				arrtimetz: time('arrtimetz', { withTimezone: true }).array().notNull(),
+				mtxtimetz: time('mtxtimetz', { withTimezone: true }).array('[][]').notNull(),
+				tstz: timestamp('tstz', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
+				arrtstz: timestamp('arrtstz', { mode: 'string', withTimezone: true, precision: 6 }).array().notNull(),
+				mtxtstz: timestamp('mtxtstz', { mode: 'string', withTimezone: true, precision: 6 }).array('[][]').notNull(),
+				tstzdate: timestamp('tstzdate', { mode: 'date', withTimezone: true }).notNull(),
+				arrtstzdate: timestamp('arrtstzdate', { mode: 'date', withTimezone: true }).array().notNull(),
+			});
+
+			await push({ tzTypes });
+			const db = createDB({ tzTypes }, (r) => ({
+				tzTypes: { self: r.many.tzTypes({ from: r.tzTypes.id, to: r.tzTypes.id }) },
+			}));
+
+			// `timetz` output doesn't depend on session time zone, `timestamptz` output does
+			const expected = {
+				id: 1,
+				timetz: '12:00:00.5-02',
+				arrtimetz: ['12:00:00.5-02', '23:59:59+05:30'],
+				mtxtimetz: [['12:00:00.5-02'], ['23:59:59+05:30']],
+				tstz: '2022-01-01 00:00:00.123456-10',
+				arrtstz: ['2022-01-01 00:00:00.123456-10', '2022-05-31 19:00:00-10'],
+				mtxtstz: [['2022-01-01 00:00:00.123456-10'], ['2022-05-31 19:00:00-10']],
+				tstzdate: new Date('2022-01-01T10:00:00.123Z'),
+				arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
+			};
+
+			// `set local` keeps the setting within transaction, which also holds the session for pooled & stateless drivers
+			await db.transaction(async (tx) => {
+				await tx.execute(sql`set local time zone '-10'`);
+
+				await tx.insert(tzTypes).values({
+					id: 1,
+					timetz: '12:00:00.5-02',
+					arrtimetz: ['12:00:00.5-02', '23:59:59+05:30'],
+					mtxtimetz: [['12:00:00.5-02'], ['23:59:59+05:30']],
+					tstz: '2022-01-01 12:00:00.123456+02',
+					arrtstz: ['2022-01-01 12:00:00.123456+02', '2022-06-01 00:00:00-05'],
+					mtxtstz: [['2022-01-01 12:00:00.123456+02'], ['2022-06-01 00:00:00-05']],
+					tstzdate: new Date('2022-01-01T10:00:00.123Z'),
+					arrtstzdate: [new Date('2022-01-01T10:00:00.123Z'), new Date('2022-06-01T05:00:00Z')],
+				});
+
+				expect(await tx.select().from(tzTypes)).toStrictEqual([expected]);
+				expect(await tx.query.tzTypes.findFirst({ with: { self: true } })).toStrictEqual({
+					...expected,
+					self: [expected],
+				});
+			});
+		});
+
 		test('raw jsons', async ({ db, push }) => {
 			const allTypesTable = pgTable('all_types_raw_jsons', {
 				json: json('json'),
@@ -3738,14 +3989,17 @@ export function tests(test: Test) {
 		});
 
 		test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
-			const db = createDB({ allTypesTable }, allTypesRelations);
+			const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+				...allTypesRelations(r),
+				...boundsRelations(r),
+			}));
 			await push({ en: allTypesEnum, allTypesTable });
 
 			await db.insert(allTypesTable).values(allTypesData);
 
 			const session = (<any> db).session as PgAsyncSession;
 
-			const queryRes = await session.objects<AllTypes>(db.select().from(allTypesTable).getSQL(true)).then((
+			const queryRes = await session.arrays<unknown[]>(db.select().from(allTypesTable).getSQL(true)).then((
 				e,
 			) =>
 				normalizeDataWithDbCodecs({
@@ -3786,7 +4040,50 @@ export function tests(test: Test) {
 			expect(rootRes).toStrictEqual(allTypesData);
 
 			await assertAllTypesUnions(db);
-			await assertAllTypesBounds(db);
+			await assertAllTypesBounds(db, { rqb: true });
+			await assertAllTypesTemporalBounds(db, { rqb: true });
+
+			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
+		});
+
+		test('all types ~codecs~ - non-UTC session', async ({ createDB }) => {
+			const db = createDB({ ...boundsSchema }, boundsRelations);
+
+			await assertAllTypesTemporalBoundsInSessions(db, { rqb: true });
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/6496
+		test('all types ~codecs~ - non-ISO DateStyle session', async ({ createDB }) => {
+			const db = createDB({ ...boundsSchema }, boundsRelations);
+
+			await assertAllTypesTemporalBoundsInSessions(db, { rqb: true, sessions: sessionDateStyles });
+		});
+
+		test.concurrent('all types ~json~', async ({ db, push }) => {
+			const table = pgTable('all_types_json', {
+				id: integer('id').primaryKey(),
+				json: json('json'),
+				jsonb: jsonb('jsonb'),
+				arrjson: json('arrjson').array(),
+				arrjsonb: jsonb('arrjsonb').array(),
+			});
+			await push({ table });
+
+			const { input, output } = jsonRows(['json', 'jsonb'], ['arrjson', 'arrjsonb']);
+
+			await db.insert(table).values(input);
+
+			// json text as the database stores it, read without decoding
+			const stored = await db.select({
+				id: table.id,
+				json: sql<string>`${table.json}::text`,
+				jsonb: sql<string>`${table.jsonb}::text`,
+				arrjson: sql<string>`array_to_json(${table.arrjson})::text`,
+				arrjsonb: sql<string>`array_to_json(${table.arrjsonb})::text`,
+			}).from(table).orderBy(table.id);
+
+			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
+			expect(parseStoredJson(stored)).toStrictEqual(output);
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018

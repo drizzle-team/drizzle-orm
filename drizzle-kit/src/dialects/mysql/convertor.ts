@@ -18,7 +18,7 @@ export const convertor = <
 };
 
 const createTable = convertor('create_table', (st) => {
-	const { name, columns, pk, checks, indexes, fks } = st.table;
+	const { name, columns, pk, checks, indexes } = st.table;
 
 	const uniqueIndexes = indexes.filter((it) => it.isUnique);
 
@@ -67,14 +67,6 @@ const createTable = convertor('create_table', (st) => {
 			.join(',');
 
 		statement += `\tCONSTRAINT \`${unique.name}\` UNIQUE INDEX(${uniqueString})`;
-	}
-
-	// TODO remove from create_table
-	for (const fk of fks) {
-		statement += ',\n';
-		statement += `\tCONSTRAINT \`${fk.name}\` FOREIGN KEY (\`${
-			fk.columns.join('`,`')
-		}\`) REFERENCES \`${fk.tableTo}\`(\`${fk.columnsTo.join('`,`')}\`)`;
 	}
 
 	for (const check of checks) {

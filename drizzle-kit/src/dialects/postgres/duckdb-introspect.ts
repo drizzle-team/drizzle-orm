@@ -1,5 +1,5 @@
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
-import { type DB, trimChar } from '../../utils';
+import { type DB, mapBy, trimChar } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
 import type {
 	CheckConstraint,
@@ -9,12 +9,12 @@ import type {
 	InterimIndex,
 	InterimSchema,
 	Policy,
-	PostgresEntities,
 	PrimaryKey,
 	Privilege,
 	Role,
 	Schema,
 	Sequence,
+	TableWithPartition,
 	UniqueConstraint,
 	View,
 	ViewColumn,
@@ -37,10 +37,10 @@ export const fromDatabase = async (
 		rows: Record<string, unknown>[],
 		error: Error | null,
 	) => void = () => {},
-): Promise<InterimSchema> => {
+): Promise<InterimSchema & { tables: TableWithPartition[] }> => {
 	const schemas: Schema[] = [];
 	const enums: Enum[] = [];
-	const tables: PostgresEntities['tables'][] = [];
+	const tables: TableWithPartition[] = [];
 	const columns: InterimColumn[] = [];
 	const indexes: InterimIndex[] = [];
 	const pks: PrimaryKey[] = [];
@@ -182,6 +182,8 @@ export const fromDatabase = async (
 			schema: trimChar(table.schema, "'"),
 			name: table.name,
 			isRlsEnabled: false,
+			partitionBy: null,
+			partitionsCount: 0,
 		});
 	}
 
@@ -460,10 +462,24 @@ export const fromDatabase = async (
 
 	// type DBColumn = (typeof columnsList)[number];
 
-	const tableColumns = columnsList.filter((it) => {
-		const table = tablesList.find((tbl) => tbl.oid === it.tableId);
-		return !!table;
-	});
+	// lookups are built once, `.find` per column is quadratic and stalls on databases with many columns
+	// JSON keeps table id and column name apart, so no names can collide
+	const columnKey = (tableId: number, name: string) => JSON.stringify([tableId, name]);
+
+	const tablesById = mapBy(tablesList, (it) => it.oid);
+	const tablesByName = mapBy(tablesList, (it) => JSON.stringify([it.schema, it.name]));
+	const viewsById = mapBy(viewsList, (it) => it.oid);
+	const namespacesById = mapBy(namespaces, (it) => it.oid);
+	const columnsByKey = mapBy(columnsList, (it) => columnKey(it.tableId, it.name));
+	const singleColumnConstraintsByKey = (type: 'UNIQUE' | 'PRIMARY KEY') =>
+		mapBy(
+			constraintsList.filter((it) => it.type === type && it.columnsNames.length === 1),
+			(it) => columnKey(it.tableId, it.columnsNames[0]),
+		);
+	const uniquesByKey = singleColumnConstraintsByKey('UNIQUE');
+	const pksByKey = singleColumnConstraintsByKey('PRIMARY KEY');
+
+	const tableColumns = columnsList.filter((it) => tablesById.has(it.tableId));
 
 	// supply serials
 	for (const column of tableColumns) {
@@ -478,7 +494,7 @@ export const fromDatabase = async (
 		// );
 
 		// if (expr) {
-		// 	const table = tablesList.find((it) => it.oid === column.tableId)!;
+		// 	const table = tablesById.get(column.tableId)!;
 
 		// 	const isSerial = isSerialExpression(expr.expression, table.schema);
 		// 	column.type = isSerial ? type === 'bigint' ? 'bigserial' : type === 'integer' ? 'serial' : 'smallserial' : type;
@@ -486,7 +502,7 @@ export const fromDatabase = async (
 	}
 
 	for (const column of tableColumns) {
-		const table = tablesList.find((it) => it.oid === column.tableId)!;
+		const table = tablesById.get(column.tableId)!;
 
 		// supply enums
 		// const enumType = column.typeId in groupedEnums
@@ -528,15 +544,8 @@ export const fromDatabase = async (
 			false, // TODO
 		);
 
-		const unique = constraintsList.find((it) => {
-			return it.type === 'UNIQUE' && it.tableId === column.tableId && it.columnsNames.length === 1
-				&& it.columnsNames.includes(column.name);
-		}) ?? null;
-
-		const pk = constraintsList.find((it) => {
-			return it.type === 'PRIMARY KEY' && it.tableId === column.tableId && it.columnsNames.length === 1
-				&& it.columnsNames.includes(column.name);
-		}) ?? null;
+		const unique = uniquesByKey.get(columnKey(column.tableId, column.name)) ?? null;
+		const pk = pksByKey.get(columnKey(column.tableId, column.name)) ?? null;
 
 		columns.push({
 			entityType: 'columns',
@@ -560,11 +569,11 @@ export const fromDatabase = async (
 	}
 
 	for (const unique of constraintsList.filter((it) => it.type === 'UNIQUE')) {
-		const table = tablesList.find((it) => it.oid === unique.tableId)!;
-		const schema = namespaces.find((it) => it.oid === unique.schemaId)!;
+		const table = tablesById.get(unique.tableId)!;
+		const schema = namespacesById.get(unique.schemaId)!;
 
 		const columns = unique.columnsNames.map((it) => {
-			const column = columnsList.find((column) => column.tableId === unique.tableId && column.name === it)!;
+			const column = columnsByKey.get(columnKey(unique.tableId, it))!;
 			return column.name;
 		});
 
@@ -580,11 +589,11 @@ export const fromDatabase = async (
 	}
 
 	for (const pk of constraintsList.filter((it) => it.type === 'PRIMARY KEY')) {
-		const table = tablesList.find((it) => it.oid === pk.tableId)!;
-		const schema = namespaces.find((it) => it.oid === pk.schemaId)!;
+		const table = tablesById.get(pk.tableId)!;
+		const schema = namespacesById.get(pk.schemaId)!;
 
 		const columns = pk.columnsNames.map((it) => {
-			const column = columnsList.find((column) => column.tableId === pk.tableId && column.name === it)!;
+			const column = columnsByKey.get(columnKey(pk.tableId, it))!;
 			return column.name;
 		});
 
@@ -599,9 +608,9 @@ export const fromDatabase = async (
 	}
 
 	for (const fk of constraintsList.filter((it) => it.type === 'FOREIGN KEY')) {
-		const table = tablesList.find((it) => it.oid === fk.tableId);
-		const schema = namespaces.find((it) => it.oid === fk.schemaId)!;
-		const tableTo = tablesList.find((it) => it.schema === schema.name && it.name === fk.tableToName);
+		const table = tablesById.get(fk.tableId);
+		const schema = namespacesById.get(fk.schemaId)!;
+		const tableTo = tablesByName.get(JSON.stringify([schema.name, fk.tableToName]));
 
 		if (!table || !tableTo) {
 			// this can happen if:
@@ -612,12 +621,12 @@ export const fromDatabase = async (
 		}
 
 		const columns = fk.columnsNames.map((it) => {
-			const column = columnsList.find((column) => column.tableId === table.oid && column.name === it)!;
+			const column = columnsByKey.get(columnKey(table.oid, it))!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columnsToNames.map((it) => {
-			const column = columnsList.find((column) => column.tableId === tableTo.oid && column.name === it)!;
+			const column = columnsByKey.get(columnKey(tableTo.oid, it))!;
 			return column.name;
 		});
 
@@ -637,8 +646,8 @@ export const fromDatabase = async (
 	}
 
 	for (const check of constraintsList.filter((it) => it.type === 'CHECK')) {
-		const table = tablesList.find((it) => it.oid === check.tableId)!;
-		const schema = namespaces.find((it) => it.oid === check.schemaId)!;
+		const table = tablesById.get(check.tableId)!;
+		const schema = namespacesById.get(check.schemaId)!;
 
 		checks.push({
 			entityType: 'checks',
@@ -706,7 +715,7 @@ export const fromDatabase = async (
 
 	// 	const expr = splitExpressions(metadata.expression);
 
-	// 	const table = tablesList.find((it) => it.oid === idx.metadata.tableId)!;
+	// 	const table = tablesById.get(idx.metadata.tableId)!;
 
 	// 	const nonColumnsCount = metadata.columnOrdinals.reduce((acc, it) => {
 	// 		if (it === 0) acc += 1;
@@ -799,12 +808,9 @@ export const fromDatabase = async (
 	progressCallback('tables', tableCount, 'done');
 
 	for (
-		const it of columnsList.filter((it) => {
-			const view = viewsList.find((x) => x.oid === it.tableId);
-			return !!view;
-		})
+		const it of columnsList.filter((it) => viewsById.has(it.tableId))
 	) {
-		const view = viewsList.find((x) => x.oid === it.tableId)!;
+		const view = viewsById.get(it.tableId)!;
 
 		// const enumType = it.typeId in groupedEnums
 		// 	? groupedEnums[it.typeId]

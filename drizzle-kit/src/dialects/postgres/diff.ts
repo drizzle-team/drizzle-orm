@@ -27,7 +27,7 @@ import type {
 } from './ddl';
 import { createDDL, tableFromDDL } from './ddl';
 import { defaults, defaultsCommutative, isSerialType } from './grammar';
-import type { JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
+import type { JsonAlterCheck, JsonAlterPrimaryKey, JsonRecreateIndex, JsonStatement } from './statements';
 import { prepareStatement } from './statements';
 
 export const ddlDiffDry = async (
@@ -410,13 +410,11 @@ export const ddlDiff = async (
 			const index = ddl2.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name })!;
 
 			// when a column used by the index is being dropped, emit a plain drop_index instead of recreate
-			const prevIndex = ddl1.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name });
-			const shouldDrop = !!prevIndex
-				&& !columnsToDelete.some((col) =>
-					col.schema === idx.schema
-					&& col.table === idx.table
-					&& prevIndex.columns.some((idxCol) => idxCol.value === col.name)
-				);
+			const shouldDrop = !columnsToDelete.some((col) =>
+				col.schema === idx.schema
+				&& col.table === idx.table
+				&& idx.$left.columns.some((idxCol) => idxCol.value === col.name)
+			);
 
 			if (!shouldDrop) {
 				jsonCreateIndexes.push(prepareStatement('create_index', { index }));
@@ -641,13 +639,37 @@ export const ddlDiff = async (
 		return true;
 	}).map((it) => prepareStatement('drop_fk', { fk: it }));
 
-	const jsonAlterCheckConstraints = alteredChecks.filter((it) => it.value && mode !== 'push').map((it) =>
-		prepareStatement('alter_check', {
+	const jsonAlterCheckConstraints: JsonAlterCheck[] = [];
+	alteredChecks.filter((it) => it.value).forEach((it) => {
+		const prevColumns = checkColumns(it.$left.value, ddl1, it.schema, it.table);
+		const newColumns = checkColumns(it.$right.value, ddl2, it.schema, it.table);
+
+		// if column was dropped and this column was in check value
+		// we need only create new check instead
+		// after dropping a column postgres will drop all constraints that depended on that column
+		const shouldDrop = !columnsToDelete.some((col) =>
+			col.schema === it.schema
+			&& col.table === it.table
+			&& prevColumns.some((checkCol) => checkCol === col.name)
+		);
+
+		if (!shouldDrop) {
+			jsonCreatedCheckConstraints.push(prepareStatement('add_check', { check: it.$right, columns: newColumns }));
+			return;
+		}
+
+		// We should check on push only here since
+		// if check definition was updated because of dropping column - we need to create
+		// that check back and ignore other
+		if (mode === 'push') return;
+
+		jsonAlterCheckConstraints.push(prepareStatement('alter_check', {
 			diff: it,
-			newColumns: checkColumns(it.$right?.value ?? '', ddl2, it.schema, it.table),
-			oldColumns: checkColumns(it.$left?.value ?? '', ddl2, it.schema, it.table),
-		})
-	);
+			newColumns: newColumns,
+			oldColumns: prevColumns,
+		}));
+	});
+
 	const jsonCreatePoliciesStatements = policyCreates.map((it) => prepareStatement('create_policy', { policy: it }));
 	const jsonDropPoliciesStatements = policyDeletes.map((it) => prepareStatement('drop_policy', { policy: it }));
 	const jsonRenamePoliciesStatements = policyRenames.map((it) => prepareStatement('rename_policy', it));

@@ -1034,7 +1034,7 @@ export const boundsData: BoundsRow[] = [
 
 export async function assertAllTypesBounds(
 	db: DsqlAsyncDatabase<any, any>,
-	run: RunQuery = awaitQuery,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
 ) {
 	await run(db.execute(sql.raw(dropBounds())));
 	await run(db.execute(sql.raw(createBounds())));
@@ -1046,7 +1046,253 @@ export async function assertAllTypesBounds(
 		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<BoundsRow[]>();
 
 		expect(await run(query)).toStrictEqual(boundsData);
+		if (rqb) {
+			expect(
+				await run((<any> db).query.boundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
+			).toStrictEqual(boundsData.map((row) => ({ ...row, self: [row] })));
+		}
 	} finally {
 		await run(db.execute(sql.raw(dropBounds())));
 	}
 }
+
+const TEMPORAL_TABLE = 'all_types_temporal_bounds';
+
+export const temporalBoundsTable = pgTable(TEMPORAL_TABLE, {
+	id: integer('id').primaryKey(),
+	date: date('date', { mode: 'date' }),
+	dateStr: date('date_str', { mode: 'string' }),
+	timestamp: timestamp('timestamp', { mode: 'date', precision: 3 }),
+	timestampTz: timestamp('timestamp_tz', { mode: 'date', precision: 6, withTimezone: true }),
+	timestampStr: timestamp('timestamp_str', { mode: 'string', precision: 6 }),
+	timestampTzStr: timestamp('timestamp_tz_str', { mode: 'string', precision: 6, withTimezone: true }),
+	time: time('time', { precision: 6 }),
+});
+
+export type TemporalBoundsRow = {
+	id: number;
+	date: Date | null;
+	dateStr: string | null;
+	timestamp: Date | null;
+	timestampTz: Date | null;
+	timestampStr: string | null;
+	timestampTzStr: string | null;
+	time: string | null;
+};
+
+export const createTemporalBounds = (tableName: string = TEMPORAL_TABLE) =>
+	`create table "${tableName}" (
+		"id" integer primary key,
+		"date" date,
+		"date_str" date,
+		"timestamp" timestamp(3),
+		"timestamp_tz" timestamp(6) with time zone,
+		"timestamp_str" timestamp(6),
+		"timestamp_tz_str" timestamp(6) with time zone,
+		"time" time(6)
+	)`;
+
+export const dropTemporalBounds = (tableName: string = TEMPORAL_TABLE) => `drop table if exists "${tableName}"`;
+
+export const temporalBoundsData: TemporalBoundsRow[] = [
+	{
+		id: 1,
+		date: new Date('1970-01-01T00:00:00.000Z'),
+		dateStr: '1970-01-01',
+		timestamp: new Date('1970-01-01T00:00:00.000Z'),
+		timestampTz: new Date('1970-01-01T00:00:00.000Z'),
+		timestampStr: '1970-01-01 00:00:00',
+		timestampTzStr: '1970-01-01 00:00:00+00',
+		time: '00:00:00',
+	},
+	{
+		id: 2,
+		date: new Date('1969-12-31T00:00:00.000Z'),
+		dateStr: '1969-12-31',
+		timestamp: new Date('1969-12-31T23:59:59.999Z'),
+		timestampTz: new Date('1969-12-31T23:59:59.999Z'),
+		timestampStr: '1969-12-31 23:59:59.999999',
+		timestampTzStr: '1969-12-31 23:59:59.999999+00',
+		time: '23:59:59.999999',
+	},
+	{
+		id: 3,
+		date: new Date('2024-02-29T00:00:00.000Z'),
+		dateStr: '2024-02-29',
+		timestamp: new Date('2024-02-29T12:34:56.500Z'),
+		timestampTz: new Date('2024-02-29T12:34:56.789Z'),
+		timestampStr: '2024-02-29 12:34:56.789',
+		timestampTzStr: '2024-02-29 12:34:56.789+00',
+		time: '24:00:00',
+	},
+	{
+		id: 4,
+		date: new Date('0001-01-01T00:00:00.000Z'),
+		dateStr: '0001-01-01',
+		timestamp: new Date('0001-01-01T00:00:00.500Z'),
+		timestampTz: new Date('0001-01-01T00:00:00.000Z'),
+		timestampStr: '0001-01-01 00:00:00',
+		timestampTzStr: '0001-01-01 00:00:00+00',
+		time: null,
+	},
+	{
+		id: 5,
+		date: new Date('0099-12-31T00:00:00.000Z'),
+		dateStr: '0099-12-31',
+		timestamp: new Date('0099-12-31T23:59:59.999Z'),
+		timestampTz: new Date('0099-12-31T23:59:59.999Z'),
+		timestampStr: '0099-12-31 23:59:59.999999',
+		timestampTzStr: '0099-12-31 23:59:59.999999+00',
+		time: null,
+	},
+	{
+		id: 6,
+		date: new Date('9999-12-31T00:00:00.000Z'),
+		dateStr: '9999-12-31',
+		timestamp: new Date('9999-12-31T23:59:59.999Z'),
+		timestampTz: new Date('9999-12-31T23:59:59.999Z'),
+		timestampStr: '9999-12-31 23:59:59.999999',
+		timestampTzStr: '9999-12-31 23:59:59.999999+00',
+		time: null,
+	},
+	{
+		id: 7,
+		date: new Date('+010000-01-01T00:00:00.000Z'),
+		dateStr: '10000-01-01',
+		timestamp: new Date('+010000-01-01T00:00:00.000Z'),
+		timestampTz: new Date('+010000-01-01T00:00:00.000Z'),
+		timestampStr: '10000-01-01 00:00:00',
+		timestampTzStr: '10000-01-01 00:00:00+00',
+		time: null,
+	},
+	{
+		id: 8,
+		date: new Date('+275760-09-13T00:00:00.000Z'),
+		dateStr: '275760-09-13',
+		timestamp: new Date('+275760-09-13T00:00:00.000Z'),
+		timestampTz: new Date('+275760-09-13T00:00:00.000Z'),
+		timestampStr: '275760-09-13 00:00:00',
+		timestampTzStr: '275760-09-13 00:00:00+00',
+		time: null,
+	},
+	{
+		id: 9,
+		date: new Date('0000-01-01T00:00:00.000Z'),
+		dateStr: '0001-01-01 BC',
+		timestamp: new Date('0000-01-01T00:00:00.000Z'),
+		timestampTz: new Date('0000-01-01T00:00:00.000Z'),
+		timestampStr: '0001-01-01 00:00:00 BC',
+		timestampTzStr: '0001-01-01 00:00:00+00 BC',
+		time: null,
+	},
+	{
+		id: 10,
+		date: null,
+		dateStr: 'infinity',
+		timestamp: null,
+		timestampTz: null,
+		timestampStr: '-infinity',
+		timestampTzStr: 'infinity',
+		time: null,
+	},
+	{
+		id: 11,
+		date: null,
+		dateStr: null,
+		timestamp: null,
+		timestampTz: null,
+		timestampStr: null,
+		timestampTzStr: null,
+		time: null,
+	},
+	{
+		id: 12,
+		date: new Date('-000001-12-31T00:00:00.000Z'),
+		dateStr: '0002-12-31 BC',
+		timestamp: new Date('-000001-12-31T23:59:59.999Z'),
+		timestampTz: new Date('-000001-12-31T23:59:59.999Z'),
+		timestampStr: '0002-12-31 23:59:59.999 BC',
+		timestampTzStr: '0002-12-31 23:59:59.999+00 BC',
+		time: null,
+	},
+	{
+		id: 13,
+		date: new Date('-004713-11-24T00:00:00.000Z'),
+		dateStr: '4714-11-24 BC',
+		timestamp: new Date('-004713-11-24T00:00:00.000Z'),
+		timestampTz: new Date('-004713-11-24T00:00:00.000Z'),
+		timestampStr: '4714-11-24 00:00:00 BC',
+		timestampTzStr: '4714-11-24 00:00:00+00 BC',
+		time: null,
+	},
+	{
+		id: 14,
+		date: new Date('0000-02-29T00:00:00.000Z'),
+		dateStr: '0001-02-29 BC',
+		timestamp: new Date('0000-02-29T12:00:00.000Z'),
+		timestampTz: new Date('0000-02-29T12:00:00.000Z'),
+		timestampStr: '0001-02-29 12:00:00 BC',
+		timestampTzStr: '0001-02-29 12:00:00+00 BC',
+		time: null,
+	},
+	{
+		id: 15,
+		date: new Date('1880-01-01T00:00:00.000Z'),
+		dateStr: '1880-01-01',
+		timestamp: new Date('1880-01-01T00:00:00.000Z'),
+		timestampTz: new Date('1880-01-01T00:00:00.000Z'),
+		timestampStr: '1880-01-01 00:00:00',
+		timestampTzStr: '1880-01-01 00:00:00+00',
+		time: null,
+	},
+];
+
+/**
+ * Fills the temporal bounds table; `timestamp_tz` values then get 567 microseconds added, so they're printed with
+ * 6 fractional digits that have to be truncated, not rounded, to milliseconds on decoding
+ */
+async function fillTemporalBounds(db: DsqlAsyncDatabase<any, any>, run: RunQuery) {
+	await run(db.insert(temporalBoundsTable).values(temporalBoundsData));
+	await run(
+		db.execute(
+			sql.raw(
+				`update "${TEMPORAL_TABLE}" set "timestamp_tz" = "timestamp_tz" + interval '567 microseconds' where "timestamp_tz" is not null`,
+			),
+		),
+	);
+}
+
+export async function assertAllTypesTemporalBounds(
+	db: DsqlAsyncDatabase<any, any>,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
+) {
+	await run(db.execute(sql.raw(dropTemporalBounds())));
+	await run(db.execute(sql.raw(createTemporalBounds())));
+
+	try {
+		await fillTemporalBounds(db, run);
+
+		const query = db.select().from(temporalBoundsTable).orderBy(temporalBoundsTable.id);
+		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<TemporalBoundsRow[]>();
+
+		expect(await run(query)).toStrictEqual(temporalBoundsData);
+		if (rqb) {
+			expect(
+				await run((<any> db).query.temporalBoundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
+			).toStrictEqual(temporalBoundsData.map((row) => ({ ...row, self: [row] })));
+		}
+	} finally {
+		await run(db.execute(sql.raw(dropTemporalBounds())));
+	}
+}
+
+export const boundsSchema = { boundsTable, temporalBoundsTable };
+
+export const boundsRelations = (r: RelationsBuilder<typeof boundsSchema>) => ({
+	boundsTable: {
+		self: r.many.boundsTable({ from: r.boundsTable.id, to: r.boundsTable.id }),
+	},
+	temporalBoundsTable: {
+		self: r.many.temporalBoundsTable({ from: r.temporalBoundsTable.id, to: r.temporalBoundsTable.id }),
+	},
+});

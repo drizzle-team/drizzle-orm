@@ -51,7 +51,7 @@ import { type PgCodecs, type PostgresType, resolvePgTypeAlias } from './codecs.t
 import type { PgViewBase } from './view-base.ts';
 import type { PgMaterializedView } from './view.ts';
 
-/** Used to build mappers directly in driver in minipg */
+/** Used to build mappers directly in driver in Drizzle Postgres */
 export type PreparedQuerySelection = {
 	type: 'plain';
 	fields: SelectedFieldsOrdered;
@@ -554,7 +554,7 @@ export class PgDialect {
 			? sql` limit ${limit}`
 			: undefined;
 
-		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+		const offsetSql = offset === undefined ? undefined : sql` offset ${offset}`;
 
 		const lockingClauseSql = sql.empty();
 		if (lockingClause) {
@@ -664,7 +664,7 @@ export class PgDialect {
 
 		const operatorChunk = new StringChunk(`${type} ${isAll ? 'all ' : ''}`);
 
-		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+		const offsetSql = offset === undefined ? undefined : sql` offset ${offset}`;
 
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
 	}

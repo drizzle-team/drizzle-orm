@@ -1,5 +1,5 @@
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
-import { type DB, splitExpressions, trimChar } from '../../utils';
+import { type DB, mapBy, splitExpressions, trimChar } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
 import { filterMigrationsSchema } from '../utils';
 import type {
@@ -578,6 +578,30 @@ export const fromDatabase = async (
 		defaultsQuery,
 	]);
 
+	// lookups are built once, `.find` per column is quadratic and stalls on databases with many columns
+	const columnPosition = (tableId: number, ordinality: number) => `${tableId}:${ordinality}`;
+
+	const tablesById = mapBy(tablesList, (it) => it.oid);
+	const viewsById = mapBy(viewsList, (it) => it.oid);
+	const namespacesById = mapBy(namespaces, (it) => it.oid);
+	const sequencesById = mapBy(sequencesList, (it) => it.oid);
+	const dependsById = mapBy(dependList, (it) => it.oid);
+	const defaultsByPosition = mapBy(defaultsList, (it) => columnPosition(it.tableId, it.ordinality));
+	const columnsByPosition = mapBy(columnsList, (it) => columnPosition(it.tableId, it.ordinality));
+	// JSON keeps schema, table and column apart, so no names can collide
+	const extraColumnDataTypesByColumn = mapBy(
+		extraColumnDataTypesList,
+		(it) => JSON.stringify([it.table_schema, it.table_name, it.column_name]),
+	);
+	const singleColumnConstraintsByPosition = (type: 'u' | 'p') =>
+		mapBy(
+			constraintsList.filter((it) => it.type === type && it.columnsOrdinals.length === 1),
+			(it) => columnPosition(it.tableId, it.columnsOrdinals[0]),
+		);
+	const uniquesByPosition = singleColumnConstraintsByPosition('u');
+	const pksByPosition = singleColumnConstraintsByPosition('p');
+	const pkIndexIds = new Set(constraintsList.filter((it) => it.type === 'p').map((it) => it.indexId));
+
 	const groupedEnums = enumsList.reduce(
 		(acc, it) => {
 			if (!(it.oid in acc)) {
@@ -629,7 +653,7 @@ export const fromDatabase = async (
 	let viewsCount = tablesList.filter((it) => it.kind === 'm' || it.kind === 'v').length;
 
 	for (const seq of sequencesList) {
-		const depend = dependList.find((it) => it.oid === seq.oid);
+		const depend = dependsById.get(seq.oid);
 
 		if (depend && (depend.deptype === 'a' || depend.deptype === 'i')) {
 			// TODO: add type field to sequence in DDL
@@ -682,9 +706,9 @@ export const fromDatabase = async (
 	type DBColumn = (typeof columnsList)[number];
 
 	for (const column of columnsList.filter((x) => x.kind === 'r' && !x.isHidden)) {
-		const table = tablesList.find((it) => it.oid === column.tableId)!;
-		const extraColumnConfig = extraColumnDataTypesList.find((it) =>
-			it.column_name === column.name && it.table_name === table.name && it.table_schema === table.schema
+		const table = tablesById.get(column.tableId)!;
+		const extraColumnConfig = extraColumnDataTypesByColumn.get(
+			JSON.stringify([table.schema, table.name, column.name]),
 		)!;
 
 		// supply enums
@@ -706,9 +730,7 @@ export const fromDatabase = async (
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
-		const columnDefault = defaultsList.find((it) =>
-			it.tableId === column.tableId && it.ordinality === column.ordinality
-		);
+		const columnDefault = defaultsByPosition.get(columnPosition(column.tableId, column.ordinality));
 
 		const defaultValue = defaultForColumn(
 			columnTypeMapped,
@@ -717,15 +739,8 @@ export const fromDatabase = async (
 			Boolean(enumType),
 		);
 
-		const unique = constraintsList.find((it) => {
-			return it.type === 'u' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
-				&& it.columnsOrdinals.includes(column.ordinality);
-		}) ?? null;
-
-		const pk = constraintsList.find((it) => {
-			return it.type === 'p' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
-				&& it.columnsOrdinals.includes(column.ordinality);
-		}) ?? null;
+		const unique = uniquesByPosition.get(columnPosition(column.tableId, column.ordinality)) ?? null;
+		const pk = pksByPosition.get(columnPosition(column.tableId, column.ordinality)) ?? null;
 
 		const metadata = column.metadata;
 		if (column.generatedType === 's' && (!metadata || !metadata.expression)) {
@@ -744,7 +759,7 @@ export const fromDatabase = async (
 			);
 		}
 
-		const sequence = metadata?.seqId ? (sequencesList.find((it) => it.oid === Number(metadata.seqId)) ?? null) : null;
+		const sequence = metadata?.seqId ? (sequencesById.get(Number(metadata.seqId)) ?? null) : null;
 
 		columns.push({
 			entityType: 'columns',
@@ -775,12 +790,12 @@ export const fromDatabase = async (
 	}
 
 	for (const pk of constraintsList.filter((it) => it.type === 'p')) {
-		const table = tablesList.find((it) => it.oid === pk.tableId)!;
-		const schema = namespaces.find((it) => it.oid === pk.schemaId)!;
+		const table = tablesById.get(pk.tableId)!;
+		const schema = namespacesById.get(pk.schemaId)!;
 
 		// Check if any column in the PK is hidden, skip if so
 		const hasHiddenColumn = pk.columnsOrdinals.some((ordinal) => {
-			const column = columnsList.find((column) => column.tableId === pk.tableId && column.ordinality === ordinal);
+			const column = columnsByPosition.get(columnPosition(pk.tableId, ordinal));
 			return !column || column.isHidden; // skip if not found or hidden
 		});
 
@@ -790,7 +805,7 @@ export const fromDatabase = async (
 
 		const columns: typeof columnsList = [];
 		for (const ordinal of pk.columnsOrdinals) {
-			const column = columnsList.find((column) => column.tableId === pk.tableId && column.ordinality === ordinal);
+			const column = columnsByPosition.get(columnPosition(pk.tableId, ordinal));
 
 			if (!column) {
 				continue;
@@ -812,17 +827,17 @@ export const fromDatabase = async (
 	}
 
 	for (const fk of constraintsList.filter((it) => it.type === 'f')) {
-		const table = tablesList.find((it) => it.oid === fk.tableId)!;
-		const schema = namespaces.find((it) => it.oid === fk.schemaId)!;
-		const tableTo = tablesList.find((it) => it.oid === fk.tableToId)!;
+		const table = tablesById.get(fk.tableId)!;
+		const schema = namespacesById.get(fk.schemaId)!;
+		const tableTo = tablesById.get(fk.tableToId)!;
 
 		const columns = fk.columnsOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId === fk.tableId && column.ordinality === it)!;
+			const column = columnsByPosition.get(columnPosition(fk.tableId, it))!;
 			return column.name;
 		});
 
 		const columnsTo = fk.columnsToOrdinals.map((it) => {
-			const column = columnsList.find((column) => column.tableId === fk.tableToId && column.ordinality === it)!;
+			const column = columnsByPosition.get(columnPosition(fk.tableToId, it))!;
 			return column.name;
 		});
 
@@ -842,12 +857,12 @@ export const fromDatabase = async (
 	}
 
 	for (const check of constraintsList.filter((it) => it.type === 'c')) {
-		const table = tablesList.find((it) => it.oid === check.tableId)!;
-		const schema = namespaces.find((it) => it.oid === check.schemaId)!;
+		const table = tablesById.get(check.tableId)!;
+		const schema = namespacesById.get(check.schemaId)!;
 
 		// Check if any column in the PK is hidden, skip if so
 		const hasHiddenColumn = check.columnsOrdinals && check.columnsOrdinals.some((ordinal) => {
-			const column = columnsList.find((column) => column.tableId === check.tableId && column.ordinality === ordinal);
+			const column = columnsByPosition.get(columnPosition(check.tableId, ordinal));
 			return !column || column.isHidden; // skip if not found or hidden
 		});
 
@@ -928,13 +943,13 @@ export const fromDatabase = async (
 		const { metadata, accessMethod } = idx;
 
 		// filter for drizzle only?
-		const forPK = metadata.isPrimary && constraintsList.some((x) => x.type === 'p' && x.indexId === idx.oid);
+		const forPK = metadata.isPrimary && pkIndexIds.has(idx.oid);
 		if (!forPK) indexesCount += 1;
 
 		const expr = splitExpressions(metadata.expression);
 
-		const schema = namespaces.find((it) => it.oid === idx.schemaId)!;
-		const table = tablesList.find((it) => it.oid === idx.metadata.tableId)!;
+		const schema = namespacesById.get(idx.schemaId)!;
+		const table = tablesById.get(idx.metadata.tableId)!;
 
 		const nonColumnsCount = metadata.columnOrdinals.reduce((acc, it) => {
 			if (it === 0) acc += 1;
@@ -970,9 +985,7 @@ export const fromDatabase = async (
 				});
 				k += 1;
 			} else {
-				const column = columnsList.find((column) => {
-					return column.tableId === metadata.tableId && column.ordinality === ordinal;
-				});
+				const column = columnsByPosition.get(columnPosition(metadata.tableId, ordinal));
 
 				if (column?.isHidden) continue;
 				if (!column) throw new Error(`missing column: ${metadata.tableId}:${ordinal}`);
@@ -1037,7 +1050,7 @@ export const fromDatabase = async (
 	progressCallback('views', viewsCount, 'fetching');
 
 	for (const it of columnsList.filter((x) => (x.kind === 'm' || x.kind === 'v') && !x.isHidden)) {
-		const view = viewsList.find((x) => x.oid === it.tableId)!;
+		const view = viewsById.get(it.tableId)!;
 
 		const enumType = it.typeId in groupedEnums
 			? groupedEnums[it.typeId]
@@ -1093,19 +1106,24 @@ export const fromDatabase = async (
 
 	const resultSchemas = schemas.filter((x) => filter({ type: 'schema', name: x.name }));
 	const resultTables = tables.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));
-	const resultEnums = enums.filter((x) => resultSchemas.some((s) => s.name === x.schema));
-	const resultColumns = columns.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
-	const resultIndexes = indexes.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
-	const resultPKs = pks.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
-	const resultFKs = fks.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
-	const resultChecks = checks.filter((x) => resultTables.some((t) => t.schema === x.schema && t.name === x.table));
-	const resultSequences = sequences.filter((x) => resultSchemas.some((t) => t.name === x.schema));
+	const resultSchemaNames = new Set(resultSchemas.map((it) => it.name));
+	// JSON keeps schema and name apart, so no pair of names can collide
+	const resultTableKeys = new Set(resultTables.map((it) => JSON.stringify([it.schema, it.name])));
+	const inResultTables = (it: { schema: string; table: string }) =>
+		resultTableKeys.has(JSON.stringify([it.schema, it.table]));
+
+	const resultEnums = enums.filter((x) => resultSchemaNames.has(x.schema));
+	const resultColumns = columns.filter(inResultTables);
+	const resultIndexes = indexes.filter(inResultTables);
+	const resultPKs = pks.filter(inResultTables);
+	const resultFKs = fks.filter(inResultTables);
+	const resultChecks = checks.filter(inResultTables);
+	const resultSequences = sequences.filter((x) => resultSchemaNames.has(x.schema));
 	// TODO: drizzle link
 	const resultRoles = roles.filter((x) => filter({ type: 'role', name: x.name }));
 	const resultViews = views.filter((x) => filter({ type: 'table', schema: x.schema, name: x.name }));
-	const resultViewColumns = viewColumns.filter((x) =>
-		resultViews.some((v) => v.schema === x.schema && v.name === x.view)
-	);
+	const resultViewKeys = new Set(resultViews.map((it) => JSON.stringify([it.schema, it.name])));
+	const resultViewColumns = viewColumns.filter((x) => resultViewKeys.has(JSON.stringify([x.schema, x.view])));
 
 	return {
 		schemas: resultSchemas,

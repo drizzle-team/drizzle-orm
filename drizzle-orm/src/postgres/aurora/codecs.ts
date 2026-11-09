@@ -1,28 +1,20 @@
 import { refineCodecs } from '~/codecs.ts';
-import {
-	arrayCompatNormalize,
-	byteaFromPgHex,
-	castToTextArr,
-	type PgCodecs,
-	type PostgresType,
-} from '~/pg-core/codecs.ts';
-import { minipgCodecs, minipgShapeCodecs } from '../codecs.ts';
+import { castToText, castToTextArr, type PgCodecs, type PostgresType } from '~/pg-core/codecs.ts';
+import { postgresShapeCodecs } from '../codecs.ts';
 
-/** Variant of {@link minipgCodecs} for AWS Data API, which has no array type for binary values,
+/** Variant of {@link postgresShapeCodecs} for AWS Data API, which has no array type for binary values,
  * so `bytea[]` comes back empty unless selected as text
  */
-export const minipgAuroraCodecs: PgCodecs = refineCodecs<PostgresType>(minipgCodecs, {
-	bytea: {
-		castArray: castToTextArr,
-		normalizeArray: arrayCompatNormalize(byteaFromPgHex),
-	},
-});
-
-/** Variant of {@link minipgShapeCodecs} for AWS Data API, see {@link minipgAuroraCodecs}
- *
- * Useless for overrides or on their own
- */
-export const minipgAuroraShapeCodecs: PgCodecs = refineCodecs<PostgresType>(minipgShapeCodecs, {
-	// Shape declares `bytea[]`, so minipg decodes the text array literal itself
+export const postgresAuroraShapeCodecs: PgCodecs = refineCodecs<PostgresType>(postgresShapeCodecs, {
 	bytea: { castArray: castToTextArr },
+	// Data API's own formatting fails on `timestamptz` values with 5+ digit years or seconds-precision offsets,
+	// drops the `BC` suffix of `timestamp`s with fractional seconds and cuts `time` to milliseconds, text keeps them
+	time: { cast: castToText, castArray: castToTextArr },
+	// Data API's driver keeps `DateStyle` ISO, so text arrays decode by their declared type
+	date: { castArray: undefined, normalizeArray: undefined },
+	timestamp: { cast: castToText, castArray: castToTextArr, normalizeArray: undefined },
+	'timestamp:string': { cast: castToText, castArray: castToTextArr },
+	timestamptz: { cast: castToText, castArray: castToTextArr, normalizeArray: undefined },
+	'timestamptz:string': { cast: castToText, castArray: castToTextArr },
+	timetz: { cast: castToText, castArray: castToTextArr },
 });

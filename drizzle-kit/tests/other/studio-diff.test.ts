@@ -82,6 +82,8 @@ const postgresTable = (name: string, columns: string[], rest: Partial<PostgresTa
 	schema: 'public',
 	name,
 	isRlsEnabled: false,
+	partitionBy: null,
+	partitionsCount: 0,
 	columns: columns.map((column) => postgresColumn(name, column)),
 	pks: [],
 	fks: [],

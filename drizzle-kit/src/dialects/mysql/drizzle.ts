@@ -4,18 +4,15 @@ import type { AnyMySqlColumn, AnyMySqlTable } from 'drizzle-orm/mysql-core';
 import {
 	getTableConfig,
 	getViewConfig,
-	MySqlChar,
 	MySqlColumn,
 	MySqlCustomColumn,
-	MySqlDateTime,
 	MySqlDialect,
 	MySqlEnumColumn,
 	MySqlTable,
-	MySqlText,
-	MySqlTimestamp,
-	MySqlVarChar,
 	MySqlView,
 } from 'drizzle-orm/mysql-core';
+import { MySqlDateBaseColumn } from 'drizzle-orm/mysql-core/columns/date.common';
+import { MySqlStringBaseColumn } from 'drizzle-orm/mysql-core/columns/string.common';
 import { loadModule } from '../../utils/utils-node';
 import { findViewDependencies, sqlToStr } from '../drizzle';
 import { entityKey } from '../utils';
@@ -127,14 +124,16 @@ export const fromDrizzleSchema = (
 
 			let onUpdateNow: boolean = false;
 			let onUpdateNowFsp: number | null = null;
-			if (is(column, MySqlTimestamp) || is(column, MySqlDateTime)) {
+			// need to check on common date class
+			if (is(column, MySqlDateBaseColumn)) {
 				onUpdateNow = column.hasOnUpdateNow ?? false;
 				onUpdateNowFsp = column.onUpdateNowFsp ?? null;
 			}
 
 			let charSet: string | null = null;
 			let collation: string | null = null;
-			if (is(column, MySqlChar) || is(column, MySqlVarChar) || is(column, MySqlText) || is(column, MySqlEnumColumn)) {
+			// need to check on common string class
+			if (is(column, MySqlStringBaseColumn)) {
 				charSet = column.charSet;
 				collation = column.collation ?? null;
 			}

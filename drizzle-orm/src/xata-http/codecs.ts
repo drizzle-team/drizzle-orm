@@ -2,8 +2,11 @@ import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
+	castToEpochMs,
+	castToJsonText,
 	castToText,
 	castToTextArr,
+	epochMsToDate,
 	makeBoxArray,
 	makeGeometryArray,
 	parseGeometryArrayAndNormalize,
@@ -16,8 +19,8 @@ import {
 	parsePointTuple,
 	parsePointXY,
 	refineGenericPgCodecs,
-	textToDate,
-	textToDateWithTz,
+	textToDateArray,
+	textToDateWithTzArray,
 } from '~/pg-core/codecs.ts';
 
 export const xataHttpCodecs = refineGenericPgCodecs({
@@ -177,9 +180,10 @@ export const xataHttpCodecs = refineGenericPgCodecs({
 	int: { normalizeParamArray: (v) => makePgArray(v) },
 	uuid: { normalizeParamArray: (v) => makePgArray(v) },
 	date: {
-		castArray: castToTextArr,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateArray,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'date:string': {
@@ -187,15 +191,17 @@ export const xataHttpCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	timestamp: {
-		castArray: castToTextArr,
-		normalize: textToDateWithTz,
-		normalizeArray: arrayCompatNormalize(textToDateWithTz),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateWithTzArray,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	timestamptz: {
-		castArray: castToTextArr,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateArray,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'timestamp:string': {

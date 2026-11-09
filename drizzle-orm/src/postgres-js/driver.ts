@@ -24,23 +24,16 @@ function construct<
 ): PostgresJsDatabase<TRelations> & {
 	$client: Sql;
 } {
-	const transparentParser = (val: any) => val;
+	// postgres.js' own date serializer is `new Date(x).toISOString()`: it reads offset-less strings in local time
+	// and drops microseconds - strings pass through as is, the server parses them instead
 	const dateSerializer = (val: any) => (val instanceof Date ? val.toISOString() : val);
-
-	// Override postgres.js default timestamptz, timestamp, date, time parsers: https://github.com/porsager/postgres/discussions/761
-	// `new Date(x)` parse is lossy - not suitable for string-mode columns
-	for (const type of ['1184', '1082', '1083', '1114']) {
-		client.options.parsers[type as any] = transparentParser;
-	}
-
-	// Transparent serializer breaks `Date` instance encoding for the entire driver
 	for (const type of ['1184', '1114', '1082', '1083']) {
 		client.options.serializers[type as any] = dateSerializer;
 	}
 
 	const dialect = new PgDialect({
 		useJitMappers: jitCompatCheck(config.jit),
-		codecs: config.codecs ?? postgresJsCodecs,
+		codecs: config.codecs ?? postgresJsCodecs(client),
 	});
 	let logger;
 	if (config.logger === true) {
@@ -121,9 +114,9 @@ export namespace drizzle {
 	} {
 		return construct({
 			options: {
-				parsers: {},
 				serializers: {},
 			},
+			json: (value: unknown) => value,
 		} as any, config) as any;
 	}
 }

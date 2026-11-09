@@ -1,3 +1,4 @@
+import { createProvider, requireEnv } from '@drizzle/test-utils';
 import {
 	type AnyRelationsBuilderConfig,
 	defineRelations,
@@ -96,12 +97,6 @@ class ServerSimulator {
 					sql,
 					values: params,
 					rowsAsArray: true,
-					typeCast: function(field: any, next: any) {
-						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-							return field.string();
-						}
-						return next();
-					},
 				});
 
 				return { data: result[0] as any };
@@ -113,12 +108,6 @@ class ServerSimulator {
 				const result = await this.db.query({
 					sql,
 					values: params,
-					typeCast: function(field: any, next: any) {
-						if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-							return field.string();
-						}
-						return next();
-					},
 				});
 
 				return { data: result as any };
@@ -231,40 +220,20 @@ export const prepareProxy = async (uri: string) => {
 	return { client, query, batch };
 };
 
-const providerClosure = async <T>(items: T[]) => {
-	return async () => {
-		while (true) {
-			const c = items.shift();
-			if (!c) {
-				await new Promise((resolve) => setTimeout(resolve, 50));
-				continue;
-			}
-			return {
-				...c,
-				release: () => {
-					items.push(c);
-				},
-			};
-		}
-	};
-};
-
 export const providerForSingleStore = async () => {
-	const url = process.env['SINGLESTORE_MANY_CONNECTION_STRING'];
-	if (url === undefined) throw new Error('SINGLESTORE_MANY_CONNECTION_STRING is not set.');
+	const url = requireEnv('SINGLESTORE_MANY_CONNECTION_STRING');
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(uris.map(async (urlI) => await prepareSingleStoreClient(urlI)));
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 export const provideForProxy = async () => {
-	const url = process.env['SINGLESTORE_MANY_CONNECTION_STRING'];
-	if (url === undefined) throw new Error('SINGLESTORE_MANY_CONNECTION_STRING is not set.');
+	const url = requireEnv('SINGLESTORE_MANY_CONNECTION_STRING');
 	const uris = url.split(';').filter((val) => val !== '');
 	const clients = await Promise.all(uris.map(async (urlI) => await prepareSingleStoreClient(urlI)));
 
-	return providerClosure(clients);
+	return createProvider(clients);
 };
 
 type ProviderSingleStore = Awaited<ReturnType<typeof providerForSingleStore>>;

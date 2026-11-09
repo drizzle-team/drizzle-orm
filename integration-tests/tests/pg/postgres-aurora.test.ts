@@ -1,7 +1,8 @@
-import { createPool as createAuroraClient } from '@drizzle-team/minipg/aurora';
-import { and, defineRelations, eq, getColumns, inArray, not, sql } from 'drizzle-orm';
+import { createPool as createAuroraClient } from '@drizzle-team/postgres/aurora';
+import { and, defineRelations, eq, getColumns, inArray, not, type RelationsBuilder, sql } from 'drizzle-orm';
 import {
 	boolean,
+	customType,
 	foreignKey,
 	getTableConfig,
 	index,
@@ -15,11 +16,12 @@ import {
 	serial,
 	snakeCase,
 	text,
+	time,
 	timestamp,
 	uniqueIndex,
 	uuid,
 } from 'drizzle-orm/pg-core';
-import { drizzle as drizzleAurora, minipgAuroraCodecs, type PostgresAuroraDatabase } from 'drizzle-orm/postgres/aurora';
+import { drizzle as drizzleAurora, type PostgresAuroraDatabase } from 'drizzle-orm/postgres/aurora';
 import { migrate } from 'drizzle-orm/postgres/aurora/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect, expectTypeOf } from 'vitest';
@@ -30,7 +32,11 @@ import {
 	allTypesRelations,
 	allTypesTable,
 	assertAllTypesBounds,
+	assertAllTypesEmptyArrays,
+	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
+	boundsRelations,
+	boundsSchema,
 	makeAllTypes,
 } from './all-types';
 import { tests } from './common';
@@ -54,6 +60,8 @@ const skips = [
 	'issue #4169',
 	// Default client has no codecs, uses shapes instead
 	'all types ~codecs~',
+	// Data API's JDBC driver rejects `DateStyle`s that don't begin with ISO, so it never reads non-ISO text
+	'all types ~codecs~ - non-ISO DateStyle session',
 ];
 
 const stringTemporalDb = (database: string) =>
@@ -457,7 +465,7 @@ describe('postgres/aurora', () => {
 			expect(recordsQuery).toStrictEqual({
 				params: ['CANCELED', 'CLOSED'],
 				sql:
-					'select "d0"."id" as "id", "d0"."created_on" as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in (:p1, :p2)))))) as "activeJobs" from "candidates" as "d0"',
+					'select "d0"."id" as "id", "d0"."created_on"::text as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in (:p1, :p2)))))) as "activeJobs" from "candidates" as "d0"',
 			});
 		});
 	});
@@ -1023,12 +1031,6 @@ describe('postgres/aurora', () => {
 		test('test mode string for timestamp with timezone in different timezone', async ({ kit }) => {
 			const db = stringTemporalDb(kit.database!);
 
-			// get current timezone from db
-			const timezone = await db.execute<{ TimeZone: string }>(sql`show timezone`);
-
-			// set timezone to HST (UTC - 10)
-			await db.execute(sql`set time zone '-10'`);
-
 			const table = pgTable('all_columns', {
 				id: serial('id').primaryKey(),
 				timestamp: timestamp('timestamp_string', { mode: 'string', withTimezone: true, precision: 6 }).notNull(),
@@ -1043,36 +1045,64 @@ describe('postgres/aurora', () => {
 				)
 		`);
 
-			const timestampString = '2022-01-01 00:00:00.123456-1000';
+			// Data API doesn't keep session settings between calls outside of transactions
+			await db.transaction(async (tx) => {
+				// set timezone to HST (UTC - 10)
+				await tx.execute(sql`set local time zone '-10'`);
 
-			// 1. Insert date in string format with timezone in it
-			await db.insert(table).values([
-				{ timestamp: timestampString },
-			]);
+				const timestampString = '2022-01-01 00:00:00.123456-1000';
 
-			// 2. Select date in string format and check that the values are the same
-			const result = await db.select().from(table);
+				// 1. Insert date in string format with timezone in it
+				await tx.insert(table).values([
+					{ timestamp: timestampString },
+				]);
 
-			// 2.1 Data API sends timestamptz in UTC regardless of session timezone
-			expect(result).toEqual([{ id: 1, timestamp: '2022-01-01 10:00:00.123456+00' }]);
+				// 2. Select date in string format and check that the values are the same
+				const result = await tx.select().from(table);
 
-			// 3. Select as raw query and checke that values are the same
-			const result2 = await db.execute<{
-				id: number;
-				timestamp_string: string;
-			}>(sql`select * from ${table}`);
+				expect(result).toEqual([{ id: 1, timestamp: '2022-01-01 00:00:00.123456-10' }]);
 
-			// 3.1 Data API sends timestamptz in UTC regardless of session timezone
-			expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 10:00:00.123456+00' }]);
+				// 3. Select as raw query and checke that values are the same
+				const result2 = await tx.execute<{
+					id: number;
+					timestamp_string: string;
+				}>(sql`select * from ${table}`);
 
-			await db.execute(sql`set time zone '${sql.raw(timezone.rows[0]!.TimeZone)}'`);
+				// 3.1 Data API sends timestamptz in UTC without an offset, raw queries have no text cast to preserve it
+				expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 10:00:00.123456+00' }]);
+			});
 
 			await db.execute(sql`drop table if exists ${table}`);
 		});
 
+		test('timetz keeps offset', async ({ createDB, push }) => {
+			const times = pgTable('times', {
+				id: integer('id').primaryKey(),
+				time: time('time', { withTimezone: true }).notNull(),
+				arr: time('arr', { withTimezone: true }).array().notNull(),
+				mtx: time('mtx', { withTimezone: true }).array('[][]').notNull(),
+			});
+
+			await push({ times });
+			const shaped = createDB({ times });
+
+			const value = {
+				id: 1,
+				time: '12:00:00.5-02',
+				arr: ['12:00:00.5-02', '23:59:59+05:30'],
+				mtx: [['12:00:00.5-02'], ['23:59:59+05:30']],
+			};
+			await shaped.insert(times).values(value);
+
+			expect(await shaped.select().from(times)).toStrictEqual([value]);
+		});
+
 		// Can't test shapes via generic codecs test
 		test('all types ~shapes~', async ({ createDB, push }) => {
-			const db = createDB({ allTypesTable }, allTypesRelations);
+			const db = createDB({ allTypesTable, ...boundsSchema }, (r) => ({
+				...allTypesRelations(r),
+				...boundsRelations(r),
+			}));
 			await push({ en: allTypesEnum, allTypesTable });
 			await db.insert(allTypesTable).values(allTypesData);
 
@@ -1083,28 +1113,10 @@ describe('postgres/aurora', () => {
 			expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 			await assertAllTypesUnions(db);
-			await assertAllTypesBounds(db);
-		});
+			await assertAllTypesBounds(db, { rqb: true });
+			await assertAllTypesTemporalBounds(db, { rqb: true });
 
-		// Validates functionality of base codecs provided to be overriden
-		// this disables driver shape generator and falls back to mappers
-		test('all types ~codecs~ override', async ({ createDB, push }) => {
-			const { en, allTypesTable } = makeAllTypes('all_types_48_cdcs_ovr', 'en_49_ovr');
-			const base = createDB({ allTypesTable }, allTypesRelations);
-			await push({ en, allTypesTable });
-
-			const relations = defineRelations({ allTypesTable }, allTypesRelations);
-			const db = drizzleAurora({ client: (base as any).$client, relations, codecs: minipgAuroraCodecs });
-			await db.insert(allTypesTable).values(allTypesData);
-
-			const [flat] = await db.select().from(allTypesTable);
-			expect(flat).toStrictEqual(allTypesData);
-
-			const nested = await db.query.allTypesTable.findFirst({ with: { self: true } });
-			expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
-
-			await assertAllTypesUnions(db, allTypesTable);
-			await assertAllTypesBounds(db);
+			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
 		});
 	});
 

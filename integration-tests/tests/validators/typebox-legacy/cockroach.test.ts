@@ -397,6 +397,15 @@ test('refine view - select', (tc) => {
 });
 
 test('all data types', (tc) => {
+	enum Letters {
+		A = 'a',
+		B = 'b',
+		C = 'c',
+	}
+	const enumObject = cockroachEnum('test_object', Letters);
+
+	const enum_ = cockroachEnum('test', ['a', 'b', 'c']);
+
 	const table = cockroachTable('test', ({
 		bigint,
 		bit,
@@ -423,6 +432,7 @@ test('all data types', (tc) => {
 		uuid,
 		varchar,
 		vector,
+		varbit,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -462,6 +472,9 @@ test('all data types', (tc) => {
 		varchar1: varchar({ length: 10 }).notNull(),
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		vector: vector({ dimensions: 3 }).notNull(),
+		varbit: varbit({ length: 5 }).notNull(),
+		enum: enum_().notNull(),
+		enumObject: enumObject().notNull(),
 		array: int4().array().notNull(),
 	}));
 
@@ -505,6 +518,9 @@ test('all data types', (tc) => {
 		varchar1: t.String({ maxLength: 10 }),
 		varchar2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		vector: t.Array(t.Number(), { minItems: 3, maxItems: 3 }),
+		varbit: t.RegExp(/^[01]*$/, { maxLength: 5 }),
+		enum: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		enumObject: t.Enum({ a: Letters.A, b: Letters.B, c: Letters.C }),
 		array: t.Array(int4Schema),
 	});
 

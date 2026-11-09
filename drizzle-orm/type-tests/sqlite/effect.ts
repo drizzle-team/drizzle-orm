@@ -412,13 +412,13 @@ declare const db: EffectSQLiteNodeDatabase<Record<string, never>>;
 	const d1 = ({} as EffectSQLiteD1Database).run(`insert into t values (1)`);
 	Expect<Equal<AsEffect<typeof d1>, Run<D1Result>>>;
 
-	// Statements without returned rows respond with an empty array
+	// Respond with returned rows, empty array for statements without any
 	const bun = ({} as EffectSQLiteBunDatabase).run(`insert into t values (1)`);
-	Expect<Equal<AsEffect<typeof bun>, Run<[]>>>;
+	Expect<Equal<AsEffect<typeof bun>, Run<readonly Record<string, unknown>[]>>>;
 
 	const durable = ({} as EffectSQLiteDoDatabase).run(`insert into t values (1)`);
-	Expect<Equal<AsEffect<typeof durable>, Run<[]>>>;
+	Expect<Equal<AsEffect<typeof durable>, Run<readonly Record<string, unknown>[]>>>;
 
 	const wasm = ({} as EffectSQLiteWasmDatabase).run(`insert into t values (1)`);
-	Expect<Equal<AsEffect<typeof wasm>, Run<[]>>>;
+	Expect<Equal<AsEffect<typeof wasm>, Run<readonly Record<string, unknown>[]>>>;
 }

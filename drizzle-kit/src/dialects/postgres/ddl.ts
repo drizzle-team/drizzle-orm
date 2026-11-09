@@ -17,7 +17,11 @@ export const privilegeTypes = [
 export const createDDL = () => {
 	return create({
 		schemas: { name: 'string' },
-		tables: { schema: 'string', name: 'string', isRlsEnabled: 'boolean' },
+		tables: {
+			schema: 'string',
+			name: 'string',
+			isRlsEnabled: 'boolean',
+		},
 		enums: {
 			schema: 'string',
 			name: 'string',
@@ -327,6 +331,19 @@ export interface InterimSchema {
 	views: View[];
 	viewColumns: ViewColumn[];
 }
+
+export type TableWithPartition = PostgresEntities['tables'] & {
+	partitionBy: string | null;
+	partitionsCount: number;
+};
+
+export type TablePartition = {
+	schema: string;
+	name: string;
+	bound: string;
+	partitionBy: string | null;
+	partitionsCount: number;
+};
 
 export function postgresToRelationsPull(schema: PostgresDDL): SchemaForPull {
 	return Object.values(schema.tables.list()).map((table) => {

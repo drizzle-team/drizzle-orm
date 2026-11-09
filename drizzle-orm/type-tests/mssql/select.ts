@@ -431,8 +431,8 @@ await db.select().from(users);
 			{
 				id: number;
 				class: 'A' | 'C';
-				cityCount: number;
-				lastCityId: number;
+				cityCount: number | null;
+				lastCityId: number | null;
 			}[],
 			typeof result
 		>
@@ -446,7 +446,7 @@ await db.select().from(users);
 	Expect<
 		Equal<
 			{
-				cityCount: number;
+				cityCount: number | null;
 			}[],
 			typeof result
 		>

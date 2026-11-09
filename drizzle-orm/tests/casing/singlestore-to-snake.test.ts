@@ -458,7 +458,7 @@ describe('singlestore to snake case', () => {
 			.orderBy(order);
 
 		expect(query.toSQL().sql).toBe(
-			'select `first_name` from ((select `first_name` from `users`) union (select `first_name` from `users`) order by `first_name` desc) `drizzle_union`',
+			'select `first_name` from ((select `first_name` from `users`) union (select `first_name` from `users`)) `drizzle_union` order by `first_name` desc',
 		);
 		// Same SQL objects keep their qualifiers in other queries
 		expect(db.select({ firstName: users.firstName }).from(users).orderBy(order).toSQL().sql).toBe(
@@ -666,7 +666,7 @@ describe('singlestore to snake case', () => {
 				.limit(3);
 
 			expect(query.toSQL().sql).toEqual(
-				'select cast(`cast_value` as char) from ((select `cast_value` from `casts`) union all (select `cast_value` from `casts`) order by 1 limit ?) `drizzle_union`',
+				'select cast(`cast_value` as char) from ((select `cast_value` from `casts`) union all (select `cast_value` from `casts`)) `drizzle_union` order by 1 limit ?',
 			);
 			expect(query.toSQL().sql).not.toContain('order by 1  ');
 		});

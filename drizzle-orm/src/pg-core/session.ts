@@ -27,18 +27,19 @@ export abstract class PgBasePreparedQuery implements PreparedQuery {
 
 export type PgTransactionConfig =
 	| {
+		/** `snapshot` cannot be used with `isolationLevel: 'read uncommitted' | 'read committed'` */
 		isolationLevel?: 'read uncommitted' | 'read committed' | 'repeatable read' | 'serializable' | undefined;
 		accessMode?: 'read only' | 'read write' | undefined;
 		deferrable?: boolean | undefined;
-		/** `snapshot` cannot be used with `isolationLevel: 'read uncommitted' | 'read committed'`  */
 		snapshot?: undefined;
 	}
 	| {
-		/** `snapshot` cannot be used with `isolationLevel: 'read uncommitted' | 'read committed'`  */
-		isolationLevel?: 'repeatable read' | 'serializable' | undefined;
+		/** `snapshot` needs `isolationLevel: 'repeatable read' | 'serializable'`: the server default, `read committed`, can't import one */
+		isolationLevel: 'repeatable read' | 'serializable';
 		accessMode?: 'read only' | 'read write' | undefined;
 		deferrable?: boolean | undefined;
-		snapshot?: string | undefined;
+		/** Run the transaction on a snapshot exported by another transaction (`pg_export_snapshot()`) */
+		snapshot: string;
 	};
 
 export abstract class PgSession {

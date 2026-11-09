@@ -520,7 +520,7 @@ export const boundsData: BoundsRow[] = [
 
 export async function assertAllTypesBounds(
 	db: MsSqlDatabase<any, any, any>,
-	run: RunQuery = awaitQuery,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
 ) {
 	await run(db.execute(sql.raw(dropBounds())));
 	await run(db.execute(sql.raw(createBounds())));
@@ -532,7 +532,203 @@ export async function assertAllTypesBounds(
 		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<BoundsRow[]>();
 
 		expect(await run(query)).toStrictEqual(boundsData);
+		if (rqb) {
+			expect(
+				await run((<any> db).query.boundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
+			).toStrictEqual(boundsData.map((row) => ({ ...row, self: [row] })));
+		}
 	} finally {
 		await run(db.execute(sql.raw(dropBounds())));
 	}
 }
+
+const TEMPORAL_TABLE = 'all_types_temporal_bounds';
+
+export const temporalBoundsTable = mssqlTable(TEMPORAL_TABLE, {
+	id: int('id').primaryKey(),
+	date: date('date', { mode: 'date' }),
+	dateStr: date('date_str', { mode: 'string' }),
+	datetime: datetime('datetime', { mode: 'date' }),
+	datetime2: datetime2('datetime2', { mode: 'date', precision: 3 }),
+	datetime2Str: datetime2('datetime2_str', { mode: 'string', precision: 3 }),
+	datetimeoffset: datetimeoffset('datetimeoffset', { mode: 'date', precision: 3 }),
+	timeStr: time('time_str', { mode: 'string', precision: 3 }),
+});
+
+export type TemporalBoundsRow = {
+	id: number;
+	date: Date | null;
+	dateStr: string | null;
+	datetime: Date | null;
+	datetime2: Date | null;
+	datetime2Str: string | null;
+	datetimeoffset: Date | null;
+	timeStr: string | null;
+};
+
+export const createTemporalBounds = (tableName: string = TEMPORAL_TABLE) =>
+	`create table [${tableName}] (
+		[id] int primary key,
+		[date] date,
+		[date_str] date,
+		[datetime] datetime,
+		[datetime2] datetime2(3),
+		[datetime2_str] datetime2(3),
+		[datetimeoffset] datetimeoffset(3),
+		[time_str] time(3)
+	)`;
+
+export const dropTemporalBounds = (tableName: string = TEMPORAL_TABLE) => `drop table if exists [${tableName}]`;
+
+/*
+	`date`, `datetime2` and `datetimeoffset` - years 1 - 9999
+	`datetime` - 1753-01-01 - 9999-12-31 23:59:59.997, rounds milliseconds to .000 / .003 / .007
+*/
+export const temporalBoundsData: TemporalBoundsRow[] = [
+	{
+		id: 1,
+		date: new Date('1970-01-01T00:00:00.000Z'),
+		dateStr: '1970-01-01',
+		datetime: new Date('1970-01-01T00:00:00.000Z'),
+		datetime2: new Date('1970-01-01T00:00:00.000Z'),
+		datetime2Str: '1970-01-01T00:00:00.000Z',
+		datetimeoffset: new Date('1970-01-01T00:00:00.000Z'),
+		timeStr: '00:00:00.000',
+	},
+	{
+		id: 2,
+		date: new Date('1969-12-31T00:00:00.000Z'),
+		dateStr: '1969-12-31',
+		datetime: new Date('1969-12-31T23:59:59.997Z'),
+		datetime2: new Date('1969-12-31T23:59:59.999Z'),
+		datetime2Str: '1969-12-31T23:59:59.999Z',
+		datetimeoffset: new Date('1969-12-31T23:59:59.999Z'),
+		timeStr: '23:59:59.999',
+	},
+	{
+		id: 3,
+		date: new Date('2024-02-29T00:00:00.000Z'),
+		dateStr: '2024-02-29',
+		datetime: new Date('2024-02-29T12:34:56.783Z'),
+		datetime2: new Date('2024-02-29T12:34:56.789Z'),
+		datetime2Str: '2024-02-29T12:34:56.789Z',
+		datetimeoffset: new Date('2024-02-29T12:34:56.789Z'),
+		timeStr: '12:34:56.789',
+	},
+	{
+		id: 4,
+		date: new Date('0001-01-01T00:00:00.000Z'),
+		dateStr: '0001-01-01',
+		datetime: new Date('1753-01-01T00:00:00.000Z'),
+		datetime2: new Date('0001-01-01T00:00:00.000Z'),
+		datetime2Str: '0001-01-01T00:00:00.000Z',
+		datetimeoffset: new Date('0001-01-01T00:00:00.000Z'),
+		timeStr: null,
+	},
+	{
+		id: 5,
+		date: new Date('0099-12-31T00:00:00.000Z'),
+		dateStr: '0099-12-31',
+		datetime: null,
+		datetime2: new Date('0099-12-31T23:59:59.999Z'),
+		datetime2Str: '0099-12-31T23:59:59.999Z',
+		datetimeoffset: new Date('0099-12-31T23:59:59.999Z'),
+		timeStr: null,
+	},
+	{
+		id: 6,
+		date: new Date('9999-12-31T00:00:00.000Z'),
+		dateStr: '9999-12-31',
+		datetime: new Date('9999-12-31T23:59:59.997Z'),
+		datetime2: new Date('9999-12-31T23:59:59.999Z'),
+		datetime2Str: '9999-12-31T23:59:59.999Z',
+		datetimeoffset: new Date('9999-12-31T23:59:59.999Z'),
+		timeStr: null,
+	},
+	{
+		id: 7,
+		date: null,
+		dateStr: null,
+		datetime: null,
+		datetime2: null,
+		datetime2Str: null,
+		datetimeoffset: null,
+		timeStr: null,
+	},
+];
+
+export async function assertAllTypesTemporalBounds(
+	db: MsSqlDatabase<any, any, any>,
+	{ run = awaitQuery, rqb = false }: { run?: RunQuery; rqb?: boolean } = {},
+) {
+	await run(db.execute(sql.raw(dropTemporalBounds())));
+	await run(db.execute(sql.raw(createTemporalBounds())));
+
+	try {
+		await run(db.insert(temporalBoundsTable).values(temporalBoundsData));
+
+		const query = db.select().from(temporalBoundsTable).orderBy(temporalBoundsTable.id);
+		expectTypeOf<(typeof query)['_']['result']>().toEqualTypeOf<TemporalBoundsRow[]>();
+
+		expect(await run(query)).toStrictEqual(temporalBoundsData);
+		if (rqb) {
+			expect(
+				await run((<any> db).query.temporalBoundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } })),
+			).toStrictEqual(temporalBoundsData.map((row) => ({ ...row, self: [row] })));
+		}
+	} finally {
+		await run(db.execute(sql.raw(dropTemporalBounds())));
+	}
+}
+
+/** https://github.com/drizzle-team/drizzle-orm/issues/6496 */
+export const sessionDateFormats = [
+	'set dateformat dmy',
+	'set dateformat ydm',
+	'set language british',
+	'set language german',
+];
+
+export async function assertAllTypesTemporalBoundsInSessionDateFormats(
+	db: MsSqlDatabase<any, any, any>,
+	{ rqb = false }: { rqb?: boolean } = {},
+) {
+	await db.execute(sql.raw(dropTemporalBounds()));
+	await db.execute(sql.raw(createTemporalBounds()));
+
+	try {
+		for (const setting of sessionDateFormats) {
+			await db.transaction(async (tx) => {
+				await tx.execute(sql.raw(setting));
+				try {
+					await tx.delete(temporalBoundsTable);
+					await tx.insert(temporalBoundsTable).values(temporalBoundsData);
+
+					expect(await tx.select().from(temporalBoundsTable).orderBy(temporalBoundsTable.id), setting)
+						.toStrictEqual(temporalBoundsData);
+					if (rqb) {
+						expect(
+							await (<any> tx).query.temporalBoundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } }),
+							setting,
+						).toStrictEqual(temporalBoundsData.map((row) => ({ ...row, self: [row] })));
+					}
+				} finally {
+					await tx.execute(sql.raw('set language us_english'));
+				}
+			});
+		}
+	} finally {
+		await db.execute(sql.raw(dropTemporalBounds()));
+	}
+}
+
+export const boundsSchema = { boundsTable, temporalBoundsTable };
+
+export const boundsRelations = (r: RelationsBuilder<typeof boundsSchema>) => ({
+	boundsTable: {
+		self: r.many.boundsTable({ from: r.boundsTable.id, to: r.boundsTable.id }),
+	},
+	temporalBoundsTable: {
+		self: r.many.temporalBoundsTable({ from: r.temporalBoundsTable.id, to: r.temporalBoundsTable.id }),
+	},
+});

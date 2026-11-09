@@ -1,7 +1,7 @@
 import { type Type, type } from 'arktype';
 import { type Equal, sql } from 'drizzle-orm';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-orm/arktype';
-import { bigintNarrow, bigintStringModeSchema, jsonSchema } from 'drizzle-orm/arktype/column';
+import { bigintNarrow, bigintStringModeSchema, bufferSchema, jsonSchema } from 'drizzle-orm/arktype/column';
 import {
 	customType,
 	integer,
@@ -385,6 +385,15 @@ test('refine view - select', (t) => {
 });
 
 test('all data types', (t) => {
+	enum Letters {
+		A = 'a',
+		B = 'b',
+		C = 'c',
+	}
+	const enumObject = pgEnum('test_object', Letters);
+
+	const enum_ = pgEnum('test', ['a', 'b', 'c']);
+
 	const table = pgTable('test', ({
 		bigint,
 		bigserial,
@@ -417,6 +426,8 @@ test('all data types', (t) => {
 		uuid,
 		varchar,
 		vector,
+		bytea,
+		decimal,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -462,6 +473,10 @@ test('all data types', (t) => {
 		varchar1: varchar({ length: 10 }).notNull(),
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		vector: vector({ dimensions: 3 }).notNull(),
+		bytea: bytea().notNull(),
+		decimal: decimal({ mode: 'string' }).notNull(),
+		enum: enum_().notNull(),
+		enumObject: enumObject().notNull(),
 		array1: integer().array().notNull(),
 		array2: integer().array('[][]').notNull(),
 		array3: varchar({ length: 10 }).array('[][]').notNull(),
@@ -513,6 +528,10 @@ test('all data types', (t) => {
 		varchar1: type.string.atMostLength(10),
 		varchar2: type.enumerated('a', 'b', 'c'),
 		vector: type.number.array().exactlyLength(3),
+		bytea: bufferSchema,
+		decimal: type.string,
+		enum: type.enumerated('a', 'b', 'c'),
+		enumObject: type.enumerated(Letters.A, Letters.B, Letters.C),
 		array1: integerSchema.array(),
 		array2: integerSchema.array().array(),
 		array3: type.string.atMostLength(10).array().array(),

@@ -2232,3 +2232,19 @@ test('Issue No6061', async () => {
 		'ALTER TABLE `line_items` ADD `amount` real GENERATED ALWAYS AS (CAST(amount_cents AS REAL) / 100.0) VIRTUAL;',
 	]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6557
+test('Issue 6557. Index altering', async () => {
+	const from = { t: sqliteTable('t', { a: integer() }, (t) => [uniqueIndex('t_a_idx').on(t.a)]) };
+
+	await push({ db, to: from });
+
+	const to = { t: sqliteTable('t', { a: integer() }, (t) => [index('t_a_idx').on(t.a)]) };
+
+	const { sqlStatements: st1 } = await diff(from, to, []);
+	const { sqlStatements: pst1 } = await push({ db, to: to }); // subsequent push inside
+
+	const st0 = [`DROP INDEX \`t_a_idx\`;`, 'CREATE INDEX `t_a_idx` ON `t` (`a`);'];
+	expect(pst1).toStrictEqual(st0);
+	expect(st1).toStrictEqual(st0);
+});

@@ -3,8 +3,11 @@ import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
 	byteaFromPgHex,
+	castToEpochMs,
+	castToJsonText,
 	castToText,
 	castToTextArr,
+	epochMsToDate,
 	makeBoxArray,
 	makeGeometryArray,
 	parseGeometryArrayAndNormalize,
@@ -17,8 +20,8 @@ import {
 	parsePointTuple,
 	parsePointXY,
 	refineGenericPgCodecs,
-	textToDate,
-	textToDateWithTz,
+	textToDateArray,
+	textToDateWithTzArray,
 } from '~/pg-core/codecs.ts';
 
 const byteaFromBlob = (v: Uint8Array | Buffer): Buffer => Buffer.from(v);
@@ -354,12 +357,18 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		castArrayParam: (name, _column, dim) => `${name}::text${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
+	// Data API cuts fractional seconds of `time` to milliseconds, text keeps them
 	time: {
+		cast: castToText,
+		castArray: castToTextArr,
 		castParam: (name) => `${name}::time`,
 		castArrayParam: (name, _column, dim) => `${name}::time${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
+	// Data API converts values with time zones to UTC dropping the offset, text keeps it
 	timetz: {
+		cast: castToText,
+		castArray: castToTextArr,
 		castParam: (name) => `${name}::timetz`,
 		castArrayParam: (name, _column, dim) => `${name}::timetz${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
@@ -485,11 +494,12 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	date: {
-		castArray: castToTextArr,
+		cast: castToEpochMs,
+		castArray: castToJsonText,
 		castParam: (name) => `${name}::date`,
 		castArrayParam: (name, _column, dim) => `${name}::date${'[]'.repeat(dim)}`,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		normalize: epochMsToDate,
+		normalizeArray: textToDateArray,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'date:string': {
@@ -508,25 +518,28 @@ export const awsDataApiPgCodecs = refineGenericPgCodecs({
 		castArrayParam: (name, _column, dim) => `${name}::integer${'[]'.repeat(dim)}`,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
+	// Data API drops the `BC` suffix of `timestamp`s with fractional seconds, text keeps it
 	timestamp: {
-		castArray: castToTextArr,
+		cast: castToEpochMs,
+		castArray: castToJsonText,
 		castParam: (name) => `${name}::timestamp`,
 		castArrayParam: (name, _column, dim) => `${name}::timestamp${'[]'.repeat(dim)}`,
-		normalize: textToDateWithTz,
-		normalizeArray: arrayCompatNormalize(textToDateWithTz),
+		normalize: epochMsToDate,
+		normalizeArray: textToDateWithTzArray,
 		normalizeParam: (value) => value.replace('T', ' ').replace('Z', ''),
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	timestamptz: {
-		cast: castToText,
-		castArray: castToTextArr,
+		cast: castToEpochMs,
+		castArray: castToJsonText,
 		castParam: (name) => `${name}::timestamptz`,
 		castArrayParam: (name, _column, dim) => `${name}::timestamptz${'[]'.repeat(dim)}`,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		normalize: epochMsToDate,
+		normalizeArray: textToDateArray,
 		normalizeParamArray: (v) => makePgArray(v),
 	},
 	'timestamp:string': {
+		cast: castToText,
 		castArray: castToTextArr,
 		castParam: (name) => `${name}::timestamp`,
 		castArrayParam: (name, _column, dim) => `${name}::timestamp${'[]'.repeat(dim)}`,

@@ -1018,6 +1018,45 @@ test('fks with same names but in diff databases', async () => {
 	}]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/6447
+test('checks with same names but in diff databases', async () => {
+	await db.query('DROP DATABASE if exists `check_test`;');
+	await db.query('DROP DATABASE if exists `check_test_2`;');
+	await db.query('CREATE DATABASE `check_test`;');
+	await db.query('CREATE DATABASE `check_test_2`;');
+
+	// unnamed checks get <table>_chk_<n> names, so both are menu_chk_1
+	await db.query(`USE check_test;`);
+	await db.query(`
+		CREATE TABLE menu (
+			id INT PRIMARY KEY,
+			price INT,
+			CHECK (price > 0)
+		);
+	`);
+
+	await db.query(`USE check_test_2;`);
+	await db.query(`
+		CREATE TABLE menu (
+			id INT PRIMARY KEY,
+			price INT,
+			CHECK (price > 100)
+		);
+	`);
+
+	const { checks } = await fromDatabaseForDrizzle(db, 'check_test', () => true, () => {}, {
+		table: '__drizzle_migrations',
+		schema: 'drizzle',
+	});
+
+	expect(checks).toStrictEqual([{
+		entityType: 'checks',
+		table: 'menu',
+		name: 'menu_chk_1',
+		value: '(`price` > 0)',
+	}]);
+});
+
 test('introspect cyclic foreign key', async () => {
 	const inviteCode = mysqlTable('InviteCode', {
 		id: int().primaryKey(),
@@ -1374,4 +1413,29 @@ test('introspect default expression of a fractional seconds column with a backsl
 	// and `diffIntrospect` keeps the pulled file when the diff has statements.
 	await expect(diffIntrospect(db, {}, 'fractional-seconds-defaults-with-template-unsafe-text')).resolves.toBeDefined();
 	fs.rmSync('tests/mysql/tmp/fractional-seconds-defaults-with-template-unsafe-text.ts', { force: true });
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6493
+// in this test there is no way to us for now to be sure about varchar 100%
+// (concat(((0 <> 'a') or (0 <> '')))) returns as concat(((0 <> 'a') or (0 <> '')))
+// there is no (), or ''
+// 'value' -> value
+// TODO return to this
+test('Issue 6493', async () => {
+	await db.query(`CREATE TABLE t (
+  \`year\` year DEFAULT (year(curdate())),
+  -- \`time\` time DEFAULT (curtime()),
+  \`datetime\` datetime DEFAULT (utc_timestamp()),
+  \`timestamp\` timestamp DEFAULT (utc_timestamp())
+  -- \`varchar\` varchar(36) DEFAULT (uuid())
+);`);
+
+	const { pushSqlStatements, generateSqlStatements } = await diffIntrospect(
+		db,
+		{},
+		'issue-6493-expressions',
+	);
+
+	expect(pushSqlStatements).toStrictEqual([]);
+	expect(generateSqlStatements).toStrictEqual([]);
 });

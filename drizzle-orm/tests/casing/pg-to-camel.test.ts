@@ -939,8 +939,10 @@ describe('postgres to camel case', () => {
 	});
 
 	describe('selection casts', () => {
-		const castCodecs = { ...postgresJsCodecs, int: { ...postgresJsCodecs.int, cast: castToText } };
-		const castDb = drizzle({ client: postgres(''), codecs: castCodecs });
+		const castClient = postgres('');
+		const defaultCodecs = postgresJsCodecs(castClient);
+		const castCodecs = { ...defaultCodecs, int: { ...defaultCodecs.int, cast: castToText } };
+		const castDb = drizzle({ client: castClient, codecs: castCodecs });
 		const casts = camelCase.table('casts', { cast_value: integer() });
 		const castTargets = camelCase.table('cast_targets', { target_id: text() });
 		const castSubquery = () => castDb.select({ cast_value: casts.cast_value }).from(casts).as('sq');
@@ -1022,15 +1024,17 @@ describe('postgres to camel case', () => {
 	});
 
 	describe('param casts', () => {
+		const paramClient = postgres('');
+		const defaultCodecs = postgresJsCodecs(paramClient);
 		const paramCodecs = {
-			...postgresJsCodecs,
+			...defaultCodecs,
 			int: {
-				...postgresJsCodecs.int,
+				...defaultCodecs.int,
 				castParam: (name: string) => `${name}::integer`,
 				normalizeParam: (value: number) => value * 10,
 			},
 		};
-		const paramDb = drizzle({ client: postgres(''), codecs: paramCodecs });
+		const paramDb = drizzle({ client: paramClient, codecs: paramCodecs });
 		const paramValues = camelCase.table('params', { param_value: integer() });
 
 		it('Param codecs are applied to bound params', ({ expect }) => {

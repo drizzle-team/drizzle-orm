@@ -1,4 +1,5 @@
 import { integer, pgEnum, pgSchema, pgTable, serial, text, uuid, varchar } from 'drizzle-orm/pg-core';
+import { needToPostpone } from 'tests/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import type { TestDatabase } from './mocks';
 import { diff, drizzleToDDL, prepareTestDatabase, push } from './mocks';
@@ -2537,7 +2538,7 @@ test('drop enum', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4982
 // enhancement
-test.skipIf(Date.now() < +new Date('2026-11-24'))(
+test.skipIf(needToPostpone)(
 	'alter enum values; enum value is column default; table with data',
 	async () => {
 		enum AppStatus1 {

@@ -229,7 +229,12 @@ describe('reconstruct', () => {
 		const state = () => [
 			{ entityType: 'schemas' as const, name: 'public' },
 			...[...tables].flatMap(([table, columns]) => [
-				{ entityType: 'tables' as const, schema: 'public', name: table, isRlsEnabled: false },
+				{
+					entityType: 'tables' as const,
+					schema: 'public',
+					name: table,
+					isRlsEnabled: false,
+				},
 				...columns.map((it) => columnRow(table, it.name, 'integer', it.notNull)),
 			]),
 		];

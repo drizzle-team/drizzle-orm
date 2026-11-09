@@ -640,7 +640,7 @@ export class CockroachDialect {
 			? sql` limit ${limit}`
 			: undefined;
 
-		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+		const offsetSql = offset === undefined ? undefined : sql` offset ${offset}`;
 
 		const lockingClauseSql = sql.empty();
 		if (lockingClause) {
@@ -764,7 +764,7 @@ export class CockroachDialect {
 			? sql` limit ${limit}`
 			: undefined;
 
-		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+		const offsetSql = offset === undefined ? undefined : sql` offset ${offset}`;
 
 		if (orderBySql === undefined && limitSql === undefined && offsetSql === undefined) return undefined;
 
