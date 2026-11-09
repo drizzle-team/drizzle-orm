@@ -33,7 +33,6 @@ import {
 	allTypesTable,
 	assertAllTypesBounds,
 	assertAllTypesEmptyArrays,
-	assertAllTypesNullArrayElements,
 	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
 	boundsRelations,
@@ -63,6 +62,9 @@ const skips = [
 	'all types ~codecs~',
 	// Data API's JDBC driver rejects `DateStyle`s that don't begin with ISO, so it never reads non-ISO text
 	'all types ~codecs~ - non-ISO DateStyle session',
+	// Data API has no representation for `null` array elements
+	'all types ~codecs~ - null array elements',
+	'all types ~codecs~ - custom type null array elements',
 ];
 
 const stringTemporalDb = (database: string) =>
@@ -1115,7 +1117,6 @@ describe('postgres/aurora', () => {
 
 			await assertAllTypesUnions(db);
 			await assertAllTypesBounds(db, { rqb: true });
-			await assertAllTypesNullArrayElements(db, { rqb: true });
 			await assertAllTypesTemporalBounds(db, { rqb: true });
 
 			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
