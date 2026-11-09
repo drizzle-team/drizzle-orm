@@ -47,6 +47,7 @@ import {
 import fs from 'fs';
 import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { prepareEntityFilter } from 'src/dialects/pull-utils';
+import { fetchPartitions } from 'src/ext/studio-postgres';
 import { DB } from 'src/utils';
 import { diffIntrospect, prepareTestDatabase, push, TestDatabase } from 'tests/postgres/mocks';
 import { needToPostpone } from 'tests/utils';
@@ -1662,7 +1663,7 @@ test('introspect partitioned tables with indexes', async () => {
 			entityType: 'tables',
 			isRlsEnabled: false,
 			partitionBy: 'RANGE (logdate)',
-			partitionOf: null,
+			partitionsCount: 0,
 		} satisfies (typeof tables)[number],
 	]);
 	expect(indexes).toStrictEqual([
@@ -1692,14 +1693,20 @@ test('introspect partitioned tables with indexes', async () => {
 	]);
 });
 
-test('introspect partitionBy and partitionOf of tables', async () => {
+// A range partitioned parent with a list partitioned partition, a default partition in another schema and a plain
+// partition, a table with a foreign key to the parent, and a table with a sequence that is attached as a partition.
+const createPartitionedTables = async () => {
 	await db.query(`CREATE SCHEMA "archive";`);
 	await db.query(`
 		CREATE TABLE measurement (
-			city_id int not null,
-			logdate date not null
+			id int not null,
+			logdate date not null,
+			peaktemp int,
+			PRIMARY KEY (id, logdate),
+			CONSTRAINT measurement_peaktemp_check CHECK (peaktemp > 0)
 		) PARTITION BY RANGE (logdate);
 	`);
+	await db.query(`CREATE INDEX measurement_peaktemp_idx ON measurement (peaktemp);`);
 	await db.query(`
 		CREATE TABLE measurement_2024 PARTITION OF measurement
 			FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
@@ -1708,54 +1715,210 @@ test('introspect partitionBy and partitionOf of tables', async () => {
 	await db.query(`
 		CREATE TABLE measurement_2025 PARTITION OF measurement
 			FOR VALUES FROM ('2025-01-01') TO ('2026-01-01')
-			PARTITION BY LIST (city_id);
+			PARTITION BY LIST (id);
 	`);
-	await db.query(`CREATE TABLE measurement_2025_city_1 PARTITION OF measurement_2025 FOR VALUES IN (1);`);
-	await db.query(`CREATE TABLE users (id int);`);
+	await db.query(`CREATE TABLE measurement_2025_1 PARTITION OF measurement_2025 FOR VALUES IN (1);`);
+	await db.query(`
+		CREATE TABLE measurement_2023 (
+			id serial,
+			logdate date not null,
+			peaktemp int,
+			CONSTRAINT measurement_peaktemp_check CHECK (peaktemp > 0)
+		);
+	`);
+	await db.query(`
+		ALTER TABLE measurement ATTACH PARTITION measurement_2023
+			FOR VALUES FROM ('2023-01-01') TO ('2024-01-01');
+	`);
+	await db.query(`
+		CREATE TABLE readings (
+			measurement_id int,
+			measurement_logdate date,
+			CONSTRAINT readings_measurement_fk FOREIGN KEY (measurement_id, measurement_logdate) REFERENCES measurement (id, logdate)
+		);
+	`);
+};
 
-	const { tables } = await fromDatabase(db);
+test('fromDatabase returns partitioned tables with a count of partitions and no partitions', async () => {
+	await createPartitionedTables();
 
-	const table = (
-		schema: string,
-		name: string,
-		partition: Pick<(typeof tables)[number], 'partitionBy' | 'partitionOf'>,
-	) =>
-		({
+	const res = await fromDatabase(db);
+
+	expect(res.tables).toStrictEqual([
+		{
 			entityType: 'tables',
-			schema,
-			name,
+			schema: 'public',
+			name: 'measurement',
 			isRlsEnabled: false,
-			...partition,
-		}) satisfies (typeof tables)[number];
-
-	expect(tables).toStrictEqual([
-		table('archive', 'measurement_rest', {
+			partitionBy: 'RANGE (logdate)',
+			partitionsCount: 4,
+		},
+		{
+			entityType: 'tables',
+			schema: 'public',
+			name: 'readings',
+			isRlsEnabled: false,
 			partitionBy: null,
-			partitionOf: { schema: 'public', table: 'measurement', bound: 'DEFAULT' },
-		}),
-		table('public', 'measurement', { partitionBy: 'RANGE (logdate)', partitionOf: null }),
-		table('public', 'measurement_2024', {
-			partitionBy: null,
-			partitionOf: {
-				schema: 'public',
-				table: 'measurement',
-				bound: "FOR VALUES FROM ('2024-01-01') TO ('2025-01-01')",
-			},
-		}),
-		table('public', 'measurement_2025', {
-			partitionBy: 'LIST (city_id)',
-			partitionOf: {
-				schema: 'public',
-				table: 'measurement',
-				bound: "FOR VALUES FROM ('2025-01-01') TO ('2026-01-01')",
-			},
-		}),
-		table('public', 'measurement_2025_city_1', {
-			partitionBy: null,
-			partitionOf: { schema: 'public', table: 'measurement_2025', bound: 'FOR VALUES IN (1)' },
-		}),
-		table('public', 'users', { partitionBy: null, partitionOf: null }),
+			partitionsCount: 0,
+		},
 	]);
+	expect([...new Set(res.columns.map((it) => it.table))].sort()).toStrictEqual(['measurement', 'readings']);
+	expect(res.pks.map((it) => it.table)).toStrictEqual(['measurement']);
+	expect(res.checks.map((it) => it.table)).toStrictEqual(['measurement']);
+	expect(res.indexes.map((it) => it.name).filter((it) => it.startsWith('measurement_')).sort()).toStrictEqual([
+		'measurement_peaktemp_idx',
+		'measurement_pkey',
+	]);
+	expect(res.fks.map((it) => [it.table, it.name, it.tableTo])).toStrictEqual([
+		['readings', 'readings_measurement_fk', 'measurement'],
+	]);
+	expect(res.sequences).toStrictEqual([]);
+	expect(new Set(res.privileges.map((it) => it.table))).toStrictEqual(new Set(['measurement', 'readings']));
+});
+
+test('fromDatabaseForDrizzle returns the parent of partitioned tables without its partitions', async () => {
+	await createPartitionedTables();
+
+	const res = await fromDatabaseForDrizzle(db, () => true, () => {}, {
+		schema: 'drizzle',
+		table: '__drizzle_migrations',
+	});
+
+	expect(res.tables.map((it) => it.name)).toStrictEqual(['measurement', 'readings']);
+	expect(res.indexes.map((it) => it.name)).toStrictEqual(['measurement_peaktemp_idx']);
+	expect(res.fks.map((it) => it.name)).toStrictEqual(['readings_measurement_fk']);
+});
+
+test('fetchPartitions returns the direct partitions of a table', async () => {
+	await createPartitionedTables();
+
+	expect(await fetchPartitions(db, 'public', 'measurement')).toStrictEqual([
+		{
+			schema: 'archive',
+			name: 'measurement_rest',
+			bound: 'DEFAULT',
+			partitionBy: null,
+			partitionsCount: 0,
+		},
+		{
+			schema: 'public',
+			name: 'measurement_2023',
+			bound: "FOR VALUES FROM ('2023-01-01') TO ('2024-01-01')",
+			partitionBy: null,
+			partitionsCount: 0,
+		},
+		{
+			schema: 'public',
+			name: 'measurement_2024',
+			bound: "FOR VALUES FROM ('2024-01-01') TO ('2025-01-01')",
+			partitionBy: null,
+			partitionsCount: 0,
+		},
+		{
+			schema: 'public',
+			name: 'measurement_2025',
+			bound: "FOR VALUES FROM ('2025-01-01') TO ('2026-01-01')",
+			partitionBy: 'LIST (id)',
+			partitionsCount: 1,
+		},
+	]);
+	expect(await fetchPartitions(db, 'public', 'measurement_2025')).toStrictEqual([
+		{
+			schema: 'public',
+			name: 'measurement_2025_1',
+			bound: 'FOR VALUES IN (1)',
+			partitionBy: null,
+			partitionsCount: 0,
+		},
+	]);
+});
+
+test('fetchPartitions returns nothing for a table without partitions, or of another schema', async () => {
+	await createPartitionedTables();
+
+	expect(await fetchPartitions(db, 'public', 'readings')).toStrictEqual([]);
+	expect(await fetchPartitions(db, 'archive', 'measurement')).toStrictEqual([]);
+});
+
+test('fetchPartitions finds a table with a quote in its name', async () => {
+	await db.query(`CREATE TABLE "it's" (id int) PARTITION BY LIST (id);`);
+	await db.query(`CREATE TABLE "it's_1" PARTITION OF "it's" FOR VALUES IN (1);`);
+
+	expect((await fetchPartitions(db, 'public', "it's")).map((it) => it.name)).toStrictEqual(["it's_1"]);
+});
+
+test('fromDatabase returns privileges of tables only, in a schema with uppercase letters too', async () => {
+	await db.query(`CREATE SCHEMA "mySchema";`);
+	await db.query(`CREATE TABLE "mySchema"."Users" (id int);`);
+	await db.query(`CREATE TABLE "with.dot" (id int);`);
+	await db.query(`CREATE VIEW users_view AS SELECT 1 AS id;`);
+	await db.query(`CREATE TABLE measurement (id int, d date) PARTITION BY RANGE (d);`);
+	await db.query(`CREATE TABLE measurement_rest PARTITION OF measurement DEFAULT;`);
+
+	const { privileges } = await fromDatabase(db);
+
+	expect([...new Set(privileges.map((it) => `${it.schema}/${it.table}`))].sort()).toStrictEqual([
+		'mySchema/Users',
+		'public/measurement',
+		'public/with.dot',
+	]);
+});
+
+test('fromDatabase returns the columns of a composite foreign key in the order of the constraint', async () => {
+	await db.query(`CREATE SCHEMA "mySchema";`);
+	await db.query(`
+		CREATE TABLE "mySchema"."Parent" (
+			a int,
+			b int,
+			c int,
+			PRIMARY KEY (a, b, c)
+		);
+	`);
+	await db.query(`
+		CREATE TABLE child (
+			x int,
+			y int,
+			z int,
+			CONSTRAINT child_fk FOREIGN KEY (z, x, y) REFERENCES "mySchema"."Parent" (c, a, b)
+		);
+	`);
+
+	const { fks } = await fromDatabase(db);
+
+	expect(fks).toStrictEqual([
+		{
+			entityType: 'fks',
+			schema: 'public',
+			table: 'child',
+			name: 'child_fk',
+			nameExplicit: true,
+			columns: ['z', 'x', 'y'],
+			schemaTo: 'mySchema',
+			tableTo: 'Parent',
+			columnsTo: ['c', 'a', 'b'],
+			onUpdate: 'NO ACTION',
+			onDelete: 'NO ACTION',
+		} satisfies (typeof fks)[number],
+	]);
+});
+
+test('fromDatabase returns standalone sequences only', async () => {
+	await db.query(`CREATE SEQUENCE standalone_seq;`);
+	await db.query(`CREATE TABLE users (id serial, ident int generated always as identity);`);
+	await db.query(`CREATE TABLE measurement (id serial, d date) PARTITION BY RANGE (d);`);
+	await db.query(`CREATE TABLE measurement_2023 (id serial, d date);`);
+	await db.query(`
+		ALTER TABLE measurement ATTACH PARTITION measurement_2023
+			FOR VALUES FROM ('2023-01-01') TO ('2024-01-01');
+	`);
+	await db.query(`CREATE SEQUENCE owned_seq OWNED BY users.id;`);
+
+	const { sequences, columns } = await fromDatabase(db);
+
+	expect(sequences.map((it) => it.name)).toStrictEqual(['standalone_seq']);
+	const column = (name: string) => columns.find((it) => it.table === 'users' && it.name === name)!;
+	expect(column('id').type).toBe('serial');
+	expect(column('ident').identity?.name).toBe('users_ident_seq');
 });
 
 test('default sequence nextval', async () => {
@@ -1869,7 +2032,7 @@ test('introspect view with table filter', async () => {
 		name: 'table1',
 		isRlsEnabled: false,
 		partitionBy: null,
-		partitionOf: null,
+		partitionsCount: 0,
 	}];
 	expect(res.tables).toStrictEqual(expectedTables);
 	expect(res.views).toStrictEqual([]);
@@ -1937,7 +2100,7 @@ test.skipIf(needToPostpone)('introspect sequences with table filter', async () =
 		name: 'table1',
 		isRlsEnabled: false,
 		partitionBy: null,
-		partitionOf: null,
+		partitionsCount: 0,
 	}]);
 
 	expect(sequences).toBe([{
@@ -2128,7 +2291,7 @@ test('introspect enum within schema', async () => {
 			name: 'table1',
 			isRlsEnabled: false,
 			partitionBy: null,
-			partitionOf: null,
+			partitionsCount: 0,
 		},
 	]);
 	expect(enums).toStrictEqual([]);
@@ -2357,7 +2520,7 @@ test('pull after migrate with custom migrations table #1', async () => {
 			entityType: 'tables',
 			isRlsEnabled: false,
 			partitionBy: null,
-			partitionOf: null,
+			partitionsCount: 0,
 			name: 'users',
 			schema: 'drizzle',
 		},
@@ -2414,7 +2577,7 @@ test('pull after migrate with custom migrations table #2', async () => {
 			entityType: 'tables',
 			isRlsEnabled: false,
 			partitionBy: null,
-			partitionOf: null,
+			partitionsCount: 0,
 			name: 'users',
 			schema: 'public',
 		},
@@ -2481,7 +2644,7 @@ test('pull after migrate with custom migrations table #3', async () => {
 			entityType: 'tables',
 			isRlsEnabled: false,
 			partitionBy: null,
-			partitionOf: null,
+			partitionsCount: 0,
 			name: 'users',
 			schema: 'custom',
 		},
@@ -2489,7 +2652,7 @@ test('pull after migrate with custom migrations table #3', async () => {
 			entityType: 'tables',
 			isRlsEnabled: false,
 			partitionBy: null,
-			partitionOf: null,
+			partitionsCount: 0,
 			name: 'users',
 			schema: 'public',
 		},
@@ -2984,7 +3147,7 @@ test('non-admin', async () => {
 			name: 'users',
 			isRlsEnabled: false,
 			partitionBy: null,
-			partitionOf: null,
+			partitionsCount: 0,
 		},
 		{
 			entityType: 'tables',
@@ -2992,7 +3155,7 @@ test('non-admin', async () => {
 			name: 'table_not_for_non_admin',
 			isRlsEnabled: false,
 			partitionBy: null,
-			partitionOf: null,
+			partitionsCount: 0,
 		},
 	]);
 	expect(fks.length).toBe(1);

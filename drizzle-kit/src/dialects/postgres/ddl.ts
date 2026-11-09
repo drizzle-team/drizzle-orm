@@ -334,11 +334,15 @@ export interface InterimSchema {
 
 export type TableWithPartition = PostgresEntities['tables'] & {
 	partitionBy: string | null;
-	partitionOf: {
-		schema: string;
-		table: string;
-		bound: string;
-	} | null;
+	partitionsCount: number;
+};
+
+export type TablePartition = {
+	schema: string;
+	name: string;
+	bound: string;
+	partitionBy: string | null;
+	partitionsCount: number;
 };
 
 export function postgresToRelationsPull(schema: PostgresDDL): SchemaForPull {
