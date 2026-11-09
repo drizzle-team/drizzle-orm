@@ -1,6 +1,6 @@
 import camelcase from 'camelcase';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
-import { type DB, mapBy, splitExpressions, trimChar } from '../../utils';
+import { type DB, escapeSingleQuotes, mapBy, splitExpressions, trimChar } from '../../utils';
 import type { EntityFilter } from '../pull-utils';
 import { filterMigrationsSchema } from '../utils';
 import type {
@@ -17,6 +17,7 @@ import type {
 	Role,
 	Schema,
 	Sequence,
+	TablePartition,
 	TableWithPartition,
 	UniqueConstraint,
 	View,
@@ -177,10 +178,8 @@ export const fromDatabase = async (
 		tablespaceid: number | string;
 		definition: string | null;
 
-		partitionBy: string | null; // partitioned table definition (e.g. PARTITION BY RANGE (column1, column2))
-		partitionOfSchema: string | null; // schema of the parent table if this table is a partition
-		partitionOf: string | null; // name of the parent table if this table is a partition
-		partitionBound: string | null; // partition bound definition (e.g. FOR VALUES FROM (1) TO (10))
+		partitionBy: string | null; // partitioned table definition (e.g. RANGE (column1, column2))
+		partitionsCount: number; // number of direct partitions of a partitioned table
 	};
 	progressCallback('tables', 0, 'fetching');
 	const tablesList = filteredNamespacesStringForSQL
@@ -205,23 +204,21 @@ export const fromDatabase = async (
 						THEN pg_catalog.pg_get_partkeydef(pg_class.oid)
 					ELSE null
 				END as "partitionBy",
-				parent_ns.nspname AS "partitionOfSchema",
-				parent.relname AS "partitionOf",
 				CASE
-					WHEN pg_class.relispartition
-						THEN pg_catalog.pg_get_expr(pg_class.relpartbound, pg_class.oid)
-					ELSE null
-				END as "partitionBound"
+					WHEN pg_class.relkind OPERATOR(pg_catalog.=) 'p'
+						THEN (
+							SELECT pg_catalog.count(*)::int FROM pg_catalog.pg_inherits
+							WHERE inhparent OPERATOR(pg_catalog.=) pg_class.oid
+						)
+					ELSE 0
+				END as "partitionsCount"
 			FROM
 				pg_catalog.pg_class
 			JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) pg_class.relnamespace
-			LEFT JOIN pg_catalog.pg_inherits inh
-				ON inh.inhrelid OPERATOR(pg_catalog.=) pg_class.oid
-				AND pg_class.relispartition
-			LEFT JOIN pg_catalog.pg_class parent ON parent.oid OPERATOR(pg_catalog.=) inh.inhparent
-			LEFT JOIN pg_catalog.pg_namespace parent_ns ON parent_ns.oid OPERATOR(pg_catalog.=) parent.relnamespace
 			WHERE
 				pg_class.relkind IN ('r', 'p', 'v', 'm')
+				-- partitions are fetched on demand
+				AND NOT pg_class.relispartition
 				AND pg_namespace.nspname IN (${filteredNamespacesStringForSQL})
 			ORDER BY pg_catalog.lower(pg_namespace.nspname), pg_catalog.lower(pg_class.relname);
 		`).then((rows) => {
@@ -257,45 +254,10 @@ export const fromDatabase = async (
 			name: table.name,
 			isRlsEnabled: table.rlsEnabled,
 			partitionBy: table.partitionBy,
-			partitionOf: table.partitionOf
-				? { schema: table.partitionOfSchema!, table: table.partitionOf, bound: table.partitionBound! }
-				: null,
+			partitionsCount: Number(table.partitionsCount),
 		});
 	}
 	progressCallback('tables', tables.length, 'done');
-
-	const dependQuery = db.query<{
-		oid: number | string;
-		tableId: number | string;
-		ordinality: number | string;
-
-		/*
-			a - An “auto” dependency means the dependent object can be dropped separately,
-					and will be automatically removed if the referenced object is dropped—regardless of CASCADE or RESTRICT.
-					Example: A named constraint on a table is auto-dependent on the table, so it vanishes when the table is dropped
-
-					i - An “internal” dependency marks objects that were created as part of building another object.
-					Directly dropping the dependent is disallowed—you must drop the referenced object instead.
-					Dropping the referenced object always cascades to the dependent
-					Example: A trigger enforcing a foreign-key constraint is internally dependent on its pg_constraint entry
-		 */
-		deptype: 'a' | 'i';
-	}>(
-		`SELECT
-			objid as oid,
-			refobjid as "tableId",
-			refobjsubid as "ordinality",
-			deptype::text
-		FROM
-			pg_catalog.pg_depend
-		WHERE ${filterByTableIds ? ` refobjid IN ${filterByTableIds}` : 'false'};`,
-	).then((rows) => {
-		queryCallback('depend', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('depend', [], err);
-		throw err;
-	});
 
 	type EnumListItem = {
 		oid: number | string;
@@ -365,6 +327,7 @@ export const fromDatabase = async (
 		incrementBy: string;
 		cycle: boolean;
 		cacheSize: number;
+		isOwned: boolean; // true when a column owns the sequence: serial or identity
 	};
 	const sequencesQuery = filteredNamespacesStringForSQL
 		? db.query<SequenceListItem>(`SELECT 
@@ -376,7 +339,15 @@ export const fromDatabase = async (
 			seqmax as "maxValue", 
 			seqincrement as "incrementBy", 
 			seqcycle as "cycle", 
-			seqcache as "cacheSize" 
+			seqcache as "cacheSize",
+			EXISTS (
+				SELECT 1 FROM pg_catalog.pg_depend dep
+				WHERE dep.classid OPERATOR(pg_catalog.=) 'pg_catalog.pg_class'::pg_catalog.regclass
+					AND dep.objid OPERATOR(pg_catalog.=) seqrelid
+					AND dep.refclassid OPERATOR(pg_catalog.=) 'pg_catalog.pg_class'::pg_catalog.regclass
+					-- a - auto dependency of a serial, i - internal dependency of an identity column
+					AND dep.deptype IN ('a', 'i')
+			) as "isOwned"
 		FROM pg_catalog.pg_sequence
 		JOIN pg_catalog.pg_class ON pg_sequence.seqrelid OPERATOR(pg_catalog.=) pg_class.oid
 		JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) pg_class.relnamespace
@@ -481,7 +452,9 @@ export const fromDatabase = async (
 			privilege_type AS "type",
 			CASE is_grantable WHEN 'YES' THEN true ELSE false END AS "isGrantable"
 		FROM information_schema.role_table_grants
-		WHERE table_schema IN (${filteredNamespacesStringForSQL})
+		JOIN pg_catalog.pg_namespace ON nspname OPERATOR(pg_catalog.=) table_schema
+		JOIN pg_catalog.pg_class ON relnamespace OPERATOR(pg_catalog.=) pg_namespace.oid AND relname OPERATOR(pg_catalog.=) table_name
+		WHERE ${filterByTableIds ? ` pg_class.oid IN ${filterByTableIds}` : 'false'}
 		ORDER BY
 			pg_catalog.lower(table_schema),
 			pg_catalog.lower(table_name),
@@ -502,14 +475,10 @@ export const fromDatabase = async (
 		schemaId: number | string;
 		tableId: number | string;
 		name: string;
-		type: 'p' | 'u' | 'f' | 'c'; // p - primary key, u - unique, f - foreign key, c - check
+		type: 'p' | 'u' | 'c'; // p - primary key, u - unique, c - check
 		definition: string;
 		indexId: number | string;
 		columnsOrdinals: number[];
-		tableToId: number | string;
-		columnsToOrdinals: number[];
-		onUpdate: 'a' | 'd' | 'r' | 'c' | 'n';
-		onDelete: 'a' | 'd' | 'r' | 'c' | 'n';
 	}>(`
 		SELECT
 			oid,
@@ -519,20 +488,69 @@ export const fromDatabase = async (
 			contype::text AS "type", 
 			pg_catalog.pg_get_constraintdef(oid) AS "definition",
 			conindid AS "indexId",
-			conkey AS "columnsOrdinals",
-			confrelid AS "tableToId",
-			confkey AS "columnsToOrdinals",
-			confupdtype::text AS "onUpdate",
-			confdeltype::text AS "onDelete"
+			conkey AS "columnsOrdinals"
 		FROM
 			pg_catalog.pg_constraint
 		WHERE ${filterByTableIds ? ` conrelid IN ${filterByTableIds}` : 'false'}
+			AND contype IN ('p', 'u', 'c')
 		ORDER BY conrelid, contype, pg_catalog.lower(conname);
   `).then((rows) => {
 		queryCallback('constraints', rows, null);
 		return rows;
 	}).catch((err) => {
 		queryCallback('constraints', [], err);
+		throw err;
+	});
+
+	const fksQuery = db.query<{
+		schema: string;
+		table: string;
+		name: string;
+		columns: string[];
+		schemaTo: string;
+		tableTo: string;
+		columnsTo: string[];
+		onUpdate: 'a' | 'd' | 'r' | 'c' | 'n';
+		onDelete: 'a' | 'd' | 'r' | 'c' | 'n';
+	}>(`
+		SELECT
+			nsp.nspname AS "schema",
+			cls.relname AS "table",
+			con.conname AS "name",
+			ARRAY(
+				SELECT attr.attname::text
+				FROM pg_catalog.unnest(con.conkey) WITH ORDINALITY AS key(attnum, ordinality)
+				JOIN pg_catalog.pg_attribute attr
+					ON attr.attrelid OPERATOR(pg_catalog.=) con.conrelid AND attr.attnum OPERATOR(pg_catalog.=) key.attnum
+				ORDER BY key.ordinality
+			) AS "columns",
+			nsp_to.nspname AS "schemaTo",
+			cls_to.relname AS "tableTo",
+			ARRAY(
+				SELECT attr.attname::text
+				FROM pg_catalog.unnest(con.confkey) WITH ORDINALITY AS key(attnum, ordinality)
+				JOIN pg_catalog.pg_attribute attr
+					ON attr.attrelid OPERATOR(pg_catalog.=) con.confrelid AND attr.attnum OPERATOR(pg_catalog.=) key.attnum
+				ORDER BY key.ordinality
+			) AS "columnsTo",
+			con.confupdtype::text AS "onUpdate",
+			con.confdeltype::text AS "onDelete"
+		FROM
+			pg_catalog.pg_constraint con
+		JOIN pg_catalog.pg_class cls ON cls.oid OPERATOR(pg_catalog.=) con.conrelid
+		JOIN pg_catalog.pg_namespace nsp ON nsp.oid OPERATOR(pg_catalog.=) cls.relnamespace
+		JOIN pg_catalog.pg_class cls_to ON cls_to.oid OPERATOR(pg_catalog.=) con.confrelid
+		JOIN pg_catalog.pg_namespace nsp_to ON nsp_to.oid OPERATOR(pg_catalog.=) cls_to.relnamespace
+		WHERE ${filterByTableIds ? ` con.conrelid IN ${filterByTableIds}` : 'false'}
+			AND con.contype OPERATOR(pg_catalog.=) 'f'
+			-- a foreign key to a partitioned table also has a row for each partition, only the row of the parent is needed
+			AND NOT cls_to.relispartition
+		ORDER BY con.conrelid, pg_catalog.lower(con.conname);
+	`).then((rows) => {
+		queryCallback('fks', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('fks', [], err);
 		throw err;
 	});
 
@@ -598,7 +616,6 @@ export const fromDatabase = async (
 	});
 
 	const [
-		dependList,
 		enumsList,
 		serialsList,
 		sequencesList,
@@ -606,10 +623,10 @@ export const fromDatabase = async (
 		rolesList,
 		privilegesList,
 		constraintsList,
+		fksList,
 		columnsList,
 	] = await Promise
 		.all([
-			dependQuery,
 			enumsQuery,
 			serialsQuery,
 			sequencesQuery,
@@ -617,6 +634,7 @@ export const fromDatabase = async (
 			rolesQuery,
 			privilegesQuery,
 			constraintsQuery,
+			fksQuery,
 			columnsQuery,
 		]);
 
@@ -624,9 +642,7 @@ export const fromDatabase = async (
 
 	const tablesById = mapBy(tablesList, (it) => Number(it.oid));
 	const viewsById = mapBy(viewsList, (it) => Number(it.oid));
-	const namespacesById = mapBy(namespaces, (it) => Number(it.oid));
 	const sequencesById = mapBy(sequencesList, (it) => Number(it.oid));
-	const dependsById = mapBy(dependList, (it) => Number(it.oid));
 	const serialsByPosition = mapBy(serialsList, (it) => columnPosition(it.tableId, it.ordinality));
 	const defaultsByPosition = mapBy(defaultsList, (it) => columnPosition(it.tableId, it.ordinality));
 	const columnsByPosition = mapBy(columnsList, (it) => columnPosition(it.tableId, it.ordinality));
@@ -679,12 +695,9 @@ export const fromDatabase = async (
 	progressCallback('enums', enums.length, 'done');
 
 	for (const seq of sequencesList) {
-		const depend = dependsById.get(Number(seq.oid));
-
-		if (depend && (depend.deptype === 'a' || depend.deptype === 'i')) {
+		if (seq.isOwned) {
 			// TODO: add type field to sequence in DDL
 			// skip fo sequences or identity columns
-			// console.log('skip for auto created', seq.name, depend.deptype);
 			continue;
 		}
 
@@ -838,7 +851,6 @@ export const fromDatabase = async (
 
 	for (const unique of constraintsList.filter((it) => it.type === 'u')) {
 		const table = tablesById.get(Number(unique.tableId))!;
-		const schema = namespacesById.get(Number(unique.schemaId))!;
 
 		const columns = unique.columnsOrdinals.map((it) => {
 			const column = columnsByPosition.get(columnPosition(unique.tableId, it))!;
@@ -847,7 +859,7 @@ export const fromDatabase = async (
 
 		uniques.push({
 			entityType: 'uniques',
-			schema: schema.name,
+			schema: table.schema,
 			table: table.name,
 			name: unique.name,
 			nameExplicit: true,
@@ -858,7 +870,6 @@ export const fromDatabase = async (
 
 	for (const pk of constraintsList.filter((it) => it.type === 'p')) {
 		const table = tablesById.get(Number(pk.tableId))!;
-		const schema = namespacesById.get(Number(pk.schemaId))!;
 
 		const columns = pk.columnsOrdinals.map((it) => {
 			const column = columnsByPosition.get(columnPosition(pk.tableId, it))!;
@@ -867,7 +878,7 @@ export const fromDatabase = async (
 
 		pks.push({
 			entityType: 'pks',
-			schema: schema.name,
+			schema: table.schema,
 			table: table.name,
 			name: pk.name,
 			columns,
@@ -875,30 +886,17 @@ export const fromDatabase = async (
 		});
 	}
 
-	for (const fk of constraintsList.filter((it) => it.type === 'f')) {
-		const table = tablesById.get(Number(fk.tableId))!;
-		const tableTo = tablesById.get(Number(fk.tableToId))!;
-
-		const columns = fk.columnsOrdinals.map((it) => {
-			const column = columnsByPosition.get(columnPosition(table.oid, it))!;
-			return column.name;
-		});
-
-		const columnsTo = fk.columnsToOrdinals.map((it) => {
-			const column = columnsByPosition.get(columnPosition(tableTo.oid, it))!;
-			return column.name;
-		});
-
+	for (const fk of fksList) {
 		fks.push({
 			entityType: 'fks',
-			schema: table.schema,
-			table: table.name,
+			schema: fk.schema,
+			table: fk.table,
 			name: fk.name,
 			nameExplicit: true,
-			columns,
-			tableTo: tableTo.name,
-			schemaTo: tableTo.schema,
-			columnsTo,
+			columns: fk.columns,
+			tableTo: fk.tableTo,
+			schemaTo: fk.schemaTo,
+			columnsTo: fk.columnsTo,
 			onUpdate: parseOnType(fk.onUpdate),
 			onDelete: parseOnType(fk.onDelete),
 		});
@@ -907,11 +905,10 @@ export const fromDatabase = async (
 
 	for (const check of constraintsList.filter((it) => it.type === 'c')) {
 		const table = tablesById.get(Number(check.tableId))!;
-		const schema = namespacesById.get(Number(check.schemaId))!;
 
 		checks.push({
 			entityType: 'checks',
-			schema: schema.name,
+			schema: table.schema,
 			table: table.name,
 			name: check.name,
 			value: check.definition.startsWith('CHECK (') ? check.definition.slice(7, -1) : check.definition,
@@ -1255,4 +1252,37 @@ export const fromDatabaseForDrizzle = async (
 	filterMigrationsSchema(res, migrations);
 
 	return res;
+};
+
+// Fetches the direct partitions of a table. `fromDatabase` does not return partitions, because a database can have
+// many of them. A partition can be partitioned too, then its `partitionsCount` is above 0.
+export const fetchPartitions = async (db: DB, schema: string, table: string): Promise<TablePartition[]> => {
+	const rows = await db.query<Omit<TablePartition, 'partitionsCount'> & { partitionsCount: number | string }>(`
+		SELECT
+			child_ns.nspname AS "schema",
+			child.relname AS "name",
+			pg_catalog.pg_get_expr(child.relpartbound, child.oid) AS "bound",
+			CASE
+				WHEN child.relkind OPERATOR(pg_catalog.=) 'p'
+					THEN pg_catalog.pg_get_partkeydef(child.oid)
+				ELSE null
+			END AS "partitionBy",
+			(
+				SELECT pg_catalog.count(*)::int FROM pg_catalog.pg_inherits sub
+				WHERE sub.inhparent OPERATOR(pg_catalog.=) child.oid
+			) AS "partitionsCount"
+		FROM
+			pg_catalog.pg_inherits inh
+		JOIN pg_catalog.pg_class child ON child.oid OPERATOR(pg_catalog.=) inh.inhrelid
+		JOIN pg_catalog.pg_namespace child_ns ON child_ns.oid OPERATOR(pg_catalog.=) child.relnamespace
+		JOIN pg_catalog.pg_class parent ON parent.oid OPERATOR(pg_catalog.=) inh.inhparent
+		JOIN pg_catalog.pg_namespace parent_ns ON parent_ns.oid OPERATOR(pg_catalog.=) parent.relnamespace
+		WHERE
+			child.relispartition
+			AND parent.relname OPERATOR(pg_catalog.=) '${escapeSingleQuotes(table)}'
+			AND parent_ns.nspname OPERATOR(pg_catalog.=) '${escapeSingleQuotes(schema)}'
+		ORDER BY pg_catalog.lower(child_ns.nspname), pg_catalog.lower(child.relname);
+	`);
+
+	return rows.map((it) => ({ ...it, partitionsCount: Number(it.partitionsCount) }));
 };

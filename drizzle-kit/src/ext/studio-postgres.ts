@@ -1,4 +1,3 @@
-import { fromDatabase as afd } from '../dialects/postgres/aws-introspect';
 import type {
 	CheckConstraint,
 	Column,
@@ -21,7 +20,7 @@ import type {
 import { interimToDDL } from '../dialects/postgres/ddl';
 import { ddlDiff } from '../dialects/postgres/diff';
 import { fromDatabase as dfd } from '../dialects/postgres/duckdb-introspect';
-import { fromDatabase as fd } from '../dialects/postgres/introspect';
+import { fetchPartitions as fp, fromDatabase as fd } from '../dialects/postgres/introspect';
 // import { ddlToTypeScript as dtt } from '../dialects/postgres/typescript';
 import { mockResolver } from '../utils/mocks';
 
@@ -38,11 +37,7 @@ export type InterimTable = {
 	fks: Interim<ForeignKey>[];
 	isRlsEnabled: boolean;
 	partitionBy: string | null;
-	partitionOf: {
-		schema: string;
-		table: string;
-		bound: string;
-	} | null;
+	partitionsCount: number;
 };
 
 export type InterimView = {
@@ -79,8 +74,6 @@ const fromInterims = ({
 		name: it.name,
 		schema: it.schema,
 		isRlsEnabled: it.isRlsEnabled,
-		partitionBy: it.partitionBy,
-		partitionOf: it.partitionOf,
 	}));
 	const columns: InterimColumn[] = tables
 		.map((table) => {
@@ -211,8 +204,8 @@ export const diffPostgresql = async (ddl1: PostgresDDL, ddl2: PostgresDDL, renam
 };
 
 export const fromDatabase = fd;
-export const fromAwsDatabase = afd;
 export const fromDuckDbDatabase = dfd;
+export const fetchPartitions = fp;
 
 // export const ddlToTypeScript = (schema: InterimStudioSchema) => {
 // 	const interimSchema = fromInterims(schema);

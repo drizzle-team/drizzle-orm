@@ -183,7 +183,7 @@ export const fromDatabase = async (
 			name: table.name,
 			isRlsEnabled: false,
 			partitionBy: null,
-			partitionOf: null,
+			partitionsCount: 0,
 		});
 	}
 
