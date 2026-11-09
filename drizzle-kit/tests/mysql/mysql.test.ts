@@ -2428,3 +2428,41 @@ test('Issue No6632', async () => {
 	expect(st1).toStrictEqual([]);
 	expect(pst1).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6649
+test('Issue No6649. Fk in create_table', async () => {
+	const parent1 = mysqlTable('Parent', {
+		id: int('id').primaryKey(),
+		tenantId: int('tenantId').notNull(),
+	});
+	const schema1 = { parent: parent1 };
+
+	const parent2 = mysqlTable('Parent', {
+		id: int('id').primaryKey(),
+		tenantId: int('tenantId').notNull(),
+	}, (t) => [unique('Parent_tenant_id_key').on(t.tenantId, t.id)]);
+	const child = mysqlTable('Child', {
+		id: int('id').primaryKey(),
+		tenantId: int('tenantId').notNull(),
+		parentId: int('parentId').notNull(),
+	}, (t) => [
+		foreignKey({
+			name: 'Child_parent_fk',
+			columns: [t.tenantId, t.parentId],
+			foreignColumns: [parent2.tenantId, parent2.id],
+		}),
+	]);
+	const schema2 = { parent: parent2, child };
+
+	const { sqlStatements: st1 } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+	const st0 = [
+		'CREATE TABLE `Child` (\n\t`id` int PRIMARY KEY,\n\t`tenantId` int NOT NULL,\n\t`parentId` int NOT NULL\n);\n',
+		'CREATE UNIQUE INDEX `Parent_tenant_id_key` ON `Parent` (`tenantId`,`id`);',
+		'ALTER TABLE `Child` ADD CONSTRAINT `Child_parent_fk` FOREIGN KEY (`tenantId`,`parentId`) REFERENCES `Parent`(`tenantId`,`id`);',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+});
