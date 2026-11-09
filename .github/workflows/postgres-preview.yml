@@ -1,4 +1,4 @@
-# Publishes a preview build of every Drizzle Postgres commit to pkg.pr.new.
+# Checks every Drizzle Postgres commit. A push publishes a preview build to pkg.pr.new.
 # Requires the pkg.pr.new GitHub App on this repository: https://github.com/apps/pkg-pr-new
 name: postgres preview release
 
@@ -9,10 +9,12 @@ on:
     paths:
       - 'postgres/**'
       - '.github/workflows/postgres-preview.yml'
+      - '.github/ci/publish-preview.sh'
   pull_request:
     paths:
       - 'postgres/**'
       - '.github/workflows/postgres-preview.yml'
+      - '.github/ci/publish-preview.sh'
 
 # The token only checks out the code. The pkg.pr.new app posts the PR comment.
 permissions:
@@ -49,59 +51,11 @@ jobs:
       - run: bun test test/unit
       - run: bun run verify:publish
 
-      # Run from the lockfile, never npx: the tool that uploads a build of this package should
-      # be the version this repository pinned, not whatever latest resolves to at run time.
-      # --previewVersion prevents a preview shadowing the real npm release of the same version.
+      # On a pull request, the feature-branch pipeline publishes this package together with the other packages, so
+      # the pull request gets one pkg.pr.new comment. A push to a branch without a pull request publishes it here.
       # continue-on-error: a pkg.pr.new outage must not fail a commit the gates above passed.
       - name: Publish preview to pkg.pr.new
-        id: preview
+        if: github.event_name == 'push'
         continue-on-error: true
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event_name }}" = "pull_request" ]; then comment=update; else comment=off; fi
-          # The pkg.pr.new server knows a run only after GitHub delivers the workflow_run webhook to it. When that
-          # webhook comes late, the check answers "There is no workflow defined" (HTTP 404), so try again after a
-          # pause. A webhook that never comes needs a re-run of the job.
-          for attempt in 1 2 3 4; do
-            if bun run pkg-pr-new publish --json preview.json --previewVersion --comment="$comment" --packageManager=bun,npm 2>&1 | tee publish.log; then
-              exit 0
-            fi
-            if ! grep -q 'There is no workflow defined' publish.log || [ "$attempt" = 4 ]; then exit 1; fi
-            echo "pkg.pr.new does not know this run yet (attempt $attempt of 4). Trying again in 20 s."
-            sleep 20
-          done
-
-      - name: Write install commands to the job summary
-        if: always()
-        run: |
-          set -euo pipefail
-          {
-            echo "## Preview release"
-            echo
-            if [ "${{ steps.preview.outcome }}" != "success" ]; then
-              echo "Publishing to pkg.pr.new failed. The build and test steps above passed,"
-              echo "so only the preview build of this commit is missing."
-              echo
-              echo "If this persists, check that the pkg.pr.new GitHub App is installed on this repository."
-            elif [ -s preview.json ]; then
-              echo "Install this commit directly:"
-              echo
-              echo '```sh'
-              jq -r '.packages[] | "bun add \(.url)"' preview.json
-              echo '```'
-              echo
-              # The version is derived from the URL pkg-pr-new actually returned rather than
-              # reconstructed here — it abbreviates the commit hash itself, and guessing the
-              # length would print a version that does not exist.
-              echo "| Package | Version | URL |"
-              echo "| --- | --- | --- |"
-              jq -r '.packages[]
-                     | "| `\(.name)` | `0.0.0-preview-\(.url | split("@") | last)` | \(.url) |"' preview.json
-              echo
-              echo "Built from \`${GITHUB_SHA}\`. Preview builds expire and are not a release —"
-              echo "the version is rewritten to \`0.0.0-preview-<sha>\` so it can never be mistaken"
-              echo "for the npm build of the same number."
-            else
-              echo "pkg.pr.new reported success but produced no metadata, so there is no install URL to show."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+        working-directory: .
+        run: bash .github/ci/publish-preview.sh off postgres

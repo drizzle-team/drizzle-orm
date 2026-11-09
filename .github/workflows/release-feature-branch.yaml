@@ -305,6 +305,48 @@ jobs:
       - name: Run publint
         run: npx -y publint@0.3.21 ./artifacts/drizzle-orm/package.tgz
 
+  # Every package that goes to npm, in one pkg.pr.new publish: a pull request gets one comment for all of them.
+  # Requires the pkg.pr.new GitHub App on this repository: https://github.com/apps/pkg-pr-new
+  preview:
+    needs: [prepare]
+    if: github.event_name == 'pull_request'
+    permissions: { contents: read, actions: read }
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        # Self-hosted: keep node_modules between jobs; setup-pnpm removes everything else untracked.
+        with:
+          clean: ${{ runner.environment != 'self-hosted' }}
+      - uses: ./.github/actions/setup-pnpm
+      - uses: actions/setup-node@v7
+        with: { node-version: '24' }
+      - uses: ./.github/actions/pnpm-store
+      # pkg-pr-new comes from the lockfile of the postgres package.
+      - run: pnpm install --frozen-lockfile --prefer-offline --filter @drizzle-team/postgres
+      # postgres/dist for @drizzle-team/postgres.
+      - name: Fetch build-dist (compiled JS)
+        uses: ./.github/actions/fetch-build
+      - name: Download package tarballs
+        uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: ./artifacts
+      # pkg-pr-new takes package directories, so the tarballs are unpacked first.
+      - name: Unpack the tarballs
+        run: |
+          set -euo pipefail
+          for package in drizzle-orm drizzle-kit drizzle-seed eslint-plugin-drizzle; do
+            mkdir -p "preview/$package"
+            tar -xzf "artifacts/$package/package.tgz" -C "preview/$package" --strip-components=1
+          done
+      # continue-on-error: a pkg.pr.new outage must not fail a pull request that the tests passed.
+      - name: Publish previews to pkg.pr.new
+        continue-on-error: true
+        run: |
+          bash .github/ci/publish-preview.sh update \
+            preview/drizzle-orm preview/drizzle-kit preview/drizzle-seed preview/eslint-plugin-drizzle postgres
+
   packed-orm:
     needs: [prepare-head-start]
     permissions: { contents: read, actions: read }
