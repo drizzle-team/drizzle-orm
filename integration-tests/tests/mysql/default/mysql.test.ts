@@ -18,10 +18,10 @@ import { usersMigratorTable } from '../schema2';
 runTests('mysql', test);
 tests(test);
 
-test('all types - client with custom type options', async ({ push }) => {
+test('all types - client with custom type options', async ({ push, client: { database } }) => {
 	const client = createPool({
 		uri: process.env['MYSQL_CONNECTION_STRING']!,
-		database: 'drizzle',
+		database,
 		connectionLimit: 1,
 		decimalNumbers: true,
 		jsonStrings: true,
@@ -47,10 +47,10 @@ test('all types - client with custom type options', async ({ push }) => {
 	}
 });
 
-test('custom codecs for client with custom typeCast (changelog example)', async ({ push }) => {
+test('custom codecs for client with custom typeCast (changelog example)', async ({ push, client: { database } }) => {
 	const client = createPool({
 		uri: process.env['MYSQL_CONNECTION_STRING']!,
-		database: 'drizzle',
+		database,
 		connectionLimit: 1,
 		typeCast: (field, next) => {
 			// `tinyint(1)` is returned as `boolean` instead of `number`

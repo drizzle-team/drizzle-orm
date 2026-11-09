@@ -1,3 +1,4 @@
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import { PGlite } from '@electric-sql/pglite';
 import { SQL, sql } from 'drizzle-orm';
 import {
@@ -167,7 +168,7 @@ test('basic identity by default test', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3240
 test('basic index test', async () => {
-	const client = new PGlite();
+	const client = await freshPGlite();
 
 	const schema = {
 		users: pgTable(

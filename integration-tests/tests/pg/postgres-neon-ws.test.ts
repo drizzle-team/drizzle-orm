@@ -21,7 +21,7 @@ import {
 	makeAllTypes,
 } from './all-types';
 import { tests } from './common';
-import { postgresNeonWsTest as test } from './instrumentation';
+import { localNeonWsOptions, postgresNeonWsTest as test } from './instrumentation';
 import { usersMigratorTable } from './schema';
 import {
 	assertMalformedSnapshotRejected,
@@ -333,7 +333,7 @@ describe('migrator', () => {
 const stringTemporalClient = (database: string) => {
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${database}`;
-	return createNeonWsPool({ url: url.toString(), max: 1, temporal: 'string' });
+	return createNeonWsPool({ url: url.toString(), max: 1, temporal: 'string', ...localNeonWsOptions(url.toString()) });
 };
 
 describe('driver-specific', () => {

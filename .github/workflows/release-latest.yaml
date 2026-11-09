@@ -23,10 +23,6 @@ on:
         required: true
       TURSODATABASE_REMOTE_TOKEN:
         required: true
-      SQLITE_CLOUD_CONNECTION_STRING:
-        required: true
-      SQLITE_MANY_CLOUD_CONNECTION_STRING:
-        required: true
       TURBO_TOKEN: 
         required: true
       PLANETSCALE_ORG:
@@ -243,7 +239,6 @@ jobs:
           COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
           MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true
           TEST_CONFIG_PATH_PREFIX: ./tests/cli/
-          SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
         working-directory: integration-tests
         run: |
           if [[ -f "$RUNNER_TEMP/ci-databases.env" ]]; then

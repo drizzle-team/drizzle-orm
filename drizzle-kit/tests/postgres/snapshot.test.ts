@@ -272,12 +272,15 @@ describe('reconstruct', () => {
 			history.set(`s${idx}`, diff(`s${idx}`, [`s${idx - 1}`], deltas));
 		}
 
-		const started = performance.now();
+		// CPU time of this process, not the wall clock: reconstruct runs synchronously, and on a CI machine shared by
+		// many jobs the wall clock also counts the time spent waiting for a CPU (1.6 s against 1 s of budget).
+		const started = process.cpuUsage();
 		const reconstructed = reconstruct(history, 's999');
-		const elapsed = performance.now() - started;
+		const { user, system } = process.cpuUsage(started);
+		const elapsed = (user + system) / 1000;
 
 		expect(normalizeDDL(reconstructed.entities.list())).toStrictEqual(normalizeDDL(state()));
-		console.info(`Reconstructed the last of 1000 snapshots in ${elapsed.toFixed(1)} ms`);
+		console.info(`Reconstructed the last of 1000 snapshots in ${elapsed.toFixed(1)} ms of CPU time`);
 		expect(elapsed).toBeLessThan(1000);
 	});
 });

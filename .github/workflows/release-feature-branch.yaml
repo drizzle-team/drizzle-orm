@@ -11,6 +11,11 @@ on:
         description: 'Comma-separated list of packages to publish, or "all"'
         type: string
         default: 'all'
+      runner:
+        # The router picks the self-hosted machine when it is online (see router.yaml), GitHub-hosted otherwise.
+        description: 'runs-on for every job but release, as JSON: "ubuntu-24.04" or a list of self-hosted labels'
+        type: string
+        default: '"ubuntu-24.04"'
     secrets:
       PLANETSCALE_CONNECTION_STRING:
         required: true
@@ -31,10 +36,6 @@ on:
       TURSODATABASE_REMOTE_URL:
         required: true
       TURSODATABASE_REMOTE_TOKEN:
-        required: true
-      SQLITE_CLOUD_CONNECTION_STRING:
-        required: true
-      SQLITE_MANY_CLOUD_CONNECTION_STRING:
         required: true
       TURBO_TOKEN:
         required: true
@@ -61,7 +62,7 @@ concurrency:
 
 jobs:
   prepare:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 25
     outputs:
       publish_matrix: ${{ steps.publish-matrix.outputs.packages }}
@@ -95,10 +96,13 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-        with: { run_install: false }
+        # Self-hosted: keep node_modules between jobs; setup-pnpm removes everything else untracked.
+        with:
+          clean: ${{ runner.environment != 'self-hosted' }}
+      - uses: ./.github/actions/setup-pnpm
       - uses: actions/setup-node@v7
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
+      - uses: ./.github/actions/pnpm-store
       - run: pnpm install --frozen-lockfile --prefer-offline
       - name: Compute version suffix
         id: meta
@@ -106,13 +110,8 @@ jobs:
         run: echo "suffix=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
       - name: Build all
         run: pnpm build:artifact
-      - name: Upload build-dist
-        uses: actions/upload-artifact@v7
-        with:
-          name: build-dist
-          path: |
-            **/dist
-            **/*.tsbuildinfo
+      - name: Share build-dist
+        uses: ./.github/actions/share-build
       - name: Pack
         run: pnpm pack:artifact
       - uses: actions/upload-artifact@v7
@@ -127,52 +126,40 @@ jobs:
       - name: test:types & lint
         run: pnpm test:types-lint
 
+  prepare-head-start:
+    # The jobs below start beside prepare rather than after it: they install, start their databases and then
+    # wait for prepare's artifacts, so that setup overlaps the build. Runners are fewer than jobs; queued after
+    # this delay, they never take the runner prepare needs. A second is enough for prepare to be assigned first.
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: 2
+    steps:
+      - run: sleep 1
+
   test:
-    # The organization runs at most 20 jobs at once. A test job that started before prepare and only
-    # waited would hold a runner that prepare needs, so it starts after prepare.
-    needs: [prepare]
-    runs-on: ubuntu-24.04
+    needs: [prepare-head-start]
+    permissions: { contents: read, actions: read }
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
-          # - shard: int:singlestore
-          #   dbs: [singlestore]
-          # - shard: int:singlestore-core
-          #   dbs: [singlestore-many]
-          # - shard: int:singlestore-proxy
-          #   dbs: [singlestore-many]
-          - shard: int:mysql
-            dbs: [mysql]
+          # Short shards share a job (.github/ci/run-shard.sh runs a+b in turn): each job's setup costs ~20 s, and a
+          # self-hosted machine runs only as many jobs at once as it has runner instances.
+          - shard: int:mysql+int:planetscale
+            dbs: [mysql, planetscale]
           - shard: int:postgres
             dbs: [postgres, postgres-http-gateway, aws-data-api]
           - shard: int:neon
-            dbs: []
-            cloud: [neon, netlify]
-          - shard: int:sqlite
-            dbs: []
-            cloud: [sqlitecloud]
-          - shard: int:turso-serverless
-            dbs: []
-            cloud: [turso]
-          - shard: int:other
+            dbs: [neon]
+          - shard: int:sqlite+int:turso-serverless
+            dbs: [turso]
+          - shard: int:other+int:imports+validators
             dbs: [mysql, postgres, postgres-postgis, postgres-vector]
-          - shard: int:seeder
-            dbs: [mysql, postgres]
-          - shard: int:imports
-            dbs: []
-          - shard: int:planetscale
-            dbs: []
-            cloud: [planetscale]
-          - shard: int:cockroach
+          - shard: int:cockroach+int:cockroach-rqb
             dbs: [cockroach]
-          - shard: int:cockroach-rqb
-            dbs: [cockroach]
-          - shard: int:bun
-            dbs: [postgres, postgres-vector, postgres-postgis, mysql]
-          - shard: int:mssql
-            dbs: [mssql]
+          - shard: int:bun+int:seeder+int:mssql
+            dbs: [postgres, postgres-vector, postgres-postgis, mysql, mssql]
           - shard: orm
             dbs: []
           - shard: kit:other
@@ -185,22 +172,26 @@ jobs:
             dbs: [postgres, postgres-postgis, postgres17]
           - shard: kit:postgres16
             dbs: [postgres, postgres-postgis, postgres16]
+          - shard: kit:postgres:commutativity
+            dbs: [postgres18]
           - shard: kit:cockroach
-            dbs: [cockroach]
+            dbs: [cockroach-many]
           - shard: kit:mssql
             dbs: [mssql]
           - shard: seed
-            dbs: [cockroach, mysql, mssql, postgres-postgis, singlestore]
-          - shard: validators
-            dbs: []
+            dbs: [cockroach, mysql, mssql, postgres-postgis]
          
     name: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-        with: { run_install: false }
+        # Self-hosted: keep node_modules between jobs; setup-pnpm removes everything else untracked.
+        with:
+          clean: ${{ runner.environment != 'self-hosted' }}
+      - uses: ./.github/actions/runner-slot
+      - uses: ./.github/actions/setup-pnpm
       - uses: actions/setup-node@v7
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
+      - uses: ./.github/actions/pnpm-store
       - run: pnpm install --frozen-lockfile --prefer-offline
 
       # Fork PRs get no secrets and skip the hosted databases.
@@ -211,54 +202,22 @@ jobs:
         env:
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
           NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
-          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
-          PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
-          PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
-          PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
-          SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
-          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
-          TURSO_ORG: ${{ secrets.TURSO_ORG }}
-          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
-          TURSO_GROUP: ${{ secrets.TURSO_GROUP }}
         run: pnpm exec tsx scripts/ci-databases.ts create --job "${{ matrix.shard }}" ${{ join(matrix.cloud, ' ') }}
 
+      # One compose project per dialect: postgres16/17/18.yml all name their service `postgres`, so merging them
+      # into one project left a single container.
       - name: Start DBs needed by shard (pre-warm)
         if: ${{ matrix.dbs && join(matrix.dbs, ',') != '' }}
-        shell: bash
-        run: |
-          set -euxo pipefail
-          
-          compose_files=()
-          for db in ${{ join(matrix.dbs, ' ') }}; do
-            case "$db" in
-              postgres)            compose_files+=("-f" "compose/postgres.yml") ;;
-              postgres-http-gateway) compose_files+=("-f" "compose/postgres-http-gateway.yml") ;;
-              aws-data-api)        compose_files+=("-f" "compose/aws-data-api.yml") ;;
-              postgres-postgis)    compose_files+=("-f" "compose/postgres-postgis.yml") ;;
-              postgres-vector)     compose_files+=("-f" "compose/postgres-vector.yml") ;;
-              postgres18)          compose_files+=("-f" "compose/postgres18.yml") ;;
-              postgres17)          compose_files+=("-f" "compose/postgres17.yml") ;;
-              postgres16)          compose_files+=("-f" "compose/postgres16.yml") ;;
-              mysql)               compose_files+=("-f" "compose/mysql.yml") ;;
-              singlestore)         compose_files+=("-f" "compose/singlestore.yml") ;;
-              singlestore-many)    compose_files+=("-f" "compose/singlestore-many.yml") ;;
-              mssql)               compose_files+=("-f" "compose/mssql.yml") ;;
-              cockroach)           compose_files+=("-f" "compose/cockroach.yml") ;;
-              *) echo "Unknown db '$db'"; exit 1 ;;
-            esac
-          done
-          docker compose "${compose_files[@]}" up -d
+        run: bash compose/dockers.sh up ${{ join(matrix.dbs, ' ') }}
 
-          chmod +x compose/wait.sh
-          compose/wait.sh ${{ join(matrix.dbs, ' ') }}
-
-      - name: Download build-dist (compiled JS)
-        uses: actions/download-artifact@v8
-        with:
-          name: build-dist
-          path: .
+      - name: Fetch build-dist (compiled JS)
+        uses: ./.github/actions/fetch-build
 
       # Required for packaging tests
+      - name: Wait for prepare's packages
+        if: matrix.shard == 'orm'
+        uses: ./.github/actions/wait-for-prepare
+        with: { names: packages }
       - name: Download packed tarballs
         if: matrix.shard == 'orm'
         uses: actions/download-artifact@v8
@@ -272,103 +231,14 @@ jobs:
         with: { bun-version: 1.4.4 }
       - name: Run tests
         env:
-          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
-          PG_HTTP_GATEWAY_URL: http://localhost:8080/query
-          AWS_DATA_API_URL: http://localhost:8081
-          PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
-          PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
-          PG18_URL: postgres://postgres:postgres@localhost:54325/drizzle
-          PG17_URL: postgres://postgres:postgres@localhost:54324/drizzle
-          PG16_URL: postgres://postgres:postgres@localhost:54323/drizzle
-          POSTGIS_URL: postgres://postgres:postgres@localhost:54322/drizzle
-          MYSQL_CONNECTION_STRING: mysql://root:mysql@localhost:3306/drizzle
-          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
+          # Fork pull requests get no secrets: skip the shards that need hosted databases.
+          SKIP_EXTERNAL_DB_TESTS: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && '1' || '' }}
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
           TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
           XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
           XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
-          LIBSQL_URL: file:local.db
-          LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
-          LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
-          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
-          TURSODATABASE_REMOTE_TOKEN: ${{ secrets.TURSODATABASE_REMOTE_TOKEN }}
-          SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
-          SINGLESTORE_MANY_CONNECTION_STRING: singlestore://root:singlestore@localhost:3308/;singlestore://root:singlestore@localhost:3309/;singlestore://root:singlestore@localhost:3310/;singlestore://root:singlestore@localhost:3311/
-          COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
-          MSSQL_CONNECTION_STRING: mssql://SA:drizzle123PASSWORD!@localhost:1433?encrypt=true&trustServerCertificate=true
-          TEST_CONFIG_PATH_PREFIX: ./tests/cli/
-          SQLITE_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_CLOUD_CONNECTION_STRING }}
-          SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
           NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
-        working-directory: integration-tests
-        shell: bash
-        run: |
-          set -euxo pipefail
-          if [[ -f "$RUNNER_TEMP/ci-databases.env" ]]; then
-            set +x
-            source "$RUNNER_TEMP/ci-databases.env"
-            set -x
-          fi
-          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
-            export SKIP_EXTERNAL_DB_TESTS=1
-          fi
-          case ${{ matrix.shard }} in
-            int:singlestore) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-prefixed.test.ts ./singlestore/singlestore-custom.test.ts ;;
-            int:singlestore-core) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore.test.ts ;;
-            int:singlestore-proxy) pnpm --stream vitest --reporter=verbose --silent=false run ./singlestore/singlestore-proxy.test.ts ;;
-            int:postgres)
-              # Uses local Postgres; hosted providers are excluded by the test config/script.
-              pnpm --stream test:postgres
-            ;;
-            int:neon)
-              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream test:neon
-              fi
-            ;;
-            int:mysql)
-              pnpm --stream test:mysql
-            ;;
-            int:tidb)
-              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream vitest --reporter=verbose --silent=false tests/mysql/tidb
-              fi
-            ;;
-            int:planetscale)
-              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream test:planetscale
-              fi
-            ;;
-            int:cockroach) pnpm --stream test:cockroach ;;
-            int:cockroach-rqb) pnpm --stream test:cockroach-rqb ;;
-            int:mssql) pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql ;;
-            int:sqlite) pnpm --stream test:sqlite ;;
-            int:turso-serverless) 
-              if [[ -z "${SKIP_EXTERNAL_DB_TESTS:-}" ]]; then
-                pnpm --stream vitest --reporter=verbose --silent=false --test-timeout=200000 --hook-timeout=200000 run tests/sqlite/tursodatabase-serverless.test.ts 
-              fi
-            ;;
-            kit:other) cd ../drizzle-kit && pnpm --stream run test:other ;;
-            kit:postgres) cd ../drizzle-kit && pnpm --stream run test:postgres ;;
-            kit:postgres18) cd ../drizzle-kit && PG_VERSION=18 pnpm --stream run test:postgres ;;
-            kit:postgres17) cd ../drizzle-kit && PG_VERSION=17 pnpm --stream run test:postgres ;;
-            kit:postgres16) cd ../drizzle-kit && PG_VERSION=16 pnpm --stream run test:postgres ;;
-            kit:cockroach) cd ../drizzle-kit && pnpm --stream run test:cockroach ;;
-            kit:mssql) cd ../drizzle-kit && pnpm --stream run test:mssql ;;
-            validators)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/validators
-            ;;
-            orm|seed)
-              (cd ../drizzle-${{ matrix.shard }} && pnpm --stream test --reporter=verbose --silent=false)
-            ;;
-            
-            int:bun)  bun test ./tests/bun/ ;;
-
-            int:seeder) pnpm --stream test:seeder ;;
-            int:imports) pnpm --stream test:imports ;;
-            int:other) pnpm --stream test:other ;;
-
-            *) echo "Unknown shard: ${{matrix.shard}}"; exit 1 ;;
-          esac
+        run: bash .github/ci/run-shard.sh "${{ matrix.shard }}"
 
       - name: Drop this job's hosted databases
         if: ${{ always() && steps.hosted-databases.outcome != 'skipped' }}
@@ -376,72 +246,71 @@ jobs:
         env:
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
           NETLIFY_DB_URL: ${{ secrets.NETLIFY_DB_URL }}
-          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
-          PLANETSCALE_ORG: ${{ secrets.PLANETSCALE_ORG }}
-          PLANETSCALE_SERVICE_TOKEN_ID: ${{ secrets.PLANETSCALE_SERVICE_TOKEN_ID }}
-          PLANETSCALE_SERVICE_TOKEN: ${{ secrets.PLANETSCALE_SERVICE_TOKEN }}
-          SQLITE_MANY_CLOUD_CONNECTION_STRING: ${{ secrets.SQLITE_MANY_CLOUD_CONNECTION_STRING }}
-          TURSODATABASE_REMOTE_URL: ${{ secrets.TURSODATABASE_REMOTE_URL }}
-          TURSO_ORG: ${{ secrets.TURSO_ORG }}
-          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
         run: pnpm exec tsx scripts/ci-databases.ts drop
 
+      # Before they stop: the servers' side of a failure (an error a driver reported only as an HTTP status).
+      - name: Database logs
+        if: ${{ failure() && matrix.dbs && join(matrix.dbs, ',') != '' }}
+        run: bash compose/dockers.sh logs-dump ${{ join(matrix.dbs, ' ') }}
+
+      # GitHub-hosted runners discard the VM; a self-hosted one keeps containers running between jobs.
+      - name: Stop this job's databases
+        if: ${{ always() && runner.environment == 'self-hosted' && matrix.dbs && join(matrix.dbs, ',') != '' }}
+        run: bash compose/dockers.sh down ${{ join(matrix.dbs, ' ') }}
+
   attw:
-    needs: [prepare]
-    runs-on: ubuntu-24.04
+    needs: [prepare-head-start]
+    permissions: { contents: read, actions: read }
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-        with: { run_install: false }
+        # Self-hosted: keep node_modules between jobs; setup-pnpm removes everything else untracked.
+        with:
+          clean: ${{ runner.environment != 'self-hosted' }}
+      - uses: ./.github/actions/setup-pnpm
       - uses: actions/setup-node@v7
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
+      - uses: ./.github/actions/pnpm-store
       - run: pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
+      - name: Wait for prepare's packages
+        uses: ./.github/actions/wait-for-prepare
+        with: { names: packages }
       - name: Download package tarball
         uses: actions/download-artifact@v8
         with:
           name: packages
           path: ./artifacts
+      # Every check in one job: each takes about a second, against ~15 s for a job's setup, and a self-hosted machine
+      # runs only as many jobs at once as it has runner instances. All run; the step fails if any did.
       - name: Run @arethetypeswrong/cli
         run: |
-          bun --bun run ./attw-fork/src/run.ts ./artifacts/drizzle-seed/package.tgz
-          bun --bun run ./attw-fork/src/run.ts ./artifacts/eslint-plugin-drizzle/package.tgz
-        env:
-          ATTW_FORMAT: concise
-
-  attw-esm:
-    needs: [prepare]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    strategy:
-      matrix:
-        package: [drizzle-orm, drizzle-kit]
-        mode: [node16-esm, bundler]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-        with: { run_install: false }
-      - uses: actions/setup-node@v7
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
-      - run: pnpm fetch && pnpm install --frozen-lockfile --prefer-offline
-      - uses: oven-sh/setup-bun@v2
-        with: { bun-version: 1.4.4 }
-      - name: Download package tarballs
-        uses: actions/download-artifact@v8
-        with:
-          name: packages
-          path: ./artifacts
-      - name: Run @arethetypeswrong/cli
-        working-directory: ${{ matrix.package }}
-        run: bun --bun run ../attw-fork/src/run.ts ../artifacts/${{ matrix.package }}/package.tgz ${{ matrix.mode }}
+          failed=()
+          check() {
+            local status=0
+            echo "::group::attw $*"
+            bun --bun run "$@" || status=$?
+            echo "::endgroup::"
+            return "$status"
+          }
+          check ./attw-fork/src/run.ts ./artifacts/drizzle-seed/package.tgz || failed+=(drizzle-seed)
+          check ./attw-fork/src/run.ts ./artifacts/eslint-plugin-drizzle/package.tgz || failed+=(eslint-plugin-drizzle)
+          # drizzle-orm and drizzle-kit per resolution mode, from the package's own dir.
+          for package in drizzle-orm drizzle-kit; do
+            for mode in node16-esm bundler; do
+              (cd "$package" && check ../attw-fork/src/run.ts "../artifacts/$package/package.tgz" "$mode") \
+                || failed+=("$package $mode")
+            done
+          done
+          if ((${#failed[@]})); then printf '::error::attw failed: %s\n' "${failed[@]}"; exit 1; fi
         env:
           ATTW_FORMAT: concise
 
   publint-orm:
     needs: [prepare]
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 10
     steps:
       - uses: actions/setup-node@v7
@@ -455,48 +324,64 @@ jobs:
         run: npx -y publint@0.3.21 ./artifacts/drizzle-orm/package.tgz
 
   packed-orm:
-    needs: [prepare]
-    runs-on: ubuntu-24.04
+    needs: [prepare-head-start]
+    permissions: { contents: read, actions: read }
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 20
-    strategy:
-      matrix:
-        # The consumer projects run on each of these versions. 20.19.0 and 22.12.0 are the oldest versions in the
-        # engines range, where require() of ESM works without a flag. vitest needs a newer Node, so it runs on Node 24.
-        node-version: ['20.19.0', '22.12.0', 'lts/*', 'latest']
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-        with: { run_install: false }
+        # Self-hosted: keep node_modules between jobs; setup-pnpm removes everything else untracked.
+        with:
+          clean: ${{ runner.environment != 'self-hosted' }}
+      - uses: ./.github/actions/runner-slot
+      - uses: ./.github/actions/setup-pnpm
+      # The consumer projects run on each of these Nodes, in one job: the test packs and installs once, runs once what
+      # needs no consumer Node, and once on each version what does (CONSUMER_NODES). 20.19.0 and 22.12.0 are the
+      # oldest versions in the engines range, where require() of ESM works without a flag.
       - uses: actions/setup-node@v7
-        with: { node-version: '${{ matrix.node-version }}' }
-      - run: echo "CONSUMER_NODE=$(which node)" >> "$GITHUB_ENV"
+        with: { node-version: '20.19.0' }
+      - run: echo "$(node --version)=$(which node)" >> "$RUNNER_TEMP/consumer-nodes"
       - uses: actions/setup-node@v7
-        with: { node-version: '24', registry-url: 'https://registry.npmjs.org', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+        with: { node-version: '22.12.0' }
+      - run: echo "$(node --version)=$(which node)" >> "$RUNNER_TEMP/consumer-nodes"
+      - uses: actions/setup-node@v7
+        with: { node-version: 'lts/*' }
+      - run: echo "$(node --version)=$(which node)" >> "$RUNNER_TEMP/consumer-nodes"
+      - uses: actions/setup-node@v7
+        with: { node-version: 'latest' }
+      - run: echo "$(node --version)=$(which node)" >> "$RUNNER_TEMP/consumer-nodes"
+      - run: echo "CONSUMER_NODES=$(paste -sd ';' "$RUNNER_TEMP/consumer-nodes")" >> "$GITHUB_ENV"
+      # vitest needs a newer Node than the oldest versions.
+      - uses: actions/setup-node@v7
+        with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
+      - uses: ./.github/actions/pnpm-store
       - run: pnpm install --frozen-lockfile --prefer-offline
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.4.4 }
       - uses: denoland/setup-deno@v2
         with: { deno-version: v2.x }
       - name: Start Postgres
-        shell: bash
-        run: |
-          set -euxo pipefail
-          docker compose -f compose/postgres.yml up -d
-          chmod +x compose/wait.sh
-          compose/wait.sh postgres
-      - name: Download build-dist (compiled JS)
-        uses: actions/download-artifact@v8
-        with:
-          name: build-dist
-          path: .
+        run: bash compose/dockers.sh up postgres
+      - name: Fetch build-dist (compiled JS)
+        uses: ./.github/actions/fetch-build
       - name: Run packed package test
         working-directory: integration-tests
-        env:
-          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
-        run: pnpm --stream test:packed
+        run: |
+          source ../compose/ports.sh
+          # The test npm-installs the packed tarballs into five fresh consumer projects: on a self-hosted
+          # machine from one npm cache that all runner instances share (concurrent installs are safe on it), taken
+          # before the registry.
+          if [ "$RUNNER_ENVIRONMENT" = self-hosted ]; then export npm_config_cache="$HOME/.cache/drizzle-ci/npm"; fi
+          export npm_config_prefer_offline=true
+          # This job's database (dockers.sh created it): on a self-hosted machine the Postgres server is shared with
+          # other jobs.
+          PG_CONNECTION_STRING="postgres://postgres:postgres@$(drizzle_addr postgres postgres 5432 "$DRIZZLE_PORT_POSTGRES")/${DRIZZLE_TEST_DB_PREFIX}drizzle" pnpm --stream test:packed
+      - name: Stop Postgres
+        if: ${{ always() && runner.environment == 'self-hosted' }}
+        run: bash compose/dockers.sh down postgres
 
   skills-revision-gate:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 5
     steps:
       - name: Skip on non-pull-request events
@@ -504,13 +389,14 @@ jobs:
         run: echo "Not a pull request — skills revision gate does not apply"
       - if: github.event_name == 'pull_request'
         uses: actions/checkout@v7
-        with: { fetch-depth: 0 }
+        with: { fetch-depth: 0, clean: "${{ runner.environment != 'self-hosted' }}" }
       - if: github.event_name == 'pull_request'
-        uses: pnpm/action-setup@v6
-        with: { run_install: false }
+        uses: ./.github/actions/setup-pnpm
       - if: github.event_name == 'pull_request'
         uses: actions/setup-node@v7
-        with: { node-version: '24', cache: 'pnpm', cache-dependency-path: pnpm-lock.yaml }
+        with: { node-version: '24' }
+      - if: github.event_name == 'pull_request'
+        uses: ./.github/actions/pnpm-store
       - name: Skills revision gate
         if: github.event_name == 'pull_request'
         working-directory: drizzle-kit
@@ -521,13 +407,14 @@ jobs:
           pnpm skills:revision:check
 
   release:
-    needs: [test, prepare, attw, attw-esm, publint-orm, packed-orm, skills-revision-gate]
+    needs: [test, prepare, attw, publint-orm, packed-orm, skills-revision-gate]
     # workflow_dispatch only: this job holds `id-token: write` and is the sole path to
     # the publish step, so PR/push events must never enter it — that would both expose
     # OIDC minting to untrusted PR code and auto-publish on push.
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # Always GitHub-hosted: npm provenance (OIDC) is only issued there.
     permissions: { contents: read, id-token: write }
     
     # force empty so npm can use OIDC

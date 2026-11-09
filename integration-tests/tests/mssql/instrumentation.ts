@@ -39,16 +39,33 @@ export const createClient = async () => {
 		'MSSQL_CONNECTION_STRING',
 		'Bring DBs up with `bash compose/dockers.sh up mssql` and export the connection string (e.g. `mssql://SA:drizzle123PASSWORD!@127.0.0.1:1433?encrypt=true&trustServerCertificate=true`) before running tests.',
 	);
-	const close = () => Promise.resolve();
 	const params = parseMssqlUrl(url);
 
-	const url2 = `Server=localhost,${params.port};User Id=SA;Password=drizzle123PASSWORD!;TrustServerCertificate=True;`;
+	// The same server as MSSQL_CONNECTION_STRING, whose host CI sets to the container's IP.
+	const url2 =
+		`Server=${params.server},${params.port};User Id=SA;Password=drizzle123PASSWORD!;TrustServerCertificate=True;`;
 
-	const client = await mssql.connect(params);
-	const id = `db${randomUUID().split('-')[0]}`;
-	await client.query('select 1');
-	await client.query(`create database ${id}`);
-	await client.query(`use ${id}`);
+	// A database of the test file's own, dropped when it finishes. On a self-hosted machine every job's files share
+	// one server, and DRIZZLE_TEST_DB_PREFIX names this job's, so the job's end drops those a failed file left.
+	const id = `${process.env['DRIZZLE_TEST_DB_PREFIX'] ?? ''}db${randomUUID().split('-')[0]}`;
+	const admin = await new mssql.ConnectionPool(params).connect();
+	await admin.query(`create database [${id}]`);
+	// Plan reuse for drizzle-kit's introspection queries (push), whose literal id lists differ on every call.
+	await admin.query(`alter database [${id}] set parameterization forced`);
+	await admin.close();
+	// Connected to the test's database itself: `use` would switch only the pool connection that ran it, and a
+	// query on any other connection the pool opens would run in master.
+	const client = await new mssql.ConnectionPool({ ...params, database: id }).connect();
+	const close = async () => {
+		await client.close();
+		const dropper = await new mssql.ConnectionPool(params).connect();
+		try {
+			// Rolls back and closes what a test left connected (a pool of its own, an open transaction).
+			await dropper.query(`alter database [${id}] set single_user with rollback immediate; drop database [${id}];`);
+		} finally {
+			await dropper.close();
+		}
+	};
 	const db = drizzle({ client, relations });
 	return { client, close, url, url2, db };
 };

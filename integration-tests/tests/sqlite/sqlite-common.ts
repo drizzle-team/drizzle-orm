@@ -4341,10 +4341,12 @@ export function tests(test: Test, exclude: string[] = []) {
 					.returning({
 						updatedAt: users.updatedAt,
 					});
-				await new Promise((resolve) => setTimeout(resolve, 1000));
+				// The SQL value has millisecond precision. 100 ms rather than less leaves room for a database server whose
+				// clock is a few milliseconds off this process's (Docker on macOS runs it in a VM).
+				await new Promise((resolve) => setTimeout(resolve, 100));
 
 				const now = Date.now();
-				await new Promise((resolve) => setTimeout(resolve, 1000));
+				await new Promise((resolve) => setTimeout(resolve, 100));
 				const updateResp = await db
 					.update(users)
 					.set({

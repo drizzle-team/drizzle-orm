@@ -1,7 +1,9 @@
 import 'dotenv/config';
 import { desc, DrizzleError, eq, exists, gt, gte, or, sql, TransactionRollbackError } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/mssql-core';
+import type { NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { expect, expectTypeOf } from 'vitest';
+import { fixtureReset } from './fixture-reset';
 import { test } from './instrumentation';
 import * as schema from './mssql.schema';
 
@@ -23,7 +25,8 @@ const {
 	studentGrades,
 } = schema;
 
-test.beforeEach(async ({ db }) => {
+// Built once and reset between tests (fixtureReset); built again only when a test changed it.
+const createFixture = async (db: NodeMsSqlDatabase<any>) => {
 	await db.execute(sql`drop view if exists [rqb_users_view]`);
 	await db.execute(sql`drop view if exists [rqb_test_schema].[users_sch_view]`);
 	await db.execute(sql`drop table if exists [rqb_test_schema].[users_to_groups]`);
@@ -180,6 +183,16 @@ test.beforeEach(async ({ db }) => {
 			CREATE VIEW [rqb_test_schema].[users_sch_view] AS (select [rqb_test_schema].[users].[id], [rqb_test_schema].[users].[name], [rqb_test_schema].[users].[verified], [rqb_test_schema].[users].[invited_by], [rqb_test_schema].[posts].[content], [rqb_test_schema].[posts].[created_at], (select count(*) from [rqb_test_schema].[users] as [count_source] where [rqb_test_schema].[users].[id] <> 2) as [count] from [rqb_test_schema].[users] left join [rqb_test_schema].[posts] on [rqb_test_schema].[users].[id] = [rqb_test_schema].[posts].[owner_id]);
 		`,
 	);
+};
+
+let resetFixture: () => Promise<void>;
+
+test.beforeEach(async ({ db, client }) => {
+	resetFixture ??= fixtureReset(
+		async (query) => (await client.query(query)).recordset ?? [],
+		() => createFixture(db),
+	);
+	await resetFixture();
 });
 
 test('[Find Many] Get users with posts', async ({ db }) => {

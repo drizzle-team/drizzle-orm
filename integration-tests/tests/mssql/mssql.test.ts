@@ -60,7 +60,7 @@ import { concat, substring } from 'drizzle-orm/mssql-core/expressions';
 import { drizzle, type NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
 import { migrate } from 'drizzle-orm/node-mssql/migrator';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import type { IResult } from 'mssql';
+import type { ConnectionPool, IResult } from 'mssql';
 import { expect, expectTypeOf } from 'vitest';
 import { type Equal, Expect } from '~/utils';
 import {
@@ -76,6 +76,7 @@ import {
 	createAllTypes,
 	makeAllTypes,
 } from './all-types';
+import { fixtureReset } from './fixture-reset';
 import { test } from './instrumentation';
 import {
 	aggregateTable,
@@ -101,7 +102,8 @@ import {
 
 // const ENABLE_LOGGING = true;
 
-test.beforeEach(async ({ client }) => {
+// Built once and reset between tests (fixtureReset); built again only when a test changed it.
+const createFixture = async (client: ConnectionPool) => {
 	await client.query(`drop table if exists [userstest]`);
 	await client.query(`drop table if exists [nvarchar_with_json]`);
 	await client.query(`drop table if exists [users2]`);
@@ -169,6 +171,16 @@ test.beforeEach(async ({ client }) => {
 			[col1] bit,
 			[col2] varchar(6)
 		)`);
+};
+
+let resetFixture: () => Promise<void>;
+
+test.beforeEach(async ({ client }) => {
+	resetFixture ??= fixtureReset(
+		async (query) => (await client.query(query)).recordset ?? [],
+		() => createFixture(client),
+	);
+	await resetFixture();
 });
 
 async function setupSetOperationTest(db: NodeMsSqlDatabase<any>) {

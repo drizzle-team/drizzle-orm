@@ -20,7 +20,7 @@ import {
 	makeAllTypes,
 } from './all-types';
 import { tests } from './common';
-import { postgresNeonHttpTest as test } from './instrumentation';
+import { localNeonHttpOptions, postgresNeonHttpTest as test } from './instrumentation';
 import { usersMigratorTable } from './schema';
 
 const skips = [
@@ -401,7 +401,9 @@ const stringTemporalDb = (database: string) => {
 	const url = new URL(process.env['NEON_CONNECTION_STRING']!);
 	url.pathname = `/${database}`;
 
-	return drizzleNeonHttp({ client: createNeonHttpClient({ url: url.toString(), temporal: 'string' }) });
+	return drizzleNeonHttp({
+		client: createNeonHttpClient({ url: url.toString(), temporal: 'string', ...localNeonHttpOptions(url.toString()) }),
+	});
 };
 
 describe('driver-specific', () => {
