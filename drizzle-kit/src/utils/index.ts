@@ -1,4 +1,3 @@
-import type { ProxyParams } from '../cli/commands/studio';
 import type { Dialect } from './schemaValidator';
 
 export const originUUID = '00000000-0000-0000-0000-000000000000';
@@ -26,6 +25,35 @@ export const mapEntries = <T>(
 	return result;
 };
 
+// introspection builds these once instead of running `.find` / `.filter` per row, which is quadratic on large databases
+// the first match is kept, same as `.find`
+export const mapBy = <T, K>(list: Iterable<T>, key: (it: T) => K) => {
+	const map = new Map<K, T>();
+	for (const it of list) {
+		const k = key(it);
+		if (!map.has(k)) map.set(k, it);
+	}
+	return map;
+};
+
+// items keep their order within a group, same as `.filter`
+export const groupBy = <T, K>(list: Iterable<T>, key: (it: T) => K) => {
+	const map = new Map<K, T[]>();
+	for (const it of list) {
+		const k = key(it);
+		const group = map.get(k);
+		if (group) group.push(it);
+		else map.set(k, [it]);
+	}
+	return map;
+};
+
+export type ProxyParams = {
+	sql: string;
+	params?: any[];
+	mode: 'array' | 'object';
+	method: 'values' | 'get' | 'all' | 'run' | 'execute';
+};
 export type Proxy = (params: ProxyParams) => Promise<any[]>;
 export type TransactionProxy = (queries: { sql: string; method?: ProxyParams['method'] }[]) => Promise<any[]>;
 export type QueriesTimings = {

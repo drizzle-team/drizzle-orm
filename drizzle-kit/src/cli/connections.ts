@@ -15,10 +15,9 @@ import ws from 'ws';
 import type { BenchmarkProxy, QueriesTimings, TransactionProxy } from '../utils';
 import { assertUnreachable } from '../utils';
 import type { LibSQLDB } from '../utils';
-import type { DB, Proxy, SQLiteDB } from '../utils';
+import type { DB, Proxy, ProxyParams, SQLiteDB } from '../utils';
 import { normaliseSQLiteUrl } from '../utils/utils-node';
 import { JSONB } from '../utils/when-json-met-bigint';
-import type { ProxyParams } from './commands/studio';
 import {
 	ConfigConnectionCliError,
 	ConnectionStringDatabaseCliError,
