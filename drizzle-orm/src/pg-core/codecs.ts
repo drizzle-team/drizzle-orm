@@ -970,17 +970,18 @@ order by ${aliases[dim - 1]})`;
 	return sql`case when ${name} is null then null else ${expression} end`;
 };
 
-/** Used to recursively apply value normalizer to array of unknown dimensions */
 export const arrayCompatNormalize = (normalize: NormalizeCodec) => {
 	const loop: NormalizeArrayCodec = (value, arrayDimensions) => {
+		if (value === null) return value;
+
 		const innerDimensions = arrayDimensions - 1;
 		if (arrayDimensions > 1) {
 			for (let i = 0; i < (value as unknown[][]).length; ++i) {
 				loop((value as unknown[][])[i]!, innerDimensions);
 			}
 		} else {
-			for (let i = 0; i < (value as unknown[][]).length; ++i) {
-				value[i] = normalize((value as unknown[][])[i]!);
+			for (let i = 0; i < (value as unknown[]).length; ++i) {
+				value[i] = value[i] === null ? null : normalize(value[i]);
 			}
 		}
 
@@ -1091,6 +1092,18 @@ const isEngineParsable = (v: string): boolean => {
 export const textToDate = (v: string): Date => isEngineParsable(v) ? new Date(v) : parseTemporalText(v);
 export const textToDateWithTz = (v: string): Date => isEngineParsable(v) ? new Date(v + '+0000') : parseTemporalText(v);
 
+export const castToEpochMs: CastCodec = (name) => sql`floor(extract(epoch from ${name}) * 1000)`;
+export const epochMsToDate = (v: string | number): Date => new Date(+v);
+
+export const castToJsonText: CastArrayCodec = (name) => sql`to_json(${name})::text`;
+export const parseJsonArrayAndNormalize = (normalize: NormalizeCodec): NormalizeArrayCodec => {
+	const codec = arrayCompatNormalize(normalize);
+	return (v: string, arrayDimensions) => codec(JSON.parse(v), arrayDimensions);
+};
+
+export const textToDateArray = parseJsonArrayAndNormalize(textToDate);
+export const textToDateWithTzArray = parseJsonArrayAndNormalize(textToDateWithTz);
+
 export const parsePgVector = (v: string): number[] => {
 	const body = v.slice(1, -1);
 	if (body.length === 0) return [];
@@ -1193,14 +1206,10 @@ export const genericPgCodecs = {
 		normalizeArrayInJson: arrayCompatNormalize(parsePointTuple),
 	},
 	timestamp: {
-		castInJson: castToText,
-		castArrayInJson: castToTextArr,
 		normalizeInJson: textToDateWithTz,
 		normalizeArrayInJson: arrayCompatNormalize(textToDateWithTz),
 	},
 	timestamptz: {
-		castInJson: castToText,
-		castArrayInJson: castToTextArr,
 		normalizeInJson: textToDate,
 		normalizeArrayInJson: arrayCompatNormalize(textToDate),
 	},

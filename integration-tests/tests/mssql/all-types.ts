@@ -681,6 +681,47 @@ export async function assertAllTypesTemporalBounds(
 	}
 }
 
+/** https://github.com/drizzle-team/drizzle-orm/issues/6496 */
+export const sessionDateFormats = [
+	'set dateformat dmy',
+	'set dateformat ydm',
+	'set language british',
+	'set language german',
+];
+
+export async function assertAllTypesTemporalBoundsInSessionDateFormats(
+	db: MsSqlDatabase<any, any, any>,
+	{ rqb = false }: { rqb?: boolean } = {},
+) {
+	await db.execute(sql.raw(dropTemporalBounds()));
+	await db.execute(sql.raw(createTemporalBounds()));
+
+	try {
+		for (const setting of sessionDateFormats) {
+			await db.transaction(async (tx) => {
+				await tx.execute(sql.raw(setting));
+				try {
+					await tx.delete(temporalBoundsTable);
+					await tx.insert(temporalBoundsTable).values(temporalBoundsData);
+
+					expect(await tx.select().from(temporalBoundsTable).orderBy(temporalBoundsTable.id), setting)
+						.toStrictEqual(temporalBoundsData);
+					if (rqb) {
+						expect(
+							await (<any> tx).query.temporalBoundsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } }),
+							setting,
+						).toStrictEqual(temporalBoundsData.map((row) => ({ ...row, self: [row] })));
+					}
+				} finally {
+					await tx.execute(sql.raw('set language us_english'));
+				}
+			});
+		}
+	} finally {
+		await db.execute(sql.raw(dropTemporalBounds()));
+	}
+}
+
 export const boundsSchema = { boundsTable, temporalBoundsTable };
 
 export const boundsRelations = (r: RelationsBuilder<typeof boundsSchema>) => ({

@@ -234,10 +234,25 @@ export interface ConnectConfig {
  *  clauses for you. Applies only to the top-level BEGIN — a nested begin becomes a SAVEPOINT and ignores it. */
 export type TxOptions =
 	| string
+	| BatchOptions;
+
+/** Transaction settings for `pool.batch(queries, options)` — the object form of `TxOptions`. */
+export type BatchOptions =
 	| {
+		/** `snapshot` cannot be used with `isolation: 'read uncommitted' | 'read committed'` */
 		isolation?: 'serializable' | 'repeatable read' | 'read committed' | 'read uncommitted';
 		readOnly?: boolean;
 		deferrable?: boolean;
+		snapshot?: undefined;
+	}
+	| {
+		/** `snapshot` needs `isolation: 'repeatable read' | 'serializable'` */
+		isolation: 'serializable' | 'repeatable read';
+		readOnly?: boolean;
+		deferrable?: boolean;
+		/** Run the transaction on an exported snapshot (`pg_export_snapshot()`, replication `createSlot`):
+		 *  sends `set transaction snapshot …` before anything else. The exporting transaction must still be open. */
+		snapshot: string;
 	};
 
 /** What kind of connection a `Connection` is. `pooled: true` comes from a pool and can cancel its

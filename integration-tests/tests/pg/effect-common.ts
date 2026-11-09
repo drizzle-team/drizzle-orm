@@ -2775,7 +2775,7 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 					yield* db.insert(allTypesTable).values(allTypesData);
 					const session = (<any> db).session as PgEffectSession;
 
-					const queryRes = yield* session.objects<AllTypes>(db.select().from(allTypesTable).getSQL(true))
+					const queryRes = yield* session.arrays<unknown[]>(db.select().from(allTypesTable).getSQL(true))
 						.pipe(
 							Effect.map((e) =>
 								normalizeDataWithDbCodecs({

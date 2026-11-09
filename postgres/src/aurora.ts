@@ -23,7 +23,7 @@
 import { addBrand } from './brand.ts';
 import { buildDecoders } from './decode.ts';
 import { type CodegenCol, INSTANT_OIDS, tagArrayCol } from './decode.ts';
-import { arrayLiteral } from './encode.ts';
+import { arrayLiteral, setTransactionSnapshotSql } from './encode.ts';
 import { PgError } from './errors.ts';
 import { parseJsonBuffer } from './jsonparse.ts';
 import { buildMapperFactory, type RowMapperFactory } from './mapper.ts';
@@ -664,8 +664,12 @@ export class AuroraClient {
 		const tx: AuroraClient = Object.create(this);
 		(tx as unknown as { txId?: string; spCounter: number }).txId = transactionId;
 		(tx as unknown as { txId?: string; spCounter: number }).spCounter = 0;
-		if (options) await tx.query('set transaction ' + beginOptions(options));
 		try {
+			const set = options ? beginOptions(options) : '';
+			if (set) await tx.query('set transaction ' + set);
+			if (typeof options === 'object' && options.snapshot != null) {
+				await tx.query(setTransactionSnapshotSql(options.snapshot));
+			}
 			const r = await fn(tx);
 			await this.call('CommitTransaction', { resourceArn: this.resourceArn, secretArn: this.secretArn, transactionId });
 			return r;

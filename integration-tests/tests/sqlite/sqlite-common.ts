@@ -1812,7 +1812,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
-					population: number;
+					population: number | null;
 					name: string;
 				}[]
 			>();
@@ -1853,7 +1853,7 @@ export function tests(test: Test, exclude: string[] = []) {
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
-					cityName: string;
+					cityName: string | null;
 					name: string;
 				}[]
 			>();

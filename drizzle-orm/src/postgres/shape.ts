@@ -15,7 +15,7 @@ import { getOriginalColumnFromAlias } from '~/alias.ts';
 import { Column } from '~/column.ts';
 import { is } from '~/entity.ts';
 import type { SelectedFieldsOrdered } from '~/operations.ts';
-import type { PostgresType } from '~/pg-core/codecs.ts';
+import type { PgCodecs, PostgresType } from '~/pg-core/codecs.ts';
 import type { PgColumn } from '~/pg-core/columns/common.ts';
 import type { PreparedQuerySelection } from '~/pg-core/dialect.ts';
 import { type DriverValueDecoder, noopDecoder } from '~/sql/sql.ts';
@@ -184,21 +184,47 @@ function memoizedTransform(
 	return marker;
 }
 
+function codecNormalizer(
+	codecs: PgCodecs | undefined,
+	codecType: PostgresType | undefined,
+	arrayDimensions: number | undefined,
+): ((value: any) => unknown) | undefined {
+	const codec = codecType ? codecs?.[codecType] : undefined;
+	if (!codec) return;
+
+	if (arrayDimensions) {
+		const { normalizeArray } = codec;
+		return normalizeArray ? (value: any) => normalizeArray(value, arrayDimensions) : undefined;
+	}
+
+	return codec.normalize;
+}
+
 function wireLeaf(
 	decoder: DriverValueDecoder<any, any>,
 	column: Column | undefined,
 	codecOverride: string | undefined,
 	arrayDimensions: number | undefined,
+	codecs: PgCodecs | undefined,
 ): WireSpec | TransformMarker {
 	const codecType = column ? (codecOverride ?? column.codec) as PostgresType | undefined : undefined;
-	const spec: WireSpec = codecType ? wireSpecFor(codecType, arrayDimensions) : 'unknown';
+	const normalize = codecNormalizer(codecs, codecType, arrayDimensions);
+	const spec: WireSpec = !normalize && codecType ? wireSpecFor(codecType, arrayDimensions) : 'unknown';
+	const isNoop = decoder.mapFromDriverValue.isNoop;
 
-	if (decoder.mapFromDriverValue.isNoop) return spec;
+	if (isNoop && !normalize) return spec;
 
 	const key = is(decoder, Column) ? getOriginalColumnFromAlias(decoder) : decoder.mapFromDriverValue;
 	const decode = decoder.mapFromDriverValue.bind(decoder);
+	const fn = isNoop ? normalize! : normalize ? (value: any) => decode(normalize(value)) : decode;
 
-	return memoizedTransform(key, spec, undefined, arrayDimensions, () => Transform(spec as TypeSpec, decode));
+	return memoizedTransform(
+		key,
+		spec,
+		normalize ? codecs : undefined,
+		arrayDimensions,
+		() => Transform(spec as TypeSpec, fn),
+	);
 }
 
 type ShapeEntry = ShapeValue;
@@ -301,7 +327,7 @@ function jsonMarkerFor(item: RelationalItem): JsonMarker {
 	return item.isArray ? JsonArray(spec) : Json(spec);
 }
 
-function relationalShape(selection: RelationalSelection): ShapeEntries {
+function relationalShape(selection: RelationalSelection, codecs: PgCodecs | undefined): ShapeEntries {
 	const root: [string, ShapeEntry][] = new Array(selection.length);
 
 	for (let i = 0; i < selection.length; ++i) {
@@ -310,7 +336,7 @@ function relationalShape(selection: RelationalSelection): ShapeEntries {
 			item.key,
 			item.selection
 				? jsonMarkerFor(item)
-				: wireLeaf(getRqbDecoder(item), getRqbColumn(item), undefined, item.arrayDimensions),
+				: wireLeaf(getRqbDecoder(item), getRqbColumn(item), undefined, item.arrayDimensions, codecs),
 		];
 	}
 
@@ -320,8 +346,9 @@ function relationalShape(selection: RelationalSelection): ShapeEntries {
 export function buildShape(
 	selection: PreparedQuerySelection,
 	nullableObjectPaths?: string[],
+	codecs?: PgCodecs,
 ): ShapeSpec {
-	if (selection.type === 'relational') return relationalShape(selection.fields);
+	if (selection.type === 'relational') return relationalShape(selection.fields, codecs);
 
 	const { fields } = selection;
 	const nullableKeys = new Set(nullableObjectPaths ?? []);
@@ -333,7 +360,7 @@ export function buildShape(
 	for (let i = 0; i < fields.length; ++i) {
 		const item = fields[i]!;
 		const { path, column, codecOverride, arrayDimensions } = item;
-		const leaf = wireLeaf(getDecoder(item), column, codecOverride, arrayDimensions);
+		const leaf = wireLeaf(getDecoder(item), column, codecOverride, arrayDimensions, codecs);
 
 		const key = path[0]!;
 		if (path.length === 1) {
@@ -365,6 +392,12 @@ export function buildShape(
 
 	return root;
 }
+
+export const createShapeGenerator = (codecs: PgCodecs) =>
+(
+	selection: PreparedQuerySelection,
+	nullableObjectPaths: string[] | undefined,
+): ShapeSpec => buildShape(selection, nullableObjectPaths, codecs);
 
 export namespace buildShape {
 	export function fromTableOrView(source: Table): TableShape;

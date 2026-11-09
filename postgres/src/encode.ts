@@ -711,3 +711,8 @@ export function encodeJsonParam(v: unknown, declaredOid?: number): unknown {
  *  would pass the INDEX as `declaredOid`. `oids` (from resolveParamTypes) is optional and positional. */
 export const encodeJsonParams = (params: readonly unknown[], oids?: readonly number[]): unknown[] =>
 	params.map((v, i) => encodeJsonParam(v, oids?.[i]));
+
+/** `set transaction snapshot '…'` — the id is quoted as a literal. */
+export function setTransactionSnapshotSql(snapshot: string): string {
+	return `set transaction snapshot '${snapshot.replace(/'/g, "''")}'`;
+}

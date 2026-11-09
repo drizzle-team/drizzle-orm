@@ -112,6 +112,7 @@ describe('@drizzle-team/postgres/http', () => {
 			const db1 = client({ url: 'https://gw.example/query', fetch: serve([mid]).fetchImpl });
 			const e1 = await caught(() => db1.batch([{ sql: 'a' }, { sql: 'b' }, { sql: 'c' }]));
 			expect((e1 as PgError).code).toBe('22012');
+			expect((e1 as PgError).failedQueryIndex).toBe(1); // the statement that failed, by position
 
 			// commit-time failure: N clean results, then an E AFTER the Nth — deferred constraint / 40001
 			const okBody = await wireBody(`select 1 as a`, `select 2 as b`);
@@ -125,6 +126,7 @@ describe('@drizzle-team/postgres/http', () => {
 			});
 			const e2 = await caught(() => db2.batch([{ sql: 'a' }, { sql: 'b' }]));
 			expect((e2 as PgError).code).toBe('23505'); // rows for undone work are never surfaced
+			expect((e2 as PgError).failedQueryIndex).toBeUndefined(); // COMMIT belongs to no statement
 		},
 		TEST_TIMEOUT,
 	);
@@ -137,6 +139,65 @@ describe('@drizzle-team/postgres/http', () => {
 		expect(rs[1]!.status).toBe('rejected');
 		expect((rs[1] as { reason: PgError }).reason.code).toBe('22012');
 		expect((rs[2] as { value: { rows: unknown[] } }).value.rows).toEqual([{ c: 3 }]);
+	}, TEST_TIMEOUT);
+
+	test(
+		'batch snapshot: `set transaction snapshot` rides first, its result is dropped',
+		async () => {
+			// the gateway's answer: the snapshot import's command complete, then the statement's result
+			const body = await wireBody(`select 'x' as noop`, `select 1 as a`);
+			const { fetchImpl, calls } = serve([body]);
+			const db = client({ url: 'https://gw.example/query', fetch: fetchImpl });
+			const [r] = await db.batch([{ sql: 'select 1 as a', mode: 'object' }], {
+				snapshot: "00000003-0000001B-1'",
+				isolation: 'repeatable read',
+			});
+			expect(r!.rows as unknown).toEqual([{ a: 1 }]);
+			const sent = calls[0]!.body as { isolation?: string; queries: { sql: string }[] };
+			expect(sent.queries.map((q) => q.sql)).toEqual([
+				"set transaction snapshot '00000003-0000001B-1'''",
+				'select 1 as a',
+			]);
+			expect(sent.isolation).toBe('repeatable read');
+
+			// a statement's failure keeps its own position, not one shifted by the snapshot import
+			const mid = await wireBody(`select 'x' as noop`, 'select 1/0');
+			const db2 = client({ url: 'https://gw.example/query', fetch: serve([mid]).fetchImpl });
+			const e = await caught(() => db2.batch([{ sql: 'b' }], { snapshot: 's', isolation: 'serializable' }));
+			expect((e as PgError).failedQueryIndex).toBe(0);
+
+			// the snapshot import failing belongs to no query
+			const bad = await wireBody('select 1/0', `select 1 as a`);
+			const db3 = client({ url: 'https://gw.example/query', fetch: serve([bad]).fetchImpl });
+			const e3 = await caught(() => db3.batch([{ sql: 'a' }], { snapshot: 's', isolation: 'repeatable read' }));
+			expect((e3 as PgError).code).toBe('22012');
+			expect((e3 as PgError).failedQueryIndex).toBeUndefined();
+		},
+		TEST_TIMEOUT,
+	);
+
+	test('parallel: one request per statement, all settled — a failure never rejects the call', async () => {
+		const bodies: Record<string, Buffer> = {
+			a: await wireBody(`select 1 as a`),
+			b: await wireBody('select 1/0'),
+			c: await wireBody(`select 3 as c`),
+		};
+		const calls: { sql: string }[] = [];
+		const fetchImpl = (async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+			const body = JSON.parse(init?.body as string) as { sql: string };
+			calls.push(body);
+			return new Response(new Uint8Array(bodies[body.sql]!), {
+				headers: { 'Content-Type': 'application/vnd.minipg.pgwire' },
+			});
+		}) as typeof fetch;
+		const db = client({ url: 'https://gw.example/query', fetch: fetchImpl });
+		const rs = await db.parallel([{ sql: 'a', mode: 'object' }, { sql: 'b' }, { sql: 'c', mode: 'object' }]);
+		expect(calls.map((c) => c.sql).sort()).toEqual(['a', 'b', 'c']); // three single-statement requests
+		expect(rs[0]).toEqual({ status: 'fulfilled', value: expect.objectContaining({ rows: [{ a: 1 }] }) });
+		expect(rs[1]!.status).toBe('rejected');
+		expect((rs[1] as PromiseRejectedResult).reason).toBeInstanceOf(PgError);
+		expect(((rs[1] as PromiseRejectedResult).reason as PgError).code).toBe('22012');
+		expect((rs[2] as PromiseFulfilledResult<{ rows: unknown[] }>).value.rows).toEqual([{ c: 3 }]);
 	}, TEST_TIMEOUT);
 
 	test(

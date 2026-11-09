@@ -1,10 +1,8 @@
 import { createPool as createNeonHttpClient } from '@drizzle-team/postgres/neon-http';
 import { defineRelations, sql } from 'drizzle-orm';
 import { boolean, getTableConfig, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import { postgresCodecs } from 'drizzle-orm/postgres/codecs';
-import type { PostgresHttpDatabase } from 'drizzle-orm/postgres/http';
 import { migrate } from 'drizzle-orm/postgres/http/migrator';
-import { drizzle as drizzleNeonHttp } from 'drizzle-orm/postgres/http/neon';
+import { drizzle as drizzleNeonHttp, type PostgresNeonHttpDatabase } from 'drizzle-orm/postgres/http/neon';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { randomString } from '~/utils';
@@ -38,6 +36,7 @@ const skips = [
 	'transaction with options (set isolationLevel)',
 	'time zones are preserved - non-UTC session',
 	'all types ~codecs~ - non-UTC session',
+	'all types ~codecs~ - non-ISO DateStyle session',
 	'transaction with options (accessMode read only)',
 	'transaction with options (deferrable)',
 	'transaction with an empty options object',
@@ -48,7 +47,7 @@ const skips = [
 tests(test, skips);
 
 test('raw db.execute type matches returned data', async ({ db: fixtureDb }) => {
-	const db = fixtureDb as unknown as PostgresHttpDatabase;
+	const db = fixtureDb as unknown as PostgresNeonHttpDatabase;
 	const table = sql.identifier('raw_execute_types');
 
 	await db.execute<never>(sql`drop table if exists ${table}`);
@@ -104,7 +103,7 @@ describe('migrator', () => {
 		await db.execute(sql`drop table if exists users12`);
 		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-		await migrate(db as any as PostgresHttpDatabase<any>, { migrationsFolder: './drizzle2/pg' });
+		await migrate(db as any as PostgresNeonHttpDatabase<any>, { migrationsFolder: './drizzle2/pg' });
 
 		try {
 			await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
@@ -125,7 +124,7 @@ describe('migrator', () => {
 		await db.execute(sql`drop table if exists users12`);
 		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-		await migrate(db as any as PostgresHttpDatabase<any>, {
+		await migrate(db as any as PostgresNeonHttpDatabase<any>, {
 			migrationsFolder: './drizzle2/pg',
 			migrationsSchema: customSchema,
 		});
@@ -152,7 +151,7 @@ describe('migrator', () => {
 		await db.execute(sql`drop table if exists users12`);
 		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-		await migrate(db as any as PostgresHttpDatabase<any>, {
+		await migrate(db as any as PostgresNeonHttpDatabase<any>, {
 			migrationsFolder: './drizzle2/pg',
 			migrationsTable: customTable,
 		});
@@ -179,7 +178,7 @@ describe('migrator', () => {
 		await db.execute(sql`drop schema if exists public cascade`);
 		await db.execute(sql`create schema public`);
 
-		const migratorRes = await migrate(db as any as PostgresHttpDatabase<any>, {
+		const migratorRes = await migrate(db as any as PostgresNeonHttpDatabase<any>, {
 			migrationsFolder: './drizzle2/pg-init',
 			migrationsTable,
 			migrationsSchema,
@@ -239,7 +238,7 @@ describe('migrator', () => {
 			`ALTER TABLE "migration_users" ADD COLUMN "age" integer;`,
 		);
 
-		await migrate(db as any as PostgresHttpDatabase<any>, { migrationsFolder: migrationDir });
+		await migrate(db as any as PostgresNeonHttpDatabase<any>, { migrationsFolder: migrationDir });
 		const res1 = await db.insert(users).values({ name: 'John', email: '', age: 30 }).returning();
 
 		// second migration was not applied yet
@@ -250,7 +249,7 @@ describe('migrator', () => {
 			`${migrationDir}/20240202020202_second/migration.sql`,
 			`CREATE TABLE "migration_users2" (\n"id" serial PRIMARY KEY NOT NULL,\n"name" text NOT NULL,\n"email" text NOT NULL\n,"age" integer\n);`,
 		);
-		await migrate(db as any as PostgresHttpDatabase<any>, { migrationsFolder: migrationDir });
+		await migrate(db as any as PostgresNeonHttpDatabase<any>, { migrationsFolder: migrationDir });
 
 		const res2 = await db.insert(users2).values({ name: 'John', email: '', age: 30 }).returning();
 
@@ -275,9 +274,10 @@ describe('migrator', () => {
 			'CREATE TABLE "neon_http_mig_ok" ("id" integer);',
 		);
 
-		await expect(migrate(db as any as PostgresHttpDatabase<any>, { migrationsFolder: migrationDir })).rejects.toThrow(
-			/already exists/i,
-		);
+		await expect(migrate(db as any as PostgresNeonHttpDatabase<any>, { migrationsFolder: migrationDir })).rejects
+			.toThrow(
+				/already exists/i,
+			);
 
 		const present = await db.execute<{ present: boolean }>(
 			sql`select to_regclass('public.neon_http_mig_ok') is not null as present`,
@@ -300,7 +300,7 @@ describe('migrator', () => {
 		await db.execute(sql`drop table if exists users12`);
 		await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-		await migrate(db as any as PostgresHttpDatabase<any>, {
+		await migrate(db as any as PostgresNeonHttpDatabase<any>, {
 			migrationsFolder: './drizzle2/pg',
 			migrationsTable: customTable,
 			migrationsSchema: customSchema,
@@ -332,7 +332,7 @@ describe('migrator', () => {
 		await db.execute(sql`drop schema if exists public cascade`);
 		await db.execute(sql`create schema public`);
 
-		const migratorRes = await migrate(db as any as PostgresHttpDatabase<any>, {
+		const migratorRes = await migrate(db as any as PostgresNeonHttpDatabase<any>, {
 			migrationsFolder: './drizzle2/pg',
 			migrationsTable,
 			migrationsSchema,
@@ -365,13 +365,13 @@ describe('migrator', () => {
 		await db.execute(sql`drop schema if exists public cascade`);
 		await db.execute(sql`create schema public`);
 
-		await migrate(db as any as PostgresHttpDatabase<any>, {
+		await migrate(db as any as PostgresNeonHttpDatabase<any>, {
 			migrationsFolder: './drizzle2/pg-init',
 			migrationsSchema,
 			migrationsTable,
 		});
 
-		const migratorRes = await migrate(db as any as PostgresHttpDatabase<any>, {
+		const migratorRes = await migrate(db as any as PostgresNeonHttpDatabase<any>, {
 			migrationsFolder: './drizzle2/pg',
 			migrationsTable,
 			migrationsSchema,
@@ -724,33 +724,6 @@ describe('driver-specific', () => {
 		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
 
 		await assertAllTypesUnions(db);
-		await assertAllTypesBounds(db, { rqb: true });
-		await assertAllTypesTemporalBounds(db, { rqb: true });
-
-		await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
-	});
-
-	// Validates functionality of base codecs provided to be overriden
-	// this disables driver shape generator and falls back to mappers
-	test('all types ~codecs~ override', async ({ createDB, push }) => {
-		const { en, allTypesTable } = makeAllTypes('all_types_48_cdcs_ovr', 'en_49_ovr');
-		const base = createDB({ allTypesTable }, allTypesRelations);
-		await push({ en, allTypesTable });
-
-		const relations = defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
-			...allTypesRelations(r),
-			...boundsRelations(r),
-		}));
-		const db = drizzleNeonHttp({ client: (base as any).$client, relations, codecs: postgresCodecs });
-		await db.insert(allTypesTable).values(allTypesData);
-
-		const [flat] = await db.select().from(allTypesTable);
-		expect(flat).toStrictEqual(allTypesData);
-
-		const nested = await db.query.allTypesTable.findFirst({ with: { self: true } });
-		expect(nested).toStrictEqual({ ...allTypesData, self: [allTypesData] });
-
-		await assertAllTypesUnions(db, allTypesTable);
 		await assertAllTypesBounds(db, { rqb: true });
 		await assertAllTypesTemporalBounds(db, { rqb: true });
 

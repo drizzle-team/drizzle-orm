@@ -3,8 +3,11 @@ import { makePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
+	castToEpochMs,
+	castToJsonText,
 	castToText,
 	castToTextArr,
+	epochMsToDate,
 	makeBoxArray,
 	makeGeometryArray,
 	parseGeometryTuple,
@@ -15,8 +18,8 @@ import {
 	parsePointTuple,
 	parsePointXY,
 	refineGenericPgCodecs,
-	textToDate,
-	textToDateWithTz,
+	textToDateArray,
+	textToDateWithTzArray,
 } from '~/pg-core/codecs.ts';
 
 /** JSON param marker exists only on client and isn't importable outside of it */
@@ -209,10 +212,10 @@ export const postgresJsCodecs = (client: Sql) =>
 		int: { normalizeParamArray: (v) => makePgArray(v) },
 		uuid: { normalizeParamArray: (v) => makePgArray(v) },
 		date: {
-			cast: castToText,
-			castArray: castToTextArr,
-			normalize: textToDate,
-			normalizeArray: arrayCompatNormalize(textToDate),
+			cast: castToEpochMs,
+			castArray: castToJsonText,
+			normalize: epochMsToDate,
+			normalizeArray: textToDateArray,
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		'date:string': {
@@ -221,17 +224,17 @@ export const postgresJsCodecs = (client: Sql) =>
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		timestamp: {
-			cast: castToText,
-			castArray: castToTextArr,
-			normalize: textToDateWithTz,
-			normalizeArray: arrayCompatNormalize(textToDateWithTz),
+			cast: castToEpochMs,
+			castArray: castToJsonText,
+			normalize: epochMsToDate,
+			normalizeArray: textToDateWithTzArray,
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		timestamptz: {
-			cast: castToText,
-			castArray: castToTextArr,
-			normalize: textToDate,
-			normalizeArray: arrayCompatNormalize(textToDate),
+			cast: castToEpochMs,
+			castArray: castToJsonText,
+			normalize: epochMsToDate,
+			normalizeArray: textToDateArray,
 			normalizeParamArray: (v) => makePgArray(v),
 		},
 		'timestamp:string': {

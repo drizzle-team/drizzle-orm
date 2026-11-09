@@ -1,9 +1,10 @@
 import type { Connection, Pool, PoolQuery, QueryResult, ShapeSpec } from '#postgres';
 import { isBrand } from '#postgres/brand';
-import type { BatchItem } from '~/batch.ts';
+import type { BatchItem, SettledQueryResult } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import { DrizzleQueryError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -13,6 +14,23 @@ import type { AnyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import type { Simplify } from '~/utils.ts';
 export type PostgresClient = Pool | Connection;
+
+export type PostgresBatchOptions =
+	| {
+		/** `snapshot` cannot be used with `isolation: 'read uncommitted' | 'read committed'` */
+		isolation?: 'serializable' | 'repeatable read' | 'read committed' | 'read uncommitted';
+		readOnly?: boolean;
+		deferrable?: boolean;
+		snapshot?: undefined;
+	}
+	| {
+		/** `snapshot` needs `isolation: 'repeatable read' | 'serializable'` */
+		isolation: 'serializable' | 'repeatable read';
+		readOnly?: boolean;
+		deferrable?: boolean;
+		/** Run the transaction on a snapshot exported by another transaction (`pg_export_snapshot()`) */
+		snapshot: string;
+	};
 
 export interface PostgresSessionOptions {
 	logger?: Logger;
@@ -85,43 +103,136 @@ export class PostgresSession<
 		);
 	}
 
-	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(queries: T) {
-		const preparedQueries: PostgresPreparedQuery<any>[] = new Array(queries.length);
-		const builtQueries: PoolQuery[] = new Array(queries.length);
+	/** Atomic: runs all queries in one transaction on a single pooled connection */
+	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
+		queries: T,
+		options?: PostgresBatchOptions,
+	): Promise<any[]> {
+		const { pool, prepared, built } = this.buildMulti('batch', queries);
+		return pool.batch(built, options).catch((e) => {
+			const index = (e as { failedQueryIndex?: unknown } | null)?.failedQueryIndex;
+			const query = typeof index === 'number' ? prepared[index] : undefined;
+			if (!query) throw e;
+			throw this.queryError(query, e);
+		}).then((results) => {
+			const response = new Array(results.length);
+			for (let i = 0; i < results.length; ++i) {
+				const { mapper, mode } = prepared[i]!;
+				const result = results[i]!;
 
-		const q = this.client;
+				response[i] = mapper
+					? mapper(result.rows)
+					: mode === 'raw'
+					? result
+					: result.rows;
+			}
+
+			return response;
+		});
+	}
+
+	/**
+	 * Non-atomic: pipelines all queries on a single pooled connection, each in it's own autocommit
+	 *
+	 * Never throws on a query failure: resolves with one `PromiseSettledResult` per query, in input order
+	 */
+	async pipeline<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
+		queries: T,
+	): Promise<SettledQueryResult<any>[]> {
+		const { pool, prepared, built } = this.buildMulti('pipeline', queries);
+		return pool.pipeline(built).then((results) => {
+			const response = new Array(results.length);
+			for (let i = 0; i < results.length; ++i) {
+				const { mapper, mode } = prepared[i]!;
+				const result = results[i]!;
+				if (result.status === 'rejected') {
+					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, result.reason) };
+					continue;
+				}
+
+				try {
+					response[i] = {
+						status: 'fulfilled',
+						value: mapper
+							? mapper(result.value.rows)
+							: mode === 'raw'
+							? result.value
+							: result.value.rows,
+					};
+				} catch (e) {
+					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, e) };
+				}
+			}
+
+			return response;
+		});
+	}
+
+	/**
+	 * Non-atomic: fans queries out across pooled connections concurrently
+	 *
+	 * Never throws on a query failure: resolves with one `PromiseSettledResult` per query, in input order
+	 */
+	async parallel<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
+		queries: T,
+	): Promise<SettledQueryResult<any>[]> {
+		const { pool, prepared, built } = this.buildMulti('parallel', queries);
+		return pool.parallel(built).then((results) => {
+			const response = new Array(results.length);
+			for (let i = 0; i < results.length; ++i) {
+				const { mapper, mode } = prepared[i]!;
+				const result = results[i]!;
+				if (result.status === 'rejected') {
+					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, result.reason) };
+					continue;
+				}
+
+				try {
+					response[i] = {
+						status: 'fulfilled',
+						value: mapper
+							? mapper(result.value.rows)
+							: mode === 'raw'
+							? result.value
+							: result.value.rows,
+					};
+				} catch (e) {
+					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, e) };
+				}
+			}
+
+			return response;
+		});
+	}
+
+	private queryError(prepared: PostgresPreparedQuery<any>, cause: unknown): DrizzleQueryError {
+		const { sql, params } = prepared.getQuery();
+		return new DrizzleQueryError(sql, this.options.paramsInErrors ? params : undefined, cause as Error);
+	}
+
+	private buildMulti(method: 'batch' | 'pipeline' | 'parallel', queries: Readonly<BatchItem<'pg'>[]>) {
+		const pool = this.client;
 		// `instanceof Pool` would load the bundled client for a pool from the standalone package.
-		if (!isBrand<Pool>(q, 'Pool')) throw new Error('`batch` method is only supported on connection pools!');
+		if (!isBrand<Pool>(pool, 'Pool')) throw new Error(`\`${method}\` method is only supported on connection pools!`);
+
+		const prepared: PostgresPreparedQuery<any>[] = new Array(queries.length);
+		const built: PoolQuery[] = new Array(queries.length);
 		for (let i = 0; i < queries.length; ++i) {
-			const query = queries[i]!;
-			const preparedQuery = query._prepare() as PostgresPreparedQuery<any>;
+			const preparedQuery = queries[i]!._prepare() as PostgresPreparedQuery<any>;
 			const builtQuery = preparedQuery.getQuery();
-			preparedQueries[i] = preparedQuery;
-			builtQueries[i] = preparedQuery.mode === 'arrays'
-				? q.query(builtQuery.sql, builtQuery.params, {
+			prepared[i] = preparedQuery;
+			built[i] = preparedQuery.mode === 'arrays'
+				? pool.query(builtQuery.sql, builtQuery.params, {
 					mode: 'array',
 					shape: preparedQuery.shape,
 				})
-				: q.query(builtQuery.sql, builtQuery.params, {
+				: pool.query(builtQuery.sql, builtQuery.params, {
 					mode: 'object',
 					shape: preparedQuery.shape,
 				});
 		}
 
-		const batchResults = await q.batch(builtQueries);
-		const response = new Array(batchResults.length);
-		for (let i = 0; i < batchResults.length; ++i) {
-			const { mapper, mode } = preparedQueries[i]!;
-			const result = batchResults[i]!;
-
-			response[i] = mapper
-				? mapper(result.rows)
-				: mode === 'raw'
-				? result
-				: result.rows;
-		}
-
-		return response;
+		return { pool, prepared, built };
 	}
 
 	override async transaction<T>(

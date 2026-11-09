@@ -74,11 +74,12 @@ import {
 	assertAllTypesBounds,
 	assertAllTypesEmptyArrays,
 	assertAllTypesTemporalBounds,
-	assertAllTypesTemporalBoundsInSessionTimeZones,
+	assertAllTypesTemporalBoundsInSessions,
 	assertAllTypesUnions,
 	boundsRelations,
 	boundsSchema,
 	makeAllTypes,
+	sessionDateStyles,
 } from './all-types';
 import type { Test } from './instrumentation';
 import { normalizeDataWithDbCodecs } from './utils';
@@ -3531,7 +3532,7 @@ export function tests(test: Test) {
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
-					population: number;
+					population: number | null;
 					name: string;
 				}[]
 			>();
@@ -3586,7 +3587,7 @@ export function tests(test: Test) {
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
-					cityName: string;
+					cityName: string | null;
 					name: string;
 				}[]
 			>();
@@ -3998,7 +3999,7 @@ export function tests(test: Test) {
 
 			const session = (<any> db).session as PgAsyncSession;
 
-			const queryRes = await session.objects<AllTypes>(db.select().from(allTypesTable).getSQL(true)).then((
+			const queryRes = await session.arrays<unknown[]>(db.select().from(allTypesTable).getSQL(true)).then((
 				e,
 			) =>
 				normalizeDataWithDbCodecs({
@@ -4048,7 +4049,14 @@ export function tests(test: Test) {
 		test('all types ~codecs~ - non-UTC session', async ({ createDB }) => {
 			const db = createDB({ ...boundsSchema }, boundsRelations);
 
-			await assertAllTypesTemporalBoundsInSessionTimeZones(db, { rqb: true });
+			await assertAllTypesTemporalBoundsInSessions(db, { rqb: true });
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/6496
+		test('all types ~codecs~ - non-ISO DateStyle session', async ({ createDB }) => {
+			const db = createDB({ ...boundsSchema }, boundsRelations);
+
+			await assertAllTypesTemporalBoundsInSessions(db, { rqb: true, sessions: sessionDateStyles });
 		});
 
 		test.concurrent('all types ~json~', async ({ db, push }) => {

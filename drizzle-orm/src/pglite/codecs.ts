@@ -2,8 +2,11 @@ import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
+	castToEpochMs,
+	castToJsonText,
 	castToText,
 	castToTextArr,
+	epochMsToDate,
 	genericPgCodecs,
 	makeGeometryArray,
 	parseGeometryArrayAndNormalize,
@@ -16,8 +19,8 @@ import {
 	parsePointTuple,
 	parsePointXY,
 	refineGenericPgCodecs,
-	textToDate,
-	textToDateWithTz,
+	textToDateArray,
+	textToDateWithTzArray,
 } from '~/pg-core/codecs.ts';
 import { pgHexToUint8Array } from '~/utils.ts';
 
@@ -72,26 +75,26 @@ export const pgliteCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 	},
 	date: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateArray,
 	},
 	'date:string': {
 		cast: castToText,
 		castArray: castToTextArr,
 	},
 	timestamp: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: textToDateWithTz,
-		normalizeArray: arrayCompatNormalize(textToDateWithTz),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateWithTzArray,
 	},
 	timestamptz: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateArray,
 	},
 	'timestamp:string': {
 		cast: castToText,

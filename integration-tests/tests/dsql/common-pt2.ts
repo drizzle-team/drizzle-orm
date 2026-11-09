@@ -3139,7 +3139,7 @@ export function tests(test: Test) {
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
-					population: number;
+					population: number | null;
 					name: string;
 				}[]
 			>();
@@ -3194,7 +3194,7 @@ export function tests(test: Test) {
 
 			expectTypeOf(res).toEqualTypeOf<
 				{
-					cityName: string;
+					cityName: string | null;
 					name: string;
 				}[]
 			>();
@@ -3474,7 +3474,7 @@ export function tests(test: Test) {
 
 			const session = (<any> db).session as DsqlAsyncSession;
 
-			const queryRes = await session.objects<AllTypes>(db.select().from(allTypesTable).getSQL(true)).then((
+			const queryRes = await session.arrays<unknown[]>(db.select().from(allTypesTable).getSQL(true)).then((
 				e,
 			) =>
 				normalizeDataWithDbCodecs({

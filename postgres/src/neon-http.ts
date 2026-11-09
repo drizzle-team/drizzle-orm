@@ -15,13 +15,13 @@ import { addBrand } from './brand.ts';
 import { buildDecoders } from './decode.ts';
 import { type CodegenCol, INSTANT_OIDS, tagArrayCol } from './decode.ts';
 import { defaultDecoders } from './decode.ts';
-import { encodeJsonParams as encodeParams } from './encode.ts';
+import { encodeJsonParams as encodeParams, setTransactionSnapshotSql } from './encode.ts';
 import { PgError } from './errors.ts';
 import { buildMapperFactory, type RowMapperFactory } from './mapper.ts';
 import { parseDataRow } from './protocol.ts';
 import type { ShapeMapper } from './shape.ts';
 import { mergeUnknownCols, shapeCols, type ShapeSpec } from './spec.ts';
-import type { Decoder, QueryResult, ResultMode } from './types.ts';
+import type { BatchOptions, Decoder, QueryResult, ResultMode } from './types.ts';
 import { resolveUrl } from './url.ts';
 
 type JsonBigints = 'number' | 'string' | 'bigint';
@@ -61,13 +61,10 @@ export interface NeonHttpQueryOptions {
 	signal?: AbortSignal;
 }
 
-export interface NeonTxOptions {
-	isolation?: Isolation;
-	readOnly?: boolean;
-	deferrable?: boolean;
+export type NeonTxOptions = BatchOptions & {
 	timeout?: number;
 	signal?: AbortSignal;
-}
+};
 
 /** One query in a `transaction([...])` batch. */
 export interface NeonTxQuery {
@@ -486,17 +483,41 @@ export class NeonHttpClient {
 		if (opts.isolation) headers['Neon-Batch-Isolation-Level'] = ISO_HEADER[opts.isolation];
 		if (opts.readOnly != null) headers['Neon-Batch-Read-Only'] = String(opts.readOnly);
 		if (opts.deferrable != null) headers['Neon-Batch-Deferrable'] = String(opts.deferrable);
-		const body = { queries: queries.map((q) => ({ query: q.sql, params: encodeParams(q.params ?? []) })) };
+		const head = opts.snapshot != null ? [{ query: setTransactionSnapshotSql(opts.snapshot), params: [] }] : [];
+		const body = {
+			queries: [...head, ...queries.map((q) => ({ query: q.sql, params: encodeParams(q.params ?? []) }))],
+		};
 		const res = await this.post(body, headers, this.signalFor(opts));
 		const j = (await res.json()) as {
 			results: Array<
 				{ fields: NeonField[]; rows: (string | null)[][]; command?: string | null; rowCount?: number | null }
 			>;
 		};
-		return j.results.map((r, i) => {
+		return j.results.slice(head.length).map((r, i) => {
 			const q = queries[i]!;
 			return this.decodeParsed(r, q.mode ?? (q.shape ? 'object' : 'array'), q.shape);
 		});
+	}
+
+	/** Concurrent, NO transaction: each statement is its OWN request (and autocommit), all in flight at
+	 *  once. Never rejects for a statement error: waits for every request and returns one
+	 *  `Promise.allSettled`-style outcome per statement, in input order */
+	parallel(
+		queries: NeonTxQuery[],
+		opts: { timeout?: number; signal?: AbortSignal } = {},
+	): Promise<PromiseSettledResult<QueryResult<never>>[]> {
+		// per-query mode/shape are dynamic, so go through the implementation signature, not the overloads
+		const run = this.query as (sql: string, params: unknown[], o: NeonHttpQueryOptions) => Promise<QueryResult<never>>;
+		return Promise.allSettled(
+			queries.map((q) =>
+				run.call(this, q.sql, q.params ?? [], {
+					mode: q.mode,
+					shape: q.shape,
+					timeout: opts.timeout,
+					signal: opts.signal,
+				})
+			),
+		);
 	}
 
 	/** No-op — HTTP holds no connection. Present for API symmetry. */

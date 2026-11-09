@@ -1662,12 +1662,29 @@ export async function assertAllTypesTemporalBounds(
 	}
 }
 
-export async function assertAllTypesTemporalBoundsInSessionTimeZones(
+export type TemporalSession = { timeZone: string; dateStyle?: string };
+
+export const sessionTimeZones: TemporalSession[] = [
+	{ timeZone: 'Europe/Kyiv' },
+	{ timeZone: 'Asia/Kathmandu' },
+	{ timeZone: 'America/St_Johns' },
+];
+
+/** https://github.com/drizzle-team/drizzle-orm/issues/6496 */
+export const sessionDateStyles: TemporalSession[] = [
+	{ timeZone: 'Asia/Tokyo', dateStyle: 'SQL, DMY' },
+	{ timeZone: 'UTC', dateStyle: 'SQL, MDY' },
+	{ timeZone: 'America/St_Johns', dateStyle: 'Postgres, DMY' },
+	{ timeZone: 'Europe/Kyiv', dateStyle: 'German' },
+];
+
+export async function assertAllTypesTemporalBoundsInSessions(
 	db: PgAsyncDatabase<any, any>,
-	{ rqb = false, data = temporalBoundsData }: {
+	{ rqb = false, data = temporalBoundsData, sessions = sessionTimeZones }: {
 		rqb?: boolean;
 		/** Replaces {@link temporalBoundsData}, e.g. to exclude values a driver is known to misdecode */
 		data?: TemporalBoundsRow[];
+		sessions?: TemporalSession[];
 	} = {},
 ) {
 	const table = temporalBoundsTable;
@@ -1684,12 +1701,15 @@ export async function assertAllTypesTemporalBoundsInSessionTimeZones(
 	await db.execute(sql.raw(createTemporalBounds()));
 
 	try {
-		await fillTemporalBounds(db, awaitQuery, data);
-
-		for (const timeZone of ['Europe/Kyiv', 'Asia/Kathmandu', 'America/St_Johns']) {
+		for (const { timeZone, dateStyle } of sessions) {
+			const label = dateStyle === undefined ? timeZone : `${timeZone}, ${dateStyle}`;
 			// `set local` keeps the setting within transaction, which also holds the session for pooled drivers
 			await db.transaction(async (tx) => {
 				await tx.execute(sql.raw(`set local time zone '${timeZone}'`));
+				if (dateStyle !== undefined) await tx.execute(sql.raw(`set local datestyle = '${dateStyle}'`));
+
+				await tx.delete(table);
+				await fillTemporalBounds(<any> tx, awaitQuery, data);
 
 				expect(
 					await tx.select({
@@ -1699,7 +1719,7 @@ export async function assertAllTypesTemporalBoundsInSessionTimeZones(
 						timestampTz: table.timestampTz,
 						arrTimestampTz: table.arrTimestampTz,
 					}).from(table).orderBy(table.id),
-					timeZone,
+					label,
 				).toStrictEqual(expected);
 				if (rqb) {
 					expect(
@@ -1708,7 +1728,7 @@ export async function assertAllTypesTemporalBoundsInSessionTimeZones(
 							orderBy: { id: 'asc' },
 							with: { self: { columns } },
 						}),
-						timeZone,
+						label,
 					).toStrictEqual(expected.map((row) => ({ ...row, self: [row] })));
 				}
 			});

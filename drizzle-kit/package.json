@@ -65,9 +65,9 @@
 		}
 	},
 	"devDependencies": {
+		"@aws-sdk/client-rds-data": "^3.556.0",
 		"@aws/aurora-dsql-node-postgres-connector": "^0.1.9",
 		"@aws/aurora-dsql-postgresjs-connector": "^0.3.1",
-		"@aws-sdk/client-rds-data": "^3.556.0",
 		"@cloudflare/workers-types": "^4.20230518.0",
 		"@drizzle-team/brocli": "0.12.1",
 		"@drizzle/test-utils": "workspace:*",
@@ -112,11 +112,10 @@
 		"drizzle-orm": "workspace:./drizzle-orm/dist",
 		"env-paths": "^3.0.0",
 		"get-port": "^6.1.2",
-		"get-tsconfig": "^4.13.6",
 		"glob": "^8.1.0",
 		"hanji": "^0.0.8",
 		"hono": "^4.7.9",
-		"jiti": "^2.6.1",
+		"jiti": "^2.7.0",
 		"json-diff": "1.0.6",
 		"micromatch": "^4.0.8",
 		"minimatch": "^7.4.3",

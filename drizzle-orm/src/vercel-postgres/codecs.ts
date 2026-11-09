@@ -2,8 +2,11 @@ import { makePgArray, parsePgArray } from '~/pg-core/array.ts';
 import {
 	arrayCompatNormalize,
 	arrayCompatNormalizeInput,
+	castToEpochMs,
+	castToJsonText,
 	castToText,
 	castToTextArr,
+	epochMsToDate,
 	makeGeometryArray,
 	parseGeometryArrayAndNormalize,
 	parseGeometryTuple,
@@ -15,8 +18,8 @@ import {
 	parsePointTuple,
 	parsePointXY,
 	refineGenericPgCodecs,
-	textToDate,
-	textToDateWithTz,
+	textToDateArray,
+	textToDateWithTzArray,
 } from '~/pg-core/codecs.ts';
 
 export const vercelPgCodecs = refineGenericPgCodecs({
@@ -68,10 +71,10 @@ export const vercelPgCodecs = refineGenericPgCodecs({
 		normalizeArray: arrayCompatNormalize(BigInt),
 	},
 	date: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateArray,
 	},
 	'date:string': {
 		cast: castToText,
@@ -86,16 +89,16 @@ export const vercelPgCodecs = refineGenericPgCodecs({
 		castArray: castToTextArr,
 	},
 	timestamp: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: textToDateWithTz,
-		normalizeArray: arrayCompatNormalize(textToDateWithTz),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateWithTzArray,
 	},
 	timestamptz: {
-		cast: castToText,
-		castArray: castToTextArr,
-		normalize: textToDate,
-		normalizeArray: arrayCompatNormalize(textToDate),
+		cast: castToEpochMs,
+		castArray: castToJsonText,
+		normalize: epochMsToDate,
+		normalizeArray: textToDateArray,
 	},
 	'timestamp:string': {
 		cast: castToText,

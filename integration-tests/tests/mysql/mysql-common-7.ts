@@ -50,7 +50,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		expectTypeOf(res).toEqualTypeOf<
 			{
-				population: number;
+				population: number | null;
 				name: string;
 			}[]
 		>();
@@ -89,7 +89,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		expectTypeOf(res).toEqualTypeOf<
 			{
-				cityName: string;
+				cityName: string | null;
 				name: string;
 			}[]
 		>();

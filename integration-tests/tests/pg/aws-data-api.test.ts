@@ -40,6 +40,8 @@ const skips = [
 	'comments',
 	'RQB v2 find many - $count',
 	'issue #4169',
+	// Data API's JDBC driver rejects `DateStyle`s that don't begin with ISO, so it never reads non-ISO text
+	'all types ~codecs~ - non-ISO DateStyle session',
 	// Data API returns json as text, results without codecs (raw, untyped `sql`) keep it as a string, redefined below
 	'raw jsons',
 	'set json/jsonb fields with objects and retrieve with the -> operator',
@@ -428,7 +430,7 @@ describe('aws-data-api/pg', () => {
 			expect(recordsQuery).toStrictEqual({
 				params: ['CANCELED', 'CLOSED'],
 				sql:
-					'select "d0"."id" as "id", "d0"."created_on"::text as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in (:1::candidacy_status, :2::candidacy_status)))))) as "activeJobs" from "candidates" as "d0"',
+					'select "d0"."id" as "id", floor(extract(epoch from "d0"."created_on") * 1000) as "createdOn", "d0"."email" as "email", "d0"."first_name" as "firstName", "d0"."last_name" as "lastName", "d0"."phone" as "phone", "d0"."profile_link" as "profileLink", ((select count(*) from "job_candidacy" where (("job_candidacy"."candidate_id" = "candidates"."id") and (not ("job_candidacy"."status" in (:1::candidacy_status, :2::candidacy_status)))))) as "activeJobs" from "candidates" as "d0"',
 			});
 		});
 	});

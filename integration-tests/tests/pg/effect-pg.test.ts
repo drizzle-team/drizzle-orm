@@ -200,7 +200,7 @@ runCommonEffectPgTests({
 				yield* db.insert(allTypesTable).values(allTypesDataNoMtx);
 				const session = (<any> db).session as PgEffectSession;
 
-				const queryRes = yield* session.objects<AllTypesNoMtx>(
+				const queryRes = yield* session.arrays<unknown[]>(
 					db.select().from(allTypesTable).getSQL(true),
 				).pipe(
 					Effect.map((e) =>
