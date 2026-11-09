@@ -122,30 +122,10 @@ export const fromDatabase = async (
 			throw err;
 		});
 
-	const defaultsQuery = db.query<{
-		tableId: number | string;
-		ordinality: number;
-		expression: string;
-	}>(`
-		SELECT
-			adrelid AS "tableId",
-			adnum AS "ordinality",
-			pg_catalog.pg_get_expr(adbin, adrelid) AS "expression"
-		FROM
-			pg_catalog.pg_attrdef;
-	`).then((rows) => {
-		queryCallback('defaults', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('defaults', [], err);
-		throw err;
-	});
-
-	const [ams, tablespaces, namespaces, defaultsList] = await Promise.all([
+	const [ams, tablespaces, namespaces] = await Promise.all([
 		accessMethodsQuery,
 		tablespacesQuery,
 		namespacesQuery,
-		defaultsQuery,
 	]);
 
 	const { other: filteredNamespaces } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
@@ -294,15 +274,13 @@ export const fromDatabase = async (
 			})
 		: [] as EnumListItem[];
 
-	// fetch for serials, adrelid = tableid
-	const serialsQuery = db
+	// defaults of table columns, serials are detected from them too, adrelid = tableid
+	const defaultsQuery = db
 		.query<{
-			oid: number | string;
 			tableId: number | string;
 			ordinality: number;
 			expression: string;
 		}>(`SELECT
-				oid,
 				adrelid as "tableId",
 				adnum as "ordinality",
 				pg_catalog.pg_get_expr(adbin, adrelid) as "expression"
@@ -310,10 +288,10 @@ export const fromDatabase = async (
 				pg_catalog.pg_attrdef
 			WHERE ${filterByTableIds ? ` adrelid IN ${filterByTableIds}` : 'false'}
 		`).then((rows) => {
-			queryCallback('serials', rows, null);
+			queryCallback('defaults', rows, null);
 			return rows;
 		}).catch((err) => {
-			queryCallback('serials', [], err);
+			queryCallback('defaults', [], err);
 			throw err;
 		});
 
@@ -617,7 +595,7 @@ export const fromDatabase = async (
 
 	const [
 		enumsList,
-		serialsList,
+		defaultsList,
 		sequencesList,
 		policiesList,
 		rolesList,
@@ -628,7 +606,7 @@ export const fromDatabase = async (
 	] = await Promise
 		.all([
 			enumsQuery,
-			serialsQuery,
+			defaultsQuery,
 			sequencesQuery,
 			policiesQuery,
 			rolesQuery,
@@ -643,7 +621,6 @@ export const fromDatabase = async (
 	const tablesById = mapBy(tablesList, (it) => Number(it.oid));
 	const viewsById = mapBy(viewsList, (it) => Number(it.oid));
 	const sequencesById = mapBy(sequencesList, (it) => Number(it.oid));
-	const serialsByPosition = mapBy(serialsList, (it) => columnPosition(it.tableId, it.ordinality));
 	const defaultsByPosition = mapBy(defaultsList, (it) => columnPosition(it.tableId, it.ordinality));
 	const columnsByPosition = mapBy(columnsList, (it) => columnPosition(it.tableId, it.ordinality));
 	const singleColumnConstraintsByPosition = (type: 'u' | 'p') =>
@@ -768,7 +745,7 @@ export const fromDatabase = async (
 			continue;
 		}
 
-		const expr = serialsByPosition.get(columnPosition(column.tableId, column.ordinality));
+		const expr = defaultsByPosition.get(columnPosition(column.tableId, column.ordinality));
 
 		if (expr) {
 			const table = tablesById.get(Number(column.tableId))!;
