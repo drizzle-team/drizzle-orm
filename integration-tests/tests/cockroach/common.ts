@@ -108,9 +108,11 @@ import {
 	allTypesTable,
 	assertAllTypesBounds,
 	assertAllTypesEmptyArrays,
+	assertAllTypesNullArrayElements,
 	assertAllTypesTemporalBounds,
 	assertAllTypesTemporalBoundsInSessions,
 	assertAllTypesUnions,
+	assertCustomTypeNullArrayElements,
 	boundsRelations,
 	boundsSchema,
 	makeAllTypes,
@@ -7549,6 +7551,7 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 
 			await assertAllTypesUnions(db, allTypesTable);
 			await assertAllTypesBounds(db);
+			await assertAllTypesNullArrayElements(db);
 			await assertAllTypesTemporalBounds(db);
 		});
 
@@ -7907,6 +7910,18 @@ export function tests(getDb: () => CockroachDatabase<any>) {
 			await assertAllTypesTemporalBounds(db, { rqb: true });
 
 			await assertAllTypesEmptyArrays(db, allTypesTable, { rqb: true });
+		});
+
+		// https://github.com/drizzle-team/drizzle-orm/issues/6460
+		test('all types ~codecs~ - null array elements', async ({ createDB }) => {
+			const db = createDB({ ...boundsSchema }, boundsRelations);
+
+			await assertAllTypesNullArrayElements(db, { rqb: true });
+		});
+
+		test('all types ~codecs~ - custom type null array elements', async ({ createDB }) => {
+			await assertCustomTypeNullArrayElements(createDB({ ...boundsSchema }, boundsRelations), { rqb: true });
+			await assertCustomTypeNullArrayElements(createDB({ ...boundsSchema }, boundsRelations, true), { rqb: true });
 		});
 
 		test('all types ~codecs~ - non-UTC session', async ({ createDB }) => {
