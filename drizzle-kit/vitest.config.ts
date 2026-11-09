@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 
 // With PG_VERSION, only the postgres test files named *.versions.test.ts run, against the server of that version
 // (see tests/postgres/README.md). No such file exists today, so CI runs the postgres tests on PGlite only.
-const versionedPostgresTests = ['tests/postgres/*.versions.test.ts'];
+const versionedPostgresTests = ['tests/postgres/**/*.versions.test.ts'];
 
 // CI runs the commutativity suite in its own shard (kit:postgres:commutativity), beside kit:postgres.
 // .github/ci/run-shard.sh sets KIT_POSTGRES_SUITE for those shards. Without it (local runs), the postgres suite is
