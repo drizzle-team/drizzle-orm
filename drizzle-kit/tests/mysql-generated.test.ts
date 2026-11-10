@@ -1,5 +1,5 @@
 import { SQL, sql } from 'drizzle-orm';
-import { int, mysqlTable, text } from 'drizzle-orm/mysql-core';
+import { bigint, customType, index, int, mysqlTable, text, varchar, vectorIndex } from 'drizzle-orm/mysql-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemasMysql } from './schemaDiffer';
 
@@ -1286,5 +1286,93 @@ test('generated as string: change generated constraint', async () => {
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` drop column `gen_name`;',
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') VIRTUAL;",
+	]);
+});
+
+export const vector = customType<{
+	data: string;
+	config: { length: number };
+	configRequired: true;
+}>({
+	dataType(config) {
+		return `VECTOR(${config.length})`;
+	},
+});
+
+test.only('generated as string: vector index and secondaryEngineAttribute', async () => {
+	const from = {};
+	const to = {
+		users: mysqlTable('users', {
+			id: bigint({ mode: "bigint" }).autoincrement().primaryKey(),
+			name: varchar({ length: 255 }).notNull(),
+			embedding: vector("embedding", { length: 3 }),
+		}, (table) => {
+			return {
+				idx_embedding: vectorIndex({
+					name: "idx_embedding",
+					secondaryEngineAttribute: '{"type":"spann", "distance":"cosine"}',
+				}).on(table.embedding),
+			};
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasMysql(
+		from,
+		to,
+		[],
+	);
+
+	expect(statements).toStrictEqual([
+		{
+			type: "create_table",
+			tableName: "users",
+			schema: undefined,
+			columns: [
+				{
+					name: "id",
+					type: "bigint",
+					primaryKey: false,
+					notNull: true,
+					autoincrement: true,
+				},
+				{
+					name: "name",
+					type: "varchar(255)",
+					primaryKey: false,
+					notNull: true,
+					autoincrement: false,
+				},
+				{
+					name: "embedding",
+					type: "VECTOR(3)",
+					primaryKey: false,
+					notNull: false,
+					autoincrement: false,
+				},
+			],
+			compositePKs: ["users_id;id"],
+			compositePkName: "users_id",
+			uniqueConstraints: [],
+			internals: { tables: {}, indexes: {} },
+			checkConstraints: [],
+		},
+		{
+			type: "create_index",
+			tableName: "users",
+			data: 'idx_embedding;embedding;false;true;;;;{"type":"spann", "distance":"cosine"}',
+			schema: undefined,
+			internal: { tables: {}, indexes: {} },
+		},
+	]);
+
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE \`users\` (
+	\`id\` bigint AUTO_INCREMENT NOT NULL,
+	\`name\` varchar(255) NOT NULL,
+	\`embedding\` VECTOR(3),
+	CONSTRAINT \`users_id\` PRIMARY KEY(\`id\`)
+);
+`,
+		'CREATE VECTOR INDEX `idx_embedding` ON `users` (`embedding`) SECONDARY_ENGINE_ATTRIBUTE=\'{"type":"spann", "distance":"cosine"}\';',
 	]);
 });
