@@ -17,10 +17,10 @@ import { type CodegenCol, INSTANT_OIDS, tagArrayCol } from './decode.ts';
 import { defaultDecoders } from './decode.ts';
 import { encodeJsonParams as encodeParams, setTransactionSnapshotSql } from './encode.ts';
 import { PgError } from './errors.ts';
-import { buildMapperFactory, type RowMapperFactory } from './mapper.ts';
+import { type RowMapper, RowMappers } from './mapper.ts';
 import { parseDataRow } from './protocol.ts';
 import type { ShapeMapper } from './shape.ts';
-import { mergeUnknownCols, shapeCols, type ShapeSpec } from './spec.ts';
+import { mergeUnknownCols, type ShapeSpec, shapeTextCols } from './spec.ts';
 import type { BatchOptions, Decoder, QueryResult, ResultMode } from './types.ts';
 import { resolveUrl } from './url.ts';
 
@@ -226,7 +226,7 @@ export class NeonHttpClient {
 	private fetchImpl: typeof fetch;
 	private temporal: 'date' | 'string';
 	private decoders: Map<number, Decoder>;
-	private mapperFactory: RowMapperFactory;
+	private rowMappers: RowMappers; // per-shape mapper cache, owned by this client
 
 	/** For API symmetry with the wire driver — an HTTP client is always "ready" (no socket). */
 	get state(): 'ready' {
@@ -254,7 +254,7 @@ export class NeonHttpClient {
 		this.fetchImpl = f;
 		this.temporal = c.temporal ?? 'date';
 		this.decoders = buildDecoders(c.types, c.jsonBigints);
-		this.mapperFactory = buildMapperFactory(c.decode);
+		this.rowMappers = new RowMappers(c.decode, this.decoders);
 	}
 
 	private async headers(): Promise<Record<string, string>> {
@@ -306,18 +306,16 @@ export class NeonHttpClient {
 	// Resolve the column plan: shape cols (binary→text, HTTP is text-only) or plain field OIDs, then apply
 	// temporal:'string' the same way the wire driver's resolveCols does.
 	private planCols(fields: NeonField[], shape: ShapeSpec | ShapeMapper | undefined): CodegenCol[] {
-		let cols: CodegenCol[];
 		// 'unknown' (oid 0) columns defer their type to the result's field list — resolve them BEFORE
 		// tagArrayCol/temporal below, which key off the real OID. (Neon's fields carry `dataTypeID`.)
-		if (shape) {
-			cols = mergeUnknownCols(
-				(typeof shape === 'function' ? (shape.$cols as CodegenCol[]) : shapeCols(shape)).map((
-					c,
-				) => (c.format === 'binary' ? { ...c, format: 'text' as const } : c)),
-				fields,
-				(f) => f.dataTypeID,
-			);
-		} else cols = fields.map((f) => ({ name: f.name, oid: f.dataTypeID }));
+		return this.resolveCols(
+			shape
+				? mergeUnknownCols(shapeTextCols(shape), fields, (f) => f.dataTypeID)
+				: fields.map((f) => ({ name: f.name, oid: f.dataTypeID })),
+		);
+	}
+
+	private resolveCols(cols: CodegenCol[]): CodegenCol[] {
 		cols = cols.map(tagArrayCol);
 		if (this.temporal !== 'string') return cols;
 		return cols.map((c) => (!c.js && !c.json && INSTANT_OIDS.has(c.oid)
@@ -326,6 +324,35 @@ export class NeonHttpClient {
 			? { ...c, array: { ...c.array, js: 'string' as const } }
 			: c)
 		);
+	}
+
+	// Column plan + mapper for one result. Cached, cheapest first: a static shape by identity, the
+	// `fields` JSON text (single-statement fast path), the resolved columns. `ncols` is what the row
+	// scanner reads per row: the response's own column count.
+	private planFor(
+		fields: NeonField[],
+		fieldsJson: string | null,
+		shape: ShapeSpec | ShapeMapper | undefined,
+		mode: ResultMode,
+	): { mapper: RowMapper | null; columns: string[] } {
+		if (mode !== 'array' && mode !== 'object') {
+			const cols = this.planCols(fields, shape);
+			return { mapper: null, columns: cols.map((c) => c.name) };
+		}
+		if (shape) {
+			const plan = this.rowMappers.plan(shape, () => this.resolveCols(shapeTextCols(shape)));
+			if (!plan.deferred) {
+				return {
+					mapper: this.rowMappers.planMapper(plan, mode),
+					columns: plan.cols.map((c) => c.name),
+				};
+			}
+		} else if (fieldsJson !== null) {
+			const mapper = this.rowMappers.forDescKey(fieldsJson, false, mode, () => this.planCols(fields, undefined));
+			return { mapper, columns: fields.map((f) => f.name) };
+		}
+		const cols = this.planCols(fields, shape);
+		return { mapper: this.rowMappers.forCols(cols, mode), columns: cols.map((c) => c.name) };
 	}
 
 	private rowFrom(mode: ResultMode, mapper: ((b: Buffer) => unknown) | null, body: Buffer): unknown {
@@ -343,12 +370,12 @@ export class NeonHttpClient {
 		const fi = raw.indexOf(FKEY);
 		const fvs = skipWs(raw, fi + FKEY.length);
 		const fve = endOfValue(raw, fvs);
-		const fields = JSON.parse(raw.toString('utf8', fvs, fve)) as NeonField[];
+		const fieldsJson = raw.toString('utf8', fvs, fve);
+		const fields = JSON.parse(fieldsJson) as NeonField[];
 		const ri = raw.indexOf(RKEY, fve);
 		let i = skipWs(raw, ri + RKEY.length) + 1; // past '['
-		const cols = this.planCols(fields, shape);
-		const ncols = cols.length;
-		const mapper = mode === 'array' || mode === 'object' ? this.mapperFactory(cols, mode, this.decoders) : null;
+		const { mapper, columns } = this.planFor(fields, fieldsJson, shape, mode);
+		const ncols = columns.length;
 		const rb = new RowBuf();
 		const rows: unknown[] = [];
 		for (;;) {
@@ -390,7 +417,7 @@ export class NeonHttpClient {
 		}
 		return {
 			rows: rows as never[],
-			columns: cols.map((c) => c.name),
+			columns,
 			rowCount: numField(raw, '"rowCount":', i),
 			command: strField(raw, '"command":', i),
 		};
@@ -402,9 +429,8 @@ export class NeonHttpClient {
 		mode: ResultMode,
 		shape: ShapeSpec | ShapeMapper | undefined,
 	): QueryResult<never> {
-		const cols = this.planCols(result.fields, shape);
-		const ncols = cols.length;
-		const mapper = mode === 'array' || mode === 'object' ? this.mapperFactory(cols, mode, this.decoders) : null;
+		const { mapper, columns } = this.planFor(result.fields, null, shape, mode);
+		const ncols = columns.length;
 		const rb = new RowBuf();
 		const rows = result.rows.map((row) => {
 			rb.reset();
@@ -413,7 +439,7 @@ export class NeonHttpClient {
 		});
 		return {
 			rows: rows as never[],
-			columns: cols.map((c) => c.name),
+			columns,
 			rowCount: result.rowCount ?? rows.length,
 			command: result.command ?? null,
 		};

@@ -18,7 +18,7 @@ import {
 	setTransactionSnapshotSql,
 } from './encode.ts';
 import { parseErrorFields, PgError } from './errors.ts';
-import { buildMapperFactory, isEvalAvailable, type RowMapper, type RowMapperFactory } from './mapper.ts';
+import { isEvalAvailable, type RowMapper, RowMappers } from './mapper.ts';
 import {
 	type ParamsEncoder,
 	parseDataRow,
@@ -140,6 +140,17 @@ interface PreparedEntry {
 	fields: Field[];
 	paramOids?: number[];
 	plan?: ParamsEncoder | null;
+	// Row mappers for re-executions, filled on first reuse (fixed slots, no key). The entry is replaced
+	// whenever the statement is re-described, so these can never outlive its columns.
+	reuse?: StatementMappers; // plain query: per-column binary upgrade (reuseBinaryOids)
+	binary?: StatementMappers; // { binary: true }: every column binary
+}
+
+interface StatementMappers {
+	cols: CodegenCol[]; // resolved
+	resultFormat: number[];
+	object?: RowMapper;
+	array?: RowMapper;
 }
 
 // Identity of a Parse on the wire: same name may NOT be reused for different sql OR different declared
@@ -553,8 +564,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	// so naming always wins. The common (uniform) case is 1-2 statements; only a pathological per-row-varying
 	// batch accrues one statement per distinct chunk SQL. (On a transaction pooler query() drops names anyway.)
 	private valuesMeta = new Map<string, string>();
-	private mapperCache = new Map<string, RowMapper>(); // per-shape row mappers (standard + typed queries)
-	private mapperFactory: RowMapperFactory; // interpreted or jit, chosen once from config.decode
+	private rowMappers: RowMappers; // per-shape mapper cache: this connection's own, or its pool's
 	// query-builder fast path: a chunks array (tagged template / builder) has stable identity, so cache
 	private scramState?: Scram;
 
@@ -578,7 +588,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 	private everConnected = false;
 	private instrumented = false; // plugins present -> capture per-query timings + fire hooks
 
-	constructor(config: ConnectConfig = {}) {
+	/** @param decode - @internal a pool's decode state, shared by all of its connections */
+	constructor(config: ConnectConfig = {}, decode?: DecodeState) {
 		config = resolveUrl(config); // fold a `url` connection string into defaults (explicit fields still win)
 		// Only the no-TLS-at-all case is decidable here. A custom `socket` owns its own TLS (so `ssl: false`
 		// means "I handle it", not "no encryption") and may well expose the certificate — see the `socket`
@@ -634,7 +645,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				: Math.max(1, p.depth ?? DEFAULT_PIPELINE_DEPTH)))(config.pipeline),
 			pipelineFlush: (typeof config.pipeline === 'object' && config.pipeline.flush) || 'microtask', // coalesce same-tick writes by default
 			temporal: config.temporal ?? 'date',
-			decoders: buildDecoders(config.types, config.jsonBigints),
+			decoders: decode?.decoders ?? buildDecoders(config.types, config.jsonBigints),
 			// types to auto-upgrade to binary on prepared-statement reuse — the bench-fast set, minus any OID the
 			// user overrode via config.types (binary decode bypasses the text override, so leave those as text).
 			reuseBinaryOids: new Set([...BINARY_FAST].filter((oid) => !(config.types && oid in config.types))),
@@ -655,7 +666,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		};
 		this.instrumented = this.cfg.plugins.length > 0;
 		const hasEval = isEvalAvailable();
-		this.mapperFactory = buildMapperFactory(config.decode, hasEval); // 'auto' (default): jit where eval available, else interpreted
+		// 'auto' (default): jit where eval available, else interpreted
+		this.rowMappers = decode?.rowMappers ?? new RowMappers(config.decode, this.cfg.decoders, hasEval);
 		const encMode = config.encode ?? 'auto';
 		if (encMode === 'jit' && !hasEval) {
 			throw new Error(
@@ -963,17 +975,21 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 							this.current.error = e as Error;
 						}
 					} else if (!this.current._typed) {
-						const bin = this.current.binary;
-						try {
-							const cols = this.current.fields.map((
-								f,
-							) => (bin
+						const t = this.current;
+						const bin = !!t.binary;
+						const fields = t.fields!;
+						const cols = () =>
+							fields.map((f) => (bin
 								? { name: f.name, oid: f.dataTypeOid, format: 'binary' as const }
 								: { name: f.name, oid: f.dataTypeOid })
 							);
-							this.assignMapper(this.current, cols);
+						try {
+							// cached by the RowDescription bytes; columns are only built on a miss
+							if ((t.mode === 'array' || t.mode === 'object') && !t.debug) {
+								t.mapper = this.rowMappers.forDesc(body, bin, t.mode, () => this.resolveCols(cols()));
+							} else this.assignMapper(t, cols());
 						} catch (e) {
-							this.current.error = e as Error;
+							t.error = e as Error;
 						} /* e.g. { binary: true } on a type with no binary decoder */
 					}
 					if (this.current._cacheName) this.cacheStatement(this.current);
@@ -1126,6 +1142,11 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		if (t.debug) t._debugCols = cols;
 	}
 
+	private statementMappers(cols: CodegenCol[]): StatementMappers {
+		const resolved = this.resolveCols(cols);
+		return { cols: resolved, resultFormat: resolved.map((c) => (c.format === 'binary' ? 1 : 0)) };
+	}
+
 	// Assemble the { debug: true } decode plan from what the task resolved to.
 	private buildDebug(t: Task): QueryDebug {
 		const src = (t.mapper as (RowMapper & { source?: string }) | undefined)?.source; // compileRow attaches .source; interpreted has none
@@ -1151,23 +1172,7 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 
 	private getMapper(cols: CodegenCol[], mode: ResultMode): RowMapper | undefined {
 		if (mode !== 'array' && mode !== 'object') return undefined;
-		cols = this.resolveCols(cols);
-		// NB: encode the whole json marker (its declared shape), not just "has json" — two shapes that differ
-		// only inside a Json()/JsonArray() must get different mappers, else the first one is wrongly reused.
-		const key = mode + '|'
-			+ cols.map((c) =>
-				`${c.name}:${c.oid}:${c.format ?? 't'}:${c.js ?? ''}:${c.json ? JSON.stringify(c.json) : ''}:${
-					c.array ? 'a' + c.array.elem + (c.array.js ?? '') : ''
-				}:${c.path ? c.path.join('.') : ''}:${
-					c.groupNullable ? c.groupNullable.map((x) => (x ? '1' : '0')).join('') : ''
-				}:${c.nullable ? 'n' : ''}:${c.xformId ?? ''}`
-			).join(',');
-		let m = this.mapperCache.get(key);
-		if (!m) {
-			m = this.mapperFactory(cols, mode, this.cfg.decoders);
-			this.mapperCache.set(key, m);
-		}
-		return m;
+		return this.rowMappers.forCols(this.resolveCols(cols), mode);
 	}
 
 	private dataRow(body: Buffer): void {
@@ -1421,23 +1426,32 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 							// shape / queryTyped: the caller already chose per-column formats + mapper in query(); keep them.
 							// Exception: a shape with 'unknown' columns deferred its mapper — build it from the cached fields.
 							if (t._shapeCols && !t.mapper) this.assignMapper(t, mergeUnknownCols(t._shapeCols, cached.fields));
-						} else if (t.binary) {
-							this.assignMapper(
-								t,
+						} else if (t.binary && (t.mode === 'array' || t.mode === 'object')) {
+							// { binary: true }: all binary (mapper slot on the statement entry)
+							const m = cached.binary ??= this.statementMappers(
 								cached.fields.map((f) => ({ name: f.name, oid: f.dataTypeOid, format: 'binary' as const })),
-							); // { binary: true }: all binary
+							);
+							t.mapper = m[t.mode] ??= this.rowMappers.forCols(m.cols, t.mode);
+							if (t.debug) t._debugCols = m.cols;
 						} else if (t.mode === 'array' || t.mode === 'object') {
 							// Plain query (no shape), 2nd+ execution: the result OIDs are now known from the first roundtrip's
 							// RowDescription, so request BINARY for the bench-fast types (same decoded value as text, smaller +
 							// faster). The first execution went out text. resolveCols honors temporal:'string'.
-							const cols = this.resolveCols(
+							// Mapper slot on the statement entry: built on the first reuse, a property read after that.
+							const m = cached.reuse ??= this.statementMappers(
 								cached.fields.map((f) => (this.cfg.reuseBinaryOids.has(f.dataTypeOid)
 									? { name: f.name, oid: f.dataTypeOid, format: 'binary' as const }
 									: { name: f.name, oid: f.dataTypeOid })
 								),
 							);
-							this.assignMapper(t, cols);
-							t.resultFormat = cols.map((c) => (c.format === 'binary' ? 1 : 0));
+							t.mapper = m[t.mode] ??= this.rowMappers.forCols(m.cols, t.mode);
+							t.resultFormat = m.resultFormat;
+							if (t.debug) t._debugCols = m.cols;
+						} else if (t.binary) {
+							this.assignMapper(
+								t,
+								cached.fields.map((f) => ({ name: f.name, oid: f.dataTypeOid, format: 'binary' as const })),
+							); // buffer/raw: no mapper, debug columns only
 						} else {
 							this.assignMapper(t, cached.fields.map((f) => ({ name: f.name, oid: f.dataTypeOid }))); // buffer/raw: text bytes
 						}
@@ -2130,12 +2144,18 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 			} else if (opts.shape) {
 				// declared column shape: decode with the SAME cached jit/interpreted mapper as any query, and
 				// request binary wire format for any column marked format:'binary'. (mode is array|object here.)
-				const cols = this.resolveCols(
-					typeof opts.shape === 'function' ? (opts.shape.$cols as CodegenCol[]) : shapeCols(opts.shape),
+				// resolved once per shape object (identity); an inline shape is a new object each call -> resolved each call
+				const shape = opts.shape;
+				const plan = this.rowMappers.plan(
+					shape,
+					() => this.resolveCols(typeof shape === 'function' ? (shape.$cols as CodegenCol[]) : shapeCols(shape)),
 				);
-				if (cols.some((c) => c.oid === 0)) task._shapeCols = cols; // 'unknown' cols: defer the mapper until real OIDs arrive
-				else this.assignMapper(task, cols);
-				task.resultFormat = cols.map((c) => (c.format === 'binary' ? 1 : 0)); // shapeCols upgraded boost types ('unknown' is always text)
+				if (plan.deferred) task._shapeCols = plan.cols; // 'unknown' cols: defer the mapper until real OIDs arrive
+				else if (mode === 'array' || mode === 'object') {
+					task.mapper = this.rowMappers.planMapper(plan, mode);
+					if (opts.debug) task._debugCols = plan.cols;
+				} else this.assignMapper(task, plan.cols);
+				task.resultFormat = plan.resultFormat; // shapeCols upgraded boost types ('unknown' is always text)
 				task._typed = true;
 			} else if (opts.binary) {
 				// force BINARY for every column; the mapper is built binary from RowDescription OIDs in the 'T'
@@ -2169,7 +2189,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 		const p = new Promise<QueryResult<never>>((resolve, reject) => {
 			if (this.state === 'closed') return reject(new Error('connection is closed'));
 			const mode = opts.mode ?? 'object';
-			const cols = this.resolveCols(columns);
+			const plan = this.rowMappers.plan(columns, () => this.resolveCols(columns)); // cached by array identity
+			const cols = plan.cols;
 			const task: Task = {
 				sql,
 				params,
@@ -2180,8 +2201,8 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 				timeout: opts.timeout,
 				signal: opts.signal,
 				debug: opts.debug,
-				mapper: this.getMapper(cols, mode),
-				resultFormat: cols.map((c) => (c.format === 'binary' ? 1 : 0)),
+				mapper: this.rowMappers.planMapper(plan, mode),
+				resultFormat: plan.resultFormat,
 				_typed: true,
 			};
 			if (opts.debug) task._debugCols = cols;
@@ -3032,9 +3053,22 @@ export class Connection<Config extends ConnectionTypeConfig = ConnectionTypeConf
 
 addBrand(Connection, 'Connection');
 
+/** Decoder map + row mapper cache. A pool builds one and hands it to every connection it opens, so a
+ *  shape compiles once per pool. Never shared across pools/clients: they may point at different databases,
+ *  where the same type (an extension type, enum, domain) has a different OID. */
+export interface DecodeState {
+	decoders: Map<number, Decoder>;
+	rowMappers: RowMappers;
+}
+
+export function createDecodeState(config: ConnectConfig): DecodeState {
+	const decoders = buildDecoders(config.types, config.jsonBigints);
+	return { decoders, rowMappers: new RowMappers(config.decode, decoders) };
+}
+
 /** Creates a connection that a pool owns. Only such a connection cancels its queries. */
-export function createPooledConnection(config: ConnectConfig): Connection<{ pooled: true }> {
-	const conn = new Connection<{ pooled: true }>(config);
+export function createPooledConnection(config: ConnectConfig, decode?: DecodeState): Connection<{ pooled: true }> {
+	const conn = new Connection<{ pooled: true }>(config, decode);
 	pooledConnections.add(conn);
 	return conn;
 }

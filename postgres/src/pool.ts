@@ -7,7 +7,13 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { addBrand } from './brand.ts';
 import { installVercelCompat, type VercelPoolSurface } from './compat/vercel.ts';
-import { type Connection, createPooledConnection, isUntrustedCertificate } from './connection.ts';
+import {
+	type Connection,
+	createDecodeState,
+	createPooledConnection,
+	type DecodeState,
+	isUntrustedCertificate,
+} from './connection.ts';
 import type { TxFn } from './connection.ts';
 import { Cursor, type CursorOptions } from './cursor.ts';
 import type { QueryMetrics } from './plugin.ts';
@@ -70,6 +76,7 @@ const TX_GUARD_MSG =
 
 export class Pool {
 	private cfg: PoolConfig;
+	private decode?: DecodeState; // decoders + row mapper cache, shared by this pool's connections only
 	private max: number;
 	private idle: Connection[] = [];
 	private all = new Set<Connection>();
@@ -274,11 +281,12 @@ export class Pool {
 		// reporting a database that is "not recovering".
 		let conn: Connection<{ pooled: true }>;
 		try {
+			this.decode ??= createDecodeState(this.cfg);
 			conn = createPooledConnection({
 				...this.cfg,
 				reconnect: false,
 				...(connectTimeout === undefined ? {} : { connectTimeout }),
-			});
+			}, this.decode);
 		} catch (e) {
 			throw Object.assign(e as Error, { fatal: true });
 		}

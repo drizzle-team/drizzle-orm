@@ -796,3 +796,34 @@ describe('roadmap (unimplemented)', () => {
 	test.todo('search_path leak guard: DISCARD ALL / reset-on-release between checkouts', () => {});
 	test.todo('pool emits idle/release event when a client becomes available', () => {});
 });
+
+describe('row mapper cache scope', () => {
+	const mappersOf = (c: object) => (c as { rowMappers: unknown }).rowMappers;
+	const shapeOf = (c: object, cols: { name: string; oid: number }[]) =>
+		(c as { rowMappers: { forCols: (cols: unknown, mode: string) => unknown } }).rowMappers.forCols(cols, 'object');
+
+	test("a pool's connections share one cache; another pool and a standalone connection do not", async () => {
+		const a = testPool({ max: 2, applicationName: appName() });
+		const b = testPool({ max: 1, applicationName: appName() });
+		const solo = await testConnect();
+		try {
+			const [a1, a2] = await Promise.all([a.acquire(), a.acquire()]);
+			expect(a1).not.toBe(a2);
+			expect(mappersOf(a1)).toBe(mappersOf(a2));
+			await a1.query('select 1::int as id, $1::text as name', ['x']);
+			const cols = [{ name: 'id', oid: 23 }, { name: 'name', oid: 25 }];
+			expect(shapeOf(a2, cols)).toBe(shapeOf(a1, cols));
+			expect((await a2.query('select 2::int as id, $1::text as name', ['y'])).rows).toEqual([[2, 'y']]);
+
+			const b1 = await b.acquire();
+			expect(mappersOf(b1)).not.toBe(mappersOf(a1));
+			expect(shapeOf(b1, cols)).not.toBe(shapeOf(a1, cols));
+			expect(mappersOf(solo)).not.toBe(mappersOf(a1));
+			a.release(a1);
+			a.release(a2);
+			b.release(b1);
+		} finally {
+			await Promise.all([a.end(), b.end(), solo.end()]);
+		}
+	});
+});

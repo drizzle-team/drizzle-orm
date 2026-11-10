@@ -18,10 +18,10 @@ import { addBrand } from './brand.ts';
 import { buildDecoders, type CodegenCol, INSTANT_OIDS, tagArrayCol } from './decode.ts';
 import { encodeJsonParams, setTransactionSnapshotSql } from './encode.ts';
 import { parseErrorFields, PgError } from './errors.ts';
-import { buildMapperFactory, type RowMapperFactory } from './mapper.ts';
+import { type RowMapper, RowMappers } from './mapper.ts';
 import { Parser, parseRowDescription, type RawMessage } from './protocol.ts';
 import type { ShapeMapper } from './shape.ts';
-import { mergeUnknownCols, type ParamType, resolveParamTypes, shapeCols, type ShapeSpec } from './spec.ts';
+import { mergeUnknownCols, type ParamType, resolveParamTypes, type ShapeSpec, shapeTextCols } from './spec.ts';
 import type { BatchOptions, Decoder, Field, QueryResult, ResultMode } from './types.ts';
 
 export interface HttpConfig {
@@ -96,6 +96,7 @@ function fnv1a64(b: Uint8Array): string {
 // One statement's slice of the stream (PROTOCOL.md "Splitting results": C/E/I terminate, never T).
 interface RawResult {
 	fields: Field[] | null;
+	descKey: string | null; // the RowDescription bytes as latin1: the row mapper cache key
 	rows: Buffer[];
 	command: string | null;
 	rowCount: number | null;
@@ -106,11 +107,12 @@ export class HttpClient {
 	private cfg: HttpConfig;
 	private fetchImpl: typeof fetch;
 	private decoders: Map<number, Decoder>;
-	private mapperFactory: RowMapperFactory;
+	private rowMappers: RowMappers; // per-shape mapper cache, owned by this client
 	private sendDesc: boolean;
 	// desc cache: sql -> { hash (sent as `desc`), fields (decode when the gateway omits T) }. Harvested
 	// from every T seen — including batch responses — self-correcting: a response WITH T overwrites.
-	private descCache = new Map<string, { hash: string; fields: Field[] }>();
+	// descKey: the T body as latin1 — the row mapper key, kept so a T-less response still hits the cache.
+	private descCache = new Map<string, { hash: string; fields: Field[]; descKey: string }>();
 
 	constructor(config: HttpConfig) {
 		if (!config.url) {
@@ -121,7 +123,7 @@ export class HttpClient {
 		if (!f) throw new Error('@drizzle-team/postgres/http: no fetch available — pass { fetch }');
 		this.fetchImpl = f;
 		this.decoders = buildDecoders(config.types, config.jsonBigints);
-		this.mapperFactory = buildMapperFactory(config.decode);
+		this.rowMappers = new RowMappers(config.decode, this.decoders);
 		this.sendDesc = config.desc !== false;
 	}
 
@@ -184,22 +186,24 @@ export class HttpClient {
 	// ---- stream splitting (PROTOCOL.md): each result ends with C, E, or I — never T ----
 	private split(msgs: RawMessage[], sqls: readonly string[]): { results: RawResult[]; trailing: PgError | null } {
 		const results: RawResult[] = [];
-		let cur: RawResult = { fields: null, rows: [], command: null, rowCount: null, error: null };
+		let cur: RawResult = { fields: null, descKey: null, rows: [], command: null, rowCount: null, error: null };
 		let trailing: PgError | null = null;
 		const push = (): void => {
 			results.push(cur);
-			cur = { fields: null, rows: [], command: null, rowCount: null, error: null };
+			cur = { fields: null, descKey: null, rows: [], command: null, rowCount: null, error: null };
 		};
 		for (const m of msgs) {
 			switch (m.type) {
 				case 'T': {
 					cur.fields = parseRowDescription(m.body);
+					cur.descKey = m.body.toString('latin1');
 					// harvest for desc elision + T-less decode; frame = header (5B, contiguous below body) + body
 					const i = results.length;
 					if (i < sqls.length) {
 						this.descCache.set(sqls[i]!, {
 							hash: fnv1a64(Buffer.from(m.body.buffer, m.body.byteOffset - 5, m.body.length + 5)),
 							fields: cur.fields,
+							descKey: cur.descKey,
 						});
 					}
 					break;
@@ -247,18 +251,17 @@ export class HttpClient {
 
 	// ---- decode: the SAME column plan + compiled mappers as the wire driver ----
 	private planCols(fields: Field[], shape: ShapeSpec | ShapeMapper | undefined): CodegenCol[] {
-		let cols: CodegenCol[];
 		// 'unknown' (oid 0) columns defer their type to the RowDescription — resolve them BEFORE the
 		// array/temporal/int8 passes below, which all key off the real OID.
-		if (shape) {
-			cols = mergeUnknownCols(
-				(typeof shape === 'function' ? (shape.$cols as CodegenCol[]) : shapeCols(shape)).map((
-					c,
-				) => (c.format === 'binary' ? { ...c, format: 'text' as const } : c)),
-				fields,
-				(f) => f.dataTypeOid,
-			); // the protocol GUARANTEES text
-		} else cols = fields.map((f) => ({ name: f.name, oid: f.dataTypeOid }));
+		return this.resolveCols(
+			shape
+				? mergeUnknownCols(shapeTextCols(shape), fields, (f) => f.dataTypeOid)
+				: fields.map((f) => ({ name: f.name, oid: f.dataTypeOid })),
+		);
+	}
+
+	// The array/temporal/int8 passes, on columns whose OIDs are known.
+	private resolveCols(cols: CodegenCol[]): CodegenCol[] {
 		const temporal = this.cfg.temporal ?? 'date';
 		const int8 = this.cfg.int8 ?? 'bigint'; // parity with the wire driver's default decoder catalog
 		return cols.map((c0) => {
@@ -279,6 +282,30 @@ export class HttpClient {
 		});
 	}
 
+	// Mapper + column names for one result. Cached, cheapest first: a static shape by identity, the
+	// RowDescription bytes, the resolved columns (a shape with 'unknown' columns).
+	private mapperFor(
+		fields: Field[],
+		descKey: string | null,
+		shape: ShapeSpec | ShapeMapper | undefined,
+		mode: 'array' | 'object',
+	): { mapper: RowMapper; columns: string[] } {
+		if (shape) {
+			const plan = this.rowMappers.plan(shape, () => this.resolveCols(shapeTextCols(shape)));
+			if (!plan.deferred) {
+				return {
+					mapper: this.rowMappers.planMapper(plan, mode),
+					columns: plan.cols.map((c) => c.name),
+				};
+			}
+		} else if (descKey !== null) {
+			const mapper = this.rowMappers.forDescKey(descKey, false, mode, () => this.planCols(fields, undefined));
+			return { mapper, columns: fields.map((f) => f.name) };
+		}
+		const cols = this.planCols(fields, shape);
+		return { mapper: this.rowMappers.forCols(cols, mode), columns: cols.map((c) => c.name) };
+	}
+
 	private decode(
 		r: RawResult,
 		sql: string,
@@ -287,7 +314,8 @@ export class HttpClient {
 	): QueryResult<never> {
 		if (r.error) throw r.error;
 		const m: ResultMode = mode ?? (shape ? 'object' : 'array');
-		const fields = r.fields ?? this.descCache.get(sql)?.fields ?? null;
+		const cached = r.fields ? undefined : this.descCache.get(sql);
+		const fields = r.fields ?? cached?.fields ?? null;
 		if (!fields) {
 			if (r.rows.length > 0) {
 				throw new Error(
@@ -296,9 +324,13 @@ export class HttpClient {
 			}
 			return { rows: [], columns: [], rowCount: r.rowCount, command: r.command };
 		}
+		if (m === 'array' || m === 'object') {
+			const { mapper, columns } = this.mapperFor(fields, r.descKey ?? cached?.descKey ?? null, shape, m);
+			const rows = r.rows.map((b) => mapper(b));
+			return { rows: rows as never[], columns, rowCount: r.rowCount, command: r.command };
+		}
 		const cols = this.planCols(fields, shape);
-		const mapper = m === 'array' || m === 'object' ? this.mapperFactory(cols, m, this.decoders) : null;
-		const rows = r.rows.map((b) => (mapper ? mapper(b) : m === 'buffer' ? parseDataRowCells(b) : Buffer.from(b)));
+		const rows = r.rows.map((b) => (m === 'buffer' ? parseDataRowCells(b) : Buffer.from(b)));
 		return { rows: rows as never[], columns: cols.map((c) => c.name), rowCount: r.rowCount, command: r.command };
 	}
 
