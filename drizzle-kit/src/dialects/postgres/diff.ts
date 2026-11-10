@@ -937,6 +937,21 @@ export const ddlDiff = async (
 		});
 	});
 
+	// Procedures have no rename resolver: a renamed procedure is dropped and created. A body-only change is a
+	// CREATE OR REPLACE. Postgres refuses CREATE OR REPLACE for a changed parameter list (and an IN type change
+	// would create an overload instead), so any other change drops the old signature and creates it again.
+	const proceduresDiff = diff(ddl1, ddl2, 'procedures');
+	const jsonCreateProcedures = proceduresDiff
+		.filter((it) => it.$diffType === 'create')
+		.map((it) => prepareStatement('create_procedure', { procedure: it }));
+	const jsonDropProcedures = proceduresDiff
+		.filter((it) => it.$diffType === 'drop')
+		.map((it) => prepareStatement('drop_procedure', { procedure: it }));
+	for (const it of alters.filter((it): it is DiffEntities['procedures'] => it.entityType === 'procedures')) {
+		if (it.params || it.language) jsonDropProcedures.push(prepareStatement('drop_procedure', { procedure: it.$left }));
+		jsonCreateProcedures.push(prepareStatement('create_procedure', { procedure: it.$right }));
+	}
+
 	const jsonDropRecreatedViews: typeof jsonDropViews = [];
 	// recreate views
 	viewsAlters.filter((it) => it.diff.definition || it.diff.materialized).forEach((entry) => {
@@ -1047,6 +1062,7 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...createTables);
 
+	jsonStatements.push(...jsonDropProcedures);
 	jsonStatements.push(...jsonDropViews);
 	jsonStatements.push(...jsonRenameViews);
 	jsonStatements.push(...jsonMoveViews);
@@ -1110,6 +1126,9 @@ export const ddlDiff = async (
 	// Topological sort
 	// dependent views must be created after their dependencies, otherwise the migration breaks
 	jsonStatements.push(...sortCreateViews(createViews, $metadata?.viewDependencies));
+
+	// After every table and view: a body is only parsed at CREATE, but reads them when the procedure runs.
+	jsonStatements.push(...jsonCreateProcedures);
 
 	jsonStatements.push(...jsonRenamePoliciesStatements);
 	jsonStatements.push(...jsonCreatePoliciesStatements);

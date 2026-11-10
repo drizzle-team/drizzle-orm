@@ -1,0 +1,9 @@
+input.ts:6:3 error TSPG018: an interpolation must not touch identifier characters
+    sql`UPDATE batches SET label = ${suffix}x WHERE id = ${id}`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  hint: the renamed identifier would glue onto the surrounding SQL — add whitespace or punctuation around ${...}
+
+input.ts:12:3 error TSPG018: adjacent interpolations would fuse into a single identifier
+    sql`INSERT INTO pairs (code) VALUES (${a}${b})`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  hint: separate them with SQL text

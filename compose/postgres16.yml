@@ -1,13 +1,22 @@
 services:
   postgres:
     image: pgvector/pgvector:pg16
+    network_mode: bridge
+    # Test data only: no forced disk writes, which on a busy CI machine make every commit and CREATE DATABASE wait.
+    command: postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off
+    mem_limit: 3g
+    # Data in memory: throwaway test data that need not reach the disk, which on a runner machine is written to
+    # all day. Memory counts against mem_limit; the size is a ceiling, used only as data is written (the write-ahead
+    # log alone may reach 1 GB).
+    tmpfs:
+      - /var/lib/postgresql/data:size=2g
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: drizzle
       TZ: UTC
     ports:
-      - "54323:5432"
+      - "${DRIZZLE_PORT_POSTGRES16:-54323}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d drizzle"]
       interval: 2s

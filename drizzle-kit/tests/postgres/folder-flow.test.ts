@@ -1,3 +1,4 @@
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import { PGlite } from '@electric-sql/pglite';
 import { index, integer, pgTable, primaryKey, text, unique, varchar } from 'drizzle-orm/pg-core';
 import { errorToEnvelope } from 'src/cli/errors';
@@ -401,7 +402,7 @@ test('commands ask to run up on format 8 snapshots, and up converts them', async
 
 test('pull into an empty folder writes a base snapshot that generate continues', async () => {
 	const flow = createFolderFlow();
-	const client = new PGlite();
+	const client = await freshPGlite();
 	onTestFinished(() => client.close());
 	await client.exec('CREATE TABLE "users" ("id" integer);');
 	const v1 = { users: pgTable('users', { id: integer() }) };

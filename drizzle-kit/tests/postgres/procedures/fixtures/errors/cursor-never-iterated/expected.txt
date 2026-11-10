@@ -1,0 +1,4 @@
+input.ts:5:9 error TSPG018: cursor 'rows' is never iterated — its query would never run
+    const rows = sql`SELECT id FROM entries WHERE account_id = ${ctx.args.account}`.many<{ id: bigint_ }>()
+          ^^^^
+  hint: iterate it: for (const row of rows) { ... }

@@ -2,6 +2,7 @@ import type { SchemaForPull } from '../../cli/commands/pull-common';
 import type { Alter } from '../dialect';
 import { create } from '../dialect';
 import { defaultNameForPK, defaultNameForUnique } from './grammar';
+import type { UnsupportedProcedure } from './procedures/model';
 
 export const privilegeTypes = [
 	'ALL',
@@ -180,6 +181,16 @@ export const createDDL = () => {
 			tablespace: 'string?',
 			materialized: 'boolean',
 		},
+		// Compiled from `procedure()` declarations; see dialects/postgres/procedures/model.ts.
+		procedures: {
+			schema: 'string',
+			name: 'string',
+			/** Canonical parameter list: decides CREATE OR REPLACE vs DROP + CREATE. */
+			params: 'string',
+			/** The text between the dollar quotes, verbatim. */
+			body: 'string',
+			language: 'string',
+		},
 	}, {
 		identity: {
 			schemas: (r) => JSON.stringify([r.name]),
@@ -198,12 +209,14 @@ export const createDDL = () => {
 			privileges: (r) => JSON.stringify([r.schema, r.table, r.grantor, r.grantee, r.type]),
 			policies: (r) => JSON.stringify([r.schema, r.table, r.name]),
 			views: (r) => JSON.stringify([r.schema, r.name]),
+			procedures: (r) => JSON.stringify([r.schema, r.name]),
 		},
 		edges: {
 			tables: [{ to: 'schemas', map: { name: 'schema' } }],
 			enums: [{ to: 'schemas', map: { name: 'schema' } }],
 			sequences: [{ to: 'schemas', map: { name: 'schema' } }],
 			views: [{ to: 'schemas', map: { name: 'schema' } }],
+			procedures: [{ to: 'schemas', map: { name: 'schema' } }],
 			checks: [{ to: 'tables', map: { schema: 'schema', name: 'table' } }],
 			// The `roles` edges of policies and privileges apply a role rename to the rows that name the role.
 			// They have `cascade: false`, so a drop of the role keeps these rows.
@@ -275,6 +288,7 @@ export type UniqueConstraint = PostgresEntities['uniques'];
 export type CheckConstraint = PostgresEntities['checks'];
 export type Policy = PostgresEntities['policies'];
 export type View = PostgresEntities['views'];
+export type Procedure = PostgresEntities['procedures'];
 
 export type ViewColumn = {
 	schema: string;
@@ -330,6 +344,11 @@ export interface InterimSchema {
 	policies: Policy[];
 	views: View[];
 	viewColumns: ViewColumn[];
+	procedures: Procedure[];
+	/** Procedures drizzle cannot manage; pull emits them as `procedure.unsupported(...)`. Never diffed. */
+	unsupportedProcedures?: UnsupportedProcedure[];
+	/** `pg_get_functiondef()` of every introspected procedure, keyed `schema.name` — what pull shows for unsupported ones. */
+	procedureDefinitions?: Record<string, string>;
 }
 
 export type TableWithPartition = PostgresEntities['tables'] & {
@@ -478,7 +497,35 @@ interface EnumValuesDuplicate {
 	name: string;
 }
 
+interface ProcedureDuplicate {
+	type: 'procedure_name_duplicate';
+	schema: string;
+	name: string;
+}
+
+/** `procedure()` bodies that failed to compile (formatted diagnostics). */
+interface ProcedureCompileError {
+	type: 'procedure_compile_error';
+	message: string;
+}
+
+/** A `procedure.unsupported(definition)` whose CREATE PROCEDURE header cannot be read. */
+interface ProcedureUnsupportedInvalid {
+	type: 'procedure_unsupported_invalid';
+	definition: string;
+}
+
+/** Procedures in a schema that was not loaded from files — the compiler needs their TypeScript source. */
+interface ProcedureSourceUnavailable {
+	type: 'procedure_source_unavailable';
+	names: string[];
+}
+
 export type SchemaError =
+	| ProcedureDuplicate
+	| ProcedureCompileError
+	| ProcedureSourceUnavailable
+	| ProcedureUnsupportedInvalid
 	| EnumValuesDuplicate
 	| SchemaDuplicate
 	| EnumDuplicate
@@ -716,6 +763,13 @@ export const interimToDDL = (
 				schema: it.schema,
 				name: it.name,
 			});
+		}
+	}
+
+	for (const it of schema.procedures) {
+		const res = ddl.procedures.push(it);
+		if (res.status === 'CONFLICT') {
+			errors.push({ type: 'procedure_name_duplicate', schema: it.schema, name: it.name });
 		}
 	}
 

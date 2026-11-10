@@ -1,0 +1,3 @@
+input.ts:7:9 error TSPG000: invalid TypeScript: Unexpected token
+    const = sql`SELECT balance FROM accounts WHERE id = ${account}`
+          ^

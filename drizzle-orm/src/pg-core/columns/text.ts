@@ -54,6 +54,9 @@ export interface PgTextConfig<
 }
 
 // Original function overloads style
+/** Procedure annotation type (SQL text) — see `procedure`. */
+export type text = string;
+
 export function text(): PgTextBuilder;
 export function text(name: string): PgTextBuilder;
 export function text<U extends string, T extends Readonly<[U, ...U[]]>>(

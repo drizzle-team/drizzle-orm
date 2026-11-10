@@ -8,61 +8,58 @@ import { rqbPost, rqbUser } from './schema';
 import { createCitiesTable, createCountTestTable, createUsers2Table, createUserTable } from './schema2';
 
 export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
-	let firstTime = true;
-	let resolveValue: (val: any) => void;
-	const promise = new Promise((resolve) => {
-		resolveValue = resolve;
-	});
+	// The RQB v2 tests read tables seeded once per database: concurrent tests get their own connection and database
+	// (tests/mysql/instrumentation.ts), so each database is seeded by the first of them to use it.
+	const seeded = new WeakMap<object, Promise<void>>();
 	test.beforeEach(async ({ task, skip, client, db }) => {
 		if (exclude.has(task.name)) skip();
 		if (!task.name.startsWith('RQB v2')) return;
 
-		if (firstTime) {
-			firstTime = false;
-
-			await client.batch([
-				'DROP TABLE IF EXISTS `user_rqb_test`, `post_rqb_test`, `empty`;',
-				`CREATE TABLE \`user_rqb_test\` (
+		let seeding = seeded.get(client.client);
+		if (!seeding) {
+			seeding = (async () => {
+				await client.batch([
+					'DROP TABLE IF EXISTS `user_rqb_test`, `post_rqb_test`, `empty`;',
+					`CREATE TABLE \`user_rqb_test\` (
 		        	\`id\` SERIAL PRIMARY KEY,
 		        	\`name\` TEXT NOT NULL,
 		        	\`created_at\` TIMESTAMP NOT NULL
 		     	);`,
-				`CREATE TABLE \`post_rqb_test\` ( 
+					`CREATE TABLE \`post_rqb_test\` ( 
 		        	\`id\` SERIAL PRIMARY KEY,
 		        	\`user_id\` BIGINT(20) UNSIGNED NOT NULL,
 		        	\`content\` TEXT,
 		        	\`created_at\` TIMESTAMP NOT NULL
 				);`,
-				`CREATE TABLE \`empty\` (\`id\` int);`,
-			]);
+					`CREATE TABLE \`empty\` (\`id\` int);`,
+				]);
 
-			const date = new Date(120000);
-			await db.insert(rqbUser).values([{
-				id: 1,
-				createdAt: date,
-				name: 'First',
-			}, {
-				id: 2,
-				createdAt: date,
-				name: 'Second',
-			}]);
+				const date = new Date(120000);
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
 
-			await db.insert(rqbPost).values([{
-				id: 1,
-				userId: 1,
-				createdAt: date,
-				content: null,
-			}, {
-				id: 2,
-				userId: 1,
-				createdAt: date,
-				content: 'Has message this time',
-			}]);
-
-			resolveValue('');
+				await db.insert(rqbPost).values([{
+					id: 1,
+					userId: 1,
+					createdAt: date,
+					content: null,
+				}, {
+					id: 2,
+					userId: 1,
+					createdAt: date,
+					content: 'Has message this time',
+				}]);
+			})();
+			seeded.set(client.client, seeding);
 		}
-
-		await promise;
+		await seeding;
 	});
 
 	// .sequential is needed for beforeEach to be executed before all tests

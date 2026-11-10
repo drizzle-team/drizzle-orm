@@ -1,0 +1,47 @@
+name: Set up pnpm
+description: >-
+  Puts the pnpm that package.json's packageManager names on PATH, from pnpm's standalone release archive (pnpm 11
+  or later). The archive is unpacked once per version under ~/.cache/drizzle-ci/tools, so a
+  self-hosted machine downloads each version once for all its runner instances; a GitHub-hosted runner downloads
+  it once per job, one file. Replaces pnpm/action-setup, which installs a bootstrap pnpm with `npm ci` and then
+  downloads the packageManager version again, both into runner.temp, emptied after every job.
+  On self-hosted runners it also removes the previous job's untracked files except node_modules: checkout runs
+  there with `clean: false`, so pnpm install only has to update the node_modules the last job left. Needs a
+  checkout; no Node.
+
+runs:
+  using: composite
+  steps:
+    - if: runner.environment == 'self-hosted'
+      shell: bash
+      run: git clean -ffdxq -e node_modules
+
+    - shell: bash
+      run: |
+        set -euo pipefail
+        version=$(sed -n 's/.*"packageManager": *"pnpm@\([0-9][0-9.]*\).*/\1/p' package.json)
+        if [ -z "$version" ]; then echo "::error::package.json has no \"packageManager\": \"pnpm@<version>\""; exit 1; fi
+        case "$RUNNER_OS-$RUNNER_ARCH" in
+          macOS-ARM64) asset=pnpm-darwin-arm64 ;;
+          macOS-X64)   asset=pnpm-darwin-x64 ;;
+          Linux-ARM64) asset=pnpm-linux-arm64 ;;
+          Linux-X64)   asset=pnpm-linux-x64 ;;
+          *) echo "::error::No pnpm build for $RUNNER_OS-$RUNNER_ARCH"; exit 1 ;;
+        esac
+        root="$HOME/.cache/drizzle-ci/tools/pnpm"
+        dir="$root/$version"
+        if [ ! -x "$dir/pnpm" ]; then
+          mkdir -p "$root"
+          tmp=$(mktemp -d "$root/.download.XXXXXX")
+          # The archive holds the pnpm executable and the dist/ folder it loads from beside it.
+          curl -fsSL --retry 3 "https://github.com/pnpm/pnpm/releases/download/v$version/$asset.tar.gz" | tar -xz -C "$tmp"
+          ln -s pnpm "$tmp/pnpx"
+          # Runner instances on one machine may download at once: the first rename wins, and rename() onto a
+          # directory another job already filled fails instead of nesting inside it the way mv would.
+          perl -e 'rename($ARGV[0], $ARGV[1]) or exit 1' "$tmp" "$dir" || rm -rf "$tmp"
+        fi
+        # PNPM_HOME is where pnpm keeps other versions it switches to and global bins; keep it beside the binary
+        # rather than in the default, which may be shared with someone's own pnpm on the machine.
+        echo "PNPM_HOME=$dir" >> "$GITHUB_ENV"
+        echo "$dir" >> "$GITHUB_PATH"
+        echo "pnpm $version: $dir"

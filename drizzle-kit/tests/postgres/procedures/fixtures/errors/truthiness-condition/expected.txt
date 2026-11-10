@@ -1,0 +1,4 @@
+input.ts:6:7 error TSPG006: conditions must be boolean expressions
+    if (qty) {
+        ^^^
+  hint: PL/pgSQL has no truthiness — compare explicitly (x !== 0, isNull(x), res.found, ...)

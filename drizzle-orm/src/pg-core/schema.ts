@@ -3,6 +3,7 @@ import { entityKind, is } from '~/entity.ts';
 import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { NonArray, Writable } from '~/utils.ts';
 import { type PgEnum, type PgEnumObject, pgEnumObjectWithSchema, pgEnumWithSchema } from './columns/enum.ts';
+import { type PgProcedureFn, procedureWithSchema } from './procedure.ts';
 import { type pgSequence, pgSequenceWithSchema } from './sequence.ts';
 import { EnableRLS, type PgTableFn, type PgTableFnInternal, pgTableWithSchema } from './table.ts';
 import { type PgMaterializedViewFn, pgMaterializedViewWithSchema, type PgViewFn, pgViewWithSchema } from './view.ts';
@@ -62,6 +63,14 @@ export class PgSchema<TName extends string = string> implements SQLWrapper {
 
 	sequence: typeof pgSequence = ((name, options) => {
 		return pgSequenceWithSchema(name, options, this.schemaName);
+	});
+
+	/**
+	 * Declares a procedure in this schema — see {@link procedure}. drizzle-kit compiles it to
+	 * `CREATE PROCEDURE "<schema>".<name>`, and `db.call()` calls it schema-qualified.
+	 */
+	procedure: PgProcedureFn = ((name, params, body) => {
+		return procedureWithSchema(name, params, body, this.schemaName);
 	});
 
 	getSQL(): SQL {

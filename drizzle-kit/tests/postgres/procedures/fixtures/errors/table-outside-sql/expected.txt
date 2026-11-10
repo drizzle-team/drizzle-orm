@@ -1,0 +1,9 @@
+input.ts:6:10 error TSPG018: 'accounts' is a drizzle table — it can only be referenced inside sql`...` templates
+    notice(accounts)
+           ^^^^^^^^
+  hint: interpolate it: sql`SELECT ... FROM ${accounts} ...`
+
+input.ts:7:10 error TSPG018: 'accounts.balance' is a drizzle column reference — it can only appear inside sql`...` templates
+    notice(accounts.balance)
+           ^^^^^^^^^^^^^^^^
+  hint: interpolate it: sql`... WHERE ${accounts.balance} = ...`

@@ -1,3 +1,4 @@
+import { freshPGlite } from '@drizzle/test-utils/pglite';
 import { PGlite } from '@electric-sql/pglite';
 import { sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
@@ -12,7 +13,7 @@ let client: PGlite;
 let db: PgliteDatabase;
 
 beforeAll(async () => {
-	client = new PGlite();
+	client = await freshPGlite();
 
 	db = drizzle({ client });
 

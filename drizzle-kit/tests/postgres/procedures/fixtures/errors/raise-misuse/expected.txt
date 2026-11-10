@@ -1,0 +1,12 @@
+input.ts:11:46 error TSPG015: PgError options must be an inline { detail, hint } object
+      throw new PgError('P0001', 'bad charge', 'no detail')
+                                               ^^^^^^^^^^^
+
+input.ts:14:48 error TSPG015: PgError options are { detail?, hint? }
+      throw new PgError('P0001', 'bad charge', { code: 'x' })
+                                                 ^^^^^^^^^
+  hint: e.g. { hint: 'top up the account' }
+
+input.ts:16:10 error TSPG015: the message must be a single line
+    notice(`line one\nline two ${charge}`)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -8,19 +8,16 @@
 // `create` writes the new connection settings to $RUNNER_TEMP/ci-databases.env, which the test step
 // sources. `drop` deletes what `create` made in the same job. `sweep` deletes every database or branch
 // that a job made more than one day ago, for jobs that ended before their `drop` step ran.
-import { Database as SqliteCloudDatabase } from '@sqlitecloud/drivers';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
 
-const providerNames = ['neon', 'netlify', 'planetscale', 'sqlitecloud', 'turso'] as const;
+const providerNames = ['neon', 'netlify', 'planetscale', 'turso'] as const;
 type ProviderName = typeof providerNames[number];
 
 interface CreatedResource {
 	provider: ProviderName;
 	name: string;
-	// The SQLite Cloud server, as an index into SQLITE_MANY_CLOUD_CONNECTION_STRING.
-	server?: number;
 }
 
 interface Provider {
@@ -108,57 +105,6 @@ const postgresProvider = (provider: ProviderName, source: string, names: string[
 		});
 	},
 });
-
-const sqliteCloudServers = () =>
-	env('SQLITE_MANY_CLOUD_CONNECTION_STRING').split(';').filter((uri) => uri !== '').map((uri) => new URL(uri));
-
-const withSqliteCloud = async <T>(server: URL, fn: (db: SqliteCloudDatabase) => Promise<T>) => {
-	const url = new URL(server);
-	url.pathname = '';
-	const db = new SqliteCloudDatabase(url.toString());
-	try {
-		return await fn(db);
-	} finally {
-		db.close();
-	}
-};
-
-const sqliteCloud: Provider = {
-	source: 'SQLITE_MANY_CLOUD_CONNECTION_STRING',
-	credentials: [],
-	async create(prefix, created) {
-		const servers = sqliteCloudServers();
-		for (const [index, server] of servers.entries()) {
-			const name = prefix + decodeURIComponent(server.pathname.slice(1));
-			await withSqliteCloud(server, (db) => db.sql(`CREATE DATABASE ${name} IF NOT EXISTS`));
-			created.push({ provider: 'sqlitecloud', name, server: index });
-			saveState(created);
-			server.pathname = `/${name}`;
-		}
-		return { SQLITE_MANY_CLOUD_CONNECTION_STRING: servers.map((server) => server.toString()).join(';') };
-	},
-	async drop(resource) {
-		const server = sqliteCloudServers()[resource.server!]!;
-		await withSqliteCloud(server, (db) => db.sql(`REMOVE DATABASE ${resource.name} IF EXISTS`));
-	},
-	async sweep(now) {
-		const removed: string[] = [];
-		const seen = new Set<string>();
-		for (const server of sqliteCloudServers()) {
-			if (seen.has(server.host)) continue;
-			seen.add(server.host);
-			await withSqliteCloud(server, async (db) => {
-				const rows = (await db.sql('LIST DATABASES')) as { name: string }[];
-				for (const { name } of rows) {
-					if (!isExpired(name, now)) continue;
-					await db.sql(`REMOVE DATABASE ${name} IF EXISTS`);
-					removed.push(name);
-				}
-			});
-		}
-		return removed;
-	},
-};
 
 const requestJson = async (service: string, url: string, authorization: string, init: RequestInit = {}) => {
 	const response = await fetch(url, {
@@ -277,7 +223,6 @@ const providers: Record<ProviderName, Provider> = {
 	]),
 	netlify: postgresProvider('netlify', 'NETLIFY_DB_URL', ['db10', 'db11', 'db12', 'db13', 'db14']),
 	planetscale: planetscaleProvider,
-	sqlitecloud: sqliteCloud,
 	turso: tursoProvider,
 };
 

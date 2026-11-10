@@ -59,8 +59,11 @@ export const fromDatabase = async (
 	// SHOW default_table_access_method;
 	// SELECT current_setting('default_table_access_method') AS default_am;
 
+	// Every access method, the index ones included: the indexes below take their method's name from here.
 	const accessMethodsQuery = db
-		.query<{ oid: number; name: string }>(`SELECT oid, amname as name FROM pg_am WHERE amtype = 't' ORDER BY amname;`)
+		.query<{ oid: number; name: string; type: 'i' | 't' }>(
+			`SELECT oid, amname as name, amtype as type FROM pg_am ORDER BY amname;`,
+		)
 		.then((rows) => {
 			queryCallback('accessMethods', rows, null);
 			return rows;
@@ -95,7 +98,7 @@ export const fromDatabase = async (
 			throw err;
 		});
 
-	const [_ams, _tablespaces, namespaces] = await Promise.all([
+	const [ams, _tablespaces, namespaces] = await Promise.all([
 		accessMethodsQuery,
 		tablespacesQuery,
 		namespacesQuery,
@@ -117,40 +120,41 @@ export const fromDatabase = async (
 
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
 
-	const tablesList = await db
+	// One pass over pg_class for every relation of the schemas: the tables and views, and the sequences and indexes
+	// that the sequence and index queries used to join pg_class for again. CockroachDB generates pg_class from every
+	// descriptor in the cluster on each query, so each of those joins cost as much as this whole query. The views'
+	// definitions have a query of their own below: pg_get_viewdef here, even behind a CASE on relkind, made this one
+	// 6x slower.
+	const relationsList = await db
 		.query<{
 			oid: number;
+			schemaId: number;
 			schema: string;
 			name: string;
 
-			/* r - table, v - view, m - materialized view */
-			kind: 'r' | 'v' | 'm';
+			/* r - table, v - view, m - materialized view, S - sequence, i - index */
+			kind: 'r' | 'v' | 'm' | 'S' | 'i';
 			accessMethod: number;
 			options: string[] | null;
 			rlsEnabled: boolean;
 			tablespaceid: number;
-			definition: string | null;
 		}>(
 			`
 			SELECT
 				pg_class.oid,
+				relnamespace AS "schemaId",
 				nspname as "schema",
 				relname AS "name",
 				relkind AS "kind",
 				relam as "accessMethod",
 				reloptions::text[] as "options",
 				reltablespace as "tablespaceid",
-				relrowsecurity AS "rlsEnabled",
-				CASE
-					WHEN relkind OPERATOR(pg_catalog.=) 'v' OR relkind OPERATOR(pg_catalog.=) 'm'
-						THEN pg_catalog.pg_get_viewdef(pg_class.oid, true)
-					ELSE null
-				END as "definition"
+				relrowsecurity AS "rlsEnabled"
 			FROM
 				pg_catalog.pg_class
 			JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) relnamespace
 			WHERE
-				relkind IN ('r', 'p', 'v', 'm')
+				relkind IN ('r', 'p', 'v', 'm', 'S', 'i')
 				AND nspname IN (${filteredNamespacesStringForSQL})
 			ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);`,
 		)
@@ -162,6 +166,13 @@ export const fromDatabase = async (
 			queryCallback('tables', [], err);
 			throw err;
 		});
+	type Relation = (typeof relationsList)[number];
+
+	const tablesList = relationsList.filter((it): it is Relation & { kind: 'r' | 'v' | 'm' } =>
+		it.kind === 'r' || it.kind === 'v' || it.kind === 'm'
+	);
+	const sequenceRelations = relationsList.filter((it) => it.kind === 'S');
+	const indexRelations = relationsList.filter((it) => it.kind === 'i');
 
 	const viewsList = tablesList.filter((it) => (it.kind === 'v' || it.kind === 'm'))
 		.map((it) => {
@@ -270,10 +281,12 @@ export const fromDatabase = async (
 			throw err;
 		});
 
+	// pg_sequences alone, instead of pg_sequence joined with pg_class and pg_sequences: the view has every parameter
+	// (pg_sequence's seqcache is always 1 in CockroachDB, the view's cache_size is right), and the sequences' oids,
+	// for the dependency and identity lookups, come from the relations above.
 	const sequencesQuery = db
 		.query<{
 			schema: string;
-			oid: number;
 			name: string;
 			startWith: string;
 			minValue: string;
@@ -282,26 +295,18 @@ export const fromDatabase = async (
 			cycle: boolean;
 			cacheSize: string;
 		}>(
-			`SELECT 
-			nspname as "schema",
-			relname as "name",
-			seqrelid as "oid",
-			seqstart as "startWith", 
-			seqmin as "minValue", 
-			seqmax as "maxValue", 
-			seqincrement as "incrementBy", 
-			seqcycle as "cycle", 
-			COALESCE(pgs.cache_size, pg_sequence.seqcache) as "cacheSize"
-		FROM pg_catalog.pg_sequence
-		JOIN pg_catalog.pg_class ON pg_sequence.seqrelid OPERATOR(pg_catalog.=) pg_class.oid
-		JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) pg_class.relnamespace
-		LEFT JOIN pg_sequences pgs ON (
-		    pgs.sequencename = pg_class.relname 
-    		AND pgs.schemaname = pg_class.relnamespace::regnamespace::text
-		)
-		WHERE nspname IN (${filteredNamespacesStringForSQL})
-		ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
-;`,
+			`SELECT
+				schemaname as "schema",
+				sequencename as "name",
+				start_value as "startWith",
+				min_value as "minValue",
+				max_value as "maxValue",
+				increment_by as "incrementBy",
+				cycle as "cycle",
+				cache_size as "cacheSize"
+			FROM pg_catalog.pg_sequences
+			WHERE schemaname IN (${filteredNamespacesStringForSQL})
+			ORDER BY pg_catalog.lower(schemaname), pg_catalog.lower(sequencename);`,
 		)
 		.then((rows) => {
 			queryCallback('sequences', rows, null);
@@ -312,32 +317,29 @@ export const fromDatabase = async (
 			throw err;
 		});
 
-	// I'm not yet aware of how we handle policies down the pipeline for push,
-	// and since postgres does not have any default policies, we can safely fetch all of them for now
-	// and filter them out in runtime, simplifying filterings
+	// pg_policy, with the role names from pg_roles, rather than pg_policies: CockroachDB builds that view from pg_class
+	// and friends on each query, at 3x the cost of these two. Policies exist on tables only.
 	const policiesQuery = db
 		.query<{
-			schema: string;
-			table: string;
+			tableId: number;
 			name: string;
-			as: Policy['as'];
-			to: string | string[]; // TODO: | string[] ??
-			for: Policy['for'];
-			using: string | undefined | null;
-			withCheck: string | undefined | null;
+			permissive: boolean;
+			roles: number[];
+			/* * - all, r - select, a - insert, w - update, d - delete */
+			command: '*' | 'r' | 'a' | 'w' | 'd';
+			using: string | null;
+			withCheck: string | null;
 		}>(
-			`SELECT 
-			schemaname as "schema", 
-			tablename as "table", 
-			policyname as "name", 
-			UPPER(permissive) as "as", 
-			roles as "to", 
-			cmd as "for", 
-			qual as "using", 
-			with_check as "withCheck" 
-		FROM pg_policies
-		ORDER BY lower(schemaname), lower(tablename), lower(policyname)
-		;`,
+			`SELECT
+				polrelid as "tableId",
+				polname as "name",
+				polpermissive as "permissive",
+				polroles as "roles",
+				polcmd as "command",
+				polqual as "using",
+				polwithcheck as "withCheck"
+			FROM pg_catalog.pg_policy
+			WHERE ${filterByTableIds ? `polrelid in ${filterByTableIds}` : 'false'};`,
 		)
 		.then((rows) => {
 			queryCallback('policies', rows, null);
@@ -345,6 +347,17 @@ export const fromDatabase = async (
 		})
 		.catch((err) => {
 			queryCallback('policies', [], err);
+			throw err;
+		});
+
+	const roleNamesQuery = db
+		.query<{ oid: number; name: string }>(`SELECT oid, rolname as name FROM pg_catalog.pg_roles;`)
+		.then((rows) => {
+			queryCallback('roleNames', rows, null);
+			return rows;
+		})
+		.catch((err) => {
+			queryCallback('roleNames', [], err);
 			throw err;
 		});
 
@@ -430,11 +443,25 @@ export const fromDatabase = async (
 			throw err;
 		});
 
+	type ColumnMetadata = {
+		seqId: string | null;
+		generation: string | null;
+		start: string | null;
+		increment: string | null;
+		max: string | null;
+		min: string | null;
+		cycle: string;
+		generated: 'ALWAYS' | 'BY DEFAULT';
+		expression: string | null;
+	};
+
 	// for serials match with pg_attrdef via attrelid(tableid)+adnum(ordinal position), for enums with pg_enum above
+	// pg_attribute alone, without the pg_class and pg_type joins it had: the relation's kind is known from the
+	// relations above, whether a column is hidden comes with information_schema.columns below (read anyway), and an
+	// array type is one whose formatted type ends in [].
 	const columnsQuery = db
 		.query<{
 			tableId: number;
-			kind: 'r' | 'v' | 'm';
 			name: string;
 			ordinality: number;
 			notNull: boolean;
@@ -447,74 +474,18 @@ export const fromDatabase = async (
 		'd' for GENERATED BY DEFAULT
 		*/
 			identityType: 'a' | 'd' | '';
-			metadata: {
-				seqId: string | null;
-				generation: string | null;
-				start: string | null;
-				increment: string | null;
-				max: string | null;
-				min: string | null;
-				cycle: string;
-				generated: 'ALWAYS' | 'BY DEFAULT';
-				expression: string | null;
-			} | null;
-			isHidden: boolean;
-			dimensions: '0' | '1';
 		}>(
 			`SELECT
 				attrelid AS "tableId",
-				relkind AS "kind",
 				attname AS "name",
 				attnum AS "ordinality",
 				attnotnull AS "notNull",
 				atttypid as "typeId",
-				attgenerated as "generatedType", 
+				attgenerated as "generatedType",
 				attidentity as "identityType",
-				format_type(atttypid, atttypmod) as "type",
-				CASE
-    			    WHEN typ.typcategory = 'A' THEN 1
-    			    ELSE 0
-    			END AS "dimensions",
-				CASE
-					WHEN attidentity in ('a', 'd') or attgenerated = 's' THEN (
-						SELECT
-							row_to_json(c.*)
-						FROM
-							(
-								SELECT
-									pg_get_serial_sequence(
-										quote_ident("table_schema") || '.' || quote_ident("table_name"), 
-										"attname"
-									)::regclass::oid as "seqId",
-									"identity_generation" AS generation,
-									"identity_start" AS "start",
-									"identity_increment" AS "increment",
-									"identity_maximum" AS "max",
-									"identity_minimum" AS "min",
-									"identity_cycle" AS "cycle",
-									"generation_expression" AS "expression"
-								FROM
-									information_schema.columns c
-								WHERE
-									c.column_name = attname
-									-- relnamespace is schemaId, regnamescape::text converts to schemaname
-									AND c.table_schema = cls.relnamespace::regnamespace::text
-									-- attrelid is tableId, regclass::text converts to table name
-									AND c.table_name = attrelid::regclass::text
-							) c
-						)
-					ELSE NULL
-				END AS "metadata",
-				CASE 
-					WHEN tc.is_hidden = 'YES' then true 
-					WHEN tc.is_hidden = 'NO' then false 
-					ELSE null
-				END AS "isHidden"
+				format_type(atttypid, atttypmod) as "type"
 			FROM
-				pg_attribute attr
-				LEFT JOIN pg_class cls ON cls.oid = attr.attrelid
-				LEFT JOIN information_schema.columns tc ON tc.table_schema = cls.relnamespace::regnamespace::text AND tc.table_name = cls.relname AND tc.column_name = attname
-				LEFT JOIN pg_type typ ON typ.oid = attr.atttypid
+				pg_attribute
 			WHERE
 			${filterByTableAndViewIds ? ` attrelid in ${filterByTableAndViewIds}` : 'false'}
 				AND attnum > 0
@@ -531,20 +502,30 @@ export const fromDatabase = async (
 			throw err;
 		});
 
+	// information_schema.columns for CockroachDB's own spelling of the table columns' types, and for which columns are
+	// hidden (it used to be read for the former alone, with crdb_internal.table_columns joined for the latter).
 	const extraColumnDataTypesQuery = db
 		.query<{
 			table_schema: string;
 			table_name: string;
 			column_name: string;
 			data_type: string;
+			is_hidden: 'YES' | 'NO';
 		}>(
-			`SELECT 
-			table_schema as table_schema, 
-			table_name as table_name, 
-			column_name as column_name, 
-			lower(crdb_sql_type) as data_type  
-		FROM information_schema.columns 
-		WHERE  ${tablesList.length ? `table_name in (${tablesList.map((it) => `'${it.name}'`).join(', ')})` : 'false'}
+			`SELECT
+			table_schema as table_schema,
+			table_name as table_name,
+			column_name as column_name,
+			lower(crdb_sql_type) as data_type,
+			is_hidden as is_hidden
+		FROM information_schema.columns
+		WHERE ${
+				tablesList.length
+					? `table_schema in (${filteredNamespacesStringForSQL}) AND table_name in (${
+						tablesList.map((it) => `'${it.name}'`).join(', ')
+					})`
+					: 'false'
+			}
 	`,
 		)
 		.then((rows) => {
@@ -556,27 +537,134 @@ export const fromDatabase = async (
 			throw err;
 		});
 
+	// pg_get_viewdef costs CockroachDB ~15 ms per view, so only for the views, and only when there are any.
+	const viewDefinitionsQuery = viewsIds.length === 0
+		? Promise.resolve<{ oid: number; definition: string | null }[]>([])
+		: db
+			.query<{ oid: number; definition: string | null }>(
+				`SELECT oid, pg_catalog.pg_get_viewdef(oid, true) AS "definition" FROM pg_catalog.pg_class WHERE oid IN (${
+					viewsIds.join(',')
+				});`,
+			)
+			.then((rows) => {
+				queryCallback('views', rows, null);
+				return rows;
+			})
+			.catch((err) => {
+				queryCallback('views', [], err);
+				throw err;
+			});
+
 	const [
 		dependList,
 		enumsList,
-		sequencesList,
+		sequencesRows,
 		policiesList,
+		roleNamesList,
 		rolesList,
 		constraintsList,
-		columnsList,
+		rawColumnsList,
 		extraColumnDataTypesList,
 		defaultsList,
+		viewDefinitionsList,
 	] = await Promise.all([
 		dependQuery,
 		enumsQuery,
 		sequencesQuery,
 		policiesQuery,
+		roleNamesQuery,
 		rolesQuery,
 		constraintsQuery,
 		columnsQuery,
 		extraColumnDataTypesQuery,
 		defaultsQuery,
+		viewDefinitionsQuery,
 	]);
+
+	const compareLower = (a: string, b: string) => {
+		const [x, y] = [a.toLowerCase(), b.toLowerCase()];
+		return x < y ? -1 : x > y ? 1 : 0;
+	};
+
+	const sequencesList = sequencesRows.flatMap((it) => {
+		const relation = sequenceRelations.find((rel) =>
+			trimChar(rel.schema, '"') === trimChar(it.schema, '"') && rel.name === it.name
+		);
+		return relation ? [{ ...it, oid: relation.oid }] : [];
+	});
+
+	const columnsList = rawColumnsList.map((it) => {
+		const table = tablesList.find((t) => t.oid === it.tableId)!;
+		const extra = extraColumnDataTypesList.find((e) =>
+			e.column_name === it.name && e.table_name === table.name && e.table_schema === table.schema
+		);
+		return {
+			...it,
+			kind: table.kind,
+			dimensions: (it.type.endsWith('[]') ? '1' : '0') as '0' | '1',
+			isHidden: extra?.is_hidden === 'YES',
+			metadata: null as ColumnMetadata | null,
+		};
+	});
+
+	// Identity and generated columns take their details from information_schema.columns. CockroachDB generates that
+	// virtual table from every descriptor in the cluster on each query, so it is read once here, only when such
+	// columns exist, rather than in a correlated subquery of the columns query for every column.
+	const columnsWithMetadata = columnsList.filter((it) => it.identityType !== '' || it.generatedType === 's');
+	if (columnsWithMetadata.length > 0) {
+		const literal = (value: string) => `'${value.replaceAll("'", "''")}'`;
+		const tableIds = new Set(columnsWithMetadata.map((it) => it.tableId));
+		const tables = tablesList.filter((it) => tableIds.has(it.oid));
+		const metadataList = await db
+			.query<{
+				table_schema: string;
+				table_name: string;
+				column_name: string;
+				seqId: string | null;
+				generation: string | null;
+				start: string | null;
+				increment: string | null;
+				max: string | null;
+				min: string | null;
+				cycle: string;
+				expression: string | null;
+			}>(
+				`SELECT
+					c.table_schema,
+					c.table_name,
+					c.column_name,
+					pg_get_serial_sequence(quote_ident(c.table_schema) || '.' || quote_ident(c.table_name), c.column_name)::regclass::oid::text as "seqId",
+					c.identity_generation AS generation,
+					c.identity_start AS "start",
+					c.identity_increment AS "increment",
+					c.identity_maximum AS "max",
+					c.identity_minimum AS "min",
+					c.identity_cycle AS "cycle",
+					c.generation_expression AS "expression"
+				FROM information_schema.columns c
+				WHERE (c.table_schema, c.table_name) IN (${
+					tables.map((it) => `(${literal(it.schema)}, ${literal(it.name)})`).join(', ')
+				})
+					AND (c.is_identity = 'YES' OR c.is_generated = 'ALWAYS')`,
+			)
+			.then((rows) => {
+				queryCallback('columnsMetadata', rows, null);
+				return rows;
+			})
+			.catch((err) => {
+				queryCallback('columnsMetadata', [], err);
+				throw err;
+			});
+		for (const column of columnsWithMetadata) {
+			const table = tablesList.find((it) => it.oid === column.tableId);
+			const row = metadataList.find((it) =>
+				table && it.table_schema === table.schema && it.table_name === table.name && it.column_name === column.name
+			);
+			if (!row) continue;
+			const { table_schema: _schema, table_name: _table, column_name: _column, ...metadata } = row;
+			column.metadata = metadata as NonNullable<typeof column.metadata>;
+		}
+	}
 
 	// lookups are built once, `.find` per column is quadratic and stalls on databases with many columns
 	const columnPosition = (tableId: number, ordinality: number) => `${tableId}:${ordinality}`;
@@ -687,19 +775,28 @@ export const fromDatabase = async (
 		});
 	}
 
+	const policyCommands = { '*': 'ALL', r: 'SELECT', a: 'INSERT', w: 'UPDATE', d: 'DELETE' } as const;
 	for (const it of policiesList) {
+		const table = tablesList.find((t) => t.oid === it.tableId)!;
 		policies.push({
 			entityType: 'policies',
-			schema: it.schema,
-			table: it.table,
+			schema: table.schema,
+			table: table.name,
 			name: it.name,
-			as: it.as,
-			for: it.for,
-			roles: typeof it.to === 'string' ? it.to.slice(1, -1).split(',') : it.to,
+			as: it.permissive ? 'PERMISSIVE' : 'RESTRICTIVE',
+			for: policyCommands[it.command],
+			// Role oid 0 is PUBLIC, as in PostgreSQL.
+			roles: it.roles.map((oid) =>
+				oid === 0 ? 'public' : (roleNamesList.find((role) => role.oid === oid)?.name ?? String(oid))
+			),
 			using: it.using ?? null,
 			withCheck: it.withCheck ?? null,
 		});
 	}
+	// As pg_policies ordered them.
+	policies.sort((a, b) =>
+		compareLower(a.schema, b.schema) || compareLower(a.table, b.table) || compareLower(a.name, b.name)
+	);
 
 	progressCallback('policies', policiesList.length, 'done');
 
@@ -879,13 +976,11 @@ export const fromDatabase = async (
 		});
 	}
 
-	const idxs = await db
+	// pg_index by table (CockroachDB serves it by indrelid without generating the whole table); the indexes' names,
+	// schemas, access methods and storage parameters are the pg_class rows the relations query already fetched.
+	const indexesList = await db
 		.query<{
 			oid: number;
-			schemaId: number;
-			name: string;
-			accessMethod: string;
-			with?: string[];
 			metadata: {
 				tableId: number;
 				expression: string | null;
@@ -900,17 +995,11 @@ export const fromDatabase = async (
 		}>(
 			`
       SELECT
-        pg_class.oid,
-        relnamespace AS "schemaId",
-        relname AS "name",
-        am.amname AS "accessMethod",
-        reloptions AS "with",
-        row_to_json(metadata.*) as "metadata"
-      FROM
-        pg_class
-      JOIN pg_am am ON am.oid = pg_class.relam
-      LEFT JOIN LATERAL (
+        idx.indexrelid AS oid,
+        row_to_json(idx.*) as "metadata"
+      FROM (
         SELECT
+          indexrelid,
           pg_get_expr(indexprs, indrelid) AS "expression",
           pg_get_expr(indpred, indrelid) AS "where",
           indrelid::int AS "tableId",
@@ -918,16 +1007,13 @@ export const fromDatabase = async (
           indkey::int[] as "columnOrdinals",
           indclass::int[] as "opclassIds",
           indoption::int[] as "options",
-					indisunique as "isUnique",
-					indisprimary as "isPrimary"
+          indisunique as "isUnique",
+          indisprimary as "isPrimary"
         FROM
           pg_index
         WHERE
-          pg_index.indexrelid = pg_class.oid
-      ) metadata ON TRUE
-      WHERE
-        relkind = 'i' and ${filterByTableIds ? `metadata."tableId" in ${filterByTableIds}` : 'false'}
-	  ORDER BY relnamespace, lower(relname)
+          ${filterByTableIds ? `indrelid in ${filterByTableIds}` : 'false'}
+      ) idx
     `,
 		)
 		.then((rows) => {
@@ -938,6 +1024,22 @@ export const fromDatabase = async (
 			queryCallback('indexes', [], err);
 			throw err;
 		});
+
+	// As the pg_class join ordered them: by schema, then name.
+	const idxs = indexesList
+		.flatMap((it) => {
+			const relation = indexRelations.find((rel) => rel.oid === it.oid);
+			if (!relation) return [];
+			return [{
+				oid: it.oid,
+				schemaId: relation.schemaId,
+				name: relation.name,
+				accessMethod: ams.find((am) => am.oid === relation.accessMethod)?.name ?? '',
+				with: relation.options ?? undefined,
+				metadata: it.metadata,
+			}];
+		})
+		.sort((a, b) => a.schemaId - b.schemaId || compareLower(a.name, b.name));
 
 	for (const idx of idxs) {
 		const { metadata, accessMethod } = idx;
@@ -1085,7 +1187,7 @@ export const fromDatabase = async (
 	}
 
 	for (const view of viewsList) {
-		const definition = parseViewDefinition(view.definition);
+		const definition = parseViewDefinition(viewDefinitionsList.find((it) => it.oid === view.oid)?.definition);
 
 		views.push({
 			entityType: 'views',

@@ -31,6 +31,8 @@ const driversPackages = [
 	// duckdb drivers
 	'duckdb',
 	'@duckdb/node-api',
+	// procedure compiler (native parser, loaded lazily)
+	'oxc-parser',
 ];
 
 // The key of each entry is its export subpath, so `drizzle-kit/payload/postgres` resolves to

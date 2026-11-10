@@ -1,4 +1,4 @@
-import { requireEnv } from '@drizzle/test-utils';
+import { requireEnv, workerDatabaseName } from '@drizzle/test-utils';
 import type { MySqlAsyncDatabase } from 'drizzle-orm/mysql-core';
 import type { AnyMySql2Connection } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
@@ -43,7 +43,11 @@ const prepareTest = () => {
 					multipleStatements: true,
 				});
 				await client.connect();
-				await client.query('drop database if exists drizzle; create database drizzle; use drizzle;');
+				// A database for this worker alone: test files run side by side. The URL's database only serves to connect.
+				const database = workerDatabaseName();
+				await client.query(
+					`drop database if exists \`${database}\`; create database \`${database}\`; use \`${database}\`;`,
+				);
 
 				const query = async (sql: string, params: any[] = []) => {
 					const res = await client.query(sql, params);
@@ -54,6 +58,7 @@ const prepareTest = () => {
 				};
 
 				await use({ client, query, batch });
+				await client.query(`drop database if exists \`${database}\``);
 				await client.end();
 				client.destroy();
 			},

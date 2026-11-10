@@ -1,0 +1,9 @@
+input.ts:8:24 error TSPG020: initializer of 'b' may be NULL but its declared type is not nullable
+      const b: numeric = h.row.amount
+                         ^^^^^^^^^^^^
+  hint: declare it as `T | null`, or wrap the initializer with coalesce(...)
+
+input.ts:10:9 error TSPG020: 'c' is not nullable and cannot be assigned a possibly-NULL value
+      c = h.row.amount
+          ^^^^^^^^^^^^
+  hint: wrap the value with coalesce(...), or declare the local as `T | null`

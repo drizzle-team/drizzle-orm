@@ -1,0 +1,58 @@
+name: Wait for prepare's artifacts
+description: >-
+  Jobs start beside prepare (after the prepare-head-start delay) so their installs and database containers
+  overlap the build; this waits until prepare has uploaded the named artifacts of this run. Fails at once when
+  prepare fails or is canceled, instead of waiting out the timeout. Needs `actions: read`.
+
+inputs:
+  names:
+    description: Space-separated artifact names to wait for.
+    required: true
+  local:
+    description: "'true': wait for share-build's files on this machine instead of GitHub artifacts (self-hosted)."
+    required: false
+    default: 'false'
+  timeout-minutes:
+    description: Give up after this long. Counted from this step, which jobs reach after their own setup.
+    required: false
+    default: '5'
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        NAMES: ${{ inputs.names }}
+        LOCAL: ${{ inputs.local }}
+        TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+      run: |
+        set -euo pipefail
+        # curl + jq rather than gh: self-hosted runners do not necessarily have the GitHub CLI.
+        api="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+        gh_api() { curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$1"; }
+        deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
+        while :; do
+          if [[ "$LOCAL" == true ]]; then
+            have=$(ls "$HOME/.cache/drizzle-ci/artifacts/$GITHUB_RUN_ID" 2>/dev/null | sed -n 's/\.ready$//p' || true)
+          else
+            have=$(gh_api "$api/artifacts?per_page=100" | jq -r '.artifacts[].name' 2>/dev/null || true)
+          fi
+          missing=""
+          for name in $NAMES; do grep -qxF "$name" <<<"$have" || missing="$missing $name"; done
+          if [ -z "$missing" ]; then echo "Ready: $NAMES"; exit 0; fi
+
+          # In a called workflow the job is named "<caller job> / prepare".
+          state=$(gh_api "$api/attempts/${GITHUB_RUN_ATTEMPT}/jobs?per_page=100" \
+            | jq -r '[.jobs[] | select(.name == "prepare" or (.name | endswith("/ prepare")))][0].conclusion // ""' 2>/dev/null || true)
+          case "$state" in
+            failure|cancelled|timed_out|skipped) echo "::error::prepare finished with '$state'; its artifacts will not come"; exit 1 ;;
+            # It may have finished right after the artifact check above: check once more before failing.
+            success)
+              if [ -n "${checked_after_success:-}" ]; then echo "::error::prepare succeeded without uploading:$missing"; exit 1; fi
+              checked_after_success=1; continue ;;
+          esac
+          if [ "$(date +%s)" -ge "$deadline" ]; then echo "::error::Timed out waiting for:$missing"; exit 1; fi
+          echo "Waiting for:$missing"
+          sleep 5
+        done

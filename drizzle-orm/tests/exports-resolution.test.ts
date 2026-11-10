@@ -3,10 +3,12 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import * as ts from 'typescript';
 import { beforeAll, describe, expect, test } from 'vitest';
 import { checkPackage } from '../../attw-fork/src/checkPackage.ts';
 import { getExitCode } from '../../attw-fork/src/cli/getExitCode.ts';
 import { createPackageFromTarballData, type Package } from '../../attw-fork/src/createPackage.ts';
+import { createCompilerHosts } from '../../attw-fork/src/internal/multiCompilerHost.ts';
 import type { CheckResult, Problem } from '../../attw-fork/src/types.ts';
 import { emitDirIndexShims } from '../scripts/emit-dir-index-shims.ts';
 
@@ -109,18 +111,23 @@ describe.skipIf(!ARTIFACTS_PRESENT)('driven attw probe across entry shapes', () 
 });
 
 describe.skipIf(!ARTIFACTS_PRESENT)('no public subpath is dropped', () => {
-	// The full ~700-entrypoint sweep is the slow part of the suite; one mode is a
-	// sufficient coverage gate (every subpath must have a resolution), and the
-	// per-shape multi-mode behaviour is already covered by the representative probe.
-	test('every glob-derived entrypoint resolves under node16-esm', async () => {
-		const mode = 'node16-esm';
-		const analysis = await checkPackage(pkg, { entrypoints: intendedSubpaths(), modes: modesFor(mode) });
-		const unresolved = problemsOf(analysis)
-			.filter((p): p is Extract<Problem, { kind: 'NoResolution' }> => p.kind === 'NoResolution')
-			.filter((p) => p.resolutionKind === mode)
-			.map((p) => p.entrypoint);
+	// One mode is a sufficient coverage gate (every subpath must have a resolution), and the per-shape multi-mode
+	// behaviour is already covered by the representative probe. This is attw's own resolution step for the ~700
+	// subpaths — what its `NoResolution` problem reports — without the rest of `checkPackage`, which builds a
+	// TypeScript program per entrypoint (~75 ms each, 73 s on CI) for checks the probe above already runs.
+	test('every glob-derived entrypoint resolves under node16-esm', () => {
+		const hosts = createCompilerHosts(pkg);
+		const unresolved = intendedSubpaths().filter((subpath) => {
+			// As attw-fork's getEntrypointResolution resolves a node16-esm entrypoint.
+			const { resolution } = hosts.node16.resolveModuleName(
+				pkg.packageName + subpath.slice(1),
+				'/index.mts',
+				ts.ModuleKind.ESNext,
+			);
+			return !resolution.resolvedModule;
+		});
 		expect(unresolved, `unresolved: ${unresolved.slice(0, 20).join(', ')}`).toEqual([]);
-	}, 300_000);
+	});
 });
 
 describe('directory-index shim emitter refuses to shadow a source artifact', () => {
