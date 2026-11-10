@@ -1,10 +1,10 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
-import * as realCdc from '@drizzle-team/minipg/cdc';
+import * as realCdc from 'drizzle-orm/postgres/cdc';
 import { makePulseRuntime } from './mock-runtime.js';
 
 // ---------------------------------------------------------------------------
 // The reconnect edge that stayed in pulse after the CDC layer took the connection loop.
-// minipg's `replicate()` owns connect, slot administration, backoff and the retry budget, and
+// Drizzle Postgres's `replicate()` owns connect, slot administration, backoff and the retry budget, and
 // tests those itself. What is still pulse policy — and only observable here — is WHICH session
 // events rebuild consumer state: a rebaseline round must fire when a stream re-opens under live
 // collections, and must not fire on the very first one, when no collection exists yet.
@@ -20,7 +20,7 @@ let captured: ReplicateOpts | null = null;
 let handleReady: Promise<void>;
 let stopCalls = 0;
 
-mock.module('@drizzle-team/minipg/cdc', () => ({
+mock.module('drizzle-orm/postgres/cdc', () => ({
   ...realCdc,
   replicate: (opts: ReplicateOpts) => {
     captured = opts;
@@ -34,7 +34,7 @@ mock.module('@drizzle-team/minipg/cdc', () => ({
 }));
 
 afterAll(() => {
-  mock.module('@drizzle-team/minipg/cdc', () => realCdc);
+  mock.module('drizzle-orm/postgres/cdc', () => realCdc);
 });
 
 describe('runtime reconnect edge', () => {

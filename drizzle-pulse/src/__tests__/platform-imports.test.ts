@@ -39,8 +39,8 @@ function bannedReason(specifier: string): string | null {
   if (specifier.startsWith('node:') || NODE_BUILTINS.has(specifier)) {
     return 'node builtin';
   }
-  if (specifier === '@drizzle-team/minipg' || specifier.startsWith('@drizzle-team/minipg/')) {
-    return '@drizzle-team/minipg (server-only replication/store driver)';
+  if (specifier === 'drizzle-orm/postgres' || specifier.startsWith('drizzle-orm/postgres/')) {
+    return 'drizzle-orm/postgres (server-only replication/store driver)';
   }
   if (specifier === 'hono' || specifier.startsWith('hono/')) {
     return 'hono (server-only HTTP framework)';
@@ -293,7 +293,7 @@ describe('embedded/events per-root inclusion and exclusion contract', () => {
           join(SRC_ROOT, 'server/pulse-store.ts'),
           join(SRC_ROOT, 'server/cursor.ts'),
           join(SRC_ROOT, 'server/pulse-sql.ts'),
-          // The runtime value-imports drizzle-orm/postgres/shape (which pulls in minipg's postgres
+          // The runtime value-imports drizzle-orm/postgres/shape (which pulls in Drizzle Postgres's postgres
           // codecs) — must never become client-reachable.
           join(SRC_ROOT, 'server/pulse-runtime.ts'),
         ],

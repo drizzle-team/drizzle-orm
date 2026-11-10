@@ -105,7 +105,7 @@ async function nonSnapshotEventCount(sql: HealthyScenario['sql']): Promise<numbe
 }
 
 // DISCOVERY (see slot-resume.test.ts for the full empirical trail against unmodified
-// pulse-runtime.ts + minipg): the resume check in the runtime's session options compares the
+// pulse-runtime.ts + Drizzle Postgres): the resume check in the runtime's session options compares the
 // persisted pulse_stream.last_lsn watermark (a commit's own record LSN) against the slot's
 // confirmed_flush_lsn (the transaction's end LSN, always strictly greater after a normal ack) —
 // unreachable via ordinary stop/restart once any commit has landed. Seeding the watermark to the

@@ -251,7 +251,7 @@ async function pull(
 
 // These tests cover request-shape validation and guard clauses that need no real DB.
 // Result-shaping behavior (row/event content produced by an actual query) is proven against
-// live PostgreSQL in packages/integration-tests rather than re-tested here against a mock.
+// live PostgreSQL in drizzle-pulse/tests rather than re-tested here against a mock.
 describe('pulse-runtime routes request validation', () => {
   test('subscribe returns HTTP 400 for invalid queryName', async () => {
     const { router } = createRouterHarness({

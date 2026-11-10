@@ -3,9 +3,9 @@
  * parametrizing it).
  *
  * Coexistence: a plain node-postgres (`pg`) `Pool` — connectionString only, NO `types` override —
- * coexists with minipg-owned replication as a generic `sourceDb`. The old custom-`types` caveat
+ * coexists with Drizzle Postgres-owned replication as a generic `sourceDb`. The old custom-`types` caveat
  * (needed so the deleted hand-rolled WAL normalizer's from-text codecs could consume
- * date/timestamp/point OIDs that pg's default parsers over-decoded) is dead: minipg's shape
+ * date/timestamp/point OIDs that pg's default parsers over-decoded) is dead: Drizzle Postgres's shape
  * bridge now decodes WAL rows, and a plain sourceDb never touches that path.
  *
  * TOAST carry-forward: an UPDATE that never touches a TOASTed column omits it from pgoutput's new tuple;
@@ -48,7 +48,7 @@ function buildRegistry() {
 async function setupScenario(label: string) {
   // The pg-data-types fixture needs a real migration folder, not a bare-DDL scaffold — scenario.ts
   // only owns database create/drop admin plumbing here (`ddl: null`).
-  const scenario = await createScenarioDb(`pulse_driverminipg_${label}`, { ddl: null });
+  const scenario = await createScenarioDb(`pulse_driverpostgres_${label}`, { ddl: null });
 
   const migrationPool = new Pool({ connectionString: withQuietPostgresUrl(scenario.databaseUrl) });
   try {
@@ -64,8 +64,8 @@ async function setupScenario(label: string) {
   const sourcePool = new Pool({ connectionString: withQuietPostgresUrl(scenario.databaseUrl) });
   const sourceDb: NodePgDatabase = drizzle({ client: sourcePool });
 
-  const publicationName = `driverminipg_pub_${label}_${randomSuffix()}`;
-  const slotName = `test_slot_driverminipg_${label}_${randomSuffix()}`;
+  const publicationName = `driverpostgres_pub_${label}_${randomSuffix()}`;
+  const slotName = `test_slot_driverpostgres_${label}_${randomSuffix()}`;
 
   const registry = buildRegistry();
   const runtime = new PulseRuntime(registry, {
@@ -99,7 +99,7 @@ async function teardownScenario(s: Scenario): Promise<void> {
   await s.scenario.drop();
 }
 
-describe('a plain pg sourceDb coexisting with minipg replication', () => {
+describe('a plain pg sourceDb coexisting with Drizzle Postgres replication', () => {
   test('coexistence: embedded list() and an HTTP subscribe baseline both converge to source truth, including date/timestamp/point columns', async () => {
     const s = await setupScenario('coexist');
     try {

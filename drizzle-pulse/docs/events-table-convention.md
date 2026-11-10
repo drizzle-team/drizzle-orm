@@ -10,7 +10,7 @@ the runtime brings that shape in line with the live database, the privileges it 
 to keep drizzle-kit from touching the pulse schema.
 
 The normative shape is produced by
-[`packages/drizzle-pulse/src/server/events-table-resolver.ts`](../packages/drizzle-pulse/src/server/events-table-resolver.ts)
+[`drizzle-pulse/src/server/events-table-resolver.ts`](../src/server/events-table-resolver.ts)
 (`buildEventsTable`, `getEventsTableName`, `DEFAULT_EVENTS_SCHEMA`) — a pure function:
 no database connection, no I/O.
 
@@ -106,7 +106,7 @@ same `pgEnum` instance** the source column uses — the enum type is never redec
 ### 2.5 Worked examples
 
 Lifted directly from the `pg-data-types` integration fixture
-(`packages/integration-tests/src/fixtures/pg-data-types/schema.ts`), which is the
+(`tests/fixtures/pg-data-types/schema.ts`), which is the
 byte-level acceptance spec for this section:
 
 Note: the events table's JS object keys **mirror the source table's JS property keys** —
@@ -216,7 +216,7 @@ before any statement reaches Postgres.
 
 Nothing outside the runtime creates or migrates these tables. On `PulseRuntime.start()`
 — and, identically, on `provision()` (section 5.5) — the runtime runs `bootstrap()`
-([`pulse-runtime.ts`](../packages/drizzle-pulse/src/server/pulse-runtime.ts)): one transaction, guarded by a
+([`pulse-runtime.ts`](../src/server/pulse-runtime.ts)): one transaction, guarded by a
 `pg_advisory_xact_lock` keyed on the events schema so two booting runtimes can't race the same
 DDL. In that transaction it, in order:
 
@@ -254,7 +254,7 @@ the recreate check (5.2) and the orphan sweep (5.4) both read from it.
 
 The runtime renders each events table's DDL to a fixed string —
 `CREATE SCHEMA IF NOT EXISTS`, `DROP TABLE IF EXISTS`, `CREATE TABLE` — with
-`emitEventsTableDdl` ([`events-table-ddl.ts`](../packages/drizzle-pulse/src/server/events-table-ddl.ts)),
+`emitEventsTableDdl` ([`events-table-ddl.ts`](../src/server/events-table-ddl.ts)),
 derived strictly from `buildEventsTable`'s output, and hashes it with sha256. On bootstrap:
 
 - if the `pulse_meta` row exists, its `ddl_hash` matches, and the physical table is present →
@@ -270,7 +270,7 @@ events rows are discarded (section 7).
 
 Each events table carries an `epoch` (a uuid) in `pulse_meta`, rotated on every recreate.
 Cursor tokens clients hold are opaque `"<epoch>:<snapshot>"` strings
-([`cursor.ts`](../packages/drizzle-pulse/src/server/cursor.ts)); a pull echoes its token back and
+([`cursor.ts`](../src/server/cursor.ts)); a pull echoes its token back and
 the handler compares its epoch to the current one. A token minted before a recreate carries the
 old epoch, so it's detected as stale and the client is told to reset (rebaseline) rather than
 resume against a since-dropped table — a bounded re-fetch. Consequence: any migration that
@@ -329,18 +329,18 @@ live subscriber's snapshot is a straightforward future addition and needs no sch
 
 ## 8. Reference implementation
 
-- [`events-table-resolver.ts`](../packages/drizzle-pulse/src/server/events-table-resolver.ts)
+- [`events-table-resolver.ts`](../src/server/events-table-resolver.ts)
   is normative for every rule in sections 1–4. `buildEventsTable(sourceTable, options?)`
   returns a genuine Drizzle `PgTable` — the runtime inserts events into it directly
   (`db.insert(eventsTable).values(...)` in `pulse-store.ts`), so codec-faithful column
   reconstruction (reusing each source column's own `mapToDriverValue`/`mapFromDriverValue`) is
   part of this contract, not an implementation detail.
-- [`events-table-ddl.ts`](../packages/drizzle-pulse/src/server/events-table-ddl.ts) renders the
+- [`events-table-ddl.ts`](../src/server/events-table-ddl.ts) renders the
   recreate DDL strictly from `buildEventsTable`'s output; its joined text is the string `bootstrap()`
   hashes to detect divergence (section 5.2). It is internal to the package (not a public export).
 - Unit tests over the full edge-case type matrix live in
-  [`events-table-resolver.test.ts`](../packages/drizzle-pulse/src/__tests__/events-table-resolver.test.ts),
+  [`events-table-resolver.test.ts`](../src/__tests__/events-table-resolver.test.ts),
   and DDL-rendering tests in
-  [`events-table-ddl.test.ts`](../packages/drizzle-pulse/src/__tests__/events-table-ddl.test.ts).
+  [`events-table-ddl.test.ts`](../src/__tests__/events-table-ddl.test.ts).
   Any change to the derivation rules above must keep those tests passing, and any change to the
   tests must be reflected back into this document.

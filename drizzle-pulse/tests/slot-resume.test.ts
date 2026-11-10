@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, spyOn, test } from 'bun:test';
-import { replication } from '@drizzle-team/minipg';
+import { replication } from 'drizzle-orm/postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { pulse } from 'drizzle-pulse';
 import { createPulseClient } from 'drizzle-pulse/client/embedded';
@@ -151,13 +151,13 @@ async function waitForStableStreamLsn(
   return prev as string;
 }
 
-// DISCOVERY (verified empirically against unmodified pulse-runtime.ts + minipg, not a test flake):
+// DISCOVERY (verified empirically against unmodified pulse-runtime.ts + Drizzle Postgres, not a test flake):
 // the resume continuity check in the runtime's session callbacks compares the persisted
 // `pulse_stream.last_lsn` watermark against the slot's `confirmed_flush_lsn`. The watermark is
 // written from a commit's OWN record LSN (`begin.finalLsn`, protocol-identical to `commit.lsn`),
 // while acking a commit advances confirmed_flush_lsn to the LSN immediately AFTER that commit
 // record (`commit.endLsn`) — strictly greater, by the commit record's own size (~48 bytes), for every
-// transaction, unconditionally (confirmed against a raw minipg replication() consumer:
+// transaction, unconditionally (confirmed against a raw Drizzle Postgres replication() consumer:
 // begin.finalLsn === commit.lsn !== commit.endLsn). A normal ack therefore ALWAYS leaves
 // confirmed_flush_lsn ahead of the just-persisted watermark, so the intact-slot resume branch
 // this test targets is unreachable via ordinary stop/restart once at least one commit has been
@@ -276,7 +276,7 @@ describe('Slot resume: intact-slot resume + stale-PID takeover', () => {
         await waitFor(() => collection.list().length === 2);
         expect(new Set(collection.list().map((row) => row.id)).size).toBe(2);
 
-        // Replay-tail dedupe: a resume that re-persisted minipg's at-least-once replay tail
+        // Replay-tail dedupe: a resume that re-persisted Drizzle Postgres's at-least-once replay tail
         // would show a second non-snapshot row for the first order's pk.
         expect(await nonSnapshotEventCount(sql, firstOrderId)).toBe(1);
 
@@ -354,7 +354,7 @@ describe('Slot resume: intact-slot resume + stale-PID takeover', () => {
       // reaches the eviction logic this test targets.
       await seedContinuousWatermark(sql, slotName);
 
-      // A raw minipg replication connection — NOT a second PulseRuntime, which would evict
+      // A raw Drizzle Postgres replication connection — NOT a second PulseRuntime, which would evict
       // B back the same way B is about to evict this one (a live runtime auto-heals).
       const occ = await replication(scenario.databaseUrl);
       let floatingRejected = false;

@@ -4,8 +4,8 @@ import {
   type ReplicationEvent,
   type TableShape,
   type TransactionBatch,
-} from '@drizzle-team/minipg';
-import { type ReplicateHandle, replicate } from '@drizzle-team/minipg/cdc';
+} from 'drizzle-orm/postgres';
+import { type ReplicateHandle, replicate } from 'drizzle-orm/postgres/cdc';
 import { desc, eq, getColumns, sql } from 'drizzle-orm';
 import { getTableConfig, type PgTable } from 'drizzle-orm/pg-core';
 import { buildShape } from 'drizzle-orm/postgres/shape';
@@ -90,7 +90,7 @@ type SourceTableMetadata = {
 };
 
 // A decoded WAL row event, buffered between a transaction's `begin` and `commit` so the whole
-// transaction persists atomically and acks together. `row`/`oldRow` arrive from minipg's per-table
+// transaction persists atomically and acks together. `row`/`oldRow` arrive from Drizzle Postgres's per-table
 // shapes, already decoded and keyed by JS property names. A delete's `row` is `{}`: the tap
 // represents a delete by the absent new row, while its persisted events-table row is built from
 // the old row instead (PulseStore's buildEventRow) — persistence and the tap stay correctly
@@ -276,7 +276,7 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
       });
     }
 
-    // Handed to the replication session so minipg decodes each declared column exactly as its
+    // Handed to the replication session so Drizzle Postgres decodes each declared column exactly as its
     // query() spec would — new and old tuples alike — instead of at the OID's default JS target.
     // `key` names the pk so the driver reports `keyChanged` on updates; under the REPLICA IDENTITY
     // FULL bootstrap() forces, that comparison is over the real old tuple and is exact.
@@ -421,7 +421,7 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
     } else {
       // 'objects' mode is the one execute() overload whose return type doesn't route through the
       // driver-specific PgQueryResultKind mapping — the only shape that type-checks generically
-      // across every driver PulseSourceDb may wrap (pg, postgres.js, minipg, ...).
+      // across every driver PulseSourceDb may wrap (pg, postgres.js, Drizzle Postgres, ...).
       const watermarkRows = await this.config.sourceDb.execute<{ lsn: string }>(
         sql`SELECT pg_current_wal_lsn()::text AS lsn`,
         'objects',
@@ -683,7 +683,7 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
           sql`CREATE TABLE IF NOT EXISTS ${metaTable} (table_name text PRIMARY KEY, ddl_hash text NOT NULL, epoch uuid NOT NULL)`,
         );
         // Durable commit-LSN dedupe watermark: survives a full process restart so resuming an
-        // intact slot doesn't re-persist minipg's at-least-once replay tail.
+        // intact slot doesn't re-persist Drizzle Postgres's at-least-once replay tail.
         await tx.execute(
           sql`CREATE TABLE IF NOT EXISTS ${streamTable} (slot_name text PRIMARY KEY, last_lsn text NOT NULL)`,
         );
@@ -770,7 +770,7 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
     this.eventsEpochs = epochs;
   }
 
-  // The replication session: minipg's managed CDC layer owns connect, slot administration,
+  // The replication session: Drizzle Postgres's managed CDC layer owns connect, slot administration,
   // reconnect/backoff, the exported-snapshot backfill window, and ack-on-handler-resolution.
   // What stays here is the part the driver cannot see — what a backfill and a resume MEAN for
   // this runtime's events tables, cursors, and live collections.
@@ -984,7 +984,7 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
     }
     const events = batch.events;
 
-    // minipg replication is at-least-once: a reconnect replays the tail, so a commit at or below
+    // Drizzle Postgres replication is at-least-once: a reconnect replays the tail, so a commit at or below
     // the durable watermark is a replay — re-persisting or re-emitting it would make clients
     // double-apply. Returning still acks, so the server stops resending.
     if (
@@ -1089,7 +1089,7 @@ export class PulseRuntime<TQueries extends AnyPulseBuilders> {
     // bootstrap() forces REPLICA IDENTITY FULL on every source before it joins the publication, so
     // a full old tuple accompanies every update/delete. WAL written under an earlier identity can
     // still replay (a FOR ALL TABLES publication retains changes from before a table's first
-    // registration); those events can't be decoded faithfully — minipg null-renders the non-key
+    // registration); those events can't be decoded faithfully — Drizzle Postgres null-renders the non-key
     // columns of a 'key' tuple, indistinguishable from real SQL nulls — so they're skipped loudly
     // instead of emitted with fabricated nulls or silently missing TOAST-omitted columns.
     if (event.oldKind !== 'full') {

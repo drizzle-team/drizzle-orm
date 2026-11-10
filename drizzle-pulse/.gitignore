@@ -1,7 +1,0 @@
-node_modules
-dist
-.env
-.planning
-.claude
-.playwright-mcp
-.DS_Store

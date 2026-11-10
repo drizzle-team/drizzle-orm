@@ -3,7 +3,7 @@
   "vcs": {
     "enabled": true,
     "clientKind": "git",
-    "useIgnoreFile": true
+    "useIgnoreFile": false
   },
   "files": {
     "includes": ["**", "!**/dist", "!**/build", "!**/node_modules", "!**/drizzle", "!bun.lock"]
@@ -52,10 +52,7 @@
   },
   "overrides": [
     {
-      "includes": [
-        "packages/integration-tests/src/**/*.ts",
-        "packages/drizzle-pulse/src/__tests__/**/*.ts"
-      ],
+      "includes": ["tests/**/*.ts", "src/__tests__/**/*.ts"],
       "linter": {
         "rules": {
           "style": {

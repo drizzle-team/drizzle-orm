@@ -39,7 +39,7 @@ const SCENARIO_SUFFIX_PATTERN = /_[0-9a-f]{10}$/;
 
 export async function createScenarioDb(
   label: string,
-  // `ddl: null` opts out of DDL application entirely — driver-minipg.test.ts owns its schema via
+  // `ddl: null` opts out of DDL application entirely — driver-postgres.test.ts owns its schema via
   // a real migration folder (not a bare-DDL fixture) applied through its own pg Pool afterward.
   opts: { ddl?: string | null } = {},
 ): Promise<ScenarioDb> {

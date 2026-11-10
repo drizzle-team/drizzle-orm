@@ -322,9 +322,12 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: '24' }
       - uses: ./.github/actions/pnpm-store
-      # pkg-pr-new comes from the lockfile of the postgres package.
-      - run: pnpm install --frozen-lockfile --prefer-offline --filter @drizzle-team/postgres
-      # postgres/dist for @drizzle-team/postgres.
+      # pkg-pr-new comes from the lockfile of the postgres package. The prepack script of drizzle-pulse compiles it
+      # against drizzle-orm/dist, so it needs the dependencies of both.
+      - run: >-
+          pnpm install --frozen-lockfile --prefer-offline --filter @drizzle-team/postgres
+          --filter 'drizzle-pulse...' --filter 'drizzle-orm...'
+      # postgres/dist for @drizzle-team/postgres, drizzle-orm/dist for drizzle-pulse.
       - name: Fetch build-dist (compiled JS)
         uses: ./.github/actions/fetch-build
       - name: Download package tarballs
@@ -345,7 +348,8 @@ jobs:
         continue-on-error: true
         run: |
           bash .github/ci/publish-preview.sh update \
-            preview/drizzle-orm preview/drizzle-kit preview/drizzle-seed preview/eslint-plugin-drizzle postgres
+            preview/drizzle-orm preview/drizzle-kit preview/drizzle-seed preview/eslint-plugin-drizzle postgres \
+            drizzle-pulse
 
   packed-orm:
     needs: [prepare-head-start]

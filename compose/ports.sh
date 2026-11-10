@@ -83,6 +83,7 @@ export DRIZZLE_PORT_TURSO2="$(_port 8092 28)"
 export DRIZZLE_PORT_TURSO3="$(_port 8093 29)"
 export DRIZZLE_PORT_TURSO4="$(_port 8094 30)"
 export DRIZZLE_PORT_PLANETSCALE="$(_port 3900 31)"
+export DRIZZLE_PORT_PULSE="$(_port 5433 32)"
 
 # host:port where this machine reaches a compose service's container port, for connection strings.
 #   drizzle_addr <dialect> <service> <container port> <published port>

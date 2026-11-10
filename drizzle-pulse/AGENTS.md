@@ -1,8 +1,8 @@
-# AGENTS.md — packages/drizzle-pulse
+# AGENTS.md — drizzle-pulse
 
 ## Role
 
-Type-safe Pulse SDK shared by server, client, React, and embedded layers.
+Type-safe realtime SDK for Drizzle ORM. The package has root, server, client, React, and embedded layers.
 
 - root side: `pulse`, `PulseTable` — the collection entity, exported once per table from schema files
 - server side: `PulseBuilder` (seeded via `PulseTable.query(fn?)`), `createPulseRegistry`, `PulseRuntime`, the transport-agnostic request handler (SDK), and the events-table machinery (`buildEventsTable` resolver + internal DDL renderer + `bootstrap`/`provision`)
@@ -18,7 +18,8 @@ Type-safe Pulse SDK shared by server, client, React, and embedded layers.
 
 ## Dependencies
 
-`superjson` is the only hard `dependency`; `@drizzle-team/minipg` is a **required peer**. It is
+`superjson` is the only hard `dependency`. The PostgreSQL driver comes from the `drizzle-orm`
+peer (`drizzle-orm/postgres` and `drizzle-orm/postgres/cdc`). It is
 value-reached only from the `./server` and `./embedded` entrypoints (replication + admin pool,
 via `pulse-runtime.ts`/`pulse-store.ts`); client entrypoints (`./client`, `./client/react`,
 `./client/embedded`) never reach it on a value-import path (enforced by the platform-imports
@@ -70,7 +71,7 @@ to `DEFAULT` on un-pulse — every update/delete decodes from its full WAL old t
 runtime never reads old-row data back from the source tables. `start()` runs it then opens WAL;
 `provision()` runs it and returns (split-role deploys). Failed DDL throws naming the exact
 statement and the grant it most likely needs. See
-[`../../docs/events-table-convention.md`](../../docs/events-table-convention.md) sections 5–8.
+[`docs/events-table-convention.md`](docs/events-table-convention.md) sections 5–8.
 
 ## Contract Flow
 
@@ -198,7 +199,7 @@ remaining consumer).
 
 - Internal source imports require explicit `.js` extensions
 - Keep server-only code out of the `client`, `client/react`, and `client/embedded` entrypoints (the embedded client reaches the runtime through `import type` edges only)
-- `src/embedded/` is a server-side entrypoint (value-imports `pulse-runtime` and `@drizzle-team/minipg`) — never add it to platform-imports.test.ts's `ENTRY_POINTS`, and never import it from client codepaths
+- `src/embedded/` is a server-side entrypoint (value-imports `pulse-runtime` and `drizzle-orm/postgres`) — never add it to platform-imports.test.ts's `ENTRY_POINTS`, and never import it from client codepaths
 - If `PulseQuery`, the transport interface, or protocol types change, update the SDK handler, both transports, and client consumers together
 
 ## DO NOT

@@ -1,30 +1,37 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const packageDir = join(scriptDir, '..', 'packages', 'drizzle-pulse');
+const packageDir = join(scriptDir, '..');
 const manifestPath = join(packageDir, 'package.json');
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 
-const result = spawnSync('npm', ['pack', '--dry-run', '--json'], {
+// pnpm pack rewrites workspace: ranges in the packed manifest, which npm pack does not do.
+const outDir = mkdtempSync(join(tmpdir(), 'pulse-pack-'));
+const result = spawnSync('pnpm', ['pack', '--json', '--pack-destination', outDir], {
   cwd: packageDir,
   encoding: 'utf8',
 });
 
 if (result.status !== 0) {
-  console.error('pack-check: npm pack --dry-run failed');
+  console.error('pack-check: pnpm pack failed');
   console.error(result.stderr);
+  rmSync(outDir, { recursive: true, force: true });
   process.exit(1);
 }
 
-// npm 11 and earlier emit an array of pack results; npm 12 emits an object keyed by package
-// name. Accept either so the gate does not silently depend on the local npm major.
-const parsed = JSON.parse(result.stdout);
-const [packResult] = Array.isArray(parsed) ? parsed : Object.values(parsed);
+// Lifecycle script output (prepack) precedes the JSON object on stdout.
+const packResult = JSON.parse(result.stdout.slice(result.stdout.search(/^\{/m)));
 const packedPaths = packResult.files.map((file) => file.path);
+const packedManifest = JSON.parse(
+  spawnSync('tar', ['-xOf', packResult.filename, 'package/package.json'], { encoding: 'utf8' })
+    .stdout,
+);
+rmSync(outDir, { recursive: true, force: true });
 
 const errors = [];
 
@@ -68,12 +75,10 @@ if (missingEntrypointFiles.length > 0) {
   );
 }
 
-// devDependencies never install for consumers and bun resolves catalog: at publish time,
-// so devDependencies.drizzle-orm=catalog: is a false positive for the shipped artifact.
-const depFields = ['dependencies', 'peerDependencies', 'optionalDependencies'];
+const depFields = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
 const catalogOrWorkspaceLeaks = [];
 for (const field of depFields) {
-  const deps = manifest[field];
+  const deps = packedManifest[field];
   if (!deps) continue;
   for (const [name, range] of Object.entries(deps)) {
     if (
@@ -85,7 +90,9 @@ for (const field of depFields) {
   }
 }
 if (catalogOrWorkspaceLeaks.length > 0) {
-  errors.push(`catalog:/workspace: leaks in manifest: ${catalogOrWorkspaceLeaks.join(', ')}`);
+  errors.push(
+    `catalog:/workspace: leaks in the packed manifest: ${catalogOrWorkspaceLeaks.join(', ')}`,
+  );
 }
 
 // Catches stale compiled output from since-deleted src files (a bare `tsc` prepack

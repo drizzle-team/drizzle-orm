@@ -1,4 +1,4 @@
-# AGENTS.md — packages/integration-tests
+# AGENTS.md — drizzle-pulse/tests
 
 ## Role
 
@@ -6,26 +6,26 @@ Live PostgreSQL + WAL integration coverage for the Pulse SDK runtime. These test
 
 ## Entry Points
 
-- `bun test`
-- shared harness: `src/helpers/test-harness.ts`
+- `pnpm test:integration` (needs the database from `bash compose/dockers.sh up pulse`)
+- shared harness: `helpers/test-harness.ts`
 
 ## File Map
 
 | File | Purpose |
 |------|---------|
-| `src/helpers/test-harness.ts` | suite setup/teardown, fixture-local helper binding, router fetch adapter, and typed subscribe/pull helpers |
-| `src/helpers/db-helpers.ts` | shared DB mutation/event helpers used by the harness |
-| `src/client-state.test.ts` | client-state behavior through `PulseQuery` and `initTestQuery()` |
-| `src/runtime-contracts.test.ts` | lower-level subscribe/pull/load-more/reset protocol coverage |
-| `src/property.test.ts` | property-based WAL/state validation via `fast-check` |
-| `src/router-fetch-adapter.test.ts` | verifies `createRouterFetchAdapter()` and selected `PulseQuery` integration paths |
-| `src/embedded-collection.test.ts` | embedded client (`drizzle-pulse/client/embedded`) tap-direct `PulseCollection` behavior via the WAL tap + LSN watermark handshake (lsn tokens, same-transaction-same-lsn, `.limit()` rejection), lifecycle, and PG data-type normalization |
-| `src/pulse-events.test.ts` | `createPulseEvents` (`drizzle-pulse/client/embedded`) stateless per-event subscription: typed insert/update/delete delivery, commit order + lsn, no-baseline, WHERE filtering, unsubscribe/`runtime.stop()` teardown, sync `.limit()`/`.transform()` rejection |
-| `src/consistency-oracle.test.ts` | Consistency oracle: deterministic mid-baseline concurrent insert/update/delete races plus a 15-run randomized property comparing embedded `list()`, an HTTP `PulseQuery` pull, and a direct SQL SELECT against the same runtime |
-| `src/bootstrap.test.ts` | runtime self-provisioning: events-schema/`pulse_meta` creation, DDL-hash recreate + epoch rotation, orphan sweep |
-| `src/bootstrap-publication.test.ts` | publication create/membership-diff and `REPLICA IDENTITY` handling |
-| `src/reconnect-rebaseline.test.ts` | embedded-collection rebaseline behavior across a real WAL reconnect edge (dropped walsender socket) and under a slow baseline read that holds the stream closed — same watermark/baseline handshake as initial load |
-| `src/fixtures/` | fixture variants, source-table migrations (events tables are runtime-provisioned, not migrated) |
+| `helpers/test-harness.ts` | suite setup/teardown, fixture-local helper binding, router fetch adapter, and typed subscribe/pull helpers |
+| `helpers/db-helpers.ts` | shared DB mutation/event helpers used by the harness |
+| `client-state.test.ts` | client-state behavior through `PulseQuery` and `initTestQuery()` |
+| `runtime-contracts.test.ts` | lower-level subscribe/pull/load-more/reset protocol coverage |
+| `property.test.ts` | property-based WAL/state validation via `fast-check` |
+| `router-fetch-adapter.test.ts` | verifies `createRouterFetchAdapter()` and selected `PulseQuery` integration paths |
+| `embedded-collection.test.ts` | embedded client (`drizzle-pulse/client/embedded`) tap-direct `PulseCollection` behavior via the WAL tap + LSN watermark handshake (lsn tokens, same-transaction-same-lsn, `.limit()` rejection), lifecycle, and PG data-type normalization |
+| `pulse-events.test.ts` | `createPulseEvents` (`drizzle-pulse/client/embedded`) stateless per-event subscription: typed insert/update/delete delivery, commit order + lsn, no-baseline, WHERE filtering, unsubscribe/`runtime.stop()` teardown, sync `.limit()`/`.transform()` rejection |
+| `consistency-oracle.test.ts` | Consistency oracle: deterministic mid-baseline concurrent insert/update/delete races plus a 15-run randomized property comparing embedded `list()`, an HTTP `PulseQuery` pull, and a direct SQL SELECT against the same runtime |
+| `bootstrap.test.ts` | runtime self-provisioning: events-schema/`pulse_meta` creation, DDL-hash recreate + epoch rotation, orphan sweep |
+| `bootstrap-publication.test.ts` | publication create/membership-diff and `REPLICA IDENTITY` handling |
+| `reconnect-rebaseline.test.ts` | embedded-collection rebaseline behavior across a real WAL reconnect edge (dropped walsender socket) and under a slow baseline read that holds the stream closed — same watermark/baseline handshake as initial load |
+| `fixtures/` | fixture variants, source-table migrations (events tables are runtime-provisioned, not migrated) |
 
 ## Harness Lifecycle
 

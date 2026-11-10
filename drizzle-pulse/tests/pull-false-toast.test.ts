@@ -98,7 +98,7 @@ async function eventsSchemaRelationCount(sql: Scenario['sql']): Promise<number> 
 }
 
 // Incompressible so TOAST can't inline-compress it away — must be pushed out-of-line to
-// actually exercise pgoutput's omitted-column carry-forward (driver-minipg.test.ts idiom).
+// actually exercise pgoutput's omitted-column carry-forward (driver-postgres.test.ts idiom).
 function toastableValue(): string {
   return randomBytes(5000).toString('hex');
 }

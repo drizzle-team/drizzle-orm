@@ -10,7 +10,7 @@ import type { PgColumn } from 'drizzle-orm/pg-core';
  *
  * Values arrive already in their JS types: the HTTP-pull path reads the events
  * table via a typed Drizzle select, and the embedded WAL tap receives rows
- * minipg decoded through the per-table replication shapes, re-keyed to JS
+ * Drizzle Postgres decoded through the per-table replication shapes, re-keyed to JS
  * property keys (see server/wal-shape-bridge.ts). So this only re-keys and
  * prunes — no type coercion happens here.
  *

@@ -4,7 +4,8 @@
     "noEmit": false,
     "declaration": true,
     "emitDeclarationOnly": true,
+    "rootDir": ".",
     "outDir": "./node_modules/.cache/portability"
   },
-  "include": ["src/portability.ts", "src/fixtures/minimal-orders/schema.ts"]
+  "include": ["portability.ts", "fixtures/minimal-orders/schema.ts"]
 }

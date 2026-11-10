@@ -10,8 +10,8 @@
  */
 
 // Hand-rolled and staying that way — this module is value-imported by the embedded
-// entrypoint, which the platform-imports guard bans minipg from reaching. Server-side modules
-// (e.g. pulse-runtime.ts) use minipg's own lsnFromString instead; this shared module serves the
+// entrypoint, which the platform-imports guard bans Drizzle Postgres from reaching. Server-side modules
+// (e.g. pulse-runtime.ts) use Drizzle Postgres's own lsnFromString instead; this shared module serves the
 // client/shared paths and intentionally never will, for platform purity.
 
 /**
