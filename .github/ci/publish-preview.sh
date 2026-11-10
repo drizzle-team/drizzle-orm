@@ -9,14 +9,14 @@ set -euo pipefail
 comment="${1:?usage: publish-preview.sh <comment> <package dir>...}"
 shift
 root="$(pwd)"
-dirs=()
-for dir in "$@"; do dirs+=("$(cd "$dir" && pwd)"); done
 
 # --previewVersion sets every version to 0.0.0-preview-<sha>, and the peer dependencies between the published
 # packages to match, so a preview never takes the place of the npm release with the same number.
+# pkg-pr-new runs from the repository root: it makes each directory relative to its own working directory, and its
+# file search rejects the empty pattern that the working directory itself becomes.
 publish() {
-	(cd postgres && pnpm exec pkg-pr-new publish --json "$root/preview.json" --previewVersion --comment="$comment" \
-		--packageManager=bun,npm "${dirs[@]}")
+	"$root/postgres/node_modules/.bin/pkg-pr-new" publish --json "$root/preview.json" --previewVersion \
+		--comment="$comment" --packageManager=bun,npm "$@"
 }
 
 summary() {
@@ -50,7 +50,7 @@ summary() {
 # comes late, the check answers "There is no workflow defined" (HTTP 404), so try again after a pause. A webhook
 # that never comes needs a re-run of the job.
 for attempt in 1 2 3 4; do
-	if publish 2>&1 | tee "$root/publish.log"; then
+	if publish "$@" 2>&1 | tee "$root/publish.log"; then
 		summary success
 		exit 0
 	fi
