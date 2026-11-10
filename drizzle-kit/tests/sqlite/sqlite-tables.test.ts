@@ -496,7 +496,6 @@ test('add column before creating unique constraint', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'ALTER TABLE `table` ADD `name` text NOT NULL;',
 		'PRAGMA foreign_keys=OFF;',
 		'CREATE TABLE `__new_table` (\n'
 		+ '\t`id` integer PRIMARY KEY,\n'
@@ -952,7 +951,6 @@ test('recreate table with added column not null and without default with data', 
 	});
 
 	const st0: string[] = [
-		'ALTER TABLE `users` ADD `new_column` text NOT NULL;',
 		'PRAGMA foreign_keys=OFF;',
 		'CREATE TABLE `__new_users` (\n'
 		+ '\t`id` integer PRIMARY KEY,\n'
@@ -969,6 +967,9 @@ test('recreate table with added column not null and without default with data', 
 	expect(pst).toStrictEqual(st0);
 
 	expect(phints[0].statement).toStrictEqual('DELETE FROM "users" where true;');
+	expect(phints[0].hint).toStrictEqual(
+		`You're about to add not-null "new_column" column without default value to non-empty "users" table`,
+	);
 	expect(error).toBeNull();
 });
 
@@ -1080,7 +1081,6 @@ test('recreate table and add unique column', async (t) => {
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames: [] });
 
 	const st0: string[] = [
-		'ALTER TABLE `users` ADD `referral_code` text;',
 		'PRAGMA foreign_keys=OFF;',
 		`CREATE TABLE \`__new_users\` (
 \t\`id\` text PRIMARY KEY,

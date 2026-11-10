@@ -809,7 +809,6 @@ test('pk #1_1. add column with pk', async () => {
 		to,
 	});
 	const st0 = [
-		'ALTER TABLE `users` ADD `id` integer;',
 		'PRAGMA foreign_keys=OFF;',
 		`CREATE TABLE \`__new_users\` (\n\t\`name\` text,\n\t\`id\` integer PRIMARY KEY AUTOINCREMENT\n);\n`,
 		'INSERT INTO `__new_users`(`name`) SELECT `name` FROM `users`;',
