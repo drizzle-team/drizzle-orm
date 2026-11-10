@@ -414,7 +414,7 @@ test('all data types', (t) => {
 
 /* 'Infinitely recursive type'*/ {
 	const TopLevelCondition: s.Schema<TopLevelCondition> = s.Any.check(
-		s.makeFilter(() => undefined), // oxlint-disable-line no-useless-undefined
+		s.makeFilter(() => undefined),
 	) as unknown as s.Schema<TopLevelCondition>;
 
 	const column = customType<{

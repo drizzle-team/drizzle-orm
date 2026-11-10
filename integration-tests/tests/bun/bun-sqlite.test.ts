@@ -4347,7 +4347,6 @@ test('sql operator as cte', async () => {
 	expect(result2).toStrictEqual([{ userId: 2, data: { name: 'Jane' } }]);
 });
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
 export class TestGlobalCache extends Cache {
 	private globalTtl: number = 1000;
 	private usedTablesPerKey: Record<string, string[]> = {};
@@ -4408,7 +4407,6 @@ export class TestGlobalCache extends Cache {
 	}
 }
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
 export class TestCache extends TestGlobalCache {
 	override strategy(): 'explicit' | 'all' {
 		return 'explicit';

@@ -48,12 +48,7 @@
 		"unicorn/no-array-reduce": "off",
 		"unicorn/no-nested-ternary": "off",
 		"unicorn/no-new-array": "off",
-		"unicorn/no-useless-undefined": [
-			"error",
-			{
-				"checkArguments": false
-			}
-		],
+		"unicorn/no-useless-undefined": "off",
 		"unicorn/no-this-assignment": "off",
 		"unicorn/empty-brace-spaces": "off",
 		"unicorn/no-thenable": "off",
@@ -67,11 +62,18 @@
 		"typescript/no-empty-interface": "off",
 		"typescript/no-unsafe-declaration-merging": "off",
 		"no-inner-declarations": "off",
-		"drizzle-internal/require-entity-kind": "error",
-		"drizzle-internal/require-has-instance": "error",
+		"drizzle-internal/require-entity-kind": "off",
+		"drizzle-internal/require-has-instance": "off",
 		"drizzle-internal/prefer-new-array": "error"
 	},
 	"overrides": [
+		{
+			"files": ["drizzle-orm/src/**/*"],
+			"rules": {
+				"drizzle-internal/require-entity-kind": "error",
+				"drizzle-internal/require-has-instance": "error"
+			}
+		},
 		{
 			"files": [
 				"**/tests/**/*.ts",
@@ -83,9 +85,7 @@
 				"no-useless-escape": "off",
 				"consistent-type-imports": "off",
 				"no-unused-vars": "off",
-				"no-unused-expressions": "off",
-				"drizzle-internal/require-entity-kind": "off",
-				"drizzle-internal/require-has-instance": "off"
+				"no-unused-expressions": "off"
 			}
 		},
 		{
@@ -101,18 +101,9 @@
 			}
 		},
 		{
-			"files": ["drizzle-kit/**/*"],
-			"rules": {
-				"drizzle-internal/require-entity-kind": "off",
-				"drizzle-internal/require-has-instance": "off"
-			}
-		},
-		{
-			"files": ["postgres/**/*"],
+			"files": ["postgres/**/*", "drizzle-pulse/**/*"],
 			"rules": {
 				"eqeqeq": ["error", "always", { "null": "ignore" }],
-				"drizzle-internal/require-entity-kind": "off",
-				"drizzle-internal/require-has-instance": "off",
 				"drizzle-internal/prefer-new-array": "off"
 			}
 		}

@@ -1,4 +1,3 @@
-/* eslint-disable drizzle-internal/require-entity-kind */
 import type { SQLWrapper } from 'drizzle-orm';
 import { entityKind, eq, is, sql } from 'drizzle-orm';
 import type { MySqlTable } from 'drizzle-orm/mysql-core';

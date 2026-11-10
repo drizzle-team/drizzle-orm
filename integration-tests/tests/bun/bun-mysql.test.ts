@@ -7844,7 +7844,6 @@ test('Column as decoder applies codecs - Jit mappers', async () => {
 	);
 });
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
 export class TestGlobalCache extends Cache {
 	private globalTtl: number = 1000;
 	private usedTablesPerKey: Record<string, string[]> = {};
@@ -7905,7 +7904,6 @@ export class TestGlobalCache extends Cache {
 	}
 }
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
 export class TestCache extends TestGlobalCache {
 	override strategy(): 'explicit' | 'all' {
 		return 'explicit';

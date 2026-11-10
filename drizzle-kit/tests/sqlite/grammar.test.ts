@@ -1,4 +1,10 @@
-import { parseSqliteDdl, parseSqliteIndex, parseViewSQL, stripSqlComments } from 'src/dialects/sqlite/grammar';
+import {
+	isNonConstantDefault,
+	parseSqliteDdl,
+	parseSqliteIndex,
+	parseViewSQL,
+	stripSqlComments,
+} from 'src/dialects/sqlite/grammar';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { prepareTestDatabase, TestDatabase } from './mocks';
 
@@ -449,5 +455,146 @@ describe('parse ddl', (t) => {
 			},
 			checks: [],
 		});
+	});
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6408
+// every default is added to a table with data, sqlite rejects non-constant defaults only in this case
+describe('isNonConstantDefault', () => {
+	test('no default', () => {
+		expect(isNonConstantDefault(null)).toBe(false);
+		expect(isNonConstantDefault(undefined)).toBe(false);
+	});
+
+	test('literals', async () => {
+		await db.run('CREATE TABLE t (a INTEGER)');
+		await db.run('INSERT INTO t VALUES (1)');
+
+		const defaults = [
+			'1',
+			'-1',
+			'+1',
+			'1.5',
+			'1.',
+			'.5',
+			'1e5',
+			'-1.5E-3',
+			'0x1A',
+			'-0x1A',
+			"'abc'",
+			"'it''s'",
+			"''",
+			`'{"a":1}'`,
+			"'a (b)'",
+			"X'AB'",
+			"x''",
+			'NULL',
+			'true',
+			'FALSE',
+		];
+		for (const [i, def] of defaults.entries()) {
+			await db.run(`ALTER TABLE t ADD c${i} DEFAULT ${def}`);
+		}
+
+		const nonConstant = defaults.filter((it) => isNonConstantDefault(it));
+		expect(nonConstant).toStrictEqual([]);
+	});
+
+	test('literals in parentheses', async () => {
+		await db.run('CREATE TABLE t (a INTEGER)');
+		await db.run('INSERT INTO t VALUES (1)');
+
+		const defaults = [
+			'(1)',
+			'((1))',
+			'( 1 )',
+			'(-1)',
+			'(1.5)',
+			'(0x1A)',
+			"('abc')",
+			"(('abc'))",
+			"(x'ab')",
+			'(NULL)',
+			'(true)',
+			// corner case
+			"('a'')||(''b')", // one string literal: a')||('b
+		];
+		for (const [i, def] of defaults.entries()) {
+			await db.run(`ALTER TABLE t ADD c${i} DEFAULT ${def}`);
+		}
+
+		const nonConstant = defaults.filter((it) => isNonConstantDefault(it));
+		expect(nonConstant).toStrictEqual([]);
+	});
+
+	test('expressions and functions', async () => {
+		await db.run('CREATE TABLE t (a INTEGER)');
+		await db.run('INSERT INTO t VALUES (1)');
+
+		const defaults = [
+			'(1 + 1)',
+			"('a' || 'b')",
+			"('a' COLLATE NOCASE)",
+			'(abs(1))',
+			"(lower('A'))",
+			'(random())',
+			"(datetime('now'))",
+			'(unixepoch())',
+		];
+		for (const [i, def] of defaults.entries()) {
+			await expect(db.run(`ALTER TABLE t ADD c${i} DEFAULT ${def}`)).rejects.toThrow(
+				'Cannot add a column with non-constant default',
+			);
+		}
+
+		const nonConstant = defaults.filter((it) => isNonConstantDefault(it));
+		expect(nonConstant).toStrictEqual(defaults);
+	});
+
+	test('CURRENT_TIME, CURRENT_DATE, CURRENT_TIMESTAMP', async () => {
+		await db.run('CREATE TABLE t (a INTEGER)');
+		await db.run('INSERT INTO t VALUES (1)');
+
+		const defaults = [
+			'CURRENT_TIME',
+			'CURRENT_DATE',
+			'CURRENT_TIMESTAMP',
+			'current_timestamp',
+			'(CURRENT_TIMESTAMP)',
+		];
+		for (const [i, def] of defaults.entries()) {
+			await expect(db.run(`ALTER TABLE t ADD c${i} DEFAULT ${def}`)).rejects.toThrow(
+				'Cannot add a column with non-constant default',
+			);
+		}
+
+		const nonConstant = defaults.filter((it) => isNonConstantDefault(it));
+		expect(nonConstant).toStrictEqual(defaults);
+	});
+
+	// TODO
+	// sqlite accepts these on a table with data, but they are not plain literals
+	// they are treated as non-constant in kit, which costs an unneeded table recreate
+	// need to discuss how to handle this
+	test('constant for sqlite, but treated as non-constant', async () => {
+		await db.run('CREATE TABLE t (a INTEGER)');
+		await db.run('INSERT INTO t VALUES (1)');
+
+		const defaults = [
+			'(CAST(1 AS TEXT))',
+			'abc', // bare identifier is stored as string 'abc'
+			'"abc"',
+			'Infinity', // real().default(Infinity), stored as string 'Infinity'
+			'( - 1 )',
+			'(-(1))',
+			"(+'abc')",
+			'(1 /* c */)',
+		];
+		for (const [i, def] of defaults.entries()) {
+			await db.run(`ALTER TABLE t ADD c${i} DEFAULT ${def}`);
+		}
+
+		const nonConstant = defaults.filter((it) => isNonConstantDefault(it));
+		expect(nonConstant).toStrictEqual(defaults);
 	});
 });

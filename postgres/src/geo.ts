@@ -1,14 +1,12 @@
-// Geometric + extension type decoders for shapes: built-in `point`/`line` and pgvector, plus
-// PostGIS `geometry`/`geography` (EWKB). Extension types have DYNAMIC OIDs (created per
-// database), so shapes reference them by NAME via sentinel OIDs — the decoder is chosen by the
-// declaration, never by the runtime OID. All are TEXT-wire-format decoders.
+// Geometric + extension type decoders for shapes: built-in `point`/`line` and pgvector. pgvector
+// types have DYNAMIC OIDs (created per database), so each one is a defineType() definition that the
+// column plan carries. The declaration chooses the decoder, never the runtime OID. All are
+// TEXT-wire-format decoders.
 import type { CodegenCol } from './decode.ts';
+import { defineType } from './registry.ts';
 
 export const OID_POINT = 600;
 export const OID_LINE = 628; // built-in `line`: text is '{A,B,C}' (Ax + By + C = 0)
-export const EXT_VECTOR = -1000; // pgvector `vector` — sentinel (real OID is per-database)
-export const EXT_HALFVEC = -1002; // pgvector `halfvec` (same text format as vector)
-export const EXT_SPARSEVEC = -1003; // pgvector `sparsevec`: '{i:v,i:v}/dim' (1-based indices)
 
 // ---- point: text is "(x,y)" --------------------------------------------------------------
 export const parsePoint = (s: string): { x: number; y: number } => {
@@ -59,13 +57,24 @@ export function sparseToDense(v: SparseVec): number[] {
 	return out;
 }
 
-// ---- box2d/box3d: 'BOX(xmin ymin,xmax ymax)' / 'BOX3D(xmin ymin zmin,xmax ymax zmax)' -------
-// ---- shape-column dispatcher (shared by BOTH decode engines) --------------------------------
+// ---- pgvector definitions: bare / unknown targets yield the raw text ------------------------
+const vectorTargets = {
+	array: parseVector,
+	f32: (s: string) => Float32Array.from(JSON.parse(s) as number[]),
+};
+export const VECTOR_DEF = defineType('vector', { ascii: true, targets: vectorTargets }).def;
+export const HALFVEC_DEF = defineType('halfvec', { ascii: true, targets: vectorTargets }).def; // same '[…]' text as vector
+export const SPARSEVEC_DEF = defineType('sparsevec', {
+	ascii: true,
+	targets: { sparse: parseSparsevec, array: (s: string) => sparseToDense(parseSparsevec(s)) },
+}).def;
+
+// ---- point / line shape-column dispatcher (shared by BOTH decode engines) ------------------
 type AtDecoder = (b: Buffer, o: number, l: number) => unknown;
 
-/** Decoder for a geometric/extension shape column. Claims ONLY explicit parse targets — bare
- *  declarations ('point', 'vector', 'geometry') default to the raw TEXT string via the normal
- *  string machinery (returning null here). Parsing is opt-in per column. */
+/** Decoder for a built-in point/line shape column. Claims ONLY explicit parse targets. Bare
+ *  declarations ('point', 'line') default to the raw TEXT string via the normal string machinery
+ *  (returning null here). Parsing is opt-in per column. */
 export function extAt(col: Pick<CodegenCol, 'oid' | 'js'>): AtDecoder | null {
 	const js = col.js as string | undefined;
 	switch (col.oid) {
@@ -77,24 +86,12 @@ export function extAt(col: Pick<CodegenCol, 'oid' | 'js'>): AtDecoder | null {
 			if (js === 'abc') return (b, o, l) => parseLineAbc(b.toString('utf8', o, o + l));
 			if (js === 'tuple') return (b, o, l) => parseLineTuple(b.toString('utf8', o, o + l));
 			return null; // bare / :string -> raw '{A,B,C}' text
-		case EXT_VECTOR:
-			if (js === 'array') return (b, o, l) => parseVector(b.toString('utf8', o, o + l));
-			if (js === 'f32') return (b, o, l) => Float32Array.from(JSON.parse(b.toString('utf8', o, o + l)) as number[]);
-			return null; // bare / :string -> raw '[…]' text
-		case EXT_HALFVEC: // same '[…]' text as vector
-			if (js === 'array') return (b, o, l) => parseVector(b.toString('utf8', o, o + l));
-			if (js === 'f32') return (b, o, l) => Float32Array.from(JSON.parse(b.toString('utf8', o, o + l)) as number[]);
-			return null;
-		case EXT_SPARSEVEC:
-			if (js === 'sparse') return (b, o, l) => parseSparsevec(b.toString('utf8', o, o + l));
-			if (js === 'array') return (b, o, l) => sparseToDense(parseSparsevec(b.toString('utf8', o, o + l)));
-			return null; // bare / :string -> raw '{i:v,…}/dim' text
 		default:
 			return null;
 	}
 }
 
-/** String-leaf for one geo/extension ARRAY ELEMENT ('{…}' array literals carry element TEXT) —
+/** String-leaf for one point/line ARRAY ELEMENT ('{…}' array literals carry element TEXT). It
  *  mirrors extAt's target mapping exactly. null = target not parseable for this type (bare/raw). */
 export function extLeafFor(elem: number, js?: string): ((s: string) => unknown) | null {
 	switch (elem) {
@@ -102,11 +99,6 @@ export function extLeafFor(elem: number, js?: string): ((s: string) => unknown) 
 			return js === 'xy' ? parsePoint : js === 'tuple' ? parsePointTuple : null;
 		case OID_LINE:
 			return js === 'abc' ? parseLineAbc : js === 'tuple' ? parseLineTuple : null;
-		case EXT_VECTOR:
-		case EXT_HALFVEC:
-			return js === 'array' ? parseVector : js === 'f32' ? (s) => Float32Array.from(JSON.parse(s) as number[]) : null;
-		case EXT_SPARSEVEC:
-			return js === 'sparse' ? parseSparsevec : js === 'array' ? (s) => sparseToDense(parseSparsevec(s)) : null;
 		default:
 			return null;
 	}

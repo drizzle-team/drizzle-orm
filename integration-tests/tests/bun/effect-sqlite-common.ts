@@ -2424,7 +2424,6 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 					get: (key: string, _tables: string[], _isTag: boolean, _isAutoInvalidate?: boolean) =>
 						Effect.gen(function*() {
 							yield* Ref.update(cacheOperations, (ops) => [...ops, { op: 'get' as const, key }]);
-							// oxlint-disable-next-line no-useless-undefined
 							return undefined;
 						}),
 					put: (key: string, _response: any, _tables: string[], _isTag: boolean, _config?: any) =>
@@ -2437,7 +2436,6 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 						}),
 					cache: {
 						strategy: () => 'all' as const,
-						// oxlint-disable-next-line no-useless-undefined
 						get: async () => undefined,
 						put: async () => {},
 						onMutate: async () => {},

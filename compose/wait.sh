@@ -100,6 +100,7 @@ for db in "$@"; do
       ;;
     postgres-postgis)     wait_tcp 127.0.0.1 "$DRIZZLE_PORT_POSTGIS" "postgres" ;;
     postgres-vector)      wait_tcp 127.0.0.1 "$DRIZZLE_PORT_VECTOR" "postgres" ;;
+    pulse)                wait_tcp 127.0.0.1 "$DRIZZLE_PORT_PULSE" "pulse" ;;
     postgres18)           wait_tcp 127.0.0.1 "$DRIZZLE_PORT_POSTGRES18" "postgres" ;;
     postgres17)           wait_tcp 127.0.0.1 "$DRIZZLE_PORT_POSTGRES17" "postgres" ;;
     postgres16)           wait_tcp 127.0.0.1 "$DRIZZLE_PORT_POSTGRES16" "postgres" ;;

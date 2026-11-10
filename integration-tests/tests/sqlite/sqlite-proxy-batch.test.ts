@@ -1,4 +1,3 @@
-/* eslint-disable drizzle-internal/require-entity-kind */
 import type BetterSqlite3 from 'better-sqlite3';
 import Database from 'better-sqlite3';
 import { defineRelations, eq, sql } from 'drizzle-orm';

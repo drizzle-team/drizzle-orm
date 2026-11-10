@@ -12,6 +12,7 @@ ALL_IMAGES=(
   postgres18
   postgres-postgis
   postgres-vector
+  pulse
   mysql
   mariadb
   cockroach
@@ -35,6 +36,7 @@ _resolve_compose_file() {
     postgres18)       echo "postgres18.yml" ;;
     postgres-postgis) echo "postgres-postgis.yml" ;;
     postgres-vector)  echo "postgres-vector.yml" ;;
+    pulse)            echo "pulse.yml" ;;
     mysql)            echo "mysql.yml" ;;
     mariadb)          echo "mariadb.yml" ;;
     cockroach)        echo "cockroach.yml" ;;

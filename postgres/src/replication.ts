@@ -15,6 +15,7 @@ import { buildDecoders } from './decode.ts';
 import {
 	type CellDecoder,
 	type CodegenCol,
+	hasTypeDefinition,
 	pickDecoder,
 	replBinaryFor,
 	replBinaryForCol,
@@ -872,7 +873,7 @@ export class ReplicationConnection {
 				bin = probe.rows.length > 0
 					&& probe.rows.every((r) => replBinaryFor(Number(r[0]), this.decoders) !== null)
 					&& [...this.shaped.values()].every(({ cols }) =>
-						cols.every((c) => c.oid === 0 || replBinaryForCol(c, this.decoders) !== null)
+						cols.every((c) => (c.oid === 0 && !hasTypeDefinition(c)) || replBinaryForCol(c, this.decoders) !== null)
 					);
 			}
 			this.binaryMode = bin;
@@ -1281,7 +1282,9 @@ export class ReplicationConnection {
 			? info.columns.map((c) => {
 				const sc = bySql.get(c.name);
 				if (!sc) return replBinaryFor(c.oid, this.decoders);
-				const d = sc.oid === 0 && !sc.json ? replBinaryFor(c.oid, this.decoders) : replBinaryForCol(sc, this.decoders);
+				const d = sc.oid === 0 && !sc.json && !hasTypeDefinition(sc)
+					? replBinaryFor(c.oid, this.decoders)
+					: replBinaryForCol(sc, this.decoders);
 				return d && sc.xform ? xf(d, sc.xform) : d;
 			})
 			: null;

@@ -6,6 +6,7 @@
 // produce identical rows. `decode:'auto'` uses JIT where eval is available, else interpreted.
 import { type CodegenCol, compileRow } from './decode.ts';
 import { pickDecoder } from './decode.ts';
+import type { CustomTypeDef } from './registry.ts';
 import type { Decoder } from './types.ts';
 
 export type RowMapper = (body: Buffer) => unknown;
@@ -135,19 +136,56 @@ function jitMapper(cols: CodegenCol[], mode: 'array' | 'object', map: Map<number
 	return compileRow(cols, mode, map);
 }
 
+// A definition has no id of its own. This copy of the module numbers the ones it sees, and the cache
+// that uses the numbers lives in the same copy, so two copies of the driver never compare their ids.
+const customIds = new WeakMap<CustomTypeDef, number>();
+let lastCustomId = 0;
+const customId = (def: CustomTypeDef | undefined): number | '' => {
+	if (!def) return '';
+	let id = customIds.get(def);
+	if (id === undefined) customIds.set(def, id = ++lastCustomId);
+	return id;
+};
+
+/** The cache key of a column plan. Everything that changes the mapper must be in it. */
+export function mapperKey(cols: readonly CodegenCol[], mode: string): string {
+	// The key encodes the whole json marker (its declared shape). Two shapes that differ only inside a
+	// Json()/JsonArray() must get different mappers, else the first mapper is wrongly reused.
+	return mode + '|'
+		+ cols.map((c) =>
+			`${c.name}:${c.oid}:${c.format ?? 't'}:${c.js ?? ''}:${c.json ? JSON.stringify(c.json) : ''}:${
+				c.array ? 'a' + c.array.elem + (c.array.js ?? '') + ':' + customId(c.array.custom) : ''
+			}:${customId(c.custom)}:${c.path ? c.path.join('.') : ''}:${
+				c.groupNullable ? c.groupNullable.map((x) => (x ? '1' : '0')).join('') : ''
+			}:${c.nullable ? 'n' : ''}:${c.xformId ?? ''}`
+		).join(',');
+}
+
+/** Wraps a factory so that a repeated column plan reuses its mapper. Each call makes a new cache, so it
+ *  belongs to one client. The key leaves out the decoder map, so a client must pass the same map every time. */
+function withMapperCache(factory: RowMapperFactory): RowMapperFactory {
+	const cache = new Map<string, RowMapper>();
+	return (cols, mode, map) => {
+		const key = mapperKey(cols, mode);
+		let m = cache.get(key);
+		if (!m) cache.set(key, m = factory(cols, mode, map));
+		return m;
+	};
+}
+
 /** Pick the mapper strategy for a `decode` setting. `'jit'` on a no-eval runtime throws (fail fast). */
 export function buildMapperFactory(
 	decode: 'auto' | 'jit' | 'interpreted' = 'auto',
 	hasEval = isEvalAvailable(),
 ): RowMapperFactory {
-	if (decode === 'interpreted') return interpretedMapper;
+	if (decode === 'interpreted') return withMapperCache(interpretedMapper);
 	if (decode === 'jit') {
 		if (!hasEval) {
 			throw new Error(
 				"@drizzle/postgres: decode:'jit' needs eval (new Function), which this runtime disallows — use decode:'interpreted' or 'auto'",
 			);
 		}
-		return jitMapper;
+		return withMapperCache(jitMapper);
 	}
-	return hasEval ? jitMapper : interpretedMapper; // 'auto'
+	return withMapperCache(hasEval ? jitMapper : interpretedMapper); // 'auto'
 }
