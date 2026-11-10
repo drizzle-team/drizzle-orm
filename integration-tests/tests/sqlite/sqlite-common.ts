@@ -2100,6 +2100,33 @@ export function tests() {
 			expect(res).toEqual([{ id: 1, name: 'John', email: 'john@example.com' }]);
 		});
 
+		test('insert with onConflict do nothing using target and where clause for partial index (#6531)', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			const partialUsers = sqliteTable('partial_users_conflict', {
+				id: integer('id').primaryKey(),
+				email: text('email').notNull(),
+				deletedAt: integer('deleted_at'),
+			});
+
+			await db.run(sql`drop table if exists ${partialUsers}`);
+			await db.run(sql`create table ${partialUsers} (id integer primary key, email text not null, deleted_at integer)`);
+			await db.run(sql`create unique index active_users_email_idx on ${partialUsers} (email) where deleted_at is null`);
+
+			await db.insert(partialUsers).values({ id: 1, email: 'a@example.com', deletedAt: null }).run();
+
+			await db
+				.insert(partialUsers)
+				.values({ id: 2, email: 'a@example.com', deletedAt: null })
+				.onConflictDoNothing({ target: partialUsers.email, where: sql`${partialUsers.deletedAt} is null` })
+				.run();
+
+			const res = await db.select().from(partialUsers).all();
+			await db.run(sql`drop table ${partialUsers}`);
+
+			expect(res).toEqual([{ id: 1, email: 'a@example.com', deletedAt: null }]);
+		});
+
 		test('insert with onConflict do update', async (ctx) => {
 			const { db } = ctx.sqlite;
 
