@@ -5,10 +5,15 @@ import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames, sortCreateViews } from '../utils';
 import type { SchemaMetadata } from '../utils';
 import { fromJson } from './convertor';
-import type { Column, SQLiteDDL, SqliteEntities } from './ddl';
+import type { Column, ForeignKey, SQLiteDDL, SqliteEntities } from './ddl';
 import { tableFromDDL } from './ddl';
 import { defaultsCommutative, isNonConstantDefault } from './grammar';
-import type { JsonCreateViewStatement, JsonDropViewStatement, JsonStatement } from './statements';
+import type {
+	JsonCreateViewStatement,
+	JsonDropTableStatement,
+	JsonDropViewStatement,
+	JsonStatement,
+} from './statements';
 import { prepareAddColumns, prepareRecreateColumn, prepareStatement } from './statements';
 
 export const ddlDiffDry = async (
@@ -252,7 +257,10 @@ export const ddlDiff = async (
 		else jsonDropIndexes.push(prepareStatement('drop_index', { index: it.$left }));
 	}
 
-	const jsonDropTables = deletedTables.map((it) => prepareStatement('drop_table', { tableName: it.name }));
+	const jsonDropTables = sortDropTables(
+		deletedTables.map((it) => prepareStatement('drop_table', { tableName: it.name })),
+		ddl1.fks.list(),
+	);
 	const jsonRenameTables = renamedTables.map((it) =>
 		prepareStatement('rename_table', { from: it.from.name, to: it.to.name })
 	);
@@ -349,4 +357,44 @@ export const ddlDiff = async (
 		renames,
 		warnings,
 	};
+};
+
+/*
+	DFS (Depth-First Search) topological sort of drop_table statements
+	Every table is dropped after the tables that reference it (foreign keys of the previous snapshot),
+	otherwise the implicit DELETE FROM of DROP TABLE fails with "FOREIGN KEY constraint failed"
+
+	other dialects drop foreign keys between dropped tables before DROP TABLE, so the order doesn't matter there
+
+	fixes https://github.com/drizzle-team/drizzle-orm/issues/6251
+*/
+const sortDropTables = (statements: JsonDropTableStatement[], fks: ForeignKey[]): JsonDropTableStatement[] => {
+	const byName = new Map<string, JsonDropTableStatement>(statements.map((it) => [it.tableName, it]));
+
+	const referencing = new Map<string, string[]>();
+	// self ref is skipped since dropping 1 table will delete these fks
+	// check only those fks where "table" and "tableTo" are dropped. If dropped one of them - no need to order
+	for (const fk of fks) {
+		if (fk.table === fk.tableTo || !byName.has(fk.table) || !byName.has(fk.tableTo)) continue;
+		const list = referencing.get(fk.tableTo);
+		if (list) list.push(fk.table);
+		else referencing.set(fk.tableTo, [fk.table]);
+	}
+
+	const visited = new Set<string>();
+	const sorted: JsonDropTableStatement[] = [];
+
+	const visit = (name: string) => {
+		if (visited.has(name)) return; // marked on enter, so a reference cycle can't loop forever
+		visited.add(name);
+
+		// tables referencing this one are dropped first
+		for (const table of referencing.get(name) ?? []) visit(table);
+
+		sorted.push(byName.get(name)!);
+	};
+
+	for (const name of byName.keys()) visit(name);
+
+	return sorted;
 };
