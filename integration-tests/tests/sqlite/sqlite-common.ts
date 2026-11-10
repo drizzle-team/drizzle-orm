@@ -9,6 +9,7 @@ import {
 	DrizzleQueryError,
 	eq,
 	exists,
+	type ExtractTablesFromSchema,
 	getColumns,
 	getTableColumns,
 	getTableName,
@@ -25,6 +26,7 @@ import {
 	min,
 	Name,
 	notInArray,
+	type RelationsBuilder,
 	sql,
 	sum,
 	sumDistinct,
@@ -58,6 +60,7 @@ import {
 import { concat, substring } from 'drizzle-orm/sqlite-core/expressions';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
+import { UpstashTestCache } from '~/upstash-cache';
 import type { Equal } from '~/utils';
 import { Expect } from '~/utils';
 import type { AllTypes } from './all-types';
@@ -5876,6 +5879,96 @@ export function tests(test: Test, exclude: string[] = []) {
 
 			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
 			expect(parseStoredJson(stored)).toStrictEqual(output);
+		});
+
+		const upstashTable = makeAllTypes('all_types_upstash');
+		const upstashSchema = { allTypesTable: upstashTable, ...boundsSchema };
+		const upstashRelations = (r: RelationsBuilder<ExtractTablesFromSchema<typeof upstashSchema>>) => ({
+			...allTypesRelations(r),
+			...boundsRelations(r),
+		});
+
+		test('all types - upstash', async ({ createDB, push }) => {
+			await using cache = new UpstashTestCache();
+			const { run } = cache;
+			const table = upstashTable;
+			const db = createDB(upstashSchema, upstashRelations, false, false, cache);
+			await db.run(sql.raw(dropAllTypes('all_types_upstash')));
+			await push({ table });
+
+			await cache.expectHits('all types', async () => {
+				await run(db.insert(table).values(allTypesInput));
+
+				const query = db.select().from(table);
+				expect(await run(query)).toStrictEqual([allTypesData]);
+				expect(await run(() => query.all())).toStrictEqual([allTypesData]);
+				expect(await run(() => query.get())).toStrictEqual(allTypesData);
+
+				expect(await run(() => query.values())).toHaveLength(1);
+			});
+
+			// `.run()` returns driver's run result - it's never read from or written to cache...
+			const lookups = cache.lookups;
+			await db.select().from(table).run();
+			expect(cache.lookups).toBe(lookups);
+
+			// ...but mutations executed by it still invalidate
+			await db.delete(table).run();
+			expect(await run(db.select().from(table))).toStrictEqual([]);
+			await db.insert(table).values(allTypesInput).run();
+
+			await cache.expectHits('unions', () => assertAllTypesUnions(db as any, table, run));
+			await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { run }));
+			await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db as any, { run }));
+		});
+
+		test('all types ~codecs~ - upstash', async ({ createDB, push }) => {
+			await using cache = new UpstashTestCache();
+			const { run } = cache;
+			const table = upstashTable;
+			const db = createDB(upstashSchema, upstashRelations, false, false, cache);
+			await db.run(sql.raw(dropAllTypes('all_types_upstash')));
+			await push({ table });
+
+			await cache.expectHits('all types', async () => {
+				await run(db.insert(table).values(allTypesInput));
+				expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
+					...allTypesData,
+					self: [allTypesData],
+				});
+				expect(await run(db.query.allTypesTable.findMany({ with: { self: true } }))).toStrictEqual([{
+					...allTypesData,
+					self: [allTypesData],
+				}]);
+			});
+			await cache.expectHits('unions', () => assertAllTypesUnions(db as any, table, run));
+			await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { run, rqb: true }));
+			await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db as any, { run, rqb: true }));
+		});
+
+		test('all types ~json~ - upstash', async ({ createDB, push }) => {
+			await using cache = new UpstashTestCache();
+			const { run } = cache;
+			const db = createDB(upstashSchema, upstashRelations, false, false, cache);
+			const table = sqliteTable('all_types_json_upstash', {
+				id: integer('id').primaryKey(),
+				jsonText: text('jsonText', { mode: 'json' }),
+				jsonBlob: blob('jsonBlob', { mode: 'json' }),
+			});
+			await db.run(sql`drop table if exists ${table}`);
+			await push({ table });
+
+			const { input, output } = jsonRows(['jsonText', 'jsonBlob']);
+
+			await cache.expectHits('json', async () => {
+				await run(db.insert(table).values(input));
+
+				const query = db.select().from(table).orderBy(table.id);
+				expect(await run(query)).toStrictEqual(output);
+				expect(await run(() => query.all())).toStrictEqual(output);
+				expect(await run(() => query.get())).toStrictEqual(output[0]);
+				expect(await run(() => query.values())).toHaveLength(output.length);
+			});
 		});
 
 		test.concurrent('concat, substring expressions', async ({ db, push }) => {

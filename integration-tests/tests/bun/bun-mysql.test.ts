@@ -48,17 +48,14 @@ import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import {
 	alias,
 	bigint,
-	binary,
 	boolean,
 	char,
 	customType,
 	date,
 	datetime,
 	decimal,
-	double,
 	except,
 	exceptAll,
-	float,
 	foreignKey,
 	getTableConfig,
 	getViewConfig,
@@ -73,12 +70,12 @@ import {
 	MySqlDialect,
 	mysqlEnum,
 	mysqlSchema,
+	type MySqlTable,
 	mysqlTable,
 	mysqlTableCreator,
 	MySqlView,
 	mysqlView,
 	primaryKey,
-	real,
 	serial,
 	smallint,
 	text,
@@ -89,7 +86,6 @@ import {
 	unionAll,
 	unique,
 	uniqueIndex,
-	varbinary,
 	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
@@ -98,14 +94,18 @@ import Keyv from 'keyv';
 import { v4 as uuid } from 'uuid';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import { normalizeDataWithDbCodecs } from '~/mysql/utils';
+import { UpstashTestCache } from '~/upstash-cache';
 import { type Equal, Expect } from '~/utils';
 import {
-	allTypesCodecsTable,
+	type AllTypes,
+	allTypesData,
+	allTypesTable,
 	assertAllTypesBounds,
 	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
 	boundsRelations,
 	boundsSchema,
+	makeAllTypes,
 } from '../mysql/all-types';
 
 export const rqbUser = mysqlTable('user_rqb_test', {
@@ -138,64 +138,6 @@ export const relations = defineRelations({ rqbUser, rqbPost }, (r) => ({
 		}),
 	},
 }));
-
-const allTypesTable = mysqlTable('all_types', {
-	serial: serial('serial'),
-	bigint53: bigint('bigint53', {
-		mode: 'number',
-	}),
-	bigint64: bigint('bigint64', {
-		mode: 'bigint',
-	}),
-	binary: binary('binary'),
-	boolean: boolean('boolean'),
-	char: char('char'),
-	date: date('date', {
-		mode: 'date',
-	}),
-	dateStr: date('date_str', {
-		mode: 'string',
-	}),
-	datetime: datetime('datetime', {
-		mode: 'date',
-	}),
-	datetimeStr: datetime('datetime_str', {
-		mode: 'string',
-	}),
-	decimal: decimal('decimal'),
-	decimalNum: decimal('decimal_num', {
-		scale: 30,
-		mode: 'number',
-	}),
-	decimalBig: decimal('decimal_big', {
-		scale: 30,
-		mode: 'bigint',
-	}),
-	double: double('double'),
-	float: float('float'),
-	int: int('int'),
-	json: json('json'),
-	medInt: mediumint('med_int'),
-	smallInt: smallint('small_int'),
-	real: real('real'),
-	text: text('text'),
-	time: time('time', { fsp: 3 }),
-	timestamp: timestamp('timestamp', {
-		mode: 'date',
-	}),
-	timestampStr: timestamp('timestamp_str', {
-		mode: 'string',
-	}),
-	tinyInt: tinyint('tiny_int'),
-	varbin: varbinary('varbin', {
-		length: 16,
-	}),
-	varchar: varchar('varchar', {
-		length: 255,
-	}),
-	year: year('year'),
-	enum: mysqlEnum('enum', ['enV1', 'enV2']),
-});
 
 const usersTable = mysqlTable('userstest', {
 	id: serial('id').primaryKey(),
@@ -5169,145 +5111,15 @@ describe('common', () => {
 	});
 
 	test('all types', async () => {
-		await db.execute(sql`
-			CREATE TABLE \`all_types\` (
-					\`serial\` serial AUTO_INCREMENT,
-					\`bigint53\` bigint,
-					\`bigint64\` bigint,
-					\`binary\` binary,
-					\`boolean\` boolean,
-					\`char\` char,
-					\`date\` date,
-					\`date_str\` date,
-					\`datetime\` datetime,
-					\`datetime_str\` datetime,
-					\`decimal\` decimal,
-					\`decimal_num\` decimal(30),
-					\`decimal_big\` decimal(30),
-					\`double\` double,
-					\`float\` float,
-					\`int\` int,
-					\`json\` json,
-					\`med_int\` mediumint,
-					\`small_int\` smallint,
-					\`real\` real,
-					\`text\` text,
-					\`time\` time(3),
-					\`timestamp\` timestamp,
-					\`timestamp_str\` timestamp,
-					\`tiny_int\` tinyint,
-					\`varbin\` varbinary(16),
-					\`varchar\` varchar(255),
-					\`year\` year,
-					\`enum\` enum('enV1','enV2')
-				);
-		`);
+		const table = makeAllTypes('all_types');
+		await createTable(table);
 
-		await db.insert(allTypesTable).values({
-			serial: 1,
-			bigint53: 9007199254740991,
-			bigint64: 5044565289845416380n,
-			binary: '1',
-			boolean: true,
-			char: 'c',
-			date: new Date(1741743161623),
-			dateStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
-			datetime: new Date(1741743161623),
-			datetimeStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
-			decimal: '47521',
-			decimalNum: 9007199254740991,
-			decimalBig: 5044565289845416380n,
-			double: 15.35325689124218,
-			enum: 'enV1',
-			float: 1.048596,
-			real: 1.048596,
-			text: 'C4-',
-			int: 621,
-			json: {
-				str: 'strval',
-				arr: ['str', 10],
-			},
-			medInt: 560,
-			smallInt: 14,
-			time: '04:13:22.120',
-			timestamp: new Date(1741743161623),
-			timestampStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
-			tinyInt: 7,
-			varbin: '1010110101001101',
-			varchar: 'VCHAR',
-			year: 2025,
-		});
+		await db.insert(table).values(allTypesData);
 
-		const rawRes = await db.select().from(allTypesTable);
+		const rawRes = await db.select().from(table);
 
-		type ExpectedType = {
-			serial: number;
-			bigint53: number | null;
-			bigint64: bigint | null;
-			binary: string | null;
-			boolean: boolean | null;
-			char: string | null;
-			date: Date | null;
-			dateStr: string | null;
-			datetime: Date | null;
-			datetimeStr: string | null;
-			decimal: string | null;
-			decimalNum: number | null;
-			decimalBig: bigint | null;
-			double: number | null;
-			float: number | null;
-			int: number | null;
-			json: unknown;
-			medInt: number | null;
-			smallInt: number | null;
-			real: number | null;
-			text: string | null;
-			time: string | null;
-			timestamp: Date | null;
-			timestampStr: string | null;
-			tinyInt: number | null;
-			varbin: string | null;
-			varchar: string | null;
-			year: number | null;
-			enum: 'enV1' | 'enV2' | null;
-		}[];
-
-		const expectedRes: ExpectedType = [
-			{
-				serial: 1,
-				bigint53: 9007199254740991,
-				bigint64: 5044565289845416380n,
-				binary: '1',
-				boolean: true,
-				char: 'c',
-				date: new Date('2025-03-12T00:00:00.000Z'),
-				dateStr: '2025-03-12',
-				datetime: new Date('2025-03-12T01:32:42.000Z'),
-				datetimeStr: '2025-03-12 01:32:41',
-				decimal: '47521',
-				decimalNum: 9007199254740991,
-				decimalBig: 5044565289845416380n,
-				double: 15.35325689124218,
-				float: 1.048596,
-				int: 621,
-				json: { arr: ['str', 10], str: 'strval' },
-				medInt: 560,
-				smallInt: 14,
-				real: 1.048596,
-				text: 'C4-',
-				time: '04:13:22.120',
-				timestamp: new Date('2025-03-12T01:32:42.000Z'),
-				timestampStr: '2025-03-12 01:32:41',
-				tinyInt: 7,
-				varbin: '1010110101001101',
-				varchar: 'VCHAR',
-				year: 2025,
-				enum: 'enV1',
-			},
-		];
-
-		expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
-		expect(rawRes).toStrictEqual(expectedRes);
+		expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
+		expect(rawRes).toStrictEqual([allTypesData]);
 	});
 });
 
@@ -6197,7 +6009,7 @@ test('sql operator as cte', async () => {
 test('all types ~codecs~', async () => {
 	const db = drizzle({
 		client,
-		relations: defineRelations({ allTypesTable: allTypesCodecsTable, ...boundsSchema }, (r) => ({
+		relations: defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
 			allTypesTable: {
 				self: r.many.allTypesTable({
 					from: r.allTypesTable.serial,
@@ -6208,11 +6020,11 @@ test('all types ~codecs~', async () => {
 		})),
 	});
 
-	await db.execute(sql`DROP TABLE IF EXISTS ${allTypesCodecsTable} CASCADE;`);
+	await db.execute(sql`DROP TABLE IF EXISTS ${allTypesTable} CASCADE;`);
 	await db.execute(
-		sql`CREATE TABLE ${allTypesCodecsTable} (${
+		sql`CREATE TABLE ${allTypesTable} (${
 			sql.join(
-				Object.values(getTableColumns(allTypesCodecsTable)).map((c) =>
+				Object.values(getTableColumns(allTypesTable)).map((c) =>
 					sql`${sql.identifier(c.name)} ${sql.raw(c.getSQLType())}`
 				),
 				sql`, `,
@@ -6220,118 +6032,24 @@ test('all types ~codecs~', async () => {
 		})`,
 	);
 
-	type ExpectedType = {
-		serial: number;
-		bigint53: number;
-		bigint64: bigint;
-		bigintstr: string;
-		binary: string;
-		boolean: boolean;
-		char: string;
-		date: Date;
-		datestr: string;
-		datetime: Date;
-		datetimestr: string;
-		decimal: string;
-		decimalnum: number;
-		decimalbig: bigint;
-		double: number;
-		float: number;
-		int: number;
-		json1: unknown;
-		json2: unknown;
-		json3: unknown;
-		json4: unknown;
-		medint: number;
-		smallint: number;
-		real: number;
-		text: string;
-		tinytext: string;
-		mediumtext: string;
-		longtext: string;
-		time: string;
-		timestamp: Date;
-		timestampstr: string;
-		tinyint: number;
-		varbin: string;
-		varchar: string;
-		year: number;
-		enum: 'enV1' | 'enV2';
-		blob: Buffer;
-		tinyblob: Buffer;
-		mediumblob: Buffer;
-		longblob: Buffer;
-		stringblob: string;
-		stringtinyblob: string;
-		stringmediumblob: string;
-		stringlongblob: string;
-	};
-
-	const testData: ExpectedType = {
-		serial: 1,
-		bigint53: 9007199254740991,
-		bigint64: 5044565289845416380n,
-		bigintstr: '5044565289845416380',
-		binary: '1',
-		boolean: true,
-		char: 'c',
-		date: new Date('2025-03-12'),
-		datestr: '2025-03-12',
-		datetime: new Date(1741743161623),
-		datetimestr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
-		decimal: '47521',
-		decimalnum: 9007199254740991,
-		decimalbig: 5044565289845416380n,
-		double: 15.35325689124218,
-		enum: 'enV1',
-		float: 1.048596,
-		real: 1.048596,
-		text: 'C4-',
-		tinytext: 'tiny text',
-		mediumtext: 'medium text',
-		longtext: 'long text',
-		int: 621,
-		json1: { str: 'strval', arr: ['str', 10] },
-		json2: [{ key: 'value', num: 7 }, 'v', '11', 5],
-		json3: 5,
-		json4: '5',
-		medint: 560,
-		smallint: 14,
-		time: '04:13:22.120',
-		timestamp: new Date(1741743161623),
-		timestampstr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
-		tinyint: 7,
-		varbin: '1010110101001101',
-		varchar: 'VCHAR',
-		year: 2025,
-		blob: Buffer.from('string'),
-		longblob: Buffer.from('string'),
-		mediumblob: Buffer.from('string'),
-		tinyblob: Buffer.from('string'),
-		stringblob: 'string',
-		stringlongblob: 'string',
-		stringmediumblob: 'string',
-		stringtinyblob: 'string',
-	};
-
-	await db.insert(allTypesCodecsTable).values(testData);
+	await db.insert(allTypesTable).values(allTypesData);
 
 	const session = (<any> db).session as MySqlAsyncSession;
 
-	const queryRes = await session.objects<ExpectedType>(
+	const queryRes = await session.objects<AllTypes>(
 		db.select(
-			Object.fromEntries(Object.entries(getTableColumns(allTypesCodecsTable)).map(([k, v]) => [k, v.as(v.name)])),
-		).from(allTypesCodecsTable).getSQL(true),
+			Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
+		).from(allTypesTable).getSQL(true),
 	).then((e) =>
 		normalizeDataWithDbCodecs({
 			db,
-			columns: getColumns(allTypesCodecsTable),
+			columns: getColumns(allTypesTable),
 			data: e,
 			mode: 'query',
 		})[0]
 	);
 
-	expect(queryRes).toStrictEqual(testData);
+	expect(queryRes).toStrictEqual(allTypesData);
 
 	const { relationRes, rootRes } = await session.objects(
 		db.query.allTypesTable.findFirst({
@@ -6345,23 +6063,23 @@ test('all types ~codecs~', async () => {
 		return {
 			relationRes: normalizeDataWithDbCodecs({
 				db,
-				columns: getColumns(allTypesCodecsTable),
+				columns: getColumns(allTypesTable),
 				data: relationRaw,
 				mode: 'json',
 			})[0]!,
 			rootRes: normalizeDataWithDbCodecs({
 				db,
-				columns: getColumns(allTypesCodecsTable),
+				columns: getColumns(allTypesTable),
 				data: [rootRaw],
 				mode: 'query',
 			})[0]!,
 		};
 	});
 
-	expect(relationRes).toStrictEqual(testData);
-	expect(rootRes).toStrictEqual(testData);
+	expect(relationRes).toStrictEqual(allTypesData);
+	expect(rootRes).toStrictEqual(allTypesData);
 
-	await assertAllTypesUnions(db, allTypesCodecsTable);
+	await assertAllTypesUnions(db, allTypesTable);
 
 	await assertAllTypesBounds(db, { rqb: true });
 	await assertAllTypesTemporalBounds(db, { rqb: true });
@@ -6387,6 +6105,84 @@ test('all types ~json~', async () => {
 
 	expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
 	expect(parseStoredJson(stored)).toStrictEqual(output);
+});
+
+const upstashDB = (cache: UpstashTestCache) =>
+	drizzle({
+		client,
+		relations: defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
+			allTypesTable: {
+				self: r.many.allTypesTable({
+					from: r.allTypesTable.serial,
+					to: r.allTypesTable.serial,
+				}),
+			},
+			...boundsRelations(r),
+		})),
+		cache,
+	});
+
+const createTable = async (table: MySqlTable) => {
+	await db.execute(sql`DROP TABLE IF EXISTS ${table} CASCADE;`);
+	await db.execute(
+		sql`CREATE TABLE ${table} (${
+			sql.join(
+				Object.values(getTableColumns(table)).map((c) => sql`${sql.identifier(c.name)} ${sql.raw(c.getSQLType())}`),
+				sql`, `,
+			)
+		})`,
+	);
+};
+
+test('all types - upstash', async () => {
+	await using cache = new UpstashTestCache();
+	const { run } = cache;
+	const cachedDb = upstashDB(cache);
+	const table = makeAllTypes('all_types_upstash');
+	await createTable(table);
+
+	await cache.expectHits('all types', async () => {
+		await run(cachedDb.insert(table).values(allTypesData));
+		expect(await run(cachedDb.select().from(table))).toStrictEqual([allTypesData]);
+	});
+});
+
+test('all types ~codecs~ - upstash', async () => {
+	await using cache = new UpstashTestCache();
+	const { run } = cache;
+	const cachedDb = upstashDB(cache);
+	await createTable(allTypesTable);
+
+	await cache.expectHits('all types', async () => {
+		await run(cachedDb.insert(allTypesTable).values(allTypesData));
+		expect(await run(cachedDb.select().from(allTypesTable))).toStrictEqual([allTypesData]);
+		expect(await run(cachedDb.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
+			...allTypesData,
+			self: [allTypesData],
+		});
+	});
+	await cache.expectHits('unions', () => assertAllTypesUnions(cachedDb, allTypesTable, run));
+	await cache.expectHits('bounds', () => assertAllTypesBounds(cachedDb, { run, rqb: true }));
+	await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(cachedDb, { run, rqb: true }));
+});
+
+test('all types ~json~ - upstash', async () => {
+	await using cache = new UpstashTestCache();
+	const { run } = cache;
+	const cachedDb = upstashDB(cache);
+	const table = mysqlTable('all_types_json_upstash', {
+		id: int('id').primaryKey(),
+		json: json('json'),
+	});
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(sql`create table ${table} (id int primary key, json json)`);
+
+	const { input, output } = jsonRows(['json']);
+
+	await cache.expectHits('json', async () => {
+		await run(cachedDb.insert(table).values(input));
+		expect(await run(cachedDb.select().from(table).orderBy(table.id))).toStrictEqual(output);
+	});
 });
 
 test('Mappers: correct mappers enabled', async () => {

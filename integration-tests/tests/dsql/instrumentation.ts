@@ -245,6 +245,7 @@ const testFor = (vendor: Vendor) => {
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 				useJitMappers?: boolean,
 				paramsInErrors?: boolean,
+				cache?: Cache,
 			): DsqlAsyncDatabase<any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 		};
 		caches: { all: DsqlAsyncDatabase<any, typeof relations>; explicit: DsqlAsyncDatabase<any, typeof relations> };
@@ -308,14 +309,27 @@ const testFor = (vendor: Vendor) => {
 					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
 					useJitMappers?: boolean,
 					paramsInErrors?: boolean,
+					cache?: Cache,
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
 					if (vendor === 'node-postgres-dsql') {
-						return drizzleNodePgDsql({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
+						return drizzleNodePgDsql({
+							client: kit.client as any,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+							cache,
+						});
 					}
 					if (vendor === 'postgres-js-dsql') {
-						return drizzlePostgresJsDsql({ client: kit.client as any, relations, jit: useJitMappers, paramsInErrors });
+						return drizzlePostgresJsDsql({
+							client: kit.client as any,
+							relations,
+							jit: useJitMappers,
+							paramsInErrors,
+							cache,
+						});
 					}
 
 					throw new Error();

@@ -102,11 +102,15 @@ import { jsonRows, parseStoredJson } from '~/json-values';
 import { allTypesData, makeAllTypes, withEmptyArrays } from '~/pg/all-types';
 import { clear, init, rqbPost, rqbUser } from '~/pg/schema';
 import { normalizeDataWithDbCodecs } from '~/pg/utils';
+import { UpstashTestCache } from '~/upstash-cache';
 import { Expect } from '~/utils';
 import {
+	allTypesRelations,
 	assertAllTypesBounds,
+	assertAllTypesEmptyArrays,
 	assertAllTypesTemporalBounds,
 	assertAllTypesTemporalBoundsInSessions,
+	assertAllTypesUnions,
 	boundsRelations,
 	boundsSchema,
 	sessionDateStyles,
@@ -5988,12 +5992,10 @@ test('RQB v2 transaction find many - placeholders', async () => {
 	}
 });
 
-test('all types', async () => {
-	// Same fixture and data as the other suites' `all types` (see ~/pg/all-types.ts). The DDL is the schema
-	// drizzle-kit emits for that table - this suite has no push fixture to build it from the definition.
-	await db.execute(sql`CREATE TYPE "en" AS ENUM('enVal1', 'enVal2');`);
-	await db.execute(sql`
-		CREATE TABLE "all_types" (
+const createAllTypes = async (tableName: string, enumName: string) => {
+	await db.execute(sql.raw(`CREATE TYPE "${enumName}" AS ENUM('enVal1', 'enVal2');`));
+	await db.execute(sql.raw(`
+		CREATE TABLE "${tableName}" (
 			"serial" serial,
 			"bigserial" bigserial,
 			"bigserialnum" bigserial,
@@ -6008,7 +6010,7 @@ test('all types', async () => {
 			"date" date NOT NULL,
 			"datestr" date NOT NULL,
 			"double" double precision NOT NULL,
-			"enum" "en" NOT NULL,
+			"enum" "${enumName}" NOT NULL,
 			"inet" inet NOT NULL,
 			"interval" interval NOT NULL,
 			"json" json NOT NULL,
@@ -6051,7 +6053,7 @@ test('all types', async () => {
 			"arrdate" date[] NOT NULL,
 			"arrdatestr" date[] NOT NULL,
 			"arrdouble" double precision[] NOT NULL,
-			"arrenum" "en"[] NOT NULL,
+			"arrenum" "${enumName}"[] NOT NULL,
 			"arrinet" inet[] NOT NULL,
 			"arrinterval" interval[] NOT NULL,
 			"arrjson" json[] NOT NULL,
@@ -6082,7 +6084,11 @@ test('all types', async () => {
 			"arruuid" uuid[] NOT NULL,
 			"arrvarchar" varchar[] NOT NULL
 		);
-	`);
+	`));
+};
+
+test('all types', async () => {
+	await createAllTypes('all_types', 'en');
 
 	await db.insert(allTypesTable).values(allTypesData);
 
@@ -8527,6 +8533,94 @@ test('all types ~codecs~ - non-ISO DateStyle session', async () => {
 	});
 
 	await assertAllTypesTemporalBoundsInSessions(db, { rqb: true, sessions: sessionDateStyles });
+});
+
+const upstashDB = (cache: UpstashTestCache, name: string) => {
+	const tableName = `all_types_${name}_upstash`;
+	const enumName = `en_${name}_upstash`;
+	const { allTypesTable } = makeAllTypes(tableName, enumName);
+	const cachedDb = drizzle({
+		client: db.$client,
+		relations: defineRelations({ allTypesTable, ...boundsSchema }, (r) => ({
+			...allTypesRelations(r),
+			...boundsRelations(r),
+		})),
+		cache,
+	});
+
+	return { db: cachedDb, allTypesTable, create: () => createAllTypes(tableName, enumName) };
+};
+
+test('all types - upstash', async () => {
+	await using cache = new UpstashTestCache();
+	const { run } = cache;
+	const { db, allTypesTable, create } = upstashDB(cache, 'plain');
+	await create();
+
+	await cache.expectHits('all types', async () => {
+		await run(db.insert(allTypesTable).values(allTypesData));
+		expect(await run(db.select().from(allTypesTable))).toStrictEqual([allTypesData]);
+	});
+});
+
+test('all types ~codecs~ - upstash', async () => {
+	await using cache = new UpstashTestCache();
+	const { run } = cache;
+	const { db, allTypesTable, create } = upstashDB(cache, 'cdc');
+	await create();
+
+	await cache.expectHits('all types', async () => {
+		await run(db.insert(allTypesTable).values(allTypesData));
+		expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
+			...allTypesData,
+			self: [allTypesData],
+		});
+	});
+	await cache.expectHits('unions', () => assertAllTypesUnions(db, allTypesTable, run));
+	await cache.expectHits('bounds', () => assertAllTypesBounds(db, { run, rqb: true }));
+	await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db, { run, rqb: true }));
+	await cache.expectHits('empty arrays', () => assertAllTypesEmptyArrays(db, allTypesTable, { run, rqb: true }));
+});
+
+test('all types ~codecs~ - non-UTC session - upstash', async () => {
+	await using cache = new UpstashTestCache();
+	const { db } = upstashDB(cache, 'tz');
+
+	await cache.expectHits('sessions', () => assertAllTypesTemporalBoundsInSessions(db, { run: cache.run, rqb: true }));
+});
+
+test('all types ~codecs~ - non-ISO DateStyle session - upstash', async () => {
+	await using cache = new UpstashTestCache();
+	const { db } = upstashDB(cache, 'ds');
+
+	await cache.expectHits(
+		'sessions',
+		() => assertAllTypesTemporalBoundsInSessions(db, { run: cache.run, rqb: true, sessions: sessionDateStyles }),
+	);
+});
+
+test('all types ~json~ - upstash', async () => {
+	await using cache = new UpstashTestCache();
+	const { run } = cache;
+	const { db: cachedDb } = upstashDB(cache, 'json');
+	const table = pgTable('all_types_json_upstash', {
+		id: integer('id').primaryKey(),
+		json: json('json'),
+		jsonb: jsonb('jsonb'),
+		arrjson: json('arrjson').array(),
+		arrjsonb: jsonb('arrjsonb').array(),
+	});
+	await db.execute(sql`drop table if exists ${table}`);
+	await db.execute(
+		sql`create table ${table} (id integer primary key, json json, jsonb jsonb, arrjson json[], arrjsonb jsonb[])`,
+	);
+
+	const { input, output } = jsonRows(['json', 'jsonb'], ['arrjson', 'arrjsonb']);
+
+	await cache.expectHits('json', async () => {
+		await run(cachedDb.insert(table).values(input));
+		expect(await run(cachedDb.select().from(table).orderBy(table.id))).toStrictEqual(output);
+	});
 });
 
 test('time zones are preserved - non-UTC session', async () => {

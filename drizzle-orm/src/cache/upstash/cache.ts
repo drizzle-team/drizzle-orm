@@ -4,6 +4,7 @@ import { Cache } from '~/cache/core/index.ts';
 import { entityKind, is } from '~/entity.ts';
 import { getCacheKey, Table } from '~/table.ts';
 import type { CacheConfig } from '../core/types.ts';
+import { binarySerializer, type UpstashCacheSerializer } from './serializer.ts';
 
 const getByTagScript = `
 local tagsMapKey = KEYS[1] -- tags map key
@@ -100,7 +101,12 @@ export class UpstashCache extends Cache {
 
 	private internalConfig: { seconds: number; hexOptions?: ExpireOptions };
 
-	constructor(public redis: Redis, config?: CacheConfig, protected useGlobally?: boolean) {
+	constructor(
+		public redis: Redis,
+		config?: CacheConfig,
+		protected useGlobally?: boolean,
+		protected serializer: UpstashCacheSerializer = binarySerializer,
+	) {
 		super();
 		this.internalConfig = this.toInternalConfig(config);
 		this.luaScripts = {
@@ -132,18 +138,18 @@ export class UpstashCache extends Cache {
 	): Promise<any[] | undefined> {
 		if (!isAutoInvalidate) {
 			const result = await this.redis.hget(UpstashCache.nonAutoInvalidateTablePrefix, key);
-			return result === null ? undefined : result as any[];
+			return result === null ? undefined : this.serializer.deserialize(result) as any;
 		}
 
 		if (isTag) {
 			const result = await this.luaScripts.getByTagScript.exec([UpstashCache.tagsMapKey], [key]);
-			return result === null ? undefined : result as any[];
+			return result === null ? undefined : this.serializer.deserialize(result) as any;
 		}
 
 		// Normal cache lookup for the composite key
 		const compositeKey = this.getCompositeKey(tables);
-		const result = await this.redis.hget(compositeKey, key) ?? undefined; // Retrieve result for normal query
-		return result === null ? undefined : result as any[];
+		const result = await this.redis.hget(compositeKey, key); // Retrieve result for normal query
+		return result === null ? undefined : this.serializer.deserialize(result) as any;
 	}
 
 	override async put(
@@ -154,6 +160,7 @@ export class UpstashCache extends Cache {
 		config?: CacheConfig,
 	): Promise<void> {
 		const isAutoInvalidate = tables.length !== 0;
+		const value = this.serializer.serialize(response);
 
 		const pipeline = this.redis.pipeline();
 		const ttlSeconds = config && config.ex ? config.ex : this.internalConfig.seconds;
@@ -165,7 +172,7 @@ export class UpstashCache extends Cache {
 				pipeline.hexpire(UpstashCache.tagsMapKey, key, ttlSeconds, hexOptions);
 			}
 
-			pipeline.hset(UpstashCache.nonAutoInvalidateTablePrefix, { [key]: response });
+			pipeline.hset(UpstashCache.nonAutoInvalidateTablePrefix, { [key]: value });
 			pipeline.hexpire(UpstashCache.nonAutoInvalidateTablePrefix, key, ttlSeconds, hexOptions);
 			await pipeline.exec();
 			return;
@@ -173,7 +180,7 @@ export class UpstashCache extends Cache {
 
 		const compositeKey = this.getCompositeKey(tables);
 
-		pipeline.hset(compositeKey, { [key]: response }); // Store the result with the tag under the composite key
+		pipeline.hset(compositeKey, { [key]: value }); // Store the result with the tag under the composite key
 		pipeline.hexpire(compositeKey, key, ttlSeconds, hexOptions); // Set expiration for the composite key
 
 		if (isTag) {
@@ -202,12 +209,23 @@ export class UpstashCache extends Cache {
 }
 
 export function upstashCache(
-	{ url, token, config, global = false }: { url: string; token: string; config?: CacheConfig; global?: boolean },
+	{ url, token, config, global = false, serializer }: {
+		url: string;
+		token: string;
+		config?: CacheConfig;
+		global?: boolean;
+		/**
+		 * Custom serializer for cached query responses
+		 *
+		 * Defaults to a binary serializer that preserves `Date`, `bigint`, binary data and other non-JSON-safe values
+		 */
+		serializer?: UpstashCacheSerializer;
+	},
 ): UpstashCache {
 	const redis = new Redis({
 		url,
 		token,
 	});
 
-	return new UpstashCache(redis, config, global);
+	return new UpstashCache(redis, config, global, serializer);
 }

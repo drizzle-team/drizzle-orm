@@ -38,7 +38,7 @@ wait_till_ready() {
 
 # Docker's port forwarding accepts a connection on the published port as soon as the container starts, before the
 # database inside listens (always so for CI runners that reach a shared Docker through its socket), so a port check
-# from here proves nothing about the server. This waits until every published port of the dialect's containers is in
+# from here proves nothing about the server. This waits until every published port of the image's containers is in
 # LISTEN inside the container's own network namespace: database images listen on TCP only for the final server,
 # after their init scripts ran against a socket-only one.
 # A container's /proc/net/<table>: through the image's own cat, or busybox's in the container's network namespace
@@ -49,8 +49,8 @@ proc_net() {
 }
 
 wait_listening() {
-  dialect="$1"; tries="${2:-180}"
-  project="$(drizzle_project "$dialect")"
+  image="$1"; tries="${2:-180}"
+  project="$(drizzle_project "$image")"
   for cid in $(docker ps -q --filter "label=com.docker.compose.project=$project"); do
     name="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.service"}}' "$cid")"
     for port in $(docker port "$cid" | sed -n 's#^\([0-9]*\)/tcp.*#\1#p' | sort -u); do
@@ -71,8 +71,8 @@ wait_listening() {
 
 # Waits for a line in a compose service's log.
 wait_log() {
-  dialect="$1"; service="$2"; pattern="$3"; tries="${4:-180}"
-  cid="$(docker ps -q --filter "label=com.docker.compose.project=$(drizzle_project "$dialect")" --filter "label=com.docker.compose.service=$service" | head -n 1)"
+  image="$1"; service="$2"; pattern="$3"; tries="${4:-180}"
+  cid="$(docker ps -q --filter "label=com.docker.compose.project=$(drizzle_project "$image")" --filter "label=com.docker.compose.service=$service" | head -n 1)"
   for i in $(seq 1 "$tries"); do
     # Not `docker logs | grep -q`: grep exits at the first match, docker logs then fails writing to the closed pipe,
     # and with pipefail a found line reads as not found.
@@ -89,6 +89,7 @@ for db in "$@"; do
     postgres-http-gateway) wait_tcp 127.0.0.1 "$DRIZZLE_PORT_HTTP_GATEWAY" "postgres-http-gateway" ;;
     aws-data-api)         wait_tcp 127.0.0.1 "$DRIZZLE_PORT_AWS_DATA_API" "aws-data-api" ;;
     neon)                 wait_tcp 127.0.0.1 "$DRIZZLE_PORT_NEON_PROXY" "neon-proxy" ;;
+    upstash)              wait_tcp 127.0.0.1 "$DRIZZLE_PORT_UPSTASH" "upstash" ;;
     # The simulator answers before MySQL does; MySQL's own port is not published, so its log tells: its final
     # server (after the init scripts' socket-only one) reports port 3306.
     planetscale)          wait_tcp 127.0.0.1 "$DRIZZLE_PORT_PLANETSCALE" "planetscale"; wait_log planetscale planetscale-mysql "ready for connections.*port: 3306" ;;

@@ -9,6 +9,8 @@ import {
 	Schema,
 	sql,
 } from 'drizzle-orm';
+import type { Cache } from 'drizzle-orm/cache/core';
+import { EffectCache } from 'drizzle-orm/cache/core/cache-effect';
 import * as MySqlDrizzle from 'drizzle-orm/effect-mysql2';
 import { migrate } from 'drizzle-orm/effect-mysql2/migrator';
 import { getTableConfig, int, mysqlTable, text } from 'drizzle-orm/mysql-core';
@@ -60,8 +62,10 @@ const createDB = <
 	schema: TSchema,
 	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
 	useJitMappers?: boolean,
+	cache?: Cache,
 ) =>
 	MySqlDrizzle.make({ relations: defineRelations(schema, relations), jit: useJitMappers }).pipe(
+		Effect.provide(cache ? EffectCache.layerFromDrizzle(cache) : Layer.empty),
 		Effect.provide(MySqlDrizzle.DefaultServices),
 	);
 

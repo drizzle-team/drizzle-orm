@@ -10,6 +10,8 @@ import {
 	Schema,
 	sql,
 } from 'drizzle-orm';
+import type { Cache } from 'drizzle-orm/cache/core';
+import { EffectCache } from 'drizzle-orm/cache/core/cache-effect';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { migrate } from 'drizzle-orm/effect-postgres/migrator';
 import { bigint, getTableConfig, integer, pgEnum, pgTable, serial, text } from 'drizzle-orm/pg-core';
@@ -21,6 +23,7 @@ import * as Redacted from 'effect/Redacted';
 import * as Result from 'effect/Result';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { Client as PgPeerClient } from 'pg';
+import { type UpstashTestCache, withUpstashCache } from '~/upstash-cache';
 import { randomString } from '~/utils';
 import {
 	AllTypes,
@@ -72,8 +75,10 @@ const createDB = <
 	schema: TSchema,
 	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
 	useJitMappers?: boolean,
+	cache?: Cache,
 ) =>
 	PgDrizzle.make({ relations: defineRelations(schema, relations), jit: useJitMappers }).pipe(
+		Effect.provide(cache ? EffectCache.layerFromDrizzle(cache) : Layer.empty),
 		Effect.provide(PgDrizzle.DefaultServices),
 	);
 const TestLive = Layer.merge(PgClientLive, DBLive.pipe(Layer.provide(PgClientLive)));
@@ -85,7 +90,7 @@ runCommonEffectPgTests({
 	createDB: createDB as any,
 	usedSchema,
 	// @effect/sql-pg can't decode multidimensional arrays
-	skipTests: ['all types', 'all types ~codecs~'],
+	skipTests: ['all types', 'all types ~codecs~', 'all types - upstash', 'all types ~codecs~ - upstash'],
 	addTests: (it) => {
 		// https://github.com/drizzle-team/drizzle-orm/issues/6566
 		it.effect('empty array params and bigint mode with int8 decoded as text', () =>
@@ -275,6 +280,75 @@ runCommonEffectPgTests({
 					self: [emptyArrays],
 				});
 			}));
+
+		const createUpstashDB = (cache: UpstashTestCache, name: string) => {
+			const { en, allTypesTable } = makeAllTypesNoMtx(`all_types_${name}_upstash_ef`, `en_${name}_upstash_ef`);
+
+			return createDB(
+				{ allTypesTable, ...boundsSchema },
+				(r) => ({
+					allTypesTable: {
+						self: r.many.allTypesTable({
+							from: r.allTypesTable.serial,
+							to: r.allTypesTable.serial,
+						}),
+					},
+					...boundsRelations(r),
+				}),
+				false,
+				cache,
+			).pipe(Effect.map((db) => ({ db, en, allTypesTable })));
+		};
+
+		it.effect('all types - no multidimensional arrays - upstash', () =>
+			withUpstashCache((cache, run) =>
+				Effect.gen(function*() {
+					const { db, en, allTypesTable } = yield* createUpstashDB(cache, 'nomtx');
+					yield* push(db, { en, allTypesTable });
+
+					yield* Effect.promise(() =>
+						cache.expectHits('all types', async () => {
+							await run(db.insert(allTypesTable).values(allTypesDataNoMtx));
+							expect(await run(db.select().from(allTypesTable))).toStrictEqual([allTypesDataNoMtx]);
+						})
+					);
+				})
+			));
+
+		it.effect('all types ~codecs~ - no multidimensional arrays - upstash', () =>
+			withUpstashCache((cache, run) =>
+				Effect.gen(function*() {
+					const { db, en, allTypesTable } = yield* createUpstashDB(cache, 'nomtx_cdc');
+					yield* push(db, { en, allTypesTable });
+
+					yield* Effect.promise(async () => {
+						await cache.expectHits('all types', async () => {
+							await run(db.insert(allTypesTable).values(allTypesDataNoMtx));
+							expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
+								...allTypesDataNoMtx,
+								self: [allTypesDataNoMtx],
+							});
+						});
+						await cache.expectHits('unions', () => assertAllTypesUnions(db as any, allTypesTable as any, run));
+						await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { run, rqb: true }));
+						await cache.expectHits(
+							'temporal bounds',
+							() => assertAllTypesTemporalBounds(db as any, { run, rqb: true }),
+						);
+
+						const emptyArrays = withEmptyArrays(allTypesDataNoMtx);
+						await cache.expectHits('empty arrays', async () => {
+							await run(db.delete(allTypesTable));
+							await run(db.insert(allTypesTable).values(emptyArrays));
+							expect(await run(db.select().from(allTypesTable))).toStrictEqual([emptyArrays]);
+							expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
+								...emptyArrays,
+								self: [emptyArrays],
+							});
+						});
+					});
+				})
+			));
 
 		it.effect('transaction snapshot: isolates the transaction', () =>
 			Effect.gen(function*() {

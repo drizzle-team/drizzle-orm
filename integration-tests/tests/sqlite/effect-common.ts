@@ -13,6 +13,7 @@ import {
 	makeJitRqbMapper,
 	sql,
 } from 'drizzle-orm';
+import type { Cache } from 'drizzle-orm/cache/core';
 import { EffectCache, type EffectCacheShape } from 'drizzle-orm/cache/core/cache-effect';
 import { EffectLogger, type EffectLoggerShape, QueryEffectHKTBase } from 'drizzle-orm/effect-core';
 import {
@@ -50,6 +51,7 @@ import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import { expectRecentTime } from '~/recent-time';
+import { withUpstashCache } from '~/upstash-cache';
 import type { AllTypes } from './all-types';
 import {
 	allTypesData,
@@ -203,6 +205,7 @@ export interface RunCommonEffectSQLiteTestsOptions {
 		schema: TSchema,
 		relations: (helpers: RelationsBuilder<TTables>) => TConfig,
 		useJitMappers?: boolean,
+		cache?: Cache,
 	) => Effect.Effect<
 		SQLiteEffectDatabase<QueryEffectHKTBase, any, ExtractTablesWithRelations<TConfig, TTables>>,
 		never,
@@ -292,6 +295,74 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				expect(yield* db.select().from(table).orderBy(table.id)).toStrictEqual(output);
 				expect(parseStoredJson(stored)).toStrictEqual(output);
 			}));
+
+		it.effect('all types - upstash', () =>
+			withUpstashCache((cache, run) =>
+				Effect.gen(function*() {
+					const allTypesTable = makeAllTypes('all_types_upstash');
+					const db = yield* createDB({ allTypesTable }, () => ({}), false, cache);
+					yield* db.run(sql`drop table if exists ${allTypesTable}`);
+					yield* push(db, { allTypesTable });
+
+					const query = db.select().from(allTypesTable);
+					yield* Effect.promise(async () => {
+						await cache.expectHits('all types', async () => {
+							await run(db.insert(allTypesTable).values(allTypesInput));
+
+							expect(await run(query)).toStrictEqual([allTypesData]);
+							expect(await run(query.all())).toStrictEqual([allTypesData]);
+							expect(await run(query.get())).toStrictEqual(allTypesData);
+							expect(await run(query.values())).toHaveLength(1);
+						});
+					});
+
+					// `.run()` returns driver's run result - it's never read from or written to cache...
+					const lookups = cache.lookups;
+					yield* query.run();
+					expect(cache.lookups).toBe(lookups);
+
+					// ...but mutations executed by it still invalidate
+					yield* db.delete(allTypesTable).run();
+					yield* Effect.promise(async () => {
+						expect(await run(query)).toStrictEqual([]);
+					});
+					yield* db.insert(allTypesTable).values(allTypesInput).run();
+
+					yield* Effect.promise(async () => {
+						await cache.expectHits('unions', () => assertAllTypesUnions(db as any, allTypesTable, run));
+						await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { run }));
+						await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db as any, { run }));
+					});
+				})
+			));
+
+		it.effect('all types ~json~ - upstash', () =>
+			withUpstashCache((cache, run) =>
+				Effect.gen(function*() {
+					const table = sqliteTable('all_types_json_upstash', {
+						id: integer('id').primaryKey(),
+						jsonText: text('jsonText', { mode: 'json' }),
+						jsonBlob: blob('jsonBlob', { mode: 'json' }),
+					});
+					const db = yield* createDB({ table }, () => ({}), false, cache);
+					yield* db.run(sql`drop table if exists ${table}`);
+					yield* push(db, { table });
+
+					const { input, output } = jsonRows(['jsonText', 'jsonBlob']);
+
+					const query = db.select().from(table).orderBy(table.id);
+					yield* Effect.promise(() =>
+						cache.expectHits('json', async () => {
+							await run(db.insert(table).values(input));
+
+							expect(await run(query)).toStrictEqual(output);
+							expect(await run(query.all())).toStrictEqual(output);
+							expect(await run(query.get())).toStrictEqual(output[0]);
+							expect(await run(query.values())).toHaveLength(output.length);
+						})
+					);
+				})
+			));
 
 		it.effect('RQB v2 simple find first - no rows', () =>
 			Effect.gen(function*() {
@@ -2434,8 +2505,9 @@ export const runCommonEffectSQLiteTests = (opts: RunCommonEffectSQLiteTestsOptio
 				expect(run).toStrictEqual(_run);
 				expect(values).toStrictEqual(_values);
 
-				expect(spyPut).toHaveBeenCalledTimes(4);
-				expect(spyGet).toHaveBeenCalledTimes(4);
+				// `run` returns driver's run result, which is never cached
+				expect(spyPut).toHaveBeenCalledTimes(3);
+				expect(spyGet).toHaveBeenCalledTimes(3);
 				expect(spyInvalidate).toHaveBeenCalledTimes(0);
 
 				spyPut.mockClear();

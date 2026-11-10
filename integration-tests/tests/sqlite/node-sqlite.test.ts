@@ -212,5 +212,9 @@ const skip = [
 	// DB needs to be built in special way to support this
 	'delete with limit and order by',
 	'update with limit and order by',
+	// Driver doesn't support caching
+	'all types - upstash',
+	'all types ~codecs~ - upstash',
+	'all types ~json~ - upstash',
 ];
 tests(test, skip);

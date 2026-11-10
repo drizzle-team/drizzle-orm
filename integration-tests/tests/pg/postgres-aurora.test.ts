@@ -60,11 +60,15 @@ const skips = [
 	'issue #4169',
 	// Default client has no codecs, uses shapes instead
 	'all types ~codecs~',
+	'all types ~codecs~ - upstash',
 	// Data API's JDBC driver rejects `DateStyle`s that don't begin with ISO, so it never reads non-ISO text
 	'all types ~codecs~ - non-ISO DateStyle session',
+	'all types ~codecs~ - non-ISO DateStyle session - upstash',
 	// Data API has no representation for `null` array elements
 	'all types ~codecs~ - null array elements',
+	'all types ~codecs~ - null array elements - upstash',
 	'all types ~codecs~ - custom type null array elements',
+	'all types ~codecs~ - custom type null array elements - upstash',
 ];
 
 const stringTemporalDb = (database: string) =>

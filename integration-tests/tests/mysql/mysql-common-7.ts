@@ -15,7 +15,7 @@ import {
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import { expect, expectTypeOf } from 'vitest';
-import { type AllTypes, allTypesData, allTypesTable } from './all-types';
+import { type AllTypes, allTypesData, makeAllTypes } from './all-types';
 import type { Test } from './instrumentation';
 import { createCitiesTable, createUsers2Table } from './schema2';
 
@@ -219,11 +219,12 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 	});
 
 	test.concurrent('all types', async ({ db, push }) => {
-		await push({ allTypesTable });
+		const table = makeAllTypes('all_types');
+		await push({ table });
 
-		await db.insert(allTypesTable).values(allTypesData);
+		await db.insert(table).values(allTypesData);
 
-		const rawRes = await db.select().from(allTypesTable);
+		const rawRes = await db.select().from(table);
 
 		expectTypeOf(rawRes).toEqualTypeOf<AllTypes[]>();
 		expect(rawRes).toStrictEqual([allTypesData]);

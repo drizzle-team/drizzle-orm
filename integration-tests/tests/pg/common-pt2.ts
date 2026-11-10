@@ -8,6 +8,7 @@ import {
 	countDistinct,
 	DrizzleQueryError,
 	eq,
+	type ExtractTablesFromSchema,
 	getColumns,
 	getTableColumns,
 	gt,
@@ -26,6 +27,7 @@ import {
 	min,
 	not,
 	or,
+	type RelationsBuilder,
 	sql,
 	sum,
 	sumDistinct,
@@ -65,6 +67,7 @@ import postgres from 'postgres';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import { expectRecentTime } from '~/recent-time';
+import { UpstashTestCache } from '~/upstash-cache';
 import {
 	type AllTypes,
 	allTypesData,
@@ -83,7 +86,7 @@ import {
 	makeAllTypes,
 	sessionDateStyles,
 } from './all-types';
-import type { Test } from './instrumentation';
+import type { PgTestFixtures, Test } from './instrumentation';
 import { normalizeDataWithDbCodecs } from './utils';
 
 const msDelay = 15000;
@@ -4099,6 +4102,121 @@ export function tests(test: Test) {
 
 			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
 			expect(parseStoredJson(stored)).toStrictEqual(output);
+		});
+
+		const upstashDB = (createDB: PgTestFixtures['createDB'], cache: UpstashTestCache, jit = false) => {
+			const { en, allTypesTable: table } = makeAllTypes('all_types_upstash', 'en_upstash');
+			const schema = { allTypesTable: table, ...boundsSchema };
+			const db = createDB(
+				schema,
+				(r: RelationsBuilder<ExtractTablesFromSchema<typeof schema>>) => ({
+					...allTypesRelations(r),
+					...boundsRelations(r),
+				}),
+				jit,
+				false,
+				cache,
+			);
+
+			return { db, en, table };
+		};
+
+		test('all types - upstash', async ({ createDB, push }) => {
+			await using cache = new UpstashTestCache();
+			const { run } = cache;
+			const { db, en, table } = upstashDB(createDB, cache);
+			await push({ en, table });
+
+			await cache.expectHits('all types', async () => {
+				await run(db.insert(table).values(allTypesData));
+				expect(await run(db.select().from(table))).toStrictEqual([allTypesData]);
+			});
+		});
+
+		test('all types ~codecs~ - upstash', async ({ createDB, push }) => {
+			await using cache = new UpstashTestCache();
+			const { run } = cache;
+			const { db, en, table } = upstashDB(createDB, cache);
+			await push({ en, table });
+
+			await cache.expectHits('all types', async () => {
+				await run(db.insert(table).values(allTypesData));
+				expect(await run(db.select().from(table))).toStrictEqual([allTypesData]);
+				expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
+					...allTypesData,
+					self: [allTypesData],
+				});
+			});
+			await cache.expectHits('unions', () => assertAllTypesUnions(db, table, run));
+			await cache.expectHits('bounds', () => assertAllTypesBounds(db, { run, rqb: true }));
+			await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db, { run, rqb: true }));
+			await cache.expectHits('empty arrays', () => assertAllTypesEmptyArrays(db, table, { run, rqb: true }));
+		});
+
+		test('all types ~codecs~ - null array elements - upstash', async ({ createDB }) => {
+			await using cache = new UpstashTestCache();
+			const { db } = upstashDB(createDB, cache);
+
+			await cache.expectHits(
+				'null array elements',
+				() => assertAllTypesNullArrayElements(db, { run: cache.run, rqb: true }),
+			);
+		});
+
+		test('all types ~codecs~ - custom type null array elements - upstash', async ({ createDB }) => {
+			await using cache = new UpstashTestCache();
+			const { db } = upstashDB(createDB, cache);
+			const { db: jitDb } = upstashDB(createDB, cache, true);
+
+			await cache.expectHits(
+				'custom type null array elements',
+				() => assertCustomTypeNullArrayElements(db, { run: cache.run, rqb: true }),
+			);
+			await cache.expectHits(
+				'custom type null array elements: jit',
+				() => assertCustomTypeNullArrayElements(jitDb, { run: cache.run, rqb: true }),
+			);
+		});
+
+		test('all types ~codecs~ - non-UTC session - upstash', async ({ createDB }) => {
+			await using cache = new UpstashTestCache();
+			const { db } = upstashDB(createDB, cache);
+
+			await cache.expectHits(
+				'sessions',
+				() => assertAllTypesTemporalBoundsInSessions(db, { run: cache.run, rqb: true }),
+			);
+		});
+
+		test('all types ~codecs~ - non-ISO DateStyle session - upstash', async ({ createDB }) => {
+			await using cache = new UpstashTestCache();
+			const { db } = upstashDB(createDB, cache);
+
+			await cache.expectHits(
+				'sessions',
+				() => assertAllTypesTemporalBoundsInSessions(db, { run: cache.run, rqb: true, sessions: sessionDateStyles }),
+			);
+		});
+
+		test('all types ~json~ - upstash', async ({ createDB, push }) => {
+			await using cache = new UpstashTestCache();
+			const { run } = cache;
+			const { db } = upstashDB(createDB, cache);
+			const table = pgTable('all_types_json_upstash', {
+				id: integer('id').primaryKey(),
+				json: json('json'),
+				jsonb: jsonb('jsonb'),
+				arrjson: json('arrjson').array(),
+				arrjsonb: jsonb('arrjsonb').array(),
+			});
+			await push({ table });
+
+			const { input, output } = jsonRows(['json', 'jsonb'], ['arrjson', 'arrjsonb']);
+
+			await cache.expectHits('json', async () => {
+				await run(db.insert(table).values(input));
+				expect(await run(db.select().from(table).orderBy(table.id))).toStrictEqual(output);
+			});
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018

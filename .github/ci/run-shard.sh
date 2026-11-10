@@ -37,12 +37,16 @@ cd "$(dirname "$0")/../../integration-tests"
 : "${COCKROACH_CONNECTION_STRING:=postgresql://root@$(drizzle_addr cockroach cockroach 26257 "$DRIZZLE_PORT_COCKROACH")/defaultdb?sslmode=disable}"
 : "${MSSQL_CONNECTION_STRING:=mssql://SA:drizzle123PASSWORD!@$(drizzle_addr mssql mssql 1433 "$DRIZZLE_PORT_MSSQL")?encrypt=true&trustServerCertificate=true}"
 : "${TEST_CONFIG_PATH_PREFIX:=./tests/cli/}"
+# compose/upstash.yml: Upstash's REST API (Serverless Redis HTTP) over a local Redis, for the `all types - upstash`
+# tests; the proxy runs in the Redis container's network namespace. The token is the one that file sets.
+: "${UPSTASH_REDIS_REST_URL:=http://$(drizzle_addr upstash upstash-redis 80 "$DRIZZLE_PORT_UPSTASH")}"
+: "${UPSTASH_REDIS_REST_TOKEN:=drizzle_local_upstash_token}"
 # Dates in UTC, as on GitHub-hosted runners: drivers that send local time (tedious for SQL Server) put boundary
 # values such as 9999-12-31T23:59:59.997Z out of the type's range on a machine ahead of UTC.
 export TZ=UTC
 export PG_CONNECTION_STRING PG_HTTP_GATEWAY_URL AWS_DATA_API_URL PG_VECTOR_CONNECTION_STRING PG_POSTGIS_CONNECTION_STRING \
 	PG18_URL PG17_URL PG16_URL POSTGIS_URL MYSQL_CONNECTION_STRING PLANETSCALE_CONNECTION_STRING LIBSQL_URL \
-	COCKROACH_CONNECTION_STRING MSSQL_CONNECTION_STRING TEST_CONFIG_PATH_PREFIX
+	COCKROACH_CONNECTION_STRING MSSQL_CONNECTION_STRING TEST_CONFIG_PATH_PREFIX UPSTASH_REDIS_REST_URL UPSTASH_REDIS_REST_TOKEN
 
 # Per-job hosted databases (scripts/ci-databases.ts create) write their connection strings here.
 if [[ -n "${RUNNER_TEMP:-}" && -f "$RUNNER_TEMP/ci-databases.env" ]]; then

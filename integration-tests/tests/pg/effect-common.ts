@@ -15,6 +15,7 @@ import {
 	max,
 	sql,
 } from 'drizzle-orm';
+import type { Cache } from 'drizzle-orm/cache/core';
 import { EffectCache, type EffectCacheShape } from 'drizzle-orm/cache/core/cache-effect';
 import { EffectLogger, type EffectLoggerShape, QueryEffectHKTBase } from 'drizzle-orm/effect-core';
 import {
@@ -60,6 +61,7 @@ import { SqlClient } from 'effect/sql/SqlClient';
 import { SqlError } from 'effect/sql/SqlError';
 import { jsonRows, parseStoredJson } from '~/json-values';
 import { expectRecentTime } from '~/recent-time';
+import { type UpstashTestCache, withUpstashCache } from '~/upstash-cache';
 import {
 	type AllTypes,
 	allTypesData,
@@ -216,6 +218,7 @@ export interface RunCommonEffectPgTestsOptions {
 		schema: TSchema,
 		relations: (helpers: RelationsBuilder<TTables>) => TConfig,
 		useJitMappers?: boolean,
+		cache?: Cache,
 	) => Effect.Effect<
 		PgEffectDatabase<QueryEffectHKTBase, any, ExtractTablesWithRelations<TConfig, TTables>>,
 		never,
@@ -318,6 +321,91 @@ export const runCommonEffectPgTests = (opts: RunCommonEffectPgTestsOptions): voi
 				expect(yield* db.select().from(table).orderBy(table.id)).toStrictEqual(output);
 				expect(parseStoredJson(stored)).toStrictEqual(output);
 			}));
+
+		const createUpstashDB = (cache: UpstashTestCache, name: string) => {
+			const { en, allTypesTable } = makeAllTypes(`all_types_${name}_upstash_ef`, `en_${name}_upstash_ef`);
+
+			return createDB(
+				{ allTypesTable, ...boundsSchema },
+				(r) => ({
+					...allTypesRelations(r),
+					...boundsRelations(r),
+				}),
+				false,
+				cache,
+			).pipe(Effect.map((db) => ({ db, en, allTypesTable })));
+		};
+
+		it.effect('all types - upstash', () =>
+			withUpstashCache((cache, run) =>
+				Effect.gen(function*() {
+					const { db, en, allTypesTable } = yield* createUpstashDB(cache, 'plain');
+					yield* push(db, { en, allTypesTable });
+
+					yield* Effect.promise(() =>
+						cache.expectHits('all types', async () => {
+							await run(db.insert(allTypesTable).values(allTypesData));
+							expect(await run(db.select().from(allTypesTable))).toStrictEqual([allTypesData]);
+						})
+					);
+				})
+			));
+
+		it.effect('all types ~codecs~ - upstash', () =>
+			withUpstashCache((cache, run) =>
+				Effect.gen(function*() {
+					const { db, en, allTypesTable } = yield* createUpstashDB(cache, 'cdc');
+					yield* push(db, { en, allTypesTable });
+
+					yield* Effect.promise(async () => {
+						await cache.expectHits('all types', async () => {
+							await run(db.insert(allTypesTable).values(allTypesData));
+							expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
+								...allTypesData,
+								self: [allTypesData],
+							});
+						});
+						await cache.expectHits('unions', () => assertAllTypesUnions(db as any, allTypesTable, run));
+						await cache.expectHits('bounds', () => assertAllTypesBounds(db as any, { run, rqb: true }));
+						await cache.expectHits(
+							'null array elements',
+							() => assertAllTypesNullArrayElements(db as any, { run, rqb: true }),
+						);
+						await cache.expectHits(
+							'temporal bounds',
+							() => assertAllTypesTemporalBounds(db as any, { run, rqb: true }),
+						);
+						await cache.expectHits(
+							'empty arrays',
+							() => assertAllTypesEmptyArrays(db as any, allTypesTable, { run, rqb: true }),
+						);
+					});
+				})
+			));
+
+		it.effect('all types ~json~ - upstash', () =>
+			withUpstashCache((cache, run) =>
+				Effect.gen(function*() {
+					const { db } = yield* createUpstashDB(cache, 'json');
+					const table = pgTable('all_types_json_upstash', {
+						id: integer('id').primaryKey(),
+						json: json('json'),
+						jsonb: jsonb('jsonb'),
+						arrjson: json('arrjson').array(),
+						arrjsonb: jsonb('arrjsonb').array(),
+					});
+					yield* push(db, { table });
+
+					const { input, output } = jsonRows(['json', 'jsonb'], ['arrjson', 'arrjsonb']);
+
+					yield* Effect.promise(() =>
+						cache.expectHits('json', async () => {
+							await run(db.insert(table).values(input));
+							expect(await run(db.select().from(table).orderBy(table.id))).toStrictEqual(output);
+						})
+					);
+				})
+			));
 
 		// @effect/sql-pg can't decode multidimensional arrays - skip mtx fields
 		it.effect('time zones are preserved', () =>
