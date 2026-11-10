@@ -7,7 +7,7 @@ import type { SchemaMetadata } from '../utils';
 import { fromJson } from './convertor';
 import type { Column, SQLiteDDL, SqliteEntities } from './ddl';
 import { tableFromDDL } from './ddl';
-import { defaultsCommutative } from './grammar';
+import { defaultsCommutative, isNonConstantDefault } from './grammar';
 import type { JsonCreateViewStatement, JsonDropViewStatement, JsonStatement } from './statements';
 import { prepareAddColumns, prepareRecreateColumn, prepareStatement } from './statements';
 
@@ -80,7 +80,9 @@ export const ddlDiff = async (
 		});
 	}
 
-	const createdFilteredColumns = columnsToCreate.filter((it) => !it.generated || it.generated.type === 'virtual');
+	const createdFilteredColumns = columnsToCreate.filter((it) =>
+		(!it.generated || it.generated.type === 'virtual') && !isNonConstantDefault(it.default)
+	);
 
 	preserveEntityNames(ddl1.uniques, ddl2.uniques, mode);
 	preserveEntityNames(ddl1.pks, ddl2.pks, mode);
@@ -161,6 +163,7 @@ export const ddlDiff = async (
 	});
 	const alteredColumnsBecameGenerated = alteredColumns.filter((it) => it.generated?.to?.type === 'stored');
 	const newStoredColumns = columnsToCreate.filter((it) => it.generated && it.generated.type === 'stored');
+	const newColumnsWithNonConstantDef = columnsToCreate.filter((it) => isNonConstantDefault(it.default));
 
 	const setOfTablesToRecereate = new Set(
 		[
@@ -171,6 +174,7 @@ export const ddlDiff = async (
 			...indexesDiff.filter((it) => it.isUnique && it.origin === 'auto'), // we can't drop/create auto generated unique indexes;,
 			...alteredColumnsBecameGenerated, // "It is not possible to ALTER TABLE ADD COLUMN a STORED column. https://www.sqlite.org/gencol.html"
 			...newStoredColumns, // "It is not possible to ALTER TABLE ADD COLUMN a STORED column. https://www.sqlite.org/gencol.html"
+			...newColumnsWithNonConstantDef,
 		].map((it) => it.table),
 	);
 
@@ -268,6 +272,12 @@ export const ddlDiff = async (
 	for (const _ of newStoredColumns) {
 		warnings.push(
 			`As SQLite docs mention: "It is not possible to ALTER TABLE ADD COLUMN a STORED column. One can add a VIRTUAL column, however", source: "https://www.sqlite.org/gencol.html"`,
+		);
+	}
+
+	for (const column of newColumnsWithNonConstantDef) {
+		warnings.push(
+			`As SQLite docs mention: "The column may not have a default value of CURRENT_TIME, CURRENT_DATE, CURRENT_TIMESTAMP, or an expression in parentheses", so table "${column.table}" will be recreated to add column "${column.name}", source: "https://www.sqlite.org/lang_altertable.html#:~:text=The%20column%20may%20not%20have%20a%20default%20value%20of%20CURRENT_TIME%2C%20CURRENT_DATE%2C%20CURRENT_TIMESTAMP%2C%20or%20an%20expression%20in%20parentheses."`,
 		);
 	}
 

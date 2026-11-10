@@ -2041,3 +2041,174 @@ test('drop column without values in a table with data', async () => {
 
 	expect(phints).toStrictEqual([]);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/6408
+test('Issue 6408', async () => {
+	const schema1 = {
+		materials: sqliteTable('materials', {
+			materialNumber: integer('material_number').primaryKey(),
+			materialName: text('material_name').notNull(),
+		}),
+	};
+	const schema2 = {
+		materials: sqliteTable('materials', {
+			materialNumber: integer('material_number').primaryKey(),
+			materialName: text('material_name').notNull(),
+			createdTimestamp: int('created_timestamp', { mode: 'timestamp' }).notNull().default(
+				sql`(CURRENT_TIMESTAMP)`,
+			),
+			updatedTimestamp: int('updated_timestamp', { mode: 'timestamp' }).notNull().default(
+				sql`(CURRENT_TIMESTAMP)`,
+			),
+			deletedTimestamp: int('deleted_timestamp', { mode: 'timestamp' }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	await db.run("INSERT INTO `materials` VALUES (1, 'steel');");
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_materials` (\n'
+		+ '\t`material_number` integer PRIMARY KEY,\n'
+		+ '\t`material_name` text NOT NULL,\n'
+		+ '\t`created_timestamp` integer DEFAULT (CURRENT_TIMESTAMP) NOT NULL,\n'
+		+ '\t`updated_timestamp` integer DEFAULT (CURRENT_TIMESTAMP) NOT NULL,\n'
+		+ '\t`deleted_timestamp` integer\n'
+		+ ');\n',
+		'INSERT INTO `__new_materials`(`material_number`, `material_name`) SELECT `material_number`, `material_name` FROM `materials`;',
+		'DROP TABLE `materials`;',
+		'ALTER TABLE `__new_materials` RENAME TO `materials`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const res = await db.query(
+		'select `material_number`, `material_name`, `created_timestamp` is not null as `created`, `deleted_timestamp` from `materials`;',
+	);
+	expect(res).toStrictEqual([{ material_number: 1, material_name: 'steel', created: 1, deleted_timestamp: null }]);
+});
+test('Issue 6408. add column with constant default in parentheses', async () => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey(),
+		}),
+	};
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey(),
+			col1: integer('col1').default(sql`(1)`),
+			col2: integer('col2').default(sql`((1))`),
+			col3: integer('col3').notNull().default(sql`(-1)`),
+			col4: text('col4').default(sql`('abc')`),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	await db.run('INSERT INTO `users` VALUES (1);');
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'ALTER TABLE `users` ADD `col1` integer DEFAULT (1);',
+		'ALTER TABLE `users` ADD `col2` integer DEFAULT ((1));',
+		'ALTER TABLE `users` ADD `col3` integer DEFAULT (-1) NOT NULL;',
+		"ALTER TABLE `users` ADD `col4` text DEFAULT ('abc');",
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const res = await db.query('select * from `users`;');
+	expect(res).toStrictEqual([{ id: 1, col1: 1, col2: 1, col3: -1, col4: 'abc' }]);
+});
+test('Issue 6408. add column with function and CURRENT_TIMESTAMP default', async () => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey(),
+			name: text('name'),
+		}, (t) => [index('users_name_idx').on(t.name)]),
+	};
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey(),
+			name: text('name'),
+			createdAt: text('created_at').default(sql`(datetime('now'))`),
+			updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
+		}, (t) => [index('users_name_idx').on(t.name)]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	await db.run("INSERT INTO `users` VALUES (1, 'a');");
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer PRIMARY KEY,\n'
+		+ '\t`name` text,\n'
+		+ "\t`created_at` text DEFAULT (datetime('now')),\n"
+		+ '\t`updated_at` text DEFAULT CURRENT_TIMESTAMP\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `name`) SELECT `id`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+		'CREATE INDEX `users_name_idx` ON `users` (`name`);',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const res = await db.query(
+		'select `id`, `name`, `created_at` is not null as `created`, `updated_at` is not null as `updated` from `users`;',
+	);
+	expect(res).toStrictEqual([{ id: 1, name: 'a', created: 1, updated: 1 }]);
+});
+test('Issue 6408. add column with non constant default', async () => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey(),
+			name: text('name'),
+		}, (t) => [index('users_name_idx').on(t.name)]),
+	};
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: integer('id').primaryKey(),
+			name: text('name'),
+			col: text('col').default(sql`(1 + 1)`),
+		}, (t) => [index('users_name_idx').on(t.name)]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	await db.run("INSERT INTO `users` VALUES (1, 'a');");
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer PRIMARY KEY,\n'
+		+ '\t`name` text,\n'
+		+ '\t`col` text DEFAULT (1 + 1)\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `name`) SELECT `id`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+		'CREATE INDEX `users_name_idx` ON `users` (`name`);',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const res = await db.query(
+		'select `id`, `name`, `created_at` is not null as `created`, `updated_at` is not null as `updated` from `users`;',
+	);
+	expect(res).toStrictEqual([{ id: 1, name: 'a', created: 1, updated: 1 }]);
+});
