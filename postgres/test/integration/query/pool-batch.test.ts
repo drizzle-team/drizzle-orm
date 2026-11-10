@@ -91,6 +91,66 @@ describe('pool.batch (atomic transaction) / pipeline (one conn) / parallel (fan-
 		}
 	});
 
+	test('batch metrics: one round trip, every query measured, and what the server parsed or reused', async () => {
+		const pool = testPool({ max: 1 });
+		try {
+			const named = (n: number) => pool.query('select $1::int as n', [n], { name: 'pb_metrics_n', mode: 'object' });
+			const first = await pool.batch([named(1), named(2), pool.query('select 3 as n', [], { mode: 'object' })], {
+				metrics: true,
+			});
+			expect(first.map((r) => cell(r, 'n'))).toEqual([1, 2, 3]);
+			expect(first.metrics).toMatchObject({
+				unit: 'ms',
+				statements: 5, // BEGIN, three queries, COMMIT
+				writes: 1,
+				roundTrips: 1,
+				parsed: 1, // the first use of the name
+				reused: 1, // the second use, queued behind that Parse
+				unnamed: 1,
+			});
+			expect(first.metrics.backendPid).toBeNumber();
+			expect(first.metrics.total).toBeGreaterThanOrEqual(first.metrics.acquire);
+			// each query's own metrics, as the same objects its result carries
+			expect(first.metrics.queries).toHaveLength(3);
+			first.forEach((r, i) => expect(first.metrics.queries[i]).toBe(r.metrics!));
+			expect(first.metrics.queries.map((m) => [m.statementName, m.prepared])).toEqual([
+				['pb_metrics_n', false],
+				['pb_metrics_n', true],
+				[undefined, false],
+			]);
+
+			// the connection now holds the statement: no Parse at all
+			const again = await pool.batch([named(4), named(5)], { metrics: 'us' });
+			expect(again.metrics).toMatchObject({ unit: 'us', statements: 4, roundTrips: 1, parsed: 0, reused: 2 });
+			expect(Number.isInteger(again.metrics.total)).toBe(true);
+		} finally {
+			await pool.end();
+		}
+	});
+
+	test('batch metrics count every round trip when pipelining is off', async () => {
+		const pool = testPool({ max: 1, pipeline: false });
+		try {
+			const rs = await pool.batch([pool.query('select 1'), pool.query('select 2'), pool.query('select 3')], {
+				metrics: true,
+			});
+			expect(rs.metrics).toMatchObject({ statements: 5, writes: 5, roundTrips: 5, unnamed: 3 });
+		} finally {
+			await pool.end();
+		}
+	});
+
+	test('batch without metrics carries none', async () => {
+		const pool = testPool();
+		try {
+			const rs = await pool.batch([pool.query('select 1')]);
+			expect(rs.metrics).toBeUndefined();
+			expect(rs[0]!.metrics).toBeUndefined();
+		} finally {
+			await pool.end();
+		}
+	});
+
 	test('batch is ATOMIC but pipeline is NOT: a failing member rolls back a batch, not a pipeline', async () => {
 		const pool = testPool();
 		const cnt = async () =>

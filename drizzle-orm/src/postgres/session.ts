@@ -1,21 +1,35 @@
-import type { Connection, Pool, PoolQuery, QueryResult, ShapeSpec } from '#postgres';
+import type { BatchMetrics, Connection, Pool, PoolQuery, QueryResult, ShapeSpec } from '#postgres';
 import { isBrand } from '#postgres/brand';
 import type { BatchItem, SettledQueryResult } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { QueryMetadata, WithCacheConfig } from '~/cache/core/types.ts';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError } from '~/errors.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
-import { PgAsyncPreparedQuery, PgAsyncSession, PgAsyncTransaction } from '~/pg-core/async/session.ts';
+import {
+	PgAsyncBoundQuery,
+	PgAsyncPreparedQuery,
+	PgAsyncSession,
+	PgAsyncTransaction,
+} from '~/pg-core/async/session.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgQueryResultHKT, PgRawRow, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { preparedStatementName } from '~/query-name-generator.ts';
 import type { AnyRelations } from '~/relations.ts';
-import type { Query } from '~/sql/sql.ts';
+import { fillPlaceholders, Param, Placeholder, type Query } from '~/sql/sql.ts';
 import type { Simplify } from '~/utils.ts';
 export type PostgresClient = Pool | Connection;
 
-export type PostgresBatchOptions =
+export type PostgresBatchOptions = PostgresBatchTransactionOptions & {
+	/**
+	 * Return the batch's telemetry from the driver as `response.metrics`: each query's metrics plus what the batch
+	 * did as a whole, such as its network round trips and how many statements the server parsed or reused.
+	 * `true` gives milliseconds as floats, `'ms'` whole milliseconds, `'us'` whole microseconds.
+	 */
+	metrics?: boolean | 'ms' | 'us';
+};
+
+type PostgresBatchTransactionOptions =
 	| {
 		/** `snapshot` cannot be used with `isolation: 'read uncommitted' | 'read committed'` */
 		isolation?: 'serializable' | 'repeatable read' | 'read committed' | 'read uncommitted';
@@ -32,10 +46,54 @@ export type PostgresBatchOptions =
 		snapshot: string;
 	};
 
+/**
+ * One item of `batch`, `pipeline` or `parallel`: a query builder, a prepared query (`.prepare()`), or a prepared
+ * query with bound placeholder values (`.prepare().bind({ … })`). Prepared items run under their statement name,
+ * so the server parses them once per connection and reuses the plan.
+ */
+export type PostgresBatchItem = BatchItem<'pg'> | PgAsyncPreparedQuery<any> | PgAsyncBoundQuery<any>;
+
+/** What one {@link PostgresBatchItem} resolves to, the same value awaiting it on its own would give. */
+export type PostgresBatchItemResult<TItem> = TItem extends { readonly _: { readonly result: infer TResult } } ? TResult
+	: TItem extends { readonly prepared: { execute(...args: any[]): Promise<infer TResult> } } ? TResult
+	: TItem extends { execute(...args: any[]): Promise<infer TResult> } ? TResult
+	: never;
+
+export type PostgresBatchResponse<T extends readonly PostgresBatchItem[]> = {
+	[K in keyof T]: PostgresBatchItemResult<T[K]>;
+};
+
+/** A batch's results together with the driver's telemetry for it, when `metrics` is on. */
+export type PostgresBatchResponseWithMetrics<T extends readonly PostgresBatchItem[]> = PostgresBatchResponse<T> & {
+	metrics: BatchMetrics;
+};
+
+export type PostgresSettledBatchResponse<T extends readonly PostgresBatchItem[]> = {
+	[K in keyof T]: SettledQueryResult<PostgresBatchItemResult<T[K]>>;
+};
+
 export interface PostgresSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
 	paramsInErrors?: boolean;
+}
+
+/** The placeholder values a batch item carries: only a bound prepared query has any. */
+function boundValues(item: PostgresBatchItem): Record<string, unknown> | undefined {
+	return is(item, PgAsyncBoundQuery) ? item.placeholderValues : undefined;
+}
+
+/**
+ * A batch item's params as the driver gets them. Placeholders are filled from the item's bound values, and an
+ * item that has placeholders but no values throws, the same as `.execute()` without them. Params without any
+ * placeholder are passed through as they are, with no copy.
+ */
+function batchParams(params: unknown[], values: Record<string, unknown> | undefined): unknown[] {
+	for (let i = 0; i < params.length; ++i) {
+		const p = params[i];
+		if (is(p, Placeholder) || (is(p, Param) && is(p.value, Placeholder))) return fillPlaceholders(params, values ?? {});
+	}
+	return params;
 }
 
 export class PostgresSession<
@@ -100,11 +158,12 @@ export class PostgresSession<
 			cacheConfig,
 			shape,
 			this.options.paramsInErrors,
+			queryName,
 		);
 	}
 
 	/** Atomic: runs all queries in one transaction on a single pooled connection */
-	async batch<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
+	async batch<U extends PostgresBatchItem, T extends Readonly<[U, ...U[]]>>(
 		queries: T,
 		options?: PostgresBatchOptions,
 	): Promise<any[]> {
@@ -113,7 +172,7 @@ export class PostgresSession<
 			const index = (e as { failedQueryIndex?: unknown } | null)?.failedQueryIndex;
 			const query = typeof index === 'number' ? prepared[index] : undefined;
 			if (!query) throw e;
-			throw this.queryError(query, e);
+			throw this.queryError(query, e, queries[index as number]!);
 		}).then((results) => {
 			const response = new Array(results.length);
 			for (let i = 0; i < results.length; ++i) {
@@ -126,6 +185,7 @@ export class PostgresSession<
 					? result
 					: result.rows;
 			}
+			if (results.metrics) (response as { metrics?: BatchMetrics }).metrics = results.metrics;
 
 			return response;
 		});
@@ -136,7 +196,7 @@ export class PostgresSession<
 	 *
 	 * Never throws on a query failure: resolves with one `PromiseSettledResult` per query, in input order
 	 */
-	async pipeline<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
+	async pipeline<U extends PostgresBatchItem, T extends Readonly<[U, ...U[]]>>(
 		queries: T,
 	): Promise<SettledQueryResult<any>[]> {
 		const { pool, prepared, built } = this.buildMulti('pipeline', queries);
@@ -146,7 +206,7 @@ export class PostgresSession<
 				const { mapper, mode } = prepared[i]!;
 				const result = results[i]!;
 				if (result.status === 'rejected') {
-					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, result.reason) };
+					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, result.reason, queries[i]!) };
 					continue;
 				}
 
@@ -160,7 +220,7 @@ export class PostgresSession<
 							: result.value.rows,
 					};
 				} catch (e) {
-					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, e) };
+					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, e, queries[i]!) };
 				}
 			}
 
@@ -173,7 +233,7 @@ export class PostgresSession<
 	 *
 	 * Never throws on a query failure: resolves with one `PromiseSettledResult` per query, in input order
 	 */
-	async parallel<U extends BatchItem<'pg'>, T extends Readonly<[U, ...U[]]>>(
+	async parallel<U extends PostgresBatchItem, T extends Readonly<[U, ...U[]]>>(
 		queries: T,
 	): Promise<SettledQueryResult<any>[]> {
 		const { pool, prepared, built } = this.buildMulti('parallel', queries);
@@ -183,7 +243,7 @@ export class PostgresSession<
 				const { mapper, mode } = prepared[i]!;
 				const result = results[i]!;
 				if (result.status === 'rejected') {
-					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, result.reason) };
+					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, result.reason, queries[i]!) };
 					continue;
 				}
 
@@ -197,7 +257,7 @@ export class PostgresSession<
 							: result.value.rows,
 					};
 				} catch (e) {
-					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, e) };
+					response[i] = { status: 'rejected', reason: this.queryError(prepared[i]!, e, queries[i]!) };
 				}
 			}
 
@@ -205,12 +265,16 @@ export class PostgresSession<
 		});
 	}
 
-	private queryError(prepared: PostgresPreparedQuery<any>, cause: unknown): DrizzleQueryError {
+	private queryError(prepared: PostgresPreparedQuery<any>, cause: unknown, item: PostgresBatchItem): DrizzleQueryError {
 		const { sql, params } = prepared.getQuery();
-		return new DrizzleQueryError(sql, this.options.paramsInErrors ? params : undefined, cause as Error);
+		return new DrizzleQueryError(
+			sql,
+			this.options.paramsInErrors ? batchParams(params, boundValues(item)) : undefined,
+			cause as Error,
+		);
 	}
 
-	private buildMulti(method: 'batch' | 'pipeline' | 'parallel', queries: Readonly<BatchItem<'pg'>[]>) {
+	private buildMulti(method: 'batch' | 'pipeline' | 'parallel', queries: Readonly<PostgresBatchItem[]>) {
 		const pool = this.client;
 		// `instanceof Pool` would load the bundled client for a pool from the standalone package.
 		if (!isBrand<Pool>(pool, 'Pool')) throw new Error(`\`${method}\` method is only supported on connection pools!`);
@@ -218,15 +282,24 @@ export class PostgresSession<
 		const prepared: PostgresPreparedQuery<any>[] = new Array(queries.length);
 		const built: PoolQuery[] = new Array(queries.length);
 		for (let i = 0; i < queries.length; ++i) {
-			const preparedQuery = queries[i]!._prepare() as PostgresPreparedQuery<any>;
+			const item = queries[i]!;
+			// A prepared query is used as is, so its statement name reaches the driver; a builder is prepared unnamed.
+			const preparedQuery = (is(item, PgAsyncBoundQuery)
+				? item.prepared
+				: is(item, PgAsyncPreparedQuery)
+				? item
+				: (item as BatchItem<'pg'>)._prepare()) as PostgresPreparedQuery<any>;
 			const builtQuery = preparedQuery.getQuery();
+			const params = batchParams(builtQuery.params, boundValues(item));
 			prepared[i] = preparedQuery;
 			built[i] = preparedQuery.mode === 'arrays'
-				? pool.query(builtQuery.sql, builtQuery.params, {
+				? pool.query(builtQuery.sql, params, {
+					name: preparedQuery.name,
 					mode: 'array',
 					shape: preparedQuery.shape,
 				})
-				: pool.query(builtQuery.sql, builtQuery.params, {
+				: pool.query(builtQuery.sql, params, {
+					name: preparedQuery.name,
 					mode: 'object',
 					shape: preparedQuery.shape,
 				});
@@ -297,6 +370,8 @@ export class PostgresPreparedQuery<T extends PreparedQueryConfig> extends PgAsyn
 		cacheConfig: WithCacheConfig | undefined,
 		readonly shape?: ShapeSpec,
 		paramsInErrors?: boolean,
+		/** The server-side prepared statement name, when the query was created with `.prepare()` */
+		readonly name?: string,
 	) {
 		super(executor, query, mapper, mode, logger, cache, queryMetadata, cacheConfig, paramsInErrors);
 	}

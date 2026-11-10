@@ -255,6 +255,46 @@ export type BatchOptions =
 		snapshot: string;
 	};
 
+/** Options for `pool.batch(queries, options)`: the transaction settings plus `metrics`. */
+export type BatchRunOptions = BatchOptions & {
+	/** Return telemetry for the batch as `results.metrics` (see BatchMetrics), and each query's own metrics
+	 *  as its result's `metrics`. Units as for a query's `metrics`: `true` is milliseconds as floats, `'ms'`
+	 *  whole milliseconds, `'us'` whole microseconds. A query that set its own unit keeps it. A batch that
+	 *  rejects has no results, so it reports no telemetry. Off by default, because collecting it allocates. */
+	metrics?: boolean | 'ms' | 'us';
+};
+
+/** The results of `pool.batch`, in input order. With `metrics` on, `metrics` holds the batch's telemetry. */
+export type BatchResult = QueryResult<never>[] & { metrics?: BatchMetrics };
+
+/** Telemetry of one `pool.batch` call. It covers that call alone: the batch holds its connection the
+ *  whole time, so nothing else's traffic is counted. */
+export interface BatchMetrics {
+	/** The unit of every duration below. */
+	unit: 'ms' | 'us';
+	/** Waiting for a pool connection. */
+	acquire: number;
+	/** From the call until the batch settled, `acquire` included. */
+	total: number;
+	/** Statements sent: the queries plus BEGIN, COMMIT and a snapshot import when there is one. */
+	statements: number;
+	/** Socket writes. Statements issued together share one. */
+	writes: number;
+	/** Network round trips: writes sent while nothing earlier was still waiting for its response. */
+	roundTrips: number;
+	/** Queries with a statement name that the server parsed in this batch. */
+	parsed: number;
+	/** Queries with a statement name that ran without a Parse, because the connection already held the
+	 *  statement or the same Parse was already queued ahead of it. */
+	reused: number;
+	/** Queries without a statement name, which the server parses on every run. */
+	unnamed: number;
+	/** The server process that ran the batch. */
+	backendPid: number | undefined;
+	/** Each query's own metrics, in input order: the same objects as each result's `metrics`. */
+	queries: QueryMetrics[];
+}
+
 /** What kind of connection a `Connection` is. `pooled: true` comes from a pool and can cancel its
  *  queries; `pooled: false` comes from `connect()` and cannot. A field added later must be optional,
  *  and the code that reads it must apply a default. */
