@@ -146,20 +146,21 @@ jobs:
         include:
           # Short shards share a job (.github/ci/run-shard.sh runs a+b in turn): each job's setup costs ~20 s, and a
           # self-hosted machine runs only as many jobs at once as it has runner instances.
+          # upstash: the `all types - upstash` tests of the common suites (compose/upstash.yml)
           - shard: int:mysql+int:planetscale
-            dbs: [mysql, planetscale]
+            dbs: [mysql, planetscale, upstash]
           - shard: int:postgres
-            dbs: [postgres, postgres-http-gateway, aws-data-api]
+            dbs: [postgres, postgres-http-gateway, aws-data-api, upstash]
           - shard: int:neon
-            dbs: [neon]
+            dbs: [neon, upstash]
           - shard: int:sqlite+int:turso-serverless
-            dbs: [turso]
+            dbs: [turso, upstash]
           - shard: int:other+int:imports+validators
             dbs: [mysql, postgres, postgres-postgis, postgres-vector]
           - shard: int:cockroach+int:cockroach-rqb
             dbs: [cockroach]
           - shard: int:bun+int:seeder+int:mssql
-            dbs: [postgres, postgres-vector, postgres-postgis, mysql, mssql]
+            dbs: [postgres, postgres-vector, postgres-postgis, mysql, mssql, upstash]
           - shard: orm
             dbs: []
           - shard: kit:other
@@ -322,9 +323,12 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: '24' }
       - uses: ./.github/actions/pnpm-store
-      # pkg-pr-new comes from the lockfile of the postgres package.
-      - run: pnpm install --frozen-lockfile --prefer-offline --filter @drizzle-team/postgres
-      # postgres/dist for @drizzle-team/postgres.
+      # pkg-pr-new comes from the lockfile of the postgres package. The prepack script of drizzle-pulse compiles it
+      # against drizzle-orm/dist, so it needs the dependencies of both.
+      - run: >-
+          pnpm install --frozen-lockfile --prefer-offline --filter @drizzle-team/postgres
+          --filter 'drizzle-pulse...' --filter 'drizzle-orm...'
+      # postgres/dist for @drizzle-team/postgres, drizzle-orm/dist for drizzle-pulse.
       - name: Fetch build-dist (compiled JS)
         uses: ./.github/actions/fetch-build
       - name: Download package tarballs
@@ -345,7 +349,8 @@ jobs:
         continue-on-error: true
         run: |
           bash .github/ci/publish-preview.sh update \
-            preview/drizzle-orm preview/drizzle-kit preview/drizzle-seed preview/eslint-plugin-drizzle postgres
+            preview/drizzle-orm preview/drizzle-kit preview/drizzle-seed preview/eslint-plugin-drizzle postgres \
+            drizzle-pulse
 
   packed-orm:
     needs: [prepare-head-start]

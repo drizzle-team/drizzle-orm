@@ -1,4 +1,3 @@
-/* eslint-disable drizzle-internal/require-entity-kind */
 import prand from 'pure-rand';
 import adjectives, { maxStringLength as maxAdjectiveLength } from '../datasets/adjectives.ts';
 import cityNames, { maxStringLength as maxCityNameLength } from '../datasets/cityNames.ts';

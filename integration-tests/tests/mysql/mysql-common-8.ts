@@ -5,6 +5,7 @@ import {
 	asc,
 	DrizzleQueryError,
 	eq,
+	type ExtractTablesFromSchema,
 	getColumns,
 	getTableColumns,
 	gt,
@@ -18,6 +19,7 @@ import {
 	makeJitRqbMapper,
 	max,
 	Name,
+	type RelationsBuilder,
 	sql,
 } from 'drizzle-orm';
 import {
@@ -43,13 +45,17 @@ import {
 import { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
 import { expect, expectTypeOf } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
+import { UpstashTestCache } from '~/upstash-cache';
 import {
-	allTypesCodecsTable,
+	type AllTypes,
+	allTypesData,
+	allTypesTable,
 	assertAllTypesBounds,
 	assertAllTypesTemporalBounds,
 	assertAllTypesUnions,
 	boundsRelations,
 	boundsSchema,
+	makeAllTypes,
 } from './all-types';
 import type { Test } from './instrumentation';
 import { createUsersOnUpdateTable, createUserTable } from './schema2';
@@ -1702,7 +1708,7 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 	test.concurrent('all types ~codecs~', async ({ createDB, push }) => {
 		const db = createDB({
-			schema: { allTypesTable: allTypesCodecsTable, ...boundsSchema },
+			schema: { allTypesTable, ...boundsSchema },
 			cb: (r) => ({
 				allTypesTable: {
 					self: r.many.allTypesTable({
@@ -1713,121 +1719,27 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				...boundsRelations(r),
 			}),
 		});
-		await push({ allTypesCodecsTable });
-		type ExpectedType = {
-			serial: number;
-			bigint53: number;
-			bigint64: bigint;
-			bigintstr: string;
-			binary: string;
-			boolean: boolean;
-			char: string;
-			date: Date;
-			datestr: string;
-			datetime: Date;
-			datetimestr: string;
-			decimal: string;
-			decimalnum: number;
-			decimalbig: bigint;
-			double: number;
-			float: number;
-			int: number;
-			json1: unknown;
-			json2: unknown;
-			json3: unknown;
-			json4: unknown;
-			medint: number;
-			smallint: number;
-			real: number;
-			text: string;
-			tinytext: string;
-			mediumtext: string;
-			longtext: string;
-			time: string;
-			timestamp: Date;
-			timestampstr: string;
-			tinyint: number;
-			varbin: string;
-			varchar: string;
-			year: number;
-			enum: 'enV1' | 'enV2';
-			blob: Buffer;
-			tinyblob: Buffer;
-			mediumblob: Buffer;
-			longblob: Buffer;
-			stringblob: string;
-			stringtinyblob: string;
-			stringmediumblob: string;
-			stringlongblob: string;
-		};
-
-		const testData: ExpectedType = {
-			serial: 1,
-			bigint53: 9007199254740991,
-			bigint64: 5044565289845416380n,
-			bigintstr: '5044565289845416380',
-			binary: '1',
-			boolean: true,
-			char: 'c',
-			date: new Date('2025-03-12'),
-			datestr: '2025-03-12',
-			datetime: new Date(1741743161623),
-			datetimestr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
-			decimal: '47521',
-			decimalnum: 9007199254740991,
-			decimalbig: 5044565289845416380n,
-			double: 15.35325689124218,
-			enum: 'enV1',
-			float: 1.048596,
-			real: 1.048596,
-			text: 'C4-',
-			tinytext: 'tiny text',
-			mediumtext: 'medium text',
-			longtext: 'long text',
-			int: 621,
-			json1: { str: 'strval', arr: ['str', 10] },
-			json2: [{ key: 'value', num: 7 }, 'v', '11', 5],
-			json3: 5,
-			json4: '5',
-			medint: 560,
-			smallint: 14,
-			time: '04:13:22.120',
-			timestamp: new Date(1741743161623),
-			timestampstr: new Date(1741743161623).toISOString().slice(0, 23).replace('T', ' '),
-			tinyint: 7,
-			varbin: '1010110101001101',
-			varchar: 'VCHAR',
-			year: 2025,
-			blob: Buffer.from('string'),
-			longblob: Buffer.from('string'),
-			mediumblob: Buffer.from('string'),
-			tinyblob: Buffer.from('string'),
-			stringblob: 'string',
-			stringlongblob: 'string',
-			stringmediumblob: 'string',
-			stringtinyblob: 'string',
-		};
-
-		await db.insert(allTypesCodecsTable).values(testData);
+		await push({ allTypesTable });
+		await db.insert(allTypesTable).values(allTypesData);
 
 		const session = (<any> db).session as MySqlAsyncSession;
 
-		const queryRes = await session.objects<ExpectedType>(
+		const queryRes = await session.objects<AllTypes>(
 			db.select(
-				Object.fromEntries(Object.entries(getTableColumns(allTypesCodecsTable)).map(([k, v]) => [k, v.as(v.name)])),
-			).from(allTypesCodecsTable).getSQL(true),
+				Object.fromEntries(Object.entries(getTableColumns(allTypesTable)).map(([k, v]) => [k, v.as(v.name)])),
+			).from(allTypesTable).getSQL(true),
 		).then((e) =>
 			normalizeDataWithDbCodecs({
 				db,
-				columns: getColumns(allTypesCodecsTable),
+				columns: getColumns(allTypesTable),
 				data: e,
 				mode: 'query',
 			})[0]
 		);
 
-		expect(queryRes).toStrictEqual(testData);
+		expect(queryRes).toStrictEqual(allTypesData);
 
-		await assertAllTypesUnions(db, allTypesCodecsTable);
+		await assertAllTypesUnions(db, allTypesTable);
 
 		// TiDB's engine does not support `LATERAL` derived tables, which the RQB relation query
 		// (`with: { self }`) relies on — skip the relation-based assertions there.
@@ -1844,21 +1756,21 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 				return {
 					relationRes: normalizeDataWithDbCodecs({
 						db,
-						columns: getColumns(allTypesCodecsTable),
+						columns: getColumns(allTypesTable),
 						data: relationRaw,
 						mode: 'json',
 					})[0]!,
 					rootRes: normalizeDataWithDbCodecs({
 						db,
-						columns: getColumns(allTypesCodecsTable),
+						columns: getColumns(allTypesTable),
 						data: [rootRaw],
 						mode: 'query',
 					})[0]!,
 				};
 			});
 
-			expect(relationRes).toStrictEqual(testData);
-			expect(rootRes).toStrictEqual(testData);
+			expect(relationRes).toStrictEqual(allTypesData);
+			expect(rootRes).toStrictEqual(allTypesData);
 		}
 
 		await assertAllTypesBounds(db, { rqb });
@@ -1884,6 +1796,77 @@ export function tests(test: Test, exclude: Set<string> = new Set<string>([])) {
 
 		expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
 		expect(parseStoredJson(stored)).toStrictEqual(output);
+	});
+
+	const upstashTable = makeAllTypes('all_types_cdcs_upstash');
+	const upstashSchema = { allTypesTable: upstashTable, ...boundsSchema };
+	const upstashConfig = (cache: UpstashTestCache) => ({
+		schema: upstashSchema,
+		cb: (r: RelationsBuilder<ExtractTablesFromSchema<typeof upstashSchema>>) => ({
+			allTypesTable: {
+				self: r.many.allTypesTable({
+					from: r.allTypesTable.serial,
+					to: r.allTypesTable.serial,
+				}),
+			},
+			...boundsRelations(r),
+		}),
+		cache,
+	});
+
+	test('all types - upstash', async ({ createDB, push }) => {
+		await using cache = new UpstashTestCache();
+		const { run } = cache;
+		const db = createDB(upstashConfig(cache));
+		const table = makeAllTypes('all_types_upstash');
+		await push({ table });
+
+		await cache.expectHits('all types', async () => {
+			await run(db.insert(table).values(allTypesData));
+			expect(await run(db.select().from(table))).toStrictEqual([allTypesData]);
+		});
+	});
+
+	test('all types ~codecs~ - upstash', async ({ createDB, push }) => {
+		await using cache = new UpstashTestCache();
+		const { run } = cache;
+		const db = createDB(upstashConfig(cache));
+		await push({ upstashTable });
+
+		// TiDB's engine does not support `LATERAL` derived tables, which the RQB relation query relies on
+		const rqb = !is(db as unknown, TiDBServerlessDatabase);
+
+		await cache.expectHits('all types', async () => {
+			await run(db.insert(upstashTable).values(allTypesData));
+			expect(await run(db.select().from(upstashTable))).toStrictEqual([allTypesData]);
+			if (rqb) {
+				expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
+					...allTypesData,
+					self: [allTypesData],
+				});
+			}
+		});
+		await cache.expectHits('unions', () => assertAllTypesUnions(db, upstashTable, run));
+		await cache.expectHits('bounds', () => assertAllTypesBounds(db, { run, rqb }));
+		await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db, { run, rqb }));
+	});
+
+	test('all types ~json~ - upstash', async ({ createDB, push }) => {
+		await using cache = new UpstashTestCache();
+		const { run } = cache;
+		const db = createDB(upstashConfig(cache));
+		const table = mysqlTable('all_types_json_upstash', {
+			id: int('id').primaryKey(),
+			json: json('json'),
+		});
+		await push({ table });
+
+		const { input, output } = jsonRows(['json']);
+
+		await cache.expectHits('json', async () => {
+			await run(db.insert(table).values(input));
+			expect(await run(db.select().from(table).orderBy(table.id))).toStrictEqual(output);
+		});
 	});
 
 	test.concurrent('Column as decoder applies codecs', async ({ createDB, push }) => {

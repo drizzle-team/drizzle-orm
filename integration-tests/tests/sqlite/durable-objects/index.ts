@@ -240,7 +240,6 @@ async function setupAggregateFunctionsTest(db: SQLiteAsyncDatabase<any, any, typ
 	]);
 }
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
 export class MyDurableObject extends DurableObject {
 	storage: DurableObjectStorage;
 	db: DrizzleSqliteDODatabase<typeof relations>;

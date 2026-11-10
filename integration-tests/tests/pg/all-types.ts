@@ -1681,7 +1681,9 @@ export const sessionDateStyles: TemporalSession[] = [
 
 export async function assertAllTypesTemporalBoundsInSessions(
 	db: PgAsyncDatabase<any, any>,
-	{ rqb = false, data = temporalBoundsData, sessions = sessionTimeZones }: {
+	{ run = awaitQuery, rqb = false, data = temporalBoundsData, sessions = sessionTimeZones }: {
+		/** Runs the asserted selects, which are bound to the session's transaction */
+		run?: RunQuery;
 		rqb?: boolean;
 		/** Replaces {@link temporalBoundsData}, e.g. to exclude values a driver is known to misdecode */
 		data?: TemporalBoundsRow[];
@@ -1713,22 +1715,24 @@ export async function assertAllTypesTemporalBoundsInSessions(
 				await fillTemporalBounds(<any> tx, awaitQuery, data);
 
 				expect(
-					await tx.select({
-						id: table.id,
-						date: table.date,
-						timestamp: table.timestamp,
-						timestampTz: table.timestampTz,
-						arrTimestampTz: table.arrTimestampTz,
-					}).from(table).orderBy(table.id),
+					await run(
+						tx.select({
+							id: table.id,
+							date: table.date,
+							timestamp: table.timestamp,
+							timestampTz: table.timestampTz,
+							arrTimestampTz: table.arrTimestampTz,
+						}).from(table).orderBy(table.id),
+					),
 					label,
 				).toStrictEqual(expected);
 				if (rqb) {
 					expect(
-						await (<any> tx).query.temporalBoundsTable.findMany({
+						await run((<any> tx).query.temporalBoundsTable.findMany({
 							columns,
 							orderBy: { id: 'asc' },
 							with: { self: { columns } },
-						}),
+						})),
 						label,
 					).toStrictEqual(expected.map((row) => ({ ...row, self: [row] })));
 				}
@@ -2108,13 +2112,27 @@ and array_position(${customNullElementsTable.taggedJson}, null) is not null`).or
 
 		expect(await run(query)).toStrictEqual(customNullElementsData);
 		if (rqb) {
-			taggedFromJsonCalls = 0;
-			expect(
-				await run(
-					(<any> db).query.customNullElementsTable.findMany({ orderBy: { id: 'asc' }, with: { self: true } }),
-				),
-			).toStrictEqual(customNullElementsData.map((row) => ({ ...row, self: [row] })));
-			expect(taggedFromJsonCalls).toStrictEqual(2);
+			const relational = (<any> db).query.customNullElementsTable.findMany({
+				orderBy: { id: 'asc' },
+				with: { self: true },
+			});
+			const fromJsonCalls: number[] = [];
+			const counted = {
+				then: (onFulfilled: (value: any) => any, onRejected: (reason: any) => any) => {
+					taggedFromJsonCalls = 0;
+					return relational.then((rows: unknown) => {
+						fromJsonCalls.push(taggedFromJsonCalls);
+						return rows;
+					}).then(onFulfilled, onRejected);
+				},
+			};
+
+			expect(await run(counted)).toStrictEqual(customNullElementsData.map((row) => ({ ...row, self: [row] })));
+			const [fresh, ...repeated] = fromJsonCalls;
+			expect(fresh).toStrictEqual(2);
+			// Repeated runs are served from cache, which holds either raw rows that are decoded again, or rows
+			// the driver has already decoded (e.g. `drizzle-orm/postgres` decodes in the client by query shape)
+			for (const calls of repeated) expect([0, 2]).toContain(calls);
 		}
 	} finally {
 		await run(db.execute(sql.raw(dropCustomNullElements())));

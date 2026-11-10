@@ -10,6 +10,8 @@ import {
 	Schema,
 	sql,
 } from 'drizzle-orm';
+import type { Cache } from 'drizzle-orm/cache/core';
+import { EffectCache } from 'drizzle-orm/cache/core/cache-effect';
 import * as SQLiteDrizzle from 'drizzle-orm/effect-sqlite-bun';
 import { migrate } from 'drizzle-orm/effect-sqlite-bun/migrator';
 import { getTableConfig, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
@@ -45,8 +47,10 @@ const createDB = <
 	schema: TSchema,
 	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
 	useJitMappers?: boolean,
+	cache?: Cache,
 ) =>
 	SQLiteDrizzle.make({ relations: defineRelations(schema, relations), jit: useJitMappers }).pipe(
+		Effect.provide(cache ? EffectCache.layerFromDrizzle(cache) : Layer.empty),
 		Effect.provide(SQLiteDrizzle.DefaultServices),
 	);
 

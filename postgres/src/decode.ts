@@ -15,7 +15,7 @@
 import { extAt, extLeafFor } from './geo.ts';
 import { buildJsonWalk, genJsonParsers, type JsonMarker, type JsonPlan, type JsTarget, specNeedsWalk } from './json.ts';
 import { parseJsonBuffer } from './jsonparse.ts';
-import { customAt, customDelimFor, customLeafFor } from './registry.ts';
+import { customAt, customLeafFor, type CustomTypeDef } from './registry.ts';
 import {
 	BIN_TS_MS_EXPR,
 	binTimestampMs,
@@ -185,9 +185,7 @@ const parseInstantMs = (s: string): number => instantFromString(s) ?? NaN;
 
 /** Element OID (+ optional element :target) -> leaf decoder, mirroring the scalar pickText/defaultJs defaults. */
 function elemLeafFor(elemOid: number, js?: string): Leaf {
-	const cus = customLeafFor(elemOid, js); // defineType() element (sentinel oid; bare -> raw text)
-	if (cus) return cus;
-	const ext = extLeafFor(elemOid, js); // point/line/vector element targets; bare -> raw text below
+	const ext = extLeafFor(elemOid, js); // point/line element targets; bare -> raw text below
 	if (ext) return ext;
 	switch (elemOid) {
 		case 16:
@@ -280,12 +278,15 @@ export function parseArrayLiteral(decodeLeaf: Leaf, delim = ','): (text: string)
 
 /** Whole-value Decoder for an array column, by ELEMENT type (works for extension elements whose
  *  array OID is per-database — the shape's declared element drives the decode). */
-export function arrayDecoderForElem(elem: number | undefined, js?: string): Decoder {
+export function arrayDecoderForElem(elem: number | undefined, js?: string, custom?: CustomTypeDef): Decoder {
 	// Resolved here, not at the call sites, so every array path (shape/helper/interpreted) agrees.
 	// Built-in box (603) is the only non-',' type in PG: box_out writes commas, so its arrays use ';'.
-	const parse = elem === undefined
+	// A custom element type brings its own typdelim.
+	const parse = custom
+		? parseArrayLiteral(customLeafFor(custom, js), custom.delim)
+		: elem === undefined
 		? parseArrayLiteral(strLeaf)
-		: parseArrayLiteral(elemLeafFor(elem, js), elem === 603 ? ';' : customDelimFor(elem) ?? ',');
+		: parseArrayLiteral(elemLeafFor(elem, js), elem === 603 ? ';' : ',');
 	return (b) => parse(b.toString('utf8'));
 }
 /** Same, keyed by a STATIC array OID (built-in types). */
@@ -293,11 +294,16 @@ export function arrayDecoderFor(arrayOid: number, js?: string): Decoder {
 	return arrayDecoderForElem(ELEM_OID[arrayOid], js);
 }
 
+/** `true` if the column or its array element carries a defineType() or pgvector definition. */
+export function hasTypeDefinition(col: Pick<CodegenCol, 'custom' | 'array'>): boolean {
+	return col.custom !== undefined || col.array?.custom !== undefined;
+}
+
 /**
  * Bind array parser to known array OIDs
  */
 export function tagArrayCol(col: CodegenCol): CodegenCol {
-	if (col.array || col.json) return col;
+	if (col.array || col.json || hasTypeDefinition(col)) return col;
 	const elem = ELEM_OID[col.oid];
 	return elem === undefined ? col : { ...col, array: { elem } };
 }
@@ -312,7 +318,8 @@ export interface CodegenCol {
 	js?: Target;
 	json?: JsonMarker;
 	format?: 'text' | 'binary';
-	array?: { elem: number; js?: Target };
+	array?: { elem: number; js?: Target; custom?: CustomTypeDef }; // custom: element type of a defineType() array (elem is then 0)
+	custom?: CustomTypeDef; // defineType()/pgvector scalar column: wins over config.types for the real OID; oid is 0 until filled in
 	path?: readonly string[]; // Collect() nesting path (ancestor group keys); absent/[] = top level
 	groupNullable?: readonly boolean[]; // per path segment: is that group a CollectNullable (auto-null) vs Collect (always object)?
 	xform?: (v: unknown) => unknown; // Transform() decode-time fn (captured closure; runs on null too)
@@ -627,14 +634,12 @@ function helperFor(oid: number, map: Map<number, Decoder>): AtDecoder {
  *  target — UNLESS the user overrode that array OID via config.types (map.has), which wins in both mappers
  *  (interpreted checks the override first). Every scalar column keeps the OID-keyed helperFor path. */
 function helperForCol(col: CodegenCol, map: Map<number, Decoder>): AtDecoder {
-	if (col.array && !map.has(col.oid)) {
-		const dec = arrayDecoderForElem(col.array.elem, col.array.js);
+	const customDecoder = customAt(col);
+	if (customDecoder) return customDecoder; // a declared custom type wins over a config.types override of its real OID
+	if (col.array && (col.array.custom || !map.has(col.oid))) {
+		const dec = arrayDecoderForElem(col.array.elem, col.array.js, col.array.custom);
 		return (b, o, l) => dec(b.subarray(o, o + l));
 	}
-	if (!map.has(col.oid)) {
-		const cus = customAt(col);
-		if (cus) return cus;
-	} // defineType() columns (config.types override wins)
 	if (!map.has(col.oid)) {
 		const ext = extAt(col);
 		if (ext) return ext;
@@ -700,7 +705,7 @@ function columnLines(
 		} // json-field Transform: visit the decoded value
 		return;
 	}
-	const inl = (col.array || custom.has(col.oid)) ? null : inlineSnippet(col.oid, v, col.js); // array cols always route to the helper
+	const inl = (col.array || hasTypeDefinition(col) || custom.has(col.oid)) ? null : inlineSnippet(col.oid, v, col.js); // array cols always route to the helper
 	const kind = inl ? inl[1] : col.array ? `${col.oid} array[]` : 'helper';
 	if (DEBUG) out.push(`${ind}// ${JSON.stringify(col.name)} oid=${col.oid}${col.js ? ' :' + col.js : ''} (${kind})`);
 	out.push(`${ind}${readLen} let ${v} = null;`);
@@ -1100,17 +1105,17 @@ export function pickDecoder(col: CodegenCol, map: Map<number, Decoder>): CellDec
 		const walk = buildJsonWalk(col.json);
 		return (b, o, l) => walk(base(b, o, l));
 	}
+	const customDecoder = customAt(col);
+	if (customDecoder) return customDecoder; // a declared custom type wins over a config.types override of its real OID
 	// a custom (config.types) override always wins — decode2 routes these to its helper too
-	if (map !== defaultDecoders) {
+	if (map !== defaultDecoders && !col.array?.custom) {
 		const d = map.get(col.oid);
 		if (d && d !== defaultDecoders.get(col.oid)) return wrap(d);
 	}
 	if (col.array) {
-		const dec = arrayDecoderForElem(col.array.elem, col.array.js);
+		const dec = arrayDecoderForElem(col.array.elem, col.array.js, col.array.custom);
 		return (b, o, l) => dec(b.subarray(o, o + l));
-	} // '{…}' text -> JS array (BEFORE customAt/extAt: array cols carry the element's sentinel as col.oid)
-	const cus = customAt(col);
-	if (cus) return cus; // defineType() columns (config.types override handled above)
+	}
 	const ext = extAt(col);
 	if (ext) return ext; // point / pgvector shape columns
 	return pickText(col.oid, col.js) ?? wrap(decoderFor(col.oid, map));
@@ -1220,7 +1225,6 @@ export function replBinaryFor(oid: number, map: Map<number, Decoder>): CellDecod
 const BIN_TEXT_EXACT = new Set([20, 18, 19, 25, 1042, 1043, 2950]);
 
 function replShapedLeaf(oid: number, map: Map<number, Decoder>, js?: Target): CellDecoder | null {
-	if (oid <= 0) return null; // defineType()/extension sentinels: their targets take TEXT (hex/literals), binary bytes can't honor them
 	if (map !== defaultDecoders) {
 		const d = map.get(oid);
 		if (d && d !== defaultDecoders.get(oid)) return null;
@@ -1260,6 +1264,7 @@ function replShapedLeaf(oid: number, map: Map<number, Decoder>, js?: Target): Ce
 /** Binary-tuple decoder for a shaped replication column, or null when binary can't honor the
  *  declaration. Json() markers reuse the text decode path (the payload is the json text). */
 export function replBinaryForCol(col: CodegenCol, map: Map<number, Decoder>): CellDecoder | null {
+	if (hasTypeDefinition(col)) return null; // custom targets take TEXT (hex/literals), binary bytes can't honor them
 	if (col.json) {
 		const d = pickDecoder(col, map);
 		return col.oid === 3802 ? (b, o, l) => d(b, o + 1, l - 1) : d;

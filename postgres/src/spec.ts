@@ -3,7 +3,7 @@
 // separate from shape.ts so the connection can resolve a `{ shape }` query option WITHOUT pulling in the
 // whole-result-set codegen used by the standalone Shape() helper. No node deps (imports only json/types).
 import { BINARY_FAST, type CodegenCol } from './decode.ts';
-import { EXT_HALFVEC, EXT_SPARSEVEC, EXT_VECTOR } from './geo.ts';
+import { HALFVEC_DEF, SPARSEVEC_DEF, VECTOR_DEF } from './geo.ts';
 import {
 	type CollectMarker,
 	isCollectMarker,
@@ -18,7 +18,7 @@ import {
 	type TransformMarker,
 	validateJsonSpec,
 } from './json.ts';
-import { type CustomMarker, isCustomMarker } from './registry.ts';
+import { type CustomMarker, type CustomTypeDef, isCustomMarker } from './registry.ts';
 import type { ShapeMapper } from './shape.ts';
 
 // PG type alias -> OID. `satisfies` (not a `: Record<…>` annotation) keeps the literal keys so PgType can
@@ -218,13 +218,19 @@ export function shapeCols(spec: ShapeSpec): CodegenCol[] {
 	return out;
 }
 
+const PGVECTOR_DEFS = new Map<string, CustomTypeDef>([
+	['vector', VECTOR_DEF],
+	['halfvec', HALFVEC_DEF],
+	['sparsevec', SPARSEVEC_DEF],
+]);
+
 /** Resolve a single non-nesting leaf (a scalar/array TypeSpec, a Json marker, or a defineType
  *  marker) to a CodegenCol. */
 function resolveLeaf(name: string, t: TypeSpec | JsonMarker | CustomMarker): CodegenCol {
-	if (isCustomMarker(t)) { // defineType(): the def's sentinel oid is the identity, the target rides in js
+	if (isCustomMarker(t)) { // defineType(): the column carries the definition; oid 0 = the real OID comes from the result
 		return t.isArray
-			? { name, oid: t.__customType.oid, array: { elem: t.__customType.oid, js: t.target as CodegenCol['js'] } }
-			: { name, oid: t.__customType.oid, js: t.target as CodegenCol['js'] };
+			? { name, oid: 0, array: { elem: 0, js: t.target as CodegenCol['js'], custom: t.__customType } }
+			: { name, oid: 0, js: t.target as CodegenCol['js'], custom: t.__customType };
 	}
 	if (isJsonMarker(t)) {
 		validateJsonSpec(t.spec);
@@ -234,26 +240,18 @@ function resolveLeaf(name: string, t: TypeSpec | JsonMarker | CustomMarker): Cod
 	// RowDescription (or the cached fields on prepared reuse) and the column decodes like a
 	// plain query column (default decoder catalog, TEXT wire format).
 	if (t === 'unknown') return { name, oid: 0 };
-	// pgvector / PostGIS: extension types have DYNAMIC OIDs — sentinel OIDs select the decoder
-	// by DECLARED name (see geo.ts); the runtime OID is irrelevant (text format, name-driven).
+	// pgvector: extension types have DYNAMIC OIDs, so the declared name selects the definition
+	// (see geo.ts). The real OID comes from the result, and the decode follows the name.
 	{
 		const { pg, js } = splitType(t as string);
-		const base = pg.toLowerCase();
-		if (base === 'vector') return { name, oid: EXT_VECTOR, js };
-		if (base === 'halfvec') return { name, oid: EXT_HALFVEC, js };
-		if (base === 'sparsevec') return { name, oid: EXT_SPARSEVEC, js };
+		const def = PGVECTOR_DEFS.get(pg.toLowerCase());
+		if (def) return { name, oid: 0, js, custom: def };
 	}
 	const { pg, js } = splitType(t);
 	if (pg.endsWith('[]')) { // array column: decode '{…}' text -> JS array (always TEXT format; no binary array decoder)
 		const elemName = pg.slice(0, -2).toLowerCase();
-		// extension elements (dynamic OIDs): the SENTINEL is both the col oid (cache key) and the
-		// array element — decode is driven entirely by the declared name, like the scalar forms
-		const extElem = elemName === 'vector' ? EXT_VECTOR : elemName === 'halfvec'
-			? EXT_HALFVEC
-			: elemName === 'sparsevec'
-			? EXT_SPARSEVEC
-			: undefined;
-		if (extElem !== undefined) return { name, oid: extElem, array: { elem: extElem, js } };
+		const extDef = PGVECTOR_DEFS.get(elemName);
+		if (extDef) return { name, oid: 0, array: { elem: 0, js, custom: extDef } };
 		const elem = (TYPE_OID as Record<string, number | undefined>)[elemName];
 		if (elem === undefined) {
 			throw new Error(

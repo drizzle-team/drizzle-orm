@@ -1,5 +1,6 @@
 import { entityKind, is } from '~/entity.ts';
 import type { Table } from '~/table.ts';
+import { encodeUtf8 } from './encoding.ts';
 import type { CacheConfig, QueryMetadata, WithCacheConfig } from './types.ts';
 
 export abstract class Cache {
@@ -303,8 +304,6 @@ function getNodeCreateHash(): NodeCreateHash | null {
 	return (nodeCreateHash = resolved);
 }
 
-let encoder: TextEncoder | undefined;
-
 const VIEW_TAGS: Record<string, string> = {
 	// Stays empty - UInt8Array & Buffer params are processed identically by drivers
 	Uint8Array: '',
@@ -364,8 +363,7 @@ export async function hashQuery(sql: string, params?: any[]) {
 	const createHash = getNodeCreateHash();
 	if (createHash) return createHash('sha256').update(dataToHash).digest('hex');
 
-	encoder ??= new TextEncoder();
-	const data = encoder.encode(dataToHash);
+	const data = encodeUtf8(dataToHash);
 
 	const subtle = typeof globalThis.crypto !== 'undefined' ? globalThis.crypto.subtle : undefined;
 

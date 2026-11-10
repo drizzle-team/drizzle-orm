@@ -1,0 +1,25 @@
+services:
+  upstash-redis:
+    image: redis:7.4-alpine
+    network_mode: bridge
+    mem_limit: 256m
+    command: redis-server --save '' --appendonly no
+    ports:
+      - "${DRIZZLE_PORT_UPSTASH:-8079}:80"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  upstash-http:
+    image: hiett/serverless-redis-http:0.0.10
+    network_mode: service:upstash-redis
+    mem_limit: 256m
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: drizzle_local_upstash_token
+      SRH_CONNECTION_STRING: redis://localhost:6379
+    depends_on:
+      upstash-redis:
+        condition: service_healthy

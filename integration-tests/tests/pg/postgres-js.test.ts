@@ -37,7 +37,9 @@ tests(test, [
 	'set json/jsonb fields with strings and retrieve with the -> operator',
 	// null-element handling is broken on used in tests version of the driver, orm side is fine
 	'all types ~codecs~ - null array elements',
+	'all types ~codecs~ - null array elements - upstash',
 	'all types ~codecs~ - custom type null array elements',
+	'all types ~codecs~ - custom type null array elements - upstash',
 ]);
 
 test('custom codecs for client with custom types (changelog example)', async ({ kit, push }) => {

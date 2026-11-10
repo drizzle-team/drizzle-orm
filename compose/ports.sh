@@ -10,7 +10,7 @@
 # runners that share Docker's network namespace (host networking) open outgoing connections from that range, and
 # one of them holding a published port's number fails the next container that publishes it.
 #
-# Some servers are shared on a self-hosted machine instead (DRIZZLE_SHARED_DIALECTS): one long-lived container for
+# Some servers are shared on a self-hosted machine instead (DRIZZLE_SHARED_IMAGES): one long-lived container for
 # all runner instances, on ports 20000 + index (the block no slot uses), never torn down by a job. Each job works
 # in databases of its own on it, named with DRIZZLE_TEST_DB_PREFIX, which compose/dockers.sh creates and the test
 # instrumentation recreates (integration-tests/tests/pg/instrumentation.ts testDatabase). It saves every job
@@ -29,16 +29,16 @@ fi
 # Servers whose tests keep to databases of their own. Not the postgres16/17/18 or CockroachDB servers: drizzle-kit's
 # tests drop every role on those, and roles belong to the whole server. Not MySQL: its databases are its schemas,
 # and drizzle-kit's pull tests expect one named drizzle.
-DRIZZLE_SHARED_DIALECTS=(postgres postgres-postgis postgres-vector postgres-http-gateway aws-data-api mssql)
+DRIZZLE_SHARED_IMAGES=(postgres postgres-postgis postgres-vector postgres-http-gateway aws-data-api mssql)
 
 drizzle_is_shared() {
 	[ "$CI_PORT_OFFSET" -ne 0 ] || return 1
 	local d
-	for d in "${DRIZZLE_SHARED_DIALECTS[@]}"; do [ "$d" = "$1" ] && return 0; done
+	for d in "${DRIZZLE_SHARED_IMAGES[@]}"; do [ "$d" = "$1" ] && return 0; done
 	return 1
 }
 
-# The compose project of a dialect: shared servers have one name per machine, the others one per runner instance.
+# The compose project of an image: shared servers have one name per machine, the others one per runner instance.
 drizzle_project() {
 	if drizzle_is_shared "$1"; then echo "drizzle-shared-$1"; else echo "drizzle-$1${DRIZZLE_COMPOSE_SUFFIX}"; fi
 }
@@ -83,9 +83,11 @@ export DRIZZLE_PORT_TURSO2="$(_port 8092 28)"
 export DRIZZLE_PORT_TURSO3="$(_port 8093 29)"
 export DRIZZLE_PORT_TURSO4="$(_port 8094 30)"
 export DRIZZLE_PORT_PLANETSCALE="$(_port 3900 31)"
+export DRIZZLE_PORT_PULSE="$(_port 5433 32)"
+export DRIZZLE_PORT_UPSTASH="$(_port 8079 32)"
 
 # host:port where this machine reaches a compose service's container port, for connection strings.
-#   drizzle_addr <dialect> <service> <container port> <published port>
+#   drizzle_addr <image> <service> <container port> <published port>
 # On CI the container's own IP: a published port goes through Docker's port-forwarding proxy, which took a Postgres
 # query 53 us against 13 us direct (pgbench, from a container on the host network as the runners are). Runners on
 # the machine that runs Docker (GitHub-hosted, or containers on its host network) reach container IPs. Locally, and

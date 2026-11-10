@@ -116,8 +116,14 @@ if (process.env['NEON_LOCAL']) {
 			);
 		}
 	};
+	const upstashUrl = process.env['UPSTASH_REDIS_REST_URL'];
+	const upstashOrigin = upstashUrl ? new URL(upstashUrl).origin : undefined;
 	const realFetch = globalThis.fetch;
 	globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+		const target = input instanceof Request ? input.url : String(input);
+		if (upstashOrigin && URL.canParse(target) && new URL(target).origin === upstashOrigin) {
+			return realFetch(input, init);
+		}
 		assertLocalNeon(input); // rejects the returned promise, as a failing fetch does
 		return realFetch(input, init);
 	}) as typeof fetch;
@@ -188,7 +194,6 @@ const ensureLocalNeonDatabase = async (url: URL) => {
 };
 
 // TODO: @L-Mario564 we need this rule only for drizzle-orm package
-// oxlint-disable-next-line drizzle-internal/require-entity-kind
 export class TestCache extends Cache {
 	private globalTtl: number = 1000;
 	private usedTablesPerKey: Record<string, string[]> = {};
@@ -252,7 +257,6 @@ export class TestCache extends Cache {
 	}
 }
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
 	constructor(private db: ClientNodePostgres) {}
 

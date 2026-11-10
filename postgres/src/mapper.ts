@@ -7,14 +7,27 @@
 import { addBrand } from './brand.ts';
 import { type CodegenCol, compileRow } from './decode.ts';
 import { pickDecoder } from './decode.ts';
+import type { CustomTypeDef } from './registry.ts';
 import type { Decoder } from './types.ts';
 
 export type RowMapper = (body: Buffer) => unknown;
 export type RowMapperFactory = (cols: CodegenCol[], mode: 'array' | 'object', map: Map<number, Decoder>) => RowMapper;
 
+// A definition has no id of its own. This copy of the module numbers the ones it sees, and the cache
+// that uses the numbers lives in the same copy, so two copies of the driver never compare their ids.
+const customIds = new WeakMap<CustomTypeDef, number>();
+let lastCustomId = 0;
+const customId = (def: CustomTypeDef | undefined): number | '' => {
+	if (!def) return '';
+	let id = customIds.get(def);
+	if (id === undefined) customIds.set(def, id = ++lastCustomId);
+	return id;
+};
+
 // The forCols key: everything about a resolved column that changes the compiled mapper. The mode is not in it
 // (one map per mode), and array mode leaves names out: an array mapper never reads them. User-supplied
 // strings (names, Collect path segments) are length-prefixed so no name can forge a column boundary.
+// A defineType()/pgvector column has oid 0 and carries its definition, so the definition is in the key.
 // NB: encode the whole json marker (its declared shape), not just "has json" — two shapes that differ
 // only inside a Json()/JsonArray() must get different mappers, else the first one is wrongly reused.
 function colsKey(cols: CodegenCol[], names: boolean): string {
@@ -22,11 +35,11 @@ function colsKey(cols: CodegenCol[], names: boolean): string {
 	for (const c of cols) {
 		key += `${names ? c.name.length + ':' + c.name : ''}|${c.oid}|${c.format ?? 't'}|${c.js ?? ''}|${
 			c.json ? JSON.stringify(c.json) : ''
-		}|${c.array ? 'a' + c.array.elem + (c.array.js ?? '') : ''}|${
-			c.path ? c.path.map((p) => p.length + ':' + p).join('') : ''
-		}|${c.groupNullable ? c.groupNullable.map((x) => (x ? '1' : '0')).join('') : ''}|${c.nullable ? 'n' : ''}|${
-			c.xformId ?? ''
-		};`;
+		}|${c.array ? 'a' + c.array.elem + (c.array.js ?? '') + ':' + customId(c.array.custom) : ''}|${
+			customId(c.custom)
+		}|${c.path ? c.path.map((p) => p.length + ':' + p).join('') : ''}|${
+			c.groupNullable ? c.groupNullable.map((x) => (x ? '1' : '0')).join('') : ''
+		}|${c.nullable ? 'n' : ''}|${c.xformId ?? ''};`;
 	}
 	return key;
 }
@@ -155,7 +168,7 @@ function jitMapper(cols: CodegenCol[], mode: 'array' | 'object', map: Map<number
 	return compileRow(cols, mode, map);
 }
 
-/** Pick the mapper strategy for a `decode` setting. `'jit'` on a no-eval runtime throws (fail fast). */
+/** Pick the mapper strategy for a `decode` setting (uncached: RowMappers caches). `'jit'` on a no-eval runtime throws (fail fast). */
 export function buildMapperFactory(
 	decode: 'auto' | 'jit' | 'interpreted' = 'auto',
 	hasEval = isEvalAvailable(),

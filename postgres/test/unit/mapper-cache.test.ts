@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test';
 import { buildDecoders, type CodegenCol } from '../../src/decode.ts';
 import { Transform } from '../../src/json.ts';
 import { RowMappers } from '../../src/mapper.ts';
+import { defineType } from '../../src/registry.ts';
 import { shapeCols } from '../../src/spec.ts';
 
 const cols: CodegenCol[] = [{ name: 'id', oid: 23 }, { name: 'name', oid: 25 }];
@@ -41,6 +42,19 @@ describe('row mapper cache', () => {
 		expect(forged).not.toBe(two);
 		const row = Buffer.from([0, 1, 0, 0, 0, 1, 0x78]); // 1 column, 'x'
 		expect(forged(row)).toEqual({ 'a|25|t|||||||;1:b': 'x' });
+	});
+
+	test('custom types on the same OID get their own mapper', () => {
+		const m = new RowMappers('interpreted', buildDecoders());
+		const a = defineType('ta', { targets: { up: (t) => t.toUpperCase() } });
+		const b = defineType('tb', { targets: { up: (t) => t + '!' } });
+		const col = (t: typeof a) => [{ name: 'v', oid: 1234, js: 'up' as never, custom: t.def }];
+		const ma = m.forCols(col(a), 'object');
+		const mb = m.forCols(col(b), 'object');
+		expect(mb).not.toBe(ma);
+		const row = Buffer.from([0, 1, 0, 0, 0, 2, 0x61, 0x62]); // 1 column, 'ab'
+		expect(ma(row)).toEqual({ v: 'AB' });
+		expect(mb(row)).toEqual({ v: 'ab!' });
 	});
 
 	test('each Transform() is its own shape', () => {

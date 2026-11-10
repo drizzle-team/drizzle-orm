@@ -22,7 +22,6 @@ import { type Connection, createConnection } from 'mysql2/promise';
 import { test as base } from 'vitest';
 import relations from './relations';
 
-// oxlint-disable-next-line drizzle-internal/require-entity-kind
 export class TestCache extends Cache {
 	private globalTtl: number = 1000;
 	private usedTablesPerKey: Record<string, string[]> = {};
@@ -86,7 +85,6 @@ export class TestCache extends Cache {
 	}
 }
 
-// eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
 	constructor(private db: Connection) {}
 
@@ -272,6 +270,7 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 				cb: (helpers: RelationsBuilder<ExtractTablesFromSchema<S>>) => TConfig,
 				useJitMappers?: boolean,
 				paramsInErrors?: boolean,
+				cache?: Cache,
 			): SingleStoreDatabase<any, any, ExtractTablesWithRelations<TConfig, ExtractTablesFromSchema<S>>>;
 		};
 		caches: {
@@ -355,11 +354,12 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 					) => RelationsBuilderConfig<ExtractTablesFromSchema<S>>,
 					useJitMappers?: boolean,
 					paramsInErrors?: boolean,
+					cache?: Cache,
 				) => {
 					const relations = cb ? defineRelations(schema, cb) : defineRelations(schema);
 
 					if (vendor === 'singlestore') {
-						return drizzleSingleStore({ client: kit.client, relations, jit: useJitMappers, paramsInErrors });
+						return drizzleSingleStore({ client: kit.client, relations, jit: useJitMappers, paramsInErrors, cache });
 					}
 
 					if (vendor === 'proxy') {
@@ -383,6 +383,7 @@ const testFor = (vendor: 'singlestore' | 'proxy') => {
 							jit: useJitMappers,
 							paramsInErrors,
 							codecs: singleStoreCodecs,
+							cache,
 						});
 					}
 					throw new Error();

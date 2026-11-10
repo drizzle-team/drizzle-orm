@@ -28,18 +28,18 @@ test('all types - client with custom type options', async ({ push, client: { dat
 	});
 	const db = drizzle({ client });
 
-	const allTypesTable = makeAllTypes('all_types_client_options');
-	await push({ allTypesTable });
+	const table = makeAllTypes('all_types_client_options');
+	await push({ table });
 
 	const originalTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 	try {
 		for (const tz of ['America/Los_Angeles', 'Pacific/Kiritimati']) {
 			process.env['TZ'] = tz;
 
-			await db.delete(allTypesTable);
-			await db.insert(allTypesTable).values(allTypesData);
+			await db.delete(table);
+			await db.insert(table).values(allTypesData);
 
-			expect(await db.select().from(allTypesTable), tz).toStrictEqual([allTypesData]);
+			expect(await db.select().from(table), tz).toStrictEqual([allTypesData]);
 		}
 	} finally {
 		process.env['TZ'] = originalTz;

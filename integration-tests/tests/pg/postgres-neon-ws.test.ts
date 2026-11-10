@@ -31,7 +31,7 @@ import {
 	assertSnapshotIsolatesTransaction,
 } from './snapshot';
 
-const skips = ['raw jsons', 'all types ~codecs~'];
+const skips = ['raw jsons', 'all types ~codecs~', 'all types ~codecs~ - upstash'];
 
 tests(test, skips);
 

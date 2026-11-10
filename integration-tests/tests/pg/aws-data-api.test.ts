@@ -42,13 +42,16 @@ const skips = [
 	'issue #4169',
 	// Data API's JDBC driver rejects `DateStyle`s that don't begin with ISO, so it never reads non-ISO text
 	'all types ~codecs~ - non-ISO DateStyle session',
+	'all types ~codecs~ - non-ISO DateStyle session - upstash',
 	// Data API returns json as text, results without codecs (raw, untyped `sql`) keep it as a string, redefined below
 	'raw jsons',
 	'set json/jsonb fields with objects and retrieve with the -> operator',
 	'set json/jsonb fields with strings and retrieve with the -> operator',
 	// Data API has no representation for `null` array elements
 	'all types ~codecs~ - null array elements',
+	'all types ~codecs~ - null array elements - upstash',
 	'all types ~codecs~ - custom type null array elements',
+	'all types ~codecs~ - custom type null array elements - upstash',
 ];
 
 describe('aws-data-api/pg', () => {

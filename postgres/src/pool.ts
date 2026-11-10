@@ -6,6 +6,7 @@
 // are rolled back before reuse. In-flight queries are never silently replayed.
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { addBrand } from './brand.ts';
+import { replicate, type ReplicateHandle, type ReplicateOptions } from './cdc.ts';
 import { installVercelCompat, type VercelPoolSurface } from './compat/vercel.ts';
 import {
 	type Connection,
@@ -189,6 +190,13 @@ export class Pool {
 		// `await` INSIDE the scope: pool.query() is LAZY, so returning its PoolQuery unawaited would run the
 		// acquire in the CALLER's context (guard still armed) and defeat the hatch.
 		return this.als.run({ active: false }, async () => await fn());
+	}
+
+	/** Start a managed CDC session, the same as {@link replicate}. The replication connection uses the
+	 *  connection settings of this pool, so `options` has no `url`. The session does not use a pool
+	 *  connection, and `end()` does not stop it. */
+	replicate(options: Omit<ReplicateOptions, 'url'>): ReplicateHandle {
+		return replicate({ ...options, url: this.cfg });
 	}
 
 	async acquire(): Promise<Connection<{ pooled: true }>> {

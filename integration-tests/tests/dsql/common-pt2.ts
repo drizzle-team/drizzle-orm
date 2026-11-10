@@ -9,6 +9,7 @@ import {
 	desc,
 	DrizzleQueryError,
 	eq,
+	type ExtractTablesFromSchema,
 	getColumns,
 	getTableColumns,
 	gt,
@@ -27,6 +28,7 @@ import {
 	min,
 	not,
 	or,
+	type RelationsBuilder,
 	sql,
 	sum,
 	sumDistinct,
@@ -59,6 +61,7 @@ import type { DsqlAsyncSession } from 'drizzle-orm/pg-core/async/dsql';
 import { PostgresJsDsqlDatabase } from 'drizzle-orm/postgres-js/dsql';
 import { describe, expect, expectTypeOf } from 'vitest';
 import { jsonRows, parseStoredJson } from '~/json-values';
+import { UpstashTestCache } from '~/upstash-cache';
 import { normalizeDataWithDbCodecs } from '../pg/utils';
 import {
 	type AllTypes,
@@ -3540,6 +3543,65 @@ export function tests(test: Test) {
 
 			expect(await db.select().from(table).orderBy(table.id)).toStrictEqual(output);
 			expect(parseStoredJson(stored)).toStrictEqual(output);
+		});
+
+		const { allTypesTable: upstashTable } = makeAllTypes('all_types_upstash');
+		const upstashSchema = { allTypesTable: upstashTable, ...boundsSchema };
+		const upstashRelations = (r: RelationsBuilder<ExtractTablesFromSchema<typeof upstashSchema>>) => ({
+			...allTypesRelations(r),
+			...boundsRelations(r),
+		});
+
+		test('all types - upstash', async ({ createDB, push }) => {
+			await using cache = new UpstashTestCache();
+			const { run } = cache;
+			const table = upstashTable;
+			const db = createDB(upstashSchema, upstashRelations, false, false, cache);
+			await push({ table });
+
+			await cache.expectHits('all types', async () => {
+				await run(db.insert(table).values(allTypesData));
+				expect(await run(db.select().from(table))).toStrictEqual([allTypesData]);
+			});
+		});
+
+		test('all types ~codecs~ - upstash', async ({ createDB, push }) => {
+			await using cache = new UpstashTestCache();
+			const { run } = cache;
+			const table = upstashTable;
+			const db = createDB(upstashSchema, upstashRelations, false, false, cache);
+			await push({ table });
+
+			await cache.expectHits('all types', async () => {
+				await run(db.insert(table).values(allTypesData));
+				expect(await run(db.select().from(table))).toStrictEqual([allTypesData]);
+				expect(await run(db.query.allTypesTable.findFirst({ with: { self: true } }))).toStrictEqual({
+					...allTypesData,
+					self: [allTypesData],
+				});
+			});
+			await cache.expectHits('unions', () => assertAllTypesUnions(db, table, run));
+			await cache.expectHits('bounds', () => assertAllTypesBounds(db, { run, rqb: true }));
+			await cache.expectHits('temporal bounds', () => assertAllTypesTemporalBounds(db, { run, rqb: true }));
+		});
+
+		test('all types ~json~ - upstash', async ({ createDB, push }) => {
+			await using cache = new UpstashTestCache();
+			const { run } = cache;
+			const db = createDB(upstashSchema, upstashRelations, false, false, cache);
+			const table = pgTable('all_types_json_upstash', {
+				id: integer('id').primaryKey(),
+				json: json('json'),
+				jsonb: jsonb('jsonb'),
+			});
+			await push({ table });
+
+			const { input, output } = jsonRows(['json', 'jsonb']);
+
+			await cache.expectHits('json', async () => {
+				await run(db.insert(table).values(input));
+				expect(await run(db.select().from(table).orderBy(table.id))).toStrictEqual(output);
+			});
 		});
 
 		// https://github.com/drizzle-team/drizzle-orm/issues/3018

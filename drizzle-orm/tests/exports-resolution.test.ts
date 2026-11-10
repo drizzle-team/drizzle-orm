@@ -106,7 +106,7 @@ describe.skipIf(!ARTIFACTS_PRESENT)('driven attw probe across entry shapes', () 
 			expect(failing, failing.map((p) => `${p.kind}@${isEntrypointProblem(p) ? p.entrypoint : '?'}`).join(', '))
 				.toEqual([]);
 			expect(exitCodeForMode(analysis, mode)).toBe(0);
-		});
+		}, 60_000);
 	}
 });
 
